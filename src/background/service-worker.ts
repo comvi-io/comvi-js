@@ -1,10 +1,29 @@
 /**
  * Background service worker for the Chrome extension
  *
- * Manages tab states, badge updates, and message routing.
+ * Manages tab states, icon updates, badge updates, and message routing.
  */
 
 import type { Message, StatusResponsePayload } from "../shared/messages";
+
+// Icon paths for different states
+const ICONS = {
+  inactive: {
+    16: "icons/icon-inactive-16.svg",
+    32: "icons/icon-inactive-32.svg",
+    48: "icons/icon-inactive-48.svg",
+  },
+  detected: {
+    16: "icons/icon-detected-16.svg",
+    32: "icons/icon-detected-32.svg",
+    48: "icons/icon-detected-48.svg",
+  },
+  active: {
+    16: "icons/icon-active-16.svg",
+    32: "icons/icon-active-32.svg",
+    48: "icons/icon-active-48.svg",
+  },
+} as const;
 
 // Track tab states
 interface TabState {
@@ -15,17 +34,35 @@ interface TabState {
 
 const tabStates = new Map<number, TabState>();
 
-// Update badge based on tab state
-function updateBadge(tabId: number, state: TabState) {
+// Update icon and badge based on tab state
+function updateIcon(tabId: number, state: TabState) {
+  let iconSet: (typeof ICONS)[keyof typeof ICONS];
+  let badgeText = "";
+  let badgeColor = "#9ca3af";
+
   if (state.editorActive) {
-    chrome.action.setBadgeText({ text: "ON", tabId });
-    chrome.action.setBadgeBackgroundColor({ color: "#22c55e", tabId });
+    iconSet = ICONS.active;
+    badgeText = "ON";
+    badgeColor = "#22c55e";
   } else if (state.tolkieDetected) {
-    chrome.action.setBadgeText({ text: "", tabId });
-    chrome.action.setBadgeBackgroundColor({ color: "#3b82f6", tabId });
+    iconSet = ICONS.detected;
+    badgeColor = "#3b82f6";
   } else {
-    chrome.action.setBadgeText({ text: "", tabId });
+    iconSet = ICONS.inactive;
   }
+
+  // Update icon
+  chrome.action.setIcon({ path: iconSet, tabId });
+
+  // Update badge
+  chrome.action.setBadgeText({ text: badgeText, tabId });
+  chrome.action.setBadgeBackgroundColor({ color: badgeColor, tabId });
+}
+
+// Reset icon to default (inactive) state
+function resetIcon(tabId: number) {
+  chrome.action.setIcon({ path: ICONS.inactive, tabId });
+  chrome.action.setBadgeText({ text: "", tabId });
 }
 
 // Handle messages from content scripts
@@ -42,7 +79,7 @@ chrome.runtime.onMessage.addListener((message: Message, sender) => {
         version: payload.version ?? undefined,
       };
       tabStates.set(tabId, state);
-      updateBadge(tabId, state);
+      updateIcon(tabId, state);
       break;
     }
 
@@ -52,7 +89,7 @@ chrome.runtime.onMessage.addListener((message: Message, sender) => {
         editorActive: false,
       };
       tabStates.set(tabId, state);
-      updateBadge(tabId, state);
+      updateIcon(tabId, state);
       break;
     }
 
@@ -63,7 +100,7 @@ chrome.runtime.onMessage.addListener((message: Message, sender) => {
       };
       currentState.editorActive = true;
       tabStates.set(tabId, currentState);
-      updateBadge(tabId, currentState);
+      updateIcon(tabId, currentState);
       break;
     }
 
@@ -71,7 +108,7 @@ chrome.runtime.onMessage.addListener((message: Message, sender) => {
       const currentState = tabStates.get(tabId);
       if (currentState) {
         currentState.editorActive = false;
-        updateBadge(tabId, currentState);
+        updateIcon(tabId, currentState);
       }
       break;
     }
@@ -87,7 +124,7 @@ chrome.tabs.onRemoved.addListener((tabId) => {
 chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
   if (changeInfo.status === "loading") {
     tabStates.delete(tabId);
-    chrome.action.setBadgeText({ text: "", tabId });
+    resetIcon(tabId);
   }
 });
 

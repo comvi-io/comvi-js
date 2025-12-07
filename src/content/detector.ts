@@ -3,6 +3,10 @@
  *
  * This script runs in the page's JavaScript context, allowing direct access
  * to window.__TOLKIE__. It communicates with the extension via custom events.
+ *
+ * Detection uses two methods:
+ * 1. Event-based: Listen for TOLKIE_READY event (preferred, instant detection)
+ * 2. Polling fallback: For pages where SDK was loaded before extension
  */
 
 interface TolkieStatus {
@@ -11,6 +15,8 @@ interface TolkieStatus {
   instanceCount: number;
   editorActive: boolean;
 }
+
+let detectionComplete = false;
 
 function getTolkieStatus(): TolkieStatus {
   const tolkie = (window as any).__TOLKIE__;
@@ -23,6 +29,63 @@ function getTolkieStatus(): TolkieStatus {
     editorActive: editor?.isActive?.() ?? false,
   };
 }
+
+function notifyDetected(status: TolkieStatus) {
+  if (detectionComplete && status.detected) return; // Already notified
+  detectionComplete = status.detected;
+
+  window.dispatchEvent(
+    new CustomEvent("tolkie-extension:detected", { detail: status })
+  );
+
+  // Respond to SDK with TOLKIE_PLUGIN_READY (handshake)
+  if (status.detected) {
+    window.dispatchEvent(new CustomEvent("TOLKIE_PLUGIN_READY"));
+  }
+}
+
+function notifyNotFound(status: TolkieStatus) {
+  window.dispatchEvent(
+    new CustomEvent("tolkie-extension:not-found", { detail: status })
+  );
+}
+
+// --- Event-based detection (preferred) ---
+// Listen for TOLKIE_READY event dispatched by @tolkie/core when SDK loads
+window.addEventListener("TOLKIE_READY", ((event: CustomEvent) => {
+  const detail = event.detail || {};
+  const status: TolkieStatus = {
+    detected: true,
+    version: detail.version ?? null,
+    instanceCount: detail.instanceCount ?? 1,
+    editorActive: false,
+  };
+  notifyDetected(status);
+}) as EventListener);
+
+// --- Polling fallback ---
+// For pages where SDK was loaded before extension content script
+let pollCount = 0;
+const MAX_POLLS = 30; // 3 seconds max
+const POLL_INTERVAL = 100; // 100ms
+
+function pollForTolkie() {
+  const status = getTolkieStatus();
+
+  if (status.detected) {
+    notifyDetected(status);
+    return;
+  }
+
+  pollCount++;
+  if (pollCount < MAX_POLLS) {
+    setTimeout(pollForTolkie, POLL_INTERVAL);
+  } else {
+    notifyNotFound(status);
+  }
+}
+
+// --- Extension communication handlers ---
 
 // Listen for status requests from content script (ISOLATED world)
 window.addEventListener("tolkie-extension:get-status", () => {
@@ -97,29 +160,12 @@ window.addEventListener("tolkie-extension:deactivate", () => {
   }
 });
 
-// Poll for Tolkie SDK and notify extension when found
-let pollCount = 0;
-const MAX_POLLS = 50; // 5 seconds max
-
-function pollForTolkie() {
-  const status = getTolkieStatus();
-
-  if (status.detected) {
-    window.dispatchEvent(
-      new CustomEvent("tolkie-extension:detected", { detail: status })
-    );
-    return;
-  }
-
-  pollCount++;
-  if (pollCount < MAX_POLLS) {
-    setTimeout(pollForTolkie, 100);
-  } else {
-    window.dispatchEvent(
-      new CustomEvent("tolkie-extension:not-found", { detail: status })
-    );
-  }
+// --- Initialization ---
+// Check immediately (SDK might already be loaded)
+const initialStatus = getTolkieStatus();
+if (initialStatus.detected) {
+  notifyDetected(initialStatus);
+} else {
+  // Start polling as fallback
+  pollForTolkie();
 }
-
-// Start polling when script loads
-pollForTolkie();

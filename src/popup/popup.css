@@ -21,8 +21,8 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 16px;
-  padding-bottom: 12px;
+  margin-bottom: 8px;
+  padding-bottom: 8px;
   border-bottom: 1px solid #e5e7eb;
 }
 
@@ -35,6 +35,20 @@ body {
 .version {
   font-size: 12px;
   color: #6b7280;
+}
+
+.origin-info {
+  margin-bottom: 12px;
+  padding: 6px 10px;
+  background: #f3f4f6;
+  border-radius: 4px;
+}
+
+.origin-text {
+  font-size: 11px;
+  color: #6b7280;
+  font-family: monospace;
+  word-break: break-all;
 }
 
 .status {
@@ -112,7 +126,6 @@ body {
   display: flex;
   flex-direction: column;
   gap: 4px;
-  position: relative;
 }
 
 .field label {
@@ -121,7 +134,14 @@ body {
   color: #374151;
 }
 
+.input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
 .field input {
+  width: 100%;
   padding: 8px 36px 8px 10px;
   border: 1px solid #d1d5db;
   border-radius: 6px;
@@ -135,10 +155,17 @@ body {
   box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
 }
 
-.toggle-btn {
+.field input.valid {
+  border-color: #22c55e;
+}
+
+.field input.invalid {
+  border-color: #ef4444;
+}
+
+.icon-btn {
   position: absolute;
   right: 8px;
-  bottom: 6px;
   background: none;
   border: none;
   cursor: pointer;
@@ -149,7 +176,7 @@ body {
   justify-content: center;
 }
 
-.toggle-btn:hover {
+.icon-btn:hover {
   color: #374151;
 }
 
@@ -157,12 +184,70 @@ body {
   fill: currentColor;
 }
 
+/* Validation status */
+.validation-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+  font-size: 12px;
+}
+
+.spinner {
+  width: 12px;
+  height: 12px;
+  border: 2px solid #e5e7eb;
+  border-top-color: #3b82f6;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.validation-icon {
+  width: 14px;
+  height: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+}
+
+.validation-icon.valid::before {
+  content: "✓";
+  color: #22c55e;
+  font-weight: bold;
+}
+
+.validation-icon.invalid::before {
+  content: "✕";
+  color: #ef4444;
+  font-weight: bold;
+}
+
+.validation-text {
+  color: #6b7280;
+}
+
+.validation-text.valid {
+  color: #16a34a;
+}
+
+.validation-text.invalid {
+  color: #dc2626;
+}
+
+/* Actions */
 .actions {
+  display: flex;
+  gap: 8px;
   margin-top: 4px;
 }
 
 .btn {
-  width: 100%;
+  flex: 1;
   padding: 10px 16px;
   border: none;
   border-radius: 6px;
@@ -192,6 +277,17 @@ body {
 
 .btn.primary.active:hover:not(:disabled) {
   background: #16a34a;
+}
+
+.btn.secondary {
+  background: #f3f4f6;
+  color: #374151;
+  flex: 0 0 auto;
+  padding: 10px 12px;
+}
+
+.btn.secondary:hover:not(:disabled) {
+  background: #e5e7eb;
 }
 
 .error {
