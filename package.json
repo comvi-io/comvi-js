@@ -1,0 +1,16 @@
+{
+  "name": "@tolkie/chrome-extension",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite build --watch",
+    "build": "vite build",
+    "zip": "pnpm build && cd dist && zip -r ../tolkie-extension.zip ."
+  },
+  "devDependencies": {
+    "@types/chrome": "^0.0.300",
+    "typescript": "~5.9.3",
+    "vite": "^7.2.6"
+  }
+}
