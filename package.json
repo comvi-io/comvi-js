@@ -9,8 +9,8 @@
     "zip": "pnpm build && cd dist && zip -r ../tolkie-extension.zip ."
   },
   "devDependencies": {
-    "@types/chrome": "^0.0.300",
+    "@types/chrome": "^0.1.36",
     "typescript": "~5.9.3",
-    "vite": "^7.2.6"
+    "vite": "^7.3.1"
   }
 }
