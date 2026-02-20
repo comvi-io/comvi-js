@@ -12,5 +12,8 @@
     "@types/chrome": "^0.1.36",
     "typescript": "~5.9.3",
     "vite": "^7.3.1"
-  }
+  },
+  "homepage": "https://tolkie.io",
+  "author": "Tolkie <hello@tolkie.io> (https://tolkie.io)",
+  "keywords": []
 }
