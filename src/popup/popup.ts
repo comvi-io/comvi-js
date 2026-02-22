@@ -169,7 +169,7 @@ async function validateApiKey(apiKey: string) {
     // In production: const response = await fetch(`${API_URL}/api/v1/api-keys/current?ak=${apiKey}`);
 
     // Simulate API validation (remove this when real API is available)
-    await new Promise(resolve => setTimeout(resolve, 300));
+    await new Promise((resolve) => setTimeout(resolve, 300));
 
     // Basic format validation
     if (apiKey.length < 10) {

@@ -93,7 +93,7 @@ chrome.runtime.onMessage.addListener((message: Message, _sender, sendResponse) =
       window.dispatchEvent(
         new CustomEvent("tolkie-extension:activate", {
           detail: activatePayload,
-        })
+        }),
       );
       sendResponse({ type: "STATUS_RESPONSE", payload: { pending: true } });
       break;

@@ -34,9 +34,7 @@ function notifyDetected(status: TolkieStatus) {
   if (detectionComplete && status.detected) return; // Already notified
   detectionComplete = status.detected;
 
-  window.dispatchEvent(
-    new CustomEvent("tolkie-extension:detected", { detail: status })
-  );
+  window.dispatchEvent(new CustomEvent("tolkie-extension:detected", { detail: status }));
 
   // Respond to SDK with TOLKIE_PLUGIN_READY (handshake)
   if (status.detected) {
@@ -45,9 +43,7 @@ function notifyDetected(status: TolkieStatus) {
 }
 
 function notifyNotFound(status: TolkieStatus) {
-  window.dispatchEvent(
-    new CustomEvent("tolkie-extension:not-found", { detail: status })
-  );
+  window.dispatchEvent(new CustomEvent("tolkie-extension:not-found", { detail: status }));
 }
 
 // --- Event-based detection (preferred) ---
@@ -90,9 +86,7 @@ function pollForTolkie() {
 // Listen for status requests from content script (ISOLATED world)
 window.addEventListener("tolkie-extension:get-status", () => {
   const status = getTolkieStatus();
-  window.dispatchEvent(
-    new CustomEvent("tolkie-extension:status", { detail: status })
-  );
+  window.dispatchEvent(new CustomEvent("tolkie-extension:status", { detail: status }));
 });
 
 // Listen for activate requests
@@ -108,7 +102,7 @@ window.addEventListener("tolkie-extension:activate", ((event: CustomEvent) => {
     window.dispatchEvent(
       new CustomEvent("tolkie-extension:activated", {
         detail: { success: !!result, instanceId: result?.instanceId },
-      })
+      }),
     );
     return;
   }
@@ -123,13 +117,13 @@ window.addEventListener("tolkie-extension:activate", ((event: CustomEvent) => {
       window.dispatchEvent(
         new CustomEvent("tolkie-extension:activated", {
           detail: { success: !!result, instanceId: result?.instanceId },
-        })
+        }),
       );
     } else {
       window.dispatchEvent(
         new CustomEvent("tolkie-extension:activated", {
           detail: { success: false, error: "Plugin failed to initialize" },
-        })
+        }),
       );
     }
   };
@@ -137,7 +131,7 @@ window.addEventListener("tolkie-extension:activate", ((event: CustomEvent) => {
     window.dispatchEvent(
       new CustomEvent("tolkie-extension:activated", {
         detail: { success: false, error: "Failed to load plugin from CDN" },
-      })
+      }),
     );
   };
   document.head.appendChild(script);
@@ -149,13 +143,13 @@ window.addEventListener("tolkie-extension:deactivate", () => {
   if (editor?.isActive?.()) {
     editor.deactivate();
     window.dispatchEvent(
-      new CustomEvent("tolkie-extension:deactivated", { detail: { success: true } })
+      new CustomEvent("tolkie-extension:deactivated", { detail: { success: true } }),
     );
   } else {
     window.dispatchEvent(
       new CustomEvent("tolkie-extension:deactivated", {
         detail: { success: false, error: "Editor not active" },
-      })
+      }),
     );
   }
 });

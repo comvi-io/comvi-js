@@ -28,21 +28,18 @@ export default defineConfig({
       name: "copy-static-files",
       closeBundle() {
         // Copy manifest.json
-        copyFileSync(
-          resolve(__dirname, "manifest.json"),
-          resolve(__dirname, "dist/manifest.json")
-        );
+        copyFileSync(resolve(__dirname, "manifest.json"), resolve(__dirname, "dist/manifest.json"));
 
         // Copy popup.html
         copyFileSync(
           resolve(__dirname, "src/popup/popup.html"),
-          resolve(__dirname, "dist/popup.html")
+          resolve(__dirname, "dist/popup.html"),
         );
 
         // Copy popup.css
         copyFileSync(
           resolve(__dirname, "src/popup/popup.css"),
-          resolve(__dirname, "dist/popup.css")
+          resolve(__dirname, "dist/popup.css"),
         );
 
         // Create icons directory and copy icons
