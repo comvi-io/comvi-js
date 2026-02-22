@@ -22,7 +22,7 @@ const notDetectedEl = document.getElementById("not-detected")!;
 const settingsEl = document.getElementById("settings")!;
 const apiKeyInput = document.getElementById("api-key") as HTMLInputElement;
 const toggleVisibilityBtn = document.getElementById("toggle-visibility")!;
-const toggleEditorBtn = document.getElementById("toggle-editor")!;
+const toggleEditorBtn = document.getElementById("toggle-editor") as HTMLButtonElement;
 const clearCredentialsBtn = document.getElementById("clear-credentials")!;
 const errorEl = document.getElementById("error")!;
 
@@ -192,7 +192,7 @@ async function validateApiKey(apiKey: string) {
       });
       clearCredentialsBtn.classList.remove("hidden");
     }
-  } catch (error) {
+  } catch {
     showValidationError("Validation failed");
   }
 }
@@ -249,7 +249,7 @@ async function requestStatus() {
     if (response?.payload) {
       updateUI(response.payload as StatusResponsePayload);
     }
-  } catch (error) {
+  } catch {
     // Content script might not be ready yet
     console.log("Waiting for content script...");
     setTimeout(requestStatus, 500);
