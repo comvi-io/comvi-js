@@ -6,7 +6,7 @@ export default defineConfig({
   build: {
     outDir: "dist",
     emptyOutDir: true,
-    rollupOptions: {
+    rolldownOptions: {
       input: {
         background: resolve(__dirname, "src/background/service-worker.ts"),
         detector: resolve(__dirname, "src/content/detector.ts"),

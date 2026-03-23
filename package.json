@@ -12,7 +12,7 @@
   "devDependencies": {
     "@types/chrome": "^0.1.38",
     "typescript": "~5.9.3",
-    "vite": "^7.3.1"
+    "vite": "^8.0.2"
   },
   "homepage": "https://tolkie.io",
   "author": "Tolkie <hello@tolkie.io> (https://tolkie.io)",
