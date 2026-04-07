@@ -27,7 +27,7 @@ const ICONS = {
 
 // Track tab states
 interface TabState {
-  tolkieDetected: boolean;
+  comviDetected: boolean;
   editorActive: boolean;
   version?: string;
 }
@@ -44,7 +44,7 @@ function updateIcon(tabId: number, state: TabState) {
     iconSet = ICONS.active;
     badgeText = "ON";
     badgeColor = "#22c55e";
-  } else if (state.tolkieDetected) {
+  } else if (state.comviDetected) {
     iconSet = ICONS.detected;
     badgeColor = "#3b82f6";
   } else {
@@ -71,10 +71,10 @@ chrome.runtime.onMessage.addListener((message: Message, sender) => {
   if (!tabId) return;
 
   switch (message.type) {
-    case "TOLKIE_DETECTED": {
+    case "COMVI_DETECTED": {
       const payload = message.payload as StatusResponsePayload;
       const state: TabState = {
-        tolkieDetected: true,
+        comviDetected: true,
         editorActive: payload.editorActive ?? false,
         version: payload.version ?? undefined,
       };
@@ -83,9 +83,9 @@ chrome.runtime.onMessage.addListener((message: Message, sender) => {
       break;
     }
 
-    case "TOLKIE_NOT_FOUND": {
+    case "COMVI_NOT_FOUND": {
       const state: TabState = {
-        tolkieDetected: false,
+        comviDetected: false,
         editorActive: false,
       };
       tabStates.set(tabId, state);
@@ -95,7 +95,7 @@ chrome.runtime.onMessage.addListener((message: Message, sender) => {
 
     case "EDITOR_ACTIVATED": {
       const currentState = tabStates.get(tabId) || {
-        tolkieDetected: true,
+        comviDetected: true,
         editorActive: false,
       };
       currentState.editorActive = true;

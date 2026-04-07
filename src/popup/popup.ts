@@ -36,7 +36,7 @@ const validationTextEl = document.getElementById("validation-text")!;
 let currentTabId: number | null = null;
 let currentOrigin: string = "";
 let editorActive = false;
-let tolkieDetected = false;
+let comviDetected = false;
 let validationTimeout: ReturnType<typeof setTimeout> | null = null;
 let isValidated = false;
 
@@ -164,7 +164,7 @@ async function validateApiKey(apiKey: string) {
   showValidating();
 
   try {
-    // TODO: Replace with actual Tolkie API endpoint when available
+    // TODO: Replace with actual Comvi API endpoint when available
     // For now, we'll do basic validation (non-empty, reasonable format)
     // In production: const response = await fetch(`${API_URL}/api/v1/api-keys/current?ak=${apiKey}`);
 
@@ -181,7 +181,7 @@ async function validateApiKey(apiKey: string) {
     // When API is available, this will validate against the server
     showValidationSuccess("API key accepted");
     isValidated = true;
-    toggleEditorBtn.disabled = !tolkieDetected;
+    toggleEditorBtn.disabled = !comviDetected;
 
     // Save validated credentials
     if (currentOrigin) {
@@ -216,7 +216,7 @@ function showValidationSuccess(message: string) {
   apiKeyInput.classList.remove("invalid");
   apiKeyInput.classList.add("valid");
   isValidated = true;
-  toggleEditorBtn.disabled = !tolkieDetected;
+  toggleEditorBtn.disabled = !comviDetected;
 }
 
 function showValidationError(message: string) {
@@ -257,7 +257,7 @@ async function requestStatus() {
 }
 
 function updateUI(status: StatusResponsePayload) {
-  tolkieDetected = status.tolkieDetected;
+  comviDetected = status.comviDetected;
   editorActive = status.editorActive ?? false;
 
   // Update status indicator
@@ -265,9 +265,9 @@ function updateUI(status: StatusResponsePayload) {
   if (editorActive) {
     statusIndicator.classList.add("active");
     statusText.textContent = "Editor active";
-  } else if (tolkieDetected) {
+  } else if (comviDetected) {
     statusIndicator.classList.add("detected");
-    statusText.textContent = "Tolkie SDK detected";
+    statusText.textContent = "Comvi SDK detected";
   } else {
     statusIndicator.classList.add("not-found");
     statusText.textContent = "SDK not found";
@@ -279,7 +279,7 @@ function updateUI(status: StatusResponsePayload) {
   }
 
   // Show/hide sections
-  if (tolkieDetected) {
+  if (comviDetected) {
     notDetectedEl.classList.add("hidden");
     settingsEl.classList.remove("hidden");
 
@@ -329,12 +329,12 @@ chrome.runtime.onMessage.addListener((message: Message) => {
   switch (message.type) {
     case "EDITOR_ACTIVATED":
       editorActive = true;
-      updateUI({ tolkieDetected: true, editorActive: true });
+      updateUI({ comviDetected: true, editorActive: true });
       break;
 
     case "EDITOR_DEACTIVATED":
       editorActive = false;
-      updateUI({ tolkieDetected: true, editorActive: false });
+      updateUI({ comviDetected: true, editorActive: false });
       break;
 
     case "STATUS_RESPONSE":

@@ -14,11 +14,11 @@ export interface GlobalSettings {
   cdnUrl: string;
 }
 
-const CREDENTIALS_KEY = "tolkie_credentials";
-const SETTINGS_KEY = "tolkie_settings";
+const CREDENTIALS_KEY = "comvi_credentials";
+const SETTINGS_KEY = "comvi_settings";
 
 const DEFAULT_SETTINGS: GlobalSettings = {
-  cdnUrl: "https://unpkg.com/@tolkie/plugin-in-context-editor@latest/dist/standalone.iife.js",
+  cdnUrl: "https://unpkg.com/@comvi/plugin-in-context-editor@latest/dist/standalone.iife.js",
 };
 
 // --- Per-origin credentials ---

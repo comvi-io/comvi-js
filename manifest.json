@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
-  "name": "Tolkie In-Context Editor",
-  "description": "Enable in-context translation editing on production websites using Tolkie SDK",
+  "name": "Comvi In-Context Editor",
+  "description": "Enable in-context translation editing on production websites using Comvi SDK",
   "version": "1.0.0",
   "permissions": ["storage", "activeTab", "scripting"],
   "host_permissions": ["<all_urls>"],
@@ -17,7 +17,7 @@
   },
   "action": {
     "default_popup": "popup.html",
-    "default_title": "Tolkie In-Context Editor",
+    "default_title": "Comvi In-Context Editor",
     "default_icon": {
       "16": "icons/icon-inactive-16.svg",
       "32": "icons/icon-inactive-32.svg",

@@ -1,15 +1,15 @@
 /**
- * Content script running in MAIN world to detect Tolkie SDK
+ * Content script running in MAIN world to detect Comvi SDK
  *
  * This script runs in the page's JavaScript context, allowing direct access
- * to window.__TOLKIE__. It communicates with the extension via custom events.
+ * to window.__COMVI__. It communicates with the extension via custom events.
  *
  * Detection uses two methods:
- * 1. Event-based: Listen for TOLKIE_READY event (preferred, instant detection)
+ * 1. Event-based: Listen for COMVI_READY event (preferred, instant detection)
  * 2. Polling fallback: For pages where SDK was loaded before extension
  */
 
-interface TolkieStatus {
+interface ComviStatus {
   detected: boolean;
   version: string | null;
   instanceCount: number;
@@ -18,39 +18,39 @@ interface TolkieStatus {
 
 let detectionComplete = false;
 
-function getTolkieStatus(): TolkieStatus {
-  const tolkie = (window as any).__TOLKIE__;
-  const editor = (window as any).TolkieInContextEditor;
+function getComviStatus(): ComviStatus {
+  const comvi = (window as any).__COMVI__;
+  const editor = (window as any).ComviInContextEditor;
 
   return {
-    detected: !!tolkie,
-    version: tolkie?.version ?? null,
-    instanceCount: tolkie?.instances?.size ?? 0,
+    detected: !!comvi,
+    version: comvi?.version ?? null,
+    instanceCount: comvi?.instances?.size ?? 0,
     editorActive: editor?.isActive?.() ?? false,
   };
 }
 
-function notifyDetected(status: TolkieStatus) {
+function notifyDetected(status: ComviStatus) {
   if (detectionComplete && status.detected) return; // Already notified
   detectionComplete = status.detected;
 
-  window.dispatchEvent(new CustomEvent("tolkie-extension:detected", { detail: status }));
+  window.dispatchEvent(new CustomEvent("comvi-extension:detected", { detail: status }));
 
-  // Respond to SDK with TOLKIE_PLUGIN_READY (handshake)
+  // Respond to SDK with COMVI_PLUGIN_READY (handshake)
   if (status.detected) {
-    window.dispatchEvent(new CustomEvent("TOLKIE_PLUGIN_READY"));
+    window.dispatchEvent(new CustomEvent("COMVI_PLUGIN_READY"));
   }
 }
 
-function notifyNotFound(status: TolkieStatus) {
-  window.dispatchEvent(new CustomEvent("tolkie-extension:not-found", { detail: status }));
+function notifyNotFound(status: ComviStatus) {
+  window.dispatchEvent(new CustomEvent("comvi-extension:not-found", { detail: status }));
 }
 
 // --- Event-based detection (preferred) ---
-// Listen for TOLKIE_READY event dispatched by @tolkie/core when SDK loads
-window.addEventListener("TOLKIE_READY", ((event: CustomEvent) => {
+// Listen for COMVI_READY event dispatched by @comvi/core when SDK loads
+window.addEventListener("COMVI_READY", ((event: CustomEvent) => {
   const detail = event.detail || {};
-  const status: TolkieStatus = {
+  const status: ComviStatus = {
     detected: true,
     version: detail.version ?? null,
     instanceCount: detail.instanceCount ?? 1,
@@ -65,8 +65,8 @@ let pollCount = 0;
 const MAX_POLLS = 30; // 3 seconds max
 const POLL_INTERVAL = 100; // 100ms
 
-function pollForTolkie() {
-  const status = getTolkieStatus();
+function pollForComvi() {
+  const status = getComviStatus();
 
   if (status.detected) {
     notifyDetected(status);
@@ -75,7 +75,7 @@ function pollForTolkie() {
 
   pollCount++;
   if (pollCount < MAX_POLLS) {
-    setTimeout(pollForTolkie, POLL_INTERVAL);
+    setTimeout(pollForComvi, POLL_INTERVAL);
   } else {
     notifyNotFound(status);
   }
@@ -84,23 +84,23 @@ function pollForTolkie() {
 // --- Extension communication handlers ---
 
 // Listen for status requests from content script (ISOLATED world)
-window.addEventListener("tolkie-extension:get-status", () => {
-  const status = getTolkieStatus();
-  window.dispatchEvent(new CustomEvent("tolkie-extension:status", { detail: status }));
+window.addEventListener("comvi-extension:get-status", () => {
+  const status = getComviStatus();
+  window.dispatchEvent(new CustomEvent("comvi-extension:status", { detail: status }));
 });
 
 // Listen for activate requests
-window.addEventListener("tolkie-extension:activate", ((event: CustomEvent) => {
+window.addEventListener("comvi-extension:activate", ((event: CustomEvent) => {
   const { apiKey, cdnUrl } = event.detail || {};
 
   // Check if plugin is already loaded
-  const editor = (window as any).TolkieInContextEditor;
+  const editor = (window as any).ComviInContextEditor;
 
   if (editor) {
     // Plugin already loaded, just activate
     const result = editor.activate({ apiKey });
     window.dispatchEvent(
-      new CustomEvent("tolkie-extension:activated", {
+      new CustomEvent("comvi-extension:activated", {
         detail: { success: !!result, instanceId: result?.instanceId },
       }),
     );
@@ -111,17 +111,17 @@ window.addEventListener("tolkie-extension:activate", ((event: CustomEvent) => {
   const script = document.createElement("script");
   script.src = cdnUrl;
   script.onload = () => {
-    const loadedEditor = (window as any).TolkieInContextEditor;
+    const loadedEditor = (window as any).ComviInContextEditor;
     if (loadedEditor) {
       const result = loadedEditor.activate({ apiKey });
       window.dispatchEvent(
-        new CustomEvent("tolkie-extension:activated", {
+        new CustomEvent("comvi-extension:activated", {
           detail: { success: !!result, instanceId: result?.instanceId },
         }),
       );
     } else {
       window.dispatchEvent(
-        new CustomEvent("tolkie-extension:activated", {
+        new CustomEvent("comvi-extension:activated", {
           detail: { success: false, error: "Plugin failed to initialize" },
         }),
       );
@@ -129,7 +129,7 @@ window.addEventListener("tolkie-extension:activate", ((event: CustomEvent) => {
   };
   script.onerror = () => {
     window.dispatchEvent(
-      new CustomEvent("tolkie-extension:activated", {
+      new CustomEvent("comvi-extension:activated", {
         detail: { success: false, error: "Failed to load plugin from CDN" },
       }),
     );
@@ -138,16 +138,16 @@ window.addEventListener("tolkie-extension:activate", ((event: CustomEvent) => {
 }) as EventListener);
 
 // Listen for deactivate requests
-window.addEventListener("tolkie-extension:deactivate", () => {
-  const editor = (window as any).TolkieInContextEditor;
+window.addEventListener("comvi-extension:deactivate", () => {
+  const editor = (window as any).ComviInContextEditor;
   if (editor?.isActive?.()) {
     editor.deactivate();
     window.dispatchEvent(
-      new CustomEvent("tolkie-extension:deactivated", { detail: { success: true } }),
+      new CustomEvent("comvi-extension:deactivated", { detail: { success: true } }),
     );
   } else {
     window.dispatchEvent(
-      new CustomEvent("tolkie-extension:deactivated", {
+      new CustomEvent("comvi-extension:deactivated", {
         detail: { success: false, error: "Editor not active" },
       }),
     );
@@ -156,10 +156,10 @@ window.addEventListener("tolkie-extension:deactivate", () => {
 
 // --- Initialization ---
 // Check immediately (SDK might already be loaded)
-const initialStatus = getTolkieStatus();
+const initialStatus = getComviStatus();
 if (initialStatus.detected) {
   notifyDetected(initialStatus);
 } else {
   // Start polling as fallback
-  pollForTolkie();
+  pollForComvi();
 }

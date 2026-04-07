@@ -3,13 +3,13 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Tolkie In-Context Editor</title>
+    <title>Comvi In-Context Editor</title>
     <link rel="stylesheet" href="popup.css" />
   </head>
   <body>
     <div class="container">
       <header class="header">
-        <h1>Tolkie Editor</h1>
+        <h1>Comvi Editor</h1>
         <span id="version" class="version"></span>
       </header>
 
@@ -23,17 +23,15 @@
       </div>
 
       <div id="not-detected" class="message hidden">
-        <p>No Tolkie SDK detected on this page.</p>
-        <p class="hint">
-          Make sure the page uses <code>@tolkie/core</code> or a framework binding.
-        </p>
+        <p>No Comvi SDK detected on this page.</p>
+        <p class="hint">Make sure the page uses <code>@comvi/core</code> or a framework binding.</p>
       </div>
 
       <div id="settings" class="settings hidden">
         <div class="field">
           <label for="api-key">API Key</label>
           <div class="input-wrapper">
-            <input type="password" id="api-key" placeholder="Enter your Tolkie API key" />
+            <input type="password" id="api-key" placeholder="Enter your Comvi API key" />
             <button id="toggle-visibility" class="icon-btn" aria-label="Toggle visibility">
               <svg class="eye-icon" viewBox="0 0 24 24" width="16" height="16">
                 <path

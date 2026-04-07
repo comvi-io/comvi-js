@@ -1,5 +1,5 @@
 {
-  "name": "@tolkie/chrome-extension",
+  "name": "@comvi/chrome-extension",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -7,14 +7,14 @@
     "dev": "vite build --watch",
     "build": "vite build",
     "typecheck": "tsc --noEmit",
-    "zip": "pnpm build && cd dist && zip -r ../tolkie-extension.zip ."
+    "zip": "pnpm build && cd dist && zip -r ../comvi-extension.zip ."
   },
   "devDependencies": {
     "@types/chrome": "^0.1.39",
     "typescript": "~6.0.2",
     "vite": "^8.0.3"
   },
-  "homepage": "https://tolkie.io",
-  "author": "Tolkie <hello@tolkie.io> (https://tolkie.io)",
+  "homepage": "https://comvi.io",
+  "author": "Comvi <hello@comvi.io> (https://comvi.io)",
   "keywords": []
 }

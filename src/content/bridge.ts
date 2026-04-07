@@ -10,15 +10,15 @@ import type { Message, StatusResponsePayload, ActivatePayload } from "../shared/
 
 // State
 let currentStatus: StatusResponsePayload = {
-  tolkieDetected: false,
+  comviDetected: false,
   editorActive: false,
 };
 
 // Listen for status from detector (MAIN world)
-window.addEventListener("tolkie-extension:status", ((event: CustomEvent) => {
+window.addEventListener("comvi-extension:status", ((event: CustomEvent) => {
   const detail = event.detail;
   currentStatus = {
-    tolkieDetected: detail.detected,
+    comviDetected: detail.detected,
     editorActive: detail.editorActive,
     version: detail.version,
     instanceCount: detail.instanceCount,
@@ -26,10 +26,10 @@ window.addEventListener("tolkie-extension:status", ((event: CustomEvent) => {
 }) as EventListener);
 
 // Listen for detection events
-window.addEventListener("tolkie-extension:detected", ((event: CustomEvent) => {
+window.addEventListener("comvi-extension:detected", ((event: CustomEvent) => {
   const detail = event.detail;
   currentStatus = {
-    tolkieDetected: true,
+    comviDetected: true,
     editorActive: detail.editorActive,
     version: detail.version,
     instanceCount: detail.instanceCount,
@@ -37,25 +37,25 @@ window.addEventListener("tolkie-extension:detected", ((event: CustomEvent) => {
 
   // Notify background script
   chrome.runtime.sendMessage({
-    type: "TOLKIE_DETECTED",
+    type: "COMVI_DETECTED",
     payload: currentStatus,
   });
 }) as EventListener);
 
-window.addEventListener("tolkie-extension:not-found", () => {
+window.addEventListener("comvi-extension:not-found", () => {
   currentStatus = {
-    tolkieDetected: false,
+    comviDetected: false,
     editorActive: false,
   };
 
   chrome.runtime.sendMessage({
-    type: "TOLKIE_NOT_FOUND",
+    type: "COMVI_NOT_FOUND",
     payload: currentStatus,
   });
 });
 
 // Listen for activation result
-window.addEventListener("tolkie-extension:activated", ((event: CustomEvent) => {
+window.addEventListener("comvi-extension:activated", ((event: CustomEvent) => {
   const detail = event.detail;
   if (detail.success) {
     currentStatus.editorActive = true;
@@ -67,7 +67,7 @@ window.addEventListener("tolkie-extension:activated", ((event: CustomEvent) => {
 }) as EventListener);
 
 // Listen for deactivation result
-window.addEventListener("tolkie-extension:deactivated", ((event: CustomEvent) => {
+window.addEventListener("comvi-extension:deactivated", ((event: CustomEvent) => {
   const detail = event.detail;
   if (detail.success) {
     currentStatus.editorActive = false;
@@ -83,23 +83,24 @@ chrome.runtime.onMessage.addListener((message: Message, _sender, sendResponse) =
   switch (message.type) {
     case "GET_STATUS":
       // Request fresh status from detector
-      window.dispatchEvent(new CustomEvent("tolkie-extension:get-status"));
+      window.dispatchEvent(new CustomEvent("comvi-extension:get-status"));
       // Send current cached status immediately
       sendResponse({ type: "STATUS_RESPONSE", payload: currentStatus });
       break;
 
-    case "ACTIVATE_EDITOR":
+    case "ACTIVATE_EDITOR": {
       const activatePayload = message.payload as ActivatePayload;
       window.dispatchEvent(
-        new CustomEvent("tolkie-extension:activate", {
+        new CustomEvent("comvi-extension:activate", {
           detail: activatePayload,
         }),
       );
       sendResponse({ type: "STATUS_RESPONSE", payload: { pending: true } });
       break;
+    }
 
     case "DEACTIVATE_EDITOR":
-      window.dispatchEvent(new CustomEvent("tolkie-extension:deactivate"));
+      window.dispatchEvent(new CustomEvent("comvi-extension:deactivate"));
       sendResponse({ type: "STATUS_RESPONSE", payload: { pending: true } });
       break;
   }
@@ -109,5 +110,5 @@ chrome.runtime.onMessage.addListener((message: Message, _sender, sendResponse) =
 
 // Request initial status
 setTimeout(() => {
-  window.dispatchEvent(new CustomEvent("tolkie-extension:get-status"));
+  window.dispatchEvent(new CustomEvent("comvi-extension:get-status"));
 }, 100);

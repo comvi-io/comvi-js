@@ -3,8 +3,8 @@
  */
 
 export type MessageType =
-  | "TOLKIE_DETECTED"
-  | "TOLKIE_NOT_FOUND"
+  | "COMVI_DETECTED"
+  | "COMVI_NOT_FOUND"
   | "ACTIVATE_EDITOR"
   | "DEACTIVATE_EDITOR"
   | "GET_STATUS"
@@ -17,13 +17,13 @@ export interface Message {
   payload?: unknown;
 }
 
-export interface TolkieDetectedPayload {
+export interface ComviDetectedPayload {
   version: string;
   instanceCount: number;
 }
 
 export interface StatusResponsePayload {
-  tolkieDetected: boolean;
+  comviDetected: boolean;
   editorActive: boolean;
   version?: string;
   instanceCount?: number;
