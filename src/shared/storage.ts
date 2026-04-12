@@ -18,7 +18,10 @@ const CREDENTIALS_KEY = "comvi_credentials";
 const SETTINGS_KEY = "comvi_settings";
 
 const DEFAULT_SETTINGS: GlobalSettings = {
-  cdnUrl: "https://unpkg.com/@comvi/plugin-in-context-editor@latest/dist/standalone.iife.js",
+  // TODO: Chrome extension devtools are not included in the first release (platform is still in development).
+  // Once the platform is ready, switch this to the versioned jsDelivr URL.
+  cdnUrl:
+    "https://cdn.jsdelivr.net/npm/@comvi/plugin-in-context-editor@latest/dist/standalone.iife.js",
 };
 
 // --- Per-origin credentials ---
