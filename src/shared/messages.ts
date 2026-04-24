@@ -31,5 +31,6 @@ export interface StatusResponsePayload {
 
 export interface ActivatePayload {
   apiKey: string;
-  cdnUrl: string;
+  scriptUrl: string;
+  apiBaseUrl: string;
 }

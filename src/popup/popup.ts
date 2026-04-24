@@ -146,9 +146,11 @@ function setupEventListeners() {
 
       // Activate
       const settings = await getGlobalSettings();
+      const scriptUrl = await ensureEditorRuntimeLoaded(settings.scriptUrl);
       const payload: ActivatePayload = {
         apiKey,
-        cdnUrl: settings.cdnUrl,
+        scriptUrl,
+        apiBaseUrl: settings.apiBaseUrl,
       };
       await sendToContentScript({ type: "ACTIVATE_EDITOR", payload });
     }
@@ -158,6 +160,24 @@ function setupEventListeners() {
       toggleEditorBtn.disabled = false;
     }, 1000);
   });
+}
+
+async function ensureEditorRuntimeLoaded(scriptUrl: string): Promise<string> {
+  if (scriptUrl.includes("://")) {
+    return scriptUrl;
+  }
+
+  if (!currentTabId) {
+    throw new Error("No tab ID");
+  }
+
+  await chrome.scripting.executeScript({
+    target: { tabId: currentTabId },
+    files: [scriptUrl],
+    world: "MAIN",
+  });
+
+  return chrome.runtime.getURL(scriptUrl);
 }
 
 async function validateApiKey(apiKey: string) {

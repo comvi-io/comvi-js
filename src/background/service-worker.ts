@@ -9,19 +9,19 @@ import type { Message, StatusResponsePayload } from "../shared/messages";
 // Icon paths for different states
 const ICONS = {
   inactive: {
-    16: "icons/icon-inactive-16.svg",
-    32: "icons/icon-inactive-32.svg",
-    48: "icons/icon-inactive-48.svg",
+    16: "icons/icon-inactive-16.png",
+    32: "icons/icon-inactive-32.png",
+    48: "icons/icon-inactive-48.png",
   },
   detected: {
-    16: "icons/icon-detected-16.svg",
-    32: "icons/icon-detected-32.svg",
-    48: "icons/icon-detected-48.svg",
+    16: "icons/icon-detected-16.png",
+    32: "icons/icon-detected-32.png",
+    48: "icons/icon-detected-48.png",
   },
   active: {
-    16: "icons/icon-active-16.svg",
-    32: "icons/icon-active-32.svg",
-    48: "icons/icon-active-48.svg",
+    16: "icons/icon-active-16.png",
+    32: "icons/icon-active-32.png",
+    48: "icons/icon-active-48.png",
   },
 } as const;
 

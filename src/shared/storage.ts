@@ -11,17 +11,19 @@ export interface OriginCredentials {
 }
 
 export interface GlobalSettings {
-  cdnUrl: string;
+  scriptUrl: string;
+  apiBaseUrl: string;
 }
 
 const CREDENTIALS_KEY = "comvi_credentials";
 const SETTINGS_KEY = "comvi_settings";
+// Required at build time by vite.config.ts.
+const DEFAULT_API_BASE_URL = import.meta.env.VITE_COMVI_API_BASE_URL as string;
+const DEFAULT_SCRIPT_URL = import.meta.env.VITE_COMVI_EDITOR_SCRIPT_URL as string;
 
 const DEFAULT_SETTINGS: GlobalSettings = {
-  // TODO: Chrome extension devtools are not included in the first release (platform is still in development).
-  // Once the platform is ready, switch this to the versioned jsDelivr URL.
-  cdnUrl:
-    "https://cdn.jsdelivr.net/npm/@comvi/plugin-in-context-editor@latest/dist/standalone.iife.js",
+  scriptUrl: DEFAULT_SCRIPT_URL,
+  apiBaseUrl: DEFAULT_API_BASE_URL,
 };
 
 // --- Per-origin credentials ---
@@ -55,7 +57,11 @@ export async function getAllCredentials(): Promise<Record<string, OriginCredenti
 
 export async function getGlobalSettings(): Promise<GlobalSettings> {
   const result = await chrome.storage.local.get(SETTINGS_KEY);
-  return { ...DEFAULT_SETTINGS, ...(result[SETTINGS_KEY] as GlobalSettings | undefined) };
+  const stored = result[SETTINGS_KEY] as GlobalSettings | undefined;
+  return {
+    ...DEFAULT_SETTINGS,
+    ...stored,
+  };
 }
 
 export async function saveGlobalSettings(settings: Partial<GlobalSettings>): Promise<void> {

@@ -91,7 +91,10 @@ window.addEventListener("comvi-extension:get-status", () => {
 
 // Listen for activate requests
 window.addEventListener("comvi-extension:activate", ((event: CustomEvent) => {
-  const { apiKey, cdnUrl } = event.detail || {};
+  const detail = typeof event.detail === "string" ? JSON.parse(event.detail) : event.detail || {};
+  const { apiKey, scriptUrl, apiBaseUrl, cdnUrl } = detail;
+  const editorScriptUrl = scriptUrl ?? cdnUrl;
+  const editorApiBaseUrl = apiBaseUrl ?? cdnUrl;
   const status = getComviStatus();
 
   if (!status.detected) {
@@ -103,12 +106,27 @@ window.addEventListener("comvi-extension:activate", ((event: CustomEvent) => {
     return;
   }
 
+  if (!apiKey) {
+    window.dispatchEvent(
+      new CustomEvent("comvi-extension:activated", {
+        detail: { success: false, error: "API key was not provided to the editor runtime" },
+      }),
+    );
+    return;
+  }
+
+  window.dispatchEvent(
+    new CustomEvent("comvi-in-context-editor:configure", {
+      detail: JSON.stringify({ apiKey, apiBaseUrl: editorApiBaseUrl }),
+    }),
+  );
+
   // Check if plugin is already loaded
   const editor = (window as any).ComviInContextEditor;
 
   if (editor) {
     // Plugin already loaded, just activate
-    const result = editor.activate({ apiKey });
+    const result = editor.activate({ apiKey, cdnUrl: editorApiBaseUrl });
     window.dispatchEvent(
       new CustomEvent("comvi-extension:activated", {
         detail: { success: !!result, instanceId: result?.instanceId },
@@ -119,11 +137,11 @@ window.addEventListener("comvi-extension:activate", ((event: CustomEvent) => {
 
   // Load plugin from CDN
   const script = document.createElement("script");
-  script.src = cdnUrl;
+  script.src = editorScriptUrl;
   script.onload = () => {
     const loadedEditor = (window as any).ComviInContextEditor;
     if (loadedEditor) {
-      const result = loadedEditor.activate({ apiKey });
+      const result = loadedEditor.activate({ apiKey, cdnUrl: editorApiBaseUrl });
       window.dispatchEvent(
         new CustomEvent("comvi-extension:activated", {
           detail: { success: !!result, instanceId: result?.instanceId },

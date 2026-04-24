@@ -10,18 +10,18 @@
     "type": "module"
   },
   "icons": {
-    "16": "icons/icon-inactive-16.svg",
-    "32": "icons/icon-inactive-32.svg",
-    "48": "icons/icon-inactive-48.svg",
-    "128": "icons/icon-inactive-128.svg"
+    "16": "icons/icon-inactive-16.png",
+    "32": "icons/icon-inactive-32.png",
+    "48": "icons/icon-inactive-48.png",
+    "128": "icons/icon-inactive-128.png"
   },
   "action": {
     "default_popup": "popup.html",
     "default_title": "Comvi In-Context Editor",
     "default_icon": {
-      "16": "icons/icon-inactive-16.svg",
-      "32": "icons/icon-inactive-32.svg",
-      "48": "icons/icon-inactive-48.svg"
+      "16": "icons/icon-inactive-16.png",
+      "32": "icons/icon-inactive-32.png",
+      "48": "icons/icon-inactive-48.png"
     }
   },
   "content_scripts": [
@@ -35,6 +35,12 @@
       "matches": ["<all_urls>"],
       "js": ["bridge.js"],
       "run_at": "document_idle"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["vendor/comvi-in-context-editor.iife.js"],
+      "matches": ["<all_urls>"]
     }
   ]
 }

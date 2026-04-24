@@ -92,7 +92,7 @@ chrome.runtime.onMessage.addListener((message: Message, _sender, sendResponse) =
       const activatePayload = message.payload as ActivatePayload;
       window.dispatchEvent(
         new CustomEvent("comvi-extension:activate", {
-          detail: activatePayload,
+          detail: JSON.stringify(activatePayload),
         }),
       );
       sendResponse({ type: "STATUS_RESPONSE", payload: { pending: true } });
