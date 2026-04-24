@@ -92,6 +92,16 @@ window.addEventListener("comvi-extension:get-status", () => {
 // Listen for activate requests
 window.addEventListener("comvi-extension:activate", ((event: CustomEvent) => {
   const { apiKey, cdnUrl } = event.detail || {};
+  const status = getComviStatus();
+
+  if (!status.detected) {
+    window.dispatchEvent(
+      new CustomEvent("comvi-extension:activated", {
+        detail: { success: false, error: "Comvi SDK not detected" },
+      }),
+    );
+    return;
+  }
 
   // Check if plugin is already loaded
   const editor = (window as any).ComviInContextEditor;
