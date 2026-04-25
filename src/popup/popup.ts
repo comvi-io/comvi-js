@@ -287,10 +287,10 @@ function updateUI(status: StatusResponsePayload) {
     statusText.textContent = "Editor active";
   } else if (comviDetected) {
     statusIndicator.classList.add("detected");
-    statusText.textContent = "Comvi SDK detected";
+    statusText.textContent = "Comvi i18n detected";
   } else {
     statusIndicator.classList.add("not-found");
-    statusText.textContent = "SDK not found";
+    statusText.textContent = "Comvi i18n not found";
   }
 
   // Update version

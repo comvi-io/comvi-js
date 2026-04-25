@@ -1,12 +1,12 @@
 /**
- * Content script running in MAIN world to detect Comvi SDK
+ * Content script running in MAIN world to detect Comvi i18n
  *
  * This script runs in the page's JavaScript context, allowing direct access
  * to window.__COMVI__. It communicates with the extension via custom events.
  *
  * Detection uses two methods:
  * 1. Event-based: Listen for COMVI_READY event (preferred, instant detection)
- * 2. Polling fallback: For pages where SDK was loaded before extension
+ * 2. Polling fallback: For pages where Comvi i18n was loaded before extension
  */
 
 interface ComviStatus {
@@ -36,7 +36,7 @@ function notifyDetected(status: ComviStatus) {
 
   window.dispatchEvent(new CustomEvent("comvi-extension:detected", { detail: status }));
 
-  // Respond to SDK with COMVI_PLUGIN_READY (handshake)
+  // Respond to Comvi i18n with COMVI_PLUGIN_READY (handshake)
   if (status.detected) {
     window.dispatchEvent(new CustomEvent("COMVI_PLUGIN_READY"));
   }
@@ -47,7 +47,7 @@ function notifyNotFound(status: ComviStatus) {
 }
 
 // --- Event-based detection (preferred) ---
-// Listen for COMVI_READY event dispatched by @comvi/core when SDK loads
+// Listen for COMVI_READY event dispatched by @comvi/core when it loads
 window.addEventListener("COMVI_READY", ((event: CustomEvent) => {
   const detail = event.detail || {};
   const status: ComviStatus = {
@@ -60,7 +60,7 @@ window.addEventListener("COMVI_READY", ((event: CustomEvent) => {
 }) as EventListener);
 
 // --- Polling fallback ---
-// For pages where SDK was loaded before extension content script
+// For pages where Comvi i18n was loaded before extension content script
 let pollCount = 0;
 const MAX_POLLS = 30; // 3 seconds max
 const POLL_INTERVAL = 100; // 100ms
@@ -100,7 +100,7 @@ window.addEventListener("comvi-extension:activate", ((event: CustomEvent) => {
   if (!status.detected) {
     window.dispatchEvent(
       new CustomEvent("comvi-extension:activated", {
-        detail: { success: false, error: "Comvi SDK not detected" },
+        detail: { success: false, error: "Comvi i18n not detected" },
       }),
     );
     return;
@@ -183,7 +183,7 @@ window.addEventListener("comvi-extension:deactivate", () => {
 });
 
 // --- Initialization ---
-// Check immediately (SDK might already be loaded)
+// Check immediately (Comvi i18n might already be loaded)
 const initialStatus = getComviStatus();
 if (initialStatus.detected) {
   notifyDetected(initialStatus);
