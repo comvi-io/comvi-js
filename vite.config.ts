@@ -1,4 +1,5 @@
 import { defineConfig, loadEnv } from "vite";
+import tailwindcss from "@tailwindcss/vite";
 import { resolve } from "path";
 import { copyFileSync, mkdirSync, existsSync, readdirSync } from "fs";
 
@@ -43,6 +44,7 @@ export default defineConfig(({ mode }) => {
       sourcemap: false,
     },
     plugins: [
+      tailwindcss(),
       {
         name: "copy-static-files",
         closeBundle() {
@@ -56,12 +58,6 @@ export default defineConfig(({ mode }) => {
           copyFileSync(
             resolve(__dirname, "src/popup/popup.html"),
             resolve(__dirname, "dist/popup.html"),
-          );
-
-          // Copy popup.css
-          copyFileSync(
-            resolve(__dirname, "src/popup/popup.css"),
-            resolve(__dirname, "dist/popup.css"),
           );
 
           // Copy standalone editor runtime for page injection

@@ -94,6 +94,10 @@ chrome.runtime.onMessage.addListener((message: Message, sender) => {
     }
 
     case "EDITOR_ACTIVATED": {
+      const detail = (message.payload ?? {}) as { success?: boolean };
+      // Only flip badge to ON when activation actually succeeded.
+      // CDN load failures, bad keys, etc. send EDITOR_ACTIVATED with success: false.
+      if (!detail.success) break;
       const currentState = tabStates.get(tabId) || {
         comviDetected: true,
         editorActive: false,

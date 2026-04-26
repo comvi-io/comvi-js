@@ -46,6 +46,17 @@ function notifyNotFound(status: ComviStatus) {
   window.dispatchEvent(new CustomEvent("comvi-extension:not-found", { detail: status }));
 }
 
+function notifyActivationFailed(error: unknown) {
+  window.dispatchEvent(
+    new CustomEvent("comvi-extension:activated", {
+      detail: {
+        success: false,
+        error: error instanceof Error ? error.message : "Failed to activate editor",
+      },
+    }),
+  );
+}
+
 // --- Event-based detection (preferred) ---
 // Listen for COMVI_READY event dispatched by @comvi/core when it loads
 window.addEventListener("COMVI_READY", ((event: CustomEvent) => {
@@ -126,12 +137,16 @@ window.addEventListener("comvi-extension:activate", ((event: CustomEvent) => {
 
   if (editor) {
     // Plugin already loaded, just activate
-    const result = editor.activate({ apiKey, cdnUrl: editorApiBaseUrl });
-    window.dispatchEvent(
-      new CustomEvent("comvi-extension:activated", {
-        detail: { success: !!result, instanceId: result?.instanceId },
-      }),
-    );
+    try {
+      const result = editor.activate({ apiKey, cdnUrl: editorApiBaseUrl });
+      window.dispatchEvent(
+        new CustomEvent("comvi-extension:activated", {
+          detail: { success: !!result, instanceId: result?.instanceId },
+        }),
+      );
+    } catch (error) {
+      notifyActivationFailed(error);
+    }
     return;
   }
 
@@ -141,12 +156,16 @@ window.addEventListener("comvi-extension:activate", ((event: CustomEvent) => {
   script.onload = () => {
     const loadedEditor = (window as any).ComviInContextEditor;
     if (loadedEditor) {
-      const result = loadedEditor.activate({ apiKey, cdnUrl: editorApiBaseUrl });
-      window.dispatchEvent(
-        new CustomEvent("comvi-extension:activated", {
-          detail: { success: !!result, instanceId: result?.instanceId },
-        }),
-      );
+      try {
+        const result = loadedEditor.activate({ apiKey, cdnUrl: editorApiBaseUrl });
+        window.dispatchEvent(
+          new CustomEvent("comvi-extension:activated", {
+            detail: { success: !!result, instanceId: result?.instanceId },
+          }),
+        );
+      } catch (error) {
+        notifyActivationFailed(error);
+      }
     } else {
       window.dispatchEvent(
         new CustomEvent("comvi-extension:activated", {

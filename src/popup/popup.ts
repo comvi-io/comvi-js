@@ -1,328 +1,111 @@
-/**
- * Popup script for the Chrome extension
- * Supports per-origin credentials and API key validation
- */
-
+import "./popup.css";
 import {
   getCredentials,
   setCredentials,
-  clearCredentials,
   getGlobalSettings,
   getOriginFromUrl,
-  type OriginCredentials,
 } from "../shared/storage";
 import type { Message, StatusResponsePayload, ActivatePayload } from "../shared/messages";
 
-// DOM Elements
-const statusIndicator = document.getElementById("status-indicator")!;
-const statusText = document.getElementById("status-text")!;
-const versionEl = document.getElementById("version")!;
-const originTextEl = document.getElementById("origin-text")!;
-const notDetectedEl = document.getElementById("not-detected")!;
-const settingsEl = document.getElementById("settings")!;
-const apiKeyInput = document.getElementById("api-key") as HTMLInputElement;
-const toggleVisibilityBtn = document.getElementById("toggle-visibility")!;
-const toggleEditorBtn = document.getElementById("toggle-editor") as HTMLButtonElement;
-const clearCredentialsBtn = document.getElementById("clear-credentials")!;
-const errorEl = document.getElementById("error")!;
+type Theme = "light" | "dark";
+type View = "not-detected" | "idle" | "active";
 
-// Validation elements
-const validationStatusEl = document.getElementById("validation-status")!;
-const validationSpinnerEl = document.getElementById("validation-spinner")!;
-const validationIconEl = document.getElementById("validation-icon")!;
-const validationTextEl = document.getElementById("validation-text")!;
+const THEME_STORAGE_KEY = "comvi_theme";
+
+// DOM
+const root = document.documentElement;
+const themeToggleBtn = document.getElementById("theme-toggle") as HTMLButtonElement;
+const themeIconSun = document.getElementById("theme-icon-sun")!;
+const themeIconMoon = document.getElementById("theme-icon-moon")!;
+const stateNotDetected = document.getElementById("state-not-detected")!;
+const stateIdle = document.getElementById("state-idle")!;
+const stateActive = document.getElementById("state-active")!;
+const apiKeyInput = document.getElementById("api-key") as HTMLInputElement;
+const enableBtn = document.getElementById("enable-btn") as HTMLButtonElement;
+const disableBtn = document.getElementById("disable-btn") as HTMLButtonElement;
+const errorMsg = document.getElementById("error-msg")!;
+const versionLine = document.getElementById("version-line")!;
 
 // State
 let currentTabId: number | null = null;
-let currentOrigin: string = "";
+let currentOrigin = "";
 let editorActive = false;
 let comviDetected = false;
-let validationTimeout: ReturnType<typeof setTimeout> | null = null;
-let isValidated = false;
+let comviVersion: string | undefined;
 
-// Initialize
-async function init() {
-  // Get current tab
-  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-  if (!tab?.id || !tab.url) {
-    showError("Cannot access current tab");
+// --- Theme ---
+
+async function readStoredTheme(): Promise<Theme | null> {
+  const result = await chrome.storage.local.get(THEME_STORAGE_KEY);
+  const value = result[THEME_STORAGE_KEY];
+  return value === "light" || value === "dark" ? value : null;
+}
+
+function detectSystemTheme(): Theme {
+  return window.matchMedia?.("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+}
+
+function applyTheme(theme: Theme) {
+  root.classList.toggle("dark", theme === "dark");
+  themeIconSun.classList.toggle("hidden", theme !== "dark");
+  themeIconMoon.classList.toggle("hidden", theme === "dark");
+}
+
+async function initTheme() {
+  const stored = await readStoredTheme();
+  const theme = stored ?? detectSystemTheme();
+  applyTheme(theme);
+
+  themeToggleBtn.addEventListener("click", async () => {
+    const next: Theme = root.classList.contains("dark") ? "light" : "dark";
+    applyTheme(next);
+    await chrome.storage.local.set({ [THEME_STORAGE_KEY]: next });
+  });
+}
+
+// --- View switching ---
+
+function setView(view: View) {
+  for (const [id, el] of [
+    ["not-detected", stateNotDetected],
+    ["idle", stateIdle],
+    ["active", stateActive],
+  ] as const) {
+    const visible = id === view;
+    el.classList.toggle("hidden", !visible);
+    el.classList.toggle("flex", visible && id !== "not-detected");
+  }
+}
+
+function showError(message: string) {
+  errorMsg.textContent = message;
+  errorMsg.classList.remove("hidden");
+}
+
+function hideError() {
+  errorMsg.classList.add("hidden");
+  errorMsg.textContent = "";
+}
+
+function render() {
+  if (!comviDetected) {
+    setView("not-detected");
     return;
   }
-  currentTabId = tab.id;
-  currentOrigin = getOriginFromUrl(tab.url);
 
-  // Show current origin
-  originTextEl.textContent = currentOrigin || "Unknown origin";
-
-  // Load saved credentials for this origin
-  const credentials = await getCredentials(currentOrigin);
-  if (credentials) {
-    apiKeyInput.value = credentials.apiKey;
-    if (credentials.validated && credentials.projectName) {
-      showValidationSuccess(credentials.projectName);
-    }
-    clearCredentialsBtn.classList.remove("hidden");
-  }
-
-  // Request status from content script
-  requestStatus();
-
-  // Set up event listeners
-  setupEventListeners();
-}
-
-function setupEventListeners() {
-  // Toggle API key visibility
-  toggleVisibilityBtn.addEventListener("click", () => {
-    const isPassword = apiKeyInput.type === "password";
-    apiKeyInput.type = isPassword ? "text" : "password";
-  });
-
-  // Validate API key on input (debounced)
-  apiKeyInput.addEventListener("input", () => {
-    const apiKey = apiKeyInput.value.trim();
-
-    // Clear previous validation
-    resetValidation();
-
-    if (validationTimeout) {
-      clearTimeout(validationTimeout);
-    }
-
-    if (!apiKey) {
-      hideValidation();
-      toggleEditorBtn.disabled = true;
-      return;
-    }
-
-    // Debounce validation
-    validationTimeout = setTimeout(() => {
-      validateApiKey(apiKey);
-    }, 500);
-  });
-
-  // Clear credentials
-  clearCredentialsBtn.addEventListener("click", async () => {
-    if (!currentOrigin) return;
-
-    await clearCredentials(currentOrigin);
-    apiKeyInput.value = "";
-    resetValidation();
-    hideValidation();
-    toggleEditorBtn.disabled = true;
-    clearCredentialsBtn.classList.add("hidden");
-
-    // Deactivate if active
-    if (editorActive && currentTabId) {
-      await sendToContentScript({ type: "DEACTIVATE_EDITOR" });
-    }
-  });
-
-  // Toggle editor
-  toggleEditorBtn.addEventListener("click", async () => {
-    if (!currentTabId || !currentOrigin) return;
-
-    const apiKey = apiKeyInput.value.trim();
-    if (!apiKey && !editorActive) {
-      showError("Please enter an API key");
-      return;
-    }
-
-    hideError();
-    toggleEditorBtn.disabled = true;
-
-    if (editorActive) {
-      // Deactivate
-      await sendToContentScript({ type: "DEACTIVATE_EDITOR" });
-    } else {
-      // Save credentials before activating
-      const credentials: OriginCredentials = {
-        apiKey,
-        validated: isValidated,
-        projectName: validationTextEl.textContent || undefined,
-      };
-      await setCredentials(currentOrigin, credentials);
-      clearCredentialsBtn.classList.remove("hidden");
-
-      // Activate
-      const settings = await getGlobalSettings();
-      const scriptUrl = await ensureEditorRuntimeLoaded(settings.scriptUrl);
-      const payload: ActivatePayload = {
-        apiKey,
-        scriptUrl,
-        apiBaseUrl: settings.apiBaseUrl,
-      };
-      await sendToContentScript({ type: "ACTIVATE_EDITOR", payload });
-    }
-
-    // Re-enable button after a short delay
-    setTimeout(() => {
-      toggleEditorBtn.disabled = false;
-    }, 1000);
-  });
-}
-
-async function ensureEditorRuntimeLoaded(scriptUrl: string): Promise<string> {
-  if (scriptUrl.includes("://")) {
-    return scriptUrl;
-  }
-
-  if (!currentTabId) {
-    throw new Error("No tab ID");
-  }
-
-  await chrome.scripting.executeScript({
-    target: { tabId: currentTabId },
-    files: [scriptUrl],
-    world: "MAIN",
-  });
-
-  return chrome.runtime.getURL(scriptUrl);
-}
-
-async function validateApiKey(apiKey: string) {
-  showValidating();
-
-  try {
-    // TODO: Replace with actual Comvi API endpoint when available
-    // For now, we'll do basic validation (non-empty, reasonable format)
-    // In production: const response = await fetch(`${API_URL}/api/v1/api-keys/current?ak=${apiKey}`);
-
-    // Simulate API validation (remove this when real API is available)
-    await new Promise((resolve) => setTimeout(resolve, 300));
-
-    // Basic format validation
-    if (apiKey.length < 10) {
-      showValidationError("API key too short");
-      return;
-    }
-
-    // For now, accept any key that looks reasonable
-    // When API is available, this will validate against the server
-    showValidationSuccess("API key accepted");
-    isValidated = true;
-    toggleEditorBtn.disabled = !comviDetected;
-
-    // Save validated credentials
-    if (currentOrigin) {
-      await setCredentials(currentOrigin, {
-        apiKey,
-        validated: true,
-        projectName: "API key accepted",
-      });
-      clearCredentialsBtn.classList.remove("hidden");
-    }
-  } catch {
-    showValidationError("Validation failed");
-  }
-}
-
-function showValidating() {
-  validationStatusEl.classList.remove("hidden");
-  validationSpinnerEl.classList.remove("hidden");
-  validationIconEl.classList.add("hidden");
-  validationTextEl.textContent = "Validating...";
-  validationTextEl.className = "validation-text";
-  apiKeyInput.classList.remove("valid", "invalid");
-}
-
-function showValidationSuccess(message: string) {
-  validationStatusEl.classList.remove("hidden");
-  validationSpinnerEl.classList.add("hidden");
-  validationIconEl.classList.remove("hidden");
-  validationIconEl.className = "validation-icon valid";
-  validationTextEl.textContent = message;
-  validationTextEl.className = "validation-text valid";
-  apiKeyInput.classList.remove("invalid");
-  apiKeyInput.classList.add("valid");
-  isValidated = true;
-  toggleEditorBtn.disabled = !comviDetected;
-}
-
-function showValidationError(message: string) {
-  validationStatusEl.classList.remove("hidden");
-  validationSpinnerEl.classList.add("hidden");
-  validationIconEl.classList.remove("hidden");
-  validationIconEl.className = "validation-icon invalid";
-  validationTextEl.textContent = message;
-  validationTextEl.className = "validation-text invalid";
-  apiKeyInput.classList.remove("valid");
-  apiKeyInput.classList.add("invalid");
-  isValidated = false;
-  toggleEditorBtn.disabled = true;
-}
-
-function resetValidation() {
-  isValidated = false;
-  apiKeyInput.classList.remove("valid", "invalid");
-}
-
-function hideValidation() {
-  validationStatusEl.classList.add("hidden");
-}
-
-async function requestStatus() {
-  if (!currentTabId) return;
-
-  try {
-    const response = await sendToContentScript({ type: "GET_STATUS" });
-    if (response?.payload) {
-      updateUI(response.payload as StatusResponsePayload);
-    }
-  } catch {
-    // Content script might not be ready yet
-    console.log("Waiting for content script...");
-    setTimeout(requestStatus, 500);
-  }
-}
-
-function updateUI(status: StatusResponsePayload) {
-  comviDetected = status.comviDetected;
-  editorActive = status.editorActive ?? false;
-
-  // Update status indicator
-  statusIndicator.className = "status-indicator";
   if (editorActive) {
-    statusIndicator.classList.add("active");
-    statusText.textContent = "Editor active";
-  } else if (comviDetected) {
-    statusIndicator.classList.add("detected");
-    statusText.textContent = "Comvi i18n detected";
-  } else {
-    statusIndicator.classList.add("not-found");
-    statusText.textContent = "Comvi i18n not found";
+    versionLine.textContent = comviVersion ? `Comvi i18n v${comviVersion}` : "";
+    setView("active");
+    return;
   }
 
-  // Update version
-  if (status.version) {
-    versionEl.textContent = `v${status.version}`;
-  }
-
-  // Show/hide sections
-  if (comviDetected) {
-    notDetectedEl.classList.add("hidden");
-    settingsEl.classList.remove("hidden");
-
-    // Update button state
-    const hasApiKey = apiKeyInput.value.trim().length > 0;
-    toggleEditorBtn.disabled = !hasApiKey || (!isValidated && !editorActive);
-
-    if (editorActive) {
-      toggleEditorBtn.textContent = "Disable Editor";
-      toggleEditorBtn.classList.add("active");
-      toggleEditorBtn.disabled = false;
-    } else {
-      toggleEditorBtn.textContent = "Enable Editor";
-      toggleEditorBtn.classList.remove("active");
-    }
-  } else {
-    notDetectedEl.classList.remove("hidden");
-    settingsEl.classList.add("hidden");
-  }
+  setView("idle");
 }
 
-async function sendToContentScript(message: Message): Promise<any> {
-  if (!currentTabId) throw new Error("No tab ID");
+// --- Messaging ---
+
+function sendToContentScript(message: Message): Promise<{ payload?: unknown } | undefined> {
+  if (!currentTabId) return Promise.reject(new Error("No tab ID"));
 
   return new Promise((resolve, reject) => {
     chrome.tabs.sendMessage(currentTabId!, message, (response) => {
@@ -335,33 +118,141 @@ async function sendToContentScript(message: Message): Promise<any> {
   });
 }
 
-function showError(message: string) {
-  errorEl.textContent = message;
-  errorEl.classList.remove("hidden");
+async function ensureEditorRuntimeLoaded(scriptUrl: string): Promise<string> {
+  if (scriptUrl.includes("://")) return scriptUrl;
+  if (!currentTabId) throw new Error("No tab ID");
+
+  await chrome.scripting.executeScript({
+    target: { tabId: currentTabId },
+    files: [scriptUrl],
+    world: "MAIN",
+  });
+
+  return chrome.runtime.getURL(scriptUrl);
 }
 
-function hideError() {
-  errorEl.classList.add("hidden");
+async function requestStatus(retries = 4) {
+  if (!currentTabId) return;
+
+  try {
+    const response = await sendToContentScript({ type: "GET_STATUS" });
+    if (response?.payload) updateStatus(response.payload as StatusResponsePayload);
+  } catch {
+    if (retries > 0) setTimeout(() => requestStatus(retries - 1), 500);
+  }
 }
 
-// Listen for updates from content script
+function updateStatus(status: StatusResponsePayload) {
+  comviDetected = status.comviDetected;
+  editorActive = status.editorActive ?? false;
+  if (status.version) comviVersion = status.version;
+  render();
+}
+
+// --- Actions ---
+
+async function handleEnable() {
+  if (!currentTabId || !currentOrigin) return;
+
+  const apiKey = apiKeyInput.value.trim();
+  if (!apiKey) {
+    showError("Please enter an API key");
+    apiKeyInput.focus();
+    return;
+  }
+
+  hideError();
+  enableBtn.disabled = true;
+  enableBtn.textContent = "Enabling…";
+
+  try {
+    const settings = await getGlobalSettings();
+    const scriptUrl = await ensureEditorRuntimeLoaded(settings.scriptUrl);
+    const payload: ActivatePayload = {
+      apiKey,
+      scriptUrl,
+      apiBaseUrl: settings.apiBaseUrl,
+    };
+    await sendToContentScript({ type: "ACTIVATE_EDITOR", payload });
+    await setCredentials(currentOrigin, { apiKey });
+  } catch (err) {
+    showError(err instanceof Error ? err.message : "Failed to enable editor");
+    enableBtn.disabled = false;
+    enableBtn.textContent = "Enable editor";
+  }
+}
+
+async function handleDisable() {
+  if (!currentTabId) return;
+
+  disableBtn.disabled = true;
+  disableBtn.textContent = "Disabling…";
+
+  try {
+    await sendToContentScript({ type: "DEACTIVATE_EDITOR" });
+  } catch {
+    disableBtn.disabled = false;
+    disableBtn.textContent = "Disable editor";
+  }
+}
+
+// --- Init ---
+
+async function init() {
+  await initTheme();
+
+  // Render not-detected up front so the popup never shows blank,
+  // even before the content script replies (or if it never can).
+  render();
+
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  if (!tab?.id || !tab.url) return;
+
+  currentTabId = tab.id;
+  currentOrigin = getOriginFromUrl(tab.url);
+
+  const credentials = await getCredentials(currentOrigin);
+  if (credentials?.apiKey) apiKeyInput.value = credentials.apiKey;
+
+  enableBtn.addEventListener("click", handleEnable);
+  disableBtn.addEventListener("click", handleDisable);
+  apiKeyInput.addEventListener("input", hideError);
+  apiKeyInput.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") handleEnable();
+  });
+
+  requestStatus();
+}
+
 chrome.runtime.onMessage.addListener((message: Message) => {
   switch (message.type) {
-    case "EDITOR_ACTIVATED":
-      editorActive = true;
-      updateUI({ comviDetected: true, editorActive: true });
+    case "EDITOR_ACTIVATED": {
+      const detail = (message.payload ?? {}) as { success?: boolean; error?: string };
+      if (detail.success) {
+        editorActive = true;
+        hideError();
+        render();
+      } else {
+        editorActive = false;
+        enableBtn.disabled = false;
+        enableBtn.textContent = "Enable editor";
+        if (detail.error) showError(detail.error);
+        render();
+      }
       break;
+    }
 
     case "EDITOR_DEACTIVATED":
       editorActive = false;
-      updateUI({ comviDetected: true, editorActive: false });
+      disableBtn.disabled = false;
+      disableBtn.textContent = "Disable editor";
+      render();
       break;
 
     case "STATUS_RESPONSE":
-      updateUI(message.payload as StatusResponsePayload);
+      updateStatus(message.payload as StatusResponsePayload);
       break;
   }
 });
 
-// Start
 init();
