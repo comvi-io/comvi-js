@@ -228,17 +228,16 @@ chrome.runtime.onMessage.addListener((message: Message) => {
   switch (message.type) {
     case "EDITOR_ACTIVATED": {
       const detail = (message.payload ?? {}) as { success?: boolean; error?: string };
+      enableBtn.disabled = false;
+      enableBtn.textContent = "Enable editor";
       if (detail.success) {
         editorActive = true;
         hideError();
-        render();
       } else {
         editorActive = false;
-        enableBtn.disabled = false;
-        enableBtn.textContent = "Enable editor";
         if (detail.error) showError(detail.error);
-        render();
       }
+      render();
       break;
     }
 

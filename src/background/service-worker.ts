@@ -6,7 +6,10 @@
 
 import type { Message, StatusResponsePayload } from "../shared/messages";
 
-// Icon paths for different states
+// Icon paths for different states.
+// Only two visual states: inactive (Comvi i18n not on page) and detected
+// (Comvi i18n present). Editor-on state reuses the detected icon and is
+// indicated by a brand-colored "ON" badge instead of a third icon variant.
 const ICONS = {
   inactive: {
     16: "icons/icon-inactive-16.png",
@@ -18,12 +21,11 @@ const ICONS = {
     32: "icons/icon-detected-32.png",
     48: "icons/icon-detected-48.png",
   },
-  active: {
-    16: "icons/icon-active-16.png",
-    32: "icons/icon-active-32.png",
-    48: "icons/icon-active-48.png",
-  },
 } as const;
+
+// Brand colors (mirror popup tokens in popup.css)
+const BRAND_AMBER = "#d97706";
+const BRAND_DARK = "#19191a";
 
 // Track tab states
 interface TabState {
@@ -36,27 +38,16 @@ const tabStates = new Map<number, TabState>();
 
 // Update icon and badge based on tab state
 function updateIcon(tabId: number, state: TabState) {
-  let iconSet: (typeof ICONS)[keyof typeof ICONS];
-  let badgeText = "";
-  let badgeColor = "#9ca3af";
+  const iconSet = state.comviDetected ? ICONS.detected : ICONS.inactive;
+  const badgeText = state.editorActive ? "ON" : "";
+
+  chrome.action.setIcon({ path: iconSet, tabId });
+  chrome.action.setBadgeText({ text: badgeText, tabId });
 
   if (state.editorActive) {
-    iconSet = ICONS.active;
-    badgeText = "ON";
-    badgeColor = "#22c55e";
-  } else if (state.comviDetected) {
-    iconSet = ICONS.detected;
-    badgeColor = "#3b82f6";
-  } else {
-    iconSet = ICONS.inactive;
+    chrome.action.setBadgeBackgroundColor({ color: BRAND_DARK, tabId });
+    chrome.action.setBadgeTextColor({ color: BRAND_AMBER, tabId });
   }
-
-  // Update icon
-  chrome.action.setIcon({ path: iconSet, tabId });
-
-  // Update badge
-  chrome.action.setBadgeText({ text: badgeText, tabId });
-  chrome.action.setBadgeBackgroundColor({ color: badgeColor, tabId });
 }
 
 // Reset icon to default (inactive) state

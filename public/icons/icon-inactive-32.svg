@@ -1,4 +1,10 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
-  <rect width="32" height="32" rx="6" fill="#9ca3af"/>
-  <text x="16" y="23" text-anchor="middle" font-family="system-ui, sans-serif" font-size="22" font-weight="700" fill="#fff">T</text>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+  <rect width="128" height="128" fill="#a1a1aa"/>
+  <g fill="none" stroke="#ffffff" stroke-opacity="0.6" stroke-width="10" stroke-linecap="square">
+    <path d="M16 44V16H44"/>
+    <path d="M112 44V16H84"/>
+    <path d="M16 84V112H44"/>
+    <path d="M112 84V112H84"/>
+  </g>
+  <rect x="52" y="52" width="24" height="24" fill="#ffffff" fill-opacity="0.6"/>
 </svg>

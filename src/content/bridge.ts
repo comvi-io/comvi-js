@@ -17,12 +17,20 @@ let currentStatus: StatusResponsePayload = {
 // Listen for status from detector (MAIN world)
 window.addEventListener("comvi-extension:status", ((event: CustomEvent) => {
   const detail = event.detail;
+  const wasDetected = currentStatus.comviDetected;
   currentStatus = {
     comviDetected: detail.detected,
     editorActive: detail.editorActive,
     version: detail.version,
     instanceCount: detail.instanceCount,
   };
+
+  // Bridge may have missed the initial 'comvi-extension:detected' event
+  // because detector and bridge race to register listeners at document_idle.
+  // Forward status updates to background so the toolbar icon reflects detection.
+  if (detail.detected && !wasDetected) {
+    chrome.runtime.sendMessage({ type: "COMVI_DETECTED", payload: currentStatus });
+  }
 }) as EventListener);
 
 // Listen for detection events
