@@ -118,19 +118,6 @@ function sendToContentScript(message: Message): Promise<{ payload?: unknown } | 
   });
 }
 
-async function ensureEditorRuntimeLoaded(scriptUrl: string): Promise<string> {
-  if (scriptUrl.includes("://")) return scriptUrl;
-  if (!currentTabId) throw new Error("No tab ID");
-
-  await chrome.scripting.executeScript({
-    target: { tabId: currentTabId },
-    files: [scriptUrl],
-    world: "MAIN",
-  });
-
-  return chrome.runtime.getURL(scriptUrl);
-}
-
 async function requestStatus(retries = 4) {
   if (!currentTabId) return;
 
@@ -167,10 +154,9 @@ async function handleEnable() {
 
   try {
     const settings = await getGlobalSettings();
-    const scriptUrl = await ensureEditorRuntimeLoaded(settings.scriptUrl);
     const payload: ActivatePayload = {
       apiKey,
-      scriptUrl,
+      scriptUrl: settings.scriptUrl,
       apiBaseUrl: settings.apiBaseUrl,
     };
     await sendToContentScript({ type: "ACTIVATE_EDITOR", payload });

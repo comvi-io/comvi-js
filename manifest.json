@@ -3,7 +3,7 @@
   "name": "Comvi In-Context Editor",
   "description": "Enable in-context translation editing on production websites using Comvi i18n",
   "version": "1.0.0",
-  "permissions": ["storage", "activeTab", "scripting"],
+  "permissions": ["storage", "activeTab"],
   "host_permissions": ["<all_urls>"],
   "background": {
     "service_worker": "background.js",
@@ -35,12 +35,6 @@
       "matches": ["<all_urls>"],
       "js": ["bridge.js"],
       "run_at": "document_idle"
-    }
-  ],
-  "web_accessible_resources": [
-    {
-      "resources": ["vendor/comvi-in-context-editor.iife.js"],
-      "matches": ["<all_urls>"]
     }
   ]
 }

@@ -1,17 +1,17 @@
 import { defineConfig, loadEnv } from "vite";
 import tailwindcss from "@tailwindcss/vite";
 import { resolve } from "path";
-import { copyFileSync, mkdirSync, existsSync, readdirSync } from "fs";
+import { copyFileSync, existsSync, mkdirSync, readdirSync } from "fs";
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, __dirname, "");
   const editorScriptUrl = env.VITE_COMVI_EDITOR_SCRIPT_URL?.trim();
   const apiBaseUrl = env.VITE_COMVI_API_BASE_URL?.trim();
 
-  if (!editorScriptUrl) {
+  if (!editorScriptUrl || !editorScriptUrl.includes("://")) {
     throw new Error(
-      "VITE_COMVI_EDITOR_SCRIPT_URL is required to build @comvi/chrome-extension. " +
-        "Set it to a hosted runtime URL or to vendor/comvi-in-context-editor.iife.js for the bundled runtime.",
+      "VITE_COMVI_EDITOR_SCRIPT_URL must be an absolute URL to a hosted in-context editor runtime " +
+        "(e.g. https://cdn.jsdelivr.net/npm/@comvi/plugin-in-context-editor/dist/standalone.iife.js).",
     );
   }
 
@@ -59,23 +59,6 @@ export default defineConfig(({ mode }) => {
             resolve(__dirname, "src/popup/popup.html"),
             resolve(__dirname, "dist/popup.html"),
           );
-
-          // Copy standalone editor runtime for page injection
-          const vendorDir = resolve(__dirname, "dist/vendor");
-          if (!existsSync(vendorDir)) {
-            mkdirSync(vendorDir, { recursive: true });
-          }
-
-          const standaloneEditor = resolve(
-            __dirname,
-            "../plugin-in-context-editor/dist/standalone.iife.js",
-          );
-          if (!existsSync(standaloneEditor)) {
-            throw new Error(
-              "Missing plugin-in-context-editor standalone build. Run pnpm --filter @comvi/plugin-in-context-editor build:all first.",
-            );
-          }
-          copyFileSync(standaloneEditor, resolve(vendorDir, "comvi-in-context-editor.iife.js"));
 
           // Create icons directory and copy icons
           const iconsDir = resolve(__dirname, "dist/icons");
