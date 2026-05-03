@@ -1,6 +1,6 @@
 {
   "name": "@comvi/plugin-in-context-editor",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": false,
   "type": "module",
   "description": "In-context translation editor plugin for Comvi — visual editing of translations in your app",

@@ -1,6 +1,6 @@
 {
   "name": "@comvi/vite-plugin",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "type": "module",
   "description": "Vite plugin for Comvi — auto-generates TypeScript types from local translation files",
   "license": "MIT",
