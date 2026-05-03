@@ -1,0 +1,27 @@
+{
+  "name": "@test-apps/svelte",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "typecheck": "svelte-check --tsconfig ./tsconfig.json",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@comvi/plugin-locale-detector": "workspace:*",
+    "@comvi/svelte": "workspace:*"
+  },
+  "devDependencies": {
+    "@sveltejs/vite-plugin-svelte": "^7.0.0",
+    "@tailwindcss/vite": "^4.2.2",
+    "@comvi/vite-config": "workspace:*",
+    "@comvi/vite-plugin": "workspace:*",
+    "svelte": "^5.55.1",
+    "svelte-check": "^4.4.6",
+    "tailwindcss": "4",
+    "typescript": "~6.0.2",
+    "vite": "^8.0.3"
+  }
+}

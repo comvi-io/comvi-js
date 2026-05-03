@@ -1,0 +1,46 @@
+{
+  "common": {
+    "language_selector": "Sprache wählen",
+    "current_language": "Aktuell: {lang}",
+    "loading": "Wird geladen..."
+  },
+  "nav": {
+    "home": "Startseite",
+    "plurals": "Pluralisierung",
+    "rich_text": "Rich Text",
+    "namespaces": "Namensräume",
+    "rtl": "RTL Unterstützung"
+  },
+  "home": {
+    "title": "Comvi i18n Beispiel",
+    "subtitle": "Umfassende i18n-Funktionen demonstrieren",
+    "intro": "Hallo, {name}! Dies ist eine Beispielanwendung."
+  },
+  "plurals": {
+    "title": "Pluralisierung",
+    "notifications": "{count, plural, =0 {Keine neuen Benachrichtigungen} one {Eine neue Benachrichtigung} other {# neue Benachrichtigungen}}",
+    "items": "{count, plural, =0 {Keine Artikel} one {1 Artikel} other {# Artikel}} im Warenkorb"
+  },
+  "rich_text": {
+    "title": "Rich Text",
+    "bold_text": "Das ist <strong>fetter</strong> Text.",
+    "link_text": "Bitte <link>klicken Sie hier</link> für mehr Infos.",
+    "component_interpolation": "Das ist ein {placeholder} Komponente.",
+    "nested_tags_title": "Verschachtelte Tag-Interpolation",
+    "nested_simple": "Klicken Sie auf <link><bold>diesen Link</bold></link> für Hilfe.",
+    "nested_mixed": "<alert>Warnung: <bold>{count}</bold> Elemente benötigen Ihre <link>Aufmerksamkeit</link>!</alert>",
+    "nested_deep": "<card><header><icon/>Wichtiger Hinweis</header><content>Bitte lesen Sie die <link>Nutzungsbedingungen</link> sorgfältig.</content></card>",
+    "select_intro": "ICU Select ermöglicht unterschiedliche Übersetzungen basierend auf Kategorien wie Geschlecht oder Formalität. Dies ist besonders wichtig für Sprachen wie Deutsch (formelles \"Sie\" vs. informelles \"Du\"), Ukrainisch (grammatisches Geschlecht beeinflusst Verben) und Arabisch.",
+    "select_title": "ICU Select Beispiele",
+    "combined_title": "Select + Plural (Kombiniert)",
+    "user_action": "{gender, select, male {Er hat deinen Beitrag geliked} female {Sie hat deinen Beitrag geliked} other {Man hat deinen Beitrag geliked}}",
+    "greeting_formal": "{formality, select, formal {Guten Tag, wie kann ich Ihnen helfen?} informal {Hey, wie kann ich dir helfen?}}",
+    "user_messages": "{gender, select, male {{count, plural, =0 {Er hat keine Nachrichten} one {Er hat # Nachricht} other {Er hat # Nachrichten}}} female {{count, plural, =0 {Sie hat keine Nachrichten} one {Sie hat # Nachricht} other {Sie hat # Nachrichten}}} other {{count, plural, =0 {Man hat keine Nachrichten} one {Man hat # Nachricht} other {Man hat # Nachrichten}}}}",
+    "new_notifications": "{formality, select, formal {{count, plural, =0 {Sie haben keine neuen Nachrichten} one {Sie haben # neue Nachricht} other {Sie haben # neue Nachrichten}}} informal {{count, plural, =0 {Du hast keine neuen Nachrichten} one {Du hast # neue Nachricht} other {Du hast # neue Nachrichten}}}}"
+  },
+  "namespaces": {
+    "title": "Namensräume & Lazy Loading",
+    "description": "Dieser Text kommt aus dem Haupt-Bundle.",
+    "load_admin": "Admin-Namensraum laden"
+  }
+}

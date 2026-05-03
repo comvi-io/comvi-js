@@ -1,0 +1,76 @@
+{
+  "name": "@comvi/cli",
+  "version": "0.0.0",
+  "type": "module",
+  "description": "CLI for Comvi i18n — type generation, translation sync, and project management",
+  "license": "MIT",
+  "author": "Comvi <hello@comvi.io> (https://comvi.io)",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/comvi-io/comvi-js.git",
+    "directory": "packages/cli"
+  },
+  "homepage": "https://comvi.io",
+  "bugs": {
+    "url": "https://github.com/comvi-io/comvi-js/issues"
+  },
+  "files": [
+    "dist",
+    "bin"
+  ],
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "bin": {
+    "comvi": "./bin/comvi.js",
+    "comvi-typegen": "./bin/comvi.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "sideEffects": false,
+  "scripts": {
+    "build": "tsc && vite build",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "lint": "eslint . --max-warnings=0",
+    "format": "prettier --write src/",
+    "lint:fix": "eslint . --fix"
+  },
+  "dependencies": {
+    "@comvi/core": "workspace:*",
+    "commander": "^14.0.3",
+    "eventsource": "^4.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.0",
+    "@typescript-eslint/eslint-plugin": "^8.58.0",
+    "@typescript-eslint/parser": "^8.58.0",
+    "@vitest/coverage-v8": "^4.1.2",
+    "eslint": "^10.1.0",
+    "eslint-config-prettier": "^10.1.8",
+    "happy-dom": "^20.8.9",
+    "prettier": "^3.8.1",
+    "typescript": "~6.0.2",
+    "vite": "^8.0.3",
+    "vite-plugin-dts": "^4.5.4",
+    "vitest": "^4.1.2"
+  },
+  "keywords": [
+    "i18n",
+    "internationalization",
+    "typescript",
+    "cli",
+    "type-safety",
+    "codegen",
+    "comvi",
+    "translations",
+    "sync"
+  ]
+}

@@ -1,0 +1,55 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "tasks": {
+    "build": {
+      "outputs": ["dist/**"],
+      "dependsOn": ["^build"]
+    },
+    "@test-apps/next#build": {
+      "outputs": [".next/**"],
+      "dependsOn": ["^build"]
+    },
+    "@comvi/test-app-nuxt#build": {
+      "outputs": [".nuxt/**", ".output/**"],
+      "dependsOn": ["^build"]
+    },
+    "test": {
+      "outputs": [],
+      "dependsOn": []
+    },
+    "test:coverage": {
+      "outputs": ["coverage/**"],
+      "dependsOn": []
+    },
+    "test:watch": {
+      "outputs": [],
+      "dependsOn": [],
+      "cache": false,
+      "persistent": true
+    },
+    "lint": {
+      "outputs": []
+    },
+    "typecheck": {
+      "outputs": [],
+      "dependsOn": ["^typecheck"]
+    },
+    "dev": {
+      "cache": false,
+      "persistent": true,
+      "interruptible": true
+    },
+    "@test-apps/next#dev": {
+      "dependsOn": ["^build"],
+      "cache": false,
+      "persistent": true,
+      "interruptible": true
+    },
+    "@comvi/test-app-nuxt#dev": {
+      "dependsOn": ["^build"],
+      "cache": false,
+      "persistent": true,
+      "interruptible": true
+    }
+  }
+}

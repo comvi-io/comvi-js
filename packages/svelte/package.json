@@ -1,0 +1,84 @@
+{
+  "name": "@comvi/svelte",
+  "version": "0.0.0",
+  "type": "module",
+  "description": "Svelte 4/5 integration for Comvi — stores, components, and type-safe translations",
+  "license": "MIT",
+  "author": "Comvi <hello@comvi.io> (https://comvi.io)",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/comvi-io/comvi-js.git",
+    "directory": "packages/svelte"
+  },
+  "homepage": "https://comvi.io",
+  "bugs": {
+    "url": "https://github.com/comvi-io/comvi-js/issues"
+  },
+  "keywords": [
+    "i18n",
+    "internationalization",
+    "localization",
+    "svelte",
+    "sveltekit",
+    "svelte5",
+    "typescript",
+    "type-safe",
+    "comvi",
+    "translation",
+    "stores",
+    "ssr",
+    "ssg",
+    "server-components"
+  ],
+  "files": [
+    "dist"
+  ],
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "svelte": "./dist/index.js",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "svelte": "./dist/index.js",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "sideEffects": false,
+  "scripts": {
+    "dev": "vite build --watch",
+    "build": "svelte-package -i src -o dist && tsc --emitDeclarationOnly",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "lint": "eslint . --max-warnings=0",
+    "format": "prettier --write src/",
+    "lint:fix": "eslint . --fix"
+  },
+  "dependencies": {
+    "@comvi/core": "workspace:*"
+  },
+  "peerDependencies": {
+    "svelte": "^4.0.0 || ^5.0.0"
+  },
+  "devDependencies": {
+    "@sveltejs/package": "^2.5.7",
+    "@sveltejs/vite-plugin-svelte": "^7.0.0",
+    "@comvi/vite-config": "workspace:*",
+    "@types/node": "^22.13.0",
+    "@typescript-eslint/eslint-plugin": "^8.58.0",
+    "@typescript-eslint/parser": "^8.58.0",
+    "@vitest/coverage-v8": "^4.1.2",
+    "eslint": "^10.1.0",
+    "eslint-config-prettier": "^10.1.8",
+    "happy-dom": "^20.8.9",
+    "prettier": "^3.8.1",
+    "svelte": "^5.55.1",
+    "typescript": "~6.0.2",
+    "vite": "^8.0.3",
+    "vite-plugin-dts": "^4.5.4",
+    "vitest": "^4.1.2"
+  }
+}

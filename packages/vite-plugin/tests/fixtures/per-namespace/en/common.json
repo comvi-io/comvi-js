@@ -1,0 +1,10 @@
+{
+  "greeting": "Hello, {name}!",
+  "logout": "Log out",
+  "items": "{count, plural, one {# item} other {# items}}",
+  "info": "Info about {name}",
+  "nav": {
+    "home": "Home",
+    "about": "About"
+  }
+}

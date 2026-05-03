@@ -1,0 +1,63 @@
+node_modules
+dist
+coverage
+*.local
+.DS_Store
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Editor directories and files
+.vscode/*
+.idea
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Environment variables
+.env*
+
+# Comvi config (contains API keys)
+.comvirc.json
+
+# Turbo
+.turbo
+.pnpm-store
+
+# Next.js
+.next
+next-env.d.ts
+
+# pnpm-lock.yaml
+pnpm-lock.yaml
+
+*.tsbuildinfo
+
+# TypeScript output files in source directories (should only be in dist/)
+test-apps/**/*.d.ts
+test-apps/**/*.d.ts.map
+test-apps/**/*.js.map
+!test-apps/**/tailwind.config.js
+!test-apps/**/postcss.config.js
+
+# Nuxt
+.nuxt
+.output
+
+# Svelte
+.svelte-kit
+.svelte-types
+
+# oh-my-claudecode
+.omc
+
+# Bundle analysis
+dist-analyze
+.claude/

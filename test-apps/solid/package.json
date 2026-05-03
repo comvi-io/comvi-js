@@ -1,0 +1,26 @@
+{
+  "name": "@test-apps/solid",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "typecheck": "tsc --noEmit",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@comvi/plugin-locale-detector": "workspace:*",
+    "@comvi/solid": "workspace:*"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.2.2",
+    "@comvi/vite-config": "workspace:*",
+    "@comvi/vite-plugin": "workspace:*",
+    "solid-js": "^1.9.12",
+    "tailwindcss": "4",
+    "typescript": "~6.0.2",
+    "vite": "^8.0.3",
+    "vite-plugin-solid": "^2.11.11"
+  }
+}

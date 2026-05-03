@@ -1,0 +1,15 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "composite": false,
+    "noEmit": false,
+    "declaration": true,
+    "emitDeclarationOnly": true,
+    "declarationMap": false,
+    "rootDir": "./src",
+    "outDir": "./dist",
+    "types": ["node"]
+  },
+  "include": ["./src/types.ts", "./src/runtime/**/*.ts", "./src/**/*.d.ts"],
+  "exclude": ["./coverage", "./dist", "./playground", "./tests"]
+}

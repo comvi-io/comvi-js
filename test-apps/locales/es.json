@@ -1,0 +1,46 @@
+{
+  "common": {
+    "language_selector": "Seleccionar idioma",
+    "current_language": "Actual: {lang}",
+    "loading": "Cargando..."
+  },
+  "nav": {
+    "home": "Inicio",
+    "plurals": "Plurales",
+    "rich_text": "Texto enriquecido",
+    "namespaces": "Espacios de nombres",
+    "rtl": "Soporte RTL"
+  },
+  "home": {
+    "title": "Ejemplo de Comvi i18n",
+    "subtitle": "Demostración de características i18n",
+    "intro": "¡Hola, {name}! Esta es una aplicación de ejemplo."
+  },
+  "plurals": {
+    "title": "Plurales",
+    "notifications": "{count, plural, =0 {No hay nuevas notificaciones} one {Una nueva notificación} other {# nuevas notificaciones}}",
+    "items": "{count, plural, =0 {Sin artículos} one {1 artículo} other {# artículos}} en su carrito"
+  },
+  "rich_text": {
+    "title": "Texto enriquecido",
+    "bold_text": "Este es texto en <strong>negrita</strong>.",
+    "link_text": "Por favor <link>haga clic aquí</link> para más información.",
+    "component_interpolation": "Este es un componente {placeholder}.",
+    "nested_tags_title": "Interpolación de etiquetas anidadas",
+    "nested_simple": "Haz clic en <link><bold>este enlace</bold></link> para obtener ayuda.",
+    "nested_mixed": "<alert>Advertencia: <bold>{count}</bold> elementos necesitan tu <link>atención</link>!</alert>",
+    "nested_deep": "<card><header><icon/>Aviso importante</header><content>Por favor lee los <link>términos de servicio</link> cuidadosamente.</content></card>",
+    "select_intro": "ICU Select permite variar las traducciones según categorías como género o formalidad. Esto es especialmente importante para idiomas donde el género gramatical afecta los verbos o que tienen formas de cortesía.",
+    "select_title": "Ejemplos ICU Select",
+    "combined_title": "Select + Plural (Combinado)",
+    "user_action": "{gender, select, male {A él le gustó tu publicación} female {A ella le gustó tu publicación} other {Les gustó tu publicación}}",
+    "greeting_formal": "{formality, select, formal {Buenos días, ¿en qué puedo ayudarle?} informal {¡Hola! ¿En qué te puedo ayudar?}}",
+    "user_messages": "{gender, select, male {{count, plural, =0 {Él no tiene mensajes} one {Él tiene # mensaje} other {Él tiene # mensajes}}} female {{count, plural, =0 {Ella no tiene mensajes} one {Ella tiene # mensaje} other {Ella tiene # mensajes}}} other {{count, plural, =0 {No tienen mensajes} one {Tienen # mensaje} other {Tienen # mensajes}}}}",
+    "new_notifications": "{formality, select, formal {{count, plural, =0 {Usted no tiene nuevos mensajes} one {Usted tiene # nuevo mensaje} other {Usted tiene # nuevos mensajes}}} informal {{count, plural, =0 {No tienes nuevos mensajes} one {Tienes # nuevo mensaje} other {Tienes # nuevos mensajes}}}}"
+  },
+  "namespaces": {
+    "title": "Espacios de nombres y Carga diferida",
+    "description": "Este texto proviene del paquete principal.",
+    "load_admin": "Cargar espacio Admin"
+  }
+}

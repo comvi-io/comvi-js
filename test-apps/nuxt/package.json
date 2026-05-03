@@ -1,0 +1,19 @@
+{
+  "name": "@comvi/test-app-nuxt",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "nuxi dev --port 30001",
+    "build": "nuxi build",
+    "typecheck": "nuxi typecheck",
+    "preview": "nuxi preview"
+  },
+  "dependencies": {
+    "@comvi/nuxt": "workspace:*",
+    "nuxt": "^3.21.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.2.2",
+    "tailwindcss": "^4.2.2"
+  }
+}

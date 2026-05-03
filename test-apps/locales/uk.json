@@ -1,0 +1,46 @@
+{
+  "common": {
+    "language_selector": "Оберіть мову",
+    "current_language": "Поточна: {lang}",
+    "loading": "Завантаження..."
+  },
+  "nav": {
+    "home": "Головна",
+    "plurals": "Множина",
+    "rich_text": "Rich Text",
+    "namespaces": "Простори імен",
+    "rtl": "Підтримка RTL"
+  },
+  "home": {
+    "title": "Приклад Comvi i18n",
+    "subtitle": "Демонстрація можливостей i18n",
+    "intro": "Привіт, {name}! Це приклад додатка."
+  },
+  "plurals": {
+    "title": "Множина",
+    "notifications": "{count, plural, =0 {Немає нових сповіщень} one {Одне нове сповіщення} few {# нових сповіщення} many {# нових сповіщень} other {# нових сповіщень}}",
+    "items": "{count, plural, =0 {Немає товарів} one {1 товар} few {# товара} many {# товарів} other {# товарів}} у кошику"
+  },
+  "rich_text": {
+    "title": "Rich Text",
+    "bold_text": "Це <strong>жирний</strong> текст.",
+    "link_text": "Будь ласка, <link>натисніть тут</link> для деталей.",
+    "component_interpolation": "Це компонент <placeholder>ІНТЕРПОЛЬОВАНИЙ</placeholder>.",
+    "nested_tags_title": "Вкладена інтерполяція тегів",
+    "nested_simple": "Натисніть <link><bold>це посилання</bold></link> для допомоги.",
+    "nested_mixed": "<alert>Увага: <bold>{count}</bold> елементів потребують вашої <link>уваги</link>!</alert>",
+    "nested_deep": "<card><header><icon/>Важливе повідомлення</header><content>Будь ласка, уважно прочитайте <link>умови використання</link>.</content></card>",
+    "select_intro": "ICU Select дозволяє змінювати переклади залежно від категорій, таких як стать чи формальність. Це особливо важливо для мов, де рід впливає на дієслова (українська), або є форми ввічливості (німецька \"Sie\" vs \"Du\").",
+    "select_title": "Приклади ICU Select",
+    "combined_title": "Select + Plural (Комбіновано)",
+    "user_action": "{gender, select, male {Він вподобав ваш пост} female {Вона вподобала ваш пост} other {Хтось вподобав ваш пост}}",
+    "greeting_formal": "{formality, select, formal {Добрий день, чим можу Вам допомогти?} informal {Привіт, чим можу тобі допомогти?}}",
+    "user_messages": "{gender, select, male {{count, plural, =0 {Він не має повідомлень} one {Він має # повідомлення} few {Він має # повідомлення} many {Він має # повідомлень} other {Він має # повідомлень}}} female {{count, plural, =0 {Вона не має повідомлень} one {Вона має # повідомлення} few {Вона має # повідомлення} many {Вона має # повідомлень} other {Вона має # повідомлень}}} other {{count, plural, =0 {Вони не мають повідомлень} one {Вони мають # повідомлення} few {Вони мають # повідомлення} many {Вони мають # повідомлень} other {Вони мають # повідомлень}}}}",
+    "new_notifications": "{formality, select, formal {{count, plural, =0 {Ви не маєте нових повідомлень} one {Ви маєте # нове повідомлення} few {Ви маєте # нових повідомлення} many {Ви маєте # нових повідомлень} other {Ви маєте # нових повідомлень}}} informal {{count, plural, =0 {У тебе немає нових повідомлень} one {У тебе # нове повідомлення} few {У тебе # нових повідомлення} many {У тебе # нових повідомлень} other {У тебе # нових повідомлень}}}}"
+  },
+  "namespaces": {
+    "title": "Простори імен та ліниве завантаження",
+    "description": "Цей текст з основного бандлу.",
+    "load_admin": "Завантажити Admin простір"
+  }
+}

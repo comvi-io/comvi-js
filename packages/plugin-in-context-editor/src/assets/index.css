@@ -1,0 +1,160 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --font-sans: "Geist Variable", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+
+  --tracking-mono: 0.1em;
+
+  --radius-xs: var(--radius);
+  --radius-sm: var(--radius);
+  --radius-md: var(--radius);
+  --radius-lg: var(--radius);
+  --radius-xl: var(--radius);
+  --radius-2xl: var(--radius);
+  --radius-3xl: var(--radius);
+
+  --color-background: hsl(var(--background));
+  --color-foreground: hsl(var(--foreground));
+
+  --color-card: hsl(var(--card));
+  --color-card-foreground: hsl(var(--card-foreground));
+
+  --color-popover: hsl(var(--popover));
+  --color-popover-foreground: hsl(var(--popover-foreground));
+
+  --color-primary: hsl(var(--primary));
+  --color-primary-foreground: hsl(var(--primary-foreground));
+
+  --color-secondary: hsl(var(--secondary));
+  --color-secondary-foreground: hsl(var(--secondary-foreground));
+
+  --color-muted: hsl(var(--muted));
+  --color-muted-foreground: hsl(var(--muted-foreground));
+
+  --color-accent: hsl(var(--accent));
+  --color-accent-foreground: hsl(var(--accent-foreground));
+
+  --color-destructive: hsl(var(--destructive));
+  --color-destructive-foreground: hsl(var(--destructive-foreground));
+
+  --color-success: hsl(var(--success));
+  --color-success-foreground: hsl(var(--success-foreground));
+
+  --color-warn: hsl(var(--warn));
+  --color-warn-foreground: hsl(var(--warn-foreground));
+
+  --color-border: hsl(var(--border));
+  --color-input: hsl(var(--input));
+  --color-ring: hsl(var(--ring));
+
+  --color-ink-2: hsl(var(--ink-2));
+  --color-line-2: hsl(var(--line-2));
+  --color-surface-2: hsl(var(--surface-2));
+  --color-accent-soft: hsl(var(--accent-soft));
+}
+
+:host {
+  --background: 60 27% 97%;
+  --foreground: 60 6% 9%;
+
+  --card: 60 17% 94%;
+  --card-foreground: 60 6% 9%;
+
+  --popover: 60 27% 97%;
+  --popover-foreground: 60 6% 9%;
+
+  --primary: 32 95% 44%;
+  --primary-foreground: 0 0% 100%;
+
+  --secondary: 60 14% 91%;
+  --secondary-foreground: 60 6% 9%;
+
+  --muted: 60 14% 91%;
+  --muted-foreground: 60 4% 52%;
+
+  --accent: 60 17% 94%;
+  --accent-foreground: 60 6% 9%;
+
+  --destructive: 0 70% 45%;
+  --destructive-foreground: 0 0% 100%;
+
+  --success: 140 50% 35%;
+  --success-foreground: 0 0% 100%;
+
+  --warn: 38 92% 45%;
+  --warn-foreground: 0 0% 100%;
+
+  --border: 60 13% 86%;
+  --input: 60 13% 86%;
+  --ring: 32 95% 44%;
+
+  --ink-2: 60 3% 33%;
+  --line-2: 52 9% 76%;
+  --surface-2: 60 14% 91%;
+  --accent-soft: 32 95% 44% / 0.12;
+
+  --radius: 0px;
+
+  font-family: "Geist Variable", system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  color: hsl(var(--foreground));
+}
+
+:host(.dark),
+.dark :host {
+  --background: 60 7% 5%;
+  --foreground: 45 25% 95%;
+
+  --card: 60 2% 9%;
+  --card-foreground: 45 25% 95%;
+
+  --popover: 60 7% 5%;
+  --popover-foreground: 45 25% 95%;
+
+  --primary: 32 95% 44%;
+  --primary-foreground: 60 7% 5%;
+
+  --secondary: 60 2% 11%;
+  --secondary-foreground: 45 25% 95%;
+
+  --muted: 60 2% 11%;
+  --muted-foreground: 48 3% 41%;
+
+  --accent: 60 2% 9%;
+  --accent-foreground: 45 25% 95%;
+
+  --destructive: 0 60% 45%;
+  --destructive-foreground: 45 25% 95%;
+
+  --success: 140 50% 50%;
+  --success-foreground: 60 7% 5%;
+
+  --warn: 38 92% 55%;
+  --warn-foreground: 60 7% 5%;
+
+  --border: 60 2% 15%;
+  --input: 60 2% 15%;
+  --ring: 32 95% 44%;
+
+  --ink-2: 40 6% 64%;
+  --line-2: 60 2% 20%;
+  --surface-2: 60 2% 11%;
+  --accent-soft: 32 95% 44% / 0.14;
+}
+
+@layer base {
+  * {
+    border-color: hsl(var(--border));
+  }
+  button {
+    cursor: pointer;
+  }
+  ::selection {
+    background: hsl(var(--primary));
+    color: hsl(var(--primary-foreground));
+  }
+}

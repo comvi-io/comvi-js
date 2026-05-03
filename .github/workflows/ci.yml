@@ -1,0 +1,81 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify changeset for package changes
+        if: github.event_name == 'pull_request'
+        run: |
+          set -euo pipefail
+
+          CHANGED_FILES="$(git diff --name-only "origin/${{ github.base_ref }}...HEAD")"
+          echo "Changed files:"
+          echo "$CHANGED_FILES"
+
+          if ! echo "$CHANGED_FILES" | grep -qE '^packages/'; then
+            echo "No changes in packages/. Skipping changeset check."
+            exit 0
+          fi
+
+          CHANGESET_FILES="$(
+            echo "$CHANGED_FILES" \
+              | grep -E '^\.changeset/.*\.md$' \
+              | grep -v '^\.changeset/README\.md$' \
+              || true
+          )"
+
+          if [ -z "$CHANGESET_FILES" ]; then
+            echo "Package changes detected but no changeset file was added."
+            echo "Run 'pnpm changeset' and commit the generated .changeset/*.md file."
+            exit 1
+          fi
+
+          echo "Changeset files detected:"
+          echo "$CHANGESET_FILES"
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.12.1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Format check
+        run: pnpm format:check
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Test
+        run: pnpm test
+
+      - name: Build
+        run: pnpm build

@@ -1,0 +1,46 @@
+{
+  "common": {
+    "language_selector": "اختر اللغة",
+    "current_language": "الحالية: {lang}",
+    "loading": "جار التحميل..."
+  },
+  "nav": {
+    "home": "الرئيسية",
+    "plurals": "الجمع",
+    "rich_text": "نص غني",
+    "namespaces": "مساحات الأسماء",
+    "rtl": "دعم RTL"
+  },
+  "home": {
+    "title": "مثال Comvi i18n",
+    "subtitle": "عرض ميزات i18n الشاملة",
+    "intro": "مرحباً، {name}! هذا تطبيق تجريبي."
+  },
+  "plurals": {
+    "title": "الجمع",
+    "notifications": "{count, plural, =0 {لا توجد إشعارات جديدة} one {إشعار واحد جديد} two {إشعاران جديدان} few {# إشعارات جديدة} many {# إشعاراً جديداً} other {# إشعار جديد}}",
+    "items": "{count, plural, =0 {لا توجد عناصر} one {عنصر واحد} two {عنصران} few {# عناصر} many {# عنصراً} other {# عنصر}} في سلة التسوق"
+  },
+  "rich_text": {
+    "title": "نص غني",
+    "bold_text": "هذا نص <strong>عريض</strong>.",
+    "link_text": "يرجى <link>النقر هنا</link> للمزيد.",
+    "component_interpolation": "هذا مكون {placeholder}.",
+    "nested_tags_title": "تداخل الوسوم",
+    "nested_simple": "انقر على <link><bold>هذا الرابط</bold></link> للمساعدة.",
+    "nested_mixed": "<alert>تحذير: <bold>{count}</bold> عناصر تحتاج <link>انتباهك</link>!</alert>",
+    "nested_deep": "<card><header><icon/>إشعار مهم</header><content>يرجى قراءة <link>شروط الخدمة</link> بعناية.</content></card>",
+    "select_intro": "يتيح ICU Select تغيير الترجمات بناءً على فئات مثل الجنس أو الرسمية. هذا مهم بشكل خاص للغات التي يؤثر فيها الجنس النحوي على الأفعال.",
+    "select_title": "أمثلة ICU Select",
+    "combined_title": "Select + Plural (مُركَّب)",
+    "user_action": "{gender, select, male {أعجبه منشورك} female {أعجبها منشورك} other {أعجبهم منشورك}}",
+    "greeting_formal": "{formality, select, formal {مرحباً، كيف يمكنني مساعدتك؟} informal {أهلاً، كيف أقدر أساعدك؟}}",
+    "user_messages": "{gender, select, male {{count, plural, =0 {ليس لديه رسائل} one {لديه رسالة واحدة} two {لديه رسالتان} few {لديه # رسائل} many {لديه # رسالة} other {لديه # رسالة}}} female {{count, plural, =0 {ليس لديها رسائل} one {لديها رسالة واحدة} two {لديها رسالتان} few {لديها # رسائل} many {لديها # رسالة} other {لديها # رسالة}}} other {{count, plural, =0 {ليس لديهم رسائل} one {لديهم رسالة واحدة} two {لديهم رسالتان} few {لديهم # رسائل} many {لديهم # رسالة} other {لديهم # رسالة}}}}",
+    "new_notifications": "{formality, select, formal {{count, plural, =0 {ليس لديكم رسائل جديدة} one {لديكم رسالة جديدة واحدة} two {لديكم رسالتان جديدتان} few {لديكم # رسائل جديدة} many {لديكم # رسالة جديدة} other {لديكم # رسالة جديدة}}} informal {{count, plural, =0 {ما عندك رسائل جديدة} one {عندك رسالة جديدة} two {عندك رسالتين جديدتين} few {عندك # رسائل جديدة} many {عندك # رسالة جديدة} other {عندك # رسالة جديدة}}}}"
+  },
+  "namespaces": {
+    "title": "مساحات الأسماء والتحميل الكسول",
+    "description": "هذا النص من الحزمة الرئيسية.",
+    "load_admin": "تحميل مساحة Admin"
+  }
+}

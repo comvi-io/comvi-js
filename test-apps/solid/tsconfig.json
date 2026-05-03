@@ -1,0 +1,22 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "target": "ESNext",
+    "useDefineForClassFields": true,
+    "module": "ESNext",
+    "resolveJsonModule": true,
+    "allowJs": true,
+    "checkJs": true,
+    "isolatedModules": true,
+    "moduleDetection": "force",
+    "noEmit": true,
+    "noUncheckedSideEffectImports": false,
+    "jsx": "preserve",
+    "jsxImportSource": "solid-js",
+    "paths": {
+      "@comvi/solid": ["../../packages/solid/src/index.ts"],
+      "~/*": ["./src/*"]
+    }
+  },
+  "include": ["src/**/*.ts", "src/**/*.d.ts", "src/**/*.tsx"]
+}

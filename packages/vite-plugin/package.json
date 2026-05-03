@@ -1,0 +1,59 @@
+{
+  "name": "@comvi/vite-plugin",
+  "version": "0.0.0",
+  "type": "module",
+  "description": "Vite plugin for Comvi — auto-generates TypeScript types from local translation files",
+  "license": "MIT",
+  "author": "Comvi <hello@comvi.io> (https://comvi.io)",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/comvi-io/comvi-js.git",
+    "directory": "packages/vite-plugin"
+  },
+  "homepage": "https://comvi.io",
+  "bugs": {
+    "url": "https://github.com/comvi-io/comvi-js/issues"
+  },
+  "keywords": [
+    "i18n",
+    "internationalization",
+    "vite",
+    "vite-plugin",
+    "typescript",
+    "typegen",
+    "comvi"
+  ],
+  "files": [
+    "dist"
+  ],
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "sideEffects": false,
+  "scripts": {
+    "dev": "vite build --watch",
+    "build": "tsc && vite build",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage"
+  },
+  "peerDependencies": {
+    "vite": "^5.0.0 || ^6.0.0 || ^7.0.0 || ^8.0.0"
+  },
+  "devDependencies": {
+    "@comvi/vite-config": "workspace:*",
+    "@types/node": "^22.13.0",
+    "typescript": "~6.0.2",
+    "vite": "^8.0.3",
+    "vite-plugin-dts": "^4.5.4",
+    "vitest": "^4.1.2"
+  }
+}

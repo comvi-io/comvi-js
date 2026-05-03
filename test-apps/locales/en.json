@@ -1,0 +1,46 @@
+{
+  "common": {
+    "language_selector": "Select Language",
+    "current_language": "Current: {lang}",
+    "loading": "Loading..."
+  },
+  "nav": {
+    "home": "Home",
+    "plurals": "Plurals",
+    "rich_text": "Rich Text",
+    "namespaces": "Namespaces",
+    "rtl": "RTL Support"
+  },
+  "home": {
+    "title": "Comvi i18n Example",
+    "subtitle": "Demonstrating comprehensive i18n features",
+    "intro": "Hello, {name}! This is a sample application showing how to use Comvi i18n."
+  },
+  "plurals": {
+    "title": "Pluralization",
+    "notifications": "{count, plural, =0 {No new notifications} one {One new notification} other {# new notifications}}",
+    "items": "{count, plural, =0 {No items} one {1 item} other {# items}} in your cart"
+  },
+  "rich_text": {
+    "title": "Rich Text",
+    "bold_text": "This is <strong>bold</strong> text.",
+    "link_text": "Please <link>click here</link> for more info.",
+    "component_interpolation": "This is a <placeholder>INTERPOLATED</placeholder> component.",
+    "nested_tags_title": "Nested Tag Interpolation",
+    "nested_simple": "Click <link><bold>this link</bold></link> for help.",
+    "nested_mixed": "<alert>Warning: <bold>{count}</bold> items need your <link>attention</link>!</alert>",
+    "nested_deep": "<card><header><icon/>Important Notice</header><content>Please read the <link>terms of service</link> carefully.</content></card>",
+    "select_intro": "ICU Select allows translations to vary based on categories like gender or formality. This is especially important for languages like German (formal \"Sie\" vs informal \"Du\"), Ukrainian (grammatical gender affects verbs), and Arabic (gender agreement throughout sentences).",
+    "select_title": "ICU Select Examples",
+    "combined_title": "Select + Plural (Combined)",
+    "user_action": "{gender, select, male {He liked your post} female {She liked your post} other {They liked your post}}",
+    "greeting_formal": "{formality, select, formal {Hello, how can I help you?} informal {Hello, how can I help you?}}",
+    "user_messages": "{gender, select, male {{count, plural, =0 {He has no messages} one {He has # message} other {He has # messages}}} female {{count, plural, =0 {She has no messages} one {She has # message} other {She has # messages}}} other {{count, plural, =0 {They have no messages} one {They have # message} other {They have # messages}}}}",
+    "new_notifications": "{formality, select, formal {{count, plural, =0 {You have no new messages} one {You have # new message} other {You have # new messages}}} informal {{count, plural, =0 {You have no new messages} one {You have # new message} other {You have # new messages}}}}"
+  },
+  "namespaces": {
+    "title": "Namespaces & Lazy Loading",
+    "description": "This text comes from the main bundle.",
+    "load_admin": "Load Admin Namespace"
+  }
+}

@@ -1,0 +1,46 @@
+{
+  "common": {
+    "language_selector": "Choisir la langue",
+    "current_language": "Actuel: {lang}",
+    "loading": "Chargement..."
+  },
+  "nav": {
+    "home": "Accueil",
+    "plurals": "Pluriels",
+    "rich_text": "Texte enrichi",
+    "namespaces": "Espaces de noms",
+    "rtl": "Support RTL"
+  },
+  "home": {
+    "title": "Exemple Comvi i18n",
+    "subtitle": "Démonstration des fonctionnalités i18n",
+    "intro": "Bonjour, {name}! Ceci est une application exemple."
+  },
+  "plurals": {
+    "title": "Pluriels",
+    "notifications": "{count, plural, =0 {Pas de nouvelles notifications} one {Une nouvelle notification} other {# nouvelles notifications}}",
+    "items": "{count, plural, =0 {Aucun article} one {1 article} other {# articles}} dans votre panier"
+  },
+  "rich_text": {
+    "title": "Texte enrichi",
+    "bold_text": "Ceci est du texte <strong>gras</strong>.",
+    "link_text": "Veuillez <link>cliquer ici</link> pour plus d'infos.",
+    "component_interpolation": "Ceci est un composant {placeholder}.",
+    "nested_tags_title": "Interpolation de balises imbriquées",
+    "nested_simple": "Cliquez sur <link><bold>ce lien</bold></link> pour obtenir de l'aide.",
+    "nested_mixed": "<alert>Attention: <bold>{count}</bold> éléments nécessitent votre <link>attention</link>!</alert>",
+    "nested_deep": "<card><header><icon/>Avis important</header><content>Veuillez lire attentivement les <link>conditions d'utilisation</link>.</content></card>",
+    "select_intro": "ICU Select permet de varier les traductions selon des catégories comme le genre ou la formalité. C'est particulièrement important pour les langues où le genre grammatical affecte les verbes ou qui ont des formes de politesse.",
+    "select_title": "Exemples ICU Select",
+    "combined_title": "Select + Pluriel (Combiné)",
+    "user_action": "{gender, select, male {Il a aimé votre publication} female {Elle a aimé votre publication} other {On a aimé votre publication}}",
+    "greeting_formal": "{formality, select, formal {Bonjour, comment puis-je vous aider?} informal {Salut, comment je peux t'aider?}}",
+    "user_messages": "{gender, select, male {{count, plural, =0 {Il n'a pas de messages} one {Il a # message} other {Il a # messages}}} female {{count, plural, =0 {Elle n'a pas de messages} one {Elle a # message} other {Elle a # messages}}} other {{count, plural, =0 {On n'a pas de messages} one {On a # message} other {On a # messages}}}}",
+    "new_notifications": "{formality, select, formal {{count, plural, =0 {Vous n'avez pas de nouveaux messages} one {Vous avez # nouveau message} other {Vous avez # nouveaux messages}}} informal {{count, plural, =0 {Tu n'as pas de nouveaux messages} one {Tu as # nouveau message} other {Tu as # nouveaux messages}}}}"
+  },
+  "namespaces": {
+    "title": "Espaces de noms & Chargement paresseux",
+    "description": "Ce texte vient du paquet principal.",
+    "load_admin": "Charger l'espace Admin"
+  }
+}

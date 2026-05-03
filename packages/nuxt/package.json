@@ -1,0 +1,88 @@
+{
+  "name": "@comvi/nuxt",
+  "version": "0.0.0",
+  "type": "module",
+  "description": "Nuxt 3 module for Comvi — auto-imports, SSR, and locale routing",
+  "license": "MIT",
+  "author": "Comvi <hello@comvi.io> (https://comvi.io)",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/comvi-io/comvi-js.git",
+    "directory": "packages/nuxt"
+  },
+  "homepage": "https://comvi.io",
+  "bugs": {
+    "url": "https://github.com/comvi-io/comvi-js/issues"
+  },
+  "keywords": [
+    "i18n",
+    "internationalization",
+    "localization",
+    "nuxt",
+    "nuxt3",
+    "nuxt-module",
+    "ssr",
+    "typescript",
+    "type-safe",
+    "comvi",
+    "translation",
+    "ssg",
+    "server-components"
+  ],
+  "files": [
+    "dist"
+  ],
+  "module": "./dist/module.mjs",
+  "exports": {
+    ".": {
+      "types": "./dist/types.d.mts",
+      "import": "./dist/module.mjs"
+    },
+    "./setup": {
+      "types": "./dist/runtime/setup.d.ts",
+      "import": "./dist/runtime/setup.js"
+    },
+    "./runtime/*": "./dist/runtime/*"
+  },
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "sideEffects": false,
+  "scripts": {
+    "dev": "nuxi dev playground --port 30002",
+    "build": "nuxt-module-build build && tsc -p tsconfig.runtime.json",
+    "typecheck": "nuxt-module-build build && tsc -p tsconfig.runtime.json",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "lint": "eslint . --max-warnings=0",
+    "format": "prettier --write src/",
+    "lint:fix": "eslint . --fix"
+  },
+  "dependencies": {
+    "@nuxt/kit": "^3.21.0",
+    "@comvi/core": "workspace:*",
+    "@comvi/vue": "workspace:*"
+  },
+  "peerDependencies": {
+    "nuxt": "^3.0.0"
+  },
+  "devDependencies": {
+    "@nuxt/module-builder": "^1.0.2",
+    "@nuxt/schema": "^3.21.0",
+    "@types/node": "^22.13.0",
+    "@typescript-eslint/eslint-plugin": "^8.58.0",
+    "@typescript-eslint/parser": "^8.58.0",
+    "@vitest/coverage-v8": "^4.1.2",
+    "autoprefixer": "^10.4.27",
+    "eslint": "^10.1.0",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-vue": "^10.8.0",
+    "happy-dom": "^20.8.9",
+    "nuxt": "^3.21.0",
+    "prettier": "^3.8.1",
+    "typescript": "~6.0.2",
+    "vitest": "^4.1.2",
+    "vue": "^3.5.32"
+  }
+}

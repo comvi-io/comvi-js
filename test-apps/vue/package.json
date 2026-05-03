@@ -1,0 +1,29 @@
+{
+  "name": "@test-apps/vue",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "typecheck": "vue-tsc --noEmit",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@comvi/core": "workspace:*",
+    "@comvi/plugin-in-context-editor": "workspace:*",
+    "@comvi/vite-plugin": "workspace:*",
+    "@comvi/vue": "workspace:*",
+    "vue": "^3.5.32",
+    "vue-router": "^4.6.4"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.2.2",
+    "@comvi/vite-config": "workspace:*",
+    "@vitejs/plugin-vue": "^6.0.5",
+    "tailwindcss": "4",
+    "typescript": "~6.0.2",
+    "vite": "^8.0.3",
+    "vue-tsc": "^3.2.6"
+  }
+}

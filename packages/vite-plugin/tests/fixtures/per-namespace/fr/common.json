@@ -1,0 +1,10 @@
+{
+  "greeting": "Bonjour, {name} !",
+  "logout": "Déconnexion",
+  "items": "{count, plural, one {# article} other {# articles}}",
+  "info": "{name} a {count, plural, one {# message} other {# messages}}",
+  "nav": {
+    "home": "Accueil",
+    "about": "À propos"
+  }
+}

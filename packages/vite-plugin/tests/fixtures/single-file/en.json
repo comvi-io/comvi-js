@@ -1,0 +1,6 @@
+{
+  "greeting": "Hello",
+  "nested": {
+    "key": "Value"
+  }
+}

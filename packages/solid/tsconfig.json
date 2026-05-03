@@ -1,0 +1,22 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "target": "ESNext",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "jsx": "preserve",
+    "jsxImportSource": "solid-js",
+    "declaration": true,
+    "declarationDir": "./dist",
+    "emitDeclarationOnly": true,
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+    "skipLibCheck": true
+  },
+  "include": ["src/**/*.ts", "src/**/*.tsx"],
+  "exclude": ["node_modules", "dist", "tests"]
+}

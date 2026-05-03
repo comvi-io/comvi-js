@@ -1,0 +1,70 @@
+{
+  "name": "comvi",
+  "version": "0.1.0",
+  "description": "Type-safe i18n library for JavaScript — Vue, React, Svelte, SolidJS, Next.js, Nuxt",
+  "author": "Comvi <hello@comvi.io> (https://comvi.io)",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/comvi-io/comvi-js.git"
+  },
+  "homepage": "https://comvi.io",
+  "bugs": {
+    "url": "https://github.com/comvi-io/comvi-js/issues"
+  },
+  "scripts": {
+    "dev": "turbo run dev --concurrency=20",
+    "dev:lib": "turbo run dev --filter='./packages/*' --concurrency=20",
+    "dev:apps": "turbo run dev --concurrency=20",
+    "build": "turbo run build --filter='./packages/*'",
+    "build:all": "turbo run build",
+    "test": "turbo run test",
+    "test:watch": "turbo run test:watch --concurrency=20",
+    "test:coverage": "turbo run test:coverage",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck --filter='./packages/*' --filter='./test-apps/*'",
+    "lint:staged": "lint-staged",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "prepare": "husky",
+    "lint:fix": "turbo run lint:fix"
+  },
+  "devDependencies": {
+    "@changesets/cli": "^2.30.0",
+    "@eslint/js": "^10.0.1",
+    "@typescript-eslint/eslint-plugin": "^8.58.0",
+    "@typescript-eslint/parser": "^8.58.0",
+    "@vitest/coverage-v8": "^4.1.2",
+    "eslint": "^10.1.0",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-svelte": "^3.17.0",
+    "eslint-plugin-vue": "^10.8.0",
+    "globals": "^17.4.0",
+    "happy-dom": "^20.8.9",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.4.0",
+    "msw": "^2.12.14",
+    "prettier": "^3.8.1",
+    "svelte-eslint-parser": "^1.6.0",
+    "turbo": "^2.9.3",
+    "vue-eslint-parser": "^10.4.0"
+  },
+  "private": true,
+  "packageManager": "pnpm@9.12.1",
+  "engines": {
+    "node": ">=22.0.0",
+    "pnpm": ">=9.0.0"
+  },
+  "lint-staged": {
+    "*.{js,jsx,cjs,mjs,ts,tsx,cts,mts,vue}": [
+      "pnpm exec prettier --write",
+      "pnpm exec eslint --fix --max-warnings=0 --no-warn-ignored"
+    ],
+    "*.svelte": [
+      "pnpm exec eslint --fix --max-warnings=0 --no-warn-ignored"
+    ],
+    "*.{json,md,yml,yaml,css,scss,html}": [
+      "pnpm exec prettier --write"
+    ]
+  }
+}
