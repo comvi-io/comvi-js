@@ -1,6 +1,6 @@
 {
   "name": "@comvi/plugin-fetch-loader",
-  "version": "0.0.0",
+  "version": "1.0.0",
   "type": "module",
   "description": "HTTP translation loader plugin for Comvi — load translations from CDN or API",
   "license": "MIT",
