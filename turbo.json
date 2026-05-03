@@ -9,7 +9,7 @@
       "outputs": [".next/**"],
       "dependsOn": ["^build"]
     },
-    "@comvi/test-app-nuxt#build": {
+    "@test-apps/nuxt#build": {
       "outputs": [".nuxt/**", ".output/**"],
       "dependsOn": ["^build"]
     },
@@ -45,7 +45,7 @@
       "persistent": true,
       "interruptible": true
     },
-    "@comvi/test-app-nuxt#dev": {
+    "@test-apps/nuxt#dev": {
       "dependsOn": ["^build"],
       "cache": false,
       "persistent": true,

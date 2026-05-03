@@ -8,9 +8,9 @@
   "baseBranch": "main",
   "updateInternalDependencies": "patch",
   "ignore": [
-    "@comvi/test-app-nuxt",
     "@comvi/vite-config",
     "@test-apps/next",
+    "@test-apps/nuxt",
     "@test-apps/react",
     "@test-apps/solid",
     "@test-apps/svelte",

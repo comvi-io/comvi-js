@@ -1,5 +1,5 @@
 {
-  "name": "@comvi/test-app-nuxt",
+  "name": "@test-apps/nuxt",
   "private": true,
   "type": "module",
   "scripts": {
