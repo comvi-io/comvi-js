@@ -1,6 +1,6 @@
 {
   "name": "@comvi/cli",
-  "version": "0.0.0",
+  "version": "1.0.0",
   "type": "module",
   "description": "CLI for Comvi i18n — type generation, translation sync, and project management",
   "license": "MIT",

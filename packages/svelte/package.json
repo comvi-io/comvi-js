@@ -1,6 +1,6 @@
 {
   "name": "@comvi/svelte",
-  "version": "0.0.0",
+  "version": "1.0.0",
   "type": "module",
   "description": "Svelte 4/5 integration for Comvi — stores, components, and type-safe translations",
   "license": "MIT",

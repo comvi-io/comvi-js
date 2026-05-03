@@ -1,6 +1,6 @@
 {
   "name": "@comvi/core",
-  "version": "0.0.0",
+  "version": "1.0.0",
   "type": "module",
   "description": "Type-safe, framework-agnostic i18n library with plugin architecture for JavaScript and TypeScript",
   "license": "MIT",
