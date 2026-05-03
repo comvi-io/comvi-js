@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { DOMWatcher } from "../src/DOMWatcher";
-import { EventBus } from "../src/eventBus";
+import { EventBus } from "../src/EventBus";
 import { TAG_ATTRIBUTES, EDITOR_UI_SHADOW_HOST_ATTRIBUTE } from "../src/constants";
 import { cleanupDOM } from "./helpers";
 

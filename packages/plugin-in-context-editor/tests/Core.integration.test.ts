@@ -4,8 +4,8 @@
  * DOMWatcher, TextNodeProcessor, TranslatedElementsMap, and ElementHighlighter
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { Core } from "../src/core";
+import { describe, it, expect, afterEach } from "vitest";
+import { Core } from "../src/Core";
 import { encodeKeyToInvisible, registerKey, loadKeyMappings } from "../src/translation";
 import { TAG_ATTRIBUTES } from "../src/constants";
 import { cleanupDOM } from "./helpers";
