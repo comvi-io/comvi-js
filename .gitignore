@@ -35,9 +35,6 @@ pnpm-debug.log*
 .next
 next-env.d.ts
 
-# pnpm-lock.yaml
-pnpm-lock.yaml
-
 *.tsbuildinfo
 
 # TypeScript output files in source directories (should only be in dist/)
