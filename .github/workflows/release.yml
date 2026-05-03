@@ -20,6 +20,8 @@ jobs:
     if: github.repository == 'comvi-io/comvi-js'
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
 
     steps:
       - name: Checkout

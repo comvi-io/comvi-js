@@ -29,8 +29,6 @@
 <p align="center">
   <b><a href="https://comvi.io/docs/i18n/quick-start/">Documentation</a></b>
   &nbsp;·&nbsp;
-  <b><a href="https://comvi.io/demo">Live demo</a></b>
-  &nbsp;·&nbsp;
   <b><a href="https://comvi.io">Comvi Platform</a></b>
 </p>
 

@@ -15,11 +15,11 @@
     },
     "test": {
       "outputs": [],
-      "dependsOn": []
+      "dependsOn": ["^build"]
     },
     "test:coverage": {
       "outputs": ["coverage/**"],
-      "dependsOn": []
+      "dependsOn": ["^build"]
     },
     "test:watch": {
       "outputs": [],
@@ -32,7 +32,7 @@
     },
     "typecheck": {
       "outputs": [],
-      "dependsOn": ["^typecheck"]
+      "dependsOn": ["^build"]
     },
     "dev": {
       "cache": false,
