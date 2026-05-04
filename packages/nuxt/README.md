@@ -11,7 +11,6 @@
 
 <p align="center">
   <a href="https://www.npmjs.com/package/@comvi/nuxt"><img src="https://img.shields.io/npm/v/@comvi/nuxt?color=blue" alt="npm"></a>
-  <a href="https://bundlejs.com/?q=%40comvi%2Fnuxt"><img src="https://deno.bundlejs.com/?q=@comvi/nuxt&badge=&badge-style=flat&badge-raster" alt="Bundle size"></a>
   <a href="https://github.com/comvi-io/comvi-js/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License: MIT"></a>
 </p>
 
