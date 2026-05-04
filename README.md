@@ -14,7 +14,7 @@
 
 <p align="center">
   <a href="https://www.npmjs.com/package/@comvi/core"><img src="https://img.shields.io/npm/v/@comvi/core?color=blue&label=npm" alt="npm version"></a>
-  <a href="https://bundlejs.com/?q=%40comvi%2Fcore"><img src="https://deno.bundlejs.com/?q=@comvi/core&badge=&badge-style=flat&badge-raster" alt="Bundle size"></a>
+  <a href="https://bundlephobia.com/package/@comvi/core"><img src="https://img.shields.io/bundlephobia/minzip/@comvi/core?label=minzip" alt="Bundle size"></a>
   <a href="https://github.com/comvi-io/comvi-js/actions/workflows/ci.yml"><img src="https://github.com/comvi-io/comvi-js/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License: MIT"></a>
   <a href="https://www.typescriptlang.org/"><img src="https://img.shields.io/badge/TypeScript-strict-blue?logo=typescript&logoColor=white" alt="TypeScript"></a>
@@ -236,7 +236,7 @@ pnpm -w run test # run all tests
 pnpm lint        # lint all packages
 ```
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for contribution guidelines and [RELEASING.md](RELEASING.md) for the changeset-based release flow.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for contribution guidelines.
 
 ## License
 
