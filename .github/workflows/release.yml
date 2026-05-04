@@ -49,11 +49,20 @@ jobs:
         run: pnpm build
 
       - name: Create Release PR or Publish
+        id: changesets
         uses: changesets/action@v1
         with:
           commit: "chore: release packages"
           title: "chore: release packages"
           version: pnpm changeset version
           publish: npm exec --no -- changeset publish
+          createGithubReleases: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create combined GitHub Release
+        if: steps.changesets.outputs.published == 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PUBLISHED_PACKAGES: ${{ steps.changesets.outputs.publishedPackages }}
+        run: node .github/scripts/create-combined-release.mjs
