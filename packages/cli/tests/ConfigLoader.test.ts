@@ -111,6 +111,68 @@ describe("ConfigLoader", () => {
     });
   });
 
+  describe("namespaces / languages filter validation", () => {
+    const loadWith = async (extra: Record<string, unknown>) => {
+      const mockAccess = vi.mocked(fs.access);
+      const mockReadFile = vi.mocked(fs.readFile);
+      mockAccess.mockResolvedValueOnce(undefined);
+      mockReadFile.mockResolvedValueOnce(JSON.stringify({ apiKey: "k", ...extra }));
+      return ConfigLoader.load("/project/.comvirc.json");
+    };
+
+    it("accepts a valid namespaces array and trims items", async () => {
+      const cfg = await loadWith({ namespaces: ["forest", "  share_experience  "] });
+      expect(cfg.namespaces).toEqual(["forest", "share_experience"]);
+    });
+
+    it("accepts a valid languages array", async () => {
+      const cfg = await loadWith({ languages: ["en", "uk"] });
+      expect(cfg.languages).toEqual(["en", "uk"]);
+    });
+
+    it("treats undefined as 'all' (no field set)", async () => {
+      const cfg = await loadWith({});
+      expect(cfg.namespaces).toBeUndefined();
+      expect(cfg.languages).toBeUndefined();
+    });
+
+    it("rejects an empty namespaces array with a 'remove the field' hint", async () => {
+      await expect(loadWith({ namespaces: [] })).rejects.toThrow(
+        /"namespaces" is an empty list — remove the field/,
+      );
+    });
+
+    it("rejects a non-array namespaces field", async () => {
+      await expect(loadWith({ namespaces: "forest" })).rejects.toThrow(
+        /"namespaces" must be an array of strings/,
+      );
+    });
+
+    it("rejects non-string items in the array", async () => {
+      await expect(loadWith({ languages: ["en", 42] })).rejects.toThrow(
+        /"languages" must contain only strings/,
+      );
+    });
+
+    it("rejects blank-string items", async () => {
+      await expect(loadWith({ namespaces: ["forest", "   "] })).rejects.toThrow(
+        /"namespaces" contains an empty string/,
+      );
+    });
+
+    it("rejects duplicate items after trimming", async () => {
+      await expect(loadWith({ namespaces: ["forest", "forest"] })).rejects.toThrow(
+        /"namespaces" contains duplicate values: forest/,
+      );
+    });
+
+    it("rejects duplicates introduced by trimming", async () => {
+      await expect(loadWith({ namespaces: ["forest", " forest "] })).rejects.toThrow(
+        /"namespaces" contains duplicate values: forest/,
+      );
+    });
+  });
+
   describe("toGeneratorOptions", () => {
     it("should convert config to generator options with defaults", () => {
       const config: ComviConfig = {

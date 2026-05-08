@@ -182,6 +182,20 @@ export interface ComviConfig {
   format?: "json";
 
   /**
+   * Restrict pull/push to this list of namespaces.
+   * Omit to operate on all namespaces in the project.
+   * CLI flag --ns fully overrides this value (no merge).
+   */
+  namespaces?: string[];
+
+  /**
+   * Restrict pull/push to this list of language tags.
+   * Omit to operate on all languages in the project.
+   * CLI flag --lang fully overrides this value (no merge).
+   */
+  languages?: string[];
+
+  /**
    * Push-specific configuration
    */
   push?: PushConfig;
