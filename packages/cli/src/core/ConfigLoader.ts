@@ -131,6 +131,78 @@ export class ConfigLoader {
         ErrorCodes.CONFIG_INVALID,
       );
     }
+
+    // Filter fields: namespaces / languages.
+    // Validation throws VALIDATION_FAILED so the CLI maps it to exit code 4.
+    config.namespaces = this.normalizeFilterField(config.namespaces, "namespaces");
+    config.languages = this.normalizeFilterField(config.languages, "languages");
+  }
+
+  /**
+   * Normalize and validate an optional string-array filter from config.
+   *
+   * - undefined → undefined (field omitted, "all" semantics)
+   * - non-array, non-string items, blank items → VALIDATION_FAILED
+   * - empty array → VALIDATION_FAILED with "remove the field" hint
+   * - duplicates after trimming → VALIDATION_FAILED
+   * - otherwise: returns trimmed array
+   */
+  private static normalizeFilterField(
+    value: unknown,
+    fieldName: "namespaces" | "languages",
+  ): string[] | undefined {
+    if (value === undefined) {
+      return undefined;
+    }
+
+    if (!Array.isArray(value)) {
+      throw new TypegenError(
+        `Invalid configuration: "${fieldName}" must be an array of strings`,
+        ErrorCodes.VALIDATION_FAILED,
+      );
+    }
+
+    if (value.length === 0) {
+      throw new TypegenError(
+        `Invalid configuration: "${fieldName}" is an empty list — remove the field to operate on all ${fieldName}`,
+        ErrorCodes.VALIDATION_FAILED,
+      );
+    }
+
+    const trimmed: string[] = [];
+    for (const item of value) {
+      if (typeof item !== "string") {
+        throw new TypegenError(
+          `Invalid configuration: "${fieldName}" must contain only strings`,
+          ErrorCodes.VALIDATION_FAILED,
+        );
+      }
+      const t = item.trim();
+      if (t === "") {
+        throw new TypegenError(
+          `Invalid configuration: "${fieldName}" contains an empty string`,
+          ErrorCodes.VALIDATION_FAILED,
+        );
+      }
+      trimmed.push(t);
+    }
+
+    const seen = new Set<string>();
+    const duplicates: string[] = [];
+    for (const item of trimmed) {
+      if (seen.has(item)) {
+        duplicates.push(item);
+      }
+      seen.add(item);
+    }
+    if (duplicates.length > 0) {
+      throw new TypegenError(
+        `Invalid configuration: "${fieldName}" contains duplicate values: ${[...new Set(duplicates)].join(", ")}`,
+        ErrorCodes.VALIDATION_FAILED,
+      );
+    }
+
+    return trimmed;
   }
 
   /**

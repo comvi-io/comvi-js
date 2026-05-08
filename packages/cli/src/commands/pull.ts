@@ -13,6 +13,10 @@ import { Command } from "commander";
 import { ConfigLoader } from "../core/ConfigLoader";
 import { ApiClient } from "../core/ApiClient";
 import { TranslationSync } from "../core/TranslationSync";
+import { ErrorCodes, isTypegenError } from "../utils/errors";
+import { assertAllReturned, parseListFlag, resolveFilter } from "../utils/filterResolution";
+
+const EXIT_VALIDATION = 4;
 
 export function createPullCommand(): Command {
   return new Command("pull")
@@ -47,9 +51,16 @@ export function createPullCommand(): Command {
           format: config.format || "json",
         });
 
-        // Parse filter options
-        const languages = options.lang?.split(",").map((l: string) => l.trim());
-        const namespaces = options.ns?.split(",").map((n: string) => n.trim());
+        // Resolve filters: CLI flag > config > all (no merge).
+        const langs = resolveFilter(parseListFlag(options.lang), config.languages);
+        const nss = resolveFilter(parseListFlag(options.ns), config.namespaces);
+
+        if (langs.source === "config") {
+          console.log(`📄 Using languages from .comvirc.json: ${langs.value!.join(", ")}`);
+        }
+        if (nss.source === "config") {
+          console.log(`📄 Using namespaces from .comvirc.json: ${nss.value!.join(", ")}`);
+        }
 
         // Empty directory if requested
         if (options.emptyDir || config.pull?.emptyDir) {
@@ -60,9 +71,14 @@ export function createPullCommand(): Command {
         // Fetch translations
         console.log("🔄 Fetching translations from TMS...");
         const translations = await apiClient.fetchTranslations({
-          languages,
-          namespaces,
+          languages: langs.value,
+          namespaces: nss.value,
         });
+
+        // Diff request vs response so a typo (in config or --ns/--lang) fails
+        // fast with exit 4 instead of producing empty translation files in CI.
+        assertAllReturned("namespaces", nss.value, translations.namespaces);
+        assertAllReturned("languages", langs.value, translations.languages);
 
         // Write to files
         console.log("📝 Writing translation files...");
@@ -77,6 +93,12 @@ export function createPullCommand(): Command {
       } catch (error) {
         if (error instanceof Error) {
           console.error(`✗ Pull failed: ${error.message}`);
+        }
+        if (
+          isTypegenError(error, ErrorCodes.VALIDATION_FAILED) ||
+          isTypegenError(error, ErrorCodes.CONFIG_INVALID)
+        ) {
+          process.exit(EXIT_VALIDATION);
         }
         process.exit(1);
       }

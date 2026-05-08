@@ -16,8 +16,12 @@ import { ConfigLoader } from "../core/ConfigLoader";
 import { ApiClient } from "../core/ApiClient";
 import { TranslationSync } from "../core/TranslationSync";
 import type { ForceMode } from "../types";
+import { ErrorCodes, isTypegenError } from "../utils/errors";
+import { parseListFlag, resolveFilter } from "../utils/filterResolution";
 
 type ApiPushForceMode = Exclude<ForceMode, "ask">;
+
+const EXIT_VALIDATION = 4;
 
 export function createPushCommand(): Command {
   return new Command("push")
@@ -53,9 +57,18 @@ export function createPushCommand(): Command {
           format: config.format || "json",
         });
 
-        // Parse filter options
-        const languages = options.lang?.split(",").map((l: string) => l.trim());
-        const namespaces = options.ns?.split(",").map((n: string) => n.trim());
+        // Resolve filters: CLI flag > config > all (no merge).
+        const langs = resolveFilter(parseListFlag(options.lang), config.languages);
+        const nss = resolveFilter(parseListFlag(options.ns), config.namespaces);
+        const languages = langs.value;
+        const namespaces = nss.value;
+
+        if (langs.source === "config") {
+          console.log(`📄 Using languages from .comvirc.json: ${langs.value!.join(", ")}`);
+        }
+        if (nss.source === "config") {
+          console.log(`📄 Using namespaces from .comvirc.json: ${nss.value!.join(", ")}`);
+        }
 
         // Determine force mode
         const forceMode: ForceMode = options.forceMode || config.push?.forceMode || "ask";
@@ -143,6 +156,12 @@ export function createPushCommand(): Command {
       } catch (error) {
         if (error instanceof Error) {
           console.error(`✗ Push failed: ${error.message}`);
+        }
+        if (
+          isTypegenError(error, ErrorCodes.VALIDATION_FAILED) ||
+          isTypegenError(error, ErrorCodes.CONFIG_INVALID)
+        ) {
+          process.exit(EXIT_VALIDATION);
         }
         process.exit(1);
       }
