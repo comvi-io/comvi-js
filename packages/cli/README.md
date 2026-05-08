@@ -21,7 +21,7 @@
 **Use `@comvi/cli`** if your translations live in the Comvi TMS and you want to sync them to your repo or generate types from the live schema.
 **Use `@comvi/vite-plugin`** if your translations live as local JSON files and you want autocomplete in your editor.
 
-📖 **Documentation:** https://comvi.io/docs/i18n/tooling/cli/
+📖 **Documentation:** https://comvi.io/docs/cli/
 
 ## About Comvi i18n
 
@@ -64,7 +64,7 @@ The CLI auto-loads a `.env` file from the project root before each command — d
 
 ### Filter what you pull/push
 
-Declare a namespace/language subset in `.comvirc.json` so it's not repeated in every `package.json` script:
+Declare a namespace/locale subset in `.comvirc.json` so it's not repeated in every `package.json` script:
 
 ```json
 {
@@ -75,7 +75,7 @@ Declare a namespace/language subset in `.comvirc.json` so it's not repeated in e
 
 `comvi pull` and `comvi push` then operate on that subset by default. CLI flags (`--ns`, `--locale`) fully override the config for one-off runs (no merge). If a value in the config doesn't exist on the server (typo, deleted namespace), `pull` fails fast with exit code 4 instead of silently writing empty files.
 
-For all commands and flags, the full `.comvirc.json` reference, and the programmatic API (`TypeGenerator`, `ApiClient`, `TranslationSync`, etc.), see the [documentation](https://comvi.io/docs/i18n/tooling/cli/).
+For all commands and flags, the full `.comvirc.json` reference, and the programmatic API (`TypeGenerator`, `ApiClient`, `TranslationSync`, etc.), see the [documentation](https://comvi.io/docs/cli/).
 
 ## What you get
 
