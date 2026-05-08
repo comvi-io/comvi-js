@@ -36,6 +36,7 @@ export default defineConfig({
         "node:crypto",
         "node:process",
         "node:readline/promises",
+        "node:util",
       ],
       output: [
         {
