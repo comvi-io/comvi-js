@@ -24,7 +24,6 @@ export default defineConfig({
     },
     rolldownOptions: {
       external: [
-        "@comvi/core",
         "commander",
         "eventsource",
         "fs",

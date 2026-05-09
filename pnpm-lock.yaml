@@ -65,9 +65,6 @@ importers:
 
   packages/cli:
     dependencies:
-      '@comvi/core':
-        specifier: workspace:*
-        version: link:../core
       commander:
         specifier: ^14.0.3
         version: 14.0.3
