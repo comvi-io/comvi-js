@@ -1,5 +1,17 @@
 # @comvi/svelte
 
+## 0.2.0
+
+### Minor Changes
+
+- Coordinated `0.2.0` release across all `@comvi/*` packages. The CLI ships its first set of meaningful new features (`.env` auto-load, `namespaces` / `locales` config filters, terminology cleanup); the framework bindings, plugins, and core bump in lockstep so every package on a given install moves to the same baseline version.
+
+### Patch Changes
+
+- 46cdfb4: Strip TypeScript types from published `.svelte` files via `svelte-preprocess`. Previously `dist/T.svelte` shipped with raw `<script lang="ts">` (type annotations and `import type`), which broke consumers and bundle analyzers without a TS-aware Svelte preprocessor (e.g. bundlephobia, older webpack setups).
+- Updated dependencies
+  - @comvi/core@0.2.0
+
 ## 0.1.1
 
 ### Patch Changes
