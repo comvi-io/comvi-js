@@ -1,5 +1,17 @@
 # @comvi/nuxt
 
+## 0.2.0
+
+### Minor Changes
+
+- Coordinated `0.2.0` release across all `@comvi/*` packages. The CLI ships its first set of meaningful new features (`.env` auto-load, `namespaces` / `locales` config filters, terminology cleanup); the framework bindings, plugins, and core bump in lockstep so every package on a given install moves to the same baseline version.
+
+### Patch Changes
+
+- Updated dependencies
+  - @comvi/core@0.2.0
+  - @comvi/vue@0.2.0
+
 ## 0.1.1
 
 ### Patch Changes
