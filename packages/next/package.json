@@ -1,6 +1,6 @@
 {
   "name": "@comvi/next",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "type": "module",
   "description": "Next.js App Router integration for Comvi — SSR, middleware, and locale routing",
   "license": "MIT",

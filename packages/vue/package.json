@@ -1,6 +1,6 @@
 {
   "name": "@comvi/vue",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "type": "module",
   "description": "Vue 3 integration for Comvi — composables, components, and type-safe translations",
   "license": "MIT",
