@@ -1,5 +1,12 @@
 # @comvi/next
 
+## 1.0.0
+
+### Patch Changes
+
+- @comvi/core@1.0.0
+- @comvi/react@1.0.0
+
 ## 0.1.1
 
 ### Patch Changes

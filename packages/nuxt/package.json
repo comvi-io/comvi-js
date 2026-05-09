@@ -1,6 +1,6 @@
 {
   "name": "@comvi/nuxt",
-  "version": "0.1.1",
+  "version": "1.0.0",
   "type": "module",
   "description": "Nuxt 3 module for Comvi — auto-imports, SSR, and locale routing",
   "license": "MIT",

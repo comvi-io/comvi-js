@@ -1,6 +1,6 @@
 {
   "name": "@comvi/react",
-  "version": "0.1.1",
+  "version": "1.0.0",
   "type": "module",
   "description": "React integration for Comvi — hooks, components, and type-safe translations",
   "license": "MIT",

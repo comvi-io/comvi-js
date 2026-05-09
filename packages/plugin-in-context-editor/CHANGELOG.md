@@ -1,5 +1,12 @@
 # @comvi/plugin-in-context-editor
 
+## 1.0.0
+
+### Patch Changes
+
+- @comvi/core@1.0.0
+- @comvi/plugin-fetch-loader@1.0.0
+
 ## 0.1.1
 
 ### Patch Changes

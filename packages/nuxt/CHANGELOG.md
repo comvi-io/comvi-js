@@ -1,5 +1,12 @@
 # @comvi/nuxt
 
+## 1.0.0
+
+### Patch Changes
+
+- @comvi/core@1.0.0
+- @comvi/vue@1.0.0
+
 ## 0.1.1
 
 ### Patch Changes

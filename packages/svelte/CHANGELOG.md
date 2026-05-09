@@ -1,5 +1,12 @@
 # @comvi/svelte
 
+## 1.0.0
+
+### Patch Changes
+
+- 46cdfb4: Strip TypeScript types from published `.svelte` files via `svelte-preprocess`. Previously `dist/T.svelte` shipped with raw `<script lang="ts">` (type annotations and `import type`), which broke consumers and bundle analyzers without a TS-aware Svelte preprocessor (e.g. bundlephobia, older webpack setups).
+  - @comvi/core@1.0.0
+
 ## 0.1.1
 
 ### Patch Changes

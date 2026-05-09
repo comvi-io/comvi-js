@@ -1,6 +1,6 @@
 {
   "name": "@comvi/plugin-locale-detector",
-  "version": "0.1.1",
+  "version": "1.0.0",
   "type": "module",
   "description": "Locale detection plugin for Comvi — auto-detect from browser, URL, cookies, or storage",
   "license": "MIT",
