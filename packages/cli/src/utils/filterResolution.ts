@@ -51,7 +51,7 @@ export function resolveFilter(
  * producing empty translation files in CI.
  */
 export function assertAllReturned(
-  fieldName: "namespaces" | "languages",
+  fieldName: "namespaces" | "locales",
   requested: string[] | undefined,
   returned: string[],
 ): void {

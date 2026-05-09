@@ -132,10 +132,10 @@ export class ConfigLoader {
       );
     }
 
-    // Filter fields: namespaces / languages.
+    // Filter fields: namespaces / locales.
     // Validation throws VALIDATION_FAILED so the CLI maps it to exit code 4.
     config.namespaces = this.normalizeFilterField(config.namespaces, "namespaces");
-    config.languages = this.normalizeFilterField(config.languages, "languages");
+    config.locales = this.normalizeFilterField(config.locales, "locales");
   }
 
   /**
@@ -149,7 +149,7 @@ export class ConfigLoader {
    */
   private static normalizeFilterField(
     value: unknown,
-    fieldName: "namespaces" | "languages",
+    fieldName: "namespaces" | "locales",
   ): string[] | undefined {
     if (value === undefined) {
       return undefined;

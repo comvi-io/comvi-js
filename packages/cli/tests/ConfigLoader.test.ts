@@ -111,7 +111,7 @@ describe("ConfigLoader", () => {
     });
   });
 
-  describe("namespaces / languages filter validation", () => {
+  describe("namespaces / locales filter validation", () => {
     const loadWith = async (extra: Record<string, unknown>) => {
       const mockAccess = vi.mocked(fs.access);
       const mockReadFile = vi.mocked(fs.readFile);
@@ -125,15 +125,15 @@ describe("ConfigLoader", () => {
       expect(cfg.namespaces).toEqual(["forest", "share_experience"]);
     });
 
-    it("accepts a valid languages array", async () => {
-      const cfg = await loadWith({ languages: ["en", "uk"] });
-      expect(cfg.languages).toEqual(["en", "uk"]);
+    it("accepts a valid locales array", async () => {
+      const cfg = await loadWith({ locales: ["en", "uk"] });
+      expect(cfg.locales).toEqual(["en", "uk"]);
     });
 
     it("treats undefined as 'all' (no field set)", async () => {
       const cfg = await loadWith({});
       expect(cfg.namespaces).toBeUndefined();
-      expect(cfg.languages).toBeUndefined();
+      expect(cfg.locales).toBeUndefined();
     });
 
     it("rejects an empty namespaces array with a 'remove the field' hint", async () => {
@@ -149,8 +149,8 @@ describe("ConfigLoader", () => {
     });
 
     it("rejects non-string items in the array", async () => {
-      await expect(loadWith({ languages: ["en", 42] })).rejects.toThrow(
-        /"languages" must contain only strings/,
+      await expect(loadWith({ locales: ["en", 42] })).rejects.toThrow(
+        /"locales" must contain only strings/,
       );
     });
 

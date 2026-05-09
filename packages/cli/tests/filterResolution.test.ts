@@ -85,14 +85,14 @@ describe("assertAllReturned", () => {
     }
   });
 
-  it("does the same diff for languages", () => {
+  it("does the same diff for locales", () => {
     try {
-      assertAllReturned("languages", ["en", "uk", "xx"], ["en", "uk"]);
+      assertAllReturned("locales", ["en", "uk", "xx"], ["en", "uk"]);
       throw new Error("should have thrown");
     } catch (err) {
       const e = err as TypegenError;
       expect(e.code).toBe(ErrorCodes.VALIDATION_FAILED);
-      expect(e.message).toContain("Unknown languages: xx");
+      expect(e.message).toContain("Unknown locales: xx");
     }
   });
 

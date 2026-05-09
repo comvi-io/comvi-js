@@ -28,7 +28,7 @@ export interface ApiClientOptions {
 }
 
 export interface FetchTranslationsOptions {
-  languages?: string[];
+  locales?: string[];
   namespaces?: string[];
 }
 
@@ -231,8 +231,8 @@ export class ApiClient {
   async fetchTranslations(options: FetchTranslationsOptions = {}): Promise<TranslationsResponse> {
     const params = new URLSearchParams();
 
-    if (options.languages?.length) {
-      params.set("locales", options.languages.join(","));
+    if (options.locales?.length) {
+      params.set("locales", options.locales.join(","));
     }
     if (options.namespaces?.length) {
       params.set("namespaces", options.namespaces.join(","));
@@ -488,7 +488,7 @@ function normalizeTranslationsResponse(response: ApiTranslationsResponse): Trans
   }
 
   return {
-    languages: response.locales,
+    locales: response.locales,
     namespaces: namespaceNames,
     translations,
   };
@@ -497,10 +497,10 @@ function normalizeTranslationsResponse(response: ApiTranslationsResponse): Trans
 function countConflicts(local: TranslationData, remote: TranslationData): number {
   let conflicts = 0;
 
-  for (const [language, namespaces] of Object.entries(local)) {
+  for (const [locale, namespaces] of Object.entries(local)) {
     for (const [namespace, keys] of Object.entries(namespaces)) {
       for (const [key, value] of Object.entries(keys)) {
-        const remoteValue = remote[language]?.[namespace]?.[key];
+        const remoteValue = remote[locale]?.[namespace]?.[key];
         if (remoteValue !== undefined && remoteValue !== value) {
           conflicts++;
         }
@@ -528,10 +528,10 @@ function toNamespaceImportData(
 ): Record<string, Record<string, Record<string, string>>> {
   const namespaces: Record<string, Record<string, Record<string, string>>> = {};
 
-  for (const [language, namespaceMap] of Object.entries(translations)) {
+  for (const [locale, namespaceMap] of Object.entries(translations)) {
     for (const [namespace, keys] of Object.entries(namespaceMap)) {
       namespaces[namespace] ??= {};
-      namespaces[namespace][language] = keys;
+      namespaces[namespace][locale] = keys;
     }
   }
 

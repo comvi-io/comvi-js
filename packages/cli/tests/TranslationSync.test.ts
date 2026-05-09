@@ -64,7 +64,7 @@ describe("TranslationSync", () => {
 
     const result = await sync.readTranslations();
 
-    expect(result.languages.sort()).toEqual(["de-DE-1996", "zh_Hans"]);
+    expect(result.locales.sort()).toEqual(["de-DE-1996", "zh_Hans"]);
     expect(result.translations["de-DE-1996"].common.hello).toBe("Hallo");
     expect(result.translations.zh_Hans.common.hello).toBe("Ni hao");
   });
@@ -83,7 +83,7 @@ describe("TranslationSync", () => {
 
     const result = await sync.readTranslations();
 
-    expect(result.languages).toEqual([]);
+    expect(result.locales).toEqual([]);
     expect(result.translations).toEqual({});
   });
 

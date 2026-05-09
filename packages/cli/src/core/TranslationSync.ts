@@ -20,13 +20,13 @@ import type {
 import { TypegenError, ErrorCodes, wrapError } from "../utils/errors";
 
 export interface ReadTranslationsOptions {
-  languages?: string[];
+  locales?: string[];
   namespaces?: string[];
 }
 
 export interface LocalTranslations {
   translations: TranslationData;
-  languages: string[];
+  locales: string[];
   namespaces: string[];
 }
 
@@ -45,18 +45,18 @@ export class TranslationSync {
    * Write translations to local files
    */
   async writeTranslations(data: TranslationsResponse): Promise<PullResult> {
-    const { translations, languages, namespaces } = data;
+    const { translations, locales, namespaces } = data;
     let filesWritten = 0;
 
-    for (const lang of languages) {
-      const langTranslations = translations[lang];
-      if (!langTranslations) continue;
+    for (const locale of locales) {
+      const localeTranslations = translations[locale];
+      if (!localeTranslations) continue;
 
       for (const ns of namespaces) {
-        const nsTranslations = langTranslations[ns];
+        const nsTranslations = localeTranslations[ns];
         if (!nsTranslations) continue;
 
-        const filePath = this.resolveFilePath(lang, ns);
+        const filePath = this.resolveFilePath(locale, ns);
         await this.ensureDirectory(dirname(filePath));
 
         const content = JSON.stringify(nsTranslations, null, 2) + "\n";
@@ -66,7 +66,7 @@ export class TranslationSync {
     }
 
     return {
-      languages,
+      locales,
       namespaces,
       filesWritten,
     };
@@ -77,15 +77,15 @@ export class TranslationSync {
    */
   async readTranslations(options: ReadTranslationsOptions = {}): Promise<LocalTranslations> {
     const result: TranslationData = {};
-    const foundLanguages = new Set<string>();
+    const foundLocales = new Set<string>();
     const foundNamespaces = new Set<string>();
 
     // Find all translation files
     const files = await this.findTranslationFiles();
 
-    for (const { language, namespace, filePath } of files) {
+    for (const { locale, namespace, filePath } of files) {
       // Apply filters
-      if (options.languages?.length && !options.languages.includes(language)) {
+      if (options.locales?.length && !options.locales.includes(locale)) {
         continue;
       }
       if (options.namespaces?.length && !options.namespaces.includes(namespace)) {
@@ -96,12 +96,12 @@ export class TranslationSync {
         const content = await fs.readFile(filePath, "utf-8");
         const translations = JSON.parse(content) as Record<string, string>;
 
-        if (!result[language]) {
-          result[language] = {};
+        if (!result[locale]) {
+          result[locale] = {};
         }
-        result[language][namespace] = translations;
+        result[locale][namespace] = translations;
 
-        foundLanguages.add(language);
+        foundLocales.add(locale);
         foundNamespaces.add(namespace);
       } catch (error) {
         if (error instanceof SyntaxError) {
@@ -116,7 +116,7 @@ export class TranslationSync {
 
     return {
       translations: result,
-      languages: Array.from(foundLanguages),
+      locales: Array.from(foundLocales),
       namespaces: Array.from(foundNamespaces),
     };
   }
@@ -163,13 +163,13 @@ export class TranslationSync {
     // Find created and conflicting keys. Conflicts are also the keys that would
     // be updated by an override push, so expose the value once through both
     // fields for command output and API compatibility.
-    for (const lang of Object.keys(local)) {
-      const localLang = local[lang];
-      const remoteLang = remote[lang] || {};
+    for (const locale of Object.keys(local)) {
+      const localLocale = local[locale];
+      const remoteLocale = remote[locale] || {};
 
-      for (const ns of Object.keys(localLang)) {
-        const localNs = localLang[ns];
-        const remoteNs = remoteLang[ns] || {};
+      for (const ns of Object.keys(localLocale)) {
+        const localNs = localLocale[ns];
+        const remoteNs = remoteLocale[ns] || {};
 
         for (const key of Object.keys(localNs)) {
           if (!(key in remoteNs)) {
@@ -183,13 +183,13 @@ export class TranslationSync {
     }
 
     // Find deleted keys (in remote but not in local)
-    for (const lang of Object.keys(remote)) {
-      const localLang = local[lang] || {};
-      const remoteLang = remote[lang];
+    for (const locale of Object.keys(remote)) {
+      const localLocale = local[locale] || {};
+      const remoteLocale = remote[locale];
 
-      for (const ns of Object.keys(remoteLang)) {
-        const localNs = localLang[ns] || {};
-        const remoteNs = remoteLang[ns];
+      for (const ns of Object.keys(remoteLocale)) {
+        const localNs = localLocale[ns] || {};
+        const remoteNs = remoteLocale[ns];
 
         for (const key of Object.keys(remoteNs)) {
           if (!(key in localNs)) {
@@ -205,11 +205,11 @@ export class TranslationSync {
   /**
    * Resolve file path from template
    */
-  private resolveFilePath(language: string, namespace: string): string {
+  private resolveFilePath(locale: string, namespace: string): string {
     const extension = this.format;
 
     const relativePath = this.fileTemplate
-      .replace("{languageTag}", language)
+      .replace("{languageTag}", locale)
       .replace("{namespace}", namespace)
       .replace("{extension}", extension);
 
@@ -217,13 +217,15 @@ export class TranslationSync {
   }
 
   /**
-   * Parse file path to extract language and namespace
+   * Parse file path to extract locale (BCP 47 tag) and namespace.
+   * The `{languageTag}` placeholder name is kept for backward compatibility
+   * with existing `.comvirc.json` files; the captured value is a locale.
    */
-  private parseFilePath(filePath: string): { language: string; namespace: string } | null {
+  private parseFilePath(filePath: string): { locale: string; namespace: string } | null {
     const relativePath = relative(this.translationsPath, filePath).replace(/\\/g, "/");
     const template = this.fileTemplate.replace(/\\/g, "/");
     const placeholders: Record<string, string> = {
-      "{languageTag}": "(?<language>[A-Za-z0-9_-]+)",
+      "{languageTag}": "(?<locale>[A-Za-z0-9_-]+)",
       "{namespace}": "(?<namespace>[A-Za-z0-9_-]+)",
       "{extension}": "[A-Za-z]+",
     };
@@ -238,7 +240,7 @@ export class TranslationSync {
 
     if (match?.groups) {
       return {
-        language: match.groups.language,
+        locale: match.groups.locale,
         namespace: match.groups.namespace,
       };
     }
@@ -250,9 +252,9 @@ export class TranslationSync {
    * Find all translation files in the translations directory
    */
   private async findTranslationFiles(): Promise<
-    Array<{ language: string; namespace: string; filePath: string }>
+    Array<{ locale: string; namespace: string; filePath: string }>
   > {
-    const results: Array<{ language: string; namespace: string; filePath: string }> = [];
+    const results: Array<{ locale: string; namespace: string; filePath: string }> = [];
 
     try {
       await this.walkDirectory(this.translationsPath, (filePath) => {
