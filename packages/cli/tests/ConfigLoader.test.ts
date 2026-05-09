@@ -254,6 +254,34 @@ describe("ConfigLoader", () => {
       expect(writtenConfig.outputPath).toBe("src/types/i18n.d.ts");
     });
 
+    it("persists namespaces / locales when set (load → modify → save preserves filters)", async () => {
+      // Regression: previously create() omitted these fields, so a
+      // load → modify → save round-trip silently dropped user filters.
+      const mockWriteFile = vi.mocked(fs.writeFile);
+      mockWriteFile.mockResolvedValueOnce(undefined);
+
+      await ConfigLoader.create({
+        apiKey: "k",
+        namespaces: ["forest", "share_experience"],
+        locales: ["en", "uk"],
+      });
+
+      const writtenConfig = JSON.parse(vi.mocked(fs.writeFile).mock.calls[0][1] as string);
+      expect(writtenConfig.namespaces).toEqual(["forest", "share_experience"]);
+      expect(writtenConfig.locales).toEqual(["en", "uk"]);
+    });
+
+    it("omits namespaces / locales when undefined (init produces clean config without baked-in filters)", async () => {
+      const mockWriteFile = vi.mocked(fs.writeFile);
+      mockWriteFile.mockResolvedValueOnce(undefined);
+
+      await ConfigLoader.create({});
+
+      const writtenConfig = JSON.parse(vi.mocked(fs.writeFile).mock.calls[0][1] as string);
+      expect("namespaces" in writtenConfig).toBe(false);
+      expect("locales" in writtenConfig).toBe(false);
+    });
+
     it("should create config with default values", async () => {
       const mockWriteFile = vi.mocked(fs.writeFile);
       mockWriteFile.mockResolvedValueOnce(undefined);

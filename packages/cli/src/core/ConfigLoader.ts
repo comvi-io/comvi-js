@@ -233,7 +233,9 @@ export class ConfigLoader {
   static async create(config: Partial<ComviConfig>, outputPath?: string): Promise<string> {
     const filePath = outputPath || resolve(process.cwd(), this.CONFIG_FILENAME);
 
-    // Build config object - apiKey is NOT included by default (use env var instead)
+    // Build config object - apiKey is NOT included by default (use env var instead).
+    // namespaces/locales are persisted only when set so init doesn't bake an
+    // empty filter into a fresh config (treat undefined as "all").
     const configToWrite: Record<string, unknown> = {
       // Only include apiKey if explicitly provided (not recommended for security)
       ...(config.apiKey ? { apiKey: config.apiKey } : {}),
@@ -244,6 +246,8 @@ export class ConfigLoader {
       translationsPath: config.translationsPath || "./src/locales",
       fileTemplate: config.fileTemplate || "{languageTag}/{namespace}.json",
       format: config.format || "json",
+      ...(config.namespaces !== undefined ? { namespaces: config.namespaces } : {}),
+      ...(config.locales !== undefined ? { locales: config.locales } : {}),
       push: {
         forceMode: config.push?.forceMode || "ask",
       },
