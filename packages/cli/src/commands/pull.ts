@@ -2,8 +2,8 @@
  * Pull command - Download translations from TMS to local files
  *
  * Usage:
- *   comvi pull                         # All languages, all namespaces
- *   comvi pull --lang en,uk            # Filter by languages
+ *   comvi pull                         # All locales, all namespaces
+ *   comvi pull --locale en,uk          # Filter by locales
  *   comvi pull --ns common,admin       # Filter by namespaces
  *   comvi pull --path ./locales        # Override output path
  *   comvi pull --empty-dir             # Clear directory before pull
@@ -13,12 +13,16 @@ import { Command } from "commander";
 import { ConfigLoader } from "../core/ConfigLoader";
 import { ApiClient } from "../core/ApiClient";
 import { TranslationSync } from "../core/TranslationSync";
+import { ErrorCodes, isTypegenError } from "../utils/errors";
+import { assertAllReturned, parseListFlag, resolveFilter } from "../utils/filterResolution";
+
+const EXIT_VALIDATION = 4;
 
 export function createPullCommand(): Command {
   return new Command("pull")
     .description("Download translations from TMS to local files")
     .option("-c, --config <path>", "Path to .comvirc.json file")
-    .option("-l, --lang <languages>", "Filter by languages (comma-separated)")
+    .option("-l, --locale <locales>", "Filter by locales (comma-separated)")
     .option("-n, --ns <namespaces>", "Filter by namespaces (comma-separated)")
     .option("-p, --path <path>", "Override translations output path")
     .option("--empty-dir", "Clear directory before pull")
@@ -47,9 +51,16 @@ export function createPullCommand(): Command {
           format: config.format || "json",
         });
 
-        // Parse filter options
-        const languages = options.lang?.split(",").map((l: string) => l.trim());
-        const namespaces = options.ns?.split(",").map((n: string) => n.trim());
+        // Resolve filters: CLI flag > config > all (no merge).
+        const locs = resolveFilter(parseListFlag(options.locale), config.locales);
+        const nss = resolveFilter(parseListFlag(options.ns), config.namespaces);
+
+        if (locs.source === "config") {
+          console.log(`📄 Using locales from .comvirc.json: ${locs.value!.join(", ")}`);
+        }
+        if (nss.source === "config") {
+          console.log(`📄 Using namespaces from .comvirc.json: ${nss.value!.join(", ")}`);
+        }
 
         // Empty directory if requested
         if (options.emptyDir || config.pull?.emptyDir) {
@@ -60,16 +71,21 @@ export function createPullCommand(): Command {
         // Fetch translations
         console.log("🔄 Fetching translations from TMS...");
         const translations = await apiClient.fetchTranslations({
-          languages,
-          namespaces,
+          locales: locs.value,
+          namespaces: nss.value,
         });
+
+        // Diff request vs response so a typo (in config or --ns/--locale) fails
+        // fast with exit 4 instead of producing empty translation files in CI.
+        assertAllReturned("namespaces", nss.value, translations.namespaces);
+        assertAllReturned("locales", locs.value, translations.locales);
 
         // Write to files
         console.log("📝 Writing translation files...");
         const result = await sync.writeTranslations(translations);
 
         console.log(`\n✓ Pull complete!`);
-        console.log(`  Languages: ${result.languages.join(", ")}`);
+        console.log(`  Locales: ${result.locales.join(", ")}`);
         console.log(`  Namespaces: ${result.namespaces.join(", ")}`);
         console.log(`  Files written: ${result.filesWritten}`);
 
@@ -77,6 +93,12 @@ export function createPullCommand(): Command {
       } catch (error) {
         if (error instanceof Error) {
           console.error(`✗ Pull failed: ${error.message}`);
+        }
+        if (
+          isTypegenError(error, ErrorCodes.VALIDATION_FAILED) ||
+          isTypegenError(error, ErrorCodes.CONFIG_INVALID)
+        ) {
+          process.exit(EXIT_VALIDATION);
         }
         process.exit(1);
       }

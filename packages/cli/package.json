@@ -44,7 +44,6 @@
     "lint:fix": "eslint . --fix"
   },
   "dependencies": {
-    "@comvi/core": "workspace:*",
     "commander": "^14.0.3",
     "eventsource": "^4.1.0"
   },

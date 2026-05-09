@@ -131,6 +131,78 @@ export class ConfigLoader {
         ErrorCodes.CONFIG_INVALID,
       );
     }
+
+    // Filter fields: namespaces / locales.
+    // Validation throws VALIDATION_FAILED so the CLI maps it to exit code 4.
+    config.namespaces = this.normalizeFilterField(config.namespaces, "namespaces");
+    config.locales = this.normalizeFilterField(config.locales, "locales");
+  }
+
+  /**
+   * Normalize and validate an optional string-array filter from config.
+   *
+   * - undefined → undefined (field omitted, "all" semantics)
+   * - non-array, non-string items, blank items → VALIDATION_FAILED
+   * - empty array → VALIDATION_FAILED with "remove the field" hint
+   * - duplicates after trimming → VALIDATION_FAILED
+   * - otherwise: returns trimmed array
+   */
+  private static normalizeFilterField(
+    value: unknown,
+    fieldName: "namespaces" | "locales",
+  ): string[] | undefined {
+    if (value === undefined) {
+      return undefined;
+    }
+
+    if (!Array.isArray(value)) {
+      throw new TypegenError(
+        `Invalid configuration: "${fieldName}" must be an array of strings`,
+        ErrorCodes.VALIDATION_FAILED,
+      );
+    }
+
+    if (value.length === 0) {
+      throw new TypegenError(
+        `Invalid configuration: "${fieldName}" is an empty list — remove the field to operate on all ${fieldName}`,
+        ErrorCodes.VALIDATION_FAILED,
+      );
+    }
+
+    const trimmed: string[] = [];
+    for (const item of value) {
+      if (typeof item !== "string") {
+        throw new TypegenError(
+          `Invalid configuration: "${fieldName}" must contain only strings`,
+          ErrorCodes.VALIDATION_FAILED,
+        );
+      }
+      const t = item.trim();
+      if (t === "") {
+        throw new TypegenError(
+          `Invalid configuration: "${fieldName}" contains an empty string`,
+          ErrorCodes.VALIDATION_FAILED,
+        );
+      }
+      trimmed.push(t);
+    }
+
+    const seen = new Set<string>();
+    const duplicates: string[] = [];
+    for (const item of trimmed) {
+      if (seen.has(item)) {
+        duplicates.push(item);
+      }
+      seen.add(item);
+    }
+    if (duplicates.length > 0) {
+      throw new TypegenError(
+        `Invalid configuration: "${fieldName}" contains duplicate values: ${[...new Set(duplicates)].join(", ")}`,
+        ErrorCodes.VALIDATION_FAILED,
+      );
+    }
+
+    return trimmed;
   }
 
   /**
@@ -161,7 +233,9 @@ export class ConfigLoader {
   static async create(config: Partial<ComviConfig>, outputPath?: string): Promise<string> {
     const filePath = outputPath || resolve(process.cwd(), this.CONFIG_FILENAME);
 
-    // Build config object - apiKey is NOT included by default (use env var instead)
+    // Build config object - apiKey is NOT included by default (use env var instead).
+    // namespaces/locales are persisted only when set so init doesn't bake an
+    // empty filter into a fresh config (treat undefined as "all").
     const configToWrite: Record<string, unknown> = {
       // Only include apiKey if explicitly provided (not recommended for security)
       ...(config.apiKey ? { apiKey: config.apiKey } : {}),
@@ -172,6 +246,8 @@ export class ConfigLoader {
       translationsPath: config.translationsPath || "./src/locales",
       fileTemplate: config.fileTemplate || "{languageTag}/{namespace}.json",
       format: config.format || "json",
+      ...(config.namespaces !== undefined ? { namespaces: config.namespaces } : {}),
+      ...(config.locales !== undefined ? { locales: config.locales } : {}),
       push: {
         forceMode: config.push?.forceMode || "ask",
       },

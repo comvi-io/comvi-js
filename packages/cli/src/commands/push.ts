@@ -3,7 +3,7 @@
  *
  * Usage:
  *   comvi push                         # All files
- *   comvi push --lang en               # Only specified language
+ *   comvi push --locale en             # Only specified locale
  *   comvi push --dry-run               # Preview changes without applying
  *   comvi push --force-mode override   # Overwrite existing translations
  *   comvi push --force-mode keep       # Keep existing translations
@@ -16,14 +16,18 @@ import { ConfigLoader } from "../core/ConfigLoader";
 import { ApiClient } from "../core/ApiClient";
 import { TranslationSync } from "../core/TranslationSync";
 import type { ForceMode } from "../types";
+import { ErrorCodes, isTypegenError } from "../utils/errors";
+import { parseListFlag, resolveFilter } from "../utils/filterResolution";
 
 type ApiPushForceMode = Exclude<ForceMode, "ask">;
+
+const EXIT_VALIDATION = 4;
 
 export function createPushCommand(): Command {
   return new Command("push")
     .description("Upload local translations to TMS")
     .option("-c, --config <path>", "Path to .comvirc.json file")
-    .option("-l, --lang <languages>", "Filter by languages (comma-separated)")
+    .option("-l, --locale <locales>", "Filter by locales (comma-separated)")
     .option("-n, --ns <namespaces>", "Filter by namespaces (comma-separated)")
     .option("-p, --path <path>", "Override translations source path")
     .option("--dry-run", "Preview changes without applying")
@@ -53,9 +57,18 @@ export function createPushCommand(): Command {
           format: config.format || "json",
         });
 
-        // Parse filter options
-        const languages = options.lang?.split(",").map((l: string) => l.trim());
-        const namespaces = options.ns?.split(",").map((n: string) => n.trim());
+        // Resolve filters: CLI flag > config > all (no merge).
+        const locs = resolveFilter(parseListFlag(options.locale), config.locales);
+        const nss = resolveFilter(parseListFlag(options.ns), config.namespaces);
+        const locales = locs.value;
+        const namespaces = nss.value;
+
+        if (locs.source === "config") {
+          console.log(`📄 Using locales from .comvirc.json: ${locs.value!.join(", ")}`);
+        }
+        if (nss.source === "config") {
+          console.log(`📄 Using namespaces from .comvirc.json: ${nss.value!.join(", ")}`);
+        }
 
         // Determine force mode
         const forceMode: ForceMode = options.forceMode || config.push?.forceMode || "ask";
@@ -69,7 +82,7 @@ export function createPushCommand(): Command {
         // Read local translations
         console.log("🔄 Reading local translation files...");
         const localTranslations = await sync.readTranslations({
-          languages,
+          locales,
           namespaces,
         });
 
@@ -84,7 +97,7 @@ export function createPushCommand(): Command {
 
           // Fetch current TMS state to compare
           const remoteTranslations = await apiClient.fetchTranslations({
-            languages,
+            locales,
             namespaces,
           });
 
@@ -110,7 +123,7 @@ export function createPushCommand(): Command {
         let preloadedRemote;
         if (forceMode === "ask") {
           const remoteTranslations = await apiClient.fetchTranslations({
-            languages,
+            locales,
             namespaces,
           });
           preloadedRemote = remoteTranslations;
@@ -143,6 +156,12 @@ export function createPushCommand(): Command {
       } catch (error) {
         if (error instanceof Error) {
           console.error(`✗ Push failed: ${error.message}`);
+        }
+        if (
+          isTypegenError(error, ErrorCodes.VALIDATION_FAILED) ||
+          isTypegenError(error, ErrorCodes.CONFIG_INVALID)
+        ) {
+          process.exit(EXIT_VALIDATION);
         }
         process.exit(1);
       }

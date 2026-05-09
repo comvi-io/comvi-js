@@ -51,7 +51,7 @@ export type TranslationData = Record<string, Record<string, Record<string, strin
  * into the local file sync shape.
  */
 export interface TranslationsResponse {
-  languages: string[];
+  locales: string[];
   namespaces: string[];
   translations: TranslationData;
 }
@@ -180,6 +180,20 @@ export interface ComviConfig {
    * @default "json"
    */
   format?: "json";
+
+  /**
+   * Restrict pull/push to this list of namespaces.
+   * Omit to operate on all namespaces in the project.
+   * CLI flag --ns fully overrides this value (no merge).
+   */
+  namespaces?: string[];
+
+  /**
+   * Restrict pull/push to this list of locales (BCP 47 tags like "en", "uk-UA").
+   * Omit to operate on all locales in the project.
+   * CLI flag --locale fully overrides this value (no merge).
+   */
+  locales?: string[];
 
   /**
    * Push-specific configuration
@@ -311,9 +325,9 @@ export interface CheckResult {
  */
 export interface PullResult {
   /**
-   * Languages that were pulled
+   * Locales that were pulled
    */
-  languages: string[];
+  locales: string[];
 
   /**
    * Namespaces that were pulled

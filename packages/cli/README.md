@@ -21,7 +21,7 @@
 **Use `@comvi/cli`** if your translations live in the Comvi TMS and you want to sync them to your repo or generate types from the live schema.
 **Use `@comvi/vite-plugin`** if your translations live as local JSON files and you want autocomplete in your editor.
 
-📖 **Documentation:** https://comvi.io/docs/i18n/tooling/cli/
+📖 **Documentation:** https://comvi.io/docs/cli/
 
 ## About Comvi i18n
 
@@ -60,7 +60,22 @@ npx comvi push                    # upload local translations to the TMS
 
 **Recommended:** keep the API key in the `COMVI_API_KEY` environment variable. Storing `apiKey` in `.comvirc.json` works but is discouraged — env vars take precedence and won't end up in version control by accident.
 
-For all commands and flags, the full `.comvirc.json` reference, and the programmatic API (`TypeGenerator`, `ApiClient`, `TranslationSync`, etc.), see the [documentation](https://comvi.io/docs/i18n/tooling/cli/).
+The CLI auto-loads the nearest `.env` by walking up from your current working directory (bounded by the project root) before each command — drop `COMVI_API_KEY=...` in `.env` and it just works, no `dotenv-cli` wrapper needed. Real env vars always win over the file (CI-safe). Use `--no-env-file` (or `COMVI_NO_ENV=1`) to opt out, or `--env-file <path>` to point at a specific file.
+
+### Filter what you pull/push
+
+Declare a namespace/locale subset in `.comvirc.json` so it's not repeated in every `package.json` script:
+
+```json
+{
+  "namespaces": ["forest", "share_experience"],
+  "locales": ["en", "uk"]
+}
+```
+
+`comvi pull` and `comvi push` then operate on that subset by default. CLI flags (`--ns`, `--locale`) fully override the config for one-off runs (no merge). If a value in the config doesn't exist on the server (typo, deleted namespace), `pull` fails fast with exit code 4 instead of silently writing empty files.
+
+For all commands and flags, the full `.comvirc.json` reference, and the programmatic API (`TypeGenerator`, `ApiClient`, `TranslationSync`, etc.), see the [documentation](https://comvi.io/docs/cli/).
 
 ## What you get
 

@@ -24,7 +24,6 @@ export default defineConfig({
     },
     rolldownOptions: {
       external: [
-        "@comvi/core",
         "commander",
         "eventsource",
         "fs",
@@ -36,6 +35,7 @@ export default defineConfig({
         "node:crypto",
         "node:process",
         "node:readline/promises",
+        "node:util",
       ],
       output: [
         {

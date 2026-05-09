@@ -290,7 +290,7 @@ describe("ApiClient", () => {
       const result = await apiClient.fetchTranslations();
 
       expect(result).toEqual({
-        languages: ["en", "uk"],
+        locales: ["en", "uk"],
         namespaces: ["common"],
         translations: {
           en: { common: { greeting: "Hello" } },
@@ -305,7 +305,7 @@ describe("ApiClient", () => {
       );
     });
 
-    it("should apply language and namespace filters", async () => {
+    it("should apply locale and namespace filters", async () => {
       const mockResponse = {
         locales: ["en"],
         namespaces: { common: { en: { greeting: "Hello" } } },
@@ -317,7 +317,7 @@ describe("ApiClient", () => {
       });
 
       await apiClient.fetchTranslations({
-        languages: ["en", "uk"],
+        locales: ["en", "uk"],
         namespaces: ["common", "admin"],
       });
 
