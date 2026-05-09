@@ -69,11 +69,11 @@ Declare a namespace/language subset in `.comvirc.json` so it's not repeated in e
 ```json
 {
   "namespaces": ["forest", "share_experience"],
-  "languages": ["en", "uk"]
+  "locales": ["en", "uk"]
 }
 ```
 
-`comvi pull` and `comvi push` then operate on that subset by default. CLI flags (`--ns`, `--lang`) fully override the config for one-off runs (no merge). If a value in the config doesn't exist on the server (typo, deleted namespace), `pull` fails fast with exit code 4 instead of silently writing empty files.
+`comvi pull` and `comvi push` then operate on that subset by default. CLI flags (`--ns`, `--locale`) fully override the config for one-off runs (no merge). If a value in the config doesn't exist on the server (typo, deleted namespace), `pull` fails fast with exit code 4 instead of silently writing empty files.
 
 For all commands and flags, the full `.comvirc.json` reference, and the programmatic API (`TypeGenerator`, `ApiClient`, `TranslationSync`, etc.), see the [documentation](https://comvi.io/docs/i18n/tooling/cli/).
 

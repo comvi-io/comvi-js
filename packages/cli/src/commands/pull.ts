@@ -2,8 +2,8 @@
  * Pull command - Download translations from TMS to local files
  *
  * Usage:
- *   comvi pull                         # All languages, all namespaces
- *   comvi pull --lang en,uk            # Filter by languages
+ *   comvi pull                         # All locales, all namespaces
+ *   comvi pull --locale en,uk          # Filter by locales
  *   comvi pull --ns common,admin       # Filter by namespaces
  *   comvi pull --path ./locales        # Override output path
  *   comvi pull --empty-dir             # Clear directory before pull
@@ -22,7 +22,7 @@ export function createPullCommand(): Command {
   return new Command("pull")
     .description("Download translations from TMS to local files")
     .option("-c, --config <path>", "Path to .comvirc.json file")
-    .option("-l, --lang <languages>", "Filter by languages (comma-separated)")
+    .option("-l, --locale <locales>", "Filter by locales (comma-separated)")
     .option("-n, --ns <namespaces>", "Filter by namespaces (comma-separated)")
     .option("-p, --path <path>", "Override translations output path")
     .option("--empty-dir", "Clear directory before pull")
@@ -52,11 +52,11 @@ export function createPullCommand(): Command {
         });
 
         // Resolve filters: CLI flag > config > all (no merge).
-        const langs = resolveFilter(parseListFlag(options.lang), config.languages);
+        const locs = resolveFilter(parseListFlag(options.locale), config.locales);
         const nss = resolveFilter(parseListFlag(options.ns), config.namespaces);
 
-        if (langs.source === "config") {
-          console.log(`📄 Using languages from .comvirc.json: ${langs.value!.join(", ")}`);
+        if (locs.source === "config") {
+          console.log(`📄 Using locales from .comvirc.json: ${locs.value!.join(", ")}`);
         }
         if (nss.source === "config") {
           console.log(`📄 Using namespaces from .comvirc.json: ${nss.value!.join(", ")}`);
@@ -71,21 +71,21 @@ export function createPullCommand(): Command {
         // Fetch translations
         console.log("🔄 Fetching translations from TMS...");
         const translations = await apiClient.fetchTranslations({
-          languages: langs.value,
+          locales: locs.value,
           namespaces: nss.value,
         });
 
-        // Diff request vs response so a typo (in config or --ns/--lang) fails
+        // Diff request vs response so a typo (in config or --ns/--locale) fails
         // fast with exit 4 instead of producing empty translation files in CI.
         assertAllReturned("namespaces", nss.value, translations.namespaces);
-        assertAllReturned("languages", langs.value, translations.languages);
+        assertAllReturned("locales", locs.value, translations.locales);
 
         // Write to files
         console.log("📝 Writing translation files...");
         const result = await sync.writeTranslations(translations);
 
         console.log(`\n✓ Pull complete!`);
-        console.log(`  Languages: ${result.languages.join(", ")}`);
+        console.log(`  Locales: ${result.locales.join(", ")}`);
         console.log(`  Namespaces: ${result.namespaces.join(", ")}`);
         console.log(`  Files written: ${result.filesWritten}`);
 
