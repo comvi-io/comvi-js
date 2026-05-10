@@ -55,9 +55,7 @@ const TEST_APP_PREFIX = "test-apps__";
 // Fail closed on schema drift — silently defaulting `actions` to [] would
 // produce a green audit gate when pnpm changes its JSON shape.
 if (!Array.isArray(data.actions)) {
-  console.error(
-    "audit-published: unexpected pnpm audit JSON schema (missing `actions` array)",
-  );
+  console.error("audit-published: unexpected pnpm audit JSON schema (missing `actions` array)");
   process.exit(2);
 }
 const actions = data.actions;
