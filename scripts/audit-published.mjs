@@ -26,6 +26,9 @@ function run() {
     });
   } catch (e) {
     // pnpm audit exits non-zero when vulnerabilities are found — that's expected.
+    // We deliberately ignore e.stderr here: pnpm v9+ always writes the
+    // `--json` body to stdout, and stderr only carries DeprecationWarning
+    // lines that would corrupt JSON.parse if concatenated.
     return e.stdout || "";
   }
 }
@@ -48,7 +51,16 @@ try {
 }
 
 const TEST_APP_PREFIX = "test-apps__";
-const actions = Array.isArray(data.actions) ? data.actions : [];
+
+// Fail closed on schema drift — silently defaulting `actions` to [] would
+// produce a green audit gate when pnpm changes its JSON shape.
+if (!Array.isArray(data.actions)) {
+  console.error(
+    "audit-published: unexpected pnpm audit JSON schema (missing `actions` array)",
+  );
+  process.exit(2);
+}
+const actions = data.actions;
 
 // Keep only resolves that touch a path NOT rooted in test-apps__*
 const publishedActions = actions
