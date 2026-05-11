@@ -1,5 +1,11 @@
 # @comvi/nuxt
 
+## 0.2.1
+
+### Patch Changes
+
+- 20f6e38: Bump `nuxt` and `@nuxt/schema` devDependencies from `^3.21.0` to `^3.21.4` to pull in patched transitive `defu@6.1.7` (security fix). No runtime API change for `@comvi/nuxt` consumers.
+
 ## 0.2.0
 
 ### Minor Changes
