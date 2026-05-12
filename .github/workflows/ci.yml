@@ -73,6 +73,9 @@ jobs:
       - name: Lint
         run: pnpm lint
 
+      - name: Security audit (published packages only — test-apps ignored)
+        run: node scripts/audit-published.mjs
+
       - name: Typecheck
         run: pnpm typecheck
 

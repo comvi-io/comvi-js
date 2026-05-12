@@ -28,7 +28,8 @@
     "format:check": "prettier --check .",
     "audit:package-contracts": "node tooling/check-package-contracts.mjs",
     "prepare": "husky",
-    "lint:fix": "turbo run lint:fix"
+    "lint:fix": "turbo run lint:fix",
+    "audit:published": "node scripts/audit-published.mjs"
   },
   "devDependencies": {
     "@changesets/cli": "^2.30.0",

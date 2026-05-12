@@ -70,7 +70,7 @@
   },
   "devDependencies": {
     "@nuxt/module-builder": "^1.0.2",
-    "@nuxt/schema": "^3.21.0",
+    "@nuxt/schema": "^3.21.4",
     "@types/node": "^22.13.0",
     "@typescript-eslint/eslint-plugin": "^8.58.0",
     "@typescript-eslint/parser": "^8.58.0",
@@ -80,7 +80,7 @@
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-vue": "^10.8.0",
     "happy-dom": "^20.8.9",
-    "nuxt": "^3.21.0",
+    "nuxt": "^3.21.4",
     "prettier": "^3.8.1",
     "typescript": "~6.0.2",
     "vitest": "^4.1.2",
