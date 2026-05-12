@@ -498,7 +498,19 @@ describe("nuxt module setup", () => {
 
   it("registers an explicit import for every composable file", () => {
     const dir = resolve(__dirname, "../src/runtime/composables");
-    const composableFiles = readdirSync(dir).filter((f) => f.endsWith(".ts"));
-    expect(composableFiles).toHaveLength(6);
+    const composableNames = readdirSync(dir)
+      .filter((f) => f.endsWith(".ts"))
+      .map((f) => f.replace(/\.ts$/, ""))
+      .sort();
+    expect(composableNames).toEqual(
+      [
+        "useI18n",
+        "useLocaleHead",
+        "useLocalePath",
+        "useLocaleRoute",
+        "useRouteConfig",
+        "useSwitchLocalePath",
+      ].sort(),
+    );
   });
 });
