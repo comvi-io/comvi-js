@@ -7,7 +7,6 @@ import {
   generateICUCombined,
   parseICUCombined,
   detectICUType,
-  DEFAULT_PLURAL_VARIABLE,
 } from "../src/utils/icuParser";
 
 describe("icuParser", () => {
