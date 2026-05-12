@@ -43,7 +43,9 @@
     },
     "./standalone": "./dist/standalone.iife.js"
   },
-  "sideEffects": false,
+  "sideEffects": [
+    "./dist/standalone.iife.js"
+  ],
   "scripts": {
     "dev": "vite build --watch",
     "build": "pnpm --filter @comvi/plugin-fetch-loader build && vue-tsc && vite build && vite build --config vite.config.standalone.ts",
