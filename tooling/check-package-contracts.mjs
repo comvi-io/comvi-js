@@ -172,14 +172,13 @@ for (const packageDir of packageDirs) {
     );
   }
 
-  if (packageErrors.length > 0) {
-    errors.push(...packageErrors);
-  }
-  summaries.push(`${packageName}: ${packedFiles.size} files checked`);
+  const failed = packageErrors.length > 0;
+  if (failed) errors.push(...packageErrors);
+  summaries.push(`${failed ? "FAIL" : "PASS"} ${packageName}: ${packedFiles.size} files checked`);
 }
 
 for (const summary of summaries) {
-  console.log(`PASS ${summary}`);
+  console.log(summary);
 }
 
 if (errors.length > 0) {
