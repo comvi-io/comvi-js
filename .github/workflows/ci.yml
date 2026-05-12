@@ -81,3 +81,8 @@ jobs:
 
       - name: Build
         run: pnpm build
+
+      # Verifies every publishable package's exports/main/types/bin targets are
+      # present in `npm pack` output; reads dist/, so it must run after Build.
+      - name: Package contracts
+        run: pnpm audit:package-contracts

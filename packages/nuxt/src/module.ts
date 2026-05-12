@@ -4,13 +4,13 @@ import {
   findPath,
   addPlugin,
   addTemplate,
-  addImportsDir,
+  addImports,
   addComponent,
   addServerImportsDir,
   addRouteMiddleware,
   extendPages,
 } from "@nuxt/kit";
-import type { NuxtPage } from "@nuxt/schema";
+import type { NuxtModule, NuxtPage } from "@nuxt/schema";
 import type { NuxtI18nOptions, LocaleObject, ResolvedRoutingConfig } from "./types";
 
 /**
@@ -54,7 +54,7 @@ function isLocaleParamRoute(path: string): boolean {
   return /(?:^|\/):locale(?:$|[/?+*()])/u.test(path);
 }
 
-export default defineNuxtModule<NuxtI18nOptions>({
+const comviNuxtModule: NuxtModule<NuxtI18nOptions> = defineNuxtModule<NuxtI18nOptions>({
   meta: {
     name: "@comvi/nuxt",
     configKey: "comvi",
@@ -203,8 +203,17 @@ export async function runComviSetup(context) {
       },
     });
 
-    // Add composables
-    addImportsDir(resolve("./runtime/composables"));
+    // Register explicit composable imports so Nuxt generates stable #imports types
+    // for published package consumers. Keep this list in sync with
+    // src/runtime/composables/ — asserted by tests/module.test.ts.
+    addImports([
+      { name: "useI18n", from: resolve("./runtime/composables/useI18n") },
+      { name: "useLocaleHead", from: resolve("./runtime/composables/useLocaleHead") },
+      { name: "useLocalePath", from: resolve("./runtime/composables/useLocalePath") },
+      { name: "useLocaleRoute", from: resolve("./runtime/composables/useLocaleRoute") },
+      { name: "useRouteConfig", from: resolve("./runtime/composables/useRouteConfig") },
+      { name: "useSwitchLocalePath", from: resolve("./runtime/composables/useSwitchLocalePath") },
+    ]);
 
     // Register runtime components explicitly to avoid async/global component chunk warnings.
     addComponent({
@@ -316,3 +325,5 @@ export async function runComviSetup(context) {
     }
   },
 });
+
+export default comviNuxtModule;

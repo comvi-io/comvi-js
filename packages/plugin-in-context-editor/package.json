@@ -43,7 +43,9 @@
     },
     "./standalone": "./dist/standalone.iife.js"
   },
-  "sideEffects": false,
+  "sideEffects": [
+    "./dist/standalone.iife.js"
+  ],
   "scripts": {
     "dev": "vite build --watch",
     "build": "pnpm --filter @comvi/plugin-fetch-loader build && vue-tsc && vite build && vite build --config vite.config.standalone.ts",
@@ -56,7 +58,9 @@
     "test:ui": "vitest --ui",
     "test:coverage": "vitest run --coverage",
     "test:e2e": "playwright test",
-    "test:e2e:ui": "playwright test --ui"
+    "test:e2e:ui": "playwright test --ui",
+    "lint": "eslint . --max-warnings=0",
+    "lint:fix": "eslint . --fix"
   },
   "peerDependencies": {
     "@comvi/core": "workspace:*"

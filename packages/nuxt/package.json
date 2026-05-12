@@ -60,9 +60,10 @@
     "lint:fix": "eslint . --fix"
   },
   "dependencies": {
-    "@nuxt/kit": "^3.21.0",
     "@comvi/core": "workspace:*",
-    "@comvi/vue": "workspace:*"
+    "@comvi/vue": "workspace:*",
+    "@nuxt/kit": "^3.21.5",
+    "h3": "^1.15.11"
   },
   "peerDependencies": {
     "nuxt": "^3.0.0"

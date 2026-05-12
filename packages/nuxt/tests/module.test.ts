@@ -1,3 +1,5 @@
+import { readdirSync } from "node:fs";
+import { resolve } from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { NuxtPage } from "@nuxt/schema";
 
@@ -6,7 +8,7 @@ const nuxtKitMocks = {
   findPath: vi.fn(),
   addPlugin: vi.fn(),
   addTemplate: vi.fn(),
-  addImportsDir: vi.fn(),
+  addImports: vi.fn(),
   addComponent: vi.fn(),
   addServerImportsDir: vi.fn(),
   addRouteMiddleware: vi.fn(),
@@ -21,7 +23,7 @@ vi.mock("@nuxt/kit", () => ({
   findPath: (...args: unknown[]) => nuxtKitMocks.findPath(...args),
   addPlugin: (...args: unknown[]) => nuxtKitMocks.addPlugin(...args),
   addTemplate: (...args: unknown[]) => nuxtKitMocks.addTemplate(...args),
-  addImportsDir: (...args: unknown[]) => nuxtKitMocks.addImportsDir(...args),
+  addImports: (...args: unknown[]) => nuxtKitMocks.addImports(...args),
   addComponent: (...args: unknown[]) => nuxtKitMocks.addComponent(...args),
   addServerImportsDir: (...args: unknown[]) => nuxtKitMocks.addServerImportsDir(...args),
   addRouteMiddleware: (...args: unknown[]) => nuxtKitMocks.addRouteMiddleware(...args),
@@ -63,7 +65,7 @@ describe("nuxt module setup", () => {
     nuxtKitMocks.findPath.mockReset();
     nuxtKitMocks.addPlugin.mockReset();
     nuxtKitMocks.addTemplate.mockReset();
-    nuxtKitMocks.addImportsDir.mockReset();
+    nuxtKitMocks.addImports.mockReset();
     nuxtKitMocks.addComponent.mockReset();
     nuxtKitMocks.addServerImportsDir.mockReset();
     nuxtKitMocks.addRouteMiddleware.mockReset();
@@ -147,7 +149,14 @@ describe("nuxt module setup", () => {
     expect(templateWithSetup?.getContents()).toContain(
       "[@comvi/nuxt] comvi.setup must export a default function.",
     );
-    expect(nuxtKitMocks.addImportsDir).toHaveBeenCalledWith("/resolved/./runtime/composables");
+    expect(nuxtKitMocks.addImports).toHaveBeenCalledWith([
+      { name: "useI18n", from: "/resolved/./runtime/composables/useI18n" },
+      { name: "useLocaleHead", from: "/resolved/./runtime/composables/useLocaleHead" },
+      { name: "useLocalePath", from: "/resolved/./runtime/composables/useLocalePath" },
+      { name: "useLocaleRoute", from: "/resolved/./runtime/composables/useLocaleRoute" },
+      { name: "useRouteConfig", from: "/resolved/./runtime/composables/useRouteConfig" },
+      { name: "useSwitchLocalePath", from: "/resolved/./runtime/composables/useSwitchLocalePath" },
+    ]);
     expect(nuxtKitMocks.addComponent).toHaveBeenNthCalledWith(1, {
       name: "T",
       filePath: "/resolved/./runtime/components/T",
@@ -485,5 +494,23 @@ describe("nuxt module setup", () => {
 
     expect(nuxtKitMocks.extendPages).not.toHaveBeenCalled();
     expect(extendPagesHandler).toBeUndefined();
+  });
+
+  it("registers an explicit import for every composable file", () => {
+    const dir = resolve(__dirname, "../src/runtime/composables");
+    const composableNames = readdirSync(dir)
+      .filter((f) => f.endsWith(".ts"))
+      .map((f) => f.replace(/\.ts$/, ""))
+      .sort();
+    expect(composableNames).toEqual(
+      [
+        "useI18n",
+        "useLocaleHead",
+        "useLocalePath",
+        "useLocaleRoute",
+        "useRouteConfig",
+        "useSwitchLocalePath",
+      ].sort(),
+    );
   });
 });
