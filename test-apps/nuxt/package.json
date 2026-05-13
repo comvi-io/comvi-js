@@ -10,7 +10,7 @@
   },
   "dependencies": {
     "@comvi/nuxt": "workspace:*",
-    "nuxt": "^3.21.0"
+    "nuxt": "^3.21.4"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.2.2",
