@@ -13,7 +13,6 @@ import {
   shallowRef,
   readonly,
   computed,
-  triggerRef,
   type Ref,
   type ShallowRef,
   type ComputedRef,
@@ -47,7 +46,7 @@ export class VueI18n {
   private _isLoading: ShallowRef<boolean>;
   private _isInitializing: ShallowRef<boolean>;
   private _cacheRevision: ShallowRef<number>;
-  private _translationCacheRef!: ShallowRef<ReadonlyMap<string, FlattenedTranslations>>;
+  private _translationCacheComputed?: ComputedRef<ReadonlyMap<string, FlattenedTranslations>>;
   private _unsubscribers: Array<() => void> = [];
   private _requestedLocale: string;
   private _localeQueue: Promise<void> = Promise.resolve();
@@ -98,10 +97,8 @@ export class VueI18n {
     this._isLoading = shallowRef(this._core.isLoading);
     this._isInitializing = shallowRef(this._core.isInitializing);
     this._cacheRevision = shallowRef(this._core.translationCache.getRevision());
-    this._translationCacheRef = shallowRef(this._core.translationCache.getInternalMap());
     const syncCache = () => {
       this._cacheRevision.value = this._core.translationCache.getRevision();
-      triggerRef(this._translationCacheRef);
     };
 
     this._unsubscribers.push(
@@ -279,8 +276,14 @@ export class VueI18n {
     }
   }
 
-  get translationCache(): Readonly<Ref<ReadonlyMap<string, FlattenedTranslations>>> {
-    return this._translationCacheRef;
+  get translationCache(): ComputedRef<ReadonlyMap<string, FlattenedTranslations>> {
+    if (!this._translationCacheComputed) {
+      this._translationCacheComputed = computed(() => {
+        void this._cacheRevision.value;
+        return this._core.translationCache.getInternalMap();
+      });
+    }
+    return this._translationCacheComputed;
   }
 
   get isLoading(): Readonly<Ref<boolean>> {

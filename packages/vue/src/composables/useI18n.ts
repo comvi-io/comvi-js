@@ -55,8 +55,8 @@ export interface UseI18nReturn {
   /** Set locale asynchronously */
   setLocale: (locale: string) => Promise<void>;
 
-  /** Translation cache (stable readonly ref with manual triggers, no cloning) */
-  translationCache: Readonly<Ref<Readonly<ReadonlyMap<string, FlattenedTranslations>>>>;
+  /** Translation cache as a reactive ComputedRef (stable identity, re-evaluates on cache mutation) */
+  translationCache: ComputedRef<ReadonlyMap<string, FlattenedTranslations>>;
 
   /** Loading state (readonly reactive Vue Ref) */
   isLoading: Readonly<Ref<boolean>>;

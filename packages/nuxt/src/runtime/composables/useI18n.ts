@@ -59,7 +59,7 @@ export interface UseI18nReturn {
   setLocale: (locale: string) => Promise<void>;
 
   /** Translation cache (computed readonly ref) */
-  translationCache: Readonly<Ref<Readonly<ReadonlyMap<string, FlattenedTranslations>>>>;
+  translationCache: ComputedRef<ReadonlyMap<string, FlattenedTranslations>>;
 
   /** Loading state (readonly reactive) */
   isLoading: Readonly<Ref<boolean>>;
