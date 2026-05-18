@@ -524,6 +524,84 @@ describe("Reactive State Transitions", () => {
     });
   });
 
+  describe("setFallbackLocale + checkFallbacks reactivity", () => {
+    it("should update hasTranslation with checkFallbacks after setFallbackLocale", async () => {
+      const i18n = createI18n({
+        locale: "fr",
+        defaultNs: "common",
+      });
+
+      await i18n.init();
+
+      i18n.addTranslations({ en: { foo: "bar" } });
+
+      const hasFoo = i18n.hasTranslation("foo", { checkFallbacks: true });
+      expect(hasFoo.value).toBe(false);
+
+      i18n.setFallbackLocale("en");
+      await nextTick();
+
+      expect(hasFoo.value).toBe(true);
+    });
+  });
+
+  describe("addTranslations programmatic reactivity", () => {
+    it("should update t() result after addTranslations", async () => {
+      const i18n = createI18n({
+        locale: "en",
+        defaultNs: "common",
+      });
+
+      await i18n.init();
+
+      expect(i18n.t("foo")).toBe("foo");
+
+      i18n.addTranslations({ en: { foo: "bar" } });
+      await nextTick();
+
+      expect(i18n.t("foo")).toBe("bar");
+    });
+  });
+
+  describe("addActiveNamespace no-loader reactivity", () => {
+    it("should include namespace in activeNamespaces without a loader", async () => {
+      const i18n = createI18n({
+        locale: "en",
+        defaultNs: "common",
+      });
+
+      await i18n.init();
+
+      expect(i18n.activeNamespaces.value).not.toContain("admin");
+
+      await i18n.addActiveNamespace("admin");
+      await nextTick();
+
+      expect(i18n.activeNamespaces.value).toContain("admin");
+    });
+  });
+
+  describe("setDefaultNamespace artifact verification", () => {
+    it("should update defaultNamespace reactively after setDefaultNamespace", async () => {
+      const i18n = createI18n({
+        locale: "en",
+        defaultNs: "common",
+      });
+
+      await i18n.init();
+
+      expect(i18n.defaultNamespace.value).toBe("common");
+
+      // VueI18n doesn't proxy setDefaultNamespace; call via core cast
+      (
+        i18n as unknown as { _core: { setDefaultNamespace: (ns: string) => void } }
+      )._core.setDefaultNamespace("admin");
+      await nextTick();
+
+      expect(i18n.defaultNamespace.value).toBe("admin");
+    });
+  });
+
   describe("translationCache Ref Identity", () => {
     it("should return the same Ref instance across mutations", async () => {
       const i18n = createI18n({

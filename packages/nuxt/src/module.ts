@@ -12,16 +12,7 @@ import {
 } from "@nuxt/kit";
 import type { NuxtModule, NuxtPage } from "@nuxt/schema";
 import type { NuxtI18nOptions, LocaleObject, ResolvedRoutingConfig } from "./types";
-
-/**
- * Default browser language detection options
- */
-const DEFAULT_DETECT_BROWSER_LANGUAGE = {
-  useCookie: true,
-  cookieName: "i18n_locale",
-  cookieMaxAge: 365 * 24 * 60 * 60, // 1 year
-  redirectOnFirstVisit: true,
-};
+import { DEFAULT_DETECT_BROWSER_LANGUAGE } from "./runtime/defaults";
 
 /**
  * Normalize locale configuration to consistent format
@@ -150,8 +141,9 @@ const comviNuxtModule: NuxtModule<NuxtI18nOptions> = defineNuxtModule<NuxtI18nOp
       cdnUrl: existingPublicRuntimeConfig.cdnUrl ?? options.cdnUrl,
       apiBaseUrl: existingPublicRuntimeConfig.apiBaseUrl ?? options.apiBaseUrl,
       defaultNs: existingPublicRuntimeConfig.defaultNs ?? options.defaultNs ?? "default",
-      fallbackLanguage:
-        existingPublicRuntimeConfig.fallbackLanguage ??
+      fallbackLocale:
+        existingPublicRuntimeConfig.fallbackLocale ??
+        options.fallbackLocale ??
         options.fallbackLanguage ??
         options.defaultLocale,
       basicHtmlTags: existingPublicRuntimeConfig.basicHtmlTags ?? options.basicHtmlTags,

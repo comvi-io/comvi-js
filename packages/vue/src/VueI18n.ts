@@ -31,7 +31,7 @@ export interface VueI18nOptions extends I18nOptions {
    * Use this to prevent hydration mismatches when server renders with a different
    * locale than what the client would detect.
    */
-  ssrLanguage?: string;
+  ssrLocale?: string;
 }
 
 /**
@@ -46,6 +46,7 @@ export class VueI18n {
   private _isLoading: ShallowRef<boolean>;
   private _isInitializing: ShallowRef<boolean>;
   private _cacheRevision: ShallowRef<number>;
+  private _configRevision: ShallowRef<number>;
   private _translationCacheComputed?: ComputedRef<ReadonlyMap<string, FlattenedTranslations>>;
   private _unsubscribers: Array<() => void> = [];
   private _requestedLocale: string;
@@ -85,7 +86,7 @@ export class VueI18n {
   declare formatCurrency: I18n["formatCurrency"];
   declare formatRelativeTime: I18n["formatRelativeTime"];
   constructor(options: VueI18nOptions) {
-    const initialLocale = options.ssrLanguage ?? options.locale;
+    const initialLocale = options.ssrLocale ?? options.locale;
 
     this._core = new I18n({
       ...options,
@@ -97,6 +98,7 @@ export class VueI18n {
     this._isLoading = shallowRef(this._core.isLoading);
     this._isInitializing = shallowRef(this._core.isInitializing);
     this._cacheRevision = shallowRef(this._core.translationCache.getRevision());
+    this._configRevision = shallowRef(0);
     const syncCache = () => {
       this._cacheRevision.value = this._core.translationCache.getRevision();
     };
@@ -118,7 +120,16 @@ export class VueI18n {
         this._isInitializing.value = this._core.isInitializing;
       }),
       this._core.on("translationsCleared", syncCache),
-      this._core.on("defaultNamespaceChanged", syncCache),
+      this._core.on("defaultNamespaceChanged", () => {
+        syncCache();
+        this._configRevision.value++;
+      }),
+      this._core.on("configChanged", () => {
+        // Bump a separate revision so computed refs that depend on config
+        // (fallbackLocale, namespace activation without a loader, etc.) re-evaluate
+        // without interfering with _cacheRevision's sync to the real cache.
+        this._configRevision.value++;
+      }),
     );
 
     // Explicit proxy bindings for spyability
@@ -200,6 +211,7 @@ export class VueI18n {
     if (!this._activeNamespacesComputed) {
       this._activeNamespacesComputed = computed(() => {
         void this._cacheRevision.value;
+        void this._configRevision.value;
         return this._core.getActiveNamespaces();
       });
     }
@@ -212,6 +224,7 @@ export class VueI18n {
     if (!this._defaultNamespaceComputed) {
       this._defaultNamespaceComputed = computed(() => {
         void this._cacheRevision.value;
+        void this._configRevision.value;
         return this._core.getDefaultNamespace();
       });
     }
@@ -220,7 +233,7 @@ export class VueI18n {
 
   /**
    * Reactive check for translation existence. Returns a ComputedRef that
-   * re-evaluates when locale or cache changes. Call inside component setup
+   * re-evaluates when locale, cache, or config changes. Call inside component setup
    * (or an effectScope) — the underlying `computed()` registers with the
    * active scope and disposes automatically.
    */
@@ -231,6 +244,7 @@ export class VueI18n {
     return computed(() => {
       void this._locale.value;
       void this._cacheRevision.value;
+      void this._configRevision.value;
       return this._core.hasTranslation(key, opts?.locale, opts?.namespace, opts?.checkFallbacks);
     });
   }

@@ -1,7 +1,7 @@
 import { derived, type Readable } from "svelte/store";
 import { getI18nContext } from "./context";
 import {
-  createLanguageStore,
+  createLocaleStore,
   createLoadingStore,
   createInitializingStore,
   createInitializedStore,
@@ -53,7 +53,7 @@ function getOrCreateRawTranslationStore(i18n: I18n, ns?: string): RawTranslation
     return existingStore;
   }
 
-  const locale = createLanguageStore(i18n);
+  const locale = createLocaleStore(i18n);
   const cacheRevision = createCacheRevisionStore(i18n);
   const tRawStore = derived([locale, cacheRevision], () =>
     createBoundTranslation(i18n, ns),
@@ -193,19 +193,19 @@ export interface UseI18nReturn {
 
   // ===== Formatting =====
 
-  /** Format a number using the current language locale */
+  /** Format a number using the current locale */
   formatNumber: I18n["formatNumber"];
 
-  /** Format a date using the current language locale */
+  /** Format a date using the current locale */
   formatDate: I18n["formatDate"];
 
-  /** Format a number as currency using the current language locale */
+  /** Format a number as currency using the current locale */
   formatCurrency: I18n["formatCurrency"];
 
-  /** Format a relative time ("2 hours ago", "in 3 days") using the current language locale */
+  /** Format a relative time ("2 hours ago", "in 3 days") using the current locale */
   formatRelativeTime: I18n["formatRelativeTime"];
 
-  /** Text direction for the current language as a readable store */
+  /** Text direction for the current locale as a readable store */
   dir: Readable<"ltr" | "rtl">;
 }
 
@@ -268,7 +268,7 @@ export function useI18n(ns?: string): UseI18nReturn {
   const i18n = getI18nContext();
 
   // Create reactive stores
-  const locale = createLanguageStore(i18n);
+  const locale = createLocaleStore(i18n);
   const isLoading = createLoadingStore(i18n);
   const isInitializing = createInitializingStore(i18n);
   const isInitialized = createInitializedStore(i18n);

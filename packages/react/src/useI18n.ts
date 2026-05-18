@@ -227,23 +227,23 @@ export interface UseI18nReturn {
 
   // ===== Formatting =====
 
-  /** Format a number using the current language locale */
+  /** Format a number using the current locale */
   formatNumber: (value: number, options?: Intl.NumberFormatOptions) => string;
 
-  /** Format a date using the current language locale */
+  /** Format a date using the current locale */
   formatDate: (value: Date | number, options?: Intl.DateTimeFormatOptions) => string;
 
-  /** Format a number as currency using the current language locale */
+  /** Format a number as currency using the current locale */
   formatCurrency: (value: number, currency: string, options?: Intl.NumberFormatOptions) => string;
 
-  /** Format a relative time ("2 hours ago", "in 3 days") using the current language locale */
+  /** Format a relative time ("2 hours ago", "in 3 days") using the current locale */
   formatRelativeTime: (
     value: number,
     unit: Intl.RelativeTimeFormatUnit,
     options?: Intl.RelativeTimeFormatOptions,
   ) => string;
 
-  /** Text direction for the current language ("ltr" or "rtl") */
+  /** Text direction for the current locale ("ltr" or "rtl") */
   dir: "ltr" | "rtl";
 
   // ===== Event Subscription =====

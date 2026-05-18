@@ -53,6 +53,7 @@
     "build": "nuxt-module-build build && tsc -p tsconfig.runtime.json",
     "typecheck": "nuxt-module-build build && tsc -p tsconfig.runtime.json",
     "test": "vitest run",
+    "test:types": "vitest --typecheck.only --run --typecheck.include='tests/**/*.test-d.ts' --typecheck.tsconfig=tsconfig.typecheck.json",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "lint": "eslint . --max-warnings=0",

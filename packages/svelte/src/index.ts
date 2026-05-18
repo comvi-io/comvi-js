@@ -13,7 +13,8 @@ export type { ComponentMap, ComponentMapping } from "./types";
 
 // Export stores for advanced usage
 export {
-  createLanguageStore,
+  createLocaleStore,
+  createLanguageStore, // @deprecated use createLocaleStore
   createLoadingStore,
   createInitializingStore,
   createInitializedStore,

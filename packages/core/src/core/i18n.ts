@@ -510,6 +510,7 @@ export class I18n implements I18nInstance {
 
   setFallbackLocale(fallback: string | string[]) {
     this._fallbackLocales = typeof fallback === "string" ? [fallback] : fallback;
+    this._emit("configChanged", { source: "fallbackLocale" });
   }
 
   /**
@@ -546,6 +547,7 @@ export class I18n implements I18nInstance {
    */
   addTranslations(translations: Record<string, Record<string, TranslationValue>>) {
     this._nsAddTranslations(translations);
+    this._emit("configChanged", { source: "translationsAdded" });
   }
 
   getTranslations(locale: string = this._locale, namespace: string = this._cachedDefaultNs) {
@@ -662,6 +664,7 @@ export class I18n implements I18nInstance {
     } finally {
       this._setLoadingState(false, false);
     }
+    this._emit("configChanged", { source: "namespaceActivated" });
   }
 
   /**

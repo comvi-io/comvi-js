@@ -17,6 +17,10 @@ export default defineConfig({
     define: {
       __DEV__: JSON.stringify(true),
     },
+    typecheck: {
+      ignoreSourceErrors: true,
+      tsconfig: "./tsconfig.typecheck.json",
+    },
   },
   resolve: {
     alias: {

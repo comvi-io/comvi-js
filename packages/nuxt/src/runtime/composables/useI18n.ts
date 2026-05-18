@@ -1,4 +1,5 @@
-import { useNuxtApp, useState, useRuntimeConfig } from "#app";
+import { useNuxtApp, useRuntimeConfig } from "#app";
+import { useLocaleState } from "../utils/locale-state";
 import { type Ref, computed } from "vue";
 import type { TranslationParams } from "@comvi/core";
 import { createBoundTranslation } from "@comvi/core";
@@ -50,7 +51,7 @@ export function useI18n(ns?: string): UseI18nReturn {
   }
 
   // Get locale state for synchronization
-  const localeState = useState<string>("i18n-locale");
+  const localeState = useLocaleState();
 
   // Create scoped translation functions
   const tRaw = createBoundTranslation(i18n, ns) as UseI18nReturn["tRaw"];

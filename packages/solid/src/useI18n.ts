@@ -227,19 +227,19 @@ export interface UseI18nReturn<DefaultNS extends string | undefined = undefined>
 
   // ===== Formatting =====
 
-  /** Format a number using the current language locale */
+  /** Format a number using the current locale */
   formatNumber: I18n["formatNumber"];
 
-  /** Format a date using the current language locale */
+  /** Format a date using the current locale */
   formatDate: I18n["formatDate"];
 
-  /** Format a number as currency using the current language locale */
+  /** Format a number as currency using the current locale */
   formatCurrency: I18n["formatCurrency"];
 
-  /** Format a relative time ("2 hours ago", "in 3 days") using the current language locale */
+  /** Format a relative time ("2 hours ago", "in 3 days") using the current locale */
   formatRelativeTime: I18n["formatRelativeTime"];
 
-  /** Text direction for the current language as a reactive accessor */
+  /** Text direction for the current locale as a reactive accessor */
   dir: () => "ltr" | "rtl";
 }
 

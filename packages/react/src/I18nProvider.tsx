@@ -126,8 +126,13 @@ export function I18nProvider({
   }, [i18n, autoInit, onError]);
 
   // Subscribe to reactive state from core using useSyncExternalStore
-  const subLang = useSubscribe(i18n, ["localeChanged", "initialized"]);
-  const subCache = useSubscribe(i18n, ["namespaceLoaded", "initialized", "translationsCleared"]);
+  const subLang = useSubscribe(i18n, ["localeChanged", "initialized", "configChanged"]);
+  const subCache = useSubscribe(i18n, [
+    "namespaceLoaded",
+    "initialized",
+    "translationsCleared",
+    "configChanged",
+  ]);
   const subLoading = useSubscribe(i18n, ["loadingStateChanged", "initialized"]);
 
   const locale = useSyncExternalStore(

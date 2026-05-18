@@ -1,12 +1,12 @@
 import {
   defineNuxtRouteMiddleware,
   useRuntimeConfig,
-  useState,
   useCookie,
   navigateTo,
   useNuxtApp,
   useRequestHeaders,
 } from "#app";
+import { useLocaleState } from "../utils/locale-state";
 import {
   splitPathAndSuffix,
   stripLocalePrefix,
@@ -14,16 +14,7 @@ import {
   buildLocalizedPath,
 } from "../utils/locale-path";
 import { resolveAcceptLanguage } from "../utils/resolve-locale";
-
-/**
- * Default browser language detection options
- */
-const DEFAULT_DETECT_BROWSER_LANGUAGE = {
-  useCookie: true,
-  cookieName: "i18n_locale",
-  cookieMaxAge: 365 * 24 * 60 * 60, // 1 year
-  redirectOnFirstVisit: true,
-};
+import { DEFAULT_DETECT_BROWSER_LANGUAGE } from "../defaults";
 
 /**
  * Global route middleware for locale detection and URL prefix handling
@@ -41,7 +32,7 @@ export default defineNuxtRouteMiddleware(async (to) => {
     config.public.comvi;
 
   // Get locale state
-  const localeState = useState<string>("i18n-locale");
+  const localeState = useLocaleState();
 
   const detectConfig =
     detectBrowserLanguage === false
@@ -54,19 +45,15 @@ export default defineNuxtRouteMiddleware(async (to) => {
   const useCookieForDetection = detectConfig !== false && detectConfig.useCookie === true;
 
   // Get locale cookie
-  const cookieSecure =
-    typeof detectBrowserLanguage === "object" && detectBrowserLanguage.cookieSecure !== undefined
-      ? detectBrowserLanguage.cookieSecure
-      : true; // Secure by default
+  const detectCfg = typeof detectBrowserLanguage === "object" ? detectBrowserLanguage : undefined;
+  const cookieSecure = detectCfg?.cookieSecure ?? true;
 
   const localeCookie = useCookieForDetection
     ? useCookie(cookieName, {
-        maxAge:
-          typeof detectBrowserLanguage === "object"
-            ? detectBrowserLanguage.cookieMaxAge
-            : 365 * 24 * 60 * 60,
+        maxAge: detectCfg?.cookieMaxAge ?? DEFAULT_DETECT_BROWSER_LANGUAGE.cookieMaxAge,
         path: "/",
-        sameSite: "lax",
+        sameSite: detectCfg?.sameSite ?? "lax",
+        domain: detectCfg?.domain,
         // Secure in production, disabled in dev so localhost HTTP works
         secure: import.meta.dev ? false : cookieSecure,
       })

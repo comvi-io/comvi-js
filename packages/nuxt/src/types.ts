@@ -50,6 +50,18 @@ export interface DetectBrowserLanguageOptions {
   cookieSecure?: boolean;
 
   /**
+   * SameSite attribute for the locale cookie.
+   * @default "lax"
+   */
+  sameSite?: "lax" | "strict" | "none";
+
+  /**
+   * Domain for the locale cookie.
+   * When set, the cookie is sent to the specified domain and its subdomains.
+   */
+  domain?: string;
+
+  /**
    * Redirect to detected language on first visit
    * @default true
    */
@@ -127,8 +139,13 @@ export interface NuxtI18nOptions {
   defaultNs?: string;
 
   /**
-   * Fallback language when translation is missing
+   * Fallback locale when translation is missing
    * @default same as defaultLocale
+   */
+  fallbackLocale?: string | string[];
+
+  /**
+   * @deprecated Use `fallbackLocale` instead. Will be removed in a future minor release.
    */
   fallbackLanguage?: string | string[];
 
@@ -184,7 +201,7 @@ export interface NuxtI18nRuntimeConfig {
     cdnUrl?: string;
     apiBaseUrl?: string;
     defaultNs: string;
-    fallbackLanguage: string | string[];
+    fallbackLocale: string | string[];
     basicHtmlTags?: string[];
     detectBrowserLanguage: DetectBrowserLanguageOptions | false;
   };

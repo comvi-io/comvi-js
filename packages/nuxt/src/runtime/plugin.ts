@@ -1,9 +1,11 @@
-import { defineNuxtPlugin, useRuntimeConfig, useState, useCookie } from "#app";
+import { defineNuxtPlugin, useRuntimeConfig, useCookie } from "#app";
+import { useLocaleState } from "./utils/locale-state";
 import { runComviSetup } from "#build/comvi.setup";
 import { watch } from "vue";
 import { createI18n } from "@comvi/vue";
 import type { VueI18n } from "@comvi/vue";
 import type { TranslationValue } from "@comvi/core";
+import { DEFAULT_DETECT_BROWSER_LANGUAGE } from "./defaults";
 
 const I18N_EDITOR_MAPPINGS_STATE_KEY = "__comvi_ice_mappings__";
 const I18N_EDITOR_MAPPINGS_BRIDGE_KEY = "__comviInContextEditorMappings";
@@ -77,7 +79,7 @@ export default defineNuxtPlugin({
     const privateConfig = import.meta.server ? config.comvi : undefined;
 
     // Initialize locale state (SSR-safe)
-    const localeState = useState<string>("i18n-locale", () => publicConfig.defaultLocale);
+    const localeState = useLocaleState(publicConfig.defaultLocale);
 
     const useCookieForLocale =
       publicConfig.detectBrowserLanguage !== false &&
@@ -85,20 +87,18 @@ export default defineNuxtPlugin({
         publicConfig.detectBrowserLanguage.useCookie !== false);
 
     // Cookie for locale persistence
-    const cookieSecure =
-      typeof publicConfig.detectBrowserLanguage === "object" &&
-      publicConfig.detectBrowserLanguage.cookieSecure !== undefined
-        ? publicConfig.detectBrowserLanguage.cookieSecure
-        : true; // Secure by default
+    const detectCfg =
+      typeof publicConfig.detectBrowserLanguage === "object"
+        ? publicConfig.detectBrowserLanguage
+        : undefined;
+    const cookieSecure = detectCfg?.cookieSecure ?? true;
 
     const localeCookie = useCookieForLocale
       ? useCookie(publicConfig.cookieName, {
-          maxAge:
-            typeof publicConfig.detectBrowserLanguage === "object"
-              ? publicConfig.detectBrowserLanguage.cookieMaxAge
-              : 365 * 24 * 60 * 60,
+          maxAge: detectCfg?.cookieMaxAge ?? DEFAULT_DETECT_BROWSER_LANGUAGE.cookieMaxAge,
           path: "/",
-          sameSite: "lax",
+          sameSite: detectCfg?.sameSite ?? "lax",
+          domain: detectCfg?.domain,
           // Secure in production, disabled in dev so localhost HTTP works
           secure: import.meta.dev ? false : cookieSecure,
         })
@@ -107,7 +107,7 @@ export default defineNuxtPlugin({
     // Create i18n instance
     const i18n = createI18n({
       locale: localeState.value,
-      fallbackLocale: publicConfig.fallbackLanguage,
+      fallbackLocale: publicConfig.fallbackLocale,
       defaultNs: publicConfig.defaultNs,
       devMode: import.meta.dev,
       apiKey: privateConfig?.apiKey,
@@ -115,7 +115,7 @@ export default defineNuxtPlugin({
         ? { basicHtmlTags: publicConfig.basicHtmlTags }
         : undefined,
       // Pass initial locale for SSR hydration
-      ssrLanguage: localeState.value,
+      ssrLocale: localeState.value,
     });
 
     const initialInContextEditorMappings = toRecordOfNumbers(
@@ -157,12 +157,22 @@ export default defineNuxtPlugin({
       }
     }
 
-    await runComviSetup({
-      i18n,
-      nuxtApp,
-      runtime: import.meta.server ? "server" : "client",
-      runtimeConfig: config,
-    });
+    try {
+      await runComviSetup({
+        i18n,
+        nuxtApp,
+        runtime: import.meta.server ? "server" : "client",
+        runtimeConfig: config,
+      });
+    } catch (error) {
+      i18n.reportError(error instanceof Error ? error : new Error(String(error)), {
+        source: "plugin",
+      });
+      console.error("[@comvi/nuxt] comvi.setup hook failed:", error);
+      if (import.meta.dev) {
+        throw error;
+      }
+    }
 
     // Initialize i18n (only once, after all plugins are registered)
     // init() reports errors before rethrowing

@@ -1,6 +1,6 @@
 <script lang="ts">
   import { getI18nContext } from './context';
-  import { createLanguageStore, createCacheRevisionStore } from './stores';
+  import { createLocaleStore, createCacheRevisionStore } from './stores';
   import { createElement as createVirtualElement } from '@comvi/core';
   import type { TranslationParams, VirtualNode, TranslationResult, TagCallbackParams, TranslationKeys, PermissiveKey } from '@comvi/core';
   import type { ComponentMap, ComponentMapping } from './types';
@@ -35,7 +35,7 @@
   export let allowedTags: Set<string> | undefined = undefined;
 
   const i18n = getI18nContext();
-  const languageStore = createLanguageStore(i18n);
+  const languageStore = createLocaleStore(i18n);
   const cacheRevision = createCacheRevisionStore(i18n);
 
   // Helper to convert children to array format for VirtualNode

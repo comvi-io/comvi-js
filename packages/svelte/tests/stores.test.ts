@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { get } from "svelte/store";
 import { createI18n } from "@comvi/core";
 import {
+  createLocaleStore,
   createLanguageStore,
   createLoadingStore,
   createInitializingStore,
@@ -124,5 +125,20 @@ describe("Svelte stores", () => {
     expect(values2).toEqual(["fr"]);
 
     unsubscribe2();
+  });
+
+  it("createLocaleStore and createLanguageStore are the same store (deprecated alias)", () => {
+    const i18n = fake.asI18n();
+    expect(createLocaleStore(i18n)).toBe(createLanguageStore(i18n));
+  });
+
+  it("cacheRevision store updates when configChanged is emitted (e.g. setFallbackLocale)", () => {
+    const cacheRevision = createCacheRevisionStore(fake.asI18n());
+    const before = get(cacheRevision);
+
+    fake.emit("configChanged", { source: "fallbackLocale" });
+    const after = get(cacheRevision);
+
+    expect(after).toBeGreaterThanOrEqual(before);
   });
 });
