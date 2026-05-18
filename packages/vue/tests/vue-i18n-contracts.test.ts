@@ -150,17 +150,23 @@ describe("VueI18n contracts", () => {
     expect(localeDetector).toHaveBeenCalledTimes(1);
     expect(i18n.locale.value).toBe("fr");
     expect(i18n.t("hello")).toBe("Bonjour");
-    expect(i18n.hasLocale("fr", "common")).toBe(true);
-    expect(i18n.hasTranslation("hello", "fr", "common")).toBe(true);
-    expect(i18n.getLoadedLocales()).toEqual(["fr"]);
-    expect(i18n.getDefaultNamespace()).toBe("common");
-    expect(i18n.getActiveNamespaces()).toContain("common");
+    expect(i18n.hasLocale("fr", "common").value).toBe(true);
+    expect(i18n.hasTranslation("hello", { locale: "fr", namespace: "common" }).value).toBe(true);
+    expect(i18n.loadedLocales.value).toEqual(["fr"]);
+    expect(i18n.defaultNamespace.value).toBe("common");
+    expect(i18n.activeNamespaces.value).toContain("common");
 
     i18n.addTranslations({ en: { fallbackOnly: "Fallback only" } });
     i18n.setFallbackLocale("en");
     expect(i18n.t("fallbackOnly")).toBe("Fallback only");
-    expect(i18n.hasTranslation("fallbackOnly", "fr", "common", true)).toBe(true);
-    expect(i18n.getLoadedLocales().sort()).toEqual(["en", "fr"]);
+    expect(
+      i18n.hasTranslation("fallbackOnly", {
+        locale: "fr",
+        namespace: "common",
+        checkFallbacks: true,
+      }).value,
+    ).toBe(true);
+    expect([...i18n.loadedLocales.value].sort()).toEqual(["en", "fr"]);
 
     await expect(i18n.addActiveNamespace("admin")).rejects.toThrow(/failed|admin/i);
     await vi.waitFor(() => {

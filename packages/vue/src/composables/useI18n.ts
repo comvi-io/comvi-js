@@ -1,4 +1,4 @@
-import { inject, type Ref } from "vue";
+import { inject, type Ref, type ComputedRef } from "vue";
 import { I18N_INJECTION_KEY } from "../keys";
 import { createBoundTranslation } from "@comvi/core";
 import { translationResultToString } from "../utils";
@@ -87,25 +87,30 @@ export interface UseI18nReturn {
   /** Force reload translations from loader */
   reloadTranslations: (locale?: string, namespace?: string) => Promise<void>;
 
-  /** Check if a locale is loaded for a namespace */
-  hasLocale: (locale: string, namespace?: string) => boolean;
+  /** Reactive list of all loaded locale codes */
+  loadedLocales: ComputedRef<string[]>;
 
-  /** Check if a translation exists */
+  /** Reactive list of active namespaces */
+  activeNamespaces: ComputedRef<string[]>;
+
+  /** Reactive default namespace */
+  defaultNamespace: ComputedRef<string>;
+
+  /**
+   * Reactive check for translation existence. Returns a ComputedRef<boolean>
+   * that re-evaluates when locale or cache changes. Call inside `setup()`
+   * (or an `effectScope`) so the underlying `computed()` disposes with the scope.
+   */
   hasTranslation: (
     key: string,
-    locale?: string,
-    namespace?: string,
-    checkFallbacks?: boolean,
-  ) => boolean;
+    opts?: { locale?: string; namespace?: string; checkFallbacks?: boolean },
+  ) => ComputedRef<boolean>;
 
-  /** Get list of all loaded locale codes */
-  getLoadedLocales: () => string[];
-
-  /** Get list of active namespaces */
-  getActiveNamespaces: () => string[];
-
-  /** Get default namespace */
-  getDefaultNamespace: () => string;
+  /**
+   * Reactive check for locale availability. Returns a ComputedRef<boolean>
+   * that re-evaluates when the translation cache changes.
+   */
+  hasLocale: (locale: string, namespace?: string) => ComputedRef<boolean>;
 
   /** Subscribe to i18n events */
   on: <E extends I18nEvent>(event: E, callback: (payload: I18nEventData[E]) => void) => () => void;
@@ -126,7 +131,7 @@ export interface UseI18nReturn {
   formatRelativeTime: I18n["formatRelativeTime"];
 
   /** Text direction for the current language, as a reactive computed ref */
-  dir: import("vue").ComputedRef<"ltr" | "rtl">;
+  dir: ComputedRef<"ltr" | "rtl">;
 
   /** Cleanup resources (call when i18n instance is no longer needed) */
   destroy: () => void;
@@ -148,9 +153,9 @@ const PASSTHROUGH_KEYS = [
   "reloadTranslations",
   "hasLocale",
   "hasTranslation",
-  "getLoadedLocales",
-  "getActiveNamespaces",
-  "getDefaultNamespace",
+  "loadedLocales",
+  "activeNamespaces",
+  "defaultNamespace",
   "on",
   "reportError",
   "formatNumber",

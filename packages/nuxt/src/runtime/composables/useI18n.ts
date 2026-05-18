@@ -1,5 +1,5 @@
 import { useNuxtApp, useState, useRuntimeConfig } from "#app";
-import { type Ref } from "vue";
+import { type Ref, type ComputedRef } from "vue";
 import type {
   TranslationParams,
   TranslationResult,
@@ -92,27 +92,32 @@ export interface UseI18nReturn {
   /** Force reload translations from loader */
   reloadTranslations: (locale?: string, namespace?: string) => Promise<void>;
 
-  // ===== Informational Methods =====
+  // ===== Reactive Accessors =====
 
-  /** Check if a locale is loaded for a namespace */
-  hasLocale: (locale: string, namespace?: string) => boolean;
+  /**
+   * Reactive check for locale availability. Returns a ComputedRef<boolean>
+   * that re-evaluates when the translation cache changes.
+   */
+  hasLocale: (locale: string, namespace?: string) => ComputedRef<boolean>;
 
-  /** Check if a translation exists */
+  /**
+   * Reactive check for translation existence. Returns a ComputedRef<boolean>
+   * that re-evaluates when locale or cache changes. Call inside `setup()`
+   * (or an `effectScope`) so the underlying `computed()` disposes with the scope.
+   */
   hasTranslation: (
     key: string,
-    locale?: string,
-    namespace?: string,
-    checkFallbacks?: boolean,
-  ) => boolean;
+    opts?: { locale?: string; namespace?: string; checkFallbacks?: boolean },
+  ) => ComputedRef<boolean>;
 
-  /** Get list of all loaded locales */
-  getLoadedLocales: () => string[];
+  /** Reactive list of all loaded locale codes */
+  loadedLocales: ComputedRef<string[]>;
 
-  /** Get list of active namespaces */
-  getActiveNamespaces: () => string[];
+  /** Reactive list of active namespaces */
+  activeNamespaces: ComputedRef<string[]>;
 
-  /** Get default namespace */
-  getDefaultNamespace: () => string;
+  /** Reactive default namespace */
+  defaultNamespace: ComputedRef<string>;
 
   // ===== Event Subscription =====
 
@@ -216,9 +221,9 @@ export function useI18n(ns?: string): UseI18nReturn {
     reloadTranslations: i18n.reloadTranslations,
     hasLocale: i18n.hasLocale,
     hasTranslation: i18n.hasTranslation,
-    getLoadedLocales: i18n.getLoadedLocales,
-    getActiveNamespaces: i18n.getActiveNamespaces,
-    getDefaultNamespace: i18n.getDefaultNamespace,
+    loadedLocales: i18n.loadedLocales,
+    activeNamespaces: i18n.activeNamespaces,
+    defaultNamespace: i18n.defaultNamespace,
     on: i18n.on,
     reportError: i18n.reportError,
     formatNumber: i18n.formatNumber,

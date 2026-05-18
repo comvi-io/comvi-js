@@ -291,7 +291,8 @@ export interface ErrorReportContext {
     | "translation"
     | "namespace-load"
     | "post-processor"
-    | "event";
+    | "event"
+    | "setLocale";
   /** Plugin name (when source is plugin or plugin-cleanup) */
   pluginName?: string;
   /** Tag name or component (when source is translation) */
