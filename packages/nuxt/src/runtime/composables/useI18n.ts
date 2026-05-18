@@ -1,156 +1,15 @@
 import { useNuxtApp, useState, useRuntimeConfig } from "#app";
-import { type Ref, type ComputedRef } from "vue";
-import type {
-  TranslationParams,
-  TranslationResult,
-  FlattenedTranslations,
-  TranslationValue,
-  I18nEvent,
-  I18nEventData,
-  I18n,
-} from "@comvi/core";
+import { type Ref, computed } from "vue";
+import type { TranslationParams } from "@comvi/core";
 import { createBoundTranslation } from "@comvi/core";
 import { translationResultToString } from "../utils";
+import type { UseI18nReturn as VueUseI18nReturn } from "@comvi/vue";
 
-export interface UseI18nReturn {
-  /** Translation function - namespaced keys (when ns is provided) */
-  t<
-    NS extends import("@comvi/core").Namespaces,
-    K extends import("@comvi/core").NamespacedKeys<NS>,
-  >(
-    key: K,
-    ...params: import("@comvi/core").NamespacedParamsArg<NS, K>
-  ): string;
-
-  /** Translation function - typed keys */
-  t<K extends import("@comvi/core").DefaultNsKeys>(
-    key: K,
-    ...params: import("@comvi/core").ParamsArg<K>
-  ): string;
-
-  /** Permissive overload - only active when TranslationKeys is empty */
-  t(key: import("@comvi/core").PermissiveKey, params?: TranslationParams): string;
-
-  /** Raw translation function - namespaced keys (when ns is provided) */
-  tRaw<
-    NS extends import("@comvi/core").Namespaces,
-    K extends import("@comvi/core").NamespacedKeys<NS>,
-  >(
-    key: K,
-    ...params: import("@comvi/core").NamespacedParamsArg<NS, K>
-  ): TranslationResult;
-
-  /** Raw translation function - typed keys */
-  tRaw<K extends import("@comvi/core").DefaultNsKeys>(
-    key: K,
-    ...params: import("@comvi/core").ParamsArg<K>
-  ): TranslationResult;
-
-  /** Raw permissive overload - only active when TranslationKeys is empty */
-  tRaw(key: import("@comvi/core").PermissiveKey, params?: TranslationParams): TranslationResult;
-
-  /** Current locale (reactive) */
-  locale: Ref<string>;
-
-  /**
-   * Set locale asynchronously.
-   * Waits for translations to load before updating the locale state.
-   */
-  setLocale: (locale: string) => Promise<void>;
-
-  /** Translation cache (computed readonly ref) */
-  translationCache: ComputedRef<ReadonlyMap<string, FlattenedTranslations>>;
-
-  /** Loading state (readonly reactive) */
-  isLoading: Readonly<Ref<boolean>>;
-
-  /** Initializing state (readonly reactive) */
-  isInitializing: Readonly<Ref<boolean>>;
-
-  // ===== Core Methods =====
-
-  /** Add translations programmatically at runtime */
-  addTranslations: (translations: Record<string, Record<string, TranslationValue>>) => void;
-
-  /** Load a new namespace dynamically */
-  addActiveNamespace: (namespace: string) => Promise<void>;
-
-  /** Configure fallback locale chain */
-  setFallbackLocale: (locales: string | string[]) => void;
-
-  /** Register callback for missing keys */
-  onMissingKey: (
-    callback: (key: string, locale: string, namespace: string) => TranslationResult | void,
-  ) => () => void;
-
-  /** Register callback for load errors */
-  onLoadError: (callback: (locale: string, namespace: string, error: Error) => void) => () => void;
-
-  /** Clear translations from cache */
-  clearTranslations: (locale?: string, namespace?: string) => void;
-
-  /** Force reload translations from loader */
-  reloadTranslations: (locale?: string, namespace?: string) => Promise<void>;
-
-  // ===== Reactive Accessors =====
-
-  /**
-   * Reactive check for locale availability. Returns a ComputedRef<boolean>
-   * that re-evaluates when the translation cache changes.
-   */
-  hasLocale: (locale: string, namespace?: string) => ComputedRef<boolean>;
-
-  /**
-   * Reactive check for translation existence. Returns a ComputedRef<boolean>
-   * that re-evaluates when locale or cache changes. Call inside `setup()`
-   * (or an `effectScope`) so the underlying `computed()` disposes with the scope.
-   */
-  hasTranslation: (
-    key: string,
-    opts?: { locale?: string; namespace?: string; checkFallbacks?: boolean },
-  ) => ComputedRef<boolean>;
-
-  /** Reactive list of all loaded locale codes */
-  loadedLocales: ComputedRef<string[]>;
-
-  /** Reactive list of active namespaces */
-  activeNamespaces: ComputedRef<string[]>;
-
-  /** Reactive default namespace */
-  defaultNamespace: ComputedRef<string>;
-
-  // ===== Event Subscription =====
-
-  /** Subscribe to i18n events */
-  on: <E extends I18nEvent>(event: E, callback: (payload: I18nEventData[E]) => void) => () => void;
-
-  /** Report an error to the configured onError handler */
-  reportError: I18n["reportError"];
-
-  // ===== Formatting =====
-
-  /** Format a number using the current locale */
-  formatNumber: I18n["formatNumber"];
-
-  /** Format a date using the current locale */
-  formatDate: I18n["formatDate"];
-
-  /** Format a number as currency using the current locale */
-  formatCurrency: I18n["formatCurrency"];
-
-  /** Format a relative time ("2 hours ago", "in 3 days") using the current locale */
-  formatRelativeTime: I18n["formatRelativeTime"];
-
-  /** Text direction for the current locale, as a reactive computed ref */
-  dir: import("vue").ComputedRef<"ltr" | "rtl">;
-
-  // ===== Nuxt-Specific =====
-
-  /** Available locales from config */
-  locales: readonly string[];
-
-  /** Default locale from config */
-  defaultLocale: string;
+export interface UseI18nReturn extends VueUseI18nReturn {
+  /** Available locales from runtime config (Nuxt-specific) */
+  locales: Ref<readonly string[]>;
+  /** Default locale from runtime config (Nuxt-specific) */
+  defaultLocale: Ref<string>;
 }
 
 /**
@@ -231,8 +90,9 @@ export function useI18n(ns?: string): UseI18nReturn {
     formatCurrency: i18n.formatCurrency,
     formatRelativeTime: i18n.formatRelativeTime,
     dir: i18n.dir,
+    destroy: i18n.destroy,
     // Nuxt-specific
-    locales: publicConfig.locales,
-    defaultLocale: publicConfig.defaultLocale,
+    locales: computed(() => publicConfig.locales as readonly string[]),
+    defaultLocale: computed(() => publicConfig.defaultLocale),
   };
 }

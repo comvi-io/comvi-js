@@ -4,6 +4,7 @@ export * from "@comvi/core";
 // Export Vue-specific bindings
 export { VueI18n, createI18n } from "./VueI18n";
 export { useI18n } from "./composables/useI18n";
+export type { UseI18nReturn } from "./composables/useI18n";
 export { T } from "./components/T";
 export { I18N_INJECTION_KEY } from "./keys";
 

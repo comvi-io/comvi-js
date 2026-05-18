@@ -373,6 +373,19 @@ export class VueI18n {
 
   private _installedApps = new WeakSet<App>();
 
+  /**
+   * Install the i18n plugin into a Vue app.
+   *
+   * Side effects:
+   * - Provides the i18n instance via `I18N_INJECTION_KEY` so `useI18n()` works.
+   * - Registers `$t`, `$tRaw`, `$i18n` global properties for Options API + templates.
+   * - If the core isn't initialized yet, kicks off `init()` asynchronously (fire-and-forget).
+   *
+   * SSR note: on server-side rendering, call `await i18n.init()` BEFORE
+   * `renderToString(app)`. The fire-and-forget `init()` here is for client-side
+   * convenience only — on the server, rendering races against translation loading
+   * and you may serialize stale/empty caches.
+   */
   install(app: App): void {
     if (this._installedApps.has(app)) return;
     this._installedApps.add(app);

@@ -167,10 +167,15 @@ const PASSTHROUGH_KEYS = [
 ] as const;
 
 /**
- * Vue composable to access the i18n instance
- * Must be used within a component that has access to the i18n plugin
+ * Vue composable to access the i18n instance.
+ * Must be called within a component that has access to the i18n plugin
+ * (i.e. after `app.use(i18n)`).
  *
- * @param ns - Optional namespace to scope translations to
+ * @param ns - Optional namespace to scope the returned `t` / `tRaw` functions to.
+ *             When provided, key lookups default to this namespace instead of the
+ *             configured `defaultNs`. Other returned methods (e.g. `hasTranslation`,
+ *             `addActiveNamespace`) are NOT scoped — they accept explicit `namespace`
+ *             arguments where applicable.
  * @returns Object with translation function, reactive state, and i18n methods
  */
 export function useI18n(ns?: string): UseI18nReturn {
