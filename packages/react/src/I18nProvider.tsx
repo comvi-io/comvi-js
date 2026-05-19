@@ -1,5 +1,11 @@
-import { createContext, useContext, useEffect, useMemo, useCallback } from "react";
-import { useSyncExternalStore } from "use-sync-external-store/shim";
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useMemo,
+  useCallback,
+  useSyncExternalStore,
+} from "react";
 import type { I18n, FlattenedTranslations, I18nEvent } from "@comvi/core";
 
 /**
