@@ -16,11 +16,11 @@
 
 ## Affected sites (potential)
 
-| File                                  | Note                                                         |
-| ------------------------------------- | ------------------------------------------------------------ | --- | ------------------------------------ |
-| `packages/react/src/I18nProvider.tsx` | Would gain a `suspense?: boolean` prop.                      |
-| `packages/react/src/useI18n.ts`       | Would throw a thenable on `isInitializing                    |     | isLoading` when suspense is enabled. |
-| `packages/react/src/T.tsx`            | Would interact with the throw point on missing translations. |
+| File                                  | Note                                                                                |
+| ------------------------------------- | ----------------------------------------------------------------------------------- |
+| `packages/react/src/I18nProvider.tsx` | Would gain a `suspense?: boolean` prop.                                             |
+| `packages/react/src/useI18n.ts`       | Would throw a thenable on `isInitializing \|\| isLoading` when suspense is enabled. |
+| `packages/react/src/T.tsx`            | Would interact with the throw point on missing translations.                        |
 
 ## Alternatives considered
 

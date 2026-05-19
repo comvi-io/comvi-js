@@ -29,7 +29,10 @@ export function useSetLocaleTransition(): UseSetLocaleTransitionReturn {
   const setLocale = useCallback(
     (locale: string) => {
       startTransition(() => {
-        void i18n.setLocaleAsync(locale);
+        i18n.setLocaleAsync(locale).catch((err) => {
+          const error = err instanceof Error ? err : new Error(String(err));
+          i18n.reportError(error, { source: "init", locale });
+        });
       });
     },
     [i18n, startTransition],

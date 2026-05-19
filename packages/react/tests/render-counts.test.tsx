@@ -461,9 +461,9 @@ describe("Correctness assertions (StrictMode ON)", () => {
       });
 
       // After locale switch: path /en/about no longer matches /fr prefix,
-      // so returned as-is (/en/about) — this is expected behavior of the stub
-      // (real implementation would use routing config to resolve canonical path)
-      expect(getByTestId("pathname").textContent).toBeDefined();
+      // so the stub returns it as-is (a real implementation would use routing
+      // config to resolve a canonical path).
+      expect(getByTestId("pathname").textContent).toBe("/en/about");
     });
   });
 });

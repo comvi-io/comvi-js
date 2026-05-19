@@ -93,10 +93,12 @@ describe("useFormatters", () => {
     const originalError = console.error;
     console.error = () => {};
 
-    expect(() => renderHook(() => useFormatters())).toThrow(
-      "[i18n] Hooks must be used within an I18nProvider",
-    );
-
-    console.error = originalError;
+    try {
+      expect(() => renderHook(() => useFormatters())).toThrow(
+        "[i18n] Hooks must be used within an I18nProvider",
+      );
+    } finally {
+      console.error = originalError;
+    }
   });
 });

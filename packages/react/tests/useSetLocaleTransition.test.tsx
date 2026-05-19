@@ -73,10 +73,10 @@ describe("useSetLocaleTransition", () => {
 
     await act(async () => {
       result.current.setLocale("de");
-      // setLocaleAsync on FakeI18n mutates fake.language synchronously via core
     });
 
     expect(fake.setLocaleAsync).toHaveBeenCalledWith("de");
+    expect(fake.language).toBe("de");
   });
 
   it("throws when used outside I18nProvider", () => {

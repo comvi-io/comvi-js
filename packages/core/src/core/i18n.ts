@@ -1167,8 +1167,7 @@ export class I18n implements I18nInstance {
 
   private _getNumberFormat(options?: Intl.NumberFormatOptions, locale?: string): Intl.NumberFormat {
     const lc = locale ?? this._locale;
-    const key = options ? JSON.stringify(options) : "";
-    const cacheKey = lc + key;
+    const cacheKey = JSON.stringify([lc, options ?? null]);
     let fmt = this._numberFormatCache.get(cacheKey);
     if (!fmt) {
       fmt = new Intl.NumberFormat(lc, options);
@@ -1182,8 +1181,7 @@ export class I18n implements I18nInstance {
     locale?: string,
   ): Intl.DateTimeFormat {
     const lc = locale ?? this._locale;
-    const key = options ? JSON.stringify(options) : "";
-    const cacheKey = lc + key;
+    const cacheKey = JSON.stringify([lc, options ?? null]);
     let fmt = this._dateFormatCache.get(cacheKey);
     if (!fmt) {
       fmt = new Intl.DateTimeFormat(lc, options);

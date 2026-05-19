@@ -127,6 +127,7 @@ The full setup also includes a `[locale]/layout.tsx` that imports the server reg
 Wrap the client provider in an Error Boundary to handle initialization failures:
 
 ```tsx
+import React from "react";
 import { I18nProvider } from "@comvi/next/client";
 
 class I18nErrorBoundary extends React.Component<

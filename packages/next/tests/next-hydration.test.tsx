@@ -64,30 +64,27 @@ describe("Next <I18nProvider> SSR + hydration", () => {
       const messages = { fr: { greeting: "Bonjour" } };
       const tree = makeProviderTree("fr", messages);
 
-      // 1. Produce the SSR HTML.
       const html = renderToString(tree);
       expect(html).toContain("Bonjour");
 
-      // 2. Mount the HTML into a container and hydrate against a fresh tree
-      //    with the same shape. Use a fresh createI18n inside makeProviderTree
-      //    — the hydrate path must end up at the same locale via the lazy
-      //    initializer, NOT depending on a pre-set i18n.locale.
       const container = document.createElement("div");
       container.innerHTML = html;
       document.body.appendChild(container);
 
       const clientTree = makeProviderTree("fr", messages);
+      let root!: ReturnType<typeof hydrateRoot>;
       await act(async () => {
-        hydrateRoot(container, clientTree);
+        root = hydrateRoot(container, clientTree);
       });
 
       expect(container.textContent).toContain("Bonjour");
-      // The acceptance gate: a hydration mismatch would emit console.error
-      // ("Hydration failed because the server-rendered HTML didn't match...")
-      // and possibly console.warn. Neither should fire.
+      // A hydration mismatch would emit console.error; neither should fire.
       expect(errorSpy).not.toHaveBeenCalled();
       expect(warnSpy).not.toHaveBeenCalled();
 
+      await act(async () => {
+        root.unmount();
+      });
       document.body.removeChild(container);
     });
 
@@ -101,14 +98,18 @@ describe("Next <I18nProvider> SSR + hydration", () => {
       document.body.appendChild(container);
 
       const clientTree = makeProviderTree("de", messages);
+      let root!: ReturnType<typeof hydrateRoot>;
       await act(async () => {
-        hydrateRoot(container, clientTree);
+        root = hydrateRoot(container, clientTree);
       });
 
       expect(container.textContent).toContain("Hallo");
       expect(errorSpy).not.toHaveBeenCalled();
       expect(warnSpy).not.toHaveBeenCalled();
 
+      await act(async () => {
+        root.unmount();
+      });
       document.body.removeChild(container);
     });
   });

@@ -55,6 +55,7 @@ Upgrading from v0.2.x? See the [migration guide](../../docs/migration/v0.2-to-v0
 
 ```tsx
 // main.tsx
+import React from "react";
 import { createRoot } from "react-dom/client";
 import { createI18n, I18nProvider } from "@comvi/react";
 import App from "./App";
@@ -100,6 +101,7 @@ For `<T>` rich-text components, type-safe keys, fetch-loader integration, and th
 Wrap `<I18nProvider>` in an Error Boundary to handle initialization failures gracefully:
 
 ```tsx
+import React from "react";
 import { createRoot } from "react-dom/client";
 import { createI18n, I18nProvider } from "@comvi/react";
 import App from "./App";
