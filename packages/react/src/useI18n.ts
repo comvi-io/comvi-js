@@ -372,24 +372,29 @@ export function useI18n(ns?: string): UseI18nReturn {
 
   // Memoize ALL methods for referential stability in useEffect dependency arrays
   const boundMethods = useMemo(() => {
-    const methods = {} as Record<string, unknown>;
+    type BoundName = (typeof BIND_METHODS)[number];
+    type Bound = { [K in BoundName]: I18n[K] };
 
-    // Bind core methods directly
+    // Build via a wider write-only Record view, then re-cast to the strict
+    // mapped type. TS can't track that a `for...of` loop covers every
+    // member, so writes through the mapped type require an intersection of
+    // all call signatures — `Record<BoundName, unknown>` sidesteps that
+    // while preserving the outer `Bound` shape for callers.
+    const methods = {} as Bound;
+    const bag = methods as Record<BoundName, unknown>;
     for (const m of BIND_METHODS) {
-      methods[m] = (i18n[m] as (...a: any[]) => any).bind(i18n);
+      bag[m] = (i18n[m] as (...args: unknown[]) => unknown).bind(i18n);
     }
 
-    // Special wrappers
-    methods.setLocale = (loc: string) => i18n.setLocaleAsync(loc);
-    methods.onMissingKey = (
-      callback: (key: string, locale: string, namespace: string) => string | void,
-    ) =>
-      i18n.onMissingKey((key, loc, ns) => {
-        const result = callback(key, loc, ns);
-        return typeof result === "string" || result === undefined ? result : String(result);
-      });
-
-    return methods;
+    return {
+      ...methods,
+      setLocale: (loc: string) => i18n.setLocaleAsync(loc),
+      onMissingKey: (callback: (key: string, locale: string, namespace: string) => string | void) =>
+        i18n.onMissingKey((key, loc, ns) => {
+          const result = callback(key, loc, ns);
+          return typeof result === "string" || result === undefined ? result : String(result);
+        }),
+    };
   }, [i18n]);
 
   return {

@@ -176,7 +176,7 @@ const TComponent = function T({
   const translate =
     tRaw ??
     ((key: string, params?: TranslationParams) =>
-      t(key as any, params) as unknown as TranslationResult);
+      t(key as never, params) as unknown as TranslationResult);
 
   // Remove 'components' from restProps to avoid passing it as a translation param
   const { components: _, ...cleanRestProps } = restProps as {
@@ -245,7 +245,7 @@ const TComponent = function T({
     transportParams.raw = raw;
   }
 
-  const content = translate(keyString as any, transportParams);
+  const content = translate(keyString as never, transportParams);
 
   // Use children as fallback if translation is missing and no explicit fallback provided
   // Priority: translation (including processed fallback/onMissing) > children fallback > key
