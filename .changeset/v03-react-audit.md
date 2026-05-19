@@ -38,4 +38,4 @@
 - Peer dependency on `@comvi/core` bumped to the new minor.
 - 92 unit tests + Profiler-based commit-counter harness + tearing repros (happy-dom) + Playwright e2e (in `test-apps/next`) verify the changes.
 
-See `docs/migration/v0.2-to-v0.3.md` for the upgrade checklist.
+See CHANGELOG for the per-package upgrade checklist.

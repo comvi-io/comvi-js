@@ -23,4 +23,4 @@
 - Peer dependencies on `@comvi/core` and `@comvi/react` bumped accordingly.
 - New `next-hydration.test.tsx` asserts `renderToString` + `hydrateRoot` produces zero hydration warnings, and a boundary test asserts no `i18n.locale = …` mutation appears outside the dedicated `syncLocaleSafely` helper in `client/I18nProvider.tsx`.
 
-See `docs/migration/v0.2-to-v0.3.md` for the upgrade checklist.
+See CHANGELOG for the per-package upgrade checklist.

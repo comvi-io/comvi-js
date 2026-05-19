@@ -49,7 +49,7 @@ npm install @comvi/react
 # Peer: react ^18.0.0 || ^19.0.0
 ```
 
-Upgrading from v0.2.x? See the [migration guide](../../docs/migration/v0.2-to-v0.3.md).
+Upgrading from v0.2.x? See the [CHANGELOG](./CHANGELOG.md).
 
 ## Quick start
 
@@ -139,7 +139,7 @@ createRoot(document.getElementById("root")!).render(
 );
 ```
 
-Alternatively, use a third-party Error Boundary library like [react-error-boundary](https://github.com/bvaughn/react-error-boundary). See [ADR 0003](../../docs/adr/0003-suspense-integration.md) for Suspense integration notes.
+Alternatively, use a third-party Error Boundary library like [react-error-boundary](https://github.com/bvaughn/react-error-boundary).
 
 ## Selector hooks (new in v0.3)
 
@@ -195,7 +195,7 @@ function MyComponent() {
 }
 ```
 
-**Identity note:** In v0.3, `t` and `tRaw` identity changes on locale flip (intentional — the function now closes over the current locale). If you depend on their identity in `useEffect` dependencies, the effect will re-run when locale changes. For most code this is correct; if your effect should only run once, depend on the actual trigger instead. See the [migration guide](../../docs/migration/v0.2-to-v0.3.md) for details.
+**Identity note:** In v0.3, `t` and `tRaw` identity changes on locale flip (intentional — the function now closes over the current locale). If you depend on their identity in `useEffect` dependencies, the effect will re-run when locale changes. For most code this is correct; if your effect should only run once, depend on the actual trigger instead.
 
 **Deprecation note:** `useI18nContext()` was the v0.2 hook for the same purpose. It still works through v0.3 but will be removed in v0.4 — use `useI18n()` instead.
 

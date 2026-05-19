@@ -48,7 +48,7 @@ npm install @comvi/next
 # Peers: next ^14 || ^15, react ^18 || ^19
 ```
 
-Upgrading from v0.2.x? See the [migration guide](../../docs/migration/v0.2-to-v0.3.md).
+Upgrading from v0.2.x? See the [CHANGELOG](./CHANGELOG.md).
 
 ## Quick start
 
