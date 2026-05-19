@@ -19,15 +19,25 @@ interface I18nContextValue {
 const I18nContext = createContext<I18nContextValue | null>(null);
 
 /**
- * Create a memoized subscribe function for useSyncExternalStore
+ * Create a memoized subscribe function for useSyncExternalStore.
+ *
+ * Rest-args + a `join("|")` stable key so that re-subscription correctly
+ * tracks the event list (no stale closure if a caller passes a dynamic set).
+ * The callback closes over `eventsKey` (a string) instead of the rest-args
+ * array (which is freshly allocated each render) — identity changes only when
+ * event contents change. Exported for unit testing; NOT in the package index.
+ *
+ * @internal
  */
-function useSubscribe(i18n: I18n, events: I18nEvent[]) {
+export function useSubscribe(i18n: I18n, ...events: I18nEvent[]) {
+  const eventsKey = events.join("|");
   return useCallback(
     (callback: () => void) => {
-      const unsubs = events.map((e) => i18n.on(e, () => callback()));
+      const eventList = eventsKey.split("|") as I18nEvent[];
+      const unsubs = eventList.map((e) => i18n.on(e, callback));
       return () => unsubs.forEach((u) => u());
     },
-    [i18n], // events array is static at each call site
+    [i18n, eventsKey],
   );
 }
 
@@ -126,9 +136,9 @@ export function I18nProvider({
   }, [i18n, autoInit, onError]);
 
   // Subscribe to reactive state from core using useSyncExternalStore
-  const subLang = useSubscribe(i18n, ["localeChanged", "initialized"]);
-  const subCache = useSubscribe(i18n, ["namespaceLoaded", "initialized", "translationsCleared"]);
-  const subLoading = useSubscribe(i18n, ["loadingStateChanged", "initialized"]);
+  const subLang = useSubscribe(i18n, "localeChanged", "initialized");
+  const subCache = useSubscribe(i18n, "namespaceLoaded", "initialized", "translationsCleared");
+  const subLoading = useSubscribe(i18n, "loadingStateChanged", "initialized");
 
   const locale = useSyncExternalStore(
     subLang,
