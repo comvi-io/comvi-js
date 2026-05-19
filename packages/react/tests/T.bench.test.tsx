@@ -1,21 +1,13 @@
 /**
- * T.bench.tsx — Advisory micro-bench for <T> render cost
+ * Advisory micro-bench for <T> render cost — NOT a CI gate.
  *
- * PURPOSE: Inform the OQ-4 decision in docs/adr/0004-T-generic-vs-memo.md.
- * These are ADVISORY measurements only — not a CI gate.
+ * Reports p50 + p99 across 1000 iterations of: memo-on vs memo-off (50
+ * consumers each), useI18n consumer cost, useLocale consumer cost. Timing
+ * via `performance.now()`, no external dependencies.
  *
- * Rule from plan v0.3-fix-everything.md:
- *   "memo removal allowed iff render-count identical AND p99 regression < +15%"
- *
- * Cases:
- *   1. Memo-ON  — exported `T` (React.memo-wrapped TComponent), 50 consumers
- *   2. Memo-OFF — bare `TComponent` replicated inline, 50 consumers
- *   3. useI18n consumer cost — 50 components calling useI18n()
- *   4. useLocale consumer cost — 50 components calling useLocale()
- *
- * ENV: happy-dom (matches packages/react/vitest.config.ts)
- * NO external deps — timing via performance.now() only.
- * ≥1000 iterations per case. Reports p50 + p99 per case.
+ * Used to inform the question of whether `React.memo(T)` can be removed
+ * (decision rule: memo removal allowed iff render-count identical AND p99
+ * regression < +15%).
  */
 
 import React from "react";
@@ -175,7 +167,7 @@ async function runBench(Subject: React.ComponentType<{ i18n: FakeI18n }>): Promi
 // Tests (bench runs as vitest test cases — output goes to console)
 // ---------------------------------------------------------------------------
 
-describe("T component micro-bench (advisory, OQ-4)", () => {
+describe("T component micro-bench (advisory)", () => {
   // Store results across cases so we can compute cross-case verdicts.
   let memoOnP99 = 0;
   let memoOffP99 = 0;
@@ -245,8 +237,8 @@ describe("T component micro-bench (advisory, OQ-4)", () => {
     const threshold = 15;
     const action =
       regression < threshold
-        ? "OQ-4 CAN be reopened — memo removal is safe per the advisory gate"
-        : "React.memo SHOULD stay — memo removal exceeds advisory p99 threshold";
+        ? "React.memo can be removed — memo removal is safe per the advisory gate"
+        : "React.memo should stay — memo removal exceeds advisory p99 threshold";
 
     console.log("\n[T.bench] === CROSS-CASE SUMMARY ===");
     console.log(`  Memo-ON  p99  : ${memoOnP99.toFixed(4)} ms`);
