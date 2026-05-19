@@ -141,14 +141,14 @@ describe("Repro 1 — startTransition + locale flip", () => {
     expect(getByTestId("probe-b").textContent).toBe("Bonjour");
   });
 
-  // HARNESS LIMITATION (also documented in AUDIT-CONCURRENCY.md):
-  //   happy-dom does not expose mid-commit DOM state. React commits a tree
-  //   atomically into the DOM; `getByTestId` always reads a committed
-  //   snapshot. The audit-described hazard ("<T> reads i18n.locale via the
-  //   bound translation function while a transition is in flight") would
-  //   manifest only if React rendered the tree against stale state but
-  //   committed it as-if-new. Under happy-dom + a synchronous FakeI18n,
-  //   the only state we can read post-commit is the final committed text.
+  // HARNESS LIMITATION: happy-dom does not expose mid-commit DOM state.
+  // React commits a tree atomically into the DOM; `getByTestId` always reads
+  // a committed snapshot. The architectural tearing hazard ("<T> reads
+  // i18n.locale via the bound translation function while a transition is in
+  // flight") would manifest only if React rendered the tree against stale
+  // state but committed it as-if-new. Under happy-dom + a synchronous
+  // FakeI18n, the only state we can read post-commit is the final committed
+  // text.
   //
   //   The pair-consistency check is therefore strongest-available evidence.
   //   This finding remains "architectural concern only, not P1+" per the
