@@ -48,6 +48,8 @@ npm install @comvi/next
 # Peers: next ^14 || ^15, react ^18 || ^19
 ```
 
+Upgrading from v0.2.x? See the [migration guide](../../docs/migration/v0.2-to-v0.3.md).
+
 ## Quick start
 
 ```ts
@@ -113,6 +115,59 @@ export const config = { matcher: ["/((?!api|_next|.*\\..*).*)"] };
 ```
 
 The full setup also includes a `[locale]/layout.tsx` that imports the server registration once, calls `loadTranslations(locale)`, and renders the client wrapper above. See the [documentation](https://comvi.io/docs/i18n/next/) for locale-aware `<Link>`, `useLocalizedRouter`, server/client subpath imports, and the lazy-plugin API.
+
+## Optimizations in v0.3
+
+**Routing components now use `useLocale()`** — `<Link>`, `usePathname()`, and `useLocalizedRouter()` internally switched to the new `useLocale()` hook in v0.3. No behavior change for consumers; routing continues to work identically. Under the hood, this means locale-aware routing skips re-renders on namespace loads and loading-state changes (measurement-confirmed P1 performance improvement).
+
+**Render-time mutation removed** — The internal `i18n.locale` assignment and `i18n.addTranslations()` calls that used to happen in `<I18nProvider>`'s render body have been moved into a `useState` initializer. This is a quality improvement (removes side effects from render) with no API change — `<I18nProvider>` props work identically.
+
+## Error Boundaries
+
+Wrap the client provider in an Error Boundary to handle initialization failures:
+
+```tsx
+import { I18nProvider } from "@comvi/next/client";
+
+class I18nErrorBoundary extends React.Component<
+  { children: React.ReactNode },
+  { hasError: boolean }
+> {
+  constructor(props: { children: React.ReactNode }) {
+    super(props);
+    this.state = { hasError: false };
+  }
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+  render() {
+    if (this.state.hasError) {
+      return <div>Failed to load translations. Please refresh the page.</div>;
+    }
+    return this.props.children;
+  }
+}
+
+export function ComviProvider({
+  children,
+  locale,
+  messages,
+}: {
+  children: React.ReactNode;
+  locale: string;
+  messages: MessagesMap;
+}) {
+  return (
+    <I18nErrorBoundary>
+      <I18nProvider i18n={i18n} locale={locale} messages={messages} routing={routing}>
+        {children}
+      </I18nProvider>
+    </I18nErrorBoundary>
+  );
+}
+```
+
+Or use [react-error-boundary](https://github.com/bvaughn/react-error-boundary) for convenience.
 
 ## Server-side translation loading
 
