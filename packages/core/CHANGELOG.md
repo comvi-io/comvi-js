@@ -1,5 +1,19 @@
 # @comvi/core
 
+## 0.3.0
+
+### Added
+
+- Optional `locale` parameter to `formatNumber()`, `formatDate()`, `formatCurrency()`, and `formatRelativeTime()` to override the instance locale on a per-call basis (W2a, 69e6160). Existing call sites continue to work without the parameter.
+
+### Changed
+
+- `createBoundTranslation()` now accepts an optional `getLocale` parameter for custom locale resolution in framework bindings.
+
+---
+
+See the [migration guide](../migration/v0.2-to-v0.3.md) for details. This is a **minor release** — all changes are additive.
+
 ## 0.2.0
 
 ### Minor Changes

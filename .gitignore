@@ -59,3 +59,8 @@ test-apps/**/*.js.map
 # Bundle analysis
 dist-analyze
 .claude/
+
+# Playwright artifacts (e.g. test-apps/next/test-results/)
+test-results
+playwright-report
+.playwright
