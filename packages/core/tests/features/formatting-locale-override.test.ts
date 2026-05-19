@@ -1,27 +1,14 @@
 /**
- * formatting-locale-override.test.ts — W2a regression for the additive
- * `locale` parameter on formatters.
- *
- * Audit ref: AUDIT-FINDINGS.md Dim 6 P2 + ADR OQ-1.
- *
- * The instance-locale-mutability issue ("`<T>` reads `i18n.locale` mid-
- * transition") cascades to formatters too: ICU params like
- * `formatDate({date}, "long")` inside a translated string read
- * `this._locale` directly. To let framework bindings thread the
- * React-tracked locale through formatters (future `useFormatters()` hook),
- * core gains an optional `locale` argument on all four public formatters.
- *
- * This test asserts:
- *   1. Default behavior unchanged (instance locale used when arg omitted).
- *   2. Explicit `locale` argument overrides instance locale at call time.
- *   3. Cache keys correctly include the override locale (no stale Intl
- *      objects served from the cache).
+ * Verifies the optional `locale` argument on `formatNumber` / `formatDate` /
+ * `formatCurrency` / `formatRelativeTime`: instance locale is used when
+ * omitted, override locale wins when passed, and the Intl cache keys on
+ * the active locale.
  */
 
 import { describe, it, expect, beforeEach } from "vitest";
 import { I18n } from "../../src";
 
-describe("Formatters — optional `locale` override (W2a)", () => {
+describe("Formatters — optional `locale` override", () => {
   let i18n: I18n;
 
   beforeEach(() => {

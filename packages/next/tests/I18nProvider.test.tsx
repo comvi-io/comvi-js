@@ -1,17 +1,7 @@
 /**
- * I18nProvider.test.tsx — W1.6 regression for locale-prop validation.
- *
- * Audit ref: Dim 13 P2 in `packages/react/AUDIT-FINDINGS.md`
- * (`packages/next/src/client/I18nProvider.tsx:117-119` previously mutated
- * `i18n.locale = locale` with no validation that `locale` is in the
- * configured `routing.locales` list. A misconfigured layout would silently
- * propagate a bad locale to descendant translations and downstream
- * `setLocaleAsync` calls — confusing to debug.)
- *
- * Fix verified: when `routing` is provided AND `locale` is not in
- * `routing.locales`, the provider calls `i18n.reportError(...)` with a
- * descriptive diagnostic and does NOT mutate `i18n.locale`. When `routing`
- * is omitted, behavior is unchanged (no validation — defensive only).
+ * When `routing` is provided and `locale` is not in `routing.locales`,
+ * <I18nProvider> calls `i18n.reportError` and skips the mutation. Without
+ * `routing`, behavior is unchanged (no validation — defensive only).
  */
 
 import React from "react";
@@ -22,7 +12,7 @@ import { I18nProvider } from "../src/client/I18nProvider";
 import type { RoutingConfig } from "../src/routing/types";
 import { FakeI18n } from "../../../tooling/test-utils/fakeI18n";
 
-describe("Next <I18nProvider> locale validation (W1.6)", () => {
+describe("Next <I18nProvider> locale validation", () => {
   const routing: RoutingConfig = {
     locales: ["en", "fr", "de"],
     defaultLocale: "en",

@@ -35,9 +35,9 @@ describe("useI18n", () => {
     const { result } = renderHook(() => useI18n("admin"), { wrapper: createWrapper(fake) });
 
     expect(result.current.t("title" as never)).toBe("title|admin");
-    // Post-W2b-ii: tRaw injects the React-tracked locale into every call so
-    // translations resolve against the locale-at-render-time, not the
-    // mutable instance locale. See AUDIT-FINDINGS.md Dim 6 P2.
+    // tRaw injects the React-tracked locale into every call so translations
+    // resolve against the locale-at-render-time, not the mutable instance
+    // locale.
     expect(fake.tRaw).toHaveBeenLastCalledWith("title", { ns: "admin", locale: "en" });
   });
 
@@ -68,15 +68,9 @@ describe("useI18n", () => {
   });
 
   it("rebuilds t() reference on locale change so callers re-translate with new locale", () => {
-    // Pre-W2b-ii behavior: t identity was stable across locale changes, which
-    // meant the closure captured the instance locale at construction time and
-    // re-read i18n.locale on every call — a tearing surface during
-    // startTransition (see AUDIT-FINDINGS.md Dim 6 P2 + ADR
-    // docs/adr/0001-i18n-locale-source.md).
-    //
-    // Post-W2b-ii: t/tRaw rebuild when LocaleContext changes, capturing the
-    // React-tracked locale in the new closure. Identity CHANGES — that's the
-    // fix, not a regression.
+    // t/tRaw rebuild when locale changes so the closure captures the new
+    // React-tracked locale — identity churning is the intended behavior to
+    // prevent tearing during startTransition-wrapped locale flips.
     const fake = new FakeI18n();
     const { result } = renderHook(() => useI18n("admin"), { wrapper: createWrapper(fake) });
     const tBefore = result.current.t;

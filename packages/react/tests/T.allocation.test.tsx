@@ -1,21 +1,7 @@
 /**
- * T.allocation.test.tsx — W1.4 regression for the per-render allocation fix.
- *
- * Audit ref: Dim 12 P2 in `packages/react/AUDIT-FINDINGS.md`
- * (`packages/react/src/T.tsx:188-189` previously allocated `new Map()` and
- * `{}` on every render unconditionally, even when the `components` prop is
- * undefined — the common case. With 50+ `<T>` instances on a locale switch
- * this produced 100+ ephemerals per render of pure GC churn.)
- *
- * Fix verified: both bags are now null-initialized and only allocated inside
- * `if (components) { ... }`. The marker-lookup site uses optional chaining
- * (`reactHandlers?.get(...)`), and the param-spread tolerates null.
- *
- * STRATEGY
- *   Wrap the global `Map` constructor to count instantiations during render.
- *   Compare delta from a `<div>` baseline (framework + provider overhead) to
- *   a `<T>` baseline. Identical child count → identical framework cost; the
- *   delta isolates `<T>`'s own allocation behavior.
+ * Verifies <T> does not allocate Map/object instances when `components` is
+ * undefined. Counts via a Map-constructor wrapper and compares <div> vs <T>
+ * subtrees with the same provider, isolating <T>'s own allocation behavior.
  */
 
 import React from "react";
@@ -28,7 +14,7 @@ import { T } from "../src/T";
 
 const OriginalMap = globalThis.Map;
 
-describe("<T> allocation behavior (W1.4)", () => {
+describe("<T> allocation behavior", () => {
   let mapCount: number;
 
   beforeEach(() => {

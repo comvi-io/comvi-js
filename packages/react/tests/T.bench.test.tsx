@@ -192,8 +192,7 @@ describe("T component micro-bench (advisory, OQ-4)", () => {
       p99,
       "baseline — see Case 2 verdict for relative comparison",
     );
-  }, // timeout: 2 min (generous for slow CI)
-  120_000);
+  }, 120_000); // timeout: 2 min (generous for slow CI)
 
   it("Case 2 — Memo-OFF: 50 <TBare> (no React.memo), render + re-render", async () => {
     const samples = await runBench(Subject50TBare);
@@ -205,8 +204,8 @@ describe("T component micro-bench (advisory, OQ-4)", () => {
     const verdict = isNaN(regression)
       ? "Cannot compute — run cases sequentially"
       : regression < threshold
-        ? `Memo-off p99 ${regression >= 0 ? "+" : ""}${regression.toFixed(1)}% vs memo-on — within +${threshold}% threshold per ADR 0004 → OQ-4 CAN be reopened`
-        : `Memo-off p99 +${regression.toFixed(1)}% vs memo-on — exceeds +${threshold}% threshold per ADR 0004 → React.memo SHOULD stay`;
+        ? `Memo-off p99 ${regression >= 0 ? "+" : ""}${regression.toFixed(1)}% vs memo-on — within +${threshold}% threshold; React.memo could be removed`
+        : `Memo-off p99 +${regression.toFixed(1)}% vs memo-on — exceeds +${threshold}% threshold; React.memo should stay`;
 
     report("Case 2 — Memo-OFF (bare TComponent, no wrapper)", ITERATIONS, p50, p99, verdict);
   }, 120_000);

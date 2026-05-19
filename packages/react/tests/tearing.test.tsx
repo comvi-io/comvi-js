@@ -1,23 +1,13 @@
 /**
- * tearing.test.tsx — Concurrency-correctness pass for the React-packages audit
+ * Concurrency / tearing reproductions:
+ *  1. startTransition + locale flip
+ *  2. Aborted transition leakage
+ *  3. Next-provider render-time mutation idempotency
+ *  4. useSubscribe events-array fragility
  *
- * Reproduces (or attempts to) four scenarios named in
- * `packages/react/AUDIT-FINDINGS.md`:
- *
- *   Repro 1 — startTransition + locale flip (TEARING)
- *   Repro 2 — Aborted-transition leakage of `i18n.locale`
- *   Repro 3 — Next-provider render-time mutation idempotency
- *   Repro 4 — `useSubscribe(i18n, events)` fragility w.r.t. dynamic events
- *
- * ENV
- *   - happy-dom (matches packages/react/vitest.config.ts)
- *   - React 19.2.4
- *
- * COMMIT-COUNTING
- *   Profiler.onRender — not useRef increments (StrictMode would double those).
- *
- * STRICTMODE
- *   Each test annotates StrictMode ON or OFF in its title.
+ * Commits counted via Profiler.onRender. happy-dom cannot observe
+ * mid-commit DOM state; the test-apps/next Playwright suite is the
+ * browser-observable complement.
  */
 
 import React, { Profiler, StrictMode, startTransition, type ProfilerOnRenderCallback } from "react";

@@ -1,23 +1,10 @@
 /**
- * effect-rerun.test.tsx — W4 harness for the W2b-ii decision about whether
- * `useI18n()` return identity needs further work (B6 in the breaking-change
- * table at AUDIT-react-packages.md).
- *
- * The audit (Dim 4 P2, Dim 8 P3) flagged that `useI18n()` returns a fresh
- * object every call — idiomatic for `useForm` / `useQuery`-shaped hooks,
- * but a footgun for `useEffect([useI18nReturn])` patterns.
- *
- * This file pins both behaviors as measurement:
- *   1. Effect on whole `useI18n()` return RE-RUNS on every reactive change
- *      (cache load, locale flip).
- *   2. Effect on destructured `locale` RE-RUNS ONLY when locale changes
- *      (not on namespace load — confirms the new W2b-ii context split for
- *      `useLocale()` consumers, AND that destructured fields don't fire
- *      effects when other axes change).
- *
- * If a future change adds memoization to the `useI18n()` return so that
- * passing the whole object to deps becomes safe (B6 "promote to P1"), the
- * first test would need updating — making it a forcing function.
+ * Pins the effect-rerun behavior of useI18n / useLocale:
+ *  - useEffect on the whole `useI18n()` return runs on every reactive change
+ *    (because the return is a fresh object per render — destructure or use
+ *    the per-axis selector hooks)
+ *  - useEffect on destructured `locale` runs only on locale changes
+ *  - useEffect on `useLocale()` runs only on locale changes (skips cache axis)
  */
 
 import React, { useEffect, useRef } from "react";

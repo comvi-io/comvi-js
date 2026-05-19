@@ -1,27 +1,9 @@
 /**
- * render-counts.test.tsx — Commit-counter measurement harness
+ * Commit-counter measurement harness for <T> consumers and locale-only
+ * consumers. Uses React Profiler.onRender (commits, not renders).
  *
- * PURPOSE: Baseline React commit counts per trigger for any audit finding
- * tagged P1+ for performance. Without harness output, perf claims auto-cap at P2.
- *
- * ENV POLICY:
- *   - Environment: happy-dom (matches packages/react/vitest.config.ts)
- *   - StrictMode OFF for baseline commit counts (see "Baseline (StrictMode OFF)" block)
- *   - StrictMode ON for correctness assertions (see "Correctness (StrictMode ON)" block)
- *
- * STUBS:
- *   Subject B (Link): @comvi/next/navigation Link depends on `next/link` and
- *   Next.js routing context, neither of which is available in happy-dom without
- *   the Next.js runtime. We stub it as a minimal component that calls
- *   `useI18n()` the same way the real Link does (packages/next/src/routing/Link.tsx:36),
- *   reading `locale` from the hook and rendering an <a> tag. This exercises
- *   the same subscription path as the real component without requiring Next runtime.
- *
- *   Subject C (usePathname): @comvi/next/navigation usePathname calls
- *   `useNextPathname()` from `next/navigation`, which is not available in
- *   happy-dom. We stub with a minimal hook that calls `useI18n()` the same way
- *   the real hook does (packages/next/src/routing/hooks.ts:28-46), reading
- *   `locale` and returning a pathname. Same useSyncExternalStore subscription path.
+ * Link and usePathname stubs mirror the real @comvi/next implementations
+ * — next/link and next/navigation aren't available without the Next runtime.
  */
 
 import React, { Profiler, type ProfilerOnRenderCallback } from "react";
@@ -78,10 +60,9 @@ function Subject50T({ i18n }: { i18n: FakeI18n }) {
 // Subject B: Stubbed Link component (mirrors packages/next/src/routing/Link.tsx:36)
 // ---------------------------------------------------------------------------
 
-/** Minimal stand-in for @comvi/next/navigation Link.
- *  Reads `locale` from useLocale() — identical subscription as the real
- *  Link after W2b-ii. Does NOT import next/link (unavailable in happy-dom
- *  without Next runtime). */
+/** Minimal stand-in for @comvi/next/navigation Link. Reads `locale` from
+ *  useLocale() — identical subscription as the real Link. Does NOT import
+ *  next/link (unavailable in happy-dom without the Next runtime). */
 let stubLinkRenderCount = 0;
 function resetStubLinkRenderCount() {
   stubLinkRenderCount = 0;
@@ -104,10 +85,9 @@ function SubjectLink({ i18n }: { i18n: FakeI18n }) {
 // Subject C: Stubbed usePathname hook (mirrors packages/next/src/routing/hooks.ts:28-46)
 // ---------------------------------------------------------------------------
 
-/** Minimal stand-in for @comvi/next/navigation usePathname.
- *  Reads `locale` from useLocale() — identical subscription as the real
- *  hook after W2b-ii. Does NOT import next/navigation (unavailable without
- *  Next runtime). */
+/** Minimal stand-in for @comvi/next/navigation usePathname. Reads `locale`
+ *  from useLocale() — identical subscription as the real hook. Does NOT
+ *  import next/navigation (unavailable without the Next runtime). */
 function useStubPathname(currentPath: string): string {
   const locale = useLocale();
   // Mirror real logic: strip /{locale} prefix
@@ -273,7 +253,7 @@ describe("Baseline commit counts (StrictMode OFF)", () => {
       expect(commits).toBeLessThanOrEqual(1);
     });
 
-    it("trigger: single-namespace load — StubLink function body does NOT re-execute (post-W2b-ii)", async () => {
+    it("trigger: single-namespace load — StubLink function body does NOT re-execute", async () => {
       // Profiler counts COMMITS to the whole subtree, which is dominated by
       // the I18nProvider's own re-render on isLoading flips. The real fix
       // operates at a finer grain: the LOCAL consumer (StubLink) should not
@@ -291,9 +271,9 @@ describe("Baseline commit counts (StrictMode OFF)", () => {
         await fake.addActiveNamespace("dashboard");
       });
 
-      // Pre-W2b-ii: StubLink re-rendered TWICE (cacheRevision fan-out + isLoading).
-      // Post-W2b-ii: StubLink body runs 0 times because LocaleContext does
-      // not change during a namespace load.
+      // StubLink body runs 0 times: LocaleContext does not change during a
+      // namespace load, so consumers that read only LocaleContext skip the
+      // commit entirely.
       expect(stubLinkRenderCount).toBe(0);
     });
 
@@ -357,7 +337,7 @@ describe("Baseline commit counts (StrictMode OFF)", () => {
       expect(commits).toBeLessThanOrEqual(1);
     });
 
-    it("trigger: single-namespace load — PathnameConsumer body does NOT re-execute (post-W2b-ii)", async () => {
+    it("trigger: single-namespace load — PathnameConsumer body does NOT re-execute", async () => {
       // See Subject B's parallel test for the rationale: Profiler counts
       // subtree commits dominated by the Provider's own re-render; the
       // user-perceived win is at the consumer-function-body level.
@@ -372,8 +352,8 @@ describe("Baseline commit counts (StrictMode OFF)", () => {
         await fake.addActiveNamespace("dashboard");
       });
 
-      // Pre-W2b-ii: re-rendered TWICE. Post-W2b-ii: 0 — useLocale skips both
-      // cacheRevision and isLoading axes.
+      // Consumer body runs 0 times: useLocale skips both the cacheRevision
+      // and isLoading axes.
       expect(pathnameConsumerRenderCount).toBe(0);
     });
 

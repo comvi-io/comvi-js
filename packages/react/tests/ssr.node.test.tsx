@@ -1,23 +1,9 @@
 // @vitest-environment node
 /**
- * ssr.node.test.ts — W4 SSR coverage for the `getServerSnapshot` paths in
- * `packages/react/src/I18nProvider.tsx` (lines 168-186 — the three
- * useSyncExternalStore call-sites for locale / isLoading / isInitializing).
- *
- * The render-counts.test.tsx harness runs in happy-dom which always
- * exercises the CLIENT snapshot path. This file uses the `node` vitest
- * environment to exercise the SERVER snapshot path via
- * `react-dom/server.renderToString`. Closes Dim 2 P3 + Dim 14 P3 from
- * AUDIT-FINDINGS.md.
- *
- * Invariants asserted:
- *   1. `renderToString` resolves the correct text using the provider's
- *      configured locale (proves getServerSnapshot returns the configured
- *      locale, not whatever the default-initialised i18n.locale is).
- *   2. `ssrInitialLocale` override produces the override locale in the
- *      output (proves the snapshot getter respects the prop).
- *   3. `ssrInitialIsLoading` / `ssrInitialIsInitializing` flow into the
- *      provider state on the server snapshot path.
+ * SSR coverage via react-dom/server.renderToString. Exercises the
+ * `getServerSnapshot` paths that happy-dom doesn't hit. Verifies
+ * `ssrInitialLocale` / `ssrInitialIsLoading` / `ssrInitialIsInitializing`
+ * flow through to consumers.
  */
 
 import { describe, it, expect } from "vitest";

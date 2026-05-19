@@ -1,14 +1,7 @@
 /**
- * useSubscribe.test.tsx — W1.2 regression for the rest-args + join-key fix.
- *
- * Audit ref: Dim 7 P3 in `packages/react/AUDIT-FINDINGS.md`
- * (react/I18nProvider.tsx:24-32 — useCallback([i18n]) closed over fresh `events`
- * array each call; works because every call-site is static, but a refactor
- * passing a dynamic events list would silently break subscription.)
- *
- * Fix verified: `useSubscribe(i18n, ...events)` rest-args + a `events.join("|")`
- * stable key as part of `useCallback` deps. Identity churns iff the event
- * contents change.
+ * useSubscribe identity stability: rest-args + a join-key derivation so
+ * callback identity churns iff the event-list contents change (not on every
+ * render with a fresh literal).
  */
 
 import React, { useEffect, useRef } from "react";
@@ -19,7 +12,7 @@ import { useSubscribe } from "../src/I18nProvider";
 import { FakeI18n } from "../../../tooling/test-utils/fakeI18n";
 import type { I18nEvent } from "@comvi/core";
 
-describe("useSubscribe — rest-args + stable join-key deps (W1.2)", () => {
+describe("useSubscribe — rest-args + stable join-key deps", () => {
   function Probe({
     fake,
     events,

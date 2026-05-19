@@ -1,25 +1,11 @@
 /**
- * next-hydration.test.tsx — W2c regression for the render-mutation removal.
- *
- * Audit ref: Dim 3 P1 + Dim 5 P2 in `packages/react/AUDIT-FINDINGS.md`,
- * and ADR docs/adr/0001-i18n-locale-source.md.
- *
- * The prior next/client/I18nProvider.tsx mutated `i18n.locale = locale` and
- * called `i18n.addTranslations(messages)` from inside the function body
- * (guarded by `isFirstRenderRef`). W2c moves the once-per-instance setup
- * into a React-blessed `useState(() => ...)` lazy initializer.
- *
- * This file verifies:
- *   1. `renderToString` produces HTML containing the locale-specific
- *      translation text — proving the setup runs before the inner React
- *      provider renders descendants.
- *   2. `hydrateRoot` against the SSR output emits NO `console.error` and
- *      NO `console.warn` — proving the client first render matches the
- *      server output (hydration invariant preserved).
- *   3. Architectural boundary: the only `i18n.locale = ` occurrence in
- *      `next/client/I18nProvider.tsx` is inside the `syncLocaleSafely`
- *      helper (NOT in the render body). Future refactors that re-introduce
- *      the render-time mutation will fail this test.
+ * Verifies:
+ *  - renderToString produces locale-specific text (setup runs before the
+ *    inner React provider renders descendants)
+ *  - hydrateRoot of the SSR output emits no console.error/warn
+ *  - Boundary: no instance-locale mutation outside `syncLocaleSafely` in
+ *    `next/client/I18nProvider.tsx` (a future refactor that reintroduces
+ *    render-time mutation will fail this test)
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
@@ -47,7 +33,7 @@ function makeProviderTree(locale: string, messages: Record<string, Record<string
   );
 }
 
-describe("Next <I18nProvider> SSR + hydration (W2c)", () => {
+describe("Next <I18nProvider> SSR + hydration", () => {
   it("renderToString emits the correct locale-specific text", () => {
     const tree = makeProviderTree("fr", { fr: { greeting: "Bonjour" } });
     const html = renderToString(tree);
@@ -60,7 +46,7 @@ describe("Next <I18nProvider> SSR + hydration (W2c)", () => {
     expect(html).toContain("Hallo");
   });
 
-  describe("hydrateRoot — zero console warnings (W2c acceptance gate)", () => {
+  describe("hydrateRoot — zero console warnings", () => {
     let errorSpy: ReturnType<typeof vi.spyOn>;
     let warnSpy: ReturnType<typeof vi.spyOn>;
 

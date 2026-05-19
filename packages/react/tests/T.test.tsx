@@ -149,11 +149,8 @@ describe("<T />", () => {
   });
 
   it("reports and degrades when a function handler throws synchronously", () => {
-    // v0.3 W4 D2 — previously asserted recovery from a `React.cloneElement`
-    // throw via vi.spyOn. After D2 migrated Site 1 to `React.createElement`
-    // (which itself does not throw at render time), the equivalent path
-    // exercised by the same registerHandler try/catch is a function handler
-    // that throws synchronously when invoked.
+    // Exercises the registerHandler try/catch via a function handler that
+    // throws synchronously when invoked.
     const reportError = vi.fn();
     const t = vi.fn((_key: string, params?: TranslationParams) => {
       const node = (params?.link as (args: { children: string; name: string }) => unknown)({

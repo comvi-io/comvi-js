@@ -620,12 +620,11 @@ export interface I18nInstance {
   reportError: (error: unknown, context?: ErrorReportContext) => void;
 
   /**
-   * Format a number using the current locale
+   * Format a number. Uses the instance locale unless `locale` is passed.
    * @param value - The number to format
    * @param options - Intl.NumberFormat options
-   * @param locale - Optional locale override. Framework bindings (e.g. `@comvi/react`
-   *   `useFormatters()`) pass the React-tracked locale here so formatter output
-   *   stays in sync with concurrent rendering (W2a). Non-framework callers omit it.
+   * @param locale - Optional per-call locale override (used by framework
+   *   bindings like `useFormatters()` to thread a tracked locale through).
    */
   formatNumber: (value: number, options?: Intl.NumberFormatOptions, locale?: string) => string;
 
