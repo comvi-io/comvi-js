@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter, usePathname as useNextPathname } from "next/navigation";
-import { useI18n } from "@comvi/react";
+import { useLocale } from "@comvi/react";
 import { useCallback } from "react";
 import { useRoutingConfig } from "./context";
 import { getCanonicalPathname, localizeHref, stripLocalePrefix } from "./utils";
@@ -28,7 +28,7 @@ import { getCanonicalPathname, localizeHref, stripLocalePrefix } from "./utils";
 export function usePathname(): string {
   const pathname = useNextPathname() ?? "/";
   const routing = useRoutingConfig();
-  const { locale } = useI18n();
+  const locale = useLocale();
 
   if (routing) {
     const publicPathname = stripLocalePrefix(pathname, routing.locales);
@@ -92,7 +92,7 @@ export interface LocalizedRouter {
  */
 export function useLocalizedRouter(): LocalizedRouter {
   const router = useRouter();
-  const { locale } = useI18n();
+  const locale = useLocale();
   const routing = useRoutingConfig();
 
   const push = useCallback(

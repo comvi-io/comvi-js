@@ -9,7 +9,9 @@ import {
 import type { I18n, FlattenedTranslations, I18nEvent } from "@comvi/core";
 
 /**
- * Context value interface
+ * Legacy combined-context value shape — preserved for `useI18nContext()`
+ * (deprecated). New code should use `useI18n()` or the per-axis selector
+ * hooks (`useLocale`, `useIsLoading`).
  */
 interface I18nContextValue {
   i18n: I18n;
@@ -20,9 +22,42 @@ interface I18nContextValue {
 }
 
 /**
- * React Context for i18n
+ * Per-axis context value carrying the i18n instance + loading state.
+ * Locale is in its own context (`LocaleContext`) so non-translation
+ * consumers like `<Link>` and `usePathname()` re-render on locale change
+ * only, NOT on every namespace load (which previously triggered a
+ * cacheRevision-driven context-value change). See AUDIT-FINDINGS.md
+ * Dimension 4 P1 + ADR docs/adr/0002-context-split.md.
+ *
+ * @internal
  */
-const I18nContext = createContext<I18nContextValue | null>(null);
+export interface I18nInstanceContextValue {
+  i18n: I18n;
+  isLoading: boolean;
+  isInitializing: boolean;
+}
+
+/**
+ * Locale context — narrow string axis. Subscribed by `useLocale()`,
+ * `useI18n()`, and any framework consumer that wants ONLY the current
+ * locale value (not the broader i18n instance / loading state).
+ *
+ * Default value is `null` so the absence-of-provider check can be
+ * performed against THIS context alone — without subscribing to
+ * `I18nInstanceContext` (which changes on isLoading flips and would
+ * defeat the cacheRevision-fan-out fix for non-translation consumers
+ * like `<Link>` / `usePathname`).
+ *
+ * @internal — exported so `useI18n` can read it directly without paying
+ *   the double provider-presence check that `useLocale()` does.
+ */
+export const LocaleContext = createContext<string | null>(null);
+
+/**
+ * Instance + loading-state context. Subscribed by `useI18n()`,
+ * `useIsLoading()`, and `useI18nContext()` (deprecated).
+ */
+const I18nInstanceContext = createContext<I18nInstanceContextValue | null>(null);
 
 /**
  * Create a memoized subscribe function for useSyncExternalStore.
@@ -100,6 +135,11 @@ export interface I18nProviderProps {
  * The provider auto-initializes the i18n instance on mount, so you don't need
  * to manually call `i18n.init()` before rendering.
  *
+ * In v0.3+, internally splits state across two contexts (`LocaleContext` +
+ * `I18nInstanceContext`) so non-translation consumers (e.g. `<Link>`,
+ * `usePathname()`) re-render only on locale changes, not on every namespace
+ * load. The public `useI18n()` API surface is unchanged.
+ *
  * @example
  * ```tsx
  * import { createI18n } from '@comvi/core';
@@ -125,9 +165,10 @@ export function I18nProvider({
   ssrInitialIsInitializing = false,
   onError,
 }: I18nProviderProps) {
-  // Auto-initialize if not already done (fire-and-forget for progressive loading)
-  // This matches Vue's behavior where app.use(i18n) auto-initializes Comvi i18n
-  // Uses isInitialized flag to ensure init() is called even when translations are pre-loaded
+  // Auto-initialize if not already done (fire-and-forget for progressive loading).
+  // The isInitialized / isInitializing flags double as the StrictMode-safety
+  // mechanism: on the second invocation of the effect under StrictMode, the
+  // guard skips because i18n.isInitializing is already true.
   useEffect(() => {
     if (autoInit && !i18n.isInitialized && !i18n.isInitializing) {
       i18n.init().catch((err) => {
@@ -141,9 +182,11 @@ export function I18nProvider({
     }
   }, [i18n, autoInit, onError]);
 
-  // Subscribe to reactive state from core using useSyncExternalStore
+  // Subscribe to reactive state from core using useSyncExternalStore.
+  // Locale and loading have separate subscriptions so we can populate two
+  // independent contexts — non-translation consumers do not pay re-renders
+  // on namespace loads (which the prior single-context design caused).
   const subLang = useSubscribe(i18n, "localeChanged", "initialized");
-  const subCache = useSubscribe(i18n, "namespaceLoaded", "initialized", "translationsCleared");
   const subLoading = useSubscribe(i18n, "loadingStateChanged", "initialized");
 
   const locale = useSyncExternalStore(
@@ -151,14 +194,6 @@ export function I18nProvider({
     () => i18n.locale,
     () => ssrInitialLocale ?? i18n.locale,
   );
-
-  // Cache revision for O(1) change detection (no Map cloning)
-  const cacheRevision = useSyncExternalStore(
-    subCache,
-    () => i18n.translationCache.getRevision(),
-    () => i18n.translationCache.getRevision(),
-  );
-  const cache = i18n.translationCache.getInternalMap();
 
   const isLoading = useSyncExternalStore(
     subLoading,
@@ -171,43 +206,105 @@ export function I18nProvider({
     () => ssrInitialIsInitializing,
   );
 
-  // Memoize context value to prevent unnecessary re-renders
-  // cacheRevision is included to trigger re-renders when translations change
-  // Note: 'cache' is excluded from dependencies since the Map reference is stable;
-  // cacheRevision changes when translations are added/updated (O(1) change detection)
-  const value = useMemo(
-    () => ({
-      i18n,
-      locale,
-      translationCache: cache,
-      isLoading,
-      isInitializing,
-    }),
-    [i18n, locale, isLoading, isInitializing, cacheRevision],
+  const instanceValue = useMemo<I18nInstanceContextValue>(
+    () => ({ i18n, isLoading, isInitializing }),
+    [i18n, isLoading, isInitializing],
   );
 
-  return <I18nContext.Provider value={value}>{children}</I18nContext.Provider>;
+  return (
+    <I18nInstanceContext.Provider value={instanceValue}>
+      <LocaleContext.Provider value={locale}>{children}</LocaleContext.Provider>
+    </I18nInstanceContext.Provider>
+  );
 }
 
 // Add display name for React DevTools
 I18nProvider.displayName = "I18nProvider";
 
 /**
- * Hook to access the i18n context
- * Must be used within an I18nProvider
+ * Internal helper used by `useI18n` and `useI18nContext` — reads the
+ * instance context with a clear error message when called outside the
+ * provider. NOT re-exported from the package index.
  *
- * @returns The i18n context value
- * @throws Error if used outside I18nProvider
+ * @internal
  */
-export function useI18nContext(): I18nContextValue {
-  const context = useContext(I18nContext);
-
-  if (!context) {
+export function useI18nInstance(): I18nInstanceContextValue {
+  const instance = useContext(I18nInstanceContext);
+  if (!instance) {
     throw new Error(
-      "[i18n] useI18nContext must be used within an I18nProvider. " +
+      "[i18n] Hooks must be used within an I18nProvider. " +
         "Make sure your component is wrapped with <I18nProvider>.",
     );
   }
+  return instance;
+}
 
-  return context;
+/**
+ * Read the current locale (selector hook).
+ *
+ * Subscribes only to locale changes (LocaleContext). Non-translation
+ * consumers like `<Link>`, `usePathname()`, and `useLocalizedRouter()`
+ * use this instead of the broader `useI18n()` so they skip re-renders
+ * on namespace loads AND on loading-state changes — they only re-render
+ * when the locale itself changes.
+ *
+ * @throws Error if called outside an `<I18nProvider>`.
+ */
+export function useLocale(): string {
+  const locale = useContext(LocaleContext);
+  if (locale === null) {
+    throw new Error(
+      "[i18n] useLocale must be used within an I18nProvider. " +
+        "Make sure your component is wrapped with <I18nProvider>.",
+    );
+  }
+  return locale;
+}
+
+/**
+ * Read loading-state slice (selector hook).
+ *
+ * Subscribes only to loading-state changes (and locale changes, since
+ * the InstanceContext value changes when locale changes too). Loading UI
+ * surfaces should prefer this over `useI18n()`.
+ *
+ * @throws Error if called outside an `<I18nProvider>`.
+ */
+export function useIsLoading(): { isLoading: boolean; isInitializing: boolean } {
+  const { isLoading, isInitializing } = useI18nInstance();
+  return { isLoading, isInitializing };
+}
+
+/**
+ * Hook to access the i18n context — legacy combined-context shape.
+ *
+ * Re-renders on every reactive axis (locale, loading, cache). For new
+ * code prefer `useI18n()` (same shape, narrower subscriptions internally)
+ * or the per-axis selector hooks `useLocale()` / `useIsLoading()`.
+ *
+ * @deprecated Use `useI18n()` or `useLocale()` / `useIsLoading()`. This
+ *   export is retained for v0.3 to ease migration; scheduled for removal
+ *   in v0.4. See `docs/migration/v0.2-to-v0.3.md`.
+ *
+ * @returns The legacy `I18nContextValue` shape.
+ * @throws Error if used outside `<I18nProvider>`.
+ */
+export function useI18nContext(): I18nContextValue {
+  const { i18n, isLoading, isInitializing } = useI18nInstance();
+  const locale = useContext(LocaleContext) ?? "";
+
+  // Cache-revision subscription so this hook re-renders on namespace load
+  // (legacy users depended on `translationCache` updating).
+  const subCache = useSubscribe(i18n, "namespaceLoaded", "initialized", "translationsCleared");
+  useSyncExternalStore(
+    subCache,
+    () => i18n.translationCache.getRevision(),
+    () => i18n.translationCache.getRevision(),
+  );
+  const translationCache = i18n.translationCache.getInternalMap();
+
+  return useMemo<I18nContextValue>(
+    () => ({ i18n, locale, translationCache, isLoading, isInitializing }),
+    [i18n, locale, translationCache, isLoading, isInitializing],
+  );
 }

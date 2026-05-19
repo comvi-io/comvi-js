@@ -1,5 +1,5 @@
-import { useMemo } from "react";
-import { useI18nContext } from "./I18nProvider";
+import { useContext, useMemo, useSyncExternalStore } from "react";
+import { LocaleContext, useI18nInstance, useSubscribe } from "./I18nProvider";
 import { createBoundTranslation } from "@comvi/core";
 import type {
   TranslationParams,
@@ -357,10 +357,44 @@ export interface UseI18nReturn {
  * skip re-renders when their props haven't changed.
  */
 export function useI18n(ns?: string): UseI18nReturn {
-  const { i18n, locale, translationCache, isLoading, isInitializing } = useI18nContext();
+  const { i18n, isLoading, isInitializing } = useI18nInstance();
+  // LocaleContext has a `null` default so `useLocale()` can detect
+  // outside-provider use without subscribing to InstanceContext. Inside
+  // useI18n we've already validated provider presence via
+  // useI18nInstance(); locale is guaranteed non-null here, but TS sees
+  // `string | null` so we narrow with `??`.
+  const locale = useContext(LocaleContext) ?? "";
+
+  // Subscribe to cache events here (NOT via context) so non-translation
+  // consumers (Link / usePathname via useLocale) do not re-render on
+  // namespace loads. See AUDIT-FINDINGS.md Dim 4 P1.
+  const subCache = useSubscribe(i18n, "namespaceLoaded", "initialized", "translationsCleared");
+  useSyncExternalStore(
+    subCache,
+    () => i18n.translationCache.getRevision(),
+    () => i18n.translationCache.getRevision(),
+  );
+  const translationCache = i18n.translationCache.getInternalMap();
 
   // Raw bound translation. Needed by <T> and advanced integrations.
-  const tRaw = useMemo(() => createBoundTranslation(i18n, ns) as UseI18nReturn["tRaw"], [i18n, ns]);
+  // W1.1 fold-in: capture the React-tracked `locale` in the closure and
+  // inject it into every call. Without this, createBoundTranslation reads
+  // `i18n.locale` at call time — which can tear during a startTransition
+  // that mutates the instance locale before the new tree commits. See
+  // AUDIT-FINDINGS.md Dim 6 P2 + ADR docs/adr/0001-i18n-locale-source.md.
+  // Explicit `locale` in user params overrides the tracked value via
+  // spread order: `{ locale, ...params }`.
+  const tRaw = useMemo(() => {
+    // Project to the permissive shape locally so the wrapper can pass a
+    // params object cleanly through the overload union.
+    const bound = createBoundTranslation(i18n, ns) as (
+      key: string,
+      params?: TranslationParams,
+    ) => TranslationResult;
+    const wrapper = (key: string, params?: TranslationParams): TranslationResult =>
+      bound(key, { locale, ...params });
+    return wrapper as UseI18nReturn["tRaw"];
+  }, [i18n, ns, locale]);
 
   // Text-only translation helper for regular UI copy.
   const t = useMemo(

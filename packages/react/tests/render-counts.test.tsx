@@ -28,7 +28,7 @@ import React, { Profiler, type ProfilerOnRenderCallback } from "react";
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { render, act } from "@testing-library/react";
 import { I18nProvider } from "../src/I18nProvider";
-import { useI18n } from "../src/useI18n";
+import { useLocale } from "../src/I18nProvider";
 import { T } from "../src/T";
 import { FakeI18n } from "../../../tooling/test-utils/fakeI18n";
 import { createDeferred } from "./test-utils";
@@ -79,10 +79,16 @@ function Subject50T({ i18n }: { i18n: FakeI18n }) {
 // ---------------------------------------------------------------------------
 
 /** Minimal stand-in for @comvi/next/navigation Link.
- *  Reads `locale` from useI18n() — identical subscription as the real Link.
- *  Does NOT import next/link (unavailable in happy-dom without Next runtime). */
+ *  Reads `locale` from useLocale() — identical subscription as the real
+ *  Link after W2b-ii. Does NOT import next/link (unavailable in happy-dom
+ *  without Next runtime). */
+let stubLinkRenderCount = 0;
+function resetStubLinkRenderCount() {
+  stubLinkRenderCount = 0;
+}
 function StubLink({ href, children }: { href: string; children?: React.ReactNode }) {
-  const { locale } = useI18n();
+  stubLinkRenderCount += 1;
+  const locale = useLocale();
   return <a href={`/${locale}${href}`}>{children}</a>;
 }
 
@@ -99,10 +105,11 @@ function SubjectLink({ i18n }: { i18n: FakeI18n }) {
 // ---------------------------------------------------------------------------
 
 /** Minimal stand-in for @comvi/next/navigation usePathname.
- *  Reads `locale` from useI18n() — identical subscription as the real hook.
- *  Does NOT import next/navigation (unavailable without Next runtime). */
+ *  Reads `locale` from useLocale() — identical subscription as the real
+ *  hook after W2b-ii. Does NOT import next/navigation (unavailable without
+ *  Next runtime). */
 function useStubPathname(currentPath: string): string {
-  const { locale } = useI18n();
+  const locale = useLocale();
   // Mirror real logic: strip /{locale} prefix
   if (currentPath.startsWith(`/${locale}/`)) {
     return currentPath.slice(locale.length + 1);
@@ -113,7 +120,12 @@ function useStubPathname(currentPath: string): string {
   return currentPath;
 }
 
+let pathnameConsumerRenderCount = 0;
+function resetPathnameConsumerRenderCount() {
+  pathnameConsumerRenderCount = 0;
+}
 function PathnameConsumer({ path }: { path: string }) {
+  pathnameConsumerRenderCount += 1;
   const pathname = useStubPathname(path);
   return <span data-testid="pathname">{pathname}</span>;
 }
@@ -261,24 +273,28 @@ describe("Baseline commit counts (StrictMode OFF)", () => {
       expect(commits).toBeLessThanOrEqual(1);
     });
 
-    it("trigger: single-namespace load — baseline 2 commits", async () => {
-      const counter = makeCounter();
+    it("trigger: single-namespace load — StubLink function body does NOT re-execute (post-W2b-ii)", async () => {
+      // Profiler counts COMMITS to the whole subtree, which is dominated by
+      // the I18nProvider's own re-render on isLoading flips. The real fix
+      // operates at a finer grain: the LOCAL consumer (StubLink) should not
+      // re-execute its function body during a namespace load because it
+      // subscribes only to LocaleContext (which does not change on namespace
+      // load).
       render(
-        <Profiler id="Link-1" onRender={counter.onRender}>
+        <Profiler id="Link-1" onRender={() => {}}>
           <SubjectLink i18n={fake} />
         </Profiler>,
       );
-      counter.reset();
+      resetStubLinkRenderCount();
 
       await act(async () => {
         await fake.addActiveNamespace("dashboard");
       });
 
-      const commits = counter.get();
-      // Measured: 2. Same batching pattern as Subject A — isLoading=true in first
-      // commit, namespaceLoaded + isLoading=false in second. Link still re-renders
-      // because cacheRevision is in the provider's useMemo deps.
-      expect(commits).toBeLessThanOrEqual(2);
+      // Pre-W2b-ii: StubLink re-rendered TWICE (cacheRevision fan-out + isLoading).
+      // Post-W2b-ii: StubLink body runs 0 times because LocaleContext does
+      // not change during a namespace load.
+      expect(stubLinkRenderCount).toBe(0);
     });
 
     it("trigger: isLoading flip (true -> false) — baseline 1 commit", async () => {
@@ -341,23 +357,24 @@ describe("Baseline commit counts (StrictMode OFF)", () => {
       expect(commits).toBeLessThanOrEqual(1);
     });
 
-    it("trigger: single-namespace load — baseline 2 commits", async () => {
-      const counter = makeCounter();
+    it("trigger: single-namespace load — PathnameConsumer body does NOT re-execute (post-W2b-ii)", async () => {
+      // See Subject B's parallel test for the rationale: Profiler counts
+      // subtree commits dominated by the Provider's own re-render; the
+      // user-perceived win is at the consumer-function-body level.
       render(
-        <Profiler id="Pathname-1" onRender={counter.onRender}>
+        <Profiler id="Pathname-1" onRender={() => {}}>
           <SubjectPathname i18n={fake} path="/en/about" />
         </Profiler>,
       );
-      counter.reset();
+      resetPathnameConsumerRenderCount();
 
       await act(async () => {
         await fake.addActiveNamespace("dashboard");
       });
 
-      const commits = counter.get();
-      // Measured: 2. Same batching pattern as A and B — isLoading=true first,
-      // then namespaceLoaded + isLoading=false in second commit.
-      expect(commits).toBeLessThanOrEqual(2);
+      // Pre-W2b-ii: re-rendered TWICE. Post-W2b-ii: 0 — useLocale skips both
+      // cacheRevision and isLoading axes.
+      expect(pathnameConsumerRenderCount).toBe(0);
     });
 
     it("trigger: isLoading flip (true -> false) — baseline 1 commit", async () => {
