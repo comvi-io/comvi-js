@@ -4,7 +4,7 @@
  * Tearing test page for Playwright E2E.
  *
  * Purpose: expose the mid-commit DOM observability gap that happy-dom cannot
- * cover. Repro 1 from packages/react/AUDIT-CONCURRENCY.md describes the
+ * cover. The tearing-under-startTransition scenario describes the
  * architectural hazard: <T> / t() consumers reading i18n.locale via the bound
  * translation closure (tRaw) may observe a pre-mutated locale while React
  * still renders against the old state.

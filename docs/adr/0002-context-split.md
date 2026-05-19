@@ -1,9 +1,8 @@
 # ADR 0002 — Context split: 2 contexts, not 1 or 3
 
-**Status:** Accepted (W2b-ii)
+**Status:** Accepted (v0.3 release)
 **Date:** 2026-05-19
-**Plan:** docs/plans/v0.3-fix-everything.md
-**Audit:** `AUDIT-react-packages.md` Dim 4 P1 — Open Question OQ-2.
+**Scope:** v0.3 React surface — Open Question OQ-2 (provider context partitioning).
 
 ## Decision
 

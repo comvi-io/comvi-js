@@ -2,10 +2,10 @@
  * tearing.spec.ts — Playwright E2E for Repro 1 (startTransition + locale flip)
  *
  * Why this exists:
- *   packages/react/AUDIT-CONCURRENCY.md documents that happy-dom commits trees
- *   atomically into the DOM. `getByTestId` only ever reads a committed
- *   snapshot, so mid-transition DOM state where one sibling has been processed
- *   and the other has not is invisible to the Vitest harness.
+ *   happy-dom commits trees atomically into the DOM. `getByTestId` only ever
+ *   reads a committed snapshot, so mid-transition DOM state where one sibling
+ *   has been processed and the other has not is invisible to the Vitest
+ *   harness.
  *
  *   This spec runs in a real Chromium browser where React's concurrent
  *   renderer can interleave work across frames. We poll the live DOM at 16 ms

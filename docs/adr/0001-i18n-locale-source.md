@@ -1,9 +1,8 @@
 # ADR 0001 — `i18n.locale` source-of-truth in the React surface
 
-**Status:** Accepted (W2b-ii)
+**Status:** Accepted (v0.3 release)
 **Date:** 2026-05-19
-**Plan:** docs/plans/v0.3-fix-everything.md
-**Audit:** `AUDIT-react-packages.md` Dim 3 P1, Dim 6 P2 — Open Question OQ-1.
+**Scope:** v0.3 React surface — Open Question OQ-1 (translation-layer locale source-of-truth).
 
 ## Decision
 

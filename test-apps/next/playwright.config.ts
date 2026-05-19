@@ -7,12 +7,11 @@ import { defineConfig, devices } from "@playwright/test";
  * Spawns the Next.js dev server on port 3001 for the test run.
  * (Port 2000 = `pnpm dev` default; port 3000 = occupied by Docker on this machine.)
  *
- * Context: packages/react/AUDIT-CONCURRENCY.md — Repro 1 (startTransition +
- * locale flip) and Repro 2 (aborted transition leakage) are indeterminate in
- * happy-dom because happy-dom commits trees atomically and cannot expose
- * mid-commit DOM state. This suite runs in a real Chromium browser where
- * React's concurrent renderer can interleave work and we can poll the live
- * DOM at short intervals to catch pair-inconsistent snapshots.
+ * Context: tearing-under-startTransition is indeterminate under happy-dom
+ * because happy-dom commits trees atomically and cannot expose mid-commit
+ * DOM state. This suite runs in a real Chromium browser where React's
+ * concurrent renderer can interleave work and we can poll the live DOM at
+ * short intervals to catch pair-inconsistent snapshots.
  */
 export default defineConfig({
   testDir: "./e2e",

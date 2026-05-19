@@ -2,8 +2,7 @@
 
 **Status:** DEFERRED (post-v0.3)
 **Date:** 2026-05-19
-**Plan:** docs/plans/v0.3-fix-everything.md
-**Audit:** `AUDIT-react-packages.md` Dim 11 P2 — Open Question OQ-3.
+**Scope:** v0.3 React surface — Open Question OQ-3 (Suspense / `use()` integration).
 
 ## Decision
 

@@ -2,8 +2,7 @@
 
 **Status:** DEFERRED — measurement-gated (post-v0.3)
 **Date:** 2026-05-19
-**Plan:** docs/plans/v0.3-fix-everything.md
-**Audit:** `AUDIT-react-packages.md` Dim 9 P2 — Open Question OQ-4.
+**Scope:** v0.3 React surface — Open Question OQ-4 (`<T>` generic preservation vs `React.memo`).
 
 ## Decision
 

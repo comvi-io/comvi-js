@@ -2,26 +2,20 @@
 
 ## Purpose
 
-These Playwright tests cover tearing scenarios that the happy-dom Vitest harness
-cannot observe. `packages/react/AUDIT-CONCURRENCY.md` documents why:
+These Playwright tests cover **tearing scenarios** that a happy-dom Vitest
+harness cannot observe. happy-dom commits trees atomically into the DOM —
+`getByTestId` only reads a committed snapshot; you cannot observe a
+mid-transition state where one sibling has been processed and the other
+has not.
 
-> happy-dom commits trees atomically into the DOM. `getByTestId` only reads a
-> committed snapshot; we cannot observe a mid-transition state where one sibling
-> has been processed and the other has not.
+Running in a real Chromium browser exposes React's concurrent renderer
+behaviour. The poller samples the live DOM at ~16 ms (one frame) intervals
+and asserts **pair-consistency** at every sample: the two `<T>` consumers
+of `home.title` must always show the same locale value (both EN or both FR
+— never mixed).
 
-Running in a real Chromium browser exposes React's concurrent renderer behaviour.
-The poller samples the live DOM at ~16 ms (one frame) intervals and asserts
-**pair-consistency** at every sample: the two `<T>` consumers of `home.title`
-must always show the same locale value (both EN or both FR — never mixed).
-
-## Audit context
-
-- Repro 1 (startTransition + locale flip) — `AUDIT-CONCURRENCY.md §Repro 1`
-- Repro 2 (aborted transition leakage) — `AUDIT-CONCURRENCY.md §Repro 2`
-- Finding: `AUDIT-FINDINGS.md` Dimension 3 P1 / Dimension 6 P2
-
-The happy-dom version lives at `packages/react/tests/tearing.test.tsx` (do not
-modify — it remains the structural-soundness check). This suite is the
+The happy-dom companion suite at `packages/react/tests/tearing.test.tsx`
+is the structural-soundness check; this Playwright suite is the
 browser-observable complement.
 
 ## How to run
