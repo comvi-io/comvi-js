@@ -42,6 +42,36 @@ export interface I18nProviderProps extends Omit<ReactI18nProviderProps, "ssrInit
 const isServer = typeof window === "undefined";
 
 /**
+ * Validate `locale` against `routing.locales` (when routing is provided).
+ * Mutates `i18n.locale` only if the value is valid. Calls
+ * `i18n.reportError` for the misconfigured-app case so the dev sees a
+ * meaningful diagnostic instead of a downstream "translations not found"
+ * error or, worse, silent fallback to the default locale.
+ *
+ * Returns true iff the mutation was applied (or no mutation was needed
+ * because the i18n instance is already on the target locale).
+ */
+function syncLocaleSafely(
+  i18n: import("@comvi/core").I18n,
+  locale: string,
+  routing: RoutingConfig | undefined,
+): boolean {
+  if (routing && !routing.locales.includes(locale)) {
+    i18n.reportError(
+      new Error(
+        `[next-i18n-provider] Locale "${locale}" is not in routing.locales (${routing.locales.join(", ")}). Skipping locale sync.`,
+      ),
+      { source: "init", locale },
+    );
+    return false;
+  }
+  if (i18n.locale !== locale) {
+    i18n.locale = locale;
+  }
+  return true;
+}
+
+/**
  * I18nProvider for Next.js App Router
  *
  * This provider handles hydration by syncing the server locale with the client
@@ -115,9 +145,7 @@ export function I18nProvider({
   const shouldSyncDuringRender = isServer || isFirstRenderRef.current;
 
   if (shouldSyncDuringRender) {
-    if (i18n.locale !== locale) {
-      i18n.locale = locale;
-    }
+    syncLocaleSafely(i18n, locale, routing);
 
     if (messages && messages !== lastAddedMessagesRef.current) {
       i18n.addTranslations(messages);
@@ -132,15 +160,13 @@ export function I18nProvider({
   // For ALL subsequent renders (client-side navigation, HMR, etc.),
   // update in useIsomorphicLayoutEffect to avoid "setState during render" errors.
   useIsomorphicLayoutEffect(() => {
-    if (i18n.locale !== locale) {
-      i18n.locale = locale;
-    }
+    syncLocaleSafely(i18n, locale, routing);
 
     if (messages && messages !== lastAddedMessagesRef.current) {
       i18n.addTranslations(messages);
       lastAddedMessagesRef.current = messages;
     }
-  }, [i18n, locale, messages]);
+  }, [i18n, locale, messages, routing]);
 
   const content = (
     <ReactI18nProvider
