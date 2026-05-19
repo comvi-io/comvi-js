@@ -623,34 +623,50 @@ export interface I18nInstance {
    * Format a number using the current locale
    * @param value - The number to format
    * @param options - Intl.NumberFormat options
+   * @param locale - Optional locale override. Framework bindings (e.g. `@comvi/react`
+   *   `useFormatters()`) pass the React-tracked locale here so formatter output
+   *   stays in sync with concurrent rendering (W2a). Non-framework callers omit it.
    */
-  formatNumber: (value: number, options?: Intl.NumberFormatOptions) => string;
+  formatNumber: (value: number, options?: Intl.NumberFormatOptions, locale?: string) => string;
 
   /**
    * Format a date using the current locale
    * @param value - The date to format
    * @param options - Intl.DateTimeFormat options
+   * @param locale - Optional locale override (see {@link formatNumber} for rationale).
    */
-  formatDate: (value: Date | number, options?: Intl.DateTimeFormatOptions) => string;
+  formatDate: (
+    value: Date | number,
+    options?: Intl.DateTimeFormatOptions,
+    locale?: string,
+  ) => string;
 
   /**
    * Format a number as currency using the current locale
    * @param value - The number to format
    * @param currency - The ISO 4217 currency code (e.g., 'USD', 'EUR')
    * @param options - Additional Intl.NumberFormat options
+   * @param locale - Optional locale override (see {@link formatNumber} for rationale).
    */
-  formatCurrency: (value: number, currency: string, options?: Intl.NumberFormatOptions) => string;
+  formatCurrency: (
+    value: number,
+    currency: string,
+    options?: Intl.NumberFormatOptions,
+    locale?: string,
+  ) => string;
 
   /**
    * Format a relative time ("2 hours ago", "in 3 days") using the current locale
    * @param value - The numeric value (negative for past, positive for future)
    * @param unit - The time unit (e.g., 'day', 'hour', 'minute')
    * @param options - Intl.RelativeTimeFormat options
+   * @param locale - Optional locale override (see {@link formatNumber} for rationale).
    */
   formatRelativeTime: (
     value: number,
     unit: Intl.RelativeTimeFormatUnit,
     options?: Intl.RelativeTimeFormatOptions,
+    locale?: string,
   ) => string;
 
   /**
