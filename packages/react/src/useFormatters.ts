@@ -13,17 +13,14 @@ export interface UseFormattersReturn {
 }
 
 /**
- * Formatter helpers bound to the React-tracked locale. Updates automatically
- * when locale changes — no need to re-invoke. Uses core's optional `locale`
- * arg (W2a) so identity is stable per (i18n, locale) pair.
+ * Formatter helpers bound to the React-tracked locale. Output updates
+ * automatically when locale changes; identity is stable per `(i18n, locale)`.
  *
  * @example
  * ```tsx
- * const { formatDate, formatCurrency } = useFormatters();
+ * const { formatCurrency } = useFormatters();
  * <p>Price: {formatCurrency(price, "USD")}</p>
  * ```
- *
- * @throws Error if called outside an `<I18nProvider>`.
  */
 export function useFormatters(): UseFormattersReturn {
   const { i18n } = useI18nInstance();

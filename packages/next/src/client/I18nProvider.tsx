@@ -39,14 +39,9 @@ export interface I18nProviderProps extends Omit<ReactI18nProviderProps, "ssrInit
 }
 
 /**
- * Validate `locale` against `routing.locales` (when routing is provided).
- * Mutates `i18n.locale` only if the value is valid. Calls
- * `i18n.reportError` for the misconfigured-app case so the dev sees a
- * meaningful diagnostic instead of a downstream "translations not found"
- * error or, worse, silent fallback to the default locale.
- *
- * Returns true iff the mutation was applied (or no mutation was needed
- * because the i18n instance is already on the target locale).
+ * Update the i18n instance locale if valid against `routing.locales` (when
+ * routing is provided). Calls `i18n.reportError` on misconfiguration so devs
+ * get a meaningful diagnostic instead of silent fallback.
  */
 function syncLocaleSafely(
   i18n: import("@comvi/core").I18n,
@@ -129,23 +124,11 @@ export function I18nProvider({
   routing,
   ...props
 }: I18nProviderProps) {
-  // Track which messages object we've already added (by reference) so the
-  // by-identity guard absorbs StrictMode-double-mount and re-renders with a
-  // stable messages prop.
+  // By-identity guard so StrictMode double-mount and stable-prop re-renders
+  // don't re-apply the same messages object.
   const lastAddedMessagesRef = useRef<MessagesMap | undefined>(undefined);
 
-  // Synchronize locale and messages BEFORE the first commit on both server
-  // and client. The `useState` initializer is React's blessed location for
-  // once-per-instance setup that must complete before descendants render;
-  // it replaces the prior render-body mutation pattern (audit Dim 3 P1 —
-  // ADR docs/adr/0001-i18n-locale-source.md).
-  //
-  // The Architect's iter-1 review correctly noted that this is a render-
-  // purity / code-style improvement rather than a correctness fix: the
-  // prior code was already idempotent via `isFirstRenderRef`. But hoisting
-  // the side effect into a recognised React lifecycle slot pays off when
-  // React Compiler / stricter dev-mode warnings start flagging
-  // side-effects-in-render unconditionally.
+  // Sync locale + messages before the first commit, on both server and client.
   useState(() => {
     syncLocaleSafely(i18n, locale, routing);
     if (messages && messages !== lastAddedMessagesRef.current) {
@@ -155,8 +138,7 @@ export function I18nProvider({
     return null;
   });
 
-  // For subsequent renders (client-side navigation, HMR, prop updates),
-  // useIsomorphicLayoutEffect keeps i18n in sync BEFORE the next paint.
+  // Subsequent renders (client navigation, HMR, prop updates).
   useIsomorphicLayoutEffect(() => {
     syncLocaleSafely(i18n, locale, routing);
 

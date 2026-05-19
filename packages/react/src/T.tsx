@@ -184,9 +184,7 @@ const TComponent = function T({
     [key: string]: unknown;
   };
 
-  // Tag-handler bags. Only allocated when the consumer passes a `components`
-  // prop — the common case is `undefined`, in which case both stay null and
-  // 0 ephemeral objects are produced per <T> render (Dim 12 P2 in audit).
+  // Only allocate when consumer passes a `components` prop.
   let reactHandlers: Map<string, (children: React.ReactNode[]) => React.ReactElement> | null = null;
   let tagHandlers: Record<string, (params: TagCallbackParams) => VirtualNode | string> | null =
     null;
@@ -220,7 +218,6 @@ const TComponent = function T({
         tagHandlers[tagName] = ({ children }: TagCallbackParams) =>
           createVirtualElement(handler, {}, childrenToArray(children));
       } else if (React.isValidElement(handler)) {
-        // v0.3 W4 D2 — migrated React.cloneElement to composition; closes Dim 12 P3 in AUDIT-FINDINGS.md.
         registerHandler(tagName, (children) =>
           React.createElement(handler.type, handler.props, ...children),
         );
@@ -230,7 +227,6 @@ const TComponent = function T({
     }
   }
 
-  // Merge explicit params with rest props and tag handlers (spread of null/empty is a no-op)
   const allParams = { ...params, ...cleanRestProps, ...(tagHandlers ?? undefined) };
 
   const keyString = String(i18nKey);

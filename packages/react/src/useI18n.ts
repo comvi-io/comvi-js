@@ -94,7 +94,6 @@ function translationResultToString(result: TranslationResult): string {
   return text;
 }
 
-/** Methods bound directly from i18n instance */
 const BIND_METHODS = [
   "addTranslations",
   "addActiveNamespace",
@@ -116,12 +115,7 @@ const BIND_METHODS = [
 ] as const;
 
 export interface UseI18nReturn {
-  /**
-   * Translation function - namespaced keys (when ns is provided)
-   *
-   * Always returns plain text. If core returns structured output
-   * (e.g. VirtualNode arrays), it's flattened to string.
-   */
+  /** Translate a namespaced key. Returns plain text; for rich-text use `tRaw()` or `<T>`. */
   t<
     NS extends import("@comvi/core").Namespaces,
     K extends import("@comvi/core").NamespacedKeys<NS>,
@@ -129,25 +123,15 @@ export interface UseI18nReturn {
     key: K,
     ...params: import("@comvi/core").NamespacedParamsArg<NS, K>
   ): string;
-
-  /**
-   * Translation function - typed keys
-   *
-   * Always returns plain text.
-   * For rich-text/tag interpolation rendering, use `tRaw()` or the `<T>` component instead.
-   */
+  /** Translate a typed key. Returns plain text. */
   t<K extends import("@comvi/core").DefaultNsKeys>(
     key: K,
     ...params: import("@comvi/core").ParamsArg<K>
   ): string;
-
-  /** Permissive overload - only active when TranslationKeys is empty */
+  /** Permissive overload — active only when `TranslationKeys` is empty. */
   t(key: import("@comvi/core").PermissiveKey, params?: TranslationParams): string;
 
-  /**
-   * Raw translation function returning full core TranslationResult.
-   * Use this for advanced scenarios that need structured output.
-   */
+  /** Raw translation function returning the full core `TranslationResult` (string or structured array). */
   tRaw<
     NS extends import("@comvi/core").Namespaces,
     K extends import("@comvi/core").NamespacedKeys<NS>,
@@ -161,232 +145,89 @@ export interface UseI18nReturn {
   ): TranslationResult;
   tRaw(key: import("@comvi/core").PermissiveKey, params?: TranslationParams): TranslationResult;
 
-  /** Current locale */
   locale: string;
-
-  /** Translation cache */
   translationCache: ReadonlyMap<string, FlattenedTranslations>;
-
-  /** Loading state */
   isLoading: boolean;
-
-  /** Initializing state */
   isInitializing: boolean;
 
-  // ===== Critical Methods =====
-
-  /** Change the current locale and wait for translations to load */
+  /** Change the current locale and wait for translations to load. */
   setLocale: (locale: string) => Promise<void>;
-
-  /** Add translations programmatically at runtime */
+  /** Add translations programmatically at runtime. */
   addTranslations: (translations: Record<string, Record<string, TranslationValue>>) => void;
-
-  /** Load a new namespace dynamically */
+  /** Load a new namespace dynamically. */
   addActiveNamespace: (namespace: string) => Promise<void>;
 
-  // ===== Advanced Methods =====
-
-  /** Configure fallback locale chain */
+  /** Configure fallback locale chain. */
   setFallbackLocale: (locales: string | string[]) => void;
-
-  /** Register callback for missing keys */
+  /** Register callback for missing keys. */
   onMissingKey: (
     callback: (key: string, locale: string, namespace: string) => string | void,
   ) => () => void;
-
-  /** Register callback for load errors */
+  /** Register callback for load errors. */
   onLoadError: (callback: (locale: string, namespace: string, error: Error) => void) => () => void;
-
-  /** Clear translations from cache */
+  /** Clear translations from cache. */
   clearTranslations: (locale?: string, namespace?: string) => void;
-
-  /** Force reload translations from loader */
+  /** Force reload translations from loader. */
   reloadTranslations: (locale?: string, namespace?: string) => Promise<void>;
 
-  // ===== Informational Methods =====
-
-  /** Check if a locale is loaded for a namespace */
+  /** Check if a locale is loaded for a namespace. */
   hasLocale: (locale: string, namespace?: string) => boolean;
-
-  /** Check if a translation exists */
+  /** Check if a translation exists. */
   hasTranslation: (
     key: string,
     locale?: string,
     namespace?: string,
     checkFallbacks?: boolean,
   ) => boolean;
-
-  /** Get list of all loaded locale codes */
+  /** Get list of all loaded locale codes. */
   getLoadedLocales: () => string[];
-
-  /** Get list of active namespaces */
+  /** Get list of active namespaces. */
   getActiveNamespaces: () => string[];
-
-  /** Get default namespace */
+  /** Get default namespace. */
   getDefaultNamespace: () => string;
 
-  // ===== Formatting =====
-
-  /** Format a number using the current language locale */
+  /** Format a number using the current locale. */
   formatNumber: (value: number, options?: Intl.NumberFormatOptions) => string;
-
-  /** Format a date using the current language locale */
+  /** Format a date using the current locale. */
   formatDate: (value: Date | number, options?: Intl.DateTimeFormatOptions) => string;
-
-  /** Format a number as currency using the current language locale */
+  /** Format a number as currency using the current locale. */
   formatCurrency: (value: number, currency: string, options?: Intl.NumberFormatOptions) => string;
-
-  /** Format a relative time ("2 hours ago", "in 3 days") using the current language locale */
+  /** Format a relative time ("2 hours ago"). */
   formatRelativeTime: (
     value: number,
     unit: Intl.RelativeTimeFormatUnit,
     options?: Intl.RelativeTimeFormatOptions,
   ) => string;
 
-  /** Text direction for the current language ("ltr" or "rtl") */
+  /** Text direction for the current locale. */
   dir: "ltr" | "rtl";
 
-  // ===== Event Subscription =====
-
-  /**
-   * Subscribe to i18n events
-   * Provides direct access to core event system for advanced use cases
-   *
-   * @example
-   * ```tsx
-   * import { useI18n } from '@comvi/react';
-   * import { useEffect } from 'react';
-   *
-   * function MyComponent() {
-   *   const { on } = useI18n();
-   *
-   *   useEffect(() => {
-   *     const unsubscribe = on('localeChanged', ({ from, to }) => {
-   *       analytics.track('locale_changed', { from, to });
-   *     });
-   *
-   *     return () => unsubscribe();
-   *   }, [on]);
-   *
-   *   return <div>...</div>;
-   * }
-   * ```
-   */
+  /** Subscribe to i18n events. Returns an unsubscribe function. */
   on: <E extends I18nEvent>(event: E, callback: (payload: I18nEventData[E]) => void) => () => void;
-
-  /** Report an error to the configured onError handler */
+  /** Report an error to the configured onError handler. */
   reportError: I18n["reportError"];
 }
 
 /**
- * Hook to access i18n functionality in React components
- * Must be used within an I18nProvider
- *
- * @param ns - Optional namespace to scope translations to
- * @returns Object with translation function, reactive state, and i18n methods
- *
- * @example Basic usage
- * ```tsx
- * import { useI18n } from '@comvi/react';
- *
- * function MyComponent() {
- *   const { t, locale } = useI18n();
- *
- *   return (
- *     <div>
- *       <p>{t('greeting')}</p>
- *       <p>Current locale: {locale}</p>
- *     </div>
- *   );
- * }
- * ```
- *
- * @example Dynamic namespace loading
- * ```tsx
- * import { useI18n } from '@comvi/react';
- * import { useState } from 'react';
- *
- * function Dashboard() {
- *   const { t, addActiveNamespace, isLoading } = useI18n();
- *   const [showDashboard, setShowDashboard] = useState(false);
- *
- *   const loadDashboard = async () => {
- *     await addActiveNamespace('dashboard');
- *     setShowDashboard(true);
- *   };
- *
- *   return (
- *     <div>
- *       {!showDashboard ? (
- *         <button onClick={loadDashboard}>
- *           Load Dashboard
- *         </button>
- *       ) : (
- *         <div>{t('title', { ns: 'dashboard' })}</div>
- *       )}
- *     </div>
- *   );
- * }
- * ```
- *
- * @example Adding translations at runtime
- * ```tsx
- * import { useI18n } from '@comvi/react';
- * import { useEffect } from 'react';
- *
- * function MyComponent() {
- *   const { t, addTranslations } = useI18n();
- *
- *   useEffect(() => {
- *     addTranslations({
- *       en: { dynamic: 'Dynamic value' },
- *       fr: { dynamic: 'Valeur dynamique' }
- *     });
- *   }, [addTranslations]);
- *
- *   return <div>{t('dynamic')}</div>;
- * }
- * ```
+ * Access i18n functionality in React components. Must be used within an `<I18nProvider>`.
  *
  * @remarks
- * Re-render behavior: Components using this hook will re-render when any
- * reactive state (locale, translations, isLoading) changes. This is
- * expected and ensures your UI stays in sync with the i18n state.
+ * Returns a NEW object every render — destructure the fields you need rather
+ * than passing the whole return value to `useEffect` deps. For locale-only
+ * consumers, prefer the `useLocale()` selector hook.
  *
- * For performance optimization, use React.memo() on components that should
- * skip re-renders when their props haven't changed.
- *
- * **Identity warning (W1.5 / W4):** `useI18n()` returns a NEW object on
- * every call — this is idiomatic for hooks of this shape (`useForm`,
- * `useQuery`, etc.) but means you should DESTRUCTURE the fields you need
- * instead of passing the whole return value to a `useEffect` deps array:
- *
+ * @example
  * ```tsx
- * // ❌ Effect runs on every render — the bag identity churns
- * const i18n = useI18n();
- * useEffect(() => analytics.track(i18n.locale), [i18n]);
- *
- * // ✅ Effect runs only when locale actually changes
- * const { locale } = useI18n();
- * useEffect(() => analytics.track(locale), [locale]);
+ * function Greeting() {
+ *   const { t, locale } = useI18n();
+ *   return <p>{t('greeting')} ({locale})</p>;
+ * }
  * ```
- *
- * For locale-only consumers, prefer the `useLocale()` selector hook which
- * subscribes ONLY to the locale axis (no re-renders on namespace loads or
- * loading-state changes).
  */
 export function useI18n(ns?: string): UseI18nReturn {
   const { i18n, isLoading, isInitializing } = useI18nInstance();
-  // LocaleContext has a `null` default so `useLocale()` can detect
-  // outside-provider use without subscribing to InstanceContext. Inside
-  // useI18n we've already validated provider presence via
-  // useI18nInstance(); locale is guaranteed non-null here, but TS sees
-  // `string | null` so we narrow with `??`.
   const locale = useContext(LocaleContext) ?? "";
 
-  // Subscribe to cache events here (NOT via context) so non-translation
-  // consumers (Link / usePathname via useLocale) do not re-render on
-  // namespace loads. See AUDIT-FINDINGS.md Dim 4 P1.
   const subCache = useSubscribe(i18n, "namespaceLoaded", "initialized", "translationsCleared");
   useSyncExternalStore(
     subCache,
@@ -395,17 +236,10 @@ export function useI18n(ns?: string): UseI18nReturn {
   );
   const translationCache = i18n.translationCache.getInternalMap();
 
-  // Raw bound translation. Needed by <T> and advanced integrations.
-  // W1.1 fold-in: capture the React-tracked `locale` in the closure and
-  // inject it into every call. Without this, createBoundTranslation reads
-  // `i18n.locale` at call time — which can tear during a startTransition
-  // that mutates the instance locale before the new tree commits. See
-  // AUDIT-FINDINGS.md Dim 6 P2 + ADR docs/adr/0001-i18n-locale-source.md.
-  // Explicit `locale` in user params overrides the tracked value via
-  // spread order: `{ locale, ...params }`.
+  // Inject the React-tracked `locale` into every bound call so descendant
+  // translations resolve against the render-time locale (not the mutable
+  // instance locale). Explicit `params.locale` wins via spread order.
   const tRaw = useMemo(() => {
-    // Project to the permissive shape locally so the wrapper can pass a
-    // params object cleanly through the overload union.
     const bound = createBoundTranslation(i18n, ns) as (
       key: string,
       params?: TranslationParams,
@@ -415,7 +249,6 @@ export function useI18n(ns?: string): UseI18nReturn {
     return wrapper as UseI18nReturn["tRaw"];
   }, [i18n, ns, locale]);
 
-  // Text-only translation helper for regular UI copy.
   const t = useMemo(
     () =>
       ((key: string, params?: TranslationParams) =>
@@ -423,22 +256,14 @@ export function useI18n(ns?: string): UseI18nReturn {
     [tRaw],
   );
 
-  // Memoize ALL methods for referential stability in useEffect dependency arrays
   const boundMethods = useMemo(() => {
     type BoundName = (typeof BIND_METHODS)[number];
     type Bound = { [K in BoundName]: I18n[K] };
-
-    // Build via a wider write-only Record view, then re-cast to the strict
-    // mapped type. TS can't track that a `for...of` loop covers every
-    // member, so writes through the mapped type require an intersection of
-    // all call signatures — `Record<BoundName, unknown>` sidesteps that
-    // while preserving the outer `Bound` shape for callers.
     const methods = {} as Bound;
     const bag = methods as Record<BoundName, unknown>;
     for (const m of BIND_METHODS) {
       bag[m] = (i18n[m] as (...args: unknown[]) => unknown).bind(i18n);
     }
-
     return {
       ...methods,
       setLocale: (loc: string) => i18n.setLocaleAsync(loc),

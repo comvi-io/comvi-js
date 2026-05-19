@@ -1192,24 +1192,17 @@ export class I18n implements I18nInstance {
     return fmt;
   }
 
-  /**
-   * Format a number. Uses the instance locale unless `locale` is passed.
-   *
-   * The optional `locale` override exists primarily for framework bindings
-   * (e.g. `@comvi/react` `useFormatters()`) that want to thread the
-   * React-tracked locale through formatters so updates stay in sync with
-   * concurrent rendering. Non-framework callers can omit it.
-   */
+  /** Format a number. Uses the instance locale unless `locale` is passed. */
   formatNumber(value: number, options?: Intl.NumberFormatOptions, locale?: string): string {
     return this._getNumberFormat(options, locale).format(value);
   }
 
-  /** See {@link formatNumber} for the optional `locale` rationale. */
+  /** Format a date. Uses the instance locale unless `locale` is passed. */
   formatDate(value: Date | number, options?: Intl.DateTimeFormatOptions, locale?: string): string {
     return this._getDateFormat(options, locale).format(value);
   }
 
-  /** See {@link formatNumber} for the optional `locale` rationale. */
+  /** Format a number as currency. Uses the instance locale unless `locale` is passed. */
   formatCurrency(
     value: number,
     currency: string,
@@ -1219,7 +1212,7 @@ export class I18n implements I18nInstance {
     return this._getNumberFormat({ ...options, style: "currency", currency }, locale).format(value);
   }
 
-  /** See {@link formatNumber} for the optional `locale` rationale. */
+  /** Format a relative time. Uses the instance locale unless `locale` is passed. */
   formatRelativeTime(
     value: number,
     unit: Intl.RelativeTimeFormatUnit,
