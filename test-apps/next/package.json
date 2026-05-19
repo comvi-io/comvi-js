@@ -8,7 +8,9 @@
     "typecheck": "tsc --noEmit",
     "start": "next start",
     "lint": "eslint . --max-warnings=0",
-    "lint:fix": "eslint . --fix"
+    "lint:fix": "eslint . --fix",
+    "test:e2e": "playwright test",
+    "test:e2e:install": "playwright install --with-deps chromium"
   },
   "dependencies": {
     "@comvi/next": "workspace:*",
@@ -17,6 +19,7 @@
     "react-dom": "^19.2.4"
   },
   "devDependencies": {
+    "@playwright/test": "^1.52.0",
     "@next/eslint-plugin-next": "^15.5.9",
     "@tailwindcss/postcss": "^4.2.2",
     "@types/node": "^22",
