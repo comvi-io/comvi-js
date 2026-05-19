@@ -184,32 +184,37 @@ const TComponent = function T({
     [key: string]: unknown;
   };
 
-  // Store React handlers for later rendering
-  const reactHandlers = new Map<string, (children: React.ReactNode[]) => React.ReactElement>();
-  const tagHandlers: Record<string, (params: TagCallbackParams) => VirtualNode | string> = {};
-
-  // Register a React handler with its marker tag handler
-  const registerHandler = (
-    tagName: string,
-    reactHandler: (children: React.ReactNode[]) => React.ReactElement,
-  ) => {
-    reactHandlers.set(tagName, (children) => {
-      try {
-        return reactHandler(children);
-      } catch (error) {
-        reportError(error, { source: "translation", tagName });
-        return <>{children}</>;
-      }
-    });
-    tagHandlers[tagName] = ({ children }: TagCallbackParams) =>
-      createVirtualElement(
-        `${MARKER_PREFIX}${tagName}${MARKER_SUFFIX}`,
-        {},
-        childrenToArray(children),
-      );
-  };
+  // Tag-handler bags. Only allocated when the consumer passes a `components`
+  // prop — the common case is `undefined`, in which case both stay null and
+  // 0 ephemeral objects are produced per <T> render (Dim 12 P2 in audit).
+  let reactHandlers: Map<string, (children: React.ReactNode[]) => React.ReactElement> | null = null;
+  let tagHandlers: Record<string, (params: TagCallbackParams) => VirtualNode | string> | null =
+    null;
 
   if (components) {
+    reactHandlers = new Map();
+    tagHandlers = {};
+
+    const registerHandler = (
+      tagName: string,
+      reactHandler: (children: React.ReactNode[]) => React.ReactElement,
+    ) => {
+      reactHandlers!.set(tagName, (children) => {
+        try {
+          return reactHandler(children);
+        } catch (error) {
+          reportError(error, { source: "translation", tagName });
+          return <>{children}</>;
+        }
+      });
+      tagHandlers![tagName] = ({ children }: TagCallbackParams) =>
+        createVirtualElement(
+          `${MARKER_PREFIX}${tagName}${MARKER_SUFFIX}`,
+          {},
+          childrenToArray(children),
+        );
+    };
+
     for (const [tagName, handler] of Object.entries(components)) {
       if (typeof handler === "string") {
         tagHandlers[tagName] = ({ children }: TagCallbackParams) =>
@@ -222,8 +227,8 @@ const TComponent = function T({
     }
   }
 
-  // Merge explicit params with rest props and tag handlers
-  const allParams = { ...params, ...cleanRestProps, ...tagHandlers };
+  // Merge explicit params with rest props and tag handlers (spread of null/empty is a no-op)
+  const allParams = { ...params, ...cleanRestProps, ...(tagHandlers ?? undefined) };
 
   const keyString = String(i18nKey);
   const targetLocale = locale ?? currentLocale;
@@ -317,7 +322,7 @@ const TComponent = function T({
     // Check for React component marker
     if (tag.startsWith(MARKER_PREFIX) && tag.endsWith(MARKER_SUFFIX)) {
       const handlerName = tag.slice(MARKER_PREFIX.length, -MARKER_SUFFIX.length);
-      const handler = reactHandlers.get(handlerName);
+      const handler = reactHandlers?.get(handlerName);
       if (handler) {
         try {
           return React.cloneElement(handler(convertedChildren), { key: reactKey });
