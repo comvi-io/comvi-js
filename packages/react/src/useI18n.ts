@@ -355,6 +355,25 @@ export interface UseI18nReturn {
  *
  * For performance optimization, use React.memo() on components that should
  * skip re-renders when their props haven't changed.
+ *
+ * **Identity warning (W1.5 / W4):** `useI18n()` returns a NEW object on
+ * every call — this is idiomatic for hooks of this shape (`useForm`,
+ * `useQuery`, etc.) but means you should DESTRUCTURE the fields you need
+ * instead of passing the whole return value to a `useEffect` deps array:
+ *
+ * ```tsx
+ * // ❌ Effect runs on every render — the bag identity churns
+ * const i18n = useI18n();
+ * useEffect(() => analytics.track(i18n.locale), [i18n]);
+ *
+ * // ✅ Effect runs only when locale actually changes
+ * const { locale } = useI18n();
+ * useEffect(() => analytics.track(locale), [locale]);
+ * ```
+ *
+ * For locale-only consumers, prefer the `useLocale()` selector hook which
+ * subscribes ONLY to the locale axis (no re-renders on namespace loads or
+ * loading-state changes).
  */
 export function useI18n(ns?: string): UseI18nReturn {
   const { i18n, isLoading, isInitializing } = useI18nInstance();
