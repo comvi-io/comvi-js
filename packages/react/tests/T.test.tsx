@@ -148,7 +148,12 @@ describe("<T />", () => {
     );
   });
 
-  it("reports and degrades when React.cloneElement throws for element handlers", () => {
+  it("reports and degrades when a function handler throws synchronously", () => {
+    // v0.3 W4 D2 — previously asserted recovery from a `React.cloneElement`
+    // throw via vi.spyOn. After D2 migrated Site 1 to `React.createElement`
+    // (which itself does not throw at render time), the equivalent path
+    // exercised by the same registerHandler try/catch is a function handler
+    // that throws synchronously when invoked.
     const reportError = vi.fn();
     const t = vi.fn((_key: string, params?: TranslationParams) => {
       const node = (params?.link as (args: { children: string; name: string }) => unknown)({
@@ -157,21 +162,18 @@ describe("<T />", () => {
       });
       return ["Click ", node] as unknown as TranslationResult;
     });
-    const cloneSpy = vi.spyOn(React, "cloneElement");
-    cloneSpy.mockImplementationOnce(() => {
-      throw new Error("clone failed");
+    const badHandler = vi.fn(() => {
+      throw new Error("handler failed");
     });
     mockUseI18n.mockReturnValue(createHookStub({ t, reportError }));
 
-    render(<T i18nKey="msg" components={{ link: <a href="/help" /> }} />);
+    render(<T i18nKey="msg" components={{ link: badHandler }} />);
 
     expect(screen.getByText("Click here").textContent).toBe("Click here");
     expect(reportError).toHaveBeenCalledWith(
       expect.any(Error),
       expect.objectContaining({ source: "translation", tagName: "link" }),
     );
-
-    cloneSpy.mockRestore();
   });
 
   it("keeps raw React nodes from translation result arrays", () => {

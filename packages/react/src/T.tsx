@@ -220,7 +220,10 @@ const TComponent = function T({
         tagHandlers[tagName] = ({ children }: TagCallbackParams) =>
           createVirtualElement(handler, {}, childrenToArray(children));
       } else if (React.isValidElement(handler)) {
-        registerHandler(tagName, (children) => React.cloneElement(handler, undefined, ...children));
+        // v0.3 W4 D2 — migrated React.cloneElement to composition; closes Dim 12 P3 in AUDIT-FINDINGS.md.
+        registerHandler(tagName, (children) =>
+          React.createElement(handler.type, handler.props, ...children),
+        );
       } else if (typeof handler === "function") {
         registerHandler(tagName, (children) => handler({ children: <>{children}</> }));
       }
@@ -325,7 +328,11 @@ const TComponent = function T({
       const handler = reactHandlers?.get(handlerName);
       if (handler) {
         try {
-          return React.cloneElement(handler(convertedChildren), { key: reactKey });
+          const result = handler(convertedChildren);
+          if (!React.isValidElement(result)) {
+            throw new Error(`Tag handler for "${handlerName}" must return a React element`);
+          }
+          return <React.Fragment key={reactKey}>{result}</React.Fragment>;
         } catch (error) {
           reportError(error, { source: "translation", tagName: handlerName });
           return <React.Fragment key={`${keyString}-${index}`}>{convertedChildren}</React.Fragment>;
