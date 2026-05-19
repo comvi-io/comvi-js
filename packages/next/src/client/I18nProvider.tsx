@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useLayoutEffect, useEffect, useRef } from "react";
+import React, { useLayoutEffect, useEffect, useRef, useState } from "react";
 import { I18nProvider as ReactI18nProvider } from "@comvi/react";
 
 // Safe isomorphic layout effect to avoid React warnings during SSR
@@ -37,9 +37,6 @@ export interface I18nProviderProps extends Omit<ReactI18nProviderProps, "ssrInit
    */
   routing?: RoutingConfig;
 }
-
-// Check if we're on the server
-const isServer = typeof window === "undefined";
 
 /**
  * Validate `locale` against `routing.locales` (when routing is provided).
@@ -132,33 +129,34 @@ export function I18nProvider({
   routing,
   ...props
 }: I18nProviderProps) {
-  // Track which messages object we've already added (by reference)
+  // Track which messages object we've already added (by reference) so the
+  // by-identity guard absorbs StrictMode-double-mount and re-renders with a
+  // stable messages prop.
   const lastAddedMessagesRef = useRef<MessagesMap | undefined>(undefined);
-  const isFirstRenderRef = useRef(true);
 
-  // Synchronize locale and messages during render (before children render)
+  // Synchronize locale and messages BEFORE the first commit on both server
+  // and client. The `useState` initializer is React's blessed location for
+  // once-per-instance setup that must complete before descendants render;
+  // it replaces the prior render-body mutation pattern (audit Dim 3 P1 —
+  // ADR docs/adr/0001-i18n-locale-source.md).
   //
-  // On SERVER: Always sync - each request needs correct locale.
-  // On CLIENT (first render): Sync once for hydration - i18n.t() reads i18n.locale directly,
-  //   so we must set it before render to avoid using defaultLocale on first paint.
-  // On CLIENT (subsequent): Use useIsomorphicLayoutEffect to avoid "setState during render".
-  const shouldSyncDuringRender = isServer || isFirstRenderRef.current;
-
-  if (shouldSyncDuringRender) {
+  // The Architect's iter-1 review correctly noted that this is a render-
+  // purity / code-style improvement rather than a correctness fix: the
+  // prior code was already idempotent via `isFirstRenderRef`. But hoisting
+  // the side effect into a recognised React lifecycle slot pays off when
+  // React Compiler / stricter dev-mode warnings start flagging
+  // side-effects-in-render unconditionally.
+  useState(() => {
     syncLocaleSafely(i18n, locale, routing);
-
     if (messages && messages !== lastAddedMessagesRef.current) {
       i18n.addTranslations(messages);
       lastAddedMessagesRef.current = messages;
     }
+    return null;
+  });
 
-    if (!isServer) {
-      isFirstRenderRef.current = false;
-    }
-  }
-
-  // For ALL subsequent renders (client-side navigation, HMR, etc.),
-  // update in useIsomorphicLayoutEffect to avoid "setState during render" errors.
+  // For subsequent renders (client-side navigation, HMR, prop updates),
+  // useIsomorphicLayoutEffect keeps i18n in sync BEFORE the next paint.
   useIsomorphicLayoutEffect(() => {
     syncLocaleSafely(i18n, locale, routing);
 
