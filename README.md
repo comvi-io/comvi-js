@@ -39,7 +39,7 @@
 - **Rich text without XSS.** Embed components into translations (`Click <link>here</link>`) without raw HTML strings or unsafe DOM injection.
 - **Same API across six frameworks.** `useI18n()` and the `<T>` component look the same in Vue, React, SolidJS, Svelte, Next.js, and Nuxt. All bindings ship together with the core — same version, same release cycle.
 - **ICU `plural`, `selectordinal` & `select`.** Locale-correct grammar for every language `Intl.PluralRules` supports. Numbers, dates, currency, and relative time are formatted via native `Intl` methods on the `i18n` instance.
-- **~8 kB gzipped core, zero dependencies.** No `eval` or `new Function` in any runtime package — works under a strict CSP without `unsafe-eval`.
+- **~8 kB minified + gzipped core (as bundled by your app), zero dependencies.** No `eval` or `new Function` in any runtime package — works under a strict CSP without `unsafe-eval`.
 - **Pluggable loading & detection.** Translations come from inline objects, local JSON, or a CDN/API loader plugin. Locale detection (query, cookie, storage, `navigator`) is a separate plugin you opt into.
 - **Server-side rendering for Next.js & Nuxt.** `@comvi/next` ships an App Router `loadTranslations()` for server components, locale-routed layouts under `[locale]`, and a `createMiddleware()` for redirect-on-detect. `@comvi/nuxt` is a Nuxt 3 module with locale composables, middleware, and `<NuxtLinkLocale>`.
 

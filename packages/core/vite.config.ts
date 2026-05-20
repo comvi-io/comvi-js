@@ -10,16 +10,11 @@ export default defineConfig({
       insertTypesEntry: true,
     }),
   ],
-  build: {
-    ...createLibraryBuildOptions({
-      entry: resolve(__dirname, "src/index.ts"),
-      name: "ComviCore",
-      fileNames: { es: "comvi-core.js", cjs: "comvi-core.cjs" },
-    }),
-    // Skips Rolldown's bundle-level compress pass (only runs for "esbuild");
-    // per-output oxcMinifyOptions handles minification. Terser is never invoked.
-    minify: "terser",
-  },
+  build: createLibraryBuildOptions({
+    entry: resolve(__dirname, "src/index.ts"),
+    name: "ComviCore",
+    fileNames: { es: "comvi-core.js", cjs: "comvi-core.cjs" },
+  }),
   resolve: {
     alias: {
       "@": resolve(__dirname, "./src"),

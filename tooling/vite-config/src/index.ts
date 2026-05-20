@@ -163,33 +163,6 @@ export const treeshakeOptions = {
   propertyReadSideEffects: false as const,
 };
 
-/**
- * Oxc minifier options for aggressive minification
- */
-export const oxcMinifyOptions = {
-  compress: {
-    target: "es2020",
-    dropConsole: true,
-    dropDebugger: true,
-    unused: true,
-    joinVars: true,
-    sequences: true,
-    treeshake: {
-      annotations: true,
-      manualPureFunctions: ["console.log", "console.warn"],
-      propertyReadSideEffects: false,
-      unknownGlobalSideEffects: false,
-    },
-  },
-  mangle: {
-    toplevel: false,
-    keepNames: false,
-  },
-  codegen: {
-    removeWhitespace: true,
-  },
-};
-
 export interface LibraryBuildOptions {
   /** Library entry point */
   entry: string;
@@ -229,7 +202,8 @@ export function createLibraryBuildOptions(options: LibraryBuildOptions): BuildOp
       entry,
       name,
     },
-    minify: true,
+    minify: false,
+    sourcemap: true,
     rolldownOptions: {
       external,
       output: [
@@ -237,13 +211,11 @@ export function createLibraryBuildOptions(options: LibraryBuildOptions): BuildOp
           format: "es",
           entryFileNames: fileNames.es,
           globals,
-          minify: oxcMinifyOptions,
         },
         {
           format: "cjs",
           entryFileNames: fileNames.cjs,
           globals,
-          minify: oxcMinifyOptions,
         },
       ],
       treeshake: treeshakeOptions,
@@ -292,19 +264,18 @@ export function createPluginBuildOptions(options: PluginBuildOptions): BuildOpti
       entry,
       name,
     },
-    minify: true,
+    minify: false,
+    sourcemap: true,
     rolldownOptions: {
       external,
       output: [
         {
           format: "es",
           entryFileNames: fileNames.es,
-          minify: oxcMinifyOptions,
         },
         {
           format: "cjs",
           entryFileNames: fileNames.cjs,
-          minify: oxcMinifyOptions,
         },
       ],
       treeshake: treeshakeOptions,
