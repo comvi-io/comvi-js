@@ -1168,46 +1168,59 @@ export class I18n implements I18nInstance {
   private _numberFormatCache = new Map<string, Intl.NumberFormat>();
   private _dateFormatCache = new Map<string, Intl.DateTimeFormat>();
 
-  private _getNumberFormat(options?: Intl.NumberFormatOptions): Intl.NumberFormat {
-    const key = options ? JSON.stringify(options) : "";
-    const cacheKey = this._locale + key;
+  private _getNumberFormat(options?: Intl.NumberFormatOptions, locale?: string): Intl.NumberFormat {
+    const lc = locale ?? this._locale;
+    const cacheKey = JSON.stringify([lc, options ?? null]);
     let fmt = this._numberFormatCache.get(cacheKey);
     if (!fmt) {
-      fmt = new Intl.NumberFormat(this._locale, options);
+      fmt = new Intl.NumberFormat(lc, options);
       this._numberFormatCache.set(cacheKey, fmt);
     }
     return fmt;
   }
 
-  private _getDateFormat(options?: Intl.DateTimeFormatOptions): Intl.DateTimeFormat {
-    const key = options ? JSON.stringify(options) : "";
-    const cacheKey = this._locale + key;
+  private _getDateFormat(
+    options?: Intl.DateTimeFormatOptions,
+    locale?: string,
+  ): Intl.DateTimeFormat {
+    const lc = locale ?? this._locale;
+    const cacheKey = JSON.stringify([lc, options ?? null]);
     let fmt = this._dateFormatCache.get(cacheKey);
     if (!fmt) {
-      fmt = new Intl.DateTimeFormat(this._locale, options);
+      fmt = new Intl.DateTimeFormat(lc, options);
       this._dateFormatCache.set(cacheKey, fmt);
     }
     return fmt;
   }
 
-  formatNumber(value: number, options?: Intl.NumberFormatOptions): string {
-    return this._getNumberFormat(options).format(value);
+  /** Format a number. Uses the instance locale unless `locale` is passed. */
+  formatNumber(value: number, options?: Intl.NumberFormatOptions, locale?: string): string {
+    return this._getNumberFormat(options, locale).format(value);
   }
 
-  formatDate(value: Date | number, options?: Intl.DateTimeFormatOptions): string {
-    return this._getDateFormat(options).format(value);
+  /** Format a date. Uses the instance locale unless `locale` is passed. */
+  formatDate(value: Date | number, options?: Intl.DateTimeFormatOptions, locale?: string): string {
+    return this._getDateFormat(options, locale).format(value);
   }
 
-  formatCurrency(value: number, currency: string, options?: Intl.NumberFormatOptions): string {
-    return this._getNumberFormat({ ...options, style: "currency", currency }).format(value);
+  /** Format a number as currency. Uses the instance locale unless `locale` is passed. */
+  formatCurrency(
+    value: number,
+    currency: string,
+    options?: Intl.NumberFormatOptions,
+    locale?: string,
+  ): string {
+    return this._getNumberFormat({ ...options, style: "currency", currency }, locale).format(value);
   }
 
+  /** Format a relative time. Uses the instance locale unless `locale` is passed. */
   formatRelativeTime(
     value: number,
     unit: Intl.RelativeTimeFormatUnit,
     options?: Intl.RelativeTimeFormatOptions,
+    locale?: string,
   ): string {
-    return new Intl.RelativeTimeFormat(this._locale, options).format(value, unit);
+    return new Intl.RelativeTimeFormat(locale ?? this._locale, options).format(value, unit);
   }
 
   /**

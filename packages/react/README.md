@@ -17,7 +17,7 @@
 
 ---
 
-`@comvi/react` wraps [`@comvi/core`](../core) for React. `<I18nProvider>` mounts an instance and auto-initializes it; `useI18n()` reads from it via `useSyncExternalStore`, so re-renders are precise and concurrent-mode safe. Works with React 16.8+ via the `use-sync-external-store` shim.
+`@comvi/react` wraps [`@comvi/core`](../core) for React. `<I18nProvider>` mounts an instance and auto-initializes it; `useI18n()` reads from it via `useSyncExternalStore`, so re-renders are precise and concurrent-mode safe. Requires React 18+.
 
 Same `t()` and `<T>` API as the [Vue](../vue), [SolidJS](../solid), and [Svelte](../svelte) bindings — switch frameworks without relearning your i18n layer.
 
@@ -38,21 +38,24 @@ Comvi i18n is a modern, framework-agnostic internationalization library built on
 
 ## Why @comvi/react?
 
-- **Concurrent rendering safe.** Built on `useSyncExternalStore` — no tearing, safe with Suspense, Time Slicing, and Transitions.
-- **Broad version support.** Works with React 16.8+ through 19 (via `use-sync-external-store` polyfill), so teams on older versions don't need a major rewrite.
+- **Concurrent rendering safe.** Built on native `useSyncExternalStore` — no tearing, safe with Suspense, Time Slicing, and Transitions.
+- **Efficient re-renders.** Selector hooks (`useLocale()`, `useIsLoading()`) let you skip updates on axes you don't need.
 - **Provider auto-init.** Wrap your app in `<I18nProvider>` and it handles initialization automatically — no manual `i18n.init()` calls.
 
 ## Install
 
 ```bash
 npm install @comvi/react
-# Peer: react ^16.8 || ^17 || ^18 || ^19
+# Peer: react ^18.0.0 || ^19.0.0
 ```
+
+Upgrading from v0.2.x? See the [CHANGELOG](./CHANGELOG.md).
 
 ## Quick start
 
 ```tsx
 // main.tsx
+import React from "react";
 import { createRoot } from "react-dom/client";
 import { createI18n, I18nProvider } from "@comvi/react";
 import App from "./App";
@@ -92,6 +95,109 @@ export default function App() {
 ```
 
 For `<T>` rich-text components, type-safe keys, fetch-loader integration, and the full hook API, see the [documentation](https://comvi.io/docs/i18n/react/).
+
+## Error Boundaries
+
+Wrap `<I18nProvider>` in an Error Boundary to handle initialization failures gracefully:
+
+```tsx
+import React from "react";
+import { createRoot } from "react-dom/client";
+import { createI18n, I18nProvider } from "@comvi/react";
+import App from "./App";
+
+const i18n = createI18n({
+  locale: "en",
+  fallbackLocale: "en",
+  translation: {
+    /* ... */
+  },
+});
+
+class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean }> {
+  constructor(props: { children: React.ReactNode }) {
+    super(props);
+    this.state = { hasError: false };
+  }
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+  render() {
+    if (this.state.hasError) {
+      return <div>Failed to load translations. Please refresh the page.</div>;
+    }
+    return this.props.children;
+  }
+}
+
+createRoot(document.getElementById("root")!).render(
+  <ErrorBoundary>
+    <I18nProvider i18n={i18n}>
+      <App />
+    </I18nProvider>
+  </ErrorBoundary>,
+);
+```
+
+Alternatively, use a third-party Error Boundary library like [react-error-boundary](https://github.com/bvaughn/react-error-boundary).
+
+## Selector hooks (new in v0.3)
+
+For components that only need a slice of the i18n state, use these selector hooks to skip unnecessary re-renders.
+
+### `useLocale()` — locale only
+
+For routing, locale-aware UI, or anything that doesn't translate:
+
+```tsx
+import { useLocale } from "@comvi/react";
+
+function FlagIcon() {
+  const locale = useLocale();
+  return <img src={`/flags/${locale}.svg`} alt={locale} />;
+}
+```
+
+This hook skips re-renders on namespace loads and loading-state changes — only locale changes trigger updates.
+
+### `useIsLoading()` — loading state only
+
+For loading indicators and spinners:
+
+```tsx
+import { useIsLoading } from "@comvi/react";
+
+function LoadingIndicator() {
+  const { isLoading, isInitializing } = useIsLoading();
+  if (!isLoading && !isInitializing) return null;
+  return <div className="spinner" />;
+}
+```
+
+Skips re-renders on translation cache updates.
+
+## Using `useI18n()`
+
+`useI18n()` returns the full i18n bag: `{ i18n, locale, translationCache, isLoading, isInitializing, setLocale, t, tRaw, ... }`.
+
+```tsx
+import { useI18n } from "@comvi/react";
+
+function MyComponent() {
+  const { t, locale, setLocale } = useI18n();
+  return (
+    <>
+      <h1>{t("hello")}</h1>
+      <p>Current: {locale}</p>
+      <button onClick={() => setLocale("uk")}>Українська</button>
+    </>
+  );
+}
+```
+
+**Identity note:** In v0.3, `t` and `tRaw` identity changes on locale flip (intentional — the function now closes over the current locale). If you depend on their identity in `useEffect` dependencies, the effect will re-run when locale changes. For most code this is correct; if your effect should only run once, depend on the actual trigger instead.
+
+**Deprecation note:** `useI18nContext()` was the v0.2 hook for the same purpose. It still works through v0.3 but will be removed in v0.4 — use `useI18n()` instead.
 
 ## Rich text with `<T>`
 

@@ -35,7 +35,10 @@ describe("useI18n", () => {
     const { result } = renderHook(() => useI18n("admin"), { wrapper: createWrapper(fake) });
 
     expect(result.current.t("title" as never)).toBe("title|admin");
-    expect(fake.tRaw).toHaveBeenLastCalledWith("title", { ns: "admin" });
+    // tRaw injects the React-tracked locale into every call so translations
+    // resolve against the locale-at-render-time, not the mutable instance
+    // locale.
+    expect(fake.tRaw).toHaveBeenLastCalledWith("title", { ns: "admin", locale: "en" });
   });
 
   it("returns plain text from t() and keeps structured output in tRaw()", () => {
@@ -64,10 +67,14 @@ describe("useI18n", () => {
     expect(result.current.tRaw("title" as never)).toEqual(raw);
   });
 
-  it("keeps t() reference stable across locale updates", () => {
+  it("rebuilds t() reference on locale change so callers re-translate with new locale", () => {
+    // t/tRaw rebuild when locale changes so the closure captures the new
+    // React-tracked locale — identity churning is the intended behavior to
+    // prevent tearing during startTransition-wrapped locale flips.
     const fake = new FakeI18n();
     const { result } = renderHook(() => useI18n("admin"), { wrapper: createWrapper(fake) });
     const tBefore = result.current.t;
+    const tRawBefore = result.current.tRaw;
 
     act(() => {
       fake.language = "fr";
@@ -75,7 +82,8 @@ describe("useI18n", () => {
     });
 
     expect(result.current.locale).toBe("fr");
-    expect(result.current.t).toBe(tBefore);
+    expect(result.current.t).not.toBe(tBefore);
+    expect(result.current.tRaw).not.toBe(tRawBefore);
   });
 
   it("proxies setLocale() to i18n.setLocaleAsync()", async () => {
@@ -154,7 +162,7 @@ describe("useI18n", () => {
     console.error = vi.fn();
 
     expect(() => renderHook(() => useI18n())).toThrow(
-      "[i18n] useI18nContext must be used within an I18nProvider",
+      "[i18n] Hooks must be used within an I18nProvider",
     );
 
     console.error = originalError;
