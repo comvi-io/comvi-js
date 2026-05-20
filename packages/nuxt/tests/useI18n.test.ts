@@ -70,8 +70,8 @@ describe("useI18n composable", () => {
       { type: "element", tag: "strong", props: {}, children: ["Alice"] },
       "!",
     ]);
-    expect(api.locales).toEqual(mockRuntimeConfig.public.comvi.locales);
-    expect(api.defaultLocale).toBe(mockRuntimeConfig.public.comvi.defaultLocale);
+    expect(api.locales.value).toEqual(mockRuntimeConfig.public.comvi.locales);
+    expect(api.defaultLocale.value).toBe(mockRuntimeConfig.public.comvi.defaultLocale);
 
     await api.setLocale("de");
     expect(i18n.setLocale).toHaveBeenCalledWith("de");

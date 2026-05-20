@@ -76,7 +76,7 @@ describe("runtime plugin", () => {
         locale: "en",
         fallbackLocale: "en",
         defaultNs: "default",
-        ssrLanguage: "en",
+        ssrLocale: "en",
       }),
     );
     expect(runComviSetup).toHaveBeenCalledWith(
@@ -237,5 +237,44 @@ describe("runtime plugin", () => {
 
     expect(useCookieSpy).not.toHaveBeenCalled();
     useCookieSpy.mockRestore();
+  });
+
+  it("rich translation content with VirtualNode shape survives JSON round-trip hydration", async () => {
+    const i18n = createI18nStub("en");
+    i18n.addTranslations = vi.fn();
+    createI18n.mockReturnValue(i18n);
+
+    // Simulate SSR payload containing a translation with a VirtualNode-like structure
+    // (tag interpolation produces objects like { tag, props, children } in the cache)
+    const virtualNodeTranslation = {
+      tag: "strong",
+      props: {},
+      children: ["important text"],
+    };
+    const ssrTranslations = {
+      "en:default": {
+        greeting: "Hello",
+        highlighted: virtualNodeTranslation as unknown as string,
+      },
+    };
+
+    // Verify the structure survives JSON serialization (as happens in Nuxt payload transfer)
+    const serialized = JSON.parse(JSON.stringify(ssrTranslations));
+    expect(serialized["en:default"].highlighted).toEqual(virtualNodeTranslation);
+
+    const plugin = await importPlugin();
+    await plugin.setup(
+      createNuxtAppStub({
+        payload: {
+          __comvi_translations__: serialized,
+        },
+      }),
+    );
+
+    // addTranslations should receive the deserialized payload before init
+    expect(i18n.addTranslations).toHaveBeenCalledWith(serialized);
+    expect(i18n.addTranslations.mock.invocationCallOrder[0]).toBeLessThan(
+      i18n.init.mock.invocationCallOrder[0],
+    );
   });
 });

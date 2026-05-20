@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { createI18n, useI18n, T } from "../src";
 import { watch, computed, nextTick } from "vue";
-import { mount } from "@vue/test-utils";
+import { mount, flushPromises } from "@vue/test-utils";
 import { defineComponent, h } from "vue";
 
 const createDeferred = <T>() => {
@@ -328,6 +328,316 @@ describe("Reactive State Transitions", () => {
       await vi.waitFor(() => {
         expect(errorSpy).toHaveBeenCalledWith("fr", "common", expect.any(Error));
       });
+    });
+  });
+
+  describe("loadedLocales Reactivity", () => {
+    it("should update loadedLocales when translations are added", async () => {
+      const i18n = createI18n({
+        locale: "en",
+        defaultNs: "common",
+      });
+
+      await i18n.init();
+
+      expect(i18n.loadedLocales.value).not.toContain("fr");
+
+      i18n.addTranslations({ fr: { hello: "Bonjour" } });
+      await nextTick();
+
+      expect(i18n.loadedLocales.value).toContain("fr");
+    });
+
+    it("should update loadedLocales when a namespace is loaded via loader", async () => {
+      const loader = vi.fn(async (locale: string) => ({
+        [`hello_${locale}`]: `Hello in ${locale}`,
+      }));
+
+      const i18n = createI18n({
+        locale: "en",
+        defaultNs: "common",
+      });
+
+      i18n.use((i18n) => {
+        i18n.registerLoader(loader);
+      });
+
+      await i18n.init();
+
+      expect(i18n.loadedLocales.value).toContain("en");
+
+      await i18n.addActiveNamespace("admin");
+      await nextTick();
+
+      expect(i18n.loadedLocales.value).toContain("en");
+    });
+  });
+
+  describe("activeNamespaces Reactivity", () => {
+    it("should update activeNamespaces after addActiveNamespace", async () => {
+      const loader = vi.fn(async () => ({ title: "Admin" }));
+
+      const i18n = createI18n({
+        locale: "en",
+        defaultNs: "common",
+      });
+
+      i18n.use((i18n) => {
+        i18n.registerLoader(loader);
+      });
+
+      await i18n.init();
+
+      expect(i18n.activeNamespaces.value).not.toContain("admin");
+
+      await i18n.addActiveNamespace("admin");
+      await nextTick();
+
+      expect(i18n.activeNamespaces.value).toContain("admin");
+    });
+
+    it("should include defaultNs in activeNamespaces from the start", async () => {
+      const i18n = createI18n({
+        locale: "en",
+        defaultNs: "common",
+      });
+
+      await i18n.init();
+
+      expect(i18n.activeNamespaces.value).toContain("common");
+    });
+  });
+
+  describe("hasTranslation Reactivity", () => {
+    it("should reactively update when a translation is added", async () => {
+      const i18n = createI18n({
+        locale: "en",
+        defaultNs: "common",
+      });
+
+      await i18n.init();
+
+      const has = i18n.hasTranslation("greeting");
+      expect(has.value).toBe(false);
+
+      i18n.addTranslations({ en: { greeting: "Hello" } });
+      await nextTick();
+
+      expect(has.value).toBe(true);
+    });
+
+    it("should return false after translations are cleared", async () => {
+      const i18n = createI18n({
+        locale: "en",
+        defaultNs: "common",
+      });
+
+      await i18n.init();
+
+      i18n.addTranslations({ en: { greeting: "Hello" } });
+      await nextTick();
+
+      const has = i18n.hasTranslation("greeting");
+      expect(has.value).toBe(true);
+
+      i18n.clearTranslations("en", "common");
+      await nextTick();
+
+      expect(has.value).toBe(false);
+    });
+  });
+
+  describe("hasLocale Reactivity", () => {
+    it("should reactively update when a locale is added", async () => {
+      const i18n = createI18n({
+        locale: "en",
+        defaultNs: "common",
+      });
+
+      await i18n.init();
+
+      const isUk = i18n.hasLocale("uk");
+      expect(isUk.value).toBe(false);
+
+      i18n.addTranslations({ uk: { hello: "Привіт" } });
+      await nextTick();
+
+      expect(isUk.value).toBe(true);
+    });
+
+    it("should return false after locale translations are cleared", async () => {
+      const i18n = createI18n({
+        locale: "en",
+        defaultNs: "common",
+      });
+
+      await i18n.init();
+
+      i18n.addTranslations({ fr: { hello: "Bonjour" } });
+      await nextTick();
+
+      const isFr = i18n.hasLocale("fr");
+      expect(isFr.value).toBe(true);
+
+      i18n.clearTranslations("fr", "common");
+      await nextTick();
+
+      expect(isFr.value).toBe(false);
+    });
+  });
+
+  describe("Locale Setter Error Path", () => {
+    it("should route error to reportError (onError) and not call console.error", async () => {
+      const onError = vi.fn();
+      const loader = vi.fn(async (locale: string) => {
+        if (locale === "badlocale") {
+          throw new Error("locale load failed");
+        }
+        return { hello: "Hello" };
+      });
+
+      const i18n = createI18n({
+        locale: "en",
+        defaultNs: "common",
+        onError,
+      });
+
+      i18n.use((i18n) => {
+        i18n.registerLoader(loader);
+      });
+
+      await i18n.init();
+
+      const consoleErr = vi.spyOn(console, "error");
+
+      i18n.locale = "badlocale";
+      await flushPromises();
+
+      // Error must be routed through user's onError handler (not console.error).
+      // The exact `source` may be "namespace-load" (reported by core during
+      // namespace-loading failure) or "setLocale" (reported by VueI18n's catch
+      // wrapper); both are valid — what matters is no leak to console.
+      expect(onError).toHaveBeenCalled();
+      expect(consoleErr).not.toHaveBeenCalled();
+
+      consoleErr.mockRestore();
+    });
+  });
+
+  describe("setFallbackLocale + checkFallbacks reactivity", () => {
+    it("should update hasTranslation with checkFallbacks after setFallbackLocale", async () => {
+      const i18n = createI18n({
+        locale: "fr",
+        defaultNs: "common",
+      });
+
+      await i18n.init();
+
+      i18n.addTranslations({ en: { foo: "bar" } });
+
+      const hasFoo = i18n.hasTranslation("foo", { checkFallbacks: true });
+      expect(hasFoo.value).toBe(false);
+
+      i18n.setFallbackLocale("en");
+      await nextTick();
+
+      expect(hasFoo.value).toBe(true);
+    });
+  });
+
+  describe("addTranslations programmatic reactivity", () => {
+    it("should update t() result after addTranslations", async () => {
+      const i18n = createI18n({
+        locale: "en",
+        defaultNs: "common",
+      });
+
+      await i18n.init();
+
+      expect(i18n.t("foo")).toBe("foo");
+
+      i18n.addTranslations({ en: { foo: "bar" } });
+      await nextTick();
+
+      expect(i18n.t("foo")).toBe("bar");
+    });
+  });
+
+  describe("addActiveNamespace no-loader reactivity", () => {
+    it("should include namespace in activeNamespaces without a loader", async () => {
+      const i18n = createI18n({
+        locale: "en",
+        defaultNs: "common",
+      });
+
+      await i18n.init();
+
+      expect(i18n.activeNamespaces.value).not.toContain("admin");
+
+      await i18n.addActiveNamespace("admin");
+      await nextTick();
+
+      expect(i18n.activeNamespaces.value).toContain("admin");
+    });
+  });
+
+  describe("setDefaultNamespace artifact verification", () => {
+    it("should update defaultNamespace reactively after setDefaultNamespace", async () => {
+      const i18n = createI18n({
+        locale: "en",
+        defaultNs: "common",
+      });
+
+      await i18n.init();
+
+      expect(i18n.defaultNamespace.value).toBe("common");
+
+      // VueI18n doesn't proxy setDefaultNamespace; call via core cast
+      (
+        i18n as unknown as { _core: { setDefaultNamespace: (ns: string) => void } }
+      )._core.setDefaultNamespace("admin");
+      await nextTick();
+
+      expect(i18n.defaultNamespace.value).toBe("admin");
+    });
+  });
+
+  describe("translationCache Ref Identity", () => {
+    it("should return the same Ref instance across mutations", async () => {
+      const i18n = createI18n({
+        locale: "en",
+        defaultNs: "common",
+      });
+
+      await i18n.init();
+
+      const ref1 = i18n.translationCache;
+
+      i18n.addTranslations({ en: { foo: "bar" } });
+      await nextTick();
+
+      expect(i18n.translationCache).toBe(ref1);
+      // ref1.value is a ReadonlyMapView (Map-like). Duck-type the API surface.
+      expect(typeof ref1.value.has).toBe("function");
+      expect(typeof ref1.value.get).toBe("function");
+    });
+
+    it("should reflect updated translations in the same Ref after mutation", async () => {
+      const i18n = createI18n({
+        locale: "en",
+        defaultNs: "common",
+      });
+
+      await i18n.init();
+
+      const ref1 = i18n.translationCache;
+      expect(ref1.value.has("en:common")).toBe(false);
+
+      i18n.addTranslations({ en: { foo: "bar" } });
+      await nextTick();
+
+      expect(ref1.value.has("en:common")).toBe(true);
+      expect(i18n.translationCache).toBe(ref1);
     });
   });
 });

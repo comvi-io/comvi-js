@@ -28,7 +28,7 @@ function createEvent(runtimeConfigOverrides: Partial<any> = {}) {
             defaultLocale: "en",
             cookieName: "i18n_locale",
             defaultNs: "common",
-            fallbackLanguage: "en",
+            fallbackLocale: "en",
             detectBrowserLanguage: {
               useCookie: true,
               fallbackLocale: "en",
@@ -153,7 +153,7 @@ describe("useTranslation (server)", () => {
             defaultLocale: "en-US",
             cookieName: "i18n_locale",
             defaultNs: "common",
-            fallbackLanguage: "en-US",
+            fallbackLocale: "en-US",
             detectBrowserLanguage: {
               useCookie: true,
               fallbackLocale: "en-US",

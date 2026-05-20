@@ -1,4 +1,5 @@
-import { useRuntimeConfig, useState, useRouter } from "#app";
+import { useRuntimeConfig, useRouter } from "#app";
+import { useLocaleState } from "../utils/locale-state";
 import type { RouteLocationRaw } from "vue-router";
 import { stripLocalePrefix, buildLocalizedPath, splitPathAndSuffix } from "../utils/locale-path";
 
@@ -51,7 +52,7 @@ const toQueryString = (query: QueryRecord | undefined): string => {
 export function useLocalePath() {
   const config = useRuntimeConfig();
   const { locales, defaultLocale, localePrefix } = config.public.comvi;
-  const localeState = useState<string>("i18n-locale");
+  const localeState = useLocaleState();
   const router = useRouter();
 
   /**

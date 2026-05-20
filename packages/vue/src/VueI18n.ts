@@ -13,9 +13,10 @@ import {
   shallowRef,
   readonly,
   computed,
-  triggerRef,
   type Ref,
   type ShallowRef,
+  type ComputedRef,
+  type WritableComputedRef,
   type App,
 } from "vue";
 import { I18N_INJECTION_KEY } from "./keys";
@@ -25,39 +26,13 @@ import { translationResultToString } from "./utils";
  * Vue-specific i18n options extending core options
  */
 export interface VueI18nOptions extends I18nOptions {
-  /** @deprecated Use locale. */
-  language?: string;
-
   /**
    * Initial locale for SSR hydration.
    * Use this to prevent hydration mismatches when server renders with a different
    * locale than what the client would detect.
    */
-  ssrLanguage?: string;
+  ssrLocale?: string;
 }
-
-/** Methods delegated directly to the core (generated in constructor) */
-const PROXY_METHODS = [
-  "addTranslations",
-  "addActiveNamespace",
-  "clearTranslations",
-  "reloadTranslations",
-  "registerLoader",
-  "registerPostProcessor",
-  "onMissingKey",
-  "onLoadError",
-  "on",
-  "hasLocale",
-  "hasTranslation",
-  "setFallbackLocale",
-  "getDefaultNamespace",
-  "reportError",
-  "getActiveNamespaces",
-  "formatNumber",
-  "formatDate",
-  "formatCurrency",
-  "formatRelativeTime",
-] as const;
 
 /**
  * Vue-specific wrapper around the core I18n using composition
@@ -67,11 +42,12 @@ export class VueI18n {
   private _core: I18n;
 
   private _locale: ShallowRef<string>;
-  private _localeComputed?: import("vue").WritableComputedRef<string>;
+  private _localeComputed?: WritableComputedRef<string>;
   private _isLoading: ShallowRef<boolean>;
   private _isInitializing: ShallowRef<boolean>;
   private _cacheRevision: ShallowRef<number>;
-  private _translationCacheRef!: ShallowRef<Readonly<ReadonlyMap<string, FlattenedTranslations>>>;
+  private _configRevision: ShallowRef<number>;
+  private _translationCacheComputed?: ComputedRef<ReadonlyMap<string, FlattenedTranslations>>;
   private _unsubscribers: Array<() => void> = [];
   private _requestedLocale: string;
   private _localeQueue: Promise<void> = Promise.resolve();
@@ -103,25 +79,14 @@ export class VueI18n {
     event: E,
     callback: (payload: I18nEventData[E]) => void,
   ) => () => void;
-  declare hasLocale: (locale: string, namespace?: string) => boolean;
-  declare hasTranslation: (
-    key: string,
-    locale?: string,
-    namespace?: string,
-    checkFallbacks?: boolean,
-  ) => boolean;
-  declare getLoadedLocales: () => string[];
   declare setFallbackLocale: (locales: string | string[]) => void;
-  declare getDefaultNamespace: () => string;
   declare reportError: (error: unknown, context?: Parameters<I18n["reportError"]>[1]) => void;
-  declare getActiveNamespaces: () => string[];
   declare formatNumber: I18n["formatNumber"];
   declare formatDate: I18n["formatDate"];
   declare formatCurrency: I18n["formatCurrency"];
   declare formatRelativeTime: I18n["formatRelativeTime"];
-
   constructor(options: VueI18nOptions) {
-    const initialLocale = options.ssrLanguage ?? options.locale ?? options.language;
+    const initialLocale = options.ssrLocale ?? options.locale;
 
     this._core = new I18n({
       ...options,
@@ -133,11 +98,9 @@ export class VueI18n {
     this._isLoading = shallowRef(this._core.isLoading);
     this._isInitializing = shallowRef(this._core.isInitializing);
     this._cacheRevision = shallowRef(this._core.translationCache.getRevision());
-    this._translationCacheRef = shallowRef(this._core.translationCache.getInternalMap());
+    this._configRevision = shallowRef(0);
     const syncCache = () => {
       this._cacheRevision.value = this._core.translationCache.getRevision();
-      this._translationCacheRef.value = this._core.translationCache.getInternalMap();
-      triggerRef(this._translationCacheRef);
     };
 
     this._unsubscribers.push(
@@ -157,24 +120,44 @@ export class VueI18n {
         this._isInitializing.value = this._core.isInitializing;
       }),
       this._core.on("translationsCleared", syncCache),
+      this._core.on("defaultNamespaceChanged", () => {
+        syncCache();
+        this._configRevision.value++;
+      }),
+      this._core.on("configChanged", () => {
+        // Bump a separate revision so computed refs that depend on config
+        // (fallbackLocale, namespace activation without a loader, etc.) re-evaluate
+        // without interfering with _cacheRevision's sync to the real cache.
+        this._configRevision.value++;
+      }),
     );
 
-    // Generate proxy methods: late-bind through _core for spyability
+    // Explicit proxy bindings for spyability
     const core = this._core;
-    for (const m of PROXY_METHODS) {
-      (this as any)[m] = (...a: any[]) => (core[m] as any)(...a);
-    }
+    this.addTranslations = core.addTranslations.bind(core);
+    this.addActiveNamespace = core.addActiveNamespace.bind(core);
+    this.clearTranslations = core.clearTranslations.bind(core);
+    this.reloadTranslations = core.reloadTranslations.bind(core);
+    this.registerLoader = core.registerLoader.bind(core);
+    this.registerPostProcessor = core.registerPostProcessor.bind(core);
+    this.onMissingKey = core.onMissingKey.bind(core);
+    this.onLoadError = core.onLoadError.bind(core);
+    this.on = core.on.bind(core);
+    this.setFallbackLocale = core.setFallbackLocale.bind(core);
+    this.reportError = core.reportError.bind(core);
+    this.formatNumber = core.formatNumber.bind(core);
+    this.formatDate = core.formatDate.bind(core);
+    this.formatCurrency = core.formatCurrency.bind(core);
+    this.formatRelativeTime = core.formatRelativeTime.bind(core);
+    this.registerLocaleDetector = core.registerLocaleDetector.bind(core);
 
-    // Renamed core methods: pass-through proxies (kept explicit for spyability + clarity)
-    (this as any).registerLocaleDetector = (detector: () => string | Promise<string>) =>
-      core.registerLocaleDetector(detector);
-    (this as any).getLoadedLocales = () => core.getLoadedLocales();
-
-    // Bind remaining own methods for destructuring support
+    // Bind own methods for destructuring support
     this.t = this.t.bind(this);
     this.tRaw = this.tRaw.bind(this);
     this.setLocale = this.setLocale.bind(this);
     this.destroy = this.destroy.bind(this);
+    this.hasTranslation = this.hasTranslation.bind(this);
+    this.hasLocale = this.hasLocale.bind(this);
   }
 
   get locale(): Ref<string> {
@@ -183,8 +166,8 @@ export class VueI18n {
         get: () => this._locale.value,
         set: (newLocale: string) => {
           if (this._requestedLocale !== newLocale) {
-            this.setLocale(newLocale).catch((e) => {
-              console.error("[i18n] Failed to set locale:", e);
+            this.setLocale(newLocale).catch((error) => {
+              this._core.reportError(error, { source: "setLocale" });
             });
           }
         },
@@ -194,14 +177,14 @@ export class VueI18n {
   }
 
   set locale(value: string) {
-    this.setLocale(value).catch((e) => {
-      console.error("[i18n] Failed to set locale:", e);
+    this.setLocale(value).catch((error) => {
+      this._core.reportError(error, { source: "setLocale" });
     });
   }
 
-  private _dirComputed?: import("vue").ComputedRef<"ltr" | "rtl">;
+  private _dirComputed?: ComputedRef<"ltr" | "rtl">;
   /** Text direction for the current locale, as a reactive computed ref */
-  get dir(): import("vue").ComputedRef<"ltr" | "rtl"> {
+  get dir(): ComputedRef<"ltr" | "rtl"> {
     if (!this._dirComputed) {
       // Read locale ref to establish reactive dependency, then delegate to core
       this._dirComputed = computed(() => {
@@ -210,6 +193,71 @@ export class VueI18n {
       });
     }
     return this._dirComputed;
+  }
+
+  private _loadedLocalesComputed?: ComputedRef<string[]>;
+  get loadedLocales(): ComputedRef<string[]> {
+    if (!this._loadedLocalesComputed) {
+      this._loadedLocalesComputed = computed(() => {
+        void this._cacheRevision.value;
+        return this._core.getLoadedLocales();
+      });
+    }
+    return this._loadedLocalesComputed;
+  }
+
+  private _activeNamespacesComputed?: ComputedRef<string[]>;
+  get activeNamespaces(): ComputedRef<string[]> {
+    if (!this._activeNamespacesComputed) {
+      this._activeNamespacesComputed = computed(() => {
+        void this._cacheRevision.value;
+        void this._configRevision.value;
+        return this._core.getActiveNamespaces();
+      });
+    }
+    return this._activeNamespacesComputed;
+  }
+
+  private _defaultNamespaceComputed?: ComputedRef<string>;
+  /** Current default namespace as a reactive ComputedRef */
+  get defaultNamespace(): ComputedRef<string> {
+    if (!this._defaultNamespaceComputed) {
+      this._defaultNamespaceComputed = computed(() => {
+        void this._cacheRevision.value;
+        void this._configRevision.value;
+        return this._core.getDefaultNamespace();
+      });
+    }
+    return this._defaultNamespaceComputed;
+  }
+
+  /**
+   * Reactive check for translation existence. Returns a ComputedRef that
+   * re-evaluates when locale, cache, or config changes. Call inside component setup
+   * (or an effectScope) — the underlying `computed()` registers with the
+   * active scope and disposes automatically.
+   */
+  hasTranslation(
+    key: string,
+    opts?: { locale?: string; namespace?: string; checkFallbacks?: boolean },
+  ): ComputedRef<boolean> {
+    return computed(() => {
+      void this._locale.value;
+      void this._cacheRevision.value;
+      void this._configRevision.value;
+      return this._core.hasTranslation(key, opts?.locale, opts?.namespace, opts?.checkFallbacks);
+    });
+  }
+
+  /**
+   * Reactive check for locale availability. Returns a ComputedRef that
+   * re-evaluates when the translation cache changes.
+   */
+  hasLocale(locale: string, namespace?: string): ComputedRef<boolean> {
+    return computed(() => {
+      void this._cacheRevision.value;
+      return this._core.hasLocale(locale, namespace);
+    });
   }
 
   async setLocale(locale: string): Promise<void> {
@@ -242,8 +290,14 @@ export class VueI18n {
     }
   }
 
-  get translationCache(): Readonly<Ref<Readonly<ReadonlyMap<string, FlattenedTranslations>>>> {
-    return this._translationCacheRef;
+  get translationCache(): ComputedRef<ReadonlyMap<string, FlattenedTranslations>> {
+    if (!this._translationCacheComputed) {
+      this._translationCacheComputed = computed(() => {
+        void this._cacheRevision.value;
+        return this._core.translationCache.getInternalMap();
+      });
+    }
+    return this._translationCacheComputed;
   }
 
   get isLoading(): Readonly<Ref<boolean>> {
@@ -320,7 +374,10 @@ export class VueI18n {
     if (this._isDestroyed) return;
     this._isDestroyed = true;
 
-    this._unsubscribers.reverse().forEach((unsub) => unsub());
+    this._unsubscribers
+      .slice()
+      .reverse()
+      .forEach((unsub) => unsub());
     this._unsubscribers.length = 0;
 
     this._core.destroy().catch((error) => {
@@ -330,6 +387,19 @@ export class VueI18n {
 
   private _installedApps = new WeakSet<App>();
 
+  /**
+   * Install the i18n plugin into a Vue app.
+   *
+   * Side effects:
+   * - Provides the i18n instance via `I18N_INJECTION_KEY` so `useI18n()` works.
+   * - Registers `$t`, `$tRaw`, `$i18n` global properties for Options API + templates.
+   * - If the core isn't initialized yet, kicks off `init()` asynchronously (fire-and-forget).
+   *
+   * SSR note: on server-side rendering, call `await i18n.init()` BEFORE
+   * `renderToString(app)`. The fire-and-forget `init()` here is for client-side
+   * convenience only — on the server, rendering races against translation loading
+   * and you may serialize stale/empty caches.
+   */
   install(app: App): void {
     if (this._installedApps.has(app)) return;
     this._installedApps.add(app);

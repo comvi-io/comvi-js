@@ -163,58 +163,6 @@ export const treeshakeOptions = {
   propertyReadSideEffects: false as const,
 };
 
-/**
- * Terser options for packages that need aggressive minification (e.g. core)
- */
-export const terserOptions = {
-  compress: {
-    drop_console: true,
-    drop_debugger: true,
-    pure_funcs: ["console.log", "console.warn"],
-    passes: 2,
-    ecma: 2020 as const,
-    unsafe: true,
-    unsafe_comps: true,
-    unsafe_methods: true,
-    unsafe_proto: true,
-  },
-  mangle: {
-    safari10: true,
-    properties: false,
-  },
-  format: {
-    comments: false,
-    ecma: 2020 as const,
-  },
-};
-
-/**
- * Oxc minifier options for aggressive minification
- */
-export const oxcMinifyOptions = {
-  compress: {
-    target: "es2020",
-    dropConsole: true,
-    dropDebugger: true,
-    unused: true,
-    joinVars: true,
-    sequences: true,
-    treeshake: {
-      annotations: true,
-      manualPureFunctions: ["console.log", "console.warn"],
-      propertyReadSideEffects: false,
-      unknownGlobalSideEffects: false,
-    },
-  },
-  mangle: {
-    toplevel: true,
-    keepNames: false,
-  },
-  codegen: {
-    removeWhitespace: true,
-  },
-};
-
 export interface LibraryBuildOptions {
   /** Library entry point */
   entry: string;
@@ -254,7 +202,8 @@ export function createLibraryBuildOptions(options: LibraryBuildOptions): BuildOp
       entry,
       name,
     },
-    minify: true,
+    minify: false,
+    sourcemap: false,
     rolldownOptions: {
       external,
       output: [
@@ -262,13 +211,11 @@ export function createLibraryBuildOptions(options: LibraryBuildOptions): BuildOp
           format: "es",
           entryFileNames: fileNames.es,
           globals,
-          minify: oxcMinifyOptions,
         },
         {
           format: "cjs",
           entryFileNames: fileNames.cjs,
           globals,
-          minify: oxcMinifyOptions,
         },
       ],
       treeshake: treeshakeOptions,
@@ -317,19 +264,18 @@ export function createPluginBuildOptions(options: PluginBuildOptions): BuildOpti
       entry,
       name,
     },
-    minify: true,
+    minify: false,
+    sourcemap: false,
     rolldownOptions: {
       external,
       output: [
         {
           format: "es",
           entryFileNames: fileNames.es,
-          minify: oxcMinifyOptions,
         },
         {
           format: "cjs",
           entryFileNames: fileNames.cjs,
-          minify: oxcMinifyOptions,
         },
       ],
       treeshake: treeshakeOptions,

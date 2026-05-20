@@ -7,7 +7,7 @@ export default defineConfig({
   test: {
     globals: true,
     environment: "happy-dom",
-    include: ["tests/**/*.test.ts"],
+    include: ["tests/**/*.{test,test-d}.ts"],
     coverage: {
       provider: "v8",
       reporter: ["text", "json", "html"],
@@ -16,6 +16,10 @@ export default defineConfig({
     },
     define: {
       __DEV__: JSON.stringify(true),
+    },
+    typecheck: {
+      ignoreSourceErrors: true,
+      tsconfig: "./tsconfig.typecheck.json",
     },
   },
   resolve: {

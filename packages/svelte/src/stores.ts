@@ -8,7 +8,7 @@ import type { I18n } from "@comvi/core";
 const storeCache = new WeakMap<
   I18n,
   {
-    language: Readable<string>;
+    locale: Readable<string>;
     loading: Readable<boolean>;
     initializing: Readable<boolean>;
     initialized: Readable<boolean>;
@@ -25,7 +25,7 @@ function getOrCreateStores(i18n: I18n) {
 
   if (!stores) {
     stores = {
-      language: readable(i18n.locale, (set) => {
+      locale: readable(i18n.locale, (set) => {
         set(i18n.locale);
         const unsubscribe = i18n.on("localeChanged", ({ to }) => set(to));
         return unsubscribe;
@@ -61,11 +61,13 @@ function getOrCreateStores(i18n: I18n) {
         const unsub3 = i18n.on("translationsCleared", () =>
           set(i18n.translationCache.getRevision()),
         );
+        const unsub4 = i18n.on("configChanged", () => set(i18n.translationCache.getRevision()));
 
         return () => {
           unsub1();
           unsub2();
           unsub3();
+          unsub4();
         };
       }),
     };
@@ -76,13 +78,21 @@ function getOrCreateStores(i18n: I18n) {
 }
 
 /**
- * Creates a Svelte store for the current language
- * Updates automatically when language changes
+ * Creates a Svelte store for the current locale
+ * Updates automatically when locale changes
  * Memoized per i18n instance
  */
-export function createLanguageStore(i18n: I18n): Readable<string> {
-  return getOrCreateStores(i18n).language;
+export function createLocaleStore(i18n: I18n): Readable<string> {
+  return getOrCreateStores(i18n).locale;
 }
+
+/**
+ * @deprecated Use `createLocaleStore` instead.
+ * Creates a Svelte store for the current locale
+ * Updates automatically when locale changes
+ * Memoized per i18n instance
+ */
+export const createLanguageStore: (i18n: I18n) => Readable<string> = createLocaleStore;
 
 /**
  * Creates a Svelte store for the loading state

@@ -1,4 +1,5 @@
-import { useHead, useRuntimeConfig, useState, useRoute, useRequestURL } from "#app";
+import { useHead, useRuntimeConfig, useRoute, useRequestURL } from "#app";
+import { useLocaleState } from "../utils/locale-state";
 import type { ComputedRef } from "vue";
 import { computed } from "vue";
 import { stripLocalePrefix, buildLocalizedPath } from "../utils/locale-path";
@@ -64,7 +65,7 @@ export interface LocaleHeadOptions {
 export function useLocaleHead(options: LocaleHeadOptions = {}) {
   const config = useRuntimeConfig();
   const { locales, localeObjects, defaultLocale, localePrefix } = config.public.comvi;
-  const localeState = useState<string>("i18n-locale");
+  const localeState = useLocaleState();
   const route = useRoute();
 
   const {

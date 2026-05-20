@@ -13,6 +13,10 @@
       "outputs": [".nuxt/**", ".output/**"],
       "dependsOn": ["^build"]
     },
+    "@test-apps/nuxt4#build": {
+      "outputs": [".nuxt/**", ".output/**"],
+      "dependsOn": ["^build"]
+    },
     "test": {
       "outputs": [],
       "dependsOn": ["^build"]
@@ -46,6 +50,12 @@
       "interruptible": true
     },
     "@test-apps/nuxt#dev": {
+      "dependsOn": ["^build"],
+      "cache": false,
+      "persistent": true,
+      "interruptible": true
+    },
+    "@test-apps/nuxt4#dev": {
       "dependsOn": ["^build"],
       "cache": false,
       "persistent": true,

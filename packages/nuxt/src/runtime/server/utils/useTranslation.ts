@@ -4,6 +4,7 @@ import type { TranslationParams } from "@comvi/core";
 import { getServerRuntimeConfig } from "./runtime-config";
 import { getRequestI18n } from "./request-i18n";
 import { resolveAcceptLanguage } from "../../utils/resolve-locale";
+import { DEFAULT_DETECT_BROWSER_LANGUAGE } from "../../defaults";
 
 /**
  * Options for useTranslation
@@ -90,7 +91,7 @@ export async function useTranslation(
   const {
     locales = [],
     defaultLocale = "en",
-    cookieName = "i18n_locale",
+    cookieName = DEFAULT_DETECT_BROWSER_LANGUAGE.cookieName,
     defaultNs = "default",
     detectBrowserLanguage,
   } = publicConfig;
@@ -100,7 +101,7 @@ export async function useTranslation(
     detectBrowserLanguage === false
       ? false
       : {
-          useCookie: true,
+          ...DEFAULT_DETECT_BROWSER_LANGUAGE,
           ...(typeof detectBrowserLanguage === "object" ? detectBrowserLanguage : {}),
         };
   const useCookieForDetection = detectConfig !== false && detectConfig.useCookie === true;

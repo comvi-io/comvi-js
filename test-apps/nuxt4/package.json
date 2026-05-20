@@ -1,0 +1,19 @@
+{
+  "name": "@test-apps/nuxt4",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "nuxi dev --port 30003",
+    "build": "nuxi build",
+    "typecheck": "nuxi typecheck",
+    "preview": "nuxi preview"
+  },
+  "dependencies": {
+    "@comvi/nuxt": "workspace:*",
+    "nuxt": "^4.0.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.2.2",
+    "tailwindcss": "^4.2.2"
+  }
+}

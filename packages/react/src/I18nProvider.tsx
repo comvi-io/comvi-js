@@ -88,7 +88,7 @@ export function I18nProvider({
     }
   }, [i18n, autoInit, onError]);
 
-  const subLang = useSubscribe(i18n, "localeChanged", "initialized");
+  const subLang = useSubscribe(i18n, "localeChanged", "initialized", "configChanged");
   const subLoading = useSubscribe(i18n, "loadingStateChanged", "initialized");
 
   const locale = useSyncExternalStore(
@@ -160,7 +160,13 @@ export function useI18nContext(): I18nContextValue {
   const { i18n, isLoading, isInitializing } = useI18nInstance();
   const locale = useContext(LocaleContext) ?? "";
 
-  const subCache = useSubscribe(i18n, "namespaceLoaded", "initialized", "translationsCleared");
+  const subCache = useSubscribe(
+    i18n,
+    "namespaceLoaded",
+    "initialized",
+    "translationsCleared",
+    "configChanged",
+  );
   useSyncExternalStore(
     subCache,
     () => i18n.translationCache.getRevision(),

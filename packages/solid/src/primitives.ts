@@ -85,11 +85,13 @@ export function createCacheRevisionSignal(i18n: I18n): Accessor<number> {
     const unsub1 = i18n.on("namespaceLoaded", () => set(i18n.translationCache.getRevision()));
     const unsub2 = i18n.on("initialized", () => set(i18n.translationCache.getRevision()));
     const unsub3 = i18n.on("translationsCleared", () => set(i18n.translationCache.getRevision()));
+    const unsub4 = i18n.on("configChanged", () => set(i18n.translationCache.getRevision()));
 
     return () => {
       unsub1();
       unsub2();
       unsub3();
+      unsub4();
     };
   });
   return signal as Accessor<number>;

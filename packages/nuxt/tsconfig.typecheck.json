@@ -1,0 +1,13 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "composite": false,
+    "noEmit": true,
+    "declaration": false,
+    "declarationMap": false,
+    "sourceMap": false,
+    "types": ["node"]
+  },
+  "include": ["./src/types.ts", "./src/runtime/**/*.ts", "./src/**/*.d.ts"],
+  "exclude": ["./coverage", "./dist", "./playground", "./tests"]
+}

@@ -51,8 +51,9 @@
   "scripts": {
     "dev": "nuxi dev playground --port 30002",
     "build": "nuxt-module-build build && tsc -p tsconfig.runtime.json",
-    "typecheck": "nuxt-module-build build && tsc -p tsconfig.runtime.json",
+    "typecheck": "tsc -p tsconfig.typecheck.json",
     "test": "vitest run",
+    "test:types": "vitest --typecheck.only --run --typecheck.include='tests/**/*.test-d.ts' --typecheck.tsconfig=tsconfig.test-types.json",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "lint": "eslint . --max-warnings=0",
@@ -62,15 +63,15 @@
   "dependencies": {
     "@comvi/core": "workspace:*",
     "@comvi/vue": "workspace:*",
-    "@nuxt/kit": "^3.21.5",
+    "@nuxt/kit": "^3.0.0 || ^4.0.0",
     "h3": "^1.15.11"
   },
   "peerDependencies": {
-    "nuxt": "^3.0.0"
+    "nuxt": "^3.0.0 || ^4.0.0"
   },
   "devDependencies": {
     "@nuxt/module-builder": "^1.0.2",
-    "@nuxt/schema": "^3.21.4",
+    "@nuxt/schema": "^3.0.0 || ^4.0.0",
     "@types/node": "^22.13.0",
     "@typescript-eslint/eslint-plugin": "^8.58.0",
     "@typescript-eslint/parser": "^8.58.0",

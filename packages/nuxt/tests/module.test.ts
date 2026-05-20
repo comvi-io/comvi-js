@@ -115,7 +115,7 @@ describe("nuxt module setup", () => {
       cdnUrl: "https://cdn.example.com",
       apiBaseUrl: "https://api.example.com",
       defaultNs: "common",
-      fallbackLanguage: "en",
+      fallbackLocale: "en",
       basicHtmlTags: ["strong", "em"],
     });
     expect(nuxt.options.runtimeConfig.comvi).toEqual({ apiKey: "secret-key" });
@@ -284,7 +284,7 @@ describe("nuxt module setup", () => {
       cdnUrl: "https://runtime.example.com",
       apiBaseUrl: "https://runtime-api.example.com",
       defaultNs: "runtime-default",
-      fallbackLanguage: ["uk", "en"],
+      fallbackLocale: ["uk", "en"],
       basicHtmlTags: ["strong"],
       detectBrowserLanguage: {
         useCookie: true,
@@ -322,7 +322,7 @@ describe("nuxt module setup", () => {
       cdnUrl: "https://runtime.example.com",
       apiBaseUrl: "https://runtime-api.example.com",
       defaultNs: "runtime-default",
-      fallbackLanguage: ["uk", "en"],
+      fallbackLocale: ["uk", "en"],
       basicHtmlTags: ["strong"],
       detectBrowserLanguage: {
         useCookie: true,

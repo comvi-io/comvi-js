@@ -18,7 +18,7 @@ function createEvent(runtimeConfigOverrides: Partial<any> = {}) {
         public: {
           comvi: {
             defaultNs: "default",
-            fallbackLanguage: "en",
+            fallbackLocale: "en",
             defaultLocale: "en",
           },
         },

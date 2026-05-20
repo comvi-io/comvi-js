@@ -39,7 +39,8 @@ export type I18nEvent =
   | "loadingStateChanged"
   | "namespaceLoaded"
   | "missingKey"
-  | "loadError";
+  | "loadError"
+  | "configChanged";
 
 /**
  * Event data payloads for each event type
@@ -54,6 +55,8 @@ export type I18nEventData = {
   namespaceLoaded: { namespace: string; locale: string };
   missingKey: { key: string; locale: string; namespace: string };
   loadError: { locale: string; namespace: string; error: Error };
+  /** Fired when runtime config changes: fallback locales, added translations, or activated namespaces */
+  configChanged: { source: "fallbackLocale" | "translationsAdded" | "namespaceActivated" };
 };
 
 /**
@@ -291,7 +294,8 @@ export interface ErrorReportContext {
     | "translation"
     | "namespace-load"
     | "post-processor"
-    | "event";
+    | "event"
+    | "setLocale";
   /** Plugin name (when source is plugin or plugin-cleanup) */
   pluginName?: string;
   /** Tag name or component (when source is translation) */

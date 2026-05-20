@@ -38,7 +38,7 @@ export async function getRequestI18n(event: H3Event, locale: string): Promise<I1
 
       const i18n = createI18n({
         locale: locale,
-        fallbackLocale: publicConfig.fallbackLanguage || publicConfig.defaultLocale || locale,
+        fallbackLocale: publicConfig.fallbackLocale || publicConfig.defaultLocale || locale,
         defaultNs: publicConfig.defaultNs || "default",
         devMode: process.env.NODE_ENV === "development",
         apiKey: privateConfig?.apiKey,

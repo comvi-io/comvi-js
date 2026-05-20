@@ -228,7 +228,13 @@ export function useI18n(ns?: string): UseI18nReturn {
   const { i18n, isLoading, isInitializing } = useI18nInstance();
   const locale = useContext(LocaleContext) ?? "";
 
-  const subCache = useSubscribe(i18n, "namespaceLoaded", "initialized", "translationsCleared");
+  const subCache = useSubscribe(
+    i18n,
+    "namespaceLoaded",
+    "initialized",
+    "translationsCleared",
+    "configChanged",
+  );
   useSyncExternalStore(
     subCache,
     () => i18n.translationCache.getRevision(),
