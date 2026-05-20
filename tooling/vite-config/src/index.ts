@@ -203,7 +203,7 @@ export function createLibraryBuildOptions(options: LibraryBuildOptions): BuildOp
       name,
     },
     minify: false,
-    sourcemap: true,
+    sourcemap: false,
     rolldownOptions: {
       external,
       output: [
@@ -265,7 +265,7 @@ export function createPluginBuildOptions(options: PluginBuildOptions): BuildOpti
       name,
     },
     minify: false,
-    sourcemap: true,
+    sourcemap: false,
     rolldownOptions: {
       external,
       output: [

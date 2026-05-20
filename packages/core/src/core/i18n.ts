@@ -24,7 +24,7 @@ import { translationResultToString } from "../utils/translationResultToString";
 import type { I18nPlugin as I18nPluginFn } from "../plugins/types";
 import { TranslationCache } from "./TranslationCache";
 import type { PluginOptions } from "../plugins/types";
-import { clearTemplateCache, isStaticTemplate, translate, translateTemplate } from "./translate";
+import { isStaticTemplate, translate, translateTemplate } from "./translate";
 
 declare const __DEV__: boolean | undefined;
 declare const __VERSION__: string | undefined;
@@ -534,9 +534,6 @@ export class I18n implements I18nInstance {
     } else if (!locale && !namespace) {
       this._activeNamespaces.clear();
     }
-
-    // Clear template compilation cache to free memory
-    clearTemplateCache();
 
     this._emit("translationsCleared", { locale, namespace });
   }
@@ -1167,6 +1164,7 @@ export class I18n implements I18nInstance {
   // ── Intl Formatting ─────────────────────────────────────────────────
   private _numberFormatCache = new Map<string, Intl.NumberFormat>();
   private _dateFormatCache = new Map<string, Intl.DateTimeFormat>();
+  private _relativeTimeFormatCache = new Map<string, Intl.RelativeTimeFormat>();
 
   private _getNumberFormat(options?: Intl.NumberFormatOptions, locale?: string): Intl.NumberFormat {
     const lc = locale ?? this._locale;
@@ -1189,6 +1187,20 @@ export class I18n implements I18nInstance {
     if (!fmt) {
       fmt = new Intl.DateTimeFormat(lc, options);
       this._dateFormatCache.set(cacheKey, fmt);
+    }
+    return fmt;
+  }
+
+  private _getRelativeTimeFormat(
+    options?: Intl.RelativeTimeFormatOptions,
+    locale?: string,
+  ): Intl.RelativeTimeFormat {
+    const lc = locale ?? this._locale;
+    const cacheKey = JSON.stringify([lc, options ?? null]);
+    let fmt = this._relativeTimeFormatCache.get(cacheKey);
+    if (!fmt) {
+      fmt = new Intl.RelativeTimeFormat(lc, options);
+      this._relativeTimeFormatCache.set(cacheKey, fmt);
     }
     return fmt;
   }
@@ -1220,8 +1232,13 @@ export class I18n implements I18nInstance {
     options?: Intl.RelativeTimeFormatOptions,
     locale?: string,
   ): string {
-    return new Intl.RelativeTimeFormat(locale ?? this._locale, options).format(value, unit);
+    return this._getRelativeTimeFormat(options, locale).format(value, unit);
   }
+
+  // Memoization fields for get dir — keyed on this._locale so locale changes
+  // naturally miss the cache without any explicit invalidation.
+  private _dirCacheLocale?: string;
+  private _dirCacheValue?: "ltr" | "rtl";
 
   /**
    * Text direction for the current locale ("ltr" or "rtl").
@@ -1233,6 +1250,10 @@ export class I18n implements I18nInstance {
    */
   get dir(): "ltr" | "rtl" {
     const locale = this._locale;
+    if (this._dirCacheLocale === locale && this._dirCacheValue !== undefined) {
+      return this._dirCacheValue;
+    }
+    let result: "ltr" | "rtl";
     try {
       const info = (
         new Intl.Locale(locale) as Intl.Locale & {
@@ -1240,23 +1261,31 @@ export class I18n implements I18nInstance {
         }
       ).textInfo;
       if (info?.direction === "rtl" || info?.direction === "ltr") {
-        return info.direction;
+        result = info.direction;
+        this._dirCacheLocale = locale;
+        this._dirCacheValue = result;
+        return result;
       }
     } catch {
       // Invalid locale — fall through to the hardcoded check
     }
     // 1. Explicit RTL script subtag wins (e.g. "ku-Arab")
     if (/[-_](arab|hebr|thaa|syrc|nkoo|samr|mand|mend|rohg|adlm)([-_]|$)/i.test(locale)) {
-      return "rtl";
+      result = "rtl";
+    } else if (/^[a-z]{2,3}[-_][a-z]{4}([-_]|$)/i.test(locale)) {
+      // 2. Any other explicit script subtag means LTR (e.g. "ks-Deva", "ar-Latn")
+      result = "ltr";
+    } else {
+      // 3. No script subtag — use default direction by language code
+      result = /^(ar|arc|ckb|dv|fa|glk|he|khw|ks|lrc|mzn|pnb|ps|sd|syr|ug|ur|yi)([-_]|$)/i.test(
+        locale,
+      )
+        ? "rtl"
+        : "ltr";
     }
-    // 2. Any other explicit script subtag means LTR (e.g. "ks-Deva", "ar-Latn")
-    if (/^[a-z]{2,3}[-_][a-z]{4}([-_]|$)/i.test(locale)) {
-      return "ltr";
-    }
-    // 3. No script subtag — use default direction by language code
-    return /^(ar|arc|ckb|dv|fa|glk|he|khw|ks|lrc|mzn|pnb|ps|sd|syr|ug|ur|yi)([-_]|$)/i.test(locale)
-      ? "rtl"
-      : "ltr";
+    this._dirCacheLocale = locale;
+    this._dirCacheValue = result;
+    return result;
   }
 
   /**
@@ -1308,9 +1337,7 @@ export class I18n implements I18nInstance {
     this._localeDetector = undefined;
     this._numberFormatCache.clear();
     this._dateFormatCache.clear();
-
-    // Clear template compilation cache to free memory
-    clearTemplateCache();
+    this._relativeTimeFormatCache.clear();
   }
 }
 
