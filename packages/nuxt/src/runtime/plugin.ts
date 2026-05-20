@@ -169,9 +169,9 @@ export default defineNuxtPlugin({
         source: "plugin",
       });
       console.error("[@comvi/nuxt] comvi.setup hook failed:", error);
-      if (import.meta.dev) {
-        throw error;
-      }
+      // Fail fast: a failed setup can leave the app partially configured
+      // (missing loaders/hooks). Rethrow so init() does not run on a broken state.
+      throw error;
     }
 
     // Initialize i18n (only once, after all plugins are registered)

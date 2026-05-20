@@ -139,6 +139,9 @@ describe("Svelte stores", () => {
     fake.emit("configChanged", { source: "fallbackLocale" });
     const after = get(cacheRevision);
 
+    // configChanged (setFallbackLocale) does NOT mutate translationCache, so the
+    // revision value is unchanged; this asserts the store re-reads on the event,
+    // not that the revision strictly increments. Hence >= (not >).
     expect(after).toBeGreaterThanOrEqual(before);
   });
 });
