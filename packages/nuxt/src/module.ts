@@ -50,7 +50,7 @@ const comviNuxtModule: NuxtModule<NuxtI18nOptions> = defineNuxtModule<NuxtI18nOp
     name: "@comvi/nuxt",
     configKey: "comvi",
     compatibility: {
-      nuxt: "^3.0.0",
+      nuxt: "^3.0.0 || ^4.0.0",
     },
   },
 
@@ -77,11 +77,23 @@ const comviNuxtModule: NuxtModule<NuxtI18nOptions> = defineNuxtModule<NuxtI18nOp
       try {
         resolvedSetupPath =
           (await findPath(options.setup, {
-            cwd: nuxt.options.rootDir,
+            cwd: nuxt.options.srcDir,
             type: "file",
           })) ?? undefined;
       } catch {
         resolvedSetupPath = undefined;
+      }
+
+      if (!resolvedSetupPath) {
+        try {
+          resolvedSetupPath =
+            (await findPath(options.setup, {
+              cwd: nuxt.options.rootDir,
+              type: "file",
+            })) ?? undefined;
+        } catch {
+          resolvedSetupPath = undefined;
+        }
       }
 
       if (!resolvedSetupPath) {
@@ -91,11 +103,23 @@ const comviNuxtModule: NuxtModule<NuxtI18nOptions> = defineNuxtModule<NuxtI18nOp
       try {
         resolvedSetupPath =
           (await findPath("./comvi.setup", {
-            cwd: nuxt.options.rootDir,
+            cwd: nuxt.options.srcDir,
             type: "file",
           })) ?? undefined;
       } catch {
         resolvedSetupPath = undefined;
+      }
+
+      if (!resolvedSetupPath) {
+        try {
+          resolvedSetupPath =
+            (await findPath("./comvi.setup", {
+              cwd: nuxt.options.rootDir,
+              type: "file",
+            })) ?? undefined;
+        } catch {
+          resolvedSetupPath = undefined;
+        }
       }
     }
 

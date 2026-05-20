@@ -164,31 +164,6 @@ export const treeshakeOptions = {
 };
 
 /**
- * Terser options for packages that need aggressive minification (e.g. core)
- */
-export const terserOptions = {
-  compress: {
-    drop_console: true,
-    drop_debugger: true,
-    pure_funcs: ["console.log", "console.warn"],
-    passes: 2,
-    ecma: 2020 as const,
-    unsafe: true,
-    unsafe_comps: true,
-    unsafe_methods: true,
-    unsafe_proto: true,
-  },
-  mangle: {
-    safari10: true,
-    properties: false,
-  },
-  format: {
-    comments: false,
-    ecma: 2020 as const,
-  },
-};
-
-/**
  * Oxc minifier options for aggressive minification
  */
 export const oxcMinifyOptions = {
@@ -207,7 +182,7 @@ export const oxcMinifyOptions = {
     },
   },
   mangle: {
-    toplevel: true,
+    toplevel: false,
     keepNames: false,
   },
   codegen: {
