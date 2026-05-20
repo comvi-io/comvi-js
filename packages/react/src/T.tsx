@@ -176,7 +176,7 @@ const TComponent = function T({
   const translate =
     tRaw ??
     ((key: string, params?: TranslationParams) =>
-      t(key as any, params) as unknown as TranslationResult);
+      t(key as never, params) as unknown as TranslationResult);
 
   // Remove 'components' from restProps to avoid passing it as a translation param
   const { components: _, ...cleanRestProps } = restProps as {
@@ -184,46 +184,50 @@ const TComponent = function T({
     [key: string]: unknown;
   };
 
-  // Store React handlers for later rendering
-  const reactHandlers = new Map<string, (children: React.ReactNode[]) => React.ReactElement>();
-  const tagHandlers: Record<string, (params: TagCallbackParams) => VirtualNode | string> = {};
-
-  // Register a React handler with its marker tag handler
-  const registerHandler = (
-    tagName: string,
-    reactHandler: (children: React.ReactNode[]) => React.ReactElement,
-  ) => {
-    reactHandlers.set(tagName, (children) => {
-      try {
-        return reactHandler(children);
-      } catch (error) {
-        reportError(error, { source: "translation", tagName });
-        return <>{children}</>;
-      }
-    });
-    tagHandlers[tagName] = ({ children }: TagCallbackParams) =>
-      createVirtualElement(
-        `${MARKER_PREFIX}${tagName}${MARKER_SUFFIX}`,
-        {},
-        childrenToArray(children),
-      );
-  };
+  // Only allocate when consumer passes a `components` prop.
+  let reactHandlers: Map<string, (children: React.ReactNode[]) => React.ReactElement> | null = null;
+  let tagHandlers: Record<string, (params: TagCallbackParams) => VirtualNode | string> | null =
+    null;
 
   if (components) {
+    reactHandlers = new Map();
+    tagHandlers = {};
+
+    const registerHandler = (
+      tagName: string,
+      reactHandler: (children: React.ReactNode[]) => React.ReactElement,
+    ) => {
+      reactHandlers!.set(tagName, (children) => {
+        try {
+          return reactHandler(children);
+        } catch (error) {
+          reportError(error, { source: "translation", tagName });
+          return <>{children}</>;
+        }
+      });
+      tagHandlers![tagName] = ({ children }: TagCallbackParams) =>
+        createVirtualElement(
+          `${MARKER_PREFIX}${tagName}${MARKER_SUFFIX}`,
+          {},
+          childrenToArray(children),
+        );
+    };
+
     for (const [tagName, handler] of Object.entries(components)) {
       if (typeof handler === "string") {
         tagHandlers[tagName] = ({ children }: TagCallbackParams) =>
           createVirtualElement(handler, {}, childrenToArray(children));
       } else if (React.isValidElement(handler)) {
-        registerHandler(tagName, (children) => React.cloneElement(handler, undefined, ...children));
+        registerHandler(tagName, (children) =>
+          React.createElement(handler.type, handler.props, ...children),
+        );
       } else if (typeof handler === "function") {
         registerHandler(tagName, (children) => handler({ children: <>{children}</> }));
       }
     }
   }
 
-  // Merge explicit params with rest props and tag handlers
-  const allParams = { ...params, ...cleanRestProps, ...tagHandlers };
+  const allParams = { ...params, ...cleanRestProps, ...(tagHandlers ?? undefined) };
 
   const keyString = String(i18nKey);
   const targetLocale = locale ?? currentLocale;
@@ -245,7 +249,7 @@ const TComponent = function T({
     transportParams.raw = raw;
   }
 
-  const content = translate(keyString as any, transportParams);
+  const content = translate(keyString as never, transportParams);
 
   // Use children as fallback if translation is missing and no explicit fallback provided
   // Priority: translation (including processed fallback/onMissing) > children fallback > key
@@ -317,10 +321,14 @@ const TComponent = function T({
     // Check for React component marker
     if (tag.startsWith(MARKER_PREFIX) && tag.endsWith(MARKER_SUFFIX)) {
       const handlerName = tag.slice(MARKER_PREFIX.length, -MARKER_SUFFIX.length);
-      const handler = reactHandlers.get(handlerName);
+      const handler = reactHandlers?.get(handlerName);
       if (handler) {
         try {
-          return React.cloneElement(handler(convertedChildren), { key: reactKey });
+          const result = handler(convertedChildren);
+          if (!React.isValidElement(result)) {
+            throw new Error(`Tag handler for "${handlerName}" must return a React element`);
+          }
+          return <React.Fragment key={reactKey}>{result}</React.Fragment>;
         } catch (error) {
           reportError(error, { source: "translation", tagName: handlerName });
           return <React.Fragment key={`${keyString}-${index}`}>{convertedChildren}</React.Fragment>;

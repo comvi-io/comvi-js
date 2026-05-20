@@ -11,10 +11,8 @@ const isWatchMode = process.argv.includes("--watch");
 const clientFiles = [
   "client.js",
   "client.cjs",
-  "client/index.js",
-  "client/index.cjs",
-  "client/NextI18nProvider.js",
-  "client/NextI18nProvider.cjs",
+  "client/I18nProvider.js",
+  "client/I18nProvider.cjs",
   "navigation.js",
   "navigation.cjs",
   "routing/Link.js",

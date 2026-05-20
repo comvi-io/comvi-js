@@ -1,7 +1,7 @@
 "use client";
 
 import NextLink from "next/link";
-import { useI18n } from "@comvi/react";
+import { useLocale } from "@comvi/react";
 import React, { forwardRef } from "react";
 import type { ComponentProps } from "react";
 import { useRoutingConfig } from "./context";
@@ -33,7 +33,7 @@ export const Link = forwardRef<HTMLAnchorElement, LocalizedLinkProps>(function L
   { href, locale: targetLocale, ...props },
   ref,
 ) {
-  const { locale: currentLocale } = useI18n();
+  const currentLocale = useLocale();
   const locale = targetLocale ?? currentLocale;
   const routing = useRoutingConfig();
 
