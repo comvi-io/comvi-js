@@ -87,6 +87,43 @@ describe("T.tsx", () => {
     expect(container.textContent).toBe("missing.key");
   });
 
+  it("does NOT create fallback children when the translation exists", () => {
+    let created = 0;
+    const SideEffectChild = () => {
+      created++;
+      return <span>fallback</span>;
+    };
+    fake.tImplementation = (key) => (key === "existing" ? "Existing Translation" : key);
+
+    renderWithProvider(() => (
+      <T i18nKey={"existing" as never}>
+        <SideEffectChild />
+      </T>
+    ));
+
+    expect(container.textContent).toBe("Existing Translation");
+    expect(created).toBe(0);
+  });
+
+  it("creates fallback children only when the translation is missing", () => {
+    let created = 0;
+    const SideEffectChild = () => {
+      created++;
+      return <span>fallback</span>;
+    };
+    fake.hasTranslation.mockImplementation(() => false);
+    fake.tImplementation = (key) => key;
+
+    renderWithProvider(() => (
+      <T i18nKey={"missing.key" as never}>
+        <SideEffectChild />
+      </T>
+    ));
+
+    expect(container.innerHTML).toContain("<span>fallback</span>");
+    expect(created).toBeGreaterThan(0);
+  });
+
   it("renders string tag handler mappings", () => {
     fake.tImplementation = (_key, params) => {
       const link = (params?.link as (payload: TagCallbackParams) => TranslationResult)({

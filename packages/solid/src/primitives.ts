@@ -1,6 +1,12 @@
 import { from, type Accessor } from "solid-js";
 import type { I18n } from "@comvi/core";
 
+// `from()` is typed `Accessor<T | undefined>` because the producer may set the
+// value asynchronously. Every producer below calls `set(...)` synchronously
+// before returning, and Solid's `from` runs the producer synchronously on both
+// the client and the server, so the first read is always defined. The
+// `as Accessor<T>` casts encode that invariant — keep producers synchronous.
+
 /**
  * Creates a SolidJS signal for the current locale
  * Updates automatically when locale changes
