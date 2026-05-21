@@ -7,7 +7,7 @@
 
 <h1 align="center">@comvi/svelte</h1>
 
-<p align="center">Svelte 4 / 5 binding for Comvi i18n — stores, context, and <code>&lt;T&gt;</code> component.</p>
+<p align="center">Svelte 5 binding for Comvi i18n — stores, context, and <code>&lt;T&gt;</code> component.</p>
 
 <p align="center">
   <a href="https://www.npmjs.com/package/@comvi/svelte"><img src="https://img.shields.io/npm/v/@comvi/svelte?color=blue" alt="npm"></a>
@@ -17,7 +17,7 @@
 
 ---
 
-`@comvi/svelte` wraps [`@comvi/core`](../core) for Svelte. `setI18nContext()` registers the instance for descendants; `useI18n()` returns reactive stores that work with `$store` syntax in both Svelte 4 and Svelte 5.
+`@comvi/svelte` wraps [`@comvi/core`](../core) for Svelte. `setI18nContext()` registers the instance for descendants; `useI18n()` returns reactive stores that work with `$store` syntax in templates.
 
 Same `t()` and `<T>` API as the [Vue](../vue), [React](../react), and [SolidJS](../solid) bindings — switch frameworks without relearning your i18n layer.
 
@@ -38,13 +38,13 @@ Comvi i18n is a modern, framework-agnostic internationalization library built on
 
 - **Native stores with `$` syntax.** `useI18n()` returns proper Svelte stores — `$locale`, `$isLoading`, `$t()` work seamlessly with auto-subscription in templates.
 - **Single context setup.** Call `setI18nContext()` once in a parent component; descendants automatically access stores via `useI18n()` without prop drilling.
-- **Both Svelte 4 & 5.** Built with Svelte 5's rune-compatible API while remaining fully compatible with Svelte 4 projects.
+- **Svelte 5 only.** Built on Svelte 5's runes-compatible API with native event handler syntax (`onclick`, `onchange`).
 
 ## Install
 
 ```bash
 npm install @comvi/svelte
-# Peer: svelte ^4.0.0 || ^5.0.0
+# Peer: svelte ^5.0.0
 ```
 
 ## Quick start
@@ -53,6 +53,9 @@ npm install @comvi/svelte
 <!-- src/routes/+layout.svelte (or App.svelte) -->
 <script lang="ts">
   import { createI18n, setI18nContext } from "@comvi/svelte";
+  import type { Snippet } from "svelte";
+
+  const { children }: { children: Snippet } = $props();
 
   const i18n = createI18n({
     locale: "en",
@@ -66,7 +69,7 @@ npm install @comvi/svelte
   setI18nContext(i18n);
 </script>
 
-<slot />
+{@render children()}
 ```
 
 ```svelte
@@ -77,7 +80,7 @@ npm install @comvi/svelte
 </script>
 
 <h1>{$t("greeting", { name: "Alice" })}</h1>
-<select value={$locale} on:change={(e) => setLocale(e.currentTarget.value)}>
+<select value={$locale} onchange={(e) => setLocale(e.currentTarget.value)}>
   <option value="en">English</option>
   <option value="uk">Українська</option>
 </select>
@@ -178,7 +181,7 @@ Numbers, dates, currency, and relative time follow the active locale via native 
   import { useI18n } from "@comvi/svelte";
 
   const { t, locale, setLocale, formatNumber, formatDate, formatCurrency, formatRelativeTime } = useI18n();
-  let itemCount = 5;
+  let itemCount = $state(5);
 </script>
 
 <!-- Plurals automatically match locale -->
@@ -190,7 +193,7 @@ Numbers, dates, currency, and relative time follow the active locale via native 
 <p>Updated: {formatDate(new Date())}</p>
 <p>Posted: {formatRelativeTime(-2, "hour")}</p>
 
-<select value={$locale} on:change={(e) => setLocale(e.currentTarget.value)}>
+<select value={$locale} onchange={(e) => setLocale(e.currentTarget.value)}>
   <option value="en">English</option>
   <option value="uk">Українська</option>
 </select>
@@ -253,6 +256,9 @@ Pair with `@comvi/plugin-fetch-loader` to load translations from a CDN or API. N
 <script lang="ts">
   import { createI18n, setI18nContext } from "@comvi/svelte";
   import { FetchLoader } from "@comvi/plugin-fetch-loader";
+  import type { Snippet } from "svelte";
+
+  const { children }: { children: Snippet } = $props();
 
   const i18n = createI18n({ locale: "en" });
 
@@ -264,10 +270,54 @@ Pair with `@comvi/plugin-fetch-loader` to load translations from a CDN or API. N
   setI18nContext(i18n);
 </script>
 
-<slot />
+{@render children()}
 ```
 
 See [`@comvi/plugin-fetch-loader`](https://github.com/comvi-io/comvi-js/tree/main/packages/plugin-fetch-loader) for full options and API endpoints.
+
+## SSR (SvelteKit)
+
+For server-side rendering, create a **per-request** i18n instance — never share a module-level singleton across requests, or one user's locale will bleed into another's response.
+
+Initialize it in an async `load` function or `+layout.ts` so translations are fully loaded before the component tree renders. The auto-init microtask that runs in browser environments does **not** complete before synchronous server render.
+
+```ts
+// src/routes/+layout.ts
+import { createI18n } from "@comvi/svelte";
+import { FetchLoader } from "@comvi/plugin-fetch-loader";
+
+export async function load() {
+  // New instance per request — never reuse across requests on the server
+  const i18n = createI18n({ locale: "en" });
+
+  i18n.use(
+    FetchLoader({
+      cdnUrl: "https://cdn.comvi.io/your-distribution-id",
+    }),
+  );
+
+  // Await init so translations are ready before render
+  await i18n.init();
+
+  return { i18n };
+}
+```
+
+```svelte
+<!-- src/routes/+layout.svelte -->
+<script lang="ts">
+  import { setI18nContext } from "@comvi/svelte";
+  import type { Snippet } from "svelte";
+
+  const { data, children }: { data: { i18n: ReturnType<typeof import("@comvi/svelte").createI18n> }, children: Snippet } = $props();
+
+  setI18nContext(data.i18n);
+</script>
+
+{@render children()}
+```
+
+Child components call `useI18n()` as normal — the context carries the per-request instance.
 
 ## License
 
