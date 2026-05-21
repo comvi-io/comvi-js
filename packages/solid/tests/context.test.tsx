@@ -111,6 +111,32 @@ describe("solid context", () => {
     dispose();
   });
 
+  it("invokes onError when auto-init fails", async () => {
+    const container = document.createElement("div");
+    const fake = new FakeI18n({ language: "en" });
+    fake.initError = new Error("init failed");
+    const errors: Error[] = [];
+    const Probe = () => {
+      useI18n();
+      return null;
+    };
+
+    const dispose = render(
+      () => (
+        <I18nProvider i18n={fake.asI18n()} onError={(e) => errors.push(e)}>
+          <Probe />
+        </I18nProvider>
+      ),
+      container,
+    );
+
+    await vi.waitFor(() => {
+      expect(errors).toHaveLength(1);
+    });
+    expect(errors[0].message).toBe("init failed");
+    dispose();
+  });
+
   it("switches to the latest i18n instance when provider prop changes", async () => {
     const container = document.createElement("div");
     const first = new FakeI18n({ language: "en" });

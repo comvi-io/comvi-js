@@ -315,9 +315,14 @@ export function useI18n<DefaultNS extends string | undefined = undefined>(
    * it automatically tracks language and cache changes.
    */
   const tRaw = ((key: string, params?: TranslationParams): TranslationResult => {
-    // Access signals to establish reactive dependencies
-    // This works because SolidJS tracks signal access in reactive contexts
-    ctx.signals.locale();
+    // Access signals to establish reactive dependencies.
+    // This works because SolidJS tracks signal access in reactive contexts.
+    // Only subscribe to the global locale when the caller didn't pin one
+    // explicitly — tRaw(key, { locale }) does not depend on the active locale,
+    // so tracking it would cause needless recomputes on global locale changes.
+    if (params?.locale === undefined) {
+      ctx.signals.locale();
+    }
     ctx.signals.cacheRevision();
     if (ns === undefined) {
       ctx.signals.defaultNamespace();

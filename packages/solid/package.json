@@ -24,10 +24,7 @@
     "type-safe",
     "comvi",
     "translation",
-    "reactive",
-    "ssr",
-    "ssg",
-    "server-components"
+    "reactive"
   ],
   "files": [
     "dist"

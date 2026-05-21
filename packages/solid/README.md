@@ -95,6 +95,29 @@ export default function App() {
 
 For `<T>` rich-text components, type-safe keys, and the full reactive primitives, see the [documentation](https://comvi.io/docs/i18n/solid/).
 
+### Reactivity caveat — call `t()` inside a tracking scope
+
+`t()` and `tRaw()` read the locale and cache signals **at call time**, so they only stay reactive when invoked inside a tracking scope (JSX, `createMemo`, or `createEffect`). Reading the value once into a plain variable captures it forever:
+
+```tsx
+// ✗ WRONG — frozen. `greeting` is computed once and never updates on locale change.
+function Greeting() {
+  const { t } = useI18n();
+  const greeting = t("greeting", { name: "Alice" });
+  return <h1>{greeting}</h1>;
+}
+```
+
+```tsx
+// ✓ RIGHT — call t() inline so it re-runs when the locale or translations change.
+function Greeting() {
+  const { t } = useI18n();
+  return <h1>{t("greeting", { name: "Alice" })}</h1>;
+}
+```
+
+If you need a derived value, wrap it in a memo: `const greeting = createMemo(() => t("greeting", { name: "Alice" }))`, then read `greeting()`. (Coming from React/Vue, where `const g = t(...)` works because the whole component re-renders — Solid does not re-render, so the call must stay in a tracked position.)
+
 ## Rich text with `<T>`
 
 Tag interpolation lets translators write readable markup like `"Click <link>here</link> for help"` without raw HTML or XSS risk. You decide what each tag renders to — a function that receives the tag's content as children JSX:
@@ -284,6 +307,12 @@ export default function App() {
 ```
 
 See [`@comvi/plugin-fetch-loader`](https://github.com/comvi-io/comvi-js/tree/main/packages/plugin-fetch-loader) for full options and API endpoints.
+
+## Server-Side Rendering
+
+`@comvi/solid` is **client-side rendering (CSR) only** today. `<I18nProvider>` auto-initializes the instance from a `createEffect`, which does not run during Solid's server render (`renderToString`), so translations are not initialized on the server. The reactive primitives populate on the client once the component mounts.
+
+If you render with SolidStart or another SSR setup, initialize and load translations on the client and gate UI on `isInitialized()` / `isLoading()` from `useI18n()` to avoid a flash of untranslated keys. First-class SSR/SSG (server-side translation resolution and hydration) is not yet supported — track progress in the [issues](https://github.com/comvi-io/comvi-js/issues).
 
 ## License
 
