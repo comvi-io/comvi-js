@@ -2,8 +2,13 @@
   import { getI18nContext } from './context';
   import { createLocaleStore, createCacheRevisionStore } from './stores';
   import { createElement as createVirtualElement } from '@comvi/core';
-  import type { TranslationParams, VirtualNode, TranslationResult, TagCallbackParams, TranslationKeys, PermissiveKey } from '@comvi/core';
-  import type { ComponentMap, ComponentMapping } from './types';
+  import type { TranslationParams, VirtualNode, TranslationResult, TagCallbackParams } from '@comvi/core';
+  import type { ComponentMap, ComponentMapping, TProps } from './types';
+
+  // Sentinel value: distinguishes "prop not passed" from "prop passed as undefined".
+  // $$props is unavailable in runes mode; we use this symbol as the default so that
+  // `value !== UNSET` means the caller explicitly provided the prop.
+  const UNSET = Symbol('unset');
 
   const DEFAULT_ALLOWED_TAGS = new Set([
     'a', 'abbr', 'b', 'bdi', 'bdo', 'br', 'cite', 'code', 'data',
@@ -13,37 +18,28 @@
     'var', 'wbr',
   ]);
 
-  // Props
-  export let i18nKey: keyof TranslationKeys | PermissiveKey;
-  export let params: TranslationParams = {};
-  export let ns: string | undefined = undefined;
-  export let locale: string | undefined = undefined;
-  export let fallback: string | undefined = undefined;
-  export let raw: boolean = false;
-  /**
-   * Component mapping for tag interpolation in T component.
-   * Note: In Svelte, `<T>` constructs an HTML string and injects it via `{@html}`.
-   * Therefore, this map only supports standard HTML tags (e.g. `a`, `strong`),
-   * not Svelte Components.
-   */
-  export let components: ComponentMap = {};
-  /**
-   * Set of allowed HTML tag names for rendering via {@html}.
-   * Tags not in this set are rendered as `<span>` to prevent XSS.
-   * Defaults to a safe set of inline/block formatting tags.
-   */
-  export let allowedTags: Set<string> | undefined = undefined;
+  let {
+    i18nKey,
+    params = {},
+    ns = UNSET as unknown as string | undefined,
+    locale = UNSET as unknown as string | undefined,
+    fallback = UNSET as unknown as string | undefined,
+    raw = UNSET as unknown as boolean,
+    components = {} as ComponentMap,
+    allowedTags = undefined as Set<string> | undefined,
+    children = undefined as TProps['children'],
+  }: TProps = $props();
 
   const i18n = getI18nContext();
   const languageStore = createLocaleStore(i18n);
   const cacheRevision = createCacheRevisionStore(i18n);
 
   // Helper to convert children to array format for VirtualNode
-  function childrenToArray(children: TranslationResult): (string | VirtualNode)[] {
-    if (typeof children === 'string') {
-      return children ? [children] : [];
+  function childrenToArray(ch: TranslationResult): (string | VirtualNode)[] {
+    if (typeof ch === 'string') {
+      return ch ? [ch] : [];
     }
-    return children;
+    return ch;
   }
 
   function normalizeComponentMapping(mapping: ComponentMapping): {
@@ -56,8 +52,10 @@
     return mapping;
   }
 
-  function hasExplicitProp(propName: string): boolean {
-    return Object.prototype.hasOwnProperty.call($$props, propName);
+  // Returns true when the caller explicitly passed this prop (including as undefined).
+  // Uses the UNSET sentinel because $$props is not available in runes mode.
+  function hasExplicitProp(value: unknown): boolean {
+    return value !== UNSET;
   }
 
   // Build tag handlers from components prop
@@ -65,11 +63,11 @@
     const handlers: Record<string, (p: TagCallbackParams) => VirtualNode> = {};
     for (const [tagName, mapping] of Object.entries(comps)) {
       const normalizedMapping = normalizeComponentMapping(mapping);
-      handlers[tagName] = ({ children }: TagCallbackParams) => {
+      handlers[tagName] = ({ children: ch }: TagCallbackParams) => {
         return createVirtualElement(
           normalizedMapping.tag,
           normalizedMapping.props || {},
-          childrenToArray(children),
+          childrenToArray(ch),
         );
       };
     }
@@ -82,43 +80,40 @@
       ...buildTagHandlers(components),
     };
 
-    if (hasExplicitProp('ns')) {
-      transportParams.ns = ns;
+    if (hasExplicitProp(ns)) {
+      transportParams.ns = ns as string | undefined;
     }
-    if (hasExplicitProp('locale')) {
-      transportParams.locale = locale;
+    if (hasExplicitProp(locale)) {
+      transportParams.locale = locale as string | undefined;
     }
-    if (hasExplicitProp('fallback')) {
-      transportParams.fallback = fallback;
+    if (hasExplicitProp(fallback)) {
+      transportParams.fallback = fallback as string | undefined;
     }
-    if (hasExplicitProp('raw')) {
-      transportParams.raw = raw;
+    if (hasExplicitProp(raw)) {
+      transportParams.raw = raw as boolean;
     }
 
     return transportParams;
   }
 
-  // Reactive translation - explicit dependencies for clarity
-  // Reacts to: props (i18nKey, params, ns, locale, fallback, raw, components)
-  //            stores ($languageStore, $cacheRevision)
-
-  $: translationExists = (() => {
+  // Reactive translation — reacts to all props and both stores.
+  const translationExists = $derived.by(() => {
     void $languageStore;
     void $cacheRevision;
 
-    const targetLanguage = hasExplicitProp('locale') ? locale : params.locale;
-    const targetNamespace = hasExplicitProp('ns') ? ns : params.ns;
+    const targetLanguage = hasExplicitProp(locale) ? (locale as string | undefined) : params.locale;
+    const targetNamespace = hasExplicitProp(ns) ? (ns as string | undefined) : params.ns;
 
     return i18n.hasTranslation(i18nKey as string, targetLanguage, targetNamespace, true);
-  })();
+  });
 
-  $: result = (() => {
+  const result = $derived.by(() => {
     // Access stores to establish reactive dependency
     void $languageStore;
     void $cacheRevision;
 
     return i18n.tRaw(i18nKey as string, buildTransportParams());
-  })();
+  });
 
   // Validate attribute name: block event handlers and dangerous attributes
   function isSafeAttrName(name: string): boolean {
@@ -126,9 +121,22 @@
     return !lower.startsWith('on') && lower !== 'srcdoc' && lower !== 'formaction';
   }
 
-  // Helper to build attributes string
-  function buildAttrs(props: Record<string, string | boolean | unknown>): string {
-    return Object.entries(props)
+  // Helper to build attributes string.
+  // Safe defaults injected here for {@html} context:
+  //   - <a target="_blank"> without rel gets rel="noopener noreferrer" to prevent
+  //     tab-napping attacks.
+  //   - <img> without alt gets alt="" so screen readers skip decorative images.
+  function buildAttrs(tag: string, props: Record<string, string | boolean | unknown>): string {
+    const merged: Record<string, string | boolean | unknown> = { ...props };
+
+    if (tag === 'a' && merged['target'] === '_blank' && !('rel' in merged)) {
+      merged['rel'] = 'noopener noreferrer';
+    }
+    if (tag === 'img' && !('alt' in merged)) {
+      merged['alt'] = '';
+    }
+
+    return Object.entries(merged)
       .filter(([key]) => isSafeAttrName(key))
       .map(([key, value]) => {
         if (typeof value === 'boolean') {
@@ -150,19 +158,19 @@
       return renderToHtml(node.children as TranslationResult);
     }
 
-    // Element node - tagHandlers already resolved the correct tag/props
+    // Element node — tagHandlers already resolved the correct tag/props
     const tag = node.tag;
     const props = node.props || {};
-    const children = node.children as TranslationResult;
+    const nodeChildren = node.children as TranslationResult;
 
     // Validate tag against allowed list to prevent XSS
     const safeTags = allowedTags ?? DEFAULT_ALLOWED_TAGS;
     if (!safeTags.has(tag)) {
-      return `<span>${renderToHtml(children)}</span>`;
+      return `<span>${renderToHtml(nodeChildren)}</span>`;
     }
 
-    // Build attributes string
-    const attrs = buildAttrs(props);
+    // Build attributes string (with a11y safe defaults injected)
+    const attrs = buildAttrs(tag, props);
 
     // Self-closing tags
     const selfClosing = ['br', 'hr', 'img', 'input', 'meta'].includes(tag);
@@ -173,7 +181,7 @@
     const openTag = attrs ? `<${tag} ${attrs}>` : `<${tag}>`;
     const closeTag = `</${tag}>`;
 
-    return `${openTag}${renderToHtml(children)}${closeTag}`;
+    return `${openTag}${renderToHtml(nodeChildren)}${closeTag}`;
   }
 
   // Convert TranslationResult to HTML string
@@ -187,7 +195,10 @@
       .join('');
   }
 
-  // Escape HTML content
+  // Escape HTML content.
+  // NOTE: This function escapes only &, <, and > because it is used exclusively in
+  // TEXT/element-content context. Attribute values use escapeAttr separately, which
+  // additionally escapes quotes and apostrophes per OWASP recommendations.
   function escapeHtml(text: string): string {
     return text
       .replace(/&/g, '&amp;')
@@ -205,20 +216,23 @@
       .replace(/>/g, '&gt;');
   }
 
-  // Final HTML output
-  $: isMissingTranslation =
+  // Derived rendering decisions
+  const isMissingTranslation = $derived(
     !translationExists &&
-    fallback === undefined &&
+    (fallback === UNSET || fallback === undefined) &&
     typeof result === 'string' &&
-    result === (i18nKey as string);
+    result === (i18nKey as string),
+  );
 
-  $: renderSlot = isMissingTranslation && $$slots.default;
+  const renderSlot = $derived(isMissingTranslation && children != null);
 
-  $: htmlOutput = typeof result === 'string' ? escapeHtml(result) : renderToHtml(result);
+  const htmlOutput = $derived(
+    typeof result === 'string' ? escapeHtml(result) : renderToHtml(result),
+  );
 </script>
 
 {#if renderSlot}
-  <slot />
+  {@render children?.()}
 {:else}
   {@html htmlOutput}
 {/if}
