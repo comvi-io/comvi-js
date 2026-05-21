@@ -2,7 +2,7 @@
   "name": "@comvi/svelte",
   "version": "0.2.0",
   "type": "module",
-  "description": "Svelte 4/5 integration for Comvi — stores, components, and type-safe translations",
+  "description": "Svelte 5 integration for Comvi i18n — stores, components, and type-safe translations",
   "license": "MIT",
   "author": "Comvi <hello@comvi.io> (https://comvi.io)",
   "repository": {
@@ -26,9 +26,7 @@
     "comvi",
     "translation",
     "stores",
-    "ssr",
-    "ssg",
-    "server-components"
+    "ssr"
   ],
   "files": [
     "dist"
@@ -48,20 +46,22 @@
   "sideEffects": false,
   "scripts": {
     "dev": "vite build --watch",
-    "build": "svelte-package -i src -o dist && tsc --emitDeclarationOnly",
+    "build": "svelte-package -i src -o dist",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "lint": "eslint . --max-warnings=0",
     "format": "prettier --write src/",
-    "lint:fix": "eslint . --fix"
+    "lint:fix": "eslint . --fix",
+    "publint": "publint",
+    "attw": "attw --pack ."
   },
   "dependencies": {
     "@comvi/core": "workspace:*"
   },
   "peerDependencies": {
-    "svelte": "^4.0.0 || ^5.0.0"
+    "svelte": "^5.0.0"
   },
   "devDependencies": {
     "@comvi/vite-config": "workspace:*",
@@ -75,8 +75,9 @@
     "eslint-config-prettier": "^10.1.8",
     "happy-dom": "^20.8.9",
     "prettier": "^3.8.1",
+    "@arethetypeswrong/cli": "latest",
+    "publint": "latest",
     "svelte": "^5.55.1",
-    "svelte-preprocess": "^6.0.3",
     "typescript": "~6.0.2",
     "vite": "^8.0.3",
     "vite-plugin-dts": "^4.5.4",
