@@ -55,7 +55,7 @@
     "format": "prettier --write src/",
     "lint:fix": "eslint . --fix",
     "publint": "publint",
-    "attw": "attw --pack ."
+    "attw": "attw --pack . --ignore-rules cjs-resolves-to-esm internal-resolution-error"
   },
   "dependencies": {
     "@comvi/core": "workspace:*"

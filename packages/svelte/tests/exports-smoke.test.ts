@@ -91,8 +91,14 @@ describe("exports map smoke (F0b)", () => {
     const pkgJson = JSON.parse(readFileSync(resolve(pkgRoot, "package.json"), "utf-8"));
     const dotExport = pkgJson.exports?.["."];
     expect(dotExport).toBeDefined();
-    // No `require` condition should be present — this is intentional; any
-    // node16 CJS warning from attw is expected-and-correct, not a bug.
+    // No `require` condition should be present — this is intentional. The
+    // `attw` script ignores two rules that are structural for this package:
+    //   - cjs-resolves-to-esm: ESM-only package, no CJS path advertised, so a
+    //     node16-from-CJS require() correctly resolves to ESM (dynamic import).
+    //   - internal-resolution-error: svelte-package emits extensionless .ts
+    //     imports and a `./T.svelte` import in dist/*.d.ts that node16 cannot
+    //     resolve; Svelte consumers use bundler resolution (🟢), the supported
+    //     target. All other attw rules remain enforced.
     expect(dotExport).not.toHaveProperty("require");
     // `types` condition must come first (before import/default) so TypeScript
     // under moduleResolution:bundler picks it up in the right order.
