@@ -279,45 +279,50 @@ See [`@comvi/plugin-fetch-loader`](https://github.com/comvi-io/comvi-js/tree/mai
 
 For server-side rendering, create a **per-request** i18n instance — never share a module-level singleton across requests, or one user's locale will bleed into another's response.
 
-Initialize it in an async `load` function or `+layout.ts` so translations are fully loaded before the component tree renders. The auto-init microtask that runs in browser environments does **not** complete before synchronous server render.
+Load the translations (which are serializable) in a `load` function, then construct the per-request instance in `+layout.svelte` from that data. A `load` function's return value crosses the server→client boundary and is serialized with `devalue`, so it must **not** return the i18n instance itself — a class instance can't be serialized and SvelteKit will throw. Return plain data and build the instance in the component, which runs once per request on the server and once on the client.
 
 ```ts
 // src/routes/+layout.ts
-import { createI18n } from "@comvi/svelte";
-import { FetchLoader } from "@comvi/plugin-fetch-loader";
+import type { LayoutLoad } from "./$types";
 
-export async function load() {
-  // New instance per request — never reuse across requests on the server
-  const i18n = createI18n({ locale: "en" });
-
-  i18n.use(
-    FetchLoader({
-      cdnUrl: "https://cdn.comvi.io/your-distribution-id",
-    }),
+export const load: LayoutLoad = async ({ fetch }) => {
+  const locale = "en";
+  // Fetch translations on the server — plain JSON, safe to serialize to the client
+  const messages = await fetch(`https://cdn.comvi.io/your-distribution-id/${locale}.json`).then(
+    (r) => r.json(),
   );
-
-  // Await init so translations are ready before render
-  await i18n.init();
-
-  return { i18n };
-}
+  return { locale, messages };
+};
 ```
 
 ```svelte
 <!-- src/routes/+layout.svelte -->
 <script lang="ts">
-  import { setI18nContext } from "@comvi/svelte";
+  import { createI18n, setI18nContext } from "@comvi/svelte";
   import type { Snippet } from "svelte";
 
-  const { data, children }: { data: { i18n: ReturnType<typeof import("@comvi/svelte").createI18n> }, children: Snippet } = $props();
+  let { data, children }: {
+    data: { locale: string; messages: Record<string, unknown> };
+    children: Snippet;
+  } = $props();
 
-  setI18nContext(data.i18n);
+  // Per-request instance built from serializable load data — never a module singleton.
+  // Seeded synchronously so translations are ready before the first render (no flash,
+  // no hydration mismatch); the browser auto-init microtask would not complete in time.
+  const i18n = createI18n({
+    locale: data.locale,
+    translation: { [data.locale]: data.messages },
+  });
+
+  setI18nContext(i18n);
 </script>
 
 {@render children()}
 ```
 
 Child components call `useI18n()` as normal — the context carries the per-request instance.
+
+> Prefer the runtime CDN/API loader (`@comvi/plugin-fetch-loader`) for client navigation? Keep the per-request `createI18n(...)` + `i18n.use(FetchLoader(...))` in `+layout.svelte` and `await i18n.init()` inside an `$effect` / `onMount` for the client, while still seeding `translation` from `load` data for the initial server render. The rule is the same: only serializable data crosses `load`.
 
 ## License
 
