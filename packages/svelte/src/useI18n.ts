@@ -226,7 +226,7 @@ export interface UseI18nReturn {
  *
  * <p>{$t('greeting')}</p>
  * <p>Current locale: {$locale}</p>
- * <button on:click={() => setLocale('fr')}>Switch to French</button>
+ * <button onclick={() => setLocale('fr')}>Switch to French</button>
  * ```
  *
  * @example With parameters
@@ -260,7 +260,7 @@ export interface UseI18nReturn {
  * {:else if isAdminLoaded}
  *   <p>{$t('dashboard', { ns: 'admin' })}</p>
  * {:else}
- *   <button on:click={loadAdmin}>Load Admin</button>
+ *   <button onclick={loadAdmin}>Load Admin</button>
  * {/if}
  * ```
  */
