@@ -7,20 +7,29 @@
  * src/index.ts); it goes straight to the compiled artefacts so that a broken
  * build or missing dist file is caught here.
  *
- * Also asserts structural guarantees about dist/T.svelte so that the `svelte`
- * condition advertised in package.json actually delivers a compilable Svelte 5
- * runes component.
+ * dist/ is gitignored and CI runs `pnpm test` before `pnpm build`, so a static
+ * `import` of dist would fail on a clean checkout and could pass against stale
+ * artefacts locally. To stay correct regardless of run order, we build the
+ * package in `beforeAll` (fresh dist every run) and load it via dynamic import.
  */
 
+import { execSync } from "child_process";
 import { readFileSync, existsSync } from "fs";
 import { resolve } from "path";
-import { describe, expect, it } from "vitest";
+import { pathToFileURL } from "url";
+import { beforeAll, describe, expect, it } from "vitest";
 
-// Import through dist/ directly — mirrors what a consumer sees via the
-// `import` / `svelte` export condition in package.json.
-import * as pkg from "../dist/index.js";
+const pkgRoot = resolve(__dirname, "..");
+const distDir = resolve(pkgRoot, "dist");
 
-const distDir = resolve(__dirname, "../dist");
+// Populated in beforeAll, after a fresh build.
+let pkg: typeof import("../dist/index.js");
+
+beforeAll(async () => {
+  // Build fresh so the smoke check never runs against missing/stale dist.
+  execSync("pnpm build", { cwd: pkgRoot, stdio: "pipe" });
+  pkg = await import(pathToFileURL(resolve(distDir, "index.js")).href);
+}, 120_000);
 
 describe("exports map smoke (F0b)", () => {
   it("dist/index.js exports T as a function (Svelte component)", () => {
@@ -62,12 +71,24 @@ describe("exports map smoke (F0b)", () => {
     expect(source).not.toContain("\n\t$:");
   });
 
+  it("dist/T.svelte is preprocessed to plain JS — no TypeScript types/imports", () => {
+    // The published .svelte must have its <script> TS-stripped (see
+    // CHANGELOG 0.2.0): raw `import type` / type annotations break consumers
+    // and bundle analyzers without a TS-aware Svelte preprocessor.
+    const source = readFileSync(resolve(distDir, "T.svelte"), "utf-8");
+    expect(source).not.toMatch(/\bimport\s+type\b/);
+    // No `import type {`-style or inline `: Type` annotations should survive.
+    // Probe a few annotations known to exist in the source component.
+    expect(source).not.toContain(": TranslationParams");
+    expect(source).not.toContain("(tag: string");
+  });
+
   it("dist/T.svelte.d.ts exists (svelte-package emits component types)", () => {
     expect(existsSync(resolve(distDir, "T.svelte.d.ts"))).toBe(true);
   });
 
-  it("exports map has no require condition (ESM-only package — no CJS path advertised)", async () => {
-    const pkgJson = JSON.parse(readFileSync(resolve(__dirname, "../package.json"), "utf-8"));
+  it("exports map has no require condition (ESM-only package — no CJS path advertised)", () => {
+    const pkgJson = JSON.parse(readFileSync(resolve(pkgRoot, "package.json"), "utf-8"));
     const dotExport = pkgJson.exports?.["."];
     expect(dotExport).toBeDefined();
     // No `require` condition should be present — this is intentional; any

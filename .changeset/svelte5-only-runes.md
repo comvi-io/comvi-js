@@ -11,5 +11,5 @@ Drop Svelte 4; migrate to Svelte 5 runes only.
 - `<T>` now injects safe defaults for `{@html}` output: `rel="noopener noreferrer"` on `<a target="_blank">` and an empty `alt=""` on `<img>` without one.
 - New exported type `TProps` for the `<T>` component props.
 - Docs/examples use Svelte 5 idiom (`onclick`/`onchange`, `$state`, `{@render}`); added an SSR (SvelteKit) section documenting the per-request instance pattern and `await i18n.init()`.
-- Build no longer runs a redundant `tsc --emitDeclarationOnly` pass (`svelte-package` emits complete declarations); `svelte-preprocess` replaced with `vitePreprocess`. No change to published output.
+- Build no longer runs a redundant `tsc --emitDeclarationOnly` pass (`svelte-package` emits complete declarations). `svelte-preprocess` is retained so published `.svelte` files stay TS-stripped. No change to published output.
 - Stores (`useI18n`, `createLocaleStore`, etc.) are unchanged — `svelte/store` remains fully supported in Svelte 5.
