@@ -7,7 +7,7 @@
   "author": "Comvi <hello@comvi.io> (https://comvi.io)",
   "repository": {
     "type": "git",
-    "url": "https://github.com/comvi-io/comvi-js.git",
+    "url": "git+https://github.com/comvi-io/comvi-js.git",
     "directory": "packages/plugin-locale-detector"
   },
   "homepage": "https://comvi.io",
@@ -30,11 +30,19 @@
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "engines": {
+    "node": ">=22"
+  },
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js",
-      "require": "./dist/index.cjs"
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
     }
   },
   "sideEffects": false,
@@ -49,9 +57,10 @@
     "lint:fix": "eslint . --fix"
   },
   "peerDependencies": {
-    "@comvi/core": "workspace:*"
+    "@comvi/core": "^0.2.0 || ^0.3.0"
   },
   "devDependencies": {
+    "@comvi/core": "workspace:*",
     "@comvi/vite-config": "workspace:*",
     "@types/node": "^22.13.0",
     "typescript": "~6.0.2",

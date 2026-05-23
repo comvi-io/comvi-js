@@ -7,7 +7,7 @@
   "author": "Comvi <hello@comvi.io> (https://comvi.io)",
   "repository": {
     "type": "git",
-    "url": "https://github.com/comvi-io/comvi-js.git",
+    "url": "git+https://github.com/comvi-io/comvi-js.git",
     "directory": "packages/react"
   },
   "homepage": "https://comvi.io",
@@ -38,10 +38,18 @@
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/comvi-react.js",
-      "require": "./dist/comvi-react.cjs"
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/comvi-react.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/comvi-react.cjs"
+      }
     }
+  },
+  "engines": {
+    "node": ">=22"
   },
   "sideEffects": false,
   "scripts": {
