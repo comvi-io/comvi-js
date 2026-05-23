@@ -210,4 +210,31 @@ describe("I18nProvider", () => {
       expect(renderSpy).toHaveBeenCalledTimes(2);
     });
   });
+
+  it("returns a fresh legacy context value when config changes without a cache revision change", async () => {
+    const fake = new FakeI18n();
+    const values: unknown[] = [];
+
+    const Wrapped = () => {
+      values.push(useI18nContext());
+      return <div data-testid="renders">{values.length}</div>;
+    };
+
+    render(
+      <I18nProvider i18n={fake.asI18n()} autoInit={false}>
+        <Wrapped />
+      </I18nProvider>,
+    );
+
+    const firstValue = values[0];
+
+    act(() => {
+      fake.emit("configChanged", { source: "fallbackLocale" });
+    });
+
+    await waitFor(() => {
+      expect(values).toHaveLength(2);
+    });
+    expect(values[1]).not.toBe(firstValue);
+  });
 });

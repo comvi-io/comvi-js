@@ -106,6 +106,18 @@ describe("I18n Lifecycle", () => {
       expect(i18n.getLoadedLocales()).toEqual([]);
       expect(i18n.t("key", { ns: "slow" })).toBe("key");
     });
+
+    it("tears down configChanged subscribers", async () => {
+      const i18n = new I18n({ locale: "en" });
+      const onConfigChanged = vi.fn();
+
+      i18n.on("configChanged", onConfigChanged);
+
+      await i18n.destroy();
+      i18n.setFallbackLocale("de");
+
+      expect(onConfigChanged).not.toHaveBeenCalled();
+    });
   });
 
   describe("onLoadError", () => {

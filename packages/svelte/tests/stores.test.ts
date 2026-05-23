@@ -134,14 +134,14 @@ describe("Svelte stores", () => {
 
   it("cacheRevision store updates when configChanged is emitted (e.g. setFallbackLocale)", () => {
     const cacheRevision = createCacheRevisionStore(fake.asI18n());
-    const before = get(cacheRevision);
+    const values: number[] = [];
+    const unsubscribe = cacheRevision.subscribe((value) => values.push(value));
+    const before = values.at(-1) ?? Number.NEGATIVE_INFINITY;
 
     fake.emit("configChanged", { source: "fallbackLocale" });
-    const after = get(cacheRevision);
+    const after = values.at(-1) ?? Number.NEGATIVE_INFINITY;
 
-    // configChanged (setFallbackLocale) does NOT mutate translationCache, so the
-    // revision value is unchanged; this asserts the store re-reads on the event,
-    // not that the revision strictly increments. Hence >= (not >).
-    expect(after).toBeGreaterThanOrEqual(before);
+    expect(after).toBeGreaterThan(before);
+    unsubscribe();
   });
 });

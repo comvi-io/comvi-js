@@ -1,4 +1,4 @@
-import { useCallback, useTransition } from "react";
+import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { useI18nInstance } from "./I18nProvider";
 
 export interface UseSetLocaleTransitionReturn {
@@ -24,19 +24,41 @@ export interface UseSetLocaleTransitionReturn {
  */
 export function useSetLocaleTransition(): UseSetLocaleTransitionReturn {
   const { i18n } = useI18nInstance();
-  const [isPending, startTransition] = useTransition();
+  const [isTransitionPending, startTransition] = useTransition();
+  const [isAsyncPending, setIsAsyncPending] = useState(false);
+  const mountedRef = useRef(true);
+  const pendingCountRef = useRef(0);
+
+  useEffect(() => {
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
 
   const setLocale = useCallback(
     (locale: string) => {
       startTransition(() => {
-        i18n.setLocaleAsync(locale).catch((err) => {
-          const error = err instanceof Error ? err : new Error(String(err));
-          i18n.reportError(error, { source: "init", locale });
-        });
+        pendingCountRef.current += 1;
+        if (mountedRef.current) {
+          setIsAsyncPending(true);
+        }
+
+        i18n
+          .setLocaleAsync(locale)
+          .catch((err) => {
+            const error = err instanceof Error ? err : new Error(String(err));
+            i18n.reportError(error, { source: "setLocale", locale });
+          })
+          .finally(() => {
+            pendingCountRef.current = Math.max(0, pendingCountRef.current - 1);
+            if (mountedRef.current && pendingCountRef.current === 0) {
+              setIsAsyncPending(false);
+            }
+          });
       });
     },
     [i18n, startTransition],
   );
 
-  return { isPending, setLocale };
+  return { isPending: isTransitionPending || isAsyncPending, setLocale };
 }

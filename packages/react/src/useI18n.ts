@@ -1,5 +1,5 @@
-import { useContext, useMemo, useSyncExternalStore } from "react";
-import { LocaleContext, useI18nInstance, useSubscribe } from "./I18nProvider";
+import { useContext, useMemo } from "react";
+import { LocaleContext, useI18nInstance, useStoreRevision } from "./I18nProvider";
 import { createBoundTranslation } from "@comvi/core";
 import type {
   TranslationParams,
@@ -108,10 +108,6 @@ const BIND_METHODS = [
   "getDefaultNamespace",
   "on",
   "reportError",
-  "formatNumber",
-  "formatDate",
-  "formatCurrency",
-  "formatRelativeTime",
 ] as const;
 
 export interface UseI18nReturn {
@@ -228,17 +224,13 @@ export function useI18n(ns?: string): UseI18nReturn {
   const { i18n, isLoading, isInitializing } = useI18nInstance();
   const locale = useContext(LocaleContext) ?? "";
 
-  const subCache = useSubscribe(
+  useStoreRevision(
     i18n,
     "namespaceLoaded",
     "initialized",
     "translationsCleared",
     "configChanged",
-  );
-  useSyncExternalStore(
-    subCache,
-    () => i18n.translationCache.getRevision(),
-    () => i18n.translationCache.getRevision(),
+    "defaultNamespaceChanged",
   );
   const translationCache = i18n.translationCache.getInternalMap();
 
@@ -281,6 +273,23 @@ export function useI18n(ns?: string): UseI18nReturn {
     };
   }, [i18n]);
 
+  const formatters = useMemo(
+    () => ({
+      formatNumber: (value: number, options?: Intl.NumberFormatOptions) =>
+        i18n.formatNumber(value, options, locale),
+      formatDate: (value: Date | number, options?: Intl.DateTimeFormatOptions) =>
+        i18n.formatDate(value, options, locale),
+      formatCurrency: (value: number, currency: string, options?: Intl.NumberFormatOptions) =>
+        i18n.formatCurrency(value, currency, options, locale),
+      formatRelativeTime: (
+        value: number,
+        unit: Intl.RelativeTimeFormatUnit,
+        options?: Intl.RelativeTimeFormatOptions,
+      ) => i18n.formatRelativeTime(value, unit, options, locale),
+    }),
+    [i18n, locale],
+  );
+
   return {
     t,
     tRaw,
@@ -291,7 +300,18 @@ export function useI18n(ns?: string): UseI18nReturn {
     dir: i18n.dir,
     ...(boundMethods as Omit<
       UseI18nReturn,
-      "t" | "tRaw" | "locale" | "translationCache" | "isLoading" | "isInitializing" | "dir"
+      | "t"
+      | "tRaw"
+      | "locale"
+      | "translationCache"
+      | "isLoading"
+      | "isInitializing"
+      | "dir"
+      | "formatNumber"
+      | "formatDate"
+      | "formatCurrency"
+      | "formatRelativeTime"
     >),
+    ...formatters,
   };
 }

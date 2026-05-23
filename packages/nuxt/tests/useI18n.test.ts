@@ -33,13 +33,19 @@ function createI18nStub() {
     onLoadError: vi.fn(() => () => undefined),
     clearTranslations: vi.fn(),
     reloadTranslations: vi.fn(async () => undefined),
-    hasLocale: vi.fn(() => true),
-    hasTranslation: vi.fn(() => true),
-    getLoadedLocales: vi.fn(() => ["en"]),
-    getActiveNamespaces: vi.fn(() => ["default"]),
-    getDefaultNamespace: vi.fn(() => "default"),
+    hasLocale: vi.fn(() => computed(() => true)),
+    hasTranslation: vi.fn(() => computed(() => true)),
+    loadedLocales: computed(() => ["en"]),
+    activeNamespaces: computed(() => ["default"]),
+    defaultNamespace: computed(() => "default"),
     on: vi.fn(() => () => undefined),
     reportError: vi.fn(),
+    formatNumber: vi.fn(() => "1"),
+    formatDate: vi.fn(() => "date"),
+    formatCurrency: vi.fn(() => "$1.00"),
+    formatRelativeTime: vi.fn(() => "now"),
+    dir: computed(() => "ltr" as const),
+    destroy: vi.fn(),
   };
 }
 
@@ -124,14 +130,21 @@ describe("useI18n composable", () => {
     api.addTranslations({ "en:common": { greeting: "Hello" } });
     expect(i18n.addTranslations).toHaveBeenCalledWith({ "en:common": { greeting: "Hello" } });
 
-    api.hasLocale("en", "common");
+    expect(api.hasLocale("en", "common").value).toBe(true);
     expect(i18n.hasLocale).toHaveBeenCalledWith("en", "common");
 
-    api.hasTranslation("greeting", "en", "common");
-    expect(i18n.hasTranslation).toHaveBeenCalledWith("greeting", "en", "common");
+    expect(api.hasTranslation("greeting", { locale: "en", namespace: "common" }).value).toBe(true);
+    expect(i18n.hasTranslation).toHaveBeenCalledWith("greeting", {
+      locale: "en",
+      namespace: "common",
+    });
 
-    api.hasTranslation("missing");
+    expect(api.hasTranslation("missing").value).toBe(true);
     expect(i18n.hasTranslation).toHaveBeenCalledWith("missing");
+
+    expect(api.loadedLocales.value).toEqual(["en"]);
+    expect(api.activeNamespaces.value).toEqual(["default"]);
+    expect(api.defaultNamespace.value).toBe("default");
 
     const handler = () => {};
     api.on("localeChanged" as any, handler);

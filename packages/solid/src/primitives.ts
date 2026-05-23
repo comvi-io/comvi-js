@@ -81,23 +81,37 @@ export function createInitializedSignal(i18n: I18n): Accessor<boolean> {
 }
 
 /**
- * Creates a SolidJS signal that tracks translation cache changes
+ * Creates a SolidJS signal that tracks translation cache/config changes
  * Uses revision counter for efficient O(1) change detection
  * MUST be called within a reactive context (component or effect)
  */
 export function createCacheRevisionSignal(i18n: I18n): Accessor<number> {
   const signal = from<number>((set) => {
-    set(i18n.translationCache.getRevision());
-    const unsub1 = i18n.on("namespaceLoaded", () => set(i18n.translationCache.getRevision()));
-    const unsub2 = i18n.on("initialized", () => set(i18n.translationCache.getRevision()));
-    const unsub3 = i18n.on("translationsCleared", () => set(i18n.translationCache.getRevision()));
-    const unsub4 = i18n.on("configChanged", () => set(i18n.translationCache.getRevision()));
+    let cacheRevision = i18n.translationCache.getRevision();
+    let configRevision = 0;
+    const syncCacheRevision = () => {
+      cacheRevision = i18n.translationCache.getRevision();
+      set(cacheRevision + configRevision);
+    };
+    const bumpConfigRevision = () => {
+      cacheRevision = i18n.translationCache.getRevision();
+      configRevision += 1;
+      set(cacheRevision + configRevision);
+    };
+
+    set(cacheRevision + configRevision);
+    const unsub1 = i18n.on("namespaceLoaded", syncCacheRevision);
+    const unsub2 = i18n.on("initialized", syncCacheRevision);
+    const unsub3 = i18n.on("translationsCleared", syncCacheRevision);
+    const unsub4 = i18n.on("configChanged", bumpConfigRevision);
+    const unsub5 = i18n.on("defaultNamespaceChanged", bumpConfigRevision);
 
     return () => {
       unsub1();
       unsub2();
       unsub3();
       unsub4();
+      unsub5();
     };
   });
   return signal as Accessor<number>;

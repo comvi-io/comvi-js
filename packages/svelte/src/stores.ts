@@ -55,19 +55,31 @@ function getOrCreateStores(i18n: I18n) {
         };
       }),
       cacheRevision: readable(i18n.translationCache.getRevision(), (set) => {
-        set(i18n.translationCache.getRevision());
-        const unsub1 = i18n.on("namespaceLoaded", () => set(i18n.translationCache.getRevision()));
-        const unsub2 = i18n.on("initialized", () => set(i18n.translationCache.getRevision()));
-        const unsub3 = i18n.on("translationsCleared", () =>
-          set(i18n.translationCache.getRevision()),
-        );
-        const unsub4 = i18n.on("configChanged", () => set(i18n.translationCache.getRevision()));
+        let cacheRevision = i18n.translationCache.getRevision();
+        let configRevision = 0;
+        const syncCacheRevision = () => {
+          cacheRevision = i18n.translationCache.getRevision();
+          set(cacheRevision + configRevision);
+        };
+        const bumpConfigRevision = () => {
+          cacheRevision = i18n.translationCache.getRevision();
+          configRevision += 1;
+          set(cacheRevision + configRevision);
+        };
+
+        set(cacheRevision + configRevision);
+        const unsub1 = i18n.on("namespaceLoaded", syncCacheRevision);
+        const unsub2 = i18n.on("initialized", syncCacheRevision);
+        const unsub3 = i18n.on("translationsCleared", syncCacheRevision);
+        const unsub4 = i18n.on("configChanged", bumpConfigRevision);
+        const unsub5 = i18n.on("defaultNamespaceChanged", bumpConfigRevision);
 
         return () => {
           unsub1();
           unsub2();
           unsub3();
           unsub4();
+          unsub5();
         };
       }),
     };
@@ -122,7 +134,7 @@ export function createInitializedStore(i18n: I18n): Readable<boolean> {
 }
 
 /**
- * Creates a Svelte store that tracks translation cache changes
+ * Creates a Svelte store that tracks translation cache/config changes
  * Uses revision counter for efficient O(1) change detection
  * Memoized per i18n instance
  */

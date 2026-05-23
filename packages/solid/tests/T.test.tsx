@@ -296,6 +296,21 @@ describe("T.tsx", () => {
     expect(container.textContent).toBe("Bonjour");
   });
 
+  it("does not recompute when global locale changes and locale prop is pinned", async () => {
+    fake.tImplementation = (_key, params) => `locale=${String(params?.locale ?? fake.language)}`;
+
+    renderWithProvider(() => <T i18nKey={"greeting" as never} locale="fr" />);
+
+    expect(container.textContent).toBe("locale=fr");
+    const callsAfterRender = fake.tRaw.mock.calls.length;
+
+    await fake.setLocaleAsync("de");
+    await Promise.resolve();
+
+    expect(container.textContent).toBe("locale=fr");
+    expect(fake.tRaw).toHaveBeenCalledTimes(callsAfterRender);
+  });
+
   it("passes params to the translation call for interpolation", () => {
     fake.tImplementation = (_key, params) => (params?.name ? `Hello ${params.name}` : "Hello");
 

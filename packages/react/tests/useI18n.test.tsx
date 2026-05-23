@@ -1,9 +1,9 @@
 import { describe, it, expect, vi } from "vitest";
-import { renderHook, act } from "@testing-library/react";
+import { renderHook, act, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { I18nProvider } from "../src/I18nProvider";
 import { useI18n } from "../src/useI18n";
-import type { TranslationResult } from "@comvi/core";
+import { createI18n, type TranslationResult } from "@comvi/core";
 import { FakeI18n } from "../../../tooling/test-utils/fakeI18n";
 
 const createWrapper = (fake: FakeI18n) => {
@@ -84,6 +84,57 @@ describe("useI18n", () => {
     expect(result.current.locale).toBe("fr");
     expect(result.current.t).not.toBe(tBefore);
     expect(result.current.tRaw).not.toBe(tRawBefore);
+  });
+
+  it("binds formatters to the React-tracked render locale", () => {
+    const fake = new FakeI18n({ language: "en" });
+    const { result } = renderHook(() => useI18n(), { wrapper: createWrapper(fake) });
+    const formatNumberFromEnglishRender = result.current.formatNumber;
+    const setLocaleBefore = result.current.setLocale;
+
+    act(() => {
+      fake.language = "de";
+    });
+
+    expect(formatNumberFromEnglishRender(1234)).toBe("1,234");
+
+    act(() => {
+      fake.emit("localeChanged", { from: "en", to: "de" });
+    });
+
+    expect(result.current.locale).toBe("de");
+    expect(result.current.formatNumber(1234)).toBe("1.234");
+    expect(result.current.setLocale).toBe(setLocaleBefore);
+    expect(fake.formatNumber).toHaveBeenCalledWith(1234, undefined, "en");
+    expect(fake.formatNumber).toHaveBeenLastCalledWith(1234, undefined, "de");
+  });
+
+  it("re-renders when fallback config changes without a cache revision change", async () => {
+    const i18n = createI18n({
+      locale: "fr",
+      defaultNs: "common",
+      translation: {
+        en: { fallbackOnly: "Fallback" },
+      },
+    });
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <I18nProvider i18n={i18n} autoInit={false}>
+        {children}
+      </I18nProvider>
+    );
+    const { result } = renderHook(() => useI18n(), { wrapper });
+    const revisionBefore = i18n.translationCache.getRevision();
+
+    expect(result.current.t("fallbackOnly" as never)).toBe("fallbackOnly");
+
+    act(() => {
+      i18n.setFallbackLocale("en");
+    });
+
+    expect(i18n.translationCache.getRevision()).toBe(revisionBefore);
+    await waitFor(() => {
+      expect(result.current.t("fallbackOnly" as never)).toBe("Fallback");
+    });
   });
 
   it("proxies setLocale() to i18n.setLocaleAsync()", async () => {
