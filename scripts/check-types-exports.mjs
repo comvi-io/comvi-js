@@ -33,24 +33,10 @@ import { gunzipSync } from "node:zlib";
 import { fileURLToPath } from "node:url";
 import { Parser } from "tar";
 import { Package, checkPackage } from "@arethetypeswrong/core";
+import { DUAL_PACKAGES } from "../tooling/dual-packages.mjs";
 
 const rootDir = path.resolve(fileURLToPath(import.meta.url), "..", "..");
 const packagesDir = path.join(rootDir, "packages");
-
-// Dual (ESM+CJS) published packages — the ones with a `require` condition whose
-// `.d.cts` resolution this wrapper must prove. svelte/nuxt are ESM-only (no require).
-const DUAL_PACKAGES = [
-  "core",
-  "react",
-  "vue",
-  "solid",
-  "next",
-  "cli",
-  "vite-plugin",
-  "plugin-fetch-loader",
-  "plugin-locale-detector",
-  "plugin-in-context-editor",
-];
 
 // The resolution problems that the `.d.cts` remediation exists to eliminate. A
 // problem of one of these kinds under node16 (esm) or node16-cjs (require) is a hard

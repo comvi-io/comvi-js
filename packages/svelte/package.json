@@ -36,7 +36,7 @@
   "types": "./dist/index.d.ts",
   "svelte": "./dist/index.js",
   "engines": {
-    "node": ">=22"
+    "node": ">=18"
   },
   "exports": {
     ".": {

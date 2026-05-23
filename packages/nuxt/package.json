@@ -45,7 +45,7 @@
     "./runtime/*": "./dist/runtime/*"
   },
   "engines": {
-    "node": ">=22.0.0"
+    "node": ">=18"
   },
   "sideEffects": false,
   "scripts": {

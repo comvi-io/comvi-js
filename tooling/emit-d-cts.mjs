@@ -37,24 +37,10 @@ import { readdir } from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
+import { DUAL_PACKAGES } from "./dual-packages.mjs";
 
 const rootDir = path.resolve(fileURLToPath(import.meta.url), "..", "..");
 const packagesDir = path.join(rootDir, "packages");
-
-// Dual (ESM+CJS) published packages that ship a `require` condition and therefore
-// need a `.d.cts` twin. ESM-only packages (svelte, nuxt) are intentionally absent.
-const DUAL_PACKAGES = [
-  "core",
-  "react",
-  "vue",
-  "solid",
-  "next",
-  "cli",
-  "vite-plugin",
-  "plugin-fetch-loader",
-  "plugin-locale-detector",
-  "plugin-in-context-editor",
-];
 
 // Asset extensions that are NOT JS/TS modules — relative specifiers ending in these
 // (e.g. `import('./locales/en.json')` inside JSDoc) must NOT be given a JS extension.
@@ -170,9 +156,11 @@ let any = false;
 for (const r of results) {
   if (r.skipped) {
     console.log(`SKIP ${r.pkg}: ${r.reason}`);
-  } else {
+  } else if (r.count > 0) {
     any = true;
     console.log(`OK   ${r.pkg}: rewrote ${r.count} .d.ts + emitted ${r.count} .d.cts`);
+  } else {
+    console.log(`SKIP ${r.pkg}: no .d.ts files found (dist exists but declarations missing)`);
   }
 }
 

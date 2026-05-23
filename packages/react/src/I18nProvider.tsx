@@ -42,6 +42,15 @@ export function useSubscribe(i18n: I18n, ...events: I18nEvent[]) {
   );
 }
 
+// KNOWN LIMITATION (planned fix for v0.3.1): the snapshot derives from a
+// component-local `eventRevisionRef` that is only bumped inside i18n.on()
+// callbacks. If an i18n event fires in the narrow window between React's
+// render-time snapshot read and the subscribe commit, the invalidation may be
+// missed under useSyncExternalStore. Not observed in tests because vitest
+// events don't race with React commits in practice. v0.3.1 will replace this
+// with a monotonic `i18n.getRevision()` exposed by @comvi/core that bumps on
+// every emit; the snapshot will then derive solely from external state.
+// See CodeRabbit comment on PR #26 for full analysis.
 /** @internal — exported for unit tests, not in the package index. */
 export function useStoreRevision(i18n: I18n, ...events: I18nEvent[]): string {
   const eventRevisionRef = useRef(0);

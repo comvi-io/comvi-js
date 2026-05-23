@@ -99,7 +99,7 @@
     }
   },
   "engines": {
-    "node": ">=22"
+    "node": ">=18"
   },
   "sideEffects": false,
   "scripts": {
