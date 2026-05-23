@@ -17,8 +17,8 @@
 // "0 problems" — a false green that defeats the purpose. So we ASSERT the extracted
 // map is non-empty AND contains the package's package.json before trusting any verdict.
 //
-// Scope: this is the LOCAL merge-precondition harness and the T9 verification tool.
-// It does NOT gate CI yet (see plan Step 5 — promote only after good/bad fixtures).
+// Scope: this is the CI/package-contract gate and the local release-readiness
+// verification tool.
 //
 // Usage:
 //   node scripts/check-types-exports.mjs                 # all dual packages
