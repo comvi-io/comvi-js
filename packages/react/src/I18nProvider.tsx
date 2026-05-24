@@ -34,37 +34,61 @@ export function useSubscribe(i18n: I18n, ...events: I18nEvent[]) {
   const eventsKey = events.join("|");
   return useCallback(
     (callback: () => void) => {
+      let disposed = false;
       const eventList = eventsKey.split("|") as I18nEvent[];
-      const unsubs = eventList.map((e) => i18n.on(e, callback));
-      return () => unsubs.forEach((u) => u());
+      const unsubs = eventList.map((e) =>
+        i18n.on(e, () => {
+          // Defer React's store-update notification out of the synchronous
+          // _emit call stack (packages/core/src/core/i18n.ts:438-448).
+          // Without deferral, callback() runs inside the emit loop while a
+          // parent component is mid-render, causing scheduleUpdateOnFiber to
+          // target a sibling fiber and fire the "Cannot update a component
+          // while rendering a different component" warning.
+          // The disposed flag prevents stale callbacks after unsubscribe.
+          queueMicrotask(() => {
+            if (!disposed) callback();
+          });
+        }),
+      );
+      return () => {
+        disposed = true;
+        unsubs.forEach((u) => u());
+      };
     },
     [i18n, eventsKey],
   );
 }
 
-// KNOWN LIMITATION (planned fix for v0.3.1): the snapshot derives from a
-// component-local `eventRevisionRef` that is only bumped inside i18n.on()
-// callbacks. If an i18n event fires in the narrow window between React's
-// render-time snapshot read and the subscribe commit, the invalidation may be
-// missed under useSyncExternalStore. Not observed in tests because vitest
-// events don't race with React commits in practice. v0.3.1 will replace this
-// with a monotonic `i18n.getRevision()` exposed by @comvi/core that bumps on
-// every emit; the snapshot will then derive solely from external state.
-// See CodeRabbit comment on PR #26 for full analysis.
 /** @internal — exported for unit tests, not in the package index. */
 export function useStoreRevision(i18n: I18n, ...events: I18nEvent[]): string {
   const eventRevisionRef = useRef(0);
   const eventsKey = events.join("|");
   const subscribe = useCallback(
     (callback: () => void) => {
+      let disposed = false;
       const eventList = eventsKey.split("|") as I18nEvent[];
       const unsubs = eventList.map((event) =>
         i18n.on(event, () => {
+          // Bump revision synchronously so getSnapshot reads see the new value
+          // immediately (before the deferred React notification fires).
           eventRevisionRef.current += 1;
-          callback();
+          // Defer React's notification out of the synchronous _emit call stack
+          // (packages/core/src/core/i18n.ts:438-448) so scheduleUpdateOnFiber
+          // cannot land while a sibling fiber is mid-render. This significantly
+          // narrows (but does not fully close) the v0.3.1 KNOWN LIMITATION race
+          // at useI18n.ts:45-53; the residual window depends on React-internal
+          // subscribe-set-up vs first-event ordering.
+          // The disposed flag prevents stale callbacks after unsubscribe or
+          // i18n prop swap (useCallback dep [i18n, eventsKey] covers the swap).
+          queueMicrotask(() => {
+            if (!disposed) callback();
+          });
         }),
       );
-      return () => unsubs.forEach((unsub) => unsub());
+      return () => {
+        disposed = true;
+        unsubs.forEach((unsub) => unsub());
+      };
     },
     [i18n, eventsKey],
   );
