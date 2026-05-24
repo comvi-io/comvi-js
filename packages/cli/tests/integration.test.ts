@@ -50,6 +50,7 @@ describe("Integration Tests", () => {
     const mockApiClient = vi.mocked(ApiClient);
     mockApiClient.prototype.validateConnection = vi.fn().mockResolvedValue(true);
     mockApiClient.prototype.fetchSchema = vi.fn().mockResolvedValue(mockSchema);
+    mockApiClient.prototype.fetchDefaultNamespace = vi.fn().mockResolvedValue("default");
   });
 
   describe("End-to-End Type Generation Pipeline", () => {

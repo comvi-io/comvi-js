@@ -68,6 +68,17 @@ describe("extractSchema", () => {
       expect(schema.keys["default:nested.key"]).toBeDefined();
     });
 
+    it("should use the v0.3 default layout for root default and namespace directories", async () => {
+      const schema = await extractSchema({
+        translationsPath: path.join(FIXTURES, "mixed-layout"),
+        defaultNs: "common",
+      });
+
+      expect(schema.keys["common:greeting"]).toBeDefined();
+      expect(schema.keys["admin:dashboard"]).toBeDefined();
+      expect(schema.keys["default:greeting"]).toBeUndefined();
+    });
+
     it("should use custom defaultNs for unmatched root-level files", async () => {
       const schema = await extractSchema({
         translationsPath: path.join(FIXTURES, "mixed-layout"),

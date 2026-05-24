@@ -1,8 +1,8 @@
 ---
-"@comvi/next": major
+"@comvi/next": minor
 ---
 
-**Major release — React 18+ baseline (via `@comvi/react`), render-time mutation removal, locale validation.**
+**Minor release — React 18+ baseline (via `@comvi/react`), render-time mutation removal, locale validation.**
 
 ### Added
 
@@ -15,7 +15,7 @@
 
 ### Removed
 
-- React 16.8–17 peer support via the `@comvi/react` major bump.
+- React 16.8–17 peer support via the `@comvi/react` 0.3 release.
 - Duplicate `src/client/index.ts` re-export module — `src/client.ts` is the single source of truth for the `./client` subpath.
 
 ### Internal

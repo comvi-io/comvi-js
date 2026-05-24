@@ -8,7 +8,7 @@
   "author": "Comvi <hello@comvi.io> (https://comvi.io)",
   "repository": {
     "type": "git",
-    "url": "https://github.com/comvi-io/comvi-js.git",
+    "url": "git+https://github.com/comvi-io/comvi-js.git",
     "directory": "packages/plugin-in-context-editor"
   },
   "homepage": "https://comvi.io",
@@ -28,18 +28,32 @@
   "files": [
     "dist"
   ],
-  "main": "./dist/index.cjs.js",
+  "main": "./dist/index.cjs",
   "module": "./dist/index.es.js",
   "types": "./dist/index.d.ts",
+  "engines": {
+    "node": ">=18"
+  },
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
       "production": {
-        "import": "./dist/production.es.js",
-        "require": "./dist/production.cjs.js"
+        "import": {
+          "types": "./dist/production.d.ts",
+          "default": "./dist/production.es.js"
+        },
+        "require": {
+          "types": "./dist/production.d.cts",
+          "default": "./dist/production.cjs"
+        }
       },
-      "import": "./dist/index.es.js",
-      "require": "./dist/index.cjs.js"
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.es.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
     },
     "./standalone": "./dist/standalone.iife.js"
   },
@@ -63,7 +77,7 @@
     "lint:fix": "eslint . --fix"
   },
   "peerDependencies": {
-    "@comvi/core": "workspace:*"
+    "@comvi/core": "^0.2.0 || ^0.3.0"
   },
   "dependencies": {
     "@comvi/plugin-fetch-loader": "workspace:*",
@@ -77,6 +91,7 @@
     "vue": "^3.5.32"
   },
   "devDependencies": {
+    "@comvi/core": "workspace:*",
     "@playwright/test": "^1.59.1",
     "@tailwindcss/vite": "^4.2.2",
     "@types/node": "^22.13.0",

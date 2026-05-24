@@ -34,7 +34,7 @@ export default defineConfig({
       },
       name: "inContextEditor",
       formats: ["es", "cjs"],
-      fileName: (format, entryName) => `${entryName}.${format === "es" ? "es" : "cjs"}.js`,
+      fileName: (format, entryName) => `${entryName}.${format === "es" ? "es.js" : "cjs"}`,
     },
     rolldownOptions: {
       external: ["@comvi/core"],

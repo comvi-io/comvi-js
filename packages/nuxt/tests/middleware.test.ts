@@ -205,6 +205,25 @@ describe("i18n middleware", () => {
     expect(localeState.value).toBe("en");
   });
 
+  it("uses the first supported fallback locale when fallbackLocale is an array", async () => {
+    mockRuntimeConfig.public.comvi.detectBrowserLanguage = {
+      useCookie: false,
+      cookieName: "i18n_locale",
+      cookieMaxAge: 31536000,
+      redirectOnFirstVisit: true,
+      fallbackLocale: ["es", "de"],
+    };
+
+    const result = await middleware({
+      path: "/about",
+      fullPath: "/about",
+    } as any);
+
+    expect(result?.path).toBe("/de/about");
+    const localeState = useState<string>("i18n-locale");
+    expect(localeState.value).toBe("de");
+  });
+
   it("redirects root to locale prefix in always mode", async () => {
     mockRuntimeConfig.public.comvi.localePrefix = "always";
 

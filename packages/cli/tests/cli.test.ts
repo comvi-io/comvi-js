@@ -44,6 +44,10 @@ describe("CLI", () => {
     vi.restoreAllMocks();
   });
 
+  function stubDefaultNamespace(generator: TypeGenerator): void {
+    vi.spyOn(generator.getApiClient(), "fetchDefaultNamespace").mockResolvedValue("default");
+  }
+
   describe("init command", () => {
     const tmpFiles: string[] = [];
 
@@ -112,7 +116,6 @@ describe("CLI", () => {
       expect(options.apiBaseUrl).toBe("https://api.custom.com");
       expect(options.outputPath).toBe("src/types/i18n.d.ts");
       expect(options.strictParams).toBe(true);
-      expect(options.defaultNsName).toBe("default");
     });
 
     it("should throw when converting config without apiKey", () => {
@@ -140,6 +143,7 @@ describe("CLI", () => {
         reporter: mockReporter,
         logger: mockLogger,
       });
+      stubDefaultNamespace(generator);
 
       const result = await generator.generate();
 
@@ -170,6 +174,7 @@ describe("CLI", () => {
         reporter: mockReporter,
         logger: mockLogger,
       });
+      stubDefaultNamespace(generator);
 
       const result = await generator.generate();
 
@@ -195,6 +200,7 @@ describe("CLI", () => {
         reporter: mockReporter,
         logger: mockLogger,
       });
+      stubDefaultNamespace(generator);
 
       const result = await generator.generate();
 
@@ -220,6 +226,7 @@ describe("CLI", () => {
         reporter: mockReporter,
         logger: mockLogger,
       });
+      stubDefaultNamespace(generator);
 
       const result = await generator.generate();
 
@@ -250,6 +257,7 @@ describe("CLI", () => {
         reporter: mockReporter,
         logger: mockLogger,
       });
+      stubDefaultNamespace(generator);
 
       // Simulate SSE callback: generateFromSchema with updated schema
       const updatedSchema: ProjectSchema = {
@@ -290,6 +298,7 @@ describe("CLI", () => {
         reporter: mockReporter,
         logger: mockLogger,
       });
+      stubDefaultNamespace(generator);
 
       const result = await generator.generate();
 
@@ -318,6 +327,7 @@ describe("CLI", () => {
         reporter: mockReporter,
         logger: mockLogger,
       });
+      stubDefaultNamespace(generator);
 
       await generator.generate();
 

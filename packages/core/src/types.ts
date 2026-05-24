@@ -384,11 +384,11 @@ type AddPrefix<
  * }
  * ```
  *
- * @example File per namespace (common is default)
+ * @example Root default namespace plus namespace folders
  * ```typescript
  * import type { InferKeys } from '@comvi/core'
- * import common from '../locales/en/common.json'
- * import admin from '../locales/en/admin.json'
+ * import common from '../locales/en.json'
+ * import admin from '../locales/admin/en.json'
  *
  * type DefaultNS = 'common'
  *

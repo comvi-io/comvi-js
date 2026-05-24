@@ -107,7 +107,11 @@ export default defineNuxtRouteMiddleware(async (to) => {
     detectConfig && "fallbackLocale" in detectConfig && detectConfig.fallbackLocale
       ? detectConfig.fallbackLocale
       : defaultLocale;
-  const resolvedFallbackLocale = locales.includes(fallbackLocale) ? fallbackLocale : defaultLocale;
+  const resolvedFallbackLocale = Array.isArray(fallbackLocale)
+    ? (fallbackLocale.find((locale) => locales.includes(locale)) ?? defaultLocale)
+    : locales.includes(fallbackLocale)
+      ? fallbackLocale
+      : defaultLocale;
   const locale =
     detectedLocale && locales.includes(detectedLocale) ? detectedLocale : resolvedFallbackLocale;
 

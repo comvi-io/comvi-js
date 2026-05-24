@@ -4,6 +4,7 @@ import {
   useEffect,
   useMemo,
   useCallback,
+  useRef,
   useSyncExternalStore,
 } from "react";
 import type { I18n, FlattenedTranslations, I18nEvent } from "@comvi/core";
@@ -38,6 +39,40 @@ export function useSubscribe(i18n: I18n, ...events: I18nEvent[]) {
       return () => unsubs.forEach((u) => u());
     },
     [i18n, eventsKey],
+  );
+}
+
+// KNOWN LIMITATION (planned fix for v0.3.1): the snapshot derives from a
+// component-local `eventRevisionRef` that is only bumped inside i18n.on()
+// callbacks. If an i18n event fires in the narrow window between React's
+// render-time snapshot read and the subscribe commit, the invalidation may be
+// missed under useSyncExternalStore. Not observed in tests because vitest
+// events don't race with React commits in practice. v0.3.1 will replace this
+// with a monotonic `i18n.getRevision()` exposed by @comvi/core that bumps on
+// every emit; the snapshot will then derive solely from external state.
+// See CodeRabbit comment on PR #26 for full analysis.
+/** @internal — exported for unit tests, not in the package index. */
+export function useStoreRevision(i18n: I18n, ...events: I18nEvent[]): string {
+  const eventRevisionRef = useRef(0);
+  const eventsKey = events.join("|");
+  const subscribe = useCallback(
+    (callback: () => void) => {
+      const eventList = eventsKey.split("|") as I18nEvent[];
+      const unsubs = eventList.map((event) =>
+        i18n.on(event, () => {
+          eventRevisionRef.current += 1;
+          callback();
+        }),
+      );
+      return () => unsubs.forEach((unsub) => unsub());
+    },
+    [i18n, eventsKey],
+  );
+
+  return useSyncExternalStore(
+    subscribe,
+    () => `${i18n.translationCache.getRevision()}:${eventRevisionRef.current}`,
+    () => `${i18n.translationCache.getRevision()}:${eventRevisionRef.current}`,
   );
 }
 
@@ -160,22 +195,18 @@ export function useI18nContext(): I18nContextValue {
   const { i18n, isLoading, isInitializing } = useI18nInstance();
   const locale = useContext(LocaleContext) ?? "";
 
-  const subCache = useSubscribe(
+  const storeRevision = useStoreRevision(
     i18n,
     "namespaceLoaded",
     "initialized",
     "translationsCleared",
     "configChanged",
-  );
-  useSyncExternalStore(
-    subCache,
-    () => i18n.translationCache.getRevision(),
-    () => i18n.translationCache.getRevision(),
+    "defaultNamespaceChanged",
   );
   const translationCache = i18n.translationCache.getInternalMap();
 
   return useMemo<I18nContextValue>(
     () => ({ i18n, locale, translationCache, isLoading, isInitializing }),
-    [i18n, locale, translationCache, isLoading, isInitializing],
+    [i18n, locale, translationCache, isLoading, isInitializing, storeRevision],
   );
 }

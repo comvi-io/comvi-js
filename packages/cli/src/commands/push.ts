@@ -15,6 +15,7 @@ import { stdin as input, stdout as output } from "node:process";
 import { ConfigLoader } from "../core/ConfigLoader";
 import { ApiClient } from "../core/ApiClient";
 import { TranslationSync } from "../core/TranslationSync";
+import { DEFAULT_FILE_TEMPLATE, isDefaultFileTemplate } from "../defaults";
 import type { ForceMode } from "../types";
 import { ErrorCodes, isTypegenError } from "../utils/errors";
 import { parseListFlag, resolveFilter } from "../utils/filterResolution";
@@ -51,9 +52,10 @@ export function createPushCommand(): Command {
         });
 
         // Create translation sync
+        const fileTemplate = config.fileTemplate || DEFAULT_FILE_TEMPLATE;
         const sync = new TranslationSync({
           translationsPath: options.path || config.translationsPath || "./src/locales",
-          fileTemplate: config.fileTemplate || "{languageTag}/{namespace}.json",
+          fileTemplate,
           format: config.format || "json",
         });
 
@@ -80,10 +82,15 @@ export function createPushCommand(): Command {
         }
 
         // Read local translations
+        const defaultNamespace = isDefaultFileTemplate(fileTemplate)
+          ? await apiClient.fetchDefaultNamespace()
+          : undefined;
+
         console.log("🔄 Reading local translation files...");
         const localTranslations = await sync.readTranslations({
           locales,
           namespaces,
+          defaultNamespace,
         });
 
         if (Object.keys(localTranslations.translations).length === 0) {

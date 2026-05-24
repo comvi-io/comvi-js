@@ -543,6 +543,25 @@ describe("Reactive State Transitions", () => {
 
       expect(hasFoo.value).toBe(true);
     });
+
+    it("should update computed translations after setFallbackLocale", async () => {
+      const i18n = createI18n({
+        locale: "fr",
+        defaultNs: "common",
+      });
+
+      await i18n.init();
+
+      i18n.addTranslations({ en: { foo: "bar" } });
+
+      const fallbackText = computed(() => i18n.t("foo"));
+      expect(fallbackText.value).toBe("foo");
+
+      i18n.setFallbackLocale("en");
+      await nextTick();
+
+      expect(fallbackText.value).toBe("bar");
+    });
   });
 
   describe("addTranslations programmatic reactivity", () => {

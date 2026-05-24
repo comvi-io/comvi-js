@@ -329,6 +329,7 @@ export class VueI18n {
   tRaw(key: string, ...params: [import("@comvi/core").TranslationParams?]): TranslationResult {
     void this._locale.value;
     void this._cacheRevision.value;
+    void this._configRevision.value;
     return this._core.tRaw(key as any, ...(params as any));
   }
 

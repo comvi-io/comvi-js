@@ -53,6 +53,9 @@ importers:
       prettier:
         specifier: ^3.8.1
         version: 3.8.1
+      publint:
+        specifier: ^0.3.21
+        version: 0.3.21
       svelte-eslint-parser:
         specifier: ^1.6.0
         version: 1.6.0(svelte@5.55.1)
@@ -283,11 +286,10 @@ importers:
         version: 3.5.32(typescript@6.0.2)
 
   packages/plugin-fetch-loader:
-    dependencies:
+    devDependencies:
       '@comvi/core':
         specifier: workspace:*
         version: link:../core
-    devDependencies:
       '@comvi/vite-config':
         specifier: workspace:*
         version: link:../../tooling/vite-config
@@ -309,9 +311,6 @@ importers:
 
   packages/plugin-in-context-editor:
     dependencies:
-      '@comvi/core':
-        specifier: workspace:*
-        version: link:../core
       '@comvi/plugin-fetch-loader':
         specifier: workspace:*
         version: link:../plugin-fetch-loader
@@ -340,6 +339,9 @@ importers:
         specifier: ^3.5.32
         version: 3.5.32(typescript@6.0.2)
     devDependencies:
+      '@comvi/core':
+        specifier: workspace:*
+        version: link:../core
       '@playwright/test':
         specifier: ^1.59.1
         version: 1.59.1
@@ -387,11 +389,10 @@ importers:
         version: 3.2.6(typescript@6.0.2)
 
   packages/plugin-locale-detector:
-    dependencies:
+    devDependencies:
       '@comvi/core':
         specifier: workspace:*
         version: link:../core
-    devDependencies:
       '@comvi/vite-config':
         specifier: workspace:*
         version: link:../../tooling/vite-config

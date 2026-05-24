@@ -139,6 +139,19 @@ npx comvi push   # uploads local edits back to the TMS
 
 Use `pull` to bootstrap a fresh checkout or to grab a translator's recent changes for offline review. Use `push` to ship a developer-side copy fix without leaving the editor.
 
+By default, v0.3 stores the namespace marked as default in the TMS at the locale root and stores other namespaces in namespace folders:
+
+```txt
+src/locales/
+├── en.json
+├── uk.json
+└── review_list/
+    ├── en.json
+    └── uk.json
+```
+
+To keep the v0.2 layout, set `"fileTemplate": "{languageTag}/{namespace}.json"` in `.comvirc.json`.
+
 ## License
 
 [MIT](https://github.com/comvi-io/comvi-js/blob/main/LICENSE) © Comvi

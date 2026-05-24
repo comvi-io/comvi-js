@@ -7,7 +7,7 @@
   "author": "Comvi <hello@comvi.io> (https://comvi.io)",
   "repository": {
     "type": "git",
-    "url": "https://github.com/comvi-io/comvi-js.git",
+    "url": "git+https://github.com/comvi-io/comvi-js.git",
     "directory": "packages/svelte"
   },
   "homepage": "https://comvi.io",
@@ -35,6 +35,9 @@
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "svelte": "./dist/index.js",
+  "engines": {
+    "node": ">=18"
+  },
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",

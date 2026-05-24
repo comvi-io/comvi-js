@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { renderHook, act } from "@testing-library/react";
+import { renderHook, act, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { I18nProvider } from "../src/I18nProvider";
 import { useSetLocaleTransition } from "../src/useSetLocaleTransition";
@@ -36,7 +36,7 @@ describe("useSetLocaleTransition", () => {
     expect(fake.setLocaleAsync).toHaveBeenCalledWith("fr");
   });
 
-  it("isPending is false after the transition settles", async () => {
+  it("keeps isPending true until the async locale change settles", async () => {
     const fake = new FakeI18n();
 
     let resolveFn!: () => void;
@@ -54,13 +54,20 @@ describe("useSetLocaleTransition", () => {
 
     expect(result.current.isPending).toBe(false);
 
-    // Resolve while still pending, then flush
     await act(async () => {
       result.current.setLocale("fr");
-      resolveFn();
     });
 
-    expect(result.current.isPending).toBe(false);
+    expect(result.current.isPending).toBe(true);
+
+    await act(async () => {
+      resolveFn();
+      await deferred;
+    });
+
+    await waitFor(() => {
+      expect(result.current.isPending).toBe(false);
+    });
     expect(fake.setLocaleAsync).toHaveBeenCalledWith("fr");
   });
 

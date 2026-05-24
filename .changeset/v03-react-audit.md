@@ -1,8 +1,8 @@
 ---
-"@comvi/react": major
+"@comvi/react": minor
 ---
 
-**Major release — React 18+ baseline, internal architecture refactor, additive selector hooks.**
+**Minor release — React 18+ baseline, internal architecture refactor, additive selector hooks.**
 
 ### Added
 
@@ -18,7 +18,7 @@
 
 ### Deprecated
 
-- `useI18nContext()` — works through this major but is scheduled for removal in the next major. Use `useI18n()` instead (same return shape, finer-grained subscriptions).
+- `useI18nContext()` — works through 0.3 but is scheduled for removal in a future major. Use `useI18n()` instead (same return shape, finer-grained subscriptions).
 
 ### Removed
 
@@ -28,6 +28,7 @@
 ### Fixed
 
 - Non-translation consumers (`<Link>`, `usePathname()`, etc.) no longer re-render on every namespace load — measurement-confirmed via the new commit-counter harness.
+- `useI18n()` formatter methods (`formatNumber`, `formatDate`, `formatCurrency`, `formatRelativeTime`) now use the React-tracked render locale, matching `useFormatters()` and avoiding mutable-instance locale reads during concurrent locale changes.
 - `useSubscribe()` event-list fragility — refactored to rest-args with a stable join-key dependency so dynamic event arrays no longer get a stale subscription.
 - `<T>` type safety — replaced `as any` overload-bridge casts with `as never`; `BIND_METHODS` bag now uses a mapped type instead of `Record<string, unknown>`.
 - `<T>` per-render allocation — no longer allocates `new Map()` + `{}` for tag handlers when the `components` prop is undefined (the common case).
@@ -36,6 +37,6 @@
 ### Internal
 
 - Peer dependency on `@comvi/core` bumped to the new minor.
-- 92 unit tests + Profiler-based commit-counter harness + tearing repros (happy-dom) + Playwright e2e (in `test-apps/next`) verify the changes.
+- Unit tests + Profiler-based commit-counter harness + tearing repros (happy-dom) + Playwright e2e (in `test-apps/next`) verify the changes.
 
 See CHANGELOG for the per-package upgrade checklist.
