@@ -6,12 +6,12 @@ import { useLocalizedRouter, usePathname } from "@comvi/next/navigation";
 const locales = ["en", "de", "fr", "es", "uk", "ar"];
 
 export function LanguageSwitcher() {
-  const { locale } = useI18n();
+  const { locale, setLocale } = useI18n();
   const router = useLocalizedRouter();
   const pathname = usePathname();
 
-  const handleChange = (newLocale: string) => {
-    // Proper navigation - Next.js router stays in sync
+  const handleChange = async (newLocale: string) => {
+    await setLocale(newLocale);
     router.push(pathname || "/", newLocale);
   };
 
