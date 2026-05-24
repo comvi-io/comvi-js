@@ -50,6 +50,28 @@ describe("ConfigLoader", () => {
       expect(mockReadFile).toHaveBeenCalledWith(resolve(configPath), "utf-8");
     });
 
+    it("warns and ignores legacy defaultNsName from config files", async () => {
+      const configPath = "/project/.comvirc.json";
+      const mockReadFile = vi.mocked(fs.readFile);
+      const mockAccess = vi.mocked(fs.access);
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+      mockAccess.mockResolvedValueOnce(undefined);
+      mockReadFile.mockResolvedValueOnce(
+        JSON.stringify({
+          ...mockConfig,
+          defaultNsName: "common",
+        }),
+      );
+
+      const result = await ConfigLoader.load(configPath);
+
+      expect(warn).toHaveBeenCalledWith(
+        '[comvi] Ignoring deprecated ".comvirc.json" field "defaultNsName"; default namespace is read from the TMS.',
+      );
+      expect("defaultNsName" in result).toBe(false);
+    });
+
     it("should auto-discover config file when no path provided", async () => {
       const mockReadFile = vi.mocked(fs.readFile);
       const mockAccess = vi.mocked(fs.access);
@@ -186,7 +208,6 @@ describe("ConfigLoader", () => {
         apiBaseUrl: "https://api.comvi.io",
         outputPath: "src/types/i18n.d.ts",
         strictParams: true,
-        defaultNsName: "default",
       });
     });
 
@@ -198,7 +219,6 @@ describe("ConfigLoader", () => {
         apiBaseUrl: "https://api.test.com",
         outputPath: "src/types/i18n.d.ts",
         strictParams: true,
-        defaultNsName: "default",
       });
     });
 
@@ -301,7 +321,7 @@ describe("ConfigLoader", () => {
         outputPath: "src/types/i18n.d.ts",
         strictParams: true,
         translationsPath: "./src/locales",
-        fileTemplate: "{languageTag}/{namespace}.json",
+        fileTemplate: "{namespace}/{languageTag}.json",
         format: "json",
       });
     });

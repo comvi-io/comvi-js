@@ -13,6 +13,7 @@
 
 import { promises as fs } from "fs";
 import { resolve } from "path";
+import { DEFAULT_FILE_TEMPLATE } from "../defaults";
 import type { ComviConfig, GeneratorOptions } from "../types";
 import { TypegenError, ErrorCodes } from "../utils/errors";
 
@@ -74,6 +75,8 @@ export class ConfigLoader {
     try {
       const content = await fs.readFile(filePath, "utf-8");
       const config = JSON.parse(content) as ComviConfig;
+
+      this.stripLegacyDefaultNamespace(config);
 
       // Apply environment variable overrides
       this.applyEnvironmentOverrides(config);
@@ -210,6 +213,8 @@ export class ConfigLoader {
    * Note: This should only be called after config is validated (apiKey guaranteed to be set)
    */
   static toGeneratorOptions(config: ComviConfig): GeneratorOptions {
+    this.stripLegacyDefaultNamespace(config);
+
     if (!config.apiKey) {
       throw new TypegenError(
         "API key is required. Set COMVI_API_KEY environment variable.",
@@ -222,8 +227,19 @@ export class ConfigLoader {
       apiBaseUrl: config.apiBaseUrl || "https://api.comvi.io",
       outputPath: config.outputPath || "src/types/i18n.d.ts",
       strictParams: config.strictParams ?? true,
-      defaultNsName: config.defaultNsName ?? "default",
     };
+  }
+
+  private static stripLegacyDefaultNamespace(config: ComviConfig): void {
+    const legacyConfig = config as ComviConfig & { defaultNsName?: unknown };
+    if (legacyConfig.defaultNsName === undefined) {
+      return;
+    }
+
+    console.warn(
+      '[comvi] Ignoring deprecated ".comvirc.json" field "defaultNsName"; default namespace is read from the TMS.',
+    );
+    delete legacyConfig.defaultNsName;
   }
 
   /**
@@ -242,9 +258,8 @@ export class ConfigLoader {
       apiBaseUrl: config.apiBaseUrl || "https://api.comvi.io",
       outputPath: config.outputPath || "src/types/i18n.d.ts",
       strictParams: config.strictParams ?? true,
-      defaultNsName: config.defaultNsName ?? "default",
       translationsPath: config.translationsPath || "./src/locales",
-      fileTemplate: config.fileTemplate || "{languageTag}/{namespace}.json",
+      fileTemplate: config.fileTemplate || DEFAULT_FILE_TEMPLATE,
       format: config.format || "json",
       ...(config.namespaces !== undefined ? { namespaces: config.namespaces } : {}),
       ...(config.locales !== undefined ? { locales: config.locales } : {}),

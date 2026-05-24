@@ -156,13 +156,6 @@ export interface ComviConfig {
   strictParams?: boolean;
 
   /**
-   * Default namespace name. Keys from this namespace will be generated
-   * without the namespace prefix for cleaner autocomplete.
-   * @default "default"
-   */
-  defaultNsName?: string;
-
-  /**
    * Local translations folder path
    * @default "./src/locales"
    */
@@ -171,7 +164,12 @@ export interface ComviConfig {
   /**
    * File template pattern for translation files
    * Placeholders: {languageTag}, {namespace}, {extension}
-   * @default "{languageTag}/{namespace}.json"
+   * @default "{namespace}/{languageTag}.json"
+   *
+   * With the default template, the system default namespace is stored as
+   * "{languageTag}.json" and non-default namespaces are stored as
+   * "{namespace}/{languageTag}.json". Custom templates are interpreted
+   * literally and do not apply root default-namespace handling.
    */
   fileTemplate?: string;
 
@@ -232,13 +230,6 @@ export interface GeneratorOptions {
    * @default true
    */
   strictParams?: boolean;
-
-  /**
-   * Default namespace name. Keys from this namespace will be generated
-   * without the namespace prefix for cleaner autocomplete.
-   * @default "default"
-   */
-  defaultNsName?: string;
 }
 
 /**

@@ -43,8 +43,10 @@ export interface ComviTypesOptions {
    * File template pattern for matching translation files.
    * Use {languageTag} and {namespace} placeholders.
    *
-   * For single-file-per-language (en.json, fr.json), leave undefined.
-   * @default '{languageTag}/{namespace}.json'
+   * With the default template, root JSON files (en.json, fr.json) are
+   * treated as the default namespace and other namespaces use
+   * {namespace}/{languageTag}.json.
+   * @default '{namespace}/{languageTag}.json'
    */
   fileTemplate?: string;
 

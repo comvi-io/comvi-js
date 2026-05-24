@@ -56,6 +56,7 @@ export type { TypeEmitterOptions } from "./core/TypeEmitter";
 export type {
   ApiClientOptions,
   FetchTranslationsOptions,
+  NamespaceInfo,
   PushTranslationsOptions,
   PushProgress,
 } from "./core/ApiClient";

@@ -917,9 +917,9 @@ export class I18n implements I18nInstance {
    * @example Static import map
    * ```typescript
    * i18n.registerLoader({
-   *   'en': () => import('./locales/en/default.json'),
-   *   'en:dashboard': () => import('./locales/en/dashboard.json'),
-   *   'fr': () => import('./locales/fr/default.json'),
+   *   'en': () => import('./locales/en.json'),
+   *   'en:dashboard': () => import('./locales/dashboard/en.json'),
+   *   'fr': () => import('./locales/fr.json'),
    * });
    * ```
    *

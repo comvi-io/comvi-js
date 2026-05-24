@@ -67,9 +67,9 @@ export interface FetchLoaderOptions {
    * @example
    * ```typescript
    * fallback: {
-   *   'en': () => import('./locales/en/common.json'),      // defaultNs
-   *   'fr': () => import('./locales/fr/common.json'),      // defaultNs
-   *   'en:dashboard': () => import('./locales/en/dashboard.json'),
+   *   'en': () => import('./locales/en.json'),             // defaultNs
+   *   'fr': () => import('./locales/fr.json'),             // defaultNs
+   *   'en:dashboard': () => import('./locales/dashboard/en.json'),
    * }
    * ```
    */
@@ -480,7 +480,7 @@ export async function fetchApiTranslations(
  * .use(FetchLoader({
  *   cdnUrl: 'https://cdn.comvi.io/your-distribution-id',
  *   fallback: {
- *     'en': () => import('./locales/en/common.json'),
+ *     'en': () => import('./locales/en.json'),
  *   },
  *   onLoadError: (locale, ns, error) => console.error('Load failed:', error)
  * }));

@@ -2,7 +2,7 @@
  * TypeGenerator - Main orchestrator for type generation
  *
  * Simplified flow:
- * 1. Fetch schema from backend (GET /v1/project, then /v1/projects/:projectId/schema)
+ * 1. Fetch schema and the backend default namespace
  * 2. Convert schema to .d.ts using TypeEmitter
  * 3. Write to file
  */
@@ -22,6 +22,8 @@ export class TypeGenerator {
   private reporter: GenerationReporter;
   private options: GeneratorOptions;
   private logger: Logger;
+  private defaultNsName?: string;
+  private defaultNsNamePromise?: Promise<string>;
 
   constructor(
     options: GeneratorOptions,
@@ -78,10 +80,13 @@ export class TypeGenerator {
 
       // Fetch schema from TMS
       this.reporter.reportFetching();
-      const schema = await this.apiClient.fetchSchema();
+      const [schema, defaultNsName] = await Promise.all([
+        this.apiClient.fetchSchema(),
+        this.getDefaultNamespaceName(),
+      ]);
 
       // Generate and write types
-      return await this.generateFromSchema(schema, startTime);
+      return await this.generateFromSchema(schema, startTime, defaultNsName);
     } catch (error) {
       const duration = Date.now() - startTime;
 
@@ -117,13 +122,16 @@ export class TypeGenerator {
   async check(): Promise<CheckResult> {
     try {
       // Fetch schema from TMS
-      const schema = await this.apiClient.fetchSchema();
+      const [schema, defaultNsName] = await Promise.all([
+        this.apiClient.fetchSchema(),
+        this.getDefaultNamespaceName(),
+      ]);
       const keyCount = Object.keys(schema.keys).length;
 
       // Generate expected types
       const expectedTypes = this.typeEmitter.generate(schema, {
         strictParams: this.options.strictParams,
-        defaultNsName: this.options.defaultNsName,
+        defaultNsName,
       });
 
       // Read current types file
@@ -172,15 +180,17 @@ export class TypeGenerator {
   async generateFromSchema(
     schema: ProjectSchema,
     startTime: number = Date.now(),
+    defaultNsName?: string,
   ): Promise<GenerationResult> {
     try {
       const keyCount = Object.keys(schema.keys).length;
+      const resolvedDefaultNsName = defaultNsName ?? (await this.getDefaultNamespaceName());
 
       // Generate TypeScript declarations
       this.reporter.reportGenerating();
       const typeDeclarations = this.typeEmitter.generate(schema, {
         strictParams: this.options.strictParams,
-        defaultNsName: this.options.defaultNsName,
+        defaultNsName: resolvedDefaultNsName,
       });
 
       // Write to file
@@ -225,5 +235,25 @@ export class TypeGenerator {
    */
   getApiClient(): ApiClient {
     return this.apiClient;
+  }
+
+  private async getDefaultNamespaceName(): Promise<string> {
+    if (this.defaultNsName) {
+      return this.defaultNsName;
+    }
+
+    this.defaultNsNamePromise ??= this.apiClient.fetchDefaultNamespace().then(
+      (namespace) => {
+        this.defaultNsName = namespace;
+        this.defaultNsNamePromise = undefined;
+        return namespace;
+      },
+      (error: unknown) => {
+        this.defaultNsNamePromise = undefined;
+        throw error;
+      },
+    );
+
+    return this.defaultNsNamePromise;
   }
 }
