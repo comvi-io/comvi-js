@@ -11,14 +11,21 @@ export function LanguageSwitcher() {
   const pathname = usePathname();
 
   const handleChange = async (newLocale: string) => {
-    await setLocale(newLocale);
-    router.push(pathname || "/", newLocale);
+    if (newLocale === locale) return;
+    try {
+      await setLocale(newLocale);
+      router.push(pathname || "/", newLocale);
+    } catch (error) {
+      console.error("[LanguageSwitcher] Failed to switch locale:", error);
+    }
   };
 
   return (
     <select
       value={locale}
-      onChange={(e) => handleChange(e.target.value)}
+      onChange={(e) => {
+        void handleChange(e.target.value);
+      }}
       className="border border-gray-300 rounded px-2 py-1 bg-white text-gray-700"
     >
       {locales.map((loc) => (
