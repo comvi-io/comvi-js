@@ -25,7 +25,7 @@
     "title": "نص غني",
     "bold_text": "هذا نص <strong>عريض</strong>.",
     "link_text": "يرجى <link>النقر هنا</link> للمزيد.",
-    "component_interpolation": "هذا مكون {placeholder}.",
+    "component_interpolation": "هذا مكون <placeholder>مُدرج</placeholder>.",
     "nested_tags_title": "تداخل الوسوم",
     "nested_simple": "انقر على <link><bold>هذا الرابط</bold></link> للمساعدة.",
     "nested_mixed": "<alert>تحذير: <bold>{count}</bold> عناصر تحتاج <link>انتباهك</link>!</alert>",

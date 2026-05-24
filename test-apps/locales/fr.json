@@ -25,7 +25,7 @@
     "title": "Texte enrichi",
     "bold_text": "Ceci est du texte <strong>gras</strong>.",
     "link_text": "Veuillez <link>cliquer ici</link> pour plus d'infos.",
-    "component_interpolation": "Ceci est un composant {placeholder}.",
+    "component_interpolation": "Ceci est un composant <placeholder>INTERPOLÉ</placeholder>.",
     "nested_tags_title": "Interpolation de balises imbriquées",
     "nested_simple": "Cliquez sur <link><bold>ce lien</bold></link> pour obtenir de l'aide.",
     "nested_mixed": "<alert>Attention: <bold>{count}</bold> éléments nécessitent votre <link>attention</link>!</alert>",
