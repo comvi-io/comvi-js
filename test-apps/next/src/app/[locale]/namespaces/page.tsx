@@ -1,15 +1,13 @@
 "use client";
 
 import { useI18n } from "@comvi/next/client";
-import { useState } from "react";
 
 export default function NamespacesPage() {
-  const { t, addActiveNamespace, isLoading } = useI18n();
-  const [isAdminLoaded, setIsAdminLoaded] = useState(false);
+  const { t, addActiveNamespace, isLoading, getActiveNamespaces } = useI18n();
+  const isAdminLoaded = getActiveNamespaces().includes("admin");
 
   const loadAdmin = async () => {
     await addActiveNamespace("admin");
-    setIsAdminLoaded(true);
   };
 
   return (

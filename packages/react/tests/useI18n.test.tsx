@@ -67,18 +67,21 @@ describe("useI18n", () => {
     expect(result.current.tRaw("title" as never)).toEqual(raw);
   });
 
-  it("rebuilds t() reference on locale change so callers re-translate with new locale", () => {
+  it("rebuilds t() reference on locale change so callers re-translate with new locale", async () => {
     // t/tRaw rebuild when locale changes so the closure captures the new
     // React-tracked locale — identity churning is the intended behavior to
     // prevent tearing during startTransition-wrapped locale flips.
+    // await act + Promise.resolve() flushes the queueMicrotask deferral
+    // inside useSubscribe before asserting on re-rendered state.
     const fake = new FakeI18n();
     const { result } = renderHook(() => useI18n("admin"), { wrapper: createWrapper(fake) });
     const tBefore = result.current.t;
     const tRawBefore = result.current.tRaw;
 
-    act(() => {
+    await act(async () => {
       fake.language = "fr";
       fake.emit("localeChanged", { from: "en", to: "fr" });
+      await Promise.resolve();
     });
 
     expect(result.current.locale).toBe("fr");
@@ -86,20 +89,23 @@ describe("useI18n", () => {
     expect(result.current.tRaw).not.toBe(tRawBefore);
   });
 
-  it("binds formatters to the React-tracked render locale", () => {
+  it("binds formatters to the React-tracked render locale", async () => {
     const fake = new FakeI18n({ language: "en" });
     const { result } = renderHook(() => useI18n(), { wrapper: createWrapper(fake) });
     const formatNumberFromEnglishRender = result.current.formatNumber;
     const setLocaleBefore = result.current.setLocale;
 
+    // Mutate language without emitting — no re-render yet.
     act(() => {
       fake.language = "de";
     });
 
     expect(formatNumberFromEnglishRender(1234)).toBe("1,234");
 
-    act(() => {
+    // Emit localeChanged and flush the queueMicrotask deferral before asserting.
+    await act(async () => {
       fake.emit("localeChanged", { from: "en", to: "de" });
+      await Promise.resolve();
     });
 
     expect(result.current.locale).toBe("de");

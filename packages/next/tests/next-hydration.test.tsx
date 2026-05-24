@@ -112,6 +112,62 @@ describe("Next <I18nProvider> SSR + hydration", () => {
       });
       document.body.removeChild(container);
     });
+
+    it("prop-only re-render after hydrateRoot with same messages reference emits no 'Cannot update a component' error", async () => {
+      const messages = { fr: { greeting: "Bonjour" } };
+      const i18n = createI18n({ locale: "placeholder", translation: { placeholder: {} } });
+
+      const html = renderToString(
+        <I18nProvider i18n={i18n} locale="fr" messages={messages} autoInit={false}>
+          <span data-testid="greeting">
+            <T i18nKey={"greeting" as never} />
+          </span>
+        </I18nProvider>,
+      );
+
+      const container = document.createElement("div");
+      container.innerHTML = html;
+      document.body.appendChild(container);
+
+      let root!: ReturnType<typeof hydrateRoot>;
+      await act(async () => {
+        root = hydrateRoot(
+          container,
+          <I18nProvider i18n={i18n} locale="fr" messages={messages} autoInit={false}>
+            <span data-testid="greeting">
+              <T i18nKey={"greeting" as never} />
+            </span>
+          </I18nProvider>,
+        );
+      });
+
+      expect(container.textContent).toContain("Bonjour");
+
+      // Prop-only re-render with the SAME messages reference. The
+      // useIsomorphicLayoutEffect guard (messages === lastAddedMessagesRef.current)
+      // prevents addTranslations from being called again — no emit, no warning.
+      // Verify microtask deferral does not introduce any new error path here.
+      await act(async () => {
+        root.render(
+          <I18nProvider i18n={i18n} locale="fr" messages={messages} autoInit={false}>
+            <span data-testid="greeting">
+              <T i18nKey={"greeting" as never} />
+            </span>
+          </I18nProvider>,
+        );
+        await Promise.resolve();
+      });
+
+      const renderWarnings = errorSpy.mock.calls.filter(
+        (args) => typeof args[0] === "string" && args[0].includes("Cannot update a component"),
+      );
+      expect(renderWarnings).toHaveLength(0);
+
+      await act(async () => {
+        root.unmount();
+      });
+      document.body.removeChild(container);
+    });
   });
 
   describe("Architectural boundary — no render-time i18n.locale mutation", () => {
