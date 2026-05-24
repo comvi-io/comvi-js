@@ -11,5 +11,5 @@
     }
   },
   "include": ["./src/types.ts", "./src/runtime/**/*.ts", "./tests/**/*.test-d.ts"],
-  "exclude": ["./coverage", "./dist", "./playground"]
+  "exclude": ["./coverage", "./dist"]
 }

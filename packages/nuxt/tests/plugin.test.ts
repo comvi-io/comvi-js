@@ -179,8 +179,8 @@ describe("runtime plugin", () => {
 
     const middleware = (await import("../src/runtime/middleware/i18n.global")).default;
     await middleware({
-      path: "/about",
-      fullPath: "/about",
+      path: "/",
+      fullPath: "/",
     } as any);
     await flushWatchers();
 

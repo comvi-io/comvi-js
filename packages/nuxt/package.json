@@ -49,7 +49,7 @@
   },
   "sideEffects": false,
   "scripts": {
-    "dev": "nuxi dev playground --port 30002",
+    "dev": "nuxt-module-build build --stub && nuxt-module-build prepare",
     "build": "nuxt-module-build build && tsc -p tsconfig.runtime.json",
     "typecheck": "tsc -p tsconfig.typecheck.json",
     "test": "vitest run",
