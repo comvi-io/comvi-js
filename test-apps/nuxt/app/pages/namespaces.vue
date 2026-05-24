@@ -1,10 +1,11 @@
 <script setup lang="ts">
-const { t, addActiveNamespace, isLoading } = useI18n();
-const isAdminLoaded = ref(false);
+import { computed } from "vue";
+
+const { t, addActiveNamespace, isLoading, activeNamespaces } = useI18n();
+const isAdminLoaded = computed(() => activeNamespaces.value.includes("admin"));
 
 const loadAdmin = async () => {
   await addActiveNamespace("admin");
-  isAdminLoaded.value = true;
 };
 
 useLocaleHead({

@@ -76,7 +76,12 @@ useLocaleHead({
       <p class="p-4 bg-gray-50 rounded border">
         <T i18n-key="rich_text.link_text">
           <template #link="{ children }">
-            <a href="https://example.com" class="text-blue-600 hover:underline" target="_blank">
+            <a
+              href="https://example.com"
+              class="text-blue-600 hover:underline"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
               {{ children }}
             </a>
           </template>

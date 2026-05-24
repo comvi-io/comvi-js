@@ -1,10 +1,11 @@
 <script setup lang="ts">
-const { t, addActiveNamespace, isLoading } = useI18n();
-const isAdminLoaded = ref(false);
+import { computed } from "vue";
+
+const { t, addActiveNamespace, isLoading, activeNamespaces } = useI18n();
+const isAdminLoaded = computed(() => activeNamespaces.value.includes("admin"));
 
 const loadAdmin = async () => {
   await addActiveNamespace("admin");
-  isAdminLoaded.value = true;
 };
 
 useLocaleHead({
@@ -37,7 +38,7 @@ useLocaleHead({
         </button>
       </div>
 
-      <div v-else class="space-y-4 border-t pt-4 mt-4">
+      <div v-else class="space-y-4 border-t pt-4 mt-4 animate-in fade-in slide-in-from-bottom-4">
         <h3 class="font-bold text-lg text-purple-600">
           {{ t("welcome_admin", { ns: "admin" }) }}
         </h3>
