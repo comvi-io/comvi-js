@@ -304,11 +304,10 @@ export class ApiClient {
   async fetchNamespaces(): Promise<NamespaceInfo[]> {
     const project = await this.getProjectInfo();
     const url = `${this.apiBaseUrl}${API_ENDPOINTS.projectNamespaces(project.id)}`;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), this.timeout);
 
     try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), this.timeout);
-
       const response = await fetch(url, {
         method: "GET",
         headers: {
@@ -317,8 +316,6 @@ export class ApiClient {
         },
         signal: controller.signal,
       });
-
-      clearTimeout(timeoutId);
 
       if (!response.ok) {
         if (response.status === 401) {
@@ -354,6 +351,8 @@ export class ApiClient {
         );
       }
       throw wrapError(error, "Failed to fetch namespaces", ErrorCodes.API_FETCH_FAILED);
+    } finally {
+      clearTimeout(timeoutId);
     }
   }
 

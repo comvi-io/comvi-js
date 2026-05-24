@@ -69,7 +69,7 @@ The plugin watches `./src/locales` and rewrites the declaration whenever you sav
 
 Given this directory layout:
 
-```
+```text
 src/locales/
 ├── en.json
 ├── uk.json
