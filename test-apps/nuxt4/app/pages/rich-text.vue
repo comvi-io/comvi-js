@@ -217,10 +217,13 @@ useLocaleHead({
             <button
               v-for="g in ['male', 'female', 'other'] as const"
               :key="g"
+              type="button"
               :class="[
                 'px-3 py-1 rounded text-sm transition-colors',
                 gender === g ? 'bg-blue-600 text-white' : 'bg-gray-200 hover:bg-gray-300',
               ]"
+              :aria-pressed="gender === g"
+              :aria-label="`Set gender to ${g}`"
               @click="gender = g"
             >
               {{ g }}
@@ -240,10 +243,13 @@ useLocaleHead({
             <button
               v-for="f in ['formal', 'informal'] as const"
               :key="f"
+              type="button"
               :class="[
                 'px-3 py-1 rounded text-sm transition-colors',
                 formality === f ? 'bg-blue-600 text-white' : 'bg-gray-200 hover:bg-gray-300',
               ]"
+              :aria-pressed="formality === f"
+              :aria-label="`Set formality to ${f}`"
               @click="formality = f"
             >
               {{ f }}
@@ -274,10 +280,13 @@ useLocaleHead({
             <button
               v-for="g in ['male', 'female', 'other'] as const"
               :key="g"
+              type="button"
               :class="[
                 'px-3 py-1 rounded text-sm transition-colors',
                 gender === g ? 'bg-blue-600 text-white' : 'bg-gray-200 hover:bg-gray-300',
               ]"
+              :aria-pressed="gender === g"
+              :aria-label="`Set gender to ${g}`"
               @click="gender = g"
             >
               {{ g }}
@@ -306,10 +315,13 @@ useLocaleHead({
             <button
               v-for="f in ['formal', 'informal'] as const"
               :key="f"
+              type="button"
               :class="[
                 'px-3 py-1 rounded text-sm transition-colors',
                 formality === f ? 'bg-blue-600 text-white' : 'bg-gray-200 hover:bg-gray-300',
               ]"
+              :aria-pressed="formality === f"
+              :aria-label="`Set formality to ${f}`"
               @click="formality = f"
             >
               {{ f }}
