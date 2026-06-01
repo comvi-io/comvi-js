@@ -34,21 +34,14 @@
   "files": [
     "dist"
   ],
-  "main": "./dist/comvi-core.cjs",
   "module": "./dist/comvi-core.js",
   "unpkg": "./dist/comvi-core.global.prod.js",
   "jsdelivr": "./dist/comvi-core.global.prod.js",
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
-      "import": {
-        "types": "./dist/index.d.ts",
-        "default": "./dist/comvi-core.js"
-      },
-      "require": {
-        "types": "./dist/index.d.cts",
-        "default": "./dist/comvi-core.cjs"
-      }
+      "types": "./dist/index.d.ts",
+      "default": "./dist/comvi-core.js"
     }
   },
   "engines": {

@@ -168,8 +168,8 @@ export interface LibraryBuildOptions {
   entry: string;
   /** Library name (for UMD/IIFE builds) */
   name: string;
-  /** Output file names: { es: 'lib.js', cjs: 'lib.cjs' } */
-  fileNames: { es: string; cjs: string };
+  /** Output file name for the ESM build: { es: 'lib.js' }. `cjs` is accepted but ignored (the libraries are ESM-only). */
+  fileNames: { es: string; cjs?: string };
   /** External dependencies (peer deps) */
   external?: string[];
   /** Globals for UMD builds */
@@ -212,11 +212,6 @@ export function createLibraryBuildOptions(options: LibraryBuildOptions): BuildOp
           entryFileNames: fileNames.es,
           globals,
         },
-        {
-          format: "cjs",
-          entryFileNames: fileNames.cjs,
-          globals,
-        },
       ],
       treeshake: treeshakeOptions,
     },
@@ -228,8 +223,8 @@ export interface PluginBuildOptions {
   entry: string;
   /** Plugin name (for UMD builds) */
   name?: string;
-  /** Output file names: { es: 'index.js', cjs: 'index.cjs' } */
-  fileNames?: { es: string; cjs: string };
+  /** Output file name for the ESM build: { es: 'index.js' }. `cjs` is accepted but ignored (ESM-only). */
+  fileNames?: { es: string; cjs?: string };
   /** External dependencies */
   external?: string[];
 }
@@ -254,7 +249,7 @@ export function createPluginBuildOptions(options: PluginBuildOptions): BuildOpti
   const {
     entry,
     name = "ComviPlugin",
-    fileNames = { es: "index.js", cjs: "index.cjs" },
+    fileNames = { es: "index.js" },
     external = ["@comvi/core"],
   } = options;
 
@@ -272,10 +267,6 @@ export function createPluginBuildOptions(options: PluginBuildOptions): BuildOpti
         {
           format: "es",
           entryFileNames: fileNames.es,
-        },
-        {
-          format: "cjs",
-          entryFileNames: fileNames.cjs,
         },
       ],
       treeshake: treeshakeOptions,

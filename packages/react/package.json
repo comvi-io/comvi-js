@@ -33,19 +33,12 @@
   "files": [
     "dist"
   ],
-  "main": "./dist/comvi-react.cjs",
   "module": "./dist/comvi-react.js",
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
-      "import": {
-        "types": "./dist/index.d.ts",
-        "default": "./dist/comvi-react.js"
-      },
-      "require": {
-        "types": "./dist/index.d.cts",
-        "default": "./dist/comvi-react.cjs"
-      }
+      "types": "./dist/index.d.ts",
+      "default": "./dist/comvi-react.js"
     }
   },
   "engines": {

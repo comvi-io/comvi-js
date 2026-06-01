@@ -33,18 +33,57 @@ import { gunzipSync } from "node:zlib";
 import { fileURLToPath } from "node:url";
 import { Parser } from "tar";
 import { Package, checkPackage } from "@arethetypeswrong/core";
-import { DUAL_PACKAGES } from "../tooling/dual-packages.mjs";
+import { TYPED_PACKAGES } from "../tooling/typed-packages.mjs";
 
 const rootDir = path.resolve(fileURLToPath(import.meta.url), "..", "..");
 const packagesDir = path.join(rootDir, "packages");
 
-// The resolution problems that the `.d.cts` remediation exists to eliminate. A
-// problem of one of these kinds under node16 (esm) or node16-cjs (require) is a hard
-// failure.
-const GATING_PROBLEM_KINDS = new Set(["InternalResolutionError", "FalseCJS", "FalseESM"]);
+// The packages are ESM-only and target bundler resolution (node16/nodenext is NOT a
+// target). Under `bundler`, the only meaningful resolution failures are an entry that
+// does not resolve at all (`NoResolution`) or an internal relative specifier that does
+// not resolve (`InternalResolutionError`). `FalseCJS`/`FalseESM` are node16-scoped and
+// never fire under bundler, so they are not gated. The PRIMARY post-migration gates are
+// the empty-types content check (below) + publint; attw@bundler is cheap insurance
+// against an unresolvable/extensionless declaration regression.
+const GATING_PROBLEM_KINDS = new Set(["InternalResolutionError", "NoResolution"]);
 
-// resolutionKind values we care about (the node16 dual-mode matrix).
-const GATING_RESOLUTION_KINDS = new Set(["node16-esm", "node16-cjs"]);
+// We only evaluate the modern bundler resolution mode.
+const GATING_RESOLUTION_KINDS = new Set(["bundler"]);
+
+// EMPTY-TYPES GUARD: attw passes any declaration file that *resolves*, even an
+// `export {}` stub that re-exports nothing (every public symbol then resolves to
+// `any`). That false-green shipped @comvi/solid with empty types. So we also assert
+// each declared types entry has real content. Anything at/below this byte count, or
+// whose code (comments/whitespace stripped) is only `export {}`, is treated as empty.
+const TRIVIAL_DTS_BYTES = 16;
+
+// Gather every declaration file a consumer can resolve: the root `types`/`typings`
+// plus every `types` condition anywhere in the `exports` map.
+function collectTypesEntries(manifest) {
+  const entries = new Set();
+  if (typeof manifest.types === "string") entries.add(manifest.types);
+  if (typeof manifest.typings === "string") entries.add(manifest.typings);
+  const walk = (node) => {
+    if (!node || typeof node !== "object") return;
+    for (const [key, val] of Object.entries(node)) {
+      if (key === "types" && typeof val === "string") entries.add(val);
+      else walk(val);
+    }
+  };
+  walk(manifest.exports);
+  return [...entries];
+}
+
+// True when a .d.ts has no real declarations (empty, or only an `export {}` marker).
+// Strips block comments and `//` line comments, but PRESERVES `/// <reference ... />`
+// triple-slash directives — a reference-only .d.ts entry is meaningful, not empty.
+function declarationIsEmpty(text) {
+  const stripped = text
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .replace(/(?<!\/)\/\/(?!\/)[^\n]*/g, "")
+    .replace(/\s+/g, "");
+  return stripped === "" || stripped === "export{}" || stripped === "export{};";
+}
 
 // `pnpm pack` the package into a temp dir and return the tarball's absolute path.
 function packTarball(packageDir, destDir) {
@@ -143,33 +182,51 @@ async function checkOne(pkg) {
       throw new Error(`${packageName}: attw reports no types (UntypedResult)`);
     }
 
+    // EMPTY-TYPES GUARD: every declared types entry must have real content. Catches the
+    // `export {}` stub class that attw resolves but that leaves all symbols as `any`.
+    const emptyTypes = [];
+    for (const rel of collectTypesEntries(manifest)) {
+      const key = `/node_modules/${packageName}/${rel.replace(/^\.\//, "")}`;
+      const bytes = files[key];
+      if (bytes === undefined) {
+        emptyTypes.push({ entry: rel, reason: "missing from published tarball" });
+        continue;
+      }
+      const text = Buffer.from(bytes).toString("utf8");
+      if (bytes.length <= TRIVIAL_DTS_BYTES || declarationIsEmpty(text)) {
+        emptyTypes.push({
+          entry: rel,
+          reason: `empty/trivial declaration (${bytes.length} bytes)`,
+        });
+      }
+    }
+
     const problems = (result.problems ?? []).filter((p) => {
       if (!GATING_PROBLEM_KINDS.has(p.kind)) return false;
-      // Resolution-scoped problems carry resolutionKind; InternalResolutionError carries
-      // resolutionOption ("node16"). Treat both node16 modes as gating.
+      // Resolution-scoped problems carry resolutionKind; gate only the bundler mode.
       if (p.resolutionKind) return GATING_RESOLUTION_KINDS.has(p.resolutionKind);
-      if (p.resolutionOption) return p.resolutionOption === "node16";
+      if (p.resolutionOption) return p.resolutionOption === "bundler";
       return true;
     });
 
-    return { name: packageName, fileCount, problems };
+    return { name: packageName, fileCount, problems, emptyTypes };
   } finally {
     rmSync(tmp, { recursive: true, force: true });
   }
 }
 
 const requested = process.argv.slice(2);
-const targets = requested.length > 0 ? requested : DUAL_PACKAGES;
+const targets = requested.length > 0 ? requested : TYPED_PACKAGES;
 
 let failed = false;
 for (const pkg of targets) {
   try {
-    const { name, fileCount, problems } = await checkOne(pkg);
-    if (problems.length === 0) {
+    const { name, fileCount, problems, emptyTypes } = await checkOne(pkg);
+    if (problems.length === 0 && emptyTypes.length === 0) {
       console.log(`PASS ${name}: 0 gating problems (${fileCount} files extracted)`);
     } else {
       failed = true;
-      console.error(`FAIL ${name}: ${problems.length} gating problem(s):`);
+      console.error(`FAIL ${name}: ${problems.length + emptyTypes.length} gating problem(s):`);
       for (const p of problems) {
         const where = p.resolutionKind ?? p.resolutionOption ?? "";
         // FilePairProblem (FalseCJS/FalseESM) carries types/implementation file names;
@@ -181,6 +238,9 @@ for (const pkg of targets) {
               ? ` ${p.typesFileName} vs ${p.implementationFileName}`
               : "";
         console.error(`  - ${p.kind} [${where}]${detail}`);
+      }
+      for (const e of emptyTypes) {
+        console.error(`  - EmptyTypes ${e.entry}: ${e.reason}`);
       }
     }
   } catch (err) {

@@ -33,19 +33,12 @@
   "files": [
     "dist"
   ],
-  "main": "./dist/comvi-vue.cjs",
   "module": "./dist/comvi-vue.js",
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
-      "import": {
-        "types": "./dist/index.d.ts",
-        "default": "./dist/comvi-vue.js"
-      },
-      "require": {
-        "types": "./dist/index.d.cts",
-        "default": "./dist/comvi-vue.cjs"
-      }
+      "types": "./dist/index.d.ts",
+      "default": "./dist/comvi-vue.js"
     }
   },
   "engines": {
