@@ -33,69 +33,32 @@
   "files": [
     "dist"
   ],
-  "main": "./dist/index.cjs",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
-      "import": {
-        "types": "./dist/index.d.ts",
-        "default": "./dist/index.js"
-      },
-      "require": {
-        "types": "./dist/index.d.cts",
-        "default": "./dist/index.cjs"
-      }
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
     },
     "./server": {
-      "import": {
-        "types": "./dist/server.d.ts",
-        "default": "./dist/server.js"
-      },
-      "require": {
-        "types": "./dist/server.d.cts",
-        "default": "./dist/server.cjs"
-      }
+      "types": "./dist/server.d.ts",
+      "default": "./dist/server.js"
     },
     "./client": {
-      "import": {
-        "types": "./dist/client.d.ts",
-        "default": "./dist/client.js"
-      },
-      "require": {
-        "types": "./dist/client.d.cts",
-        "default": "./dist/client.cjs"
-      }
+      "types": "./dist/client.d.ts",
+      "default": "./dist/client.js"
     },
     "./middleware": {
-      "import": {
-        "types": "./dist/middleware.d.ts",
-        "default": "./dist/middleware.js"
-      },
-      "require": {
-        "types": "./dist/middleware.d.cts",
-        "default": "./dist/middleware.cjs"
-      }
+      "types": "./dist/middleware.d.ts",
+      "default": "./dist/middleware.js"
     },
     "./routing": {
-      "import": {
-        "types": "./dist/routing.d.ts",
-        "default": "./dist/routing.js"
-      },
-      "require": {
-        "types": "./dist/routing.d.cts",
-        "default": "./dist/routing.cjs"
-      }
+      "types": "./dist/routing.d.ts",
+      "default": "./dist/routing.js"
     },
     "./navigation": {
-      "import": {
-        "types": "./dist/navigation.d.ts",
-        "default": "./dist/navigation.js"
-      },
-      "require": {
-        "types": "./dist/navigation.d.cts",
-        "default": "./dist/navigation.cjs"
-      }
+      "types": "./dist/navigation.d.ts",
+      "default": "./dist/navigation.js"
     }
   },
   "engines": {

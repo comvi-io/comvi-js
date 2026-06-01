@@ -28,7 +28,6 @@
   "files": [
     "dist"
   ],
-  "main": "./dist/index.cjs",
   "module": "./dist/index.es.js",
   "types": "./dist/index.d.ts",
   "engines": {
@@ -37,23 +36,11 @@
   "exports": {
     ".": {
       "production": {
-        "import": {
-          "types": "./dist/production.d.ts",
-          "default": "./dist/production.es.js"
-        },
-        "require": {
-          "types": "./dist/production.d.cts",
-          "default": "./dist/production.cjs"
-        }
+        "types": "./dist/production.d.ts",
+        "default": "./dist/production.es.js"
       },
-      "import": {
-        "types": "./dist/index.d.ts",
-        "default": "./dist/index.es.js"
-      },
-      "require": {
-        "types": "./dist/index.d.cts",
-        "default": "./dist/index.cjs"
-      }
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.es.js"
     },
     "./standalone": "./dist/standalone.iife.js"
   },

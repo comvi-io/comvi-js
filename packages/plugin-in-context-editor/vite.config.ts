@@ -33,7 +33,7 @@ export default defineConfig({
         production: resolve(__dirname, "./src/entry-production.ts"),
       },
       name: "inContextEditor",
-      formats: ["es", "cjs"],
+      formats: ["es"],
       fileName: (format, entryName) => `${entryName}.${format === "es" ? "es.js" : "cjs"}`,
     },
     rolldownOptions: {

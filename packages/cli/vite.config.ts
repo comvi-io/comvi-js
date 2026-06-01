@@ -17,10 +17,9 @@ export default defineConfig({
       name: "ComviCli",
       fileName: (format, entryName) => {
         if (format === "es") return `${entryName}.js`;
-        if (format === "cjs") return `${entryName}.cjs`;
         return `${entryName}.${format}.js`;
       },
-      formats: ["es", "cjs"],
+      formats: ["es"],
     },
     rolldownOptions: {
       external: [
@@ -40,10 +39,6 @@ export default defineConfig({
       output: [
         {
           format: "es",
-          preserveModules: false,
-        },
-        {
-          format: "cjs",
           preserveModules: false,
         },
       ],
