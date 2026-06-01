@@ -75,10 +75,12 @@ function collectTypesEntries(manifest) {
 }
 
 // True when a .d.ts has no real declarations (empty, or only an `export {}` marker).
+// Strips block comments and `//` line comments, but PRESERVES `/// <reference ... />`
+// triple-slash directives — a reference-only .d.ts entry is meaningful, not empty.
 function declarationIsEmpty(text) {
   const stripped = text
     .replace(/\/\*[\s\S]*?\*\//g, "")
-    .replace(/\/\/[^\n]*/g, "")
+    .replace(/(?<!\/)\/\/(?!\/)[^\n]*/g, "")
     .replace(/\s+/g, "");
   return stripped === "" || stripped === "export{}" || stripped === "export{};";
 }
