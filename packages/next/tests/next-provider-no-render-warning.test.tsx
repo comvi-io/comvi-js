@@ -361,51 +361,48 @@ describe("Test C — out-of-render events still drive consumer re-renders", () =
 // TEST D — component-instance partitioning (two useStoreRevision call sites)
 // ===========================================================================
 
-describe("Test D — two useStoreRevision call sites per component are independent", () => {
-  it("each call site's disposed flag is independent; callbacks dispatch only for their own events", async () => {
+describe("Test D — useStoreRevision re-renders on subscribed events with real state changes", () => {
+  it("re-renders for a subscribed event that changes state; not for a no-op emit or an unsubscribed event", async () => {
     const fake = makeSharedI18n();
     const i18n = fake.asI18n();
 
-    const callbackARevisions: number[] = [];
-    const callbackBRevisions: number[] = [];
-
-    function DualSubscriber() {
-      const revA = useStoreRevision(i18n, "namespaceLoaded");
-      const revB = useStoreRevision(i18n, "configChanged");
-      callbackARevisions.push(parseInt(revA.split(":")[1] ?? "0", 10));
-      callbackBRevisions.push(parseInt(revB.split(":")[1] ?? "0", 10));
-      return (
-        <span data-testid="dual">
-          {revA}|{revB}
-        </span>
-      );
+    let renders = 0;
+    function Subscriber() {
+      // Subscribes ONLY to configChanged (deliberately not namespaceLoaded).
+      useStoreRevision(i18n, "configChanged");
+      renders++;
+      return <span data-testid="sub" />;
     }
 
     render(
       <I18nProvider i18n={i18n} locale="en" messages={EN} autoInit={false}>
-        <DualSubscriber />
+        <Subscriber />
       </I18nProvider>,
     );
+    const afterMount = renders;
 
-    const bLengthAfterMount = callbackBRevisions.length;
-
-    // configChanged fires → only revB counter should advance
+    // real config change → re-render
     await act(async () => {
-      fake.emit("configChanged", { locale: "en" });
+      fake.setFallbackLocale("de");
+      fake.emit("configChanged", { source: "fallbackLocale" });
       await Promise.resolve();
     });
+    expect(renders).toBeGreaterThan(afterMount);
+    const afterConfig = renders;
 
-    expect(callbackBRevisions.length).toBeGreaterThan(bLengthAfterMount);
-    const lastRevA = callbackARevisions[callbackARevisions.length - 1] ?? 0;
-    expect(lastRevA).toBe(0);
-
-    // namespaceLoaded fires → revA counter should now advance
+    // no-op emit (nothing changed) → no re-render
     await act(async () => {
+      fake.emit("configChanged", { source: "fallbackLocale" });
+      await Promise.resolve();
+    });
+    expect(renders).toBe(afterConfig);
+
+    // unsubscribed event → no re-render even though it bumps the cache revision
+    await act(async () => {
+      fake.translationCache.set("en", "default", { extra: "v" });
       fake.emit("namespaceLoaded", { locale: "en", namespace: "default" });
       await Promise.resolve();
     });
-
-    const latestRevA = callbackARevisions[callbackARevisions.length - 1] ?? 0;
-    expect(latestRevA).toBeGreaterThan(0);
+    expect(renders).toBe(afterConfig);
   });
 });

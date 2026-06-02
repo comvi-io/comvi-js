@@ -4,7 +4,6 @@ import {
   useEffect,
   useMemo,
   useCallback,
-  useRef,
   useSyncExternalStore,
 } from "react";
 import type { I18n, FlattenedTranslations, I18nEvent } from "@comvi/core";
@@ -61,7 +60,6 @@ export function useSubscribe(i18n: I18n, ...events: I18nEvent[]) {
 
 /** @internal — exported for unit tests, not in the package index. */
 export function useStoreRevision(i18n: I18n, ...events: I18nEvent[]): string {
-  const eventRevisionRef = useRef(0);
   const eventsKey = events.join("|");
   const subscribe = useCallback(
     (callback: () => void) => {
@@ -69,17 +67,7 @@ export function useStoreRevision(i18n: I18n, ...events: I18nEvent[]): string {
       const eventList = eventsKey.split("|") as I18nEvent[];
       const unsubs = eventList.map((event) =>
         i18n.on(event, () => {
-          // Bump revision synchronously so getSnapshot reads see the new value
-          // immediately (before the deferred React notification fires).
-          eventRevisionRef.current += 1;
-          // Defer React's notification out of the synchronous _emit call stack
-          // (packages/core/src/core/i18n.ts:438-448) so scheduleUpdateOnFiber
-          // cannot land while a sibling fiber is mid-render. This significantly
-          // narrows (but does not fully close) the v0.3.1 KNOWN LIMITATION race
-          // at useI18n.ts:45-53; the residual window depends on React-internal
-          // subscribe-set-up vs first-event ordering.
-          // The disposed flag prevents stale callbacks after unsubscribe or
-          // i18n prop swap (useCallback dep [i18n, eventsKey] covers the swap).
+          // Defer out of the synchronous _emit stack to avoid mid-render setState.
           queueMicrotask(() => {
             if (!disposed) callback();
           });
@@ -93,11 +81,17 @@ export function useStoreRevision(i18n: I18n, ...events: I18nEvent[]): string {
     [i18n, eventsKey],
   );
 
-  return useSyncExternalStore(
-    subscribe,
-    () => `${i18n.translationCache.getRevision()}:${eventRevisionRef.current}`,
-    () => `${i18n.translationCache.getRevision()}:${eventRevisionRef.current}`,
+  // Content-addressed snapshot (subscription-timing-independent) so events that fire
+  // before the subscribe effect attaches are still detected on the post-subscribe read.
+  const getSnapshot = useCallback(
+    () =>
+      `${i18n.translationCache.getRevision()}:${i18n.isInitialized ? 1 : 0}:` +
+      `${i18n.getDefaultNamespace()}:${i18n.getActiveNamespaces().join(",")}:` +
+      `${i18n.getFallbackLocales().join(",")}`,
+    [i18n],
   );
+
+  return useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
 }
 
 export interface I18nProviderProps {

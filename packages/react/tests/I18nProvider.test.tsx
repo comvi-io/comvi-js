@@ -229,6 +229,7 @@ describe("I18nProvider", () => {
     const firstValue = values[0];
 
     act(() => {
+      fake.setFallbackLocale("de");
       fake.emit("configChanged", { source: "fallbackLocale" });
     });
 
