@@ -122,6 +122,8 @@ export class ConfigLoader {
   private static validateConfig(config: ComviConfig): void {
     const errors: string[] = [];
 
+    this.warnOnLegacyLanguages(config);
+
     // apiKey is required, but can come from env var (already applied in applyEnvironmentOverrides)
     if (!config.apiKey || typeof config.apiKey !== "string" || config.apiKey.trim() === "") {
       errors.push("apiKey is required");
@@ -228,6 +230,23 @@ export class ConfigLoader {
       outputPath: config.outputPath || "src/types/i18n.d.ts",
       strictParams: config.strictParams ?? true,
     };
+  }
+
+  /**
+   * Warn (once) when a `.comvirc.json` carries the legacy `languages` field, which
+   * was renamed to `locales` (commit 5994f2f) before it ever shipped to npm. The
+   * stale key is ignored — only `locales` is read. Mirrors `stripLegacyDefaultNamespace`.
+   */
+  private static warnOnLegacyLanguages(config: ComviConfig): void {
+    const legacyConfig = config as ComviConfig & { languages?: unknown };
+    if (legacyConfig.languages === undefined) {
+      return;
+    }
+
+    console.warn(
+      '[comvi] Ignoring deprecated ".comvirc.json" field "languages"; it was renamed to "locales".',
+    );
+    delete legacyConfig.languages;
   }
 
   private static stripLegacyDefaultNamespace(config: ComviConfig): void {

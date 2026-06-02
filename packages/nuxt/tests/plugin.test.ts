@@ -188,6 +188,38 @@ describe("runtime plugin", () => {
     expect(i18n.setLocale).toHaveBeenCalledWith("de");
   });
 
+  it("preserves the cookie preference when setLocale emits localeChanged during nav", async () => {
+    // Regression guard for the plugin-listener-vs-middleware write ordering.
+    // User prefers "de" (cookie). Navigating to a non-root unprefixed path renders
+    // the path-implied default "en" in as-needed mode, so the middleware calls
+    // setLocale("en"). That emits `localeChanged`, and the plugin's listener writes
+    // the cookie to "en" — BUT the middleware must then restore the preserved "de".
+    // Prior tests used a setLocale mock that did NOT emit localeChanged, so this
+    // interaction was untested. If a future change made localeChanged fire AFTER the
+    // middleware's restore (e.g. async), the cookie would wrongly end at "en".
+    const i18n = createI18nStub("de");
+    i18n.setLocale = vi.fn(async (newLocale: string) => {
+      i18n.locale.value = newLocale;
+      i18n.emit("localeChanged", { to: newLocale });
+    });
+    createI18n.mockReturnValue(i18n);
+
+    const plugin = await importPlugin();
+    await plugin.setup(createNuxtAppStub());
+    nuxtAppMocks.setMockI18n(i18n);
+    nuxtAppMocks.setMockCookie("i18n_locale", "de");
+
+    const middleware = (await import("../src/runtime/middleware/i18n.global")).default;
+    await middleware({ path: "/about", fullPath: "/about" } as any);
+    await flushWatchers();
+
+    // The middleware drove i18n to the path-implied default…
+    expect(i18n.setLocale).toHaveBeenCalledWith("en");
+    // …yet the user's cookie preference survives the localeChanged clobber.
+    const localeCookie = nuxtAppMocks.useCookie("i18n_locale");
+    expect(localeCookie.value).toBe("de");
+  });
+
   it("hydrates translations from SSR payload before init on client", async () => {
     const i18n = createI18nStub("en");
     i18n.addTranslations = vi.fn();

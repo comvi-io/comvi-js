@@ -28,7 +28,7 @@ export type ComponentMapping =
 
 export type ComponentMap = Record<string, ComponentMapping>;
 
-import type { TranslationKeys, PermissiveKey } from "@comvi/core";
+import type { TranslationKeys, PermissiveKey, TranslationParams } from "@comvi/core";
 import type { Snippet } from "svelte";
 
 /**
@@ -45,7 +45,7 @@ export interface TProps {
   /** Translation key to look up */
   i18nKey: keyof TranslationKeys | PermissiveKey;
   /** Interpolation parameters passed to the translation call */
-  params?: Record<string, unknown>;
+  params?: TranslationParams;
   /** Override the active namespace for this translation */
   ns?: string;
   /** Override the active locale for this translation */
