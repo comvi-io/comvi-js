@@ -229,10 +229,6 @@ describe("I18nProvider", () => {
     const firstValue = values[0];
 
     act(() => {
-      // A real configChanged always carries a state mutation. The store snapshot
-      // is now content-addressed (reads live fallback/default-ns/active-ns), so it
-      // re-renders on an ACTUAL config change — not on a bare no-op emit (that's
-      // the intended improvement: no spurious re-render when nothing changed).
       fake.setFallbackLocale("de");
       fake.emit("configChanged", { source: "fallbackLocale" });
     });

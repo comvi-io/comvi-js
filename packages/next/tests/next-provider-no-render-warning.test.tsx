@@ -362,11 +362,6 @@ describe("Test C — out-of-render events still drive consumer re-renders", () =
 // ===========================================================================
 
 describe("Test D — useStoreRevision re-renders on subscribed events with real state changes", () => {
-  // The store snapshot is content-addressed (reads live cache-revision / default-ns
-  // / active-ns / fallback / initialized), so a call site re-renders ONLY when one of
-  // its subscribed events fires AND that event actually changed observable state.
-  // (Previously the snapshot embedded a per-call-site event counter that bumped on
-  // every emit regardless of state — this test guarded that obsolete mechanism.)
   it("re-renders for a subscribed event that changes state; not for a no-op emit or an unsubscribed event", async () => {
     const fake = makeSharedI18n();
     const i18n = fake.asI18n();
@@ -386,7 +381,7 @@ describe("Test D — useStoreRevision re-renders on subscribed events with real 
     );
     const afterMount = renders;
 
-    // (1) A REAL config change (fallback state mutates) → re-render.
+    // real config change → re-render
     await act(async () => {
       fake.setFallbackLocale("de");
       fake.emit("configChanged", { source: "fallbackLocale" });
@@ -395,18 +390,14 @@ describe("Test D — useStoreRevision re-renders on subscribed events with real 
     expect(renders).toBeGreaterThan(afterMount);
     const afterConfig = renders;
 
-    // (2) A no-op configChanged emit (fallback already "de", nothing changed) →
-    //     NO re-render. Content-addressing's intended improvement over the old
-    //     re-render-on-every-emit behavior.
+    // no-op emit (nothing changed) → no re-render
     await act(async () => {
       fake.emit("configChanged", { source: "fallbackLocale" });
       await Promise.resolve();
     });
     expect(renders).toBe(afterConfig);
 
-    // (3) An UNSUBSCRIBED event (namespaceLoaded) → NO re-render for this call
-    //     site, even though it bumps the cache revision — the subscription only
-    //     fires React's re-read for its own events (subscription granularity).
+    // unsubscribed event → no re-render even though it bumps the cache revision
     await act(async () => {
       fake.translationCache.set("en", "default", { extra: "v" });
       fake.emit("namespaceLoaded", { locale: "en", namespace: "default" });

@@ -225,9 +225,6 @@ export class FakeI18nCore {
     this.emit("translationsCleared", { language, namespace });
   }
 
-  // NOTE: unlike real core (which emits `configChanged` from setFallbackLocale),
-  // the fake only records the value — tests drive `emit("configChanged", …)`
-  // explicitly so they can assert the emit and the state change independently.
   setFallbackLanguage(fallback: string | string[]): void {
     this.lastFallbackLanguage = fallback;
   }

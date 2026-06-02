@@ -67,12 +67,7 @@ export function useStoreRevision(i18n: I18n, ...events: I18nEvent[]): string {
       const eventList = eventsKey.split("|") as I18nEvent[];
       const unsubs = eventList.map((event) =>
         i18n.on(event, () => {
-          // Defer React's store-update notification out of the synchronous _emit
-          // call stack (packages/core/src/core/i18n.ts) so scheduleUpdateOnFiber
-          // cannot land while a sibling fiber is mid-render. The snapshot below is
-          // content-addressed, so deferral only affects WHEN React re-reads, never
-          // WHETHER a change is detected. The disposed flag prevents stale callbacks
-          // after unsubscribe or i18n prop swap (dep [i18n, eventsKey] covers it).
+          // Defer out of the synchronous _emit stack to avoid mid-render setState.
           queueMicrotask(() => {
             if (!disposed) callback();
           });
@@ -86,17 +81,8 @@ export function useStoreRevision(i18n: I18n, ...events: I18nEvent[]): string {
     [i18n, eventsKey],
   );
 
-  // Content-addressed snapshot derived PURELY from observable instance state —
-  // never from "was my subscriber attached when the event fired". This closes the
-  // commit→subscribe window: a non-cache event (configChanged/defaultNamespaceChanged)
-  // firing before the passive subscribe effect has already mutated the state this
-  // reads, so React's post-subscribe getSnapshot re-read detects it. (The previous
-  // per-component eventRevisionRef started at 0 and only counted post-subscribe
-  // events, dropping that window.) Each segment maps to a subscribed event: cache
-  // revision (namespaceLoaded/translationsCleared), isInitialized (initialized),
-  // default namespace (defaultNamespaceChanged), active namespaces + fallback locales
-  // (configChanged). Strings compare by value via Object.is, so a fresh equal string
-  // each call is a stable snapshot.
+  // Content-addressed snapshot (subscription-timing-independent) so events that fire
+  // before the subscribe effect attaches are still detected on the post-subscribe read.
   const getSnapshot = useCallback(
     () =>
       `${i18n.translationCache.getRevision()}:${i18n.isInitialized ? 1 : 0}:` +
