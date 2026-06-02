@@ -8,7 +8,7 @@ import type { I18n } from "@comvi/core";
 const storeCache = new WeakMap<
   I18n,
   {
-    language: Readable<string>;
+    locale: Readable<string>;
     loading: Readable<boolean>;
     initializing: Readable<boolean>;
     initialized: Readable<boolean>;
@@ -25,7 +25,7 @@ function getOrCreateStores(i18n: I18n) {
 
   if (!stores) {
     stores = {
-      language: readable(i18n.locale, (set) => {
+      locale: readable(i18n.locale, (set) => {
         set(i18n.locale);
         const unsubscribe = i18n.on("localeChanged", ({ to }) => set(to));
         return unsubscribe;
@@ -55,17 +55,23 @@ function getOrCreateStores(i18n: I18n) {
         };
       }),
       cacheRevision: readable(i18n.translationCache.getRevision(), (set) => {
-        set(i18n.translationCache.getRevision());
-        const unsub1 = i18n.on("namespaceLoaded", () => set(i18n.translationCache.getRevision()));
-        const unsub2 = i18n.on("initialized", () => set(i18n.translationCache.getRevision()));
-        const unsub3 = i18n.on("translationsCleared", () =>
-          set(i18n.translationCache.getRevision()),
-        );
+        // Single monotonic counter — avoids the old cacheRev+configRev sum collision (dropped re-render).
+        let revision = 0;
+        const bump = () => set(++revision);
+
+        set(revision);
+        const unsub1 = i18n.on("namespaceLoaded", bump);
+        const unsub2 = i18n.on("initialized", bump);
+        const unsub3 = i18n.on("translationsCleared", bump);
+        const unsub4 = i18n.on("configChanged", bump);
+        const unsub5 = i18n.on("defaultNamespaceChanged", bump);
 
         return () => {
           unsub1();
           unsub2();
           unsub3();
+          unsub4();
+          unsub5();
         };
       }),
     };
@@ -76,13 +82,21 @@ function getOrCreateStores(i18n: I18n) {
 }
 
 /**
- * Creates a Svelte store for the current language
- * Updates automatically when language changes
+ * Creates a Svelte store for the current locale
+ * Updates automatically when locale changes
  * Memoized per i18n instance
  */
-export function createLanguageStore(i18n: I18n): Readable<string> {
-  return getOrCreateStores(i18n).language;
+export function createLocaleStore(i18n: I18n): Readable<string> {
+  return getOrCreateStores(i18n).locale;
 }
+
+/**
+ * @deprecated Use `createLocaleStore` instead.
+ * Creates a Svelte store for the current locale
+ * Updates automatically when locale changes
+ * Memoized per i18n instance
+ */
+export const createLanguageStore: (i18n: I18n) => Readable<string> = createLocaleStore;
 
 /**
  * Creates a Svelte store for the loading state
@@ -112,7 +126,7 @@ export function createInitializedStore(i18n: I18n): Readable<boolean> {
 }
 
 /**
- * Creates a Svelte store that tracks translation cache changes
+ * Creates a Svelte store that tracks translation cache/config changes
  * Uses revision counter for efficient O(1) change detection
  * Memoized per i18n instance
  */

@@ -1,6 +1,8 @@
 import { from, type Accessor } from "solid-js";
 import type { I18n } from "@comvi/core";
 
+// CSR-only: provider auto-init does not run during SSR. Producers call set() synchronously so the first read is always defined.
+
 /**
  * Creates a SolidJS signal for the current locale
  * Updates automatically when locale changes
@@ -75,21 +77,29 @@ export function createInitializedSignal(i18n: I18n): Accessor<boolean> {
 }
 
 /**
- * Creates a SolidJS signal that tracks translation cache changes
+ * Creates a SolidJS signal that tracks translation cache/config changes
  * Uses revision counter for efficient O(1) change detection
  * MUST be called within a reactive context (component or effect)
  */
 export function createCacheRevisionSignal(i18n: I18n): Accessor<number> {
   const signal = from<number>((set) => {
-    set(i18n.translationCache.getRevision());
-    const unsub1 = i18n.on("namespaceLoaded", () => set(i18n.translationCache.getRevision()));
-    const unsub2 = i18n.on("initialized", () => set(i18n.translationCache.getRevision()));
-    const unsub3 = i18n.on("translationsCleared", () => set(i18n.translationCache.getRevision()));
+    // Single monotonic counter — avoids the old cacheRev+configRev sum collision (dropped re-render).
+    let revision = 0;
+    const bump = () => set(++revision);
+
+    set(revision);
+    const unsub1 = i18n.on("namespaceLoaded", bump);
+    const unsub2 = i18n.on("initialized", bump);
+    const unsub3 = i18n.on("translationsCleared", bump);
+    const unsub4 = i18n.on("configChanged", bump);
+    const unsub5 = i18n.on("defaultNamespaceChanged", bump);
 
     return () => {
       unsub1();
       unsub2();
       unsub3();
+      unsub4();
+      unsub5();
     };
   });
   return signal as Accessor<number>;

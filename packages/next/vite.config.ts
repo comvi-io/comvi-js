@@ -10,17 +10,10 @@ const isWatchMode = process.argv.includes("--watch");
 // is used in middleware (server-side). Navigation components are in navigation.js.
 const clientFiles = [
   "client.js",
-  "client.cjs",
-  "client/index.js",
-  "client/index.cjs",
-  "client/NextI18nProvider.js",
-  "client/NextI18nProvider.cjs",
+  "client/I18nProvider.js",
   "navigation.js",
-  "navigation.cjs",
   "routing/Link.js",
-  "routing/Link.cjs",
   "routing/hooks.js",
-  "routing/hooks.cjs",
 ];
 
 export default defineConfig({
@@ -53,7 +46,7 @@ export default defineConfig({
         routing: resolve(__dirname, "src/routing.ts"),
         navigation: resolve(__dirname, "src/navigation.ts"),
       },
-      formats: ["es", "cjs"],
+      formats: ["es"],
     },
     minify: false, // Disable minification to preserve "use client"
     rolldownOptions: {

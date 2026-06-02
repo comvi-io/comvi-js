@@ -7,6 +7,7 @@ describe("CLI API endpoint contract", () => {
     expect(API_ENDPOINTS.translations).toBe("/v1/translations");
     expect(API_ENDPOINTS.projectSchema(123)).toBe("/v1/projects/123/schema");
     expect(API_ENDPOINTS.projectSchemaStream(123)).toBe("/v1/projects/123/schema/stream");
+    expect(API_ENDPOINTS.projectNamespaces(123)).toBe("/v1/projects/123/namespaces");
     expect(API_ENDPOINTS.projectImportCommit(123)).toBe("/v1/projects/123/import/commit");
   });
 
@@ -16,6 +17,7 @@ describe("CLI API endpoint contract", () => {
       API_ENDPOINTS.translations,
       API_ENDPOINTS.projectSchema(123),
       API_ENDPOINTS.projectSchemaStream(123),
+      API_ENDPOINTS.projectNamespaces(123),
       API_ENDPOINTS.projectImportCommit(123),
     ];
 

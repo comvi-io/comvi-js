@@ -30,7 +30,7 @@ Comvi i18n is a modern, framework-agnostic internationalization library built on
 - **Rich text without XSS.** Embed components inside translation strings (`Click <link>here</link>`) — translators see clean markup, you decide what each tag renders to. No raw HTML, no unsafe DOM injection, no splitting a sentence across template fragments.
 - **Real ICU MessageFormat.** Plurals, ordinals, and select all follow locale-correct grammar via `Intl.PluralRules` — Polish, Ukrainian, Arabic, Welsh, and the rest. Same syntax every major TMS (Crowdin, Lokalise, Phrase) already speaks.
 - **Locale-aware formatters built in.** `formatNumber`, `formatDate`, `formatCurrency`, and `formatRelativeTime` follow the active locale via native `Intl`, with reactive updates in every framework binding.
-- **~8 kB gzipped, zero runtime dependencies.** No `eval` or `new Function` anywhere — runs under a strict CSP without `unsafe-eval`. Safe for Chrome extensions, Cloudflare Workers, and locked-down enterprise apps.
+- **~8 kB minified + gzipped (as bundled by your app), zero runtime dependencies.** No `eval` or `new Function` anywhere — runs under a strict CSP without `unsafe-eval`. Safe for Chrome extensions, Cloudflare Workers, and locked-down enterprise apps.
 - **Pluggable, not monolithic.** Translation loading (CDN/API), locale detection, and in-context editing are opt-in plugins via `@comvi/plugin-fetch-loader`, `@comvi/plugin-locale-detector`, and `@comvi/plugin-in-context-editor`. You only ship what you use.
 - **Same API across 6 frameworks.** `useI18n()` and `<T>` look the same in [Vue](https://www.npmjs.com/package/@comvi/vue), [React](https://www.npmjs.com/package/@comvi/react), [SolidJS](https://www.npmjs.com/package/@comvi/solid), [Svelte](https://www.npmjs.com/package/@comvi/svelte), [Next.js](https://www.npmjs.com/package/@comvi/next), and [Nuxt](https://www.npmjs.com/package/@comvi/nuxt) — switch frameworks without relearning your i18n layer.
 
@@ -94,6 +94,29 @@ export default function App() {
 ```
 
 For `<T>` rich-text components, type-safe keys, and the full reactive primitives, see the [documentation](https://comvi.io/docs/i18n/solid/).
+
+### Reactivity caveat — call `t()` inside a tracking scope
+
+`t()` and `tRaw()` read the locale and cache signals **at call time**, so they only stay reactive when invoked inside a tracking scope (JSX, `createMemo`, or `createEffect`). Reading the value once into a plain variable captures it forever:
+
+```tsx
+// ✗ WRONG — frozen. `greeting` is computed once and never updates on locale change.
+function Greeting() {
+  const { t } = useI18n();
+  const greeting = t("greeting", { name: "Alice" });
+  return <h1>{greeting}</h1>;
+}
+```
+
+```tsx
+// ✓ RIGHT — call t() inline so it re-runs when the locale or translations change.
+function Greeting() {
+  const { t } = useI18n();
+  return <h1>{t("greeting", { name: "Alice" })}</h1>;
+}
+```
+
+If you need a derived value, wrap it in a memo: `const greeting = createMemo(() => t("greeting", { name: "Alice" }))`, then read `greeting()`. (Coming from React/Vue, where `const g = t(...)` works because the whole component re-renders — Solid does not re-render, so the call must stay in a tracked position.)
 
 ## Rich text with `<T>`
 
@@ -284,6 +307,12 @@ export default function App() {
 ```
 
 See [`@comvi/plugin-fetch-loader`](https://github.com/comvi-io/comvi-js/tree/main/packages/plugin-fetch-loader) for full options and API endpoints.
+
+## Server-Side Rendering
+
+`@comvi/solid` is **client-side rendering (CSR) only** today. `<I18nProvider>` auto-initializes the instance from a `createEffect`, which does not run during Solid's server render (`renderToString`), so translations are not initialized on the server. The reactive primitives populate on the client once the component mounts.
+
+If you render with SolidStart or another SSR setup, initialize and load translations on the client and gate UI on `isInitialized()` / `isLoading()` from `useI18n()` to avoid a flash of untranslated keys. First-class SSR/SSG (server-side translation resolution and hydration) is not yet supported — track progress in the [issues](https://github.com/comvi-io/comvi-js/issues).
 
 ## License
 

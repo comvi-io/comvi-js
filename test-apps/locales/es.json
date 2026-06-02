@@ -25,7 +25,7 @@
     "title": "Texto enriquecido",
     "bold_text": "Este es texto en <strong>negrita</strong>.",
     "link_text": "Por favor <link>haga clic aquí</link> para más información.",
-    "component_interpolation": "Este es un componente {placeholder}.",
+    "component_interpolation": "Este es un componente <placeholder>INTERPOLADO</placeholder>.",
     "nested_tags_title": "Interpolación de etiquetas anidadas",
     "nested_simple": "Haz clic en <link><bold>este enlace</bold></link> para obtener ayuda.",
     "nested_mixed": "<alert>Advertencia: <bold>{count}</bold> elementos necesitan tu <link>atención</link>!</alert>",

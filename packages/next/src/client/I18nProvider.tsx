@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useLayoutEffect, useEffect, useRef } from "react";
+import React, { useLayoutEffect, useEffect, useRef, useState } from "react";
 import { I18nProvider as ReactI18nProvider } from "@comvi/react";
 
 // Safe isomorphic layout effect to avoid React warnings during SSR
@@ -38,8 +38,30 @@ export interface I18nProviderProps extends Omit<ReactI18nProviderProps, "ssrInit
   routing?: RoutingConfig;
 }
 
-// Check if we're on the server
-const isServer = typeof window === "undefined";
+/**
+ * Update the i18n instance locale if valid against `routing.locales` (when
+ * routing is provided). Calls `i18n.reportError` on misconfiguration so devs
+ * get a meaningful diagnostic instead of silent fallback.
+ */
+function syncLocaleSafely(
+  i18n: import("@comvi/core").I18n,
+  locale: string,
+  routing: RoutingConfig | undefined,
+): boolean {
+  if (routing && !routing.locales.includes(locale)) {
+    i18n.reportError(
+      new Error(
+        `[next-i18n-provider] Locale "${locale}" is not in routing.locales (${routing.locales.join(", ")}). Skipping locale sync.`,
+      ),
+      { source: "init", locale },
+    );
+    return false;
+  }
+  if (i18n.locale !== locale) {
+    i18n.locale = locale;
+  }
+  return true;
+}
 
 /**
  * I18nProvider for Next.js App Router
@@ -102,45 +124,29 @@ export function I18nProvider({
   routing,
   ...props
 }: I18nProviderProps) {
-  // Track which messages object we've already added (by reference)
+  // By-identity guard so StrictMode double-mount and stable-prop re-renders
+  // don't re-apply the same messages object.
   const lastAddedMessagesRef = useRef<MessagesMap | undefined>(undefined);
-  const isFirstRenderRef = useRef(true);
 
-  // Synchronize locale and messages during render (before children render)
-  //
-  // On SERVER: Always sync - each request needs correct locale.
-  // On CLIENT (first render): Sync once for hydration - i18n.t() reads i18n.locale directly,
-  //   so we must set it before render to avoid using defaultLocale on first paint.
-  // On CLIENT (subsequent): Use useIsomorphicLayoutEffect to avoid "setState during render".
-  const shouldSyncDuringRender = isServer || isFirstRenderRef.current;
-
-  if (shouldSyncDuringRender) {
-    if (i18n.locale !== locale) {
-      i18n.locale = locale;
-    }
-
+  // Sync locale + messages before the first commit, on both server and client.
+  useState(() => {
+    syncLocaleSafely(i18n, locale, routing);
     if (messages && messages !== lastAddedMessagesRef.current) {
       i18n.addTranslations(messages);
       lastAddedMessagesRef.current = messages;
     }
+    return null;
+  });
 
-    if (!isServer) {
-      isFirstRenderRef.current = false;
-    }
-  }
-
-  // For ALL subsequent renders (client-side navigation, HMR, etc.),
-  // update in useIsomorphicLayoutEffect to avoid "setState during render" errors.
+  // Subsequent renders (client navigation, HMR, prop updates).
   useIsomorphicLayoutEffect(() => {
-    if (i18n.locale !== locale) {
-      i18n.locale = locale;
-    }
+    syncLocaleSafely(i18n, locale, routing);
 
     if (messages && messages !== lastAddedMessagesRef.current) {
       i18n.addTranslations(messages);
       lastAddedMessagesRef.current = messages;
     }
-  }, [i18n, locale, messages]);
+  }, [i18n, locale, messages, routing]);
 
   const content = (
     <ReactI18nProvider

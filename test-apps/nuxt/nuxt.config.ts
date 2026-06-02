@@ -6,6 +6,7 @@ const tailwindVitePlugin = tailwindcss() as unknown as NuxtVitePlugin;
 
 export default defineNuxtConfig({
   modules: ["@comvi/nuxt"],
+  srcDir: "app/",
   css: ["~/assets/css/main.css"],
   sourcemap: false,
   vite: {
@@ -24,7 +25,7 @@ export default defineNuxtConfig({
     defaultLocale: "en",
     localePrefix: "as-needed",
     defaultNs: "default",
-    fallbackLanguage: "en",
+    fallbackLocale: "en",
     detectBrowserLanguage: {
       useCookie: true,
       cookieName: "i18n_locale",
@@ -35,5 +36,5 @@ export default defineNuxtConfig({
 
   devtools: { enabled: true },
 
-  compatibilityDate: "2025-01-01",
+  compatibilityDate: "2024-11-01",
 });

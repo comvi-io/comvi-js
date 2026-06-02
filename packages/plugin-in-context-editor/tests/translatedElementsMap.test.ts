@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { TranslationRegistry } from "../src/TranslationRegistry";
 import { EventBus } from "../src/EventBus";
-import { cleanupDOM, registerTestKeys } from "./helpers";
+import { cleanupDOM } from "./helpers";
 
 describe("translatedElementsMap.ts - Element Translation Map", () => {
   let map: TranslationRegistry;

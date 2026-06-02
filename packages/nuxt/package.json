@@ -7,7 +7,7 @@
   "author": "Comvi <hello@comvi.io> (https://comvi.io)",
   "repository": {
     "type": "git",
-    "url": "https://github.com/comvi-io/comvi-js.git",
+    "url": "git+https://github.com/comvi-io/comvi-js.git",
     "directory": "packages/nuxt"
   },
   "homepage": "https://comvi.io",
@@ -45,14 +45,15 @@
     "./runtime/*": "./dist/runtime/*"
   },
   "engines": {
-    "node": ">=22.0.0"
+    "node": ">=18"
   },
   "sideEffects": false,
   "scripts": {
-    "dev": "nuxi dev playground --port 30002",
+    "dev": "nuxt-module-build build --stub && nuxt-module-build prepare",
     "build": "nuxt-module-build build && tsc -p tsconfig.runtime.json",
-    "typecheck": "nuxt-module-build build && tsc -p tsconfig.runtime.json",
+    "typecheck": "tsc -p tsconfig.typecheck.json",
     "test": "vitest run",
+    "test:types": "vitest --typecheck.only --run --typecheck.include='tests/**/*.test-d.ts' --typecheck.tsconfig=tsconfig.test-types.json",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "lint": "eslint . --max-warnings=0",
@@ -60,16 +61,17 @@
     "lint:fix": "eslint . --fix"
   },
   "dependencies": {
-    "@nuxt/kit": "^3.21.0",
     "@comvi/core": "workspace:*",
-    "@comvi/vue": "workspace:*"
+    "@comvi/vue": "workspace:*",
+    "@nuxt/kit": "^3.0.0 || ^4.0.0",
+    "h3": "^1.15.11"
   },
   "peerDependencies": {
-    "nuxt": "^3.0.0"
+    "nuxt": "^3.0.0 || ^4.0.0"
   },
   "devDependencies": {
     "@nuxt/module-builder": "^1.0.2",
-    "@nuxt/schema": "^3.21.4",
+    "@nuxt/schema": "^3.0.0 || ^4.0.0",
     "@types/node": "^22.13.0",
     "@typescript-eslint/eslint-plugin": "^8.58.0",
     "@typescript-eslint/parser": "^8.58.0",

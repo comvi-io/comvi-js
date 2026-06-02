@@ -9,11 +9,12 @@ export { useI18n } from "./useI18n";
 export type { UseI18nReturn } from "./useI18n";
 
 // Export types
-export type { ComponentMap, ComponentMapping } from "./types";
+export type { ComponentMap, ComponentMapping, TProps } from "./types";
 
 // Export stores for advanced usage
 export {
-  createLanguageStore,
+  createLocaleStore,
+  createLanguageStore, // @deprecated use createLocaleStore
   createLoadingStore,
   createInitializingStore,
   createInitializedStore,

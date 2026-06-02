@@ -17,11 +17,17 @@ import type {
   PullResult,
   TranslationDiff,
 } from "../types";
+import { DEFAULT_NAMESPACE, isDefaultFileTemplate } from "../defaults";
 import { TypegenError, ErrorCodes, wrapError } from "../utils/errors";
 
 export interface ReadTranslationsOptions {
   locales?: string[];
   namespaces?: string[];
+  defaultNamespace?: string;
+}
+
+export interface WriteTranslationsOptions {
+  defaultNamespace?: string;
 }
 
 export interface LocalTranslations {
@@ -44,8 +50,12 @@ export class TranslationSync {
   /**
    * Write translations to local files
    */
-  async writeTranslations(data: TranslationsResponse): Promise<PullResult> {
+  async writeTranslations(
+    data: TranslationsResponse,
+    options: WriteTranslationsOptions = {},
+  ): Promise<PullResult> {
     const { translations, locales, namespaces } = data;
+    const defaultNamespace = options.defaultNamespace ?? DEFAULT_NAMESPACE;
     let filesWritten = 0;
 
     for (const locale of locales) {
@@ -56,7 +66,7 @@ export class TranslationSync {
         const nsTranslations = localeTranslations[ns];
         if (!nsTranslations) continue;
 
-        const filePath = this.resolveFilePath(locale, ns);
+        const filePath = this.resolveFilePath(locale, ns, defaultNamespace);
         await this.ensureDirectory(dirname(filePath));
 
         const content = JSON.stringify(nsTranslations, null, 2) + "\n";
@@ -76,12 +86,14 @@ export class TranslationSync {
    * Read translations from local files
    */
   async readTranslations(options: ReadTranslationsOptions = {}): Promise<LocalTranslations> {
+    const defaultNamespace = options.defaultNamespace ?? DEFAULT_NAMESPACE;
     const result: TranslationData = {};
     const foundLocales = new Set<string>();
     const foundNamespaces = new Set<string>();
+    const sourceFiles = new Map<string, string>();
 
     // Find all translation files
-    const files = await this.findTranslationFiles();
+    const files = await this.findTranslationFiles(defaultNamespace);
 
     for (const { locale, namespace, filePath } of files) {
       // Apply filters
@@ -91,6 +103,16 @@ export class TranslationSync {
       if (options.namespaces?.length && !options.namespaces.includes(namespace)) {
         continue;
       }
+
+      const translationSlot = `${locale}\u0000${namespace}`;
+      const existingFilePath = sourceFiles.get(translationSlot);
+      if (existingFilePath) {
+        throw new TypegenError(
+          `Duplicate translation files for locale "${locale}" and namespace "${namespace}": ${existingFilePath} and ${filePath}`,
+          ErrorCodes.CONFIG_INVALID,
+        );
+      }
+      sourceFiles.set(translationSlot, filePath);
 
       try {
         const content = await fs.readFile(filePath, "utf-8");
@@ -205,8 +227,12 @@ export class TranslationSync {
   /**
    * Resolve file path from template
    */
-  private resolveFilePath(locale: string, namespace: string): string {
+  private resolveFilePath(locale: string, namespace: string, defaultNamespace: string): string {
     const extension = this.format;
+
+    if (this.usesDefaultFileLayout() && namespace === defaultNamespace) {
+      return join(this.translationsPath, `${locale}.${extension}`);
+    }
 
     const relativePath = this.fileTemplate
       .replace("{languageTag}", locale)
@@ -221,9 +247,23 @@ export class TranslationSync {
    * The `{languageTag}` placeholder name is kept for backward compatibility
    * with existing `.comvirc.json` files; the captured value is a locale.
    */
-  private parseFilePath(filePath: string): { locale: string; namespace: string } | null {
+  private parseFilePath(
+    filePath: string,
+    defaultNamespace: string,
+  ): { locale: string; namespace: string } | null {
     const relativePath = relative(this.translationsPath, filePath).replace(/\\/g, "/");
     const template = this.fileTemplate.replace(/\\/g, "/");
+
+    if (this.usesDefaultFileLayout()) {
+      const defaultNamespaceFile = parseDefaultNamespaceFile(relativePath, this.format);
+      if (defaultNamespaceFile) {
+        return {
+          locale: defaultNamespaceFile,
+          namespace: defaultNamespace,
+        };
+      }
+    }
+
     const placeholders: Record<string, string> = {
       "{languageTag}": "(?<locale>[A-Za-z0-9_-]+)",
       "{namespace}": "(?<namespace>[A-Za-z0-9_-]+)",
@@ -238,7 +278,7 @@ export class TranslationSync {
     const regex = new RegExp(`^${regexPattern}$`);
     const match = relativePath.match(regex);
 
-    if (match?.groups) {
+    if (match?.groups?.locale && match.groups.namespace) {
       return {
         locale: match.groups.locale,
         namespace: match.groups.namespace,
@@ -248,18 +288,22 @@ export class TranslationSync {
     return null;
   }
 
+  private usesDefaultFileLayout(): boolean {
+    return isDefaultFileTemplate(this.fileTemplate);
+  }
+
   /**
    * Find all translation files in the translations directory
    */
-  private async findTranslationFiles(): Promise<
-    Array<{ locale: string; namespace: string; filePath: string }>
-  > {
+  private async findTranslationFiles(
+    defaultNamespace: string,
+  ): Promise<Array<{ locale: string; namespace: string; filePath: string }>> {
     const results: Array<{ locale: string; namespace: string; filePath: string }> = [];
 
     try {
       await this.walkDirectory(this.translationsPath, (filePath) => {
         if (filePath.endsWith(`.${this.format}`)) {
-          const parsed = this.parseFilePath(filePath);
+          const parsed = this.parseFilePath(filePath, defaultNamespace);
           if (parsed) {
             results.push({
               ...parsed,
@@ -310,4 +354,9 @@ export class TranslationSync {
 
 function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function parseDefaultNamespaceFile(relativePath: string, format: "json"): string | null {
+  const regex = new RegExp(`^([A-Za-z0-9_-]+)\\.${escapeRegExp(format)}$`);
+  return relativePath.match(regex)?.[1] ?? null;
 }

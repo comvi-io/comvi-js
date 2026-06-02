@@ -9,6 +9,7 @@
 import { Command } from "commander";
 import { ConfigLoader } from "../core/ConfigLoader";
 import { ApiClient } from "../core/ApiClient";
+import { DEFAULT_FILE_TEMPLATE } from "../defaults";
 import type { ComviConfig } from "../types";
 
 export function createInitCommand(): Command {
@@ -18,9 +19,8 @@ export function createInitCommand(): Command {
     .option("-u, --api-url <url>", "API base URL", "https://api.comvi.io")
     .option("-o, --output <path>", "Output path for generated types", "src/types/i18n.d.ts")
     .option("--no-strict-params", "Make all params optional")
-    .option("--default-ns <name>", "Default namespace name", "default")
     .option("--translations-path <path>", "Local translations folder", "./src/locales")
-    .option("--file-template <template>", "File template pattern", "{languageTag}/{namespace}.json")
+    .option("--file-template <template>", "File template pattern", DEFAULT_FILE_TEMPLATE)
     .action(async (options) => {
       try {
         // Check for API key from env var or flag
@@ -33,7 +33,6 @@ export function createInitCommand(): Command {
           apiBaseUrl: options.apiUrl,
           outputPath: options.output,
           strictParams: options.strictParams !== false,
-          defaultNsName: options.defaultNs,
           translationsPath: options.translationsPath,
           fileTemplate: options.fileTemplate,
         };

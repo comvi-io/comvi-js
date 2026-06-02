@@ -6,19 +6,26 @@ import { useLocalizedRouter, usePathname } from "@comvi/next/navigation";
 const locales = ["en", "de", "fr", "es", "uk", "ar"];
 
 export function LanguageSwitcher() {
-  const { locale } = useI18n();
+  const { locale, setLocale } = useI18n();
   const router = useLocalizedRouter();
   const pathname = usePathname();
 
-  const handleChange = (newLocale: string) => {
-    // Proper navigation - Next.js router stays in sync
-    router.push(pathname || "/", newLocale);
+  const handleChange = async (newLocale: string) => {
+    if (newLocale === locale) return;
+    try {
+      await setLocale(newLocale);
+      router.push(pathname || "/", newLocale);
+    } catch (error) {
+      console.error("[LanguageSwitcher] Failed to switch locale:", error);
+    }
   };
 
   return (
     <select
       value={locale}
-      onChange={(e) => handleChange(e.target.value)}
+      onChange={(e) => {
+        void handleChange(e.target.value);
+      }}
       className="border border-gray-300 rounded px-2 py-1 bg-white text-gray-700"
     >
       {locales.map((loc) => (

@@ -8,7 +8,7 @@
   "author": "Comvi <hello@comvi.io> (https://comvi.io)",
   "repository": {
     "type": "git",
-    "url": "https://github.com/comvi-io/comvi-js.git",
+    "url": "git+https://github.com/comvi-io/comvi-js.git",
     "directory": "packages/plugin-in-context-editor"
   },
   "homepage": "https://comvi.io",
@@ -28,22 +28,25 @@
   "files": [
     "dist"
   ],
-  "main": "./dist/index.cjs.js",
   "module": "./dist/index.es.js",
   "types": "./dist/index.d.ts",
+  "engines": {
+    "node": ">=18"
+  },
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
       "production": {
-        "import": "./dist/production.es.js",
-        "require": "./dist/production.cjs.js"
+        "types": "./dist/production.d.ts",
+        "default": "./dist/production.es.js"
       },
-      "import": "./dist/index.es.js",
-      "require": "./dist/index.cjs.js"
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.es.js"
     },
     "./standalone": "./dist/standalone.iife.js"
   },
-  "sideEffects": false,
+  "sideEffects": [
+    "./dist/standalone.iife.js"
+  ],
   "scripts": {
     "dev": "vite build --watch",
     "build": "pnpm --filter @comvi/plugin-fetch-loader build && vue-tsc && vite build && vite build --config vite.config.standalone.ts",
@@ -56,10 +59,12 @@
     "test:ui": "vitest --ui",
     "test:coverage": "vitest run --coverage",
     "test:e2e": "playwright test",
-    "test:e2e:ui": "playwright test --ui"
+    "test:e2e:ui": "playwright test --ui",
+    "lint": "eslint . --max-warnings=0",
+    "lint:fix": "eslint . --fix"
   },
   "peerDependencies": {
-    "@comvi/core": "workspace:*"
+    "@comvi/core": "^0.2.0 || ^0.3.0"
   },
   "dependencies": {
     "@comvi/plugin-fetch-loader": "workspace:*",
@@ -73,6 +78,7 @@
     "vue": "^3.5.32"
   },
   "devDependencies": {
+    "@comvi/core": "workspace:*",
     "@playwright/test": "^1.59.1",
     "@tailwindcss/vite": "^4.2.2",
     "@types/node": "^22.13.0",

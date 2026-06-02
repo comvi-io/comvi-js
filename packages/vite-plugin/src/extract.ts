@@ -31,7 +31,7 @@ interface TranslationFile {
  * Parse a file template pattern into a regex for extracting language/namespace.
  *
  * @example
- * "{languageTag}/{namespace}.json" → regex that captures language and namespace
+ * "{namespace}/{languageTag}.json" → regex that captures namespace and language
  */
 function buildTemplateRegex(fileTemplate: string): RegExp {
   const escaped = fileTemplate.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -179,9 +179,9 @@ function mergeParams(existing: SchemaParam[], incoming: SchemaParam[]): SchemaPa
 /**
  * Extract a full ProjectSchema from local translation files.
  *
- * Supports two file structures:
- * 1. Single file per language: en.json, fr.json (namespace = "default", keys are nested)
- * 2. File per namespace: en/common.json, en/admin.json
+ * Supports two file structures by default:
+ * 1. Root default namespace files: en.json, fr.json
+ * 2. File per non-default namespace: admin/en.json, admin/fr.json
  */
 export async function extractSchema(options: {
   translationsPath: string;
@@ -190,7 +190,7 @@ export async function extractSchema(options: {
 }): Promise<ProjectSchema> {
   const {
     translationsPath,
-    fileTemplate = "{languageTag}/{namespace}.json",
+    fileTemplate = "{namespace}/{languageTag}.json",
     defaultNs = "default",
   } = options;
 

@@ -87,6 +87,43 @@ describe("T.tsx", () => {
     expect(container.textContent).toBe("missing.key");
   });
 
+  it("does NOT create fallback children when the translation exists", () => {
+    let created = 0;
+    const SideEffectChild = () => {
+      created++;
+      return <span>fallback</span>;
+    };
+    fake.tImplementation = (key) => (key === "existing" ? "Existing Translation" : key);
+
+    renderWithProvider(() => (
+      <T i18nKey={"existing" as never}>
+        <SideEffectChild />
+      </T>
+    ));
+
+    expect(container.textContent).toBe("Existing Translation");
+    expect(created).toBe(0);
+  });
+
+  it("creates fallback children only when the translation is missing", () => {
+    let created = 0;
+    const SideEffectChild = () => {
+      created++;
+      return <span>fallback</span>;
+    };
+    fake.hasTranslation.mockImplementation(() => false);
+    fake.tImplementation = (key) => key;
+
+    renderWithProvider(() => (
+      <T i18nKey={"missing.key" as never}>
+        <SideEffectChild />
+      </T>
+    ));
+
+    expect(container.innerHTML).toContain("<span>fallback</span>");
+    expect(created).toBeGreaterThan(0);
+  });
+
   it("renders string tag handler mappings", () => {
     fake.tImplementation = (_key, params) => {
       const link = (params?.link as (payload: TagCallbackParams) => TranslationResult)({
@@ -257,6 +294,21 @@ describe("T.tsx", () => {
     renderWithProvider(() => <T i18nKey={"greeting" as never} locale="fr" />);
 
     expect(container.textContent).toBe("Bonjour");
+  });
+
+  it("does not recompute when global locale changes and locale prop is pinned", async () => {
+    fake.tImplementation = (_key, params) => `locale=${String(params?.locale ?? fake.language)}`;
+
+    renderWithProvider(() => <T i18nKey={"greeting" as never} locale="fr" />);
+
+    expect(container.textContent).toBe("locale=fr");
+    const callsAfterRender = fake.tRaw.mock.calls.length;
+
+    await fake.setLocaleAsync("de");
+    await Promise.resolve();
+
+    expect(container.textContent).toBe("locale=fr");
+    expect(fake.tRaw).toHaveBeenCalledTimes(callsAfterRender);
   });
 
   it("passes params to the translation call for interpolation", () => {

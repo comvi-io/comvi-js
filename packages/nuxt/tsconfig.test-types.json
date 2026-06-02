@@ -1,0 +1,15 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "strict": true,
+    "types": ["node"],
+    "paths": {
+      "#app": ["./tests/mocks/nuxt-app.ts"],
+      "#build/comvi.setup": ["./tests/mocks/comvi-setup.ts"],
+      "#components": ["./tests/mocks/nuxt-components.ts"]
+    }
+  },
+  "include": ["./src/types.ts", "./src/runtime/**/*.ts", "./tests/**/*.test-d.ts"],
+  "exclude": ["./coverage", "./dist"]
+}

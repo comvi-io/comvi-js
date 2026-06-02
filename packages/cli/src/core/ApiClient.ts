@@ -32,6 +32,16 @@ export interface FetchTranslationsOptions {
   namespaces?: string[];
 }
 
+export interface NamespaceInfo {
+  id: number;
+  projectId: number;
+  namespace: string;
+  description: string | null;
+  isDefault: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface PushTranslationsOptions {
   translations: TranslationData;
   forceMode: Exclude<ForceMode, "ask">;
@@ -73,6 +83,7 @@ export const API_ENDPOINTS = {
   translations: "/v1/translations",
   projectSchema: (projectId: number) => `/v1/projects/${projectId}/schema`,
   projectSchemaStream: (projectId: number) => `/v1/projects/${projectId}/schema/stream`,
+  projectNamespaces: (projectId: number) => `/v1/projects/${projectId}/namespaces`,
   projectImportCommit: (projectId: number) => `/v1/projects/${projectId}/import/commit`,
 } as const;
 
@@ -82,6 +93,7 @@ export class ApiClient {
   private timeout: number;
   private eventSource?: EventSource;
   private projectInfo?: ProjectInfo;
+  private projectInfoPromise?: Promise<ProjectInfo>;
 
   constructor(options: ApiClientOptions) {
     // Validate API key
@@ -286,6 +298,84 @@ export class ApiClient {
   }
 
   /**
+   * Fetch project namespaces from TMS
+   * GET /v1/projects/:projectId/namespaces
+   */
+  async fetchNamespaces(): Promise<NamespaceInfo[]> {
+    const project = await this.getProjectInfo();
+    const url = `${this.apiBaseUrl}${API_ENDPOINTS.projectNamespaces(project.id)}`;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), this.timeout);
+
+    try {
+      const response = await fetch(url, {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${this.apiKey}`,
+          "Content-Type": "application/json",
+        },
+        signal: controller.signal,
+      });
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          throw new TypegenError("Invalid API key", ErrorCodes.API_AUTH_FAILED);
+        }
+        if (response.status === 403) {
+          throw new TypegenError("Access denied to project namespaces", ErrorCodes.API_AUTH_FAILED);
+        }
+        throw new TypegenError(
+          `Failed to fetch namespaces: ${response.status} ${response.statusText}`,
+          ErrorCodes.API_FETCH_FAILED,
+        );
+      }
+
+      const namespaces = (await response.json()) as NamespaceInfo[];
+      if (!Array.isArray(namespaces)) {
+        throw new TypegenError(
+          "Invalid namespaces response: expected an array",
+          ErrorCodes.API_INVALID_RESPONSE,
+        );
+      }
+
+      return namespaces;
+    } catch (error) {
+      if (error instanceof TypegenError) {
+        throw error;
+      }
+      if (error instanceof Error && error.name === "AbortError") {
+        throw new TypegenError(
+          `Request timeout after ${this.timeout}ms`,
+          ErrorCodes.API_TIMEOUT,
+          error,
+        );
+      }
+      throw wrapError(error, "Failed to fetch namespaces", ErrorCodes.API_FETCH_FAILED);
+    } finally {
+      clearTimeout(timeoutId);
+    }
+  }
+
+  /**
+   * Fetch the namespace currently marked default by the project.
+   */
+  async fetchDefaultNamespace(): Promise<string> {
+    const namespaces = await this.fetchNamespaces();
+    const defaults = namespaces.filter((ns) => ns.isDefault);
+
+    if (defaults.length !== 1) {
+      throw new TypegenError(
+        defaults.length === 0
+          ? "Project has no default namespace"
+          : "Project has multiple default namespaces",
+        ErrorCodes.API_INVALID_RESPONSE,
+      );
+    }
+
+    return defaults[0].namespace;
+  }
+
+  /**
    * Push translations to TMS
    * POST /v1/projects/:projectId/import/commit
    */
@@ -472,7 +562,11 @@ export class ApiClient {
       return this.projectInfo;
     }
 
-    return this.validateApiKey();
+    this.projectInfoPromise ??= this.validateApiKey().finally(() => {
+      this.projectInfoPromise = undefined;
+    });
+
+    return this.projectInfoPromise;
   }
 }
 

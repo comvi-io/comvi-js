@@ -328,6 +328,108 @@ describe("ApiClient", () => {
     });
   });
 
+  describe("fetchDefaultNamespace", () => {
+    it("should fetch the backend default namespace", async () => {
+      (global.fetch as any)
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => mockProjectInfo,
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => [
+            {
+              id: 1,
+              projectId: 123,
+              namespace: "common",
+              description: null,
+              isDefault: true,
+              createdAt: "2026-01-01T00:00:00.000Z",
+              updatedAt: "2026-01-01T00:00:00.000Z",
+            },
+            {
+              id: 2,
+              projectId: 123,
+              namespace: "admin",
+              description: null,
+              isDefault: false,
+              createdAt: "2026-01-01T00:00:00.000Z",
+              updatedAt: "2026-01-01T00:00:00.000Z",
+            },
+          ],
+        });
+
+      await expect(apiClient.fetchDefaultNamespace()).resolves.toBe("common");
+      expect(global.fetch).toHaveBeenCalledWith(
+        "https://api.test.com/v1/projects/123/namespaces",
+        expect.objectContaining({
+          method: "GET",
+        }),
+      );
+    });
+
+    it("should reject when the backend does not return exactly one default namespace", async () => {
+      (global.fetch as any)
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => mockProjectInfo,
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => [
+            {
+              id: 1,
+              projectId: 123,
+              namespace: "common",
+              description: null,
+              isDefault: false,
+              createdAt: "2026-01-01T00:00:00.000Z",
+              updatedAt: "2026-01-01T00:00:00.000Z",
+            },
+          ],
+        });
+
+      await expect(apiClient.fetchDefaultNamespace()).rejects.toThrow(
+        "Project has no default namespace",
+      );
+    });
+
+    it("should reject when the backend returns multiple default namespaces", async () => {
+      (global.fetch as any)
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => mockProjectInfo,
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => [
+            {
+              id: 1,
+              projectId: 123,
+              namespace: "common",
+              description: null,
+              isDefault: true,
+              createdAt: "2026-01-01T00:00:00.000Z",
+              updatedAt: "2026-01-01T00:00:00.000Z",
+            },
+            {
+              id: 2,
+              projectId: 123,
+              namespace: "default",
+              description: null,
+              isDefault: true,
+              createdAt: "2026-01-01T00:00:00.000Z",
+              updatedAt: "2026-01-01T00:00:00.000Z",
+            },
+          ],
+        });
+
+      await expect(apiClient.fetchDefaultNamespace()).rejects.toThrow(
+        "Project has multiple default namespaces",
+      );
+    });
+  });
+
   describe("pushTranslations", () => {
     it("should push translations through the bulk import endpoint", async () => {
       (global.fetch as any)

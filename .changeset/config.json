@@ -2,15 +2,34 @@
   "$schema": "https://unpkg.com/@changesets/config@3.1.2/schema.json",
   "changelog": "@changesets/cli/changelog",
   "commit": false,
-  "fixed": [],
+  "fixed": [
+    [
+      "@comvi/cli",
+      "@comvi/core",
+      "@comvi/next",
+      "@comvi/nuxt",
+      "@comvi/plugin-fetch-loader",
+      "@comvi/plugin-in-context-editor",
+      "@comvi/plugin-locale-detector",
+      "@comvi/react",
+      "@comvi/solid",
+      "@comvi/svelte",
+      "@comvi/vite-plugin",
+      "@comvi/vue"
+    ]
+  ],
   "linked": [],
   "access": "public",
   "baseBranch": "main",
   "updateInternalDependencies": "patch",
+  "___experimentalUnsafeOptions_WILL_CHANGE_IN_PATCH": {
+    "onlyUpdatePeerDependentsWhenOutOfRange": true
+  },
   "ignore": [
     "@comvi/vite-config",
     "@test-apps/next",
     "@test-apps/nuxt",
+    "@test-apps/nuxt4",
     "@test-apps/react",
     "@test-apps/solid",
     "@test-apps/svelte",

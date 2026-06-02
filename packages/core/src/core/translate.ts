@@ -41,9 +41,30 @@ const CHAR_AMPERSAND = 38; // &
 // Key: template string, Value: cached template with metadata
 const templateCache = new Map<string, CachedTemplate>();
 
+// Maximum number of compiled templates to hold before evicting oldest entries.
+// Insertion-order eviction (Map iteration is insertion-order in JS).
+const TEMPLATE_CACHE_MAX = 1000;
+
+/** @internal */
+export function _templateCacheSize(): number {
+  return templateCache.size;
+}
+
+/**
+ * Insert a compiled template into the cache, evicting the oldest entry when the
+ * cap is reached. Use instead of raw templateCache.set() everywhere.
+ */
+function cacheTemplate(key: string, value: CachedTemplate): void {
+  if (templateCache.size >= TEMPLATE_CACHE_MAX) {
+    templateCache.delete(templateCache.keys().next().value!);
+  }
+  templateCache.set(key, value);
+}
+
 /**
  * Clears all translation-related caches.
- * Should be called when translations are cleared or reloaded.
+ * Exported for power-user / test use; not called automatically on reload/destroy
+ * to avoid cross-instance cache invalidation.
  */
 export function clearTemplateCache(): void {
   templateCache.clear();
@@ -167,7 +188,7 @@ export function translate(
     }
   }
   if (!hasSpecialChar) {
-    templateCache.set(template, { tokens: [], flags: TF_STATIC, isStatic: true });
+    cacheTemplate(template, { tokens: [], flags: TF_STATIC, isStatic: true });
     return template;
   }
 
@@ -227,7 +248,7 @@ export function translateTemplate(
   let cached = templateCache.get(template);
   if (!cached) {
     cached = createCachedTemplate(template);
-    templateCache.set(template, cached);
+    cacheTemplate(template, cached);
   }
 
   return translateTemplateWithCache(cached, params, locale, tagInterpolation);

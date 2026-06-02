@@ -255,6 +255,11 @@ export class FakeI18nCore {
     return Array.from(this.activeNamespaces);
   }
 
+  getFallbackLocales(): string[] {
+    const f = this.lastFallbackLanguage;
+    return f === null ? [] : typeof f === "string" ? [f] : [...f];
+  }
+
   getDefaultNamespace(): string {
     return this.defaultNamespace;
   }

@@ -76,7 +76,7 @@ describe("runtime plugin", () => {
         locale: "en",
         fallbackLocale: "en",
         defaultNs: "default",
-        ssrLanguage: "en",
+        ssrLocale: "en",
       }),
     );
     expect(runComviSetup).toHaveBeenCalledWith(
@@ -179,13 +179,38 @@ describe("runtime plugin", () => {
 
     const middleware = (await import("../src/runtime/middleware/i18n.global")).default;
     await middleware({
-      path: "/about",
-      fullPath: "/about",
+      path: "/",
+      fullPath: "/",
     } as any);
     await flushWatchers();
 
     expect(i18n.setLocale).toHaveBeenCalledTimes(1);
     expect(i18n.setLocale).toHaveBeenCalledWith("de");
+  });
+
+  it("preserves the cookie preference when setLocale emits localeChanged during nav", async () => {
+    // Regression: middleware must restore cookie "de" after plugin listener briefly overwrites it with "en" on localeChanged.
+    const i18n = createI18nStub("de");
+    i18n.setLocale = vi.fn(async (newLocale: string) => {
+      i18n.locale.value = newLocale;
+      i18n.emit("localeChanged", { to: newLocale });
+    });
+    createI18n.mockReturnValue(i18n);
+
+    const plugin = await importPlugin();
+    await plugin.setup(createNuxtAppStub());
+    nuxtAppMocks.setMockI18n(i18n);
+    nuxtAppMocks.setMockCookie("i18n_locale", "de");
+
+    const middleware = (await import("../src/runtime/middleware/i18n.global")).default;
+    await middleware({ path: "/about", fullPath: "/about" } as any);
+    await flushWatchers();
+
+    // The middleware drove i18n to the path-implied default…
+    expect(i18n.setLocale).toHaveBeenCalledWith("en");
+    // …yet the user's cookie preference survives the localeChanged clobber.
+    const localeCookie = nuxtAppMocks.useCookie("i18n_locale");
+    expect(localeCookie.value).toBe("de");
   });
 
   it("hydrates translations from SSR payload before init on client", async () => {
@@ -237,5 +262,44 @@ describe("runtime plugin", () => {
 
     expect(useCookieSpy).not.toHaveBeenCalled();
     useCookieSpy.mockRestore();
+  });
+
+  it("rich translation content with VirtualNode shape survives JSON round-trip hydration", async () => {
+    const i18n = createI18nStub("en");
+    i18n.addTranslations = vi.fn();
+    createI18n.mockReturnValue(i18n);
+
+    // Simulate SSR payload containing a translation with a VirtualNode-like structure
+    // (tag interpolation produces objects like { tag, props, children } in the cache)
+    const virtualNodeTranslation = {
+      tag: "strong",
+      props: {},
+      children: ["important text"],
+    };
+    const ssrTranslations = {
+      "en:default": {
+        greeting: "Hello",
+        highlighted: virtualNodeTranslation as unknown as string,
+      },
+    };
+
+    // Verify the structure survives JSON serialization (as happens in Nuxt payload transfer)
+    const serialized = JSON.parse(JSON.stringify(ssrTranslations));
+    expect(serialized["en:default"].highlighted).toEqual(virtualNodeTranslation);
+
+    const plugin = await importPlugin();
+    await plugin.setup(
+      createNuxtAppStub({
+        payload: {
+          __comvi_translations__: serialized,
+        },
+      }),
+    );
+
+    // addTranslations should receive the deserialized payload before init
+    expect(i18n.addTranslations).toHaveBeenCalledWith(serialized);
+    expect(i18n.addTranslations.mock.invocationCallOrder[0]).toBeLessThan(
+      i18n.init.mock.invocationCallOrder[0],
+    );
   });
 });

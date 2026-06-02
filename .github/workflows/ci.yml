@@ -4,6 +4,7 @@ on:
   pull_request:
   push:
     branches:
+      - develop
       - main
 
 concurrency:
@@ -84,3 +85,19 @@ jobs:
 
       - name: Build
         run: pnpm build
+
+      # Verifies every publishable package's exports/main/types/bin targets are
+      # present in `npm pack` output; reads dist/, so it must run after Build.
+      - name: Package contracts
+        run: pnpm audit:package-contracts
+
+      # Lints the packed tarball of every published package for type/exports
+      # correctness (false-CJS, engines/repository nits). Reads dist/, so it runs
+      # after Build.
+      - name: publint (types/exports)
+        run: pnpm check:publint
+
+      # Runs arethetypeswrong against dual ESM/CJS packages so broken declaration
+      # conditions cannot ship unnoticed. Reads dist/, so it runs after Build.
+      - name: Types exports
+        run: pnpm check:types-exports

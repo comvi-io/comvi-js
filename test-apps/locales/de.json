@@ -25,7 +25,7 @@
     "title": "Rich Text",
     "bold_text": "Das ist <strong>fetter</strong> Text.",
     "link_text": "Bitte <link>klicken Sie hier</link> für mehr Infos.",
-    "component_interpolation": "Das ist ein {placeholder} Komponente.",
+    "component_interpolation": "Das ist eine <placeholder>INTERPOLIERTE</placeholder> Komponente.",
     "nested_tags_title": "Verschachtelte Tag-Interpolation",
     "nested_simple": "Klicken Sie auf <link><bold>diesen Link</bold></link> für Hilfe.",
     "nested_mixed": "<alert>Warnung: <bold>{count}</bold> Elemente benötigen Ihre <link>Aufmerksamkeit</link>!</alert>",

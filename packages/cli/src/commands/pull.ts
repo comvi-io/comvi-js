@@ -13,6 +13,7 @@ import { Command } from "commander";
 import { ConfigLoader } from "../core/ConfigLoader";
 import { ApiClient } from "../core/ApiClient";
 import { TranslationSync } from "../core/TranslationSync";
+import { DEFAULT_FILE_TEMPLATE, isDefaultFileTemplate } from "../defaults";
 import { ErrorCodes, isTypegenError } from "../utils/errors";
 import { assertAllReturned, parseListFlag, resolveFilter } from "../utils/filterResolution";
 
@@ -45,9 +46,10 @@ export function createPullCommand(): Command {
         });
 
         // Create translation sync
+        const fileTemplate = config.fileTemplate || DEFAULT_FILE_TEMPLATE;
         const sync = new TranslationSync({
           translationsPath: options.path || config.translationsPath || "./src/locales",
-          fileTemplate: config.fileTemplate || "{languageTag}/{namespace}.json",
+          fileTemplate,
           format: config.format || "json",
         });
 
@@ -81,8 +83,11 @@ export function createPullCommand(): Command {
         assertAllReturned("locales", locs.value, translations.locales);
 
         // Write to files
+        const defaultNamespace = isDefaultFileTemplate(fileTemplate)
+          ? await apiClient.fetchDefaultNamespace()
+          : undefined;
         console.log("📝 Writing translation files...");
-        const result = await sync.writeTranslations(translations);
+        const result = await sync.writeTranslations(translations, { defaultNamespace });
 
         console.log(`\n✓ Pull complete!`);
         console.log(`  Locales: ${result.locales.join(", ")}`);

@@ -22,7 +22,7 @@ const defaultRuntimeConfig = {
       cdnUrl: "https://cdn.example.com",
       apiBaseUrl: "https://api.example.com",
       defaultNs: "default",
-      fallbackLanguage: "en",
+      fallbackLocale: "en",
       basicHtmlTags: ["strong", "em"],
       detectBrowserLanguage: {
         useCookie: true,

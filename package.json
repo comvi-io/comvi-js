@@ -26,6 +26,10 @@
     "lint:staged": "lint-staged",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
+    "audit:package-contracts": "node tooling/check-package-contracts.mjs",
+    "check:types-exports": "node scripts/check-types-exports.mjs",
+    "pack:release": "pnpm --filter './packages/*' exec pnpm pack",
+    "check:publint": "node tooling/run-publint.mjs",
     "prepare": "husky",
     "lint:fix": "turbo run lint:fix",
     "audit:published": "node scripts/audit-published.mjs"
@@ -46,6 +50,7 @@
     "lint-staged": "^16.4.0",
     "msw": "^2.12.14",
     "prettier": "^3.8.1",
+    "publint": "^0.3.21",
     "svelte-eslint-parser": "^1.6.0",
     "turbo": "^2.9.3",
     "vue-eslint-parser": "^10.4.0"

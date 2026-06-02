@@ -54,6 +54,7 @@ test-apps/**/*.js.map
 
 # oh-my-claudecode
 .omc
+.omx
 
 # Bundle analysis
 dist-analyze

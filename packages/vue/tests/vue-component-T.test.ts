@@ -49,7 +49,7 @@ describe("<T /> component", () => {
 
   it("uses namespace override when provided", () => {
     const i18n = new VueI18n({
-      language: "en",
+      locale: "en",
       translation: { "en:dashboard": { title: "Dashboard" } },
     });
     const wrapper = mount(T, {
@@ -61,7 +61,7 @@ describe("<T /> component", () => {
 
   it("renders fragment nodes from tag handlers", () => {
     const i18n = new VueI18n({
-      language: "en",
+      locale: "en",
       translation: { en: { fragment: "Hello <wrap>world</wrap>" } },
     });
 
@@ -84,7 +84,7 @@ describe("<T /> component", () => {
 
   it("renders multi-root slot content", () => {
     const i18n = new VueI18n({
-      language: "en",
+      locale: "en",
       translation: { en: { multiRoot: "Click <link>here</link>" } },
     });
 
@@ -108,7 +108,7 @@ describe("<T /> component", () => {
 
   it("handles empty slot content", () => {
     const i18n = new VueI18n({
-      language: "en",
+      locale: "en",
       translation: { en: { emptySlot: "Start <link></link> end" } },
     });
 
@@ -126,7 +126,7 @@ describe("<T /> component", () => {
   describe("fallback prop", () => {
     it("uses fallback with interpolation when translation is missing", () => {
       const i18n = new VueI18n({
-        language: "en",
+        locale: "en",
         translation: { en: { hello: "Hello" } },
       });
       const wrapper = mount(T, {
@@ -142,7 +142,7 @@ describe("<T /> component", () => {
 
     it("ignores fallback when translation exists", () => {
       const i18n = new VueI18n({
-        language: "en",
+        locale: "en",
         translation: { en: { hello: "Hello" } },
       });
       const wrapper = mount(T, {
@@ -156,7 +156,7 @@ describe("<T /> component", () => {
   describe("raw prop", () => {
     it("skips post-processor when raw is true", () => {
       const i18n = new VueI18n({
-        language: "en",
+        locale: "en",
         translation: { en: { greeting: "hello" } },
       });
 
@@ -179,7 +179,7 @@ describe("<T /> component", () => {
 
     it("applies post-processor when raw is false", () => {
       const i18n = new VueI18n({
-        language: "en",
+        locale: "en",
         translation: { en: { greeting: "hello" } },
       });
 
@@ -201,7 +201,7 @@ describe("<T /> component", () => {
 
     it("applies post-processor when raw is not specified", () => {
       const i18n = new VueI18n({
-        language: "en",
+        locale: "en",
         translation: { en: { greeting: "hello" } },
       });
 
@@ -223,7 +223,7 @@ describe("<T /> component", () => {
 
     it("works with other props combined", () => {
       const i18n = new VueI18n({
-        language: "en",
+        locale: "en",
         translation: { en: { greeting: "hello {name}" } },
       });
 

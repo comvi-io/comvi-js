@@ -1,12 +1,12 @@
 import {
   defineNuxtRouteMiddleware,
   useRuntimeConfig,
-  useState,
   useCookie,
   navigateTo,
   useNuxtApp,
   useRequestHeaders,
 } from "#app";
+import { useLocaleState } from "../utils/locale-state";
 import {
   splitPathAndSuffix,
   stripLocalePrefix,
@@ -14,16 +14,8 @@ import {
   buildLocalizedPath,
 } from "../utils/locale-path";
 import { resolveAcceptLanguage } from "../utils/resolve-locale";
-
-/**
- * Default browser language detection options
- */
-const DEFAULT_DETECT_BROWSER_LANGUAGE = {
-  useCookie: true,
-  cookieName: "i18n_locale",
-  cookieMaxAge: 365 * 24 * 60 * 60, // 1 year
-  redirectOnFirstVisit: true,
-};
+import { isServer } from "../utils/runtime";
+import { DEFAULT_DETECT_BROWSER_LANGUAGE } from "../defaults";
 
 /**
  * Global route middleware for locale detection and URL prefix handling
@@ -41,7 +33,7 @@ export default defineNuxtRouteMiddleware(async (to) => {
     config.public.comvi;
 
   // Get locale state
-  const localeState = useState<string>("i18n-locale");
+  const localeState = useLocaleState();
 
   const detectConfig =
     detectBrowserLanguage === false
@@ -54,19 +46,15 @@ export default defineNuxtRouteMiddleware(async (to) => {
   const useCookieForDetection = detectConfig !== false && detectConfig.useCookie === true;
 
   // Get locale cookie
-  const cookieSecure =
-    typeof detectBrowserLanguage === "object" && detectBrowserLanguage.cookieSecure !== undefined
-      ? detectBrowserLanguage.cookieSecure
-      : true; // Secure by default
+  const detectCfg = typeof detectBrowserLanguage === "object" ? detectBrowserLanguage : undefined;
+  const cookieSecure = detectCfg?.cookieSecure ?? true;
 
   const localeCookie = useCookieForDetection
     ? useCookie(cookieName, {
-        maxAge:
-          typeof detectBrowserLanguage === "object"
-            ? detectBrowserLanguage.cookieMaxAge
-            : 365 * 24 * 60 * 60,
+        maxAge: detectCfg?.cookieMaxAge ?? DEFAULT_DETECT_BROWSER_LANGUAGE.cookieMaxAge,
         path: "/",
-        sameSite: "lax",
+        sameSite: detectCfg?.sameSite ?? "lax",
+        domain: detectCfg?.domain,
         // Secure in production, disabled in dev so localhost HTTP works
         secure: import.meta.dev ? false : cookieSecure,
       })
@@ -86,15 +74,13 @@ export default defineNuxtRouteMiddleware(async (to) => {
 
   // 2. Detect locale from various sources
   let detectedLocale: string | undefined;
+  let detectedSource: "path" | "cookie" | "header" | "fallback" = "fallback";
 
-  // URL path has highest priority
   if (pathLocale) {
     detectedLocale = pathLocale;
-  }
-
-  // Then cookie (if enabled)
-  let detectedSource: "path" | "cookie" | "header" | "fallback" = "fallback";
-  if (pathLocale) {
+    detectedSource = "path";
+  } else if (localePrefix === "as-needed" && pathname !== "/" && pathname !== "") {
+    detectedLocale = defaultLocale;
     detectedSource = "path";
   }
 
@@ -104,7 +90,7 @@ export default defineNuxtRouteMiddleware(async (to) => {
   }
 
   // Then Accept-Language (server-side only)
-  if (!detectedLocale && import.meta.server && detectConfig !== false) {
+  if (!detectedLocale && isServer() && detectConfig !== false) {
     const headers = useRequestHeaders(["accept-language"]);
     const acceptLanguage = headers["accept-language"];
     if (acceptLanguage) {
@@ -120,7 +106,11 @@ export default defineNuxtRouteMiddleware(async (to) => {
     detectConfig && "fallbackLocale" in detectConfig && detectConfig.fallbackLocale
       ? detectConfig.fallbackLocale
       : defaultLocale;
-  const resolvedFallbackLocale = locales.includes(fallbackLocale) ? fallbackLocale : defaultLocale;
+  const resolvedFallbackLocale = Array.isArray(fallbackLocale)
+    ? (fallbackLocale.find((locale) => locales.includes(locale)) ?? defaultLocale)
+    : locales.includes(fallbackLocale)
+      ? fallbackLocale
+      : defaultLocale;
   const locale =
     detectedLocale && locales.includes(detectedLocale) ? detectedLocale : resolvedFallbackLocale;
 
@@ -131,15 +121,20 @@ export default defineNuxtRouteMiddleware(async (to) => {
     return localizedPath !== pathname ? localizedPath : null;
   };
 
-  // 4. Update i18n instance locale first (important for SSR).
-  // This avoids duplicate setLocale calls from the localeState watcher in runtime/plugin.ts.
+  const isPathImpliedDefault = detectedSource === "path" && pathLocale === undefined;
+  const preservedPreference =
+    isPathImpliedDefault &&
+    localeCookie?.value &&
+    locales.includes(localeCookie.value) &&
+    localeCookie.value !== locale
+      ? localeCookie.value
+      : undefined;
+
   const { $i18n } = useNuxtApp();
   if ($i18n && $i18n.locale.value !== locale) {
     try {
-      // Await setLocale to ensure translations are loaded before rendering.
       await $i18n.setLocale(locale);
     } catch (error) {
-      // Log but don't break navigation — app will render with fallback translations.
       console.warn(
         `[@comvi/nuxt] Failed to switch language to "${locale}":`,
         error instanceof Error ? error.message : error,
@@ -149,12 +144,13 @@ export default defineNuxtRouteMiddleware(async (to) => {
 
   const renderedLocale = $i18n ? $i18n.locale.value : locale;
 
-  // Sync locale state to the language that actually rendered.
-  // During SSR this must match the i18n language so the hydrated client
-  // starts from the same state as the server HTML. On failure, i18n
-  // stays on the previous language, so we must reflect that here.
   localeState.value = renderedLocale;
-  if (localeCookie && localeCookie.value !== renderedLocale) {
+
+  if (preservedPreference !== undefined) {
+    if (localeCookie && localeCookie.value !== preservedPreference) {
+      localeCookie.value = preservedPreference;
+    }
+  } else if (localeCookie && localeCookie.value !== renderedLocale) {
     localeCookie.value = renderedLocale;
   }
 

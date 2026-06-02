@@ -1,4 +1,12 @@
-import { children as resolveChildren, type Component, type JSX, createMemo } from "solid-js";
+import {
+  children as resolveChildren,
+  type Component,
+  type JSX,
+  type ResolvedChildren,
+  createMemo,
+  getOwner,
+  runWithOwner,
+} from "solid-js";
 import { Dynamic } from "solid-js/web";
 import { useI18nContextValue } from "./context";
 import { createElement as createVirtualElement } from "@comvi/core";
@@ -37,9 +45,14 @@ function buildTagHandlers(
         return createVirtualElement(mapping, {}, childrenToArray(children));
       };
     } else if (typeof mapping === "function") {
+      // Render through JSX (createComponent) — the same path as the
+      // { tag: Component } object form below — so the mapping runs with proper
+      // Solid component semantics (its own owner, context, untracked setup)
+      // instead of being invoked as a bare function.
+      const Comp = mapping;
       solidHandlers.set(tagName, (children) => {
         try {
-          return mapping({ children });
+          return <Comp>{children}</Comp>;
         } catch (error) {
           reportTagError(error, tagName);
           return <>{children}</>;
@@ -184,15 +197,31 @@ export interface TProps {
  */
 export const T: Component<TProps> = (props) => {
   const ctx = useI18nContextValue();
-  const resolvedChildren = resolveChildren(() => props.children);
+
+  // Resolve fallback children lazily — only when a translation is actually
+  // missing. Resolving eagerly here would create (and run side effects in) the
+  // fallback subtree on every render even when the translation exists. The
+  // `children()` helper is created once, under the component owner via
+  // `runWithOwner`, so it survives memo recomputes and is disposed with the
+  // component (not recreated/disposed on each recompute, which would churn).
+  const owner = getOwner();
+  let resolveFallback: (() => ResolvedChildren) | undefined;
+  const fallbackChildren = (): ResolvedChildren => {
+    if (!resolveFallback) {
+      resolveFallback = runWithOwner(owner, () => resolveChildren(() => props.children))!;
+    }
+    return resolveFallback();
+  };
 
   const finalContent = createMemo(() => {
-    // Access signals to track dependencies from the latest memoized signals
-    const currentLocale = ctx.signals.locale();
+    // Access signals to track dependencies from the latest memoized signals.
     ctx.signals.cacheRevision();
     const keyString = props.i18nKey as string;
 
-    const targetLocale = props.locale ?? currentLocale;
+    // Only subscribe to the global locale signal when no explicit locale is
+    // pinned, so <T locale="…"> does not recompute on unrelated global locale
+    // changes (the `??` short-circuits the signal read when props.locale is set).
+    const targetLocale = props.locale ?? ctx.signals.locale();
     const targetNamespace = props.ns ?? ctx.signals.defaultNamespace();
     const translationExists = ctx.i18n.hasTranslation(
       keyString,
@@ -250,7 +279,7 @@ export const T: Component<TProps> = (props) => {
       content === keyString;
 
     if (isMissingTranslation && props.children !== undefined) {
-      return resolvedChildren();
+      return fallbackChildren();
     }
 
     return renderContent(content, solidHandlers, reportTagError);

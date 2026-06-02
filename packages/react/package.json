@@ -7,7 +7,7 @@
   "author": "Comvi <hello@comvi.io> (https://comvi.io)",
   "repository": {
     "type": "git",
-    "url": "https://github.com/comvi-io/comvi-js.git",
+    "url": "git+https://github.com/comvi-io/comvi-js.git",
     "directory": "packages/react"
   },
   "homepage": "https://comvi.io",
@@ -33,15 +33,16 @@
   "files": [
     "dist"
   ],
-  "main": "./dist/comvi-react.cjs",
   "module": "./dist/comvi-react.js",
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
-      "import": "./dist/comvi-react.js",
-      "require": "./dist/comvi-react.cjs"
+      "default": "./dist/comvi-react.js"
     }
+  },
+  "engines": {
+    "node": ">=18"
   },
   "sideEffects": false,
   "scripts": {
@@ -56,11 +57,10 @@
     "lint:fix": "eslint . --fix"
   },
   "dependencies": {
-    "@comvi/core": "workspace:*",
-    "use-sync-external-store": "^1.2.0"
+    "@comvi/core": "workspace:*"
   },
   "peerDependencies": {
-    "react": "^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0"
+    "react": "^18.0.0 || ^19.0.0"
   },
   "devDependencies": {
     "@testing-library/react": "^16.3.2",
@@ -68,7 +68,6 @@
     "@comvi/vite-config": "workspace:*",
     "@types/node": "^22.13.0",
     "@types/react": "^19.2.14",
-    "@types/use-sync-external-store": "^1.5.0",
     "@typescript-eslint/eslint-plugin": "^8.58.0",
     "@typescript-eslint/parser": "^8.58.0",
     "@vitejs/plugin-react": "^6.0.1",

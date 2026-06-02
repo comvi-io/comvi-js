@@ -132,6 +132,10 @@ export class FakeI18n {
     return this.core.getDefaultNamespace();
   });
 
+  public readonly getFallbackLocales = vi.fn((): string[] => {
+    return this.core.getFallbackLocales();
+  });
+
   public readonly getTranslations = vi.fn((): Record<string, Record<string, unknown>> => {
     return this.core.getTranslations();
   });
@@ -218,20 +222,25 @@ export class FakeI18n {
   }
 
   public readonly formatNumber = vi.fn(
-    (value: number, options?: Intl.NumberFormatOptions): string => {
-      return new Intl.NumberFormat(this.core.language, options).format(value);
+    (value: number, options?: Intl.NumberFormatOptions, locale?: string): string => {
+      return new Intl.NumberFormat(locale ?? this.core.language, options).format(value);
     },
   );
 
   public readonly formatDate = vi.fn(
-    (value: Date | number, options?: Intl.DateTimeFormatOptions): string => {
-      return new Intl.DateTimeFormat(this.core.language, options).format(value);
+    (value: Date | number, options?: Intl.DateTimeFormatOptions, locale?: string): string => {
+      return new Intl.DateTimeFormat(locale ?? this.core.language, options).format(value);
     },
   );
 
   public readonly formatCurrency = vi.fn(
-    (value: number, currency: string, options?: Intl.NumberFormatOptions): string => {
-      return new Intl.NumberFormat(this.core.language, {
+    (
+      value: number,
+      currency: string,
+      options?: Intl.NumberFormatOptions,
+      locale?: string,
+    ): string => {
+      return new Intl.NumberFormat(locale ?? this.core.language, {
         ...options,
         style: "currency",
         currency,
@@ -244,8 +253,9 @@ export class FakeI18n {
       value: number,
       unit: Intl.RelativeTimeFormatUnit,
       options?: Intl.RelativeTimeFormatOptions,
+      locale?: string,
     ): string => {
-      return new Intl.RelativeTimeFormat(this.core.language, options).format(value, unit);
+      return new Intl.RelativeTimeFormat(locale ?? this.core.language, options).format(value, unit);
     },
   );
 

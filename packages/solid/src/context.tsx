@@ -38,6 +38,12 @@ export interface I18nProviderProps {
   i18n: I18n;
   /** Whether to auto-initialize Comvi i18n on mount (default: true) */
   autoInit?: boolean;
+  /**
+   * Called if auto-initialization fails. The error is already reported through
+   * core's configured error handler before this runs; this prop lets the app
+   * observe the failure too (parity with the other framework bindings).
+   */
+  onError?: (error: Error) => void;
   /** Child components */
   children: JSX.Element;
 }
@@ -60,11 +66,16 @@ export interface I18nProviderProps {
  * ```
  */
 export const I18nProvider: ParentComponent<I18nProviderProps> = (props) => {
-  // Auto-initialize on mount or when props.i18n changes
+  // Auto-initialize on mount or when props.i18n changes.
+  // `isInitialized`/`isInitializing` are plain (non-reactive) getters on the
+  // instance, read here only as a one-shot guard against re-entry — the effect
+  // intentionally re-runs only when props.i18n or props.autoInit change.
   createEffect(() => {
     if (props.autoInit !== false && !props.i18n.isInitialized && !props.i18n.isInitializing) {
-      props.i18n.init().catch(() => {
-        // init() already calls reportError before rethrowing
+      props.i18n.init().catch((err: unknown) => {
+        // init() already reports the error through core's error handler before
+        // rethrowing; surface it to the optional onError prop as well.
+        props.onError?.(err instanceof Error ? err : new Error(String(err)));
       });
     }
   });
@@ -72,6 +83,10 @@ export const I18nProvider: ParentComponent<I18nProviderProps> = (props) => {
   // Recreate signals whenever props.i18n changes.
   // createMemo manages its own owner context and automatically cleans up
   // previous subscriptions when re-evaluating.
+  // NOTE: the `from()` signals below MUST be created directly in this memo's
+  // reactive scope. Do not wrap them in `untrack(...)` or a detached
+  // `createRoot(...)` — that would detach their cleanups from the memo's owner
+  // and leak the core event subscriptions when props.i18n is swapped.
   const signalsMemo = createMemo(() => ({
     locale: createLocaleSignal(props.i18n),
     defaultNamespace: createDefaultNamespaceSignal(props.i18n),

@@ -179,4 +179,63 @@ describe("I18nProvider", () => {
 
     expect(renderSpy).toHaveBeenCalledTimes(2);
   });
+
+  it("re-renders consumers when configChanged is emitted (cache revision changes)", async () => {
+    const fake = new FakeI18n();
+    const renderSpy = vi.fn();
+
+    const Wrapped = () => {
+      // Observe translationCache so subCache subscription drives re-renders
+      const { translationCache } = useI18nContext();
+      renderSpy(translationCache.size);
+      return <div data-testid="cache-size">{translationCache.size}</div>;
+    };
+
+    render(
+      <I18nProvider i18n={fake.asI18n()} autoInit={false}>
+        <Wrapped />
+      </I18nProvider>,
+    );
+
+    expect(renderSpy).toHaveBeenCalledTimes(1);
+
+    act(() => {
+      // Directly bump the cache revision (simulates a plugin mutating translations),
+      // then fire configChanged — the only event subCache will see here
+      fake.translationCache.set("en", "default", { greeting: "Hello" });
+      fake.emit("configChanged", { source: "translationsAdded" });
+    });
+
+    await waitFor(() => {
+      expect(renderSpy).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  it("returns a fresh legacy context value when config changes without a cache revision change", async () => {
+    const fake = new FakeI18n();
+    const values: unknown[] = [];
+
+    const Wrapped = () => {
+      values.push(useI18nContext());
+      return <div data-testid="renders">{values.length}</div>;
+    };
+
+    render(
+      <I18nProvider i18n={fake.asI18n()} autoInit={false}>
+        <Wrapped />
+      </I18nProvider>,
+    );
+
+    const firstValue = values[0];
+
+    act(() => {
+      fake.setFallbackLocale("de");
+      fake.emit("configChanged", { source: "fallbackLocale" });
+    });
+
+    await waitFor(() => {
+      expect(values).toHaveLength(2);
+    });
+    expect(values[1]).not.toBe(firstValue);
+  });
 });

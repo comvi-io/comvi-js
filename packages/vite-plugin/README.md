@@ -23,7 +23,7 @@
 
 ## About Comvi i18n
 
-Comvi i18n is a modern, framework-agnostic internationalization library — ICU MessageFormat, rich-text component embedding, and locale-aware `Intl` formatters in **~8 kB gzipped** with **zero runtime dependencies** and **no `eval`** (CSP-safe for Chrome extensions, Cloudflare Workers, and locked-down enterprise apps).
+Comvi i18n is a modern, framework-agnostic internationalization library — ICU MessageFormat, rich-text component embedding, and locale-aware `Intl` formatters in **~8 kB minified + gzipped (as bundled by your app)** with **zero runtime dependencies** and **no `eval`** (CSP-safe for Chrome extensions, Cloudflare Workers, and locked-down enterprise apps).
 
 - **Same API** across [Vue](https://www.npmjs.com/package/@comvi/vue), [React](https://www.npmjs.com/package/@comvi/react), [SolidJS](https://www.npmjs.com/package/@comvi/solid), [Svelte](https://www.npmjs.com/package/@comvi/svelte), [Next.js](https://www.npmjs.com/package/@comvi/next), and [Nuxt](https://www.npmjs.com/package/@comvi/nuxt).
 - **Real ICU MessageFormat** — locale-correct plurals, ordinals, and gender via `Intl.PluralRules`. Recognized by every major TMS.
@@ -63,23 +63,22 @@ export default defineConfig({
 });
 ```
 
-The plugin watches `./src/locales` and rewrites the declaration whenever you save a JSON file. Add the generated `.d.ts` to your `tsconfig.json` `include` (most setups already cover `src/**/*`). Comvi's default namespace is `default`; this example sets `defaultNs: "common"` because its files are named `common.json`, which strips the `common:` prefix from generated keys. Other namespaces stay namespaced and are called with `{ ns: "..." }`.
+The plugin watches `./src/locales` and rewrites the declaration whenever you save a JSON file. Add the generated `.d.ts` to your `tsconfig.json` `include` (most setups already cover `src/**/*`). Comvi's default namespace is `default`; set `defaultNs` to match your runtime/TMS default namespace. This example uses `defaultNs: "common"`, which strips the `common:` prefix from generated keys. Other namespaces stay namespaced and are called with `{ ns: "..." }`.
 
 ## What you get
 
 Given this directory layout:
 
-```
+```text
 src/locales/
-├── en/
-│   ├── common.json
-│   └── errors.json
-└── uk/
-    ├── common.json
-    └── errors.json
+├── en.json
+├── uk.json
+└── errors/
+    ├── en.json
+    └── uk.json
 ```
 
-…and `en/common.json`:
+…and `en.json`:
 
 ```json
 {

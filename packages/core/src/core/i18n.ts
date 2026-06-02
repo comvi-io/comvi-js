@@ -24,7 +24,7 @@ import { translationResultToString } from "../utils/translationResultToString";
 import type { I18nPlugin as I18nPluginFn } from "../plugins/types";
 import { TranslationCache } from "./TranslationCache";
 import type { PluginOptions } from "../plugins/types";
-import { clearTemplateCache, isStaticTemplate, translate, translateTemplate } from "./translate";
+import { isStaticTemplate, translate, translateTemplate } from "./translate";
 
 declare const __DEV__: boolean | undefined;
 declare const __VERSION__: string | undefined;
@@ -510,6 +510,7 @@ export class I18n implements I18nInstance {
 
   setFallbackLocale(fallback: string | string[]) {
     this._fallbackLocales = typeof fallback === "string" ? [fallback] : fallback;
+    this._emit("configChanged", { source: "fallbackLocale" });
   }
 
   /**
@@ -534,9 +535,6 @@ export class I18n implements I18nInstance {
       this._activeNamespaces.clear();
     }
 
-    // Clear template compilation cache to free memory
-    clearTemplateCache();
-
     this._emit("translationsCleared", { locale, namespace });
   }
 
@@ -545,6 +543,7 @@ export class I18n implements I18nInstance {
    * @param translations - Object with locale codes as keys, translation objects as values
    */
   addTranslations(translations: Record<string, Record<string, TranslationValue>>) {
+    // _nsAddTranslations already emits namespaceLoaded + bumps cache revision; empty input is a no-op.
     this._nsAddTranslations(translations);
   }
 
@@ -636,6 +635,11 @@ export class I18n implements I18nInstance {
     return [...this._activeNamespaces];
   }
 
+  /** The resolved fallback-locale chain (read-only snapshot). */
+  getFallbackLocales(): string[] {
+    return [...this._fallbackLocales];
+  }
+
   /**
    * Store plugin-specific data on the i18n instance.
    * This allows plugins to store configuration that persists with the instance.
@@ -662,6 +666,7 @@ export class I18n implements I18nInstance {
     } finally {
       this._setLoadingState(false, false);
     }
+    this._emit("configChanged", { source: "namespaceActivated" });
   }
 
   /**
@@ -917,9 +922,9 @@ export class I18n implements I18nInstance {
    * @example Static import map
    * ```typescript
    * i18n.registerLoader({
-   *   'en': () => import('./locales/en/default.json'),
-   *   'en:dashboard': () => import('./locales/en/dashboard.json'),
-   *   'fr': () => import('./locales/fr/default.json'),
+   *   'en': () => import('./locales/en.json'),
+   *   'en:dashboard': () => import('./locales/dashboard/en.json'),
+   *   'fr': () => import('./locales/fr.json'),
    * });
    * ```
    *
@@ -1164,48 +1169,101 @@ export class I18n implements I18nInstance {
   // ── Intl Formatting ─────────────────────────────────────────────────
   private _numberFormatCache = new Map<string, Intl.NumberFormat>();
   private _dateFormatCache = new Map<string, Intl.DateTimeFormat>();
+  private _relativeTimeFormatCache = new Map<string, Intl.RelativeTimeFormat>();
 
-  private _getNumberFormat(options?: Intl.NumberFormatOptions): Intl.NumberFormat {
-    const key = options ? JSON.stringify(options) : "";
-    const cacheKey = this._locale + key;
+  // Bounded FIFO (the per-call locale override widened the key space).
+  private static readonly FORMATTER_CACHE_MAX = 1000;
+  private _cacheFormat<T>(cache: Map<string, T>, key: string, value: T): T {
+    if (cache.size >= I18n.FORMATTER_CACHE_MAX) {
+      const oldest = cache.keys().next().value;
+      if (oldest !== undefined) cache.delete(oldest);
+    }
+    cache.set(key, value);
+    return value;
+  }
+
+  private _getNumberFormat(options?: Intl.NumberFormatOptions, locale?: string): Intl.NumberFormat {
+    const lc = locale ?? this._locale;
+    const cacheKey = JSON.stringify([lc, options ?? null]);
     let fmt = this._numberFormatCache.get(cacheKey);
     if (!fmt) {
-      fmt = new Intl.NumberFormat(this._locale, options);
-      this._numberFormatCache.set(cacheKey, fmt);
+      fmt = this._cacheFormat(
+        this._numberFormatCache,
+        cacheKey,
+        new Intl.NumberFormat(lc, options),
+      );
     }
     return fmt;
   }
 
-  private _getDateFormat(options?: Intl.DateTimeFormatOptions): Intl.DateTimeFormat {
-    const key = options ? JSON.stringify(options) : "";
-    const cacheKey = this._locale + key;
+  private _getDateFormat(
+    options?: Intl.DateTimeFormatOptions,
+    locale?: string,
+  ): Intl.DateTimeFormat {
+    const lc = locale ?? this._locale;
+    const cacheKey = JSON.stringify([lc, options ?? null]);
     let fmt = this._dateFormatCache.get(cacheKey);
     if (!fmt) {
-      fmt = new Intl.DateTimeFormat(this._locale, options);
-      this._dateFormatCache.set(cacheKey, fmt);
+      fmt = this._cacheFormat(
+        this._dateFormatCache,
+        cacheKey,
+        new Intl.DateTimeFormat(lc, options),
+      );
     }
     return fmt;
   }
 
-  formatNumber(value: number, options?: Intl.NumberFormatOptions): string {
-    return this._getNumberFormat(options).format(value);
+  private _getRelativeTimeFormat(
+    options?: Intl.RelativeTimeFormatOptions,
+    locale?: string,
+  ): Intl.RelativeTimeFormat {
+    const lc = locale ?? this._locale;
+    const cacheKey = JSON.stringify([lc, options ?? null]);
+    let fmt = this._relativeTimeFormatCache.get(cacheKey);
+    if (!fmt) {
+      fmt = this._cacheFormat(
+        this._relativeTimeFormatCache,
+        cacheKey,
+        new Intl.RelativeTimeFormat(lc, options),
+      );
+    }
+    return fmt;
   }
 
-  formatDate(value: Date | number, options?: Intl.DateTimeFormatOptions): string {
-    return this._getDateFormat(options).format(value);
+  /** Format a number. Uses the instance locale unless `locale` is passed. */
+  formatNumber(value: number, options?: Intl.NumberFormatOptions, locale?: string): string {
+    return this._getNumberFormat(options, locale).format(value);
   }
 
-  formatCurrency(value: number, currency: string, options?: Intl.NumberFormatOptions): string {
-    return this._getNumberFormat({ ...options, style: "currency", currency }).format(value);
+  /** Format a date. Uses the instance locale unless `locale` is passed. */
+  formatDate(value: Date | number, options?: Intl.DateTimeFormatOptions, locale?: string): string {
+    return this._getDateFormat(options, locale).format(value);
   }
 
+  /** Format a number as currency. Uses the instance locale unless `locale` is passed. */
+  formatCurrency(
+    value: number,
+    currency: string,
+    options?: Intl.NumberFormatOptions,
+    locale?: string,
+  ): string {
+    return this._getNumberFormat({ ...options, style: "currency", currency }, locale).format(value);
+  }
+
+  /** Format a relative time. Uses the instance locale unless `locale` is passed. */
   formatRelativeTime(
     value: number,
     unit: Intl.RelativeTimeFormatUnit,
     options?: Intl.RelativeTimeFormatOptions,
+    locale?: string,
   ): string {
-    return new Intl.RelativeTimeFormat(this._locale, options).format(value, unit);
+    return this._getRelativeTimeFormat(options, locale).format(value, unit);
   }
+
+  // Memoization fields for get dir — keyed on this._locale so locale changes
+  // naturally miss the cache without any explicit invalidation.
+  private _dirCacheLocale?: string;
+  private _dirCacheValue?: "ltr" | "rtl";
 
   /**
    * Text direction for the current locale ("ltr" or "rtl").
@@ -1217,6 +1275,10 @@ export class I18n implements I18nInstance {
    */
   get dir(): "ltr" | "rtl" {
     const locale = this._locale;
+    if (this._dirCacheLocale === locale && this._dirCacheValue !== undefined) {
+      return this._dirCacheValue;
+    }
+    let result: "ltr" | "rtl";
     try {
       const info = (
         new Intl.Locale(locale) as Intl.Locale & {
@@ -1224,23 +1286,31 @@ export class I18n implements I18nInstance {
         }
       ).textInfo;
       if (info?.direction === "rtl" || info?.direction === "ltr") {
-        return info.direction;
+        result = info.direction;
+        this._dirCacheLocale = locale;
+        this._dirCacheValue = result;
+        return result;
       }
     } catch {
       // Invalid locale — fall through to the hardcoded check
     }
     // 1. Explicit RTL script subtag wins (e.g. "ku-Arab")
     if (/[-_](arab|hebr|thaa|syrc|nkoo|samr|mand|mend|rohg|adlm)([-_]|$)/i.test(locale)) {
-      return "rtl";
+      result = "rtl";
+    } else if (/^[a-z]{2,3}[-_][a-z]{4}([-_]|$)/i.test(locale)) {
+      // 2. Any other explicit script subtag means LTR (e.g. "ks-Deva", "ar-Latn")
+      result = "ltr";
+    } else {
+      // 3. No script subtag — use default direction by language code
+      result = /^(ar|arc|ckb|dv|fa|glk|he|khw|ks|lrc|mzn|pnb|ps|sd|syr|ug|ur|yi)([-_]|$)/i.test(
+        locale,
+      )
+        ? "rtl"
+        : "ltr";
     }
-    // 2. Any other explicit script subtag means LTR (e.g. "ks-Deva", "ar-Latn")
-    if (/^[a-z]{2,3}[-_][a-z]{4}([-_]|$)/i.test(locale)) {
-      return "ltr";
-    }
-    // 3. No script subtag — use default direction by language code
-    return /^(ar|arc|ckb|dv|fa|glk|he|khw|ks|lrc|mzn|pnb|ps|sd|syr|ug|ur|yi)([-_]|$)/i.test(locale)
-      ? "rtl"
-      : "ltr";
+    this._dirCacheLocale = locale;
+    this._dirCacheValue = result;
+    return result;
   }
 
   /**
@@ -1292,9 +1362,7 @@ export class I18n implements I18nInstance {
     this._localeDetector = undefined;
     this._numberFormatCache.clear();
     this._dateFormatCache.clear();
-
-    // Clear template compilation cache to free memory
-    clearTemplateCache();
+    this._relativeTimeFormatCache.clear();
   }
 }
 

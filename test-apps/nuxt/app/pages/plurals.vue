@@ -19,9 +19,12 @@ useLocaleHead({
         <button
           v-for="n in [0, 1, 2, 5, 10]"
           :key="n"
-          @click="notificationCount = n"
+          type="button"
           class="px-3 py-1 rounded bg-white border shadow-sm hover:bg-gray-50"
           :class="{ 'ring-2 ring-blue-500 border-blue-500': notificationCount === n }"
+          :aria-pressed="notificationCount === n"
+          :aria-label="`Set notification count to ${n}`"
+          @click="notificationCount = n"
         >
           {{ n }}
         </button>
@@ -35,7 +38,14 @@ useLocaleHead({
     <div class="space-y-4 p-6 border rounded-lg bg-gray-50">
       <h3 class="font-semibold text-lg">Shopping Cart</h3>
       <div class="flex items-center gap-4">
-        <input type="range" min="0" max="10" v-model.number="itemCount" class="w-full max-w-xs" />
+        <input
+          v-model.number="itemCount"
+          type="range"
+          min="0"
+          max="10"
+          class="w-full max-w-xs"
+          aria-label="Shopping cart item count"
+        />
         <span class="font-mono w-8">{{ itemCount }}</span>
       </div>
       <p class="text-xl font-medium text-green-600">

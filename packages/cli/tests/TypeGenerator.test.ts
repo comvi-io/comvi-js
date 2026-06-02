@@ -46,6 +46,7 @@ describe("TypeGenerator", () => {
     const mockApiClient = vi.mocked(ApiClient);
     mockApiClient.prototype.validateConnection = vi.fn().mockResolvedValue(true);
     mockApiClient.prototype.fetchSchema = vi.fn().mockResolvedValue(mockSchema);
+    mockApiClient.prototype.fetchDefaultNamespace = vi.fn().mockResolvedValue("default");
 
     // Create generator with injected dependencies
     generator = new TypeGenerator(mockOptions, {
@@ -130,6 +131,7 @@ describe("TypeGenerator", () => {
       expect(result.duration).toBeGreaterThanOrEqual(0);
 
       expect(ApiClient.prototype.fetchSchema).toHaveBeenCalled();
+      expect(ApiClient.prototype.fetchDefaultNamespace).toHaveBeenCalled();
 
       // Verify the actual generated content was written to the filesystem
       const written = mockFileSystem.getFile("src/types/i18n.d.ts");
@@ -164,6 +166,18 @@ describe("TypeGenerator", () => {
 
       const written = mockFileSystem.getFile("src/types/i18n.d.ts");
       expect(written).toContain("interface TranslationKeys");
+    });
+
+    it("should strip the namespace marked default by the backend", async () => {
+      vi.mocked(ApiClient.prototype.fetchDefaultNamespace).mockResolvedValueOnce("common");
+
+      const result = await generator.generate();
+
+      expect(result.success).toBe(true);
+      const written = mockFileSystem.getFile("src/types/i18n.d.ts");
+      expect(written).toContain("'welcome': never;");
+      expect(written).toContain("'greeting': { name: string };");
+      expect(written).not.toContain("'common:welcome': never;");
     });
 
     it("should create output directory if it doesn't exist", async () => {
@@ -256,6 +270,22 @@ describe("TypeGenerator", () => {
       const written = mockFileSystem.getFile("src/types/i18n.d.ts");
       expect(written).toContain("'custom:key1': never;");
       expect(written).toContain("id: number");
+    });
+
+    it("should reuse the resolved default namespace for subsequent schema updates", async () => {
+      await generator.generate();
+      vi.mocked(ApiClient.prototype.fetchDefaultNamespace).mockClear();
+
+      const schema: ProjectSchema = {
+        keys: {
+          "common:updated": { params: [] },
+        },
+      };
+
+      const result = await generator.generateFromSchema(schema);
+
+      expect(result.success).toBe(true);
+      expect(ApiClient.prototype.fetchDefaultNamespace).not.toHaveBeenCalled();
     });
 
     it("should generate types for an empty schema", async () => {

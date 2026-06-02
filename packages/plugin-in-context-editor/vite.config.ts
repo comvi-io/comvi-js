@@ -33,8 +33,8 @@ export default defineConfig({
         production: resolve(__dirname, "./src/entry-production.ts"),
       },
       name: "inContextEditor",
-      formats: ["es", "cjs"],
-      fileName: (format, entryName) => `${entryName}.${format === "es" ? "es" : "cjs"}.js`,
+      formats: ["es"],
+      fileName: (format, entryName) => `${entryName}.${format === "es" ? "es.js" : "cjs"}`,
     },
     rolldownOptions: {
       external: ["@comvi/core"],
