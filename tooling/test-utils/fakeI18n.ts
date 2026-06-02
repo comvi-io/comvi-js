@@ -132,6 +132,10 @@ export class FakeI18n {
     return this.core.getDefaultNamespace();
   });
 
+  public readonly getFallbackLocales = vi.fn((): string[] => {
+    return this.core.getFallbackLocales();
+  });
+
   public readonly getTranslations = vi.fn((): Record<string, Record<string, unknown>> => {
     return this.core.getTranslations();
   });

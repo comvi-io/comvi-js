@@ -225,6 +225,9 @@ export class FakeI18nCore {
     this.emit("translationsCleared", { language, namespace });
   }
 
+  // NOTE: unlike real core (which emits `configChanged` from setFallbackLocale),
+  // the fake only records the value — tests drive `emit("configChanged", …)`
+  // explicitly so they can assert the emit and the state change independently.
   setFallbackLanguage(fallback: string | string[]): void {
     this.lastFallbackLanguage = fallback;
   }
@@ -253,6 +256,11 @@ export class FakeI18nCore {
 
   getActiveNamespaces(): string[] {
     return Array.from(this.activeNamespaces);
+  }
+
+  getFallbackLocales(): string[] {
+    const f = this.lastFallbackLanguage;
+    return f === null ? [] : typeof f === "string" ? [f] : [...f];
   }
 
   getDefaultNamespace(): string {

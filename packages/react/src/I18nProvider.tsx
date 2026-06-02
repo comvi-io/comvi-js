@@ -4,7 +4,6 @@ import {
   useEffect,
   useMemo,
   useCallback,
-  useRef,
   useSyncExternalStore,
 } from "react";
 import type { I18n, FlattenedTranslations, I18nEvent } from "@comvi/core";
@@ -61,7 +60,6 @@ export function useSubscribe(i18n: I18n, ...events: I18nEvent[]) {
 
 /** @internal — exported for unit tests, not in the package index. */
 export function useStoreRevision(i18n: I18n, ...events: I18nEvent[]): string {
-  const eventRevisionRef = useRef(0);
   const eventsKey = events.join("|");
   const subscribe = useCallback(
     (callback: () => void) => {
@@ -69,17 +67,12 @@ export function useStoreRevision(i18n: I18n, ...events: I18nEvent[]): string {
       const eventList = eventsKey.split("|") as I18nEvent[];
       const unsubs = eventList.map((event) =>
         i18n.on(event, () => {
-          // Bump revision synchronously so getSnapshot reads see the new value
-          // immediately (before the deferred React notification fires).
-          eventRevisionRef.current += 1;
-          // Defer React's notification out of the synchronous _emit call stack
-          // (packages/core/src/core/i18n.ts:438-448) so scheduleUpdateOnFiber
-          // cannot land while a sibling fiber is mid-render. This significantly
-          // narrows (but does not fully close) the v0.3.1 KNOWN LIMITATION race
-          // at useI18n.ts:45-53; the residual window depends on React-internal
-          // subscribe-set-up vs first-event ordering.
-          // The disposed flag prevents stale callbacks after unsubscribe or
-          // i18n prop swap (useCallback dep [i18n, eventsKey] covers the swap).
+          // Defer React's store-update notification out of the synchronous _emit
+          // call stack (packages/core/src/core/i18n.ts) so scheduleUpdateOnFiber
+          // cannot land while a sibling fiber is mid-render. The snapshot below is
+          // content-addressed, so deferral only affects WHEN React re-reads, never
+          // WHETHER a change is detected. The disposed flag prevents stale callbacks
+          // after unsubscribe or i18n prop swap (dep [i18n, eventsKey] covers it).
           queueMicrotask(() => {
             if (!disposed) callback();
           });
@@ -93,11 +86,26 @@ export function useStoreRevision(i18n: I18n, ...events: I18nEvent[]): string {
     [i18n, eventsKey],
   );
 
-  return useSyncExternalStore(
-    subscribe,
-    () => `${i18n.translationCache.getRevision()}:${eventRevisionRef.current}`,
-    () => `${i18n.translationCache.getRevision()}:${eventRevisionRef.current}`,
+  // Content-addressed snapshot derived PURELY from observable instance state —
+  // never from "was my subscriber attached when the event fired". This closes the
+  // commit→subscribe window: a non-cache event (configChanged/defaultNamespaceChanged)
+  // firing before the passive subscribe effect has already mutated the state this
+  // reads, so React's post-subscribe getSnapshot re-read detects it. (The previous
+  // per-component eventRevisionRef started at 0 and only counted post-subscribe
+  // events, dropping that window.) Each segment maps to a subscribed event: cache
+  // revision (namespaceLoaded/translationsCleared), isInitialized (initialized),
+  // default namespace (defaultNamespaceChanged), active namespaces + fallback locales
+  // (configChanged). Strings compare by value via Object.is, so a fresh equal string
+  // each call is a stable snapshot.
+  const getSnapshot = useCallback(
+    () =>
+      `${i18n.translationCache.getRevision()}:${i18n.isInitialized ? 1 : 0}:` +
+      `${i18n.getDefaultNamespace()}:${i18n.getActiveNamespaces().join(",")}:` +
+      `${i18n.getFallbackLocales().join(",")}`,
+    [i18n],
   );
+
+  return useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
 }
 
 export interface I18nProviderProps {

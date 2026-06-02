@@ -638,6 +638,11 @@ export class I18n implements I18nInstance {
     return [...this._activeNamespaces];
   }
 
+  /** The resolved fallback-locale chain (read-only snapshot). */
+  getFallbackLocales(): string[] {
+    return [...this._fallbackLocales];
+  }
+
   /**
    * Store plugin-specific data on the i18n instance.
    * This allows plugins to store configuration that persists with the instance.
