@@ -189,14 +189,7 @@ describe("runtime plugin", () => {
   });
 
   it("preserves the cookie preference when setLocale emits localeChanged during nav", async () => {
-    // Regression guard for the plugin-listener-vs-middleware write ordering.
-    // User prefers "de" (cookie). Navigating to a non-root unprefixed path renders
-    // the path-implied default "en" in as-needed mode, so the middleware calls
-    // setLocale("en"). That emits `localeChanged`, and the plugin's listener writes
-    // the cookie to "en" — BUT the middleware must then restore the preserved "de".
-    // Prior tests used a setLocale mock that did NOT emit localeChanged, so this
-    // interaction was untested. If a future change made localeChanged fire AFTER the
-    // middleware's restore (e.g. async), the cookie would wrongly end at "en".
+    // Regression: middleware must restore cookie "de" after plugin listener briefly overwrites it with "en" on localeChanged.
     const i18n = createI18nStub("de");
     i18n.setLocale = vi.fn(async (newLocale: string) => {
       i18n.locale.value = newLocale;

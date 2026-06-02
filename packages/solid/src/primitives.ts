@@ -1,14 +1,7 @@
 import { from, type Accessor } from "solid-js";
 import type { I18n } from "@comvi/core";
 
-// `from()` is typed `Accessor<T | undefined>` because the producer may set the
-// value asynchronously. Every producer below calls `set(...)` synchronously
-// before returning, so the first read is always defined. The `as Accessor<T>`
-// casts encode that invariant — keep producers synchronous.
-// NOTE: @comvi/solid is client-side-rendering (CSR) only (see README) — the
-// provider's auto-init effect does not run during server render. These
-// primitives do not add SSR translation support; the synchronous-first-read
-// guarantee is about signal initialization, not server rendering.
+// CSR-only: provider auto-init does not run during SSR. Producers call set() synchronously so the first read is always defined.
 
 /**
  * Creates a SolidJS signal for the current locale
@@ -90,11 +83,7 @@ export function createInitializedSignal(i18n: I18n): Accessor<boolean> {
  */
 export function createCacheRevisionSignal(i18n: I18n): Accessor<number> {
   const signal = from<number>((set) => {
-    // Single monotonic counter bumped on ANY tracked event. The previous
-    // `cacheRevision + configRevision` sum could collide non-monotonically (two
-    // independent counters can produce equal sums across interleaved events),
-    // and `from` only notifies on value change → a dropped re-render. A strictly
-    // increasing counter is a pure change-detection token and can never collide.
+    // Single monotonic counter — avoids the old cacheRev+configRev sum collision (dropped re-render).
     let revision = 0;
     const bump = () => set(++revision);
 
