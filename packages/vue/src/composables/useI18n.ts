@@ -112,11 +112,7 @@ export interface UseI18nReturn {
    */
   hasLocale: (locale: string, namespace?: string) => ComputedRef<boolean>;
 
-  /**
-   * Imperative (non-reactive) translation-existence check — returns a plain
-   * `boolean`. Use in loops/handlers/`v-for` keys where the reactive
-   * `hasTranslation()` would leak a `computed()` per call.
-   */
+  /** Imperative (non-reactive) translation-existence check — plain boolean, for use outside a reactive scope. */
   hasTranslationNow: (
     key: string,
     opts?: { locale?: string; namespace?: string; checkFallbacks?: boolean },

@@ -232,11 +232,7 @@ export class ConfigLoader {
     };
   }
 
-  /**
-   * Warn (once) when a `.comvirc.json` carries the legacy `languages` field, which
-   * was renamed to `locales` (commit 5994f2f) before it ever shipped to npm. The
-   * stale key is ignored — only `locales` is read. Mirrors `stripLegacyDefaultNamespace`.
-   */
+  /** Warn once when `.comvirc.json` uses the legacy `languages` field (renamed to `locales`). */
   private static warnOnLegacyLanguages(config: ComviConfig): void {
     const legacyConfig = config as ComviConfig & { languages?: unknown };
     if (legacyConfig.languages === undefined) {

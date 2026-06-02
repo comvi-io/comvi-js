@@ -55,11 +55,7 @@ function getOrCreateStores(i18n: I18n) {
         };
       }),
       cacheRevision: readable(i18n.translationCache.getRevision(), (set) => {
-        // Single monotonic counter bumped on ANY tracked event. The previous
-        // `cacheRevision + configRevision` sum could collide non-monotonically
-        // (two independent counters can produce equal sums across interleaved
-        // events), and `readable` only notifies on value change → a dropped
-        // re-render. A strictly increasing counter can never collide.
+        // Single monotonic counter — avoids the old cacheRev+configRev sum collision (dropped re-render).
         let revision = 0;
         const bump = () => set(++revision);
 

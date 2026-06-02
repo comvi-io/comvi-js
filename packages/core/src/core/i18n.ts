@@ -543,10 +543,7 @@ export class I18n implements I18nInstance {
    * @param translations - Object with locale codes as keys, translation objects as values
    */
   addTranslations(translations: Record<string, Record<string, TranslationValue>>) {
-    // `_nsAddTranslations` already emits `namespaceLoaded` per (locale, namespace)
-    // and bumps the cache revision via `translationCache.set`, which every binding
-    // reacts to. The previous extra `configChanged` emit was redundant (caused a
-    // double re-render). An empty `translations` object is now a true no-op.
+    // _nsAddTranslations already emits namespaceLoaded + bumps cache revision; empty input is a no-op.
     this._nsAddTranslations(translations);
   }
 
@@ -1169,10 +1166,7 @@ export class I18n implements I18nInstance {
   private _dateFormatCache = new Map<string, Intl.DateTimeFormat>();
   private _relativeTimeFormatCache = new Map<string, Intl.RelativeTimeFormat>();
 
-  // Bound the formatter caches (mirrors TEMPLATE_CACHE_MAX in translate.ts). The
-  // `locale?` override widens the key space, so an app formatting many distinct
-  // (locale, options) tuples could otherwise grow these maps without limit. Evict
-  // the oldest (FIFO) entry on overflow.
+  // Bounded FIFO (the per-call locale override widened the key space).
   private static readonly FORMATTER_CACHE_MAX = 1000;
   private _cacheFormat<T>(cache: Map<string, T>, key: string, value: T): T {
     if (cache.size >= I18n.FORMATTER_CACHE_MAX) {

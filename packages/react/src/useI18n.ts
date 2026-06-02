@@ -224,9 +224,7 @@ export function useI18n(ns?: string): UseI18nReturn {
   const { i18n, isLoading, isInitializing } = useI18nInstance();
   const locale = useContext(LocaleContext) ?? "";
 
-  // Load-bearing: the return value is intentionally unused. This call subscribes
-  // the component to the i18n store via useSyncExternalStore — it is what forces a
-  // re-render when any of these events fire. Do NOT remove it as "dead code".
+  // Load-bearing: subscribes this component to re-render on these events (return unused).
   useStoreRevision(
     i18n,
     "namespaceLoaded",
