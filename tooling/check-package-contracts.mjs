@@ -144,9 +144,19 @@ for (const packageDir of packageDirs) {
     assert(manifest.main, `${packageName}: package must define exports or main`, packageErrors);
   }
 
-  for (const field of ["main", "module", "types"]) {
-    if (manifest[field]) {
-      validateTargetIncluded(packageName, field, manifest[field], packedFiles, packageErrors);
+  // Validate every entry-pointing field (incl. CDN fields unpkg/jsdelivr, which are
+  // only present on packages that ship a UMD/global build, e.g. @comvi/core). Each is
+  // only checked when present, so this is a no-op for packages without it.
+  for (const field of ["main", "module", "types", "unpkg", "jsdelivr"]) {
+    const target = manifest[field];
+    if (target == null) continue;
+    assert(
+      typeof target === "string",
+      `${packageName}: "${field}" must be a string path`,
+      packageErrors,
+    );
+    if (typeof target === "string") {
+      validateTargetIncluded(packageName, field, target, packedFiles, packageErrors);
     }
   }
 

@@ -176,6 +176,40 @@ function LoadingIndicator() {
 
 Skips re-renders on translation cache updates.
 
+### `useSetLocaleTransition()` — non-blocking locale switch
+
+Wraps `setLocaleAsync()` in a React `useTransition`, so the current UI stays interactive while the new locale's translations load:
+
+```tsx
+import { useSetLocaleTransition } from "@comvi/react";
+
+function LangSwitcher() {
+  const { isPending, setLocale } = useSetLocaleTransition();
+  return (
+    <button onClick={() => setLocale("fr")} disabled={isPending}>
+      {isPending ? "Loading…" : "Français"}
+    </button>
+  );
+}
+```
+
+Returns `{ isPending, setLocale }` — `isPending` is `true` while the transition resolves.
+
+### `useFormatters()` — locale-aware Intl formatters
+
+Number/date/currency/relative-time formatters bound to the React-tracked locale (output updates automatically on locale change; identity is stable per `(i18n, locale)`):
+
+```tsx
+import { useFormatters } from "@comvi/react";
+
+function Price({ amount }: { amount: number }) {
+  const { formatCurrency } = useFormatters();
+  return <p>{formatCurrency(amount, "USD")}</p>;
+}
+```
+
+Provides `formatNumber`, `formatDate`, `formatCurrency`, and `formatRelativeTime`.
+
 ## Using `useI18n()`
 
 `useI18n()` returns the full i18n bag: `{ i18n, locale, translationCache, isLoading, isInitializing, setLocale, t, tRaw, ... }`.

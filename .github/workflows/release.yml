@@ -60,6 +60,13 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      # The combined GitHub Release runs AFTER `changeset publish` by necessity:
+      # it consumes `steps.changesets.outputs.publishedPackages`, which only exists
+      # once publish has happened. So if this step fails, npm is already live while
+      # the GitHub Release is missing. That is acceptable and recoverable: the script
+      # is keyed by the version tag and can be re-run manually
+      # (`PUBLISHED_PACKAGES=… node .github/scripts/create-combined-release.mjs`, or
+      # re-run this job) to create the missing Release without re-publishing npm.
       - name: Create combined GitHub Release
         if: steps.changesets.outputs.published == 'true'
         env:
