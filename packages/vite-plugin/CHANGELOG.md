@@ -1,5 +1,22 @@
 # @comvi/vite-plugin
 
+## 0.3.0
+
+### Minor Changes
+
+- 6e5370c: **BREAKING: these packages are now ESM-only.**
+
+  v0.3 targets the modern bundler-resolution toolchain. The CJS build (`require()` entry / `main` / `.cjs`) and the dual `.d.cts` type declarations are no longer published — each package ships a single ESM bundle plus one `.d.ts` per entry. Import via ESM or any modern bundler (Vite, webpack 5, esbuild, Rollup, Rspack, Next, etc.).
+  - **Migration:** replace `const x = require("@comvi/…")` with `import x from "@comvi/…"`, or consume through a bundler. There is no `require()`/CJS entry point.
+  - The CDN UMD/IIFE builds are unaffected: `@comvi/core` still ships `comvi-core.global.prod.js` (`unpkg`/`jsdelivr`), and `@comvi/plugin-in-context-editor` still ships `standalone.iife.js` (`./standalone`).
+  - This removes the `emit-d-cts.mjs` post-build stopgap and all dual-format machinery; declarations are produced directly by the build (`vite-plugin-dts`) and resolve cleanly under bundler resolution.
+  - `@comvi/solid` declarations are now correctly populated (`tsconfig` `rootDir`/`outDir` restored — previously the advertised `dist/index.d.ts` was an empty `export {}` stub).
+  - Package metadata: `repository.url` carries the required `git+` prefix.
+
+- c423773: Change the default local translation file layout for v0.3. The namespace marked as default in the TMS now maps to root locale files such as `en.json`, while other namespaces map to `{namespace}/{languageTag}.json` such as `admin/en.json`.
+
+  `comvi pull`, `comvi push`, and CLI type generation now resolve the default namespace from the backend instead of treating `.comvirc.json` as the source of truth. Custom `fileTemplate` values remain literal; set `"fileTemplate": "{languageTag}/{namespace}.json"` to keep the v0.2 layout.
+
 ## 0.2.0
 
 ### Minor Changes
