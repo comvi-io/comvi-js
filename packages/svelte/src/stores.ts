@@ -55,24 +55,20 @@ function getOrCreateStores(i18n: I18n) {
         };
       }),
       cacheRevision: readable(i18n.translationCache.getRevision(), (set) => {
-        let cacheRevision = i18n.translationCache.getRevision();
-        let configRevision = 0;
-        const syncCacheRevision = () => {
-          cacheRevision = i18n.translationCache.getRevision();
-          set(cacheRevision + configRevision);
-        };
-        const bumpConfigRevision = () => {
-          cacheRevision = i18n.translationCache.getRevision();
-          configRevision += 1;
-          set(cacheRevision + configRevision);
-        };
+        // Single monotonic counter bumped on ANY tracked event. The previous
+        // `cacheRevision + configRevision` sum could collide non-monotonically
+        // (two independent counters can produce equal sums across interleaved
+        // events), and `readable` only notifies on value change → a dropped
+        // re-render. A strictly increasing counter can never collide.
+        let revision = 0;
+        const bump = () => set(++revision);
 
-        set(cacheRevision + configRevision);
-        const unsub1 = i18n.on("namespaceLoaded", syncCacheRevision);
-        const unsub2 = i18n.on("initialized", syncCacheRevision);
-        const unsub3 = i18n.on("translationsCleared", syncCacheRevision);
-        const unsub4 = i18n.on("configChanged", bumpConfigRevision);
-        const unsub5 = i18n.on("defaultNamespaceChanged", bumpConfigRevision);
+        set(revision);
+        const unsub1 = i18n.on("namespaceLoaded", bump);
+        const unsub2 = i18n.on("initialized", bump);
+        const unsub3 = i18n.on("translationsCleared", bump);
+        const unsub4 = i18n.on("configChanged", bump);
+        const unsub5 = i18n.on("defaultNamespaceChanged", bump);
 
         return () => {
           unsub1();

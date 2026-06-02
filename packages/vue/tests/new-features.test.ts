@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
-import { createI18n } from "../src";
-import { nextTick } from "vue";
+import { createI18n, useI18n } from "../src";
+import { nextTick, isRef, effectScope } from "vue";
+import { mount } from "@vue/test-utils";
 
 describe("New Features", () => {
   describe("Cached translationCache computed", () => {
@@ -224,6 +225,165 @@ describe("New Features", () => {
 
       // After init, locale should remain "fr" since ssrLocale matches core locale
       expect(i18n.locale.value).toBe("fr");
+    });
+  });
+
+  describe("hasTranslationNow / hasLocaleNow (imperative, non-reactive)", () => {
+    it("hasTranslationNow returns a plain boolean (not a ref)", async () => {
+      const i18n = createI18n({ locale: "en", defaultNs: "common" });
+      i18n.addTranslations({ en: { greeting: "Hello" } });
+      await i18n.init();
+
+      const result = i18n.hasTranslationNow("greeting");
+      expect(typeof result).toBe("boolean");
+      expect(isRef(result)).toBe(false);
+    });
+
+    it("hasTranslationNow returns true for an existing key and false for a missing key", async () => {
+      const i18n = createI18n({ locale: "en", defaultNs: "common" });
+      i18n.addTranslations({ en: { greeting: "Hello" } });
+      await i18n.init();
+
+      expect(i18n.hasTranslationNow("greeting")).toBe(true);
+      expect(i18n.hasTranslationNow("nonexistent.key")).toBe(false);
+    });
+
+    it("hasTranslationNow result matches reactive hasTranslation().value", async () => {
+      const i18n = createI18n({ locale: "en", defaultNs: "common" });
+      i18n.addTranslations({ en: { greeting: "Hello" } });
+      await i18n.init();
+
+      const scope = effectScope();
+      let reactiveHasGreeting!: boolean;
+      let reactiveHasMissing!: boolean;
+      scope.run(() => {
+        reactiveHasGreeting = i18n.hasTranslation("greeting").value;
+        reactiveHasMissing = i18n.hasTranslation("missing.key").value;
+      });
+      scope.stop();
+
+      expect(i18n.hasTranslationNow("greeting")).toBe(reactiveHasGreeting);
+      expect(i18n.hasTranslationNow("missing.key")).toBe(reactiveHasMissing);
+    });
+
+    it("hasTranslationNow can be called in a loop outside any effectScope without throwing", async () => {
+      const i18n = createI18n({ locale: "en", defaultNs: "common" });
+      i18n.addTranslations({ en: { key0: "v0", key1: "v1", key2: "v2" } });
+      await i18n.init();
+
+      const results: boolean[] = [];
+      expect(() => {
+        for (let i = 0; i < 50; i++) {
+          results.push(i18n.hasTranslationNow(`key${i % 3}`));
+        }
+      }).not.toThrow();
+
+      // All returned values are plain booleans
+      for (const r of results) {
+        expect(typeof r).toBe("boolean");
+        expect(isRef(r)).toBe(false);
+      }
+    });
+
+    it("hasLocaleNow returns a plain boolean (not a ref)", async () => {
+      const i18n = createI18n({ locale: "en", defaultNs: "common" });
+      i18n.addTranslations({ en: { hello: "Hello" }, fr: { hello: "Bonjour" } });
+      await i18n.init();
+
+      const result = i18n.hasLocaleNow("en");
+      expect(typeof result).toBe("boolean");
+      expect(isRef(result)).toBe(false);
+    });
+
+    it("hasLocaleNow returns true for a loaded locale and false for an absent one", async () => {
+      const i18n = createI18n({ locale: "en", defaultNs: "common" });
+      i18n.addTranslations({ en: { hello: "Hello" } });
+      await i18n.init();
+
+      expect(i18n.hasLocaleNow("en")).toBe(true);
+      expect(i18n.hasLocaleNow("fr")).toBe(false);
+    });
+
+    it("hasLocaleNow result matches reactive hasLocale().value", async () => {
+      const i18n = createI18n({ locale: "en", defaultNs: "common" });
+      i18n.addTranslations({ en: { hello: "Hello" } });
+      await i18n.init();
+
+      const scope = effectScope();
+      let reactiveHasEn!: boolean;
+      let reactiveHasFr!: boolean;
+      scope.run(() => {
+        reactiveHasEn = i18n.hasLocale("en").value;
+        reactiveHasFr = i18n.hasLocale("fr").value;
+      });
+      scope.stop();
+
+      expect(i18n.hasLocaleNow("en")).toBe(reactiveHasEn);
+      expect(i18n.hasLocaleNow("fr")).toBe(reactiveHasFr);
+    });
+
+    it("hasTranslation() returns a ComputedRef while hasTranslationNow() returns a primitive", async () => {
+      const i18n = createI18n({ locale: "en", defaultNs: "common" });
+      i18n.addTranslations({ en: { greeting: "Hello" } });
+      await i18n.init();
+
+      const scope = effectScope();
+      let reactiveResult: ReturnType<typeof i18n.hasTranslation>;
+      scope.run(() => {
+        reactiveResult = i18n.hasTranslation("greeting");
+        expect(isRef(reactiveResult!)).toBe(true);
+        expect(typeof reactiveResult!.value).toBe("boolean");
+      });
+      scope.stop();
+
+      const imperativeResult = i18n.hasTranslationNow("greeting");
+      expect(typeof imperativeResult).toBe("boolean");
+      expect(isRef(imperativeResult)).toBe(false);
+    });
+
+    it("hasTranslationNow and hasLocaleNow are reachable via useI18n()", async () => {
+      const i18n = createI18n({ locale: "en", defaultNs: "common" });
+      i18n.addTranslations({ en: { hello: "Hello" } });
+      await i18n.init();
+
+      let hasTranslationNowFn: ((key: string) => boolean) | undefined;
+      let hasLocaleNowFn: ((locale: string) => boolean) | undefined;
+
+      const C = {
+        setup() {
+          const composable = useI18n();
+          hasTranslationNowFn = composable.hasTranslationNow;
+          hasLocaleNowFn = composable.hasLocaleNow;
+          return () => null;
+        },
+      };
+
+      mount(C, { global: { plugins: [i18n] } });
+
+      expect(typeof hasTranslationNowFn).toBe("function");
+      expect(typeof hasLocaleNowFn).toBe("function");
+      expect(hasTranslationNowFn!("hello")).toBe(true);
+      expect(hasTranslationNowFn!("missing")).toBe(false);
+      expect(hasLocaleNowFn!("en")).toBe(true);
+      expect(hasLocaleNowFn!("fr")).toBe(false);
+    });
+
+    it("hasTranslationNow respects locale and namespace opts", async () => {
+      const i18n = createI18n({ locale: "en", defaultNs: "common" });
+      i18n.addTranslations({ "fr:common": { bonjour: "Bonjour" } });
+      await i18n.init();
+
+      expect(i18n.hasTranslationNow("bonjour", { locale: "fr", namespace: "common" })).toBe(true);
+      expect(i18n.hasTranslationNow("bonjour", { locale: "en", namespace: "common" })).toBe(false);
+    });
+
+    it("hasLocaleNow respects optional namespace parameter", async () => {
+      const i18n = createI18n({ locale: "en", defaultNs: "common" });
+      i18n.addTranslations({ "fr:admin": { title: "Admin" } });
+      await i18n.init();
+
+      expect(i18n.hasLocaleNow("fr", "admin")).toBe(true);
+      expect(i18n.hasLocaleNow("fr", "common")).toBe(false);
     });
   });
 
