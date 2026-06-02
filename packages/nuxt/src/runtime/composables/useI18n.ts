@@ -81,6 +81,8 @@ export function useI18n(ns?: string): UseI18nReturn {
     reloadTranslations: i18n.reloadTranslations,
     hasLocale: i18n.hasLocale,
     hasTranslation: i18n.hasTranslation,
+    hasLocaleNow: i18n.hasLocaleNow,
+    hasTranslationNow: i18n.hasTranslationNow,
     loadedLocales: i18n.loadedLocales,
     activeNamespaces: i18n.activeNamespaces,
     defaultNamespace: i18n.defaultNamespace,

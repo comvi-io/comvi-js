@@ -128,4 +128,70 @@ describe("Solid primitives", () => {
       dispose();
     });
   });
+
+  it("cacheRevision signal is strictly monotonic across all tracked event types (no dropped update from sum collision)", async () => {
+    // Regression for M4: the old implementation used `cacheRevision + configRevision`
+    // where `configRevision` was a local counter and `cacheRevision` was re-read from
+    // translationCache.getRevision(). When a cache-unrelated event (e.g. `initialized`)
+    // fired via syncCacheRevision() without a cache change, it re-read the same
+    // translationCache revision that `bumpConfigRevision` had already snapshotted,
+    // producing an identical sum — so Solid's `from()` equality check suppressed the
+    // notification and the re-render was silently dropped.
+    //
+    // Concrete collision:
+    //   1. addTranslations → cache._revision=1, configRevision=0 → signal set(1+0=1)
+    //   2. setFallbackLocale → configChanged → bumpConfigRevision re-reads cache=1,
+    //      configRevision→1 → signal set(1+1=2)
+    //   3. i18n.init() → "initialized" → syncCacheRevision re-reads cache=1 (no loader,
+    //      no namespace loaded, cache unchanged) → signal set(1+1=2) ← SAME VALUE
+    //      → from() equality check drops the notification → re-render NEVER fires.
+    //
+    // The fix uses a single monotonic `++revision` counter for every event, so the
+    // signal value strictly increases regardless of which event fires.
+    //
+    // Note: Solid batches synchronous signal writes and only flushes effects on the
+    // next microtask. Signal reads between events are always synchronous and accurate,
+    // so we read the signal value directly after each operation rather than collecting
+    // values in an effect.
+
+    const i18n = createI18n({ locale: "en", exposeGlobal: false });
+
+    await createRoot(async (dispose) => {
+      const cacheRevision = createCacheRevisionSignal(i18n);
+
+      const v0 = cacheRevision();
+
+      // Step 1: addTranslations fires "namespaceLoaded" — always bumps signal.
+      i18n.addTranslations({ en: { hello: "Hello" } });
+      const v1 = cacheRevision();
+      expect(v1).toBeGreaterThan(v0);
+
+      // Step 2: setFallbackLocale fires "configChanged" — always bumps signal.
+      i18n.setFallbackLocale("fr");
+      const v2 = cacheRevision();
+      expect(v2).toBeGreaterThan(v1);
+
+      // Step 3: init() with no loader fires "initialized" without changing the
+      // translation cache. Under the old sum scheme, syncCacheRevision() would
+      // re-read cache._revision=1 (unchanged) and produce sum=1+1=2, identical to
+      // the value already in the signal — so from() would suppress the notification
+      // and the re-render would be silently dropped.
+      // Under the fix, ++revision always produces a strictly greater value.
+      await i18n.init();
+      const v3 = cacheRevision();
+      expect(v3).toBeGreaterThan(v2);
+
+      // Step 4: setDefaultNamespace fires "defaultNamespaceChanged" — bumps signal.
+      i18n.setDefaultNamespace("admin");
+      const v4 = cacheRevision();
+      expect(v4).toBeGreaterThan(v3);
+
+      // Step 5: clearTranslations fires "translationsCleared" — bumps signal.
+      i18n.clearTranslations();
+      const v5 = cacheRevision();
+      expect(v5).toBeGreaterThan(v4);
+
+      dispose();
+    });
+  });
 });

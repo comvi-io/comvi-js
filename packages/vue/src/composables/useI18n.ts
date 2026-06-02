@@ -112,6 +112,19 @@ export interface UseI18nReturn {
    */
   hasLocale: (locale: string, namespace?: string) => ComputedRef<boolean>;
 
+  /**
+   * Imperative (non-reactive) translation-existence check — returns a plain
+   * `boolean`. Use in loops/handlers/`v-for` keys where the reactive
+   * `hasTranslation()` would leak a `computed()` per call.
+   */
+  hasTranslationNow: (
+    key: string,
+    opts?: { locale?: string; namespace?: string; checkFallbacks?: boolean },
+  ) => boolean;
+
+  /** Imperative (non-reactive) locale-availability check — returns a plain `boolean`. */
+  hasLocaleNow: (locale: string, namespace?: string) => boolean;
+
   /** Subscribe to i18n events */
   on: <E extends I18nEvent>(event: E, callback: (payload: I18nEventData[E]) => void) => () => void;
 
@@ -153,6 +166,8 @@ const PASSTHROUGH_KEYS = [
   "reloadTranslations",
   "hasLocale",
   "hasTranslation",
+  "hasLocaleNow",
+  "hasTranslationNow",
   "loadedLocales",
   "activeNamespaces",
   "defaultNamespace",

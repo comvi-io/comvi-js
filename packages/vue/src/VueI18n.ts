@@ -158,6 +158,8 @@ export class VueI18n {
     this.destroy = this.destroy.bind(this);
     this.hasTranslation = this.hasTranslation.bind(this);
     this.hasLocale = this.hasLocale.bind(this);
+    this.hasTranslationNow = this.hasTranslationNow.bind(this);
+    this.hasLocaleNow = this.hasLocaleNow.bind(this);
   }
 
   get locale(): Ref<string> {
@@ -258,6 +260,29 @@ export class VueI18n {
       void this._cacheRevision.value;
       return this._core.hasLocale(locale, namespace);
     });
+  }
+
+  /**
+   * Imperative (non-reactive) translation-existence check — returns a plain
+   * `boolean`. Use this in loops, event handlers, `v-for` keys, or anywhere
+   * outside a reactive tracking scope, where the reactive `hasTranslation()`
+   * would allocate (and leak) a fresh `computed()` per call. For reactive UI that
+   * must update on locale/cache changes, use `hasTranslation()` in `setup()`.
+   */
+  hasTranslationNow(
+    key: string,
+    opts?: { locale?: string; namespace?: string; checkFallbacks?: boolean },
+  ): boolean {
+    return this._core.hasTranslation(key, opts?.locale, opts?.namespace, opts?.checkFallbacks);
+  }
+
+  /**
+   * Imperative (non-reactive) locale-availability check — returns a plain
+   * `boolean`. Non-leaking counterpart to `hasLocale()` for use outside a
+   * reactive scope.
+   */
+  hasLocaleNow(locale: string, namespace?: string): boolean {
+    return this._core.hasLocale(locale, namespace);
   }
 
   async setLocale(locale: string): Promise<void> {

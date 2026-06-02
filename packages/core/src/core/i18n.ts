@@ -543,8 +543,11 @@ export class I18n implements I18nInstance {
    * @param translations - Object with locale codes as keys, translation objects as values
    */
   addTranslations(translations: Record<string, Record<string, TranslationValue>>) {
+    // `_nsAddTranslations` already emits `namespaceLoaded` per (locale, namespace)
+    // and bumps the cache revision via `translationCache.set`, which every binding
+    // reacts to. The previous extra `configChanged` emit was redundant (caused a
+    // double re-render). An empty `translations` object is now a true no-op.
     this._nsAddTranslations(translations);
-    this._emit("configChanged", { source: "translationsAdded" });
   }
 
   getTranslations(locale: string = this._locale, namespace: string = this._cachedDefaultNs) {
@@ -1166,13 +1169,30 @@ export class I18n implements I18nInstance {
   private _dateFormatCache = new Map<string, Intl.DateTimeFormat>();
   private _relativeTimeFormatCache = new Map<string, Intl.RelativeTimeFormat>();
 
+  // Bound the formatter caches (mirrors TEMPLATE_CACHE_MAX in translate.ts). The
+  // `locale?` override widens the key space, so an app formatting many distinct
+  // (locale, options) tuples could otherwise grow these maps without limit. Evict
+  // the oldest (FIFO) entry on overflow.
+  private static readonly FORMATTER_CACHE_MAX = 1000;
+  private _cacheFormat<T>(cache: Map<string, T>, key: string, value: T): T {
+    if (cache.size >= I18n.FORMATTER_CACHE_MAX) {
+      const oldest = cache.keys().next().value;
+      if (oldest !== undefined) cache.delete(oldest);
+    }
+    cache.set(key, value);
+    return value;
+  }
+
   private _getNumberFormat(options?: Intl.NumberFormatOptions, locale?: string): Intl.NumberFormat {
     const lc = locale ?? this._locale;
     const cacheKey = JSON.stringify([lc, options ?? null]);
     let fmt = this._numberFormatCache.get(cacheKey);
     if (!fmt) {
-      fmt = new Intl.NumberFormat(lc, options);
-      this._numberFormatCache.set(cacheKey, fmt);
+      fmt = this._cacheFormat(
+        this._numberFormatCache,
+        cacheKey,
+        new Intl.NumberFormat(lc, options),
+      );
     }
     return fmt;
   }
@@ -1185,8 +1205,11 @@ export class I18n implements I18nInstance {
     const cacheKey = JSON.stringify([lc, options ?? null]);
     let fmt = this._dateFormatCache.get(cacheKey);
     if (!fmt) {
-      fmt = new Intl.DateTimeFormat(lc, options);
-      this._dateFormatCache.set(cacheKey, fmt);
+      fmt = this._cacheFormat(
+        this._dateFormatCache,
+        cacheKey,
+        new Intl.DateTimeFormat(lc, options),
+      );
     }
     return fmt;
   }
@@ -1199,8 +1222,11 @@ export class I18n implements I18nInstance {
     const cacheKey = JSON.stringify([lc, options ?? null]);
     let fmt = this._relativeTimeFormatCache.get(cacheKey);
     if (!fmt) {
-      fmt = new Intl.RelativeTimeFormat(lc, options);
-      this._relativeTimeFormatCache.set(cacheKey, fmt);
+      fmt = this._cacheFormat(
+        this._relativeTimeFormatCache,
+        cacheKey,
+        new Intl.RelativeTimeFormat(lc, options),
+      );
     }
     return fmt;
   }

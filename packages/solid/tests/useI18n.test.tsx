@@ -121,7 +121,7 @@ describe("useI18n", () => {
     fake.emit("loadingStateChanged", { isLoading: false, isInitializing: false });
     await Promise.resolve();
 
-    expect(container.textContent).toBe("fr|false|false|true|1");
+    expect(container.textContent).toBe("fr|false|false|true|2");
 
     dispose();
   });
