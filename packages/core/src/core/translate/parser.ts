@@ -28,6 +28,7 @@ const COMMA = 44;
 const HYPHEN = 45;
 const UNDERSCORE = 95;
 const SPACE = 32;
+const HASH = 35;
 const DIGIT_0 = 48;
 const DIGIT_9 = 57;
 const UPPER_A = 65;
@@ -107,6 +108,40 @@ function advancePastApostrophe(str: string, index: number, len: number): number 
     return index + 1;
   }
   return skipQuotedSection(str, index, len);
+}
+
+/**
+ * Replaces `#` octothorpes belonging to the current plural level with `replacement`,
+ * skipping `#` inside nested `{...}` blocks and quoted literals. This keeps a nested
+ * plural's `#` bound to its own count instead of the enclosing plural's count.
+ */
+export function replaceTopLevelHash(str: string, replacement: string): string {
+  if (str.indexOf("#") === -1) return str;
+
+  const len = str.length;
+  let depth = 0;
+  let out = "";
+  let segStart = 0;
+  let i = 0;
+
+  while (i < len) {
+    const code = str.charCodeAt(i);
+    if (code === APOSTROPHE) {
+      i = advancePastApostrophe(str, i, len);
+      continue;
+    }
+    if (code === OPEN_BRACE) {
+      depth++;
+    } else if (code === CLOSE_BRACE) {
+      if (depth > 0) depth--;
+    } else if (code === HASH && depth === 0) {
+      out += str.slice(segStart, i) + replacement;
+      segStart = i + 1;
+    }
+    i++;
+  }
+
+  return out + str.slice(segStart);
 }
 
 function findMatchingBraceEnd(str: string, startIndex: number, len: number): number {

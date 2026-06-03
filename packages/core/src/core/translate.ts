@@ -25,7 +25,12 @@ import {
   type TagToken,
   type CachedTemplate,
 } from "./translate/cache";
-import { parseTemplate, parsePluralChoices, clearPluralChoicesCache } from "./translate/parser";
+import {
+  parseTemplate,
+  parsePluralChoices,
+  clearPluralChoicesCache,
+  replaceTopLevelHash,
+} from "./translate/parser";
 
 declare const __DEV__: boolean | undefined;
 
@@ -490,16 +495,7 @@ function processPlural(
     selected = choices[category] ?? choices.other ?? "";
   }
 
-  const hashIdx = selected.indexOf("#");
-  if (hashIdx !== -1) {
-    const countStr = String(count);
-    const secondHash = selected.indexOf("#", hashIdx + 1);
-    if (secondHash === -1) {
-      selected = selected.slice(0, hashIdx) + countStr + selected.slice(hashIdx + 1);
-    } else {
-      selected = selected.split("#").join(countStr);
-    }
-  }
+  selected = replaceTopLevelHash(selected, String(count));
 
   if (selected.indexOf("{") !== -1 || selected.indexOf("<") !== -1) {
     const nestedResult = processDynamicSegment(selected, params, locale, tagInterpolation);
