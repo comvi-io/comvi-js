@@ -1,4 +1,11 @@
-import { I18n } from "@comvi/core";
+import {
+  I18n,
+  formatCurrency,
+  formatDate,
+  formatNumber,
+  formatRelativeTime,
+  getTextDirection,
+} from "@comvi/core";
 import type {
   I18nOptions,
   FlattenedTranslations,
@@ -81,10 +88,28 @@ export class VueI18n {
   ) => () => void;
   declare setFallbackLocale: (locales: string | string[]) => void;
   declare reportError: (error: unknown, context?: Parameters<I18n["reportError"]>[1]) => void;
-  declare formatNumber: I18n["formatNumber"];
-  declare formatDate: I18n["formatDate"];
-  declare formatCurrency: I18n["formatCurrency"];
-  declare formatRelativeTime: I18n["formatRelativeTime"];
+  declare formatNumber: (
+    value: number,
+    options?: Intl.NumberFormatOptions,
+    locale?: string,
+  ) => string;
+  declare formatDate: (
+    value: Date | number,
+    options?: Intl.DateTimeFormatOptions,
+    locale?: string,
+  ) => string;
+  declare formatCurrency: (
+    value: number,
+    currency: string,
+    options?: Intl.NumberFormatOptions,
+    locale?: string,
+  ) => string;
+  declare formatRelativeTime: (
+    value: number,
+    unit: Intl.RelativeTimeFormatUnit,
+    options?: Intl.RelativeTimeFormatOptions,
+    locale?: string,
+  ) => string;
   constructor(options: VueI18nOptions) {
     const initialLocale = options.ssrLocale ?? options.locale;
 
@@ -145,10 +170,12 @@ export class VueI18n {
     this.on = core.on.bind(core);
     this.setFallbackLocale = core.setFallbackLocale.bind(core);
     this.reportError = core.reportError.bind(core);
-    this.formatNumber = core.formatNumber.bind(core);
-    this.formatDate = core.formatDate.bind(core);
-    this.formatCurrency = core.formatCurrency.bind(core);
-    this.formatRelativeTime = core.formatRelativeTime.bind(core);
+    this.formatNumber = (value, options, locale) => formatNumber(core, value, options, locale);
+    this.formatDate = (value, options, locale) => formatDate(core, value, options, locale);
+    this.formatCurrency = (value, currency, options, locale) =>
+      formatCurrency(core, value, currency, options, locale);
+    this.formatRelativeTime = (value, unit, options, locale) =>
+      formatRelativeTime(core, value, unit, options, locale);
     this.registerLocaleDetector = core.registerLocaleDetector.bind(core);
 
     // Bind own methods for destructuring support
@@ -188,11 +215,7 @@ export class VueI18n {
   /** Text direction for the current locale, as a reactive computed ref */
   get dir(): ComputedRef<"ltr" | "rtl"> {
     if (!this._dirComputed) {
-      // Read locale ref to establish reactive dependency, then delegate to core
-      this._dirComputed = computed(() => {
-        void this._locale.value;
-        return this._core.dir;
-      });
+      this._dirComputed = computed(() => getTextDirection(this._locale.value));
     }
     return this._dirComputed;
   }

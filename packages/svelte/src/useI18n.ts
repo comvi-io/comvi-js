@@ -8,7 +8,14 @@ import {
   createCacheRevisionStore,
 } from "./stores";
 import { translationResultToString } from "./utils";
-import { createBoundTranslation } from "@comvi/core";
+import {
+  createBoundTranslation,
+  formatCurrency,
+  formatDate,
+  formatNumber,
+  formatRelativeTime,
+  getTextDirection,
+} from "@comvi/core";
 import type { I18n } from "@comvi/core";
 import type {
   TranslationParams,
@@ -194,16 +201,30 @@ export interface UseI18nReturn {
   // ===== Formatting =====
 
   /** Format a number using the current locale */
-  formatNumber: I18n["formatNumber"];
+  formatNumber: (value: number, options?: Intl.NumberFormatOptions, locale?: string) => string;
 
   /** Format a date using the current locale */
-  formatDate: I18n["formatDate"];
+  formatDate: (
+    value: Date | number,
+    options?: Intl.DateTimeFormatOptions,
+    locale?: string,
+  ) => string;
 
   /** Format a number as currency using the current locale */
-  formatCurrency: I18n["formatCurrency"];
+  formatCurrency: (
+    value: number,
+    currency: string,
+    options?: Intl.NumberFormatOptions,
+    locale?: string,
+  ) => string;
 
   /** Format a relative time ("2 hours ago", "in 3 days") using the current locale */
-  formatRelativeTime: I18n["formatRelativeTime"];
+  formatRelativeTime: (
+    value: number,
+    unit: Intl.RelativeTimeFormatUnit,
+    options?: Intl.RelativeTimeFormatOptions,
+    locale?: string,
+  ) => string;
 
   /** Text direction for the current locale as a readable store */
   dir: Readable<"ltr" | "rtl">;
@@ -305,12 +326,13 @@ export function useI18n(ns?: string): UseI18nReturn {
     getTranslationCache: () => i18n.translationCache.getInternalMap(),
     on: i18n.on.bind(i18n),
     reportError: i18n.reportError.bind(i18n),
-    formatNumber: i18n.formatNumber.bind(i18n),
-    formatDate: i18n.formatDate.bind(i18n),
-    formatCurrency: i18n.formatCurrency.bind(i18n),
-    formatRelativeTime: i18n.formatRelativeTime.bind(i18n),
-    // Derived store that recomputes when locale changes — reads i18n.dir,
-    // which is kept in sync with the reactive locale by core's localeChanged event
-    dir: derived(locale, () => i18n.dir),
+    formatNumber: (value, options, loc) => formatNumber(i18n, value, options, loc),
+    formatDate: (value, options, loc) => formatDate(i18n, value, options, loc),
+    formatCurrency: (value, currency, options, loc) =>
+      formatCurrency(i18n, value, currency, options, loc),
+    formatRelativeTime: (value, unit, options, loc) =>
+      formatRelativeTime(i18n, value, unit, options, loc),
+    // Derived store that recomputes when locale changes
+    dir: derived(locale, ($locale) => getTextDirection($locale)),
   };
 }

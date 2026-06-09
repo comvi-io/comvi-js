@@ -1,6 +1,13 @@
 import { useContext, useMemo } from "react";
 import { LocaleContext, useI18nInstance, useStoreRevision } from "./I18nProvider";
-import { createBoundTranslation } from "@comvi/core";
+import {
+  createBoundTranslation,
+  formatCurrency,
+  formatDate,
+  formatNumber,
+  formatRelativeTime,
+  getTextDirection,
+} from "@comvi/core";
 import type {
   TranslationParams,
   TranslationResult,
@@ -277,16 +284,16 @@ export function useI18n(ns?: string): UseI18nReturn {
   const formatters = useMemo(
     () => ({
       formatNumber: (value: number, options?: Intl.NumberFormatOptions) =>
-        i18n.formatNumber(value, options, locale),
+        formatNumber(i18n, value, options, locale),
       formatDate: (value: Date | number, options?: Intl.DateTimeFormatOptions) =>
-        i18n.formatDate(value, options, locale),
+        formatDate(i18n, value, options, locale),
       formatCurrency: (value: number, currency: string, options?: Intl.NumberFormatOptions) =>
-        i18n.formatCurrency(value, currency, options, locale),
+        formatCurrency(i18n, value, currency, options, locale),
       formatRelativeTime: (
         value: number,
         unit: Intl.RelativeTimeFormatUnit,
         options?: Intl.RelativeTimeFormatOptions,
-      ) => i18n.formatRelativeTime(value, unit, options, locale),
+      ) => formatRelativeTime(i18n, value, unit, options, locale),
     }),
     [i18n, locale],
   );
@@ -298,7 +305,7 @@ export function useI18n(ns?: string): UseI18nReturn {
     translationCache,
     isLoading,
     isInitializing,
-    dir: i18n.dir,
+    dir: getTextDirection(locale || i18n.locale),
     ...(boundMethods as Omit<
       UseI18nReturn,
       | "t"
