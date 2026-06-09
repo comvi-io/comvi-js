@@ -21,7 +21,9 @@ export default defineConfig({
     },
   },
   define: {
-    __DEV__: JSON.stringify(process.env.NODE_ENV !== "production"),
+    // The published comvi-core.js is always the prod artifact; the dev build
+    // (vite.config.dev.ts) ships readable messages via the "development" condition.
+    __DEV__: JSON.stringify(false),
     __VERSION__: JSON.stringify(pkg.version),
   },
 });
