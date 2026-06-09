@@ -161,6 +161,7 @@ export class I18n implements I18nInstance {
   #loadingCount: number = 0;
   #fallbackLocales: string[];
   #currentLocaleChangeId: number = 0;
+  #requestedLocale: string;
   public readonly apiKey: string | undefined;
   public readonly devMode: boolean;
   public readonly instanceId: string | undefined;
@@ -212,6 +213,7 @@ export class I18n implements I18nInstance {
 
     // Initialize core state
     this.#locale = options.locale;
+    this.#requestedLocale = options.locale;
     const defaultNs = options.defaultNs ?? DEFAULT_NS;
     const initialNamespaces = options.ns;
     this.#cachedDefaultNs = defaultNs;
@@ -309,7 +311,8 @@ export class I18n implements I18nInstance {
         }
       }
 
-      this.#setLoadingState(true, true);
+      this.#isInitializing = true;
+      this.#setLoadingState(true);
 
       await this.#initializePlugins();
 
@@ -334,7 +337,8 @@ export class I18n implements I18nInstance {
       this.reportError(error as Error, { source: "init" });
       throw error;
     } finally {
-      this.#setLoadingState(false, false);
+      this.#isInitializing = false;
+      this.#setLoadingState(false);
     }
   }
 
@@ -470,12 +474,22 @@ export class I18n implements I18nInstance {
    * @returns Promise that resolves when namespace loading is complete
    */
   async setLocaleAsync(value: string): Promise<void> {
-    if (this.#locale === value) return; // Early exit if no change
+    // The early exit must compare against the LAST REQUESTED locale, not the
+    // applied one: reverting to the current locale while another change is in
+    // flight has to cancel that change (the bump invalidates its changeId).
+    if (this.#locale === value) {
+      if (this.#requestedLocale !== value) {
+        this.#requestedLocale = value;
+        this.#currentLocaleChangeId++;
+      }
+      return;
+    }
 
     // Track this request to handle race conditions when locale changes rapidly
+    this.#requestedLocale = value;
     const changeId = ++this.#currentLocaleChangeId;
 
-    this.#setLoadingState(true, false);
+    this.#setLoadingState(true);
 
     try {
       // Load any active namespaces that aren't loaded for the new locale FIRST
@@ -503,7 +517,7 @@ export class I18n implements I18nInstance {
     } finally {
       // ALWAYS decrement the loading state because we incremented it unconditionally.
       // The reference counter handles overlapping requests seamlessly.
-      this.#setLoadingState(false, false);
+      this.#setLoadingState(false);
     }
   }
 
@@ -518,6 +532,9 @@ export class I18n implements I18nInstance {
    * @param namespace - Optional namespace to clear (if not provided, clears all namespaces)
    */
   clearTranslations(locale?: string, namespace?: string): void {
+    // Cancel in-flight loads for the cleared scope so they don't repopulate the cache
+    this.#cancelPendingLoads(locale, namespace);
+
     if (locale) {
       this.translationCache.delete(locale, namespace);
     } else if (namespace) {
@@ -599,8 +616,10 @@ export class I18n implements I18nInstance {
   /**
    * Helper to update loading state and emit event.
    * Uses a reference counter to handle overlapping async operations.
+   * #isInitializing is owned by init() exclusively — nested loads (e.g. a
+   * locale detector triggering setLocaleAsync mid-init) must not clear it.
    */
-  #setLoadingState(isLoading: boolean, isInitializing: boolean): void {
+  #setLoadingState(isLoading: boolean): void {
     const wasLoading = this.#loadingCount > 0;
     if (isLoading) {
       this.#loadingCount++;
@@ -610,9 +629,11 @@ export class I18n implements I18nInstance {
 
     const effectiveIsLoading = this.#loadingCount > 0;
 
-    if (wasLoading !== effectiveIsLoading || this.#isInitializing !== isInitializing) {
-      this.#isInitializing = isInitializing;
-      this.#emit("loadingStateChanged", { isLoading: effectiveIsLoading, isInitializing });
+    if (wasLoading !== effectiveIsLoading) {
+      this.#emit("loadingStateChanged", {
+        isLoading: effectiveIsLoading,
+        isInitializing: this.#isInitializing,
+      });
     }
   }
 
@@ -659,11 +680,11 @@ export class I18n implements I18nInstance {
   }
 
   async addActiveNamespaces(namespaces: string[]): Promise<void> {
-    this.#setLoadingState(true, false);
+    this.#setLoadingState(true);
     try {
       await this.#nsAddActiveNamespaces(namespaces);
     } finally {
-      this.#setLoadingState(false, false);
+      this.#setLoadingState(false);
     }
     this.#emit("configChanged", { source: "namespaceActivated" });
   }
@@ -869,19 +890,22 @@ export class I18n implements I18nInstance {
     this.#emit("missingKey", { key, locale, namespace });
 
     let fallbackValue: TranslationResult | undefined;
+    // Callbacks always run (plugins track missing keys via side effects)
     for (const callback of this.#missingKeyCallbacks) {
       const result = callback(key, locale, namespace);
       if (fallbackValue === undefined && result !== undefined) {
         fallbackValue = result;
       }
     }
+
+    // Per-call fallback has the highest priority — skip the instance-level handler
+    if (params?.fallback !== undefined) {
+      return translateTemplate(params.fallback, params, locale, this.#tagInterpolation);
+    }
+
     if (fallbackValue === undefined) {
       const r = this.#fallbackOnMissingKey?.({ key, locale, namespace });
       if (r !== undefined) fallbackValue = r;
-    }
-
-    if (params?.fallback !== undefined) {
-      return translateTemplate(params.fallback, params, locale, this.#tagInterpolation);
     }
 
     return fallbackValue !== undefined ? fallbackValue : key;
@@ -1029,32 +1053,46 @@ export class I18n implements I18nInstance {
     const generation = this.#nsGeneration;
     const loader = this.#loader!;
 
-    const rawPromise = (async () => {
-      const translations = await loader(locale, namespace);
-      if (generation !== this.#nsGeneration) return;
-      this.translationCache.set(locale, namespace, normalizeTranslationObject(translations));
-      this.#emit("namespaceLoaded", { namespace, locale });
-    })();
-
-    // Wrap with generation guard and cleanup — this is the promise all callers share
-    const guarded = rawPromise.then(
-      () => {
-        if (this.#pendingLoads[key] === guarded) {
-          delete this.#pendingLoads[key];
-        }
-      },
-      (error) => {
-        if (this.#pendingLoads[key] === guarded) {
-          delete this.#pendingLoads[key];
-        }
-        if (generation !== this.#nsGeneration) return;
+    // A load is cancelled when its #pendingLoads entry is removed (clear/reload)
+    // or the generation is bumped (destroy). Cancelled loads must neither write
+    // to the cache nor surface their errors. The closure only reads `guarded`
+    // after the first await, when the assignment below has already run.
+    let guarded!: Promise<void>;
+    // eslint-disable-next-line prefer-const -- self-reference needs declare-then-assign
+    guarded = (async () => {
+      try {
+        const translations = await loader(locale, namespace);
+        if (generation !== this.#nsGeneration || this.#pendingLoads[key] !== guarded) return;
+        this.translationCache.set(locale, namespace, normalizeTranslationObject(translations));
+        this.#emit("namespaceLoaded", { namespace, locale });
+      } catch (error) {
+        if (generation !== this.#nsGeneration || this.#pendingLoads[key] !== guarded) return;
         this.#emit("loadError", { locale, namespace, error: error as Error });
         throw error;
-      },
-    );
+      } finally {
+        if (this.#pendingLoads[key] === guarded) {
+          delete this.#pendingLoads[key];
+        }
+      }
+    })();
 
     this.#pendingLoads[key] = guarded;
     return guarded;
+  }
+
+  /** Cancel pending namespace loads matching the given scope (undefined = any). */
+  #cancelPendingLoads(locale?: string, namespace?: string): void {
+    for (const key in this.#pendingLoads) {
+      const colonIdx = key.indexOf(":");
+      const loc = key.slice(0, colonIdx);
+      const ns = key.slice(colonIdx + 1);
+      if (
+        (locale === undefined || loc === locale) &&
+        (namespace === undefined || ns === namespace)
+      ) {
+        delete this.#pendingLoads[key];
+      }
+    }
   }
 
   async #nsLoadNamespacesForLocale(
@@ -1120,6 +1158,9 @@ export class I18n implements I18nInstance {
 
     for (const loc of localesToReload) {
       for (const ns of namespacesToReload) {
+        // Cancel any in-flight load so reload fetches fresh data instead of
+        // resolving to a request that started before the cache was cleared
+        this.#cancelPendingLoads(loc, ns);
         this.translationCache.delete(loc, ns);
       }
     }

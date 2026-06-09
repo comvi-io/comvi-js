@@ -49,7 +49,7 @@ describe("Core Translation Features", () => {
       expect(i18n.t("nav.header.subtitle")).toBe("Dashboard");
     });
 
-    it("sanitizes already-flat translations added programmatically in place", () => {
+    it("normalizes already-flat translations added programmatically without mutating the input", () => {
       const flatTranslations = {
         "nav.header.title": "Original",
       };
@@ -58,7 +58,7 @@ describe("Core Translation Features", () => {
         en: flatTranslations,
       });
 
-      expect(Object.getPrototypeOf(flatTranslations)).toBe(null);
+      expect(Object.getPrototypeOf(flatTranslations)).toBe(Object.prototype);
       expect(i18n.t("nav.header.title")).toBe("Original");
       expect(i18n.hasTranslation("toString")).toBe(false);
     });
