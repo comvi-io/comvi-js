@@ -1212,6 +1212,7 @@ export class I18n implements I18nInstance {
     // Clear cache and other state
     this.translationCache.clear();
     this.#localeDetector = undefined;
+    this.#pluginData = Object.create(null);
   }
 }
 
