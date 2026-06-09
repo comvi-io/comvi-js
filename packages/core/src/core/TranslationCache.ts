@@ -1,41 +1,5 @@
 import type { FlattenedTranslations } from "../types";
 
-class ReadonlyMapView<K, V> implements ReadonlyMap<K, V> {
-  constructor(private readonly _map: Map<K, V>) {}
-
-  get size(): number {
-    return this._map.size;
-  }
-
-  get(key: K): V | undefined {
-    return this._map.get(key);
-  }
-
-  has(key: K): boolean {
-    return this._map.has(key);
-  }
-
-  forEach(callbackfn: (value: V, key: K, map: ReadonlyMap<K, V>) => void, thisArg?: unknown): void {
-    this._map.forEach((value, key) => callbackfn.call(thisArg, value, key, this));
-  }
-
-  entries(): MapIterator<[K, V]> {
-    return this._map.entries();
-  }
-
-  keys(): MapIterator<K> {
-    return this._map.keys();
-  }
-
-  values(): MapIterator<V> {
-    return this._map.values();
-  }
-
-  [Symbol.iterator](): MapIterator<[K, V]> {
-    return this._map[Symbol.iterator]();
-  }
-}
-
 /**
  * TranslationCache encapsulates translation storage with a clear API.
  * Uses nested Map<locale, Map<namespace, translations>> for fast lookups.
@@ -50,7 +14,6 @@ export class TranslationCache {
    * (React excludes it from memo deps and uses getRevision() for change detection).
    */
   private _flatSnapshot: Map<string, FlattenedTranslations> | null = null;
-  private _readonlyFlatSnapshot: ReadonlyMap<string, FlattenedTranslations> | null = null;
 
   constructor(options?: { defaultNs?: string }) {
     this._defaultNs = options?.defaultNs ?? "default";
@@ -78,7 +41,6 @@ export class TranslationCache {
 
     localeMap.set(namespace, translations);
     this._flatSnapshot = null;
-    this._readonlyFlatSnapshot = null;
     this._revision++;
   }
 
@@ -104,13 +66,9 @@ export class TranslationCache {
         }
       }
     } else {
-      const localeMap = this._cache.get(locale);
-      if (localeMap) {
-        this._cache.delete(locale);
-      }
+      this._cache.delete(locale);
     }
     this._flatSnapshot = null;
-    this._readonlyFlatSnapshot = null;
     this._revision++;
   }
 
@@ -120,7 +78,6 @@ export class TranslationCache {
   clear(): void {
     this._cache.clear();
     this._flatSnapshot = null;
-    this._readonlyFlatSnapshot = null;
     this._revision++;
   }
 
@@ -170,16 +127,12 @@ export class TranslationCache {
 
   /**
    * Get a readonly flat snapshot used by framework bindings.
-   * The snapshot reference is stable between revisions and cannot be mutated at runtime.
+   * The snapshot reference is stable between revisions. Readonly is enforced
+   * at the type level only — do not mutate.
    * @internal
    */
   getInternalMap(): ReadonlyMap<string, FlattenedTranslations> {
-    let snapshot = this._readonlyFlatSnapshot;
-    if (snapshot !== null) return snapshot;
-
-    snapshot = new ReadonlyMapView(this._getFlatSnapshot());
-    this._readonlyFlatSnapshot = snapshot;
-    return snapshot;
+    return this._getFlatSnapshot();
   }
 
   /**
