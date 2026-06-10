@@ -337,7 +337,8 @@ function writeCaches(
         const { path: p = "/", domain: d, sameSite: s = "lax", secure: sc = false } = cfg.co;
         let v = `${cfg.ck}=${encodeURIComponent(locale)}; max-age=${cfg.ma}; path=${p}; samesite=${s}`;
         if (d) v += `; domain=${d}`;
-        if (sc) v += "; secure";
+        // browsers reject SameSite=None cookies without Secure
+        if (sc || s === "none") v += "; secure";
         document.cookie = v;
       } else {
         if (win()) window[t]?.setItem(t === "sessionStorage" ? cfg.ss : cfg.ls, locale);

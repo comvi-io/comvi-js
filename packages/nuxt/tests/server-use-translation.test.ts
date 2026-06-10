@@ -96,7 +96,7 @@ describe("useTranslation (server)", () => {
     expect(i18n.t).toHaveBeenCalledWith(
       "hello",
       expect.objectContaining({
-        language: "de",
+        locale: "de",
         ns: "admin",
       }),
     );
@@ -258,14 +258,14 @@ describe("useTranslation (server)", () => {
     expect(i18nEn.t).toHaveBeenCalledWith(
       "hello",
       expect.objectContaining({
-        language: "en",
+        locale: "en",
         ns: "common",
       }),
     );
     expect(i18nDe.t).toHaveBeenCalledWith(
       "hello",
       expect.objectContaining({
-        language: "de",
+        locale: "de",
         ns: "common",
       }),
     );

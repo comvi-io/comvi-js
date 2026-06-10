@@ -311,6 +311,27 @@ describe("LocaleDetector plugin", () => {
       expect(cookieWrite).toContain("secure");
     });
 
+    it("forces Secure when sameSite is none", async () => {
+      const cookieSetter = vi.spyOn(document, "cookie", "set");
+      const i18n = await initWithPlugin(
+        {
+          order: ["navigator"],
+          caches: ["cookie"],
+          lookupCookie: "language",
+          cookieOptions: {
+            sameSite: "none",
+          },
+        },
+        "en",
+      );
+
+      await i18n.setLocaleAsync("pt");
+
+      const cookieWrite = cookieSetter.mock.calls.at(-1)?.[0] as string;
+      expect(cookieWrite).toContain("samesite=none");
+      expect(cookieWrite).toContain("secure");
+    });
+
     it("returns a cleanup function that stops future cache writes", async () => {
       const i18n = createI18n("en");
       const cleanup = LocaleDetector({

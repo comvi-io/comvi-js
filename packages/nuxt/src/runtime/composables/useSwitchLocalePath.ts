@@ -40,7 +40,7 @@ export function useSwitchLocalePath() {
   function switchLocalePath(locale: string): string {
     // Validate locale is in the allowed list
     if (!locales.includes(locale)) {
-      if (process.dev) {
+      if (import.meta.dev) {
         console.warn(
           `[@comvi/nuxt] switchLocalePath called with invalid locale "${locale}". ` +
             `Available locales: ${locales.join(", ")}`,
