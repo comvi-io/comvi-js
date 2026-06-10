@@ -6,6 +6,16 @@ export { TranslationCache } from "./core/TranslationCache";
 export { createBoundTranslation } from "./utils/createBoundTranslation";
 export { translationResultToString } from "./utils/translationResultToString";
 
+// Tree-shakeable Intl formatting helpers
+export {
+  formatNumber,
+  formatDate,
+  formatCurrency,
+  formatRelativeTime,
+  getTextDirection,
+} from "./format";
+export type { LocaleSource } from "./format";
+
 // Type exports
 export type * from "./types";
 export type {

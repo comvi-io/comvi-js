@@ -1,5 +1,6 @@
 import { inject, type Ref, type ComputedRef } from "vue";
 import { I18N_INJECTION_KEY } from "../keys";
+import type { VueI18n } from "../VueI18n";
 import { createBoundTranslation } from "@comvi/core";
 import { translationResultToString } from "../utils";
 import type {
@@ -128,16 +129,16 @@ export interface UseI18nReturn {
   reportError: I18n["reportError"];
 
   /** Format a number using the current language locale */
-  formatNumber: I18n["formatNumber"];
+  formatNumber: VueI18n["formatNumber"];
 
   /** Format a date using the current language locale */
-  formatDate: I18n["formatDate"];
+  formatDate: VueI18n["formatDate"];
 
   /** Format a number as currency using the current language locale */
-  formatCurrency: I18n["formatCurrency"];
+  formatCurrency: VueI18n["formatCurrency"];
 
   /** Format a relative time ("2 hours ago", "in 3 days") using the current language locale */
-  formatRelativeTime: I18n["formatRelativeTime"];
+  formatRelativeTime: VueI18n["formatRelativeTime"];
 
   /** Text direction for the current language, as a reactive computed ref */
   dir: ComputedRef<"ltr" | "rtl">;

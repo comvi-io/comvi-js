@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { I18n } from "../../src";
+import { I18n, formatNumber, formatDate, formatRelativeTime } from "../../src";
 
 /**
  * Behavioural tests for the bounded Intl formatter caches introduced in fix/v030-core-reactivity.
@@ -53,7 +53,7 @@ function fillNumberCache(i18n: I18n, count: number): void {
   outer: for (let sweep = 0; sweep < 2; sweep++) {
     for (const loc of LOCALES) {
       for (let digits = 0; digits <= 20; digits++) {
-        i18n.formatNumber(1, { maximumFractionDigits: digits }, loc);
+        formatNumber(i18n, 1, { maximumFractionDigits: digits }, loc);
         if (++filled >= count) break outer;
       }
     }
@@ -70,7 +70,7 @@ describe("Intl formatter cache — bounded FIFO eviction", () => {
       fillNumberCache(i18n, OVER_MAX);
 
       const expected = new Intl.NumberFormat("en", { style: "percent" }).format(0.5);
-      expect(i18n.formatNumber(0.5, { style: "percent" }, "en")).toBe(expected);
+      expect(formatNumber(i18n, 0.5, { style: "percent" }, "en")).toBe(expected);
     });
 
     it("produces the same result as a fresh Intl.NumberFormat after the eviction boundary", () => {
@@ -81,7 +81,7 @@ describe("Intl formatter cache — bounded FIFO eviction", () => {
       const value = 9876.54;
       const locale = "de";
       const expected = new Intl.NumberFormat(locale).format(value);
-      expect(i18n.formatNumber(value, undefined, locale)).toBe(expected);
+      expect(formatNumber(i18n, value, undefined, locale)).toBe(expected);
     });
   });
 
@@ -101,7 +101,7 @@ describe("Intl formatter cache — bounded FIFO eviction", () => {
       outer: for (let sweep = 0; sweep < 2; sweep++) {
         for (const loc of LOCALES) {
           for (const style of dateStyles) {
-            i18n.formatDate(testDate, { dateStyle: style }, loc);
+            formatDate(i18n, testDate, { dateStyle: style }, loc);
             if (++filled >= OVER_MAX) break outer;
           }
         }
@@ -109,7 +109,7 @@ describe("Intl formatter cache — bounded FIFO eviction", () => {
 
       const opts: Intl.DateTimeFormatOptions = { year: "numeric", month: "long", day: "numeric" };
       const expected = new Intl.DateTimeFormat("fr", opts).format(testDate);
-      expect(i18n.formatDate(testDate, opts, "fr")).toBe(expected);
+      expect(formatDate(i18n, testDate, opts, "fr")).toBe(expected);
     });
   });
 
@@ -123,14 +123,14 @@ describe("Intl formatter cache — bounded FIFO eviction", () => {
       outer: for (let sweep = 0; sweep < 2; sweep++) {
         for (const loc of LOCALES) {
           for (const numeric of numericOpts) {
-            i18n.formatRelativeTime(-1, "day", { numeric }, loc);
+            formatRelativeTime(i18n, -1, "day", { numeric }, loc);
             if (++filled >= OVER_MAX) break outer;
           }
         }
       }
 
       const expected = new Intl.RelativeTimeFormat("en", { numeric: "auto" }).format(-1, "day");
-      expect(i18n.formatRelativeTime(-1, "day", { numeric: "auto" }, "en")).toBe(expected);
+      expect(formatRelativeTime(i18n, -1, "day", { numeric: "auto" }, "en")).toBe(expected);
     });
   });
 
@@ -141,13 +141,13 @@ describe("Intl formatter cache — bounded FIFO eviction", () => {
       const pinValue = 12345.6;
 
       // Get a baseline result before eviction (this populates the cache for "ja").
-      const before = i18n.formatNumber(pinValue, undefined, pinLocale);
+      const before = formatNumber(i18n, pinValue, undefined, pinLocale);
 
       // Push the cache past the eviction threshold, evicting the pinned "ja" entry.
       fillNumberCache(i18n, OVER_MAX);
 
       // The pinned entry was evicted; re-creating it must yield the same result.
-      const after = i18n.formatNumber(pinValue, undefined, pinLocale);
+      const after = formatNumber(i18n, pinValue, undefined, pinLocale);
 
       expect(after).toBe(before);
       expect(after).toBe(new Intl.NumberFormat(pinLocale).format(pinValue));

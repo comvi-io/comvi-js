@@ -111,8 +111,6 @@ describe("useI18n", () => {
     expect(result.current.locale).toBe("de");
     expect(result.current.formatNumber(1234)).toBe("1.234");
     expect(result.current.setLocale).toBe(setLocaleBefore);
-    expect(fake.formatNumber).toHaveBeenCalledWith(1234, undefined, "en");
-    expect(fake.formatNumber).toHaveBeenLastCalledWith(1234, undefined, "de");
   });
 
   it("re-renders when fallback config changes without a cache revision change", async () => {

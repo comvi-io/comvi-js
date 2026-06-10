@@ -1,4 +1,11 @@
 import { type Accessor } from "solid-js";
+import {
+  formatCurrency,
+  formatDate,
+  formatNumber,
+  formatRelativeTime,
+  getTextDirection,
+} from "@comvi/core";
 import { useI18nContextValue } from "./context";
 import type {
   I18n,
@@ -228,16 +235,30 @@ export interface UseI18nReturn<DefaultNS extends string | undefined = undefined>
   // ===== Formatting =====
 
   /** Format a number using the current locale */
-  formatNumber: I18n["formatNumber"];
+  formatNumber: (value: number, options?: Intl.NumberFormatOptions, locale?: string) => string;
 
   /** Format a date using the current locale */
-  formatDate: I18n["formatDate"];
+  formatDate: (
+    value: Date | number,
+    options?: Intl.DateTimeFormatOptions,
+    locale?: string,
+  ) => string;
 
   /** Format a number as currency using the current locale */
-  formatCurrency: I18n["formatCurrency"];
+  formatCurrency: (
+    value: number,
+    currency: string,
+    options?: Intl.NumberFormatOptions,
+    locale?: string,
+  ) => string;
 
   /** Format a relative time ("2 hours ago", "in 3 days") using the current locale */
-  formatRelativeTime: I18n["formatRelativeTime"];
+  formatRelativeTime: (
+    value: number,
+    unit: Intl.RelativeTimeFormatUnit,
+    options?: Intl.RelativeTimeFormatOptions,
+    locale?: string,
+  ) => string;
 
   /** Text direction for the current locale as a reactive accessor */
   dir: () => "ltr" | "rtl";
@@ -384,15 +405,11 @@ export function useI18n<DefaultNS extends string | undefined = undefined>(
     getTranslationCache: () => ctx.i18n.translationCache.getInternalMap(),
     on: (...args) => ctx.i18n.on(...args),
     reportError: (...args) => ctx.i18n.reportError(...args),
-    formatNumber: (...args) => ctx.i18n.formatNumber(...args),
-    formatDate: (...args) => ctx.i18n.formatDate(...args),
-    formatCurrency: (...args) => ctx.i18n.formatCurrency(...args),
-    formatRelativeTime: (...args) => ctx.i18n.formatRelativeTime(...args),
-    // Read the locale signal to establish reactive dependency, then delegate
-    // to i18n.dir which is kept in sync via core's localeChanged event
-    dir: () => {
-      void ctx.signals.locale();
-      return ctx.i18n.dir;
-    },
+    formatNumber: (...args) => formatNumber(ctx.i18n, ...args),
+    formatDate: (...args) => formatDate(ctx.i18n, ...args),
+    formatCurrency: (...args) => formatCurrency(ctx.i18n, ...args),
+    formatRelativeTime: (...args) => formatRelativeTime(ctx.i18n, ...args),
+    // Derive from the locale signal so the accessor stays reactive
+    dir: () => getTextDirection(ctx.signals.locale()),
   };
 }

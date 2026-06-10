@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { formatCurrency, formatDate, formatNumber, formatRelativeTime } from "@comvi/core";
 import { useLocale, useI18nInstance } from "./I18nProvider";
 
 export interface UseFormattersReturn {
@@ -27,10 +28,10 @@ export function useFormatters(): UseFormattersReturn {
   const locale = useLocale();
   return useMemo<UseFormattersReturn>(
     () => ({
-      formatNumber: (v, o) => i18n.formatNumber(v, o, locale),
-      formatDate: (v, o) => i18n.formatDate(v, o, locale),
-      formatCurrency: (v, c, o) => i18n.formatCurrency(v, c, o, locale),
-      formatRelativeTime: (v, u, o) => i18n.formatRelativeTime(v, u, o, locale),
+      formatNumber: (v, o) => formatNumber(i18n, v, o, locale),
+      formatDate: (v, o) => formatDate(i18n, v, o, locale),
+      formatCurrency: (v, c, o) => formatCurrency(i18n, v, c, o, locale),
+      formatRelativeTime: (v, u, o) => formatRelativeTime(i18n, v, u, o, locale),
     }),
     [i18n, locale],
   );
