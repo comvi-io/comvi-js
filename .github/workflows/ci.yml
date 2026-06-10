@@ -68,6 +68,11 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      # Fails when the planned release bump exceeds what changesets declare
+      # (e.g. a pinned internal peer range escalating the fixed group to major)
+      - name: Release plan guard
+        run: node scripts/check-release-plan.mjs
+
       - name: Format check
         run: pnpm format:check
 

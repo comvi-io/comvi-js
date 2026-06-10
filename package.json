@@ -32,7 +32,8 @@
     "check:publint": "node tooling/run-publint.mjs",
     "prepare": "husky",
     "lint:fix": "turbo run lint:fix",
-    "audit:published": "node scripts/audit-published.mjs"
+    "audit:published": "node scripts/audit-published.mjs",
+    "release:version": "node scripts/sync-peer-ranges.mjs && changeset version"
   },
   "devDependencies": {
     "@changesets/cli": "^2.30.0",

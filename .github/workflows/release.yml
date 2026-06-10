@@ -54,7 +54,7 @@ jobs:
         with:
           commit: "chore: release packages"
           title: "chore: release packages"
-          version: pnpm changeset version
+          version: pnpm release:version
           publish: npm exec --no -- changeset publish
           createGithubReleases: false
         env:
