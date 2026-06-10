@@ -16,8 +16,22 @@ import { ElementHighlighter } from "./ElementHighlighter";
 import type { TranslationSystemOptions, TranslationSystemInnerOptions } from "./types";
 import type { I18n } from "@comvi/core";
 import { TAG_ATTRIBUTES } from "./constants";
-import { showModal, cleanup as cleanupEditModal } from "./EditModal";
-import { showKeySelector, cleanup as cleanupKeySelector } from "./KeySelector";
+
+// The Vue UI (modal/selector + CSS) loads lazily on first edit click, so
+// importing the plugin never pulls the editor UI into the consumer's graph
+type EditModalModule = typeof import("./EditModal");
+type KeySelectorModule = typeof import("./KeySelector");
+
+let editModalModule: EditModalModule | undefined;
+let keySelectorModule: KeySelectorModule | undefined;
+
+async function loadEditModal(): Promise<EditModalModule> {
+  return (editModalModule ??= await import("./EditModal"));
+}
+
+async function loadKeySelector(): Promise<KeySelectorModule> {
+  return (keySelectorModule ??= await import("./KeySelector"));
+}
 
 // Map to store i18n instances by Core instance ID
 // Allows multiple plugin instances on the same page
@@ -62,6 +76,7 @@ export class Core {
   private elementHighlighter: ElementHighlighter;
   private instanceId: string;
   private defaultNs?: string;
+  private stopped = false;
 
   private handleElementClick = (element: Element): void => {
     const nodes = this.translationRegistry.get(element)?.nodes;
@@ -75,17 +90,31 @@ export class Core {
         textPreview: nodeData.textPreview,
       }));
 
-      showKeySelector(
-        keyData,
-        element,
-        (selectedKey, selectedNs) => {
-          showModal(selectedKey, selectedNs, this.instanceId);
-        },
-        this.defaultNs,
-      );
+      void Promise.all([loadKeySelector(), loadEditModal()])
+        .then(([{ showKeySelector }, { showModal }]) => {
+          if (this.stopped) return;
+          showKeySelector(
+            keyData,
+            element,
+            (selectedKey, selectedNs) => {
+              showModal(selectedKey, selectedNs, this.instanceId);
+            },
+            this.defaultNs,
+          );
+        })
+        .catch((error) => {
+          console.error("[comvi] Failed to load editor UI:", error);
+        });
     } else if (nodeDataArray.length === 1) {
       // Single key - open modal directly
-      showModal(nodeDataArray[0]!.key, nodeDataArray[0]!.ns, this.instanceId);
+      void loadEditModal()
+        .then(({ showModal }) => {
+          if (this.stopped) return;
+          showModal(nodeDataArray[0]!.key, nodeDataArray[0]!.ns, this.instanceId);
+        })
+        .catch((error) => {
+          console.error("[comvi] Failed to load editor UI:", error);
+        });
     }
   };
 
@@ -128,10 +157,13 @@ export class Core {
   }
 
   public start(): void {
+    this.stopped = false;
     this.domWatcher.start();
   }
 
   public stop(): void {
+    this.stopped = true;
+
     // Stop DOM watching first
     this.domWatcher.stop();
 
@@ -147,9 +179,9 @@ export class Core {
     // Remove all event listeners from EventBus
     this.eventBus.removeAllListeners();
 
-    // Cleanup modals
-    cleanupEditModal();
-    cleanupKeySelector();
+    // Cleanup modals (only if the UI chunk was ever loaded)
+    editModalModule?.cleanup();
+    keySelectorModule?.cleanup();
 
     // Unregister i18n instance
     unregisterI18nInstance(this.instanceId);

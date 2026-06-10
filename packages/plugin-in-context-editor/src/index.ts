@@ -226,11 +226,19 @@ export const InContextEditorPlugin: I18nPluginFactory<EditorOptions> = (options)
     // baked at library build time and is not negotiable here.
     const handleExternalConfig = (event: Event) => {
       const customEvent = event as CustomEvent;
-      const detail =
-        typeof customEvent.detail === "string"
-          ? JSON.parse(customEvent.detail)
-          : customEvent.detail || {};
-      const externalApiKey = typeof detail.apiKey === "string" ? detail.apiKey.trim() : undefined;
+      let detail: unknown;
+      if (typeof customEvent.detail === "string") {
+        try {
+          detail = JSON.parse(customEvent.detail);
+        } catch {
+          return; // malformed payload from a page script — ignore
+        }
+      } else {
+        detail = customEvent.detail || {};
+      }
+      const apiKeyCandidate = (detail as Record<string, unknown> | null)?.apiKey;
+      const externalApiKey =
+        typeof apiKeyCandidate === "string" ? apiKeyCandidate.trim() : undefined;
 
       initApiConfig(externalApiKey, instanceId);
     };

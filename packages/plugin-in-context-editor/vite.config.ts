@@ -25,7 +25,8 @@ export default defineConfig({
   },
   build: {
     emptyOutDir: !isWatch,
-    minify: !isWatch,
+    // npm ESM ships unminified (policy); only the standalone CDN build minifies
+    minify: false,
     sourcemap: isWatch ? "inline" : false,
     lib: {
       entry: {

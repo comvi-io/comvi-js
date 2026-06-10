@@ -52,13 +52,17 @@ watch(props.open, (value) => {
 });
 
 function restoreSelectedLanguages(availableLanguages: Language[]): string[] {
-  const stored = localStorage.getItem(LOCALSTORAGE_KEY);
-  if (!stored) {
-    return availableLanguages.map((lang) => lang.code);
-  }
-
+  // localStorage can throw in sandboxed iframes / private mode (see useTheme)
   try {
+    const stored = localStorage.getItem(LOCALSTORAGE_KEY);
+    if (!stored) {
+      return availableLanguages.map((lang) => lang.code);
+    }
+
     const storedCodes = JSON.parse(stored);
+    if (!Array.isArray(storedCodes)) {
+      return availableLanguages.map((lang) => lang.code);
+    }
     const validCodes = storedCodes.filter((code: string) =>
       availableLanguages.some((lang) => lang.code === code),
     );
@@ -115,7 +119,11 @@ watch(
     if (languages.value.length === 0) {
       return;
     }
-    localStorage.setItem(LOCALSTORAGE_KEY, JSON.stringify(newCodes));
+    try {
+      localStorage.setItem(LOCALSTORAGE_KEY, JSON.stringify(newCodes));
+    } catch {
+      // storage blocked (private mode / sandbox) — selection just won't persist
+    }
   },
   { deep: true },
 );

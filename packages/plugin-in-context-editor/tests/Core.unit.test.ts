@@ -109,7 +109,7 @@ describe("Core unit behavior", () => {
     cleanupKeySelectorMock.mockReset();
   });
 
-  it("should open modal when element has a single translation key", () => {
+  it("should open modal when element has a single translation key", async () => {
     const core = new Core({}, { apiKey: "test-key" } as any);
     const instanceId = core.getInstanceId();
     const element = document.createElement("div");
@@ -130,12 +130,15 @@ describe("Core unit behavior", () => {
 
     capturedElementClickHandler?.(element);
 
-    expect(showModalMock).toHaveBeenCalledWith("home.title", "default", instanceId);
+    // the UI module is loaded lazily on click
+    await vi.waitFor(() => {
+      expect(showModalMock).toHaveBeenCalledWith("home.title", "default", instanceId);
+    });
     expect(showKeySelectorMock).not.toHaveBeenCalled();
     core.stop();
   });
 
-  it("should show key selector when element has multiple keys, then open modal on selection", () => {
+  it("should show key selector when element has multiple keys, then open modal on selection", async () => {
     const core = new Core({}, { apiKey: "test-key" } as any);
     const instanceId = core.getInstanceId();
     const element = document.createElement("div");
@@ -165,7 +168,10 @@ describe("Core unit behavior", () => {
 
     capturedElementClickHandler?.(element);
 
-    expect(showKeySelectorMock).toHaveBeenCalledTimes(1);
+    // the UI module is loaded lazily on click
+    await vi.waitFor(() => {
+      expect(showKeySelectorMock).toHaveBeenCalledTimes(1);
+    });
     const [keyData, targetElement, onSelect] = showKeySelectorMock.mock.calls[0] as [
       Array<{ key: string; ns: string; textPreview?: string }>,
       Element,
