@@ -9,7 +9,7 @@
  * - POST /v1/projects/:projectId/import/commit - Bulk push translations
  */
 
-import { EventSource } from "eventsource";
+import type { EventSource } from "eventsource";
 import type {
   ProjectSchema,
   ProjectInfo,
@@ -78,6 +78,22 @@ interface BulkImportResponse {
   errors?: Array<{ key: string; namespace: string; message: string }>;
 }
 
+const MAX_RETRIES = 2;
+const RETRY_BASE_DELAY_MS = 500;
+const RETRY_AFTER_CAP_MS = 30_000;
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function retryDelayMs(response: Response, attempt: number): number {
+  const retryAfter = Number(response.headers?.get?.("retry-after"));
+  if (Number.isFinite(retryAfter) && retryAfter > 0) {
+    return Math.min(retryAfter * 1000, RETRY_AFTER_CAP_MS);
+  }
+  return RETRY_BASE_DELAY_MS * 2 ** (attempt - 1);
+}
+
 export const API_ENDPOINTS = {
   project: "/v1/project",
   translations: "/v1/translations",
@@ -135,6 +151,57 @@ export class ApiClient {
   }
 
   /**
+   * Run a fetch with timeout and bounded retry.
+   * Retries 429 always (honoring Retry-After, capped); retries 5xx and
+   * network errors only when `retryTransient` is set — POSTs are excluded
+   * because a failed-after-send commit may already be applied server-side.
+   */
+  private async request(
+    url: string,
+    init: RequestInit,
+    opts: { retryTransient?: boolean } = {},
+  ): Promise<Response> {
+    const retryTransient = opts.retryTransient ?? true;
+    let attempt = 0;
+
+    for (;;) {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), this.timeout);
+
+      let response: Response;
+      try {
+        response = await fetch(url, { ...init, signal: controller.signal });
+      } catch (error) {
+        const isAbort = error instanceof Error && error.name === "AbortError";
+        if (retryTransient && !isAbort && attempt < MAX_RETRIES) {
+          attempt++;
+          await delay(RETRY_BASE_DELAY_MS * 2 ** (attempt - 1));
+          continue;
+        }
+        throw error;
+      } finally {
+        clearTimeout(timeoutId);
+      }
+
+      const retryable = response.status === 429 || (retryTransient && response.status >= 500);
+      if (retryable && attempt < MAX_RETRIES) {
+        attempt++;
+        await delay(retryDelayMs(response, attempt));
+        continue;
+      }
+
+      return response;
+    }
+  }
+
+  private authHeaders(): Record<string, string> {
+    return {
+      Authorization: `Bearer ${this.apiKey}`,
+      "Content-Type": "application/json",
+    };
+  }
+
+  /**
    * Validate API key and get project info
    * GET /v1/project
    */
@@ -142,19 +209,10 @@ export class ApiClient {
     const url = `${this.apiBaseUrl}${API_ENDPOINTS.project}`;
 
     try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), this.timeout);
-
-      const response = await fetch(url, {
+      const response = await this.request(url, {
         method: "GET",
-        headers: {
-          Authorization: `Bearer ${this.apiKey}`,
-          "Content-Type": "application/json",
-        },
-        signal: controller.signal,
+        headers: this.authHeaders(),
       });
-
-      clearTimeout(timeoutId);
 
       if (!response.ok) {
         if (response.status === 401) {
@@ -193,19 +251,10 @@ export class ApiClient {
     const url = `${this.apiBaseUrl}${API_ENDPOINTS.projectSchema(project.id)}`;
 
     try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), this.timeout);
-
-      const response = await fetch(url, {
+      const response = await this.request(url, {
         method: "GET",
-        headers: {
-          Authorization: `Bearer ${this.apiKey}`,
-          "Content-Type": "application/json",
-        },
-        signal: controller.signal,
+        headers: this.authHeaders(),
       });
-
-      clearTimeout(timeoutId);
 
       if (!response.ok) {
         if (response.status === 401) {
@@ -254,19 +303,10 @@ export class ApiClient {
     const url = `${this.apiBaseUrl}${API_ENDPOINTS.translations}${queryString ? `?${queryString}` : ""}`;
 
     try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), this.timeout);
-
-      const response = await fetch(url, {
+      const response = await this.request(url, {
         method: "GET",
-        headers: {
-          Authorization: `Bearer ${this.apiKey}`,
-          "Content-Type": "application/json",
-        },
-        signal: controller.signal,
+        headers: this.authHeaders(),
       });
-
-      clearTimeout(timeoutId);
 
       if (!response.ok) {
         if (response.status === 401) {
@@ -304,17 +344,11 @@ export class ApiClient {
   async fetchNamespaces(): Promise<NamespaceInfo[]> {
     const project = await this.getProjectInfo();
     const url = `${this.apiBaseUrl}${API_ENDPOINTS.projectNamespaces(project.id)}`;
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), this.timeout);
 
     try {
-      const response = await fetch(url, {
+      const response = await this.request(url, {
         method: "GET",
-        headers: {
-          Authorization: `Bearer ${this.apiKey}`,
-          "Content-Type": "application/json",
-        },
-        signal: controller.signal,
+        headers: this.authHeaders(),
       });
 
       if (!response.ok) {
@@ -351,8 +385,6 @@ export class ApiClient {
         );
       }
       throw wrapError(error, "Failed to fetch namespaces", ErrorCodes.API_FETCH_FAILED);
-    } finally {
-      clearTimeout(timeoutId);
     }
   }
 
@@ -404,27 +436,23 @@ export class ApiClient {
     const total = countTranslationValues(options.translations);
     const url = `${this.apiBaseUrl}${API_ENDPOINTS.projectImportCommit(project.id)}`;
     try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), this.timeout);
-
-      const response = await fetch(url, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${this.apiKey}`,
-          "Content-Type": "application/json",
+      // retryTransient: false — a commit that failed after send may already be applied
+      const response = await this.request(
+        url,
+        {
+          method: "POST",
+          headers: this.authHeaders(),
+          body: JSON.stringify({
+            namespaces: toNamespaceImportData(options.translations),
+            options: {
+              conflictResolution: toImportConflictResolution(options.forceMode),
+              createNamespaces: true,
+              deleteOrphans: false,
+            },
+          }),
         },
-        body: JSON.stringify({
-          namespaces: toNamespaceImportData(options.translations),
-          options: {
-            conflictResolution: toImportConflictResolution(options.forceMode),
-            createNamespaces: true,
-            deleteOrphans: false,
-          },
-        }),
-        signal: controller.signal,
-      });
-
-      clearTimeout(timeoutId);
+        { retryTransient: false },
+      );
 
       if (!response.ok) {
         if (response.status === 401) {
@@ -505,6 +533,10 @@ export class ApiClient {
 
     this.eventSource?.close();
 
+    // Lazy import: eventsource is only needed for watch mode, and the static
+    // import would slow down every CLI invocation
+    const { EventSource } = await import("eventsource");
+
     // Create EventSource with authorization
     const apiKey = this.apiKey;
     const eventSource = new EventSource(url, {
@@ -520,22 +552,25 @@ export class ApiClient {
     });
     this.eventSource = eventSource;
 
-    // Handle incoming messages (full schema on each update)
-    eventSource.onmessage = async (event: MessageEvent) => {
-      try {
-        const schema = JSON.parse(event.data) as ProjectSchema;
-        await onSchema(schema);
-      } catch (error) {
-        // Ignore malformed events (could be keep-alive comments)
-        console.error("[Comvi] Failed to parse SSE event:", error);
-      }
+    // Serialize updates: EventSource does not await handlers, so a burst of
+    // events would otherwise run concurrent onSchema file writes
+    let queue: Promise<void> = Promise.resolve();
+    eventSource.onmessage = (event: MessageEvent) => {
+      queue = queue
+        .then(async () => {
+          const schema = JSON.parse(event.data) as ProjectSchema;
+          await onSchema(schema);
+        })
+        .catch((error) => {
+          // Ignore malformed events (could be keep-alive comments)
+          console.error("[comvi] Failed to process SSE event:", error);
+        });
     };
 
     // Handle errors (auto-reconnects by default)
     eventSource.onerror = () => {
-      // EventSource auto-reconnects on error
       // On reconnect, server sends current schema immediately
-      console.warn("[Comvi] Schema update stream interrupted; reconnecting...");
+      console.warn("[comvi] Schema update stream interrupted; reconnecting...");
     };
 
     // Return cleanup function

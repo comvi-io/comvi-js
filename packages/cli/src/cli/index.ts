@@ -27,6 +27,7 @@ import {
 import { createPullCommand } from "../commands/pull";
 import { createPushCommand } from "../commands/push";
 import { loadEnv, MissingEnvFileError } from "../core/EnvLoader";
+import { CLI_VERSION } from "../utils/version";
 
 const EXIT_VALIDATION = 4;
 
@@ -35,7 +36,7 @@ const program = new Command();
 program
   .name("comvi")
   .description("CLI for Comvi i18n - type generation, translation sync, and more")
-  .version("1.0.0")
+  .version(CLI_VERSION)
   .option("--env-file <path>", "load a specific .env file instead of auto-discovery")
   .option("--no-env-file", "skip auto-loading .env (also: COMVI_NO_ENV=1)")
   .hook("preAction", (thisCommand) => {

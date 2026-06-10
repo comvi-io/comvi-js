@@ -70,7 +70,10 @@ export class TranslationSync {
         await this.ensureDirectory(dirname(filePath));
 
         const content = JSON.stringify(nsTranslations, null, 2) + "\n";
-        await fs.writeFile(filePath, content, "utf-8");
+        // temp + rename so an interrupted pull never leaves a truncated file
+        const tmpPath = `${filePath}.${process.pid}.tmp`;
+        await fs.writeFile(tmpPath, content, "utf-8");
+        await fs.rename(tmpPath, filePath);
         filesWritten++;
       }
     }
@@ -80,6 +83,30 @@ export class TranslationSync {
       namespaces,
       filesWritten,
     };
+  }
+
+  /**
+   * List the file paths writeTranslations would produce, without writing
+   */
+  previewTranslations(
+    data: TranslationsResponse,
+    options: WriteTranslationsOptions = {},
+  ): { files: string[] } {
+    const { translations, locales, namespaces } = data;
+    const defaultNamespace = options.defaultNamespace ?? DEFAULT_NAMESPACE;
+    const files: string[] = [];
+
+    for (const locale of locales) {
+      const localeTranslations = translations[locale];
+      if (!localeTranslations) continue;
+
+      for (const ns of namespaces) {
+        if (!localeTranslations[ns]) continue;
+        files.push(this.resolveFilePath(locale, ns, defaultNamespace));
+      }
+    }
+
+    return { files };
   }
 
   /**

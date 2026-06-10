@@ -289,7 +289,14 @@ export class ConfigLoader {
     const content = JSON.stringify(configToWrite, null, 2);
 
     try {
-      await fs.writeFile(filePath, content, "utf-8");
+      // Restrict permissions when the file carries a secret. writeFile mode
+      // only applies on creation, so chmod covers overwrites too.
+      if (config.apiKey) {
+        await fs.writeFile(filePath, content, { encoding: "utf-8", mode: 0o600 });
+        await fs.chmod(filePath, 0o600);
+      } else {
+        await fs.writeFile(filePath, content, "utf-8");
+      }
       return filePath;
     } catch (error) {
       if (error instanceof Error) {

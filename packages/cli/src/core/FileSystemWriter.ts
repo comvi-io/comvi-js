@@ -18,6 +18,8 @@ export interface FileSystem {
   writeFile(path: string, content: string): Promise<void>;
   readFile(path: string): Promise<string>;
   access(path: string): Promise<void>;
+  /** Optional: enables atomic temp-file + rename writes when implemented */
+  rename?(oldPath: string, newPath: string): Promise<void>;
 }
 
 /**
@@ -38,6 +40,10 @@ export class NodeFileSystem implements FileSystem {
 
   async access(path: string): Promise<void> {
     await fs.access(path);
+  }
+
+  async rename(oldPath: string, newPath: string): Promise<void> {
+    await fs.rename(oldPath, newPath);
   }
 }
 
@@ -125,8 +131,15 @@ export class FileSystemWriter {
       // Ensure parent directory exists
       await this.ensureDirectory(dirname(filePath));
 
-      // Write file
-      await this.fs.writeFile(filePath, content);
+      // Atomic when the backing fs supports rename, so an interrupted run
+      // never leaves a truncated output file
+      if (this.fs.rename) {
+        const tmpPath = `${filePath}.${process.pid}.tmp`;
+        await this.fs.writeFile(tmpPath, content);
+        await this.fs.rename(tmpPath, filePath);
+      } else {
+        await this.fs.writeFile(filePath, content);
+      }
     } catch (error) {
       throw wrapError(error, "Failed to write file", ErrorCodes.FS_WRITE_FAILED);
     }
