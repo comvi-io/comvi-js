@@ -28,6 +28,7 @@ const COMMA = 44;
 const HYPHEN = 45;
 const UNDERSCORE = 95;
 const SPACE = 32;
+const HASH = 35;
 const DIGIT_0 = 48;
 const DIGIT_9 = 57;
 const UPPER_A = 65;
@@ -107,6 +108,66 @@ function advancePastApostrophe(str: string, index: number, len: number): number 
     return index + 1;
   }
   return skipQuotedSection(str, index, len);
+}
+
+/**
+ * Detects whether the `{` at braceIndex starts a plural/selectordinal argument
+ * (`{name, plural, ...}`), i.e. a scope that rebinds `#` to its own count.
+ */
+function isPluralArgStart(str: string, braceIndex: number, len: number): boolean {
+  let i = braceIndex + 1;
+  while (i < len) {
+    const code = str.charCodeAt(i);
+    if (code === COMMA) break;
+    if (code === OPEN_BRACE || code === CLOSE_BRACE) return false;
+    i++;
+  }
+  if (i >= len) return false;
+  i++;
+  while (i < len && str.charCodeAt(i) <= SPACE) i++;
+  const typeStart = i;
+  while (i < len) {
+    const code = str.charCodeAt(i);
+    if (code === COMMA || code <= SPACE || code === OPEN_BRACE || code === CLOSE_BRACE) break;
+    i++;
+  }
+  const type = str.slice(typeStart, i);
+  return type === "plural" || type === "selectordinal";
+}
+
+/**
+ * Replaces `#` octothorpes bound to the current plural with `replacement`.
+ * Per ICU MessageFormat, only a nested plural/selectordinal rebinds `#`, so
+ * those blocks are skipped wholesale while other nested arguments (select,
+ * params) stay transparent. Quoted `'…'` literals are never touched.
+ */
+export function replaceTopLevelHash(str: string, replacement: string): string {
+  if (str.indexOf("#") === -1) return str;
+
+  const len = str.length;
+  let out = "";
+  let segStart = 0;
+  let i = 0;
+
+  while (i < len) {
+    const code = str.charCodeAt(i);
+    if (code === APOSTROPHE) {
+      i = advancePastApostrophe(str, i, len);
+      continue;
+    }
+    if (code === OPEN_BRACE && isPluralArgStart(str, i, len)) {
+      const end = findMatchingBraceEnd(str, i + 1, len);
+      i = end === -1 ? len : end;
+      continue;
+    }
+    if (code === HASH) {
+      out += str.slice(segStart, i) + replacement;
+      segStart = i + 1;
+    }
+    i++;
+  }
+
+  return out + str.slice(segStart);
 }
 
 function findMatchingBraceEnd(str: string, startIndex: number, len: number): number {
