@@ -111,15 +111,40 @@ function advancePastApostrophe(str: string, index: number, len: number): number 
 }
 
 /**
- * Replaces `#` octothorpes belonging to the current plural level with `replacement`,
- * skipping `#` inside nested `{...}` blocks and quoted literals. This keeps a nested
- * plural's `#` bound to its own count instead of the enclosing plural's count.
+ * Detects whether the `{` at braceIndex starts a plural/selectordinal argument
+ * (`{name, plural, ...}`), i.e. a scope that rebinds `#` to its own count.
+ */
+function isPluralArgStart(str: string, braceIndex: number, len: number): boolean {
+  let i = braceIndex + 1;
+  while (i < len) {
+    const code = str.charCodeAt(i);
+    if (code === COMMA) break;
+    if (code === OPEN_BRACE || code === CLOSE_BRACE) return false;
+    i++;
+  }
+  if (i >= len) return false;
+  i++;
+  while (i < len && str.charCodeAt(i) <= SPACE) i++;
+  const typeStart = i;
+  while (i < len) {
+    const code = str.charCodeAt(i);
+    if (code === COMMA || code <= SPACE || code === OPEN_BRACE || code === CLOSE_BRACE) break;
+    i++;
+  }
+  const type = str.slice(typeStart, i);
+  return type === "plural" || type === "selectordinal";
+}
+
+/**
+ * Replaces `#` octothorpes bound to the current plural with `replacement`.
+ * Per ICU MessageFormat, only a nested plural/selectordinal rebinds `#`, so
+ * those blocks are skipped wholesale while other nested arguments (select,
+ * params) stay transparent. Quoted `'…'` literals are never touched.
  */
 export function replaceTopLevelHash(str: string, replacement: string): string {
   if (str.indexOf("#") === -1) return str;
 
   const len = str.length;
-  let depth = 0;
   let out = "";
   let segStart = 0;
   let i = 0;
@@ -130,11 +155,12 @@ export function replaceTopLevelHash(str: string, replacement: string): string {
       i = advancePastApostrophe(str, i, len);
       continue;
     }
-    if (code === OPEN_BRACE) {
-      depth++;
-    } else if (code === CLOSE_BRACE) {
-      if (depth > 0) depth--;
-    } else if (code === HASH && depth === 0) {
+    if (code === OPEN_BRACE && isPluralArgStart(str, i, len)) {
+      const end = findMatchingBraceEnd(str, i + 1, len);
+      i = end === -1 ? len : end;
+      continue;
+    }
+    if (code === HASH) {
       out += str.slice(segStart, i) + replacement;
       segStart = i + 1;
     }

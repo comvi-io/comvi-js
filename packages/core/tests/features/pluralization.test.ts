@@ -144,5 +144,31 @@ describe("Advanced Pluralization Features", () => {
 
       expect(i18n.t("price", { count: 7, label: "items" })).toBe("#7 items");
     });
+
+    it("keeps # bound to the enclosing plural inside a nested select", () => {
+      i18n.addTranslations({
+        en: {
+          msg:
+            "{count, plural, " +
+            "one {{gender, select, male {he has one file} other {they have one file}}} " +
+            "other {{gender, select, male {he has # files} other {they have # files}}}}",
+        },
+      });
+
+      expect(i18n.t("msg", { count: 3, gender: "male" })).toBe("he has 3 files");
+      expect(i18n.t("msg", { count: 3, gender: "female" })).toBe("they have 3 files");
+    });
+
+    it("rebinds # only for a plural nested inside a select inside a plural", () => {
+      i18n.addTranslations({
+        en: {
+          msg:
+            "{files, plural, other {{gender, select, " +
+            "other {{folders, plural, other {# folders}} and # files}}}}",
+        },
+      });
+
+      expect(i18n.t("msg", { files: 3, folders: 5, gender: "x" })).toBe("5 folders and 3 files");
+    });
   });
 });
