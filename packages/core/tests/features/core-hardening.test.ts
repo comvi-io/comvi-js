@@ -61,7 +61,7 @@ describe("catalog leaf hardening — non-string values", () => {
     });
 
     expect(i18n.t("menu.title")).toBe("Menu");
-    expect(() => i18n.t("menu.items")).not.toThrow();
+    expect(i18n.t("menu.items")).toBe("one,two");
   });
 });
 
