@@ -28,6 +28,15 @@ for (const entry of fs.readdirSync("packages")) {
   if (fs.existsSync(p)) backups.set(p, fs.readFileSync(p, "utf8"));
 }
 
+// `changeset status` resolves baseBranch ("main") — in CI the checkout is a
+// detached HEAD without a local main, so materialize the ref first.
+execSync(
+  "git rev-parse --verify main || git branch main origin/main || git fetch origin main:main",
+  {
+    stdio: "ignore",
+  },
+);
+
 const planFile = "release-plan.tmp.json";
 let plan;
 try {
