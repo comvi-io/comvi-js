@@ -193,7 +193,18 @@ function buildCacheOptions(
   return Object.keys(next).length ? { next } : {};
 }
 
-/** Fetch with timeout and SSR cache support */
+/** Internal marker for requests cancelled by locale switch / cleanup (not timeouts) */
+class RequestAbortedError extends Error {
+  constructor(url: string) {
+    super(`[FetchLoader] Request aborted: ${url}`);
+    this.name = "RequestAbortedError";
+  }
+}
+
+const isAborted = (e: unknown): boolean =>
+  e instanceof RequestAbortedError || (e instanceof Error && e.name === "RequestAbortedError");
+
+/** Fetch with timeout, optional external abort signal, and SSR cache support */
 async function fetchWithTimeout(
   url: string,
   options: ExtendedFetchOptions,
@@ -201,15 +212,32 @@ async function fetchWithTimeout(
 ): Promise<Response> {
   const controller = new AbortController();
   const id = setTimeout(() => controller.abort(), timeoutMs);
+  const outer = options.signal ?? undefined;
+  const onOuterAbort = () => controller.abort();
+  if (outer) {
+    if (outer.aborted) controller.abort();
+    else outer.addEventListener("abort", onOuterAbort, { once: true });
+  }
   try {
-    const r = await fetch(url, { ...options, signal: controller.signal } as RequestInit);
-    clearTimeout(id);
-    return r;
+    return await fetch(url, { ...options, signal: controller.signal } as RequestInit);
   } catch (e) {
-    clearTimeout(id);
-    if (e instanceof Error && e.name === "AbortError")
+    if (e instanceof Error && e.name === "AbortError") {
+      if (outer?.aborted) throw new RequestAbortedError(url);
       throw new Error(`Request timeout after ${timeoutMs}ms`);
+    }
     throw e;
+  } finally {
+    clearTimeout(id);
+    outer?.removeEventListener("abort", onOuterAbort);
+  }
+}
+
+/** Parse a JSON body with a diagnosable error on malformed payloads */
+async function parseJsonResponse<T>(response: Response, url: string): Promise<T> {
+  try {
+    return (await response.json()) as T;
+  } catch {
+    throw new Error(`[FetchLoader] Invalid JSON response from ${url}`);
   }
 }
 
@@ -278,7 +306,7 @@ async function fetchProjectInfoFromApi(
     );
 
     if (response.ok) {
-      return (await response.json()) as ProjectInfo;
+      return parseJsonResponse<ProjectInfo>(response, url);
     }
 
     if (response.status === 404) {
@@ -410,7 +438,8 @@ async function tryFallback(
 /** Transform API response to internal cache format */
 export function transformApiResponse(response: ExportApiResponse): TranslationStore {
   const store: TranslationStore = new Map();
-  for (const [ns, locales] of Object.entries(response.namespaces))
+  // some gateways return 200 with an error envelope and no namespaces field
+  for (const [ns, locales] of Object.entries(response?.namespaces ?? {}))
     for (const [locale, translations] of Object.entries(locales))
       store.set(`${locale}:${ns}`, translations);
   return store;
@@ -429,6 +458,7 @@ export async function fetchApiTranslations(
   namespaces: string[],
   apiBaseUrl?: string,
   timeoutMs = 5000,
+  init?: Pick<ExtendedFetchOptions, "signal" | "next">,
 ): Promise<TranslationStore> {
   const requestedNamespaces = [...new Set(namespaces)];
   const headers = {
@@ -436,10 +466,10 @@ export async function fetchApiTranslations(
     Authorization: `Bearer ${apiKey}`,
   };
   const url = buildApiTranslationsUrl(locale, requestedNamespaces, apiBaseUrl);
-  const response = await fetchWithTimeout(url, { headers }, timeoutMs);
+  const response = await fetchWithTimeout(url, { headers, ...init }, timeoutMs);
 
   if (response.ok) {
-    return transformApiResponse((await response.json()) as ExportApiResponse);
+    return transformApiResponse(await parseJsonResponse<ExportApiResponse>(response, url));
   }
 
   if (response.status !== 404) {
@@ -448,18 +478,20 @@ export async function fetchApiTranslations(
 
   const projectId = (await fetchProjectInfo(apiKey, apiBaseUrl, timeoutMs)).id;
   const exportUrl = buildApiExportUrl(projectId, locale, requestedNamespaces, apiBaseUrl);
-  let exportResponse = await fetchWithTimeout(exportUrl, { headers }, timeoutMs);
+  let exportResponse = await fetchWithTimeout(exportUrl, { headers, ...init }, timeoutMs);
 
   if (!exportResponse.ok && exportResponse.status === 404) {
     const legacyUrl = buildLegacyApiExportUrl(projectId, locale, requestedNamespaces, apiBaseUrl);
-    exportResponse = await fetchWithTimeout(legacyUrl, { headers }, timeoutMs);
+    exportResponse = await fetchWithTimeout(legacyUrl, { headers, ...init }, timeoutMs);
   }
 
   if (!exportResponse.ok) {
     throw new Error(`API error: ${exportResponse.status} ${exportResponse.statusText}`);
   }
 
-  return transformApiResponse((await exportResponse.json()) as ExportApiResponse);
+  return transformApiResponse(
+    await parseJsonResponse<ExportApiResponse>(exportResponse, exportUrl),
+  );
 }
 
 /**
@@ -514,6 +546,31 @@ export const FetchLoader: I18nPluginFactory<FetchLoaderOptions> = (options): I18
     // for later plugins such as the in-context editor.
     const shouldLoadImmediately = loadOnInit && !i18n.isInitializing;
 
+    // In-flight request controllers, aborted when the locale moves on or the
+    // plugin is cleaned up — a slow request for an abandoned locale must not
+    // keep running or fire load callbacks
+    const inflight = new Map<number, { locale: string; controller: AbortController }>();
+    let inflightSeq = 0;
+
+    const trackRequest = (locale: string) => {
+      const id = ++inflightSeq;
+      const controller = new AbortController();
+      inflight.set(id, { locale, controller });
+      return { signal: controller.signal, release: () => inflight.delete(id) };
+    };
+
+    const unsubscribeLocaleChanged = i18n.on("localeChanged", ({ to }) => {
+      for (const entry of inflight.values()) {
+        if (entry.locale !== to) entry.controller.abort();
+      }
+    });
+
+    const abortAll = () => {
+      unsubscribeLocaleChanged();
+      for (const entry of inflight.values()) entry.controller.abort();
+      inflight.clear();
+    };
+
     if (apiKey) {
       const pending = new Map<
         string,
@@ -532,6 +589,7 @@ export const FetchLoader: I18nPluginFactory<FetchLoaderOptions> = (options): I18
         const promise = (async () => {
           const store: TranslationStore = new Map();
           const attemptedFallbacks = new Set<string>();
+          const { signal, release } = trackRequest(locale);
           try {
             for (const [k, v] of await fetchApiTranslations(
               apiKey,
@@ -539,12 +597,15 @@ export const FetchLoader: I18nPluginFactory<FetchLoaderOptions> = (options): I18
               requestedNamespaces,
               apiBaseUrl,
               timeout,
+              { signal, ...cacheOpts },
             ))
               store.set(k, v);
             for (const ns of requestedNamespaces) {
               if (store.has(`${locale}:${ns}`)) onLoadSuccess?.(locale, ns);
             }
           } catch (error) {
+            // stale request cancelled by a locale switch — no fallback, no callbacks
+            if (isAborted(error)) throw toError(error);
             const err = toError(error);
             for (const ns of requestedNamespaces) {
               const ck = `${locale}:${ns}`;
@@ -566,6 +627,7 @@ export const FetchLoader: I18nPluginFactory<FetchLoaderOptions> = (options): I18
               }
             }
           } finally {
+            release();
             pending.delete(key);
           }
 
@@ -625,6 +687,7 @@ export const FetchLoader: I18nPluginFactory<FetchLoaderOptions> = (options): I18
       }
 
       return () => {
+        abortAll();
         pending.clear();
       };
     } else {
@@ -639,18 +702,22 @@ export const FetchLoader: I18nPluginFactory<FetchLoaderOptions> = (options): I18
         if (existing) return existing;
 
         const promise = (async () => {
+          const { signal, release } = trackRequest(locale);
+          const url = buildCdnUrl(cdnUrl, locale, namespace, defaultNs);
           try {
             const r = await fetchWithTimeout(
-              buildCdnUrl(cdnUrl, locale, namespace, defaultNs),
-              { headers: { Accept: "application/json" }, ...cacheOpts },
+              url,
+              { headers: { Accept: "application/json" }, signal, ...cacheOpts },
               timeout,
             );
             if (!r.ok) throw new Error(`HTTP ${r.status}: ${r.statusText}`);
 
-            const data = (await r.json()) as Record<string, TranslationValue>;
+            const data = await parseJsonResponse<Record<string, TranslationValue>>(r, url);
             onLoadSuccess?.(locale, namespace);
             return data;
           } catch (error) {
+            // stale request cancelled by a locale switch — no fallback, no callbacks
+            if (isAborted(error)) throw toError(error);
             const err = toError(error);
             const fallbackResult = await tryFallback(
               fallback,
@@ -669,6 +736,7 @@ export const FetchLoader: I18nPluginFactory<FetchLoaderOptions> = (options): I18
             onLoadError?.(locale, namespace, err);
             throw err;
           } finally {
+            release();
             loading.delete(ck);
           }
         })();
@@ -696,6 +764,7 @@ export const FetchLoader: I18nPluginFactory<FetchLoaderOptions> = (options): I18
       }
 
       return () => {
+        abortAll();
         loading.clear();
       };
     }

@@ -157,23 +157,22 @@ describe("FetchLoader Integration Tests", () => {
       expect(requestCounts.de).toBeLessThanOrEqual(1);
     });
 
-    it("should handle language change during ongoing load", async () => {
+    it("aborts a stale in-flight load when the locale moves on", async () => {
       const i18n = new I18n({ locale: "en", devMode: false });
+      const onLoadSuccess = vi.fn();
 
       // Slow EN response
       server.use(
         http.get(`${TEST_CDN_URL}/en.json`, async () => {
-          await delay(100);
+          await delay(300);
           return HttpResponse.json({ key: "Hello" });
         }),
       );
       // Fast FR response
       mockCdnSuccessResponse("fr", "default", { key: "Bonjour" });
 
-      const plugin = FetchLoader({ cdnUrl: TEST_CDN_URL, loadOnInit: false });
+      const plugin = FetchLoader({ cdnUrl: TEST_CDN_URL, loadOnInit: false, onLoadSuccess });
       await plugin(i18n);
-
-      await i18n.addActiveNamespace("default");
 
       const loaderFn = i18n.getLoader()!;
       const enPromise = loaderFn("en", "default");
@@ -181,9 +180,137 @@ describe("FetchLoader Integration Tests", () => {
       // Change to FR while EN is still loading
       i18n.locale = "fr";
 
-      await enPromise;
-      await expect.poll(() => i18n.hasLocale("fr", "default"), { timeout: 500 }).toBe(true);
-      expect(i18n.hasLocale("en", "default")).toBe(true);
+      await expect(enPromise).rejects.toThrow(/aborted/i);
+      // the new locale still loads normally after the stale request was cancelled
+      await expect(loaderFn("fr", "default")).resolves.toEqual({ key: "Bonjour" });
+      expect(onLoadSuccess).not.toHaveBeenCalledWith("en", "default");
+      expect(onLoadSuccess).toHaveBeenCalledWith("fr", "default");
+    });
+
+    it("aborts in-flight requests on plugin cleanup", async () => {
+      const i18n = new I18n({ locale: "en", devMode: false });
+      const onLoadError = vi.fn();
+
+      server.use(
+        http.get(`${TEST_CDN_URL}/en.json`, async () => {
+          await delay(300);
+          return HttpResponse.json({ key: "Hello" });
+        }),
+      );
+
+      const plugin = FetchLoader({ cdnUrl: TEST_CDN_URL, loadOnInit: false, onLoadError });
+      const cleanup = await plugin(i18n);
+
+      const pendingLoad = i18n.getLoader()!("en", "default");
+      (cleanup as () => void)();
+
+      await expect(pendingLoad).rejects.toThrow(/aborted/i);
+      expect(onLoadError).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("Malformed responses", () => {
+    it("falls back when the CDN returns 200 with invalid JSON", async () => {
+      const i18n = new I18n({ locale: "en", devMode: false });
+
+      server.use(
+        http.get(
+          `${TEST_CDN_URL}/en.json`,
+          () =>
+            new HttpResponse("{not json", {
+              status: 200,
+              headers: { "Content-Type": "application/json" },
+            }),
+        ),
+      );
+
+      const plugin = FetchLoader({
+        cdnUrl: TEST_CDN_URL,
+        loadOnInit: false,
+        fallback: { en: () => Promise.resolve({ default: { key: "Offline" } }) },
+      });
+      await plugin(i18n);
+
+      await expect(i18n.getLoader()!("en", "default")).resolves.toEqual({ key: "Offline" });
+    });
+
+    it("reports a diagnosable error for invalid CDN JSON without fallback", async () => {
+      const i18n = new I18n({ locale: "en", devMode: false });
+      const onLoadError = vi.fn();
+
+      server.use(
+        http.get(
+          `${TEST_CDN_URL}/en.json`,
+          () =>
+            new HttpResponse("{not json", {
+              status: 200,
+              headers: { "Content-Type": "application/json" },
+            }),
+        ),
+      );
+
+      const plugin = FetchLoader({ cdnUrl: TEST_CDN_URL, loadOnInit: false, onLoadError });
+      await plugin(i18n);
+
+      await expect(i18n.getLoader()!("en", "default")).rejects.toThrow(/Invalid JSON response/);
+      expect(onLoadError).toHaveBeenCalledWith(
+        "en",
+        "default",
+        expect.objectContaining({ message: expect.stringContaining("Invalid JSON response") }),
+      );
+    });
+
+    it("reports a diagnosable error for invalid API JSON in dev mode", async () => {
+      const i18n = new I18n({ locale: "en", apiKey: TEST_API_KEY, devMode: true });
+      const onLoadError = vi.fn();
+
+      server.use(
+        http.get(
+          /\/v1\/translations/,
+          () =>
+            new HttpResponse("{not json", {
+              status: 200,
+              headers: { "Content-Type": "application/json" },
+            }),
+        ),
+      );
+
+      const plugin = FetchLoader({ cdnUrl: TEST_CDN_URL, loadOnInit: false, onLoadError });
+      await plugin(i18n);
+
+      await expect(i18n.getLoader()!("en", "default")).rejects.toThrow();
+      expect(onLoadError).toHaveBeenCalledWith(
+        "en",
+        "default",
+        expect.objectContaining({ message: expect.stringContaining("Invalid JSON response") }),
+      );
+    });
+  });
+
+  describe("SSR cache options", () => {
+    it("passes cache options to the API path fetches", async () => {
+      const fetchSpy = vi.spyOn(globalThis, "fetch");
+      const i18n = new I18n({ locale: "en", apiKey: TEST_API_KEY, devMode: true });
+
+      server.use(
+        http.get(/\/v1\/translations/, () =>
+          HttpResponse.json(createMockApiResponse(["en"], ["default"])),
+        ),
+      );
+
+      const plugin = FetchLoader({
+        cdnUrl: TEST_CDN_URL,
+        loadOnInit: false,
+        cache: { revalidate: 3600, tags: ["i18n"] },
+      });
+      await plugin(i18n);
+      await i18n.getLoader()!("en", "default");
+
+      const call = fetchSpy.mock.calls.find(([input]) =>
+        String(input).includes("/v1/translations"),
+      );
+      expect(call?.[1]).toMatchObject({ next: { revalidate: 3600, tags: ["i18n"] } });
+      fetchSpy.mockRestore();
     });
   });
 
