@@ -1,3 +1,31 @@
+import { warn } from "./logger";
+
+declare const __DEV__: boolean | undefined;
+const IS_DEV = typeof __DEV__ !== "undefined" && __DEV__;
+
+/**
+ * Normalize a leaf catalog value to a string.
+ * Returns undefined for null/undefined (key treated as missing) and coerces
+ * other non-strings with String() so translate() never crashes on lookup.
+ */
+function normalizeLeafValue(key: string, value: unknown): string | undefined {
+  if (typeof value === "string") return value;
+  if (value == null) {
+    if (IS_DEV) {
+      warn(`[i18n] Dropping translation "${key}": value is ${String(value)}`);
+    }
+    return undefined;
+  }
+  if (IS_DEV) {
+    warn(
+      `[i18n] Translation "${key}" is not a string (got ${
+        Array.isArray(value) ? "array" : typeof value
+      }); coercing with String()`,
+    );
+  }
+  return String(value);
+}
+
 /**
  * Converts a nested object structure to a flattened structure with dot notation keys.
  * Uses iterative approach with a stack for better performance.
@@ -29,8 +57,8 @@ export function flattenNestedObject(
         objectStack.push(value);
         prefixStack.push(newKey);
       } else {
-        // Value is a primitive, store it with the dotted key
-        result[newKey] = value;
+        const leaf = normalizeLeafValue(newKey, value);
+        if (leaf !== undefined) result[newKey] = leaf;
       }
     }
   }
@@ -40,33 +68,18 @@ export function flattenNestedObject(
 
 /**
  * Normalizes translation input into the prototype-less flat shape used by the cache.
- * Flat catalogs are sanitized in place when possible to avoid copy cost, while
- * nested or mixed catalogs fall back to full flattening.
+ * Never mutates the caller's object: flat catalogs are shallow-copied, nested
+ * catalogs are flattened. Prototype-less input is assumed already normalized.
  */
 export function normalizeTranslationObject(obj: Record<string, any>): Record<string, string> {
-  const prototype = Object.getPrototypeOf(obj);
-  if (prototype === null) {
-    return obj as Record<string, string>;
-  }
-
-  if (prototype === Object.prototype && Object.isExtensible(obj)) {
-    for (const key in obj) {
-      const value = obj[key];
-      if (typeof value === "object" && value !== null) {
-        return flattenNestedObject(obj);
-      }
-    }
-
-    Object.setPrototypeOf(obj, null);
+  if (Object.getPrototypeOf(obj) === null) {
     return obj as Record<string, string>;
   }
 
   const keys = Object.keys(obj);
-
   for (let i = 0; i < keys.length; i++) {
-    const key = keys[i];
-    const value = obj[key];
-    if (typeof value === "object" && value !== null) {
+    const value = obj[keys[i]];
+    if (typeof value === "object" && value !== null && !Array.isArray(value)) {
       return flattenNestedObject(obj);
     }
   }
@@ -74,7 +87,8 @@ export function normalizeTranslationObject(obj: Record<string, any>): Record<str
   const result: Record<string, string> = Object.create(null);
   for (let i = 0; i < keys.length; i++) {
     const key = keys[i];
-    result[key] = obj[key];
+    const leaf = normalizeLeafValue(key, obj[key]);
+    if (leaf !== undefined) result[key] = leaf;
   }
 
   return result;
