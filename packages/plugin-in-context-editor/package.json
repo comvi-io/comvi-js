@@ -64,7 +64,7 @@
     "lint:fix": "eslint . --fix"
   },
   "peerDependencies": {
-    "@comvi/core": "^0.2.0 || ^0.3.0"
+    "@comvi/core": ">=0.2.0 <1.0.0"
   },
   "dependencies": {
     "@comvi/plugin-fetch-loader": "workspace:*",
