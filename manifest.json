@@ -2,9 +2,8 @@
   "manifest_version": 3,
   "name": "Comvi In-Context Editor",
   "description": "Enable in-context translation editing on production websites using Comvi i18n",
-  "version": "1.0.0",
-  "permissions": ["storage", "activeTab"],
-  "host_permissions": ["<all_urls>"],
+  "version": "0.2.0",
+  "permissions": ["storage", "activeTab", "scripting"],
   "background": {
     "service_worker": "background.js",
     "type": "module"

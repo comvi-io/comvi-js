@@ -30,6 +30,7 @@ const versionLine = document.getElementById("version-line")!;
 let currentTabId: number | null = null;
 let currentOrigin = "";
 let editorActive = false;
+let editorLoaded = false;
 let comviDetected = false;
 let comviVersion: string | undefined;
 
@@ -132,6 +133,7 @@ async function requestStatus(retries = 4) {
 function updateStatus(status: StatusResponsePayload) {
   comviDetected = status.comviDetected;
   editorActive = status.editorActive ?? false;
+  editorLoaded = status.editorLoaded ?? editorLoaded;
   if (status.version) comviVersion = status.version;
   render();
 }
@@ -153,10 +155,20 @@ async function handleEnable() {
   enableBtn.textContent = "Enabling…";
 
   try {
+    // Inject the bundled editor runtime into the page's MAIN world. The
+    // runtime ships inside the extension package (MV3 forbids remote code).
+    if (!editorLoaded) {
+      await chrome.scripting.executeScript({
+        target: { tabId: currentTabId },
+        files: ["editor.iife.js"],
+        world: "MAIN",
+      });
+      editorLoaded = true;
+    }
+
     const settings = await getGlobalSettings();
     const payload: ActivatePayload = {
       apiKey,
-      scriptUrl: settings.scriptUrl,
       apiBaseUrl: settings.apiBaseUrl,
     };
     await sendToContentScript({ type: "ACTIVATE_EDITOR", payload });

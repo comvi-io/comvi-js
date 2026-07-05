@@ -5,3 +5,5 @@ dist
 .env.local
 .DS_Store
 *.log
+.omc/
+Untitled

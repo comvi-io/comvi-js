@@ -14,6 +14,7 @@ interface ComviStatus {
   version: string | null;
   instanceCount: number;
   editorActive: boolean;
+  editorLoaded: boolean;
 }
 
 let detectionComplete = false;
@@ -27,6 +28,7 @@ function getComviStatus(): ComviStatus {
     version: comvi?.version ?? null,
     instanceCount: comvi?.instances?.size ?? 0,
     editorActive: editor?.isActive?.() ?? false,
+    editorLoaded: !!editor,
   };
 }
 
@@ -66,6 +68,7 @@ window.addEventListener("COMVI_READY", ((event: CustomEvent) => {
     version: detail.version ?? null,
     instanceCount: detail.instanceCount ?? 1,
     editorActive: false,
+    editorLoaded: !!(window as any).ComviInContextEditor,
   };
   notifyDetected(status);
 }) as EventListener);
@@ -103,9 +106,7 @@ window.addEventListener("comvi-extension:get-status", () => {
 // Listen for activate requests
 window.addEventListener("comvi-extension:activate", ((event: CustomEvent) => {
   const detail = typeof event.detail === "string" ? JSON.parse(event.detail) : event.detail || {};
-  const { apiKey, scriptUrl, apiBaseUrl, cdnUrl } = detail;
-  const editorScriptUrl = scriptUrl ?? cdnUrl;
-  const editorApiBaseUrl = apiBaseUrl ?? cdnUrl;
+  const { apiKey, apiBaseUrl } = detail;
   const status = getComviStatus();
 
   if (!status.detected) {
@@ -128,60 +129,33 @@ window.addEventListener("comvi-extension:activate", ((event: CustomEvent) => {
 
   window.dispatchEvent(
     new CustomEvent("comvi-in-context-editor:configure", {
-      detail: JSON.stringify({ apiKey, apiBaseUrl: editorApiBaseUrl }),
+      detail: JSON.stringify({ apiKey, apiBaseUrl }),
     }),
   );
 
-  // Check if plugin is already loaded
+  // The editor runtime ships inside the extension package and is injected
+  // into the page by the popup (chrome.scripting) before this event fires.
   const editor = (window as any).ComviInContextEditor;
 
-  if (editor) {
-    // Plugin already loaded, just activate
-    try {
-      const result = editor.activate({ apiKey, cdnUrl: editorApiBaseUrl });
-      window.dispatchEvent(
-        new CustomEvent("comvi-extension:activated", {
-          detail: { success: !!result, instanceId: result?.instanceId },
-        }),
-      );
-    } catch (error) {
-      notifyActivationFailed(error);
-    }
+  if (!editor) {
+    window.dispatchEvent(
+      new CustomEvent("comvi-extension:activated", {
+        detail: { success: false, error: "Editor runtime is not loaded" },
+      }),
+    );
     return;
   }
 
-  // Load plugin from CDN
-  const script = document.createElement("script");
-  script.src = editorScriptUrl;
-  script.onload = () => {
-    const loadedEditor = (window as any).ComviInContextEditor;
-    if (loadedEditor) {
-      try {
-        const result = loadedEditor.activate({ apiKey, cdnUrl: editorApiBaseUrl });
-        window.dispatchEvent(
-          new CustomEvent("comvi-extension:activated", {
-            detail: { success: !!result, instanceId: result?.instanceId },
-          }),
-        );
-      } catch (error) {
-        notifyActivationFailed(error);
-      }
-    } else {
-      window.dispatchEvent(
-        new CustomEvent("comvi-extension:activated", {
-          detail: { success: false, error: "Plugin failed to initialize" },
-        }),
-      );
-    }
-  };
-  script.onerror = () => {
+  try {
+    const result = editor.activate({ apiKey, cdnUrl: apiBaseUrl });
     window.dispatchEvent(
       new CustomEvent("comvi-extension:activated", {
-        detail: { success: false, error: "Failed to load plugin from CDN" },
+        detail: { success: !!result, instanceId: result?.instanceId },
       }),
     );
-  };
-  document.head.appendChild(script);
+  } catch (error) {
+    notifyActivationFailed(error);
+  }
 }) as EventListener);
 
 // Listen for deactivate requests

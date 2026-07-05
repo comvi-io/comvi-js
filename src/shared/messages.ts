@@ -25,12 +25,12 @@ export interface ComviDetectedPayload {
 export interface StatusResponsePayload {
   comviDetected: boolean;
   editorActive: boolean;
+  editorLoaded?: boolean;
   version?: string;
   instanceCount?: number;
 }
 
 export interface ActivatePayload {
   apiKey: string;
-  scriptUrl: string;
   apiBaseUrl: string;
 }

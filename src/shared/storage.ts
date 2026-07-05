@@ -11,7 +11,6 @@ export interface OriginCredentials {
 }
 
 export interface GlobalSettings {
-  scriptUrl: string;
   apiBaseUrl: string;
 }
 
@@ -19,10 +18,8 @@ const CREDENTIALS_KEY = "comvi_credentials";
 const SETTINGS_KEY = "comvi_settings";
 // Required at build time by vite.config.ts.
 const DEFAULT_API_BASE_URL = import.meta.env.VITE_COMVI_API_BASE_URL as string;
-const DEFAULT_SCRIPT_URL = import.meta.env.VITE_COMVI_EDITOR_SCRIPT_URL as string;
 
 const DEFAULT_SETTINGS: GlobalSettings = {
-  scriptUrl: DEFAULT_SCRIPT_URL,
   apiBaseUrl: DEFAULT_API_BASE_URL,
 };
 

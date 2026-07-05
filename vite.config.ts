@@ -5,13 +5,20 @@ import { copyFileSync, existsSync, mkdirSync, readdirSync } from "fs";
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, __dirname, "");
-  const editorScriptUrl = env.VITE_COMVI_EDITOR_SCRIPT_URL?.trim();
   const apiBaseUrl = env.VITE_COMVI_API_BASE_URL?.trim();
 
-  if (!editorScriptUrl || !editorScriptUrl.includes("://")) {
+  // The in-context editor runtime must ship inside the extension package —
+  // MV3 forbids loading remote code, so it is bundled and injected via
+  // chrome.scripting.executeScript({ files: ["editor.iife.js"], world: "MAIN" }).
+  const editorBundlePath =
+    env.COMVI_EDITOR_BUNDLE_PATH?.trim() ||
+    resolve(__dirname, "../js-sdk/packages/plugin-in-context-editor/dist/standalone.iife.js");
+
+  if (!existsSync(editorBundlePath)) {
     throw new Error(
-      "VITE_COMVI_EDITOR_SCRIPT_URL must be an absolute URL to a hosted in-context editor runtime " +
-        "(e.g. https://cdn.jsdelivr.net/npm/@comvi/plugin-in-context-editor/dist/standalone.iife.js).",
+      `In-context editor bundle not found at ${editorBundlePath}. ` +
+        "Build it first (cd ../js-sdk && pnpm build) or point COMVI_EDITOR_BUNDLE_PATH " +
+        "at a standalone.iife.js build of @comvi/plugin-in-context-editor.",
     );
   }
 
@@ -59,6 +66,9 @@ export default defineConfig(({ mode }) => {
             resolve(__dirname, "src/popup/popup.html"),
             resolve(__dirname, "dist/popup.html"),
           );
+
+          // Copy the bundled in-context editor runtime
+          copyFileSync(editorBundlePath, resolve(__dirname, "dist/editor.iife.js"));
 
           // Create icons directory and copy icons
           const iconsDir = resolve(__dirname, "dist/icons");

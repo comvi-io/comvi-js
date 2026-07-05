@@ -21,6 +21,7 @@ window.addEventListener("comvi-extension:status", ((event: CustomEvent) => {
   currentStatus = {
     comviDetected: detail.detected,
     editorActive: detail.editorActive,
+    editorLoaded: detail.editorLoaded,
     version: detail.version,
     instanceCount: detail.instanceCount,
   };
@@ -39,6 +40,7 @@ window.addEventListener("comvi-extension:detected", ((event: CustomEvent) => {
   currentStatus = {
     comviDetected: true,
     editorActive: detail.editorActive,
+    editorLoaded: detail.editorLoaded,
     version: detail.version,
     instanceCount: detail.instanceCount,
   };
