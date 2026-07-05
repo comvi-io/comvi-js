@@ -23,6 +23,8 @@ Designed for Next.js 14+ / 15+ with React 18+ / 19+.
 
 📖 **Documentation:** https://comvi.io/docs/i18n/next/
 
+⚖️ **Comparison:** [Comvi vs next-intl](https://comvi.io/compare/next-intl/)
+
 ## Why Comvi i18n?
 
 Comvi i18n is a modern, framework-agnostic internationalization library built on three principles: type-safe translations, real ICU MessageFormat, and zero compromises on bundle size or security.

@@ -40,6 +40,8 @@ See the [main repo](https://github.com/comvi-io/comvi-js) for the full library o
 
 📖 **Documentation:** https://comvi.io/docs/i18n/vanilla/
 
+⚖️ **Comparison:** [Comvi vs i18next](https://comvi.io/compare/i18next/)
+
 ## Install
 
 ```bash

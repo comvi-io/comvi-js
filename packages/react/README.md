@@ -25,6 +25,8 @@ For Next.js App Router, use [`@comvi/next`](../next) — it adds SSR, middleware
 
 📖 **Documentation:** https://comvi.io/docs/i18n/react/
 
+⚖️ **Comparison:** [Comvi vs i18next](https://comvi.io/compare/i18next/)
+
 ## Why Comvi i18n?
 
 Comvi i18n is a modern, framework-agnostic internationalization library built on three principles: type-safe translations, real ICU MessageFormat, and zero compromises on bundle size or security.
