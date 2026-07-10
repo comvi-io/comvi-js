@@ -109,6 +109,12 @@ export interface TranslationSystemOptions {
   debug?: boolean;
   /** Custom highlight style for the translation overlay */
   highlightStyle?: HighlightStyleOptions;
+  /**
+   * Passive context collection inside an active ICE session (extension
+   * channel only — see `@comvi/plugin-in-context-editor/collector`).
+   * Defaults to enabled; set false to opt out.
+   */
+  collectContext?: boolean;
 }
 
 /**

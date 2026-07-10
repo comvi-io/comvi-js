@@ -1,0 +1,217 @@
+{
+  "_comment": "Golden-vector conformance fixture for the canonical observation hash. BYTE-IDENTICAL copy lives in the js-sdk plugin. Regenerate (and bump HASH_FN_VERSION) on any output-affecting change.",
+  "hashFnVersion": 1,
+  "neighborTopK": 8,
+  "vectors": [
+    {
+      "name": "minimal-unknown-no-neighbors",
+      "description": "Low-signal element: unknown type, no constraints, no neighbors.",
+      "input": {
+        "uiType": "unknown",
+        "translationRole": "unknown",
+        "mustBeShort": false,
+        "singleLine": false,
+        "widthBucket": "medium",
+        "neighbors": []
+      },
+      "canonical": "[1,\"unknown\",\"unknown\",false,false,\"medium\",[]]",
+      "expectedHash": "5535c2451642ba553601bf8ec0181dc9b4e3a894799c3e771b99486c98780bf8"
+    },
+    {
+      "name": "primary-button-with-neighbors",
+      "description": "A primary submit button with a heading and a sibling button.",
+      "input": {
+        "uiType": "primary-button",
+        "translationRole": "imperative-verb",
+        "mustBeShort": true,
+        "singleLine": true,
+        "widthBucket": "small",
+        "neighbors": [
+          {
+            "namespace": "common",
+            "key": "checkout.title",
+            "relativePosition": "above",
+            "sameContainerAs": "dialog",
+            "readingOrderIndex": 0,
+            "distance": 40
+          },
+          {
+            "namespace": "common",
+            "key": "checkout.cancel",
+            "relativePosition": "left",
+            "sameContainerAs": "dialog",
+            "readingOrderIndex": 1,
+            "distance": 60
+          }
+        ]
+      },
+      "canonical": "[1,\"primary-button\",\"imperative-verb\",true,true,\"small\",[[\"common\",\"checkout.cancel\",\"left\",\"dialog\"],[\"common\",\"checkout.title\",\"above\",\"dialog\"]]]",
+      "expectedHash": "687e589ddb606fc0bd7a07284be11bbaa4d5a4d22c562f8adf87d92833a4610a"
+    },
+    {
+      "name": "error-message-topk-truncation",
+      "description": "Error message with 11 neighbors — exercises top-K (=8) selection.",
+      "input": {
+        "uiType": "error-message",
+        "translationRole": "error-sentence",
+        "mustBeShort": false,
+        "singleLine": false,
+        "widthBucket": "large",
+        "neighbors": [
+          {
+            "namespace": "forms",
+            "key": "field.email.label",
+            "relativePosition": "above",
+            "sameContainerAs": "form",
+            "readingOrderIndex": 0,
+            "distance": 30
+          },
+          {
+            "namespace": "forms",
+            "key": "field.email.input",
+            "relativePosition": "above",
+            "sameContainerAs": "form",
+            "readingOrderIndex": 1,
+            "distance": 20
+          },
+          {
+            "namespace": "forms",
+            "key": "field.password.label",
+            "relativePosition": "below",
+            "sameContainerAs": "form",
+            "readingOrderIndex": 2,
+            "distance": 55
+          },
+          {
+            "namespace": "forms",
+            "key": "field.password.input",
+            "relativePosition": "below",
+            "sameContainerAs": "form",
+            "readingOrderIndex": 3,
+            "distance": 45
+          },
+          {
+            "namespace": "forms",
+            "key": "submit",
+            "relativePosition": "below",
+            "sameContainerAs": "form",
+            "readingOrderIndex": 4,
+            "distance": 90
+          },
+          {
+            "namespace": "forms",
+            "key": "cancel",
+            "relativePosition": "right",
+            "sameContainerAs": "form",
+            "readingOrderIndex": 5,
+            "distance": 95
+          },
+          {
+            "namespace": "nav",
+            "key": "home",
+            "relativePosition": "above",
+            "sameContainerAs": null,
+            "readingOrderIndex": 6,
+            "distance": 300
+          },
+          {
+            "namespace": "nav",
+            "key": "settings",
+            "relativePosition": "above",
+            "sameContainerAs": null,
+            "readingOrderIndex": 7,
+            "distance": 320
+          },
+          {
+            "namespace": "nav",
+            "key": "profile",
+            "relativePosition": "above",
+            "sameContainerAs": null,
+            "readingOrderIndex": 8,
+            "distance": 340
+          },
+          {
+            "namespace": "footer",
+            "key": "copyright",
+            "relativePosition": "below",
+            "sameContainerAs": null,
+            "readingOrderIndex": 9,
+            "distance": 500
+          },
+          {
+            "namespace": "footer",
+            "key": "terms",
+            "relativePosition": "below",
+            "sameContainerAs": null,
+            "readingOrderIndex": 10,
+            "distance": 520
+          }
+        ]
+      },
+      "canonical": "[1,\"error-message\",\"error-sentence\",false,false,\"large\",[[\"forms\",\"cancel\",\"right\",\"form\"],[\"forms\",\"field.email.input\",\"above\",\"form\"],[\"forms\",\"field.email.label\",\"above\",\"form\"],[\"forms\",\"field.password.input\",\"below\",\"form\"],[\"forms\",\"field.password.label\",\"below\",\"form\"],[\"forms\",\"submit\",\"below\",\"form\"],[\"nav\",\"home\",\"above\",null],[\"nav\",\"settings\",\"above\",null]]]",
+      "expectedHash": "70620733ae5bed7bd59344570251e6953c3d7283067b3acbb58ea110471e9ac8"
+    },
+    {
+      "name": "null-container-neighbors",
+      "description": "Neighbors with null sameContainerAs and mixed positions.",
+      "input": {
+        "uiType": "nav-item",
+        "translationRole": "nav-label",
+        "mustBeShort": true,
+        "singleLine": true,
+        "widthBucket": "tiny",
+        "neighbors": [
+          {
+            "namespace": "nav",
+            "key": "dashboard",
+            "relativePosition": "left",
+            "sameContainerAs": null,
+            "readingOrderIndex": 0,
+            "distance": 50
+          },
+          {
+            "namespace": "nav",
+            "key": "reports",
+            "relativePosition": "right",
+            "sameContainerAs": null,
+            "readingOrderIndex": 1,
+            "distance": 50
+          }
+        ]
+      },
+      "canonical": "[1,\"nav-item\",\"nav-label\",true,true,\"tiny\",[[\"nav\",\"dashboard\",\"left\",null],[\"nav\",\"reports\",\"right\",null]]]",
+      "expectedHash": "fadad12d41a951d322135f2b3a1e1f190479384ec2ad1689709fb56eb55c003e"
+    },
+    {
+      "name": "namespace-with-colon",
+      "description": "RC-B: a namespace containing \":\" must hash unambiguously (no flat ns:key join).",
+      "input": {
+        "uiType": "form-label",
+        "translationRole": "field-label",
+        "mustBeShort": false,
+        "singleLine": true,
+        "widthBucket": "medium",
+        "neighbors": [
+          {
+            "namespace": "weird:ns",
+            "key": "a:b",
+            "relativePosition": "above",
+            "sameContainerAs": "form",
+            "readingOrderIndex": 0,
+            "distance": 25
+          },
+          {
+            "namespace": "weird",
+            "key": "ns:a",
+            "relativePosition": "above",
+            "sameContainerAs": "form",
+            "readingOrderIndex": 1,
+            "distance": 26
+          }
+        ]
+      },
+      "canonical": "[1,\"form-label\",\"field-label\",false,true,\"medium\",[[\"weird\",\"ns:a\",\"above\",\"form\"],[\"weird:ns\",\"a:b\",\"above\",\"form\"]]]",
+      "expectedHash": "fcda193015a97c455addcf87ea924cf0053b89bdcdd2098ef16e0436661cb721"
+    }
+  ]
+}

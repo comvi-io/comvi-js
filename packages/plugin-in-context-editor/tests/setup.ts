@@ -4,6 +4,12 @@
 
 // Extend matchers if needed
 import { expect, vi } from "vitest";
+import { installIntersectionObserverMock } from "./intersectionObserverMock";
+
+// happy-dom's IntersectionObserver never fires; install a controllable double
+// so the collector's IO-driven visibility set works in tests. Default behavior
+// reports observed elements as intersecting (see intersectionObserverMock.ts).
+installIntersectionObserverMock();
 
 // The plugin reads `import.meta.env.VITE_API_BASE_URL` at build time. Pin it
 // to a known host so service tests can assert outgoing fetch URLs.

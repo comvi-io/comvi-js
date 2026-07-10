@@ -13,6 +13,7 @@ import { TranslationScanner } from "./TranslationScanner";
 import { TranslationRegistry } from "./TranslationRegistry";
 import { EventBus } from "./EventBus";
 import { ElementHighlighter } from "./ElementHighlighter";
+import { Collector } from "./collector/Collector";
 import type { TranslationSystemOptions, TranslationSystemInnerOptions } from "./types";
 import type { I18n } from "@comvi/core";
 import { TAG_ATTRIBUTES } from "./constants";
@@ -60,6 +61,7 @@ export class Core {
   private eventBus: EventBus;
   private options: TranslationSystemInnerOptions;
   private elementHighlighter: ElementHighlighter;
+  private collector: Collector;
   private instanceId: string;
   private defaultNs?: string;
 
@@ -125,13 +127,26 @@ export class Core {
       this.translationRegistry,
       this.options,
     );
+
+    // Create the passive context collector (extension channel only — RALPLAN
+    // wave-2a). Constructed here so both activation paths (standalone.ts and
+    // index.ts) cover it; it only does anything once start()/stop() run.
+    this.collector = new Collector(this.eventBus, this.translationRegistry, this.instanceId, {
+      enabled: options?.collectContext !== false,
+    });
   }
 
   public start(): void {
     this.domWatcher.start();
+    void this.collector.start();
   }
 
   public stop(): void {
+    // Collector FIRST — before registry.destroy() (which emits removal
+    // events the collector must not react to) and before anything else
+    // tears down state it depends on.
+    this.collector.destroy();
+
     // Stop DOM watching first
     this.domWatcher.stop();
 
