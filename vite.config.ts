@@ -30,6 +30,11 @@ export default defineConfig(({ mode }) => {
   }
 
   return {
+    // The copy-static-files plugin below copies exactly what the package needs
+    // (manifest, popup.html, editor bundle, PNG icons). Disable Vite's default
+    // public/ passthrough so the SVG icon sources don't leak into dist/ and the
+    // CWS zip.
+    publicDir: false,
     build: {
       outDir: "dist",
       emptyOutDir: true,

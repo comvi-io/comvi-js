@@ -122,8 +122,3 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
     resetIcon(tabId);
   }
 });
-
-// Export for popup to query
-export function getTabState(tabId: number): TabState | undefined {
-  return tabStates.get(tabId);
-}
