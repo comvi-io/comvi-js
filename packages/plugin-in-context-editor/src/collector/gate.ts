@@ -9,10 +9,18 @@
 const FIELD_SEPARATOR = "::";
 
 export function computeVisibleSetSignature(
-  targets: Array<{ namespace: string; key: string }>,
+  targets: Array<{ namespace: string; key: string; screenGroup?: string }>,
   screenGroup: string,
 ): string {
-  const parts = targets.map((t) => t.namespace + FIELD_SEPARATOR + t.key).sort();
+  const parts = targets
+    .map(
+      (t) =>
+        t.namespace +
+        FIELD_SEPARATOR +
+        t.key +
+        (t.screenGroup ? FIELD_SEPARATOR + t.screenGroup : ""),
+    )
+    .sort();
   return screenGroup + FIELD_SEPARATOR + parts.join(FIELD_SEPARATOR);
 }
 

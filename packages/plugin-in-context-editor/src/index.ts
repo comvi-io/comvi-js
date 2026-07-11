@@ -206,6 +206,8 @@ export const InContextEditorPlugin: I18nPluginFactory<EditorOptions> = (options)
         tagAttributes: options?.tagAttributes,
         debug: options?.debug,
         highlightStyle: options?.highlightStyle,
+        collectContext: options?.collectContext,
+        screenGroupResolver: options?.screenGroupResolver,
       },
       i18n, // Pass i18n instance to Core
     );

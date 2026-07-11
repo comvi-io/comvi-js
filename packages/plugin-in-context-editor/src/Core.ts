@@ -133,6 +133,7 @@ export class Core {
     // index.ts) cover it; it only does anything once start()/stop() run.
     this.collector = new Collector(this.eventBus, this.translationRegistry, this.instanceId, {
       enabled: options?.collectContext !== false,
+      screenGroupResolver: options?.screenGroupResolver,
     });
   }
 

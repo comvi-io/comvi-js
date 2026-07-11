@@ -112,6 +112,18 @@ describe("Core <-> Collector wiring", () => {
     expect(options).toEqual({ enabled: false });
   });
 
+  it("passes screenGroupResolver through to the Collector", () => {
+    const resolver = () => "/users/:id";
+    new Core({ screenGroupResolver: resolver });
+    const [, , , options] = collectorCtorMock.mock.calls[0] as [
+      unknown,
+      unknown,
+      unknown,
+      { screenGroupResolver?: () => string },
+    ];
+    expect(options.screenGroupResolver).toBe(resolver);
+  });
+
   it("starts the collector alongside the DOM watcher", () => {
     const core = new Core({});
     core.start();

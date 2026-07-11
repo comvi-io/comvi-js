@@ -35,6 +35,12 @@ export interface PassItem {
   readingOrderIndex: number;
 }
 
+/** A full-send candidate: the wire observation plus the local hash to record as delivered on a 2xx. */
+interface FullSendItem {
+  observation: Observation;
+  localHash: string;
+}
+
 /** Items sent this pass survive teardown with a much smaller cap (keepalive request bodies are size-limited). */
 const MAX_TEARDOWN_ITEMS = 20;
 
@@ -56,8 +62,17 @@ function chunk<T>(items: T[], size: number): T[][] {
 export class CollectorTransport {
   /** (namespace,key,screenGroup) -> server-authoritative observationHash, hydrated by the handshake and by every `updated` echo (MF-1). */
   private readonly gateMap = new Map<string, string>();
-  /** Groups the server told us to resend in full on the next pass (RC-A skew). Consumed once. */
+  /** Groups the server told us to resend in full. Consumed only after a CONFIRMED (2xx) send — a failed POST keeps the marker so the resend retries. */
   private readonly forcedResend = new Set<string>();
+  /**
+   * (namespace,key,screenGroup) -> last observationHash confirmed delivered
+   * this session (a 2xx full send or still-valid ping). The anti-churn floor:
+   * mutation-forced passes can rebuild an identical observation every settle,
+   * and this map keeps those from becoming network traffic. A hash absent
+   * here was never confirmed, so failed sends retry naturally on the next
+   * pass instead of being dropped.
+   */
+  private readonly deliveredHashes = new Map<string, string>();
 
   constructor(private readonly scopeId: string) {}
 
@@ -117,24 +132,29 @@ export class CollectorTransport {
     return anySucceeded;
   }
 
-  private splitPass(pass: PassItem[]): { full: Observation[]; pings: StillValidPing[] } {
-    const full: Observation[] = [];
+  private splitPass(pass: PassItem[]): { full: FullSendItem[]; pings: StillValidPing[] } {
+    const full: FullSendItem[] = [];
     const pings: StillValidPing[] = [];
 
     for (const { observation, localHash } of pass) {
       const key = gateKey(observation.namespace, observation.key, observation.screenGroup);
-      const stored = this.gateMap.get(key);
-      const isForced = this.forcedResend.delete(key);
 
-      if (isForced || stored === undefined || stored !== localHash) {
-        full.push(observation);
-      } else {
+      if (this.forcedResend.has(key)) {
+        full.push({ observation, localHash });
+        continue;
+      }
+      if (this.deliveredHashes.get(key) === localHash) {
+        continue; // already confirmed this exact state this session
+      }
+      if (this.gateMap.get(key) === localHash) {
         pings.push({
           namespace: observation.namespace,
           key: observation.key,
           screenGroup: observation.screenGroup,
           observationHash: localHash,
         });
+      } else {
+        full.push({ observation, localHash });
       }
     }
 
@@ -182,7 +202,7 @@ export class CollectorTransport {
     }
   }
 
-  private async sendBatch(items: Observation[], stillValid: StillValidPing[]): Promise<void> {
+  private async sendBatch(items: FullSendItem[], stillValid: StillValidPing[]): Promise<void> {
     if (items.length === 0 && stillValid.length === 0) {
       return;
     }
@@ -192,11 +212,29 @@ export class CollectorTransport {
       const response = await fetch(baseUrl + "/v1/context/usages", {
         method: "POST",
         headers: getHeaders(this.scopeId),
-        body: this.buildRequestBody(items, stillValid),
+        body: this.buildRequestBody(
+          items.map((item) => item.observation),
+          stillValid,
+        ),
       });
 
       if (!response.ok) {
         return;
+      }
+
+      // Only a confirmed 2xx consumes forced-resend markers and records
+      // delivery — a failed batch leaves both untouched so the next pass
+      // retries instead of silently converging on skew.
+      for (const { observation, localHash } of items) {
+        const key = gateKey(observation.namespace, observation.key, observation.screenGroup);
+        this.forcedResend.delete(key);
+        this.deliveredHashes.set(key, localHash);
+      }
+      for (const ping of stillValid) {
+        this.deliveredHashes.set(
+          gateKey(ping.namespace, ping.key, ping.screenGroup),
+          ping.observationHash,
+        );
       }
 
       const data = (await response.json()) as UsagesResponse;
@@ -223,7 +261,7 @@ export class CollectorTransport {
 
     try {
       const { full, pings } = this.splitPass(pass);
-      const items = full.slice(0, MAX_TEARDOWN_ITEMS);
+      const items = full.slice(0, MAX_TEARDOWN_ITEMS).map((item) => item.observation);
       const stillValid = pings.slice(0, MAX_TEARDOWN_ITEMS);
       if (items.length === 0 && stillValid.length === 0) {
         return;

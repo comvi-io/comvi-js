@@ -119,10 +119,14 @@ function subscribeToRouteChanges(listener: RouteChangeListener): () => void {
   routeChangeListeners.add(listener);
   ensureHistoryPatched();
   window.addEventListener("popstate", listener);
+  // Hash-router navigations (location.hash = "#/...") fire hashchange without
+  // going through pushState/replaceState.
+  window.addEventListener("hashchange", listener);
 
   return () => {
     routeChangeListeners.delete(listener);
     window.removeEventListener("popstate", listener);
+    window.removeEventListener("hashchange", listener);
     if (routeChangeListeners.size === 0 && restoreHistoryPatch) {
       restoreHistoryPatch();
       restoreHistoryPatch = null;
@@ -137,6 +141,14 @@ export class CollectorTriggers {
   private observer: IntersectionObserver | null = null;
   /** Registered elements IO currently reports as intersecting — the single visibility source of truth. */
   private readonly visibleElements = new Set<Element>();
+  /**
+   * Set by mutation-class triggers (DOM/attribute/text/translation/route/
+   * resize) and consumed once per pass: these can change an element's signals
+   * WITHOUT changing the visible key SET (same-key DOM swap, ARIA/container
+   * edits, responsive width), so the pass must bypass the set-signature gates
+   * and re-evaluate. IO-only settles (scroll churn) never set it.
+   */
+  private mutationSinceLastPass = false;
 
   constructor(
     private readonly eventBus: EventBus,
@@ -155,6 +167,13 @@ export class CollectorTriggers {
     return this.visibleElements;
   }
 
+  /** True once per pass if any mutation-class trigger fired since the last consume. */
+  public consumeMutationFlag(): boolean {
+    const value = this.mutationSinceLastPass;
+    this.mutationSinceLastPass = false;
+    return value;
+  }
+
   public start(): void {
     if (this.started) {
       return;
@@ -164,9 +183,11 @@ export class CollectorTriggers {
     this.setupIntersectionObserver();
 
     this.unsubscribers.push(this.eventBus.on("initialScan", this.schedule));
-    this.unsubscribers.push(this.eventBus.on("structureChanges", this.schedule));
-    this.unsubscribers.push(this.eventBus.on("textChanges", this.schedule));
-    this.unsubscribers.push(this.eventBus.on("nodesRemoved", this.schedule));
+    this.unsubscribers.push(this.eventBus.on("structureChanges", this.scheduleMutation));
+    this.unsubscribers.push(this.eventBus.on("textChanges", this.scheduleMutation));
+    this.unsubscribers.push(this.eventBus.on("attributeChanges", this.scheduleMutation));
+    this.unsubscribers.push(this.eventBus.on("nodesRemoved", this.scheduleMutation));
+    this.unsubscribers.push(this.eventBus.on("translationUpdated", this.scheduleMutation));
 
     // Visibility source of truth: observe/unobserve as elements enter/leave
     // the registry (mirrors ElementHighlighter's register/remove wiring).
@@ -183,7 +204,11 @@ export class CollectorTriggers {
     }
 
     if (typeof window !== "undefined") {
-      this.unsubscribers.push(subscribeToRouteChanges(this.schedule));
+      this.unsubscribers.push(subscribeToRouteChanges(this.scheduleMutation));
+      // Responsive breakpoints change widthBucket/truncation signals without
+      // any DOM mutation; the settle debounce absorbs the resize-event burst.
+      window.addEventListener("resize", this.scheduleMutation, { passive: true });
+      this.unsubscribers.push(() => window.removeEventListener("resize", this.scheduleMutation));
     }
   }
 
@@ -273,6 +298,11 @@ export class CollectorTriggers {
   };
 
   private schedule = (): void => {
+    this.debounced();
+  };
+
+  private scheduleMutation = (): void => {
+    this.mutationSinceLastPass = true;
     this.debounced();
   };
 }

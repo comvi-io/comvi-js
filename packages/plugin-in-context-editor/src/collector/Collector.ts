@@ -5,8 +5,10 @@
  * Hard invariants this class exists to uphold (RALPLAN §0):
  *   - collection lives ONLY inside an active session: constructed by `Core`,
  *     started in `Core.start()`, destroyed FIRST in `Core.stop()`.
- *   - event-driven, no polling: passes only run on trigger settle, and only
- *     when the visible-key SET actually changed (the gate).
+ *   - event-driven, no polling: passes only run on trigger settle. IO-only
+ *     settles are gated on the visible-key SET; mutation-class triggers force
+ *     re-evaluation past the set gates (same-key signal drift), with the
+ *     transport's per-item hash gate as the network authority.
  *   - every entry point is fault-isolated (RC3/P8): a handshake rejection,
  *     network failure, or unexpected throw anywhere in a pass silently
  *     disables collection for the rest of the session and NEVER reaches the
@@ -22,7 +24,7 @@ import {
   extractConstraintSignals,
   extractSemanticSignals,
 } from "./signals";
-import { computeScreenGroup } from "./screenGroup";
+import { computeScreenGroup, readCurrentRoute, type ScreenGroupResolver } from "./screenGroup";
 import { computeVisibleSetSignature, VisibleSetGate } from "./gate";
 import { CollectorTriggers } from "./triggers";
 import { CollectorTransport, type PassItem } from "./transport";
@@ -32,6 +34,7 @@ import type { Observation } from "./types";
 
 export interface CollectorOptions {
   enabled: boolean;
+  screenGroupResolver?: ScreenGroupResolver;
 }
 
 export class Collector {
@@ -134,36 +137,50 @@ export class Collector {
         return;
       }
 
-      const pathname = typeof location !== "undefined" ? location.pathname : "";
-      const { screenGroup } = computeScreenGroup(rootDocument, this.registry, pathname);
+      const { screenGroup, modal } = computeScreenGroup(
+        rootDocument,
+        this.registry,
+        readCurrentRoute(),
+        this.options.screenGroupResolver,
+      );
+      // Only targets INSIDE the open dialog's subtree get the modal-suffixed
+      // group; background keys visible behind it keep the plain route group.
+      const modalGroup = modal ? screenGroup + "#" + modal.discriminator : null;
+      const groupFor = (element: Element): string =>
+        modalGroup !== null && modal!.element.contains(element) ? modalGroup : screenGroup;
+
+      // Mutation-class triggers (DOM/attribute/text/translation/route/resize)
+      // force this pass past both set-signature gates: they can change an
+      // element's signals — same-key DOM swap, ARIA/container edits,
+      // responsive width — without changing the visible key SET, which is all
+      // the signatures see. The gates still short-circuit IO-only settles
+      // (scroll churn), and the transport's per-item hash gate keeps forced
+      // re-evaluations off the network when nothing actually changed.
+      const forcePass = this.triggers.consumeMutationFlag();
 
       // M1: cheap pre-gate over the currently-VISIBLE key SET (the
       // IntersectionObserver-intersecting elements mapped to {ns,key}, no rect
       // access at all) before any per-element measurement. Because this is
       // visibility-sensitive, a scroll that reveals a static element changes
       // the signature and proceeds; a no-boundary-cross scroll short-circuits
-      // at this cheap tier. Only if it changed do we pay for
-      // enumerateVisibleTargets's getBoundingClientRect calls (restricted to
-      // the same visible subset); the visible-set gate below still applies as
-      // the second filter and stays the send authority.
-      //
-      // Signature dedup caveat: the signature is over the {ns::key} SET, so if
-      // one settle window both removes and adds a DIFFERENT element that maps to
-      // the same ns::key, the visible set looks unchanged and no resend is
-      // forced. This is inherent to set-signature dedup; in practice other
-      // triggers (structure/text mutation on the swap) usually mask it.
+      // at this cheap tier. Only if it changed (or the pass is forced) do we
+      // pay for enumerateVisibleTargets's getBoundingClientRect calls
+      // (restricted to the same visible subset).
       const intersecting = this.triggers.getIntersectingElements();
       const preSignature = computeVisibleSetSignature(
         collectKeyRefsForElements(this.registry, intersecting),
-        screenGroup,
+        modalGroup ?? screenGroup,
       );
-      if (!this.registryGate.hasChanged(preSignature)) {
+      if (!this.registryGate.hasChanged(preSignature) && !forcePass) {
         return;
       }
 
-      const targets = enumerateVisibleTargets(this.registry, intersecting);
-      const signature = computeVisibleSetSignature(targets, screenGroup);
-      if (!this.gate.hasChanged(signature)) {
+      const targets = enumerateVisibleTargets(this.registry, intersecting).map((target) => ({
+        ...target,
+        screenGroup: groupFor(target.element),
+      }));
+      const signature = computeVisibleSetSignature(targets, "");
+      if (!this.gate.hasChanged(signature) && !forcePass) {
         return;
       }
 
@@ -184,7 +201,7 @@ export class Collector {
         const observation: Observation = {
           namespace: target.namespace,
           key: target.key,
-          screenGroup,
+          screenGroup: target.screenGroup,
           uiType,
           translationRole,
           semantic: target.semantic,
@@ -209,13 +226,12 @@ export class Collector {
       this.lastPass = pass;
 
       void this.transport.sendPass(pass).catch((error) => {
-        // Best-effort, no retry storms (deliberate): gate signatures above are
-        // recorded regardless of whether sendPass ultimately resolves or
-        // rejects, so a failed send is NOT retried on the next settle — the
-        // observations here are dropped unless the view changes again and
-        // produces a new signature.
+        // Best-effort, no retry storms (deliberate): the transport records
+        // delivery only on a confirmed 2xx, so a failed send stays a full-send
+        // candidate and retries on the next pass (mutation-forced or
+        // signature-changing) instead of needing a dedicated retry loop here.
         console.error(
-          "[ComviInContextEditor] Collector pass failed to send; observations dropped unless the view changes again.",
+          "[ComviInContextEditor] Collector pass failed to send; will retry on a later pass.",
           error,
         );
       });

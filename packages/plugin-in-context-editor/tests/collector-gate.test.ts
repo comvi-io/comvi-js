@@ -27,6 +27,24 @@ describe("collector/gate", () => {
     expect(home).not.toBe(settings);
   });
 
+  it("differs when only a target's per-target screenGroup changes (modal opens over the same keys)", () => {
+    const plain = computeVisibleSetSignature(
+      [
+        { namespace: "ns", key: "a", screenGroup: "/home" },
+        { namespace: "ns", key: "b", screenGroup: "/home" },
+      ],
+      "",
+    );
+    const withModal = computeVisibleSetSignature(
+      [
+        { namespace: "ns", key: "a", screenGroup: "/home" },
+        { namespace: "ns", key: "b", screenGroup: "/home#modal:x" },
+      ],
+      "",
+    );
+    expect(plain).not.toBe(withModal);
+  });
+
   it("differs when a key is added or removed", () => {
     const base = computeVisibleSetSignature([{ namespace: "ns", key: "a" }], "/home");
     const withExtra = computeVisibleSetSignature(

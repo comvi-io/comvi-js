@@ -144,7 +144,7 @@ describe("collector/Collector — lifecycle & fault isolation", () => {
     collector.destroy();
   });
 
-  it("M1: a DOM mutation that doesn't change the registry key set never measures any rect", async () => {
+  it("a same-key-set mutation re-measures (drift detection) but stays off the network when signals are unchanged", async () => {
     const fetchMock = vi.fn();
     fetchMock.mockResolvedValue(
       mockOkResponse({ updated: [], resend: [], orphanObservations: 0, hashSkew: 0 }),
@@ -169,10 +169,11 @@ describe("collector/Collector — lifecycle & fault isolation", () => {
     });
 
     const collector = new Collector(eventBus, registry, SCOPE, { enabled: true });
-    await collector.start(); // handshake + immediate first settle pass — DOES measure once
+    await collector.start(); // handshake + immediate first settle pass
     await Promise.resolve();
     await Promise.resolve();
 
+    const callsAfterInitial = fetchMock.mock.calls.length;
     // Spy AFTER the initial pass so we only observe calls from subsequent
     // settles. mockBoundingClientRect sets an own property on the element
     // (shadowing the prototype), so the spy must target that same instance.
@@ -181,37 +182,153 @@ describe("collector/Collector — lifecycle & fault isolation", () => {
     try {
       vi.useFakeTimers();
 
-      // Same registry key set (no add/remove), no route change — the M1
-      // pre-gate must short-circuit BEFORE enumerateVisibleTargets ever
-      // calls getBoundingClientRect on any registered element.
+      // Same registry key set (no add/remove) — but a mutation-class trigger
+      // can change signals without changing the SET (same-key DOM swap,
+      // ARIA/container edits), so it must force re-measurement past the set
+      // gates. Nothing actually changed here, so the transport's hash gate
+      // keeps the pass off the network.
       eventBus.emit("structureChanges", [div]);
       await vi.advanceTimersByTimeAsync(1100);
 
-      expect(rectSpy).not.toHaveBeenCalled();
-
-      // A real registry change (new key added) DOES pay for measurement.
-      const second = document.createElement("div");
-      document.body.appendChild(second);
-      mockBoundingClientRect(second, {
-        top: 30,
-        left: 0,
-        width: 100,
-        height: 20,
-        right: 100,
-        bottom: 50,
-      });
-      registry.add(second, {
-        nodes: new Map([[document.createTextNode("y"), { key: "b", ns: "ns" }]]),
-      });
-      const secondRectSpy = vi.spyOn(second, "getBoundingClientRect");
-
-      eventBus.emit("structureChanges", [second]);
-      await vi.advanceTimersByTimeAsync(1100);
-
-      expect(secondRectSpy).toHaveBeenCalled();
+      expect(rectSpy).toHaveBeenCalled();
+      expect(fetchMock.mock.calls.length).toBe(callsAfterInitial);
     } finally {
       vi.useRealTimers();
     }
+
+    collector.destroy();
+  });
+
+  it("same-key signal drift after a mutation trigger sends an updated full observation", async () => {
+    const fetchMock = vi.fn();
+    fetchMock.mockResolvedValue(
+      mockOkResponse({ updated: [], resend: [], orphanObservations: 0, hashSkew: 0 }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const eventBus = new EventBus();
+    const registry = new TranslationRegistry(eventBus);
+
+    const div = document.createElement("div");
+    document.body.appendChild(div);
+    mockBoundingClientRect(div, {
+      top: 0,
+      left: 0,
+      width: 100,
+      height: 20,
+      right: 100,
+      bottom: 20,
+    });
+    registry.add(div, {
+      nodes: new Map([[document.createTextNode("x"), { key: "a", ns: "ns" }]]),
+    });
+
+    const collector = new Collector(eventBus, registry, SCOPE, { enabled: true });
+    await collector.start();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    const callsAfterInitial = fetchMock.mock.calls.length;
+
+    try {
+      vi.useFakeTimers();
+
+      // The visible key SET is unchanged, but the element's width bucket
+      // drifts (small -> large). Before the mutation-force fix this change
+      // was invisible forever; now it must reach the wire as a full resend.
+      mockBoundingClientRect(div, {
+        top: 0,
+        left: 0,
+        width: 400,
+        height: 20,
+        right: 400,
+        bottom: 20,
+      });
+      eventBus.emit("attributeChanges", [div]);
+      await vi.advanceTimersByTimeAsync(1100);
+      await Promise.resolve();
+    } finally {
+      vi.useRealTimers();
+    }
+
+    expect(fetchMock.mock.calls.length).toBeGreaterThan(callsAfterInitial);
+    const lastBody = JSON.parse(
+      (fetchMock.mock.calls[fetchMock.mock.calls.length - 1]![1] as RequestInit).body as string,
+    );
+    expect(lastBody.items).toHaveLength(1);
+    expect(lastBody.items[0].constraints.hard.widthBucket).toBe("large");
+
+    collector.destroy();
+  });
+
+  it("only keys inside the open dialog get the modal-suffixed screenGroup; background keys keep the route group", async () => {
+    const fetchMock = vi.fn();
+    fetchMock.mockResolvedValue(
+      mockOkResponse({ updated: [], resend: [], orphanObservations: 0, hashSkew: 0 }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const eventBus = new EventBus();
+    const registry = new TranslationRegistry(eventBus);
+
+    const background = document.createElement("div");
+    document.body.appendChild(background);
+    mockBoundingClientRect(background, {
+      top: 0,
+      left: 0,
+      width: 100,
+      height: 20,
+      right: 100,
+      bottom: 20,
+    });
+    registry.add(background, {
+      nodes: new Map([[document.createTextNode("x"), { key: "page.title", ns: "ns" }]]),
+    });
+
+    const dialog = document.createElement("div");
+    dialog.setAttribute("role", "dialog");
+    dialog.id = "settings-modal";
+    document.body.appendChild(dialog);
+    mockBoundingClientRect(dialog, {
+      top: 40,
+      left: 0,
+      width: 300,
+      height: 200,
+      right: 300,
+      bottom: 240,
+    });
+
+    const inside = document.createElement("div");
+    dialog.appendChild(inside);
+    mockBoundingClientRect(inside, {
+      top: 50,
+      left: 10,
+      width: 100,
+      height: 20,
+      right: 110,
+      bottom: 70,
+    });
+    registry.add(inside, {
+      nodes: new Map([[document.createTextNode("y"), { key: "modal.title", ns: "ns" }]]),
+    });
+
+    const collector = new Collector(eventBus, registry, SCOPE, { enabled: true });
+    await collector.start();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    const usagesCall = fetchMock.mock.calls.find(([url]) =>
+      (url as string).includes("/v1/context/usages"),
+    );
+    expect(usagesCall).toBeDefined();
+    const body = JSON.parse((usagesCall![1] as RequestInit).body as string);
+    const byKey = new Map(body.items.map((item: { key: string }) => [item.key, item]));
+
+    const insideItem = byKey.get("modal.title") as { screenGroup: string };
+    const backgroundItem = byKey.get("page.title") as { screenGroup: string };
+    expect(insideItem.screenGroup).toContain("#modal:");
+    expect(backgroundItem.screenGroup).not.toContain("#modal:");
+    expect(insideItem.screenGroup.startsWith(backgroundItem.screenGroup)).toBe(true);
 
     collector.destroy();
   });

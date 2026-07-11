@@ -98,7 +98,12 @@ describe("collector wire shape — cross-repo fixture lock (B1)", () => {
       nodes: new Map([[document.createTextNode("t"), { key: "checkout.submit", ns: "common" }]]),
     });
 
-    const collector = new Collector(eventBus, registry, SCOPE, { enabled: true });
+    // The fixture's "/checkout" models an integration-supplied route template;
+    // without a resolver the default screenGroup is an opaque route digest.
+    const collector = new Collector(eventBus, registry, SCOPE, {
+      enabled: true,
+      screenGroupResolver: () => "/checkout",
+    });
     await collector.start();
     await Promise.resolve();
     await Promise.resolve();

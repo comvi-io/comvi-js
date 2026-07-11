@@ -342,7 +342,7 @@ describe("collector/transport", () => {
       expect(body.stillValid).toHaveLength(0);
     });
 
-    it("mid-session convergence (MF-1): an `updated` echo for a screenGroup absent from the handshake makes the NEXT pass for it a ping", async () => {
+    it("mid-session convergence (MF-1): after a confirmed full send, an identical pass makes NO network call", async () => {
       const fetchMock = vi.mocked(fetch);
       // No handshake call at all — this screenGroup is discovered mid-session
       // (an empty-keys handshake never hits the network, so the gate map
@@ -364,20 +364,80 @@ describe("collector/transport", () => {
           hashSkew: 0,
         }),
       );
+
+      const transport = new CollectorTransport(SCOPE);
+
+      await transport.sendPass([makePassItem({}, "server-hash")]);
+      const body = JSON.parse((fetchMock.mock.calls[0]![1] as RequestInit).body as string);
+      expect(body.items).toHaveLength(1); // first pass: no stored hash yet -> full
+
+      // The confirmed send already proved liveness for this exact state —
+      // repeating it (mutation-forced passes rebuild identical observations
+      // every settle) must stay off the network entirely.
+      await transport.sendPass([makePassItem({}, "server-hash")]);
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
+
+    it("a changed hash after convergence sends full again", async () => {
+      const fetchMock = vi.mocked(fetch);
+      fetchMock.mockResolvedValue(
+        mockOkResponse({ updated: [], resend: [], orphanObservations: 0, hashSkew: 0 }),
+      );
+
+      const transport = new CollectorTransport(SCOPE);
+      await transport.sendPass([makePassItem({}, "hash-1")]);
+      await transport.sendPass([makePassItem({}, "hash-2")]);
+
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+      const body = JSON.parse((fetchMock.mock.calls[1]![1] as RequestInit).body as string);
+      expect(body.items).toHaveLength(1);
+    });
+
+    it("a failed full send is NOT recorded as delivered and retries on the next pass", async () => {
+      const fetchMock = vi.mocked(fetch);
+      fetchMock
+        .mockRejectedValueOnce(new Error("network down"))
+        .mockResolvedValueOnce(
+          mockOkResponse({ updated: [], resend: [], orphanObservations: 0, hashSkew: 0 }),
+        );
+
+      const transport = new CollectorTransport(SCOPE);
+      await transport.sendPass([makePassItem({}, "hash-a")]);
+      await transport.sendPass([makePassItem({}, "hash-a")]);
+
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+      const body = JSON.parse((fetchMock.mock.calls[1]![1] as RequestInit).body as string);
+      expect(body.items).toHaveLength(1); // retried as full, not dropped
+    });
+
+    it("a still-valid ping is sent once; identical later passes stay silent", async () => {
+      const fetchMock = vi.mocked(fetch);
+      fetchMock.mockResolvedValueOnce(
+        mockOkResponse({
+          entries: [
+            {
+              namespace: "ns",
+              key: "checkout.submit",
+              profileHash: "p1",
+              confidenceLevel: "high",
+              lastSeenAt: "2026-01-01T00:00:00.000Z",
+              screenGroups: [{ screenGroup: "/checkout", observationHash: "hash-a" }],
+            },
+          ],
+        }),
+      );
       fetchMock.mockResolvedValueOnce(
         mockOkResponse({ updated: [], resend: [], orphanObservations: 0, hashSkew: 0 }),
       );
 
       const transport = new CollectorTransport(SCOPE);
+      await transport.handshake([{ namespace: "ns", key: "checkout.submit" }]);
 
-      await transport.sendPass([makePassItem({}, "server-hash")]);
-      let body = JSON.parse((fetchMock.mock.calls[0]![1] as RequestInit).body as string);
-      expect(body.items).toHaveLength(1); // first pass: no stored hash yet -> full
+      await transport.sendPass([makePassItem({}, "hash-a")]);
+      expect(fetchMock).toHaveBeenCalledTimes(2); // handshake + one ping
 
-      await transport.sendPass([makePassItem({}, "server-hash")]);
-      body = JSON.parse((fetchMock.mock.calls[1]![1] as RequestInit).body as string);
-      expect(body.items).toHaveLength(0);
-      expect(body.stillValid).toHaveLength(1); // learned from the echo -> now pings
+      await transport.sendPass([makePassItem({}, "hash-a")]);
+      expect(fetchMock).toHaveBeenCalledTimes(2); // no re-ping for the same state
     });
 
     it("a `resend` entry forces the NEXT pass to send full even though the local gate map still matches", async () => {
@@ -419,6 +479,48 @@ describe("collector/transport", () => {
       await transport.sendPass([makePassItem({}, "hash-a")]);
       body = JSON.parse((fetchMock.mock.calls[2]![1] as RequestInit).body as string);
       expect(body.items).toHaveLength(1); // forced full despite matching local hash
+      expect(body.stillValid).toHaveLength(0);
+    });
+
+    it("a forced-resend marker survives a failed POST and still forces full on the pass after (RC-A)", async () => {
+      const fetchMock = vi.mocked(fetch);
+      fetchMock.mockResolvedValueOnce(
+        mockOkResponse({
+          entries: [
+            {
+              namespace: "ns",
+              key: "checkout.submit",
+              profileHash: "p1",
+              confidenceLevel: "high",
+              lastSeenAt: "2026-01-01T00:00:00.000Z",
+              screenGroups: [{ screenGroup: "/checkout", observationHash: "hash-a" }],
+            },
+          ],
+        }),
+      );
+      // Ping pass: server demands a resend.
+      fetchMock.mockResolvedValueOnce(
+        mockOkResponse({
+          updated: [],
+          resend: [{ namespace: "ns", key: "checkout.submit", screenGroup: "/checkout" }],
+          orphanObservations: 0,
+          hashSkew: 1,
+        }),
+      );
+      // The forced full send FAILS — the marker must not be consumed.
+      fetchMock.mockRejectedValueOnce(new Error("network down"));
+      fetchMock.mockResolvedValueOnce(
+        mockOkResponse({ updated: [], resend: [], orphanObservations: 0, hashSkew: 0 }),
+      );
+
+      const transport = new CollectorTransport(SCOPE);
+      await transport.handshake([{ namespace: "ns", key: "checkout.submit" }]);
+      await transport.sendPass([makePassItem({}, "hash-a")]); // ping -> resend demanded
+      await transport.sendPass([makePassItem({}, "hash-a")]); // forced full, fails
+
+      await transport.sendPass([makePassItem({}, "hash-a")]); // must STILL be full
+      const body = JSON.parse((fetchMock.mock.calls[3]![1] as RequestInit).body as string);
+      expect(body.items).toHaveLength(1);
       expect(body.stillValid).toHaveLength(0);
     });
   });

@@ -152,6 +152,8 @@ export function activate(options: ActivateOptions): ActivateResult | null {
       targetElement: options.targetElement || document.body,
       tagAttributes: options.tagAttributes,
       debug: options.debug,
+      collectContext: options.collectContext,
+      screenGroupResolver: options.screenGroupResolver,
     },
     i18n,
   );

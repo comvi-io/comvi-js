@@ -123,12 +123,15 @@ function inferSemanticRole(
   hasCursorPointer: boolean,
 ): SemanticRole {
   if (role) {
-    if (INTERACTIVE_ARIA_ROLES.has(role)) return "button";
+    // Specific roles first — the generic interactive-role check would
+    // otherwise shadow link/menuitem into "button".
+    if (role === "link") return "link";
+    if (role === "menuitem" || role === "menuitemcheckbox" || role === "menuitemradio")
+      return "menu-item";
     if (role === "alert" || role === "status") return "alert";
     if (role === "tooltip") return "tooltip";
     if (role === "heading") return "heading";
-    if (role === "link") return "link";
-    if (role === "menuitem" || role === "menuitemcheckbox") return "menu-item";
+    if (INTERACTIVE_ARIA_ROLES.has(role)) return "button";
   }
   switch (tag) {
     case "button":
