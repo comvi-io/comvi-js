@@ -523,4 +523,106 @@ describe("i18n middleware", () => {
     const localeCookie = useCookie("i18n_locale");
     expect(localeCookie.value).toBe("uk");
   });
+
+  describe("query parameter detection", () => {
+    const withQueryParam = (overrides: Record<string, unknown> = {}) => {
+      mockRuntimeConfig.public.comvi.detectBrowserLanguage = {
+        useCookie: false,
+        cookieName: "i18n_locale",
+        cookieMaxAge: 31536000,
+        redirectOnFirstVisit: true,
+        queryParam: "lang",
+        ...overrides,
+      };
+    };
+
+    it("uses the query locale in never mode without redirecting (forest-page shape)", async () => {
+      setServerMode(true);
+      mockRuntimeConfig.public.comvi.localePrefix = "never";
+      withQueryParam();
+      setMockRequestHeaders({ "accept-language": "uk,en;q=0.8" });
+
+      const result = await middleware({
+        path: "/my-forest",
+        fullPath: "/my-forest?lang=de",
+        query: { lang: "de" },
+      } as any);
+
+      expect(result).toBeUndefined();
+      const localeState = useState<string>("i18n-locale");
+      expect(localeState.value).toBe("de");
+    });
+
+    it("prefers the query locale over the cookie", async () => {
+      withQueryParam({ useCookie: true });
+      setMockCookie("i18n_locale", "de");
+
+      const result = await middleware({
+        path: "/",
+        fullPath: "/?lang=uk",
+        query: { lang: "uk" },
+      } as any);
+
+      expect(result?.path).toBe("/uk?lang=uk");
+      const localeState = useState<string>("i18n-locale");
+      expect(localeState.value).toBe("uk");
+    });
+
+    it("keeps an explicit path prefix over the query locale", async () => {
+      withQueryParam();
+
+      const result = await middleware({
+        path: "/de/about",
+        fullPath: "/de/about?lang=uk",
+        query: { lang: "uk" },
+      } as any);
+
+      expect(result).toBeUndefined();
+      const localeState = useState<string>("i18n-locale");
+      expect(localeState.value).toBe("de");
+    });
+
+    it("beats the implied default of a prefixless path in as-needed mode", async () => {
+      withQueryParam();
+
+      const result = await middleware({
+        path: "/about",
+        fullPath: "/about?lang=de",
+        query: { lang: "de" },
+      } as any);
+
+      expect(result?.path).toBe("/de/about?lang=de");
+      const localeState = useState<string>("i18n-locale");
+      expect(localeState.value).toBe("de");
+    });
+
+    it("ignores query values outside the locale allowlist", async () => {
+      withQueryParam({ useCookie: true });
+      setMockCookie("i18n_locale", "de");
+
+      const result = await middleware({
+        path: "/",
+        fullPath: "/?lang=xx",
+        query: { lang: "xx" },
+      } as any);
+
+      expect(result?.path).toBe("/de?lang=xx");
+      const localeState = useState<string>("i18n-locale");
+      expect(localeState.value).toBe("de");
+    });
+
+    it("ignores the query parameter when not configured", async () => {
+      mockRuntimeConfig.public.comvi.localePrefix = "never";
+
+      const result = await middleware({
+        path: "/my-forest",
+        fullPath: "/my-forest?lang=de",
+        query: { lang: "de" },
+      } as any);
+
+      expect(result).toBeUndefined();
+      const localeState = useState<string>("i18n-locale");
+      expect(localeState.value).toBe("en");
+    });
+  });
 });

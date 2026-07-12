@@ -22,7 +22,7 @@ import { DEFAULT_DETECT_BROWSER_LANGUAGE } from "../defaults";
  *
  * This middleware:
  * 1. Detects locale from URL path
- * 2. Falls back to cookie, then Accept-Language header
+ * 2. Falls back to the configured query parameter, then cookie, then Accept-Language header
  * 3. Handles URL prefix modes (always, as-needed, never)
  * 4. Persists locale in cookie
  * 5. Syncs locale with Nuxt state
@@ -74,12 +74,25 @@ export default defineNuxtRouteMiddleware(async (to) => {
 
   // 2. Detect locale from various sources
   let detectedLocale: string | undefined;
-  let detectedSource: "path" | "cookie" | "header" | "fallback" = "fallback";
+  let detectedSource: "path" | "query" | "cookie" | "header" | "fallback" = "fallback";
 
   if (pathLocale) {
     detectedLocale = pathLocale;
     detectedSource = "path";
-  } else if (localePrefix === "as-needed" && pathname !== "/" && pathname !== "") {
+  }
+
+  // Explicit query parameter (e.g. ?lang=de) beats the implied default of a
+  // prefixless path and stored preferences, but not an explicit path prefix.
+  if (!detectedLocale && detectConfig !== false && detectConfig.queryParam) {
+    const rawQueryValue = to.query?.[detectConfig.queryParam];
+    const queryLocale = Array.isArray(rawQueryValue) ? rawQueryValue[0] : rawQueryValue;
+    if (typeof queryLocale === "string" && locales.includes(queryLocale)) {
+      detectedLocale = queryLocale;
+      detectedSource = "query";
+    }
+  }
+
+  if (!detectedLocale && localePrefix === "as-needed" && pathname !== "/" && pathname !== "") {
     detectedLocale = defaultLocale;
     detectedSource = "path";
   }

@@ -12,6 +12,7 @@ type NuxtRouteLike = {
   path: string;
   fullPath: string;
   params: Record<string, string | string[] | undefined>;
+  query?: Record<string, string | string[] | null | undefined>;
 };
 
 interface ImportMeta {
