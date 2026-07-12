@@ -118,6 +118,29 @@ describe("Advanced Formatting (Quoting & Escaping)", () => {
       expect(i18n.t("quotedHash", { count: 3 })).toBe("# of them: 3");
     });
 
+    it("should treat # as syntax only inside plural sub-messages", () => {
+      i18n.addTranslations({
+        en: {
+          topLevel: "Price '#' {amount}",
+          topLevelUnterminated: "Price '# {amount}",
+          standaloneSelect: "{kind, select, other {Price '#' {amount}}}",
+          selectInPlural: "{count, plural, other {{kind, select, other {'#' means the count: #}}}}",
+          pluralUnterminated: "{count, plural, other {'# {amount} swallows the closing braces}}",
+        },
+      });
+
+      expect(i18n.t("topLevel", { amount: 5 })).toBe("Price '#' 5");
+      expect(i18n.t("topLevelUnterminated", { amount: 5 })).toBe("Price '# 5");
+      expect(i18n.t("standaloneSelect", { kind: "any", amount: 5 })).toBe("Price '#' 5");
+      expect(i18n.t("selectInPlural", { count: 3, kind: "any" })).toBe("# means the count: 3");
+      // An unterminated quote before # inside a plural swallows the argument's
+      // closing braces: the message is malformed ICU (FormatJS throws
+      // EXPECT_ARGUMENT_CLOSING_BRACE) and falls back to the raw source.
+      expect(i18n.t("pluralUnterminated", { count: 3, amount: 5 })).toBe(
+        "{count, plural, other {'# {amount} swallows the closing braces}}",
+      );
+    });
+
     it("should keep apostrophes literal inside plural and select branches", () => {
       i18n.addTranslations({
         de: {
