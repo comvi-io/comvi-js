@@ -10,7 +10,7 @@
     "declaration": false,
     "outDir": "dist",
     "lib": ["ES2020", "DOM"],
-    "types": ["chrome"]
+    "types": ["chrome", "node"]
   },
   "include": ["src/**/*.ts"],
   "exclude": ["node_modules", "dist"]

@@ -1,7 +1,7 @@
 import { defineConfig, loadEnv } from "vite";
 import tailwindcss from "@tailwindcss/vite";
 import { resolve } from "path";
-import { copyFileSync, existsSync, mkdirSync, readdirSync } from "fs";
+import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "fs";
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, __dirname, "");
@@ -29,6 +29,33 @@ export default defineConfig(({ mode }) => {
     );
   }
 
+  // The service worker performs all authenticated API requests, so the
+  // manifest must grant exactly (and only) the configured API origin.
+  let apiOrigin: string;
+  try {
+    apiOrigin = new URL(apiBaseUrl).origin;
+  } catch {
+    throw new Error(`VITE_COMVI_API_BASE_URL is not a valid URL: ${apiBaseUrl}`);
+  }
+  // Production requires https. Plain http is permitted ONLY for exact
+  // loopback hosts, matching the runtime origin policy in src/shared/origins.ts
+  // — this is what lets the Gate-E build talk to a local mock API.
+  const LOOPBACK_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]"]);
+  const apiUrl = new URL(apiBaseUrl);
+  const isLoopbackHttp = apiUrl.protocol === "http:" && LOOPBACK_HOSTS.has(apiUrl.hostname);
+  if (apiUrl.protocol !== "https:" && !isLoopbackHttp) {
+    throw new Error(
+      `VITE_COMVI_API_BASE_URL must be https (or http on a loopback host), got: ${apiBaseUrl}`,
+    );
+  }
+
+  // Output directory. Overridable so the Gate-E build can go to its own dir
+  // (dist-gate-e) without clobbering the shippable dist/. The copy plugin
+  // below honors the same value — do NOT use vite's --outDir flag, which the
+  // plugin cannot see.
+  const outDir = env.COMVI_OUT_DIR?.trim() || "dist";
+  const outPath = (...parts: string[]) => resolve(__dirname, outDir, ...parts);
+
   return {
     // The copy-static-files plugin below copies exactly what the package needs
     // (manifest, popup.html, editor bundle, PNG icons). Disable Vite's default
@@ -36,7 +63,7 @@ export default defineConfig(({ mode }) => {
     // CWS zip.
     publicDir: false,
     build: {
-      outDir: "dist",
+      outDir,
       emptyOutDir: true,
       rolldownOptions: {
         input: {
@@ -60,23 +87,20 @@ export default defineConfig(({ mode }) => {
       {
         name: "copy-static-files",
         closeBundle() {
-          // Copy manifest.json
-          copyFileSync(
-            resolve(__dirname, "manifest.json"),
-            resolve(__dirname, "dist/manifest.json"),
-          );
+          // Copy manifest.json, pinning host_permissions to the configured
+          // API origin so the shipped manifest always matches the build.
+          const manifest = JSON.parse(readFileSync(resolve(__dirname, "manifest.json"), "utf8"));
+          manifest.host_permissions = [`${apiOrigin}/*`];
+          writeFileSync(outPath("manifest.json"), JSON.stringify(manifest, null, 2) + "\n");
 
           // Copy popup.html
-          copyFileSync(
-            resolve(__dirname, "src/popup/popup.html"),
-            resolve(__dirname, "dist/popup.html"),
-          );
+          copyFileSync(resolve(__dirname, "src/popup/popup.html"), outPath("popup.html"));
 
           // Copy the bundled in-context editor runtime
-          copyFileSync(editorBundlePath, resolve(__dirname, "dist/editor.iife.js"));
+          copyFileSync(editorBundlePath, outPath("editor.iife.js"));
 
           // Create icons directory and copy icons
-          const iconsDir = resolve(__dirname, "dist/icons");
+          const iconsDir = outPath("icons");
           if (!existsSync(iconsDir)) {
             mkdirSync(iconsDir, { recursive: true });
           }

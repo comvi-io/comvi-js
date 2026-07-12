@@ -1,0 +1,323 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Comvi Gate-E — hostile page</title>
+    <style>
+      body { font: 14px/1.5 system-ui, sans-serif; margin: 2rem; max-width: 900px; }
+      h1 { font-size: 1.2rem; }
+      button { font: inherit; padding: 0.5rem 1rem; margin: 0.25rem 0.5rem 0.25rem 0; cursor: pointer; }
+      .row { padding: 0.35rem 0; border-bottom: 1px solid #eee; display: flex; gap: 0.75rem; }
+      .pass { color: #15803d; font-weight: 600; }
+      .fail { color: #b91c1c; font-weight: 700; }
+      .name { flex: 1; }
+      .muted { color: #666; }
+      code { background: #f3f3f3; padding: 0 0.25rem; }
+      #summary { margin-top: 1rem; font-weight: 700; }
+    </style>
+  </head>
+  <body>
+    <h1>Comvi Gate-E — adversarial smoke test (hostile page)</h1>
+    <p class="muted">
+      This page mimics a Comvi-enabled site and then <strong>attacks</strong> the extension's
+      proxy boundary. It defines a fake <code>window.__COMVI__</code> and fires forged detection /
+      activation events; every probe uses the real <code>comvi-extension:*</code> DOM channel.
+      Ground truth for egress is the mock server log (<code>/__log</code>): if the service worker
+      ever performs an unauthorized request, it appears there.
+    </p>
+
+    <p>
+      <strong>Phase 1</strong> (run first, no editor session):
+      <button id="run-p1">Run Phase 1 — probe WITHOUT a session</button>
+    </p>
+    <p>
+      <strong>Phase 2</strong>: open the extension popup, paste any key, click
+      <em>Enable editor</em> (telemetry left OFF), then:
+      <button id="run-p2">Run Phase 2 — probe WITH an active session</button>
+    </p>
+    <p>
+      <strong>Phase 3</strong>: re-enable the editor after Phase 2, click <em>Forget key</em>, then:
+      <button id="run-p3">Run Phase 3 — probe AFTER forget</button>
+    </p>
+    <p>
+      <strong>Phase 4</strong>: click the button, then enable the editor in the popup before
+      this page reloads in four seconds. The delayed validation must not authorize the new document:
+      <button id="run-p4">Arm navigation-during-validation race</button>
+    </p>
+    <p>
+      <strong>Phase 5</strong>: click the button, enable the editor, then close the popup before
+      validation completes. The pending capability must disappear:
+      <button id="run-p5">Arm popup-close activation race</button>
+    </p>
+    <p class="muted">
+      <strong>Phase 6 (two-tab check)</strong>: open this harness once as
+      <code>127.0.0.1</code> and once as <code>localhost</code>, enable both with the same mock key,
+      then Forget the key in either popup. <code>gateE.proxy("/v1/project/locales")</code> must be
+      denied in both tabs.
+    </p>
+
+    <div id="results"></div>
+    <div id="summary"></div>
+
+    <script>
+      // --- fake Comvi site so the real editor can activate ---
+      const i18nStub = {
+        apiKey: undefined,
+        getLoadedLocales: () => [],
+        getActiveNamespaces: () => [],
+        getDefaultNamespace: () => "translation",
+        hasLocale: () => false,
+        getTranslations: () => ({}),
+        addTranslations: () => {},
+        registerPostProcessor: () => {},
+        on: () => () => {},
+        off: () => {},
+      };
+      window.__COMVI__ = {
+        version: "9.9.9-gate-e",
+        instances: { size: 1 },
+        get: () => i18nStub,
+      };
+      // Announce ourselves like @comvi/core does.
+      window.dispatchEvent(
+        new CustomEvent("COMVI_READY", { detail: { version: "9.9.9-gate-e", instanceCount: 1 } }),
+      );
+
+      // --- page-side egress monitor: prove the PAGE never sends credentials ---
+      window.__PAGE_EGRESS__ = [];
+      const realFetch = window.fetch.bind(window);
+      window.fetch = (input, init) => {
+        const url = typeof input === "string" ? input : input.url;
+        if (!url.includes("/__log") && !url.includes("/__reset")) {
+          const auth = init?.headers && new Headers(init.headers).get("authorization");
+          window.__PAGE_EGRESS__.push({ url, hasAuth: !!auth });
+        }
+        return realFetch(input, init);
+      };
+
+      // --- proxy probe over the real DOM channel ---
+      let reqSeq = 0;
+      function proxy(path, { method = "GET", body, timeout = 2500 } = {}) {
+        return new Promise((resolve) => {
+          const id = "gatee-" + Date.now() + "-" + ++reqSeq;
+          const timer = setTimeout(() => {
+            window.removeEventListener("comvi-extension:api-response", onResp);
+            resolve({ denied: true, reason: "no-response (no active session / no extension)" });
+          }, timeout);
+          function onResp(e) {
+            let d;
+            try { d = typeof e.detail === "string" ? JSON.parse(e.detail) : e.detail; } catch { return; }
+            if (!d || d.id !== id) return;
+            clearTimeout(timer);
+            window.removeEventListener("comvi-extension:api-response", onResp);
+            const denied = d.ok === false || d.networkError || typeof d.status !== "number" || d.status === 0;
+            resolve({
+              denied: !!denied,
+              status: d.status,
+              networkError: d.networkError,
+              body: d.body,
+            });
+          }
+          window.addEventListener("comvi-extension:api-response", onResp);
+          window.dispatchEvent(
+            new CustomEvent("comvi-extension:api-request", {
+              detail: JSON.stringify({ id, path, method, body }),
+            }),
+          );
+        });
+      }
+
+      async function apiLog() {
+        const r = await realFetch("/__log");
+        return (await r.json()).requests;
+      }
+      async function resetLog() { await realFetch("/__reset"); }
+      async function configure(params) {
+        const q = new URLSearchParams(params);
+        await realFetch("/__config?" + q.toString());
+      }
+
+      // --- result rendering ---
+      const results = [];
+      function record(phase, name, pass, detail) {
+        results.push({ phase, name, pass, detail });
+        const el = document.createElement("div");
+        el.className = "row";
+        el.innerHTML =
+          '<span class="' + (pass ? "pass" : "fail") + '">' + (pass ? "PASS" : "FAIL") + "</span>" +
+          '<span class="name">' + name + "</span>" +
+          '<span class="muted">' + (detail || "") + "</span>";
+        document.getElementById("results").appendChild(el);
+        window.__GATE_E_RESULTS__ = results;
+        renderSummary();
+      }
+      function renderSummary() {
+        const fails = results.filter((r) => !r.pass).length;
+        const s = document.getElementById("summary");
+        s.textContent =
+          results.length + " checks, " + fails + " failed — " +
+          (fails === 0 ? "Gate E PASS ✅" : "Gate E FAIL ❌");
+        s.className = fails === 0 ? "pass" : "fail";
+        window.__GATE_E_SUMMARY__ = { total: results.length, fails, pass: fails === 0 };
+      }
+
+      // --- Phase 1: no session — every forgery + proxy attempt must fail closed ---
+      async function runPhase1() {
+        await resetLog();
+        const before = (await apiLog()).length;
+
+        // Forge detection + activation with no nonce (page cannot know it).
+        window.dispatchEvent(new CustomEvent("comvi-extension:detected",
+          { detail: { detected: true, editorActive: true, version: "9.9.9" } }));
+        window.dispatchEvent(new CustomEvent("comvi-extension:activated",
+          { detail: { success: true } }));
+        await new Promise((r) => setTimeout(r, 400));
+
+        const probes = [
+          ["/v1/project/locales", {}],
+          ["/v1/organizations", {}],
+          ["/v1/keys/common/hero.title", { method: "DELETE" }],
+        ];
+        for (const [path, opts] of probes) {
+          const res = await proxy(path, opts);
+          record("1", "no-session proxy denied: " + (opts.method || "GET") + " " + path,
+            res.denied, res.networkError || res.reason || "");
+        }
+        const after = (await apiLog()).length;
+        record("1", "no unauthorized egress reached the API",
+          after === before, "api /v1 requests before=" + before + " after=" + after);
+      }
+
+      // --- Phase 2: active session — contract enforcement + limits ---
+      async function runPhase2() {
+        // A legit allowed route should work now (proves the session is active).
+        const allowed = await proxy("/v1/project/locales");
+        record("2", "allowed route works with active session: GET /v1/project/locales",
+          !allowed.denied, "status=" + allowed.status + (allowed.reason ? " " + allowed.reason : ""));
+        if (allowed.denied) {
+          record("2", "PRECONDITION: enable the editor via the popup first", false,
+            "no active session detected — cannot run contract probes");
+          return;
+        }
+
+        const logBefore = await apiLog();
+        const seen = (p) => logBefore.some((r) => r.path.startsWith(p));
+
+        // Destructive / out-of-contract routes: denied locally, no egress.
+        const destructive = [
+          ["/v1/organizations", {}],
+          ["/v1/api-keys", {}],
+          ["/v1/admin/users", {}],
+          ["/v1/members", {}],
+          ["/v1/projects/999/export?locales=en&namespaces=common", {}], // wrong project id
+        ];
+        for (const [path, opts] of destructive) {
+          const res = await proxy(path, opts);
+          record("2", "destructive route denied: " + (opts.method || "GET") + " " + path,
+            res.denied, res.networkError || "");
+        }
+
+        // Oversized body on an allowed route.
+        const bigBody = JSON.stringify({
+          key: "a", namespace: "b", isPlural: false,
+          translations: { en: { value: "x".repeat(1_100_000), status: "s" } },
+        });
+        const big = await proxy("/v1/keys", { method: "PUT", body: bigBody });
+        record("2", "oversized body rejected: PUT /v1/keys (>1MB)",
+          big.denied, big.networkError || "");
+
+        // Telemetry is fail-closed unless the user explicitly opts in for this
+        // activation. Page code cannot open the route after activation.
+        const teleOff = await proxy("/v1/context/handshake",
+          { method: "POST", body: JSON.stringify({ keys: [] }) });
+        record("2", "telemetry route denied without explicit opt-in: POST /v1/context/handshake",
+          teleOff.denied, teleOff.networkError || "");
+
+        // A permitted endpoint may still return an attacker-influenced large
+        // body. The service worker must stop streaming after its 10MB cap.
+        await configure({ nextLocalesResponseBytes: "10100000" });
+        const largeResponse = await proxy("/v1/project/locales", { timeout: 6000 });
+        record("2", "oversized streaming response is rejected before relay",
+          largeResponse.denied && /Response too large/i.test(largeResponse.networkError || ""),
+          largeResponse.networkError || "");
+
+        // Rate limit: flood beyond the per-tab budget.
+        let limited = 0;
+        await Promise.all(Array.from({ length: 340 }, () =>
+          proxy("/v1/project/locales", { timeout: 4000 }).then((r) => {
+            if (r.denied && /rate/i.test(r.networkError || "")) limited++;
+          })));
+        record("2", "rate limit engaged under a request flood",
+          limited > 0, "requests rejected with a rate-limit error: " + limited);
+
+        // Confirm the destructive routes never reached the API.
+        const logAfter = await apiLog();
+        const leaked = logAfter.filter((r) =>
+          /organizations|api-keys|admin|members|projects\/999/.test(r.path));
+        record("2", "no destructive route reached the API",
+          leaked.length === 0, "leaked=" + JSON.stringify(leaked.map((l) => l.path)));
+
+        // The page itself never attached an Authorization header anywhere.
+        const pageAuth = window.__PAGE_EGRESS__.filter((e) => e.hasAuth);
+        record("2", "page never sent an Authorization header",
+          pageAuth.length === 0, "page auth egress=" + pageAuth.length);
+
+        // Direct SDK teardown bypasses the popup command but must still revoke
+        // the service-worker capability through the lifecycle signal.
+        window.ComviInContextEditor?.deactivate?.();
+        await new Promise((r) => setTimeout(r, 250));
+        const afterSdkDeactivate = await proxy("/v1/project/locales");
+        record("2", "direct SDK deactivation revokes proxy authority",
+          afterSdkDeactivate.denied, afterSdkDeactivate.networkError || afterSdkDeactivate.reason || "");
+      }
+
+      // --- Phase 3: after Forget key — authority revoked ---
+      async function runPhase3() {
+        const res = await proxy("/v1/project/locales");
+        record("3", "proxy denied after Forget key: GET /v1/project/locales",
+          res.denied, res.networkError || res.reason || "");
+      }
+
+      async function runPhase4() {
+        await resetLog();
+        await configure({ nextProjectDelayMs: "5000" });
+        sessionStorage.setItem("gate-e-navigation-race", "armed");
+        record("4", "navigation race armed", true,
+          "enable via popup now; this page reloads in 4 seconds");
+        setTimeout(() => location.assign("/?navigation-race=check"), 4000);
+      }
+
+      async function runPhase5() {
+        await resetLog();
+        await configure({ nextProjectDelayMs: "5000" });
+        record("5", "popup-close race armed", true,
+          "enable via popup and close it before validation completes");
+        await new Promise((r) => setTimeout(r, 6500));
+        const result = await proxy("/v1/project/locales");
+        const log = await apiLog();
+        const leaked = log.some((entry) => entry.path.startsWith("/v1/project/locales"));
+        record("5", "popup closure leaves no usable capability",
+          result.denied && !leaked, result.networkError || result.reason || "");
+      }
+
+      document.getElementById("run-p1").onclick = runPhase1;
+      document.getElementById("run-p2").onclick = runPhase2;
+      document.getElementById("run-p3").onclick = runPhase3;
+      document.getElementById("run-p4").onclick = runPhase4;
+      document.getElementById("run-p5").onclick = runPhase5;
+      window.gateE = { runPhase1, runPhase2, runPhase3, runPhase4, runPhase5, proxy, apiLog, resetLog };
+
+      if (sessionStorage.getItem("gate-e-navigation-race") === "armed") {
+        sessionStorage.removeItem("gate-e-navigation-race");
+        setTimeout(async () => {
+          const result = await proxy("/v1/project/locales");
+          const log = await apiLog();
+          const leaked = log.some((entry) => entry.path.startsWith("/v1/project/locales"));
+          record("4", "new document cannot inherit validation from the old document",
+            result.denied && !leaked, result.networkError || result.reason || "");
+        }, 2500);
+      }
+    </script>
+  </body>
+</html>

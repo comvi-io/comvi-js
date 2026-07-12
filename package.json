@@ -1,20 +1,26 @@
 {
   "name": "@comvi/chrome-extension",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "private": true,
   "type": "module",
   "scripts": {
     "dev": "vite build --watch",
     "build": "vite build",
     "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "verify": "pnpm typecheck && pnpm build && vitest run && pnpm audit",
+    "gate-e:build": "COMVI_OUT_DIR=dist-gate-e vite build --mode gate-e",
+    "gate-e:serve": "node gate-e/mock-api-server.mjs",
     "zip": "pnpm build && cd dist && zip -r ../comvi-extension.zip ."
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.2.2",
     "@types/chrome": "^0.1.39",
+    "@types/node": "^26.1.1",
     "tailwindcss": "4",
     "typescript": "~6.0.2",
-    "vite": "^8.0.3"
+    "vite": "^8.1.4",
+    "vitest": "^4.1.10"
   },
   "homepage": "https://comvi.io",
   "author": "Comvi <hello@comvi.io> (https://comvi.io)",
