@@ -177,30 +177,111 @@ jobs:
       - name: Types exports
         run: pnpm check:types-exports
 
+  extension-artifact:
+    name: Chrome extension artifact
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      VITE_COMVI_API_BASE_URL: https://api.comvi.io
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 9.12.1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build editor and extension
+        run: pnpm extension:build
+
+      - name: Verify built artifact
+        run: pnpm --filter @comvi/chrome-extension exec vitest run src/__tests__/artifacts.test.ts
+
+  extension-browser-security:
+    name: Chrome extension trust boundary
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 9.12.1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build editor bundle
+        run: pnpm --filter @comvi/plugin-in-context-editor build
+
+      - name: Install Chromium
+        run: pnpm --filter @comvi/chrome-extension exec playwright install --with-deps chromium
+
+      - name: Run Gate E
+        run: pnpm --filter @comvi/chrome-extension test:e2e
+
+      - name: Upload Gate E diagnostics
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: gate-e-playwright-report
+          path: |
+            apps/chrome-extension/playwright-report/
+            apps/chrome-extension/test-results/
+          if-no-files-found: ignore
+          retention-days: 14
+
   dispatch-system-compatibility:
     name: Dispatch system compatibility
     if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
-    needs: [quality, tests, critical-coverage, package-contracts]
+    needs:
+      [
+        quality,
+        tests,
+        critical-coverage,
+        package-contracts,
+        extension-artifact,
+        extension-browser-security,
+      ]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     env:
       GH_TOKEN: ${{ secrets.SYSTEM_COMPATIBILITY_TOKEN }}
-      EXTENSION_REPOSITORY: ${{ vars.COMVI_EXTENSION_REPOSITORY }}
 
     steps:
-      - name: Require cross-repository token
+      - name: Explain skipped compatibility dispatch
         if: env.GH_TOKEN == ''
         run: |
-          echo 'SYSTEM_COMPATIBILITY_TOKEN is required to dispatch the platform compatibility gate.'
-          exit 1
+          echo '::warning::SYSTEM_COMPATIBILITY_TOKEN is not configured; skipping the private platform dispatch.'
+          echo '### System compatibility dispatch skipped' >> "$GITHUB_STEP_SUMMARY"
+          echo 'Configure SYSTEM_COMPATIBILITY_TOKEN to dispatch exact comvi-js commits to the private platform gate.' >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Dispatch exact SDK candidate
+      - name: Dispatch exact SDK and extension candidate
+        if: env.GH_TOKEN != ''
         run: |
           gh api \
             --method POST \
             repos/comvi-io/platform/dispatches \
             -f event_type=system-compatibility \
             -F 'client_payload[platform_ref]=develop' \
-            -F 'client_payload[sdk_ref]=${{ github.sha }}' \
-            -F 'client_payload[extension_ref]=develop' \
-            -F "client_payload[extension_repository]=${EXTENSION_REPOSITORY:-comvi-io/chrome-extension}"
+            -F 'client_payload[sdk_ref]=${{ github.sha }}'

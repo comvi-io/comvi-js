@@ -1,5 +1,6 @@
 node_modules
 dist
+dist-*
 coverage
 .turbo
 .next
@@ -7,6 +8,7 @@ coverage
 .output
 .svelte-kit
 playwright-report
+test-results
 packages/benchmark/results
 pnpm-lock.yaml
 .omx

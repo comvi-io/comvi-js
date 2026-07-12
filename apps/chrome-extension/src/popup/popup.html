@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Comvi In-Context Editor</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body class="bg-background text-foreground">
+    <main class="flex min-w-[340px] flex-col">
+      <!-- Header -->
+      <header class="flex items-center justify-between border-b border-border px-4 py-3">
+        <div class="flex items-center gap-2">
+          <svg viewBox="0 0 32 32" class="h-7 w-7 text-foreground" fill="none" aria-label="Comvi">
+            <path d="M4 11V4h7" stroke="currentColor" stroke-width="2.2" stroke-linecap="square" />
+            <path
+              d="M28 11V4h-7"
+              stroke="currentColor"
+              stroke-width="2.2"
+              stroke-linecap="square"
+            />
+            <path d="M4 21v7h7" stroke="currentColor" stroke-width="2.2" stroke-linecap="square" />
+            <path
+              d="M28 21v7h-7"
+              stroke="currentColor"
+              stroke-width="2.2"
+              stroke-linecap="square"
+            />
+            <rect x="13" y="13" width="6" height="6" fill="#D97706" />
+          </svg>
+          <span class="text-sm font-medium tracking-tight">Comvi Editor</span>
+        </div>
+        <button
+          id="theme-toggle"
+          type="button"
+          class="inline-flex h-7 w-7 items-center justify-center border border-border bg-transparent text-foreground transition-colors hover:bg-secondary"
+          aria-label="Toggle theme"
+        >
+          <svg
+            id="theme-icon-sun"
+            class="hidden h-4 w-4"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <circle cx="12" cy="12" r="4" />
+            <path
+              d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"
+            />
+          </svg>
+          <svg
+            id="theme-icon-moon"
+            class="hidden h-4 w-4"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+          </svg>
+        </button>
+      </header>
+
+      <!-- Body -->
+      <section class="px-4 py-4">
+        <!-- State: not detected -->
+        <div id="state-not-detected" class="hidden">
+          <p class="text-sm text-muted-foreground">Comvi i18n not detected on this page.</p>
+        </div>
+
+        <!-- State: idle (detected, editor off) -->
+        <div id="state-idle" class="hidden flex-col gap-3">
+          <div class="flex flex-col gap-1.5">
+            <div class="flex items-center justify-between">
+              <label for="api-key" class="text-xs font-medium text-foreground"> API key </label>
+              <button
+                id="forget-key-btn"
+                type="button"
+                class="hidden text-xs text-muted-foreground underline underline-offset-2 transition-colors hover:text-destructive"
+              >
+                Forget key
+              </button>
+            </div>
+            <div class="relative">
+              <input
+                id="api-key"
+                type="password"
+                autocomplete="off"
+                spellcheck="false"
+                placeholder="Paste your Comvi API key"
+                class="w-full border border-input bg-background py-2 pl-3 pr-9 font-mono text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+              />
+              <button
+                id="toggle-key-btn"
+                type="button"
+                aria-label="Show API key"
+                class="absolute inset-y-0 right-0 inline-flex w-9 items-center justify-center text-muted-foreground transition-colors hover:text-foreground"
+              >
+                <svg
+                  id="key-icon-show"
+                  class="h-4 w-4"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z" />
+                  <circle cx="12" cy="12" r="3" />
+                </svg>
+                <svg
+                  id="key-icon-hide"
+                  class="hidden h-4 w-4"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path
+                    d="M17.94 17.94A10.07 10.07 0 0 1 12 19c-6.5 0-10-7-10-7a18.45 18.45 0 0 1 5.06-5.94"
+                  />
+                  <path
+                    d="M9.9 4.24A9.12 9.12 0 0 1 12 5c6.5 0 10 7 10 7a18.5 18.5 0 0 1-2.16 3.19"
+                  />
+                  <path d="m1 1 22 22" />
+                  <path d="M14.12 14.12a3 3 0 1 1-4.24-4.24" />
+                </svg>
+              </button>
+            </div>
+          </div>
+          <label class="flex items-start gap-2 text-xs text-muted-foreground">
+            <input id="collect-context" type="checkbox" class="mt-0.5 h-3.5 w-3.5 accent-primary" />
+            <span>Send page context to improve translation suggestions</span>
+          </label>
+          <button
+            id="enable-btn"
+            type="button"
+            class="inline-flex items-center justify-center bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            Enable editor
+          </button>
+          <p
+            id="error-msg"
+            class="hidden border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive"
+          ></p>
+        </div>
+
+        <!-- State: active -->
+        <div id="state-active" class="hidden flex-col gap-3">
+          <div class="flex items-center gap-2 border border-primary/30 bg-accent-soft px-3 py-2.5">
+            <svg
+              class="h-4 w-4 shrink-0 text-primary"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2.4"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path d="M20 6 9 17l-5-5" />
+            </svg>
+            <span class="text-sm font-medium text-foreground"> Editor active </span>
+          </div>
+          <button
+            id="disable-btn"
+            type="button"
+            class="inline-flex items-center justify-center border border-border bg-secondary px-4 py-2 text-sm font-medium text-secondary-foreground transition-colors hover:bg-secondary/80"
+          >
+            Disable editor
+          </button>
+          <p id="version-line" class="text-center font-mono text-[10px] text-muted-foreground"></p>
+          <p class="text-center text-[10px] leading-snug text-muted-foreground/70">
+            Sends translation context to your Comvi project to improve suggestions.
+            <a
+              href="https://comvi.io/docs/in-context-editor#context-collection"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="underline underline-offset-2 hover:text-muted-foreground"
+              >Learn more</a
+            >
+          </p>
+        </div>
+      </section>
+    </main>
+
+    <script type="module" src="popup.js"></script>
+  </body>
+</html>
