@@ -42,6 +42,15 @@ export interface LocaleDetectorOptions {
   caches?: CacheType[];
 
   /**
+   * When true (default), the first cache target is consulted before the
+   * detection order, so a persisted choice wins over everything in `order`.
+   * Set to false to let `order` fully govern priority — e.g. when an explicit
+   * query parameter must override the locale stored on a previous visit.
+   * @default true
+   */
+  cacheFirst?: boolean;
+
+  /**
    * Query parameter name for locale
    * @default 'lng'
    */
@@ -153,6 +162,7 @@ export const LocaleDetector: I18nPluginFactory<LocaleDetectorOptions> = (
   const {
     order = ["querystring", "localStorage", "sessionStorage", "cookie", "navigator"],
     caches = ["localStorage"],
+    cacheFirst = true,
     lookupQuerystring = "lng",
     lookupCookie = "i18n_lang",
     lookupLocalStorage = "i18n_locale",
@@ -229,7 +239,7 @@ export const LocaleDetector: I18nPluginFactory<LocaleDetectorOptions> = (
     };
 
     const detect = (): string => {
-      const cached = detectFromCache();
+      const cached = cacheFirst ? detectFromCache() : null;
       if (cached) {
         pendingInitResult = cached;
         handleCurrentLocaleMatch(cached);

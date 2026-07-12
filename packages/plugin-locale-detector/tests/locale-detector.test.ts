@@ -125,6 +125,45 @@ describe("LocaleDetector plugin", () => {
       expect(localStorage.getItem("preferred_lang")).toBe("fr");
     });
 
+    it("lets order govern priority when cacheFirst is false", async () => {
+      mockWindowLocation("?language=fr");
+      localStorage.setItem("lang", "de");
+
+      const i18n = await initWithPlugin(
+        {
+          order: ["querystring", "localStorage", "navigator"],
+          caches: ["localStorage"],
+          cacheFirst: false,
+          lookupQuerystring: "language",
+          lookupLocalStorage: "lang",
+          supportedLocales: ["en", "de", "fr"],
+        },
+        "en",
+      );
+
+      expect(i18n.locale).toBe("fr");
+      expect(localStorage.getItem("lang")).toBe("fr");
+    });
+
+    it("still reads the storage via order when cacheFirst is false and no query is present", async () => {
+      mockWindowLocation("");
+      localStorage.setItem("lang", "de");
+
+      const i18n = await initWithPlugin(
+        {
+          order: ["querystring", "localStorage", "navigator"],
+          caches: ["localStorage"],
+          cacheFirst: false,
+          lookupQuerystring: "language",
+          lookupLocalStorage: "lang",
+          supportedLocales: ["en", "de", "fr"],
+        },
+        "en",
+      );
+
+      expect(i18n.locale).toBe("de");
+    });
+
     it("keeps the current locale when detection misses by default", async () => {
       mockWindowLocation("");
       mockNavigator([], "");
