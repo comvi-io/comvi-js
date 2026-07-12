@@ -34,6 +34,19 @@ describe("Advanced Formatting (Quoting & Escaping)", () => {
       expect(i18n.t("possession")).toBe("It's a beautiful day.");
     });
 
+    it("should render quoted templates identically on repeated calls", () => {
+      i18n.addTranslations({
+        en: {
+          literal: "Fully '{quoted}' message with no params.",
+        },
+      });
+
+      const first = i18n.t("literal");
+      const second = i18n.t("literal");
+      expect(first).toBe("Fully {quoted} message with no params.");
+      expect(second).toBe(first);
+    });
+
     it("should handle complex quoting in CJK text", () => {
       i18n.addTranslations({
         jp: {
@@ -45,7 +58,7 @@ describe("Advanced Formatting (Quoting & Escaping)", () => {
     });
   });
 
-  describe("Smart Apostrophes (Language Aware)", () => {
+  describe("Apostrophes (ICU DOUBLE_OPTIONAL)", () => {
     it("should treat apostrophes inside words as literal text (French)", () => {
       i18n.addTranslations({
         fr: {
@@ -75,16 +88,52 @@ describe("Advanced Formatting (Quoting & Escaping)", () => {
       expect(i18n.t("geresh")).toBe("ג'מוס");
     });
 
-    it("should require doubled apostrophe when apostrophe is not between word characters", () => {
+    it("should keep a bare apostrophe literal unless it precedes a syntax character", () => {
       i18n.addTranslations({
         en: {
           unescapedClock: "o' clock",
           escapedClock: "o'' clock",
+          possessive: "Superiors' behavior",
+          trailing: "l'",
         },
       });
 
-      expect(i18n.t("unescapedClock")).toBe("o clock");
+      expect(i18n.t("unescapedClock")).toBe("o' clock");
       expect(i18n.t("escapedClock")).toBe("o' clock");
+      expect(i18n.t("possessive")).toBe("Superiors' behavior");
+      expect(i18n.t("trailing")).toBe("l'");
+    });
+
+    it("should start quoted text only before {, } or #", () => {
+      i18n.addTranslations({
+        en: {
+          quotedParam: "This is '{not}' a param.",
+          quotedBrace: "brace '}' quoted",
+          quotedHash: "{count, plural, other {'#' of them: #}}",
+        },
+      });
+
+      expect(i18n.t("quotedParam", { not: "ignored" })).toBe("This is {not} a param.");
+      expect(i18n.t("quotedBrace")).toBe("brace } quoted");
+      expect(i18n.t("quotedHash", { count: 3 })).toBe("# of them: 3");
+    });
+
+    it("should keep apostrophes literal inside plural and select branches", () => {
+      i18n.addTranslations({
+        de: {
+          promo:
+            "{variant, select, five {Gib' eine Bewertung ab und {company} pflanzt einen Baum!} other {x}}",
+          flatBranch: "{g, select, other {Gib' acht}}",
+          doubled: "{count, plural, other {It''s # trees}}",
+        },
+      });
+      i18n.locale = "de";
+
+      expect(i18n.t("promo", { variant: "five", company: "ACME" })).toBe(
+        "Gib' eine Bewertung ab und ACME pflanzt einen Baum!",
+      );
+      expect(i18n.t("flatBranch", { g: "any" })).toBe("Gib' acht");
+      expect(i18n.t("doubled", { count: 3 })).toBe("It's 3 trees");
     });
   });
 

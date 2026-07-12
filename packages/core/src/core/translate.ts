@@ -123,7 +123,14 @@ function createCachedTemplate(template: string): CachedTemplate {
     }
   }
 
-  const cached: CachedTemplate = { tokens, flags, isStatic: flags === TF_STATIC };
+  // isStatic gates fast paths that return the RAW template string, so it must
+  // mean "rendered output is byte-equal to the template". Quoting and escape
+  // sequences ('', '{...}', &lt;, \<) produce text-only tokens whose output
+  // differs from the raw template; those must keep rendering through tokens.
+  const isStatic =
+    flags === TF_STATIC &&
+    (tokens.length === 0 || (tokens.length === 1 && tokens[0][1] === template));
+  const cached: CachedTemplate = { tokens, flags, isStatic };
 
   // Pre-compute single param template parts for fast-path
   if (
@@ -497,7 +504,11 @@ function processPlural(
 
   selected = replaceTopLevelHash(selected, String(count));
 
-  if (selected.indexOf("{") !== -1 || selected.indexOf("<") !== -1) {
+  if (
+    selected.indexOf("{") !== -1 ||
+    selected.indexOf("<") !== -1 ||
+    selected.indexOf("'") !== -1
+  ) {
     const nestedResult = processDynamicSegment(selected, params, locale, tagInterpolation);
     return finalizeResult(nestedResult);
   }
@@ -523,8 +534,8 @@ function processSelect(
   // Direct match or fallback to 'other'
   const selected = choices[value] ?? choices.other ?? "";
 
-  // Process nested tokens if they exist (ICU params or tags)
-  if (selected.includes("{") || selected.includes("<")) {
+  // Process nested tokens if they exist (ICU params, tags or quoting)
+  if (selected.includes("{") || selected.includes("<") || selected.includes("'")) {
     const nestedResult = processDynamicSegment(selected, params, locale, tagInterpolation);
     return finalizeResult(nestedResult);
   }

@@ -26,7 +26,6 @@ const GREATER_THAN = 62;
 const SLASH = 47;
 const COMMA = 44;
 const HYPHEN = 45;
-const UNDERSCORE = 95;
 const SPACE = 32;
 const HASH = 35;
 const DIGIT_0 = 48;
@@ -35,7 +34,6 @@ const UPPER_A = 65;
 const UPPER_Z = 90;
 const LOWER_A = 97;
 const LOWER_Z = 122;
-const ASCII_MAX = 127;
 
 // Plural choices cache
 const pluralChoicesCache = new Map<string, Record<string, string>>();
@@ -57,29 +55,17 @@ function isTagNameChar(code: number): boolean {
   );
 }
 
-function isWordCharCode(code: number): boolean {
-  if (
-    (code >= UPPER_A && code <= UPPER_Z) ||
-    (code >= LOWER_A && code <= LOWER_Z) ||
-    (code >= DIGIT_0 && code <= DIGIT_9) ||
-    code === UNDERSCORE
-  ) {
-    return true;
-  }
-  return code > ASCII_MAX;
-}
-
 /**
- * Smart Apostrophe: treat apostrophe as literal if surrounded by word chars.
- * E.g., "don't" → literal, "'text'" → delimiter
+ * ICU DOUBLE_OPTIONAL quoting (same as ICU4J, FormatJS, i18next, Tolgee):
+ * an apostrophe starts quoted literal text only when it immediately precedes
+ * a syntax character ({, } or #). Everywhere else it is literal text, so
+ * real-world content like "Superiors' behavior" or a trailing "l'" survives.
+ * '' always collapses to a literal apostrophe.
  */
-function isSmartApostrophe(str: string, index: number, len: number): boolean {
-  return (
-    index > 0 &&
-    index + 1 < len &&
-    isWordCharCode(str.charCodeAt(index - 1)) &&
-    isWordCharCode(str.charCodeAt(index + 1))
-  );
+function isQuoteStart(str: string, index: number, len: number): boolean {
+  if (index + 1 >= len) return false;
+  const nextCode = str.charCodeAt(index + 1);
+  return nextCode === OPEN_BRACE || nextCode === CLOSE_BRACE || nextCode === HASH;
 }
 
 /** Skip a quoted section, returns index after closing quote */
@@ -104,10 +90,10 @@ function advancePastApostrophe(str: string, index: number, len: number): number 
   if (index + 1 < len && str.charCodeAt(index + 1) === APOSTROPHE) {
     return index + 2;
   }
-  if (isSmartApostrophe(str, index, len)) {
-    return index + 1;
+  if (isQuoteStart(str, index, len)) {
+    return skipQuotedSection(str, index, len);
   }
-  return skipQuotedSection(str, index, len);
+  return index + 1;
 }
 
 /**
@@ -356,13 +342,13 @@ export function parseTemplate(template: string): ParsedToken[] {
         tokens.push([TK_TEXT, "'"]);
         i += 2;
         lastIndex = i;
-      } else if (isSmartApostrophe(template, i, len)) {
-        i++;
-      } else {
+      } else if (isQuoted || isQuoteStart(template, i, len)) {
         if (i > lastIndex) tokens.push([TK_TEXT, template.slice(lastIndex, i)]);
         isQuoted = !isQuoted;
         i++;
         lastIndex = i;
+      } else {
+        i++;
       }
     } else if (code === AMPERSAND && !isQuoted) {
       let entityLength = 0;
