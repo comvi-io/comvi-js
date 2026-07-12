@@ -55,6 +55,17 @@ export default defineConfig(({ mode }) => {
   // plugin cannot see.
   const outDir = env.COMVI_OUT_DIR?.trim() || "dist";
   const outPath = (...parts: string[]) => resolve(__dirname, outDir, ...parts);
+  const testPageOriginValue = env.COMVI_TEST_PAGE_ORIGIN?.trim();
+  let testPageOrigin: string | undefined;
+  if (testPageOriginValue) {
+    const testPageUrl = new URL(testPageOriginValue);
+    if (outDir === "dist" || !LOOPBACK_HOSTS.has(testPageUrl.hostname)) {
+      throw new Error(
+        "COMVI_TEST_PAGE_ORIGIN is restricted to non-release builds on an exact loopback host",
+      );
+    }
+    testPageOrigin = testPageUrl.origin;
+  }
 
   return {
     // The copy-static-files plugin below copies exactly what the package needs
@@ -90,7 +101,10 @@ export default defineConfig(({ mode }) => {
           // Copy manifest.json, pinning host_permissions to the configured
           // API origin so the shipped manifest always matches the build.
           const manifest = JSON.parse(readFileSync(resolve(__dirname, "manifest.json"), "utf8"));
-          manifest.host_permissions = [`${apiOrigin}/*`];
+          manifest.host_permissions = [
+            `${apiOrigin}/*`,
+            ...(testPageOrigin ? [`${testPageOrigin}/*`] : []),
+          ];
           writeFileSync(outPath("manifest.json"), JSON.stringify(manifest, null, 2) + "\n");
 
           // Copy popup.html

@@ -139,3 +139,22 @@ describe("proxy request ids", () => {
     await expect(first).resolves.toMatchObject({ ok: true, body: "ok" });
   });
 });
+
+describe("proxy request headers", () => {
+  it("does not declare JSON for a bodyless DELETE", async () => {
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(new Response(null, { status: 204 }));
+
+    const result = await handleProxyRequest(
+      { id: "delete-1", path: "/v1/keys/common/system.crud", method: "DELETE" },
+      sender(),
+    );
+
+    expect(result.status).toBe(204);
+    const init = fetchMock.mock.calls[0][1];
+    const headers = new Headers(init?.headers);
+    expect(headers.get("content-type")).toBeNull();
+    expect(init?.body).toBeUndefined();
+  });
+});

@@ -1,0 +1,194 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: Type check
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: pnpm/action-setup@v5
+        with:
+          version: 9.12.1
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Type check
+        run: pnpm typecheck
+
+  tests:
+    name: Unit and integration tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: pnpm/action-setup@v5
+        with:
+          version: 9.12.1
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Test
+        run: pnpm test
+
+  artifact:
+    name: Extension artifact
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      VITE_COMVI_API_BASE_URL: https://api.comvi.io
+      COMVI_EDITOR_BUNDLE_PATH: ${{ github.workspace }}/test/fixtures/editor.iife.js
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: pnpm/action-setup@v5
+        with:
+          version: 9.12.1
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build extension
+        run: pnpm build
+
+      - name: Verify built artifact
+        run: pnpm vitest run src/__tests__/artifacts.test.ts
+
+  browser-security:
+    name: Chromium trust boundary
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout extension
+        uses: actions/checkout@v6
+        with:
+          path: chrome-extension
+
+      - name: Checkout editor SDK
+        uses: actions/checkout@v6
+        with:
+          repository: comvi-io/comvi-js
+          ref: develop
+          path: js-sdk
+
+      - uses: pnpm/action-setup@v5
+        with:
+          version: 9.12.1
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: |
+            chrome-extension/pnpm-lock.yaml
+            js-sdk/pnpm-lock.yaml
+
+      - name: Build editor bundle
+        working-directory: js-sdk
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm --filter @comvi/plugin-in-context-editor build
+
+      - name: Install extension dependencies
+        working-directory: chrome-extension
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Chromium
+        working-directory: chrome-extension
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Run Gate-E browser security test
+        working-directory: chrome-extension
+        run: pnpm test:e2e
+
+      - name: Upload Gate-E diagnostics
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: gate-e-playwright-report
+          path: |
+            chrome-extension/playwright-report
+            chrome-extension/test-results
+          if-no-files-found: ignore
+          retention-days: 14
+
+  security:
+    name: Dependency audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: pnpm/action-setup@v5
+        with:
+          version: 9.12.1
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Audit dependencies
+        run: pnpm audit
+
+  dispatch-system-compatibility:
+    name: Dispatch system compatibility
+    if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
+    needs: [quality, tests, artifact, browser-security, security]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      GH_TOKEN: ${{ secrets.SYSTEM_COMPATIBILITY_TOKEN }}
+
+    steps:
+      - name: Require cross-repository token
+        if: env.GH_TOKEN == ''
+        run: |
+          echo 'SYSTEM_COMPATIBILITY_TOKEN is required to dispatch the platform compatibility gate.'
+          exit 1
+
+      - name: Dispatch exact extension candidate
+        run: |
+          gh api \
+            --method POST \
+            repos/comvi-io/platform/dispatches \
+            -f event_type=system-compatibility \
+            -F 'client_payload[platform_ref]=develop' \
+            -F 'client_payload[sdk_ref]=develop' \
+            -F 'client_payload[extension_ref]=${{ github.sha }}' \
+            -F 'client_payload[extension_repository]=${{ github.repository }}'

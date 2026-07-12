@@ -25,14 +25,7 @@ import {
   reserveProxyWork,
 } from "./proxy-work";
 import { renderBadge } from "./badge";
-import {
-  deleteSession,
-  getNavGen,
-  getSession,
-  getTabState,
-  tabLockKey,
-  withLock,
-} from "./state";
+import { deleteSession, getNavGen, getSession, getTabState, tabLockKey, withLock } from "./state";
 
 const REQUEST_TIMEOUT_MS = 30_000;
 const MAX_RESPONSE_BYTES = 10_000_000;
@@ -42,10 +35,7 @@ export function clearTabLimits(tabId: number): void {
 }
 
 /** Page-requested cancellation of an in-flight proxied request. */
-export function abortProxyRequest(
-  payload: unknown,
-  sender: chrome.runtime.MessageSender,
-): void {
+export function abortProxyRequest(payload: unknown, sender: chrome.runtime.MessageSender): void {
   const tabId = sender.tab?.id;
   const id = (payload as { id?: unknown } | undefined)?.id;
   if (typeof tabId !== "number" || typeof id !== "string") return;
@@ -171,13 +161,15 @@ export async function handleProxyRequest(
   const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
   try {
+    const headers: Record<string, string> = {
+      Accept: "application/json",
+      Authorization: `Bearer ${session.apiKey}`,
+    };
+    if (validated.body !== undefined) headers["Content-Type"] = "application/json";
+
     const response = await fetch(validated.url, {
       method: validated.method,
-      headers: {
-        "Content-Type": "application/json",
-        Accept: "application/json",
-        Authorization: `Bearer ${session.apiKey}`,
-      },
+      headers,
       body: validated.body,
       keepalive: validated.keepalive,
       signal: controller.signal,

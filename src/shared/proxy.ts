@@ -419,6 +419,14 @@ interface RouteRule {
   projectIdParam?: string;
 }
 
+export interface ProxyRouteContractEntry {
+  method: string;
+  path: string;
+  query: string[];
+  body: boolean;
+  telemetry: boolean;
+}
+
 /**
  * The complete set of API calls the editor runtime makes. Sources:
  * plugin-in-context-editor (translationService, languageService, collector
@@ -459,6 +467,20 @@ const ROUTES: RouteRule[] = [
     telemetry: true,
   },
 ];
+
+/**
+ * Serializable view of the enforced proxy surface. Cross-repository CI compares
+ * this shape with the SDK-owned contract and the platform OpenAPI document.
+ */
+export const PROXY_ROUTE_CONTRACT: ProxyRouteContractEntry[] = ROUTES.map((route) => ({
+  method: route.method,
+  path: `/${route.segments
+    .map((segment) => (segment.startsWith(":") ? `{${segment.slice(1)}}` : segment))
+    .join("/")}`,
+  query: Object.keys(route.query ?? {}).sort(),
+  body: Boolean(route.body),
+  telemetry: Boolean(route.telemetry),
+}));
 
 const MAX_PARAM_LENGTH = 512;
 

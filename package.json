@@ -2,18 +2,29 @@
   "name": "@comvi/chrome-extension",
   "version": "0.3.0",
   "private": true,
+  "keywords": [],
+  "homepage": "https://comvi.io",
+  "author": "Comvi <hello@comvi.io> (https://comvi.io)",
   "type": "module",
   "scripts": {
     "dev": "vite build --watch",
     "build": "vite build",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
+    "test:commit": "pnpm typecheck && pnpm test",
+    "test:pr": "pnpm verify && pnpm test:e2e",
+    "test:nightly": "pnpm test:pr",
+    "test:release": "pnpm test:pr && pnpm zip",
     "verify": "pnpm typecheck && pnpm build && vitest run && pnpm audit",
     "gate-e:build": "COMVI_OUT_DIR=dist-gate-e vite build --mode gate-e",
+    "gate-e:build:system": "COMVI_OUT_DIR=dist-system COMVI_TEST_PAGE_ORIGIN=http://127.0.0.1:8791 vite build --mode gate-e",
     "gate-e:serve": "node gate-e/mock-api-server.mjs",
+    "test:e2e": "pnpm gate-e:build && playwright test",
+    "test:system:platform": "pnpm gate-e:build:system && playwright test --config playwright.system.config.ts",
     "zip": "pnpm build && cd dist && zip -r ../comvi-extension.zip ."
   },
   "devDependencies": {
+    "@playwright/test": "1.59.1",
     "@tailwindcss/vite": "^4.2.2",
     "@types/chrome": "^0.1.39",
     "@types/node": "^26.1.1",
@@ -22,7 +33,5 @@
     "vite": "^8.1.4",
     "vitest": "^4.1.10"
   },
-  "homepage": "https://comvi.io",
-  "author": "Comvi <hello@comvi.io> (https://comvi.io)",
-  "keywords": []
+  "packageManager": "pnpm@9.12.1+sha512.e5a7e52a4183a02d5931057f7a0dbff9d5e9ce3161e33fa68ae392125b79282a8a8a470a51dfc8a0ed86221442eb2fb57019b0990ed24fab519bf0e1bc5ccfc4"
 }

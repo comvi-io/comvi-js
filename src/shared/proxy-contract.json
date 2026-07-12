@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "routes": [
+    { "method": "GET", "path": "/v1/project", "query": [], "body": false, "telemetry": false, "source": "platform" },
+    { "method": "GET", "path": "/api/v1/api/project", "query": [], "body": false, "telemetry": false, "source": "legacy" },
+    { "method": "GET", "path": "/v1/project/locales", "query": [], "body": false, "telemetry": false, "source": "platform" },
+    { "method": "GET", "path": "/v1/translations", "query": ["locales", "namespaces"], "body": false, "telemetry": false, "source": "platform" },
+    { "method": "GET", "path": "/v1/projects/{projectId}/export", "query": ["locales", "namespaces"], "body": false, "telemetry": false, "source": "platform" },
+    { "method": "GET", "path": "/api/v1/api/projects/{projectId}/export", "query": ["locales", "namespaces"], "body": false, "telemetry": false, "source": "legacy" },
+    { "method": "GET", "path": "/v1/keys/{namespace}/{key}", "query": [], "body": false, "telemetry": false, "source": "platform" },
+    { "method": "PUT", "path": "/v1/keys", "query": [], "body": true, "telemetry": false, "source": "platform" },
+    { "method": "DELETE", "path": "/v1/keys/{namespace}/{key}", "query": [], "body": false, "telemetry": false, "source": "platform" },
+    { "method": "POST", "path": "/v1/context/handshake", "query": [], "body": true, "telemetry": true, "source": "platform" },
+    { "method": "POST", "path": "/v1/context/usages", "query": [], "body": true, "telemetry": true, "source": "platform" }
+  ]
+}

@@ -1,6 +1,11 @@
 import { describe, it, expect } from "vitest";
 import { existsSync, readFileSync } from "node:fs";
-import { validateProxyRequest, type ProxySessionContext } from "../proxy";
+import {
+  PROXY_ROUTE_CONTRACT,
+  validateProxyRequest,
+  type ProxySessionContext,
+} from "../proxy";
+import proxyContract from "../proxy-contract.json";
 import wireFixture from "../__fixtures__/wire-observation.fixture.json";
 
 const BASE = "https://api.comvi.io";
@@ -57,6 +62,13 @@ describe("SDK telemetry wire fixture", () => {
   it("is accepted by the extension proxy contract exactly as serialized by the SDK", () => {
     const body = JSON.stringify(validUsagesBody());
     expectOk({ path: "/v1/context/usages", method: "POST", body }, TELEMETRY_CTX);
+  });
+});
+
+describe("machine-readable proxy contract", () => {
+  it("matches the route table enforced by the sanitizer", () => {
+    const declared = proxyContract.routes.map(({ source: _source, ...route }) => route);
+    expect(PROXY_ROUTE_CONTRACT).toEqual(declared);
   });
 });
 
