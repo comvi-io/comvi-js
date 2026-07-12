@@ -332,15 +332,19 @@
           largeResponse.networkError || "",
         );
 
-        // Rate limit: flood beyond the per-tab budget.
+        // Rate limit: flood beyond the per-tab budget. Keep each batch small
+        // enough for every DOM message to reach the service worker before the
+        // page-side timeout; an unbounded burst can saturate the bridge and
+        // accidentally test dropped messages instead of the rate limiter.
         let limited = 0;
-        await Promise.all(
-          Array.from({ length: 340 }, () =>
-            proxy("/v1/project/locales", { timeout: 4000 }).then((r) => {
-              if (r.denied && /rate/i.test(r.networkError || "")) limited++;
-            }),
-          ),
-        );
+        for (let offset = 0; offset < 340; offset += 20) {
+          const batch = await Promise.all(
+            Array.from({ length: 20 }, () => proxy("/v1/project/locales", { timeout: 10_000 })),
+          );
+          limited += batch.filter(
+            (result) => result.denied && /rate/i.test(result.networkError || ""),
+          ).length;
+        }
         record(
           "2",
           "rate limit engaged under a request flood",
