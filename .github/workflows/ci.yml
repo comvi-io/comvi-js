@@ -3,16 +3,14 @@ name: CI
 on:
   pull_request:
   push:
-    branches:
-      - develop
-      - main
 
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  validate:
+  quality:
+    name: Quality and security
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
@@ -85,8 +83,80 @@ jobs:
       - name: Typecheck
         run: pnpm typecheck
 
+  tests:
+    name: Package tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 9.12.1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
       - name: Test
-        run: pnpm test
+        run: pnpm test:commit
+
+  critical-coverage:
+    name: Critical package coverage
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 9.12.1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Enforce editor transport and loader coverage
+        run: pnpm test:coverage:critical
+
+  package-contracts:
+    name: Build and package contracts
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 9.12.1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
 
       - name: Build
         run: pnpm build
@@ -106,3 +176,31 @@ jobs:
       # conditions cannot ship unnoticed. Reads dist/, so it runs after Build.
       - name: Types exports
         run: pnpm check:types-exports
+
+  dispatch-system-compatibility:
+    name: Dispatch system compatibility
+    if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
+    needs: [quality, tests, critical-coverage, package-contracts]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      GH_TOKEN: ${{ secrets.SYSTEM_COMPATIBILITY_TOKEN }}
+      EXTENSION_REPOSITORY: ${{ vars.COMVI_EXTENSION_REPOSITORY }}
+
+    steps:
+      - name: Require cross-repository token
+        if: env.GH_TOKEN == ''
+        run: |
+          echo 'SYSTEM_COMPATIBILITY_TOKEN is required to dispatch the platform compatibility gate.'
+          exit 1
+
+      - name: Dispatch exact SDK candidate
+        run: |
+          gh api \
+            --method POST \
+            repos/comvi-io/platform/dispatches \
+            -f event_type=system-compatibility \
+            -F 'client_payload[platform_ref]=develop' \
+            -F 'client_payload[sdk_ref]=${{ github.sha }}' \
+            -F 'client_payload[extension_ref]=develop' \
+            -F "client_payload[extension_repository]=${EXTENSION_REPOSITORY:-comvi-io/chrome-extension}"
