@@ -8,7 +8,7 @@
  * reaching the host page.
  */
 
-import { getHeaders, getBaseUrl } from "../services/apiClient";
+import { apiFetch } from "../services/apiClient";
 import { isDemoMode } from "../config/api";
 import { HASH_FN_VERSION } from "./hash";
 import {
@@ -103,10 +103,8 @@ export class CollectorTransport {
 
     for (const batch of batches) {
       try {
-        const baseUrl = getBaseUrl(this.scopeId);
-        const response = await fetch(baseUrl + "/v1/context/handshake", {
+        const response = await apiFetch(this.scopeId, "/v1/context/handshake", {
           method: "POST",
-          headers: getHeaders(this.scopeId),
           body: JSON.stringify({ keys: batch }),
         });
 
@@ -208,10 +206,8 @@ export class CollectorTransport {
     }
 
     try {
-      const baseUrl = getBaseUrl(this.scopeId);
-      const response = await fetch(baseUrl + "/v1/context/usages", {
+      const response = await apiFetch(this.scopeId, "/v1/context/usages", {
         method: "POST",
-        headers: getHeaders(this.scopeId),
         body: this.buildRequestBody(
           items.map((item) => item.observation),
           stillValid,
@@ -267,10 +263,8 @@ export class CollectorTransport {
         return;
       }
 
-      const baseUrl = getBaseUrl(this.scopeId);
-      void fetch(baseUrl + "/v1/context/usages", {
+      void apiFetch(this.scopeId, "/v1/context/usages", {
         method: "POST",
-        headers: getHeaders(this.scopeId),
         body: this.buildRequestBody(items, stillValid),
         keepalive: true,
       }).catch(() => {

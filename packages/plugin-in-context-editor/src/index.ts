@@ -37,7 +37,6 @@ type InContextEditorMappingsBridge = {
 
 const MAPPINGS_BRIDGE_KEY = "__comviInContextEditorMappings";
 const INITIAL_MAPPINGS_KEY = "__comviInContextEditorInitialMappings";
-const EXTERNAL_CONFIG_EVENT = "comvi-in-context-editor:configure";
 let runtimeIdCounter = 0;
 const activeBrowserEditorRuntimes = new Set<number>();
 
@@ -223,21 +222,11 @@ export const InContextEditorPlugin: I18nPluginFactory<EditorOptions> = (options)
       throw error;
     }
 
-    // Standalone IIFE / Chrome extension can dispatch this event to inject
-    // an API key without rebuilding the host app's bundle. The base URL is
-    // baked at library build time and is not negotiable here.
-    const handleExternalConfig = (event: Event) => {
-      const customEvent = event as CustomEvent;
-      const detail =
-        typeof customEvent.detail === "string"
-          ? JSON.parse(customEvent.detail)
-          : customEvent.detail || {};
-      const externalApiKey = typeof detail.apiKey === "string" ? detail.apiKey.trim() : undefined;
-
-      initApiConfig(externalApiKey, instanceId);
-    };
-
-    window.addEventListener(EXTERNAL_CONFIG_EVENT, handleExternalConfig);
+    // NOTE: the editor deliberately does NOT accept an API key via DOM
+    // events. Any page script can dispatch or listen to those, so a key on
+    // that channel is readable by third-party code. The Chrome extension
+    // activates the standalone runtime with a proxy transport instead —
+    // credentials stay in the extension's service worker.
 
     // Start the editor
     core.start();
@@ -248,7 +237,6 @@ export const InContextEditorPlugin: I18nPluginFactory<EditorOptions> = (options)
       removeBeforeProcessHook();
       unsubscribeNamespaceLoaded();
       unsubscribeLocaleChanged();
-      window.removeEventListener(EXTERNAL_CONFIG_EVENT, handleExternalConfig);
       core.stop();
       resetApiConfig(instanceId);
       activeBrowserEditorRuntimes.delete(runtimeId);

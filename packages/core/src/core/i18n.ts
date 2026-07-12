@@ -163,6 +163,7 @@ export class I18n implements I18nInstance {
   #currentLocaleChangeId: number = 0;
   #requestedLocale: string;
   public readonly apiKey: string | undefined;
+  public readonly collectContext: boolean | undefined;
   public readonly devMode: boolean;
   public readonly instanceId: string | undefined;
   #cachedDefaultNs: string;
@@ -278,6 +279,9 @@ export class I18n implements I18nInstance {
 
     // Store API key for plugins to use
     this.apiKey = options.apiKey;
+
+    // Context-collection preference for the in-context editor (default on).
+    this.collectContext = options.collectContext;
 
     // Determine development mode
     this.devMode =

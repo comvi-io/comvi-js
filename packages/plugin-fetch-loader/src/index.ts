@@ -198,23 +198,47 @@ async function fetchWithTimeout(
   url: string,
   options: ExtendedFetchOptions,
   timeoutMs: number,
+  fetchFn: typeof fetch = fetch,
 ): Promise<Response> {
   const controller = new AbortController();
-  const id = setTimeout(() => controller.abort(), timeoutMs);
+  const externalSignal = options.signal;
+  const abortFromExternal = () => controller.abort(externalSignal?.reason);
+  if (externalSignal?.aborted) {
+    abortFromExternal();
+  } else {
+    externalSignal?.addEventListener("abort", abortFromExternal, { once: true });
+  }
+  let timedOut = false;
+  const id = setTimeout(() => {
+    timedOut = true;
+    controller.abort();
+  }, timeoutMs);
   try {
-    const r = await fetch(url, { ...options, signal: controller.signal } as RequestInit);
-    clearTimeout(id);
+    const r = await fetchFn(url, { ...options, signal: controller.signal } as RequestInit);
     return r;
   } catch (e) {
-    clearTimeout(id);
-    if (e instanceof Error && e.name === "AbortError")
+    if (timedOut && e instanceof Error && e.name === "AbortError")
       throw new Error(`Request timeout after ${timeoutMs}ms`);
     throw e;
+  } finally {
+    clearTimeout(id);
+    externalSignal?.removeEventListener("abort", abortFromExternal);
   }
 }
 
 /** Strip trailing slash */
 const stripSlash = (url: string) => url.replace(/\/$/, "");
+
+/**
+ * Build request headers. When apiKey is empty (proxy/transport mode, where
+ * authentication is attached outside the page) no Authorization header is
+ * sent from page code.
+ */
+function buildAuthHeaders(apiKey: string): Record<string, string> {
+  const headers: Record<string, string> = { Accept: "application/json" };
+  if (apiKey) headers.Authorization = `Bearer ${apiKey}`;
+  return headers;
+}
 
 /** Ensure value is Error instance */
 const toError = (e: unknown): Error => (e instanceof Error ? e : new Error(String(e)));
@@ -233,6 +257,8 @@ function validateId(value: string, label: string): void {
 const PROJECT_INFO_TTL_MS = 60 * 60 * 1000; // 1 hour
 const projectInfoCache = new Map<string, { info: ProjectInfo; expiresAt: number }>();
 const pendingProjectInfoCache = new Map<string, Promise<ProjectInfo>>();
+const projectInfoCacheGenerations = new Map<string, number>();
+let projectInfoGlobalGeneration = 0;
 
 /**
  * Fetch project info from API using the apiKey
@@ -242,23 +268,44 @@ export async function fetchProjectInfo(
   apiKey: string,
   apiBaseUrl?: string,
   timeoutMs = 5000,
+  fetchFn?: typeof fetch,
+  cacheScope?: string,
 ): Promise<ProjectInfo> {
   const baseUrl = stripSlash(apiBaseUrl || API_BASE_URL);
-  const cacheKey = `${baseUrl}::${apiKey}`;
+  // The default cache identity is baseUrl+apiKey. Callers using a custom
+  // transport (where apiKey may be empty and the real credential lives
+  // elsewhere) MUST pass a cacheScope, otherwise unrelated transports would
+  // share project metadata.
+  const cacheKey = cacheScope ? `scope::${cacheScope}` : `${baseUrl}::${apiKey}`;
+  if (!cacheScope && !apiKey && fetchFn) {
+    // Custom transport without an explicit scope: skip caching entirely
+    // rather than risk cross-project bleed on a degenerate cache key.
+    return fetchProjectInfoFromApi(apiKey, baseUrl, timeoutMs, fetchFn);
+  }
   const cached = projectInfoCache.get(cacheKey);
   if (cached && Date.now() < cached.expiresAt) return cached.info;
   const pending = pendingProjectInfoCache.get(cacheKey);
   if (pending) return pending;
 
-  const promise = fetchProjectInfoFromApi(apiKey, baseUrl, timeoutMs);
+  const promise = fetchProjectInfoFromApi(apiKey, baseUrl, timeoutMs, fetchFn);
+  const globalGeneration = projectInfoGlobalGeneration;
+  const cacheGeneration = projectInfoCacheGenerations.get(cacheKey) ?? 0;
 
   pendingProjectInfoCache.set(cacheKey, promise);
   try {
     const info = await promise;
-    projectInfoCache.set(cacheKey, { info, expiresAt: Date.now() + PROJECT_INFO_TTL_MS });
+    if (
+      projectInfoGlobalGeneration === globalGeneration &&
+      (projectInfoCacheGenerations.get(cacheKey) ?? 0) === cacheGeneration &&
+      pendingProjectInfoCache.get(cacheKey) === promise
+    ) {
+      projectInfoCache.set(cacheKey, { info, expiresAt: Date.now() + PROJECT_INFO_TTL_MS });
+    }
     return info;
   } finally {
-    pendingProjectInfoCache.delete(cacheKey);
+    if (pendingProjectInfoCache.get(cacheKey) === promise) {
+      pendingProjectInfoCache.delete(cacheKey);
+    }
   }
 }
 
@@ -266,6 +313,7 @@ async function fetchProjectInfoFromApi(
   apiKey: string,
   baseUrl: string,
   timeoutMs: number,
+  fetchFn?: typeof fetch,
 ): Promise<ProjectInfo> {
   const urls = [`${baseUrl}/v1/project`, `${baseUrl}/api/v1/api/project`];
   let lastNotFound: Response | undefined;
@@ -273,8 +321,9 @@ async function fetchProjectInfoFromApi(
   for (const url of urls) {
     const response = await fetchWithTimeout(
       url,
-      { headers: { Accept: "application/json", Authorization: `Bearer ${apiKey}` } },
+      { headers: buildAuthHeaders(apiKey) },
       timeoutMs,
+      fetchFn,
     );
 
     if (response.ok) {
@@ -295,12 +344,22 @@ async function fetchProjectInfoFromApi(
 }
 
 /**
- * Clear project info cache (useful for testing)
- * @internal
+ * Clear cached project info. With a cacheScope, clears only entries cached
+ * under that scope (used by the in-context editor on deactivation); without
+ * one, clears everything (useful for testing).
  */
-export function clearProjectInfoCache(): void {
+export function clearProjectInfoCache(cacheScope?: string): void {
+  if (cacheScope !== undefined) {
+    const cacheKey = `scope::${cacheScope}`;
+    projectInfoCacheGenerations.set(cacheKey, (projectInfoCacheGenerations.get(cacheKey) ?? 0) + 1);
+    projectInfoCache.delete(cacheKey);
+    pendingProjectInfoCache.delete(cacheKey);
+    return;
+  }
+  projectInfoGlobalGeneration += 1;
   projectInfoCache.clear();
   pendingProjectInfoCache.clear();
+  projectInfoCacheGenerations.clear();
 }
 
 /** Build API export URL for dev mode */
@@ -429,14 +488,13 @@ export async function fetchApiTranslations(
   namespaces: string[],
   apiBaseUrl?: string,
   timeoutMs = 5000,
+  fetchFn?: typeof fetch,
+  cacheScope?: string,
 ): Promise<TranslationStore> {
   const requestedNamespaces = [...new Set(namespaces)];
-  const headers = {
-    Accept: "application/json",
-    Authorization: `Bearer ${apiKey}`,
-  };
+  const headers = buildAuthHeaders(apiKey);
   const url = buildApiTranslationsUrl(locale, requestedNamespaces, apiBaseUrl);
-  const response = await fetchWithTimeout(url, { headers }, timeoutMs);
+  const response = await fetchWithTimeout(url, { headers }, timeoutMs, fetchFn);
 
   if (response.ok) {
     return transformApiResponse((await response.json()) as ExportApiResponse);
@@ -446,13 +504,13 @@ export async function fetchApiTranslations(
     throw new Error(`API error: ${response.status} ${response.statusText}`);
   }
 
-  const projectId = (await fetchProjectInfo(apiKey, apiBaseUrl, timeoutMs)).id;
+  const projectId = (await fetchProjectInfo(apiKey, apiBaseUrl, timeoutMs, fetchFn, cacheScope)).id;
   const exportUrl = buildApiExportUrl(projectId, locale, requestedNamespaces, apiBaseUrl);
-  let exportResponse = await fetchWithTimeout(exportUrl, { headers }, timeoutMs);
+  let exportResponse = await fetchWithTimeout(exportUrl, { headers }, timeoutMs, fetchFn);
 
   if (!exportResponse.ok && exportResponse.status === 404) {
     const legacyUrl = buildLegacyApiExportUrl(projectId, locale, requestedNamespaces, apiBaseUrl);
-    exportResponse = await fetchWithTimeout(legacyUrl, { headers }, timeoutMs);
+    exportResponse = await fetchWithTimeout(legacyUrl, { headers }, timeoutMs, fetchFn);
   }
 
   if (!exportResponse.ok) {

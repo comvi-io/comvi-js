@@ -16,7 +16,7 @@ import {
   detectICUType,
   DEFAULT_SELECT_VARIABLE,
 } from "../utils/icuParser";
-import { getHeaders, getBaseUrl } from "./apiClient";
+import { apiFetch } from "./apiClient";
 
 /**
  * Demo mode error class
@@ -176,14 +176,10 @@ export async function getTranslation(
   }
 
   try {
-    const baseUrl = getBaseUrl(scopeId);
-
-    const response = await fetch(
-      `${baseUrl}/v1/keys/${encodeURIComponent(ns)}/${encodeURIComponent(key)}`,
-      {
-        method: "GET",
-        headers: getHeaders(scopeId),
-      },
+    const response = await apiFetch(
+      scopeId,
+      `/v1/keys/${encodeURIComponent(ns)}/${encodeURIComponent(key)}`,
+      { method: "GET" },
     );
 
     if (response.status === 404) {
@@ -237,8 +233,6 @@ export async function saveTranslation(
   }
 
   try {
-    const baseUrl = getBaseUrl(scopeId);
-
     // Transform translations to match API format
     const apiTranslations: Record<string, { value: string; status: string }> = {};
     Object.entries(translations).forEach(([langCode, forms]) => {
@@ -295,9 +289,8 @@ export async function saveTranslation(
       translations: apiTranslations,
     };
 
-    const response = await fetch(`${baseUrl}/v1/keys`, {
+    const response = await apiFetch(scopeId, "/v1/keys", {
       method: "PUT",
-      headers: getHeaders(scopeId),
       body: JSON.stringify(payload),
     });
 
@@ -327,13 +320,10 @@ export async function deleteTranslation(key: string, ns: string, scopeId?: strin
   }
 
   try {
-    const baseUrl = getBaseUrl(scopeId);
-    const response = await fetch(
-      `${baseUrl}/v1/keys/${encodeURIComponent(ns)}/${encodeURIComponent(key)}`,
-      {
-        method: "DELETE",
-        headers: getHeaders(scopeId),
-      },
+    const response = await apiFetch(
+      scopeId,
+      `/v1/keys/${encodeURIComponent(ns)}/${encodeURIComponent(key)}`,
+      { method: "DELETE" },
     );
 
     if (!response.ok) {
@@ -357,11 +347,7 @@ export async function getAllTranslationKeys(scopeId?: string): Promise<(string |
   }
 
   try {
-    const baseUrl = getBaseUrl(scopeId);
-    const response = await fetch(`${baseUrl}/v1/translations`, {
-      method: "GET",
-      headers: getHeaders(scopeId),
-    });
+    const response = await apiFetch(scopeId, "/v1/translations", { method: "GET" });
 
     if (!response.ok) {
       throw new Error(`API error: ${response.status} ${response.statusText}`);

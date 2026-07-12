@@ -243,6 +243,18 @@ export interface I18nOptions {
    */
   apiKey?: string;
   /**
+   * Whether the in-context editor may collect anonymous translation context
+   * (translation keys, on-screen layout hints, screen groups) and send it to
+   * the project's own Comvi backend to improve translation suggestions.
+   *
+   * Collection is ON by default — the in-context editor (including the Chrome
+   * extension) exists primarily to gather this context. Set to `false` here,
+   * in your app's i18n setup, to opt out; it is the single developer-level
+   * control and is honored even when the editor is enabled via the extension.
+   * @default true
+   */
+  collectContext?: boolean;
+  /**
    * Expose this instance on window.__COMVI__ for browser extensions.
    * Extensions like Comvi In-Context Editor can detect and interact with the instance.
    * @default true (in browser environments)
@@ -438,6 +450,13 @@ export interface I18nInstance {
    * Plugins can use this to authenticate with backend services.
    */
   get apiKey(): string | undefined;
+
+  /**
+   * Context-collection preference (see I18nOptions.collectContext).
+   * `false` means the site opted out; `undefined` means the default (on).
+   * The in-context editor reads this to decide whether to collect context.
+   */
+  get collectContext(): boolean | undefined;
 
   /**
    * Development mode flag.

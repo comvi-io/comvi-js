@@ -30,7 +30,13 @@ vi.mock("../src/Core", async (importOriginal) => {
 });
 
 import { InContextEditorPlugin } from "../src/index";
-import { activate, deactivate, isActive } from "../src/standalone";
+import {
+  activate,
+  deactivate,
+  EDITOR_LIFECYCLE_EVENT,
+  isActive,
+  type EditorLifecycleDetail,
+} from "../src/standalone";
 
 type CoreOptions = {
   collectContext?: boolean;
@@ -97,5 +103,88 @@ describe("collectContext / screenGroupResolver pass-through", () => {
     const options = lastCoreOptions();
     expect(options.collectContext).toBe(false);
     expect(options.screenGroupResolver).toBe(resolver);
+    expect(result?.collectContext).toBe(false);
+  });
+
+  it("standalone activation reports the effective site-narrowed collectContext value", () => {
+    const i18n = createI18n({
+      locale: "en",
+      defaultNs: "default",
+      translation: { "en:default": { hello: "Hello" } },
+      collectContext: false,
+    });
+    (window as { __COMVI__?: unknown }).__COMVI__ = { get: () => i18n };
+
+    const result = activate({ collectContext: true, refreshTranslations: false });
+
+    expect(result?.collectContext).toBe(false);
+    expect(lastCoreOptions().collectContext).toBe(false);
+  });
+});
+
+describe("standalone lifecycle notifications", () => {
+  afterEach(() => {
+    if (isActive()) {
+      deactivate();
+    }
+    delete (window as { __COMVI__?: unknown }).__COMVI__;
+  });
+
+  it("notifies callback and DOM observers when the returned stop function deactivates", () => {
+    const i18n = makeI18n();
+    (window as { __COMVI__?: unknown }).__COMVI__ = { get: () => i18n };
+    const callback = vi.fn<(detail: EditorLifecycleDetail) => void>();
+    const eventDetails: EditorLifecycleDetail[] = [];
+    const listener = (event: Event) => {
+      eventDetails.push((event as CustomEvent<EditorLifecycleDetail>).detail);
+    };
+    window.addEventListener(EDITOR_LIFECYCLE_EVENT, listener);
+
+    const result = activate({
+      apiKey: "must-not-appear-in-lifecycle",
+      refreshTranslations: false,
+      onLifecycle: callback,
+    });
+    expect(result).not.toBeNull();
+    result?.stop();
+    window.removeEventListener(EDITOR_LIFECYCLE_EVENT, listener);
+
+    expect(callback.mock.calls.map(([detail]) => detail.state)).toEqual([
+      "activated",
+      "deactivated",
+    ]);
+    expect(eventDetails.map(({ state }) => state)).toEqual(["activated", "deactivated"]);
+    expect(JSON.stringify(eventDetails)).not.toContain("must-not-appear-in-lifecycle");
+    expect(isActive()).toBe(false);
+  });
+
+  it("notifies observers when the global deactivate entry point is called", () => {
+    const i18n = makeI18n();
+    (window as { __COMVI__?: unknown }).__COMVI__ = { get: () => i18n };
+    const listener = vi.fn();
+    window.addEventListener(EDITOR_LIFECYCLE_EVENT, listener);
+
+    activate({ refreshTranslations: false });
+    window.ComviInContextEditor?.deactivate();
+    window.removeEventListener(EDITOR_LIFECYCLE_EVENT, listener);
+
+    const details = listener.mock.calls.map(
+      ([event]) => (event as CustomEvent<EditorLifecycleDetail>).detail,
+    );
+    expect(details.map(({ state }) => state)).toEqual(["activated", "deactivated"]);
+    expect(isActive()).toBe(false);
+  });
+
+  it("does not let an old returned stop function deactivate a newer activation", () => {
+    const i18n = makeI18n();
+    (window as { __COMVI__?: unknown }).__COMVI__ = { get: () => i18n };
+
+    const first = activate({ refreshTranslations: false });
+    first?.stop();
+    const second = activate({ refreshTranslations: false });
+    first?.stop();
+
+    expect(second).not.toBeNull();
+    expect(isActive()).toBe(true);
   });
 });

@@ -6,7 +6,7 @@
 import type { Language, LanguageResponse } from "../types";
 import { isDemoMode } from "../config/api";
 import { detectPluralCategories } from "../composables/usePluralRules";
-import { getHeaders, getBaseUrl } from "./apiClient";
+import { apiFetch } from "./apiClient";
 
 /**
  * Fetch available languages/locales from the API.
@@ -21,11 +21,7 @@ export async function getLanguages(scopeId?: string): Promise<Language[]> {
   }
 
   try {
-    const baseUrl = getBaseUrl(scopeId);
-    const response = await fetch(`${baseUrl}/v1/project/locales`, {
-      method: "GET",
-      headers: getHeaders(scopeId),
-    });
+    const response = await apiFetch(scopeId, "/v1/project/locales", { method: "GET" });
 
     if (!response.ok) {
       throw new Error(`API error: ${response.status} ${response.statusText}`);
