@@ -65,6 +65,35 @@ const i18n = createI18n({ locale: "en" }).use(
 await i18n.init();
 ```
 
+## CDN namespace layout
+
+By default, `FetchLoader` keeps its existing URL convention: the i18n instance's
+`defaultNs` loads from `{cdnUrl}/{locale}.json`, and every other namespace loads
+from `{cdnUrl}/{namespace}/{locale}.json`.
+
+If the namespace stored at the CDN root differs from the namespace your app uses
+as `defaultNs`, configure that storage identity explicitly:
+
+```ts
+const i18n = createI18n({
+  locale: "en",
+  defaultNs: "storefront",
+  ns: ["storefront", "default"],
+}).use(
+  FetchLoader({
+    cdnUrl: "https://cdn.comvi.io/your-distribution-id",
+    cdnLayout: { rootNamespace: "default" },
+  }),
+);
+```
+
+This maps `storefront` to `storefront/en.json` and `default` to `en.json`.
+For a custom CDN where every namespace has its own folder, use
+`cdnLayout: { rootNamespace: false }`.
+
+`cdnLayout` affects CDN mode only. When `createI18n({ apiKey })` enables API
+mode, namespaces are sent explicitly in the API request.
+
 ## API mode
 
 Pass an `apiKey` on `createI18n` to switch to authenticated API mode — used for staging, draft translations, or auth-gated content:
