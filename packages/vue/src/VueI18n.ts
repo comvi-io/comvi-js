@@ -87,6 +87,7 @@ export class VueI18n {
     callback: (payload: I18nEventData[E]) => void,
   ) => () => void;
   declare setFallbackLocale: (locales: string | string[]) => void;
+  declare setDefaultParams: (params: TranslationParams | undefined) => void;
   declare reportError: (error: unknown, context?: Parameters<I18n["reportError"]>[1]) => void;
   declare formatNumber: (
     value: number,
@@ -169,6 +170,7 @@ export class VueI18n {
     this.onLoadError = core.onLoadError.bind(core);
     this.on = core.on.bind(core);
     this.setFallbackLocale = core.setFallbackLocale.bind(core);
+    this.setDefaultParams = core.setDefaultParams.bind(core);
     this.reportError = core.reportError.bind(core);
     this.formatNumber = (value, options, locale) => formatNumber(core, value, options, locale);
     this.formatDate = (value, options, locale) => formatDate(core, value, options, locale);

@@ -56,7 +56,9 @@ export type I18nEventData = {
   missingKey: { key: string; locale: string; namespace: string };
   loadError: { locale: string; namespace: string; error: Error };
   /** Fired when runtime config changes: fallback locales, added translations, or activated namespaces */
-  configChanged: { source: "fallbackLocale" | "translationsAdded" | "namespaceActivated" };
+  configChanged: {
+    source: "fallbackLocale" | "translationsAdded" | "namespaceActivated" | "defaultParams";
+  };
 };
 
 /**
@@ -229,6 +231,19 @@ export interface I18nOptions {
    */
   ns?: string[];
   translation?: Record<string, Record<string, TranslationValue>>;
+  /**
+   * Instance-level default translation params merged under every t()/tRaw() call.
+   * Call-level params override defaults key by key (shallow merge).
+   * Useful for cross-cutting message parameters like an ICU select on formality:
+   *
+   * @example
+   * ```typescript
+   * createI18n({ locale: "de", defaultParams: { formality: "formal" } });
+   * // "{formality, select, formal {Sie} other {du}}" renders the formal branch
+   * // without passing formality on each call.
+   * ```
+   */
+  defaultParams?: TranslationParams;
   /** Single or chain of fallback locales to try when a key is missing in the active locale */
   fallbackLocale?: string | string[];
   /** Optional post-processing applied to every translation result */
@@ -595,6 +610,15 @@ export interface I18nInstance {
 
   /** Update fallback locales at runtime */
   setFallbackLocale: (fallback: string | string[]) => void;
+
+  /**
+   * Replace the instance-level default translation params at runtime.
+   * Emits `configChanged` (source: "defaultParams") so framework bindings re-render.
+   */
+  setDefaultParams: (params: TranslationParams | undefined) => void;
+
+  /** Current instance-level default translation params (copy; mutations have no effect) */
+  readonly defaultParams: TranslationParams | undefined;
 
   /** Update default namespace at runtime */
   setDefaultNamespace: (namespace: string) => void;

@@ -169,6 +169,7 @@ export class I18n implements I18nInstance {
   #cachedDefaultNs: string;
   #initialNamespaces?: string[];
   #strict: "dev" | "off";
+  #defaultParams?: TranslationParams;
   #tagInterpolation?: TagInterpolationOptions;
   #postProcessors: PostProcessFn[] = [];
   #hasPostProcessors: boolean = false;
@@ -228,6 +229,7 @@ export class I18n implements I18nInstance {
     this.#fallbackOnMissingKey = options.onMissingKey;
     this.#onError = options.onError;
     this.#strict = options.strict ?? "off";
+    this.#defaultParams = options.defaultParams ? { ...options.defaultParams } : undefined;
 
     const tagInterpolation = options.tagInterpolation
       ? {
@@ -530,6 +532,22 @@ export class I18n implements I18nInstance {
     this.#emit("configChanged", { source: "fallbackLocale" });
   }
 
+  setDefaultParams(params: TranslationParams | undefined): void {
+    this.#defaultParams = params ? { ...params } : undefined;
+    this.#emit("configChanged", { source: "defaultParams" });
+  }
+
+  get defaultParams(): TranslationParams | undefined {
+    return this.#defaultParams ? { ...this.#defaultParams } : undefined;
+  }
+
+  #withDefaultParams(userParams?: TranslationParams): TranslationParams | undefined {
+    const defaults = this.#defaultParams;
+    if (defaults === undefined) return userParams;
+    if (userParams == null) return defaults;
+    return { ...defaults, ...userParams };
+  }
+
   /**
    * Clear translations from cache
    * @param locale - Optional locale to clear (if not provided, clears all locales)
@@ -770,7 +788,7 @@ export class I18n implements I18nInstance {
       this.#locale,
       this.#cachedDefaultNs,
       this.#fallbackLocales,
-      userParams,
+      this.#withDefaultParams(userParams),
     );
   }
 
