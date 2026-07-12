@@ -15,7 +15,7 @@ worker makes is logged with its `Authorization` header.
 
 ```bash
 # 1. Build the js-sdk editor bundle if you haven't (needed by the build):
-pnpm --filter @comvi/plugin-in-context-editor build
+pnpm exec turbo run build --filter @comvi/plugin-in-context-editor
 
 # 2. Install the browser once, then run the complete automated gate:
 pnpm exec playwright install chromium

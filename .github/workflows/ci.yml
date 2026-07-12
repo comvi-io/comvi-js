@@ -232,7 +232,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Build editor bundle
-        run: pnpm --filter @comvi/plugin-in-context-editor build
+        run: pnpm exec turbo run build --filter @comvi/plugin-in-context-editor
 
       - name: Install Chromium
         run: pnpm --filter @comvi/chrome-extension exec playwright install --with-deps chromium

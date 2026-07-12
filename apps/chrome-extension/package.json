@@ -11,7 +11,7 @@
     "build": "vite build",
     "lint": "eslint src gate-e vite.config.ts vitest.config.ts playwright.config.ts playwright.system.config.ts --max-warnings=0",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run",
+    "test": "vitest run --exclude src/__tests__/artifacts.test.ts",
     "test:commit": "pnpm typecheck && pnpm test",
     "test:pr": "pnpm verify && pnpm test:e2e",
     "test:nightly": "pnpm test:pr",

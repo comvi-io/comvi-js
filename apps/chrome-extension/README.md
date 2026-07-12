@@ -84,7 +84,7 @@ Load `dist/` as an unpacked extension in `chrome://extensions` (Developer mode).
   `@comvi/plugin-in-context-editor`. Defaults to the sibling js-sdk build at
   `../../packages/plugin-in-context-editor/dist/standalone.iife.js`
   (build it first from the repository root with
-  `pnpm --filter @comvi/plugin-in-context-editor build`).
+  `pnpm exec turbo run build --filter @comvi/plugin-in-context-editor`).
 
 ## Packaging
 
