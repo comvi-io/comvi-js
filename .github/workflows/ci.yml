@@ -71,6 +71,9 @@ jobs:
       - name: Release plan guard
         run: node scripts/check-release-plan.mjs
 
+      - name: Release tooling tests
+        run: pnpm test:release-tools
+
       - name: Format check
         run: pnpm format:check
 

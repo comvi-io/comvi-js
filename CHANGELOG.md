@@ -5,6 +5,50 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2026-07-13
+
+Coordinated `0.4.0` release across all publishable `@comvi/*` packages. Detailed package-level notes and migration guidance are available in the linked GitHub Release.
+
+### Minor Changes
+
+- **@comvi/core** — **Breaking:** formatter methods and the `dir` getter moved from `I18n` to standalone tree-shakeable exports, reducing consumer bundle size.
+- **@comvi/core** — ICU apostrophe handling now follows DOUBLE_OPTIONAL behavior, including context-aware `#` parsing and corrected template caching.
+- **@comvi/core, @comvi/next, @comvi/nuxt, @comvi/react, @comvi/solid, @comvi/svelte, @comvi/vue** — Added one `defaultParams` / `setDefaultParams` API with idiomatic reactivity across every framework binding.
+- **@comvi/nuxt** — Added configurable locale detection from query parameters and query-aware locale switching.
+- **@comvi/plugin-fetch-loader** — Added explicit CDN namespace layouts, including folder-only storage and a root namespace different from the consumer `defaultNs`.
+- **@comvi/plugin-locale-detector** — Added `cacheFirst` so applications can choose whether cached locale or configured detector order has priority.
+- **@comvi/plugin-in-context-editor** — Added passive, privacy-conscious UI context collection for active editor sessions.
+
+### Patch Changes
+
+- **@comvi/core** — Hardened translation input handling, initialization state, concurrent locale changes, stale namespace loads, and fallback behavior.
+- **@comvi/core** — Fixed nested plural `#` substitution so each token binds to its nearest plural count.
+- **@comvi/cli** — Added `pull --dry-run`, real version reporting, atomic secret/file writes, bounded retries, timeout cleanup, and serialized watch updates.
+- **@comvi/plugin-fetch-loader** — Hardened request cancellation, SSR cache propagation, response validation, and URL-specific diagnostics.
+- **@comvi/nuxt, @comvi/plugin-locale-detector, @comvi/vue** — Fixed Nuxt dev detection, reactive Vue formatters, and secure `SameSite=None` cookies.
+- **@comvi/plugin-in-context-editor** — Reduced consumer bundle cost through lazy UI loading and hardened editor storage/error handling.
+
+## [0.3.0] - 2026-06-02
+
+Coordinated `0.3.0` release across all publishable `@comvi/*` packages. This release modernized the package format and framework baselines while keeping the CDN entry points available.
+
+### Minor Changes
+
+- **All packages** — **Breaking:** npm packages are ESM-only; CommonJS entry points and duplicate `.d.cts` declarations were removed.
+- **@comvi/core** — Added a minified UMD/CDN build, bounded shared caches, formatter locale overrides, and runtime performance improvements.
+- **@comvi/react, @comvi/next** — Raised the baseline to React 18 and added selector hooks, tracked formatters, safer provider initialization, and locale validation.
+- **@comvi/vue, @comvi/nuxt** — Added reactive locale/namespace helpers and made unprefixed Nuxt routes authoritative for the default locale in `as-needed` mode.
+- **@comvi/svelte** — **Breaking:** moved to Svelte 5 runes and dropped Svelte 4 support.
+- **@comvi/solid** — Improved provider error handling, lazy fallbacks, component ownership, pinned-locale tracking, and client-rendering documentation.
+- **@comvi/cli, @comvi/vite-plugin** — Changed the default translation layout so the TMS default namespace maps to root locale files.
+
+### Patch Changes
+
+- **Runtime packages** — Broadened Node.js support to Node 18+ while keeping build-time CLI/Vite tooling on Node 22+.
+- **@comvi/core, @comvi/react, @comvi/solid, @comvi/svelte, @comvi/vue** — Fixed subscription races, redundant renders, cache growth, and reactive revision collisions.
+- **@comvi/solid** — Restored complete published TypeScript declarations.
+- **@comvi/nuxt** — Hardened setup failures, fallback resolution, runtime dependencies, metadata, and patched transitive dependencies.
+
 ## [0.2.0] - 2026-05-09
 
 Coordinated `0.2.0` release across all `@comvi/*` packages. The CLI ships its first set of meaningful new features; the framework bindings, plugins, and core bump in lockstep so every package on a given install moves to the same baseline version.
@@ -78,6 +122,8 @@ A lightweight, type-safe internationalization library with framework-agnostic co
 - Progressive loading pattern (show UI immediately, load translations in background)
 - Guaranteed-ready pattern (await translations before app start)
 
+[0.4.0]: https://github.com/comvi-io/comvi-js/releases/tag/v0.4.0
+[0.3.0]: https://github.com/comvi-io/comvi-js/releases/tag/v0.3.0
 [0.2.0]: https://github.com/comvi-io/comvi-js/releases/tag/v0.2.0
 [0.1.1]: https://github.com/comvi-io/comvi-js/releases/tag/v0.1.1
 [0.1.0]: https://github.com/comvi-io/comvi-js/releases/tag/v0.1.0
