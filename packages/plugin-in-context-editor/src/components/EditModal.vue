@@ -17,11 +17,13 @@ import { getLanguages } from "@/services/languageService";
 import { isDemoMode } from "@/config/api";
 import { TOAST_INJECTION_KEY } from "@/composables/useToast";
 import type { Language } from "@/types";
+import {
+  persistSelectedLanguages,
+  restoreSelectedLanguages,
+} from "@/utils/languageSelectionStorage";
 
 // Toast notifications
 const toast = inject(TOAST_INJECTION_KEY);
-
-const LOCALSTORAGE_KEY = "i18n-editor-selected-languages";
 
 const props = defineProps<{
   open: Ref<boolean>;
@@ -50,23 +52,6 @@ watch(isOpenInternal, (value) => {
 watch(props.open, (value) => {
   isOpenInternal.value = value;
 });
-
-function restoreSelectedLanguages(availableLanguages: Language[]): string[] {
-  const stored = localStorage.getItem(LOCALSTORAGE_KEY);
-  if (!stored) {
-    return availableLanguages.map((lang) => lang.code);
-  }
-
-  try {
-    const storedCodes = JSON.parse(stored);
-    const validCodes = storedCodes.filter((code: string) =>
-      availableLanguages.some((lang) => lang.code === code),
-    );
-    return validCodes.length > 0 ? validCodes : availableLanguages.map((lang) => lang.code);
-  } catch {
-    return availableLanguages.map((lang) => lang.code);
-  }
-}
 
 async function loadLanguagesForCurrentInstance(): Promise<void> {
   const requestId = ++latestLanguageRequestId;
@@ -115,7 +100,7 @@ watch(
     if (languages.value.length === 0) {
       return;
     }
-    localStorage.setItem(LOCALSTORAGE_KEY, JSON.stringify(newCodes));
+    persistSelectedLanguages(newCodes);
   },
   { deep: true },
 );
