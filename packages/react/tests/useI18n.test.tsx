@@ -141,6 +141,34 @@ describe("useI18n", () => {
     });
   });
 
+  it("exposes defaultParams and re-renders after setDefaultParams", async () => {
+    const i18n = createI18n({
+      locale: "en",
+      defaultParams: { formality: "formal" as const },
+      translation: {
+        en: { review: "{formality, select, formal {Formal} other {Informal}}" },
+      },
+    });
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <I18nProvider i18n={i18n} autoInit={false}>
+        {children}
+      </I18nProvider>
+    );
+    const { result } = renderHook(() => useI18n<{ formality: "formal" | "informal" }>(), {
+      wrapper,
+    });
+
+    expect(result.current.defaultParams?.formality).toBe("formal");
+    expect(result.current.t("review" as never)).toBe("Formal");
+
+    act(() => result.current.setDefaultParams({ formality: "informal" }));
+
+    await waitFor(() => {
+      expect(result.current.defaultParams?.formality).toBe("informal");
+      expect(result.current.t("review" as never)).toBe("Informal");
+    });
+  });
+
   it("proxies setLocale() to i18n.setLocaleAsync()", async () => {
     const fake = new FakeI18n();
     const { result } = renderHook(() => useI18n(), { wrapper: createWrapper(fake) });

@@ -55,6 +55,20 @@ describe("useI18n", () => {
     expect(text("has-admin-title")).toBe("true");
     expect(text("loaded-languages")).toBe("ar,en,fr");
     expect(text("active-namespaces")).toBe("common");
+    expect(text("default-formality")).toBe("none");
+  });
+
+  it("exposes reactive defaultParams and setDefaultParams", async () => {
+    component = mount(UseI18nHarness, {
+      target,
+      props: { i18n: fake.asI18n() },
+    });
+
+    click("set-default-params");
+    await tick();
+
+    expect(fake.setDefaultParams).toHaveBeenCalledWith({ formality: "formal" });
+    expect(text("default-formality")).toBe("formal");
   });
 
   it("returns plain text from $t and structured content from $tRaw", () => {

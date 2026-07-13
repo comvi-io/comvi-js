@@ -6,6 +6,7 @@ import type {
   I18n,
   TranslationParams,
   TranslationResult,
+  DefaultTranslationParams,
 } from "@comvi/core";
 import { FakeI18nCore, type FakeI18nCoreOptions, type FakeTranslationCache } from "./fakeI18nCore";
 
@@ -13,6 +14,8 @@ type FakeI18nOptions = Pick<FakeI18nCoreOptions, "language" | "defaultNamespace"
 
 export class FakeI18n {
   private readonly core: FakeI18nCore;
+  private currentDefaultParams: DefaultTranslationParams | undefined;
+  private currentConfigRevision = 0;
 
   constructor(options: FakeI18nOptions = {}) {
     this.core = new FakeI18nCore({
@@ -89,6 +92,20 @@ export class FakeI18n {
   public readonly setFallbackLocale = vi.fn((fallback: string | string[]): void => {
     this.core.setFallbackLanguage(fallback);
   });
+
+  public readonly setDefaultParams = vi.fn((params: DefaultTranslationParams | undefined): void => {
+    this.currentDefaultParams = params ? { ...params } : undefined;
+    this.currentConfigRevision++;
+    this.core.emit("configChanged", { source: "defaultParams" });
+  });
+
+  get defaultParams(): Readonly<DefaultTranslationParams> | undefined {
+    return this.currentDefaultParams ? { ...this.currentDefaultParams } : undefined;
+  }
+
+  get configRevision(): number {
+    return this.currentConfigRevision;
+  }
 
   public readonly onMissingKey = vi.fn(
     (

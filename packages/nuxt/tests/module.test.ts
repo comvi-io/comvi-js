@@ -88,6 +88,7 @@ describe("nuxt module setup", () => {
         localePrefix: "as-needed",
         defaultNs: "common",
         fallbackLanguage: "en",
+        defaultParams: { formality: "formal" },
         cdnUrl: "https://cdn.example.com",
         apiBaseUrl: "https://api.example.com",
         apiKey: "secret-key",
@@ -116,6 +117,7 @@ describe("nuxt module setup", () => {
       apiBaseUrl: "https://api.example.com",
       defaultNs: "common",
       fallbackLocale: "en",
+      defaultParams: { formality: "formal" },
       basicHtmlTags: ["strong", "em"],
     });
     expect(nuxt.options.runtimeConfig.comvi).toEqual({ apiKey: "secret-key" });

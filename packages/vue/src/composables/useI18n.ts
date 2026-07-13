@@ -11,22 +11,24 @@ import type {
   I18nEvent,
   I18nEventData,
   I18n,
+  DefaultTranslationParams,
+  DefaultParamsSnapshot,
 } from "@comvi/core";
 
-export interface UseI18nReturn {
+export interface UseI18nReturn<D extends DefaultTranslationParams = {}> {
   /** Translation function - namespaced keys (when ns is provided). Always returns plain text. */
   t<
     NS extends import("@comvi/core").Namespaces,
     K extends import("@comvi/core").NamespacedKeys<NS>,
   >(
     key: K,
-    ...params: import("@comvi/core").NamespacedParamsArg<NS, K>
+    ...params: import("@comvi/core").NamespacedParamsArg<NS, K, D>
   ): string;
 
   /** Translation function - typed keys (default namespace only, use ns option for others). */
   t<K extends import("@comvi/core").DefaultNsKeys>(
     key: K,
-    ...params: import("@comvi/core").ParamsArg<K>
+    ...params: import("@comvi/core").ParamsArg<K, D>
   ): string;
 
   /** Permissive overload - only active when TranslationKeys is empty */
@@ -38,13 +40,13 @@ export interface UseI18nReturn {
     K extends import("@comvi/core").NamespacedKeys<NS>,
   >(
     key: K,
-    ...params: import("@comvi/core").NamespacedParamsArg<NS, K>
+    ...params: import("@comvi/core").NamespacedParamsArg<NS, K, D>
   ): TranslationResult;
 
   /** Raw translation result for typed keys. */
   tRaw<K extends import("@comvi/core").DefaultNsKeys>(
     key: K,
-    ...params: import("@comvi/core").ParamsArg<K>
+    ...params: import("@comvi/core").ParamsArg<K, D>
   ): TranslationResult;
 
   /** Raw translation result for permissive keys. */
@@ -73,6 +75,12 @@ export interface UseI18nReturn {
 
   /** Configure fallback locale chain */
   setFallbackLocale: (locales: string | string[]) => void;
+
+  /** Reactive shallow snapshot of instance-level interpolation defaults. */
+  defaultParams: ComputedRef<DefaultParamsSnapshot<D>>;
+
+  /** Replace instance-level interpolation defaults. */
+  setDefaultParams: I18n<D>["setDefaultParams"];
 
   /** Register callback for missing keys */
   onMissingKey: (
@@ -157,6 +165,8 @@ const PASSTHROUGH_KEYS = [
   "addTranslations",
   "addActiveNamespace",
   "setFallbackLocale",
+  "defaultParams",
+  "setDefaultParams",
   "onMissingKey",
   "onLoadError",
   "clearTranslations",
@@ -190,21 +200,23 @@ const PASSTHROUGH_KEYS = [
  *             arguments where applicable.
  * @returns Object with translation function, reactive state, and i18n methods
  */
-export function useI18n(ns?: string): UseI18nReturn {
-  const i18n = inject(I18N_INJECTION_KEY);
+export function useI18n<D extends DefaultTranslationParams = {}>(ns?: string): UseI18nReturn<D> {
+  const injected = inject(I18N_INJECTION_KEY);
 
-  if (!i18n) {
+  if (!injected) {
     throw new Error(
       "[i18n] useI18n must be used within a Vue app with i18n plugin installed. " +
         "Make sure you called app.use(i18n) before using this composable.",
     );
   }
 
-  const tRaw = createBoundTranslation(i18n, ns) as UseI18nReturn["tRaw"];
-  const t = ((key: string, params?: TranslationParams) =>
-    translationResultToString(tRaw(key as never, params as never))) as UseI18nReturn["t"];
+  const i18n = injected as VueI18n<D>;
 
-  const result = { t, tRaw } as UseI18nReturn;
+  const tRaw = createBoundTranslation(i18n, ns) as UseI18nReturn<D>["tRaw"];
+  const t = ((key: string, params?: TranslationParams) =>
+    translationResultToString(tRaw(key as never, params as never))) as UseI18nReturn<D>["t"];
+
+  const result = { t, tRaw } as UseI18nReturn<D>;
   for (const k of PASSTHROUGH_KEYS) {
     (result as any)[k] = (i18n as any)[k];
   }

@@ -29,6 +29,7 @@ function createEvent(runtimeConfigOverrides: Partial<any> = {}) {
             cookieName: "i18n_locale",
             defaultNs: "common",
             fallbackLocale: "en",
+            defaultParams: { formality: "formal" },
             detectBrowserLanguage: {
               useCookie: true,
               fallbackLocale: "en",
@@ -96,11 +97,14 @@ describe("useTranslation (server)", () => {
     expect(i18n.t).toHaveBeenCalledWith(
       "hello",
       expect.objectContaining({
-        language: "de",
+        locale: "de",
         ns: "admin",
       }),
     );
     expect(i18n.addActiveNamespace).toHaveBeenCalledWith("admin");
+    expect(createI18n).toHaveBeenCalledWith(
+      expect.objectContaining({ defaultParams: { formality: "formal" } }),
+    );
     expect(runComviSetup).toHaveBeenCalledWith(
       expect.objectContaining({
         i18n,
@@ -258,14 +262,14 @@ describe("useTranslation (server)", () => {
     expect(i18nEn.t).toHaveBeenCalledWith(
       "hello",
       expect.objectContaining({
-        language: "en",
+        locale: "en",
         ns: "common",
       }),
     );
     expect(i18nDe.t).toHaveBeenCalledWith(
       "hello",
       expect.objectContaining({
-        language: "de",
+        locale: "de",
         ns: "common",
       }),
     );

@@ -19,6 +19,7 @@ export {
   createInitializingStore,
   createInitializedStore,
   createCacheRevisionStore,
+  createDefaultParamsStore,
 } from "./stores";
 
 // Export T component

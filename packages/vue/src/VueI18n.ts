@@ -15,6 +15,8 @@ import type {
   I18nPlugin,
   I18nEvent,
   I18nEventData,
+  DefaultTranslationParams,
+  DefaultParamsSnapshot,
 } from "@comvi/core";
 import {
   shallowRef,
@@ -32,21 +34,21 @@ import { translationResultToString } from "./utils";
 /**
  * Vue-specific i18n options extending core options
  */
-export interface VueI18nOptions extends I18nOptions {
+export type VueI18nOptions<D extends DefaultTranslationParams = {}> = I18nOptions<D> & {
   /**
    * Initial locale for SSR hydration.
    * Use this to prevent hydration mismatches when server renders with a different
    * locale than what the client would detect.
    */
   ssrLocale?: string;
-}
+};
 
 /**
  * Vue-specific wrapper around the core I18n using composition
  * Provides Vue reactivity integration and plugin installation
  */
-export class VueI18n {
-  private _core: I18n;
+export class VueI18n<D extends DefaultTranslationParams = {}> {
+  private _core: I18n<D>;
 
   private _locale: ShallowRef<string>;
   private _localeComputed?: WritableComputedRef<string>;
@@ -54,6 +56,7 @@ export class VueI18n {
   private _isInitializing: ShallowRef<boolean>;
   private _cacheRevision: ShallowRef<number>;
   private _configRevision: ShallowRef<number>;
+  private _defaultParamsComputed?: ComputedRef<DefaultParamsSnapshot<D>>;
   private _translationCacheComputed?: ComputedRef<ReadonlyMap<string, FlattenedTranslations>>;
   private _unsubscribers: Array<() => void> = [];
   private _requestedLocale: string;
@@ -87,7 +90,7 @@ export class VueI18n {
     callback: (payload: I18nEventData[E]) => void,
   ) => () => void;
   declare setFallbackLocale: (locales: string | string[]) => void;
-  declare setDefaultParams: (params: TranslationParams | undefined) => void;
+  declare setDefaultParams: I18n<D>["setDefaultParams"];
   declare reportError: (error: unknown, context?: Parameters<I18n["reportError"]>[1]) => void;
   declare formatNumber: (
     value: number,
@@ -111,13 +114,13 @@ export class VueI18n {
     options?: Intl.RelativeTimeFormatOptions,
     locale?: string,
   ) => string;
-  constructor(options: VueI18nOptions) {
+  constructor(options: VueI18nOptions<D>) {
     const initialLocale = options.ssrLocale ?? options.locale;
 
-    this._core = new I18n({
+    this._core = new I18n<D>({
       ...options,
       locale: initialLocale,
-    });
+    } as I18nOptions<D>);
 
     this._locale = shallowRef(initialLocale);
     this._requestedLocale = initialLocale;
@@ -211,6 +214,17 @@ export class VueI18n {
     this.setLocale(value).catch((error) => {
       this._core.reportError(error, { source: "setLocale" });
     });
+  }
+
+  /** Reactive shallow snapshot of the current interpolation defaults. */
+  get defaultParams(): ComputedRef<DefaultParamsSnapshot<D>> {
+    if (!this._defaultParamsComputed) {
+      this._defaultParamsComputed = computed(() => {
+        void this._configRevision.value;
+        return this._core.defaultParams;
+      });
+    }
+    return this._defaultParamsComputed;
   }
 
   private _dirComputed?: ComputedRef<"ltr" | "rtl">;
@@ -352,12 +366,12 @@ export class VueI18n {
   tRaw<
     NS extends import("@comvi/core").Namespaces,
     K extends import("@comvi/core").NamespacedKeys<NS>,
-  >(key: K, ...params: import("@comvi/core").NamespacedParamsArg<NS, K>): TranslationResult;
+  >(key: K, ...params: import("@comvi/core").NamespacedParamsArg<NS, K, D>): TranslationResult;
 
   /** Raw translation result for typed keys. */
   tRaw<K extends import("@comvi/core").DefaultNsKeys>(
     key: K,
-    ...params: import("@comvi/core").ParamsArg<K>
+    ...params: import("@comvi/core").ParamsArg<K, D>
   ): TranslationResult;
 
   /** Raw translation result for permissive keys. */
@@ -379,14 +393,14 @@ export class VueI18n {
   t<
     NS extends import("@comvi/core").Namespaces,
     K extends import("@comvi/core").NamespacedKeys<NS>,
-  >(key: K, ...params: import("@comvi/core").NamespacedParamsArg<NS, K>): string;
+  >(key: K, ...params: import("@comvi/core").NamespacedParamsArg<NS, K, D>): string;
 
   /**
    * Translate a key with Vue reactivity tracking - typed keys. Always returns plain text.
    */
   t<K extends import("@comvi/core").DefaultNsKeys>(
     key: K,
-    ...params: import("@comvi/core").ParamsArg<K>
+    ...params: import("@comvi/core").ParamsArg<K, D>
   ): string;
 
   /**
@@ -460,7 +474,9 @@ export class VueI18n {
   }
 }
 
-export function createI18n(options: VueI18nOptions): VueI18n {
+export function createI18n<const D extends DefaultTranslationParams = {}>(
+  options: VueI18nOptions<D>,
+): VueI18n<D> {
   return new VueI18n(options);
 }
 

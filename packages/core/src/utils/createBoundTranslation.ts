@@ -1,17 +1,23 @@
-import type { TranslationKeys, TranslationResult, TranslationParams, ParamsArg } from "../types";
+import type {
+  TranslationKeys,
+  TranslationResult,
+  TranslationParams,
+  ParamsArg,
+  DefaultTranslationParams,
+} from "../types";
 
 /**
  * Interface for any i18n instance that has a compatible translation method.
  * This allows createBoundTranslation to work with both I18n and framework-specific wrappers.
  */
-export interface I18nTranslatable {
+export interface I18nTranslatable<D extends DefaultTranslationParams = {}> {
   t<K extends keyof TranslationKeys | (string & Record<never, never>)>(
     key: K,
-    ...params: K extends keyof TranslationKeys ? ParamsArg<K> : [params?: TranslationParams]
+    ...params: K extends keyof TranslationKeys ? ParamsArg<K, D> : [params?: TranslationParams]
   ): string | TranslationResult;
   tRaw?<K extends keyof TranslationKeys | (string & Record<never, never>)>(
     key: K,
-    ...params: K extends keyof TranslationKeys ? ParamsArg<K> : [params?: TranslationParams]
+    ...params: K extends keyof TranslationKeys ? ParamsArg<K, D> : [params?: TranslationParams]
   ): TranslationResult;
 }
 
@@ -38,25 +44,25 @@ export interface I18nTranslatable {
  * t('subtitle', { ns: 'common' }); // Can still override namespace
  * ```
  */
-export function createBoundTranslation(
-  i18n: I18nTranslatable,
+export function createBoundTranslation<D extends DefaultTranslationParams = {}>(
+  i18n: I18nTranslatable<D>,
   ns?: string,
 ): <K extends keyof TranslationKeys | (string & Record<never, never>)>(
   key: K,
-  ...params: K extends keyof TranslationKeys ? ParamsArg<K> : [params?: TranslationParams]
+  ...params: K extends keyof TranslationKeys ? ParamsArg<K, D> : [params?: TranslationParams]
 ) => TranslationResult {
   const translateRaw = i18n.tRaw?.bind(i18n) ?? i18n.t.bind(i18n);
 
   if (!ns) {
     return translateRaw as <K extends keyof TranslationKeys | (string & Record<never, never>)>(
       key: K,
-      ...params: K extends keyof TranslationKeys ? ParamsArg<K> : [params?: TranslationParams]
+      ...params: K extends keyof TranslationKeys ? ParamsArg<K, D> : [params?: TranslationParams]
     ) => TranslationResult;
   }
 
   return <K extends keyof TranslationKeys | (string & Record<never, never>)>(
     key: K,
-    ...params: K extends keyof TranslationKeys ? ParamsArg<K> : [params?: TranslationParams]
+    ...params: K extends keyof TranslationKeys ? ParamsArg<K, D> : [params?: TranslationParams]
   ): TranslationResult => {
     const userParams = params[0];
 

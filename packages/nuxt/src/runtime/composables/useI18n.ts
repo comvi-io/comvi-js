@@ -1,12 +1,14 @@
 import { useNuxtApp, useRuntimeConfig } from "#app";
 import { useLocaleState } from "../utils/locale-state";
 import { type Ref, computed } from "vue";
-import type { TranslationParams } from "@comvi/core";
+import type { TranslationParams, DefaultTranslationParams } from "@comvi/core";
 import { createBoundTranslation } from "@comvi/core";
 import { translationResultToString } from "../utils";
 import type { UseI18nReturn as VueUseI18nReturn } from "@comvi/vue";
 
-export interface UseI18nReturn extends VueUseI18nReturn {
+export interface UseI18nReturn<
+  D extends DefaultTranslationParams = {},
+> extends VueUseI18nReturn<D> {
   /** Available locales from runtime config (Nuxt-specific) */
   locales: Ref<readonly string[]>;
   /** Default locale from runtime config (Nuxt-specific) */
@@ -37,7 +39,7 @@ export interface UseI18nReturn extends VueUseI18nReturn {
  * </template>
  * ```
  */
-export function useI18n(ns?: string): UseI18nReturn {
+export function useI18n<D extends DefaultTranslationParams = {}>(ns?: string): UseI18nReturn<D> {
   const nuxtApp = useNuxtApp();
   const config = useRuntimeConfig();
   const publicConfig = config.public.comvi;
@@ -54,9 +56,9 @@ export function useI18n(ns?: string): UseI18nReturn {
   const localeState = useLocaleState();
 
   // Create scoped translation functions
-  const tRaw = createBoundTranslation(i18n, ns) as UseI18nReturn["tRaw"];
+  const tRaw = createBoundTranslation(i18n, ns) as UseI18nReturn<D>["tRaw"];
   const t = ((key: string, params?: TranslationParams) =>
-    translationResultToString(tRaw(key as never, params as never))) as UseI18nReturn["t"];
+    translationResultToString(tRaw(key as never, params as never))) as UseI18nReturn<D>["t"];
 
   // Wrap setLocale to sync with Nuxt state
   const setLocale = async (newLocale: string) => {
@@ -75,6 +77,8 @@ export function useI18n(ns?: string): UseI18nReturn {
     addTranslations: i18n.addTranslations,
     addActiveNamespace: i18n.addActiveNamespace,
     setFallbackLocale: i18n.setFallbackLocale,
+    defaultParams: i18n.defaultParams as VueUseI18nReturn<D>["defaultParams"],
+    setDefaultParams: i18n.setDefaultParams,
     onMissingKey: i18n.onMissingKey,
     onLoadError: i18n.onLoadError,
     clearTranslations: i18n.clearTranslations,

@@ -44,7 +44,9 @@ describe("Instance-level defaultParams", () => {
   });
 
   it("setDefaultParams replaces defaults and affects subsequent renders", () => {
-    const i18n = createInstance({ formality: "formal" });
+    const i18n = createInstance();
+
+    i18n.setDefaultParams({ formality: "formal" });
     expect(i18n.t("review")).toBe("Ihre Bewertung");
 
     i18n.setDefaultParams({ formality: "informal" });
@@ -76,5 +78,71 @@ describe("Instance-level defaultParams", () => {
     const exposed = i18n.defaultParams!;
     exposed.formality = "informal";
     expect(i18n.t("review")).toBe("Ihre Bewertung");
+  });
+
+  it.each(["locale", "ns", "fallback", "raw"])(
+    "rejects the reserved call-control key %s in constructor defaults",
+    (key) => {
+      expect(
+        () =>
+          new I18n({
+            locale: "en",
+            defaultParams: { [key]: "invalid" } as never,
+          }),
+      ).toThrow(/defaultParams.*locale.*ns.*fallback.*raw/i);
+    },
+  );
+
+  it("rejects reserved call-control keys in runtime replacements", () => {
+    const i18n = createInstance();
+
+    expect(() => i18n.setDefaultParams({ locale: "de" } as never)).toThrow(
+      /defaultParams.*locale.*ns.*fallback.*raw/i,
+    );
+  });
+
+  it.each([null, undefined])("rejects nullish constructor defaults (%s)", (value) => {
+    expect(
+      () =>
+        new I18n({
+          locale: "en",
+          defaultParams: { formality: value } as never,
+        }),
+    ).toThrow(/defaultParams.*null.*undefined/i);
+  });
+
+  it.each([null, undefined])("rejects nullish runtime defaults (%s)", (value) => {
+    const i18n = createInstance();
+    expect(() => i18n.setDefaultParams({ formality: value } as never)).toThrow(
+      /defaultParams.*null.*undefined/i,
+    );
+  });
+
+  it("does not allow constructor-guaranteed defaults to be removed", () => {
+    const i18n = createInstance({ formality: "formal" });
+
+    expect(() => i18n.setDefaultParams(undefined as never)).toThrow(/formality/);
+    expect(() => i18n.setDefaultParams({} as never)).toThrow(/formality/);
+    expect(() => i18n.setDefaultParams({ formality: undefined } as never)).toThrow(
+      /defaultParams.*null.*undefined/i,
+    );
+
+    expect(i18n.t("review")).toBe("Ihre Bewertung");
+  });
+
+  it("does not accept an inherited value for a constructor-guaranteed key", () => {
+    const i18n = createInstance({ formality: "formal" });
+    const inherited = Object.create({ formality: "informal" }) as Record<string, string>;
+
+    expect(() => i18n.setDefaultParams(inherited as never)).toThrow(/formality/);
+    expect(i18n.t("review")).toBe("Ihre Bewertung");
+  });
+
+  it("keeps nested values by reference while protecting the top-level object", () => {
+    const segments = ["A"];
+    const i18n = new I18n({ locale: "en", defaultParams: { segments } });
+
+    expect(i18n.defaultParams).not.toBe(i18n.defaultParams);
+    expect(i18n.defaultParams?.segments).toBe(segments);
   });
 });

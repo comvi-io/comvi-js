@@ -81,7 +81,7 @@ export function clearTemplateCache(): void {
  * Returns undefined if not yet analyzed.
  */
 export function isStaticTemplate(template: string): boolean | undefined {
-  return templateCache.get(template)?.isStatic;
+  return templateCache.get(templateCacheKey(template, false))?.isStatic;
 }
 
 /**
@@ -90,7 +90,7 @@ export function isStaticTemplate(template: string): boolean | undefined {
  * compiles differently per context and needs distinct cache entries.
  */
 function templateCacheKey(template: string, hashIsSyntax: boolean): string {
-  return hashIsSyntax ? `\u0001${template}` : template;
+  return `${hashIsSyntax ? "\u0001" : "\u0000"}${template}`;
 }
 
 /**
@@ -185,7 +185,7 @@ export function translate(
   params?: TranslationParams,
   tagInterpolation?: TagInterpolationOptions,
 ): TranslationResult {
-  const cached = templateCache.get(template);
+  const cached = templateCache.get(templateCacheKey(template, false));
   if (cached) {
     // Already cached - use cached analysis
     if (cached.isStatic) {
@@ -209,7 +209,11 @@ export function translate(
     }
   }
   if (!hasSpecialChar) {
-    cacheTemplate(template, { tokens: [], flags: TF_STATIC, isStatic: true });
+    cacheTemplate(templateCacheKey(template, false), {
+      tokens: [],
+      flags: TF_STATIC,
+      isStatic: true,
+    });
     return template;
   }
 

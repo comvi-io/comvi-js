@@ -36,13 +36,16 @@ export async function getRequestI18n(event: H3Event, locale: string): Promise<I1
       const publicConfig = config.public.comvi;
       const privateConfig = config.comvi;
 
-      const i18n = createI18n({
+      const baseI18nOptions = {
         locale: locale,
         fallbackLocale: publicConfig.fallbackLocale || publicConfig.defaultLocale || locale,
         defaultNs: publicConfig.defaultNs || "default",
         devMode: process.env.NODE_ENV === "development",
         apiKey: privateConfig?.apiKey,
-      });
+      };
+      const i18n = publicConfig.defaultParams
+        ? createI18n({ ...baseI18nOptions, defaultParams: publicConfig.defaultParams })
+        : createI18n(baseI18nOptions);
 
       await runComviSetup({
         i18n,

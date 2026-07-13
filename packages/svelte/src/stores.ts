@@ -1,5 +1,5 @@
 import { readable, type Readable } from "svelte/store";
-import type { I18n } from "@comvi/core";
+import type { I18n, DefaultTranslationParams, DefaultParamsSnapshot } from "@comvi/core";
 
 /**
  * Cache for memoized stores per i18n instance
@@ -13,6 +13,7 @@ const storeCache = new WeakMap<
     initializing: Readable<boolean>;
     initialized: Readable<boolean>;
     cacheRevision: Readable<number>;
+    defaultParams: Readable<Readonly<DefaultTranslationParams> | undefined>;
   }
 >();
 
@@ -74,6 +75,14 @@ function getOrCreateStores(i18n: I18n) {
           unsub5();
         };
       }),
+      defaultParams: readable<Readonly<DefaultTranslationParams> | undefined>(
+        i18n.defaultParams,
+        (set) => {
+          const sync = () => set(i18n.defaultParams);
+          sync();
+          return i18n.on("configChanged", sync);
+        },
+      ),
     };
     storeCache.set(i18n, stores);
   }
@@ -132,4 +141,11 @@ export function createInitializedStore(i18n: I18n): Readable<boolean> {
  */
 export function createCacheRevisionStore(i18n: I18n): Readable<number> {
   return getOrCreateStores(i18n).cacheRevision;
+}
+
+/** Reactive shallow snapshot of the instance-level interpolation defaults. */
+export function createDefaultParamsStore<D extends DefaultTranslationParams = {}>(
+  i18n: I18n<D>,
+): Readable<DefaultParamsSnapshot<D>> {
+  return getOrCreateStores(i18n).defaultParams as Readable<DefaultParamsSnapshot<D>>;
 }

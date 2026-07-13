@@ -516,7 +516,7 @@ export function parsePluralChoices(
   choicesStr: string,
   hashIsSyntax = true,
 ): Record<string, string> {
-  const cacheKey = hashIsSyntax ? choicesStr : `\u0001${choicesStr}`;
+  const cacheKey = `${hashIsSyntax ? "\u0001" : "\u0000"}${choicesStr}`;
   const cached = pluralChoicesCache.get(cacheKey);
   if (cached) return cached;
 
