@@ -21,15 +21,65 @@ declare global {
   }
 }
 
+type RuntimeResponseCallback = (response: unknown, error?: string) => void;
+
+const INVALIDATED_CONTEXT_ERROR = "Extension was reloaded. Reload this page to reconnect.";
+let extensionContextInvalidated = false;
+
+function runtimeErrorMessage(error: unknown): string {
+  const message = error instanceof Error ? error.message : typeof error === "string" ? error : "";
+  return /extension context invalidated/i.test(message)
+    ? INVALIDATED_CONTEXT_ERROR
+    : message || "Extension unavailable";
+}
+
+/**
+ * Content scripts survive an unpacked-extension reload until the page itself
+ * reloads, but every chrome.runtime call in that stale world throws
+ * synchronously. Convert that browser lifecycle edge into a normal failed
+ * response and stop the now-disconnected editor exactly once.
+ */
+function sendRuntimeMessage(message: Message, callback?: RuntimeResponseCallback): void {
+  const fail = (error: unknown): void => {
+    const friendlyError = runtimeErrorMessage(error);
+    const invalidated = friendlyError === INVALIDATED_CONTEXT_ERROR;
+    if (invalidated && !extensionContextInvalidated) {
+      extensionContextInvalidated = true;
+      window.dispatchEvent(new CustomEvent("comvi-extension:deactivate"));
+    }
+    callback?.(undefined, friendlyError);
+  };
+
+  if (extensionContextInvalidated) {
+    callback?.(undefined, INVALIDATED_CONTEXT_ERROR);
+    return;
+  }
+
+  try {
+    chrome.runtime.sendMessage(message, (response) => {
+      let lastErrorMessage: string | undefined;
+      try {
+        lastErrorMessage = chrome.runtime.lastError?.message;
+      } catch (error) {
+        fail(error);
+        return;
+      }
+      if (lastErrorMessage) {
+        fail(lastErrorMessage);
+        return;
+      }
+      callback?.(response);
+    });
+  } catch (error) {
+    fail(error);
+  }
+}
+
 // The popup may inject this script again on every open; install only once
 // per page load (repeated executeScript calls share this isolated world).
 if (!window.__comviExtensionBridgeInstalled) {
   window.__comviExtensionBridgeInstalled = true;
-  chrome.runtime.sendMessage({ type: "DOCUMENT_READY" } satisfies Message, () => {
-    // A worker restart or extension update can briefly close the channel.
-    // The next privileged operation still revalidates document identity.
-    void chrome.runtime.lastError;
-  });
+  sendRuntimeMessage({ type: "DOCUMENT_READY" });
   installBridge();
 }
 
@@ -65,17 +115,24 @@ function installBridge() {
     body?: string;
     keepalive: boolean;
   }) {
-    chrome.runtime.sendMessage({ type: "API_PROXY_REQUEST", payload: request }, (response) => {
-      const detail = chrome.runtime.lastError
+    sendRuntimeMessage({ type: "API_PROXY_REQUEST", payload: request }, (response, error) => {
+      const detail = error
         ? {
             id: request.id,
             ok: false,
             status: 0,
             statusText: "",
             body: "",
-            networkError: chrome.runtime.lastError.message ?? "Extension unavailable",
+            networkError: error,
           }
-        : response;
+        : (response ?? {
+            id: request.id,
+            ok: false,
+            status: 0,
+            statusText: "",
+            body: "",
+            networkError: "Extension unavailable",
+          });
       dispatchProxyResponse(detail);
     });
   }
@@ -90,19 +147,19 @@ function installBridge() {
     // because detector and bridge race to register listeners. Forward status
     // updates to background so the toolbar icon reflects detection.
     if (status.comviDetected && !wasDetected) {
-      chrome.runtime.sendMessage({ type: "COMVI_DETECTED", payload: currentStatus });
+      sendRuntimeMessage({ type: "COMVI_DETECTED", payload: currentStatus });
     }
   }) as EventListener);
 
   // Listen for detection events
   window.addEventListener("comvi-extension:detected", ((event: CustomEvent) => {
     currentStatus = { ...sanitizeStatus(event.detail), comviDetected: true };
-    chrome.runtime.sendMessage({ type: "COMVI_DETECTED", payload: currentStatus });
+    sendRuntimeMessage({ type: "COMVI_DETECTED", payload: currentStatus });
   }) as EventListener);
 
   window.addEventListener("comvi-extension:not-found", () => {
     currentStatus = { comviDetected: false, editorActive: false };
-    chrome.runtime.sendMessage({ type: "COMVI_NOT_FOUND", payload: currentStatus });
+    sendRuntimeMessage({ type: "COMVI_NOT_FOUND", payload: currentStatus });
   });
 
   // Listen for activation result
@@ -111,7 +168,7 @@ function installBridge() {
     if (detail.success) {
       currentStatus.editorActive = true;
     }
-    chrome.runtime.sendMessage({
+    sendRuntimeMessage({
       type: "EDITOR_ACTIVATED",
       // `collectContext` is derived by the editor from the page's i18n config.
       // The service worker uses the sanitized value to gate telemetry routes.
@@ -125,7 +182,7 @@ function installBridge() {
     if (detail.success) {
       currentStatus.editorActive = false;
     }
-    chrome.runtime.sendMessage({ type: "EDITOR_DEACTIVATED", payload: detail });
+    sendRuntimeMessage({ type: "EDITOR_DEACTIVATED", payload: detail });
   }) as EventListener);
 
   // SDK-side deactivation can happen without the popup command. This DOM
@@ -135,7 +192,7 @@ function installBridge() {
     const detail = parseEventDetail(event.detail);
     if (detail.state !== "deactivated") return;
     currentStatus.editorActive = false;
-    chrome.runtime.sendMessage({
+    sendRuntimeMessage({
       type: "EDITOR_DEACTIVATED",
       payload: { success: true },
     });
@@ -162,7 +219,7 @@ function installBridge() {
   window.addEventListener("comvi-extension:api-abort", ((event: CustomEvent) => {
     const raw = parseEventDetail(event.detail);
     if (typeof raw.id !== "string" || raw.id.length === 0 || raw.id.length > 128) return;
-    chrome.runtime.sendMessage({ type: "API_PROXY_ABORT", payload: { id: raw.id } });
+    sendRuntimeMessage({ type: "API_PROXY_ABORT", payload: { id: raw.id } });
   }) as EventListener);
 
   // Listen for messages from popup/background

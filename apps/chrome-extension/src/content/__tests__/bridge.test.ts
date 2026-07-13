@@ -108,4 +108,43 @@ describe("ISOLATED-world bridge activation ordering", () => {
       "EDITOR_ACTIVATED",
     ]);
   });
+
+  it("turns an invalidated extension context into a controlled proxy failure", () => {
+    sendMessage.mockImplementation((message: Message) => {
+      if (message.type === "API_PROXY_REQUEST") {
+        throw new Error("Extension context invalidated.");
+      }
+    });
+    const responses: unknown[] = [];
+    let deactivations = 0;
+    testWindow.addEventListener("comvi-extension:api-response", ((event: CustomEvent) => {
+      responses.push(JSON.parse(event.detail));
+    }) as EventListener);
+    testWindow.addEventListener("comvi-extension:deactivate", () => {
+      deactivations += 1;
+    });
+
+    const request = () =>
+      testWindow.dispatchEvent(
+        new CustomEvent("comvi-extension:api-request", {
+          detail: JSON.stringify({ id: "stale-1", path: "/v1/context/handshake" }),
+        }),
+      );
+
+    expect(request).not.toThrow();
+    expect(request).not.toThrow();
+    expect(responses).toEqual([
+      expect.objectContaining({
+        id: "stale-1",
+        status: 0,
+        networkError: "Extension was reloaded. Reload this page to reconnect.",
+      }),
+      expect.objectContaining({
+        id: "stale-1",
+        status: 0,
+        networkError: "Extension was reloaded. Reload this page to reconnect.",
+      }),
+    ]);
+    expect(deactivations).toBe(1);
+  });
 });
