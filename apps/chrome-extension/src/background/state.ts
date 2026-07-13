@@ -22,7 +22,7 @@ export interface SessionRecord {
   apiKey: string;
   /** Project id captured during key validation. */
   projectId?: string | number;
-  /** User's explicit telemetry opt-in for this session. */
+  /** Effective SDK context-collection setting for this session. */
   collectContext: boolean;
   /** Single-use activation nonce; travels popup -> bridge -> SW, never the page. */
   nonce: string;
@@ -40,6 +40,8 @@ export interface SessionRecord {
 export interface TabState {
   comviDetected: boolean;
   version?: string;
+  /** Top-level Chrome document identity that owns this cached state. */
+  documentId?: string;
 }
 
 const SESSION_PREFIX = "comvi_session_";

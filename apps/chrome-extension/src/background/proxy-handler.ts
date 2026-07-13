@@ -20,9 +20,11 @@ import type { ApiProxyResponsePayload } from "../shared/messages";
 import {
   abortProxyWork,
   abortTabProxyWork,
+  getProxySessionTransitionGeneration,
   isProxyRevoking,
   releaseProxyWork,
   reserveProxyWork,
+  waitForProxySessionTransition,
 } from "./proxy-work";
 import { renderBadge } from "./badge";
 import { deleteSession, getNavGen, getSession, getTabState, tabLockKey, withLock } from "./state";
@@ -84,6 +86,7 @@ async function readBoundedResponseBody(response: Response): Promise<string> {
 export async function handleProxyRequest(
   payload: unknown,
   sender: chrome.runtime.MessageSender,
+  allowPendingActivationWait = true,
 ): Promise<ApiProxyResponsePayload> {
   const rawId =
     payload && typeof payload === "object" && typeof (payload as { id?: unknown }).id === "string"
@@ -98,6 +101,13 @@ export async function handleProxyRequest(
   if (sender.frameId !== 0) {
     return failure(rawId, "Proxy requests are only allowed from the top frame");
   }
+  if (rawId.length === 0 || rawId.length > 128) {
+    return failure(rawId, "Missing or invalid request id");
+  }
+
+  // Capture before reading storage so a promotion that lands between the
+  // pending read and waiter registration cannot be missed.
+  const observedTransitionGeneration = getProxySessionTransitionGeneration(tabId);
 
   // Authority validation and work registration are one per-tab transition.
   // A revocation either runs first (no session) or runs second and aborts the
@@ -110,7 +120,7 @@ export async function handleProxyRequest(
       };
     }
     const session = await getSession(tabId);
-    if (!session || session.status !== "active") {
+    if (!session) {
       return {
         ok: false as const,
         response: failure(rawId, "No active editor session for this tab"),
@@ -118,6 +128,15 @@ export async function handleProxyRequest(
     }
     if (canonicalizeOrigin(sender.origin) !== session.origin) {
       return { ok: false as const, response: failure(rawId, "Origin mismatch") };
+    }
+    if (session.status === "pending") {
+      if ((await getNavGen(tabId)) !== session.navGen) {
+        return {
+          ok: false as const,
+          response: failure(rawId, "Session invalidated by navigation"),
+        };
+      }
+      return { ok: false as const, pendingActivation: true as const };
     }
     if (session.documentId && sender.documentId !== session.documentId) {
       return { ok: false as const, response: failure(rawId, "Stale document") };
@@ -148,7 +167,23 @@ export async function handleProxyRequest(
     }
     return { ok: true as const, session, validated, reservation: reserved.reservation };
   });
-  if (!setup.ok) return setup.response;
+  if (!setup.ok) {
+    if (!("pendingActivation" in setup)) return setup.response;
+    if (!allowPendingActivationWait) {
+      return failure(rawId, "No active editor session for this tab");
+    }
+
+    const outcome = await waitForProxySessionTransition(tabId, rawId, observedTransitionGeneration);
+    if (outcome === "transitioned") {
+      // Promotion/revocation is now durable in storage. Re-enter once and run
+      // every normal authority, route and resource-limit check from scratch.
+      return handleProxyRequest(payload, sender, false);
+    }
+    if (outcome === "duplicate") return failure(rawId, "Duplicate request id");
+    if (outcome === "limit") return failure(rawId, "Too many pending activation requests");
+    if (outcome === "aborted") return failure(rawId, "Request aborted");
+    return failure(rawId, "Editor activation did not complete in time");
+  }
 
   const { session, validated, reservation } = setup;
   const { controller } = reservation;

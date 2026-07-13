@@ -37,19 +37,23 @@ boundary in either direction:
   page. Activation failure, timeout, navigation, tab close, disable and
   "Forget key" all revoke the session; requests are additionally bound to the
   acknowledging document and the tab's navigation generation.
-- Content scripts are **injected on demand** under the `activeTab` grant when
-  the popup opens — the extension does not run on `<all_urls>`.
+- A minimal detector and isolated-world bridge run on `<all_urls>` so the
+  toolbar icon can identify Comvi-enabled pages before the popup opens. They
+  receive no API key and hold no proxy authority. The editor runtime and an
+  authenticated session are still created only after explicit activation in
+  the popup.
 - Context collection (page origin, translation keys, on-screen layout hints)
-  is sent to **your own** Comvi project only after an explicit per-activation
-  opt-in in the popup. The checkbox is off by default, and the same value is
-  bound into both the service-worker session and the injected editor runtime;
-  hostile page code cannot enable telemetry for an already-active session.
+  follows the site's Comvi i18n `collectContext` option and is sent only to
+  **your own** Comvi project. Collection is enabled by default; set
+  `collectContext: false` in the site's i18n configuration to disable it. The
+  editor reports the effective setting during activation, and the service
+  worker binds it to that session before opening telemetry routes.
 
 **Residual risk, by design:** DOM events in the MAIN world are forgeable, so
 while a session is _active_ on a tab, scripts on that page can invoke the same
 proxy channel — meaning they can perform exactly the editor's own operations
 (read project locales/translations and save or delete translation keys; when
-the user opted in, submit context telemetry for their own origin) against the project of the
+the site's i18n config enables it, submit context telemetry for their own origin) against the project of the
 validated key. They cannot reach any other API route, another project's
 export, another origin's telemetry, or the key itself. Only enable the editor on sites you operate or trust, and prefer keys
 scoped to a single project with the minimum required permissions. A hostile

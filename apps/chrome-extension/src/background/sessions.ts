@@ -20,7 +20,11 @@
 import { canonicalizeOrigin, canonicalizePageOrigin } from "../shared/origins";
 import { clearCredentialFamily, setCredentials } from "../shared/storage";
 import { API_BASE_URL } from "../shared/config";
-import type { StartSessionPayload, StartSessionResponse } from "../shared/messages";
+import type {
+  StartSessionPayload,
+  StartSessionResponse,
+  SessionStatusResponse,
+} from "../shared/messages";
 import {
   withLock,
   tabLockKey,
@@ -41,10 +45,12 @@ import {
   beginTabProxyRevocation,
   endGlobalProxyRevocation,
   endTabProxyRevocation,
+  notifyProxySessionTransition,
 } from "./proxy-work";
 
 /** How long a pending session may wait for activation acknowledgement. */
 export const PENDING_TTL_MS = 30_000;
+const KEY_VALIDATION_TIMEOUT_MS = 8_000;
 
 // --- API key validation ---
 
@@ -62,35 +68,44 @@ interface KeyValidationResult {
  */
 async function validateApiKey(apiKey: string): Promise<KeyValidationResult> {
   const paths = ["/v1/project", "/api/v1/api/project"];
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), KEY_VALIDATION_TIMEOUT_MS);
 
-  for (const path of paths) {
-    let response: Response;
-    try {
-      response = await fetch(API_BASE_URL + path, {
-        method: "GET",
-        headers: { Accept: "application/json", Authorization: `Bearer ${apiKey}` },
-      });
-    } catch {
-      return { ok: false, error: "Could not reach the Comvi API. Check your connection." };
-    }
-
-    if (response.ok) {
-      let projectId: string | number | undefined;
+  try {
+    for (const path of paths) {
+      let response: Response;
       try {
-        const info = (await response.json()) as { id?: unknown };
-        if (typeof info.id === "string" || typeof info.id === "number") projectId = info.id;
+        response = await fetch(API_BASE_URL + path, {
+          method: "GET",
+          headers: { Accept: "application/json", Authorization: `Bearer ${apiKey}` },
+          signal: controller.signal,
+        });
       } catch {
-        // Tolerate a non-JSON success body; export routes will stay unbound
-        // (and therefore denied) without a project id.
+        return controller.signal.aborted
+          ? { ok: false, error: "The Comvi API did not respond in time. Try again." }
+          : { ok: false, error: "Could not reach the Comvi API. Check your connection." };
       }
-      return { ok: true, projectId };
+
+      if (response.ok) {
+        let projectId: string | number | undefined;
+        try {
+          const info = (await response.json()) as { id?: unknown };
+          if (typeof info.id === "string" || typeof info.id === "number") projectId = info.id;
+        } catch {
+          // Tolerate a non-JSON success body; export routes will stay unbound
+          // (and therefore denied) without a project id.
+        }
+        return { ok: true, projectId };
+      }
+      if (response.status === 401 || response.status === 403) {
+        return { ok: false, error: "Invalid API key" };
+      }
+      if (response.status !== 404) {
+        return { ok: false, error: `API error: ${response.status} ${response.statusText}` };
+      }
     }
-    if (response.status === 401 || response.status === 403) {
-      return { ok: false, error: "Invalid API key" };
-    }
-    if (response.status !== 404) {
-      return { ok: false, error: `API error: ${response.status} ${response.statusText}` };
-    }
+  } finally {
+    clearTimeout(timeout);
   }
 
   return { ok: false, error: "Comvi API endpoint not found" };
@@ -146,6 +161,7 @@ async function expirePendingSession(tabId: number, nonce: string): Promise<void>
       return;
     }
     await deleteSession(tabId);
+    notifyProxySessionTransition(tabId);
     const tabState = await getTabState(tabId);
     renderBadge(tabId, tabState?.comviDetected ?? false, false);
   });
@@ -176,8 +192,7 @@ export async function startSession(
     return { ok: false, error: "Not allowed" };
   }
 
-  const { tabId, origin, apiKey, collectContext, popupLeaseId } = (payload ??
-    {}) as Partial<StartSessionPayload>;
+  const { tabId, origin, apiKey, popupLeaseId } = (payload ?? {}) as Partial<StartSessionPayload>;
   if (
     typeof tabId !== "number" ||
     !Number.isInteger(tabId) ||
@@ -237,7 +252,9 @@ export async function startSession(
         origin: canonicalOrigin,
         apiKey,
         projectId: validation.projectId,
-        collectContext: collectContext === true,
+        // Pending sessions have no proxy authority. The effective value is
+        // supplied by the SDK activation result when the session is promoted.
+        collectContext: false,
         nonce,
         popupLeaseId,
         navGen: navGenAfter,
@@ -249,6 +266,7 @@ export async function startSession(
       // case its revoker either removed the record already, or this check does.
       if (!isPopupLeaseActive(popupLeaseId)) {
         await deleteSession(tabId);
+        notifyProxySessionTransition(tabId);
         return { ok: false, error: "The popup closed while validating. Try again." };
       }
       schedulePendingExpiry(tabId, record);
@@ -273,11 +291,13 @@ export async function confirmActivation(
     if (!session || session.status !== "pending") return false;
     if (isExpired(session, Date.now())) {
       await deleteSession(tabId);
+      notifyProxySessionTransition(tabId);
       return false;
     }
     if (typeof nonce !== "string" || nonce !== session.nonce) return false;
     if (!isPopupLeaseActive(session.popupLeaseId)) {
       await deleteSession(tabId);
+      notifyProxySessionTransition(tabId);
       return false;
     }
     if (sender.tab?.id !== tabId) return false;
@@ -289,14 +309,15 @@ export async function confirmActivation(
     const promoted: SessionRecord = {
       ...session,
       status: "active",
-      // The page-authored SDK value is untrusted and may only narrow the
-      // user's popup opt-in, never enable telemetry by itself.
-      collectContext: session.collectContext && effectiveCollectContext === true,
+      // The editor derives this value from the site's i18n.collectContext
+      // option. Keep telemetry routes closed unless activation reports true.
+      collectContext: effectiveCollectContext === true,
       expiresAt: 0,
       // Bind the acknowledging document; every proxy request must come from it.
       documentId: sender.documentId,
     };
     await putSession(tabId, promoted);
+    notifyProxySessionTransition(tabId);
 
     const tabState = await getTabState(tabId);
     renderBadge(tabId, tabState?.comviDetected ?? true, true);
@@ -311,6 +332,7 @@ export async function rollbackPending(tabId: number, nonce: unknown): Promise<vo
     if (!session || session.status !== "pending") return;
     if (typeof nonce !== "string" || nonce !== session.nonce) return;
     await deleteSession(tabId);
+    notifyProxySessionTransition(tabId);
   });
 }
 
@@ -366,6 +388,7 @@ export async function revokePendingForLease(popupLeaseId: string): Promise<void>
       const current = await getSession(tabId);
       if (current?.status === "pending" && current.popupLeaseId === popupLeaseId) {
         await deleteSession(tabId);
+        notifyProxySessionTransition(tabId);
         const tabState = await getTabState(tabId);
         renderBadge(tabId, tabState?.comviDetected ?? false, false);
       }
@@ -380,12 +403,13 @@ export async function revokePendingForLease(popupLeaseId: string): Promise<void>
 export async function forgetCredentials(
   payload: unknown,
   sender: chrome.runtime.MessageSender,
-): Promise<{ ok: boolean; error?: string }> {
-  if (sender.tab) return { ok: false, error: "Not allowed" };
+): Promise<{ ok: boolean; error?: string; revokedTabIds: number[] }> {
+  if (sender.tab) return { ok: false, error: "Not allowed", revokedTabIds: [] };
 
   const origin = canonicalizeOrigin((payload as { origin?: unknown } | undefined)?.origin);
-  if (!origin) return { ok: false, error: "Invalid origin" };
+  if (!origin) return { ok: false, error: "Invalid origin", revokedTabIds: [] };
 
+  const revokedTabIds: number[] = [];
   beginGlobalProxyRevocation();
   try {
     await withLock(authorityLockKey, async () => {
@@ -397,25 +421,27 @@ export async function forgetCredentials(
       for (const [tabId, session] of sessions) {
         if (session.origin === origin || (apiKey && session.apiKey === apiKey)) {
           await revokeSession(tabId);
+          revokedTabIds.push(tabId);
         }
       }
     });
   } finally {
     endGlobalProxyRevocation();
   }
-  return { ok: true };
+  return { ok: true, revokedTabIds };
 }
 
 /** Authoritative status for the popup. */
 export async function getSessionStatus(
   payload: unknown,
   sender: chrome.runtime.MessageSender,
-): Promise<{ active: boolean; pending: boolean }> {
+): Promise<SessionStatusResponse> {
   const tabId = (payload as { tabId?: unknown } | undefined)?.tabId;
   if (sender.tab || typeof tabId !== "number") return { active: false, pending: false };
-  const session = await getLiveSession(tabId);
+  const [session, tabState] = await Promise.all([getLiveSession(tabId), getTabState(tabId)]);
   return {
     active: session?.status === "active",
     pending: session?.status === "pending",
+    ...(tabState ? { comviDetected: tabState.comviDetected, version: tabState.version } : {}),
   };
 }
