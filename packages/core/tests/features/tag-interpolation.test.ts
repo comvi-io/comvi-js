@@ -38,6 +38,41 @@ describe("Tag Interpolation", () => {
     expect(result).toBe("Line 1\nLine 2");
   });
 
+  it("parses snake_case tag names", () => {
+    i18n.addTranslations({
+      en: { msg: "Click <this_link>this link</this_link> for a new one." },
+    });
+
+    const result = i18n.t("msg", {
+      this_link: ({ children }: { children: string }) => `[${children}]`,
+    });
+
+    expect(result).toBe("Click [this link] for a new one.");
+  });
+
+  it("parses self-closing snake_case tags inside select branches", () => {
+    i18n.addTranslations({
+      en: {
+        msg: "{formality, select, formal {Dear<line_break/>Sir} other {Hi<line_break/>there}}",
+      },
+    });
+
+    const result = i18n.t("msg", {
+      formality: "formal",
+      line_break: () => " / ",
+    });
+
+    expect(result).toBe("Dear / Sir");
+  });
+
+  it("flattens snake_case tags to inner text without a handler", () => {
+    i18n.addTranslations({
+      en: { msg: "Read our <help_article>help article</help_article>" },
+    });
+
+    expect(i18n.t("msg", {})).toBe("Read our help article");
+  });
+
   it("supports ICU params inside tags", () => {
     i18n.addTranslations({ en: { msg: "<bold>Hello {name}</bold>" } });
 

@@ -26,6 +26,7 @@ const GREATER_THAN = 62;
 const SLASH = 47;
 const COMMA = 44;
 const HYPHEN = 45;
+const UNDERSCORE = 95;
 const SPACE = 32;
 const HASH = 35;
 const DIGIT_0 = 48;
@@ -51,7 +52,8 @@ function isTagNameChar(code: number): boolean {
     (code >= UPPER_A && code <= UPPER_Z) ||
     (code >= LOWER_A && code <= LOWER_Z) ||
     (code >= DIGIT_0 && code <= DIGIT_9) ||
-    code === HYPHEN
+    code === HYPHEN ||
+    code === UNDERSCORE
   );
 }
 
