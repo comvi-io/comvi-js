@@ -24,18 +24,43 @@ const ICONS = {
 const BRAND_AMBER = "#d97706";
 const BRAND_DARK = "#19191a";
 
+function isClosedTabError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error ?? "");
+  return message.includes("No tab with id");
+}
+
+/**
+ * Tabs can disappear between the state mutation and these cosmetic action
+ * updates. Consume that expected rejection so Chrome does not emit an
+ * unhandled Promise/runtime.lastError warning; preserve diagnostics for
+ * genuinely unexpected toolbar failures.
+ */
+function updateToolbar(operation: () => Promise<void>): void {
+  try {
+    void Promise.resolve(operation()).catch((error) => {
+      if (!isClosedTabError(error)) {
+        console.warn("[ComviExtension] Failed to update toolbar state.", error);
+      }
+    });
+  } catch (error) {
+    if (!isClosedTabError(error)) {
+      console.warn("[ComviExtension] Failed to update toolbar state.", error);
+    }
+  }
+}
+
 export function renderBadge(tabId: number, comviDetected: boolean, sessionActive: boolean) {
   const iconSet = comviDetected || sessionActive ? ICONS.detected : ICONS.inactive;
-  chrome.action.setIcon({ path: iconSet, tabId });
-  chrome.action.setBadgeText({ text: sessionActive ? "ON" : "", tabId });
+  updateToolbar(() => chrome.action.setIcon({ path: iconSet, tabId }));
+  updateToolbar(() => chrome.action.setBadgeText({ text: sessionActive ? "ON" : "", tabId }));
 
   if (sessionActive) {
-    chrome.action.setBadgeBackgroundColor({ color: BRAND_DARK, tabId });
-    chrome.action.setBadgeTextColor({ color: BRAND_AMBER, tabId });
+    updateToolbar(() => chrome.action.setBadgeBackgroundColor({ color: BRAND_DARK, tabId }));
+    updateToolbar(() => chrome.action.setBadgeTextColor({ color: BRAND_AMBER, tabId }));
   }
 }
 
 export function resetBadge(tabId: number) {
-  chrome.action.setIcon({ path: ICONS.inactive, tabId });
-  chrome.action.setBadgeText({ text: "", tabId });
+  updateToolbar(() => chrome.action.setIcon({ path: ICONS.inactive, tabId }));
+  updateToolbar(() => chrome.action.setBadgeText({ text: "", tabId }));
 }

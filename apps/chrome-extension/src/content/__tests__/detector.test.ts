@@ -9,6 +9,7 @@ type CapturedTransport = (path: string, init?: CapturedTransportInit) => Promise
 describe("MAIN-world detector transport contract", () => {
   let testWindow: EventTarget & Record<string, any>;
   let transport: CapturedTransport | undefined;
+  let activationOptions: Record<string, unknown> | undefined;
 
   beforeEach(async () => {
     vi.useFakeTimers();
@@ -20,6 +21,7 @@ describe("MAIN-world detector transport contract", () => {
     testWindow.ComviInContextEditor = {
       isActive: () => false,
       activate: (options: { transport: CapturedTransport }) => {
+        activationOptions = options as unknown as Record<string, unknown>;
         transport = options.transport;
         return { instanceId: "editor-1", collectContext: false };
       },
@@ -42,10 +44,11 @@ describe("MAIN-world detector transport contract", () => {
 
     testWindow.dispatchEvent(
       new CustomEvent("comvi-extension:activate", {
-        detail: { apiBaseUrl: "https://api.comvi.io", collectContext: true },
+        detail: { apiBaseUrl: "https://api.comvi.io" },
       }),
     );
 
+    expect(activationOptions).not.toHaveProperty("collectContext");
     expect(activationDetail).toEqual({
       success: true,
       instanceId: "editor-1",
@@ -56,7 +59,7 @@ describe("MAIN-world detector transport contract", () => {
   it("dispatches proxy abort before rejecting a timed-out request", async () => {
     testWindow.dispatchEvent(
       new CustomEvent("comvi-extension:activate", {
-        detail: { apiBaseUrl: "https://api.comvi.io", collectContext: true },
+        detail: { apiBaseUrl: "https://api.comvi.io" },
       }),
     );
     expect(transport).toBeDefined();

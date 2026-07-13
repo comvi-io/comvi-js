@@ -102,7 +102,7 @@ async function expectIdle(popup: Page, hostilePage: Page): Promise<void> {
     const diagnostics = {
       popupTabs: await popup.evaluate(() => chrome.tabs.query({ currentWindow: true })),
       popupState: await popup.evaluate(() =>
-        ["state-not-detected", "state-idle", "state-active"].map((id) => ({
+        ["state-loading", "state-not-detected", "state-idle", "state-active"].map((id) => ({
           id,
           className: document.getElementById(id)?.className,
         })),
@@ -119,15 +119,9 @@ async function expectIdle(popup: Page, hostilePage: Page): Promise<void> {
   }
 }
 
-async function activate(
-  popup: Page,
-  worker: Worker,
-  tabId: number,
-  collectContext: boolean,
-): Promise<void> {
+async function activate(popup: Page, worker: Worker, tabId: number): Promise<void> {
   await expect(popup.locator("#state-idle")).toBeVisible({ timeout: 10_000 });
   await popup.locator("#api-key").fill(apiKey);
-  if (collectContext) await popup.locator("#collect-context").check();
   await popup.locator("#enable-btn").click();
   await expect
     .poll(
@@ -141,6 +135,8 @@ async function activate(
       { timeout: 15_000 },
     )
     .toBe("active");
+  await expect(popup.locator("#state-active")).toBeVisible({ timeout: 5_000 });
+  await expect(popup.locator("#state-active")).toContainText("Editor active on this page");
 }
 
 async function deactivate(page: Page, worker: Worker, tabId: number): Promise<void> {
@@ -171,8 +167,20 @@ function parseBody(result: ProxyResult): any {
   return JSON.parse(result.body!);
 }
 
-test("real platform persists editor writes and opted-in context through the MV3 boundary", async () => {
-  expect(manifest.content_scripts).toBeUndefined();
+test("real platform persists editor writes and SDK-configured context through the MV3 boundary", async () => {
+  expect(manifest.content_scripts).toEqual([
+    {
+      matches: ["<all_urls>"],
+      js: ["detector.js"],
+      world: "MAIN",
+      run_at: "document_idle",
+    },
+    {
+      matches: ["<all_urls>"],
+      js: ["bridge.js"],
+      run_at: "document_start",
+    },
+  ]);
   expect(manifest.host_permissions?.toSorted()).toEqual(
     [`${apiOrigin}/*`, "http://127.0.0.1:8791/*"].toSorted(),
   );
@@ -213,7 +221,10 @@ test("real platform persists editor writes and opted-in context through the MV3 
     await page.bringToFront();
 
     const popup = await openPopup(worker, extensionId, debuggingPort, connections);
-    await activate(popup, worker, tabId, false);
+    await page.evaluate(() => {
+      (globalThis as any).__COMVI__.get().collectContext = false;
+    });
+    await activate(popup, worker, tabId);
     await popup.close();
     await page.bringToFront();
 
@@ -242,9 +253,12 @@ test("real platform persists editor writes and opted-in context through the MV3 
     expect(telemetryOff.denied).toBe(true);
 
     await deactivate(page, worker, tabId);
+    await page.evaluate(() => {
+      delete (globalThis as any).__COMVI__.get().collectContext;
+    });
 
     const telemetryPopup = await openPopup(worker, extensionId, debuggingPort, connections);
-    await activate(telemetryPopup, worker, tabId, true);
+    await activate(telemetryPopup, worker, tabId);
     await telemetryPopup.close();
     await page.bringToFront();
 

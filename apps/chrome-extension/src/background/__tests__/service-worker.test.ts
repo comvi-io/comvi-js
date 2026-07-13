@@ -38,11 +38,12 @@ beforeAll(async () => {
   await import("../service-worker");
 });
 
-beforeEach(() => {
+beforeEach(async () => {
   harness.reset();
   fetchMock.mockReset();
   mockApiOk();
   harness.setTabUrl(TAB, PAGE_URL);
+  await harness.fireDocumentReady(TAB, "doc-1");
   popupLease = harness.openPopupLease(POPUP_LEASE);
 });
 
@@ -72,7 +73,6 @@ async function startSession(overrides: Record<string, unknown> = {}) {
         tabId: TAB,
         origin: ORIGIN,
         apiKey: API_KEY,
-        collectContext: false,
         popupLeaseId: POPUP_LEASE,
         ...overrides,
       },
@@ -121,11 +121,15 @@ describe("session lifecycle", () => {
     expect(started.ok).toBe(true);
     expect(started.nonce).toBeTruthy();
 
-    // Pending sessions carry no proxy authority.
-    const whilePending = await proxyRequest();
-    expect(whilePending.networkError).toMatch(/No active editor session/);
-
+    // An activation-time request may arrive before the acknowledgement. It
+    // must remain network-silent until promotion, then pass normal checks.
+    const whilePending = proxyRequest({ id: "activation-refresh" });
+    await Promise.resolve();
+    expect(fetchMock).toHaveBeenCalledTimes(1); // key validation only
     await activate(started.nonce);
+    const promotedRequest = await whilePending;
+    expect(promotedRequest.ok).toBe(true);
+
     const afterActivation = await proxyRequest();
     expect(afterActivation.ok).toBe(true);
     expect(afterActivation.status).toBe(200);
@@ -136,18 +140,76 @@ describe("session lifecycle", () => {
     expect(proxiedCall[1].headers.Authorization).toBe(`Bearer ${API_KEY}`);
   });
 
+  it("publishes authoritative activation completion for the popup", async () => {
+    const started = await startSession();
+    await activate(started.nonce);
+
+    expect(harness.chrome.runtime.sendMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: "SESSION_STATE_CHANGED",
+        payload: expect.objectContaining({ tabId: TAB, active: true, pending: false }),
+      }),
+      expect.any(Function),
+    );
+  });
+
+  it("returns cached detector metadata with authoritative session status", async () => {
+    await harness.dispatchMessage(
+      { type: "COMVI_DETECTED", payload: { comviDetected: true, version: "0.4.0" } },
+      pageSender(),
+    );
+    await harness.flush();
+
+    await expect(
+      harness.dispatchMessage({ type: "GET_SESSION_STATUS", payload: { tabId: TAB } }, popupSender),
+    ).resolves.toEqual({
+      active: false,
+      pending: false,
+      comviDetected: true,
+      version: "0.4.0",
+    });
+  });
+
+  it("rolls back only the pending activation with the matching nonce", async () => {
+    const started = await startSession();
+    await harness.dispatchMessage(
+      { type: "ROLLBACK_ACTIVATION", payload: { tabId: TAB, nonce: "wrong" } },
+      popupSender,
+    );
+    await expect(
+      harness.dispatchMessage({ type: "GET_SESSION_STATUS", payload: { tabId: TAB } }, popupSender),
+    ).resolves.toMatchObject({ pending: true });
+
+    await harness.dispatchMessage(
+      { type: "ROLLBACK_ACTIVATION", payload: { tabId: TAB, nonce: started.nonce } },
+      popupSender,
+    );
+    await expect(
+      harness.dispatchMessage({ type: "GET_SESSION_STATUS", payload: { tabId: TAB } }, popupSender),
+    ).resolves.toMatchObject({ active: false, pending: false });
+  });
+
   it("key validation failure leaves no session and no stored credential", async () => {
     fetchMock.mockResolvedValue(new Response("", { status: 401 }));
     const started = await startSession();
     expect(started).toMatchObject({ ok: false, error: "Invalid API key" });
-    expect(harness.chrome.storage.session.snapshot()).toEqual({});
+    expect(harness.chrome.storage.session.snapshot()).not.toHaveProperty(`comvi_session_${TAB}`);
     expect(harness.chrome.storage.local.snapshot()).toEqual({});
   });
 
   it("a forged activation without the nonce cannot promote the session", async () => {
-    await startSession();
+    const started = await startSession();
     await activate(undefined);
     await activate("wrong-nonce");
+
+    await expect(
+      harness.dispatchMessage({ type: "GET_SESSION_STATUS", payload: { tabId: TAB } }, popupSender),
+    ).resolves.toMatchObject({ active: false, pending: true });
+
+    await harness.dispatchMessage(
+      { type: "ROLLBACK_ACTIVATION", payload: { tabId: TAB, nonce: started.nonce } },
+      popupSender,
+    );
     const result = await proxyRequest();
     expect(result.networkError).toMatch(/No active editor session/);
   });
@@ -245,8 +307,7 @@ describe("session lifecycle", () => {
 
   it("navigation revokes the session before the next document can use it", async () => {
     await openActiveSession();
-    harness.fireTabLoading(TAB);
-    await harness.flush();
+    await harness.fireDocumentReady(TAB);
     expect((await proxyRequest()).networkError).toMatch(/No active editor session/);
   });
 
@@ -275,8 +336,7 @@ describe("session lifecycle", () => {
     const pending = startSession();
     // Let START_SESSION reach the in-flight validation fetch first.
     await harness.flush();
-    harness.fireTabLoading(TAB); // navigation bumps the generation
-    await harness.flush();
+    await harness.fireDocumentReady(TAB); // document boundary bumps the generation
     releaseValidation();
     const result = await pending;
     expect(result.ok).toBe(false);
@@ -288,6 +348,11 @@ describe("session lifecycle", () => {
     await harness.dispatchMessage({ type: "END_SESSION", payload: { tabId: TAB } }, popupSender);
     await activate(started.nonce);
     expect((await proxyRequest()).networkError).toMatch(/No active editor session/);
+    expect(harness.chrome.tabs.sendMessage).toHaveBeenCalledWith(
+      TAB,
+      { type: "DEACTIVATE_EDITOR" },
+      expect.any(Function),
+    );
   });
 
   it("popup Port disconnect immediately revokes its pending activation", async () => {
@@ -319,8 +384,9 @@ describe("session lifecycle", () => {
 
   it("navigation queued before activation cannot be overwritten by the acknowledgement", async () => {
     const started = await startSession();
-    harness.fireTabLoading(TAB);
+    const navigation = harness.fireDocumentReady(TAB);
     await activate(started.nonce);
+    await navigation;
     await harness.flush();
     expect((await proxyRequest()).networkError).toMatch(/No active editor session/);
     const badgeCalls = harness.chrome.action.setBadgeText.mock.calls;
@@ -348,6 +414,11 @@ describe("extension update migration", () => {
       comvi_theme: "dark",
     });
     expect(harness.chrome.action.setBadgeText).toHaveBeenLastCalledWith({ text: "", tabId: TAB });
+    expect(harness.chrome.tabs.sendMessage).toHaveBeenCalledWith(
+      TAB,
+      { type: "DEACTIVATE_EDITOR" },
+      expect.any(Function),
+    );
   });
 
   it("preserves compatible credentials but still revokes active sessions on update", async () => {
@@ -360,6 +431,11 @@ describe("extension update migration", () => {
       [STORAGE_SCHEMA_KEY]: CURRENT_STORAGE_SCHEMA_VERSION,
       comvi_credentials: { [ORIGIN]: { apiKey: API_KEY, validated: true } },
     });
+    expect(harness.chrome.tabs.sendMessage).toHaveBeenCalledWith(
+      TAB,
+      { type: "DEACTIVATE_EDITOR" },
+      expect.any(Function),
+    );
   });
 });
 
@@ -374,7 +450,6 @@ describe("sender enforcement", () => {
           tabId: TAB,
           origin: ORIGIN,
           apiKey: API_KEY,
-          collectContext: false,
           popupLeaseId: POPUP_LEASE,
         },
       },
@@ -410,7 +485,32 @@ describe("sender enforcement", () => {
   it("activation ack from a different origin cannot promote", async () => {
     const started = await startSession();
     await activate(started.nonce, pageSender({ origin: "https://evil.example" }));
+
+    await expect(
+      harness.dispatchMessage({ type: "GET_SESSION_STATUS", payload: { tabId: TAB } }, popupSender),
+    ).resolves.toMatchObject({ active: false, pending: true });
+
+    await harness.dispatchMessage(
+      { type: "ROLLBACK_ACTIVATION", payload: { tabId: TAB, nonce: started.nonce } },
+      popupSender,
+    );
     expect((await proxyRequest()).networkError).toMatch(/No active editor session/);
+  });
+});
+
+describe("closed-tab toolbar races", () => {
+  it("does not emit an unhandled warning when Chrome removes the tab before icon rendering", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    harness.chrome.action.setIcon.mockRejectedValueOnce(new Error(`No tab with id: ${TAB}.`));
+
+    await harness.dispatchMessage(
+      { type: "COMVI_DETECTED", payload: { comviDetected: true, version: "0.4.0" } },
+      pageSender(),
+    );
+    await harness.flush();
+
+    expect(warn).not.toHaveBeenCalled();
+    warn.mockRestore();
   });
 });
 
@@ -455,7 +555,7 @@ describe("proxy authorization", () => {
     expect(fetchMock.mock.calls.length).toBe(before);
   });
 
-  it("telemetry routes stay closed without the opt-in", async () => {
+  it("telemetry routes stay closed when activation does not enable collection", async () => {
     await openActiveSession();
     const result = await proxyRequest({
       path: "/v1/context/handshake",
@@ -465,8 +565,8 @@ describe("proxy authorization", () => {
     expect(result.networkError).toMatch(/telemetry is disabled/);
   });
 
-  it("telemetry routes open with the opt-in and matching origin", async () => {
-    const started = await startSession({ collectContext: true });
+  it("telemetry routes open when the effective SDK config enables collection", async () => {
+    const started = await startSession();
     await activate(started.nonce, pageSender(), { collectContext: true });
     const result = await proxyRequest({
       path: "/v1/context/usages",
@@ -476,8 +576,8 @@ describe("proxy authorization", () => {
     expect(result.ok).toBe(true);
   });
 
-  it("effective SDK opt-out narrows a popup telemetry opt-in", async () => {
-    const started = await startSession({ collectContext: true });
+  it("effective SDK config can disable collection", async () => {
+    const started = await startSession();
     await activate(started.nonce, pageSender(), { collectContext: false });
     const result = await proxyRequest({
       path: "/v1/context/handshake",
@@ -485,28 +585,6 @@ describe("proxy authorization", () => {
       body: JSON.stringify({ keys: [] }),
     });
     expect(result.networkError).toMatch(/telemetry is disabled/);
-  });
-
-  it("a forged effective SDK opt-in cannot widen popup telemetry opt-out", async () => {
-    const started = await startSession({ collectContext: false });
-    await activate(started.nonce, pageSender(), { collectContext: true });
-    const result = await proxyRequest({
-      path: "/v1/context/handshake",
-      method: "POST",
-      body: JSON.stringify({ keys: [] }),
-    });
-    expect(result.networkError).toMatch(/telemetry is disabled/);
-  });
-
-  it("telemetry opens only when popup and effective SDK settings both opt in", async () => {
-    const started = await startSession({ collectContext: true });
-    await activate(started.nonce, pageSender(), { collectContext: true });
-    const result = await proxyRequest({
-      path: "/v1/context/handshake",
-      method: "POST",
-      body: JSON.stringify({ keys: [] }),
-    });
-    expect(result.ok).toBe(true);
   });
 
   it("export routes are bound to the validated project id", async () => {
@@ -557,9 +635,10 @@ describe("proxy authorization", () => {
     await vi.waitFor(() => expect(releaseLock).toBeTypeOf("function"));
 
     const pendingProxy = proxyRequest({ id: "race-navigation" });
-    harness.fireTabLoading(TAB);
+    const navigation = harness.fireDocumentReady(TAB);
     releaseLock();
     await blocker;
+    await navigation;
 
     await expect(pendingProxy).resolves.toMatchObject({
       networkError: "No active editor session for this tab",
@@ -705,6 +784,16 @@ describe("FORGET_CREDENTIALS", () => {
       | Record<string, { apiKey?: string }>
       | undefined;
     expect(Object.values(credentials ?? {}).some((entry) => entry.apiKey === API_KEY)).toBe(false);
+    expect(harness.chrome.tabs.sendMessage).toHaveBeenCalledWith(
+      TAB,
+      { type: "DEACTIVATE_EDITOR" },
+      expect.any(Function),
+    );
+    expect(harness.chrome.tabs.sendMessage).toHaveBeenCalledWith(
+      TAB2,
+      { type: "DEACTIVATE_EDITOR" },
+      expect.any(Function),
+    );
   });
 });
 
@@ -735,6 +824,36 @@ describe("badge derivation", () => {
       (call) => (call[0] as { text: string }).text,
     );
     expect(badgeTexts).toContain("ON");
+  });
+});
+
+describe("same-document SPA navigation", () => {
+  it("treats a repeated signal from the same document as idempotent", async () => {
+    await openActiveSession();
+
+    await harness.fireDocumentReady(TAB, "doc-1");
+
+    const status = await harness.dispatchMessage(
+      { type: "GET_SESSION_STATUS", payload: { tabId: TAB } },
+      popupSender,
+    );
+    expect(status).toMatchObject({ active: true, pending: false });
+    await expect(proxyRequest()).resolves.toMatchObject({ ok: true, status: 200 });
+  });
+
+  it("preserves the active editor session when History API changes only the tab URL", async () => {
+    await openActiveSession();
+
+    harness.setTabUrl(TAB, `${ORIGIN}/another-route`);
+    harness.fireTabUpdated(TAB, { url: `${ORIGIN}/another-route` });
+    await harness.flush();
+
+    const status = await harness.dispatchMessage(
+      { type: "GET_SESSION_STATUS", payload: { tabId: TAB } },
+      popupSender,
+    );
+    expect(status).toMatchObject({ active: true, pending: false });
+    await expect(proxyRequest()).resolves.toMatchObject({ ok: true, status: 200 });
   });
 });
 

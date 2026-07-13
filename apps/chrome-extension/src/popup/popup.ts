@@ -9,10 +9,12 @@ import type {
   StartSessionPayload,
   StartSessionResponse,
   SessionStatusResponse,
+  SessionStateChangedPayload,
 } from "../shared/messages";
 
 type Theme = "light" | "dark";
-type View = "not-detected" | "idle" | "active";
+type View = "loading" | "not-detected" | "idle" | "active";
+type Operation = "enabling" | "disabling" | "forgetting" | null;
 
 const THEME_STORAGE_KEY = "comvi_theme";
 
@@ -21,6 +23,7 @@ const root = document.documentElement;
 const themeToggleBtn = document.getElementById("theme-toggle") as HTMLButtonElement;
 const themeIconSun = document.getElementById("theme-icon-sun")!;
 const themeIconMoon = document.getElementById("theme-icon-moon")!;
+const stateLoading = document.getElementById("state-loading")!;
 const stateNotDetected = document.getElementById("state-not-detected")!;
 const stateIdle = document.getElementById("state-idle")!;
 const stateActive = document.getElementById("state-active")!;
@@ -33,29 +36,12 @@ const enableBtn = document.getElementById("enable-btn") as HTMLButtonElement;
 const disableBtn = document.getElementById("disable-btn") as HTMLButtonElement;
 const errorMsg = document.getElementById("error-msg")!;
 const versionLine = document.getElementById("version-line")!;
-const collectContextInput = document.getElementById("collect-context") as HTMLInputElement;
+const operationStatus = document.getElementById("operation-status")!;
+const operationStatusText = document.getElementById("operation-status-text")!;
 
-// A pending activation is owned by this popup's Port. MV3 reliably disconnects
-// it when the popup closes, allowing the service worker to revoke immediately.
 const popupLeaseId = crypto.randomUUID();
-const popupLifecyclePort = chrome.runtime.connect({ name: "comvi-popup-lifecycle" });
-const popupLeaseReady = new Promise<boolean>((resolve) => {
-  let settled = false;
-  popupLifecyclePort.onMessage.addListener((message: unknown) => {
-    const response = message as { type?: unknown; leaseId?: unknown };
-    if (response.type === "POPUP_REGISTERED" && response.leaseId === popupLeaseId && !settled) {
-      settled = true;
-      resolve(true);
-    }
-  });
-  popupLifecyclePort.onDisconnect.addListener(() => {
-    if (!settled) {
-      settled = true;
-      resolve(false);
-    }
-  });
-});
-popupLifecyclePort.postMessage({ type: "REGISTER_POPUP", leaseId: popupLeaseId });
+let popupLifecyclePort: chrome.runtime.Port | null = null;
+let popupLeaseReady: Promise<boolean> | null = null;
 
 // State
 let currentTabId: number | null = null;
@@ -64,6 +50,11 @@ let editorActive = false;
 let editorLoaded = false;
 let comviDetected = false;
 let comviVersion: string | undefined;
+let initialized = false;
+let operation: Operation = null;
+let forgetAvailable = false;
+let keyInputDirty = false;
+let liveStatusObserved = false;
 
 // --- Theme ---
 
@@ -84,21 +75,31 @@ function applyTheme(theme: Theme) {
 }
 
 async function initTheme() {
-  const stored = await readStoredTheme();
-  const theme = stored ?? detectSystemTheme();
-  applyTheme(theme);
+  // Paint a usable theme before touching extension storage. A cold disk read
+  // must not hold the first popup frame.
+  let changedByUser = false;
+  applyTheme(detectSystemTheme());
 
   themeToggleBtn.addEventListener("click", async () => {
+    changedByUser = true;
     const next: Theme = root.classList.contains("dark") ? "light" : "dark";
     applyTheme(next);
     await chrome.storage.local.set({ [THEME_STORAGE_KEY]: next });
   });
+
+  try {
+    const stored = await readStoredTheme();
+    if (stored && !changedByUser) applyTheme(stored);
+  } catch {
+    // The system theme already rendered; storage failure is non-blocking.
+  }
 }
 
 // --- View switching ---
 
 function setView(view: View) {
   for (const [id, el] of [
+    ["loading", stateLoading],
     ["not-detected", stateNotDetected],
     ["idle", stateIdle],
     ["active", stateActive],
@@ -120,18 +121,46 @@ function hideError() {
 }
 
 function render() {
-  if (!comviDetected) {
-    setView("not-detected");
+  enableBtn.disabled = operation !== null;
+  disableBtn.disabled = operation !== null;
+  apiKeyInput.disabled = operation !== null;
+  toggleKeyBtn.disabled = operation !== null;
+  forgetKeyBtn.disabled = operation !== null;
+  forgetKeyBtn.classList.toggle("hidden", !forgetAvailable);
+  disableBtn.textContent = operation === "disabling" ? "Disabling…" : "Disable editor";
+
+  if (!initialized) {
+    setView("loading");
     return;
   }
 
+  // Authority takes precedence over detector metadata. A delayed detector
+  // response must never hide a successfully activated editor.
   if (editorActive) {
     versionLine.textContent = comviVersion ? `Comvi i18n v${comviVersion}` : "";
     setView("active");
     return;
   }
 
+  if (!comviDetected) {
+    setView("not-detected");
+    return;
+  }
+
   setView("idle");
+}
+
+function setOperation(next: Operation, progress = "") {
+  operation = next;
+  operationStatus.classList.toggle("hidden", next !== "enabling" && next !== "forgetting");
+  operationStatus.classList.toggle("flex", next === "enabling" || next === "forgetting");
+  operationStatusText.textContent = progress;
+  enableBtn.textContent = next === "enabling" ? "Enabling…" : "Enable editor";
+  render();
+}
+
+function setProgress(message: string) {
+  operationStatusText.textContent = message;
 }
 
 // --- Messaging ---
@@ -162,14 +191,16 @@ function sendToServiceWorker<T>(message: Message): Promise<T> {
   });
 }
 
-async function requestStatus(retries = 4) {
-  if (!currentTabId) return;
+async function requestStatus(): Promise<boolean> {
+  if (!currentTabId) return false;
 
   try {
     const response = await sendToContentScript({ type: "GET_STATUS" });
-    if (response?.payload) updateStatus(response.payload as StatusResponsePayload);
+    if (!response?.payload) return false;
+    updateStatus(response.payload as StatusResponsePayload);
+    return true;
   } catch {
-    if (retries > 0) setTimeout(() => requestStatus(retries - 1), 500);
+    return false;
   }
 }
 
@@ -177,6 +208,7 @@ function updateStatus(status: StatusResponsePayload) {
   // Page-reported status drives detection UI only. `editorActive` (which
   // gates the active view) comes from the service worker's session state —
   // a page cannot talk this popup into showing a fake "active" panel.
+  liveStatusObserved = true;
   comviDetected = status.comviDetected;
   editorLoaded = status.editorLoaded ?? editorLoaded;
   if (status.version) comviVersion = status.version;
@@ -193,35 +225,87 @@ function setKeyVisibility(visible: boolean) {
 }
 
 function setForgetVisible(visible: boolean) {
-  forgetKeyBtn.classList.toggle("hidden", !visible);
+  forgetAvailable = visible;
+  render();
 }
 
 async function handleForgetKey() {
-  if (!currentOrigin) return;
+  if (!currentOrigin || operation) return;
+  hideError();
+  setOperation("forgetting", "Removing saved key…");
   // The service worker owns revocation: it clears the credential AND every
   // session that was opened with it, across all tabs, atomically.
-  await sendToServiceWorker({
-    type: "FORGET_CREDENTIALS",
-    payload: { origin: currentOrigin },
-  }).catch(() => {});
-  apiKeyInput.value = "";
-  setForgetVisible(false);
-  apiKeyInput.focus();
+  try {
+    const response = await sendToServiceWorker<{ ok: boolean; error?: string }>({
+      type: "FORGET_CREDENTIALS",
+      payload: { origin: currentOrigin },
+    });
+    if (!response?.ok) throw new Error(response?.error ?? "Could not remove the saved key");
+    apiKeyInput.value = "";
+    setForgetVisible(false);
+    setOperation(null);
+    apiKeyInput.focus();
+  } catch (error) {
+    setOperation(null);
+    showError(error instanceof Error ? error.message : "Could not remove the saved key");
+  }
 }
 
-/** Ask the service worker for the authoritative session state and render it. */
-async function syncSessionStatus() {
-  if (!currentTabId) return;
-  try {
-    const status = await sendToServiceWorker<SessionStatusResponse>({
-      type: "GET_SESSION_STATUS",
-      payload: { tabId: currentTabId },
-    });
-    editorActive = status?.active === true;
-  } catch {
-    editorActive = false;
+function applySessionStatus(
+  status: SessionStatusResponse | undefined,
+  applyCachedDetection = true,
+) {
+  // A missing response means the cold service worker was unavailable, not
+  // that an already-rendered active session became inactive.
+  if (!status) return;
+  editorActive = status.active === true;
+  if (applyCachedDetection && typeof status.comviDetected === "boolean") {
+    comviDetected = status.comviDetected;
   }
-  render();
+  if (status.version) comviVersion = status.version;
+}
+
+/** Ask the service worker for the authoritative session state. */
+async function getAuthoritativeStatus(): Promise<SessionStatusResponse | undefined> {
+  if (!currentTabId) return undefined;
+  return sendToServiceWorker<SessionStatusResponse>({
+    type: "GET_SESSION_STATUS",
+    payload: { tabId: currentTabId },
+  }).catch(() => undefined);
+}
+
+/**
+ * A pending activation is owned by this popup's Port. Create the lease only
+ * when Enable is clicked: opening the popup for status must not synchronously
+ * wake and register lifecycle infrastructure that the user may never use.
+ */
+function ensurePopupLease(): Promise<boolean> {
+  if (popupLeaseReady) return popupLeaseReady;
+
+  const port = chrome.runtime.connect({ name: "comvi-popup-lifecycle" });
+  popupLifecyclePort = port;
+  popupLeaseReady = new Promise<boolean>((resolve) => {
+    let settled = false;
+    port.onMessage.addListener((message: unknown) => {
+      const response = message as { type?: unknown; leaseId?: unknown };
+      if (response.type === "POPUP_REGISTERED" && response.leaseId === popupLeaseId && !settled) {
+        settled = true;
+        resolve(true);
+      }
+    });
+    port.onDisconnect.addListener(() => {
+      if (!settled) {
+        settled = true;
+        resolve(false);
+      }
+      if (popupLifecyclePort === port) {
+        popupLifecyclePort = null;
+        popupLeaseReady = null;
+      }
+    });
+  });
+  port.postMessage({ type: "REGISTER_POPUP", leaseId: popupLeaseId });
+  return popupLeaseReady;
 }
 
 // --- Actions ---
@@ -251,11 +335,30 @@ function clearActivationTimeout() {
   }
 }
 
-function rollbackSession(tabId: number) {
-  void sendToServiceWorker({ type: "END_SESSION", payload: { tabId } }).catch(() => {});
+async function rollbackActivation(tabId: number, nonce: string) {
+  await sendToServiceWorker({
+    type: "ROLLBACK_ACTIVATION",
+    payload: { tabId, nonce },
+  }).catch(() => undefined);
+}
+
+function armActivationTimeout(tabId: number, nonce: string) {
+  clearActivationTimeout();
+  activationTimeout = window.setTimeout(() => {
+    activationTimeout = null;
+    void (async () => {
+      showError("The editor did not respond. Reload the page and try again.");
+      await rollbackActivation(tabId, nonce);
+      const status = await getAuthoritativeStatus();
+      applySessionStatus(status);
+      if (editorActive) hideError();
+      setOperation(null);
+    })();
+  }, 15_000);
 }
 
 async function handleEnable() {
+  if (operation) return;
   const apiKey = apiKeyInput.value.trim();
   if (!apiKey) {
     showError("Please enter an API key");
@@ -264,37 +367,29 @@ async function handleEnable() {
   }
 
   hideError();
-  enableBtn.disabled = true;
-  enableBtn.textContent = "Enabling…";
-
-  const restoreButton = () => {
-    enableBtn.disabled = false;
-    enableBtn.textContent = "Enable editor";
-  };
+  setOperation("enabling", "Checking key…");
 
   try {
     const verified = await getVerifiedTab();
     if (!verified) {
       showError("The page changed. Close and reopen the popup.");
-      restoreButton();
+      setOperation(null);
       return;
     }
 
-    if (!(await popupLeaseReady)) {
+    if (!(await ensurePopupLease())) {
       showError("The popup connection closed. Reopen it and try again.");
-      restoreButton();
+      setOperation(null);
       return;
     }
 
     // 1. Validate the key and open a PENDING proxy session — the key goes to
     // the service worker only and never into the page. Requests are refused
     // until activation is acknowledged.
-    const collectContext = collectContextInput.checked;
     const payload: StartSessionPayload = {
       tabId: verified.tabId,
       origin: verified.origin,
       apiKey,
-      collectContext,
       popupLeaseId,
     };
     const session = await sendToServiceWorker<StartSessionResponse>({
@@ -303,10 +398,13 @@ async function handleEnable() {
     });
     if (!session?.ok || !session.nonce) {
       showError(session?.error ?? "Could not validate the API key");
-      restoreButton();
+      setOperation(null);
       return;
     }
     setForgetVisible(true);
+    // Arm before page activation: the acknowledgement can be synchronous.
+    armActivationTimeout(verified.tabId, session.nonce);
+    setProgress("Starting editor…");
 
     try {
       // 2. Inject the bundled editor runtime into the page's MAIN world. The
@@ -325,55 +423,49 @@ async function handleEnable() {
       // to this exact activation.
       const activatePayload: ActivatePayload = {
         apiBaseUrl: API_BASE_URL,
-        collectContext,
         nonce: session.nonce,
       };
       await sendToContentScript({ type: "ACTIVATE_EDITOR", payload: activatePayload });
+      setProgress("Confirming activation…");
     } catch (err) {
       // Injection or messaging failed — the pending session must not linger.
-      rollbackSession(verified.tabId);
+      clearActivationTimeout();
+      await rollbackActivation(verified.tabId, session.nonce);
       throw err;
     }
-
-    // 4. If no acknowledgement arrives, roll the pending session back.
-    clearActivationTimeout();
-    activationTimeout = window.setTimeout(() => {
-      activationTimeout = null;
-      rollbackSession(verified.tabId);
-      showError("The editor did not respond. Reload the page and try again.");
-      restoreButton();
-      void syncSessionStatus();
-    }, 15_000);
   } catch (err) {
     showError(err instanceof Error ? err.message : "Failed to enable editor");
-    restoreButton();
+    setOperation(null);
   }
 }
 
 async function handleDisable() {
-  if (!currentTabId) return;
-
-  disableBtn.disabled = true;
-  disableBtn.textContent = "Disabling…";
+  if (!currentTabId || operation) return;
+  hideError();
+  setOperation("disabling");
 
   try {
-    await sendToContentScript({ type: "DEACTIVATE_EDITOR" });
-    // Belt and braces: close the proxy session even if the content script's
-    // deactivation report never arrives.
-    void sendToServiceWorker({ type: "END_SESSION", payload: { tabId: currentTabId } }).catch(
-      () => {},
-    );
-  } catch {
-    disableBtn.disabled = false;
-    disableBtn.textContent = "Disable editor";
+    // Revoke authority first. The UI can then transition immediately without
+    // racing the page's asynchronous deactivation acknowledgement.
+    const response = await sendToServiceWorker<{ ok: boolean }>({
+      type: "END_SESSION",
+      payload: { tabId: currentTabId },
+    });
+    if (!response?.ok) throw new Error("Could not disable the editor");
+    editorActive = false;
+    setOperation(null);
+  } catch (error) {
+    setOperation(null);
+    showError(error instanceof Error ? error.message : "Could not disable the editor");
   }
 }
 
 // --- Init ---
 
 async function injectContentScripts(tabId: number): Promise<boolean> {
-  // Injected on demand under the activeTab grant instead of running on
-  // <all_urls>. Both scripts are idempotent (guarded against re-injection).
+  // The manifest preloads both scripts for automatic icon detection. Re-run
+  // them under activeTab as an idempotent fallback for extension upgrades and
+  // pages whose initial content-script injection was missed.
   try {
     await chrome.scripting.executeScript({ target: { tabId }, files: ["bridge.js"] });
     await chrome.scripting.executeScript({
@@ -389,67 +481,108 @@ async function injectContentScripts(tabId: number): Promise<boolean> {
 }
 
 async function init() {
-  await initTheme();
-
-  // Render not-detected up front so the popup never shows blank,
-  // even before the content script replies (or if it never can).
   render();
+  bindEvents();
+  void initTheme();
 
+  // Resolving the active tab is the only prerequisite for page-specific
+  // work. Theme, credentials, service-worker status and page status continue
+  // independently so a cold source cannot hold the whole popup hostage.
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-  if (!tab?.id || !tab.url) return;
+  if (!tab?.id || !tab.url) {
+    initialized = true;
+    render();
+    return;
+  }
 
   currentTabId = tab.id;
   currentOrigin = canonicalizePageOrigin(tab.url) ?? "";
 
-  const credentials = await getCredentials(currentOrigin);
-  if (credentials?.apiKey) {
-    apiKeyInput.value = credentials.apiKey;
-    setForgetVisible(true);
-  }
+  void getCredentials(currentOrigin)
+    .then((credentials) => {
+      if (!credentials?.apiKey || keyInputDirty || apiKeyInput.value !== "") return;
+      apiKeyInput.value = credentials.apiKey;
+      setForgetVisible(true);
+    })
+    .catch(() => {});
 
+  void getAuthoritativeStatus().then((sessionStatus) => {
+    applySessionStatus(sessionStatus, !liveStatusObserved);
+    if (editorActive || typeof sessionStatus?.comviDetected === "boolean") {
+      initialized = true;
+    }
+    render();
+  });
+
+  void (async () => {
+    // The manifest normally preloads both scripts, so this is the fastest and
+    // most common source. If it misses, show a result immediately and repair
+    // the content scripts in the background instead of displaying a spinner.
+    if (await requestStatus()) {
+      initialized = true;
+      render();
+      return;
+    }
+
+    initialized = true;
+    render();
+    const injected = await injectContentScripts(currentTabId!);
+    if (injected) await requestStatus();
+  })();
+}
+
+function bindEvents() {
   enableBtn.addEventListener("click", handleEnable);
   disableBtn.addEventListener("click", handleDisable);
   forgetKeyBtn.addEventListener("click", handleForgetKey);
   toggleKeyBtn.addEventListener("click", () => setKeyVisibility(apiKeyInput.type === "password"));
-  apiKeyInput.addEventListener("input", hideError);
-  apiKeyInput.addEventListener("keydown", (e) => {
-    if (e.key === "Enter") handleEnable();
+  apiKeyInput.addEventListener("input", () => {
+    keyInputDirty = true;
+    hideError();
   });
-
-  await syncSessionStatus();
-  const injected = await injectContentScripts(currentTabId);
-  if (injected) requestStatus();
+  apiKeyInput.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && !operation) void handleEnable();
+  });
 }
 
 chrome.runtime.onMessage.addListener((message: Message, sender) => {
+  if (message.type === "SESSION_STATE_CHANGED") {
+    // Only the service worker (no sender.tab) may complete popup lifecycle.
+    if (sender.tab) return;
+    const state = (message.payload ?? {}) as SessionStateChangedPayload;
+    if (state.tabId !== currentTabId) return;
+    applySessionStatus(state);
+    // A still-pending result is not a lifecycle completion and must not
+    // unlock the controls or cancel the activation deadline.
+    if (state.pending) {
+      render();
+      return;
+    }
+    if (state.active) {
+      comviDetected = true;
+      hideError();
+    } else if (operation === "enabling" && state.error) {
+      showError(state.error);
+    }
+    clearActivationTimeout();
+    setOperation(null);
+    return;
+  }
+
   // Only trust events reported by the tab this popup is bound to — another
   // tab's content script must not be able to flip this popup's UI state.
   if (sender.tab?.id !== currentTabId) return;
 
   switch (message.type) {
     case "EDITOR_ACTIVATED": {
-      const detail = (message.payload ?? {}) as { success?: boolean; error?: string };
-      clearActivationTimeout();
-      enableBtn.disabled = false;
-      enableBtn.textContent = "Enable editor";
-      if (detail.success) {
-        hideError();
-      } else {
-        if (detail.error) showError(detail.error);
-        // The service worker rolls the pending session back via the nonce;
-        // this is belt-and-braces for lost messages.
-        if (currentTabId) rollbackSession(currentTabId);
-      }
-      // Render from the service worker's authoritative state, not from the
-      // page-reported result.
-      void syncSessionStatus();
+      // Page acknowledgement is intentionally not a UI success signal. The
+      // service worker will emit SESSION_STATE_CHANGED after promotion.
+      if (operation === "enabling") setProgress("Confirming activation…");
       break;
     }
 
     case "EDITOR_DEACTIVATED":
-      disableBtn.disabled = false;
-      disableBtn.textContent = "Disable editor";
-      void syncSessionStatus();
+      // The authoritative service-worker notification follows revocation.
       break;
 
     case "STATUS_RESPONSE":
