@@ -103,11 +103,14 @@ describe("FetchLoader Plugin", () => {
       );
     });
 
-    it.each([".", ".."])('should reject the CDN root namespace dot-segment "%s"', (rootNamespace) => {
-      expect(() =>
-        buildCdnUrl(TEST_CDN_URL, "en", "default", "default", { rootNamespace }),
-      ).toThrow(`[FetchLoader] Invalid CDN root namespace: "${rootNamespace}"`);
-    });
+    it.each([".", ".."])(
+      'should reject the CDN root namespace dot-segment "%s"',
+      (rootNamespace) => {
+        expect(() =>
+          buildCdnUrl(TEST_CDN_URL, "en", "default", "default", { rootNamespace }),
+        ).toThrow(`[FetchLoader] Invalid CDN root namespace: "${rootNamespace}"`);
+      },
+    );
 
     it("should reject empty locale", () => {
       expect(() => buildCdnUrl(TEST_CDN_URL, "", "default", "default")).toThrow(
