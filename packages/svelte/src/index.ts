@@ -6,7 +6,11 @@ export type * from "@comvi/core";
 export { setI18nContext, getI18nContext } from "./context";
 export type { SetI18nContextOptions } from "./context";
 export { useI18n } from "./useI18n";
-export type { UseI18nReturn } from "./useI18n";
+export type {
+  SvelteRawTranslationFunction,
+  SvelteTextTranslationFunction,
+  UseI18nReturn,
+} from "./useI18n";
 
 // Export types
 export type { ComponentMap, ComponentMapping, TProps } from "./types";

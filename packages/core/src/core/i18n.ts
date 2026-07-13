@@ -23,6 +23,10 @@ import type {
 import { DEFAULT_NS, COMVI_REPORTED } from "../constants";
 import { warn } from "../logger";
 import { normalizeTranslationObject } from "../utils";
+import {
+  assertInterpolationDefaults,
+  assertPreservesDefaultParamKeys,
+} from "../utils/defaultParams";
 import { translationResultToString } from "../utils/translationResultToString";
 import type { I18nPlugin as I18nPluginFn } from "../plugins/types";
 import { TranslationCache } from "./TranslationCache";
@@ -51,25 +55,6 @@ const ERR_FAILED_RELOAD_TRANSLATIONS = IS_DEV
 const ERR_INSTANCE_DESTROYED = IS_DEV
   ? "[i18n] Cannot call init() after destroy(). Create a new i18n instance."
   : "E_INSTANCE_DESTROYED";
-const RESERVED_DEFAULT_PARAM_KEYS = ["locale", "ns", "fallback", "raw"] as const;
-const ERR_RESERVED_DEFAULT_PARAMS =
-  "[i18n] defaultParams cannot contain call-control keys: locale, ns, fallback, raw";
-const ERR_NULLISH_DEFAULT_PARAMS = "[i18n] defaultParams values cannot be null or undefined";
-
-function assertInterpolationDefaults(params: DefaultTranslationParams | undefined): void {
-  if (params === undefined) return;
-  for (const key of RESERVED_DEFAULT_PARAM_KEYS) {
-    if (Object.prototype.hasOwnProperty.call(params, key)) {
-      throw new Error(ERR_RESERVED_DEFAULT_PARAMS);
-    }
-  }
-  for (const value of Object.values(params)) {
-    if (value == null) {
-      throw new Error(ERR_NULLISH_DEFAULT_PARAMS);
-    }
-  }
-}
-
 function createPartialNamespaceLoadError(
   locale: string,
   failedCount: number,
@@ -564,15 +549,7 @@ export class I18n<D extends DefaultTranslationParams = {}> implements I18nInstan
 
   setDefaultParams(params: SetDefaultParamsArg<D>): void {
     assertInterpolationDefaults(params);
-    for (const key of this.#guaranteedDefaultParamKeys) {
-      if (
-        params == null ||
-        !Object.prototype.hasOwnProperty.call(params, key) ||
-        params[key] == null
-      ) {
-        throw new Error(`[i18n] defaultParams must preserve constructor-guaranteed key "${key}"`);
-      }
-    }
+    assertPreservesDefaultParamKeys(params, this.#guaranteedDefaultParamKeys);
     this.#defaultParams = params ? { ...params } : undefined;
     this.#emit("configChanged", { source: "defaultParams" });
   }
@@ -590,7 +567,7 @@ export class I18n<D extends DefaultTranslationParams = {}> implements I18nInstan
   #withDefaultParams(userParams?: TranslationParams): TranslationParams | undefined {
     const defaults = this.#defaultParams;
     if (defaults === undefined) return userParams;
-    if (userParams == null) return defaults;
+    if (userParams == null) return { ...defaults };
     return { ...defaults, ...userParams };
   }
 

@@ -80,6 +80,22 @@ describe("Instance-level defaultParams", () => {
     expect(i18n.t("review")).toBe("Ihre Bewertung");
   });
 
+  it("does not expose persistent defaults to post-processor mutations", () => {
+    const i18n = createInstance({ formality: "formal" });
+    const seen: unknown[] = [];
+
+    i18n.registerPostProcessor((result, _key, _namespace, params) => {
+      seen.push(params.formality);
+      params.formality = "informal";
+      return result;
+    });
+
+    expect(i18n.t("review")).toBe("Ihre Bewertung");
+    expect(i18n.t("review")).toBe("Ihre Bewertung");
+    expect(seen).toEqual(["formal", "formal"]);
+    expect(i18n.defaultParams).toEqual({ formality: "formal" });
+  });
+
   it.each(["locale", "ns", "fallback", "raw"])(
     "rejects the reserved call-control key %s in constructor defaults",
     (key) => {

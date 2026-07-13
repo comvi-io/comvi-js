@@ -37,23 +37,19 @@ import type {
 
 const DEFAULT_NS_CACHE_KEY = Symbol("comvi-default-ns");
 type TranslationStoreCacheKey = string | symbol;
-export interface SvelteTextTranslationFunction<D extends DefaultTranslationParams = {}> {
+interface SvelteTranslationFunction<D extends DefaultTranslationParams, R> {
   <NS extends Namespaces, K extends NamespacedKeys<NS>>(
     key: K,
     ...params: NamespacedParamsArg<NS, K, D>
-  ): string;
-  <K extends DefaultNsKeys>(key: K, ...params: ParamsArg<K, D>): string;
-  (key: PermissiveKey, params?: TranslationParams): string;
+  ): R;
+  <K extends DefaultNsKeys>(key: K, ...params: ParamsArg<K, D>): R;
+  (key: PermissiveKey, params?: TranslationParams): R;
 }
 
-export interface SvelteRawTranslationFunction<D extends DefaultTranslationParams = {}> {
-  <NS extends Namespaces, K extends NamespacedKeys<NS>>(
-    key: K,
-    ...params: NamespacedParamsArg<NS, K, D>
-  ): TranslationResult;
-  <K extends DefaultNsKeys>(key: K, ...params: ParamsArg<K, D>): TranslationResult;
-  (key: PermissiveKey, params?: TranslationParams): TranslationResult;
-}
+export type SvelteTextTranslationFunction<D extends DefaultTranslationParams = {}> =
+  SvelteTranslationFunction<D, string>;
+export type SvelteRawTranslationFunction<D extends DefaultTranslationParams = {}> =
+  SvelteTranslationFunction<D, TranslationResult>;
 
 type RawTranslationStore<D extends DefaultTranslationParams> = Readable<
   SvelteRawTranslationFunction<D>

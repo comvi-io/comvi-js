@@ -1,4 +1,8 @@
-import type { UseI18nReturn } from "@comvi/svelte";
+import type {
+  SvelteRawTranslationFunction,
+  SvelteTextTranslationFunction,
+  UseI18nReturn,
+} from "@comvi/svelte";
 
 declare module "@comvi/core" {
   interface TranslationKeys {
@@ -9,6 +13,11 @@ declare module "@comvi/core" {
 
 type Defaults = { formality: "formal" | "informal" };
 declare const scoped: UseI18nReturn<Defaults>;
+declare const textTranslation: SvelteTextTranslationFunction<Defaults>;
+declare const rawTranslation: SvelteRawTranslationFunction<Defaults>;
+
+textTranslation("review");
+rawTranslation("review");
 
 scoped.t.subscribe((t) => {
   t("review");
