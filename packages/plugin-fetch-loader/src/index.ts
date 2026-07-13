@@ -182,6 +182,11 @@ interface ExtendedFetchOptions extends RequestInit {
   next?: { revalidate?: number | false; tags?: string[] };
 }
 
+export interface FetchRequestOptions {
+  signal?: AbortSignal;
+  next?: ExtendedFetchOptions["next"];
+}
+
 /** Build cache options for SSR frameworks */
 function buildCacheOptions(
   cache?: FetchLoaderOptions["cache"],
@@ -193,7 +198,17 @@ function buildCacheOptions(
   return Object.keys(next).length ? { next } : {};
 }
 
-/** Fetch with timeout and SSR cache support */
+class RequestAbortedError extends Error {
+  constructor(url: string) {
+    super(`[FetchLoader] Request aborted: ${url}`);
+    this.name = "AbortError";
+  }
+}
+
+const isAborted = (error: unknown): boolean =>
+  error instanceof Error && error.name === "AbortError";
+
+/** Fetch with timeout, external cancellation, and SSR cache support */
 async function fetchWithTimeout(
   url: string,
   options: ExtendedFetchOptions,
@@ -219,10 +234,19 @@ async function fetchWithTimeout(
   } catch (e) {
     if (timedOut && e instanceof Error && e.name === "AbortError")
       throw new Error(`Request timeout after ${timeoutMs}ms`);
+    if (externalSignal?.aborted) throw new RequestAbortedError(url);
     throw e;
   } finally {
     clearTimeout(id);
     externalSignal?.removeEventListener("abort", abortFromExternal);
+  }
+}
+
+async function parseJsonResponse<T>(response: Response, url: string): Promise<T> {
+  try {
+    return (await response.json()) as T;
+  } catch {
+    throw new Error(`[FetchLoader] Invalid JSON response from ${url}`);
   }
 }
 
@@ -256,9 +280,62 @@ function validateId(value: string, label: string): void {
 /** Cache for project info by API base URL + API key with TTL */
 const PROJECT_INFO_TTL_MS = 60 * 60 * 1000; // 1 hour
 const projectInfoCache = new Map<string, { info: ProjectInfo; expiresAt: number }>();
-const pendingProjectInfoCache = new Map<string, Promise<ProjectInfo>>();
+interface PendingProjectInfo {
+  promise: Promise<ProjectInfo>;
+  controller: AbortController;
+  signalConsumers: number;
+  hasUncancellableConsumer: boolean;
+}
+const pendingProjectInfoCache = new Map<string, PendingProjectInfo>();
 const projectInfoCacheGenerations = new Map<string, number>();
 let projectInfoGlobalGeneration = 0;
+
+function joinPendingProjectInfo(
+  pending: PendingProjectInfo,
+  signal: AbortSignal | undefined,
+  url: string,
+): Promise<ProjectInfo> {
+  if (!signal) {
+    pending.hasUncancellableConsumer = true;
+    return pending.promise;
+  }
+  if (signal.aborted) {
+    if (pending.signalConsumers === 0 && !pending.hasUncancellableConsumer) {
+      pending.controller.abort();
+    }
+    return Promise.reject(new RequestAbortedError(url));
+  }
+
+  pending.signalConsumers++;
+  return new Promise<ProjectInfo>((resolve, reject) => {
+    let released = false;
+    const release = () => {
+      if (released) return;
+      released = true;
+      signal.removeEventListener("abort", onAbort);
+      pending.signalConsumers--;
+      if (pending.signalConsumers === 0 && !pending.hasUncancellableConsumer) {
+        pending.controller.abort();
+      }
+    };
+    const onAbort = () => {
+      release();
+      reject(new RequestAbortedError(url));
+    };
+
+    signal.addEventListener("abort", onAbort, { once: true });
+    pending.promise.then(
+      (info) => {
+        release();
+        resolve(info);
+      },
+      (error: unknown) => {
+        release();
+        reject(error);
+      },
+    );
+  });
+}
 
 /**
  * Fetch project info from API using the apiKey
@@ -270,6 +347,7 @@ export async function fetchProjectInfo(
   timeoutMs = 5000,
   fetchFn?: typeof fetch,
   cacheScope?: string,
+  requestOptions?: FetchRequestOptions,
 ): Promise<ProjectInfo> {
   const baseUrl = stripSlash(apiBaseUrl || API_BASE_URL);
   // The default cache identity is baseUrl+apiKey. Callers using a custom
@@ -280,33 +358,44 @@ export async function fetchProjectInfo(
   if (!cacheScope && !apiKey && fetchFn) {
     // Custom transport without an explicit scope: skip caching entirely
     // rather than risk cross-project bleed on a degenerate cache key.
-    return fetchProjectInfoFromApi(apiKey, baseUrl, timeoutMs, fetchFn);
+    return fetchProjectInfoFromApi(apiKey, baseUrl, timeoutMs, fetchFn, requestOptions);
   }
   const cached = projectInfoCache.get(cacheKey);
   if (cached && Date.now() < cached.expiresAt) return cached.info;
-  const pending = pendingProjectInfoCache.get(cacheKey);
-  if (pending) return pending;
 
-  const promise = fetchProjectInfoFromApi(apiKey, baseUrl, timeoutMs, fetchFn);
+  const pending = pendingProjectInfoCache.get(cacheKey);
+  if (pending) {
+    return joinPendingProjectInfo(pending, requestOptions?.signal, `${baseUrl}/v1/project`);
+  }
+
+  const controller = new AbortController();
   const globalGeneration = projectInfoGlobalGeneration;
   const cacheGeneration = projectInfoCacheGenerations.get(cacheKey) ?? 0;
-
-  pendingProjectInfoCache.set(cacheKey, promise);
-  try {
-    const info = await promise;
-    if (
-      projectInfoGlobalGeneration === globalGeneration &&
-      (projectInfoCacheGenerations.get(cacheKey) ?? 0) === cacheGeneration &&
-      pendingProjectInfoCache.get(cacheKey) === promise
-    ) {
-      projectInfoCache.set(cacheKey, { info, expiresAt: Date.now() + PROJECT_INFO_TTL_MS });
-    }
-    return info;
-  } finally {
-    if (pendingProjectInfoCache.get(cacheKey) === promise) {
-      pendingProjectInfoCache.delete(cacheKey);
-    }
-  }
+  const entry = {} as PendingProjectInfo;
+  entry.controller = controller;
+  entry.signalConsumers = 0;
+  entry.hasUncancellableConsumer = false;
+  entry.promise = fetchProjectInfoFromApi(apiKey, baseUrl, timeoutMs, fetchFn, {
+    ...requestOptions,
+    signal: controller.signal,
+  })
+    .then((info) => {
+      if (
+        projectInfoGlobalGeneration === globalGeneration &&
+        (projectInfoCacheGenerations.get(cacheKey) ?? 0) === cacheGeneration &&
+        pendingProjectInfoCache.get(cacheKey) === entry
+      ) {
+        projectInfoCache.set(cacheKey, { info, expiresAt: Date.now() + PROJECT_INFO_TTL_MS });
+      }
+      return info;
+    })
+    .finally(() => {
+      if (pendingProjectInfoCache.get(cacheKey) === entry) {
+        pendingProjectInfoCache.delete(cacheKey);
+      }
+    });
+  pendingProjectInfoCache.set(cacheKey, entry);
+  return joinPendingProjectInfo(entry, requestOptions?.signal, `${baseUrl}/v1/project`);
 }
 
 async function fetchProjectInfoFromApi(
@@ -314,6 +403,7 @@ async function fetchProjectInfoFromApi(
   baseUrl: string,
   timeoutMs: number,
   fetchFn?: typeof fetch,
+  requestOptions?: FetchRequestOptions,
 ): Promise<ProjectInfo> {
   const urls = [`${baseUrl}/v1/project`, `${baseUrl}/api/v1/api/project`];
   let lastNotFound: Response | undefined;
@@ -321,13 +411,13 @@ async function fetchProjectInfoFromApi(
   for (const url of urls) {
     const response = await fetchWithTimeout(
       url,
-      { headers: buildAuthHeaders(apiKey) },
+      { headers: buildAuthHeaders(apiKey), ...requestOptions },
       timeoutMs,
       fetchFn,
     );
 
     if (response.ok) {
-      return (await response.json()) as ProjectInfo;
+      return parseJsonResponse<ProjectInfo>(response, url);
     }
 
     if (response.status === 404) {
@@ -468,8 +558,12 @@ async function tryFallback(
 
 /** Transform API response to internal cache format */
 export function transformApiResponse(response: ExportApiResponse): TranslationStore {
+  const namespaces = (response as ExportApiResponse | undefined)?.namespaces;
+  if (!namespaces || typeof namespaces !== "object" || Array.isArray(namespaces)) {
+    throw new Error('[FetchLoader] Invalid API response: "namespaces" must be an object');
+  }
   const store: TranslationStore = new Map();
-  for (const [ns, locales] of Object.entries(response.namespaces))
+  for (const [ns, locales] of Object.entries(namespaces))
     for (const [locale, translations] of Object.entries(locales))
       store.set(`${locale}:${ns}`, translations);
   return store;
@@ -490,34 +584,51 @@ export async function fetchApiTranslations(
   timeoutMs = 5000,
   fetchFn?: typeof fetch,
   cacheScope?: string,
+  requestOptions?: FetchRequestOptions,
 ): Promise<TranslationStore> {
   const requestedNamespaces = [...new Set(namespaces)];
   const headers = buildAuthHeaders(apiKey);
   const url = buildApiTranslationsUrl(locale, requestedNamespaces, apiBaseUrl);
-  const response = await fetchWithTimeout(url, { headers }, timeoutMs, fetchFn);
+  const response = await fetchWithTimeout(url, { headers, ...requestOptions }, timeoutMs, fetchFn);
 
   if (response.ok) {
-    return transformApiResponse((await response.json()) as ExportApiResponse);
+    return transformApiResponse(await parseJsonResponse<ExportApiResponse>(response, url));
   }
 
   if (response.status !== 404) {
     throw new Error(`API error: ${response.status} ${response.statusText}`);
   }
 
-  const projectId = (await fetchProjectInfo(apiKey, apiBaseUrl, timeoutMs, fetchFn, cacheScope)).id;
+  const projectId = (
+    await fetchProjectInfo(apiKey, apiBaseUrl, timeoutMs, fetchFn, cacheScope, requestOptions)
+  ).id;
   const exportUrl = buildApiExportUrl(projectId, locale, requestedNamespaces, apiBaseUrl);
-  let exportResponse = await fetchWithTimeout(exportUrl, { headers }, timeoutMs, fetchFn);
+  let responseUrl = exportUrl;
+  let exportResponse = await fetchWithTimeout(
+    exportUrl,
+    { headers, ...requestOptions },
+    timeoutMs,
+    fetchFn,
+  );
 
   if (!exportResponse.ok && exportResponse.status === 404) {
     const legacyUrl = buildLegacyApiExportUrl(projectId, locale, requestedNamespaces, apiBaseUrl);
-    exportResponse = await fetchWithTimeout(legacyUrl, { headers }, timeoutMs, fetchFn);
+    responseUrl = legacyUrl;
+    exportResponse = await fetchWithTimeout(
+      legacyUrl,
+      { headers, ...requestOptions },
+      timeoutMs,
+      fetchFn,
+    );
   }
 
   if (!exportResponse.ok) {
     throw new Error(`API error: ${exportResponse.status} ${exportResponse.statusText}`);
   }
 
-  return transformApiResponse((await exportResponse.json()) as ExportApiResponse);
+  return transformApiResponse(
+    await parseJsonResponse<ExportApiResponse>(exportResponse, responseUrl),
+  );
 }
 
 /**
@@ -572,6 +683,29 @@ export const FetchLoader: I18nPluginFactory<FetchLoaderOptions> = (options): I18
     // for later plugins such as the in-context editor.
     const shouldLoadImmediately = loadOnInit && !i18n.isInitializing;
 
+    const inflight = new Set<AbortController>();
+    let stopped = false;
+    const trackRequest = () => {
+      const controller = new AbortController();
+      if (stopped) controller.abort();
+      inflight.add(controller);
+      return {
+        signal: controller.signal,
+        release: () => inflight.delete(controller),
+      };
+    };
+    const abortAll = () => {
+      stopped = true;
+      for (const controller of inflight) controller.abort();
+      inflight.clear();
+    };
+    const reportSuccess = (locale: string, namespace: string) => {
+      if (!stopped) onLoadSuccess?.(locale, namespace);
+    };
+    const reportError = (locale: string, namespace: string, error: Error) => {
+      if (!stopped) onLoadError?.(locale, namespace, error);
+    };
+
     if (apiKey) {
       const pending = new Map<
         string,
@@ -590,6 +724,7 @@ export const FetchLoader: I18nPluginFactory<FetchLoaderOptions> = (options): I18
         const promise = (async () => {
           const store: TranslationStore = new Map();
           const attemptedFallbacks = new Set<string>();
+          const { signal, release } = trackRequest();
           try {
             for (const [k, v] of await fetchApiTranslations(
               apiKey,
@@ -597,12 +732,19 @@ export const FetchLoader: I18nPluginFactory<FetchLoaderOptions> = (options): I18
               requestedNamespaces,
               apiBaseUrl,
               timeout,
+              undefined,
+              undefined,
+              { signal, ...cacheOpts },
             ))
               store.set(k, v);
+            if (signal.aborted || stopped) throw new RequestAbortedError("API translations");
             for (const ns of requestedNamespaces) {
-              if (store.has(`${locale}:${ns}`)) onLoadSuccess?.(locale, ns);
+              if (store.has(`${locale}:${ns}`)) reportSuccess(locale, ns);
             }
           } catch (error) {
+            if (signal.aborted || stopped || isAborted(error)) {
+              throw new RequestAbortedError("API translations");
+            }
             const err = toError(error);
             for (const ns of requestedNamespaces) {
               const ck = `${locale}:${ns}`;
@@ -612,18 +754,22 @@ export const FetchLoader: I18nPluginFactory<FetchLoaderOptions> = (options): I18
                   locale,
                   ns,
                   defaultNs,
-                  onLoadSuccess,
-                  onLoadError,
+                  reportSuccess,
+                  reportError,
                 );
+                if (signal.aborted || stopped) {
+                  throw new RequestAbortedError("API translation fallback");
+                }
                 if (fallbackResult.attempted) attemptedFallbacks.add(ck);
                 if (fallbackResult.data) {
                   store.set(ck, fallbackResult.data as Record<string, string>);
                 } else if (!fallbackResult.attempted) {
-                  onLoadError?.(locale, ns, err);
+                  reportError(locale, ns, err);
                 }
               }
             }
           } finally {
+            release();
             pending.delete(key);
           }
 
@@ -651,15 +797,16 @@ export const FetchLoader: I18nPluginFactory<FetchLoaderOptions> = (options): I18
             locale,
             namespace,
             defaultNs,
-            onLoadSuccess,
+            reportSuccess,
           );
+          if (stopped) throw new RequestAbortedError("API translation fallback");
           if (fallbackResult.data) {
             return fallbackResult.data;
           }
         }
 
         const error = new Error(`[FetchLoader] No translations found for ${ck}`);
-        onLoadError?.(locale, namespace, error);
+        reportError(locale, namespace, error);
         throw error;
       });
 
@@ -683,6 +830,7 @@ export const FetchLoader: I18nPluginFactory<FetchLoaderOptions> = (options): I18
       }
 
       return () => {
+        abortAll();
         pending.clear();
       };
     } else {
@@ -697,36 +845,44 @@ export const FetchLoader: I18nPluginFactory<FetchLoaderOptions> = (options): I18
         if (existing) return existing;
 
         const promise = (async () => {
+          const { signal, release } = trackRequest();
+          const url = buildCdnUrl(cdnUrl, locale, namespace, defaultNs);
           try {
             const r = await fetchWithTimeout(
-              buildCdnUrl(cdnUrl, locale, namespace, defaultNs),
-              { headers: { Accept: "application/json" }, ...cacheOpts },
+              url,
+              { headers: { Accept: "application/json" }, signal, ...cacheOpts },
               timeout,
             );
             if (!r.ok) throw new Error(`HTTP ${r.status}: ${r.statusText}`);
 
-            const data = (await r.json()) as Record<string, TranslationValue>;
-            onLoadSuccess?.(locale, namespace);
+            const data = await parseJsonResponse<Record<string, TranslationValue>>(r, url);
+            if (signal.aborted || stopped) throw new RequestAbortedError(url);
+            reportSuccess(locale, namespace);
             return data;
           } catch (error) {
+            if (signal.aborted || stopped || isAborted(error)) {
+              throw new RequestAbortedError(url);
+            }
             const err = toError(error);
             const fallbackResult = await tryFallback(
               fallback,
               locale,
               namespace,
               defaultNs,
-              onLoadSuccess,
-              onLoadError,
+              reportSuccess,
+              reportError,
             );
+            if (signal.aborted || stopped) throw new RequestAbortedError(url);
             if (fallbackResult.data) {
               return fallbackResult.data;
             }
             if (fallbackResult.attempted) {
               throw fallbackResult.error ?? err;
             }
-            onLoadError?.(locale, namespace, err);
+            reportError(locale, namespace, err);
             throw err;
           } finally {
+            release();
             loading.delete(ck);
           }
         })();
@@ -754,6 +910,7 @@ export const FetchLoader: I18nPluginFactory<FetchLoaderOptions> = (options): I18
       }
 
       return () => {
+        abortAll();
         loading.clear();
       };
     }

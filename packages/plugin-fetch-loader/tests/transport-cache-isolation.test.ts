@@ -8,7 +8,7 @@
  * explicit cacheScope (or not cached at all).
  */
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { fetchProjectInfo, clearProjectInfoCache } from "../src/index";
+import { fetchApiTranslations, fetchProjectInfo, clearProjectInfoCache } from "../src/index";
 
 const BASE = "https://api.comvi.io";
 
@@ -153,5 +153,95 @@ describe("timeout cancellation reaches the transport", () => {
 
     expect(observedSignal).toBeDefined();
     expect(observedSignal?.aborted).toBe(true);
+  });
+
+  it("propagates external abort through the project-info fallback", async () => {
+    const controller = new AbortController();
+    let projectRequestStarted!: () => void;
+    const started = new Promise<void>((resolveStarted) => {
+      projectRequestStarted = resolveStarted;
+    });
+    const fetchFn = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.includes("/v1/translations")) {
+        return Promise.resolve(new Response(null, { status: 404 }));
+      }
+      projectRequestStarted();
+      return new Promise<Response>((_resolve, reject) => {
+        init?.signal?.addEventListener("abort", () => {
+          reject(new DOMException("The operation was aborted.", "AbortError"));
+        });
+      });
+    });
+
+    const request = fetchApiTranslations(
+      "",
+      "en",
+      ["default"],
+      BASE,
+      5000,
+      fetchFn as typeof fetch,
+      "scope-abort",
+      { signal: controller.signal },
+    );
+    await started;
+    controller.abort();
+
+    await expect(request).rejects.toMatchObject({ name: "AbortError" });
+    expect(fetchFn).toHaveBeenCalledTimes(2);
+  });
+
+  it("preserves custom transport, cache scope, and cache options across fallbacks", async () => {
+    const calls: Array<{ url: string; init?: RequestInit & { next?: unknown } }> = [];
+    const fetchFn = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      calls.push({ url, init: init as RequestInit & { next?: unknown } });
+      if (url.includes("/v1/translations")) return new Response(null, { status: 404 });
+      if (url.endsWith("/v1/project")) return jsonResponse({ id: 42 });
+      return jsonResponse({ namespaces: { default: { en: { hello: "Hi" } } } });
+    });
+
+    await expect(
+      fetchApiTranslations(
+        "",
+        "en",
+        ["default"],
+        BASE,
+        5000,
+        fetchFn as typeof fetch,
+        "scope-cache",
+        { next: { revalidate: 60, tags: ["i18n"] } },
+      ),
+    ).resolves.toEqual(new Map([["en:default", { hello: "Hi" }]]));
+
+    expect(calls).toHaveLength(3);
+    for (const call of calls) {
+      expect(call.init?.next).toEqual({ revalidate: 60, tags: ["i18n"] });
+    }
+  });
+
+  it("reports the actual legacy URL when its JSON is malformed", async () => {
+    const fetchFn = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("/v1/translations")) return new Response(null, { status: 404 });
+      if (url.endsWith("/v1/project")) return jsonResponse({ id: 42 });
+      if (url.includes("/v1/projects/42/export")) return new Response(null, { status: 404 });
+      return new Response("{not json", {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    });
+
+    await expect(
+      fetchApiTranslations("", "en", ["default"], BASE, 5000, fetchFn as typeof fetch, "scope"),
+    ).rejects.toThrow(/Invalid JSON response from .*\/api\/v1\/api\/projects\/42\/export/);
+  });
+
+  it("rejects a successful API error envelope without namespaces", async () => {
+    const fetchFn = vi.fn(async () => jsonResponse({ error: "upstream failure" }));
+
+    await expect(
+      fetchApiTranslations("", "en", ["default"], BASE, 5000, fetchFn as typeof fetch, "scope"),
+    ).rejects.toThrow(/namespaces/);
   });
 });

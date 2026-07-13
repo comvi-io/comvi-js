@@ -185,6 +185,119 @@ describe("FetchLoader Integration Tests", () => {
       await expect.poll(() => i18n.hasLocale("fr", "default"), { timeout: 500 }).toBe(true);
       expect(i18n.hasLocale("en", "default")).toBe(true);
     });
+
+    it("aborts in-flight requests on plugin cleanup without reporting a load error", async () => {
+      const i18n = new I18n({ locale: "en", devMode: false });
+      const onLoadError = vi.fn();
+
+      server.use(
+        http.get(`${TEST_CDN_URL}/en.json`, async () => {
+          await delay(300);
+          return HttpResponse.json({ key: "Hello" });
+        }),
+      );
+
+      const plugin = FetchLoader({ cdnUrl: TEST_CDN_URL, loadOnInit: false, onLoadError });
+      const cleanup = await plugin(i18n);
+      const pendingLoad = i18n.getLoader()!("en", "default");
+
+      (cleanup as () => void)();
+
+      await expect(pendingLoad).rejects.toThrow(/aborted/i);
+      expect(onLoadError).not.toHaveBeenCalled();
+    });
+
+    it("does not resolve a fallback that finishes after plugin cleanup", async () => {
+      const i18n = new I18n({ locale: "en", devMode: false });
+      const onLoadSuccess = vi.fn();
+      const onLoadError = vi.fn();
+      let resolveFallback!: (value: { default: { key: string } }) => void;
+      let fallbackStarted!: () => void;
+      const started = new Promise<void>((resolveStarted) => {
+        fallbackStarted = resolveStarted;
+      });
+      const fallback = vi.fn(
+        () =>
+          new Promise<{ default: { key: string } }>((resolveValue) => {
+            resolveFallback = resolveValue;
+            fallbackStarted();
+          }),
+      );
+      mockCdnErrorResponse("en", "default", 503, "Unavailable");
+
+      const plugin = FetchLoader({
+        cdnUrl: TEST_CDN_URL,
+        loadOnInit: false,
+        fallback: { en: fallback },
+        onLoadSuccess,
+        onLoadError,
+      });
+      const cleanup = await plugin(i18n);
+      const pendingLoad = i18n.getLoader()!("en", "default");
+      await started;
+
+      (cleanup as () => void)();
+      resolveFallback({ default: { key: "Offline" } });
+
+      await expect(pendingLoad).rejects.toThrow(/aborted/i);
+      expect(onLoadSuccess).not.toHaveBeenCalled();
+      expect(onLoadError).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("Malformed responses", () => {
+    it("reports a diagnosable URL for invalid CDN JSON", async () => {
+      const i18n = new I18n({ locale: "en", devMode: false });
+      const onLoadError = vi.fn();
+      server.use(
+        http.get(
+          `${TEST_CDN_URL}/en.json`,
+          () =>
+            new HttpResponse("{not json", {
+              status: 200,
+              headers: { "Content-Type": "application/json" },
+            }),
+        ),
+      );
+
+      const plugin = FetchLoader({ cdnUrl: TEST_CDN_URL, loadOnInit: false, onLoadError });
+      await plugin(i18n);
+
+      await expect(i18n.getLoader()!("en", "default")).rejects.toThrow(
+        `Invalid JSON response from ${TEST_CDN_URL}/en.json`,
+      );
+      expect(onLoadError).toHaveBeenCalledWith(
+        "en",
+        "default",
+        expect.objectContaining({ message: expect.stringContaining(TEST_CDN_URL) }),
+      );
+    });
+  });
+
+  describe("SSR cache options", () => {
+    it("passes cache options to API path fetches", async () => {
+      const fetchSpy = vi.spyOn(globalThis, "fetch");
+      const i18n = new I18n({ locale: "en", apiKey: TEST_API_KEY, devMode: true });
+      server.use(
+        http.get(/\/v1\/translations/, () =>
+          HttpResponse.json(createMockApiResponse(["en"], ["default"])),
+        ),
+      );
+      const plugin = FetchLoader({
+        cdnUrl: TEST_CDN_URL,
+        loadOnInit: false,
+        cache: { revalidate: 3600, tags: ["i18n"] },
+      });
+      await plugin(i18n);
+
+      await i18n.getLoader()!("en", "default");
+
+      const call = fetchSpy.mock.calls.find(([input]) =>
+        String(input).includes("/v1/translations"),
+      );
+      expect(call?.[1]).toMatchObject({ next: { revalidate: 3600, tags: ["i18n"] } });
+      fetchSpy.mockRestore();
+    });
   });
 
   describe("Reload translations", () => {
