@@ -23,7 +23,8 @@
     "test:pr": "pnpm test:commit && pnpm build",
     "test:nightly": "pnpm test:coverage",
     "test:coverage:critical": "turbo run test:coverage --filter @comvi/plugin-fetch-loader --filter @comvi/plugin-in-context-editor",
-    "test:release": "pnpm test:pr && pnpm audit:package-contracts && pnpm check:publint && pnpm check:types-exports",
+    "test:release": "pnpm test:release-tools && pnpm test:pr && pnpm audit:package-contracts && pnpm check:publint && pnpm check:types-exports",
+    "test:release-tools": "node --test scripts/root-changelog.test.mjs",
     "test:watch": "turbo run test:watch --concurrency=20",
     "test:coverage": "turbo run test:coverage",
     "lint": "turbo run lint",
@@ -42,7 +43,7 @@
     "prepare": "husky",
     "lint:fix": "turbo run lint:fix",
     "audit:published": "node scripts/audit-published.mjs",
-    "release:version": "node scripts/sync-peer-ranges.mjs && changeset version"
+    "release:version": "node scripts/version-release.mjs"
   },
   "devDependencies": {
     "@changesets/cli": "^2.30.0",
