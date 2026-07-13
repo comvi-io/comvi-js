@@ -197,7 +197,7 @@ export const LocaleDetector: I18nPluginFactory<LocaleDetectorOptions> = (
     // It exists so we can suppress cache writes for fallback-only resolutions.
     let pendingInitResult: DetectionResult | null = null;
 
-    const process = (raw: string): DetectionResult => {
+    const process = (raw: string): DetectionResult | null => {
       if (convertDetectedLocale) {
         return { locale: convertDetectedLocale(raw), cache: true };
       }
@@ -208,7 +208,7 @@ export const LocaleDetector: I18nPluginFactory<LocaleDetectorOptions> = (
           return { locale: resolved, cache: true };
         }
 
-        return { locale: fallbackLocale, cache: false };
+        return null;
       }
 
       return { locale: raw.split(SR)[0].toLowerCase(), cache: true };
@@ -251,6 +251,8 @@ export const LocaleDetector: I18nPluginFactory<LocaleDetectorOptions> = (
         const d = det[m]();
         if (d && isValid(d)) {
           const result = process(d);
+          if (!result) continue;
+
           pendingInitResult = result;
           handleCurrentLocaleMatch(result);
 
