@@ -15,8 +15,10 @@
     isInitializing,
     isInitialized,
     cacheRevision,
+    defaultParams,
     tRaw,
     setLocale,
+    setDefaultParams,
     addTranslations,
     addActiveNamespace,
     clearTranslations,
@@ -69,6 +71,10 @@
 
   function loadAdmin(): void {
     void addActiveNamespace("admin");
+  }
+
+  function setFormalDefaults(): void {
+    setDefaultParams({ formality: "formal" });
   }
 
   function addDynamicTranslations(): void {
@@ -126,6 +132,7 @@
 <div data-testid="initializing">{String($isInitializing)}</div>
 <div data-testid="initialized">{String($isInitialized)}</div>
 <div data-testid="cache-revision">{$cacheRevision}</div>
+<div data-testid="default-formality">{String($defaultParams?.formality ?? "none")}</div>
 <div data-testid="has-french">{hasFrench}</div>
 <div data-testid="has-admin-title">{hasAdminTitle}</div>
 <div data-testid="loaded-languages">{loadedLanguages}</div>
@@ -140,6 +147,7 @@
 <button data-testid="switch-fr" on:click={() => switchTo("fr")}>fr</button>
 <button data-testid="switch-ar" on:click={() => switchTo("ar")}>ar</button>
 <button data-testid="load-admin" on:click={loadAdmin}>load admin</button>
+<button data-testid="set-default-params" on:click={setFormalDefaults}>set defaults</button>
 <button data-testid="add-dynamic" on:click={addDynamicTranslations}>add dynamic</button>
 <button data-testid="clear-common-en" on:click={clearEnglishCommon}>clear en common</button>
 <button data-testid="unsubscribe-events" on:click={stopEvents}>stop events</button>

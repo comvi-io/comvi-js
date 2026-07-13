@@ -16,10 +16,17 @@ import type {
   PermissiveKey,
   ErrorReportContext,
   TagInterpolationOptions,
+  DefaultTranslationParams,
+  SetDefaultParamsArg,
+  DefaultParamsSnapshot,
 } from "../types";
 import { DEFAULT_NS, COMVI_REPORTED } from "../constants";
 import { warn } from "../logger";
 import { normalizeTranslationObject } from "../utils";
+import {
+  assertInterpolationDefaults,
+  assertPreservesDefaultParamKeys,
+} from "../utils/defaultParams";
 import { translationResultToString } from "../utils/translationResultToString";
 import type { I18nPlugin as I18nPluginFn } from "../plugins/types";
 import { TranslationCache } from "./TranslationCache";
@@ -48,7 +55,6 @@ const ERR_FAILED_RELOAD_TRANSLATIONS = IS_DEV
 const ERR_INSTANCE_DESTROYED = IS_DEV
   ? "[i18n] Cannot call init() after destroy(). Create a new i18n instance."
   : "E_INSTANCE_DESTROYED";
-
 function createPartialNamespaceLoadError(
   locale: string,
   failedCount: number,
@@ -151,7 +157,7 @@ function ensureGlobalRegistry(): NonNullable<Window["__COMVI__"]> {
  * - NamespaceManager: Handles namespace loading and tracking
  * - Internal plugin lifecycle runtime: Handles plugin init/cleanup and error recovery
  */
-export class I18n implements I18nInstance {
+export class I18n<D extends DefaultTranslationParams = {}> implements I18nInstance<D> {
   // Core state
   #locale: string;
   public readonly translationCache: TranslationCache;
@@ -169,6 +175,9 @@ export class I18n implements I18nInstance {
   #cachedDefaultNs: string;
   #initialNamespaces?: string[];
   #strict: "dev" | "off";
+  #defaultParams?: DefaultTranslationParams;
+  #guaranteedDefaultParamKeys: readonly string[];
+  #configRevision = 0;
   #tagInterpolation?: TagInterpolationOptions;
   #postProcessors: PostProcessFn[] = [];
   #hasPostProcessors: boolean = false;
@@ -207,7 +216,7 @@ export class I18n implements I18nInstance {
   }) => TranslationResult | void;
   #onError?: (error: Error, context?: ErrorReportContext) => void;
 
-  constructor(options: I18nOptions) {
+  constructor(options: I18nOptions<D>) {
     if (!options.locale) {
       throw new Error(ERR_LOCALE_NOT_SET);
     }
@@ -228,6 +237,11 @@ export class I18n implements I18nInstance {
     this.#fallbackOnMissingKey = options.onMissingKey;
     this.#onError = options.onError;
     this.#strict = options.strict ?? "off";
+    assertInterpolationDefaults(options.defaultParams);
+    this.#defaultParams = options.defaultParams ? { ...options.defaultParams } : undefined;
+    this.#guaranteedDefaultParamKeys = options.defaultParams
+      ? Object.keys(options.defaultParams)
+      : [];
 
     const tagInterpolation = options.tagInterpolation
       ? {
@@ -443,6 +457,9 @@ export class I18n implements I18nInstance {
    * @private
    */
   #emit<E extends I18nEvent>(event: E, data?: I18nEventData[E]): void {
+    if (event === "configChanged") {
+      this.#configRevision++;
+    }
     const callbacks = this.#eventCallbacks[event];
     if (!callbacks) return;
 
@@ -528,6 +545,30 @@ export class I18n implements I18nInstance {
   setFallbackLocale(fallback: string | string[]) {
     this.#fallbackLocales = typeof fallback === "string" ? [fallback] : fallback;
     this.#emit("configChanged", { source: "fallbackLocale" });
+  }
+
+  setDefaultParams(params: SetDefaultParamsArg<D>): void {
+    assertInterpolationDefaults(params);
+    assertPreservesDefaultParamKeys(params, this.#guaranteedDefaultParamKeys);
+    this.#defaultParams = params ? { ...params } : undefined;
+    this.#emit("configChanged", { source: "defaultParams" });
+  }
+
+  get defaultParams(): DefaultParamsSnapshot<D> {
+    return (
+      this.#defaultParams ? { ...this.#defaultParams } : undefined
+    ) as DefaultParamsSnapshot<D>;
+  }
+
+  get configRevision(): number {
+    return this.#configRevision;
+  }
+
+  #withDefaultParams(userParams?: TranslationParams): TranslationParams | undefined {
+    const defaults = this.#defaultParams;
+    if (defaults === undefined) return userParams;
+    if (userParams == null) return { ...defaults };
+    return { ...defaults, ...userParams };
   }
 
   /**
@@ -727,7 +768,7 @@ export class I18n implements I18nInstance {
    */
   tRaw<NS extends Namespaces, K extends NamespacedKeys<NS>>(
     translationKey: K | null,
-    ...params: NamespacedParamsArg<NS, K>
+    ...params: NamespacedParamsArg<NS, K, D>
   ): TranslationResult;
 
   /**
@@ -735,7 +776,7 @@ export class I18n implements I18nInstance {
    */
   tRaw<K extends keyof TranslationKeys>(
     translationKey: K | null,
-    ...params: ParamsArg<K>
+    ...params: ParamsArg<K, D>
   ): TranslationResult;
 
   /**
@@ -770,7 +811,7 @@ export class I18n implements I18nInstance {
       this.#locale,
       this.#cachedDefaultNs,
       this.#fallbackLocales,
-      userParams,
+      this.#withDefaultParams(userParams),
     );
   }
 
@@ -779,13 +820,13 @@ export class I18n implements I18nInstance {
    */
   t<NS extends Namespaces, K extends NamespacedKeys<NS>>(
     translationKey: K | null,
-    ...params: NamespacedParamsArg<NS, K>
+    ...params: NamespacedParamsArg<NS, K, D>
   ): string;
 
   /**
    * Translate a key with typed params
    */
-  t<K extends keyof TranslationKeys>(translationKey: K | null, ...params: ParamsArg<K>): string;
+  t<K extends keyof TranslationKeys>(translationKey: K | null, ...params: ParamsArg<K, D>): string;
 
   /**
    * Permissive overload - only active when TranslationKeys is empty
@@ -1264,6 +1305,8 @@ export class I18n implements I18nInstance {
 /**
  * Create an i18n instance
  */
-export function createI18n(options: I18nOptions): I18n {
+export function createI18n<const D extends DefaultTranslationParams = {}>(
+  options: I18nOptions<D>,
+): I18n<D> {
   return new I18n(options);
 }

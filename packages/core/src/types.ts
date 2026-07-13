@@ -56,7 +56,9 @@ export type I18nEventData = {
   missingKey: { key: string; locale: string; namespace: string };
   loadError: { locale: string; namespace: string; error: Error };
   /** Fired when runtime config changes: fallback locales, added translations, or activated namespaces */
-  configChanged: { source: "fallbackLocale" | "translationsAdded" | "namespaceActivated" };
+  configChanged: {
+    source: "fallbackLocale" | "translationsAdded" | "namespaceActivated" | "defaultParams";
+  };
 };
 
 /**
@@ -131,22 +133,132 @@ export type NamespacedKeyParams<
   K extends string,
 > = `${NS}:${K}` extends keyof TranslationKeys ? TranslationKeys[`${NS}:${K}`] : never;
 
+export type TranslationParamValue =
+  | TranslationResult
+  | number
+  | boolean
+  | VirtualNode
+  | TagCallback
+  | null
+  | undefined;
+
+/** Non-nullish interpolation values that can act as instance-level defaults. */
+export type DefaultTranslationParamValue = Exclude<TranslationParamValue, null | undefined>;
+
+/**
+ * Interpolation values merged under every translation call.
+ * Routing and call-control options are intentionally excluded.
+ */
+export type DefaultTranslationParams = Record<string, DefaultTranslationParamValue> & {
+  ns?: never;
+  locale?: never;
+  fallback?: never;
+  raw?: never;
+};
+
+/** @internal Required own properties represent constructor-level guarantees. */
+type RequiredKeys<T> = {
+  [K in keyof T]-?: {} extends Pick<T, K> ? never : K;
+}[keyof T];
+
+/** @internal Optional defaults cannot represent constructor guarantees. */
+type OptionalKeys<T> = Exclude<keyof T, RequiredKeys<T>>;
+
+/** @internal Union of generated parameter objects, excluding parameterless messages. */
+type TranslationParamSchemas = {
+  [K in keyof TranslationKeys]: [TranslationKeys[K]] extends [never] ? never : TranslationKeys[K];
+}[keyof TranslationKeys];
+
+/** @internal Generated value types compatible with a constructor default. */
+type CompatibleSchemaValueUnion<K extends keyof D, D> = TranslationParamSchemas extends infer P
+  ? P extends unknown
+    ? K extends keyof P
+      ? D[K] extends P[K]
+        ? P[K]
+        : never
+      : never
+    : never
+  : never;
+
+/** @internal Intersection across compatible schemas, preserving unions inside each schema. */
+type CompatibleSchemaValueIntersection<K extends keyof D, D> = (
+  TranslationParamSchemas extends infer P
+    ? P extends unknown
+      ? K extends keyof P
+        ? D[K] extends P[K]
+          ? (value: P[K]) => void
+          : never
+        : never
+      : never
+    : never
+) extends (value: infer V) => void
+  ? V
+  : never;
+
+/** @internal Primitive widening for defaults absent from generated schemas. */
+type WidenDefaultValue<V> = V extends string
+  ? string
+  : V extends number
+    ? number
+    : V extends boolean
+      ? boolean
+      : V;
+
+/** @internal Safe runtime replacement domain for a guaranteed default key. */
+type ReplacementDefaultValue<K extends keyof D, D> = [CompatibleSchemaValueUnion<K, D>] extends [
+  never,
+]
+  ? WidenDefaultValue<D[K]>
+  : CompatibleSchemaValueIntersection<K, D>;
+
+/** @internal Required constructor defaults and schema-compatible replacement types. */
+type GuaranteedDefaults<D> = {
+  -readonly [K in RequiredKeys<D>]-?: ReplacementDefaultValue<K, D>;
+};
+
+/** @internal Constructor-guaranteed default keys that are compatible with a message schema. */
+type CompatibleDefaultKeys<P, D> = {
+  [K in keyof P]-?: K extends RequiredKeys<D>
+    ? K extends keyof D
+      ? D[K] extends P[K]
+        ? K
+        : never
+      : never
+    : never;
+}[keyof P];
+
+/** @internal Parameters that still have to be provided by the call site. */
+type MissingParams<P, D> = Omit<P, CompatibleDefaultKeys<P, D>>;
+
+/** @internal Full call params, with constructor-guaranteed values available as overrides. */
+type CallParams<P, D> = MissingParams<P, D> &
+  Partial<Pick<P, CompatibleDefaultKeys<P, D>>> &
+  TranslationParams;
+
 /**
  * Helper type for conditional parameter validation
  * - If key requires params, params are required and typed
  * - If key has no params (never), params are optional
  */
-export type ParamsArg<K extends keyof TranslationKeys> = TranslationKeys[K] extends never
+export type ParamsArg<K extends keyof TranslationKeys, D extends DefaultTranslationParams = {}> = [
+  TranslationKeys[K],
+] extends [never]
   ? [params?: TranslationParams]
-  : [params: TranslationKeys[K] & TranslationParams];
+  : {} extends MissingParams<TranslationKeys[K], D>
+    ? [params?: CallParams<TranslationKeys[K], D>]
+    : [params: CallParams<TranslationKeys[K], D>];
 
 /**
  * Helper type for namespaced key parameter validation
  */
-export type NamespacedParamsArg<NS extends string, K extends string> =
+export type NamespacedParamsArg<
+  NS extends string,
+  K extends string,
+  D extends DefaultTranslationParams = {},
+> =
   NamespacedKeyParams<NS, K> extends never
     ? [params: { ns: NS } & TranslationParams]
-    : [params: { ns: NS } & NamespacedKeyParams<NS, K> & TranslationParams];
+    : [params: { ns: NS } & CallParams<NamespacedKeyParams<NS, K>, D>];
 
 /**
  * Tag callback params passed to tag handlers
@@ -170,15 +282,22 @@ export interface TranslationParams {
   fallback?: string;
   /** When true, post-processors that support it (e.g., IncontextEditor) will skip their processing for this call */
   raw?: boolean;
-  [key: string]:
-    | TranslationResult
-    | number
-    | boolean
-    | VirtualNode
-    | TagCallback
-    | null
-    | undefined;
+  [key: string]: TranslationParamValue;
 }
+
+/** Runtime replacement accepted by an instance with constructor-guaranteed defaults. */
+export type SetDefaultParamsArg<D extends DefaultTranslationParams = {}> = keyof D extends never
+  ? DefaultTranslationParams | undefined
+  : [keyof GuaranteedDefaults<D>] extends [never]
+    ? DefaultTranslationParams | undefined
+    : DefaultTranslationParams & GuaranteedDefaults<D>;
+
+/** Shallow snapshot returned for an instance's current defaults. */
+export type DefaultParamsSnapshot<D extends DefaultTranslationParams = {}> = keyof D extends never
+  ? Readonly<DefaultTranslationParams> | undefined
+  : [keyof GuaranteedDefaults<D>] extends [never]
+    ? Readonly<DefaultTranslationParams> | undefined
+    : Readonly<DefaultTranslationParams & GuaranteedDefaults<D>>;
 
 export type PostProcessFn = (
   result: TranslationResult,
@@ -219,7 +338,7 @@ export interface TagInterpolationOptions {
   onTagWarning?: (tagName: string) => void;
 }
 
-export interface I18nOptions {
+export interface I18nBaseOptions {
   locale: string;
   defaultNs?: string;
   /**
@@ -293,6 +412,19 @@ export interface I18nOptions {
    */
   onError?: (error: Error, context?: ErrorReportContext) => void;
 }
+
+/**
+ * Core instance options. Constructor defaults are interpolation values only;
+ * call-level routing controls (`locale`, `ns`, `fallback`, `raw`) stay explicit.
+ */
+export type I18nOptions<D extends DefaultTranslationParams = {}> = I18nBaseOptions &
+  (keyof D extends never
+    ? { defaultParams?: D }
+    : string extends keyof D
+      ? { defaultParams: D }
+      : [OptionalKeys<D>] extends [never]
+        ? { defaultParams: D }
+        : never);
 
 /**
  * Context for error reporting - helps identify error source
@@ -436,7 +568,7 @@ export type TranslationResult = string | Array<string | VirtualNode>;
  * It provides access to the current locale, translation cache, and methods for checking locale existence,
  * adding translations, and translating keys.
  */
-export interface I18nInstance {
+export interface I18nInstance<D extends DefaultTranslationParams = {}> {
   /**
    * The current locale
    * @returns The current locale (getter)
@@ -533,7 +665,7 @@ export interface I18nInstance {
    */
   t<NS extends Namespaces, K extends NamespacedKeys<NS>>(
     key: K,
-    ...params: NamespacedParamsArg<NS, K>
+    ...params: NamespacedParamsArg<NS, K, D>
   ): string;
 
   /**
@@ -541,7 +673,7 @@ export interface I18nInstance {
    */
   tRaw<NS extends Namespaces, K extends NamespacedKeys<NS>>(
     key: K,
-    ...params: NamespacedParamsArg<NS, K>
+    ...params: NamespacedParamsArg<NS, K, D>
   ): TranslationResult;
 
   /**
@@ -561,12 +693,12 @@ export interface I18nInstance {
    * t(`errors.${code}` as keyof TranslationKeys);
    * ```
    */
-  t<K extends DefaultNsKeys>(key: K, ...params: ParamsArg<K>): string;
+  t<K extends DefaultNsKeys>(key: K, ...params: ParamsArg<K, D>): string;
 
   /**
    * Raw structured translation result for the current locale
    */
-  tRaw<K extends DefaultNsKeys>(key: K, ...params: ParamsArg<K>): TranslationResult;
+  tRaw<K extends DefaultNsKeys>(key: K, ...params: ParamsArg<K, D>): TranslationResult;
 
   /**
    * Permissive overload - only active when TranslationKeys is empty
@@ -595,6 +727,18 @@ export interface I18nInstance {
 
   /** Update fallback locales at runtime */
   setFallbackLocale: (fallback: string | string[]) => void;
+
+  /**
+   * Replace the instance-level default translation params at runtime.
+   * Emits `configChanged` (source: "defaultParams") so framework bindings re-render.
+   */
+  setDefaultParams: (params: SetDefaultParamsArg<D>) => void;
+
+  /** Current defaults as a new shallow snapshot; nested values retain their identity. */
+  readonly defaultParams: DefaultParamsSnapshot<D>;
+
+  /** Monotonic revision for runtime configuration updates. */
+  readonly configRevision: number;
 
   /** Update default namespace at runtime */
   setDefaultNamespace: (namespace: string) => void;

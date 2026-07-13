@@ -64,6 +64,9 @@ describe("runtime plugin", () => {
   });
 
   it("bootstraps i18n runtime and provides instance to Nuxt app", async () => {
+    (nuxtAppMocks.mockRuntimeConfig.public.comvi as any).defaultParams = {
+      formality: "formal",
+    };
     const i18n = createI18nStub("en");
     createI18n.mockReturnValue(i18n);
 
@@ -76,6 +79,7 @@ describe("runtime plugin", () => {
         locale: "en",
         fallbackLocale: "en",
         defaultNs: "default",
+        defaultParams: { formality: "formal" },
         ssrLocale: "en",
       }),
     );

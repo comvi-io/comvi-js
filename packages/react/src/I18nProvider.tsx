@@ -87,7 +87,7 @@ export function useStoreRevision(i18n: I18n, ...events: I18nEvent[]): string {
     () =>
       `${i18n.translationCache.getRevision()}:${i18n.isInitialized ? 1 : 0}:` +
       `${i18n.getDefaultNamespace()}:${i18n.getActiveNamespaces().join(",")}:` +
-      `${i18n.getFallbackLocales().join(",")}`,
+      `${i18n.getFallbackLocales().join(",")}:${i18n.configRevision}`,
     [i18n],
   );
 

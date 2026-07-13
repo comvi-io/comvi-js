@@ -68,6 +68,21 @@ describe("createNextI18n", () => {
     expect(i18n.t("greeting", { locale: "fr" })).toBe("Bonjour statique");
   });
 
+  it("forwards defaultParams to the core instance", () => {
+    const { i18n } = createNextI18n({
+      locales: ["en"],
+      defaultLocale: "en",
+      defaultParams: { formality: "formal" as const },
+      translation: {
+        en: { review: "{formality, select, formal {Formal} other {Informal}}" },
+      },
+      devMode: false,
+    });
+
+    expect(i18n.defaultParams?.formality).toBe("formal");
+    expect(i18n.t("review" as never)).toBe("Formal");
+  });
+
   it("does not register a default loader automatically", () => {
     const { i18n } = createNextI18n({
       locales: ["en", "fr"],

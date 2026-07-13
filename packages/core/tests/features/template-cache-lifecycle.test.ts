@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { createI18n } from "../../src";
-import { clearTemplateCache, _templateCacheSize } from "../../src/core/translate";
+import { clearTemplateCache, isStaticTemplate, _templateCacheSize } from "../../src/core/translate";
+import { parsePluralChoices } from "../../src/core/translate/parser";
 
 // Reset the module-level template cache before each test so tests are isolated.
 beforeEach(() => {
@@ -8,6 +9,19 @@ beforeEach(() => {
 });
 
 describe("templateCache eviction", () => {
+  it("reuses the context-tagged cache entry for plain static templates", () => {
+    const i18n = createI18n({
+      locale: "en",
+      translation: { en: { greeting: "Hello world" } },
+    });
+
+    expect(isStaticTemplate("Hello world")).toBeUndefined();
+    expect(i18n.t("greeting" as never)).toBe("Hello world");
+    expect(isStaticTemplate("Hello world")).toBe(true);
+    expect(i18n.t("greeting" as never)).toBe("Hello world");
+    expect(isStaticTemplate("Hello world")).toBe(true);
+  });
+
   it("keeps size at or below the cap after inserting many distinct templates", () => {
     const i18n = createI18n({ locale: "en" });
     const translations: Record<string, string> = {};
@@ -110,5 +124,63 @@ describe("templateCache cross-instance isolation", () => {
 
     // B still has its translation data and the template cache should be intact.
     expect(i18nB.t(key, { name: "Z" } as never)).toBe("Hi Z");
+  });
+});
+
+describe("context-sensitive cache keys", () => {
+  it("does not collide with a top-level template that starts with the context marker", () => {
+    const i18n = createI18n({
+      locale: "en",
+      translation: {
+        en: {
+          plural: "{count, plural, other {'#'}}",
+          topLevel: "\u0001'#'",
+        },
+      },
+    });
+
+    expect(i18n.t("plural" as never, { count: 2 } as never)).toBe("#");
+    expect(i18n.t("topLevel" as never)).toBe("\u0001'#'");
+  });
+
+  it("does not collide when the marker-prefixed top-level template is cached first", () => {
+    const i18n = createI18n({
+      locale: "en",
+      translation: {
+        en: {
+          topLevel: "\u0001'#'",
+          plural: "{count, plural, other {'#'}}",
+        },
+      },
+    });
+
+    expect(i18n.t("topLevel" as never)).toBe("\u0001'#'");
+    expect(i18n.t("plural" as never, { count: 2 } as never)).toBe("#");
+  });
+
+  it("keeps plural-choice caches separate when source text starts with the context marker", () => {
+    const source = "other {'#}'} another {x}";
+    clearTemplateCache();
+    const expectedMarkedChoices = parsePluralChoices(`\u0001${source}`, true);
+
+    clearTemplateCache();
+    const unmarkedChoices = parsePluralChoices(source, false);
+    const markedChoices = parsePluralChoices(`\u0001${source}`, true);
+
+    expect(markedChoices).toEqual(expectedMarkedChoices);
+    expect(markedChoices).not.toEqual(unmarkedChoices);
+  });
+
+  it("keeps plural-choice caches separate in the reverse insertion order", () => {
+    const source = "other {'#}'} another {x}";
+    clearTemplateCache();
+    const expectedUnmarkedChoices = parsePluralChoices(source, false);
+
+    clearTemplateCache();
+    const markedChoices = parsePluralChoices(`\u0001${source}`, true);
+    const unmarkedChoices = parsePluralChoices(source, false);
+
+    expect(unmarkedChoices).toEqual(expectedUnmarkedChoices);
+    expect(unmarkedChoices).not.toEqual(markedChoices);
   });
 });

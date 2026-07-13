@@ -6,6 +6,7 @@ import {
   createInitializingStore,
   createInitializedStore,
   createCacheRevisionStore,
+  createDefaultParamsStore,
 } from "./stores";
 import { translationResultToString } from "./utils";
 import {
@@ -24,14 +25,40 @@ import type {
   FlattenedTranslations,
   I18nEvent,
   I18nEventData,
+  DefaultTranslationParams,
+  DefaultParamsSnapshot,
+  Namespaces,
+  NamespacedKeys,
+  NamespacedParamsArg,
+  DefaultNsKeys,
+  ParamsArg,
+  PermissiveKey,
 } from "@comvi/core";
 
 const DEFAULT_NS_CACHE_KEY = Symbol("comvi-default-ns");
 type TranslationStoreCacheKey = string | symbol;
-type RawTranslationFunction = I18n["t"];
-type TextTranslationFunction = (key: string, params?: TranslationParams) => string;
-type RawTranslationStore = Readable<RawTranslationFunction>;
-type TextTranslationStore = Readable<TextTranslationFunction>;
+interface SvelteTranslationFunction<D extends DefaultTranslationParams, R> {
+  <NS extends Namespaces, K extends NamespacedKeys<NS>>(
+    key: K,
+    ...params: NamespacedParamsArg<NS, K, D>
+  ): R;
+  <K extends DefaultNsKeys>(key: K, ...params: ParamsArg<K, D>): R;
+  (key: PermissiveKey, params?: TranslationParams): R;
+}
+
+export type SvelteTextTranslationFunction<D extends DefaultTranslationParams = {}> =
+  SvelteTranslationFunction<D, string>;
+export type SvelteRawTranslationFunction<D extends DefaultTranslationParams = {}> =
+  SvelteTranslationFunction<D, TranslationResult>;
+
+type RawTranslationStore<D extends DefaultTranslationParams> = Readable<
+  SvelteRawTranslationFunction<D>
+>;
+type TextTranslationStore<D extends DefaultTranslationParams> = Readable<
+  SvelteTextTranslationFunction<D>
+>;
+type CachedRawTranslationStore = RawTranslationStore<{}>;
+type CachedTextTranslationStore = TextTranslationStore<{}>;
 
 /**
  * Cache of derived raw translation stores per i18n instance and default namespace.
@@ -39,49 +66,55 @@ type TextTranslationStore = Readable<TextTranslationFunction>;
  */
 const rawTranslationStoreCache = new WeakMap<
   I18n,
-  Map<TranslationStoreCacheKey, RawTranslationStore>
+  Map<TranslationStoreCacheKey, CachedRawTranslationStore>
 >();
 const textTranslationStoreCache = new WeakMap<
   I18n,
-  Map<TranslationStoreCacheKey, TextTranslationStore>
+  Map<TranslationStoreCacheKey, CachedTextTranslationStore>
 >();
 
-function getOrCreateRawTranslationStore(i18n: I18n, ns?: string): RawTranslationStore {
+function getOrCreateRawTranslationStore<D extends DefaultTranslationParams>(
+  i18n: I18n<D>,
+  ns?: string,
+): RawTranslationStore<D> {
   let storesByNamespace = rawTranslationStoreCache.get(i18n);
 
   if (!storesByNamespace) {
-    storesByNamespace = new Map<TranslationStoreCacheKey, RawTranslationStore>();
+    storesByNamespace = new Map<TranslationStoreCacheKey, CachedRawTranslationStore>();
     rawTranslationStoreCache.set(i18n, storesByNamespace);
   }
 
   const cacheKey: TranslationStoreCacheKey = ns ?? DEFAULT_NS_CACHE_KEY;
   const existingStore = storesByNamespace.get(cacheKey);
   if (existingStore) {
-    return existingStore;
+    return existingStore as unknown as RawTranslationStore<D>;
   }
 
   const locale = createLocaleStore(i18n);
   const cacheRevision = createCacheRevisionStore(i18n);
   const tRawStore = derived([locale, cacheRevision], () =>
     createBoundTranslation(i18n, ns),
-  ) as unknown as RawTranslationStore;
+  ) as unknown as RawTranslationStore<D>;
 
-  storesByNamespace.set(cacheKey, tRawStore);
+  storesByNamespace.set(cacheKey, tRawStore as unknown as CachedRawTranslationStore);
   return tRawStore;
 }
 
-function getOrCreateTextTranslationStore(i18n: I18n, ns?: string): TextTranslationStore {
+function getOrCreateTextTranslationStore<D extends DefaultTranslationParams>(
+  i18n: I18n<D>,
+  ns?: string,
+): TextTranslationStore<D> {
   let storesByNamespace = textTranslationStoreCache.get(i18n);
 
   if (!storesByNamespace) {
-    storesByNamespace = new Map<TranslationStoreCacheKey, TextTranslationStore>();
+    storesByNamespace = new Map<TranslationStoreCacheKey, CachedTextTranslationStore>();
     textTranslationStoreCache.set(i18n, storesByNamespace);
   }
 
   const cacheKey: TranslationStoreCacheKey = ns ?? DEFAULT_NS_CACHE_KEY;
   const existingStore = storesByNamespace.get(cacheKey);
   if (existingStore) {
-    return existingStore;
+    return existingStore as unknown as TextTranslationStore<D>;
   }
 
   const tRawStore = getOrCreateRawTranslationStore(i18n, ns);
@@ -89,13 +122,13 @@ function getOrCreateTextTranslationStore(i18n: I18n, ns?: string): TextTranslati
     tRawStore,
     ($tRaw) => (key: string, params?: TranslationParams) =>
       translationResultToString($tRaw(key as never, params as never)),
-  ) as TextTranslationStore;
+  ) as unknown as TextTranslationStore<D>;
 
-  storesByNamespace.set(cacheKey, tStore);
+  storesByNamespace.set(cacheKey, tStore as unknown as CachedTextTranslationStore);
   return tStore;
 }
 
-export interface UseI18nReturn {
+export interface UseI18nReturn<D extends DefaultTranslationParams = {}> {
   /**
    * Reactive translation function store
    * Subscribe to get the translation function that updates when language/cache changes
@@ -109,13 +142,13 @@ export interface UseI18nReturn {
    * <p>{$t('greeting')}</p>
    * ```
    */
-  t: Readable<TextTranslationFunction>;
+  t: Readable<SvelteTextTranslationFunction<D>>;
 
   /**
    * Reactive raw translation function store
    * Returns structured TranslationResult for advanced integrations.
    */
-  tRaw: Readable<RawTranslationFunction>;
+  tRaw: Readable<SvelteRawTranslationFunction<D>>;
 
   /** Current locale as a readable store */
   locale: Readable<string>;
@@ -132,6 +165,9 @@ export interface UseI18nReturn {
   /** Translation cache revision (for triggering reactivity) */
   cacheRevision: Readable<number>;
 
+  /** Reactive shallow snapshot of instance-level interpolation defaults. */
+  defaultParams: Readable<DefaultParamsSnapshot<D>>;
+
   // ===== Critical Methods =====
 
   /** Change the current locale and wait for translations to load */
@@ -147,6 +183,9 @@ export interface UseI18nReturn {
 
   /** Configure fallback locale chain */
   setFallbackLocale: (locales: string | string[]) => void;
+
+  /** Replace instance-level interpolation defaults. */
+  setDefaultParams: I18n<D>["setDefaultParams"];
 
   /** Register callback for missing keys */
   onMissingKey: (
@@ -285,8 +324,8 @@ export interface UseI18nReturn {
  * {/if}
  * ```
  */
-export function useI18n(ns?: string): UseI18nReturn {
-  const i18n = getI18nContext();
+export function useI18n<D extends DefaultTranslationParams = {}>(ns?: string): UseI18nReturn<D> {
+  const i18n = getI18nContext() as I18n<D>;
 
   // Create reactive stores
   const locale = createLocaleStore(i18n);
@@ -294,6 +333,7 @@ export function useI18n(ns?: string): UseI18nReturn {
   const isInitializing = createInitializingStore(i18n);
   const isInitialized = createInitializedStore(i18n);
   const cacheRevision = createCacheRevisionStore(i18n);
+  const defaultParams = createDefaultParamsStore(i18n);
 
   // Create or reuse derived translation stores for this i18n + namespace scope.
   // The derived function still re-computes on locale/cache changes.
@@ -308,12 +348,14 @@ export function useI18n(ns?: string): UseI18nReturn {
     isInitializing,
     isInitialized,
     cacheRevision,
+    defaultParams,
 
     // Methods bound to i18n instance
     setLocale: i18n.setLocaleAsync.bind(i18n),
     addTranslations: i18n.addTranslations.bind(i18n),
     addActiveNamespace: i18n.addActiveNamespace.bind(i18n),
     setFallbackLocale: i18n.setFallbackLocale.bind(i18n),
+    setDefaultParams: i18n.setDefaultParams.bind(i18n) as I18n<D>["setDefaultParams"],
     onMissingKey: i18n.onMissingKey.bind(i18n),
     onLoadError: i18n.onLoadError.bind(i18n),
     clearTranslations: i18n.clearTranslations.bind(i18n),

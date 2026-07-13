@@ -17,6 +17,8 @@ import type {
   I18nEvent,
   I18nEventData,
   I18n,
+  DefaultTranslationParams,
+  DefaultParamsSnapshot,
 } from "@comvi/core";
 
 import { isVirtualNode } from "./utils";
@@ -105,6 +107,7 @@ const BIND_METHODS = [
   "addTranslations",
   "addActiveNamespace",
   "setFallbackLocale",
+  "setDefaultParams",
   "onLoadError",
   "clearTranslations",
   "reloadTranslations",
@@ -117,19 +120,19 @@ const BIND_METHODS = [
   "reportError",
 ] as const;
 
-export interface UseI18nReturn {
+export interface UseI18nReturn<D extends DefaultTranslationParams = {}> {
   /** Translate a namespaced key. Returns plain text; for rich-text use `tRaw()` or `<T>`. */
   t<
     NS extends import("@comvi/core").Namespaces,
     K extends import("@comvi/core").NamespacedKeys<NS>,
   >(
     key: K,
-    ...params: import("@comvi/core").NamespacedParamsArg<NS, K>
+    ...params: import("@comvi/core").NamespacedParamsArg<NS, K, D>
   ): string;
   /** Translate a typed key. Returns plain text. */
   t<K extends import("@comvi/core").DefaultNsKeys>(
     key: K,
-    ...params: import("@comvi/core").ParamsArg<K>
+    ...params: import("@comvi/core").ParamsArg<K, D>
   ): string;
   /** Permissive overload — active only when `TranslationKeys` is empty. */
   t(key: import("@comvi/core").PermissiveKey, params?: TranslationParams): string;
@@ -140,11 +143,11 @@ export interface UseI18nReturn {
     K extends import("@comvi/core").NamespacedKeys<NS>,
   >(
     key: K,
-    ...params: import("@comvi/core").NamespacedParamsArg<NS, K>
+    ...params: import("@comvi/core").NamespacedParamsArg<NS, K, D>
   ): TranslationResult;
   tRaw<K extends import("@comvi/core").DefaultNsKeys>(
     key: K,
-    ...params: import("@comvi/core").ParamsArg<K>
+    ...params: import("@comvi/core").ParamsArg<K, D>
   ): TranslationResult;
   tRaw(key: import("@comvi/core").PermissiveKey, params?: TranslationParams): TranslationResult;
 
@@ -162,6 +165,10 @@ export interface UseI18nReturn {
 
   /** Configure fallback locale chain. */
   setFallbackLocale: (locales: string | string[]) => void;
+  /** Current interpolation defaults for this render (shallow snapshot). */
+  defaultParams: DefaultParamsSnapshot<D>;
+  /** Replace instance-level interpolation defaults. */
+  setDefaultParams: I18n<D>["setDefaultParams"];
   /** Register callback for missing keys. */
   onMissingKey: (
     callback: (key: string, locale: string, namespace: string) => string | void,
@@ -227,7 +234,7 @@ export interface UseI18nReturn {
  * }
  * ```
  */
-export function useI18n(ns?: string): UseI18nReturn {
+export function useI18n<D extends DefaultTranslationParams = {}>(ns?: string): UseI18nReturn<D> {
   const { i18n, isLoading, isInitializing } = useI18nInstance();
   const locale = useContext(LocaleContext) ?? "";
 
@@ -252,13 +259,13 @@ export function useI18n(ns?: string): UseI18nReturn {
     ) => TranslationResult;
     const wrapper = (key: string, params?: TranslationParams): TranslationResult =>
       bound(key, { locale, ...params });
-    return wrapper as UseI18nReturn["tRaw"];
+    return wrapper as UseI18nReturn<D>["tRaw"];
   }, [i18n, ns, locale]);
 
   const t = useMemo(
     () =>
       ((key: string, params?: TranslationParams) =>
-        translationResultToString(tRaw(key as never, params as never))) as UseI18nReturn["t"],
+        translationResultToString(tRaw(key as never, params as never))) as UseI18nReturn<D>["t"],
     [tRaw],
   );
 
@@ -305,15 +312,17 @@ export function useI18n(ns?: string): UseI18nReturn {
     translationCache,
     isLoading,
     isInitializing,
+    defaultParams: i18n.defaultParams as DefaultParamsSnapshot<D>,
     dir: getTextDirection(locale || i18n.locale),
     ...(boundMethods as Omit<
-      UseI18nReturn,
+      UseI18nReturn<D>,
       | "t"
       | "tRaw"
       | "locale"
       | "translationCache"
       | "isLoading"
       | "isInitializing"
+      | "defaultParams"
       | "dir"
       | "formatNumber"
       | "formatDate"

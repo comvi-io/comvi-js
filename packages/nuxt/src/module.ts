@@ -170,6 +170,7 @@ const comviNuxtModule: NuxtModule<NuxtI18nOptions> = defineNuxtModule<NuxtI18nOp
         options.fallbackLocale ??
         options.fallbackLanguage ??
         options.defaultLocale,
+      defaultParams: existingPublicRuntimeConfig.defaultParams ?? options.defaultParams,
       basicHtmlTags: existingPublicRuntimeConfig.basicHtmlTags ?? options.basicHtmlTags,
       detectBrowserLanguage,
     };
