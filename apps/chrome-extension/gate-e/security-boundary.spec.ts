@@ -81,6 +81,8 @@ async function activateEditor(
         { timeout: 10_000 },
       )
       .toBe("active");
+    await expect(popup.locator("#state-active")).toBeVisible({ timeout: 5_000 });
+    await expect(popup.locator("#state-active")).toContainText("Editor active on this page");
   } catch (error) {
     const diagnostics = {
       error: await popup.locator("#error-msg").textContent(),
@@ -162,6 +164,22 @@ test("built MV3 extension enforces the hostile-page trust boundary", async () =>
         .then((tabs) => tabs[0]?.id);
     });
     if (typeof tabId !== "number") throw new Error("Hostile page tab was not active");
+
+    // Manifest content scripts must detect Comvi and update tab state before
+    // the user opens the popup. This is the automatic toolbar-icon contract.
+    await expect
+      .poll(
+        () =>
+          worker.evaluate((id) => {
+            const chromeApi = (globalThis as typeof globalThis & { chrome: typeof chrome }).chrome;
+            return chromeApi.storage.session
+              .get(`comvi_tabstate_${id}`)
+              .then((state) => state[`comvi_tabstate_${id}`]?.comviDetected === true);
+          }, tabId),
+        { timeout: 10_000 },
+      )
+      .toBe(true);
+
     await page.evaluate(() => {
       (globalThis as any).__GATE_E_ACTIVATIONS__ = [];
       addEventListener("comvi-extension:activated", (event) => {
@@ -169,8 +187,8 @@ test("built MV3 extension enforces the hostile-page trust boundary", async () =>
       });
     });
 
-    // Opening the real action popup performs the production on-demand content
-    // injection. Close it before probing so Phase 1 still has no session.
+    // Opening the real action popup rechecks the already-detected page. Close
+    // it before probing so Phase 1 still has no authenticated session.
     const setupPopup = await openPopup(worker, extensionId, debuggingPort, cdpConnections);
     await expect(setupPopup.locator("#state-idle")).toBeVisible({ timeout: 10_000 });
     await setupPopup.close();
@@ -181,15 +199,67 @@ test("built MV3 extension enforces the hostile-page trust boundary", async () =>
 
     const popup = await openPopup(worker, extensionId, debuggingPort, cdpConnections);
     await activateEditor(popup, page, worker, tabId);
+    // Regression: the runtime starts its refresh during activate(). The
+    // worker must hold that request until the pending session is promoted;
+    // otherwise it is denied locally and never reaches the API.
+    await expect
+      .poll(
+        () =>
+          page.evaluate(() =>
+            fetch("/__log")
+              .then((response) => response.json())
+              .then((log) =>
+                log.requests.some((request: { path?: string }) =>
+                  request.path?.startsWith("/v1/translations?"),
+                ),
+              ),
+          ),
+        { timeout: 10_000 },
+      )
+      .toBe(true);
+
+    // Vue Router / React Router style same-document navigation must retain
+    // the active editor authority and its bound proxy transport. The URL
+    // changes, but the top-level documentId does not.
     await popup.close();
+    await page.bringToFront();
+    await page.evaluate(() => history.pushState({}, "", "/spa-route"));
+    await page.waitForURL("**/spa-route");
+    await expect
+      .poll(() =>
+        worker.evaluate((id) => {
+          const chromeApi = (globalThis as typeof globalThis & { chrome: typeof chrome }).chrome;
+          return chromeApi.storage.session
+            .get(`comvi_session_${id}`)
+            .then((state) => state[`comvi_session_${id}`]?.status);
+        }, tabId),
+      )
+      .toBe("active");
+
+    const spaPopup = await openPopup(worker, extensionId, debuggingPort, cdpConnections);
+    await expect(spaPopup.locator("#state-active")).toBeVisible({ timeout: 10_000 });
+    await spaPopup.close();
     await page.bringToFront();
     await page.evaluate(() => (globalThis as any).gateE.runPhase2());
     await expectPhase(page, "2", 13);
 
     await page.bringToFront();
     const forgetPopup = await openPopup(worker, extensionId, debuggingPort, cdpConnections);
+    await activateEditor(forgetPopup, page, worker, tabId);
+    await forgetPopup.locator("#disable-btn").click();
     await expect(forgetPopup.locator("#state-idle")).toBeVisible({ timeout: 10_000 });
+    await expect
+      .poll(() =>
+        worker.evaluate((id) => {
+          const chromeApi = (globalThis as typeof globalThis & { chrome: typeof chrome }).chrome;
+          return chromeApi.storage.session
+            .get(`comvi_session_${id}`)
+            .then((state) => state[`comvi_session_${id}`]);
+        }, tabId),
+      )
+      .toBeUndefined();
     await forgetPopup.locator("#forget-key-btn").click();
+    await expect(forgetPopup.locator("#forget-key-btn")).toBeHidden({ timeout: 10_000 });
     await page.evaluate(() => (globalThis as any).gateE.runPhase3());
     await expectPhase(page, "3", 1);
     await forgetPopup.close();

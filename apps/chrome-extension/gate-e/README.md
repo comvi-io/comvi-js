@@ -83,9 +83,9 @@ Open <http://127.0.0.1:8791/> and:
 1. **Phase 1** — click _Run Phase 1_. No session yet: every forged event and
    proxy attempt must be denied, egress log unchanged.
 2. **Phase 2** — open the extension popup, paste **any** string as the key
-   (the mock validates it), leave telemetry unchecked, and click _Enable editor_.
-   Then click _Run Phase 2_: the allowed route works, but telemetry remains
-   closed by default; destructive/out-of-contract routes, wrong-project export,
+   (the mock validates it), and click _Enable editor_. The harness configures
+   `collectContext: false`. Then click _Run Phase 2_: the allowed route works,
+   but telemetry remains closed; destructive/out-of-contract routes, wrong-project export,
    oversized bodies, and a request flood are all rejected —
    and none of the destructive routes appear in the mock log.
 3. Phase 2 ends by calling the SDK's global `deactivate()` directly and proving
@@ -108,14 +108,14 @@ The page shows PASS/FAIL per check and an overall verdict. Results are also on
 
 ## What each phase proves
 
-| Phase | Boundary claim                                                                                                                                                                                                                                                                           |
-| ----- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1     | No proxy authority exists without a popup-created, activated session; forged detection/activation grant nothing.                                                                                                                                                                         |
-| 2     | An active session is confined to the exact editor route contract, bound to the validated project, size/rate limited, and telemetry stays closed unless opted in. Credentials never leave the service worker (no `/v1` request the page didn't authorize; page sends no `Authorization`). |
-| 3     | "Forget key" revokes authority across the tab immediately.                                                                                                                                                                                                                               |
-| 4     | Navigation during validation cannot authorize the replacement document or reuse its channel.                                                                                                                                                                                             |
-| 5     | Popup teardown before confirmation revokes pending activation.                                                                                                                                                                                                                           |
-| 6     | Forget removes every persisted credential/session sharing the API key across origins.                                                                                                                                                                                                    |
+| Phase | Boundary claim                                                                                                                                                                                                                                                                                                   |
+| ----- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1     | No proxy authority exists without a popup-created, activated session; forged detection/activation grant nothing.                                                                                                                                                                                                 |
+| 2     | An active session is confined to the exact editor route contract, bound to the validated project, size/rate limited, and telemetry stays closed when the site's i18n config disables it. Credentials never leave the service worker (no `/v1` request the page didn't authorize; page sends no `Authorization`). |
+| 3     | "Forget key" revokes authority across the tab immediately.                                                                                                                                                                                                                                                       |
+| 4     | Navigation during validation cannot authorize the replacement document or reuse its channel.                                                                                                                                                                                                                     |
+| 5     | Popup teardown before confirmation revokes pending activation.                                                                                                                                                                                                                                                   |
+| 6     | Forget removes every persisted credential/session sharing the API key across origins.                                                                                                                                                                                                                            |
 
 ## Notes
 

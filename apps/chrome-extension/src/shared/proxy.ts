@@ -8,7 +8,7 @@
  * exact routes the editor runtime uses, matched by method AND path pattern,
  * with per-route query and body validation, bounded sizes (UTF-8 bytes), a
  * session-bound project id for export routes, and telemetry routes gated on
- * the user's explicit opt-in.
+ * the site's effective SDK configuration.
  *
  * Anything not in the table — including every future API route — is rejected
  * locally without a network request.
@@ -22,7 +22,7 @@ export interface ProxySessionContext {
   origin: string;
   /** Project id captured during key validation; required for export routes. */
   projectId?: string | number;
-  /** Whether the user explicitly enabled context telemetry for this session. */
+  /** Whether the site's effective SDK config enables context telemetry. */
   collectContext: boolean;
 }
 
@@ -411,7 +411,7 @@ interface RouteRule {
   query?: Record<string, QueryValidator>;
   /** Validator for the parsed JSON body; absent means no body permitted. */
   body?: BodyValidator;
-  /** Route is context telemetry — requires the session's collectContext opt-in. */
+  /** Route is context telemetry — requires the session's effective collectContext setting. */
   telemetry?: boolean;
   /** Name of the path parameter that must equal the session's projectId. */
   projectIdParam?: string;

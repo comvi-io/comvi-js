@@ -67,7 +67,7 @@
     </p>
     <p>
       <strong>Phase 2</strong>: open the extension popup, paste any key, click
-      <em>Enable editor</em> (telemetry left OFF), then:
+      <em>Enable editor</em> (this harness sets <code>collectContext: false</code>), then:
       <button id="run-p2">Run Phase 2 — probe WITH an active session</button>
     </p>
     <p>
@@ -97,8 +97,11 @@
       // --- fake Comvi site so the real editor can activate ---
       const i18nStub = {
         apiKey: undefined,
-        getLoadedLocales: () => [],
-        getActiveNamespaces: () => [],
+        collectContext: false,
+        // Keep one loaded locale/namespace so activation exercises the real
+        // refreshTranslations path through the extension proxy.
+        getLoadedLocales: () => ["en"],
+        getActiveNamespaces: () => ["translation"],
         getDefaultNamespace: () => "translation",
         hasLocale: () => false,
         getTranslations: () => ({}),
@@ -308,15 +311,15 @@
           big.networkError || "",
         );
 
-        // Telemetry is fail-closed unless the user explicitly opts in for this
-        // activation. Page code cannot open the route after activation.
+        // This harness configures collectContext: false. The activation result
+        // must keep telemetry routes closed for the whole session.
         const teleOff = await proxy("/v1/context/handshake", {
           method: "POST",
           body: JSON.stringify({ keys: [] }),
         });
         record(
           "2",
-          "telemetry route denied without explicit opt-in: POST /v1/context/handshake",
+          "telemetry route denied by i18n config: POST /v1/context/handshake",
           teleOff.denied,
           teleOff.networkError || "",
         );

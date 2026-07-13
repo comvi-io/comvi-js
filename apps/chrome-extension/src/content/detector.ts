@@ -2,8 +2,9 @@
  * Content script running in MAIN world to detect Comvi i18n
  *
  * Runs in the page's JavaScript context (direct access to window.__COMVI__)
- * and is injected on demand by the popup via chrome.scripting. It talks to
- * the ISOLATED-world bridge via custom events.
+ * and is preloaded by the manifest for automatic toolbar detection. The popup
+ * may safely re-inject it for an immediate refresh. It talks to the
+ * ISOLATED-world bridge via custom events.
  *
  * Security model: this world is shared with arbitrary page scripts, so
  * nothing here ever sees an API key. The editor runtime is activated with a
@@ -212,8 +213,8 @@ function installDetector() {
     window.dispatchEvent(new CustomEvent("comvi-extension:status", { detail: status }));
   });
 
-  // Listen for activate requests. The payload is non-secret (base URL for
-  // path building + telemetry opt-in); credentials never reach this world.
+  // Listen for activate requests. The payload contains only the non-secret
+  // base URL for path building; credentials never reach this world.
   window.addEventListener("comvi-extension:activate", ((event: CustomEvent) => {
     let detail: any;
     try {
@@ -222,7 +223,6 @@ function installDetector() {
       detail = {};
     }
     const apiBaseUrl = typeof detail.apiBaseUrl === "string" ? detail.apiBaseUrl : undefined;
-    const collectContext = detail.collectContext === true;
 
     const status = getComviStatus();
 
@@ -252,15 +252,13 @@ function installDetector() {
       const result = editor.activate({
         transport: proxyTransport,
         apiBaseUrl,
-        collectContext,
       });
       window.dispatchEvent(
         new CustomEvent("comvi-extension:activated", {
           detail: {
             success: !!result,
             instanceId: result?.instanceId,
-            // The page/runtime acknowledgement is untrusted. The service
-            // worker may use this boolean only to narrow the popup opt-in.
+            // Effective value derived by the editor from i18n.collectContext.
             collectContext: result?.collectContext === true,
           },
         }),

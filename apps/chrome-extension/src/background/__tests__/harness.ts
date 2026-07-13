@@ -44,11 +44,13 @@ export interface FakeChrome {
     onMessage: { addListener: (fn: Listener) => void };
     onConnect: { addListener: (fn: Listener) => void };
     onInstalled: { addListener: (fn: Listener) => void };
+    sendMessage: ReturnType<typeof vi.fn>;
     lastError: undefined;
   };
   tabs: {
     get: ReturnType<typeof vi.fn>;
     query: ReturnType<typeof vi.fn>;
+    sendMessage: ReturnType<typeof vi.fn>;
     onRemoved: { addListener: (fn: Listener) => void };
     onUpdated: { addListener: (fn: Listener) => void };
   };
@@ -67,7 +69,8 @@ export interface Harness {
   /** Deliver a runtime message exactly like Chrome would; resolves with sendResponse's value. */
   dispatchMessage(message: unknown, sender: chrome.runtime.MessageSender): Promise<unknown>;
   fireTabRemoved(tabId: number): void;
-  fireTabLoading(tabId: number): void;
+  fireDocumentReady(tabId: number, documentId?: string): Promise<unknown>;
+  fireTabUpdated(tabId: number, changeInfo: { status?: string; url?: string }): void;
   fireInstalled(reason: "install" | "update"): void;
   openPopupLease(leaseId: string): { disconnect(): void };
   /** Wait for handlers that respond synchronously but do async follow-up work. */
@@ -89,6 +92,7 @@ export function installFakeChrome(): Harness {
       onMessage: { addListener: (fn) => messageListeners.push(fn) },
       onConnect: { addListener: (fn) => connectListeners.push(fn) },
       onInstalled: { addListener: (fn) => installedListeners.push(fn) },
+      sendMessage: vi.fn((_message: unknown, callback?: () => void) => callback?.()),
       lastError: undefined,
     },
     tabs: {
@@ -99,48 +103,65 @@ export function installFakeChrome(): Harness {
       query: vi.fn(async () =>
         [...tabUrls.entries()].map(([id, url]) => ({ id, url }) as chrome.tabs.Tab),
       ),
+      sendMessage: vi.fn((_tabId: number, _message: unknown, callback?: () => void) =>
+        callback?.(),
+      ),
       onRemoved: { addListener: (fn) => removedListeners.push(fn) },
       onUpdated: { addListener: (fn) => updatedListeners.push(fn) },
     },
     action: {
-      setIcon: vi.fn(),
-      setBadgeText: vi.fn(),
-      setBadgeBackgroundColor: vi.fn(),
-      setBadgeTextColor: vi.fn(),
+      setIcon: vi.fn(async () => undefined),
+      setBadgeText: vi.fn(async () => undefined),
+      setBadgeBackgroundColor: vi.fn(async () => undefined),
+      setBadgeTextColor: vi.fn(async () => undefined),
     },
   };
 
   vi.stubGlobal("chrome", fake);
+
+  function dispatchMessage(
+    message: unknown,
+    sender: chrome.runtime.MessageSender,
+  ): Promise<unknown> {
+    return new Promise((resolve) => {
+      let responded = false;
+      let keptOpen = false;
+      for (const listener of messageListeners) {
+        const result = listener(message, sender, (response: unknown) => {
+          responded = true;
+          resolve(response);
+        });
+        if (result === true) keptOpen = true;
+      }
+      if (!keptOpen && !responded) {
+        void Promise.resolve().then(() => resolve(undefined));
+      }
+    });
+  }
 
   return {
     chrome: fake,
     setTabUrl(tabId, url) {
       tabUrls.set(tabId, url);
     },
-    dispatchMessage(message, sender) {
-      return new Promise((resolve) => {
-        let responded = false;
-        let keptOpen = false;
-        for (const listener of messageListeners) {
-          const result = listener(message, sender, (response: unknown) => {
-            responded = true;
-            resolve(response);
-          });
-          if (result === true) keptOpen = true;
-        }
-        // Mirror Chrome: if no listener keeps the channel open and nobody
-        // responded synchronously, the response is undefined.
-        if (!keptOpen && !responded) {
-          // Give synchronous-but-void handlers a microtask to settle.
-          void Promise.resolve().then(() => resolve(undefined));
-        }
-      });
-    },
+    dispatchMessage,
     fireTabRemoved(tabId) {
       for (const listener of removedListeners) listener(tabId);
     },
-    fireTabLoading(tabId) {
-      for (const listener of updatedListeners) listener(tabId, { status: "loading" });
+    fireDocumentReady(tabId, documentId = "next-document") {
+      const url = tabUrls.get(tabId);
+      return dispatchMessage(
+        { type: "DOCUMENT_READY" },
+        {
+          tab: { id: tabId, url } as chrome.tabs.Tab,
+          frameId: 0,
+          documentId,
+          origin: url ? new URL(url).origin : undefined,
+        },
+      );
+    },
+    fireTabUpdated(tabId, changeInfo) {
+      for (const listener of updatedListeners) listener(tabId, changeInfo);
     },
     fireInstalled(reason) {
       for (const listener of installedListeners) listener({ reason });
@@ -176,6 +197,8 @@ export function installFakeChrome(): Harness {
       fake.storage.local.clear();
       fake.action.setIcon.mockClear();
       fake.action.setBadgeText.mockClear();
+      fake.runtime.sendMessage.mockClear();
+      fake.tabs.sendMessage.mockClear();
       tabUrls.clear();
     },
   };

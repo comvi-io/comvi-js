@@ -16,6 +16,7 @@ vi.mock("../state", () => ({
 vi.mock("../badge", () => ({ renderBadge: vi.fn() }));
 
 const { clearTabLimits, handleProxyRequest } = await import("../proxy-handler");
+const { notifyProxySessionTransition } = await import("../proxy-work");
 
 const TAB_ID = 9;
 const ORIGIN = "https://app.example.com";
@@ -69,6 +70,39 @@ describe("proxy sender document binding", () => {
 
     expect(result.networkError).toBe("Stale document");
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("pending activation ordering", () => {
+  it("holds an activation-time request until the session is promoted", async () => {
+    let status: "pending" | "active" = "pending";
+    getSession.mockImplementation(async () => ({
+      status,
+      origin: ORIGIN,
+      apiKey: "cmv_test",
+      collectContext: false,
+      nonce: "nonce",
+      navGen: 0,
+      expiresAt: status === "pending" ? Date.now() + 30_000 : 0,
+      ...(status === "active" ? { documentId: "doc-1" } : {}),
+    }));
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(new Response('{"namespaces":{}}', { status: 200 }));
+
+    const response = handleProxyRequest(
+      { id: "activation-refresh", path: "/v1/translations?locales=en&namespaces=default" },
+      sender(),
+    );
+
+    await vi.waitFor(() => expect(getSession).toHaveBeenCalled());
+    expect(fetchMock).not.toHaveBeenCalled();
+
+    status = "active";
+    notifyProxySessionTransition(TAB_ID);
+
+    await expect(response).resolves.toMatchObject({ ok: true, status: 200 });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });
 

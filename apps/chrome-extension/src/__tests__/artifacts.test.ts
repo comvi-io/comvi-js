@@ -15,10 +15,21 @@ const hasDist = existsSync(resolve(DIST, "manifest.json"));
 const read = (name: string) => readFileSync(resolve(DIST, name), "utf8");
 
 describe.skipIf(!hasDist)("built artifacts", () => {
-  it("manifest has no content_scripts and no <all_urls>", () => {
+  it("manifest preloads detector and bridge for automatic Comvi detection", () => {
     const manifest = JSON.parse(read("manifest.json"));
-    expect(manifest.content_scripts).toBeUndefined();
-    expect(JSON.stringify(manifest)).not.toContain("<all_urls>");
+    expect(manifest.content_scripts).toEqual([
+      {
+        matches: ["<all_urls>"],
+        js: ["detector.js"],
+        world: "MAIN",
+        run_at: "document_idle",
+      },
+      {
+        matches: ["<all_urls>"],
+        js: ["bridge.js"],
+        run_at: "document_start",
+      },
+    ]);
   });
 
   it("manifest grants exactly one API host permission", () => {
@@ -30,6 +41,12 @@ describe.skipIf(!hasDist)("built artifacts", () => {
   it("manifest requests only the expected permissions", () => {
     const manifest = JSON.parse(read("manifest.json"));
     expect([...manifest.permissions].sort()).toEqual(["activeTab", "scripting", "storage"]);
+  });
+
+  it("popup has no context-collection toggle", () => {
+    const popup = read("popup.html");
+    expect(popup).not.toContain("collect-context");
+    expect(popup).not.toContain("Send page context to improve translation suggestions");
   });
 
   it("injected bundles are self-contained (no ES module syntax)", () => {
