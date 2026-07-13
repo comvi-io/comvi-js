@@ -17,7 +17,7 @@
 
 ---
 
-`LocaleDetector` restores a saved locale from the first configured cache target, then walks an ordered list of detection sources, returns the first match, and persists the user's choice back to one or more caches. SSR-safe (gracefully skips browser-only APIs on the server) and supports BCP 47 lookup so `de-DE` matches `de` and vice versa.
+`LocaleDetector` restores a saved locale from the first configured cache target, then walks an ordered list of detection sources, returns the first match, and persists the user's choice back to one or more caches. Set `cacheFirst: false` when the configured `order` should take priority over a saved locale. SSR-safe (gracefully skips browser-only APIs on the server) and supports BCP 47 lookup so `de-DE` matches `de` and vice versa.
 
 ## About Comvi i18n
 
@@ -32,7 +32,7 @@ See the [main repo](https://github.com/comvi-io/comvi-js) for the full library o
 
 ### Why @comvi/plugin-locale-detector?
 
-- **Multi-source detection with configurable priority.** Detect from URL query string, cookie, localStorage, sessionStorage, or `navigator.language` in any order you choose.
+- **Multi-source detection with configurable priority.** Detect from URL query string, cookie, localStorage, sessionStorage, or `navigator.language`, with optional cache-first priority.
 - **Persists user choice.** Automatically saves the detected or manually-changed locale to storage so it survives page reloads.
 - **SSR-safe.** Gracefully degrades when browser APIs (`window`, `navigator`, `document`) aren't available on the server.
 
@@ -56,6 +56,7 @@ const i18n = createI18n({ locale: "en" }).use(
     supportedLocales: ["en", "uk", "de"],
     order: ["querystring", "localStorage", "cookie", "navigator"],
     caches: ["localStorage", "cookie"],
+    cacheFirst: false,
   }),
 );
 
@@ -65,7 +66,7 @@ await i18n.init();
 
 ## How detection works
 
-On initialization, the detector first checks the first entry in `caches` as the saved user preference. If no cached value exists, it walks `order` from first to last and returns the first non-empty match. Concrete walk-through with the Quick start config above and an empty cache:
+On initialization, the detector checks the first entry in `caches` as the saved user preference by default. If no cached value exists, it walks `order` from first to last and returns the first non-empty match. Set `cacheFirst: false` to skip that preliminary cache read and make `order` the complete priority list. Concrete walk-through with the Quick start config above:
 
 | Step | Source         | Looks at                 | Match?        |
 | ---- | -------------- | ------------------------ | ------------- |
@@ -74,7 +75,7 @@ On initialization, the detector first checks the first entry in `caches` as the 
 | 3    | `cookie`       | `i18n_lang` cookie       | (skipped)     |
 | 4    | `navigator`    | `navigator.languages[0]` | (skipped)     |
 
-Once a locale is chosen — by detection or by an explicit `setLocale()` call — it's written to every entry in `caches`. Because the first cache entry is read before `order`, put your preferred saved-locale source first, or set `caches: []` when query string / navigator detection should always run first.
+Once a locale is chosen — by detection or by an explicit `setLocale()` call — it's written to every entry in `caches`. Because the first cache entry is read before `order` by default, put your preferred saved-locale source first. Use `cacheFirst: false` when query string or navigator detection should be able to override it; cache writes remain enabled, and cache sources are still read when included in `order`.
 
 BCP 47 lookup means `de-DE` matches `de` if `supportedLocales: ["en", "de"]`, and `zh-Hant-TW` falls back to `zh-Hant` then `zh`. Unsupported detected locales resolve to `fallbackLocale` (defaulting to the configured i18n locale) and are not cached.
 

@@ -108,6 +108,26 @@ describe("LocaleDetector plugin", () => {
       expect(i18n.locale).toBe("de");
     });
 
+    it("skips unsupported sources and continues in configured order", async () => {
+      mockWindowLocation("?language=es");
+      localStorage.setItem("lang", "de");
+
+      const i18n = await initWithPlugin(
+        {
+          order: ["querystring", "localStorage"],
+          caches: ["localStorage"],
+          cacheFirst: false,
+          lookupQuerystring: "language",
+          lookupLocalStorage: "lang",
+          supportedLocales: ["en", "de", "fr"],
+        },
+        "en",
+      );
+
+      expect(i18n.locale).toBe("de");
+      expect(localStorage.getItem("lang")).toBe("de");
+    });
+
     it("prefers the first cache target before running detectors", async () => {
       localStorage.setItem("preferred_lang", "fr");
       mockNavigator(["de-DE"], "de-DE");
@@ -123,6 +143,64 @@ describe("LocaleDetector plugin", () => {
 
       expect(i18n.locale).toBe("fr");
       expect(localStorage.getItem("preferred_lang")).toBe("fr");
+    });
+
+    it("ignores an unsupported first cache value and continues to the detection order", async () => {
+      localStorage.setItem("preferred_lang", "es");
+      mockWindowLocation("?language=fr");
+
+      const i18n = await initWithPlugin(
+        {
+          order: ["querystring", "navigator"],
+          caches: ["localStorage"],
+          lookupQuerystring: "language",
+          lookupLocalStorage: "preferred_lang",
+          supportedLocales: ["en", "de", "fr"],
+        },
+        "en",
+      );
+
+      expect(i18n.locale).toBe("fr");
+      expect(localStorage.getItem("preferred_lang")).toBe("fr");
+    });
+
+    it("lets order govern priority when cacheFirst is false", async () => {
+      mockWindowLocation("?language=fr");
+      localStorage.setItem("lang", "de");
+
+      const i18n = await initWithPlugin(
+        {
+          order: ["querystring", "localStorage", "navigator"],
+          caches: ["localStorage"],
+          cacheFirst: false,
+          lookupQuerystring: "language",
+          lookupLocalStorage: "lang",
+          supportedLocales: ["en", "de", "fr"],
+        },
+        "en",
+      );
+
+      expect(i18n.locale).toBe("fr");
+      expect(localStorage.getItem("lang")).toBe("fr");
+    });
+
+    it("still reads the storage via order when cacheFirst is false and no query is present", async () => {
+      mockWindowLocation("");
+      localStorage.setItem("lang", "de");
+
+      const i18n = await initWithPlugin(
+        {
+          order: ["querystring", "localStorage", "navigator"],
+          caches: ["localStorage"],
+          cacheFirst: false,
+          lookupQuerystring: "language",
+          lookupLocalStorage: "lang",
+          supportedLocales: ["en", "de", "fr"],
+        },
+        "en",
+      );
+
+      expect(i18n.locale).toBe("de");
     });
 
     it("keeps the current locale when detection misses by default", async () => {
