@@ -12,6 +12,7 @@ import {
   stripLocalePrefix,
   extractLocaleFromPath,
   buildLocalizedPath,
+  setQueryParamInSuffix,
 } from "../utils/locale-path";
 import { resolveAcceptLanguage } from "../utils/resolve-locale";
 import { isServer } from "../utils/runtime";
@@ -75,6 +76,10 @@ export default defineNuxtRouteMiddleware(async (to) => {
   // 2. Detect locale from various sources
   let detectedLocale: string | undefined;
   let detectedSource: "path" | "query" | "cookie" | "header" | "fallback" = "fallback";
+  const queryParam = detectConfig !== false ? detectConfig.queryParam : undefined;
+  const rawQueryValue = queryParam ? to.query?.[queryParam] : undefined;
+  const hasQueryParam =
+    queryParam !== undefined && Object.prototype.hasOwnProperty.call(to.query ?? {}, queryParam);
 
   if (pathLocale) {
     detectedLocale = pathLocale;
@@ -83,8 +88,7 @@ export default defineNuxtRouteMiddleware(async (to) => {
 
   // Explicit query parameter (e.g. ?lang=de) beats the implied default of a
   // prefixless path and stored preferences, but not an explicit path prefix.
-  if (!detectedLocale && detectConfig !== false && detectConfig.queryParam) {
-    const rawQueryValue = to.query?.[detectConfig.queryParam];
+  if (!detectedLocale && queryParam) {
     const queryLocale = Array.isArray(rawQueryValue) ? rawQueryValue[0] : rawQueryValue;
     if (typeof queryLocale === "string" && locales.includes(queryLocale)) {
       detectedLocale = queryLocale;
@@ -176,6 +180,10 @@ export default defineNuxtRouteMiddleware(async (to) => {
   const redirectPath = getRedirectPathForLocale(renderedLocale);
 
   if (redirectPath && redirectPath !== pathname && (pathLocale || allowFirstVisitRedirect)) {
-    return navigateTo(`${redirectPath}${suffix}`, { redirectCode: 302 });
+    const redirectSuffix =
+      pathLocale && queryParam && hasQueryParam
+        ? setQueryParamInSuffix(suffix, queryParam, renderedLocale)
+        : suffix;
+    return navigateTo(`${redirectPath}${redirectSuffix}`, { redirectCode: 302 });
   }
 });

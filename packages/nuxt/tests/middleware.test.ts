@@ -582,6 +582,51 @@ describe("i18n middleware", () => {
       expect(localeState.value).toBe("de");
     });
 
+    it("keeps an explicit default path locale authoritative after canonicalization", async () => {
+      withQueryParam();
+
+      const firstResult = await middleware({
+        path: "/en/about",
+        fullPath: "/en/about?lang=de&sort=asc#details",
+        query: { lang: "de", sort: "asc" },
+      } as any);
+
+      expect(firstResult?.path).toBe("/about?lang=en&sort=asc#details");
+
+      const secondResult = await middleware({
+        path: "/about",
+        fullPath: "/about?lang=en&sort=asc#details",
+        query: { lang: "en", sort: "asc" },
+      } as any);
+
+      expect(secondResult).toBeUndefined();
+      const localeState = useState<string>("i18n-locale");
+      expect(localeState.value).toBe("en");
+    });
+
+    it("keeps an explicit path locale authoritative when never mode removes its prefix", async () => {
+      mockRuntimeConfig.public.comvi.localePrefix = "never";
+      withQueryParam();
+
+      const firstResult = await middleware({
+        path: "/de/about",
+        fullPath: "/de/about?lang=uk&sort=asc#details",
+        query: { lang: "uk", sort: "asc" },
+      } as any);
+
+      expect(firstResult?.path).toBe("/about?lang=de&sort=asc#details");
+
+      const secondResult = await middleware({
+        path: "/about",
+        fullPath: "/about?lang=de&sort=asc#details",
+        query: { lang: "de", sort: "asc" },
+      } as any);
+
+      expect(secondResult).toBeUndefined();
+      const localeState = useState<string>("i18n-locale");
+      expect(localeState.value).toBe("de");
+    });
+
     it("beats the implied default of a prefixless path in as-needed mode", async () => {
       withQueryParam();
 
