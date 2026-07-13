@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.1]
+
+Coordinated `0.4.1` release across all publishable `@comvi/*` packages. Detailed package-level notes and migration guidance are available in the linked GitHub Release.
+
+### Patch Changes
+
+- **@comvi/core** — Support underscores in interpolation tag names, including paired and self-closing `snake_case` tags in ICU message branches.
+
 ## [0.4.0] - 2026-07-13
 
 Coordinated `0.4.0` release across all publishable `@comvi/*` packages. Detailed package-level notes and migration guidance are available in the linked GitHub Release.
@@ -122,6 +130,7 @@ A lightweight, type-safe internationalization library with framework-agnostic co
 - Progressive loading pattern (show UI immediately, load translations in background)
 - Guaranteed-ready pattern (await translations before app start)
 
+[0.4.1]: https://github.com/comvi-io/comvi-js/releases/tag/v0.4.1
 [0.4.0]: https://github.com/comvi-io/comvi-js/releases/tag/v0.4.0
 [0.3.0]: https://github.com/comvi-io/comvi-js/releases/tag/v0.3.0
 [0.2.0]: https://github.com/comvi-io/comvi-js/releases/tag/v0.2.0
