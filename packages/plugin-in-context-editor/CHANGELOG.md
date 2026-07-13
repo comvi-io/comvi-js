@@ -1,5 +1,31 @@
 # @comvi/plugin-in-context-editor
 
+## 0.4.0
+
+### Minor Changes
+
+- 3c95b54: Passive UI-context collector for active in-context-editor sessions:
+  - Observes visible translation targets (IntersectionObserver-driven, event-triggered, no polling) and sends structural/semantic/constraint signals plus neighbor key refs to the platform's context API — never rendered text.
+  - Screens are grouped by an opaque digest of the normalized route by default; the new `screenGroupResolver` option lets integrations supply a readable, PII-free route template (e.g. `/users/:id`) instead. Modal id/testid/labelledby discriminators are digested, not sent verbatim.
+  - Targets inside an open dialog get a modal-suffixed screen group; background keys keep the route group.
+  - Mutation-class triggers (DOM/attribute/text/translation/route/resize) re-evaluate signals even when the visible key set is unchanged, so same-key drift converges; the transport's per-item hash gate keeps unchanged re-evaluations off the network, and failed batches retry instead of being dropped.
+  - `collectContext: false` opts out entirely and is honored from both the plugin factory and standalone activation.
+
+### Patch Changes
+
+- 2aeb0d4: Reduce the editor's consumer bundle cost and harden browser storage:
+  - npm ESM output is no longer minified; minification remains the standalone CDN build's responsibility
+  - the Vue modal, key selector, and their CSS load on the first edit interaction while the Collector lifecycle remains active from plugin startup
+  - stopped editor instances ignore late lazy imports and UI failures are reported without unhandled rejections
+  - selected-language storage tolerates blocked reads/writes, malformed JSON, and non-array values
+  - the insecure page-level API-key event channel remains disabled
+
+- 8c4ed91: Pin the `@comvi/core` peer range to the minor line each release ships with (`^0.3.0` for 0.3.x, auto-synced to `^0.4.0` at the next release by `scripts/sync-peer-ranges.mjs`). Prevents the out-of-range escalation that turned the whole fixed group into a major bump at version time.
+- Updated dependencies [01b40e9]
+- Updated dependencies [60ee056]
+- Updated dependencies [8c4ed91]
+  - @comvi/plugin-fetch-loader@0.4.0
+
 ## 0.3.0
 
 ### Minor Changes

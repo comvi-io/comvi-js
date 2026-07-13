@@ -1,5 +1,61 @@
 # @comvi/core
 
+## 0.4.0
+
+### Minor Changes
+
+- bec9ad6: Bundle-size pass for @comvi/core (−17% min, −7% gzip for consumers; more when formatters are unused).
+
+  **BREAKING (@comvi/core):** `formatNumber` / `formatDate` / `formatCurrency` / `formatRelativeTime` and the `dir` getter moved off the `I18n` class to standalone tree-shakeable exports. Migrate `i18n.formatNumber(v, opts)` → `formatNumber(i18n, v, opts)` and `i18n.dir` → `getTextDirection(i18n.locale)`. Framework bindings (`useI18n`, `useFormatters`) keep their existing API — no changes needed in components.
+
+  Other changes:
+  - Internal class members now use native `#private`, so app bundlers mangle them (CDN UMD 25.5 → 21.2 kB).
+  - `TranslationCache.getInternalMap()` returns the snapshot typed as `ReadonlyMap` without a runtime wrapper.
+  - New `development` export condition ships readable error messages in dev; the production artifact keeps compact `E_*` codes.
+
+- 38ce169: ICU apostrophe handling switched to DOUBLE_OPTIONAL mode (same as ICU4J, FormatJS, i18next and Tolgee):
+  - A bare `'` starts quoted literal text only when it immediately precedes a syntax character. Everywhere else it is literal, so real-world content like `Superiors' behavior`, a trailing `l'` or `Gib' eine Bewertung` inside a select branch no longer breaks parsing or loses characters.
+  - `{` and `}` are syntax characters everywhere; `#` counts as one only inside plural/selectordinal sub-messages (including select sub-messages nested in them), exactly like ICU4J. At the top level and in standalone selects `'#'` stays two literal characters.
+  - `''` still collapses to a literal apostrophe, and `'{...}'` still escapes ICU syntax.
+  - Plural/select branches that contain apostrophes but no `{`/`<` are now routed through the parser too, so `''` inside a flat branch renders as `'` instead of leaking the doubled apostrophe.
+  - Fixed a template-cache bug where a message whose parsed output differs from its source (quoting, `&lt;`, `\<`) was flagged static after the first render and returned raw (with quoting artifacts) on every subsequent `t()` call.
+  - Context-sensitive template and plural-choice caches now namespace both parser modes, preventing control-character-prefixed source text from colliding with internal cache markers.
+
+  Behavior change: previously `o' clock` rendered as `o clock` (the bare apostrophe opened a quoted section). It now renders as `o' clock`. Messages relying on single-quote hiding of arbitrary text must either double the apostrophes or quote ICU syntax characters directly.
+
+- aaea018: Instance-level `defaultParams`:
+  - `createI18n({ defaultParams: { formality: "formal" } })` merges the given params under every `t()`/`tRaw()` call; call-level params override defaults key by key (shallow merge).
+  - `defaultParams` contains non-nullish interpolation values only. Per-call controls (`locale`, `ns`, `fallback`, `raw`) and `null`/`undefined` values are rejected in types and at runtime.
+  - `setDefaultParams(...)` replaces the defaults at runtime and emits `configChanged` (source: `"defaultParams"`), so framework bindings re-render automatically. Defaults guaranteed by the constructor cannot later be removed or changed outside the generated message schema; instances created without defaults may still set or clear dynamic defaults. Explicitly optional default properties are rejected because they cannot represent constructor guarantees.
+  - Params objects are copied shallowly on write and read: top-level additions/reassignments do not mutate instance state, while nested arrays, VNodes, callbacks, and props retain identity and should be treated as immutable.
+  - Typed core/Vue instances make constructor-guaranteed, type-compatible message params optional at call sites. Framework hooks remain conservative by default and accept an explicit defaults type when the provider scope guarantees it.
+  - An ICU `select` whose param is missing still falls back to its `other` branch, which keeps missing-default setups rendering the informal/default text instead of breaking.
+
+  All framework facades expose the same `defaultParams` / `setDefaultParams` names with idiomatic reactivity: Vue/Nuxt `ComputedRef`, React render snapshot, Solid accessor, and Svelte readable store. Typed translation calls carry the explicit defaults type in every binding, including Svelte stores. `createNextI18n()` and Nuxt client/request instances now forward constructor defaults.
+
+### Patch Changes
+
+- a5c80b8: State and input hardening:
+  - `addTranslations` / the `translation` option no longer mutate the caller's object (`Object.setPrototypeOf` removed); flat catalogs are shallow-copied.
+  - Non-string catalog leaves no longer crash `t()`: arrays/numbers are coerced with `String()` (dev warning), `null`/`undefined` leaves are dropped.
+  - `isInitializing` stays `true` for the whole `init()`, even when a locale detector triggers a locale change mid-init.
+  - Reverting to the current locale while another locale change is in flight now cancels that change (last request wins).
+  - `clearTranslations()` / `reloadTranslations()` cancel matching in-flight namespace loads, so stale responses can't repopulate a cleared cache and reload always fetches fresh data.
+  - Per-call `fallback` now skips the instance-level `onMissingKey` option (registered callbacks still fire).
+
+- 6463199: Fix `#` binding in nested plurals.
+
+  When a plural was nested inside another plural's option, the inner `#` octothorpe
+  was substituted with the **outer** plural's count instead of its own. For example
+  `{files, plural, other {# files in {folders, plural, other {# folders}}}}` with
+  `{ files: 3, folders: 5 }` rendered `3 files in 3 folders` instead of `3 files in 5 folders`.
+
+  The cause was a greedy `#` replacement that ran across the whole selected branch
+  (including nested `{...}` blocks) before recursing into them. Replacement is now
+  scoped to the current plural level: `#` inside nested blocks and quoted literals is
+  left untouched, so each plural binds `#` to its nearest enclosing count, per the ICU
+  MessageFormat spec.
+
 ## 0.3.0
 
 ### Minor Changes

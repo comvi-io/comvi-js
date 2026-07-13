@@ -1,5 +1,26 @@
 # @comvi/plugin-fetch-loader
 
+## 0.4.0
+
+### Minor Changes
+
+- 01b40e9: Add explicit CDN namespace layout control:
+  - Existing setups remain unchanged: when `cdnLayout` is omitted, the consumer's `defaultNs` is fetched from the CDN root (`{cdnUrl}/{lang}.json`).
+  - Set `cdnLayout.rootNamespace` when the namespace stored at the CDN root differs from the consumer's `defaultNs`.
+  - Set `cdnLayout.rootNamespace: false` when every namespace lives in its own folder (`{cdnUrl}/{ns}/{lang}.json`).
+  - `buildCdnUrl` accepts the layout as an optional fifth argument, and locale/namespace validation now rejects dot-only path segments.
+
+### Patch Changes
+
+- 60ee056: Harden fetch-loader request lifecycle and response diagnostics:
+  - plugin cleanup aborts in-flight API and CDN requests without running fallbacks or load callbacks; locale changes do not cancel explicit preload requests
+  - SSR cache options now propagate through the API translations, project-info, export, and legacy-export paths
+  - malformed JSON errors identify the exact response URL, including legacy fallbacks
+  - successful API responses must contain a valid `namespaces` object instead of silently becoming an empty translation store
+  - `fetchApiTranslations` and `fetchProjectInfo` accept additive request options after the existing custom transport and cache-scope arguments
+
+- 8c4ed91: Pin the `@comvi/core` peer range to the minor line each release ships with (`^0.3.0` for 0.3.x, auto-synced to `^0.4.0` at the next release by `scripts/sync-peer-ranges.mjs`). Prevents the out-of-range escalation that turned the whole fixed group into a major bump at version time.
+
 ## 0.3.0
 
 ### Minor Changes
