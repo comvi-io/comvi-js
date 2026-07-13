@@ -175,12 +175,15 @@ export class VueI18n<D extends DefaultTranslationParams = {}> {
     this.setFallbackLocale = core.setFallbackLocale.bind(core);
     this.setDefaultParams = core.setDefaultParams.bind(core);
     this.reportError = core.reportError.bind(core);
-    this.formatNumber = (value, options, locale) => formatNumber(core, value, options, locale);
-    this.formatDate = (value, options, locale) => formatDate(core, value, options, locale);
+    // Default to the reactive locale ref so template usages re-render on locale change
+    this.formatNumber = (value, options, locale) =>
+      formatNumber(core, value, options, locale ?? this._locale.value);
+    this.formatDate = (value, options, locale) =>
+      formatDate(core, value, options, locale ?? this._locale.value);
     this.formatCurrency = (value, currency, options, locale) =>
-      formatCurrency(core, value, currency, options, locale);
+      formatCurrency(core, value, currency, options, locale ?? this._locale.value);
     this.formatRelativeTime = (value, unit, options, locale) =>
-      formatRelativeTime(core, value, unit, options, locale);
+      formatRelativeTime(core, value, unit, options, locale ?? this._locale.value);
     this.registerLocaleDetector = core.registerLocaleDetector.bind(core);
 
     // Bind own methods for destructuring support
