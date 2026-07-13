@@ -28,6 +28,21 @@ export interface ProjectInfo {
 }
 
 /**
+ * Controls how namespaces map to CDN paths.
+ */
+export interface CdnLayoutOptions {
+  /**
+   * Namespace stored directly at `{cdnUrl}/{locale}.json`.
+   *
+   * When omitted, the i18n instance's `defaultNs` is used for backward
+   * compatibility. Set a namespace explicitly when the CDN root namespace
+   * differs from the consumer's `defaultNs`, or set `false` when every
+   * namespace is stored under its own folder.
+   */
+  rootNamespace?: string | false;
+}
+
+/**
  * Options for FetchLoader plugin
  */
 export interface FetchLoaderOptions {
@@ -35,8 +50,8 @@ export interface FetchLoaderOptions {
    * Full CDN URL for production mode requests.
    * This is the base URL where translations are hosted.
    *
-   * URL patterns:
-   * - Default namespace: {cdnUrl}/{lang}.json
+   * URL patterns are controlled by `cdnLayout`:
+   * - Root namespace: {cdnUrl}/{lang}.json
    * - Other namespaces: {cdnUrl}/{namespace}/{lang}.json
    *
    * @example
@@ -99,6 +114,14 @@ export interface FetchLoaderOptions {
    * The registered loader will be called automatically when locale changes.
    */
   loadOnInit?: boolean;
+
+  /**
+   * CDN namespace-to-path mapping. This affects CDN mode only; API mode
+   * always requests namespaces explicitly.
+   *
+   * @default { rootNamespace: i18n.defaultNs }
+   */
+  cdnLayout?: CdnLayoutOptions;
 
   /**
    * Cache options for SSR frameworks (Next.js, Nuxt, etc.)
@@ -271,9 +294,9 @@ const toError = (e: unknown): Error => (e instanceof Error ? e : new Error(Strin
 const VALID_ID = /^[\w\-@.]+$/;
 
 function validateId(value: string, label: string): void {
-  if (!value || !VALID_ID.test(value))
+  if (!value || value === "." || value === ".." || !VALID_ID.test(value))
     throw new Error(
-      `[FetchLoader] Invalid ${label}: "${value}". Only alphanumeric, underscore, hyphen, dot, and @ characters are allowed.`,
+      `[FetchLoader] Invalid ${label}: "${value}". Only alphanumeric, underscore, hyphen, dot, and @ characters are allowed; dot-only path segments are rejected.`,
     );
 }
 
@@ -496,7 +519,7 @@ function buildLegacyApiExportUrl(
 
 /**
  * Build CDN URL for production mode
- * - Default namespace: {cdnUrl}/{locale}.json
+ * - Root namespace: {cdnUrl}/{locale}.json
  * - Other namespaces: {cdnUrl}/{ns}/{locale}.json
  */
 export function buildCdnUrl(
@@ -504,11 +527,16 @@ export function buildCdnUrl(
   locale: string,
   namespace: string,
   defaultNs: string,
+  layout: CdnLayoutOptions = {},
 ): string {
   validateId(locale, "locale");
   validateId(namespace, "namespace");
+  const rootNamespace = layout.rootNamespace === undefined ? defaultNs : layout.rootNamespace;
+  if (rootNamespace !== false) validateId(rootNamespace, "CDN root namespace");
   const base = stripSlash(cdnUrl);
-  return namespace === defaultNs ? `${base}/${locale}.json` : `${base}/${namespace}/${locale}.json`;
+  return rootNamespace !== false && namespace === rootNamespace
+    ? `${base}/${locale}.json`
+    : `${base}/${namespace}/${locale}.json`;
 }
 
 /**
@@ -668,6 +696,7 @@ export const FetchLoader: I18nPluginFactory<FetchLoaderOptions> = (options): I18
     onLoadSuccess,
     timeout = 10000,
     loadOnInit = true,
+    cdnLayout,
     cache,
   } = options;
 
@@ -846,7 +875,7 @@ export const FetchLoader: I18nPluginFactory<FetchLoaderOptions> = (options): I18
 
         const promise = (async () => {
           const { signal, release } = trackRequest();
-          const url = buildCdnUrl(cdnUrl, locale, namespace, defaultNs);
+          const url = buildCdnUrl(cdnUrl, locale, namespace, defaultNs, cdnLayout);
           try {
             const r = await fetchWithTimeout(
               url,

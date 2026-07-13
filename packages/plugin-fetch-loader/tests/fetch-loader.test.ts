@@ -37,6 +37,47 @@ describe("FetchLoader Plugin", () => {
     });
   });
 
+  describe("CDN URL layout", () => {
+    it("maps the default namespace to the root by default", () => {
+      expect(buildCdnUrl(TEST_CDN_URL, "de", "forest", "forest")).toBe(`${TEST_CDN_URL}/de.json`);
+      expect(buildCdnUrl(TEST_CDN_URL, "de", "badge", "forest")).toBe(
+        `${TEST_CDN_URL}/badge/de.json`,
+      );
+    });
+
+    it("keeps every namespace in a folder when the root namespace is disabled", () => {
+      expect(buildCdnUrl(TEST_CDN_URL, "de", "forest", "forest", { rootNamespace: false })).toBe(
+        `${TEST_CDN_URL}/forest/de.json`,
+      );
+      expect(buildCdnUrl(TEST_CDN_URL, "de", "badge", "forest", { rootNamespace: false })).toBe(
+        `${TEST_CDN_URL}/badge/de.json`,
+      );
+    });
+
+    it("maps a CDN root namespace independently from the consumer default", () => {
+      expect(
+        buildCdnUrl(TEST_CDN_URL, "de", "forest", "forest", { rootNamespace: "default" }),
+      ).toBe(`${TEST_CDN_URL}/forest/de.json`);
+      expect(
+        buildCdnUrl(TEST_CDN_URL, "de", "default", "forest", { rootNamespace: "default" }),
+      ).toBe(`${TEST_CDN_URL}/de.json`);
+    });
+
+    it("loads the consumer default from its folder when the CDN root differs", async () => {
+      const i18n = new I18n({ locale: "de", defaultNs: "forest", devMode: false });
+      mockCdnSuccessResponse("de", "forest", { greeting: "Hallo" });
+
+      const plugin = FetchLoader({
+        cdnUrl: TEST_CDN_URL,
+        loadOnInit: true,
+        cdnLayout: { rootNamespace: "default" },
+      });
+      await plugin(i18n);
+
+      expect(i18n.t("greeting")).toBe("Hallo");
+    });
+  });
+
   describe("Input validation", () => {
     it("should reject locale with path traversal characters", () => {
       expect(() => buildCdnUrl(TEST_CDN_URL, "../etc", "default", "default")).toThrow(
@@ -49,6 +90,27 @@ describe("FetchLoader Plugin", () => {
         '[FetchLoader] Invalid namespace: "../../secret"',
       );
     });
+
+    it.each([".", ".."])('should reject the locale dot-segment "%s"', (locale) => {
+      expect(() => buildCdnUrl(TEST_CDN_URL, locale, "default", "default")).toThrow(
+        `[FetchLoader] Invalid locale: "${locale}"`,
+      );
+    });
+
+    it.each([".", ".."])('should reject the namespace dot-segment "%s"', (namespace) => {
+      expect(() => buildCdnUrl(TEST_CDN_URL, "en", namespace, "default")).toThrow(
+        `[FetchLoader] Invalid namespace: "${namespace}"`,
+      );
+    });
+
+    it.each([".", ".."])(
+      'should reject the CDN root namespace dot-segment "%s"',
+      (rootNamespace) => {
+        expect(() =>
+          buildCdnUrl(TEST_CDN_URL, "en", "default", "default", { rootNamespace }),
+        ).toThrow(`[FetchLoader] Invalid CDN root namespace: "${rootNamespace}"`);
+      },
+    );
 
     it("should reject empty locale", () => {
       expect(() => buildCdnUrl(TEST_CDN_URL, "", "default", "default")).toThrow(

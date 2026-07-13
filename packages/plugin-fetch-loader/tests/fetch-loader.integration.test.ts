@@ -207,6 +207,35 @@ describe("FetchLoader Integration Tests", () => {
       expect(onLoadError).not.toHaveBeenCalled();
     });
 
+    it("preserves cleanup aborts when the consumer default is stored in a CDN folder", async () => {
+      const i18n = new I18n({ locale: "en", defaultNs: "forest", devMode: false });
+      const onLoadSuccess = vi.fn();
+      const onLoadError = vi.fn();
+
+      server.use(
+        http.get(`${TEST_CDN_URL}/forest/en.json`, async () => {
+          await delay(300);
+          return HttpResponse.json({ key: "Hello" });
+        }),
+      );
+
+      const plugin = FetchLoader({
+        cdnUrl: TEST_CDN_URL,
+        cdnLayout: { rootNamespace: "default" },
+        loadOnInit: false,
+        onLoadSuccess,
+        onLoadError,
+      });
+      const cleanup = await plugin(i18n);
+      const pendingLoad = i18n.getLoader()!("en", "forest");
+
+      (cleanup as () => void)();
+
+      await expect(pendingLoad).rejects.toThrow(/aborted/i);
+      expect(onLoadSuccess).not.toHaveBeenCalled();
+      expect(onLoadError).not.toHaveBeenCalled();
+    });
+
     it("does not resolve a fallback that finishes after plugin cleanup", async () => {
       const i18n = new I18n({ locale: "en", devMode: false });
       const onLoadSuccess = vi.fn();
@@ -270,6 +299,31 @@ describe("FetchLoader Integration Tests", () => {
         "en",
         "default",
         expect.objectContaining({ message: expect.stringContaining(TEST_CDN_URL) }),
+      );
+    });
+
+    it("reports the folder URL when the consumer default is not the CDN root", async () => {
+      const i18n = new I18n({ locale: "en", defaultNs: "forest", devMode: false });
+      server.use(
+        http.get(
+          `${TEST_CDN_URL}/forest/en.json`,
+          () =>
+            new HttpResponse("{not json", {
+              status: 200,
+              headers: { "Content-Type": "application/json" },
+            }),
+        ),
+      );
+
+      const plugin = FetchLoader({
+        cdnUrl: TEST_CDN_URL,
+        cdnLayout: { rootNamespace: "default" },
+        loadOnInit: false,
+      });
+      await plugin(i18n);
+
+      await expect(i18n.getLoader()!("en", "forest")).rejects.toThrow(
+        `Invalid JSON response from ${TEST_CDN_URL}/forest/en.json`,
       );
     });
   });
