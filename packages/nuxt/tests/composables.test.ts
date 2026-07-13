@@ -170,6 +170,13 @@ describe("useSwitchLocalePath", () => {
     resetMocks();
   });
 
+  const enableQueryParamDetection = () => {
+    mockRuntimeConfig.public.comvi.detectBrowserLanguage = {
+      ...mockRuntimeConfig.public.comvi.detectBrowserLanguage,
+      queryParam: "lang",
+    };
+  };
+
   it("keeps query/hash when switching locales", () => {
     setMockRoute({
       path: "/de/products",
@@ -188,6 +195,51 @@ describe("useSwitchLocalePath", () => {
     // In as-needed mode, the default locale "en" produces no prefix: "/about"
     const defaultLocalePath = switchLocalePath("en");
     expect(switchLocalePath("es")).toBe(defaultLocalePath);
+  });
+
+  it.each([
+    {
+      mode: "never" as const,
+      currentPath: "/my-forest?lang=de&sort=asc#list",
+      targetLocale: "uk",
+      expectedPath: "/my-forest?lang=uk&sort=asc#list",
+    },
+    {
+      mode: "as-needed" as const,
+      currentPath: "/de/products?lang=de&sort=asc#list",
+      targetLocale: "en",
+      expectedPath: "/products?lang=en&sort=asc#list",
+    },
+    {
+      mode: "always" as const,
+      currentPath: "/de/products?lang=de&sort=asc#list",
+      targetLocale: "uk",
+      expectedPath: "/uk/products?lang=uk&sort=asc#list",
+    },
+  ])(
+    "synchronizes the configured locale query when switching in $mode mode",
+    ({ mode, currentPath, targetLocale, expectedPath }) => {
+      enableQueryParamDetection();
+      mockRuntimeConfig.public.comvi.localePrefix = mode;
+      setMockRoute({ path: currentPath.split(/[?#]/)[0], fullPath: currentPath });
+
+      const switchLocalePath = useSwitchLocalePath();
+
+      expect(switchLocalePath(targetLocale)).toBe(expectedPath);
+    },
+  );
+
+  it("adds the configured locale query when the current URL does not contain it", () => {
+    enableQueryParamDetection();
+    mockRuntimeConfig.public.comvi.localePrefix = "never";
+    setMockRoute({
+      path: "/my-forest",
+      fullPath: "/my-forest?sort=asc#list",
+    });
+
+    const switchLocalePath = useSwitchLocalePath();
+
+    expect(switchLocalePath("uk")).toBe("/my-forest?sort=asc&lang=uk#list");
   });
 });
 

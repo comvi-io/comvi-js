@@ -62,6 +62,14 @@ export interface DetectBrowserLanguageOptions {
   domain?: string;
 
   /**
+   * Query parameter to read an explicit locale from (e.g. "lang" for ?lang=de).
+   * Checked after the URL path prefix and before the cookie, on both server and
+   * client navigation. Values outside `locales` are ignored. Disabled when unset.
+   * @example "lang"
+   */
+  queryParam?: string;
+
+  /**
    * Redirect to detected language on first visit
    * @default true
    */
