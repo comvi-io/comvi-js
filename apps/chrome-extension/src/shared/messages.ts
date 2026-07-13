@@ -17,10 +17,13 @@ export type MessageType =
   | "DEACTIVATE_EDITOR"
   | "EDITOR_ACTIVATED"
   | "EDITOR_DEACTIVATED"
+  | "DOCUMENT_READY"
   | "START_SESSION"
+  | "ROLLBACK_ACTIVATION"
   | "END_SESSION"
   | "FORGET_CREDENTIALS"
   | "GET_SESSION_STATUS"
+  | "SESSION_STATE_CHANGED"
   | "API_PROXY_REQUEST"
   | "API_PROXY_ABORT";
 
@@ -45,7 +48,6 @@ export interface StatusResponsePayload {
  */
 export interface ActivatePayload {
   apiBaseUrl: string;
-  collectContext: boolean;
   nonce?: string;
 }
 
@@ -54,7 +56,6 @@ export interface StartSessionPayload {
   tabId: number;
   origin: string;
   apiKey: string;
-  collectContext: boolean;
   /** Registered popup Port lease; pending authority dies with this popup. */
   popupLeaseId: string;
 }
@@ -70,6 +71,15 @@ export interface StartSessionResponse {
 export interface SessionStatusResponse {
   active: boolean;
   pending: boolean;
+  /** Cached detector state, used to render the popup without reinjection. */
+  comviDetected?: boolean;
+  version?: string;
+}
+
+/** service worker -> popup: authoritative lifecycle completion for one tab. */
+export interface SessionStateChangedPayload extends SessionStatusResponse {
+  tabId: number;
+  error?: string;
 }
 
 /** bridge -> service worker: proxied API request from the editor runtime. */
@@ -96,7 +106,7 @@ export interface EditorActivatedPayload {
   success: boolean;
   error?: string;
   instanceId?: string;
-  /** Untrusted effective SDK value; may only narrow the popup telemetry opt-in. */
+  /** Untrusted effective value derived by the editor from the site's i18n config. */
   collectContext?: boolean;
 }
 

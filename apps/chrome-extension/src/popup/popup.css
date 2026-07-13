@@ -139,3 +139,44 @@
     color: hsl(var(--primary-foreground));
   }
 }
+
+@keyframes comvi-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes comvi-view-enter {
+  from {
+    opacity: 0;
+    transform: translateY(2px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.comvi-view:not(.hidden) {
+  animation: comvi-view-enter 120ms ease-out;
+}
+
+.comvi-spinner {
+  width: 0.875rem;
+  height: 0.875rem;
+  flex: none;
+  border: 2px solid hsl(var(--border));
+  border-top-color: hsl(var(--primary));
+  border-radius: 9999px;
+  animation: comvi-spin 0.7s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .comvi-spinner {
+    animation-duration: 1.4s;
+  }
+
+  .comvi-view:not(.hidden) {
+    animation: none;
+  }
+}

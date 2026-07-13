@@ -67,23 +67,33 @@
       </header>
 
       <!-- Body -->
-      <section class="px-4 py-4">
+      <section class="min-h-[132px] px-4 py-4">
+        <!-- State: loading -->
+        <div
+          id="state-loading"
+          class="comvi-view hidden items-center gap-2 py-1 text-sm text-muted-foreground"
+        >
+          <span class="comvi-spinner" aria-hidden="true"></span>
+          <span>Checking this page…</span>
+        </div>
+
         <!-- State: not detected -->
-        <div id="state-not-detected" class="hidden">
+        <div id="state-not-detected" class="comvi-view hidden">
           <p class="text-sm text-muted-foreground">Comvi i18n not detected on this page.</p>
         </div>
 
         <!-- State: idle (detected, editor off) -->
-        <div id="state-idle" class="hidden flex-col gap-3">
+        <div id="state-idle" class="comvi-view hidden flex-col gap-3">
           <div class="flex flex-col gap-1.5">
             <div class="flex items-center justify-between">
               <label for="api-key" class="text-xs font-medium text-foreground"> API key </label>
               <button
                 id="forget-key-btn"
                 type="button"
+                title="Remove this key and revoke sessions on sites that use it"
                 class="hidden text-xs text-muted-foreground underline underline-offset-2 transition-colors hover:text-destructive"
               >
-                Forget key
+                Forget saved key
               </button>
             </div>
             <div class="relative">
@@ -136,10 +146,6 @@
               </button>
             </div>
           </div>
-          <label class="flex items-start gap-2 text-xs text-muted-foreground">
-            <input id="collect-context" type="checkbox" class="mt-0.5 h-3.5 w-3.5 accent-primary" />
-            <span>Send page context to improve translation suggestions</span>
-          </label>
           <button
             id="enable-btn"
             type="button"
@@ -148,16 +154,20 @@
             Enable editor
           </button>
           <p
-            id="error-msg"
-            class="hidden border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive"
-          ></p>
+            id="operation-status"
+            class="hidden items-center gap-2 text-xs text-muted-foreground"
+            aria-live="polite"
+          >
+            <span class="comvi-spinner" aria-hidden="true"></span>
+            <span id="operation-status-text"></span>
+          </p>
         </div>
 
         <!-- State: active -->
-        <div id="state-active" class="hidden flex-col gap-3">
-          <div class="flex items-center gap-2 border border-primary/30 bg-accent-soft px-3 py-2.5">
+        <div id="state-active" class="comvi-view hidden flex-col gap-3">
+          <div class="flex items-center gap-2 border border-success/30 bg-success/10 px-3 py-2.5">
             <svg
-              class="h-4 w-4 shrink-0 text-primary"
+              class="h-4 w-4 shrink-0 text-success"
               viewBox="0 0 24 24"
               fill="none"
               stroke="currentColor"
@@ -167,7 +177,7 @@
             >
               <path d="M20 6 9 17l-5-5" />
             </svg>
-            <span class="text-sm font-medium text-foreground"> Editor active </span>
+            <span class="text-sm font-medium text-foreground"> Editor active on this page </span>
           </div>
           <button
             id="disable-btn"
@@ -178,7 +188,7 @@
           </button>
           <p id="version-line" class="text-center font-mono text-[10px] text-muted-foreground"></p>
           <p class="text-center text-[10px] leading-snug text-muted-foreground/70">
-            Sends translation context to your Comvi project to improve suggestions.
+            Context collection follows your site's Comvi i18n configuration.
             <a
               href="https://comvi.io/docs/in-context-editor#context-collection"
               target="_blank"
@@ -188,6 +198,12 @@
             >
           </p>
         </div>
+
+        <p
+          id="error-msg"
+          class="mt-3 hidden border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive"
+          role="alert"
+        ></p>
       </section>
     </main>
 

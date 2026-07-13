@@ -2,7 +2,8 @@
  * Content script running in ISOLATED world
  *
  * Bridges communication between the page (MAIN world) and the extension
- * (background/popup). Injected on demand by the popup via chrome.scripting.
+ * (background/popup). Preloaded by the manifest and safely re-injectable by
+ * the popup when it needs an immediate status refresh.
  *
  * Trust model: every CustomEvent arriving here originates in the MAIN world
  * and can be forged by page scripts. All payloads are sanitized before being
@@ -24,6 +25,11 @@ declare global {
 // per page load (repeated executeScript calls share this isolated world).
 if (!window.__comviExtensionBridgeInstalled) {
   window.__comviExtensionBridgeInstalled = true;
+  chrome.runtime.sendMessage({ type: "DOCUMENT_READY" } satisfies Message, () => {
+    // A worker restart or extension update can briefly close the channel.
+    // The next privileged operation still revalidates document identity.
+    void chrome.runtime.lastError;
+  });
   installBridge();
 }
 
@@ -44,6 +50,34 @@ function installBridge() {
     const nonce = pendingActivationNonce;
     pendingActivationNonce = undefined;
     return nonce;
+  }
+
+  function dispatchProxyResponse(detail: unknown) {
+    window.dispatchEvent(
+      new CustomEvent("comvi-extension:api-response", { detail: JSON.stringify(detail) }),
+    );
+  }
+
+  function relayProxyRequest(request: {
+    id: string;
+    path: string;
+    method?: string;
+    body?: string;
+    keepalive: boolean;
+  }) {
+    chrome.runtime.sendMessage({ type: "API_PROXY_REQUEST", payload: request }, (response) => {
+      const detail = chrome.runtime.lastError
+        ? {
+            id: request.id,
+            ok: false,
+            status: 0,
+            statusText: "",
+            body: "",
+            networkError: chrome.runtime.lastError.message ?? "Extension unavailable",
+          }
+        : response;
+      dispatchProxyResponse(detail);
+    });
   }
 
   // Listen for status from detector (MAIN world)
@@ -79,8 +113,8 @@ function installBridge() {
     }
     chrome.runtime.sendMessage({
       type: "EDITOR_ACTIVATED",
-      // `collectContext` is page-authored and untrusted. The service worker
-      // may combine it only as: popupOptIn && detail.collectContext === true.
+      // `collectContext` is derived by the editor from the page's i18n config.
+      // The service worker uses the sanitized value to gate telemetry routes.
       payload: { ...detail, nonce: takeActivationNonce() },
     });
   }) as EventListener);
@@ -121,21 +155,7 @@ function installBridge() {
       keepalive: raw.keepalive === true,
     };
 
-    chrome.runtime.sendMessage({ type: "API_PROXY_REQUEST", payload: request }, (response) => {
-      const detail = chrome.runtime.lastError
-        ? {
-            id,
-            ok: false,
-            status: 0,
-            statusText: "",
-            body: "",
-            networkError: chrome.runtime.lastError.message ?? "Extension unavailable",
-          }
-        : response;
-      window.dispatchEvent(
-        new CustomEvent("comvi-extension:api-response", { detail: JSON.stringify(detail) }),
-      );
-    });
+    relayProxyRequest(request);
   }) as EventListener);
 
   // Relay page-side cancellation of an in-flight proxied request.
@@ -156,14 +176,12 @@ function installBridge() {
         break;
 
       case "ACTIVATE_EDITOR": {
-        // Non-secret payload only: base URL for path building + telemetry
-        // opt-in. The nonce is retained here and never dispatched into the
-        // page; credentials stay in the service worker.
+        // The nonce is retained here and never dispatched into the page;
+        // credentials stay in the service worker.
         const payload = (message.payload ?? {}) as Partial<ActivatePayload>;
         pendingActivationNonce = typeof payload.nonce === "string" ? payload.nonce : undefined;
         const pageDetail = {
           apiBaseUrl: typeof payload.apiBaseUrl === "string" ? payload.apiBaseUrl : "",
-          collectContext: payload.collectContext === true,
         };
         window.dispatchEvent(
           new CustomEvent("comvi-extension:activate", {
@@ -180,7 +198,10 @@ function installBridge() {
         break;
     }
 
-    return true; // Keep channel open for async response
+    // Every handled command responds synchronously. Returning false also
+    // prevents unrelated broadcasts from leaving a phantom response channel
+    // open in every tab.
+    return false;
   });
 
   // Request initial status
