@@ -25,7 +25,8 @@ export default defineConfig({
   },
   build: {
     emptyOutDir: !isWatch,
-    minify: !isWatch,
+    // npm ESM remains readable; the standalone CDN build owns minification.
+    minify: false,
     sourcemap: isWatch ? "inline" : false,
     lib: {
       entry: {

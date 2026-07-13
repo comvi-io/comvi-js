@@ -8,4 +8,13 @@
 export * from "./highlight";
 
 // API configuration
-export { initApiConfig, getApiConfig, isDemoMode, resetApiConfig, type ApiConfig } from "./api";
+export {
+  initApiConfig,
+  getApiConfig,
+  isDemoMode,
+  resetApiConfig,
+  type ApiConfig,
+  type ApiTransport,
+  type ApiTransportInit,
+  type InitApiConfigOptions,
+} from "./api";

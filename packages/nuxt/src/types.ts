@@ -62,6 +62,14 @@ export interface DetectBrowserLanguageOptions {
   domain?: string;
 
   /**
+   * Query parameter to read an explicit locale from (e.g. "lang" for ?lang=de).
+   * Checked after the URL path prefix and before the cookie, on both server and
+   * client navigation. Values outside `locales` are ignored. Disabled when unset.
+   * @example "lang"
+   */
+  queryParam?: string;
+
+  /**
    * Redirect to detected language on first visit
    * @default true
    */
@@ -150,6 +158,12 @@ export interface NuxtI18nOptions {
   fallbackLanguage?: string | string[];
 
   /**
+   * JSON-serializable interpolation defaults forwarded to client and request-scoped instances.
+   * Call controls (`locale`, `ns`, `fallback`, `raw`) must remain explicit per call.
+   */
+  defaultParams?: NuxtDefaultTranslationParams;
+
+  /**
    * Path to a setup file that runs before i18n.init().
    * Use it to register plugins via i18n.use(...).
    * If omitted, module auto-detects ./comvi.setup.* in project root.
@@ -171,6 +185,13 @@ export interface NuxtI18nOptions {
    */
   basicHtmlTags?: string[];
 }
+
+export type NuxtDefaultTranslationParams = Record<string, string | number | boolean> & {
+  locale?: never;
+  ns?: never;
+  fallback?: never;
+  raw?: never;
+};
 
 /**
  * Resolved routing configuration
@@ -202,6 +223,7 @@ export interface NuxtI18nRuntimeConfig {
     apiBaseUrl?: string;
     defaultNs: string;
     fallbackLocale: string | string[];
+    defaultParams?: NuxtDefaultTranslationParams;
     basicHtmlTags?: string[];
     detectBrowserLanguage: DetectBrowserLanguageOptions | false;
   };

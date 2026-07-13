@@ -20,6 +20,8 @@
 
 📖 **Documentation:** https://comvi.io/docs/i18n/nuxt/
 
+⚖️ **Comparison:** [Comvi vs nuxt-i18n](https://comvi.io/compare/nuxt-i18n/)
+
 ## Why Comvi i18n?
 
 Comvi i18n is a modern, framework-agnostic internationalization library built on three principles: type-safe translations, real ICU MessageFormat, and zero compromises on bundle size or security.

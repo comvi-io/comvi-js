@@ -1,0 +1,16 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "baseUrl": ".",
+    "composite": false,
+    "ignoreDeprecations": "6.0",
+    "noEmit": true,
+    "rootDir": "..",
+    "paths": {
+      "@comvi/core": ["../core/src/index.ts"],
+      "@comvi/svelte": ["./src/index.ts"]
+    }
+  },
+  "include": ["src/**/*.ts", "tests/types/**/*.test-d.ts"],
+  "exclude": []
+}

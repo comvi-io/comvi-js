@@ -92,6 +92,8 @@ For framework-specific setup, see the docs:
 [Svelte](https://comvi.io/docs/i18n/svelte/) ·
 [Vanilla](https://comvi.io/docs/i18n/vanilla/)
 
+Wondering how Comvi stacks up? Honest comparisons: [vs i18next](https://comvi.io/compare/i18next/) · [vs next-intl](https://comvi.io/compare/next-intl/) · [vs nuxt-i18n](https://comvi.io/compare/nuxt-i18n/) · [vs Lokalise](https://comvi.io/compare/lokalise/)
+
 Or jump straight into runnable code in [`test-apps/`](test-apps/) — one demo app per framework.
 
 ## Rich text without XSS

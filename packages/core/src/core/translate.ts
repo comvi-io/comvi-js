@@ -25,7 +25,12 @@ import {
   type TagToken,
   type CachedTemplate,
 } from "./translate/cache";
-import { parseTemplate, parsePluralChoices, clearPluralChoicesCache } from "./translate/parser";
+import {
+  parseTemplate,
+  parsePluralChoices,
+  clearPluralChoicesCache,
+  replaceTopLevelHash,
+} from "./translate/parser";
 
 declare const __DEV__: boolean | undefined;
 
@@ -76,14 +81,23 @@ export function clearTemplateCache(): void {
  * Returns undefined if not yet analyzed.
  */
 export function isStaticTemplate(template: string): boolean | undefined {
-  return templateCache.get(template)?.isStatic;
+  return templateCache.get(templateCacheKey(template, false))?.isStatic;
+}
+
+/**
+ * Cache key for a compiled template. Parsing depends on whether `#` is
+ * syntax (inside a plural/selectordinal sub-message), so the same string
+ * compiles differently per context and needs distinct cache entries.
+ */
+function templateCacheKey(template: string, hashIsSyntax: boolean): string {
+  return `${hashIsSyntax ? "\u0001" : "\u0000"}${template}`;
 }
 
 /**
  * Create cached template with optimization metadata.
  */
-function createCachedTemplate(template: string): CachedTemplate {
-  const tokens = parseTemplate(template);
+function createCachedTemplate(template: string, hashIsSyntax: boolean): CachedTemplate {
+  const tokens = parseTemplate(template, hashIsSyntax);
   let flags: TemplateFlags = TF_STATIC;
 
   if (!(tokens.length === 0 || (tokens.length === 1 && tokens[0][0] === TK_TEXT))) {
@@ -104,7 +118,7 @@ function createCachedTemplate(template: string): CachedTemplate {
         hasDynamic = true;
       } else if (kind === TK_SELECT) {
         if (token[3] === undefined) {
-          token[3] = parsePluralChoices(token[2]);
+          token[3] = parsePluralChoices(token[2], hashIsSyntax);
         }
         flags |= TF_HAS_SELECT;
         hasDynamic = true;
@@ -118,7 +132,14 @@ function createCachedTemplate(template: string): CachedTemplate {
     }
   }
 
-  const cached: CachedTemplate = { tokens, flags, isStatic: flags === TF_STATIC };
+  // isStatic gates fast paths that return the RAW template string, so it must
+  // mean "rendered output is byte-equal to the template". Quoting and escape
+  // sequences ('', '{...}', &lt;, \<) produce text-only tokens whose output
+  // differs from the raw template; those must keep rendering through tokens.
+  const isStatic =
+    flags === TF_STATIC &&
+    (tokens.length === 0 || (tokens.length === 1 && tokens[0][1] === template));
+  const cached: CachedTemplate = { tokens, flags, isStatic };
 
   // Pre-compute single param template parts for fast-path
   if (
@@ -164,7 +185,7 @@ export function translate(
   params?: TranslationParams,
   tagInterpolation?: TagInterpolationOptions,
 ): TranslationResult {
-  const cached = templateCache.get(template);
+  const cached = templateCache.get(templateCacheKey(template, false));
   if (cached) {
     // Already cached - use cached analysis
     if (cached.isStatic) {
@@ -188,7 +209,11 @@ export function translate(
     }
   }
   if (!hasSpecialChar) {
-    cacheTemplate(template, { tokens: [], flags: TF_STATIC, isStatic: true });
+    cacheTemplate(templateCacheKey(template, false), {
+      tokens: [],
+      flags: TF_STATIC,
+      isStatic: true,
+    });
     return template;
   }
 
@@ -204,6 +229,7 @@ function translateTemplateWithCache(
   params: TranslationParams,
   locale: string,
   tagInterpolation?: TagInterpolationOptions,
+  hashIsSyntax = false,
 ): TranslationResult {
   // Fast path for single-param templates: "Hello, {name}!" -> prefix + value + suffix
   if (cached.singleParamName !== undefined) {
@@ -231,7 +257,14 @@ function translateTemplateWithCache(
 
   // Full processing for complex templates
   const pluralRules = (cached.flags & TF_HAS_PLURAL) !== 0 ? getPluralRules(locale) : undefined;
-  const resultParts = processTokens(cached.tokens, params, locale, tagInterpolation, pluralRules);
+  const resultParts = processTokens(
+    cached.tokens,
+    params,
+    locale,
+    tagInterpolation,
+    pluralRules,
+    hashIsSyntax,
+  );
   return finalizeResult(resultParts);
 }
 
@@ -243,15 +276,17 @@ export function translateTemplate(
   params: TranslationParams,
   locale: string,
   tagInterpolation?: TagInterpolationOptions,
+  hashIsSyntax = false,
 ): TranslationResult {
   // Get or create cached template with metadata
-  let cached = templateCache.get(template);
+  const cacheKey = templateCacheKey(template, hashIsSyntax);
+  let cached = templateCache.get(cacheKey);
   if (!cached) {
-    cached = createCachedTemplate(template);
-    cacheTemplate(template, cached);
+    cached = createCachedTemplate(template, hashIsSyntax);
+    cacheTemplate(cacheKey, cached);
   }
 
-  return translateTemplateWithCache(cached, params, locale, tagInterpolation);
+  return translateTemplateWithCache(cached, params, locale, tagInterpolation, hashIsSyntax);
 }
 
 /**
@@ -346,9 +381,10 @@ function processDynamicSegment(
   segment: string,
   params: TranslationParams,
   locale: string,
-  tagInterpolation?: TagInterpolationOptions,
+  tagInterpolation: TagInterpolationOptions | undefined,
+  hashIsSyntax: boolean,
 ): Array<string | VirtualNode> {
-  const result = translateTemplate(segment, params, locale, tagInterpolation);
+  const result = translateTemplate(segment, params, locale, tagInterpolation, hashIsSyntax);
   return Array.isArray(result) ? result : [result];
 }
 
@@ -361,6 +397,7 @@ function processTokens(
   locale: string,
   tagInterpolation?: TagInterpolationOptions,
   pluralRules?: Intl.PluralRules,
+  hashIsSyntax = false,
 ): Array<string | VirtualNode> {
   const parts: Array<string | VirtualNode> = [];
   let lastIdx = parts.length - 1;
@@ -413,10 +450,11 @@ function processTokens(
     if (kind === TK_SELECT) {
       const selectResult = processSelect(
         token[1],
-        token[3] ?? parsePluralChoices(token[2]),
+        token[3] ?? parsePluralChoices(token[2], hashIsSyntax),
         params,
         locale,
         tagInterpolation,
+        hashIsSyntax,
       );
       appendResult(parts, selectResult);
       lastIdx = parts.length - 1;
@@ -424,7 +462,7 @@ function processTokens(
     }
 
     if (kind === TK_TAG) {
-      const tagResult = processTag(token, params, locale, tagInterpolation);
+      const tagResult = processTag(token, params, locale, tagInterpolation, hashIsSyntax);
       appendResult(parts, tagResult);
       lastIdx = parts.length - 1;
     }
@@ -490,19 +528,14 @@ function processPlural(
     selected = choices[category] ?? choices.other ?? "";
   }
 
-  const hashIdx = selected.indexOf("#");
-  if (hashIdx !== -1) {
-    const countStr = String(count);
-    const secondHash = selected.indexOf("#", hashIdx + 1);
-    if (secondHash === -1) {
-      selected = selected.slice(0, hashIdx) + countStr + selected.slice(hashIdx + 1);
-    } else {
-      selected = selected.split("#").join(countStr);
-    }
-  }
+  selected = replaceTopLevelHash(selected, String(count));
 
-  if (selected.indexOf("{") !== -1 || selected.indexOf("<") !== -1) {
-    const nestedResult = processDynamicSegment(selected, params, locale, tagInterpolation);
+  if (
+    selected.indexOf("{") !== -1 ||
+    selected.indexOf("<") !== -1 ||
+    selected.indexOf("'") !== -1
+  ) {
+    const nestedResult = processDynamicSegment(selected, params, locale, tagInterpolation, true);
     return finalizeResult(nestedResult);
   }
 
@@ -520,16 +553,23 @@ function processSelect(
   choices: Record<string, string>,
   params: TranslationParams,
   locale: string,
-  tagInterpolation?: TagInterpolationOptions,
+  tagInterpolation: TagInterpolationOptions | undefined,
+  hashIsSyntax: boolean,
 ): string | Array<string | VirtualNode> {
   const value = String(params[param] ?? "");
 
   // Direct match or fallback to 'other'
   const selected = choices[value] ?? choices.other ?? "";
 
-  // Process nested tokens if they exist (ICU params or tags)
-  if (selected.includes("{") || selected.includes("<")) {
-    const nestedResult = processDynamicSegment(selected, params, locale, tagInterpolation);
+  // Process nested tokens if they exist (ICU params, tags or quoting)
+  if (selected.includes("{") || selected.includes("<") || selected.includes("'")) {
+    const nestedResult = processDynamicSegment(
+      selected,
+      params,
+      locale,
+      tagInterpolation,
+      hashIsSyntax,
+    );
     return finalizeResult(nestedResult);
   }
 
@@ -548,13 +588,21 @@ function processTag(
   params: TranslationParams,
   locale: string,
   tagInterpolation?: TagInterpolationOptions,
+  hashIsSyntax = false,
 ): string | VirtualNode | Array<string | VirtualNode> {
   const tagName = token[1];
   const children = token[2];
   const isSelfClosing = token[3] === 1;
 
   // Process children first to get their result
-  const childrenResult = processTokens(children, params, locale, tagInterpolation);
+  const childrenResult = processTokens(
+    children,
+    params,
+    locale,
+    tagInterpolation,
+    undefined,
+    hashIsSyntax,
+  );
   const flattenedChildren = finalizeResult(childrenResult);
 
   // Check for tag handler in params

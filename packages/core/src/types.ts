@@ -56,7 +56,9 @@ export type I18nEventData = {
   missingKey: { key: string; locale: string; namespace: string };
   loadError: { locale: string; namespace: string; error: Error };
   /** Fired when runtime config changes: fallback locales, added translations, or activated namespaces */
-  configChanged: { source: "fallbackLocale" | "translationsAdded" | "namespaceActivated" };
+  configChanged: {
+    source: "fallbackLocale" | "translationsAdded" | "namespaceActivated" | "defaultParams";
+  };
 };
 
 /**
@@ -131,22 +133,132 @@ export type NamespacedKeyParams<
   K extends string,
 > = `${NS}:${K}` extends keyof TranslationKeys ? TranslationKeys[`${NS}:${K}`] : never;
 
+export type TranslationParamValue =
+  | TranslationResult
+  | number
+  | boolean
+  | VirtualNode
+  | TagCallback
+  | null
+  | undefined;
+
+/** Non-nullish interpolation values that can act as instance-level defaults. */
+export type DefaultTranslationParamValue = Exclude<TranslationParamValue, null | undefined>;
+
+/**
+ * Interpolation values merged under every translation call.
+ * Routing and call-control options are intentionally excluded.
+ */
+export type DefaultTranslationParams = Record<string, DefaultTranslationParamValue> & {
+  ns?: never;
+  locale?: never;
+  fallback?: never;
+  raw?: never;
+};
+
+/** @internal Required own properties represent constructor-level guarantees. */
+type RequiredKeys<T> = {
+  [K in keyof T]-?: {} extends Pick<T, K> ? never : K;
+}[keyof T];
+
+/** @internal Optional defaults cannot represent constructor guarantees. */
+type OptionalKeys<T> = Exclude<keyof T, RequiredKeys<T>>;
+
+/** @internal Union of generated parameter objects, excluding parameterless messages. */
+type TranslationParamSchemas = {
+  [K in keyof TranslationKeys]: [TranslationKeys[K]] extends [never] ? never : TranslationKeys[K];
+}[keyof TranslationKeys];
+
+/** @internal Generated value types compatible with a constructor default. */
+type CompatibleSchemaValueUnion<K extends keyof D, D> = TranslationParamSchemas extends infer P
+  ? P extends unknown
+    ? K extends keyof P
+      ? D[K] extends P[K]
+        ? P[K]
+        : never
+      : never
+    : never
+  : never;
+
+/** @internal Intersection across compatible schemas, preserving unions inside each schema. */
+type CompatibleSchemaValueIntersection<K extends keyof D, D> = (
+  TranslationParamSchemas extends infer P
+    ? P extends unknown
+      ? K extends keyof P
+        ? D[K] extends P[K]
+          ? (value: P[K]) => void
+          : never
+        : never
+      : never
+    : never
+) extends (value: infer V) => void
+  ? V
+  : never;
+
+/** @internal Primitive widening for defaults absent from generated schemas. */
+type WidenDefaultValue<V> = V extends string
+  ? string
+  : V extends number
+    ? number
+    : V extends boolean
+      ? boolean
+      : V;
+
+/** @internal Safe runtime replacement domain for a guaranteed default key. */
+type ReplacementDefaultValue<K extends keyof D, D> = [CompatibleSchemaValueUnion<K, D>] extends [
+  never,
+]
+  ? WidenDefaultValue<D[K]>
+  : CompatibleSchemaValueIntersection<K, D>;
+
+/** @internal Required constructor defaults and schema-compatible replacement types. */
+type GuaranteedDefaults<D> = {
+  -readonly [K in RequiredKeys<D>]-?: ReplacementDefaultValue<K, D>;
+};
+
+/** @internal Constructor-guaranteed default keys that are compatible with a message schema. */
+type CompatibleDefaultKeys<P, D> = {
+  [K in keyof P]-?: K extends RequiredKeys<D>
+    ? K extends keyof D
+      ? D[K] extends P[K]
+        ? K
+        : never
+      : never
+    : never;
+}[keyof P];
+
+/** @internal Parameters that still have to be provided by the call site. */
+type MissingParams<P, D> = Omit<P, CompatibleDefaultKeys<P, D>>;
+
+/** @internal Full call params, with constructor-guaranteed values available as overrides. */
+type CallParams<P, D> = MissingParams<P, D> &
+  Partial<Pick<P, CompatibleDefaultKeys<P, D>>> &
+  TranslationParams;
+
 /**
  * Helper type for conditional parameter validation
  * - If key requires params, params are required and typed
  * - If key has no params (never), params are optional
  */
-export type ParamsArg<K extends keyof TranslationKeys> = TranslationKeys[K] extends never
+export type ParamsArg<K extends keyof TranslationKeys, D extends DefaultTranslationParams = {}> = [
+  TranslationKeys[K],
+] extends [never]
   ? [params?: TranslationParams]
-  : [params: TranslationKeys[K] & TranslationParams];
+  : {} extends MissingParams<TranslationKeys[K], D>
+    ? [params?: CallParams<TranslationKeys[K], D>]
+    : [params: CallParams<TranslationKeys[K], D>];
 
 /**
  * Helper type for namespaced key parameter validation
  */
-export type NamespacedParamsArg<NS extends string, K extends string> =
+export type NamespacedParamsArg<
+  NS extends string,
+  K extends string,
+  D extends DefaultTranslationParams = {},
+> =
   NamespacedKeyParams<NS, K> extends never
     ? [params: { ns: NS } & TranslationParams]
-    : [params: { ns: NS } & NamespacedKeyParams<NS, K> & TranslationParams];
+    : [params: { ns: NS } & CallParams<NamespacedKeyParams<NS, K>, D>];
 
 /**
  * Tag callback params passed to tag handlers
@@ -170,15 +282,22 @@ export interface TranslationParams {
   fallback?: string;
   /** When true, post-processors that support it (e.g., IncontextEditor) will skip their processing for this call */
   raw?: boolean;
-  [key: string]:
-    | TranslationResult
-    | number
-    | boolean
-    | VirtualNode
-    | TagCallback
-    | null
-    | undefined;
+  [key: string]: TranslationParamValue;
 }
+
+/** Runtime replacement accepted by an instance with constructor-guaranteed defaults. */
+export type SetDefaultParamsArg<D extends DefaultTranslationParams = {}> = keyof D extends never
+  ? DefaultTranslationParams | undefined
+  : [keyof GuaranteedDefaults<D>] extends [never]
+    ? DefaultTranslationParams | undefined
+    : DefaultTranslationParams & GuaranteedDefaults<D>;
+
+/** Shallow snapshot returned for an instance's current defaults. */
+export type DefaultParamsSnapshot<D extends DefaultTranslationParams = {}> = keyof D extends never
+  ? Readonly<DefaultTranslationParams> | undefined
+  : [keyof GuaranteedDefaults<D>] extends [never]
+    ? Readonly<DefaultTranslationParams> | undefined
+    : Readonly<DefaultTranslationParams & GuaranteedDefaults<D>>;
 
 export type PostProcessFn = (
   result: TranslationResult,
@@ -219,7 +338,7 @@ export interface TagInterpolationOptions {
   onTagWarning?: (tagName: string) => void;
 }
 
-export interface I18nOptions {
+export interface I18nBaseOptions {
   locale: string;
   defaultNs?: string;
   /**
@@ -242,6 +361,18 @@ export interface I18nOptions {
    * Plugins can access this via i18n.apiKey to authenticate with backend services.
    */
   apiKey?: string;
+  /**
+   * Whether the in-context editor may collect anonymous translation context
+   * (translation keys, on-screen layout hints, screen groups) and send it to
+   * the project's own Comvi backend to improve translation suggestions.
+   *
+   * Collection is ON by default — the in-context editor (including the Chrome
+   * extension) exists primarily to gather this context. Set to `false` here,
+   * in your app's i18n setup, to opt out; it is the single developer-level
+   * control and is honored even when the editor is enabled via the extension.
+   * @default true
+   */
+  collectContext?: boolean;
   /**
    * Expose this instance on window.__COMVI__ for browser extensions.
    * Extensions like Comvi In-Context Editor can detect and interact with the instance.
@@ -281,6 +412,19 @@ export interface I18nOptions {
    */
   onError?: (error: Error, context?: ErrorReportContext) => void;
 }
+
+/**
+ * Core instance options. Constructor defaults are interpolation values only;
+ * call-level routing controls (`locale`, `ns`, `fallback`, `raw`) stay explicit.
+ */
+export type I18nOptions<D extends DefaultTranslationParams = {}> = I18nBaseOptions &
+  (keyof D extends never
+    ? { defaultParams?: D }
+    : string extends keyof D
+      ? { defaultParams: D }
+      : [OptionalKeys<D>] extends [never]
+        ? { defaultParams: D }
+        : never);
 
 /**
  * Context for error reporting - helps identify error source
@@ -424,7 +568,7 @@ export type TranslationResult = string | Array<string | VirtualNode>;
  * It provides access to the current locale, translation cache, and methods for checking locale existence,
  * adding translations, and translating keys.
  */
-export interface I18nInstance {
+export interface I18nInstance<D extends DefaultTranslationParams = {}> {
   /**
    * The current locale
    * @returns The current locale (getter)
@@ -438,6 +582,13 @@ export interface I18nInstance {
    * Plugins can use this to authenticate with backend services.
    */
   get apiKey(): string | undefined;
+
+  /**
+   * Context-collection preference (see I18nOptions.collectContext).
+   * `false` means the site opted out; `undefined` means the default (on).
+   * The in-context editor reads this to decide whether to collect context.
+   */
+  get collectContext(): boolean | undefined;
 
   /**
    * Development mode flag.
@@ -514,7 +665,7 @@ export interface I18nInstance {
    */
   t<NS extends Namespaces, K extends NamespacedKeys<NS>>(
     key: K,
-    ...params: NamespacedParamsArg<NS, K>
+    ...params: NamespacedParamsArg<NS, K, D>
   ): string;
 
   /**
@@ -522,7 +673,7 @@ export interface I18nInstance {
    */
   tRaw<NS extends Namespaces, K extends NamespacedKeys<NS>>(
     key: K,
-    ...params: NamespacedParamsArg<NS, K>
+    ...params: NamespacedParamsArg<NS, K, D>
   ): TranslationResult;
 
   /**
@@ -542,12 +693,12 @@ export interface I18nInstance {
    * t(`errors.${code}` as keyof TranslationKeys);
    * ```
    */
-  t<K extends DefaultNsKeys>(key: K, ...params: ParamsArg<K>): string;
+  t<K extends DefaultNsKeys>(key: K, ...params: ParamsArg<K, D>): string;
 
   /**
    * Raw structured translation result for the current locale
    */
-  tRaw<K extends DefaultNsKeys>(key: K, ...params: ParamsArg<K>): TranslationResult;
+  tRaw<K extends DefaultNsKeys>(key: K, ...params: ParamsArg<K, D>): TranslationResult;
 
   /**
    * Permissive overload - only active when TranslationKeys is empty
@@ -576,6 +727,18 @@ export interface I18nInstance {
 
   /** Update fallback locales at runtime */
   setFallbackLocale: (fallback: string | string[]) => void;
+
+  /**
+   * Replace the instance-level default translation params at runtime.
+   * Emits `configChanged` (source: "defaultParams") so framework bindings re-render.
+   */
+  setDefaultParams: (params: SetDefaultParamsArg<D>) => void;
+
+  /** Current defaults as a new shallow snapshot; nested values retain their identity. */
+  readonly defaultParams: DefaultParamsSnapshot<D>;
+
+  /** Monotonic revision for runtime configuration updates. */
+  readonly configRevision: number;
 
   /** Update default namespace at runtime */
   setDefaultNamespace: (namespace: string) => void;
@@ -622,59 +785,4 @@ export interface I18nInstance {
    * Use for custom error reporting in your app.
    */
   reportError: (error: unknown, context?: ErrorReportContext) => void;
-
-  /**
-   * Format a number. Uses the instance locale unless `locale` is passed.
-   * @param value - The number to format
-   * @param options - Intl.NumberFormat options
-   * @param locale - Optional per-call locale override (used by framework
-   *   bindings like `useFormatters()` to thread a tracked locale through).
-   */
-  formatNumber: (value: number, options?: Intl.NumberFormatOptions, locale?: string) => string;
-
-  /**
-   * Format a date using the current locale
-   * @param value - The date to format
-   * @param options - Intl.DateTimeFormat options
-   * @param locale - Optional locale override (see {@link formatNumber} for rationale).
-   */
-  formatDate: (
-    value: Date | number,
-    options?: Intl.DateTimeFormatOptions,
-    locale?: string,
-  ) => string;
-
-  /**
-   * Format a number as currency using the current locale
-   * @param value - The number to format
-   * @param currency - The ISO 4217 currency code (e.g., 'USD', 'EUR')
-   * @param options - Additional Intl.NumberFormat options
-   * @param locale - Optional locale override (see {@link formatNumber} for rationale).
-   */
-  formatCurrency: (
-    value: number,
-    currency: string,
-    options?: Intl.NumberFormatOptions,
-    locale?: string,
-  ) => string;
-
-  /**
-   * Format a relative time ("2 hours ago", "in 3 days") using the current locale
-   * @param value - The numeric value (negative for past, positive for future)
-   * @param unit - The time unit (e.g., 'day', 'hour', 'minute')
-   * @param options - Intl.RelativeTimeFormat options
-   * @param locale - Optional locale override (see {@link formatNumber} for rationale).
-   */
-  formatRelativeTime: (
-    value: number,
-    unit: Intl.RelativeTimeFormatUnit,
-    options?: Intl.RelativeTimeFormatOptions,
-    locale?: string,
-  ) => string;
-
-  /**
-   * Text direction for the current locale ("ltr" or "rtl").
-   * Use for HTML `dir` attribute or CSS logical properties.
-   */
-  readonly dir: "ltr" | "rtl";
 }

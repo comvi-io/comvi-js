@@ -1,5 +1,12 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { I18n } from "../../src";
+import {
+  I18n,
+  formatNumber,
+  formatDate,
+  formatCurrency,
+  formatRelativeTime,
+  getTextDirection,
+} from "../../src";
 
 describe("Advanced Formatting (Quoting & Escaping)", () => {
   let i18n: I18n;
@@ -27,6 +34,19 @@ describe("Advanced Formatting (Quoting & Escaping)", () => {
       expect(i18n.t("possession")).toBe("It's a beautiful day.");
     });
 
+    it("should render quoted templates identically on repeated calls", () => {
+      i18n.addTranslations({
+        en: {
+          literal: "Fully '{quoted}' message with no params.",
+        },
+      });
+
+      const first = i18n.t("literal");
+      const second = i18n.t("literal");
+      expect(first).toBe("Fully {quoted} message with no params.");
+      expect(second).toBe(first);
+    });
+
     it("should handle complex quoting in CJK text", () => {
       i18n.addTranslations({
         jp: {
@@ -38,7 +58,7 @@ describe("Advanced Formatting (Quoting & Escaping)", () => {
     });
   });
 
-  describe("Smart Apostrophes (Language Aware)", () => {
+  describe("Apostrophes (ICU DOUBLE_OPTIONAL)", () => {
     it("should treat apostrophes inside words as literal text (French)", () => {
       i18n.addTranslations({
         fr: {
@@ -68,33 +88,92 @@ describe("Advanced Formatting (Quoting & Escaping)", () => {
       expect(i18n.t("geresh")).toBe("ג'מוס");
     });
 
-    it("should require doubled apostrophe when apostrophe is not between word characters", () => {
+    it("should keep a bare apostrophe literal unless it precedes a syntax character", () => {
       i18n.addTranslations({
         en: {
           unescapedClock: "o' clock",
           escapedClock: "o'' clock",
+          possessive: "Superiors' behavior",
+          trailing: "l'",
         },
       });
 
-      expect(i18n.t("unescapedClock")).toBe("o clock");
+      expect(i18n.t("unescapedClock")).toBe("o' clock");
       expect(i18n.t("escapedClock")).toBe("o' clock");
+      expect(i18n.t("possessive")).toBe("Superiors' behavior");
+      expect(i18n.t("trailing")).toBe("l'");
+    });
+
+    it("should start quoted text only before {, } or #", () => {
+      i18n.addTranslations({
+        en: {
+          quotedParam: "This is '{not}' a param.",
+          quotedBrace: "brace '}' quoted",
+          quotedHash: "{count, plural, other {'#' of them: #}}",
+        },
+      });
+
+      expect(i18n.t("quotedParam", { not: "ignored" })).toBe("This is {not} a param.");
+      expect(i18n.t("quotedBrace")).toBe("brace } quoted");
+      expect(i18n.t("quotedHash", { count: 3 })).toBe("# of them: 3");
+    });
+
+    it("should treat # as syntax only inside plural sub-messages", () => {
+      i18n.addTranslations({
+        en: {
+          topLevel: "Price '#' {amount}",
+          topLevelUnterminated: "Price '# {amount}",
+          standaloneSelect: "{kind, select, other {Price '#' {amount}}}",
+          selectInPlural: "{count, plural, other {{kind, select, other {'#' means the count: #}}}}",
+          pluralUnterminated: "{count, plural, other {'# {amount} swallows the closing braces}}",
+        },
+      });
+
+      expect(i18n.t("topLevel", { amount: 5 })).toBe("Price '#' 5");
+      expect(i18n.t("topLevelUnterminated", { amount: 5 })).toBe("Price '# 5");
+      expect(i18n.t("standaloneSelect", { kind: "any", amount: 5 })).toBe("Price '#' 5");
+      expect(i18n.t("selectInPlural", { count: 3, kind: "any" })).toBe("# means the count: 3");
+      // An unterminated quote before # inside a plural swallows the argument's
+      // closing braces: the message is malformed ICU (FormatJS throws
+      // EXPECT_ARGUMENT_CLOSING_BRACE) and falls back to the raw source.
+      expect(i18n.t("pluralUnterminated", { count: 3, amount: 5 })).toBe(
+        "{count, plural, other {'# {amount} swallows the closing braces}}",
+      );
+    });
+
+    it("should keep apostrophes literal inside plural and select branches", () => {
+      i18n.addTranslations({
+        de: {
+          promo:
+            "{variant, select, five {Gib' eine Bewertung ab und {company} pflanzt einen Baum!} other {x}}",
+          flatBranch: "{g, select, other {Gib' acht}}",
+          doubled: "{count, plural, other {It''s # trees}}",
+        },
+      });
+      i18n.locale = "de";
+
+      expect(i18n.t("promo", { variant: "five", company: "ACME" })).toBe(
+        "Gib' eine Bewertung ab und ACME pflanzt einen Baum!",
+      );
+      expect(i18n.t("flatBranch", { g: "any" })).toBe("Gib' acht");
+      expect(i18n.t("doubled", { count: 3 })).toBe("It's 3 trees");
     });
   });
 
   describe("Intl Formatting", () => {
     it("formatNumber: should format a number using current locale", () => {
-      expect(i18n.formatNumber(1234.5)).toBe(new Intl.NumberFormat("en").format(1234.5));
+      expect(formatNumber(i18n, 1234.5)).toBe(new Intl.NumberFormat("en").format(1234.5));
     });
 
     it("formatNumber: should respect options", () => {
-      expect(i18n.formatNumber(0.75, { style: "percent" })).toBe(
+      expect(formatNumber(i18n, 0.75, { style: "percent" })).toBe(
         new Intl.NumberFormat("en", { style: "percent" }).format(0.75),
       );
     });
 
     it("formatDate: should format a date using current locale", () => {
       const date = new Date(2025, 0, 15);
-      expect(i18n.formatDate(date)).toBe(new Intl.DateTimeFormat("en").format(date));
+      expect(formatDate(i18n, date)).toBe(new Intl.DateTimeFormat("en").format(date));
     });
 
     it("formatDate: should respect options", () => {
@@ -104,41 +183,41 @@ describe("Advanced Formatting (Quoting & Escaping)", () => {
         month: "long",
         day: "numeric",
       };
-      expect(i18n.formatDate(date, opts)).toBe(new Intl.DateTimeFormat("en", opts).format(date));
+      expect(formatDate(i18n, date, opts)).toBe(new Intl.DateTimeFormat("en", opts).format(date));
     });
 
     it("formatCurrency: should format currency", () => {
-      expect(i18n.formatCurrency(99.99, "USD")).toBe(
+      expect(formatCurrency(i18n, 99.99, "USD")).toBe(
         new Intl.NumberFormat("en", { style: "currency", currency: "USD" }).format(99.99),
       );
     });
 
     it("formatCurrency: should respect locale for currency formatting", () => {
       const deI18n = new I18n({ locale: "de" });
-      expect(deI18n.formatCurrency(1234.5, "EUR")).toBe(
+      expect(formatCurrency(deI18n, 1234.5, "EUR")).toBe(
         new Intl.NumberFormat("de", { style: "currency", currency: "EUR" }).format(1234.5),
       );
     });
 
     it("should use locale after locale change", () => {
       i18n.locale = "de";
-      expect(i18n.formatNumber(1234.5)).toBe(new Intl.NumberFormat("de").format(1234.5));
+      expect(formatNumber(i18n, 1234.5)).toBe(new Intl.NumberFormat("de").format(1234.5));
     });
 
     it("formatRelativeTime: should format past time", () => {
-      expect(i18n.formatRelativeTime(-2, "hour")).toBe(
+      expect(formatRelativeTime(i18n, -2, "hour")).toBe(
         new Intl.RelativeTimeFormat("en").format(-2, "hour"),
       );
     });
 
     it("formatRelativeTime: should format future time", () => {
-      expect(i18n.formatRelativeTime(3, "day")).toBe(
+      expect(formatRelativeTime(i18n, 3, "day")).toBe(
         new Intl.RelativeTimeFormat("en").format(3, "day"),
       );
     });
 
     it("formatRelativeTime: should respect options", () => {
-      expect(i18n.formatRelativeTime(-1, "day", { numeric: "auto" })).toBe(
+      expect(formatRelativeTime(i18n, -1, "day", { numeric: "auto" })).toBe(
         new Intl.RelativeTimeFormat("en", { numeric: "auto" }).format(-1, "day"),
       );
     });
@@ -146,66 +225,66 @@ describe("Advanced Formatting (Quoting & Escaping)", () => {
 
   describe("Text direction", () => {
     it("returns 'ltr' for English", () => {
-      expect(new I18n({ locale: "en" }).dir).toBe("ltr");
+      expect(getTextDirection("en")).toBe("ltr");
     });
 
     it("returns 'rtl' for Arabic", () => {
-      expect(new I18n({ locale: "ar" }).dir).toBe("rtl");
+      expect(getTextDirection("ar")).toBe("rtl");
     });
 
     it("returns 'rtl' for Hebrew with region", () => {
-      expect(new I18n({ locale: "he-IL" }).dir).toBe("rtl");
+      expect(getTextDirection("he-IL")).toBe("rtl");
     });
 
     it("returns 'rtl' for Persian, Urdu", () => {
-      expect(new I18n({ locale: "fa" }).dir).toBe("rtl");
-      expect(new I18n({ locale: "ur" }).dir).toBe("rtl");
+      expect(getTextDirection("fa")).toBe("rtl");
+      expect(getTextDirection("ur")).toBe("rtl");
     });
 
     it("returns 'rtl' for Central Kurdish (Sorani)", () => {
-      expect(new I18n({ locale: "ckb" }).dir).toBe("rtl");
+      expect(getTextDirection("ckb")).toBe("rtl");
     });
 
     it("handles script subtags: Kurdish in Arabic script is rtl", () => {
-      expect(new I18n({ locale: "ku-Arab" }).dir).toBe("rtl");
+      expect(getTextDirection("ku-Arab")).toBe("rtl");
     });
 
     it("handles script subtags: Kurdish in Latin script is ltr", () => {
-      expect(new I18n({ locale: "ku-Latn" }).dir).toBe("ltr");
+      expect(getTextDirection("ku-Latn")).toBe("ltr");
     });
 
     it("handles script subtags: Uzbek in Arabic script is rtl", () => {
-      expect(new I18n({ locale: "uz-Arab" }).dir).toBe("rtl");
+      expect(getTextDirection("uz-Arab")).toBe("rtl");
     });
 
     it("handles script subtags: Uzbek in Latin script is ltr", () => {
-      expect(new I18n({ locale: "uz-Latn" }).dir).toBe("ltr");
+      expect(getTextDirection("uz-Latn")).toBe("ltr");
     });
 
     it("handles script subtags: Kashmiri in Devanagari is ltr", () => {
-      expect(new I18n({ locale: "ks-Deva" }).dir).toBe("ltr");
+      expect(getTextDirection("ks-Deva")).toBe("ltr");
     });
 
     it("handles script subtags: Sindhi in Devanagari is ltr", () => {
-      expect(new I18n({ locale: "sd-Deva" }).dir).toBe("ltr");
+      expect(getTextDirection("sd-Deva")).toBe("ltr");
     });
 
     it("handles script subtags: Arabic transliterated in Latin is ltr", () => {
-      expect(new I18n({ locale: "ar-Latn" }).dir).toBe("ltr");
+      expect(getTextDirection("ar-Latn")).toBe("ltr");
     });
 
     it("falls back to 'ltr' for invalid locales without throwing", () => {
-      expect(() => new I18n({ locale: "not-a-real-locale" }).dir).not.toThrow();
-      expect(new I18n({ locale: "xyz" }).dir).toBe("ltr");
+      expect(() => getTextDirection("not-a-real-locale")).not.toThrow();
+      expect(getTextDirection("xyz")).toBe("ltr");
     });
 
     it("updates when locale changes", () => {
       const instance = new I18n({ locale: "en" });
-      expect(instance.dir).toBe("ltr");
+      expect(getTextDirection(instance.locale)).toBe("ltr");
       instance.locale = "ar";
-      expect(instance.dir).toBe("rtl");
+      expect(getTextDirection(instance.locale)).toBe("rtl");
       instance.locale = "ku-Arab";
-      expect(instance.dir).toBe("rtl");
+      expect(getTextDirection(instance.locale)).toBe("rtl");
     });
   });
 

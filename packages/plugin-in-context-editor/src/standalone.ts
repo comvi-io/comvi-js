@@ -7,18 +7,51 @@
 
 import { InContextEditorPlugin, type EditorOptions } from "./index";
 import { Core } from "./Core";
-import { getApiConfig, initApiConfig, resetApiConfig } from "./config/api";
+import { getApiConfig, initApiConfig, resetApiConfig, type ApiTransport } from "./config/api";
+import { apiFetch } from "./services/apiClient";
 import { registerPostProcessorOnce } from "./postProcessor";
-import { fetchApiTranslations } from "@comvi/plugin-fetch-loader";
+import { fetchApiTranslations, clearProjectInfoCache } from "@comvi/plugin-fetch-loader";
 import type { I18n, TranslationValue } from "@comvi/core";
 
 /** Active Core instance for cleanup */
 let activeCore: Core | null = null;
-const EXTERNAL_CONFIG_EVENT = "comvi-in-context-editor:configure";
+let activeLifecycleCallback: ((detail: EditorLifecycleDetail) => void) | undefined;
+
+/** Public, credential-free lifecycle event emitted by the standalone runtime. */
+export const EDITOR_LIFECYCLE_EVENT = "comvi-in-context-editor:lifecycle";
+
+export interface EditorLifecycleDetail {
+  state: "activated" | "deactivated";
+  instanceId: string;
+}
+
+function notifyLifecycle(detail: EditorLifecycleDetail, callback = activeLifecycleCallback): void {
+  try {
+    callback?.(detail);
+  } catch (error) {
+    console.warn("[ComviInContextEditor] Lifecycle callback failed.", error);
+  }
+  window.dispatchEvent(new CustomEvent<EditorLifecycleDetail>(EDITOR_LIFECYCLE_EVENT, { detail }));
+}
 
 export interface ActivateOptions extends EditorOptions {
-  /** API key for authentication (required for standalone mode) */
+  /**
+   * API key for authentication (standalone mode). Ignored when `transport`
+   * is provided — in that case authentication happens outside the page and
+   * no key should ever be passed into the page context.
+   */
   apiKey?: string;
+  /**
+   * Proxy transport for API requests (Chrome extension mode). All API calls
+   * are delegated to this function; the extension service worker attaches
+   * credentials and enforces the target host.
+   */
+  transport?: ApiTransport;
+  /**
+   * Non-secret API base URL used only for building request paths in
+   * transport mode. The actual request target is decided by the transport.
+   */
+  apiBaseUrl?: string;
   /** Comvi instance ID to use (optional, uses first instance if not specified) */
   instanceId?: string;
   /**
@@ -26,6 +59,12 @@ export interface ActivateOptions extends EditorOptions {
    * Enabled by default for standalone/extension activation.
    */
   refreshTranslations?: boolean;
+  /**
+   * Observe standalone lifecycle changes without receiving API configuration
+   * or credentials. Consumers must treat MAIN-world events as untrusted; a
+   * deactivation notification is suitable for fail-closed capability revoke.
+   */
+  onLifecycle?: (detail: EditorLifecycleDetail) => void;
 }
 
 export interface ActivateResult {
@@ -33,6 +72,29 @@ export interface ActivateResult {
   stop: () => void;
   /** The Core instance ID */
   instanceId: string;
+  /** Effective context collection after the site-level opt-out is applied. */
+  collectContext: boolean;
+}
+
+/**
+ * Adapt scoped apiFetch to the `typeof fetch` shape fetch-loader expects.
+ * Only the path + query of the built URL is forwarded — in transport mode
+ * the actual host is decided by the transport owner, never by page code.
+ */
+function createScopedFetch(scopeId: string): typeof fetch {
+  return async (input, init) => {
+    const target =
+      typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+    const url = new URL(target);
+    return apiFetch(scopeId, url.pathname + url.search, {
+      method: init?.method,
+      body: typeof init?.body === "string" ? init.body : undefined,
+      keepalive: init?.keepalive,
+      // Preserve caller cancellation (e.g. fetch-loader timeouts) so the
+      // transport can abort the underlying proxied request.
+      signal: init?.signal ?? undefined,
+    });
+  };
 }
 
 async function refreshTranslationsFromApi(
@@ -40,11 +102,12 @@ async function refreshTranslationsFromApi(
   apiKey: string | undefined,
   scopeId: string,
 ): Promise<void> {
-  if (!apiKey) {
+  const config = getApiConfig(scopeId);
+  if (!apiKey && !config.transport) {
     return;
   }
 
-  const apiBaseUrl = getApiConfig(scopeId).baseUrl;
+  const apiBaseUrl = config.baseUrl;
 
   const locales = i18n.getLoadedLocales();
   const namespaces = Array.from(
@@ -59,7 +122,19 @@ async function refreshTranslationsFromApi(
     const updates: Record<string, Record<string, TranslationValue>> = {};
     await Promise.all(
       locales.map(async (locale) => {
-        const store = await fetchApiTranslations(apiKey, locale, namespaces, apiBaseUrl);
+        const store = await fetchApiTranslations(
+          apiKey ?? "",
+          locale,
+          namespaces,
+          apiBaseUrl,
+          undefined,
+          config.transport ? createScopedFetch(scopeId) : undefined,
+          // In transport mode the apiKey is empty, so the default
+          // baseUrl+apiKey cache key would collide across different
+          // projects/transports. Scope cached project metadata to this
+          // editor instance instead.
+          config.transport ? scopeId : undefined,
+        );
         for (const [key, translations] of store) {
           updates[key] = translations as Record<string, TranslationValue>;
         }
@@ -146,26 +221,36 @@ export function activate(options: ActivateOptions): ActivateResult | null {
   // Register post-processor for invisible characters (idempotent per i18n instance)
   registerPostProcessorOnce(i18n);
 
+  // Context collection is ON by default. The site's i18n library option is the
+  // single developer-level opt-out and always wins: if the page created its
+  // instance with `collectContext: false`, honor it even when the editor is
+  // enabled via the extension (which otherwise defaults collection on).
+  // Otherwise fall back to any explicit caller value, else default on.
+  const collectContext = i18n.collectContext === false ? false : (options.collectContext ?? true);
+
   // Create and start Core
   activeCore = new Core(
     {
       targetElement: options.targetElement || document.body,
       tagAttributes: options.tagAttributes,
       debug: options.debug,
+      collectContext,
+      screenGroupResolver: options.screenGroupResolver,
     },
     i18n,
   );
   const instanceId = activeCore.getInstanceId();
 
-  // Initialize API configuration
-  const apiKey = (options.apiKey ?? options.apiKeyOverride ?? i18n.apiKey)?.trim();
+  // Initialize API configuration. In transport mode the key never enters
+  // the page context — authentication is attached by the transport owner.
+  const apiKey = options.transport
+    ? undefined
+    : (options.apiKey ?? options.apiKeyOverride ?? i18n.apiKey)?.trim();
   try {
-    initApiConfig(apiKey, instanceId);
-    window.dispatchEvent(
-      new CustomEvent(EXTERNAL_CONFIG_EVENT, {
-        detail: JSON.stringify({ apiKey }),
-      }),
-    );
+    initApiConfig(apiKey, instanceId, {
+      transport: options.transport,
+      baseUrl: options.apiBaseUrl,
+    });
   } catch (error) {
     activeCore.stop();
     activeCore = null;
@@ -173,6 +258,8 @@ export function activate(options: ActivateOptions): ActivateResult | null {
   }
 
   activeCore.start();
+  activeLifecycleCallback = options.onLifecycle;
+  notifyLifecycle({ state: "activated", instanceId });
   console.info(`[ComviInContextEditor] Activated (instance: ${instanceId})`);
 
   if (options.refreshTranslations !== false) {
@@ -185,26 +272,54 @@ export function activate(options: ActivateOptions): ActivateResult | null {
   }
 
   return {
-    stop: deactivate,
+    stop: () => deactivateInstance(instanceId),
     instanceId,
+    collectContext,
   };
+}
+
+function deactivateInstance(expectedInstanceId?: string): void {
+  if (!activeCore) {
+    if (expectedInstanceId === undefined) {
+      console.warn("[ComviInContextEditor] Not active.");
+    }
+    return;
+  }
+
+  const instanceId = activeCore.getInstanceId();
+  if (expectedInstanceId !== undefined && instanceId !== expectedInstanceId) {
+    return;
+  }
+
+  const core = activeCore;
+  const lifecycleCallback = activeLifecycleCallback;
+  activeCore = null;
+  activeLifecycleCallback = undefined;
+  let cleanupError: unknown;
+  try {
+    core.stop();
+  } catch (error) {
+    cleanupError = error;
+  }
+  try {
+    resetApiConfig(instanceId);
+  } catch (error) {
+    cleanupError ??= error;
+  }
+  clearProjectInfoCache(instanceId);
+  notifyLifecycle({ state: "deactivated", instanceId }, lifecycleCallback);
+
+  console.info("[ComviInContextEditor] Deactivated");
+  if (cleanupError !== undefined) {
+    throw cleanupError;
+  }
 }
 
 /**
  * Deactivate the in-context editor and clean up resources
  */
 export function deactivate(): void {
-  if (!activeCore) {
-    console.warn("[ComviInContextEditor] Not active.");
-    return;
-  }
-
-  const instanceId = activeCore.getInstanceId();
-  activeCore.stop();
-  resetApiConfig(instanceId);
-  activeCore = null;
-
-  console.info("[ComviInContextEditor] Deactivated");
+  deactivateInstance();
 }
 
 /**

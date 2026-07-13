@@ -29,6 +29,8 @@ function createI18nStub() {
     addTranslations: vi.fn(),
     addActiveNamespace: vi.fn(async () => undefined),
     setFallbackLocale: vi.fn(),
+    defaultParams: computed(() => ({ formality: "formal" })),
+    setDefaultParams: vi.fn(),
     onMissingKey: vi.fn(() => () => undefined),
     onLoadError: vi.fn(() => () => undefined),
     clearTranslations: vi.fn(),
@@ -125,6 +127,10 @@ describe("useI18n composable", () => {
     setMockI18n(i18n);
 
     const api = useI18n();
+
+    expect(api.defaultParams.value).toEqual({ formality: "formal" });
+    api.setDefaultParams({ formality: "informal" });
+    expect(i18n.setDefaultParams).toHaveBeenCalledWith({ formality: "informal" });
 
     // Call methods through the composable and verify they delegate to the i18n stub
     api.addTranslations({ "en:common": { greeting: "Hello" } });

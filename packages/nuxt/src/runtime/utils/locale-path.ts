@@ -61,6 +61,50 @@ export function splitPathAndSuffix(path: string): { pathname: string; suffix: st
 }
 
 /**
+ * Set one query parameter while preserving unrelated query segments and the hash.
+ * Duplicate occurrences of the target parameter are collapsed to one value.
+ */
+export function setQueryParamInSuffix(suffix: string, key: string, value: string): string {
+  const hashIndex = suffix.indexOf("#");
+  const hash = hashIndex >= 0 ? suffix.slice(hashIndex) : "";
+  const queryWithPrefix = hashIndex >= 0 ? suffix.slice(0, hashIndex) : suffix;
+  const rawQuery = queryWithPrefix.startsWith("?") ? queryWithPrefix.slice(1) : "";
+  const encodedKey = encodeURIComponent(key);
+  const encodedValue = encodeURIComponent(value);
+  const segments = rawQuery ? rawQuery.split("&") : [];
+  const updatedSegments: string[] = [];
+  let replaced = false;
+
+  for (const segment of segments) {
+    const separatorIndex = segment.indexOf("=");
+    const rawKey = separatorIndex >= 0 ? segment.slice(0, separatorIndex) : segment;
+    let decodedKey: string | undefined;
+
+    try {
+      decodedKey = decodeURIComponent(rawKey.replace(/\+/g, " "));
+    } catch {
+      // Preserve malformed unrelated query segments verbatim.
+    }
+
+    if (decodedKey === key) {
+      if (!replaced) {
+        updatedSegments.push(`${encodedKey}=${encodedValue}`);
+        replaced = true;
+      }
+      continue;
+    }
+
+    updatedSegments.push(segment);
+  }
+
+  if (!replaced) {
+    updatedSegments.push(`${encodedKey}=${encodedValue}`);
+  }
+
+  return `?${updatedSegments.join("&")}${hash}`;
+}
+
+/**
  * Build a localized path based on prefix mode.
  *
  * Preserves trailing slashes: if the input ends with "/" the output will too.

@@ -48,6 +48,32 @@ describe("useI18n composable", () => {
     expect(wrapper.text()).toBe("valeur-fr");
   });
 
+  it("re-renders formatter output when locale changes", async () => {
+    const i18n = createI18n({ locale: "en", defaultNs: "common" });
+    i18n.addTranslations({
+      en: { k: "v" },
+      de: { k: "w" },
+    });
+    await i18n.init();
+
+    const C = {
+      template: "<div>{{ formatNumber(1234.5) }}</div>",
+      setup() {
+        const { formatNumber } = useI18n();
+        return { formatNumber };
+      },
+    };
+
+    const wrapper = mount(C, { global: { plugins: [i18n] } });
+
+    expect(wrapper.text()).toBe("1,234.5");
+
+    await i18n.setLocale("de");
+    await nextTick();
+
+    expect(wrapper.text()).toBe("1.234,5");
+  });
+
   it("binds the requested namespace for translations", async () => {
     const i18n = createI18n({ locale: "en", defaultNs: "common" });
     i18n.addTranslations({
@@ -67,6 +93,33 @@ describe("useI18n composable", () => {
     const wrapper = mount(C, { global: { plugins: [i18n] } });
 
     expect(wrapper.text()).toBe("Admin");
+  });
+
+  it("exposes reactive defaultParams and setDefaultParams through the composable", async () => {
+    const i18n = createI18n({
+      locale: "en",
+      defaultParams: { formality: "formal" as const },
+      translation: {
+        en: {
+          review: "{formality, select, formal {Formal} other {Informal}}",
+        },
+      },
+    });
+
+    const C = {
+      template: '<div>{{ t("review") }}-{{ defaultParams?.formality }}</div>',
+      setup() {
+        return useI18n<{ formality: "formal" | "informal" }>();
+      },
+    };
+
+    const wrapper = mount(C, { global: { plugins: [i18n] } });
+    expect(wrapper.text()).toBe("Formal-formal");
+
+    wrapper.vm.setDefaultParams({ formality: "informal" });
+    await nextTick();
+
+    expect(wrapper.text()).toBe("Informal-informal");
   });
 
   it("returns plain text from t and structured content from tRaw", async () => {

@@ -103,20 +103,14 @@ describe("TranslationCache", () => {
     expect(Array.from(cache.getInternalMap().keys()).sort()).toEqual(["en:default", "fr:default"]);
   });
 
-  it("exposes a readonly internal snapshot", () => {
+  it("exposes an internal snapshot (readonly at the type level)", () => {
     const cache = new TranslationCache();
 
     cache.set("en", "default", { hello: "Hello" });
-    const snapshot = cache.getInternalMap() as ReadonlyMap<string, unknown> & {
-      set?: unknown;
-      delete?: unknown;
-      clear?: unknown;
-    };
+    const snapshot = cache.getInternalMap();
 
     expect(snapshot.get("en:default")).toEqual({ hello: "Hello" });
-    expect(snapshot.set).toBeUndefined();
-    expect(snapshot.delete).toBeUndefined();
-    expect(snapshot.clear).toBeUndefined();
+    expect(snapshot.size).toBe(1);
   });
 
   it("mutating the cloned Map does not corrupt get/has/size lookups on the cache", () => {

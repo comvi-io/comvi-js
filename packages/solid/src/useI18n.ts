@@ -1,4 +1,11 @@
 import { type Accessor } from "solid-js";
+import {
+  formatCurrency,
+  formatDate,
+  formatNumber,
+  formatRelativeTime,
+  getTextDirection,
+} from "@comvi/core";
 import { useI18nContextValue } from "./context";
 import type {
   I18n,
@@ -6,6 +13,8 @@ import type {
   TranslationResult,
   VirtualNode,
   FlattenedTranslations,
+  DefaultTranslationParams,
+  DefaultParamsSnapshot,
 } from "@comvi/core";
 
 function isVirtualNode(value: unknown): value is VirtualNode {
@@ -60,17 +69,21 @@ function translationResultToString(result: TranslationResult): string {
 type BoundDefaultNamespaceParams<
   NS extends string,
   K extends string,
-> = import("@comvi/core").NamespacedKeyParams<NS, K> extends never
-  ? [params?: TranslationParams]
-  : [params: import("@comvi/core").NamespacedKeyParams<NS, K> & TranslationParams];
+  D extends DefaultTranslationParams,
+> = `${NS}:${K}` extends keyof import("@comvi/core").TranslationKeys
+  ? import("@comvi/core").ParamsArg<`${NS}:${K}` & keyof import("@comvi/core").TranslationKeys, D>
+  : [params?: TranslationParams];
 
-type UseI18nTranslation<DefaultNS extends string | undefined> = {
+type UseI18nTranslation<
+  DefaultNS extends string | undefined,
+  D extends DefaultTranslationParams,
+> = {
   /**
    * Translation function - namespaced keys (explicit ns in params)
    */
   <NS extends import("@comvi/core").Namespaces, K extends import("@comvi/core").NamespacedKeys<NS>>(
     key: K,
-    ...params: import("@comvi/core").NamespacedParamsArg<NS, K>
+    ...params: import("@comvi/core").NamespacedParamsArg<NS, K, D>
   ): string;
 
   /**
@@ -78,7 +91,7 @@ type UseI18nTranslation<DefaultNS extends string | undefined> = {
    */
   <K extends import("@comvi/core").DefaultNsKeys>(
     key: K,
-    ...params: import("@comvi/core").ParamsArg<K>
+    ...params: import("@comvi/core").ParamsArg<K, D>
   ): string;
 
   /** Permissive overload - only active when TranslationKeys is empty */
@@ -91,18 +104,21 @@ type UseI18nTranslation<DefaultNS extends string | undefined> = {
        */
       <K extends import("@comvi/core").NamespacedKeys<DefaultNS>>(
         key: K,
-        ...params: BoundDefaultNamespaceParams<DefaultNS, K>
+        ...params: BoundDefaultNamespaceParams<DefaultNS, K, D>
       ): string;
     }
   : {});
 
-type UseI18nRawTranslation<DefaultNS extends string | undefined> = {
+type UseI18nRawTranslation<
+  DefaultNS extends string | undefined,
+  D extends DefaultTranslationParams,
+> = {
   /**
    * Raw translation function - namespaced keys (explicit ns in params)
    */
   <NS extends import("@comvi/core").Namespaces, K extends import("@comvi/core").NamespacedKeys<NS>>(
     key: K,
-    ...params: import("@comvi/core").NamespacedParamsArg<NS, K>
+    ...params: import("@comvi/core").NamespacedParamsArg<NS, K, D>
   ): TranslationResult;
 
   /**
@@ -110,7 +126,7 @@ type UseI18nRawTranslation<DefaultNS extends string | undefined> = {
    */
   <K extends import("@comvi/core").DefaultNsKeys>(
     key: K,
-    ...params: import("@comvi/core").ParamsArg<K>
+    ...params: import("@comvi/core").ParamsArg<K, D>
   ): TranslationResult;
 
   /** Permissive overload - only active when TranslationKeys is empty */
@@ -123,12 +139,15 @@ type UseI18nRawTranslation<DefaultNS extends string | undefined> = {
        */
       <K extends import("@comvi/core").NamespacedKeys<DefaultNS>>(
         key: K,
-        ...params: BoundDefaultNamespaceParams<DefaultNS, K>
+        ...params: BoundDefaultNamespaceParams<DefaultNS, K, D>
       ): TranslationResult;
     }
   : {});
 
-export interface UseI18nReturn<DefaultNS extends string | undefined = undefined> {
+export interface UseI18nReturn<
+  DefaultNS extends string | undefined = undefined,
+  D extends DefaultTranslationParams = {},
+> {
   /**
    * Reactive translation function
    * Automatically re-renders when language or translations change
@@ -143,13 +162,13 @@ export interface UseI18nReturn<DefaultNS extends string | undefined = undefined>
    * <p>{t('welcome', { name: 'Alice' })}</p>
    * ```
    */
-  t: UseI18nTranslation<DefaultNS>;
+  t: UseI18nTranslation<DefaultNS, D>;
 
   /**
    * Raw translation function returning full core TranslationResult.
    * Use for advanced scenarios that need structured output.
    */
-  tRaw: UseI18nRawTranslation<DefaultNS>;
+  tRaw: UseI18nRawTranslation<DefaultNS, D>;
 
   /** Current locale as a reactive accessor */
   locale: Accessor<string>;
@@ -166,6 +185,9 @@ export interface UseI18nReturn<DefaultNS extends string | undefined = undefined>
   /** Translation cache revision (for triggering reactivity) */
   cacheRevision: Accessor<number>;
 
+  /** Reactive shallow snapshot of instance-level interpolation defaults. */
+  defaultParams: Accessor<DefaultParamsSnapshot<D>>;
+
   // ===== Critical Methods =====
 
   /** Change the current locale and wait for translations to load */
@@ -181,6 +203,9 @@ export interface UseI18nReturn<DefaultNS extends string | undefined = undefined>
 
   /** Configure fallback locale chain */
   setFallbackLocale: I18n["setFallbackLocale"];
+
+  /** Replace instance-level interpolation defaults. */
+  setDefaultParams: I18n<D>["setDefaultParams"];
 
   /** Register callback for missing keys */
   onMissingKey: I18n["onMissingKey"];
@@ -228,16 +253,30 @@ export interface UseI18nReturn<DefaultNS extends string | undefined = undefined>
   // ===== Formatting =====
 
   /** Format a number using the current locale */
-  formatNumber: I18n["formatNumber"];
+  formatNumber: (value: number, options?: Intl.NumberFormatOptions, locale?: string) => string;
 
   /** Format a date using the current locale */
-  formatDate: I18n["formatDate"];
+  formatDate: (
+    value: Date | number,
+    options?: Intl.DateTimeFormatOptions,
+    locale?: string,
+  ) => string;
 
   /** Format a number as currency using the current locale */
-  formatCurrency: I18n["formatCurrency"];
+  formatCurrency: (
+    value: number,
+    currency: string,
+    options?: Intl.NumberFormatOptions,
+    locale?: string,
+  ) => string;
 
   /** Format a relative time ("2 hours ago", "in 3 days") using the current locale */
-  formatRelativeTime: I18n["formatRelativeTime"];
+  formatRelativeTime: (
+    value: number,
+    unit: Intl.RelativeTimeFormatUnit,
+    options?: Intl.RelativeTimeFormatOptions,
+    locale?: string,
+  ) => string;
 
   /** Text direction for the current locale as a reactive accessor */
   dir: () => "ltr" | "rtl";
@@ -304,9 +343,10 @@ export interface UseI18nReturn<DefaultNS extends string | undefined = undefined>
  * }
  * ```
  */
-export function useI18n<DefaultNS extends string | undefined = undefined>(
-  ns?: DefaultNS,
-): UseI18nReturn<DefaultNS> {
+export function useI18n<
+  DefaultNS extends string | undefined = undefined,
+  D extends DefaultTranslationParams = {},
+>(ns?: DefaultNS): UseI18nReturn<DefaultNS, D> {
   const ctx = useI18nContextValue();
 
   /**
@@ -343,7 +383,7 @@ export function useI18n<DefaultNS extends string | undefined = undefined>(
 
     // Merge default namespace only when needed.
     return ctx.i18n.tRaw(key as never, { ns, ...params } as TranslationParams);
-  }) as UseI18nRawTranslation<DefaultNS>;
+  }) as UseI18nRawTranslation<DefaultNS, D>;
 
   /**
    * Reactive translation function that always returns plain text.
@@ -351,7 +391,7 @@ export function useI18n<DefaultNS extends string | undefined = undefined>(
    */
   const t = ((key: string, params?: TranslationParams): string => {
     return translationResultToString(tRaw(key as never, params as never));
-  }) as UseI18nTranslation<DefaultNS>;
+  }) as UseI18nTranslation<DefaultNS, D>;
 
   return {
     t,
@@ -365,6 +405,10 @@ export function useI18n<DefaultNS extends string | undefined = undefined>(
     isInitializing: () => ctx.signals.isInitializing(),
     isInitialized: () => ctx.signals.isInitialized(),
     cacheRevision: () => ctx.signals.cacheRevision(),
+    defaultParams: () => {
+      ctx.signals.cacheRevision();
+      return ctx.i18n.defaultParams as DefaultParamsSnapshot<D>;
+    },
 
     // Bind all methods dynamically so they always use the current i18n instance.
     // Functions are returned directly to support destructuring safely.
@@ -372,6 +416,7 @@ export function useI18n<DefaultNS extends string | undefined = undefined>(
     addTranslations: (...args) => ctx.i18n.addTranslations(...args),
     addActiveNamespace: (...args) => ctx.i18n.addActiveNamespace(...args),
     setFallbackLocale: (...args) => ctx.i18n.setFallbackLocale(...args),
+    setDefaultParams: (params) => ctx.i18n.setDefaultParams(params as never),
     onMissingKey: (...args) => ctx.i18n.onMissingKey(...args),
     onLoadError: (...args) => ctx.i18n.onLoadError(...args),
     clearTranslations: (...args) => ctx.i18n.clearTranslations(...args),
@@ -384,15 +429,11 @@ export function useI18n<DefaultNS extends string | undefined = undefined>(
     getTranslationCache: () => ctx.i18n.translationCache.getInternalMap(),
     on: (...args) => ctx.i18n.on(...args),
     reportError: (...args) => ctx.i18n.reportError(...args),
-    formatNumber: (...args) => ctx.i18n.formatNumber(...args),
-    formatDate: (...args) => ctx.i18n.formatDate(...args),
-    formatCurrency: (...args) => ctx.i18n.formatCurrency(...args),
-    formatRelativeTime: (...args) => ctx.i18n.formatRelativeTime(...args),
-    // Read the locale signal to establish reactive dependency, then delegate
-    // to i18n.dir which is kept in sync via core's localeChanged event
-    dir: () => {
-      void ctx.signals.locale();
-      return ctx.i18n.dir;
-    },
+    formatNumber: (...args) => formatNumber(ctx.i18n, ...args),
+    formatDate: (...args) => formatDate(ctx.i18n, ...args),
+    formatCurrency: (...args) => formatCurrency(ctx.i18n, ...args),
+    formatRelativeTime: (...args) => formatRelativeTime(ctx.i18n, ...args),
+    // Derive from the locale signal so the accessor stays reactive
+    dir: () => getTextDirection(ctx.signals.locale()),
   };
 }

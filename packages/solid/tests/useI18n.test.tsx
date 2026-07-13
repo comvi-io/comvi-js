@@ -85,6 +85,42 @@ describe("useI18n", () => {
     dispose();
   });
 
+  it("exposes reactive defaultParams and setDefaultParams", async () => {
+    const container = document.createElement("div");
+    const i18n = createI18n({
+      locale: "en",
+      defaultParams: { formality: "formal" as const },
+      translation: {
+        en: { review: "{formality, select, formal {Formal} other {Informal}}" },
+      },
+    });
+
+    let api!: ReturnType<typeof useI18n<undefined, { formality: "formal" | "informal" }>>;
+    const Probe = () => {
+      api = useI18n<undefined, { formality: "formal" | "informal" }>();
+      return (
+        <div>
+          {api.t("review" as never)}-{api.defaultParams()?.formality as string}
+        </div>
+      );
+    };
+    const dispose = render(
+      () => (
+        <I18nProvider i18n={i18n} autoInit={false}>
+          <Probe />
+        </I18nProvider>
+      ),
+      container,
+    );
+
+    expect(container.textContent).toBe("Formal-formal");
+    api.setDefaultParams({ formality: "informal" });
+    await Promise.resolve();
+    expect(container.textContent).toBe("Informal-informal");
+
+    dispose();
+  });
+
   it("reactively exposes locale, loading, initialization, and cache state", async () => {
     const container = document.createElement("div");
     const fake = new FakeI18n({ language: "en" });

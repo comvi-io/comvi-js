@@ -13,11 +13,42 @@ import { TranslationScanner } from "./TranslationScanner";
 import { TranslationRegistry } from "./TranslationRegistry";
 import { EventBus } from "./EventBus";
 import { ElementHighlighter } from "./ElementHighlighter";
+import { Collector } from "./collector/Collector";
 import type { TranslationSystemOptions, TranslationSystemInnerOptions } from "./types";
 import type { I18n } from "@comvi/core";
 import { TAG_ATTRIBUTES } from "./constants";
-import { showModal, cleanup as cleanupEditModal } from "./EditModal";
-import { showKeySelector, cleanup as cleanupKeySelector } from "./KeySelector";
+
+type EditModalModule = typeof import("./EditModal");
+type KeySelectorModule = typeof import("./KeySelector");
+
+let editModalModule: EditModalModule | undefined;
+let keySelectorModule: KeySelectorModule | undefined;
+let editModalPromise: Promise<EditModalModule> | undefined;
+let keySelectorPromise: Promise<KeySelectorModule> | undefined;
+
+function loadEditModal(): Promise<EditModalModule> {
+  if (editModalModule) return Promise.resolve(editModalModule);
+  editModalPromise ??= import("./EditModal").then(
+    (module) => (editModalModule = module),
+    (error: unknown) => {
+      editModalPromise = undefined;
+      throw error;
+    },
+  );
+  return editModalPromise;
+}
+
+function loadKeySelector(): Promise<KeySelectorModule> {
+  if (keySelectorModule) return Promise.resolve(keySelectorModule);
+  keySelectorPromise ??= import("./KeySelector").then(
+    (module) => (keySelectorModule = module),
+    (error: unknown) => {
+      keySelectorPromise = undefined;
+      throw error;
+    },
+  );
+  return keySelectorPromise;
+}
 
 // Map to store i18n instances by Core instance ID
 // Allows multiple plugin instances on the same page
@@ -60,8 +91,10 @@ export class Core {
   private eventBus: EventBus;
   private options: TranslationSystemInnerOptions;
   private elementHighlighter: ElementHighlighter;
+  private collector: Collector;
   private instanceId: string;
   private defaultNs?: string;
+  private stopped = false;
 
   private handleElementClick = (element: Element): void => {
     const nodes = this.translationRegistry.get(element)?.nodes;
@@ -75,17 +108,31 @@ export class Core {
         textPreview: nodeData.textPreview,
       }));
 
-      showKeySelector(
-        keyData,
-        element,
-        (selectedKey, selectedNs) => {
-          showModal(selectedKey, selectedNs, this.instanceId);
-        },
-        this.defaultNs,
-      );
+      void Promise.all([loadKeySelector(), loadEditModal()])
+        .then(([{ showKeySelector }, { showModal }]) => {
+          if (this.stopped) return;
+          showKeySelector(
+            keyData,
+            element,
+            (selectedKey, selectedNs) => {
+              if (!this.stopped) showModal(selectedKey, selectedNs, this.instanceId);
+            },
+            this.defaultNs,
+          );
+        })
+        .catch((error: unknown) => {
+          if (!this.stopped) console.error("[comvi] Failed to load editor UI:", error);
+        });
     } else if (nodeDataArray.length === 1) {
       // Single key - open modal directly
-      showModal(nodeDataArray[0]!.key, nodeDataArray[0]!.ns, this.instanceId);
+      void loadEditModal()
+        .then(({ showModal }) => {
+          if (this.stopped) return;
+          showModal(nodeDataArray[0]!.key, nodeDataArray[0]!.ns, this.instanceId);
+        })
+        .catch((error: unknown) => {
+          if (!this.stopped) console.error("[comvi] Failed to load editor UI:", error);
+        });
     }
   };
 
@@ -125,13 +172,30 @@ export class Core {
       this.translationRegistry,
       this.options,
     );
+
+    // Create the passive context collector (extension channel only — RALPLAN
+    // wave-2a). Constructed here so both activation paths (standalone.ts and
+    // index.ts) cover it; it only does anything once start()/stop() run.
+    this.collector = new Collector(this.eventBus, this.translationRegistry, this.instanceId, {
+      enabled: options?.collectContext !== false,
+      screenGroupResolver: options?.screenGroupResolver,
+    });
   }
 
   public start(): void {
+    this.stopped = false;
     this.domWatcher.start();
+    void this.collector.start();
   }
 
   public stop(): void {
+    this.stopped = true;
+
+    // Collector FIRST — before registry.destroy() (which emits removal
+    // events the collector must not react to) and before anything else
+    // tears down state it depends on.
+    this.collector.destroy();
+
     // Stop DOM watching first
     this.domWatcher.stop();
 
@@ -147,9 +211,9 @@ export class Core {
     // Remove all event listeners from EventBus
     this.eventBus.removeAllListeners();
 
-    // Cleanup modals
-    cleanupEditModal();
-    cleanupKeySelector();
+    // Cleanup UI only when its lazy chunk has been loaded.
+    editModalModule?.cleanup();
+    keySelectorModule?.cleanup();
 
     // Unregister i18n instance
     unregisterI18nInstance(this.instanceId);

@@ -50,4 +50,85 @@ describe("debounce", () => {
     expect(callback).toHaveBeenCalledTimes(1);
     expect(callback).toHaveBeenCalledWith("executed");
   });
+
+  describe("maxWait (AC4)", () => {
+    it("fires within maxWait of the first pending call under sustained calls", () => {
+      const callback = vi.fn();
+      const debounced = debounce(callback, 1000, { maxWait: 250 });
+
+      // Sustained calls every 100ms would keep resetting a pure trailing
+      // debounce forever; maxWait must force a fire at ~250ms from the first.
+      debounced("a"); // t=0, arms maxWait(250)
+      vi.advanceTimersByTime(100); // t=100
+      debounced("b");
+      vi.advanceTimersByTime(100); // t=200
+      debounced("c");
+      expect(callback).not.toHaveBeenCalled();
+
+      vi.advanceTimersByTime(50); // t=250 — maxWait ceiling hit
+      expect(callback).toHaveBeenCalledTimes(1);
+      expect(callback).toHaveBeenCalledWith("c"); // latest args at the fire
+    });
+
+    it("re-arms maxWait per burst (a fresh burst gets its own ceiling)", () => {
+      const callback = vi.fn();
+      const debounced = debounce(callback, 1000, { maxWait: 250 });
+
+      debounced("burst1");
+      vi.advanceTimersByTime(250);
+      expect(callback).toHaveBeenCalledTimes(1);
+
+      // New burst after the first fired — its own maxWait window applies.
+      debounced("burst2");
+      vi.advanceTimersByTime(249);
+      expect(callback).toHaveBeenCalledTimes(1);
+      vi.advanceTimersByTime(1);
+      expect(callback).toHaveBeenCalledTimes(2);
+      expect(callback).toHaveBeenLastCalledWith("burst2");
+    });
+
+    it("still honors the trailing delay when it elapses before maxWait", () => {
+      const callback = vi.fn();
+      const debounced = debounce(callback, 100, { maxWait: 5000 });
+
+      debounced("only");
+      vi.advanceTimersByTime(99);
+      expect(callback).not.toHaveBeenCalled();
+      vi.advanceTimersByTime(1); // trailing delay fires first
+      expect(callback).toHaveBeenCalledTimes(1);
+      expect(callback).toHaveBeenCalledWith("only");
+
+      // maxWait timer must not produce a second, spurious call.
+      vi.advanceTimersByTime(5000);
+      expect(callback).toHaveBeenCalledTimes(1);
+    });
+
+    it("cancel() clears a pending maxWait timer too", () => {
+      const callback = vi.fn();
+      const debounced = debounce(callback, 1000, { maxWait: 250 });
+
+      debounced("x");
+      debounced.cancel();
+      vi.advanceTimersByTime(1000);
+      expect(callback).not.toHaveBeenCalled();
+    });
+
+    it("unset maxWait behaves exactly as the historical trailing debounce", () => {
+      // Regression pin for the two live 2-arg callers (ElementHighlighter's
+      // scroll handler + the public `debounce` export): omitting options must
+      // never introduce a maxWait ceiling — sustained calls defer indefinitely.
+      const callback = vi.fn();
+      const debounced = debounce(callback, 200);
+
+      for (let t = 0; t < 1000; t += 100) {
+        debounced("keep-deferring");
+        vi.advanceTimersByTime(100);
+      }
+      // 10 calls, each 100ms apart, never allowed the 200ms trailing to elapse.
+      expect(callback).not.toHaveBeenCalled();
+
+      vi.advanceTimersByTime(200);
+      expect(callback).toHaveBeenCalledTimes(1);
+    });
+  });
 });

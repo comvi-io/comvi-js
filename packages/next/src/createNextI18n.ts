@@ -1,5 +1,11 @@
 import { createI18n } from "@comvi/core";
-import type { I18nOptions, I18n, I18nPlugin, PluginOptions } from "@comvi/core";
+import type {
+  I18nOptions,
+  I18n,
+  I18nPlugin,
+  PluginOptions,
+  DefaultTranslationParams,
+} from "@comvi/core";
 import { defineRouting } from "./routing/defineRouting";
 import type { RoutingConfig, LocalePrefixMode } from "./routing/types";
 
@@ -92,7 +98,7 @@ const normalizeScopedOptions = (options?: ScopedPluginOptions) => {
 /**
  * Options for createNextI18n factory
  */
-export interface CreateNextI18nOptions {
+export interface CreateNextI18nBaseOptions {
   // ============================================
   // Routing config (required)
   // ============================================
@@ -174,14 +180,17 @@ export interface CreateNextI18nOptions {
   onMissingKey?: I18nOptions["onMissingKey"];
 }
 
+export type CreateNextI18nOptions<D extends DefaultTranslationParams = {}> =
+  CreateNextI18nBaseOptions & Pick<I18nOptions<D>, "defaultParams">;
+
 /**
  * Result of createNextI18n factory
  */
-export interface CreateNextI18nResult {
+export interface CreateNextI18nResult<D extends DefaultTranslationParams = {}> {
   /**
    * The i18n instance (use with I18nProvider and setI18n)
    */
-  i18n: I18n;
+  i18n: I18n<D>;
 
   /**
    * Routing configuration (use with middleware and navigation)
@@ -198,27 +207,33 @@ export interface CreateNextI18nResult {
    *   .use(AnotherPlugin(), { required: false });
    * ```
    */
-  use(plugin: I18nPlugin, options?: PluginOptions): CreateNextI18nResult;
+  use(plugin: I18nPlugin, options?: PluginOptions): CreateNextI18nResult<D>;
 
   /**
    * Register a client-only plugin.
    */
-  useClient(plugin: I18nPlugin, options?: ScopedPluginOptions): CreateNextI18nResult;
+  useClient(plugin: I18nPlugin, options?: ScopedPluginOptions): CreateNextI18nResult<D>;
 
   /**
    * Register a server-only plugin.
    */
-  useServer(plugin: I18nPlugin, options?: ScopedPluginOptions): CreateNextI18nResult;
+  useServer(plugin: I18nPlugin, options?: ScopedPluginOptions): CreateNextI18nResult<D>;
 
   /**
    * Register a lazily imported client-only plugin.
    */
-  useClientLazy(loadPlugin: LazyPluginLoader, options?: ScopedPluginOptions): CreateNextI18nResult;
+  useClientLazy(
+    loadPlugin: LazyPluginLoader,
+    options?: ScopedPluginOptions,
+  ): CreateNextI18nResult<D>;
 
   /**
    * Register a lazily imported server-only plugin.
    */
-  useServerLazy(loadPlugin: LazyPluginLoader, options?: ScopedPluginOptions): CreateNextI18nResult;
+  useServerLazy(
+    loadPlugin: LazyPluginLoader,
+    options?: ScopedPluginOptions,
+  ): CreateNextI18nResult<D>;
 }
 
 /**
@@ -282,7 +297,9 @@ export interface CreateNextI18nResult {
  * export { getI18n, loadTranslations } from "@comvi/next/server";
  * ```
  */
-export function createNextI18n(options: CreateNextI18nOptions): CreateNextI18nResult {
+export function createNextI18n<const D extends DefaultTranslationParams = {}>(
+  options: CreateNextI18nOptions<D>,
+): CreateNextI18nResult<D> {
   const {
     // Routing
     locales,
@@ -293,6 +310,7 @@ export function createNextI18n(options: CreateNextI18nOptions): CreateNextI18nRe
     apiKey,
     ns,
     translation,
+    defaultParams,
     // i18n
     fallbackLocale = defaultLocale,
     defaultNs = "default",
@@ -306,17 +324,18 @@ export function createNextI18n(options: CreateNextI18nOptions): CreateNextI18nRe
   const devMode = devModeOption ?? process.env.NODE_ENV === "development";
 
   // Create i18n instance
-  const i18n = createI18n({
+  const i18n = createI18n<D>({
     locale: defaultLocale,
     fallbackLocale,
     defaultNs,
     ns,
     translation,
+    defaultParams,
     apiKey,
     devMode,
     onMissingKey,
     tagInterpolation: basicHtmlTags ? { basicHtmlTags } : undefined,
-  });
+  } as unknown as I18nOptions<D>);
 
   // Create routing config
   const routing = defineRouting({
@@ -326,7 +345,7 @@ export function createNextI18n(options: CreateNextI18nOptions): CreateNextI18nRe
     pathnames,
   });
 
-  const result: CreateNextI18nResult = {
+  const result: CreateNextI18nResult<D> = {
     i18n,
     routing,
     use(plugin: I18nPlugin, pluginOptions?: PluginOptions) {

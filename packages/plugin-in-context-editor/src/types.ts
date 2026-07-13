@@ -109,6 +109,19 @@ export interface TranslationSystemOptions {
   debug?: boolean;
   /** Custom highlight style for the translation overlay */
   highlightStyle?: HighlightStyleOptions;
+  /**
+   * Passive context collection inside an active ICE session (extension
+   * channel only — see `@comvi/plugin-in-context-editor/collector`).
+   * Defaults to enabled; set false to opt out.
+   */
+  collectContext?: boolean;
+  /**
+   * Overrides the collector's screen grouping with a stable, PII-free route
+   * template for the current URL (e.g. "/users/:id"). Without it, screens
+   * are grouped by an opaque digest of the normalized route. Return
+   * null/undefined to fall back to the digest for a given URL.
+   */
+  screenGroupResolver?: () => string | null | undefined;
 }
 
 /**

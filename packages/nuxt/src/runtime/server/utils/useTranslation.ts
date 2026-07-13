@@ -145,7 +145,7 @@ export async function useTranslation(
   const t: ServerTranslationFunction = ((key: string, params?: TranslationParams) => {
     const result = i18n.t(key, {
       ...params,
-      language: resolvedLocale,
+      locale: resolvedLocale,
       ns: params?.ns ?? namespace,
     });
     // Server expects string

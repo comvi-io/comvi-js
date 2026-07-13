@@ -111,8 +111,6 @@ describe("useI18n", () => {
     expect(result.current.locale).toBe("de");
     expect(result.current.formatNumber(1234)).toBe("1.234");
     expect(result.current.setLocale).toBe(setLocaleBefore);
-    expect(fake.formatNumber).toHaveBeenCalledWith(1234, undefined, "en");
-    expect(fake.formatNumber).toHaveBeenLastCalledWith(1234, undefined, "de");
   });
 
   it("re-renders when fallback config changes without a cache revision change", async () => {
@@ -140,6 +138,34 @@ describe("useI18n", () => {
     expect(i18n.translationCache.getRevision()).toBe(revisionBefore);
     await waitFor(() => {
       expect(result.current.t("fallbackOnly" as never)).toBe("Fallback");
+    });
+  });
+
+  it("exposes defaultParams and re-renders after setDefaultParams", async () => {
+    const i18n = createI18n({
+      locale: "en",
+      defaultParams: { formality: "formal" as const },
+      translation: {
+        en: { review: "{formality, select, formal {Formal} other {Informal}}" },
+      },
+    });
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <I18nProvider i18n={i18n} autoInit={false}>
+        {children}
+      </I18nProvider>
+    );
+    const { result } = renderHook(() => useI18n<{ formality: "formal" | "informal" }>(), {
+      wrapper,
+    });
+
+    expect(result.current.defaultParams?.formality).toBe("formal");
+    expect(result.current.t("review" as never)).toBe("Formal");
+
+    act(() => result.current.setDefaultParams({ formality: "informal" }));
+
+    await waitFor(() => {
+      expect(result.current.defaultParams?.formality).toBe("informal");
+      expect(result.current.t("review" as never)).toBe("Informal");
     });
   });
 

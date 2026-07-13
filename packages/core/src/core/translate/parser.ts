@@ -26,15 +26,14 @@ const GREATER_THAN = 62;
 const SLASH = 47;
 const COMMA = 44;
 const HYPHEN = 45;
-const UNDERSCORE = 95;
 const SPACE = 32;
+const HASH = 35;
 const DIGIT_0 = 48;
 const DIGIT_9 = 57;
 const UPPER_A = 65;
 const UPPER_Z = 90;
 const LOWER_A = 97;
 const LOWER_Z = 122;
-const ASCII_MAX = 127;
 
 // Plural choices cache
 const pluralChoicesCache = new Map<string, Record<string, string>>();
@@ -56,29 +55,23 @@ function isTagNameChar(code: number): boolean {
   );
 }
 
-function isWordCharCode(code: number): boolean {
-  if (
-    (code >= UPPER_A && code <= UPPER_Z) ||
-    (code >= LOWER_A && code <= LOWER_Z) ||
-    (code >= DIGIT_0 && code <= DIGIT_9) ||
-    code === UNDERSCORE
-  ) {
-    return true;
-  }
-  return code > ASCII_MAX;
-}
-
 /**
- * Smart Apostrophe: treat apostrophe as literal if surrounded by word chars.
- * E.g., "don't" → literal, "'text'" → delimiter
+ * ICU DOUBLE_OPTIONAL quoting (same as ICU4J, FormatJS, i18next, Tolgee):
+ * an apostrophe starts quoted literal text only when it immediately precedes
+ * a syntax character. Everywhere else it is literal text, so real-world
+ * content like "Superiors' behavior" or a trailing "l'" survives.
+ * '' always collapses to a literal apostrophe.
+ *
+ * `{` and `}` are syntax everywhere; `#` is syntax only inside a
+ * plural/selectordinal sub-message (hashIsSyntax), including select
+ * sub-messages nested in one. At the top level and in standalone selects
+ * `'#'` stays two literal characters.
  */
-function isSmartApostrophe(str: string, index: number, len: number): boolean {
-  return (
-    index > 0 &&
-    index + 1 < len &&
-    isWordCharCode(str.charCodeAt(index - 1)) &&
-    isWordCharCode(str.charCodeAt(index + 1))
-  );
+function isQuoteStart(str: string, index: number, len: number, hashIsSyntax: boolean): boolean {
+  if (index + 1 >= len) return false;
+  const nextCode = str.charCodeAt(index + 1);
+  if (nextCode === OPEN_BRACE || nextCode === CLOSE_BRACE) return true;
+  return hashIsSyntax && nextCode === HASH;
 }
 
 /** Skip a quoted section, returns index after closing quote */
@@ -99,30 +92,108 @@ function skipQuotedSection(str: string, startIndex: number, len: number): number
   return i;
 }
 
-function advancePastApostrophe(str: string, index: number, len: number): number {
+function advancePastApostrophe(
+  str: string,
+  index: number,
+  len: number,
+  hashIsSyntax: boolean,
+): number {
   if (index + 1 < len && str.charCodeAt(index + 1) === APOSTROPHE) {
     return index + 2;
   }
-  if (isSmartApostrophe(str, index, len)) {
-    return index + 1;
+  if (isQuoteStart(str, index, len, hashIsSyntax)) {
+    return skipQuotedSection(str, index, len);
   }
-  return skipQuotedSection(str, index, len);
+  return index + 1;
 }
 
-function findMatchingBraceEnd(str: string, startIndex: number, len: number): number {
+/**
+ * Detects whether the `{` at braceIndex starts a plural/selectordinal argument
+ * (`{name, plural, ...}`), i.e. a scope that rebinds `#` to its own count.
+ */
+function isPluralArgStart(str: string, braceIndex: number, len: number): boolean {
+  let i = braceIndex + 1;
+  while (i < len) {
+    const code = str.charCodeAt(i);
+    if (code === COMMA) break;
+    if (code === OPEN_BRACE || code === CLOSE_BRACE) return false;
+    i++;
+  }
+  if (i >= len) return false;
+  i++;
+  while (i < len && str.charCodeAt(i) <= SPACE) i++;
+  const typeStart = i;
+  while (i < len) {
+    const code = str.charCodeAt(i);
+    if (code === COMMA || code <= SPACE || code === OPEN_BRACE || code === CLOSE_BRACE) break;
+    i++;
+  }
+  const type = str.slice(typeStart, i);
+  return type === "plural" || type === "selectordinal";
+}
+
+/**
+ * Replaces `#` octothorpes bound to the current plural with `replacement`.
+ * Per ICU MessageFormat, only a nested plural/selectordinal rebinds `#`, so
+ * those blocks are skipped wholesale while other nested arguments (select,
+ * params) stay transparent. Quoted `'…'` literals are never touched.
+ */
+export function replaceTopLevelHash(str: string, replacement: string): string {
+  if (str.indexOf("#") === -1) return str;
+
+  const len = str.length;
+  let out = "";
+  let segStart = 0;
+  let i = 0;
+
+  while (i < len) {
+    const code = str.charCodeAt(i);
+    if (code === APOSTROPHE) {
+      i = advancePastApostrophe(str, i, len, true);
+      continue;
+    }
+    if (code === OPEN_BRACE && isPluralArgStart(str, i, len)) {
+      const end = findMatchingBraceEnd(str, i + 1, len, true);
+      i = end === -1 ? len : end;
+      continue;
+    }
+    if (code === HASH) {
+      out += str.slice(segStart, i) + replacement;
+      segStart = i + 1;
+    }
+    i++;
+  }
+
+  return out + str.slice(segStart);
+}
+
+function findMatchingBraceEnd(
+  str: string,
+  startIndex: number,
+  len: number,
+  hashIsSyntax: boolean,
+): number {
   let braceCount = 1;
   let i = startIndex;
+  let context = hashIsSyntax;
+  const contextStack: boolean[] = [];
 
   while (i < len && braceCount > 0) {
     const code = str.charCodeAt(i);
 
     if (code === APOSTROPHE) {
-      i = advancePastApostrophe(str, i, len);
+      i = advancePastApostrophe(str, i, len, context);
       continue;
     }
 
-    if (code === OPEN_BRACE) braceCount++;
-    else if (code === CLOSE_BRACE) braceCount--;
+    if (code === OPEN_BRACE) {
+      braceCount++;
+      contextStack.push(context);
+      if (!context && isPluralArgStart(str, i, len)) context = true;
+    } else if (code === CLOSE_BRACE) {
+      braceCount--;
+      if (contextStack.length > 0) context = contextStack.pop()!;
+    }
     i++;
   }
 
@@ -133,6 +204,7 @@ function parseTag(
   str: string,
   startIndex: number,
   len: number,
+  hashIsSyntax: boolean,
 ): { token?: TagToken; endIndex: number; isTag: boolean } {
   let i = startIndex + 1;
 
@@ -181,7 +253,7 @@ function parseTag(
     const [closingStart, endIndex] = result;
 
     const innerContent = str.slice(contentStart, closingStart);
-    const children = parseTemplate(innerContent);
+    const children = parseTemplate(innerContent, hashIsSyntax);
 
     return {
       token: [TK_TAG, tagName, children, 0],
@@ -279,7 +351,7 @@ function findClosingTag(
   return undefined;
 }
 
-export function parseTemplate(template: string): ParsedToken[] {
+export function parseTemplate(template: string, hashIsSyntax = false): ParsedToken[] {
   const tokens: ParsedToken[] = [];
   const len = template.length;
   let lastIndex = 0;
@@ -295,13 +367,13 @@ export function parseTemplate(template: string): ParsedToken[] {
         tokens.push([TK_TEXT, "'"]);
         i += 2;
         lastIndex = i;
-      } else if (isSmartApostrophe(template, i, len)) {
-        i++;
-      } else {
+      } else if (isQuoted || isQuoteStart(template, i, len, hashIsSyntax)) {
         if (i > lastIndex) tokens.push([TK_TEXT, template.slice(lastIndex, i)]);
         isQuoted = !isQuoted;
         i++;
         lastIndex = i;
+      } else {
+        i++;
       }
     } else if (code === AMPERSAND && !isQuoted) {
       let entityLength = 0;
@@ -335,7 +407,7 @@ export function parseTemplate(template: string): ParsedToken[] {
       i += 2;
       lastIndex = i;
     } else if (code === LESS_THAN && !isQuoted) {
-      const tagResult = parseTag(template, i, len);
+      const tagResult = parseTag(template, i, len, hashIsSyntax);
 
       if (tagResult.isTag && tagResult.token) {
         if (i > lastIndex) tokens.push([TK_TEXT, template.slice(lastIndex, i)]);
@@ -347,7 +419,7 @@ export function parseTemplate(template: string): ParsedToken[] {
       }
     } else if (code === OPEN_BRACE && !isQuoted) {
       if (i > lastIndex) tokens.push([TK_TEXT, template.slice(lastIndex, i)]);
-      const tokenResult = extractToken(template, i);
+      const tokenResult = extractToken(template, i, hashIsSyntax);
       if (tokenResult.token) {
         tokens.push(tokenResult.token);
       } else {
@@ -368,9 +440,11 @@ export function parseTemplate(template: string): ParsedToken[] {
 export function extractToken(
   segment: string,
   startIndex: number,
+  hashIsSyntax = false,
 ): { token?: ParsedToken; endIndex: number; shouldBreak: boolean } {
   const len = segment.length;
-  const endIndex = findMatchingBraceEnd(segment, startIndex + 1, len);
+  const contentHashIsSyntax = hashIsSyntax || isPluralArgStart(segment, startIndex, len);
+  const endIndex = findMatchingBraceEnd(segment, startIndex + 1, len, contentHashIsSyntax);
 
   if (endIndex === -1) {
     if (IS_DEV) {
@@ -380,11 +454,16 @@ export function extractToken(
   }
 
   const tokenContent = segment.slice(startIndex + 1, endIndex - 1);
-  return { token: createTokenFromContent(tokenContent), endIndex, shouldBreak: false };
+  return {
+    token: createTokenFromContent(tokenContent, contentHashIsSyntax),
+    endIndex,
+    shouldBreak: false,
+  };
 }
 
 export function createTokenFromContent(
   tokenContent: string,
+  hashIsSyntax = false,
 ): ParamToken | PluralToken | SelectToken {
   let firstComma = -1;
   let secondComma = -1;
@@ -395,7 +474,7 @@ export function createTokenFromContent(
     const code = tokenContent.charCodeAt(k);
 
     if (code === APOSTROPHE) {
-      k = advancePastApostrophe(tokenContent, k, len) - 1;
+      k = advancePastApostrophe(tokenContent, k, len, hashIsSyntax) - 1;
       continue;
     }
 
@@ -433,8 +512,12 @@ export function createTokenFromContent(
   return [TK_PARAM, tokenContent.trim()];
 }
 
-export function parsePluralChoices(choicesStr: string): Record<string, string> {
-  const cached = pluralChoicesCache.get(choicesStr);
+export function parsePluralChoices(
+  choicesStr: string,
+  hashIsSyntax = true,
+): Record<string, string> {
+  const cacheKey = `${hashIsSyntax ? "\u0001" : "\u0000"}${choicesStr}`;
+  const cached = pluralChoicesCache.get(cacheKey);
   if (cached) return cached;
 
   const choices = Object.create(null) as Record<string, string>;
@@ -459,13 +542,13 @@ export function parsePluralChoices(choicesStr: string): Record<string, string> {
     }
 
     const valueStart = i + 1;
-    const endIndex = findMatchingBraceEnd(choicesStr, valueStart, len);
+    const endIndex = findMatchingBraceEnd(choicesStr, valueStart, len, hashIsSyntax);
     if (endIndex === -1) break;
 
     choices[key] = choicesStr.slice(valueStart, endIndex - 1);
     i = endIndex;
   }
 
-  pluralChoicesCache.set(choicesStr, choices);
+  pluralChoicesCache.set(cacheKey, choices);
   return choices;
 }

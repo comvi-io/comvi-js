@@ -124,7 +124,7 @@ describe("Initialization & Configuration", () => {
     expect(i18n.t("nested.deep")).toBe("Value");
   });
 
-  it("sanitizes already-flat initial translations in place", () => {
+  it("normalizes already-flat initial translations without mutating the input", () => {
     const flatTranslations = {
       "nested.deep": "Original",
     };
@@ -136,7 +136,7 @@ describe("Initialization & Configuration", () => {
       },
     });
 
-    expect(Object.getPrototypeOf(flatTranslations)).toBe(null);
+    expect(Object.getPrototypeOf(flatTranslations)).toBe(Object.prototype);
     expect(i18n.t("nested.deep")).toBe("Original");
     expect(i18n.hasTranslation("toString")).toBe(false);
     expect(i18n.t("toString")).toBe("toString");

@@ -114,4 +114,61 @@ describe("Advanced Pluralization Features", () => {
       expect(i18n.t("literal", { count: 3 })).toBe("{count} literal items");
     });
   });
+
+  describe("Nested plurals", () => {
+    it("binds # to the nearest enclosing plural, not the outer one", () => {
+      i18n.addTranslations({
+        en: {
+          msg:
+            "{files, plural, " +
+            "one {one file in {folders, plural, one {one folder} other {# folders}}} " +
+            "other {# files in {folders, plural, one {one folder} other {# folders}}}}",
+        },
+      });
+
+      expect(i18n.t("msg", { files: 1, folders: 1 })).toBe("one file in one folder");
+      expect(i18n.t("msg", { files: 1, folders: 5 })).toBe("one file in 5 folders");
+      expect(i18n.t("msg", { files: 3, folders: 1 })).toBe("3 files in one folder");
+      // Regression: inner # must use folders (5), not files (3).
+      expect(i18n.t("msg", { files: 3, folders: 5 })).toBe("3 files in 5 folders");
+    });
+
+    it("does not replace a quoted # with the count", () => {
+      i18n.addTranslations({
+        en: {
+          // The interpolation ensures the branch is run through the template
+          // processor so the quoted literal is unwrapped.
+          price: "{count, plural, other {'#'# {label}}}",
+        },
+      });
+
+      expect(i18n.t("price", { count: 7, label: "items" })).toBe("#7 items");
+    });
+
+    it("keeps # bound to the enclosing plural inside a nested select", () => {
+      i18n.addTranslations({
+        en: {
+          msg:
+            "{count, plural, " +
+            "one {{gender, select, male {he has one file} other {they have one file}}} " +
+            "other {{gender, select, male {he has # files} other {they have # files}}}}",
+        },
+      });
+
+      expect(i18n.t("msg", { count: 3, gender: "male" })).toBe("he has 3 files");
+      expect(i18n.t("msg", { count: 3, gender: "female" })).toBe("they have 3 files");
+    });
+
+    it("rebinds # only for a plural nested inside a select inside a plural", () => {
+      i18n.addTranslations({
+        en: {
+          msg:
+            "{files, plural, other {{gender, select, " +
+            "other {{folders, plural, other {# folders}} and # files}}}}",
+        },
+      });
+
+      expect(i18n.t("msg", { files: 3, folders: 5, gender: "x" })).toBe("5 folders and 3 files");
+    });
+  });
 });

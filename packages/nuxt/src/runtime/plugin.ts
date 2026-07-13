@@ -105,7 +105,7 @@ export default defineNuxtPlugin({
       : null;
 
     // Create i18n instance
-    const i18n = createI18n({
+    const baseI18nOptions = {
       locale: localeState.value,
       fallbackLocale: publicConfig.fallbackLocale,
       defaultNs: publicConfig.defaultNs,
@@ -116,7 +116,10 @@ export default defineNuxtPlugin({
         : undefined,
       // Pass initial locale for SSR hydration
       ssrLocale: localeState.value,
-    });
+    };
+    const i18n = publicConfig.defaultParams
+      ? createI18n({ ...baseI18nOptions, defaultParams: publicConfig.defaultParams })
+      : createI18n(baseI18nOptions);
 
     const initialInContextEditorMappings = toRecordOfNumbers(
       nuxtApp.payload?.state?.[I18N_EDITOR_MAPPINGS_STATE_KEY],

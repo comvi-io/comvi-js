@@ -8,12 +8,47 @@
  */
 
 /**
+ * Minimal request init accepted by an API transport. Headers are deliberately
+ * excluded: in transport mode authentication is attached outside the page
+ * context (e.g. by the extension service worker), never in the MAIN world.
+ */
+export interface ApiTransportInit {
+  method?: string;
+  body?: string;
+  keepalive?: boolean;
+  /** Caller-side cancellation; transports should abort the underlying request. */
+  signal?: AbortSignal;
+}
+
+/**
+ * Pluggable API transport. Receives a path relative to the API base URL
+ * (e.g. "/v1/keys") and returns a standard Response. Used by the Chrome
+ * extension to proxy authenticated requests through its service worker so
+ * the API key never enters the page's JavaScript context.
+ */
+export type ApiTransport = (path: string, init?: ApiTransportInit) => Promise<Response>;
+
+/**
  * API Configuration interface
  */
 export interface ApiConfig {
   apiKey: string;
   baseUrl: string;
   demoMode: boolean;
+  transport?: ApiTransport;
+}
+
+/**
+ * Options for initApiConfig
+ */
+export interface InitApiConfigOptions {
+  /** Proxy transport for all API requests. When set, no API key is kept in-page. */
+  transport?: ApiTransport;
+  /**
+   * Base URL used only for building request paths/UI in transport mode.
+   * Non-secret. The actual request target is decided by the transport owner.
+   */
+  baseUrl?: string;
 }
 
 /**
@@ -33,7 +68,25 @@ function getConfigScope(scopeId?: string): string {
  * @param apiKey - API key for authentication (optional - demo mode if not provided)
  * @param scopeId - Optional runtime scope. Use this to isolate multiple editor runtimes.
  */
-export function initApiConfig(apiKey?: string, scopeId?: string): void {
+export function initApiConfig(
+  apiKey?: string,
+  scopeId?: string,
+  options?: InitApiConfigOptions,
+): void {
+  const transport = options?.transport;
+
+  if (transport) {
+    // Proxy mode (Chrome extension): authentication happens outside the page.
+    // No API key is stored in the page context, and this is not demo mode.
+    configs.set(getConfigScope(scopeId), {
+      apiKey: "",
+      baseUrl: options?.baseUrl ? stripTrailingSlash(options.baseUrl) : resolveBaseUrl(),
+      demoMode: false,
+      transport,
+    });
+    return;
+  }
+
   // Demo mode if no API key provided
   const isDemoMode = !apiKey;
 

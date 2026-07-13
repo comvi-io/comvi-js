@@ -109,7 +109,7 @@ describe("Core unit behavior", () => {
     cleanupKeySelectorMock.mockReset();
   });
 
-  it("should open modal when element has a single translation key", () => {
+  it("should open modal when element has a single translation key", async () => {
     const core = new Core({}, { apiKey: "test-key" } as any);
     const instanceId = core.getInstanceId();
     const element = document.createElement("div");
@@ -130,12 +130,14 @@ describe("Core unit behavior", () => {
 
     capturedElementClickHandler?.(element);
 
-    expect(showModalMock).toHaveBeenCalledWith("home.title", "default", instanceId);
+    await vi.waitFor(() => {
+      expect(showModalMock).toHaveBeenCalledWith("home.title", "default", instanceId);
+    });
     expect(showKeySelectorMock).not.toHaveBeenCalled();
     core.stop();
   });
 
-  it("should show key selector when element has multiple keys, then open modal on selection", () => {
+  it("should show key selector when element has multiple keys, then open modal on selection", async () => {
     const core = new Core({}, { apiKey: "test-key" } as any);
     const instanceId = core.getInstanceId();
     const element = document.createElement("div");
@@ -165,7 +167,9 @@ describe("Core unit behavior", () => {
 
     capturedElementClickHandler?.(element);
 
-    expect(showKeySelectorMock).toHaveBeenCalledTimes(1);
+    await vi.waitFor(() => {
+      expect(showKeySelectorMock).toHaveBeenCalledTimes(1);
+    });
     const [keyData, targetElement, onSelect] = showKeySelectorMock.mock.calls[0] as [
       Array<{ key: string; ns: string; textPreview?: string }>,
       Element,
@@ -180,6 +184,41 @@ describe("Core unit behavior", () => {
 
     onSelect("checkout.total", "checkout");
     expect(showModalMock).toHaveBeenCalledWith("checkout.total", "checkout", instanceId);
+    core.stop();
+  });
+
+  it("does not open lazy UI when stopped before the import resolves", async () => {
+    const core = new Core({}, { apiKey: "test-key" } as any);
+    const element = document.createElement("div");
+    registryGetMock.mockReturnValue({
+      nodes: new Map([[document.createTextNode("text"), { key: "home.title", ns: "default" }]]),
+    });
+
+    capturedElementClickHandler?.(element);
+    core.stop();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(showModalMock).not.toHaveBeenCalled();
+  });
+
+  it("reports lazy UI failures without leaking an unhandled rejection", async () => {
+    const core = new Core({}, { apiKey: "test-key" } as any);
+    const element = document.createElement("div");
+    const error = new Error("chunk failed");
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    showModalMock.mockImplementationOnce(() => {
+      throw error;
+    });
+    registryGetMock.mockReturnValue({
+      nodes: new Map([[document.createTextNode("text"), { key: "home.title", ns: "default" }]]),
+    });
+
+    expect(() => capturedElementClickHandler?.(element)).not.toThrow();
+    await vi.waitFor(() => {
+      expect(consoleError).toHaveBeenCalledWith("[comvi] Failed to load editor UI:", error);
+    });
+
     core.stop();
   });
 });

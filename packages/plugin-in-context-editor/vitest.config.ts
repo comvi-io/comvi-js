@@ -22,9 +22,16 @@ export default defineConfig({
       exclude: [
         "src/**/*.d.ts",
         "src/types/**",
+        "src/types.ts",
         "src/vite-env.d.ts",
         "src/App.vue",
         "src/components/**/*.vue", // Vue components will be tested via E2E
+        "src/components/**/index.ts", // UI library barrels
+        "src/collector/index.ts",
+        "src/config/index.ts",
+        "src/utils/index.ts",
+        "src/entry-development.ts", // Build-condition shim; behavior is covered through package contracts
+        "src/entry-production.ts", // Build-condition shim; behavior is covered through package contracts
       ],
       thresholds: {
         // Raised gate after expanding coverage for runtime modules and services.

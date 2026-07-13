@@ -6,15 +6,30 @@ import type {
   I18n,
   TranslationParams,
   TranslationResult,
+  DefaultTranslationParams,
 } from "@comvi/core";
+import {
+  assertInterpolationDefaults,
+  assertPreservesDefaultParamKeys,
+} from "../../packages/core/src/utils/defaultParams";
 import { FakeI18nCore, type FakeI18nCoreOptions, type FakeTranslationCache } from "./fakeI18nCore";
 
-type FakeI18nOptions = Pick<FakeI18nCoreOptions, "language" | "defaultNamespace">;
+type FakeI18nOptions = Pick<FakeI18nCoreOptions, "language" | "defaultNamespace"> & {
+  defaultParams?: DefaultTranslationParams;
+};
 
 export class FakeI18n {
   private readonly core: FakeI18nCore;
+  private readonly guaranteedDefaultParamKeys: string[];
+  private currentDefaultParams: DefaultTranslationParams | undefined;
+  private currentConfigRevision = 0;
 
   constructor(options: FakeI18nOptions = {}) {
+    assertInterpolationDefaults(options.defaultParams);
+    this.currentDefaultParams = options.defaultParams ? { ...options.defaultParams } : undefined;
+    this.guaranteedDefaultParamKeys = options.defaultParams
+      ? Object.keys(options.defaultParams)
+      : [];
     this.core = new FakeI18nCore({
       language: options.language,
       defaultNamespace: options.defaultNamespace,
@@ -89,6 +104,22 @@ export class FakeI18n {
   public readonly setFallbackLocale = vi.fn((fallback: string | string[]): void => {
     this.core.setFallbackLanguage(fallback);
   });
+
+  public readonly setDefaultParams = vi.fn((params: DefaultTranslationParams | undefined): void => {
+    assertInterpolationDefaults(params);
+    assertPreservesDefaultParamKeys(params, this.guaranteedDefaultParamKeys);
+    this.currentDefaultParams = params ? { ...params } : undefined;
+    this.currentConfigRevision++;
+    this.core.emit("configChanged", { source: "defaultParams" });
+  });
+
+  get defaultParams(): Readonly<DefaultTranslationParams> | undefined {
+    return this.currentDefaultParams ? { ...this.currentDefaultParams } : undefined;
+  }
+
+  get configRevision(): number {
+    return this.currentConfigRevision;
+  }
 
   public readonly onMissingKey = vi.fn(
     (

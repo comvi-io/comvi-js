@@ -23,6 +23,13 @@ export function createInitCommand(): Command {
     .option("--file-template <template>", "File template pattern", DEFAULT_FILE_TEMPLATE)
     .action(async (options) => {
       try {
+        if (options.apiKey) {
+          console.error(
+            "⚠  --api-key is visible to other local users (ps) and shell history. " +
+              "Prefer the COMVI_API_KEY environment variable.",
+          );
+        }
+
         // Check for API key from env var or flag
         const apiKey = options.apiKey || process.env.COMVI_API_KEY;
 

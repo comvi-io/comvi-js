@@ -3,24 +3,20 @@ name: CI
 on:
   pull_request:
   push:
-    branches:
-      - develop
-      - main
 
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  validate:
+  quality:
+    name: Quality and security
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    env:
-      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
@@ -55,18 +51,25 @@ jobs:
           echo "$CHANGESET_FILES"
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v6
         with:
           version: 9.12.1
 
+      # setup-node stays on v5: v6 limits automatic caching to npm,
+      # and this workflow relies on `cache: pnpm`
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: 24
           cache: pnpm
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      # Fails when the planned release bump exceeds what changesets declare
+      # (e.g. a pinned internal peer range escalating the fixed group to major)
+      - name: Release plan guard
+        run: node scripts/check-release-plan.mjs
 
       - name: Format check
         run: pnpm format:check
@@ -80,8 +83,80 @@ jobs:
       - name: Typecheck
         run: pnpm typecheck
 
+  tests:
+    name: Package tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 9.12.1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
       - name: Test
-        run: pnpm test
+        run: pnpm test:commit
+
+  critical-coverage:
+    name: Critical package coverage
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 9.12.1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Enforce editor transport and loader coverage
+        run: pnpm test:coverage:critical
+
+  package-contracts:
+    name: Build and package contracts
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 9.12.1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
 
       - name: Build
         run: pnpm build
@@ -101,3 +176,112 @@ jobs:
       # conditions cannot ship unnoticed. Reads dist/, so it runs after Build.
       - name: Types exports
         run: pnpm check:types-exports
+
+  extension-artifact:
+    name: Chrome extension artifact
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      VITE_COMVI_API_BASE_URL: https://api.comvi.io
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 9.12.1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build editor and extension
+        run: pnpm extension:build
+
+      - name: Verify built artifact
+        run: pnpm --filter @comvi/chrome-extension exec vitest run src/__tests__/artifacts.test.ts
+
+  extension-browser-security:
+    name: Chrome extension trust boundary
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 9.12.1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build editor bundle
+        run: pnpm exec turbo run build --filter @comvi/plugin-in-context-editor
+
+      - name: Install Chromium
+        run: pnpm --filter @comvi/chrome-extension exec playwright install --with-deps chromium
+
+      - name: Run Gate E
+        run: pnpm --filter @comvi/chrome-extension test:e2e
+
+      - name: Upload Gate E diagnostics
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: gate-e-playwright-report
+          path: |
+            apps/chrome-extension/playwright-report/
+            apps/chrome-extension/test-results/
+          if-no-files-found: ignore
+          retention-days: 14
+
+  dispatch-system-compatibility:
+    name: Dispatch system compatibility
+    if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
+    needs:
+      [
+        quality,
+        tests,
+        critical-coverage,
+        package-contracts,
+        extension-artifact,
+        extension-browser-security,
+      ]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      GH_TOKEN: ${{ secrets.SYSTEM_COMPATIBILITY_TOKEN }}
+
+    steps:
+      - name: Explain skipped compatibility dispatch
+        if: env.GH_TOKEN == ''
+        run: |
+          echo '::warning::SYSTEM_COMPATIBILITY_TOKEN is not configured; skipping the private platform dispatch.'
+          echo '### System compatibility dispatch skipped' >> "$GITHUB_STEP_SUMMARY"
+          echo 'Configure SYSTEM_COMPATIBILITY_TOKEN to dispatch exact comvi-js commits to the private platform gate.' >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Dispatch exact SDK and extension candidate
+        if: env.GH_TOKEN != ''
+        run: |
+          gh api \
+            --method POST \
+            repos/comvi-io/platform/dispatches \
+            -f event_type=system-compatibility \
+            -F 'client_payload[platform_ref]=develop' \
+            -F 'client_payload[sdk_ref]=${{ github.sha }}'
