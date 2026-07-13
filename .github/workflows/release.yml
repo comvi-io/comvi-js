@@ -43,7 +43,9 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Ensure npm 11.5.1+ for OIDC trusted publishing
-        run: npm install -g npm@latest
+        # npm 12 rejects pnpm's --no-git-checks publish flag. Keep the OIDC-capable
+        # npm 11 line pinned until the pnpm/Changesets publish path supports npm 12.
+        run: npm install -g npm@11.11.0
 
       - name: Build
         run: pnpm build

@@ -1,5 +1,22 @@
 # @comvi/plugin-locale-detector
 
+## 0.4.0
+
+### Minor Changes
+
+- 7584363: `cacheFirst` option:
+  - By default the first cache target is consulted before the detection `order`, so a persisted locale wins over everything, including an explicit query parameter.
+  - Set `cacheFirst: false` to let `order` fully govern priority — e.g. `order: ["querystring", "localStorage", "navigator"]` makes `?language=fr` override the locale stored on a previous visit, while storage still persists changes and is still read when no stronger source matches.
+
+### Patch Changes
+
+- 641245b: Fix three binding bugs found in the fleet-wide package audit:
+  - **nuxt**: replaced the Nuxt 2-era `process.dev` with `import.meta.dev` in `useSwitchLocalePath` so the invalid-locale dev warning actually fires.
+  - **vue**: `formatNumber`/`formatDate`/`formatCurrency`/`formatRelativeTime` read the non-reactive core locale, so template usages did not re-render after a locale switch (React binding already behaved correctly). They now default to the reactive locale ref.
+  - **plugin-locale-detector**: cookies written with `sameSite: "none"` but no `secure` flag are rejected by modern browsers; `Secure` is now forced for `SameSite=None`.
+
+- 8c4ed91: Pin the `@comvi/core` peer range to the minor line each release ships with (`^0.3.0` for 0.3.x, auto-synced to `^0.4.0` at the next release by `scripts/sync-peer-ranges.mjs`). Prevents the out-of-range escalation that turned the whole fixed group into a major bump at version time.
+
 ## 0.3.0
 
 ### Minor Changes
