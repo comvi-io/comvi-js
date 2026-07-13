@@ -16,6 +16,7 @@ import { resolve } from "path";
 import { DEFAULT_FILE_TEMPLATE } from "../defaults";
 import type { ComviConfig, GeneratorOptions } from "../types";
 import { TypegenError, ErrorCodes } from "../utils/errors";
+import { atomicWriteFile } from "../utils/atomicWrite";
 
 export class ConfigLoader {
   private static readonly CONFIG_FILENAME = ".comvirc.json";
@@ -289,7 +290,13 @@ export class ConfigLoader {
     const content = JSON.stringify(configToWrite, null, 2);
 
     try {
-      await fs.writeFile(filePath, content, "utf-8");
+      // Write secrets to a new 0600 file and atomically replace the target so
+      // an existing permissive config never briefly exposes the new key.
+      if (config.apiKey) {
+        await atomicWriteFile(filePath, content, { mode: 0o600 });
+      } else {
+        await fs.writeFile(filePath, content, "utf-8");
+      }
       return filePath;
     } catch (error) {
       if (error instanceof Error) {

@@ -9,15 +9,25 @@
 import { promises as fs } from "fs";
 import { dirname } from "path";
 import { wrapError, ErrorCodes } from "../utils/errors";
+import { createAtomicTempPath } from "../utils/atomicWrite";
+
+export interface FileWriteOptions {
+  exclusive?: boolean;
+  mode?: number;
+}
 
 /**
  * File system interface for dependency injection
  */
 export interface FileSystem {
   mkdir(path: string, options?: { recursive: boolean }): Promise<void>;
-  writeFile(path: string, content: string): Promise<void>;
+  writeFile(path: string, content: string, options?: FileWriteOptions): Promise<void>;
   readFile(path: string): Promise<string>;
   access(path: string): Promise<void>;
+  /** Optional: enables atomic temp-file + rename writes when implemented */
+  rename?(oldPath: string, newPath: string): Promise<void>;
+  /** Optional: removes failed temp files after an atomic write */
+  unlink?(path: string): Promise<void>;
 }
 
 /**
@@ -28,8 +38,12 @@ export class NodeFileSystem implements FileSystem {
     await fs.mkdir(path, options);
   }
 
-  async writeFile(path: string, content: string): Promise<void> {
-    await fs.writeFile(path, content, { encoding: "utf-8" });
+  async writeFile(path: string, content: string, options?: FileWriteOptions): Promise<void> {
+    await fs.writeFile(path, content, {
+      encoding: "utf-8",
+      flag: options?.exclusive ? "wx" : "w",
+      mode: options?.mode,
+    });
   }
 
   async readFile(path: string): Promise<string> {
@@ -38,6 +52,14 @@ export class NodeFileSystem implements FileSystem {
 
   async access(path: string): Promise<void> {
     await fs.access(path);
+  }
+
+  async rename(oldPath: string, newPath: string): Promise<void> {
+    await fs.rename(oldPath, newPath);
+  }
+
+  async unlink(path: string): Promise<void> {
+    await fs.unlink(path);
   }
 }
 
@@ -63,7 +85,10 @@ export class InMemoryFileSystem implements FileSystem {
     }
   }
 
-  async writeFile(path: string, content: string): Promise<void> {
+  async writeFile(path: string, content: string, options?: FileWriteOptions): Promise<void> {
+    if (options?.exclusive && this.files.has(path)) {
+      throw new Error(`EEXIST: file already exists, open '${path}'`);
+    }
     this.files.set(path, content);
   }
 
@@ -125,8 +150,20 @@ export class FileSystemWriter {
       // Ensure parent directory exists
       await this.ensureDirectory(dirname(filePath));
 
-      // Write file
-      await this.fs.writeFile(filePath, content);
+      // Atomic when the backing fs supports rename, so an interrupted run
+      // never leaves a truncated output file
+      if (this.fs.rename) {
+        const tmpPath = createAtomicTempPath(filePath);
+        try {
+          await this.fs.writeFile(tmpPath, content, { exclusive: true });
+          await this.fs.rename(tmpPath, filePath);
+        } catch (error) {
+          await this.fs.unlink?.(tmpPath).catch(() => undefined);
+          throw error;
+        }
+      } else {
+        await this.fs.writeFile(filePath, content);
+      }
     } catch (error) {
       throw wrapError(error, "Failed to write file", ErrorCodes.FS_WRITE_FAILED);
     }

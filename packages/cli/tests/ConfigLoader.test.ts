@@ -9,6 +9,9 @@ vi.mock("fs", () => ({
     readFile: vi.fn(),
     writeFile: vi.fn(),
     access: vi.fn(),
+    chmod: vi.fn(),
+    rename: vi.fn(),
+    unlink: vi.fn(),
   },
 }));
 

@@ -110,7 +110,8 @@ describe("ApiClient", () => {
           ok: true,
           json: async () => mockProjectInfo,
         })
-        .mockResolvedValueOnce({
+        // 5xx responses are retried with backoff, so keep failing for every attempt
+        .mockResolvedValue({
           ok: false,
           status: 500,
           statusText: "Internal Server Error",

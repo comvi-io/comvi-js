@@ -27,6 +27,7 @@ export function createPullCommand(): Command {
     .option("-n, --ns <namespaces>", "Filter by namespaces (comma-separated)")
     .option("-p, --path <path>", "Override translations output path")
     .option("--empty-dir", "Clear directory before pull")
+    .option("--dry-run", "Show what would be written without touching files")
     .action(async (options) => {
       try {
         console.log("🔄 Loading configuration...");
@@ -66,8 +67,12 @@ export function createPullCommand(): Command {
 
         // Empty directory if requested
         if (options.emptyDir || config.pull?.emptyDir) {
-          console.log("🗑️  Clearing translations directory...");
-          await sync.clearDirectory();
+          if (options.dryRun) {
+            console.log("🗑️  [dry-run] Would clear translations directory");
+          } else {
+            console.log("🗑️  Clearing translations directory...");
+            await sync.clearDirectory();
+          }
         }
 
         // Fetch translations
@@ -86,6 +91,16 @@ export function createPullCommand(): Command {
         const defaultNamespace = isDefaultFileTemplate(fileTemplate)
           ? await apiClient.fetchDefaultNamespace()
           : undefined;
+
+        if (options.dryRun) {
+          const preview = sync.previewTranslations(translations, { defaultNamespace });
+          console.log(`\n✓ [dry-run] Would write ${preview.files.length} files:`);
+          for (const file of preview.files) {
+            console.log(`  ${file}`);
+          }
+          process.exit(0);
+        }
+
         console.log("📝 Writing translation files...");
         const result = await sync.writeTranslations(translations, { defaultNamespace });
 
