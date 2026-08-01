@@ -110,15 +110,24 @@
         on: () => () => {},
         off: () => {},
       };
-      window.__COMVI__ = {
-        version: "9.9.9-gate-e",
-        instances: { size: 1 },
-        get: () => i18nStub,
-      };
-      // Announce ourselves like @comvi/core does.
-      window.dispatchEvent(
-        new CustomEvent("COMVI_READY", { detail: { version: "9.9.9-gate-e", instanceCount: 1 } }),
-      );
+      // Announce ourselves like @comvi/core does — discovery protocol v2
+      // (contracts/chrome-extension-proxy.json, coreToPage.probeOrder): push a
+      // {v, i} envelope into an existing queue/hook, register into a genuine
+      // v1 legacy registry, or install a fresh queue array. The extension's
+      // MAIN-world detector swaps the array for its dual-protocol hook.
+      (() => {
+        const entry = { v: "9.9.9-gate-e", i: i18nStub };
+        const g = window.__COMVI__;
+        if (Array.isArray(g)) {
+          g.push(entry);
+        } else if (g && typeof g.push === "function" && typeof g.remove === "function") {
+          g.push(entry);
+        } else if (g && typeof g.register === "function") {
+          g.register("gate-e", i18nStub);
+        } else if (!g) {
+          window.__COMVI__ = [entry];
+        }
+      })();
 
       // --- page-side egress monitor: prove the PAGE never sends credentials ---
       window.__PAGE_EGRESS__ = [];
