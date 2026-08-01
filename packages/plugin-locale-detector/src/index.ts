@@ -183,11 +183,11 @@ export const LocaleDetector: I18nPluginFactory<LocaleDetectorOptions> = (
   };
 
   const cfg = {
-    ck: lookupCookie,
-    ls: lookupLocalStorage,
-    ss: lookupSessionStorage,
-    co: cookieOptions,
-    ma: cookieMaxAge,
+    cookieKey: lookupCookie,
+    localStorageKey: lookupLocalStorage,
+    sessionStorageKey: lookupSessionStorage,
+    cookieOptions,
+    maxAge: cookieMaxAge,
   };
 
   return (i18n) => {
@@ -340,20 +340,37 @@ function detectNav(): string | null {
 function writeCaches(
   locale: string,
   caches: CacheType[],
-  cfg: { ck: string; ls: string; ss: string; co: CookieOptions; ma: number },
+  cfg: {
+    cookieKey: string;
+    localStorageKey: string;
+    sessionStorageKey: string;
+    cookieOptions: CookieOptions;
+    maxAge: number;
+  },
 ): void {
   for (const t of caches) {
     try {
       if (t === "cookie") {
         if (!doc()) continue;
-        const { path: p = "/", domain: d, sameSite: s = "lax", secure: sc = false } = cfg.co;
-        let v = `${cfg.ck}=${encodeURIComponent(locale)}; max-age=${cfg.ma}; path=${p}; samesite=${s}`;
+        const {
+          path: p = "/",
+          domain: d,
+          sameSite: s = "lax",
+          secure: sc = false,
+        } = cfg.cookieOptions;
+        let v =
+          `${cfg.cookieKey}=${encodeURIComponent(locale)}; ` +
+          `max-age=${cfg.maxAge}; path=${p}; samesite=${s}`;
         if (d) v += `; domain=${d}`;
         // browsers reject SameSite=None cookies without Secure
         if (sc || s === "none") v += "; secure";
         document.cookie = v;
       } else {
-        if (win()) window[t]?.setItem(t === "sessionStorage" ? cfg.ss : cfg.ls, locale);
+        if (win())
+          window[t]?.setItem(
+            t === "sessionStorage" ? cfg.sessionStorageKey : cfg.localStorageKey,
+            locale,
+          );
       }
     } catch {
       /* privacy mode, quota exceeded */

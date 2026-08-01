@@ -168,6 +168,17 @@ test("coordinatedVersion rejects a partial fixed-group bump", () => {
   );
 });
 
+test("coordinatedVersion ignores independently versioned packages", () => {
+  assert.equal(
+    coordinatedVersion([
+      { name: "@comvi/core", version: "0.5.0" },
+      { name: "@comvi/locale-routing", version: "0.1.0" },
+      { name: "@comvi/react", version: "0.5.0" },
+    ]),
+    "0.5.0",
+  );
+});
+
 test("filesystem helpers generate one deterministic release entry", () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "comvi-root-changelog-test-"));
   try {

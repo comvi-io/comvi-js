@@ -7,21 +7,16 @@ import {
   type Component,
   type VNode,
 } from "vue";
+// Importing from "@comvi/core/tags" also registers tag syntax AMBIENTLY for
+// any plain string-API `t()` use in the app (§1.2). <T> itself does NOT
+// depend on that: prepareTranslation passes the tag extension per call.
+import {
+  prepareTranslation,
+  type PendingHandler,
+  type PrepareTranslationSource,
+} from "@comvi/core/tags";
+import type { TranslationParams, TranslationResult, VirtualNode } from "@comvi/core";
 import { I18N_INJECTION_KEY } from "../keys";
-import type {
-  TranslationParams,
-  TranslationResult,
-  TagCallbackParams,
-  VirtualNode,
-} from "@comvi/core";
-import { createElement } from "@comvi/core";
-
-/**
- * Marker prefix for Vue component/slot handling in tag interpolation
- * Used to identify VirtualNodes that should be converted to Vue-specific elements
- */
-const MARKER_PREFIX = "__vue_handler_";
-const MARKER_SUFFIX = "__";
 
 /**
  * Component handler types for the `components` prop
@@ -38,16 +33,6 @@ type ComponentHandler =
  * Components prop type for tag interpolation
  */
 type ComponentsMap = Record<string, ComponentHandler>;
-
-/**
- * Convert TranslationResult children to format suitable for slot/component
- */
-function childrenToArray(children: TranslationResult): (string | VirtualNode)[] {
-  if (typeof children === "string") {
-    return children ? [children] : [];
-  }
-  return children;
-}
 
 /**
  * Translation component for Vue
@@ -76,6 +61,9 @@ function childrenToArray(children: TranslationResult): (string | VirtualNode)[] 
  *     bold: 'strong'
  *   }"
  * />
+ *
+ * <!-- With default-slot fallback for missing translations -->
+ * <T i18nKey="maybe.missing">Shown when the key has no translation</T>
  *
  * <!-- With specific namespace -->
  * <T i18nKey="button.submit" ns="forms" />
@@ -166,136 +154,106 @@ export const T = defineComponent({
       );
     }
 
+    // prepareTranslation consumes the core-shaped hasTranslation; VueI18n's
+    // hasTranslation returns a ComputedRef, so adapt to the imperative check.
+    // Reactivity is carried by tRaw (locale/cache/config refs).
+    const source: PrepareTranslationSource = {
+      tRaw: (key, params) => i18n.tRaw(key, params),
+      hasTranslation: (key, locale, namespace, checkFallbacks) =>
+        i18n.hasTranslationNow(key, { locale, namespace, checkFallbacks }),
+    };
+
+    // Flatten single-string arrays for template {{ children }} compatibility
+    const flattenChildren = (children: (string | VNode)[]) =>
+      children.length === 1 && typeof children[0] === "string" ? children[0] : children;
+
     return () => {
-      const key = props.i18nKey;
-
-      // Store Vue component/slot handlers for later rendering
-      // Handlers receive already-converted Vue VNodes (not TranslationResult)
-      const vueHandlers = new Map<string, (children: (string | VNode)[]) => VNode>();
-
-      // Build tag handlers that return VirtualNode (core format)
-      // Priority: components prop > slots
-      const tagHandlers: Record<string, (params: TagCallbackParams) => VirtualNode | string> = {};
-
-      // Shared: register a Vue handler + its marker tag handler
-      const registerVueHandler = (
-        tagName: string,
-        vueHandler: (children: (string | VNode)[]) => VNode,
-      ) => {
-        vueHandlers.set(tagName, (children) => {
-          try {
-            return vueHandler(children);
-          } catch (error) {
-            i18n.reportError(error, { source: "translation", tagName });
-            return h("span", {}, children);
-          }
-        });
-        tagHandlers[tagName] = ({ children }: TagCallbackParams) =>
-          createElement(
-            `${MARKER_PREFIX}${tagName}${MARKER_SUFFIX}`,
-            {},
-            childrenToArray(children),
-          );
-      };
-
-      // Flatten single-string arrays for template {{ children }} compatibility
-      const flattenChildren = (children: (string | VNode)[]) =>
-        children.length === 1 && typeof children[0] === "string" ? children[0] : children;
-
-      // Process components prop first (higher priority)
-      if (props.components) {
-        for (const [tagName, handler] of Object.entries(props.components)) {
-          if (typeof handler === "string") {
-            tagHandlers[tagName] = ({ children }: TagCallbackParams) =>
-              createElement(handler, {}, childrenToArray(children));
-          } else if (typeof handler === "object" && handler !== null && "component" in handler) {
-            const component = handler.component;
-            const componentProps = handler.props || {};
-            if (typeof component === "string") {
-              tagHandlers[tagName] = ({ children }: TagCallbackParams) =>
-                createElement(component, componentProps, childrenToArray(children));
-            } else {
-              registerVueHandler(tagName, (children) =>
-                h(component, componentProps, { default: () => flattenChildren(children) }),
-              );
-            }
-          } else {
-            registerVueHandler(tagName, (children) =>
-              h(handler as Component, {}, { default: () => flattenChildren(children) }),
-            );
-          }
+      // Slots participate as tag handlers (default included, for compat);
+      // the components prop wins on name collisions.
+      const merged: Record<string, unknown> = {};
+      let hasHandlers = false;
+      for (const name of Object.keys(slots)) {
+        if (slots[name]) {
+          merged[name] = slots[name];
+          hasHandlers = true;
         }
       }
+      if (props.components) {
+        Object.assign(merged, props.components);
+        hasHandlers = true;
+      }
 
-      // Process slots (only if not already defined in components)
-      for (const [slotName, slot] of Object.entries(slots)) {
-        if (slot && !(slotName in tagHandlers)) {
-          registerVueHandler(slotName, (children) => {
+      const prepared = prepareTranslation(source, {
+        i18nKey: props.i18nKey,
+        params: props.params as TranslationParams,
+        ns: props.ns,
+        locale: props.locale,
+        fallback: props.fallback,
+        raw: props.raw,
+        components: hasHandlers ? merged : undefined,
+      });
+
+      // Default-slot fallback for missing translations (parity with the
+      // react/solid/svelte wrappers' children fallback).
+      const defaultSlot = slots.default;
+      if (prepared.isMissing && defaultSlot) {
+        return defaultSlot();
+      }
+
+      const content = prepared.content;
+      if (typeof content === "string") {
+        return content;
+      }
+
+      // Marker tag → pending framework handler (slot or Vue component)
+      const pendingByMarker = new Map<string, PendingHandler>();
+      for (const pending of prepared.pendingHandlers) {
+        pendingByMarker.set(pending.marker, pending);
+      }
+
+      // Resolve an opaque handler: slot functions receive { children },
+      // Vue components receive children through their default slot.
+      const resolvePending = (pending: PendingHandler, children: (string | VNode)[]): VNode => {
+        try {
+          const slot = slots[pending.name];
+          if (slot && pending.handler === slot) {
             const rendered = slot({ children: flattenChildren(children) });
             const nodes = Array.isArray(rendered) ? rendered : [rendered];
             if (nodes.length <= 1) {
               return nodes.length === 0 ? h(Fragment, {}, []) : (nodes[0] as VNode);
             }
             return h(Fragment, {}, nodes);
+          }
+          return h(pending.handler as Component, pending.props ?? {}, {
+            default: () => flattenChildren(children),
           });
+        } catch (error) {
+          i18n.reportError(error, { source: "translation", tagName: pending.name });
+          return h("span", {}, children);
         }
-      }
-
-      // Build translation params
-      const translationParams: TranslationParams = {
-        ...props.params,
-        ...tagHandlers,
-      } as TranslationParams;
-      if (props.ns !== undefined) translationParams.ns = props.ns;
-      if (props.locale !== undefined) translationParams.locale = props.locale;
-      if (props.fallback !== undefined) translationParams.fallback = props.fallback;
-      if (props.raw !== undefined) translationParams.raw = props.raw;
-
-      // Get translated content
-      const content = i18n.tRaw(key, translationParams);
-
-      if (typeof content === "string") {
-        return content;
-      }
-
-      // Convert VirtualNode children to Vue VNodes (recursively handles markers)
-      const convertChildren = (childResult: TranslationResult): (string | VNode)[] => {
-        if (typeof childResult === "string") {
-          return childResult ? [childResult] : [];
-        }
-        return childResult.map((child) => (typeof child === "string" ? child : convertNode(child)));
       };
 
-      // Convert VirtualNode to Vue VNode, resolving marker nodes
+      // Convert VirtualNode children to Vue VNodes (recursively resolves markers)
+      const convertList = (items: TranslationResult): (string | VNode)[] => {
+        if (typeof items === "string") {
+          return items ? [items] : [];
+        }
+        return items.map((item) => (typeof item === "string" ? item : convertNode(item)));
+      };
+
       const convertNode = (node: VirtualNode): VNode | string => {
         if (node.type === "text") return node.text;
 
         if (node.type === "fragment") {
-          return h(
-            Fragment,
-            { key: node.key },
-            convertChildren(node.children as TranslationResult),
-          );
+          return h(Fragment, { key: node.key }, convertList(node.children as TranslationResult));
         }
 
-        const tag = node.tag;
-        const convertedChildren = convertChildren(node.children as TranslationResult);
-
-        // Check for Vue handler marker
-        if (tag.startsWith(MARKER_PREFIX) && tag.endsWith(MARKER_SUFFIX)) {
-          const handlerName = tag.slice(MARKER_PREFIX.length, -MARKER_SUFFIX.length);
-          const handler = vueHandlers.get(handlerName);
-          if (handler) {
-            try {
-              return handler(convertedChildren);
-            } catch (error) {
-              i18n.reportError(error, { source: "translation", tagName: handlerName });
-              return h("span", {}, convertedChildren);
-            }
-          }
+        const children = convertList(node.children as TranslationResult);
+        const pending = pendingByMarker.get(node.tag);
+        if (pending !== undefined) {
+          return resolvePending(pending, children);
         }
-
-        return h(tag, node.props, convertedChildren);
+        return h(node.tag, node.props, children);
       };
 
       return content.map((item) => (typeof item === "string" ? item : convertNode(item)));

@@ -33,6 +33,16 @@ export interface FragmentNode {
 export type VirtualNode = ElementNode | TextNode | FragmentNode;
 
 /**
+ * Type guard for the framework-agnostic VirtualNode union (strict: does NOT
+ * accept Vue VNodes or React elements).
+ */
+export function isVirtualNode(value: unknown): value is VirtualNode {
+  if (!value || typeof value !== "object" || !("type" in value)) return false;
+  const type = value.type;
+  return type === "element" || type === "text" || type === "fragment";
+}
+
+/**
  * Translation result can be a string or an array of strings and virtual nodes
  * This allows for interpolation with dynamic content (components, styled elements)
  */

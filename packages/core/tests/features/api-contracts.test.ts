@@ -56,7 +56,7 @@ describe("Core API Contracts", () => {
     const i18n = new I18n({ locale: "en", exposeGlobal: false });
 
     expect(() => i18n.registerLoader(123 as any)).toThrow(
-      /registerLoader\(\).*function or an import map|E_REGISTER_LOADER_ARG/,
+      /registerLoader\(\).*loader function|E_REGISTER_LOADER_ARG/,
     );
   });
 
@@ -100,23 +100,30 @@ describe("Core API Contracts", () => {
     warnSpy.mockRestore();
   });
 
-  it("registers and unregisters instance in window.__COMVI__", async () => {
-    const id = `core-contract-${Date.now()}`;
-    const i18n = new I18n({
-      locale: "en",
-      exposeGlobal: true,
-      instanceId: id,
-    });
+  it("pushes and removes its queue entry on window.__COMVI__", async () => {
+    const previousGlobal = (window as { __COMVI__?: unknown }).__COMVI__;
+    delete (window as { __COMVI__?: unknown }).__COMVI__;
+    try {
+      const id = `core-contract-${Date.now()}`;
+      const i18n = new I18n({
+        locale: "en",
+        exposeGlobal: true,
+        instanceId: id,
+      });
 
-    const globalRef = (window as any).__COMVI__;
-    expect(i18n.instanceId).toBe(id);
-    expect(globalRef?.get(id)).toBe(i18n);
+      const queue = (window as { __COMVI__?: Array<{ v: string; i: unknown }> }).__COMVI__;
+      expect(i18n.instanceId).toBe(id);
+      expect(Array.isArray(queue)).toBe(true);
+      expect(queue!.some((entry) => entry.i === i18n)).toBe(true);
 
-    await i18n.destroy();
+      await i18n.destroy();
 
-    expect(globalRef?.get(id)).toBeUndefined();
-    await expect(i18n.init()).rejects.toThrow(/destroy|E_INSTANCE_DESTROYED/);
-    expect(globalRef?.get(id)).toBeUndefined();
+      expect(queue!.some((entry) => entry.i === i18n)).toBe(false);
+      await expect(i18n.init()).rejects.toThrow(/destroy|E_INSTANCE_DESTROYED/);
+      expect(queue!.some((entry) => entry.i === i18n)).toBe(false);
+    } finally {
+      (window as { __COMVI__?: unknown }).__COMVI__ = previousGlobal;
+    }
   });
 
   it("supports exposeGlobal in SSR-like environments without window", async () => {

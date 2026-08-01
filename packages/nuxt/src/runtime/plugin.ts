@@ -6,41 +6,16 @@ import { createI18n } from "@comvi/vue";
 import type { VueI18n } from "@comvi/vue";
 import type { TranslationValue } from "@comvi/core";
 import { DEFAULT_DETECT_BROWSER_LANGUAGE } from "./defaults";
+import {
+  EDITOR_INITIAL_MAPPINGS_GLOBAL,
+  toRecordOfNumbers,
+  readEditorMappings,
+} from "@comvi/core/editor-bridge";
 
 const I18N_EDITOR_MAPPINGS_STATE_KEY = "__comvi_ice_mappings__";
-const I18N_EDITOR_MAPPINGS_BRIDGE_KEY = "__comviInContextEditorMappings";
-const I18N_EDITOR_INITIAL_MAPPINGS_KEY = "__comviInContextEditorInitialMappings";
 const I18N_TRANSLATIONS_PAYLOAD_KEY = "__comvi_translations__";
 
-type InContextEditorMappingsBridge = {
-  getKeyMappings?: () => Record<string, number>;
-  loadKeyMappings?: (mappings: Record<string, number>) => void;
-};
-
 type TranslationsPayload = Record<string, Record<string, TranslationValue>>;
-
-function getInContextEditorBridge(i18n: VueI18n): InContextEditorMappingsBridge | undefined {
-  const bridge = (i18n as unknown as Record<string, unknown>)[I18N_EDITOR_MAPPINGS_BRIDGE_KEY];
-  if (!bridge || typeof bridge !== "object") {
-    return undefined;
-  }
-  return bridge as InContextEditorMappingsBridge;
-}
-
-function toRecordOfNumbers(value: unknown): Record<string, number> | undefined {
-  if (!value || typeof value !== "object") {
-    return undefined;
-  }
-  const entries = Object.entries(value as Record<string, unknown>);
-  const result: Record<string, number> = {};
-  for (const [key, item] of entries) {
-    if (typeof item !== "number" || !Number.isFinite(item)) {
-      return undefined;
-    }
-    result[key] = item;
-  }
-  return result;
-}
 
 /**
  * Serialize the translation cache Map to a plain object for Nuxt payload.
@@ -129,7 +104,7 @@ export default defineNuxtPlugin({
     if (import.meta.server) {
       nuxtApp.hook("app:rendered", () => {
         // Save in-context editor mappings
-        const mappings = getInContextEditorBridge(i18n)?.getKeyMappings?.();
+        const mappings = readEditorMappings(i18n)?.getKeyMappings();
         if (mappings) {
           if (!nuxtApp.payload.state) {
             nuxtApp.payload.state = {};
@@ -148,7 +123,7 @@ export default defineNuxtPlugin({
     // --- Client: hydrate translations from SSR payload before init ---
     if (!import.meta.server) {
       if (initialInContextEditorMappings) {
-        (i18n as unknown as Record<string, unknown>)[I18N_EDITOR_INITIAL_MAPPINGS_KEY] =
+        (i18n as unknown as Record<string, unknown>)[EDITOR_INITIAL_MAPPINGS_GLOBAL] =
           initialInContextEditorMappings;
       }
 

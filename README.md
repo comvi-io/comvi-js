@@ -52,7 +52,7 @@ npm install @comvi/core      # Vanilla / Node
 npm install @comvi/vue       # Vue 3
 npm install @comvi/react     # React 16.8+
 npm install @comvi/solid     # SolidJS 1.8+
-npm install @comvi/svelte    # Svelte 4 / 5
+npm install @comvi/svelte    # Svelte 5
 npm install @comvi/next      # Next.js 14+
 npm install @comvi/nuxt      # Nuxt 3
 ```
@@ -182,7 +182,7 @@ Reactive in every framework binding via `useI18n()`.
 | [`@comvi/vue`](packages/vue)       | Vue 3 plugin, `useI18n()`, `<T>` component               | [→](https://comvi.io/docs/i18n/vue/)     |
 | [`@comvi/react`](packages/react)   | `<I18nProvider>`, `useI18n()` hook, `<T>` component      | [→](https://comvi.io/docs/i18n/react/)   |
 | [`@comvi/solid`](packages/solid)   | SolidJS provider + reactive signals + `<T>` component    | [→](https://comvi.io/docs/i18n/solid/)   |
-| [`@comvi/svelte`](packages/svelte) | Svelte stores + context (Svelte 4 & 5) + `<T>` component | [→](https://comvi.io/docs/i18n/svelte/)  |
+| [`@comvi/svelte`](packages/svelte) | Svelte stores + context (Svelte 5) + `<T>` component      | [→](https://comvi.io/docs/i18n/svelte/)  |
 | [`@comvi/next`](packages/next)     | Next.js App Router: SSR, middleware, locale routing      | [→](https://comvi.io/docs/i18n/next/)    |
 | [`@comvi/nuxt`](packages/nuxt)     | Nuxt 3 module: auto-imports, SSR, locale routing         | [→](https://comvi.io/docs/i18n/nuxt/)    |
 

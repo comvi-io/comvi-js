@@ -1,31 +1,42 @@
 import type { VirtualNode } from "./virtualNode";
+import type { MissingParamMode, SyntaxExtension } from "./core/translate/syntax";
 import type { TranslationCache as TranslationCacheClass } from "./core/TranslationCache";
 import type { I18n } from "./core/i18n";
 
 /**
- * Global Comvi object exposed on window for browser extensions
- * Extensions can use this to detect and interact with Comvi instances
+ * Entry pushed onto the `window.__COMVI__` queue by every instance created
+ * with `exposeGlobal` (discovery protocol v2 — see
+ * `contracts/chrome-extension-proxy.json`).
  */
-export interface ComviGlobal {
-  /** Library version */
-  version: string;
-  /** Map of all registered i18n instances */
-  instances: Map<string, I18n>;
-  /** Register an instance */
-  register: (id: string, instance: I18n) => void;
-  /** Unregister an instance */
-  unregister: (id: string) => void;
-  /** Get an instance by ID, or the first instance if no ID provided */
-  get: (id?: string) => I18n | undefined;
-  /** Optional callback when a new instance is registered (for extensions) */
-  onInstanceRegistered?: (id: string, instance: I18n) => void;
+export interface ComviQueueEntry {
+  /** Core library version that produced the entry */
+  v: string;
+  /** The exposed i18n instance */
+  i: I18n;
 }
+
+/**
+ * Hook object a consumer (e.g. the in-context editor) may swap in place of
+ * the raw queue array after draining it. It must accept new entries via
+ * `push` and support identity-based removal via `remove`.
+ */
+export interface ComviHook {
+  push(entry: ComviQueueEntry): void;
+  remove(entry: ComviQueueEntry): void;
+}
+
+/**
+ * Global Comvi discovery queue exposed on window for browser extensions:
+ * either the raw v2 entry array or a consumer-swapped hook object.
+ */
+export type ComviQueue = ComviQueueEntry[] | ComviHook;
 
 declare global {
   interface Window {
-    __COMVI__?: ComviGlobal;
+    __COMVI__?: ComviQueue;
   }
 }
+
 
 /**
  * Available i18n events
@@ -154,6 +165,7 @@ export type DefaultTranslationParams = Record<string, DefaultTranslationParamVal
   locale?: never;
   fallback?: never;
   raw?: never;
+  tagInterpolation?: never;
 };
 
 /** @internal Required own properties represent constructor-level guarantees. */
@@ -261,6 +273,25 @@ export type NamespacedParamsArg<
     : [params: { ns: NS } & CallParams<NamespacedKeyParams<NS, K>, D>];
 
 /**
+ * Generic typed translation function — the canonical call-signature set shared
+ * by the framework wrappers' `t` / `tRaw` (replaces the per-wrapper overload blocks).
+ *
+ * @typeParam D - Instance-level default interpolation params.
+ * @typeParam R - Return type: `string` for `t`, `TranslationResult` for `tRaw`.
+ */
+export interface TranslateFn<D extends DefaultTranslationParams = {}, R = string> {
+  /** Namespaced keys (explicit `ns` in params). */
+  <NS extends Namespaces, K extends NamespacedKeys<NS>>(
+    key: K,
+    ...params: NamespacedParamsArg<NS, K, D>
+  ): R;
+  /** Typed keys from the default namespace. */
+  <K extends DefaultNsKeys>(key: K, ...params: ParamsArg<K, D>): R;
+  /** Permissive overload — only active when `TranslationKeys` is empty. */
+  (key: PermissiveKey, params?: TranslationParams): R;
+}
+
+/**
  * Tag callback params passed to tag handlers
  */
 export interface TagCallbackParams {
@@ -282,7 +313,16 @@ export interface TranslationParams {
   fallback?: string;
   /** When true, post-processors that support it (e.g., IncontextEditor) will skip their processing for this call */
   raw?: boolean;
-  [key: string]: TranslationParamValue;
+  /**
+   * Per-call tag interpolation options, merged over the instance-level
+   * `tagInterpolation` constructor option for this call only (per-call
+   * `extensions` UNION with instance-level ones; other fields override).
+   * This is the ordering-proof channel `<T>` / `prepareTranslation` use to
+   * activate tag syntax without ambient registration. Reserved key — not an
+   * interpolation value.
+   */
+  tagInterpolation?: TagInterpolationOptions;
+  [key: string]: TranslationParamValue | TagInterpolationOptions;
 }
 
 /** Runtime replacement accepted by an instance with constructor-guaranteed defaults. */
@@ -336,11 +376,30 @@ export interface TagInterpolationOptions {
    * Use to route through reportError for consistent error pipeline.
    */
   onTagWarning?: (tagName: string) => void;
+  /**
+   * Per-call syntax extensions. The effective extension set at parse time is
+   * ambient ∪ per-call, so passing `tagSyntaxExtension` (from
+   * `@comvi/core/tags`) here activates tag parsing for these calls only —
+   * independent of import order and bundler side-effect handling. This is the
+   * channel `<T>` / `prepareTranslation` use.
+   */
+  extensions?: readonly SyntaxExtension[];
 }
 
 export interface I18nBaseOptions {
   locale: string;
   defaultNs?: string;
+  /**
+   * How to render a placeholder whose parameter is absent or `undefined`:
+   * - `"literal"` (default): the placeholder renders as itself, e.g. `{name}`
+   *   (ICU-aligned; one dev warning per (template, param) pair)
+   * - `"drop"`: the placeholder renders as an empty string (pre-0.5 behavior)
+   *
+   * A `null` param always renders as an empty string in both modes
+   * (explicit erasure).
+   * @default "literal"
+   */
+  missingParam?: MissingParamMode;
   /**
    * Namespaces to load during initialization
    * If not specified, only the default namespace will be loaded
@@ -374,8 +433,9 @@ export interface I18nBaseOptions {
    */
   collectContext?: boolean;
   /**
-   * Expose this instance on window.__COMVI__ for browser extensions.
-   * Extensions like Comvi In-Context Editor can detect and interact with the instance.
+   * Expose this instance on the window.__COMVI__ discovery queue for browser
+   * extensions. Extensions like Comvi In-Context Editor drain the queue (or
+   * swap in a hook) to detect and interact with instances.
    * @default true (in browser environments)
    */
   exposeGlobal?: boolean;

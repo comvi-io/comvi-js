@@ -358,18 +358,18 @@ describe("Test C — out-of-render events still drive consumer re-renders", () =
 });
 
 // ===========================================================================
-// TEST D — component-instance partitioning (two useStoreRevision call sites)
+// TEST D — useStoreRevision content-addressed snapshot (canonical event set)
 // ===========================================================================
 
-describe("Test D — useStoreRevision re-renders on subscribed events with real state changes", () => {
-  it("re-renders for a subscribed event that changes state; not for a no-op emit or an unsubscribed event", async () => {
+describe("Test D — useStoreRevision re-renders on canonical events with real state changes", () => {
+  it("re-renders for events that change state; not for a no-op emit", async () => {
     const fake = makeSharedI18n();
     const i18n = fake.asI18n();
 
     let renders = 0;
     function Subscriber() {
-      // Subscribes ONLY to configChanged (deliberately not namespaceLoaded).
-      useStoreRevision(i18n, "configChanged");
+      // Subscribes to the canonical 7-event revision set (core subscribeToRevision).
+      useStoreRevision(i18n);
       renders++;
       return <span data-testid="sub" />;
     }
@@ -397,12 +397,13 @@ describe("Test D — useStoreRevision re-renders on subscribed events with real 
     });
     expect(renders).toBe(afterConfig);
 
-    // unsubscribed event → no re-render even though it bumps the cache revision
+    // namespaceLoaded that bumps the cache revision → re-render (7-of-7 coverage,
+    // plan 6.4: previously this depended on the caller's hand-picked event list)
     await act(async () => {
       fake.translationCache.set("en", "default", { extra: "v" });
       fake.emit("namespaceLoaded", { locale: "en", namespace: "default" });
       await Promise.resolve();
     });
-    expect(renders).toBe(afterConfig);
+    expect(renders).toBeGreaterThan(afterConfig);
   });
 });

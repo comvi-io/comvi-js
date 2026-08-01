@@ -22,6 +22,24 @@ export interface ScopedPluginOptions extends PluginOptions {
   environment?: PluginEnvironment;
 }
 
+/**
+ * Options for the unified {@link CreateNextI18nResult.use} method.
+ */
+export interface UsePluginOptions extends ScopedPluginOptions {
+  /**
+   * Runtime where the plugin should run.
+   * Omit to run the plugin in both runtimes.
+   */
+  runtime?: PluginRuntimeTarget;
+  /**
+   * When `true`, the first argument is treated as a lazy loader
+   * (`() => Promise<plugin | { default: plugin }>`) that is only imported
+   * and executed when the plugin is due to run.
+   * @default false
+   */
+  lazy?: boolean;
+}
+
 export type LazyPluginModule = I18nPlugin | { default: I18nPlugin };
 export type LazyPluginLoader = () => Promise<LazyPluginModule>;
 
@@ -59,13 +77,20 @@ const shouldRunForEnvironment = (environment: PluginEnvironment): boolean => {
   return environment === (isProduction ? "production" : "development");
 };
 
+const shouldRunScoped = (
+  runtime: PluginRuntimeTarget | undefined,
+  environment: PluginEnvironment,
+): boolean =>
+  (runtime === undefined || shouldRunForRuntime(runtime)) &&
+  shouldRunForEnvironment(environment);
+
 const createScopedPlugin = (
   plugin: I18nPlugin,
-  runtime: PluginRuntimeTarget,
+  runtime: PluginRuntimeTarget | undefined,
   environment: PluginEnvironment,
 ): I18nPlugin => {
   return (i18n) => {
-    if (!shouldRunForRuntime(runtime) || !shouldRunForEnvironment(environment)) {
+    if (!shouldRunScoped(runtime, environment)) {
       return;
     }
     return plugin(i18n);
@@ -74,13 +99,13 @@ const createScopedPlugin = (
 
 const createScopedLazyPlugin = (
   loadPlugin: LazyPluginLoader,
-  runtime: PluginRuntimeTarget,
+  runtime: PluginRuntimeTarget | undefined,
   environment: PluginEnvironment,
 ): I18nPlugin => {
   let pluginPromise: Promise<I18nPlugin> | null = null;
 
   return (i18n) => {
-    if (!shouldRunForRuntime(runtime) || !shouldRunForEnvironment(environment)) {
+    if (!shouldRunScoped(runtime, environment)) {
       return;
     }
     if (!pluginPromise) {
@@ -88,11 +113,6 @@ const createScopedLazyPlugin = (
     }
     return pluginPromise.then((plugin) => plugin(i18n)) as AsyncPluginReturn;
   };
-};
-
-const normalizeScopedOptions = (options?: ScopedPluginOptions) => {
-  const { environment = "all", ...pluginOptions } = options ?? {};
-  return { environment, pluginOptions };
 };
 
 /**
@@ -200,27 +220,57 @@ export interface CreateNextI18nResult<D extends DefaultTranslationParams = {}> {
   /**
    * Register an additional i18n plugin (chainable).
    *
+   * The single `use()` method covers every registration mode via options:
+   * - `runtime: "client" | "server"` scopes the plugin to one runtime
+   *   (omit to run in both).
+   * - `lazy: true` treats the first argument as a lazy loader
+   *   (`() => Promise<plugin | { default: plugin }>`) that is only imported
+   *   when the plugin is due to run.
+   * - `environment: "development" | "production"` scopes to a build
+   *   environment (default `"all"`).
+   *
    * @example
    * ```typescript
    * const nextI18n = createNextI18n({...})
    *   .use(MyPlugin())
+   *   .use(MyServerPlugin(), { runtime: "server" })
+   *   .use(
+   *     () => import("@comvi/plugin-in-context-editor").then((m) => m.InContextEditorPlugin()),
+   *     { runtime: "client", lazy: true, environment: "development", required: false },
+   *   )
    *   .use(AnotherPlugin(), { required: false });
    * ```
    */
-  use(plugin: I18nPlugin, options?: PluginOptions): CreateNextI18nResult<D>;
+  use(
+    plugin: I18nPlugin,
+    options?: UsePluginOptions & { lazy?: false },
+  ): CreateNextI18nResult<D>;
+  use(
+    loadPlugin: LazyPluginLoader,
+    options: UsePluginOptions & { lazy: true },
+  ): CreateNextI18nResult<D>;
 
   /**
    * Register a client-only plugin.
+   *
+   * @deprecated Use `use(plugin, { runtime: "client" })` instead.
+   * Will be removed in 0.6.0.
    */
   useClient(plugin: I18nPlugin, options?: ScopedPluginOptions): CreateNextI18nResult<D>;
 
   /**
    * Register a server-only plugin.
+   *
+   * @deprecated Use `use(plugin, { runtime: "server" })` instead.
+   * Will be removed in 0.6.0.
    */
   useServer(plugin: I18nPlugin, options?: ScopedPluginOptions): CreateNextI18nResult<D>;
 
   /**
    * Register a lazily imported client-only plugin.
+   *
+   * @deprecated Use `use(loadPlugin, { runtime: "client", lazy: true })` instead.
+   * Will be removed in 0.6.0.
    */
   useClientLazy(
     loadPlugin: LazyPluginLoader,
@@ -229,6 +279,9 @@ export interface CreateNextI18nResult<D extends DefaultTranslationParams = {}> {
 
   /**
    * Register a lazily imported server-only plugin.
+   *
+   * @deprecated Use `use(loadPlugin, { runtime: "server", lazy: true })` instead.
+   * Will be removed in 0.6.0.
    */
   useServerLazy(
     loadPlugin: LazyPluginLoader,
@@ -273,10 +326,10 @@ export interface CreateNextI18nResult<D extends DefaultTranslationParams = {}> {
  *       loadOnInit: false,
  *     }),
  *   )
- *   .useServer(MyServerPlugin())
- *   .useClientLazy(
+ *   .use(MyServerPlugin(), { runtime: "server" })
+ *   .use(
  *     () => import("@comvi/plugin-in-context-editor").then((m) => m.InContextEditorPlugin()),
- *     { environment: "development", required: false },
+ *     { runtime: "client", lazy: true, environment: "development", required: false },
  *   )
  *   .use(MyPlugin())
  *   .use(AnotherPlugin(), { required: false });
@@ -348,29 +401,37 @@ export function createNextI18n<const D extends DefaultTranslationParams = {}>(
   const result: CreateNextI18nResult<D> = {
     i18n,
     routing,
-    use(plugin: I18nPlugin, pluginOptions?: PluginOptions) {
-      i18n.use(plugin, pluginOptions);
+    use(pluginOrLoader: I18nPlugin | LazyPluginLoader, options?: UsePluginOptions) {
+      const { runtime, lazy, environment = "all", ...pluginOptions } = options ?? {};
+      if (lazy) {
+        i18n.use(
+          createScopedLazyPlugin(pluginOrLoader as LazyPluginLoader, runtime, environment),
+          pluginOptions,
+        );
+      } else if (runtime !== undefined || environment !== "all") {
+        i18n.use(
+          createScopedPlugin(pluginOrLoader as I18nPlugin, runtime, environment),
+          pluginOptions,
+        );
+      } else {
+        i18n.use(
+          pluginOrLoader as I18nPlugin,
+          options === undefined ? undefined : pluginOptions,
+        );
+      }
       return result;
     },
     useClient(plugin: I18nPlugin, options?: ScopedPluginOptions) {
-      const { environment, pluginOptions } = normalizeScopedOptions(options);
-      i18n.use(createScopedPlugin(plugin, "client", environment), pluginOptions);
-      return result;
+      return result.use(plugin, { ...options, runtime: "client" });
     },
     useServer(plugin: I18nPlugin, options?: ScopedPluginOptions) {
-      const { environment, pluginOptions } = normalizeScopedOptions(options);
-      i18n.use(createScopedPlugin(plugin, "server", environment), pluginOptions);
-      return result;
+      return result.use(plugin, { ...options, runtime: "server" });
     },
     useClientLazy(loadPlugin: LazyPluginLoader, options?: ScopedPluginOptions) {
-      const { environment, pluginOptions } = normalizeScopedOptions(options);
-      i18n.use(createScopedLazyPlugin(loadPlugin, "client", environment), pluginOptions);
-      return result;
+      return result.use(loadPlugin, { ...options, runtime: "client", lazy: true });
     },
     useServerLazy(loadPlugin: LazyPluginLoader, options?: ScopedPluginOptions) {
-      const { environment, pluginOptions } = normalizeScopedOptions(options);
-      i18n.use(createScopedLazyPlugin(loadPlugin, "server", environment), pluginOptions);
-      return result;
+      return result.use(loadPlugin, { ...options, runtime: "server", lazy: true });
     },
   };
 

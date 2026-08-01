@@ -43,12 +43,37 @@
       "types": "./dist/index.d.ts",
       "development": "./dist/comvi-core.dev.js",
       "default": "./dist/comvi-core.js"
+    },
+    "./slim": {
+      "types": "./dist/slim.d.ts",
+      "development": "./dist/comvi-core-slim.dev.js",
+      "default": "./dist/comvi-core-slim.js"
+    },
+    "./icu": {
+      "types": "./dist/icu.d.ts",
+      "development": "./dist/comvi-core-icu.dev.js",
+      "default": "./dist/comvi-core-icu.js"
+    },
+    "./tags": {
+      "types": "./dist/tags.d.ts",
+      "development": "./dist/comvi-core-tags.dev.js",
+      "default": "./dist/comvi-core-tags.js"
+    },
+    "./editor-bridge": {
+      "types": "./dist/editor-bridge.d.ts",
+      "development": "./dist/comvi-core-editor-bridge.dev.js",
+      "default": "./dist/comvi-core-editor-bridge.js"
     }
   },
   "engines": {
     "node": ">=18"
   },
-  "sideEffects": false,
+  "sideEffects": [
+    "./dist/comvi-core-tags.js",
+    "./dist/comvi-core-tags.dev.js",
+    "./dist/chunks/comvi-core-register-tags.js",
+    "./dist/chunks/comvi-core-register-tags.dev.js"
+  ],
   "scripts": {
     "dev": "vite build --watch",
     "build": "tsc && vite build && vite build --config vite.config.dev.ts && vite build --config vite.config.umd.ts",
@@ -62,7 +87,6 @@
     "lint:fix": "eslint . --fix"
   },
   "devDependencies": {
-    "@comvi/vite-config": "workspace:*",
     "@types/node": "^22.13.0",
     "@typescript-eslint/eslint-plugin": "^8.58.0",
     "@typescript-eslint/parser": "^8.58.0",

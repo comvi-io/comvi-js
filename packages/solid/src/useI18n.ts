@@ -5,144 +5,57 @@ import {
   formatNumber,
   formatRelativeTime,
   getTextDirection,
+  translationResultToString,
 } from "@comvi/core";
 import { useI18nContextValue } from "./context";
 import type {
   I18n,
   TranslationParams,
   TranslationResult,
-  VirtualNode,
+  TranslationKeys,
+  TranslateFn,
+  Namespaces,
+  NamespacedKeys,
+  ParamsArg,
   FlattenedTranslations,
   DefaultTranslationParams,
   DefaultParamsSnapshot,
 } from "@comvi/core";
 
-function isVirtualNode(value: unknown): value is VirtualNode {
-  return (
-    value !== null &&
-    typeof value === "object" &&
-    "type" in value &&
-    (value.type === "text" || value.type === "element" || value.type === "fragment")
-  );
-}
-
-function virtualNodeToText(node: VirtualNode): string {
-  if (node.type === "text") {
-    return node.text;
-  }
-
-  let text = "";
-  for (const child of node.children) {
-    if (typeof child === "string") {
-      text += child;
-      continue;
-    }
-    text += virtualNodeToText(child);
-  }
-
-  return text;
-}
-
-function translationResultToString(result: TranslationResult): string {
-  if (typeof result === "string") {
-    return result;
-  }
-
-  let text = "";
-  for (const part of result) {
-    if (typeof part === "string") {
-      text += part;
-      continue;
-    }
-
-    if (isVirtualNode(part)) {
-      text += virtualNodeToText(part);
-      continue;
-    }
-
-    text += String(part);
-  }
-
-  return text;
-}
-
 type BoundDefaultNamespaceParams<
   NS extends string,
   K extends string,
   D extends DefaultTranslationParams,
-> = `${NS}:${K}` extends keyof import("@comvi/core").TranslationKeys
-  ? import("@comvi/core").ParamsArg<`${NS}:${K}` & keyof import("@comvi/core").TranslationKeys, D>
+> = `${NS}:${K}` extends keyof TranslationKeys
+  ? ParamsArg<`${NS}:${K}` & keyof TranslationKeys, D>
   : [params?: TranslationParams];
 
-type UseI18nTranslation<
+type BoundNamespaceShorthand<
   DefaultNS extends string | undefined,
   D extends DefaultTranslationParams,
-> = {
-  /**
-   * Translation function - namespaced keys (explicit ns in params)
-   */
-  <NS extends import("@comvi/core").Namespaces, K extends import("@comvi/core").NamespacedKeys<NS>>(
-    key: K,
-    ...params: import("@comvi/core").NamespacedParamsArg<NS, K, D>
-  ): string;
-
-  /**
-   * Translation function - typed keys
-   */
-  <K extends import("@comvi/core").DefaultNsKeys>(
-    key: K,
-    ...params: import("@comvi/core").ParamsArg<K, D>
-  ): string;
-
-  /** Permissive overload - only active when TranslationKeys is empty */
-  (key: import("@comvi/core").PermissiveKey, params?: TranslationParams): string;
-} & (DefaultNS extends import("@comvi/core").Namespaces
+  R,
+> = DefaultNS extends Namespaces
   ? {
       /**
        * Namespace-bound shorthand when useI18n(ns) is provided.
        * Allows `t('title')` instead of `t('title', { ns: 'admin' })`.
        */
-      <K extends import("@comvi/core").NamespacedKeys<DefaultNS>>(
+      <K extends NamespacedKeys<DefaultNS>>(
         key: K,
         ...params: BoundDefaultNamespaceParams<DefaultNS, K, D>
-      ): string;
+      ): R;
     }
-  : {});
+  : {};
+
+type UseI18nTranslation<
+  DefaultNS extends string | undefined,
+  D extends DefaultTranslationParams,
+> = TranslateFn<D, string> & BoundNamespaceShorthand<DefaultNS, D, string>;
 
 type UseI18nRawTranslation<
   DefaultNS extends string | undefined,
   D extends DefaultTranslationParams,
-> = {
-  /**
-   * Raw translation function - namespaced keys (explicit ns in params)
-   */
-  <NS extends import("@comvi/core").Namespaces, K extends import("@comvi/core").NamespacedKeys<NS>>(
-    key: K,
-    ...params: import("@comvi/core").NamespacedParamsArg<NS, K, D>
-  ): TranslationResult;
-
-  /**
-   * Raw translation function - typed keys
-   */
-  <K extends import("@comvi/core").DefaultNsKeys>(
-    key: K,
-    ...params: import("@comvi/core").ParamsArg<K, D>
-  ): TranslationResult;
-
-  /** Permissive overload - only active when TranslationKeys is empty */
-  (key: import("@comvi/core").PermissiveKey, params?: TranslationParams): TranslationResult;
-} & (DefaultNS extends import("@comvi/core").Namespaces
-  ? {
-      /**
-       * Namespace-bound shorthand when useI18n(ns) is provided.
-       * Allows `tRaw('title')` instead of `tRaw('title', { ns: 'admin' })`.
-       */
-      <K extends import("@comvi/core").NamespacedKeys<DefaultNS>>(
-        key: K,
-        ...params: BoundDefaultNamespaceParams<DefaultNS, K, D>
-      ): TranslationResult;
-    }
-  : {});
+> = TranslateFn<D, TranslationResult> & BoundNamespaceShorthand<DefaultNS, D, TranslationResult>;
 
 export interface UseI18nReturn<
   DefaultNS extends string | undefined = undefined,

@@ -92,7 +92,7 @@ For `<T>` rich-text components, type-safe keys, and the full store API, see the 
 
 ## Rich text with `<T>`
 
-Tag interpolation lets translators write readable markup like `"Click <link>here</link> for help"` without raw HTML or XSS risk. Map tags to standard HTML elements or custom attributes:
+Tag interpolation lets translators write readable markup like `"Click <link>here</link> for help"` without raw HTML or XSS risk. Map tags to standard HTML elements, Svelte components, or configs with props:
 
 ```json
 {
@@ -112,6 +112,8 @@ Tag interpolation lets translators write readable markup like `"Click <link>here
     link: "a",    // Map to standard HTML tag
     bold: "strong",
     policy: { tag: "a", props: { href: "/privacy" } },
+    // btn: FancyButton — Svelte components work too; they receive the tag
+    // content as their `children` snippet
   }}
 />
 
@@ -119,7 +121,7 @@ Tag interpolation lets translators write readable markup like `"Click <link>here
 <!-- policy becomes: <a href="/privacy">See our privacy policy</a> -->
 ```
 
-The `<T>` component escapes text and filters rendered tags/attributes before using Svelte's HTML rendering path. Props can inject attributes; translators see only the text.
+The `<T>` component renders the translation structurally — real DOM nodes built from the parsed translation tree, with no HTML-string sink. Translators can only ever produce text and the tags you map; a tag without a mapping falls back to its inner text.
 
 ## ICU MessageFormat — locale-correct grammar, not just singular/plural
 

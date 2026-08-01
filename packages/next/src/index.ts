@@ -4,7 +4,14 @@ export type * from "@comvi/core";
 
 // Factory function for simplified setup
 export { createNextI18n } from "./createNextI18n";
-export type { CreateNextI18nOptions, CreateNextI18nResult } from "./createNextI18n";
+export type {
+  CreateNextI18nOptions,
+  CreateNextI18nResult,
+  UsePluginOptions,
+  ScopedPluginOptions,
+  LazyPluginModule,
+  LazyPluginLoader,
+} from "./createNextI18n";
 
 // Re-export types from submodules
 export type { RoutingConfig, LocalePrefixMode } from "./routing/types";

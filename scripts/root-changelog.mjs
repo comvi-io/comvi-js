@@ -54,12 +54,17 @@ export function getPublishablePackages(root) {
     .sort((a, b) => a.name.localeCompare(b.name));
 }
 
+// Packages versioned independently of the coordinated release train
+// (not members of the changeset `fixed` group; e.g. @comvi/locale-routing@0.1.0).
+const INDEPENDENT_PACKAGES = new Set(["@comvi/locale-routing"]);
+
 export function coordinatedVersion(packages) {
-  if (packages.length === 0) throw new Error("no publishable packages found");
-  const versions = [...new Set(packages.map((pkg) => pkg.version))];
+  const coordinated = packages.filter((pkg) => !INDEPENDENT_PACKAGES.has(pkg.name));
+  if (coordinated.length === 0) throw new Error("no publishable packages found");
+  const versions = [...new Set(coordinated.map((pkg) => pkg.version))];
   if (versions.length !== 1) {
     throw new Error(
-      `publishable packages must share one version:\n${packages
+      `publishable packages must share one version:\n${coordinated
         .map((pkg) => `- ${pkg.name}@${pkg.version}`)
         .join("\n")}`,
     );

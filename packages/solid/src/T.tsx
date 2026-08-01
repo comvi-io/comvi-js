@@ -1,3 +1,8 @@
+// Ambient tag-syntax registration for string-API convenience (plan §1.2).
+// <T> itself does NOT depend on it: prepareTranslation passes the tag
+// extension per call (the bare-tRaw fast path below is covered by this
+// ambient registration — see the fast-path comment).
+import "@comvi/core/tags";
 import {
   children as resolveChildren,
   type Component,
@@ -9,89 +14,51 @@ import {
 } from "solid-js";
 import { Dynamic } from "solid-js/web";
 import { useI18nContextValue } from "./context";
-import { createElement as createVirtualElement } from "@comvi/core";
+import { prepareTranslation, type PendingHandler } from "@comvi/core/tags";
 import type {
   TranslationParams,
   VirtualNode,
   TranslationResult,
-  TagCallbackParams,
   TranslationKeys,
   PermissiveKey,
 } from "@comvi/core";
 import type { ComponentMap } from "./types";
 
-const MARKER_PREFIX = "__solid_component_";
-const MARKER_SUFFIX = "__";
 type ReportTagError = (error: unknown, tagName: string) => void;
+
+/** Marker tag → JSX handler resolved from `pendingHandlers`. */
+type MarkerHandlers = Map<string, (children: JSX.Element) => JSX.Element>;
+
+const NO_HANDLERS: MarkerHandlers = new Map();
 
 // ============ Helper functions ============
 
-function childrenToArray(children: TranslationResult): (string | VirtualNode)[] {
-  if (typeof children === "string") {
-    return children ? [children] : [];
-  }
-  return children || [];
-}
-
-function buildTagHandlers(
-  comps: ComponentMap,
-  solidHandlers: Map<string, (children: JSX.Element) => JSX.Element>,
+/**
+ * Resolve the opaque handlers `prepareTranslation` transported as marker
+ * nodes into Solid render functions. Component handlers render through JSX
+ * (createComponent) so they run with proper Solid component semantics (own
+ * owner, context, untracked setup) instead of being invoked as bare functions.
+ */
+function buildMarkerHandlers(
+  pendingHandlers: PendingHandler[],
   reportTagError: ReportTagError,
-): Record<string, (p: TagCallbackParams) => VirtualNode> {
-  const handlers: Record<string, (p: TagCallbackParams) => VirtualNode> = {};
-  for (const [tagName, mapping] of Object.entries(comps)) {
-    if (typeof mapping === "string") {
-      handlers[tagName] = ({ children }: TagCallbackParams) => {
-        return createVirtualElement(mapping, {}, childrenToArray(children));
-      };
-    } else if (typeof mapping === "function") {
-      // Render through JSX (createComponent) — the same path as the
-      // { tag: Component } object form below — so the mapping runs with proper
-      // Solid component semantics (its own owner, context, untracked setup)
-      // instead of being invoked as a bare function.
-      const Comp = mapping;
-      solidHandlers.set(tagName, (children) => {
+): MarkerHandlers {
+  const handlers: MarkerHandlers = new Map();
+  for (const pending of pendingHandlers) {
+    const target = pending.handler;
+    if (typeof target === "function") {
+      const Comp = target as (props: Record<string, unknown>) => JSX.Element;
+      handlers.set(pending.marker, (children) => {
         try {
-          return <Comp>{children}</Comp>;
+          return <Comp {...(pending.props ?? {})}>{children}</Comp>;
         } catch (error) {
-          reportTagError(error, tagName);
+          reportTagError(error, pending.name);
           return <>{children}</>;
         }
       });
-      handlers[tagName] = ({ children }: TagCallbackParams) => {
-        return createVirtualElement(
-          `${MARKER_PREFIX}${tagName}${MARKER_SUFFIX}`,
-          {},
-          childrenToArray(children),
-        );
-      };
-    } else if (typeof mapping === "object" && mapping !== null) {
-      if (typeof mapping.tag === "string") {
-        handlers[tagName] = ({ children }: TagCallbackParams) => {
-          return createVirtualElement(
-            mapping.tag as string,
-            mapping.props || {},
-            childrenToArray(children),
-          );
-        };
-      } else if (typeof mapping.tag === "function") {
-        solidHandlers.set(tagName, (children) => {
-          try {
-            const Tag = mapping.tag as (props: any) => JSX.Element;
-            return <Tag {...(mapping.props || {})}>{children}</Tag>;
-          } catch (error) {
-            reportTagError(error, tagName);
-            return <>{children}</>;
-          }
-        });
-        handlers[tagName] = ({ children }: TagCallbackParams) => {
-          return createVirtualElement(
-            `${MARKER_PREFIX}${tagName}${MARKER_SUFFIX}`,
-            {},
-            childrenToArray(children),
-          );
-        };
-      }
+    } else {
+      // Non-invokable opaque handler — degrade to the tag's children.
+      handlers.set(pending.marker, (children) => <>{children}</>);
     }
   }
   return handlers;
@@ -104,7 +71,7 @@ function buildTagHandlers(
  */
 function renderNode(
   node: VirtualNode,
-  solidHandlers: Map<string, (children: JSX.Element) => JSX.Element>,
+  markerHandlers: MarkerHandlers,
   reportTagError: ReportTagError,
 ): JSX.Element {
   if (node.type === "text") {
@@ -112,29 +79,21 @@ function renderNode(
   }
 
   if (node.type === "fragment") {
-    return <>{renderContent(node.children as TranslationResult, solidHandlers, reportTagError)}</>;
+    return <>{renderContent(node.children as TranslationResult, markerHandlers, reportTagError)}</>;
   }
 
   // Element node
   const tag = node.tag;
   const childResult = node.children as TranslationResult;
 
-  if (tag.startsWith(MARKER_PREFIX) && tag.endsWith(MARKER_SUFFIX)) {
-    const handlerName = tag.slice(MARKER_PREFIX.length, -MARKER_SUFFIX.length);
-    const handler = solidHandlers.get(handlerName);
-    if (handler) {
-      try {
-        return handler(renderContent(childResult, solidHandlers, reportTagError));
-      } catch (error) {
-        reportTagError(error, handlerName);
-        return <>{renderContent(childResult, solidHandlers, reportTagError)}</>;
-      }
-    }
+  const handler = markerHandlers.get(tag);
+  if (handler) {
+    return handler(renderContent(childResult, markerHandlers, reportTagError));
   }
 
   return (
     <Dynamic component={tag} {...(node.props || {})}>
-      {renderContent(childResult, solidHandlers, reportTagError)}
+      {renderContent(childResult, markerHandlers, reportTagError)}
     </Dynamic>
   );
 }
@@ -144,7 +103,7 @@ function renderNode(
  */
 function renderContent(
   content: TranslationResult,
-  solidHandlers: Map<string, (children: JSX.Element) => JSX.Element>,
+  markerHandlers: MarkerHandlers,
   reportTagError: ReportTagError,
 ): JSX.Element {
   if (typeof content === "string") {
@@ -158,7 +117,7 @@ function renderContent(
   return (
     <>
       {content.map((item) =>
-        typeof item === "string" ? item : renderNode(item, solidHandlers, reportTagError),
+        typeof item === "string" ? item : renderNode(item, markerHandlers, reportTagError),
       )}
     </>
   );
@@ -223,22 +182,13 @@ export const T: Component<TProps> = (props) => {
     // changes (the `??` short-circuits the signal read when props.locale is set).
     const targetLocale = props.locale ?? ctx.signals.locale();
     const targetNamespace = props.ns ?? ctx.signals.defaultNamespace();
-    const translationExists = ctx.i18n.hasTranslation(
-      keyString,
-      targetLocale,
-      targetNamespace,
-      true,
-    );
 
     const reportTagError: ReportTagError = (error, tagName) => {
       ctx.i18n.reportError(error, { source: "translation", tagName });
     };
 
-    const solidHandlers = new Map<string, (children: JSX.Element) => JSX.Element>();
-    const tagHandlers = props.components
-      ? buildTagHandlers(props.components, solidHandlers, reportTagError)
-      : undefined;
-    const hasTagHandlers = tagHandlers !== undefined && Object.keys(tagHandlers).length > 0;
+    const hasComponents =
+      props.components !== undefined && Object.keys(props.components).length > 0;
     const hasParams = props.params !== undefined && Object.keys(props.params).length > 0;
     const hasOverrides =
       props.ns !== undefined ||
@@ -246,43 +196,44 @@ export const T: Component<TProps> = (props) => {
       props.fallback !== undefined ||
       props.raw !== undefined;
 
-    const content: TranslationResult =
-      !hasTagHandlers && !hasParams && !hasOverrides
-        ? ctx.i18n.tRaw(keyString as any)
-        : (() => {
-            const transportParams: TranslationParams = {};
-            if (hasParams) {
-              Object.assign(transportParams, props.params);
-            }
-            if (hasTagHandlers) {
-              Object.assign(transportParams, tagHandlers);
-            }
-            if (props.ns !== undefined) {
-              transportParams.ns = props.ns;
-            }
-            if (props.locale !== undefined) {
-              transportParams.locale = props.locale;
-            }
-            if (props.fallback !== undefined) {
-              transportParams.fallback = props.fallback;
-            }
-            if (props.raw !== undefined) {
-              transportParams.raw = props.raw;
-            }
-            return ctx.i18n.tRaw(keyString as any, transportParams);
-          })();
+    // Fine-grained fast path: a bare tRaw call keeps core's static-template
+    // cache hit (zero per-render allocation). Tag templates without handlers
+    // rely on the ambient registration performed by this module's
+    // `import "@comvi/core/tags"` (a tag-bearing template is never "static"
+    // under the ambient tag extension bits, so it still parses correctly).
+    if (!hasComponents && !hasParams && !hasOverrides) {
+      const content = ctx.i18n.tRaw(keyString as never);
+      const isMissing =
+        typeof content === "string" &&
+        content === keyString &&
+        !ctx.i18n.hasTranslation(keyString, targetLocale, targetNamespace, true);
 
-    const isMissingTranslation =
-      !translationExists &&
-      props.fallback === undefined &&
-      typeof content === "string" &&
-      content === keyString;
+      if (isMissing && props.children !== undefined) {
+        return fallbackChildren();
+      }
 
-    if (isMissingTranslation && props.children !== undefined) {
+      return renderContent(content, NO_HANDLERS, reportTagError);
+    }
+
+    const { content, pendingHandlers, isMissing } = prepareTranslation(ctx.i18n, {
+      i18nKey: keyString,
+      params: props.params,
+      ns: props.ns,
+      locale: props.locale,
+      fallback: props.fallback,
+      raw: props.raw,
+      components: props.components,
+    });
+
+    if (isMissing && props.children !== undefined) {
       return fallbackChildren();
     }
 
-    return renderContent(content, solidHandlers, reportTagError);
+    return renderContent(
+      content,
+      buildMarkerHandlers(pendingHandlers, reportTagError),
+      reportTagError,
+    );
   });
 
   return <>{finalContent()}</>;

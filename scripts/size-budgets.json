@@ -1,0 +1,41 @@
+{
+  "note": "min+gz budgets in bytes, enforced by scripts/size-check.mjs (esbuild bundle via the published exports map, minify, gzip -9). The full budget is the measured baseline + 2%. Entries with pending:true cover subpaths that land in Phase 1; the gate skips them while the specifier does not resolve — flip pending to false to activate. slim-tags is informational (no budget) until Phase 1 stabilizes, then gated at slim + 1.2 KB.",
+  "fixtures": [
+    {
+      "name": "full",
+      "entry": "@comvi/core",
+      "fixture": "full.ts",
+      "gzipBudgetBytes": 8598,
+      "baseline": {
+        "minBytes": 24770,
+        "gzipBytes": 8429,
+        "measuredAt": "2026-08-02"
+      }
+    },
+    {
+      "name": "slim",
+      "entry": "@comvi/core/slim",
+      "fixture": "slim.ts",
+      "gzipBudgetBytes": 6912,
+      "note": "Phase-1 floor 6740 B (I18n class ~56%); 5632 requires class decomposition (not in 0.5.0 plan). Ratchet after Phase 2 registry deletion."
+    },
+    {
+      "name": "slim-tags",
+      "entry": [
+        "@comvi/core/slim",
+        "@comvi/core/tags"
+      ],
+      "fixture": "slim-tags.ts",
+      "pending": true
+    },
+    {
+      "name": "slim-icu",
+      "entry": [
+        "@comvi/core/slim",
+        "@comvi/core/icu"
+      ],
+      "fixture": "slim-icu.ts",
+      "gzipBudgetBytes": 7680
+    }
+  ]
+}

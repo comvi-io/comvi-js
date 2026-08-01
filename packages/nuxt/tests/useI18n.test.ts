@@ -2,6 +2,7 @@ import { computed, ref } from "vue";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { mockRuntimeConfig, resetMocks, setMockI18n, useState } from "./mocks/nuxt-app";
 import { useI18n } from "../src/runtime/composables/useI18n";
+import type * as ComviCore from "@comvi/core";
 
 const { createBoundTranslation, boundT } = vi.hoisted(() => {
   const t = vi.fn(() => [
@@ -15,7 +16,8 @@ const { createBoundTranslation, boundT } = vi.hoisted(() => {
   };
 });
 
-vi.mock("@comvi/core", () => ({
+vi.mock("@comvi/core", async (importOriginal) => ({
+  ...(await importOriginal<typeof ComviCore>()),
   createBoundTranslation,
 }));
 

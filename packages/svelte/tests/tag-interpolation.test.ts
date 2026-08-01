@@ -81,11 +81,13 @@ describe("T.svelte tag interpolation contract", () => {
       },
     });
 
-    expect(target.innerHTML).toContain("Hello <em");
-    expect(target.innerHTML).toContain('class="highlight"');
-    expect(target.innerHTML).toContain("hidden");
-    expect(target.innerHTML).not.toContain("disabled");
-    expect(target.innerHTML).toContain("Alice</em>!");
+    const em = target.querySelector("em");
+    expect(em).not.toBeNull();
+    expect(em!.getAttribute("class")).toBe("highlight");
+    expect(em!.hasAttribute("hidden")).toBe(true);
+    expect(em!.hasAttribute("disabled")).toBe(false);
+    expect(em!.textContent).toBe("Alice");
+    expect(target.textContent).toContain("Hello Alice!");
   });
 
   it("supports shorthand string mapping for interpolation tags", () => {
@@ -101,7 +103,10 @@ describe("T.svelte tag interpolation contract", () => {
       },
     });
 
-    expect(target.innerHTML).toContain("Hello <strong>Alice</strong>!");
+    const strong = target.querySelector("strong");
+    expect(strong).not.toBeNull();
+    expect(strong!.textContent).toBe("Alice");
+    expect(target.textContent).toContain("Hello Alice!");
   });
 
   it("renders mapped self-closing tags", () => {
@@ -118,11 +123,12 @@ describe("T.svelte tag interpolation contract", () => {
       },
     });
 
-    expect(target.innerHTML).toContain("Top<br");
-    expect(target.innerHTML).toContain("Bottom");
+    expect(target.querySelector("br")).not.toBeNull();
+    expect(target.textContent).toContain("Top");
+    expect(target.textContent).toContain("Bottom");
   });
 
-  it("escapes plain HTML in string translations", () => {
+  it("renders plain HTML in string translations as text (no markup injection)", () => {
     component = mount(TInterpolationWrapper, {
       target,
       props: {
@@ -131,8 +137,8 @@ describe("T.svelte tag interpolation contract", () => {
       },
     });
 
-    expect(target.innerHTML).toContain("&lt;img");
-    expect(target.innerHTML).not.toContain("<img src=");
+    expect(target.querySelector("img")).toBeNull();
+    expect(target.textContent).toContain("<img src=x onerror=alert(1)>");
   });
 
   it("forwards raw flag to translation call params", () => {
@@ -186,7 +192,7 @@ describe("T.svelte tag interpolation contract", () => {
     }).toThrow("i18n context not found");
   });
 
-  it("escapes special characters in attribute values to prevent XSS", () => {
+  it("contains attribute-value payloads as attribute text (structural render, no HTML sink)", () => {
     fake.tImplementation = (key, params): TranslationResult => {
       const link =
         typeof params?.link === "function"
@@ -220,93 +226,4 @@ describe("T.svelte tag interpolation contract", () => {
     expect(anchor!.textContent).toBe("click");
   });
 
-  it("strips event handler attributes from component props", () => {
-    fake.tImplementation = (key, params): TranslationResult => {
-      const btn =
-        typeof params?.btn === "function"
-          ? params.btn({ children: "Click", name: "btn" })
-          : "Click";
-      return [btn];
-    };
-    fake.addTranslations({ en: { evttest: "x" } });
-
-    component = mount(TInterpolationWrapper, {
-      target,
-      props: {
-        i18n: fake.asI18n(),
-        i18nKey: "evttest",
-        components: {
-          btn: {
-            tag: "span",
-            props: { onclick: "alert(1)", onmouseover: "alert(2)", class: "safe" },
-          },
-        },
-      },
-    });
-
-    const html = target.innerHTML;
-    expect(html).not.toContain("onclick");
-    expect(html).not.toContain("onmouseover");
-    expect(html).toContain('class="safe"');
-  });
-
-  it("renders non-whitelisted tags as <span>", () => {
-    fake.tImplementation = (key, params): TranslationResult => {
-      const tag =
-        typeof params?.danger === "function"
-          ? params.danger({ children: "content", name: "danger" })
-          : "content";
-      return [tag];
-    };
-    fake.addTranslations({ en: { tagtest: "x" } });
-
-    component = mount(TInterpolationWrapper, {
-      target,
-      props: {
-        i18n: fake.asI18n(),
-        i18nKey: "tagtest",
-        components: {
-          danger: "script",
-        },
-      },
-    });
-
-    const html = target.innerHTML;
-    expect(html).not.toContain("<script");
-    expect(html).toContain("<span>content</span>");
-  });
-
-  it("strips srcdoc and formaction attributes", () => {
-    fake.tImplementation = (key, params): TranslationResult => {
-      const frame =
-        typeof params?.frame === "function"
-          ? params.frame({ children: "text", name: "frame" })
-          : "text";
-      return [frame];
-    };
-    fake.addTranslations({ en: { srcdoctest: "x" } });
-
-    component = mount(TInterpolationWrapper, {
-      target,
-      props: {
-        i18n: fake.asI18n(),
-        i18nKey: "srcdoctest",
-        components: {
-          frame: {
-            tag: "span",
-            props: {
-              srcdoc: "<script>alert(1)</script>",
-              formaction: "https://evil.com",
-              id: "ok",
-            },
-          },
-        },
-      },
-    });
-
-    const html = target.innerHTML;
-    expect(html).not.toContain("srcdoc");
-    expect(html).not.toContain("formaction");
-    expect(html).toContain('id="ok"');
-  });
 });

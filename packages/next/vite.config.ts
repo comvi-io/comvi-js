@@ -60,6 +60,7 @@ export default defineConfig({
         "next/navigation",
         "next/link",
         "@comvi/core",
+        "@comvi/locale-routing",
         "@comvi/react",
         "@comvi/plugin-fetch-loader",
       ],

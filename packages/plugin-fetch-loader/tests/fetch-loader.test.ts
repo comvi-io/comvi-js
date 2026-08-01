@@ -642,6 +642,60 @@ describe("FetchLoader Plugin", () => {
       expect(i18n.t("hello")).toBe("Hello from CDN");
     });
 
+    it("should send API requests to an explicit baseUrl", async () => {
+      const i18n = new I18n({ locale: "en", apiKey: TEST_API_KEY });
+      let requestedUrl: string | undefined;
+
+      server.use(
+        http.get("https://explicit.example.com/v1/translations", ({ request }) => {
+          requestedUrl = request.url;
+          return HttpResponse.json(
+            createMockApiResponse(["en"], ["default"], {
+              default: { en: { hello: "Hello from explicit host" } },
+            }),
+          );
+        }),
+      );
+
+      const plugin = FetchLoader({
+        cdnUrl: TEST_CDN_URL,
+        baseUrl: "https://explicit.example.com",
+        loadOnInit: true,
+      });
+      await plugin(i18n);
+
+      expect(requestedUrl).toContain("https://explicit.example.com/v1/translations");
+      expect(i18n.t("hello")).toBe("Hello from explicit host");
+    });
+
+    it("should prefer baseUrl over the legacy apiBaseUrl option", async () => {
+      const i18n = new I18n({ locale: "en", apiKey: TEST_API_KEY });
+      let explicitRequests = 0;
+      let legacyRequests = 0;
+
+      server.use(
+        http.get("https://explicit.example.com/v1/translations", () => {
+          explicitRequests++;
+          return HttpResponse.json(createMockApiResponse(["en"], ["default"]));
+        }),
+        http.get("https://legacy.example.com/v1/translations", () => {
+          legacyRequests++;
+          return HttpResponse.json(createMockApiResponse(["en"], ["default"]));
+        }),
+      );
+
+      const plugin = FetchLoader({
+        cdnUrl: TEST_CDN_URL,
+        baseUrl: "https://explicit.example.com",
+        apiBaseUrl: "https://legacy.example.com",
+        loadOnInit: true,
+      });
+      await plugin(i18n);
+
+      expect(explicitRequests).toBe(1);
+      expect(legacyRequests).toBe(0);
+    });
+
     it("should load all namespaces in a single API request", async () => {
       const i18n = new I18n({ locale: "en", apiKey: TEST_API_KEY, devMode: true });
       let requestCount = 0;

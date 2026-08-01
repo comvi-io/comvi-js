@@ -3,7 +3,6 @@ import { get } from "svelte/store";
 import { createI18n } from "@comvi/core";
 import {
   createLocaleStore,
-  createLanguageStore,
   createLoadingStore,
   createInitializingStore,
   createInitializedStore,
@@ -23,7 +22,7 @@ describe("Svelte stores", () => {
   });
 
   it("reflects the current language and updates when it changes", async () => {
-    const language = createLanguageStore(fake.asI18n());
+    const language = createLocaleStore(fake.asI18n());
     const values: string[] = [];
     const unsubscribe = language.subscribe((value) => values.push(value));
 
@@ -116,7 +115,7 @@ describe("Svelte stores", () => {
   });
 
   it("gives new subscribers the latest value", async () => {
-    const language = createLanguageStore(fake.asI18n());
+    const language = createLocaleStore(fake.asI18n());
     const values1: string[] = [];
     const unsubscribe1 = language.subscribe((value) => values1.push(value));
 
@@ -132,11 +131,6 @@ describe("Svelte stores", () => {
     expect(values2).toEqual(["fr"]);
 
     unsubscribe2();
-  });
-
-  it("createLocaleStore and createLanguageStore are the same store (deprecated alias)", () => {
-    const i18n = fake.asI18n();
-    expect(createLocaleStore(i18n)).toBe(createLanguageStore(i18n));
   });
 
   it("cacheRevision store updates when configChanged is emitted (e.g. setFallbackLocale)", () => {

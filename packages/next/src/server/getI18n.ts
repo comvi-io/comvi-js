@@ -1,5 +1,5 @@
-import { createBoundTranslation } from "@comvi/core";
-import type { TranslationParams, TranslationResult, VirtualNode } from "@comvi/core";
+import { createBoundTranslation, translationResultToString } from "@comvi/core";
+import type { TranslationParams, TranslationResult } from "@comvi/core";
 import { getI18nInstance } from "./cache";
 import { ensureInitialized } from "./ensureInitialized";
 import { getLocale } from "./getLocale";
@@ -10,34 +10,6 @@ import type {
   TranslationFunction,
   HasTranslationOptions,
 } from "./types";
-
-const virtualNodeToText = (node: VirtualNode): string => {
-  if (node.type === "text") {
-    return node.text;
-  }
-
-  let text = "";
-  for (const child of node.children) {
-    if (typeof child === "string") {
-      text += child;
-      continue;
-    }
-    text += virtualNodeToText(child);
-  }
-  return text;
-};
-
-const translationResultToString = (result: TranslationResult): string => {
-  if (typeof result === "string") {
-    return result;
-  }
-
-  let text = "";
-  for (const part of result) {
-    text += typeof part === "string" ? part : virtualNodeToText(part);
-  }
-  return text;
-};
 
 /**
  * Get i18n for use in Server Components, Server Actions, and Route Handlers

@@ -1,11 +1,11 @@
 import { inject, type Ref, type ComputedRef } from "vue";
 import { I18N_INJECTION_KEY } from "../keys";
 import type { VueI18n } from "../VueI18n";
-import { createBoundTranslation } from "@comvi/core";
-import { translationResultToString } from "../utils";
+import { createBoundTranslation, translationResultToString } from "@comvi/core";
 import type {
   TranslationParams,
   TranslationResult,
+  TranslateFn,
   FlattenedTranslations,
   TranslationValue,
   I18nEvent,
@@ -16,41 +16,11 @@ import type {
 } from "@comvi/core";
 
 export interface UseI18nReturn<D extends DefaultTranslationParams = {}> {
-  /** Translation function - namespaced keys (when ns is provided). Always returns plain text. */
-  t<
-    NS extends import("@comvi/core").Namespaces,
-    K extends import("@comvi/core").NamespacedKeys<NS>,
-  >(
-    key: K,
-    ...params: import("@comvi/core").NamespacedParamsArg<NS, K, D>
-  ): string;
-
-  /** Translation function - typed keys (default namespace only, use ns option for others). */
-  t<K extends import("@comvi/core").DefaultNsKeys>(
-    key: K,
-    ...params: import("@comvi/core").ParamsArg<K, D>
-  ): string;
-
-  /** Permissive overload - only active when TranslationKeys is empty */
-  t(key: import("@comvi/core").PermissiveKey, params?: TranslationParams): string;
+  /** Translation function — always returns plain text. */
+  t: TranslateFn<D, string>;
 
   /** Raw translation result for rich text renderers and advanced integrations. */
-  tRaw<
-    NS extends import("@comvi/core").Namespaces,
-    K extends import("@comvi/core").NamespacedKeys<NS>,
-  >(
-    key: K,
-    ...params: import("@comvi/core").NamespacedParamsArg<NS, K, D>
-  ): TranslationResult;
-
-  /** Raw translation result for typed keys. */
-  tRaw<K extends import("@comvi/core").DefaultNsKeys>(
-    key: K,
-    ...params: import("@comvi/core").ParamsArg<K, D>
-  ): TranslationResult;
-
-  /** Raw translation result for permissive keys. */
-  tRaw(key: import("@comvi/core").PermissiveKey, params?: TranslationParams): TranslationResult;
+  tRaw: TranslateFn<D, TranslationResult>;
 
   /** Current locale (reactive Vue Ref) */
   locale: Ref<string>;

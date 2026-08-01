@@ -18,7 +18,6 @@ export type { ComponentMap, ComponentMapping, TProps } from "./types";
 // Export stores for advanced usage
 export {
   createLocaleStore,
-  createLanguageStore, // @deprecated use createLocaleStore
   createLoadingStore,
   createInitializingStore,
   createInitializedStore,

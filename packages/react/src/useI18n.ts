@@ -7,10 +7,12 @@ import {
   formatNumber,
   formatRelativeTime,
   getTextDirection,
+  isVirtualNode,
 } from "@comvi/core";
 import type {
   TranslationParams,
   TranslationResult,
+  TranslateFn,
   VirtualNode,
   FlattenedTranslations,
   TranslationValue,
@@ -20,8 +22,6 @@ import type {
   DefaultTranslationParams,
   DefaultParamsSnapshot,
 } from "@comvi/core";
-
-import { isVirtualNode } from "./utils";
 
 type ReactElementLike = {
   $$typeof: unknown;
@@ -121,35 +121,11 @@ const BIND_METHODS = [
 ] as const;
 
 export interface UseI18nReturn<D extends DefaultTranslationParams = {}> {
-  /** Translate a namespaced key. Returns plain text; for rich-text use `tRaw()` or `<T>`. */
-  t<
-    NS extends import("@comvi/core").Namespaces,
-    K extends import("@comvi/core").NamespacedKeys<NS>,
-  >(
-    key: K,
-    ...params: import("@comvi/core").NamespacedParamsArg<NS, K, D>
-  ): string;
-  /** Translate a typed key. Returns plain text. */
-  t<K extends import("@comvi/core").DefaultNsKeys>(
-    key: K,
-    ...params: import("@comvi/core").ParamsArg<K, D>
-  ): string;
-  /** Permissive overload — active only when `TranslationKeys` is empty. */
-  t(key: import("@comvi/core").PermissiveKey, params?: TranslationParams): string;
+  /** Translate a key. Returns plain text; for rich-text use `tRaw()` or `<T>`. */
+  t: TranslateFn<D, string>;
 
   /** Raw translation function returning the full core `TranslationResult` (string or structured array). */
-  tRaw<
-    NS extends import("@comvi/core").Namespaces,
-    K extends import("@comvi/core").NamespacedKeys<NS>,
-  >(
-    key: K,
-    ...params: import("@comvi/core").NamespacedParamsArg<NS, K, D>
-  ): TranslationResult;
-  tRaw<K extends import("@comvi/core").DefaultNsKeys>(
-    key: K,
-    ...params: import("@comvi/core").ParamsArg<K, D>
-  ): TranslationResult;
-  tRaw(key: import("@comvi/core").PermissiveKey, params?: TranslationParams): TranslationResult;
+  tRaw: TranslateFn<D, TranslationResult>;
 
   locale: string;
   translationCache: ReadonlyMap<string, FlattenedTranslations>;
@@ -238,15 +214,9 @@ export function useI18n<D extends DefaultTranslationParams = {}>(ns?: string): U
   const { i18n, isLoading, isInitializing } = useI18nInstance();
   const locale = useContext(LocaleContext) ?? "";
 
-  // Load-bearing: subscribes this component to re-render on these events (return unused).
-  useStoreRevision(
-    i18n,
-    "namespaceLoaded",
-    "initialized",
-    "translationsCleared",
-    "configChanged",
-    "defaultNamespaceChanged",
-  );
+  // Load-bearing: subscribes this component to re-render on the canonical
+  // revision event set (return unused).
+  useStoreRevision(i18n);
   const translationCache = i18n.translationCache.getInternalMap();
 
   // Inject the React-tracked `locale` into every bound call so descendant

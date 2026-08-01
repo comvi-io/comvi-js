@@ -1,9 +1,16 @@
 import type { DefaultTranslationParams } from "../types";
 
-const RESERVED_DEFAULT_PARAM_KEYS = ["locale", "ns", "fallback", "raw"] as const;
-const ERR_RESERVED_DEFAULT_PARAMS =
-  "[i18n] defaultParams cannot contain call-control keys: locale, ns, fallback, raw";
-const ERR_NULLISH_DEFAULT_PARAMS = "[i18n] defaultParams values cannot be null or undefined";
+declare const __DEV__: boolean | undefined;
+
+const IS_DEV = typeof __DEV__ !== "undefined" && __DEV__;
+
+const RESERVED_DEFAULT_PARAM_KEYS = ["locale", "ns", "fallback", "raw", "tagInterpolation"] as const;
+const ERR_RESERVED_DEFAULT_PARAMS = IS_DEV
+  ? "[i18n] defaultParams cannot contain call-control keys: locale, ns, fallback, raw, tagInterpolation"
+  : "E_RESERVED_DEFAULT_PARAMS";
+const ERR_NULLISH_DEFAULT_PARAMS = IS_DEV
+  ? "[i18n] defaultParams values cannot be null or undefined"
+  : "E_NULLISH_DEFAULT_PARAMS";
 
 /** Validate that defaults contain interpolation values only. */
 export function assertInterpolationDefaults(params: DefaultTranslationParams | undefined): void {
@@ -31,7 +38,11 @@ export function assertPreservesDefaultParamKeys(
       !Object.prototype.hasOwnProperty.call(params, key) ||
       params[key] == null
     ) {
-      throw new Error(`[i18n] defaultParams must preserve constructor-guaranteed key "${key}"`);
+      throw new Error(
+        IS_DEV
+          ? `[i18n] defaultParams must preserve constructor-guaranteed key "${key}"`
+          : "E_DEFAULT_PARAMS_GUARANTEED_KEY",
+      );
     }
   }
 }

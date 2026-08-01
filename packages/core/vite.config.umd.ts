@@ -9,8 +9,8 @@
  */
 import { defineConfig } from "vite";
 import { resolve } from "path";
-import { treeshakeOptions } from "@comvi/vite-config";
 import pkg from "./package.json";
+import { coreTreeshake, keepRegisterSideEffect, mangleInternalProps } from "./vite.shared";
 
 const umdMinifyOptions = {
   compress: {
@@ -37,6 +37,7 @@ const umdMinifyOptions = {
 };
 
 export default defineConfig({
+  plugins: [keepRegisterSideEffect, mangleInternalProps()],
   build: {
     emptyOutDir: false, // main build already cleared dist/
     lib: {
@@ -56,7 +57,7 @@ export default defineConfig({
           minify: umdMinifyOptions,
         },
       ],
-      treeshake: treeshakeOptions,
+      treeshake: coreTreeshake,
     },
   },
   resolve: {

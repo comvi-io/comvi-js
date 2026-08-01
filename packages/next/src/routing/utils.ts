@@ -1,4 +1,5 @@
 import type { UrlObject } from "url";
+import { splitPathAndSuffix, stripLocalePrefix } from "@comvi/locale-routing";
 import type { RoutingConfig } from "./types";
 import { createGetPathname } from "./defineRouting";
 
@@ -48,19 +49,7 @@ const getCanonicalPathMatch = (
   return undefined;
 };
 
-export const stripLocalePrefix = (pathname: string, locales: readonly string[]): string => {
-  const normalized = normalizePath(pathname);
-  const segments = normalized.split("/").filter(Boolean);
-  if (segments.length === 0) return "/";
-
-  const first = segments[0];
-  if (locales.includes(first)) {
-    const rest = segments.slice(1).join("/");
-    return rest ? `/${rest}` : "/";
-  }
-
-  return normalized;
-};
+export { stripLocalePrefix };
 
 export const getCanonicalPathname = (
   pathname: string,
@@ -71,21 +60,12 @@ export const getCanonicalPathname = (
   return getCanonicalPathMatch(normalizedPath, routing, preferredLocale) ?? normalizedPath;
 };
 
-const splitHref = (href: string): { path: string; suffix: string } => {
-  const match = href.match(/[?#]/);
-  if (!match || match.index === undefined) {
-    return { path: href, suffix: "" };
-  }
-  const index = match.index;
-  return { path: href.slice(0, index), suffix: href.slice(index) };
-};
-
 export const localizePathname = (
   pathname: string,
   locale: string,
   routing: Required<RoutingConfig>,
 ): string => {
-  const { path, suffix } = splitHref(pathname);
+  const { pathname: path, suffix } = splitPathAndSuffix(pathname);
   const basePath = stripLocalePrefix(path, routing.locales);
   const canonicalPath = getCanonicalPathname(basePath, routing, locale);
   let getPathname = getPathnameCache.get(routing);

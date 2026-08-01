@@ -6,7 +6,11 @@
     "rootDir": ".",
     "noEmit": true,
     "paths": {
-      "@comvi/core": ["./src/index.ts"]
+      "@comvi/core": ["./src/index.ts"],
+      "@comvi/core/slim": ["./src/slim.ts"],
+      "@comvi/core/icu": ["./src/icu.ts"],
+      "@comvi/core/tags": ["./src/tags.ts"],
+      "@comvi/core/editor-bridge": ["./src/editor-bridge.ts"]
     }
   },
   "include": ["src/**/*.ts", "tests/types/**/*.test-d.ts"],

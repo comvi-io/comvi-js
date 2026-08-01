@@ -8,9 +8,9 @@ import {
   createCacheRevisionStore,
   createDefaultParamsStore,
 } from "./stores";
-import { translationResultToString } from "./utils";
 import {
   createBoundTranslation,
+  translationResultToString,
   formatCurrency,
   formatDate,
   formatNumber,
@@ -22,34 +22,24 @@ import type {
   TranslationParams,
   TranslationResult,
   TranslationValue,
+  TranslateFn,
   FlattenedTranslations,
   I18nEvent,
   I18nEventData,
   DefaultTranslationParams,
   DefaultParamsSnapshot,
-  Namespaces,
-  NamespacedKeys,
-  NamespacedParamsArg,
-  DefaultNsKeys,
-  ParamsArg,
-  PermissiveKey,
 } from "@comvi/core";
 
 const DEFAULT_NS_CACHE_KEY = Symbol("comvi-default-ns");
 type TranslationStoreCacheKey = string | symbol;
-interface SvelteTranslationFunction<D extends DefaultTranslationParams, R> {
-  <NS extends Namespaces, K extends NamespacedKeys<NS>>(
-    key: K,
-    ...params: NamespacedParamsArg<NS, K, D>
-  ): R;
-  <K extends DefaultNsKeys>(key: K, ...params: ParamsArg<K, D>): R;
-  (key: PermissiveKey, params?: TranslationParams): R;
-}
-
-export type SvelteTextTranslationFunction<D extends DefaultTranslationParams = {}> =
-  SvelteTranslationFunction<D, string>;
-export type SvelteRawTranslationFunction<D extends DefaultTranslationParams = {}> =
-  SvelteTranslationFunction<D, TranslationResult>;
+export type SvelteTextTranslationFunction<D extends DefaultTranslationParams = {}> = TranslateFn<
+  D,
+  string
+>;
+export type SvelteRawTranslationFunction<D extends DefaultTranslationParams = {}> = TranslateFn<
+  D,
+  TranslationResult
+>;
 
 type RawTranslationStore<D extends DefaultTranslationParams> = Readable<
   SvelteRawTranslationFunction<D>

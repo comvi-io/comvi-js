@@ -100,11 +100,11 @@ describe("Core Translation Features", () => {
       expect(i18n.t("status", { isActive: false })).toBe("Active: false");
     });
 
-    it("should handle missing parameters by returning empty string for the param", () => {
+    it("renders absent/undefined params as literal placeholders and null as empty (missingParam default)", () => {
       i18n.addTranslations({ en: { greet: "Hello {name}!" } });
-      expect(i18n.t("greet", {})).toBe("Hello !");
+      expect(i18n.t("greet", {})).toBe("Hello {name}!");
+      expect(i18n.t("greet", { name: undefined })).toBe("Hello {name}!");
       expect(i18n.t("greet", { name: null })).toBe("Hello !");
-      expect(i18n.t("greet", { name: undefined })).toBe("Hello !");
     });
 
     it("should allow whitespace in parameter placeholders", () => {

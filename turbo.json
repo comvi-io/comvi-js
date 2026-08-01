@@ -25,6 +25,14 @@
       "outputs": [],
       "dependsOn": ["^build"]
     },
+    "//#size": {
+      "outputs": [],
+      "dependsOn": ["@comvi/core#build"]
+    },
+    "//#bundler-matrix": {
+      "outputs": [],
+      "dependsOn": ["@comvi/core#build", "@comvi/react#build", "@comvi/vue#build"]
+    },
     "test:coverage": {
       "outputs": ["coverage/**"],
       "dependsOn": ["build", "^build"]

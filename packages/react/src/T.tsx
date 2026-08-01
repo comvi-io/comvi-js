@@ -1,21 +1,18 @@
+// Ambient tag-syntax registration for string-API convenience (plan §1.2).
+// <T> itself does NOT depend on it: prepareTranslation passes the tag
+// extension per call.
+import "@comvi/core/tags";
 import React from "react";
 import { useI18n } from "./useI18n";
-import { isVirtualNode } from "./utils";
+import { isVirtualNode } from "@comvi/core";
 import type {
   TranslationParams,
-  TagCallbackParams,
+  TranslationKeys,
   VirtualNode,
-  TranslationResult,
   PermissiveKey,
+  TranslationResult,
 } from "@comvi/core";
-import { createElement as createVirtualElement } from "@comvi/core";
-
-/**
- * Marker prefix for React component handling in tag interpolation
- * Used to identify VirtualNodes that should be converted to React elements
- */
-const MARKER_PREFIX = "__react_component_";
-const MARKER_SUFFIX = "__";
+import { prepareTranslation, type PendingHandler } from "@comvi/core/tags";
 
 /**
  * Component handler types for the `components` prop
@@ -82,7 +79,7 @@ interface TBaseProps {
   components?: ComponentsMap;
 }
 
-type TranslationKeysMap = import("@comvi/core").TranslationKeys;
+type TranslationKeysMap = TranslationKeys;
 type TypedKey = keyof TranslationKeysMap;
 
 type KeyRequiredParams<K extends TypedKey> = TranslationKeysMap[K] extends never
@@ -143,16 +140,6 @@ export type TProps = StrictTypedProps | PermissiveTProps;
  * <T i18nKey="missing.key">Fallback Text</T>
  * ```
  */
-/**
- * Convert TranslationResult children to format suitable for tag handler
- */
-function childrenToArray(children: TranslationResult): (string | VirtualNode)[] {
-  if (typeof children === "string") {
-    return children ? [children] : [];
-  }
-  return Array.isArray(children) ? children : [];
-}
-
 const TComponent = function T({
   i18nKey,
   ns,
@@ -184,81 +171,33 @@ const TComponent = function T({
     [key: string]: unknown;
   };
 
-  // Only allocate when consumer passes a `components` prop.
-  let reactHandlers: Map<string, (children: React.ReactNode[]) => React.ReactElement> | null = null;
-  let tagHandlers: Record<string, (params: TagCallbackParams) => VirtualNode | string> | null =
-    null;
-
-  if (components) {
-    reactHandlers = new Map();
-    tagHandlers = {};
-
-    const registerHandler = (
-      tagName: string,
-      reactHandler: (children: React.ReactNode[]) => React.ReactElement,
-    ) => {
-      reactHandlers!.set(tagName, (children) => {
-        try {
-          return reactHandler(children);
-        } catch (error) {
-          reportError(error, { source: "translation", tagName });
-          return <>{children}</>;
-        }
-      });
-      tagHandlers![tagName] = ({ children }: TagCallbackParams) =>
-        createVirtualElement(
-          `${MARKER_PREFIX}${tagName}${MARKER_SUFFIX}`,
-          {},
-          childrenToArray(children),
-        );
-    };
-
-    for (const [tagName, handler] of Object.entries(components)) {
-      if (typeof handler === "string") {
-        tagHandlers[tagName] = ({ children }: TagCallbackParams) =>
-          createVirtualElement(handler, {}, childrenToArray(children));
-      } else if (React.isValidElement(handler)) {
-        registerHandler(tagName, (children) =>
-          React.createElement(handler.type, handler.props, ...children),
-        );
-      } else if (typeof handler === "function") {
-        registerHandler(tagName, (children) => handler({ children: <>{children}</> }));
-      }
-    }
-  }
-
-  const allParams = { ...params, ...cleanRestProps, ...(tagHandlers ?? undefined) };
-
   const keyString = String(i18nKey);
-  const targetLocale = locale ?? currentLocale;
-  const targetNamespace = ns ?? getDefaultNamespace();
-  const translationExists = hasTranslation(keyString, targetLocale, targetNamespace, true);
 
-  // Get translated content
-  const transportParams: TranslationParams = { ...(allParams as TranslationParams) };
-  if (ns !== undefined) {
-    transportParams.ns = ns;
-  }
-  if (locale !== undefined) {
-    transportParams.locale = locale;
-  }
-  if (fallback !== undefined) {
-    transportParams.fallback = fallback;
-  }
-  if (raw !== undefined) {
-    transportParams.raw = raw;
-  }
+  // Direct props take precedence over same-named `params` entries.
+  const allParams = { ...params, ...cleanRestProps } as TranslationParams;
 
-  const content = translate(keyString as never, transportParams);
+  // Shared <T> pipeline: transports opaque React handlers as marker nodes and
+  // passes the tag syntax extension per call.
+  const { content, pendingHandlers, isMissing } = prepareTranslation(
+    {
+      tRaw: translate,
+      // Default the lookup to the React-tracked render locale / default
+      // namespace so missing-translation detection matches what `translate`
+      // resolves against (not the mutable instance locale).
+      hasTranslation: (key, lookupLocale, lookupNs, checkFallbacks) =>
+        hasTranslation(
+          key,
+          lookupLocale ?? currentLocale,
+          lookupNs ?? getDefaultNamespace(),
+          checkFallbacks,
+        ),
+    },
+    { i18nKey: keyString, params: allParams, ns, locale, fallback, raw, components },
+  );
 
   // Use children as fallback if translation is missing and no explicit fallback provided
   // Priority: translation (including processed fallback/onMissing) > children fallback > key
-  const isMissingTranslation =
-    !translationExists &&
-    fallback === undefined &&
-    typeof content === "string" &&
-    content === keyString;
-  const finalContent = isMissingTranslation && children !== undefined ? children : content;
+  const finalContent = isMissing && children !== undefined ? children : content;
 
   // Handle different content types
   if (typeof finalContent === "string") {
@@ -268,6 +207,15 @@ const TComponent = function T({
   // If children was used as fallback and it's not an array, return it directly
   if (finalContent === children) {
     return <>{children}</>;
+  }
+
+  // Only allocate the marker lookup when opaque handlers are in play.
+  let pendingByMarker: Map<string, PendingHandler> | null = null;
+  if (pendingHandlers.length > 0) {
+    pendingByMarker = new Map();
+    for (const pending of pendingHandlers) {
+      pendingByMarker.set(pending.marker, pending);
+    }
   }
 
   // Helper to convert VirtualNode children to React nodes (recursively handles markers)
@@ -291,6 +239,35 @@ const TComponent = function T({
       }
       return child as React.ReactNode;
     });
+  };
+
+  // Resolve an opaque handler against the converted tag children.
+  // Throws when a function handler returns a non-element (reported by caller).
+  const resolvePending = (
+    pending: PendingHandler,
+    convertedChildren: React.ReactNode[],
+  ): React.ReactNode => {
+    const handler = pending.handler;
+
+    if (React.isValidElement(handler)) {
+      const baseProps = handler.props as Record<string, unknown>;
+      const mergedProps = pending.props ? { ...baseProps, ...pending.props } : baseProps;
+      return React.createElement(handler.type, mergedProps, ...convertedChildren);
+    }
+
+    if (typeof handler === "function") {
+      const result = (handler as (params: { children: React.ReactNode }) => React.ReactElement)({
+        ...(pending.props ?? {}),
+        children: <>{convertedChildren}</>,
+      });
+      if (!React.isValidElement(result)) {
+        throw new Error(`Tag handler for "${pending.name}" must return a React element`);
+      }
+      return result;
+    }
+
+    // Non-invokable opaque handler — degrade to the tag's children.
+    return convertedChildren;
   };
 
   // Helper to convert VirtualNode to React element, handling markers
@@ -318,21 +295,15 @@ const TComponent = function T({
     // Always convert children first (handles nested markers)
     const convertedChildren = convertChildren(childResult);
 
-    // Check for React component marker
-    if (tag.startsWith(MARKER_PREFIX) && tag.endsWith(MARKER_SUFFIX)) {
-      const handlerName = tag.slice(MARKER_PREFIX.length, -MARKER_SUFFIX.length);
-      const handler = reactHandlers?.get(handlerName);
-      if (handler) {
-        try {
-          const result = handler(convertedChildren);
-          if (!React.isValidElement(result)) {
-            throw new Error(`Tag handler for "${handlerName}" must return a React element`);
-          }
-          return <React.Fragment key={reactKey}>{result}</React.Fragment>;
-        } catch (error) {
-          reportError(error, { source: "translation", tagName: handlerName });
-          return <React.Fragment key={`${keyString}-${index}`}>{convertedChildren}</React.Fragment>;
-        }
+    // Check for handler-transport marker
+    const pending = pendingByMarker?.get(tag);
+    if (pending) {
+      try {
+        const result = resolvePending(pending, convertedChildren);
+        return <React.Fragment key={reactKey}>{result}</React.Fragment>;
+      } catch (error) {
+        reportError(error, { source: "translation", tagName: pending.name });
+        return <React.Fragment key={`${keyString}-${index}`}>{convertedChildren}</React.Fragment>;
       }
     }
 

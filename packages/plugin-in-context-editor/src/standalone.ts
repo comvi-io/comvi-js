@@ -6,6 +6,7 @@
  */
 
 import { InContextEditorPlugin, type EditorOptions } from "./index";
+import { ensureComviHook, readComviGlobalStatus } from "./comviHook";
 import { Core } from "./Core";
 import { getApiConfig, initApiConfig, resetApiConfig, type ApiTransport } from "./config/api";
 import { apiFetch } from "./services/apiClient";
@@ -199,9 +200,10 @@ export function activate(options: ActivateOptions): ActivateResult | null {
     return null;
   }
 
-  // Find Comvi global
-  const comviGlobal = (window as any).__COMVI__;
-  if (!comviGlobal) {
+  // Drain-and-swap the __COMVI__ discovery queue (protocol v2, dual-protocol
+  // hook) and look the instance up in the hook.
+  const comviHook = ensureComviHook();
+  if (!comviHook || comviHook.instances.size === 0) {
     console.error(
       "[ComviInContextEditor] No Comvi i18n found. Ensure @comvi/core is loaded on the page.",
     );
@@ -209,7 +211,7 @@ export function activate(options: ActivateOptions): ActivateResult | null {
   }
 
   // Get i18n instance
-  const i18n = comviGlobal.get(options.instanceId) as I18n | undefined;
+  const i18n = comviHook.get(options.instanceId);
   if (!i18n) {
     console.error(
       "[ComviInContextEditor] No i18n instance found.",
@@ -339,14 +341,10 @@ export function getStatus(): {
   comviVersion: string | null;
   instanceCount: number;
 } {
-  const comviGlobal = (window as any).__COMVI__;
-
   return {
     active: activeCore !== null,
     instanceId: activeCore?.getInstanceId() ?? null,
-    comviDetected: !!comviGlobal,
-    comviVersion: comviGlobal?.version ?? null,
-    instanceCount: comviGlobal?.instances?.size ?? 0,
+    ...readComviGlobalStatus(),
   };
 }
 
@@ -366,8 +364,12 @@ declare global {
   }
 }
 
-// Auto-expose when loaded
+// Boot-time drain-and-swap: replace a raw __COMVI__ queue (or a legacy v1
+// registry) with the dual-protocol hook BEFORE any instance lookup, so
+// entries pushed between now and activate() are never lost.
+// Auto-expose when loaded.
 if (typeof window !== "undefined") {
+  ensureComviHook();
   window.ComviInContextEditor = {
     activate,
     deactivate,

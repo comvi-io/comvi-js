@@ -1,5 +1,37 @@
 {
-  "version": 1,
+  "version": 2,
+  "discovery": {
+    "global": "__COMVI__",
+    "protocol": "queue-hook",
+    "entry": {
+      "shape": "{ v: string, i: I18nLike }",
+      "v": "core library version that produced the entry",
+      "i": "the exposed i18n instance"
+    },
+    "coreToPage": {
+      "description": "Every core instance created with exposeGlobal (default true in browsers) announces itself on window.__COMVI__ at construction time.",
+      "probeOrder": [
+        "Array.isArray(g) -> g.push({v, i}) — raw v2 queue array, or a consumer's array-masquerading hook whose OWN push/remove shadow Array.prototype",
+        "typeof g.push === 'function' && typeof g.remove === 'function' -> g.push({v, i}) — v2 hook object, including dual-protocol hooks that also expose register; probed BEFORE legacy so new/new never downgrades to v1",
+        "typeof g.register === 'function' -> g.register(instanceId, instance) — register WITHOUT remove means a genuine v1 legacy registry; two-arg call so its get(id) resolves",
+        "!g -> window.__COMVI__ = [{v, i}] — install a fresh queue array",
+        "truthy non-conforming global -> left untouched, exposure skipped (never clobber)"
+      ],
+      "removal": "destroy() removes identity-based: hook (own remove) -> g.remove(entry); raw array -> indexOf/splice of the SAME entry object; legacy registry -> g.unregister(instanceId). All discovery and removal is wrapped in try/catch — it must never break construction or destroy."
+    },
+    "pageToExtension": {
+      "description": "The consumer (in-context editor / Chrome extension) MUST drain-and-swap on boot: if window.__COMVI__ is an array, SWAP the global to its hook object FIRST, then drain the snapshot ({v, i} envelopes AND bare legacy instances). The swapped-in hook implements BOTH protocols: v2 (push/remove) and v1 legacy (register/unregister/get/instances view), so an old core landing later still attaches via register.",
+      "hookShape": "Object.assign([], { push, remove, register, unregister, get, instances, version }) — array-masquerading so new core's Array.isArray-first probe routes through the hook's OWN push. Do not drop the array masquerade or reorder core's probe independently: they are a matched pair.",
+      "legacyRegistryBoot": "If the pre-existing global is the v1 registry object (register fn / instances Map), read its instances map into the hook, then swap; keep a COMVI_READY listener on the drained legacy object as the v1 shim."
+    },
+    "versionPairing": {
+      "old-core+old-extension": "supported — v1 behavior, untouched",
+      "old-core+new-extension": "supported — the extension's legacy shim reads .instances and COMVI_READY, and its dual-protocol hook accepts register()",
+      "new-core+old-extension": "UNSUPPORTED — the one broken pairing; the old extension never drains the queue array. Release notes pin the minimum extension version.",
+      "new-core+new-extension": "target protocol (v2)",
+      "old-core+new-core-same-page": "supported — new core detects the legacy object (register without remove) and calls register(id, instance); the new extension's hook speaks both protocols"
+    }
+  },
   "routes": [
     {
       "method": "GET",

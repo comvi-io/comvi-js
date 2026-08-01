@@ -115,8 +115,8 @@ describe("collectContext / screenGroupResolver pass-through", () => {
 
   it("standalone activate() hands collectContext: false and the resolver to Core", () => {
     const resolver = () => "/checkout";
-    const i18n = makeI18n();
-    (window as { __COMVI__?: unknown }).__COMVI__ = { get: () => i18n };
+    // makeI18n() self-announces on the __COMVI__ queue (exposeGlobal default)
+    makeI18n();
 
     const result = activate({
       collectContext: false,
@@ -132,13 +132,12 @@ describe("collectContext / screenGroupResolver pass-through", () => {
   });
 
   it("standalone activation reports the effective site-narrowed collectContext value", () => {
-    const i18n = createI18n({
+    createI18n({
       locale: "en",
       defaultNs: "default",
       translation: { "en:default": { hello: "Hello" } },
       collectContext: false,
     });
-    (window as { __COMVI__?: unknown }).__COMVI__ = { get: () => i18n };
 
     const result = activate({ collectContext: true, refreshTranslations: false });
 
@@ -159,8 +158,7 @@ describe("standalone lifecycle notifications", () => {
   });
 
   it("notifies callback and DOM observers when the returned stop function deactivates", () => {
-    const i18n = makeI18n();
-    (window as { __COMVI__?: unknown }).__COMVI__ = { get: () => i18n };
+    makeI18n();
     const callback = vi.fn<(detail: EditorLifecycleDetail) => void>();
     const eventDetails: EditorLifecycleDetail[] = [];
     const listener = (event: Event) => {
@@ -187,8 +185,7 @@ describe("standalone lifecycle notifications", () => {
   });
 
   it("notifies observers when the global deactivate entry point is called", () => {
-    const i18n = makeI18n();
-    (window as { __COMVI__?: unknown }).__COMVI__ = { get: () => i18n };
+    makeI18n();
     const listener = vi.fn();
     window.addEventListener(EDITOR_LIFECYCLE_EVENT, listener);
 
@@ -204,8 +201,7 @@ describe("standalone lifecycle notifications", () => {
   });
 
   it("does not let an old returned stop function deactivate a newer activation", () => {
-    const i18n = makeI18n();
-    (window as { __COMVI__?: unknown }).__COMVI__ = { get: () => i18n };
+    makeI18n();
 
     const first = activate({ refreshTranslations: false });
     first?.stop();
@@ -221,7 +217,7 @@ describe("standalone lifecycle notifications", () => {
 
     expect(activate({ refreshTranslations: false })).toBeNull();
 
-    (window as { __COMVI__?: unknown }).__COMVI__ = { get: () => undefined };
+    makeI18n();
     expect(activate({ instanceId: "missing", refreshTranslations: false })).toBeNull();
 
     expect(error).toHaveBeenCalledTimes(2);
@@ -231,6 +227,8 @@ describe("standalone lifecycle notifications", () => {
 
   it("rejects a second activation and reports authoritative runtime status", () => {
     const i18n = makeI18n();
+    // Legacy v1 registry object already installed on the page (old core):
+    // activate() must drain .instances into the dual-protocol hook.
     (window as { __COMVI__?: unknown }).__COMVI__ = {
       version: "0.3.0",
       instances: new Map([["primary", i18n]]),
@@ -257,8 +255,7 @@ describe("standalone lifecycle notifications", () => {
   });
 
   it("contains lifecycle callback failures and still emits the DOM event", () => {
-    const i18n = makeI18n();
-    (window as { __COMVI__?: unknown }).__COMVI__ = { get: () => i18n };
+    makeI18n();
     const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
     const listener = vi.fn();
     window.addEventListener(EDITOR_LIFECYCLE_EVENT, listener);
@@ -283,7 +280,6 @@ describe("standalone lifecycle notifications", () => {
   it("refreshes translations through the scoped transport without leaking headers", async () => {
     const i18n = makeI18n();
     const addTranslations = vi.spyOn(i18n, "addTranslations");
-    (window as { __COMVI__?: unknown }).__COMVI__ = { get: () => i18n };
     const transport = vi.fn(async () => new Response("{}", { status: 200 }));
     fetchApiTranslationsMock.mockImplementation(
       async (
@@ -336,8 +332,7 @@ describe("standalone lifecycle notifications", () => {
   });
 
   it("contains refresh failures and permits idempotent deactivation", async () => {
-    const i18n = makeI18n();
-    (window as { __COMVI__?: unknown }).__COMVI__ = { get: () => i18n };
+    makeI18n();
     const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
     fetchApiTranslationsMock.mockRejectedValue(new Error("network down"));
 

@@ -6,6 +6,7 @@ import {
   useCallback,
   useSyncExternalStore,
 } from "react";
+import { subscribeToRevision } from "@comvi/core";
 import type { I18n, FlattenedTranslations, I18nEvent } from "@comvi/core";
 
 interface I18nContextValue {
@@ -59,35 +60,35 @@ export function useSubscribe(i18n: I18n, ...events: I18nEvent[]) {
 }
 
 /** @internal — exported for unit tests, not in the package index. */
-export function useStoreRevision(i18n: I18n, ...events: I18nEvent[]): string {
-  const eventsKey = events.join("|");
+export function useStoreRevision(i18n: I18n): string {
   const subscribe = useCallback(
     (callback: () => void) => {
       let disposed = false;
-      const eventList = eventsKey.split("|") as I18nEvent[];
-      const unsubs = eventList.map((event) =>
-        i18n.on(event, () => {
-          // Defer out of the synchronous _emit stack to avoid mid-render setState.
-          queueMicrotask(() => {
-            if (!disposed) callback();
-          });
-        }),
-      );
+      // Canonical 7-event revision set from core (subscribeToRevision) — react
+      // subscribes to all of them (plan 6.4; was a hand-copied 5-event subset).
+      const unsubscribe = subscribeToRevision(i18n, () => {
+        // Defer out of the synchronous _emit stack to avoid mid-render setState.
+        queueMicrotask(() => {
+          if (!disposed) callback();
+        });
+      });
       return () => {
         disposed = true;
-        unsubs.forEach((unsub) => unsub());
+        unsubscribe();
       };
     },
-    [i18n, eventsKey],
+    [i18n],
   );
 
   // Content-addressed snapshot (subscription-timing-independent) so events that fire
   // before the subscribe effect attaches are still detected on the post-subscribe read.
+  // Locale + loading segments make the two events the old subset missed re-render-visible.
   const getSnapshot = useCallback(
     () =>
       `${i18n.translationCache.getRevision()}:${i18n.isInitialized ? 1 : 0}:` +
       `${i18n.getDefaultNamespace()}:${i18n.getActiveNamespaces().join(",")}:` +
-      `${i18n.getFallbackLocales().join(",")}:${i18n.configRevision}`,
+      `${i18n.getFallbackLocales().join(",")}:${i18n.configRevision}:` +
+      `${i18n.locale}:${i18n.isLoading ? 1 : 0}:${i18n.isInitializing ? 1 : 0}`,
     [i18n],
   );
 
@@ -213,14 +214,7 @@ export function useI18nContext(): I18nContextValue {
   const { i18n, isLoading, isInitializing } = useI18nInstance();
   const locale = useContext(LocaleContext) ?? "";
 
-  const storeRevision = useStoreRevision(
-    i18n,
-    "namespaceLoaded",
-    "initialized",
-    "translationsCleared",
-    "configChanged",
-    "defaultNamespaceChanged",
-  );
+  const storeRevision = useStoreRevision(i18n);
   const translationCache = i18n.translationCache.getInternalMap();
 
   return useMemo<I18nContextValue>(

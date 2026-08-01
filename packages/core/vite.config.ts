@@ -1,28 +1,56 @@
 import { defineConfig } from "vite";
 import dts from "vite-plugin-dts";
 import { resolve } from "path";
-import { createLibraryBuildOptions } from "@comvi/vite-config";
 import pkg from "./package.json";
+import {
+  coreCodeSplitting,
+  coreEntries,
+  coreTreeshake,
+  chunkFileName,
+  entryFileName,
+  keepRegisterSideEffect,
+  mangleInternalProps,
+} from "./vite.shared";
 
 export default defineConfig({
   plugins: [
+    keepRegisterSideEffect,
+    mangleInternalProps(),
     dts({
       insertTypesEntry: true,
     }),
   ],
-  build: createLibraryBuildOptions({
-    entry: resolve(__dirname, "src/index.ts"),
-    name: "ComviCore",
-    fileNames: { es: "comvi-core.js", cjs: "comvi-core.cjs" },
-  }),
+  build: {
+    emptyOutDir: true,
+    lib: {
+      entry: coreEntries(__dirname),
+      name: "ComviCore",
+    },
+    minify: false,
+    sourcemap: false,
+    rolldownOptions: {
+      external: [],
+      preserveEntrySignatures: "allow-extension",
+      output: [
+        {
+          format: "es",
+          entryFileNames: (chunk) => entryFileName(chunk.name, ""),
+          chunkFileNames: (chunk) => chunkFileName(chunk.name, ""),
+          codeSplitting: coreCodeSplitting,
+        },
+      ],
+      treeshake: coreTreeshake,
+    },
+  },
   resolve: {
     alias: {
       "@": resolve(__dirname, "./src"),
     },
   },
   define: {
-    // The published comvi-core.js is always the prod artifact; the dev build
-    // (vite.config.dev.ts) ships readable messages via the "development" condition.
+    // The published comvi-core*.js files are always the prod artifacts; the
+    // dev build (vite.config.dev.ts) ships readable messages via the
+    // "development" export condition.
     __DEV__: JSON.stringify(false),
     __VERSION__: JSON.stringify(pkg.version),
   },

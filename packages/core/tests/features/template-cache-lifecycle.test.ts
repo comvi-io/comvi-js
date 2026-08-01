@@ -1,7 +1,12 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { createI18n } from "../../src";
 import { clearTemplateCache, isStaticTemplate, _templateCacheSize } from "../../src/core/translate";
-import { parsePluralChoices } from "../../src/core/translate/parser";
+import { parsePluralChoices, icuCompiler } from "../../src/core/translate/compile-icu";
+import { effectiveExtBits, getCompilerId } from "../../src/core/translate/syntax";
+
+// The root entry registers tag syntax ambiently and wires the ICU compiler,
+// so the cache variant used by root instances is (icu, ambient bits).
+const rootVariant = () => [getCompilerId(icuCompiler), effectiveExtBits()] as const;
 
 // Reset the module-level template cache before each test so tests are isolated.
 beforeEach(() => {
@@ -15,11 +20,12 @@ describe("templateCache eviction", () => {
       translation: { en: { greeting: "Hello world" } },
     });
 
-    expect(isStaticTemplate("Hello world")).toBeUndefined();
+    const [compilerId, extBits] = rootVariant();
+    expect(isStaticTemplate("Hello world", false, compilerId, extBits)).toBeUndefined();
     expect(i18n.t("greeting" as never)).toBe("Hello world");
-    expect(isStaticTemplate("Hello world")).toBe(true);
+    expect(isStaticTemplate("Hello world", false, compilerId, extBits)).toBe(true);
     expect(i18n.t("greeting" as never)).toBe("Hello world");
-    expect(isStaticTemplate("Hello world")).toBe(true);
+    expect(isStaticTemplate("Hello world", false, compilerId, extBits)).toBe(true);
   });
 
   it("keeps size at or below the cap after inserting many distinct templates", () => {

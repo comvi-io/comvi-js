@@ -31,6 +31,7 @@ export default defineConfig({
       "react-dom",
       "react/jsx-runtime",
       "@comvi/core",
+      "@comvi/core/tags",
       "use-sync-external-store",
       "use-sync-external-store/shim",
     ],

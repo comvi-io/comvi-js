@@ -19,6 +19,8 @@ import type {
   DefaultTranslationParams,
   SetDefaultParamsArg,
   DefaultParamsSnapshot,
+  ComviQueueEntry,
+  ComviHook,
 } from "../types";
 import { DEFAULT_NS, COMVI_REPORTED } from "../constants";
 import { warn } from "../logger";
@@ -32,6 +34,13 @@ import type { I18nPlugin as I18nPluginFn } from "../plugins/types";
 import { TranslationCache } from "./TranslationCache";
 import type { PluginOptions } from "../plugins/types";
 import { isStaticTemplate, translate, translateTemplate } from "./translate";
+import {
+  effectiveExtBits,
+  getCompilerId,
+  mergeTagInterpolation,
+  type MessageCompiler,
+  type MissingParamMode,
+} from "./translate/syntax";
 
 declare const __DEV__: boolean | undefined;
 declare const __VERSION__: string | undefined;
@@ -82,13 +91,11 @@ const ERR_REGISTER_LOCALE_DETECTOR = IS_DEV
   ? "[i18n] registerLocaleDetector(): argument must be a function."
   : "E_REGISTER_LOCALE_DETECTOR";
 const ERR_REGISTER_LOADER_ARG = IS_DEV
-  ? "[i18n] registerLoader(): argument must be a function or an import map."
+  ? "[i18n] registerLoader(): argument must be a loader function. (Import maps: use the root entry, or wrap with createImportMapLoader from @comvi/core/slim.)"
   : "E_REGISTER_LOADER_ARG";
 
-type LoaderResult = Record<string, TranslationValue>;
-type LoaderImportResult = LoaderResult | { default: LoaderResult };
-type LoaderFn = (locale: string, namespace: string) => Promise<LoaderResult>;
-type LoaderImportMap = Record<string, () => Promise<LoaderImportResult>>;
+export type LoaderResult = Record<string, TranslationValue>;
+export type LoaderFn = (locale: string, namespace: string) => Promise<LoaderResult>;
 
 type PluginEntry = [
   plugin: I18nPluginFn,
@@ -100,55 +107,13 @@ type PluginEntry = [
 /** Counter for auto-generating instance IDs */
 let instanceCounter = 0;
 
-function createImportMapLoader(importMap: LoaderImportMap, getDefaultNs: () => string): LoaderFn {
-  return async (locale, namespace) => {
-    const defaultNs = getDefaultNs();
-    const key = `${locale}:${namespace}`;
-    const importFn = importMap[key] ?? (namespace === defaultNs ? importMap[locale] : undefined);
-    if (!importFn) {
-      throw new Error(
-        IS_DEV ? `[i18n] registerLoader: no entry for "${key}"` : "E_REGISTER_LOADER_ENTRY",
-      );
-    }
-    const result = await importFn();
-    return "default" in result ? (result as { default: LoaderResult }).default : result;
-  };
-}
-
-function ensureGlobalRegistry(): NonNullable<Window["__COMVI__"]> {
-  const current = window.__COMVI__;
-  if (current) {
-    return current;
-  }
-
-  const instances = new Map<string, I18n>();
-  const registry: NonNullable<Window["__COMVI__"]> = {
-    version: VERSION,
-    instances,
-    register: (id, instance) => {
-      instances.set(id, instance);
-      window.__COMVI__?.onInstanceRegistered?.(id, instance);
-      window.dispatchEvent(
-        new CustomEvent("COMVI_READY", {
-          detail: {
-            version: VERSION,
-            instanceCount: instances.size,
-            instanceId: id,
-          },
-        }),
-      );
-    },
-    unregister: (id) => {
-      instances.delete(id);
-    },
-    get: (id) => {
-      if (id) return instances.get(id);
-      return instances.values().next().value as I18n | undefined;
-    },
-  };
-
-  window.__COMVI__ = registry;
-  return registry;
+/**
+ * v1 legacy registry shape (`register` WITHOUT `remove`) — mixed-version
+ * interop only: an old core on the same page may have installed it.
+ */
+interface LegacyComviRegistry {
+  register(id: string, instance: I18n): void;
+  unregister?(id: string): void;
 }
 
 /**
@@ -159,87 +124,100 @@ function ensureGlobalRegistry(): NonNullable<Window["__COMVI__"]> {
  */
 export class I18n<D extends DefaultTranslationParams = {}> implements I18nInstance<D> {
   // Core state
-  #locale: string;
+  private _locale: string;
   public readonly translationCache: TranslationCache;
-  #isInitializing: boolean = false;
-  #isInitialized: boolean = false;
-  #isDestroyed: boolean = false;
-  #loadingCount: number = 0;
-  #fallbackLocales: string[];
-  #currentLocaleChangeId: number = 0;
-  #requestedLocale: string;
+  private _isInitializing: boolean = false;
+  private _isInitialized: boolean = false;
+  private _isDestroyed: boolean = false;
+  private _loadingCount: number = 0;
+  private _fallbackLocales: string[];
+  private _currentLocaleChangeId: number = 0;
+  private _requestedLocale: string;
   public readonly apiKey: string | undefined;
   public readonly collectContext: boolean | undefined;
   public readonly devMode: boolean;
   public readonly instanceId: string | undefined;
-  #cachedDefaultNs: string;
-  #initialNamespaces?: string[];
-  #strict: "dev" | "off";
-  #defaultParams?: DefaultTranslationParams;
-  #guaranteedDefaultParamKeys: readonly string[];
-  #configRevision = 0;
-  #tagInterpolation?: TagInterpolationOptions;
-  #postProcessors: PostProcessFn[] = [];
-  #hasPostProcessors: boolean = false;
-  #primaryTranslations?: FlattenedTranslations;
-  #primaryTranslationsRevision: number = -1;
-  #primaryTranslationsLocale: string = "";
-  #primaryTranslationsNamespace: string = "";
+  /** Entry pushed onto window.__COMVI__ — kept for identity-based removal */
+  private _globalEntry?: ComviQueueEntry;
+  private _cachedDefaultNs: string;
+  private _initialNamespaces?: string[];
+  private _strict: "dev" | "off";
+  private _defaultParams?: DefaultTranslationParams;
+  private _guaranteedDefaultParamKeys: readonly string[];
+  private _configRevision = 0;
+  private _tagInterpolation?: TagInterpolationOptions;
+  private _missingParam: MissingParamMode;
+  private readonly _compiler: MessageCompiler;
+  private readonly _compilerId: number;
+  private _postProcessors: PostProcessFn[] = [];
+  private _hasPostProcessors: boolean = false;
+  private _primaryTranslations?: FlattenedTranslations;
+  private _primaryTranslationsRevision: number = -1;
+  private _primaryTranslationsLocale: string = "";
+  private _primaryTranslationsNamespace: string = "";
 
   // Namespace state (inlined from NamespaceManager)
-  #activeNamespaces = new Set<string>();
-  #nsGeneration = 0;
-  #pendingLoads: Record<string, Promise<void> | undefined> = Object.create(null);
-  #loader?: LoaderFn;
+  private _activeNamespaces = new Set<string>();
+  private _nsGeneration = 0;
+  private _pendingLoads: Record<string, Promise<void> | undefined> = Object.create(null);
+  private _loader?: LoaderFn;
 
   // Plugin state
-  #plugins: PluginEntry[] = [];
-  #pluginCleanups: Array<() => void | Promise<void>> = [];
+  private _plugins: PluginEntry[] = [];
+  private _pluginCleanups: Array<() => void | Promise<void>> = [];
 
   // Plugin API hooks
-  #localeDetector?: () => string | Promise<string>;
-  #missingKeyCallbacks = new Set<
+  private _localeDetector?: () => string | Promise<string>;
+  private _missingKeyCallbacks = new Set<
     (key: string, locale: string, namespace: string) => TranslationResult | void
   >();
 
   // Event system for framework wrappers and plugins
-  #eventCallbacks: Partial<Record<I18nEvent, Set<(data?: unknown) => void>>> = Object.create(null);
+  private _eventCallbacks: Partial<Record<I18nEvent, Set<(data?: unknown) => void>>> = Object.create(null);
 
   // Plugin data storage (for plugins to store config that persists with instance)
-  #pluginData: Record<string, unknown> = Object.create(null);
+  private _pluginData: Record<string, unknown> = Object.create(null);
 
   // Options storage
-  #fallbackOnMissingKey?: (info: {
+  private _fallbackOnMissingKey?: (info: {
     key: string;
     locale: string;
     namespace: string;
   }) => TranslationResult | void;
-  #onError?: (error: Error, context?: ErrorReportContext) => void;
+  private _onError?: (error: Error, context?: ErrorReportContext) => void;
 
-  constructor(options: I18nOptions<D>) {
+  /**
+   * @param compiler Message compiler injected by the entry-point factory
+   * (root → ICU, slim → simple, or user-injected). Its identity is part of
+   * every template cache key this instance produces.
+   */
+  constructor(options: I18nOptions<D>, compiler: MessageCompiler) {
     if (!options.locale) {
       throw new Error(ERR_LOCALE_NOT_SET);
     }
+    this._compiler = compiler;
+    this._compilerId = getCompilerId(compiler);
+    this._missingParam = options.missingParam ?? "literal";
 
     // Initialize core state
-    this.#locale = options.locale;
-    this.#requestedLocale = options.locale;
+    this._locale = options.locale;
+    this._requestedLocale = options.locale;
     const defaultNs = options.defaultNs ?? DEFAULT_NS;
     const initialNamespaces = options.ns;
-    this.#cachedDefaultNs = defaultNs;
+    this._cachedDefaultNs = defaultNs;
     this.translationCache = new TranslationCache({ defaultNs });
-    this.#initialNamespaces = initialNamespaces ? [...new Set(initialNamespaces)] : undefined;
+    this._initialNamespaces = initialNamespaces ? [...new Set(initialNamespaces)] : undefined;
 
     const fallbackLocale = options.fallbackLocale;
-    this.#fallbackLocales =
+    this._fallbackLocales =
       typeof fallbackLocale === "string" ? [fallbackLocale] : (fallbackLocale ?? []);
 
-    this.#fallbackOnMissingKey = options.onMissingKey;
-    this.#onError = options.onError;
-    this.#strict = options.strict ?? "off";
+    this._fallbackOnMissingKey = options.onMissingKey;
+    this._onError = options.onError;
+    this._strict = options.strict ?? "off";
     assertInterpolationDefaults(options.defaultParams);
-    this.#defaultParams = options.defaultParams ? { ...options.defaultParams } : undefined;
-    this.#guaranteedDefaultParamKeys = options.defaultParams
+    this._defaultParams = options.defaultParams ? { ...options.defaultParams } : undefined;
+    this._guaranteedDefaultParamKeys = options.defaultParams
       ? Object.keys(options.defaultParams)
       : [];
 
@@ -261,10 +239,10 @@ export class I18n<D extends DefaultTranslationParams = {}> implements I18nInstan
             }),
         }
       : undefined;
-    this.#tagInterpolation = tagInterpolation;
+    this._tagInterpolation = tagInterpolation;
     if (options.postProcess) {
-      this.#postProcessors.push(options.postProcess);
-      this.#hasPostProcessors = true;
+      this._postProcessors.push(options.postProcess);
+      this._hasPostProcessors = true;
     }
 
     // Validate and process initial translations if provided
@@ -288,7 +266,7 @@ export class I18n<D extends DefaultTranslationParams = {}> implements I18nInstan
       }
 
       // Initialize namespaces from provided translations
-      this.#nsAddTranslations(options.translation);
+      this._nsAddTranslations(options.translation);
     }
 
     // Store API key for plugins to use
@@ -302,13 +280,43 @@ export class I18n<D extends DefaultTranslationParams = {}> implements I18nInstan
       options.devMode ??
       (typeof process !== "undefined" && process?.env?.NODE_ENV !== "production");
 
-    // Register on global window.__COMVI__ for browser extensions
+    // Expose on the global window.__COMVI__ discovery queue for browser extensions
     // Default to true in browser environments, false in SSR
     const shouldExpose = options.exposeGlobal ?? typeof window !== "undefined";
     if (shouldExpose) {
       this.instanceId = options.instanceId || `comvi-${++instanceCounter}`;
       if (typeof window !== "undefined") {
-        ensureGlobalRegistry().register(this.instanceId, this);
+        // Mixed-version-safe discovery (protocol v2). Pages may run two core
+        // versions: probe order is array → hook (push AND remove) → legacy
+        // registry (register WITHOUT remove) → install fresh queue. A truthy
+        // non-conforming global is left untouched (never clobber).
+        const entry: ComviQueueEntry = { v: VERSION, i: this };
+        this._globalEntry = entry;
+        try {
+          const g = window.__COMVI__ as unknown;
+          if (Array.isArray(g)) {
+            // raw v2 queue array — or the editor's array-masquerading hook
+            // whose OWN push/remove shadow Array.prototype
+            g.push(entry);
+          } else if (
+            g &&
+            typeof (g as ComviHook).push === "function" &&
+            typeof (g as ComviHook).remove === "function"
+          ) {
+            // v2 hook object — incl. dual-protocol hooks that also expose
+            // register; probed BEFORE legacy so new/new never downgrades to v1
+            (g as ComviHook).push(entry);
+          } else if (g && typeof (g as LegacyComviRegistry).register === "function") {
+            // register-WITHOUT-remove ⇒ genuine legacy registry; two-arg
+            // signature so its get(id) actually resolves
+            (g as LegacyComviRegistry).register(this.instanceId, this);
+          } else if (!g) {
+            window.__COMVI__ = [entry];
+          }
+          // truthy non-conforming global: leave it alone, skip exposure
+        } catch {
+          /* discovery must never break construction */
+        }
       }
     }
   }
@@ -318,45 +326,38 @@ export class I18n<D extends DefaultTranslationParams = {}> implements I18nInstan
    */
   public async init(): Promise<this> {
     try {
-      if (this.#isDestroyed) {
+      if (this._isDestroyed) {
         throw new Error(ERR_INSTANCE_DESTROYED);
       }
 
-      if (this.instanceId && typeof window !== "undefined") {
-        const registry = ensureGlobalRegistry();
-        if (registry.get(this.instanceId) !== this) {
-          registry.register(this.instanceId, this);
-        }
-      }
+      this._isInitializing = true;
+      this._setLoadingState(true);
 
-      this.#isInitializing = true;
-      this.#setLoadingState(true);
-
-      await this.#initializePlugins();
+      await this._initializePlugins();
 
       // Call locale detector if one was registered by plugins
-      if (this.#localeDetector) {
-        const detectedLocale = await this.#localeDetector();
-        if (detectedLocale && detectedLocale !== this.#locale) {
+      if (this._localeDetector) {
+        const detectedLocale = await this._localeDetector();
+        if (detectedLocale && detectedLocale !== this._locale) {
           // Use async method to wait for namespace loading
           await this.setLocaleAsync(detectedLocale);
         }
       }
 
-      const namespacesToLoad = this.#initialNamespaces ?? [this.#cachedDefaultNs];
+      const namespacesToLoad = this._initialNamespaces ?? [this._cachedDefaultNs];
       if (namespacesToLoad.length > 0) {
-        await this.#nsAddActiveNamespaces(namespacesToLoad);
+        await this._nsAddActiveNamespaces(namespacesToLoad);
       }
 
-      this.#isInitialized = true;
-      this.#emit("initialized");
+      this._isInitialized = true;
+      this._emit("initialized");
       return this;
     } catch (error) {
       this.reportError(error as Error, { source: "init" });
       throw error;
     } finally {
-      this.#isInitializing = false;
-      this.#setLoadingState(false);
+      this._isInitializing = false;
+      this._setLoadingState(false);
     }
   }
 
@@ -367,7 +368,7 @@ export class I18n<D extends DefaultTranslationParams = {}> implements I18nInstan
    * @returns this for chaining
    */
   use(plugin: I18nPluginFn, options?: PluginOptions): this {
-    this.#plugins.push([
+    this._plugins.push([
       plugin,
       options?.required ?? true,
       options?.timeout ?? 10000,
@@ -376,8 +377,8 @@ export class I18n<D extends DefaultTranslationParams = {}> implements I18nInstan
     return this;
   }
 
-  async #initializePlugins(): Promise<void> {
-    for (const [plugin, required, timeout, onError] of this.#plugins) {
+  private async _initializePlugins(): Promise<void> {
+    for (const [plugin, required, timeout, onError] of this._plugins) {
       let timeoutId: ReturnType<typeof setTimeout> | undefined;
       try {
         const result = await Promise.race([
@@ -397,7 +398,7 @@ export class I18n<D extends DefaultTranslationParams = {}> implements I18nInstan
           }),
         ]);
         if (typeof result === "function") {
-          this.#pluginCleanups.push(result);
+          this._pluginCleanups.push(result);
         }
       } catch (error) {
         const err =
@@ -434,19 +435,19 @@ export class I18n<D extends DefaultTranslationParams = {}> implements I18nInstan
    * @returns Unsubscribe function
    */
   public on<E extends I18nEvent>(event: E, callback: (data: I18nEventData[E]) => void): () => void {
-    let callbacks = this.#eventCallbacks[event];
+    let callbacks = this._eventCallbacks[event];
     if (!callbacks) {
       callbacks = new Set();
-      this.#eventCallbacks[event] = callbacks;
+      this._eventCallbacks[event] = callbacks;
     }
     callbacks.add(callback as (data?: unknown) => void);
 
     return () => {
-      const currentCallbacks = this.#eventCallbacks[event];
+      const currentCallbacks = this._eventCallbacks[event];
       if (currentCallbacks) {
         currentCallbacks.delete(callback as (data?: unknown) => void);
         if (currentCallbacks.size === 0) {
-          delete this.#eventCallbacks[event];
+          delete this._eventCallbacks[event];
         }
       }
     };
@@ -456,11 +457,11 @@ export class I18n<D extends DefaultTranslationParams = {}> implements I18nInstan
    * Emit an event to all subscribers
    * @private
    */
-  #emit<E extends I18nEvent>(event: E, data?: I18nEventData[E]): void {
+  private _emit<E extends I18nEvent>(event: E, data?: I18nEventData[E]): void {
     if (event === "configChanged") {
-      this.#configRevision++;
+      this._configRevision++;
     }
-    const callbacks = this.#eventCallbacks[event];
+    const callbacks = this._eventCallbacks[event];
     if (!callbacks) return;
 
     for (const fn of callbacks) {
@@ -473,14 +474,14 @@ export class I18n<D extends DefaultTranslationParams = {}> implements I18nInstan
   }
 
   get locale(): string {
-    return this.#locale;
+    return this._locale;
   }
 
   set locale(value: string) {
     // Synchronous setter - fires and forgets namespace loading
     this.setLocaleAsync(value).catch((error) => {
       // Emit error event so apps can handle failures in production
-      this.#emit("loadError", {
+      this._emit("loadError", {
         locale: value,
         namespace: "locale-change",
         error: error as Error,
@@ -498,74 +499,74 @@ export class I18n<D extends DefaultTranslationParams = {}> implements I18nInstan
     // The early exit must compare against the LAST REQUESTED locale, not the
     // applied one: reverting to the current locale while another change is in
     // flight has to cancel that change (the bump invalidates its changeId).
-    if (this.#locale === value) {
-      if (this.#requestedLocale !== value) {
-        this.#requestedLocale = value;
-        this.#currentLocaleChangeId++;
+    if (this._locale === value) {
+      if (this._requestedLocale !== value) {
+        this._requestedLocale = value;
+        this._currentLocaleChangeId++;
       }
       return;
     }
 
     // Track this request to handle race conditions when locale changes rapidly
-    this.#requestedLocale = value;
-    const changeId = ++this.#currentLocaleChangeId;
+    this._requestedLocale = value;
+    const changeId = ++this._currentLocaleChangeId;
 
-    this.#setLoadingState(true);
+    this._setLoadingState(true);
 
     try {
       // Load any active namespaces that aren't loaded for the new locale FIRST
       // This ensures we don't switch locale before translations are ready (preventing UI flash)
-      if (this.#loader && this.#activeNamespaces.size > 0) {
-        await this.#nsLoadNamespacesForLocale(value, [...this.#activeNamespaces], true);
+      if (this._loader && this._activeNamespaces.size > 0) {
+        await this._nsLoadNamespacesForLocale(value, [...this._activeNamespaces], true);
       }
 
       // Check staleness after EVERY async operation to prevent applying outdated results
-      if (changeId !== this.#currentLocaleChangeId) {
+      if (changeId !== this._currentLocaleChangeId) {
         return;
       }
 
       // Switch locale only after successful load
-      const oldLocale = this.#locale;
-      this.#locale = value;
-      this.#emit("localeChanged", { from: oldLocale, to: value });
+      const oldLocale = this._locale;
+      this._locale = value;
+      this._emit("localeChanged", { from: oldLocale, to: value });
     } catch (error) {
       // Re-check staleness: if a newer request superseded this one, suppress the error
       // so only the latest request's outcome is observed by callers
-      if (changeId !== this.#currentLocaleChangeId) {
+      if (changeId !== this._currentLocaleChangeId) {
         return;
       }
       throw error;
     } finally {
       // ALWAYS decrement the loading state because we incremented it unconditionally.
       // The reference counter handles overlapping requests seamlessly.
-      this.#setLoadingState(false);
+      this._setLoadingState(false);
     }
   }
 
   setFallbackLocale(fallback: string | string[]) {
-    this.#fallbackLocales = typeof fallback === "string" ? [fallback] : fallback;
-    this.#emit("configChanged", { source: "fallbackLocale" });
+    this._fallbackLocales = typeof fallback === "string" ? [fallback] : fallback;
+    this._emit("configChanged", { source: "fallbackLocale" });
   }
 
   setDefaultParams(params: SetDefaultParamsArg<D>): void {
     assertInterpolationDefaults(params);
-    assertPreservesDefaultParamKeys(params, this.#guaranteedDefaultParamKeys);
-    this.#defaultParams = params ? { ...params } : undefined;
-    this.#emit("configChanged", { source: "defaultParams" });
+    assertPreservesDefaultParamKeys(params, this._guaranteedDefaultParamKeys);
+    this._defaultParams = params ? { ...params } : undefined;
+    this._emit("configChanged", { source: "defaultParams" });
   }
 
   get defaultParams(): DefaultParamsSnapshot<D> {
     return (
-      this.#defaultParams ? { ...this.#defaultParams } : undefined
+      this._defaultParams ? { ...this._defaultParams } : undefined
     ) as DefaultParamsSnapshot<D>;
   }
 
   get configRevision(): number {
-    return this.#configRevision;
+    return this._configRevision;
   }
 
-  #withDefaultParams(userParams?: TranslationParams): TranslationParams | undefined {
-    const defaults = this.#defaultParams;
+  private _withDefaultParams(userParams?: TranslationParams): TranslationParams | undefined {
+    const defaults = this._defaultParams;
     if (defaults === undefined) return userParams;
     if (userParams == null) return { ...defaults };
     return { ...defaults, ...userParams };
@@ -578,7 +579,7 @@ export class I18n<D extends DefaultTranslationParams = {}> implements I18nInstan
    */
   clearTranslations(locale?: string, namespace?: string): void {
     // Cancel in-flight loads for the cleared scope so they don't repopulate the cache
-    this.#cancelPendingLoads(locale, namespace);
+    this._cancelPendingLoads(locale, namespace);
 
     if (locale) {
       this.translationCache.delete(locale, namespace);
@@ -591,12 +592,12 @@ export class I18n<D extends DefaultTranslationParams = {}> implements I18nInstan
     }
 
     if (!locale && namespace) {
-      this.#activeNamespaces.delete(namespace);
+      this._activeNamespaces.delete(namespace);
     } else if (!locale && !namespace) {
-      this.#activeNamespaces.clear();
+      this._activeNamespaces.clear();
     }
 
-    this.#emit("translationsCleared", { locale, namespace });
+    this._emit("translationsCleared", { locale, namespace });
   }
 
   /**
@@ -604,16 +605,16 @@ export class I18n<D extends DefaultTranslationParams = {}> implements I18nInstan
    * @param translations - Object with locale codes as keys, translation objects as values
    */
   addTranslations(translations: Record<string, Record<string, TranslationValue>>) {
-    // #nsAddTranslations already emits namespaceLoaded + bumps cache revision; empty input is a no-op.
-    this.#nsAddTranslations(translations);
+    // _nsAddTranslations already emits namespaceLoaded + bumps cache revision; empty input is a no-op.
+    this._nsAddTranslations(translations);
   }
 
-  getTranslations(locale: string = this.#locale, namespace: string = this.#cachedDefaultNs) {
+  getTranslations(locale: string = this._locale, namespace: string = this._cachedDefaultNs) {
     return this.translationCache.get(locale, namespace) ?? {};
   }
 
   hasLocale(locale: string, namespace?: string): boolean {
-    return this.translationCache.has(locale, namespace ?? this.#cachedDefaultNs);
+    return this.translationCache.has(locale, namespace ?? this._cachedDefaultNs);
   }
 
   hasTranslation(
@@ -622,17 +623,17 @@ export class I18n<D extends DefaultTranslationParams = {}> implements I18nInstan
     namespace?: string,
     checkFallbacks: boolean = false,
   ): boolean {
-    const loc = locale ?? this.#locale;
-    const ns = namespace ?? this.#cachedDefaultNs;
+    const loc = locale ?? this._locale;
+    const ns = namespace ?? this._cachedDefaultNs;
     const translations =
-      loc === this.#locale && ns === this.#cachedDefaultNs
-        ? this.#getPrimaryTranslations()
+      loc === this._locale && ns === this._cachedDefaultNs
+        ? this._getPrimaryTranslations()
         : this.translationCache.get(loc, ns);
     if (translations !== undefined && translations[key] !== undefined) {
       return true;
     }
     if (checkFallbacks) {
-      for (const fallbackLoc of this.#fallbackLocales) {
+      for (const fallbackLoc of this._fallbackLocales) {
         if (fallbackLoc === loc) continue;
         const fallbackTranslations = this.translationCache.get(fallbackLoc, ns);
         if (fallbackTranslations !== undefined && fallbackTranslations[key] !== undefined) {
@@ -644,65 +645,65 @@ export class I18n<D extends DefaultTranslationParams = {}> implements I18nInstan
   }
 
   get isLoading(): boolean {
-    return this.#loadingCount > 0;
+    return this._loadingCount > 0;
   }
 
   get isInitializing(): boolean {
-    return this.#isInitializing;
+    return this._isInitializing;
   }
 
   /**
    * Whether Comvi i18n has been initialized (init() has been called successfully)
    */
   get isInitialized(): boolean {
-    return this.#isInitialized;
+    return this._isInitialized;
   }
 
   /**
    * Helper to update loading state and emit event.
    * Uses a reference counter to handle overlapping async operations.
-   * #isInitializing is owned by init() exclusively — nested loads (e.g. a
+   * _isInitializing is owned by init() exclusively — nested loads (e.g. a
    * locale detector triggering setLocaleAsync mid-init) must not clear it.
    */
-  #setLoadingState(isLoading: boolean): void {
-    const wasLoading = this.#loadingCount > 0;
+  private _setLoadingState(isLoading: boolean): void {
+    const wasLoading = this._loadingCount > 0;
     if (isLoading) {
-      this.#loadingCount++;
+      this._loadingCount++;
     } else {
-      this.#loadingCount = Math.max(0, this.#loadingCount - 1);
+      this._loadingCount = Math.max(0, this._loadingCount - 1);
     }
 
-    const effectiveIsLoading = this.#loadingCount > 0;
+    const effectiveIsLoading = this._loadingCount > 0;
 
     if (wasLoading !== effectiveIsLoading) {
-      this.#emit("loadingStateChanged", {
+      this._emit("loadingStateChanged", {
         isLoading: effectiveIsLoading,
-        isInitializing: this.#isInitializing,
+        isInitializing: this._isInitializing,
       });
     }
   }
 
   setDefaultNamespace(namespace: string) {
-    const previousNamespace = this.#cachedDefaultNs;
+    const previousNamespace = this._cachedDefaultNs;
     if (previousNamespace === namespace) {
       return;
     }
 
-    this.#cachedDefaultNs = namespace;
-    this.#emit("defaultNamespaceChanged", { from: previousNamespace, to: namespace });
+    this._cachedDefaultNs = namespace;
+    this._emit("defaultNamespaceChanged", { from: previousNamespace, to: namespace });
   }
 
   getDefaultNamespace(): string {
-    return this.#cachedDefaultNs;
+    return this._cachedDefaultNs;
   }
 
   getActiveNamespaces(): string[] {
-    return [...this.#activeNamespaces];
+    return [...this._activeNamespaces];
   }
 
   /** The resolved fallback-locale chain (read-only snapshot). */
   getFallbackLocales(): string[] {
-    return [...this.#fallbackLocales];
+    return [...this._fallbackLocales];
   }
 
   /**
@@ -710,14 +711,14 @@ export class I18n<D extends DefaultTranslationParams = {}> implements I18nInstan
    * This allows plugins to store configuration that persists with the instance.
    */
   setPluginData(key: string, data: unknown): void {
-    this.#pluginData[key] = data;
+    this._pluginData[key] = data;
   }
 
   /**
    * Retrieve plugin-specific data from the i18n instance.
    */
   getPluginData<T = unknown>(key: string): T | undefined {
-    return this.#pluginData[key] as T | undefined;
+    return this._pluginData[key] as T | undefined;
   }
 
   async addActiveNamespace(namespace: string): Promise<void> {
@@ -725,13 +726,13 @@ export class I18n<D extends DefaultTranslationParams = {}> implements I18nInstan
   }
 
   async addActiveNamespaces(namespaces: string[]): Promise<void> {
-    this.#setLoadingState(true);
+    this._setLoadingState(true);
     try {
-      await this.#nsAddActiveNamespaces(namespaces);
+      await this._nsAddActiveNamespaces(namespaces);
     } finally {
-      this.#setLoadingState(false);
+      this._setLoadingState(false);
     }
-    this.#emit("configChanged", { source: "namespaceActivated" });
+    this._emit("configChanged", { source: "namespaceActivated" });
   }
 
   /**
@@ -743,7 +744,7 @@ export class I18n<D extends DefaultTranslationParams = {}> implements I18nInstan
    * @throws {Error} Throws if all reload attempts fail, indicating the cache may be empty.
    */
   async reloadTranslations(locale?: string, namespace?: string): Promise<void> {
-    return this.#nsReloadTranslations(locale, namespace);
+    return this._nsReloadTranslations(locale, namespace);
   }
 
   /**
@@ -759,8 +760,8 @@ export class I18n<D extends DefaultTranslationParams = {}> implements I18nInstan
           : "E_REGISTER_POST_PROCESSOR",
       );
     }
-    this.#postProcessors.push(fn);
-    this.#hasPostProcessors = true;
+    this._postProcessors.push(fn);
+    this._hasPostProcessors = true;
   }
 
   /**
@@ -796,22 +797,30 @@ export class I18n<D extends DefaultTranslationParams = {}> implements I18nInstan
     const userParams = params[0];
 
     // Fast-path for known static templates (no params, no post-processors)
-    if (userParams == null && !this.#hasPostProcessors) {
-      const translations = this.#getPrimaryTranslations();
+    if (userParams == null && !this._hasPostProcessors) {
+      const translations = this._getPrimaryTranslations();
       if (translations !== undefined) {
         const template = translations[key];
-        if (template !== undefined && isStaticTemplate(template) === true) {
+        if (
+          template !== undefined &&
+          isStaticTemplate(
+            template,
+            false,
+            this._compilerId,
+            effectiveExtBits(this._tagInterpolation?.extensions),
+          ) === true
+        ) {
           return template;
         }
       }
     }
 
-    return this.#translate(
+    return this._translate(
       key,
-      this.#locale,
-      this.#cachedDefaultNs,
-      this.#fallbackLocales,
-      this.#withDefaultParams(userParams),
+      this._locale,
+      this._cachedDefaultNs,
+      this._fallbackLocales,
+      this._withDefaultParams(userParams),
     );
   }
 
@@ -840,25 +849,25 @@ export class I18n<D extends DefaultTranslationParams = {}> implements I18nInstan
     return translationResultToString(this.tRaw(translationKey as any, ...(params as any)));
   }
 
-  #getPrimaryTranslations(): FlattenedTranslations | undefined {
+  private _getPrimaryTranslations(): FlattenedTranslations | undefined {
     const revision = this.translationCache.getRevision();
     if (
-      this.#primaryTranslationsRevision === revision &&
-      this.#primaryTranslationsLocale === this.#locale &&
-      this.#primaryTranslationsNamespace === this.#cachedDefaultNs
+      this._primaryTranslationsRevision === revision &&
+      this._primaryTranslationsLocale === this._locale &&
+      this._primaryTranslationsNamespace === this._cachedDefaultNs
     ) {
-      return this.#primaryTranslations;
+      return this._primaryTranslations;
     }
 
-    const translations = this.translationCache.get(this.#locale, this.#cachedDefaultNs);
-    this.#primaryTranslations = translations;
-    this.#primaryTranslationsRevision = revision;
-    this.#primaryTranslationsLocale = this.#locale;
-    this.#primaryTranslationsNamespace = this.#cachedDefaultNs;
+    const translations = this.translationCache.get(this._locale, this._cachedDefaultNs);
+    this._primaryTranslations = translations;
+    this._primaryTranslationsRevision = revision;
+    this._primaryTranslationsLocale = this._locale;
+    this._primaryTranslationsNamespace = this._cachedDefaultNs;
     return translations;
   }
 
-  #translate(
+  private _translate(
     translationKey: string,
     currentLocale: string,
     defaultNamespace: string,
@@ -868,38 +877,64 @@ export class I18n<D extends DefaultTranslationParams = {}> implements I18nInstan
     const hasParams = params != null;
     const locale = hasParams && params.locale !== undefined ? params.locale : currentLocale;
     const namespace = hasParams && params.ns !== undefined ? params.ns : defaultNamespace;
-    const skipPostProcess = !this.#hasPostProcessors;
+    const skipPostProcess = !this._hasPostProcessors;
+    // Per-call channel (§1.1 dual-channel): params.tagInterpolation merges
+    // over the instance option for this call only (no-op without params).
+    const tagInterpolation = mergeTagInterpolation(
+      this._tagInterpolation,
+      params?.tagInterpolation,
+    );
 
     const translations =
-      locale === this.#locale && namespace === this.#cachedDefaultNs
-        ? this.#getPrimaryTranslations()
+      locale === this._locale && namespace === this._cachedDefaultNs
+        ? this._getPrimaryTranslations()
         : this.translationCache.get(locale, namespace);
     const template = translations?.[translationKey];
     if (template !== undefined) {
-      const result = translate(template, locale, params, this.#tagInterpolation);
+      const result = translate(
+        template,
+        locale,
+        params,
+        tagInterpolation,
+        this._compiler,
+        this._missingParam,
+      );
       return skipPostProcess
         ? result
-        : this.#postProcess(result, translationKey, namespace, params);
+        : this._postProcess(result, translationKey, namespace, params);
     }
 
     for (const fallbackLoc of fallbackLocales) {
       const fallbackTranslations = this.translationCache.get(fallbackLoc, namespace);
       const fallbackTemplate = fallbackTranslations?.[translationKey];
       if (fallbackTemplate !== undefined) {
-        const result = translate(fallbackTemplate, fallbackLoc, params, this.#tagInterpolation);
+        const result = translate(
+          fallbackTemplate,
+          fallbackLoc,
+          params,
+          tagInterpolation,
+          this._compiler,
+          this._missingParam,
+        );
         return skipPostProcess
           ? result
-          : this.#postProcess(result, translationKey, namespace, params);
+          : this._postProcess(result, translationKey, namespace, params);
       }
     }
 
-    const missingResult = this.#handleMissingTranslation(translationKey, locale, namespace, params);
+    const missingResult = this._handleMissingTranslation(
+      translationKey,
+      locale,
+      namespace,
+      params,
+      tagInterpolation,
+    );
     return skipPostProcess
       ? missingResult
-      : this.#postProcess(missingResult, translationKey, namespace, params);
+      : this._postProcess(missingResult, translationKey, namespace, params);
   }
 
-  #postProcess(
+  private _postProcess(
     result: TranslationResult,
     key: string,
     namespace: string,
@@ -907,9 +942,9 @@ export class I18n<D extends DefaultTranslationParams = {}> implements I18nInstan
   ): TranslationResult {
     const safeParams = params ?? {};
     let acc = result;
-    for (let i = 0; i < this.#postProcessors.length; i++) {
+    for (let i = 0; i < this._postProcessors.length; i++) {
       try {
-        acc = this.#postProcessors[i](acc, key, namespace, safeParams);
+        acc = this._postProcessors[i](acc, key, namespace, safeParams);
       } catch (error) {
         const err = error instanceof Error ? error : new Error(String(error));
         this.reportError(err, { source: "post-processor", key, namespace });
@@ -918,13 +953,14 @@ export class I18n<D extends DefaultTranslationParams = {}> implements I18nInstan
     return acc;
   }
 
-  #handleMissingTranslation(
+  private _handleMissingTranslation(
     key: string,
     locale: string,
     namespace: string,
     params?: TranslationParams,
+    tagInterpolation?: TagInterpolationOptions,
   ): TranslationResult {
-    if (this.#strict === "dev") {
+    if (this._strict === "dev") {
       warn(IS_DEV ? `[i18n] Translation not found: "${key}"` : "E_TRANSLATION_NOT_FOUND", {
         key,
         locale,
@@ -932,11 +968,11 @@ export class I18n<D extends DefaultTranslationParams = {}> implements I18nInstan
       });
     }
 
-    this.#emit("missingKey", { key, locale, namespace });
+    this._emit("missingKey", { key, locale, namespace });
 
     let fallbackValue: TranslationResult | undefined;
     // Callbacks always run (plugins track missing keys via side effects)
-    for (const callback of this.#missingKeyCallbacks) {
+    for (const callback of this._missingKeyCallbacks) {
       const result = callback(key, locale, namespace);
       if (fallbackValue === undefined && result !== undefined) {
         fallbackValue = result;
@@ -945,11 +981,18 @@ export class I18n<D extends DefaultTranslationParams = {}> implements I18nInstan
 
     // Per-call fallback has the highest priority — skip the instance-level handler
     if (params?.fallback !== undefined) {
-      return translateTemplate(params.fallback, params, locale, this.#tagInterpolation);
+      return translateTemplate(
+        params.fallback,
+        params,
+        locale,
+        tagInterpolation,
+        this._compiler,
+        this._missingParam,
+      );
     }
 
     if (fallbackValue === undefined) {
-      const r = this.#fallbackOnMissingKey?.({ key, locale, namespace });
+      const r = this._fallbackOnMissingKey?.({ key, locale, namespace });
       if (r !== undefined) fallbackValue = r;
     }
 
@@ -964,20 +1007,18 @@ export class I18n<D extends DefaultTranslationParams = {}> implements I18nInstan
     if (typeof detector !== "function") {
       throw new Error(ERR_REGISTER_LOCALE_DETECTOR);
     }
-    this.#localeDetector = detector;
+    this._localeDetector = detector;
   }
 
   /**
    * Get the registered locale detector function
    */
   public getLanguageDetector(): (() => string | Promise<string>) | undefined {
-    return this.#localeDetector;
+    return this._localeDetector;
   }
 
   /**
-   * Register a translation loader.
-   *
-   * Accepts either a loader function or a static map of import functions:
+   * Register a translation loader function.
    *
    * @example Function loader
    * ```typescript
@@ -987,36 +1028,21 @@ export class I18n<D extends DefaultTranslationParams = {}> implements I18nInstan
    * });
    * ```
    *
-   * @example Static import map
-   * ```typescript
-   * i18n.registerLoader({
-   *   'en': () => import('./locales/en.json'),
-   *   'en:dashboard': () => import('./locales/dashboard/en.json'),
-   *   'fr': () => import('./locales/fr.json'),
-   * });
-   * ```
-   *
-   * Keys without `:` are expanded to `"locale:defaultNs"`.
-   * The `{ default: ... }` wrapper from dynamic `import()` is unwrapped automatically.
+   * The full-entry `I18n` additionally accepts a static import map; see
+   * `createImportMapLoader` for the slim-entry equivalent.
    */
-  public registerLoader(loader: LoaderFn | LoaderImportMap): void {
-    if (typeof loader === "function") {
-      this.#loader = loader;
-      return;
-    }
-
-    if (typeof loader !== "object" || loader === null) {
+  public registerLoader(loader: LoaderFn): void {
+    if (typeof loader !== "function") {
       throw new Error(ERR_REGISTER_LOADER_ARG);
     }
-
-    this.#loader = createImportMapLoader(loader, () => this.#cachedDefaultNs);
+    this._loader = loader;
   }
 
   /**
    * Get the registered loader function
    */
   public getLoader(): LoaderFn | undefined {
-    return this.#loader;
+    return this._loader;
   }
 
   /**
@@ -1027,8 +1053,8 @@ export class I18n<D extends DefaultTranslationParams = {}> implements I18nInstan
   public onMissingKey(
     callback: (key: string, locale: string, namespace: string) => TranslationResult | void,
   ): () => void {
-    this.#missingKeyCallbacks.add(callback);
-    return () => void this.#missingKeyCallbacks.delete(callback);
+    this._missingKeyCallbacks.add(callback);
+    return () => void this._missingKeyCallbacks.delete(callback);
   }
 
   /**
@@ -1063,9 +1089,9 @@ export class I18n<D extends DefaultTranslationParams = {}> implements I18nInstan
     if (e[COMVI_REPORTED]) return;
     e[COMVI_REPORTED] = true;
 
-    if (this.#onError) {
+    if (this._onError) {
       try {
-        this.#onError(err, context);
+        this._onError(err, context);
       } catch (e) {
         if (IS_DEV) {
           warn(`[i18n] onError handler threw: ${(e as Error).message}`);
@@ -1088,17 +1114,17 @@ export class I18n<D extends DefaultTranslationParams = {}> implements I18nInstan
 
   // ── Namespace management (inlined from NamespaceManager) ──
 
-  #nsLoadNamespace(locale: string, namespace: string): Promise<void> {
+  private _nsLoadNamespace(locale: string, namespace: string): Promise<void> {
     const key = `${locale}:${namespace}`;
-    const existing = this.#pendingLoads[key];
+    const existing = this._pendingLoads[key];
     if (existing) {
       return existing;
     }
 
-    const generation = this.#nsGeneration;
-    const loader = this.#loader!;
+    const generation = this._nsGeneration;
+    const loader = this._loader!;
 
-    // A load is cancelled when its #pendingLoads entry is removed (clear/reload)
+    // A load is cancelled when its _pendingLoads entry is removed (clear/reload)
     // or the generation is bumped (destroy). Cancelled loads must neither write
     // to the cache nor surface their errors. The closure only reads `guarded`
     // after the first await, when the assignment below has already run.
@@ -1107,27 +1133,27 @@ export class I18n<D extends DefaultTranslationParams = {}> implements I18nInstan
     guarded = (async () => {
       try {
         const translations = await loader(locale, namespace);
-        if (generation !== this.#nsGeneration || this.#pendingLoads[key] !== guarded) return;
+        if (generation !== this._nsGeneration || this._pendingLoads[key] !== guarded) return;
         this.translationCache.set(locale, namespace, normalizeTranslationObject(translations));
-        this.#emit("namespaceLoaded", { namespace, locale });
+        this._emit("namespaceLoaded", { namespace, locale });
       } catch (error) {
-        if (generation !== this.#nsGeneration || this.#pendingLoads[key] !== guarded) return;
-        this.#emit("loadError", { locale, namespace, error: error as Error });
+        if (generation !== this._nsGeneration || this._pendingLoads[key] !== guarded) return;
+        this._emit("loadError", { locale, namespace, error: error as Error });
         throw error;
       } finally {
-        if (this.#pendingLoads[key] === guarded) {
-          delete this.#pendingLoads[key];
+        if (this._pendingLoads[key] === guarded) {
+          delete this._pendingLoads[key];
         }
       }
     })();
 
-    this.#pendingLoads[key] = guarded;
+    this._pendingLoads[key] = guarded;
     return guarded;
   }
 
   /** Cancel pending namespace loads matching the given scope (undefined = any). */
-  #cancelPendingLoads(locale?: string, namespace?: string): void {
-    for (const key in this.#pendingLoads) {
+  private _cancelPendingLoads(locale?: string, namespace?: string): void {
+    for (const key in this._pendingLoads) {
       const colonIdx = key.indexOf(":");
       const loc = key.slice(0, colonIdx);
       const ns = key.slice(colonIdx + 1);
@@ -1135,17 +1161,17 @@ export class I18n<D extends DefaultTranslationParams = {}> implements I18nInstan
         (locale === undefined || loc === locale) &&
         (namespace === undefined || ns === namespace)
       ) {
-        delete this.#pendingLoads[key];
+        delete this._pendingLoads[key];
       }
     }
   }
 
-  async #nsLoadNamespacesForLocale(
+  private async _nsLoadNamespacesForLocale(
     locale: string,
     namespaces: string[],
     skipLoaded: boolean = true,
   ): Promise<void> {
-    if (!this.#loader) return;
+    if (!this._loader) return;
 
     const namespacesToLoad = skipLoaded
       ? namespaces.filter((ns) => !this.translationCache.has(locale, ns))
@@ -1156,7 +1182,7 @@ export class I18n<D extends DefaultTranslationParams = {}> implements I18nInstan
     const failedNamespacesList: string[] = [];
     await Promise.all(
       namespacesToLoad.map((ns) =>
-        this.#nsLoadNamespace(locale, ns).catch(() => {
+        this._nsLoadNamespace(locale, ns).catch(() => {
           failedNamespacesList.push(ns);
         }),
       ),
@@ -1185,27 +1211,27 @@ export class I18n<D extends DefaultTranslationParams = {}> implements I18nInstan
     throw err;
   }
 
-  async #nsAddActiveNamespaces(namespaces: string[]): Promise<void> {
+  private async _nsAddActiveNamespaces(namespaces: string[]): Promise<void> {
     // Add to active set optimistically. If the load fails, the namespace
     // stays active so it will be retried automatically on the next locale
     // switch — this matches caller expectations and avoids forcing manual retry.
-    for (const ns of namespaces) this.#activeNamespaces.add(ns);
-    await this.#nsLoadNamespacesForLocale(this.#locale, namespaces, true);
+    for (const ns of namespaces) this._activeNamespaces.add(ns);
+    await this._nsLoadNamespacesForLocale(this._locale, namespaces, true);
   }
 
-  async #nsReloadTranslations(locale?: string, namespace?: string): Promise<void> {
-    if (!this.#loader) {
+  private async _nsReloadTranslations(locale?: string, namespace?: string): Promise<void> {
+    if (!this._loader) {
       throw new Error(ERR_NO_LOADER_REGISTERED);
     }
 
-    const localesToReload = locale ? [locale] : [this.#locale, ...this.#fallbackLocales];
-    const namespacesToReload = namespace ? [namespace] : [...this.#activeNamespaces];
+    const localesToReload = locale ? [locale] : [this._locale, ...this._fallbackLocales];
+    const namespacesToReload = namespace ? [namespace] : [...this._activeNamespaces];
 
     for (const loc of localesToReload) {
       for (const ns of namespacesToReload) {
         // Cancel any in-flight load so reload fetches fresh data instead of
         // resolving to a request that started before the cache was cleared
-        this.#cancelPendingLoads(loc, ns);
+        this._cancelPendingLoads(loc, ns);
         this.translationCache.delete(loc, ns);
       }
     }
@@ -1213,7 +1239,7 @@ export class I18n<D extends DefaultTranslationParams = {}> implements I18nInstan
     const failures: Array<{ loc: string; reason: unknown }> = [];
     await Promise.all(
       localesToReload.map((loc) =>
-        this.#nsLoadNamespacesForLocale(loc, namespacesToReload, false).catch((reason) => {
+        this._nsLoadNamespacesForLocale(loc, namespacesToReload, false).catch((reason) => {
           failures.push({ loc, reason });
         }),
       ),
@@ -1226,14 +1252,14 @@ export class I18n<D extends DefaultTranslationParams = {}> implements I18nInstan
     }
   }
 
-  #nsAddTranslations(translations: Record<string, Record<string, TranslationValue>>): void {
+  private _nsAddTranslations(translations: Record<string, Record<string, TranslationValue>>): void {
     for (const localeOrKey in translations) {
       const value = translations[localeOrKey];
       const flattenedTranslations = normalizeTranslationObject(value);
 
       const colonIdx = localeOrKey.indexOf(":");
       const loc = colonIdx === -1 ? localeOrKey : localeOrKey.slice(0, colonIdx);
-      const ns = colonIdx === -1 ? this.#cachedDefaultNs : localeOrKey.slice(colonIdx + 1);
+      const ns = colonIdx === -1 ? this._cachedDefaultNs : localeOrKey.slice(colonIdx + 1);
 
       const existingTranslations = this.translationCache.get(loc, ns);
       if (existingTranslations !== undefined) {
@@ -1246,8 +1272,8 @@ export class I18n<D extends DefaultTranslationParams = {}> implements I18nInstan
         this.translationCache.set(loc, ns, flattenedTranslations);
       }
 
-      this.#activeNamespaces.add(ns);
-      this.#emit("namespaceLoaded", { namespace: ns, locale: loc });
+      this._activeNamespaces.add(ns);
+      this._emit("namespaceLoaded", { namespace: ns, locale: loc });
     }
   }
 
@@ -1255,19 +1281,34 @@ export class I18n<D extends DefaultTranslationParams = {}> implements I18nInstan
    * Destroy Comvi i18n and clean up all resources
    */
   public async destroy(): Promise<void> {
-    if (this.#isDestroyed) {
+    if (this._isDestroyed) {
       return;
     }
-    this.#isDestroyed = true;
+    this._isDestroyed = true;
 
-    // Unregister from global __COMVI__
+    // Remove from the global __COMVI__ queue (identity-based; defensive:
+    // hook/masquerading-array remove → raw-array splice → legacy unregister)
     if (this.instanceId && typeof window !== "undefined") {
-      window.__COMVI__?.unregister(this.instanceId);
+      try {
+        const g = window.__COMVI__ as unknown;
+        const entry = this._globalEntry;
+        if (g && typeof (g as ComviHook).remove === "function") {
+          if (entry) (g as ComviHook).remove(entry);
+        } else if (Array.isArray(g)) {
+          const idx = entry ? g.indexOf(entry) : -1;
+          if (idx !== -1) g.splice(idx, 1);
+        } else if (g && typeof (g as LegacyComviRegistry).unregister === "function") {
+          (g as LegacyComviRegistry).unregister!(this.instanceId);
+        }
+      } catch {
+        /* removal must never break destroy */
+      }
+      this._globalEntry = undefined;
     }
 
-    while (this.#pluginCleanups.length > 0) {
+    while (this._pluginCleanups.length > 0) {
       try {
-        await this.#pluginCleanups.pop()!();
+        await this._pluginCleanups.pop()!();
       } catch (error) {
         this.reportError(error instanceof Error ? error : new Error(String(error)), {
           source: "plugin-cleanup",
@@ -1275,38 +1316,29 @@ export class I18n<D extends DefaultTranslationParams = {}> implements I18nInstan
       }
     }
     // Reset lifecycle flags before tearing down event subscriptions so wrappers can react.
-    const hadLoadingState = this.#loadingCount > 0 || this.#isInitializing;
-    this.#loadingCount = 0;
-    this.#isInitializing = false;
-    this.#isInitialized = false;
+    const hadLoadingState = this._loadingCount > 0 || this._isInitializing;
+    this._loadingCount = 0;
+    this._isInitializing = false;
+    this._isInitialized = false;
 
     if (hadLoadingState) {
-      this.#emit("loadingStateChanged", { isLoading: false, isInitializing: false });
+      this._emit("loadingStateChanged", { isLoading: false, isInitializing: false });
     }
-    this.#emit("destroyed");
+    this._emit("destroyed");
 
-    this.#eventCallbacks = {};
-    this.#missingKeyCallbacks.clear();
+    this._eventCallbacks = {};
+    this._missingKeyCallbacks.clear();
 
-    this.#nsGeneration++;
-    this.#activeNamespaces.clear();
-    this.#pendingLoads = {};
-    this.#loader = undefined;
-    this.#postProcessors = [];
-    this.#hasPostProcessors = false;
+    this._nsGeneration++;
+    this._activeNamespaces.clear();
+    this._pendingLoads = {};
+    this._loader = undefined;
+    this._postProcessors = [];
+    this._hasPostProcessors = false;
 
     // Clear cache and other state
     this.translationCache.clear();
-    this.#localeDetector = undefined;
-    this.#pluginData = Object.create(null);
+    this._localeDetector = undefined;
+    this._pluginData = Object.create(null);
   }
-}
-
-/**
- * Create an i18n instance
- */
-export function createI18n<const D extends DefaultTranslationParams = {}>(
-  options: I18nOptions<D>,
-): I18n<D> {
-  return new I18n(options);
 }

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { extractLocaleFromPath } from "@comvi/locale-routing";
 import type { MiddlewareConfig, LocaleDetectionSource } from "./types";
 import { createGetPathname } from "../routing/defineRouting";
 import type { RoutingConfig } from "../routing/types";
@@ -219,15 +220,6 @@ function detectFromSource(
 function shouldSkipPath(pathname: string): boolean {
   const isApiPath = pathname === "/api" || pathname.startsWith("/api/");
   return pathname.startsWith("/_next") || isApiPath;
-}
-
-/**
- * Extract locale from URL path
- */
-function extractLocaleFromPath(pathname: string, locales: readonly string[]): string | undefined {
-  const segments = pathname.split("/").filter(Boolean);
-  const firstSegment = segments[0];
-  return locales.includes(firstSegment) ? firstSegment : undefined;
 }
 
 /**

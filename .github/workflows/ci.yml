@@ -112,6 +112,75 @@ jobs:
       - name: Test
         run: pnpm test:commit
 
+  size:
+    name: Bundle size gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 9.12.1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Size gate unit tests
+        run: pnpm test:size-tools
+
+      # Builds @comvi/core (turbo dependsOn), then bundles the size fixtures
+      # through the published exports map and asserts scripts/size-budgets.json.
+      - name: Size gate (min+gz budgets)
+        run: pnpm exec turbo run "//#size"
+
+  bundler-matrix:
+    name: Bundler matrix (packed tarballs)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 9.12.1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: pnpm
+
+      # The consumer fixture app installs with npm (deliberately outside the
+      # pnpm workspace); cache its download work separately.
+      - name: Cache npm downloads for the fixture app
+        uses: actions/cache@v4
+        with:
+          path: ~/.npm
+          key: bundler-matrix-npm-${{ runner.os }}-${{ hashFiles('scripts/bundler-matrix/app/package.json') }}
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # Builds @comvi/core + react + vue (turbo dependsOn), pnpm-packs the
+      # tarballs, asserts core's sideEffects array against the packed dist
+      # files, then bundles the consumer fixtures with webpack AND vite under
+      # development AND production conditions and runs every bundle in node.
+      - name: Bundler matrix (webpack + vite, dev + prod, packed tarballs)
+        run: pnpm exec turbo run "//#bundler-matrix"
+
   critical-coverage:
     name: Critical package coverage
     runs-on: ubuntu-latest
@@ -261,6 +330,8 @@ jobs:
       [
         quality,
         tests,
+        size,
+        bundler-matrix,
         critical-coverage,
         package-contracts,
         extension-artifact,

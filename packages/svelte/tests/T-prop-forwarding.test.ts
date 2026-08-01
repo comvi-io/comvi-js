@@ -257,8 +257,8 @@ describe("T.svelte hasExplicitProp forwarding characterization", () => {
     });
 
     // NOTE: passing ns={undefined} explicitly cannot be reliably distinguished from
-    // "prop omitted" in Svelte 5 runes mode — Svelte omits undefined-valued props
-    // from the compiled spread, so the UNSET sentinel remains and params.ns wins.
+    // "prop omitted" — prepareTranslation forwards a reserved prop only when it is
+    // not `undefined` (same rule as the vue/react/solid wrappers), so params.ns wins.
     // This edge case is intentionally not tested; the meaningful contract is that
     // a concrete string value (e.g. ns="admin") overrides params.ns.
     it("forwarded prop ns with a concrete value overrides params.ns", () => {

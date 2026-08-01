@@ -78,6 +78,7 @@
   },
   "dependencies": {
     "@comvi/core": "workspace:*",
+    "@comvi/locale-routing": "workspace:*",
     "@comvi/react": "workspace:*"
   },
   "peerDependencies": {

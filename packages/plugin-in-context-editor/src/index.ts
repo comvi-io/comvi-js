@@ -7,11 +7,21 @@
  */
 
 import type { I18nPlugin, I18nPluginFactory, I18n } from "@comvi/core";
+import {
+  EDITOR_MAPPINGS_GLOBAL,
+  EDITOR_INITIAL_MAPPINGS_GLOBAL,
+  toRecordOfNumbers,
+  readEditorMappings,
+  type InContextEditorMappings,
+} from "@comvi/core/editor-bridge";
 import { Core } from "./Core";
 import { addBeforeProcessHook, registerPostProcessorOnce } from "./postProcessor";
 import { initApiConfig, resetApiConfig } from "./config/api";
 import { getKeyMappings, loadKeyMappings, registerKey, resetEncoder } from "./translation";
 import type { TranslationSystemOptions } from "./types";
+
+// Declare process for bundler replacement (webpack/turbopack/vite replace process.env.NODE_ENV at build time)
+declare const process: { env?: { NODE_ENV?: string } } | undefined;
 
 /**
  * Configuration options for the In-Context Editor Plugin
@@ -30,13 +40,6 @@ export interface EditorOptions extends Omit<TranslationSystemOptions, "targetEle
   apiKeyOverride?: string;
 }
 
-type InContextEditorMappingsBridge = {
-  getKeyMappings: () => Record<string, number>;
-  loadKeyMappings: (mappings: Record<string, number>) => void;
-};
-
-const MAPPINGS_BRIDGE_KEY = "__comviInContextEditorMappings";
-const INITIAL_MAPPINGS_KEY = "__comviInContextEditorInitialMappings";
 let runtimeIdCounter = 0;
 const activeBrowserEditorRuntimes = new Set<number>();
 
@@ -44,36 +47,13 @@ function attachMappingsBridge(target: unknown): void {
   if (!target || (typeof target !== "object" && typeof target !== "function")) {
     return;
   }
-  const host = target as Record<string, unknown>;
-  const existing = host[MAPPINGS_BRIDGE_KEY];
-  if (
-    existing &&
-    typeof existing === "object" &&
-    typeof (existing as { getKeyMappings?: unknown }).getKeyMappings === "function" &&
-    typeof (existing as { loadKeyMappings?: unknown }).loadKeyMappings === "function"
-  ) {
+  if (readEditorMappings(target)) {
     return;
   }
-
-  host[MAPPINGS_BRIDGE_KEY] = {
+  (target as Record<string, unknown>)[EDITOR_MAPPINGS_GLOBAL] = {
     getKeyMappings,
     loadKeyMappings,
-  } satisfies InContextEditorMappingsBridge;
-}
-
-function toRecordOfNumbers(value: unknown): Record<string, number> | undefined {
-  if (!value || typeof value !== "object") {
-    return undefined;
-  }
-  const entries = Object.entries(value as Record<string, unknown>);
-  const result: Record<string, number> = {};
-  for (const [key, item] of entries) {
-    if (typeof item !== "number" || !Number.isFinite(item)) {
-      return undefined;
-    }
-    result[key] = item;
-  }
-  return result;
+  } satisfies InContextEditorMappings;
 }
 
 function enqueueNamespaceKeys(
@@ -121,6 +101,19 @@ function flushPendingKeys(pendingCombinedKeys: Set<string>): void {
 }
 
 /**
+ * No-op plugin used when the full entry is evaluated under NODE_ENV=production.
+ *
+ * Mirrors the real plugin's shape — accepts the i18n instance and returns a
+ * cleanup function — so `i18n.use()` and teardown code behave identically,
+ * while the editor runtime never activates.
+ */
+const noopPlugin: I18nPlugin = () => {
+  return () => {
+    // no-op cleanup
+  };
+};
+
+/**
  * In-Context Editor Plugin Factory
  *
  * Creates a plugin that integrates with the Comvi i18n to provide
@@ -144,6 +137,12 @@ function flushPendingKeys(pendingCombinedKeys: Set<string>): void {
  * ```
  */
 export const InContextEditorPlugin: I18nPluginFactory<EditorOptions> = (options): I18nPlugin => {
+  // Belt-and-suspenders for bundlers that ignore the "production" export
+  // condition (which maps to the lightweight entry-production stub): never
+  // activate the editor runtime in production builds.
+  if (typeof process !== "undefined" && process.env?.NODE_ENV === "production") {
+    return noopPlugin;
+  }
   return (i18n) => {
     const isBrowserRuntime = typeof window !== "undefined" && typeof document !== "undefined";
 
@@ -152,8 +151,8 @@ export const InContextEditorPlugin: I18nPluginFactory<EditorOptions> = (options)
     attachMappingsBridge(i18n);
 
     const host = i18n as unknown as Record<string, unknown>;
-    const initialMappings = toRecordOfNumbers(host[INITIAL_MAPPINGS_KEY]);
-    delete host[INITIAL_MAPPINGS_KEY];
+    const initialMappings = toRecordOfNumbers(host[EDITOR_INITIAL_MAPPINGS_GLOBAL]);
+    delete host[EDITOR_INITIAL_MAPPINGS_GLOBAL];
 
     if (initialMappings) {
       // Client hydration path: restore server key-id map before any translation work.
@@ -242,8 +241,8 @@ export const InContextEditorPlugin: I18nPluginFactory<EditorOptions> = (options)
       activeBrowserEditorRuntimes.delete(runtimeId);
       // Clean up mappings bridge from i18n instance
       const host = i18n as unknown as Record<string, unknown>;
-      if (host[MAPPINGS_BRIDGE_KEY]) {
-        delete host[MAPPINGS_BRIDGE_KEY];
+      if (host[EDITOR_MAPPINGS_GLOBAL]) {
+        delete host[EDITOR_MAPPINGS_GLOBAL];
       }
     };
   };

@@ -15,7 +15,7 @@ export default defineConfig({
     entry: resolve(__dirname, "src/index.ts"),
     name: "ComviSolid",
     fileNames: { es: "comvi-solid.js", cjs: "comvi-solid.cjs" },
-    external: ["solid-js", "solid-js/web", "solid-js/store", "@comvi/core"],
+    external: ["solid-js", "solid-js/web", "solid-js/store", "@comvi/core", "@comvi/core/tags"],
     globals: {
       "solid-js": "SolidJS",
       "solid-js/web": "SolidJSWeb",

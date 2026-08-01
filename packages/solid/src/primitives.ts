@@ -1,4 +1,5 @@
 import { from, type Accessor } from "solid-js";
+import { subscribeToRevision } from "@comvi/core";
 import type { I18n } from "@comvi/core";
 
 // CSR-only: provider auto-init does not run during SSR. Producers call set() synchronously so the first read is always defined.
@@ -84,23 +85,17 @@ export function createInitializedSignal(i18n: I18n): Accessor<boolean> {
 export function createCacheRevisionSignal(i18n: I18n): Accessor<number> {
   const signal = from<number>((set) => {
     // Single monotonic counter — avoids the old cacheRev+configRev sum collision (dropped re-render).
+    // Consumes core's canonical revision event set (subscribeToRevision) but skips the
+    // locale/loading axes: solid tracks those through the dedicated createLocaleSignal /
+    // createLoadingSignal primitives, and bumping here would break the pinned-locale
+    // no-recompute contract (<T locale="…"> must not recompute on global locale changes).
     let revision = 0;
-    const bump = () => set(++revision);
-
     set(revision);
-    const unsub1 = i18n.on("namespaceLoaded", bump);
-    const unsub2 = i18n.on("initialized", bump);
-    const unsub3 = i18n.on("translationsCleared", bump);
-    const unsub4 = i18n.on("configChanged", bump);
-    const unsub5 = i18n.on("defaultNamespaceChanged", bump);
-
-    return () => {
-      unsub1();
-      unsub2();
-      unsub3();
-      unsub4();
-      unsub5();
-    };
+    return subscribeToRevision(i18n, (event) => {
+      if (event !== "localeChanged" && event !== "loadingStateChanged") {
+        set(++revision);
+      }
+    });
   });
   return signal as Accessor<number>;
 }

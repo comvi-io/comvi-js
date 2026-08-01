@@ -1,3 +1,4 @@
+import { buildLocalizedPath } from "@comvi/locale-routing";
 import type { RoutingConfig } from "./types";
 
 /**
@@ -147,31 +148,6 @@ export function createGetPathname<T extends string>(
       );
     }
 
-    // Check for custom pathname mapping
-    const localizedPath = pathnames[href]?.[locale as T] ?? href;
-
-    // Normalize path (ensure it starts with /)
-    const normalizedPath = localizedPath.startsWith("/") ? localizedPath : `/${localizedPath}`;
-
-    // Apply locale prefix based on mode
-    switch (localePrefix) {
-      case "always":
-        // Always add locale prefix
-        return `/${locale}${normalizedPath === "/" ? "" : normalizedPath}`;
-
-      case "as-needed":
-        // Only add prefix for non-default locales
-        if (locale === defaultLocale) {
-          return normalizedPath;
-        }
-        return `/${locale}${normalizedPath === "/" ? "" : normalizedPath}`;
-
-      case "never":
-        // Never add locale prefix
-        return normalizedPath;
-
-      default:
-        return normalizedPath;
-    }
+    return buildLocalizedPath(href, locale, { defaultLocale, localePrefix, pathnames });
   };
 }

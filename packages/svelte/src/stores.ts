@@ -1,4 +1,5 @@
 import { readable, type Readable } from "svelte/store";
+import { subscribeToRevision } from "@comvi/core";
 import type { I18n, DefaultTranslationParams, DefaultParamsSnapshot } from "@comvi/core";
 
 /**
@@ -57,23 +58,12 @@ function getOrCreateStores(i18n: I18n) {
       }),
       cacheRevision: readable(i18n.translationCache.getRevision(), (set) => {
         // Single monotonic counter — avoids the old cacheRev+configRev sum collision (dropped re-render).
+        // Subscribed to the canonical revision event set from core (subscribeToRevision),
+        // so the revision now also bumps on localeChanged/loadingStateChanged — the full
+        // set of axes vue's bridge reacts to.
         let revision = 0;
-        const bump = () => set(++revision);
-
         set(revision);
-        const unsub1 = i18n.on("namespaceLoaded", bump);
-        const unsub2 = i18n.on("initialized", bump);
-        const unsub3 = i18n.on("translationsCleared", bump);
-        const unsub4 = i18n.on("configChanged", bump);
-        const unsub5 = i18n.on("defaultNamespaceChanged", bump);
-
-        return () => {
-          unsub1();
-          unsub2();
-          unsub3();
-          unsub4();
-          unsub5();
-        };
+        return subscribeToRevision(i18n, () => set(++revision));
       }),
       defaultParams: readable<Readonly<DefaultTranslationParams> | undefined>(
         i18n.defaultParams,
@@ -98,14 +88,6 @@ function getOrCreateStores(i18n: I18n) {
 export function createLocaleStore(i18n: I18n): Readable<string> {
   return getOrCreateStores(i18n).locale;
 }
-
-/**
- * @deprecated Use `createLocaleStore` instead.
- * Creates a Svelte store for the current locale
- * Updates automatically when locale changes
- * Memoized per i18n instance
- */
-export const createLanguageStore: (i18n: I18n) => Readable<string> = createLocaleStore;
 
 /**
  * Creates a Svelte store for the loading state

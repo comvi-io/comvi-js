@@ -148,7 +148,7 @@ describe("server getI18n", () => {
       });
 
       const serverPlugin = vi.fn(async () => undefined);
-      nextI18n.useServer(serverPlugin);
+      nextI18n.use(serverPlugin, { runtime: "server" });
 
       nextI18n.i18n.addTranslations({
         "fr:common": { greeting: "Bonjour cached" },

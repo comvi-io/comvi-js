@@ -1,108 +1,19 @@
 /**
- * Shared utilities for locale path manipulation
- */
-
-/**
- * Extract locale code from the first segment of a URL path.
+ * Locale path utilities — thin adapter over @comvi/locale-routing.
  *
- * @example
- * extractLocaleFromPath('/de/about', ['en', 'de']) // 'de'
- * extractLocaleFromPath('/about', ['en', 'de'])    // undefined
- * extractLocaleFromPath('/ensemble', ['en', 'de']) // undefined
+ * The implementations live in the shared framework-neutral package (also
+ * consumed by @comvi/next); this module re-exports them and keeps the
+ * nuxt-side positional `buildLocalizedPath` signature used by the runtime
+ * composables and the global middleware.
  */
-export function extractLocaleFromPath(
-  pathname: string,
-  locales: readonly string[],
-): string | undefined {
-  const segments = pathname.split("/").filter(Boolean);
-  const firstSegment = segments[0];
-  return firstSegment !== undefined && locales.includes(firstSegment) ? firstSegment : undefined;
-}
+import { buildLocalizedPath as buildLocalizedPathShared } from "@comvi/locale-routing";
 
-/**
- * Strip locale prefix from a path
- *
- * Safely handles edge cases like /ensemble not being affected when locale is "en"
- *
- * @param pathname - The path to clean
- * @param locales - List of valid locale codes
- * @returns Path without locale prefix
- *
- * @example
- * stripLocalePrefix('/de/about', ['en', 'de']) // '/about'
- * stripLocalePrefix('/de', ['en', 'de']) // '/'
- * stripLocalePrefix('/ensemble', ['en', 'de']) // '/ensemble' (not affected)
- */
-export function stripLocalePrefix(pathname: string, locales: readonly string[]): string {
-  for (const locale of locales) {
-    // Check if path equals /{locale}
-    if (pathname === `/${locale}`) {
-      return "/";
-    }
-
-    // Check if path starts with /{locale}/
-    if (pathname.startsWith(`/${locale}/`)) {
-      return pathname.slice(locale.length + 1) || "/";
-    }
-  }
-
-  return pathname;
-}
-
-/**
- * Split a full path into pathname and query/hash suffix
- */
-export function splitPathAndSuffix(path: string): { pathname: string; suffix: string } {
-  const match = path.match(/[?#]/);
-  if (!match || match.index === undefined) {
-    return { pathname: path, suffix: "" };
-  }
-  return { pathname: path.slice(0, match.index), suffix: path.slice(match.index) };
-}
-
-/**
- * Set one query parameter while preserving unrelated query segments and the hash.
- * Duplicate occurrences of the target parameter are collapsed to one value.
- */
-export function setQueryParamInSuffix(suffix: string, key: string, value: string): string {
-  const hashIndex = suffix.indexOf("#");
-  const hash = hashIndex >= 0 ? suffix.slice(hashIndex) : "";
-  const queryWithPrefix = hashIndex >= 0 ? suffix.slice(0, hashIndex) : suffix;
-  const rawQuery = queryWithPrefix.startsWith("?") ? queryWithPrefix.slice(1) : "";
-  const encodedKey = encodeURIComponent(key);
-  const encodedValue = encodeURIComponent(value);
-  const segments = rawQuery ? rawQuery.split("&") : [];
-  const updatedSegments: string[] = [];
-  let replaced = false;
-
-  for (const segment of segments) {
-    const separatorIndex = segment.indexOf("=");
-    const rawKey = separatorIndex >= 0 ? segment.slice(0, separatorIndex) : segment;
-    let decodedKey: string | undefined;
-
-    try {
-      decodedKey = decodeURIComponent(rawKey.replace(/\+/g, " "));
-    } catch {
-      // Preserve malformed unrelated query segments verbatim.
-    }
-
-    if (decodedKey === key) {
-      if (!replaced) {
-        updatedSegments.push(`${encodedKey}=${encodedValue}`);
-        replaced = true;
-      }
-      continue;
-    }
-
-    updatedSegments.push(segment);
-  }
-
-  if (!replaced) {
-    updatedSegments.push(`${encodedKey}=${encodedValue}`);
-  }
-
-  return `?${updatedSegments.join("&")}${hash}`;
-}
+export {
+  extractLocaleFromPath,
+  setQueryParamInSuffix,
+  splitPathAndSuffix,
+  stripLocalePrefix,
+} from "@comvi/locale-routing";
 
 /**
  * Build a localized path based on prefix mode.
@@ -121,29 +32,5 @@ export function buildLocalizedPath(
   defaultLocale: string,
   localePrefix: "always" | "as-needed" | "never",
 ): string {
-  // Normalize path to start with /
-  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
-
-  // Detect trailing slash on non-root paths (e.g. /about/ but not /)
-  const hasTrailingSlash = normalizedPath.length > 1 && normalizedPath.endsWith("/");
-
-  const needsPrefix =
-    localePrefix === "always" || (localePrefix === "as-needed" && locale !== defaultLocale);
-
-  if (!needsPrefix) {
-    return normalizedPath;
-  }
-
-  if (normalizedPath === "/") {
-    return `/${locale}`;
-  }
-
-  const prefixed = `/${locale}${normalizedPath}`;
-
-  // Preserve trailing slash if present in the original path
-  if (hasTrailingSlash && !prefixed.endsWith("/")) {
-    return `${prefixed}/`;
-  }
-
-  return prefixed;
+  return buildLocalizedPathShared(path, locale, { defaultLocale, localePrefix });
 }

@@ -29,7 +29,7 @@ import {
   type App,
 } from "vue";
 import { I18N_INJECTION_KEY } from "./keys";
-import { translationResultToString } from "./utils";
+import { translationResultToString, subscribeToRevision } from "@comvi/core";
 
 /**
  * Vue-specific i18n options extending core options
@@ -132,32 +132,41 @@ export class VueI18n<D extends DefaultTranslationParams = {}> {
       this._cacheRevision.value = this._core.translationCache.getRevision();
     };
 
+    // Canonical revision event set from core (subscribeToRevision); the switch
+    // preserves the previous per-event bridge semantics exactly.
     this._unsubscribers.push(
-      this._core.on("localeChanged", ({ to }) => {
-        this._locale.value = to;
-        this._requestedLocale = to;
-      }),
-      this._core.on("namespaceLoaded", syncCache),
-      this._core.on("loadingStateChanged", ({ isLoading, isInitializing }) => {
-        this._isLoading.value = isLoading;
-        this._isInitializing.value = isInitializing;
-      }),
-      this._core.on("initialized", () => {
-        this._locale.value = this._core.locale;
-        syncCache();
-        this._isLoading.value = this._core.isLoading;
-        this._isInitializing.value = this._core.isInitializing;
-      }),
-      this._core.on("translationsCleared", syncCache),
-      this._core.on("defaultNamespaceChanged", () => {
-        syncCache();
-        this._configRevision.value++;
-      }),
-      this._core.on("configChanged", () => {
-        // Bump a separate revision so computed refs that depend on config
-        // (fallbackLocale, namespace activation without a loader, etc.) re-evaluate
-        // without interfering with _cacheRevision's sync to the real cache.
-        this._configRevision.value++;
+      subscribeToRevision(this._core, (event) => {
+        switch (event) {
+          case "localeChanged":
+            // core.locale === payload.to: the core sets _locale before emitting.
+            this._locale.value = this._core.locale;
+            this._requestedLocale = this._core.locale;
+            break;
+          case "loadingStateChanged":
+            this._isLoading.value = this._core.isLoading;
+            this._isInitializing.value = this._core.isInitializing;
+            break;
+          case "initialized":
+            this._locale.value = this._core.locale;
+            syncCache();
+            this._isLoading.value = this._core.isLoading;
+            this._isInitializing.value = this._core.isInitializing;
+            break;
+          case "namespaceLoaded":
+          case "translationsCleared":
+            syncCache();
+            break;
+          case "defaultNamespaceChanged":
+            syncCache();
+            this._configRevision.value++;
+            break;
+          case "configChanged":
+            // Bump a separate revision so computed refs that depend on config
+            // (fallbackLocale, namespace activation without a loader, etc.) re-evaluate
+            // without interfering with _cacheRevision's sync to the real cache.
+            this._configRevision.value++;
+            break;
+        }
       }),
     );
 

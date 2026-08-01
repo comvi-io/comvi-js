@@ -1,4 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
+import type { I18nPlugin, PluginOptions } from "@comvi/core";
 import { createNextI18n } from "../src/createNextI18n";
 import { localizeHref } from "../src/routing/utils";
 
@@ -254,9 +255,9 @@ describe("createNextI18n", () => {
     });
 
     const useSpy = vi.spyOn(nextI18n.i18n, "use");
-    const pluginA = vi.fn(() => undefined) as unknown as Parameters<typeof nextI18n.use>[0];
-    const pluginB = vi.fn(() => undefined) as unknown as Parameters<typeof nextI18n.use>[0];
-    const pluginOptions: Parameters<typeof nextI18n.use>[1] = {
+    const pluginA = vi.fn(() => undefined) as unknown as I18nPlugin;
+    const pluginB = vi.fn(() => undefined) as unknown as I18nPlugin;
+    const pluginOptions: PluginOptions = {
       required: false,
       timeout: 2500,
     };
@@ -366,5 +367,186 @@ describe("createNextI18n", () => {
     } finally {
       process.env.NODE_ENV = originalNodeEnv;
     }
+  });
+});
+
+describe("createNextI18n unified use()", () => {
+  const runInClientRuntime = async (fn: () => Promise<void>) => {
+    const originalRuntime = process.env.NEXT_RUNTIME;
+    delete process.env.NEXT_RUNTIME;
+    try {
+      await fn();
+    } finally {
+      if (originalRuntime === undefined) {
+        delete process.env.NEXT_RUNTIME;
+      } else {
+        process.env.NEXT_RUNTIME = originalRuntime;
+      }
+    }
+  };
+
+  const create = () =>
+    createNextI18n({
+      locales: ["en", "de"],
+      defaultLocale: "en",
+      devMode: false,
+    });
+
+  it("use with runtime 'server' runs plugin during server init", async () => {
+    await runInServerRuntime(async () => {
+      const nextI18n = create();
+      const plugin = vi.fn(async () => undefined);
+
+      expect(nextI18n.use(plugin, { runtime: "server" })).toBe(nextI18n);
+
+      await nextI18n.i18n.init();
+      expect(plugin).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  it("use with runtime 'client' skips plugin during server init", async () => {
+    await runInServerRuntime(async () => {
+      const nextI18n = create();
+      const plugin = vi.fn(async () => undefined);
+      nextI18n.use(plugin, { runtime: "client" });
+
+      await nextI18n.i18n.init();
+      expect(plugin).not.toHaveBeenCalled();
+    });
+  });
+
+  it("use with runtime 'client' runs plugin during client init", async () => {
+    await runInClientRuntime(async () => {
+      const nextI18n = create();
+      const plugin = vi.fn(async () => undefined);
+      nextI18n.use(plugin, { runtime: "client" });
+
+      await nextI18n.i18n.init();
+      expect(plugin).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  it("use with runtime 'server' skips plugin during client init", async () => {
+    await runInClientRuntime(async () => {
+      const nextI18n = create();
+      const plugin = vi.fn(async () => undefined);
+      nextI18n.use(plugin, { runtime: "server" });
+
+      await nextI18n.i18n.init();
+      expect(plugin).not.toHaveBeenCalled();
+    });
+  });
+
+  it("use with lazy resolves and executes matching lazy plugin on server", async () => {
+    await runInServerRuntime(async () => {
+      const nextI18n = create();
+      const plugin = vi.fn(async () => undefined);
+      const loadPlugin = vi.fn(async () => plugin);
+      nextI18n.use(loadPlugin, { runtime: "server", lazy: true });
+
+      await nextI18n.i18n.init();
+      expect(loadPlugin).toHaveBeenCalledTimes(1);
+      expect(plugin).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  it("use with lazy does not resolve non-matching lazy plugin on server", async () => {
+    await runInServerRuntime(async () => {
+      const nextI18n = create();
+      const loadPlugin = vi.fn(async () => vi.fn(async () => undefined));
+      nextI18n.use(loadPlugin, { runtime: "client", lazy: true });
+
+      await nextI18n.i18n.init();
+      expect(loadPlugin).not.toHaveBeenCalled();
+    });
+  });
+
+  it("use with lazy and no runtime resolves lazy plugin in any runtime", async () => {
+    await runInServerRuntime(async () => {
+      const nextI18n = create();
+      const plugin = vi.fn(async () => undefined);
+      const loadPlugin = vi.fn(async () => ({ default: plugin }));
+      nextI18n.use(loadPlugin, { lazy: true });
+
+      await nextI18n.i18n.init();
+      expect(loadPlugin).toHaveBeenCalledTimes(1);
+      expect(plugin).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  it("use respects environment option combined with runtime", async () => {
+    const originalNodeEnv = process.env.NODE_ENV;
+    process.env.NODE_ENV = "production";
+    try {
+      await runInServerRuntime(async () => {
+        const nextI18n = create();
+        const devPlugin = vi.fn(async () => undefined);
+        const prodPlugin = vi.fn(async () => undefined);
+
+        nextI18n.use(devPlugin, { runtime: "server", environment: "development" });
+        nextI18n.use(prodPlugin, { runtime: "server", environment: "production" });
+
+        await nextI18n.i18n.init();
+        expect(devPlugin).not.toHaveBeenCalled();
+        expect(prodPlugin).toHaveBeenCalledTimes(1);
+      });
+    } finally {
+      process.env.NODE_ENV = originalNodeEnv;
+    }
+  });
+
+  it("use respects environment option without runtime", async () => {
+    const originalNodeEnv = process.env.NODE_ENV;
+    process.env.NODE_ENV = "production";
+    try {
+      await runInServerRuntime(async () => {
+        const nextI18n = create();
+        const devPlugin = vi.fn(async () => undefined);
+        nextI18n.use(devPlugin, { environment: "development" });
+
+        await nextI18n.i18n.init();
+        expect(devPlugin).not.toHaveBeenCalled();
+      });
+    } finally {
+      process.env.NODE_ENV = originalNodeEnv;
+    }
+  });
+
+  it("use strips runtime/lazy/environment before forwarding plugin options", () => {
+    const nextI18n = create();
+    const useSpy = vi.spyOn(nextI18n.i18n, "use");
+    const plugin = vi.fn(async () => undefined);
+
+    nextI18n.use(plugin, { runtime: "server", required: false, timeout: 2500 });
+
+    expect(useSpy).toHaveBeenCalledTimes(1);
+    expect(useSpy.mock.calls[0]![1]).toEqual({ required: false, timeout: 2500 });
+  });
+
+  it("deprecated scoped methods delegate to the unified use()", () => {
+    const nextI18n = create();
+    const useSpy = vi.spyOn(nextI18n, "use");
+    const plugin = vi.fn(async () => undefined);
+    const loadPlugin = vi.fn(async () => plugin);
+
+    nextI18n.useClient(plugin);
+    nextI18n.useServer(plugin, { environment: "development" });
+    nextI18n.useClientLazy(loadPlugin);
+    nextI18n.useServerLazy(loadPlugin, { required: false });
+
+    expect(useSpy).toHaveBeenNthCalledWith(1, plugin, { runtime: "client" });
+    expect(useSpy).toHaveBeenNthCalledWith(2, plugin, {
+      runtime: "server",
+      environment: "development",
+    });
+    expect(useSpy).toHaveBeenNthCalledWith(3, loadPlugin, {
+      runtime: "client",
+      lazy: true,
+    });
+    expect(useSpy).toHaveBeenNthCalledWith(4, loadPlugin, {
+      runtime: "server",
+      lazy: true,
+      required: false,
+    });
   });
 });
