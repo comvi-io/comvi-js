@@ -89,9 +89,9 @@ construction branch):
 
 | fixture                                                   | min+gz    |
 | --------------------------------------------------------- | --------- |
-| `fw-nuxt-root` (default root branch)                      | **12317** |
-| `fw-nuxt-server-slim-loader` (`hostModule`, server graph) | **10120** |
-| `fw-nuxt-client-slim` (`hostModule`, client graph)        | **8734**  |
+| `fw-nuxt-root` (default root branch)                      | **12254** |
+| `fw-nuxt-server-slim-loader` (`hostModule`, server graph) | **10044** |
+| `fw-nuxt-client-slim` (`hostModule`, client graph)        | **8661**  |
 
-A nuxt server on a composed slim+loader host saves **2197 B min+gz (−17.8 %)**
-of comvi graph; the client graph is 3583 B smaller than the root server graph.
+A nuxt server on a composed slim+loader host saves **2210 B min+gz (−18.0 %)**
+of comvi graph; the client graph is 3593 B smaller than the root server graph.

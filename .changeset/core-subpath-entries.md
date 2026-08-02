@@ -32,4 +32,4 @@ Three members moved off the base surface into `@comvi/core/loader`, where the on
 
 In a graph without a tag extension — bare slim, and slim + `/icu` — `<tag>…</tag>` is not syntax and stays in the output as literal text; `import "@comvi/core/tags"` or a per-call `tagInterpolation.extensions` restores parsing. Non-primitive parameter values are unchanged on every entry: `t()` coerces them into the string, `tRaw()` preserves them as a parts array.
 
-Measured min+gz through the published exports map: `/slim` 5,641 B, `/slim` + `/icu` 6,506 B, `/slim` + `/loader` + `/plugins` 6,877 B, root `@comvi/core` 8,581 B (the root entry is within 17 B of its pre-existing budget — the decomposition is paid for by slim, not charged to root).
+Measured min+gz through the published exports map: `/slim` 5,563 B, `/slim` + `/icu` 6,434 B, `/slim` + `/loader` + `/plugins` 6,804 B, root `@comvi/core` 8,519 B (the root entry is 79 B under its pre-existing budget — the decomposition is paid for by slim, not charged to root).

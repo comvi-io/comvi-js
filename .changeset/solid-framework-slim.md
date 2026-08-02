@@ -49,9 +49,9 @@ Whole comvi graph, min+gz, framework externalized, same commit (`pnpm size`):
 
 | app shape                                   | before         | after    |
 | ------------------------------------------- | -------------- | -------- |
-| solid + root core, no `<T>`                 | 9992           | **9953** |
-| solid + root core, with `<T>`               | 10879          | 10906    |
-| solid + bare `@comvi/core/slim`, no `<T>`   | — (impossible) | **6978** |
-| solid + bare `@comvi/core/slim`, with `<T>` | —              | 8785     |
+| solid + root core, no `<T>`                 | 9992           | **9889** |
+| solid + root core, with `<T>`               | 10879          | 10835    |
+| solid + bare `@comvi/core/slim`, no `<T>`   | — (impossible) | **6895** |
+| solid + bare `@comvi/core/slim`, with `<T>` | —              | 8710     |
 
-**Moving a solid app from the root entry to bare slim saves 2975 B min+gz (−29.9%).** Both slim fixtures assert — through the bundler's module graph, not an output-text grep — that `comvi-core.js` and core's tag chunks are absent, and the `solid-on-slim` case is green on webpack and vite in both development and production.
+**Moving a solid app from the root entry to bare slim saves 2994 B min+gz (−30.3%).** Both slim fixtures assert — through the bundler's module graph, not an output-text grep — that `comvi-core.js` and core's tag chunks are absent, and the `solid-on-slim` case is green on webpack and vite in both development and production.

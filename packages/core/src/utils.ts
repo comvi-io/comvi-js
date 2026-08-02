@@ -68,28 +68,12 @@ export function flattenNestedObject(
 
 /**
  * Normalizes translation input into the prototype-less flat shape used by the cache.
- * Never mutates the caller's object: flat catalogs are shallow-copied, nested
- * catalogs are flattened. Prototype-less input is assumed already normalized.
+ * Never mutates the caller's object: `flattenNestedObject` handles flat catalogs as the
+ * depth-1 case (the prefix stays empty, so every key passes through unchanged).
+ * Prototype-less input is assumed already normalized.
  */
 export function normalizeTranslationObject(obj: Record<string, any>): Record<string, string> {
-  if (Object.getPrototypeOf(obj) === null) {
-    return obj as Record<string, string>;
-  }
-
-  const keys = Object.keys(obj);
-  for (let i = 0; i < keys.length; i++) {
-    const value = obj[keys[i]];
-    if (typeof value === "object" && value !== null && !Array.isArray(value)) {
-      return flattenNestedObject(obj);
-    }
-  }
-
-  const result: Record<string, string> = Object.create(null);
-  for (let i = 0; i < keys.length; i++) {
-    const key = keys[i];
-    const leaf = normalizeLeafValue(key, obj[key]);
-    if (leaf !== undefined) result[key] = leaf;
-  }
-
-  return result;
+  return Object.getPrototypeOf(obj) === null
+    ? (obj as Record<string, string>)
+    : flattenNestedObject(obj);
 }

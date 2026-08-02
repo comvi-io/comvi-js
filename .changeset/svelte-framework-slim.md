@@ -53,11 +53,11 @@ Troubleshooting: `addActiveNamespace is not a function` / `reloadTranslations is
 
 Whole comvi graph, min+gz, framework externalized, same commit (`pnpm size`):
 
-| app shape                                    | before      | after     |
-| -------------------------------------------- | ----------- | --------- |
-| svelte + root core, no `<T>`                 | 10006       | **10012** |
-| svelte + root core, with `<T>`               | 11389       | 11399     |
-| svelte + bare `@comvi/core/slim`, no `<T>`   | — (crashed) | **7045**  |
-| svelte + bare `@comvi/core/slim`, with `<T>` | — (crashed) | 9255      |
+| app shape                                    | before      | after    |
+| -------------------------------------------- | ----------- | -------- |
+| svelte + root core, no `<T>`                 | 10006       | **9949** |
+| svelte + root core, with `<T>`               | 11389       | 11330    |
+| svelte + bare `@comvi/core/slim`, no `<T>`   | — (crashed) | **6972** |
+| svelte + bare `@comvi/core/slim`, with `<T>` | — (crashed) | 9180     |
 
-**Moving a svelte app from the root entry to bare slim saves 2967 B min+gz (−29.6%).** Both slim fixtures assert — through the bundler's module graph, not an output-text grep — that `comvi-core.js` and core's tag chunks are absent, and the `svelte-on-slim` case is green on webpack and vite in both development and production.
+**Moving a svelte app from the root entry to bare slim saves 2977 B min+gz (−29.9%).** Both slim fixtures assert — through the bundler's module graph, not an output-text grep — that `comvi-core.js` and core's tag chunks are absent, and the `svelte-on-slim` case is green on webpack and vite in both development and production.

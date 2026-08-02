@@ -47,9 +47,6 @@ declare const __DEV__: boolean | undefined;
 declare const __VERSION__: string | undefined;
 const IS_DEV = typeof __DEV__ !== "undefined" && __DEV__;
 
-// Declare process for bundler replacement (webpack/turbopack/vite replace process.env.NODE_ENV at build time)
-declare const process: { env?: { NODE_ENV?: string } } | undefined;
-
 /** Library version - injected at build time or fallback */
 const VERSION = typeof __VERSION__ !== "undefined" ? __VERSION__ : "0.1.0";
 const ERR_LOCALE_NOT_SET = IS_DEV ? "@comvi/core: Locale is not set" : "E_LOCALE_NOT_SET";
@@ -280,10 +277,8 @@ export class I18n<D extends DefaultTranslationParams = {}>
     // Context-collection preference for the in-context editor (default on).
     this.collectContext = options.collectContext;
 
-    // Determine development mode
-    this.devMode =
-      options.devMode ??
-      (typeof process !== "undefined" && process?.env?.NODE_ENV !== "production");
+    // Development mode: the build-time __DEV__ flag unless the caller overrides it.
+    this.devMode = options.devMode ?? IS_DEV;
 
     // Expose on the global window.__COMVI__ discovery queue for browser extensions
     // Default to true in browser environments, false in SSR
@@ -468,7 +463,6 @@ export class I18n<D extends DefaultTranslationParams = {}>
   private _withDefaultParams(userParams?: TranslationParams): TranslationParams | undefined {
     const defaults = this._defaultParams;
     if (defaults === undefined) return userParams;
-    if (userParams == null) return { ...defaults };
     return { ...defaults, ...userParams };
   }
 

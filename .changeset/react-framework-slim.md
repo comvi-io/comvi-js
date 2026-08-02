@@ -49,9 +49,9 @@ Whole comvi graph, min+gz, framework externalized, same commit (`pnpm size`):
 
 | app shape                                   | before         | after     |
 | ------------------------------------------- | -------------- | --------- |
-| react + root core, no `<T>`                 | 11278          | **10229** |
-| react + root core, with `<T>`               | 11285          | 11289     |
-| react + bare `@comvi/core/slim`, no `<T>`   | — (impossible) | **7265**  |
-| react + bare `@comvi/core/slim`, with `<T>` | —              | 9156      |
+| react + root core, no `<T>`                 | 11278          | **10170** |
+| react + root core, with `<T>`               | 11285          | 11220     |
+| react + bare `@comvi/core/slim`, no `<T>`   | — (impossible) | **7194**  |
+| react + bare `@comvi/core/slim`, with `<T>` | —              | 9076      |
 
-**Moving a react app from the root entry to bare slim saves 2964 B min+gz (−29.0%).** Staying on root and never rendering `<T>` saves 1049 B on its own. Both slim fixtures assert — through the bundler's module graph, not an output-text grep — that `comvi-core.js` and core's tag chunks are absent, and the `react-on-slim` case is green on webpack and vite in both development and production.
+**Moving a react app from the root entry to bare slim saves 2976 B min+gz (−29.3%).** Staying on root and never rendering `<T>`, together with core's own golf pass, saves 1108 B on its own. Both slim fixtures assert — through the bundler's module graph, not an output-text grep — that `comvi-core.js` and core's tag chunks are absent, and the `react-on-slim` case is green on webpack and vite in both development and production.

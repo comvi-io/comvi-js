@@ -200,11 +200,11 @@ branch:
 
 | graph                                        | min+gz    |
 | -------------------------------------------- | --------- |
-| server, default root branch                  | 12317     |
-| server, `hostModule` (slim + `attachLoader`) | **10120** |
-| client, `hostModule` (bare slim, hydrated)   | **8734**  |
+| server, default root branch                  | 12254     |
+| server, `hostModule` (slim + `attachLoader`) | **10044** |
+| client, `hostModule` (bare slim, hydrated)   | **8661**  |
 
-A nuxt server on a composed slim + loader host saves **2197 B (−17.8%)**.
+A nuxt server on a composed slim + loader host saves **2210 B (−18.0%)**.
 
 ## Rich text with `<T>`
 

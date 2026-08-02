@@ -80,11 +80,11 @@ externalized, both columns from the same run):
 
 | fixture                                         | before | after     |
 | ----------------------------------------------- | ------ | --------- |
-| `fw-vue-root` (root app, no `<T>`)              | 11930  | **10535** |
-| `fw-vue-root-t` (root app with `<T>`)           | 11941  | **11565** |
-| `fw-vue-slim` (bare slim via `@comvi/vue/slim`) | —      | **7599**  |
-| `fw-vue-slim-t`                                 | —      | **9464**  |
+| `fw-vue-root` (root app, no `<T>`)              | 11930  | **10473** |
+| `fw-vue-root-t` (root app with `<T>`)           | 11941  | **11498** |
+| `fw-vue-slim` (bare slim via `@comvi/vue/slim`) | —      | **7525**  |
+| `fw-vue-slim-t`                                 | —      | **9389**  |
 
 Moving a vue app from `@comvi/core` to a bare `@comvi/core/slim` host saves
-**2936 B min+gz (−27.9 %)** of comvi graph. A root vue app that never renders
-`<T>` saves **1395 B** with no code change at all.
+**2948 B min+gz (−28.1 %)** of comvi graph. A root vue app that never renders
+`<T>` saves **1457 B** with no code change at all.

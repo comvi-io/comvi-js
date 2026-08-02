@@ -95,10 +95,10 @@ Whole comvi graph, min+gz, `next` and `react` externalized, same commit (`pnpm s
 
 | app shape                                              | before         | after    |
 | ------------------------------------------------------ | -------------- | -------- |
-| next server, `createNextI18n` on root core             | 10127          | 10127    |
-| next server, `createNextI18nFromHost` on slim + loader | — (impossible) | **7628** |
-| next client, bare `@comvi/core/slim` hydrated          | — (impossible) | **7668** |
+| next server, `createNextI18n` on root core             | 10127          | 10055    |
+| next server, `createNextI18nFromHost` on slim + loader | — (impossible) | **7549** |
+| next client, bare `@comvi/core/slim` hydrated          | — (impossible) | **7593** |
 
-**Moving a next server from the root entry to a composed `@comvi/core/slim` + `attachLoader` host saves 2499 B min+gz (−24.7%).** The saving depends on `getI18n` no longer value-importing the root entry: with that one import still on `@comvi/core`, the same companion-only graph measures 9882 B and carries `comvi-core.js` plus core's tag, plugin and ICU chunks.
+**Moving a next server from the root entry to a composed `@comvi/core/slim` + `attachLoader` host saves 2506 B min+gz (−24.9%).** The saving depends on `getI18n` no longer value-importing the root entry: with that one import still on `@comvi/core`, the same companion-only graph measures 9882 B and carries `comvi-core.js` plus core's tag, plugin and ICU chunks.
 
 Both slim fixtures assert through the bundler's module graph — never an output-text grep — that the root entry is absent, and the `next-server-on-slim` / `next-client-slim` bundler-matrix cases are green on webpack and vite in development and production. The client graph additionally contains neither the server host module nor any loader code.

@@ -100,17 +100,17 @@ fixtures CI gates, never estimated:
 
 | binding                | root host | bare `/slim` host | saving           | slim recipe                                                                                      |
 | ---------------------- | --------- | ----------------- | ---------------- | ------------------------------------------------------------------------------------------------ |
-| `@comvi/react`         | 10229     | **7265**          | −2964 B (−29.0%) | `createI18n` from `@comvi/core/slim` → `<I18nProvider i18n={…}>`                                 |
-| `@comvi/solid`         | 9953      | **6978**          | −2975 B (−29.9%) | same host → `<I18nProvider i18n={…}>`                                                            |
-| `@comvi/svelte`        | 10012     | **7045**          | −2967 B (−29.6%) | same host → `setI18nContext(i18n)`                                                               |
-| `@comvi/vue`           | 10535     | **7599**          | −2936 B (−27.9%) | `createI18nFromCore(host)` from **`@comvi/vue/slim`**                                            |
-| `@comvi/next` (server) | 10127     | **7628**          | −2499 B (−24.7%) | `createNextI18nFromHost(() => host)` from **`@comvi/next/server`**; host = slim + `attachLoader` |
-| `@comvi/nuxt` (server) | 12317     | **10120**         | −2197 B (−17.8%) | `hostModule: "./comvi.host.ts"`; host = slim + `attachLoader`                                    |
+| `@comvi/react`         | 10170     | **7194**          | −2976 B (−29.3%) | `createI18n` from `@comvi/core/slim` → `<I18nProvider i18n={…}>`                                 |
+| `@comvi/solid`         | 9889      | **6895**          | −2994 B (−30.3%) | same host → `<I18nProvider i18n={…}>`                                                            |
+| `@comvi/svelte`        | 9949      | **6972**          | −2977 B (−29.9%) | same host → `setI18nContext(i18n)`                                                               |
+| `@comvi/vue`           | 10473     | **7525**          | −2948 B (−28.1%) | `createI18nFromCore(host)` from **`@comvi/vue/slim`**                                            |
+| `@comvi/next` (server) | 10055     | **7549**          | −2506 B (−24.9%) | `createNextI18nFromHost(() => host)` from **`@comvi/next/server`**; host = slim + `attachLoader` |
+| `@comvi/nuxt` (server) | 12254     | **10044**         | −2210 B (−18.0%) | `hostModule: "./comvi.host.ts"`; host = slim + `attachLoader`                                    |
 
 Rendering `<T>` buys the tag machinery on top of the slim rows, and only then:
-react **+1891 B**, solid **+1807 B**, svelte **+2210 B**, vue **+1865 B**.
+react **+1882 B**, solid **+1815 B**, svelte **+2208 B**, vue **+1864 B**.
 Client-only graphs: `@comvi/next` client on a hydrated bare-slim host is
-**7668 B**, `@comvi/nuxt` client **8734 B**.
+**7593 B**, `@comvi/nuxt` client **8661 B**.
 
 Three bindings need one line of explanation each:
 
@@ -238,12 +238,12 @@ Measured min+gz through the published exports map (`node scripts/size-check.mjs`
 
 | Entry                  | min+gz  |
 | ---------------------- | ------- |
-| `@comvi/core/slim`     | 5,641 B |
-| `+ /tags`              | 6,490 B |
-| `+ /icu`               | 6,506 B |
-| `+ /loader + /plugins` | 6,877 B |
-| `+ /icu + /tags`       | 7,330 B |
-| `@comvi/core` (root)   | 8,581 B |
+| `@comvi/core/slim`     | 5,563 B |
+| `+ /tags`              | 6,410 B |
+| `+ /icu`               | 6,434 B |
+| `+ /loader + /plugins` | 6,804 B |
+| `+ /icu + /tags`       | 7,259 B |
+| `@comvi/core` (root)   | 8,519 B |
 
 ## ICU MessageFormat — locale-correct grammar, not just singular/plural
 

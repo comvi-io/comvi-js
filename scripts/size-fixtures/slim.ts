@@ -1,5 +1,5 @@
 // Size-gate fixture: the slim entry (simple compiler, no ICU, no tags).
-// Gate: <= 5760 B min+gz (post-Phase-7 ratchet; see scripts/size-budgets.json).
+// Gate: <= 5595 B min+gz (framework-slim golf ratchet; see scripts/size-budgets.json).
 import { createI18n } from "@comvi/core/slim";
 
 const i18n = createI18n({

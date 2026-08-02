@@ -238,13 +238,13 @@ by `node scripts/size-check.mjs`:
 
 | binding                | root host | bare `/slim` host | saving           |
 | ---------------------- | --------- | ----------------- | ---------------- |
-| `@comvi/react`         | 10229     | **7265**          | −2964 B (−29.0%) |
-| `@comvi/solid`         | 9953      | **6978**          | −2975 B (−29.9%) |
-| `@comvi/svelte`        | 10012     | **7045**          | −2967 B (−29.6%) |
-| `@comvi/vue`           | 10535     | **7599**          | −2936 B (−27.9%) |
-| `@comvi/next` (server) | 10127     | **7628**          | −2499 B (−24.7%) |
-| `@comvi/nuxt` (server) | 12317     | **10120**         | −2197 B (−17.8%) |
+| `@comvi/react`         | 10170     | **7194**          | −2976 B (−29.3%) |
+| `@comvi/solid`         | 9889      | **6895**          | −2994 B (−30.3%) |
+| `@comvi/svelte`        | 9949      | **6972**          | −2977 B (−29.9%) |
+| `@comvi/vue`           | 10473     | **7525**          | −2948 B (−28.1%) |
+| `@comvi/next` (server) | 10055     | **7549**          | −2506 B (−24.9%) |
+| `@comvi/nuxt` (server) | 12254     | **10044**         | −2210 B (−18.0%) |
 
 Several bindings also got smaller on the **root** path, with no app change at
-all, because `<T>` and the tag machinery it needs became opt-in: react −1049 B,
-vue −1395 B.
+all, because `<T>` and the tag machinery it needs became opt-in and core itself got smaller: react −1108 B,
+vue −1457 B.
