@@ -59,44 +59,12 @@ const ERR_LOCALE_NOT_SET = IS_DEV ? "@comvi/core: Locale is not set" : "E_LOCALE
 const ERR_TRANSLATION_NOT_OBJECT = IS_DEV
   ? "@comvi/core: Translation is not an object"
   : "E_TRANSLATION_NOT_OBJECT";
-const ERR_NO_LOADER_REGISTERED = IS_DEV
-  ? "[i18n] No loader registered. Cannot reload translations."
-  : "E_NO_LOADER_REGISTERED";
-const ERR_FAILED_RELOAD_TRANSLATIONS = IS_DEV
-  ? "[i18n] Failed to reload translations"
-  : "E_FAILED_RELOAD_TRANSLATIONS";
 const ERR_INSTANCE_DESTROYED = IS_DEV
   ? "[i18n] Cannot call init() after destroy(). Create a new i18n instance."
   : "E_INSTANCE_DESTROYED";
-function createPartialNamespaceLoadError(
-  locale: string,
-  failedCount: number,
-  totalCount: number,
-  failedNamespaces: string,
-): Error {
-  if (IS_DEV) {
-    return new Error(
-      `[i18n] Partial namespace load failure for "${locale}": ` +
-        `${failedCount}/${totalCount} failed (${failedNamespaces})`,
-    );
-  }
-  return new Error("E_PARTIAL_NAMESPACE_LOAD");
-}
-
-function createAllNamespacesFailedError(locale: string, failedNamespaces: string): Error {
-  if (IS_DEV) {
-    return new Error(
-      `[i18n] Failed to load all namespaces for locale "${locale}": ${failedNamespaces}`,
-    );
-  }
-  return new Error("E_ALL_NAMESPACES_FAILED");
-}
 const ERR_REGISTER_LOCALE_DETECTOR = IS_DEV
   ? "[i18n] registerLocaleDetector(): argument must be a function."
   : "E_REGISTER_LOCALE_DETECTOR";
-const ERR_REGISTER_LOADER_ARG = IS_DEV
-  ? "[i18n] registerLoader(): argument must be a loader function. (Import maps: use the root entry, or wrap with createImportMapLoader from @comvi/core/slim.)"
-  : "E_REGISTER_LOADER_ARG";
 
 /**
  * Loader types live in `types.ts` (they are part of `I18nLoaderApi`); this
@@ -136,11 +104,18 @@ export interface I18nInternal<D extends DefaultTranslationParams = {}>
   _emit<E extends I18nEvent>(event: E, data?: I18nEventData[E]): void;
   _setLoadingState(isLoading: boolean): void;
 
-  // ── two-phase destroy (base fields, `[]` in the constructor) ──
+  // ── two-phase destroy ──
+  // Named seams rather than a registry: the base already declares one seam
+  // per capability hook, and a single optional call is markedly cheaper than
+  // an array field + push + loop (measured on the full entry).
   /** Awaited before any lifecycle reset or emit — capability state still live. */
-  _preDestroy: Array<() => void | Promise<void>>;
-  /** Runs after the `destroyed` emit — capability state reset happens here. */
-  _postDestroy: Array<() => void>;
+  _preDestroy?: () => void | Promise<void>;
+  /** Capability resets, run after the `destroyed` emit. */
+  _resetLoader?: () => void;
+  _resetPlugins?: () => void;
+  /** Capability state initializers, installed with the capability's methods. */
+  _initLoader?: () => void;
+  _initPlugins?: () => void;
 
   // ── capability hooks (installed by attach* / the full subclass) ──
   _loadNs?: (locale: string, namespaces: string[], skipLoaded: boolean) => Promise<void>;
@@ -185,13 +160,14 @@ export class I18n<D extends DefaultTranslationParams = {}>
   implements I18nCoreInstance<D>, I18nCoreExtraApi
 {
   // Core state
-  private _locale: string;
+  /** `protected`, not `private`: the capability subclasses in `core/loader.ts` / `core/plugins.ts` read it. */
+  protected _locale: string;
   public readonly translationCache: TranslationCache;
   private _isInitializing: boolean = false;
   private _isInitialized: boolean = false;
   private _isDestroyed: boolean = false;
   private _loadingCount: number = 0;
-  private _fallbackLocales: string[];
+  protected _fallbackLocales: string[];
   private _currentLocaleChangeId: number = 0;
   private _requestedLocale: string;
   public readonly apiKey: string | undefined;
@@ -218,10 +194,14 @@ export class I18n<D extends DefaultTranslationParams = {}>
   private _primaryTranslationsNamespace: string = "";
 
   // Namespace state (inlined from NamespaceManager)
-  private _activeNamespaces = new Set<string>();
-  private _nsGeneration = 0;
-  private _pendingLoads: Record<string, Promise<void> | undefined> = Object.create(null);
-  private _loader?: LoaderFn;
+  protected _activeNamespaces = new Set<string>();
+
+  // Capability seams (`_loadNs`, `_cancelNs`, `_loader`) are NOT declared
+  // here: the root subclass declares them as real methods (`core/loader.ts`,
+  // `core/plugins.ts`) and `attach*` copies those descriptors onto a slim
+  // instance. The base only ever READS them, through the `I18nInternal`
+  // cross-module contract — a type-only cast that emits nothing.
+
 
   // Plugin state
   private _plugins: PluginEntry[] = [];
@@ -522,7 +502,7 @@ export class I18n<D extends DefaultTranslationParams = {}>
    * Emit an event to all subscribers
    * @private
    */
-  private _emit<E extends I18nEvent>(event: E, data?: I18nEventData[E]): void {
+  protected _emit<E extends I18nEvent>(event: E, data?: I18nEventData[E]): void {
     if (event === "configChanged") {
       this._configRevision++;
     }
@@ -580,9 +560,12 @@ export class I18n<D extends DefaultTranslationParams = {}>
 
     try {
       // Load any active namespaces that aren't loaded for the new locale FIRST
-      // This ensures we don't switch locale before translations are ready (preventing UI flash)
-      if (this._loader && this._activeNamespaces.size > 0) {
-        await this._nsLoadNamespacesForLocale(value, [...this._activeNamespaces], true);
+      // This ensures we don't switch locale before translations are ready (preventing UI flash).
+      // The `_loader` probe (not `_loadNs`) keeps byte-parity: with no loader
+      // registered the old code awaited NOTHING, so `i18n.locale = "fr"`
+      // applied synchronously. Probing the hook would add a microtask tick.
+      if ((this as unknown as I18nInternal)._loader && this._activeNamespaces.size > 0) {
+        await (this as unknown as I18nInternal)._loadNs!(value, [...this._activeNamespaces], true);
       }
 
       // Check staleness after EVERY async operation to prevent applying outdated results
@@ -644,7 +627,7 @@ export class I18n<D extends DefaultTranslationParams = {}>
    */
   clearTranslations(locale?: string, namespace?: string): void {
     // Cancel in-flight loads for the cleared scope so they don't repopulate the cache
-    this._cancelPendingLoads(locale, namespace);
+    (this as unknown as I18nInternal)._cancelNs?.(locale, namespace);
 
     if (locale) {
       this.translationCache.delete(locale, namespace);
@@ -798,18 +781,6 @@ export class I18n<D extends DefaultTranslationParams = {}>
       this._setLoadingState(false);
     }
     this._emit("configChanged", { source: "namespaceActivated" });
-  }
-
-  /**
-   * Reload translations from the remote loader.
-   * Clears the current cache and attempts to fetch fresh translations.
-   *
-   * @param locale - Optional locale to reload (defaults to current + fallbacks)
-   * @param namespace - Optional namespace to reload (defaults to all active)
-   * @throws {Error} Throws if all reload attempts fail, indicating the cache may be empty.
-   */
-  async reloadTranslations(locale?: string, namespace?: string): Promise<void> {
-    return this._nsReloadTranslations(locale, namespace);
   }
 
   /**
@@ -1083,34 +1054,6 @@ export class I18n<D extends DefaultTranslationParams = {}>
   }
 
   /**
-   * Register a translation loader function.
-   *
-   * @example Function loader
-   * ```typescript
-   * i18n.registerLoader(async (locale, namespace) => {
-   *   const res = await fetch(`/locales/${locale}/${namespace}.json`);
-   *   return res.json();
-   * });
-   * ```
-   *
-   * The full-entry `I18n` additionally accepts a static import map; see
-   * `createImportMapLoader` for the slim-entry equivalent.
-   */
-  public registerLoader(loader: LoaderFn): void {
-    if (typeof loader !== "function") {
-      throw new Error(ERR_REGISTER_LOADER_ARG);
-    }
-    this._loader = loader;
-  }
-
-  /**
-   * Get the registered loader function
-   */
-  public getLoader(): LoaderFn | undefined {
-    return this._loader;
-  }
-
-  /**
    * Register a callback for missing translation keys
    * @param callback - Function called when a key is missing. Can return a string to use as fallback.
    * @returns Cleanup function to remove the callback
@@ -1179,142 +1122,12 @@ export class I18n<D extends DefaultTranslationParams = {}>
 
   // ── Namespace management (inlined from NamespaceManager) ──
 
-  private _nsLoadNamespace(locale: string, namespace: string): Promise<void> {
-    const key = `${locale}:${namespace}`;
-    const existing = this._pendingLoads[key];
-    if (existing) {
-      return existing;
-    }
-
-    const generation = this._nsGeneration;
-    const loader = this._loader!;
-
-    // A load is cancelled when its _pendingLoads entry is removed (clear/reload)
-    // or the generation is bumped (destroy). Cancelled loads must neither write
-    // to the cache nor surface their errors. The closure only reads `guarded`
-    // after the first await, when the assignment below has already run.
-    let guarded!: Promise<void>;
-    // eslint-disable-next-line prefer-const -- self-reference needs declare-then-assign
-    guarded = (async () => {
-      try {
-        const translations = await loader(locale, namespace);
-        if (generation !== this._nsGeneration || this._pendingLoads[key] !== guarded) return;
-        this.translationCache.set(locale, namespace, normalizeTranslationObject(translations));
-        this._emit("namespaceLoaded", { namespace, locale });
-      } catch (error) {
-        if (generation !== this._nsGeneration || this._pendingLoads[key] !== guarded) return;
-        this._emit("loadError", { locale, namespace, error: error as Error });
-        throw error;
-      } finally {
-        if (this._pendingLoads[key] === guarded) {
-          delete this._pendingLoads[key];
-        }
-      }
-    })();
-
-    this._pendingLoads[key] = guarded;
-    return guarded;
-  }
-
-  /** Cancel pending namespace loads matching the given scope (undefined = any). */
-  private _cancelPendingLoads(locale?: string, namespace?: string): void {
-    for (const key in this._pendingLoads) {
-      const colonIdx = key.indexOf(":");
-      const loc = key.slice(0, colonIdx);
-      const ns = key.slice(colonIdx + 1);
-      if (
-        (locale === undefined || loc === locale) &&
-        (namespace === undefined || ns === namespace)
-      ) {
-        delete this._pendingLoads[key];
-      }
-    }
-  }
-
-  private async _nsLoadNamespacesForLocale(
-    locale: string,
-    namespaces: string[],
-    skipLoaded: boolean = true,
-  ): Promise<void> {
-    if (!this._loader) return;
-
-    const namespacesToLoad = skipLoaded
-      ? namespaces.filter((ns) => !this.translationCache.has(locale, ns))
-      : namespaces;
-
-    if (namespacesToLoad.length === 0) return;
-
-    const failedNamespacesList: string[] = [];
-    await Promise.all(
-      namespacesToLoad.map((ns) =>
-        this._nsLoadNamespace(locale, ns).catch(() => {
-          failedNamespacesList.push(ns);
-        }),
-      ),
-    );
-
-    if (failedNamespacesList.length === 0) return;
-
-    const failedNamespaces = failedNamespacesList.join(", ");
-
-    const nsCtx = { source: "namespace-load" as const, locale, namespace: failedNamespaces };
-    if (failedNamespacesList.length < namespacesToLoad.length) {
-      this.reportError(
-        createPartialNamespaceLoadError(
-          locale,
-          failedNamespacesList.length,
-          namespacesToLoad.length,
-          failedNamespaces,
-        ),
-        nsCtx,
-      );
-      return;
-    }
-
-    const err = createAllNamespacesFailedError(locale, failedNamespaces);
-    this.reportError(err, nsCtx);
-    throw err;
-  }
-
   private async _nsAddActiveNamespaces(namespaces: string[]): Promise<void> {
     // Add to active set optimistically. If the load fails, the namespace
     // stays active so it will be retried automatically on the next locale
     // switch — this matches caller expectations and avoids forcing manual retry.
     for (const ns of namespaces) this._activeNamespaces.add(ns);
-    await this._nsLoadNamespacesForLocale(this._locale, namespaces, true);
-  }
-
-  private async _nsReloadTranslations(locale?: string, namespace?: string): Promise<void> {
-    if (!this._loader) {
-      throw new Error(ERR_NO_LOADER_REGISTERED);
-    }
-
-    const localesToReload = locale ? [locale] : [this._locale, ...this._fallbackLocales];
-    const namespacesToReload = namespace ? [namespace] : [...this._activeNamespaces];
-
-    for (const loc of localesToReload) {
-      for (const ns of namespacesToReload) {
-        // Cancel any in-flight load so reload fetches fresh data instead of
-        // resolving to a request that started before the cache was cleared
-        this._cancelPendingLoads(loc, ns);
-        this.translationCache.delete(loc, ns);
-      }
-    }
-
-    const failures: Array<{ loc: string; reason: unknown }> = [];
-    await Promise.all(
-      localesToReload.map((loc) =>
-        this._nsLoadNamespacesForLocale(loc, namespacesToReload, false).catch((reason) => {
-          failures.push({ loc, reason });
-        }),
-      ),
-    );
-
-    if (failures.length === localesToReload.length) {
-      const err = new Error(ERR_FAILED_RELOAD_TRANSLATIONS);
-      this.reportError(err, { source: "namespace-load" });
-      throw err;
-    }
+    await (this as unknown as I18nInternal)._loadNs?.(this._locale, namespaces, true);
   }
 
   private _nsAddTranslations(translations: Record<string, Record<string, TranslationValue>>): void {
@@ -1371,6 +1184,9 @@ export class I18n<D extends DefaultTranslationParams = {}>
       this._globalEntry = undefined;
     }
 
+    // Phase 1 — awaited pre-lifecycle cleanup, while capability state is live.
+    await (this as unknown as I18nInternal)._preDestroy?.();
+
     while (this._pluginCleanups.length > 0) {
       try {
         await this._pluginCleanups.pop()!();
@@ -1394,10 +1210,7 @@ export class I18n<D extends DefaultTranslationParams = {}>
     this._eventCallbacks = {};
     this._missingKeyCallbacks.clear();
 
-    this._nsGeneration++;
     this._activeNamespaces.clear();
-    this._pendingLoads = {};
-    this._loader = undefined;
     this._postProcessors = [];
     this._hasPostProcessors = false;
 
@@ -1405,5 +1218,11 @@ export class I18n<D extends DefaultTranslationParams = {}>
     this.translationCache.clear();
     this._localeDetector = undefined;
     this._pluginData = Object.create(null);
+
+    // Phase 3 — capability reset, after the `destroyed` listeners have seen
+    // the still-live capability state.
+    const self = this as unknown as I18nInternal;
+    self._resetLoader?.();
+    self._resetPlugins?.();
   }
 }

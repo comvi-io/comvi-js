@@ -12,7 +12,8 @@ import { getApiConfig, initApiConfig, resetApiConfig, type ApiTransport } from "
 import { apiFetch } from "./services/apiClient";
 import { registerPostProcessorOnce } from "./postProcessor";
 import { fetchApiTranslations, clearProjectInfoCache } from "@comvi/plugin-fetch-loader";
-import type { I18n, TranslationValue } from "@comvi/core";
+import type { TranslationValue } from "@comvi/core";
+import type { EditorI18n } from "./Core";
 
 /** Active Core instance for cleanup */
 let activeCore: Core | null = null;
@@ -99,7 +100,7 @@ function createScopedFetch(scopeId: string): typeof fetch {
 }
 
 async function refreshTranslationsFromApi(
-  i18n: I18n,
+  i18n: EditorI18n,
   apiKey: string | undefined,
   scopeId: string,
 ): Promise<void> {
@@ -150,7 +151,7 @@ async function refreshTranslationsFromApi(
   }
 }
 
-function refreshRenderedTranslations(i18n: I18n): void {
+function refreshRenderedTranslations(i18n: EditorI18n): void {
   // Re-add loaded translations after registering the post-processor so
   // framework bindings bump their cache revision and re-render marked text.
   const namespaces = new Set([i18n.getDefaultNamespace(), ...i18n.getActiveNamespaces()]);

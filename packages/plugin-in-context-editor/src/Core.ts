@@ -15,8 +15,17 @@ import { EventBus } from "./EventBus";
 import { ElementHighlighter } from "./ElementHighlighter";
 import { Collector } from "./collector/Collector";
 import type { TranslationSystemOptions, TranslationSystemInnerOptions } from "./types";
-import type { I18nPluginHost } from "@comvi/core";
+import type { I18nCoreInstance, I18nCoreExtraApi } from "@comvi/core";
 import { TAG_ATTRIBUTES } from "./constants";
+
+/**
+ * The public instance surface the editor needs. Since 0.5.0 the root `I18n`
+ * class is wider than the base one (loader and plugin capabilities live in
+ * the `@comvi/core/loader` and `@comvi/core/plugins` subpaths), and instances
+ * reach the editor from both directions — the discovery queue hands over base
+ * instances, the plugin entry hands over a composed host. Both satisfy this.
+ */
+export type EditorI18n = I18nCoreInstance & I18nCoreExtraApi;
 
 type EditModalModule = typeof import("./EditModal");
 type KeySelectorModule = typeof import("./KeySelector");
@@ -52,14 +61,14 @@ function loadKeySelector(): Promise<KeySelectorModule> {
 
 // Map to store i18n instances by Core instance ID
 // Allows multiple plugin instances on the same page
-const i18nInstances = new Map<string, I18nPluginHost>();
+const i18nInstances = new Map<string, EditorI18n>();
 let instanceCounter = 0;
 
 /**
  * Get the i18n instance for a specific Core instance
  * @param instanceId - The Core instance ID (optional, returns first if not specified for backward compatibility)
  */
-export function getI18nInstance(instanceId?: string): I18nPluginHost | null {
+export function getI18nInstance(instanceId?: string): EditorI18n | null {
   if (instanceId) {
     return i18nInstances.get(instanceId) || null;
   }
@@ -72,7 +81,7 @@ export function getI18nInstance(instanceId?: string): I18nPluginHost | null {
  * Register an i18n instance with a specific ID
  * @internal
  */
-export function registerI18nInstance(instanceId: string, i18n: I18nPluginHost): void {
+export function registerI18nInstance(instanceId: string, i18n: EditorI18n): void {
   i18nInstances.set(instanceId, i18n);
 }
 
@@ -136,7 +145,7 @@ export class Core {
     }
   };
 
-  constructor(options?: TranslationSystemOptions, i18n?: I18nPluginHost) {
+  constructor(options?: TranslationSystemOptions, i18n?: EditorI18n) {
     this.instanceId = `core-${++instanceCounter}`;
     this.options = {
       targetElement: options?.targetElement || document,

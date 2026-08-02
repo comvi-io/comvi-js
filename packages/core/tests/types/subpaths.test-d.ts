@@ -3,6 +3,7 @@
 // under moduleResolution bundler/node16 is exercised by attw/publint and the
 // bundler-matrix job against dist.)
 import { createI18n as createSlimI18n } from "@comvi/core/slim";
+import { attachLoader, createImportMapLoader, type LoaderFn } from "@comvi/core/loader";
 import { icuCompiler, type MessageCompiler } from "@comvi/core/icu";
 import {
   registerTagSyntax,
@@ -63,3 +64,31 @@ if (bridge) {
 
 // @ts-expect-error — the guard result may be undefined; direct call must not type
 readEditorMappings({}).getKeyMappings();
+
+// ── /loader: the composition surface (Phase 7) ────────────────────────────
+
+// A bare slim instance genuinely lacks the loader capability.
+// @ts-expect-error — registerLoader lives in @comvi/core/loader
+slim.registerLoader(async () => ({}));
+// @ts-expect-error — reloadTranslations lives in @comvi/core/loader
+slim.reloadTranslations();
+
+// attachLoader returns the instance widened with the loader API.
+const withLoader = attachLoader(createSlimI18n({ locale: "en" }));
+const loaderFn: LoaderFn = async () => ({ hello: "world" });
+withLoader.registerLoader(loaderFn);
+const registered: LoaderFn | undefined = withLoader.getLoader();
+void registered;
+void withLoader.reloadTranslations("en", "default");
+// the base surface survives the widening
+withLoader.t("count", { count: 1 });
+
+// createImportMapLoader now lives in /loader and produces a plain LoaderFn.
+const mapLoader: LoaderFn = createImportMapLoader(
+  { en: async () => ({ default: { hello: "world" } }) },
+  () => "default",
+);
+withLoader.registerLoader(mapLoader);
+
+// The root entry keeps accepting an import map directly.
+createI18n({ locale: "en" }).registerLoader({ en: async () => ({ hello: "world" }) });

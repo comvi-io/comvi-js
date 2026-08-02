@@ -5,6 +5,20 @@
 // instance: `createI18n({ ..., compiler: icuCompiler })` with `icuCompiler`
 // from the pure `@comvi/core/icu` subpath. Tag syntax comes from
 // `@comvi/core/tags` (ambient) or per call via `tagInterpolation.extensions`.
+//
+// Capabilities live in their own pure subpaths and are composed onto an
+// instance — they are absent from a bare slim instance by module graph, not
+// by a runtime flag:
+//   • `@comvi/core/loader`  — `attachLoader`: registerLoader / getLoader /
+//     reloadTranslations, plus `createImportMapLoader` (moved here from
+//     `/slim` in 0.5.0).
+//   • `@comvi/core/plugins` — `attachPlugins`: use / locale detector /
+//     missing-key callbacks / post-processor registration / plugin data.
+// Compose outside-in: `attachPlugins(attachLoader(createI18n({ … })))`.
+//
+// In any graph without a tags extension (bare slim and slim + `/icu`),
+// `t`/`tRaw` produce strings: non-primitive param values coerce instead of
+// producing a parts array.
 import { createI18nWithCompiler } from "./core/factory";
 import { simpleCompiler } from "./core/translate/compile-simple";
 
@@ -13,8 +27,6 @@ export const createI18n = createI18nWithCompiler(simpleCompiler);
 export { TranslationCache } from "./core/TranslationCache";
 export { createBoundTranslation } from "./utils/createBoundTranslation";
 export { translationResultToString } from "./utils/translationResultToString";
-export { createImportMapLoader } from "./core/importMapLoader";
-export type { LoaderImportMap, LoaderImportResult } from "./core/importMapLoader";
 
 // Tree-shakeable Intl formatting helpers
 export {

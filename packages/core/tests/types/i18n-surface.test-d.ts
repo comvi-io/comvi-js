@@ -18,7 +18,7 @@ import type {
   TranslationValue,
 } from "@comvi/core";
 import { createI18n, I18n } from "@comvi/core";
-import type { LoaderImportMap } from "@comvi/core/slim";
+import type { LoaderImportMap } from "@comvi/core/loader";
 
 type Equal<X, Y> =
   (<T>() => T extends X ? 1 : 2) extends <T>() => T extends Y ? 1 : 2 ? true : false;

@@ -11,7 +11,15 @@
  *     landing on a page where the new editor already swapped still attaches —
  *     its legacy code path calls `register(id, instance)`)
  */
-import type { I18n } from "@comvi/core";
+import type { ComviQueueEntry as CoreQueueEntry } from "@comvi/core";
+
+/**
+ * The instance type the core discovery queue actually carries. Core types it
+ * as the BASE class, which since 0.5.0 is narrower than the root export
+ * (`@comvi/core`'s `I18n` adds the loader/plugin capabilities). Deriving it
+ * from the published entry keeps this hook assignable to `window.__COMVI__`.
+ */
+type I18n = CoreQueueEntry["i"];
 
 /** v2 queue entry envelope pushed by new core */
 export interface ComviQueueEntry {
