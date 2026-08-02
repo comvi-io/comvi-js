@@ -1,13 +1,27 @@
 import { readable, type Readable } from "svelte/store";
-import { subscribeToRevision } from "@comvi/core";
-import type { I18n, DefaultTranslationParams, DefaultParamsSnapshot } from "@comvi/core";
+import { subscribeToRevision } from "@comvi/core/slim";
+import type { WrapperI18nHost, DefaultTranslationParams, DefaultParamsSnapshot } from "@comvi/core";
+
+/**
+ * Host type every svelte binding demands (framework-slim D′): the reactive
+ * translation host, exactly what a bare `@comvi/core/slim` instance
+ * implements.
+ */
+type Host<D extends DefaultTranslationParams = {}> = WrapperI18nHost<D>;
 
 /**
  * Cache for memoized stores per i18n instance
  * Prevents creating duplicate stores when useI18n() or <T> is called multiple times
+ *
+ * Keyed by object IDENTITY, not by a host type: `WrapperI18nHost<D>` is
+ * INVARIANT in `D` (`init(): Promise<this>` recurses back through the
+ * `D`-typed `setDefaultParams`), so no single host type all hosts widen to
+ * exists. Nothing in this module reads `D` — every store below is either
+ * `D`-free or `D`-erased, and `createDefaultParamsStore` re-applies the
+ * caller's `D` on the way out.
  */
 const storeCache = new WeakMap<
-  I18n,
+  object,
   {
     locale: Readable<string>;
     loading: Readable<boolean>;
@@ -22,7 +36,7 @@ const storeCache = new WeakMap<
  * Get or create memoized stores for an i18n instance
  * Ensures only one set of stores exists per i18n instance
  */
-function getOrCreateStores(i18n: I18n) {
+function getOrCreateStores<D extends DefaultTranslationParams>(i18n: Host<D>) {
   let stores = storeCache.get(i18n);
 
   if (!stores) {
@@ -85,7 +99,9 @@ function getOrCreateStores(i18n: I18n) {
  * Updates automatically when locale changes
  * Memoized per i18n instance
  */
-export function createLocaleStore(i18n: I18n): Readable<string> {
+export function createLocaleStore<D extends DefaultTranslationParams = {}>(
+  i18n: Host<D>,
+): Readable<string> {
   return getOrCreateStores(i18n).locale;
 }
 
@@ -94,7 +110,9 @@ export function createLocaleStore(i18n: I18n): Readable<string> {
  * Updates when translations are being loaded
  * Memoized per i18n instance
  */
-export function createLoadingStore(i18n: I18n): Readable<boolean> {
+export function createLoadingStore<D extends DefaultTranslationParams = {}>(
+  i18n: Host<D>,
+): Readable<boolean> {
   return getOrCreateStores(i18n).loading;
 }
 
@@ -103,7 +121,9 @@ export function createLoadingStore(i18n: I18n): Readable<boolean> {
  * Updates during initialization
  * Memoized per i18n instance
  */
-export function createInitializingStore(i18n: I18n): Readable<boolean> {
+export function createInitializingStore<D extends DefaultTranslationParams = {}>(
+  i18n: Host<D>,
+): Readable<boolean> {
   return getOrCreateStores(i18n).initializing;
 }
 
@@ -112,7 +132,9 @@ export function createInitializingStore(i18n: I18n): Readable<boolean> {
  * Becomes true once initialization finishes successfully
  * Memoized per i18n instance
  */
-export function createInitializedStore(i18n: I18n): Readable<boolean> {
+export function createInitializedStore<D extends DefaultTranslationParams = {}>(
+  i18n: Host<D>,
+): Readable<boolean> {
   return getOrCreateStores(i18n).initialized;
 }
 
@@ -121,13 +143,15 @@ export function createInitializedStore(i18n: I18n): Readable<boolean> {
  * Uses revision counter for efficient O(1) change detection
  * Memoized per i18n instance
  */
-export function createCacheRevisionStore(i18n: I18n): Readable<number> {
+export function createCacheRevisionStore<D extends DefaultTranslationParams = {}>(
+  i18n: Host<D>,
+): Readable<number> {
   return getOrCreateStores(i18n).cacheRevision;
 }
 
 /** Reactive shallow snapshot of the instance-level interpolation defaults. */
 export function createDefaultParamsStore<D extends DefaultTranslationParams = {}>(
-  i18n: I18n<D>,
+  i18n: Host<D>,
 ): Readable<DefaultParamsSnapshot<D>> {
   return getOrCreateStores(i18n).defaultParams as Readable<DefaultParamsSnapshot<D>>;
 }

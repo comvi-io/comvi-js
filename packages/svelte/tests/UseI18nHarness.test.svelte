@@ -2,6 +2,7 @@
   import { onDestroy } from "svelte";
   import { setI18nContext } from "../src/context";
   import { useI18n } from "../src/useI18n";
+  import { useI18nLoader } from "../src/capabilities";
 
   export let i18n: any;
   export let autoInit = false;
@@ -20,7 +21,6 @@
     setLocale,
     setDefaultParams,
     addTranslations,
-    addActiveNamespace,
     clearTranslations,
     hasLocale,
     hasTranslation,
@@ -34,6 +34,7 @@
     formatRelativeTime,
     dir,
   } = useI18n();
+  const { addActiveNamespace } = useI18nLoader();
 
   const { t: adminT } = useI18n("admin");
 

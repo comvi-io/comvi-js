@@ -12,7 +12,9 @@
 import { describe, it, expect, afterEach } from "vitest";
 import { render } from "solid-js/web";
 import type { JSX } from "solid-js";
-import { createI18n, type I18n } from "@comvi/core";
+import { createI18n } from "@comvi/core";
+import { createI18n as createSlimI18n } from "@comvi/core/slim";
+import type { WrapperI18nHost } from "@comvi/core";
 import { I18nProvider } from "../src/context";
 import { T } from "../src/T";
 import type { ComponentMap } from "../src/types";
@@ -62,7 +64,7 @@ describe("<T /> structural render (real core)", () => {
     dispose = undefined;
   });
 
-  const renderT = (i18n: I18n, ui: () => JSX.Element) => {
+  const renderT = (i18n: WrapperI18nHost, ui: () => JSX.Element) => {
     const container = document.createElement("div");
     dispose = render(
       () => (
@@ -97,6 +99,33 @@ describe("<T /> structural render (real core)", () => {
     for (const parityCase of WRAPPER_PARITY_FIXTURE.cases) {
       it(`produces the shared text for "${parityCase.key}"`, async () => {
         const i18n = await makeI18n({ ...WRAPPER_PARITY_FIXTURE.translations });
+
+        const container = renderT(i18n, () => (
+          <T
+            i18nKey={parityCase.key as never}
+            params={{ ...parityCase.params }}
+            components={{ ...parityCase.components } as ComponentMap}
+          />
+        ));
+
+        expect(container.textContent).toBe(parityCase.text);
+      });
+    }
+  });
+
+  // framework-slim P3: the same table on a BARE @comvi/core/slim host. <T>
+  // does not depend on ambient tag registration — prepareTranslation passes
+  // the tag extension per call (T.tsx:1-4) — so every row must produce
+  // byte-identical text on a host that has no tag syntax of its own.
+  describe("fallback-parity fixture on a bare-slim host", () => {
+    for (const parityCase of WRAPPER_PARITY_FIXTURE.cases) {
+      it(`produces the shared text for "${parityCase.key}"`, async () => {
+        const i18n = createSlimI18n({
+          locale: "en",
+          exposeGlobal: false,
+          translation: { en: { ...WRAPPER_PARITY_FIXTURE.translations } },
+        });
+        await i18n.init();
 
         const container = renderT(i18n, () => (
           <T

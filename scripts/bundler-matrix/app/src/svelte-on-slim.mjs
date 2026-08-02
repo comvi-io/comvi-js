@@ -1,15 +1,21 @@
-// framework-slim gate (plan P0.5): a svelte app on a BARE SLIM host.
+// framework-slim gate (plan P0.5, ACTIVATED in P3): a svelte app on a BARE
+// SLIM host.
 //
-// PENDING until Phase 3 retargets @comvi/svelte's value imports to
-// `@comvi/core/slim` AND relocates the eager capability `.bind()`s — svelte is
-// the wrapper that crashes at bind time on a bare-slim host today, so this
-// fixture is also the regression pin for that fix.
+// This is also the regression pin for the wrapper that crashed at BIND time:
+// before 0.5.0 `useI18n()` eagerly `.bind()`-ed four capability members that
+// a bare-slim host does not have.
 //
 // <T> rendering needs a renderer and is NOT exercised here. What this fixture
-// pins at runtime: the bare-slim host lacks the capability members, and tag
-// markup stays literal without a /tags import.
+// pins at runtime:
+//   - the bare-slim host really lacks the loader/plugin capability members;
+//   - the D′ acquisition readers are exported alongside `useI18n`;
+//   - without a /tags import, tag markup stays literal text.
+// The runner additionally asserts core's tag-registration chunks are ABSENT
+// from the bundler's module graph — svelte-package already emits T.svelte as
+// its own dist module, so the entry's re-export is a prunable named binding
+// under `sideEffects: false`.
 import { createI18n } from "@comvi/core/slim";
-import { getI18nContext, useI18n } from "@comvi/svelte";
+import { getI18nContext, useI18n, useI18nLoader, useI18nPlugins } from "@comvi/svelte";
 
 function assert(condition, label) {
   if (!condition) {
@@ -29,6 +35,8 @@ function assertEqual(actual, expected, label) {
 
 assert(typeof useI18n === "function", "@comvi/svelte exports useI18n");
 assert(typeof getI18nContext === "function", "@comvi/svelte exports getI18nContext");
+assert(typeof useI18nLoader === "function", "@comvi/svelte exports useI18nLoader");
+assert(typeof useI18nPlugins === "function", "@comvi/svelte exports useI18nPlugins");
 
 const i18n = createI18n({
   locale: "en",

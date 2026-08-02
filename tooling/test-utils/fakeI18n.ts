@@ -4,6 +4,7 @@ import type {
   I18nEvent,
   I18nEventData,
   I18n,
+  LoaderFn,
   TranslationParams,
   TranslationResult,
   DefaultTranslationParams,
@@ -23,6 +24,9 @@ export class FakeI18n {
   private readonly guaranteedDefaultParamKeys: string[];
   private currentDefaultParams: DefaultTranslationParams | undefined;
   private currentConfigRevision = 0;
+  private loader: LoaderFn | undefined;
+  private localeDetector: (() => string | Promise<string>) | undefined;
+  private readonly pluginData = new Map<string, unknown>();
 
   constructor(options: FakeI18nOptions = {}) {
     assertInterpolationDefaults(options.defaultParams);
@@ -93,6 +97,28 @@ export class FakeI18n {
     },
   );
 
+  // ===== I18nLoaderApi completeness =====
+  //
+  // `asI18n()` claims a ROOT instance, and a root instance carries the WHOLE
+  // `@comvi/core/loader` surface. Core's `hasLoaderApi` guard (framework-slim
+  // P1) checks every public member, so a double that implements only the
+  // three above is structurally NOT loader-capable and makes every wrapper's
+  // `useI18nLoader()` throw `missingCapability("loader")` on a fake host.
+
+  public readonly addActiveNamespaces = vi.fn(async (namespaces: string[]): Promise<void> => {
+    for (const namespace of namespaces) {
+      await this.core.addActiveNamespace(namespace);
+    }
+  });
+
+  public readonly registerLoader = vi.fn((loader: LoaderFn): void => {
+    this.loader = loader;
+  });
+
+  public readonly getLoader = vi.fn((): LoaderFn | undefined => {
+    return this.loader;
+  });
+
   public readonly clearTranslations = vi.fn((language?: string, namespace?: string): void => {
     this.core.clearTranslations(language, namespace);
   });
@@ -134,6 +160,38 @@ export class FakeI18n {
       return this.core.onLoadError(callback);
     },
   );
+
+  // ===== I18nPluginHostApi completeness =====
+  //
+  // Same reason as the loader block above: `hasPluginHostApi` checks all seven
+  // public members, and `onMissingKey` alone does not make the double a
+  // plugin host. The registration members are inert recorders — no wrapper
+  // test drives plugin behavior through the fake; they exist so the fake is
+  // structurally what `asI18n()` says it is.
+
+  public readonly use = vi.fn((_plugin: unknown, _options?: unknown): FakeI18n => {
+    return this;
+  });
+
+  public readonly registerLocaleDetector = vi.fn(
+    (detector: () => string | Promise<string>): void => {
+      this.localeDetector = detector;
+    },
+  );
+
+  public readonly getLanguageDetector = vi.fn((): (() => string | Promise<string>) | undefined => {
+    return this.localeDetector;
+  });
+
+  public readonly registerPostProcessor = vi.fn((_fn: unknown): void => {});
+
+  public readonly setPluginData = vi.fn((key: string, data: unknown): void => {
+    this.pluginData.set(key, data);
+  });
+
+  public readonly getPluginData = vi.fn(<T = unknown>(key: string): T | undefined => {
+    return this.pluginData.get(key) as T | undefined;
+  });
 
   public readonly reportError = vi.fn((error: unknown, context?: ErrorReportContext): void => {
     this.core.reportError(error, context);

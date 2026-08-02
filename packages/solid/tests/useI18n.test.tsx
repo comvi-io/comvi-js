@@ -3,6 +3,8 @@ import { render } from "solid-js/web";
 import { createI18n } from "@comvi/core";
 import { I18nProvider } from "../src/context";
 import { useI18n } from "../src/useI18n";
+import { useI18nLoader, useI18nPlugins } from "../src/capabilityHooks";
+import type { UseI18nLoaderReturn, UseI18nPluginsReturn } from "../src/capabilityHooks";
 import { FakeI18n } from "../../../tooling/test-utils/fakeI18n";
 
 describe("useI18n", () => {
@@ -230,8 +232,10 @@ describe("useI18n", () => {
     await i18n.init();
 
     let api!: ReturnType<typeof useI18n>;
+    let loader!: UseI18nLoaderReturn;
     const Probe = () => {
       api = useI18n();
+      loader = useI18nLoader();
       return (
         <div>
           {api.t("title" as never)}|{api.t("title" as never, { ns: "admin" } as never)}
@@ -250,13 +254,13 @@ describe("useI18n", () => {
 
     expect(container.textContent).toBe("Common Title v1|title");
 
-    await api.addActiveNamespace("admin");
+    await loader.addActiveNamespace("admin");
     await vi.waitFor(() => {
       expect(container.textContent).toBe("Common Title v1|Admin Title v1");
     });
 
     commonTitle = "Common Title v2";
-    await api.reloadTranslations("en", "common");
+    await loader.reloadTranslations("en", "common");
     await vi.waitFor(() => {
       expect(container.textContent).toBe("Common Title v2|Admin Title v1");
     });
@@ -277,8 +281,10 @@ describe("useI18n", () => {
     await i18n.init();
 
     let api!: ReturnType<typeof useI18n>;
+    let plugins!: UseI18nPluginsReturn;
     const Probe = () => {
       api = useI18n();
+      plugins = useI18nPlugins();
       return <div>{api.t("hello" as never)}</div>;
     };
 
@@ -296,7 +302,7 @@ describe("useI18n", () => {
     api.setFallbackLocale("fr");
     expect(api.t("hello" as never)).toBe("Bonjour");
 
-    const unsubscribe = api.onMissingKey((key) => `Missing: ${key}`);
+    const unsubscribe = plugins.onMissingKey((key) => `Missing: ${key}`);
     expect(api.t("unknown" as never)).toBe("Missing: unknown");
 
     unsubscribe();
@@ -316,10 +322,10 @@ describe("useI18n", () => {
     });
     await i18n.init();
 
-    let api!: ReturnType<typeof useI18n>;
+    let loader!: UseI18nLoaderReturn;
     const loadErrors: Array<{ language: string; namespace: string; message: string }> = [];
     const Probe = () => {
-      api = useI18n();
+      loader = useI18nLoader();
       return <div />;
     };
 
@@ -332,11 +338,11 @@ describe("useI18n", () => {
       container,
     );
 
-    const unsubscribe = api.onLoadError((language, namespace, error) => {
+    const unsubscribe = loader.onLoadError((language, namespace, error) => {
       loadErrors.push({ language, namespace, message: error.message });
     });
 
-    await expect(api.addActiveNamespace("admin")).rejects.toThrow();
+    await expect(loader.addActiveNamespace("admin")).rejects.toThrow();
     expect(loadErrors).toEqual([
       {
         language: "en",

@@ -27,13 +27,20 @@
     },
     {
       "name": "slim-loader",
-      "entry": ["@comvi/core/slim", "@comvi/core/loader", "@comvi/core/plugins"],
+      "entry": [
+        "@comvi/core/slim",
+        "@comvi/core/loader",
+        "@comvi/core/plugins"
+      ],
       "fixture": "slim-loader.ts",
       "note": "Informational: bare slim with BOTH capabilities attached, i.e. the upper bound of the composed slim surface. Printed so the pay-for-what-you-use delta against the `slim` row stays visible; never gated."
     },
     {
       "name": "slim-tags",
-      "entry": ["@comvi/core/slim", "@comvi/core/tags"],
+      "entry": [
+        "@comvi/core/slim",
+        "@comvi/core/tags"
+      ],
       "fixture": "slim-tags.ts",
       "gzipBudgetBytes": 6619,
       "baseline": {
@@ -45,7 +52,10 @@
     },
     {
       "name": "slim-icu",
-      "entry": ["@comvi/core/slim", "@comvi/core/icu"],
+      "entry": [
+        "@comvi/core/slim",
+        "@comvi/core/icu"
+      ],
       "fixture": "slim-icu.ts",
       "gzipBudgetBytes": 7680,
       "baseline": {
@@ -57,7 +67,11 @@
     },
     {
       "name": "slim-icu-tags",
-      "entry": ["@comvi/core/slim", "@comvi/core/icu", "@comvi/core/tags"],
+      "entry": [
+        "@comvi/core/slim",
+        "@comvi/core/icu",
+        "@comvi/core/tags"
+      ],
       "fixture": "slim-icu-tags.ts",
       "gzipBudgetBytes": 7476,
       "baseline": {
@@ -86,9 +100,15 @@
     },
     {
       "name": "probe-react-tags-pinning",
-      "entry": ["@comvi/react", "@comvi/core/slim"],
+      "entry": [
+        "@comvi/react",
+        "@comvi/core/slim"
+      ],
       "fixture": "probe/react-tags-pinning.ts",
-      "external": ["react", "react/*"],
+      "external": [
+        "react",
+        "react/*"
+      ],
       "sentinelModules": [
         "packages/core/dist/comvi-core-tags.js",
         "packages/core/dist/chunks/comvi-core-register-tags.js"
@@ -111,9 +131,15 @@
     },
     {
       "name": "fw-react-root",
-      "entry": ["@comvi/react", "@comvi/core"],
+      "entry": [
+        "@comvi/react",
+        "@comvi/core"
+      ],
       "fixture": "framework/react-root.ts",
-      "external": ["react", "react/*"],
+      "external": [
+        "react",
+        "react/*"
+      ],
       "gzipBudgetBytes": 10433,
       "baseline": {
         "minBytes": 28984,
@@ -124,9 +150,15 @@
     },
     {
       "name": "fw-react-root-t",
-      "entry": ["@comvi/react", "@comvi/core"],
+      "entry": [
+        "@comvi/react",
+        "@comvi/core"
+      ],
       "fixture": "framework/react-root-t.ts",
-      "external": ["react", "react/*"],
+      "external": [
+        "react",
+        "react/*"
+      ],
       "gzipBudgetBytes": 11514,
       "baseline": {
         "minBytes": 31962,
@@ -137,9 +169,15 @@
     },
     {
       "name": "fw-react-slim",
-      "entry": ["@comvi/react", "@comvi/core/slim"],
+      "entry": [
+        "@comvi/react",
+        "@comvi/core/slim"
+      ],
       "fixture": "framework/react-slim.ts",
-      "external": ["react", "react/*"],
+      "external": [
+        "react",
+        "react/*"
+      ],
       "gzipBudgetBytes": 7410,
       "sentinelModules": [
         "packages/core/dist/comvi-core.js",
@@ -164,11 +202,19 @@
     },
     {
       "name": "fw-react-slim-t",
-      "entry": ["@comvi/react", "@comvi/core/slim"],
+      "entry": [
+        "@comvi/react",
+        "@comvi/core/slim"
+      ],
       "fixture": "framework/react-slim-t.ts",
-      "external": ["react", "react/*"],
+      "external": [
+        "react",
+        "react/*"
+      ],
       "gzipBudgetBytes": 9339,
-      "sentinelModules": ["packages/core/dist/comvi-core.js"],
+      "sentinelModules": [
+        "packages/core/dist/comvi-core.js"
+      ],
       "expectSentinels": "absent",
       "baseline": {
         "minBytes": 25515,
@@ -179,93 +225,202 @@
     },
     {
       "name": "fw-solid-root",
-      "entry": ["@comvi/solid", "@comvi/core"],
+      "entry": [
+        "@comvi/solid",
+        "@comvi/core"
+      ],
       "fixture": "framework/solid-root.ts",
-      "external": ["solid-js", "solid-js/*"],
-      "gzipBudgetBytes": 10192,
+      "external": [
+        "solid-js",
+        "solid-js/*"
+      ],
+      "gzipBudgetBytes": 10152,
       "baseline": {
-        "minBytes": 28735,
-        "gzipBytes": 9992,
+        "minBytes": 28653,
+        "gzipBytes": 9953,
         "measuredAt": "2026-08-02"
       },
-      "note": "P0.2 root baseline; the \"before\" anchor for S at the P3 solid gate. Budget = measured + 2%."
+      "note": "Root baseline; the \"before\" anchor for S = minzip(fw-solid-root) - minzip(fw-solid-slim) at the P3 gate (both measured live at the same commit, per plan §4 Phase 2). Re-baselined in P3: 9992 -> 9953 B — <T> moved into its own dist chunk (dist/chunks/comvi-solid-T.js), which trims the entry module even here, where the app's own root createI18n keeps the tags chunks alive anyway. This graph holds BOTH core entries (comvi-core.js from the app's createI18n, comvi-core-slim.js from the wrapper) — blocker B4, measured, not assumed. Budget = measured + 2%."
     },
     {
       "name": "fw-solid-root-t",
-      "entry": ["@comvi/solid", "@comvi/core"],
+      "entry": [
+        "@comvi/solid",
+        "@comvi/core"
+      ],
       "fixture": "framework/solid-root-t.ts",
-      "external": ["solid-js", "solid-js/*"],
-      "gzipBudgetBytes": 11097,
+      "external": [
+        "solid-js",
+        "solid-js/*"
+      ],
+      "gzipBudgetBytes": 11124,
       "baseline": {
-        "minBytes": 31370,
-        "gzipBytes": 10879,
+        "minBytes": 31466,
+        "gzipBytes": 10906,
         "measuredAt": "2026-08-02"
       },
-      "note": "P0.2 root baseline. <T> costs +887 B here — solid's dist defines T as a plain arrow function, so it tree-shakes out of the no-<T> graph (contrast the react/vue rows)."
+      "note": "Root baseline with <T>. +953 B over fw-solid-root. Re-baselined in P3: 10879 -> 10906 B (+27 B) — the cost of the T chunk boundary and its import statement, the price the no-<T> graph is paid for. Budget = measured + 2%."
     },
     {
       "name": "fw-solid-slim",
-      "entry": ["@comvi/solid", "@comvi/core/slim"],
+      "entry": [
+        "@comvi/solid",
+        "@comvi/core/slim"
+      ],
       "fixture": "framework/solid-slim.ts",
-      "external": ["solid-js", "solid-js/*"],
-      "pending": true,
-      "pendingReason": "Phase 3 retargets @comvi/solid's value imports to @comvi/core/slim; until then the wrapper pins the root entry and this fixture measures the root graph"
+      "external": [
+        "solid-js",
+        "solid-js/*"
+      ],
+      "sentinelModules": [
+        "packages/core/dist/comvi-core.js",
+        "packages/core/dist/comvi-core-tags.js",
+        "packages/core/dist/chunks/comvi-core-register-tags.js"
+      ],
+      "expectSentinels": "absent",
+      "gzipBudgetBytes": 7117,
+      "baseline": {
+        "minBytes": 19854,
+        "gzipBytes": 6978,
+        "measuredAt": "2026-08-02",
+        "modules": [
+          "packages/core/dist/chunks/comvi-core-format-BkC69UYF.js",
+          "packages/core/dist/chunks/comvi-core-i18n-77JJC1Jv.js",
+          "packages/core/dist/chunks/comvi-core-translate-D4sgneYZ.js",
+          "packages/core/dist/comvi-core-slim.js",
+          "packages/solid/dist/comvi-solid.js"
+        ]
+      },
+      "note": "GRADUATED in framework-slim P3. The D' endpoint: solid on a bare @comvi/core/slim host. S = fw-solid-root(9953) - 6978 = 2975 B >= the 2500 floor, so P3 proceeds (plan §4 Phase 3, same bar as Phase 2). Sentinels assert the root entry AND both tags chunks are absent from the module graph, not merely from the output text — reachable only because <T> now lives in dist/chunks/comvi-solid-T.js (fs-p1 blocker B1) and the index's `export { createI18n, I18n } from \"@comvi/core\"` (blocker B2) tree-shakes. Budget = measured + 2%."
     },
     {
       "name": "fw-solid-slim-t",
-      "entry": ["@comvi/solid", "@comvi/core/slim"],
+      "entry": [
+        "@comvi/solid",
+        "@comvi/core/slim"
+      ],
       "fixture": "framework/solid-slim-t.ts",
-      "external": ["solid-js", "solid-js/*"],
-      "pending": true,
-      "pendingReason": "graduates with fw-solid-slim in Phase 3"
+      "external": [
+        "solid-js",
+        "solid-js/*"
+      ],
+      "sentinelModules": [
+        "packages/core/dist/comvi-core.js"
+      ],
+      "expectSentinels": "absent",
+      "gzipBudgetBytes": 8960,
+      "baseline": {
+        "minBytes": 25030,
+        "gzipBytes": 8785,
+        "measuredAt": "2026-08-02"
+      },
+      "note": "GRADUATED in framework-slim P3: solid on bare slim that also renders <T>, i.e. the slim+tags rung. +1807 B over fw-solid-slim — <T> plus @comvi/core/tags, now that both are opt-in. The sentinel asserts only the ROOT entry's absence: the tags chunks are expected here, they are what the fixture buys. Budget = measured + 2%."
     },
     {
       "name": "fw-svelte-root",
-      "entry": ["@comvi/svelte", "@comvi/core"],
+      "entry": [
+        "@comvi/svelte",
+        "@comvi/core"
+      ],
       "fixture": "framework/svelte-root.ts",
-      "external": ["svelte", "svelte/*"],
-      "gzipBudgetBytes": 10206,
+      "external": [
+        "svelte",
+        "svelte/*"
+      ],
+      "gzipBudgetBytes": 10212,
       "baseline": {
-        "minBytes": 28443,
-        "gzipBytes": 10006,
+        "minBytes": 28496,
+        "gzipBytes": 10012,
         "measuredAt": "2026-08-02"
       },
-      "note": "P0.2 root baseline; the \"before\" anchor for S at the P3 svelte gate. dist/T.svelte is compiled by the size gate with the svelte compiler resolved from @comvi/svelte, the way a consumer's svelte plugin compiles it. Budget = measured + 2%."
+      "note": "Root baseline; the \"before\" anchor for S = minzip(fw-svelte-root) - minzip(fw-svelte-slim) at the P3 gate (both measured live at the same commit). dist/T.svelte is compiled by the size gate with the svelte compiler resolved from @comvi/svelte, the way a consumer's svelte plugin compiles it. Re-baselined in P3: 10006 -> 10012 B (+6 B of nameCache noise; svelte-package emits one dist module per source module, so the retarget moved no module boundaries). Budget = measured + 2%."
     },
     {
       "name": "fw-svelte-root-t",
-      "entry": ["@comvi/svelte", "@comvi/core"],
+      "entry": [
+        "@comvi/svelte",
+        "@comvi/core"
+      ],
       "fixture": "framework/svelte-root-t.ts",
-      "external": ["svelte", "svelte/*"],
-      "gzipBudgetBytes": 11617,
+      "external": [
+        "svelte",
+        "svelte/*"
+      ],
+      "gzipBudgetBytes": 11626,
       "baseline": {
-        "minBytes": 32215,
-        "gzipBytes": 11389,
+        "minBytes": 32269,
+        "gzipBytes": 11399,
         "measuredAt": "2026-08-02"
       },
-      "note": "P0.2 root baseline. <T> costs +1383 B here — T lives in its own module (dist/T.svelte), so it tree-shakes cleanly out of the no-<T> graph."
+      "note": "Root baseline with <T>. +1387 B over fw-svelte-root — T lives in its own module (dist/T.svelte), so it tree-shakes cleanly out of the no-<T> graph. Re-baselined in P3: 11389 -> 11399 B. Budget = measured + 2%."
     },
     {
       "name": "fw-svelte-slim",
-      "entry": ["@comvi/svelte", "@comvi/core/slim"],
+      "entry": [
+        "@comvi/svelte",
+        "@comvi/core/slim"
+      ],
       "fixture": "framework/svelte-slim.ts",
-      "external": ["svelte", "svelte/*"],
-      "pending": true,
-      "pendingReason": "Phase 3 retargets @comvi/svelte's value imports to @comvi/core/slim and relocates the eager capability .bind()s; until then the wrapper pins the root entry and crashes on a bare-slim host at bind time"
+      "external": [
+        "svelte",
+        "svelte/*"
+      ],
+      "sentinelModules": [
+        "packages/core/dist/comvi-core.js",
+        "packages/core/dist/comvi-core-tags.js",
+        "packages/core/dist/chunks/comvi-core-register-tags.js"
+      ],
+      "expectSentinels": "absent",
+      "gzipBudgetBytes": 7185,
+      "baseline": {
+        "minBytes": 19698,
+        "gzipBytes": 7045,
+        "measuredAt": "2026-08-02",
+        "modules": [
+          "packages/core/dist/chunks/comvi-core-format-BkC69UYF.js",
+          "packages/core/dist/chunks/comvi-core-i18n-77JJC1Jv.js",
+          "packages/core/dist/chunks/comvi-core-translate-D4sgneYZ.js",
+          "packages/core/dist/comvi-core-slim.js",
+          "packages/svelte/dist/context.js",
+          "packages/svelte/dist/index.js",
+          "packages/svelte/dist/stores.js",
+          "packages/svelte/dist/useI18n.js"
+        ]
+      },
+      "note": "GRADUATED in framework-slim P3. The D' endpoint: svelte on a bare @comvi/core/slim host — the configuration that CRASHED before this wave, because useI18n() eagerly .bind()-ed four absent capability members. S = fw-svelte-root(10012) - 7045 = 2967 B >= the 2500 floor, so P3 proceeds. Sentinels assert the root entry AND both tags chunks are absent from the module graph; svelte-package already emitted T.svelte as its own module, so no chunk split was needed here — only the retarget and the eager-bind relocation. Budget = measured + 2%."
     },
     {
       "name": "fw-svelte-slim-t",
-      "entry": ["@comvi/svelte", "@comvi/core/slim"],
+      "entry": [
+        "@comvi/svelte",
+        "@comvi/core/slim"
+      ],
       "fixture": "framework/svelte-slim-t.ts",
-      "external": ["svelte", "svelte/*"],
-      "pending": true,
-      "pendingReason": "graduates with fw-svelte-slim in Phase 3"
+      "external": [
+        "svelte",
+        "svelte/*"
+      ],
+      "sentinelModules": [
+        "packages/core/dist/comvi-core.js"
+      ],
+      "expectSentinels": "absent",
+      "gzipBudgetBytes": 9440,
+      "baseline": {
+        "minBytes": 25819,
+        "gzipBytes": 9255,
+        "measuredAt": "2026-08-02"
+      },
+      "note": "GRADUATED in framework-slim P3: svelte on bare slim that also renders <T>, i.e. the slim+tags rung. +2210 B over fw-svelte-slim — T.svelte's compiled output plus @comvi/core/tags. The sentinel asserts only the ROOT entry's absence: the tags chunks are expected here, they are what the fixture buys. Budget = measured + 2%."
     },
     {
       "name": "fw-vue-root",
-      "entry": ["@comvi/vue"],
+      "entry": [
+        "@comvi/vue"
+      ],
       "fixture": "framework/vue-root.ts",
-      "external": ["vue"],
+      "external": [
+        "vue"
+      ],
       "gzipBudgetBytes": 12174,
       "baseline": {
         "minBytes": 40049,
@@ -276,9 +431,13 @@
     },
     {
       "name": "fw-vue-root-t",
-      "entry": ["@comvi/vue"],
+      "entry": [
+        "@comvi/vue"
+      ],
       "fixture": "framework/vue-root-t.ts",
-      "external": ["vue"],
+      "external": [
+        "vue"
+      ],
       "gzipBudgetBytes": 12183,
       "baseline": {
         "minBytes": 40059,
@@ -289,25 +448,43 @@
     },
     {
       "name": "fw-vue-slim",
-      "entry": ["@comvi/vue", "@comvi/core/slim"],
+      "entry": [
+        "@comvi/vue",
+        "@comvi/core/slim"
+      ],
       "fixture": "framework/vue-slim.ts",
-      "external": ["vue"],
+      "external": [
+        "vue"
+      ],
       "pending": true,
       "pendingReason": "Phase 4 adds `createI18nFromCore` in a root-free module (this fixture imports it); until then @comvi/vue exports no root-free factory"
     },
     {
       "name": "fw-vue-slim-t",
-      "entry": ["@comvi/vue", "@comvi/core/slim"],
+      "entry": [
+        "@comvi/vue",
+        "@comvi/core/slim"
+      ],
       "fixture": "framework/vue-slim-t.ts",
-      "external": ["vue"],
+      "external": [
+        "vue"
+      ],
       "pending": true,
       "pendingReason": "graduates with fw-vue-slim in Phase 4"
     },
     {
       "name": "fw-next-root",
-      "entry": ["@comvi/next", "@comvi/next/server"],
+      "entry": [
+        "@comvi/next",
+        "@comvi/next/server"
+      ],
       "fixture": "framework/next-root.ts",
-      "external": ["next", "next/*", "react", "react/*"],
+      "external": [
+        "next",
+        "next/*",
+        "react",
+        "react/*"
+      ],
       "gzipBudgetBytes": 10141,
       "baseline": {
         "minBytes": 27644,
@@ -318,17 +495,34 @@
     },
     {
       "name": "fw-next-server-slim-loader",
-      "entry": ["@comvi/next/server", "@comvi/core/slim", "@comvi/core/loader"],
+      "entry": [
+        "@comvi/next/server",
+        "@comvi/core/slim",
+        "@comvi/core/loader"
+      ],
       "fixture": "framework/next-server-slim-loader.ts",
-      "external": ["next", "next/*", "react", "react/*"],
+      "external": [
+        "next",
+        "next/*",
+        "react",
+        "react/*"
+      ],
       "pending": true,
       "pendingReason": "Phase 5 adds packages/next/src/server/createNextI18nFromHost.ts, re-exported by server.ts (this fixture imports that companion factory)"
     },
     {
       "name": "fw-next-client-slim",
-      "entry": ["@comvi/next/client", "@comvi/core/slim"],
+      "entry": [
+        "@comvi/next/client",
+        "@comvi/core/slim"
+      ],
       "fixture": "framework/next-client-slim.ts",
-      "external": ["next", "next/*", "react", "react/*"],
+      "external": [
+        "next",
+        "next/*",
+        "react",
+        "react/*"
+      ],
       "pending": true,
       "pendingReason": "Phase 5 client recipe rides Phase 2's react retarget; until then @comvi/next/client pins the root entry through @comvi/react"
     },
@@ -340,7 +534,14 @@
         "@comvi/nuxt/runtime/server/utils/loadTranslations.js"
       ],
       "fixture": "framework/nuxt-root.ts",
-      "external": ["#app", "#build/*", "#imports", "vue", "vue-router", "h3"],
+      "external": [
+        "#app",
+        "#build/*",
+        "#imports",
+        "vue",
+        "vue-router",
+        "h3"
+      ],
       "gzipBudgetBytes": 13916,
       "baseline": {
         "minBytes": 44856,
@@ -359,15 +560,33 @@
         "@comvi/core/loader"
       ],
       "fixture": "framework/nuxt-server-slim-loader.ts",
-      "external": ["#app", "#build/*", "#imports", "vue", "vue-router", "h3"],
+      "external": [
+        "#app",
+        "#build/*",
+        "#imports",
+        "vue",
+        "vue-router",
+        "h3"
+      ],
       "pending": true,
       "pendingReason": "Phase 4 adds vue's `createI18nFromCore` plus the nuxt `hostModule` build-time template branch (this fixture imports the former and omits the root-importing runtime plugin, which the branch replaces)"
     },
     {
       "name": "fw-nuxt-client-slim",
-      "entry": ["@comvi/nuxt/runtime/composables/useI18n.js", "@comvi/vue", "@comvi/core/slim"],
+      "entry": [
+        "@comvi/nuxt/runtime/composables/useI18n.js",
+        "@comvi/vue",
+        "@comvi/core/slim"
+      ],
       "fixture": "framework/nuxt-client-slim.ts",
-      "external": ["#app", "#build/*", "#imports", "vue", "vue-router", "h3"],
+      "external": [
+        "#app",
+        "#build/*",
+        "#imports",
+        "vue",
+        "vue-router",
+        "h3"
+      ],
       "pending": true,
       "pendingReason": "graduates with fw-nuxt-server-slim-loader in Phase 4; budgeted from measured but not S-gated (plan P4 checkpoint)"
     }

@@ -7,9 +7,19 @@
 // The `bm-module-ids` plugin writes the module IDs of the emitted chunks to
 // `<out>.modules.json`; the runner asserts tag-registration membership on that
 // list (webpack's equivalent is `--json` stats `modules[].identifier`).
+//
+// `@sveltejs/vite-plugin-svelte` is the standard consumer configuration for a
+// svelte app and is REQUIRED here: rollup/rolldown must load and parse a
+// module before tree-shaking can drop it, and `@comvi/svelte` publishes
+// `dist/T.svelte` as source. It only transforms `.svelte` files, so the
+// non-svelte fixtures are unaffected. (Webpack's leg needs no equivalent — it
+// prunes the unused `T.svelte` re-export via `sideEffects: false` WITHOUT
+// resolving it, which makes that leg a strictly louder gate: if <T> ever
+// re-entered the graph, the webpack build would fail outright.)
 import fs from "node:fs";
 import path from "node:path";
 import { defineConfig } from "vite";
+import { svelte } from "@sveltejs/vite-plugin-svelte";
 
 export default defineConfig(({ mode }) => {
   const entry = process.env.BM_ENTRY;
@@ -25,6 +35,7 @@ export default defineConfig(({ mode }) => {
       __VUE_PROD_HYDRATION_MISMATCH_DETAILS__: "false",
     },
     plugins: [
+      svelte(),
       {
         name: "bm-module-ids",
         generateBundle(_options, bundle) {

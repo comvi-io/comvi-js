@@ -7,7 +7,7 @@ import {
   type ParentComponent,
   type Accessor,
 } from "solid-js";
-import type { I18n } from "@comvi/core";
+import type { WrapperI18nHost } from "@comvi/core";
 import {
   createLocaleSignal,
   createDefaultNamespaceSignal,
@@ -17,9 +17,16 @@ import {
   createCacheRevisionSignal,
 } from "./primitives";
 
+/**
+ * Host type every solid binding demands (framework-slim D′): the reactive
+ * translation host, exactly what a bare `@comvi/core/slim` instance
+ * implements. Loader/plugin-host capabilities are acquired separately through
+ * `useI18nLoader()` / `useI18nPlugins()` (plan §3.2), so the Provider accepts
+ * a host that never had them.
+ */
 export interface I18nContextValue {
   /** The i18n instance */
-  i18n: I18n;
+  i18n: WrapperI18nHost;
   /** Shared reactive signals bound to the Provider's lifecycle */
   signals: {
     locale: Accessor<string>;
@@ -35,7 +42,7 @@ const I18nContext = createContext<I18nContextValue>();
 
 export interface I18nProviderProps {
   /** The i18n instance */
-  i18n: I18n;
+  i18n: WrapperI18nHost;
   /** Whether to auto-initialize Comvi i18n on mount (default: true) */
   autoInit?: boolean;
   /**
@@ -155,6 +162,6 @@ export function useI18nContextValue(): I18nContextValue {
  * @returns The i18n instance
  * @throws Error if called outside of I18nProvider
  */
-export function useI18nContext(): I18n {
+export function useI18nContext(): WrapperI18nHost {
   return useI18nContextValue().i18n;
 }

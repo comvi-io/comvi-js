@@ -1,5 +1,14 @@
 import { setContext, getContext } from "svelte";
-import type { I18n } from "@comvi/core";
+import type { WrapperI18nHost } from "@comvi/core";
+
+/**
+ * Host type every svelte binding demands (framework-slim D′): the reactive
+ * translation host, exactly what a bare `@comvi/core/slim` instance
+ * implements. Loader/plugin-host capabilities are acquired separately through
+ * `useI18nLoader()` / `useI18nPlugins()` (plan §3.2), so the context accepts a
+ * host that never had them.
+ */
+type Host = WrapperI18nHost;
 
 const I18N_CONTEXT_KEY = Symbol.for("comvi-i18n");
 
@@ -43,7 +52,7 @@ export interface SetI18nContextOptions {
  * <slot />
  * ```
  */
-export function setI18nContext(i18n: I18n, options?: SetI18nContextOptions): void {
+export function setI18nContext(i18n: Host, options?: SetI18nContextOptions): void {
   setContext(I18N_CONTEXT_KEY, i18n);
 
   if ((options?.autoInit ?? true) && !i18n.isInitialized && !i18n.isInitializing) {
@@ -62,8 +71,8 @@ export function setI18nContext(i18n: I18n, options?: SetI18nContextOptions): voi
  * @returns The i18n instance
  * @throws Error if called outside of i18n context
  */
-export function getI18nContext(): I18n {
-  const i18n = getContext<I18n>(I18N_CONTEXT_KEY);
+export function getI18nContext(): Host {
+  const i18n = getContext<Host>(I18N_CONTEXT_KEY);
 
   if (!i18n) {
     throw new Error(

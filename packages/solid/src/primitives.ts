@@ -1,6 +1,6 @@
 import { from, type Accessor } from "solid-js";
-import { subscribeToRevision } from "@comvi/core";
-import type { I18n } from "@comvi/core";
+import { subscribeToRevision } from "@comvi/core/slim";
+import type { WrapperI18nHost } from "@comvi/core";
 
 // CSR-only: provider auto-init does not run during SSR. Producers call set() synchronously so the first read is always defined.
 
@@ -9,7 +9,7 @@ import type { I18n } from "@comvi/core";
  * Updates automatically when locale changes
  * MUST be called within a reactive context (component or effect)
  */
-export function createLocaleSignal(i18n: I18n): Accessor<string> {
+export function createLocaleSignal(i18n: WrapperI18nHost): Accessor<string> {
   const signal = from<string>((set) => {
     set(i18n.locale);
     return i18n.on("localeChanged", ({ to }) => set(to));
@@ -22,7 +22,7 @@ export function createLocaleSignal(i18n: I18n): Accessor<string> {
  * Updates automatically when default namespace changes
  * MUST be called within a reactive context (component or effect)
  */
-export function createDefaultNamespaceSignal(i18n: I18n): Accessor<string> {
+export function createDefaultNamespaceSignal(i18n: WrapperI18nHost): Accessor<string> {
   const signal = from<string>((set) => {
     set(i18n.getDefaultNamespace());
     return i18n.on("defaultNamespaceChanged", ({ to }) => set(to));
@@ -35,7 +35,7 @@ export function createDefaultNamespaceSignal(i18n: I18n): Accessor<string> {
  * Updates when translations are being loaded
  * MUST be called within a reactive context (component or effect)
  */
-export function createLoadingSignal(i18n: I18n): Accessor<boolean> {
+export function createLoadingSignal(i18n: WrapperI18nHost): Accessor<boolean> {
   const signal = from<boolean>((set) => {
     set(i18n.isLoading);
     return i18n.on("loadingStateChanged", ({ isLoading }) => set(isLoading));
@@ -48,7 +48,7 @@ export function createLoadingSignal(i18n: I18n): Accessor<boolean> {
  * Updates during initialization
  * MUST be called within a reactive context (component or effect)
  */
-export function createInitializingSignal(i18n: I18n): Accessor<boolean> {
+export function createInitializingSignal(i18n: WrapperI18nHost): Accessor<boolean> {
   const signal = from<boolean>((set) => {
     set(i18n.isInitializing);
     return i18n.on("loadingStateChanged", ({ isInitializing }) => set(isInitializing));
@@ -61,7 +61,7 @@ export function createInitializingSignal(i18n: I18n): Accessor<boolean> {
  * Updates during initialization
  * MUST be called within a reactive context (component or effect)
  */
-export function createInitializedSignal(i18n: I18n): Accessor<boolean> {
+export function createInitializedSignal(i18n: WrapperI18nHost): Accessor<boolean> {
   const signal = from<boolean>((set) => {
     const syncInitializedState = () => set(i18n.isInitialized);
     syncInitializedState();
@@ -82,7 +82,7 @@ export function createInitializedSignal(i18n: I18n): Accessor<boolean> {
  * Uses revision counter for efficient O(1) change detection
  * MUST be called within a reactive context (component or effect)
  */
-export function createCacheRevisionSignal(i18n: I18n): Accessor<number> {
+export function createCacheRevisionSignal(i18n: WrapperI18nHost): Accessor<number> {
   const signal = from<number>((set) => {
     // Single monotonic counter — avoids the old cacheRev+configRev sum collision (dropped re-render).
     // Consumes core's canonical revision event set (subscribeToRevision) but skips the

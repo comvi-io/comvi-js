@@ -17,6 +17,7 @@ import { readFileSync } from "node:fs";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { mount, unmount } from "svelte";
 import { createI18n } from "@comvi/core";
+import { createI18n as createSlimI18n } from "@comvi/core/slim";
 import TInterpolationWrapper from "./TInterpolationWrapper.test.svelte";
 import TFallbackWrapper from "./TFallback.test.svelte";
 import StructuralBadge from "./StructuralBadge.test.svelte";
@@ -138,7 +139,9 @@ describe("T.svelte structural render", () => {
         props: {
           i18n,
           i18nKey: "earned",
-          components: { badge: { tag: StructuralBadge, props: { variant: "hot" } } } as ComponentMap,
+          components: {
+            badge: { tag: StructuralBadge, props: { variant: "hot" } },
+          } as ComponentMap,
         },
       });
 
@@ -165,6 +168,34 @@ describe("T.svelte structural render", () => {
     for (const parityCase of WRAPPER_PARITY_FIXTURE.cases) {
       it(`produces the shared text for "${parityCase.key}"`, () => {
         const i18n = makeI18n({ ...WRAPPER_PARITY_FIXTURE.translations });
+
+        component = mount(TInterpolationWrapper, {
+          target,
+          props: {
+            i18n,
+            i18nKey: parityCase.key,
+            params: { ...parityCase.params },
+            components: { ...parityCase.components } as ComponentMap,
+          },
+        });
+
+        expect(target.textContent).toBe(parityCase.text);
+      });
+    }
+  });
+
+  // framework-slim P3: the same table on a BARE @comvi/core/slim host. <T>
+  // does not depend on ambient tag registration — prepareTranslation passes
+  // the tag extension per call (T.svelte:2-5) — so every row must produce
+  // byte-identical text on a host that has no tag syntax of its own.
+  describe("fallback-parity fixture on a bare-slim host", () => {
+    for (const parityCase of WRAPPER_PARITY_FIXTURE.cases) {
+      it(`produces the shared text for "${parityCase.key}"`, () => {
+        const i18n = createSlimI18n({
+          locale: "en",
+          exposeGlobal: false,
+          translation: { en: { ...WRAPPER_PARITY_FIXTURE.translations } },
+        });
 
         component = mount(TInterpolationWrapper, {
           target,

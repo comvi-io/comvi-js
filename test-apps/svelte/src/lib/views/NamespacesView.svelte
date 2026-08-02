@@ -1,7 +1,8 @@
 <script lang="ts">
-  import { useI18n } from '@comvi/svelte';
+  import { useI18n, useI18nLoader } from '@comvi/svelte';
 
-  const { t, addActiveNamespace, isLoading } = useI18n();
+  const { t, isLoading } = useI18n();
+  const { addActiveNamespace } = useI18nLoader();
 
   let isAdminLoaded = false;
 

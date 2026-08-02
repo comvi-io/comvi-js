@@ -6,8 +6,8 @@
   import type { PendingHandler } from '@comvi/core/tags';
   import type { Component } from 'svelte';
   import type { VirtualNode } from '@comvi/core';
-  import { getI18nContext } from './context';
-  import { createLocaleStore, createCacheRevisionStore } from './stores';
+  import { getI18nContext } from './context.js';
+  import { createLocaleStore, createCacheRevisionStore } from './stores.js';
   import type { TProps } from './types';
 
   let {

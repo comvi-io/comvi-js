@@ -67,14 +67,12 @@ const CASES = [
     sentinels: "absent",
     packages: ["@comvi/core", "@comvi/solid"],
     deps: ["solid-js"],
-    pending: "Phase 3 retargets @comvi/solid's value imports to @comvi/core/slim",
   },
   {
     name: "svelte-on-slim",
     sentinels: "absent",
     packages: ["@comvi/core", "@comvi/svelte"],
     deps: ["svelte"],
-    pending: "Phase 3 retargets @comvi/svelte's value imports to @comvi/core/slim",
   },
   {
     name: "vue-on-slim",

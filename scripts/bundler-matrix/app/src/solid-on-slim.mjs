@@ -1,15 +1,17 @@
-// framework-slim gate (plan P0.5): a solid app on a BARE SLIM host.
+// framework-slim gate (plan P0.5, ACTIVATED in P3): a solid app on a BARE
+// SLIM host.
 //
-// PENDING until Phase 3 retargets @comvi/solid's value imports to
-// `@comvi/core/slim`. Until then the wrapper keeps the root entry — and its
-// side-effectful register-tags chunk — alive, so the runner's sentinel
-// assertion (tag modules ABSENT from the bundler's module graph) cannot pass.
-//
-// <T> rendering needs a renderer and is NOT exercised here. What this fixture
-// pins at runtime: the bare-slim host lacks the capability members, and tag
-// markup stays literal without a /tags import.
+// <T> rendering itself needs a DOM/renderer and is NOT exercised here (same
+// documented skip as wrappers.mjs). What this fixture pins at runtime:
+//   - the bare-slim host really lacks the loader/plugin capability members,
+//     so a wrapper that eagerly binds them would crash here;
+//   - the D′ acquisition hooks are exported alongside `useI18n`;
+//   - without a /tags import, tag markup stays literal text.
+// The runner additionally asserts core's tag-registration chunks are ABSENT
+// from the bundler's module graph — only reachable because <T> now lives in
+// its own dist chunk (fs-p1 blocker B1).
 import { createI18n } from "@comvi/core/slim";
-import { I18nProvider, useI18n } from "@comvi/solid";
+import { I18nProvider, useI18n, useI18nLoader, useI18nPlugins } from "@comvi/solid";
 
 function assert(condition, label) {
   if (!condition) {
@@ -30,6 +32,8 @@ function assertEqual(actual, expected, label) {
 const isComponent = (c) => typeof c === "function" || (typeof c === "object" && c !== null);
 assert(typeof useI18n === "function", "@comvi/solid exports useI18n");
 assert(isComponent(I18nProvider), "@comvi/solid exports I18nProvider");
+assert(typeof useI18nLoader === "function", "@comvi/solid exports useI18nLoader");
+assert(typeof useI18nPlugins === "function", "@comvi/solid exports useI18nPlugins");
 
 const i18n = createI18n({
   locale: "en",

@@ -6,10 +6,10 @@ import {
   formatRelativeTime,
   getTextDirection,
   translationResultToString,
-} from "@comvi/core";
+} from "@comvi/core/slim";
 import { useI18nContextValue } from "./context";
 import type {
-  I18n,
+  WrapperI18nHost,
   TranslationParams,
   TranslationResult,
   TranslationKeys,
@@ -21,6 +21,14 @@ import type {
   DefaultTranslationParams,
   DefaultParamsSnapshot,
 } from "@comvi/core";
+
+/**
+ * Host type every solid binding demands (framework-slim D′): the reactive
+ * translation host, exactly what a bare `@comvi/core/slim` instance
+ * implements. The loader/plugin-host members are deliberately NOT part of it —
+ * they are acquired through `useI18nLoader()` / `useI18nPlugins()`.
+ */
+type Host<D extends DefaultTranslationParams = {}> = WrapperI18nHost<D>;
 
 type BoundDefaultNamespaceParams<
   NS extends string,
@@ -57,6 +65,13 @@ type UseI18nRawTranslation<
   D extends DefaultTranslationParams,
 > = TranslateFn<D, TranslationResult> & BoundNamespaceShorthand<DefaultNS, D, TranslationResult>;
 
+/**
+ * The host-only translation surface. The four capability members that used to
+ * live here — `addActiveNamespace`, `reloadTranslations`, `onLoadError`
+ * (loader) and `onMissingKey` (plugins) — moved to `useI18nLoader()` /
+ * `useI18nPlugins()` in 0.5.0: they do not exist on a bare-slim host, so a
+ * type that promised them was lying (plan §2.4).
+ */
 export interface UseI18nReturn<
   DefaultNS extends string | undefined = undefined,
   D extends DefaultTranslationParams = {},
@@ -104,50 +119,38 @@ export interface UseI18nReturn<
   // ===== Critical Methods =====
 
   /** Change the current locale and wait for translations to load */
-  setLocale: I18n["setLocaleAsync"];
+  setLocale: Host["setLocaleAsync"];
 
   /** Add translations programmatically at runtime */
-  addTranslations: I18n["addTranslations"];
-
-  /** Load a new namespace dynamically */
-  addActiveNamespace: I18n["addActiveNamespace"];
+  addTranslations: Host["addTranslations"];
 
   // ===== Advanced Methods =====
 
   /** Configure fallback locale chain */
-  setFallbackLocale: I18n["setFallbackLocale"];
+  setFallbackLocale: Host["setFallbackLocale"];
 
   /** Replace instance-level interpolation defaults. */
-  setDefaultParams: I18n<D>["setDefaultParams"];
-
-  /** Register callback for missing keys */
-  onMissingKey: I18n["onMissingKey"];
-
-  /** Register callback for load errors */
-  onLoadError: I18n["onLoadError"];
+  setDefaultParams: Host<D>["setDefaultParams"];
 
   /** Clear translations from cache */
-  clearTranslations: I18n["clearTranslations"];
-
-  /** Force reload translations from loader */
-  reloadTranslations: I18n["reloadTranslations"];
+  clearTranslations: Host["clearTranslations"];
 
   // ===== Informational Methods =====
 
   /** Check if a locale is loaded for a namespace */
-  hasLocale: I18n["hasLocale"];
+  hasLocale: Host["hasLocale"];
 
   /** Check if a translation exists */
-  hasTranslation: I18n["hasTranslation"];
+  hasTranslation: Host["hasTranslation"];
 
   /** Get list of all loaded locales */
   getLoadedLocales: () => string[];
 
   /** Get list of active namespaces */
-  getActiveNamespaces: I18n["getActiveNamespaces"];
+  getActiveNamespaces: Host["getActiveNamespaces"];
 
   /** Get default namespace */
-  getDefaultNamespace: I18n["getDefaultNamespace"];
+  getDefaultNamespace: Host["getDefaultNamespace"];
 
   /** Get direct access to translation cache */
   getTranslationCache: () => ReadonlyMap<string, FlattenedTranslations>;
@@ -158,10 +161,10 @@ export interface UseI18nReturn<
    * Subscribe to i18n events
    * Provides direct access to core event system for advanced use cases
    */
-  on: I18n["on"];
+  on: Host["on"];
 
   /** Report an error to the configured onError handler */
-  reportError: I18n["reportError"];
+  reportError: Host["reportError"];
 
   // ===== Formatting =====
 
@@ -325,15 +328,19 @@ export function useI18n<
 
     // Bind all methods dynamically so they always use the current i18n instance.
     // Functions are returned directly to support destructuring safely.
+    //
+    // `addActiveNamespace`, `reloadTranslations`, `onLoadError` and
+    // `onMissingKey` are NOT here: they belong to the `@comvi/core/loader` /
+    // `@comvi/core/plugins` capabilities, which a bare-slim host does not
+    // have. A closure over an absent member is a silent `undefined is not a
+    // function` at CALL time — exactly the failure class §2.4 bans. They are
+    // acquired through `useI18nLoader()` / `useI18nPlugins()` instead, which
+    // throw one loud, named error at the acquisition point.
     setLocale: (...args) => ctx.i18n.setLocaleAsync(...args),
     addTranslations: (...args) => ctx.i18n.addTranslations(...args),
-    addActiveNamespace: (...args) => ctx.i18n.addActiveNamespace(...args),
     setFallbackLocale: (...args) => ctx.i18n.setFallbackLocale(...args),
     setDefaultParams: (params) => ctx.i18n.setDefaultParams(params as never),
-    onMissingKey: (...args) => ctx.i18n.onMissingKey(...args),
-    onLoadError: (...args) => ctx.i18n.onLoadError(...args),
     clearTranslations: (...args) => ctx.i18n.clearTranslations(...args),
-    reloadTranslations: (...args) => ctx.i18n.reloadTranslations(...args),
     hasLocale: (...args) => ctx.i18n.hasLocale(...args),
     hasTranslation: (...args) => ctx.i18n.hasTranslation(...args),
     getLoadedLocales: () => ctx.i18n.getLoadedLocales(),
