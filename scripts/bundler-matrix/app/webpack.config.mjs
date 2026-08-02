@@ -3,6 +3,11 @@
 // default resolve conditions and sideEffects handling — the point of the gate
 // is to observe stock consumer behavior, so nothing resolution-related is
 // overridden here.
+//
+// The runner always builds with `--json <out>.stats.json` and reads
+// `modules[].identifier` from it (the tag-sentinel module-graph assertion), so
+// the stats preset must emit modules — including the ones
+// ModuleConcatenationPlugin nests in production.
 import path from "node:path";
 import { createRequire } from "node:module";
 
@@ -33,6 +38,12 @@ export default (env, argv) => {
         __VUE_PROD_HYDRATION_MISMATCH_DETAILS__: "false",
       }),
     ],
-    stats: "errors-warnings",
+    stats: {
+      preset: "errors-warnings",
+      modules: true,
+      nestedModules: true,
+      modulesSpace: Infinity,
+      ids: true,
+    },
   };
 };

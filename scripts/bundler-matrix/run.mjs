@@ -8,19 +8,24 @@ import { execFileSync, spawnSync } from "node:child_process";
  * Pack-based bundler-matrix gate (weight-refactor plan, Phase 1 acceptance,
  * amendment 6 + R2).
  *
- * 1. `pnpm pack` @comvi/core, @comvi/react, @comvi/vue into a temp dir, so
- *    every assertion runs against the artifacts users actually receive
- *    (exports map, sideEffects array, dist files — post workspace-protocol
- *    rewrite).
+ * 1. `pnpm pack` every workspace package the ACTIVE cases need into a temp
+ *    dir, so every assertion runs against the artifacts users actually
+ *    receive (exports map, sideEffects array, dist files — post
+ *    workspace-protocol rewrite).
  * 2. R2: assert every entry of core's `sideEffects` array names a file that
  *    actually exists in the packed tarball (deterministic register-tags chunk
  *    name — fails when rolldown renames the chunk on upgrade).
  * 3. Install the tarballs into the standalone consumer app in ./app (npm, not
- *    pnpm — deliberately outside the workspace), bundle each fixture with
+ *    pnpm — deliberately outside the workspace), bundle each case with
  *    webpack AND vite under development AND production modes, run every
  *    bundle in plain node, and assert both tag-activation channels:
  *    ambient (root entry + /tags import side effect) and per-call
  *    (tagInterpolation.extensions). See app/src/*.mjs for the assertions.
+ * 4. framework-slim P0.5: assert per case whether the tag-registration
+ *    modules are in the bundler's MODULE GRAPH (webpack `--json` stats
+ *    `modules[].identifier`; vite via the `bm-module-ids` config plugin) —
+ *    module IDs, never output-text substrings. The `*-on-slim` cases that
+ *    assert their absence are declared and skipped until their phase lands.
  *
  * Wrapper <T> rendering is NOT exercised (needs a DOM/renderer); wrapper
  * tarballs are still packed, installed, and bundled (app/src/wrappers.mjs).
@@ -30,7 +35,58 @@ const SCRIPT_DIR = path.dirname(url.fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(SCRIPT_DIR, "..", "..");
 const APP_DIR = path.join(SCRIPT_DIR, "app");
 const OUT_DIR = path.join(APP_DIR, "out");
-const FIXTURES = ["ambient", "per-call", "wrappers", "slim-composition"];
+/**
+ * Matrix cases. `sentinels` says what the bundler's module graph must look
+ * like for core's tag-registration chunks (the `sideEffects` set):
+ *   "present" — the app opted into tags (root entry or an explicit /tags
+ *               import), so the registration chunk must survive;
+ *   "absent"  — the app is on bare slim without tags, so nothing may pull it.
+ * `packages` are the workspace tarballs the case needs, `deps` the framework
+ * peer deps its bundle imports. Pending cases are declared but not run: they
+ * assert an absence that today's wrappers cannot deliver (they value-import
+ * the root entry), and the phase named in `pending` graduates them.
+ */
+const CASES = [
+  { name: "ambient", sentinels: "present", packages: ["@comvi/core"] },
+  { name: "per-call", sentinels: "present", packages: ["@comvi/core"] },
+  {
+    name: "wrappers",
+    sentinels: "present",
+    packages: ["@comvi/core", "@comvi/react", "@comvi/vue"],
+    deps: ["react", "vue"],
+  },
+  { name: "slim-composition", sentinels: "absent", packages: ["@comvi/core"] },
+  {
+    name: "react-on-slim",
+    sentinels: "absent",
+    packages: ["@comvi/core", "@comvi/react"],
+    deps: ["react"],
+    pending: "Phase 2 retargets @comvi/react's value imports to @comvi/core/slim",
+  },
+  {
+    name: "solid-on-slim",
+    sentinels: "absent",
+    packages: ["@comvi/core", "@comvi/solid"],
+    deps: ["solid-js"],
+    pending: "Phase 3 retargets @comvi/solid's value imports to @comvi/core/slim",
+  },
+  {
+    name: "svelte-on-slim",
+    sentinels: "absent",
+    packages: ["@comvi/core", "@comvi/svelte"],
+    deps: ["svelte"],
+    pending: "Phase 3 retargets @comvi/svelte's value imports to @comvi/core/slim",
+  },
+  {
+    name: "vue-on-slim",
+    sentinels: "absent",
+    packages: ["@comvi/core", "@comvi/vue"],
+    deps: ["vue"],
+    pending: "Phase 4 adds vue's root-free createI18nFromCore",
+  },
+];
+const ACTIVE_CASES = CASES.filter((testCase) => testCase.pending === undefined);
+const PENDING_CASES = CASES.filter((testCase) => testCase.pending !== undefined);
 const MODES = ["development", "production"];
 const BUNDLERS = ["webpack", "vite"];
 
@@ -38,11 +94,17 @@ const BUNDLERS = ["webpack", "vite"];
  *  resolved the "development" export condition. */
 const DEV_MARKER = "[i18n] Missing parameter";
 
-const PACKAGES = [
+const ALL_PACKAGES = [
   { name: "@comvi/core", dir: "packages/core", distProbe: "dist/comvi-core.js" },
   { name: "@comvi/react", dir: "packages/react", distProbe: "dist/comvi-react.js" },
+  { name: "@comvi/solid", dir: "packages/solid", distProbe: "dist/comvi-solid.js" },
+  { name: "@comvi/svelte", dir: "packages/svelte", distProbe: "dist/index.js" },
   { name: "@comvi/vue", dir: "packages/vue", distProbe: "dist/comvi-vue.js" },
 ];
+
+/** Only the tarballs the ACTIVE cases need are built, packed and installed. */
+const required = new Set(ACTIVE_CASES.flatMap((testCase) => testCase.packages));
+const PACKAGES = ALL_PACKAGES.filter((pkg) => required.has(pkg.name));
 
 function run(cmd, args, opts = {}) {
   return execFileSync(cmd, args, { stdio: "inherit", ...opts });
@@ -61,7 +123,7 @@ for (const pkg of PACKAGES) {
   if (!fs.existsSync(probe)) {
     fail(
       `${pkg.name} has no build output (${pkg.dir}/${pkg.distProbe} missing).\n` +
-        `Run: pnpm exec turbo run build --filter @comvi/core --filter @comvi/react --filter @comvi/vue`,
+        `Run: pnpm exec turbo run build ${PACKAGES.map((p) => `--filter ${p.name}`).join(" ")}`,
     );
   }
 }
@@ -123,6 +185,17 @@ if (missing.length > 0) {
 }
 console.log(`sideEffects OK (${sideEffects.length} entries all present in the tarball)`);
 
+/**
+ * Sentinel module IDs for the tag-registration graph, derived from the packed
+ * `sideEffects` array itself (never a hand-copied list): a case's assertion is
+ * "does the bundler's module graph contain one of these files", matched
+ * against bundler-reported module identifiers — never against output text.
+ */
+const SENTINEL_FRAGMENTS = sideEffects.map((entry) =>
+  `@comvi/core/${entry.replace(/^\.\//, "")}`.split("/").join(path.sep),
+);
+console.log(`tag sentinels: ${SENTINEL_FRAGMENTS.length} module IDs derived from sideEffects`);
+
 // ---------------------------------------------------------------------------
 // 3. Install bundlers + tarballs into the standalone app (npm, no workspace).
 // ---------------------------------------------------------------------------
@@ -130,6 +203,18 @@ console.log("\n=== Installing fixture app dependencies (npm)");
 const npmFlags = ["--no-audit", "--no-fund", "--no-package-lock"];
 run("npm", ["install", ...npmFlags], { cwd: APP_DIR });
 run("npm", ["install", "--no-save", ...npmFlags, ...Object.values(tarballs)], { cwd: APP_DIR });
+
+const appPkgJson = JSON.parse(fs.readFileSync(path.join(APP_DIR, "package.json"), "utf8"));
+const appDeps = { ...appPkgJson.dependencies, ...appPkgJson.devDependencies };
+const missingDeps = [...new Set(ACTIVE_CASES.flatMap((testCase) => testCase.deps ?? []))].filter(
+  (dep) => appDeps[dep] === undefined,
+);
+if (missingDeps.length > 0) {
+  fail(
+    `active cases need framework peer deps missing from app/package.json: ${missingDeps.join(", ")}\n` +
+      `Add them there (a graduating *-on-slim case brings its own dep).`,
+  );
+}
 
 const installedCore = path.join(APP_DIR, "node_modules", "@comvi", "core");
 if (!fs.existsSync(path.join(installedCore, "dist", "comvi-core.js"))) {
@@ -148,6 +233,33 @@ fs.mkdirSync(OUT_DIR, { recursive: true });
 const childEnv = { ...process.env };
 delete childEnv.NODE_ENV; // --mode must be the only thing driving conditions
 
+/**
+ * Module IDs the bundler reported for the last build:
+ * - webpack: `--json` stats, `modules[].identifier` (recursing into the
+ *   sub-modules ModuleConcatenationPlugin folds together in production);
+ * - vite: the rollup/rolldown `chunk.modules` keys the config plugin writes
+ *   next to the bundle as `<out>.modules.json`.
+ */
+function readModuleIds(bundler, outFile) {
+  if (bundler === "vite") {
+    const file = `${outFile}.modules.json`;
+    if (!fs.existsSync(file)) fail(`vite produced no module list for ${path.basename(outFile)}`);
+    return JSON.parse(fs.readFileSync(file, "utf8"));
+  }
+  const statsFile = `${outFile}.stats.json`;
+  if (!fs.existsSync(statsFile)) fail(`webpack produced no stats for ${path.basename(outFile)}`);
+  const stats = JSON.parse(fs.readFileSync(statsFile, "utf8"));
+  const ids = [];
+  const collect = (modules) => {
+    for (const module of modules ?? []) {
+      if (typeof module.identifier === "string") ids.push(module.identifier);
+      collect(module.modules);
+    }
+  };
+  collect(stats.modules);
+  return ids;
+}
+
 function bundle(bundler, mode, fixture) {
   const entry = path.join(APP_DIR, "src", `${fixture}.mjs`);
   const outFile = path.join(
@@ -157,7 +269,7 @@ function bundle(bundler, mode, fixture) {
   const bin = path.join(APP_DIR, "node_modules", ".bin", bundler);
   const args =
     bundler === "webpack"
-      ? ["--config", "webpack.config.mjs", "--mode", mode]
+      ? ["--config", "webpack.config.mjs", "--mode", mode, "--json", `${outFile}.stats.json`]
       : ["build", "--config", "vite.config.mjs", "--mode", mode];
   const env = { ...childEnv, BM_ENTRY: entry, BM_OUT: outFile };
   if (bundler === "vite") {
@@ -175,16 +287,17 @@ function bundle(bundler, mode, fixture) {
     fail(`${bundler} (${mode}) failed to bundle ${fixture}`);
   }
   if (!fs.existsSync(outFile)) fail(`${bundler} (${mode}) produced no output for ${fixture}`);
-  return outFile;
+  return { outFile, moduleIds: readModuleIds(bundler, outFile) };
 }
 
 const failures = [];
 const results = [];
 for (const bundler of BUNDLERS) {
   for (const mode of MODES) {
-    for (const fixture of FIXTURES) {
+    for (const testCase of ACTIVE_CASES) {
+      const fixture = testCase.name;
       const label = `${bundler} × ${mode} × ${fixture}`;
-      const outFile = bundle(bundler, mode, fixture);
+      const { outFile, moduleIds } = bundle(bundler, mode, fixture);
 
       // Export-condition check: dev builds must contain the dev-only core
       // chunk marker, prod builds must not.
@@ -197,23 +310,44 @@ for (const bundler of BUNDLERS) {
         failures.push(`${label}: production bundle contains the development build of core`);
       }
 
+      // Module-graph check: tag registration is pulled in exactly when the
+      // app asked for tags. Module IDs, never output-text substrings.
+      const found = moduleIds.filter((id) =>
+        SENTINEL_FRAGMENTS.some((fragment) => id.includes(fragment)),
+      );
+      const sentinelsOk = testCase.sentinels === "present" ? found.length > 0 : found.length === 0;
+      if (!sentinelsOk) {
+        failures.push(
+          `${label}: tag sentinel modules expected ${testCase.sentinels}, found ${
+            found.length > 0 ? found.join(", ") : "none"
+          }`,
+        );
+      }
+
       // Behavioral check: run the bundle in plain node.
       const exec = spawnSync(process.execPath, [outFile], { encoding: "utf8" });
-      const ok = exec.status === 0 && exec.stdout.includes(`BUNDLER_MATRIX_OK ${fixture}`);
-      if (!ok) {
+      const ran = exec.status === 0 && exec.stdout.includes(`BUNDLER_MATRIX_OK ${fixture}`);
+      if (!ran) {
         failures.push(
           `${label}: bundle execution failed (exit ${exec.status})\n${exec.stdout}${exec.stderr}`,
         );
       }
+      const ok = ran && sentinelsOk;
       results.push(`${ok ? "PASS" : "FAIL"}  ${label}`);
-      console.log(`${ok ? "PASS" : "FAIL"}  ${label}`);
+      console.log(`${ok ? "PASS" : "FAIL"}  ${label} [tags ${testCase.sentinels}]`);
     }
   }
 }
 
+for (const testCase of PENDING_CASES) {
+  console.log(`SKIP  ${testCase.name} — pending: ${testCase.pending}`);
+}
+
 fs.rmSync(packDir, { recursive: true, force: true });
 
-console.log(`\n=== Bundler matrix summary (${results.length} combinations)`);
+console.log(
+  `\n=== Bundler matrix summary (${results.length} combinations, ${PENDING_CASES.length} pending case(s) skipped)`,
+);
 if (failures.length > 0) {
   console.error(failures.map((f) => `FAIL ${f}`).join("\n\n"));
   process.exit(1);

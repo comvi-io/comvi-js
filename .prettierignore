@@ -12,3 +12,4 @@ test-results
 packages/benchmark/results
 pnpm-lock.yaml
 .omx
+scripts/bundler-matrix/app/out

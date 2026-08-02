@@ -14,9 +14,13 @@ import { createRequire } from "node:module";
  * Fixture entries are resolved through the PUBLISHED `exports` map of the
  * target package (never through dist/ paths or the legacy `module`/`main`
  * fields), so the gate fails when the exports/conditions matrix is broken for
- * real consumers. Budget entries marked `pending: true` cover subpaths that a
- * later phase introduces; they are skipped with a notice while their entry
- * specifier does not resolve yet.
+ * real consumers. Budget entries marked `pending: true` are declared slots a
+ * later phase graduates: they are skipped with the notice in `pendingReason`
+ * and gate nothing until the flag is dropped.
+ *
+ * A fixture may also declare `sentinelModules` + `expectSentinels`: the gate
+ * then asserts module-graph membership from the esbuild metafile (module IDs,
+ * never output-text substrings) — the framework-slim tags-pinning probe.
  */
 
 const SCRIPT_DIR = path.dirname(url.fileURLToPath(import.meta.url));
@@ -26,9 +30,27 @@ const requireFromRoot = createRequire(path.join(REPO_ROOT, "package.json"));
 /** Conditions a production bundler applies. Deliberately excludes "development" and "types". */
 export const PRODUCTION_CONDITIONS = ["production", "import", "module", "browser"];
 
-export const DEFAULT_PACKAGE_ROOTS = {
-  "@comvi/core": path.join(REPO_ROOT, "packages", "core"),
-};
+/**
+ * Workspace packages whose imports the fixtures resolve through the PUBLISHED
+ * exports map. Framework wrappers are here because the framework-slim
+ * fixtures (scripts/size-fixtures/framework/) measure wrapper-on-core graphs;
+ * locale-routing and plugin-fetch-loader are transitive @comvi/next graph
+ * members. Framework peer deps (react, vue, solid-js, svelte, next, nuxt)
+ * are NOT here — fixtures mark them external, so only the comvi graph counts.
+ */
+export const DEFAULT_PACKAGE_ROOTS = Object.fromEntries(
+  [
+    "core",
+    "react",
+    "solid",
+    "svelte",
+    "vue",
+    "next",
+    "nuxt",
+    "locale-routing",
+    "plugin-fetch-loader",
+  ].map((dir) => [`@comvi/${dir}`, path.join(REPO_ROOT, "packages", dir)]),
+);
 
 function escapeRegExp(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -66,6 +88,33 @@ function resolveExportTarget(target, conditions) {
 }
 
 /**
+ * Node subpath-pattern lookup ("./runtime/*": "./dist/runtime/*"). Returns the
+ * matching target plus the substring captured by `*`, longest prefix winning
+ * (Node's PATTERN_KEY_COMPARE). @comvi/nuxt publishes its runtime this way,
+ * so the nuxt fixtures reach the real runtime graph through the same
+ * published-exports discipline as every other entry.
+ */
+function matchSubpathPattern(exportsField, subpath) {
+  let best;
+  for (const key of Object.keys(exportsField)) {
+    const star = key.indexOf("*");
+    if (star === -1 || key.indexOf("*", star + 1) !== -1) continue;
+    const prefix = key.slice(0, star);
+    const suffix = key.slice(star + 1);
+    // An empty `*` capture names a directory, never a published file.
+    if (subpath.length <= prefix.length + suffix.length) continue;
+    if (!subpath.startsWith(prefix) || !subpath.endsWith(suffix)) continue;
+    if (best !== undefined && prefix.length <= best.prefix.length) continue;
+    best = {
+      prefix,
+      target: exportsField[key],
+      match: subpath.slice(prefix.length, subpath.length - suffix.length),
+    };
+  }
+  return best;
+}
+
+/**
  * Resolves an exports-map subpath ("." or "./slim") against a package.json
  * object under the given conditions. Returns the target path relative to the
  * package root, or undefined when the subpath is not exported. The legacy
@@ -80,6 +129,7 @@ export function resolvePackageExport(pkgJson, subpath, conditions = PRODUCTION_C
     );
   }
   let target;
+  let patternMatch;
   if (typeof exportsField === "string" || Array.isArray(exportsField)) {
     target = subpath === "." ? exportsField : undefined;
   } else {
@@ -87,6 +137,10 @@ export function resolvePackageExport(pkgJson, subpath, conditions = PRODUCTION_C
     const isSubpathMap = keys.every((key) => key.startsWith("."));
     if (isSubpathMap) {
       target = exportsField[subpath];
+      if (target === undefined) {
+        const pattern = matchSubpathPattern(exportsField, subpath);
+        if (pattern !== undefined) ({ target, match: patternMatch } = pattern);
+      }
     } else {
       target = subpath === "." ? exportsField : undefined;
     }
@@ -98,7 +152,7 @@ export function resolvePackageExport(pkgJson, subpath, conditions = PRODUCTION_C
       `${pkgJson.name}: subpath "${subpath}" exists in the exports map but no target matches conditions [${conditions.join(", ")}]`,
     );
   }
-  return resolved;
+  return patternMatch === undefined ? resolved : resolved.split("*").join(patternMatch);
 }
 
 /** Throws when a resolved export target would not be included in the published tarball. */
@@ -168,12 +222,56 @@ export function exportsMapPlugin(packageRoots, conditions = PRODUCTION_CONDITION
   };
 }
 
-/** Bundles one fixture entry file and returns its minified and gzipped byte sizes. */
+/**
+ * esbuild loader for the Svelte SFCs a published @comvi/svelte consumer
+ * compiles with their own svelte plugin (dist/T.svelte is reachable from the
+ * package index, so even a no-<T> fixture has to parse it). The compiler is
+ * resolved from the @comvi/svelte package itself — the same version the
+ * package is built and tested against.
+ */
+export function svelteComponentPlugin(packageRoots) {
+  return {
+    name: "svelte-component",
+    setup(build) {
+      let compile;
+      build.onLoad({ filter: /\.svelte$/ }, async (args) => {
+        if (compile === undefined) {
+          const pkgDir = packageRoots["@comvi/svelte"];
+          if (pkgDir === undefined) {
+            return { errors: [{ text: "no @comvi/svelte package root: cannot compile .svelte" }] };
+          }
+          compile = createRequire(path.join(pkgDir, "package.json"))("svelte/compiler").compile;
+        }
+        const source = await fs.promises.readFile(args.path, "utf8");
+        const { js } = compile(source, {
+          filename: args.path,
+          generate: "client",
+          dev: false,
+        });
+        return { contents: js.code, loader: "js" };
+      });
+    },
+  };
+}
+
+/** esbuild metafile input keys -> repo-relative POSIX module IDs. */
+function metafileModuleIds(metafile) {
+  return Object.keys(metafile.inputs)
+    .map((input) => path.relative(REPO_ROOT, path.resolve(input)).split(path.sep).join("/"))
+    .sort();
+}
+
+/**
+ * Bundles one fixture entry file. Returns min+gz byte sizes and the module IDs
+ * esbuild recorded in the metafile (repo-relative), which is what the tags
+ * pinning probe asserts on — module-graph membership, never output text.
+ */
 export async function measureFixture({
   entryFile,
   packageRoots,
   conditions = PRODUCTION_CONDITIONS,
   define = {},
+  external = [],
 }) {
   const esbuild = requireFromRoot("esbuild");
   const result = await esbuild.build({
@@ -185,16 +283,22 @@ export async function measureFixture({
     platform: "browser",
     target: "es2020",
     logLevel: "silent",
+    metafile: true,
+    external,
     define: {
       __DEV__: "false",
       "process.env.NODE_ENV": JSON.stringify("production"),
       ...define,
     },
-    plugins: [exportsMapPlugin(packageRoots, conditions)],
+    plugins: [exportsMapPlugin(packageRoots, conditions), svelteComponentPlugin(packageRoots)],
   });
   const code = result.outputFiles[0].contents;
   const gzipped = zlib.gzipSync(code, { level: 9 });
-  return { minBytes: code.byteLength, gzipBytes: gzipped.byteLength };
+  return {
+    minBytes: code.byteLength,
+    gzipBytes: gzipped.byteLength,
+    moduleIds: metafileModuleIds(result.metafile),
+  };
 }
 
 export function formatBytes(bytes) {
@@ -206,10 +310,30 @@ function fixtureEntries(entry) {
 }
 
 /**
+ * Evaluates a fixture's `sentinelModules` expectation against the measured
+ * module graph. Returns undefined when the fixture declares none.
+ */
+function checkSentinels(fixture, moduleIds) {
+  const sentinels = fixture.sentinelModules;
+  if (sentinels === undefined) return undefined;
+  const expect = fixture.expectSentinels;
+  if (expect !== "present" && expect !== "absent") {
+    throw new Error(
+      `${fixture.name}: "sentinelModules" requires "expectSentinels": "present" | "absent"`,
+    );
+  }
+  const found = sentinels.filter((sentinel) => moduleIds.includes(sentinel));
+  const ok = expect === "present" ? found.length > 0 : found.length === 0;
+  return { expect, found, ok };
+}
+
+/**
  * Runs every budget entry. Returns per-fixture results with a status:
- * - "pass" / "fail": gated fixture measured against gzipBudgetBytes
- * - "informational": measured, printed, not gated (no budget configured)
- * - "pending": entry specifier not exported yet; skipped with a notice
+ * - "pass" / "fail": gated fixture — measured against gzipBudgetBytes and/or
+ *   its `sentinelModules` expectation
+ * - "informational": measured, printed, not gated (no budget, no sentinels)
+ * - "pending": slot declared but not measurable yet; skipped with a notice
+ *   naming what graduates it (`pendingReason`, required)
  */
 export async function runSizeCheck({
   budgets,
@@ -224,48 +348,78 @@ export async function runSizeCheck({
     const unresolved = specifiers.filter(
       (specifier) => resolveFixtureSpecifier(specifier, packageRoots, conditions) === undefined,
     );
-    if (unresolved.length > 0) {
-      if (fixture.pending) {
-        results.push({ name: fixture.name, status: "pending", unresolved });
-        continue;
+    // `pending` is declared, never inferred: a framework-slim slot resolves
+    // through the exports map today yet still measures the wrong graph until
+    // its phase lands, so resolution alone cannot decide measurability.
+    if (fixture.pending) {
+      if (typeof fixture.pendingReason !== "string" || fixture.pendingReason.length === 0) {
+        throw new Error(
+          `${fixture.name}: "pending": true requires a "pendingReason" naming what graduates the slot`,
+        );
       }
+      results.push({
+        name: fixture.name,
+        status: "pending",
+        reason: fixture.pendingReason,
+        unresolved,
+      });
+      continue;
+    }
+    if (unresolved.length > 0) {
       throw new Error(
         `${fixture.name}: entry specifier(s) [${unresolved.join(", ")}] do not resolve through the published exports map`,
       );
     }
     const entryFile = path.join(fixturesDir, fixture.fixture);
-    const { minBytes, gzipBytes } = await measureFixture({
+    const { minBytes, gzipBytes, moduleIds } = await measureFixture({
       entryFile,
       packageRoots,
       conditions,
       define,
+      external: fixture.external,
     });
-    if (typeof fixture.gzipBudgetBytes !== "number") {
-      results.push({ name: fixture.name, status: "informational", minBytes, gzipBytes });
+    const sentinels = checkSentinels(fixture, moduleIds);
+    const budget = fixture.gzipBudgetBytes;
+    if (typeof budget !== "number" && sentinels === undefined) {
+      results.push({ name: fixture.name, status: "informational", minBytes, gzipBytes, moduleIds });
       continue;
     }
-    const status = gzipBytes <= fixture.gzipBudgetBytes ? "pass" : "fail";
+    const withinBudget = typeof budget !== "number" || gzipBytes <= budget;
     results.push({
       name: fixture.name,
-      status,
+      status: withinBudget && (sentinels === undefined || sentinels.ok) ? "pass" : "fail",
       minBytes,
       gzipBytes,
-      budget: fixture.gzipBudgetBytes,
+      moduleIds,
+      budget,
+      sentinels,
     });
   }
   return results;
+}
+
+/** One-line sentinel verdict appended to a gated fixture's report line. */
+function renderSentinels(sentinels) {
+  if (sentinels === undefined) return "";
+  const found = sentinels.found.length > 0 ? sentinels.found.join(", ") : "none";
+  return ` | sentinel modules expected ${sentinels.expect}, found: ${found}`;
 }
 
 export function renderResults(results) {
   const lines = [];
   for (const result of results) {
     switch (result.status) {
-      case "pending":
+      case "pending": {
+        const unresolved =
+          result.unresolved.length > 0
+            ? ` [${result.unresolved.join(", ")}] not exported yet;`
+            : "";
         lines.push(
-          `~ ${result.name}: pending — [${result.unresolved.join(", ")}] not exported yet; ` +
-            `gate activates when the entry lands (flip "pending" in size-budgets.json)`,
+          `~ ${result.name}: pending —${unresolved} ${result.reason}; ` +
+            `gate activates when the slot graduates (drop "pending" in size-budgets.json)`,
         );
         break;
+      }
       case "informational":
         lines.push(
           `i ${result.name}: ${formatBytes(result.gzipBytes)} min+gz (${formatBytes(result.minBytes)} min) — informational, not gated`,
@@ -273,15 +427,35 @@ export function renderResults(results) {
         break;
       case "pass":
         lines.push(
-          `+ ${result.name}: ${formatBytes(result.gzipBytes)} min+gz <= budget ${formatBytes(result.budget)} (${formatBytes(result.minBytes)} min)`,
+          `+ ${result.name}: ${formatBytes(result.gzipBytes)} min+gz` +
+            (typeof result.budget === "number" ? ` <= budget ${formatBytes(result.budget)}` : "") +
+            ` (${formatBytes(result.minBytes)} min)${renderSentinels(result.sentinels)}`,
         );
         break;
       case "fail":
         lines.push(
-          `x ${result.name}: ${formatBytes(result.gzipBytes)} min+gz EXCEEDS budget ${formatBytes(result.budget)} (${formatBytes(result.minBytes)} min)`,
+          `x ${result.name}: ${formatBytes(result.gzipBytes)} min+gz` +
+            (typeof result.budget === "number" ? ` vs budget ${formatBytes(result.budget)}` : "") +
+            ` (${formatBytes(result.minBytes)} min)${renderSentinels(result.sentinels)}`,
         );
         break;
     }
+  }
+  return lines.join("\n");
+}
+
+/**
+ * `--modules` prints the comvi module IDs behind every sentinel fixture. That
+ * list is the before/after diff input the plan's P2 diagnosis cycle consumes
+ * (§4 Phase 2 abort protocol) and the evidence recorded in `baseline.modules`.
+ */
+function renderModuleGraphs(results) {
+  const lines = [];
+  for (const result of results) {
+    if (result.sentinels === undefined || result.moduleIds === undefined) continue;
+    const comviModules = result.moduleIds.filter((id) => id.startsWith("packages/"));
+    lines.push(`\n${result.name} — ${comviModules.length} comvi module(s):`);
+    for (const id of comviModules) lines.push(`  ${id}`);
   }
   return lines.join("\n");
 }
@@ -296,6 +470,7 @@ async function main() {
     define: { __VERSION__: JSON.stringify(corePkg.version) },
   });
   console.log(renderResults(results));
+  if (process.argv.includes("--modules")) console.log(renderModuleGraphs(results));
   const failures = results.filter((result) => result.status === "fail");
   if (failures.length > 0) {
     console.error(`\nSize gate failed for: ${failures.map((result) => result.name).join(", ")}`);

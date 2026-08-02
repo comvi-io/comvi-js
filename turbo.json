@@ -27,7 +27,21 @@
     },
     "//#size": {
       "outputs": [],
-      "dependsOn": ["@comvi/core#build"]
+      // The framework fixtures (scripts/size-fixtures/framework/) resolve every
+      // wrapper through its published exports map, so every wrapper dist must
+      // exist. @comvi/plugin-fetch-loader is listed explicitly: it is in
+      // @comvi/next's server graph but not in its package dependencies.
+      "dependsOn": [
+        "@comvi/core#build",
+        "@comvi/react#build",
+        "@comvi/solid#build",
+        "@comvi/svelte#build",
+        "@comvi/vue#build",
+        "@comvi/next#build",
+        "@comvi/nuxt#build",
+        "@comvi/locale-routing#build",
+        "@comvi/plugin-fetch-loader#build"
+      ]
     },
     "//#test-manifest": {
       "outputs": [],

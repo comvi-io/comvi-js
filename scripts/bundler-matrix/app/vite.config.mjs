@@ -3,6 +3,11 @@
 // it Vite's `development|production` resolve condition. Library mode bundles
 // node_modules (nothing external), so the packed tarballs go through Vite's
 // resolver + sideEffects handling exactly like an app build.
+//
+// The `bm-module-ids` plugin writes the module IDs of the emitted chunks to
+// `<out>.modules.json`; the runner asserts tag-registration membership on that
+// list (webpack's equivalent is `--json` stats `modules[].identifier`).
+import fs from "node:fs";
 import path from "node:path";
 import { defineConfig } from "vite";
 
@@ -19,6 +24,19 @@ export default defineConfig(({ mode }) => {
       __VUE_PROD_DEVTOOLS__: "false",
       __VUE_PROD_HYDRATION_MISMATCH_DETAILS__: "false",
     },
+    plugins: [
+      {
+        name: "bm-module-ids",
+        generateBundle(_options, bundle) {
+          const ids = new Set();
+          for (const chunk of Object.values(bundle)) {
+            if (chunk.type !== "chunk") continue;
+            for (const id of Object.keys(chunk.modules)) ids.add(id);
+          }
+          fs.writeFileSync(`${out}.modules.json`, JSON.stringify([...ids], null, 2));
+        },
+      },
+    ],
     build: {
       target: "node18",
       minify: mode === "production" ? "esbuild" : false,

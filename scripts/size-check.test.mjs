@@ -32,6 +32,8 @@ function makeFakePackage(root) {
         development: "./dist/dev.js",
         default: "./dist/exports-entry.js",
       },
+      "./with-peer": "./dist/with-peer.js",
+      "./runtime/*": "./dist/runtime/*",
     },
   };
   fs.writeFileSync(path.join(pkgDir, "package.json"), JSON.stringify(pkgJson, null, 2));
@@ -48,6 +50,15 @@ function makeFakePackage(root) {
     'export const marker = "VIA_MODULE_FIELD";\n',
   );
   fs.writeFileSync(path.join(distDir, "dev.js"), 'export const marker = "VIA_DEV_CONDITION";\n');
+  fs.writeFileSync(
+    path.join(distDir, "with-peer.js"),
+    'import peer from "fake-peer";\nexport const marker = peer;\n',
+  );
+  fs.mkdirSync(path.join(distDir, "runtime"), { recursive: true });
+  fs.writeFileSync(
+    path.join(distDir, "runtime", "thing.js"),
+    'export const marker = "VIA_SUBPATH_PATTERN";\n',
+  );
   return { pkgDir, pkgJson };
 }
 
@@ -159,13 +170,64 @@ test("runSizeCheck skips pending fixtures whose subpath is not exported yet", as
         fixture: "missing.ts",
         gzipBudgetBytes: 1,
         pending: true,
+        pendingReason: "the /slim subpath lands in a later phase",
       },
     ],
   };
   const results = await runSizeCheck({ budgets, fixturesDir: root, packageRoots });
   assert.deepEqual(results, [
-    { name: "future", status: "pending", unresolved: ["@fake/pkg/slim"] },
+    {
+      name: "future",
+      status: "pending",
+      reason: "the /slim subpath lands in a later phase",
+      unresolved: ["@fake/pkg/slim"],
+    },
   ]);
+});
+
+test("pending is declared, not inferred: a resolvable slot still skips", async (t) => {
+  // The framework-slim slots resolve through the exports map today yet measure
+  // the wrong graph until their phase lands, so resolution cannot decide this.
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "size-check-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const { pkgDir } = makeFakePackage(root);
+  const budgets = {
+    fixtures: [
+      {
+        name: "declared-pending",
+        entry: "@fake/pkg",
+        fixture: "missing.ts",
+        pending: true,
+        pendingReason: "the wrapper cannot consume this host yet",
+      },
+    ],
+  };
+  const results = await runSizeCheck({
+    budgets,
+    fixturesDir: root,
+    packageRoots: { "@fake/pkg": pkgDir },
+  });
+  assert.deepEqual(results, [
+    {
+      name: "declared-pending",
+      status: "pending",
+      reason: "the wrapper cannot consume this host yet",
+      unresolved: [],
+    },
+  ]);
+});
+
+test("a pending slot without a pendingReason is rejected", async (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "size-check-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const { pkgDir } = makeFakePackage(root);
+  const budgets = {
+    fixtures: [{ name: "sloppy", entry: "@fake/pkg", fixture: "missing.ts", pending: true }],
+  };
+  await assert.rejects(
+    runSizeCheck({ budgets, fixturesDir: root, packageRoots: { "@fake/pkg": pkgDir } }),
+    /requires a "pendingReason"/,
+  );
 });
 
 test("runSizeCheck fails hard when a non-pending fixture does not resolve", async (t) => {
@@ -199,4 +261,152 @@ test("runSizeCheck reports a fail status when the budget is exceeded", async (t)
   };
   const results = await runSizeCheck({ budgets, fixturesDir, packageRoots });
   assert.equal(results[0].status, "fail");
+});
+
+test("resolvePackageExport resolves subpath patterns, longest prefix winning", () => {
+  const pkgJson = {
+    name: "x",
+    exports: {
+      ".": "./dist/index.js",
+      "./runtime/*": "./dist/runtime/*",
+      "./runtime/server/*": "./dist/server/*",
+    },
+  };
+  assert.equal(
+    resolvePackageExport(pkgJson, "./runtime/plugin.js", PRODUCTION_CONDITIONS),
+    "./dist/runtime/plugin.js",
+  );
+  assert.equal(
+    resolvePackageExport(pkgJson, "./runtime/server/utils.js", PRODUCTION_CONDITIONS),
+    "./dist/server/utils.js",
+  );
+  assert.equal(resolvePackageExport(pkgJson, "./runtime/", PRODUCTION_CONDITIONS), undefined);
+});
+
+test("a pattern subpath resolves and bundles like any other published entry", async (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "size-check-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const { pkgDir } = makeFakePackage(root);
+  const packageRoots = { "@fake/pkg": pkgDir };
+  assert.equal(
+    resolveFixtureSpecifier("@fake/pkg/runtime/thing.js", packageRoots),
+    path.join(pkgDir, "dist", "runtime", "thing.js"),
+  );
+
+  const fixturesDir = path.join(root, "fixtures");
+  fs.mkdirSync(fixturesDir);
+  fs.writeFileSync(
+    path.join(fixturesDir, "entry.ts"),
+    'import { marker } from "@fake/pkg/runtime/thing.js";\nconsole.log(marker);\n',
+  );
+  const budgets = {
+    fixtures: [
+      {
+        name: "pattern",
+        entry: "@fake/pkg/runtime/thing.js",
+        fixture: "entry.ts",
+        gzipBudgetBytes: 1024,
+      },
+    ],
+  };
+  const results = await runSizeCheck({ budgets, fixturesDir, packageRoots });
+  assert.equal(results[0].status, "pass");
+});
+
+test("external keeps framework peer deps out of the measured graph", async (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "size-check-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const { pkgDir } = makeFakePackage(root);
+  const packageRoots = { "@fake/pkg": pkgDir };
+  const fixturesDir = path.join(root, "fixtures");
+  fs.mkdirSync(fixturesDir);
+  fs.writeFileSync(
+    path.join(fixturesDir, "entry.ts"),
+    'import { marker } from "@fake/pkg/with-peer";\nconsole.log(marker);\n',
+  );
+  const fixture = {
+    name: "peer",
+    entry: "@fake/pkg/with-peer",
+    fixture: "entry.ts",
+    gzipBudgetBytes: 1024,
+  };
+
+  // "fake-peer" is not installed anywhere: without `external` the bundle
+  // cannot resolve it, which is exactly what keeps the peer out of the bytes.
+  await assert.rejects(
+    runSizeCheck({ budgets: { fixtures: [fixture] }, fixturesDir, packageRoots }),
+  );
+
+  const results = await runSizeCheck({
+    budgets: { fixtures: [{ ...fixture, external: ["fake-peer"] }] },
+    fixturesDir,
+    packageRoots,
+  });
+  assert.equal(results[0].status, "pass");
+  assert.ok(!results[0].moduleIds.some((id) => id.includes("fake-peer")));
+});
+
+test("sentinel module IDs gate on the metafile graph, in both polarities", async (t) => {
+  // Real @comvi/core: the root entry pulls the side-effectful register-tags
+  // chunk, bare slim must not. This is the mechanism behind
+  // probe-react-tags-pinning (plan P0.3) — module IDs, never output text.
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "size-check-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const sentinelModules = ["packages/core/dist/chunks/comvi-core-register-tags.js"];
+  for (const [name, specifier] of [
+    ["root", "@comvi/core"],
+    ["slim", "@comvi/core/slim"],
+  ]) {
+    fs.writeFileSync(
+      path.join(root, `${name}.ts`),
+      `import { createI18n } from "${specifier}";\nconsole.log(createI18n);\n`,
+    );
+  }
+  const fixtureFor = (name, expectSentinels) => ({
+    name,
+    entry: name === "root" ? "@comvi/core" : "@comvi/core/slim",
+    fixture: `${name}.ts`,
+    sentinelModules,
+    expectSentinels,
+  });
+
+  const [rootResult, slimResult] = await runSizeCheck({
+    budgets: { fixtures: [fixtureFor("root", "present"), fixtureFor("slim", "absent")] },
+    fixturesDir: root,
+  });
+  assert.equal(rootResult.status, "pass");
+  assert.deepEqual(rootResult.sentinels.found, sentinelModules);
+  assert.equal(slimResult.status, "pass");
+  assert.deepEqual(slimResult.sentinels.found, []);
+
+  const [inverted] = await runSizeCheck({
+    budgets: { fixtures: [fixtureFor("slim", "present")] },
+    fixturesDir: root,
+  });
+  assert.equal(inverted.status, "fail");
+});
+
+test("sentinelModules without an expectSentinels verdict is rejected", async (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "size-check-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  fs.writeFileSync(
+    path.join(root, "entry.ts"),
+    'import { createI18n } from "@comvi/core";\nconsole.log(createI18n);\n',
+  );
+  await assert.rejects(
+    runSizeCheck({
+      budgets: {
+        fixtures: [
+          {
+            name: "no-verdict",
+            entry: "@comvi/core",
+            fixture: "entry.ts",
+            sentinelModules: ["packages/core/dist/chunks/comvi-core-register-tags.js"],
+          },
+        ],
+      },
+      fixturesDir: root,
+    }),
+    /requires "expectSentinels"/,
+  );
 });
