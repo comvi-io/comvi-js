@@ -6,11 +6,19 @@ import {
   useCallback,
   useSyncExternalStore,
 } from "react";
-import { subscribeToRevision } from "@comvi/core";
-import type { I18n, FlattenedTranslations, I18nEvent } from "@comvi/core";
+import { subscribeToRevision } from "@comvi/core/slim";
+import type { WrapperI18nHost, FlattenedTranslations, I18nEvent } from "@comvi/core";
+
+/**
+ * What every react binding demands of the instance it is handed: the reactive
+ * translation host (`WrapperI18nHost` = `I18nCoreInstance & I18nCoreExtraApi`),
+ * which is exactly what a bare `@comvi/core/slim` instance implements.
+ * Loader/plugin capabilities are acquired separately — see `capabilityHooks`.
+ */
+type Host = WrapperI18nHost;
 
 interface I18nContextValue {
-  i18n: I18n;
+  i18n: Host;
   locale: string;
   translationCache: ReadonlyMap<string, FlattenedTranslations>;
   isLoading: boolean;
@@ -18,7 +26,7 @@ interface I18nContextValue {
 }
 
 export interface I18nInstanceContextValue {
-  i18n: I18n;
+  i18n: Host;
   isLoading: boolean;
   isInitializing: boolean;
 }
@@ -30,7 +38,7 @@ export const LocaleContext = createContext<string | null>(null);
 const I18nInstanceContext = createContext<I18nInstanceContextValue | null>(null);
 
 /** @internal — exported for unit tests, not in the package index. */
-export function useSubscribe(i18n: I18n, ...events: I18nEvent[]) {
+export function useSubscribe(i18n: Host, ...events: I18nEvent[]) {
   const eventsKey = events.join("|");
   return useCallback(
     (callback: () => void) => {
@@ -60,7 +68,7 @@ export function useSubscribe(i18n: I18n, ...events: I18nEvent[]) {
 }
 
 /** @internal — exported for unit tests, not in the package index. */
-export function useStoreRevision(i18n: I18n): string {
+export function useStoreRevision(i18n: Host): string {
   const subscribe = useCallback(
     (callback: () => void) => {
       let disposed = false;
@@ -97,7 +105,7 @@ export function useStoreRevision(i18n: I18n): string {
 
 export interface I18nProviderProps {
   children: React.ReactNode;
-  i18n: I18n;
+  i18n: Host;
   /** Auto-initialize the i18n instance on mount (default: true). */
   autoInit?: boolean;
   /** Initial locale for SSR hydration. */

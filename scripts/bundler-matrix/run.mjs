@@ -61,7 +61,6 @@ const CASES = [
     sentinels: "absent",
     packages: ["@comvi/core", "@comvi/react"],
     deps: ["react"],
-    pending: "Phase 2 retargets @comvi/react's value imports to @comvi/core/slim",
   },
   {
     name: "solid-on-slim",

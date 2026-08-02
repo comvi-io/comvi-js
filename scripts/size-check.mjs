@@ -196,6 +196,39 @@ export function resolveFixtureSpecifier(
 }
 
 /**
+ * Whether the published `sideEffects` field marks `relTarget` as
+ * side-effectful — `false`/an array that does not list it means a bundler may
+ * drop the module when none of its exports are used.
+ *
+ * esbuild applies this itself for paths IT resolves, but a plugin-resolved
+ * path defaults to side-effectful. Without this, an entry a real bundler
+ * prunes stays in the measured graph: `@comvi/react`'s index re-export
+ * `export { createI18n, I18n } from "@comvi/core"` (fs-p1 blocker B2) pinned
+ * the root core entry — and with it the ambient tags chunks — into every
+ * framework fixture, inflating both the bytes and the sentinel verdict.
+ */
+export function hasDeclaredSideEffects(pkgJson, relTarget) {
+  const declared = pkgJson.sideEffects;
+  if (declared === undefined) return true;
+  if (declared === false) return false;
+  if (!Array.isArray(declared)) return true;
+  const normalized = relTarget.replace(/^\.\//, "");
+  return declared.some((pattern) => {
+    const body = pattern.replace(/^\.\//, "");
+    const source = body
+      .split("**")
+      .map((segment) =>
+        segment
+          .split("*")
+          .map((literal) => escapeRegExp(literal))
+          .join("[^/]*"),
+      )
+      .join(".*");
+    return new RegExp(`^${source}$`).test(normalized);
+  });
+}
+
+/**
  * esbuild plugin that routes every import of the configured packages through
  * resolvePackageExport, so bundles see exactly what a published consumer sees.
  */
@@ -216,7 +249,10 @@ export function exportsMapPlugin(packageRoots, conditions = PRODUCTION_CONDITION
             ],
           };
         }
-        return { path: resolved };
+        const { packageName, subpath } = parseSpecifier(args.path);
+        const pkgJson = readPackageJson(packageRoots[packageName]);
+        const relTarget = resolvePackageExport(pkgJson, subpath, conditions);
+        return { path: resolved, sideEffects: hasDeclaredSideEffects(pkgJson, relTarget) };
       });
     },
   };
@@ -254,11 +290,25 @@ export function svelteComponentPlugin(packageRoots) {
   };
 }
 
-/** esbuild metafile input keys -> repo-relative POSIX module IDs. */
+/**
+ * esbuild metafile -> repo-relative POSIX module IDs that SURVIVED into the
+ * bundle.
+ *
+ * Derived from `outputs[*].inputs`, never from the top-level `metafile.inputs`
+ * map: the latter lists every file esbuild PARSED, including modules that
+ * tree-shaking removed completely. Reading it made every sentinel a false
+ * positive — a `sideEffects:false` re-export chain esbuild had fully dropped
+ * still "found" its module ID, which is exactly the absence these fixtures
+ * exist to prove (framework-slim P2).
+ */
 function metafileModuleIds(metafile) {
-  return Object.keys(metafile.inputs)
-    .map((input) => path.relative(REPO_ROOT, path.resolve(input)).split(path.sep).join("/"))
-    .sort();
+  const retained = new Set();
+  for (const output of Object.values(metafile.outputs)) {
+    for (const input of Object.keys(output.inputs ?? {})) {
+      retained.add(path.relative(REPO_ROOT, path.resolve(input)).split(path.sep).join("/"));
+    }
+  }
+  return [...retained].sort();
 }
 
 /**

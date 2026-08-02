@@ -93,69 +93,89 @@
         "packages/core/dist/comvi-core-tags.js",
         "packages/core/dist/chunks/comvi-core-register-tags.js"
       ],
-      "expectSentinels": "present",
+      "expectSentinels": "absent",
       "baseline": {
-        "minBytes": 31931,
-        "gzipBytes": 11305,
+        "minBytes": 20179,
+        "gzipBytes": 7264,
         "measuredAt": "2026-08-02",
         "modules": [
-          "packages/core/dist/chunks/comvi-core-compile-icu-CIr_8N7Y.js",
-          "packages/core/dist/chunks/comvi-core-format-BLGE9P_u.js",
-          "packages/core/dist/chunks/comvi-core-i18n-CiFyPR06.js",
-          "packages/core/dist/chunks/comvi-core-importMapLoader-ZAaHhx3E.js",
-          "packages/core/dist/chunks/comvi-core-plugins-BKfVKVjM.js",
-          "packages/core/dist/chunks/comvi-core-register-tags.js",
-          "packages/core/dist/chunks/comvi-core-tags-c9xoOVOb.js",
+          "packages/core/dist/chunks/comvi-core-format-BkC69UYF.js",
+          "packages/core/dist/chunks/comvi-core-i18n-77JJC1Jv.js",
           "packages/core/dist/chunks/comvi-core-translate-D4sgneYZ.js",
+          "packages/core/dist/chunks/comvi-core-virtualNode-BBlSOFkG.js",
           "packages/core/dist/comvi-core-slim.js",
-          "packages/core/dist/comvi-core-tags.js",
-          "packages/core/dist/comvi-core.js",
           "packages/react/dist/comvi-react.js"
         ]
       },
-      "note": "P0.3 tags-pinning probe. An app that picks @comvi/core/slim while @comvi/react value-imports the root entry ships BOTH cores: the module list above holds comvi-core-slim.js AND comvi-core.js, and the root entry's side-effectful register-tags chunk with them. Quantified cost today: 11305 B vs fw-react-root's 11278 B — the slim choice currently costs 27 B MORE than staying on root. After the Phase-2 retarget, flip expectSentinels to \"absent\" and re-record `modules`; the before/after diff is the named input for the P2 gray-zone diagnosis cycle (plan §4 Phase 2)."
+      "note": "P0.3 tags-pinning probe, FLIPPED in framework-slim P2. BEFORE (P0, 11305 B / 12 comvi modules): the app picked @comvi/core/slim while @comvi/react value-imported the root entry, so the graph held comvi-core-slim.js AND comvi-core.js AND the side-effectful register-tags chunk — picking slim cost 27 B MORE than staying on root. AFTER P2 (7264 B / 6 modules): the value imports resolve through @comvi/core/slim, <T> lives in its own chunk (dist/chunks/comvi-react-T.js) so this no-<T> app never reaches @comvi/core/tags, and the index's `export { createI18n, I18n } from \"@comvi/core\"` (blocker B2) tree-shakes — the whole root entry, both tags chunks, the icu/plugins/importMapLoader chunks and the react T chunk left the graph. The module-ID diff is the named input for a P2/P3 gray-zone diagnosis cycle (plan §4 Phase 2)."
     },
     {
       "name": "fw-react-root",
       "entry": ["@comvi/react", "@comvi/core"],
       "fixture": "framework/react-root.ts",
       "external": ["react", "react/*"],
-      "gzipBudgetBytes": 11504,
+      "gzipBudgetBytes": 10433,
       "baseline": {
-        "minBytes": 31836,
-        "gzipBytes": 11278,
+        "minBytes": 28984,
+        "gzipBytes": 10229,
         "measuredAt": "2026-08-02"
       },
-      "note": "P0.2 root baseline; the \"before\" anchor for S = minzip(fw-react-root) - minzip(fw-react-slim) at the P2 gate. Budget = measured + 2%."
+      "note": "Root baseline; the \"before\" anchor for S = minzip(fw-react-root) - minzip(fw-react-slim) at the P2 gate (both measured live at the same commit, per plan §4 Phase 2). Re-baselined in P2: 11278 -> 10229 B. Two named causes, both real consumer wins — (1) <T> moved into its own dist chunk with a /*@__PURE__*/ memo, so a root app that never renders <T> stops shipping it; (2) the harness now honors the published `sideEffects` field for plugin-resolved entries, so re-exports a real bundler prunes no longer inflate the measurement. This graph still holds BOTH core entries (comvi-core.js from the app's createI18n, comvi-core-slim.js from the wrapper) — blocker B4, measured, not assumed. Budget = measured + 2%."
     },
     {
       "name": "fw-react-root-t",
       "entry": ["@comvi/react", "@comvi/core"],
       "fixture": "framework/react-root-t.ts",
       "external": ["react", "react/*"],
-      "gzipBudgetBytes": 11511,
+      "gzipBudgetBytes": 11514,
       "baseline": {
-        "minBytes": 31846,
-        "gzipBytes": 11285,
+        "minBytes": 31962,
+        "gzipBytes": 11289,
         "measuredAt": "2026-08-02"
       },
-      "note": "P0.2 root baseline. The <T> delta over fw-react-root is only +7 B because dist/comvi-react.js defines `var T = React.memo(function T(...))` — a top-level call with no /* @__PURE__ */ annotation, so <T> and its @comvi/core/tags import are retained in EVERY react bundle, used or not. Measured finding, product-code fix is out of P0 scope; the react -t axis stays degenerate until it is addressed."
+      "note": "Root baseline with <T>. The react -t axis is NO LONGER DEGENERATE: the <T> delta over fw-react-root was +7 B in P0 (T was pinned into every bundle by a non-PURE top-level React.memo call in a single-file dist); after P2's chunk split + /*@__PURE__*/ it is +1060 B, i.e. the real cost of the component and its @comvi/core/tags dependency. Budget = measured + 2%."
     },
     {
       "name": "fw-react-slim",
       "entry": ["@comvi/react", "@comvi/core/slim"],
       "fixture": "framework/react-slim.ts",
       "external": ["react", "react/*"],
-      "pending": true,
-      "pendingReason": "Phase 2 retargets @comvi/react's value imports to @comvi/core/slim; until then the wrapper pins the root entry and this fixture measures the root graph plus a second core (see probe-react-tags-pinning)"
+      "gzipBudgetBytes": 7410,
+      "sentinelModules": [
+        "packages/core/dist/comvi-core.js",
+        "packages/core/dist/comvi-core-tags.js",
+        "packages/core/dist/chunks/comvi-core-register-tags.js"
+      ],
+      "expectSentinels": "absent",
+      "baseline": {
+        "minBytes": 20182,
+        "gzipBytes": 7265,
+        "measuredAt": "2026-08-02",
+        "modules": [
+          "packages/core/dist/chunks/comvi-core-format-BkC69UYF.js",
+          "packages/core/dist/chunks/comvi-core-i18n-77JJC1Jv.js",
+          "packages/core/dist/chunks/comvi-core-translate-D4sgneYZ.js",
+          "packages/core/dist/chunks/comvi-core-virtualNode-BBlSOFkG.js",
+          "packages/core/dist/comvi-core-slim.js",
+          "packages/react/dist/comvi-react.js"
+        ]
+      },
+      "note": "GRADUATED in framework-slim P2. The D' endpoint: react on a bare @comvi/core/slim host. S = fw-react-root(10229) - 7265 = 2964 B >= the 2500 floor, so P2 proceeds (plan §4 Phase 2). Sentinels assert the root entry AND both tags chunks are absent from the module graph, not merely from the output text. Budget = measured + 2%."
     },
     {
       "name": "fw-react-slim-t",
       "entry": ["@comvi/react", "@comvi/core/slim"],
       "fixture": "framework/react-slim-t.ts",
       "external": ["react", "react/*"],
-      "pending": true,
-      "pendingReason": "graduates with fw-react-slim in Phase 2"
+      "gzipBudgetBytes": 9339,
+      "sentinelModules": ["packages/core/dist/comvi-core.js"],
+      "expectSentinels": "absent",
+      "baseline": {
+        "minBytes": 25515,
+        "gzipBytes": 9156,
+        "measuredAt": "2026-08-02"
+      },
+      "note": "GRADUATED in framework-slim P2: react on bare slim that also renders <T>, i.e. the slim+tags rung. +1891 B over fw-react-slim — <T> plus @comvi/core/tags, now that both are opt-in. The sentinel asserts only the ROOT entry's absence: the tags chunks are expected here, they are what the fixture buys."
     },
     {
       "name": "fw-solid-root",

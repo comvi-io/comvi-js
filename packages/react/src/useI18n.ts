@@ -8,7 +8,7 @@ import {
   formatRelativeTime,
   getTextDirection,
   isVirtualNode,
-} from "@comvi/core";
+} from "@comvi/core/slim";
 import type {
   TranslationParams,
   TranslationResult,
@@ -18,7 +18,7 @@ import type {
   TranslationValue,
   I18nEvent,
   I18nEventData,
-  I18n,
+  WrapperI18nHost,
   DefaultTranslationParams,
   DefaultParamsSnapshot,
 } from "@comvi/core";
@@ -103,14 +103,26 @@ function translationResultToString(result: TranslationResult): string {
   return text;
 }
 
+/**
+ * Host type every react binding demands (framework-slim D′): the reactive
+ * translation host, exactly what bare `@comvi/core/slim` implements.
+ */
+type Host = WrapperI18nHost;
+
+/**
+ * Core methods rebound to the host instance.
+ *
+ * `addActiveNamespace`, `reloadTranslations` and `onLoadError` are NOT here:
+ * they belong to the `@comvi/core/loader` capability, which a bare-slim host
+ * does not have — binding them eagerly would crash at bind time. They are
+ * acquired through `useI18nLoader()` instead (plan §3.2), as `onMissingKey`
+ * is through `useI18nPlugins()`.
+ */
 const BIND_METHODS = [
   "addTranslations",
-  "addActiveNamespace",
   "setFallbackLocale",
   "setDefaultParams",
-  "onLoadError",
   "clearTranslations",
-  "reloadTranslations",
   "hasLocale",
   "hasTranslation",
   "getLoadedLocales",
@@ -120,6 +132,13 @@ const BIND_METHODS = [
   "reportError",
 ] as const;
 
+/**
+ * The host-only translation surface. The four capability members that used to
+ * live here — `addActiveNamespace`, `reloadTranslations`, `onLoadError`
+ * (loader) and `onMissingKey` (plugins) — moved to `useI18nLoader()` /
+ * `useI18nPlugins()` in 0.5.0: they do not exist on a bare-slim host, so a
+ * type that promised them was lying (plan §2.4).
+ */
 export interface UseI18nReturn<D extends DefaultTranslationParams = {}> {
   /** Translate a key. Returns plain text; for rich-text use `tRaw()` or `<T>`. */
   t: TranslateFn<D, string>;
@@ -136,25 +155,15 @@ export interface UseI18nReturn<D extends DefaultTranslationParams = {}> {
   setLocale: (locale: string) => Promise<void>;
   /** Add translations programmatically at runtime. */
   addTranslations: (translations: Record<string, Record<string, TranslationValue>>) => void;
-  /** Load a new namespace dynamically. */
-  addActiveNamespace: (namespace: string) => Promise<void>;
 
   /** Configure fallback locale chain. */
   setFallbackLocale: (locales: string | string[]) => void;
   /** Current interpolation defaults for this render (shallow snapshot). */
   defaultParams: DefaultParamsSnapshot<D>;
   /** Replace instance-level interpolation defaults. */
-  setDefaultParams: I18n<D>["setDefaultParams"];
-  /** Register callback for missing keys. */
-  onMissingKey: (
-    callback: (key: string, locale: string, namespace: string) => string | void,
-  ) => () => void;
-  /** Register callback for load errors. */
-  onLoadError: (callback: (locale: string, namespace: string, error: Error) => void) => () => void;
+  setDefaultParams: Host["setDefaultParams"];
   /** Clear translations from cache. */
   clearTranslations: (locale?: string, namespace?: string) => void;
-  /** Force reload translations from loader. */
-  reloadTranslations: (locale?: string, namespace?: string) => Promise<void>;
 
   /** Check if a locale is loaded for a namespace. */
   hasLocale: (locale: string, namespace?: string) => boolean;
@@ -191,7 +200,7 @@ export interface UseI18nReturn<D extends DefaultTranslationParams = {}> {
   /** Subscribe to i18n events. Returns an unsubscribe function. */
   on: <E extends I18nEvent>(event: E, callback: (payload: I18nEventData[E]) => void) => () => void;
   /** Report an error to the configured onError handler. */
-  reportError: I18n["reportError"];
+  reportError: Host["reportError"];
 }
 
 /**
@@ -241,7 +250,7 @@ export function useI18n<D extends DefaultTranslationParams = {}>(ns?: string): U
 
   const boundMethods = useMemo(() => {
     type BoundName = (typeof BIND_METHODS)[number];
-    type Bound = { [K in BoundName]: I18n[K] };
+    type Bound = { [K in BoundName]: Host[K] };
     const methods = {} as Bound;
     const bag = methods as Record<BoundName, unknown>;
     for (const m of BIND_METHODS) {
@@ -250,11 +259,6 @@ export function useI18n<D extends DefaultTranslationParams = {}>(ns?: string): U
     return {
       ...methods,
       setLocale: (loc: string) => i18n.setLocaleAsync(loc),
-      onMissingKey: (callback: (key: string, locale: string, namespace: string) => string | void) =>
-        i18n.onMissingKey((key, loc, ns) => {
-          const result = callback(key, loc, ns);
-          return typeof result === "string" || result === undefined ? result : String(result);
-        }),
     };
   }, [i18n]);
 

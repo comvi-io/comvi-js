@@ -10,6 +10,7 @@
  *     packages/svelte/tests/T-structural.test.ts — keep in sync).
  */
 import { describe, it, expect } from "vitest";
+import { createI18n as createSlimI18n } from "@comvi/core/slim";
 import React from "react";
 import { render } from "@testing-library/react";
 import { createI18n } from "../src";
@@ -81,6 +82,35 @@ describe("<T /> structural render (real core)", () => {
     for (const parityCase of WRAPPER_PARITY_FIXTURE.cases) {
       it(`produces the shared text for "${parityCase.key}"`, async () => {
         const i18n = await makeI18n({ ...WRAPPER_PARITY_FIXTURE.translations });
+
+        const { container } = render(
+          <I18nProvider i18n={i18n} autoInit={false}>
+            <T
+              i18nKey={parityCase.key as never}
+              params={{ ...parityCase.params }}
+              components={{ ...parityCase.components }}
+            />
+          </I18nProvider>,
+        );
+
+        expect(container.textContent).toBe(parityCase.text);
+      });
+    }
+  });
+
+  // framework-slim P2: the same table on a BARE @comvi/core/slim host. <T>
+  // does not depend on ambient tag registration — prepareTranslation passes
+  // the tag extension per call (T.tsx:1-4) — so every row must produce
+  // byte-identical text on a host that has no tag syntax of its own.
+  describe("fallback-parity fixture on a bare-slim host", () => {
+    for (const parityCase of WRAPPER_PARITY_FIXTURE.cases) {
+      it(`produces the shared text for "${parityCase.key}"`, async () => {
+        const i18n = createSlimI18n({
+          locale: "en",
+          exposeGlobal: false,
+          translation: { en: { ...WRAPPER_PARITY_FIXTURE.translations } },
+        });
+        await i18n.init();
 
         const { container } = render(
           <I18nProvider i18n={i18n} autoInit={false}>

@@ -1,0 +1,8 @@
+[
+  {
+    "line": 3,
+    "column": 1,
+    "shape": "script-block-extraction",
+    "detail": "<script> block opened at line 3 is never closed — extraction impossible"
+  }
+]

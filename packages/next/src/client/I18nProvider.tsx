@@ -44,7 +44,7 @@ export interface I18nProviderProps extends Omit<ReactI18nProviderProps, "ssrInit
  * get a meaningful diagnostic instead of silent fallback.
  */
 function syncLocaleSafely(
-  i18n: import("@comvi/core").I18n,
+  i18n: import("@comvi/core").WrapperI18nHost,
   locale: string,
   routing: RoutingConfig | undefined,
 ): boolean {

@@ -33,6 +33,9 @@ export default [
       "**/.svelte-kit/**",
       "**/playwright-report/**",
       "**/*.d.ts",
+      // Frozen codemod inputs/outputs: linting them would rewrite the exact
+      // text the goldens assert (scripts/codemods/framework-slim/run.test.mjs).
+      "scripts/codemods/*/__fixtures__/**",
     ],
   },
   js.configs.recommended,

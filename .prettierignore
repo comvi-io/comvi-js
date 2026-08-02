@@ -13,3 +13,8 @@ packages/benchmark/results
 pnpm-lock.yaml
 .omx
 scripts/bundler-matrix/app/out
+
+# Frozen codemod inputs/outputs — the goldens assert exact text, and one of
+# them is a deliberately unterminated <script> block (the extraction-failure
+# report shape), which prettier cannot parse.
+scripts/codemods/*/__fixtures__

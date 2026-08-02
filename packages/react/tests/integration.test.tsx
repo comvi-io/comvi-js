@@ -4,6 +4,7 @@ import { useState } from "react";
 import { createI18n } from "../src";
 import { I18nProvider } from "../src/I18nProvider";
 import { useI18n } from "../src/useI18n";
+import { useI18nLoader } from "../src/capabilityHooks";
 import { T } from "../src/T";
 import { createDeferred, setLocale } from "./test-utils";
 
@@ -92,7 +93,8 @@ describe("Integration Tests", () => {
     await i18n.init();
 
     const App = () => {
-      const { t, isLoading, addActiveNamespace } = useI18n();
+      const { t, isLoading } = useI18n();
+      const { addActiveNamespace } = useI18nLoader();
       const [showDashboard, setShowDashboard] = useState(false);
 
       const loadDashboard = async () => {

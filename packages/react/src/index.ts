@@ -7,6 +7,8 @@ export { I18nProvider, useI18nContext, useLocale, useIsLoading } from "./I18nPro
 export type { I18nProviderProps } from "./I18nProvider";
 export { useI18n } from "./useI18n";
 export type { UseI18nReturn } from "./useI18n";
+export { useI18nLoader, useI18nPlugins } from "./capabilityHooks";
+export type { UseI18nLoaderReturn, UseI18nPluginsReturn } from "./capabilityHooks";
 export { useSetLocaleTransition } from "./useSetLocaleTransition";
 export type { UseSetLocaleTransitionReturn } from "./useSetLocaleTransition";
 export { useFormatters } from "./useFormatters";

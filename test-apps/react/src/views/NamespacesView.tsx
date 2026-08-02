@@ -1,8 +1,9 @@
-import { useI18n } from "@comvi/react";
+import { useI18n, useI18nLoader } from "@comvi/react";
 import { useState } from "react";
 
 export function NamespacesView() {
-  const { t, addActiveNamespace, isLoading } = useI18n();
+  const { t, isLoading } = useI18n();
+  const { addActiveNamespace } = useI18nLoader();
   const [isAdminLoaded, setIsAdminLoaded] = useState(false);
 
   const loadAdmin = async () => {

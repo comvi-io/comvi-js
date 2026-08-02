@@ -4,7 +4,7 @@
 import "@comvi/core/tags";
 import React from "react";
 import { useI18n } from "./useI18n";
-import { isVirtualNode } from "@comvi/core";
+import { isVirtualNode } from "@comvi/core/slim";
 import type {
   TranslationParams,
   TranslationKeys,
@@ -332,7 +332,12 @@ const TComponent = function T({
   );
 };
 
-export const T = React.memo(TComponent) as React.NamedExoticComponent<TProps>;
+// /*@__PURE__*/ so a bundler may drop the component (and this module's
+// `@comvi/core/tags` import) from an app that never renders <T>. Without the
+// annotation a top-level `React.memo(...)` call is an unremovable side effect
+// — which is exactly what pinned the tags chunk into every react app before
+// the module split (plan §2.1 caveat 1, P0 finding 2).
+export const T = /*@__PURE__*/ React.memo(TComponent) as React.NamedExoticComponent<TProps>;
 
 // Add display name for React DevTools
 T.displayName = "T";

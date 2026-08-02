@@ -1,0 +1,8 @@
+[
+  {
+    "line": 7,
+    "column": 3,
+    "shape": "unsupported-destructure",
+    "detail": "computed key `[key]: dynamic` — the target hook is undecidable in a `useI18n()` destructure"
+  }
+]

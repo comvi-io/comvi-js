@@ -174,6 +174,19 @@ export interface LibraryBuildOptions {
   external?: string[];
   /** Globals for UMD builds */
   globals?: Record<string, string>;
+  /** Emitted name pattern for non-entry chunks. Required when `pinnedChunks` is used. */
+  chunkFileNames?: string;
+  /**
+   * Source modules to keep OUT of the entry chunk, each in a chunk of its own.
+   *
+   * A single-file dist makes every top-level import of the bundle an import of
+   * the app: a module whose only job is to carry an optional, side-effectful
+   * dependency (`<T>` → `@comvi/core/tags`) pins that dependency into every
+   * consumer, because the entry module is always used. Splitting it out turns
+   * the entry's re-export into a prunable named binding — provided the package
+   * declares `sideEffects: false`.
+   */
+  pinnedChunks?: { name: string; test: RegExp }[];
 }
 
 /**
@@ -194,7 +207,19 @@ export interface LibraryBuildOptions {
  * ```
  */
 export function createLibraryBuildOptions(options: LibraryBuildOptions): BuildOptions {
-  const { entry, name, fileNames, external = [], globals = {} } = options;
+  const {
+    entry,
+    name,
+    fileNames,
+    external = [],
+    globals = {},
+    chunkFileNames,
+    pinnedChunks,
+  } = options;
+
+  if (pinnedChunks !== undefined && chunkFileNames === undefined) {
+    throw new Error("createLibraryBuildOptions: `pinnedChunks` requires `chunkFileNames`");
+  }
 
   return {
     emptyOutDir: !isWatchMode,
@@ -206,11 +231,33 @@ export function createLibraryBuildOptions(options: LibraryBuildOptions): BuildOp
     sourcemap: false,
     rolldownOptions: {
       external,
+      // Required by rolldown whenever `includeDependenciesRecursively` is
+      // false; harmless for a library whose entry exports are pinned by its
+      // own index module.
+      ...(pinnedChunks === undefined
+        ? {}
+        : { preserveEntrySignatures: "allow-extension" as const }),
       output: [
         {
           format: "es",
           entryFileNames: fileNames.es,
           globals,
+          ...(chunkFileNames === undefined ? {} : { chunkFileNames }),
+          ...(pinnedChunks === undefined
+            ? {}
+            : {
+                codeSplitting: {
+                  // Recursive capture would drag the pinned module's shared
+                  // dependencies out of the entry chunk with it.
+                  includeDependenciesRecursively: false,
+                  groups: pinnedChunks.map((chunk) => ({
+                    name: chunk.name,
+                    test: chunk.test,
+                    minSize: 0,
+                    minShareCount: 1,
+                  })),
+                },
+              }),
         },
       ],
       treeshake: treeshakeOptions,

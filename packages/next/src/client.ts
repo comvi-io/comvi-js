@@ -4,6 +4,10 @@
 export {
   useI18n,
   useI18nContext,
+  // framework-slim 0.5.0: the client inherits react's D' surface unchanged —
+  // the four capability members left useI18n() for these two hooks.
+  useI18nLoader,
+  useI18nPlugins,
   useLocale,
   useIsLoading,
   useSetLocaleTransition,
@@ -14,6 +18,8 @@ export {
 
 export type {
   UseI18nReturn,
+  UseI18nLoaderReturn,
+  UseI18nPluginsReturn,
   UseSetLocaleTransitionReturn,
   UseFormattersReturn,
   TProps,

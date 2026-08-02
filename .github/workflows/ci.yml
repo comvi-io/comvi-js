@@ -176,6 +176,46 @@ jobs:
       - name: Test manifest gate (pre-wave wrapper test IDs)
         run: pnpm exec turbo run "//#test-manifest"
 
+  codemod:
+    name: Migration codemod gate (framework-slim §3.1)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 9.12.1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # Golden fixture per transform-matrix row and per report-only shape,
+      # idempotence, and `tsc --noEmit` over the transformed goldens. No
+      # changeset may claim "mechanical migration" while this is red.
+      - name: Codemod goldens + idempotence
+        run: pnpm test:codemod-tools
+
+      # The repository's own call sites must already be migrated: a non-empty
+      # report here means a wrapper suite or test-app still reads a capability
+      # member off `useI18n()`.
+      - name: Codemod is a no-op on this repository
+        run: |
+          node scripts/codemods/framework-slim/run.mjs \
+            "packages/react/**/*.{ts,tsx,js,jsx}" \
+            "test-apps/react/**/*.{ts,tsx}" \
+            "test-apps/next/**/*.{ts,tsx}"
+          git diff --exit-code
+
   bundler-matrix:
     name: Bundler matrix (packed tarballs)
     runs-on: ubuntu-latest
@@ -366,6 +406,7 @@ jobs:
         size,
         test-manifest,
         bundler-matrix,
+        codemod,
         critical-coverage,
         package-contracts,
         extension-artifact,
