@@ -1,10 +1,14 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { createNextI18n } from "../src/createNextI18n";
 import { loadTranslations, setI18n } from "../src/server";
+import { _resetServerI18n } from "../src/server/cache";
 
 describe("loadTranslations", () => {
   afterEach(() => {
     vi.restoreAllMocks();
+    // framework-slim 0.5.0: the server i18n is a once-cell, so a second
+    // setI18n with a different instance throws instead of overwriting.
+    _resetServerI18n();
   });
 
   it("warns and returns empty object when no loader is configured", async () => {

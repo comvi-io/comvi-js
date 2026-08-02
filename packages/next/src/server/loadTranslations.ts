@@ -1,6 +1,7 @@
-import type { I18n, TranslationValue } from "@comvi/core";
+import type { TranslationValue } from "@comvi/core";
 import { getI18nInstance } from "./cache";
 import { ensureInitialized } from "./ensureInitialized";
+import type { ServerI18nHost } from "./hostTypes";
 
 /**
  * Options for loadTranslations
@@ -20,7 +21,7 @@ export type TranslationsResult = Record<string, Record<string, TranslationValue>
 const toError = (error: unknown): Error =>
   error instanceof Error ? error : new Error(String(error));
 
-const noLoaderWarnings = new WeakSet<I18n>();
+const noLoaderWarnings = new WeakSet<ServerI18nHost>();
 const NO_LOADER_WARNING_MESSAGE =
   "[comvi/next] No loader configured. " +
   "Register one via i18n.registerLoader(...) or createNextI18n(...).use(plugin).";
@@ -32,7 +33,7 @@ const toPlainObject = (
   return Object.fromEntries(Object.entries(value)) as Record<string, TranslationValue>;
 };
 
-const warnNoLoaderConfigured = (i18n: I18n): void => {
+const warnNoLoaderConfigured = (i18n: ServerI18nHost): void => {
   if (noLoaderWarnings.has(i18n)) {
     return;
   }

@@ -41,6 +41,11 @@ const OUT_DIR = path.join(APP_DIR, "out");
  *   "present" — the app opted into tags (root entry or an explicit /tags
  *               import), so the registration chunk must survive;
  *   "absent"  — the app is on bare slim without tags, so nothing may pull it.
+ * A case may instead give `{ default, "<bundler>:<mode>": … }` when one
+ * combination legitimately differs — see `next-client-slim`, the only such
+ * case, for what earns that.
+ * `absentModules` adds case-specific module-ID fragments that must NOT appear
+ * in the graph (matched as substrings, so hashed chunk names are covered).
  * `packages` are the workspace tarballs the case needs, `deps` the framework
  * peer deps its bundle imports. Pending cases are declared but not run: they
  * assert an absence that today's wrappers cannot deliver (they value-import
@@ -81,6 +86,47 @@ const CASES = [
     deps: ["vue"],
     pending: "Phase 4 adds vue's root-free createI18nFromCore",
   },
+  {
+    // Plan P5 step 2: the companion-only server graph must drop every
+    // root-importing module. That holds in DEVELOPMENT too, where webpack
+    // keeps the sibling `./server` re-exports alive — which is the point:
+    // retargeting getI18n.ts to `@comvi/core/slim` removes the root entry at
+    // the source instead of relying on the bundler to prune it.
+    name: "next-server-on-slim",
+    sentinels: "absent",
+    absentModules: [
+      `@comvi${path.sep}core${path.sep}dist${path.sep}comvi-core.js`,
+      `@comvi${path.sep}next${path.sep}dist${path.sep}createNextI18n.js`,
+    ],
+    packages: ["@comvi/core", "@comvi/locale-routing", "@comvi/react", "@comvi/next"],
+    deps: ["react", "next"],
+  },
+  {
+    // Plan P5 step 2 (advisory refinement): the client recipe carries neither
+    // the server host module nor any loader code — core's or next's. Those
+    // four absences hold in every combination.
+    //
+    // The tag chunks are the one honest exception. `@comvi/next/client`
+    // re-exports `T` from `@comvi/react` (public API, unchanged), so as far
+    // as the graph is concerned `T` is a used export of react's entry.
+    // Production webpack and BOTH vite modes still drop it — nothing in this
+    // bundle imports `T` from `@comvi/next/client`, and rollup tree-shakes
+    // regardless of mode — but webpack in development runs with
+    // `usedExports` off and cannot know that, so it keeps react's `T` chunk
+    // and with it core's tag registration. A development bundle is not a
+    // shipped cost; the expectation is pinned per combination rather than
+    // papered over, so a regression in either direction still fails.
+    name: "next-client-slim",
+    sentinels: { default: "absent", "webpack:development": "present" },
+    absentModules: [
+      `@comvi${path.sep}core${path.sep}dist${path.sep}comvi-core.js`,
+      `@comvi${path.sep}core${path.sep}dist${path.sep}comvi-core-loader.js`,
+      `comvi-core-importMapLoader-`,
+      `@comvi${path.sep}next${path.sep}dist${path.sep}server${path.sep}`,
+    ],
+    packages: ["@comvi/core", "@comvi/locale-routing", "@comvi/react", "@comvi/next"],
+    deps: ["react", "next"],
+  },
 ];
 const ACTIVE_CASES = CASES.filter((testCase) => testCase.pending === undefined);
 const PENDING_CASES = CASES.filter((testCase) => testCase.pending !== undefined);
@@ -97,6 +143,12 @@ const ALL_PACKAGES = [
   { name: "@comvi/solid", dir: "packages/solid", distProbe: "dist/comvi-solid.js" },
   { name: "@comvi/svelte", dir: "packages/svelte", distProbe: "dist/index.js" },
   { name: "@comvi/vue", dir: "packages/vue", distProbe: "dist/comvi-vue.js" },
+  {
+    name: "@comvi/locale-routing",
+    dir: "packages/locale-routing",
+    distProbe: "dist/index.js",
+  },
+  { name: "@comvi/next", dir: "packages/next", distProbe: "dist/server.js" },
 ];
 
 /** Only the tarballs the ACTIVE cases need are built, packed and installed. */
@@ -312,13 +364,27 @@ for (const bundler of BUNDLERS) {
       const found = moduleIds.filter((id) =>
         SENTINEL_FRAGMENTS.some((fragment) => id.includes(fragment)),
       );
-      const sentinelsOk = testCase.sentinels === "present" ? found.length > 0 : found.length === 0;
+      const expectTags =
+        typeof testCase.sentinels === "string"
+          ? testCase.sentinels
+          : (testCase.sentinels[`${bundler}:${mode}`] ?? testCase.sentinels.default);
+      const sentinelsOk = expectTags === "present" ? found.length > 0 : found.length === 0;
       if (!sentinelsOk) {
         failures.push(
-          `${label}: tag sentinel modules expected ${testCase.sentinels}, found ${
+          `${label}: tag sentinel modules expected ${expectTags}, found ${
             found.length > 0 ? found.join(", ") : "none"
           }`,
         );
+      }
+
+      // Case-specific absences (plan P5 step 2): module-ID fragments the graph
+      // must not contain at all — the root entry for a companion-only server
+      // app, the server host module and loader code for a client one.
+      const leaked = (testCase.absentModules ?? []).flatMap((fragment) =>
+        moduleIds.filter((id) => id.includes(fragment)),
+      );
+      if (leaked.length > 0) {
+        failures.push(`${label}: modules expected absent, found ${leaked.join(", ")}`);
       }
 
       // Behavioral check: run the bundle in plain node.
@@ -329,7 +395,7 @@ for (const bundler of BUNDLERS) {
           `${label}: bundle execution failed (exit ${exec.status})\n${exec.stdout}${exec.stderr}`,
         );
       }
-      const ok = ran && sentinelsOk;
+      const ok = ran && sentinelsOk && leaked.length === 0;
       results.push(`${ok ? "PASS" : "FAIL"}  ${label}`);
       console.log(`${ok ? "PASS" : "FAIL"}  ${label} [tags ${testCase.sentinels}]`);
     }

@@ -1,0 +1,14 @@
+{
+  "name": "next",
+  "version": "15.0.0",
+  "private": true,
+  "type": "module",
+  "description": "INERT STAND-IN for the `next` peer dependency — NOT Next.js. Installed via `file:` so the matrix app resolves `next/*` exactly the way npm would, and versioned 15.0.0 only so @comvi/next's peer range (^14 || ^15) is satisfiable without pulling ~200 MB of Next.js and its server runtime into a plain-node bundle. The gate measures the COMVI module graph; the size harness externalizes next for the same reason (scripts/size-budgets.json: external [\"next\", \"next/*\"]). Every export throws if called: the fixtures reach these APIs through @comvi/next but never invoke them, and a stub that silently returned data could hide a real regression.",
+  "exports": {
+    "./headers": "./headers.js",
+    "./link": "./link.js",
+    "./navigation": "./navigation.js",
+    "./server": "./server.js"
+  },
+  "sideEffects": false
+}

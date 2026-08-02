@@ -1,4 +1,4 @@
-import { createBoundTranslation, translationResultToString } from "@comvi/core";
+import { createBoundTranslation, translationResultToString } from "@comvi/core/slim";
 import type { TranslationParams, TranslationResult } from "@comvi/core";
 import { getI18nInstance } from "./cache";
 import { ensureInitialized } from "./ensureInitialized";

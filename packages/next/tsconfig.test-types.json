@@ -1,0 +1,14 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "baseUrl": ".",
+    "ignoreDeprecations": "6.0",
+    "rootDir": ".",
+    "noEmit": true,
+    "paths": {
+      "@comvi/next/server": ["./src/server.ts"]
+    }
+  },
+  "include": ["src/**/*", "tests/types/**/*.test-d.ts"],
+  "exclude": []
+}

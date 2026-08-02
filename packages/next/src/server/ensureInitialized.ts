@@ -1,12 +1,12 @@
-import type { I18n } from "@comvi/core";
+import type { ServerI18nHost } from "./hostTypes";
 
-const initPromises = new WeakMap<I18n, Promise<void>>();
+const initPromises = new WeakMap<ServerI18nHost, Promise<void>>();
 
 /**
  * Ensure i18n instance is initialized, deduplicating concurrent calls.
  * @internal
  */
-export const ensureInitialized = async (i18n: I18n): Promise<void> => {
+export const ensureInitialized = async (i18n: ServerI18nHost): Promise<void> => {
   if (i18n.isInitialized) {
     return;
   }

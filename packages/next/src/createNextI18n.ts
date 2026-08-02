@@ -6,8 +6,9 @@ import type {
   PluginOptions,
   DefaultTranslationParams,
 } from "@comvi/core";
-import { defineRouting } from "./routing/defineRouting";
-import type { RoutingConfig, LocalePrefixMode } from "./routing/types";
+import { resolveRouting } from "./nextI18nRouting";
+import type { NextRoutingOptions } from "./nextI18nRouting";
+import type { RoutingConfig } from "./routing/types";
 
 type PluginRuntimeTarget = "client" | "server";
 type PluginEnvironment = "all" | "development" | "production";
@@ -81,8 +82,7 @@ const shouldRunScoped = (
   runtime: PluginRuntimeTarget | undefined,
   environment: PluginEnvironment,
 ): boolean =>
-  (runtime === undefined || shouldRunForRuntime(runtime)) &&
-  shouldRunForEnvironment(environment);
+  (runtime === undefined || shouldRunForRuntime(runtime)) && shouldRunForEnvironment(environment);
 
 const createScopedPlugin = (
   plugin: I18nPlugin,
@@ -118,38 +118,7 @@ const createScopedLazyPlugin = (
 /**
  * Options for createNextI18n factory
  */
-export interface CreateNextI18nBaseOptions {
-  // ============================================
-  // Routing config (required)
-  // ============================================
-
-  /**
-   * List of supported locales
-   * @example ['en', 'de', 'uk', 'fr']
-   */
-  locales: string[];
-
-  /**
-   * Default locale (used when no locale is detected)
-   * @example 'en'
-   */
-  defaultLocale: string;
-
-  /**
-   * Locale prefix mode for URLs
-   * - 'always': Always include locale in URL (/en/about, /de/about)
-   * - 'as-needed': Only include for non-default locales (/about, /de/about)
-   * - 'never': Never include locale in URL (use cookies/headers)
-   * @default 'as-needed'
-   */
-  localePrefix?: LocalePrefixMode;
-
-  /**
-   * Localized public pathnames for exact static routes.
-   * Keys are canonical internal routes, values are public localized slugs.
-   */
-  pathnames?: RoutingConfig["pathnames"];
-
+export interface CreateNextI18nBaseOptions extends NextRoutingOptions {
   // ============================================
   // i18n config (optional)
   // ============================================
@@ -241,10 +210,7 @@ export interface CreateNextI18nResult<D extends DefaultTranslationParams = {}> {
    *   .use(AnotherPlugin(), { required: false });
    * ```
    */
-  use(
-    plugin: I18nPlugin,
-    options?: UsePluginOptions & { lazy?: false },
-  ): CreateNextI18nResult<D>;
+  use(plugin: I18nPlugin, options?: UsePluginOptions & { lazy?: false }): CreateNextI18nResult<D>;
   use(
     loadPlugin: LazyPluginLoader,
     options: UsePluginOptions & { lazy: true },
@@ -354,17 +320,11 @@ export function createNextI18n<const D extends DefaultTranslationParams = {}>(
   options: CreateNextI18nOptions<D>,
 ): CreateNextI18nResult<D> {
   const {
-    // Routing
-    locales,
     defaultLocale,
-    localePrefix = "as-needed",
-    pathnames,
-
     apiKey,
     ns,
     translation,
     defaultParams,
-    // i18n
     fallbackLocale = defaultLocale,
     defaultNs = "default",
     devMode: devModeOption,
@@ -391,12 +351,7 @@ export function createNextI18n<const D extends DefaultTranslationParams = {}>(
   } as unknown as I18nOptions<D>);
 
   // Create routing config
-  const routing = defineRouting({
-    locales,
-    defaultLocale,
-    localePrefix,
-    pathnames,
-  });
+  const routing = resolveRouting(options);
 
   const result: CreateNextI18nResult<D> = {
     i18n,
@@ -414,10 +369,7 @@ export function createNextI18n<const D extends DefaultTranslationParams = {}>(
           pluginOptions,
         );
       } else {
-        i18n.use(
-          pluginOrLoader as I18nPlugin,
-          options === undefined ? undefined : pluginOptions,
-        );
+        i18n.use(pluginOrLoader as I18nPlugin, options === undefined ? undefined : pluginOptions);
       }
       return result;
     },

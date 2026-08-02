@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { createNextI18n } from "../src/createNextI18n";
 import { getI18n, setI18n } from "../src/server";
+import { _resetServerI18n } from "../src/server/cache";
 import { getLocale } from "../src/server/getLocale";
 
 vi.mock("../src/server/getLocale", () => ({
@@ -24,6 +25,9 @@ const runInServerRuntime = async (fn: () => Promise<void>) => {
 describe("server getI18n", () => {
   afterEach(() => {
     vi.restoreAllMocks();
+    // framework-slim 0.5.0: the server i18n is a once-cell, so a second
+    // setI18n with a different instance throws instead of overwriting.
+    _resetServerI18n();
   });
 
   it("falls back to getLocale when locale is not passed", async () => {
