@@ -16,6 +16,8 @@ The root entry `@comvi/core` is unchanged for existing users: `createI18n`/`new 
 
 `/slim` ships a narrowed surface. Async loading and plugin registration are not on a bare slim instance — they are absent from the module graph, not disabled by a flag — and TypeScript reports their use as a compile error rather than letting it fail at runtime. Compose them back outside-in:
 
+**Scope note:** `/slim` is supported for vanilla/direct usage in this release. The framework bindings (`@comvi/vue`, `@comvi/react`, `@comvi/solid`, `@comvi/svelte`, `@comvi/next`, `@comvi/nuxt`) require a full root `@comvi/core` instance; passing a slim instance is neither type-supported nor tested. The measured sizes below are the core entry alone, not total framework-app weight.
+
 ```ts
 import { createI18n } from "@comvi/core/slim";
 import { attachLoader } from "@comvi/core/loader";

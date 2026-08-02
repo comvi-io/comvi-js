@@ -82,6 +82,13 @@ constraint, `@comvi/core/slim` gives you the translation core alone and you comp
 rest back on from pure subpaths — nothing is behind a runtime flag, capabilities are
 absent because their modules never enter your module graph.
 
+> **Framework bindings require the root entry.** `@comvi/core/slim` is supported for
+> vanilla/direct usage only in 0.5.0. The `@comvi/{vue,react,solid,svelte,next,nuxt}`
+> bindings construct or expect a full root instance and will not type-check (or, for
+> Vue/Next, even instantiate) against a slim one — pass them `createI18n` from
+> `@comvi/core`. The size table below is the cost of the **core entry alone**, not the
+> total SDK weight of a framework app.
+
 ```ts
 import { createI18n } from "@comvi/core/slim";
 import { attachLoader } from "@comvi/core/loader";
