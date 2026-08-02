@@ -1,5 +1,7 @@
-import type { DefaultTranslationParams, I18nOptions, LoaderFn } from "../types";
+import type { DefaultTranslationParams, I18nOptions, I18nPluginHostApi, LoaderFn } from "../types";
+import type { I18nInternal } from "./i18n";
 import { I18nWithLoader } from "./loader";
+import { pluginApi } from "./plugins";
 import { createImportMapLoader, type LoaderImportMap } from "./importMapLoader";
 import { icuCompiler } from "./translate/compile-icu";
 
@@ -10,12 +12,29 @@ import { icuCompiler } from "./translate/compile-icu";
  *
  * Every capability the `@comvi/core/loader` and `@comvi/core/plugins`
  * subpaths attach to a slim instance is inherited here from the same
- * implementation, so the root surface is unchanged from 0.4.0.
+ * implementation, so the root surface is unchanged from 0.4.0. The loader
+ * arrives through `extends`; the plugin host — which must NOT extend the
+ * loader capability, or a slim+plugins-only graph would drag the loader in —
+ * arrives as prototype descriptors installed just below.
  */
+/*
+ * Declaration merging is the point, not an accident: the plugin members are
+ * genuinely installed on `I18n.prototype` at module scope (below), and
+ * merging is the only way to keep `use()`'s `this` return polymorphic — an
+ * indexed-access or property-style redeclaration would pin it to the
+ * capability class and break `i18n.use(p).registerLoader(...)`. `D` is
+ * unused here but must stay: TS requires identical type parameters on every
+ * declaration of a merged name.
+ */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- see above
+export interface I18n<D extends DefaultTranslationParams = {}> extends I18nPluginHostApi {}
+
+// eslint-disable-next-line @typescript-eslint/no-unsafe-declaration-merging -- see above
 export class I18n<D extends DefaultTranslationParams = {}> extends I18nWithLoader<D> {
   constructor(options: I18nOptions<D>) {
     super(options, icuCompiler);
     this._initLoader();
+    (this as unknown as I18nInternal)._initPlugins!();
   }
 
   /**
@@ -43,6 +62,12 @@ export class I18n<D extends DefaultTranslationParams = {}> extends I18nWithLoade
     super.registerLoader(loader);
   }
 }
+
+// Second capability, same implementation, prototype-level install: the keys
+// are the already-mangled runtime names, so this is mangling-safe by
+// construction (plan R2) and the members stay non-enumerable prototype
+// members — the root reflective contract (A11) is unchanged.
+Object.defineProperties(I18n.prototype, pluginApi);
 
 /**
  * Create an i18n instance (full entry: ICU plurals/selects + tag syntax

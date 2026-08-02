@@ -31,6 +31,7 @@ export const coreEntries = (dir: string): Record<string, string> => ({
   icu: resolve(dir, "src/icu.ts"),
   tags: resolve(dir, "src/tags.ts"),
   loader: resolve(dir, "src/loader.ts"),
+  plugins: resolve(dir, "src/plugins.ts"),
   "editor-bridge": resolve(dir, "src/editor-bridge.ts"),
 });
 
@@ -115,7 +116,9 @@ export const mangleInternalProps = (): Plugin => {
   return {
     name: "comvi:mangle-internal-props",
     async generateBundle(_options, bundle) {
-      const chunks = Object.values(bundle as Record<string, { type: string; code?: string }>).filter(
+      const chunks = Object.values(
+        bundle as Record<string, { type: string; code?: string }>,
+      ).filter(
         (file): file is { type: "chunk"; code: string } =>
           file.type === "chunk" && typeof file.code === "string",
       );

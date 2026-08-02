@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import { I18n } from "../../src";
 import { createI18n as createSlimI18n } from "../../src/slim";
 import { attachLoader } from "../../src/loader";
+import { attachPlugins } from "../../src/plugins";
 
 /**
  * The two-phase destroy contract (plan R10).
@@ -76,6 +77,35 @@ describe("destroy ordering", () => {
     await i18n.destroy();
 
     expect(i18n.getLoader()).toBeUndefined();
+    expect(i18n.getActiveNamespaces()).toEqual([]);
+  });
+
+  it("keeps the two-phase order on a composed slim instance", async () => {
+    const order: string[] = [];
+    const i18n = attachPlugins(attachLoader(createSlimI18n({ locale: "en", exposeGlobal: false })));
+
+    i18n.registerLoader(async () => ({ hello: "Hello" }));
+    i18n.use(() => {
+      i18n.setPluginData("probe", "set");
+      return () => {
+        order.push("cleanup");
+        expect(i18n.getLoader(), "loader still registered during cleanup").toBeDefined();
+        expect(i18n.getPluginData("probe")).toBe("set");
+      };
+    });
+    await i18n.init();
+
+    i18n.on("destroyed", () => {
+      order.push("destroyed");
+      expect(i18n.getPluginData("probe"), "plugin state live during `destroyed`").toBe("set");
+    });
+
+    await i18n.destroy();
+
+    expect(order).toEqual(["cleanup", "destroyed"]);
+    expect(i18n.getLoader()).toBeUndefined();
+    expect(i18n.getPluginData("probe")).toBeUndefined();
+    expect(i18n.getLanguageDetector()).toBeUndefined();
     expect(i18n.getActiveNamespaces()).toEqual([]);
   });
 });

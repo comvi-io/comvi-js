@@ -2,7 +2,6 @@ import type {
   I18nOptions,
   I18nCoreInstance,
   I18nCoreExtraApi,
-  I18nPluginHost,
   FlattenedTranslations,
   TranslationValue,
   TranslationResult,
@@ -34,9 +33,7 @@ import {
   assertPreservesDefaultParamKeys,
 } from "../utils/defaultParams";
 import { translationResultToString } from "../utils/translationResultToString";
-import type { I18nPlugin as I18nPluginFn } from "../plugins/types";
 import { TranslationCache } from "./TranslationCache";
-import type { PluginOptions } from "../plugins/types";
 import { isStaticTemplate, translate, translateTemplate } from "./translate";
 import {
   effectiveExtBits,
@@ -62,9 +59,6 @@ const ERR_TRANSLATION_NOT_OBJECT = IS_DEV
 const ERR_INSTANCE_DESTROYED = IS_DEV
   ? "[i18n] Cannot call init() after destroy(). Create a new i18n instance."
   : "E_INSTANCE_DESTROYED";
-const ERR_REGISTER_LOCALE_DETECTOR = IS_DEV
-  ? "[i18n] registerLocaleDetector(): argument must be a function."
-  : "E_REGISTER_LOCALE_DETECTOR";
 
 /**
  * Loader types live in `types.ts` (they are part of `I18nLoaderApi`); this
@@ -72,14 +66,6 @@ const ERR_REGISTER_LOCALE_DETECTOR = IS_DEV
  * from the class module. Zero emitted bytes.
  */
 export type { LoaderFn, LoaderResult };
-
-/** @internal Registered plugin tuple; owned by the plugin capability. */
-export type PluginEntry = [
-  plugin: I18nPluginFn,
-  required: boolean,
-  timeout: number,
-  onError?: (error: Error) => void,
-];
 
 /**
  * @internal
@@ -94,8 +80,7 @@ export type PluginEntry = [
  * DOT only — never `i["_loader"]`, never `"_loadNs" in i`, never
  * `Object.keys`-driven logic over them.
  */
-export interface I18nInternal<D extends DefaultTranslationParams = {}>
-  extends I18nCoreInstance<D> {
+export interface I18nInternal<D extends DefaultTranslationParams = {}> extends I18nCoreInstance<D> {
   // ── base state capability modules read/write ──
   _locale: string;
   _fallbackLocales: string[];
@@ -127,15 +112,6 @@ export interface I18nInternal<D extends DefaultTranslationParams = {}>
   _loader?: LoaderFn;
   _pendingLoads: Record<string, Promise<void> | undefined>;
   _nsGeneration: number;
-
-  // ── plugin capability state (initPluginState) ──
-  _plugins: PluginEntry[];
-  _pluginCleanups: Array<() => void | Promise<void>>;
-  _pluginData: Record<string, unknown>;
-  _localeDetector?: () => string | Promise<string>;
-  _missingKeyCallbacks: Set<
-    (key: string, locale: string, namespace: string) => TranslationResult | void
-  >;
 }
 
 /** Counter for auto-generating instance IDs */
@@ -186,8 +162,8 @@ export class I18n<D extends DefaultTranslationParams = {}>
   private _missingParam: MissingParamMode;
   private readonly _compiler: MessageCompiler;
   private readonly _compilerId: number;
-  private _postProcessors: PostProcessFn[] = [];
-  private _hasPostProcessors: boolean = false;
+  /** `protected`: `registerPostProcessor` lives in the plugin capability. */
+  protected _postProcessors: PostProcessFn[] = [];
   private _primaryTranslations?: FlattenedTranslations;
   private _primaryTranslationsRevision: number = -1;
   private _primaryTranslationsLocale: string = "";
@@ -202,22 +178,9 @@ export class I18n<D extends DefaultTranslationParams = {}>
   // instance. The base only ever READS them, through the `I18nInternal`
   // cross-module contract — a type-only cast that emits nothing.
 
-
-  // Plugin state
-  private _plugins: PluginEntry[] = [];
-  private _pluginCleanups: Array<() => void | Promise<void>> = [];
-
-  // Plugin API hooks
-  private _localeDetector?: () => string | Promise<string>;
-  private _missingKeyCallbacks = new Set<
-    (key: string, locale: string, namespace: string) => TranslationResult | void
-  >();
-
   // Event system for framework wrappers and plugins
-  private _eventCallbacks: Partial<Record<I18nEvent, Set<(data?: unknown) => void>>> = Object.create(null);
-
-  // Plugin data storage (for plugins to store config that persists with instance)
-  private _pluginData: Record<string, unknown> = Object.create(null);
+  private _eventCallbacks: Partial<Record<I18nEvent, Set<(data?: unknown) => void>>> =
+    Object.create(null);
 
   // Options storage
   private _fallbackOnMissingKey?: (info: {
@@ -283,7 +246,6 @@ export class I18n<D extends DefaultTranslationParams = {}>
     this._tagInterpolation = tagInterpolation;
     if (options.postProcess) {
       this._postProcessors.push(options.postProcess);
-      this._hasPostProcessors = true;
     }
 
     // Validate and process initial translations if provided
@@ -374,16 +336,9 @@ export class I18n<D extends DefaultTranslationParams = {}>
       this._isInitializing = true;
       this._setLoadingState(true);
 
-      await this._initializePlugins();
-
-      // Call locale detector if one was registered by plugins
-      if (this._localeDetector) {
-        const detectedLocale = await this._localeDetector();
-        if (detectedLocale && detectedLocale !== this._locale) {
-          // Use async method to wait for namespace loading
-          await this.setLocaleAsync(detectedLocale);
-        }
-      }
+      // Plugin capability: run the registered plugins, then a
+      // plugin-registered locale detector. Order preserved exactly.
+      await (this as unknown as I18nInternal)._beforeInit?.();
 
       const namespacesToLoad = this._initialNamespaces ?? [this._cachedDefaultNs];
       if (namespacesToLoad.length > 0) {
@@ -399,77 +354,6 @@ export class I18n<D extends DefaultTranslationParams = {}>
     } finally {
       this._isInitializing = false;
       this._setLoadingState(false);
-    }
-  }
-
-  /**
-   * Register a plugin (chainable)
-   * @param plugin - The plugin to register
-   * @param options - Plugin options (required, timeout, onError)
-   * @returns this for chaining
-   */
-  use(plugin: I18nPluginFn, options?: PluginOptions): this {
-    this._plugins.push([
-      plugin,
-      options?.required ?? true,
-      options?.timeout ?? 10000,
-      options?.onError,
-    ]);
-    return this;
-  }
-
-  private async _initializePlugins(): Promise<void> {
-    for (const [plugin, required, timeout, onError] of this._plugins) {
-      let timeoutId: ReturnType<typeof setTimeout> | undefined;
-      try {
-        const result = await Promise.race([
-          // `I18nPluginHost` is the `{}`-defaults host surface; an instance
-          // with constructor-guaranteed defaults narrows `setDefaultParams`,
-          // which the interface's property-style declaration checks strictly.
-          // The class was bivariant here before the type split — preserved.
-          plugin(this as unknown as I18nPluginHost),
-          new Promise<never>((_, reject) => {
-            timeoutId = setTimeout(
-              () =>
-                reject(
-                  new Error(
-                    IS_DEV
-                      ? `Plugin initialization timed out after ${timeout}ms`
-                      : "E_PLUGIN_INIT_TIMEOUT",
-                  ),
-                ),
-              timeout,
-            );
-          }),
-        ]);
-        if (typeof result === "function") {
-          this._pluginCleanups.push(result);
-        }
-      } catch (error) {
-        const err =
-          error instanceof Error
-            ? error
-            : new Error(
-                IS_DEV ? `Plugin initialization failed: ${String(error)}` : "E_PLUGIN_INIT_FAILED",
-              );
-
-        if (onError) {
-          try {
-            onError(err);
-          } catch (handlerError) {
-            if (IS_DEV) {
-              warn(`[i18n] Plugin error handler failed: ${(handlerError as Error).message}`);
-            }
-          }
-        }
-
-        this.reportError(err, { source: "plugin", pluginName: plugin.name || "anonymous" });
-        if (required) {
-          throw err;
-        }
-      } finally {
-        if (timeoutId) clearTimeout(timeoutId);
-      }
     }
   }
 
@@ -754,21 +638,6 @@ export class I18n<D extends DefaultTranslationParams = {}>
     return [...this._fallbackLocales];
   }
 
-  /**
-   * Store plugin-specific data on the i18n instance.
-   * This allows plugins to store configuration that persists with the instance.
-   */
-  setPluginData(key: string, data: unknown): void {
-    this._pluginData[key] = data;
-  }
-
-  /**
-   * Retrieve plugin-specific data from the i18n instance.
-   */
-  getPluginData<T = unknown>(key: string): T | undefined {
-    return this._pluginData[key] as T | undefined;
-  }
-
   async addActiveNamespace(namespace: string): Promise<void> {
     return this.addActiveNamespaces([namespace]);
   }
@@ -781,23 +650,6 @@ export class I18n<D extends DefaultTranslationParams = {}>
       this._setLoadingState(false);
     }
     this._emit("configChanged", { source: "namespaceActivated" });
-  }
-
-  /**
-   * Register a post-processor function
-   * Post-processors are chained in the order they are registered (FIFO)
-   * @param fn - The post-processor function to register
-   */
-  registerPostProcessor(fn: PostProcessFn): void {
-    if (typeof fn !== "function") {
-      throw new Error(
-        IS_DEV
-          ? `[i18n] registerPostProcessor(): argument must be a function. Received: ${typeof fn}`
-          : "E_REGISTER_POST_PROCESSOR",
-      );
-    }
-    this._postProcessors.push(fn);
-    this._hasPostProcessors = true;
   }
 
   /**
@@ -833,7 +685,7 @@ export class I18n<D extends DefaultTranslationParams = {}>
     const userParams = params[0];
 
     // Fast-path for known static templates (no params, no post-processors)
-    if (userParams == null && !this._hasPostProcessors) {
+    if (userParams == null && !this._postProcessors.length) {
       const translations = this._getPrimaryTranslations();
       if (translations !== undefined) {
         const template = translations[key];
@@ -913,7 +765,7 @@ export class I18n<D extends DefaultTranslationParams = {}>
     const hasParams = params != null;
     const locale = hasParams && params.locale !== undefined ? params.locale : currentLocale;
     const namespace = hasParams && params.ns !== undefined ? params.ns : defaultNamespace;
-    const skipPostProcess = !this._hasPostProcessors;
+    const skipPostProcess = !this._postProcessors.length;
     // Per-call channel (§1.1 dual-channel): params.tagInterpolation merges
     // over the instance option for this call only (no-op without params).
     const tagInterpolation = mergeTagInterpolation(
@@ -1006,14 +858,9 @@ export class I18n<D extends DefaultTranslationParams = {}>
 
     this._emit("missingKey", { key, locale, namespace });
 
-    let fallbackValue: TranslationResult | undefined;
-    // Callbacks always run (plugins track missing keys via side effects)
-    for (const callback of this._missingKeyCallbacks) {
-      const result = callback(key, locale, namespace);
-      if (fallbackValue === undefined && result !== undefined) {
-        fallbackValue = result;
-      }
-    }
+    // The plugin capability's missing-key callbacks always run (plugins track
+    // missing keys through side effects); the first defined result wins.
+    let fallbackValue = (this as unknown as I18nInternal)._missHook?.(key, locale, namespace);
 
     // Per-call fallback has the highest priority — skip the instance-level handler
     if (params?.fallback !== undefined) {
@@ -1033,36 +880,6 @@ export class I18n<D extends DefaultTranslationParams = {}>
     }
 
     return fallbackValue !== undefined ? fallbackValue : key;
-  }
-
-  /**
-   * Register a locale detector function
-   * Used by plugins to provide automatic locale detection
-   */
-  public registerLocaleDetector(detector: () => string | Promise<string>): void {
-    if (typeof detector !== "function") {
-      throw new Error(ERR_REGISTER_LOCALE_DETECTOR);
-    }
-    this._localeDetector = detector;
-  }
-
-  /**
-   * Get the registered locale detector function
-   */
-  public getLanguageDetector(): (() => string | Promise<string>) | undefined {
-    return this._localeDetector;
-  }
-
-  /**
-   * Register a callback for missing translation keys
-   * @param callback - Function called when a key is missing. Can return a string to use as fallback.
-   * @returns Cleanup function to remove the callback
-   */
-  public onMissingKey(
-    callback: (key: string, locale: string, namespace: string) => TranslationResult | void,
-  ): () => void {
-    this._missingKeyCallbacks.add(callback);
-    return () => void this._missingKeyCallbacks.delete(callback);
   }
 
   /**
@@ -1187,15 +1004,6 @@ export class I18n<D extends DefaultTranslationParams = {}>
     // Phase 1 — awaited pre-lifecycle cleanup, while capability state is live.
     await (this as unknown as I18nInternal)._preDestroy?.();
 
-    while (this._pluginCleanups.length > 0) {
-      try {
-        await this._pluginCleanups.pop()!();
-      } catch (error) {
-        this.reportError(error instanceof Error ? error : new Error(String(error)), {
-          source: "plugin-cleanup",
-        });
-      }
-    }
     // Reset lifecycle flags before tearing down event subscriptions so wrappers can react.
     const hadLoadingState = this._loadingCount > 0 || this._isInitializing;
     this._loadingCount = 0;
@@ -1208,16 +1016,11 @@ export class I18n<D extends DefaultTranslationParams = {}>
     this._emit("destroyed");
 
     this._eventCallbacks = {};
-    this._missingKeyCallbacks.clear();
-
     this._activeNamespaces.clear();
     this._postProcessors = [];
-    this._hasPostProcessors = false;
 
     // Clear cache and other state
     this.translationCache.clear();
-    this._localeDetector = undefined;
-    this._pluginData = Object.create(null);
 
     // Phase 3 — capability reset, after the `destroyed` listeners have seen
     // the still-live capability state.

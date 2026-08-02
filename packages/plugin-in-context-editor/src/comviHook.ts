@@ -11,7 +11,7 @@
  *     landing on a page where the new editor already swapped still attaches —
  *     its legacy code path calls `register(id, instance)`)
  */
-import type { ComviQueueEntry as CoreQueueEntry } from "@comvi/core";
+import type { ComviQueueEntry as CoreQueueEntry, I18nPluginHostApi } from "@comvi/core";
 
 /**
  * The instance type the core discovery queue actually carries. Core types it
@@ -19,14 +19,23 @@ import type { ComviQueueEntry as CoreQueueEntry } from "@comvi/core";
  * (`@comvi/core`'s `I18n` adds the loader/plugin capabilities). Deriving it
  * from the published entry keeps this hook assignable to `window.__COMVI__`.
  */
-type I18n = CoreQueueEntry["i"];
+type QueueI18n = CoreQueueEntry["i"];
+
+/**
+ * The instance type the editor DRIVES. It registers a post-processor on every
+ * instance it edits, so it only ever works with the plugin-host surface: the
+ * root entry's class, or a slim instance composed with `@comvi/core/plugins`.
+ * A bare slim instance may still be pushed onto the queue — it is tracked and
+ * counted, it is simply not editable.
+ */
+type I18n = QueueI18n & I18nPluginHostApi;
 
 /** v2 queue entry envelope pushed by new core */
 export interface ComviQueueEntry {
   /** Core library version that produced the entry */
   v?: string;
   /** The exposed i18n instance */
-  i: I18n;
+  i: QueueI18n;
 }
 
 /** Dual-protocol hook installed in place of the raw queue array. */
@@ -37,9 +46,9 @@ export interface ComviHookApi {
   version: string | undefined;
   /** Live v1-compatible view of the tracked instances */
   readonly instances: Map<string, I18n>;
-  push(entry: ComviQueueEntry | I18n): void;
-  remove(entry: ComviQueueEntry | I18n): void;
-  register(id: string, instance: I18n): void;
+  push(entry: ComviQueueEntry | QueueI18n): void;
+  remove(entry: ComviQueueEntry | QueueI18n): void;
+  register(id: string, instance: QueueI18n): void;
   unregister(id: string): void;
   get(id?: string): I18n | undefined;
 }
@@ -47,16 +56,14 @@ export interface ComviHookApi {
 /** v1 legacy registry shape an old core may have installed before us. */
 interface LegacyRegistryLike {
   version?: string;
-  instances?: Map<string, I18n>;
-  register?: (id: string, instance: I18n) => void;
+  instances?: Map<string, QueueI18n>;
+  register?: (id: string, instance: QueueI18n) => void;
 }
 
 let anonCounter = 0;
 
 function isEditorHook(g: unknown): g is ComviHookApi {
-  return (
-    !!g && typeof g === "object" && "__comviEditorHook" in g && g.__comviEditorHook === true
-  );
+  return !!g && typeof g === "object" && "__comviEditorHook" in g && g.__comviEditorHook === true;
 }
 
 function isLegacyRegistry(g: unknown): g is LegacyRegistryLike {
@@ -72,7 +79,9 @@ function isLegacyRegistry(g: unknown): g is LegacyRegistryLike {
  * Accept either shape a queue slot may hold: a `{v, i}` envelope (new core)
  * or a bare legacy instance drained from a pre-existing array.
  */
-function toInstance(entry: ComviQueueEntry | I18n): { instance: I18n; version?: string } | null {
+function toInstance(
+  entry: ComviQueueEntry | QueueI18n,
+): { instance: QueueI18n; version?: string } | null {
   if (!entry || typeof entry !== "object") {
     return null;
   }
@@ -87,7 +96,7 @@ function toInstance(entry: ComviQueueEntry | I18n): { instance: I18n; version?: 
 
 function createHook(): ComviHookApi {
   const instances = new Map<string, I18n>();
-  const idsByInstance = new Map<I18n, string>();
+  const idsByInstance = new Map<QueueI18n, string>();
 
   // Array-masquerading carrier: `Array.isArray(hook)` stays true, but the
   // OWN `push`/`remove` properties assigned below shadow Array.prototype, so
@@ -97,7 +106,7 @@ function createHook(): ComviHookApi {
   // two discovery paths silently bypasses the hook.
   const hook = [] as unknown as ComviHookApi & { version: string | undefined };
 
-  const track = (instance: I18n, version?: string, id?: string): void => {
+  const track = (instance: QueueI18n, version?: string, id?: string): void => {
     if (!instance || typeof instance !== "object") {
       return;
     }
@@ -107,14 +116,15 @@ function createHook(): ComviHookApi {
     if (prevId !== undefined && prevId !== resolvedId) {
       instances.delete(prevId);
     }
-    instances.set(resolvedId, instance);
+    // The editor only ever hands these back out for editing; see `I18n`.
+    instances.set(resolvedId, instance as I18n);
     idsByInstance.set(instance, resolvedId);
     if (version !== undefined && hook.version === undefined) {
       hook.version = version;
     }
   };
 
-  const untrack = (instance: I18n | undefined): void => {
+  const untrack = (instance: QueueI18n | undefined): void => {
     if (!instance) {
       return;
     }
@@ -129,16 +139,16 @@ function createHook(): ComviHookApi {
     __comviEditorHook: true as const,
     version: undefined as string | undefined,
     instances,
-    push(entry: ComviQueueEntry | I18n): void {
+    push(entry: ComviQueueEntry | QueueI18n): void {
       const resolved = toInstance(entry);
       if (resolved) {
         track(resolved.instance, resolved.version);
       }
     },
-    remove(entry: ComviQueueEntry | I18n): void {
+    remove(entry: ComviQueueEntry | QueueI18n): void {
       untrack(toInstance(entry)?.instance);
     },
-    register(id: string, instance: I18n): void {
+    register(id: string, instance: QueueI18n): void {
       track(instance, undefined, id);
     },
     unregister(id: string): void {
@@ -202,7 +212,7 @@ export function ensureComviHook(): ComviHookApi | null {
     // Swap FIRST so instances constructed mid-boot push into the hook, then
     // drain the snapshot ({v, i} envelopes AND bare legacy instances).
     window.__COMVI__ = hook;
-    for (const raw of existing as Array<ComviQueueEntry | I18n>) {
+    for (const raw of existing as Array<ComviQueueEntry | QueueI18n>) {
       hook.push(raw);
     }
   } else if (isLegacyRegistry(existing)) {

@@ -54,6 +54,11 @@
       "development": "./dist/comvi-core-loader.dev.js",
       "default": "./dist/comvi-core-loader.js"
     },
+    "./plugins": {
+      "types": "./dist/plugins.d.ts",
+      "development": "./dist/comvi-core-plugins.dev.js",
+      "default": "./dist/comvi-core-plugins.js"
+    },
     "./icu": {
       "types": "./dist/icu.d.ts",
       "development": "./dist/comvi-core-icu.dev.js",

@@ -1,5 +1,7 @@
 node_modules
 dist
+# ...except the A6 dist-level canary suite, which is source, not build output.
+!packages/core/tests/dist/
 coverage
 *.local
 .DS_Store

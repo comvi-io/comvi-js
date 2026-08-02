@@ -30,7 +30,7 @@ const SCRIPT_DIR = path.dirname(url.fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(SCRIPT_DIR, "..", "..");
 const APP_DIR = path.join(SCRIPT_DIR, "app");
 const OUT_DIR = path.join(APP_DIR, "out");
-const FIXTURES = ["ambient", "per-call", "wrappers"];
+const FIXTURES = ["ambient", "per-call", "wrappers", "slim-composition"];
 const MODES = ["development", "production"];
 const BUNDLERS = ["webpack", "vite"];
 

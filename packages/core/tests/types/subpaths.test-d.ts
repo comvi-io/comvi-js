@@ -4,6 +4,7 @@
 // bundler-matrix job against dist.)
 import { createI18n as createSlimI18n } from "@comvi/core/slim";
 import { attachLoader, createImportMapLoader, type LoaderFn } from "@comvi/core/loader";
+import { attachPlugins, type I18nPlugin } from "@comvi/core/plugins";
 import { icuCompiler, type MessageCompiler } from "@comvi/core/icu";
 import {
   registerTagSyntax,
@@ -56,7 +57,9 @@ EDITOR_MAPPINGS_GLOBAL satisfies "__comviInContextEditorMappings";
 EDITOR_INITIAL_MAPPINGS_GLOBAL satisfies "__comviInContextEditorInitialMappings";
 const maybeMappings: Record<string, number> | undefined = toRecordOfNumbers({ a: 1 });
 void maybeMappings;
-const bridge: InContextEditorMappings | undefined = readEditorMappings(createI18n({ locale: "en" }));
+const bridge: InContextEditorMappings | undefined = readEditorMappings(
+  createI18n({ locale: "en" }),
+);
 if (bridge) {
   const snapshot: Record<string, number> = bridge.getKeyMappings();
   bridge.loadKeyMappings(snapshot);
@@ -92,3 +95,39 @@ withLoader.registerLoader(mapLoader);
 
 // The root entry keeps accepting an import map directly.
 createI18n({ locale: "en" }).registerLoader({ en: async () => ({ hello: "world" }) });
+
+// ── /plugins: the plugin-host surface (Phase 7) ───────────────────────────
+
+// A bare slim instance genuinely lacks the plugin host.
+// @ts-expect-error — use() lives in @comvi/core/plugins
+slim.use(() => {});
+// @ts-expect-error — registerPostProcessor lives in @comvi/core/plugins
+slim.registerPostProcessor((r) => r);
+// @ts-expect-error — setPluginData lives in @comvi/core/plugins
+slim.setPluginData("k", 1);
+
+// The attach chain composes: loader first, then the plugin host that may run
+// loader-registering plugins (README ordering warning / R8).
+const composed = attachPlugins(attachLoader(createSlimI18n({ locale: "en" })));
+composed.registerLoader(loaderFn);
+composed.use(() => {});
+composed.registerLocaleDetector(() => "fr");
+const detector: (() => string | Promise<string>) | undefined = composed.getLanguageDetector();
+void detector;
+const disposeMiss: () => void = composed.onMissingKey(() => "fallback");
+disposeMiss();
+composed.registerPostProcessor((result) => result);
+composed.setPluginData("cfg", { a: 1 });
+const cfg: { a: number } | undefined = composed.getPluginData<{ a: number }>("cfg");
+void cfg;
+// the base surface survives both widenings, and `use` stays chainable
+composed.use(() => {}).t("count", { count: 1 });
+
+// A fetch-loader-shaped plugin (registers a loader + stores plugin data
+// through the host) compiles and can be hosted by the composed slim chain.
+const fetchLoaderShaped: I18nPlugin = (i18n) => {
+  i18n.setPluginData("fetchLoader", { projectId: "p" });
+  i18n.registerLoader(async () => ({ hello: "world" }));
+};
+composed.use(fetchLoaderShaped);
+createI18n({ locale: "en" }).use(fetchLoaderShaped);
