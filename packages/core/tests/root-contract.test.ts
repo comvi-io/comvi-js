@@ -8,7 +8,7 @@ import { I18n } from "../src";
  * must keep not only its behavior but its *reflective* surface: consumers spy
  * on, patch, enumerate and feature-detect the class. This suite is written
  * against the untouched class at S1 (it IS the "before" snapshot) and must
- * stay green, unchanged, through S5.
+ * stay green through S5.
  *
  * On `Object.keys`: the contract pinned here is the PUBLIC observable shape —
  * the exact public own-property list, and the absence of any public method
@@ -18,6 +18,20 @@ import { I18n } from "../src";
  * renamed by terser in every shipped artifact, and capability state
  * initialization legitimately moves between the base constructor and the
  * subclass constructor during the decomposition.
+ *
+ * ── DELIBERATE CHANGE, framework-slim tier-3 (`.omc/handoffs/fs-tier3.md`) ──
+ * `useDefineForClassFields` is now `false` (−191 B min+gz on `/slim`), so a
+ * class field is an own property only once something ASSIGNS it. `instanceId`
+ * is assigned only by the discovery capability, which the root entry composes
+ * back in and which `exposeGlobal: false` opts out of. The own-property
+ * assertion below therefore SPLIT in two rather than losing a name:
+ *   • `exposeGlobal: false` → the four always-assigned publics, `instanceId`
+ *     ABSENT (it used to be present with value `undefined`);
+ *   • `exposeGlobal: true`  → the same four plus `instanceId` LAST, which
+ *     additionally pins the second consequence of the flag: own-property
+ *     order is now constructor-assignment order, not declaration order.
+ * Nothing else in this file moved: every prototype/descriptor assertion is
+ * unaffected, because public members were never class fields.
  */
 
 /** Every public method that must resolve on the prototype chain, never as an own prop. */
@@ -67,14 +81,14 @@ const PROTOTYPE_ACCESSORS = [
   { name: "isInitialized", writableAccessor: false },
 ] as const;
 
-/** Public own properties, in construction order. */
-const PUBLIC_OWN_KEYS = [
-  "translationCache",
-  "apiKey",
-  "collectContext",
-  "devMode",
-  "instanceId",
-] as const;
+/**
+ * Public own properties every instance assigns, in constructor-assignment
+ * order (which IS declaration order for these four).
+ */
+const PUBLIC_OWN_KEYS = ["translationCache", "apiKey", "collectContext", "devMode"] as const;
+
+/** Assigned only by the discovery capability, and only when exposure is on. */
+const DISCOVERY_OWN_KEY = "instanceId";
 
 interface Found {
   descriptor: PropertyDescriptor;
@@ -148,21 +162,44 @@ describe("root reflective contract (A11)", () => {
     }
   });
 
-  it("exposes exactly the pre-Phase-7 public own properties and no methods", () => {
+  it("exposes exactly the public own properties and no methods", () => {
     const i18n = new I18n({ locale: "en", exposeGlobal: false });
     const ownKeys = Object.keys(i18n);
 
+    // `useDefineForClassFields: false`: a field is an own property only once
+    // assigned, so an instance that opted out of discovery has no
+    // `instanceId` own property at all (pre-flag it was present, undefined).
     expect(ownKeys.filter((k) => !k.startsWith("_"))).toEqual([...PUBLIC_OWN_KEYS]);
+    expect(Object.prototype.hasOwnProperty.call(i18n, DISCOVERY_OWN_KEY)).toBe(false);
+    expect(i18n.instanceId).toBeUndefined();
 
-    const members: string[] = [
-      ...PROTOTYPE_METHODS,
-      ...PROTOTYPE_ACCESSORS.map((a) => a.name),
-    ];
+    const members: string[] = [...PROTOTYPE_METHODS, ...PROTOTYPE_ACCESSORS.map((a) => a.name)];
     expect(ownKeys.filter((k) => members.includes(k))).toEqual([]);
 
     // A spread copy carries data only — never behavior.
     const spread = { ...i18n } as Record<string, unknown>;
     expect(Object.keys(spread).filter((k) => typeof spread[k] === "function")).toEqual([]);
+  });
+
+  it("appends instanceId in assignment order when discovery exposes the instance", () => {
+    // The root entry composes discovery back in, so exposure still assigns
+    // `instanceId` — and pins the flag's second consequence: own-property
+    // order is constructor-assignment order, so the discovery key lands LAST,
+    // after every field the base constructor assigned.
+    const i18n = new I18n({ locale: "en", exposeGlobal: true, instanceId: "a11-probe" });
+
+    expect(Object.keys(i18n).filter((k) => !k.startsWith("_"))).toEqual([
+      ...PUBLIC_OWN_KEYS,
+      DISCOVERY_OWN_KEY,
+    ]);
+    expect(i18n.instanceId).toBe("a11-probe");
+
+    const d = Object.getOwnPropertyDescriptor(i18n, DISCOVERY_OWN_KEY)!;
+    expect({
+      writable: d.writable,
+      enumerable: d.enumerable,
+      configurable: d.configurable,
+    }).toEqual({ writable: true, enumerable: true, configurable: true });
   });
 
   it("lets prototype patching intercept instance calls (base and capability members)", () => {

@@ -1,7 +1,20 @@
 {
   "compilerOptions": {
     "target": "ES2020",
-    "useDefineForClassFields": true,
+    // useDefineForClassFields is FALSE deliberately (framework-slim tier-3,
+    // .omc/handoffs/fs-tier3.md §1). ES2022 [[Define]] semantics lower all 35
+    // class fields through a __publicField helper: measured 191 B min+gz on
+    // the slim entry (541 B minified) for zero behavioural benefit — every
+    // field this class declares is either assigned in the constructor or
+    // `declare`d by a capability module. Two REFLECTIVE consequences, pinned
+    // by tests/root-contract.test.ts: (1) a declared-but-unassigned field is
+    // no longer an own property at all (it used to exist with value
+    // undefined), so `instanceId` is absent from Object.keys(i18n) until
+    // discovery assigns it; (2) own-property ORDER is now constructor
+    // assignment order, not declaration order. Instance-enumerating consumers
+    // (devtools, serializers) observe (1). Flipping this back is a byte
+    // regression, not a bug fix.
+    "useDefineForClassFields": false,
     "module": "ESNext",
     "lib": ["ES2020", "DOM"],
     "skipLibCheck": true,
