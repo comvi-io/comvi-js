@@ -16,6 +16,15 @@ vi.mock("../src/utils/shadowDom", () => ({
   createShadowDomContainer: mocks.createShadowDomContainer,
 }));
 
+/**
+ * `beforeEach`'s `vi.resetModules()` forces the dynamic `import("../src/EditModal")`
+ * below to re-transform the whole `App.vue` tree (~110 modules, ~54 SFCs) inside
+ * the test body. That regularly exceeds vitest's 5 s default while the workspace
+ * runs its packages concurrently (`pnpm test:release`), so the budget is explicit
+ * here rather than a function of machine load.
+ */
+const SFC_IMPORT_TIMEOUT_MS = 30_000;
+
 describe("EditModal", () => {
   let container: HTMLElement;
   let mountPoint: HTMLElement;
@@ -33,50 +42,54 @@ describe("EditModal", () => {
     mocks.createApp.mockReturnValue({ mount: mocks.mount, unmount: mocks.unmount });
   });
 
-  it("mounts once and updates the existing modal on subsequent opens", async () => {
-    const remove = vi.spyOn(container, "remove");
-    const modal = await import("../src/EditModal");
+  it(
+    "mounts once and updates the existing modal on subsequent opens",
+    async () => {
+      const remove = vi.spyOn(container, "remove");
+      const modal = await import("../src/EditModal");
 
-    modal.showModal("home.title", "default", "instance-a");
+      modal.showModal("home.title", "default", "instance-a");
 
-    expect(mocks.createShadowDomContainer).toHaveBeenCalledOnce();
-    expect(mocks.createApp).toHaveBeenCalledOnce();
-    expect(mocks.mount).toHaveBeenCalledWith(mountPoint);
+      expect(mocks.createShadowDomContainer).toHaveBeenCalledOnce();
+      expect(mocks.createApp).toHaveBeenCalledOnce();
+      expect(mocks.mount).toHaveBeenCalledWith(mountPoint);
 
-    const props = mocks.createApp.mock.calls[0]![1] as {
-      translationKey: { value: string };
-      translationNamespace: { value: string };
-      translationInstanceId: { value: string | undefined };
-      open: { value: boolean };
-      "onUpdate:open": (value: boolean) => void;
-    };
-    expect(props.translationKey.value).toBe("home.title");
-    expect(props.translationNamespace.value).toBe("default");
-    expect(props.translationInstanceId.value).toBe("instance-a");
-    expect(props.open.value).toBe(true);
+      const props = mocks.createApp.mock.calls[0]![1] as {
+        translationKey: { value: string };
+        translationNamespace: { value: string };
+        translationInstanceId: { value: string | undefined };
+        open: { value: boolean };
+        "onUpdate:open": (value: boolean) => void;
+      };
+      expect(props.translationKey.value).toBe("home.title");
+      expect(props.translationNamespace.value).toBe("default");
+      expect(props.translationInstanceId.value).toBe("instance-a");
+      expect(props.open.value).toBe(true);
 
-    modal.closeModal();
-    expect(props.open.value).toBe(false);
+      modal.closeModal();
+      expect(props.open.value).toBe(false);
 
-    modal.showModal("checkout.total", "checkout");
-    expect(mocks.createApp).toHaveBeenCalledOnce();
-    expect(props.translationKey.value).toBe("checkout.total");
-    expect(props.translationNamespace.value).toBe("checkout");
-    expect(props.translationInstanceId.value).toBeUndefined();
-    expect(props.open.value).toBe(true);
+      modal.showModal("checkout.total", "checkout");
+      expect(mocks.createApp).toHaveBeenCalledOnce();
+      expect(props.translationKey.value).toBe("checkout.total");
+      expect(props.translationNamespace.value).toBe("checkout");
+      expect(props.translationInstanceId.value).toBeUndefined();
+      expect(props.open.value).toBe(true);
 
-    props["onUpdate:open"](false);
-    expect(props.open.value).toBe(false);
+      props["onUpdate:open"](false);
+      expect(props.open.value).toBe(false);
 
-    modal.cleanup();
-    expect(mocks.unmount).toHaveBeenCalledOnce();
-    expect(remove).toHaveBeenCalledOnce();
-    expect(props.translationKey.value).toBe("");
-    expect(props.translationNamespace.value).toBe("");
-    expect(props.translationInstanceId.value).toBeUndefined();
+      modal.cleanup();
+      expect(mocks.unmount).toHaveBeenCalledOnce();
+      expect(remove).toHaveBeenCalledOnce();
+      expect(props.translationKey.value).toBe("");
+      expect(props.translationNamespace.value).toBe("");
+      expect(props.translationInstanceId.value).toBeUndefined();
 
-    modal.cleanup();
-    expect(mocks.unmount).toHaveBeenCalledOnce();
-    expect(remove).toHaveBeenCalledOnce();
-  });
+      modal.cleanup();
+      expect(mocks.unmount).toHaveBeenCalledOnce();
+      expect(remove).toHaveBeenCalledOnce();
+    },
+    SFC_IMPORT_TIMEOUT_MS,
+  );
 });

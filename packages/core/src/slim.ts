@@ -17,8 +17,9 @@
 // Compose outside-in: `attachPlugins(attachLoader(createI18n({ … })))`.
 //
 // In any graph without a tags extension (bare slim and slim + `/icu`),
-// `t`/`tRaw` produce strings: non-primitive param values coerce instead of
-// producing a parts array.
+// `<tag>…</tag>` is not syntax — it stays literal text in the output. Rich
+// non-primitive param values behave exactly as on the root entry: `t` coerces
+// them to a string, `tRaw` preserves them as a parts array.
 import { createI18nWithCompiler } from "./core/factory";
 import { simpleCompiler } from "./core/translate/compile-simple";
 

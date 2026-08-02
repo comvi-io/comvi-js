@@ -1,5 +1,5 @@
 // Size-gate fixture: the slim entry (simple compiler, no ICU, no tags).
-// Gate: <= 5.5 KB min+gz. Pending until Phase 1 ships @comvi/core/slim.
+// Gate: <= 5760 B min+gz (post-Phase-7 ratchet; see scripts/size-budgets.json).
 import { createI18n } from "@comvi/core/slim";
 
 const i18n = createI18n({

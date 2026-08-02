@@ -74,6 +74,116 @@ i18n.t("greeting", { name: "Alice" }); // "Hello, Alice!"
 i18n.t("items", { count: 5 }); // "5 items"
 ```
 
+## Slim / pay-for-what-you-use
+
+`@comvi/core` is the batteries-included entry: ICU, tag syntax, async loading and the
+plugin host are all there the moment you import it. When bundle size is the binding
+constraint, `@comvi/core/slim` gives you the translation core alone and you compose the
+rest back on from pure subpaths — nothing is behind a runtime flag, capabilities are
+absent because their modules never enter your module graph.
+
+```ts
+import { createI18n } from "@comvi/core/slim";
+import { attachLoader } from "@comvi/core/loader";
+import { attachPlugins } from "@comvi/core/plugins";
+
+// Compose outside-in. Each attach returns the SAME instance, re-typed.
+const i18n = attachPlugins(
+  attachLoader(
+    createI18n({
+      locale: "en",
+      fallbackLocale: "en",
+      translation: { en: { greeting: "Hello, {name}!" } },
+    }),
+  ),
+);
+
+i18n.registerLoader(async (locale, ns) => (await fetch(`/i18n/${locale}/${ns}.json`)).json());
+i18n.use(SomePlugin());
+
+await i18n.init();
+i18n.t("greeting", { name: "Alice" }); // "Hello, Alice!"
+```
+
+Both attach functions are idempotent, and they install their methods as **non-enumerable
+own properties** with ordinary method descriptors — `Object.keys(i18n)`, spread copies and
+`JSON.stringify` see exactly what they saw before.
+
+> **Order matters: `attachLoader` before `attachPlugins`.** Plugins run during `init()`,
+> and a loader-registering plugin (for example [`@comvi/plugin-fetch-loader`](../plugin-fetch-loader))
+> calls `registerLoader` on the instance. If the loader capability was never attached,
+> that call is a `TypeError` at `init()` time, not a compile error. The root
+> `@comvi/core` entry ships both capabilities on the class — there is nothing to attach
+> and no ordering concern there.
+
+### What bare slim does not have
+
+Everything below exists on a root `@comvi/core` instance. On slim it is a **compile
+error** until you attach the subpath — a missing capability is caught by TypeScript, never
+discovered in production.
+
+| Capability            | Subpath                                 | Members                                                                                                                           |
+| --------------------- | --------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| Async loading         | `@comvi/core/loader` (`attachLoader`)   | `registerLoader`, `getLoader`, `reloadTranslations`, `addActiveNamespace`, `addActiveNamespaces`, `onLoadError`                   |
+| Import-map loading    | `@comvi/core/loader`                    | `createImportMapLoader` — **moved here from `@comvi/core/slim`**; both subpaths first ship in 0.5.0, so no existing import breaks |
+| Plugin host           | `@comvi/core/plugins` (`attachPlugins`) | `use`, `setPluginData`, `getPluginData`                                                                                           |
+| Locale detection      | `@comvi/core/plugins`                   | `registerLocaleDetector`, `getLanguageDetector`                                                                                   |
+| Missing-key callbacks | `@comvi/core/plugins`                   | `onMissingKey`                                                                                                                    |
+| Post-processors       | `@comvi/core/plugins`                   | `registerPostProcessor`                                                                                                           |
+| ICU plural/select     | `@comvi/core/icu`                       | `createI18n({ …, compiler: icuCompiler })`                                                                                        |
+| Tag interpolation     | `@comvi/core/tags`                      | ambient import, or `tagInterpolation.extensions` per call                                                                         |
+
+Two placements are worth calling out because they are not where you might guess:
+
+- **`addActiveNamespace` / `addActiveNamespaces` live on `/loader`.** Activating a
+  namespace only means anything when something loads namespaces. Bare slim activates
+  implicitly instead: `addTranslations` self-activates the namespaces it carries.
+- **`onLoadError` lives on `/loader`.** Only the loader capability can emit `loadError`,
+  so subscribing to it without a loader would be a no-op by construction.
+
+The `postProcess` and `onMissingKey` **constructor options** stay universal — they work on
+bare slim. Only the runtime _registration_ APIs are part of the plugin-host capability.
+
+### Tags-less graphs: markup stays literal
+
+In any graph without a tag extension — that is **bare slim and slim + `/icu`** — `<tag>…</tag>`
+is not syntax. It stays in the output as literal text:
+
+```ts
+import { createI18n } from "@comvi/core/slim";
+
+const i18n = createI18n({
+  locale: "en",
+  translation: { en: { hi: "Hi, <b>{who}</b>!" } },
+});
+
+i18n.t("hi", { who: "Alice" }); // "Hi, <b>Alice</b>!"  — root returns "Hi, Alice!"
+```
+
+Tag parsing comes back the moment a tag extension is in the graph: `import "@comvi/core/tags"`
+for ambient registration, or `tagInterpolation.extensions` per call. The root `@comvi/core`
+entry registers tag syntax itself, which is why it is rich by default.
+
+Non-primitive **parameter values** are a separate axis and behave identically on every
+entry, slim included: `t()` always returns a string (parts are coerced), `tRaw()` preserves
+them as a parts array.
+
+```ts
+i18n.t("greeting", { who: someVNode }); // string — coerced
+i18n.tRaw("greeting", { who: someVNode }); // ["Hi, ", someVNode, "!"]
+```
+
+### What it costs
+
+Measured min+gz through the published exports map (`node scripts/size-check.mjs`):
+
+| Entry                  | min+gz  |
+| ---------------------- | ------- |
+| `@comvi/core/slim`     | 5,728 B |
+| `+ /icu`               | 6,592 B |
+| `+ /loader + /plugins` | 6,875 B |
+| `@comvi/core` (root)   | 8,583 B |
+
 ## ICU MessageFormat — locale-correct grammar, not just singular/plural
 
 `count === 1 ? "item" : "items"` works in English. It silently ships broken grammar in Polish, Ukrainian, Arabic, Welsh, and 30+ other locales — those languages have 3, 4, sometimes 6 distinct plural categories that a binary if/else can't express. [ICU MessageFormat](https://unicode-org.github.io/icu/userguide/format_parse/messages/) is the standard syntax for handling them — the same syntax Crowdin, Lokalise, Phrase, and every major TMS already speak. Comvi i18n parses it via native [`Intl.PluralRules`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Intl/PluralRules), so every CLDR plural category is correct by default.

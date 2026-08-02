@@ -1,6 +1,6 @@
 // Size-gate fixture: slim entry + ICU compiler injected from the pure /icu
-// subpath. Gate: <= 7.5 KB min+gz — fails visibly if tag machinery ever leaks
-// into the slim+ICU graph (plan Risk 9 / defect A). Pending until Phase 1.
+// subpath. Gate: <= 7680 B min+gz — fails visibly if tag machinery ever leaks
+// into the slim+ICU graph (plan Risk 9 / defect A). Measured 6592 B post-Phase-7.
 import { createI18n } from "@comvi/core/slim";
 import { icuCompiler } from "@comvi/core/icu";
 

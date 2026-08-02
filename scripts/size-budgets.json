@@ -1,5 +1,5 @@
 {
-  "note": "min+gz budgets in bytes, enforced by scripts/size-check.mjs (esbuild bundle via the published exports map, minify, gzip -9). The full budget is the measured baseline + 2%. Entries with pending:true cover subpaths that land in Phase 1; the gate skips them while the specifier does not resolve — flip pending to false to activate. slim-tags is informational (no budget) until Phase 1 stabilizes, then gated at slim + 1.2 KB.",
+  "note": "min+gz budgets in bytes, enforced by scripts/size-check.mjs (esbuild bundle via the published exports map, minify, gzip -9). The full budget is the measured baseline + 2%. `baseline` blocks record the last measured numbers behind a budget — they are evidence, not gates. Entries with pending:true cover subpaths that are not exported yet; the gate skips them while the specifier does not resolve. Informational entries (no gzipBudgetBytes) are measured and printed, never gated.",
   "fixtures": [
     {
       "name": "full",
@@ -10,32 +10,44 @@
         "minBytes": 24770,
         "gzipBytes": 8429,
         "measuredAt": "2026-08-02"
-      }
+      },
+      "note": "Budget = the 8429 B pre-0.5.0 baseline + 2%, USER-signed. Phase 7 landed at 8583 B (+12 B vs the pre-Phase-7 cb1735a measurement of 8571 B: +27 B is the R2 mangler correctness fix, +67 B capability glue, -82 B recovered by translate golf). The budget is deliberately NOT re-anchored to 8583 — the 15 B of remaining headroom is the fixed envelope the plan reserved."
     },
     {
       "name": "slim",
       "entry": "@comvi/core/slim",
       "fixture": "slim.ts",
-      "gzipBudgetBytes": 6912,
-      "note": "Phase-1 floor 6740 B (I18n class ~56%); 5632 requires class decomposition (not in 0.5.0 plan). Ratchet after Phase 2 registry deletion."
+      "gzipBudgetBytes": 5760,
+      "baseline": {
+        "minBytes": 15691,
+        "gzipBytes": 5728,
+        "measuredAt": "2026-08-02"
+      },
+      "note": "Ratcheted 6912 -> 5760 after the Phase-7 capability decomposition (measured 5728 B + 32 B drift margin; -1049 B vs the 6777 B Phase-1 floor). The original 5632 target is UNMET and is not relaxed silently: it needed lever L4 (extension-driven translate assembly), which was implemented twice, measured at -105 B against its 250 B abort floor, and rejected — it also cost the full entry +168 B, which would have blown the signed 8598. The remaining 96 B would come from C3 (post-process pipeline hook + narrowed slim options, ~-80 B) plus a bounded golf pass; the USER declined C3 for 0.5.0 (API cost > 96 B benefit). Tracked in .omc/plans/open-questions.md."
+    },
+    {
+      "name": "slim-loader",
+      "entry": ["@comvi/core/slim", "@comvi/core/loader", "@comvi/core/plugins"],
+      "fixture": "slim-loader.ts",
+      "note": "Informational: bare slim with BOTH capabilities attached, i.e. the upper bound of the composed slim surface. Printed so the pay-for-what-you-use delta against the `slim` row stays visible; never gated."
     },
     {
       "name": "slim-tags",
-      "entry": [
-        "@comvi/core/slim",
-        "@comvi/core/tags"
-      ],
+      "entry": ["@comvi/core/slim", "@comvi/core/tags"],
       "fixture": "slim-tags.ts",
       "pending": true
     },
     {
       "name": "slim-icu",
-      "entry": [
-        "@comvi/core/slim",
-        "@comvi/core/icu"
-      ],
+      "entry": ["@comvi/core/slim", "@comvi/core/icu"],
       "fixture": "slim-icu.ts",
-      "gzipBudgetBytes": 7680
+      "gzipBudgetBytes": 7680,
+      "baseline": {
+        "minBytes": 17995,
+        "gzipBytes": 6592,
+        "measuredAt": "2026-08-02"
+      },
+      "note": "Post-Phase-7 measured baseline 6592 B (-1080 B; the entry shares every slim class lever). The budget deliberately stays at 7680 — ratcheting it to ~measured+margin is a named follow-up owned by the release captain, post-0.5.0, and this baseline block is the data it starts from."
     }
   ]
 }

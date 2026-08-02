@@ -29,17 +29,33 @@ export function declaredMaxBump() {
   return max;
 }
 
-export function nextReleaseRange() {
+/**
+ * The version the next release will publish for the `fixed` group, derived
+ * from the branch's @comvi/core manifest — never from npm, because the branch
+ * may already be ahead of (or behind) the published line.
+ */
+export function nextReleaseVersion() {
   const bump = declaredMaxBump();
   if (bump === 0) return null;
   const core = JSON.parse(fs.readFileSync(path.join(root, "packages/core/package.json"), "utf8"));
-  let [maj, min] = core.version.split(".").map(Number);
+  let [maj, min, patch] = core.version.split(".").map(Number);
   if (bump === ORDER.major) {
     maj += 1;
     min = 0;
+    patch = 0;
   } else if (bump === ORDER.minor) {
     min += 1;
+    patch = 0;
+  } else {
+    patch += 1;
   }
+  return `${maj}.${min}.${patch}`;
+}
+
+export function nextReleaseRange() {
+  const version = nextReleaseVersion();
+  if (version === null) return null;
+  const [maj, min] = version.split(".");
   return `^${maj}.${min}.0`;
 }
 
