@@ -5,7 +5,7 @@ type ComviSetupContext = {
 };
 
 export default ({ i18n }: ComviSetupContext) => {
-  i18n.registerLoader({
+  i18n.core.registerLoader({
     en: () => import("../../locales/en.json"),
     de: () => import("../../locales/de.json"),
     fr: () => import("../../locales/fr.json"),

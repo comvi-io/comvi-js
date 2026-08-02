@@ -72,7 +72,7 @@ type ComponentsMap = Record<string, ComponentHandler>;
  * <T i18nKey="greeting" locale="fr" />
  * ```
  */
-export const T = defineComponent({
+export const T = /*@__PURE__*/ defineComponent({
   name: "T",
   props: {
     /**

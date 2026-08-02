@@ -1,7 +1,7 @@
 import { inject, type Ref, type ComputedRef } from "vue";
 import { I18N_INJECTION_KEY } from "../keys";
 import type { VueI18n } from "../VueI18n";
-import { createBoundTranslation, translationResultToString } from "@comvi/core";
+import { createBoundTranslation, translationResultToString } from "@comvi/core/slim";
 import type {
   TranslationParams,
   TranslationResult,
@@ -10,9 +10,9 @@ import type {
   TranslationValue,
   I18nEvent,
   I18nEventData,
-  I18n,
   DefaultTranslationParams,
   DefaultParamsSnapshot,
+  WrapperI18nHost,
 } from "@comvi/core";
 
 export interface UseI18nReturn<D extends DefaultTranslationParams = {}> {
@@ -40,9 +40,6 @@ export interface UseI18nReturn<D extends DefaultTranslationParams = {}> {
   /** Add translations programmatically at runtime */
   addTranslations: (translations: Record<string, Record<string, TranslationValue>>) => void;
 
-  /** Load a new namespace dynamically */
-  addActiveNamespace: (namespace: string) => Promise<void>;
-
   /** Configure fallback locale chain */
   setFallbackLocale: (locales: string | string[]) => void;
 
@@ -50,21 +47,10 @@ export interface UseI18nReturn<D extends DefaultTranslationParams = {}> {
   defaultParams: ComputedRef<DefaultParamsSnapshot<D>>;
 
   /** Replace instance-level interpolation defaults. */
-  setDefaultParams: I18n<D>["setDefaultParams"];
-
-  /** Register callback for missing keys */
-  onMissingKey: (
-    callback: (key: string, locale: string, namespace: string) => TranslationResult | void,
-  ) => () => void;
-
-  /** Register callback for load errors */
-  onLoadError: (callback: (locale: string, namespace: string, error: Error) => void) => () => void;
+  setDefaultParams: WrapperI18nHost<D>["setDefaultParams"];
 
   /** Clear translations from cache */
   clearTranslations: (locale?: string, namespace?: string) => void;
-
-  /** Force reload translations from loader */
-  reloadTranslations: (locale?: string, namespace?: string) => Promise<void>;
 
   /** Reactive list of all loaded locale codes */
   loadedLocales: ComputedRef<string[]>;
@@ -104,7 +90,7 @@ export interface UseI18nReturn<D extends DefaultTranslationParams = {}> {
   on: <E extends I18nEvent>(event: E, callback: (payload: I18nEventData[E]) => void) => () => void;
 
   /** Report an error to the configured onError handler */
-  reportError: I18n["reportError"];
+  reportError: WrapperI18nHost["reportError"];
 
   /** Format a number using the current language locale */
   formatNumber: VueI18n["formatNumber"];
@@ -125,7 +111,14 @@ export interface UseI18nReturn<D extends DefaultTranslationParams = {}> {
   destroy: () => void;
 }
 
-/** Keys copied from the i18n instance as direct references */
+/**
+ * Keys copied from the i18n instance as direct references.
+ *
+ * Capability members are NOT here: `addActiveNamespace` / `reloadTranslations`
+ * / `onLoadError` moved to `useI18nLoader()` and `onMissingKey` to
+ * `useI18nPlugins()` (framework-slim §3.2), so this loop only ever touches
+ * members a bare `WrapperI18nHost` really has.
+ */
 const PASSTHROUGH_KEYS = [
   "locale",
   "setLocale",
@@ -133,14 +126,10 @@ const PASSTHROUGH_KEYS = [
   "isLoading",
   "isInitializing",
   "addTranslations",
-  "addActiveNamespace",
   "setFallbackLocale",
   "defaultParams",
   "setDefaultParams",
-  "onMissingKey",
-  "onLoadError",
   "clearTranslations",
-  "reloadTranslations",
   "hasLocale",
   "hasTranslation",
   "hasLocaleNow",
@@ -165,9 +154,9 @@ const PASSTHROUGH_KEYS = [
  *
  * @param ns - Optional namespace to scope the returned `t` / `tRaw` functions to.
  *             When provided, key lookups default to this namespace instead of the
- *             configured `defaultNs`. Other returned methods (e.g. `hasTranslation`,
- *             `addActiveNamespace`) are NOT scoped — they accept explicit `namespace`
- *             arguments where applicable.
+ *             configured `defaultNs`. Other returned methods (e.g. `hasTranslation`)
+ *             are NOT scoped — they accept explicit `namespace` arguments where
+ *             applicable.
  * @returns Object with translation function, reactive state, and i18n methods
  */
 export function useI18n<D extends DefaultTranslationParams = {}>(ns?: string): UseI18nReturn<D> {
@@ -180,7 +169,7 @@ export function useI18n<D extends DefaultTranslationParams = {}>(ns?: string): U
     );
   }
 
-  const i18n = injected as VueI18n<D>;
+  const i18n = injected as unknown as VueI18n<D, WrapperI18nHost<D>>;
 
   const tRaw = createBoundTranslation(i18n, ns) as UseI18nReturn<D>["tRaw"];
   const t = ((key: string, params?: TranslationParams) =>

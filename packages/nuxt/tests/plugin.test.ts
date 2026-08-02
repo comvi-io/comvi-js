@@ -3,10 +3,10 @@ import { computed, nextTick, ref } from "vue";
 import * as nuxtAppMocks from "./mocks/nuxt-app";
 import { resetComviSetupMock, runComviSetup } from "./mocks/comvi-setup";
 
-const createI18n = vi.fn();
+const createComviI18n = vi.fn();
 
-vi.mock("@comvi/vue", () => ({
-  createI18n,
+vi.mock("#build/comvi.host", () => ({
+  createComviI18n,
 }));
 
 function createI18nStub(initialLocale = "en") {
@@ -59,7 +59,7 @@ async function flushWatchers() {
 describe("runtime plugin", () => {
   beforeEach(() => {
     nuxtAppMocks.resetMocks();
-    createI18n.mockReset();
+    createComviI18n.mockReset();
     resetComviSetupMock();
   });
 
@@ -68,13 +68,13 @@ describe("runtime plugin", () => {
       formality: "formal",
     };
     const i18n = createI18nStub("en");
-    createI18n.mockReturnValue(i18n);
+    createComviI18n.mockReturnValue(i18n);
 
     const plugin = await importPlugin();
     const nuxtApp = createNuxtAppStub();
     const result = await plugin.setup(nuxtApp);
 
-    expect(createI18n).toHaveBeenCalledWith(
+    expect(createComviI18n).toHaveBeenCalledWith(
       expect.objectContaining({
         locale: "en",
         fallbackLocale: "en",
@@ -104,7 +104,7 @@ describe("runtime plugin", () => {
 
   it("passes in-context editor key mappings from SSR payload before init", async () => {
     const i18n = createI18nStub("en");
-    createI18n.mockReturnValue(i18n);
+    createComviI18n.mockReturnValue(i18n);
 
     const plugin = await importPlugin();
     await plugin.setup(
@@ -128,7 +128,7 @@ describe("runtime plugin", () => {
   it("still runs setup hook when cdnUrl is absent", async () => {
     nuxtAppMocks.mockRuntimeConfig.public.comvi.cdnUrl = undefined;
     const i18n = createI18nStub("en");
-    createI18n.mockReturnValue(i18n);
+    createComviI18n.mockReturnValue(i18n);
 
     const plugin = await importPlugin();
     await plugin.setup(createNuxtAppStub());
@@ -140,7 +140,7 @@ describe("runtime plugin", () => {
 
   it("syncs localeChanged events to Nuxt locale state and cookie", async () => {
     const i18n = createI18nStub("en");
-    createI18n.mockReturnValue(i18n);
+    createComviI18n.mockReturnValue(i18n);
 
     const plugin = await importPlugin();
     await plugin.setup(createNuxtAppStub());
@@ -155,7 +155,7 @@ describe("runtime plugin", () => {
 
   it("updates i18n locale when locale state changes externally", async () => {
     const i18n = createI18nStub("en");
-    createI18n.mockReturnValue(i18n);
+    createComviI18n.mockReturnValue(i18n);
 
     const plugin = await importPlugin();
     await plugin.setup(createNuxtAppStub());
@@ -174,7 +174,7 @@ describe("runtime plugin", () => {
       await Promise.resolve();
       i18n.locale.value = newLocale;
     });
-    createI18n.mockReturnValue(i18n);
+    createComviI18n.mockReturnValue(i18n);
 
     const plugin = await importPlugin();
     await plugin.setup(createNuxtAppStub());
@@ -199,7 +199,7 @@ describe("runtime plugin", () => {
       i18n.locale.value = newLocale;
       i18n.emit("localeChanged", { to: newLocale });
     });
-    createI18n.mockReturnValue(i18n);
+    createComviI18n.mockReturnValue(i18n);
 
     const plugin = await importPlugin();
     await plugin.setup(createNuxtAppStub());
@@ -220,7 +220,7 @@ describe("runtime plugin", () => {
   it("hydrates translations from SSR payload before init on client", async () => {
     const i18n = createI18nStub("en");
     i18n.addTranslations = vi.fn();
-    createI18n.mockReturnValue(i18n);
+    createComviI18n.mockReturnValue(i18n);
 
     const ssrTranslations = {
       "en:default": { greeting: "Hello" },
@@ -246,7 +246,7 @@ describe("runtime plugin", () => {
   it("skips hydration when payload has no translations", async () => {
     const i18n = createI18nStub("en");
     i18n.addTranslations = vi.fn();
-    createI18n.mockReturnValue(i18n);
+    createComviI18n.mockReturnValue(i18n);
 
     const plugin = await importPlugin();
     await plugin.setup(createNuxtAppStub());
@@ -259,7 +259,7 @@ describe("runtime plugin", () => {
     const useCookieSpy = vi.spyOn(nuxtAppMocks, "useCookie");
 
     const i18n = createI18nStub("en");
-    createI18n.mockReturnValue(i18n);
+    createComviI18n.mockReturnValue(i18n);
 
     const plugin = await importPlugin();
     await plugin.setup(createNuxtAppStub());
@@ -271,7 +271,7 @@ describe("runtime plugin", () => {
   it("rich translation content with VirtualNode shape survives JSON round-trip hydration", async () => {
     const i18n = createI18nStub("en");
     i18n.addTranslations = vi.fn();
-    createI18n.mockReturnValue(i18n);
+    createComviI18n.mockReturnValue(i18n);
 
     // Simulate SSR payload containing a translation with a VirtualNode-like structure
     // (tag interpolation produces objects like { tag, props, children } in the cache)

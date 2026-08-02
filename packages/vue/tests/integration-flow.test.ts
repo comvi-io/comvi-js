@@ -104,7 +104,7 @@ describe("Integration Flow", () => {
     expect(wrapper.find('[data-testid="lang"]').text()).toBe("de");
     expect(wrapper.find('[data-testid="welcome"]').text()).toBe("Willkommen Marie");
 
-    await i18n.addActiveNamespace("admin");
+    await i18n.core.addActiveNamespace("admin");
     expect(i18n.t("title", { ns: "admin" })).toBe("Adminbereich");
   });
 

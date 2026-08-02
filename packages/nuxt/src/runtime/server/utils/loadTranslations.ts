@@ -1,4 +1,5 @@
-import type { I18n, TranslationValue } from "@comvi/core";
+import type { TranslationValue } from "@comvi/core";
+import type { NuxtServerHost } from "../../../types";
 import type { H3Event } from "h3";
 import { getRequestI18n } from "./request-i18n";
 
@@ -19,7 +20,7 @@ export type TranslationsResult = Record<string, Record<string, TranslationValue>
 
 const toError = (error: unknown): Error =>
   error instanceof Error ? error : new Error(String(error));
-const noLoaderWarnings = new WeakSet<I18n>();
+const noLoaderWarnings = new WeakSet<NuxtServerHost>();
 const NO_LOADER_WARNING_MESSAGE =
   "[@comvi/nuxt] No loader configured. Register one in comvi.setup via i18n.use(...).";
 
@@ -30,7 +31,7 @@ const toPlainObject = (
   return Object.fromEntries(Object.entries(value)) as Record<string, TranslationValue>;
 };
 
-const warnNoLoaderConfigured = (i18n: I18n): void => {
+const warnNoLoaderConfigured = (i18n: NuxtServerHost): void => {
   if (noLoaderWarnings.has(i18n)) {
     return;
   }

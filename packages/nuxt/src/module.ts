@@ -71,56 +71,33 @@ const comviNuxtModule: NuxtModule<NuxtI18nOptions> = defineNuxtModule<NuxtI18nOp
     }
 
     const { resolve } = createResolver(import.meta.url);
-    let resolvedSetupPath: string | undefined;
 
-    if (options.setup) {
-      try {
-        resolvedSetupPath =
-          (await findPath(options.setup, {
-            cwd: nuxt.options.srcDir,
-            type: "file",
-          })) ?? undefined;
-      } catch {
-        resolvedSetupPath = undefined;
-      }
-
-      if (!resolvedSetupPath) {
+    // A user module is addressed relative to srcDir first, then rootDir —
+    // `findPath` throws on some malformed inputs, so each lookup is guarded.
+    const findUserModule = async (specifier: string): Promise<string | undefined> => {
+      for (const cwd of [nuxt.options.srcDir, nuxt.options.rootDir]) {
         try {
-          resolvedSetupPath =
-            (await findPath(options.setup, {
-              cwd: nuxt.options.rootDir,
-              type: "file",
-            })) ?? undefined;
+          const found = await findPath(specifier, { cwd, type: "file" });
+          if (found) return found;
         } catch {
-          resolvedSetupPath = undefined;
+          // try the next root
         }
       }
+      return undefined;
+    };
 
-      if (!resolvedSetupPath) {
-        throw new Error(`[@comvi/nuxt] Failed to resolve comvi.setup path: "${options.setup}".`);
-      }
-    } else {
-      try {
-        resolvedSetupPath =
-          (await findPath("./comvi.setup", {
-            cwd: nuxt.options.srcDir,
-            type: "file",
-          })) ?? undefined;
-      } catch {
-        resolvedSetupPath = undefined;
-      }
+    const resolvedSetupPath = await findUserModule(options.setup ?? "./comvi.setup");
+    if (options.setup && !resolvedSetupPath) {
+      throw new Error(`[@comvi/nuxt] Failed to resolve comvi.setup path: "${options.setup}".`);
+    }
 
-      if (!resolvedSetupPath) {
-        try {
-          resolvedSetupPath =
-            (await findPath("./comvi.setup", {
-              cwd: nuxt.options.rootDir,
-              type: "file",
-            })) ?? undefined;
-        } catch {
-          resolvedSetupPath = undefined;
-        }
-      }
+    const resolvedHostModulePath = options.hostModule
+      ? await findUserModule(options.hostModule)
+      : undefined;
+    if (options.hostModule && !resolvedHostModulePath) {
+      throw new Error(
+        `[@comvi/nuxt] Failed to resolve comvi hostModule path: "${options.hostModule}".`,
+      );
     }
 
     // Normalize locale configuration
@@ -220,11 +197,65 @@ export async function runComviSetup(context) {
       },
     });
 
+    // Generate the i18n construction bridge. THIS is where the composed-host
+    // option is decided, and it has to be here: the runtime plugin and the
+    // server utilities import whatever this template exports, so an app that
+    // sets `hostModule` never has the root `@comvi/core` entry in its module
+    // graph at all. The same branch taken at runtime (an `if` in plugin.ts)
+    // would keep the root import alive in every bundle and save nothing
+    // (framework-slim P4 step 5).
+    addTemplate({
+      filename: "comvi.host.mjs",
+      getContents: () => {
+        const hostPath = resolvedHostModulePath;
+
+        if (!hostPath) {
+          return `
+import { createI18n } from "@comvi/vue";
+import { createI18n as createCore } from "@comvi/core";
+
+export function createComviI18n(options) {
+  return createI18n(options);
+}
+
+export function createComviCore(options) {
+  return createCore(options);
+}
+`;
+        }
+
+        return `
+import { createI18nFromCore } from "@comvi/vue";
+import hostFactory from ${JSON.stringify(hostPath)};
+
+function createHost() {
+  if (typeof hostFactory !== "function") {
+    throw new TypeError(
+      "[@comvi/nuxt] comvi hostModule must export a default function returning an i18n host.",
+    );
+  }
+
+  return hostFactory();
+}
+
+export function createComviI18n(options) {
+  return createI18nFromCore(createHost(), { ssrLocale: options.ssrLocale ?? options.locale });
+}
+
+export function createComviCore() {
+  return createHost();
+}
+`;
+      },
+    });
+
     // Register explicit composable imports so Nuxt generates stable #imports types
     // for published package consumers. Keep this list in sync with
     // src/runtime/composables/ — asserted by tests/module.test.ts.
     addImports([
       { name: "useI18n", from: resolve("./runtime/composables/useI18n") },
+      { name: "useI18nLoader", from: resolve("./runtime/composables/capabilities") },
+      { name: "useI18nPlugins", from: resolve("./runtime/composables/capabilities") },
       { name: "useLocaleHead", from: resolve("./runtime/composables/useLocaleHead") },
       { name: "useLocalePath", from: resolve("./runtime/composables/useLocalePath") },
       { name: "useLocaleRoute", from: resolve("./runtime/composables/useLocaleRoute") },

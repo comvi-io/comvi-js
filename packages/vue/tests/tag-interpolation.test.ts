@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { mount } from "@vue/test-utils";
 import { h, defineComponent, markRaw } from "vue";
-import { VueI18n } from "../src/VueI18n";
+import { createI18n as createRootI18n } from "../src/createI18n";
 import { T } from "../src/components/T";
 import { I18N_INJECTION_KEY } from "../src/keys";
 
@@ -19,7 +19,7 @@ declare module "@comvi/core" {
 
 describe("<T /> component - Tag Interpolation", () => {
   const createI18n = (translations: Record<string, string>, options?: any) => {
-    return new VueI18n({
+    return createRootI18n({
       locale: "en",
       translation: { en: translations },
       ...options,
@@ -187,7 +187,7 @@ describe("<T /> component - Tag Interpolation", () => {
 
   describe("Basic HTML Tags Whitelist", () => {
     it("should render whitelisted HTML tags without handler", () => {
-      const i18n = new VueI18n({
+      const i18n = createRootI18n({
         locale: "en",
         translation: { en: { msg: "This is <strong>bold</strong> text" } },
         tagInterpolation: {
@@ -205,7 +205,7 @@ describe("<T /> component - Tag Interpolation", () => {
     });
 
     it("should render self-closing whitelisted tags", () => {
-      const i18n = new VueI18n({
+      const i18n = createRootI18n({
         locale: "en",
         translation: { en: { msg: "Line 1<br/>Line 2" } },
         tagInterpolation: {
@@ -222,7 +222,7 @@ describe("<T /> component - Tag Interpolation", () => {
     });
 
     it("should prioritize explicit handler over whitelist", () => {
-      const i18n = new VueI18n({
+      const i18n = createRootI18n({
         locale: "en",
         translation: { en: { msg: "<strong>text</strong>" } },
         tagInterpolation: {
@@ -336,7 +336,7 @@ describe("<T /> component - Tag Interpolation", () => {
 
   describe("Reactivity", () => {
     it("should update when locale changes", async () => {
-      const i18n = new VueI18n({
+      const i18n = createRootI18n({
         locale: "en",
         translation: {
           en: { msg: "<bold>Hello</bold>" },

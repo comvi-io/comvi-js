@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const getCookie = vi.fn();
 const getHeader = vi.fn();
-const createI18n = vi.fn();
+const createComviCore = vi.fn();
 const runComviSetup = vi.fn(async () => undefined);
 
 vi.mock("h3", () => ({
@@ -10,8 +10,8 @@ vi.mock("h3", () => ({
   getHeader,
 }));
 
-vi.mock("@comvi/core", () => ({
-  createI18n,
+vi.mock("#build/comvi.host", () => ({
+  createComviCore,
 }));
 
 vi.mock("#build/comvi.setup", () => ({
@@ -77,14 +77,14 @@ describe("useTranslation (server)", () => {
   beforeEach(() => {
     getCookie.mockReset();
     getHeader.mockReset();
-    createI18n.mockReset();
+    createComviCore.mockReset();
     runComviSetup.mockReset();
     runComviSetup.mockResolvedValue(undefined);
   });
 
   it("uses explicit locale and namespace, returning string translation helper", async () => {
     const i18n = createI18nStub("en");
-    createI18n.mockReturnValue(i18n);
+    createComviCore.mockReturnValue(i18n);
     const useTranslation = await importUseTranslation();
 
     const { t, locale, hasTranslation } = await useTranslation(createEvent(), {
@@ -102,7 +102,7 @@ describe("useTranslation (server)", () => {
       }),
     );
     expect(i18n.addActiveNamespace).toHaveBeenCalledWith("admin");
-    expect(createI18n).toHaveBeenCalledWith(
+    expect(createComviCore).toHaveBeenCalledWith(
       expect.objectContaining({ defaultParams: { formality: "formal" } }),
     );
     expect(runComviSetup).toHaveBeenCalledWith(
@@ -122,7 +122,7 @@ describe("useTranslation (server)", () => {
 
   it("detects locale from cookie when enabled and supported", async () => {
     const i18n = createI18nStub("en");
-    createI18n.mockReturnValue(i18n);
+    createComviCore.mockReturnValue(i18n);
     getCookie.mockReturnValue("de");
     getHeader.mockReturnValue(undefined);
     const useTranslation = await importUseTranslation();
@@ -133,7 +133,7 @@ describe("useTranslation (server)", () => {
 
   it("detects locale from Accept-Language header when cookie is not set", async () => {
     const i18n = createI18nStub("en");
-    createI18n.mockReturnValue(i18n);
+    createComviCore.mockReturnValue(i18n);
     getCookie.mockReturnValue(undefined);
     getHeader.mockReturnValue("de-DE,de;q=0.9,en;q=0.8");
     const useTranslation = await importUseTranslation();
@@ -144,7 +144,7 @@ describe("useTranslation (server)", () => {
 
   it("matches base language to region-specific locale using prefix fallback", async () => {
     const i18n = createI18nStub("en-US");
-    createI18n.mockReturnValue(i18n);
+    createComviCore.mockReturnValue(i18n);
     getCookie.mockReturnValue(undefined);
     getHeader.mockReturnValue("en-GB,en;q=0.9,de;q=0.8");
     const useTranslation = await importUseTranslation();
@@ -174,7 +174,7 @@ describe("useTranslation (server)", () => {
 
   it("falls back to default locale when browser detection is disabled", async () => {
     const i18n = createI18nStub("en");
-    createI18n.mockReturnValue(i18n);
+    createComviCore.mockReturnValue(i18n);
     getCookie.mockReturnValue("de");
     getHeader.mockReturnValue("de-DE,de;q=0.9");
     const useTranslation = await importUseTranslation();
@@ -199,14 +199,14 @@ describe("useTranslation (server)", () => {
   it("reuses one i18n instance for repeated calls in the same locale", async () => {
     const i18n = createI18nStub("en");
     i18n.hasLocale.mockReturnValue(true);
-    createI18n.mockReturnValue(i18n);
+    createComviCore.mockReturnValue(i18n);
     const useTranslation = await importUseTranslation();
     const event = createEvent();
 
     await useTranslation(event, { locale: "en" });
     await useTranslation(event, { locale: "en" });
 
-    expect(createI18n).toHaveBeenCalledTimes(1);
+    expect(createComviCore).toHaveBeenCalledTimes(1);
     expect(runComviSetup).toHaveBeenCalledTimes(1);
     expect(i18n.setLocaleAsync).not.toHaveBeenCalled();
   });
@@ -220,14 +220,14 @@ describe("useTranslation (server)", () => {
     i18n.init.mockImplementation(async () => {
       await initGate;
     });
-    createI18n.mockReturnValue(i18n);
+    createComviCore.mockReturnValue(i18n);
     const useTranslation = await importUseTranslation();
     const event = createEvent();
 
     const pendingA = useTranslation(event, { locale: "en" });
     const pendingB = useTranslation(event, { locale: "en" });
     await vi.waitFor(() => {
-      expect(createI18n).toHaveBeenCalledTimes(1);
+      expect(createComviCore).toHaveBeenCalledTimes(1);
       expect(runComviSetup).toHaveBeenCalledTimes(1);
       expect(i18n.init).toHaveBeenCalledTimes(1);
     });
@@ -241,7 +241,7 @@ describe("useTranslation (server)", () => {
   it("creates isolated request-scoped i18n instances per locale", async () => {
     const i18nEn = createI18nStub("en");
     const i18nDe = createI18nStub("de");
-    createI18n.mockImplementationOnce(() => i18nEn).mockImplementationOnce(() => i18nDe);
+    createComviCore.mockImplementationOnce(() => i18nEn).mockImplementationOnce(() => i18nDe);
 
     const useTranslation = await importUseTranslation();
     const event = createEvent();
@@ -251,7 +251,7 @@ describe("useTranslation (server)", () => {
       useTranslation(event, { locale: "de", namespace: "common" }),
     ]);
 
-    expect(createI18n).toHaveBeenCalledTimes(2);
+    expect(createComviCore).toHaveBeenCalledTimes(2);
     expect(runComviSetup).toHaveBeenCalledTimes(2);
     expect(i18nEn.init).toHaveBeenCalledTimes(1);
     expect(i18nDe.init).toHaveBeenCalledTimes(1);

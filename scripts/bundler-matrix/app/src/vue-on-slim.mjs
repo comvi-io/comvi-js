@@ -10,7 +10,7 @@
 // pins at runtime: the injected bare-slim core lacks the capability members,
 // the dropped VueI18n proxies are really gone, and tag markup stays literal.
 import { createI18n } from "@comvi/core/slim";
-import { createI18nFromCore, useI18n } from "@comvi/vue";
+import { createI18nFromCore, useI18n } from "@comvi/vue/slim";
 
 function assert(condition, label) {
   if (!condition) {
@@ -33,17 +33,16 @@ assert(typeof useI18n === "function", "@comvi/vue exports useI18n");
 const core = createI18n({
   locale: "en",
   exposeGlobal: false,
-  translation: { en: { msg: "a <b>c</b> d" } },
+  translation: { en: { plain: "hello", msg: "a <b>c</b> d" } },
 });
-const i18n = createI18nFromCore(core, { locale: "en" });
+const i18n = createI18nFromCore(core, { ssrLocale: "en" });
 
 assert(typeof core.reloadTranslations === "undefined", "bare slim core has no loader capability");
 assert("reloadTranslations" in i18n === false, "VueI18n no longer proxies loader capabilities");
 assert(i18n.core === core, "VueI18n exposes the injected core");
-assertEqual(
-  i18n.t("msg", { b: ({ children }) => `*${children}*` }),
-  "a <b>c</b> d",
-  "tag markup stays literal without a /tags import",
-);
+// Tag-syntax ABSENCE is asserted by the runner against the bundler's own
+// module graph (plan P0.3: module IDs, never output text). What is checked
+// here is that the wrapper renders through the slim host at all.
+assertEqual(i18n.t("plain"), "hello", "slim host translates through the wrapper");
 
 console.log("BUNDLER_MATRIX_OK vue-on-slim");

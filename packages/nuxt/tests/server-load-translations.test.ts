@@ -1,10 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const createI18n = vi.fn();
+const createComviCore = vi.fn();
 const runComviSetup = vi.fn(async () => undefined);
 
-vi.mock("@comvi/core", () => ({
-  createI18n,
+vi.mock("#build/comvi.host", () => ({
+  createComviCore,
 }));
 
 vi.mock("#build/comvi.setup", () => ({
@@ -92,7 +92,7 @@ async function importLoadTranslations() {
 
 describe("loadTranslations", () => {
   beforeEach(() => {
-    createI18n.mockReset();
+    createComviCore.mockReset();
     runComviSetup.mockReset();
     runComviSetup.mockResolvedValue(undefined);
   });
@@ -104,7 +104,7 @@ describe("loadTranslations", () => {
         "en:dashboard": { title: "Dashboard" },
       },
     });
-    createI18n.mockReturnValue(i18n);
+    createComviCore.mockReturnValue(i18n);
 
     const loadTranslations = await importLoadTranslations();
     const result = await loadTranslations(createEvent(), "en", {
@@ -126,7 +126,7 @@ describe("loadTranslations", () => {
         "en:default": { welcome: "Welcome" },
       },
     });
-    createI18n.mockReturnValue(i18n);
+    createComviCore.mockReturnValue(i18n);
 
     const loadTranslations = await importLoadTranslations();
     const result = await loadTranslations(createEvent(), "en");
@@ -144,7 +144,7 @@ describe("loadTranslations", () => {
       },
       reloadErrors: ["en:admin"],
     });
-    createI18n.mockReturnValue(i18n);
+    createComviCore.mockReturnValue(i18n);
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 
     const loadTranslations = await importLoadTranslations();
@@ -164,7 +164,7 @@ describe("loadTranslations", () => {
 
   it("warns when no loader is configured and no cached translations exist", async () => {
     const i18n = createI18nStub({ hasLoader: false });
-    createI18n.mockReturnValue(i18n);
+    createComviCore.mockReturnValue(i18n);
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 
     const loadTranslations = await importLoadTranslations();
@@ -179,7 +179,7 @@ describe("loadTranslations", () => {
 
   it("warns about missing loader only once per request i18n instance", async () => {
     const i18n = createI18nStub({ hasLoader: false });
-    createI18n.mockReturnValue(i18n);
+    createComviCore.mockReturnValue(i18n);
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 
     const loadTranslations = await importLoadTranslations();
@@ -210,7 +210,7 @@ describe("loadTranslations", () => {
     i18n.init.mockImplementation(async () => {
       await initGate;
     });
-    createI18n.mockReturnValue(i18n);
+    createComviCore.mockReturnValue(i18n);
 
     const loadTranslations = await importLoadTranslations();
     const event = createEvent();
@@ -218,7 +218,7 @@ describe("loadTranslations", () => {
     const pendingA = loadTranslations(event, "en");
     const pendingB = loadTranslations(event, "en");
     await vi.waitFor(() => {
-      expect(createI18n).toHaveBeenCalledTimes(1);
+      expect(createComviCore).toHaveBeenCalledTimes(1);
       expect(runComviSetup).toHaveBeenCalledTimes(1);
       expect(i18n.init).toHaveBeenCalledTimes(1);
     });

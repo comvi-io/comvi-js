@@ -1,22 +1,28 @@
 import {
-  I18n,
   formatCurrency,
   formatDate,
   formatNumber,
   formatRelativeTime,
   getTextDirection,
-} from "@comvi/core";
+  hasPluginHostApi,
+  missingCapability,
+  subscribeToRevision,
+  translationResultToString,
+} from "@comvi/core/slim";
 import type {
+  I18n,
   I18nOptions,
   FlattenedTranslations,
   TranslationParams,
   TranslationResult,
   TranslationValue,
   I18nPlugin,
+  I18nPluginHostApi,
   I18nEvent,
   I18nEventData,
   DefaultTranslationParams,
   DefaultParamsSnapshot,
+  WrapperI18nHost,
 } from "@comvi/core";
 import {
   shallowRef,
@@ -29,26 +35,46 @@ import {
   type App,
 } from "vue";
 import { I18N_INJECTION_KEY } from "./keys";
-import { translationResultToString, subscribeToRevision } from "@comvi/core";
 
 /**
- * Vue-specific i18n options extending core options
+ * Vue-layer options — the ones that do NOT configure the core.
+ *
+ * `createI18nFromCore` takes exactly these: the host it is handed is already
+ * built, so every core option belongs to whoever built it.
  */
-export type VueI18nOptions<D extends DefaultTranslationParams = {}> = I18nOptions<D> & {
+export interface VueI18nCoreOptions {
   /**
    * Initial locale for SSR hydration.
    * Use this to prevent hydration mismatches when server renders with a different
    * locale than what the client would detect.
    */
   ssrLocale?: string;
-};
+}
 
 /**
- * Vue-specific wrapper around the core I18n using composition
- * Provides Vue reactivity integration and plugin installation
+ * Vue-specific i18n options extending core options
  */
-export class VueI18n<D extends DefaultTranslationParams = {}> {
-  private _core: I18n<D>;
+export type VueI18nOptions<D extends DefaultTranslationParams = {}> = I18nOptions<D> &
+  VueI18nCoreOptions;
+
+/**
+ * Vue-specific wrapper around a core i18n host, using composition.
+ * Provides Vue reactivity integration and plugin installation.
+ *
+ * The host is injected (`createI18nFromCore`) or built by `createI18n`, and
+ * stays reachable as {@link VueI18n.core}: everything the wrapper does not
+ * proxy — including the loader and plugin-host capabilities, when the host
+ * has them — is done through it. `C` is exact when you hold the factory
+ * result; through `inject(I18N_INJECTION_KEY)` the core is seen as a bare
+ * {@link WrapperI18nHost}, so capability calls are a compile error there
+ * (framework-slim §3.2).
+ */
+export class VueI18n<
+  D extends DefaultTranslationParams = {},
+  C extends WrapperI18nHost<D> = I18n<D>,
+> {
+  /** The core host this wrapper drives. */
+  readonly core: C;
 
   private _locale: ShallowRef<string>;
   private _localeComputed?: WritableComputedRef<string>;
@@ -66,32 +92,17 @@ export class VueI18n<D extends DefaultTranslationParams = {}> {
 
   // Type declarations for dynamically generated proxy methods
   declare addTranslations: (translations: Record<string, Record<string, TranslationValue>>) => void;
-  declare addActiveNamespace: (namespace: string) => Promise<void>;
   declare clearTranslations: (language?: string, namespace?: string) => void;
-  declare reloadTranslations: (language?: string, namespace?: string) => Promise<void>;
-  declare registerLoader: (loader: Parameters<I18n["registerLoader"]>[0]) => void;
-  declare registerLocaleDetector: (detector: () => string | Promise<string>) => void;
-  declare registerPostProcessor: (
-    processor: (
-      result: TranslationResult,
-      key: string,
-      namespace: string,
-      params?: TranslationParams,
-    ) => TranslationResult,
-  ) => void;
-  declare onMissingKey: (
-    callback: (key: string, locale: string, namespace: string) => TranslationResult | void,
-  ) => () => void;
-  declare onLoadError: (
-    callback: (locale: string, namespace: string, error: Error) => void,
-  ) => () => void;
   declare on: <E extends I18nEvent>(
     event: E,
     callback: (payload: I18nEventData[E]) => void,
   ) => () => void;
   declare setFallbackLocale: (locales: string | string[]) => void;
-  declare setDefaultParams: I18n<D>["setDefaultParams"];
-  declare reportError: (error: unknown, context?: Parameters<I18n["reportError"]>[1]) => void;
+  declare setDefaultParams: WrapperI18nHost<D>["setDefaultParams"];
+  declare reportError: (
+    error: unknown,
+    context?: Parameters<WrapperI18nHost["reportError"]>[1],
+  ) => void;
   declare formatNumber: (
     value: number,
     options?: Intl.NumberFormatOptions,
@@ -114,43 +125,51 @@ export class VueI18n<D extends DefaultTranslationParams = {}> {
     options?: Intl.RelativeTimeFormatOptions,
     locale?: string,
   ) => string;
-  constructor(options: VueI18nOptions<D>) {
-    const initialLocale = options.ssrLocale ?? options.locale;
+  /**
+   * @param core - The host this wrapper drives. Built for you by
+   *   {@link createI18n}; injected as-is by `createI18nFromCore`.
+   * @param options - Vue-layer options only (see {@link VueI18nCoreOptions}).
+   */
+  constructor(core: C, options: VueI18nCoreOptions = {}) {
+    this.core = core;
 
-    this._core = new I18n<D>({
-      ...options,
-      locale: initialLocale,
-    } as I18nOptions<D>);
+    // `ssrLocale` is the render locale: the host follows it, so the reactive
+    // ref and `core.locale` can never disagree at construction time. On the
+    // `createI18n` path the core was already built with it, so this is a no-op.
+    const initialLocale = options.ssrLocale ?? core.locale;
+    if (core.locale !== initialLocale) {
+      core.locale = initialLocale;
+    }
 
     this._locale = shallowRef(initialLocale);
     this._requestedLocale = initialLocale;
-    this._isLoading = shallowRef(this._core.isLoading);
-    this._isInitializing = shallowRef(this._core.isInitializing);
-    this._cacheRevision = shallowRef(this._core.translationCache.getRevision());
+    this._isLoading = shallowRef(this.core.isLoading);
+    this._isInitializing = shallowRef(this.core.isInitializing);
+    this._cacheRevision = shallowRef(this.core.translationCache.getRevision());
     this._configRevision = shallowRef(0);
     const syncCache = () => {
-      this._cacheRevision.value = this._core.translationCache.getRevision();
+      this._cacheRevision.value = this.core.translationCache.getRevision();
     };
 
     // Canonical revision event set from core (subscribeToRevision); the switch
     // preserves the previous per-event bridge semantics exactly.
     this._unsubscribers.push(
-      subscribeToRevision(this._core, (event) => {
+      subscribeToRevision(this.core, (event) => {
         switch (event) {
           case "localeChanged":
             // core.locale === payload.to: the core sets _locale before emitting.
-            this._locale.value = this._core.locale;
-            this._requestedLocale = this._core.locale;
+            this._locale.value = this.core.locale;
+            this._requestedLocale = this.core.locale;
             break;
           case "loadingStateChanged":
-            this._isLoading.value = this._core.isLoading;
-            this._isInitializing.value = this._core.isInitializing;
+            this._isLoading.value = this.core.isLoading;
+            this._isInitializing.value = this.core.isInitializing;
             break;
           case "initialized":
-            this._locale.value = this._core.locale;
+            this._locale.value = this.core.locale;
             syncCache();
-            this._isLoading.value = this._core.isLoading;
-            this._isInitializing.value = this._core.isInitializing;
+            this._isLoading.value = this.core.isLoading;
+            this._isInitializing.value = this.core.isInitializing;
             break;
           case "namespaceLoaded":
           case "translationsCleared":
@@ -171,15 +190,8 @@ export class VueI18n<D extends DefaultTranslationParams = {}> {
     );
 
     // Explicit proxy bindings for spyability
-    const core = this._core;
     this.addTranslations = core.addTranslations.bind(core);
-    this.addActiveNamespace = core.addActiveNamespace.bind(core);
     this.clearTranslations = core.clearTranslations.bind(core);
-    this.reloadTranslations = core.reloadTranslations.bind(core);
-    this.registerLoader = core.registerLoader.bind(core);
-    this.registerPostProcessor = core.registerPostProcessor.bind(core);
-    this.onMissingKey = core.onMissingKey.bind(core);
-    this.onLoadError = core.onLoadError.bind(core);
     this.on = core.on.bind(core);
     this.setFallbackLocale = core.setFallbackLocale.bind(core);
     this.setDefaultParams = core.setDefaultParams.bind(core);
@@ -193,7 +205,6 @@ export class VueI18n<D extends DefaultTranslationParams = {}> {
       formatCurrency(core, value, currency, options, locale ?? this._locale.value);
     this.formatRelativeTime = (value, unit, options, locale) =>
       formatRelativeTime(core, value, unit, options, locale ?? this._locale.value);
-    this.registerLocaleDetector = core.registerLocaleDetector.bind(core);
 
     // Bind own methods for destructuring support
     this.t = this.t.bind(this);
@@ -213,7 +224,7 @@ export class VueI18n<D extends DefaultTranslationParams = {}> {
         set: (newLocale: string) => {
           if (this._requestedLocale !== newLocale) {
             this.setLocale(newLocale).catch((error) => {
-              this._core.reportError(error, { source: "setLocale" });
+              this.core.reportError(error, { source: "setLocale" });
             });
           }
         },
@@ -224,7 +235,7 @@ export class VueI18n<D extends DefaultTranslationParams = {}> {
 
   set locale(value: string) {
     this.setLocale(value).catch((error) => {
-      this._core.reportError(error, { source: "setLocale" });
+      this.core.reportError(error, { source: "setLocale" });
     });
   }
 
@@ -233,7 +244,7 @@ export class VueI18n<D extends DefaultTranslationParams = {}> {
     if (!this._defaultParamsComputed) {
       this._defaultParamsComputed = computed(() => {
         void this._configRevision.value;
-        return this._core.defaultParams;
+        return this.core.defaultParams;
       });
     }
     return this._defaultParamsComputed;
@@ -253,7 +264,7 @@ export class VueI18n<D extends DefaultTranslationParams = {}> {
     if (!this._loadedLocalesComputed) {
       this._loadedLocalesComputed = computed(() => {
         void this._cacheRevision.value;
-        return this._core.getLoadedLocales();
+        return this.core.getLoadedLocales();
       });
     }
     return this._loadedLocalesComputed;
@@ -265,7 +276,7 @@ export class VueI18n<D extends DefaultTranslationParams = {}> {
       this._activeNamespacesComputed = computed(() => {
         void this._cacheRevision.value;
         void this._configRevision.value;
-        return this._core.getActiveNamespaces();
+        return this.core.getActiveNamespaces();
       });
     }
     return this._activeNamespacesComputed;
@@ -278,7 +289,7 @@ export class VueI18n<D extends DefaultTranslationParams = {}> {
       this._defaultNamespaceComputed = computed(() => {
         void this._cacheRevision.value;
         void this._configRevision.value;
-        return this._core.getDefaultNamespace();
+        return this.core.getDefaultNamespace();
       });
     }
     return this._defaultNamespaceComputed;
@@ -298,7 +309,7 @@ export class VueI18n<D extends DefaultTranslationParams = {}> {
       void this._locale.value;
       void this._cacheRevision.value;
       void this._configRevision.value;
-      return this._core.hasTranslation(key, opts?.locale, opts?.namespace, opts?.checkFallbacks);
+      return this.core.hasTranslation(key, opts?.locale, opts?.namespace, opts?.checkFallbacks);
     });
   }
 
@@ -309,7 +320,7 @@ export class VueI18n<D extends DefaultTranslationParams = {}> {
   hasLocale(locale: string, namespace?: string): ComputedRef<boolean> {
     return computed(() => {
       void this._cacheRevision.value;
-      return this._core.hasLocale(locale, namespace);
+      return this.core.hasLocale(locale, namespace);
     });
   }
 
@@ -318,20 +329,20 @@ export class VueI18n<D extends DefaultTranslationParams = {}> {
     key: string,
     opts?: { locale?: string; namespace?: string; checkFallbacks?: boolean },
   ): boolean {
-    return this._core.hasTranslation(key, opts?.locale, opts?.namespace, opts?.checkFallbacks);
+    return this.core.hasTranslation(key, opts?.locale, opts?.namespace, opts?.checkFallbacks);
   }
 
   /** Imperative (non-reactive) locale-availability check — plain boolean, for use outside a reactive scope. */
   hasLocaleNow(locale: string, namespace?: string): boolean {
-    return this._core.hasLocale(locale, namespace);
+    return this.core.hasLocale(locale, namespace);
   }
 
   async setLocale(locale: string): Promise<void> {
     const target = locale;
     this._requestedLocale = target;
     const run = async () => {
-      if (this._core.locale !== target) {
-        await this._core.setLocaleAsync(target);
+      if (this.core.locale !== target) {
+        await this.core.setLocaleAsync(target);
       }
     };
 
@@ -350,7 +361,7 @@ export class VueI18n<D extends DefaultTranslationParams = {}> {
       await task;
     } catch (error) {
       if (this._requestedLocale === target) {
-        this._requestedLocale = this._core.locale;
+        this._requestedLocale = this.core.locale;
       }
       throw error;
     }
@@ -360,7 +371,7 @@ export class VueI18n<D extends DefaultTranslationParams = {}> {
     if (!this._translationCacheComputed) {
       this._translationCacheComputed = computed(() => {
         void this._cacheRevision.value;
-        return this._core.translationCache.getInternalMap();
+        return this.core.translationCache.getInternalMap();
       });
     }
     return this._translationCacheComputed;
@@ -396,7 +407,7 @@ export class VueI18n<D extends DefaultTranslationParams = {}> {
     void this._locale.value;
     void this._cacheRevision.value;
     void this._configRevision.value;
-    return this._core.tRaw(key as any, ...(params as any));
+    return this.core.tRaw(key as any, ...(params as any));
   }
 
   /**
@@ -428,12 +439,22 @@ export class VueI18n<D extends DefaultTranslationParams = {}> {
   }
 
   async init(): Promise<this> {
-    await this._core.init();
+    await this.core.init();
     return this;
   }
 
-  use(plugin: I18nPlugin, options?: Parameters<I18n["use"]>[1]): this {
-    this._core.use(plugin, options);
+  /**
+   * Register a core plugin (chainable).
+   *
+   * Plugin registration is a `@comvi/core/plugins` capability: on a host
+   * composed without it this throws `missingCapability("plugins")` — in dev
+   * and in prod (framework-slim §2.4). The root entry and
+   * `attachPlugins(...)` hosts always have it.
+   */
+  use(plugin: I18nPlugin, options?: Parameters<I18nPluginHostApi["use"]>[1]): this {
+    const core = this.core;
+    if (!hasPluginHostApi(core)) throw missingCapability("plugins");
+    core.use(plugin, options);
     return this;
   }
 
@@ -447,8 +468,8 @@ export class VueI18n<D extends DefaultTranslationParams = {}> {
       .forEach((unsub) => unsub());
     this._unsubscribers.length = 0;
 
-    this._core.destroy().catch((error) => {
-      this._core.reportError(error, { source: "plugin-cleanup" });
+    this.core.destroy().catch((error) => {
+      this.core.reportError(error, { source: "plugin-cleanup" });
     });
   }
 
@@ -471,31 +492,38 @@ export class VueI18n<D extends DefaultTranslationParams = {}> {
     if (this._installedApps.has(app)) return;
     this._installedApps.add(app);
 
-    if (!this._core.isInitialized && !this._core.isInitializing) {
+    if (!this.core.isInitialized && !this.core.isInitializing) {
       this.init().catch((error) => {
-        this._core.reportError(error instanceof Error ? error : new Error(String(error)), {
+        this.core.reportError(error instanceof Error ? error : new Error(String(error)), {
           source: "init",
         });
       });
     }
 
-    app.provide(I18N_INJECTION_KEY, this);
-    app.config.globalProperties.$i18n = this;
+    // `provide` and `$i18n` are ambient channels: the consumer cannot know
+    // this instance's `D` or host type, so both erase to `AnyVueI18n` — the
+    // same erasure the injection key declares (framework-slim §3.2).
+    const ambient = this as unknown as AnyVueI18n;
+    app.provide(I18N_INJECTION_KEY, ambient);
+    app.config.globalProperties.$i18n = ambient;
     app.config.globalProperties.$t = this.t;
     app.config.globalProperties.$tRaw = this.tRaw;
   }
 }
 
-export function createI18n<const D extends DefaultTranslationParams = {}>(
-  options: VueI18nOptions<D>,
-): VueI18n<D> {
-  return new VueI18n(options);
-}
+/**
+ * The instance shape ambient consumers see — `inject(I18N_INJECTION_KEY)` and
+ * the `$i18n` global property. Interpolation defaults (`D`) and the host type
+ * (`C`) are both erased there: a component is written against whatever the
+ * app installed, so it gets the capability-free host surface and must acquire
+ * capabilities through `useI18nLoader()` / `useI18nPlugins()`.
+ */
+export type AnyVueI18n = VueI18n<{}, WrapperI18nHost>;
 
 declare module "vue" {
   export interface ComponentCustomProperties {
     $t: VueI18n["t"];
     $tRaw: VueI18n["tRaw"];
-    $i18n: VueI18n;
+    $i18n: AnyVueI18n;
   }
 }

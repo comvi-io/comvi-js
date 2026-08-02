@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import { mount } from "@vue/test-utils";
 import { h } from "vue";
 import { type TranslationResult, type FragmentNode } from "../src";
-import { VueI18n } from "../src/VueI18n";
+import { createI18n } from "../src/createI18n";
 import { T } from "../src/components/T";
 import { I18N_INJECTION_KEY } from "../src/keys";
 
@@ -22,7 +22,7 @@ declare module "@comvi/core" {
 
 describe("<T /> component", () => {
   it("renders simple translation", () => {
-    const i18n = new VueI18n({ locale: "en", translation: { en: { hello: "Hello" } } });
+    const i18n = createI18n({ locale: "en", translation: { en: { hello: "Hello" } } });
     const wrapper = mount(T, {
       props: { i18nKey: "hello" },
       global: { provide: { [I18N_INJECTION_KEY as symbol]: i18n } },
@@ -39,7 +39,7 @@ describe("<T /> component", () => {
   });
 
   it("renders with params", () => {
-    const i18n = new VueI18n({ locale: "en", translation: { en: { w: "Welcome {n}" } } });
+    const i18n = createI18n({ locale: "en", translation: { en: { w: "Welcome {n}" } } });
     const wrapper = mount(T, {
       props: { i18nKey: "w", params: { n: "John" } },
       global: { provide: { [I18N_INJECTION_KEY as symbol]: i18n } },
@@ -48,7 +48,7 @@ describe("<T /> component", () => {
   });
 
   it("uses namespace override when provided", () => {
-    const i18n = new VueI18n({
+    const i18n = createI18n({
       locale: "en",
       translation: { "en:dashboard": { title: "Dashboard" } },
     });
@@ -60,7 +60,7 @@ describe("<T /> component", () => {
   });
 
   it("renders fragment nodes from tag handlers", () => {
-    const i18n = new VueI18n({
+    const i18n = createI18n({
       locale: "en",
       translation: { en: { fragment: "Hello <wrap>world</wrap>" } },
     });
@@ -83,7 +83,7 @@ describe("<T /> component", () => {
   });
 
   it("renders multi-root slot content", () => {
-    const i18n = new VueI18n({
+    const i18n = createI18n({
       locale: "en",
       translation: { en: { multiRoot: "Click <link>here</link>" } },
     });
@@ -107,7 +107,7 @@ describe("<T /> component", () => {
   });
 
   it("handles empty slot content", () => {
-    const i18n = new VueI18n({
+    const i18n = createI18n({
       locale: "en",
       translation: { en: { emptySlot: "Start <link></link> end" } },
     });
@@ -125,7 +125,7 @@ describe("<T /> component", () => {
 
   describe("fallback prop", () => {
     it("uses fallback with interpolation when translation is missing", () => {
-      const i18n = new VueI18n({
+      const i18n = createI18n({
         locale: "en",
         translation: { en: { hello: "Hello" } },
       });
@@ -141,7 +141,7 @@ describe("<T /> component", () => {
     });
 
     it("ignores fallback when translation exists", () => {
-      const i18n = new VueI18n({
+      const i18n = createI18n({
         locale: "en",
         translation: { en: { hello: "Hello" } },
       });
@@ -155,13 +155,13 @@ describe("<T /> component", () => {
 
   describe("raw prop", () => {
     it("skips post-processor when raw is true", () => {
-      const i18n = new VueI18n({
+      const i18n = createI18n({
         locale: "en",
         translation: { en: { greeting: "hello" } },
       });
 
       // Post-processor that uppercases text
-      i18n.registerPostProcessor((result, key, ns, params) => {
+      i18n.core.registerPostProcessor((result, key, ns, params) => {
         if (params?.raw === true) {
           return result;
         }
@@ -178,12 +178,12 @@ describe("<T /> component", () => {
     });
 
     it("applies post-processor when raw is false", () => {
-      const i18n = new VueI18n({
+      const i18n = createI18n({
         locale: "en",
         translation: { en: { greeting: "hello" } },
       });
 
-      i18n.registerPostProcessor((result, key, ns, params) => {
+      i18n.core.registerPostProcessor((result, key, ns, params) => {
         if (params?.raw === true) {
           return result;
         }
@@ -200,12 +200,12 @@ describe("<T /> component", () => {
     });
 
     it("applies post-processor when raw is not specified", () => {
-      const i18n = new VueI18n({
+      const i18n = createI18n({
         locale: "en",
         translation: { en: { greeting: "hello" } },
       });
 
-      i18n.registerPostProcessor((result, key, ns, params) => {
+      i18n.core.registerPostProcessor((result, key, ns, params) => {
         if (params?.raw === true) {
           return result;
         }
@@ -222,12 +222,12 @@ describe("<T /> component", () => {
     });
 
     it("works with other props combined", () => {
-      const i18n = new VueI18n({
+      const i18n = createI18n({
         locale: "en",
         translation: { en: { greeting: "hello {name}" } },
       });
 
-      i18n.registerPostProcessor((result, key, ns, params) => {
+      i18n.core.registerPostProcessor((result, key, ns, params) => {
         if (params?.raw === true) {
           return result;
         }

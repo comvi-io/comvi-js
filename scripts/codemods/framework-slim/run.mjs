@@ -189,11 +189,18 @@ function pruneOrphanedSourceHook(text, lang) {
  */
 export function transformSource(source, filePath) {
   const extension = path.extname(filePath);
+  // Receiver set for the dropped VueI18n proxies (plan §3.1 report-only, §6.2):
+  // `.vue` components, plus nuxt's `comvi.setup` hook — its context `i18n` is
+  // a VueI18n in the app plugin, so `i18n.registerLoader(...)` there is exactly
+  // the shape that must become `i18n.core.registerLoader(...)`. Everywhere else
+  // the same shape is overwhelmingly a raw core instance, and reporting it
+  // would be noise.
+  const vueProxies = extension === ".vue" || /^comvi\.setup\./.test(path.basename(filePath));
 
   if (!SFC_EXTENSIONS.has(extension)) {
     const lang = LANG_BY_EXTENSION.get(extension);
     if (lang === undefined) throw new Error(`unsupported extension: ${filePath}`);
-    const result = transformBody(source, lang);
+    const result = transformBody(source, lang, { vueProxies });
     return {
       text: result.text,
       rewrites: result.rewrites,
@@ -208,7 +215,7 @@ export function transformSource(source, filePath) {
 
   for (const block of blocks) {
     const lang = block.lang === "ts" ? Lang.TypeScript : Lang.JavaScript;
-    const result = transformBody(block.body, lang, { vueProxies: extension === ".vue" });
+    const result = transformBody(block.body, lang, { vueProxies });
     rewrites += result.rewrites;
     for (const item of result.manual) {
       // Remap: positions are relative to the extracted body.

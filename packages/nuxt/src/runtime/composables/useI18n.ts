@@ -2,7 +2,7 @@ import { useNuxtApp, useRuntimeConfig } from "#app";
 import { useLocaleState } from "../utils/locale-state";
 import { type Ref, computed } from "vue";
 import type { TranslationParams, DefaultTranslationParams } from "@comvi/core";
-import { createBoundTranslation, translationResultToString } from "@comvi/core";
+import { createBoundTranslation, translationResultToString } from "@comvi/core/slim";
 import type { UseI18nReturn as VueUseI18nReturn } from "@comvi/vue";
 
 export interface UseI18nReturn<
@@ -74,14 +74,10 @@ export function useI18n<D extends DefaultTranslationParams = {}>(ns?: string): U
     isLoading: i18n.isLoading,
     isInitializing: i18n.isInitializing,
     addTranslations: i18n.addTranslations,
-    addActiveNamespace: i18n.addActiveNamespace,
     setFallbackLocale: i18n.setFallbackLocale,
     defaultParams: i18n.defaultParams as VueUseI18nReturn<D>["defaultParams"],
     setDefaultParams: i18n.setDefaultParams,
-    onMissingKey: i18n.onMissingKey,
-    onLoadError: i18n.onLoadError,
     clearTranslations: i18n.clearTranslations,
-    reloadTranslations: i18n.reloadTranslations,
     hasLocale: i18n.hasLocale,
     hasTranslation: i18n.hasTranslation,
     hasLocaleNow: i18n.hasLocaleNow,

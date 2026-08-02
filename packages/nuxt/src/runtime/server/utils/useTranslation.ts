@@ -1,6 +1,7 @@
 import type { H3Event } from "h3";
 import { getCookie, getHeader } from "h3";
 import type { TranslationParams } from "@comvi/core";
+import type { NuxtServerHost } from "../../../types";
 import { getServerRuntimeConfig } from "./runtime-config";
 import { getRequestI18n } from "./request-i18n";
 import { resolveAcceptLanguage } from "../../utils/resolve-locale";
@@ -164,7 +165,7 @@ export async function useTranslation(
  * Load translations for a specific locale
  */
 async function loadTranslationsForLocale(
-  i18n: import("@comvi/core").I18n,
+  i18n: NuxtServerHost,
   locale: string,
   namespaces: string[],
 ): Promise<void> {

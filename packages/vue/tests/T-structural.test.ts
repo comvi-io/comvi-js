@@ -14,7 +14,10 @@
 import { describe, it, expect } from "vitest";
 import { mount } from "@vue/test-utils";
 import { h, defineComponent } from "vue";
-import { VueI18n } from "../src/VueI18n";
+import { createI18n as createSlimI18n } from "@comvi/core/slim";
+import { createI18n } from "../src/createI18n";
+import { createI18nFromCore } from "../src/createI18nFromCore";
+import type { AnyVueI18n } from "../src/VueI18n";
 import { T } from "../src/components/T";
 import { I18N_INJECTION_KEY } from "../src/keys";
 
@@ -46,12 +49,12 @@ export const WRAPPER_PARITY_FIXTURE = {
 } as const;
 
 const makeI18n = (translations: Record<string, string>) =>
-  new VueI18n({ locale: "en", translation: { en: translations } });
+  createI18n({ locale: "en", translation: { en: translations } });
 
 // <T> is multi-root; @vue/test-utils trims each root fragment in text(),
 // eating inter-node whitespace. A single-root host keeps textContent honest.
 const mountT = (
-  i18n: VueI18n,
+  i18n: AnyVueI18n,
   props: Record<string, unknown>,
   slots?: Record<string, unknown>,
 ) =>
@@ -110,11 +113,7 @@ describe("<T /> structural render (wrapper parity)", () => {
     it("ignores the default slot when the translation exists", () => {
       const i18n = makeI18n({ hello: "Hello" });
 
-      const wrapper = mountT(
-        i18n,
-        { i18nKey: "hello" },
-        { default: () => "Slot fallback" },
-      );
+      const wrapper = mountT(i18n, { i18nKey: "hello" }, { default: () => "Slot fallback" });
 
       expect(wrapper.text()).toBe("Hello");
     });
@@ -144,6 +143,32 @@ describe("<T /> structural render (wrapper parity)", () => {
     for (const parityCase of WRAPPER_PARITY_FIXTURE.cases) {
       it(`produces the shared text for "${parityCase.key}"`, () => {
         const i18n = makeI18n({ ...WRAPPER_PARITY_FIXTURE.translations });
+
+        const wrapper = mountT(i18n, {
+          i18nKey: parityCase.key,
+          params: { ...parityCase.params },
+          components: { ...parityCase.components },
+        });
+
+        expect(wrapper.text()).toBe(parityCase.text);
+      });
+    }
+  });
+
+  // framework-slim P4: the same table on a BARE @comvi/core/slim host. <T>
+  // does not depend on ambient tag registration — prepareTranslation passes
+  // the tag extension per call (components/T.ts:10-17) — so every row must
+  // produce byte-identical text on a host that has no tag syntax of its own.
+  describe("fallback-parity fixture on a bare-slim host", () => {
+    for (const parityCase of WRAPPER_PARITY_FIXTURE.cases) {
+      it(`produces the shared text for "${parityCase.key}"`, () => {
+        const i18n = createI18nFromCore(
+          createSlimI18n({
+            locale: "en",
+            exposeGlobal: false,
+            translation: { en: { ...WRAPPER_PARITY_FIXTURE.translations } },
+          }),
+        );
 
         const wrapper = mountT(i18n, {
           i18nKey: parityCase.key,

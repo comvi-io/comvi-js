@@ -26,6 +26,7 @@ export default defineConfig({
     alias: {
       "#app": resolve(__dirname, "./tests/mocks/nuxt-app.ts"),
       "#build/comvi.setup": resolve(__dirname, "./tests/mocks/comvi-setup.ts"),
+      "#build/comvi.host": resolve(__dirname, "./tests/mocks/comvi-host.ts"),
       "#components": resolve(__dirname, "./tests/mocks/nuxt-components.ts"),
     },
   },

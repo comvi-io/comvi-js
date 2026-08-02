@@ -42,6 +42,9 @@ const REQUIRED_CASES = [
   "report-rest-spread",
   "report-computed",
   "report-vue-proxy",
+  // P4 (§6.2): the same shape in nuxt's `comvi.setup` hook, whose context
+  // `i18n` is a VueI18n — detected by filename, not by extension.
+  "comvi.setup",
   "report-script-extract",
 ];
 

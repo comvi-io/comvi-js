@@ -1,13 +1,17 @@
-import type { I18n } from "@comvi/core";
-import { createI18n } from "@comvi/core";
 import type { H3Event } from "h3";
 import { runComviSetup } from "#build/comvi.setup";
+// Same build-time branch as the client plugin: with `hostModule` set, the
+// generated template returns the app's own composed host and the root
+// @comvi/core entry is not in the server graph at all (framework-slim P4
+// step 5).
+import { createComviCore } from "#build/comvi.host";
+import type { NuxtServerHost } from "../../../types";
 import { getServerRuntimeConfig } from "./runtime-config";
 
 // Keep one i18n instance per locale within a single request.
 // This costs more than a single shared request instance, but it preserves
 // SSR correctness when server code resolves multiple locales concurrently.
-const requestI18nMap = new WeakMap<object, Map<string, Promise<I18n>>>();
+const requestI18nMap = new WeakMap<object, Map<string, Promise<NuxtServerHost>>>();
 
 const getContextKey = (event: H3Event): object => {
   if (event.context && typeof event.context === "object") {
@@ -20,11 +24,11 @@ const getContextKey = (event: H3Event): object => {
  * Get or create per-request i18n instance.
  * Uses WeakMap with event context as key for automatic cleanup.
  */
-export async function getRequestI18n(event: H3Event, locale: string): Promise<I18n> {
+export async function getRequestI18n(event: H3Event, locale: string): Promise<NuxtServerHost> {
   const contextKey = getContextKey(event);
   let localeInstances = requestI18nMap.get(contextKey);
   if (!localeInstances) {
-    localeInstances = new Map<string, Promise<I18n>>();
+    localeInstances = new Map<string, Promise<NuxtServerHost>>();
     requestI18nMap.set(contextKey, localeInstances);
   }
 
@@ -44,8 +48,16 @@ export async function getRequestI18n(event: H3Event, locale: string): Promise<I1
         apiKey: privateConfig?.apiKey,
       };
       const i18n = publicConfig.defaultParams
-        ? createI18n({ ...baseI18nOptions, defaultParams: publicConfig.defaultParams })
-        : createI18n(baseI18nOptions);
+        ? createComviCore({ ...baseI18nOptions, defaultParams: publicConfig.defaultParams })
+        : createComviCore(baseI18nOptions);
+
+      // A `hostModule` factory builds the host from its own configuration and
+      // cannot know the request locale, so it is applied here — before init(),
+      // so the first load is already for the right locale. On the root branch
+      // the core was constructed with it and this is a no-op.
+      if (i18n.locale !== locale) {
+        i18n.locale = locale;
+      }
 
       await runComviSetup({
         i18n,
@@ -61,7 +73,7 @@ export async function getRequestI18n(event: H3Event, locale: string): Promise<I1
     localeInstances.set(locale, instancePromise);
   }
 
-  let i18n: I18n;
+  let i18n: NuxtServerHost;
   try {
     i18n = await instancePromise;
   } catch (error) {

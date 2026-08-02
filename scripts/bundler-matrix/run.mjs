@@ -80,11 +80,15 @@ const CASES = [
     deps: ["svelte"],
   },
   {
+    // Plan P4 step 4 / P4-AB1: an app that imports ONLY `createI18nFromCore`
+    // + `useI18n` from @comvi/vue must drop the root-importing createI18n
+    // module — and with it core's tag-registration chunks — in EVERY bundler,
+    // or the fallback `@comvi/vue/slim` subpath ships instead.
     name: "vue-on-slim",
     sentinels: "absent",
+    absentModules: [`@comvi${path.sep}core${path.sep}dist${path.sep}comvi-core.js`],
     packages: ["@comvi/core", "@comvi/vue"],
     deps: ["vue"],
-    pending: "Phase 4 adds vue's root-free createI18nFromCore",
   },
   {
     // Plan P5 step 2: the companion-only server graph must drop every

@@ -41,7 +41,7 @@ declare module "#app" {
     };
     payload: NuxtPayload;
     hook(name: string, callback: (...args: unknown[]) => unknown): void;
-    $i18n: import("@comvi/vue").VueI18n;
+    $i18n: import("@comvi/vue").AnyVueI18n;
     [key: string]: unknown;
   }
 

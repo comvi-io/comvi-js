@@ -2,8 +2,12 @@ import { defineNuxtPlugin, useRuntimeConfig, useCookie } from "#app";
 import { useLocaleState } from "./utils/locale-state";
 import { runComviSetup } from "#build/comvi.setup";
 import { watch } from "vue";
-import { createI18n } from "@comvi/vue";
-import type { VueI18n } from "@comvi/vue";
+// The i18n instance is built by the BUILD-TIME template, never by a runtime
+// branch here: a static `createI18n` import in this module would pin the root
+// @comvi/core entry into every nuxt bundle, including apps that configured a
+// slim `hostModule` (framework-slim P4 step 5).
+import { createComviI18n } from "#build/comvi.host";
+import type { AnyVueI18n } from "@comvi/vue";
 import type { TranslationValue } from "@comvi/core";
 import { DEFAULT_DETECT_BROWSER_LANGUAGE } from "./defaults";
 import {
@@ -93,8 +97,8 @@ export default defineNuxtPlugin({
       ssrLocale: localeState.value,
     };
     const i18n = publicConfig.defaultParams
-      ? createI18n({ ...baseI18nOptions, defaultParams: publicConfig.defaultParams })
-      : createI18n(baseI18nOptions);
+      ? createComviI18n({ ...baseI18nOptions, defaultParams: publicConfig.defaultParams })
+      : createComviI18n(baseI18nOptions);
 
     const initialInContextEditorMappings = toRecordOfNumbers(
       nuxtApp.payload?.state?.[I18N_EDITOR_MAPPINGS_STATE_KEY],
@@ -195,9 +199,12 @@ export default defineNuxtPlugin({
   },
 });
 
-// Type augmentation for useNuxtApp
+// Type augmentation for useNuxtApp. `$i18n` is an ambient channel — a
+// component cannot know how the app composed its host — so the core is seen
+// capability-free there; capabilities come from `useI18nLoader()` /
+// `useI18nPlugins()`, which verify them (framework-slim §3.2).
 declare module "#app" {
   interface NuxtApp {
-    $i18n: VueI18n;
+    $i18n: AnyVueI18n;
   }
 }

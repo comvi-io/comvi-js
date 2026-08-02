@@ -153,7 +153,7 @@ describe("New Features", () => {
       const spy = vi.fn();
       i18n.on("namespaceLoaded", spy);
 
-      await i18n.addActiveNamespace("admin");
+      await i18n.core.addActiveNamespace("admin");
 
       expect(spy).toHaveBeenCalledWith({
         namespace: "admin",

@@ -120,7 +120,7 @@ describe("Reactive State Transitions", () => {
       expect(adminTitle.value).toBe("adminTitle"); // Not loaded yet
 
       // Load admin namespace
-      await i18n.addActiveNamespace("admin");
+      await i18n.core.addActiveNamespace("admin");
       await nextTick();
 
       expect(adminTitle.value).toBe("Admin Panel");
@@ -145,7 +145,7 @@ describe("Reactive State Transitions", () => {
       expect(greeting.value).toBe("Hello");
 
       currentTranslations = { hello: "Hi" };
-      await i18n.reloadTranslations("en", "common");
+      await i18n.core.reloadTranslations("en", "common");
       await nextTick();
 
       expect(greeting.value).toBe("Hi");
@@ -238,7 +238,7 @@ describe("Reactive State Transitions", () => {
 
       expect(wrapper.text()).toBe("Ready");
 
-      const loadPromise = i18n.addActiveNamespace("admin");
+      const loadPromise = i18n.core.addActiveNamespace("admin");
       await nextTick();
 
       expect(wrapper.text()).toBe("Loading...");
@@ -275,7 +275,7 @@ describe("Reactive State Transitions", () => {
       await i18n.init();
 
       // Load admin namespace
-      await i18n.addActiveNamespace("admin");
+      await i18n.core.addActiveNamespace("admin");
 
       expect(loader).toHaveBeenCalledWith("en", "common");
       expect(loader).toHaveBeenCalledWith("en", "admin");
@@ -366,7 +366,7 @@ describe("Reactive State Transitions", () => {
 
       expect(i18n.loadedLocales.value).toContain("en");
 
-      await i18n.addActiveNamespace("admin");
+      await i18n.core.addActiveNamespace("admin");
       await nextTick();
 
       expect(i18n.loadedLocales.value).toContain("en");
@@ -390,7 +390,7 @@ describe("Reactive State Transitions", () => {
 
       expect(i18n.activeNamespaces.value).not.toContain("admin");
 
-      await i18n.addActiveNamespace("admin");
+      await i18n.core.addActiveNamespace("admin");
       await nextTick();
 
       expect(i18n.activeNamespaces.value).toContain("admin");
@@ -593,7 +593,7 @@ describe("Reactive State Transitions", () => {
 
       expect(i18n.activeNamespaces.value).not.toContain("admin");
 
-      await i18n.addActiveNamespace("admin");
+      await i18n.core.addActiveNamespace("admin");
       await nextTick();
 
       expect(i18n.activeNamespaces.value).toContain("admin");
@@ -611,10 +611,8 @@ describe("Reactive State Transitions", () => {
 
       expect(i18n.defaultNamespace.value).toBe("common");
 
-      // VueI18n doesn't proxy setDefaultNamespace; call via core cast
-      (
-        i18n as unknown as { _core: { setDefaultNamespace: (ns: string) => void } }
-      )._core.setDefaultNamespace("admin");
+      // VueI18n doesn't proxy setDefaultNamespace; drive the host directly
+      i18n.core.setDefaultNamespace("admin");
       await nextTick();
 
       expect(i18n.defaultNamespace.value).toBe("admin");

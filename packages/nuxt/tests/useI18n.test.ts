@@ -2,7 +2,7 @@ import { computed, ref } from "vue";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { mockRuntimeConfig, resetMocks, setMockI18n, useState } from "./mocks/nuxt-app";
 import { useI18n } from "../src/runtime/composables/useI18n";
-import type * as ComviCore from "@comvi/core";
+import type * as ComviCoreSlim from "@comvi/core/slim";
 
 const { createBoundTranslation, boundT } = vi.hoisted(() => {
   const t = vi.fn(() => [
@@ -16,8 +16,10 @@ const { createBoundTranslation, boundT } = vi.hoisted(() => {
   };
 });
 
-vi.mock("@comvi/core", async (importOriginal) => ({
-  ...(await importOriginal<typeof ComviCore>()),
+// The composable takes `createBoundTranslation` from the SLIM entry now: it
+// runs on a bare WrapperI18nHost, which is all `$i18n` promises (§3.2).
+vi.mock("@comvi/core/slim", async (importOriginal) => ({
+  ...(await importOriginal<typeof ComviCoreSlim>()),
   createBoundTranslation,
 }));
 
@@ -29,14 +31,10 @@ function createI18nStub() {
     isLoading: ref(false),
     isInitializing: ref(false),
     addTranslations: vi.fn(),
-    addActiveNamespace: vi.fn(async () => undefined),
     setFallbackLocale: vi.fn(),
     defaultParams: computed(() => ({ formality: "formal" })),
     setDefaultParams: vi.fn(),
-    onMissingKey: vi.fn(() => () => undefined),
-    onLoadError: vi.fn(() => () => undefined),
     clearTranslations: vi.fn(),
-    reloadTranslations: vi.fn(async () => undefined),
     hasLocale: vi.fn(() => computed(() => true)),
     hasTranslation: vi.fn(() => computed(() => true)),
     loadedLocales: computed(() => ["en"]),

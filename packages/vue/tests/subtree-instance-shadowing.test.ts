@@ -2,7 +2,8 @@ import { describe, it, expect } from "vitest";
 import { mount } from "@vue/test-utils";
 import { defineComponent, h, provide, type PropType } from "vue";
 import { useI18n } from "../src";
-import { VueI18n } from "../src/VueI18n";
+import { createI18n } from "../src/createI18n";
+import type { VueI18n } from "../src/VueI18n";
 import { T } from "../src/components/T";
 import { I18N_INJECTION_KEY } from "../src/keys";
 
@@ -19,7 +20,7 @@ const REVIEW_SELECT: Record<string, Record<string, string>> = {
 };
 
 function createInstance(locale: string, formality?: string) {
-  return new VueI18n({
+  return createI18n({
     locale,
     translation: REVIEW_SELECT,
     ...(formality ? { defaultParams: { formality } } : {}),

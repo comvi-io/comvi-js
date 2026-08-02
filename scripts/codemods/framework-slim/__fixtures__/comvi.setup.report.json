@@ -1,0 +1,8 @@
+[
+  {
+    "line": 7,
+    "column": 3,
+    "shape": "vue-instance-proxy-call",
+    "detail": "`i18n.registerLoader(...)` \u2014 if the receiver is a VueI18n it must become `i18n.core.registerLoader(...)`"
+  }
+]

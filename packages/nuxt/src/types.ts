@@ -1,4 +1,6 @@
 import type { H3Event } from "h3";
+import type { DefaultTranslationParams, I18n, I18nLoaderApi, WrapperI18nHost } from "@comvi/core";
+import type { VueI18n } from "@comvi/vue";
 
 /**
  * Locale prefix mode for URL routing
@@ -173,6 +175,38 @@ export interface NuxtI18nOptions {
   setup?: string;
 
   /**
+   * Path to a module whose DEFAULT export is a host factory —
+   * `() => WrapperI18nHost` — used INSTEAD of the root `@comvi/core` entry.
+   *
+   * This is the composed-host recipe: build the host yourself out of
+   * `@comvi/core/slim` plus only the capabilities you use, and nuxt wires it
+   * through `@comvi/vue`'s `createI18nFromCore` on the client and uses it
+   * directly in the server utilities. Unset (the default) keeps the root
+   * entry and needs no app change.
+   *
+   * It is a module PATH, not a function: module options are serialized into
+   * build-time template codegen, and the branch that decides whether the root
+   * entry is imported at all has to be taken there — a runtime `if` would pin
+   * the root entry into every bundle and save nothing.
+   *
+   * The factory is called once per constructed instance (the client plugin,
+   * and each per-request server instance), so it must return a FRESH host
+   * every call. The server always loads translations, so a server-rendered
+   * app's host needs `attachLoader`.
+   *
+   * @example "./comvi.host.ts"
+   * @example
+   * ```ts
+   * // comvi.host.ts
+   * import { createI18n } from "@comvi/core/slim";
+   * import { attachLoader } from "@comvi/core/loader";
+   *
+   * export default () => attachLoader(createI18n({ locale: "en" }));
+   * ```
+   */
+  hostModule?: string;
+
+  /**
    * Browser language detection options
    * Set to false to disable
    * @default { useCookie: true, cookieName: 'i18n_locale' }
@@ -267,15 +301,32 @@ export interface NuxtI18nSetupEvent extends H3Event {
 }
 
 /**
- * Context passed to `comvi.setup` hook.
+ * The host shape nuxt's SERVER utilities require: the wrapper surface plus
+ * the loader capability. SSR always loads translations
+ * (`loadTranslations`/`useTranslation` drive `reloadTranslations` and
+ * `addActiveNamespace`), so a `hostModule` used by a server-rendered app must
+ * compose `attachLoader`. ICU and tag syntax enter the server graph only if
+ * the app composes them.
  */
-export interface NuxtI18nSetupContext {
+export type NuxtServerHost<D extends DefaultTranslationParams = {}> = WrapperI18nHost<D> &
+  I18nLoaderApi;
+
+/**
+ * Context passed to `comvi.setup` hook.
+ *
+ * `C` is the host the app runs on. It defaults to the root `I18n` — the
+ * default, root-entry configuration — so nothing changes for an app that does
+ * not set `hostModule`. An app that DOES set it declares its own host type
+ * (`NuxtI18nSetup<MyHost>`) and gets exactly the capabilities it composed;
+ * capability calls move to `i18n.core.*` on the plugin side (framework-slim §3).
+ */
+export interface NuxtI18nSetupContext<C extends WrapperI18nHost = I18n> {
   /**
    * i18n instance for current runtime.
-   * - VueI18n in Nuxt app plugin
-   * - Core I18n in server utilities (e.g. useTranslation)
+   * - VueI18n in Nuxt app plugin — capability APIs live on `i18n.core`
+   * - The core host itself in server utilities (e.g. useTranslation)
    */
-  i18n: import("@comvi/vue").VueI18n | import("@comvi/core").I18n;
+  i18n: VueI18n<{}, C> | C;
 
   /**
    * Runtime where setup is executed.
@@ -300,8 +351,18 @@ export interface NuxtI18nSetupContext {
 
 /**
  * Signature for `comvi.setup` default export.
+ *
+ * @example
+ * ```ts
+ * // comvi.setup.ts — default (root) host
+ * export default (({ i18n }) => {
+ *   i18n.core.registerLoader(myLoader);
+ * }) satisfies NuxtI18nSetup;
+ * ```
  */
-export type NuxtI18nSetup = (context: NuxtI18nSetupContext) => void | Promise<void>;
+export type NuxtI18nSetup<C extends WrapperI18nHost = I18n> = (
+  context: NuxtI18nSetupContext<C>,
+) => void | Promise<void>;
 
 // Module augmentation for Nuxt
 declare module "@nuxt/schema" {
