@@ -2,7 +2,7 @@ import type { TagCallback } from "../../types";
 import type { VirtualNode } from "../../virtualNode";
 import { createElement } from "../../virtualNode";
 import { warn } from "../../logger";
-import { TK_TAG, type ParsedToken, type TagToken } from "./cache";
+import { TK_TAG, TK_TEXT, type ParsedToken, type TagToken } from "./cache";
 import { parseTemplate } from "./parser";
 import {
   registerSyntaxExtension,
@@ -16,6 +16,7 @@ declare const __DEV__: boolean | undefined;
 
 const IS_DEV = typeof __DEV__ !== "undefined" && __DEV__;
 
+const AMPERSAND = 38;
 const BACKSLASH = 92;
 const LESS_THAN = 60;
 const GREATER_THAN = 62;
@@ -261,16 +262,52 @@ function processTag(
 }
 
 /**
+ * The `&…;` entities the tag grammar owns, longest match irrelevant (no
+ * prefix collisions). They exist so a translator can write a literal angle
+ * bracket or ampersand inside a message that IS tag syntax; in a graph with
+ * no tag extension there is no `<` grammar to escape from, so the sequences
+ * stay literal text.
+ */
+const ENTITIES: Array<[source: string, char: string]> = [
+  ["&lt;", "<"],
+  ["&gt;", ">"],
+  ["&amp;", "&"],
+];
+
+/**
  * The XML-like tag syntax extension. Pass it per call through
  * `tagInterpolation.extensions` (ordering-proof channel used by `<T>` /
  * `prepareTranslation`) or register it ambiently via `registerTagSyntax()`
  * (string-API channel; done automatically by importing `@comvi/core` or
  * `@comvi/core/tags`).
+ *
+ * It claims three characters from the shared scanner, all one grammar:
+ * `<` (a tag), `&` (an entity) and `\` (the `\<` escape). Returning a
+ * `TK_TEXT` token for the latter two is what keeps the decoded character out
+ * of the raw-template fast path — `createCachedTemplate` only reports
+ * `isStatic` when the single text token IS the template.
  */
 export const tagSyntaxExtension: SyntaxExtension = {
   id: "comvi:tags",
   cacheBit: 1,
   parseHook(template, index, len, hashIsSyntax, extensions, compiler) {
+    const code = template.charCodeAt(index);
+
+    if (code === AMPERSAND) {
+      for (const [source, char] of ENTITIES) {
+        if (template.startsWith(source, index)) {
+          return { token: [TK_TEXT, char], endIndex: index + source.length };
+        }
+      }
+      return undefined;
+    }
+
+    if (code === BACKSLASH) {
+      return index + 1 < len && template.charCodeAt(index + 1) === LESS_THAN
+        ? { token: [TK_TEXT, "<"], endIndex: index + 2 }
+        : undefined;
+    }
+
     const result = parseTag(template, index, len, hashIsSyntax, extensions, compiler);
     return result.isTag && result.token !== undefined
       ? { token: result.token, endIndex: result.endIndex }

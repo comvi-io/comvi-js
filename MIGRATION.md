@@ -213,7 +213,9 @@ host (`attachLoader(createI18n(…))`) or use the root `@comvi/core` entry.
 | vue: `i18n.use is not a function`                                   | `i18n.core.use(…)`                                              |
 | vue: `i18n.core.reloadTranslations` does not compile in a component | the inject path is host-typed by design — use `useI18nLoader()` |
 
-## 6. The one deliberate behavioral removal
+## 6. Deliberate behavioral changes
+
+### 6.1 `@comvi/next` server `setI18n` no longer replaces the instance
 
 `@comvi/next`'s server `setI18n` used to let a second call replace the instance,
 last write wins. It now throws — in development and in production — naming both
@@ -231,6 +233,59 @@ in-repo suites use the `@internal` `_resetServerI18n()` from
 `@comvi/next/dist/server/cache` — deliberately not part of the
 `@comvi/next/server` public surface.
 
+### 6.2 Three capabilities left the bare-slim core
+
+Each is absent from a bare `@comvi/core/slim` graph and composed back by the
+root `@comvi/core` entry, so **nothing about a root app changes**. Together they
+take bare slim from 5,563 B to **4,902 B** min+gz.
+
+| what                                                  | bare `@comvi/core/slim`             | how to get it back                                                                | root `@comvi/core` |
+| ----------------------------------------------------- | ----------------------------------- | --------------------------------------------------------------------------------- | ------------------ |
+| Devtools discovery (`instanceId`, `window.__COMVI__`) | absent; `instanceId` is `undefined` | `attachDevtools(i18n, { instanceId, exposeGlobal })` from `@comvi/core/devtools`  | unchanged          |
+| `&lt;` / `&gt;` / `&amp;` / `\<` decoding             | literal text                        | any tag extension — `import "@comvi/core/tags"`, or `tagInterpolation.extensions` | unchanged          |
+| Nested catalogs in `addTranslations`                  | stored as given (dev warns)         | `attachLoader`, or `flattenCatalog(nested)` from `@comvi/core/loader`             | unchanged          |
+
+**Discovery.** Browser-extension discovery is a `window` protocol, so an app
+that ships no extension integration should not carry it. On a bare slim host
+`instanceId` stays `undefined` and no global is touched; `attachDevtools` takes
+the same two options `createI18n` reads on root.
+
+**Escapes travel with the grammar they escape.** `&lt;`, `&gt;`, `&amp;` and
+`\<` exist to write a literal angle bracket inside a message that IS tag
+syntax. Where `<` is not syntax there is nothing to escape, so they are ordinary
+characters. **ICU apostrophe quoting is unaffected** — `'{literal}'` and `''`
+are core grammar and still work everywhere, bare slim included.
+
+**Flat catalogs.** A bare host stores catalogs verbatim; recursive flattening
+belongs to the loader capability, because a loader is what hands back raw JSON.
+Pass `{ "nav.home": "Home" }`, or wrap nested input once:
+
+```ts
+import { flattenCatalog } from "@comvi/core/loader";
+
+i18n.addTranslations({ en: flattenCatalog({ nav: { home: "Home" } }) });
+```
+
+Development mode warns, with this hint, the first time a non-string leaf reaches
+a host that cannot flatten it.
+
+### 6.3 Reflection: an unassigned field is no longer an own property
+
+`@comvi/core` is compiled with `useDefineForClassFields: false` (−191 B on every
+entry). Behaviour is identical; two things change if you **enumerate or
+serialize an instance**:
+
+1. A declared-but-unassigned field is not an own property. The one public member
+   this shows on is `instanceId`: on an instance that did not expose itself
+   (`exposeGlobal: false`, or any server render) `Object.keys(i18n)` and
+   `{ ...i18n }` no longer list it. `i18n.instanceId` still reads `undefined`.
+2. Own-property order is assignment order. For the public keys that is the same
+   sequence as before: `translationCache`, `apiKey`, `collectContext`,
+   `devMode`, then `instanceId` when discovery assigned it.
+
+Every public method and accessor is still a non-enumerable prototype member with
+unchanged property descriptors, and a spread copy still carries data only.
+
 ## 7. What you get
 
 Whole-app comvi graph, min+gz, framework peer dependency externalized, measured
@@ -238,13 +293,13 @@ by `node scripts/size-check.mjs`:
 
 | binding                | root host | bare `/slim` host | saving           |
 | ---------------------- | --------- | ----------------- | ---------------- |
-| `@comvi/react`         | 10170     | **7194**          | −2976 B (−29.3%) |
-| `@comvi/solid`         | 9889      | **6895**          | −2994 B (−30.3%) |
-| `@comvi/svelte`        | 9949      | **6972**          | −2977 B (−29.9%) |
-| `@comvi/vue`           | 10473     | **7525**          | −2948 B (−28.1%) |
-| `@comvi/next` (server) | 10055     | **7549**          | −2506 B (−24.9%) |
-| `@comvi/nuxt` (server) | 12254     | **10044**         | −2210 B (−18.0%) |
+| `@comvi/react`         | 10038     | **6515**          | −3523 B (−35.1%) |
+| `@comvi/solid`         | 9756      | **6222**          | −3534 B (−36.2%) |
+| `@comvi/svelte`        | 9818      | **6300**          | −3518 B (−35.8%) |
+| `@comvi/vue`           | 10348     | **6857**          | −3491 B (−33.7%) |
+| `@comvi/next` (server) | 9930      | **7059**          | −2871 B (−28.9%) |
+| `@comvi/nuxt` (server) | 12140     | **9568**          | −2572 B (−21.2%) |
 
 Several bindings also got smaller on the **root** path, with no app change at
-all, because `<T>` and the tag machinery it needs became opt-in and core itself got smaller: react −1108 B,
-vue −1457 B.
+all, because `<T>` and the tag machinery it needs became opt-in and core itself got smaller: react −1240 B,
+vue −1582 B.

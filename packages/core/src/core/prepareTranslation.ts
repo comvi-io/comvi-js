@@ -13,11 +13,7 @@
  * Exported from `@comvi/core/tags` ONLY — it is meaningless without tag
  * machinery and must never enter slim consumers' graphs via the root entry.
  */
-import type {
-  TagCallbackParams,
-  TagInterpolationOptions,
-  TranslationParams,
-} from "../types";
+import type { TagCallbackParams, TagInterpolationOptions, TranslationParams } from "../types";
 import type { TranslationResult, VirtualNode } from "../virtualNode";
 import { createElement } from "../virtualNode";
 import { tagSyntaxExtension } from "./translate/tags";
@@ -146,8 +142,7 @@ function elementHandler(
   tag: string,
   props?: Record<string, unknown>,
 ): (p: TagCallbackParams) => VirtualNode {
-  return ({ children }: TagCallbackParams) =>
-    createElement(tag, props, childrenToArray(children));
+  return ({ children }: TagCallbackParams) => createElement(tag, props, childrenToArray(children));
 }
 
 /**

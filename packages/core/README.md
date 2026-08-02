@@ -100,17 +100,17 @@ fixtures CI gates, never estimated:
 
 | binding                | root host | bare `/slim` host | saving           | slim recipe                                                                                      |
 | ---------------------- | --------- | ----------------- | ---------------- | ------------------------------------------------------------------------------------------------ |
-| `@comvi/react`         | 10170     | **7194**          | −2976 B (−29.3%) | `createI18n` from `@comvi/core/slim` → `<I18nProvider i18n={…}>`                                 |
-| `@comvi/solid`         | 9889      | **6895**          | −2994 B (−30.3%) | same host → `<I18nProvider i18n={…}>`                                                            |
-| `@comvi/svelte`        | 9949      | **6972**          | −2977 B (−29.9%) | same host → `setI18nContext(i18n)`                                                               |
-| `@comvi/vue`           | 10473     | **7525**          | −2948 B (−28.1%) | `createI18nFromCore(host)` from **`@comvi/vue/slim`**                                            |
-| `@comvi/next` (server) | 10055     | **7549**          | −2506 B (−24.9%) | `createNextI18nFromHost(() => host)` from **`@comvi/next/server`**; host = slim + `attachLoader` |
-| `@comvi/nuxt` (server) | 12254     | **10044**         | −2210 B (−18.0%) | `hostModule: "./comvi.host.ts"`; host = slim + `attachLoader`                                    |
+| `@comvi/react`         | 10038     | **6515**          | −3523 B (−35.1%) | `createI18n` from `@comvi/core/slim` → `<I18nProvider i18n={…}>`                                 |
+| `@comvi/solid`         | 9756      | **6222**          | −3534 B (−36.2%) | same host → `<I18nProvider i18n={…}>`                                                            |
+| `@comvi/svelte`        | 9818      | **6300**          | −3518 B (−35.8%) | same host → `setI18nContext(i18n)`                                                               |
+| `@comvi/vue`           | 10348     | **6857**          | −3491 B (−33.7%) | `createI18nFromCore(host)` from **`@comvi/vue/slim`**                                            |
+| `@comvi/next` (server) | 9930      | **7059**          | −2871 B (−28.9%) | `createNextI18nFromHost(() => host)` from **`@comvi/next/server`**; host = slim + `attachLoader` |
+| `@comvi/nuxt` (server) | 12140     | **9568**          | −2572 B (−21.2%) | `hostModule: "./comvi.host.ts"`; host = slim + `attachLoader`                                    |
 
 Rendering `<T>` buys the tag machinery on top of the slim rows, and only then:
-react **+1882 B**, solid **+1815 B**, svelte **+2208 B**, vue **+1864 B**.
+react **+2007 B**, solid **+1925 B**, svelte **+2319 B**, vue **+1979 B**.
 Client-only graphs: `@comvi/next` client on a hydrated bare-slim host is
-**7593 B**, `@comvi/nuxt` client **8661 B**.
+**6930 B**, `@comvi/nuxt` client **7996 B**.
 
 Three bindings need one line of explanation each:
 
@@ -181,24 +181,33 @@ Everything below exists on a root `@comvi/core` instance. On slim it is a **comp
 error** until you attach the subpath — a missing capability is caught by TypeScript, never
 discovered in production.
 
-| Capability            | Subpath                                 | Members                                                                                                                           |
-| --------------------- | --------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| Async loading         | `@comvi/core/loader` (`attachLoader`)   | `registerLoader`, `getLoader`, `reloadTranslations`, `addActiveNamespace`, `addActiveNamespaces`, `onLoadError`                   |
-| Import-map loading    | `@comvi/core/loader`                    | `createImportMapLoader` — **moved here from `@comvi/core/slim`**; both subpaths first ship in 0.5.0, so no existing import breaks |
-| Plugin host           | `@comvi/core/plugins` (`attachPlugins`) | `use`, `setPluginData`, `getPluginData`                                                                                           |
-| Locale detection      | `@comvi/core/plugins`                   | `registerLocaleDetector`, `getLanguageDetector`                                                                                   |
-| Missing-key callbacks | `@comvi/core/plugins`                   | `onMissingKey`                                                                                                                    |
-| Post-processors       | `@comvi/core/plugins`                   | `registerPostProcessor`                                                                                                           |
-| ICU plural/select     | `@comvi/core/icu`                       | `createI18n({ …, compiler: icuCompiler })`                                                                                        |
-| Tag interpolation     | `@comvi/core/tags`                      | ambient import, or `tagInterpolation.extensions` per call                                                                         |
+| Capability            | Subpath                                   | Members                                                                                                                           |
+| --------------------- | ----------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| Async loading         | `@comvi/core/loader` (`attachLoader`)     | `registerLoader`, `getLoader`, `reloadTranslations`, `addActiveNamespace`, `addActiveNamespaces`, `onLoadError`                   |
+| Import-map loading    | `@comvi/core/loader`                      | `createImportMapLoader` — **moved here from `@comvi/core/slim`**; both subpaths first ship in 0.5.0, so no existing import breaks |
+| Nested catalogs       | `@comvi/core/loader`                      | `attachLoader` (automatic), or the pure `flattenCatalog(nested)` — see below                                                      |
+| Plugin host           | `@comvi/core/plugins` (`attachPlugins`)   | `use`, `setPluginData`, `getPluginData`                                                                                           |
+| Locale detection      | `@comvi/core/plugins`                     | `registerLocaleDetector`, `getLanguageDetector`                                                                                   |
+| Missing-key callbacks | `@comvi/core/plugins`                     | `onMissingKey`                                                                                                                    |
+| Post-processors       | `@comvi/core/plugins`                     | `registerPostProcessor`                                                                                                           |
+| Devtools discovery    | `@comvi/core/devtools` (`attachDevtools`) | `instanceId`, the `window.__COMVI__` queue protocol, removal on `destroy()`                                                       |
+| ICU plural/select     | `@comvi/core/icu`                         | `createI18n({ …, compiler: icuCompiler })`                                                                                        |
+| Tag interpolation     | `@comvi/core/tags`                        | ambient import, or `tagInterpolation.extensions` per call — also `&lt;` / `&gt;` / `&amp;` and the `\<` escape                    |
 
-Two placements are worth calling out because they are not where you might guess:
+Four placements are worth calling out because they are not where you might guess:
 
 - **`addActiveNamespace` / `addActiveNamespaces` live on `/loader`.** Activating a
   namespace only means anything when something loads namespaces. Bare slim activates
   implicitly instead: `addTranslations` self-activates the namespaces it carries.
 - **`onLoadError` lives on `/loader`.** Only the loader capability can emit `loadError`,
   so subscribing to it without a loader would be a no-op by construction.
+- **Nested-catalog flattening lives on `/loader`.** A loader hands back raw JSON, so
+  turning `{ nav: { home } }` into `"nav.home"` is part of that job. A bare host stores
+  catalogs exactly as given — see “Bare slim wants flat catalogs” below.
+- **Discovery lives on `/devtools`.** `instanceId` and the `window.__COMVI__` handshake
+  exist for browser extensions; an app that ships no extension integration should not
+  carry a `window` protocol. `attachDevtools(i18n, { instanceId, exposeGlobal })` takes
+  the two options the root entry reads off `createI18n`.
 
 The `postProcess` and `onMissingKey` **constructor options** stay universal — they work on
 bare slim. Only the runtime _registration_ APIs are part of the plugin-host capability.
@@ -219,6 +228,17 @@ const i18n = createI18n({
 i18n.t("hi", { who: "Alice" }); // "Hi, <b>Alice</b>!"  — root returns "Hi, Alice!"
 ```
 
+The tag grammar's **escapes travel with it**: `&lt;`, `&gt;`, `&amp;` and `\<` are decoded
+only where `<` is syntax. With no tag extension there is nothing to escape from, so they
+are ordinary characters and `t()` returns them verbatim.
+
+```ts
+i18n.t("legal"); // "a &lt;b&gt; &amp; c"  — root returns "a <b> & c"
+```
+
+ICU apostrophe quoting is **not** part of that: `'{literal}'` and `''` are core grammar and
+work on every entry, bare slim included.
+
 Tag parsing comes back the moment a tag extension is in the graph: `import "@comvi/core/tags"`
 for ambient registration, or `tagInterpolation.extensions` per call. The root `@comvi/core`
 entry registers tag syntax itself, which is why it is rich by default.
@@ -232,18 +252,48 @@ i18n.t("greeting", { who: someVNode }); // string — coerced
 i18n.tRaw("greeting", { who: someVNode }); // ["Hi, ", someVNode, "!"]
 ```
 
+### Bare slim wants flat catalogs
+
+A bare host stores what you hand it. `addTranslations` (and `translation` in the
+constructor) takes catalogs keyed by locale or `"locale:namespace"`, whose values are
+**flat** — dot-notation keys, string values:
+
+```ts
+i18n.addTranslations({
+  en: { "nav.home": "Home" },
+  "en:admin": { "nav.home": "Admin home" },
+});
+```
+
+Nested objects are recursively flattened by the **loader capability**, because that is
+where raw JSON arrives. So nested input works unchanged on the root entry and on any host
+with `attachLoader`; on a bare host it needs one call, and dev mode says so:
+
+```ts
+import { flattenCatalog } from "@comvi/core/loader";
+
+i18n.addTranslations({ en: flattenCatalog({ nav: { home: "Home" } }) }); // -> "nav.home"
+```
+
+`flattenCatalog` is a pure function, so importing only it pulls the flattener and none of
+the loader. Either way the cache stores a prototype-less copy, so a catalog key can never
+resolve to an `Object.prototype` member.
+
 ### What it costs
 
 Measured min+gz through the published exports map (`node scripts/size-check.mjs`):
 
 | Entry                  | min+gz  |
 | ---------------------- | ------- |
-| `@comvi/core/slim`     | 5,563 B |
-| `+ /tags`              | 6,410 B |
-| `+ /icu`               | 6,434 B |
-| `+ /loader + /plugins` | 6,804 B |
-| `+ /icu + /tags`       | 7,259 B |
-| `@comvi/core` (root)   | 8,519 B |
+| `@comvi/core/slim`     | 4,902 B |
+| `+ /tags`              | 5,863 B |
+| `+ /icu`               | 5,773 B |
+| `+ /loader + /plugins` | 6,319 B |
+| `+ /icu + /tags`       | 6,689 B |
+| `@comvi/core` (root)   | 8,385 B |
+
+`@comvi/core/devtools` shows up in a graph only when you attach it; the root entry
+composes it in, which is part of the 8,385 B.
 
 ## ICU MessageFormat — locale-correct grammar, not just singular/plural
 

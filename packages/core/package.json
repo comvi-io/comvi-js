@@ -59,6 +59,11 @@
       "development": "./dist/comvi-core-plugins.dev.js",
       "default": "./dist/comvi-core-plugins.js"
     },
+    "./devtools": {
+      "types": "./dist/devtools.d.ts",
+      "development": "./dist/comvi-core-devtools.dev.js",
+      "default": "./dist/comvi-core-devtools.js"
+    },
     "./icu": {
       "types": "./dist/icu.d.ts",
       "development": "./dist/comvi-core-icu.dev.js",

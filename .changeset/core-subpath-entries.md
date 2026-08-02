@@ -9,6 +9,7 @@ New subpath entries decompose the core so apps pay only for what they use:
 - `@comvi/core/tags` — tag interpolation toolbox: importing it registers tag syntax ambiently (string-API `t()` parses `<tag>…</tag>` everywhere); also exports `registerTagSyntax()` (returns a disposer), the `tagSyntaxExtension` object for per-call activation, and the VirtualNode helpers (`createElement`, `createTextNode`, `createFragment`, `isVirtualNode`).
 - `@comvi/core/loader` — pure, side-effect-free subpath carrying the async-loading capability: `attachLoader` (composes it onto a slim instance) plus `createImportMapLoader` and the `LoaderFn` / `LoaderResult` / `I18nLoaderApi` types.
 - `@comvi/core/plugins` — pure, side-effect-free subpath carrying the plugin host: `attachPlugins` (`use`, locale detector, missing-key callbacks, post-processor registration, plugin data) plus the `I18nPlugin` / `I18nPluginFactory` / `PluginOptions` / `I18nPluginHost` types.
+- `@comvi/core/devtools` — pure, side-effect-free subpath carrying browser-extension discovery: `attachDevtools(i18n, { instanceId, exposeGlobal })` assigns `instanceId`, publishes the instance on the `window.__COMVI__` queue (protocol v2, mixed-version safe) and removes it again on `destroy()`, plus the `ComviQueue` / `ComviQueueEntry` / `ComviHook` / `DevtoolsOptions` types.
 
 Tag activation is dual-channel: ambient registration via import (string-API fallback) or per call through `tagInterpolation.extensions` — the ordering-proof channel `<T>`/`prepareTranslation` use, immune to bundler side-effect stripping.
 

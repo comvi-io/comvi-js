@@ -198,13 +198,13 @@ Whole-app comvi graph, min+gz (`node scripts/size-check.mjs`); both server rows
 are the same runtime modules and differ only in the emitted construction
 branch:
 
-| graph                                        | min+gz    |
-| -------------------------------------------- | --------- |
-| server, default root branch                  | 12254     |
-| server, `hostModule` (slim + `attachLoader`) | **10044** |
-| client, `hostModule` (bare slim, hydrated)   | **8661**  |
+| graph                                        | min+gz   |
+| -------------------------------------------- | -------- |
+| server, default root branch                  | 12140    |
+| server, `hostModule` (slim + `attachLoader`) | **9568** |
+| client, `hostModule` (bare slim, hydrated)   | **7996** |
 
-A nuxt server on a composed slim + loader host saves **2210 B (−18.0%)**.
+A nuxt server on a composed slim + loader host saves **2572 B (−21.2%)**.
 
 ## Rich text with `<T>`
 

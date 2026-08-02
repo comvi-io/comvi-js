@@ -108,6 +108,34 @@ describe("slim + /loader composition", () => {
     // The cancelled load must not repopulate the cache.
     expect(i18n.getTranslations()).toEqual({});
   });
+
+  // The `_flattenNs` seam (tier-3, C6): a loader returns raw JSON, so
+  // nested-catalog flattening belongs to the loader capability. Attaching it
+  // must restore the root entry's `addTranslations` semantics exactly.
+  it("restores nested-catalog flattening on addTranslations", () => {
+    const i18n = attachLoader(createI18n({ locale: "en", exposeGlobal: false }));
+
+    i18n.addTranslations({ en: { nav: { home: "Home", deep: { x: "X" } }, n: 7 } as never });
+
+    expect(i18n.t("nav.home" as never)).toBe("Home");
+    expect(i18n.t("nav.deep.x" as never)).toBe("X");
+    expect(i18n.t("n" as never)).toBe("7");
+  });
+
+  it("flattens options.translation too — the hook is a prototype member", () => {
+    // `options.translation` is merged inside the constructor, so a hook that
+    // only existed after `_initLoader` would be too late. Root gets it via
+    // `extends`; a slim instance only after attaching, which is why this
+    // case is asserted through `attachLoader` + `addTranslations` above and
+    // through the ROOT entry here.
+    const root = new I18n({
+      locale: "en",
+      exposeGlobal: false,
+      translation: { en: { nav: { home: "Home" } } as never },
+    });
+
+    expect(root.t("nav.home")).toBe("Home");
+  });
 });
 
 describe("slim + /plugins composition", () => {

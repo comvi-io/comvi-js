@@ -10,6 +10,7 @@
       "@comvi/core/slim": ["./src/slim.ts"],
       "@comvi/core/loader": ["./src/loader.ts"],
       "@comvi/core/plugins": ["./src/plugins.ts"],
+      "@comvi/core/devtools": ["./src/devtools.ts"],
       "@comvi/core/icu": ["./src/icu.ts"],
       "@comvi/core/tags": ["./src/tags.ts"],
       "@comvi/core/editor-bridge": ["./src/editor-bridge.ts"]

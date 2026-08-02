@@ -21,7 +21,13 @@
 // through a string (`i["_loader"]`, `Object.defineProperty(o, "_loadNs", …)`),
 // because terser does not rewrite string arguments and the prod dist would
 // break silently. `tests/dist/slim-composition.dist.test.ts` is the canary.
-import type { DefaultTranslationParams, I18nLoaderApi, LoaderFn } from "../types";
+import type {
+  DefaultTranslationParams,
+  FlattenedTranslations,
+  I18nLoaderApi,
+  LoaderFn,
+  TranslationValue,
+} from "../types";
 import { I18n as I18nBase, type I18nInternal } from "./i18n";
 import { normalizeTranslationObject } from "../utils";
 
@@ -92,6 +98,21 @@ export class I18nWithLoader<D extends DefaultTranslationParams = {}> extends I18
     this._nsGeneration = 0;
     this._currentLocaleChangeId = 0;
     this._requestedLocale = this._locale;
+  }
+
+  /**
+   * @internal `_flattenNs` hook — nested-catalog flattening for
+   * `addTranslations` and `options.translation`.
+   *
+   * A PROTOTYPE method, not an `_initLoader` assignment: the root entry
+   * merges `options.translation` inside `super()`, long before any `_init*`
+   * call, and only a prototype member exists that early. `attachLoader`'s
+   * descriptor copy picks it up for a slim host, and `attachNestedCatalogs`
+   * installs just this one member for a host that wants nested catalogs
+   * without the rest of the loader.
+   */
+  protected _flattenNs(catalog: Record<string, TranslationValue>): FlattenedTranslations {
+    return normalizeTranslationObject(catalog);
   }
 
   /**
@@ -398,3 +419,27 @@ export function attachLoader<T extends I18nBase<any>>(i18n: T): T & I18nLoaderAp
   }
   return i18n as T & I18nLoaderApi;
 }
+
+/**
+ * Flatten a nested catalog into the dot-notation shape a host stores.
+ *
+ * ```ts
+ * import { createI18n } from "@comvi/core/slim";
+ * import { flattenCatalog } from "@comvi/core/loader";
+ *
+ * i18n.addTranslations({ en: flattenCatalog({ nav: { home: "Home" } }) }); // -> "nav.home"
+ * ```
+ *
+ * A bare `@comvi/core/slim` host stores catalogs as given, so it wants FLAT
+ * keys (`{ "nav.home": "Home" }`) or `"locale:namespace"`-keyed flat objects.
+ * `attachLoader` and the root `@comvi/core` entry flatten for you — a loader
+ * returns raw JSON, so it is part of that job. This is the escape hatch for a
+ * host that loads nothing and still has nested objects in hand; being a plain
+ * function it also works on `options.translation`, which the constructor
+ * merges before anything can be attached.
+ *
+ * Non-string leaves are coerced with `String()` and `null`/`undefined` leaves
+ * are dropped (with a dev warning), exactly as on the loader path. Input with
+ * a null prototype is assumed already flat and passes through.
+ */
+export { normalizeTranslationObject as flattenCatalog } from "../utils";

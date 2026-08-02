@@ -21,13 +21,11 @@ import type {
   SetDefaultParamsArg,
   DefaultParamsSnapshot,
   ComviQueueEntry,
-  ComviHook,
   LoaderFn,
   LoaderResult,
 } from "../types";
 import { DEFAULT_NS, COMVI_REPORTED } from "../constants";
 import { warn } from "../logger";
-import { normalizeTranslationObject } from "../utils";
 import {
   assertInterpolationDefaults,
   assertPreservesDefaultParamKeys,
@@ -44,11 +42,8 @@ import {
 } from "./translate/syntax";
 
 declare const __DEV__: boolean | undefined;
-declare const __VERSION__: string | undefined;
 const IS_DEV = typeof __DEV__ !== "undefined" && __DEV__;
 
-/** Library version - injected at build time or fallback */
-const VERSION = typeof __VERSION__ !== "undefined" ? __VERSION__ : "0.1.0";
 const ERR_LOCALE_NOT_SET = IS_DEV ? "@comvi/core: Locale is not set" : "E_LOCALE_NOT_SET";
 const ERR_TRANSLATION_NOT_OBJECT = IS_DEV
   ? "@comvi/core: Translation is not an object"
@@ -56,6 +51,24 @@ const ERR_TRANSLATION_NOT_OBJECT = IS_DEV
 const ERR_INSTANCE_DESTROYED = IS_DEV
   ? "[i18n] Cannot call init() after destroy(). Create a new i18n instance."
   : "E_INSTANCE_DESTROYED";
+
+/**
+ * DEV-ONLY diagnostic for the `_flattenNs` seam: a bare host stores catalogs
+ * verbatim, so a nested object or a non-string leaf silently becomes an
+ * un-renderable template. Behind `IS_DEV`, so it costs the production bundle
+ * nothing — which is the entire point of putting the flattener behind a seam.
+ */
+function warnIfNotFlat(localeOrKey: string, catalog: Record<string, unknown>): void {
+  for (const key in catalog) {
+    if (typeof catalog[key] === "string") continue;
+    warn(
+      `[i18n] addTranslations("${localeOrKey}"): "${key}" is not a string. This host stores ` +
+        `catalogs as given — pass a FLAT catalog, wrap a nested one with ` +
+        `flattenCatalog() from "@comvi/core/loader", or attach the loader capability.`,
+    );
+    return;
+  }
+}
 
 /**
  * Loader types live in `types.ts` (they are part of `I18nLoaderApi`); this
@@ -92,18 +105,35 @@ export interface I18nInternal<D extends DefaultTranslationParams = {}> extends I
   // an array field + push + loop (measured on the full entry).
   /** Awaited before any lifecycle reset or emit — capability state still live. */
   _preDestroy?: () => void | Promise<void>;
+  /** Discovery removal, run FIRST — before any lifecycle reset (see `destroy`). */
+  _disposeDevtools?: () => void;
   /** Capability resets, run after the `destroyed` emit. */
   _resetLoader?: () => void;
   _resetPlugins?: () => void;
   /** Capability state initializers, installed with the capability's methods. */
   _initLoader?: () => void;
   _initPlugins?: () => void;
+  _initDevtools?: (instanceId?: string, exposeGlobal?: boolean) => void;
 
   // ── capability hooks (installed by attach* / the full subclass) ──
   _loadNs?: (locale: string, namespaces: string[], skipLoaded: boolean) => Promise<void>;
   _cancelNs?: (locale?: string, namespace?: string) => void;
   _beforeInit?: () => Promise<void>;
   _missHook?: (key: string, locale: string, namespace: string) => TranslationResult | undefined;
+  /**
+   * Nested-catalog flattening for `addTranslations` / `options.translation`.
+   * A PROTOTYPE method on `I18nWithLoader`, never an instance field, so the
+   * root entry has it during `super()` — `options.translation` is merged
+   * inside the base constructor, before any `_init*` runs.
+   */
+  _flattenNs?: (catalog: Record<string, TranslationValue>) => FlattenedTranslations;
+
+  // ── devtools discovery capability (`core/devtools.ts`) ──
+  // `instanceId` is PUBLIC (`I18nCoreExtraApi`) but writable only here: the
+  // base declares it and never assigns it, so it is an own property exactly
+  // when the discovery capability exposed the instance.
+  instanceId: string | undefined;
+  _globalEntry?: ComviQueueEntry;
 
   // ── loader capability state (initLoaderState) ──
   // `_currentLocaleChangeId`/`_requestedLocale` arbitrate rapid locale
@@ -114,18 +144,6 @@ export interface I18nInternal<D extends DefaultTranslationParams = {}> extends I
   _nsGeneration: number;
   _currentLocaleChangeId: number;
   _requestedLocale: string;
-}
-
-/** Counter for auto-generating instance IDs */
-let instanceCounter = 0;
-
-/**
- * v1 legacy registry shape (`register` WITHOUT `remove`) — mixed-version
- * interop only: an old core on the same page may have installed it.
- */
-interface LegacyComviRegistry {
-  register(id: string, instance: I18n): void;
-  unregister?(id: string): void;
 }
 
 /**
@@ -149,9 +167,13 @@ export class I18n<D extends DefaultTranslationParams = {}>
   public readonly apiKey: string | undefined;
   public readonly collectContext: boolean | undefined;
   public readonly devMode: boolean;
-  public readonly instanceId: string | undefined;
-  /** Entry pushed onto window.__COMVI__ — kept for identity-based removal */
-  private _globalEntry?: ComviQueueEntry;
+  /**
+   * Assigned ONLY by the discovery capability (`core/devtools.ts`), which the
+   * root entry composes in and `attachDevtools` installs on a slim instance.
+   * `declare`: the base must not emit an initializer for it, so on an
+   * instance that was never exposed it is not an own property at all.
+   */
+  declare public readonly instanceId: string | undefined;
   private _cachedDefaultNs: string;
   private _initialNamespaces?: string[];
   private _strict: "dev" | "off";
@@ -280,45 +302,10 @@ export class I18n<D extends DefaultTranslationParams = {}>
     // Development mode: the build-time __DEV__ flag unless the caller overrides it.
     this.devMode = options.devMode ?? IS_DEV;
 
-    // Expose on the global window.__COMVI__ discovery queue for browser extensions
-    // Default to true in browser environments, false in SSR
-    const shouldExpose = options.exposeGlobal ?? typeof window !== "undefined";
-    if (shouldExpose) {
-      this.instanceId = options.instanceId || `comvi-${++instanceCounter}`;
-      if (typeof window !== "undefined") {
-        // Mixed-version-safe discovery (protocol v2). Pages may run two core
-        // versions: probe order is array → hook (push AND remove) → legacy
-        // registry (register WITHOUT remove) → install fresh queue. A truthy
-        // non-conforming global is left untouched (never clobber).
-        const entry: ComviQueueEntry = { v: VERSION, i: this };
-        this._globalEntry = entry;
-        try {
-          const g = window.__COMVI__ as unknown;
-          if (Array.isArray(g)) {
-            // raw v2 queue array — or the editor's array-masquerading hook
-            // whose OWN push/remove shadow Array.prototype
-            g.push(entry);
-          } else if (
-            g &&
-            typeof (g as ComviHook).push === "function" &&
-            typeof (g as ComviHook).remove === "function"
-          ) {
-            // v2 hook object — incl. dual-protocol hooks that also expose
-            // register; probed BEFORE legacy so new/new never downgrades to v1
-            (g as ComviHook).push(entry);
-          } else if (g && typeof (g as LegacyComviRegistry).register === "function") {
-            // register-WITHOUT-remove ⇒ genuine legacy registry; two-arg
-            // signature so its get(id) actually resolves
-            (g as LegacyComviRegistry).register(this.instanceId, this);
-          } else if (!g) {
-            window.__COMVI__ = [entry];
-          }
-          // truthy non-conforming global: leave it alone, skip exposure
-        } catch {
-          /* discovery must never break construction */
-        }
-      }
-    }
+    // Discovery (`window.__COMVI__`) is NOT here: it is the `core/devtools.ts`
+    // capability, composed in by the root entry's constructor and installed
+    // on a slim instance by `attachDevtools`. `options.exposeGlobal` /
+    // `options.instanceId` are read there, not by the base.
   }
 
   /**
@@ -882,25 +869,36 @@ export class I18n<D extends DefaultTranslationParams = {}>
     await (this as unknown as I18nInternal)._loadNs?.(this._locale, namespaces, true);
   }
 
+  /**
+   * Merge a `{ locale | "locale:ns": catalog }` map into the cache.
+   *
+   * The base accepts FLAT catalogs — `{ "a.b": "…" }` — and copies them onto
+   * a prototype-less object, which is both the merge and the
+   * prototype-pollution guard. NESTED catalogs and non-string leaves are the
+   * `_flattenNs` capability's job (`core/loader.ts`, installed on the root
+   * class and by `attachLoader` / `attachNestedCatalogs`): a nested object is
+   * data the loader path produces, and a bare slim host that never loads
+   * anything should not carry a recursive flattener for it.
+   */
   private _nsAddTranslations(translations: Record<string, Record<string, TranslationValue>>): void {
     for (const localeOrKey in translations) {
       const value = translations[localeOrKey];
-      const flattenedTranslations = normalizeTranslationObject(value);
+      const flat = (this as unknown as I18nInternal)._flattenNs?.(value) ?? value;
+
+      if (IS_DEV) warnIfNotFlat(localeOrKey, flat);
 
       const colonIdx = localeOrKey.indexOf(":");
       const loc = colonIdx === -1 ? localeOrKey : localeOrKey.slice(0, colonIdx);
       const ns = colonIdx === -1 ? this._cachedDefaultNs : localeOrKey.slice(colonIdx + 1);
 
-      const existingTranslations = this.translationCache.get(loc, ns);
-      if (existingTranslations !== undefined) {
-        this.translationCache.set(
-          loc,
-          ns,
-          Object.assign(Object.create(null), existingTranslations, flattenedTranslations),
-        );
-      } else {
-        this.translationCache.set(loc, ns, flattenedTranslations);
-      }
+      // `Object.assign` skips an `undefined` source, so one expression covers
+      // both the first write and the merge — and the null-prototype target
+      // keeps a raw user object's `Object.prototype` members out of lookups.
+      this.translationCache.set(
+        loc,
+        ns,
+        Object.assign(Object.create(null), this.translationCache.get(loc, ns), flat),
+      );
 
       this._activeNamespaces.add(ns);
       this._emit("namespaceLoaded", { namespace: ns, locale: loc });
@@ -916,25 +914,9 @@ export class I18n<D extends DefaultTranslationParams = {}>
     }
     this._isDestroyed = true;
 
-    // Remove from the global __COMVI__ queue (identity-based; defensive:
-    // hook/masquerading-array remove → raw-array splice → legacy unregister)
-    if (this.instanceId && typeof window !== "undefined") {
-      try {
-        const g = window.__COMVI__ as unknown;
-        const entry = this._globalEntry;
-        if (g && typeof (g as ComviHook).remove === "function") {
-          if (entry) (g as ComviHook).remove(entry);
-        } else if (Array.isArray(g)) {
-          const idx = entry ? g.indexOf(entry) : -1;
-          if (idx !== -1) g.splice(idx, 1);
-        } else if (g && typeof (g as LegacyComviRegistry).unregister === "function") {
-          (g as LegacyComviRegistry).unregister!(this.instanceId);
-        }
-      } catch {
-        /* removal must never break destroy */
-      }
-      this._globalEntry = undefined;
-    }
+    // Phase 0 — discovery removal, at the exact position the inline
+    // `window.__COMVI__` block occupied (`core/devtools.ts`).
+    (this as unknown as I18nInternal)._disposeDevtools?.();
 
     // Phase 1 — awaited pre-lifecycle cleanup, while capability state is live.
     await (this as unknown as I18nInternal)._preDestroy?.();

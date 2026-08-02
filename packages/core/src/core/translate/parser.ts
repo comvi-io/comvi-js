@@ -113,8 +113,15 @@ export function findMatchingBraceEnd(
  *
  * `extensions` is the EFFECTIVE syntax-extension set (ambient ∪ per-call),
  * computed once per translate call by the pipeline and threaded down — this
- * function never reads the module-global registry. When no extension claims
- * a `<`, the character flows through as literal text.
+ * function never reads the module-global registry.
+ *
+ * The core grammar owns `{...}` arguments and ICU `'` quoting. `<`, `&` and
+ * `\` are EXTENSION territory: the scanner offers each of them to the
+ * effective extension set and, when nothing claims the position, lets the
+ * character flow through as literal text. The tag extension
+ * (`@comvi/core/tags`) is what claims all three today — `<tag>…</tag>`, the
+ * `&lt;` / `&gt;` / `&amp;` entities and the `\<` escape are one grammar and
+ * they cost nothing in a graph that has no tags.
  *
  * `compiler` decides what a balanced `{...}` argument compiles to.
  */
@@ -147,38 +154,7 @@ export function parseTemplate(
       } else {
         i++;
       }
-    } else if (code === AMPERSAND && !isQuoted) {
-      let entityLength = 0;
-      let entityChar = "";
-      if (template.slice(i, i + 4) === "&lt;") {
-        entityLength = 4;
-        entityChar = "<";
-      } else if (template.slice(i, i + 4) === "&gt;") {
-        entityLength = 4;
-        entityChar = ">";
-      } else if (template.slice(i, i + 5) === "&amp;") {
-        entityLength = 5;
-        entityChar = "&";
-      }
-      if (entityLength !== 0) {
-        if (i > lastIndex) tokens.push([TK_TEXT, template.slice(lastIndex, i)]);
-        tokens.push([TK_TEXT, entityChar]);
-        i += entityLength;
-        lastIndex = i;
-        continue;
-      }
-      i++;
-    } else if (
-      code === BACKSLASH &&
-      !isQuoted &&
-      i + 1 < len &&
-      template.charCodeAt(i + 1) === LESS_THAN
-    ) {
-      if (i > lastIndex) tokens.push([TK_TEXT, template.slice(lastIndex, i)]);
-      tokens.push([TK_TEXT, "<"]);
-      i += 2;
-      lastIndex = i;
-    } else if (code === LESS_THAN && !isQuoted) {
+    } else if (!isQuoted && (code === LESS_THAN || code === AMPERSAND || code === BACKSLASH)) {
       let hookResult: { token: ParsedToken; endIndex: number } | undefined;
       for (let e = 0; e < extensions.length; e++) {
         hookResult = extensions[e].parseHook(template, i, len, hashIsSyntax, extensions, compiler);
@@ -190,7 +166,7 @@ export function parseTemplate(
         i = hookResult.endIndex;
         lastIndex = i;
       } else {
-        // No extension claims '<' — it flows through as literal text.
+        // No extension claims the position — the character is literal text.
         i++;
       }
     } else if (code === OPEN_BRACE && !isQuoted) {

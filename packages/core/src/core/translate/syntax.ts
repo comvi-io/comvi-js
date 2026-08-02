@@ -32,11 +32,7 @@ export interface MessageCompiler {
    * Returning `undefined` makes the whole braced segment flow through as
    * literal text (slim's ICU passthrough behavior).
    */
-  makeArgToken(
-    content: string,
-    hashIsSyntax: boolean,
-    template: string,
-  ): ParsedToken | undefined;
+  makeArgToken(content: string, hashIsSyntax: boolean, template: string): ParsedToken | undefined;
   /**
    * Whether the `{` at braceIndex opens an argument that rebinds `#` to a
    * count (ICU plural/selectordinal). Unset when the compiler has no such

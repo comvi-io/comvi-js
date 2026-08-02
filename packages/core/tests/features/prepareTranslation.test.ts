@@ -164,9 +164,9 @@ describe("prepareTranslation", () => {
       });
 
       // params.locale wins when no locale prop is passed
-      expect(
-        prepareTranslation(i18n, { i18nKey: "msg", params: { locale: "fr" } }).content,
-      ).toBe("fr");
+      expect(prepareTranslation(i18n, { i18nKey: "msg", params: { locale: "fr" } }).content).toBe(
+        "fr",
+      );
 
       // locale prop overrides params.locale
       expect(

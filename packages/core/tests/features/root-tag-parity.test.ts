@@ -12,9 +12,9 @@ describe("root entry tag parity (0.4.0 behavior, no /tags import)", () => {
       locale: "en",
       translation: { en: { msg: "Click <link>here</link> now" } },
     });
-    expect(
-      i18n.t("msg", { link: ({ children }: { children: unknown }) => `[${children}]` }),
-    ).toBe("Click [here] now");
+    expect(i18n.t("msg", { link: ({ children }: { children: unknown }) => `[${children}]` })).toBe(
+      "Click [here] now",
+    );
   });
 
   it("tRaw() renders whitelisted basic HTML tags as VirtualNodes", () => {
@@ -39,9 +39,9 @@ describe("root entry tag parity (0.4.0 behavior, no /tags import)", () => {
         en: { msg: "{count, plural, one {<b>#</b> file} other {<b>#</b> files}}" },
       },
     });
-    expect(i18n.t("msg", { count: 2, b: ({ children }: { children: unknown }) => `*${children}*` })).toBe(
-      "*2* files",
-    );
+    expect(
+      i18n.t("msg", { count: 2, b: ({ children }: { children: unknown }) => `*${children}*` }),
+    ).toBe("*2* files");
   });
 
   it("new I18n() from the root keeps the single-argument constructor and ICU behavior", () => {

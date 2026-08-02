@@ -6,12 +6,12 @@ import { fileURLToPath } from "node:url";
 /**
  * Acceptance A6 — the dist-level mangling canary.
  *
- * `core/loader.ts` and `core/plugins.ts` reach into base-class state through
- * `_`-prefixed members that terser renames with ONE shared nameCache across
- * every chunk of the prod build. That contract can only fail in the built
- * artifacts, so a src-level vitest run is not admissible proof: this suite
- * composes and drives the MANGLED prod dist directly, and asserts the mangler
- * actually ran on it.
+ * `core/loader.ts`, `core/plugins.ts` and `core/devtools.ts` reach into
+ * base-class state through `_`-prefixed members that terser renames with ONE
+ * shared nameCache across every chunk of the prod build. That contract can
+ * only fail in the built artifacts, so a src-level vitest run is not
+ * admissible proof: this suite composes and drives the MANGLED prod dist
+ * directly, and asserts the mangler actually ran on it.
  *
  * Requires a fresh build — CI runs `pnpm --filter @comvi/core build` first.
  */
@@ -30,6 +30,11 @@ const INTERNAL_NAMES = [
   "_missHook",
   "_resetPlugins",
   "_initPlugins",
+  // framework-slim tier-3 seams
+  "_flattenNs",
+  "_initDevtools",
+  "_disposeDevtools",
+  "_globalEntry",
 ];
 
 function distFiles(dev: boolean): string[] {
@@ -132,6 +137,45 @@ describe("prod dist: slim + /loader + /plugins composition (A6)", () => {
     expect(order).toEqual(["plugin", "cleanup"]);
     expect(i18n.getPluginData("probe")).toBeUndefined();
     expect(i18n.getLanguageDetector()).toBeUndefined();
+  });
+
+  it("attaches discovery and flattens nested catalogs against the mangled build", async () => {
+    const { createI18n } = await import("../../dist/comvi-core-slim.js");
+    const { attachDevtools } = await import("../../dist/comvi-core-devtools.js");
+    const { attachLoader, flattenCatalog } = await import("../../dist/comvi-core-loader.js");
+
+    // `_initDevtools` / `_disposeDevtools` / `_globalEntry` are mangled and
+    // installed from a DIFFERENT chunk than the base class reads them from;
+    // only the built artifacts can prove the nameCache agreed. The suite runs
+    // on happy-dom, so `window` is real here.
+    const win: { __COMVI__?: unknown } = window;
+    delete win.__COMVI__;
+    try {
+      const i18n = attachDevtools(createI18n({ locale: "en" }), { instanceId: "dist-probe" });
+      expect(i18n.instanceId).toBe("dist-probe");
+
+      const queue = win.__COMVI__;
+      expect(Array.isArray(queue)).toBe(true);
+      expect(queue).toHaveLength(1);
+      expect((queue as Array<{ i: unknown }>)[0]!.i).toBe(i18n);
+
+      await i18n.destroy();
+      expect(queue).toHaveLength(0);
+    } finally {
+      delete win.__COMVI__;
+    }
+
+    // `_flattenNs` is a prototype member of the loader chunk consumed by the
+    // base class's `_nsAddTranslations` — the same cross-chunk contract.
+    const bare = createI18n({ locale: "en", exposeGlobal: false });
+    bare.addTranslations({ en: { nav: { home: "Home" } } });
+    expect(bare.t("nav.home")).toBe("nav.home");
+    bare.addTranslations({ en: flattenCatalog({ nav: { home: "Home" } }) });
+    expect(bare.t("nav.home")).toBe("Home");
+
+    const loaded = attachLoader(createI18n({ locale: "en", exposeGlobal: false }));
+    loaded.addTranslations({ en: { nav: { home: "Home" } } });
+    expect(loaded.t("nav.home")).toBe("Home");
   });
 
   it("mangles every cross-chunk internal in the prod artifacts", () => {

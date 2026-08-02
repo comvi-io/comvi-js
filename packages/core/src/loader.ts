@@ -15,7 +15,13 @@
 // Attach BEFORE running plugins that register a loader (`attachPlugins` from
 // `@comvi/core/plugins` hosts them). The root `@comvi/core` entry ships this
 // capability on the class itself — nothing to attach there.
-export { attachLoader } from "./core/loader";
+//
+// `flattenCatalog` is exported here too — it is a PURE function, so importing
+// only it from this subpath pulls the flattener and nothing else. It is the
+// escape hatch for a bare-slim host that hands nested catalogs straight to
+// `addTranslations`; hosts with the loader attached (and the root entry) get
+// the same flattening automatically.
+export { attachLoader, flattenCatalog } from "./core/loader";
 export { createImportMapLoader } from "./core/importMapLoader";
 export type { LoaderImportMap, LoaderImportResult } from "./core/importMapLoader";
 export type { I18nLoaderApi, LoaderFn, LoaderResult } from "./types";

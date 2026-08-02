@@ -1,7 +1,7 @@
-// Type-level smoke test: the /slim, /icu, /tags, and /editor-bridge subpaths
-// resolve and expose the contracted surface. (Published-artifact resolution
-// under moduleResolution bundler/node16 is exercised by attw/publint and the
-// bundler-matrix job against dist.)
+// Type-level smoke test: the /slim, /icu, /tags, /devtools and
+// /editor-bridge subpaths resolve and expose the contracted surface.
+// (Published-artifact resolution under moduleResolution bundler/node16 is
+// exercised by attw/publint and the bundler-matrix job against dist.)
 import {
   createI18n as createSlimI18n,
   subscribeToRevision,
@@ -15,7 +15,19 @@ import {
   type CapabilityName,
   type WrapperI18nHost,
 } from "@comvi/core/slim";
-import { attachLoader, createImportMapLoader, type LoaderFn } from "@comvi/core/loader";
+import {
+  attachLoader,
+  createImportMapLoader,
+  flattenCatalog,
+  type LoaderFn,
+} from "@comvi/core/loader";
+import {
+  attachDevtools,
+  type ComviHook,
+  type ComviQueue,
+  type ComviQueueEntry,
+  type DevtoolsOptions,
+} from "@comvi/core/devtools";
 import { attachPlugins, type I18nPlugin } from "@comvi/core/plugins";
 import { icuCompiler, type MessageCompiler } from "@comvi/core/icu";
 import {
@@ -194,3 +206,32 @@ if (hasPluginHostApi(slimHost)) {
 // A composed host is still a wrapper host — the alias never narrows away.
 const composedHost: WrapperI18nHost = composed;
 void composedHost;
+
+// ── /devtools: the discovery capability (framework-slim tier-3, C1) ───────
+//
+// A bare slim instance has no discovery code at all: `instanceId` is declared
+// on the class (it is part of `I18nCoreExtraApi`) and stays `undefined` until
+// the capability assigns it.
+const bareId: string | undefined = slim.instanceId;
+void bareId;
+
+// attachDevtools returns the SAME instance type — discovery adds no public
+// members, it only populates one the host already declares.
+const withDevtools: typeof slim = attachDevtools(slim);
+const attachedId: string | undefined = withDevtools.instanceId;
+void attachedId;
+attachDevtools(createSlimI18n({ locale: "en" }), { instanceId: "app", exposeGlobal: false });
+const devtoolsOptions: DevtoolsOptions = { exposeGlobal: true };
+void devtoolsOptions;
+
+// @ts-expect-error — DevtoolsOptions has no `locale`
+attachDevtools(slim, { locale: "en" });
+
+// The queue contract is reachable from the subpath that produces it.
+const queueEntry: ComviQueueEntry = { v: "0.5.0", i: createI18n({ locale: "en" }) };
+const queue: ComviQueue = [queueEntry];
+void (queue satisfies ComviQueueEntry[] | ComviHook);
+
+// ── flattenCatalog: the bare-host escape hatch for nested catalogs (C6) ───
+const flat: Record<string, string> = flattenCatalog({ nav: { home: "Home" } });
+createSlimI18n({ locale: "en" }).addTranslations({ en: flat });

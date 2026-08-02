@@ -161,10 +161,10 @@ two. Whole-app comvi graph, min+gz, `solid-js` externalized
 
 | host                    | no `<T>` | with `<T>` |
 | ----------------------- | -------- | ---------- |
-| `@comvi/core` (root)    | 9889     | 10835      |
-| bare `@comvi/core/slim` | **6895** | 8710       |
+| `@comvi/core` (root)    | 9756     | 10696      |
+| bare `@comvi/core/slim` | **6222** | 8147       |
 
-Moving to a bare slim host saves **2994 B (−30.3%)**. `<T>` now ships as its own
+Moving to a bare slim host saves **3534 B (−36.2%)**. `<T>` now ships as its own
 dist chunk, so an app that never imports it drops the component _and_ core's
 side-effectful tag-registration chunk.
 

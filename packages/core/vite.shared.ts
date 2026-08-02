@@ -32,6 +32,7 @@ export const coreEntries = (dir: string): Record<string, string> => ({
   tags: resolve(dir, "src/tags.ts"),
   loader: resolve(dir, "src/loader.ts"),
   plugins: resolve(dir, "src/plugins.ts"),
+  devtools: resolve(dir, "src/devtools.ts"),
   "editor-bridge": resolve(dir, "src/editor-bridge.ts"),
 });
 
