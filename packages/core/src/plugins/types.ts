@@ -1,4 +1,4 @@
-import type { I18n } from "../core/i18n";
+import type { I18nPluginHost } from "../types";
 
 /**
  * Plugin Cleanup Function
@@ -13,7 +13,12 @@ export type PluginCleanup = () => void | Promise<void>;
  * Plugins receive the i18n instance and can interact with it directly.
  * They can register hooks, loaders, detectors, and use all public i18n methods.
  *
- * @param i18n - The I18n instance
+ * The host type is the **composed full surface** (`I18nPluginHost`) — what the
+ * root `@comvi/core` entry exposes. A plugin that calls loader APIs on a slim
+ * instance requires `attachLoader` from `@comvi/core/loader` to have run
+ * before the plugin does (see the README slim-composition section).
+ *
+ * @param i18n - The i18n instance
  * @returns void, Promise<void>, or a cleanup function
  *
  * @example
@@ -31,7 +36,7 @@ export type PluginCleanup = () => void | Promise<void>;
  * ```
  */
 export type I18nPlugin = (
-  i18n: I18n,
+  i18n: I18nPluginHost,
 ) => void | Promise<void> | PluginCleanup | Promise<PluginCleanup>;
 
 /**

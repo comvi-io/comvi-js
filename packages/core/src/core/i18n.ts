@@ -1,6 +1,8 @@
 import type {
   I18nOptions,
-  I18nInstance,
+  I18nCoreInstance,
+  I18nCoreExtraApi,
+  I18nPluginHost,
   FlattenedTranslations,
   TranslationValue,
   TranslationResult,
@@ -21,6 +23,8 @@ import type {
   DefaultParamsSnapshot,
   ComviQueueEntry,
   ComviHook,
+  LoaderFn,
+  LoaderResult,
 } from "../types";
 import { DEFAULT_NS, COMVI_REPORTED } from "../constants";
 import { warn } from "../logger";
@@ -94,15 +98,70 @@ const ERR_REGISTER_LOADER_ARG = IS_DEV
   ? "[i18n] registerLoader(): argument must be a loader function. (Import maps: use the root entry, or wrap with createImportMapLoader from @comvi/core/slim.)"
   : "E_REGISTER_LOADER_ARG";
 
-export type LoaderResult = Record<string, TranslationValue>;
-export type LoaderFn = (locale: string, namespace: string) => Promise<LoaderResult>;
+/**
+ * Loader types live in `types.ts` (they are part of `I18nLoaderApi`); this
+ * type-only re-export keeps `full.ts` / `importMapLoader.ts` importing them
+ * from the class module. Zero emitted bytes.
+ */
+export type { LoaderFn, LoaderResult };
 
-type PluginEntry = [
+/** @internal Registered plugin tuple; owned by the plugin capability. */
+export type PluginEntry = [
   plugin: I18nPluginFn,
   required: boolean,
   timeout: number,
   onError?: (error: Error) => void,
 ];
+
+/**
+ * @internal
+ * The cross-module state + hook contract. Capability modules
+ * (`core/loader.ts`, `core/plugins.ts`) see instances ONLY through this type
+ * — never through the class, whose `_`-members are TS-private.
+ *
+ * MANGLING CONTRACT (plan R2): every `_`-prefixed member below is renamed by
+ * the single shared terser nameCache in `vite.shared.ts#mangleInternalProps`.
+ * That only stays consistent across chunks because every core subpath entry
+ * is built by ONE vite invocation (`coreEntries`). Access these members by
+ * DOT only — never `i["_loader"]`, never `"_loadNs" in i`, never
+ * `Object.keys`-driven logic over them.
+ */
+export interface I18nInternal<D extends DefaultTranslationParams = {}>
+  extends I18nCoreInstance<D> {
+  // ── base state capability modules read/write ──
+  _locale: string;
+  _fallbackLocales: string[];
+  _cachedDefaultNs: string;
+  _activeNamespaces: Set<string>;
+  _emit<E extends I18nEvent>(event: E, data?: I18nEventData[E]): void;
+  _setLoadingState(isLoading: boolean): void;
+
+  // ── two-phase destroy (base fields, `[]` in the constructor) ──
+  /** Awaited before any lifecycle reset or emit — capability state still live. */
+  _preDestroy: Array<() => void | Promise<void>>;
+  /** Runs after the `destroyed` emit — capability state reset happens here. */
+  _postDestroy: Array<() => void>;
+
+  // ── capability hooks (installed by attach* / the full subclass) ──
+  _loadNs?: (locale: string, namespaces: string[], skipLoaded: boolean) => Promise<void>;
+  _cancelNs?: (locale?: string, namespace?: string) => void;
+  _beforeInit?: () => Promise<void>;
+  _missHook?: (key: string, locale: string, namespace: string) => TranslationResult | undefined;
+
+  // ── loader capability state (initLoaderState) ──
+  _loader?: LoaderFn;
+  _pendingLoads: Record<string, Promise<void> | undefined>;
+  _nsGeneration: number;
+
+  // ── plugin capability state (initPluginState) ──
+  _plugins: PluginEntry[];
+  _pluginCleanups: Array<() => void | Promise<void>>;
+  _pluginData: Record<string, unknown>;
+  _localeDetector?: () => string | Promise<string>;
+  _missingKeyCallbacks: Set<
+    (key: string, locale: string, namespace: string) => TranslationResult | void
+  >;
+}
 
 /** Counter for auto-generating instance IDs */
 let instanceCounter = 0;
@@ -122,7 +181,9 @@ interface LegacyComviRegistry {
  * - NamespaceManager: Handles namespace loading and tracking
  * - Internal plugin lifecycle runtime: Handles plugin init/cleanup and error recovery
  */
-export class I18n<D extends DefaultTranslationParams = {}> implements I18nInstance<D> {
+export class I18n<D extends DefaultTranslationParams = {}>
+  implements I18nCoreInstance<D>, I18nCoreExtraApi
+{
   // Core state
   private _locale: string;
   public readonly translationCache: TranslationCache;
@@ -382,7 +443,11 @@ export class I18n<D extends DefaultTranslationParams = {}> implements I18nInstan
       let timeoutId: ReturnType<typeof setTimeout> | undefined;
       try {
         const result = await Promise.race([
-          plugin(this),
+          // `I18nPluginHost` is the `{}`-defaults host surface; an instance
+          // with constructor-guaranteed defaults narrows `setDefaultParams`,
+          // which the interface's property-style declaration checks strictly.
+          // The class was bivariant here before the type split — preserved.
+          plugin(this as unknown as I18nPluginHost),
           new Promise<never>((_, reject) => {
             timeoutId = setTimeout(
               () =>

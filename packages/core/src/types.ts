@@ -2,6 +2,7 @@ import type { VirtualNode } from "./virtualNode";
 import type { MissingParamMode, SyntaxExtension } from "./core/translate/syntax";
 import type { TranslationCache as TranslationCacheClass } from "./core/TranslationCache";
 import type { I18n } from "./core/i18n";
+import type { I18nPlugin, PluginOptions } from "./plugins/types";
 
 /**
  * Entry pushed onto the `window.__COMVI__` queue by every instance created
@@ -623,12 +624,23 @@ export type TranslationCache = TranslationCacheClass;
 
 export type TranslationResult = string | Array<string | VirtualNode>;
 
+/** Result of a loader call: a (possibly nested) translation object. */
+export type LoaderResult = Record<string, TranslationValue>;
+
+/** Async translation loader: resolves the translations for one locale+namespace. */
+export type LoaderFn = (locale: string, namespace: string) => Promise<LoaderResult>;
+
 /**
- * The I18nInstance interface defines the methods and properties that an I18n instance must implement.
- * It provides access to the current locale, translation cache, and methods for checking locale existence,
- * adding translations, and translating keys.
+ * The always-present instance surface: everything the base `I18n` class keeps
+ * in every graph, including the pure `@comvi/core/slim` entry.
+ *
+ * Capability APIs that are extracted into the `@comvi/core/loader` and
+ * `@comvi/core/plugins` subpaths live in `I18nLoaderApi` / `I18nPluginHostApi`
+ * below. The root entry recomposes all three (see `I18nPluginHost` and the
+ * root `I18n` class); `I18nInstance` re-picks exactly the members it exposed
+ * before the split (pinned by the exact-keys type test).
  */
-export interface I18nInstance<D extends DefaultTranslationParams = {}> {
+export interface I18nCoreInstance<D extends DefaultTranslationParams = {}> {
   /**
    * The current locale
    * @returns The current locale (getter)
@@ -705,13 +717,6 @@ export interface I18nInstance<D extends DefaultTranslationParams = {}> {
    * @param namespace - Optional namespace to clear (if not provided, clears all)
    */
   clearTranslations: (locale?: string, namespace?: string) => void;
-
-  /**
-   * Reload translations from registered loader
-   * @param locale - Optional locale to reload (defaults to current + fallbacks)
-   * @param namespace - Optional namespace to reload (defaults to active namespaces)
-   */
-  reloadTranslations: (locale?: string, namespace?: string) => Promise<void>;
 
   /**
    * Translate a namespaced key
@@ -812,6 +817,75 @@ export interface I18nInstance<D extends DefaultTranslationParams = {}> {
   on<E extends I18nEvent>(event: E, callback: (data: I18nEventData[E]) => void): () => void;
 
   /**
+   * Report an error to the configured onError handler.
+   * Use for custom error reporting in your app.
+   */
+  reportError: (error: unknown, context?: ErrorReportContext) => void;
+}
+
+/**
+ * Async-loading capability — `@comvi/core/loader` (`attachLoader`), and part
+ * of the root entry's class surface.
+ */
+export interface I18nLoaderApi {
+  /**
+   * Register a translation loader function.
+   *
+   * The root entry's `I18n` additionally accepts a static import map; the
+   * slim composition path wraps one with `createImportMapLoader`.
+   */
+  registerLoader: (loader: LoaderFn) => void;
+
+  /** Get the registered loader function */
+  getLoader: () => LoaderFn | undefined;
+
+  /**
+   * Reload translations from registered loader
+   * @param locale - Optional locale to reload (defaults to current + fallbacks)
+   * @param namespace - Optional namespace to reload (defaults to active namespaces)
+   */
+  reloadTranslations: (locale?: string, namespace?: string) => Promise<void>;
+}
+
+/**
+ * Plugin-host capability — `@comvi/core/plugins` (`attachPlugins`), and part
+ * of the root entry's class surface. Constructor *options* (`postProcess`,
+ * `onMissingKey`) stay universal; only the runtime registration APIs are a
+ * capability.
+ */
+export interface I18nPluginHostApi {
+  /**
+   * Register a plugin (chainable)
+   * @param plugin - The plugin to register
+   * @param options - Plugin options (required, timeout, onError)
+   */
+  use(plugin: I18nPlugin, options?: PluginOptions): this;
+
+  /**
+   * Register a locale detector function.
+   * Used by plugins to provide automatic locale detection.
+   */
+  registerLocaleDetector: (detector: () => string | Promise<string>) => void;
+
+  /** Get the registered locale detector function */
+  getLanguageDetector: () => (() => string | Promise<string>) | undefined;
+
+  /**
+   * Register a callback for missing translation keys
+   * @param callback - Function called when a key is missing. Can return a value to use as fallback.
+   * @returns Cleanup function to remove the callback
+   */
+  onMissingKey: (
+    callback: (key: string, locale: string, namespace: string) => TranslationResult | void,
+  ) => () => void;
+
+  /**
+   * Register a post-processor function.
+   * Post-processors are chained in the order they are registered (FIFO).
+   */
+  registerPostProcessor: (fn: PostProcessFn) => void;
+
+  /**
    * Store plugin-specific data on the i18n instance.
    * This allows plugins to store configuration that persists with the instance.
    *
@@ -839,10 +913,80 @@ export interface I18nInstance<D extends DefaultTranslationParams = {}> {
    * ```
    */
   getPluginData: <T = unknown>(key: string) => T | undefined;
+}
+
+/**
+ * Public members the base `I18n` class has always had but the declarative
+ * `I18nInstance` contract never listed: lifecycle, namespace inspection and
+ * instance identity.
+ *
+ * They are named here rather than folded into `I18nCoreInstance` because
+ * `I18nInstance` is recomposed from that interface and must keep an exactly
+ * unchanged member set. The plugin host, in contrast, has always been the
+ * whole class — so it composes these in too, and plugins keep compiling.
+ */
+export interface I18nCoreExtraApi {
+  /** Stable id under which the instance is exposed on `window.__COMVI__`. */
+  readonly instanceId: string | undefined;
+
+  /** Initialize: run plugins, detect the locale, load the initial namespaces. */
+  init(): Promise<this>;
+
+  /** Tear down: plugin cleanups, event unsubscription, cache + state reset. */
+  destroy: () => Promise<void>;
+
+  /** Set the locale and wait for the active namespaces to load. */
+  setLocaleAsync: (value: string) => Promise<void>;
+
+  /** The current default namespace. */
+  getDefaultNamespace: () => string;
+
+  /** The active namespaces (read-only snapshot). */
+  getActiveNamespaces: () => string[];
+
+  /** The resolved fallback-locale chain (read-only snapshot). */
+  getFallbackLocales: () => string[];
+
+  /** Every locale code that currently has translations cached. */
+  getLoadedLocales: () => string[];
+
+  /** Activate a namespace and load it for the current locale. */
+  addActiveNamespace: (namespace: string) => Promise<void>;
+
+  /** Activate several namespaces and load them for the current locale. */
+  addActiveNamespaces: (namespaces: string[]) => Promise<void>;
 
   /**
-   * Report an error to the configured onError handler.
-   * Use for custom error reporting in your app.
+   * Subscribe to load failures.
+   * @returns Cleanup function to remove the callback
    */
-  reportError: (error: unknown, context?: ErrorReportContext) => void;
+  onLoadError: (
+    callback: (locale: string, namespace: string, error: Error) => void,
+  ) => () => void;
 }
+
+/**
+ * The instance surface a plugin may rely on: the composed full capability set
+ * the root entry exposes. Plugins that call loader APIs on a slim instance
+ * need `attachLoader` to have run first (see the README slim section).
+ */
+export type I18nPluginHost<D extends DefaultTranslationParams = {}> = I18nCoreInstance<D> &
+  I18nCoreExtraApi &
+  I18nLoaderApi &
+  I18nPluginHostApi;
+
+/**
+ * The I18nInstance interface defines the methods and properties that an I18n instance must implement.
+ * It provides access to the current locale, translation cache, and methods for checking locale existence,
+ * adding translations, and translating keys.
+ *
+ * Recomposed from the split above with an EXACTLY unchanged member set: only
+ * `reloadTranslations`, `setPluginData` and `getPluginData` of the capability
+ * APIs were ever part of it, so they are re-picked one by one instead of
+ * inheriting the whole capability interfaces (which would silently widen the
+ * root-exported type). Pinned by `Equal<keyof I18nInstance, PreSplitKeySnapshot>`.
+ */
+export interface I18nInstance<D extends DefaultTranslationParams = {}>
+  extends I18nCoreInstance<D>,
+    Pick<I18nLoaderApi, "reloadTranslations">,
+    Pick<I18nPluginHostApi, "setPluginData" | "getPluginData"> {}

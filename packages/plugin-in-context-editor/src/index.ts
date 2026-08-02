@@ -6,7 +6,7 @@
  * a visual editor for managing translations directly in the browser.
  */
 
-import type { I18nPlugin, I18nPluginFactory, I18n } from "@comvi/core";
+import type { I18nPlugin, I18nPluginFactory, I18nPluginHost } from "@comvi/core";
 import {
   EDITOR_MAPPINGS_GLOBAL,
   EDITOR_INITIAL_MAPPINGS_GLOBAL,
@@ -57,7 +57,7 @@ function attachMappingsBridge(target: unknown): void {
 }
 
 function enqueueNamespaceKeys(
-  i18n: I18n,
+  i18n: I18nPluginHost,
   pendingCombinedKeys: Set<string>,
   locale: string,
   namespace: string,
@@ -72,7 +72,7 @@ function enqueueNamespaceKeys(
   }
 }
 
-function enqueueLoadedKeys(i18n: I18n, pendingCombinedKeys: Set<string>): void {
+function enqueueLoadedKeys(i18n: I18nPluginHost, pendingCombinedKeys: Set<string>): void {
   const namespaces = new Set<string>([i18n.getDefaultNamespace(), ...i18n.getActiveNamespaces()]);
   for (const locale of i18n.getLoadedLocales()) {
     for (const namespace of namespaces) {

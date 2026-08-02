@@ -15,7 +15,7 @@ import { EventBus } from "./EventBus";
 import { ElementHighlighter } from "./ElementHighlighter";
 import { Collector } from "./collector/Collector";
 import type { TranslationSystemOptions, TranslationSystemInnerOptions } from "./types";
-import type { I18n } from "@comvi/core";
+import type { I18nPluginHost } from "@comvi/core";
 import { TAG_ATTRIBUTES } from "./constants";
 
 type EditModalModule = typeof import("./EditModal");
@@ -52,14 +52,14 @@ function loadKeySelector(): Promise<KeySelectorModule> {
 
 // Map to store i18n instances by Core instance ID
 // Allows multiple plugin instances on the same page
-const i18nInstances = new Map<string, I18n>();
+const i18nInstances = new Map<string, I18nPluginHost>();
 let instanceCounter = 0;
 
 /**
  * Get the i18n instance for a specific Core instance
  * @param instanceId - The Core instance ID (optional, returns first if not specified for backward compatibility)
  */
-export function getI18nInstance(instanceId?: string): I18n | null {
+export function getI18nInstance(instanceId?: string): I18nPluginHost | null {
   if (instanceId) {
     return i18nInstances.get(instanceId) || null;
   }
@@ -72,7 +72,7 @@ export function getI18nInstance(instanceId?: string): I18n | null {
  * Register an i18n instance with a specific ID
  * @internal
  */
-export function registerI18nInstance(instanceId: string, i18n: I18n): void {
+export function registerI18nInstance(instanceId: string, i18n: I18nPluginHost): void {
   i18nInstances.set(instanceId, i18n);
 }
 
@@ -136,7 +136,7 @@ export class Core {
     }
   };
 
-  constructor(options?: TranslationSystemOptions, i18n?: I18n) {
+  constructor(options?: TranslationSystemOptions, i18n?: I18nPluginHost) {
     this.instanceId = `core-${++instanceCounter}`;
     this.options = {
       targetElement: options?.targetElement || document,
