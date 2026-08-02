@@ -166,13 +166,13 @@ Whole-app comvi graph, min+gz, `vue` externalized
 
 | host                                            | no `<T>` | with `<T>` |
 | ----------------------------------------------- | -------- | ---------- |
-| `@comvi/core` (root, via `createI18n`)          | 10348    | 11361      |
-| bare `@comvi/core/slim` (via `@comvi/vue/slim`) | **6857** | 8836       |
+| `@comvi/core` (root, via `createI18n`)          | 10354    | 11370      |
+| bare `@comvi/core/slim` (via `@comvi/vue/slim`) | **6868** | 8844       |
 
-Moving to a bare slim host saves **3491 B (−33.7%)**. The root row also dropped
-1582 B in 0.5.0 with no app change: `@comvi/vue` no longer inlines copies of
+Moving to a bare slim host saves **3486 B (−33.7%)**. The root row also dropped
+1576 B in 0.5.0 with no app change: `@comvi/vue` no longer inlines copies of
 core's tag + translate chunks into its own bundle, and `<T>` moved into its own
-dist chunk, so an app that never renders it ships neither; core's own size work in the same release accounts for the last 187 B.
+dist chunk, so an app that never renders it ships neither; core's own size work in the same release accounts for the last 181 B.
 
 ## Rich text with `<T>`
 

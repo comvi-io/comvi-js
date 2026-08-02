@@ -289,11 +289,11 @@ externalized (`node scripts/size-check.mjs`):
 
 | graph                                                     | min+gz   |
 | --------------------------------------------------------- | -------- |
-| server, `createNextI18n` on root core                     | 9930     |
-| server, `createNextI18nFromHost` on slim + `attachLoader` | **7059** |
-| client, bare `@comvi/core/slim` hydrated                  | **6930** |
+| server, `createNextI18n` on root core                     | 9938     |
+| server, `createNextI18nFromHost` on slim + `attachLoader` | **7070** |
+| client, bare `@comvi/core/slim` hydrated                  | **6939** |
 
-Moving the server to a composed slim host saves **2871 B (−28.9%)**.
+Moving the server to a composed slim host saves **2868 B (−28.9%)**.
 
 ## Rich text with `<T>`
 

@@ -2,7 +2,7 @@
 "@comvi/core": minor
 ---
 
-Three more capabilities moved out of the bare `@comvi/core/slim` core and into subpaths that compose them back. **`slim` 5,372 → 4,902 B min+gz (−470 B)**; combined with the class-fields change in this same release, **5,563 → 4,902 B (−661 B, −11.9%)**. The root `@comvi/core` entry composes all three back in, so **root behaviour is unchanged** — and the root graph still measures 8,385 B, 134 B below where it started.
+Three more capabilities moved out of the bare `@comvi/core/slim` core and into subpaths that compose them back. **`slim` 5,372 → 4,909 B min+gz (−463 B)**; combined with the class-fields change in this same release, **5,563 → 4,909 B (−654 B, −11.8%)**. The root `@comvi/core` entry composes all three back in, so **root behaviour is unchanged** — and the root graph still measures 8,397 B, 122 B below where it started.
 
 **New `@comvi/core/devtools` — browser-extension discovery.** `instanceId`, the `window.__COMVI__` handshake (protocol v2: array → hook → v1 legacy registry → fresh queue) and the identity-based removal on `destroy()` are now a capability, not core. On a bare slim host `instanceId` is `undefined` and no global is touched; opt in with `attachDevtools(i18n, { instanceId, exposeGlobal })`, which takes the two options `createI18n` reads on root. −230 B.
 
@@ -25,6 +25,6 @@ import { flattenCatalog } from "@comvi/core/loader";
 i18n.addTranslations({ en: flattenCatalog({ nav: { home: "Home" } }) });
 ```
 
-Development mode warns, naming that hint, the first time a non-string leaf reaches a host that cannot flatten it. Prototype safety is unchanged and now unconditional: the cache always stores a prototype-less copy, so a catalog key can never resolve to an `Object.prototype` member. −156 B.
+Development mode warns, naming that hint, the first time a non-string leaf reaches a host that cannot flatten it. Prototype safety is unchanged: the cache never stores an object that can resolve a catalog key to an `Object.prototype` member. A bare host copies the catalog you pass onto a prototype-less object; a host with the flattener gets one from the flattener itself and stores it directly, so neither pays for the other's guard. −156 B.
 
-**Not affected:** `t()` / `tRaw()`, the template cache, the static and single-parameter fast paths, the parser's ICU grammar, and every event. A warm-`t()` micro-benchmark over the shipped bundles reads at or slightly under the previous numbers.
+**Not affected:** `t()` / `tRaw()`, the template cache, the static and single-parameter fast paths, the parser's ICU grammar, and every event. Measured over the shipped bundles: a warm-`t()` micro-benchmark reads at or slightly under the previous numbers, and `createI18n({ translation })` construction is within 1% of 0.4.0 on both entries (root 374 → 370 ns/op on a small catalog, 21.0 → 21.0 µs on a 240-leaf one; slim is faster than 0.4.0 on every shape).

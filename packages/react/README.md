@@ -276,12 +276,12 @@ composition of the two. Whole-app comvi graph, min+gz, `react` externalized
 
 | host                    | no `<T>` | with `<T>` |
 | ----------------------- | -------- | ---------- |
-| `@comvi/core` (root)    | 10038    | 11084      |
-| bare `@comvi/core/slim` | **6515** | 8522       |
+| `@comvi/core` (root)    | 10046    | 11093      |
+| bare `@comvi/core/slim` | **6523** | 8530       |
 
 Moving to a bare slim host saves **3523 B (−35.1%)**. `<T>` and core's tag
 machinery are opt-in as of 0.5.0 — `<T>` ships as its own dist chunk, so an app
-that never imports it drops both; together with core's own size work that made the root row 1240 B smaller
+that never imports it drops both; together with core's own size work that made the root row 1232 B smaller
 with no code change.
 
 ```tsx

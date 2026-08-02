@@ -237,7 +237,7 @@ in-repo suites use the `@internal` `_resetServerI18n()` from
 
 Each is absent from a bare `@comvi/core/slim` graph and composed back by the
 root `@comvi/core` entry, so **nothing about a root app changes**. Together they
-take bare slim from 5,563 B to **4,902 B** min+gz.
+take bare slim from 5,563 B to **4,909 B** min+gz.
 
 | what                                                  | bare `@comvi/core/slim`             | how to get it back                                                                | root `@comvi/core` |
 | ----------------------------------------------------- | ----------------------------------- | --------------------------------------------------------------------------------- | ------------------ |

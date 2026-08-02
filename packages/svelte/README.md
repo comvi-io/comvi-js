@@ -135,8 +135,8 @@ returned. Whole-app comvi graph, min+gz, `svelte` externalized
 
 | host                    | no `<T>` | with `<T>` |
 | ----------------------- | -------- | ---------- |
-| `@comvi/core` (root)    | 9818     | 11195      |
-| bare `@comvi/core/slim` | **6300** | 8619       |
+| `@comvi/core` (root)    | 9827     | 11204      |
+| bare `@comvi/core/slim` | **6309** | 8628       |
 
 Moving to a bare slim host saves **3518 B (−35.8%)**.
 

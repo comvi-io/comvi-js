@@ -276,7 +276,7 @@ i18n.addTranslations({ en: flattenCatalog({ nav: { home: "Home" } }) }); // -> "
 ```
 
 `flattenCatalog` is a pure function, so importing only it pulls the flattener and none of
-the loader. Either way the cache stores a prototype-less copy, so a catalog key can never
+the loader. Either way the cache stores a prototype-less catalog, so a catalog key can never
 resolve to an `Object.prototype` member.
 
 ### What it costs
@@ -285,15 +285,15 @@ Measured min+gz through the published exports map (`node scripts/size-check.mjs`
 
 | Entry                  | min+gz  |
 | ---------------------- | ------- |
-| `@comvi/core/slim`     | 4,902 B |
-| `+ /tags`              | 5,863 B |
-| `+ /icu`               | 5,773 B |
-| `+ /loader + /plugins` | 6,319 B |
-| `+ /icu + /tags`       | 6,689 B |
-| `@comvi/core` (root)   | 8,385 B |
+| `@comvi/core/slim`     | 4,909 B |
+| `+ /tags`              | 5,869 B |
+| `+ /icu`               | 5,783 B |
+| `+ /loader + /plugins` | 6,328 B |
+| `+ /icu + /tags`       | 6,698 B |
+| `@comvi/core` (root)   | 8,397 B |
 
 `@comvi/core/devtools` shows up in a graph only when you attach it; the root entry
-composes it in, which is part of the 8,385 B.
+composes it in, which is part of the 8,397 B.
 
 ## ICU MessageFormat — locale-correct grammar, not just singular/plural
 

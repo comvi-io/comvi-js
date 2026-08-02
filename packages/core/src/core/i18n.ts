@@ -873,8 +873,8 @@ export class I18n<D extends DefaultTranslationParams = {}>
    * Merge a `{ locale | "locale:ns": catalog }` map into the cache.
    *
    * The base accepts FLAT catalogs — `{ "a.b": "…" }` — and copies them onto
-   * a prototype-less object, which is both the merge and the
-   * prototype-pollution guard. NESTED catalogs and non-string leaves are the
+   * a prototype-less object, which is its prototype-pollution guard. NESTED
+   * catalogs and non-string leaves are the
    * `_flattenNs` capability's job (`core/loader.ts`, installed on the root
    * class and by `attachLoader` / `attachNestedCatalogs`): a nested object is
    * data the loader path produces, and a bare slim host that never loads
@@ -883,7 +883,14 @@ export class I18n<D extends DefaultTranslationParams = {}>
   private _nsAddTranslations(translations: Record<string, Record<string, TranslationValue>>): void {
     for (const localeOrKey in translations) {
       const value = translations[localeOrKey];
-      const flat = (this as unknown as I18nInternal)._flattenNs?.(value) ?? value;
+      // A bare host has no `_flattenNs`, so it stores the caller's catalog as
+      // given — the copy onto a prototype-less target IS its
+      // prototype-pollution guard, and it happens here, once, where the raw
+      // object enters. The flattener already returns a fresh prototype-less
+      // object, so a host that has one never pays a second copy.
+      const flat =
+        (this as unknown as I18nInternal)._flattenNs?.(value) ??
+        Object.assign(Object.create(null), value);
 
       if (IS_DEV) warnIfNotFlat(localeOrKey, flat);
 
@@ -891,13 +898,17 @@ export class I18n<D extends DefaultTranslationParams = {}>
       const loc = colonIdx === -1 ? localeOrKey : localeOrKey.slice(0, colonIdx);
       const ns = colonIdx === -1 ? this._cachedDefaultNs : localeOrKey.slice(colonIdx + 1);
 
-      // `Object.assign` skips an `undefined` source, so one expression covers
-      // both the first write and the merge — and the null-prototype target
-      // keeps a raw user object's `Object.prototype` members out of lookups.
+      // Only a genuine MERGE copies again. `flat` is already fresh and
+      // prototype-less either way, so the first write stores it directly:
+      // `Object.assign` out of a dictionary-mode (null-prototype) source has
+      // no fast path in V8 and costs ~130 ns PER KEY, so copying the whole
+      // catalog a second time made a root `new I18n({ translation })` 2.5x
+      // slower than 6fa713b (.omc/handoffs/ctor-perf.md).
+      const existing = this.translationCache.get(loc, ns);
       this.translationCache.set(
         loc,
         ns,
-        Object.assign(Object.create(null), this.translationCache.get(loc, ns), flat),
+        existing ? Object.assign(Object.create(null), existing, flat) : flat,
       );
 
       this._activeNamespaces.add(ns);

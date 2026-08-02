@@ -38,6 +38,25 @@ describe("normalizeTranslationObject — no input mutation", () => {
     expect(catalog.extra).toBeUndefined();
     expect(i18n.t("extra")).toBe("X");
   });
+
+  it("adopts an already-prototype-less catalog on the first write instead of copying it", () => {
+    // A host WITH the flattener (`_flattenNs`) gets a fresh prototype-less
+    // catalog out of it, so the first write stores that object as-is. The
+    // identity is the cheap, deterministic proxy for "the constructor does
+    // not copy the whole catalog a second time" — the copy that made
+    // `new I18n({ translation })` 2.5x slower (.omc/handoffs/ctor-perf.md).
+    const catalog: Record<string, string> = Object.assign(Object.create(null), {
+      hello: "Hello",
+    });
+    const i18n = new I18n({ locale: "en", translation: { en: catalog } });
+
+    expect(i18n.getTranslations()).toBe(catalog);
+    // A genuine merge still copies, so the adopted object is never mutated.
+    i18n.addTranslations({ en: { extra: "X" } });
+    expect(catalog.extra).toBeUndefined();
+    expect(i18n.t("extra")).toBe("X");
+    expect(i18n.t("hello")).toBe("Hello");
+  });
 });
 
 describe("catalog leaf hardening — non-string values", () => {
