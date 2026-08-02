@@ -38,7 +38,6 @@ declare global {
   }
 }
 
-
 /**
  * Available i18n events
  */
@@ -845,6 +844,25 @@ export interface I18nLoaderApi {
    * @param namespace - Optional namespace to reload (defaults to active namespaces)
    */
   reloadTranslations: (locale?: string, namespace?: string) => Promise<void>;
+
+  /**
+   * Activate a namespace and load it for the current locale.
+   *
+   * Activation only matters when something loads namespaces, so it belongs to
+   * the loader capability (contingency C1). Bare slim instances activate
+   * implicitly — `addTranslations` self-activates the namespaces it carries.
+   */
+  addActiveNamespace: (namespace: string) => Promise<void>;
+
+  /** Activate several namespaces and load them for the current locale. */
+  addActiveNamespaces: (namespaces: string[]) => Promise<void>;
+
+  /**
+   * Subscribe to load failures (contingency C2 — only the loader capability
+   * can emit `loadError`).
+   * @returns Cleanup function to remove the callback
+   */
+  onLoadError: (callback: (locale: string, namespace: string, error: Error) => void) => () => void;
 }
 
 /**
@@ -949,20 +967,6 @@ export interface I18nCoreExtraApi {
 
   /** Every locale code that currently has translations cached. */
   getLoadedLocales: () => string[];
-
-  /** Activate a namespace and load it for the current locale. */
-  addActiveNamespace: (namespace: string) => Promise<void>;
-
-  /** Activate several namespaces and load them for the current locale. */
-  addActiveNamespaces: (namespaces: string[]) => Promise<void>;
-
-  /**
-   * Subscribe to load failures.
-   * @returns Cleanup function to remove the callback
-   */
-  onLoadError: (
-    callback: (locale: string, namespace: string, error: Error) => void,
-  ) => () => void;
 }
 
 /**
@@ -987,6 +991,7 @@ export type I18nPluginHost<D extends DefaultTranslationParams = {}> = I18nCoreIn
  * root-exported type). Pinned by `Equal<keyof I18nInstance, PreSplitKeySnapshot>`.
  */
 export interface I18nInstance<D extends DefaultTranslationParams = {}>
-  extends I18nCoreInstance<D>,
+  extends
+    I18nCoreInstance<D>,
     Pick<I18nLoaderApi, "reloadTranslations">,
     Pick<I18nPluginHostApi, "setPluginData" | "getPluginData"> {}

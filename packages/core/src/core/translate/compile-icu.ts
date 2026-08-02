@@ -11,7 +11,7 @@ import {
 } from "./cache";
 import { advancePastApostrophe, findMatchingBraceEnd } from "./parser";
 import type { MessageCompiler, TranslateCtx } from "./syntax";
-import { finalizeResult, processDynamicSegment } from "../translate";
+import { translateSegment } from "../translate";
 
 declare const __DEV__: boolean | undefined;
 
@@ -23,7 +23,6 @@ const CLOSE_BRACE = 125;
 const COMMA = 44;
 const SPACE = 32;
 const HASH = 35;
-
 
 /**
  * Detects whether the `{` at braceIndex starts a plural/selectordinal
@@ -111,7 +110,13 @@ export function parsePluralChoices(
     }
 
     const valueStart = i + 1;
-    const endIndex = findMatchingBraceEnd(choicesStr, valueStart, len, hashIsSyntax, isPluralArgStart);
+    const endIndex = findMatchingBraceEnd(
+      choicesStr,
+      valueStart,
+      len,
+      hashIsSyntax,
+      isPluralArgStart,
+    );
     if (endIndex === -1) break;
 
     choices[key] = choicesStr.slice(valueStart, endIndex - 1);
@@ -180,7 +185,10 @@ function makeIcuArgToken(
 /**
  * Processes an ICU plural token.
  */
-function processPlural(token: PluralToken, ctx: TranslateCtx): string | Array<string | VirtualNode> {
+function processPlural(
+  token: PluralToken,
+  ctx: TranslateCtx,
+): string | Array<string | VirtualNode> {
   const param = token[1];
   const choicesStr = token[2];
   const choices = token[3] ?? parsePluralChoices(choicesStr);
@@ -217,8 +225,7 @@ function processPlural(token: PluralToken, ctx: TranslateCtx): string | Array<st
     selected.indexOf("<") !== -1 ||
     selected.indexOf("'") !== -1
   ) {
-    const nestedResult = processDynamicSegment(selected, ctx, true);
-    return finalizeResult(nestedResult);
+    return translateSegment(selected, ctx, true);
   }
 
   return selected;
@@ -244,8 +251,7 @@ function processSelect(
 
   // Process nested tokens if they exist (ICU params, tags or quoting)
   if (selected.includes("{") || selected.includes("<") || selected.includes("'")) {
-    const nestedResult = processDynamicSegment(selected, ctx, hashIsSyntax);
-    return finalizeResult(nestedResult);
+    return translateSegment(selected, ctx, hashIsSyntax);
   }
 
   return selected;

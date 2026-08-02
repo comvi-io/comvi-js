@@ -76,6 +76,15 @@ slim.registerLoader(async () => ({}));
 // @ts-expect-error — reloadTranslations lives in @comvi/core/loader
 slim.reloadTranslations();
 
+// Contingencies C1/C2: namespace activation and the loadError wrapper are
+// loader-domain and absent from a bare slim instance.
+// @ts-expect-error — addActiveNamespace lives in @comvi/core/loader (C1)
+slim.addActiveNamespace("common");
+// @ts-expect-error — addActiveNamespaces lives in @comvi/core/loader (C1)
+slim.addActiveNamespaces(["common"]);
+// @ts-expect-error — onLoadError lives in @comvi/core/loader (C2)
+slim.onLoadError(() => {});
+
 // attachLoader returns the instance widened with the loader API.
 const withLoader = attachLoader(createSlimI18n({ locale: "en" }));
 const loaderFn: LoaderFn = async () => ({ hello: "world" });
@@ -83,6 +92,8 @@ withLoader.registerLoader(loaderFn);
 const registered: LoaderFn | undefined = withLoader.getLoader();
 void registered;
 void withLoader.reloadTranslations("en", "default");
+void withLoader.addActiveNamespaces(["common"]);
+withLoader.onLoadError(() => {});
 // the base surface survives the widening
 withLoader.t("count", { count: 1 });
 

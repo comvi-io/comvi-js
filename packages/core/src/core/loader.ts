@@ -76,9 +76,9 @@ function createAllNamespacesFailedError(locale: string, failedNamespaces: string
  */
 export class I18nWithLoader<D extends DefaultTranslationParams = {}> extends I18nBase<D> {
   /** Loader-owned state; created by `_initLoader`, never by a field initializer. */
-  protected declare _loader?: LoaderFn;
-  protected declare _pendingLoads: Record<string, Promise<void> | undefined>;
-  protected declare _nsGeneration: number;
+  declare protected _loader?: LoaderFn;
+  declare protected _pendingLoads: Record<string, Promise<void> | undefined>;
+  declare protected _nsGeneration: number;
 
   /**
    * Initialize loader-owned state. Called by the root constructor and by
@@ -123,6 +123,42 @@ export class I18nWithLoader<D extends DefaultTranslationParams = {}> extends I18
   /** Get the registered loader function */
   public getLoader(): LoaderFn | undefined {
     return this._loader;
+  }
+
+  /**
+   * Activate a namespace and load it for the current locale.
+   *
+   * Namespace ACTIVATION only matters when something loads namespaces, so it
+   * lives with the loader (contingency C1). A bare slim instance activates
+   * implicitly: `addTranslations` self-activates every namespace it carries.
+   */
+  public async addActiveNamespace(namespace: string): Promise<void> {
+    return this.addActiveNamespaces([namespace]);
+  }
+
+  /** Activate several namespaces and load them for the current locale. */
+  public async addActiveNamespaces(namespaces: string[]): Promise<void> {
+    this._setLoadingState(true);
+    try {
+      await this._nsAddActiveNamespaces(namespaces);
+    } finally {
+      this._setLoadingState(false);
+    }
+    this._emit("configChanged", { source: "namespaceActivated" });
+  }
+
+  /**
+   * Register a callback for load errors (contingency C2 — a `loadError`
+   * event can only be emitted by the loader capability).
+   * @param callback - Function called when loading translations fails
+   * @returns Cleanup function to remove the callback
+   */
+  public onLoadError(
+    callback: (locale: string, namespace: string, error: Error) => void,
+  ): () => void {
+    return this.on("loadError", ({ locale, namespace, error }) =>
+      callback(locale, namespace, error),
+    );
   }
 
   /**

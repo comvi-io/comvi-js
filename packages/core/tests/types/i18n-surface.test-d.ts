@@ -61,8 +61,19 @@ export type _ExactKeysAny = Expect<Equal<keyof I18nInstance<any>, PreSplitKeySna
 
 // The capability interfaces carry exactly the extracted members, and the base
 // interface carries none of them.
+// Deliberate C1/C2 update: `addActiveNamespace(s)` and `onLoadError` moved
+// out of `I18nCoreExtraApi` into the loader capability. `I18nInstance` never
+// listed them, so `PreSplitKeySnapshot` above is untouched.
 export type _LoaderApiKeys = Expect<
-  Equal<keyof I18nLoaderApi, "registerLoader" | "getLoader" | "reloadTranslations">
+  Equal<
+    keyof I18nLoaderApi,
+    | "registerLoader"
+    | "getLoader"
+    | "reloadTranslations"
+    | "addActiveNamespace"
+    | "addActiveNamespaces"
+    | "onLoadError"
+  >
 >;
 export type _PluginApiKeys = Expect<
   Equal<
@@ -109,8 +120,5 @@ void fetchLoaderShaped;
 
 // The host alias really is the composed full surface.
 export type _HostIsComposed = Expect<
-  Equal<
-    I18nPluginHost,
-    I18nCoreInstance & I18nCoreExtraApi & I18nLoaderApi & I18nPluginHostApi
-  >
+  Equal<I18nPluginHost, I18nCoreInstance & I18nCoreExtraApi & I18nLoaderApi & I18nPluginHostApi>
 >;

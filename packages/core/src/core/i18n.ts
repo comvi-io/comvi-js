@@ -597,7 +597,7 @@ export class I18n<D extends DefaultTranslationParams = {}>
    * _isInitializing is owned by init() exclusively — nested loads (e.g. a
    * locale detector triggering setLocaleAsync mid-init) must not clear it.
    */
-  private _setLoadingState(isLoading: boolean): void {
+  protected _setLoadingState(isLoading: boolean): void {
     const wasLoading = this._loadingCount > 0;
     if (isLoading) {
       this._loadingCount++;
@@ -636,20 +636,6 @@ export class I18n<D extends DefaultTranslationParams = {}>
   /** The resolved fallback-locale chain (read-only snapshot). */
   getFallbackLocales(): string[] {
     return [...this._fallbackLocales];
-  }
-
-  async addActiveNamespace(namespace: string): Promise<void> {
-    return this.addActiveNamespaces([namespace]);
-  }
-
-  async addActiveNamespaces(namespaces: string[]): Promise<void> {
-    this._setLoadingState(true);
-    try {
-      await this._nsAddActiveNamespaces(namespaces);
-    } finally {
-      this._setLoadingState(false);
-    }
-    this._emit("configChanged", { source: "namespaceActivated" });
   }
 
   /**
@@ -883,19 +869,6 @@ export class I18n<D extends DefaultTranslationParams = {}>
   }
 
   /**
-   * Register a callback for load errors
-   * @param callback - Function called when loading translations fails
-   * @returns Cleanup function to remove the callback
-   */
-  public onLoadError(
-    callback: (locale: string, namespace: string, error: Error) => void,
-  ): () => void {
-    return this.on("loadError", ({ locale, namespace, error }) =>
-      callback(locale, namespace, error),
-    );
-  }
-
-  /**
    * Get all loaded locale codes (for debugging)
    * @returns Array of locale codes that have translations loaded
    */
@@ -939,7 +912,7 @@ export class I18n<D extends DefaultTranslationParams = {}>
 
   // ── Namespace management (inlined from NamespaceManager) ──
 
-  private async _nsAddActiveNamespaces(namespaces: string[]): Promise<void> {
+  protected async _nsAddActiveNamespaces(namespaces: string[]): Promise<void> {
     // Add to active set optimistically. If the load fails, the namespace
     // stays active so it will be retried automatically on the next locale
     // switch — this matches caller expectations and avoids forcing manual retry.

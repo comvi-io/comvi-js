@@ -89,8 +89,7 @@ export function isStaticTemplate(
   compilerId: number,
   extBits: number,
 ): boolean | undefined {
-  return templateCache.get(templateCacheKey(template, hashIsSyntax, compilerId, extBits))
-    ?.isStatic;
+  return templateCache.get(templateCacheKey(template, hashIsSyntax, compilerId, extBits))?.isStatic;
 }
 
 /**
@@ -309,7 +308,7 @@ export function translate(
  * Used for top-level templates and for nested dynamic segments (which reuse
  * the parent ctx, so nested parses land in the same cache variant).
  */
-function translateSegment(
+export function translateSegment(
   segment: string,
   ctx: TranslateCtx,
   hashIsSyntax: boolean,
@@ -364,7 +363,7 @@ function translateTemplateWithCache(
         return prefix + missingParamText(cached.singleParamName, ctx) + suffix;
       }
       // null (explicit erasure, both modes) or "drop" mode: empty string
-      return prefix ? (suffix ? prefix + suffix : prefix) : suffix;
+      return prefix + suffix;
     }
   }
 
@@ -477,20 +476,6 @@ function appendParamValue(
 }
 
 /**
- * Processes a dynamic segment (outside single quotes).
- * It scans for balanced tokens and processes them.
- * Uses caching to avoid re-parsing the same template strings.
- */
-export function processDynamicSegment(
-  segment: string,
-  ctx: TranslateCtx,
-  hashIsSyntax: boolean,
-): Array<string | VirtualNode> {
-  const result = translateSegment(segment, ctx, hashIsSyntax);
-  return Array.isArray(result) ? result : [result];
-}
-
-/**
  * Processes parsed tokens into result parts.
  *
  * Compiler-owned argument tokens (plural/select) dispatch through
@@ -504,31 +489,19 @@ export function processTokens(
   hashIsSyntax: boolean,
 ): Array<string | VirtualNode> {
   const parts: Array<string | VirtualNode> = [];
-  let lastIdx = -1;
 
   for (const token of tokens) {
     const kind = token[0];
 
     if (kind === TK_TEXT) {
-      // Merge with previous string if possible
-      const lastPart = parts[lastIdx];
-      if (lastIdx >= 0 && typeof lastPart === "string") {
-        parts[lastIdx] = lastPart + token[1];
-      } else {
-        parts.push(token[1]);
-        lastIdx++;
-      }
+      appendString(parts, token[1]);
       continue;
     }
 
     if (kind === TK_PARAM) {
       const value = ctx.params[token[1]];
       if (value !== undefined || ctx.missingParam === "literal") {
-        const prevLength = parts.length;
         appendParamValue(parts, value, token[1], ctx);
-        if (parts.length > prevLength) {
-          lastIdx = parts.length - 1;
-        }
       }
       continue;
     }
@@ -537,7 +510,6 @@ export function processTokens(
       const processArg = ctx.compiler.processArgToken;
       if (processArg !== undefined) {
         appendResult(parts, processArg(token as PluralToken | SelectToken, ctx, hashIsSyntax));
-        lastIdx = parts.length - 1;
       }
       continue;
     }
@@ -547,7 +519,6 @@ export function processTokens(
       const result = ctx.extensions[e].processHook(token, ctx, hashIsSyntax);
       if (result !== undefined) {
         appendResult(parts, result);
-        lastIdx = parts.length - 1;
         break;
       }
     }
