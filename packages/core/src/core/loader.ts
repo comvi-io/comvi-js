@@ -79,6 +79,9 @@ export class I18nWithLoader<D extends DefaultTranslationParams = {}> extends I18
   declare protected _loader?: LoaderFn;
   declare protected _pendingLoads: Record<string, Promise<void> | undefined>;
   declare protected _nsGeneration: number;
+  /** Locale-switch race arbitration — only meaningful while a load can be in flight. */
+  declare protected _currentLocaleChangeId: number;
+  declare protected _requestedLocale: string;
 
   /**
    * Initialize loader-owned state. Called by the root constructor and by
@@ -87,6 +90,8 @@ export class I18nWithLoader<D extends DefaultTranslationParams = {}> extends I18
   protected _initLoader(): void {
     this._pendingLoads = Object.create(null);
     this._nsGeneration = 0;
+    this._currentLocaleChangeId = 0;
+    this._requestedLocale = this._locale;
   }
 
   /**
@@ -97,6 +102,73 @@ export class I18nWithLoader<D extends DefaultTranslationParams = {}> extends I18
     this._nsGeneration++;
     this._pendingLoads = {};
     this._loader = undefined;
+  }
+
+  /**
+   * Locale switching WITH a loader in the graph: the base transition wrapped
+   * in the race machinery a bare instance can never need.
+   *
+   * Three things happen here and nowhere else (framework-slim P1 seam):
+   *  • active namespaces are loaded for the target locale BEFORE it applies,
+   *    so the UI never flashes untranslated;
+   *  • a `changeId` suppresses both the result and the error of a request
+   *    that a newer one superseded, including the "revert to the current
+   *    locale mid-flight" cancellation (the early-exit bump below);
+   *  • the loading refcount brackets the whole attempt.
+   *
+   * The base emits `localeChanged` synchronously and emits no loading
+   * transition at all; this override is what makes a locale switch an
+   * observable loading operation.
+   */
+  public override async setLocaleAsync(value: string): Promise<void> {
+    // The early exit must compare against the LAST REQUESTED locale, not the
+    // applied one: reverting to the current locale while another change is in
+    // flight has to cancel that change (the bump invalidates its changeId).
+    if (this._locale === value) {
+      if (this._requestedLocale !== value) {
+        this._requestedLocale = value;
+        this._currentLocaleChangeId++;
+      }
+      return;
+    }
+
+    // Track this request to handle race conditions when locale changes rapidly
+    this._requestedLocale = value;
+    const changeId = ++this._currentLocaleChangeId;
+
+    this._setLoadingState(true);
+
+    try {
+      // Load any active namespaces that aren't loaded for the new locale FIRST.
+      // The `_loader` probe (not `_loadNs`) keeps byte-parity with 0.4.x: with
+      // no loader registered the old code awaited NOTHING, so
+      // `i18n.locale = "fr"` applied synchronously. Probing the hook would add
+      // a microtask tick.
+      if (this._loader && this._activeNamespaces.size > 0) {
+        await this._loadNs(value, [...this._activeNamespaces], true);
+      }
+
+      // Check staleness after EVERY async operation to prevent applying outdated results
+      if (changeId !== this._currentLocaleChangeId) {
+        return;
+      }
+
+      // Switch locale only after successful load
+      const oldLocale = this._locale;
+      this._locale = value;
+      this._emit("localeChanged", { from: oldLocale, to: value });
+    } catch (error) {
+      // Re-check staleness: if a newer request superseded this one, suppress the error
+      // so only the latest request's outcome is observed by callers
+      if (changeId !== this._currentLocaleChangeId) {
+        return;
+      }
+      throw error;
+    } finally {
+      // ALWAYS decrement the loading state because we incremented it unconditionally.
+      // The reference counter handles overlapping requests seamlessly.
+      this._setLoadingState(false);
+    }
   }
 
   /**

@@ -11,6 +11,8 @@ export { createBoundTranslation } from "./utils/createBoundTranslation";
 export { translationResultToString } from "./utils/translationResultToString";
 export { subscribeToRevision, REVISION_EVENTS } from "./utils/subscribeToRevision";
 export type { RevisionEvent, RevisionEventSource } from "./utils/subscribeToRevision";
+export { missingCapability, hasLoaderApi, hasPluginHostApi } from "./utils/capability";
+export type { CapabilityName } from "./utils/capability";
 
 // Tree-shakeable Intl formatting helpers
 export {

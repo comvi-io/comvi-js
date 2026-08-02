@@ -17,13 +17,13 @@
       "name": "slim",
       "entry": "@comvi/core/slim",
       "fixture": "slim.ts",
-      "gzipBudgetBytes": 5760,
+      "gzipBudgetBytes": 5673,
       "baseline": {
-        "minBytes": 15691,
-        "gzipBytes": 5728,
+        "minBytes": 15428,
+        "gzipBytes": 5641,
         "measuredAt": "2026-08-02"
       },
-      "note": "Ratcheted 6912 -> 5760 after the Phase-7 capability decomposition (measured 5728 B + 32 B drift margin; -1049 B vs the 6777 B Phase-1 floor). The original 5632 target is UNMET and is not relaxed silently: it needed lever L4 (extension-driven translate assembly), which was implemented twice, measured at -105 B against its 250 B abort floor, and rejected — it also cost the full entry +168 B, which would have blown the signed 8598. The remaining 96 B would come from C3 (post-process pipeline hook + narrowed slim options, ~-80 B) plus a bounded golf pass; the USER declined C3 for 0.5.0 (API cost > 96 B benefit). Tracked in .omc/plans/open-questions.md."
+      "note": "Ratcheted 6912 -> 5760 after the Phase-7 capability decomposition, then 5760 -> 5673 in framework-slim P1 (measured 5641 B + the same 32 B drift margin). P1 moved setLocaleAsync's race machinery — changeId staleness, mid-flight cancellation, loading refcount — out of the base class into the `@comvi/core/loader` override, so a bare slim instance no longer pays for a race it cannot have: -87 B measured against the probe's -94 B ceiling (agent://LocaleRaceProbe), i.e. the seam glue costs 7 B. The original 5632 target is now within 9 B but is NOT claimed met. The remaining levers are unchanged: C3 (post-process pipeline hook + narrowed slim options, ~-80 B) plus a bounded golf pass; the USER declined C3 for 0.5.0 (API cost > 96 B benefit). Tracked in .omc/plans/open-questions.md."
     },
     {
       "name": "slim-loader",
@@ -35,13 +35,13 @@
       "name": "slim-tags",
       "entry": ["@comvi/core/slim", "@comvi/core/tags"],
       "fixture": "slim-tags.ts",
-      "gzipBudgetBytes": 6705,
+      "gzipBudgetBytes": 6619,
       "baseline": {
-        "minBytes": 18056,
-        "gzipBytes": 6574,
+        "minBytes": 17794,
+        "gzipBytes": 6490,
         "measuredAt": "2026-08-02"
       },
-      "note": "Graduated from pending:true in framework-slim P0.4 — the /tags subpath has been exported since Phase 7, so the flag was stale and the row was silently ungated. Budget = measured 6574 B + 2%. This is the measured anchor for the plan's \"inline catalogs, with <T>\" ladder row (slim 5728 -> 6574, +846 B)."
+      "note": "Graduated from pending:true in framework-slim P0.4 — the /tags subpath has been exported since Phase 7, so the flag was stale and the row was silently ungated. Re-baselined in P1 (6574 -> 6490, -84 B from the setLocaleAsync race seam). Budget = measured 6490 B + 2%. This is the measured anchor for the plan's \"inline catalogs, with <T>\" ladder row (slim 5641 -> 6490, +849 B)."
     },
     {
       "name": "slim-icu",
@@ -49,23 +49,23 @@
       "fixture": "slim-icu.ts",
       "gzipBudgetBytes": 7680,
       "baseline": {
-        "minBytes": 17995,
-        "gzipBytes": 6592,
+        "minBytes": 17732,
+        "gzipBytes": 6506,
         "measuredAt": "2026-08-02"
       },
-      "note": "Post-Phase-7 measured baseline 6592 B (-1080 B; the entry shares every slim class lever). The budget deliberately stays at 7680 — ratcheting it to ~measured+margin is a named follow-up owned by the release captain, post-0.5.0, and this baseline block is the data it starts from."
+      "note": "Post-Phase-7 measured baseline 6592 B, re-baselined to 6506 B in framework-slim P1 (-86 B from the setLocaleAsync race seam; the entry shares every slim class lever). The budget deliberately stays at 7680 — ratcheting it to ~measured+margin is a named follow-up owned by the release captain, post-0.5.0, and this baseline block is the data it starts from."
     },
     {
       "name": "slim-icu-tags",
       "entry": ["@comvi/core/slim", "@comvi/core/icu", "@comvi/core/tags"],
       "fixture": "slim-icu-tags.ts",
-      "gzipBudgetBytes": 7564,
+      "gzipBudgetBytes": 7476,
       "baseline": {
-        "minBytes": 20360,
-        "gzipBytes": 7416,
+        "minBytes": 20097,
+        "gzipBytes": 7330,
         "measuredAt": "2026-08-02"
       },
-      "note": "Composed-additivity fixture (P0.9). MEASURED, not summed: the plan's \"+ ICU + <T>\" row estimated 7438 B by adding per-entry deltas; the actual composed graph is 7416 B (-22 B, i.e. composition is very slightly sub-additive). Budget = measured + 2%. Landed measured rather than pending:true because every specifier it needs already ships — a pending flag here would have been stale on arrival, exactly the slim-tags failure P0.4 fixes."
+      "note": "Composed-additivity fixture (P0.9). MEASURED, not summed: the plan's \"+ ICU + <T>\" row estimated 7438 B by adding per-entry deltas; the actual composed graph measured 7416 B (-22 B, i.e. composition is very slightly sub-additive), re-baselined to 7330 B in framework-slim P1 (-86 B from the setLocaleAsync race seam). Budget = measured + 2%. Landed measured rather than pending:true because every specifier it needs already ships — a pending flag here would have been stale on arrival, exactly the slim-tags failure P0.4 fixes."
     },
     {
       "name": "slim-loader-tags",
@@ -78,11 +78,11 @@
       "fixture": "slim-loader-tags.ts",
       "gzipBudgetBytes": 7869,
       "baseline": {
-        "minBytes": 21712,
-        "gzipBytes": 7715,
+        "minBytes": 21802,
+        "gzipBytes": 7719,
         "measuredAt": "2026-08-02"
       },
-      "note": "Composed-additivity fixture (P0.9). MEASURED, not summed: the plan's \"loader (+plugins) + <T>\" row estimated 7721 B; the actual composed graph is 7715 B (-6 B). Budget = measured + 2%. Landed measured for the same reason as slim-icu-tags."
+      "note": "Composed-additivity fixture (P0.9). MEASURED, not summed: the plan's \"loader (+plugins) + <T>\" row estimated 7721 B; the actual composed graph measured 7715 B (-6 B), re-baselined to 7719 B in framework-slim P1. The budget is NOT ratcheted: this graph carries the loader capability, which is where the P1 race seam moved to, so it pays +4 B for the seam glue instead of saving — exactly the trade the seam makes. Budget stays measured(P0) + 2%."
     },
     {
       "name": "probe-react-tags-pinning",

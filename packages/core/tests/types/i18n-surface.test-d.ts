@@ -12,6 +12,7 @@ import type {
   I18nLoaderApi,
   I18nPluginHostApi,
   I18nPluginHost,
+  WrapperI18nHost,
   I18nPlugin,
   PluginOptions,
   LoaderFn,
@@ -122,3 +123,34 @@ void fetchLoaderShaped;
 export type _HostIsComposed = Expect<
   Equal<I18nPluginHost, I18nCoreInstance & I18nCoreExtraApi & I18nLoaderApi & I18nPluginHostApi>
 >;
+
+// ── WrapperI18nHost: the framework-slim P1 wrapper contract ───────────────
+//
+// The alias must stay EXACTLY the pair of interfaces `class I18n` declares it
+// implements (`core/i18n.ts`: `implements I18nCoreInstance<D>, I18nCoreExtraApi`).
+// If a member is ever added to the class outside those two interfaces, or a
+// capability leaks into either of them, this pin fails before any wrapper
+// retypes against a host that bare slim cannot satisfy.
+export type _WrapperHostIsWhatI18nImplements = Expect<
+  Equal<WrapperI18nHost, I18nCoreInstance & I18nCoreExtraApi>
+>;
+export type _WrapperHostIsWhatI18nImplementsGeneric = Expect<
+  Equal<WrapperI18nHost<{ brand: string }>, I18nCoreInstance<{ brand: string }> & I18nCoreExtraApi>
+>;
+
+// Type honesty by absence: no loader/plugin member is reachable on the host.
+export type _WrapperHostHasNoCapabilities = Expect<
+  Equal<Extract<keyof WrapperI18nHost, keyof I18nLoaderApi | keyof I18nPluginHostApi>, never>
+>;
+
+// The plugin host is exactly the wrapper host plus both capabilities.
+export type _PluginHostExtendsWrapperHost = Expect<
+  Equal<I18nPluginHost, WrapperI18nHost & I18nLoaderApi & I18nPluginHostApi>
+>;
+
+// A ROOT instance is a wrapper host (Principle 5: root stays first-class).
+const rootAsHost: WrapperI18nHost = createI18n({ locale: "en" });
+void rootAsHost;
+
+// @ts-expect-error — the host type does not carry loader members
+rootAsHost.reloadTranslations();

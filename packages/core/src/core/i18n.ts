@@ -109,9 +109,14 @@ export interface I18nInternal<D extends DefaultTranslationParams = {}> extends I
   _missHook?: (key: string, locale: string, namespace: string) => TranslationResult | undefined;
 
   // ── loader capability state (initLoaderState) ──
+  // `_currentLocaleChangeId`/`_requestedLocale` arbitrate rapid locale
+  // switches; they live here rather than on the base because only the
+  // `/loader` `setLocaleAsync` override can have a load in flight.
   _loader?: LoaderFn;
   _pendingLoads: Record<string, Promise<void> | undefined>;
   _nsGeneration: number;
+  _currentLocaleChangeId: number;
+  _requestedLocale: string;
 }
 
 /** Counter for auto-generating instance IDs */
@@ -144,8 +149,6 @@ export class I18n<D extends DefaultTranslationParams = {}>
   private _isDestroyed: boolean = false;
   private _loadingCount: number = 0;
   protected _fallbackLocales: string[];
-  private _currentLocaleChangeId: number = 0;
-  private _requestedLocale: string;
   public readonly apiKey: string | undefined;
   public readonly collectContext: boolean | undefined;
   public readonly devMode: boolean;
@@ -205,7 +208,6 @@ export class I18n<D extends DefaultTranslationParams = {}>
 
     // Initialize core state
     this._locale = options.locale;
-    this._requestedLocale = options.locale;
     const defaultNs = options.defaultNs ?? DEFAULT_NS;
     const initialNamespaces = options.ns;
     this._cachedDefaultNs = defaultNs;
@@ -420,59 +422,25 @@ export class I18n<D extends DefaultTranslationParams = {}>
   }
 
   /**
-   * Set locale and wait for namespaces to load
+   * Set the locale and emit `localeChanged`.
+   *
+   * The base transition is synchronous by construction: a bare instance has
+   * no loader, so there is nothing to await, no stale result to suppress and
+   * no loading refcount to move. `@comvi/core/loader` OVERRIDES this method
+   * with the guarded version (changeId staleness + mid-flight cancellation +
+   * `_setLoadingState` refcount around the namespace load); the root entry
+   * inherits that override through `extends`, a slim instance receives it
+   * from `attachLoader`. Both paths keep this `Promise`-returning signature.
+   *
    * @param value - The locale code to set
-   * @returns Promise that resolves when namespace loading is complete
+   * @returns Promise that resolves when the locale has been applied
    */
   async setLocaleAsync(value: string): Promise<void> {
-    // The early exit must compare against the LAST REQUESTED locale, not the
-    // applied one: reverting to the current locale while another change is in
-    // flight has to cancel that change (the bump invalidates its changeId).
-    if (this._locale === value) {
-      if (this._requestedLocale !== value) {
-        this._requestedLocale = value;
-        this._currentLocaleChangeId++;
-      }
-      return;
-    }
+    if (this._locale === value) return;
 
-    // Track this request to handle race conditions when locale changes rapidly
-    this._requestedLocale = value;
-    const changeId = ++this._currentLocaleChangeId;
-
-    this._setLoadingState(true);
-
-    try {
-      // Load any active namespaces that aren't loaded for the new locale FIRST
-      // This ensures we don't switch locale before translations are ready (preventing UI flash).
-      // The `_loader` probe (not `_loadNs`) keeps byte-parity: with no loader
-      // registered the old code awaited NOTHING, so `i18n.locale = "fr"`
-      // applied synchronously. Probing the hook would add a microtask tick.
-      if ((this as unknown as I18nInternal)._loader && this._activeNamespaces.size > 0) {
-        await (this as unknown as I18nInternal)._loadNs!(value, [...this._activeNamespaces], true);
-      }
-
-      // Check staleness after EVERY async operation to prevent applying outdated results
-      if (changeId !== this._currentLocaleChangeId) {
-        return;
-      }
-
-      // Switch locale only after successful load
-      const oldLocale = this._locale;
-      this._locale = value;
-      this._emit("localeChanged", { from: oldLocale, to: value });
-    } catch (error) {
-      // Re-check staleness: if a newer request superseded this one, suppress the error
-      // so only the latest request's outcome is observed by callers
-      if (changeId !== this._currentLocaleChangeId) {
-        return;
-      }
-      throw error;
-    } finally {
-      // ALWAYS decrement the loading state because we incremented it unconditionally.
-      // The reference counter handles overlapping requests seamlessly.
-      this._setLoadingState(false);
-    }
+    const oldLocale = this._locale;
+    this._locale = value;
+    this._emit("localeChanged", { from: oldLocale, to: value });
   }
 
   setFallbackLocale(fallback: string | string[]) {

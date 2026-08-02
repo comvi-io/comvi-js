@@ -23,7 +23,10 @@ describe("slim + /loader composition", () => {
   it("installs the capability as non-enumerable own properties", () => {
     const i18n = attachLoader(createI18n({ locale: "en", exposeGlobal: false }));
 
-    for (const name of ["registerLoader", "getLoader", "reloadTranslations"]) {
+    // `setLocaleAsync` is the P1 race-machinery OVERRIDE: it shadows the base
+    // prototype method and must carry the same class-method descriptor as
+    // every other attached member (A11 contract, attach surface).
+    for (const name of ["registerLoader", "getLoader", "reloadTranslations", "setLocaleAsync"]) {
       const descriptor = Object.getOwnPropertyDescriptor(i18n, name);
       expect(descriptor, name).toBeDefined();
       expect({

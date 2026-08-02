@@ -2,7 +2,19 @@
 // resolve and expose the contracted surface. (Published-artifact resolution
 // under moduleResolution bundler/node16 is exercised by attw/publint and the
 // bundler-matrix job against dist.)
-import { createI18n as createSlimI18n } from "@comvi/core/slim";
+import {
+  createI18n as createSlimI18n,
+  subscribeToRevision,
+  REVISION_EVENTS,
+  isVirtualNode as slimIsVirtualNode,
+  missingCapability,
+  hasLoaderApi,
+  hasPluginHostApi,
+  type RevisionEvent,
+  type RevisionEventSource,
+  type CapabilityName,
+  type WrapperI18nHost,
+} from "@comvi/core/slim";
 import { attachLoader, createImportMapLoader, type LoaderFn } from "@comvi/core/loader";
 import { attachPlugins, type I18nPlugin } from "@comvi/core/plugins";
 import { icuCompiler, type MessageCompiler } from "@comvi/core/icu";
@@ -142,3 +154,43 @@ const fetchLoaderShaped: I18nPlugin = (i18n) => {
 };
 composed.use(fetchLoaderShaped);
 createI18n({ locale: "en" }).use(fetchLoaderShaped);
+
+// ── /slim: the framework-slim P1 wrapper enablers ─────────────────────────
+//
+// Every value a wrapper runtime module needs today resolves through /slim, so
+// no wrapper has to pin the root entry (and, with it, the ambient
+// `register-tags` side effect) just to reach a helper.
+const disposeRevision: () => void = subscribeToRevision(slim, (event) => {
+  event satisfies RevisionEvent;
+});
+disposeRevision();
+REVISION_EVENTS satisfies readonly RevisionEvent[];
+const source: RevisionEventSource = slim;
+void source;
+
+const maybeNode: unknown = { type: "text", text: "hi" };
+if (slimIsVirtualNode(maybeNode)) {
+  maybeNode.type satisfies "element" | "text" | "fragment";
+}
+
+// The host alias reaches /slim consumers, and bare slim satisfies it.
+const slimHost: WrapperI18nHost = slim;
+void slimHost;
+
+// The structural guards narrow a host to the capability surface.
+const capabilityName: CapabilityName = "loader";
+const failure: Error = missingCapability(capabilityName);
+void failure;
+
+if (hasLoaderApi(slimHost)) {
+  void slimHost.reloadTranslations();
+  void slimHost.addActiveNamespaces(["common"]);
+}
+if (hasPluginHostApi(slimHost)) {
+  slimHost.registerPostProcessor((result) => result);
+  slimHost.setPluginData("cfg", 1);
+}
+
+// A composed host is still a wrapper host — the alias never narrows away.
+const composedHost: WrapperI18nHost = composed;
+void composedHost;

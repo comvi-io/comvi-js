@@ -970,6 +970,20 @@ export interface I18nCoreExtraApi {
 }
 
 /**
+ * The instance surface a framework wrapper (react/solid/svelte/vue/next/nuxt)
+ * requires of its host: reactive translation + lifecycle, and nothing else.
+ *
+ * Structurally this is EXACTLY what `class I18n` declares it implements
+ * (`core/i18n.ts`: `implements I18nCoreInstance<D>, I18nCoreExtraApi`), so a
+ * bare `@comvi/core/slim` instance satisfies it without any capability
+ * attached. Loader/plugin members are deliberately absent: wrappers acquire
+ * those through their own capability hooks, which verify presence once and
+ * throw {@link missingCapability} when the host has none.
+ */
+export type WrapperI18nHost<D extends DefaultTranslationParams = {}> = I18nCoreInstance<D> &
+  I18nCoreExtraApi;
+
+/**
  * The instance surface a plugin may rely on: the composed full capability set
  * the root entry exposes. Plugins that call loader APIs on a slim instance
  * need `attachLoader` to have run first (see the README slim section).

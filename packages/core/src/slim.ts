@@ -29,6 +29,16 @@ export { TranslationCache } from "./core/TranslationCache";
 export { createBoundTranslation } from "./utils/createBoundTranslation";
 export { translationResultToString } from "./utils/translationResultToString";
 
+// Wrapper enablers (framework-slim P1). Pure re-exports: a framework binding
+// that reads reactivity events, sniffs virtual nodes, or reports an absent
+// capability no longer has to reach for the root entry — which would drag
+// the ambient `register-tags` side effect into every wrapper bundle.
+export { subscribeToRevision, REVISION_EVENTS } from "./utils/subscribeToRevision";
+export type { RevisionEvent, RevisionEventSource } from "./utils/subscribeToRevision";
+export { isVirtualNode } from "./virtualNode";
+export { missingCapability, hasLoaderApi, hasPluginHostApi } from "./utils/capability";
+export type { CapabilityName } from "./utils/capability";
+
 // Tree-shakeable Intl formatting helpers
 export {
   formatNumber,
