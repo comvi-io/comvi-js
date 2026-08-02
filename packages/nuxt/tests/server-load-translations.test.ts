@@ -172,7 +172,7 @@ describe("loadTranslations", () => {
 
     expect(result).toEqual({});
     expect(warnSpy).toHaveBeenCalledWith(
-      "[@comvi/nuxt] No loader configured. Register one in comvi.setup via i18n.use(...).",
+      "[@comvi/nuxt] No loader configured. Register one in comvi.setup via i18n.core.registerLoader(...) or i18n.core.use(...).",
     );
     warnSpy.mockRestore();
   });
@@ -191,7 +191,7 @@ describe("loadTranslations", () => {
     const noLoaderWarnings = warnSpy.mock.calls.filter(
       ([message]) =>
         String(message) ===
-        "[@comvi/nuxt] No loader configured. Register one in comvi.setup via i18n.use(...).",
+        "[@comvi/nuxt] No loader configured. Register one in comvi.setup via i18n.core.registerLoader(...) or i18n.core.use(...).",
     );
     expect(noLoaderWarnings).toHaveLength(1);
     warnSpy.mockRestore();

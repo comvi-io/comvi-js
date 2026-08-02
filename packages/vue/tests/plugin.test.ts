@@ -26,7 +26,7 @@ describe("Vue plugin integration", () => {
   it("initializes plugins even when translations are preloaded", async () => {
     const plugin = vi.fn();
     const i18nPlugin = createI18n({ locale: "en" });
-    i18nPlugin.use(plugin);
+    i18nPlugin.core.use(plugin);
     i18nPlugin.addTranslations({ en: { hello: "Hi" } });
 
     const app = createApp(defineComponent({ template: "<div />" }));

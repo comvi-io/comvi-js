@@ -213,7 +213,7 @@ describe("VueI18n contracts", () => {
     });
     const destroyError = new Error("destroy failed");
 
-    i18n.use(() => async () => {
+    i18n.core.use(() => async () => {
       throw destroyError;
     });
     await i18n.init();

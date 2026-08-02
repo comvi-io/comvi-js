@@ -365,13 +365,13 @@ for (const bundler of BUNDLERS) {
 
       // Module-graph check: tag registration is pulled in exactly when the
       // app asked for tags. Module IDs, never output-text substrings.
-      const found = moduleIds.filter((id) =>
-        SENTINEL_FRAGMENTS.some((fragment) => id.includes(fragment)),
-      );
       const expectTags =
         typeof testCase.sentinels === "string"
           ? testCase.sentinels
           : (testCase.sentinels[`${bundler}:${mode}`] ?? testCase.sentinels.default);
+      const found = moduleIds.filter((id) =>
+        SENTINEL_FRAGMENTS.some((fragment) => id.includes(fragment)),
+      );
       const sentinelsOk = expectTags === "present" ? found.length > 0 : found.length === 0;
       if (!sentinelsOk) {
         failures.push(
@@ -381,9 +381,9 @@ for (const bundler of BUNDLERS) {
         );
       }
 
-      // Case-specific absences (plan P5 step 2): module-ID fragments the graph
-      // must not contain at all — the root entry for a companion-only server
-      // app, the server host module and loader code for a client one.
+      // Case-specific absences (plan P5 step 2): module-ID fragments the
+      // graph must not contain at all — the root entry for a companion-only
+      // server app, the server host module and loader code for a client one.
       const leaked = (testCase.absentModules ?? []).flatMap((fragment) =>
         moduleIds.filter((id) => id.includes(fragment)),
       );
@@ -401,7 +401,7 @@ for (const bundler of BUNDLERS) {
       }
       const ok = ran && sentinelsOk && leaked.length === 0;
       results.push(`${ok ? "PASS" : "FAIL"}  ${label}`);
-      console.log(`${ok ? "PASS" : "FAIL"}  ${label} [tags ${testCase.sentinels}]`);
+      console.log(`${ok ? "PASS" : "FAIL"}  ${label} [tags ${expectTags}]`);
     }
   }
 }

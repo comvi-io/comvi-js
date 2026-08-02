@@ -101,9 +101,11 @@ describe.each([
   });
 });
 
-// The vue-specific half of §2.4: the SEVEN instance proxies are gone from
+// The vue-specific half of §2.4: the EIGHT instance proxies are gone from
 // VueI18n, and the same operations are reachable through `i18n.core` on a host
-// that has the capability.
+// that has the capability. `use` joined the list in P6 — a guarded proxy that
+// is typed present and throws "missing capability" is the banned failure class
+// §2.4 exists to prevent, so it was removed rather than kept behind a guard.
 const DROPPED_PROXIES = [
   "addActiveNamespace",
   "reloadTranslations",
@@ -112,6 +114,7 @@ const DROPPED_PROXIES = [
   "registerPostProcessor",
   "onMissingKey",
   "onLoadError",
+  "use",
 ];
 
 describe("VueI18n dropped instance proxies", () => {
@@ -138,6 +141,11 @@ describe("VueI18n dropped instance proxies", () => {
     const off = i18n.core.onMissingKey((key) => `[${key}]`);
     expect(i18n.t("nope")).toBe("[nope]");
     off();
+
+    let pluginRan = false;
+    expect(i18n.core.use(() => (pluginRan = true))).toBe(host);
+    await i18n.init();
+    expect(pluginRan).toBe(true);
   });
 
   it("is the injected host itself, not a copy", () => {

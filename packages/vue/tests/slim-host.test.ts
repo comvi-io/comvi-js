@@ -96,19 +96,24 @@ describe("vue on a bare slim host", () => {
     i18n.destroy();
   });
 
-  it("throws the plugins capability error from use() on a bare host", () => {
+  it("has no use() anywhere on a bare host — wrapper or core", () => {
     const i18n = createI18nFromCore(bareSlim());
 
-    expect(() => i18n.use(() => {})).toThrow(/no plugins capability|missing plugins capability/);
+    // P6 removed the guarded proxy: no member of VueI18n is typed present and
+    // then throws "missing capability" (§2.4). Plugin registration is a
+    // `@comvi/core/plugins` capability, so it is absent from the host too.
+    expect("use" in i18n).toBe(false);
+    expect((i18n as unknown as Record<string, unknown>).use).toBeUndefined();
+    expect("use" in i18n.core).toBe(false);
   });
 
-  it("accepts a plugin through use() once the capability is attached", async () => {
+  it("registers a plugin through i18n.core.use() once the capability is attached", async () => {
     const host = attachPlugins(bareSlim());
     const i18n = createI18nFromCore(host);
     let installed = false;
 
-    // `use()` registers; core runs plugins at init().
-    expect(i18n.use(() => (installed = true))).toBe(i18n);
+    // `use()` registers on the host; core runs plugins at init().
+    expect(i18n.core.use(() => (installed = true))).toBe(host);
     await i18n.init();
     expect(installed).toBe(true);
   });

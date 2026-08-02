@@ -147,7 +147,7 @@ describe("New Features", () => {
       const loader = vi.fn(async () => ({ title: "Title" }));
 
       const i18n = createI18n({ locale: "en", defaultNs: "common" });
-      i18n.use((i18n) => i18n.registerLoader(loader));
+      i18n.core.use((i18n) => i18n.registerLoader(loader));
       await i18n.init();
 
       const spy = vi.fn();
@@ -392,7 +392,7 @@ describe("New Features", () => {
       const cleanupSpy = vi.fn();
       const i18n = createI18n({ locale: "en", defaultNs: "common" });
 
-      i18n.use(() => () => cleanupSpy());
+      i18n.core.use(() => () => cleanupSpy());
       await i18n.init();
 
       i18n.destroy();
@@ -405,7 +405,7 @@ describe("New Features", () => {
     it("should be safe to call destroy multiple times", async () => {
       const cleanupSpy = vi.fn();
       const i18n = createI18n({ locale: "en" });
-      i18n.use(() => () => cleanupSpy());
+      i18n.core.use(() => () => cleanupSpy());
       await i18n.init();
 
       i18n.destroy();

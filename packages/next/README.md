@@ -223,6 +223,78 @@ The middleware extracts locale from the URL path first, then checks cookies and 
 
 For more routing details and custom locale-aware navigation helpers, see the [documentation](https://comvi.io/docs/i18n/next/).
 
+## Capability hooks: `useI18nLoader()` / `useI18nPlugins()`
+
+`@comvi/next/client` re-exports react's 0.5.0 surface, so async loading and the
+plugin host are acquired explicitly on the client rather than being handed out
+by `useI18n()`:
+
+```tsx
+import { useI18n, useI18nLoader, useI18nPlugins } from "@comvi/next/client";
+
+function Namespaces() {
+  const { t } = useI18n("admin");
+  const { addActiveNamespace, reloadTranslations, onLoadError } = useI18nLoader();
+  const { onMissingKey } = useI18nPlugins();
+  // …
+}
+```
+
+There is no next-specific hook API. Migrating from 0.4.x:
+`pnpm codemod:framework-slim "src/**/*.{ts,tsx,js,jsx}"`, or the
+[0.5.0 migration guide](https://github.com/comvi-io/comvi-js/blob/main/MIGRATION.md).
+
+## Composed server hosts: `createNextI18nFromHost`
+
+`createNextI18n` is unchanged and still the root recipe. When you want the
+server to pay only for what it uses, build the host yourself and hand it to the
+companion factory — exported from **`@comvi/next/server`** and nowhere else:
+
+```ts
+// i18n/index.ts
+import "server-only";
+import { createI18n } from "@comvi/core/slim";
+import { attachLoader } from "@comvi/core/loader";
+import { createNextI18nFromHost } from "@comvi/next/server";
+
+export const { i18n, routing } = createNextI18nFromHost(
+  () => {
+    const host = attachLoader(createI18n({ locale: "en", defaultNs: "default" }));
+    host.registerLoader(myLoader);
+    return host;
+  },
+  { locales: ["en", "de"], defaultLocale: "en", localePrefix: "as-needed" },
+);
+```
+
+The server **always** needs the loader — `NextServerHost = WrapperI18nHost & I18nLoaderApi`
+— while ICU and tag interpolation enter the graph only if your factory composes
+them. Options are routing-only; locale, namespaces, translations, tags, plugins
+and the API key belong to the host factory and do not exist on the options type.
+The result is exactly `{ i18n, routing }`, with no `.use*` methods and your host
+type preserved.
+
+`host()` is not called when the factory returns. The first `result.i18n` access
+**or** the first server helper that needs the instance (`getI18n()`,
+`loadTranslations()`) resolves it — two entry points into one cell, no required
+initialization order, exactly one call.
+
+**Configure the server i18n once per process.** A second `setI18n(other)` used
+to overwrite the first silently; it now throws, in development and production,
+naming both sources. A same-instance `setI18n()` stays a no-op.
+
+The client recipe is a bare `@comvi/core/slim` host hydrated from the catalog
+the server serialized. Whole-app comvi graph, min+gz, `next` and `react`
+externalized (`node scripts/size-check.mjs`):
+
+| graph                                                     | min+gz   |
+| --------------------------------------------------------- | -------- |
+| server, `createNextI18n` on root core                     | 10127    |
+| server, `createNextI18nFromHost` on slim + `attachLoader` | **7628** |
+| client, bare `@comvi/core/slim` hydrated                  | **7668** |
+
+Moving the server to a composed slim host saves **2499 B (−24.7%)**.
+
 ## Rich text with `<T>`
 
 The `<T>` component is inherited from [`@comvi/react`](../react). Embed components in translation strings without raw HTML or unsafe DOM injection.

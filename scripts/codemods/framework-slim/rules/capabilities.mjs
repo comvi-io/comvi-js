@@ -32,9 +32,11 @@ export const MEMBER_TO_HOOK = new Map(
 export const HOOK_NAMES = HOOKS.map(({ hook }) => hook);
 
 /**
- * The seven instance proxies `VueI18n` drops in 0.5.0 (plan §2.2 vue row).
- * Call sites move to `i18n.core.*`, but the receiver's type is textually
- * undecidable, so these are REPORTED, never rewritten.
+ * The eight instance proxies `VueI18n` drops in 0.5.0 (plan §2.2 vue row, plus
+ * `use` — removed in P6 so no member of the class is typed present yet throws
+ * on a host without the capability, §2.4). Call sites move to `i18n.core.*`,
+ * but the receiver's type is textually undecidable, so these are REPORTED,
+ * never rewritten.
  */
 export const DROPPED_VUE_PROXIES = [
   "addActiveNamespace",
@@ -44,6 +46,7 @@ export const DROPPED_VUE_PROXIES = [
   "registerPostProcessor",
   "onMissingKey",
   "onLoadError",
+  "use",
 ];
 
 /** The hook whose destructures this codemod rewrites. */

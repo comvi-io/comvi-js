@@ -107,14 +107,16 @@ export function detectEscapedHookResults(root) {
 }
 
 /**
- * Candidate call sites of the seven `VueI18n` proxies dropped in 0.5.0.
+ * Candidate call sites of the eight `VueI18n` proxies dropped in 0.5.0.
  *
  * The receiver's type is textually undecidable — `i18n.reloadTranslations()`
  * may be a `VueI18n` (migrate to `i18n.core.*`) or a raw core instance
  * (already correct) — so these are listed for a human, never rewritten. Only
  * `.vue` sources are scanned: elsewhere the same shape is overwhelmingly a
  * core instance and reporting it would be pure noise. P4 extends the receiver
- * set for nuxt `comvi.setup` hooks.
+ * set for nuxt `comvi.setup` hooks. P6 adds `use`, which VueI18n dropped with
+ * the rest; `app.use(plugin)` in a component is the one benign shape this
+ * catches, and the report says "if the receiver is a VueI18n" for that reason.
  */
 export function detectVueProxyCalls(root) {
   const findings = [];

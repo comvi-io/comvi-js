@@ -4,5 +4,11 @@
     "column": 3,
     "shape": "vue-instance-proxy-call",
     "detail": "`i18n.reloadTranslations(...)` — if the receiver is a VueI18n it must become `i18n.core.reloadTranslations(...)`"
+  },
+  {
+    "line": 11,
+    "column": 3,
+    "shape": "vue-instance-proxy-call",
+    "detail": "`i18n.use(...)` — if the receiver is a VueI18n it must become `i18n.core.use(...)`"
   }
 ]

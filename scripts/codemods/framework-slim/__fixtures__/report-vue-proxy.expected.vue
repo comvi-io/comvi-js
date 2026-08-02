@@ -8,6 +8,8 @@ const i18n = inject(I18N_INJECTION_KEY)!;
 
 function reload() {
   i18n.reloadTranslations();
+  i18n.use(SomePlugin());
   i18n.core.registerPostProcessor((value) => value);
+  i18n.core.use(SomePlugin());
 }
 </script>

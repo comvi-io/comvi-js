@@ -22,7 +22,7 @@ const toError = (error: unknown): Error =>
   error instanceof Error ? error : new Error(String(error));
 const noLoaderWarnings = new WeakSet<NuxtServerHost>();
 const NO_LOADER_WARNING_MESSAGE =
-  "[@comvi/nuxt] No loader configured. Register one in comvi.setup via i18n.use(...).";
+  "[@comvi/nuxt] No loader configured. Register one in comvi.setup via i18n.core.registerLoader(...) or i18n.core.use(...).";
 
 const toPlainObject = (
   value: Record<string, TranslationValue>,

@@ -38,8 +38,10 @@ type _InjectedCoreIsNotRoot = Expect<Equal<InjectedCore extends I18n ? true : fa
 injected.core.reloadTranslations();
 // @ts-expect-error — plugin-host capability is absent from the injected core's type
 injected.core.onMissingKey(() => undefined);
-// @ts-expect-error — the seven dropped proxies are gone from the instance too
+// @ts-expect-error — the eight dropped proxies are gone from the instance too
 injected.registerLoader(() => Promise.resolve({}));
+// @ts-expect-error — `use` dropped in 0.5.0 (P6); register through `core.use`
+injected.use(() => undefined);
 
 // The core-safe surface still resolves through the same path.
 injected.core.addTranslations({ en: { greeting: "Hello" } });
@@ -78,6 +80,18 @@ const fromRoot = createI18n({ locale: "en" });
 type _RootCoreIsRoot = Expect<Equal<(typeof fromRoot)["core"], I18n<{}>>>;
 void fromRoot.core.registerLoader(() => Promise.resolve({}));
 
-// The instance itself never regains the dropped proxies, whatever `C` is.
+// The instance itself never regains the dropped proxies, whatever `C` is —
+// including `use`, whose guarded proxy was the last typed-present-may-throw
+// member on the class (§2.4). Probed on every `C` shape the factories produce.
 // @ts-expect-error — dropped in 0.5.0; use `i18n.core.reloadTranslations()`
 fromComposed.reloadTranslations();
+// @ts-expect-error — dropped in 0.5.0; use `i18n.core.use(...)`
+fromComposed.use(() => undefined);
+// @ts-expect-error — dropped in 0.5.0 even where `C` is the ROOT `I18n`
+fromRoot.use(() => undefined);
+// @ts-expect-error — dropped in 0.5.0; a bare slim `C` has no `core.use` either
+fromBare.use(() => undefined);
+
+// The migrated shape compiles wherever the host really has the capability.
+void fromComposed.core.use(() => undefined);
+void fromRoot.core.use(() => undefined);

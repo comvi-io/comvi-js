@@ -134,6 +134,78 @@ The middleware auto-detects the user's language from the URL path, cookies, or t
 
 For more routing details, browser-language detection options, and helper composables like `useLocalePath` and `useSwitchLocalePath`, see the [documentation](https://comvi.io/docs/i18n/nuxt/).
 
+## Capability composables: `useI18nLoader()` / `useI18nPlugins()`
+
+Async loading and the plugin host are `@comvi/core` **capabilities**, not part
+of the translation core. Since 0.5.0 their members are acquired explicitly
+rather than being handed out by `useI18n()`. Both are auto-imported, like
+`useI18n`:
+
+```vue
+<script setup lang="ts">
+const { t } = useI18n("admin");
+const { addActiveNamespace, reloadTranslations, onLoadError } = useI18nLoader();
+const { onMissingKey } = useI18nPlugins();
+</script>
+```
+
+`comvi.setup` hooks receive a `VueI18n`, which dropped its eight capability
+proxies — move those calls to `i18n.core.*`:
+
+```diff
+-export default ({ i18n }) => { i18n.registerLoader(myLoader); };
++export default ({ i18n }) => { i18n.core.registerLoader(myLoader); };
+```
+
+`NuxtI18nSetupContext<C>` / `NuxtI18nSetup<C>` are generic in the host type and
+default to the root `I18n`, so a default-configuration hook needs no
+annotation. Migrating from 0.4.x:
+`pnpm codemod:framework-slim "app/**/*.{ts,vue}"`, or the
+[0.5.0 migration guide](https://github.com/comvi-io/comvi-js/blob/main/MIGRATION.md).
+
+## Composed hosts: the `hostModule` option
+
+By default the module builds a root `@comvi/core` instance and nothing changes.
+Point `hostModule` at a module of your own to compose the host instead, and pay
+only for the capabilities you use:
+
+```ts
+// nuxt.config.ts
+comvi: { locales: ["en", "de"], defaultLocale: "en", hostModule: "./comvi.host.ts" }
+```
+
+```ts
+// comvi.host.ts — default-export a factory returning a FRESH host per call
+import { createI18n } from "@comvi/core/slim";
+import { attachLoader } from "@comvi/core/loader";
+
+export default () => attachLoader(createI18n({ locale: "en" }));
+```
+
+It is a module **path**, not a function, and the branch is taken at **build
+time**: the generated `#build/comvi.host` template imports the root
+`@comvi/core` entry only when `hostModule` is unset. With it set, neither the
+runtime plugin nor the server utilities name a root entry at all — that is the
+whole saving, and a runtime `if` could not deliver it.
+
+A server-rendered app's host **needs `attachLoader`**: the server always loads
+translations (`NuxtServerHost = WrapperI18nHost & I18nLoaderApi`). The factory
+is called once per constructed instance — the client plugin, and each
+per-request server instance — and nuxt's resolved locale is applied to the host
+afterwards, so routing and detection still win.
+
+Whole-app comvi graph, min+gz (`node scripts/size-check.mjs`); both server rows
+are the same runtime modules and differ only in the emitted construction
+branch:
+
+| graph                                        | min+gz    |
+| -------------------------------------------- | --------- |
+| server, default root branch                  | 12317     |
+| server, `hostModule` (slim + `attachLoader`) | **10120** |
+| client, `hostModule` (bare slim, hydrated)   | **8734**  |
+
+A nuxt server on a composed slim + loader host saves **2197 B (−17.8%)**.
+
 ## Rich text with `<T>`
 
 The `<T>` component is inherited from [`@comvi/vue`](../vue). Embed components in translation strings without raw HTML or unsafe DOM injection.

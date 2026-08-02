@@ -16,7 +16,7 @@ The root entry `@comvi/core` is unchanged for existing users: `createI18n`/`new 
 
 `/slim` ships a narrowed surface. Async loading and plugin registration are not on a bare slim instance — they are absent from the module graph, not disabled by a flag — and TypeScript reports their use as a compile error rather than letting it fail at runtime. Compose them back outside-in:
 
-**Scope note:** `/slim` is supported for vanilla/direct usage in this release. The framework bindings (`@comvi/vue`, `@comvi/react`, `@comvi/solid`, `@comvi/svelte`, `@comvi/next`, `@comvi/nuxt`) require a full root `@comvi/core` instance; passing a slim instance is neither type-supported nor tested. The measured sizes below are the core entry alone, not total framework-app weight.
+**Scope note:** `/slim` is a first-class host for **every** framework binding in this release. `@comvi/vue`, `@comvi/react`, `@comvi/solid`, `@comvi/svelte`, `@comvi/next` and `@comvi/nuxt` now demand `WrapperI18nHost` (`I18nCoreInstance & I18nCoreExtraApi`) — exactly the surface a bare slim instance implements — so `createI18n` from `@comvi/core/slim`, from `@comvi/core`, or from any `attach*` composition of the two all work, and a binding's own graph no longer drags the root entry (and its ambient tag registration) into your bundle. The price is that the loader/plugin members left `useI18n()` for the dedicated `useI18nLoader()` / `useI18nPlugins()` acquisition APIs: see each binding's own entry in this release for its migration table, its codemod command and its measured whole-graph numbers. The measured sizes below are the core entry alone; the per-binding support matrix in `packages/core/README.md` carries the framework-app numbers.
 
 ```ts
 import { createI18n } from "@comvi/core/slim";
@@ -32,4 +32,4 @@ Three members moved off the base surface into `@comvi/core/loader`, where the on
 
 In a graph without a tag extension — bare slim, and slim + `/icu` — `<tag>…</tag>` is not syntax and stays in the output as literal text; `import "@comvi/core/tags"` or a per-call `tagInterpolation.extensions` restores parsing. Non-primitive parameter values are unchanged on every entry: `t()` coerces them into the string, `tRaw()` preserves them as a parts array.
 
-Measured min+gz through the published exports map: `/slim` 5,728 B, `/slim` + `/icu` 6,592 B, `/slim` + `/loader` + `/plugins` 6,875 B, root `@comvi/core` 8,583 B (the root entry is within 15 B of its pre-existing budget — the decomposition is paid for by slim, not charged to root).
+Measured min+gz through the published exports map: `/slim` 5,641 B, `/slim` + `/icu` 6,506 B, `/slim` + `/loader` + `/plugins` 6,877 B, root `@comvi/core` 8,581 B (the root entry is within 17 B of its pre-existing budget — the decomposition is paid for by slim, not charged to root).

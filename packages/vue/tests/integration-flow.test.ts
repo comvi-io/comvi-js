@@ -59,11 +59,11 @@ describe("Integration Flow", () => {
       defaultNs: "common",
     });
 
-    i18n.use((i18n) => {
+    i18n.core.use((i18n) => {
       i18n.registerLocaleDetector(() => mockLanguageDetector());
     });
 
-    i18n.use((i18n) => {
+    i18n.core.use((i18n) => {
       i18n.registerLoader(mockLoader);
     });
 
@@ -114,7 +114,7 @@ describe("Integration Flow", () => {
       defaultNs: "common",
     });
 
-    i18n.use((i18n) => {
+    i18n.core.use((i18n) => {
       i18n.registerLoader(mockLoader);
     });
 

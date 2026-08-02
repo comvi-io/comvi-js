@@ -82,12 +82,64 @@ constraint, `@comvi/core/slim` gives you the translation core alone and you comp
 rest back on from pure subpaths — nothing is behind a runtime flag, capabilities are
 absent because their modules never enter your module graph.
 
-> **Framework bindings require the root entry.** `@comvi/core/slim` is supported for
-> vanilla/direct usage only in 0.5.0. The `@comvi/{vue,react,solid,svelte,next,nuxt}`
-> bindings construct or expect a full root instance and will not type-check (or, for
-> Vue/Next, even instantiate) against a slim one — pass them `createI18n` from
-> `@comvi/core`. The size table below is the cost of the **core entry alone**, not the
-> total SDK weight of a framework app.
+### Framework bindings run on `/slim` too
+
+Every binding accepts a slim host. `@comvi/{react,solid,svelte,vue,next,nuxt}`
+demand `WrapperI18nHost` — `I18nCoreInstance & I18nCoreExtraApi`, which is
+exactly what a bare `@comvi/core/slim` instance implements — so the same
+component code runs on a bare slim host, on a composed one, or on the root
+entry. Loader and plugin members are no longer part of `useI18n()`; they are
+acquired explicitly through `useI18nLoader()` / `useI18nPlugins()`, which throw
+a named error (in development **and** production) on a host that lacks the
+capability rather than being typed present and failing at an arbitrary call
+site later.
+
+Whole-app **comvi graph**, min+gz, framework peer dependency externalized —
+every number below is produced by `node scripts/size-check.mjs` from the
+fixtures CI gates, never estimated:
+
+| binding                | root host | bare `/slim` host | saving           | slim recipe                                                                                      |
+| ---------------------- | --------- | ----------------- | ---------------- | ------------------------------------------------------------------------------------------------ |
+| `@comvi/react`         | 10229     | **7265**          | −2964 B (−29.0%) | `createI18n` from `@comvi/core/slim` → `<I18nProvider i18n={…}>`                                 |
+| `@comvi/solid`         | 9953      | **6978**          | −2975 B (−29.9%) | same host → `<I18nProvider i18n={…}>`                                                            |
+| `@comvi/svelte`        | 10012     | **7045**          | −2967 B (−29.6%) | same host → `setI18nContext(i18n)`                                                               |
+| `@comvi/vue`           | 10535     | **7599**          | −2936 B (−27.9%) | `createI18nFromCore(host)` from **`@comvi/vue/slim`**                                            |
+| `@comvi/next` (server) | 10127     | **7628**          | −2499 B (−24.7%) | `createNextI18nFromHost(() => host)` from **`@comvi/next/server`**; host = slim + `attachLoader` |
+| `@comvi/nuxt` (server) | 12317     | **10120**         | −2197 B (−17.8%) | `hostModule: "./comvi.host.ts"`; host = slim + `attachLoader`                                    |
+
+Rendering `<T>` buys the tag machinery on top of the slim rows, and only then:
+react **+1891 B**, solid **+1807 B**, svelte **+2210 B**, vue **+1865 B**.
+Client-only graphs: `@comvi/next` client on a hydrated bare-slim host is
+**7668 B**, `@comvi/nuxt` client **8734 B**.
+
+Three bindings need one line of explanation each:
+
+- **vue — import from `@comvi/vue/slim`.** The main entry tree-shakes the root
+  graph out of a `createI18nFromCore`-only app under esbuild, vite (development
+  and production) and webpack production. It does **not** under webpack
+  _development_: `@comvi/vue`'s index carries `export * from "@comvi/core"`, and
+  webpack cannot prune a star re-export with `usedExports` off, so the root
+  entry — and with it core's ambient `registerTagSyntax()` — survives and
+  `t("a <b>x</b>")` renders differently in dev than in prod. `@comvi/vue/slim`
+  ships the same classes, composables, `<T>` and injection key without
+  `createI18n` and without the core re-export; it is the entry the vue row
+  above measures.
+- **next — the server always needs a loader.** `createNextI18nFromHost` is
+  exported from `@comvi/next/server` and nowhere else, and its host type is
+  `NextServerHost = WrapperI18nHost & I18nLoaderApi`. `createNextI18n` keeps its
+  exact signature for root apps. The client rides react's host, hydrated from
+  the catalog the server serialized.
+- **nuxt — the host is a module path, branched at build time.** `hostModule`
+  points at a module whose default export is `() => WrapperI18nHost`; the
+  generated `#build/comvi.host` template imports the root entry only when the
+  option is unset. A server-rendered app's host needs `attachLoader`.
+
+No member of any binding is typed present and then throws "missing capability".
+`VueI18n` dropped all eight of its capability proxies, `use` included — plugin
+registration is `i18n.core.use(…)`, next to where the host is composed.
+
+Full migration tables, the codemod and the unsupported-shape list:
+[MIGRATION.md](https://github.com/comvi-io/comvi-js/blob/main/MIGRATION.md).
 
 ```ts
 import { createI18n } from "@comvi/core/slim";
@@ -186,10 +238,12 @@ Measured min+gz through the published exports map (`node scripts/size-check.mjs`
 
 | Entry                  | min+gz  |
 | ---------------------- | ------- |
-| `@comvi/core/slim`     | 5,728 B |
-| `+ /icu`               | 6,592 B |
-| `+ /loader + /plugins` | 6,875 B |
-| `@comvi/core` (root)   | 8,583 B |
+| `@comvi/core/slim`     | 5,641 B |
+| `+ /tags`              | 6,490 B |
+| `+ /icu`               | 6,506 B |
+| `+ /loader + /plugins` | 6,877 B |
+| `+ /icu + /tags`       | 7,330 B |
+| `@comvi/core` (root)   | 8,581 B |
 
 ## ICU MessageFormat — locale-correct grammar, not just singular/plural
 

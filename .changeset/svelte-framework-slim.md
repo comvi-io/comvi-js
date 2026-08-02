@@ -20,7 +20,7 @@ Codemod (checked in, goldens + idempotence gated in CI; it reads `.svelte` scrip
 pnpm codemod:framework-slim "src/**/*.{ts,js,svelte}"
 ```
 
-Exit `0` = clean or fully transformed, `2` = rewrites applied and manual items remain.
+Exit `0` = clean or fully transformed, `2` = rewrites applied and manual items remain (each printed as `path:line [shape] detail`; `--report report.json` writes the same list as JSON). It handles pure, mixed, aliased and repeated destructures and merges into an existing capability destructure; it refuses — loudly, never silently — rest spreads, computed keys, hook results stored in a variable or crossing a function boundary, local-name collisions with the introduced readers, `.svelte` script blocks that fail extraction, and relative-import call sites it cannot retarget. See the [0.5.0 migration guide](https://github.com/comvi-io/comvi-js/blob/main/MIGRATION.md).
 
 ### `useI18nLoader()` / `useI18nPlugins()` are readers, NOT stores
 

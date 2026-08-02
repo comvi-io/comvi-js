@@ -167,7 +167,8 @@ export interface NuxtI18nOptions {
 
   /**
    * Path to a setup file that runs before i18n.init().
-   * Use it to register plugins via i18n.use(...).
+   * Use it to register plugins via i18n.core.use(...) — `i18n` is a `VueI18n`,
+   * which dropped its capability proxies in 0.5.0.
    * If omitted, module auto-detects ./comvi.setup.* in project root.
    *
    * @example "./comvi.setup.ts"

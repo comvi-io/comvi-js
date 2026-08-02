@@ -1,0 +1,19 @@
+{
+  "$comment": "G7 canary fixtures (plan \u00a76). VERBATIM release-facing claims from the pre-wave tree that the framework-slim wave falsifies. The G7 gate FAILS unless its pattern set matches BOTH, which is what proves the patterns work against the exact claims they exist to kill. This file is NOT part of the G7 corpus (scripts/ is out of scope), so it cannot self-collide. Never edit the text: it is a historical snapshot, not documentation.",
+  "capturedFrom": {
+    "commit": "d1fb979",
+    "tag": "framework-slim/pre-wave"
+  },
+  "canaries": [
+    {
+      "origin": ".changeset/core-subpath-entries.md:19",
+      "supersededBy": "P6.2 \u2014 scope note rewritten to the framework-slim support statement (plan \u00a711)",
+      "text": "**Scope note:** `/slim` is supported for vanilla/direct usage in this release. The framework bindings (`@comvi/vue`, `@comvi/react`, `@comvi/solid`, `@comvi/svelte`, `@comvi/next`, `@comvi/nuxt`) require a full root `@comvi/core` instance; passing a slim instance is neither type-supported nor tested. The measured sizes below are the core entry alone, not total framework-app weight."
+    },
+    {
+      "origin": "packages/core/README.md:85-86",
+      "supersededBy": "P6.1 \u2014 replaced by the per-wrapper support matrix (plan \u00a711)",
+      "text": "> **Framework bindings require the root entry.** `@comvi/core/slim` is supported for\n> vanilla/direct usage only in 0.5.0. The `@comvi/{vue,react,solid,svelte,next,nuxt}`"
+    }
+  ]
+}

@@ -87,6 +87,93 @@ const { t, locale, setLocale } = useI18n();
 
 For the `<T>` component (rich text with slot-based tag interpolation), `$t` template helper, type-safe keys, and the full composable API, see the [documentation](https://comvi.io/docs/i18n/vue/).
 
+## Capability composables: `useI18nLoader()` / `useI18nPlugins()`
+
+Async loading and the plugin host are `@comvi/core` **capabilities**, not part
+of the translation core. Since 0.5.0 their members are acquired explicitly
+rather than being handed out by `useI18n()`:
+
+```vue
+<script setup lang="ts">
+import { useI18n, useI18nLoader, useI18nPlugins } from "@comvi/vue";
+
+const { t } = useI18n("admin");
+const { addActiveNamespace, reloadTranslations, onLoadError } = useI18nLoader();
+const { onMissingKey } = useI18nPlugins();
+</script>
+```
+
+Neither takes parameters — the namespace argument stays on `useI18n(ns)`. The
+bag is referentially stable per host instance (keyed on the core, so two
+`VueI18n` wrappers over one host share it).
+
+On a host that lacks the capability the acquisition call throws — in
+development **and** production, never a silent no-op:
+
+```
+[comvi] This i18n instance has no loader capability. Attach it: import { attachLoader } from "@comvi/core/loader" — or use the root "@comvi/core" entry.
+```
+
+**`VueI18n` dropped its eight instance proxies.** `addActiveNamespace`,
+`reloadTranslations`, `registerLoader`, `registerLocaleDetector`,
+`registerPostProcessor`, `onMissingKey`, `onLoadError` and `use` are gone from
+the class; the host it wraps is public as `readonly core`, so registration
+happens there:
+
+```diff
+-i18n.registerLoader(myLoader);
+-i18n.use(FetchLoader({ … }));
++i18n.core.registerLoader(myLoader);
++i18n.core.use(FetchLoader({ … }));
+```
+
+Note that `i18n.core.use(…)` returns the host, not the wrapper, so it no longer
+chains off the `createI18n(…)` call. Nothing on `VueI18n` is typed present and
+then throws "missing capability" — that is why `use` left with the rest.
+
+Migrating from 0.4.x: `pnpm codemod:framework-slim "src/**/*.{ts,vue}"` (it
+rewrites the destructures and _reports_ the proxy call sites, whose receiver
+type is textually undecidable), or the
+[0.5.0 migration guide](https://github.com/comvi-io/comvi-js/blob/main/MIGRATION.md).
+
+## Supported hosts and what they cost
+
+`createI18n(options)` is unchanged and still the default — it builds the root
+core internally. `createI18nFromCore(core, options?)` wraps a host you composed
+yourself, preserving its exact type as `i18n.core`.
+
+**For a slim build, import from `@comvi/vue/slim`.** The main entry
+tree-shakes the root graph out of a `createI18nFromCore`-only app under esbuild,
+vite (development and production) and webpack production — but not under
+webpack _development_: `@comvi/vue`'s index carries `export * from "@comvi/core"`,
+and webpack cannot prune a star re-export with `usedExports` off, so the root
+entry survives and runs core's ambient `registerTagSyntax()` — which makes
+`t("a <b>x</b>")` render differently in dev than in prod. `@comvi/vue/slim`
+ships the same classes, composables, `<T>` and injection key without
+`createI18n` and without the core re-export.
+
+```ts
+import { createI18n } from "@comvi/core/slim";
+import { attachLoader } from "@comvi/core/loader";
+import { createI18nFromCore } from "@comvi/vue/slim";
+
+const host = attachLoader(createI18n({ locale: "en" }));
+const i18n = createI18nFromCore(host); // i18n.core is exactly `host`
+```
+
+Whole-app comvi graph, min+gz, `vue` externalized
+(`node scripts/size-check.mjs`):
+
+| host                                            | no `<T>` | with `<T>` |
+| ----------------------------------------------- | -------- | ---------- |
+| `@comvi/core` (root, via `createI18n`)          | 10535    | 11565      |
+| bare `@comvi/core/slim` (via `@comvi/vue/slim`) | **7599** | 9464       |
+
+Moving to a bare slim host saves **2936 B (−27.9%)**. The root row also dropped
+1395 B in 0.5.0 with no app change: `@comvi/vue` no longer inlines copies of
+core's tag + translate chunks into its own bundle, and `<T>` moved into its own
+dist chunk, so an app that never renders it ships neither.
+
 ## Rich text with `<T>`
 
 Embed components inside translation strings without raw HTML, without unsafe DOM injection. Translators see clean markup; you control the rendering via named slots.
@@ -260,8 +347,10 @@ const i18n = createI18n({
   defaultNs: "common",
 });
 
-// CDN for production, API for dev/staging
-i18n.use(
+// CDN for production, API for dev/staging.
+// Plugin registration is a core capability: `VueI18n` exposes the host it
+// wraps as `i18n.core`, and that is where plugins are registered in 0.5.0.
+i18n.core.use(
   FetchLoader({
     cdnUrl: "https://cdn.comvi.io/your-distribution-id",
   }),

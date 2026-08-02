@@ -1,5 +1,5 @@
 {
-  "note": "min+gz budgets in bytes, enforced by scripts/size-check.mjs (esbuild bundle via the published exports map, minify, gzip -9). The full budget is the measured baseline + 2%. `baseline` blocks record the last measured numbers behind a budget \u2014 they are evidence, not gates. Entries with pending:true are declared slots a later phase graduates; the gate skips them with the notice in `pendingReason` and they gate nothing until the flag is dropped. Informational entries (no gzipBudgetBytes) are measured and printed, never gated. `external` keeps framework peer deps out of a fixture's bundle so the framework fixtures measure the comvi graph only. `sentinelModules` + `expectSentinels` assert module-graph membership from the esbuild metafile (module IDs, never output text); `node scripts/size-check.mjs --modules` prints the full comvi module list behind those fixtures.",
+  "note": "min+gz budgets in bytes, enforced by scripts/size-check.mjs (esbuild bundle via the published exports map, minify, gzip -9). The full budget is the measured baseline + 2%. `baseline` blocks record the last measured numbers behind a budget — they are evidence, not gates. Entries with pending:true are declared slots a later phase graduates; the gate skips them with the notice in `pendingReason` and they gate nothing until the flag is dropped. Informational entries (no gzipBudgetBytes) are measured and printed, never gated. `external` keeps framework peer deps out of a fixture's bundle so the framework fixtures measure the comvi graph only. `sentinelModules` + `expectSentinels` assert module-graph membership from the esbuild metafile (module IDs, never output text); `node scripts/size-check.mjs --modules` prints the full comvi module list behind those fixtures.",
   "fixtures": [
     {
       "name": "full",
@@ -11,7 +11,7 @@
         "gzipBytes": 8429,
         "measuredAt": "2026-08-02"
       },
-      "note": "Budget = the 8429 B pre-0.5.0 baseline + 2%, USER-signed. Phase 7 landed at 8583 B (+12 B vs the pre-Phase-7 cb1735a measurement of 8571 B: +27 B is the R2 mangler correctness fix, +67 B capability glue, -82 B recovered by translate golf). The budget is deliberately NOT re-anchored to 8583 \u2014 the 15 B of remaining headroom is the fixed envelope the plan reserved."
+      "note": "Budget = the 8429 B pre-0.5.0 baseline + 2%, USER-signed. Phase 7 landed at 8583 B (+12 B vs the pre-Phase-7 cb1735a measurement of 8571 B: +27 B is the R2 mangler correctness fix, +67 B capability glue, -82 B recovered by translate golf). The budget is deliberately NOT re-anchored to 8583 — the 15 B of remaining headroom is the fixed envelope the plan reserved."
     },
     {
       "name": "slim",
@@ -23,7 +23,7 @@
         "gzipBytes": 5641,
         "measuredAt": "2026-08-02"
       },
-      "note": "Ratcheted 6912 -> 5760 after the Phase-7 capability decomposition, then 5760 -> 5673 in framework-slim P1 (measured 5641 B + the same 32 B drift margin). P1 moved setLocaleAsync's race machinery \u2014 changeId staleness, mid-flight cancellation, loading refcount \u2014 out of the base class into the `@comvi/core/loader` override, so a bare slim instance no longer pays for a race it cannot have: -87 B measured against the probe's -94 B ceiling (agent://LocaleRaceProbe), i.e. the seam glue costs 7 B. The original 5632 target is now within 9 B but is NOT claimed met. The remaining levers are unchanged: C3 (post-process pipeline hook + narrowed slim options, ~-80 B) plus a bounded golf pass; the USER declined C3 for 0.5.0 (API cost > 96 B benefit). Tracked in .omc/plans/open-questions.md."
+      "note": "Ratcheted 6912 -> 5760 after the Phase-7 capability decomposition, then 5760 -> 5673 in framework-slim P1 (measured 5641 B + the same 32 B drift margin). P1 moved setLocaleAsync's race machinery — changeId staleness, mid-flight cancellation, loading refcount — out of the base class into the `@comvi/core/loader` override, so a bare slim instance no longer pays for a race it cannot have: -87 B measured against the probe's -94 B ceiling (agent://LocaleRaceProbe), i.e. the seam glue costs 7 B. The original 5632 target is now within 9 B but is NOT claimed met. The remaining levers are unchanged: C3 (post-process pipeline hook + narrowed slim options, ~-80 B) plus a bounded golf pass; the USER declined C3 for 0.5.0 (API cost > 96 B benefit). Tracked in .omc/plans/open-questions.md."
     },
     {
       "name": "slim-loader",
@@ -41,7 +41,7 @@
         "gzipBytes": 6490,
         "measuredAt": "2026-08-02"
       },
-      "note": "Graduated from pending:true in framework-slim P0.4 \u2014 the /tags subpath has been exported since Phase 7, so the flag was stale and the row was silently ungated. Re-baselined in P1 (6574 -> 6490, -84 B from the setLocaleAsync race seam). Budget = measured 6490 B + 2%. This is the measured anchor for the plan's \"inline catalogs, with <T>\" ladder row (slim 5641 -> 6490, +849 B)."
+      "note": "Graduated from pending:true in framework-slim P0.4 — the /tags subpath has been exported since Phase 7, so the flag was stale and the row was silently ungated. Re-baselined in P1 (6574 -> 6490, -84 B from the setLocaleAsync race seam). Budget = measured 6490 B + 2%. This is the measured anchor for the plan's \"inline catalogs, with <T>\" ladder row (slim 5641 -> 6490, +849 B)."
     },
     {
       "name": "slim-icu",
@@ -53,7 +53,7 @@
         "gzipBytes": 6506,
         "measuredAt": "2026-08-02"
       },
-      "note": "Post-Phase-7 measured baseline 6592 B, re-baselined to 6506 B in framework-slim P1 (-86 B from the setLocaleAsync race seam; the entry shares every slim class lever). The budget deliberately stays at 7680 \u2014 ratcheting it to ~measured+margin is a named follow-up owned by the release captain, post-0.5.0, and this baseline block is the data it starts from."
+      "note": "Post-Phase-7 measured baseline 6592 B, re-baselined to 6506 B in framework-slim P1 (-86 B from the setLocaleAsync race seam; the entry shares every slim class lever). The budget deliberately stays at 7680 — ratcheting it to ~measured+margin is a named follow-up owned by the release captain, post-0.5.0, and this baseline block is the data it starts from."
     },
     {
       "name": "slim-icu-tags",
@@ -65,7 +65,7 @@
         "gzipBytes": 7330,
         "measuredAt": "2026-08-02"
       },
-      "note": "Composed-additivity fixture (P0.9). MEASURED, not summed: the plan's \"+ ICU + <T>\" row estimated 7438 B by adding per-entry deltas; the actual composed graph measured 7416 B (-22 B, i.e. composition is very slightly sub-additive), re-baselined to 7330 B in framework-slim P1 (-86 B from the setLocaleAsync race seam). Budget = measured + 2%. Landed measured rather than pending:true because every specifier it needs already ships \u2014 a pending flag here would have been stale on arrival, exactly the slim-tags failure P0.4 fixes."
+      "note": "Composed-additivity fixture (P0.9). MEASURED, not summed: the plan's \"+ ICU + <T>\" row estimated 7438 B by adding per-entry deltas; the actual composed graph measured 7416 B (-22 B, i.e. composition is very slightly sub-additive), re-baselined to 7330 B in framework-slim P1 (-86 B from the setLocaleAsync race seam). Budget = measured + 2%. Landed measured rather than pending:true because every specifier it needs already ships — a pending flag here would have been stale on arrival, exactly the slim-tags failure P0.4 fixes."
     },
     {
       "name": "slim-loader-tags",
@@ -82,7 +82,7 @@
         "gzipBytes": 7719,
         "measuredAt": "2026-08-02"
       },
-      "note": "Composed-additivity fixture (P0.9). MEASURED, not summed: the plan's \"loader (+plugins) + <T>\" row estimated 7721 B; the actual composed graph measured 7715 B (-6 B), re-baselined to 7719 B in framework-slim P1. The budget is NOT ratcheted: this graph carries the loader capability, which is where the P1 race seam moved to, so it pays +4 B for the seam glue instead of saving \u2014 exactly the trade the seam makes. Budget stays measured(P0) + 2%."
+      "note": "Composed-additivity fixture (P0.9). MEASURED, not summed: the plan's \"loader (+plugins) + <T>\" row estimated 7721 B; the actual composed graph measured 7715 B (-6 B), re-baselined to 7719 B in framework-slim P1. The budget is NOT ratcheted: this graph carries the loader capability, which is where the P1 race seam moved to, so it pays +4 B for the seam glue instead of saving — exactly the trade the seam makes. Budget stays measured(P0) + 2%."
     },
     {
       "name": "probe-react-tags-pinning",
@@ -107,7 +107,7 @@
           "packages/react/dist/comvi-react.js"
         ]
       },
-      "note": "P0.3 tags-pinning probe, FLIPPED in framework-slim P2. BEFORE (P0, 11305 B / 12 comvi modules): the app picked @comvi/core/slim while @comvi/react value-imported the root entry, so the graph held comvi-core-slim.js AND comvi-core.js AND the side-effectful register-tags chunk \u2014 picking slim cost 27 B MORE than staying on root. AFTER P2 (7264 B / 6 modules): the value imports resolve through @comvi/core/slim, <T> lives in its own chunk (dist/chunks/comvi-react-T.js) so this no-<T> app never reaches @comvi/core/tags, and the index's `export { createI18n, I18n } from \"@comvi/core\"` (blocker B2) tree-shakes \u2014 the whole root entry, both tags chunks, the icu/plugins/importMapLoader chunks and the react T chunk left the graph. The module-ID diff is the named input for a P2/P3 gray-zone diagnosis cycle (plan \u00a74 Phase 2)."
+      "note": "P0.3 tags-pinning probe, FLIPPED in framework-slim P2. BEFORE (P0, 11305 B / 12 comvi modules): the app picked @comvi/core/slim while @comvi/react value-imported the root entry, so the graph held comvi-core-slim.js AND comvi-core.js AND the side-effectful register-tags chunk — picking slim cost 27 B MORE than staying on root. AFTER P2 (7264 B / 6 modules): the value imports resolve through @comvi/core/slim, <T> lives in its own chunk (dist/chunks/comvi-react-T.js) so this no-<T> app never reaches @comvi/core/tags, and the index's `export { createI18n, I18n } from \"@comvi/core\"` (blocker B2) tree-shakes — the whole root entry, both tags chunks, the icu/plugins/importMapLoader chunks and the react T chunk left the graph. The module-ID diff is the named input for a P2/P3 gray-zone diagnosis cycle (plan §4 Phase 2)."
     },
     {
       "name": "fw-react-root",
@@ -120,7 +120,7 @@
         "gzipBytes": 10229,
         "measuredAt": "2026-08-02"
       },
-      "note": "Root baseline; the \"before\" anchor for S = minzip(fw-react-root) - minzip(fw-react-slim) at the P2 gate (both measured live at the same commit, per plan \u00a74 Phase 2). Re-baselined in P2: 11278 -> 10229 B. Two named causes, both real consumer wins \u2014 (1) <T> moved into its own dist chunk with a /*@__PURE__*/ memo, so a root app that never renders <T> stops shipping it; (2) the harness now honors the published `sideEffects` field for plugin-resolved entries, so re-exports a real bundler prunes no longer inflate the measurement. This graph still holds BOTH core entries (comvi-core.js from the app's createI18n, comvi-core-slim.js from the wrapper) \u2014 blocker B4, measured, not assumed. Budget = measured + 2%."
+      "note": "Root baseline; the \"before\" anchor for S = minzip(fw-react-root) - minzip(fw-react-slim) at the P2 gate (both measured live at the same commit, per plan §4 Phase 2). Re-baselined in P2: 11278 -> 10229 B. Two named causes, both real consumer wins — (1) <T> moved into its own dist chunk with a /*@__PURE__*/ memo, so a root app that never renders <T> stops shipping it; (2) the harness now honors the published `sideEffects` field for plugin-resolved entries, so re-exports a real bundler prunes no longer inflate the measurement. This graph still holds BOTH core entries (comvi-core.js from the app's createI18n, comvi-core-slim.js from the wrapper) — blocker B4, measured, not assumed. Budget = measured + 2%."
     },
     {
       "name": "fw-react-root-t",
@@ -160,7 +160,7 @@
           "packages/react/dist/comvi-react.js"
         ]
       },
-      "note": "GRADUATED in framework-slim P2. The D' endpoint: react on a bare @comvi/core/slim host. S = fw-react-root(10229) - 7265 = 2964 B >= the 2500 floor, so P2 proceeds (plan \u00a74 Phase 2). Sentinels assert the root entry AND both tags chunks are absent from the module graph, not merely from the output text. Budget = measured + 2%."
+      "note": "GRADUATED in framework-slim P2. The D' endpoint: react on a bare @comvi/core/slim host. S = fw-react-root(10229) - 7265 = 2964 B >= the 2500 floor, so P2 proceeds (plan §4 Phase 2). Sentinels assert the root entry AND both tags chunks are absent from the module graph, not merely from the output text. Budget = measured + 2%."
     },
     {
       "name": "fw-react-slim-t",
@@ -175,7 +175,7 @@
         "gzipBytes": 9156,
         "measuredAt": "2026-08-02"
       },
-      "note": "GRADUATED in framework-slim P2: react on bare slim that also renders <T>, i.e. the slim+tags rung. +1891 B over fw-react-slim \u2014 <T> plus @comvi/core/tags, now that both are opt-in. The sentinel asserts only the ROOT entry's absence: the tags chunks are expected here, they are what the fixture buys."
+      "note": "GRADUATED in framework-slim P2: react on bare slim that also renders <T>, i.e. the slim+tags rung. +1891 B over fw-react-slim — <T> plus @comvi/core/tags, now that both are opt-in. The sentinel asserts only the ROOT entry's absence: the tags chunks are expected here, they are what the fixture buys."
     },
     {
       "name": "fw-solid-root",
@@ -188,7 +188,7 @@
         "gzipBytes": 9953,
         "measuredAt": "2026-08-02"
       },
-      "note": "Root baseline; the \"before\" anchor for S = minzip(fw-solid-root) - minzip(fw-solid-slim) at the P3 gate (both measured live at the same commit, per plan \u00a74 Phase 2). Re-baselined in P3: 9992 -> 9953 B \u2014 <T> moved into its own dist chunk (dist/chunks/comvi-solid-T.js), which trims the entry module even here, where the app's own root createI18n keeps the tags chunks alive anyway. This graph holds BOTH core entries (comvi-core.js from the app's createI18n, comvi-core-slim.js from the wrapper) \u2014 blocker B4, measured, not assumed. Budget = measured + 2%."
+      "note": "Root baseline; the \"before\" anchor for S = minzip(fw-solid-root) - minzip(fw-solid-slim) at the P3 gate (both measured live at the same commit, per plan §4 Phase 2). Re-baselined in P3: 9992 -> 9953 B — <T> moved into its own dist chunk (dist/chunks/comvi-solid-T.js), which trims the entry module even here, where the app's own root createI18n keeps the tags chunks alive anyway. This graph holds BOTH core entries (comvi-core.js from the app's createI18n, comvi-core-slim.js from the wrapper) — blocker B4, measured, not assumed. Budget = measured + 2%."
     },
     {
       "name": "fw-solid-root-t",
@@ -201,7 +201,7 @@
         "gzipBytes": 10906,
         "measuredAt": "2026-08-02"
       },
-      "note": "Root baseline with <T>. +953 B over fw-solid-root. Re-baselined in P3: 10879 -> 10906 B (+27 B) \u2014 the cost of the T chunk boundary and its import statement, the price the no-<T> graph is paid for. Budget = measured + 2%."
+      "note": "Root baseline with <T>. +953 B over fw-solid-root. Re-baselined in P3: 10879 -> 10906 B (+27 B) — the cost of the T chunk boundary and its import statement, the price the no-<T> graph is paid for. Budget = measured + 2%."
     },
     {
       "name": "fw-solid-slim",
@@ -227,7 +227,7 @@
           "packages/solid/dist/comvi-solid.js"
         ]
       },
-      "note": "GRADUATED in framework-slim P3. The D' endpoint: solid on a bare @comvi/core/slim host. S = fw-solid-root(9953) - 6978 = 2975 B >= the 2500 floor, so P3 proceeds (plan \u00a74 Phase 3, same bar as Phase 2). Sentinels assert the root entry AND both tags chunks are absent from the module graph, not merely from the output text \u2014 reachable only because <T> now lives in dist/chunks/comvi-solid-T.js (fs-p1 blocker B1) and the index's `export { createI18n, I18n } from \"@comvi/core\"` (blocker B2) tree-shakes. Budget = measured + 2%."
+      "note": "GRADUATED in framework-slim P3. The D' endpoint: solid on a bare @comvi/core/slim host. S = fw-solid-root(9953) - 6978 = 2975 B >= the 2500 floor, so P3 proceeds (plan §4 Phase 3, same bar as Phase 2). Sentinels assert the root entry AND both tags chunks are absent from the module graph, not merely from the output text — reachable only because <T> now lives in dist/chunks/comvi-solid-T.js (fs-p1 blocker B1) and the index's `export { createI18n, I18n } from \"@comvi/core\"` (blocker B2) tree-shakes. Budget = measured + 2%."
     },
     {
       "name": "fw-solid-slim-t",
@@ -242,7 +242,7 @@
         "gzipBytes": 8785,
         "measuredAt": "2026-08-02"
       },
-      "note": "GRADUATED in framework-slim P3: solid on bare slim that also renders <T>, i.e. the slim+tags rung. +1807 B over fw-solid-slim \u2014 <T> plus @comvi/core/tags, now that both are opt-in. The sentinel asserts only the ROOT entry's absence: the tags chunks are expected here, they are what the fixture buys. Budget = measured + 2%."
+      "note": "GRADUATED in framework-slim P3: solid on bare slim that also renders <T>, i.e. the slim+tags rung. +1807 B over fw-solid-slim — <T> plus @comvi/core/tags, now that both are opt-in. The sentinel asserts only the ROOT entry's absence: the tags chunks are expected here, they are what the fixture buys. Budget = measured + 2%."
     },
     {
       "name": "fw-svelte-root",
@@ -268,7 +268,7 @@
         "gzipBytes": 11399,
         "measuredAt": "2026-08-02"
       },
-      "note": "Root baseline with <T>. +1387 B over fw-svelte-root \u2014 T lives in its own module (dist/T.svelte), so it tree-shakes cleanly out of the no-<T> graph. Re-baselined in P3: 11389 -> 11399 B. Budget = measured + 2%."
+      "note": "Root baseline with <T>. +1387 B over fw-svelte-root — T lives in its own module (dist/T.svelte), so it tree-shakes cleanly out of the no-<T> graph. Re-baselined in P3: 11389 -> 11399 B. Budget = measured + 2%."
     },
     {
       "name": "fw-svelte-slim",
@@ -297,7 +297,7 @@
           "packages/svelte/dist/useI18n.js"
         ]
       },
-      "note": "GRADUATED in framework-slim P3. The D' endpoint: svelte on a bare @comvi/core/slim host \u2014 the configuration that CRASHED before this wave, because useI18n() eagerly .bind()-ed four absent capability members. S = fw-svelte-root(10012) - 7045 = 2967 B >= the 2500 floor, so P3 proceeds. Sentinels assert the root entry AND both tags chunks are absent from the module graph; svelte-package already emitted T.svelte as its own module, so no chunk split was needed here \u2014 only the retarget and the eager-bind relocation. Budget = measured + 2%."
+      "note": "GRADUATED in framework-slim P3. The D' endpoint: svelte on a bare @comvi/core/slim host — the configuration that CRASHED before this wave, because useI18n() eagerly .bind()-ed four absent capability members. S = fw-svelte-root(10012) - 7045 = 2967 B >= the 2500 floor, so P3 proceeds. Sentinels assert the root entry AND both tags chunks are absent from the module graph; svelte-package already emitted T.svelte as its own module, so no chunk split was needed here — only the retarget and the eager-bind relocation. Budget = measured + 2%."
     },
     {
       "name": "fw-svelte-slim-t",
@@ -312,40 +312,40 @@
         "gzipBytes": 9255,
         "measuredAt": "2026-08-02"
       },
-      "note": "GRADUATED in framework-slim P3: svelte on bare slim that also renders <T>, i.e. the slim+tags rung. +2210 B over fw-svelte-slim \u2014 T.svelte's compiled output plus @comvi/core/tags. The sentinel asserts only the ROOT entry's absence: the tags chunks are expected here, they are what the fixture buys. Budget = measured + 2%."
+      "note": "GRADUATED in framework-slim P3: svelte on bare slim that also renders <T>, i.e. the slim+tags rung. +2210 B over fw-svelte-slim — T.svelte's compiled output plus @comvi/core/tags. The sentinel asserts only the ROOT entry's absence: the tags chunks are expected here, they are what the fixture buys. Budget = measured + 2%."
     },
     {
       "name": "fw-vue-root",
       "entry": ["@comvi/vue"],
       "fixture": "framework/vue-root.ts",
       "external": ["vue"],
-      "gzipBudgetBytes": 10887,
+      "gzipBudgetBytes": 10745,
       "baseline": {
-        "minBytes": 32088,
-        "gzipBytes": 10673,
+        "minBytes": 31712,
+        "gzipBytes": 10535,
         "measuredAt": "2026-08-02"
       },
-      "note": "Root baseline; the \"before\" anchor for S at the P4 vue gate, RE-MEASURED in P4 (was 11935). The app shape is vue's own createI18n (which constructs the root core internally), so the fixture needs no @comvi/core import. P4 made the root graph 1261 B smaller with no app change: @comvi/vue no longer INLINES core's tags+translate chunks (fs-p1 blocker B3 \u2014 vite.config.ts now externalizes @comvi/core/slim and @comvi/core/tags), and <T> moved into its own dist chunk, so an app that never renders it drops the component AND the tag machinery. Budget = measured + 2%."
+      "note": "Root baseline; the \"before\" anchor for S at the P4 vue gate, RE-MEASURED in P4 (was 11935). The app shape is vue's own createI18n (which constructs the root core internally), so the fixture needs no @comvi/core import. P4 made the root graph 1261 B smaller with no app change: @comvi/vue no longer INLINES core's tags+translate chunks (fs-p1 blocker B3 — vite.config.ts now externalizes @comvi/core/slim and @comvi/core/tags), and <T> moved into its own dist chunk, so an app that never renders it drops the component AND the tag machinery. RE-MEASURED in P6: removing VueI18n's guarded `use()` proxy (the last typed-present-may-throw member, plan §2.4) took the wrapper graph down again — see the fixture's baseline for the current value. Budget = measured + 2%."
     },
     {
       "name": "fw-vue-root-t",
       "entry": ["@comvi/vue"],
       "fixture": "framework/vue-root-t.ts",
       "external": ["vue"],
-      "gzipBudgetBytes": 11939,
+      "gzipBudgetBytes": 11796,
       "baseline": {
-        "minBytes": 34970,
-        "gzipBytes": 11704,
+        "minBytes": 34594,
+        "gzipBytes": 11565,
         "measuredAt": "2026-08-02"
       },
-      "note": "Root baseline, RE-MEASURED in P4 (was 11944). The <T> axis is no longer degenerate: +1031 B over fw-vue-root, where P0 measured +9 B because `var T = defineComponent({...})` was an unannotated top-level call in a single-file dist. P4 pinned <T> into dist/chunks/comvi-vue-T.js and marked the call /*@__PURE__*/. Budget = measured + 2%."
+      "note": "Root baseline, RE-MEASURED in P4 (was 11944). The <T> axis is no longer degenerate: +1031 B over fw-vue-root, where P0 measured +9 B because `var T = defineComponent({...})` was an unannotated top-level call in a single-file dist. P4 pinned <T> into dist/chunks/comvi-vue-T.js and marked the call /*@__PURE__*/. RE-MEASURED in P6: removing VueI18n's guarded `use()` proxy (the last typed-present-may-throw member, plan §2.4) took the wrapper graph down again — see the fixture's baseline for the current value. Budget = measured + 2%."
     },
     {
       "name": "fw-vue-slim",
       "entry": ["@comvi/vue", "@comvi/core/slim"],
       "fixture": "framework/vue-slim.ts",
       "external": ["vue"],
-      "gzipBudgetBytes": 7904,
+      "gzipBudgetBytes": 7750,
       "sentinelModules": [
         "packages/core/dist/comvi-core.js",
         "packages/core/dist/comvi-core-tags.js",
@@ -353,33 +353,35 @@
       ],
       "expectSentinels": "absent",
       "baseline": {
-        "minBytes": 23307,
-        "gzipBytes": 7750,
+        "minBytes": 22930,
+        "gzipBytes": 7599,
         "measuredAt": "2026-08-02",
         "modules": [
           "packages/core/dist/chunks/comvi-core-format-BkC69UYF.js",
           "packages/core/dist/chunks/comvi-core-i18n-77JJC1Jv.js",
           "packages/core/dist/chunks/comvi-core-translate-D4sgneYZ.js",
           "packages/core/dist/comvi-core-slim.js",
-          "packages/vue/dist/comvi-vue.js"
+          "packages/vue/dist/chunks/comvi-vue-slim-keys.js",
+          "packages/vue/dist/comvi-vue-slim.js",
+          "scripts/size-fixtures/framework/vue-slim.ts"
         ]
       },
-      "note": "GRADUATED in framework-slim P4. The D' endpoint: vue on a bare @comvi/core/slim host through createI18nFromCore. S = fw-vue-root(10673) - 7750 = 2923 B >= the 2500 floor, so P4 proceeds (plan \u00a74 Phase 2 protocol). The sentinels are also measured through the @comvi/vue/slim subpath P4-AB1 shipped (webpack development retained the root entry through index.ts's `export * from \"@comvi/core\"`), and the sentinels pin that the root entry and both tags chunks stay out of the graph. Budget = measured + 2%."
+      "note": "GRADUATED in framework-slim P4. The D' endpoint: vue on a bare @comvi/core/slim host through createI18nFromCore. S = fw-vue-root(10535) - 7599 = 2936 B >= the 2500 floor, so P4 proceeds (plan §4 Phase 2 protocol). The sentinels are also measured through the @comvi/vue/slim subpath P4-AB1 shipped (webpack development retained the root entry through index.ts's `export * from \"@comvi/core\"`), and the sentinels pin that the root entry and both tags chunks stay out of the graph. RE-MEASURED in P6: removing VueI18n's guarded `use()` proxy (the last typed-present-may-throw member, plan §2.4) took the wrapper graph down again — see the fixture's baseline for the current value. Budget = measured + 2%."
     },
     {
       "name": "fw-vue-slim-t",
       "entry": ["@comvi/vue", "@comvi/core/slim"],
       "fixture": "framework/vue-slim-t.ts",
       "external": ["vue"],
-      "gzipBudgetBytes": 9816,
+      "gzipBudgetBytes": 9653,
       "sentinelModules": ["packages/core/dist/comvi-core.js"],
       "expectSentinels": "absent",
       "baseline": {
-        "minBytes": 28547,
-        "gzipBytes": 9624,
+        "minBytes": 28171,
+        "gzipBytes": 9464,
         "measuredAt": "2026-08-02"
       },
-      "note": "GRADUATED in framework-slim P4: vue on bare slim that also renders <T>, i.e. the slim+tags rung. +1874 B over fw-vue-slim \u2014 <T> plus @comvi/core/tags, now that both are opt-in. The sentinel asserts only the ROOT entry's absence: the tags chunks are expected here, they are what the fixture buys."
+      "note": "GRADUATED in framework-slim P4: vue on bare slim that also renders <T>, i.e. the slim+tags rung. +1874 B over fw-vue-slim — <T> plus @comvi/core/tags, now that both are opt-in. The sentinel asserts only the ROOT entry's absence: the tags chunks are expected here, they are what the fixture buys. RE-MEASURED in P6: removing VueI18n's guarded `use()` proxy (the last typed-present-may-throw member, plan §2.4) took the wrapper graph down again — see the fixture's baseline for the current value. Budget = measured + 2%."
     },
     {
       "name": "fw-next-root",
@@ -392,7 +394,7 @@
         "gzipBytes": 10127,
         "measuredAt": "2026-08-02"
       },
-      "note": "P0.1/P0.7 root baseline, re-measured in framework-slim P5: the next SERVER graph on root core (createNextI18n + the public server helpers). Comparison base for the P5 gate, S = minzip(fw-next-root) - minzip(fw-next-server-slim-loader) = 10127 - 7628 = 2499 B. Re-measured because P5 moved this graph +187 B (+1.88%, inside G5's 2% bar) against the live pre-P5 anchor of 9940 B: +40 B for retargeting getI18n.ts to @comvi/core/slim (this fixture now holds BOTH core entries \u2014 the B4 dedupe case, and the chunks are shared), +25 B for the shared root-free routing assembly, and the rest for the server once-cell state machine and its two loud errors. Budget = measured + 2%."
+      "note": "P0.1/P0.7 root baseline, re-measured in framework-slim P5: the next SERVER graph on root core (createNextI18n + the public server helpers). Comparison base for the P5 gate, S = minzip(fw-next-root) - minzip(fw-next-server-slim-loader) = 10127 - 7628 = 2499 B. Re-measured because P5 moved this graph +187 B (+1.88%, inside G5's 2% bar) against the live pre-P5 anchor of 9940 B: +40 B for retargeting getI18n.ts to @comvi/core/slim (this fixture now holds BOTH core entries — the B4 dedupe case, and the chunks are shared), +25 B for the shared root-free routing assembly, and the rest for the server once-cell state machine and its two loud errors. Budget = measured + 2%."
     },
     {
       "name": "fw-next-server-slim-loader",
@@ -428,7 +430,7 @@
           "packages/next/dist/server/setRequestLocale.js"
         ]
       },
-      "note": "GRADUATED in framework-slim P5. The D' endpoint for next: the server on @comvi/core/slim + attachLoader through createNextI18nFromHost, imported from @comvi/next/server. S = fw-next-root(10127) - 7628 = 2499 B >= the 1353 loader-scaled floor, so P5 proceeds with no diagnosis cycle (plan \u00a74 Phase 5). The sentinels are the P5 step-2 / P5-AB1 evidence and they are NOT vacuous: measured live at this commit with getI18n.ts still importing the ROOT entry, this same graph carries comvi-core.js plus the register-tags, tags, plugins and compile-icu chunks and weighs 9882 B (S would be 245 B, below the 800 STOP floor). Retargeting getI18n.ts:1 to @comvi/core/slim is what drops all five. Budget = measured + 2%."
+      "note": "GRADUATED in framework-slim P5. The D' endpoint for next: the server on @comvi/core/slim + attachLoader through createNextI18nFromHost, imported from @comvi/next/server. S = fw-next-root(10127) - 7628 = 2499 B >= the 1353 loader-scaled floor, so P5 proceeds with no diagnosis cycle (plan §4 Phase 5). The sentinels are the P5 step-2 / P5-AB1 evidence and they are NOT vacuous: measured live at this commit with getI18n.ts still importing the ROOT entry, this same graph carries comvi-core.js plus the register-tags, tags, plugins and compile-icu chunks and weighs 9882 B (S would be 245 B, below the 800 STOP floor). Retargeting getI18n.ts:1 to @comvi/core/slim is what drops all five. Budget = measured + 2%."
     },
     {
       "name": "fw-next-client-slim",
@@ -461,7 +463,7 @@
           "packages/react/dist/comvi-react.js"
         ]
       },
-      "note": "GRADUATED in framework-slim P5. The documented client recipe: a bare @comvi/core/slim host hydrated via addTranslations, on react's D' surface re-exported by @comvi/next/client. Not S-gated \u2014 the client graph IS react's D' host, whose savings class P2 already gated. The sentinels pin the server/client boundary: neither the host module (createNextI18nFromHost), nor the once-cell (cache, and with it _resetServerI18n), nor next's loader code (loadTranslations) may reach a client bundle. Core's own loader code is asserted absent by the next-client-slim bundler-matrix case, which matches hashed chunk IDs by fragment. Budget = measured + 2%."
+      "note": "GRADUATED in framework-slim P5. The documented client recipe: a bare @comvi/core/slim host hydrated via addTranslations, on react's D' surface re-exported by @comvi/next/client. Not S-gated — the client graph IS react's D' host, whose savings class P2 already gated. The sentinels pin the server/client boundary: neither the host module (createNextI18nFromHost), nor the once-cell (cache, and with it _resetServerI18n), nor next's loader code (loadTranslations) may reach a client bundle. Core's own loader code is asserted absent by the next-client-slim bundler-matrix case, which matches hashed chunk IDs by fragment. Budget = measured + 2%."
     },
     {
       "name": "fw-nuxt-root",
@@ -472,13 +474,13 @@
       ],
       "fixture": "framework/nuxt-root.ts",
       "external": ["#app", "#build/*", "#imports", "vue", "vue-router", "h3"],
-      "gzipBudgetBytes": 12693,
+      "gzipBudgetBytes": 12563,
       "baseline": {
-        "minBytes": 37094,
-        "gzipBytes": 12445,
+        "minBytes": 36756,
+        "gzipBytes": 12317,
         "measuredAt": "2026-08-02"
       },
-      "note": "Root baseline: the nuxt RUNTIME graph on the DEFAULT branch (runtime plugin + useI18n composable + server translation loader + the root construction the generated #build/comvi.host template emits when `hostModule` is unset). RE-MEASURED and RESHAPED in P4 (was 13643 with a fixture that got its root core implicitly, through the plugin's own `createI18n` import). P4 moved construction into the build-time template, which is a nuxt virtual module and therefore external here, so the fixture now carries the template's two imports itself \u2014 otherwise it would measure a nuxt app with no i18n core at all. Comparison base for the P4 nuxt server-graph gate. Budget = measured + 2%."
+      "note": "Root baseline: the nuxt RUNTIME graph on the DEFAULT branch (runtime plugin + useI18n composable + server translation loader + the root construction the generated #build/comvi.host template emits when `hostModule` is unset). RE-MEASURED and RESHAPED in P4 (was 13643 with a fixture that got its root core implicitly, through the plugin's own `createI18n` import). P4 moved construction into the build-time template, which is a nuxt virtual module and therefore external here, so the fixture now carries the template's two imports itself — otherwise it would measure a nuxt app with no i18n core at all. Comparison base for the P4 nuxt server-graph gate. RE-MEASURED in P6: removing VueI18n's guarded `use()` proxy (the last typed-present-may-throw member, plan §2.4) took the wrapper graph down again — see the fixture's baseline for the current value. Budget = measured + 2%."
     },
     {
       "name": "fw-nuxt-server-slim-loader",
@@ -498,10 +500,10 @@
         "packages/core/dist/chunks/comvi-core-register-tags.js"
       ],
       "expectSentinels": "absent",
-      "gzipBudgetBytes": 10461,
+      "gzipBudgetBytes": 10322,
       "baseline": {
-        "minBytes": 30750,
-        "gzipBytes": 10260,
+        "minBytes": 30410,
+        "gzipBytes": 10120,
         "measuredAt": "2026-08-02",
         "modules": [
           "packages/core/dist/chunks/comvi-core-format-BkC69UYF.js",
@@ -517,10 +519,12 @@
           "packages/nuxt/dist/runtime/server/utils/request-i18n.js",
           "packages/nuxt/dist/runtime/server/utils/runtime-config.js",
           "packages/nuxt/dist/runtime/utils/locale-state.js",
-          "packages/vue/dist/comvi-vue.js"
+          "packages/vue/dist/chunks/comvi-vue-slim-keys.js",
+          "packages/vue/dist/comvi-vue-slim.js",
+          "scripts/size-fixtures/framework/nuxt-server-slim-loader.ts"
         ]
       },
-      "note": "GRADUATED in framework-slim P4. The nuxt SERVER graph under the `hostModule` recipe: identical modules to fw-nuxt-root except the build-time construction branch, which is slim + attachLoader + createI18nFromCore instead of the two root entries. S = fw-nuxt-root(12445) - 10260 = 2185 B >= the 1353 loader-scaled floor, so P4 proceeds (plan \u00a74 Phase 5 protocol). Sentinels assert the root entry and both tags chunks are absent from the module graph, not merely from the output text. Budget = measured + 2%."
+      "note": "GRADUATED in framework-slim P4. The nuxt SERVER graph under the `hostModule` recipe: identical modules to fw-nuxt-root except the build-time construction branch, which is slim + attachLoader + createI18nFromCore instead of the two root entries. S = fw-nuxt-root(12317) - 10120 = 2197 B >= the 1353 loader-scaled floor, so P4 proceeds (plan §4 Phase 5 protocol). Sentinels assert the root entry and both tags chunks are absent from the module graph, not merely from the output text. RE-MEASURED in P6: removing VueI18n's guarded `use()` proxy (the last typed-present-may-throw member, plan §2.4) took the wrapper graph down again — see the fixture's baseline for the current value. Budget = measured + 2%."
     },
     {
       "name": "fw-nuxt-client-slim",
@@ -538,13 +542,13 @@
         "packages/core/dist/chunks/comvi-core-register-tags.js"
       ],
       "expectSentinels": "absent",
-      "gzipBudgetBytes": 9066,
+      "gzipBudgetBytes": 8908,
       "baseline": {
-        "minBytes": 26415,
-        "gzipBytes": 8887,
+        "minBytes": 26037,
+        "gzipBytes": 8734,
         "measuredAt": "2026-08-02"
       },
-      "note": "GRADUATED in framework-slim P4: the nuxt CLIENT graph under the `hostModule` recipe \u2014 plugin + composable on a bare-slim host, no server loader and no loader capability (the server loads and serializes; the client hydrates through addTranslations). Budgeted from measured but NOT S-gated: its savings class is the one vue's own gate proves (plan P4 checkpoint)."
+      "note": "GRADUATED in framework-slim P4: the nuxt CLIENT graph under the `hostModule` recipe — plugin + composable on a bare-slim host, no server loader and no loader capability (the server loads and serializes; the client hydrates through addTranslations). Budgeted from measured but NOT S-gated: its savings class is the one vue's own gate proves (plan P4 checkpoint). RE-MEASURED in P6: removing VueI18n's guarded `use()` proxy (the last typed-present-may-throw member, plan §2.4) took the wrapper graph down again — see the fixture's baseline for the current value. Budget = measured + 2%."
     }
   ]
 }

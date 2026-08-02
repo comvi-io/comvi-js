@@ -90,6 +90,65 @@ For strict typed key overloads in Svelte, use `tRaw` from `useI18n()`. The `$t` 
 
 For `<T>` rich-text components, type-safe keys, and the full store API, see the [documentation](https://comvi.io/docs/i18n/svelte/).
 
+## Capability APIs: `useI18nLoader()` / `useI18nPlugins()`
+
+Async loading and the plugin host are `@comvi/core` **capabilities**, not part
+of the translation core. Since 0.5.0 their members are acquired explicitly
+rather than being handed out by `useI18n()`:
+
+```svelte
+<script lang="ts">
+  import { useI18n, useI18nLoader, useI18nPlugins } from "@comvi/svelte";
+
+  const { t } = useI18n("admin");
+  const { addActiveNamespace, reloadTranslations, onLoadError } = useI18nLoader();
+  const { onMissingKey } = useI18nPlugins();
+</script>
+```
+
+They are **context readers, not stores**: like `useI18n()` they call
+`getI18nContext()`, so they are callable during component initialisation only,
+and what they return is a plain object of bound functions. Do not `$`-prefix a
+member. The asymmetry with `createLocaleStore()` & friends is deliberate — a
+capability action is an imperative operation, not a value that changes over
+time. Neither takes parameters; the namespace argument stays on `useI18n(ns)`.
+
+On a host that lacks the capability the acquisition call throws — in
+development **and** production, never a silent no-op:
+
+```
+[comvi] This i18n instance has no loader capability. Attach it: import { attachLoader } from "@comvi/core/loader" — or use the root "@comvi/core" entry.
+```
+
+Migrating from 0.4.x: `pnpm codemod:framework-slim "src/**/*.{ts,js,svelte}"`,
+or the [0.5.0 migration guide](https://github.com/comvi-io/comvi-js/blob/main/MIGRATION.md).
+
+## Supported hosts and what they cost
+
+`setI18nContext(i18n)`, `getI18nContext()` and all six store factories accept
+any `WrapperI18nHost` — `createI18n` from `@comvi/core`, from
+`@comvi/core/slim`, or any `attachLoader` / `attachPlugins` composition of the
+two. Before 0.5.0 a slim host did not merely mistype here, it **crashed**:
+`useI18n()` eagerly `.bind()`-ed the capability members in the object literal it
+returned. Whole-app comvi graph, min+gz, `svelte` externalized
+(`node scripts/size-check.mjs`):
+
+| host                    | no `<T>` | with `<T>` |
+| ----------------------- | -------- | ---------- |
+| `@comvi/core` (root)    | 10012    | 11399      |
+| bare `@comvi/core/slim` | **7045** | 9255       |
+
+Moving to a bare slim host saves **2967 B (−29.6%)**.
+
+```svelte
+<script lang="ts">
+  import { createI18n } from "@comvi/core/slim";
+  import { setI18nContext } from "@comvi/svelte";
+
+  setI18nContext(createI18n({ locale: "en", translation: { en: { hello: "Hello" } } }));
+</script>
+```
+
 ## Rich text with `<T>`
 
 Tag interpolation lets translators write readable markup like `"Click <link>here</link> for help"` without raw HTML or XSS risk. Map tags to standard HTML elements, Svelte components, or configs with props:

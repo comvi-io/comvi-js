@@ -186,6 +186,10 @@ Reactive in every framework binding via `useI18n()`.
 | [`@comvi/next`](packages/next)     | Next.js App Router: SSR, middleware, locale routing      | [→](https://comvi.io/docs/i18n/next/)    |
 | [`@comvi/nuxt`](packages/nuxt)     | Nuxt 3 module: auto-imports, SSR, locale routing         | [→](https://comvi.io/docs/i18n/nuxt/)    |
 
+**Upgrading from 0.4.x?** Every binding now runs on a bare `@comvi/core/slim`
+host, which moved four loader/plugin members out of `useI18n()`. The migration
+is mechanical and mostly codemodded — see **[MIGRATION.md](MIGRATION.md)**.
+
 ### Plugins
 
 | Package                                                            | Description                                             |

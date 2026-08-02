@@ -214,7 +214,7 @@ Provides `formatNumber`, `formatDate`, `formatCurrency`, and `formatRelativeTime
 
 ## Using `useI18n()`
 
-`useI18n()` returns the full i18n bag: `{ i18n, locale, translationCache, isLoading, isInitializing, setLocale, t, tRaw, ... }`.
+`useI18n()` returns the translation bag every host can serve: `{ i18n, locale, translationCache, isLoading, isInitializing, setLocale, t, tRaw, ... }`. It does **not** carry the loader/plugin members — see [Capability hooks](#capability-hooks-usei18nloader--usei18nplugins) below.
 
 ```tsx
 import { useI18n } from "@comvi/react";
@@ -234,6 +234,64 @@ function MyComponent() {
 **Identity note:** In v0.3, `t` and `tRaw` identity changes on locale flip (intentional — the function now closes over the current locale). If you depend on their identity in `useEffect` dependencies, the effect will re-run when locale changes. For most code this is correct; if your effect should only run once, depend on the actual trigger instead.
 
 **Deprecation note:** `useI18nContext()` was the v0.2 hook for the same purpose. It still works through v0.3 but will be removed in v0.4 — use `useI18n()` instead.
+
+## Capability hooks: `useI18nLoader()` / `useI18nPlugins()`
+
+Async loading and the plugin host are `@comvi/core` **capabilities**, not part
+of the translation core. Since 0.5.0 their members are acquired explicitly
+rather than being handed out by `useI18n()`:
+
+```tsx
+import { useI18n, useI18nLoader, useI18nPlugins } from "@comvi/react";
+
+function Namespaces() {
+  const { t } = useI18n("admin");
+  const { addActiveNamespace, reloadTranslations, onLoadError } = useI18nLoader();
+  const { onMissingKey } = useI18nPlugins();
+  // …
+}
+```
+
+Neither takes parameters — the namespace argument stays on `useI18n(ns)`. The
+bag they return is referentially stable per host instance: two components under
+one `<I18nProvider>` receive the same function references, and they survive
+re-renders.
+
+On a host that lacks the capability the acquisition call throws — in
+development **and** production, never a silent no-op:
+
+```
+[comvi] This i18n instance has no loader capability. Attach it: import { attachLoader } from "@comvi/core/loader" — or use the root "@comvi/core" entry.
+```
+
+Migrating from 0.4.x: `pnpm codemod:framework-slim "src/**/*.{ts,tsx,js,jsx}"`,
+or the [0.5.0 migration guide](https://github.com/comvi-io/comvi-js/blob/main/MIGRATION.md).
+
+## Supported hosts and what they cost
+
+`<I18nProvider i18n={…}>` accepts any `WrapperI18nHost` — `createI18n` from
+`@comvi/core`, from `@comvi/core/slim`, or any `attachLoader` / `attachPlugins`
+composition of the two. Whole-app comvi graph, min+gz, `react` externalized
+(`node scripts/size-check.mjs`):
+
+| host                    | no `<T>` | with `<T>` |
+| ----------------------- | -------- | ---------- |
+| `@comvi/core` (root)    | 10229    | 11289      |
+| bare `@comvi/core/slim` | **7265** | 9156       |
+
+Moving to a bare slim host saves **2964 B (−29.0%)**. `<T>` and core's tag
+machinery are opt-in as of 0.5.0 — `<T>` ships as its own dist chunk, so an app
+that never imports it drops both; that alone made the root row 1049 B smaller
+with no code change.
+
+```tsx
+import { createI18n } from "@comvi/core/slim";
+import { I18nProvider } from "@comvi/react";
+
+const i18n = createI18n({ locale: "en", translation: { en: { hello: "Hello" } } });
+
+<I18nProvider i18n={i18n}>…</I18nProvider>;
+```
 
 ## Rich text with `<T>`
 

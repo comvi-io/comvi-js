@@ -109,7 +109,7 @@ describe("Reactive State Transitions", () => {
         adminTitle: "Admin Panel",
       }));
 
-      i18n.use((i18n) => {
+      i18n.core.use((i18n) => {
         i18n.registerLoader(loader);
       });
 
@@ -135,7 +135,7 @@ describe("Reactive State Transitions", () => {
       let currentTranslations = { hello: "Hello" };
       const loader = vi.fn(async () => currentTranslations);
 
-      i18n.use((i18n) => {
+      i18n.core.use((i18n) => {
         i18n.registerLoader(loader);
       });
 
@@ -214,7 +214,7 @@ describe("Reactive State Transitions", () => {
         return { hello: "Hello" };
       });
 
-      i18n.use((i18n) => {
+      i18n.core.use((i18n) => {
         i18n.registerLoader(loader);
       });
 
@@ -268,7 +268,7 @@ describe("Reactive State Transitions", () => {
         defaultNs: "common",
       });
 
-      i18n.use((i18n) => {
+      i18n.core.use((i18n) => {
         i18n.registerLoader(loader);
       });
 
@@ -308,12 +308,12 @@ describe("Reactive State Transitions", () => {
         defaultNs: "common",
       });
 
-      i18n.use((i18n) => {
+      i18n.core.use((i18n) => {
         i18n.registerLoader(loader);
       });
 
       const errorSpy = vi.fn();
-      i18n.use((i18n) => {
+      i18n.core.use((i18n) => {
         i18n.onLoadError(errorSpy);
       });
 
@@ -358,7 +358,7 @@ describe("Reactive State Transitions", () => {
         defaultNs: "common",
       });
 
-      i18n.use((i18n) => {
+      i18n.core.use((i18n) => {
         i18n.registerLoader(loader);
       });
 
@@ -382,7 +382,7 @@ describe("Reactive State Transitions", () => {
         defaultNs: "common",
       });
 
-      i18n.use((i18n) => {
+      i18n.core.use((i18n) => {
         i18n.registerLoader(loader);
       });
 
@@ -502,7 +502,7 @@ describe("Reactive State Transitions", () => {
         onError,
       });
 
-      i18n.use((i18n) => {
+      i18n.core.use((i18n) => {
         i18n.registerLoader(loader);
       });
 

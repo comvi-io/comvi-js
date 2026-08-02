@@ -118,6 +118,65 @@ function Greeting() {
 
 If you need a derived value, wrap it in a memo: `const greeting = createMemo(() => t("greeting", { name: "Alice" }))`, then read `greeting()`. (Coming from React/Vue, where `const g = t(...)` works because the whole component re-renders — Solid does not re-render, so the call must stay in a tracked position.)
 
+## Capability APIs: `useI18nLoader()` / `useI18nPlugins()`
+
+Async loading and the plugin host are `@comvi/core` **capabilities**, not part
+of the translation core. Since 0.5.0 their members are acquired explicitly
+rather than being handed out by `useI18n()`:
+
+```tsx
+import { useI18n, useI18nLoader, useI18nPlugins } from "@comvi/solid";
+
+function Namespaces() {
+  const { t } = useI18n("admin");
+  const { addActiveNamespace, reloadTranslations, onLoadError } = useI18nLoader();
+  const { onMissingKey } = useI18nPlugins();
+  // …
+}
+```
+
+They are plain accessors under the provider — **not signals**. A capability
+action is an imperative operation, not a reactive value. Neither takes
+parameters; the namespace argument stays on `useI18n(ns)`. The bag is
+referentially stable per host instance, so two components under one
+`<I18nProvider>` receive the same function references.
+
+On a host that lacks the capability the acquisition call throws — in
+development **and** production, never a silent no-op:
+
+```
+[comvi] This i18n instance has no loader capability. Attach it: import { attachLoader } from "@comvi/core/loader" — or use the root "@comvi/core" entry.
+```
+
+Migrating from 0.4.x: `pnpm codemod:framework-slim "src/**/*.{ts,tsx,js,jsx}"`,
+or the [0.5.0 migration guide](https://github.com/comvi-io/comvi-js/blob/main/MIGRATION.md).
+
+## Supported hosts and what they cost
+
+`<I18nProvider i18n={…}>`, `useI18nContext()` and all six reactive primitives
+accept any `WrapperI18nHost` — `createI18n` from `@comvi/core`, from
+`@comvi/core/slim`, or any `attachLoader` / `attachPlugins` composition of the
+two. Whole-app comvi graph, min+gz, `solid-js` externalized
+(`node scripts/size-check.mjs`):
+
+| host                    | no `<T>` | with `<T>` |
+| ----------------------- | -------- | ---------- |
+| `@comvi/core` (root)    | 9953     | 10906      |
+| bare `@comvi/core/slim` | **6978** | 8785       |
+
+Moving to a bare slim host saves **2975 B (−29.9%)**. `<T>` now ships as its own
+dist chunk, so an app that never imports it drops the component _and_ core's
+side-effectful tag-registration chunk.
+
+```tsx
+import { createI18n } from "@comvi/core/slim";
+import { I18nProvider } from "@comvi/solid";
+
+const i18n = createI18n({ locale: "en", translation: { en: { hello: "Hello" } } });
+
+<I18nProvider i18n={i18n}>…</I18nProvider>;
+```
+
 ## Rich text with `<T>`
 
 Tag interpolation lets translators write readable markup like `"Click <link>here</link> for help"` without raw HTML or XSS risk. You decide what each tag renders to — a function that receives the tag's content as children JSX:

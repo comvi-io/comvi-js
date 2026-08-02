@@ -46,11 +46,41 @@ export const { i18n, routing } = createNextI18nFromHost(
 
 A host factory that throws propagates the error and leaves the cell retryable — the next access calls it again. A host factory that reads back the instance it is constructing (via `getI18nInstance()`, `getI18n()`, `loadTranslations()` or `result.i18n`) throws a cycle error instead of recursing.
 
-### Client
+### Client — inherits react's D′ migration
 
-`@comvi/next/client` re-exports react's 0.5.0 surface: `useI18n()` lost `addActiveNamespace`, `reloadTranslations`, `onLoadError` and `onMissingKey`; `useI18nLoader()` and `useI18nPlugins()` are exported alongside it. See `@comvi/react`'s entry for the migration table and the codemod. `createI18n` is now re-exported straight from `@comvi/core` instead of through `@comvi/react` — same binding, same API, one hop fewer, and that hop kept core's tag-registration chunk alive in webpack development bundles.
+`@comvi/next/client` re-exports react's 0.5.0 surface, so the four capability
+members left `useI18n()` here too. There is no next-specific hook API.
 
-The documented client recipe is a bare `@comvi/core/slim` host hydrated from the catalog the server serialized:
+| 0.4.x                                                                       | 0.5.0                                                                                                                                                      |
+| --------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `const { addActiveNamespace, reloadTranslations, onLoadError } = useI18n()` | `const { addActiveNamespace, addActiveNamespaces, reloadTranslations, onLoadError } = useI18nLoader()`                                                     |
+| `const { onMissingKey } = useI18n()`                                        | `const { onMissingKey } = useI18nPlugins()`                                                                                                                |
+| `const { t, reloadTranslations } = useI18n("ns")`                           | `const { t } = useI18n("ns"); const { reloadTranslations } = useI18nLoader();` — the namespace argument stays on `useI18n`, the capability hooks take none |
+| a second `setI18n(other)` reconfiguring the server                          | one configuration source per process; test suites reset the cell (see above)                                                                               |
+
+Both hooks are exported from `@comvi/next/client` alongside `useI18n`.
+
+```
+pnpm codemod:framework-slim "src/**/*.{ts,tsx,js,jsx}"
+```
+
+Exit `0` = clean or fully transformed, `2` = rewrites applied and manual items
+remain (each printed as `path:line [shape] detail`; `--report report.json`
+writes the same list as JSON). It handles pure, mixed, aliased and repeated
+destructures and merges into an existing capability destructure; it refuses —
+loudly, never silently — rest spreads, computed keys, hook results stored in a
+variable or crossing a function boundary, local-name collisions with the
+introduced hooks, and relative-import call sites it cannot retarget. See the
+[0.5.0 migration guide](https://github.com/comvi-io/comvi-js/blob/main/MIGRATION.md).
+
+Troubleshooting: `addActiveNamespace is not a function` / `reloadTranslations is not a function` / `onLoadError is not a function` → `useI18nLoader()`. `onMissingKey is not a function` → `useI18nPlugins()`. `[comvi/next] i18n already configured by …` → two configuration sources; keep one.
+
+`createI18n` is now re-exported straight from `@comvi/core` instead of through
+`@comvi/react` — same binding, same API, one hop fewer, and that hop kept
+core's tag-registration chunk alive in webpack development bundles.
+
+The documented client recipe is a bare `@comvi/core/slim` host hydrated from
+the catalog the server serialized:
 
 ```tsx
 const messages = await loadTranslations(locale); // server

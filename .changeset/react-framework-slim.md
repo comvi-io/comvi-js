@@ -18,7 +18,7 @@ Codemod (checked in, goldens + idempotence gated in CI):
 pnpm codemod:framework-slim "src/**/*.{ts,tsx,js,jsx}"
 ```
 
-Exit `0` = clean or fully transformed, `2` = rewrites applied and manual items remain (each printed as `path:line [shape] detail`; `--report report.json` writes the same list as JSON). It handles pure, mixed, aliased and repeated destructures, merges into an existing capability destructure, and refuses — loudly, never silently — rest spreads, computed keys, stored hook results and local-name collisions.
+Exit `0` = clean or fully transformed, `2` = rewrites applied and manual items remain (each printed as `path:line [shape] detail`; `--report report.json` writes the same list as JSON). It handles pure, mixed, aliased and repeated destructures, merges into an existing capability destructure, and refuses — loudly, never silently — rest spreads, computed keys, stored hook results and local-name collisions. See the [0.5.0 migration guide](https://github.com/comvi-io/comvi-js/blob/main/MIGRATION.md).
 
 ### Why the members moved
 

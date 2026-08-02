@@ -4,8 +4,6 @@ import {
   formatNumber,
   formatRelativeTime,
   getTextDirection,
-  hasPluginHostApi,
-  missingCapability,
   subscribeToRevision,
   translationResultToString,
 } from "@comvi/core/slim";
@@ -16,8 +14,6 @@ import type {
   TranslationParams,
   TranslationResult,
   TranslationValue,
-  I18nPlugin,
-  I18nPluginHostApi,
   I18nEvent,
   I18nEventData,
   DefaultTranslationParams,
@@ -440,21 +436,6 @@ export class VueI18n<
 
   async init(): Promise<this> {
     await this.core.init();
-    return this;
-  }
-
-  /**
-   * Register a core plugin (chainable).
-   *
-   * Plugin registration is a `@comvi/core/plugins` capability: on a host
-   * composed without it this throws `missingCapability("plugins")` — in dev
-   * and in prod (framework-slim §2.4). The root entry and
-   * `attachPlugins(...)` hosts always have it.
-   */
-  use(plugin: I18nPlugin, options?: Parameters<I18nPluginHostApi["use"]>[1]): this {
-    const core = this.core;
-    if (!hasPluginHostApi(core)) throw missingCapability("plugins");
-    core.use(plugin, options);
     return this;
   }
 
