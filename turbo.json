@@ -29,6 +29,12 @@
       "outputs": [],
       "dependsOn": ["@comvi/core#build"]
     },
+    "//#test-manifest": {
+      "outputs": [],
+      "dependsOn": ["@comvi/core#build", "@comvi/react#build", "@comvi/vue#build"],
+      // The gate reads every wrapper's test files, which a root task hash does not cover.
+      "cache": false
+    },
     "//#bundler-matrix": {
       "outputs": [],
       "dependsOn": ["@comvi/core#build", "@comvi/react#build", "@comvi/vue#build"]

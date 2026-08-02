@@ -143,6 +143,39 @@ jobs:
       - name: Size gate (min+gz budgets)
         run: pnpm exec turbo run "//#size"
 
+  test-manifest:
+    name: Wrapper test manifest gate (G2)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 9.12.1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Test manifest comparator unit tests
+        run: pnpm test:manifest-tools
+
+      # Builds the dists the wrapper suites import (turbo dependsOn), then
+      # enumerates every wrapper test with `vitest list` and asserts that no
+      # pre-wave ID in scripts/wrapper-test-manifest.json disappeared without an
+      # allowlisted removal. Framework-slim plan G2: migrate tests, never delete.
+      - name: Test manifest gate (pre-wave wrapper test IDs)
+        run: pnpm exec turbo run "//#test-manifest"
+
   bundler-matrix:
     name: Bundler matrix (packed tarballs)
     runs-on: ubuntu-latest
@@ -331,6 +364,7 @@ jobs:
         quality,
         tests,
         size,
+        test-manifest,
         bundler-matrix,
         critical-coverage,
         package-contracts,
