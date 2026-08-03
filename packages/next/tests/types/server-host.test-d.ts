@@ -130,3 +130,30 @@ void serverEntry.attachLoader(
 );
 const serverFlat: Record<string, string> = serverEntry.flattenCatalog({ nav: { home: "Home" } });
 void serverFlat;
+
+// ---------------------------------------------------------------------------
+// framework-slim DX-2: the same recipe through the `.with(installer)` pipe.
+// `NextServerHost = WrapperI18nHost & I18nLoaderApi`, so this is the sharpest
+// possible decay probe — if the pipe let the host collapse to `any`, the
+// negative case below would stop erroring.
+// ---------------------------------------------------------------------------
+const pipedHost = serverEntry
+  .createSlimI18n({ locale: "en", defaultNs: "common" })
+  .with(serverEntry.loader({ en: async () => ({ default: { hello: "Hello" } }) }));
+const _piped = createNextI18nFromHost(() => pipedHost, ROUTING);
+
+export type _PipedHostIsExact = Expect<Equal<typeof _piped.i18n, typeof pipedHost>>;
+export type _PipedHostIsAServerHost = Expect<
+  Equal<typeof pipedHost extends NextServerHost ? true : false, true>
+>;
+// `.with(attachLoader)` is the installer for a host with no import map — the
+// form `fw-next-server-slim-loader` measures.
+void createNextI18nFromHost(
+  () => serverEntry.createSlimI18n({ locale: "en" }).with(serverEntry.attachLoader),
+  ROUTING,
+);
+createNextI18nFromHost(
+  // @ts-expect-error -- plugins() is not the loader: the server host still needs one
+  () => serverEntry.createSlimI18n({ locale: "en" }).with(serverEntry.plugins()),
+  ROUTING,
+);

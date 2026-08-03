@@ -16,10 +16,10 @@
  */
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { mount, unmount } from "svelte";
-import { attachDevtools } from "@comvi/core/devtools";
+import { attachDevtools, devtools } from "@comvi/core/devtools";
 import { icuCompiler } from "@comvi/core/icu";
-import { attachLoader, flattenCatalog } from "@comvi/core/loader";
-import { attachPlugins } from "@comvi/core/plugins";
+import { attachLoader, flattenCatalog, loader } from "@comvi/core/loader";
+import { attachPlugins, plugins } from "@comvi/core/plugins";
 import * as slim from "../src/slim";
 import type { UseI18nLoaderReturn } from "../src/slim";
 import * as root from "../src/index";
@@ -80,6 +80,10 @@ describe("@comvi/svelte/slim — the capability toolkit", () => {
     expect(slim.flattenCatalog).toBe(flattenCatalog);
     expect(slim.attachPlugins).toBe(attachPlugins);
     expect(slim.attachDevtools).toBe(attachDevtools);
+    // The DX-2 installers are core's own factories, one hop, same rule.
+    expect(slim.loader).toBe(loader);
+    expect(slim.plugins).toBe(plugins);
+    expect(slim.devtools).toBe(devtools);
   });
 
   it("composes a capability the preset host did not have, acquirable through the reader", () => {
@@ -124,8 +128,11 @@ describe("@comvi/svelte/slim — the export surface", () => {
     "attachLoader",
     "attachPlugins",
     "createI18n",
+    "devtools",
     "flattenCatalog",
     "icuCompiler",
+    "loader",
+    "plugins",
   ];
 
   it("carries every binding @comvi/svelte does", () => {

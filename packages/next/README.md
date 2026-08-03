@@ -253,17 +253,22 @@ companion factory — exported from **`@comvi/next/server`** and nowhere else:
 ```ts
 // i18n/index.ts
 import "server-only";
-import { attachLoader, createNextI18nFromHost, createSlimI18n } from "@comvi/next/server";
+import { createNextI18nFromHost, createSlimI18n, loader } from "@comvi/next/server";
 
 export const { i18n, routing } = createNextI18nFromHost(
-  () => {
-    const host = attachLoader(createSlimI18n({ locale: "en", defaultNs: "default" }));
-    host.registerLoader(myLoader);
-    return host;
-  },
+  () =>
+    createSlimI18n({ locale: "en", defaultNs: "default" }).with(
+      loader({ uk: () => import("./uk.json") }),
+    ),
   { locales: ["en", "de"], defaultLocale: "en", localePrefix: "as-needed" },
 );
 ```
+
+`.with(installer)` is core's composition pipe — `host.with(f)` is `f(host)` —
+and `loader(map)` attaches the capability **and** registers the map. For a
+plain `LoaderFn`, compose `.with(attachLoader)` and call `registerLoader(fn)`
+yourself; that keeps the import-map adapter out of the server bundle (it is
++111 B min+gz on this graph), which is the form the size fixture measures.
 
 The server **always** needs the loader — `NextServerHost = WrapperI18nHost & I18nLoaderApi`
 — while ICU and tag interpolation enter the graph only if your factory composes
@@ -285,13 +290,13 @@ The client recipe is a bare slim host hydrated from the catalog the server
 serialized — `createSlimI18n` from `@comvi/next/client`. Whole-app comvi graph,
 min+gz, `next` and `react` externalized (`node scripts/size-check.mjs`):
 
-| graph                                                     | min+gz   |
-| --------------------------------------------------------- | -------- |
-| server, `createNextI18n` on root core                     | 9938     |
-| server, `createNextI18nFromHost` on slim + `attachLoader` | **7117** |
-| client, bare slim hydrated                                | **6956** |
+| graph                                                    | min+gz   |
+| -------------------------------------------------------- | -------- |
+| server, `createNextI18n` on root core                    | 9948     |
+| server, `createNextI18nFromHost` on a composed slim host | **7129** |
+| client, bare slim hydrated                               | **6964** |
 
-Moving the server to a composed slim host saves **2821 B (−28.4%)**.
+Moving the server to a composed slim host saves **2819 B (−28.3%)**.
 
 ## One package: both `@comvi/next` entries
 
@@ -299,14 +304,14 @@ Moving the server to a composed slim host saves **2821 B (−28.4%)**.
 constructor and the capability toolkit, so a next app never names
 `@comvi/core`:
 
-| export                           | on          | what it is                                  |
-| -------------------------------- | ----------- | ------------------------------------------- |
-| `createSlimI18n`                 | both        | `@comvi/core/slim`'s constructor            |
-| `createI18n`                     | client only | the ROOT constructor, unchanged since 0.4.x |
-| `icuCompiler`                    | both        | from `@comvi/core/icu`                      |
-| `attachLoader`, `flattenCatalog` | both        | from `@comvi/core/loader`                   |
-| `attachPlugins`                  | both        | from `@comvi/core/plugins`                  |
-| `attachDevtools`                 | both        | from `@comvi/core/devtools`                 |
+| export                                     | on          | what it is                                  |
+| ------------------------------------------ | ----------- | ------------------------------------------- |
+| `createSlimI18n`                           | both        | `@comvi/core/slim`'s constructor            |
+| `createI18n`                               | client only | the ROOT constructor, unchanged since 0.4.x |
+| `icuCompiler`                              | both        | from `@comvi/core/icu`                      |
+| `loader`, `attachLoader`, `flattenCatalog` | both        | from `@comvi/core/loader`                   |
+| `plugins`, `attachPlugins`                 | both        | from `@comvi/core/plugins`                  |
+| `devtools`, `attachDevtools`               | both        | from `@comvi/core/devtools`                 |
 
 **Why the client's slim host has its own name.** `@comvi/next/client` is not a
 `/slim` entry — it is next's only client surface, and its `createI18n` is the

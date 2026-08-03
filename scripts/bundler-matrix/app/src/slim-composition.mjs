@@ -9,11 +9,17 @@
 // graph or a bundler transform breaks that contract, one of the assertions
 // below fails instead of printing the success marker.
 //
+// fs-dx2 adds the `.with(installer)` half: the SAME two capabilities composed
+// through the pipe and the configured `loader()` / `plugins()` factories,
+// resolved through the same published subpaths. Both halves stay — `attach*`
+// is the low-level API the factories delegate to, and each is now gated in
+// four bundler×mode combinations.
+//
 // No top-level await: the webpack leg emits commonjs2, where a TLA module
 // would change the emitted module shape rather than test the composition.
 import { createI18n } from "@comvi/core/slim";
-import { attachLoader } from "@comvi/core/loader";
-import { attachPlugins } from "@comvi/core/plugins";
+import { attachLoader, loader } from "@comvi/core/loader";
+import { attachPlugins, plugins } from "@comvi/core/plugins";
 
 function assertEqual(actual, expected, label) {
   if (JSON.stringify(actual) !== JSON.stringify(expected)) {
@@ -61,6 +67,39 @@ async function main() {
   assertEqual(order, ["plugin", "cleanup"], "plugin cleanup runs on destroy");
   assertEqual(i18n.getLoader(), undefined, "loader state reset after destroy");
   assertEqual(i18n.getPluginData("probe"), undefined, "plugin state reset after destroy");
+
+  // ── the same composition through `.with(…)` (fs-dx2) ────────────────────
+  const piped = createI18n({ locale: "en", exposeGlobal: false })
+    .with(
+      loader({
+        en: async () => ({ default: { hello: "Hello" } }),
+        "fr:default": async () => ({ hello: "Bonjour" }),
+      }),
+    )
+    .with(plugins());
+
+  const pipedOrder = [];
+  piped.use((host) => {
+    pipedOrder.push("plugin");
+    host.setPluginData("probe", "set");
+    return () => pipedOrder.push("cleanup");
+  });
+
+  await piped.init();
+  assertEqual(piped.t("hello"), "Hello", "loader(map) registers through the pipe");
+  assertEqual(pipedOrder, ["plugin"], "plugins() hosts plugins through the pipe");
+  assertEqual(piped.getPluginData("probe"), "set", "plugin data survives the pipe");
+
+  await piped.setLocaleAsync("fr");
+  assertEqual(piped.t("hello"), "Bonjour", "the piped import map loads on demand");
+
+  // Composing a capability the host already has must change nothing.
+  const registered = piped.getLoader();
+  assertEqual(piped.with(loader()) === piped, true, "a second loader() is a no-op");
+  assertEqual(piped.getLoader() === registered, true, "the no-op keeps the registered loader");
+
+  await piped.destroy();
+  assertEqual(pipedOrder, ["plugin", "cleanup"], "piped plugin cleanup runs on destroy");
 
   console.log("BUNDLER_MATRIX_OK slim-composition");
 }

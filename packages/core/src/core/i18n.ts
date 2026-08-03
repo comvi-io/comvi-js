@@ -309,6 +309,34 @@ export class I18n<D extends DefaultTranslationParams = {}>
   }
 
   /**
+   * Apply a capability installer and return whatever it produces — the
+   * composition pipe.
+   *
+   * ```ts
+   * import { createI18n } from "@comvi/core/slim";
+   * import { loader } from "@comvi/core/loader";
+   *
+   * const i18n = createI18n({ locale: "en" }).with(loader({ uk: () => import("./uk.json") }));
+   * ```
+   *
+   * It is a pipe and NOTHING more: `with(f)` is `f(this)`. No registry, no
+   * ordering, no capability semantics — which is why it can sit on the base
+   * class for ~10 B and never lie about what an instance has. The installer's
+   * own return type decides the result: `loader()` from `@comvi/core/loader`
+   * widens the host with the loader API, `(i) => i` widens nothing.
+   *
+   * `attachLoader` / `attachPlugins` / `attachDevtools` are themselves valid
+   * installers (`i18n.with(attachLoader)` works); the `loader()` /
+   * `plugins()` / `devtools()` factories exist to CONFIGURE the capability in
+   * the same call. The parameter is deliberately the widest honest shape —
+   * any `(host) => value` — so a future branded installer (a plugin package
+   * exporting itself as `.with`-able) fits without a signature change.
+   */
+  public with<T>(installer: (i18n: this) => T): T {
+    return installer(this);
+  }
+
+  /**
    * Initialize Comvi i18n - executes plugins and loads translations
    */
   public async init(): Promise<this> {

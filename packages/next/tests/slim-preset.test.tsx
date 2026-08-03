@@ -21,10 +21,10 @@ import { renderHook } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { createI18n as createRootI18n } from "@comvi/core";
 import { createI18n as createCoreSlimI18n } from "@comvi/core/slim";
-import { attachDevtools } from "@comvi/core/devtools";
+import { attachDevtools, devtools } from "@comvi/core/devtools";
 import { icuCompiler } from "@comvi/core/icu";
-import { attachLoader, flattenCatalog } from "@comvi/core/loader";
-import { attachPlugins } from "@comvi/core/plugins";
+import { attachLoader, flattenCatalog, loader } from "@comvi/core/loader";
+import { attachPlugins, plugins } from "@comvi/core/plugins";
 import type { WrapperI18nHost } from "@comvi/core";
 import * as client from "../src/client";
 import { I18nProvider } from "../src/client/I18nProvider";
@@ -75,6 +75,10 @@ describe("@comvi/next/client — the capability toolkit", () => {
     expect(client.flattenCatalog).toBe(flattenCatalog);
     expect(client.attachPlugins).toBe(attachPlugins);
     expect(client.attachDevtools).toBe(attachDevtools);
+    // The DX-2 installers are core's own factories, one hop, same rule.
+    expect(client.loader).toBe(loader);
+    expect(client.plugins).toBe(plugins);
+    expect(client.devtools).toBe(devtools);
   });
 
   it("composes a capability the client host did not have, acquirable through the hook", () => {
@@ -108,6 +112,9 @@ describe("@comvi/next/server — the single-package server recipe", () => {
     expect(server.attachPlugins).toBe(attachPlugins);
     expect(server.icuCompiler).toBe(icuCompiler);
     expect(server.attachDevtools).toBe(attachDevtools);
+    expect(server.loader).toBe(loader);
+    expect(server.plugins).toBe(plugins);
+    expect(server.devtools).toBe(devtools);
   });
 
   it("never re-exports the ROOT constructor — the server graph must not carry it", async () => {

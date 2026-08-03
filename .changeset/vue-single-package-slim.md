@@ -14,9 +14,9 @@ createApp(App).use(i18n).mount("#app");
 
 ```ts
 // composed host: `createCore` IS core's constructor, same package
-import { attachLoader, createCore, createI18nFromCore } from "@comvi/vue/slim";
+import { createCore, createI18nFromCore, loader } from "@comvi/vue/slim";
 
-const host = attachLoader(createCore({ locale: "en" }));
+const host = createCore({ locale: "en" }).with(loader({ uk: () => import("./uk.json") }));
 host.registerLoader(myLoader);
 const i18n = createI18nFromCore(host, { ssrLocale: "en" }); // i18n.core is exactly `host`
 ```
@@ -29,12 +29,24 @@ const i18n = createI18nFromCore(host, { ssrLocale: "en" }); // i18n.core is exac
 | `createCore`                                      | **new** — `@comvi/core/slim`'s constructor, for the composed path |
 | `createI18nFromCore`                              | unchanged — wraps a host you built, preserving its exact type     |
 | `icuCompiler`                                     | from `@comvi/core/icu` — pass as `createI18n({ compiler })`       |
-| `attachLoader`, `flattenCatalog`                  | from `@comvi/core/loader`                                         |
-| `attachPlugins`                                   | from `@comvi/core/plugins`                                        |
-| `attachDevtools`                                  | from `@comvi/core/devtools`                                       |
+| `loader`, `attachLoader`, `flattenCatalog`        | from `@comvi/core/loader`                                         |
+| `plugins`, `attachPlugins`                        | from `@comvi/core/plugins`                                        |
+| `devtools`, `attachDevtools`                      | from `@comvi/core/devtools`                                       |
 | `VueI18n`, the composables, `<T>`, the inject key | unchanged                                                         |
 
 `createI18n` here takes `@comvi/vue`'s option shape — `ssrLocale` included, applied to the host before the reactive ref is seeded — plus `compiler`. It returns `VueI18n<D, I18n<D>>` over the **slim** `I18n`, so `i18n.core` is typed without the capabilities it does not have; the eight dropped proxies stay dropped. `createCore` is named after what it builds because `createI18n` is taken by the preset.
+
+### Composing a capability: `.with(installer)`
+
+The same release puts a composition pipe on every core host — `i18n.with(f)` **is** `f(i18n)` — and ships configured installers for the three capabilities. This entry re-exports them, so composition stays inside the one import:
+
+```ts
+const i18n = createI18n({ locale: "en" }).with(loader({ uk: () => import("./uk.json") }));
+```
+
+`loader(map)` attaches the loader capability **and** registers the map. `plugins()` and `devtools(options)` are the same shape. The `attach*` functions stay as the low-level API and are installers themselves — `.with(attachLoader)` is the form to use for a plain `LoaderFn`, because it keeps the import-map adapter out of your bundle.
+
+Published plugin packages are unchanged: compose the host, then `use` them. That is the current recipe, not the final one — plugin packages will become directly `.with`-able in a follow-up.
 
 ### Why the re-exports cost nothing
 
@@ -44,7 +56,7 @@ They are **named** re-exports of core's own bindings (`slim.attachLoader === att
 
 ### Measured
 
-Whole-app comvi graph, min+gz, `vue` externalized (`node scripts/size-check.mjs`): the one-call recipe is **6873 B** against **6868 B** for hand-composing — 5 B for the whole `VueI18n` construction path.
+Whole-app comvi graph, min+gz, `vue` externalized (`node scripts/size-check.mjs`): the one-call recipe is **6880 B** against **6875 B** for hand-composing — 5 B for the whole `VueI18n` construction path.
 
 ### Pick one entry per app
 

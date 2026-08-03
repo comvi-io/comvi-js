@@ -5,21 +5,37 @@
 **Added: `@comvi/svelte/slim` — the single-package slim surface.** Building a slim app used to take two packages: the host constructor from `@comvi/core/slim`, the bindings from `@comvi/svelte`. This entry carries both, so an app names one package and nothing else.
 
 ```ts
-import { attachLoader, createI18n, icuCompiler } from "@comvi/svelte/slim";
+import { createI18n, icuCompiler, loader } from "@comvi/svelte/slim";
+
+const i18n = createI18n({ locale: "en", compiler: icuCompiler }).with(
+  loader({ uk: () => import("./uk.json") }),
+);
 ```
 
 ### What is on it
 
-| export                           | what it is                                                  |
-| -------------------------------- | ----------------------------------------------------------- |
-| `createI18n`                     | `@comvi/core/slim`'s constructor — builds the host          |
-| `icuCompiler`                    | from `@comvi/core/icu` — pass as `createI18n({ compiler })` |
-| `attachLoader`, `flattenCatalog` | from `@comvi/core/loader`                                   |
-| `attachPlugins`                  | from `@comvi/core/plugins`                                  |
-| `attachDevtools`                 | from `@comvi/core/devtools`                                 |
-| every binding                    | identical to `@comvi/svelte`, minus the root re-exports     |
+| export                                     | what it is                                                  |
+| ------------------------------------------ | ----------------------------------------------------------- |
+| `createI18n`                               | `@comvi/core/slim`'s constructor — builds the host          |
+| `icuCompiler`                              | from `@comvi/core/icu` — pass as `createI18n({ compiler })` |
+| `loader`, `attachLoader`, `flattenCatalog` | from `@comvi/core/loader`                                   |
+| `plugins`, `attachPlugins`                 | from `@comvi/core/plugins`                                  |
+| `devtools`, `attachDevtools`               | from `@comvi/core/devtools`                                 |
+| every binding                              | identical to `@comvi/svelte`, minus the root re-exports     |
 
 There is no svelte-side wrapper object to build — the host goes straight into `setI18nContext(i18n)` — so the preset IS core-slim's `createI18n`, re-exported. Attaching a capability is not configuring it: `attachLoader(host)` installs the API, `host.registerLoader(fn)` still gives it something to load.
+
+### Composing a capability: `.with(installer)`
+
+The same release puts a composition pipe on every core host — `i18n.with(f)` **is** `f(i18n)` — and ships configured installers for the three capabilities. This entry re-exports them, so composition stays inside the one import:
+
+```ts
+const i18n = createI18n({ locale: "en" }).with(loader({ uk: () => import("./uk.json") }));
+```
+
+`loader(map)` attaches the loader capability **and** registers the map. `plugins()` and `devtools(options)` are the same shape. The `attach*` functions stay as the low-level API and are installers themselves — `.with(attachLoader)` is the form to use for a plain `LoaderFn`, because it keeps the import-map adapter out of your bundle.
+
+Published plugin packages are unchanged: compose the host, then `use` them. That is the current recipe, not the final one — plugin packages will become directly `.with`-able in a follow-up.
 
 ### Why the re-exports cost nothing
 
@@ -29,7 +45,7 @@ They are **named** re-exports of core's own bindings (`slim.attachLoader === att
 
 ### Measured
 
-Whole-app comvi graph, min+gz, framework peer dependency externalized (`node scripts/size-check.mjs`): the single-package recipe is **6310 B**, **1 B over** the two-package one.
+Whole-app comvi graph, min+gz, framework peer dependency externalized (`node scripts/size-check.mjs`): the single-package recipe is **6319 B**, **2 B over** the two-package one.
 
 ### Mixing entries is safe here
 

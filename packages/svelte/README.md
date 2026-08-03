@@ -127,7 +127,7 @@ or the [0.5.0 migration guide](https://github.com/comvi-io/comvi-js/blob/main/MI
 
 `setI18nContext(i18n)`, `getI18nContext()` and all six store factories accept
 any `WrapperI18nHost` — `createI18n` from `@comvi/core`, from
-`@comvi/core/slim`, or any `attachLoader` / `attachPlugins` composition of the
+`@comvi/core/slim`, or any `.with(loader())` / `.with(plugins())` composition of the
 two. Before 0.5.0 a slim host did not merely mistype here, it **crashed**:
 `useI18n()` eagerly `.bind()`-ed the capability members in the object literal it
 returned. Whole-app comvi graph, min+gz, `svelte` externalized
@@ -158,27 +158,31 @@ one package:
 | -------------------------------------------- | --------------------------------------------------- |
 | `createI18n`                                 | `@comvi/core/slim`'s constructor — builds the host  |
 | `icuCompiler`                                | from `@comvi/core/icu` — `createI18n({ compiler })` |
-| `attachLoader`, `flattenCatalog`             | from `@comvi/core/loader`                           |
-| `attachPlugins`                              | from `@comvi/core/plugins`                          |
-| `attachDevtools`                             | from `@comvi/core/devtools`                         |
+| `loader`, `attachLoader`, `flattenCatalog`   | from `@comvi/core/loader`                           |
+| `plugins`, `attachPlugins`                   | from `@comvi/core/plugins`                          |
+| `devtools`, `attachDevtools`                 | from `@comvi/core/devtools`                         |
 | every store factory, the readers, `T`, types | identical to `@comvi/svelte`                        |
 
 ```svelte
 <script lang="ts">
-  import { attachLoader, createI18n, setI18nContext, useI18nLoader } from "@comvi/svelte/slim";
+  import { createI18n, loader, setI18nContext, useI18nLoader } from "@comvi/svelte/slim";
 
-  const i18n = attachLoader(createI18n({ locale: "en" }));
-  i18n.registerLoader(myLoader);
+  const i18n = createI18n({ locale: "en" }).with(loader({ uk: () => import("./uk.json") }));
   setI18nContext(i18n);
 
   const { reloadTranslations } = useI18nLoader();
 </script>
 ```
 
+`.with(installer)` is core's composition pipe — `i18n.with(f)` is `f(i18n)`.
+`loader(map)` attaches the capability **and** registers the map; for a plain
+`LoaderFn`, compose `.with(attachLoader)` and call `registerLoader(fn)`
+yourself (it keeps the import-map adapter out of your bundle).
+
 These are **named** re-exports of core's own bindings, so the ones you do not
 call are pruned — the bundler-matrix case `svelte-slim-preset` asserts the icu,
 plugins and devtools subpaths never enter the graph in webpack or vite, in
-development or production. The single-package recipe measures **6310 B**, 1 B
+development or production. The single-package recipe measures **6319 B**, 2 B
 over the two-package one.
 
 `@comvi/core/tags` is deliberately not re-exported: importing it registers tag

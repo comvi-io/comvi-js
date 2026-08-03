@@ -17,10 +17,10 @@
 import { describe, it, expect } from "vitest";
 import { renderHook } from "@testing-library/react";
 import type { ReactNode } from "react";
-import { attachDevtools } from "@comvi/core/devtools";
+import { attachDevtools, devtools } from "@comvi/core/devtools";
 import { icuCompiler } from "@comvi/core/icu";
-import { attachLoader, flattenCatalog } from "@comvi/core/loader";
-import { attachPlugins } from "@comvi/core/plugins";
+import { attachLoader, flattenCatalog, loader } from "@comvi/core/loader";
+import { attachPlugins, plugins } from "@comvi/core/plugins";
 import type { WrapperI18nHost } from "@comvi/core";
 import * as slim from "../src/slim";
 import * as root from "../src/index";
@@ -75,6 +75,10 @@ describe("@comvi/react/slim — the capability toolkit", () => {
     expect(slim.flattenCatalog).toBe(flattenCatalog);
     expect(slim.attachPlugins).toBe(attachPlugins);
     expect(slim.attachDevtools).toBe(attachDevtools);
+    // The DX-2 installers are core's own factories, one hop, same rule.
+    expect(slim.loader).toBe(loader);
+    expect(slim.plugins).toBe(plugins);
+    expect(slim.devtools).toBe(devtools);
   });
 
   it("composes a capability the preset host did not have, acquirable through the hook", () => {
@@ -87,6 +91,30 @@ describe("@comvi/react/slim — the capability toolkit", () => {
     // Loader ATTACH is not loader CONFIG: the host has the API, and the app
     // registers its loader through it afterwards.
     expect(i18n.getLoader()).toBeUndefined();
+  });
+
+  it("composes AND configures in one expression — the documented recipe", async () => {
+    // The target DX, verbatim from the README: host, capability and import
+    // map in a single expression, all from `@comvi/react/slim`.
+    const i18n = slim
+      .createI18n({ locale: "en", exposeGlobal: false, compiler: slim.icuCompiler })
+      .with(
+        slim.loader({
+          en: async () => ({ default: { greeting: "Hello" } }),
+          uk: async () => ({ default: { greeting: "Привіт" } }),
+        }),
+      );
+
+    const { result } = renderHook(() => slim.useI18nLoader(), { wrapper: wrapperFor(i18n) });
+    expect(typeof result.current.reloadTranslations).toBe("function");
+    // Unlike bare `attachLoader`, this one is CONFIGURED.
+    expect(typeof i18n.getLoader()).toBe("function");
+
+    await i18n.init();
+    expect(i18n.t("greeting" as never)).toBe("Hello");
+
+    await i18n.setLocaleAsync("uk");
+    expect(i18n.t("greeting" as never)).toBe("Привіт");
   });
 
   it("attaching one capability does not smuggle in the other", () => {
@@ -104,8 +132,11 @@ describe("@comvi/react/slim — the export surface", () => {
     "attachLoader",
     "attachPlugins",
     "createI18n",
+    "devtools",
     "flattenCatalog",
     "icuCompiler",
+    "loader",
+    "plugins",
   ];
 
   it("carries every binding @comvi/react does", () => {

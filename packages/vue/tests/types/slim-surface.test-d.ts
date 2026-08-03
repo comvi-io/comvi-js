@@ -22,8 +22,11 @@ import {
   createCore,
   createI18n,
   createI18nFromCore,
+  devtools,
   flattenCatalog,
   icuCompiler,
+  loader,
+  plugins,
 } from "../../src/slim";
 import { createI18n as createRootI18n } from "../../src/createI18n";
 
@@ -115,3 +118,58 @@ export type _DevtoolsKeepsHostType = Expect<Equal<typeof _withDevtools, I18n<{}>
 // The pure flattener needs no host at all.
 const flat: Record<string, string> = flattenCatalog({ nav: { home: "Home" } });
 void flat;
+
+// ---------------------------------------------------------------------------
+// (v) `.with(installer)` — the composition pipe and the configured installers
+//     (framework-slim DX-2). The claim: the generic host type flows THROUGH
+//     the pipe and comes out widened, never decayed to `any`.
+// ---------------------------------------------------------------------------
+
+// The target DX, VERBATIM (README / MIGRATION §4 quickstart) on vue's core
+// host, against a real `./uk.json` so the dynamic-import thunk is typed the
+// way an app's is. `createCore` is core's constructor; `createI18n` here is
+// vue's own preset, whose host is reachable as `i18n.core`.
+const piped = createCore({ locale: "en", compiler: icuCompiler }).with(
+  loader({ uk: () => import("./uk.json") }),
+);
+export type _PipedIsWidened = Expect<
+  Equal<typeof piped extends I18nLoaderApi ? true : false, true>
+>;
+export type _PipedIsStillTheHost = Expect<Equal<typeof piped, I18n<{}> & I18nLoaderApi>>;
+void piped.registerLoader(() => Promise.resolve({}));
+// @ts-expect-error -- loader() composes ONLY the loader capability
+piped.use(() => undefined);
+
+// Chaining compounds the widenings.
+const _both = createCore({ locale: "en" }).with(loader()).with(plugins());
+export type _ChainCompounds = Expect<
+  Equal<typeof _both extends I18nLoaderApi & I18nPluginHostApi ? true : false, true>
+>;
+void _both.use(() => undefined).registerLoader(() => Promise.resolve({}));
+
+// The DECAY PROBE: a declared default-param set must survive the pipe. If the
+// host collapsed to `any`, `Equal<…>` would resolve against `any` and fail.
+const _pipedDefaults = createCore({ locale: "en", defaultParams: { brand: "Comvi" } }).with(
+  loader(),
+);
+export type _PipeKeepsExactDefaults = Expect<
+  Equal<typeof _pipedDefaults, I18n<{ readonly brand: "Comvi" }> & I18nLoaderApi>
+>;
+
+// devtools() adds no public members, so the host type is unchanged.
+const _pipedDevtools = createCore({ locale: "en" }).with(devtools({ exposeGlobal: false }));
+export type _DevtoolsPipeKeepsHostType = Expect<Equal<typeof _pipedDevtools, I18n<{}>>>;
+
+// The low-level attaches are installers too — the factories only add config.
+void createCore({ locale: "en" })
+  .with(attachLoader)
+  .registerLoader(() => Promise.resolve({}));
+void createCore({ locale: "en" })
+  .with(attachPlugins)
+  .use(() => undefined);
+void createCore({ locale: "en" }).with(attachDevtools).addTranslations({ en: {} });
+
+// @ts-expect-error -- the factory is not an installer; it must be called
+createCore({ locale: "en" }).with(loader);
+// @ts-expect-error -- an import map's values must be import functions
+createCore({ locale: "en" }).with(loader({ uk: "./uk.json" }));

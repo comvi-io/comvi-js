@@ -5,18 +5,42 @@
 //
 // ```ts
 // import { createI18n } from "@comvi/core/slim";
-// import { attachLoader } from "@comvi/core/loader";
-// import { attachPlugins } from "@comvi/core/plugins";
+// import { loader } from "@comvi/core/loader";
+// import { plugins } from "@comvi/core/plugins";
 //
-// const i18n = attachPlugins(attachLoader(createI18n({ locale: "en" })));
+// const i18n = createI18n({ locale: "en" }).with(loader()).with(plugins());
 // i18n.use(myPlugin);
 // await i18n.init();
 // ```
 //
-// Attach `attachLoader` BEFORE `attachPlugins` when any hosted plugin
-// registers a loader — plugins run at `init()`, and `registerLoader` has to
-// exist by then. The root `@comvi/core` entry ships this capability on the
-// class itself — nothing to attach there.
+// Compose `loader()` BEFORE `plugins()` when any hosted plugin registers a
+// loader — plugins run at `init()`, and `registerLoader` has to exist by then.
+// The root `@comvi/core` entry ships this capability on the class itself, so
+// `.with(plugins())` there is a no-op.
+import type { I18n } from "./core/i18n";
+import type { I18nPluginHostApi } from "./types";
+import { attachPlugins } from "./core/plugins";
+
 export { attachPlugins } from "./core/plugins";
 export type { I18nPluginHostApi, I18nPluginHost } from "./types";
 export type { I18nPlugin, I18nPluginFactory, PluginOptions } from "./plugins/types";
+
+/**
+ * The plugin host as a `.with(…)` installer.
+ *
+ * ```ts
+ * const i18n = createI18n({ locale: "en" }).with(plugins());
+ * i18n.use(FetchLoader({ baseUrl: "/locales" }));
+ * ```
+ *
+ * The host takes no configuration today, so `plugins()` is `attachPlugins`
+ * under the pipe's calling convention — it exists so every capability reads
+ * the same way in a `.with` chain (and so options can arrive later without a
+ * call-shape migration). `.with(attachPlugins)` is equally valid.
+ *
+ * Attaching is idempotent: a second `.with(plugins())`, or any root
+ * `@comvi/core` instance, installs nothing and keeps every registered plugin.
+ */
+export function plugins(): <T extends I18n<any>>(i18n: T) => T & I18nPluginHostApi {
+  return attachPlugins;
+}

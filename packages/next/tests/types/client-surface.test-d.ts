@@ -14,8 +14,11 @@ import {
   attachPlugins,
   createI18n,
   createSlimI18n,
+  devtools,
   flattenCatalog,
   icuCompiler,
+  loader,
+  plugins,
 } from "../../src/client";
 
 type Equal<X, Y> =
@@ -82,3 +85,38 @@ export type _DevtoolsKeepsHostType = Expect<Equal<typeof _withDevtools, SlimI18n
 
 const flat: Record<string, string> = flattenCatalog({ nav: { home: "Home" } });
 void flat;
+
+// ---------------------------------------------------------------------------
+// (iv) `.with(installer)` — the composition pipe (framework-slim DX-2). The
+//      generic host type must flow THROUGH the pipe and come out widened,
+//      never decayed to `any` — on BOTH constructors this entry exports.
+// ---------------------------------------------------------------------------
+
+const piped = createSlimI18n({ locale: "en", compiler: icuCompiler }).with(
+  loader({ uk: async () => ({ default: { greeting: "Привіт" } }) }),
+);
+export type _PipedIsStillSlim = Expect<Equal<typeof piped, SlimI18n<{}> & I18nLoaderApi>>;
+void piped.registerLoader(() => Promise.resolve({}));
+// @ts-expect-error -- loader() composes ONLY the loader capability
+piped.use(() => undefined);
+
+const _pipedBoth = createSlimI18n({ locale: "en" }).with(loader()).with(plugins());
+export type _ChainCompounds = Expect<
+  Equal<typeof _pipedBoth extends I18nLoaderApi & I18nPluginHostApi ? true : false, true>
+>;
+
+// The root constructor has every capability already: composing is a typed
+// no-op that keeps the root host type intact.
+export type _RootPipeKeepsRoot = Expect<
+  Equal<typeof root.with extends (i: never) => unknown ? true : false, true>
+>;
+const _rootPiped = createI18n({ locale: "en" }).with(loader());
+void _rootPiped.registerLoader({ en: async () => ({ hello: "world" }) });
+void _rootPiped.use(() => undefined);
+
+// devtools() adds no public members, so the host type is unchanged.
+const _pipedDevtools = createSlimI18n({ locale: "en" }).with(devtools({ exposeGlobal: false }));
+export type _DevtoolsPipeKeepsHostType = Expect<Equal<typeof _pipedDevtools, SlimI18n<{}>>>;
+
+// @ts-expect-error -- the factory is not an installer; it must be called
+createSlimI18n({ locale: "en" }).with(loader);

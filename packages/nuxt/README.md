@@ -177,10 +177,14 @@ comvi: { locales: ["en", "de"], defaultLocale: "en", hostModule: "./comvi.host.t
 ```ts
 // comvi.host.ts — default-export a factory returning a FRESH host per call
 import { createI18n } from "@comvi/core/slim";
-import { attachLoader } from "@comvi/core/loader";
+import { loader } from "@comvi/core/loader";
 
-export default () => attachLoader(createI18n({ locale: "en" }));
+export default () => createI18n({ locale: "en" }).with(loader({ uk: () => import("./uk.json") }));
 ```
+
+`.with(installer)` is core's composition pipe — `i18n.with(f)` is `f(i18n)`.
+`loader(map)` attaches the loader capability **and** registers the map; for a
+plain `LoaderFn`, use `.with(attachLoader)` and call `registerLoader(fn)`.
 
 It is a module **path**, not a function, and the branch is taken at **build
 time**: the generated `#build/comvi.host` template imports the root
@@ -188,7 +192,7 @@ time**: the generated `#build/comvi.host` template imports the root
 runtime plugin nor the server utilities name a root entry at all — that is the
 whole saving, and a runtime `if` could not deliver it.
 
-A server-rendered app's host **needs `attachLoader`**: the server always loads
+A server-rendered app's host **needs the loader capability**: the server always loads
 translations (`NuxtServerHost = WrapperI18nHost & I18nLoaderApi`). The factory
 is called once per constructed instance — the client plugin, and each
 per-request server instance — and nuxt's resolved locale is applied to the host
@@ -204,18 +208,18 @@ not app code. It is a build-time template branch chosen by a module OPTION, and
 generated template decides which core is imported, and it decides before any of
 your imports exist. So `comvi.host.ts` is the one file that names
 `@comvi/core` specifiers, deliberately — it is the composition root the module
-branches on, and seeing `@comvi/core/slim` + `attachLoader` there is how you
+branches on, and seeing `@comvi/core/slim` + `loader()` there is how you
 know which branch you are on.
 
 Whole-app comvi graph, min+gz (`node scripts/size-check.mjs`); both server rows
 are the same runtime modules and differ only in the emitted construction
 branch:
 
-| graph                                        | min+gz   |
-| -------------------------------------------- | -------- |
-| server, default root branch                  | 12149    |
-| server, `hostModule` (slim + `attachLoader`) | **9578** |
-| client, `hostModule` (bare slim, hydrated)   | **8006** |
+| graph                                      | min+gz   |
+| ------------------------------------------ | -------- |
+| server, default root branch                | 12156    |
+| server, `hostModule` (composed slim host)  | **9585** |
+| client, `hostModule` (bare slim, hydrated) | **8013** |
 
 A nuxt server on a composed slim + loader host saves **2571 B (−21.2%)**.
 

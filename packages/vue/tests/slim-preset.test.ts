@@ -21,10 +21,10 @@
 import { describe, it, expect } from "vitest";
 import { defineComponent, h } from "vue";
 import { mount } from "@vue/test-utils";
-import { attachDevtools } from "@comvi/core/devtools";
+import { attachDevtools, devtools } from "@comvi/core/devtools";
 import { icuCompiler } from "@comvi/core/icu";
-import { attachLoader, flattenCatalog } from "@comvi/core/loader";
-import { attachPlugins } from "@comvi/core/plugins";
+import { attachLoader, flattenCatalog, loader } from "@comvi/core/loader";
+import { attachPlugins, plugins } from "@comvi/core/plugins";
 import * as slim from "../src/slim";
 import { VueI18n } from "../src/VueI18n";
 
@@ -111,6 +111,37 @@ describe("@comvi/vue/slim — the custom-host path, same package", () => {
     expect(i18n.core.getLoader()).toBeUndefined();
   });
 
+  it("composes AND configures in one expression — the documented recipe", async () => {
+    // The target DX, verbatim from the README: host, capability and import
+    // map in a single expression, all from `@comvi/vue/slim`.
+    const core = slim
+      .createCore({ locale: "en", exposeGlobal: false, compiler: slim.icuCompiler })
+      .with(
+        slim.loader({
+          en: async () => ({ default: { greeting: "Hello" } }),
+          uk: async () => ({ default: { greeting: "Привіт" } }),
+        }),
+      );
+    const i18n = slim.createI18nFromCore(core);
+
+    expect(i18n.core).toBe(core);
+    // Unlike bare `attachLoader`, this one is CONFIGURED.
+    expect(typeof core.getLoader()).toBe("function");
+
+    await core.init();
+    expect(i18n.t("greeting" as never)).toBe("Hello");
+
+    await core.setLocaleAsync("uk");
+    expect(i18n.t("greeting" as never)).toBe("Привіт");
+  });
+
+  it("the one-call preset's own host takes the pipe too", () => {
+    const i18n = slim.createI18n({ locale: "en", ssrLocale: "en", exposeGlobal: false });
+
+    expect(i18n.core.with(slim.plugins())).toBe(i18n.core);
+    expect(typeof i18n.core.use).toBe("function");
+  });
+
   it("acquires the composed capability through the composable", () => {
     const i18n = slim.createI18nFromCore(
       slim.attachLoader(slim.createCore({ locale: "en", exposeGlobal: false })),
@@ -168,8 +199,11 @@ describe("@comvi/vue/slim — the export surface", () => {
     "attachLoader",
     "attachPlugins",
     "createCore",
+    "devtools",
     "flattenCatalog",
     "icuCompiler",
+    "loader",
+    "plugins",
   ];
 
   it("exports exactly vue's bindings plus the capability toolkit", () => {
@@ -182,6 +216,10 @@ describe("@comvi/vue/slim — the export surface", () => {
     expect(slim.flattenCatalog).toBe(flattenCatalog);
     expect(slim.attachPlugins).toBe(attachPlugins);
     expect(slim.attachDevtools).toBe(attachDevtools);
+    // The DX-2 installers are core's own factories, one hop, same rule.
+    expect(slim.loader).toBe(loader);
+    expect(slim.plugins).toBe(plugins);
+    expect(slim.devtools).toBe(devtools);
   });
 
   it("never re-exports the root class or the side-effectful tags toolbox", () => {

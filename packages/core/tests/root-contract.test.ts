@@ -39,6 +39,10 @@ const PROTOTYPE_METHODS = [
   "init",
   "destroy",
   "on",
+  // DELIBERATE EXTENSION, fs-dx2: `.with(installer)` is the composition pipe
+  // and lives on the BASE class, so it is an ordinary prototype method and
+  // the contract grows by exactly one name — nothing else in this file moves.
+  "with",
   "t",
   "tRaw",
   "setLocaleAsync",

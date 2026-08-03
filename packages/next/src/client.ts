@@ -54,10 +54,13 @@ export { createI18n as createSlimI18n } from "@comvi/core/slim";
 // binding under `sideEffects: false`, so the ones an app does not call cost
 // it zero. `@comvi/core/tags` is deliberately absent: it is the one
 // side-effectful subpath, and `<T>` already owns that import.
+// `loader()` / `plugins()` / `devtools()` are the CONFIGURED installers for
+// `i18n.with(…)`: one expression composes and configures a capability; the
+// `attach*` functions stay as the low-level API.
 export { icuCompiler } from "@comvi/core/icu";
-export { attachLoader, flattenCatalog } from "@comvi/core/loader";
-export { attachPlugins } from "@comvi/core/plugins";
-export { attachDevtools } from "@comvi/core/devtools";
+export { attachLoader, flattenCatalog, loader } from "@comvi/core/loader";
+export { attachPlugins, plugins } from "@comvi/core/plugins";
+export { attachDevtools, devtools } from "@comvi/core/devtools";
 export type { DevtoolsOptions } from "@comvi/core/devtools";
 
 export type {

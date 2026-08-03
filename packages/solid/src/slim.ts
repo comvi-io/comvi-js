@@ -29,6 +29,19 @@
 // from one and a `useI18n()` from the other will not see each other. This
 // entry is a superset of the bindings, so there is never a reason to mix.
 
+// THE ONE-EXPRESSION QUICKSTART — this is the shape to reach for:
+//
+// ```ts
+// import { createI18n, icuCompiler, loader } from "@comvi/solid/slim";
+//
+// const i18n = createI18n({ locale: "en", compiler: icuCompiler })
+//   .with(loader({ uk: () => import("./uk.json") }));
+// ```
+//
+// `.with(installer)` is core's composition pipe (it is just `installer(i18n)`),
+// and `loader()` / `plugins()` / `devtools()` below are the configured
+// installers it takes.
+//
 // The host constructor: `@comvi/core/slim`'s own `createI18n`, re-exported so
 // a solid app has one import specifier. There is no solid-side wrapper object
 // to build (the instance goes straight into `<I18nProvider i18n={…}>`), so a
@@ -55,11 +68,16 @@ export {
 } from "./primitives";
 
 // The capability toolkit, from core's pure subpaths. Each is a named binding
-// under `sideEffects: false`, so the four an app does not call cost it zero.
+// under `sideEffects: false`, so the ones an app does not call cost it zero.
+//
+// `loader()` / `plugins()` / `devtools()` are the CONFIGURED installers for
+// `i18n.with(…)`: one expression composes and configures a capability. The
+// `attach*` functions stay as the low-level API — and are themselves valid
+// installers, so `.with(attachLoader)` works too.
 export { icuCompiler } from "@comvi/core/icu";
-export { attachLoader, flattenCatalog } from "@comvi/core/loader";
-export { attachPlugins } from "@comvi/core/plugins";
-export { attachDevtools } from "@comvi/core/devtools";
+export { attachLoader, flattenCatalog, loader } from "@comvi/core/loader";
+export { attachPlugins, plugins } from "@comvi/core/plugins";
+export { attachDevtools, devtools } from "@comvi/core/devtools";
 
 // Type vocabulary. `export type *` emits no JavaScript, so it is not a star
 // re-export as far as any bundler is concerned.

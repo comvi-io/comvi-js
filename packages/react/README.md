@@ -270,7 +270,7 @@ or the [0.5.0 migration guide](https://github.com/comvi-io/comvi-js/blob/main/MI
 ## Supported hosts and what they cost
 
 `<I18nProvider i18n={…}>` accepts any `WrapperI18nHost` — `createI18n` from
-`@comvi/core`, from `@comvi/core/slim`, or any `attachLoader` / `attachPlugins`
+`@comvi/core`, from `@comvi/core/slim`, or any `.with(loader())` / `.with(plugins())`
 composition of the two. Whole-app comvi graph, min+gz, `react` externalized
 (`node scripts/size-check.mjs`):
 
@@ -302,24 +302,28 @@ one package:
 | ------------------------------------------ | --------------------------------------------------- |
 | `createI18n`                               | `@comvi/core/slim`'s constructor — builds the host  |
 | `icuCompiler`                              | from `@comvi/core/icu` — `createI18n({ compiler })` |
-| `attachLoader`, `flattenCatalog`           | from `@comvi/core/loader`                           |
-| `attachPlugins`                            | from `@comvi/core/plugins`                          |
-| `attachDevtools`                           | from `@comvi/core/devtools`                         |
+| `loader`, `attachLoader`, `flattenCatalog` | from `@comvi/core/loader`                           |
+| `plugins`, `attachPlugins`                 | from `@comvi/core/plugins`                          |
+| `devtools`, `attachDevtools`               | from `@comvi/core/devtools`                         |
 | every hook, `I18nProvider`, `T`, the types | identical to `@comvi/react`                         |
 
 ```tsx
-import { attachLoader, createI18n, I18nProvider, useI18nLoader } from "@comvi/react/slim";
+import { createI18n, I18nProvider, loader, useI18nLoader } from "@comvi/react/slim";
 
-const i18n = attachLoader(createI18n({ locale: "en" }));
-i18n.registerLoader(myLoader);
+const i18n = createI18n({ locale: "en" }).with(loader({ uk: () => import("./uk.json") }));
 // inside a component: const { reloadTranslations } = useI18nLoader();
 ```
+
+`.with(installer)` is core's composition pipe — `i18n.with(f)` is `f(i18n)`.
+`loader(map)` attaches the capability **and** registers the map; for a plain
+`LoaderFn`, compose `.with(attachLoader)` and call `registerLoader(fn)`
+yourself (it keeps the import-map adapter out of your bundle).
 
 These are **named** re-exports of core's own bindings, so the ones you do not
 call are pruned — the bundler-matrix case `react-slim-preset` asserts the icu,
 plugins and devtools subpaths never enter the graph in webpack or vite, in
-development or production. The single-package recipe measures **6522 B**, 1 B
-_under_ the two-package one.
+development or production. The single-package recipe measures **6532 B**, the
+same as the two-package one to the byte.
 
 `@comvi/core/tags` is deliberately not re-exported: importing it registers tag
 syntax ambiently. `<T>` owns that import and lives in its own dist chunk.

@@ -93,8 +93,12 @@ every binding ships a `/slim` entry that carries the host constructor **and**
 the capability toolkit, so an app names one package and nothing else:
 
 ```ts
-import { attachLoader, createI18n, icuCompiler } from "@comvi/react/slim";
-//        ^ from @comvi/core/loader   ^ core-slim's own   ^ from @comvi/core/icu
+import { createI18n, icuCompiler, loader } from "@comvi/react/slim";
+//        ^ core-slim's own   ^ from @comvi/core/icu   ^ from @comvi/core/loader
+
+const i18n = createI18n({ locale: "en", compiler: icuCompiler }).with(
+  loader({ uk: () => import("./uk.json") }),
+);
 ```
 
 | binding         | single-package specifier | host constructor                       |
@@ -107,12 +111,70 @@ import { attachLoader, createI18n, icuCompiler } from "@comvi/react/slim";
 | `@comvi/next`   | `@comvi/next/server`     | `createSlimI18n`                       |
 | `@comvi/nuxt`   | auto-imported            | see the nuxt section                   |
 
-Five bindings are re-exported on every one of those entries — `icuCompiler`,
-`attachLoader`, `flattenCatalog`, `attachPlugins`, `attachDevtools`. They are
-**named** re-exports of core's own bindings (`slim.attachLoader === attachLoader`),
-so the ones you do not call are pruned: the `*-slim-preset` bundler-matrix cases
-assert the icu, plugins and devtools subpaths never enter the module graph, in
-webpack and vite, development and production.
+Eight bindings are re-exported on every one of those entries — `icuCompiler`,
+`loader`, `plugins`, `devtools`, `attachLoader`, `flattenCatalog`,
+`attachPlugins`, `attachDevtools`. They are **named** re-exports of core's own
+bindings (`slim.loader === loader`), so the ones you do not call are pruned:
+the `*-slim-preset` bundler-matrix cases assert the icu, plugins and devtools
+subpaths never enter the module graph, in webpack and vite, development and
+production.
+
+### `.with(installer)` — composing a capability
+
+`.with` is on every host, root and slim alike. It is a pipe and nothing more:
+`i18n.with(f)` **is** `f(i18n)`. What it buys is that composition becomes part
+of the construction expression instead of a wrapper around it:
+
+```ts
+// 0.5.0 — one expression
+const i18n = createI18n({ locale: "en" }).with(loader({ uk: () => import("./uk.json") }));
+
+// still supported — the low-level API the installers delegate to
+const i18n2 = attachLoader(createI18n({ locale: "en" }));
+i18n2.registerLoader(myLoader);
+```
+
+An **installer** is any `(host) => value`, so `attachLoader`, `attachPlugins`
+and `attachDevtools` are installers already: `.with(attachLoader)` works.
+`loader()`, `plugins()` and `devtools()` are the _configured_ installers — they
+attach **and** configure in the same call.
+
+| installer            | attaches    | also configures                                        |
+| -------------------- | ----------- | ------------------------------------------------------ |
+| `loader(importMap?)` | `/loader`   | registers the import map (adapter + default-ns wiring) |
+| `plugins()`          | `/plugins`  | nothing yet — the host takes no options                |
+| `devtools(options?)` | `/devtools` | `instanceId` / `exposeGlobal`                          |
+
+**Pick the installer by what you have.** `loader` names the import-map adapter
+statically, so referencing it pulls that adapter into your graph whether or not
+you pass a map (measured: +111 B min+gz on the next server graph, +124 B on the
+composed core-slim graph). With an import map, use `loader(map)` — you need the
+adapter anyway. With a plain `LoaderFn`, use `.with(attachLoader)` and register
+it yourself; that costs 2 B over calling `attachLoader(host)` directly.
+
+Composing a capability a host **already has** is a no-op: nothing is installed,
+no own property shadows the inherited prototype member, and registered state is
+kept. That holds for a second `.with(loader())` on a slim host and for any
+`.with(…)` on a root `@comvi/core` instance.
+
+**Plugins on a slim host.** Published plugin packages are unchanged and work
+exactly as they always have — compose the host, then `use` them:
+
+```ts
+import { createI18n } from "@comvi/core/slim";
+import { loader } from "@comvi/core/loader";
+import { plugins } from "@comvi/core/plugins";
+import { FetchLoader } from "@comvi/plugin-fetch-loader";
+
+const i18n = createI18n({ locale: "en" }).with(loader()).with(plugins());
+i18n.use(FetchLoader({ cdnUrl: "https://cdn.comvi.io/my-project" }));
+await i18n.init();
+```
+
+`loader()` before `plugins()` when a plugin registers a loader — plugins run at
+`init()`, and `registerLoader` has to exist by then. This is the current
+recipe, not the final one: plugin packages will become directly `.with`-able in
+a follow-up, and `.with`'s signature is already wide enough to take them.
 
 `@comvi/core/tags` is deliberately **not** re-exported. Importing it registers
 tag syntax ambiently, which is a side effect no entry should hand you by
@@ -146,10 +208,11 @@ straight into the provider or the context setter — so their `/slim` preset IS
 core-slim's `createI18n`, re-exported. The whole quickstart:
 
 ```tsx
-import { attachLoader, createI18n, I18nProvider, useI18n } from "@comvi/react/slim";
+import { createI18n, I18nProvider, loader, useI18n } from "@comvi/react/slim";
 
-const i18n = attachLoader(createI18n({ locale: "en", translation: { en: { hi: "Hi" } } }));
-i18n.registerLoader(myLoader);
+const i18n = createI18n({ locale: "en", translation: { en: { hi: "Hi" } } }).with(
+  loader({ uk: () => import("./uk.json") }),
+);
 
 // <I18nProvider i18n={i18n}>…</I18nProvider>, then useI18n() / useI18nLoader() inside.
 ```
@@ -157,10 +220,17 @@ i18n.registerLoader(myLoader);
 Solid is identical. Svelte swaps the provider for `setI18nContext(i18n)` and
 imports from `@comvi/svelte/slim`.
 
-Attaching a capability is not configuring it: `attachLoader(host)` installs the
-API, and `host.registerLoader(fn)` is still the call that gives it something to
-load. Skip `attachLoader` entirely and `useI18nLoader()` throws with the message
-in §5.
+Attaching a capability is not configuring it. `loader(map)` does both; the
+low-level pair still splits them, and is what you want for a plain `LoaderFn`:
+
+```tsx
+import { attachLoader, createI18n } from "@comvi/react/slim";
+
+const i18n = createI18n({ locale: "en" }).with(attachLoader);
+i18n.registerLoader(myLoader);
+```
+
+Compose neither and `useI18nLoader()` throws with the message in §5.
 
 Svelte's `useI18nLoader()` / `useI18nPlugins()` are **context readers**, not
 stores: callable during component initialisation only, returning plain bound
@@ -214,12 +284,13 @@ createApp(App).use(i18n).mount("#app");
 
 ```ts
 // composed host: `createCore` is core's own constructor, same package
-import { attachLoader, createCore, createI18nFromCore } from "@comvi/vue/slim";
+import { createCore, createI18nFromCore, loader } from "@comvi/vue/slim";
 
-const core = attachLoader(createCore({ locale: "en" }));
-core.registerLoader(myLoader);
+const core = createCore({ locale: "en" }).with(loader({ uk: () => import("./uk.json") }));
 const i18n = createI18nFromCore(core, { ssrLocale: "en" });
 ```
+
+The one-call preset's host takes the pipe too — it is `i18n.core`.
 
 `createI18n` here takes the same options as `@comvi/vue`'s, `ssrLocale`
 included, plus `compiler` — so `compiler: icuCompiler` from the same import
@@ -241,15 +312,16 @@ comvi: { locales: ["en", "de"], defaultLocale: "en", hostModule: "./comvi.host.t
 ```ts
 // comvi.host.ts — default-export a factory returning a FRESH host per call
 import { createI18n } from "@comvi/core/slim";
-import { attachLoader } from "@comvi/core/loader";
+import { loader } from "@comvi/core/loader";
 
-export default () => attachLoader(createI18n({ locale: "en" }));
+export default () => createI18n({ locale: "en" }).with(loader({ uk: () => import("./uk.json") }));
 ```
 
 It is a module **path**, and the branch is taken at build time: the generated
 `#build/comvi.host` template imports the root `@comvi/core` entry only when
 `hostModule` is unset. Unset is the default and is unchanged. A server-rendered
-app's host needs `attachLoader` — `NuxtServerHost = WrapperI18nHost & I18nLoaderApi`.
+app's host needs the loader capability — `NuxtServerHost = WrapperI18nHost &
+I18nLoaderApi`.
 
 `comvi.setup` hooks receive a `VueI18n`, so their proxy calls move to
 `i18n.core.*`. `NuxtI18nSetupContext<C>` / `NuxtI18nSetup<C>` are generic in the
@@ -267,7 +339,7 @@ which core is imported, and it decides before any of your imports exist.
 
 So `comvi.host.ts` is the one file in a nuxt app that names `@comvi/core`
 specifiers, and that is deliberate: it is the composition root the module
-branches on, and seeing `@comvi/core/slim` + `attachLoader` there is how you
+branches on, and seeing `@comvi/core/slim` + `loader()` there is how you
 know which branch you are on. Everything downstream stays import-free.
 
 ### `@comvi/next`
@@ -299,14 +371,13 @@ for SSR and the host factory should not have to reach past next to satisfy it:
 
 ```ts
 import "server-only";
-import { attachLoader, createNextI18nFromHost, createSlimI18n } from "@comvi/next/server";
+import { createNextI18nFromHost, createSlimI18n, loader } from "@comvi/next/server";
 
 export const { i18n, routing } = createNextI18nFromHost(
-  () => {
-    const host = attachLoader(createSlimI18n({ locale: "en", defaultNs: "default" }));
-    host.registerLoader(myLoader);
-    return host;
-  },
+  () =>
+    createSlimI18n({ locale: "en", defaultNs: "default" }).with(
+      loader({ uk: () => import("./uk.json") }),
+    ),
   { locales: ["en", "de"], defaultLocale: "en", localePrefix: "as-needed" },
 );
 ```
@@ -334,7 +405,7 @@ order.
 
 Thrown at the `useI18nLoader()` / `useI18nPlugins()` call, in both build
 conditions, never silently. Either compose the capability where you build the
-host (`attachLoader(createI18n(…))`) or use the root `@comvi/core` entry.
+host (`createI18n(…).with(loader(map))`) or use the root `@comvi/core` entry.
 
 | symptom                                                             | fix                                                             |
 | ------------------------------------------------------------------- | --------------------------------------------------------------- |
@@ -370,18 +441,19 @@ in-repo suites use the `@internal` `_resetServerI18n()` from
 
 Each is absent from a bare `@comvi/core/slim` graph and composed back by the
 root `@comvi/core` entry, so **nothing about a root app changes**. Together they
-take bare slim from 5,563 B to **4,909 B** min+gz.
+take bare slim from 5,563 B to **4,917 B** min+gz (of which 8 B is the `.with`
+pipe added in the same release).
 
 | what                                                  | bare `@comvi/core/slim`             | how to get it back                                                                | root `@comvi/core` |
 | ----------------------------------------------------- | ----------------------------------- | --------------------------------------------------------------------------------- | ------------------ |
-| Devtools discovery (`instanceId`, `window.__COMVI__`) | absent; `instanceId` is `undefined` | `attachDevtools(i18n, { instanceId, exposeGlobal })` from `@comvi/core/devtools`  | unchanged          |
+| Devtools discovery (`instanceId`, `window.__COMVI__`) | absent; `instanceId` is `undefined` | `.with(devtools({ instanceId, exposeGlobal }))` from `@comvi/core/devtools`       | unchanged          |
 | `&lt;` / `&gt;` / `&amp;` / `\<` decoding             | literal text                        | any tag extension — `import "@comvi/core/tags"`, or `tagInterpolation.extensions` | unchanged          |
-| Nested catalogs in `addTranslations`                  | stored as given (dev warns)         | `attachLoader`, or `flattenCatalog(nested)` from `@comvi/core/loader`             | unchanged          |
+| Nested catalogs in `addTranslations`                  | stored as given (dev warns)         | any loader install, or `flattenCatalog(nested)` from `@comvi/core/loader`         | unchanged          |
 
 **Discovery.** Browser-extension discovery is a `window` protocol, so an app
 that ships no extension integration should not carry it. On a bare slim host
-`instanceId` stays `undefined` and no global is touched; `attachDevtools` takes
-the same two options `createI18n` reads on root.
+`instanceId` stays `undefined` and no global is touched; `devtools(options)` and
+`attachDevtools` take the same two options `createI18n` reads on root.
 
 **Escapes travel with the grammar they escape.** `&lt;`, `&gt;`, `&amp;` and
 `\<` exist to write a literal angle bracket inside a message that IS tag
@@ -422,24 +494,29 @@ unchanged property descriptors, and a spread copy still carries data only.
 ## 7. What you get
 
 Whole-app comvi graph, min+gz, framework peer dependency externalized, measured
-by `node scripts/size-check.mjs` at the DX-pass commit. The `/slim` column is
+by `node scripts/size-check.mjs` at the DX-2 commit. The `/slim` column is
 the SINGLE-PACKAGE recipe from §4 — the one the fixtures actually build:
 
 | binding                | root host | single-package `/slim` | saving           |
 | ---------------------- | --------- | ---------------------- | ---------------- |
-| `@comvi/react`         | 10046     | **6522**               | −3524 B (−35.1%) |
-| `@comvi/solid`         | 9766      | **6229**               | −3537 B (−36.2%) |
-| `@comvi/svelte`        | 9827      | **6310**               | −3517 B (−35.8%) |
-| `@comvi/vue`           | 10354     | **6873**               | −3481 B (−33.6%) |
-| `@comvi/next` (server) | 9938      | **7117**               | −2821 B (−28.4%) |
-| `@comvi/next` (client) | 9938      | **6956**               | −2982 B (−30.0%) |
-| `@comvi/nuxt` (server) | 12149     | **9578**               | −2571 B (−21.2%) |
+| `@comvi/react`         | 10054     | **6532**               | −3522 B (−35.0%) |
+| `@comvi/solid`         | 9773      | **6236**               | −3537 B (−36.2%) |
+| `@comvi/svelte`        | 9836      | **6319**               | −3517 B (−35.8%) |
+| `@comvi/vue`           | 10363     | **6880**               | −3483 B (−33.6%) |
+| `@comvi/next` (server) | 9948      | **7129**               | −2819 B (−28.3%) |
+| `@comvi/next` (client) | 9948      | **6964**               | −2984 B (−30.0%) |
+| `@comvi/nuxt` (server) | 12156     | **9585**               | −2571 B (−21.2%) |
 
 Single packaging is close to free: measured against the two-package recipe
 (constructor from `@comvi/core/slim`, bindings from the framework), react is
-**−1 B**, solid **0 B**, svelte **+1 B**, vue **+5 B**, next client **+17 B**
-and next server **+47 B**. The five unused capability re-exports cost nothing
-at all — they are not in the graph.
+**0 B**, solid **0 B**, svelte **+2 B**, vue **+5 B**, next client **+19 B**.
+The unused capability re-exports cost nothing at all — they are not in the
+graph.
+
+`.with(installer)` costs **8 B** on `@comvi/core/slim` and **7 B** on the root
+entry, and that is its whole price: every row above is +7…+10 B against the
+same fixture before the pipe existed. The configured installers cost only where
+they are used — see §4 for the `loader()` / `attachLoader` trade.
 
 Several bindings also got smaller on the **root** path, with no app change at
 all, because `<T>` and the tag machinery it needs became opt-in and core itself got smaller: react −1240 B,

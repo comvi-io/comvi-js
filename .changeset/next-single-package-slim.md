@@ -14,14 +14,13 @@ const i18n = createSlimI18n({ locale: "en", defaultNs: "default" });
 
 ```ts
 import "server-only";
-import { attachLoader, createNextI18nFromHost, createSlimI18n } from "@comvi/next/server";
+import { createNextI18nFromHost, createSlimI18n, loader } from "@comvi/next/server";
 
 export const { i18n, routing } = createNextI18nFromHost(
-  () => {
-    const host = attachLoader(createSlimI18n({ locale: "en", defaultNs: "default" }));
-    host.registerLoader(myLoader);
-    return host;
-  },
+  () =>
+    createSlimI18n({ locale: "en", defaultNs: "default" }).with(
+      loader({ uk: () => import("./uk.json") }),
+    ),
   { locales: ["en", "de"], defaultLocale: "en", localePrefix: "as-needed" },
 );
 ```
@@ -32,16 +31,28 @@ export const { i18n, routing } = createNextI18nFromHost(
 
 ### What is on the two entries
 
-| export                           | on          | what it is                                                      |
-| -------------------------------- | ----------- | --------------------------------------------------------------- |
-| `createSlimI18n`                 | both        | `@comvi/core/slim`'s constructor                                |
-| `createI18n`                     | client only | the ROOT constructor, unchanged since 0.4.x                     |
-| `icuCompiler`                    | both        | from `@comvi/core/icu` — pass as `createSlimI18n({ compiler })` |
-| `attachLoader`, `flattenCatalog` | both        | from `@comvi/core/loader`                                       |
-| `attachPlugins`                  | both        | from `@comvi/core/plugins`                                      |
-| `attachDevtools`                 | both        | from `@comvi/core/devtools`                                     |
+| export                                     | on          | what it is                                                      |
+| ------------------------------------------ | ----------- | --------------------------------------------------------------- |
+| `createSlimI18n`                           | both        | `@comvi/core/slim`'s constructor                                |
+| `createI18n`                               | client only | the ROOT constructor, unchanged since 0.4.x                     |
+| `icuCompiler`                              | both        | from `@comvi/core/icu` — pass as `createSlimI18n({ compiler })` |
+| `loader`, `attachLoader`, `flattenCatalog` | both        | from `@comvi/core/loader`                                       |
+| `plugins`, `attachPlugins`                 | both        | from `@comvi/core/plugins`                                      |
+| `devtools`, `attachDevtools`               | both        | from `@comvi/core/devtools`                                     |
 
 The server entry carries them because `NextServerHost = WrapperI18nHost & I18nLoaderApi` makes the loader **mandatory** for SSR — the one host an app cannot avoid composing should not require a second package to compose.
+
+### Composing a capability: `.with(installer)`
+
+The same release puts a composition pipe on every core host — `i18n.with(f)` **is** `f(i18n)` — and ships configured installers for the three capabilities. This entry re-exports them, so composition stays inside the one import:
+
+```ts
+const i18n = createI18n({ locale: "en" }).with(loader({ uk: () => import("./uk.json") }));
+```
+
+`loader(map)` attaches the loader capability **and** registers the map. `plugins()` and `devtools(options)` are the same shape. The `attach*` functions stay as the low-level API and are installers themselves — `.with(attachLoader)` is the form to use for a plain `LoaderFn`, because it keeps the import-map adapter out of your bundle.
+
+Published plugin packages are unchanged: compose the host, then `use` them. That is the current recipe, not the final one — plugin packages will become directly `.with`-able in a follow-up.
 
 ### Why the re-exports cost nothing
 
@@ -51,6 +62,6 @@ They are **named** re-exports of core's own bindings, from core's PURE subpaths 
 
 ### Measured
 
-Whole-app comvi graph, min+gz, `next` and `react` externalized (`node scripts/size-check.mjs`): the single-package client is **6956 B** (+17 B over the two-package recipe), the single-package server **7117 B** (+47 B). Against the root server graph of 9938 B, the composed slim server saves **2821 B (−28.4%)**.
+Whole-app comvi graph, min+gz, `next` and `react` externalized (`node scripts/size-check.mjs`): the single-package client is **6964 B** (+19 B over the two-package recipe), the single-package server **7129 B**. Against the root server graph of 9948 B, the composed slim server saves **2819 B (−28.3%)**.
 
 Nothing is removed and no existing import path changes. See the [0.5.0 migration guide](https://github.com/comvi-io/comvi-js/blob/main/MIGRATION.md) §4.

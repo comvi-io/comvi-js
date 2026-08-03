@@ -155,14 +155,14 @@ or the [0.5.0 migration guide](https://github.com/comvi-io/comvi-js/blob/main/MI
 
 `<I18nProvider i18n={…}>`, `useI18nContext()` and all six reactive primitives
 accept any `WrapperI18nHost` — `createI18n` from `@comvi/core`, from
-`@comvi/core/slim`, or any `attachLoader` / `attachPlugins` composition of the
+`@comvi/core/slim`, or any `.with(loader())` / `.with(plugins())` composition of the
 two. Whole-app comvi graph, min+gz, `solid-js` externalized
 (`node scripts/size-check.mjs`):
 
 | host                    | no `<T>` | with `<T>` |
 | ----------------------- | -------- | ---------- |
 | `@comvi/core` (root)    | 9766     | 10704      |
-| bare `@comvi/core/slim` | **6229** | 8154       |
+| bare `@comvi/core/slim` | **6236** | 8162       |
 
 Moving to a bare slim host saves **3537 B (−36.2%)**. `<T>` now ships as its own
 dist chunk, so an app that never imports it drops the component _and_ core's
@@ -186,23 +186,27 @@ one package:
 | ----------------------------------------------- | --------------------------------------------------- |
 | `createI18n`                                    | `@comvi/core/slim`'s constructor — builds the host  |
 | `icuCompiler`                                   | from `@comvi/core/icu` — `createI18n({ compiler })` |
-| `attachLoader`, `flattenCatalog`                | from `@comvi/core/loader`                           |
-| `attachPlugins`                                 | from `@comvi/core/plugins`                          |
-| `attachDevtools`                                | from `@comvi/core/devtools`                         |
+| `loader`, `attachLoader`, `flattenCatalog`      | from `@comvi/core/loader`                           |
+| `plugins`, `attachPlugins`                      | from `@comvi/core/plugins`                          |
+| `devtools`, `attachDevtools`                    | from `@comvi/core/devtools`                         |
 | every primitive, `I18nProvider`, `T`, the types | identical to `@comvi/solid`                         |
 
 ```tsx
-import { attachLoader, createI18n, I18nProvider, useI18nLoader } from "@comvi/solid/slim";
+import { createI18n, I18nProvider, loader, useI18nLoader } from "@comvi/solid/slim";
 
-const i18n = attachLoader(createI18n({ locale: "en" }));
-i18n.registerLoader(myLoader);
+const i18n = createI18n({ locale: "en" }).with(loader({ uk: () => import("./uk.json") }));
 // inside a component: const { reloadTranslations } = useI18nLoader();
 ```
+
+`.with(installer)` is core's composition pipe — `i18n.with(f)` is `f(i18n)`.
+`loader(map)` attaches the capability **and** registers the map; for a plain
+`LoaderFn`, compose `.with(attachLoader)` and call `registerLoader(fn)`
+yourself (it keeps the import-map adapter out of your bundle).
 
 These are **named** re-exports of core's own bindings, so the ones you do not
 call are pruned — the bundler-matrix case `solid-slim-preset` asserts the icu,
 plugins and devtools subpaths never enter the graph in webpack or vite, in
-development or production. The single-package recipe measures **6229 B**, the
+development or production. The single-package recipe measures **6236 B**, the
 same as the two-package one to the byte.
 
 `@comvi/core/tags` is deliberately not re-exported: importing it registers tag
