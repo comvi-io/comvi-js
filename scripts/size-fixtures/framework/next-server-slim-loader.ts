@@ -1,13 +1,16 @@
-// Framework size fixture (plan P0.7): the next SERVER graph on a composed
-// slim+attachLoader host — SSR without ICU/tags, exactly the configuration
-// Phase 7 shipped for core. Imports ONLY `createNextI18nFromHost` from
-// `@comvi/next/server` (the fixed companion export, plan P5 step 1), so every
-// root-importing module must tree-shake out.
-// PENDING until Phase 5 lands packages/next/src/server/createNextI18nFromHost.ts.
-import { createI18n } from "@comvi/core/slim";
-import { attachLoader } from "@comvi/core/loader";
+// Framework size fixture (plan P0.7, retargeted by the framework-slim DX
+// pass): the next SERVER graph on a composed slim + attachLoader host — SSR
+// without ICU/tags, exactly the configuration Phase 7 shipped for core.
+//
+// Every specifier is `@comvi/next/server`: the host constructor and the
+// capability toolkit are re-exported there, so an SSR next app never names
+// `@comvi/core`. The measured recipe is the documented recipe. Every
+// root-importing module — and every capability subpath this recipe does not
+// use — must still tree-shake out.
 import {
+  attachLoader,
   createNextI18nFromHost,
+  createSlimI18n,
   getI18n,
   loadTranslations,
   setRequestLocale,
@@ -16,7 +19,7 @@ import {
 const { i18n, routing } = createNextI18nFromHost(
   () =>
     attachLoader(
-      createI18n({
+      createSlimI18n({
         locale: "en",
         translation: { en: { greeting: "Hello, {name}!" } },
       }),

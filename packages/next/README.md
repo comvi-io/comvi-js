@@ -253,13 +253,11 @@ companion factory — exported from **`@comvi/next/server`** and nowhere else:
 ```ts
 // i18n/index.ts
 import "server-only";
-import { createI18n } from "@comvi/core/slim";
-import { attachLoader } from "@comvi/core/loader";
-import { createNextI18nFromHost } from "@comvi/next/server";
+import { attachLoader, createNextI18nFromHost, createSlimI18n } from "@comvi/next/server";
 
 export const { i18n, routing } = createNextI18nFromHost(
   () => {
-    const host = attachLoader(createI18n({ locale: "en", defaultNs: "default" }));
+    const host = attachLoader(createSlimI18n({ locale: "en", defaultNs: "default" }));
     host.registerLoader(myLoader);
     return host;
   },
@@ -283,17 +281,51 @@ initialization order, exactly one call.
 to overwrite the first silently; it now throws, in development and production,
 naming both sources. A same-instance `setI18n()` stays a no-op.
 
-The client recipe is a bare `@comvi/core/slim` host hydrated from the catalog
-the server serialized. Whole-app comvi graph, min+gz, `next` and `react`
-externalized (`node scripts/size-check.mjs`):
+The client recipe is a bare slim host hydrated from the catalog the server
+serialized — `createSlimI18n` from `@comvi/next/client`. Whole-app comvi graph,
+min+gz, `next` and `react` externalized (`node scripts/size-check.mjs`):
 
 | graph                                                     | min+gz   |
 | --------------------------------------------------------- | -------- |
 | server, `createNextI18n` on root core                     | 9938     |
-| server, `createNextI18nFromHost` on slim + `attachLoader` | **7070** |
-| client, bare `@comvi/core/slim` hydrated                  | **6939** |
+| server, `createNextI18nFromHost` on slim + `attachLoader` | **7117** |
+| client, bare slim hydrated                                | **6956** |
 
-Moving the server to a composed slim host saves **2868 B (−28.9%)**.
+Moving the server to a composed slim host saves **2821 B (−28.4%)**.
+
+## One package: both `@comvi/next` entries
+
+`@comvi/next/client` and `@comvi/next/server` each carry a slim host
+constructor and the capability toolkit, so a next app never names
+`@comvi/core`:
+
+| export                           | on          | what it is                                  |
+| -------------------------------- | ----------- | ------------------------------------------- |
+| `createSlimI18n`                 | both        | `@comvi/core/slim`'s constructor            |
+| `createI18n`                     | client only | the ROOT constructor, unchanged since 0.4.x |
+| `icuCompiler`                    | both        | from `@comvi/core/icu`                      |
+| `attachLoader`, `flattenCatalog` | both        | from `@comvi/core/loader`                   |
+| `attachPlugins`                  | both        | from `@comvi/core/plugins`                  |
+| `attachDevtools`                 | both        | from `@comvi/core/devtools`                 |
+
+**Why the client's slim host has its own name.** `@comvi/next/client` is not a
+`/slim` entry — it is next's only client surface, and its `createI18n` is the
+ROOT constructor published in 0.4.x. Rebinding that name to the slim
+constructor would silently drop ICU plurals and tag syntax out from under an
+existing app, so the slim host is `createSlimI18n` and both live side by side.
+`@comvi/next/server` uses the same name for symmetry and exports **no** root
+constructor at all: a server graph that named the root entry would carry core's
+ambient tag registration, and the `next-server-on-slim` gate asserts it never
+does.
+
+These are **named** re-exports of core's own bindings, from core's pure
+subpaths only — never through `@comvi/react`, because webpack development
+reconnects a single `export … from` across one `sideEffects: false` package but
+not a two-package chain. The ones you do not call are pruned: the
+`next-client-slim-preset` and `next-server-on-slim` matrix cases assert the icu,
+plugins and devtools subpaths never enter either graph, in webpack and vite,
+development and production. Single packaging costs the client **+17 B** and the
+server **+47 B**.
 
 ## Rich text with `<T>`
 

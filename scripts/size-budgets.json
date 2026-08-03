@@ -178,6 +178,37 @@
       "note": "GRADUATED in framework-slim P2: react on bare slim that also renders <T>, i.e. the slim+tags rung. +1891 B over fw-react-slim — <T> plus @comvi/core/tags, now that both are opt-in. The sentinel asserts only the ROOT entry's absence: the tags chunks are expected here, they are what the fixture buys."
     },
     {
+      "name": "fw-react-slim-preset",
+      "entry": ["@comvi/react/slim"],
+      "fixture": "framework/react-slim-preset.ts",
+      "external": ["react", "react/*"],
+      "sentinelModules": [
+        "packages/core/dist/comvi-core.js",
+        "packages/core/dist/comvi-core-tags.js",
+        "packages/core/dist/chunks/comvi-core-register-tags.js",
+        "packages/core/dist/comvi-core-icu.js",
+        "packages/core/dist/comvi-core-loader.js",
+        "packages/core/dist/comvi-core-plugins.js",
+        "packages/core/dist/comvi-core-devtools.js"
+      ],
+      "expectSentinels": "absent",
+      "gzipBudgetBytes": 6652,
+      "baseline": {
+        "minBytes": 17969,
+        "gzipBytes": 6522,
+        "measuredAt": "2026-08-03",
+        "modules": [
+          "packages/core/dist/chunks/comvi-core-format-C5TnXRjc.js",
+          "packages/core/dist/chunks/comvi-core-i18n-DM-EMsLO.js",
+          "packages/core/dist/chunks/comvi-core-translate-CGaih8RO.js",
+          "packages/core/dist/chunks/comvi-core-virtualNode-BBlSOFkG.js",
+          "packages/core/dist/comvi-core-slim.js",
+          "packages/react/dist/comvi-react-slim.js"
+        ]
+      },
+      "note": "framework-slim DX pass: the SINGLE-PACKAGE quickstart — createI18n + bindings from @comvi/react/slim only, @comvi/core never named. Sentinels assert the root entry, both tags chunks AND all four re-exported capability subpaths (icu/loader/plugins/devtools) are absent from the module graph: an unused named re-export must cost nothing. Compare with fw-react-slim, which builds the same graph naming @comvi/core/slim directly."
+    },
+    {
       "name": "fw-solid-root",
       "entry": ["@comvi/solid", "@comvi/core"],
       "fixture": "framework/solid-root.ts",
@@ -243,6 +274,36 @@
         "measuredAt": "2026-08-02"
       },
       "note": "GRADUATED in framework-slim P3: solid on bare slim that also renders <T>, i.e. the slim+tags rung. +1807 B over fw-solid-slim — <T> plus @comvi/core/tags, now that both are opt-in. The sentinel asserts only the ROOT entry's absence: the tags chunks are expected here, they are what the fixture buys. Budget = measured + 2%."
+    },
+    {
+      "name": "fw-solid-slim-preset",
+      "entry": ["@comvi/solid/slim"],
+      "fixture": "framework/solid-slim-preset.ts",
+      "external": ["solid-js", "solid-js/*"],
+      "sentinelModules": [
+        "packages/core/dist/comvi-core.js",
+        "packages/core/dist/comvi-core-tags.js",
+        "packages/core/dist/chunks/comvi-core-register-tags.js",
+        "packages/core/dist/comvi-core-icu.js",
+        "packages/core/dist/comvi-core-loader.js",
+        "packages/core/dist/comvi-core-plugins.js",
+        "packages/core/dist/comvi-core-devtools.js"
+      ],
+      "expectSentinels": "absent",
+      "gzipBudgetBytes": 6353,
+      "baseline": {
+        "minBytes": 17641,
+        "gzipBytes": 6229,
+        "measuredAt": "2026-08-03",
+        "modules": [
+          "packages/core/dist/chunks/comvi-core-format-C5TnXRjc.js",
+          "packages/core/dist/chunks/comvi-core-i18n-DM-EMsLO.js",
+          "packages/core/dist/chunks/comvi-core-translate-CGaih8RO.js",
+          "packages/core/dist/comvi-core-slim.js",
+          "packages/solid/dist/comvi-solid-slim.js"
+        ]
+      },
+      "note": "framework-slim DX pass: the SINGLE-PACKAGE quickstart — createI18n + bindings from @comvi/solid/slim only, @comvi/core never named. Sentinels assert the root entry, both tags chunks AND all four re-exported capability subpaths are absent. Compare with fw-solid-slim."
     },
     {
       "name": "fw-svelte-root",
@@ -315,6 +376,39 @@
       "note": "GRADUATED in framework-slim P3: svelte on bare slim that also renders <T>, i.e. the slim+tags rung. +2210 B over fw-svelte-slim — T.svelte's compiled output plus @comvi/core/tags. The sentinel asserts only the ROOT entry's absence: the tags chunks are expected here, they are what the fixture buys. Budget = measured + 2%."
     },
     {
+      "name": "fw-svelte-slim-preset",
+      "entry": ["@comvi/svelte/slim"],
+      "fixture": "framework/svelte-slim-preset.ts",
+      "external": ["svelte", "svelte/*"],
+      "sentinelModules": [
+        "packages/core/dist/comvi-core.js",
+        "packages/core/dist/comvi-core-tags.js",
+        "packages/core/dist/chunks/comvi-core-register-tags.js",
+        "packages/core/dist/comvi-core-icu.js",
+        "packages/core/dist/comvi-core-loader.js",
+        "packages/core/dist/comvi-core-plugins.js",
+        "packages/core/dist/comvi-core-devtools.js"
+      ],
+      "expectSentinels": "absent",
+      "gzipBudgetBytes": 6436,
+      "baseline": {
+        "minBytes": 17485,
+        "gzipBytes": 6310,
+        "measuredAt": "2026-08-03",
+        "modules": [
+          "packages/core/dist/chunks/comvi-core-format-C5TnXRjc.js",
+          "packages/core/dist/chunks/comvi-core-i18n-DM-EMsLO.js",
+          "packages/core/dist/chunks/comvi-core-translate-CGaih8RO.js",
+          "packages/core/dist/comvi-core-slim.js",
+          "packages/svelte/dist/context.js",
+          "packages/svelte/dist/slim.js",
+          "packages/svelte/dist/stores.js",
+          "packages/svelte/dist/useI18n.js"
+        ]
+      },
+      "note": "framework-slim DX pass: the SINGLE-PACKAGE quickstart — createI18n + bindings from @comvi/svelte/slim only, @comvi/core never named. Sentinels assert the root entry, both tags chunks AND all four re-exported capability subpaths are absent. Compare with fw-svelte-slim."
+    },
+    {
       "name": "fw-vue-root",
       "entry": ["@comvi/vue"],
       "fixture": "framework/vue-root.ts",
@@ -383,6 +477,37 @@
       "note": "GRADUATED in framework-slim P4: vue on bare slim that also renders <T>, i.e. the slim+tags rung. +1874 B over fw-vue-slim — <T> plus @comvi/core/tags, now that both are opt-in. The sentinel asserts only the ROOT entry's absence: the tags chunks are expected here, they are what the fixture buys. RE-MEASURED in P6: removing VueI18n's guarded `use()` proxy (the last typed-present-may-throw member, plan §2.4) took the wrapper graph down again — see the fixture's baseline for the current value. Budget = measured + 2%."
     },
     {
+      "name": "fw-vue-slim-preset",
+      "entry": ["@comvi/vue/slim"],
+      "fixture": "framework/vue-slim-preset.ts",
+      "external": ["vue"],
+      "sentinelModules": [
+        "packages/core/dist/comvi-core.js",
+        "packages/core/dist/comvi-core-tags.js",
+        "packages/core/dist/chunks/comvi-core-register-tags.js",
+        "packages/core/dist/comvi-core-icu.js",
+        "packages/core/dist/comvi-core-loader.js",
+        "packages/core/dist/comvi-core-plugins.js",
+        "packages/core/dist/comvi-core-devtools.js"
+      ],
+      "expectSentinels": "absent",
+      "gzipBudgetBytes": 7010,
+      "baseline": {
+        "minBytes": 20744,
+        "gzipBytes": 6873,
+        "measuredAt": "2026-08-03",
+        "modules": [
+          "packages/core/dist/chunks/comvi-core-format-C5TnXRjc.js",
+          "packages/core/dist/chunks/comvi-core-i18n-DM-EMsLO.js",
+          "packages/core/dist/chunks/comvi-core-translate-CGaih8RO.js",
+          "packages/core/dist/comvi-core-slim.js",
+          "packages/vue/dist/chunks/comvi-vue-slim-keys.js",
+          "packages/vue/dist/comvi-vue-slim.js"
+        ]
+      },
+      "note": "framework-slim DX pass: the SINGLE-PACKAGE quickstart — one-call createI18n + bindings from @comvi/vue/slim only, @comvi/core never named. Vue's preset is a real function (it constructs a VueI18n around a core-slim host), so this row carries the wave's only preset glue. Sentinels assert the root entry, both tags chunks AND all four re-exported capability subpaths are absent. Compare with fw-vue-slim, which reaches the same wrapper graph through createI18nFromCore."
+    },
+    {
       "name": "fw-next-root",
       "entry": ["@comvi/next", "@comvi/next/server"],
       "fixture": "framework/next-root.ts",
@@ -397,7 +522,7 @@
     },
     {
       "name": "fw-next-server-slim-loader",
-      "entry": ["@comvi/next/server", "@comvi/core/slim", "@comvi/core/loader"],
+      "entry": ["@comvi/next/server"],
       "fixture": "framework/next-server-slim-loader.ts",
       "external": ["next", "next/*", "react", "react/*"],
       "gzipBudgetBytes": 7200,
@@ -405,17 +530,20 @@
         "packages/core/dist/comvi-core.js",
         "packages/core/dist/comvi-core-tags.js",
         "packages/core/dist/chunks/comvi-core-register-tags.js",
-        "packages/next/dist/createNextI18n.js"
+        "packages/next/dist/createNextI18n.js",
+        "packages/core/dist/comvi-core-icu.js",
+        "packages/core/dist/comvi-core-plugins.js",
+        "packages/core/dist/comvi-core-devtools.js"
       ],
       "expectSentinels": "absent",
       "baseline": {
-        "minBytes": 19232,
-        "gzipBytes": 7059,
-        "measuredAt": "2026-08-02",
+        "minBytes": 19277,
+        "gzipBytes": 7117,
+        "measuredAt": "2026-08-03",
         "modules": [
           "packages/core/dist/chunks/comvi-core-format-C5TnXRjc.js",
-          "packages/core/dist/chunks/comvi-core-i18n-C5-URnKk.js",
-          "packages/core/dist/chunks/comvi-core-importMapLoader-C2cr3o9O.js",
+          "packages/core/dist/chunks/comvi-core-i18n-DM-EMsLO.js",
+          "packages/core/dist/chunks/comvi-core-importMapLoader-CB-QMr0d.js",
           "packages/core/dist/chunks/comvi-core-translate-CGaih8RO.js",
           "packages/core/dist/comvi-core-slim.js",
           "packages/next/dist/nextI18nRouting.js",
@@ -429,7 +557,7 @@
           "packages/next/dist/server/setRequestLocale.js"
         ]
       },
-      "note": "GRADUATED in framework-slim P5. The D' endpoint for next: the server on @comvi/core/slim + attachLoader through createNextI18nFromHost, imported from @comvi/next/server. S = fw-next-root(10127) - 7628 = 2499 B >= the 1353 loader-scaled floor, so P5 proceeds with no diagnosis cycle (plan §4 Phase 5). The sentinels are the P5 step-2 / P5-AB1 evidence and they are NOT vacuous: measured live at this commit with getI18n.ts still importing the ROOT entry, this same graph carries comvi-core.js plus the register-tags, tags, plugins and compile-icu chunks and weighs 9882 B (S would be 245 B, below the 800 STOP floor). Retargeting getI18n.ts:1 to @comvi/core/slim is what drops all five. Budget = measured + 2%. Numbers above are quoted as measured at the graduation gate; after the framework-slim core golf pass both endpoints moved and S still clears the floor: fw-next-root(10055) - 7549 = 2506 B."
+      "note": "GRADUATED in framework-slim P5. The D' endpoint for next: the server on @comvi/core/slim + attachLoader through createNextI18nFromHost, imported from @comvi/next/server. S = fw-next-root(10127) - 7628 = 2499 B >= the 1353 loader-scaled floor, so P5 proceeds with no diagnosis cycle (plan §4 Phase 5). The sentinels are the P5 step-2 / P5-AB1 evidence and they are NOT vacuous: measured live at this commit with getI18n.ts still importing the ROOT entry, this same graph carries comvi-core.js plus the register-tags, tags, plugins and compile-icu chunks and weighs 9882 B (S would be 245 B, below the 800 STOP floor). Retargeting getI18n.ts:1 to @comvi/core/slim is what drops all five. Budget = measured + 2%. Numbers above are quoted as measured at the graduation gate; after the framework-slim core golf pass both endpoints moved and S still clears the floor: fw-next-root(10055) - 7549 = 2506 B. RETARGETED by the framework-slim DX pass to the SINGLE-PACKAGE recipe: the host constructor and the capability toolkit are re-exported from @comvi/next/server, so the fixture names no @comvi/core specifier at all. The sentinel list grew with the three capability subpaths this recipe does not use — an unused named re-export must cost nothing."
     },
     {
       "name": "fw-next-client-slim",
@@ -463,6 +591,40 @@
         ]
       },
       "note": "GRADUATED in framework-slim P5. The documented client recipe: a bare @comvi/core/slim host hydrated via addTranslations, on react's D' surface re-exported by @comvi/next/client. Not S-gated — the client graph IS react's D' host, whose savings class P2 already gated. The sentinels pin the server/client boundary: neither the host module (createNextI18nFromHost), nor the once-cell (cache, and with it _resetServerI18n), nor next's loader code (loadTranslations) may reach a client bundle. Core's own loader code is asserted absent by the next-client-slim bundler-matrix case, which matches hashed chunk IDs by fragment. Budget = measured + 2%."
+    },
+    {
+      "name": "fw-next-client-slim-preset",
+      "entry": ["@comvi/next/client"],
+      "fixture": "framework/next-client-slim-preset.ts",
+      "external": ["next", "next/*", "react", "react/*"],
+      "sentinelModules": [
+        "packages/core/dist/comvi-core.js",
+        "packages/core/dist/comvi-core-tags.js",
+        "packages/core/dist/chunks/comvi-core-register-tags.js",
+        "packages/core/dist/comvi-core-icu.js",
+        "packages/core/dist/comvi-core-loader.js",
+        "packages/core/dist/comvi-core-plugins.js",
+        "packages/core/dist/comvi-core-devtools.js"
+      ],
+      "expectSentinels": "absent",
+      "gzipBudgetBytes": 7095,
+      "baseline": {
+        "minBytes": 19206,
+        "gzipBytes": 6956,
+        "measuredAt": "2026-08-03",
+        "modules": [
+          "packages/core/dist/chunks/comvi-core-format-C5TnXRjc.js",
+          "packages/core/dist/chunks/comvi-core-i18n-DM-EMsLO.js",
+          "packages/core/dist/chunks/comvi-core-translate-CGaih8RO.js",
+          "packages/core/dist/chunks/comvi-core-virtualNode-BBlSOFkG.js",
+          "packages/core/dist/comvi-core-slim.js",
+          "packages/next/dist/client/I18nProvider.js",
+          "packages/next/dist/routing/context.js",
+          "packages/next/dist/routing/defineRouting.js",
+          "packages/react/dist/comvi-react.js"
+        ]
+      },
+      "note": "framework-slim DX pass: the SINGLE-PACKAGE quickstart for a Next.js client bundle — createSlimI18n + provider + hook from @comvi/next/client only, @comvi/core never named. @comvi/next/client is not a /slim entry (its published createI18n is the ROOT constructor and stays that way), so the slim host has its own name. Sentinels assert the root entry the sibling export names, both tags chunks AND all four re-exported capability subpaths are absent. Compare with fw-next-client-slim."
     },
     {
       "name": "fw-nuxt-root",

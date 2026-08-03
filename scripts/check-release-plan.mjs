@@ -133,10 +133,10 @@ const G7_ALLOWLIST = [
   },
   {
     file: "packages/core/README.md",
-    line: 433,
+    line: 464,
     pattern: "vanilla-scope",
     reason:
-      "Documentation URL in the full-API pointer at the end of the README — a permanent docs path, not a claim. RE-REVIEWED at framework-slim tier-3: moved 383 -> 433 when the slim section grew the devtools/flat-catalog subsections; the line itself is byte-identical and still a bare docs URL.",
+      "Documentation URL in the full-API pointer at the end of the README — a permanent docs path, not a claim. RE-REVIEWED at framework-slim tier-3 (383 -> 433, slim section grew) and again at the framework-slim DX pass (433 -> 464, the single-package section landed); the line itself is byte-identical both times and still a bare docs URL.",
   },
 ];
 

@@ -169,13 +169,49 @@ dist chunk, so an app that never imports it drops the component _and_ core's
 side-effectful tag-registration chunk.
 
 ```tsx
-import { createI18n } from "@comvi/core/slim";
-import { I18nProvider } from "@comvi/solid";
+import { createI18n, I18nProvider } from "@comvi/solid/slim";
 
 const i18n = createI18n({ locale: "en", translation: { en: { hello: "Hello" } } });
 
 <I18nProvider i18n={i18n}>…</I18nProvider>;
 ```
+
+## One package: `@comvi/solid/slim`
+
+`@comvi/solid/slim` is `@comvi/solid` minus the root re-exports, plus the
+pieces a slim app used to reach into `@comvi/core` for. A slim solid app names
+one package:
+
+| export                                          | what it is                                          |
+| ----------------------------------------------- | --------------------------------------------------- |
+| `createI18n`                                    | `@comvi/core/slim`'s constructor — builds the host  |
+| `icuCompiler`                                   | from `@comvi/core/icu` — `createI18n({ compiler })` |
+| `attachLoader`, `flattenCatalog`                | from `@comvi/core/loader`                           |
+| `attachPlugins`                                 | from `@comvi/core/plugins`                          |
+| `attachDevtools`                                | from `@comvi/core/devtools`                         |
+| every primitive, `I18nProvider`, `T`, the types | identical to `@comvi/solid`                         |
+
+```tsx
+import { attachLoader, createI18n, I18nProvider, useI18nLoader } from "@comvi/solid/slim";
+
+const i18n = attachLoader(createI18n({ locale: "en" }));
+i18n.registerLoader(myLoader);
+// inside a component: const { reloadTranslations } = useI18nLoader();
+```
+
+These are **named** re-exports of core's own bindings, so the ones you do not
+call are pruned — the bundler-matrix case `solid-slim-preset` asserts the icu,
+plugins and devtools subpaths never enter the graph in webpack or vite, in
+development or production. The single-package recipe measures **6229 B**, the
+same as the two-package one to the byte.
+
+`@comvi/core/tags` is deliberately not re-exported: importing it registers tag
+syntax ambiently. `<T>` owns that import and lives in its own dist chunk.
+
+**Pick one entry per app.** `@comvi/solid` and `@comvi/solid/slim` are separate
+build passes, so their solid contexts are distinct objects — an `I18nProvider`
+from one is invisible to a `useI18n()` from the other. `/slim` is a superset of
+the bindings, so there is never a reason to mix.
 
 ## Rich text with `<T>`
 

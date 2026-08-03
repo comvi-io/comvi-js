@@ -2,7 +2,7 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import dts from "vite-plugin-dts";
 import { resolve } from "path";
-import { createLibraryBuildOptions } from "@comvi/vite-config";
+import { COMVI_CORE_EXTERNALS, createLibraryBuildOptions } from "@comvi/vite-config";
 
 export default defineConfig({
   plugins: [
@@ -30,9 +30,7 @@ export default defineConfig({
       "react",
       "react-dom",
       "react/jsx-runtime",
-      "@comvi/core",
-      "@comvi/core/slim",
-      "@comvi/core/tags",
+      ...COMVI_CORE_EXTERNALS,
       "use-sync-external-store",
       "use-sync-external-store/shim",
     ],

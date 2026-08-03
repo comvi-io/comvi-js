@@ -59,8 +59,17 @@ export default defineConfig({
         "next/headers",
         "next/navigation",
         "next/link",
+        // Every `@comvi/core` specifier this package names must be external,
+        // or rolldown inlines a verbatim copy of core into `dist` (fs-p1
+        // blocker B3). Kept in sync by hand: `@comvi/next` does not use
+        // `createLibraryBuildOptions`, so it cannot spread
+        // `COMVI_CORE_EXTERNALS` from `@comvi/vite-config`.
         "@comvi/core",
         "@comvi/core/slim",
+        "@comvi/core/icu",
+        "@comvi/core/loader",
+        "@comvi/core/plugins",
+        "@comvi/core/devtools",
         "@comvi/locale-routing",
         "@comvi/react",
         "@comvi/plugin-fetch-loader",

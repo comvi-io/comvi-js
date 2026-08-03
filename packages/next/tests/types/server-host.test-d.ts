@@ -99,3 +99,34 @@ export type _BareSlimIsNotAServerHost = Expect<
 export type _ComposedIsAServerHost = Expect<
   Equal<typeof composedHost extends NextServerHost ? true : false, true>
 >;
+
+// ---------------------------------------------------------------------------
+// framework-slim DX pass: the SINGLE-PACKAGE server recipe. `createSlimI18n`
+// and the capability toolkit are re-exported from `@comvi/next/server`, so an
+// SSR app builds a `NextServerHost` without ever naming `@comvi/core`.
+// ---------------------------------------------------------------------------
+const singlePackageHost = serverEntry.attachLoader(
+  serverEntry.createSlimI18n({ locale: "en", defaultNs: "common" }),
+);
+const _singlePackage = createNextI18nFromHost(() => singlePackageHost, ROUTING);
+
+export type _SinglePackageHostIsExact = Expect<
+  Equal<typeof _singlePackage.i18n, typeof singlePackageHost>
+>;
+export type _SinglePackageHostIsAServerHost = Expect<
+  Equal<typeof singlePackageHost extends NextServerHost ? true : false, true>
+>;
+// The re-exported constructor is core-slim's, so it builds the same bare host
+// the two-package recipe did — and the same compile error when unattached.
+export type _SinglePackageConstructorIsSlim = Expect<
+  Equal<typeof serverEntry.createSlimI18n, typeof createI18n>
+>;
+// @ts-expect-error -- still NextServerHost = WrapperI18nHost & I18nLoaderApi
+createNextI18nFromHost(() => serverEntry.createSlimI18n({ locale: "en" }), ROUTING);
+
+// ICU stays injectable from the same specifier.
+void serverEntry.attachLoader(
+  serverEntry.createSlimI18n({ locale: "en", compiler: serverEntry.icuCompiler }),
+);
+const serverFlat: Record<string, string> = serverEntry.flattenCatalog({ nav: { home: "Home" } });
+void serverFlat;

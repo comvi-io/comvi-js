@@ -163,6 +163,28 @@ export const treeshakeOptions = {
   propertyReadSideEffects: false as const,
 };
 
+/**
+ * Every `@comvi/core` specifier a framework wrapper may name, as a bundler
+ * external list.
+ *
+ * A wrapper that externalizes only the bare specifier gets verbatim COPIES of
+ * core's chunks inlined into its own dist — that is fs-p1 blocker B3, where
+ * `@comvi/vue` shipped a duplicate tag graph that could not dedupe with the
+ * app's own `@comvi/core` and ran core's ambient `registerTagSyntax()` from
+ * inside the vue bundle. The list is shared because forgetting one entry
+ * fails silently and expensively, and because every wrapper's `/slim` entry
+ * now re-exports the capability subpaths.
+ */
+export const COMVI_CORE_EXTERNALS = [
+  "@comvi/core",
+  "@comvi/core/slim",
+  "@comvi/core/icu",
+  "@comvi/core/loader",
+  "@comvi/core/plugins",
+  "@comvi/core/devtools",
+  "@comvi/core/tags",
+];
+
 export interface LibraryBuildOptions {
   /** Library entry point */
   entry: string;

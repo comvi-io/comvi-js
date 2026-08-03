@@ -2,7 +2,7 @@ import { defineConfig } from "vite";
 import solid from "vite-plugin-solid";
 import dts from "vite-plugin-dts";
 import { resolve } from "path";
-import { createLibraryBuildOptions } from "@comvi/vite-config";
+import { COMVI_CORE_EXTERNALS, createLibraryBuildOptions } from "@comvi/vite-config";
 
 export default defineConfig({
   plugins: [
@@ -15,14 +15,7 @@ export default defineConfig({
     entry: resolve(__dirname, "src/index.ts"),
     name: "ComviSolid",
     fileNames: { es: "comvi-solid.js", cjs: "comvi-solid.cjs" },
-    external: [
-      "solid-js",
-      "solid-js/web",
-      "solid-js/store",
-      "@comvi/core",
-      "@comvi/core/slim",
-      "@comvi/core/tags",
-    ],
+    external: ["solid-js", "solid-js/web", "solid-js/store", ...COMVI_CORE_EXTERNALS],
     globals: {
       "solid-js": "SolidJS",
       "solid-js/web": "SolidJSWeb",

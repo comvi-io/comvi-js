@@ -194,6 +194,19 @@ is called once per constructed instance — the client plugin, and each
 per-request server instance — and nuxt's resolved locale is applied to the host
 afterwards, so routing and detection still win.
 
+**Why `@comvi/nuxt` has no `/slim` entry, and needs none.** Every other binding
+got one in 0.5.0 so an app can name a single package. In nuxt an app already
+names zero: `useI18n()`, `useI18nLoader()` and `useI18nPlugins()` are
+auto-imported by the module. What is left is the host — and a host in nuxt is
+not app code. It is a build-time template branch chosen by a module OPTION, and
+`hostModule` is a PATH the module resolves and inlines into
+`#build/comvi.host`. A `/slim` entry could not participate in that: the
+generated template decides which core is imported, and it decides before any of
+your imports exist. So `comvi.host.ts` is the one file that names
+`@comvi/core` specifiers, deliberately — it is the composition root the module
+branches on, and seeing `@comvi/core/slim` + `attachLoader` there is how you
+know which branch you are on.
+
 Whole-app comvi graph, min+gz (`node scripts/size-check.mjs`); both server rows
 are the same runtime modules and differ only in the emitted construction
 branch:
@@ -201,10 +214,10 @@ branch:
 | graph                                        | min+gz   |
 | -------------------------------------------- | -------- |
 | server, default root branch                  | 12149    |
-| server, `hostModule` (slim + `attachLoader`) | **9576** |
-| client, `hostModule` (bare slim, hydrated)   | **8003** |
+| server, `hostModule` (slim + `attachLoader`) | **9578** |
+| client, `hostModule` (bare slim, hydrated)   | **8006** |
 
-A nuxt server on a composed slim + loader host saves **2573 B (−21.2%)**.
+A nuxt server on a composed slim + loader host saves **2571 B (−21.2%)**.
 
 ## Rich text with `<T>`
 

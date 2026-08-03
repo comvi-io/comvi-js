@@ -1,7 +1,7 @@
 import { defineConfig } from "vite";
 import dts from "vite-plugin-dts";
 import { resolve } from "path";
-import { createLibraryBuildOptions } from "@comvi/vite-config";
+import { COMVI_CORE_EXTERNALS, createLibraryBuildOptions } from "@comvi/vite-config";
 
 export default defineConfig({
   plugins: [
@@ -13,13 +13,12 @@ export default defineConfig({
     entry: resolve(__dirname, "src/index.ts"),
     name: "ComviVue",
     fileNames: { es: "comvi-vue.js", cjs: "comvi-vue.cjs" },
-    // `@comvi/core/slim` and `@comvi/core/tags` MUST be listed: with only the
-    // bare specifier external, rolldown INLINED verbatim copies of core's
-    // tags + translate chunks into `comvi-vue.js` (fs-p1 blocker B3), so every
-    // vue app shipped a duplicate tag graph that could not dedupe with its own
-    // @comvi/core — and ran core's ambient `registerTagSyntax()` from inside
-    // the vue bundle.
-    external: ["vue", "@comvi/core", "@comvi/core/slim", "@comvi/core/tags"],
+    // Every `@comvi/core` specifier MUST be external: with only the bare one
+    // listed, rolldown INLINED verbatim copies of core's tags + translate
+    // chunks into `comvi-vue.js` (fs-p1 blocker B3), so every vue app shipped
+    // a duplicate tag graph that could not dedupe with its own @comvi/core —
+    // and ran core's ambient `registerTagSyntax()` from inside the vue bundle.
+    external: ["vue", ...COMVI_CORE_EXTERNALS],
     globals: {
       vue: "Vue",
       "@comvi/core": "ComviCore",

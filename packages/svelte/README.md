@@ -142,12 +142,51 @@ Moving to a bare slim host saves **3518 B (−35.8%)**.
 
 ```svelte
 <script lang="ts">
-  import { createI18n } from "@comvi/core/slim";
-  import { setI18nContext } from "@comvi/svelte";
+  import { createI18n, setI18nContext } from "@comvi/svelte/slim";
 
   setI18nContext(createI18n({ locale: "en", translation: { en: { hello: "Hello" } } }));
 </script>
 ```
+
+## One package: `@comvi/svelte/slim`
+
+`@comvi/svelte/slim` is `@comvi/svelte` minus the root re-exports, plus the
+pieces a slim app used to reach into `@comvi/core` for. A slim svelte app names
+one package:
+
+| export                                       | what it is                                          |
+| -------------------------------------------- | --------------------------------------------------- |
+| `createI18n`                                 | `@comvi/core/slim`'s constructor — builds the host  |
+| `icuCompiler`                                | from `@comvi/core/icu` — `createI18n({ compiler })` |
+| `attachLoader`, `flattenCatalog`             | from `@comvi/core/loader`                           |
+| `attachPlugins`                              | from `@comvi/core/plugins`                          |
+| `attachDevtools`                             | from `@comvi/core/devtools`                         |
+| every store factory, the readers, `T`, types | identical to `@comvi/svelte`                        |
+
+```svelte
+<script lang="ts">
+  import { attachLoader, createI18n, setI18nContext, useI18nLoader } from "@comvi/svelte/slim";
+
+  const i18n = attachLoader(createI18n({ locale: "en" }));
+  i18n.registerLoader(myLoader);
+  setI18nContext(i18n);
+
+  const { reloadTranslations } = useI18nLoader();
+</script>
+```
+
+These are **named** re-exports of core's own bindings, so the ones you do not
+call are pruned — the bundler-matrix case `svelte-slim-preset` asserts the icu,
+plugins and devtools subpaths never enter the graph in webpack or vite, in
+development or production. The single-package recipe measures **6310 B**, 1 B
+over the two-package one.
+
+`@comvi/core/tags` is deliberately not re-exported: importing it registers tag
+syntax ambiently. `<T>` owns that import and lives in its own dist module.
+
+Unlike react, solid and vue, `svelte-package` preserves modules, so this entry
+and `@comvi/svelte` share every binding module: mixing the two specifiers is
+byte-wasteful but not broken — the context key is one object either way.
 
 ## Rich text with `<T>`
 

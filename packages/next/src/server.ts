@@ -23,3 +23,33 @@ export type {
 } from "./server/types";
 
 export type { LoadTranslationsOptions, TranslationsResult } from "./server/loadTranslations";
+
+// The SINGLE-PACKAGE server surface (framework-slim DX pass). The host factory
+// `createNextI18nFromHost` takes is the app's own composition root, and
+// `NextServerHost = WrapperI18nHost & I18nLoaderApi` means it MUST carry the
+// loader — so the pieces to build one are here, and an SSR next app never has
+// to name `@comvi/core`:
+//
+// ```ts
+// import "server-only";
+// import { attachLoader, createNextI18nFromHost, createSlimI18n } from "@comvi/next/server";
+//
+// export const { i18n, routing } = createNextI18nFromHost(() => {
+//   const host = attachLoader(createSlimI18n({ locale: "en", defaultNs: "default" }));
+//   host.registerLoader(myLoader);
+//   return host;
+// }, routingOptions);
+// ```
+//
+// NAMED re-exports from core's PURE subpaths only, exactly as on the client
+// entry: never `export *` (webpack development cannot prune a star re-export),
+// never through another wrapper (it cannot reconnect a two-package chain), and
+// never `@comvi/core/tags`, whose import registers tag syntax ambiently. The
+// ROOT `@comvi/core` entry is named nowhere in this graph at all — that is what
+// the `next-server-on-slim` matrix case gates.
+export { createI18n as createSlimI18n } from "@comvi/core/slim";
+export { icuCompiler } from "@comvi/core/icu";
+export { attachLoader, flattenCatalog } from "@comvi/core/loader";
+export { attachPlugins } from "@comvi/core/plugins";
+export { attachDevtools } from "@comvi/core/devtools";
+export type { DevtoolsOptions } from "@comvi/core/devtools";

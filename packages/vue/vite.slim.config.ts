@@ -1,7 +1,7 @@
 import { defineConfig } from "vite";
 import dts from "vite-plugin-dts";
 import { resolve } from "path";
-import { createLibraryBuildOptions } from "@comvi/vite-config";
+import { COMVI_CORE_EXTERNALS, createLibraryBuildOptions } from "@comvi/vite-config";
 
 // Second build pass for the root-free `@comvi/vue/slim` entry (P4-AB1).
 // Separate invocation, not a second `lib.entry`: the two entries must not share
@@ -19,7 +19,7 @@ export default defineConfig({
       entry: resolve(__dirname, "src/slim.ts"),
       name: "ComviVueSlim",
       fileNames: { es: "comvi-vue-slim.js" },
-      external: ["vue", "@comvi/core", "@comvi/core/slim", "@comvi/core/tags"],
+      external: ["vue", ...COMVI_CORE_EXTERNALS],
       globals: {
         vue: "Vue",
         "@comvi/core/slim": "ComviCoreSlim",

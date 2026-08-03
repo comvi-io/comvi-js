@@ -285,13 +285,49 @@ that never imports it drops both; together with core's own size work that made t
 with no code change.
 
 ```tsx
-import { createI18n } from "@comvi/core/slim";
-import { I18nProvider } from "@comvi/react";
+import { createI18n, I18nProvider } from "@comvi/react/slim";
 
 const i18n = createI18n({ locale: "en", translation: { en: { hello: "Hello" } } });
 
 <I18nProvider i18n={i18n}>…</I18nProvider>;
 ```
+
+## One package: `@comvi/react/slim`
+
+`@comvi/react/slim` is `@comvi/react` minus the root re-exports, plus the
+pieces a slim app used to reach into `@comvi/core` for. A slim react app names
+one package:
+
+| export                                     | what it is                                          |
+| ------------------------------------------ | --------------------------------------------------- |
+| `createI18n`                               | `@comvi/core/slim`'s constructor — builds the host  |
+| `icuCompiler`                              | from `@comvi/core/icu` — `createI18n({ compiler })` |
+| `attachLoader`, `flattenCatalog`           | from `@comvi/core/loader`                           |
+| `attachPlugins`                            | from `@comvi/core/plugins`                          |
+| `attachDevtools`                           | from `@comvi/core/devtools`                         |
+| every hook, `I18nProvider`, `T`, the types | identical to `@comvi/react`                         |
+
+```tsx
+import { attachLoader, createI18n, I18nProvider, useI18nLoader } from "@comvi/react/slim";
+
+const i18n = attachLoader(createI18n({ locale: "en" }));
+i18n.registerLoader(myLoader);
+// inside a component: const { reloadTranslations } = useI18nLoader();
+```
+
+These are **named** re-exports of core's own bindings, so the ones you do not
+call are pruned — the bundler-matrix case `react-slim-preset` asserts the icu,
+plugins and devtools subpaths never enter the graph in webpack or vite, in
+development or production. The single-package recipe measures **6522 B**, 1 B
+_under_ the two-package one.
+
+`@comvi/core/tags` is deliberately not re-exported: importing it registers tag
+syntax ambiently. `<T>` owns that import and lives in its own dist chunk.
+
+**Pick one entry per app.** `@comvi/react` and `@comvi/react/slim` are separate
+build passes, so their React contexts are distinct objects — an `I18nProvider`
+from one is invisible to a `useI18n()` from the other. `/slim` is a superset of
+the bindings, so there is never a reason to mix.
 
 ## Rich text with `<T>`
 

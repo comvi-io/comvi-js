@@ -35,6 +35,28 @@ const SCRIPT_DIR = path.dirname(url.fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(SCRIPT_DIR, "..", "..");
 const APP_DIR = path.join(SCRIPT_DIR, "app");
 const OUT_DIR = path.join(APP_DIR, "out");
+
+/** `@comvi/core`'s side-effectful ROOT entry, as a module-ID fragment. */
+const ROOT_ENTRY = `@comvi${path.sep}core${path.sep}dist${path.sep}comvi-core.js`;
+
+/**
+ * The three capability subpaths a single-package app does NOT use, as
+ * module-ID fragments — entry file and hashed chunk alike.
+ *
+ * Every wrapper `/slim` entry re-exports icuCompiler, attachLoader,
+ * flattenCatalog, attachPlugins and attachDevtools so an app never has to
+ * name `@comvi/core`. The single-package cases call attachLoader (and with it
+ * flattenCatalog, same module); these fragments are what must stay OUT of the
+ * graph, which is the whole claim "an unused named re-export costs nothing".
+ */
+const UNUSED_CAPABILITY_SUBPATHS = [
+  `@comvi${path.sep}core${path.sep}dist${path.sep}comvi-core-icu.js`,
+  `@comvi${path.sep}core${path.sep}dist${path.sep}comvi-core-plugins.js`,
+  `@comvi${path.sep}core${path.sep}dist${path.sep}comvi-core-devtools.js`,
+  `comvi-core-compile-icu-`,
+  `comvi-core-plugins-`,
+  `comvi-core-devtools-`,
+];
 /**
  * Matrix cases. `sentinels` says what the bundler's module graph must look
  * like for core's tag-registration chunks (the `sideEffects` set):
@@ -86,7 +108,7 @@ const CASES = [
     // or the fallback `@comvi/vue/slim` subpath ships instead.
     name: "vue-on-slim",
     sentinels: "absent",
-    absentModules: [`@comvi${path.sep}core${path.sep}dist${path.sep}comvi-core.js`],
+    absentModules: [ROOT_ENTRY],
     packages: ["@comvi/core", "@comvi/vue"],
     deps: ["vue"],
   },
@@ -96,10 +118,16 @@ const CASES = [
     // keeps the sibling `./server` re-exports alive — which is the point:
     // retargeting getI18n.ts to `@comvi/core/slim` removes the root entry at
     // the source instead of relying on the bundler to prune it.
+    //
+    // Retargeted by the DX pass to the SINGLE-PACKAGE recipe: the fixture now
+    // builds its host from `createSlimI18n` + `attachLoader` re-exported by
+    // `@comvi/next/server`, so this case also gates the re-export hop on the
+    // server half — the three unused capability subpaths must stay out.
     name: "next-server-on-slim",
     sentinels: "absent",
     absentModules: [
-      `@comvi${path.sep}core${path.sep}dist${path.sep}comvi-core.js`,
+      ROOT_ENTRY,
+      ...UNUSED_CAPABILITY_SUBPATHS,
       `@comvi${path.sep}next${path.sep}dist${path.sep}createNextI18n.js`,
     ],
     packages: ["@comvi/core", "@comvi/locale-routing", "@comvi/react", "@comvi/next"],
@@ -123,9 +151,72 @@ const CASES = [
     name: "next-client-slim",
     sentinels: { default: "absent", "webpack:development": "present" },
     absentModules: [
-      `@comvi${path.sep}core${path.sep}dist${path.sep}comvi-core.js`,
+      ROOT_ENTRY,
       `@comvi${path.sep}core${path.sep}dist${path.sep}comvi-core-loader.js`,
       `comvi-core-importMapLoader-`,
+      `@comvi${path.sep}next${path.sep}dist${path.sep}server${path.sep}`,
+    ],
+    packages: ["@comvi/core", "@comvi/locale-routing", "@comvi/react", "@comvi/next"],
+    deps: ["react", "next"],
+  },
+  // ---------------------------------------------------------------------
+  // framework-slim DX pass: the SINGLE-PACKAGE recipes. Each app imports
+  // from exactly one specifier — `@comvi/<fw>/slim`, or `@comvi/next/client`
+  // — and names `@comvi/core` nowhere.
+  //
+  // These five cases are THE gate for re-export-hop tree-shaking. A wrapper
+  // `/slim` entry re-exports five capability bindings from core's PURE
+  // subpaths so an app never has to reach past its framework package; each
+  // app below uses exactly ONE of them (`attachLoader` + `flattenCatalog`,
+  // which share a module), and `UNUSED_CAPABILITY_SUBPATHS` asserts the other
+  // three never enter the bundler's module graph. The root entry and the tag
+  // chunks are asserted absent as everywhere else.
+  //
+  // Development matters as much as production here: webpack runs with
+  // `optimization.usedExports` off, so a re-export it cannot resolve is a
+  // retained module. That is exactly how `export * from "@comvi/core"` kept
+  // the root entry alive for vue (fs-p4 §2 / P4-AB1), and why every entry in
+  // this wave uses NAMED re-exports only.
+  {
+    name: "react-slim-preset",
+    sentinels: "absent",
+    absentModules: [ROOT_ENTRY, ...UNUSED_CAPABILITY_SUBPATHS],
+    packages: ["@comvi/core", "@comvi/react"],
+    deps: ["react"],
+  },
+  {
+    name: "solid-slim-preset",
+    sentinels: "absent",
+    absentModules: [ROOT_ENTRY, ...UNUSED_CAPABILITY_SUBPATHS],
+    packages: ["@comvi/core", "@comvi/solid"],
+    deps: ["solid-js"],
+  },
+  {
+    name: "svelte-slim-preset",
+    sentinels: "absent",
+    absentModules: [ROOT_ENTRY, ...UNUSED_CAPABILITY_SUBPATHS],
+    packages: ["@comvi/core", "@comvi/svelte"],
+    deps: ["svelte"],
+  },
+  {
+    name: "vue-slim-preset",
+    sentinels: "absent",
+    absentModules: [ROOT_ENTRY, ...UNUSED_CAPABILITY_SUBPATHS],
+    packages: ["@comvi/core", "@comvi/vue"],
+    deps: ["vue"],
+  },
+  {
+    // `@comvi/next/client` exports the ROOT `createI18n` and the slim
+    // `createSlimI18n` side by side; this app calls only the latter, and the
+    // root entry must still be absent everywhere. The tag exception is
+    // inherited verbatim from `next-client-slim`: the entry re-exports `T`
+    // from `@comvi/react`, a two-package chain webpack development cannot
+    // reconnect.
+    name: "next-client-slim-preset",
+    sentinels: { default: "absent", "webpack:development": "present" },
+    absentModules: [
+      ROOT_ENTRY,
+      ...UNUSED_CAPABILITY_SUBPATHS,
       `@comvi${path.sep}next${path.sep}dist${path.sep}server${path.sep}`,
     ],
     packages: ["@comvi/core", "@comvi/locale-routing", "@comvi/react", "@comvi/next"],

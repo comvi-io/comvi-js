@@ -1,15 +1,24 @@
-// framework-slim gate (plan P5 step 2): a Next.js SERVER app that imports ONLY
-// `createNextI18nFromHost` (+ the root-free server helpers) from
-// `@comvi/next/server`, on a composed `@comvi/core/slim` + `attachLoader` host.
+// framework-slim gate (plan P5 step 2, retargeted by the DX pass): a Next.js
+// SERVER app on a composed slim + `attachLoader` host, built from a SINGLE
+// package. Every specifier here is `@comvi/next/server` — the constructor and
+// the capability toolkit included, because `NextServerHost = WrapperI18nHost &
+// I18nLoaderApi` makes the loader mandatory for SSR and an app should not have
+// to reach past its framework package to satisfy that.
 //
 // The runner asserts, from the bundler's own module graph, that neither core's
-// root entry nor its tag-registration chunks survive. `getI18n` is deliberately
-// NOT imported: it reaches `next/headers` through `getLocale`, so its absence
-// from this graph is also proved by the fact that this bundle builds and runs
-// with `next` not installed at all.
-import { createI18n } from "@comvi/core/slim";
-import { attachLoader } from "@comvi/core/loader";
-import { createNextI18nFromHost, loadTranslations, setRequestLocale } from "@comvi/next/server";
+// root entry nor its tag-registration chunks survive, and that the three
+// capability subpaths this recipe does NOT use never enter it either — the
+// re-export hop has to pay for itself here exactly as on the client entry.
+// `getI18n` is deliberately NOT imported: it reaches `next/headers` through
+// `getLocale`, so its absence from this graph is also proved by the fact that
+// this bundle builds and runs with `next` not installed at all.
+import {
+  attachLoader,
+  createNextI18nFromHost,
+  createSlimI18n,
+  loadTranslations,
+  setRequestLocale,
+} from "@comvi/next/server";
 
 function assert(condition, label) {
   if (!condition) {
@@ -30,13 +39,15 @@ function assertEqual(actual, expected, label) {
 assert(typeof createNextI18nFromHost === "function", "@comvi/next/server exports the companion");
 assert(typeof loadTranslations === "function", "@comvi/next/server exports loadTranslations");
 assert(typeof setRequestLocale === "function", "@comvi/next/server exports setRequestLocale");
+assert(typeof createSlimI18n === "function", "@comvi/next/server exports createSlimI18n");
+assert(typeof attachLoader === "function", "@comvi/next/server re-exports attachLoader");
 
 let hostCalls = 0;
 const result = createNextI18nFromHost(
   () => {
     hostCalls += 1;
     return attachLoader(
-      createI18n({
+      createSlimI18n({
         locale: "en",
         exposeGlobal: false,
         translation: { en: { msg: "a <b>c</b> d" } },

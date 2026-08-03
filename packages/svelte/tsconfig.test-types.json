@@ -11,6 +11,8 @@
       "@comvi/core/slim": ["../core/src/slim.ts"],
       "@comvi/core/loader": ["../core/src/loader.ts"],
       "@comvi/core/plugins": ["../core/src/plugins.ts"],
+      "@comvi/core/icu": ["../core/src/icu.ts"],
+      "@comvi/core/devtools": ["../core/src/devtools.ts"],
       "@comvi/core/tags": ["../core/src/tags.ts"],
       "@comvi/svelte": ["./src/index.ts"]
     }

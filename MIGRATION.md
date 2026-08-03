@@ -85,12 +85,82 @@ blocks with position remapping. Running it twice is a byte-identical no-op.
 
 ## 4. Per binding
 
+### One package per app
+
+A slim host used to take two packages to build: the constructor from
+`@comvi/core/slim`, the bindings from `@comvi/<framework>`. 0.5.0 closes that —
+every binding ships a `/slim` entry that carries the host constructor **and**
+the capability toolkit, so an app names one package and nothing else:
+
+```ts
+import { attachLoader, createI18n, icuCompiler } from "@comvi/react/slim";
+//        ^ from @comvi/core/loader   ^ core-slim's own   ^ from @comvi/core/icu
+```
+
+| binding         | single-package specifier | host constructor                       |
+| --------------- | ------------------------ | -------------------------------------- |
+| `@comvi/react`  | `@comvi/react/slim`      | `createI18n`                           |
+| `@comvi/solid`  | `@comvi/solid/slim`      | `createI18n`                           |
+| `@comvi/svelte` | `@comvi/svelte/slim`     | `createI18n`                           |
+| `@comvi/vue`    | `@comvi/vue/slim`        | `createI18n` (one-call) / `createCore` |
+| `@comvi/next`   | `@comvi/next/client`     | `createSlimI18n`                       |
+| `@comvi/next`   | `@comvi/next/server`     | `createSlimI18n`                       |
+| `@comvi/nuxt`   | auto-imported            | see the nuxt section                   |
+
+Five bindings are re-exported on every one of those entries — `icuCompiler`,
+`attachLoader`, `flattenCatalog`, `attachPlugins`, `attachDevtools`. They are
+**named** re-exports of core's own bindings (`slim.attachLoader === attachLoader`),
+so the ones you do not call are pruned: the `*-slim-preset` bundler-matrix cases
+assert the icu, plugins and devtools subpaths never enter the module graph, in
+webpack and vite, development and production.
+
+`@comvi/core/tags` is deliberately **not** re-exported. Importing it registers
+tag syntax ambiently, which is a side effect no entry should hand you by
+accident; `<T>` owns that import and lives in its own dist chunk. Nothing about
+`<T>` changes — keep importing it from your binding.
+
+Two rules if you use these entries:
+
+- **Pick one entry per app.** `@comvi/react` and `@comvi/react/slim` (and the
+  solid and vue pairs) are separate build passes, so their provider/injection
+  identities are distinct objects. A provider from one and a hook from the other
+  will not see each other. The `/slim` entry is a superset of the bindings, so
+  there is never a reason to mix. (`@comvi/svelte` preserves modules and
+  `@comvi/next` has a single client entry, so neither can hit this.)
+- **The entry decides which core you get**, exactly as it does for `@comvi/core`
+  itself: `createI18n` from `@comvi/react` builds a root host, `createI18n` from
+  `@comvi/react/slim` builds a slim one. Nothing else about the name changes.
+
+The `/slim` entries are additive. Every 0.4.x import path still resolves, and an
+app that keeps building its host from `@comvi/core/slim` keeps working.
+
 ### `@comvi/react`, `@comvi/solid`, `@comvi/svelte`
 
 Nothing but the four renames. `I18nProviderProps.i18n`, the context value types,
 solid's six reactive primitives and svelte's six store factories all accept
 `WrapperI18nHost` now, so root instances keep working unchanged and slim ones
 start working.
+
+There is no framework-side wrapper object in these three — the host goes
+straight into the provider or the context setter — so their `/slim` preset IS
+core-slim's `createI18n`, re-exported. The whole quickstart:
+
+```tsx
+import { attachLoader, createI18n, I18nProvider, useI18n } from "@comvi/react/slim";
+
+const i18n = attachLoader(createI18n({ locale: "en", translation: { en: { hi: "Hi" } } }));
+i18n.registerLoader(myLoader);
+
+// <I18nProvider i18n={i18n}>…</I18nProvider>, then useI18n() / useI18nLoader() inside.
+```
+
+Solid is identical. Svelte swaps the provider for `setI18nContext(i18n)` and
+imports from `@comvi/svelte/slim`.
+
+Attaching a capability is not configuring it: `attachLoader(host)` installs the
+API, and `host.registerLoader(fn)` is still the call that gives it something to
+load. Skip `attachLoader` entirely and `useI18nLoader()` throws with the message
+in §5.
 
 Svelte's `useI18nLoader()` / `useI18nPlugins()` are **context readers**, not
 stores: callable during component initialisation only, returning plain bound
@@ -120,16 +190,44 @@ exists to remove — so it left with the others. Note that `i18n.core.use(...)`
 returns the **host**, not the wrapper, so it no longer chains off the factory
 call.
 
-`createI18n(options)` is unchanged and still the default. `createI18nFromCore(core, options?)`
-is new, for a host you composed yourself.
+`createI18n(options)` is unchanged and still the default on `@comvi/vue`.
+`createI18nFromCore(core, options?)` is new, for a host you composed yourself.
 
 **Build your slim vue app against `@comvi/vue/slim`.** The main entry
 tree-shakes the root graph correctly under esbuild, vite (both modes) and
 webpack production — but not under webpack _development_, where a star
 re-export (`export * from "@comvi/core"`) cannot be pruned, and the retained
 root entry runs core's ambient `registerTagSyntax()`. `@comvi/vue/slim` carries
-the same classes, composables, `<T>` and injection key without `createI18n` and
-without the core re-export.
+the same classes, composables, `<T>` and injection key without the root-bound
+`createI18n` and without the core re-export.
+
+Vue is the one binding whose preset is a real function — there is a `VueI18n`
+to construct — so `@comvi/vue/slim` exports **both** halves:
+
+```ts
+// one call: a VueI18n over a bare @comvi/core/slim host
+import { createI18n } from "@comvi/vue/slim";
+
+const i18n = createI18n({ locale: "en", translation: { en: { hi: "Hi" } } });
+createApp(App).use(i18n).mount("#app");
+```
+
+```ts
+// composed host: `createCore` is core's own constructor, same package
+import { attachLoader, createCore, createI18nFromCore } from "@comvi/vue/slim";
+
+const core = attachLoader(createCore({ locale: "en" }));
+core.registerLoader(myLoader);
+const i18n = createI18nFromCore(core, { ssrLocale: "en" });
+```
+
+`createI18n` here takes the same options as `@comvi/vue`'s, `ssrLocale`
+included, plus `compiler` — so `compiler: icuCompiler` from the same import
+buys ICU back. The wrapper it returns is `VueI18n<D, I18n<D>>` over the SLIM
+`I18n`, so `i18n.core` is typed without the capabilities it does not have.
+`createCore` is named after what it builds because `createI18n` is taken by the
+one-call preset; use it whenever you want the exact-`C` `createI18nFromCore`
+path.
 
 ### `@comvi/nuxt`
 
@@ -158,29 +256,64 @@ app's host needs `attachLoader` — `NuxtServerHost = WrapperI18nHost & I18nLoad
 host and default to the root `I18n`, so a default-configuration hook needs no
 annotation.
 
+**Why nuxt has no `/slim` entry, and does not need one.** In a nuxt app you
+never import the bindings at all — `useI18n()`, `useI18nLoader()` and
+`useI18nPlugins()` are auto-imported by the module, so app code already names
+zero packages. What is left is the host, and a host in nuxt is not app code: it
+is a build-time template branch selected by a module OPTION, and `hostModule`
+is a PATH the module resolves and inlines into `#build/comvi.host`. A `/slim`
+entry could not participate in that — the generated template is what decides
+which core is imported, and it decides before any of your imports exist.
+
+So `comvi.host.ts` is the one file in a nuxt app that names `@comvi/core`
+specifiers, and that is deliberate: it is the composition root the module
+branches on, and seeing `@comvi/core/slim` + `attachLoader` there is how you
+know which branch you are on. Everything downstream stays import-free.
+
 ### `@comvi/next`
 
 The client inherits react's migration verbatim — `@comvi/next/client` re-exports
 `useI18nLoader` / `useI18nPlugins` alongside `useI18n`.
 
+**What "single package" means for next, and why it is spelled differently.**
+`@comvi/next/client` is next's only client surface, and it is not a `/slim`
+entry: it already exports `createI18n`, the ROOT constructor, published in
+0.4.x. Swapping that binding for the slim one would silently drop ICU plurals
+and tag syntax out from under an existing app, so the slim host got its own
+name instead. Both are exported side by side, and the entry decides nothing —
+the name does:
+
+```tsx
+"use client";
+import { createSlimI18n, I18nProvider, useI18n } from "@comvi/next/client";
+
+// Client hosts do not load; they are hydrated from the catalog the server
+// serialized. `createI18n` (root) is still there if you want the full core.
+const i18n = createSlimI18n({ locale: "en", defaultNs: "default" });
+```
+
 The server gains a root-free companion, exported from `@comvi/next/server` and
-nowhere else:
+nowhere else — and that entry carries the toolkit too, because
+`NextServerHost = WrapperI18nHost & I18nLoaderApi` makes the loader mandatory
+for SSR and the host factory should not have to reach past next to satisfy it:
 
 ```ts
 import "server-only";
-import { createI18n } from "@comvi/core/slim";
-import { attachLoader } from "@comvi/core/loader";
-import { createNextI18nFromHost } from "@comvi/next/server";
+import { attachLoader, createNextI18nFromHost, createSlimI18n } from "@comvi/next/server";
 
 export const { i18n, routing } = createNextI18nFromHost(
   () => {
-    const host = attachLoader(createI18n({ locale: "en", defaultNs: "default" }));
+    const host = attachLoader(createSlimI18n({ locale: "en", defaultNs: "default" }));
     host.registerLoader(myLoader);
     return host;
   },
   { locales: ["en", "de"], defaultLocale: "en", localePrefix: "as-needed" },
 );
 ```
+
+`@comvi/next/server` deliberately does **not** export a root `createI18n`: a
+server graph that named the root entry would carry core's ambient tag
+registration, and the `next-server-on-slim` gate asserts it never does.
 
 Options are routing-only; everything else belongs to the host factory. The
 result is exactly `{ i18n, routing }` with no `.use*` methods. `host()` is not
@@ -289,16 +422,24 @@ unchanged property descriptors, and a spread copy still carries data only.
 ## 7. What you get
 
 Whole-app comvi graph, min+gz, framework peer dependency externalized, measured
-by `node scripts/size-check.mjs`:
+by `node scripts/size-check.mjs` at the DX-pass commit. The `/slim` column is
+the SINGLE-PACKAGE recipe from §4 — the one the fixtures actually build:
 
-| binding                | root host | bare `/slim` host | saving           |
-| ---------------------- | --------- | ----------------- | ---------------- |
-| `@comvi/react`         | 10038     | **6515**          | −3523 B (−35.1%) |
-| `@comvi/solid`         | 9756      | **6222**          | −3534 B (−36.2%) |
-| `@comvi/svelte`        | 9818      | **6300**          | −3518 B (−35.8%) |
-| `@comvi/vue`           | 10348     | **6857**          | −3491 B (−33.7%) |
-| `@comvi/next` (server) | 9930      | **7059**          | −2871 B (−28.9%) |
-| `@comvi/nuxt` (server) | 12140     | **9568**          | −2572 B (−21.2%) |
+| binding                | root host | single-package `/slim` | saving           |
+| ---------------------- | --------- | ---------------------- | ---------------- |
+| `@comvi/react`         | 10046     | **6522**               | −3524 B (−35.1%) |
+| `@comvi/solid`         | 9766      | **6229**               | −3537 B (−36.2%) |
+| `@comvi/svelte`        | 9827      | **6310**               | −3517 B (−35.8%) |
+| `@comvi/vue`           | 10354     | **6873**               | −3481 B (−33.6%) |
+| `@comvi/next` (server) | 9938      | **7117**               | −2821 B (−28.4%) |
+| `@comvi/next` (client) | 9938      | **6956**               | −2982 B (−30.0%) |
+| `@comvi/nuxt` (server) | 12149     | **9578**               | −2571 B (−21.2%) |
+
+Single packaging is close to free: measured against the two-package recipe
+(constructor from `@comvi/core/slim`, bindings from the framework), react is
+**−1 B**, solid **0 B**, svelte **+1 B**, vue **+5 B**, next client **+17 B**
+and next server **+47 B**. The five unused capability re-exports cost nothing
+at all — they are not in the graph.
 
 Several bindings also got smaller on the **root** path, with no app change at
 all, because `<T>` and the tag machinery it needs became opt-in and core itself got smaller: react −1240 B,

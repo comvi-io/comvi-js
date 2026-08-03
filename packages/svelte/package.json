@@ -44,6 +44,12 @@
       "svelte": "./dist/index.js",
       "import": "./dist/index.js",
       "default": "./dist/index.js"
+    },
+    "./slim": {
+      "types": "./dist/slim.d.ts",
+      "svelte": "./dist/slim.js",
+      "import": "./dist/slim.js",
+      "default": "./dist/slim.js"
     }
   },
   "sideEffects": false,
