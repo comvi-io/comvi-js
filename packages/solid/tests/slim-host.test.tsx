@@ -1,5 +1,5 @@
 /**
- * framework-slim P3 — @comvi/solid on a BARE `@comvi/core/slim` host.
+ * framework-slim P3 — @comvi/solid on a BARE `@comvi/core` host.
  *
  * This is the D′ endpoint: the host implements `WrapperI18nHost` and nothing
  * more. Everything `useI18n()` still returns must work on it, and nothing the
@@ -12,7 +12,7 @@
  */
 import { describe, it, expect } from "vitest";
 import { render } from "solid-js/web";
-import { createI18n } from "@comvi/core/slim";
+import { createI18n } from "@comvi/core";
 import { attachLoader } from "@comvi/core/loader";
 import type { WrapperI18nHost } from "@comvi/core";
 import { I18nProvider } from "../src/context";

@@ -65,11 +65,14 @@ export default defineConfig({
         // `createLibraryBuildOptions`, so it cannot spread
         // `COMVI_CORE_EXTERNALS` from `@comvi/vite-config`.
         "@comvi/core",
-        "@comvi/core/slim",
         "@comvi/core/icu",
         "@comvi/core/loader",
         "@comvi/core/plugins",
         "@comvi/core/devtools",
+        // The composed builder registers ambient tag syntax by importing this
+        // side-effectful subpath (the 0.4 root did it for us); leaving it
+        // non-external inlines core's whole tag graph into `dist`.
+        "@comvi/core/tags",
         "@comvi/locale-routing",
         "@comvi/react",
         "@comvi/plugin-fetch-loader",
@@ -81,7 +84,6 @@ export default defineConfig({
           "react/jsx-runtime": "jsxRuntime",
           next: "Next",
           "@comvi/core": "ComviCore",
-          "@comvi/core/slim": "ComviCoreSlim",
           "@comvi/react": "ComviReact",
         },
         preserveModules: true,

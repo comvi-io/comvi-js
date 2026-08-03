@@ -22,7 +22,7 @@ function hasDefaultExport(result: LoaderImportResult): result is { default: Load
  * Keys without `:` are expanded to `"locale:defaultNs"`; the `{ default: … }`
  * wrapper from dynamic `import()` is unwrapped automatically.
  *
- * The full entry's `registerLoader` accepts an import map directly; slim
+ * The internal composite's `registerLoader` accepts an import map directly; base
  * consumers wrap explicitly so the adapter stays out of graphs that never
  * use it: `i18n.registerLoader(createImportMapLoader(map, () => "default"))`.
  */

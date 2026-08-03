@@ -3,9 +3,10 @@ import { useLocaleState } from "./utils/locale-state";
 import { runComviSetup } from "#build/comvi.setup";
 import { watch } from "vue";
 // The i18n instance is built by the BUILD-TIME template, never by a runtime
-// branch here: a static `createI18n` import in this module would pin the root
-// @comvi/core entry into every nuxt bundle, including apps that configured a
-// slim `hostModule` (framework-slim P4 step 5).
+// branch here: a static `createI18n` import in this module would pin nuxt's
+// default `@comvi/vue` construction path (and the base `@comvi/core` root it
+// builds on) into every nuxt bundle, including apps that configured their own
+// `hostModule` (framework-slim P4 step 5).
 import { createComviI18n } from "#build/comvi.host";
 import type { AnyVueI18n } from "@comvi/vue";
 import type { TranslationValue } from "@comvi/core";

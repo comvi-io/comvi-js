@@ -2,7 +2,7 @@ import { computed, ref } from "vue";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { mockRuntimeConfig, resetMocks, setMockI18n, useState } from "./mocks/nuxt-app";
 import { useI18n } from "../src/runtime/composables/useI18n";
-import type * as ComviCoreSlim from "@comvi/core/slim";
+import type * as ComviCoreSlim from "@comvi/core";
 
 const { createBoundTranslation, boundT } = vi.hoisted(() => {
   const t = vi.fn(() => [
@@ -18,7 +18,7 @@ const { createBoundTranslation, boundT } = vi.hoisted(() => {
 
 // The composable takes `createBoundTranslation` from the SLIM entry now: it
 // runs on a bare WrapperI18nHost, which is all `$i18n` promises (§3.2).
-vi.mock("@comvi/core/slim", async (importOriginal) => ({
+vi.mock("@comvi/core", async (importOriginal) => ({
   ...(await importOriginal<typeof ComviCoreSlim>()),
   createBoundTranslation,
 }));

@@ -2,10 +2,10 @@
 "@comvi/vue": minor
 ---
 
-**Added: a one-call `createI18n` on `@comvi/vue/slim`, and the capability toolkit beside it.** Building a slim vue app used to take two packages and two calls: the host constructor from `@comvi/core/slim`, `createI18nFromCore` from `@comvi/vue/slim`. Both halves now live on one entry, and the one-call path is back.
+**Added: a one-call `createI18n` on `@comvi/vue/slim`, and the capability toolkit beside it.** Building a slim vue app used to take two packages and two calls: the host constructor from `@comvi/core`, `createI18nFromCore` from `@comvi/vue/slim`. Both halves now live on one entry, and the one-call path is back.
 
 ```ts
-// one call: a VueI18n over a bare @comvi/core/slim host
+// one call: a VueI18n over a bare @comvi/core host
 import { createI18n } from "@comvi/vue/slim";
 
 const i18n = createI18n({ locale: "en", translation: { en: { hi: "Hi" } } });
@@ -23,16 +23,16 @@ const i18n = createI18nFromCore(host, { ssrLocale: "en" }); // i18n.core is exac
 
 ### What is on the entry
 
-| export                                            | what it is                                                        |
-| ------------------------------------------------- | ----------------------------------------------------------------- |
-| `createI18n`                                      | **new** — one-call preset, `VueI18n` over a slim core             |
-| `createCore`                                      | **new** — `@comvi/core/slim`'s constructor, for the composed path |
-| `createI18nFromCore`                              | unchanged — wraps a host you built, preserving its exact type     |
-| `icuCompiler`                                     | from `@comvi/core/icu` — pass as `createI18n({ compiler })`       |
-| `loader`, `attachLoader`, `flattenCatalog`        | from `@comvi/core/loader`                                         |
-| `plugins`, `attachPlugins`                        | from `@comvi/core/plugins`                                        |
-| `devtools`, `attachDevtools`                      | from `@comvi/core/devtools`                                       |
-| `VueI18n`, the composables, `<T>`, the inject key | unchanged                                                         |
+| export                                            | what it is                                                    |
+| ------------------------------------------------- | ------------------------------------------------------------- |
+| `createI18n`                                      | **new** — one-call preset, `VueI18n` over a base host         |
+| `createCore`                                      | **new** — `@comvi/core`'s constructor, for the composed path  |
+| `createI18nFromCore`                              | unchanged — wraps a host you built, preserving its exact type |
+| `icuCompiler`                                     | from `@comvi/core/icu` — pass as `createI18n({ compiler })`   |
+| `loader`, `attachLoader`, `flattenCatalog`        | from `@comvi/core/loader`                                     |
+| `plugins`, `attachPlugins`                        | from `@comvi/core/plugins`                                    |
+| `devtools`, `attachDevtools`                      | from `@comvi/core/devtools`                                   |
+| `VueI18n`, the composables, `<T>`, the inject key | unchanged                                                     |
 
 `createI18n` here takes `@comvi/vue`'s option shape — `ssrLocale` included, applied to the host before the reactive ref is seeded — plus `compiler`. It returns `VueI18n<D, I18n<D>>` over the **slim** `I18n`, so `i18n.core` is typed without the capabilities it does not have; the eight dropped proxies stay dropped. `createCore` is named after what it builds because `createI18n` is taken by the preset.
 
@@ -63,3 +63,12 @@ Whole-app comvi graph, min+gz, `vue` externalized (`node scripts/size-check.mjs`
 `@comvi/vue` and `@comvi/vue/slim` are separate build passes, so `I18N_INJECTION_KEY` is a different symbol in each — a plugin installed from one is invisible to a composable from the other. `/slim` is a superset of the bindings, so there is never a reason to mix.
 
 Nothing is removed and no existing import path changes. See the [0.5.0 migration guide](https://github.com/comvi-io/comvi-js/blob/main/MIGRATION.md) §4.
+
+> Rewritten in place at the single-entry convergence (same release): the separate
+> base-host subpath this changeset was written against no longer exists, and
+> `@comvi/core`'s root IS that base host — so every specifier above names the
+> root, and every "the root has it already" claim reads against the base host.
+> The 0.4 composed root survives only as a recipe (`.with(loader())`,
+> `.with(plugins())`, `.with(devtools())`, `compiler: icuCompiler` from
+> `@comvi/core/icu`, `import "@comvi/core/tags"`); see
+> `core-single-entry-convergence.md` for the break and the migration.

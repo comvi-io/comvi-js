@@ -44,11 +44,6 @@
       "development": "./dist/comvi-core.dev.js",
       "default": "./dist/comvi-core.js"
     },
-    "./slim": {
-      "types": "./dist/slim.d.ts",
-      "development": "./dist/comvi-core-slim.dev.js",
-      "default": "./dist/comvi-core-slim.js"
-    },
     "./loader": {
       "types": "./dist/loader.d.ts",
       "development": "./dist/comvi-core-loader.dev.js",

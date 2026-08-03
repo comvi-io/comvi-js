@@ -3,8 +3,9 @@
 // The server loads (createNextI18nFromHost + loadTranslations, covered in
 // createNextI18nFromHost.test.ts); the client pays the bare-slim price and is
 // hydrated from the serialized catalog through `<I18nProvider messages>`.
-// This is exactly the graph `fw-next-client-slim` measures — no root entry,
-// no loader, no tag machinery.
+// This is exactly the graph `fw-next-client-slim` measures — core's base root
+// and react's bindings, and nothing else: no loader, no tag machinery, none of
+// next's server modules.
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import type { MockInstance } from "vitest";
 import React from "react";
@@ -12,7 +13,7 @@ import { renderToString } from "react-dom/server";
 import { hydrateRoot } from "react-dom/client";
 import type { Root } from "react-dom/client";
 import { act, renderHook } from "@testing-library/react";
-import { createI18n } from "@comvi/core/slim";
+import { createI18n } from "@comvi/core";
 import type { WrapperI18nHost } from "@comvi/core";
 import { useI18n } from "../src/client";
 import { I18nProvider } from "../src/client/I18nProvider";
@@ -33,7 +34,7 @@ const hydrated = (
 
 const MESSAGES: MessagesMap = { "fr:default": { greeting: "Bonjour" } };
 
-describe("next client on a bare @comvi/core/slim host", () => {
+describe("next client on a bare @comvi/core host", () => {
   it("translates from a server-serialized catalog", () => {
     const i18n = bareSlimClient();
     const wrapper = ({ children }: { children: React.ReactNode }) =>

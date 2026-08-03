@@ -4,7 +4,7 @@
 import "@comvi/core/tags";
 import React from "react";
 import { useI18n } from "./useI18n";
-import { isVirtualNode } from "@comvi/core/slim";
+import { isVirtualNode } from "@comvi/core";
 import type {
   TranslationParams,
   TranslationKeys,

@@ -199,11 +199,15 @@ export async function runComviSetup(context) {
 
     // Generate the i18n construction bridge. THIS is where the composed-host
     // option is decided, and it has to be here: the runtime plugin and the
-    // server utilities import whatever this template exports, so an app that
-    // sets `hostModule` never has the root `@comvi/core` entry in its module
-    // graph at all. The same branch taken at runtime (an `if` in plugin.ts)
-    // would keep the root import alive in every bundle and save nothing
-    // (framework-slim P4 step 5).
+    // server utilities import whatever this template exports, so the
+    // construction path is fixed at build time. An app that sets `hostModule`
+    // emits ONLY the branch that imports its own factory, and never nuxt's
+    // default `@comvi/vue` construction path. That selection is the whole
+    // saving — not the absence of `@comvi/core`, which a custom factory is
+    // free to import: the documented recipe builds on the base root plus the
+    // capability subpaths it composes. The same branch taken at runtime (an
+    // `if` in plugin.ts) would keep BOTH paths alive in every bundle and save
+    // nothing (framework-slim P4 step 5).
     addTemplate({
       filename: "comvi.host.mjs",
       getContents: () => {

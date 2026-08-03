@@ -1,14 +1,19 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { createI18n } from "../../src";
-import { createI18n as createSlimI18n } from "../../src/slim";
+// The COMPOSITE host: since the single-entry convergence `../../src` is the
+// BASE host, and the batteries-included 0.4 semantics live on in the internal
+// composite `src/core/full.ts` (what the CDN global ships and `@comvi/next`'s
+// builder mirrors). Imported directly — never through the tags-registering
+// helper — so this file's ambient-extension assertions stay meaningful.
+import { createI18n } from "../../src/core/full";
+import { createI18n as createBaseI18n } from "../../src";
 import { clearTemplateCache } from "../../src/core/translate";
 import { _resetSyntaxExtensions } from "../../src/core/translate/syntax";
 import { registerTagSyntax } from "../../src/core/translate/tags";
 import type { ElementNode } from "../../src";
 
-// Importing "../../src" registered tag syntax ambiently; keep it that way for
-// the tag path and reset the template cache so variants never leak between
-// cases in this file.
+// Importing "../../src/core/full" registered tag syntax ambiently — the base
+// "../../src" root registers nothing. Keep it that way for the tag path and
+// reset the template cache so variants never leak between cases in this file.
 beforeEach(() => {
   clearTemplateCache();
   registerTagSyntax();
@@ -111,7 +116,7 @@ describe("missingParam — path 4: tag interpolation (VirtualNode children)", ()
 
 describe("missingParam — path 5: slim compiler", () => {
   it("literal (default) and null erasure behave like the full entry", () => {
-    const i18n = createSlimI18n({
+    const i18n = createBaseI18n({
       locale: "en",
       translation: { en: { greet: "Hi {name}!" } },
     });
@@ -120,7 +125,7 @@ describe("missingParam — path 5: slim compiler", () => {
   });
 
   it("drop restores silent-drop", () => {
-    const i18n = createSlimI18n({
+    const i18n = createBaseI18n({
       locale: "en",
       missingParam: "drop",
       translation: { en: { greet: "Hi {name}!" } },

@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { formatCurrency, formatDate, formatNumber, formatRelativeTime } from "@comvi/core/slim";
+import { formatCurrency, formatDate, formatNumber, formatRelativeTime } from "@comvi/core";
 import { useLocale, useI18nInstance } from "./I18nProvider";
 
 export interface UseFormattersReturn {

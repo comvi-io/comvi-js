@@ -2,9 +2,9 @@
 "@comvi/vue": minor
 ---
 
-**BREAKING — `@comvi/vue` runs on a bare `@comvi/core/slim` host.**
+**BREAKING — `@comvi/vue` runs on a base `@comvi/core` host.**
 
-`VueI18n` no longer builds or demands a root core. It is now
+`VueI18n` no longer builds or demands a batteries-included core. It is now
 `VueI18n<D, C extends WrapperI18nHost<D> = I18n<D>>` around an injected host it
 exposes as `readonly core: C`, and the capability APIs live where the host
 actually has them.
@@ -12,16 +12,20 @@ actually has them.
 **New**
 
 - `createI18nFromCore(core, options?)` — wrap a host you composed yourself
-  (`@comvi/core/slim` + optional `attachLoader` / `attachPlugins`). The host's
+  (`@comvi/core` + optional `attachLoader` / `attachPlugins`). The host's
   exact type is preserved as `i18n.core`.
 - `useI18nLoader()` / `useI18nPlugins()` composables (`UseI18nLoaderReturn`,
   `UseI18nPluginsReturn`).
-- `@comvi/vue/slim` — a root-free subpath entry: same classes, composables and
-  `<T>`, minus `createI18n` and the `export * from "@comvi/core"` re-export.
-  Use it when you build your own host; it is the only entry that keeps the root
-  core out of a webpack **development** bundle too.
-- `createI18n(options)` is unchanged and still the default: it builds the root
-  core internally.
+- `@comvi/vue/slim` — a star-free subpath entry: same classes, composables and
+  `<T>`, minus the `export * from "@comvi/core"` re-export, with the wrapper's
+  construction preset in a module of its own. Use it when you build your own
+  host; it is the entry a webpack **development** bundle can still narrow,
+  because it pins no star name set. The base `@comvi/core` root itself stays
+  reachable by design — `createCore` re-exports its constructor by name — and
+  what the subpath leaves out is that star surface, `@comvi/core/tags`, and
+  every capability subpath the app never calls.
+- `createI18n(options)` is unchanged and still the default: it builds the host
+  internally from the same options object.
 
 **Migration**
 
@@ -69,7 +73,7 @@ eight dropped instance proxies. See the [0.5.0 migration guide](https://github.c
 **Also fixed (no app change needed)**
 
 - `@comvi/vue` no longer inlines copies of core's tag + translate chunks into
-  its own bundle (`vite.config.ts` externalizes `@comvi/core/slim` and
+  its own bundle (`vite.config.ts` externalizes `@comvi/core` and
   `@comvi/core/tags`), and `<T>` is now its own dist chunk with a `/*@__PURE__*/`
   factory call. A vue app that never renders `<T>` no longer ships the tag
   machinery — and no longer runs core's ambient `registerTagSyntax()` from
@@ -80,11 +84,20 @@ externalized, both columns from the same run):
 
 | fixture                                         | before | after     |
 | ----------------------------------------------- | ------ | --------- |
-| `fw-vue-root` (root app, no `<T>`)              | 11930  | **10473** |
-| `fw-vue-root-t` (root app with `<T>`)           | 11941  | **11498** |
-| `fw-vue-slim` (bare slim via `@comvi/vue/slim`) | —      | **7525**  |
+| `fw-vue-root` (0.4 composed root, no `<T>`)     | 11930  | **10473** |
+| `fw-vue-root-t` (0.4 composed root with `<T>`)  | 11941  | **11498** |
+| `fw-vue-slim` (base host via `@comvi/vue/slim`) | —      | **7525**  |
 | `fw-vue-slim-t`                                 | —      | **9389**  |
 
-Moving a vue app from `@comvi/core` to a bare `@comvi/core/slim` host saves
-**2948 B min+gz (−28.1 %)** of comvi graph. A root vue app that never renders
-`<T>` saves **1457 B** with no code change at all.
+Moving a vue app off the 0.4 composed root onto a base `@comvi/core` host saves
+**2948 B min+gz (−28.1 %)** of comvi graph. A composed-root vue app that never
+renders `<T>` saves **1457 B** with no code change at all.
+
+> Rewritten in place at the single-entry convergence (same release): the separate
+> base-host subpath this changeset was written against no longer exists, and
+> `@comvi/core`'s root IS that base host — so every specifier above names the
+> root, and every "the root has it already" claim reads against the base host.
+> The 0.4 composed root survives only as a recipe (`.with(loader())`,
+> `.with(plugins())`, `.with(devtools())`, `compiler: icuCompiler` from
+> `@comvi/core/icu`, `import "@comvi/core/tags"`); see
+> `core-single-entry-convergence.md` for the break and the migration.

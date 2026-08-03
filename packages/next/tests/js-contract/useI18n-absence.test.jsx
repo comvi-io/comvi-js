@@ -7,10 +7,9 @@
 // which is also what makes the capability messages below differ.
 import { describe, it, expect } from "vitest";
 import { renderHook } from "@testing-library/react";
-import { createI18n } from "@comvi/core/slim";
-import { attachLoader } from "@comvi/core/loader";
-import { attachPlugins } from "@comvi/core/plugins";
-import { createI18n as createRootI18n } from "@comvi/core";
+import { createI18n } from "@comvi/core";
+import { attachLoader, loader as loaderInstaller } from "@comvi/core/loader";
+import { attachPlugins, plugins as pluginsInstaller } from "@comvi/core/plugins";
 import { useI18n, useI18nLoader, useI18nPlugins } from "../../src/client";
 import { I18nProvider } from "../../src/client/I18nProvider";
 
@@ -19,10 +18,10 @@ const IS_DEV_BUILD = __COMVI_CORE_BUILD__ === "development";
 
 const EXPECTED = {
   loader: IS_DEV_BUILD
-    ? '[comvi] This i18n instance has no loader capability. Attach it: import { attachLoader } from "@comvi/core/loader" — or use the root "@comvi/core" entry.'
+    ? '[comvi] This i18n instance has no loader capability. Compose it: .with(loader()) from "@comvi/core/loader", or the lower-level attachLoader.'
     : "[comvi] missing loader capability — attach @comvi/core/loader",
   plugins: IS_DEV_BUILD
-    ? '[comvi] This i18n instance has no plugins capability. Attach it: import { attachPlugins } from "@comvi/core/plugins" — or use the root "@comvi/core" entry.'
+    ? '[comvi] This i18n instance has no plugins capability. Compose it: .with(plugins()) from "@comvi/core/plugins", or the lower-level attachPlugins.'
     : "[comvi] missing plugins capability — attach @comvi/core/plugins",
 };
 
@@ -118,9 +117,15 @@ describe(`capability acquisition through @comvi/next/client (${__COMVI_CORE_BUIL
     expect(Object.keys(plugins)).toEqual(["onMissingKey"]);
   });
 
-  it("returns working bags on a root host", () => {
+  it("returns working bags on a host composed through the installers", () => {
+    // The other acquisition path: `.with(loader()).with(plugins())` instead of
+    // the low-level `attach*` calls above. Before the single-entry convergence
+    // this case used the batteries-included ROOT host, which no longer exists —
+    // the root is the base host now, and it is the "bare" case at the top.
     const wrapper = wrapperFor(
-      createRootI18n({ locale: "en", exposeGlobal: false, translation: { en: {} } }),
+      createI18n({ locale: "en", exposeGlobal: false, translation: { en: {} } })
+        .with(loaderInstaller())
+        .with(pluginsInstaller()),
     );
 
     expect(() => renderHook(() => useI18nLoader(), { wrapper })).not.toThrow();

@@ -3,9 +3,9 @@
 //
 // ONE implementation, TWO install surfaces (plan M-1): the capability is a
 // class body, `I18nWithLoader`.
-//   • root — `core/full.ts` extends it, so the members are ordinary inherited
-//            prototype methods (no install glue in the root bundle at all);
-//   • slim — `attachLoader(i18n)` copies that prototype's own descriptors
+//   • composite — `core/full.ts` extends it, so the members are ordinary inherited
+//            prototype methods (no install glue in the composite at all);
+//   • base host — `attachLoader(i18n)` copies that prototype's own descriptors
 //            onto the instance. Class-body methods are already
 //            non-enumerable / writable / configurable, so the two surfaces
 //            are reflectively identical (`tests/root-contract.test.ts`).
@@ -20,7 +20,7 @@
 // access are what terser can correlate: never install or read a `_` member
 // through a string (`i["_loader"]`, `Object.defineProperty(o, "_loadNs", …)`),
 // because terser does not rewrite string arguments and the prod dist would
-// break silently. `tests/dist/slim-composition.dist.test.ts` is the canary.
+// break silently. `tests/dist/base-composition.dist.test.ts` is the canary.
 import type {
   DefaultTranslationParams,
   FlattenedTranslations,
@@ -41,7 +41,7 @@ const ERR_FAILED_RELOAD_TRANSLATIONS = IS_DEV
   ? "[i18n] Failed to reload translations"
   : "E_FAILED_RELOAD_TRANSLATIONS";
 const ERR_REGISTER_LOADER_ARG = IS_DEV
-  ? "[i18n] registerLoader(): argument must be a loader function. (Import maps: use the root entry, or wrap with createImportMapLoader from @comvi/core/loader.)"
+  ? "[i18n] registerLoader(): argument must be a loader function. For a static import map use .with(loader(map)), or wrap it with createImportMapLoader(map, () => i18n.getDefaultNamespace()) — both from @comvi/core/loader."
   : "E_REGISTER_LOADER_ARG";
 
 function createPartialNamespaceLoadError(
@@ -69,9 +69,10 @@ function createAllNamespacesFailedError(locale: string, failedNamespaces: string
 }
 
 /**
- * The loader capability. Not exported from any entry point: the root entry
- * exposes it by extending this class (its constructor calls `_initLoader`),
- * the slim entry by `attachLoader`.
+ * The loader capability. Not exported from any entry point: the internal
+ * composite (`core/full.ts`, which the CDN global ships) exposes it by
+ * extending this class (its constructor calls `_initLoader`), and any other
+ * host gets it from `attachLoader` / `.with(loader())`.
  *
  * Members are accessed through `this` exactly as they were when they lived in
  * the base class — `this.x` is the single most repeated token in the bundle,
@@ -90,7 +91,7 @@ export class I18nWithLoader<D extends DefaultTranslationParams = {}> extends I18
   declare protected _requestedLocale: string;
 
   /**
-   * Initialize loader-owned state. Called by the root constructor and by
+   * Initialize loader-owned state. Called by the composite's constructor and by
    * `attachLoader`; this class declares no constructor of its own.
    */
   protected _initLoader(): void {
@@ -104,10 +105,10 @@ export class I18nWithLoader<D extends DefaultTranslationParams = {}> extends I18
    * @internal `_flattenNs` hook — nested-catalog flattening for
    * `addTranslations` and `options.translation`.
    *
-   * A PROTOTYPE method, not an `_initLoader` assignment: the root entry
+   * A PROTOTYPE method, not an `_initLoader` assignment: the composite
    * merges `options.translation` inside `super()`, long before any `_init*`
    * call, and only a prototype member exists that early. `attachLoader`'s
-   * descriptor copy picks it up for a slim host, and `attachNestedCatalogs`
+   * descriptor copy picks it up for a base host, and `attachNestedCatalogs`
    * installs just this one member for a host that wants nested catalogs
    * without the rest of the loader.
    */
@@ -203,7 +204,7 @@ export class I18nWithLoader<D extends DefaultTranslationParams = {}> extends I18
    * });
    * ```
    *
-   * The root entry's `I18n` additionally accepts a static import map; slim
+   * The internal composite's `I18n` additionally accepts a static import map; base
    * consumers wrap one with `createImportMapLoader`.
    */
   public registerLoader(loader: LoaderFn): void {
@@ -222,7 +223,7 @@ export class I18nWithLoader<D extends DefaultTranslationParams = {}> extends I18
    * Activate a namespace and load it for the current locale.
    *
    * Namespace ACTIVATION only matters when something loads namespaces, so it
-   * lives with the loader (contingency C1). A bare slim instance activates
+   * lives with the loader (contingency C1). A base host activates
    * implicitly: `addTranslations` self-activates every namespace it carries.
    */
   public async addActiveNamespace(namespace: string): Promise<void> {
@@ -316,6 +317,14 @@ export class I18nWithLoader<D extends DefaultTranslationParams = {}> extends I18
       try {
         const translations = await loader(locale, namespace);
         if (generation !== this._nsGeneration || this._pendingLoads[key] !== guarded) return;
+        // Ingestion seam 2 — immediately before the direct cache merge.
+        this._compilerLocked = true;
+        // Dev preflight runs on its own normalized copy so the PRODUCTION
+        // statement below stays byte-identical to the shipped one (0 B prod).
+        if (IS_DEV)
+          (this as unknown as I18nInternal)._preflightSimpleCatalog?.(
+            normalizeTranslationObject(translations),
+          );
         this.translationCache.set(locale, namespace, normalizeTranslationObject(translations));
         this._emit("namespaceLoaded", { namespace, locale });
       } catch (error) {
@@ -396,7 +405,7 @@ export class I18nWithLoader<D extends DefaultTranslationParams = {}> extends I18
 }
 
 /**
- * Add the async-loading capability to a slim instance.
+ * Add the async-loading capability to a base host.
  *
  * ```ts
  * const i18n = attachLoader(createI18n({ locale: "en" }));
@@ -424,16 +433,16 @@ export function attachLoader<T extends I18nBase<any>>(i18n: T): T & I18nLoaderAp
  * Flatten a nested catalog into the dot-notation shape a host stores.
  *
  * ```ts
- * import { createI18n } from "@comvi/core/slim";
+ * import { createI18n } from "@comvi/core";
  * import { flattenCatalog } from "@comvi/core/loader";
  *
  * i18n.addTranslations({ en: flattenCatalog({ nav: { home: "Home" } }) }); // -> "nav.home"
  * ```
  *
- * A bare `@comvi/core/slim` host stores catalogs as given, so it wants FLAT
+ * A base `@comvi/core` host stores catalogs as given, so it wants FLAT
  * keys (`{ "nav.home": "Home" }`) or `"locale:namespace"`-keyed flat objects.
- * `attachLoader` and the root `@comvi/core` entry flatten for you — a loader
- * returns raw JSON, so it is part of that job. This is the escape hatch for a
+ * Composing the loader (`.with(loader())` / `attachLoader`) flattens for you —
+ * a loader returns raw JSON, so it is part of that job. This is the escape hatch for a
  * host that loads nothing and still has nested objects in hand; being a plain
  * function it also works on `options.translation`, which the constructor
  * merges before anything can be attached.

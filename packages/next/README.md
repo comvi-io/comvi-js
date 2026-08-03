@@ -244,11 +244,37 @@ There is no next-specific hook API. Migrating from 0.4.x:
 `pnpm codemod:framework-slim "src/**/*.{ts,tsx,js,jsx}"`, or the
 [0.5.0 migration guide](https://github.com/comvi-io/comvi-js/blob/main/MIGRATION.md).
 
+## The composed root: `createNextI18n` and `NextComposedI18n`
+
+Since `@comvi/core` converged to a single BASE entry, `createNextI18n` no longer
+inherits a batteries-included core — it **composes one explicitly**, inside this
+package, so its published semantics are unchanged: ICU, ambient tag syntax, the
+loader (with BOTH `registerLoader` overloads — a loader function and a static
+import map), the plugin host, nested constructor catalogs, default params and
+devtools discovery, in that order.
+
+The host type is published as `NextComposedI18n<D>`, which is exactly
+`CreateNextI18nResult<D>["i18n"]`:
+
+```ts
+import type { NextComposedI18n } from "@comvi/next";
+
+function withHost(i18n: NextComposedI18n) {
+  i18n.registerLoader(async (locale) => import(`./locales/${locale}.json`));
+  i18n.registerLoader({ en: () => import("./locales/en.json") }); // both overloads
+}
+```
+
+Measured: **10115 B** min+gz for the server graph (`fw-next-composed-factory`),
+against a 10128 B budget — 13 B of current headroom. Nothing about the call site changes.
+
 ## Composed server hosts: `createNextI18nFromHost`
 
-`createNextI18n` is unchanged and still the root recipe. When you want the
-server to pay only for what it uses, build the host yourself and hand it to the
-companion factory — exported from **`@comvi/next/server`** and nowhere else:
+`createNextI18n` is unchanged and still the batteries-included recipe — the
+section above shows how `@comvi/next` composes that graph itself now. When you
+want the server to pay only for what it uses, build the host yourself and hand
+it to the companion factory — exported from **`@comvi/next/server`** and nowhere
+else:
 
 ```ts
 // i18n/index.ts
@@ -286,42 +312,47 @@ initialization order, exactly one call.
 to overwrite the first silently; it now throws, in development and production,
 naming both sources. A same-instance `setI18n()` stays a no-op.
 
-The client recipe is a bare slim host hydrated from the catalog the server
+The client recipe is a base host hydrated from the catalog the server
 serialized — `createSlimI18n` from `@comvi/next/client`. Whole-app comvi graph,
 min+gz, `next` and `react` externalized (`node scripts/size-check.mjs`):
 
 | graph                                                    | min+gz   |
 | -------------------------------------------------------- | -------- |
-| server, `createNextI18n` on root core                    | 9948     |
-| server, `createNextI18nFromHost` on a composed slim host | **7129** |
-| client, bare slim hydrated                               | **6964** |
+| server, `createNextI18n` (the composed root)             | 10115    |
+| server, `createNextI18nFromHost` on a composed base host | **7218** |
+| client, base host hydrated                               | **6964** |
 
-Moving the server to a composed slim host saves **2819 B (−28.3%)**.
+Moving the server to a composed base host saves **2897 B (−28.6%)**. Both rows
+were re-measured on the single-entry landing (`node scripts/size-check.mjs`,
+rows `fw-next-composed-factory` and `fw-next-server-slim-loader`).
 
 ## One package: both `@comvi/next` entries
 
-`@comvi/next/client` and `@comvi/next/server` each carry a slim host
+`@comvi/next/client` and `@comvi/next/server` each carry a base host
 constructor and the capability toolkit, so a next app never names
 `@comvi/core`:
 
-| export                                     | on          | what it is                                  |
-| ------------------------------------------ | ----------- | ------------------------------------------- |
-| `createSlimI18n`                           | both        | `@comvi/core/slim`'s constructor            |
-| `createI18n`                               | client only | the ROOT constructor, unchanged since 0.4.x |
-| `icuCompiler`                              | both        | from `@comvi/core/icu`                      |
-| `loader`, `attachLoader`, `flattenCatalog` | both        | from `@comvi/core/loader`                   |
-| `plugins`, `attachPlugins`                 | both        | from `@comvi/core/plugins`                  |
-| `devtools`, `attachDevtools`               | both        | from `@comvi/core/devtools`                 |
+| export                                     | on          | what it is                                           |
+| ------------------------------------------ | ----------- | ---------------------------------------------------- |
+| `createSlimI18n`                           | both        | `@comvi/core`'s base constructor                     |
+| `createI18n`                               | client only | the same base constructor (both names now denote it) |
+| `icuCompiler`                              | both        | from `@comvi/core/icu`                               |
+| `loader`, `attachLoader`, `flattenCatalog` | both        | from `@comvi/core/loader`                            |
+| `plugins`, `attachPlugins`                 | both        | from `@comvi/core/plugins`                           |
+| `devtools`, `attachDevtools`               | both        | from `@comvi/core/devtools`                          |
 
-**Why the client's slim host has its own name.** `@comvi/next/client` is not a
-`/slim` entry — it is next's only client surface, and its `createI18n` is the
-ROOT constructor published in 0.4.x. Rebinding that name to the slim
-constructor would silently drop ICU plurals and tag syntax out from under an
-existing app, so the slim host is `createSlimI18n` and both live side by side.
-`@comvi/next/server` uses the same name for symmetry and exports **no** root
-constructor at all: a server graph that named the root entry would carry core's
-ambient tag registration, and the `next-server-on-slim` gate asserts it never
-does.
+**Why there are two names for one constructor.** `@comvi/next/client` is next's
+only client surface. It published `createI18n` (0.4's batteries-included root)
+and later added `createSlimI18n` for the bare host, because rebinding the first
+name would have silently dropped ICU plurals and tag syntax out from under an
+existing app. The single-entry convergence in `@comvi/core` then made the bare
+host THE host, so both names now denote the same base constructor and
+`createSlimI18n` is a duplicate — a later phase deletes it and codemods the
+name. Either way you compose what you need: `compiler: icuCompiler`,
+`import "@comvi/core/tags"`, `.with(loader())`, `.with(plugins())`.
+`@comvi/next/server` deliberately exports no ambient-tag-registering entry, and
+the `next-server-on-slim` matrix case asserts the tag chunks never reach a
+server graph.
 
 These are **named** re-exports of core's own bindings, from core's pure
 subpaths only — never through `@comvi/react`, because webpack development

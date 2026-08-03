@@ -1,13 +1,13 @@
 // Type-level contract for the `@comvi/next/client` SINGLE-PACKAGE surface
 // (framework-slim DX pass). Companion to server-host.test-d.ts.
 //
-// `@comvi/next/client` is the one entry in the wave that exports BOTH
-// constructors: the published-0.4.x `createI18n` (root, full capability) and
-// the new `createSlimI18n`. The claim under test is that the type system tells
-// them apart — a client app that picks the slim one gets a host whose
-// capability members are absent, and one that keeps the root one is unchanged.
-import type { I18n as RootI18n, I18nLoaderApi, I18nPluginHostApi } from "@comvi/core";
-import type { I18n as SlimI18n } from "@comvi/core/slim";
+// `@comvi/next/client` exports BOTH constructors: the published-0.4.x
+// `createI18n` and `createSlimI18n`. Since the single-entry convergence
+// `@comvi/core` IS the base host, so the two names denote the SAME type and
+// the claim under test became "both are the base host, and its capability
+// members are absent until composed". P4 deletes the duplicate name.
+import type { I18nLoaderApi, I18nPluginHostApi } from "@comvi/core";
+import type { I18n as BaseI18n } from "@comvi/core";
 import {
   attachDevtools,
   attachLoader,
@@ -32,17 +32,14 @@ type Expect<T extends true> = T;
 const slim = createSlimI18n({ locale: "en" });
 const root = createI18n({ locale: "en" });
 
-export type _SlimIsSlimI18n = Expect<Equal<typeof slim, SlimI18n<{}>>>;
-export type _RootIsRootI18n = Expect<Equal<typeof root, RootI18n<{}>>>;
-export type _SlimIsNotRoot = Expect<Equal<typeof slim extends RootI18n ? true : false, false>>;
-export type _SlimHasNoLoaderApi = Expect<
+export type _SlimIsBaseI18n = Expect<Equal<typeof slim, BaseI18n<{}>>>;
+export type _RootIsBaseI18n = Expect<Equal<typeof root, BaseI18n<{}>>>;
+export type _BothNamesAreTheSameHost = Expect<Equal<typeof slim, typeof root>>;
+export type _BaseHasNoLoaderApi = Expect<
   Equal<typeof slim extends I18nLoaderApi ? true : false, false>
 >;
-export type _RootHasLoaderApi = Expect<
-  Equal<typeof root extends I18nLoaderApi ? true : false, true>
->;
-export type _RootHasPluginApi = Expect<
-  Equal<typeof root extends I18nPluginHostApi ? true : false, true>
+export type _BaseHasNoPluginApi = Expect<
+  Equal<typeof slim extends I18nPluginHostApi ? true : false, false>
 >;
 
 // @ts-expect-error -- the client host has no loader capability; the server companion loads
@@ -53,7 +50,7 @@ slim.onMissingKey(() => undefined);
 // The hydration path a client actually uses.
 slim.addTranslations({ "en:default": { greeting: "Hello" } });
 
-// The root constructor is untouched by this release.
+// @ts-expect-error -- the second name is the same base host: no loader either
 void root.registerLoader(() => Promise.resolve({}));
 
 // ---------------------------------------------------------------------------
@@ -61,7 +58,7 @@ void root.registerLoader(() => Promise.resolve({}));
 // ---------------------------------------------------------------------------
 
 const _withIcu = createSlimI18n({ locale: "en", compiler: icuCompiler });
-export type _IcuHostIsStillSlim = Expect<Equal<typeof _withIcu, SlimI18n<{}>>>;
+export type _IcuHostIsStillBase = Expect<Equal<typeof _withIcu, BaseI18n<{}>>>;
 
 // ---------------------------------------------------------------------------
 // (iii) The toolkit re-exports carry core's own widening types.
@@ -81,7 +78,7 @@ export type _PluginsWiden = Expect<
 >;
 
 const _withDevtools = attachDevtools(createSlimI18n({ locale: "en" }), { exposeGlobal: false });
-export type _DevtoolsKeepsHostType = Expect<Equal<typeof _withDevtools, SlimI18n<{}>>>;
+export type _DevtoolsKeepsHostType = Expect<Equal<typeof _withDevtools, BaseI18n<{}>>>;
 
 const flat: Record<string, string> = flattenCatalog({ nav: { home: "Home" } });
 void flat;
@@ -95,7 +92,7 @@ void flat;
 const piped = createSlimI18n({ locale: "en", compiler: icuCompiler }).with(
   loader({ uk: async () => ({ default: { greeting: "Привіт" } }) }),
 );
-export type _PipedIsStillSlim = Expect<Equal<typeof piped, SlimI18n<{}> & I18nLoaderApi>>;
+export type _PipedIsStillBase = Expect<Equal<typeof piped, BaseI18n<{}> & I18nLoaderApi>>;
 void piped.registerLoader(() => Promise.resolve({}));
 // @ts-expect-error -- loader() composes ONLY the loader capability
 piped.use(() => undefined);
@@ -105,18 +102,21 @@ export type _ChainCompounds = Expect<
   Equal<typeof _pipedBoth extends I18nLoaderApi & I18nPluginHostApi ? true : false, true>
 >;
 
-// The root constructor has every capability already: composing is a typed
-// no-op that keeps the root host type intact.
-export type _RootPipeKeepsRoot = Expect<
+// The pipe is on the base class, so either name composes identically. The
+// import-map form is the configured installer's argument now — the published
+// two-overload `registerLoader` lives on `@comvi/next`'s composed host.
+export type _BaseHasThePipe = Expect<
   Equal<typeof root.with extends (i: never) => unknown ? true : false, true>
 >;
-const _rootPiped = createI18n({ locale: "en" }).with(loader());
-void _rootPiped.registerLoader({ en: async () => ({ hello: "world" }) });
+const _rootPiped = createI18n({ locale: "en" })
+  .with(loader({ en: async () => ({ hello: "world" }) }))
+  .with(plugins());
+void _rootPiped.registerLoader(() => Promise.resolve({}));
 void _rootPiped.use(() => undefined);
 
 // devtools() adds no public members, so the host type is unchanged.
 const _pipedDevtools = createSlimI18n({ locale: "en" }).with(devtools({ exposeGlobal: false }));
-export type _DevtoolsPipeKeepsHostType = Expect<Equal<typeof _pipedDevtools, SlimI18n<{}>>>;
+export type _DevtoolsPipeKeepsHostType = Expect<Equal<typeof _pipedDevtools, BaseI18n<{}>>>;
 
 // @ts-expect-error -- the factory is not an installer; it must be called
 createSlimI18n({ locale: "en" }).with(loader);

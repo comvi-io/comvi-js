@@ -158,16 +158,16 @@ proxies — move those calls to `i18n.core.*`:
 ```
 
 `NuxtI18nSetupContext<C>` / `NuxtI18nSetup<C>` are generic in the host type and
-default to the root `I18n`, so a default-configuration hook needs no
+default to core's `I18n`, so a default-configuration hook needs no
 annotation. Migrating from 0.4.x:
 `pnpm codemod:framework-slim "app/**/*.{ts,vue}"`, or the
 [0.5.0 migration guide](https://github.com/comvi-io/comvi-js/blob/main/MIGRATION.md).
 
 ## Composed hosts: the `hostModule` option
 
-By default the module builds a root `@comvi/core` instance and nothing changes.
-Point `hostModule` at a module of your own to compose the host instead, and pay
-only for the capabilities you use:
+By default the module builds a `@comvi/core` base host for you and the wiring is
+unchanged. Point `hostModule` at a module of your own to compose the host
+instead, and pay only for the capabilities you use:
 
 ```ts
 // nuxt.config.ts
@@ -176,7 +176,7 @@ comvi: { locales: ["en", "de"], defaultLocale: "en", hostModule: "./comvi.host.t
 
 ```ts
 // comvi.host.ts — default-export a factory returning a FRESH host per call
-import { createI18n } from "@comvi/core/slim";
+import { createI18n } from "@comvi/core";
 import { loader } from "@comvi/core/loader";
 
 export default () => createI18n({ locale: "en" }).with(loader({ uk: () => import("./uk.json") }));
@@ -187,10 +187,10 @@ export default () => createI18n({ locale: "en" }).with(loader({ uk: () => import
 plain `LoaderFn`, use `.with(attachLoader)` and call `registerLoader(fn)`.
 
 It is a module **path**, not a function, and the branch is taken at **build
-time**: the generated `#build/comvi.host` template imports the root
-`@comvi/core` entry only when `hostModule` is unset. With it set, neither the
-runtime plugin nor the server utilities name a root entry at all — that is the
-whole saving, and a runtime `if` could not deliver it.
+time**: the generated `#build/comvi.host` template imports `@comvi/core`
+directly only when `hostModule` is unset. With it set, neither the runtime
+plugin nor the server utilities name a core entry at all — that is the whole
+saving, and a runtime `if` could not deliver it.
 
 A server-rendered app's host **needs the loader capability**: the server always loads
 translations (`NuxtServerHost = WrapperI18nHost & I18nLoaderApi`). The factory
@@ -208,7 +208,7 @@ not app code. It is a build-time template branch chosen by a module OPTION, and
 generated template decides which core is imported, and it decides before any of
 your imports exist. So `comvi.host.ts` is the one file that names
 `@comvi/core` specifiers, deliberately — it is the composition root the module
-branches on, and seeing `@comvi/core/slim` + `loader()` there is how you
+branches on, and seeing `@comvi/core` + `loader()` there is how you
 know which branch you are on.
 
 Whole-app comvi graph, min+gz (`node scripts/size-check.mjs`); both server rows
@@ -219,7 +219,7 @@ branch:
 | ------------------------------------------ | -------- |
 | server, default root branch                | 12156    |
 | server, `hostModule` (composed slim host)  | **9585** |
-| client, `hostModule` (bare slim, hydrated) | **8013** |
+| client, `hostModule` (base host, hydrated) | **8013** |
 
 A nuxt server on a composed slim + loader host saves **2571 B (−21.2%)**.
 

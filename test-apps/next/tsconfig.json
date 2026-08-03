@@ -21,10 +21,11 @@
     "paths": {
       "@/*": ["./src/*"],
       "@comvi/core": ["../../packages/core/src/index.ts"],
-      "@comvi/core/slim": ["../../packages/core/src/slim.ts"],
       "@comvi/core/loader": ["../../packages/core/src/loader.ts"],
       "@comvi/core/plugins": ["../../packages/core/src/plugins.ts"],
       "@comvi/core/tags": ["../../packages/core/src/tags.ts"],
+      "@comvi/core/icu": ["../../packages/core/src/icu.ts"],
+      "@comvi/core/devtools": ["../../packages/core/src/devtools.ts"],
       "@comvi/react": ["../../packages/react/src/index.ts"],
       "@comvi/next": ["../../packages/next/src/index.ts"],
       "@comvi/next/server": ["../../packages/next/src/server.ts"],

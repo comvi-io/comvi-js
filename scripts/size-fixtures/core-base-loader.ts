@@ -1,4 +1,4 @@
-// Size-gate fixture: the composed slim surface — `@comvi/core/slim` plus both
+// Size-gate fixture: the composed slim surface — `@comvi/core` plus both
 // capability subpaths (`/loader`, `/plugins`). Informational (printed, never
 // gated): it exists so the cost of "slim with everything attached" is visible
 // next to bare slim, which is what the Phase-7 decomposition trades against.
@@ -11,7 +11,7 @@
 // form did not. That is the intended trade — `loader()` IS the import-map
 // installer; a host that registers a plain `LoaderFn` should compose
 // `.with(attachLoader)` instead and pays nothing for the adapter.
-import { createI18n } from "@comvi/core/slim";
+import { createI18n } from "@comvi/core";
 import { loader } from "@comvi/core/loader";
 import { plugins } from "@comvi/core/plugins";
 

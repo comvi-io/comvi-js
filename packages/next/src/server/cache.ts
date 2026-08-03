@@ -1,6 +1,5 @@
 import { cache } from "react";
-import type { I18n } from "@comvi/core";
-import type { ServerI18nHost } from "./hostTypes";
+import type { NextServerHost, ServerI18nHost } from "./hostTypes";
 import type { RequestStore } from "./types";
 
 /**
@@ -79,17 +78,22 @@ const configurationConflict = (configured: CellState, incoming: string): Error =
  * more than once). Any other second configuration — a different instance, or a
  * `createNextI18nFromHost()` registration — throws.
  *
- * @param i18n - The i18n instance created with createI18n
+ * @param i18n - A loader-carrying host: the `i18n` from `createNextI18n`, or
+ * any host you composed yourself. The server pipeline calls `getLoader` /
+ * `reloadTranslations` on it, so the loader capability is part of the
+ * contract — a bare `@comvi/core` host is rejected at the type level rather
+ * than failing inside `loadTranslations`.
  *
  * @example
  * ```typescript
  * // i18n/index.ts
- * import { createI18n } from '@comvi/next';
+ * import { createNextI18n } from '@comvi/next';
  * import { setI18n } from '@comvi/next/server';
  * import { translations } from './translations';
  *
- * export const i18n = createI18n({
- *   locale: 'en',
+ * export const { i18n, routing } = createNextI18n({
+ *   defaultLocale: 'en',
+ *   locales: ['en'],
  *   defaultNs: 'default',
  *   translation: translations,
  * });
@@ -98,8 +102,10 @@ const configurationConflict = (configured: CellState, incoming: string): Error =
  * setI18n(i18n);
  * ```
  */
-export function setI18n(i18n: I18n): void {
-  const instance = i18n as ServerI18nHost;
+export function setI18n(i18n: NextServerHost): void {
+  // The pipeline only ever touches the `ServerI18nHost` subset; narrowing here
+  // keeps the internal type out of the published signature.
+  const instance: ServerI18nHost = i18n;
   if (cell.kind === "empty") {
     cell = { kind: "resolved", instance, bySetI18n: true };
     return;

@@ -1,13 +1,15 @@
-// framework-slim P5 step 4 — the root-free server companion.
+// framework-slim P5 step 4 — the server companion that imports no core
+// constructor of its own.
 //
-// Everything here runs against a COMPOSED host (`@comvi/core/slim` +
-// `attachLoader`), never the root entry: that is the configuration the
+// Everything here runs against a COMPOSED host the test builds itself
+// (`@comvi/core`'s base root + `attachLoader`), never through Next's own
+// composed-host builder: that is the configuration the
 // `fw-next-server-slim-loader` fixture measures, and the reason the companion
 // exists at all.
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { createI18n } from "@comvi/core/slim";
+import { createI18n } from "@comvi/core";
 import { attachLoader } from "@comvi/core/loader";
 import { createNextI18nFromHost, getI18n, loadTranslations } from "../src/server";
 import { _resetServerI18n, getI18nInstance, setI18n } from "../src/server/cache";

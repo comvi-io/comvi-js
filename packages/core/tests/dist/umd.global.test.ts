@@ -3,7 +3,10 @@ import fs from "node:fs";
 import path from "node:path";
 import vm from "node:vm";
 import { fileURLToPath } from "node:url";
-import type * as ComviCoreModule from "../../src";
+// The global's surface IS `src/umd.ts` — the non-exported CDN entry the third
+// vite invocation builds. Typing against it is what makes this smoke also pin
+// "the published global still matches the source that composes it".
+import type * as ComviUmdModule from "../../src/umd";
 
 /**
  * Acceptance A12 — the UMD/global behavioral smoke.
@@ -14,6 +17,14 @@ import type * as ComviCoreModule from "../../src";
  * different scope model from the ESM builds the rest of the suite covers.
  * Nothing else in the repo executes it, so a break here ships silently to every
  * CDN consumer.
+ *
+ * Since the single-entry convergence the global has its own ENTRY as well:
+ * `src/umd.ts`, because the ESM root is now the bare base host while a
+ * `<script src>` consumer has no import graph to extend. The composition it
+ * owns — ambient tags, ICU, loader, plugin host, devtools discovery — is
+ * therefore exactly what this file has to pin, and P1 extended it with the two
+ * cases the retarget makes load-bearing: ambient string-API tag rendering and
+ * browser-like discovery announce / identity removal on destroy.
  *
  * This drives the real IIFE in a bare `node:vm` context: no bundler, no module
  * loader, no DOM — exactly what a `<script src=…>` tag provides. The namespace
@@ -27,7 +38,16 @@ const UMD = path.resolve(
   "../../dist/comvi-core.global.prod.js",
 );
 
-type ComviCoreGlobal = Pick<typeof ComviCoreModule, "I18n" | "createI18n">;
+type ComviCoreGlobal = Pick<
+  typeof ComviUmdModule,
+  | "I18n"
+  | "createI18n"
+  | "isVirtualNode"
+  | "TranslationCache"
+  | "icuCompiler"
+  | "flattenCatalog"
+  | "translationResultToString"
+>;
 
 /**
  * The seeded globals are exactly the host APIs a browser provides on top of the
@@ -43,17 +63,36 @@ interface UmdSandbox {
   setTimeout: typeof setTimeout;
   clearTimeout: typeof clearTimeout;
   queueMicrotask: typeof queueMicrotask;
+  /** Seeded ONLY for the discovery cases: the protocol is window-gated. */
+  window?: UmdSandbox;
+  __COMVI__?: unknown;
   ComviCore?: ComviCoreGlobal;
 }
 
-function loadUmd(): ComviCoreGlobal {
-  const sandbox: UmdSandbox = { console, setTimeout, clearTimeout, queueMicrotask };
+/**
+ * `browser: true` seeds `window` (pointing at the context global itself, as a
+ * page does), which is the only thing the discovery capability needs to
+ * announce. The base cases stay in the bare sandbox, so anything the bundle
+ * reaches for beyond the four seeded host APIs still surfaces as a
+ * ReferenceError.
+ */
+function loadUmdIn(sandbox: UmdSandbox): ComviCoreGlobal {
   vm.createContext(sandbox);
   vm.runInContext(fs.readFileSync(UMD, "utf8"), sandbox, {
     filename: "comvi-core.global.prod.js",
   });
   if (!sandbox.ComviCore) throw new Error("the UMD bundle did not publish a ComviCore global");
   return sandbox.ComviCore;
+}
+
+function loadUmd(): ComviCoreGlobal {
+  return loadUmdIn({ console, setTimeout, clearTimeout, queueMicrotask });
+}
+
+function loadBrowserUmd(): { ComviCore: ComviCoreGlobal; sandbox: UmdSandbox } {
+  const sandbox: UmdSandbox = { console, setTimeout, clearTimeout, queueMicrotask };
+  sandbox.window = sandbox;
+  return { ComviCore: loadUmdIn(sandbox), sandbox };
 }
 
 beforeAll(() => {
@@ -63,10 +102,18 @@ beforeAll(() => {
 });
 
 describe("UMD global build (A12)", () => {
-  it("publishes the root namespace on the context global", () => {
+  it("publishes the composed namespace on the context global", () => {
     const ComviCore = loadUmd();
     expect(typeof ComviCore.I18n).toBe("function");
     expect(typeof ComviCore.createI18n).toBe("function");
+    // The five globals the dedicated entry newly exposes: a `<script src>`
+    // consumer has no import graph, so what is not on the namespace is
+    // unreachable for them.
+    expect(typeof ComviCore.icuCompiler).toBe("object");
+    expect(typeof ComviCore.flattenCatalog).toBe("function");
+    expect(typeof ComviCore.isVirtualNode).toBe("function");
+    expect(typeof ComviCore.TranslationCache).toBe("function");
+    expect(typeof ComviCore.translationResultToString).toBe("function");
   });
 
   it("constructs, loads, translates, switches locale and destroys in order", async () => {
@@ -116,5 +163,130 @@ describe("UMD global build (A12)", () => {
     expect(order).toEqual(["plugin", "cleanup", "destroyed"]);
     expect(i18n.getLoader()).toBeUndefined();
     expect(i18n.getPluginData("umd")).toBeUndefined();
+  });
+
+  it("registerLoader accepts a static import map", async () => {
+    const { I18n } = loadUmd();
+    const i18n = new I18n({ locale: "en", exposeGlobal: false });
+
+    i18n.registerLoader({
+      en: () => Promise.resolve({ default: { k: "EN" } }),
+      de: () => Promise.resolve({ default: { k: "DE" } }),
+    });
+    await i18n.init();
+
+    expect(i18n.t("k")).toBe("EN");
+    await i18n.setLocaleAsync("de");
+    expect(i18n.t("k")).toBe("DE");
+  });
+
+  it("flattens nested constructor catalogs", () => {
+    const { I18n } = loadUmd();
+    const i18n = new I18n({
+      locale: "en",
+      exposeGlobal: false,
+      translation: { en: { nav: { home: "Home" } } },
+    });
+
+    expect(i18n.t("nav.home")).toBe("Home");
+  });
+
+  it("renders ambient string-API tag syntax through the param channel", () => {
+    // `src/umd.ts` imports `./register-tags`, so the CDN bundle keeps the
+    // ambient tag grammar the ESM root no longer registers.
+    const { I18n } = loadUmd();
+    const i18n = new I18n({
+      locale: "en",
+      exposeGlobal: false,
+      translation: { en: { rich: "click <b>here</b> now" } },
+    });
+
+    let handled: unknown;
+    const out = i18n.t("rich", {
+      b: (children: string) => {
+        handled = children;
+        return "HANDLED";
+      },
+    });
+
+    expect(out).toBe("click HANDLED now");
+    expect(handled).toBeDefined();
+  });
+
+  it("produces virtual nodes for ambient tags through tRaw", () => {
+    const { I18n, isVirtualNode } = loadUmd();
+    const i18n = new I18n({
+      locale: "en",
+      exposeGlobal: false,
+      tagInterpolation: { basicHtmlTags: ["strong"] },
+      translation: { en: { rich: "read <strong>this</strong>" } },
+    });
+
+    const parts = i18n.tRaw("rich");
+    expect(Array.isArray(parts)).toBe(true);
+    const element = (parts as unknown[]).find((part) => part !== null && typeof part === "object");
+    expect(element).toBeDefined();
+    expect((element as { tag?: string }).tag).toBe("strong");
+    expect(isVirtualNode(element)).toBe(true);
+  });
+
+  it("announces on window.__COMVI__ and removes its identity on destroy", async () => {
+    const { ComviCore, sandbox } = loadBrowserUmd();
+    expect(sandbox.__COMVI__, "the queue must start empty").toBeUndefined();
+
+    const i18n = new ComviCore.I18n({ locale: "en", instanceId: "cdn-host" });
+
+    const queue = sandbox.__COMVI__ as Array<{ i: unknown; v: unknown }>;
+    expect(Array.isArray(queue)).toBe(true);
+    expect(queue).toHaveLength(1);
+    expect(queue[0]!.i, "the queued entry holds the instance itself").toBe(i18n);
+    expect(typeof queue[0]!.v).toBe("string");
+    expect(i18n.instanceId).toBe("cdn-host");
+
+    await i18n.destroy();
+    expect(queue, "identity-based removal on destroy").toHaveLength(0);
+  });
+
+  it("honours a pre-installed v2 hook (mixed-version safe)", async () => {
+    const { ComviCore, sandbox } = loadBrowserUmd();
+    const pushed: unknown[] = [];
+    const removed: unknown[] = [];
+    sandbox.__COMVI__ = {
+      push: (entry: unknown) => pushed.push(entry),
+      remove: (entry: unknown) => removed.push(entry),
+    };
+
+    const i18n = new ComviCore.I18n({ locale: "en", instanceId: "hooked" });
+    expect(pushed).toHaveLength(1);
+    expect((pushed[0] as { i: unknown }).i).toBe(i18n);
+
+    await i18n.destroy();
+    expect(removed).toHaveLength(1);
+    expect(removed[0], "removal is identity-based").toBe(pushed[0]);
+  });
+
+  it("stays silent under exposeGlobal:false in a browser-like context", () => {
+    const { ComviCore, sandbox } = loadBrowserUmd();
+    const i18n = new ComviCore.I18n({ locale: "en", exposeGlobal: false });
+
+    expect(sandbox.__COMVI__).toBeUndefined();
+    expect(i18n.instanceId).toBeUndefined();
+  });
+
+  it("introduces no NEW context-global leak", () => {
+    // The UMD IIFE has leaked two mangled top-level names onto the page global
+    // since before this wave (P0.9 §8.3 measured `["e","t"]` on the pristine
+    // `src/index.ts`-targeted build at 3efcda9, and the dedicated `src/umd.ts`
+    // entry neither causes nor fixes it). The GATE here is preservation: the
+    // leak set must not grow. Closing it outright is tracked separately — it is
+    // a UMD wrapper/mangler defect, not a composition one.
+    const seeded = ["console", "setTimeout", "clearTimeout", "queueMicrotask", "ComviCore"];
+    const sandbox: UmdSandbox = { console, setTimeout, clearTimeout, queueMicrotask };
+    loadUmdIn(sandbox);
+
+    const leaked = Object.keys(sandbox)
+      .filter((key) => !seeded.includes(key))
+      .sort();
+    expect(leaked).toEqual(["e", "t"]);
   });
 });

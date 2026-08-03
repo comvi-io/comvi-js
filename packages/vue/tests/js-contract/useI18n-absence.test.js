@@ -10,7 +10,7 @@
 import { describe, it, expect } from "vitest";
 import { defineComponent, h } from "vue";
 import { mount } from "@vue/test-utils";
-import { createI18n } from "@comvi/core/slim";
+import { createI18n } from "@comvi/core";
 import { attachLoader } from "@comvi/core/loader";
 import { attachPlugins } from "@comvi/core/plugins";
 import { createI18nFromCore } from "../../src/createI18nFromCore";

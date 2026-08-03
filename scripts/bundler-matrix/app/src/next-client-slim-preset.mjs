@@ -2,10 +2,11 @@
 // specifier in this file is `@comvi/next/client` — no `@comvi/core` anywhere.
 //
 // `@comvi/next/client` is not a `/slim` entry: its published `createI18n` is
-// the ROOT constructor and stays that way, so the slim host is `createSlimI18n`.
-// Both names are exported side by side, and this case pins the consequence —
-// an app that only ever calls `createSlimI18n` does not carry the root entry,
-// in ANY bundler or mode.
+// the 0.4.x name and stays that way, and `createSlimI18n` is the base host.
+// After the single-entry convergence both are the same constructor from
+// `@comvi/core`, so this app carries core's base entry whichever name it calls
+// — the assertion below is about the capability subpaths and next's server
+// modules, never about that entry.
 //
 // The other half of the gate is the re-export hop: `@comvi/next/client`
 // re-exports five capability bindings from core's pure subpaths; this app uses

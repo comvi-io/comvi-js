@@ -2,7 +2,7 @@
 // the "loader (+plugins) + <T>" rung of the §2.1 ladder. Measured as an ACTUAL
 // composed graph; the row is never derived by summing per-entry deltas.
 import "@comvi/core/tags";
-import { createI18n } from "@comvi/core/slim";
+import { createI18n } from "@comvi/core";
 import { attachLoader } from "@comvi/core/loader";
 import { attachPlugins } from "@comvi/core/plugins";
 

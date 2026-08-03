@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { I18n } from "../../src";
+import { I18n } from "../helpers/composedHost";
 
 describe("Dev Mode", () => {
   it.each([true, false])("exposes devMode=%s to plugins", async (devMode) => {

@@ -1,6 +1,11 @@
 import { describe, it, expect } from "vitest";
-import { I18n } from "../../src";
-import { createI18n } from "../../src/slim";
+// The COMPOSITE host: since the single-entry convergence `../../src` is the
+// BASE host, and the batteries-included 0.4 semantics live on in the internal
+// composite `src/core/full.ts` (what the CDN global ships and `@comvi/next`'s
+// builder mirrors). Imported directly — never through the tags-registering
+// helper — so this file's ambient-extension assertions stay meaningful.
+import { I18n } from "../../src/core/full";
+import { createI18n } from "../../src";
 import { attachLoader } from "../../src/loader";
 import { attachPlugins } from "../../src/plugins";
 import type { I18nEvent, I18nEventData } from "../../src/types";
@@ -10,15 +15,16 @@ import type { I18nEvent, I18nEventData } from "../../src/types";
  *
  * `setLocaleAsync` used to carry its race machinery — changeId staleness
  * arbitration, mid-flight cancellation and the loading refcount — on the base
- * class, where a bare `@comvi/core/slim` instance paid for it without ever
+ * class, where a bare `@comvi/core` instance paid for it without ever
  * being able to have a load in flight. The machinery now lives in
- * `@comvi/core/loader`, which OVERRIDES the method: the root entry inherits
- * the override through `extends`, a slim instance gets it from `attachLoader`.
+ * `@comvi/core/loader`, which OVERRIDES the method: the internal composite
+ * inherits the override through `extends`, a base host gets it from
+ * `attachLoader`.
  *
  * These are the event-trace and race tests that pin the split:
  *  • bare (and plugins-only) hosts: one synchronous `localeChanged`, and — the
  *    one deliberate 0.5.0 behavior delta — NO `loadingStateChanged` pair;
- *  • loader-carrying hosts (root and composed slim): the 0.4.x trace and both
+ *  • loader-carrying hosts (the composite and a composed base host): the
  *    race semantics, byte for byte identical between the two install surfaces.
  */
 
@@ -116,7 +122,7 @@ describe("locale switch on a host WITHOUT the loader capability", () => {
 });
 
 describe.each([
-  ["root", () => new I18n({ locale: "en", ns: [], exposeGlobal: false })],
+  ["composed host", () => new I18n({ locale: "en", ns: [], exposeGlobal: false })],
   [
     "slim + attachLoader",
     () => attachLoader(createI18n({ locale: "en", ns: [], exposeGlobal: false })),

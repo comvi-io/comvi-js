@@ -33,8 +33,11 @@ import {
 import { translationResultToString } from "../utils/translationResultToString";
 import { TranslationCache } from "./TranslationCache";
 import { isStaticTemplate, translate, translateTemplate } from "./translate";
+import { simpleCompiler } from "./translate/compile-simple";
+import { parseTemplate } from "./translate/parser";
 import {
   effectiveExtBits,
+  effectiveExtensions,
   getCompilerId,
   mergeTagInterpolation,
   type MessageCompiler,
@@ -123,10 +126,20 @@ export interface I18nInternal<D extends DefaultTranslationParams = {}> extends I
   /**
    * Nested-catalog flattening for `addTranslations` / `options.translation`.
    * A PROTOTYPE method on `I18nWithLoader`, never an instance field, so the
-   * root entry has it during `super()` — `options.translation` is merged
+   * composite has it during `super()` — `options.translation` is merged
    * inside the base constructor, before any `_init*` runs.
    */
   _flattenNs?: (catalog: Record<string, TranslationValue>) => FlattenedTranslations;
+
+  // ── pre-ingestion compiler seam (`/icu`'s only entry point) ──
+  /** The instance's effective compiler; read by the dev-only preflight hook. */
+  _compiler: MessageCompiler;
+  /** Per-instance tag options; read by the dev-only preflight hook. */
+  _tagInterpolation?: TagInterpolationOptions;
+  _setCompilerBeforeIngestion(compiler: MessageCompiler): boolean;
+
+  /** DEV-ONLY eager catalog check; absent from production builds. */
+  _preflightSimpleCatalog?: (catalog: Record<string, unknown>) => void;
 
   // ── devtools discovery capability (`core/devtools.ts`) ──
   // `instanceId` is PUBLIC (`I18nCoreExtraApi`) but writable only here: the
@@ -169,7 +182,7 @@ export class I18n<D extends DefaultTranslationParams = {}>
   public readonly devMode: boolean;
   /**
    * Assigned ONLY by the discovery capability (`core/devtools.ts`), which the
-   * root entry composes in and `attachDevtools` installs on a slim instance.
+   * internal composite composes in and `attachDevtools` installs on a base host.
    * `declare`: the base must not emit an initializer for it, so on an
    * instance that was never exposed it is not an own property at all.
    */
@@ -182,8 +195,13 @@ export class I18n<D extends DefaultTranslationParams = {}>
   private _configRevision = 0;
   private _tagInterpolation?: TagInterpolationOptions;
   private _missingParam: MissingParamMode;
-  private readonly _compiler: MessageCompiler;
-  private readonly _compilerId: number;
+  protected _compiler: MessageCompiler;
+  protected _compilerId: number;
+  /**
+   * Irreversible once any catalog has been ingested. No initializer: an
+   * unlocked host simply has no own property for it.
+   */
+  protected _compilerLocked?: boolean;
   /** `protected`: `registerPostProcessor` lives in the plugin capability. */
   protected _postProcessors: PostProcessFn[] = [];
   private _primaryTranslations?: FlattenedTranslations;
@@ -195,8 +213,8 @@ export class I18n<D extends DefaultTranslationParams = {}>
   protected _activeNamespaces = new Set<string>();
 
   // Capability seams (`_loadNs`, `_cancelNs`, `_loader`) are NOT declared
-  // here: the root subclass declares them as real methods (`core/loader.ts`,
-  // `core/plugins.ts`) and `attach*` copies those descriptors onto a slim
+  // here: the composite subclass declares them as real methods (`core/loader.ts`,
+  // `core/plugins.ts`) and `attach*` copies those descriptors onto a base
   // instance. The base only ever READS them, through the `I18nInternal`
   // cross-module contract — a type-only cast that emits nothing.
 
@@ -213,11 +231,17 @@ export class I18n<D extends DefaultTranslationParams = {}>
   private _onError?: (error: Error, context?: ErrorReportContext) => void;
 
   /**
-   * @param compiler Message compiler injected by the entry-point factory
-   * (root → ICU, slim → simple, or user-injected). Its identity is part of
-   * every template cache key this instance produces.
+   * @param compiler Message compiler for this instance. Defaults to
+   * `options.compiler` and then to the simple `{param}` compiler, so the
+   * published `new I18n(options)` is a one-argument constructor; the internal
+   * full composite (`core/full.ts`) is the only caller that passes it
+   * positionally. Its identity is part of every template cache key this
+   * instance produces.
    */
-  constructor(options: I18nOptions<D>, compiler: MessageCompiler) {
+  constructor(
+    options: I18nOptions<D>,
+    compiler: MessageCompiler = options.compiler ?? simpleCompiler,
+  ) {
     if (!options.locale) {
       throw new Error(ERR_LOCALE_NOT_SET);
     }
@@ -303,9 +327,22 @@ export class I18n<D extends DefaultTranslationParams = {}>
     this.devMode = options.devMode ?? IS_DEV;
 
     // Discovery (`window.__COMVI__`) is NOT here: it is the `core/devtools.ts`
-    // capability, composed in by the root entry's constructor and installed
-    // on a slim instance by `attachDevtools`. `options.exposeGlobal` /
+    // capability, composed in by the internal composite's constructor and
+    // installed on a base host by `attachDevtools`. `options.exposeGlobal` /
     // `options.instanceId` are read there, not by the base.
+  }
+
+  /**
+   * @internal PINNED SEAM (`I18nInternal`). Atomically replace the compiler
+   * and its identity while NO catalog has been ingested. Returns `false`
+   * once the host is locked; the lock proves no compiled template can exist
+   * for this host's catalogs, which is why no cache is cleared or rekeyed.
+   */
+  public _setCompilerBeforeIngestion(compiler: MessageCompiler): boolean {
+    if (this._compilerLocked) return false;
+    this._compiler = compiler;
+    this._compilerId = getCompilerId(compiler);
+    return true;
   }
 
   /**
@@ -313,7 +350,7 @@ export class I18n<D extends DefaultTranslationParams = {}>
    * composition pipe.
    *
    * ```ts
-   * import { createI18n } from "@comvi/core/slim";
+   * import { createI18n } from "@comvi/core";
    * import { loader } from "@comvi/core/loader";
    *
    * const i18n = createI18n({ locale: "en" }).with(loader({ uk: () => import("./uk.json") }));
@@ -438,8 +475,8 @@ export class I18n<D extends DefaultTranslationParams = {}>
    * no loader, so there is nothing to await, no stale result to suppress and
    * no loading refcount to move. `@comvi/core/loader` OVERRIDES this method
    * with the guarded version (changeId staleness + mid-flight cancellation +
-   * `_setLoadingState` refcount around the namespace load); the root entry
-   * inherits that override through `extends`, a slim instance receives it
+   * `_setLoadingState` refcount around the namespace load); the composite
+   * inherits that override through `extends`, a base host receives it
    * from `attachLoader`. Both paths keep this `Promise`-returning signature.
    *
    * @param value - The locale code to set
@@ -903,12 +940,15 @@ export class I18n<D extends DefaultTranslationParams = {}>
    * The base accepts FLAT catalogs — `{ "a.b": "…" }` — and copies them onto
    * a prototype-less object, which is its prototype-pollution guard. NESTED
    * catalogs and non-string leaves are the
-   * `_flattenNs` capability's job (`core/loader.ts`, installed on the root
-   * class and by `attachLoader` / `attachNestedCatalogs`): a nested object is
-   * data the loader path produces, and a bare slim host that never loads
+   * `_flattenNs` capability's job (`core/loader.ts`, installed on the
+   * composite's class and by `attachLoader` / `attachNestedCatalogs`): a nested object is
+   * data the loader path produces, and a base host that never loads
    * anything should not carry a recursive flattener for it.
    */
   private _nsAddTranslations(translations: Record<string, Record<string, TranslationValue>>): void {
+    // Ingestion seam 1 — locks BEFORE any catalog (including an empty map) is
+    // handled, and before the dev preflight can throw.
+    this._compilerLocked = true;
     for (const localeOrKey in translations) {
       const value = translations[localeOrKey];
       // A bare host has no `_flattenNs`, so it stores the caller's catalog as
@@ -920,7 +960,10 @@ export class I18n<D extends DefaultTranslationParams = {}>
         (this as unknown as I18nInternal)._flattenNs?.(value) ??
         Object.assign(Object.create(null), value);
 
-      if (IS_DEV) warnIfNotFlat(localeOrKey, flat);
+      if (IS_DEV) {
+        warnIfNotFlat(localeOrKey, flat);
+        (this as unknown as I18nInternal)._preflightSimpleCatalog?.(flat);
+      }
 
       const colonIdx = localeOrKey.indexOf(":");
       const loc = colonIdx === -1 ? localeOrKey : localeOrKey.slice(0, colonIdx);
@@ -930,7 +973,7 @@ export class I18n<D extends DefaultTranslationParams = {}>
       // prototype-less either way, so the first write stores it directly:
       // `Object.assign` out of a dictionary-mode (null-prototype) source has
       // no fast path in V8 and costs ~130 ns PER KEY, so copying the whole
-      // catalog a second time made a root `new I18n({ translation })` 2.5x
+      // catalog a second time made a composed `new I18n({ translation })` 2.5x
       // slower than 6fa713b (.omc/handoffs/ctor-perf.md).
       const existing = this.translationCache.get(loc, ns);
       this.translationCache.set(
@@ -984,4 +1027,28 @@ export class I18n<D extends DefaultTranslationParams = {}>
     self._resetLoader?.();
     self._resetPlugins?.();
   }
+}
+
+// DEV-ONLY (§2.1a): eager catalog preflight at both real ingestion seams —
+// `_nsAddTranslations` (constructor catalog + `addTranslations`) and the
+// loader's pre-merge call in `core/loader.ts`. In development an ICU-shaped
+// string in an ingested catalog throws `E_ICU_SYNTAX` at ingestion instead of
+// at first render; production stays lazy and throws on the compile miss.
+// The entire block is stripped from production builds by the __DEV__ fold, so
+// it costs the shipped bundle nothing.
+if (IS_DEV) {
+  (I18n.prototype as unknown as I18nInternal)._preflightSimpleCatalog = function (
+    this: I18nInternal,
+    catalog: Record<string, unknown>,
+  ): void {
+    if (this._compiler !== simpleCompiler) return;
+    // The EFFECTIVE extension set, not an empty one: a host whose app imported
+    // `@comvi/core/tags` really does claim `<`, and preflighting without that
+    // knowledge would emit the §2.3 tag warning for markup that renders fine.
+    const extensions = effectiveExtensions(this._tagInterpolation?.extensions);
+    for (const key in catalog) {
+      const value = catalog[key];
+      if (typeof value === "string") parseTemplate(value, false, extensions, simpleCompiler);
+    }
+  };
 }

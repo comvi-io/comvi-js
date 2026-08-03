@@ -30,7 +30,7 @@ export interface MessageCompiler {
   /**
    * Build a token from the content between balanced `{`...`}`.
    * Returning `undefined` makes the whole braced segment flow through as
-   * literal text (slim's ICU passthrough behavior).
+   * literal text. The shipped simple compiler THROWS instead (Policy A).
    */
   makeArgToken(content: string, hashIsSyntax: boolean, template: string): ParsedToken | undefined;
   /**

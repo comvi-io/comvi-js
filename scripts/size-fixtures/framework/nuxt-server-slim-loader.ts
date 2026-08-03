@@ -12,7 +12,7 @@
 import plugin from "@comvi/nuxt/runtime/plugin.js";
 import { useI18n } from "@comvi/nuxt/runtime/composables/useI18n.js";
 import { loadTranslations } from "@comvi/nuxt/runtime/server/utils/loadTranslations.js";
-import { createI18n } from "@comvi/core/slim";
+import { createI18n } from "@comvi/core";
 import { attachLoader } from "@comvi/core/loader";
 import { createI18nFromCore } from "@comvi/vue/slim";
 

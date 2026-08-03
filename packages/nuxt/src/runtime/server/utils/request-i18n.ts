@@ -1,8 +1,9 @@
 import type { H3Event } from "h3";
 import { runComviSetup } from "#build/comvi.setup";
 // Same build-time branch as the client plugin: with `hostModule` set, the
-// generated template returns the app's own composed host and the root
-// @comvi/core entry is not in the server graph at all (framework-slim P4
+// generated template returns the app's own composed host and nuxt's default
+// `@comvi/vue` construction path is not in the server graph — the app's
+// factory still imports whatever core modules it composes (framework-slim P4
 // step 5).
 import { createComviCore } from "#build/comvi.host";
 import type { NuxtServerHost } from "../../../types";
@@ -53,8 +54,8 @@ export async function getRequestI18n(event: H3Event, locale: string): Promise<Nu
 
       // A `hostModule` factory builds the host from its own configuration and
       // cannot know the request locale, so it is applied here — before init(),
-      // so the first load is already for the right locale. On the root branch
-      // the core was constructed with it and this is a no-op.
+      // so the first load is already for the right locale. On the default
+      // branch the core was constructed with it and this is a no-op.
       if (i18n.locale !== locale) {
         i18n.locale = locale;
       }

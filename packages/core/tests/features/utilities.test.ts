@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { I18n, createBoundTranslation } from "../../src";
+import { I18n, createBoundTranslation } from "../helpers/composedHost";
 
 describe("Utilities", () => {
   describe("createBoundTranslation", () => {

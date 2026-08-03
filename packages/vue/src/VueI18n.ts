@@ -6,7 +6,7 @@ import {
   getTextDirection,
   subscribeToRevision,
   translationResultToString,
-} from "@comvi/core/slim";
+} from "@comvi/core";
 import type {
   I18n,
   I18nOptions,

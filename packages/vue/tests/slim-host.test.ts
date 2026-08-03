@@ -1,4 +1,4 @@
-// @comvi/vue running on a BARE `@comvi/core/slim` host (framework-slim P4).
+// @comvi/vue running on a BARE `@comvi/core` host (framework-slim P4).
 //
 // Everything here is reachable without the loader or plugin-host capability:
 // if any of it regressed, the wrapper would be pulling a member a slim host
@@ -8,7 +8,7 @@
 import { describe, it, expect } from "vitest";
 import { defineComponent, h, nextTick } from "vue";
 import { mount } from "@vue/test-utils";
-import { createI18n as createSlimI18n } from "@comvi/core/slim";
+import { createI18n as createSlimI18n } from "@comvi/core";
 import { attachLoader } from "@comvi/core/loader";
 import { attachPlugins } from "@comvi/core/plugins";
 import { createI18nFromCore } from "../src/createI18nFromCore";

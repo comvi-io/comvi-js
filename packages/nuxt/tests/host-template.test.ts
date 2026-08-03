@@ -114,8 +114,13 @@ describe("generated #build/comvi.host template", () => {
 
     const i18n = createComviI18n({ locale: "en", exposeGlobal: false });
     expect(i18n.locale.value).toBe("en");
-    // Root branch: the core keeps every capability, so `comvi.setup` hooks that
-    // migrated to `i18n.core.*` keep working with no app change.
+    // Default branch: the emitted template builds vue's own `createI18n` on
+    // core's ROOT entry, which since the single-entry convergence is the BASE
+    // host — no loader, no plugin host. The expectations below, and the
+    // `reloadTranslations` one further down, still encode the 0.4 capability
+    // surface, so they FAIL on this tree: a real break for the nuxt phase to
+    // resolve — compose the capabilities in the template, or retarget the
+    // assertion — not something a comment can repair.
     expect(typeof i18n.core.registerLoader).toBe("function");
     expect(typeof i18n.core.use).toBe("function");
 
@@ -126,7 +131,7 @@ describe("generated #build/comvi.host template", () => {
 
   it("wires the user host through createI18nFromCore on the hostModule branch", async () => {
     const hostPath = writeHostModule(`
-import { createI18n } from "@comvi/core/slim";
+import { createI18n } from "@comvi/core";
 import { attachLoader } from "@comvi/core/loader";
 
 export const built = [];

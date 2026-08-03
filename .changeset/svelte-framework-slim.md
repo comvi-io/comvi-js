@@ -2,7 +2,7 @@
 "@comvi/svelte": minor
 ---
 
-**BREAKING (0.5.0):** `@comvi/svelte` now runs on a bare `@comvi/core/slim` host, and the four loader/plugin members left `useI18n()` for two dedicated context readers (framework-slim P3, same D′ contract as `@comvi/react`).
+**BREAKING (0.5.0):** `@comvi/svelte` now runs on a base `@comvi/core` host, and the four loader/plugin members left `useI18n()` for two dedicated context readers (framework-slim P3, same D′ contract as `@comvi/react`).
 
 This is the binding where the old contract did not merely mistype the host — it **crashed** on one. `useI18n()` eagerly `.bind()`-ed `addActiveNamespace`, `reloadTranslations`, `onLoadError` and `onMissingKey` in the object literal it returned, so on a host without those capabilities it threw `Cannot read properties of undefined (reading 'bind')` before a single translation rendered.
 
@@ -32,7 +32,7 @@ A host that lacks the capability fails at the acquisition call with a message na
 
 ```
 // dev
-[comvi] This i18n instance has no loader capability. Attach it: import { attachLoader } from "@comvi/core/loader" — or use the root "@comvi/core" entry.
+[comvi] This i18n instance has no loader capability. Compose it: .with(loader()) from "@comvi/core/loader", or the lower-level attachLoader.
 // prod
 [comvi] missing loader capability — attach @comvi/core/loader
 ```
@@ -47,17 +47,26 @@ Troubleshooting: `addActiveNamespace is not a function` / `reloadTranslations is
 
 ### Types accept any host
 
-`setI18nContext(i18n)`, `getI18nContext()` and all six store factories accept `WrapperI18nHost` (`I18nCoreInstance & I18nCoreExtraApi`) instead of the concrete root `I18n` class. Root instances still satisfy it, so `createI18n` from `@comvi/core` keeps working unchanged; `createI18n` from `@comvi/core/slim` and any `attachLoader`/`attachPlugins` composition now work too. The store factories gained an optional `D` type parameter (inferred) because `WrapperI18nHost<D>` — unlike the old `I18n` class — is invariant in `D`.
+`setI18nContext(i18n)`, `getI18nContext()` and all six store factories accept `WrapperI18nHost` (`I18nCoreInstance & I18nCoreExtraApi`) instead of the concrete `I18n` class. Every host satisfies it — the base `createI18n` from `@comvi/core` and any `attachLoader`/`attachPlugins`/`.with(…)` composition of it. The store factories gained an optional `D` type parameter (inferred) because `WrapperI18nHost<D>` — unlike the old `I18n` class — is invariant in `D`.
 
 ### Measured
 
 Whole comvi graph, min+gz, framework externalized, same commit (`pnpm size`):
 
-| app shape                                    | before      | after    |
-| -------------------------------------------- | ----------- | -------- |
-| svelte + root core, no `<T>`                 | 10006       | **9949** |
-| svelte + root core, with `<T>`               | 11389       | 11330    |
-| svelte + bare `@comvi/core/slim`, no `<T>`   | — (crashed) | **6972** |
-| svelte + bare `@comvi/core/slim`, with `<T>` | — (crashed) | 9180     |
+| app shape                               | before      | after    |
+| --------------------------------------- | ----------- | -------- |
+| svelte + 0.4 composed root, no `<T>`    | 10006       | **9949** |
+| svelte + 0.4 composed root, with `<T>`  | 11389       | 11330    |
+| svelte + bare `@comvi/core`, no `<T>`   | — (crashed) | **6972** |
+| svelte + bare `@comvi/core`, with `<T>` | — (crashed) | 9180     |
 
-**Moving a svelte app from the root entry to bare slim saves 2977 B min+gz (−29.9%).** Both slim fixtures assert — through the bundler's module graph, not an output-text grep — that `comvi-core.js` and core's tag chunks are absent, and the `svelte-on-slim` case is green on webpack and vite in both development and production.
+**Moving a svelte app off the 0.4 composed root onto the base host saves 2977 B min+gz (−29.9%).** The bare-host fixture asserts — through the bundler's module graph, not an output-text grep — that core's tag-registration pair (`comvi-core-tags.js` plus its `register-tags` chunk) never enters the graph; the `<T>` row declares no such sentinel, because rendering `<T>` is exactly what buys that pair. Core's base entry is in both graphs by construction — `createI18n` is its export — so no fixture asserts it away. The `svelte-on-slim` case is green on webpack and vite in both development and production.
+
+> Rewritten in place at the single-entry convergence (same release): the separate
+> base-host subpath this changeset was written against no longer exists, and
+> `@comvi/core`'s root IS that base host — so every specifier above names the
+> root, and every "the root has it already" claim reads against the base host.
+> The 0.4 composed root survives only as a recipe (`.with(loader())`,
+> `.with(plugins())`, `.with(devtools())`, `compiler: icuCompiler` from
+> `@comvi/core/icu`, `import "@comvi/core/tags"`); see
+> `core-single-entry-convergence.md` for the break and the migration.

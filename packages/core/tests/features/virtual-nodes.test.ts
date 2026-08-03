@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { I18n } from "../../src";
-import type { VirtualNode } from "../../src";
+import { I18n } from "../helpers/composedHost";
+import type { VirtualNode } from "../helpers/composedHost";
 
 describe("Virtual Node Interpolation", () => {
   let i18n: I18n;

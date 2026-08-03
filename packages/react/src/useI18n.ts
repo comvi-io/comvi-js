@@ -8,7 +8,7 @@ import {
   formatRelativeTime,
   getTextDirection,
   isVirtualNode,
-} from "@comvi/core/slim";
+} from "@comvi/core";
 import type {
   TranslationParams,
   TranslationResult,
@@ -105,7 +105,7 @@ function translationResultToString(result: TranslationResult): string {
 
 /**
  * Host type every react binding demands (framework-slim D′): the reactive
- * translation host, exactly what bare `@comvi/core/slim` implements.
+ * translation host, exactly what bare `@comvi/core` implements.
  */
 type Host = WrapperI18nHost;
 

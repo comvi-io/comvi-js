@@ -177,18 +177,22 @@ export interface NuxtI18nOptions {
 
   /**
    * Path to a module whose DEFAULT export is a host factory —
-   * `() => WrapperI18nHost` — used INSTEAD of the root `@comvi/core` entry.
+   * `() => WrapperI18nHost` — used INSTEAD of `@comvi/vue`'s own constructor.
    *
    * This is the composed-host recipe: build the host yourself out of
-   * `@comvi/core/slim` plus only the capabilities you use, and nuxt wires it
+   * `@comvi/core` plus only the capabilities you use, and nuxt wires it
    * through `@comvi/vue`'s `createI18nFromCore` on the client and uses it
-   * directly in the server utilities. Unset (the default) keeps the root
-   * entry and needs no app change.
+   * directly in the server utilities. Unset (the default) builds the host with
+   * `@comvi/vue`'s `createI18n`, which since the single-entry convergence is a
+   * base `@comvi/core` host with no capability composed onto it.
    *
    * It is a module PATH, not a function: module options are serialized into
-   * build-time template codegen, and the branch that decides whether the root
-   * entry is imported at all has to be taken there — a runtime `if` would pin
-   * the root entry into every bundle and save nothing.
+   * build-time template codegen, and the branch that decides whether
+   * `@comvi/vue`'s constructor is imported at all has to be taken there — a
+   * runtime `if` would pin it into every bundle and save nothing. The saving is
+   * the SELECTED graph: your factory's imports — which may well include the
+   * base `@comvi/core` root and the capability subpaths, as the example below
+   * does — instead of nuxt's default construction path. It is not root absence.
    *
    * The factory is called once per constructed instance (the client plugin,
    * and each per-request server instance), so it must return a FRESH host
@@ -199,7 +203,7 @@ export interface NuxtI18nOptions {
    * @example
    * ```ts
    * // comvi.host.ts
-   * import { createI18n } from "@comvi/core/slim";
+   * import { createI18n } from "@comvi/core";
    * import { attachLoader } from "@comvi/core/loader";
    *
    * export default () => attachLoader(createI18n({ locale: "en" }));
@@ -315,9 +319,9 @@ export type NuxtServerHost<D extends DefaultTranslationParams = {}> = WrapperI18
 /**
  * Context passed to `comvi.setup` hook.
  *
- * `C` is the host the app runs on. It defaults to the root `I18n` — the
- * default, root-entry configuration — so nothing changes for an app that does
- * not set `hostModule`. An app that DOES set it declares its own host type
+ * `C` is the host the app runs on. It defaults to the base `I18n` that
+ * `@comvi/vue`'s `createI18n` builds — the no-`hostModule` configuration. An
+ * app that DOES set it declares its own host type
  * (`NuxtI18nSetup<MyHost>`) and gets exactly the capabilities it composed;
  * capability calls move to `i18n.core.*` on the plugin side (framework-slim §3).
  */

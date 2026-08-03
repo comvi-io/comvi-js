@@ -6,8 +6,11 @@
 //   - both wrapper tarballs resolve through their published exports maps and
 //     their module graphs execute in plain node;
 //   - the shared @comvi/core instance inside the wrapper graph still has
-//     ambient tag registration (root-entry side effect survives a larger,
-//     sideEffects:false wrapper graph around it).
+//     ambient tag registration — supplied by the `<T>` module each wrapper
+//     index pulls in, which imports the side-effectful `@comvi/core/tags`,
+//     never by the base root imported below, which registers nothing on
+//     import (the registration survives a larger, sideEffects:false wrapper
+//     graph around it).
 import { createI18n } from "@comvi/core";
 import * as reactWrapper from "@comvi/react";
 import * as vueWrapper from "@comvi/vue";

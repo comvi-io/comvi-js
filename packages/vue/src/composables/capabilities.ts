@@ -12,7 +12,7 @@
 // instance across components and re-renders, so two components under one app
 // receive the same function references.
 import { inject } from "vue";
-import { hasLoaderApi, hasPluginHostApi, missingCapability } from "@comvi/core/slim";
+import { hasLoaderApi, hasPluginHostApi, missingCapability } from "@comvi/core";
 import type { I18nLoaderApi, I18nPluginHostApi, WrapperI18nHost } from "@comvi/core";
 import { I18N_INJECTION_KEY } from "../keys";
 
@@ -68,9 +68,10 @@ function injectHost(composable: string): AnyHost {
  * Acquire the loader capability of the installed i18n instance's core.
  *
  * Throws `missingCapability("loader")` — in dev and in prod — when the core is
- * a bare `@comvi/core/slim` instance. Compose the capability in where the
- * instance is created (`attachLoader(createI18n(...))`) or use the root
- * `@comvi/core` entry.
+ * a base `@comvi/core` instance, which is every host nobody composed a loader
+ * onto. The capability ships in `@comvi/core/loader` and nowhere else, so
+ * compose it where the instance is created: `createI18n(...).with(loader())`,
+ * or the lower-level `attachLoader(createI18n(...))`.
  *
  * @example
  * ```vue
@@ -104,7 +105,7 @@ export function useI18nLoader(): UseI18nLoaderReturn {
  * Acquire the plugin-host capability of the installed i18n instance's core.
  *
  * Throws `missingCapability("plugins")` — in dev and in prod — when the core
- * is a bare `@comvi/core/slim` instance.
+ * is a bare `@comvi/core` instance.
  *
  * @example
  * ```vue

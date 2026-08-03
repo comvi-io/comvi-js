@@ -1,12 +1,22 @@
 /**
  * CI guard for the release plan changesets will apply. Three assertions:
  *
- * 0. G7 (framework-slim plan §6) — no release-facing text carries a stale
- *    claim the wave falsified: wrappers/bindings requiring a full root entry,
- *    "vanilla-only" slim, or a 0.6.0 target. Runs first and unconditionally,
- *    because a stale CHANGELOG claim is unrecallable once published, and it
- *    self-tests against two verbatim pre-wave claims before it may pass
- *    anything (scripts/g7-canaries.json).
+ * 0. G7 (framework-slim plan §6, extended by the single-entry convergence) — no
+ *    release-facing text carries a stale claim a wave falsified: wrappers or
+ *    bindings requiring a full root entry, "vanilla-only" slim, a 0.6.0 target,
+ *    a root that is batteries-included / composes capabilities / registers,
+ *    runs or carries ambient tags, a comparison whose two sides are the same
+ *    current specifier, a second entry named `@comvi/core`, or a graph, entry or
+ *    factory sold as "root-free" when core's base entry is where `createI18n`
+ *    lives — that last family however it is spelled, including the dist file
+ *    name (`comvi-core.js` … absent), the entry put out under its other name
+ *    ("keeps the core entry out") and the bare pronoun form ("without either").
+ *    Runs first and
+ *    unconditionally, because a stale CHANGELOG claim is unrecallable once
+ *    published, and it self-tests against every recorded claim in
+ *    scripts/g7-canaries.json before it may pass anything. That fixture spans
+ *    three capture waves, so each row carries its own capture commit and the
+ *    gate reports it per row — no single commit stands for the whole file.
  *
  * 1. The planned bump must not exceed the bump the changeset files declare.
  *    The classic failure: a pinned @comvi/* peer range falls out of the next
@@ -35,11 +45,37 @@ import { declaredMaxBump, nextReleaseVersion, syncPeerRanges } from "./sync-peer
 //
 // Corpus, patterns, allowlist shape and the canary self-test are all fixed by
 // the plan. Two rules make this a gate rather than a lint:
-//   * the canary self-test runs FIRST and the whole check fails if either
-//     verbatim pre-wave claim escapes the pattern set — a pattern set that
-//     matches nothing proves nothing (the Revision-2 set matched neither);
+//   * the canary self-test runs FIRST and the whole check fails if ANY of the
+//     captured verbatim claims escapes the pattern set — a pattern set that
+//     matches nothing proves nothing (the Revision-2 set matched neither of the
+//     first two), and each canary names the family that must catch it, so one
+//     wave's claim can never be proved by another wave's pattern;
 //   * every allowlist entry names file + line + pattern + reason. Blanket
 //     excludes are prohibited: a moved line must be re-reviewed, not inherited.
+
+// The bare root specifier exactly as prose and tables write it. `@comvi/core`
+// followed by a `/` is a capability subpath and never the host under discussion,
+// so the trailing backtick is load-bearing: it is what keeps the one sanctioned
+// `@comvi/core/slim` deletion-history mention out of these patterns.
+const G7_CORE = "`@comvi/core`";
+
+// A markdown table cell that names the bare root specifier AND a host qualifier,
+// in either order ("| `@comvi/core` (root) |" and "| react + bare `@comvi/core` |"
+// both qualify). Two lookaheads instead of an order-specific alternation.
+const g7QualifiedCell = (qualifiers) =>
+  "\\|(?=[^|\\n]*" + G7_CORE + ")(?=[^|\\n]*\\b(?:" + qualifiers + ")\\b)[^|\\n]*";
+const g7BaseCell = g7QualifiedCell("bare|base");
+const g7RootCell = g7QualifiedCell("root|composed");
+
+// The absence predicate, shared by every alternative of the `root-free` family
+// below. `be` covers the modal forms the reviews actually found ("must still be
+// absent"), not just the indicative ones.
+const G7_ABSENT = String.raw`(is|are|be|stays?|remains?|kept)\s+absent`;
+// A gap that ends at a SENTENCE period but not at a period inside a word —
+// `comvi-core.js`, `createNextI18n.js`, `0.4`. Without that exception a plain
+// `[^.]` gap cannot span the base entry's own dist FILE NAME, which is exactly
+// how one absence claim escaped every noun-anchored pattern.
+const G7_TOKEN_GAP = String.raw`(?:[^.]|\.(?=\w))`;
 
 const G7_PATTERNS = [
   // A wave that folded into 0.5.0 must not point anyone at a 0.6.0 target.
@@ -50,6 +86,128 @@ const G7_PATTERNS = [
   { name: "full-root", source: String.raw`full root` },
   { name: "requires-root-entry", source: String.raw`require[s]? the root entry` },
   { name: "vanilla-scope", source: String.raw`vanilla[-/ ]` },
+  // ── the `root-full` family, activated by single-entry P1 ──
+  // The root entry is the BASE host now. Any release-facing text that still
+  // sells it as the batteries-included one, or says it composes capabilities
+  // back in, points a reader at semantics that no longer exist. Both patterns
+  // are tight on purpose so the deliberate CDN-global exception survives: the
+  // README's "serve a batteries-included bundle built from its own entry" puts
+  // ~30 characters between the two words, outside the 20-character window, and
+  // it claims nothing about the root composing anything.
+  {
+    name: "root-is-batteries",
+    source: String.raw`(batteries[^.\n]{0,20}entr(y|ies)|entr(y|ies)[^.\n]{0,20}batteries)`,
+  },
+  { name: "root-composes", source: String.raw`root [^.\n]{0,20}entry composes` },
+  // Widened after the P1 review found live claim shapes the two patterns above
+  // missed. Each has its own canary in scripts/g7-canaries.json, so each is
+  // proved against the exact sentence it exists to kill.
+  {
+    name: "root-ships-capabilities",
+    source: String.raw`root[^.]{0,40}(ships|has|carries)[^.]{0,40}capabilit`,
+  },
+  { name: "with-on-root-noop", source: String.raw`\.with\([^)]{0,20}\)[^.]{0,30}on\s+an?\s+root` },
+  {
+    name: "root-behaviour-unchanged",
+    source: String.raw`root[^.]{0,20}behavi\w{0,4} is unchanged`,
+  },
+  // Two more live shapes the second review found: a root that "is unchanged /
+  // keeps full ICU", and a root that registers tag syntax itself. Both are
+  // false after the cutover; both own a canary in scripts/g7-canaries.json.
+  {
+    name: "root-unchanged-full-icu",
+    source: String.raw`root[^.]{0,60}(unchanged|keeps?)[^.]{0,60}(full|ICU)`,
+  },
+  { name: "root-registers-tags", source: String.raw`root[^.]{0,40}registers? tag` },
+  // ── the same-specifier / ambient-tag family, activated by the third review
+  //    round (agent://P1FinalReview) ──
+  // The `/slim` -> root token swap left live shapes none of the patterns above
+  // can see, because each of those needs a specific verb or noun. These five are
+  // shaped around the SEMANTICS instead, and each owns its own canary in
+  // scripts/g7-canaries.json, captured verbatim from the tree that carried it.
+  //
+  // The base host does not register tag syntax on import, so a root that "runs"
+  // or "carries"/"retains" core's ambient registration is as false as one that
+  // "registers" it — `root-registers-tags` only ever saw the third verb.
+  {
+    name: "root-runs-ambient-tags",
+    source: String.raw`root[^.]{0,40}runs?[^.]{0,40}(ambient|registerTagSyntax)`,
+  },
+  {
+    name: "root-carries-ambient-tags",
+    source:
+      String.raw`(root[^.]{0,40}(carry|carries|carrying|retain\w*|inherit\w*)` +
+      String.raw`|(retain\w*|inherit\w*)[^.]{0,20}root)` +
+      String.raw`[^.]{0,60}(ambient|tag registration|tag syntax)`,
+  },
+  // A comparison whose two sides are the SAME current specifier is unreadable as
+  // anything true: after the convergence there is one `@comvi/core` and it IS the
+  // base host. In prose the two mentions sit in one sentence (the period bound is
+  // what lets the scream changeset state the break across two sentences); in a
+  // table they sit in sibling columns of one row or in adjacent rows.
+  { name: "same-specifier-hosts", source: G7_CORE + "[^`.]{0,60}" + G7_CORE },
+  {
+    name: "same-specifier-table",
+    source: [
+      g7BaseCell + "(?:\\|[^|\\n]*){0,2}" + g7RootCell,
+      g7RootCell + "(?:\\|[^|\\n]*){0,2}" + g7BaseCell,
+      g7BaseCell + "[^\\n]*\\n" + g7RootCell,
+      g7RootCell + "[^\\n]*\\n" + g7BaseCell,
+    ].join("|"),
+  },
+  // There is no second entry named `@comvi/core` to delete. The entry that was
+  // deleted is `@comvi/core/slim`, which the negative lookahead lets through —
+  // that is the one sanctioned deletion-history mention (the scream changeset).
+  { name: "second-core-entry", source: String.raw`second[^.]{0,40}@comvi/core(?![\w/-])` },
+  // ── the `root-free` family, activated by the fourth review round and
+  //    broadened by the fifth (agent://P1ExhaustiveReview) ──
+  // Core's base entry is in EVERY comvi graph that constructs a host, because
+  // `createI18n` IS its export and no wrapper ships a host constructor of its
+  // own: wrapper `/slim` entries and both `@comvi/next` entries all reach that
+  // one. Some re-export it by name (`createCore`, `createSlimI18n`); some call
+  // it inside their own preset module (vue's `createI18nSlim` builds a
+  // `VueI18n` around it, and `slim.ts` re-exports it as `createCore` besides).
+  // Either way the module is in the graph. So no factory, entry, app or graph
+  // is "root-free", and no fixture asserts that entry absent: what the
+  // sentinels exclude is the tag-registration pair, the unused capability
+  // subpaths and next's own composed builder. This is the shape all seventeen
+  // patterns above missed — its canary escaped the whole set — because each of
+  // them needs a verb ("composes", "registers", "carries") or the bare
+  // specifier in a table cell, and this claim needs neither.
+  //
+  // The fifth round then found the SAME claim in three costumes that never say
+  // the word "root", each of which the three alternatives below let through. One
+  // rule, six spellings, a canary per materially distinct one:
+  //   a. the literal wording — `root-free`, "no root entry", "root entry is
+  //      absent" (the first three alternatives, unchanged);
+  //   b. the dist FILE NAME — "`comvi-core.js` … are absent" — which is how the
+  //      react/solid/svelte "Measured" sections spelled it;
+  //   c. the entry under its other name, put OUT — "keeps the core entry out".
+  //      The noun `entry` is the discriminator and it is load-bearing: "the main
+  //      entry tree-shakes core out of a `createI18nFromCore`-only app" stays
+  //      TRUE (nothing there constructs a host, so the module is unreachable),
+  //      while naming the ENTRY and putting it out asserts a module absence that
+  //      cannot survive a single `createI18n` call;
+  //   d. a bare PRONOUN — "… and injection key without either" — whose two
+  //      referents sit in an earlier sentence, outside every noun window. The
+  //      rule it enforces is that prose excluding two things must NAME them,
+  //      which is why it needs no context of its own to be sound.
+  // They stay ONE family on purpose: it is one false claim, so one pattern name
+  // carries it and a regression in any costume reports as the same rule.
+  {
+    name: "root-free",
+    source: [
+      String.raw`\broot[-\s]?(free|less)\b`,
+      // `\b` on both sides of the negation is load-bearing: without the trailing
+      // one, "isVirtualNode` is now exported from the root entry" — a true claim —
+      // matched on the "No" inside "Node".
+      String.raw`\b(no|not|without|never names?|free of|neither)\b[^.\n]{0,30}\broot\s+(entry|constructor|import|graph|factory|host)`,
+      String.raw`\broot\s+(entry|constructor|import|graph|host)[^.\n]{0,30}` + G7_ABSENT,
+      String.raw`\bcomvi-core\.js` + G7_TOKEN_GAP + "{0,40}" + G7_ABSENT,
+      String.raw`\b(core|root|base)\s+entry\s+out\b`,
+      String.raw`\bwithout either\b`,
+    ].join("|"),
+  },
 ].map((p) => ({ ...p, re: new RegExp(p.source, "gis") }));
 
 /** @returns {Array<{pattern: string, index: number, text: string}>} */
@@ -133,10 +291,10 @@ const G7_ALLOWLIST = [
   },
   {
     file: "packages/core/README.md",
-    line: 491,
+    line: 474,
     pattern: "vanilla-scope",
     reason:
-      "Documentation URL in the full-API pointer at the end of the README — a permanent docs path, not a claim. RE-REVIEWED at framework-slim tier-3 (383 -> 433, slim section grew), at the framework-slim DX pass (433 -> 464, the single-package section landed) and at DX-2 (464 -> 491, the `.with(installer)` section landed); the line itself is byte-identical every time and still a bare docs URL.",
+      "Documentation URL in the full-API pointer at the end of the README — a permanent docs path, not a claim. RE-REVIEWED at framework-slim tier-3 (383 -> 433, slim section grew), at the framework-slim DX pass (433 -> 464, the single-package section landed) at DX-2 (464 -> 491, the `.with(installer)` section landed) and at single-entry P1 (491 -> 474, the two-tier slim section collapsed into the one-entry section, the quickstart gained its ICU note, and the review round added the measured-run pointer); the line itself is byte-identical every time and still a bare docs URL.",
   },
 ];
 
@@ -144,27 +302,45 @@ function runG7() {
   // (a) Canary self-test — the gate may not pass anything until it proves the
   //     pattern set catches the exact claims it exists to kill.
   const fixture = JSON.parse(fs.readFileSync("scripts/g7-canaries.json", "utf8"));
+  const waves = new Map(fixture.captureWaves.map((w) => [w.id, w]));
   const canaryFailures = [];
   for (const canary of fixture.canaries) {
-    const matched = new Set(g7Scan(canary.text).map((h) => h.pattern));
-    if (matched.size === 0) {
-      canaryFailures.push(`${canary.origin}: matched by NO pattern`);
-      continue;
-    }
-    if (!matched.has("bindings-require")) {
+    // Provenance is part of the fixture's contract: the rows were captured at
+    // three different commits, so a row that cannot resolve its own wave would
+    // be reported under someone else's tree. Fail rather than guess.
+    const wave = waves.get(canary.wave);
+    if (!wave) {
       canaryFailures.push(
-        `${canary.origin}: not matched by the claim-shape pattern "bindings-require" ` +
-          `(matched ${[...matched].join(", ")}) — the .{0,120} gap regressed`,
+        `${canary.origin}: capture wave "${canary.wave}" is not declared in captureWaves`,
       );
       continue;
     }
-    console.log(`G7 canary OK  ${canary.origin} — matched by ${[...matched].sort().join(", ")}`);
+    const where = `${canary.origin} @ ${wave.commit}`;
+    const matched = new Set(g7Scan(canary.text).map((h) => h.pattern));
+    if (matched.size === 0) {
+      canaryFailures.push(`${where}: matched by NO pattern`);
+      continue;
+    }
+    // Each canary names the FAMILY pattern that must catch it, so one wave's
+    // claim shape can never be proved by another wave's pattern. Historical
+    // rows without the field default to the framework-slim claim shape.
+    const mustMatch = canary.mustMatch ?? "bindings-require";
+    if (!matched.has(mustMatch)) {
+      canaryFailures.push(
+        `${where}: not matched by its family pattern "${mustMatch}" ` +
+          `(matched ${[...matched].join(", ")}) — that family's pattern regressed`,
+      );
+      continue;
+    }
+    console.log(`G7 canary OK  ${where} — matched by ${[...matched].sort().join(", ")}`);
   }
   if (canaryFailures.length > 0) {
     console.error(
       `G7: canary self-test FAILED — the pattern set does not catch the pre-wave claims it ` +
         `exists to kill, so a clean corpus would prove nothing:\n  ${canaryFailures.join("\n  ")}\n` +
-        `Fixtures: scripts/g7-canaries.json (captured at ${fixture.capturedFrom.commit}).`,
+        `Fixtures: scripts/g7-canaries.json — every row above is quoted with the commit it was ` +
+        `captured at; the waves are ` +
+        `${fixture.captureWaves.map((w) => `${w.id}=${w.commit}`).join(", ")}.`,
     );
     process.exit(1);
   }

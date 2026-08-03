@@ -11,7 +11,8 @@
  * `sideEffects` arrays, or import order.
  *
  * Exported from `@comvi/core/tags` ONLY — it is meaningless without tag
- * machinery and must never enter slim consumers' graphs via the root entry.
+ * machinery and must never enter a base consumer's graph — which is why the
+ * ESM root does not re-export it.
  */
 import type { TagCallbackParams, TagInterpolationOptions, TranslationParams } from "../types";
 import type { TranslationResult, VirtualNode } from "../virtualNode";

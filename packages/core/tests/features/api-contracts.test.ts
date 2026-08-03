@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { I18n } from "../../src";
+import { I18n } from "../helpers/composedHost";
 
 describe("Core API Contracts", () => {
   it("emits loadError from locale setter when async locale load fails", async () => {

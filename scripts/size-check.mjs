@@ -204,8 +204,13 @@ export function resolveFixtureSpecifier(
  * path defaults to side-effectful. Without this, an entry a real bundler
  * prunes stays in the measured graph: `@comvi/react`'s index re-export
  * `export { createI18n, I18n } from "@comvi/core"` (fs-p1 blocker B2) pinned
- * the root core entry — and with it the ambient tags chunks — into every
- * framework fixture, inflating both the bytes and the sentinel verdict.
+ * core's entry into every framework fixture, inflating both the bytes and the
+ * sentinel verdict. At that time — PRE-CONVERGENCE — that entry was the
+ * batteries-included, tag-registering one, so pinning it dragged the ambient
+ * tags chunks along too. The converged entry is the side-effect-free base
+ * host: pinning it costs bytes and nothing else, and the tags chunks now
+ * enter a measured graph only through an explicit `@comvi/core/tags` import
+ * (the wrapper `<T>` chunk, or the app's own).
  */
 export function hasDeclaredSideEffects(pkgJson, relTarget) {
   const declared = pkgJson.sideEffects;

@@ -1,7 +1,11 @@
-// Framework size fixture (plan P0.1/P0.7): the next SERVER graph as it exists
-// today — `createNextI18n` (root core) plus the public server helpers. This is
-// the comparison base for P5: S = minzip(fw-next-root) - minzip(fw-next-server-slim-loader).
-// `next` and `react` are external: this measures the comvi graph only.
+// Framework size fixture: the PUBLISHED `@comvi/next` root — `createNextI18n`
+// (whose composed host is built by the package's non-exported builder over the
+// converged base core) plus the public server helpers.
+//
+// This is the row that proves the composed root still fits: the builder costs
+// ~+100 B over a pristine wiring, and the graph must stay under the budget the
+// pre-convergence `fw-next-root` row set. `next` and `react` are external, so
+// this measures the comvi graph only.
 import { createNextI18n } from "@comvi/next";
 import { getI18n, loadTranslations, setRequestLocale } from "@comvi/next/server";
 

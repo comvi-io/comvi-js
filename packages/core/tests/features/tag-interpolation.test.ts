@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { I18n } from "../../src";
-import { createI18n } from "../../src";
+import { I18n } from "../helpers/composedHost";
+import { createI18n } from "../helpers/composedHost";
 
 /**
  * High-signal contract tests for tag interpolation:

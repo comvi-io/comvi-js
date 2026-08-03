@@ -11,9 +11,8 @@ import type {
   CreateNextI18nFromHostResult,
   NextServerHost,
 } from "@comvi/next/server";
-import { createI18n } from "@comvi/core/slim";
-import { attachLoader } from "@comvi/core/loader";
-import { createI18n as createRootI18n } from "@comvi/core";
+import { createI18n } from "@comvi/core";
+import { attachLoader, loader } from "@comvi/core/loader";
 import type { CreateNextI18nResult } from "../../src/createNextI18n";
 
 type Equal<X, Y> =
@@ -33,10 +32,14 @@ const composed = createNextI18nFromHost(() => composedHost, ROUTING);
 
 export type _ExactHostType = Expect<Equal<typeof composed.i18n, typeof composedHost>>;
 
-const rootHost = createRootI18n({ locale: "en" });
-const _onRoot = createNextI18nFromHost(() => rootHost, ROUTING);
+// A host composed through the INSTALLER pipe instead of `attachLoader`: the
+// second acquisition path, and the one a converged app writes. (Before the
+// single-entry convergence this probe used the batteries-included root host,
+// which is now the base host and cannot satisfy `NextServerHost` on its own.)
+const installerHost = createI18n({ locale: "en" }).with(loader());
+const _onPiped = createNextI18nFromHost(() => installerHost, ROUTING);
 
-export type _RootHostAlsoExact = Expect<Equal<typeof _onRoot.i18n, typeof rootHost>>;
+export type _PipedHostAlsoExact = Expect<Equal<typeof _onPiped.i18n, typeof installerHost>>;
 
 // ---------------------------------------------------------------------------
 // (vii) The result has NO `.use*` methods — all five of `CreateNextI18nResult`.

@@ -27,18 +27,18 @@ export const { i18n, routing } = createNextI18nFromHost(
 
 ### Why the client's slim host has its own name
 
-`@comvi/next/client` is not a `/slim` entry — it is next's only client surface, and its `createI18n` is the **root** constructor, published in 0.4.x. Rebinding that name to the slim constructor would silently drop ICU plurals and tag syntax out from under an existing app, so the slim host is `createSlimI18n` and the two live side by side. `@comvi/next/server` uses the same name for symmetry and exports **no** root constructor at all: a server graph that named the root entry would carry core's ambient tag registration, and the `next-server-on-slim` gate asserts it never does.
+`@comvi/next/client` is not a `/slim` entry — it is next's only client surface, and its `createI18n` was published in 0.4.x as the batteries-included constructor. Rebinding that name to the base constructor would have silently dropped ICU plurals and tag syntax out from under an existing app, so the base host got the name `createSlimI18n` and the two live side by side. (The single-entry convergence in this same release then made both names denote the same base constructor; a later phase deletes the duplicate.) `@comvi/next/server` uses the same name for symmetry and exports **no** batteries-included constructor at all: a server graph that reached for the 0.4 composed recipe would pull in ICU and core's ambient tag-registration chunk, and the `next-server-on-slim` gate asserts neither ever arrives.
 
 ### What is on the two entries
 
-| export                                     | on          | what it is                                                      |
-| ------------------------------------------ | ----------- | --------------------------------------------------------------- |
-| `createSlimI18n`                           | both        | `@comvi/core/slim`'s constructor                                |
-| `createI18n`                               | client only | the ROOT constructor, unchanged since 0.4.x                     |
-| `icuCompiler`                              | both        | from `@comvi/core/icu` — pass as `createSlimI18n({ compiler })` |
-| `loader`, `attachLoader`, `flattenCatalog` | both        | from `@comvi/core/loader`                                       |
-| `plugins`, `attachPlugins`                 | both        | from `@comvi/core/plugins`                                      |
-| `devtools`, `attachDevtools`               | both        | from `@comvi/core/devtools`                                     |
+| export                                     | on          | what it is                                                                    |
+| ------------------------------------------ | ----------- | ----------------------------------------------------------------------------- |
+| `createSlimI18n`                           | both        | `@comvi/core`'s constructor                                                   |
+| `createI18n`                               | client only | the same base constructor (the two names converged; P4 deletes the duplicate) |
+| `icuCompiler`                              | both        | from `@comvi/core/icu` — pass as `createSlimI18n({ compiler })`               |
+| `loader`, `attachLoader`, `flattenCatalog` | both        | from `@comvi/core/loader`                                                     |
+| `plugins`, `attachPlugins`                 | both        | from `@comvi/core/plugins`                                                    |
+| `devtools`, `attachDevtools`               | both        | from `@comvi/core/devtools`                                                   |
 
 The server entry carries them because `NextServerHost = WrapperI18nHost & I18nLoaderApi` makes the loader **mandatory** for SSR — the one host an app cannot avoid composing should not require a second package to compose.
 
@@ -62,6 +62,15 @@ They are **named** re-exports of core's own bindings, from core's PURE subpaths 
 
 ### Measured
 
-Whole-app comvi graph, min+gz, `next` and `react` externalized (`node scripts/size-check.mjs`): the single-package client is **6964 B** (+19 B over the two-package recipe), the single-package server **7129 B**. Against the root server graph of 9948 B, the composed slim server saves **2819 B (−28.3%)**.
+Whole-app comvi graph, min+gz, `next` and `react` externalized (`node scripts/size-check.mjs`): the single-package client is **6964 B** (+19 B over the two-package recipe), the single-package server **7129 B**. Against the 0.4 composed-root server graph of 9948 B, the composed base server saves **2819 B (−28.3%)**.
 
 Nothing is removed and no existing import path changes. See the [0.5.0 migration guide](https://github.com/comvi-io/comvi-js/blob/main/MIGRATION.md) §4.
+
+> Rewritten in place at the single-entry convergence (same release): the separate
+> base-host subpath this changeset was written against no longer exists, and
+> `@comvi/core`'s root IS that base host — so every specifier above names the
+> root, and every "the root has it already" claim reads against the base host.
+> The 0.4 composed root survives only as a recipe (`.with(loader())`,
+> `.with(plugins())`, `.with(devtools())`, `compiler: icuCompiler` from
+> `@comvi/core/icu`, `import "@comvi/core/tags"`); see
+> `core-single-entry-convergence.md` for the break and the migration.

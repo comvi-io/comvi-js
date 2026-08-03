@@ -1,19 +1,162 @@
 {
-  "$comment": "G7 canary fixtures (plan \u00a76). VERBATIM release-facing claims from the pre-wave tree that the framework-slim wave falsifies. The G7 gate FAILS unless its pattern set matches BOTH, which is what proves the patterns work against the exact claims they exist to kill. This file is NOT part of the G7 corpus (scripts/ is out of scope), so it cannot self-collide. Never edit the text: it is a historical snapshot, not documentation.",
-  "capturedFrom": {
-    "commit": "d1fb979",
-    "tag": "framework-slim/pre-wave"
-  },
+  "$comment": "G7 canary fixtures (plan §6). Release-facing claims captured from the trees that falsified them, quoted verbatim (row 9 is the one condensation, flagged in its own `origin`). THREE capture waves, declared in `captureWaves` and named per row by `wave` — there is no single fixture-wide commit: rows 1-2 are pre-framework-slim, rows 3-9 are the pre-single-entry `root-full` family, and rows 10-20 are what the convergence commit itself left behind (rows 10-11, 16 and 17-20 pre-date it and were falsified by it; rows 12-15 its token-level rewrite minted). Rows 17-20 were captured by the exhaustive-closure round: 17 proves the modal `root entry … is absent` wording, and 18-20 the three costumes of the same claim that never say the word `root` — the dist file name, `the core entry out`, and a bare `without either`. With them EVERY alternative of the `root-free` family is proved against the exact sentence it exists to kill. The G7 gate FAILS unless its pattern set matches ALL of them, which is what proves the patterns work against the exact claims they exist to kill; it also fails if a row's `wave` does not resolve, because a canary that cannot say where it came from sends the next reader to the wrong tree. This file is NOT part of the G7 corpus (scripts/ is out of scope), so it cannot self-collide. Never edit the text: it is a historical snapshot, not documentation.",
+  "captureWaves": [
+    {
+      "id": "framework-slim/pre-wave",
+      "commit": "d1fb979",
+      "tag": "framework-slim/pre-wave",
+      "what": "The tree the framework-slim wave rewrote: wrappers still required a full root @comvi/core instance and /slim was vanilla-only."
+    },
+    {
+      "id": "single-entry/pre-wave",
+      "commit": "3efcda9",
+      "tag": "single-entry/pre-wave",
+      "what": "The tree the single-entry convergence cut: @comvi/core was still the batteries-included composed root and @comvi/core/slim was the separate base host."
+    },
+    {
+      "id": "single-entry/p1",
+      "commit": "1be3d87",
+      "what": "The convergence commit itself, read before the prose repair: what its token-level rewrite left behind — claims it minted, and pre-convergence claims it carried through unchanged and thereby falsified."
+    }
+  ],
   "canaries": [
     {
       "origin": ".changeset/core-subpath-entries.md:19",
-      "supersededBy": "P6.2 \u2014 scope note rewritten to the framework-slim support statement (plan \u00a711)",
+      "wave": "framework-slim/pre-wave",
+      "supersededBy": "P6.2 — scope note rewritten to the framework-slim support statement (plan §11)",
       "text": "**Scope note:** `/slim` is supported for vanilla/direct usage in this release. The framework bindings (`@comvi/vue`, `@comvi/react`, `@comvi/solid`, `@comvi/svelte`, `@comvi/next`, `@comvi/nuxt`) require a full root `@comvi/core` instance; passing a slim instance is neither type-supported nor tested. The measured sizes below are the core entry alone, not total framework-app weight."
     },
     {
       "origin": "packages/core/README.md:85-86",
-      "supersededBy": "P6.1 \u2014 replaced by the per-wrapper support matrix (plan \u00a711)",
+      "wave": "framework-slim/pre-wave",
+      "supersededBy": "P6.1 — replaced by the per-wrapper support matrix (plan §11)",
       "text": "> **Framework bindings require the root entry.** `@comvi/core/slim` is supported for\n> vanilla/direct usage only in 0.5.0. The `@comvi/{vue,react,solid,svelte,next,nuxt}`"
+    },
+    {
+      "origin": "packages/core/README.md:79-81 (pre-single-entry)",
+      "wave": "single-entry/pre-wave",
+      "supersededBy": "single-entry P1 — the root is the base host; the composed recipe replaced the batteries-included entry (plan §2.4)",
+      "mustMatch": "root-is-batteries",
+      "text": "`@comvi/core` is the batteries-included entry: ICU, tag syntax, async loading and the\nplugin host are all there the moment you import it. When bundle size is the binding\nconstraint, `@comvi/core/slim` gives you the translation core alone"
+    },
+    {
+      "origin": ".changeset/core-tier3-capability-seams.md:5 (pre-single-entry)",
+      "wave": "single-entry/pre-wave",
+      "supersededBy": "single-entry P1 — the root composes nothing back in; capabilities are installers (plan §2.4)",
+      "mustMatch": "root-composes",
+      "text": "The root `@comvi/core` entry composes all three back in, so **root behaviour is unchanged**"
+    },
+    {
+      "origin": "packages/core/README.md:209-211 (pre-single-entry)",
+      "wave": "single-entry/pre-wave",
+      "supersededBy": "single-entry P1 — the base host ships no capability; ordering is the app's to compose",
+      "mustMatch": "root-ships-capabilities",
+      "text": "The root\n> `@comvi/core` entry ships both capabilities on the class — there is nothing to compose\n> and no ordering concern there."
+    },
+    {
+      "origin": "packages/core/README.md:203-204 (pre-single-entry)",
+      "wave": "single-entry/pre-wave",
+      "supersededBy": "single-entry P1 — a no-op `.with` is a statement about an already-composed host, not about the root",
+      "mustMatch": "with-on-root-noop",
+      "text": "Composing a\ncapability a host already has (a second `.with(loader())`, or any `.with(…)` on\na root instance) installs nothing and shadows nothing."
+    },
+    {
+      "origin": ".changeset/core-framework-slim-host.md:5 (pre-single-entry)",
+      "wave": "single-entry/pre-wave",
+      "supersededBy": "single-entry P1 — the root's behaviour changed deliberately; that is the whole scream changeset",
+      "mustMatch": "root-behaviour-unchanged",
+      "text": "Additive to the public surface; the root entry's behavior is unchanged."
+    },
+    {
+      "origin": ".changeset/core-subpath-entries.md:16 (pre-single-entry)",
+      "wave": "single-entry/pre-wave",
+      "supersededBy": "single-entry P1 — the root is the base host: ICU is `compiler: icuCompiler`, tag syntax is `import \"@comvi/core/tags\"`",
+      "mustMatch": "root-unchanged-full-icu",
+      "text": "The root entry `@comvi/core` is unchanged for existing users: `createI18n`/`new I18n()` keep full ICU behavior and the root registers tag syntax itself, so string-API tag interpolation keeps working with zero extra imports."
+    },
+    {
+      "origin": "packages/core/src/register-tags.ts:4-6 (pre-single-entry source JSDoc, condensed; the same claim shipped in release prose)",
+      "wave": "single-entry/pre-wave",
+      "supersededBy": "single-entry P1 — only `@comvi/core/tags` and the non-exported CDN entry register tag syntax",
+      "mustMatch": "root-registers-tags",
+      "text": "Imported bare by BOTH the root entry and `@comvi/core/tags`, so the root registers tag syntax on import."
+    },
+    {
+      "origin": "packages/vue/README.md:148-150 (pre-convergence claim the token rewrite carried through unchanged)",
+      "wave": "single-entry/p1",
+      "supersededBy": "single-entry P1 review 3 — the base root has no ambient registration to run; only `@comvi/core/tags` and the non-exported CDN entry register tag syntax",
+      "mustMatch": "root-runs-ambient-tags",
+      "text": "webpack _development_: `@comvi/vue`'s index carries `export * from \"@comvi/core\"`,\nand webpack cannot prune a star re-export with `usedExports` off, so the root\nentry survives and runs core's ambient `registerTagSyntax()` — which makes"
+    },
+    {
+      "origin": ".changeset/next-single-package-slim.md:30 (pre-convergence claim the token rewrite carried through unchanged)",
+      "wave": "single-entry/p1",
+      "supersededBy": "single-entry P1 review 3 — naming the base root carries no tag registration; the reason `@comvi/next/server` exports no root constructor is the composed 0.4 recipe, not ambient tags",
+      "mustMatch": "root-carries-ambient-tags",
+      "text": "`@comvi/next/server` uses the same name for symmetry and exports **no** root constructor at all: a server graph that named the root entry would carry core's ambient tag registration, and the `next-server-on-slim` gate asserts it never does."
+    },
+    {
+      "origin": "packages/react/README.md:272-273 (minted by the single-entry token rewrite)",
+      "wave": "single-entry/p1",
+      "supersededBy": "single-entry P1 review 3 — both sides of the alternative had collapsed onto the one current specifier, so the sentence offered a choice between a host and itself",
+      "mustMatch": "same-specifier-hosts",
+      "text": "`<I18nProvider i18n={…}>` accepts any `WrapperI18nHost` — `createI18n` from\n`@comvi/core`, from `@comvi/core`, or any `.with(loader())` / `.with(plugins())`"
+    },
+    {
+      "origin": "packages/react/README.md:277-280 (minted by the single-entry token rewrite)",
+      "wave": "single-entry/p1",
+      "supersededBy": "single-entry P1 review 3 — the 10046/6523 contrast is the 0.4 composed root against the base host; naming the same current specifier in both rows made the table read as one host with two weights",
+      "mustMatch": "same-specifier-table",
+      "text": "| host                 | no `<T>` | with `<T>` |\n| -------------------- | -------- | ---------- |\n| `@comvi/core` (root) | 10046    | 11093      |\n| bare `@comvi/core`   | **6523** | 8530       |"
+    },
+    {
+      "origin": "MIGRATION.md:7-9 (minted by the single-entry token rewrite)",
+      "wave": "single-entry/p1",
+      "supersededBy": "single-entry P1 review 3 — the deleted entry was `@comvi/core/slim`; there was never a second entry named `@comvi/core` to delete",
+      "mustMatch": "second-core-entry",
+      "text": "0. **`@comvi/core` is now ONE entry — the base host.** Capability is an import\n   you add, never an entry you switch. The second entry, `@comvi/core`,\n   is deleted; it never published, so there is no deprecation debt. §0 below is the whole story."
+    },
+    {
+      "origin": ".changeset/react-framework-slim.md:59-61 and 14 sibling changesets (minted by the single-entry token rewrite)",
+      "wave": "single-entry/p1",
+      "supersededBy": "single-entry P1 review 3 — the footer named the surviving entry as the one that is gone AND as the one that replaces it, fifteen times over",
+      "mustMatch": "second-core-entry",
+      "text": "> Rewritten in place at the single-entry convergence (same release): the second\n> core entry `@comvi/core` is gone — `@comvi/core` IS that host now — so every\n> specifier and every \"the root has it already\" claim above reads against the base"
+    },
+    {
+      "origin": ".changeset/next-framework-slim.md:5 (pre-convergence claim the token rewrite carried through unchanged)",
+      "wave": "single-entry/p1",
+      "supersededBy": "single-entry P1 root-free closure — the factory takes the host the app composed and composes none of the 0.4 batteries recipe itself, but the graph is not free of core's base entry: `@comvi/next/server` re-exports core's `createI18n` as `createSlimI18n`, so comvi-core.js is in it, and `fw-next-server-slim-loader`'s sentinels exclude the tag-registration pair, next's own composed builder and the three unused capability subpaths — never that entry",
+      "mustMatch": "root-free",
+      "text": "**BREAKING (0.5.0):** `@comvi/next` gains a root-free server factory, the server i18n becomes a once-cell that refuses two configuration sources, and the client inherits react's D′ surface (framework-slim P5)."
+    },
+    {
+      "origin": ".changeset/next-framework-slim.md:104 (pre-convergence claim the token rewrite carried through unchanged)",
+      "wave": "single-entry/p1",
+      "supersededBy": "single-entry P1 exhaustive closure — proves the family's modal `root entry … is absent` alternative, which had no canary of its own: `@comvi/next/server` re-exports core's `createI18n` as `createSlimI18n`, so the base entry is in both next graphs, and the sentinels name the tag-registration pair, next's composed builder and the unused capability subpaths instead",
+      "mustMatch": "root-free",
+      "text": "Both slim fixtures assert through the bundler's module graph — never an output-text grep — that the root entry is absent, and the `next-server-on-slim` / `next-client-slim` bundler-matrix cases are green on webpack and vite in development and production."
+    },
+    {
+      "origin": ".changeset/react-framework-slim.md:57 and its solid/svelte siblings (pre-convergence claim the token rewrite carried through unchanged)",
+      "wave": "single-entry/p1",
+      "supersededBy": "single-entry P1 exhaustive closure — `createI18n` IS the base root's own export, so `comvi-core.js` is in both slim graphs by construction; fw-*-slim's sentinels exclude only core's tag-registration pair, and the `<T>` rows declare no sentinel at all",
+      "mustMatch": "root-free",
+      "text": "Both slim fixtures assert — through the bundler's module graph, not an output-text grep — that `comvi-core.js` and core's tag chunks are absent, and the `react-on-slim` case is green on webpack and vite in both development and production."
+    },
+    {
+      "origin": ".changeset/vue-framework-slim.md:19-22 (pre-convergence claim the token rewrite carried through unchanged)",
+      "wave": "single-entry/p1",
+      "supersededBy": "single-entry P1 exhaustive closure — `@comvi/vue/slim` re-exports the base root's constructor by name as `createCore` and its own `createI18n` builds on it, so webpack development holds that module too; what the subpath leaves out is the `export *` surface, `@comvi/core/tags` and the capability subpaths the app never calls",
+      "mustMatch": "root-free",
+      "text": "- `@comvi/vue/slim` — a core-re-export-free subpath entry: same classes,\n  composables and `<T>`, minus `createI18n` and the `export * from \"@comvi/core\"`\n  re-export. Use it when you build your own host; it is the only entry that keeps\n  the core entry out of a webpack **development** bundle too."
+    },
+    {
+      "origin": "MIGRATION.md:358-359 and packages/vue/README.md:152 (pre-convergence claim the token rewrite carried through unchanged)",
+      "wave": "single-entry/p1",
+      "supersededBy": "single-entry P1 exhaustive closure — the sentence excluded two things it never named, and `/slim`'s own `createI18n` and `createCore` both resolve to one of them; the prose now names what is actually dropped (the broad star surface, `@comvi/core/tags`, uncalled capability subpaths)",
+      "mustMatch": "root-free",
+      "text": "`@comvi/vue/slim` carries the same classes, composables, `<T>` and injection\nkey without either."
     }
   ]
 }

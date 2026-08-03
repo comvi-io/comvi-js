@@ -9,19 +9,21 @@
 //
 //   `ServerI18nHost` is INTERNAL: the narrow structural surface the server
 //   pipeline (cache / ensureInitialized / loadTranslations / getI18n) actually
-//   touches. It is a `Pick`, not an alias of `NextServerHost`, so that BOTH a
-//   root `I18n` (any `D`) and every `NextServerHost<D>` satisfy it
-//   structurally. It is never re-exported from `@comvi/next/server`.
+//   touches. It is a `Pick`, not an alias of `NextServerHost`, so that BOTH
+//   `@comvi/next`'s own composed host (`NextComposedI18n`, any `D`) and every
+//   `NextServerHost<D>` satisfy it structurally. It is never re-exported from
+//   `@comvi/next/server`.
 import type { DefaultTranslationParams, I18nLoaderApi, WrapperI18nHost } from "@comvi/core";
 
 /**
- * The instance contract a Next.js server host must satisfy: the framework
- * wrapper surface (`@comvi/core/slim`) plus the loader capability
- * (`@comvi/core/loader`, or the root entry, which composes both).
+ * The instance contract a Next.js server host must satisfy: the base host
+ * surface (`@comvi/core`) plus the loader capability, which comes from
+ * `@comvi/core/loader` and nowhere else — the base root composes nothing, so
+ * a plain `createI18n(...)` does NOT satisfy this type.
  *
  * @example
  * ```typescript
- * import { createI18n } from "@comvi/core/slim";
+ * import { createI18n } from "@comvi/core";
  * import { attachLoader } from "@comvi/core/loader";
  *
  * const host = () => attachLoader(createI18n({ locale: "en" }));

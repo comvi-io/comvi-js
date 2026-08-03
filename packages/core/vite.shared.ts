@@ -1,18 +1,22 @@
 /**
  * Shared pieces of the multi-entry @comvi/core build (prod / dev / UMD).
  *
- * Entries:
- * - index → the full root entry (ICU + ambient tag registration)
- * - slim  → simple {param} compiler only
- * - icu   → pure icuCompiler subpath
- * - tags  → tag toolbox + ambient registration
+ * Entries (see `coreEntries` below — that list is the authority):
+ * - index          → the BASE host: simple {param} compiler, no ambient tags
+ * - icu            → pure icuCompiler subpath
+ * - tags           → tag toolbox + ambient registration
+ * - loader/plugins/devtools/editor-bridge → the capability subpaths
  *
- * src/register-tags.ts (the shared registration side-effect module imported
- * bare by index AND tags) is pinned into its OWN chunk with a DETERMINISTIC
- * (hash-free) file name: the package.json `sideEffects` array lists it by
- * exact path, and a hash-named shared chunk would let that array drift per
- * build (plan R2). Only the module containing the top-level call needs the
- * listing — its dependencies are retained through used-export edges.
+ * The CDN global (`src/umd.ts`, built by `vite.config.umd.ts`) is the one
+ * composed entry left, and it is not an ESM package entry.
+ *
+ * src/register-tags.ts (the shared registration side-effect module) is pinned
+ * into its OWN chunk with a DETERMINISTIC (hash-free) file name: the
+ * package.json `sideEffects` array lists it by exact path, and a hash-named
+ * shared chunk would let that array drift per build (plan R2). Only the module
+ * containing the top-level call needs the listing — its dependencies are
+ * retained through used-export edges. Since the single-entry convergence the
+ * ESM root no longer imports it bare; `tags` and the UMD entry do.
  */
 import { resolve } from "path";
 import type { Plugin } from "vite";
@@ -27,7 +31,8 @@ import { minify } from "terser";
  */
 export const coreEntries = (dir: string): Record<string, string> => ({
   index: resolve(dir, "src/index.ts"),
-  slim: resolve(dir, "src/slim.ts"),
+  // `src/umd.ts` is deliberately absent: the CDN global is a separate
+  // invocation (`vite.config.umd.ts`) and is not an ESM package entry.
   icu: resolve(dir, "src/icu.ts"),
   tags: resolve(dir, "src/tags.ts"),
   loader: resolve(dir, "src/loader.ts"),
@@ -40,16 +45,31 @@ export const coreEntries = (dir: string): Record<string, string> => ({
 export const REGISTER_CHUNK = "register-tags";
 
 /**
- * Pin src/register-tags.ts (and nothing else — recursive dependency capture
- * would drag shared pipeline modules into the side-effectful chunk, which
- * would execute the registration for /slim consumers) into its own chunk.
+ * Pin src/register-tags.ts into its own chunk — together with the tag grammar
+ * it registers, and nothing else (recursive dependency capture would drag
+ * shared pipeline modules into the side-effectful chunk, which would execute
+ * the registration for base-entry consumers).
+ *
+ * The grammar joined it in the single-entry convergence. The ESM root no longer
+ * imports `register-tags`, so `@comvi/core/tags` became the only entry reaching
+ * `core/translate/tags.ts` — and rolldown then folds that module INTO the entry
+ * chunk, which the pinned registration chunk imports back: `comvi-core-tags.js`
+ * → register chunk → `comvi-core-tags.js`, a cycle whose TDZ makes
+ * `registerTagSyntax()` see an uninitialized `tagSyntaxExtension` and throw at
+ * import time. Keeping both modules in ONE chunk removes the cycle without
+ * adding a chunk boundary. A separate `tag-syntax` chunk fixes the cycle too,
+ * but it measured +9 B min+gz on `core-full-composite` — a row whose ceiling is
+ * owner-signed at 8605 B with the landed run observed at 8604, i.e. 1 B of
+ * headroom that is an allowance for chunk-name hash characters and nothing
+ * else, so those 9 B are disallowed.
+ * Only graphs that opt into tags ever load this chunk.
  */
 export const coreCodeSplitting = {
   includeDependenciesRecursively: false,
   groups: [
     {
       name: REGISTER_CHUNK,
-      test: /src[\\/]register-tags\.ts/,
+      test: /src[\\/](register-tags\.ts|core[\\/]translate[\\/]tags\.ts)/,
       minSize: 0,
       minShareCount: 1,
       priority: 10,

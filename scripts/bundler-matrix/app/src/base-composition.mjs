@@ -1,5 +1,5 @@
 // Phase-7 gating fixture: the slim composition chain resolved through the
-// three PACKAGE SPECIFIERS (`@comvi/core/slim`, `@comvi/core/loader`,
+// three PACKAGE SPECIFIERS (`@comvi/core`, `@comvi/core/loader`,
 // `@comvi/core/plugins`) out of the packed tarball, so this exercises the
 // published exports map and the consumer bundler's tree-shaking — the axis
 // the direct-dist canary (A6) cannot see.
@@ -17,7 +17,7 @@
 //
 // No top-level await: the webpack leg emits commonjs2, where a TLA module
 // would change the emitted module shape rather than test the composition.
-import { createI18n } from "@comvi/core/slim";
+import { createI18n } from "@comvi/core";
 import { attachLoader, loader } from "@comvi/core/loader";
 import { attachPlugins, plugins } from "@comvi/core/plugins";
 
@@ -101,10 +101,10 @@ async function main() {
   await piped.destroy();
   assertEqual(pipedOrder, ["plugin", "cleanup"], "piped plugin cleanup runs on destroy");
 
-  console.log("BUNDLER_MATRIX_OK slim-composition");
+  console.log("BUNDLER_MATRIX_OK base-composition");
 }
 
 main().catch((error) => {
-  console.error(`FAIL slim-composition: ${error?.stack || error}`);
+  console.error(`FAIL base-composition: ${error?.stack || error}`);
   process.exit(1);
 });

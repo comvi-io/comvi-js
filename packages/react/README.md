@@ -261,7 +261,7 @@ On a host that lacks the capability the acquisition call throws — in
 development **and** production, never a silent no-op:
 
 ```
-[comvi] This i18n instance has no loader capability. Attach it: import { attachLoader } from "@comvi/core/loader" — or use the root "@comvi/core" entry.
+[comvi] This i18n instance has no loader capability. Compose it: .with(loader()) from "@comvi/core/loader", or the lower-level attachLoader.
 ```
 
 Migrating from 0.4.x: `pnpm codemod:framework-slim "src/**/*.{ts,tsx,js,jsx}"`,
@@ -270,19 +270,19 @@ or the [0.5.0 migration guide](https://github.com/comvi-io/comvi-js/blob/main/MI
 ## Supported hosts and what they cost
 
 `<I18nProvider i18n={…}>` accepts any `WrapperI18nHost` — `createI18n` from
-`@comvi/core`, from `@comvi/core/slim`, or any `.with(loader())` / `.with(plugins())`
-composition of the two. Whole-app comvi graph, min+gz, `react` externalized
-(`node scripts/size-check.mjs`):
+`@comvi/core` (the same constructor `@comvi/react/slim` re-exports), with or
+without `.with(loader())` / `.with(plugins())` composed on. Whole-app comvi
+graph, min+gz, `react` externalized (`node scripts/size-check.mjs`):
 
-| host                    | no `<T>` | with `<T>` |
-| ----------------------- | -------- | ---------- |
-| `@comvi/core` (root)    | 10046    | 11093      |
-| bare `@comvi/core/slim` | **6523** | 8530       |
+| host                      | no `<T>` | with `<T>` |
+| ------------------------- | -------- | ---------- |
+| 0.4 composed root         | 10046    | 11093      |
+| `@comvi/core` (base host) | **6523** | 8530       |
 
-Moving to a bare slim host saves **3523 B (−35.1%)**. `<T>` and core's tag
-machinery are opt-in as of 0.5.0 — `<T>` ships as its own dist chunk, so an app
-that never imports it drops both; together with core's own size work that made the root row 1232 B smaller
-with no code change.
+Moving off the 0.4 composed root onto the base host saves **3523 B (−35.1%)**.
+`<T>` and core's tag machinery are opt-in as of 0.5.0 — `<T>` ships as its own
+dist chunk, so an app that never imports it drops both; together with core's own
+size work that made the composed-root row 1232 B smaller with no code change.
 
 ```tsx
 import { createI18n, I18nProvider } from "@comvi/react/slim";
@@ -294,13 +294,14 @@ const i18n = createI18n({ locale: "en", translation: { en: { hello: "Hello" } } 
 
 ## One package: `@comvi/react/slim`
 
-`@comvi/react/slim` is `@comvi/react` minus the root re-exports, plus the
-pieces a slim app used to reach into `@comvi/core` for. A slim react app names
-one package:
+`@comvi/react/slim` is `@comvi/react` plus the pieces a slim app used to reach
+into `@comvi/core` for, minus the broad `I18n` class re-export. Both entries
+re-export core's own `createI18n`, so core's base entry is in either graph —
+what `/slim` drops is the class, not core. A slim react app names one package:
 
 | export                                     | what it is                                          |
 | ------------------------------------------ | --------------------------------------------------- |
-| `createI18n`                               | `@comvi/core/slim`'s constructor — builds the host  |
+| `createI18n`                               | `@comvi/core`'s constructor — builds the host       |
 | `icuCompiler`                              | from `@comvi/core/icu` — `createI18n({ compiler })` |
 | `loader`, `attachLoader`, `flattenCatalog` | from `@comvi/core/loader`                           |
 | `plugins`, `attachPlugins`                 | from `@comvi/core/plugins`                          |

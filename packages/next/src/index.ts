@@ -13,6 +13,11 @@ export type {
   LazyPluginLoader,
 } from "./createNextI18n";
 
+// The exact composed host type `createNextI18n` returns (plan §2.6). Published
+// so a consumer can name the type of `result.i18n` without reaching for
+// `CreateNextI18nResult<D>["i18n"]`.
+export type { NextComposedI18n } from "./composedHost";
+
 // Re-export types from submodules
 export type { RoutingConfig, LocalePrefixMode } from "./routing/types";
 export type { MiddlewareConfig } from "./middleware/types";

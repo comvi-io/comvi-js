@@ -2,7 +2,7 @@
 // "+ ICU + <T>" rung of the §2.1 ladder. Measured as an ACTUAL composed graph;
 // the row is never derived by summing the slim-icu and slim-tags deltas.
 import "@comvi/core/tags";
-import { createI18n } from "@comvi/core/slim";
+import { createI18n } from "@comvi/core";
 import { icuCompiler } from "@comvi/core/icu";
 
 const i18n = createI18n({

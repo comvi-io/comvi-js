@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { I18n } from "../../src";
+import { I18n } from "../helpers/composedHost";
 
 function deferred<T>() {
   let resolve!: (v: T) => void;

@@ -39,7 +39,6 @@ export default defineConfig({
       "react-dom": "ReactDOM",
       "react/jsx-runtime": "jsxRuntime",
       "@comvi/core": "ComviCore",
-      "@comvi/core/slim": "ComviCoreSlim",
     },
     chunkFileNames: "chunks/comvi-react-[name].js",
     // `<T>` — and with it this package's only `@comvi/core/tags` import — is

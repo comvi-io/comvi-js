@@ -10,7 +10,7 @@
  *     packages/svelte/tests/T-structural.test.ts — keep in sync).
  */
 import { describe, it, expect } from "vitest";
-import { createI18n as createSlimI18n } from "@comvi/core/slim";
+import { createI18n as createSlimI18n } from "@comvi/core";
 import React from "react";
 import { render } from "@testing-library/react";
 import { createI18n } from "../src";
@@ -98,7 +98,7 @@ describe("<T /> structural render (real core)", () => {
     }
   });
 
-  // framework-slim P2: the same table on a BARE @comvi/core/slim host. <T>
+  // framework-slim P2: the same table on a BARE @comvi/core host. <T>
   // does not depend on ambient tag registration — prepareTranslation passes
   // the tag extension per call (T.tsx:1-4) — so every row must produce
   // byte-identical text on a host that has no tag syntax of its own.

@@ -11,14 +11,14 @@ const CORE_DIST = resolve(__dirname, "../core/dist");
  * because the only difference between them is the text `missingCapability()`
  * throws, and that text is baked into the core artifact at build time
  * (`__DEV__`). Exact-match regexes, never string prefixes: a string alias for
- * `@comvi/core` would also swallow `@comvi/core/slim`.
+ * `@comvi/core` would also swallow `@comvi/core`.
  *
- * All five entries move together — mixing a dev slim host with a prod
+ * All four entries move together — mixing a dev base host with a prod
  * `attachLoader` would compose across two different terser nameCaches and
  * break core's `_`-internal contract.
  */
 const coreBuild = (suffix: "" | ".dev") =>
-  (["", "-slim", "-loader", "-plugins", "-tags"] as const).map((entry) => ({
+  (["", "-loader", "-plugins", "-tags"] as const).map((entry) => ({
     find: new RegExp(`^@comvi/core${entry === "" ? "" : `/${entry.slice(1)}`}$`),
     replacement: `${CORE_DIST}/comvi-core${entry}${suffix}.js`,
   }));

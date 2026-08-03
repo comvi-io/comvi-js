@@ -1,8 +1,11 @@
 // Framework size fixture (plan P0.1): the D' target graph — a vue app built
-// from an injected bare-slim core via `createI18nFromCore` (plan P4 step 1).
-// PENDING until Phase 4 lands that factory in a root-free module; the root
-// `createI18n` module must tree-shake out of this graph (P4 step 4 / P4-AB1).
-import { createI18n } from "@comvi/core/slim";
+// from an injected base host via `createI18nFromCore` (plan P4 step 1).
+// GRADUATED in Phase 4 (see the `fw-vue-slim` note in size-budgets.json): the
+// factory ships from `@comvi/vue/slim`. What stays out of this graph is
+// `@comvi/vue`'s one-call construction path and core's tag machinery — NOT
+// `@comvi/core`'s base root, whose `createI18n` this fixture imports by name
+// (P4 step 4 / P4-AB1).
+import { createI18n } from "@comvi/core";
 import { createI18nFromCore, useI18n } from "@comvi/vue/slim";
 
 const i18n = createI18nFromCore(

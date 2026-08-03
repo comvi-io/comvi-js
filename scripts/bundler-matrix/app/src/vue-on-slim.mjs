@@ -1,15 +1,18 @@
-// framework-slim gate (plan P0.5): a vue app on a BARE SLIM host, built through
-// the root-free `createI18nFromCore` factory.
+// framework-slim gate (plan P0.5): a vue app on a BARE BASE host, built through
+// the `createI18nFromCore` factory — the one that takes a host instead of
+// constructing one.
 //
-// PENDING until Phase 4 adds that factory in a root-free module and the root
-// `createI18n` module tree-shakes out (plan P4 step 4 / P4-AB1). Until then the
-// runner's sentinel assertion (tag modules ABSENT from the bundler's module
-// graph) cannot pass.
+// ACTIVE since Phase 4 (the case carries no `pending` field in run.mjs): that
+// factory ships from a module which does not import `@comvi/vue`'s own
+// `createI18n`, so the runner's sentinel assertion (tag modules ABSENT from the
+// bundler's module graph) passes. Those sentinels are about the TAG modules —
+// `@comvi/core`'s base root is in this graph by design, since the fixture calls
+// its `createI18n` below (plan P4 step 4 / P4-AB1).
 //
 // <T> rendering needs a renderer and is NOT exercised here. What this fixture
 // pins at runtime: the injected bare-slim core lacks the capability members,
 // the dropped VueI18n proxies are really gone, and tag markup stays literal.
-import { createI18n } from "@comvi/core/slim";
+import { createI18n } from "@comvi/core";
 import { createI18nFromCore, useI18n } from "@comvi/vue/slim";
 
 function assert(condition, label) {

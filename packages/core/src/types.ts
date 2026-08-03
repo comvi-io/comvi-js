@@ -1,5 +1,5 @@
 import type { VirtualNode } from "./virtualNode";
-import type { MissingParamMode, SyntaxExtension } from "./core/translate/syntax";
+import type { MessageCompiler, MissingParamMode, SyntaxExtension } from "./core/translate/syntax";
 import type { TranslationCache as TranslationCacheClass } from "./core/TranslationCache";
 import type { I18n } from "./core/i18n";
 import type { I18nPlugin, PluginOptions } from "./plugins/types";
@@ -390,6 +390,12 @@ export interface I18nBaseOptions {
   locale: string;
   defaultNs?: string;
   /**
+   * Message compiler for this instance. Defaults to the simple
+   * text + `{param}` compiler; pass `icuCompiler` from `@comvi/core/icu`
+   * for inline ICU catalogs, or install it pre-ingestion with `.with(icu())`.
+   */
+  compiler?: MessageCompiler;
+  /**
    * How to render a placeholder whose parameter is absent or `undefined`:
    * - `"literal"` (default): the placeholder renders as itself, e.g. `{name}`
    *   (ICU-aligned; one dev warning per (template, param) pair)
@@ -631,13 +637,15 @@ export type LoaderFn = (locale: string, namespace: string) => Promise<LoaderResu
 
 /**
  * The always-present instance surface: everything the base `I18n` class keeps
- * in every graph, including the pure `@comvi/core/slim` entry.
+ * in every graph, including the pure `@comvi/core` entry.
  *
- * Capability APIs that are extracted into the `@comvi/core/loader` and
- * `@comvi/core/plugins` subpaths live in `I18nLoaderApi` / `I18nPluginHostApi`
- * below. The root entry recomposes all three (see `I18nPluginHost` and the
- * root `I18n` class); `I18nInstance` re-picks exactly the members it exposed
- * before the split (pinned by the exact-keys type test).
+ * Capability APIs live in `I18nLoaderApi` / `I18nPluginHostApi` below and
+ * arrive from the `@comvi/core/loader` and `@comvi/core/plugins` subpaths. The
+ * ROOT entry is this surface and nothing more; the internal composite (which
+ * the CDN global ships) and `@comvi/next`'s composed host recompose all three
+ * (see `I18nPluginHost`). `I18nInstance` re-picks exactly the members the
+ * pre-split root exposed (pinned by the exact-keys type test), so it describes
+ * a COMPOSED host, not the base one.
  */
 export interface I18nCoreInstance<D extends DefaultTranslationParams = {}> {
   /**
@@ -823,15 +831,20 @@ export interface I18nCoreInstance<D extends DefaultTranslationParams = {}> {
 }
 
 /**
- * Async-loading capability — `@comvi/core/loader` (`attachLoader`), and part
- * of the root entry's class surface.
+ * Async-loading capability — `@comvi/core/loader`, composed on with
+ * `.with(loader())` / `attachLoader`. Absent from the base root by module
+ * graph; the internal composite and `@comvi/next`'s composed host carry it on
+ * their class surface.
  */
 export interface I18nLoaderApi {
   /**
    * Register a translation loader function.
    *
-   * The root entry's `I18n` additionally accepts a static import map; the
-   * slim composition path wraps one with `createImportMapLoader`.
+   * This signature takes a loader FUNCTION. For a static import map use the
+   * configured installer `loader(map)`, or wrap it yourself with
+   * `createImportMapLoader` — both from `@comvi/core/loader`. The two-overload
+   * form (function OR import map) survives only on the internal composite the
+   * CDN global ships and on `@comvi/next`'s published composed host.
    */
   registerLoader: (loader: LoaderFn) => void;
 
@@ -849,7 +862,7 @@ export interface I18nLoaderApi {
    * Activate a namespace and load it for the current locale.
    *
    * Activation only matters when something loads namespaces, so it belongs to
-   * the loader capability (contingency C1). Bare slim instances activate
+   * the loader capability (contingency C1). Base hosts activate
    * implicitly — `addTranslations` self-activates the namespaces it carries.
    */
   addActiveNamespace: (namespace: string) => Promise<void>;
@@ -866,10 +879,10 @@ export interface I18nLoaderApi {
 }
 
 /**
- * Plugin-host capability — `@comvi/core/plugins` (`attachPlugins`), and part
- * of the root entry's class surface. Constructor *options* (`postProcess`,
- * `onMissingKey`) stay universal; only the runtime registration APIs are a
- * capability.
+ * Plugin-host capability — `@comvi/core/plugins`, composed on with
+ * `.with(plugins())` / `attachPlugins`. Absent from the base root by module
+ * graph. Constructor *options* (`postProcess`, `onMissingKey`) stay universal;
+ * only the runtime registration APIs are a capability.
  */
 export interface I18nPluginHostApi {
   /**
@@ -975,7 +988,7 @@ export interface I18nCoreExtraApi {
  *
  * Structurally this is EXACTLY what `class I18n` declares it implements
  * (`core/i18n.ts`: `implements I18nCoreInstance<D>, I18nCoreExtraApi`), so a
- * bare `@comvi/core/slim` instance satisfies it without any capability
+ * bare `@comvi/core` instance satisfies it without any capability
  * attached. Loader/plugin members are deliberately absent: wrappers acquire
  * those through their own capability hooks, which verify presence once and
  * throw {@link missingCapability} when the host has none.
@@ -985,8 +998,8 @@ export type WrapperI18nHost<D extends DefaultTranslationParams = {}> = I18nCoreI
 
 /**
  * The instance surface a plugin may rely on: the composed full capability set
- * the root entry exposes. Plugins that call loader APIs on a slim instance
- * need `attachLoader` to have run first (see the README slim section).
+ * a composed host exposes. Plugins that call loader APIs on a base host
+ * need `attachLoader` to have run first (see the README's one-entry section).
  */
 export type I18nPluginHost<D extends DefaultTranslationParams = {}> = I18nCoreInstance<D> &
   I18nCoreExtraApi &
@@ -1002,7 +1015,11 @@ export type I18nPluginHost<D extends DefaultTranslationParams = {}> = I18nCoreIn
  * `reloadTranslations`, `setPluginData` and `getPluginData` of the capability
  * APIs were ever part of it, so they are re-picked one by one instead of
  * inheriting the whole capability interfaces (which would silently widen the
- * root-exported type). Pinned by `Equal<keyof I18nInstance, PreSplitKeySnapshot>`.
+ * exported type). Pinned by `Equal<keyof I18nInstance, PreSplitKeySnapshot>`.
+ *
+ * NOTE: this is a COMPOSED host's shape. A base `@comvi/core` host satisfies
+ * `I18nCoreInstance`, not this — it is assignable only once the loader and
+ * plugin capabilities are composed on.
  */
 export interface I18nInstance<D extends DefaultTranslationParams = {}>
   extends

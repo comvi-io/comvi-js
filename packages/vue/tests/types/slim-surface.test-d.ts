@@ -61,8 +61,13 @@ preset.use(() => undefined);
 // The core-safe surface is of course there.
 preset.core.addTranslations({ en: { greeting: "Hello" } });
 
-// The root factory keeps its full-capability core — the two entries differ in
-// exactly that one type.
+// The `@comvi/vue` factory's core is core's own `I18n`, which since the
+// single-entry convergence IS the base host — not a full-capability class — so
+// the two entries no longer differ in this type. What differs is the EXPORT
+// SURFACE: `export * from "@comvi/core"` versus the named capability toolkit.
+// (The `_PresetCoreIsNotRoot` row above still encodes the pre-convergence
+// distinction and no longer type-checks: a real surface break, tracked
+// separately — not something this comment can repair.)
 const _rootPreset = createRootI18n({ locale: "en" });
 export type _RootPresetCoreIsRoot = Expect<Equal<(typeof _rootPreset)["core"], RootI18n<{}>>>;
 

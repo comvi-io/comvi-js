@@ -1,5 +1,5 @@
 /**
- * framework-slim P2 — @comvi/react on a BARE `@comvi/core/slim` host.
+ * framework-slim P2 — @comvi/react on a BARE `@comvi/core` host.
  *
  * This is the D′ endpoint: the host implements `WrapperI18nHost` and nothing
  * more. Everything `useI18n()` still returns must work on it, and nothing the
@@ -13,7 +13,7 @@
 import { describe, it, expect } from "vitest";
 import { render, renderHook, act } from "@testing-library/react";
 import type { ReactNode } from "react";
-import { createI18n } from "@comvi/core/slim";
+import { createI18n } from "@comvi/core";
 import type { WrapperI18nHost } from "@comvi/core";
 import { attachLoader } from "@comvi/core/loader";
 import { I18nProvider } from "../src/I18nProvider";

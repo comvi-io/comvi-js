@@ -6,13 +6,13 @@ import {
   useCallback,
   useSyncExternalStore,
 } from "react";
-import { subscribeToRevision } from "@comvi/core/slim";
+import { subscribeToRevision } from "@comvi/core";
 import type { WrapperI18nHost, FlattenedTranslations, I18nEvent } from "@comvi/core";
 
 /**
  * What every react binding demands of the instance it is handed: the reactive
  * translation host (`WrapperI18nHost` = `I18nCoreInstance & I18nCoreExtraApi`),
- * which is exactly what a bare `@comvi/core/slim` instance implements.
+ * which is exactly what a bare `@comvi/core` instance implements.
  * Loader/plugin capabilities are acquired separately — see `capabilityHooks`.
  */
 type Host = WrapperI18nHost;

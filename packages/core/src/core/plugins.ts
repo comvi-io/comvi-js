@@ -2,12 +2,12 @@
 //
 // ONE implementation, TWO install surfaces (plan M-1), exactly as
 // `core/loader.ts`: the capability is a class body, `I18nWithPlugins`.
-//   • root — `core/full.ts` copies this prototype's own descriptors onto
-//            `I18n.prototype` at module scope (the root already spends its one
+//   • composite — `core/full.ts` copies this prototype's own descriptors onto
+//            `I18n.prototype` at module scope (the composite already spends its one
 //            `extends` slot on the loader capability, and this class must NOT
 //            extend `I18nWithLoader` — that would drag the loader into a
-//            slim+plugins-only module graph);
-//   • slim — `attachPlugins(i18n)` copies the same descriptors onto the
+//            base+plugins-only module graph);
+//   • base host — `attachPlugins(i18n)` copies the same descriptors onto the
 //            instance.
 // Class-body methods are non-enumerable / writable / configurable, so both
 // surfaces are reflectively identical to the pre-Phase-7 class
@@ -18,7 +18,7 @@
 // which is only consistent because every core entry — including this one — is
 // built by ONE vite invocation (`coreEntries`). Dot access and method
 // definitions are what terser can correlate: never install or read a `_`
-// member through a string. `tests/dist/slim-composition.dist.test.ts` is the
+// member through a string. `tests/dist/base-composition.dist.test.ts` is the
 // canary.
 import type {
   DefaultTranslationParams,
@@ -47,8 +47,8 @@ export type PluginEntry = [
 ];
 
 /**
- * The plugin-host capability. Not exported from any entry point: the root
- * entry installs it on `I18n.prototype`, the slim entry via `attachPlugins`.
+ * The plugin-host capability. Not exported from any entry point: the composite
+ * composite installs it on its prototype, a base host gets it via `attachPlugins`.
  *
  * Members are accessed through `this` exactly as they were when they lived in
  * the base class — aliasing it to a local shrinks the minified size but
@@ -66,7 +66,7 @@ export class I18nWithPlugins<D extends DefaultTranslationParams = {}> extends I1
   >;
 
   /**
-   * Initialize plugin-owned state. Called by the root constructor and by
+   * Initialize plugin-owned state. Called by the composite's constructor and by
    * `attachPlugins`; this class declares no constructor of its own.
    */
   protected _initPlugins(): void {
@@ -279,7 +279,7 @@ export class I18nWithPlugins<D extends DefaultTranslationParams = {}> extends I1
  * construction. `constructor` is excluded: installing it would repoint
  * `instance.constructor` at the capability class.
  *
- * @internal Shared by `attachPlugins` and the root install in `core/full.ts`.
+ * @internal Shared by `attachPlugins` and the composite install in `core/full.ts`.
  */
 const { constructor: _ctor, ...pluginApi } = Object.getOwnPropertyDescriptors(
   I18nWithPlugins.prototype,
@@ -287,7 +287,7 @@ const { constructor: _ctor, ...pluginApi } = Object.getOwnPropertyDescriptors(
 export { pluginApi };
 
 /**
- * Add the plugin-host capability to a slim instance.
+ * Add the plugin-host capability to a base host.
  *
  * ```ts
  * const i18n = attachPlugins(attachLoader(createI18n({ locale: "en" })));

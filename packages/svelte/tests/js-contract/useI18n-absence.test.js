@@ -10,7 +10,7 @@
 import { afterEach, beforeEach, describe, it, expect } from "vitest";
 import { mount, unmount } from "svelte";
 import { get } from "svelte/store";
-import { createI18n } from "@comvi/core/slim";
+import { createI18n } from "@comvi/core";
 import { attachLoader } from "@comvi/core/loader";
 import { attachPlugins } from "@comvi/core/plugins";
 import { useI18n } from "../../src/useI18n";

@@ -9,7 +9,7 @@
 // says which core artifact this run resolved, and `__DEV__` is false in the
 // production project.
 import { describe, it, expect, beforeEach } from "vitest";
-import { createI18n } from "@comvi/core/slim";
+import { createI18n } from "@comvi/core";
 import { attachLoader } from "@comvi/core/loader";
 import { _resetServerI18n, getI18nInstance, setI18n } from "../../src/server/cache";
 import { createNextI18nFromHost } from "../../src/server/createNextI18nFromHost";

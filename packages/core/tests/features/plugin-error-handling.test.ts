@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { I18n } from "../../src";
-import type { I18nPlugin } from "../../src";
+import { I18n } from "../helpers/composedHost";
+import type { I18nPlugin } from "../helpers/composedHost";
 
 /**
  * Focus on the error-handling contract:

@@ -7,7 +7,9 @@
 // re-exports five capability bindings from core's pure subpaths; this app uses
 // exactly one of them. The runner asserts from the bundler's own module graph
 // that the other three subpaths (icu, plugins, devtools) never enter it — and,
-// as always, that neither the root entry nor core's tag-registration chunks do.
+// as always, that core's tag-registration chunks do not. Core's base entry IS
+// in the graph — the entry's `createI18n` re-export is what this app constructs
+// with — so it is never what the assertion is about.
 //
 // <T> rendering needs a DOM and is NOT exercised here (same documented skip as
 // wrappers.mjs).

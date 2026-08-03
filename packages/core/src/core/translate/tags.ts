@@ -278,8 +278,9 @@ const ENTITIES: Array<[source: string, char: string]> = [
  * The XML-like tag syntax extension. Pass it per call through
  * `tagInterpolation.extensions` (ordering-proof channel used by `<T>` /
  * `prepareTranslation`) or register it ambiently via `registerTagSyntax()`
- * (string-API channel; done automatically by importing `@comvi/core` or
- * `@comvi/core/tags`).
+ * (string-API channel; importing `@comvi/core/tags` does it for you, as does
+ * the non-exported CDN entry that bundles it — the base `@comvi/core` root
+ * registers nothing).
  *
  * It claims three characters from the shared scanner, all one grammar:
  * `<` (a tag), `&` (an entity) and `\` (the `\<` escape). Returning a

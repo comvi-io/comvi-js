@@ -177,7 +177,6 @@ export const treeshakeOptions = {
  */
 export const COMVI_CORE_EXTERNALS = [
   "@comvi/core",
-  "@comvi/core/slim",
   "@comvi/core/icu",
   "@comvi/core/loader",
   "@comvi/core/plugins",

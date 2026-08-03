@@ -19,11 +19,12 @@ import type { I18nCoreInstance, I18nCoreExtraApi } from "@comvi/core";
 import { TAG_ATTRIBUTES } from "./constants";
 
 /**
- * The public instance surface the editor needs. Since 0.5.0 the root `I18n`
- * class is wider than the base one (loader and plugin capabilities live in
- * the `@comvi/core/loader` and `@comvi/core/plugins` subpaths), and instances
- * reach the editor from both directions — the discovery queue hands over base
- * instances, the plugin entry hands over a composed host. Both satisfy this.
+ * The public instance surface the editor needs. Since the single-entry
+ * convergence `@comvi/core`'s published `I18n` IS the base class — the loader
+ * and plugin capabilities live only in the `@comvi/core/loader` and
+ * `@comvi/core/plugins` subpaths — and instances reach the editor from both
+ * directions: the discovery queue hands over base instances, the plugin entry
+ * hands over a composed host. Both satisfy this.
  */
 export type EditorI18n = I18nCoreInstance & I18nCoreExtraApi;
 

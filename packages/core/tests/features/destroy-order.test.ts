@@ -1,6 +1,11 @@
 import { describe, it, expect } from "vitest";
-import { I18n } from "../../src";
-import { createI18n as createSlimI18n } from "../../src/slim";
+// The COMPOSITE host: since the single-entry convergence `../../src` is the
+// BASE host, and the batteries-included 0.4 semantics live on in the internal
+// composite `src/core/full.ts` (what the CDN global ships and `@comvi/next`'s
+// builder mirrors). Imported directly — never through the tags-registering
+// helper — so this file's ambient-extension assertions stay meaningful.
+import { I18n } from "../../src/core/full";
+import { createI18n as createBaseI18n } from "../../src";
 import { attachLoader } from "../../src/loader";
 import { attachPlugins } from "../../src/plugins";
 
@@ -55,7 +60,7 @@ describe("destroy ordering", () => {
   });
 
   it("clears base state on a bare slim instance (no capabilities attached)", async () => {
-    const i18n = createSlimI18n({ locale: "en", exposeGlobal: false });
+    const i18n = createBaseI18n({ locale: "en", exposeGlobal: false });
     i18n.addTranslations({ en: { hello: "Hello" } });
 
     expect(i18n.getActiveNamespaces()).toEqual(["default"]);
@@ -68,7 +73,7 @@ describe("destroy ordering", () => {
   });
 
   it("resets attached loader state on a composed slim instance", async () => {
-    const i18n = attachLoader(createSlimI18n({ locale: "en", exposeGlobal: false }));
+    const i18n = attachLoader(createBaseI18n({ locale: "en", exposeGlobal: false }));
     i18n.registerLoader(async () => ({ hello: "Hello" }));
     await i18n.init();
 
@@ -82,7 +87,7 @@ describe("destroy ordering", () => {
 
   it("keeps the two-phase order on a composed slim instance", async () => {
     const order: string[] = [];
-    const i18n = attachPlugins(attachLoader(createSlimI18n({ locale: "en", exposeGlobal: false })));
+    const i18n = attachPlugins(attachLoader(createBaseI18n({ locale: "en", exposeGlobal: false })));
 
     i18n.registerLoader(async () => ({ hello: "Hello" }));
     i18n.use(() => {

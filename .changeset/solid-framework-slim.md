@@ -2,7 +2,7 @@
 "@comvi/solid": minor
 ---
 
-**BREAKING (0.5.0):** `@comvi/solid` now runs on a bare `@comvi/core/slim` host, and the four loader/plugin members left `useI18n()` for two dedicated accessors (framework-slim P3, same D′ contract as `@comvi/react`).
+**BREAKING (0.5.0):** `@comvi/solid` now runs on a base `@comvi/core` host, and the four loader/plugin members left `useI18n()` for two dedicated accessors (framework-slim P3, same D′ contract as `@comvi/react`).
 
 ### Migration
 
@@ -26,7 +26,7 @@ Exit `0` = clean or fully transformed, `2` = rewrites applied and manual items r
 
 ```
 // dev
-[comvi] This i18n instance has no loader capability. Attach it: import { attachLoader } from "@comvi/core/loader" — or use the root "@comvi/core" entry.
+[comvi] This i18n instance has no loader capability. Compose it: .with(loader()) from "@comvi/core/loader", or the lower-level attachLoader.
 // prod
 [comvi] missing loader capability — attach @comvi/core/loader
 ```
@@ -41,17 +41,26 @@ Troubleshooting: `addActiveNamespace is not a function` / `reloadTranslations is
 
 ### Types accept any host
 
-`I18nProviderProps.i18n`, `I18nContextValue.i18n`, `useI18nContext()`'s return and all six reactive primitives (`createLocaleSignal` and friends) accept `WrapperI18nHost` (`I18nCoreInstance & I18nCoreExtraApi`) instead of the concrete root `I18n` class. Root instances still satisfy it, so `createI18n` from `@comvi/core` keeps working unchanged; `createI18n` from `@comvi/core/slim` and any `attachLoader`/`attachPlugins` composition now work too.
+`I18nProviderProps.i18n`, `I18nContextValue.i18n`, `useI18nContext()`'s return and all six reactive primitives (`createLocaleSignal` and friends) accept `WrapperI18nHost` (`I18nCoreInstance & I18nCoreExtraApi`) instead of the concrete `I18n` class. Every host satisfies it — the base `createI18n` from `@comvi/core` and any `attachLoader`/`attachPlugins`/`.with(…)` composition of it.
 
 ### Measured
 
 Whole comvi graph, min+gz, framework externalized, same commit (`pnpm size`):
 
-| app shape                                   | before         | after    |
-| ------------------------------------------- | -------------- | -------- |
-| solid + root core, no `<T>`                 | 9992           | **9889** |
-| solid + root core, with `<T>`               | 10879          | 10835    |
-| solid + bare `@comvi/core/slim`, no `<T>`   | — (impossible) | **6895** |
-| solid + bare `@comvi/core/slim`, with `<T>` | —              | 8710     |
+| app shape                              | before         | after    |
+| -------------------------------------- | -------------- | -------- |
+| solid + 0.4 composed root, no `<T>`    | 9992           | **9889** |
+| solid + 0.4 composed root, with `<T>`  | 10879          | 10835    |
+| solid + bare `@comvi/core`, no `<T>`   | — (impossible) | **6895** |
+| solid + bare `@comvi/core`, with `<T>` | —              | 8710     |
 
-**Moving a solid app from the root entry to bare slim saves 2994 B min+gz (−30.3%).** Both slim fixtures assert — through the bundler's module graph, not an output-text grep — that `comvi-core.js` and core's tag chunks are absent, and the `solid-on-slim` case is green on webpack and vite in both development and production.
+**Moving a solid app off the 0.4 composed root onto the base host saves 2994 B min+gz (−30.3%).** The bare-host fixture asserts — through the bundler's module graph, not an output-text grep — that core's tag-registration pair (`comvi-core-tags.js` plus its `register-tags` chunk) never enters the graph; the `<T>` row declares no such sentinel, because rendering `<T>` is exactly what buys that pair. Core's base entry is in both graphs by construction — `createI18n` is its export — so no fixture asserts it away. The `solid-on-slim` case is green on webpack and vite in both development and production.
+
+> Rewritten in place at the single-entry convergence (same release): the separate
+> base-host subpath this changeset was written against no longer exists, and
+> `@comvi/core`'s root IS that base host — so every specifier above names the
+> root, and every "the root has it already" claim reads against the base host.
+> The 0.4 composed root survives only as a recipe (`.with(loader())`,
+> `.with(plugins())`, `.with(devtools())`, `compiler: icuCompiler` from
+> `@comvi/core/icu`, `import "@comvi/core/tags"`); see
+> `core-single-entry-convergence.md` for the break and the migration.

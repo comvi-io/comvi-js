@@ -35,6 +35,12 @@ const INTERNAL_NAMES = [
   "_initDevtools",
   "_disposeDevtools",
   "_globalEntry",
+  // single-entry convergence seams: `/icu`'s installer reaches
+  // `_setCompilerBeforeIngestion` by dot access ACROSS a chunk boundary, so
+  // these are live nameCache canaries too.
+  "_setCompilerBeforeIngestion",
+  "_compilerLocked",
+  "_preflightSimpleCatalog",
 ];
 
 function distFiles(dev: boolean): string[] {
@@ -58,13 +64,13 @@ beforeAll(() => {
   }
 });
 
-describe("prod dist: slim + /loader + /plugins composition (A6)", () => {
+describe("prod dist: base + /loader + /plugins composition (A6)", () => {
   it("composes, loads, switches locale and reloads against the mangled build", async () => {
     // Dynamic on purpose: these are BUILD OUTPUTS, not source modules. A
     // static import is hoisted above `beforeAll`, so a missing/stale dist
     // would fail with an opaque resolution error instead of the actionable
     // "run the build first" message.
-    const { createI18n } = await import("../../dist/comvi-core-slim.js");
+    const { createI18n } = await import("../../dist/comvi-core.js");
     const { attachLoader, createImportMapLoader } = await import("../../dist/comvi-core-loader.js");
 
     const store: Record<string, Record<string, string>> = {
@@ -101,7 +107,7 @@ describe("prod dist: slim + /loader + /plugins composition (A6)", () => {
   });
 
   it("hosts plugins, detectors and missing-key callbacks against the mangled build", async () => {
-    const { createI18n } = await import("../../dist/comvi-core-slim.js");
+    const { createI18n } = await import("../../dist/comvi-core.js");
     const { attachLoader } = await import("../../dist/comvi-core-loader.js");
     const { attachPlugins } = await import("../../dist/comvi-core-plugins.js");
 
@@ -140,7 +146,7 @@ describe("prod dist: slim + /loader + /plugins composition (A6)", () => {
   });
 
   it("attaches discovery and flattens nested catalogs against the mangled build", async () => {
-    const { createI18n } = await import("../../dist/comvi-core-slim.js");
+    const { createI18n } = await import("../../dist/comvi-core.js");
     const { attachDevtools } = await import("../../dist/comvi-core-devtools.js");
     const { attachLoader, flattenCatalog } = await import("../../dist/comvi-core-loader.js");
 

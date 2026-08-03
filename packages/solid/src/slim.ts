@@ -1,23 +1,30 @@
-// `@comvi/solid/slim` — the single-package, root-free entry.
+// `@comvi/solid/slim` — the single-package, star-free entry.
 //
 // One import specifier for a whole slim solid app: the host constructor, the
 // bindings, and the capability toolkit. A framework user never has to name
-// `@comvi/core` — which is the point: the root entry is side-effectful
-// (ambient `registerTagSyntax()`), so every extra reason to reach for it is a
-// chance to pull the tag graph back in.
+// `@comvi/core` — which is the point: one specifier is the whole DX story.
+// This entry DOES reach core's root, on purpose: `createI18n` below is the
+// pure BASE host's own constructor, re-exported by name. What it never names
+// is `@comvi/core/tags`, the one side-effectful subpath (below); the
+// capability subpaths it does name are pure named bindings, so the ones an app
+// never calls stay out of a graph that did not ask for them.
 //
 // TWO RULES this file exists to keep, both learned by measurement:
 //
 //   1. NAMED re-exports only, never `export *`. A star re-export is a name set
 //      webpack can only resolve by keeping the source module, and
 //      `optimization.usedExports` is off in development — that is exactly how
-//      `@comvi/vue`'s `export * from "@comvi/core"` kept the root entry alive
-//      in webpack dev (fs-p4 §2 / abort P4-AB1). `export type *` is erased
-//      before any bundler sees it and is therefore fine.
-//   2. Re-export from core's PURE subpaths, never from `@comvi/core`, and
-//      never through another wrapper: webpack development reconnects a single
-//      `export … from` across one `sideEffects: false` package, but not a
-//      two-package chain (fs-p5, `@comvi/next/client`).
+//      `@comvi/vue`'s `export * from "@comvi/core"` kept the whole root entry
+//      alive in webpack dev, back when that root was the composed,
+//      tag-registering one (fs-p4 §2 / abort P4-AB1). The rule outlived the
+//      graph it was measured on: a star re-export still pins every module it
+//      names. `export type *` is erased before any bundler sees it and is
+//      therefore fine.
+//   2. ONE hop, and never through another wrapper: webpack development
+//      reconnects a single `export … from` across one `sideEffects: false`
+//      package, but not a two-package chain (fs-p5, `@comvi/next/client`).
+//      So every core binding below comes straight from `@comvi/core` or one
+//      of its pure subpaths, never relayed through `@comvi/solid`.
 //
 // `@comvi/core/tags` is deliberately NOT re-exported: it is the one
 // side-effectful subpath, so naming it here would put ambient tag
@@ -42,13 +49,15 @@
 // and `loader()` / `plugins()` / `devtools()` below are the configured
 // installers it takes.
 //
-// The host constructor: `@comvi/core/slim`'s own `createI18n`, re-exported so
-// a solid app has one import specifier. There is no solid-side wrapper object
-// to build (the instance goes straight into `<I18nProvider i18n={…}>`), so a
-// hand-written preset here would be a rename and nothing else.
-export { createI18n } from "@comvi/core/slim";
+// The host constructor: the pure BASE root's own `createI18n` from
+// `@comvi/core`, re-exported so a solid app has one import specifier. There is
+// no solid-side wrapper object to build (the instance goes straight into
+// `<I18nProvider i18n={…}>`), so a hand-written preset here would be a rename
+// and nothing else.
+export { createI18n } from "@comvi/core";
 
-// The bindings — identical to `@comvi/solid`, minus the root re-exports.
+// The bindings — identical to `@comvi/solid`. The only root value that entry
+// carries and this one does not is core's `I18n` class.
 export { I18nProvider, useI18nContext } from "./context";
 export type { I18nProviderProps } from "./context";
 export { useI18n } from "./useI18n";
@@ -81,5 +90,5 @@ export { attachDevtools, devtools } from "@comvi/core/devtools";
 
 // Type vocabulary. `export type *` emits no JavaScript, so it is not a star
 // re-export as far as any bundler is concerned.
-export type * from "@comvi/core/slim";
+export type * from "@comvi/core";
 export type { DevtoolsOptions } from "@comvi/core/devtools";

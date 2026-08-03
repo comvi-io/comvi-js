@@ -3,7 +3,7 @@
 // `addTranslations`. The client layer is react's D' host, re-exported by
 // `@comvi/next/client`.
 // PENDING until Phase 5 (which inherits Phase 2's react retarget).
-import { createI18n } from "@comvi/core/slim";
+import { createI18n } from "@comvi/core";
 import { I18nProvider, useI18n } from "@comvi/next/client";
 
 const i18n = createI18n({ locale: "en" });

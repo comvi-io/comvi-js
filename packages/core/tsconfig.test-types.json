@@ -7,7 +7,6 @@
     "noEmit": true,
     "paths": {
       "@comvi/core": ["./src/index.ts"],
-      "@comvi/core/slim": ["./src/slim.ts"],
       "@comvi/core/loader": ["./src/loader.ts"],
       "@comvi/core/plugins": ["./src/plugins.ts"],
       "@comvi/core/devtools": ["./src/devtools.ts"],

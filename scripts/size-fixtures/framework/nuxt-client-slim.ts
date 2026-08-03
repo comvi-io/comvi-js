@@ -6,7 +6,7 @@
 // gate proves (plan P4 checkpoint).
 import plugin from "@comvi/nuxt/runtime/plugin.js";
 import { useI18n } from "@comvi/nuxt/runtime/composables/useI18n.js";
-import { createI18n } from "@comvi/core/slim";
+import { createI18n } from "@comvi/core";
 import { createI18nFromCore } from "@comvi/vue/slim";
 
 const i18n = createI18nFromCore(createI18n({ locale: "en" }), { ssrLocale: "en" });

@@ -1,10 +1,59 @@
-// Comvi i18n core exports (framework-agnostic)
-// Root-entry ambient tag registration (Principle 1: string-API tag
-// interpolation keeps working with zero imports beyond the root).
-import "./register-tags";
+// @comvi/core — THE entry. One entry per package, one mental model.
+//
+// The root is the BASE host: text + `{param}` interpolation, the translation
+// cache, events, default params and the `.with(installer)` composition pipe.
+// Nothing else is in the module graph, and nothing is behind a runtime flag —
+// a capability is absent because its module never entered your bundle.
+//
+// Capability = an import you add, never an entry you switch:
+//   • `@comvi/core/icu`      — `icuCompiler` for ICU plural/select/selectordinal
+//     (`createI18n({ translation, compiler: icuCompiler })` for inline
+//     catalogs; `.with(icu())` BEFORE any catalog for remote ones);
+//   • `@comvi/core/loader`   — `loader()` / `attachLoader`: registerLoader /
+//     getLoader / reloadTranslations, `createImportMapLoader`, and automatic
+//     nested-catalog flattening;
+//   • `@comvi/core/plugins`  — `plugins()` / `attachPlugins`: use / locale
+//     detector / missing-key callbacks / post-processors / plugin data;
+//   • `@comvi/core/devtools` — `devtools()` / `attachDevtools`: `instanceId`
+//     and the `window.__COMVI__` extension handshake;
+//   • `@comvi/core/tags`     — tag interpolation (importing it registers tag
+//     syntax ambiently), plus the VirtualNode toolbox.
+//
+// ICU syntax under the default compiler FAILS LOUD in development and in
+// production: `{count, plural, …}` throws `E_ICU_SYNTAX` rather than rendering
+// plausibly-wrong text. Without a tags extension `<tag>…</tag>` is not syntax
+// and stays literal text (dev-warned). Rich non-primitive param values behave
+// the same on every graph: `t` coerces them into the string, `tRaw` preserves
+// them as a parts array.
+import type { DefaultTranslationParams, I18nOptions } from "./types";
+import { I18n as I18nImpl } from "./core/i18n";
 
-export { createI18n, I18n } from "./core/full";
+/**
+ * The published host. The runtime binding IS the base class; the annotation
+ * narrows the construct signature to the published one-argument contract, so
+ * the internal compiler parameter never reaches the emitted declaration.
+ */
+export const I18n: new <const D extends DefaultTranslationParams = {}>(
+  options: I18nOptions<D>,
+) => I18nImpl<D> = I18nImpl;
+export type I18n<D extends DefaultTranslationParams = {}> = I18nImpl<D>;
+
+/** The base-host factory: `createI18n(options)` is `new I18n(options)`. */
+export function createI18n<const D extends DefaultTranslationParams = {}>(
+  options: I18nOptions<D>,
+): I18nImpl<D> {
+  return new I18nImpl<D>(options);
+}
+
 export { TranslationCache } from "./core/TranslationCache";
+
+/**
+ * Flatten a nested catalog into the flat `{ "a.b": "…" }` shape the base
+ * host stores. PURE — the same function `@comvi/core/loader` exports, and the
+ * escape hatch for handing nested data straight to `addTranslations` on a host
+ * without the loader capability (which flattens automatically).
+ */
+export { normalizeTranslationObject as flattenCatalog } from "./utils";
 
 // Utility exports
 export { createBoundTranslation } from "./utils/createBoundTranslation";
@@ -26,6 +75,8 @@ export type { LocaleSource } from "./format";
 
 // Type exports
 export type * from "./types";
+export type { MessageCompiler, SyntaxExtension } from "./core/translate/syntax";
+export type { IcuSyntaxError } from "./core/translate/compile-simple";
 export type {
   VirtualNode,
   ElementNode,

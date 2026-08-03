@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { I18n } from "../../src";
+import { I18n } from "../helpers/composedHost";
 
 describe("registerLoader with import map", () => {
   it("loads translations from import map", async () => {

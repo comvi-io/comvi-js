@@ -260,7 +260,8 @@ function processSelect(
 /**
  * The full ICU message compiler: `{param}`, `plural`, `selectordinal`,
  * `select`. Lives ONLY on the pure `@comvi/core/icu` subpath (and inside the
- * full root entry); inject it into the slim factory to restore ICU behavior.
+ * internal composite); pass it as `compiler` to restore ICU behaviour on the
+ * base host.
  */
 export const icuCompiler: MessageCompiler = {
   cid: 2,

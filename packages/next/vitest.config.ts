@@ -18,14 +18,14 @@ const SRC_ALIAS = { find: "@", replacement: resolve(__dirname, "./src") };
  * hold under BOTH build conditions; the only way to prove a message is not
  * stripped in production is to run the same file against the production
  * artifact with `__DEV__` false. Exact-match regexes, never string prefixes: a
- * string alias for `@comvi/core` would also swallow `@comvi/core/slim`.
+ * string alias for `@comvi/core` would also swallow `@comvi/core`.
  *
- * All five entries move together — mixing a dev slim host with a prod
+ * All four entries move together — mixing a dev base host with a prod
  * `attachLoader` would compose across two different terser nameCaches and
  * break core's `_`-internal contract.
  */
 const coreBuild = (suffix: "" | ".dev") =>
-  (["", "-slim", "-loader", "-plugins", "-tags"] as const).map((entry) => ({
+  (["", "-loader", "-plugins", "-tags"] as const).map((entry) => ({
     find: new RegExp(`^@comvi/core${entry === "" ? "" : `/${entry.slice(1)}`}$`),
     replacement: `${CORE_DIST}/comvi-core${entry}${suffix}.js`,
   }));

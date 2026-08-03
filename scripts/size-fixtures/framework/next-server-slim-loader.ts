@@ -11,8 +11,10 @@
 // statically references the import-map adapter, which is +111 B min+gz on
 // this graph; `attachLoader` is the installer for a host that will register a
 // plain `LoaderFn` (or, as here, none at all) and costs 2 B over calling it
-// directly. Every root-importing module — and every capability subpath this
-// recipe does not use — must still tree-shake out.
+// directly. What must still tree-shake out: next's own composed builder
+// (`createNextI18n.js`), core's tag-registration pair, and every capability
+// subpath this recipe does not use. Core's base entry stays — `createSlimI18n`
+// is its `createI18n`.
 import {
   attachLoader,
   createNextI18nFromHost,

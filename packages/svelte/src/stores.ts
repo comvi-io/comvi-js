@@ -1,10 +1,10 @@
 import { readable, type Readable } from "svelte/store";
-import { subscribeToRevision } from "@comvi/core/slim";
+import { subscribeToRevision } from "@comvi/core";
 import type { WrapperI18nHost, DefaultTranslationParams, DefaultParamsSnapshot } from "@comvi/core";
 
 /**
  * Host type every svelte binding demands (framework-slim D′): the reactive
- * translation host, exactly what a bare `@comvi/core/slim` instance
+ * translation host, exactly what a bare `@comvi/core` instance
  * implements.
  */
 type Host<D extends DefaultTranslationParams = {}> = WrapperI18nHost<D>;

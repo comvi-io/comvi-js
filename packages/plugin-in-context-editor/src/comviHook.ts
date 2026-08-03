@@ -14,19 +14,21 @@
 import type { ComviQueueEntry as CoreQueueEntry, I18nPluginHostApi } from "@comvi/core";
 
 /**
- * The instance type the core discovery queue actually carries. Core types it
- * as the BASE class, which since 0.5.0 is narrower than the root export
- * (`@comvi/core`'s `I18n` adds the loader/plugin capabilities). Deriving it
- * from the published entry keeps this hook assignable to `window.__COMVI__`.
+ * The instance type the core discovery queue actually carries. Since the
+ * single-entry convergence this IS `@comvi/core`'s published `I18n` — the BASE
+ * class, with the loader and plugin capabilities living only in the
+ * `@comvi/core/loader` and `@comvi/core/plugins` subpaths. Deriving it from
+ * the published entry keeps this hook assignable to `window.__COMVI__`.
  */
 type QueueI18n = CoreQueueEntry["i"];
 
 /**
  * The instance type the editor DRIVES. It registers a post-processor on every
- * instance it edits, so it only ever works with the plugin-host surface: the
- * root entry's class, or a slim instance composed with `@comvi/core/plugins`.
- * A bare slim instance may still be pushed onto the queue — it is tracked and
- * counted, it is simply not editable.
+ * instance it edits, so it only ever works with a host that has the
+ * plugin-host surface composed onto it — `@comvi/core/plugins`
+ * (`attachPlugins` / `.with(plugins())`), or a framework builder that composes
+ * it for you. A bare base host may still be pushed onto the queue — it is
+ * tracked and counted, it is simply not editable.
  */
 type I18n = QueueI18n & I18nPluginHostApi;
 

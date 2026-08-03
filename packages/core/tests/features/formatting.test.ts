@@ -6,7 +6,7 @@ import {
   formatCurrency,
   formatRelativeTime,
   getTextDirection,
-} from "../../src";
+} from "../helpers/composedHost";
 
 describe("Advanced Formatting (Quoting & Escaping)", () => {
   let i18n: I18n;

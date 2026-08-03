@@ -33,6 +33,34 @@ function isQuoteStart(str: string, index: number, len: number, hashIsSyntax: boo
   return hashIsSyntax && nextCode === HASH;
 }
 
+/**
+ * DEV-ONLY (plan §2.3): the ambient-tag loudness residual.
+ *
+ * Tag syntax through the string API (`t("click <b>here</b>")`) is literal text
+ * when no extension claims `<`, and it stays literal in production — unlike an
+ * ICU plural, a literal `<b>` is visibly broken in any UI review, so the
+ * loudness bar is met by a development warning plus that visibility rather
+ * than by a throw. This is the named, owned decision, not an oversight.
+ *
+ * Once per template, and only for genuinely tag-like input (`<` followed by an
+ * ASCII letter): a bare `<` in "a < b" is arithmetic, not markup. The whole
+ * mechanism is behind `IS_DEV`, so production pays 0 B — the same fold
+ * `warnIfNotFlat` uses.
+ */
+const warnedTagTemplates = IS_DEV ? new Set<string>() : undefined;
+
+function warnUnclaimedTag(template: string, index: number, len: number): void {
+  const next = index + 1 < len ? template.charCodeAt(index + 1) : 0;
+  const isLetter = (next >= 65 && next <= 90) || (next >= 97 && next <= 122);
+  if (!isLetter || warnedTagTemplates === undefined || warnedTagTemplates.has(template)) return;
+  warnedTagTemplates.add(template);
+  warn(
+    `[i18n] Tag syntax in "${template}" is rendering as literal text: no tag ` +
+      `extension claims "<". Render it with your framework's <T> component, or ` +
+      `import "@comvi/core/tags" to register tag syntax for the string API.`,
+  );
+}
+
 /** Skip a quoted section, returns index after closing quote */
 function skipQuotedSection(str: string, startIndex: number, len: number): number {
   let i = startIndex + 1;
@@ -70,7 +98,7 @@ export function advancePastApostrophe(
  * Signature of `MessageCompiler.argOpensHashScope`: whether the `{` at
  * braceIndex starts an argument that rebinds `#` (ICU plural/selectordinal).
  * Compilers without such syntax leave it unset and the parser never treats
- * `#` as syntax — the detection code stays out of the slim graph.
+ * `#` as syntax — the detection code stays out of the base graph.
  */
 export type ArgOpensHashScope = (str: string, braceIndex: number, len: number) => boolean;
 
@@ -167,6 +195,9 @@ export function parseTemplate(
         lastIndex = i;
       } else {
         // No extension claims the position — the character is literal text.
+        // Tag-like input gets one development warning per template (§2.3); a
+        // real tags extension never reaches here, because it claimed the `<`.
+        if (IS_DEV && code === LESS_THAN) warnUnclaimedTag(template, i, len);
         i++;
       }
     } else if (code === OPEN_BRACE && !isQuoted) {

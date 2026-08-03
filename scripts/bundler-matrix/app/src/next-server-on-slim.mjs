@@ -5,10 +5,12 @@
 // I18nLoaderApi` makes the loader mandatory for SSR and an app should not have
 // to reach past its framework package to satisfy that.
 //
-// The runner asserts, from the bundler's own module graph, that neither core's
-// root entry nor its tag-registration chunks survive, and that the three
-// capability subpaths this recipe does NOT use never enter it either — the
-// re-export hop has to pay for itself here exactly as on the client entry.
+// The runner asserts, from the bundler's own module graph, that core's
+// tag-registration chunks do not survive, that next's own composed builder
+// (`createNextI18n.js`) never enters, and that the three capability subpaths
+// this recipe does NOT use stay out too — the re-export hop has to pay for
+// itself here exactly as on the client entry. Core's base entry IS in the
+// graph: `createSlimI18n` is its `createI18n`, re-exported.
 // `getI18n` is deliberately NOT imported: it reaches `next/headers` through
 // `getLocale`, so its absence from this graph is also proved by the fact that
 // this bundle builds and runs with `next` not installed at all.

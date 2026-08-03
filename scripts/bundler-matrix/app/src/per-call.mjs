@@ -7,7 +7,7 @@
 // 2. After disposing the ambient registration, the per-call channel
 //    (tagInterpolation.extensions) must still render tags on its own —
 //    ordering-proof and immune to side-effect stripping by construction.
-import { createI18n } from "@comvi/core/slim";
+import { createI18n } from "@comvi/core";
 import { registerTagSyntax, tagSyntaxExtension } from "@comvi/core/tags";
 
 function assertEqual(actual, expected, label) {

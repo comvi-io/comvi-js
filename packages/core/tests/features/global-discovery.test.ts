@@ -9,30 +9,36 @@
  * garbage in the global slot.
  *
  * The whole protocol now lives in the `@comvi/core/devtools` capability. The
- * root entry composes it back in (nothing about root changed); a slim
- * instance opts in with `attachDevtools`. The suite below runs the ENTIRE
- * protocol against both surfaces — the parity proof that the extraction
- * relocated the capability instead of reimplementing it.
+ * INTERNAL 0.4 composite — `src/core/full.ts`, what the CDN global ships and
+ * `@comvi/next`'s builder mirrors — composes it back in; the converged base
+ * root does NOT, so a base instance opts in with `attachDevtools`. The suite
+ * below runs the ENTIRE protocol against both surfaces — the parity proof that
+ * the extraction relocated the capability instead of reimplementing it.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { I18n } from "../../src";
+// The COMPOSITE host: since the single-entry convergence `../../src` is the
+// BASE host, and the batteries-included 0.4 semantics live on in the internal
+// composite `src/core/full.ts` (what the CDN global ships and `@comvi/next`'s
+// builder mirrors). Imported directly — never through the tags-registering
+// helper — so this file's ambient-extension assertions stay meaningful.
+import { I18n } from "../../src/core/full";
 import type { ComviQueueEntry } from "../../src";
-import { createI18n } from "../../src/slim";
+import { createI18n } from "../../src";
 import { attachDevtools } from "../../src/devtools";
 
 const win = window as { __COMVI__?: unknown };
 
 /** The two ways an instance can acquire the discovery capability. */
 const SURFACES: Record<string, (instanceId: string) => I18n> = {
-  root: (instanceId) => new I18n({ locale: "en", exposeGlobal: true, instanceId }),
-  "slim + attachDevtools": (instanceId) =>
+  "composed host": (instanceId) => new I18n({ locale: "en", exposeGlobal: true, instanceId }),
+  "base + attachDevtools": (instanceId) =>
     attachDevtools(createI18n({ locale: "en" }), { instanceId, exposeGlobal: true }),
 };
 
 /** The same two surfaces, opting OUT of exposure. */
 const UNEXPOSED: Record<string, () => I18n> = {
-  root: () => new I18n({ locale: "en", exposeGlobal: false }),
-  "slim + attachDevtools": () =>
+  "composed host": () => new I18n({ locale: "en", exposeGlobal: false }),
+  "base + attachDevtools": () =>
     attachDevtools(createI18n({ locale: "en" }), { exposeGlobal: false }),
 };
 
@@ -208,7 +214,7 @@ describe.each(Object.keys(SURFACES))(
   },
 );
 
-describe("discovery is absent from a bare @comvi/core/slim instance", () => {
+describe("discovery is absent from a bare @comvi/core instance", () => {
   beforeEach(() => {
     delete win.__COMVI__;
   });

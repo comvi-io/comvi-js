@@ -4,17 +4,17 @@
 // Everything that makes an instance findable by a devtools extension lives
 // here and NOWHERE else: the `window.__COMVI__` protocol probe, the version
 // stamp, the instance-id counter, and the identity-based removal on destroy.
-// A bare `@comvi/core/slim` instance therefore never carries the protocol —
+// A base `@comvi/core` host therefore never carries the protocol —
 // it is absent from the module graph, not disabled by a flag.
 //
 // ONE implementation, TWO install surfaces, exactly like `core/loader.ts`:
-//   • root — `core/full.ts` installs `devtoolsApi` on `I18n.prototype` and
-//            calls `_initDevtools` from its constructor, so root behaviour is
+//   • composite — `core/full.ts` installs `devtoolsApi` on its prototype and
+//            calls `_initDevtools` from its constructor, so composed behaviour is
 //            byte-for-byte what it was before the extraction;
-//   • slim — `attachDevtools(i18n)` copies the same prototype descriptors
+//   • base host — `attachDevtools(i18n)` copies the same prototype descriptors
 //            onto the instance and then exposes it.
 // The descriptor copy (never a plain `i._x = fn` assignment) is what keeps
-// the hooks NON-ENUMERABLE, which the root reflective contract asserts:
+// the hooks NON-ENUMERABLE, which the composed reflective contract asserts:
 // `{ ...i18n }` must carry data only, never behaviour.
 //
 // MANGLING CONTRACT (plan R2): `_globalEntry`, `_initDevtools` and
@@ -40,7 +40,7 @@ interface LegacyComviRegistry {
   unregister?(id: string): void;
 }
 
-/** Discovery options; the same two fields the root entry reads off `I18nOptions`. */
+/** Discovery options; the same two fields the composite reads off `I18nOptions`. */
 export interface DevtoolsOptions {
   /**
    * Stable id for this instance. Auto-generated (`comvi-<n>`) when omitted.
@@ -48,14 +48,14 @@ export interface DevtoolsOptions {
   instanceId?: string;
   /**
    * Expose on `window.__COMVI__`. Defaults to `true` in a browser and `false`
-   * under SSR — the same default the root entry has always applied.
+   * under SSR — the same default the 0.4 root always applied.
    */
   exposeGlobal?: boolean;
 }
 
 /**
- * The discovery capability. Not exported from any entry point: the root entry
- * installs its prototype descriptors in `core/full.ts`, the slim entry gets
+ * The discovery capability. Not exported from any entry point: the composite
+ * installs its prototype descriptors in `core/full.ts`, a base host gets
  * them from `attachDevtools`.
  */
 export class I18nWithDevtools<D extends DefaultTranslationParams = {}> extends I18nBase<D> {
@@ -64,7 +64,7 @@ export class I18nWithDevtools<D extends DefaultTranslationParams = {}> extends I
 
   /**
    * Assign the instance id and expose on the discovery queue. Called by the
-   * root constructor and by `attachDevtools`; this class declares no
+   * composite's constructor and by `attachDevtools`; this class declares no
    * constructor of its own.
    */
   protected _initDevtools(instanceId?: string, exposeGlobal?: boolean): void {
@@ -138,7 +138,7 @@ export class I18nWithDevtools<D extends DefaultTranslationParams = {}> extends I
  * Prototype descriptors of the capability, minus `constructor` — installing
  * that would repoint `instance.constructor` at the capability class.
  *
- * @internal Shared by `attachDevtools` and the root install in `core/full.ts`.
+ * @internal Shared by `attachDevtools` and the composite install in `core/full.ts`.
  */
 const { constructor: _ctor, ...devtoolsApi } = Object.getOwnPropertyDescriptors(
   I18nWithDevtools.prototype,
@@ -146,20 +146,21 @@ const { constructor: _ctor, ...devtoolsApi } = Object.getOwnPropertyDescriptors(
 export { devtoolsApi };
 
 /**
- * Make a slim instance discoverable by browser devtools extensions.
+ * Make a base host discoverable by browser devtools extensions.
  *
  * ```ts
- * import { createI18n } from "@comvi/core/slim";
+ * import { createI18n } from "@comvi/core";
  * import { attachDevtools } from "@comvi/core/devtools";
  *
  * const i18n = attachDevtools(createI18n({ locale: "en" }));
  * i18n.instanceId; // "comvi-1"
  * ```
  *
- * `instanceId` / `exposeGlobal` are passed HERE, not to `createI18n`: a bare
- * slim instance has no discovery code to configure. The root `@comvi/core`
- * entry composes this capability in for you and keeps reading both options
- * off `I18nOptions`.
+ * `instanceId` / `exposeGlobal` are passed HERE, not to `createI18n`: the base
+ * host has no discovery code to configure, so those two constructor options are
+ * inert until this capability is composed on. The internal composite (the CDN
+ * global) and `@comvi/next`'s composed host install it in the constructor and
+ * therefore still read both options off `I18nOptions`.
  *
  * Idempotent (dot-access probe on an installed hook — never `in`, never a
  * string key: see the mangling contract above). The members land as

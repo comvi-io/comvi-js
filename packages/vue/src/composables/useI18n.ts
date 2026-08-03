@@ -1,7 +1,7 @@
 import { inject, type Ref, type ComputedRef } from "vue";
 import { I18N_INJECTION_KEY } from "../keys";
 import type { VueI18n } from "../VueI18n";
-import { createBoundTranslation, translationResultToString } from "@comvi/core/slim";
+import { createBoundTranslation, translationResultToString } from "@comvi/core";
 import type {
   TranslationParams,
   TranslationResult,

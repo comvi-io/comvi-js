@@ -1,7 +1,7 @@
 // Capability presence: the shared, loud boundary between a wrapper and the
 // host instance it was handed (framework-slim §2.4).
 //
-// A bare `@comvi/core/slim` instance is a `WrapperI18nHost` and nothing more:
+// A bare `@comvi/core` instance is a `WrapperI18nHost` and nothing more:
 // the loader and plugin-host APIs are absent from its module graph, not
 // merely disabled. Wrappers therefore verify capability presence ONCE, at the
 // acquisition call (`useI18nLoader()` / `useI18nPlugins()`), and throw the
@@ -15,7 +15,7 @@
 // mangled, which makes these guards mangling-immune by construction.
 //
 // This module is pure: nothing here runs at import time, so a wrapper that
-// imports only `subscribeToRevision` from `/slim` pays zero bytes for it.
+// imports only `subscribeToRevision` from the root pays zero bytes for it.
 import type {
   DefaultTranslationParams,
   I18nLoaderApi,
@@ -65,9 +65,9 @@ const PLUGIN_MEMBERS: readonly (keyof I18nPluginHostApi)[] = [
 export function missingCapability(name: CapabilityName): Error {
   return new Error(
     IS_DEV
-      ? `[comvi] This i18n instance has no ${name} capability. Attach it: import { attach${
+      ? `[comvi] This i18n instance has no ${name} capability. Compose it: .with(${name}()) from "@comvi/core/${name}", or the lower-level attach${
           name === "loader" ? "Loader" : "Plugins"
-        } } from "@comvi/core/${name}" — or use the root "@comvi/core" entry.`
+        }.`
       : `[comvi] missing ${name} capability — attach @comvi/core/${name}`,
   );
 }

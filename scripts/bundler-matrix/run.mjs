@@ -19,13 +19,16 @@ import { execFileSync, spawnSync } from "node:child_process";
  *    pnpm — deliberately outside the workspace), bundle each case with
  *    webpack AND vite under development AND production modes, run every
  *    bundle in plain node, and assert both tag-activation channels:
- *    ambient (root entry + /tags import side effect) and per-call
- *    (tagInterpolation.extensions). See app/src/*.mjs for the assertions.
+ *    ambient (a `@comvi/core/tags` import — the app's own, the one a wrapper
+ *    `<T>` module carries, or the non-exported CDN entry's; the base root
+ *    entry registers nothing) and per-call (tagInterpolation.extensions). See
+ *    app/src/*.mjs for the assertions.
  * 4. framework-slim P0.5: assert per case whether the tag-registration
  *    modules are in the bundler's MODULE GRAPH (webpack `--json` stats
  *    `modules[].identifier`; vite via the `bm-module-ids` config plugin) —
- *    module IDs, never output-text substrings. The `*-on-slim` cases that
- *    assert their absence are declared and skipped until their phase lands.
+ *    module IDs, never output-text substrings. Every DECLARED case runs: the
+ *    `*-on-slim` cases that assert that absence graduated with their phases,
+ *    and nothing is pending today (see `CASES`).
  *
  * Wrapper <T> rendering is NOT exercised (needs a DOM/renderer); wrapper
  * tarballs are still packed, installed, and bundled (app/src/wrappers.mjs).
@@ -36,8 +39,13 @@ const REPO_ROOT = path.resolve(SCRIPT_DIR, "..", "..");
 const APP_DIR = path.join(SCRIPT_DIR, "app");
 const OUT_DIR = path.join(APP_DIR, "out");
 
-/** `@comvi/core`'s side-effectful ROOT entry, as a module-ID fragment. */
-const ROOT_ENTRY = `@comvi${path.sep}core${path.sep}dist${path.sep}comvi-core.js`;
+// RE-DERIVED by the single-entry convergence (plan §5): there is no ROOT_ENTRY
+// constant any more. `comvi-core.js` used to be the batteries-included,
+// side-effectful root, so its ABSENCE was the proxy for "no full graph leaked".
+// It is the BASE host now — present in every comvi graph, side-effect-free, and
+// resolved per condition (`comvi-core.dev.js` under development) — so it cannot
+// carry that meaning. What still does: the tag-registration sentinels (derived
+// from the packed `sideEffects` array below) and `UNUSED_CAPABILITY_SUBPATHS`.
 
 /**
  * The three capability subpaths a single-package app does NOT use, as
@@ -60,9 +68,12 @@ const UNUSED_CAPABILITY_SUBPATHS = [
 /**
  * Matrix cases. `sentinels` says what the bundler's module graph must look
  * like for core's tag-registration chunks (the `sideEffects` set):
- *   "present" — the app opted into tags (root entry or an explicit /tags
- *               import), so the registration chunk must survive;
- *   "absent"  — the app is on bare slim without tags, so nothing may pull it.
+ *   "present" — the app opted into tags (an explicit `@comvi/core/tags` import,
+ *               or the non-exported CDN entry), so the registration chunk must
+ *               survive;
+ *   "absent"  — the app is on the base host without tags, so nothing may pull
+ *               it. Core's base entry itself is present either way and is
+ *               never what these assert.
  * A case may instead give `{ default, "<bundler>:<mode>": … }` when one
  * combination legitimately differs — see `next-client-slim`, the only such
  * case, for what earns that.
@@ -70,8 +81,8 @@ const UNUSED_CAPABILITY_SUBPATHS = [
  * in the graph (matched as substrings, so hashed chunk names are covered).
  * `packages` are the workspace tarballs the case needs, `deps` the framework
  * peer deps its bundle imports. Pending cases are declared but not run: they
- * assert an absence that today's wrappers cannot deliver (they value-import
- * the root entry), and the phase named in `pending` graduates them.
+ * assert an absence that the wrappers of the day could not deliver, and the
+ * phase named in `pending` graduates them. None are declared today.
  */
 const CASES = [
   { name: "ambient", sentinels: "present", packages: ["@comvi/core"] },
@@ -82,7 +93,14 @@ const CASES = [
     packages: ["@comvi/core", "@comvi/react", "@comvi/vue"],
     deps: ["react", "vue"],
   },
-  { name: "slim-composition", sentinels: "absent", packages: ["@comvi/core"] },
+  {
+    // The base host + `/loader` + `/plugins` composed through both call forms
+    // (`attach*` and the configured installers), resolved through the published
+    // exports map out of the packed tarball.
+    name: "base-composition",
+    sentinels: "absent",
+    packages: ["@comvi/core"],
+  },
   {
     name: "react-on-slim",
     sentinels: "absent",
@@ -108,16 +126,18 @@ const CASES = [
     // or the fallback `@comvi/vue/slim` subpath ships instead.
     name: "vue-on-slim",
     sentinels: "absent",
-    absentModules: [ROOT_ENTRY],
     packages: ["@comvi/core", "@comvi/vue"],
     deps: ["vue"],
   },
   {
-    // Plan P5 step 2: the companion-only server graph must drop every
-    // root-importing module. That holds in DEVELOPMENT too, where webpack
-    // keeps the sibling `./server` re-exports alive — which is the point:
-    // retargeting getI18n.ts to `@comvi/core/slim` removes the root entry at
-    // the source instead of relying on the bundler to prune it.
+    // Plan P5 step 2: the companion-only server graph must drop next's own
+    // composed-host module (`createNextI18n.js`, in `absentModules` below) and
+    // the unused capability subpaths. That holds in DEVELOPMENT too, where
+    // webpack keeps the sibling `./server` re-exports alive — which is the
+    // point: the server helpers name only base bindings from `@comvi/core`, so
+    // the composed builder is absent at the SOURCE instead of relying on the
+    // bundler to prune it. `@comvi/core` itself is present — it is the base
+    // host this fixture composes on.
     //
     // Retargeted by the DX pass to the SINGLE-PACKAGE recipe: the fixture now
     // builds its host from `createSlimI18n` + `attachLoader` re-exported by
@@ -126,7 +146,6 @@ const CASES = [
     name: "next-server-on-slim",
     sentinels: "absent",
     absentModules: [
-      ROOT_ENTRY,
       ...UNUSED_CAPABILITY_SUBPATHS,
       `@comvi${path.sep}next${path.sep}dist${path.sep}createNextI18n.js`,
     ],
@@ -151,7 +170,6 @@ const CASES = [
     name: "next-client-slim",
     sentinels: { default: "absent", "webpack:development": "present" },
     absentModules: [
-      ROOT_ENTRY,
       `@comvi${path.sep}core${path.sep}dist${path.sep}comvi-core-loader.js`,
       `comvi-core-importMapLoader-`,
       `@comvi${path.sep}next${path.sep}dist${path.sep}server${path.sep}`,
@@ -169,8 +187,9 @@ const CASES = [
   // subpaths so an app never has to reach past its framework package; each
   // app below uses exactly ONE of them (`attachLoader` + `flattenCatalog`,
   // which share a module), and `UNUSED_CAPABILITY_SUBPATHS` asserts the other
-  // three never enter the bundler's module graph. The root entry and the tag
-  // chunks are asserted absent as everywhere else.
+  // three never enter the bundler's module graph. The tag chunks are asserted
+  // absent as everywhere else; core's base entry is present, since the entry's
+  // `createI18n` re-export is what these apps construct with.
   //
   // Development matters as much as production here: webpack runs with
   // `optimization.usedExports` off, so a re-export it cannot resolve is a
@@ -180,42 +199,43 @@ const CASES = [
   {
     name: "react-slim-preset",
     sentinels: "absent",
-    absentModules: [ROOT_ENTRY, ...UNUSED_CAPABILITY_SUBPATHS],
+    absentModules: [...UNUSED_CAPABILITY_SUBPATHS],
     packages: ["@comvi/core", "@comvi/react"],
     deps: ["react"],
   },
   {
     name: "solid-slim-preset",
     sentinels: "absent",
-    absentModules: [ROOT_ENTRY, ...UNUSED_CAPABILITY_SUBPATHS],
+    absentModules: [...UNUSED_CAPABILITY_SUBPATHS],
     packages: ["@comvi/core", "@comvi/solid"],
     deps: ["solid-js"],
   },
   {
     name: "svelte-slim-preset",
     sentinels: "absent",
-    absentModules: [ROOT_ENTRY, ...UNUSED_CAPABILITY_SUBPATHS],
+    absentModules: [...UNUSED_CAPABILITY_SUBPATHS],
     packages: ["@comvi/core", "@comvi/svelte"],
     deps: ["svelte"],
   },
   {
     name: "vue-slim-preset",
     sentinels: "absent",
-    absentModules: [ROOT_ENTRY, ...UNUSED_CAPABILITY_SUBPATHS],
+    absentModules: [...UNUSED_CAPABILITY_SUBPATHS],
     packages: ["@comvi/core", "@comvi/vue"],
     deps: ["vue"],
   },
   {
-    // `@comvi/next/client` exports the ROOT `createI18n` and the slim
-    // `createSlimI18n` side by side; this app calls only the latter, and the
-    // root entry must still be absent everywhere. The tag exception is
+    // `@comvi/next/client` exports the published 0.4.x `createI18n` and
+    // `createSlimI18n` side by side; after the convergence both are the same
+    // base-host constructor from `@comvi/core`, so this app carries core's base
+    // entry whichever it calls, and what must stay absent is the unused
+    // capability subpaths and next's server modules. The tag exception is
     // inherited verbatim from `next-client-slim`: the entry re-exports `T`
     // from `@comvi/react`, a two-package chain webpack development cannot
     // reconnect.
     name: "next-client-slim-preset",
     sentinels: { default: "absent", "webpack:development": "present" },
     absentModules: [
-      ROOT_ENTRY,
       ...UNUSED_CAPABILITY_SUBPATHS,
       `@comvi${path.sep}next${path.sep}dist${path.sep}server${path.sep}`,
     ],
@@ -473,8 +493,9 @@ for (const bundler of BUNDLERS) {
       }
 
       // Case-specific absences (plan P5 step 2): module-ID fragments the
-      // graph must not contain at all — the root entry for a companion-only
-      // server app, the server host module and loader code for a client one.
+      // graph must not contain at all — next's own composed builder and the
+      // unused capability subpaths for a companion-only server app, the server
+      // host module and loader code for a client one.
       const leaked = (testCase.absentModules ?? []).flatMap((fragment) =>
         moduleIds.filter((id) => id.includes(fragment)),
       );

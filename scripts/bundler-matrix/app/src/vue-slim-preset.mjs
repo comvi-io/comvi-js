@@ -7,7 +7,9 @@
 // re-exports the whole capability toolkit from core's pure subpaths; this app
 // uses only the loader half. The runner asserts from the bundler's own module
 // graph that the icu, plugins and devtools subpaths never enter it — and, as
-// always, that neither the root entry nor core's tag-registration chunks do.
+// always, that core's tag-registration chunks do not. Core's base entry IS in
+// the graph — the entry's own constructor is what this app builds on — so it is
+// never what the assertion is about.
 //
 // fs-dx2 extends the case to the `.with(loader({…}))` form. Vue is the wrapper
 // whose preset is a real function (it has a `VueI18n` to construct), so the

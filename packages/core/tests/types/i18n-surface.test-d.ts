@@ -19,7 +19,9 @@ import type {
   TranslationValue,
 } from "@comvi/core";
 import { createI18n, I18n } from "@comvi/core";
-import type { LoaderImportMap } from "@comvi/core/loader";
+import { loader, type LoaderImportMap } from "@comvi/core/loader";
+import { icuCompiler } from "@comvi/core/icu";
+import { plugins } from "@comvi/core/plugins";
 
 type Equal<X, Y> =
   (<T>() => T extends X ? 1 : 2) extends <T>() => T extends Y ? 1 : 2 ? true : false;
@@ -92,17 +94,34 @@ export type _CoreHasNoCapabilities = Expect<
   Equal<Extract<keyof I18nCoreInstance, keyof I18nLoaderApi | keyof I18nPluginHostApi>, never>
 >;
 
-// Root-overload exactness: the wrappers derive public types from these
-// (`VueI18n.ts` uses `Parameters<I18n["use"]>[1]`), so interface-merge
-// resolution drifting here would slip past the wrapper zero-diff gate.
+// Composed-surface exactness: these are the shapes a framework binding sees
+// once the capabilities are composed on, so interface-merge resolution
+// drifting here would slip past the wrapper zero-diff gate. Since the
+// single-entry convergence they are derived from the COMPOSED host, because
+// the base root deliberately has neither member.
+type ComposedHost = I18nPluginHost & I18nLoaderApi & I18nCoreInstance;
 export type _RegisterLoaderArg = Expect<
-  Equal<Parameters<I18n["registerLoader"]>[0], LoaderFn | LoaderImportMap>
+  Equal<Parameters<ComposedHost["registerLoader"]>[0], LoaderFn>
 >;
-export type _UseOptionsArg = Expect<Equal<Parameters<I18n["use"]>[1], PluginOptions | undefined>>;
+export type _UseOptionsArg = Expect<
+  Equal<Parameters<ComposedHost["use"]>[1], PluginOptions | undefined>
+>;
+// The published import-map shape survives as `@comvi/next`'s composed host and
+// as the configured installer's argument (`next-contract.test-d.ts` pins the
+// two-overload form; here it is the installer's).
+export type _LoaderInstallerArg = Expect<
+  Equal<Parameters<typeof loader>[0], LoaderImportMap | undefined>
+>;
 
-// The root instance stays assignable to the exported instance interface.
-const rootInstance: I18nInstance = createI18n({ locale: "en" });
-void rootInstance;
+// The BASE root is assignable to the core surface, and to the full instance
+// interface only once both capabilities are composed on.
+const baseInstance: I18nCoreInstance = createI18n({ locale: "en" });
+void baseInstance;
+const composedInstance: I18nInstance = createI18n({ locale: "en" }).with(loader()).with(plugins());
+void composedInstance;
+// @ts-expect-error — the base root lacks the loader/plugin members
+const notAnInstance: I18nInstance = createI18n({ locale: "en" });
+void notAnInstance;
 
 // A fetch-loader-shaped plugin (the real `@comvi/plugin-fetch-loader` shape:
 // `setPluginData` + `registerLoader` through the host param) compiles against
@@ -154,3 +173,26 @@ void rootAsHost;
 
 // @ts-expect-error — the host type does not carry loader members
 rootAsHost.reloadTranslations();
+
+// ── the published one-argument facade (P0.4 candidate C4n, A11) ────────────
+//
+// The runtime binding IS the base class, whose constructor takes an internal
+// second `compiler` parameter. The published `I18n` is annotated with a
+// NARROWED construct signature, so that parameter is unreachable — and
+// unwritable — from the package surface. `compiler` is instead a documented
+// constructor OPTION on `I18nOptions`.
+const facadeInstance = new I18n({ locale: "en" });
+void facadeInstance;
+
+export type _FacadeTakesExactlyOneArgument = Expect<
+  Equal<ConstructorParameters<typeof I18n>["length"], 1>
+>;
+
+// @ts-expect-error — zero arguments: `options.locale` is required
+new I18n();
+// @ts-expect-error — the internal compiler parameter is not part of the surface
+new I18n({ locale: "en" }, icuCompiler);
+
+// The option form is how a caller chooses a compiler.
+const icuByOption: I18n = new I18n({ locale: "en", compiler: icuCompiler });
+void icuByOption;

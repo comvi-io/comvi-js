@@ -1,11 +1,15 @@
-// Root-free Next.js server factory (framework-slim plan P5 step 1).
+// The Next.js server factory that imports no core constructor of its own
+// (framework-slim plan P5 step 1).
 //
-// `createNextI18n` builds its own root `I18n` and is therefore permanently
-// bound to `@comvi/core`. This companion takes the host as a FACTORY instead,
-// so the only core entry in the graph is the one the app itself composed —
-// `@comvi/core/slim` + `@comvi/core/loader` for the documented SSR recipe.
-// It never imports `createI18n`, and it is exported ONLY from
-// `@comvi/next/server`, never from the root or client entry.
+// `createNextI18n` builds a `NextComposedI18n` through Next's own non-exported
+// composed-host builder (`createComposedNextI18n`), so it is permanently bound
+// to `@comvi/core` plus the capability subpaths that composition needs. This
+// companion takes the host as a FACTORY instead and preserves the caller's
+// exact `NextServerHost`, so the only core modules in the graph are the ones
+// the app itself composed — `@comvi/core` + `@comvi/core/loader` for the
+// documented SSR recipe. Nothing here imports `createI18n` or any other core
+// value, and it is exported ONLY from `@comvi/next/server`, never from the
+// root or client entry.
 import { resolveRouting } from "../nextI18nRouting";
 import type { NextRoutingOptions } from "../nextI18nRouting";
 import { getI18nInstance, registerServerI18nFactory } from "./cache";
@@ -28,8 +32,9 @@ export type CreateNextI18nFromHostOptions = NextRoutingOptions;
  * Exactly two fields. There are no `.use*` methods: plugin and loader
  * composition happen inside the host factory, at construction time. `C` is the
  * host type the caller supplied, preserved exactly — this deliberately does
- * NOT reuse `CreateNextI18nResult`, whose `i18n` is a concrete root `I18n<D>`
- * and whose `.use*` methods call an API a `NextServerHost` does not have.
+ * NOT reuse `CreateNextI18nResult`, whose `i18n` is the composed
+ * `NextComposedI18n<D>` and whose `.use*` methods call a plugin-host API a
+ * plain `NextServerHost` does not have.
  */
 export interface CreateNextI18nFromHostResult<
   D extends DefaultTranslationParams = {},
@@ -62,7 +67,7 @@ export interface CreateNextI18nFromHostResult<
  * ```typescript
  * // i18n/index.ts
  * import "server-only";
- * import { createI18n } from "@comvi/core/slim";
+ * import { createI18n } from "@comvi/core";
  * import { attachLoader } from "@comvi/core/loader";
  * import { createNextI18nFromHost } from "@comvi/next/server";
  *

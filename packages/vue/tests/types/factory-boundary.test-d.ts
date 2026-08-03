@@ -6,7 +6,7 @@
 // a capability-free `WrapperI18nHost`, so a capability call there is a compile
 // error rather than a typed-then-crashes path.
 import type { I18n, I18nLoaderApi, I18nPluginHostApi, WrapperI18nHost } from "@comvi/core";
-import { createI18n as createSlimI18n } from "@comvi/core/slim";
+import { createI18n as createSlimI18n } from "@comvi/core";
 import { attachLoader } from "@comvi/core/loader";
 import { attachPlugins } from "@comvi/core/plugins";
 import { inject } from "vue";
@@ -75,7 +75,11 @@ type _BareCoreIsExact = Expect<Equal<(typeof fromBare)["core"], typeof slimCore>
 // @ts-expect-error — bare slim has no loader capability, at any level
 fromBare.core.reloadTranslations();
 
-// The root factory keeps its 0.4.x shape and its full-capability core.
+// The `@comvi/vue` factory keeps its 0.4.x CALL shape, but its core is core's
+// own `I18n` — the BASE host since the single-entry convergence, so it carries
+// no loader and no plugin host. The `fromRoot.core.*` lines below still expect
+// the 0.4 capability surface and no longer type-check: a real surface break to
+// resolve in the vue phase, not something a comment can repair.
 const fromRoot = createI18n({ locale: "en" });
 type _RootCoreIsRoot = Expect<Equal<(typeof fromRoot)["core"], I18n<{}>>>;
 void fromRoot.core.registerLoader(() => Promise.resolve({}));

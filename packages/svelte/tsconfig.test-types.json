@@ -8,7 +8,6 @@
     "rootDir": "..",
     "paths": {
       "@comvi/core": ["../core/src/index.ts"],
-      "@comvi/core/slim": ["../core/src/slim.ts"],
       "@comvi/core/loader": ["../core/src/loader.ts"],
       "@comvi/core/plugins": ["../core/src/plugins.ts"],
       "@comvi/core/icu": ["../core/src/icu.ts"],

@@ -1,26 +1,25 @@
 /**
  * framework-slim DX pass — the `@comvi/next/client` SINGLE-PACKAGE surface.
  *
- * `@comvi/next/client` is not a `/slim` entry. It is next's only client
- * surface and its `createI18n` is the ROOT constructor published in 0.4.x;
- * swapping that binding for the slim one would silently drop ICU plurals and
- * tag syntax out from under an existing app. So the slim host is a second,
- * differently named export — `createSlimI18n` — and the capability toolkit
- * joins it so a next client app never names `@comvi/core` either.
+ * `@comvi/next/client` is next's only client surface. It published TWO
+ * constructors: `createI18n` (0.4's root) and `createSlimI18n` (the bare
+ * host). Since the single-entry convergence `@comvi/core` IS the bare host, so
+ * both names resolve to the same binding and `createSlimI18n` has become a
+ * duplicate — P4 deletes it and codemods the name away. The capability toolkit
+ * beside them stays, so a next client app never names `@comvi/core` either.
  *
- * The absence claims that need a real bundler — the ROOT entry the sibling
- * `createI18n` names staying out of a `createSlimI18n`-only graph, and the
- * three unused capability subpaths pruning in webpack AND vite, development
+ * The absence claims that need a real bundler — core's tag-registration pair
+ * and the unused capability subpaths pruning in webpack AND vite, development
  * AND production — live in scripts/bundler-matrix (case
  * `next-client-slim-preset`) and in the `fw-next-client-slim-preset` size
- * fixture. They cannot be made from source, where every module is loaded
- * eagerly.
+ * fixture. Core's base entry is not one of them: both constructor names
+ * resolve to it, so it is in the graph by construction. They cannot be made
+ * from source, where every module is loaded eagerly.
  */
 import { describe, it, expect } from "vitest";
 import { renderHook } from "@testing-library/react";
 import type { ReactNode } from "react";
-import { createI18n as createRootI18n } from "@comvi/core";
-import { createI18n as createCoreSlimI18n } from "@comvi/core/slim";
+import { createI18n as createCoreI18n } from "@comvi/core";
 import { attachDevtools, devtools } from "@comvi/core/devtools";
 import { icuCompiler } from "@comvi/core/icu";
 import { attachLoader, flattenCatalog, loader } from "@comvi/core/loader";
@@ -39,10 +38,13 @@ const wrapperFor = (i18n: WrapperI18nHost) =>
   };
 
 describe("@comvi/next/client — createSlimI18n", () => {
-  it("is core-slim's constructor, not the root one", () => {
-    expect(client.createSlimI18n).toBe(createCoreSlimI18n);
-    expect(client.createI18n).toBe(createRootI18n);
-    expect(client.createSlimI18n).not.toBe(client.createI18n);
+  it("is the converged base constructor, shared with the sibling createI18n", () => {
+    expect(client.createSlimI18n).toBe(createCoreI18n);
+    expect(client.createI18n).toBe(createCoreI18n);
+    // The two names are now the SAME binding: the single entry made the root
+    // the base host. P4 deletes `createSlimI18n` (never published) and the
+    // codemod renames it, so this equality is the transitional contract.
+    expect(client.createSlimI18n).toBe(client.createI18n);
   });
 
   it("builds a BARE client host that reads a hydrated catalog", () => {
@@ -106,7 +108,7 @@ describe("@comvi/next/server — the single-package server recipe", () => {
   it("re-exports the same bindings the client entry does", async () => {
     const server = await import("../src/server");
 
-    expect(server.createSlimI18n).toBe(createCoreSlimI18n);
+    expect(server.createSlimI18n).toBe(createCoreI18n);
     expect(server.attachLoader).toBe(attachLoader);
     expect(server.flattenCatalog).toBe(flattenCatalog);
     expect(server.attachPlugins).toBe(attachPlugins);
@@ -120,9 +122,12 @@ describe("@comvi/next/server — the single-package server recipe", () => {
   it("never re-exports the ROOT constructor — the server graph must not carry it", async () => {
     const server = await import("../src/server");
 
-    // `@comvi/next/client` deliberately keeps its published root `createI18n`;
-    // the server companion never had one and must not gain one, or the
-    // `next-server-on-slim` absence gate would be a lie waiting to happen.
+    // `@comvi/next/client` deliberately keeps its published `createI18n` name;
+    // the server companion never had one and must not gain one. Not a graph
+    // claim — `createSlimI18n` already names core's base constructor, so that
+    // entry is in the server graph either way. `registerTagSyntax` is the one
+    // that IS a graph claim: re-exporting it would name `@comvi/core/tags` and
+    // break the tag-registration sentinels `fw-next-server-slim-loader` pins.
     expect(server).not.toHaveProperty("createI18n");
     expect(server).not.toHaveProperty("registerTagSyntax");
   });

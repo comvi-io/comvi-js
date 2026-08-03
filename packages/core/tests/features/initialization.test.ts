@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { I18n } from "../../src";
+import { I18n } from "../helpers/composedHost";
 
 describe("Initialization & Configuration", () => {
   it("throws when locale is not provided", () => {

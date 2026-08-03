@@ -7,12 +7,13 @@
  * is already covered by tests/slim-host.test.ts and the js-contract suites;
  * this file pins the surface itself.
  *
- * The absence claims that need a real bundler — the root entry and the tag
- * chunks staying out of the graph, and the three unused capability subpaths
- * pruning in webpack AND vite, development AND production — live in
- * scripts/bundler-matrix (case `svelte-slim-preset`) and in the
- * `fw-svelte-slim-preset` size fixture. They cannot be made from source, where
- * every module is loaded eagerly.
+ * The absence claims that need a real bundler — the tag chunks staying out of
+ * the graph, and the three unused capability subpaths pruning in webpack AND
+ * vite, development AND production — live in scripts/bundler-matrix (case
+ * `svelte-slim-preset`) and in the `fw-svelte-slim-preset` size fixture. They
+ * cannot be made from source, where every module is loaded eagerly. The base
+ * `@comvi/core` root is NOT among those absences: `src/slim.ts` re-exports its
+ * `createI18n`, so it is in the graph by design.
  */
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { mount, unmount } from "svelte";
@@ -153,9 +154,11 @@ describe("@comvi/svelte/slim — the export surface", () => {
   });
 
   it("never re-exports the root class or the side-effectful tags toolbox", () => {
-    // `I18n` is the root entry's class; `registerTagSyntax` / `prepareTranslation`
-    // come from `@comvi/core/tags`, whose import registers tag syntax ambiently.
-    // Either one on this entry would put a side effect in every slim graph.
+    // `I18n` is core's base class, re-exported by `@comvi/svelte` and left off
+    // this entry on purpose: the slim surface publishes one construction
+    // export, `createI18n`. `registerTagSyntax` / `prepareTranslation` come
+    // from `@comvi/core/tags`, whose import registers tag syntax ambiently, so
+    // either of THOSE would put a side effect in every slim graph.
     expect(slim).not.toHaveProperty("I18n");
     expect(slim).not.toHaveProperty("registerTagSyntax");
     expect(slim).not.toHaveProperty("tagSyntaxExtension");

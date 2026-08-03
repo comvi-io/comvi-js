@@ -8,7 +8,7 @@
 // prod build family respectively (vitest.config.ts).
 import { describe, it, expect } from "vitest";
 import { renderHook } from "@testing-library/react";
-import { createI18n } from "@comvi/core/slim";
+import { createI18n } from "@comvi/core";
 import { attachLoader } from "@comvi/core/loader";
 import { attachPlugins } from "@comvi/core/plugins";
 import { I18nProvider } from "../../src/I18nProvider";

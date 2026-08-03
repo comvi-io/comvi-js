@@ -13,17 +13,17 @@ comvi: { locales: ["en", "de"], defaultLocale: "en", hostModule: "./comvi.host.t
 
 ```ts
 // comvi.host.ts — default-export a factory returning a FRESH host per call
-import { createI18n } from "@comvi/core/slim";
+import { createI18n } from "@comvi/core";
 import { attachLoader } from "@comvi/core/loader";
 
 export default () => attachLoader(createI18n({ locale: "en" }));
 ```
 
 The option is a module PATH, and the branch is taken at BUILD TIME: the module
-generates `#build/comvi.host`, which imports the root `@comvi/core` entry only
-when `hostModule` is unset. With it set, neither the runtime plugin nor the
-server utilities name a root entry at all — that is the whole saving, and a
-runtime `if` could not deliver it. Unset (the default) is unchanged.
+generates `#build/comvi.host`, which imports `@comvi/core` directly only when
+`hostModule` is unset. With it set, neither the runtime plugin nor the server
+utilities name a core entry at all — that is the whole saving, and a runtime
+`if` could not deliver it. Unset (the default) is unchanged.
 
 Notes: the server always loads translations, so a server-rendered app's host
 needs `attachLoader` (`NuxtServerHost = WrapperI18nHost & I18nLoaderApi`); the
@@ -45,7 +45,7 @@ capability proxies — move those calls to `i18n.core.*`:
 ```
 
 `NuxtI18nSetupContext<C>` / `NuxtI18nSetup<C>` are now generic in the host type
-and default to the root `I18n`, so a default-configuration app needs no
+and default to core's `I18n`, so a default-configuration app needs no
 annotation.
 
 **Migration**
@@ -95,3 +95,12 @@ construction branch):
 
 A nuxt server on a composed slim+loader host saves **2210 B min+gz (−18.0 %)**
 of comvi graph; the client graph is 3593 B smaller than the root server graph.
+
+> Rewritten in place at the single-entry convergence (same release): the separate
+> base-host subpath this changeset was written against no longer exists, and
+> `@comvi/core`'s root IS that base host — so every specifier above names the
+> root, and every "the root has it already" claim reads against the base host.
+> The 0.4 composed root survives only as a recipe (`.with(loader())`,
+> `.with(plugins())`, `.with(devtools())`, `compiler: icuCompiler` from
+> `@comvi/core/icu`, `import "@comvi/core/tags"`); see
+> `core-single-entry-convergence.md` for the break and the migration.

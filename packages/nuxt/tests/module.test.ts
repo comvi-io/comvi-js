@@ -275,7 +275,7 @@ describe("nuxt module setup", () => {
     expect(contents).not.toContain("createI18nFromCore");
   });
 
-  it("emits the composed-host branch and never the root entry when hostModule is set", async () => {
+  it("emits the composed-host branch and never imports @comvi/core itself when hostModule is set", async () => {
     const moduleDefinition = await importModule();
     const nuxt = createNuxtStub();
     nuxtKitMocks.findPath.mockImplementation(async (specifier: string) =>

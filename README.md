@@ -176,19 +176,23 @@ Reactive in every framework binding via `useI18n()`.
 
 ### Frameworks
 
-| Package                            | Description                                              | Docs                                     |
-| ---------------------------------- | -------------------------------------------------------- | ---------------------------------------- |
-| [`@comvi/core`](packages/core)     | Framework-agnostic runtime, ICU parser, plugin system    | [→](https://comvi.io/docs/i18n/vanilla/) |
-| [`@comvi/vue`](packages/vue)       | Vue 3 plugin, `useI18n()`, `<T>` component               | [→](https://comvi.io/docs/i18n/vue/)     |
-| [`@comvi/react`](packages/react)   | `<I18nProvider>`, `useI18n()` hook, `<T>` component      | [→](https://comvi.io/docs/i18n/react/)   |
-| [`@comvi/solid`](packages/solid)   | SolidJS provider + reactive signals + `<T>` component    | [→](https://comvi.io/docs/i18n/solid/)   |
-| [`@comvi/svelte`](packages/svelte) | Svelte stores + context (Svelte 5) + `<T>` component      | [→](https://comvi.io/docs/i18n/svelte/)  |
-| [`@comvi/next`](packages/next)     | Next.js App Router: SSR, middleware, locale routing      | [→](https://comvi.io/docs/i18n/next/)    |
-| [`@comvi/nuxt`](packages/nuxt)     | Nuxt 3 module: auto-imports, SSR, locale routing         | [→](https://comvi.io/docs/i18n/nuxt/)    |
+| Package                            | Description                                           | Docs                                     |
+| ---------------------------------- | ----------------------------------------------------- | ---------------------------------------- |
+| [`@comvi/core`](packages/core)     | Framework-agnostic runtime, ICU parser, plugin system | [→](https://comvi.io/docs/i18n/vanilla/) |
+| [`@comvi/vue`](packages/vue)       | Vue 3 plugin, `useI18n()`, `<T>` component            | [→](https://comvi.io/docs/i18n/vue/)     |
+| [`@comvi/react`](packages/react)   | `<I18nProvider>`, `useI18n()` hook, `<T>` component   | [→](https://comvi.io/docs/i18n/react/)   |
+| [`@comvi/solid`](packages/solid)   | SolidJS provider + reactive signals + `<T>` component | [→](https://comvi.io/docs/i18n/solid/)   |
+| [`@comvi/svelte`](packages/svelte) | Svelte stores + context (Svelte 5) + `<T>` component  | [→](https://comvi.io/docs/i18n/svelte/)  |
+| [`@comvi/next`](packages/next)     | Next.js App Router: SSR, middleware, locale routing   | [→](https://comvi.io/docs/i18n/next/)    |
+| [`@comvi/nuxt`](packages/nuxt)     | Nuxt 3 module: auto-imports, SSR, locale routing      | [→](https://comvi.io/docs/i18n/nuxt/)    |
 
-**Upgrading from 0.4.x?** Every binding now runs on a bare `@comvi/core/slim`
-host, which moved four loader/plugin members out of `useI18n()`. The migration
-is mechanical and mostly codemodded — see **[MIGRATION.md](MIGRATION.md)**.
+**Upgrading from 0.4.x?** Every package now has exactly ONE entry, and
+`@comvi/core` is the base host: ICU, async loading, the plugin host and
+extension discovery are imports you add, not an entry you switch. That is a
+deliberate breaking change on a 0.x minor — ICU syntax on the default compiler
+throws instead of rendering wrong text — and it also moved four loader/plugin
+members out of `useI18n()`. The migration is mechanical and mostly codemodded —
+see **[MIGRATION.md](MIGRATION.md)**.
 
 ### Plugins
 

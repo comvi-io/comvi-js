@@ -22,7 +22,6 @@ export default defineConfig({
     globals: {
       vue: "Vue",
       "@comvi/core": "ComviCore",
-      "@comvi/core/slim": "ComviCoreSlim",
     },
     chunkFileNames: "chunks/comvi-vue-[name].js",
     // `<T>` — and with it this package's only `@comvi/core/tags` import — is

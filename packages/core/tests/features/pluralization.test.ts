@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { I18n } from "../../src";
+import { I18n } from "../helpers/composedHost";
 
 describe("Advanced Pluralization Features", () => {
   let i18n: I18n;

@@ -1,5 +1,5 @@
 /**
- * framework-slim P3 — @comvi/svelte on a BARE `@comvi/core/slim` host.
+ * framework-slim P3 — @comvi/svelte on a BARE `@comvi/core` host.
  *
  * This is the D′ endpoint: the host implements `WrapperI18nHost` and nothing
  * more. Svelte is the wrapper where the pre-0.5.0 contract crashed EAGERLY —
@@ -15,7 +15,7 @@
  */
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { mount, tick, unmount } from "svelte";
-import { createI18n } from "@comvi/core/slim";
+import { createI18n } from "@comvi/core";
 import { attachLoader } from "@comvi/core/loader";
 import type { WrapperI18nHost } from "@comvi/core";
 import type { UseI18nReturn } from "../src/useI18n";

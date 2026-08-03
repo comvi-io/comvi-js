@@ -3,7 +3,7 @@
 // from `@comvi/vue/slim`; `@comvi/core` is never named.
 //
 // Measured against `fw-vue-slim`, which builds the same wrapper graph through
-// `createI18nFromCore` and a `@comvi/core/slim` constructor: the difference is
+// `createI18nFromCore` and a `@comvi/core` constructor: the difference is
 // the cost of the single-package surface plus vue's one-call preset glue (the
 // preset is a real function here — it has a `VueI18n` to construct — where
 // react/solid/svelte re-export core's constructor unchanged).

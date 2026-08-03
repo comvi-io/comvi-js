@@ -1,19 +1,30 @@
 import { describe, it, expect, vi } from "vitest";
-import { I18n } from "../../src";
-import { createI18n } from "../../src/slim";
+// The COMPOSITE host: since the single-entry convergence `../../src` is the
+// BASE host, and the batteries-included 0.4 semantics live on in the internal
+// composite `src/core/full.ts` (what the CDN global ships and `@comvi/next`'s
+// builder mirrors). Imported directly — never through the tags-registering
+// helper — so this file's ambient-extension assertions stay meaningful.
+//
+// NAMING: the `root` locals and the "ROOT instance/entry" wording in the cases
+// below all denote THAT internal composite — the surface core's root entry had
+// in 0.4 — never core's converged root, which is the base host `createI18n`
+// builds here.
+import { I18n } from "../../src/core/full";
+import { createI18n } from "../../src";
 import { attachLoader, createImportMapLoader, loader } from "../../src/loader";
 import { attachPlugins, plugins } from "../../src/plugins";
 import { attachDevtools, devtools } from "../../src/devtools";
+import { hasLoaderApi, hasPluginHostApi, missingCapability } from "../../src/utils/capability";
 
 /**
- * `@comvi/core/slim` + `@comvi/core/loader` + `@comvi/core/plugins`
+ * `@comvi/core` + `@comvi/core/loader` + `@comvi/core/plugins`
  * composition (Phase 7).
  *
- * The capabilities are absent from a bare slim instance by module graph;
- * `attachLoader` / `attachPlugins` install the same implementations the root
- * class carries on its prototype chain.
+ * The capabilities are absent from a bare base instance by module graph;
+ * `attachLoader` / `attachPlugins` install the same implementations the
+ * internal composite class carries on its prototype chain.
  */
-describe("slim + /loader composition", () => {
+describe("base + /loader composition", () => {
   it("has no loader capability before attaching", () => {
     const i18n = createI18n({ locale: "en", exposeGlobal: false });
 
@@ -125,10 +136,10 @@ describe("slim + /loader composition", () => {
 
   it("flattens options.translation too — the hook is a prototype member", () => {
     // `options.translation` is merged inside the constructor, so a hook that
-    // only existed after `_initLoader` would be too late. Root gets it via
-    // `extends`; a slim instance only after attaching, which is why this
-    // case is asserted through `attachLoader` + `addTranslations` above and
-    // through the ROOT entry here.
+    // only existed after `_initLoader` would be too late. The composite gets
+    // it via `extends`; a base instance only after attaching, which is why
+    // this case is asserted through `attachLoader` + `addTranslations` above
+    // and through the composite here.
     const root = new I18n({
       locale: "en",
       exposeGlobal: false,
@@ -139,7 +150,48 @@ describe("slim + /loader composition", () => {
   });
 });
 
-describe("slim + /plugins composition", () => {
+describe("the loader capability's argument contract", () => {
+  it("rejects a non-function loader with an ACTIONABLE message — never 'use the root'", () => {
+    // The base host has no `registerLoader` at all, so an error that told an
+    // import-map user to "use the root entry" would send them to a host without
+    // the method. The remedies it names must both exist on THIS host.
+    const i18n = attachLoader(createI18n({ locale: "en", exposeGlobal: false }));
+
+    let thrown: unknown;
+    try {
+      (i18n as unknown as { registerLoader: (value: unknown) => void }).registerLoader({
+        en: () => Promise.resolve({ default: {} }),
+      });
+    } catch (error) {
+      thrown = error;
+    }
+
+    const message = (thrown as Error).message;
+    expect(message).toContain("must be a loader function");
+    expect(message).toContain(".with(loader(map))");
+    expect(message).toContain("createImportMapLoader");
+    expect(message).not.toMatch(/use the root/i);
+  });
+
+  it("names the composition remedy in the missing-capability error, not the root", () => {
+    const bare = createI18n({ locale: "en", exposeGlobal: false });
+
+    const loaderError = missingCapability("loader").message;
+    expect(loaderError).toContain(".with(loader())");
+    expect(loaderError).toContain("@comvi/core/loader");
+    expect(loaderError).not.toMatch(/use the root/i);
+
+    const pluginsError = missingCapability("plugins").message;
+    expect(pluginsError).toContain(".with(plugins())");
+    expect(pluginsError).not.toMatch(/use the root/i);
+
+    // And the guard those errors serve still reports the bare host honestly.
+    expect(hasLoaderApi(bare)).toBe(false);
+    expect(hasPluginHostApi(bare)).toBe(false);
+  });
+});
+
+describe("base + /plugins composition", () => {
   const PLUGIN_API = [
     "use",
     "registerLocaleDetector",
@@ -256,9 +308,12 @@ describe("slim + /plugins composition", () => {
  * track missing keys through side effects) even when they are outranked.
  */
 describe.each([
-  ["root", () => new I18n({ locale: "en", exposeGlobal: false, onMissingKey: () => "option" })],
   [
-    "composed slim",
+    "composed host",
+    () => new I18n({ locale: "en", exposeGlobal: false, onMissingKey: () => "option" }),
+  ],
+  [
+    "composed base",
     () =>
       attachPlugins(
         createI18n({ locale: "en", exposeGlobal: false, onMissingKey: () => "option" }),
@@ -318,8 +373,8 @@ describe.each([
  */
 describe(".with(installer) — the composition pipe", () => {
   it.each([
-    ["slim", () => createI18n({ locale: "en", exposeGlobal: false })],
-    ["root", () => new I18n({ locale: "en", exposeGlobal: false })],
+    ["base", () => createI18n({ locale: "en", exposeGlobal: false })],
+    ["composed host", () => new I18n({ locale: "en", exposeGlobal: false })],
   ] as const)("is a non-enumerable prototype method (%s)", (_label, make) => {
     const i18n = make();
 

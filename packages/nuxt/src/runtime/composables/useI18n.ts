@@ -2,7 +2,7 @@ import { useNuxtApp, useRuntimeConfig } from "#app";
 import { useLocaleState } from "../utils/locale-state";
 import { type Ref, computed } from "vue";
 import type { TranslationParams, DefaultTranslationParams } from "@comvi/core";
-import { createBoundTranslation, translationResultToString } from "@comvi/core/slim";
+import { createBoundTranslation, translationResultToString } from "@comvi/core";
 import type { UseI18nReturn as VueUseI18nReturn } from "@comvi/vue";
 
 export interface UseI18nReturn<

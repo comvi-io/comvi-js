@@ -8,14 +8,18 @@ import { icuCompiler } from "./translate/compile-icu";
 
 /**
  * Full-featured `I18n` with the ICU message compiler wired in — the class
- * the root entry exports. Kept as a subclass (instead of a factory closure)
+ * the CDN global publishes and `@comvi/next`'s builder mirrors. Kept as a
+ * subclass (instead of a factory closure)
  * so `new I18n(options)` keeps its 0.4.0 single-argument signature.
  *
  * Every capability the `@comvi/core/loader`, `@comvi/core/plugins` and
- * `@comvi/core/devtools` subpaths attach to a slim instance is inherited
- * here from the same implementation, so the root surface is unchanged from
- * 0.4.0. The loader arrives through `extends`; the plugin host — which must
- * NOT extend the loader capability, or a slim+plugins-only graph would drag
+ * `@comvi/core/devtools` subpaths attach to a base host is inherited
+ * here from the same implementation, so this composed surface is unchanged
+ * from 0.4.0 — which is the point: it is the compatibility host, NOT the ESM
+ * root (that is the base host in `src/index.ts`).
+ *
+ * The loader arrives through `extends`; the plugin host — which must
+ * NOT extend the loader capability, or a base+plugins-only graph would drag
  * the loader in — and the discovery capability arrive as prototype
  * descriptors installed just below.
  */
@@ -39,7 +43,7 @@ export class I18n<D extends DefaultTranslationParams = {}> extends I18nWithLoade
     const self = this as unknown as I18nInternal;
     self._initPlugins!();
     // LAST, deliberately: discovery is the only capability that assigns a
-    // PUBLIC field (`instanceId`), and the root reflective contract pins it
+    // PUBLIC field (`instanceId`), and the composed reflective contract pins it
     // as the final public own property in assignment order.
     self._initDevtools!(options.instanceId, options.exposeGlobal);
   }
@@ -73,14 +77,15 @@ export class I18n<D extends DefaultTranslationParams = {}> extends I18nWithLoade
 // Second and third capabilities, same implementations, prototype-level
 // install: the keys are the already-mangled runtime names, so this is
 // mangling-safe by construction (plan R2) and the members stay
-// non-enumerable prototype members — the root reflective contract (A11) is
+// non-enumerable prototype members — the composed reflective contract (A11) is
 // unchanged.
 Object.defineProperties(I18n.prototype, pluginApi);
 Object.defineProperties(I18n.prototype, devtoolsApi);
 
 /**
- * Create an i18n instance (full entry: ICU plurals/selects + tag syntax
- * registered by the root module).
+ * Create a fully composed instance: ICU plurals/selects, the loader, the
+ * plugin host and discovery. Tag syntax is registered by whichever entry pulls
+ * this in (`src/umd.ts` does; the ESM root does not).
  */
 export function createI18n<const D extends DefaultTranslationParams = {}>(
   options: I18nOptions<D>,

@@ -21,7 +21,6 @@ export default defineConfig({
       "solid-js/web": "SolidJSWeb",
       "solid-js/store": "SolidJSStore",
       "@comvi/core": "ComviCore",
-      "@comvi/core/slim": "ComviCoreSlim",
     },
     chunkFileNames: "chunks/comvi-solid-[name].js",
     // `<T>` — and with it this package's only `@comvi/core/tags` import — is

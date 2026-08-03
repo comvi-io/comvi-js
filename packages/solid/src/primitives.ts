@@ -1,5 +1,5 @@
 import { from, type Accessor } from "solid-js";
-import { subscribeToRevision } from "@comvi/core/slim";
+import { subscribeToRevision } from "@comvi/core";
 import type { WrapperI18nHost } from "@comvi/core";
 
 // CSR-only: provider auto-init does not run during SSR. Producers call set() synchronously so the first read is always defined.

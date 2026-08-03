@@ -3,7 +3,7 @@
 // from `@comvi/svelte/slim`; `@comvi/core` is never named.
 //
 // Measured against `fw-svelte-slim`, which builds the identical graph but
-// imports the constructor from `@comvi/core/slim` directly: the difference is
+// imports the constructor from `@comvi/core` directly: the difference is
 // the cost of the single-package surface and nothing else.
 //
 // The four capability re-exports this entry carries (icuCompiler,

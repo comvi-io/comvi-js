@@ -1,11 +1,5 @@
-import { createI18n } from "@comvi/core";
-import type {
-  I18nOptions,
-  I18n,
-  I18nPlugin,
-  PluginOptions,
-  DefaultTranslationParams,
-} from "@comvi/core";
+import { createComposedNextI18n, type NextComposedI18n } from "./composedHost";
+import type { I18nOptions, I18nPlugin, PluginOptions, DefaultTranslationParams } from "@comvi/core";
 import { resolveRouting } from "./nextI18nRouting";
 import type { NextRoutingOptions } from "./nextI18nRouting";
 import type { RoutingConfig } from "./routing/types";
@@ -177,9 +171,16 @@ export type CreateNextI18nOptions<D extends DefaultTranslationParams = {}> =
  */
 export interface CreateNextI18nResult<D extends DefaultTranslationParams = {}> {
   /**
-   * The i18n instance (use with I18nProvider and setI18n)
+   * The i18n instance (use with I18nProvider and setI18n).
+   *
+   * Composed by the non-exported builder `createComposedNextI18n`
+   * (`./composedHost`): the base host plus ICU, ambient tags, the loader
+   * capability (both `registerLoader` overloads), the plugin host and devtools
+   * discovery. That builder is where the published 0.4 root semantics are
+   * preserved verbatim — the `createNextI18n` exception — never on core's
+   * converged root, which stays the base host.
    */
-  i18n: I18n<D>;
+  i18n: NextComposedI18n<D>;
 
   /**
    * Routing configuration (use with middleware and navigation)
@@ -336,8 +337,10 @@ export function createNextI18n<const D extends DefaultTranslationParams = {}>(
   // This works in Next.js because bundler replaces process.env.NODE_ENV at build time
   const devMode = devModeOption ?? process.env.NODE_ENV === "development";
 
-  // Create i18n instance
-  const i18n = createI18n<D>({
+  // Build the host through Next's own non-exported composed-host builder, so
+  // the published `i18n` is a `NextComposedI18n`, never core's base root
+  // instance.
+  const i18n = createComposedNextI18n<D>({
     locale: defaultLocale,
     fallbackLocale,
     defaultNs,

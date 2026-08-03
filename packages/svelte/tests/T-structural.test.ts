@@ -17,7 +17,7 @@ import { readFileSync } from "node:fs";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { mount, unmount } from "svelte";
 import { createI18n } from "@comvi/core";
-import { createI18n as createSlimI18n } from "@comvi/core/slim";
+import { createI18n as createSlimI18n } from "@comvi/core";
 import TInterpolationWrapper from "./TInterpolationWrapper.test.svelte";
 import TFallbackWrapper from "./TFallback.test.svelte";
 import StructuralBadge from "./StructuralBadge.test.svelte";
@@ -184,7 +184,7 @@ describe("T.svelte structural render", () => {
     }
   });
 
-  // framework-slim P3: the same table on a BARE @comvi/core/slim host. <T>
+  // framework-slim P3: the same table on a BARE @comvi/core host. <T>
   // does not depend on ambient tag registration — prepareTranslation passes
   // the tag extension per call (T.svelte:2-5) — so every row must produce
   // byte-identical text on a host that has no tag syntax of its own.

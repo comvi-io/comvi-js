@@ -1,5 +1,5 @@
 // framework-slim gate (plan P5 step 2, advisory refinement): the Next.js
-// CLIENT recipe — a bare `@comvi/core/slim` host hydrated from the catalog the
+// CLIENT recipe — a bare `@comvi/core` host hydrated from the catalog the
 // server serialized, on react's D′ surface re-exported by `@comvi/next/client`.
 //
 // The runner asserts from the bundler's module graph that this bundle contains
@@ -11,7 +11,7 @@
 // keeps core's tag registration alive (see the case's note in run.mjs). The
 // tag-free claim for a next client app is made by `fw-next-client-slim` in
 // scripts/size-budgets.json and by `react-on-slim` here.
-import { createI18n } from "@comvi/core/slim";
+import { createI18n } from "@comvi/core";
 import { I18nProvider, useI18n, useI18nLoader, useI18nPlugins } from "@comvi/next/client";
 
 function assert(condition, label) {

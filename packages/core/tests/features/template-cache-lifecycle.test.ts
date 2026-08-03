@@ -1,11 +1,13 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { createI18n } from "../../src";
+import { createI18n } from "../helpers/composedHost";
 import { clearTemplateCache, isStaticTemplate, _templateCacheSize } from "../../src/core/translate";
 import { parsePluralChoices, icuCompiler } from "../../src/core/translate/compile-icu";
 import { effectiveExtBits, getCompilerId } from "../../src/core/translate/syntax";
 
-// The root entry registers tag syntax ambiently and wires the ICU compiler,
-// so the cache variant used by root instances is (icu, ambient bits).
+// The composed-host helper (the 0.4 root's semantics, which the converged base
+// root no longer carries) registers tag syntax ambiently and wires the ICU
+// compiler, so the cache variant used by its instances — `rootVariant` below,
+// named for that historical root — is (icu, ambient bits).
 const rootVariant = () => [getCompilerId(icuCompiler), effectiveExtBits()] as const;
 
 // Reset the module-level template cache before each test so tests are isolated.

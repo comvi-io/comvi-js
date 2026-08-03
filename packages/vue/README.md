@@ -111,7 +111,7 @@ On a host that lacks the capability the acquisition call throws — in
 development **and** production, never a silent no-op:
 
 ```
-[comvi] This i18n instance has no loader capability. Attach it: import { attachLoader } from "@comvi/core/loader" — or use the root "@comvi/core" entry.
+[comvi] This i18n instance has no loader capability. Compose it: .with(loader()) from "@comvi/core/loader", or the lower-level attachLoader.
 ```
 
 **`VueI18n` dropped its eight instance proxies.** `addActiveNamespace`,
@@ -138,26 +138,31 @@ type is textually undecidable), or the
 
 ## Supported hosts and what they cost
 
-`createI18n(options)` is unchanged and still the default — it builds the root
-core internally. `createI18nFromCore(core, options?)` wraps a host you composed
-yourself, preserving its exact type as `i18n.core`.
+`createI18n(options)` keeps its 0.4 signature and still builds the host for you
+— a `@comvi/core` base host, so ICU and tag syntax are things you compose now
+rather than things it inherits. `createI18nFromCore(core, options?)` wraps a
+host you composed yourself, preserving its exact type as `i18n.core`.
 
 **For a slim build, import from `@comvi/vue/slim`.** The main entry
-tree-shakes the root graph out of a `createI18nFromCore`-only app under esbuild,
-vite (development and production) and webpack production — but not under
-webpack _development_: `@comvi/vue`'s index carries `export * from "@comvi/core"`,
-and webpack cannot prune a star re-export with `usedExports` off, so the root
-entry survives and runs core's ambient `registerTagSyntax()` — which makes
-`t("a <b>x</b>")` render differently in dev than in prod. `@comvi/vue/slim`
-ships the same classes, composables, `<T>` and injection key without the
-root-bound `createI18n` and without the core re-export.
+tree-shakes core out of a `createI18nFromCore`-only app under esbuild, vite
+(development and production) and webpack production — but not under webpack
+_development_: `@comvi/vue`'s index carries `export * from "@comvi/core"`, and
+webpack cannot prune a star re-export with `usedExports` off, so the whole core
+entry stays in the bundle beside vue's own `createI18n` module. `@comvi/vue/slim`
+ships the same classes, composables, `<T>` and injection key with no `export *`
+at all, and its one-call `createI18n` sits in a construction module of its own,
+so a development bundle keeps only the bindings the app names. Core's base
+module is not what the subpath drops — `createI18n` and `createCore` both
+resolve to it, so it is in every graph that builds a host; what the subpath
+drops is the broad `I18n`/star re-export surface, `@comvi/core/tags`, and any
+capability subpath the app never calls.
 
 Vue is the one binding whose preset is a real function — there is a `VueI18n`
 to construct — so `@comvi/vue/slim` gives you both halves, and neither names
 `@comvi/core`:
 
 ```ts
-// one call: a VueI18n over a bare @comvi/core/slim host
+// one call: a VueI18n over a bare @comvi/core host
 import { createI18n } from "@comvi/vue/slim";
 
 const i18n = createI18n({ locale: "en", translation: { en: { hello: "Hello" } } });
@@ -183,32 +188,33 @@ Whole-app comvi graph, min+gz, `vue` externalized
 
 | host                                       | no `<T>` | with `<T>` |
 | ------------------------------------------ | -------- | ---------- |
-| `@comvi/core` (root, via `createI18n`)     | 10363    | 11377      |
-| bare slim, one call (`@comvi/vue/slim`)    | **6880** | —          |
-| bare slim, injected (`createI18nFromCore`) | **6875** | 8847       |
+| 0.4 composed root (via `createI18n`)       | 10363    | 11377      |
+| base host, one call (`@comvi/vue/slim`)    | **6880** | —          |
+| base host, injected (`createI18nFromCore`) | **6875** | 8847       |
 
-Moving to a bare slim host saves **3483 B (−33.6%)**; the one-call preset costs
-5 B over hand-composing, which is the whole `VueI18n` construction path. The
-root row also dropped 1576 B in 0.5.0 with no app change: `@comvi/vue` no longer
-inlines copies of core's tag + translate chunks into its own bundle, and `<T>`
-moved into its own dist chunk, so an app that never renders it ships neither;
-core's own size work in the same release accounts for the last 181 B.
+Moving off the 0.4 composed root onto a base host saves **3483 B (−33.6%)**; the
+one-call preset costs 5 B over hand-composing, which is the whole `VueI18n`
+construction path. The composed-root row also dropped 1576 B in 0.5.0 with no
+app change: `@comvi/vue` no longer inlines copies of core's tag + translate
+chunks into its own bundle, and `<T>` moved into its own dist chunk, so an app
+that never renders it ships neither; core's own size work in the same release
+accounts for the last 181 B.
 
 ## One package: `@comvi/vue/slim`
 
 Alongside the two constructors, `@comvi/vue/slim` re-exports the capability
 toolkit, so a slim vue app names one package:
 
-| export                                          | what it is                                              |
-| ----------------------------------------------- | ------------------------------------------------------- |
-| `createI18n`                                    | one-call preset — `VueI18n` over a slim core            |
-| `createCore`                                    | `@comvi/core/slim`'s constructor, for the composed path |
-| `createI18nFromCore`                            | wraps a host you built, preserving its exact type       |
-| `icuCompiler`                                   | from `@comvi/core/icu` — `createI18n({ compiler })`     |
-| `loader`, `attachLoader`, `flattenCatalog`      | from `@comvi/core/loader`                               |
-| `plugins`, `attachPlugins`                      | from `@comvi/core/plugins`                              |
-| `devtools`, `attachDevtools`                    | from `@comvi/core/devtools`                             |
-| `VueI18n`, the composables, `T`, the inject key | identical to `@comvi/vue`                               |
+| export                                          | what it is                                          |
+| ----------------------------------------------- | --------------------------------------------------- |
+| `createI18n`                                    | one-call preset — `VueI18n` over a slim core        |
+| `createCore`                                    | `@comvi/core`'s constructor, for the composed path  |
+| `createI18nFromCore`                            | wraps a host you built, preserving its exact type   |
+| `icuCompiler`                                   | from `@comvi/core/icu` — `createI18n({ compiler })` |
+| `loader`, `attachLoader`, `flattenCatalog`      | from `@comvi/core/loader`                           |
+| `plugins`, `attachPlugins`                      | from `@comvi/core/plugins`                          |
+| `devtools`, `attachDevtools`                    | from `@comvi/core/devtools`                         |
+| `VueI18n`, the composables, `T`, the inject key | identical to `@comvi/vue`                           |
 
 These are **named** re-exports of core's own bindings, so the ones you do not
 call are pruned — the bundler-matrix case `vue-slim-preset` asserts the icu,

@@ -14,7 +14,7 @@
 import { describe, it, expect } from "vitest";
 import { mount } from "@vue/test-utils";
 import { h, defineComponent } from "vue";
-import { createI18n as createSlimI18n } from "@comvi/core/slim";
+import { createI18n as createSlimI18n } from "@comvi/core";
 import { createI18n } from "../src/createI18n";
 import { createI18nFromCore } from "../src/createI18nFromCore";
 import type { AnyVueI18n } from "../src/VueI18n";
@@ -155,7 +155,7 @@ describe("<T /> structural render (wrapper parity)", () => {
     }
   });
 
-  // framework-slim P4: the same table on a BARE @comvi/core/slim host. <T>
+  // framework-slim P4: the same table on a BARE @comvi/core host. <T>
   // does not depend on ambient tag registration — prepareTranslation passes
   // the tag extension per call (components/T.ts:10-17) — so every row must
   // produce byte-identical text on a host that has no tag syntax of its own.

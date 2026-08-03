@@ -6,7 +6,7 @@ import {
   formatRelativeTime,
   getTextDirection,
   translationResultToString,
-} from "@comvi/core/slim";
+} from "@comvi/core";
 import { useI18nContextValue } from "./context";
 import type {
   WrapperI18nHost,
@@ -24,7 +24,7 @@ import type {
 
 /**
  * Host type every solid binding demands (framework-slim D′): the reactive
- * translation host, exactly what a bare `@comvi/core/slim` instance
+ * translation host, exactly what a bare `@comvi/core` instance
  * implements. The loader/plugin-host members are deliberately NOT part of it —
  * they are acquired through `useI18nLoader()` / `useI18nPlugins()`.
  */

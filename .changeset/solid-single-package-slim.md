@@ -2,7 +2,7 @@
 "@comvi/solid": minor
 ---
 
-**Added: `@comvi/solid/slim` — the single-package slim surface.** Building a slim app used to take two packages: the host constructor from `@comvi/core/slim`, the bindings from `@comvi/solid`. This entry carries both, so an app names one package and nothing else.
+**Added: `@comvi/solid/slim` — the single-package slim surface.** Building a slim app used to take two packages: the host constructor from `@comvi/core`, the bindings from `@comvi/solid`. This entry carries both, so an app names one package and nothing else.
 
 ```ts
 import { createI18n, icuCompiler, loader } from "@comvi/solid/slim";
@@ -14,16 +14,16 @@ const i18n = createI18n({ locale: "en", compiler: icuCompiler }).with(
 
 ### What is on it
 
-| export                                     | what it is                                                  |
-| ------------------------------------------ | ----------------------------------------------------------- |
-| `createI18n`                               | `@comvi/core/slim`'s constructor — builds the host          |
-| `icuCompiler`                              | from `@comvi/core/icu` — pass as `createI18n({ compiler })` |
-| `loader`, `attachLoader`, `flattenCatalog` | from `@comvi/core/loader`                                   |
-| `plugins`, `attachPlugins`                 | from `@comvi/core/plugins`                                  |
-| `devtools`, `attachDevtools`               | from `@comvi/core/devtools`                                 |
-| every binding                              | identical to `@comvi/solid`, minus the root re-exports      |
+| export                                     | what it is                                                    |
+| ------------------------------------------ | ------------------------------------------------------------- |
+| `createI18n`                               | `@comvi/core`'s constructor — builds the host                 |
+| `icuCompiler`                              | from `@comvi/core/icu` — pass as `createI18n({ compiler })`   |
+| `loader`, `attachLoader`, `flattenCatalog` | from `@comvi/core/loader`                                     |
+| `plugins`, `attachPlugins`                 | from `@comvi/core/plugins`                                    |
+| `devtools`, `attachDevtools`               | from `@comvi/core/devtools`                                   |
+| every binding                              | identical to `@comvi/solid`, minus its `I18n` class re-export |
 
-There is no solid-side wrapper object to build — the host goes straight into `<I18nProvider i18n={…}>` — so the preset IS core-slim's `createI18n`, re-exported. Attaching a capability is not configuring it: `attachLoader(host)` installs the API, `host.registerLoader(fn)` still gives it something to load.
+There is no solid-side wrapper object to build — the host goes straight into `<I18nProvider i18n={…}>` — so the preset IS core's own `createI18n`, re-exported. Attaching a capability is not configuring it: `attachLoader(host)` installs the API, `host.registerLoader(fn)` still gives it something to load.
 
 ### Composing a capability: `.with(installer)`
 
@@ -52,3 +52,12 @@ Whole-app comvi graph, min+gz, framework peer dependency externalized (`node scr
 `@comvi/solid` and `@comvi/solid/slim` are separate build passes, so their solid contexts are distinct objects — one from each will not see the other. `/slim` is a superset of the bindings, so there is never a reason to mix.
 
 Nothing is removed and no existing import path changes. See the [0.5.0 migration guide](https://github.com/comvi-io/comvi-js/blob/main/MIGRATION.md) §4.
+
+> Rewritten in place at the single-entry convergence (same release): the separate
+> base-host subpath this changeset was written against no longer exists, and
+> `@comvi/core`'s root IS that base host — so every specifier above names the
+> root, and every "the root has it already" claim reads against the base host.
+> The 0.4 composed root survives only as a recipe (`.with(loader())`,
+> `.with(plugins())`, `.with(devtools())`, `compiler: icuCompiler` from
+> `@comvi/core/icu`, `import "@comvi/core/tags"`); see
+> `core-single-entry-convergence.md` for the break and the migration.

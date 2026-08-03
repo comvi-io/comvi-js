@@ -1,12 +1,14 @@
-// Type-level smoke test: the /slim, /icu, /tags, /devtools and
-// /editor-bridge subpaths resolve and expose the contracted surface.
+// Type-level smoke test: the root, /icu, /tags, /loader, /plugins, /devtools
+// and /editor-bridge entries resolve and expose the contracted surface.
+// The root is the BASE host, so every capability assertion below is about a
+// capability being ABSENT until it is composed in.
 // (Published-artifact resolution under moduleResolution bundler/node16 is
 // exercised by attw/publint and the bundler-matrix job against dist.)
 import {
-  createI18n as createSlimI18n,
+  createI18n as createBaseI18n,
   subscribeToRevision,
   REVISION_EVENTS,
-  isVirtualNode as slimIsVirtualNode,
+  isVirtualNode as baseIsVirtualNode,
   missingCapability,
   hasLoaderApi,
   hasPluginHostApi,
@@ -14,7 +16,7 @@ import {
   type RevisionEventSource,
   type CapabilityName,
   type WrapperI18nHost,
-} from "@comvi/core/slim";
+} from "@comvi/core";
 import {
   attachLoader,
   createImportMapLoader,
@@ -49,12 +51,12 @@ import {
 } from "@comvi/core/editor-bridge";
 import { createI18n } from "@comvi/core";
 
-// slim: plain options, missingParam option, and compiler injection all type.
-const slim = createSlimI18n({ locale: "en" });
+// base: plain options, missingParam option, and compiler injection all type.
+const slim = createBaseI18n({ locale: "en" });
 // (TranslationKeys is augmented by default-params.test-d.ts in this program.)
 slim.t("count", { count: 1 });
-createSlimI18n({ locale: "en", missingParam: "drop" });
-createSlimI18n({ locale: "en", compiler: icuCompiler });
+createBaseI18n({ locale: "en", missingParam: "drop" });
+createBaseI18n({ locale: "en", compiler: icuCompiler });
 
 // icu: the compiler satisfies the (internal, subpath-exported) contract type.
 const compiler: MessageCompiler = icuCompiler;
@@ -112,7 +114,7 @@ slim.addActiveNamespaces(["common"]);
 slim.onLoadError(() => {});
 
 // attachLoader returns the instance widened with the loader API.
-const withLoader = attachLoader(createSlimI18n({ locale: "en" }));
+const withLoader = attachLoader(createBaseI18n({ locale: "en" }));
 const loaderFn: LoaderFn = async () => ({ hello: "world" });
 withLoader.registerLoader(loaderFn);
 const registered: LoaderFn | undefined = withLoader.getLoader();
@@ -130,8 +132,14 @@ const mapLoader: LoaderFn = createImportMapLoader(
 );
 withLoader.registerLoader(mapLoader);
 
-// The root entry keeps accepting an import map directly.
-createI18n({ locale: "en" }).registerLoader({ en: async () => ({ hello: "world" }) });
+// The import-map form is the CONFIGURED installer's job now: the base root
+// has no `registerLoader` at all, and the loader capability's own signature
+// takes a `LoaderFn`. `@comvi/next`'s composed host restores the published
+// two-overload shape (pinned by `next-contract.test-d.ts`).
+const mapConfigured = createBaseI18n({ locale: "en" }).with(
+  loader({ en: async () => ({ hello: "world" }) }),
+);
+void mapConfigured.getLoader();
 
 // ── /plugins: the plugin-host surface (Phase 7) ───────────────────────────
 
@@ -145,7 +153,7 @@ slim.setPluginData("k", 1);
 
 // The attach chain composes: loader first, then the plugin host that may run
 // loader-registering plugins (README ordering warning / R8).
-const composed = attachPlugins(attachLoader(createSlimI18n({ locale: "en" })));
+const composed = attachPlugins(attachLoader(createBaseI18n({ locale: "en" })));
 composed.registerLoader(loaderFn);
 composed.use(() => {});
 composed.registerLocaleDetector(() => "fr");
@@ -167,13 +175,15 @@ const fetchLoaderShaped: I18nPlugin = (i18n) => {
   i18n.registerLoader(async () => ({ hello: "world" }));
 };
 composed.use(fetchLoaderShaped);
-createI18n({ locale: "en" }).use(fetchLoaderShaped);
+// @ts-expect-error — the base root is not a plugin host until `.with(plugins())`
+createBaseI18n({ locale: "en" }).use(fetchLoaderShaped);
 
-// ── /slim: the framework-slim P1 wrapper enablers ─────────────────────────
+// ── root: the framework-slim P1 wrapper enablers ──────────────────────────
 //
-// Every value a wrapper runtime module needs today resolves through /slim, so
-// no wrapper has to pin the root entry (and, with it, the ambient
-// `register-tags` side effect) just to reach a helper.
+// Every value a wrapper runtime module needs resolves through the single root
+// entry, which is side-effect-free (the ambient `register-tags` registration
+// lives in `@comvi/core/tags`) — so reaching for a helper costs a wrapper
+// nothing beyond the helper.
 const disposeRevision: () => void = subscribeToRevision(slim, (event) => {
   event satisfies RevisionEvent;
 });
@@ -183,7 +193,7 @@ const source: RevisionEventSource = slim;
 void source;
 
 const maybeNode: unknown = { type: "text", text: "hi" };
-if (slimIsVirtualNode(maybeNode)) {
+if (baseIsVirtualNode(maybeNode)) {
   maybeNode.type satisfies "element" | "text" | "fragment";
 }
 
@@ -222,7 +232,7 @@ void bareId;
 const withDevtools: typeof slim = attachDevtools(slim);
 const attachedId: string | undefined = withDevtools.instanceId;
 void attachedId;
-attachDevtools(createSlimI18n({ locale: "en" }), { instanceId: "app", exposeGlobal: false });
+attachDevtools(createBaseI18n({ locale: "en" }), { instanceId: "app", exposeGlobal: false });
 const devtoolsOptions: DevtoolsOptions = { exposeGlobal: true };
 void devtoolsOptions;
 
@@ -236,7 +246,7 @@ void (queue satisfies ComviQueueEntry[] | ComviHook);
 
 // ── flattenCatalog: the bare-host escape hatch for nested catalogs (C6) ───
 const flat: Record<string, string> = flattenCatalog({ nav: { home: "Home" } });
-createSlimI18n({ locale: "en" }).addTranslations({ en: flat });
+createBaseI18n({ locale: "en" }).addTranslations({ en: flat });
 
 // ── `.with(…)`: the composition pipe + configured installers (fs-dx2) ─────
 //
@@ -245,7 +255,7 @@ createSlimI18n({ locale: "en" }).addTranslations({ en: flat });
 // must flow THROUGH the pipe and come out widened, never decayed to `any`.
 
 // The target DX, verbatim: one expression, capability configured in place.
-const piped = createSlimI18n({ locale: "en", compiler: icuCompiler }).with(
+const piped = createBaseI18n({ locale: "en", compiler: icuCompiler }).with(
   loader({ uk: async () => ({ default: { hello: "Привіт" } }) }),
 );
 piped.registerLoader(loaderFn);
@@ -263,7 +273,7 @@ piped.t("review", { formality: "formal" });
 
 // …and the positive half: a host constructed WITH defaults keeps them across
 // the pipe, which `any` could never distinguish from the line above.
-const pipedWithDefaults = createSlimI18n({
+const pipedWithDefaults = createBaseI18n({
   locale: "en",
   defaultParams: { formality: "formal" },
 }).with(loader());
@@ -271,7 +281,7 @@ pipedWithDefaults.t("review");
 pipedWithDefaults.registerLoader(loaderFn);
 
 // Chaining compounds the widenings; the base surface survives both.
-const pipedBoth = createSlimI18n({ locale: "en" }).with(loader()).with(plugins());
+const pipedBoth = createBaseI18n({ locale: "en" }).with(loader()).with(plugins());
 pipedBoth.registerLoader(loaderFn);
 pipedBoth.use(fetchLoaderShaped).t("count", { count: 1 });
 pipedBoth.registerPostProcessor((result) => result);
@@ -279,13 +289,13 @@ const pipedBothHost: WrapperI18nHost = pipedBoth;
 void pipedBothHost;
 
 // Order is the caller's; the type compounds either way.
-const pipedReversed = createSlimI18n({ locale: "en" }).with(plugins()).with(loader());
+const pipedReversed = createBaseI18n({ locale: "en" }).with(plugins()).with(loader());
 pipedReversed.use(() => {});
 pipedReversed.registerLoader(loaderFn);
 
 // The addendum's plugin-ecosystem guarantee, at the type level: `.use` is a
 // compile error until `plugins()` is composed in, and present afterwards.
-const pipedLoaderOnly = createSlimI18n({ locale: "en" }).with(loader());
+const pipedLoaderOnly = createBaseI18n({ locale: "en" }).with(loader());
 // @ts-expect-error — use() arrives with @comvi/core/plugins, not with the loader
 pipedLoaderOnly.use(fetchLoaderShaped);
 pipedLoaderOnly.with(plugins()).use(fetchLoaderShaped);
@@ -295,15 +305,15 @@ const pipedDevtools: typeof slim = slim.with(devtools({ exposeGlobal: false }));
 void pipedDevtools;
 
 // The low-level attaches ARE installers — the factories only add config.
-createSlimI18n({ locale: "en" }).with(attachLoader).registerLoader(loaderFn);
-createSlimI18n({ locale: "en" })
+createBaseI18n({ locale: "en" }).with(attachLoader).registerLoader(loaderFn);
+createBaseI18n({ locale: "en" })
   .with(attachPlugins)
   .use(() => {});
-createSlimI18n({ locale: "en" }).with(attachDevtools).t("count", { count: 1 });
+createBaseI18n({ locale: "en" }).with(attachDevtools).t("count", { count: 1 });
 
 // A hand-written installer is just a function; nothing is branded or
 // registered, so a user's own composition step needs no core import.
-const withRevision = createSlimI18n({ locale: "en" }).with((i18n) => ({
+const withRevision = createBaseI18n({ locale: "en" }).with((i18n) => ({
   i18n,
   dispose: subscribeToRevision(i18n, () => {}),
 }));
@@ -319,29 +329,28 @@ interface BrandedInstaller<A> {
   readonly __comviInstaller: unique symbol;
 }
 declare const brandedFetchLoader: BrandedInstaller<{ readonly fetchLoaderConfigured: true }>;
-const pipedBranded = createSlimI18n({ locale: "en" }).with(brandedFetchLoader);
+const pipedBranded = createBaseI18n({ locale: "en" }).with(brandedFetchLoader);
 pipedBranded.fetchLoaderConfigured satisfies true;
 pipedBranded.t("count", { count: 1 });
 
-// The root entry has every capability on the class already: composing there
-// is a no-op that still type-checks, and root's import-map-accepting
-// `registerLoader` overload survives the intersection.
-const rootPiped = createI18n({ locale: "en" }).with(loader()).with(plugins());
-rootPiped.registerLoader({ en: async () => ({ hello: "world" }) });
-rootPiped.use(fetchLoaderShaped);
+// Composing both capabilities onto the base root widens it to the full
+// surface, and the widened host accepts a plain LoaderFn plus plugins.
+const fullyPiped = createBaseI18n({ locale: "en" }).with(loader()).with(plugins());
+fullyPiped.registerLoader(loaderFn);
+fullyPiped.use(fetchLoaderShaped);
 
 // ── wrong installer shapes ────────────────────────────────────────────────
 
 // @ts-expect-error — the FACTORY is not an installer; it must be called
-createSlimI18n({ locale: "en" }).with(loader);
+createBaseI18n({ locale: "en" }).with(loader);
 // @ts-expect-error — an installer is a function, not a value
-createSlimI18n({ locale: "en" }).with(attachLoader(createSlimI18n({ locale: "en" })));
+createBaseI18n({ locale: "en" }).with(attachLoader(createBaseI18n({ locale: "en" })));
 // @ts-expect-error — a PLUGIN is not an installer: it demands a plugin host,
 // which a bare slim instance is not (that is what `.with(plugins())` fixes)
-createSlimI18n({ locale: "en" }).with(fetchLoaderShaped);
+createBaseI18n({ locale: "en" }).with(fetchLoaderShaped);
 // @ts-expect-error — an import map's values must be import functions
-createSlimI18n({ locale: "en" }).with(loader({ uk: "./uk.json" }));
+createBaseI18n({ locale: "en" }).with(loader({ uk: "./uk.json" }));
 // @ts-expect-error — devtools() takes DevtoolsOptions, not I18nOptions
-createSlimI18n({ locale: "en" }).with(devtools({ locale: "en" }));
+createBaseI18n({ locale: "en" }).with(devtools({ locale: "en" }));
 // @ts-expect-error — plugins() takes no configuration yet
-createSlimI18n({ locale: "en" }).with(plugins({ strict: true }));
+createBaseI18n({ locale: "en" }).with(plugins({ strict: true }));

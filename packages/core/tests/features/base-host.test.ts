@@ -1,7 +1,7 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
-// IMPORTANT: this file never imports "../../src" (the root entry), so no
-// ambient tag registration and no ICU wiring happen behind its back.
-import { createI18n } from "../../src/slim";
+import { describe, it, expect, beforeEach } from "vitest";
+// IMPORTANT: this file never imports the tags entry or the internal composite,
+// so no ambient tag registration and no ICU wiring happen behind its back.
+import { createI18n } from "../../src";
 import { icuCompiler } from "../../src/icu";
 import { clearTemplateCache } from "../../src/core/translate";
 import { _resetSyntaxExtensions, getAmbientExtensions } from "../../src/core/translate/syntax";
@@ -15,12 +15,12 @@ beforeEach(() => {
   clearTemplateCache();
 });
 
-describe("@comvi/core/slim", () => {
+describe("@comvi/core", () => {
   it("does not register any ambient syntax extension", () => {
     expect(getAmbientExtensions().length).toBe(0);
   });
 
-  it("interpolates {param} like the full entry", () => {
+  it("interpolates {param} like the composed host", () => {
     const i18n = createI18n({
       locale: "en",
       translation: { en: { greet: "Hello, {name}!", plain: "Just text" } },
@@ -29,26 +29,27 @@ describe("@comvi/core/slim", () => {
     expect(i18n.t("plain" as never)).toBe("Just text");
   });
 
-  it("passes ICU templates through literally and warns once per template in dev", () => {
-    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-    const template = `{count_${Date.now()}, plural, one {# item} other {# items}}`;
-    const i18n = createI18n({
-      locale: "en",
-      translation: { en: { items: template } },
-    });
+  // Policy A: ICU argument syntax on the default compiler is LOUD in dev AND
+  // prod. Ingesting the catalog is the dev-eager seam, so the throw arrives at
+  // construction here rather than at first render (production is lazy — see
+  // `compiler-isolation.test.ts` for the dev/prod topology).
+  it("throws E_ICU_SYNTAX on ICU argument syntax instead of rendering it literally", () => {
+    const template = "{count, plural, one {# item} other {# items}}";
 
-    expect(i18n.t("items" as never, { count: 2 } as never)).toBe(template);
-    i18n.t("items" as never, { count: 3 } as never);
+    let thrown: unknown;
+    try {
+      createI18n({ locale: "en", translation: { en: { items: template } } });
+    } catch (error) {
+      thrown = error;
+    }
 
-    const matching = warnSpy.mock.calls.filter(
-      (call) => typeof call[0] === "string" && call[0].includes("ICU syntax detected"),
-    );
-    expect(matching.length).toBe(1);
-    expect(matching[0][0]).toContain("@comvi/core/icu");
-    warnSpy.mockRestore();
+    expect(thrown).toBeInstanceOf(Error);
+    expect((thrown as { code?: unknown }).code).toBe("E_ICU_SYNTAX");
+    expect((thrown as { argumentType?: unknown }).argumentType).toBe("plural");
+    expect((thrown as Error).message).toContain("@comvi/core/icu");
   });
 
-  it("renders <tag> markup literally (no tag graph in slim)", () => {
+  it("renders <tag> markup literally (no tag graph on the base host)", () => {
     const i18n = createI18n({
       locale: "en",
       translation: { en: { msg: "<link>hi</link>" } },

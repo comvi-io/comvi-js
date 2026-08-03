@@ -14,7 +14,7 @@
 // from the bundler's module graph — svelte-package already emits T.svelte as
 // its own dist module, so the entry's re-export is a prunable named binding
 // under `sideEffects: false`.
-import { createI18n } from "@comvi/core/slim";
+import { createI18n } from "@comvi/core";
 import { getI18nContext, useI18n, useI18nLoader, useI18nPlugins } from "@comvi/svelte";
 
 function assert(condition, label) {

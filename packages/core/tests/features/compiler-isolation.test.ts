@@ -24,16 +24,19 @@ beforeEach(() => {
 });
 
 describe("compiler isolation in the shared template cache", () => {
-  it("slim and full instances resolve the same template independently", () => {
-    const full = makeInstance(icuCompiler);
-    const slim = makeInstance(simpleCompiler);
+  it("the ICU and the simple compiler resolve the same template independently", () => {
+    const icu = makeInstance(icuCompiler);
+    // A simple-compiler instance never ingests this template successfully
+    // (Policy A), so the isolation claim is about the ICU entry surviving a
+    // failed parse under the other id — the two never share a cache slot.
+    const simple = new I18n({ locale: "en", exposeGlobal: false }, simpleCompiler);
 
-    expect(full.t("items" as never, { count: 2 } as never)).toBe("2 items");
-    // Slim treats the ICU argument as literal passthrough — the full
-    // instance's cached parse must NOT leak into the slim variant.
-    expect(slim.t("items" as never, { count: 2 } as never)).toBe(PLURAL_TEMPLATE);
-    // And rendering slim first-cached must not poison full either.
-    expect(full.t("items" as never, { count: 1 } as never)).toBe("1 item");
+    expect(icu.t("items" as never, { count: 2 } as never)).toBe("2 items");
+    expect(() => simple.addTranslations({ en: { items: PLURAL_TEMPLATE } })).toThrow(
+      /E_ICU_SYNTAX|ICU/,
+    );
+    // The failed parse inserted nothing, and the ICU instance is untouched.
+    expect(icu.t("items" as never, { count: 1 } as never)).toBe("1 item");
   });
 
   it("pre-assigned ids: simple=1, icu=2", () => {
@@ -52,20 +55,17 @@ describe("compiler isolation in the shared template cache", () => {
     expect(injectedId).toBeGreaterThanOrEqual(3);
     expect(getCompilerId(markerCompiler)).toBe(injectedId); // stable
 
-    const full = makeInstance(icuCompiler);
-    const slim = makeInstance(simpleCompiler);
+    const icu = makeInstance(icuCompiler);
     const injected = makeInstance(markerCompiler);
 
     const before = _templateCacheSize();
-    expect(full.t("items" as never, { count: 2 } as never)).toBe("2 items");
-    expect(slim.t("items" as never, { count: 2 } as never)).toBe(PLURAL_TEMPLATE);
+    expect(icu.t("items" as never, { count: 2 } as never)).toBe("2 items");
     expect(injected.t("items" as never, { count: 2 } as never)).toBe("«count»");
-    // Three compilers → three distinct cache entries for one template string.
-    expect(_templateCacheSize()).toBe(before + 3);
+    // Two compilers → two distinct cache entries for one template string.
+    expect(_templateCacheSize()).toBe(before + 2);
 
-    // Re-render each variant: still isolated after all three are cached.
-    expect(full.t("items" as never, { count: 1 } as never)).toBe("1 item");
-    expect(slim.t("items" as never, { count: 1 } as never)).toBe(PLURAL_TEMPLATE);
+    // Re-render each variant: still isolated after both are cached.
+    expect(icu.t("items" as never, { count: 1 } as never)).toBe("1 item");
     expect(injected.t("items" as never, { count: 1 } as never)).toBe("«count»");
   });
 });

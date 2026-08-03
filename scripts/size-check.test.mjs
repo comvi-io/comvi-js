@@ -64,9 +64,9 @@ function makeFakePackage(root) {
 
 test("parseSpecifier splits scoped and unscoped specifiers", () => {
   assert.deepEqual(parseSpecifier("@comvi/core"), { packageName: "@comvi/core", subpath: "." });
-  assert.deepEqual(parseSpecifier("@comvi/core/slim"), {
+  assert.deepEqual(parseSpecifier("@comvi/core/loader"), {
     packageName: "@comvi/core",
-    subpath: "./slim",
+    subpath: "./loader",
   });
   assert.deepEqual(parseSpecifier("esbuild"), { packageName: "esbuild", subpath: "." });
 });
@@ -347,40 +347,46 @@ test("external keeps framework peer deps out of the measured graph", async (t) =
 });
 
 test("sentinel module IDs gate on the metafile graph, in both polarities", async (t) => {
-  // Real @comvi/core: the root entry pulls the side-effectful register-tags
-  // chunk, bare slim must not. This is the mechanism behind
+  // Real @comvi/core: `@comvi/core/tags` pulls the side-effectful register-tags
+  // chunk, the base root must not. (Before the single-entry convergence the
+  // polarity ran root-vs-slim; the root is the base host now, so the tags
+  // subpath is the positive pole.) This is the mechanism behind
   // probe-react-tags-pinning (plan P0.3) — module IDs, never output text.
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "size-check-"));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
   const sentinelModules = ["packages/core/dist/chunks/comvi-core-register-tags.js"];
   for (const [name, specifier] of [
-    ["root", "@comvi/core"],
-    ["slim", "@comvi/core/slim"],
+    ["tags", "@comvi/core/tags"],
+    ["base", "@comvi/core"],
   ]) {
+    // The tags pole imports the toolbox it actually exports; the base pole
+    // imports the host. Both keep one named import live for the bundler.
     fs.writeFileSync(
       path.join(root, `${name}.ts`),
-      `import { createI18n } from "${specifier}";\nconsole.log(createI18n);\n`,
+      name === "tags"
+        ? `import { registerTagSyntax } from "${specifier}";\nconsole.log(registerTagSyntax);\n`
+        : `import { createI18n } from "${specifier}";\nconsole.log(createI18n);\n`,
     );
   }
   const fixtureFor = (name, expectSentinels) => ({
     name,
-    entry: name === "root" ? "@comvi/core" : "@comvi/core/slim",
+    entry: name === "tags" ? "@comvi/core/tags" : "@comvi/core",
     fixture: `${name}.ts`,
     sentinelModules,
     expectSentinels,
   });
 
-  const [rootResult, slimResult] = await runSizeCheck({
-    budgets: { fixtures: [fixtureFor("root", "present"), fixtureFor("slim", "absent")] },
+  const [tagsResult, baseResult] = await runSizeCheck({
+    budgets: { fixtures: [fixtureFor("tags", "present"), fixtureFor("base", "absent")] },
     fixturesDir: root,
   });
-  assert.equal(rootResult.status, "pass");
-  assert.deepEqual(rootResult.sentinels.found, sentinelModules);
-  assert.equal(slimResult.status, "pass");
-  assert.deepEqual(slimResult.sentinels.found, []);
+  assert.equal(tagsResult.status, "pass");
+  assert.deepEqual(tagsResult.sentinels.found, sentinelModules);
+  assert.equal(baseResult.status, "pass");
+  assert.deepEqual(baseResult.sentinels.found, []);
 
   const [inverted] = await runSizeCheck({
-    budgets: { fixtures: [fixtureFor("slim", "present")] },
+    budgets: { fixtures: [fixtureFor("base", "present")] },
     fixturesDir: root,
   });
   assert.equal(inverted.status, "fail");

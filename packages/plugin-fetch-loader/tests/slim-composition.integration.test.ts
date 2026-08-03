@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { createI18n } from "@comvi/core/slim";
+import { createI18n } from "@comvi/core";
 import { loader, attachLoader } from "@comvi/core/loader";
 import { plugins } from "@comvi/core/plugins";
 import { FetchLoader, FETCH_LOADER_PLUGIN_KEY } from "../src/index";
@@ -8,11 +8,13 @@ import { mockCdnSuccessResponse, mockCdnErrorResponse, TEST_CDN_URL } from "./se
 /**
  * The plugin ecosystem on a COMPOSED SLIM host (framework-slim DX-2).
  *
- * The published `@comvi/core` root entry has always hosted plugins — that is
- * what the rest of this suite exercises. The question this file answers is
- * the one the 0.5.0 slim tiers raise: **does a real, published plugin still
- * work when the host is a bare `@comvi/core/slim` instance that acquired its
- * capabilities through `.with(loader()).with(plugins())`?**
+ * The question this file answers is the one the 0.5.0 slim tiers raise: **does
+ * a real, published plugin still work when the host is a bare `@comvi/core`
+ * instance that acquired its capabilities by EXPLICIT composition —
+ * `.with(loader()).with(plugins())`?** Nothing is inherited from an entry:
+ * since the single-entry convergence `@comvi/core`'s root IS the base host, so
+ * those two subpaths are precisely what put `registerLoader` and
+ * `setPluginData` on the instance under test.
  *
  * Nothing here is a stub. `FetchLoader` is the shipped plugin, imported from
  * this package's own source, and every core specifier resolves through the

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { I18n, createElement } from "../../src";
+import { I18n, createElement } from "../helpers/composedHost";
 
 describe("Core Translation Features", () => {
   let i18n: I18n;

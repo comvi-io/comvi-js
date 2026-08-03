@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { I18n } from "../../src";
+import { I18n } from "../helpers/composedHost";
 
 describe("Multilingual Support", () => {
   it("interpolates params in CJK text without spaces", () => {

@@ -10,7 +10,7 @@
 // The runner additionally asserts core's tag-registration chunks are ABSENT
 // from the bundler's module graph — only reachable because <T> now lives in
 // its own dist chunk (fs-p1 blocker B1).
-import { createI18n } from "@comvi/core/slim";
+import { createI18n } from "@comvi/core";
 import { I18nProvider, useI18n, useI18nLoader, useI18nPlugins } from "@comvi/react";
 
 function assert(condition, label) {

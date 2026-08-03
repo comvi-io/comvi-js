@@ -23,7 +23,7 @@
 // Identity contract (§3.2): a module-level `WeakMap<host, bag>` per
 // capability. The bag and every member are referentially stable per host
 // instance across components and re-initialisations.
-import { hasLoaderApi, hasPluginHostApi, missingCapability } from "@comvi/core/slim";
+import { hasLoaderApi, hasPluginHostApi, missingCapability } from "@comvi/core";
 import type { I18nLoaderApi, I18nPluginHostApi, WrapperI18nHost } from "@comvi/core";
 import { getI18nContext } from "./context.js";
 
@@ -97,10 +97,11 @@ function acquirePlugins(host: AnyHost): UseI18nPluginsReturn {
  * Acquire the loader capability of the host in svelte context.
  *
  * Call during component initialisation, like `useI18n()`. Throws
- * `missingCapability("loader")` — in dev and in prod — when the host is a bare
- * `@comvi/core/slim` instance. Compose the capability in where the instance is
- * created (`attachLoader(createI18n(...))`) or use the root `@comvi/core`
- * entry.
+ * `missingCapability("loader")` — in dev and in prod — when the host is a base
+ * `@comvi/core` instance, which is every host nobody composed a loader onto.
+ * The capability ships in `@comvi/core/loader` and nowhere else, so compose it
+ * where the instance is created: `createI18n(...).with(loader())`, or the
+ * lower-level `attachLoader(createI18n(...))`.
  *
  * @example
  * ```svelte
@@ -122,7 +123,7 @@ export function useI18nLoader(): UseI18nLoaderReturn {
  *
  * Call during component initialisation, like `useI18n()`. Throws
  * `missingCapability("plugins")` — in dev and in prod — when the host is a
- * bare `@comvi/core/slim` instance.
+ * bare `@comvi/core` instance.
  *
  * @example
  * ```svelte
