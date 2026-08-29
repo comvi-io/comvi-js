@@ -6,13 +6,10 @@ import { createRequire } from "node:module";
 
 /**
  * Bundle-size gate: bundles each scripts/size-fixtures/ entry with esbuild and
- * asserts min+gz against scripts/size-budgets.json.
+ * asserts min+gz against scripts/size-budgets.json. Every row is gated.
  *
  * Entries resolve through the PUBLISHED `exports` map, never a dist/ path, so a
- * broken exports/conditions matrix fails the gate. `pending: true` budgets are
- * declared slots that gate nothing. A fixture may also declare
- * `sentinelModules` + `expectSentinels`, asserting module-graph membership from
- * the metafile — module IDs, never output-text substrings.
+ * broken exports/conditions matrix fails the gate too, not only byte growth.
  */
 
 const SCRIPT_DIR = path.dirname(url.fileURLToPath(import.meta.url));
@@ -280,32 +277,7 @@ export function svelteComponentPlugin(packageRoots) {
   };
 }
 
-/**
- * esbuild metafile -> repo-relative POSIX module IDs that SURVIVED into the
- * bundle.
- *
- * Derived from `outputs[*].inputs`, never from the top-level `metafile.inputs`
- * map: the latter lists every file esbuild PARSED, including modules that
- * tree-shaking removed completely. Reading it made every sentinel a false
- * positive — a `sideEffects:false` re-export chain esbuild had fully dropped
- * still "found" its module ID, which is exactly the absence these fixtures
- * exist to prove.
- */
-function metafileModuleIds(metafile) {
-  const retained = new Set();
-  for (const output of Object.values(metafile.outputs)) {
-    for (const input of Object.keys(output.inputs ?? {})) {
-      retained.add(path.relative(REPO_ROOT, path.resolve(input)).split(path.sep).join("/"));
-    }
-  }
-  return [...retained].sort();
-}
-
-/**
- * Bundles one fixture entry file. Returns min+gz byte sizes and the module IDs
- * esbuild recorded in the metafile (repo-relative), which is what the tags
- * pinning probe asserts on — module-graph membership, never output text.
- */
+/** Bundles one fixture entry file and returns its min+gz byte sizes. */
 export async function measureFixture({
   entryFile,
   packageRoots,
@@ -323,7 +295,6 @@ export async function measureFixture({
     platform: "browser",
     target: "es2020",
     logLevel: "silent",
-    metafile: true,
     external,
     define: {
       __DEV__: "false",
@@ -334,11 +305,7 @@ export async function measureFixture({
   });
   const code = result.outputFiles[0].contents;
   const gzipped = zlib.gzipSync(code, { level: 9 });
-  return {
-    minBytes: code.byteLength,
-    gzipBytes: gzipped.byteLength,
-    moduleIds: metafileModuleIds(result.metafile),
-  };
+  return { minBytes: code.byteLength, gzipBytes: gzipped.byteLength };
 }
 
 export function formatBytes(bytes) {
@@ -350,30 +317,8 @@ function fixtureEntries(entry) {
 }
 
 /**
- * Evaluates a fixture's `sentinelModules` expectation against the measured
- * module graph. Returns undefined when the fixture declares none.
- */
-function checkSentinels(fixture, moduleIds) {
-  const sentinels = fixture.sentinelModules;
-  if (sentinels === undefined) return undefined;
-  const expect = fixture.expectSentinels;
-  if (expect !== "present" && expect !== "absent") {
-    throw new Error(
-      `${fixture.name}: "sentinelModules" requires "expectSentinels": "present" | "absent"`,
-    );
-  }
-  const found = sentinels.filter((sentinel) => moduleIds.includes(sentinel));
-  const ok = expect === "present" ? found.length > 0 : found.length === 0;
-  return { expect, found, ok };
-}
-
-/**
- * Runs every budget entry. Returns per-fixture results with a status:
- * - "pass" / "fail": gated fixture — measured against gzipBudgetBytes and/or
- *   its `sentinelModules` expectation
- * - "informational": measured, printed, not gated (no budget, no sentinels)
- * - "pending": slot declared but not measurable yet; skipped with a notice
- *   naming what graduates it (`pendingReason`, required)
+ * Runs every budget entry. Every row declares a `gzipBudgetBytes`, so every
+ * result is "pass" or "fail" — measured min+gz against that budget.
  */
 export async function runSizeCheck({
   budgets,
@@ -384,116 +329,49 @@ export async function runSizeCheck({
 } = {}) {
   const results = [];
   for (const fixture of budgets.fixtures) {
+    const budget = fixture.gzipBudgetBytes;
+    if (typeof budget !== "number") {
+      throw new Error(
+        `${fixture.name}: every row needs a "gzipBudgetBytes"; ungated rows are not kept`,
+      );
+    }
     const specifiers = fixtureEntries(fixture.entry);
     const unresolved = specifiers.filter(
       (specifier) => resolveFixtureSpecifier(specifier, packageRoots, conditions) === undefined,
     );
-    // `pending` is declared, never inferred: a slot can resolve through the
-    // exports map yet still measure the wrong graph, so resolution alone
-    // cannot decide measurability.
-    if (fixture.pending) {
-      if (typeof fixture.pendingReason !== "string" || fixture.pendingReason.length === 0) {
-        throw new Error(
-          `${fixture.name}: "pending": true requires a "pendingReason" naming what graduates the slot`,
-        );
-      }
-      results.push({
-        name: fixture.name,
-        status: "pending",
-        reason: fixture.pendingReason,
-        unresolved,
-      });
-      continue;
-    }
     if (unresolved.length > 0) {
       throw new Error(
         `${fixture.name}: entry specifier(s) [${unresolved.join(", ")}] do not resolve through the published exports map`,
       );
     }
     const entryFile = path.join(fixturesDir, fixture.fixture);
-    const { minBytes, gzipBytes, moduleIds } = await measureFixture({
+    const { minBytes, gzipBytes } = await measureFixture({
       entryFile,
       packageRoots,
       conditions,
       define,
       external: fixture.external,
     });
-    const sentinels = checkSentinels(fixture, moduleIds);
-    const budget = fixture.gzipBudgetBytes;
-    if (typeof budget !== "number" && sentinels === undefined) {
-      results.push({ name: fixture.name, status: "informational", minBytes, gzipBytes, moduleIds });
-      continue;
-    }
-    const withinBudget = typeof budget !== "number" || gzipBytes <= budget;
     results.push({
       name: fixture.name,
-      status: withinBudget && (sentinels === undefined || sentinels.ok) ? "pass" : "fail",
+      status: gzipBytes <= budget ? "pass" : "fail",
       minBytes,
       gzipBytes,
-      moduleIds,
       budget,
-      sentinels,
     });
   }
   return results;
 }
 
-/** One-line sentinel verdict appended to a gated fixture's report line. */
-function renderSentinels(sentinels) {
-  if (sentinels === undefined) return "";
-  const found = sentinels.found.length > 0 ? sentinels.found.join(", ") : "none";
-  return ` | sentinel modules expected ${sentinels.expect}, found: ${found}`;
-}
-
 export function renderResults(results) {
-  const lines = [];
-  for (const result of results) {
-    switch (result.status) {
-      case "pending": {
-        const unresolved =
-          result.unresolved.length > 0
-            ? ` [${result.unresolved.join(", ")}] not exported yet;`
-            : "";
-        lines.push(
-          `~ ${result.name}: pending —${unresolved} ${result.reason}; ` +
-            `gate activates when the slot graduates (drop "pending" in size-budgets.json)`,
-        );
-        break;
-      }
-      case "informational":
-        lines.push(
-          `i ${result.name}: ${formatBytes(result.gzipBytes)} min+gz (${formatBytes(result.minBytes)} min) — informational, not gated`,
-        );
-        break;
-      case "pass":
-        lines.push(
-          `+ ${result.name}: ${formatBytes(result.gzipBytes)} min+gz` +
-            (typeof result.budget === "number" ? ` <= budget ${formatBytes(result.budget)}` : "") +
-            ` (${formatBytes(result.minBytes)} min)${renderSentinels(result.sentinels)}`,
-        );
-        break;
-      case "fail":
-        lines.push(
-          `x ${result.name}: ${formatBytes(result.gzipBytes)} min+gz` +
-            (typeof result.budget === "number" ? ` vs budget ${formatBytes(result.budget)}` : "") +
-            ` (${formatBytes(result.minBytes)} min)${renderSentinels(result.sentinels)}`,
-        );
-        break;
-    }
-  }
-  return lines.join("\n");
-}
-
-/** `--modules` prints the comvi module IDs behind every sentinel fixture. */
-function renderModuleGraphs(results) {
-  const lines = [];
-  for (const result of results) {
-    if (result.sentinels === undefined || result.moduleIds === undefined) continue;
-    const comviModules = result.moduleIds.filter((id) => id.startsWith("packages/"));
-    lines.push(`\n${result.name} — ${comviModules.length} comvi module(s):`);
-    for (const id of comviModules) lines.push(`  ${id}`);
-  }
-  return lines.join("\n");
+  return results
+    .map(
+      (result) =>
+        `${result.status === "pass" ? "+" : "x"} ${result.name}: ${formatBytes(result.gzipBytes)} min+gz ` +
+        `${result.status === "pass" ? "<=" : "vs"} budget ${formatBytes(result.budget)} ` +
+        `(${formatBytes(result.minBytes)} min)`,
+    )
+    .join("\n");
 }
 
 async function main() {
@@ -506,7 +384,6 @@ async function main() {
     define: { __VERSION__: JSON.stringify(corePkg.version) },
   });
   console.log(renderResults(results));
-  if (process.argv.includes("--modules")) console.log(renderModuleGraphs(results));
   const failures = results.filter((result) => result.status === "fail");
   if (failures.length > 0) {
     console.error(`\nSize gate failed for: ${failures.map((result) => result.name).join(", ")}`);

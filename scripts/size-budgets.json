@@ -1,5 +1,5 @@
 {
-  "note": "min+gz budgets in bytes, enforced by scripts/size-check.mjs (esbuild bundle through the published exports map, minify, gzip -9). Rules, history and the retired ceilings live in scripts/size-budgets.md — read that before editing this file. In short: a gated row's `gzipBudgetBytes` is ceil(measured * 1.05) from the one sweep its `baseline` records; a row without `gzipBudgetBytes` is informational on bytes and still gates on its `sentinelModules` when it declares them; `baseline.modules` names the comvi modules that survived into that sweep's bundle, and its chunk file names are content-hashed, so only the SET of paths is meaningful. Every note here is one line.",
+  "note": "min+gz budgets in bytes, enforced by scripts/size-check.mjs (esbuild bundle through the published exports map, minify, gzip -9). Every row is gated: gzipBudgetBytes is ceil(baseline.gzipBytes * 1.05) from the one sweep baseline records. Rules and how to re-baseline live in scripts/size-budgets.md — read that before editing this file. Every note here is one line.",
   "fixtures": [
     {
       "name": "core-full-composite",
@@ -33,28 +33,6 @@
       "note": "Gated base floor: `@comvi/core` alone, no capability composed — the anchor every other core row is read against."
     },
     {
-      "name": "core-base-loader",
-      "entry": ["@comvi/core", "@comvi/core/loader", "@comvi/core/plugins"],
-      "fixture": "core-base-loader.ts",
-      "baseline": {
-        "minBytes": 18530,
-        "gzipBytes": 6613,
-        "measuredAt": "2026-08-29"
-      },
-      "note": "Informational: base host with `loader()` and `plugins()` composed — the upper bound of the composed base surface, and of nested-catalog support (`_flattenNs` lives in the loader capability)."
-    },
-    {
-      "name": "core-base-tags",
-      "entry": ["@comvi/core", "@comvi/core/tags"],
-      "fixture": "core-base-tags.ts",
-      "baseline": {
-        "minBytes": 16359,
-        "gzipBytes": 6039,
-        "measuredAt": "2026-08-29"
-      },
-      "note": "Informational: base host + ambient `@comvi/core/tags`; the delta over `core-base` is what tag registration costs."
-    },
-    {
       "name": "core-base-icu",
       "entry": ["@comvi/core", "@comvi/core/icu"],
       "fixture": "core-base-icu.ts",
@@ -64,64 +42,7 @@
         "gzipBytes": 5958,
         "measuredAt": "2026-08-29"
       },
-      "note": "Gated: base host + the ICU compiler as a constructor option; fails visibly if tag machinery ever leaks into the base+ICU graph."
-    },
-    {
-      "name": "core-base-icu-tags",
-      "entry": ["@comvi/core", "@comvi/core/icu", "@comvi/core/tags"],
-      "fixture": "core-base-icu-tags.ts",
-      "baseline": {
-        "minBytes": 18661,
-        "gzipBytes": 6870,
-        "measuredAt": "2026-08-29"
-      },
-      "note": "Informational: composed additivity of ICU and tags, measured rather than summed from the two single-capability rows."
-    },
-    {
-      "name": "core-base-icu-installer",
-      "entry": ["@comvi/core", "@comvi/core/icu"],
-      "fixture": "core-base-icu-installer.ts",
-      "baseline": {
-        "minBytes": 16177,
-        "gzipBytes": 6011,
-        "measuredAt": "2026-08-29"
-      },
-      "note": "Informational: `.with(icu())` before ingestion (the remote-catalog recipe); the delta over `core-base-icu` is the installer module plus its structured `E_COMPILER_LOCKED` error."
-    },
-    {
-      "name": "core-base-loader-tags",
-      "entry": ["@comvi/core", "@comvi/core/loader", "@comvi/core/plugins", "@comvi/core/tags"],
-      "fixture": "core-base-loader-tags.ts",
-      "baseline": {
-        "minBytes": 20819,
-        "gzipBytes": 7442,
-        "measuredAt": "2026-08-29"
-      },
-      "note": "Informational: loader plus ambient tags on the base host."
-    },
-    {
-      "name": "probe-react-tags-pinning",
-      "entry": ["@comvi/react", "@comvi/core"],
-      "fixture": "probe/react-tags-pinning.ts",
-      "external": ["react", "react/*"],
-      "sentinelModules": [
-        "packages/core/dist/comvi-core-tags.js",
-        "packages/core/dist/chunks/comvi-core-register-tags.js"
-      ],
-      "expectSentinels": "absent",
-      "baseline": {
-        "minBytes": 18490,
-        "gzipBytes": 6685,
-        "measuredAt": "2026-08-29",
-        "modules": [
-          "packages/core/dist/chunks/comvi-core-i18n-Ch8i-q3Y.js",
-          "packages/core/dist/chunks/comvi-core-translate-BgO4T2rq.js",
-          "packages/core/dist/chunks/comvi-core-virtualNode-BmTSysDL.js",
-          "packages/core/dist/comvi-core.js",
-          "packages/react/dist/comvi-react.js"
-        ]
-      },
-      "note": "Sentinel-only: an app that imports `@comvi/core` and `@comvi/react` and renders no `<T>` must pull neither ambient tag-registration module. No byte budget — the claim is the absence."
+      "note": "Gated: base host + the ICU compiler as a constructor option."
     },
     {
       "name": "fw-react-default",
@@ -129,87 +50,12 @@
       "fixture": "framework/react-default.ts",
       "external": ["react", "react/*"],
       "gzipBudgetBytes": 7020,
-      "sentinelModules": [
-        "packages/core/dist/comvi-core-tags.js",
-        "packages/core/dist/chunks/comvi-core-register-tags.js",
-        "packages/core/dist/comvi-core-icu.js",
-        "packages/core/dist/comvi-core-loader.js",
-        "packages/core/dist/comvi-core-plugins.js",
-        "packages/core/dist/comvi-core-devtools.js"
-      ],
-      "expectSentinels": "absent",
       "baseline": {
         "minBytes": 18493,
         "gzipBytes": 6685,
-        "measuredAt": "2026-08-29",
-        "modules": [
-          "packages/core/dist/chunks/comvi-core-i18n-Ch8i-q3Y.js",
-          "packages/core/dist/chunks/comvi-core-translate-BgO4T2rq.js",
-          "packages/core/dist/chunks/comvi-core-virtualNode-BmTSysDL.js",
-          "packages/core/dist/comvi-core.js",
-          "packages/react/dist/comvi-react.js"
-        ]
+        "measuredAt": "2026-08-29"
       },
-      "note": "Gated React floor: one `@comvi/react` specifier, base createI18n + bindings; six sentinels prove the tag pair and the four unused capability subpaths stay out of the graph."
-    },
-    {
-      "name": "fw-react-default-t",
-      "entry": ["@comvi/react"],
-      "fixture": "framework/react-default-t.ts",
-      "external": ["react", "react/*"],
-      "sentinelModules": [
-        "packages/core/dist/comvi-core-tags.js",
-        "packages/core/dist/chunks/comvi-core-register-tags.js",
-        "packages/core/dist/comvi-core-icu.js",
-        "packages/core/dist/comvi-core-loader.js",
-        "packages/core/dist/comvi-core-plugins.js",
-        "packages/core/dist/comvi-core-devtools.js"
-      ],
-      "expectSentinels": "absent",
-      "baseline": {
-        "minBytes": 23751,
-        "gzipBytes": 8564,
-        "measuredAt": "2026-08-29",
-        "modules": [
-          "packages/core/dist/chunks/comvi-core-i18n-Ch8i-q3Y.js",
-          "packages/core/dist/chunks/comvi-core-tag-syntax-BaIYfNrb.js",
-          "packages/core/dist/chunks/comvi-core-translate-BgO4T2rq.js",
-          "packages/core/dist/chunks/comvi-core-virtualNode-BmTSysDL.js",
-          "packages/core/dist/comvi-core-rich-text.js",
-          "packages/core/dist/comvi-core.js",
-          "packages/react/dist/chunks/comvi-react-T.js",
-          "packages/react/dist/comvi-react.js"
-        ]
-      },
-      "note": "Informational: the React floor plus a rendered `<T>`; the same six sentinels still hold, so the wrapper's tag path never drags core's ambient registration in."
-    },
-    {
-      "name": "fw-react-icu",
-      "entry": ["@comvi/react"],
-      "fixture": "framework/react-icu.ts",
-      "external": ["react", "react/*"],
-      "sentinelModules": [
-        "packages/core/dist/comvi-core-tags.js",
-        "packages/core/dist/chunks/comvi-core-register-tags.js",
-        "packages/core/dist/comvi-core-loader.js",
-        "packages/core/dist/comvi-core-plugins.js",
-        "packages/core/dist/comvi-core-devtools.js"
-      ],
-      "expectSentinels": "absent",
-      "baseline": {
-        "minBytes": 20801,
-        "gzipBytes": 7575,
-        "measuredAt": "2026-08-29",
-        "modules": [
-          "packages/core/dist/chunks/comvi-core-i18n-Ch8i-q3Y.js",
-          "packages/core/dist/chunks/comvi-core-translate-BgO4T2rq.js",
-          "packages/core/dist/chunks/comvi-core-virtualNode-BmTSysDL.js",
-          "packages/core/dist/comvi-core-icu.js",
-          "packages/core/dist/comvi-core.js",
-          "packages/react/dist/comvi-react.js"
-        ]
-      },
-      "note": "Informational: the React floor plus the ICU compiler; five sentinels prove tags and the three unused capability subpaths stay out."
+      "note": "Gated React floor: one `@comvi/react` specifier, base createI18n + bindings — the anchor the React ceiling row is read against."
     },
     {
       "name": "fw-react-full-composite",
@@ -217,32 +63,12 @@
       "fixture": "framework/react-full-composite.ts",
       "external": ["react", "react/*"],
       "gzipBudgetBytes": 11806,
-      "sentinelModules": [
-        "packages/core/dist/comvi-core-tags.js",
-        "packages/core/dist/chunks/comvi-core-register-tags.js"
-      ],
-      "expectSentinels": "absent",
       "baseline": {
         "minBytes": 31731,
         "gzipBytes": 11243,
-        "measuredAt": "2026-08-29",
-        "modules": [
-          "packages/core/dist/chunks/comvi-core-i18n-Ch8i-q3Y.js",
-          "packages/core/dist/chunks/comvi-core-tag-syntax-BaIYfNrb.js",
-          "packages/core/dist/chunks/comvi-core-translate-BgO4T2rq.js",
-          "packages/core/dist/chunks/comvi-core-utils-DWkssqKA.js",
-          "packages/core/dist/chunks/comvi-core-virtualNode-BmTSysDL.js",
-          "packages/core/dist/comvi-core-devtools.js",
-          "packages/core/dist/comvi-core-icu.js",
-          "packages/core/dist/comvi-core-loader.js",
-          "packages/core/dist/comvi-core-plugins.js",
-          "packages/core/dist/comvi-core-rich-text.js",
-          "packages/core/dist/comvi-core.js",
-          "packages/react/dist/chunks/comvi-react-T.js",
-          "packages/react/dist/comvi-react.js"
-        ]
+        "measuredAt": "2026-08-29"
       },
-      "note": "Gated React ceiling: every capability composed through the one `@comvi/react` specifier; two sentinels still prove ambient tag registration absent."
+      "note": "Gated React ceiling: every capability composed through the one `@comvi/react` specifier."
     },
     {
       "name": "fw-solid-default",
@@ -250,85 +76,12 @@
       "fixture": "framework/solid-default.ts",
       "external": ["solid-js", "solid-js/*"],
       "gzipBudgetBytes": 6724,
-      "sentinelModules": [
-        "packages/core/dist/comvi-core-tags.js",
-        "packages/core/dist/chunks/comvi-core-register-tags.js",
-        "packages/core/dist/comvi-core-icu.js",
-        "packages/core/dist/comvi-core-loader.js",
-        "packages/core/dist/comvi-core-plugins.js",
-        "packages/core/dist/comvi-core-devtools.js"
-      ],
-      "expectSentinels": "absent",
       "baseline": {
         "minBytes": 18167,
         "gzipBytes": 6403,
-        "measuredAt": "2026-08-29",
-        "modules": [
-          "packages/core/dist/chunks/comvi-core-i18n-Ch8i-q3Y.js",
-          "packages/core/dist/chunks/comvi-core-translate-BgO4T2rq.js",
-          "packages/core/dist/comvi-core.js",
-          "packages/solid/dist/comvi-solid.js"
-        ]
+        "measuredAt": "2026-08-29"
       },
-      "note": "Gated Solid floor: one `@comvi/solid` specifier, base createI18n + bindings; six sentinels prove the tag pair and the four unused capability subpaths stay out of the graph."
-    },
-    {
-      "name": "fw-solid-default-t",
-      "entry": ["@comvi/solid"],
-      "fixture": "framework/solid-default-t.ts",
-      "external": ["solid-js", "solid-js/*"],
-      "sentinelModules": [
-        "packages/core/dist/comvi-core-tags.js",
-        "packages/core/dist/chunks/comvi-core-register-tags.js",
-        "packages/core/dist/comvi-core-icu.js",
-        "packages/core/dist/comvi-core-loader.js",
-        "packages/core/dist/comvi-core-plugins.js",
-        "packages/core/dist/comvi-core-devtools.js"
-      ],
-      "expectSentinels": "absent",
-      "baseline": {
-        "minBytes": 23307,
-        "gzipBytes": 8193,
-        "measuredAt": "2026-08-29",
-        "modules": [
-          "packages/core/dist/chunks/comvi-core-i18n-Ch8i-q3Y.js",
-          "packages/core/dist/chunks/comvi-core-tag-syntax-BaIYfNrb.js",
-          "packages/core/dist/chunks/comvi-core-translate-BgO4T2rq.js",
-          "packages/core/dist/chunks/comvi-core-virtualNode-BmTSysDL.js",
-          "packages/core/dist/comvi-core-rich-text.js",
-          "packages/core/dist/comvi-core.js",
-          "packages/solid/dist/chunks/comvi-solid-T.js",
-          "packages/solid/dist/comvi-solid.js"
-        ]
-      },
-      "note": "Informational: the Solid floor plus a rendered `<T>`; the same six sentinels still hold, so the wrapper's tag path never drags core's ambient registration in."
-    },
-    {
-      "name": "fw-solid-icu",
-      "entry": ["@comvi/solid"],
-      "fixture": "framework/solid-icu.ts",
-      "external": ["solid-js", "solid-js/*"],
-      "sentinelModules": [
-        "packages/core/dist/comvi-core-tags.js",
-        "packages/core/dist/chunks/comvi-core-register-tags.js",
-        "packages/core/dist/comvi-core-loader.js",
-        "packages/core/dist/comvi-core-plugins.js",
-        "packages/core/dist/comvi-core-devtools.js"
-      ],
-      "expectSentinels": "absent",
-      "baseline": {
-        "minBytes": 20473,
-        "gzipBytes": 7287,
-        "measuredAt": "2026-08-29",
-        "modules": [
-          "packages/core/dist/chunks/comvi-core-i18n-Ch8i-q3Y.js",
-          "packages/core/dist/chunks/comvi-core-translate-BgO4T2rq.js",
-          "packages/core/dist/comvi-core-icu.js",
-          "packages/core/dist/comvi-core.js",
-          "packages/solid/dist/comvi-solid.js"
-        ]
-      },
-      "note": "Informational: the Solid floor plus the ICU compiler; five sentinels prove tags and the three unused capability subpaths stay out."
+      "note": "Gated Solid floor: one `@comvi/solid` specifier, base createI18n + bindings — the anchor the Solid ceiling row is read against."
     },
     {
       "name": "fw-solid-full-composite",
@@ -336,32 +89,12 @@
       "fixture": "framework/solid-full-composite.ts",
       "external": ["solid-js", "solid-js/*"],
       "gzipBudgetBytes": 11422,
-      "sentinelModules": [
-        "packages/core/dist/comvi-core-tags.js",
-        "packages/core/dist/chunks/comvi-core-register-tags.js"
-      ],
-      "expectSentinels": "absent",
       "baseline": {
         "minBytes": 31279,
         "gzipBytes": 10878,
-        "measuredAt": "2026-08-29",
-        "modules": [
-          "packages/core/dist/chunks/comvi-core-i18n-Ch8i-q3Y.js",
-          "packages/core/dist/chunks/comvi-core-tag-syntax-BaIYfNrb.js",
-          "packages/core/dist/chunks/comvi-core-translate-BgO4T2rq.js",
-          "packages/core/dist/chunks/comvi-core-utils-DWkssqKA.js",
-          "packages/core/dist/chunks/comvi-core-virtualNode-BmTSysDL.js",
-          "packages/core/dist/comvi-core-devtools.js",
-          "packages/core/dist/comvi-core-icu.js",
-          "packages/core/dist/comvi-core-loader.js",
-          "packages/core/dist/comvi-core-plugins.js",
-          "packages/core/dist/comvi-core-rich-text.js",
-          "packages/core/dist/comvi-core.js",
-          "packages/solid/dist/chunks/comvi-solid-T.js",
-          "packages/solid/dist/comvi-solid.js"
-        ]
+        "measuredAt": "2026-08-29"
       },
-      "note": "Gated Solid ceiling: every capability composed through the one `@comvi/solid` specifier; two sentinels still prove ambient tag registration absent."
+      "note": "Gated Solid ceiling: every capability composed through the one `@comvi/solid` specifier."
     },
     {
       "name": "fw-svelte-default",
@@ -369,94 +102,12 @@
       "fixture": "framework/svelte-default.ts",
       "external": ["svelte", "svelte/*"],
       "gzipBudgetBytes": 6799,
-      "sentinelModules": [
-        "packages/core/dist/comvi-core-tags.js",
-        "packages/core/dist/chunks/comvi-core-register-tags.js",
-        "packages/core/dist/comvi-core-icu.js",
-        "packages/core/dist/comvi-core-loader.js",
-        "packages/core/dist/comvi-core-plugins.js",
-        "packages/core/dist/comvi-core-devtools.js"
-      ],
-      "expectSentinels": "absent",
       "baseline": {
         "minBytes": 18010,
         "gzipBytes": 6475,
-        "measuredAt": "2026-08-29",
-        "modules": [
-          "packages/core/dist/chunks/comvi-core-i18n-Ch8i-q3Y.js",
-          "packages/core/dist/chunks/comvi-core-translate-BgO4T2rq.js",
-          "packages/core/dist/comvi-core.js",
-          "packages/svelte/dist/context.js",
-          "packages/svelte/dist/index.js",
-          "packages/svelte/dist/stores.js",
-          "packages/svelte/dist/useI18n.js"
-        ]
+        "measuredAt": "2026-08-29"
       },
-      "note": "Gated Svelte floor: one `@comvi/svelte` specifier, base createI18n + bindings; six sentinels prove the tag pair and the four unused capability subpaths stay out of the graph."
-    },
-    {
-      "name": "fw-svelte-default-t",
-      "entry": ["@comvi/svelte"],
-      "fixture": "framework/svelte-default-t.ts",
-      "external": ["svelte", "svelte/*"],
-      "sentinelModules": [
-        "packages/core/dist/comvi-core-tags.js",
-        "packages/core/dist/chunks/comvi-core-register-tags.js",
-        "packages/core/dist/comvi-core-icu.js",
-        "packages/core/dist/comvi-core-loader.js",
-        "packages/core/dist/comvi-core-plugins.js",
-        "packages/core/dist/comvi-core-devtools.js"
-      ],
-      "expectSentinels": "absent",
-      "baseline": {
-        "minBytes": 24054,
-        "gzipBytes": 8672,
-        "measuredAt": "2026-08-29",
-        "modules": [
-          "packages/core/dist/chunks/comvi-core-i18n-Ch8i-q3Y.js",
-          "packages/core/dist/chunks/comvi-core-tag-syntax-BaIYfNrb.js",
-          "packages/core/dist/chunks/comvi-core-translate-BgO4T2rq.js",
-          "packages/core/dist/chunks/comvi-core-virtualNode-BmTSysDL.js",
-          "packages/core/dist/comvi-core-rich-text.js",
-          "packages/core/dist/comvi-core.js",
-          "packages/svelte/dist/T.svelte",
-          "packages/svelte/dist/context.js",
-          "packages/svelte/dist/index.js",
-          "packages/svelte/dist/stores.js",
-          "packages/svelte/dist/useI18n.js"
-        ]
-      },
-      "note": "Informational: the Svelte floor plus a rendered `<T>`; the same six sentinels still hold, so the wrapper's tag path never drags core's ambient registration in."
-    },
-    {
-      "name": "fw-svelte-icu",
-      "entry": ["@comvi/svelte"],
-      "fixture": "framework/svelte-icu.ts",
-      "external": ["svelte", "svelte/*"],
-      "sentinelModules": [
-        "packages/core/dist/comvi-core-tags.js",
-        "packages/core/dist/chunks/comvi-core-register-tags.js",
-        "packages/core/dist/comvi-core-loader.js",
-        "packages/core/dist/comvi-core-plugins.js",
-        "packages/core/dist/comvi-core-devtools.js"
-      ],
-      "expectSentinels": "absent",
-      "baseline": {
-        "minBytes": 20318,
-        "gzipBytes": 7367,
-        "measuredAt": "2026-08-29",
-        "modules": [
-          "packages/core/dist/chunks/comvi-core-i18n-Ch8i-q3Y.js",
-          "packages/core/dist/chunks/comvi-core-translate-BgO4T2rq.js",
-          "packages/core/dist/comvi-core-icu.js",
-          "packages/core/dist/comvi-core.js",
-          "packages/svelte/dist/context.js",
-          "packages/svelte/dist/index.js",
-          "packages/svelte/dist/stores.js",
-          "packages/svelte/dist/useI18n.js"
-        ]
-      },
-      "note": "Informational: the Svelte floor plus the ICU compiler; five sentinels prove tags and the three unused capability subpaths stay out."
+      "note": "Gated Svelte floor: one `@comvi/svelte` specifier, base createI18n + bindings — the anchor the Svelte ceiling row is read against."
     },
     {
       "name": "fw-svelte-full-composite",
@@ -464,35 +115,12 @@
       "fixture": "framework/svelte-full-composite.ts",
       "external": ["svelte", "svelte/*"],
       "gzipBudgetBytes": 11930,
-      "sentinelModules": [
-        "packages/core/dist/comvi-core-tags.js",
-        "packages/core/dist/chunks/comvi-core-register-tags.js"
-      ],
-      "expectSentinels": "absent",
       "baseline": {
         "minBytes": 32035,
         "gzipBytes": 11361,
-        "measuredAt": "2026-08-29",
-        "modules": [
-          "packages/core/dist/chunks/comvi-core-i18n-Ch8i-q3Y.js",
-          "packages/core/dist/chunks/comvi-core-tag-syntax-BaIYfNrb.js",
-          "packages/core/dist/chunks/comvi-core-translate-BgO4T2rq.js",
-          "packages/core/dist/chunks/comvi-core-utils-DWkssqKA.js",
-          "packages/core/dist/chunks/comvi-core-virtualNode-BmTSysDL.js",
-          "packages/core/dist/comvi-core-devtools.js",
-          "packages/core/dist/comvi-core-icu.js",
-          "packages/core/dist/comvi-core-loader.js",
-          "packages/core/dist/comvi-core-plugins.js",
-          "packages/core/dist/comvi-core-rich-text.js",
-          "packages/core/dist/comvi-core.js",
-          "packages/svelte/dist/T.svelte",
-          "packages/svelte/dist/context.js",
-          "packages/svelte/dist/index.js",
-          "packages/svelte/dist/stores.js",
-          "packages/svelte/dist/useI18n.js"
-        ]
+        "measuredAt": "2026-08-29"
       },
-      "note": "Gated Svelte ceiling: every capability composed through the one `@comvi/svelte` specifier; two sentinels still prove ambient tag registration absent."
+      "note": "Gated Svelte ceiling: every capability composed through the one `@comvi/svelte` specifier."
     },
     {
       "name": "fw-vue-default",
@@ -500,100 +128,12 @@
       "fixture": "framework/vue-default.ts",
       "external": ["vue"],
       "gzipBudgetBytes": 7381,
-      "sentinelModules": [
-        "packages/core/dist/comvi-core-tags.js",
-        "packages/core/dist/chunks/comvi-core-register-tags.js",
-        "packages/core/dist/comvi-core-icu.js",
-        "packages/core/dist/comvi-core-loader.js",
-        "packages/core/dist/comvi-core-plugins.js",
-        "packages/core/dist/comvi-core-devtools.js"
-      ],
-      "expectSentinels": "absent",
       "baseline": {
         "minBytes": 21250,
         "gzipBytes": 7029,
-        "measuredAt": "2026-08-29",
-        "modules": [
-          "packages/core/dist/chunks/comvi-core-i18n-Ch8i-q3Y.js",
-          "packages/core/dist/chunks/comvi-core-translate-BgO4T2rq.js",
-          "packages/core/dist/comvi-core.js",
-          "packages/vue/dist/chunks/comvi-vue-keys.js",
-          "packages/vue/dist/comvi-vue.js"
-        ]
-      },
-      "note": "Gated Vue floor: one `@comvi/vue` specifier, base createI18n + bindings; six sentinels prove the tag pair and the four unused capability subpaths stay out of the graph."
-    },
-    {
-      "name": "fw-vue-default-composed",
-      "entry": ["@comvi/vue"],
-      "fixture": "framework/vue-default-composed.ts",
-      "external": ["vue"],
-      "baseline": {
-        "minBytes": 21241,
-        "gzipBytes": 7025,
         "measuredAt": "2026-08-29"
       },
-      "note": "Informational: the Vue floor reached through the preset glue instead of the plain factory; the delta over `fw-vue-default` keeps that glue measured rather than claimed."
-    },
-    {
-      "name": "fw-vue-default-t",
-      "entry": ["@comvi/vue"],
-      "fixture": "framework/vue-default-t.ts",
-      "external": ["vue"],
-      "sentinelModules": [
-        "packages/core/dist/comvi-core-tags.js",
-        "packages/core/dist/chunks/comvi-core-register-tags.js",
-        "packages/core/dist/comvi-core-icu.js",
-        "packages/core/dist/comvi-core-loader.js",
-        "packages/core/dist/comvi-core-plugins.js",
-        "packages/core/dist/comvi-core-devtools.js"
-      ],
-      "expectSentinels": "absent",
-      "baseline": {
-        "minBytes": 26418,
-        "gzipBytes": 8875,
-        "measuredAt": "2026-08-29",
-        "modules": [
-          "packages/core/dist/chunks/comvi-core-i18n-Ch8i-q3Y.js",
-          "packages/core/dist/chunks/comvi-core-tag-syntax-BaIYfNrb.js",
-          "packages/core/dist/chunks/comvi-core-translate-BgO4T2rq.js",
-          "packages/core/dist/chunks/comvi-core-virtualNode-BmTSysDL.js",
-          "packages/core/dist/comvi-core-rich-text.js",
-          "packages/core/dist/comvi-core.js",
-          "packages/vue/dist/chunks/comvi-vue-T.js",
-          "packages/vue/dist/chunks/comvi-vue-keys.js",
-          "packages/vue/dist/comvi-vue.js"
-        ]
-      },
-      "note": "Informational: the Vue floor plus a rendered `<T>`; the same six sentinels still hold, so the wrapper's tag path never drags core's ambient registration in."
-    },
-    {
-      "name": "fw-vue-icu",
-      "entry": ["@comvi/vue"],
-      "fixture": "framework/vue-icu.ts",
-      "external": ["vue"],
-      "sentinelModules": [
-        "packages/core/dist/comvi-core-tags.js",
-        "packages/core/dist/chunks/comvi-core-register-tags.js",
-        "packages/core/dist/comvi-core-loader.js",
-        "packages/core/dist/comvi-core-plugins.js",
-        "packages/core/dist/comvi-core-devtools.js"
-      ],
-      "expectSentinels": "absent",
-      "baseline": {
-        "minBytes": 23557,
-        "gzipBytes": 7919,
-        "measuredAt": "2026-08-29",
-        "modules": [
-          "packages/core/dist/chunks/comvi-core-i18n-Ch8i-q3Y.js",
-          "packages/core/dist/chunks/comvi-core-translate-BgO4T2rq.js",
-          "packages/core/dist/comvi-core-icu.js",
-          "packages/core/dist/comvi-core.js",
-          "packages/vue/dist/chunks/comvi-vue-keys.js",
-          "packages/vue/dist/comvi-vue.js"
-        ]
-      },
-      "note": "Informational: the Vue floor plus the ICU compiler; five sentinels prove tags and the three unused capability subpaths stay out."
+      "note": "Gated Vue floor: one `@comvi/vue` specifier, base createI18n + bindings — the anchor the Vue ceiling row is read against."
     },
     {
       "name": "fw-vue-full-composite",
@@ -601,45 +141,12 @@
       "fixture": "framework/vue-full-composite.ts",
       "external": ["vue"],
       "gzipBudgetBytes": 12104,
-      "sentinelModules": [
-        "packages/core/dist/comvi-core-tags.js",
-        "packages/core/dist/chunks/comvi-core-register-tags.js"
-      ],
-      "expectSentinels": "absent",
       "baseline": {
         "minBytes": 34390,
         "gzipBytes": 11527,
-        "measuredAt": "2026-08-29",
-        "modules": [
-          "packages/core/dist/chunks/comvi-core-i18n-Ch8i-q3Y.js",
-          "packages/core/dist/chunks/comvi-core-tag-syntax-BaIYfNrb.js",
-          "packages/core/dist/chunks/comvi-core-translate-BgO4T2rq.js",
-          "packages/core/dist/chunks/comvi-core-utils-DWkssqKA.js",
-          "packages/core/dist/chunks/comvi-core-virtualNode-BmTSysDL.js",
-          "packages/core/dist/comvi-core-devtools.js",
-          "packages/core/dist/comvi-core-icu.js",
-          "packages/core/dist/comvi-core-loader.js",
-          "packages/core/dist/comvi-core-plugins.js",
-          "packages/core/dist/comvi-core-rich-text.js",
-          "packages/core/dist/comvi-core.js",
-          "packages/vue/dist/chunks/comvi-vue-T.js",
-          "packages/vue/dist/chunks/comvi-vue-keys.js",
-          "packages/vue/dist/comvi-vue.js"
-        ]
-      },
-      "note": "Gated Vue ceiling: every capability composed through the one `@comvi/vue` specifier; two sentinels still prove ambient tag registration absent."
-    },
-    {
-      "name": "fw-next-composed-factory",
-      "entry": ["@comvi/next", "@comvi/next/server"],
-      "fixture": "framework/next-composed-factory.ts",
-      "external": ["next", "next/*", "react", "react/*"],
-      "baseline": {
-        "minBytes": 28495,
-        "gzipBytes": 10244,
         "measuredAt": "2026-08-29"
       },
-      "note": "Informational: the published Next root driven through a non-exported builder — the composed-factory upper bound for Next."
+      "note": "Gated Vue ceiling: every capability composed through the one `@comvi/vue` specifier."
     },
     {
       "name": "fw-next-server-default-loader",
@@ -647,37 +154,12 @@
       "fixture": "framework/next-server-default-loader.ts",
       "external": ["next", "next/*", "react", "react/*"],
       "gzipBudgetBytes": 7649,
-      "sentinelModules": [
-        "packages/core/dist/comvi-core-tags.js",
-        "packages/core/dist/chunks/comvi-core-register-tags.js",
-        "packages/next/dist/createNextI18n.js",
-        "packages/core/dist/comvi-core-icu.js",
-        "packages/core/dist/comvi-core-plugins.js",
-        "packages/core/dist/comvi-core-devtools.js"
-      ],
-      "expectSentinels": "absent",
       "baseline": {
         "minBytes": 19771,
         "gzipBytes": 7284,
-        "measuredAt": "2026-08-29",
-        "modules": [
-          "packages/core/dist/chunks/comvi-core-i18n-Ch8i-q3Y.js",
-          "packages/core/dist/chunks/comvi-core-translate-BgO4T2rq.js",
-          "packages/core/dist/chunks/comvi-core-utils-DWkssqKA.js",
-          "packages/core/dist/comvi-core-loader.js",
-          "packages/core/dist/comvi-core.js",
-          "packages/next/dist/nextI18nRouting.js",
-          "packages/next/dist/routing/defineRouting.js",
-          "packages/next/dist/server/cache.js",
-          "packages/next/dist/server/createNextI18nFromHost.js",
-          "packages/next/dist/server/ensureInitialized.js",
-          "packages/next/dist/server/getI18n.js",
-          "packages/next/dist/server/getLocale.js",
-          "packages/next/dist/server/loadTranslations.js",
-          "packages/next/dist/server/setRequestLocale.js"
-        ]
+        "measuredAt": "2026-08-29"
       },
-      "note": "Gated Next server floor: the server entry with the loader composed; six sentinels prove tags, ICU, plugins, devtools and the client factory stay out."
+      "note": "Gated Next server floor: the `@comvi/next/server` entry with the loader composed."
     },
     {
       "name": "fw-next-client-default",
@@ -685,143 +167,12 @@
       "fixture": "framework/next-client-default.ts",
       "external": ["next", "next/*", "react", "react/*"],
       "gzipBudgetBytes": 7476,
-      "sentinelModules": [
-        "packages/core/dist/comvi-core-tags.js",
-        "packages/core/dist/chunks/comvi-core-register-tags.js",
-        "packages/core/dist/comvi-core-icu.js",
-        "packages/core/dist/comvi-core-loader.js",
-        "packages/core/dist/comvi-core-plugins.js",
-        "packages/core/dist/comvi-core-devtools.js",
-        "packages/next/dist/server/createNextI18nFromHost.js",
-        "packages/next/dist/server/cache.js",
-        "packages/next/dist/server/loadTranslations.js"
-      ],
-      "expectSentinels": "absent",
       "baseline": {
         "minBytes": 19732,
         "gzipBytes": 7120,
-        "measuredAt": "2026-08-29",
-        "modules": [
-          "packages/core/dist/chunks/comvi-core-i18n-Ch8i-q3Y.js",
-          "packages/core/dist/chunks/comvi-core-translate-BgO4T2rq.js",
-          "packages/core/dist/chunks/comvi-core-virtualNode-BmTSysDL.js",
-          "packages/core/dist/comvi-core.js",
-          "packages/next/dist/client/I18nProvider.js",
-          "packages/next/dist/routing/context.js",
-          "packages/next/dist/routing/defineRouting.js",
-          "packages/react/dist/comvi-react.js"
-        ]
+        "measuredAt": "2026-08-29"
       },
-      "note": "Gated Next client floor: the client entry only; nine sentinels prove the tag pair, the four capability subpaths and the three server-only modules stay out."
-    },
-    {
-      "name": "fw-next-client-default-t",
-      "entry": ["@comvi/next/client"],
-      "fixture": "framework/next-client-default-t.ts",
-      "external": ["next", "next/*", "react", "react/*"],
-      "sentinelModules": [
-        "packages/core/dist/comvi-core-tags.js",
-        "packages/core/dist/chunks/comvi-core-register-tags.js",
-        "packages/core/dist/comvi-core-icu.js",
-        "packages/core/dist/comvi-core-loader.js",
-        "packages/core/dist/comvi-core-plugins.js",
-        "packages/core/dist/comvi-core-devtools.js",
-        "packages/next/dist/server/createNextI18nFromHost.js",
-        "packages/next/dist/server/cache.js",
-        "packages/next/dist/server/loadTranslations.js"
-      ],
-      "expectSentinels": "absent",
-      "baseline": {
-        "minBytes": 24982,
-        "gzipBytes": 8989,
-        "measuredAt": "2026-08-29",
-        "modules": [
-          "packages/core/dist/chunks/comvi-core-i18n-Ch8i-q3Y.js",
-          "packages/core/dist/chunks/comvi-core-tag-syntax-BaIYfNrb.js",
-          "packages/core/dist/chunks/comvi-core-translate-BgO4T2rq.js",
-          "packages/core/dist/chunks/comvi-core-virtualNode-BmTSysDL.js",
-          "packages/core/dist/comvi-core-rich-text.js",
-          "packages/core/dist/comvi-core.js",
-          "packages/next/dist/client/I18nProvider.js",
-          "packages/next/dist/routing/context.js",
-          "packages/next/dist/routing/defineRouting.js",
-          "packages/react/dist/chunks/comvi-react-T.js",
-          "packages/react/dist/comvi-react.js"
-        ]
-      },
-      "note": "Informational: the Next client floor plus `<T>`; the same nine sentinels hold."
-    },
-    {
-      "name": "fw-next-client-icu",
-      "entry": ["@comvi/next/client"],
-      "fixture": "framework/next-client-icu.ts",
-      "external": ["next", "next/*", "react", "react/*"],
-      "sentinelModules": [
-        "packages/core/dist/comvi-core-tags.js",
-        "packages/core/dist/chunks/comvi-core-register-tags.js",
-        "packages/core/dist/comvi-core-loader.js",
-        "packages/core/dist/comvi-core-plugins.js",
-        "packages/core/dist/comvi-core-devtools.js",
-        "packages/next/dist/server/createNextI18nFromHost.js",
-        "packages/next/dist/server/cache.js",
-        "packages/next/dist/server/loadTranslations.js"
-      ],
-      "expectSentinels": "absent",
-      "baseline": {
-        "minBytes": 22032,
-        "gzipBytes": 7993,
-        "measuredAt": "2026-08-29",
-        "modules": [
-          "packages/core/dist/chunks/comvi-core-i18n-Ch8i-q3Y.js",
-          "packages/core/dist/chunks/comvi-core-translate-BgO4T2rq.js",
-          "packages/core/dist/chunks/comvi-core-virtualNode-BmTSysDL.js",
-          "packages/core/dist/comvi-core-icu.js",
-          "packages/core/dist/comvi-core.js",
-          "packages/next/dist/client/I18nProvider.js",
-          "packages/next/dist/routing/context.js",
-          "packages/next/dist/routing/defineRouting.js",
-          "packages/react/dist/comvi-react.js"
-        ]
-      },
-      "note": "Informational: the Next client floor plus the ICU compiler; eight sentinels hold."
-    },
-    {
-      "name": "fw-next-client-full-composite",
-      "entry": ["@comvi/next/client"],
-      "fixture": "framework/next-client-full-composite.ts",
-      "external": ["next", "next/*", "react", "react/*"],
-      "sentinelModules": [
-        "packages/core/dist/comvi-core-tags.js",
-        "packages/core/dist/chunks/comvi-core-register-tags.js",
-        "packages/next/dist/server/createNextI18nFromHost.js",
-        "packages/next/dist/server/cache.js",
-        "packages/next/dist/server/loadTranslations.js"
-      ],
-      "expectSentinels": "absent",
-      "baseline": {
-        "minBytes": 32960,
-        "gzipBytes": 11655,
-        "measuredAt": "2026-08-29",
-        "modules": [
-          "packages/core/dist/chunks/comvi-core-i18n-Ch8i-q3Y.js",
-          "packages/core/dist/chunks/comvi-core-tag-syntax-BaIYfNrb.js",
-          "packages/core/dist/chunks/comvi-core-translate-BgO4T2rq.js",
-          "packages/core/dist/chunks/comvi-core-utils-DWkssqKA.js",
-          "packages/core/dist/chunks/comvi-core-virtualNode-BmTSysDL.js",
-          "packages/core/dist/comvi-core-devtools.js",
-          "packages/core/dist/comvi-core-icu.js",
-          "packages/core/dist/comvi-core-loader.js",
-          "packages/core/dist/comvi-core-plugins.js",
-          "packages/core/dist/comvi-core-rich-text.js",
-          "packages/core/dist/comvi-core.js",
-          "packages/next/dist/client/I18nProvider.js",
-          "packages/next/dist/routing/context.js",
-          "packages/next/dist/routing/defineRouting.js",
-          "packages/react/dist/chunks/comvi-react-T.js",
-          "packages/react/dist/comvi-react.js"
-        ]
-      },
-      "note": "Informational: every capability composed on the Next client entry; five sentinels still prove tags and the server-only modules absent."
+      "note": "Gated Next client floor: the `@comvi/next/client` entry only, no server module in the graph."
     },
     {
       "name": "fw-nuxt-full-composite",
@@ -839,83 +190,12 @@
       "fixture": "framework/nuxt-full-composite.ts",
       "external": ["#app", "#build/*", "#imports", "vue", "vue-router", "h3"],
       "gzipBudgetBytes": 12332,
-      "sentinelModules": [
-        "packages/core/dist/comvi-core-tags.js",
-        "packages/core/dist/chunks/comvi-core-register-tags.js"
-      ],
-      "expectSentinels": "absent",
       "baseline": {
         "minBytes": 34830,
         "gzipBytes": 11744,
-        "measuredAt": "2026-08-29",
-        "modules": [
-          "packages/core/dist/chunks/comvi-core-capability-DbKKOCv3.js",
-          "packages/core/dist/chunks/comvi-core-i18n-Ch8i-q3Y.js",
-          "packages/core/dist/chunks/comvi-core-translate-BgO4T2rq.js",
-          "packages/core/dist/chunks/comvi-core-utils-DWkssqKA.js",
-          "packages/core/dist/comvi-core-devtools.js",
-          "packages/core/dist/comvi-core-editor-bridge.js",
-          "packages/core/dist/comvi-core-icu.js",
-          "packages/core/dist/comvi-core-loader.js",
-          "packages/core/dist/comvi-core-plugins.js",
-          "packages/core/dist/comvi-core.js",
-          "packages/nuxt/dist/runtime/composables/useI18n.js",
-          "packages/nuxt/dist/runtime/defaults.js",
-          "packages/nuxt/dist/runtime/plugin.js",
-          "packages/nuxt/dist/runtime/server/utils/loadTranslations.js",
-          "packages/nuxt/dist/runtime/server/utils/request-i18n.js",
-          "packages/nuxt/dist/runtime/server/utils/runtime-config.js",
-          "packages/nuxt/dist/runtime/utils/locale-state.js",
-          "packages/vue/dist/chunks/comvi-vue-keys.js",
-          "packages/vue/dist/comvi-vue.js"
-        ]
+        "measuredAt": "2026-08-29"
       },
-      "note": "Gated Nuxt ceiling: every capability composed on the Nuxt runtime; two sentinels still prove ambient tag registration absent."
-    },
-    {
-      "name": "fw-nuxt-server-default-loader",
-      "entry": [
-        "@comvi/nuxt/runtime/plugin.js",
-        "@comvi/nuxt/runtime/composables/useI18n.js",
-        "@comvi/nuxt/runtime/server/utils/loadTranslations.js",
-        "@comvi/vue",
-        "@comvi/core",
-        "@comvi/core/loader"
-      ],
-      "fixture": "framework/nuxt-server-default-loader.ts",
-      "external": ["#app", "#build/*", "#imports", "vue", "vue-router", "h3"],
-      "sentinelModules": [
-        "packages/core/dist/comvi-core-tags.js",
-        "packages/core/dist/chunks/comvi-core-register-tags.js",
-        "packages/core/dist/comvi-core-icu.js",
-        "packages/core/dist/comvi-core-plugins.js",
-        "packages/core/dist/comvi-core-devtools.js"
-      ],
-      "expectSentinels": "absent",
-      "baseline": {
-        "minBytes": 29994,
-        "gzipBytes": 10090,
-        "measuredAt": "2026-08-29",
-        "modules": [
-          "packages/core/dist/chunks/comvi-core-capability-DbKKOCv3.js",
-          "packages/core/dist/chunks/comvi-core-i18n-Ch8i-q3Y.js",
-          "packages/core/dist/chunks/comvi-core-translate-BgO4T2rq.js",
-          "packages/core/dist/chunks/comvi-core-utils-DWkssqKA.js",
-          "packages/core/dist/comvi-core-editor-bridge.js",
-          "packages/core/dist/comvi-core-loader.js",
-          "packages/core/dist/comvi-core.js",
-          "packages/nuxt/dist/runtime/composables/useI18n.js",
-          "packages/nuxt/dist/runtime/defaults.js",
-          "packages/nuxt/dist/runtime/plugin.js",
-          "packages/nuxt/dist/runtime/server/utils/loadTranslations.js",
-          "packages/nuxt/dist/runtime/server/utils/request-i18n.js",
-          "packages/nuxt/dist/runtime/server/utils/runtime-config.js",
-          "packages/nuxt/dist/runtime/utils/locale-state.js",
-          "packages/vue/dist/chunks/comvi-vue-keys.js",
-          "packages/vue/dist/comvi-vue.js"
-        ]
-      },
-      "note": "Informational: the Nuxt server runtime entry with the loader composed; five sentinels hold."
+      "note": "Gated Nuxt ceiling: every capability composed on the Nuxt runtime through its published runtime subpaths."
     },
     {
       "name": "fw-nuxt-client-default",
@@ -927,129 +207,12 @@
       "fixture": "framework/nuxt-client-default.ts",
       "external": ["#app", "#build/*", "#imports", "vue", "vue-router", "h3"],
       "gzipBudgetBytes": 8577,
-      "sentinelModules": [
-        "packages/core/dist/comvi-core-tags.js",
-        "packages/core/dist/chunks/comvi-core-register-tags.js",
-        "packages/core/dist/comvi-core-icu.js",
-        "packages/core/dist/comvi-core-loader.js",
-        "packages/core/dist/comvi-core-plugins.js",
-        "packages/core/dist/comvi-core-devtools.js"
-      ],
-      "expectSentinels": "absent",
       "baseline": {
         "minBytes": 24358,
         "gzipBytes": 8168,
-        "measuredAt": "2026-08-29",
-        "modules": [
-          "packages/core/dist/chunks/comvi-core-i18n-Ch8i-q3Y.js",
-          "packages/core/dist/chunks/comvi-core-translate-BgO4T2rq.js",
-          "packages/core/dist/comvi-core-editor-bridge.js",
-          "packages/core/dist/comvi-core.js",
-          "packages/nuxt/dist/runtime/composables/useI18n.js",
-          "packages/nuxt/dist/runtime/defaults.js",
-          "packages/nuxt/dist/runtime/plugin.js",
-          "packages/nuxt/dist/runtime/utils/locale-state.js",
-          "packages/vue/dist/chunks/comvi-vue-keys.js",
-          "packages/vue/dist/comvi-vue.js"
-        ]
-      },
-      "note": "Gated Nuxt client floor: the runtime client entry only; six sentinels prove the tag pair and the four capability subpaths stay out."
-    },
-    {
-      "name": "plugin-guards-baseline",
-      "entry": ["@comvi/core", "@comvi/core/plugins"],
-      "fixture": "plugin/guards-baseline.ts",
-      "baseline": {
-        "minBytes": 15216,
-        "gzipBytes": 5607,
         "measuredAt": "2026-08-29"
       },
-      "note": "Informational: the paired `plugin-guards` baseline — the same app without the misuse guards, so the guard cost is a delta and not an absolute."
-    },
-    {
-      "name": "plugin-guards",
-      "entry": ["@comvi/core", "@comvi/core/plugins"],
-      "fixture": "plugin/guards.ts",
-      "baseline": {
-        "minBytes": 15304,
-        "gzipBytes": 5643,
-        "measuredAt": "2026-08-29"
-      },
-      "note": "Informational: the plugins-capability misuse guards (`ensureInstallable`, the `_beforeInit` return-shape branch); read against `plugin-guards-baseline`."
-    },
-    {
-      "name": "plugin-fetch-loader-use",
-      "entry": [
-        "@comvi/core",
-        "@comvi/core/loader",
-        "@comvi/core/plugins",
-        "@comvi/plugin-fetch-loader"
-      ],
-      "fixture": "plugin/fetch-loader-use.ts",
-      "baseline": {
-        "minBytes": 25711,
-        "gzipBytes": 9216,
-        "measuredAt": "2026-08-29"
-      },
-      "note": "Informational: `@comvi/plugin-fetch-loader` installed through `use()`; paired with the `with` row below."
-    },
-    {
-      "name": "plugin-fetch-loader-with",
-      "entry": ["@comvi/core", "@comvi/plugin-fetch-loader"],
-      "fixture": "plugin/fetch-loader-with.ts",
-      "baseline": {
-        "minBytes": 25849,
-        "gzipBytes": 9267,
-        "measuredAt": "2026-08-29"
-      },
-      "note": "Informational: the same fetch loader through `.with(...)`; the delta over the `use` row is the installer adapter."
-    },
-    {
-      "name": "plugin-locale-detector-use",
-      "entry": ["@comvi/core", "@comvi/core/plugins", "@comvi/plugin-locale-detector"],
-      "fixture": "plugin/locale-detector-use.ts",
-      "baseline": {
-        "minBytes": 17934,
-        "gzipBytes": 6744,
-        "measuredAt": "2026-08-29"
-      },
-      "note": "Informational: `@comvi/plugin-locale-detector` through `use()`; paired with the `with` row below."
-    },
-    {
-      "name": "plugin-locale-detector-with",
-      "entry": ["@comvi/core", "@comvi/plugin-locale-detector"],
-      "fixture": "plugin/locale-detector-with.ts",
-      "baseline": {
-        "minBytes": 18080,
-        "gzipBytes": 6797,
-        "measuredAt": "2026-08-29"
-      },
-      "note": "Informational: the same detector through `.with(...)`; the delta over the `use` row is the installer adapter."
-    },
-    {
-      "name": "plugin-editor-production-with",
-      "entry": ["@comvi/core", "@comvi/plugin-in-context-editor"],
-      "fixture": "plugin/editor-production-with.ts",
-      "sentinelModules": [
-        "packages/plugin-in-context-editor/dist/index.es.js",
-        "packages/core/dist/comvi-core-devtools.js",
-        "packages/core/dist/comvi-core-plugins.js",
-        "packages/core/dist/comvi-core-loader.js",
-        "packages/core/dist/comvi-core-icu.js"
-      ],
-      "expectSentinels": "absent",
-      "baseline": {
-        "minBytes": 13720,
-        "gzipBytes": 5061,
-        "measuredAt": "2026-08-29",
-        "modules": [
-          "packages/core/dist/chunks/comvi-core-i18n-Ch8i-q3Y.js",
-          "packages/core/dist/chunks/comvi-core-translate-BgO4T2rq.js",
-          "packages/core/dist/comvi-core.js",
-          "packages/plugin-in-context-editor/dist/production.es.js"
-        ]
-      },
-      "note": "Sentinel-only: under the `production` export condition `inContextEditor()` is `(host) => host`, so five sentinels assert the editor's dev entry AND all four capability subpaths stay out. No byte budget — the claim is the absence."
+      "note": "Gated Nuxt client floor: the runtime client entry only — the anchor the Nuxt ceiling row is read against."
     }
   ]
 }

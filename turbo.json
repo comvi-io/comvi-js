@@ -43,15 +43,20 @@
         "@comvi/plugin-fetch-loader#build"
       ]
     },
-    "//#test-manifest": {
-      "outputs": [],
-      "dependsOn": ["@comvi/core#build", "@comvi/react#build", "@comvi/vue#build"],
-      // The gate reads every wrapper's test files, which a root task hash does not cover.
-      "cache": false
-    },
+    // Every package scripts/bundler-matrix/run.mjs packs into the fixture app
+    // (the union of the active cases' `packages`). Listing fewer let the matrix
+    // start against a missing dist — "@comvi/solid has no build output".
     "//#bundler-matrix": {
       "outputs": [],
-      "dependsOn": ["@comvi/core#build", "@comvi/react#build", "@comvi/vue#build"]
+      "dependsOn": [
+        "@comvi/core#build",
+        "@comvi/react#build",
+        "@comvi/solid#build",
+        "@comvi/svelte#build",
+        "@comvi/vue#build",
+        "@comvi/locale-routing#build",
+        "@comvi/next#build"
+      ]
     },
     "test:coverage": {
       "outputs": ["coverage/**"],

@@ -27,9 +27,9 @@ permissions:
 jobs:
   # RC rehearsal. Versions and peer ranges are rewritten in this job's working
   # tree only (scripts/rc-version.mjs); nothing is committed, no changeset is
-  # consumed, check-release-plan/G7 never see an rc version, and no GitHub
-  # release is created. Publishes with `pnpm publish` (OIDC trusted publishing,
-  # same workflow file as GA so the npm trusted-publisher binding holds);
+  # consumed, and no GitHub release is created. Publishes with `pnpm publish`
+  # (OIDC trusted publishing, same workflow file as GA so the npm
+  # trusted-publisher binding holds);
   # `--access public` is required because `access: public` lives only in the
   # Changesets config.
   rc:

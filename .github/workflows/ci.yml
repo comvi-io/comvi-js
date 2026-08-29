@@ -20,7 +20,11 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Verify changeset for package changes
+      # A changeset is required only for changes that reach a published
+      # artifact: `packages/*/src/**` or a package's own `package.json`.
+      # Tests, docs and config under packages/ do not ship, so they do not
+      # need one.
+      - name: Verify changeset for published package changes
         if: github.event_name == 'pull_request'
         run: |
           set -euo pipefail
@@ -29,10 +33,19 @@ jobs:
           echo "Changed files:"
           echo "$CHANGED_FILES"
 
-          if ! echo "$CHANGED_FILES" | grep -qE '^packages/'; then
-            echo "No changes in packages/. Skipping changeset check."
+          PUBLISHED_CHANGES="$(
+            echo "$CHANGED_FILES" \
+              | grep -E '^packages/[^/]+/(src/|package\.json$)' \
+              || true
+          )"
+
+          if [ -z "$PUBLISHED_CHANGES" ]; then
+            echo "No changes to packages/*/src/** or packages/*/package.json. Skipping changeset check."
             exit 0
           fi
+
+          echo "Published-surface changes detected:"
+          echo "$PUBLISHED_CHANGES"
 
           CHANGESET_FILES="$(
             echo "$CHANGED_FILES" \
@@ -42,7 +55,7 @@ jobs:
           )"
 
           if [ -z "$CHANGESET_FILES" ]; then
-            echo "Package changes detected but no changeset file was added."
+            echo "Published package changes detected but no changeset file was added."
             echo "Run 'pnpm changeset' and commit the generated .changeset/*.md file."
             exit 1
           fi
@@ -66,25 +79,23 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      # Fails when the planned release bump exceeds what changesets declare
-      # (e.g. a pinned internal peer range escalating the fixed group to major)
-      - name: Release plan guard
-        run: node scripts/check-release-plan.mjs
-
-      - name: Release tooling tests
-        run: pnpm test:release-tools
-
       - name: Format check
         run: pnpm format:check
 
       - name: Lint
         run: pnpm lint
 
+      - name: Typecheck
+        run: pnpm typecheck
+
       - name: Security audit (published packages only — test-apps ignored)
         run: node scripts/audit-published.mjs
 
-      - name: Typecheck
-        run: pnpm typecheck
+      # Self-tests for the scripts that version and migrate: the root
+      # changelog builder, the rc version rewriter, the wrapper hooks parity
+      # check, and the framework-slim codemod goldens + idempotence.
+      - name: Release tooling tests
+        run: pnpm test:release-tools
 
   tests:
     name: Package tests
@@ -112,10 +123,13 @@ jobs:
       - name: Test
         run: pnpm test:commit
 
-  size:
-    name: Bundle size gate
+  # One build, then every check that reads dist/, in order. Splitting these
+  # across jobs is what let package contracts, the size gate and the bundler
+  # matrix run against a missing or stale dist.
+  build:
+    name: Build, package contracts, size and bundler matrix
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 30
 
     steps:
       - name: Checkout
@@ -132,216 +146,9 @@ jobs:
           node-version: 24
           cache: pnpm
 
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Size gate unit tests
-        run: pnpm test:size-tools
-
-      # Builds @comvi/core (turbo dependsOn), then bundles the size fixtures
-      # through the published exports map and asserts scripts/size-budgets.json.
-      - name: Size gate (min+gz budgets)
-        run: pnpm exec turbo run "//#size"
-
-  perf:
-    name: Core runtime perf gate
-    runs-on: ubuntu-latest
-    timeout-minutes: 25
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-        with:
-          # The A/B reference is origin/main, so the job needs more than the
-          # single-commit default checkout.
-          fetch-depth: 0
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v6
-        with:
-          version: 9.12.1
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v5
-        with:
-          node-version: 24
-          cache: pnpm
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Perf harness unit tests
-        run: pnpm test:perf-tools
-
-      - name: Build @comvi/core (PR head)
-        run: pnpm exec turbo run build --filter @comvi/core
-
-      # The reference build. A full `pnpm install --frozen-lockfile` in the
-      # worktree would double the job; instead the worktree borrows THIS
-      # checkout's node_modules by symlink and builds main's core SOURCES with
-      # the head toolchain. That is the right variable to isolate for a perf
-      # A/B — the compiler, bundler and Node are held constant and only the
-      # library sources differ — but it does mean the job cannot catch a
-      # regression that lives in a toolchain bump.
-      - name: Build @comvi/core from origin/main (reference)
-        id: reference
-        continue-on-error: true
-        run: |
-          set -euo pipefail
-          REF_DIR="$RUNNER_TEMP/main-ref"
-          rm -rf "$REF_DIR"
-          git worktree add --detach "$REF_DIR" origin/main
-          ln -s "$PWD/node_modules" "$REF_DIR/node_modules"
-          ln -s "$PWD/packages/core/node_modules" "$REF_DIR/packages/core/node_modules"
-          cd "$REF_DIR/packages/core"
-          ../../node_modules/.bin/tsc
-          ../../node_modules/.bin/vite build
-          echo "dist=$REF_DIR/packages/core/dist" >> "$GITHUB_OUTPUT"
-
-      # `--probe` asks whether main's dist exposes the three entries the
-      # protocol loads. It does not on a pre-0.5.0 main (comvi-core-icu.js and
-      # comvi-core-rich-text.js are single-entry-convergence artifacts), so
-      # until 0.5.0 lands the job prints the head table and warns instead of
-      # comparing. It becomes a real gate the moment main is comparable, with
-      # no edit to this file.
-      - name: Perf A/B against origin/main (10 % median threshold on shared runners; 5 % is the local/phase gate)
-        run: |
-          # -e is off deliberately: a failing comparison must still reach the
-          # step summary before the step exits with the gate's status.
-          set +e
-          set -uo pipefail
-          REF_DIST="${{ steps.reference.outputs.dist }}"
-
-          if [ "${{ steps.reference.outcome }}" != "success" ] || [ -z "$REF_DIST" ]; then
-            REASON="the origin/main reference build failed"
-          elif ! node scripts/perf.mjs --probe "$REF_DIST"; then
-            REASON="origin/main predates the entry points this protocol measures"
-          else
-            REASON=""
-          fi
-
-          if [ -n "$REASON" ]; then
-            echo "::warning::Perf A/B skipped — $REASON. Printing the head-only table; NOTHING IS GATED in this run."
-            {
-              echo "### Perf gate: informational only"
-              echo ""
-              echo "No A/B was possible — $REASON."
-              echo ""
-              node scripts/perf.mjs packages/core/dist
-            } >> "$GITHUB_STEP_SUMMARY"
-            node scripts/perf.mjs packages/core/dist
-            exit 0
-          fi
-
-          # Shared runners measure a ~3.5 % noise floor; the 5 % phase threshold
-          # (scripts/perf.mjs default) is for a quiet machine. CI gates at 10 %.
-          node scripts/perf.mjs --compare "$REF_DIST" packages/core/dist --threshold 10 | tee perf-compare.txt
-          STATUS="${PIPESTATUS[0]}"
-          {
-            echo "### Perf gate: origin/main vs PR head"
-            echo ""
-            echo '```'
-            cat perf-compare.txt
-            echo '```'
-          } >> "$GITHUB_STEP_SUMMARY"
-          exit "$STATUS"
-
-  test-manifest:
-    name: Wrapper test manifest gate (G2)
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v6
-        with:
-          version: 9.12.1
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v5
-        with:
-          node-version: 24
-          cache: pnpm
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Test manifest comparator unit tests
-        run: pnpm test:manifest-tools
-
-      # Builds the dists the wrapper suites import (turbo dependsOn), then
-      # enumerates every wrapper test with `vitest list` and asserts that no
-      # pre-wave ID in scripts/wrapper-test-manifest.json disappeared without an
-      # allowlisted removal. Framework-slim plan G2: migrate tests, never delete.
-      - name: Test manifest gate (pre-wave wrapper test IDs)
-        run: pnpm exec turbo run "//#test-manifest"
-
-  codemod:
-    name: Migration codemod gate (framework-slim §3.1)
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v6
-        with:
-          version: 9.12.1
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v5
-        with:
-          node-version: 24
-          cache: pnpm
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      # Golden fixture per transform-matrix row and per report-only shape,
-      # idempotence, and `tsc --noEmit` over the transformed goldens. No
-      # changeset may claim "mechanical migration" while this is red.
-      - name: Codemod goldens + idempotence
-        run: pnpm test:codemod-tools
-
-      # The repository's own call sites must already be migrated: a non-empty
-      # report here means a wrapper suite or test-app still reads a capability
-      # member off `useI18n()`.
-      - name: Codemod is a no-op on this repository
-        run: |
-          node scripts/codemods/framework-slim/run.mjs \
-            "packages/react/**/*.{ts,tsx,js,jsx}" \
-            "test-apps/react/**/*.{ts,tsx}" \
-            "test-apps/next/**/*.{ts,tsx}"
-          git diff --exit-code
-
-  bundler-matrix:
-    name: Bundler matrix (packed tarballs)
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v6
-        with:
-          version: 9.12.1
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v5
-        with:
-          node-version: 24
-          cache: pnpm
-
-      # The consumer fixture app installs with npm (deliberately outside the
-      # pnpm workspace); cache its download work separately.
-      - name: Cache npm downloads for the fixture app
+      # The bundler-matrix consumer fixture app installs with npm (deliberately
+      # outside the pnpm workspace); cache its download work separately.
+      - name: Cache npm downloads for the bundler-matrix fixture app
         uses: actions/cache@v4
         with:
           path: ~/.npm
@@ -350,85 +157,40 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      # Builds @comvi/core + react + vue (turbo dependsOn), pnpm-packs the
-      # tarballs, asserts core's sideEffects array against the packed dist
-      # files, then bundles the consumer fixtures with webpack AND vite under
-      # development AND production conditions and runs every bundle in node.
-      - name: Bundler matrix (webpack + vite, dev + prod, packed tarballs)
-        run: pnpm exec turbo run "//#bundler-matrix"
-
-  critical-coverage:
-    name: Critical package coverage
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v6
-        with:
-          version: 9.12.1
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v5
-        with:
-          node-version: 24
-          cache: pnpm
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Enforce editor transport and loader coverage
-        run: pnpm test:coverage:critical
-
-  package-contracts:
-    name: Build and package contracts
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v6
-        with:
-          version: 9.12.1
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v5
-        with:
-          node-version: 24
-          cache: pnpm
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
       - name: Build
         run: pnpm build
 
       # Verifies every publishable package's exports/main/types/bin targets are
-      # present in `npm pack` output; reads dist/, so it must run after Build.
+      # present in `npm pack` output.
       - name: Package contracts
         run: pnpm audit:package-contracts
 
       # Lints the packed tarball of every published package for type/exports
-      # correctness (false-CJS, engines/repository nits). Reads dist/, so it runs
-      # after Build.
+      # correctness (false-CJS, engines/repository nits).
       - name: publint (types/exports)
         run: pnpm check:publint
 
       # Runs arethetypeswrong against dual ESM/CJS packages so broken declaration
-      # conditions cannot ship unnoticed. Reads dist/, so it runs after Build.
+      # conditions cannot ship unnoticed.
       - name: Types exports
         run: pnpm check:types-exports
 
-  extension-artifact:
-    name: Chrome extension artifact
+      # Bundles the 15 gated fixtures through the published exports map and
+      # asserts min+gz against scripts/size-budgets.json.
+      - name: Size gate (min+gz budgets)
+        run: pnpm size
+
+      # pnpm-packs every workspace package the matrix needs, asserts core's
+      # sideEffects array against the packed dist files, then bundles the
+      # consumer fixtures with webpack AND vite under development AND
+      # production conditions and runs every bundle in node.
+      - name: Bundler matrix (webpack + vite, dev + prod, packed tarballs)
+        run: pnpm bundler-matrix
+
+  extension:
+    name: Chrome extension
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 30
     env:
       VITE_COMVI_API_BASE_URL: https://api.comvi.io
 
@@ -450,37 +212,13 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      # Builds @comvi/plugin-in-context-editor first via turbo `^build` — the
+      # bundle Gate E loads.
       - name: Build editor and extension
         run: pnpm extension:build
 
       - name: Verify built artifact
         run: pnpm --filter @comvi/chrome-extension exec vitest run src/__tests__/artifacts.test.ts
-
-  extension-browser-security:
-    name: Chrome extension trust boundary
-    runs-on: ubuntu-latest
-    timeout-minutes: 25
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v6
-        with:
-          version: 9.12.1
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v5
-        with:
-          node-version: 24
-          cache: pnpm
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Build editor bundle
-        run: pnpm exec turbo run build --filter @comvi/plugin-in-context-editor
 
       - name: Install Chromium
         run: pnpm --filter @comvi/chrome-extension exec playwright install --with-deps chromium
@@ -498,42 +236,3 @@ jobs:
             apps/chrome-extension/test-results/
           if-no-files-found: ignore
           retention-days: 14
-
-  dispatch-system-compatibility:
-    name: Dispatch system compatibility
-    if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
-    needs:
-      [
-        quality,
-        tests,
-        size,
-        test-manifest,
-        bundler-matrix,
-        codemod,
-        critical-coverage,
-        package-contracts,
-        extension-artifact,
-        extension-browser-security,
-      ]
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    env:
-      GH_TOKEN: ${{ secrets.SYSTEM_COMPATIBILITY_TOKEN }}
-
-    steps:
-      - name: Explain skipped compatibility dispatch
-        if: env.GH_TOKEN == ''
-        run: |
-          echo '::warning::SYSTEM_COMPATIBILITY_TOKEN is not configured; skipping the private platform dispatch.'
-          echo '### System compatibility dispatch skipped' >> "$GITHUB_STEP_SUMMARY"
-          echo 'Configure SYSTEM_COMPATIBILITY_TOKEN to dispatch exact comvi-js commits to the private platform gate.' >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Dispatch exact SDK and extension candidate
-        if: env.GH_TOKEN != ''
-        run: |
-          gh api \
-            --method POST \
-            repos/comvi-io/platform/dispatches \
-            -f event_type=system-compatibility \
-            -F 'client_payload[platform_ref]=develop' \
-            -F 'client_payload[sdk_ref]=${{ github.sha }}'

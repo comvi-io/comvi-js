@@ -287,9 +287,7 @@ function withHost(i18n: NextComposedI18n) {
 }
 ```
 
-Measured: **10120 B** min+gz for the server graph (`fw-next-composed-factory`),
-against a 10128 B budget — 8 B of current headroom. Nothing about the call site
-changes, and `packages/next/tests/composed-contract.test.ts` pins every
+Nothing about the call site changes, and `packages/next/tests/composed-contract.test.ts` pins every
 capability a 0.4 caller could reach through `result.i18n`.
 
 ### `createI18n` — the base host on both entries
@@ -396,23 +394,17 @@ naming both sources. A same-instance `setI18n()` stays a no-op.
 
 The client recipe is a base host hydrated from the catalog the server
 serialized. Whole-app comvi graph, min+gz, `next` and `react` externalized
-(`node scripts/size-check.mjs`):
+(`pnpm size`, rows in `scripts/size-budgets.json`, each gated at measured + 5 %):
 
-| graph                                                    | min+gz    | row                             |
-| -------------------------------------------------------- | --------- | ------------------------------- |
-| server, `createNextI18n` (the composed host)             | 10120     | `fw-next-composed-factory`      |
-| server, `createNextI18nFromHost` on a composed base host | **7218**  | `fw-next-server-default-loader` |
-| client, base host hydrated                               | **7057**  | `fw-next-client-default`        |
-| client, base host + `<T>`                                | **8939**  | `fw-next-client-default-t`      |
-| client, base host + inline ICU                           | **7936**  | `fw-next-client-icu`            |
-| client, ICU + loader + plugins + devtools + `<T>`        | **11580** | `fw-next-client-full-composite` |
+| graph                                                    | min+gz   | row                             |
+| -------------------------------------------------------- | -------- | ------------------------------- |
+| server, `createNextI18nFromHost` on a composed base host | **7284** | `fw-next-server-default-loader` |
+| client, base host hydrated                               | **7120** | `fw-next-client-default`        |
 
-Moving the server onto a composed base host saves **2902 B (−28.7%)**. Every row
-is gated on its emitted module graph as well as its bytes, at the corpus-wide
-measured + 2%. The last row is the migration CEILING for a fully composed 0.4
-client, not a parity claim: 0.4 also registered string-API tag syntax ambiently,
-and that is now an explicit `@comvi/core/tags` import which neither next entry
-re-exports.
+A fully composed 0.4-style client (ICU + loader + plugins + devtools + `<T>`)
+is the migration CEILING, not a parity claim: 0.4 also registered string-API tag
+syntax ambiently, and that is now an explicit `@comvi/core/tags` import which
+neither next entry re-exports.
 
 ## One package: both `@comvi/next` entries
 

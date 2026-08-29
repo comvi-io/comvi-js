@@ -154,30 +154,13 @@ attaches the capability at runtime, but `i18n.core` keeps the base type and
 every later `i18n.core.registerLoader(…)` is a compile error. `createCore` +
 `createI18nFromCore` is the path that carries the composed type through.
 
-Whole-app comvi graph, min+gz, `vue` externalized
-(`node scripts/size-check.mjs`):
+Whole-app comvi graph, min+gz, `vue` externalized (`pnpm size`, rows in
+`scripts/size-budgets.json`, each gated at measured + 5 %):
 
-| app shape                         | size fixture              | min+gz      |
-| --------------------------------- | ------------------------- | ----------- |
-| base host, one call, no `<T>`     | `fw-vue-default`          | **6966 B**  |
-| base host, injected, no `<T>`     | `fw-vue-default-composed` | 6962 B      |
-| base host, one call + `<T>`       | `fw-vue-default-t`        | **8812 B**  |
-| base host + inline ICU            | `fw-vue-icu`              | **7848 B**  |
-| full explicit composition + `<T>` | `fw-vue-full-composite`   | **11435 B** |
-
-All five rows are live in `scripts/size-budgets.json`; the four gated ones are
-sentinel-checked from the emitted module graph on every run and budgeted at
-measured + 2%. The one-call default is +86 B (+1.25%) over the pre-convergence
-single-package anchor and 3397 B (32.8%) below the historical 0.4 composed root,
-which measured 10363 B.
-
-`fw-vue-default-composed` is the exception and the reason it exists: it is
-informational — measured and printed, never gated — because it is a comparison
-row. Read against `fw-vue-default`, its delta is the whole `VueI18n`
-construction path, the preset glue no other binding pays, because react, solid
-and svelte have no wrapper object to build. On the converged entries that glue
-is 4 B (6966 one-call against 6962 injected); before they converged it was 5 B
-(6880 against 6875).
+| app shape                         | size fixture            | min+gz      |
+| --------------------------------- | ----------------------- | ----------- |
+| base host, one call, no `<T>`     | `fw-vue-default`        | **7029 B**  |
+| full explicit composition + `<T>` | `fw-vue-full-composite` | **11527 B** |
 
 `<T>` adds the pure `@comvi/core/rich-text` path. It no longer registers
 ambient string-API tags — the seam changed in this release — so its graph
