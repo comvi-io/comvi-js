@@ -85,10 +85,12 @@ i18n.t("greeting", { name: "Alice" }); // "Hello, Alice!"
 i18n.t("items", { count: 5 }); // "5 items"
 ```
 
-Without `compiler: icuCompiler` the default compiler throws `E_ICU_SYNTAX` on
-`{count, plural, …}` — in development **and** production — rather than rendering
-the template as its own literal text. Plain `{param}` interpolation needs no
-import.
+Without `compiler: icuCompiler` the default compiler never renders
+`{count, plural, …}` as a plural: development throws `E_ICU_SYNTAX` at
+ingestion, and production renders the braced segment literally and reports
+`E_ICU_SYNTAX` through `onError` (or `console.error`) on the compilation that
+hit it — best-effort, per process, never on cached renders. Plain `{param}`
+interpolation needs no import.
 
 For framework-specific setup, see the docs:
 [React](https://comvi.io/docs/i18n/react/) ·
@@ -206,8 +208,11 @@ t("greeting", { gender: "female" }); // "Welcome, madam"
 ICU is a composed capability, not a default. Name it once where you build the
 host — `compiler: icuCompiler` for inline catalogs, `.with(icu())` before the
 first remote catalog is ingested — and the whole grammar above is live. Leave it
-out and the default compiler throws `E_ICU_SYNTAX` the moment such a template is
-rendered, in every build condition: a wrong plural is never served silently.
+out and the failure is loud in every build condition, never silent and never a
+plausible wrong answer: development throws `E_ICU_SYNTAX` at ingestion, and
+production renders the braced segment literally and reports `E_ICU_SYNTAX`
+through `onError` (or `console.error`) on the compilation that hit it —
+best-effort, per process, never on cached renders.
 
 ## Locale-aware formatting
 

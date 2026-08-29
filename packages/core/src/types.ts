@@ -507,16 +507,17 @@ export interface ErrorReportContext {
     | "namespace-load"
     | "post-processor"
     | "event"
-    | "setLocale";
+    | "setLocale"
+    | "compile";
   /** Plugin name (when source is plugin or plugin-cleanup) */
   pluginName?: string;
   /** Tag name or component (when source is translation) */
   tagName?: string;
-  /** Translation key (when source is namespace-load, post-processor) */
+  /** Translation key (when source is namespace-load, post-processor, compile) */
   key?: string;
-  /** Locale (when source is namespace-load) */
+  /** Locale (when source is namespace-load, compile) */
   locale?: string;
-  /** Namespace (when source is namespace-load) */
+  /** Namespace (when source is namespace-load, compile) */
   namespace?: string;
   /** Event name (when source is event) */
   event?: I18nEvent;

@@ -29,10 +29,13 @@ describe("@comvi/core", () => {
     expect(i18n.t("plain" as never)).toBe("Just text");
   });
 
-  // Policy A: ICU argument syntax on the default compiler is LOUD in dev AND
-  // prod. Ingesting the catalog is the dev-eager seam, so the throw arrives at
-  // construction here rather than at first render (production is lazy — see
-  // `compiler-isolation.test.ts` for the dev/prod topology).
+  // ICU argument syntax on the default compiler is fatal in DEVELOPMENT (this
+  // suite runs with `__DEV__` true): ingesting the catalog is the dev-eager
+  // seam, so the throw arrives at construction rather than at first render.
+  // Production instead renders the braced segment literally and reports
+  // `E_ICU_SYNTAX` through `onError` (or `console.error`) on the compilation
+  // that hit it — see `tests/dist/compiler-policy.dist.test.ts`, the only
+  // place the `__DEV__` fold can be observed.
   it("throws E_ICU_SYNTAX on ICU argument syntax instead of rendering it literally", () => {
     const template = "{count, plural, one {# item} other {# items}}";
 

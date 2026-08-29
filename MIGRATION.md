@@ -18,18 +18,18 @@ minor-bump policy:
 The 0.4 root was batteries-included. The converged root is the base host: text +
 `{param}` interpolation, the cache, events, default params and `.with()`.
 
-| 0.4 root behaviour                           | converged root                | loudness                                | migration                                                                 |
-| -------------------------------------------- | ----------------------------- | --------------------------------------- | ------------------------------------------------------------------------- |
-| ICU plurals / select                         | the default compiler throws   | **dev AND prod throw** `E_ICU_SYNTAX`   | inline: `compiler: icuCompiler`; remote: `.with(icu())` before the loader |
-| `.use(plugin)`                               | absent                        | TS error + runtime `TypeError`          | `.with(plugins()).use(p)`, or a plugin package's lowercase installer      |
-| loader (`registerLoader`, …)                 | absent                        | existing loud capability error          | `.with(loader())` / `fetchLoader(opts)`                                   |
-| discovery (`instanceId`, `window.__COMVI__`) | absent                        | invisible to the extension (documented) | `.with(devtools())`, or the in-context-editor installer                   |
-| nested catalogs                              | stored verbatim               | dev warning                             | `flattenCatalog(…)`, or compose `loader()`                                |
-| string-API tags (`"<b>hi</b>"`)              | literal text                  | dev warning; prod literal               | `<T>`, or `import "@comvi/core/tags"`                                     |
-| `new I18n(options)`                          | unchanged, one argument       | —                                       | —                                                                         |
-| published `createNextI18n`                   | unchanged composed host       | —                                       | —                                                                         |
-| the CDN global                               | unchanged, batteries-included | —                                       | —                                                                         |
-| a plugin returning a value                   | rejected at `init()`          | throws through the plugin error path    | return nothing or a cleanup function: `() => { flag = true; }`            |
+| 0.4 root behaviour                           | converged root                | loudness                                                             | migration                                                                 |
+| -------------------------------------------- | ----------------------------- | -------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| ICU plurals / select                         | not compiled by default       | **dev throws; prod renders it literally and reports** `E_ICU_SYNTAX` | inline: `compiler: icuCompiler`; remote: `.with(icu())` before the loader |
+| `.use(plugin)`                               | absent                        | TS error + runtime `TypeError`                                       | `.with(plugins()).use(p)`, or a plugin package's lowercase installer      |
+| loader (`registerLoader`, …)                 | absent                        | existing loud capability error                                       | `.with(loader())` / `fetchLoader(opts)`                                   |
+| discovery (`instanceId`, `window.__COMVI__`) | absent                        | invisible to the extension (documented)                              | `.with(devtools())`, or the in-context-editor installer                   |
+| nested catalogs                              | stored verbatim               | dev warning                                                          | `flattenCatalog(…)`, or compose `loader()`                                |
+| string-API tags (`"<b>hi</b>"`)              | literal text                  | dev warning; prod literal                                            | `<T>`, or `import "@comvi/core/tags"`                                     |
+| `new I18n(options)`                          | unchanged, one argument       | —                                                                    | —                                                                         |
+| published `createNextI18n`                   | unchanged composed host       | —                                                                    | —                                                                         |
+| the CDN global                               | unchanged, batteries-included | —                                                                    | —                                                                         |
+| a plugin returning a value                   | rejected at `init()`          | throws through the plugin error path                                 | return nothing or a cleanup function: `() => { flag = true; }`            |
 
 ### 0.1 The compiler has a timing rule
 
@@ -51,7 +51,8 @@ first catalog that reaches the host — a constructor `translation`, an
 anything. `clearTranslations()` does not unlock it. So
 `createI18n({ translation }).with(icu())` is invalid by construction: in
 development the ingestion check throws first, in production the host locks and
-the installer throws. No cache is ever cleared or rekeyed — the lock is what
+the installer throws. `E_COMPILER_LOCKED` is loud in BOTH conditions — only the
+ICU-syntax failure below differs between them. No cache is ever cleared or rekeyed — the lock is what
 proves no compiled template can exist yet.
 
 ### 0.2 The ICU failure is structured, and its context is yours
@@ -62,24 +63,32 @@ proves no compiled template can exist yet.
 support) — and nothing else. **Locale, namespace, key and catalog source are
 application-supplied telemetry**, not core-error fields: core does not know
 which of your loaders produced the catalog, and inventing a field it cannot fill
-truthfully would cost every user bytes. Combine the two at your boundary:
+truthfully would cost every user bytes. In production the host supplies what it
+DOES know through the report context, so `onError` is the seam:
 
 ```ts
-try {
-  return i18n.t(key, params);
-} catch (error) {
-  if ((error as { code?: string }).code === "E_ICU_SYNTAX") {
-    report(error, { locale: i18n.locale, namespace, key, source: "cdn-catalog" });
-  }
-  throw error;
-}
+const i18n = createI18n({
+  locale: "en",
+  onError(error, context) {
+    if ((error as { code?: string }).code === "E_ICU_SYNTAX") {
+      // context: { source: "compile", key, namespace, locale }
+      report(error, { ...context, source: "cdn-catalog" });
+    }
+  },
+});
 ```
 
-Development is **eager**: ingesting a catalog walks its string leaves, so a bad
-template throws where it entered. Production is **lazy and non-cached**: the
-throw lands on the first render of that template, and every later call re-throws
-rather than serving something wrong. The dev walk costs the production bundle
-**0 B**.
+Development is **eager**, and the throw lands where the template is COMPILED:
+at ingestion for catalog strings, so a bad one throws where it entered, before
+a single render; at first compile for a template that never passes through
+ingestion — a per-call `params.fallback`. Production never
+crashes on it: the braced segment renders **literally**, exactly as authored,
+and `E_ICU_SYNTAX` is reported through `onError` (or `console.error` when no
+handler is configured) on the compilation that hit it — best-effort, per
+process, never on cached renders, so a hot key costs one report and not one per
+render. A literal `{count, plural, …}` in the UI is visibly broken in the same
+way a literal `<b>` is; what it never does is take the page down. The dev walk
+costs the production bundle **0 B**.
 
 ### 0.3 Residuals — named, not solved
 
@@ -91,8 +100,10 @@ rather than serving something wrong. The dev walk costs the production bundle
   in-context-editor installer.
 - **Nested catalogs are stored verbatim** on a host without the loader
   capability (dev-warned). `flattenCatalog` is the pure escape hatch.
-- **Runtime-loaded ICU catalogs** convert from "works" to "throws" until the
-  host installs an ICU-capable compiler pre-ingestion. Deliberately loud.
+- **Runtime-loaded ICU catalogs** convert from "works" to "throws in
+  development, renders literally and reports in production" until the host
+  installs an ICU-capable compiler pre-ingestion. Deliberately loud, never
+  silent, and never fatal to a production page.
 - **Reflective consumers**: `instanceId` is absent unless discovery is
   installed, and the loader/plugin members are no longer on the prototype chain.
 

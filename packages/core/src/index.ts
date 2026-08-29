@@ -23,9 +23,11 @@
 //   • `@comvi/core/tags`     — the same toolbox PLUS ambient registration:
 //     importing it makes `<tag>…</tag>` syntax for plain string-API `t()`.
 //
-// ICU syntax under the default compiler FAILS LOUD in development and in
-// production: `{count, plural, …}` throws `E_ICU_SYNTAX` rather than rendering
-// plausibly-wrong text. Without a tags extension `<tag>…</tag>` is not syntax
+// ICU syntax under the default compiler is never rendered plausibly-wrong:
+// development throws `E_ICU_SYNTAX` at ingestion; production renders the
+// braced segment literally and reports `E_ICU_SYNTAX` through `onError` (or
+// `console.error`) on the compilation that hit it — best-effort, per process,
+// never on cached renders. Without a tags extension `<tag>…</tag>` is not syntax
 // and stays literal text (dev-warned). Rich non-primitive param values behave
 // the same on every graph: `t` coerces them into the string, `tRaw` preserves
 // them as a parts array.

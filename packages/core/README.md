@@ -51,8 +51,10 @@ npm install @comvi/core
 ## Quick start
 
 The catalogs below use ICU plurals, so the quickstart names the ICU compiler —
-on the default compiler `{count, plural, …}` throws `E_ICU_SYNTAX` rather than
-rendering wrong text. Drop both ICU lines and you can drop the import with them.
+on the default compiler `{count, plural, …}` never becomes a plural: it throws
+`E_ICU_SYNTAX` in development and renders literally (with a report) in
+production, rather than rendering wrong text. Drop both ICU lines and you can
+drop the import with them.
 
 ```ts
 import { createI18n } from "@comvi/core";
@@ -114,25 +116,34 @@ codemod, and the one rule that has a timing constraint:
   catalog (constructor, `addTranslations`, or a loader merge) and a later
   `icu()` throws `E_COMPILER_LOCKED` before mutating anything.
 
-### ICU syntax on the default compiler fails LOUD
+### ICU syntax on the default compiler is never silent
 
-`{count, plural, …}` on the default compiler throws `E_ICU_SYNTAX` in
-development **and** in production. That is the point: a plural that silently
-renders as its own source text reads plausible in review and wrong to a user.
+`{count, plural, …}` on the default compiler is never rendered as a plural, and
+never rendered plausibly-wrong: development throws `E_ICU_SYNTAX` at ingestion,
+and production renders the braced segment **literally** and reports
+`E_ICU_SYNTAX` for it. That is the point: a plural that silently renders as
+something plausible reads fine in review and wrong to a user, while a literal
+`{count, plural, …}` on the page is visibly broken and takes nothing down with
+it.
 
 The error owns exactly two fields — a stable `code` and a truthful
 `argumentType` (`"plural"`, `"select"`, `"selectordinal"`, or the parsed token
 such as `"number"` / `"date"` / `"other"`, for which the message explicitly does
-NOT claim shipped ICU support). Locale, namespace, key and catalog source are
-**application-supplied telemetry**: add them at your own boundary, where you
-know what you were rendering.
+NOT claim shipped ICU support). Catalog source stays **application-supplied
+telemetry**: add it at your own boundary. What the host itself knows it puts in
+the report context — `{ source: "compile", key, namespace, locale }`.
 
 Development is EAGER — ingesting a catalog walks its string leaves, so a bad
-template throws where it entered. Production is LAZY and non-cached: the throw
-lands on the first render of that template, and every later call re-throws
-rather than serving something wrong. The dev walk costs the production bundle
-**0 B** (it is behind the `__DEV__` fold, and a dist test asserts the identifier
-occurs in no production artifact).
+template throws where it entered, before a single render. The throw always
+lands where the template is COMPILED, so a template that never passes through
+ingestion — a per-call `params.fallback` — throws at its first compile
+instead. Production is LAZY: on the compilation that
+hits ICU syntax the segment renders literally and `E_ICU_SYNTAX` is reported
+through `onError`, or through `console.error` when no handler is configured —
+best-effort, per process, never on cached renders (the parsed template IS
+cached, so a hot key costs one report, not one per render). The dev walk costs
+the production bundle **0 B** (it is behind the `__DEV__` fold, and a dist test
+asserts the identifier occurs in no production artifact).
 
 ### Framework bindings
 

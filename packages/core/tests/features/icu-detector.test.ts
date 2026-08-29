@@ -10,14 +10,19 @@ import { TK_TEXT } from "../../src/core/translate/cache";
 import { _resetSyntaxExtensions, type MessageCompiler } from "../../src/core/translate/syntax";
 
 /**
- * The structured `E_ICU_SYNTAX` detector (plan §2.1, Policy A).
+ * The structured `E_ICU_SYNTAX` detector (plan §2.1, D1 of
+ * `.omc/plans/release-0.5.0-hardening.md`).
  *
  * A comma inside parsed braces is the ICU argument-type marker. On the default
- * compiler it THROWS — in development and in production — instead of rendering
- * plausibly-wrong text, which is the one silent failure this convergence set
- * out to remove. `tests/dist/compiler-policy.dist.test.ts` pins the same
- * contract on the built artifacts, including the dev-eager / prod-lazy split
- * and the bounded production message.
+ * compiler DEVELOPMENT THROWS at ingestion — this file's subject, because
+ * `__DEV__` is `true` under vitest. Production renders the braced segment
+ * literally and reports `E_ICU_SYNTAX` through `onError` (or `console.error`)
+ * on the compilation that hit it — best-effort, per process, never on cached
+ * renders. Neither side renders plausibly-wrong text, which is the one silent
+ * failure this convergence set out to remove.
+ * `tests/dist/compiler-policy.dist.test.ts` pins BOTH halves on the built
+ * artifacts (production behaviour is only observable there: the `__DEV__` fold
+ * decides it).
  *
  * Most cases parse directly, because ingesting an ICU catalog through the base
  * host throws at the dev preflight before any render can be attempted — and

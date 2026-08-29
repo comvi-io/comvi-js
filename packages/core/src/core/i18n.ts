@@ -33,7 +33,12 @@ import {
 import { translationResultToString } from "../utils/translationResultToString";
 import { TranslationCache } from "./TranslationCache";
 import { isStaticTemplate, translate, translateTemplate } from "./translate";
-import { simpleCompiler } from "./translate/compile-simple";
+import {
+  clearIcuHit,
+  icuHit,
+  simpleCompiler,
+  type IcuSyntaxError,
+} from "./translate/compile-simple";
 import { parseTemplate } from "./translate/parser";
 import {
   effectiveExtBits,
@@ -762,6 +767,11 @@ export class I18n<D extends DefaultTranslationParams = {}>
     fallbackLocales: string[],
     params?: TranslationParams,
   ): TranslationResult {
+    // PROD-ONLY (§D1.3): drop any hit left behind by a compile this call did
+    // not make — a `translate()` that threw before its read-and-clear, or a
+    // compile outside the host (`prepareTranslation`). One assignment here is
+    // what makes every read below attributable to THIS call.
+    if (!IS_DEV) clearIcuHit();
     const hasParams = params != null;
     const locale = hasParams && params.locale !== undefined ? params.locale : currentLocale;
     const namespace = hasParams && params.ns !== undefined ? params.ns : defaultNamespace;
@@ -787,6 +797,12 @@ export class I18n<D extends DefaultTranslationParams = {}>
         this._compiler,
         this._missingParam,
       );
+      // PROD-ONLY (§D1.3): the compile that just ran may have rendered an ICU
+      // segment literally. Read-and-clear the hit here, where the telemetry
+      // (key/namespace/locale) exists. Folded out of dev builds entirely.
+      if (!IS_DEV && icuHit !== undefined) {
+        this._reportIcuLiteral(translationKey, namespace, locale);
+      }
       return skipPostProcess
         ? result
         : this._postProcess(result, translationKey, namespace, params);
@@ -804,6 +820,11 @@ export class I18n<D extends DefaultTranslationParams = {}>
           this._compiler,
           this._missingParam,
         );
+        // Same read-and-clear as the primary compile, with the locale that
+        // actually compiled — the fallback one.
+        if (!IS_DEV && icuHit !== undefined) {
+          this._reportIcuLiteral(translationKey, namespace, fallbackLoc);
+        }
         return skipPostProcess
           ? result
           : this._postProcess(result, translationKey, namespace, params);
@@ -817,9 +838,32 @@ export class I18n<D extends DefaultTranslationParams = {}>
       params,
       tagInterpolation,
     );
+    // A per-call `params.fallback` is a TEMPLATE and is compiled here, having
+    // bypassed ingestion entirely — so it needs the same read-and-clear as the
+    // catalog paths, against the key the caller asked for.
+    if (!IS_DEV && icuHit !== undefined) {
+      this._reportIcuLiteral(translationKey, namespace, locale);
+    }
     return skipPostProcess
       ? missingResult
       : this._postProcess(missingResult, translationKey, namespace, params);
+  }
+
+  /**
+   * PRODUCTION-ONLY (§D1.3): report an ICU segment the default compiler just
+   * rendered literally. Best-effort and per process — it fires on the
+   * COMPILATION, so a cached render never re-reports. The error owns exactly
+   * `code` + `argumentType`; the telemetry travels in the context. Without an
+   * `onError` handler production would otherwise be silent, so this one path
+   * also writes to the console — `reportError` itself is unchanged.
+   */
+  private _reportIcuLiteral(key: string, namespace: string, locale: string): void {
+    const err = new Error("E_ICU_SYNTAX") as IcuSyntaxError;
+    err.code = "E_ICU_SYNTAX";
+    err.argumentType = icuHit!;
+    clearIcuHit();
+    if (!this._onError) console.error("[comvi] E_ICU_SYNTAX", key, locale);
+    this.reportError(err, { source: "compile", key, namespace, locale });
   }
 
   private _postProcess(
@@ -1033,7 +1077,10 @@ export class I18n<D extends DefaultTranslationParams = {}>
 // `_nsAddTranslations` (constructor catalog + `addTranslations`) and the
 // loader's pre-merge call in `core/loader.ts`. In development an ICU-shaped
 // string in an ingested catalog throws `E_ICU_SYNTAX` at ingestion instead of
-// at first render; production stays lazy and throws on the compile miss.
+// at first render; production stays lazy, renders the braced segment
+// literally and reports `E_ICU_SYNTAX` through `onError` (or `console.error`)
+// on the compilation that hit it — best-effort, per process, never on cached
+// renders.
 // The entire block is stripped from production builds by the __DEV__ fold, so
 // it costs the shipped bundle nothing.
 if (IS_DEV) {

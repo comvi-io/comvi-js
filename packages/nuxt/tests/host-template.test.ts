@@ -161,12 +161,14 @@ describe("generated #build/comvi.host template", () => {
       error = caught;
     }
 
-    // Policy A: ICU syntax under the simple compiler throws in dev AND prod
-    // rather than rendering plausibly-wrong text. Dev catches it eagerly at
-    // ingestion; production catches it lazily at the first translation. Nuxt
-    // inherits both by building the base host, and there is no compiler sugar
-    // in the template that could quietly paper over it — `compiler:
-    // icuCompiler` belongs to a `hostModule` factory.
+    // ICU syntax under the simple compiler never renders plausibly-wrong
+    // text. This suite runs with `__DEV__` true, so the eager ingestion check
+    // throws here; production instead renders the braced segment literally and
+    // reports `E_ICU_SYNTAX` through `onError` (or `console.error`) on the
+    // compilation that hit it. Nuxt inherits whichever half applies by
+    // building the base host, and there is no compiler sugar in the template
+    // that could quietly paper over it — `compiler: icuCompiler` belongs to a
+    // `hostModule` factory or the `icu: true` module option.
     expect(error).toMatchObject({ code: "E_ICU_SYNTAX", argumentType: "plural" });
   });
 

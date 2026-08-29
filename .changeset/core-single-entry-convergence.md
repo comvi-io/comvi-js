@@ -2,20 +2,20 @@
 "@comvi/core": minor
 ---
 
-**BREAKING (0.x minor, WATCHDOG policy): the root `@comvi/core` entry changes semantics.** `@comvi/core` is now ONE entry — the base host — and capability is an import you add, never an entry you switch. The second entry, `@comvi/core/slim`, is deleted (it never published, so there is no deprecation debt). If you are on 0.4.x's root entry, read the table below before upgrading: ICU plurals now THROW instead of rendering wrong text, and `.use()`, the loader, devtools discovery and nested-catalog flattening are absent until composed.
+**BREAKING (0.x minor, WATCHDOG policy): the root `@comvi/core` entry changes semantics.** `@comvi/core` is now ONE entry — the base host — and capability is an import you add, never an entry you switch. The second entry, `@comvi/core/slim`, is deleted (it never published, so there is no deprecation debt). If you are on 0.4.x's root entry, read the table below before upgrading: ICU plurals now fail loudly instead of rendering wrong text, and `.use()`, the loader, devtools discovery and nested-catalog flattening are absent until composed.
 
 ### What a 0.4 root user experiences
 
-| 0.4 root behaviour                                    | converged root              | loudness                                        | migration                                                                                   |
-| ----------------------------------------------------- | --------------------------- | ----------------------------------------------- | ------------------------------------------------------------------------------------------- |
-| ICU plurals / select                                  | the default compiler throws | **dev AND prod throw** `E_ICU_SYNTAX`           | inline catalogs: `compiler: icuCompiler`; remote catalogs: `.with(icu())` BEFORE the loader |
-| `.use(plugin)`                                        | absent                      | TS error + runtime `TypeError`                  | `.with(plugins()).use(p)`                                                                   |
-| loader (`registerLoader`, …)                          | absent                      | existing loud capability error                  | `.with(loader())` or `fetchLoader(opts)`                                                    |
-| devtools discovery (`instanceId`, `window.__COMVI__`) | absent                      | invisible to the browser extension (documented) | `.with(devtools())`, or the in-context-editor installer                                     |
-| nested catalogs                                       | stored verbatim             | dev warning                                     | `flattenCatalog(…)`, or compose `loader()`                                                  |
-| string-API tags (`"<b>hi</b>"` through `t()`)         | literal text                | dev warning; prod literal                       | `<T>` from your framework package, or `import "@comvi/core/tags"`                           |
-| `new I18n(options)`                                   | unchanged, one argument     | —                                               | —                                                                                           |
-| published `createNextI18n`                            | unchanged composed host     | —                                               | —                                                                                           |
+| 0.4 root behaviour                                    | converged root          | loudness                                                             | migration                                                                                   |
+| ----------------------------------------------------- | ----------------------- | -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| ICU plurals / select                                  | not compiled by default | **dev throws; prod renders it literally and reports** `E_ICU_SYNTAX` | inline catalogs: `compiler: icuCompiler`; remote catalogs: `.with(icu())` BEFORE the loader |
+| `.use(plugin)`                                        | absent                  | TS error + runtime `TypeError`                                       | `.with(plugins()).use(p)`                                                                   |
+| loader (`registerLoader`, …)                          | absent                  | existing loud capability error                                       | `.with(loader())` or `fetchLoader(opts)`                                                    |
+| devtools discovery (`instanceId`, `window.__COMVI__`) | absent                  | invisible to the browser extension (documented)                      | `.with(devtools())`, or the in-context-editor installer                                     |
+| nested catalogs                                       | stored verbatim         | dev warning                                                          | `flattenCatalog(…)`, or compose `loader()`                                                  |
+| string-API tags (`"<b>hi</b>"` through `t()`)         | literal text            | dev warning; prod literal                                            | `<T>` from your framework package, or `import "@comvi/core/tags"`                           |
+| `new I18n(options)`                                   | unchanged, one argument | —                                                                    | —                                                                                           |
+| published `createNextI18n`                            | unchanged composed host | —                                                                    | —                                                                                           |
 
 ### The compiler timing rule — read this before you migrate ICU
 
@@ -42,7 +42,7 @@ const i18n = createI18n({ locale: "en" }).with(icu()).with(fetchLoader({ … }))
 
 `E_ICU_SYNTAX` carries own `code` and a truthful own `argumentType` (`"plural"`, `"select"`, `"selectordinal"`, or the parsed token such as `"number"` / `"date"` / `"other"` — for which the message explicitly does NOT claim shipped ICU support) and **nothing else**. Locale, namespace, key and catalog source are application-supplied telemetry: add them at your own boundary.
 
-Development is EAGER — the catalog is walked at both ingestion seams, so a bad template throws where it was ingested. Production is LAZY and non-cached: the throw happens on the first render of that template, and every later call re-throws rather than serving something wrong.
+Development is EAGER — the catalog is walked at both ingestion seams, so a bad template throws where it was ingested; the throw always lands where the template is COMPILED, so one that bypasses ingestion (a per-call `params.fallback`) throws at its first compile instead. Production never crashes on it: it renders the braced segment literally and reports `E_ICU_SYNTAX` through `onError` (or `console.error` when no handler is configured) on the compilation that hit it — best-effort, per process, never on cached renders. The report's context carries `source: "compile"` plus the `key`, `namespace` and `locale` the compiler itself cannot see.
 
 ### Preserved on purpose
 

@@ -442,17 +442,17 @@ const G7_ALLOWLIST = [
   },
   {
     file: "README.md",
-    line: 100,
+    line: 102,
     pattern: "vanilla-scope",
     reason:
-      "Documentation URL comvi.io/docs/i18n/vanilla/ — a permanent docs path, not a claim. RE-REVIEWED at single-entry P6 (93 -> 100, the docs link row moved when the one-entry-per-package table landed above it); the line is byte-identical and still a bare docs link.",
+      "Documentation URL comvi.io/docs/i18n/vanilla/ — a permanent docs path, not a claim. RE-REVIEWED at single-entry P6 (93 -> 100, the docs link row moved when the one-entry-per-package table landed above it); the line is byte-identical and still a bare docs link. RE-PINNED at 0.5.0-hardening Phase 1 (100 -> 102, the ICU prose above it grew when the production policy changed from a throw to literal + report); the line is byte-identical.",
   },
   {
     file: "README.md",
-    line: 234,
+    line: 239,
     pattern: "vanilla-scope",
     reason:
-      "Documentation URL in the package table's docs column — a permanent docs path, not a claim. RE-REVIEWED at single-entry P6 (181 -> 234, the §Packages table moved down behind the new entry/constructor matrix); the cell is byte-identical.",
+      "Documentation URL in the package table's docs column — a permanent docs path, not a claim. RE-REVIEWED at single-entry P6 (181 -> 234, the §Packages table moved down behind the new entry/constructor matrix); the cell is byte-identical. RE-PINNED at 0.5.0-hardening Phase 1 (234 -> 239, the ICU prose above it grew when the production policy changed from a throw to literal + report); the line is byte-identical.",
   },
   {
     file: "packages/core/README.md",
@@ -469,10 +469,10 @@ const G7_ALLOWLIST = [
   },
   {
     file: "packages/core/README.md",
-    line: 505,
+    line: 516,
     pattern: "vanilla-scope",
     reason:
-      "Documentation URL in the full-API pointer at the end of the README — a permanent docs path, not a claim. RE-REVIEWED at framework-slim tier-3 (383 -> 433, slim section grew), at the framework-slim DX pass (433 -> 464, the single-package section landed), at DX-2 (464 -> 491, the `.with(installer)` section landed), at single-entry P1 (491 -> 474, the two-tier slim section collapsed into the one-entry section, the quickstart gained its ICU note, and the review round added the measured-run pointer), at single-entry P6 (474 -> 507, the capability-subpath and installer sections grew above it), and after final formatting (507 -> 505); the line itself is byte-identical every time and still a bare docs URL.",
+      "Documentation URL in the full-API pointer at the end of the README — a permanent docs path, not a claim. RE-REVIEWED at framework-slim tier-3 (383 -> 433, slim section grew), at the framework-slim DX pass (433 -> 464, the single-package section landed), at DX-2 (464 -> 491, the `.with(installer)` section landed), at single-entry P1 (491 -> 474, the two-tier slim section collapsed into the one-entry section, the quickstart gained its ICU note, and the review round added the measured-run pointer), at single-entry P6 (474 -> 507, the capability-subpath and installer sections grew above it), and after final formatting (507 -> 505); the line itself is byte-identical every time and still a bare docs URL. RE-PINNED at 0.5.0-hardening Phase 1 (505 -> 513, the ICU prose above it grew when the production policy changed from a throw to literal + report); the line is byte-identical. Re-pinned again in the same phase (513 -> 516) when the review's fix-first round sharpened the eager/lazy sentence above it; still byte-identical.",
   },
   // The SIX sanctioned mentions of a retired `/slim` host subpath, one per line,
   // all keyed on the one global `slim-host-subpath` family. Each is a grep
@@ -520,19 +520,19 @@ const G7_ALLOWLIST = [
   },
   {
     file: "MIGRATION.md",
-    line: 164,
+    line: 175,
     pattern: "slim-host-subpath",
     reason:
-      "The codemod's own rename row: `@comvi/core/slim` -> `@comvi/core`. A codemod that rewrites a specifier has to print the specifier it rewrites, or the row documents nothing. P6 split the former single row so that this line carries exactly ONE sanctioned specifier: the wrapper half above it is written `@comvi/<pkg>/slim`, a placeholder no pattern matches, and two hits on one line could not both be pinned.",
+      "The codemod's own rename row: `@comvi/core/slim` -> `@comvi/core`. A codemod that rewrites a specifier has to print the specifier it rewrites, or the row documents nothing. P6 split the former single row so that this line carries exactly ONE sanctioned specifier: the wrapper half above it is written `@comvi/<pkg>/slim`, a placeholder no pattern matches, and two hits on one line could not both be pinned. RE-PINNED at 0.5.0-hardening Phase 1 (164 -> 173, the ICU prose above it grew when the production policy changed from a throw to literal + report); the line is byte-identical. Re-pinned again in the same phase (173 -> 175) when the review's fix-first round sharpened the eager/lazy sentence above it; still byte-identical.",
   },
   // Next's retired host-constructor name. TWO sanctioned mentions, not one: a
   // codemod that renames an identifier has to print the identifier it renames.
   {
     file: "MIGRATION.md",
-    line: 165,
+    line: 176,
     pattern: "next-slim-host-factory",
     reason:
-      "The codemod's own rename row: `createSlimI18n` -> `createI18n`. The shape the codemod migrates has to be named in the table of shapes it migrates, or the row documents nothing. Deletion history, not a live export.",
+      "The codemod's own rename row: `createSlimI18n` -> `createI18n`. The shape the codemod migrates has to be named in the table of shapes it migrates, or the row documents nothing. Deletion history, not a live export. RE-PINNED at 0.5.0-hardening Phase 1 (165 -> 174, the ICU prose above it grew when the production policy changed from a throw to literal + report); the line is byte-identical. Re-pinned again in the same phase (174 -> 176) when the review's fix-first round sharpened the eager/lazy sentence above it; still byte-identical.",
   },
   {
     file: ".changeset/next-single-entry-convergence.md",

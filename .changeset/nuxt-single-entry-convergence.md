@@ -20,7 +20,7 @@ export default ((options) =>
   createI18n({ ...options, compiler: icuCompiler })) satisfies NuxtHostFactory;
 ```
 
-`.with(icu())` is the installer form and it is **pre-ingestion only**: the compiler locks the moment any catalog reaches the host, and a later `icu()` throws with own `code === "E_COMPILER_LOCKED"` before mutating anything. `clearTranslations()` does not unlock it. Under the simple compiler an ICU template throws `E_ICU_SYNTAX` in development **and** in production — loudly, rather than rendering a plausible wrong plural.
+`.with(icu())` is the installer form and it is **pre-ingestion only**: the compiler locks the moment any catalog reaches the host, and a later `icu()` throws with own `code === "E_COMPILER_LOCKED"` before mutating anything. `clearTranslations()` does not unlock it. Under the simple compiler an ICU template never renders as a plural: development throws `E_ICU_SYNTAX` at ingestion, and production renders the braced segment literally and reports `E_ICU_SYNTAX` through `onError` (or `console.error`) on the compilation that hit it — loud in both, rather than rendering a plausible wrong plural.
 
 ### The capability toolkit is deliberately not re-exported here
 

@@ -365,8 +365,10 @@ The `<T>` component renders the translation structurally — real DOM nodes buil
 `count === 1 ? "item" : "items"` works in English. It silently ships broken grammar in Polish, Ukrainian, Arabic, Welsh, and 30+ other locales — those languages have 3, 4, sometimes 6 distinct plural categories that a binary if/else can't express. [ICU MessageFormat](https://unicode-org.github.io/icu/userguide/format_parse/messages/) is the standard syntax for handling them — the same syntax Crowdin, Lokalise, Phrase, and every major TMS already speak. Comvi i18n parses it via native [`Intl.PluralRules`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Intl/PluralRules), so every CLDR plural category is correct by default.
 
 **ICU is an explicit capability since 0.5.0.** The default compiler handles text
-and `{param}` interpolation; a template with ICU syntax throws `E_ICU_SYNTAX`
-rather than rendering plausible-but-wrong text. Every catalog below therefore
+and `{param}` interpolation; a template with ICU syntax never renders as
+plausible-but-wrong text — development throws `E_ICU_SYNTAX` at ingestion, and
+production renders the braced segment literally and reports `E_ICU_SYNTAX`
+through `onError` (or `console.error`) on the compilation that hit it. Every catalog below therefore
 needs the ICU compiler on the host: `createI18n({ compiler: icuCompiler, … })`
 for inline catalogs, `.with(icu())` before the loader for remote ones. Both
 names come from `@comvi/svelte` — see

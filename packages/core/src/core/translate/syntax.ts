@@ -30,7 +30,9 @@ export interface MessageCompiler {
   /**
    * Build a token from the content between balanced `{`...`}`.
    * Returning `undefined` makes the whole braced segment flow through as
-   * literal text. The shipped simple compiler THROWS instead (Policy A).
+   * literal text. On ICU argument syntax the shipped simple compiler THROWS
+   * in development and returns `undefined` in production, where the host then
+   * reports `E_ICU_SYNTAX` for the segment it rendered literally.
    */
   makeArgToken(content: string, hashIsSyntax: boolean, template: string): ParsedToken | undefined;
   /**

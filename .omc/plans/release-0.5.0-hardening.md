@@ -251,6 +251,15 @@ version") is resolved by hand in Phase 6 (fs-p6 §8.1.3).
   exports-map defect on the second RC (stop, root-cause the packaging contract before rc.2).
 
 ## 9. Post-release backlog (NOT 0.5.0)
+
+- **Live demo projects (owner idea, 2026-08-29):** publish runnable demos users can try in the
+  browser — StackBlitz / CodeSandbox links generated from `test-apps/*` (e.g.
+  `stackblitz.com/github/comvi-io/comvi-js/tree/main/test-apps/react`), one per framework, linked
+  from README and the docs site. Double duty: the demos install `@comvi/*` from npm, so pointing
+  them at the `next` dist-tag during the RC soak is a live registry-tarball test. Needs: each
+  test-app self-contained (no `workspace:` deps — a `demo/` variant or a build step that rewrites
+  them), a CDN distribution with public sample catalogs, and a decision on where the demo catalog
+  lives (public read-only project on the platform). Scope after 0.5.0 GA; format to be agreed.
 - `plugin-fetch-loader` weight: 2 634 B gz marginal (7.4 KB min) — the largest chunk on the platform
   path; audit `cache.ts` / `http.ts` / `options.ts` for a lite/lazy cache.
 - Dev-time ICU signal from the platform: API exposes `isPlural`/ICU usage per project → CLI

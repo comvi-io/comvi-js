@@ -12,16 +12,16 @@ The other half is packaging: `@comvi/svelte` publishes exactly ONE entry, and th
 
 ### What a 0.4 svelte app experiences
 
-| 0.4 behaviour of svelte's `createI18n`                | after                       | loudness                                        | migration                                                                                   |
-| ----------------------------------------------------- | --------------------------- | ----------------------------------------------- | ------------------------------------------------------------------------------------------- |
-| ICU plurals, select, selectordinal                    | the default compiler throws | **dev AND prod throw** `E_ICU_SYNTAX`           | inline catalogs: `compiler: icuCompiler`; remote catalogs: `.with(icu())` BEFORE the loader |
-| loader (`registerLoader`, `reloadTranslations`, …)    | absent until composed       | the loud capability error, at `useI18nLoader()` | `.with(loader(map))`, or `.with(attachLoader)` for a plain `LoaderFn`                       |
-| `.use(plugin)`, `onMissingKey`                        | absent until composed       | TS error + runtime `TypeError`                  | `.with(plugins())`, then `use(p)`                                                           |
-| devtools discovery (`instanceId`, `window.__COMVI__`) | absent                      | invisible to the browser extension (documented) | `.with(devtools({ instanceId }))`                                                           |
-| nested constructor catalogs                           | stored verbatim             | dev warning                                     | `flattenCatalog(…)`, or compose `loader()`                                                  |
-| tag markup through `t()` (`"<b>hi</b>"`)              | literal text                | dev warning; prod literal, never a throw        | render `<T>`, or `import "@comvi/core/tags"` at your own entry                              |
-| `setI18nContext`, every store, the readers, `<T>`     | untouched                   | —                                               | —                                                                                           |
-| `new I18n(options)`                                   | untouched, one argument     | —                                               | —                                                                                           |
+| 0.4 behaviour of svelte's `createI18n`                | after                   | loudness                                                             | migration                                                                                   |
+| ----------------------------------------------------- | ----------------------- | -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| ICU plurals, select, selectordinal                    | not compiled by default | **dev throws; prod renders it literally and reports** `E_ICU_SYNTAX` | inline catalogs: `compiler: icuCompiler`; remote catalogs: `.with(icu())` BEFORE the loader |
+| loader (`registerLoader`, `reloadTranslations`, …)    | absent until composed   | the loud capability error, at `useI18nLoader()`                      | `.with(loader(map))`, or `.with(attachLoader)` for a plain `LoaderFn`                       |
+| `.use(plugin)`, `onMissingKey`                        | absent until composed   | TS error + runtime `TypeError`                                       | `.with(plugins())`, then `use(p)`                                                           |
+| devtools discovery (`instanceId`, `window.__COMVI__`) | absent                  | invisible to the browser extension (documented)                      | `.with(devtools({ instanceId }))`                                                           |
+| nested constructor catalogs                           | stored verbatim         | dev warning                                                          | `flattenCatalog(…)`, or compose `loader()`                                                  |
+| tag markup through `t()` (`"<b>hi</b>"`)              | literal text            | dev warning; prod literal, never a throw                             | render `<T>`, or `import "@comvi/core/tags"` at your own entry                              |
+| `setI18nContext`, every store, the readers, `<T>`     | untouched               | —                                                                    | —                                                                                           |
+| `new I18n(options)`                                   | untouched, one argument | —                                                                    | —                                                                                           |
 
 Every installer that table names is re-exported from `@comvi/svelte`, so each migration stays inside the one import specifier you already have.
 

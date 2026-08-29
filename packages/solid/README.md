@@ -378,8 +378,11 @@ ICU is opt-in on the base host: pass `compiler: icuCompiler` for the inline
 catalogs below, or `.with(icu())` before a loader ingests a remote one. Both
 names are re-exported from `@comvi/solid` — see
 [One package, one entry](#one-package-one-entry). Without a compiler the default
-one throws `E_ICU_SYNTAX` on these templates rather than rendering wrong
-grammar.
+one never renders these templates as grammar: development throws
+`E_ICU_SYNTAX` at ingestion, and production renders the braced segment
+literally and reports `E_ICU_SYNTAX` through `onError` (or `console.error`) on
+the compilation that hit it — best-effort, per process, never on cached
+renders.
 
 ### Plurals across languages
 

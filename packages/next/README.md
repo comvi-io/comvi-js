@@ -291,15 +291,15 @@ capability a 0.4 caller could reach through `result.i18n`.
 the name 0.4 published, and it now builds the BASE host. ICU, tag syntax, the
 loader, the plugin host and devtools discovery became things you compose:
 
-| 0.4 behaviour of `createI18n`                         | after                       | loudness                                        | migration                                    |
-| ----------------------------------------------------- | --------------------------- | ----------------------------------------------- | -------------------------------------------- |
-| ICU plurals, select, selectordinal                    | the default compiler throws | **dev AND prod throw** `E_ICU_SYNTAX`           | see the two ICU shapes below                 |
-| loader (`registerLoader`, `reloadTranslations`, …)    | absent until composed       | the loud capability error, at `useI18nLoader()` | `.with(loader(map))` / `.with(attachLoader)` |
-| `.use(plugin)`, `onMissingKey`                        | absent until composed       | TS error + runtime `TypeError`                  | `.with(plugins())`, then `use(p)`            |
-| devtools discovery (`instanceId`, `window.__COMVI__`) | absent                      | invisible to the browser extension (documented) | `.with(devtools({ instanceId }))`            |
-| nested constructor catalogs                           | stored verbatim             | dev warning                                     | `flattenCatalog(…)`, or compose `loader()`   |
-| tag markup through `t()` (`"<b>hi</b>"`)              | literal text                | dev warning; prod literal, never a throw        | render `<T>`, or `import "@comvi/core/tags"` |
-| `<I18nProvider>`, every hook, `<T>`, routing          | untouched                   | —                                               | —                                            |
+| 0.4 behaviour of `createI18n`                         | after                   | loudness                                                             | migration                                    |
+| ----------------------------------------------------- | ----------------------- | -------------------------------------------------------------------- | -------------------------------------------- |
+| ICU plurals, select, selectordinal                    | not compiled by default | **dev throws; prod renders it literally and reports** `E_ICU_SYNTAX` | see the two ICU shapes below                 |
+| loader (`registerLoader`, `reloadTranslations`, …)    | absent until composed   | the loud capability error, at `useI18nLoader()`                      | `.with(loader(map))` / `.with(attachLoader)` |
+| `.use(plugin)`, `onMissingKey`                        | absent until composed   | TS error + runtime `TypeError`                                       | `.with(plugins())`, then `use(p)`            |
+| devtools discovery (`instanceId`, `window.__COMVI__`) | absent                  | invisible to the browser extension (documented)                      | `.with(devtools({ instanceId }))`            |
+| nested constructor catalogs                           | stored verbatim         | dev warning                                                          | `flattenCatalog(…)`, or compose `loader()`   |
+| tag markup through `t()` (`"<b>hi</b>"`)              | literal text            | dev warning; prod literal, never a throw                             | render `<T>`, or `import "@comvi/core/tags"` |
+| `<I18nProvider>`, every hook, `<T>`, routing          | untouched               | —                                                                    | —                                            |
 
 Staying on the 0.4 semantics with no composition work at all is one line:
 `createNextI18n` above is that recipe, preserved.

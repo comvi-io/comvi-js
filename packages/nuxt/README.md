@@ -355,10 +355,13 @@ const items = t("items", { count: 5 });
 </script>
 ```
 
-**Without it, ICU syntax throws — in development AND in production.** A message
-like `{count, plural, one {# item} other {# items}}` on the default compiler
-raises `E_ICU_SYNTAX` naming the argument type, rather than rendering
-plausibly-wrong text a reviewer would never catch. Quoted literals such as
+**Without it, ICU syntax never renders as grammar — and never silently.** A
+message like `{count, plural, one {# item} other {# items}}` on the default
+compiler throws `E_ICU_SYNTAX` at ingestion in development; in production the
+braced segment renders literally and `E_ICU_SYNTAX` — naming the argument type
+— is reported through `onError` (or `console.error`) on the compilation that
+hit it, rather than rendering plausibly-wrong text a reviewer would never
+catch. Quoted literals such as
 `'{name, other}'` stay valid text.
 
 See the [@comvi/vue ICU section](../vue#icu-messageformat--locale-correct-grammar-not-just-singularplural)
