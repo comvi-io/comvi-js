@@ -361,38 +361,66 @@ function fail(message) {
   process.exit(1);
 }
 
+// `--from-registry <dist-tag>` (release plan §7.1): measure what npm actually
+// serves instead of the local dist — every tarball comes from
+// `npm pack @comvi/<pkg>@<tag>`, the dist precondition is skipped, and
+// everything downstream (R2 sideEffects gate, install, bundling, sentinels)
+// runs unchanged on those registry tarballs.
+const fromRegistryIdx = process.argv.indexOf("--from-registry");
+const FROM_REGISTRY = fromRegistryIdx === -1 ? null : process.argv[fromRegistryIdx + 1];
+if (fromRegistryIdx !== -1 && (!FROM_REGISTRY || FROM_REGISTRY.startsWith("--"))) {
+  fail("--from-registry requires a dist-tag or version, e.g. --from-registry next");
+}
+
 // ---------------------------------------------------------------------------
-// 0. Preconditions: dist must exist for everything we pack.
+// 0. Preconditions: dist must exist for everything we pack (local mode only).
 // ---------------------------------------------------------------------------
-for (const pkg of PACKAGES) {
-  const probe = path.join(REPO_ROOT, pkg.dir, pkg.distProbe);
-  if (!fs.existsSync(probe)) {
-    fail(
-      `${pkg.name} has no build output (${pkg.dir}/${pkg.distProbe} missing).\n` +
-        `Run: pnpm exec turbo run build ${PACKAGES.map((p) => `--filter ${p.name}`).join(" ")}`,
-    );
+if (!FROM_REGISTRY) {
+  for (const pkg of PACKAGES) {
+    const probe = path.join(REPO_ROOT, pkg.dir, pkg.distProbe);
+    if (!fs.existsSync(probe)) {
+      fail(
+        `${pkg.name} has no build output (${pkg.dir}/${pkg.distProbe} missing).\n` +
+          `Run: pnpm exec turbo run build ${PACKAGES.map((p) => `--filter ${p.name}`).join(" ")}`,
+      );
+    }
   }
 }
 
 // ---------------------------------------------------------------------------
-// 1. Pack the tarballs.
+// 1. Pack the tarballs (local dist, or the registry under --from-registry).
 // ---------------------------------------------------------------------------
 const packDir = fs.mkdtempSync(path.join(os.tmpdir(), "comvi-bundler-matrix-"));
-console.log(`\n=== Packing tarballs into ${packDir}`);
-for (const pkg of PACKAGES) {
-  run("pnpm", ["--filter", pkg.name, "exec", "pnpm", "pack", "--pack-destination", packDir], {
-    cwd: REPO_ROOT,
-  });
-}
-
 const tarballs = {};
-for (const pkg of PACKAGES) {
-  const version = JSON.parse(
-    fs.readFileSync(path.join(REPO_ROOT, pkg.dir, "package.json"), "utf8"),
-  ).version;
-  const file = path.join(packDir, `${pkg.name.slice(1).replace("/", "-")}-${version}.tgz`);
-  if (!fs.existsSync(file)) fail(`expected tarball not produced: ${file}`);
-  tarballs[pkg.name] = file;
+if (FROM_REGISTRY) {
+  console.log(`\n=== Fetching registry tarballs (@${FROM_REGISTRY}) into ${packDir}`);
+  for (const pkg of PACKAGES) {
+    const spec = `${pkg.name}@${FROM_REGISTRY}`;
+    const out = execFileSync("npm", ["pack", spec, "--pack-destination", packDir, "--json"], {
+      cwd: REPO_ROOT,
+      encoding: "utf8",
+    });
+    const entry = JSON.parse(out)[0];
+    const file = path.join(packDir, entry.filename);
+    if (!fs.existsSync(file)) fail(`npm pack ${spec} did not produce ${file}`);
+    console.log(`  ${spec} -> ${entry.filename} (${entry.version})`);
+    tarballs[pkg.name] = file;
+  }
+} else {
+  console.log(`\n=== Packing tarballs into ${packDir}`);
+  for (const pkg of PACKAGES) {
+    run("pnpm", ["--filter", pkg.name, "exec", "pnpm", "pack", "--pack-destination", packDir], {
+      cwd: REPO_ROOT,
+    });
+  }
+  for (const pkg of PACKAGES) {
+    const version = JSON.parse(
+      fs.readFileSync(path.join(REPO_ROOT, pkg.dir, "package.json"), "utf8"),
+    ).version;
+    const file = path.join(packDir, `${pkg.name.slice(1).replace("/", "-")}-${version}.tgz`);
+    if (!fs.existsSync(file)) fail(`expected tarball not produced: ${file}`);
+    tarballs[pkg.name] = file;
+  }
 }
 
 // ---------------------------------------------------------------------------

@@ -2,6 +2,15 @@ name: Release
 
 on:
   workflow_dispatch:
+    inputs:
+      rc:
+        description: >-
+          RC rehearsal (release plan §7.1): publish every releasable package as
+          <next>-rc.<N> under the npm dist-tag `next` from the CURRENT ref, without
+          consuming changesets or touching main. Leave empty for the normal path.
+        required: false
+        default: ""
+        type: string
   push:
     branches:
       - main
@@ -16,8 +25,50 @@ permissions:
   id-token: write
 
 jobs:
+  # RC rehearsal. Versions and peer ranges are rewritten in this job's working
+  # tree only (scripts/rc-version.mjs); nothing is committed, no changeset is
+  # consumed, check-release-plan/G7 never see an rc version, and no GitHub
+  # release is created. Publishes with `pnpm publish` (OIDC trusted publishing,
+  # same workflow file as GA so the npm trusted-publisher binding holds);
+  # `--access public` is required because `access: public` lives only in the
+  # Changesets config.
+  rc:
+    if: github.repository == 'comvi-io/comvi-js' && github.event_name == 'workflow_dispatch' && inputs.rc != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 9.12.1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: pnpm
+          registry-url: https://registry.npmjs.org
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Ensure npm 11.5.1+ for OIDC trusted publishing
+        run: npm install -g npm@11.11.0
+
+      - name: Build
+        run: pnpm build
+
+      - name: Rewrite versions to rc.${{ inputs.rc }} (working tree only)
+        run: node scripts/rc-version.mjs --rc "${{ inputs.rc }}"
+
+      - name: Publish rc under dist-tag next
+        run: pnpm -r --filter './packages/*' publish --tag next --access public --no-git-checks
+
   release:
-    if: github.repository == 'comvi-io/comvi-js'
+    if: github.repository == 'comvi-io/comvi-js' && (github.event_name != 'workflow_dispatch' || inputs.rc == '')
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
