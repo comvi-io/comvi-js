@@ -442,17 +442,17 @@ const G7_ALLOWLIST = [
   },
   {
     file: "README.md",
-    line: 102,
+    line: 125,
     pattern: "vanilla-scope",
     reason:
-      "Documentation URL comvi.io/docs/i18n/vanilla/ — a permanent docs path, not a claim. RE-REVIEWED at single-entry P6 (93 -> 100, the docs link row moved when the one-entry-per-package table landed above it); the line is byte-identical and still a bare docs link. RE-PINNED at 0.5.0-hardening Phase 1 (100 -> 102, the ICU prose above it grew when the production policy changed from a throw to literal + report); the line is byte-identical.",
+      "Documentation URL comvi.io/docs/i18n/vanilla/ — a permanent docs path, not a claim. RE-REVIEWED at single-entry P6 (93 -> 100, the docs link row moved when the one-entry-per-package table landed above it); the line is byte-identical and still a bare docs link. RE-PINNED at 0.5.0-hardening Phase 1 (100 -> 102, the ICU prose above it grew when the production policy changed from a throw to literal + report); the line is byte-identical. RE-PINNED at 0.5.0-hardening Phase 5 (the Quick start gained the platform recipe above it); the line is byte-identical and still a bare docs link.",
   },
   {
     file: "README.md",
-    line: 247,
+    line: 270,
     pattern: "vanilla-scope",
     reason:
-      "Documentation URL in the package table's docs column — a permanent docs path, not a claim. RE-REVIEWED at single-entry P6 (181 -> 234, the §Packages table moved down behind the new entry/constructor matrix); the cell is byte-identical. RE-PINNED at 0.5.0-hardening Phase 1 (234 -> 239, the ICU prose above it grew when the production policy changed from a throw to literal + report); the line is byte-identical. RE-PINNED at 0.5.0-hardening Phase 2 (B1) (239 -> 247, the one-entry-per-package section gained the two-ICU-always-hosts note and the rich-text section gained the /tags process-wide scope paragraph); the line is byte-identical.",
+      "Documentation URL in the package table's docs column — a permanent docs path, not a claim. RE-REVIEWED at single-entry P6 (181 -> 234, the §Packages table moved down behind the new entry/constructor matrix); the cell is byte-identical. RE-PINNED at 0.5.0-hardening Phase 1 (234 -> 239, the ICU prose above it grew when the production policy changed from a throw to literal + report); the line is byte-identical. RE-PINNED at 0.5.0-hardening Phase 2 (B1) (239 -> 247, the one-entry-per-package section gained the two-ICU-always-hosts note and the rich-text section gained the /tags process-wide scope paragraph); the line is byte-identical. RE-PINNED at 0.5.0-hardening Phase 5 (the Quick start gained the platform recipe above it); the line is byte-identical and still a bare docs link.",
   },
   {
     file: "packages/core/README.md",
@@ -492,54 +492,54 @@ const G7_ALLOWLIST = [
   },
   {
     file: ".changeset/react-single-entry-convergence.md",
-    line: 11,
+    line: 7,
     pattern: "slim-host-subpath",
     reason:
-      "Deletion history, not a live specifier: the grep target for a tree built against 0.5 development, which states in the same sentence that the subpath is retired and that the surviving root is a superset of it. The react convergence is what deleted it; naming it here is the only way a reader holding that import path finds the migration.",
+      "Deletion history, not a live specifier: the grep target for a tree built against 0.5 development, which states in the same sentence that the subpath is retired and that the surviving root is a superset of it. The react convergence is what deleted it; naming it here is the only way a reader holding that import path finds the migration. RE-PINNED at 0.5.0-hardening Phase 5, when the release-facing prose was rewritten for a 0.4.x upgrader (MIGRATION.md 64.5 -> 33.5 KB, the changesets 195 -> 92 KB): the sanctioned sentence is still the only occurrence on its line and still says the specifier is gone and what replaced it.",
   },
   {
     file: ".changeset/vue-single-entry-convergence.md",
-    line: 11,
+    line: 7,
     pattern: "slim-host-subpath",
     reason:
-      "Deletion history, not a live specifier: the grep target for a tree built against 0.5 development, which states in the same sentence that the subpath is retired and that the surviving root is a superset of it — `createCore` included, which is the one export a vue reader would otherwise assume left with the subpath. The vue convergence is what deleted it; naming it here is the only way a reader holding that import path finds the migration.",
+      "Deletion history, not a live specifier: the grep target for a tree built against 0.5 development, which states in the same sentence that the subpath is retired and that the surviving root is a superset of it — `createCore` included, which is the one export a vue reader would otherwise assume left with the subpath. The vue convergence is what deleted it; naming it here is the only way a reader holding that import path finds the migration. RE-PINNED at 0.5.0-hardening Phase 5, when the release-facing prose was rewritten for a 0.4.x upgrader (MIGRATION.md 64.5 -> 33.5 KB, the changesets 195 -> 92 KB): the sanctioned sentence is still the only occurrence on its line and still says the specifier is gone and what replaced it.",
   },
   {
     file: ".changeset/solid-single-entry-convergence.md",
-    line: 11,
+    line: 7,
     pattern: "slim-host-subpath",
     reason:
-      "Deletion history, not a live specifier: the grep target for a tree built against 0.5 development, which states in the same sentence that the subpath is retired and that the surviving root is a superset of it. The solid convergence is what deleted it; naming it here is the only way a reader holding that import path finds the migration.",
+      "Deletion history, not a live specifier: the grep target for a tree built against 0.5 development, which states in the same sentence that the subpath is retired and that the surviving root is a superset of it. The solid convergence is what deleted it; naming it here is the only way a reader holding that import path finds the migration. RE-PINNED at 0.5.0-hardening Phase 5, when the release-facing prose was rewritten for a 0.4.x upgrader (MIGRATION.md 64.5 -> 33.5 KB, the changesets 195 -> 92 KB): the sanctioned sentence is still the only occurrence on its line and still says the specifier is gone and what replaced it.",
   },
   {
     file: ".changeset/svelte-single-entry-convergence.md",
-    line: 11,
+    line: 7,
     pattern: "slim-host-subpath",
     reason:
-      "Deletion history, not a live specifier: the grep target for a tree built against 0.5 development, which states in the same sentence that the subpath is retired and that the surviving root is a superset of it. The svelte convergence is what deleted it; naming it here is the only way a reader holding that import path finds the migration.",
+      "Deletion history, not a live specifier: the grep target for a tree built against 0.5 development, which states in the same sentence that the subpath is retired and that the surviving root is a superset of it. The svelte convergence is what deleted it; naming it here is the only way a reader holding that import path finds the migration. RE-PINNED at 0.5.0-hardening Phase 5, when the release-facing prose was rewritten for a 0.4.x upgrader (MIGRATION.md 64.5 -> 33.5 KB, the changesets 195 -> 92 KB): the sanctioned sentence is still the only occurrence on its line and still says the specifier is gone and what replaced it.",
   },
   {
     file: "MIGRATION.md",
-    line: 180,
+    line: 159,
     pattern: "slim-host-subpath",
     reason:
-      "The codemod's own rename row: `@comvi/core/slim` -> `@comvi/core`. A codemod that rewrites a specifier has to print the specifier it rewrites, or the row documents nothing. P6 split the former single row so that this line carries exactly ONE sanctioned specifier: the wrapper half above it is written `@comvi/<pkg>/slim`, a placeholder no pattern matches, and two hits on one line could not both be pinned. RE-PINNED at 0.5.0-hardening Phase 1 (164 -> 173, the ICU prose above it grew when the production policy changed from a throw to literal + report); the line is byte-identical. Re-pinned again in the same phase (173 -> 175) when the review's fix-first round sharpened the eager/lazy sentence above it; still byte-identical. Re-pinned at 0.5.0-hardening Phase 2 (B1) (175 -> 180): the ICU-timing table cell two rows above widened when the false 'before the loader' ordering rule was replaced, and prettier re-padded the whole table; the row's CONTENT is byte-identical, only column padding changed.",
+      "The codemod's own rename row: `@comvi/core/slim` -> `@comvi/core`. A codemod that rewrites a specifier has to print the specifier it rewrites, or the row documents nothing. P6 split the former single row so that this line carries exactly ONE sanctioned specifier: the wrapper half above it is written `@comvi/<pkg>/slim`, a placeholder no pattern matches, and two hits on one line could not both be pinned. RE-PINNED at 0.5.0-hardening Phase 1 (164 -> 173, the ICU prose above it grew when the production policy changed from a throw to literal + report); the line is byte-identical. Re-pinned again in the same phase (173 -> 175) when the review's fix-first round sharpened the eager/lazy sentence above it; still byte-identical. Re-pinned at 0.5.0-hardening Phase 2 (B1) (175 -> 180): the ICU-timing table cell two rows above widened when the false 'before the loader' ordering rule was replaced, and prettier re-padded the whole table; the row's CONTENT is byte-identical, only column padding changed. RE-PINNED at 0.5.0-hardening Phase 5, when the release-facing prose was rewritten for a 0.4.x upgrader (MIGRATION.md 64.5 -> 33.5 KB, the changesets 195 -> 92 KB): the sanctioned sentence is still the only occurrence on its line and still says the specifier is gone and what replaced it.",
   },
   // Next's retired host-constructor name. TWO sanctioned mentions, not one: a
   // codemod that renames an identifier has to print the identifier it renames.
   {
     file: "MIGRATION.md",
-    line: 181,
+    line: 160,
     pattern: "next-slim-host-factory",
     reason:
-      "The codemod's own rename row: `createSlimI18n` -> `createI18n`. The shape the codemod migrates has to be named in the table of shapes it migrates, or the row documents nothing. Deletion history, not a live export. RE-PINNED at 0.5.0-hardening Phase 1 (165 -> 174, the ICU prose above it grew when the production policy changed from a throw to literal + report); the line is byte-identical. Re-pinned again in the same phase (174 -> 176) when the review's fix-first round sharpened the eager/lazy sentence above it; still byte-identical. Re-pinned at 0.5.0-hardening Phase 2 (B1) (176 -> 181): the ICU-timing table cell two rows above widened when the false 'before the loader' ordering rule was replaced, and prettier re-padded the whole table; the row's CONTENT is byte-identical, only column padding changed.",
+      "The codemod's own rename row: `createSlimI18n` -> `createI18n`. The shape the codemod migrates has to be named in the table of shapes it migrates, or the row documents nothing. Deletion history, not a live export. RE-PINNED at 0.5.0-hardening Phase 1 (165 -> 174, the ICU prose above it grew when the production policy changed from a throw to literal + report); the line is byte-identical. Re-pinned again in the same phase (174 -> 176) when the review's fix-first round sharpened the eager/lazy sentence above it; still byte-identical. Re-pinned at 0.5.0-hardening Phase 2 (B1) (176 -> 181): the ICU-timing table cell two rows above widened when the false 'before the loader' ordering rule was replaced, and prettier re-padded the whole table; the row's CONTENT is byte-identical, only column padding changed. RE-PINNED at 0.5.0-hardening Phase 5, when the release-facing prose was rewritten for a 0.4.x upgrader (MIGRATION.md 64.5 -> 33.5 KB, the changesets 195 -> 92 KB): the sanctioned sentence is still the only occurrence on its line and still says the specifier is gone and what replaced it.",
   },
   {
     file: ".changeset/next-single-entry-convergence.md",
-    line: 11,
+    line: 7,
     pattern: "next-slim-host-factory",
     reason:
-      "The one sanctioned grep target, exactly as `react-single-entry-convergence.md:11` names react's retired subpath: a reader whose tree was built against 0.5 development greps for the identifier they hold, and the line that answers them states in the same sentence that it is deleted, never published, and codemod-renamed. Its own line, so a second mention cannot hide behind it.",
+      "The one sanctioned grep target, exactly as `react-single-entry-convergence.md:11` names react's retired subpath: a reader whose tree was built against 0.5 development greps for the identifier they hold, and the line that answers them states in the same sentence that it is deleted, never published, and codemod-renamed. Its own line, so a second mention cannot hide behind it. RE-PINNED at 0.5.0-hardening Phase 5, when the release-facing prose was rewritten for a 0.4.x upgrader (MIGRATION.md 64.5 -> 33.5 KB, the changesets 195 -> 92 KB): the sanctioned sentence is still the only occurrence on its line and still says the specifier is gone and what replaced it.",
   },
   // The `stale-ladder` family needs NO allowlist entry. Every retired row and
   // matrix-case name still quoted in the corpus is introduced as retired — "…

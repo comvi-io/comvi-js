@@ -2,8 +2,25 @@
 "@comvi/core": minor
 ---
 
-`window.__COMVI__` discovery protocol v2 (queue-hook). The v1 global registry object (`version`/`instances`/`register`/`unregister`/`get` + the `COMVI_READY` CustomEvent) is gone. Announcing is a CAPABILITY now, not a constructor behaviour: a host that has composed devtools discovery — `.with(devtools({ exposeGlobal }))`, the lower-level `attachDevtools`, or `.with(inContextEditor())` under the editor package's development entry, which composes discovery first — pushes a `{ v: version, i: instance }` envelope onto a plain queue array at `window.__COMVI__` when `exposeGlobal` is on, installing the array when the slot is empty. A host that never composes it reads `instanceId` as `undefined`, touches no global at all, and is invisible to the browser extension. Consumers such as the in-context editor drain that array and swap in a hook object (`push`/`remove`) to receive later instances. `destroy()` removes the instance's own entry (identity-based: hook `remove`, or array splice).
+**`window.__COMVI__` discovery protocol v2.** The v1 registry object
+(`version` / `instances` / `register` / `unregister` / `get`, plus the `COMVI_READY` event)
+is gone, and announcing is a capability now rather than a constructor behaviour.
 
-Mixed-version pages stay safe: new core detects a v1 legacy registry (`register` without `remove`) and falls back to `register(id, instance)`, and it never clobbers a truthy non-conforming global. The one **unsupported pairing is old extension + new core** — an old in-context-editor/Chrome-extension build never drains the queue array, so it will not see instances from this version onward; update the extension to the dual-protocol version first. **The minimum extension version is 0.5.0**, the dual-protocol build; ship it to the Web Store and let it propagate BEFORE this core release, or every in-context-editor user is stranded on a build that cannot see the queue. The other half of that pairing is on your side, per the gating above: an app that composes no devtools discovery has nothing for any extension version to find.
+A host that composed discovery — `.with(devtools({ exposeGlobal }))`, the lower-level
+`attachDevtools`, or `.with(inContextEditor())` under the editor package's development
+entry — pushes a `{ v: version, i: instance }` envelope onto a plain queue array at
+`window.__COMVI__`, installing the array when the slot is empty. A host that never composes
+it reads `instanceId` as `undefined`, touches no global at all, and is invisible to the
+browser extension. Consumers such as the in-context editor drain that array and swap in a
+hook object (`push` / `remove`) to receive later instances; `destroy()` removes the
+instance's own entry.
 
-Migration: anything reading `window.__COMVI__.instances` or listening for `COMVI_READY` directly must move to draining the queue array (and swapping in a `push`/`remove` hook for live updates). The exported `ComviGlobal` type is replaced by `ComviQueueEntry`, `ComviHook`, and `ComviQueue`. The full contract, probe order, and version-pairing matrix live in `contracts/chrome-extension-proxy.json` (contract version 2).
+**The minimum extension version is 0.5.0.** New core detects a v1 legacy registry and falls
+back to it, and never clobbers a truthy non-conforming global — but an old extension build
+never drains the queue array, so **old extension + new core is the one unsupported
+pairing**. Ship the dual-protocol extension and let it propagate first.
+
+Migration: anything that read `window.__COMVI__.instances` or listened for `COMVI_READY`
+must drain the queue array instead, swapping in a `push` / `remove` hook for live updates.
+The exported `ComviGlobal` type is replaced by `ComviQueueEntry`, `ComviHook` and
+`ComviQueue`.

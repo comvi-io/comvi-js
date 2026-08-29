@@ -39,7 +39,7 @@
 - **Rich text without XSS.** Embed components into translations (`Click <link>here</link>`) without raw HTML strings or unsafe DOM injection.
 - **Same API across six frameworks.** `useI18n()` and the `<T>` component look the same in Vue, React, SolidJS, Svelte, Next.js, and Nuxt. All bindings ship together with the core — same version, same release cycle.
 - **ICU `plural`, `selectordinal` & `select`.** Locale-correct grammar for every language `Intl.PluralRules` supports, reached through one explicit import — `compiler: icuCompiler` from `@comvi/core/icu`. Numbers, dates, currency, and relative time are formatted via native `Intl` methods on the `i18n` instance.
-- **~5 kB base host, ~8.6 kB fully composed (min+gz, as bundled by your app), zero dependencies.** Every capability is an import you add, so an app carries only what it composes. No `eval` or `new Function` in any runtime package — works under a strict CSP without `unsafe-eval`.
+- **~5 kB base host, ~8.6 kB fully composed (min+gz, as bundled by your app), zero dependencies.** On the platform path — `fetchLoader` plus ICU — a whole app graph is ≈ 10 kB with `@comvi/core` and ≈ 13.5 kB with `@comvi/react`. Every capability is an import you add, so an app carries only what it composes. No `eval` or `new Function` in any runtime package — works under a strict CSP without `unsafe-eval`.
 - **Pluggable loading & detection.** Translations come from inline objects, local JSON, or a CDN/API loader plugin — one `.with(fetchLoader({ … }))`. Locale detection (query, cookie, storage, `navigator`) is a separate plugin you opt into.
 - **Server-side rendering for Next.js & Nuxt.** `@comvi/next` ships an App Router `loadTranslations()` for server components, locale-routed layouts under `[locale]`, and a `createMiddleware()` for redirect-on-detect. `@comvi/nuxt` is a Nuxt 3 module with locale composables, middleware, and `<NuxtLinkLocale>`.
 
@@ -58,6 +58,29 @@ npm install @comvi/nuxt      # Nuxt 3
 ```
 
 ## Quick start
+
+Translations from the Comvi platform CDN — the recipe most apps want:
+
+```ts
+import { createI18n } from "@comvi/core";
+import { icu } from "@comvi/core/icu";
+import { fetchLoader } from "@comvi/plugin-fetch-loader";
+
+const i18n = createI18n({ locale: "en" })
+  .with(icu())
+  .with(fetchLoader({ cdnUrl: "https://cdn.comvi.io/your-distribution-id" }));
+
+await i18n.init();
+
+i18n.t("greeting", { name: "Alice" }); // "Hello, Alice!"
+i18n.t("items", { count: 5 }); // "5 items"
+```
+
+Drop `icu()` if you use no plural/select — plain `{param}` interpolation needs no
+import. It has to be composed before the first catalog reaches the host, which is
+why it comes ahead of the loader here.
+
+Or ship the catalogs inline, with the compiler chosen in the same call:
 
 ```ts
 import { createI18n } from "@comvi/core";
