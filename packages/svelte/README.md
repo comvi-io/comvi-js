@@ -264,9 +264,10 @@ call:
 ```
 
 The explicit form is that composition spelled out, and it is what you want when
-you register plugins from a list. `loader()` goes on first when a plugin
-registers a loader: plugins run at `init()`, and `registerLoader` has to exist by
-then.
+you register plugins from a list. Compose `loader()` as well when a plugin
+registers one — the order of `loader()`, `plugins()` and `devtools()` among
+themselves is free, because plugins run at `init()` and every capability
+composed before `init()` is attached by then.
 
 ```svelte
 <script lang="ts">
@@ -370,7 +371,8 @@ plausible-but-wrong text — development throws `E_ICU_SYNTAX` at ingestion, and
 production renders the braced segment literally and reports `E_ICU_SYNTAX`
 through `onError` (or `console.error`) on the compilation that hit it. Every catalog below therefore
 needs the ICU compiler on the host: `createI18n({ compiler: icuCompiler, … })`
-for inline catalogs, `.with(icu())` before the loader for remote ones. Both
+for inline catalogs, `.with(icu())` before the first remote catalog reaches the
+host for remote ones. Both
 names come from `@comvi/svelte` — see
 [One package, one entry](#one-package-one-entry).
 

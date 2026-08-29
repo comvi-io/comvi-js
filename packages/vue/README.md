@@ -146,6 +146,14 @@ when you want to build that host yourself, and
 `createI18nFromCore(core, options?)` wraps whatever you built, preserving its
 exact type as `i18n.core`. All three ship from the one entry.
 
+**To compose capabilities, use `createCore(options).with(…)` and then
+`createI18nFromCore(core)` — not `createI18n(options).core.with(…)`.**
+`createI18n` returns `VueI18n<D, I18n<D>>`, so `.core` is typed as the BASE
+`I18n<D>` and the wrapper does not re-type it: composing through `.core.with(…)`
+attaches the capability at runtime, but `i18n.core` keeps the base type and
+every later `i18n.core.registerLoader(…)` is a compile error. `createCore` +
+`createI18nFromCore` is the path that carries the composed type through.
+
 Whole-app comvi graph, min+gz, `vue` externalized
 (`node scripts/size-check.mjs`):
 
@@ -289,10 +297,11 @@ const i18n = createI18nFromCore(core);
 ```
 
 The explicit form is that composition spelled out, and it is what you want when
-you register plugins from a list. `loader()` goes on first when a plugin
-registers a loader: plugins run at `init()`, and `registerLoader` has to exist by
-then. `VueI18n` does not proxy `use` — registration happens on the host, either
-before wrapping or as `i18n.core.use(…)` afterwards.
+you register plugins from a list. Compose `loader()` as well when a plugin
+registers one — the order of `loader()`, `plugins()` and `devtools()` among
+themselves is free, because plugins run at `init()` and every capability
+composed before `init()` is attached by then. `VueI18n` does not proxy `use` — registration
+happens on the host, either before wrapping or as `i18n.core.use(…)` afterwards.
 
 ```ts
 import { createCore, createI18nFromCore, loader, plugins } from "@comvi/vue";

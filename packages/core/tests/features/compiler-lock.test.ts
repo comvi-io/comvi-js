@@ -223,7 +223,7 @@ describe("compiler lock — the cache contract it buys", () => {
 });
 
 describe("compiler lock — ordering against the loader", () => {
-  it("icu() BEFORE the loader is the working remote recipe", async () => {
+  it("icu() before the first catalog is the working remote recipe", async () => {
     const i18n = attachLoader(createI18n({ locale: "en" }).with(icu()));
     i18n.registerLoader(async () => ({ items: PLURAL }));
     await i18n.init();

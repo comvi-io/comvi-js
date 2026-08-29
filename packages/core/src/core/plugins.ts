@@ -336,13 +336,15 @@ export class I18nWithPlugins<D extends DefaultTranslationParams = {}> extends I1
  * drains it exactly once, so composing the host afterwards leaves a host whose
  * `use()` can never take effect — it warns in dev and does nothing in prod.
  *
- * Attach `attachLoader` FIRST if any hosted plugin registers a loader. When it
- * has NOT run, this installs — IN DEVELOPMENT ONLY — a throwing stand-in for
+ * Attach `attachLoader` TOO if any hosted plugin registers a loader — in
+ * either order, since both only have to be in place by `init()`, which is when
+ * plugins run. When it has NOT run at all, this installs — IN DEVELOPMENT
+ * ONLY — a throwing stand-in for
  * every `I18nLoaderApi` member (B4), so a plugin that reaches for
  * `registerLoader` on a plugins-only host fails with
  * {@link missingCapability}`("loader")`, the actionable error every wrapper
  * throws. **Dev-only shims; production throws a bare `TypeError` on a
- * plugins-only host — compose `loader()` first.** Both builds still throw; only
+ * plugins-only host — compose `loader()` as well.** Both builds still throw; only
  * the guidance is a development affordance, and it is not worth ~190 B min+gz
  * in every shipped bundle.
  *

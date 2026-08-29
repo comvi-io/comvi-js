@@ -18,9 +18,15 @@
 // which is what you want when the loader is a plain function you register
 // yourself.
 //
-// Compose BEFORE the plugin host when a hosted plugin registers a loader
-// (`@comvi/core/plugins`): plugins run at `init()`, so `registerLoader` has to
-// exist by then. On a host that ALREADY has the capability — a second
+// Compose the plugin host (`@comvi/core/plugins`) as well when a hosted plugin
+// registers a loader. The ORDER of `loader()`, `plugins()` and `devtools()`
+// among themselves is free: plugins run at `init()`, by which point every
+// capability composed before `init()` is attached. The one ordering rule in the
+// library is `icu()`'s — it must run before the first catalog reaches the host
+// (constructor `translation`, `addTranslations`, or a loader merge), and
+// COMPOSING a loader is not ingestion.
+//
+// On a host that ALREADY has the capability — a second
 // `.with(loader())`, or the internal composite the CDN global ships —
 // installing is a no-op, while `.with(loader(map))` still configures it.
 //

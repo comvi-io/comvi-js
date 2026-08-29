@@ -138,6 +138,12 @@ re-exported. Composition happens in one `hostModule` file that names
 | `<tag>` markup inside plain string-API `t()`                   | `import "@comvi/core/tags"` once, anywhere in the app                            |
 | rich text through `<T>`                                        | nothing — `<T>` uses the pure `@comvi/core/rich-text` seam and registers nothing |
 
+Two hosts are the exception to "a capability because you composed it", and both
+are deliberate: `createNextI18n` on `@comvi/next` (the composed 0.4 host, kept
+byte-for-byte behaviour-compatible) and the CDN global build always carry ICU,
+whether or not the app asks. Neither is the base host, and neither is what
+`createI18n` returns on any entry.
+
 First-party plugins ship a lowercase **installer** beside the uppercase factory,
 and the installer composes whatever capabilities that plugin needs:
 `.with(fetchLoader({ cdnUrl }))`, `.with(localeDetector())`,
@@ -187,6 +193,8 @@ import { T } from "@comvi/vue";
 SolidJS and Svelte expose the same tag-interpolation concept with framework-specific component map shapes. Pass `tagInterpolation: { strict: "warn" }` to `createI18n` to surface translations referencing tags you forgot to handle — before they ship.
 
 `<T>` is self-contained: it renders through the pure `@comvi/core/rich-text` seam, which takes the tag grammar per call and registers nothing. Rendering it never changes what a plain `t()` does with `<b>` markup. Making `t("Click <b>here</b>")` itself parse tags is the separate, ambient opt-in — `import "@comvi/core/tags"` once.
+
+That import registers the tag grammar **process-wide and retroactively**: it is a property of the bundle, not of one host, so every instance in the graph — including ones built before the import was evaluated — starts parsing `<tag>` markup the moment the module runs. There is no per-instance opt-out. An SSR app must therefore import it in the **server** graph too, or the same string renders literally on the server and with markup on the client.
 
 ## ICU plurals, ordinals & select
 

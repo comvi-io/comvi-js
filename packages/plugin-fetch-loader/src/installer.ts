@@ -37,8 +37,9 @@ export type FetchLoaderInstaller = <T extends I18n<any>>(
  * const i18n = createI18n({ locale: "en" }).with(fetchLoader({ cdnUrl }));
  * ```
  *
- * Composes `@comvi/core/loader` and `@comvi/core/plugins` — in that order,
- * because the plugin calls `registerLoader` at `init()` — and then registers
+ * Composes `@comvi/core/loader` and `@comvi/core/plugins` — the order between
+ * them does not matter, because the plugin calls `registerLoader` at `init()`,
+ * by which point both are attached — and then registers
  * `FetchLoader(options)` through the host's `use`. Both attaches are
  * idempotent, so composing onto a host that already has either capability
  * installs nothing and keeps everything already registered.
@@ -53,7 +54,7 @@ export type FetchLoaderInstaller = <T extends I18n<any>>(
  *
  * WRONG USE. `.use(fetchLoader(…))` is a type error, and at runtime it fails
  * at `init()` on the first ensure-step (`ensureInstallable`) with an
- * actionable message, before the loader or plugin capability is attached and
+ * actionable message, before either capability is attached and
  * before a second plugin reaches the queue.
  */
 export function fetchLoader(options: FetchLoaderOptions): FetchLoaderInstaller {

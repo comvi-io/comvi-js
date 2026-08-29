@@ -56,10 +56,13 @@ export type { LoadTranslationsOptions, TranslationsResult } from "./server/loadT
 //
 // ICU has TWO shapes here as on the client, and remote catalogs are the common
 // SSR case: a catalog the loader fetches takes the INSTALLER, `.with(icu())`,
-// and it must run BEFORE the loader can ingest anything — the host locks its
-// compiler on the first catalog, after which `icu()` throws own
-// `code === "E_COMPILER_LOCKED"` rather than quietly failing. An inline
-// constructor catalog takes `compiler: icuCompiler` in the same call instead.
+// and it must run before the first catalog reaches the host — the host locks
+// its compiler there, after which `icu()` throws own
+// `code === "E_COMPILER_LOCKED"` rather than quietly failing. COMPOSING a
+// loader ingests nothing, so `icu()` and `loader()` may be chained in either
+// order; what `icu()` has to beat is the first catalog, not an installer. An
+// inline constructor catalog takes `compiler: icuCompiler` in the same call
+// instead.
 //
 // NAMED re-exports of core's own bindings, exactly as on the client entry:
 // never `export *` (webpack development cannot prune a star re-export), never

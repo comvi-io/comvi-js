@@ -252,6 +252,11 @@ version") is resolved by hand in Phase 6 (fs-p6 §8.1.3).
 
 ## 9. Post-release backlog (NOT 0.5.0)
 
+- **Nuxt setup-hook DX:** `NuxtI18nSetupContext<C>.i18n` is `VueI18n<{}, C> | C` (client vs
+  server), so `i18n.core.*` needs a `'core' in i18n` narrowing in `comvi.setup` hooks. Add
+  `core: C` (always the host) to the context — additive, next minor.
+- **Move the capability-hooks parity block into core** as `acquireLoaderApi(host)` /
+  `acquirePluginsApi(host)` (B8 follow-up); retire `scripts/wrapper-hooks-parity.test.mjs`.
 - **Live demo projects (owner idea, 2026-08-29):** publish runnable demos users can try in the
   browser — StackBlitz / CodeSandbox links generated from `test-apps/*` (e.g.
   `stackblitz.com/github/comvi-io/comvi-js/tree/main/test-apps/react`), one per framework, linked

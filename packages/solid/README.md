@@ -280,9 +280,10 @@ const i18n = createI18n({ locale: "en", defaultNs: "common" }).with(
 ```
 
 The explicit form is that composition spelled out, and it is what you want when
-you register plugins from a list. `loader()` goes on first when a plugin
-registers a loader: plugins run at `init()`, and `registerLoader` has to exist by
-then.
+you register plugins from a list. Compose `loader()` as well when a plugin
+registers one — the order of `loader()`, `plugins()` and `devtools()` among
+themselves is free, because plugins run at `init()` and every capability
+composed before `init()` is attached by then.
 
 ```tsx
 import { createI18n, loader, plugins } from "@comvi/solid";
@@ -375,8 +376,8 @@ You can also map to plain HTML tags:
 `count === 1 ? "item" : "items"` works in English. It silently ships broken grammar in Polish, Ukrainian, Arabic, Welsh, and 30+ other locales — those languages have 3, 4, sometimes 6 distinct plural categories that a binary if/else can't express. [ICU MessageFormat](https://unicode-org.github.io/icu/userguide/format_parse/messages/) is the standard syntax for handling them — the same syntax Crowdin, Lokalise, Phrase, and every major TMS already speak. Comvi i18n parses it via native [`Intl.PluralRules`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Intl/PluralRules), so every CLDR plural category is correct by default.
 
 ICU is opt-in on the base host: pass `compiler: icuCompiler` for the inline
-catalogs below, or `.with(icu())` before a loader ingests a remote one. Both
-names are re-exported from `@comvi/solid` — see
+catalogs below, or `.with(icu())` before the first remote catalog reaches the
+host. Both names are re-exported from `@comvi/solid` — see
 [One package, one entry](#one-package-one-entry). Without a compiler the default
 one never renders these templates as grammar: development throws
 `E_ICU_SYNTAX` at ingestion, and production renders the braced segment

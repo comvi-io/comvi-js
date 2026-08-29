@@ -22,10 +22,13 @@
 // on where the catalog comes from: an INLINE constructor catalog takes the
 // compiler in the same call (`compiler: icuCompiler`), because the constructor
 // ingests it immediately; a REMOTE catalog takes the installer
-// (`.with(icu())`), which must run BEFORE anything is ingested. The host locks
-// its compiler on the first catalog it sees, so a later `icu()` throws with own
+// (`.with(icu())`), which must run before the first catalog reaches the host —
+// a constructor `translation`, an `addTranslations` call, or a loader merge.
+// The host locks its compiler there, so a later `icu()` throws with own
 // `code === "E_COMPILER_LOCKED"` instead of silently doing nothing — which is
 // why `createI18n({ translation }).with(icu())` is invalid by construction.
+// Composing a loader is not ingestion, so the order of `icu()` and `loader()`
+// in one chain does not matter.
 // Both shapes are named on this entry, so neither makes a next app reach for
 // `@comvi/core/icu`.
 

@@ -265,8 +265,11 @@ export default ((options) =>
     .with(devtools())) satisfies NuxtHostFactory;
 ```
 
-Order matters in exactly one way, and it is the order above: compose `loader()`
-and `plugins()` before any catalog is ingested, and `devtools()` last.
+Order matters in exactly one way, and it is not the order above: `.with(icu())`
+must run before the first catalog reaches the host (constructor `translation`,
+`addTranslations`, or a loader merge). The order of `loader()`, `plugins()` and
+`devtools()` among themselves is free — every capability composed before
+`init()` is attached by the time plugins run.
 `loader(map)` attaches the loader capability **and** registers the map; for a
 plain `LoaderFn`, use `.with(attachLoader)` and call `registerLoader(fn)`.
 

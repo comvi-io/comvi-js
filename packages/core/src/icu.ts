@@ -11,6 +11,11 @@
 // Inline constructor catalogs use the option form instead:
 // `createI18n({ translation, compiler: icuCompiler })`.
 //
+// The rule is about the first CATALOG, never about a particular installer:
+// composing a loader ingests nothing, so `.with(loader(map)).with(icu())` is
+// exactly as valid as the recipe above. The order of `loader()`, `plugins()`
+// and `devtools()` among themselves is free.
+//
 // Deliberately not exported from the root: the root entry is the BASE host
 // with the simple compiler, and ICU is an import you add — never an entry you
 // switch. This subpath stays out of the package `sideEffects` array forever.

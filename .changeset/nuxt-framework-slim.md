@@ -44,8 +44,9 @@ export default ((options) =>
     .with(devtools())) satisfies NuxtHostFactory;
 ```
 
-Drop the lines the app does not use. Compose `loader()` and `plugins()` before
-catalog ingestion and `devtools()` last. Inline / constructor catalogs select
+Drop the lines the app does not use. The order of `loader()`, `plugins()` and
+`devtools()` among themselves is free — all three only have to be composed
+before `init()`. Inline / constructor catalogs select
 ICU with the `compiler` option shown above; `.with(icu())` is only for an empty
 host before its first ingestion, so it is not Nuxt's catalog-bearing recipe.
 

@@ -6,16 +6,16 @@
 
 ### What a 0.4 root user experiences
 
-| 0.4 root behaviour                                    | converged root          | loudness                                                             | migration                                                                                   |
-| ----------------------------------------------------- | ----------------------- | -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
-| ICU plurals / select                                  | not compiled by default | **dev throws; prod renders it literally and reports** `E_ICU_SYNTAX` | inline catalogs: `compiler: icuCompiler`; remote catalogs: `.with(icu())` BEFORE the loader |
-| `.use(plugin)`                                        | absent                  | TS error + runtime `TypeError`                                       | `.with(plugins()).use(p)`                                                                   |
-| loader (`registerLoader`, …)                          | absent                  | existing loud capability error                                       | `.with(loader())` or `fetchLoader(opts)`                                                    |
-| devtools discovery (`instanceId`, `window.__COMVI__`) | absent                  | invisible to the browser extension (documented)                      | `.with(devtools())`, or the in-context-editor installer                                     |
-| nested catalogs                                       | stored verbatim         | dev warning                                                          | `flattenCatalog(…)`, or compose `loader()`                                                  |
-| string-API tags (`"<b>hi</b>"` through `t()`)         | literal text            | dev warning; prod literal                                            | `<T>` from your framework package, or `import "@comvi/core/tags"`                           |
-| `new I18n(options)`                                   | unchanged, one argument | —                                                                    | —                                                                                           |
-| published `createNextI18n`                            | unchanged composed host | —                                                                    | —                                                                                           |
+| 0.4 root behaviour                                    | converged root          | loudness                                                             | migration                                                                                                  |
+| ----------------------------------------------------- | ----------------------- | -------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| ICU plurals / select                                  | not compiled by default | **dev throws; prod renders it literally and reports** `E_ICU_SYNTAX` | inline catalogs: `compiler: icuCompiler`; remote catalogs: `.with(icu())` before the first catalog arrives |
+| `.use(plugin)`                                        | absent                  | TS error + runtime `TypeError`                                       | `.with(plugins()).use(p)`                                                                                  |
+| loader (`registerLoader`, …)                          | absent                  | existing loud capability error                                       | `.with(loader())` or `fetchLoader(opts)`                                                                   |
+| devtools discovery (`instanceId`, `window.__COMVI__`) | absent                  | invisible to the browser extension (documented)                      | `.with(devtools())`, or the in-context-editor installer                                                    |
+| nested catalogs                                       | stored verbatim         | dev warning                                                          | `flattenCatalog(…)`, or compose `loader()`                                                                 |
+| string-API tags (`"<b>hi</b>"` through `t()`)         | literal text            | dev warning; prod literal                                            | `<T>` from your framework package, or `import "@comvi/core/tags"`                                          |
+| `new I18n(options)`                                   | unchanged, one argument | —                                                                    | —                                                                                                          |
+| published `createNextI18n`                            | unchanged composed host | —                                                                    | —                                                                                                          |
 
 ### The compiler timing rule — read this before you migrate ICU
 

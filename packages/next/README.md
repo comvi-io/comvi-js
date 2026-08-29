@@ -268,6 +268,13 @@ published behaviour is preserved exactly — ICU, ambient tag syntax, the loader
 map), the plugin host, nested constructor catalogs, default params and devtools
 discovery, in that order.
 
+It is therefore one of exactly two hosts in the repo that carry ICU whether or
+not the app asked for it — the other is the CDN global build. Both are
+deliberate: this factory preserves published 0.4 behaviour and the CDN global
+has no composition step a page could write. `createI18n` on
+`@comvi/next/client` and `@comvi/next/server` is the base host and carries
+nothing you did not compose.
+
 The host type is published as `NextComposedI18n<D>`, which is exactly
 `CreateNextI18nResult<D>["i18n"]`:
 

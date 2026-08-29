@@ -24,7 +24,7 @@
     "test:nightly": "pnpm test:coverage",
     "test:coverage:critical": "turbo run test:coverage --filter @comvi/plugin-fetch-loader --filter @comvi/plugin-in-context-editor",
     "test:release": "pnpm test:release-tools && pnpm test:pr && pnpm audit:package-contracts && pnpm check:publint && pnpm check:types-exports",
-    "test:release-tools": "node --test scripts/root-changelog.test.mjs scripts/rc-version.test.mjs && node --test scripts/wrapper-hooks-parity.test.mjs && pnpm test:codemod-tools",
+    "test:release-tools": "node --test scripts/root-changelog.test.mjs scripts/rc-version.test.mjs scripts/prose-guards.test.mjs && node --test scripts/wrapper-hooks-parity.test.mjs && pnpm test:codemod-tools",
     "size": "node scripts/size-check.mjs",
     "test:size-tools": "node --test scripts/size-check.test.mjs",
     "codemod:framework-slim": "node scripts/codemods/framework-slim/run.mjs",

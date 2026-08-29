@@ -18,18 +18,18 @@ minor-bump policy:
 The 0.4 root was batteries-included. The converged root is the base host: text +
 `{param}` interpolation, the cache, events, default params and `.with()`.
 
-| 0.4 root behaviour                           | converged root                | loudness                                                             | migration                                                                 |
-| -------------------------------------------- | ----------------------------- | -------------------------------------------------------------------- | ------------------------------------------------------------------------- |
-| ICU plurals / select                         | not compiled by default       | **dev throws; prod renders it literally and reports** `E_ICU_SYNTAX` | inline: `compiler: icuCompiler`; remote: `.with(icu())` before the loader |
-| `.use(plugin)`                               | absent                        | TS error + runtime `TypeError`                                       | `.with(plugins()).use(p)`, or a plugin package's lowercase installer      |
-| loader (`registerLoader`, …)                 | absent                        | existing loud capability error                                       | `.with(loader())` / `fetchLoader(opts)`                                   |
-| discovery (`instanceId`, `window.__COMVI__`) | absent                        | invisible to the extension (documented)                              | `.with(devtools())`, or the in-context-editor installer                   |
-| nested catalogs                              | stored verbatim               | dev warning                                                          | `flattenCatalog(…)`, or compose `loader()`                                |
-| string-API tags (`"<b>hi</b>"`)              | literal text                  | dev warning; prod literal                                            | `<T>`, or `import "@comvi/core/tags"`                                     |
-| `new I18n(options)`                          | unchanged, one argument       | —                                                                    | —                                                                         |
-| published `createNextI18n`                   | unchanged composed host       | —                                                                    | —                                                                         |
-| the CDN global                               | unchanged, batteries-included | —                                                                    | —                                                                         |
-| a plugin returning a value                   | rejected at `init()`          | throws through the plugin error path                                 | return nothing or a cleanup function: `() => { flag = true; }`            |
+| 0.4 root behaviour                           | converged root                | loudness                                                             | migration                                                                                |
+| -------------------------------------------- | ----------------------------- | -------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| ICU plurals / select                         | not compiled by default       | **dev throws; prod renders it literally and reports** `E_ICU_SYNTAX` | inline: `compiler: icuCompiler`; remote: `.with(icu())` before the first catalog arrives |
+| `.use(plugin)`                               | absent                        | TS error + runtime `TypeError`                                       | `.with(plugins()).use(p)`, or a plugin package's lowercase installer                     |
+| loader (`registerLoader`, …)                 | absent                        | existing loud capability error                                       | `.with(loader())` / `fetchLoader(opts)`                                                  |
+| discovery (`instanceId`, `window.__COMVI__`) | absent                        | invisible to the extension (documented)                              | `.with(devtools())`, or the in-context-editor installer                                  |
+| nested catalogs                              | stored verbatim               | dev warning                                                          | `flattenCatalog(…)`, or compose `loader()`                                               |
+| string-API tags (`"<b>hi</b>"`)              | literal text                  | dev warning; prod literal                                            | `<T>`, or `import "@comvi/core/tags"`                                                    |
+| `new I18n(options)`                          | unchanged, one argument       | —                                                                    | —                                                                                        |
+| published `createNextI18n`                   | unchanged composed host       | —                                                                    | —                                                                                        |
+| the CDN global                               | unchanged, batteries-included | —                                                                    | —                                                                                        |
+| a plugin returning a value                   | rejected at `init()`          | throws through the plugin error path                                 | return nothing or a cleanup function: `() => { flag = true; }`                           |
 
 ### 0.1 The compiler has a timing rule
 
@@ -95,6 +95,11 @@ costs the production bundle **0 B**.
 - **String-API tags without a tag extension render literally.** Statically
   indistinguishable from text, so there is a dev warning and no prod throw. In a
   UI review a literal `<b>` is visibly broken, unlike a plausible-looking plural.
+  The fix, `import "@comvi/core/tags"`, registers the grammar **process-wide and
+  retroactively** — a property of the bundle, not of one host, so every instance
+  in the graph including already-built ones starts parsing tags, and there is no
+  per-instance opt-out. SSR apps must import it in the **server** graph as well,
+  or one string renders literally on the server and with markup on the client.
 - **Discovery is invisible until installed.** An app on the base host is not
   picked up by the browser extension until it composes `devtools()` or the
   in-context-editor installer.
@@ -169,17 +174,25 @@ and maintains the import statement (adding the hooks, removing an orphaned
 **The single entry.** It also migrates the shapes the one-entry convergence
 changed, host construction by host construction:
 
-| shape                                                          | becomes                                       |
-| -------------------------------------------------------------- | --------------------------------------------- |
-| `@comvi/<pkg>/slim` — react, solid, svelte, vue, next client   | `@comvi/<pkg>`                                |
-| `@comvi/core/slim`                                             | `@comvi/core`                                 |
-| `createSlimI18n`                                               | `createI18n` (import, references and aliases) |
-| `.use(FetchLoader(o))` and the two other first-party factories | `.with(fetchLoader(o))` in place              |
-| `.use(YourPlugin(o))`                                          | `.with(plugins()).use(YourPlugin(o))`         |
-| inline `translation` with ICU comma syntax                     | `compiler: icuCompiler` in the same call      |
-| `exposeGlobal` / `instanceId` options                          | `.with(devtools({ … }))`, options moved       |
-| a nested inline `translation` catalog                          | `flattenCatalog(…)`, per locale               |
-| `.with(icu())` after a loader in one chain                     | `.with(icu())` moved BEFORE the loader        |
+| shape                                                          | becomes                                                                                                                                                                                                                                    |
+| -------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `@comvi/<pkg>/slim` — react, solid, svelte, vue, next client   | `@comvi/<pkg>`                                                                                                                                                                                                                             |
+| `@comvi/core/slim`                                             | `@comvi/core`                                                                                                                                                                                                                              |
+| `createSlimI18n`                                               | `createI18n` (import, references and aliases)                                                                                                                                                                                              |
+| `.use(FetchLoader(o))` and the two other first-party factories | `.with(fetchLoader(o))` in place                                                                                                                                                                                                           |
+| `.use(YourPlugin(o))`                                          | `.with(plugins()).use(YourPlugin(o))`                                                                                                                                                                                                      |
+| inline `translation` with ICU comma syntax                     | `compiler: icuCompiler` in the same call                                                                                                                                                                                                   |
+| `exposeGlobal` / `instanceId` options                          | `.with(devtools({ … }))`, options moved                                                                                                                                                                                                    |
+| a nested inline `translation` catalog                          | `flattenCatalog(…)`, per locale                                                                                                                                                                                                            |
+| `.with(icu())` after a loader in one chain                     | `.with(icu())` moved before the loader so it is guaranteed to precede the first catalog <!-- prose-guards: allow: the codemod's own rewrite, named for the edit it makes; the rule it serves is stated in the sentence below the table --> |
+
+That last row is a rewrite the codemod makes for clarity, not a rule it
+enforces: the actual rule is that `.with(icu())` must run before the first
+CATALOG reaches the host (a constructor `translation`, an `addTranslations`
+call, or a loader merge). COMPOSING a loader ingests nothing, so
+`.with(loader(map)).with(icu())` already works; the codemod moves `icu()` ahead
+of the loader anyway so that ingestion-safety is obvious at the call site. The
+order of `loader()`, `plugins()` and `devtools()` among themselves is free.
 
 Every binding a rewrite introduces is imported in the same pass — merged into
 the `@comvi/*` import the file already has, or added on its own line after it —
@@ -222,9 +235,9 @@ release note can name the migrations a tree actually needed.
 - `createI18n(optionsBuiltElsewhere)` — the codemod cannot see whether those
   options carry ICU syntax, a nested catalog or the two discovery options
 - catalogs loaded at RUNTIME: if a loaded catalog uses ICU syntax, compose
-  `.with(icu())` before the loader yourself. Nothing textual proves what a CDN
-  will return, so this one is advisory on every chain that composes a loader
-  without a compiler
+  `.with(icu())` yourself, anywhere ahead of the first catalog. Nothing textual
+  proves what a CDN will return, so this one is advisory on every chain that
+  composes a loader without a compiler
 
 ## 4. Per binding
 
@@ -358,9 +371,14 @@ const i18n = createI18n({ locale: "en" }).with(loader()).with(plugins());
 i18n.use(FetchLoader({ cdnUrl: "https://cdn.comvi.io/my-project" }));
 ```
 
-`loader()` before `plugins()` when a plugin registers a loader — plugins run at
-`init()`, and `registerLoader` has to exist by then. The installers already
-order their own attaches that way.
+Compose `loader()` as well when a plugin registers one. The ORDER of `loader()`,
+`plugins()` and `devtools()` among themselves is free: plugins run at `init()`,
+and every capability composed before `init()` is attached by then. The one
+ordering rule in the library is `icu()`'s — it must run before the first catalog
+reaches the host (constructor `translation`, `addTranslations`, or a loader
+merge), and composing a loader is not ingestion. The lowercase installers
+compose whatever their plugin needs, so a chain that uses them never has to
+think about it at all.
 
 No lifecycle is duplicated. An installer's last act is `use`, so `required`,
 `timeout`, `onError`, cleanup registration and LIFO destroy all keep running
@@ -656,9 +674,10 @@ export default ((options) =>
     .with(devtools())) satisfies NuxtHostFactory;
 ```
 
-Drop the lines you do not need — that is the point. Compose `loader()` and
-`plugins()` before any catalog is ingested and `devtools()` last, the same
-parity order every other binding uses.
+Drop the lines you do not need — that is the point. The order of `loader()`,
+`plugins()` and `devtools()` among themselves is free; only `.with(icu())` has
+to run before the first catalog reaches the host, and this factory is
+catalog-bearing, so it takes `compiler: icuCompiler` instead.
 
 | 0.4 nuxt behavior                          | after                                                              |
 | ------------------------------------------ | ------------------------------------------------------------------ |

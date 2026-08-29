@@ -13,8 +13,14 @@
 // await i18n.init();
 // ```
 //
-// Compose `loader()` BEFORE `plugins()` when any hosted plugin registers a
-// loader — plugins run at `init()`, and `registerLoader` has to exist by then.
+// Compose `loader()` as well when any hosted plugin registers a loader. The
+// ORDER of `loader()`, `plugins()` and `devtools()` among themselves is free:
+// plugins run at `init()`, by which point every capability composed before
+// `init()` is attached. The one ordering rule in the library is `icu()`'s — it
+// must run before the first catalog reaches the host (constructor
+// `translation`, `addTranslations`, or a loader merge), and COMPOSING a loader
+// is not ingestion.
+//
 // On a host that already has the capability — a second `.with(plugins())`, or
 // the internal composite the CDN global ships — installing is a no-op.
 //

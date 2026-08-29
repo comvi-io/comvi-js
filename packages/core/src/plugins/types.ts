@@ -16,8 +16,11 @@ export type PluginCleanup = () => void | Promise<void>;
  * The host type is the **composed full surface** (`I18nPluginHost`) — the base
  * host plus the loader and plugin capabilities. A plugin only ever runs on a
  * host that has the plugin capability (`@comvi/core/plugins`), and one that
- * calls loader APIs additionally requires `@comvi/core/loader` to have been
- * composed on BEFORE the plugin runs: `createI18n({ … }).with(loader()).with(plugins())`.
+ * calls loader APIs additionally requires `@comvi/core/loader` on that same
+ * host. Both only have to be composed by `init()`, which is when plugins run,
+ * so their order relative to each other is free —
+ * `createI18n({ … }).with(loader()).with(plugins())` and
+ * `createI18n({ … }).with(plugins()).with(loader())` are equivalent.
  *
  * @param i18n - The i18n instance
  * @returns void, Promise<void>, or a cleanup function

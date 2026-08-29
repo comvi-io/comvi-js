@@ -53,9 +53,12 @@
 // installers it takes. ICU is the one capability with TWO shapes, both named
 // here: an inline constructor catalog takes the COMPILER in the same call
 // (`compiler: icuCompiler`), and a remote catalog takes the INSTALLER,
-// `.with(icu())`, which must run BEFORE anything is ingested — the host locks
-// its compiler on the first catalog and `icu()` then throws
-// `E_COMPILER_LOCKED`. Neither shape makes an app name `@comvi/core/icu`.
+// `.with(icu())`, which must run before the first catalog reaches the host — a
+// constructor `translation`, an `addTranslations` call, or a loader merge. The
+// host locks its compiler there and a later `icu()` throws
+// `E_COMPILER_LOCKED`. Composing a loader is not ingestion, so the order of
+// `icu()` and `loader()` in one chain does not matter. Neither shape makes an
+// app name `@comvi/core/icu`.
 
 // The host: core's BASE `createI18n` and the `I18n` class behind it,
 // re-exported by name so a react app has one import specifier. There is no

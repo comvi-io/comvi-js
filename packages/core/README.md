@@ -214,12 +214,19 @@ copies and `JSON.stringify` see exactly what they saw before. Composing a
 capability a host already has — a second `.with(loader())`, or any `.with(…)` on
 a host that was already composed — installs nothing and shadows nothing.
 
-> **Order matters: the loader before the plugin host.** Plugins run during `init()`,
-> and a loader-registering plugin (for example [`@comvi/plugin-fetch-loader`](../plugin-fetch-loader))
-> calls `registerLoader` on the instance. If the loader capability was never composed,
-> that call is a `TypeError` at `init()` time, not a compile error. Compose the
-> loader first and the ordering concern goes away:
-> `createI18n({ … }).with(loader()).with(plugins())`.
+> **Compose the loader alongside the plugin host — order between them is free.**
+> Plugins run during `init()`, and a loader-registering plugin (for example
+> [`@comvi/plugin-fetch-loader`](../plugin-fetch-loader)) calls `registerLoader` on the
+> instance. If the loader capability was never composed at all, that call is a
+> `TypeError` at `init()` time, not a compile error. Composing both is what fixes it,
+> and either chain does it: `createI18n({ … }).with(loader()).with(plugins())` and
+> `createI18n({ … }).with(plugins()).with(loader())` are equivalent, because every
+> capability composed before `init()` is attached by the time plugins run.
+>
+> The library has exactly one ordering rule, and it is about ICU:
+> `.with(icu())` must run before the first catalog reaches the host — a constructor
+> `translation`, an `addTranslations` call, or a loader merge. Composing a loader
+> ingests nothing, so it does not count.
 >
 > Published plugin packages ship a lowercase **installer** that does the ordering
 > for you: `.with(fetchLoader({ … }))` composes `/loader`, then `/plugins`, then
