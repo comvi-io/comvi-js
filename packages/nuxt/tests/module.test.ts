@@ -282,6 +282,86 @@ describe("nuxt module setup", () => {
     expect(contents).not.toContain("compiler");
   });
 
+  it("emits the ICU compiler into the default branch when icu is true", async () => {
+    const moduleDefinition = await importModule();
+    const nuxt = createNuxtStub();
+
+    await moduleDefinition.setup({ locales: ["en"], defaultLocale: "en", icu: true }, nuxt);
+
+    const contents = nuxtKitMocks.addTemplate.mock.calls
+      .find(([template]: [{ filename: string }]) => template.filename === "comvi.host.mjs")?.[0]
+      .getContents();
+
+    // The one capability an app on the default host cannot reach any other
+    // way: `compiler` is a constructor argument, not something `.with()` can
+    // pipe on afterwards.
+    expect(contents).toContain('import { icuCompiler } from "@comvi/core/icu";');
+    // BOTH constructed hosts get it — the client wrapper and the per-request
+    // server core — or SSR and hydration would compile the same catalog with
+    // two different compilers.
+    expect(contents).toContain("createI18n({ ...options, compiler: icuCompiler })");
+    expect(contents).toContain("createCore({ ...options, compiler: icuCompiler })");
+    // Still the default branch: ICU is the only thing the option adds.
+    expect(contents).toContain('import { createI18n } from "@comvi/vue";');
+    expect(contents).not.toContain("createI18nFromCore");
+    expect(contents).not.toContain(".with(");
+  });
+
+  it("emits no ICU import when icu is left at its default", async () => {
+    const moduleDefinition = await importModule();
+    const nuxt = createNuxtStub();
+
+    // No `icu` key at all: what an app that never heard of the option gets.
+    await moduleDefinition.setup({ locales: ["en"], defaultLocale: "en" }, nuxt);
+
+    const contents = nuxtKitMocks.addTemplate.mock.calls
+      .find(([template]: [{ filename: string }]) => template.filename === "comvi.host.mjs")?.[0]
+      .getContents();
+
+    // The 0 B claim, asserted where it is actually decided. The option is a
+    // codegen branch, so an app that did not ask for ICU emits a module that
+    // cannot pull `@comvi/core/icu` into its graph at all — there is nothing
+    // for a bundler to have to prove dead.
+    expect(contents).not.toContain("@comvi/core/icu");
+    expect(contents).not.toContain("icuCompiler");
+    expect(contents).not.toContain("compiler");
+    expect(contents).toContain("return createI18n(options);");
+    expect(contents).toContain("return createCore(options);");
+  });
+
+  it("ignores icu with a warning when hostModule is set", async () => {
+    const moduleDefinition = await importModule();
+    const nuxt = createNuxtStub();
+    nuxtKitMocks.findPath.mockImplementation(async (specifier: string) =>
+      specifier === "./comvi.host.ts" ? "/app/comvi.host.ts" : null,
+    );
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    await moduleDefinition.setup(
+      { locales: ["en"], defaultLocale: "en", icu: true, hostModule: "./comvi.host.ts" },
+      nuxt,
+    );
+
+    // A composed host picks its own compiler, so the option would be silently
+    // overruled rather than merged — the app has to hear about it once.
+    expect(
+      warnSpy.mock.calls.some(([message]) =>
+        String(message).includes("`comvi.icu` has no effect when `hostModule` is set"),
+      ),
+    ).toBe(true);
+    warnSpy.mockRestore();
+
+    const contents = nuxtKitMocks.addTemplate.mock.calls
+      .find(([template]: [{ filename: string }]) => template.filename === "comvi.host.mjs")?.[0]
+      .getContents();
+
+    // Ignored means ignored: the hostModule variant, unaltered.
+    expect(contents).toContain('import hostFactory from "/app/comvi.host.ts";');
+    expect(contents).toContain('import { createI18nFromCore } from "@comvi/vue";');
+    expect(contents).not.toContain("@comvi/core/icu");
+    expect(contents).not.toContain("icuCompiler");
+  });
+
   it("emits the composed-host branch and never imports @comvi/core itself when hostModule is set", async () => {
     const moduleDefinition = await importModule();
     const nuxt = createNuxtStub();

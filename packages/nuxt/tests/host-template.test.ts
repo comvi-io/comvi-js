@@ -72,7 +72,10 @@ interface ModuleDefinition {
 }
 
 /** Runs the module's setup, then writes + imports the generated host template. */
-async function emitHostTemplate(hostModule?: string): Promise<HostTemplate> {
+async function emitHostTemplate(
+  hostModule?: string,
+  extraOptions: Record<string, unknown> = {},
+): Promise<HostTemplate> {
   vi.resetModules();
   // Dynamic on purpose: the module has to be re-evaluated per case so its
   // @nuxt/kit calls land in a freshly reset mock.
@@ -82,7 +85,12 @@ async function emitHostTemplate(hostModule?: string): Promise<HostTemplate> {
   const moduleDefinition = imported.default as unknown as ModuleDefinition;
 
   await moduleDefinition.setup(
-    { locales: ["en"], defaultLocale: "en", ...(hostModule ? { hostModule } : {}) },
+    {
+      locales: ["en"],
+      defaultLocale: "en",
+      ...(hostModule ? { hostModule } : {}),
+      ...extraOptions,
+    },
     {
       options: {
         runtimeConfig: { public: {}, comvi: {} },
@@ -160,6 +168,29 @@ describe("generated #build/comvi.host template", () => {
     // in the template that could quietly paper over it — `compiler:
     // icuCompiler` belongs to a `hostModule` factory.
     expect(error).toMatchObject({ code: "E_ICU_SYNTAX", argumentType: "plural" });
+  });
+
+  it("compiles ICU on the default branch when icu is true", async () => {
+    const { createComviI18n, createComviCore } = await emitHostTemplate(undefined, { icu: true });
+
+    // The counterpart to the detector test above: same default branch, same
+    // message, and the option is the whole difference. This is what proves the
+    // emitted `compiler: icuCompiler` is wired rather than merely present in
+    // the generated text.
+    const core = createComviCore({ locale: "en" });
+    core.addTranslations({
+      en: { cart: "{count, plural, one {# item} other {# items}}" },
+    });
+    expect(core.t("cart", { count: 5 })).toBe("5 items");
+    expect(core.t("cart", { count: 1 })).toBe("1 item");
+
+    // The vue wrapper's host is constructed by the same template function, so
+    // SSR and the client cannot end up on two different compilers.
+    const i18n = createComviI18n({ locale: "en", exposeGlobal: false });
+    i18n.core.addTranslations({
+      en: { cart: "{count, plural, one {# item} other {# items}}" },
+    });
+    expect(i18n.core.t("cart", { count: 5 })).toBe("5 items");
   });
 
   it("introduces no browser global on the default branch", async () => {

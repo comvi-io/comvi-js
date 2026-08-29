@@ -176,6 +176,30 @@ export interface NuxtI18nOptions {
   setup?: string;
 
   /**
+   * Opt the module's OWN generated host into the ICU compiler.
+   *
+   * ICU is never automatic — it is a capability, and this is the way an app
+   * that has no {@link NuxtI18nOptions.hostModule} chooses it. With `icu: true`
+   * the generated `#build/comvi.host` imports `icuCompiler` from
+   * `@comvi/core/icu` and builds the host with `compiler: icuCompiler`, so
+   * `{count, plural, one {# item} other {# items}}` renders instead of throwing
+   * `E_ICU_SYNTAX`.
+   *
+   * The choice is made at BUILD time, in codegen: left `false` the generated
+   * module contains no `@comvi/core/icu` import at all, so the option costs
+   * 0 B when off. A runtime `if` would pin the compiler into every bundle.
+   *
+   * `hostModule` wins: when it is set this option is ignored with a build-time
+   * warning, because a composed host already decides its own compiler
+   * (`createI18n({ ...options, compiler: icuCompiler })`). ICU is the only
+   * capability with a module option — the loader, the plugin host and devtools
+   * discovery still require `hostModule`.
+   *
+   * @default false
+   */
+  icu?: boolean;
+
+  /**
    * Path to a module whose DEFAULT export is a {@link NuxtHostFactory} —
    * `(options) => WrapperI18nHost` — used INSTEAD of `@comvi/vue`'s own
    * constructor.

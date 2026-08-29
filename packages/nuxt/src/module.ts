@@ -85,6 +85,7 @@ const comviNuxtModule: NuxtModule<NuxtI18nOptions> = defineNuxtModule<NuxtI18nOp
     defaultLocale: "en",
     localePrefix: "as-needed",
     defaultNs: "default",
+    icu: false,
     detectBrowserLanguage: DEFAULT_DETECT_BROWSER_LANGUAGE,
   },
 
@@ -123,6 +124,14 @@ const comviNuxtModule: NuxtModule<NuxtI18nOptions> = defineNuxtModule<NuxtI18nOp
     if (options.hostModule && !resolvedHostModulePath) {
       throw new Error(
         `[@comvi/nuxt] Failed to resolve comvi hostModule path: "${options.hostModule}".`,
+      );
+    }
+
+    // A composed host picks its own compiler, so the module option would be
+    // silently overruled rather than merged. Say so once, at build time.
+    if (options.icu && resolvedHostModulePath) {
+      console.warn(
+        "[@comvi/nuxt] `comvi.icu` has no effect when `hostModule` is set — compose ICU in your host module.",
       );
     }
 
@@ -236,15 +245,22 @@ export async function runComviSetup(context) {
     // nothing (framework-slim P4 step 5).
     //
     // WHAT THE DEFAULT BRANCH BUILDS, since the single-entry convergence: the
-    // BASE host and nothing else — text + `{param}`, the cache, events,
-    // default params. No ICU compiler, no loader, no plugin host, no devtools
-    // discovery. That is a deliberate policy, not an omission: a capability is
-    // an import the app adds, so the module never injects one on the app's
-    // behalf and there is no compiler sugar to configure. Both emitted
-    // functions below are plain forwarding calls for exactly that reason —
-    // read the branch and you have read the whole host.
+    // BASE host — text + `{param}`, the cache, events, default params — plus
+    // the ICU compiler if, and only if, `icu: true` asked for it. No loader,
+    // no plugin host, no devtools discovery. That is a deliberate policy, not
+    // an omission: a capability is an import the app adds, so the module never
+    // injects one on the app's behalf.
     //
-    // Every capability therefore arrives through `hostModule`, which is why
+    // ICU is the ONE capability with a module option, because it is the one an
+    // app cannot reach any other way on this branch: it is a constructor
+    // argument, not something `.with()` can pipe onto a built host, so without
+    // the option a default-host app could never choose it. The option is still
+    // a CHOICE and still costs nothing when unchosen — the import is emitted
+    // here, at codegen, so `icu: false` produces a module that does not mention
+    // `@comvi/core/icu`. A runtime `if` would pin the compiler into every
+    // bundle and save nothing (same reason as the hostModule branch itself).
+    //
+    // Every other capability arrives through `hostModule`, which is why
     // that branch forwards nuxt's RESOLVED options into the factory: locale,
     // fallbackLocale, defaultNs, defaultParams, tagInterpolation, devMode and
     // apiKey all come from `nuxt.config` / runtime config, and a composed host
@@ -255,6 +271,24 @@ export async function runComviSetup(context) {
         const hostPath = resolvedHostModulePath;
 
         if (!hostPath) {
+          // Emitted only for `icu: true`: an app that did not ask for ICU must
+          // get a module that cannot pull `@comvi/core/icu` into its graph.
+          if (options.icu) {
+            return `
+import { createI18n } from "@comvi/vue";
+import { createI18n as createCore } from "@comvi/core";
+import { icuCompiler } from "@comvi/core/icu";
+
+export function createComviI18n(options) {
+  return createI18n({ ...options, compiler: icuCompiler });
+}
+
+export function createComviCore(options) {
+  return createCore({ ...options, compiler: icuCompiler });
+}
+`;
+          }
+
           return `
 import { createI18n } from "@comvi/vue";
 import { createI18n as createCore } from "@comvi/core";

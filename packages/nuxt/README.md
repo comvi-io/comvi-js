@@ -97,7 +97,8 @@ const { t, locale } = useI18n(); // auto-imported
 BASE host for you — text and `{param}` interpolation, the translation cache,
 events, default params — with no ICU compiler, no loader, no plugin host and no
 devtools discovery. Nothing is injected on your behalf, so nothing you did not
-ask for is in your bundle. See
+ask for is in your bundle. (ICU is the one capability that default host can
+still opt into, with `icu: true`; it stays off unless you ask.) See
 [Composing your host](#composing-your-host-the-hostmodule-option) for the full
 menu; the [0.5.0 migration guide](https://github.com/comvi-io/comvi-js/blob/main/MIGRATION.md)
 has the upgrade path.
@@ -229,6 +230,13 @@ while you stay in charge of capabilities. It is called once per constructed
 instance (the client plugin, and each per-request server instance), so it must
 return a FRESH host every call.
 
+ICU is the one exception to "compose it here": `compiler` is a constructor
+argument rather than something `.with()` can pipe on, so an app with no
+`hostModule` reaches it through the `icu: true` module option instead —
+everything else in the table below (loader, plugins, devtools) still needs
+`hostModule`, and with `hostModule` set `icu` is ignored with a build-time
+warning because your factory already chose a compiler.
+
 Each capability is one import and one `.with(...)`. `.with(installer)` is
 core's composition pipe — `i18n.with(f)` is `f(i18n)`, nothing more.
 
@@ -325,6 +333,19 @@ import type { NuxtHostFactory } from "@comvi/nuxt";
 export default ((options) =>
   createI18n({ ...options, compiler: icuCompiler })) satisfies NuxtHostFactory;
 ```
+
+Without a `hostModule`, set `icu: true` in `nuxt.config.ts` instead — it is the
+one capability with a module option, because `compiler` is a constructor
+argument no `.with(...)` can add afterwards:
+
+```ts
+comvi: { locales: ["en", "uk"], defaultLocale: "en", icu: true }
+```
+
+`icu` defaults to `false` and the choice is made in codegen, so leaving it off
+emits a `#build/comvi.host` that never mentions `@comvi/core/icu` — 0 B, not a
+disabled feature. It is ignored (with a build-time warning) when `hostModule`
+is set, since your factory already passes its own `compiler`.
 
 ```vue
 <script setup lang="ts">
