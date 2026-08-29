@@ -53,16 +53,30 @@ export function createComposedNextI18n<const D extends DefaultTranslationParams 
   // loader function. `attachLoader` installs only the function form, so the
   // overload is restored here — the builder is the only place that knows the
   // published root promised it.
+  //
+  // `defineProperty`, never a plain assignment (B7): the reflective contract
+  // is that a spread of a host carries DATA only, never behaviour
+  // (`core/src/core/devtools.ts:17-18`, pinned by core's
+  // `tests/root-contract.test.ts` and by `tests/composed-host-reflection.test.ts`
+  // here). An assignment only preserves `enumerable: false` while
+  // `attachLoader` happens to install `registerLoader` as an OWN descriptor;
+  // the moment a capability moves to a prototype install — which is exactly
+  // what `core/full.ts` does — `host.registerLoader = fn` would silently
+  // create an enumerable own property and leak the method into `{ ...host }`.
+  // Spelling the descriptor out removes that coupling.
   const registerLoaderFn = host.registerLoader.bind(host) as (loader: LoaderFn) => void;
-  (host as { registerLoader: (loader: LoaderFn | LoaderImportMap) => void }).registerLoader = (
-    loader: LoaderFn | LoaderImportMap,
-  ): void => {
-    registerLoaderFn(
-      typeof loader === "object" && loader !== null
-        ? createImportMapLoader(loader, () => host.getDefaultNamespace())
-        : loader,
-    );
-  };
+  Object.defineProperty(host, "registerLoader", {
+    value: (loader: LoaderFn | LoaderImportMap): void => {
+      registerLoaderFn(
+        typeof loader === "object" && loader !== null
+          ? createImportMapLoader(loader, () => host.getDefaultNamespace())
+          : loader,
+      );
+    },
+    writable: true,
+    enumerable: false,
+    configurable: true,
+  });
 
   if (translation !== undefined) {
     host.addTranslations(translation as Record<string, Record<string, never>>);

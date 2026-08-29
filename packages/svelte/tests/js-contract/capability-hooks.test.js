@@ -159,4 +159,51 @@ describe(`capability acquisition (${__COMVI_CORE_BUILD__} core build)`, () => {
       expect(member.subscribe).toBeUndefined();
     }
   });
+
+  // ── B8: ONE canonical behaviour for a non-string `onMissingKey` result ──
+  //
+  // The four wrappers had drifted here: react wrapped the callback and coerced
+  // its result with `String(result)`; vue, solid and svelte bound the host
+  // method raw. Core decides, and core's `I18nPluginHostApi["onMissingKey"]`
+  // declares the callback returns `TranslationResult | void` — a string OR the
+  // `Array<string | VirtualNode>` a rich-text fallback is made of — which
+  // `_missHook` takes as-is. So the canonical behaviour is PASS-THROUGH; the
+  // coercion invented a semantic core does not have and flattened a rich
+  // fallback to `"rich-,[object Object]"` in react alone.
+  //
+  // The identical assertions live in all four wrapper packages
+  // (`scripts/wrapper-hooks-parity.test.mjs` pins the implementation they
+  // exercise), so this is the behavioural half of the parity claim.
+  it("hands core a non-string onMissingKey result UNTOUCHED (B8 parity)", () => {
+    const richFallback = [
+      "rich-",
+      { type: "element", tag: "b", props: {}, children: ["fallback"] },
+    ];
+    const host = attachPlugins(baseHost());
+    const bag = acquire(host, useI18nPlugins);
+
+    const off = bag.onMissingKey(() => richFallback);
+
+    // `tRaw` proves the VirtualNode survived the wrapper; `t` proves it is
+    // CORE, not the wrapper, that flattens the parts to text.
+    expect(host.tRaw("absent")).toEqual(richFallback);
+    expect(host.t("absent")).toBe("rich-fallback");
+
+    off();
+    expect(host.t("absent")).toBe("absent");
+  });
+
+  it("registers the callback itself — the host sees no wrapper closure (B8 parity)", () => {
+    const host = attachPlugins(baseHost());
+    const bag = acquire(host, useI18nPlugins);
+
+    let received;
+    const off = bag.onMissingKey((...args) => {
+      received = args;
+    });
+
+    host.t("absent");
+    expect(received).toEqual(["absent", "en", "default"]);
+    off();
+  });
 });
