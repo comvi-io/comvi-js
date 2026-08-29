@@ -49,6 +49,8 @@ export const DEFAULT_PACKAGE_ROOTS = Object.fromEntries(
     "nuxt",
     "locale-routing",
     "plugin-fetch-loader",
+    "plugin-locale-detector",
+    "plugin-in-context-editor",
   ].map((dir) => [`@comvi/${dir}`, path.join(REPO_ROOT, "packages", dir)]),
 );
 

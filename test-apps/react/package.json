@@ -10,6 +10,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@comvi/core": "workspace:*",
     "@comvi/plugin-locale-detector": "workspace:*",
     "@comvi/react": "workspace:*",
     "react": "^19.2.4",

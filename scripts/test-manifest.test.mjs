@@ -5,13 +5,20 @@ import { compareManifest, renderComparison } from "./test-manifest.mjs";
 const REACT_A = "packages/react/tests/useI18n.test.tsx > useI18n > returns t";
 const REACT_B = "packages/react/tests/useI18n.test.tsx > useI18n > exposes reloadTranslations";
 const VUE_A = "packages/vue/tests/VueI18n.test.ts > VueI18n > proxies reloadTranslations";
+// Added and retired inside one wave, so it is in no baseline — the shape the
+// single-entry convergence produced when it collapsed the `/slim` suites.
+const WAVE_ID =
+  "packages/react/tests/slim-preset.test.tsx > @comvi/react/slim > carries every binding";
+const WAVE_SUCCESSOR =
+  "packages/react/tests/root-entry.test.tsx > @comvi/react > publishes exactly the named surface";
 
-function manifest({ removals = [] } = {}) {
+function manifest({ removals = [], renames = [] } = {}) {
   return {
     packages: [
       { name: "@comvi/react", dir: "packages/react", count: 2, tests: [REACT_A, REACT_B] },
       { name: "@comvi/vue", dir: "packages/vue", count: 1, tests: [VUE_A] },
     ],
+    renames,
     removals,
   };
 }
@@ -67,7 +74,7 @@ test("an allowlisted removal without a rationale is rejected", () => {
   assert.match(result.errors.join("\n"), /non-empty `reason`/);
 });
 
-test("an allowlist entry that names no manifest ID is rejected", () => {
+test("an unknown removal id is rejected unless it declares the wave that added it", () => {
   const result = compareManifest({
     manifest: manifest({
       removals: [{ id: "packages/react/tests/typo.test.tsx > gone", reason: "x" }],
@@ -76,7 +83,7 @@ test("an allowlist entry that names no manifest ID is rejected", () => {
   });
 
   assert.equal(result.ok, false);
-  assert.match(result.errors.join("\n"), /is not a manifest test ID/);
+  assert.match(result.errors.join("\n"), /needs `addedIn`|the id is wrong/);
 });
 
 test("a manifest whose count disagrees with its ID list is rejected", () => {
@@ -121,4 +128,177 @@ test("packages missing from the listing are skipped, so per-wrapper runs work", 
     result.packages.map((pkg) => pkg.name),
     ["@comvi/react"],
   );
+});
+
+// --- the rename map: post-baseline retirements and file-level renames -------
+// A test added and retired inside ONE wave is invisible to a baseline-only gate.
+// These rows are how it stops being invisible, and every one of them is checked
+// against the live listing rather than believed.
+
+test("a post-baseline retirement is accepted when it names its wave and its live successor", () => {
+  const result = compareManifest({
+    manifest: manifest({
+      removals: [
+        {
+          id: WAVE_ID,
+          addedIn: "framework-slim P2 (react)",
+          reason: "the cross-entry surface comparison died with the second entry",
+          supersededBy: WAVE_SUCCESSOR,
+        },
+      ],
+    }),
+    current: { "@comvi/react": [REACT_A, REACT_B, WAVE_SUCCESSOR], "@comvi/vue": [VUE_A] },
+  });
+
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.errors, []);
+  assert.equal(result.packages[0].retired, 1);
+  assert.match(renderComparison(result), /1 post-baseline retirements/);
+});
+
+test("a post-baseline retirement whose test is still listed is rejected", () => {
+  const result = compareManifest({
+    manifest: manifest({
+      removals: [{ id: WAVE_ID, addedIn: "framework-slim P2 (react)", reason: "retired" }],
+    }),
+    current: { "@comvi/react": [REACT_A, REACT_B, WAVE_ID], "@comvi/vue": [VUE_A] },
+  });
+
+  assert.equal(result.ok, false);
+  assert.match(result.errors.join("\n"), /recorded as retired, but the test is still listed/);
+});
+
+test("a baseline removal that also claims `addedIn` is rejected as a contradiction", () => {
+  const result = compareManifest({
+    manifest: manifest({
+      removals: [{ id: REACT_B, addedIn: "framework-slim P2 (react)", reason: "gone" }],
+    }),
+    current: { "@comvi/react": [REACT_A], "@comvi/vue": [VUE_A] },
+  });
+
+  assert.equal(result.ok, false);
+  assert.match(result.errors.join("\n"), /`addedIn` contradicts it/);
+});
+
+test("a removal whose `supersededBy` names no listed test is rejected", () => {
+  const result = compareManifest({
+    manifest: manifest({
+      removals: [
+        { id: REACT_B, reason: "migrated", supersededBy: "packages/react/tests/root.test.tsx > x" },
+      ],
+    }),
+    current: { "@comvi/react": [REACT_A], "@comvi/vue": [VUE_A] },
+  });
+
+  assert.equal(result.ok, false);
+  assert.match(result.errors.join("\n"), /dropped rather than migrated/);
+});
+
+test("a file rename passes when the source is empty and the target holds its audited floor", () => {
+  const result = compareManifest({
+    manifest: manifest({
+      renames: [
+        {
+          fromFile: "packages/react/tests/slim-preset.test.tsx",
+          toFile: "packages/react/tests/root-entry.test.tsx",
+          minIds: 1,
+          reason: "the /slim-entry suite became the root-entry suite",
+        },
+      ],
+    }),
+    current: { "@comvi/react": [REACT_A, REACT_B, WAVE_SUCCESSOR], "@comvi/vue": [VUE_A] },
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.packages[0].renamedFiles, 1);
+  assert.match(renderComparison(result), /1 renamed file\(s\)/);
+});
+
+test("a file rename whose source still lists tests is rejected", () => {
+  const result = compareManifest({
+    manifest: manifest({
+      renames: [
+        {
+          fromFile: "packages/react/tests/useI18n.test.tsx",
+          toFile: "packages/react/tests/root-entry.test.tsx",
+          minIds: 1,
+          reason: "claims a rename that did not happen",
+        },
+      ],
+    }),
+    current: { "@comvi/react": [REACT_A, REACT_B, WAVE_SUCCESSOR], "@comvi/vue": [VUE_A] },
+  });
+
+  assert.equal(result.ok, false);
+  assert.match(result.errors.join("\n"), /still lists tests, so the rename did not happen/);
+});
+
+test("a file rename whose target fell below its audited floor is rejected", () => {
+  const result = compareManifest({
+    manifest: manifest({
+      renames: [
+        {
+          fromFile: "packages/react/tests/slim-preset.test.tsx",
+          toFile: "packages/react/tests/root-entry.test.tsx",
+          minIds: 4,
+          reason: "four moved with the file",
+        },
+      ],
+    }),
+    current: { "@comvi/react": [REACT_A, REACT_B, WAVE_SUCCESSOR], "@comvi/vue": [VUE_A] },
+  });
+
+  assert.equal(result.ok, false);
+  assert.match(result.errors.join("\n"), /below the 4 audited at the rename/);
+});
+
+test("a rename row without a floor or a reason is rejected", () => {
+  const result = compareManifest({
+    manifest: manifest({
+      renames: [
+        {
+          fromFile: "packages/react/tests/slim-preset.test.tsx",
+          toFile: "packages/react/tests/root-entry.test.tsx",
+          reason: "no floor",
+        },
+        {
+          fromFile: "packages/react/tests/slim-host.test.tsx",
+          toFile: "packages/react/tests/base-host.test.tsx",
+          minIds: 1,
+          reason: "   ",
+        },
+      ],
+    }),
+    current: { "@comvi/react": [REACT_A, REACT_B, WAVE_SUCCESSOR], "@comvi/vue": [VUE_A] },
+  });
+
+  assert.equal(result.ok, false);
+  assert.match(result.errors.join("\n"), /needs `minIds` >= 1/);
+  assert.match(result.errors.join("\n"), /needs a non-empty `reason`/);
+});
+
+test("rename and retirement rows for a package outside the run are left unchecked", () => {
+  const result = compareManifest({
+    manifest: manifest({
+      removals: [
+        {
+          id: "packages/vue/tests/slim-host.test.ts > vue > x",
+          addedIn: "framework-slim P4",
+          reason: "retired",
+        },
+      ],
+      renames: [
+        {
+          fromFile: "packages/vue/tests/slim-host.test.ts",
+          toFile: "packages/vue/tests/base-host.test.ts",
+          minIds: 9,
+          reason: "renamed in the vue phase",
+        },
+      ],
+    }),
+    current: { "@comvi/react": [REACT_A, REACT_B] },
+  });
+
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.errors, []);
 });

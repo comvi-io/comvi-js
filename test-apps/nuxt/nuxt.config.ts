@@ -25,6 +25,7 @@ export default defineNuxtConfig({
     defaultLocale: "en",
     localePrefix: "as-needed",
     defaultNs: "default",
+    hostModule: "./comvi.host.ts",
     fallbackLocale: "en",
     detectBrowserLanguage: {
       useCookie: true,

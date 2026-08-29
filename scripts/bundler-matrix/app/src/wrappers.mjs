@@ -1,16 +1,10 @@
 // Wrapper tarballs (@comvi/react, @comvi/vue) bundled from their packed
 // artifacts. Wrapper <T> rendering itself needs a framework renderer + DOM,
-// so it is NOT exercised here (documented skip — the string-API and
-// sideEffects assertions are the load-bearing part of this gate). What this
-// fixture pins:
-//   - both wrapper tarballs resolve through their published exports maps and
-//     their module graphs execute in plain node;
-//   - the shared @comvi/core instance inside the wrapper graph still has
-//     ambient tag registration — supplied by the `<T>` module each wrapper
-//     index pulls in, which imports the side-effectful `@comvi/core/tags`,
-//     never by the base root imported below, which registers nothing on
-//     import (the registration survives a larger, sideEffects:false wrapper
-//     graph around it).
+// so it is NOT exercised here. This fixture proves both published wrapper
+// graphs execute in plain Node without reviving core's ambient tag
+// registration: `<T>` imports the pure `@comvi/core/rich-text` seam, while the
+// string API keeps tag markup literal unless the app imports
+// `@comvi/core/tags` itself.
 import { createI18n } from "@comvi/core";
 import * as reactWrapper from "@comvi/react";
 import * as vueWrapper from "@comvi/vue";
@@ -34,8 +28,8 @@ const i18n = createI18n({
   translation: { en: { msg: "a <b>c</b> d" } },
 });
 assert(
-  i18n.t("msg", { b: ({ children }) => `*${children}*` }) === "a *c* d",
-  "string-API tags still render inside the wrapper module graph",
+  i18n.t("msg", { b: ({ children }) => `*${children}*` }) === "a <b>c</b> d",
+  "wrapper module graphs do not activate string-API tags",
 );
 
 console.log("BUNDLER_MATRIX_OK wrappers");

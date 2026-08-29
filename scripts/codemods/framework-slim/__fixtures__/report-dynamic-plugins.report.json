@@ -1,0 +1,32 @@
+[
+  {
+    "line": 9,
+    "column": 52,
+    "shape": "dynamic-plugin-use",
+    "detail": "`.use(...extras)` is not a statically named plugin factory call — compose `.with(plugins())` and keep this `.use(…)` by hand"
+  },
+  {
+    "line": 10,
+    "column": 51,
+    "shape": "dynamic-plugin-use",
+    "detail": "`.use(extras)` is not a statically named plugin factory call — compose `.with(plugins())` and keep this `.use(…)` by hand"
+  },
+  {
+    "line": 11,
+    "column": 52,
+    "shape": "dynamic-plugin-use",
+    "detail": "`.use(extras[0])` is not a statically named plugin factory call — compose `.with(plugins())` and keep this `.use(…)` by hand"
+  },
+  {
+    "line": 18,
+    "column": 25,
+    "shape": "local-name-collision",
+    "detail": "`plugins` is already declared locally — the `createI18n(…)` chains in this file are left untouched"
+  },
+  {
+    "line": 22,
+    "column": 44,
+    "shape": "stored-host-plugin-use",
+    "detail": "`app.use(…)` runs on a stored `createI18n(…)` result, and the base host has no `use` — compose `.with(plugins())` (or a lowercase installer) where the host is constructed"
+  }
+]

@@ -1,0 +1,26 @@
+[
+  {
+    "line": 5,
+    "column": 57,
+    "shape": "opaque-host-options",
+    "detail": "inline host options contain a spread or computed member — check them by hand for `exposeGlobal` / `instanceId`, ICU comma syntax and nested catalogs"
+  },
+  {
+    "line": 6,
+    "column": 58,
+    "shape": "opaque-host-options",
+    "detail": "inline host options contain a spread or computed member — check them by hand for `exposeGlobal` / `instanceId`, ICU comma syntax and nested catalogs"
+  },
+  {
+    "line": 9,
+    "column": 24,
+    "shape": "opaque-host-options",
+    "detail": "inline translations contain a spread or computed member — check them by hand for ICU comma syntax and nested keys"
+  },
+  {
+    "line": 13,
+    "column": 40,
+    "shape": "opaque-host-options",
+    "detail": "inline translations contain an interpolated template — check the runtime value by hand for ICU comma syntax and nested keys"
+  }
+]

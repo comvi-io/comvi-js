@@ -1,10 +1,13 @@
-// The converged single entry: capabilities are composed on explicitly.
+// The converged single entry: everything this app composes — the base host,
+// the ICU compiler for the plural catalogs, the loader for the import map and
+// the plugin host for the locale detector — comes from `@comvi/solid`.
+//
+// The ONE exception is `@comvi/core/tags`: importing it registers tag syntax
+// ambiently, so the wrapper deliberately does not re-export it and an app that
+// wants tags in the plain `t()` string API names the side effect itself.
 import "@comvi/core/tags";
-import { createI18n } from "@comvi/solid";
-import { icuCompiler } from "@comvi/core/icu";
-import { loader, type I18nLoaderApi } from "@comvi/core/loader";
-import { plugins } from "@comvi/core/plugins";
-import type { I18n, I18nPluginHostApi } from "@comvi/core";
+import { createI18n, icuCompiler, loader, plugins } from "@comvi/solid";
+import type { I18n, I18nLoaderApi, I18nPluginHostApi } from "@comvi/solid";
 import { LocaleDetector } from "@comvi/plugin-locale-detector";
 
 const supportedLocales = ["en", "de", "fr", "es", "uk", "ar"] as const;

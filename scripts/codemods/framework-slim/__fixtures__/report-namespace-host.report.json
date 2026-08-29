@@ -1,0 +1,8 @@
+[
+  {
+    "line": 4,
+    "column": 21,
+    "shape": "namespace-host-factory",
+    "detail": "`comvi.createI18n(…)` comes through a namespace import from \"@comvi/react\" — use a named host import and re-run"
+  }
+]

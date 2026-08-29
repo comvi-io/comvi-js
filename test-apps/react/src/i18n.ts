@@ -1,12 +1,12 @@
-// The converged single entry: `@comvi/react`'s `createI18n` builds the base
-// host, and every capability this app uses is composed on explicitly — the
-// plugin host for the locale detector, the loader for the import map, ambient
-// tags for the `basicHtmlTags` markup, and ICU for the plural catalogs.
+// The converged single entry: everything this app composes — the base host,
+// the ICU compiler for the plural catalogs, the loader for the import map and
+// the plugin host for the locale detector — comes from `@comvi/react`.
+//
+// The ONE exception is `@comvi/core/tags`: importing it registers tag syntax
+// ambiently, so the wrapper deliberately does not re-export it and an app that
+// wants tags in the plain `t()` string API names the side effect itself.
 import "@comvi/core/tags";
-import { createI18n } from "@comvi/react";
-import { icuCompiler } from "@comvi/core/icu";
-import { loader } from "@comvi/core/loader";
-import { plugins } from "@comvi/core/plugins";
+import { createI18n, icuCompiler, loader, plugins } from "@comvi/react";
 import { LocaleDetector } from "@comvi/plugin-locale-detector";
 
 const supportedLocales = ["en", "de", "fr", "es", "uk", "ar"] as const;

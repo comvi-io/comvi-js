@@ -48,23 +48,42 @@ const OUT_DIR = path.join(APP_DIR, "out");
 // from the packed `sideEffects` array below) and `UNUSED_CAPABILITY_SUBPATHS`.
 
 /**
- * The three capability subpaths a single-package app does NOT use, as
- * module-ID fragments — entry file and hashed chunk alike.
- *
- * Every wrapper `/slim` entry re-exports icuCompiler, attachLoader,
- * flattenCatalog, attachPlugins and attachDevtools so an app never has to
- * name `@comvi/core`. The single-package cases call attachLoader (and with it
- * flattenCatalog, same module); these fragments are what must stay OUT of the
- * graph, which is the whole claim "an unused named re-export costs nothing".
+ * Core's capability subpaths as module-ID fragments — entry file and hashed
+ * chunk alike — grouped per capability so a case can name exactly the ones ITS
+ * app does not use. `absentModules` matches substrings, so the chunk fragments
+ * cover the content-hashed names too.
  */
-const UNUSED_CAPABILITY_SUBPATHS = [
+const ICU_SUBPATH = [
   `@comvi${path.sep}core${path.sep}dist${path.sep}comvi-core-icu.js`,
-  `@comvi${path.sep}core${path.sep}dist${path.sep}comvi-core-plugins.js`,
-  `@comvi${path.sep}core${path.sep}dist${path.sep}comvi-core-devtools.js`,
   `comvi-core-compile-icu-`,
+];
+const LOADER_SUBPATH = [
+  `@comvi${path.sep}core${path.sep}dist${path.sep}comvi-core-loader.js`,
+  `comvi-core-importMapLoader-`,
+];
+const PLUGINS_SUBPATH = [
+  `@comvi${path.sep}core${path.sep}dist${path.sep}comvi-core-plugins.js`,
   `comvi-core-plugins-`,
+];
+const DEVTOOLS_SUBPATH = [
+  `@comvi${path.sep}core${path.sep}dist${path.sep}comvi-core-devtools.js`,
   `comvi-core-devtools-`,
 ];
+/**
+ * The three capability subpaths a single-package app that uses the LOADER does
+ * not touch.
+ *
+ * Every wrapper root re-exports icu/icuCompiler, attachLoader, flattenCatalog,
+ * attachPlugins and attachDevtools so an app never has to name `@comvi/core`
+ * (the `/slim` subpaths that used to carry that toolkit are gone — one entry
+ * per package). The cases that use this constant call attachLoader or the
+ * configured `loader()` (and with it flattenCatalog, same module), which is why
+ * LOADER_SUBPATH is deliberately not part of it; these fragments are what must
+ * stay OUT of the graph, which is the whole claim "an unused named re-export
+ * costs nothing". The default and single-capability cases use no capability at
+ * all, or exactly one, and compose their own set from the groups above.
+ */
+const UNUSED_CAPABILITY_SUBPATHS = [...ICU_SUBPATH, ...PLUGINS_SUBPATH, ...DEVTOOLS_SUBPATH];
 /**
  * Matrix cases. `sentinels` says what the bundler's module graph must look
  * like for core's tag-registration chunks (the `sideEffects` set):
@@ -75,8 +94,11 @@ const UNUSED_CAPABILITY_SUBPATHS = [
  *               it. Core's base entry itself is present either way and is
  *               never what these assert.
  * A case may instead give `{ default, "<bundler>:<mode>": … }` when one
- * combination legitimately differs — see `next-client-slim`, the only such
- * case, for what earns that.
+ * combination legitimately differs. NO case earns that today: the next-client
+ * pair was the only one that ever did — webpack development could not prune the
+ * two-package hop to react's `T` chunk, which back then reached core's ambient
+ * registration — and single-entry P2 ended it by moving `<T>` onto the pure
+ * `@comvi/core/rich-text` seam.
  * `absentModules` adds case-specific module-ID fragments that must NOT appear
  * in the graph (matched as substrings, so hashed chunk names are covered).
  * `packages` are the workspace tarballs the case needs, `deps` the framework
@@ -89,7 +111,7 @@ const CASES = [
   { name: "per-call", sentinels: "present", packages: ["@comvi/core"] },
   {
     name: "wrappers",
-    sentinels: "present",
+    sentinels: "absent",
     packages: ["@comvi/core", "@comvi/react", "@comvi/vue"],
     deps: ["react", "vue"],
   },
@@ -102,34 +124,6 @@ const CASES = [
     packages: ["@comvi/core"],
   },
   {
-    name: "react-on-slim",
-    sentinels: "absent",
-    packages: ["@comvi/core", "@comvi/react"],
-    deps: ["react"],
-  },
-  {
-    name: "solid-on-slim",
-    sentinels: "absent",
-    packages: ["@comvi/core", "@comvi/solid"],
-    deps: ["solid-js"],
-  },
-  {
-    name: "svelte-on-slim",
-    sentinels: "absent",
-    packages: ["@comvi/core", "@comvi/svelte"],
-    deps: ["svelte"],
-  },
-  {
-    // Plan P4 step 4 / P4-AB1: an app that imports ONLY `createI18nFromCore`
-    // + `useI18n` from @comvi/vue must drop the root-importing createI18n
-    // module — and with it core's tag-registration chunks — in EVERY bundler,
-    // or the fallback `@comvi/vue/slim` subpath ships instead.
-    name: "vue-on-slim",
-    sentinels: "absent",
-    packages: ["@comvi/core", "@comvi/vue"],
-    deps: ["vue"],
-  },
-  {
     // Plan P5 step 2: the companion-only server graph must drop next's own
     // composed-host module (`createNextI18n.js`, in `absentModules` below) and
     // the unused capability subpaths. That holds in DEVELOPMENT too, where
@@ -139,11 +133,14 @@ const CASES = [
     // bundler to prune it. `@comvi/core` itself is present — it is the base
     // host this fixture composes on.
     //
-    // Retargeted by the DX pass to the SINGLE-PACKAGE recipe: the fixture now
-    // builds its host from `createSlimI18n` + `attachLoader` re-exported by
-    // `@comvi/next/server`, so this case also gates the re-export hop on the
-    // server half — the three unused capability subpaths must stay out.
-    name: "next-server-on-slim",
+    // Retargeted by the DX pass to the SINGLE-PACKAGE recipe and RENAMED by
+    // single-entry P4 (`next-server-on-slim` -> `next-server-on-default`): the
+    // app builds its host from `createI18n` + `attachLoader` re-exported by
+    // `@comvi/next/server` — the same base binding the client entry exports,
+    // the retired second name deleted — so this case also gates the re-export
+    // hop on the server half: the three unused capability subpaths must stay
+    // out.
+    name: "next-server-on-default",
     sentinels: "absent",
     absentModules: [
       ...UNUSED_CAPABILITY_SUBPATHS,
@@ -152,44 +149,23 @@ const CASES = [
     packages: ["@comvi/core", "@comvi/locale-routing", "@comvi/react", "@comvi/next"],
     deps: ["react", "next"],
   },
-  {
-    // Plan P5 step 2 (advisory refinement): the client recipe carries neither
-    // the server host module nor any loader code — core's or next's. Those
-    // four absences hold in every combination.
-    //
-    // The tag chunks are the one honest exception. `@comvi/next/client`
-    // re-exports `T` from `@comvi/react` (public API, unchanged), so as far
-    // as the graph is concerned `T` is a used export of react's entry.
-    // Production webpack and BOTH vite modes still drop it — nothing in this
-    // bundle imports `T` from `@comvi/next/client`, and rollup tree-shakes
-    // regardless of mode — but webpack in development runs with
-    // `usedExports` off and cannot know that, so it keeps react's `T` chunk
-    // and with it core's tag registration. A development bundle is not a
-    // shipped cost; the expectation is pinned per combination rather than
-    // papered over, so a regression in either direction still fails.
-    name: "next-client-slim",
-    sentinels: { default: "absent", "webpack:development": "present" },
-    absentModules: [
-      `@comvi${path.sep}core${path.sep}dist${path.sep}comvi-core-loader.js`,
-      `comvi-core-importMapLoader-`,
-      `@comvi${path.sep}next${path.sep}dist${path.sep}server${path.sep}`,
-    ],
-    packages: ["@comvi/core", "@comvi/locale-routing", "@comvi/react", "@comvi/next"],
-    deps: ["react", "next"],
-  },
   // ---------------------------------------------------------------------
-  // framework-slim DX pass: the SINGLE-PACKAGE recipes. Each app imports
-  // from exactly one specifier — `@comvi/<fw>/slim`, or `@comvi/next/client`
-  // — and names `@comvi/core` nowhere.
+  // The ONE-ENTRY recipes: each app imports from exactly ONE specifier and
+  // names `@comvi/core` nowhere. Every specifier below is a published package
+  // ROOT — the wrapper `/slim` subpaths these cases were written against are
+  // retired, and `@comvi/next`'s two entries are a client/server RUNTIME split,
+  // not a host tier.
   //
-  // These five cases are THE gate for re-export-hop tree-shaking. A wrapper
-  // `/slim` entry re-exports five capability bindings from core's PURE
-  // subpaths so an app never has to reach past its framework package; each
-  // app below uses exactly ONE of them (`attachLoader` + `flattenCatalog`,
-  // which share a module), and `UNUSED_CAPABILITY_SUBPATHS` asserts the other
-  // three never enter the bundler's module graph. The tag chunks are asserted
-  // absent as everywhere else; core's base entry is present, since the entry's
-  // `createI18n` re-export is what these apps construct with.
+  // These ten cases are THE gate for re-export-hop tree-shaking. A one-entry
+  // package re-exports core's capability bindings from its PURE subpaths so an
+  // app never has to reach past its framework package, and each case asserts
+  // that the ones ITS app does not call never enter the bundler's module graph:
+  // the `*-default` apps call NONE and assert all four, the `*-icu` apps call
+  // exactly `icuCompiler` and assert the other three, and `vue-composed` — the
+  // one case left that actually CALLS a capability through a wrapper root —
+  // composes `loader(map)` and asserts the other three. The tag chunks are
+  // asserted absent as everywhere else; core's base entry is present, since the
+  // entry's `createI18n` re-export is what these apps construct with.
   //
   // Development matters as much as production here: webpack runs with
   // `optimization.usedExports` off, so a re-export it cannot resolve is a
@@ -197,46 +173,152 @@ const CASES = [
   // the root entry alive for vue (fs-p4 §2 / P4-AB1), and why every entry in
   // this wave uses NAMED re-exports only.
   {
-    name: "react-slim-preset",
+    // Single-entry P2 RETARGETS the former `react-slim-preset` onto the
+    // published root, and with it absorbs the former `react-on-slim`: that app
+    // named `@comvi/core` for its constructor, which the root carries now, so
+    // the two cases had become one graph reached through two specifiers. This
+    // one uses NO capability, so all four subpaths are asserted absent.
+    name: "react-default",
     sentinels: "absent",
-    absentModules: [...UNUSED_CAPABILITY_SUBPATHS],
+    absentModules: [...UNUSED_CAPABILITY_SUBPATHS, ...LOADER_SUBPATH],
     packages: ["@comvi/core", "@comvi/react"],
     deps: ["react"],
   },
   {
-    name: "solid-slim-preset",
+    // Single-entry P2, NEW: the POSITIVE half of the `fw-react-icu` size row.
+    // A size sentinel can only assert a module ABSENT, so that row leaves ICU
+    // out of its sentinel list and this case proves ICU's presence instead —
+    // it runs the bundle and formats a plural for real. What must stay out is
+    // every capability the app did not buy.
+    name: "react-icu",
     sentinels: "absent",
-    absentModules: [...UNUSED_CAPABILITY_SUBPATHS],
+    absentModules: [...LOADER_SUBPATH, ...PLUGINS_SUBPATH, ...DEVTOOLS_SUBPATH],
+    packages: ["@comvi/core", "@comvi/react"],
+    deps: ["react"],
+  },
+  {
+    // Single-entry P3 RETARGETS the former `solid-slim-preset` onto the
+    // published root, and with it absorbs the former `solid-on-slim`: that app
+    // named `@comvi/core` for its constructor, which the root carries now, so
+    // the two cases had become one graph reached through two specifiers. This
+    // one uses NO capability, so all four subpaths are asserted absent.
+    name: "solid-default",
+    sentinels: "absent",
+    absentModules: [...UNUSED_CAPABILITY_SUBPATHS, ...LOADER_SUBPATH],
     packages: ["@comvi/core", "@comvi/solid"],
     deps: ["solid-js"],
   },
   {
-    name: "svelte-slim-preset",
+    // Single-entry P3, NEW: the POSITIVE half of the `fw-solid-icu` size row,
+    // and the solid twin of `react-icu`. A size sentinel can only assert a
+    // module ABSENT, so that row leaves ICU out of its sentinel list and this
+    // case proves ICU's presence instead — it runs the bundle and formats a
+    // plural for real. What must stay out is every capability the app did not
+    // buy.
+    name: "solid-icu",
     sentinels: "absent",
-    absentModules: [...UNUSED_CAPABILITY_SUBPATHS],
+    absentModules: [...LOADER_SUBPATH, ...PLUGINS_SUBPATH, ...DEVTOOLS_SUBPATH],
+    packages: ["@comvi/core", "@comvi/solid"],
+    deps: ["solid-js"],
+  },
+  {
+    // Single-entry P3 RETARGETS the former `svelte-slim-preset` onto the
+    // published root, and with it absorbs the former `svelte-on-slim`: that app
+    // named `@comvi/core` for its constructor, which the root carries now, so
+    // the two cases had become one graph reached through two specifiers. This
+    // one uses NO capability, so all four subpaths are asserted absent.
+    name: "svelte-default",
+    sentinels: "absent",
+    absentModules: [...UNUSED_CAPABILITY_SUBPATHS, ...LOADER_SUBPATH],
     packages: ["@comvi/core", "@comvi/svelte"],
     deps: ["svelte"],
   },
   {
-    name: "vue-slim-preset",
+    // Single-entry P3, NEW: the POSITIVE half of the `fw-svelte-icu` size row.
+    // A size sentinel can only assert a module ABSENT, so that row leaves ICU
+    // out of its sentinel list and this case proves ICU's presence instead —
+    // it runs the bundle and formats a plural for real.
+    name: "svelte-icu",
+    sentinels: "absent",
+    absentModules: [...LOADER_SUBPATH, ...PLUGINS_SUBPATH, ...DEVTOOLS_SUBPATH],
+    packages: ["@comvi/core", "@comvi/svelte"],
+    deps: ["svelte"],
+  },
+  {
+    // Single-entry P3 ABSORBS the former `vue-on-slim` and RETARGETS the former
+    // `vue-slim-preset` onto the published root: `/slim` was unpublished and is
+    // gone, so the two apps that reached the same wrapper through two
+    // specifiers are one graph. This one uses NO capability, so all four
+    // subpaths are asserted absent. Core's base entry is present — vue's preset
+    // constructs on it — so it is never an absence sentinel.
+    name: "vue-default",
+    sentinels: "absent",
+    absentModules: [...UNUSED_CAPABILITY_SUBPATHS, ...LOADER_SUBPATH],
+    packages: ["@comvi/core", "@comvi/vue"],
+    deps: ["vue"],
+  },
+  {
+    // Single-entry P3, NEW — the POSITIVE half of the `fw-vue-icu` size row. A
+    // size sentinel can only assert a module ABSENT, so that row leaves ICU out
+    // of its sentinel list and this case proves ICU's presence instead: it runs
+    // the bundle and formats a plural for real. It also pins the vue-specific
+    // half, that the compiler option travels through vue's PRESET, which builds
+    // the host itself. What must stay out is every capability the app did not
+    // buy.
+    name: "vue-icu",
+    sentinels: "absent",
+    absentModules: [...LOADER_SUBPATH, ...PLUGINS_SUBPATH, ...DEVTOOLS_SUBPATH],
+    packages: ["@comvi/core", "@comvi/vue"],
+    deps: ["vue"],
+  },
+  {
+    // Single-entry P3 — the RETARGETED `vue-slim-preset` body. Vue is the one
+    // binding with TWO construction paths on one entry (the wrapper preset,
+    // `vue-default`, and this injected-host escape hatch), so it keeps a case of
+    // its own. It is also the only case left in the matrix where a capability
+    // re-export hop is actually CALLED through a wrapper root: the app composes
+    // `createCore(...).with(loader(map))` and wraps it with `createI18nFromCore`,
+    // and the three subpaths it does not call must stay out in webpack AND vite,
+    // development AND production.
+    name: "vue-composed",
     sentinels: "absent",
     absentModules: [...UNUSED_CAPABILITY_SUBPATHS],
     packages: ["@comvi/core", "@comvi/vue"],
     deps: ["vue"],
   },
   {
-    // `@comvi/next/client` exports the published 0.4.x `createI18n` and
-    // `createSlimI18n` side by side; after the convergence both are the same
-    // base-host constructor from `@comvi/core`, so this app carries core's base
-    // entry whichever it calls, and what must stay absent is the unused
-    // capability subpaths and next's server modules. The tag exception is
-    // inherited verbatim from `next-client-slim`: the entry re-exports `T`
-    // from `@comvi/react`, a two-package chain webpack development cannot
-    // reconnect.
-    name: "next-client-slim-preset",
-    sentinels: { default: "absent", "webpack:development": "present" },
+    // Single-entry P4 RETARGETS the former `next-client-slim-preset` and with it
+    // ABSORBS the former `next-client-slim`: that app named `@comvi/core` for
+    // its constructor, which `@comvi/next/client`'s `createI18n` now IS, so the
+    // two cases built one graph through two specifiers. This app uses NO
+    // capability, so all four subpaths are asserted absent — plus next's own
+    // server modules, the absence the absorbed case contributed. The old
+    // webpack-dev tag exception is gone: this entry still re-exports `T`
+    // through `@comvi/react`, but React's component now reaches the pure
+    // rich-text seam rather than ambient registration.
+    name: "next-client-default",
+    sentinels: "absent",
     absentModules: [
       ...UNUSED_CAPABILITY_SUBPATHS,
+      ...LOADER_SUBPATH,
+      `@comvi${path.sep}next${path.sep}dist${path.sep}server${path.sep}`,
+    ],
+    packages: ["@comvi/core", "@comvi/locale-routing", "@comvi/react", "@comvi/next"],
+    deps: ["react", "next"],
+  },
+  {
+    // Single-entry P4, NEW: the POSITIVE half of the `fw-next-client-icu` size
+    // row, and the client twin of `react-icu`. A size sentinel can only assert
+    // a module ABSENT, so that row leaves ICU out of its sentinel list and this
+    // case proves ICU's presence instead — it runs the bundle and formats a
+    // plural for real. What must stay out is every capability the app did not
+    // buy, plus next's server modules.
+    name: "next-client-icu",
+    sentinels: "absent",
+    absentModules: [
+      ...LOADER_SUBPATH,
+      ...PLUGINS_SUBPATH,
+      ...DEVTOOLS_SUBPATH,
       `@comvi${path.sep}next${path.sep}dist${path.sep}server${path.sep}`,
     ],
     packages: ["@comvi/core", "@comvi/locale-routing", "@comvi/react", "@comvi/next"],

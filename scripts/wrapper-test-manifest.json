@@ -1,5 +1,5 @@
 {
-  "note": "Pre-wave test IDs of the six framework bindings, enforced by scripts/test-manifest.mjs (G2 of .omc/plans/comvi-framework-slim.md: tests are MIGRATED to the new API, never silently deleted). IDs are \"<repo-relative test file> > <full test name>\" as reported by `pnpm exec vitest list --json`. A pre-wave ID that no longer exists fails CI unless removals[] allowlists that exact id with a `reason` naming the removed subject. Added tests are always allowed. Counts are derived from the ID lists, never from prose.",
+  "note": "Pre-wave test IDs of the six framework bindings, enforced by scripts/test-manifest.mjs (G2 of .omc/plans/comvi-framework-slim.md: tests are MIGRATED to the new API, never silently deleted). IDs are \"<repo-relative test file> > <full test name>\" as reported by `pnpm exec vitest list --json`. A pre-wave ID that no longer exists fails CI unless removals[] allowlists that exact id with a `reason` naming the removed subject. A post-baseline id — added and retired inside one wave — needs `addedIn` as well, and either kind may name `supersededBy`, the LIVE id that carries the retired claim. renames[] records the same thing at file level and the gate checks both ends. Added tests are always allowed. Counts are derived from the ID lists, never from prose.",
   "idFormat": "<repo-relative test file> > <full test name>",
   "listCommand": "pnpm exec vitest list --json",
   "capturedFrom": {
@@ -632,5 +632,297 @@
       ]
     }
   ],
-  "removals": []
+  "renames": [
+    {
+      "fromFile": "packages/react/tests/slim-preset.test.tsx",
+      "toFile": "packages/react/tests/root-entry.test.tsx",
+      "minIds": 11,
+      "reason": "The `/slim`-entry suite became the ROOT-entry suite: with one published entry the file's whole subject — what the single-package toolkit exports and how a host is built from it — belongs to the root, so the file was renamed rather than deleted and its cases were migrated in place. The retired subjects it did not keep are recorded id-by-id in removals[]. Renamed by the single-entry convergence phase that owns this package; `minIds` is the floor audited at P6, so the file may grow but never shrink."
+    },
+    {
+      "fromFile": "packages/react/tests/slim-host.test.tsx",
+      "toFile": "packages/react/tests/base-host.test.tsx",
+      "minIds": 8,
+      "reason": "The bare-`/slim`-host suite became the BASE-host suite: the host it builds is the same object, reached through the converged specifier, so every case moved with its assertions and only the wording changed (`bare-slim host` -> `base host`). Renamed by the single-entry convergence phase that owns this package; `minIds` is the floor audited at P6, so the file may grow but never shrink."
+    },
+    {
+      "fromFile": "packages/solid/tests/slim-preset.test.tsx",
+      "toFile": "packages/solid/tests/root-entry.test.tsx",
+      "minIds": 14,
+      "reason": "The `/slim`-entry suite became the ROOT-entry suite: with one published entry the file's whole subject — what the single-package toolkit exports and how a host is built from it — belongs to the root, so the file was renamed rather than deleted and its cases were migrated in place. The retired subjects it did not keep are recorded id-by-id in removals[]. Renamed by the single-entry convergence phase that owns this package; `minIds` is the floor audited at P6, so the file may grow but never shrink."
+    },
+    {
+      "fromFile": "packages/solid/tests/slim-host.test.tsx",
+      "toFile": "packages/solid/tests/base-host.test.tsx",
+      "minIds": 8,
+      "reason": "The bare-`/slim`-host suite became the BASE-host suite: the host it builds is the same object, reached through the converged specifier, so every case moved with its assertions and only the wording changed (`bare-slim host` -> `base host`). Renamed by the single-entry convergence phase that owns this package; `minIds` is the floor audited at P6, so the file may grow but never shrink."
+    },
+    {
+      "fromFile": "packages/svelte/tests/slim-preset.test.ts",
+      "toFile": "packages/svelte/tests/root-entry.test.ts",
+      "minIds": 16,
+      "reason": "The `/slim`-entry suite became the ROOT-entry suite: with one published entry the file's whole subject — what the single-package toolkit exports and how a host is built from it — belongs to the root, so the file was renamed rather than deleted and its cases were migrated in place. The retired subjects it did not keep are recorded id-by-id in removals[]. Renamed by the single-entry convergence phase that owns this package; `minIds` is the floor audited at P6, so the file may grow but never shrink."
+    },
+    {
+      "fromFile": "packages/svelte/tests/slim-host.test.ts",
+      "toFile": "packages/svelte/tests/base-host.test.ts",
+      "minIds": 8,
+      "reason": "The bare-`/slim`-host suite became the BASE-host suite: the host it builds is the same object, reached through the converged specifier, so every case moved with its assertions and only the wording changed (`bare-slim host` -> `base host`). Renamed by the single-entry convergence phase that owns this package; `minIds` is the floor audited at P6, so the file may grow but never shrink."
+    },
+    {
+      "fromFile": "packages/vue/tests/slim-preset.test.ts",
+      "toFile": "packages/vue/tests/root-entry.test.ts",
+      "minIds": 19,
+      "reason": "The `/slim`-entry suite became the ROOT-entry suite: with one published entry the file's whole subject — what the single-package toolkit exports and how a host is built from it — belongs to the root, so the file was renamed rather than deleted and its cases were migrated in place. The retired subjects it did not keep are recorded id-by-id in removals[]. Renamed by the single-entry convergence phase that owns this package; `minIds` is the floor audited at P6, so the file may grow but never shrink."
+    },
+    {
+      "fromFile": "packages/vue/tests/slim-host.test.ts",
+      "toFile": "packages/vue/tests/base-host.test.ts",
+      "minIds": 10,
+      "reason": "The bare-`/slim`-host suite became the BASE-host suite: the host it builds is the same object, reached through the converged specifier, so every case moved with its assertions and only the wording changed (`bare-slim host` -> `base host`). Renamed by the single-entry convergence phase that owns this package; `minIds` is the floor audited at P6, so the file may grow but never shrink."
+    },
+    {
+      "fromFile": "packages/next/tests/slim-preset.test.tsx",
+      "toFile": "packages/next/tests/entry-surfaces.test.tsx",
+      "minIds": 12,
+      "reason": "The `/slim`-entry suite became the ROOT-entry suite: with one published entry the file's whole subject — what the single-package toolkit exports and how a host is built from it — belongs to the root, so the file was renamed rather than deleted and its cases were migrated in place. The retired subjects it did not keep are recorded id-by-id in removals[]. Renamed by the single-entry convergence phase that owns this package; `minIds` is the floor audited at P6, so the file may grow but never shrink."
+    },
+    {
+      "fromFile": "packages/next/tests/slim-host.test.tsx",
+      "toFile": "packages/next/tests/client-base-host.test.tsx",
+      "minIds": 3,
+      "reason": "The bare-`/slim`-host suite became the BASE-host suite: the host it builds is the same object, reached through the converged specifier, so every case moved with its assertions and only the wording changed (`bare-slim host` -> `base host`). Renamed by the single-entry convergence phase that owns this package; `minIds` is the floor audited at P6, so the file may grow but never shrink."
+    }
+  ],
+  "removals": [
+    {
+      "id": "packages/vue/tests/vue-composable.test.ts > useI18n composable > returns plain text from t and structured content from tRaw",
+      "reason": "The root no longer activates ambient @comvi/core/tags, so the string API's structured tag result was deliberately removed; the migrated replacement pins literal tag markup while <T> tests retain structured rich-text rendering."
+    },
+    {
+      "id": "packages/react/tests/T-structural.test.tsx > <T /> structural render (real core) > fallback-parity fixture on a bare-slim host > produces the shared text for \"missing-param\"",
+      "addedIn": "framework-slim P2 (react)",
+      "reason": "Retired duplicate-context test (plan §8.6), removed by single-entry P2. The removed subject is the SECOND HOST: this describe re-ran the shared fallback-parity table against a bare @comvi/core host as well as the wrapper's own, and the convergence made those the same host object built by the same factory, so the pass asserted one host twice. The surviving describe keeps the whole claim, with the same five table keys and byte-identical titles — those five IDs are in the pre-wave baseline and were deliberately not churned.",
+      "supersededBy": "packages/react/tests/T-structural.test.tsx > <T /> structural render (real core) > fallback-parity fixture (shared with svelte/vue/solid) > produces the shared text for \"missing-param\""
+    },
+    {
+      "id": "packages/react/tests/T-structural.test.tsx > <T /> structural render (real core) > fallback-parity fixture on a bare-slim host > produces the shared text for \"nested\"",
+      "addedIn": "framework-slim P2 (react)",
+      "reason": "Retired duplicate-context test (plan §8.6), removed by single-entry P2. The removed subject is the SECOND HOST: this describe re-ran the shared fallback-parity table against a bare @comvi/core host as well as the wrapper's own, and the convergence made those the same host object built by the same factory, so the pass asserted one host twice. The surviving describe keeps the whole claim, with the same five table keys and byte-identical titles — those five IDs are in the pre-wave baseline and were deliberately not churned.",
+      "supersededBy": "packages/react/tests/T-structural.test.tsx > <T /> structural render (real core) > fallback-parity fixture (shared with svelte/vue/solid) > produces the shared text for \"nested\""
+    },
+    {
+      "id": "packages/react/tests/T-structural.test.tsx > <T /> structural render (real core) > fallback-parity fixture on a bare-slim host > produces the shared text for \"param\"",
+      "addedIn": "framework-slim P2 (react)",
+      "reason": "Retired duplicate-context test (plan §8.6), removed by single-entry P2. The removed subject is the SECOND HOST: this describe re-ran the shared fallback-parity table against a bare @comvi/core host as well as the wrapper's own, and the convergence made those the same host object built by the same factory, so the pass asserted one host twice. The surviving describe keeps the whole claim, with the same five table keys and byte-identical titles — those five IDs are in the pre-wave baseline and were deliberately not churned.",
+      "supersededBy": "packages/react/tests/T-structural.test.tsx > <T /> structural render (real core) > fallback-parity fixture (shared with svelte/vue/solid) > produces the shared text for \"param\""
+    },
+    {
+      "id": "packages/react/tests/T-structural.test.tsx > <T /> structural render (real core) > fallback-parity fixture on a bare-slim host > produces the shared text for \"plain\"",
+      "addedIn": "framework-slim P2 (react)",
+      "reason": "Retired duplicate-context test (plan §8.6), removed by single-entry P2. The removed subject is the SECOND HOST: this describe re-ran the shared fallback-parity table against a bare @comvi/core host as well as the wrapper's own, and the convergence made those the same host object built by the same factory, so the pass asserted one host twice. The surviving describe keeps the whole claim, with the same five table keys and byte-identical titles — those five IDs are in the pre-wave baseline and were deliberately not churned.",
+      "supersededBy": "packages/react/tests/T-structural.test.tsx > <T /> structural render (real core) > fallback-parity fixture (shared with svelte/vue/solid) > produces the shared text for \"plain\""
+    },
+    {
+      "id": "packages/react/tests/T-structural.test.tsx > <T /> structural render (real core) > fallback-parity fixture on a bare-slim host > produces the shared text for \"tag\"",
+      "addedIn": "framework-slim P2 (react)",
+      "reason": "Retired duplicate-context test (plan §8.6), removed by single-entry P2. The removed subject is the SECOND HOST: this describe re-ran the shared fallback-parity table against a bare @comvi/core host as well as the wrapper's own, and the convergence made those the same host object built by the same factory, so the pass asserted one host twice. The surviving describe keeps the whole claim, with the same five table keys and byte-identical titles — those five IDs are in the pre-wave baseline and were deliberately not churned.",
+      "supersededBy": "packages/react/tests/T-structural.test.tsx > <T /> structural render (real core) > fallback-parity fixture (shared with svelte/vue/solid) > produces the shared text for \"tag\""
+    },
+    {
+      "id": "packages/solid/tests/T-structural.test.tsx > <T /> structural render (real core) > fallback-parity fixture on a bare-slim host > produces the shared text for \"missing-param\"",
+      "addedIn": "framework-slim P3 (solid)",
+      "reason": "Retired duplicate-context test (plan §8.6), removed by single-entry P3. The removed subject is the SECOND HOST: this describe re-ran the shared fallback-parity table against a bare @comvi/core host as well as the wrapper's own, and the convergence made those the same host object built by the same factory, so the pass asserted one host twice. The surviving describe keeps the whole claim, with the same five table keys and byte-identical titles — those five IDs are in the pre-wave baseline and were deliberately not churned.",
+      "supersededBy": "packages/solid/tests/T-structural.test.tsx > <T /> structural render (real core) > fallback-parity fixture (shared with svelte/vue/react) > produces the shared text for \"missing-param\""
+    },
+    {
+      "id": "packages/solid/tests/T-structural.test.tsx > <T /> structural render (real core) > fallback-parity fixture on a bare-slim host > produces the shared text for \"nested\"",
+      "addedIn": "framework-slim P3 (solid)",
+      "reason": "Retired duplicate-context test (plan §8.6), removed by single-entry P3. The removed subject is the SECOND HOST: this describe re-ran the shared fallback-parity table against a bare @comvi/core host as well as the wrapper's own, and the convergence made those the same host object built by the same factory, so the pass asserted one host twice. The surviving describe keeps the whole claim, with the same five table keys and byte-identical titles — those five IDs are in the pre-wave baseline and were deliberately not churned.",
+      "supersededBy": "packages/solid/tests/T-structural.test.tsx > <T /> structural render (real core) > fallback-parity fixture (shared with svelte/vue/react) > produces the shared text for \"nested\""
+    },
+    {
+      "id": "packages/solid/tests/T-structural.test.tsx > <T /> structural render (real core) > fallback-parity fixture on a bare-slim host > produces the shared text for \"param\"",
+      "addedIn": "framework-slim P3 (solid)",
+      "reason": "Retired duplicate-context test (plan §8.6), removed by single-entry P3. The removed subject is the SECOND HOST: this describe re-ran the shared fallback-parity table against a bare @comvi/core host as well as the wrapper's own, and the convergence made those the same host object built by the same factory, so the pass asserted one host twice. The surviving describe keeps the whole claim, with the same five table keys and byte-identical titles — those five IDs are in the pre-wave baseline and were deliberately not churned.",
+      "supersededBy": "packages/solid/tests/T-structural.test.tsx > <T /> structural render (real core) > fallback-parity fixture (shared with svelte/vue/react) > produces the shared text for \"param\""
+    },
+    {
+      "id": "packages/solid/tests/T-structural.test.tsx > <T /> structural render (real core) > fallback-parity fixture on a bare-slim host > produces the shared text for \"plain\"",
+      "addedIn": "framework-slim P3 (solid)",
+      "reason": "Retired duplicate-context test (plan §8.6), removed by single-entry P3. The removed subject is the SECOND HOST: this describe re-ran the shared fallback-parity table against a bare @comvi/core host as well as the wrapper's own, and the convergence made those the same host object built by the same factory, so the pass asserted one host twice. The surviving describe keeps the whole claim, with the same five table keys and byte-identical titles — those five IDs are in the pre-wave baseline and were deliberately not churned.",
+      "supersededBy": "packages/solid/tests/T-structural.test.tsx > <T /> structural render (real core) > fallback-parity fixture (shared with svelte/vue/react) > produces the shared text for \"plain\""
+    },
+    {
+      "id": "packages/solid/tests/T-structural.test.tsx > <T /> structural render (real core) > fallback-parity fixture on a bare-slim host > produces the shared text for \"tag\"",
+      "addedIn": "framework-slim P3 (solid)",
+      "reason": "Retired duplicate-context test (plan §8.6), removed by single-entry P3. The removed subject is the SECOND HOST: this describe re-ran the shared fallback-parity table against a bare @comvi/core host as well as the wrapper's own, and the convergence made those the same host object built by the same factory, so the pass asserted one host twice. The surviving describe keeps the whole claim, with the same five table keys and byte-identical titles — those five IDs are in the pre-wave baseline and were deliberately not churned.",
+      "supersededBy": "packages/solid/tests/T-structural.test.tsx > <T /> structural render (real core) > fallback-parity fixture (shared with svelte/vue/react) > produces the shared text for \"tag\""
+    },
+    {
+      "id": "packages/svelte/tests/T-structural.test.ts > T.svelte structural render > fallback-parity fixture on a bare-slim host > produces the shared text for \"missing-param\"",
+      "addedIn": "framework-slim P3 (svelte)",
+      "reason": "Retired duplicate-context test (plan §8.6), removed by single-entry P3. The removed subject is the SECOND HOST: this describe re-ran the shared fallback-parity table against a bare @comvi/core host as well as the wrapper's own, and the convergence made those the same host object built by the same factory, so the pass asserted one host twice. The surviving describe keeps the whole claim, with the same five table keys and byte-identical titles — those five IDs are in the pre-wave baseline and were deliberately not churned.",
+      "supersededBy": "packages/svelte/tests/T-structural.test.ts > T.svelte structural render > fallback-parity fixture (shared with vue/react) > produces the shared text for \"missing-param\""
+    },
+    {
+      "id": "packages/svelte/tests/T-structural.test.ts > T.svelte structural render > fallback-parity fixture on a bare-slim host > produces the shared text for \"nested\"",
+      "addedIn": "framework-slim P3 (svelte)",
+      "reason": "Retired duplicate-context test (plan §8.6), removed by single-entry P3. The removed subject is the SECOND HOST: this describe re-ran the shared fallback-parity table against a bare @comvi/core host as well as the wrapper's own, and the convergence made those the same host object built by the same factory, so the pass asserted one host twice. The surviving describe keeps the whole claim, with the same five table keys and byte-identical titles — those five IDs are in the pre-wave baseline and were deliberately not churned.",
+      "supersededBy": "packages/svelte/tests/T-structural.test.ts > T.svelte structural render > fallback-parity fixture (shared with vue/react) > produces the shared text for \"nested\""
+    },
+    {
+      "id": "packages/svelte/tests/T-structural.test.ts > T.svelte structural render > fallback-parity fixture on a bare-slim host > produces the shared text for \"param\"",
+      "addedIn": "framework-slim P3 (svelte)",
+      "reason": "Retired duplicate-context test (plan §8.6), removed by single-entry P3. The removed subject is the SECOND HOST: this describe re-ran the shared fallback-parity table against a bare @comvi/core host as well as the wrapper's own, and the convergence made those the same host object built by the same factory, so the pass asserted one host twice. The surviving describe keeps the whole claim, with the same five table keys and byte-identical titles — those five IDs are in the pre-wave baseline and were deliberately not churned.",
+      "supersededBy": "packages/svelte/tests/T-structural.test.ts > T.svelte structural render > fallback-parity fixture (shared with vue/react) > produces the shared text for \"param\""
+    },
+    {
+      "id": "packages/svelte/tests/T-structural.test.ts > T.svelte structural render > fallback-parity fixture on a bare-slim host > produces the shared text for \"plain\"",
+      "addedIn": "framework-slim P3 (svelte)",
+      "reason": "Retired duplicate-context test (plan §8.6), removed by single-entry P3. The removed subject is the SECOND HOST: this describe re-ran the shared fallback-parity table against a bare @comvi/core host as well as the wrapper's own, and the convergence made those the same host object built by the same factory, so the pass asserted one host twice. The surviving describe keeps the whole claim, with the same five table keys and byte-identical titles — those five IDs are in the pre-wave baseline and were deliberately not churned.",
+      "supersededBy": "packages/svelte/tests/T-structural.test.ts > T.svelte structural render > fallback-parity fixture (shared with vue/react) > produces the shared text for \"plain\""
+    },
+    {
+      "id": "packages/svelte/tests/T-structural.test.ts > T.svelte structural render > fallback-parity fixture on a bare-slim host > produces the shared text for \"tag\"",
+      "addedIn": "framework-slim P3 (svelte)",
+      "reason": "Retired duplicate-context test (plan §8.6), removed by single-entry P3. The removed subject is the SECOND HOST: this describe re-ran the shared fallback-parity table against a bare @comvi/core host as well as the wrapper's own, and the convergence made those the same host object built by the same factory, so the pass asserted one host twice. The surviving describe keeps the whole claim, with the same five table keys and byte-identical titles — those five IDs are in the pre-wave baseline and were deliberately not churned.",
+      "supersededBy": "packages/svelte/tests/T-structural.test.ts > T.svelte structural render > fallback-parity fixture (shared with vue/react) > produces the shared text for \"tag\""
+    },
+    {
+      "id": "packages/vue/tests/T-structural.test.ts > <T /> structural render (wrapper parity) > fallback-parity fixture on a bare-slim host > produces the shared text for \"missing-param\"",
+      "addedIn": "framework-slim P4 (vue)",
+      "reason": "Retired duplicate-context test (plan §8.6), removed by single-entry P3. The removed subject is the SECOND HOST: this describe re-ran the shared fallback-parity table against a bare @comvi/core host as well as the wrapper's own, and the convergence made those the same host object built by the same factory, so the pass asserted one host twice. The surviving describe keeps the whole claim, with the same five table keys and byte-identical titles — those five IDs are in the pre-wave baseline and were deliberately not churned.",
+      "supersededBy": "packages/vue/tests/T-structural.test.ts > <T /> structural render (wrapper parity) > fallback-parity fixture (shared with svelte/react) > produces the shared text for \"missing-param\""
+    },
+    {
+      "id": "packages/vue/tests/T-structural.test.ts > <T /> structural render (wrapper parity) > fallback-parity fixture on a bare-slim host > produces the shared text for \"nested\"",
+      "addedIn": "framework-slim P4 (vue)",
+      "reason": "Retired duplicate-context test (plan §8.6), removed by single-entry P3. The removed subject is the SECOND HOST: this describe re-ran the shared fallback-parity table against a bare @comvi/core host as well as the wrapper's own, and the convergence made those the same host object built by the same factory, so the pass asserted one host twice. The surviving describe keeps the whole claim, with the same five table keys and byte-identical titles — those five IDs are in the pre-wave baseline and were deliberately not churned.",
+      "supersededBy": "packages/vue/tests/T-structural.test.ts > <T /> structural render (wrapper parity) > fallback-parity fixture (shared with svelte/react) > produces the shared text for \"nested\""
+    },
+    {
+      "id": "packages/vue/tests/T-structural.test.ts > <T /> structural render (wrapper parity) > fallback-parity fixture on a bare-slim host > produces the shared text for \"param\"",
+      "addedIn": "framework-slim P4 (vue)",
+      "reason": "Retired duplicate-context test (plan §8.6), removed by single-entry P3. The removed subject is the SECOND HOST: this describe re-ran the shared fallback-parity table against a bare @comvi/core host as well as the wrapper's own, and the convergence made those the same host object built by the same factory, so the pass asserted one host twice. The surviving describe keeps the whole claim, with the same five table keys and byte-identical titles — those five IDs are in the pre-wave baseline and were deliberately not churned.",
+      "supersededBy": "packages/vue/tests/T-structural.test.ts > <T /> structural render (wrapper parity) > fallback-parity fixture (shared with svelte/react) > produces the shared text for \"param\""
+    },
+    {
+      "id": "packages/vue/tests/T-structural.test.ts > <T /> structural render (wrapper parity) > fallback-parity fixture on a bare-slim host > produces the shared text for \"plain\"",
+      "addedIn": "framework-slim P4 (vue)",
+      "reason": "Retired duplicate-context test (plan §8.6), removed by single-entry P3. The removed subject is the SECOND HOST: this describe re-ran the shared fallback-parity table against a bare @comvi/core host as well as the wrapper's own, and the convergence made those the same host object built by the same factory, so the pass asserted one host twice. The surviving describe keeps the whole claim, with the same five table keys and byte-identical titles — those five IDs are in the pre-wave baseline and were deliberately not churned.",
+      "supersededBy": "packages/vue/tests/T-structural.test.ts > <T /> structural render (wrapper parity) > fallback-parity fixture (shared with svelte/react) > produces the shared text for \"plain\""
+    },
+    {
+      "id": "packages/vue/tests/T-structural.test.ts > <T /> structural render (wrapper parity) > fallback-parity fixture on a bare-slim host > produces the shared text for \"tag\"",
+      "addedIn": "framework-slim P4 (vue)",
+      "reason": "Retired duplicate-context test (plan §8.6), removed by single-entry P3. The removed subject is the SECOND HOST: this describe re-ran the shared fallback-parity table against a bare @comvi/core host as well as the wrapper's own, and the convergence made those the same host object built by the same factory, so the pass asserted one host twice. The surviving describe keeps the whole claim, with the same five table keys and byte-identical titles — those five IDs are in the pre-wave baseline and were deliberately not churned.",
+      "supersededBy": "packages/vue/tests/T-structural.test.ts > <T /> structural render (wrapper parity) > fallback-parity fixture (shared with svelte/react) > produces the shared text for \"tag\""
+    },
+    {
+      "id": "packages/react/tests/slim-preset.test.tsx > @comvi/react/slim — the export surface > carries every binding @comvi/react does",
+      "addedIn": "framework-slim P2 (react)",
+      "reason": "Dead two-package recipe (plan §8.6), removed by single-entry P2. The removed subject is the cross-ENTRY namespace comparison itself: this case imported both `@comvi/react` and `@comvi/react/slim` and asserted the subpath carried every binding the root did. One entry means there is no second namespace to compare against, so the claim cannot be restated — it is replaced by an absolute, exhaustive surface assertion on the one entry rather than a delta between two."
+    },
+    {
+      "id": "packages/react/tests/slim-preset.test.tsx > @comvi/react/slim — the export surface > adds exactly the preset and the toolkit, and nothing else",
+      "addedIn": "framework-slim P2 (react)",
+      "reason": "Dead two-package recipe (plan §8.6), removed by single-entry P2. The removed subject is the DELTA of `/slim` over the root; the successor pins the one entry's absolute named surface instead, which is the same guarantee stated without a second entry to subtract.",
+      "supersededBy": "packages/react/tests/root-entry.test.tsx > @comvi/react — the export surface > publishes exactly the bindings, the toolkit and the two construction names"
+    },
+    {
+      "id": "packages/react/tests/slim-preset.test.tsx > @comvi/react/slim — the export surface > never re-exports the root class or the side-effectful tags toolbox",
+      "addedIn": "framework-slim P2 (react)",
+      "reason": "Split by single-entry P2: the tags half survives verbatim in the successor, the \"no root class\" half was deliberately INVERTED — the converged root exports core's base `I18n` by name on purpose, and the surface case above pins it present. A test whose name asserts the opposite of the shipped contract may not be migrated, only replaced.",
+      "supersededBy": "packages/react/tests/root-entry.test.tsx > @comvi/react — the export surface > never re-exports the side-effectful tags toolbox"
+    },
+    {
+      "id": "packages/solid/tests/slim-preset.test.tsx > @comvi/solid/slim — the export surface > carries every binding @comvi/solid does",
+      "addedIn": "framework-slim P3 (solid)",
+      "reason": "Dead two-package recipe (plan §8.6), removed by single-entry P3. The removed subject is the cross-ENTRY namespace comparison itself: this case imported both `@comvi/solid` and `@comvi/solid/slim` and asserted the subpath carried every binding the root did. One entry means there is no second namespace to compare against, so the claim cannot be restated — it is replaced by an absolute, exhaustive surface assertion on the one entry rather than a delta between two."
+    },
+    {
+      "id": "packages/solid/tests/slim-preset.test.tsx > @comvi/solid/slim — the export surface > adds exactly the preset and the toolkit, and nothing else",
+      "addedIn": "framework-slim P3 (solid)",
+      "reason": "Dead two-package recipe (plan §8.6), removed by single-entry P3. The removed subject is the DELTA of `/slim` over the root; the successor pins the one entry's absolute named surface instead, which is the same guarantee stated without a second entry to subtract.",
+      "supersededBy": "packages/solid/tests/root-entry.test.tsx > @comvi/solid — the export surface > publishes exactly the documented named surface — nothing more"
+    },
+    {
+      "id": "packages/solid/tests/slim-preset.test.tsx > @comvi/solid/slim — the export surface > never re-exports the root class or the side-effectful tags toolbox",
+      "addedIn": "framework-slim P3 (solid)",
+      "reason": "Split by single-entry P3: the tags half survives verbatim in the successor, the \"no root class\" half was deliberately INVERTED — the converged root exports core's base `I18n` by name on purpose, and the surface case above pins it present. A test whose name asserts the opposite of the shipped contract may not be migrated, only replaced.",
+      "supersededBy": "packages/solid/tests/root-entry.test.tsx > @comvi/solid — the export surface > never re-exports the side-effectful tags toolbox"
+    },
+    {
+      "id": "packages/svelte/tests/slim-preset.test.ts > @comvi/svelte/slim — the export surface > carries every binding @comvi/svelte does",
+      "addedIn": "framework-slim P3 (svelte)",
+      "reason": "Dead two-package recipe (plan §8.6), removed by single-entry P3. The removed subject is the cross-ENTRY namespace comparison itself: this case imported both `@comvi/svelte` and `@comvi/svelte/slim` and asserted the subpath carried every binding the root did. One entry means there is no second namespace to compare against, so the claim cannot be restated — it is replaced by an absolute, exhaustive surface assertion on the one entry rather than a delta between two."
+    },
+    {
+      "id": "packages/svelte/tests/slim-preset.test.ts > @comvi/svelte/slim — the export surface > adds exactly the preset and the toolkit, and nothing else",
+      "addedIn": "framework-slim P3 (svelte)",
+      "reason": "Dead two-package recipe (plan §8.6), removed by single-entry P3. The removed subject is the DELTA of `/slim` over the root; the successor pins the one entry's absolute named surface instead, which is the same guarantee stated without a second entry to subtract.",
+      "supersededBy": "packages/svelte/tests/root-entry.test.ts > @comvi/svelte — the export surface > publishes exactly the documented named surface — nothing more"
+    },
+    {
+      "id": "packages/svelte/tests/slim-preset.test.ts > @comvi/svelte/slim — the export surface > never re-exports the root class or the side-effectful tags toolbox",
+      "addedIn": "framework-slim P3 (svelte)",
+      "reason": "Split by single-entry P3: the tags half survives verbatim in the successor, the \"no root class\" half was deliberately INVERTED — the converged root exports core's base `I18n` by name on purpose, and the surface case above pins it present. A test whose name asserts the opposite of the shipped contract may not be migrated, only replaced.",
+      "supersededBy": "packages/svelte/tests/root-entry.test.ts > @comvi/svelte — the export surface > never re-exports the side-effectful tags toolbox"
+    },
+    {
+      "id": "packages/react/tests/js-contract/capability-hooks.test.jsx > capability acquisition (development core build) > works on a ROOT host — 0.4.x behaviour, new acquisition point",
+      "addedIn": "framework-slim P2 (react)",
+      "reason": "Removed by single-entry P2: the subject was the 0.4 batteries-included ROOT host as a host DISTINCT from the base one. It was built by a second `createI18n` import that now denotes the same binding as the base host, so the case would have tested one host twice. The successor rebuilds the same reach explicitly — `attachPlugins(attachLoader(baseHost()))` — and keeps the acquisition-point claim intact. React, solid and svelte all made this identical change.",
+      "supersededBy": "packages/react/tests/js-contract/capability-hooks.test.jsx > capability acquisition (development core build) > keeps 0.4.x's ROOT-host reach on a fully composed host"
+    },
+    {
+      "id": "packages/react/tests/js-contract/capability-hooks.test.jsx > capability acquisition (production core build) > works on a ROOT host — 0.4.x behaviour, new acquisition point",
+      "addedIn": "framework-slim P2 (react)",
+      "reason": "Removed by single-entry P2: the subject was the 0.4 batteries-included ROOT host as a host DISTINCT from the base one. It was built by a second `createI18n` import that now denotes the same binding as the base host, so the case would have tested one host twice. The successor rebuilds the same reach explicitly — `attachPlugins(attachLoader(baseHost()))` — and keeps the acquisition-point claim intact. React, solid and svelte all made this identical change.",
+      "supersededBy": "packages/react/tests/js-contract/capability-hooks.test.jsx > capability acquisition (production core build) > keeps 0.4.x's ROOT-host reach on a fully composed host"
+    },
+    {
+      "id": "packages/solid/tests/js-contract/capability-hooks.test.jsx > capability acquisition (development core build) > works on a ROOT host — 0.4.x behaviour, new acquisition point",
+      "addedIn": "framework-slim P3 (solid)",
+      "reason": "Removed by single-entry P3: the subject was the 0.4 batteries-included ROOT host as a host DISTINCT from the base one. It was built by a second `createI18n` import that now denotes the same binding as the base host, so the case would have tested one host twice. The successor rebuilds the same reach explicitly — `attachPlugins(attachLoader(baseHost()))` — and keeps the acquisition-point claim intact. React, solid and svelte all made this identical change.",
+      "supersededBy": "packages/solid/tests/js-contract/capability-hooks.test.jsx > capability acquisition (development core build) > keeps 0.4.x's ROOT-host reach on a fully composed host"
+    },
+    {
+      "id": "packages/solid/tests/js-contract/capability-hooks.test.jsx > capability acquisition (production core build) > works on a ROOT host — 0.4.x behaviour, new acquisition point",
+      "addedIn": "framework-slim P3 (solid)",
+      "reason": "Removed by single-entry P3: the subject was the 0.4 batteries-included ROOT host as a host DISTINCT from the base one. It was built by a second `createI18n` import that now denotes the same binding as the base host, so the case would have tested one host twice. The successor rebuilds the same reach explicitly — `attachPlugins(attachLoader(baseHost()))` — and keeps the acquisition-point claim intact. React, solid and svelte all made this identical change.",
+      "supersededBy": "packages/solid/tests/js-contract/capability-hooks.test.jsx > capability acquisition (production core build) > keeps 0.4.x's ROOT-host reach on a fully composed host"
+    },
+    {
+      "id": "packages/svelte/tests/js-contract/capability-hooks.test.js > capability acquisition (development core build) > works on a ROOT host — 0.4.x behaviour, new acquisition point",
+      "addedIn": "framework-slim P3 (svelte)",
+      "reason": "Removed by single-entry P3: the subject was the 0.4 batteries-included ROOT host as a host DISTINCT from the base one. It was built by a second `createI18n` import that now denotes the same binding as the base host, so the case would have tested one host twice. The successor rebuilds the same reach explicitly — `attachPlugins(attachLoader(baseHost()))` — and keeps the acquisition-point claim intact. React, solid and svelte all made this identical change.",
+      "supersededBy": "packages/svelte/tests/js-contract/capability-hooks.test.js > capability acquisition (development core build) > keeps 0.4.x's ROOT-host reach on a fully composed host"
+    },
+    {
+      "id": "packages/svelte/tests/js-contract/capability-hooks.test.js > capability acquisition (production core build) > works on a ROOT host — 0.4.x behaviour, new acquisition point",
+      "addedIn": "framework-slim P3 (svelte)",
+      "reason": "Removed by single-entry P3: the subject was the 0.4 batteries-included ROOT host as a host DISTINCT from the base one. It was built by a second `createI18n` import that now denotes the same binding as the base host, so the case would have tested one host twice. The successor rebuilds the same reach explicitly — `attachPlugins(attachLoader(baseHost()))` — and keeps the acquisition-point claim intact. React, solid and svelte all made this identical change.",
+      "supersededBy": "packages/svelte/tests/js-contract/capability-hooks.test.js > capability acquisition (production core build) > keeps 0.4.x's ROOT-host reach on a fully composed host"
+    },
+    {
+      "id": "packages/svelte/tests/slim-preset.test.ts > @comvi/svelte/slim — the one-call preset > injects ICU through the re-exported compiler — still one package",
+      "addedIn": "framework-slim P3 (svelte)",
+      "reason": "Removed by single-entry P3: the retired subpath re-exported only `icuCompiler`, so one case covered the whole of ICU. The converged root carries both ICU halves and the pre-ingestion lock, so the one case became four (constructor compiler, pre-ingestion installer, idempotent repeat, and the post-ingestion `E_COMPILER_LOCKED` refusal) under a describe that names the contract instead of the package count.",
+      "supersededBy": "packages/svelte/tests/root-entry.test.ts > @comvi/svelte — ICU, both shapes, one specifier > takes the COMPILER in the constructor call for an inline catalog"
+    },
+    {
+      "id": "packages/next/tests/slim-preset.test.tsx > @comvi/next/server — the single-package server recipe > never re-exports the ROOT constructor — the server graph must not carry it",
+      "addedIn": "framework-slim P5 (next)",
+      "reason": "Removed by single-entry P4, which deliberately INVERTED half of it: `@comvi/next/server`'s direct-host constructor IS base `createI18n` now, the same binding the client entry exports, so \"never re-exports the ROOT constructor\" asserts the opposite of the shipped contract. That half was never a graph claim either — core's base entry was in the server graph either way, under the other name. The surviving graph claim, no ambient tags toolbox (which would break the tag sentinels), is kept and strengthened to three members.",
+      "supersededBy": "packages/next/tests/entry-surfaces.test.tsx > @comvi/next/server — the same surface for the SSR half > never re-exports the side-effectful tags toolbox — that one IS a graph claim"
+    },
+    {
+      "id": "packages/nuxt/tests/host-template.test.ts > generated #build/comvi.host template > builds a full-capability root instance on the default branch",
+      "addedIn": "framework-slim P4 (nuxt)",
+      "reason": "Removed by single-entry P4's Nuxt default-template flip: the subject was \"the generated default template yields a loader- and plugin-host-carrying instance\", and the successor asserts the exact opposite (registerLoader/use/getLoader/reloadTranslations absent, hasLoaderApi false) because the default generated host is core's base host now. `hostModule` remains the composition escape and keeps its own cases.",
+      "supersededBy": "packages/nuxt/tests/host-template.test.ts > generated #build/comvi.host template > builds core's BASE host on the default branch"
+    }
+  ]
 }

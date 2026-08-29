@@ -1,5 +1,5 @@
 {
-  "note": "min+gz budgets in bytes, enforced by scripts/size-check.mjs (esbuild bundle via the published exports map, minify, gzip -9). The DEFAULT rule is measured + 2%, and a budget derives from the sweep that set it, never from whatever the `baseline` block below it currently reads. Three gated rows depart from the default and say so in their own note: `core-base` uses the base-successor drift rule (measured + 32 B), `core-base-icu` is frozen at 7680 pending the release captain's post-0.5.0 ratchet, and `core-full-composite` is an owner-signed hard ceiling with no automatic margin at all. `baseline` blocks record the last measured numbers behind a budget — they are evidence, not gates. Entries with pending:true are declared slots a later phase graduates; the gate skips them with the notice in `pendingReason` and they gate nothing until the flag is dropped. Informational entries (no gzipBudgetBytes) are measured and printed, never gated. `external` keeps framework peer deps out of a fixture's bundle so the framework fixtures measure the comvi graph only. `sentinelModules` + `expectSentinels` assert module-graph membership from the esbuild metafile (module IDs, never output text); `node scripts/size-check.mjs --modules` prints the full comvi module list behind those fixtures. framework-slim tier-3 A (.omc/handoffs/fs-tier3.md §1) re-baselined EVERY row in one sweep: `useDefineForClassFields: false` removes the __publicField lowering from all 35 I18n class fields, which is -191 B min+gz on each core entry and -174..-200 B on each framework fixture. No fixture's graph changed, so budgets were recomputed from the new measurements under the unchanged convention (`slim` = measured + 32 B drift, every other gated row = measured + 2%, `full` frozen at the USER-signed 8598 — HISTORICAL, superseded by the 8605 ceiling on `core-full-composite` — and `slim-icu` frozen at 7680). framework-slim tier-3 B (.omc/handoffs/fs-tier3.md §2) then re-baselined every row a SECOND time, for the clean-trio capability extraction (C1 devtools discovery -> the new `@comvi/core/devtools` subpath, C5a tag-grammar entities/escape -> the tags extension, C6 nested-catalog flattening -> the loader capability + the pure `flattenCatalog` export). The slim family drops again; the ROOT and root-host fixtures rise 38-65 B because the root entry, batteries-included at the time, composed all three capabilities back in across chunk boundaries — they still measure 114-135 B BELOW the pre-tier-3 anchor, so gate G5 (root-host fixtures must not regress >2%) is satisfied by improvement, not by margin. framework-slim(perf) then restored the root constructor's first-catalog-write fast path (.omc/handoffs/ctor-perf.md): +6..+11 B min+gz on every core-dependent row (slim 4902 -> 4909, full 8385 -> 8397), 0 over budget. Deliberately NOT re-baselined — absorbing a change this small is exactly what the 32 B slim drift margin and the 2% margin on every other row are for, so budgets and their `baseline` anchors keep deriving from the tier-3 B sweep above. single-entry P1 then re-baselined the core family ONCE more, for the convergence itself: `slim*` rows became `core-base*` (the root IS that host now), `full` became `core-full-composite` (the 0.4 semantics recomposed with `.with(...)` in the parity order), `fw-next-root` became `fw-next-composed-factory` (the published root through a non-exported builder), and two informational `/icu`-installer rows were added. One property of this corpus was measured during that landing and is worth knowing before chasing a byte: a row's gzip figure moves by ~1 B per imported content-hashed chunk name when ANY source edit changes those hash characters, while the minified payload does not change. The core build is deterministic (three consecutive builds produce an identical md5), so such a swing is not flakiness and not weight — it is why `core-full-composite` carries a stated 1 B allowance inside its owner-signed ceiling and nothing else does. ONE AUTHORITATIVE RUN: every `baseline` block in the core family and `fw-next-composed-factory` below is the same landed `node scripts/size-check.mjs` run — `core-base` 5016/13494, `core-base-tags` 5977/16106, `core-base-icu` 5890/15794, `core-base-loader` 6545/18207, `core-base-icu-tags` 6805/18409, `core-base-loader-tags` 7382/20494, `core-full-composite` 8604/23957, `fw-next-composed-factory` 10115/28056. Every other figure in these notes is provenance for a budget or a superseded measurement, and is labelled HISTORICAL where it could be read as current.",
+  "note": "min+gz budgets in bytes, enforced by scripts/size-check.mjs (esbuild bundle via the published exports map, minify, gzip -9). The DEFAULT rule is measured + 2%, and a budget derives from the sweep that set it, never from whatever the `baseline` block below it currently reads. Three gated rows depart from the default and say so in their own note: `core-base` uses the base-successor drift rule (measured + 32 B), `core-base-icu` is frozen at 7680 pending the release captain's post-0.5.0 ratchet, and `core-full-composite` is an owner-signed hard ceiling with no automatic margin at all. `baseline` blocks record the last measured numbers behind a budget — they are evidence, not gates. Entries with pending:true are declared slots a later phase graduates; the gate skips them with the notice in `pendingReason` and they gate nothing until the flag is dropped. Informational entries (no gzipBudgetBytes) are measured and printed, never gated. `external` keeps framework peer deps out of a fixture's bundle so the framework fixtures measure the comvi graph only. `sentinelModules` + `expectSentinels` assert module-graph membership from the esbuild metafile (module IDs, never output text); `node scripts/size-check.mjs --modules` prints the full comvi module list behind those fixtures. framework-slim tier-3 A (.omc/handoffs/fs-tier3.md §1) re-baselined EVERY row in one sweep: `useDefineForClassFields: false` removes the __publicField lowering from all 35 I18n class fields, which is -191 B min+gz on each core entry and -174..-200 B on each framework fixture. No fixture's graph changed, so budgets were recomputed from the new measurements under the unchanged convention (`slim` = measured + 32 B drift, every other gated row = measured + 2%, `full` frozen at the USER-signed 8598 — HISTORICAL, superseded by the 8605 ceiling on `core-full-composite` — and `slim-icu` frozen at 7680). framework-slim tier-3 B (.omc/handoffs/fs-tier3.md §2) then re-baselined every row a SECOND time, for the clean-trio capability extraction (C1 devtools discovery -> the new `@comvi/core/devtools` subpath, C5a tag-grammar entities/escape -> the tags extension, C6 nested-catalog flattening -> the loader capability + the pure `flattenCatalog` export). The slim family drops again; the ROOT and root-host fixtures rise 38-65 B because the root entry, batteries-included at the time, composed all three capabilities back in across chunk boundaries — they still measure 114-135 B BELOW the pre-tier-3 anchor, so gate G5 (root-host fixtures must not regress >2%) is satisfied by improvement, not by margin. framework-slim(perf) then restored the root constructor's first-catalog-write fast path (.omc/handoffs/ctor-perf.md): +6..+11 B min+gz on every core-dependent row (slim 4902 -> 4909, full 8385 -> 8397), 0 over budget. Deliberately NOT re-baselined — absorbing a change this small is exactly what the 32 B slim drift margin and the 2% margin on every other row are for, so budgets and their `baseline` anchors keep deriving from the tier-3 B sweep above. single-entry P1 then re-baselined the core family ONCE more, for the convergence itself: `slim*` rows became `core-base*` (the root IS that host now), `full` became `core-full-composite` (the 0.4 semantics recomposed with `.with(...)` in the parity order), `fw-next-root` became `fw-next-composed-factory` (the published root through a non-exported builder), and two informational `/icu`-installer rows were added. One property of this corpus was measured during that landing and is worth knowing before chasing a byte: a row's gzip figure moves by ~1 B per imported content-hashed chunk name when ANY source edit changes those hash characters, while the minified payload does not change. The core build is deterministic (three consecutive builds produce an identical md5), so such a swing is not flakiness and not weight — it is why `core-full-composite` carries a stated 1 B allowance inside its owner-signed ceiling and nothing else does. ONE AUTHORITATIVE RUN: every `baseline` block in the core family and `fw-next-composed-factory` below is the same landed `node scripts/size-check.mjs` run — `core-base` 5016/13494, `core-base-tags` 5977/16106, `core-base-icu` 5890/15794, `core-base-loader` 6545/18207, `core-base-icu-tags` 6805/18409, `core-base-loader-tags` 7382/20494, `core-full-composite` 8604/23957, `fw-next-composed-factory` 10115/28056. Every other figure in these notes is provenance for a budget or a superseded measurement, and is labelled HISTORICAL where it could be read as current. single-entry P4 then transitioned the NEXT rows without a re-measurement of its own: `fw-next-server-slim-loader` -> `fw-next-server-default-loader` and `fw-next-client-slim-preset` -> `fw-next-client-default` (which also absorbed the deleted two-specifier `fw-next-client-slim` row, one graph that had been reached through two specifiers), each carrying its previous byte anchor forward because the only source change is which name the same base binding is imported under; three NEW next-client rows (`fw-next-client-default-t`, `fw-next-client-icu`, `fw-next-client-full-composite`) ship SENTINEL-GATED with no gzipBudgetBytes and no baseline, so they assert their absences on every run and claim no byte figure until main's P4 sweep records measured + 2% for each. The dropped baseline.modules lists in the two renamed rows were pre-convergence evidence naming core's `comvi-core-slim.js`, which no longer exists; main's sweep repopulates them. single-entry P3 then converged the three remaining wrapper ladders in one sweep (solid ∥ svelte ∥ vue): each package's five root/root-t/slim/slim-t/slim-preset rows collapse into four — `fw-<fw>-default`, `-default-t`, `-icu` and `-full-composite` — measured through the package's ONE published specifier, plus vue's extra informational `fw-vue-default-composed` row, which keeps its preset glue measured rather than claimed. Those rows carry `sentinelModules` + `expectSentinels` and therefore GATE on the single-entry absence claim from the first run, but they deliberately carry NO `gzipBudgetBytes` and NO `baseline`: a budget is measured + 2%, and no converged wrapper graph had been measured when the phase landed. The release captain fills both fields for every such row from ONE authoritative `node scripts/size-check.mjs` run and the rows become fully gated; `pending: true` was deliberately NOT used for them, because it would skip the sentinels too. Every pre-convergence wrapper anchor quoted in those notes is HISTORICAL and pre-dates the core cutover. P4 renamed the next and nuxt ladders on the same convention.",
   "fixtures": [
     {
       "name": "core-full-composite",
@@ -14,11 +14,11 @@
       "fixture": "core-full-composite.ts",
       "gzipBudgetBytes": 8605,
       "baseline": {
-        "minBytes": 23957,
-        "gzipBytes": 8604,
-        "measuredAt": "2026-08-03"
+        "minBytes": 24048,
+        "gzipBytes": 8600,
+        "measuredAt": "2026-08-02"
       },
-      "note": "OWNER-SIGNED HARD CEILING 8605 B, re-signed twice at single-entry P1 and stated exactly: OBSERVED 8604 B min+gz (min payload 23957 B), signed ceiling 8605 B, so 1 B of CURRENT headroom — and no automatic 2% margin, ever. Provenance: the pre-convergence `full` row was frozen at a USER-signed 8598 (measured 8404 + 2%). P1 recomposed the same semantics on the base host; the landed graph is behaviour-identical (packages/core/tests/features/composite-parity.test.ts is 18/18 against the internal composite, throw parity included) and the fixture keeps P0's exact statement shape (a `const host = …` temporary alone costs 4 B here). The +5..+7 B over the old signature is NOT library weight: it is chunk re-layout from retiring the second host entry, plus proven content-hash noise. Evidence for the 1 B allowance: the core build is deterministic (three consecutive builds produced md5 abaaa408… for dist/comvi-core.js), the minified payload is FIXED at 23957 B across every variant, and swapping ONLY the 8 content-hash characters of an imported chunk name (`comvi-core-i18n-BN5l5gwJ` -> `…-DbOuLUxk`) keeps the byte length identical while moving gzip by 1 B per hashed reference — the fixture imports two. The allowance covers exactly that and nothing else: any real byte still fails. Counterfactuals measured while diagnosing: deleting the dev preflight entirely leaves the row unmoved, dropping the root's flattenCatalog/createElement re-exports moves it -1 B, and pinning the tag grammar into its own chunk instead of the registration chunk costs +9 B (disallowed)."
+      "note": "OWNER-SIGNED HARD CEILING 8605 B: CURRENT FINAL SWEEP 8600 B min+gz / 24048 B min, leaving 5 B headroom; no automatic 2% margin. Provenance: the pre-convergence full row was user-signed at 8598 B (8404 + 2%); P1 recomposed identical behavior on the base host and the owner re-signed 8605 B after deterministic chunk-name noise. The final P5 attach-path convergence removed duplicate descriptor snapshots without changing lifecycle or public behavior. Composite parity remains covered by packages/core/tests/features/composite-parity.test.ts."
     },
     {
       "name": "core-base",
@@ -26,21 +26,21 @@
       "fixture": "core-base.ts",
       "gzipBudgetBytes": 5046,
       "baseline": {
-        "minBytes": 13494,
+        "minBytes": 13506,
         "gzipBytes": 5016,
-        "measuredAt": "2026-08-03"
+        "measuredAt": "2026-08-02"
       },
-      "note": "The gated base anchor: `@comvi/core` IS the base host since the single-entry convergence (P1). CURRENT LANDED RUN: OBSERVED 5016 B min+gz (13494 B min); budget 5046 B, so 30 B of current headroom. Budget provenance is the base-successor drift rule — measured + 32 B — which is the same rule that set the HISTORICAL pre-convergence `slim` budget of 4934 (its tier-3 B measurement 4902 + 32), re-derived on this landing as 5014 + 32 = 5046. 5014 was the FIRST landed measurement of this row; the review rounds' comment-only edits then moved gzip to 5016 through chunk-name hash characters, with the minified payload unchanged — see the `core-full-composite` note for that evidence. The budget was deliberately NOT re-widened to 5016 + 32, so the current margin is 30 B, not 32. Δbase over the HISTORICAL Dx2 `slim` measurement (4917) is +99 B as observed: structured E_ICU_SYNTAX detector, the C4n one-argument facade, the pre-ingestion compiler lock, the (0 B) dev preflight and the (0 B) ambient-tag warning, plus the chunk-layout shift from retiring the second host entry. P0 predicted +85 on a stack that still had two host entries."
+      "note": "The gated base anchor: `@comvi/core` IS the base host since the single-entry convergence (P1). CURRENT LANDED RUN: OBSERVED 5016 B min+gz (13506 B min); budget 5046 B, so 30 B of current headroom. Budget provenance is the base-successor drift rule — measured + 32 B — which is the same rule that set the HISTORICAL pre-convergence `slim` budget of 4934 (its tier-3 B measurement 4902 + 32), re-derived on this landing as 5014 + 32 = 5046. 5014 was the FIRST landed measurement of this row; the review rounds' comment-only edits then moved gzip to 5016 through chunk-name hash characters, with the minified payload unchanged — see the `core-full-composite` note for that evidence. The budget was deliberately NOT re-widened to 5016 + 32, so the current margin is 30 B, not 32. Δbase over the HISTORICAL Dx2 `slim` measurement (4917) is +99 B as observed: structured E_ICU_SYNTAX detector, the C4n one-argument facade, the pre-ingestion compiler lock, the (0 B) dev preflight and the (0 B) ambient-tag warning, plus the chunk-layout shift from retiring the second host entry. P0 predicted +85 on a stack that still had two host entries."
     },
     {
       "name": "core-base-loader",
       "entry": ["@comvi/core", "@comvi/core/loader", "@comvi/core/plugins"],
       "fixture": "core-base-loader.ts",
-      "note": "Informational: the base host with BOTH capabilities composed on, i.e. the upper bound of the composed base surface. Printed so the pay-for-what-you-use delta against the `core-base` row stays visible; never gated. CURRENT LANDED RUN: 6545 B min+gz (18207 B min). Since framework-slim tier-3 it is also the upper bound for nested-catalog support: `_flattenNs` lives in the loader capability. HISTORICAL, framework-slim DX-2: retargeted to the documented recipe, `.with(loader({…})).with(plugins())`, which took the row from 6337 to 6461 B (+124 B) AT THAT COMMIT. That delta IS the configured-installer cost and it is almost entirely the import-map adapter, which `loader` names statically. Alternatives measured at that same commit: the pre-DX2 `attachPlugins(attachLoader(i18n))` call form 6337 B, and `.with(attachLoader).with(attachPlugins)` 6340 B — i.e. the PIPE itself costs 3 B at a call site and the adapter costs the rest. A host with a plain LoaderFn should compose `.with(attachLoader)`; `loader(map)` is for hosts that have an import map, which need the adapter anyway.",
+      "note": "Informational: the base host with BOTH capabilities composed on, i.e. the upper bound of the composed base surface. Printed so the pay-for-what-you-use delta against the `core-base` row stays visible; never gated. CURRENT LANDED RUN: 6549 B min+gz (18291 B min). Since framework-slim tier-3 it is also the upper bound for nested-catalog support: `_flattenNs` lives in the loader capability. HISTORICAL, framework-slim DX-2: retargeted to the documented recipe, `.with(loader({…})).with(plugins())`, which took the row from 6337 to 6461 B (+124 B) AT THAT COMMIT. That delta IS the configured-installer cost and it is almost entirely the import-map adapter, which `loader` names statically. Alternatives measured at that same commit: the pre-DX2 `attachPlugins(attachLoader(i18n))` call form 6337 B, and `.with(attachLoader).with(attachPlugins)` 6340 B — i.e. the PIPE itself costs 3 B at a call site and the adapter costs the rest. A host with a plain LoaderFn should compose `.with(attachLoader)`; `loader(map)` is for hosts that have an import map, which need the adapter anyway. STALE ANCHOR: P5 added two plugins-only misuse guards to core/plugins.ts (`ensureInstallable` and the `_beforeInit` return-shape branch), so every graph containing comvi-core-plugins.js — this one included — has moved. Nothing gates on this row; re-measure its baseline on the same sweep that fills the plugin rows below.",
       "baseline": {
-        "minBytes": 18207,
-        "gzipBytes": 6545,
-        "measuredAt": "2026-08-03"
+        "minBytes": 18291,
+        "gzipBytes": 6549,
+        "measuredAt": "2026-08-02"
       }
     },
     {
@@ -49,11 +49,11 @@
       "fixture": "core-base-tags.ts",
       "gzipBudgetBytes": 5980,
       "baseline": {
-        "minBytes": 16106,
-        "gzipBytes": 5977,
-        "measuredAt": "2026-08-03"
+        "minBytes": 16118,
+        "gzipBytes": 5976,
+        "measuredAt": "2026-08-02"
       },
-      "note": "Graduated from pending:true in framework-slim P0.4 — the /tags subpath has been exported since Phase 7, so the flag was stale and the row was silently ungated. CURRENT LANDED RUN: 5977 B min+gz (16106 B min) against the 5980 B budget, so 3 B of current headroom. Budget provenance: measured + 2% taken at the framework-slim tier-3 B sweep, 5863 + 2% = 5980, and deliberately not re-derived since. HISTORICAL measurements of this row, none of them current: 6410 pre-tier-3-A, 6574 -> 6490 at framework-slim P1 (-84 B from the setLocaleAsync race seam), 6226 -> 5863 at tier-3 B. That last drop is smaller than the base host's, because this graph also carries the entity/escape decoder C5a moved out of the shared parser — that asymmetry IS the seam working. The plan's HISTORICAL \"inline catalogs, with <T>\" ladder row was 5641 -> 6490 (+849 B) against the base host of the day."
+      "note": "CURRENT FINAL SWEEP: 5976 B min+gz / 16118 B min against the 5980 B budget, leaving 4 B headroom. Budget provenance remains the framework-slim tier-3 B sweep: 5863 + 2% = 5980; it is deliberately not re-derived. P2 split the pure tag grammar from ambient registration so @comvi/core/rich-text can stay side-effect-free; that chunk re-layout moved this ambient-tags row by +1 B gzip with no minified-payload change. Historical anchors: 6410 pre-tier-3-A, 6574 -> 6490 at framework-slim P1, 6226 -> 5863 at tier-3 B."
     },
     {
       "name": "core-base-icu",
@@ -61,11 +61,11 @@
       "fixture": "core-base-icu.ts",
       "gzipBudgetBytes": 7680,
       "baseline": {
-        "minBytes": 15794,
+        "minBytes": 15806,
         "gzipBytes": 5890,
-        "measuredAt": "2026-08-03"
+        "measuredAt": "2026-08-02"
       },
-      "note": "CURRENT LANDED RUN: 5890 B min+gz (15794 B min) against the frozen 7680 B budget, so 1790 B of current headroom. The budget deliberately stays at 7680 — ratcheting it to ~measured+margin is a named follow-up owned by the release captain, post-0.5.0, and this baseline block is the data it starts from. HISTORICAL measurements of this row, none of them current: 6592 post-Phase-7, 6506 at framework-slim P1 (-86 B from the setLocaleAsync race seam; the entry shares every base-host class lever), 5773 at tier-3 B."
+      "note": "CURRENT FINAL SWEEP: 5890 B min+gz / 15806 B min against the frozen 7680 B budget, leaving 1790 B headroom. The ceiling deliberately stays 7680 B; ratcheting it is a named post-0.5.0 release-captain follow-up, and this baseline is the input. P2's rich-text chunk split moved gzip by +1 B without changing the minified payload. Historical anchors: 6592 post-Phase-7, 6506 at framework-slim P1, 5773 at tier-3 B."
     },
     {
       "name": "core-base-icu-tags",
@@ -73,23 +73,33 @@
       "fixture": "core-base-icu-tags.ts",
       "gzipBudgetBytes": 6822,
       "baseline": {
-        "minBytes": 18409,
-        "gzipBytes": 6805,
-        "measuredAt": "2026-08-03"
+        "minBytes": 18421,
+        "gzipBytes": 6803,
+        "measuredAt": "2026-08-02"
       },
-      "note": "Composed-additivity fixture (P0.9). MEASURED, never summed. CURRENT LANDED RUN: 6805 B min+gz (18409 B min) against the 6822 B budget, so 17 B of current headroom. Budget provenance: measured + 2% taken at the framework-slim tier-3 B sweep, 6689 + 2% = 6822, and deliberately not re-derived since. Landed measured rather than pending:true because every specifier it needs already ships — a pending flag here would have been stale on arrival, exactly the slim-tags failure P0.4 fixes. HISTORICAL, none of it current: the plan estimated 7438 B by adding per-entry deltas while the actual composed graph measured 7416 B (-22 B, i.e. composition is very slightly sub-additive); 7330 B at framework-slim P1 (-86 B from the setLocaleAsync race seam); 6689 B at tier-3 B."
+      "note": "Composed-additivity fixture, measured rather than summed. CURRENT FINAL SWEEP: 6803 B min+gz / 18421 B min against the 6822 B budget, leaving 19 B headroom. Budget provenance remains the framework-slim tier-3 B sweep: 6689 + 2% = 6822; it is deliberately not re-derived. P2's pure rich-text/ambient-registration chunk split moved gzip by +3 B with no minified-payload change. Historical anchors: estimated 7438 vs measured 7416, then 7330 at framework-slim P1 and 6689 at tier-3 B."
     },
     {
       "name": "core-base-icu-installer",
       "fixture": "core-base-icu-installer.ts",
       "entry": ["@comvi/core", "@comvi/core/icu"],
-      "note": "Informational: the `.with(icu())` remote-catalog recipe. Measured against `core-base-icu` (the constructor-option form) the delta is the installer's price, paid only by graphs that use it."
+      "note": "Informational: the `.with(icu())` remote-catalog recipe. Measured against `core-base-icu` (the constructor-option form) the delta is the installer's price, paid only by graphs that use it.",
+      "baseline": {
+        "minBytes": 15936,
+        "gzipBytes": 5941,
+        "measuredAt": "2026-08-02"
+      }
     },
     {
       "name": "core-base-icu-locked",
       "fixture": "core-base-icu-locked.ts",
       "entry": ["@comvi/core", "@comvi/core/icu"],
-      "note": "Informational: the `E_COMPILER_LOCKED` path. Same module graph as the success row — the lock and its error share those modules — so it is a visibility row, never a second gate."
+      "note": "Informational: the `E_COMPILER_LOCKED` path. Same module graph as the success row — the lock and its error share those modules — so it is a visibility row, never a second gate.",
+      "baseline": {
+        "minBytes": 15944,
+        "gzipBytes": 5944,
+        "measuredAt": "2026-08-02"
+      }
     },
     {
       "name": "core-base-loader-tags",
@@ -97,11 +107,11 @@
       "fixture": "core-base-loader-tags.ts",
       "gzipBudgetBytes": 7417,
       "baseline": {
-        "minBytes": 20494,
-        "gzipBytes": 7382,
-        "measuredAt": "2026-08-03"
+        "minBytes": 20578,
+        "gzipBytes": 7383,
+        "measuredAt": "2026-08-02"
       },
-      "note": "Composed-additivity fixture (P0.9). MEASURED, never summed. CURRENT LANDED RUN: 7382 B min+gz (20494 B min) against the 7417 B budget, so 35 B of current headroom. Budget provenance: measured + 2% taken at the framework-slim tier-3 B sweep, 7272 + 2% = 7417, and deliberately NOT ratcheted since — this graph carries the loader capability, which is where the P1 race seam moved to, so it pays for the seam glue instead of saving, exactly the trade the seam makes. Left on the `attachLoader`/`attachPlugins` call form in framework-slim DX-2 on purpose: this row measures composed ADDITIVITY of the tags rung, and `core-base-loader` is where the DX-2 recipe delta is reported. HISTORICAL, none of it current: the plan estimated 7721 B, the actual composed graph measured 7715 B (-6 B), 7719 B at framework-slim P1, 7272 B at tier-3 B."
+      "note": "Composed-additivity fixture, measured rather than summed. CURRENT FINAL SWEEP: 7383 B min+gz / 20578 B min against the 7417 B budget, leaving 34 B headroom. Budget provenance remains the framework-slim tier-3 B sweep: 7272 + 2% = 7417; it is deliberately not ratcheted because this graph carries the loader race-seam glue. The fixture intentionally keeps the low-level attachLoader/attachPlugins form; core-base-loader owns the configured-installer delta. P2's pure rich-text/ambient-registration split moved gzip by -3 B with no minified-payload change."
     },
     {
       "name": "probe-react-tags-pinning",
@@ -114,90 +124,25 @@
       ],
       "expectSentinels": "absent",
       "baseline": {
-        "minBytes": 17989,
-        "gzipBytes": 6531,
-        "measuredAt": "2026-08-03",
+        "minBytes": 18250,
+        "gzipBytes": 6621,
+        "measuredAt": "2026-08-02",
         "modules": [
-          "packages/core/dist/chunks/comvi-core-format-C5TnXRjc.js",
-          "packages/core/dist/chunks/comvi-core-i18n-rimLldok.js",
-          "packages/core/dist/chunks/comvi-core-translate-CGaih8RO.js",
-          "packages/core/dist/chunks/comvi-core-virtualNode-BBlSOFkG.js",
-          "packages/core/dist/comvi-core-slim.js",
+          "packages/core/dist/chunks/comvi-core-i18n-BN5l5gwJ.js",
+          "packages/core/dist/chunks/comvi-core-translate-BgO4T2rq.js",
+          "packages/core/dist/chunks/comvi-core-virtualNode-CPPye3ka.js",
+          "packages/core/dist/comvi-core.js",
           "packages/react/dist/comvi-react.js"
         ]
       },
-      "note": "P0.3 tags-pinning probe, FLIPPED in framework-slim P2. BOTH measurements below are PRE-CONVERGENCE, taken while @comvi/core/slim was a separate base-host entry and the root was the batteries-included one. BEFORE (P0, 11305 B / 12 comvi modules): the app picked @comvi/core/slim while @comvi/react value-imported the batteries-included root, so the graph held comvi-core-slim.js AND comvi-core.js AND the side-effectful register-tags chunk — picking slim cost 27 B MORE than staying on that root. AFTER P2 (7264 B / 6 modules): the value imports resolve through @comvi/core/slim, <T> lives in its own chunk (dist/chunks/comvi-react-T.js) so this no-<T> app never reaches @comvi/core/tags, and the index's `export { createI18n, I18n } from \"@comvi/core\"` (blocker B2) tree-shook — the whole batteries-included root, both tags chunks, the icu/plugins/importMapLoader chunks and the react T chunk left the graph. CURRENT converged graph (node scripts/size-check.mjs --modules, 5 modules): comvi-core.js — the base root, present because createI18n is its export — plus core's i18n/translate/virtualNode chunks and comvi-react.js. The sentinelModules are the tag-registration pair only (comvi-core-tags.js and chunks/comvi-core-register-tags.js); nothing here asserts the base root absent, and after the convergence nothing can. The module-ID diff is the named input for a P2/P3 gray-zone diagnosis cycle (plan §4 Phase 2)."
+      "note": "Final tag-pinning probe: 6621 B min+gz / 18250 B min. The app imports the base constructor from @comvi/core and bindings from @comvi/react, renders no <T>, and the emitted graph excludes both ambient tag-registration modules. Historical context: before framework-slim convergence this graph held both core host entries and the tag pair (11305 B / 12 comvi modules); the later pre-convergence base-host probe was 6531 B / 17989 B. The current baseline records the landed graph rather than either retired entry."
     },
     {
-      "name": "fw-react-root",
-      "entry": ["@comvi/react", "@comvi/core"],
-      "fixture": "framework/react-root.ts",
+      "name": "fw-react-default",
+      "entry": ["@comvi/react"],
+      "fixture": "framework/react-default.ts",
       "external": ["react", "react/*"],
-      "gzipBudgetBytes": 10238,
-      "baseline": {
-        "minBytes": 28307,
-        "gzipBytes": 10054,
-        "measuredAt": "2026-08-03"
-      },
-      "note": "Root baseline; the \"before\" anchor for S = minzip(fw-react-root) - minzip(fw-react-slim) at the P2 gate (both measured live at the same commit, per plan §4 Phase 2). Re-baselined in P2: 11278 -> 10229 B. Two named causes, both real consumer wins — (1) <T> moved into its own dist chunk with a /*@__PURE__*/ memo, so a root app that never renders <T> stops shipping it; (2) the harness now honors the published `sideEffects` field for plugin-resolved entries, so re-exports a real bundler prunes no longer inflate the measurement. HISTORICAL, framework-slim P2, and PRE-CONVERGENCE: while the 0.4 batteries-included root and @comvi/core/slim were two separate entries, this graph held BOTH of them (comvi-core.js from the app's createI18n, comvi-core-slim.js from the wrapper) — blocker B4, measured, not assumed. Since the single-entry convergence there is ONE core entry, the base host, and it is the only one this row can hold. Budget = measured + 2%."
-    },
-    {
-      "name": "fw-react-root-t",
-      "entry": ["@comvi/react", "@comvi/core"],
-      "fixture": "framework/react-root-t.ts",
-      "external": ["react", "react/*"],
-      "gzipBudgetBytes": 11305,
-      "baseline": {
-        "minBytes": 31283,
-        "gzipBytes": 11100,
-        "measuredAt": "2026-08-03"
-      },
-      "note": "Root baseline with <T>. The react -t axis is NO LONGER DEGENERATE: the <T> delta over fw-react-root was +7 B in P0 (T was pinned into every bundle by a non-PURE top-level React.memo call in a single-file dist); after P2's chunk split + /*@__PURE__*/ it is +1060 B, i.e. the real cost of the component and its @comvi/core/tags dependency. Budget = measured + 2%."
-    },
-    {
-      "name": "fw-react-slim",
-      "entry": ["@comvi/react", "@comvi/core"],
-      "fixture": "framework/react-slim.ts",
-      "external": ["react", "react/*"],
-      "gzipBudgetBytes": 6645,
-      "sentinelModules": [
-        "packages/core/dist/comvi-core-tags.js",
-        "packages/core/dist/chunks/comvi-core-register-tags.js"
-      ],
-      "expectSentinels": "absent",
-      "baseline": {
-        "minBytes": 17991,
-        "gzipBytes": 6532,
-        "measuredAt": "2026-08-03",
-        "modules": [
-          "packages/core/dist/chunks/comvi-core-format-C5TnXRjc.js",
-          "packages/core/dist/chunks/comvi-core-i18n-rimLldok.js",
-          "packages/core/dist/chunks/comvi-core-translate-CGaih8RO.js",
-          "packages/core/dist/chunks/comvi-core-virtualNode-BBlSOFkG.js",
-          "packages/core/dist/comvi-core-slim.js",
-          "packages/react/dist/comvi-react.js"
-        ]
-      },
-      "note": "GRADUATED in framework-slim P2. PRE-CONVERGENCE D' endpoint, measured while @comvi/core/slim was a separate base-host entry: react on a bare @comvi/core/slim host. S = fw-react-root(10229) - 7265 = 2964 B >= the 2500 floor, so P2 proceeds (plan §4 Phase 2). Sentinels assert exactly two modules absent from the module graph, not merely from the output text: comvi-core-tags.js and chunks/comvi-core-register-tags.js, core's tag-registration pair. The base root is NOT a sentinel and IS in this graph — the fixture imports createI18n from @comvi/core, so comvi-core.js is reachable by construction. Budget = measured + 2%. Numbers above are quoted as measured at the graduation gate; after the framework-slim core golf pass both endpoints moved and S still clears the floor: fw-react-root(10170) - 7194 = 2976 B. CURRENT converged graph (5 modules): comvi-core.js plus core's i18n/translate/virtualNode chunks and comvi-react.js."
-    },
-    {
-      "name": "fw-react-slim-t",
-      "entry": ["@comvi/react", "@comvi/core"],
-      "fixture": "framework/react-slim-t.ts",
-      "external": ["react", "react/*"],
-      "gzipBudgetBytes": 8692,
-      "baseline": {
-        "minBytes": 23571,
-        "gzipBytes": 8537,
-        "measuredAt": "2026-08-03"
-      },
-      "note": "GRADUATED in framework-slim P2: react on bare slim that also renders <T>, i.e. the slim+tags rung. +1891 B over fw-react-slim — <T> plus @comvi/core/tags, now that both are opt-in. This row declares NO sentinel of its own: the tags chunks are EXPECTED here — they are what the fixture buys — and core's base entry is present by construction, because `createI18n` is its export. Compare the no-<T> sibling, whose two sentinels name the tag-registration pair and nothing else."
-    },
-    {
-      "name": "fw-react-slim-preset",
-      "entry": ["@comvi/react/slim"],
-      "fixture": "framework/react-slim-preset.ts",
-      "external": ["react", "react/*"],
+      "gzipBudgetBytes": 6753,
       "sentinelModules": [
         "packages/core/dist/comvi-core-tags.js",
         "packages/core/dist/chunks/comvi-core-register-tags.js",
@@ -207,91 +152,148 @@
         "packages/core/dist/comvi-core-devtools.js"
       ],
       "expectSentinels": "absent",
-      "gzipBudgetBytes": 6652,
       "baseline": {
-        "minBytes": 17992,
-        "gzipBytes": 6532,
-        "measuredAt": "2026-08-03",
+        "minBytes": 18252,
+        "gzipBytes": 6622,
+        "measuredAt": "2026-08-02",
         "modules": [
-          "packages/core/dist/chunks/comvi-core-format-C5TnXRjc.js",
-          "packages/core/dist/chunks/comvi-core-i18n-rimLldok.js",
-          "packages/core/dist/chunks/comvi-core-translate-CGaih8RO.js",
-          "packages/core/dist/chunks/comvi-core-virtualNode-BBlSOFkG.js",
-          "packages/core/dist/comvi-core-slim.js",
-          "packages/react/dist/comvi-react-slim.js"
+          "packages/core/dist/chunks/comvi-core-i18n-BN5l5gwJ.js",
+          "packages/core/dist/chunks/comvi-core-translate-BgO4T2rq.js",
+          "packages/core/dist/chunks/comvi-core-virtualNode-CPPye3ka.js",
+          "packages/core/dist/comvi-core.js",
+          "packages/react/dist/comvi-react.js"
         ]
       },
-      "note": "framework-slim DX pass: the SINGLE-PACKAGE quickstart — createI18n + bindings from @comvi/react/slim only, @comvi/core never named BY THE APP — the entry re-exports core's own createI18n, so comvi-core.js, the base root, is in the graph. Sentinels assert six modules absent from the module graph: the tag-registration pair (comvi-core-tags.js and chunks/comvi-core-register-tags.js) and all four re-exported capability subpath entries (comvi-core-icu.js, comvi-core-loader.js, comvi-core-plugins.js and comvi-core-devtools.js) — an unused named re-export must cost nothing. The base root is not among them and cannot be: it is what createI18n resolves to. Compare with fw-react-slim, which builds the same graph naming @comvi/core directly. framework-slim DX-2: the `.with(installer)` pipe adds ~8 B here (all of it core's); the four capability re-exports — now six, with the `loader()` / `plugins()` / `devtools()` installers — stay sentinel-asserted ABSENT."
+      "note": "P2 default React floor: one @comvi/react specifier, base createI18n + bindings, no capability and no tags. Final sweep 6622 B min+gz / 18252 B min against the carried 6753 B budget. Six sentinels prove the tag pair and the four unused capability subpaths are absent; comvi-core.js is present by construction. The pre-convergence slim/preset anchor was 6532 B, so the landed single-entry delta is +88 B (+1.35%), within the P0 Δbase envelope."
     },
     {
-      "name": "fw-solid-root",
-      "entry": ["@comvi/solid", "@comvi/core"],
-      "fixture": "framework/solid-root.ts",
-      "external": ["solid-js", "solid-js/*"],
-      "gzipBudgetBytes": 9951,
+      "name": "fw-react-default-t",
+      "entry": ["@comvi/react"],
+      "fixture": "framework/react-default-t.ts",
+      "external": ["react", "react/*"],
+      "gzipBudgetBytes": 8672,
+      "sentinelModules": [
+        "packages/core/dist/comvi-core-tags.js",
+        "packages/core/dist/chunks/comvi-core-register-tags.js",
+        "packages/core/dist/comvi-core-icu.js",
+        "packages/core/dist/comvi-core-loader.js",
+        "packages/core/dist/comvi-core-plugins.js",
+        "packages/core/dist/comvi-core-devtools.js"
+      ],
+      "expectSentinels": "absent",
       "baseline": {
-        "minBytes": 27975,
-        "gzipBytes": 9773,
-        "measuredAt": "2026-08-03"
+        "minBytes": 23509,
+        "gzipBytes": 8501,
+        "measuredAt": "2026-08-02",
+        "modules": [
+          "packages/core/dist/chunks/comvi-core-i18n-BN5l5gwJ.js",
+          "packages/core/dist/chunks/comvi-core-tag-syntax-BfZSMaA0.js",
+          "packages/core/dist/chunks/comvi-core-translate-BgO4T2rq.js",
+          "packages/core/dist/chunks/comvi-core-virtualNode-CPPye3ka.js",
+          "packages/core/dist/comvi-core-rich-text.js",
+          "packages/core/dist/comvi-core.js",
+          "packages/react/dist/chunks/comvi-react-T.js",
+          "packages/react/dist/comvi-react.js"
+        ]
       },
-      "note": "Root baseline; the \"before\" anchor for S = minzip(fw-solid-root) - minzip(fw-solid-slim) at the P3 gate (both measured live at the same commit, per plan §4 Phase 2). Re-baselined in P3: 9992 -> 9953 B — <T> moved into its own dist chunk (dist/chunks/comvi-solid-T.js), which trims the entry module even here. HISTORICAL, framework-slim P3, and PRE-CONVERGENCE: the app's own createI18n then named the 0.4 batteries-included root, so the tags chunks stayed alive whatever <T> did, and the graph held BOTH entries (comvi-core.js from the app's createI18n, comvi-core-slim.js from the wrapper) — blocker B4, measured, not assumed. The converged base entry registers nothing on import, so this row now reaches core's tag chunks only through a wrapper <T> that imports @comvi/core/tags — see fw-solid-root-t. Budget = measured + 2%."
+      "note": "P2 default + <T> rung: 8501 B min+gz / 23509 B min against the carried 8672 B budget, +1881 B over default. <T> reaches the pure @comvi/core/rich-text seam and tag grammar per call; six sentinels prove ambient tag registration plus ICU, loader, plugins and devtools remain absent. This replaces the duplicate pre-convergence root-t/slim-t rows and is 36 B below the 8537 B slim-t anchor."
     },
     {
-      "name": "fw-solid-root-t",
-      "entry": ["@comvi/solid", "@comvi/core"],
-      "fixture": "framework/solid-root-t.ts",
-      "external": ["solid-js", "solid-js/*"],
-      "gzipBudgetBytes": 10909,
+      "name": "fw-react-icu",
+      "entry": ["@comvi/react"],
+      "fixture": "framework/react-icu.ts",
+      "external": ["react", "react/*"],
+      "gzipBudgetBytes": 7658,
+      "sentinelModules": [
+        "packages/core/dist/comvi-core-tags.js",
+        "packages/core/dist/chunks/comvi-core-register-tags.js",
+        "packages/core/dist/comvi-core-loader.js",
+        "packages/core/dist/comvi-core-plugins.js",
+        "packages/core/dist/comvi-core-devtools.js"
+      ],
+      "expectSentinels": "absent",
       "baseline": {
-        "minBytes": 30789,
-        "gzipBytes": 10714,
-        "measuredAt": "2026-08-03"
+        "minBytes": 20560,
+        "gzipBytes": 7506,
+        "measuredAt": "2026-08-02",
+        "modules": [
+          "packages/core/dist/chunks/comvi-core-i18n-BN5l5gwJ.js",
+          "packages/core/dist/chunks/comvi-core-translate-BgO4T2rq.js",
+          "packages/core/dist/chunks/comvi-core-virtualNode-CPPye3ka.js",
+          "packages/core/dist/comvi-core-icu.js",
+          "packages/core/dist/comvi-core.js",
+          "packages/react/dist/comvi-react.js"
+        ]
       },
-      "note": "Root baseline with <T>. +953 B over fw-solid-root. Re-baselined in P3: 10879 -> 10906 B (+27 B) — the cost of the T chunk boundary and its import statement, the price the no-<T> graph is paid for. Budget = measured + 2%."
+      "note": "P2 inline-ICU rung: compiler: icuCompiler from @comvi/react, 7506 B min+gz / 20560 B min against the carried 7658 B budget, +887 B over default. ICU is positively retained by formatting a plural; five sentinels prove ambient tags, loader, plugins and devtools are absent. The final 7506 B matches the P0 7404 B context plus the landed base delta."
     },
     {
-      "name": "fw-solid-slim",
-      "entry": ["@comvi/solid", "@comvi/core"],
-      "fixture": "framework/solid-slim.ts",
-      "external": ["solid-js", "solid-js/*"],
+      "name": "fw-react-full-composite",
+      "entry": ["@comvi/react"],
+      "fixture": "framework/react-full-composite.ts",
+      "external": ["react", "react/*"],
+      "gzipBudgetBytes": 11381,
       "sentinelModules": [
         "packages/core/dist/comvi-core-tags.js",
         "packages/core/dist/chunks/comvi-core-register-tags.js"
       ],
       "expectSentinels": "absent",
-      "gzipBudgetBytes": 6346,
       "baseline": {
-        "minBytes": 17663,
-        "gzipBytes": 6236,
-        "measuredAt": "2026-08-03",
+        "minBytes": 31458,
+        "gzipBytes": 11156,
+        "measuredAt": "2026-08-02",
         "modules": [
-          "packages/core/dist/chunks/comvi-core-format-C5TnXRjc.js",
-          "packages/core/dist/chunks/comvi-core-i18n-rimLldok.js",
-          "packages/core/dist/chunks/comvi-core-translate-CGaih8RO.js",
-          "packages/core/dist/comvi-core-slim.js",
+          "packages/core/dist/chunks/comvi-core-i18n-BN5l5gwJ.js",
+          "packages/core/dist/chunks/comvi-core-tag-syntax-BfZSMaA0.js",
+          "packages/core/dist/chunks/comvi-core-translate-BgO4T2rq.js",
+          "packages/core/dist/chunks/comvi-core-utils-DWkssqKA.js",
+          "packages/core/dist/chunks/comvi-core-virtualNode-CPPye3ka.js",
+          "packages/core/dist/comvi-core-devtools.js",
+          "packages/core/dist/comvi-core-icu.js",
+          "packages/core/dist/comvi-core-loader.js",
+          "packages/core/dist/comvi-core-plugins.js",
+          "packages/core/dist/comvi-core-rich-text.js",
+          "packages/core/dist/comvi-core.js",
+          "packages/react/dist/chunks/comvi-react-T.js",
+          "packages/react/dist/comvi-react.js"
+        ]
+      },
+      "note": "P2 full explicit React capability composition + <T>: ICU, loader, plugins and devtools are retained through one @comvi/react specifier, while <T> reaches the pure rich-text seam. Final sweep 11156 B min+gz / 31458 B min against the carried 11381 B budget, +4537 B over default and +2656 B over default + <T>. The tag-registration pair remains absent because string-API ambient tags are the deliberate explicit-import residual. The historical pre-convergence root-t row was 11100 B; the +57 B comparison is size context only, not behavior parity, because that old row registered tags ambiently."
+    },
+    {
+      "name": "fw-solid-default",
+      "entry": ["@comvi/solid"],
+      "fixture": "framework/solid-default.ts",
+      "external": ["solid-js", "solid-js/*"],
+      "gzipBudgetBytes": 6463,
+      "sentinelModules": [
+        "packages/core/dist/comvi-core-tags.js",
+        "packages/core/dist/chunks/comvi-core-register-tags.js",
+        "packages/core/dist/comvi-core-icu.js",
+        "packages/core/dist/comvi-core-loader.js",
+        "packages/core/dist/comvi-core-plugins.js",
+        "packages/core/dist/comvi-core-devtools.js"
+      ],
+      "expectSentinels": "absent",
+      "baseline": {
+        "minBytes": 17926,
+        "gzipBytes": 6336,
+        "measuredAt": "2026-08-02",
+        "modules": [
+          "packages/core/dist/chunks/comvi-core-i18n-BN5l5gwJ.js",
+          "packages/core/dist/chunks/comvi-core-translate-BgO4T2rq.js",
+          "packages/core/dist/comvi-core.js",
           "packages/solid/dist/comvi-solid.js"
         ]
       },
-      "note": "GRADUATED in framework-slim P3. PRE-CONVERGENCE D' endpoint, measured while @comvi/core/slim was a separate base-host entry: solid on a bare @comvi/core/slim host. S = fw-solid-root(9953) - 6978 = 2975 B >= the 2500 floor, so P3 proceeds (plan §4 Phase 3, same bar as Phase 2). Sentinels assert exactly two modules absent from the module graph, not merely from the output text: comvi-core-tags.js and chunks/comvi-core-register-tags.js. Reaching that absence needed <T> in its own chunk (dist/chunks/comvi-solid-T.js, fs-p1 blocker B1) and the index's `export { createI18n, I18n } from \"@comvi/core\"` (blocker B2) to tree-shake — which then pulled the batteries-included root. Post-convergence that re-export names the base root, which this graph holds anyway because the fixture imports createI18n from @comvi/core; the base root is NOT a sentinel. Budget = measured + 2%. Numbers above are quoted as measured at the graduation gate; after the framework-slim core golf pass both endpoints moved and S still clears the floor: fw-solid-root(9889) - 6895 = 2994 B. CURRENT converged graph (4 modules): comvi-core.js plus core's i18n/translate chunks and comvi-solid.js."
+      "note": "P3 default Solid floor: one @comvi/solid specifier, base createI18n + bindings, no capability and no tags. RETARGETS fw-solid-slim-preset (whose specifier was the retired @comvi/solid/slim) and absorbs fw-solid-slim, whose app reached into @comvi/core for the constructor the root now carries. Six sentinels prove the tag pair and the four unused capability subpath entries are absent; comvi-core.js is present by construction, since the root's createI18n re-export is what this app builds with — that is why it is not among them. Measured 6336 B min+gz / 17926 B min; byte budget = measured + 2% (6463 B). The pre-convergence single-package anchor for the same app shape was 6236 B min+gz / 17664 B min at 2026-08-03, which is what the landed delta must be read against."
     },
     {
-      "name": "fw-solid-slim-t",
-      "entry": ["@comvi/solid", "@comvi/core"],
-      "fixture": "framework/solid-slim-t.ts",
+      "name": "fw-solid-default-t",
+      "entry": ["@comvi/solid"],
+      "fixture": "framework/solid-default-t.ts",
       "external": ["solid-js", "solid-js/*"],
-      "gzipBudgetBytes": 8309,
-      "baseline": {
-        "minBytes": 23087,
-        "gzipBytes": 8162,
-        "measuredAt": "2026-08-03"
-      },
-      "note": "GRADUATED in framework-slim P3: solid on bare slim that also renders <T>, i.e. the slim+tags rung. +1807 B over fw-solid-slim — <T> plus @comvi/core/tags, now that both are opt-in. This row declares NO sentinel of its own: the tags chunks are EXPECTED here — they are what the fixture buys — and core's base entry is present by construction, because `createI18n` is its export. Compare the no-<T> sibling, whose two sentinels name the tag-registration pair and nothing else. Budget = measured + 2%."
-    },
-    {
-      "name": "fw-solid-slim-preset",
-      "entry": ["@comvi/solid/slim"],
-      "fixture": "framework/solid-slim-preset.ts",
-      "external": ["solid-js", "solid-js/*"],
+      "gzipBudgetBytes": 8294,
       "sentinelModules": [
         "packages/core/dist/comvi-core-tags.js",
         "packages/core/dist/chunks/comvi-core-register-tags.js",
@@ -301,93 +303,121 @@
         "packages/core/dist/comvi-core-devtools.js"
       ],
       "expectSentinels": "absent",
-      "gzipBudgetBytes": 6353,
       "baseline": {
-        "minBytes": 17664,
-        "gzipBytes": 6236,
-        "measuredAt": "2026-08-03",
+        "minBytes": 23066,
+        "gzipBytes": 8131,
+        "measuredAt": "2026-08-02",
         "modules": [
-          "packages/core/dist/chunks/comvi-core-format-C5TnXRjc.js",
-          "packages/core/dist/chunks/comvi-core-i18n-rimLldok.js",
-          "packages/core/dist/chunks/comvi-core-translate-CGaih8RO.js",
-          "packages/core/dist/comvi-core-slim.js",
-          "packages/solid/dist/comvi-solid-slim.js"
+          "packages/core/dist/chunks/comvi-core-i18n-BN5l5gwJ.js",
+          "packages/core/dist/chunks/comvi-core-tag-syntax-BfZSMaA0.js",
+          "packages/core/dist/chunks/comvi-core-translate-BgO4T2rq.js",
+          "packages/core/dist/chunks/comvi-core-virtualNode-CPPye3ka.js",
+          "packages/core/dist/comvi-core-rich-text.js",
+          "packages/core/dist/comvi-core.js",
+          "packages/solid/dist/chunks/comvi-solid-T.js",
+          "packages/solid/dist/comvi-solid.js"
         ]
       },
-      "note": "framework-slim DX pass: the SINGLE-PACKAGE quickstart — createI18n + bindings from @comvi/solid/slim only, @comvi/core never named BY THE APP — the entry re-exports core's own createI18n, so comvi-core.js, the base root, is in the graph. Sentinels assert six modules absent: the tag-registration pair (comvi-core-tags.js and chunks/comvi-core-register-tags.js) and all four re-exported capability subpath entries (comvi-core-icu.js, comvi-core-loader.js, comvi-core-plugins.js and comvi-core-devtools.js). The base root is not among them and cannot be: it is what createI18n resolves to. Compare with fw-solid-slim. framework-slim DX-2: the `.with(installer)` pipe adds ~8 B here (all of it core's); the four capability re-exports — now six, with the `loader()` / `plugins()` / `devtools()` installers — stay sentinel-asserted ABSENT."
+      "note": "P3 default + <T> rung. RETARGETS fw-solid-slim-t and replaces the deleted fw-solid-root-t, which measured a byte-identical body — the -t axis is one row now instead of two. The delta against fw-solid-default is the whole <T> path: dist/chunks/comvi-solid-T.js plus the PURE @comvi/core/rich-text entry and the tag grammar it passes per call. Unlike its pre-convergence predecessor this row DOES declare the tag-registration sentinels: <T> no longer imports @comvi/core/tags, so rendering rich text buys the grammar without the ambient registry. All six sentinels are the same set as the default row. Measured 8131 B min+gz / 23066 B min; byte budget = measured + 2% (8294 B). The pre-convergence slim-t anchor was 8162 B min+gz / 23087 B min at 2026-08-03, and it carried the ambient tags chunks this row forbids, so the comparison is size context, not behaviour parity."
     },
     {
-      "name": "fw-svelte-root",
-      "entry": ["@comvi/svelte", "@comvi/core"],
-      "fixture": "framework/svelte-root.ts",
-      "external": ["svelte", "svelte/*"],
-      "gzipBudgetBytes": 10014,
+      "name": "fw-solid-icu",
+      "entry": ["@comvi/solid"],
+      "fixture": "framework/solid-icu.ts",
+      "external": ["solid-js", "solid-js/*"],
+      "gzipBudgetBytes": 7367,
+      "sentinelModules": [
+        "packages/core/dist/comvi-core-tags.js",
+        "packages/core/dist/chunks/comvi-core-register-tags.js",
+        "packages/core/dist/comvi-core-loader.js",
+        "packages/core/dist/comvi-core-plugins.js",
+        "packages/core/dist/comvi-core-devtools.js"
+      ],
+      "expectSentinels": "absent",
       "baseline": {
-        "minBytes": 27819,
-        "gzipBytes": 9836,
-        "measuredAt": "2026-08-03"
+        "minBytes": 20233,
+        "gzipBytes": 7222,
+        "measuredAt": "2026-08-02",
+        "modules": [
+          "packages/core/dist/chunks/comvi-core-i18n-BN5l5gwJ.js",
+          "packages/core/dist/chunks/comvi-core-translate-BgO4T2rq.js",
+          "packages/core/dist/comvi-core-icu.js",
+          "packages/core/dist/comvi-core.js",
+          "packages/solid/dist/comvi-solid.js"
+        ]
       },
-      "note": "Root baseline; the \"before\" anchor for S = minzip(fw-svelte-root) - minzip(fw-svelte-slim) at the P3 gate (both measured live at the same commit). dist/T.svelte is compiled by the size gate with the svelte compiler resolved from @comvi/svelte, the way a consumer's svelte plugin compiles it. Re-baselined in P3: 10006 -> 10012 B (+6 B of nameCache noise; svelte-package emits one dist module per source module, so the retarget moved no module boundaries). Budget = measured + 2%."
+      "note": "P3 inline-ICU rung, NEW — the solid twin of fw-react-icu. `compiler: icuCompiler` comes from @comvi/solid, so opting into one capability never means reaching past the framework package. Five sentinels prove ambient tags, loader, plugins and devtools absent; the ICU entry is deliberately NOT among them because it is what the row buys, and its PRESENCE is proved positively by the `solid-icu` bundler-matrix case, which formats a real plural from the built bundle. Measured 7222 B min+gz / 20233 B min; byte budget = measured + 2% (7367 B). No solid row measured this shape before, so it has no predecessor anchor."
     },
     {
-      "name": "fw-svelte-root-t",
-      "entry": ["@comvi/svelte", "@comvi/core"],
-      "fixture": "framework/svelte-root-t.ts",
-      "external": ["svelte", "svelte/*"],
-      "gzipBudgetBytes": 11418,
-      "baseline": {
-        "minBytes": 31588,
-        "gzipBytes": 11213,
-        "measuredAt": "2026-08-03"
-      },
-      "note": "Root baseline with <T>. +1387 B over fw-svelte-root — T lives in its own module (dist/T.svelte), so it tree-shakes cleanly out of the no-<T> graph. Re-baselined in P3: 11389 -> 11399 B. Budget = measured + 2%."
-    },
-    {
-      "name": "fw-svelte-slim",
-      "entry": ["@comvi/svelte", "@comvi/core"],
-      "fixture": "framework/svelte-slim.ts",
-      "external": ["svelte", "svelte/*"],
+      "name": "fw-solid-full-composite",
+      "entry": ["@comvi/solid"],
+      "fixture": "framework/solid-full-composite.ts",
+      "external": ["solid-js", "solid-js/*"],
+      "gzipBudgetBytes": 11007,
       "sentinelModules": [
         "packages/core/dist/comvi-core-tags.js",
         "packages/core/dist/chunks/comvi-core-register-tags.js"
       ],
       "expectSentinels": "absent",
-      "gzipBudgetBytes": 6426,
       "baseline": {
-        "minBytes": 17507,
-        "gzipBytes": 6317,
-        "measuredAt": "2026-08-03",
+        "minBytes": 31007,
+        "gzipBytes": 10791,
+        "measuredAt": "2026-08-02",
         "modules": [
-          "packages/core/dist/chunks/comvi-core-format-C5TnXRjc.js",
-          "packages/core/dist/chunks/comvi-core-i18n-rimLldok.js",
-          "packages/core/dist/chunks/comvi-core-translate-CGaih8RO.js",
-          "packages/core/dist/comvi-core-slim.js",
+          "packages/core/dist/chunks/comvi-core-i18n-BN5l5gwJ.js",
+          "packages/core/dist/chunks/comvi-core-tag-syntax-BfZSMaA0.js",
+          "packages/core/dist/chunks/comvi-core-translate-BgO4T2rq.js",
+          "packages/core/dist/chunks/comvi-core-utils-DWkssqKA.js",
+          "packages/core/dist/chunks/comvi-core-virtualNode-CPPye3ka.js",
+          "packages/core/dist/comvi-core-devtools.js",
+          "packages/core/dist/comvi-core-icu.js",
+          "packages/core/dist/comvi-core-loader.js",
+          "packages/core/dist/comvi-core-plugins.js",
+          "packages/core/dist/comvi-core-rich-text.js",
+          "packages/core/dist/comvi-core.js",
+          "packages/solid/dist/chunks/comvi-solid-T.js",
+          "packages/solid/dist/comvi-solid.js"
+        ]
+      },
+      "note": "P3 full explicit Solid capability composition + <T>: ICU, loader, plugins and devtools are retained through one @comvi/solid specifier, while <T> reaches the pure rich-text seam. RE-ANCHORED from fw-solid-root, which measured the 0.4 batteries-included era — that graph held BOTH core entries and its tag chunks were alive whatever <T> did. This row is NOT behaviour-identical to it, because 0.4 also registered string-API tags ambiently and convergence makes that an explicit @comvi/core/tags import; the tag-registration pair is therefore the one thing this row asserts absent. Composition order is core-full-composite's parity order: loader + plugin host FIRST so the nested-catalog flattener is present at ingestion, devtools LAST so instanceId stays the final public own property. Measured 10791 B min+gz / 31007 B min; byte budget = measured + 2% (11007 B). The historical pre-convergence root-t row was 10714 B min+gz / 30789 B min at 2026-08-03; that is size context only."
+    },
+    {
+      "name": "fw-svelte-default",
+      "entry": ["@comvi/svelte"],
+      "fixture": "framework/svelte-default.ts",
+      "external": ["svelte", "svelte/*"],
+      "gzipBudgetBytes": 6541,
+      "sentinelModules": [
+        "packages/core/dist/comvi-core-tags.js",
+        "packages/core/dist/chunks/comvi-core-register-tags.js",
+        "packages/core/dist/comvi-core-icu.js",
+        "packages/core/dist/comvi-core-loader.js",
+        "packages/core/dist/comvi-core-plugins.js",
+        "packages/core/dist/comvi-core-devtools.js"
+      ],
+      "expectSentinels": "absent",
+      "baseline": {
+        "minBytes": 17769,
+        "gzipBytes": 6412,
+        "measuredAt": "2026-08-02",
+        "modules": [
+          "packages/core/dist/chunks/comvi-core-i18n-BN5l5gwJ.js",
+          "packages/core/dist/chunks/comvi-core-translate-BgO4T2rq.js",
+          "packages/core/dist/comvi-core.js",
           "packages/svelte/dist/context.js",
           "packages/svelte/dist/index.js",
           "packages/svelte/dist/stores.js",
           "packages/svelte/dist/useI18n.js"
         ]
       },
-      "note": "GRADUATED in framework-slim P3. PRE-CONVERGENCE D' endpoint, measured while @comvi/core/slim was a separate base-host entry: svelte on a bare @comvi/core/slim host — the configuration that CRASHED before this wave, because useI18n() eagerly .bind()-ed four absent capability members. S = fw-svelte-root(10012) - 7045 = 2967 B >= the 2500 floor, so P3 proceeds. Sentinels assert exactly two modules absent from the module graph — comvi-core-tags.js and chunks/comvi-core-register-tags.js, core's tag-registration pair; the base root is not one of them and IS in this graph, since the fixture imports createI18n from @comvi/core; svelte-package already emitted T.svelte as its own module, so no chunk split was needed here — only the retarget and the eager-bind relocation. Budget = measured + 2%. Numbers above are quoted as measured at the graduation gate; after the framework-slim core golf pass both endpoints moved and S still clears the floor: fw-svelte-root(9949) - 6972 = 2977 B. CURRENT converged graph (7 modules): comvi-core.js plus core's i18n/translate chunks and svelte's context/index/stores/useI18n modules."
+      "note": "P3 default svelte floor: one @comvi/svelte specifier, base createI18n + bindings, no capability and no tags. RETARGETS fw-svelte-slim-preset (whose specifier was the retired @comvi/svelte/slim, last measured 6319 B min+gz / 17508 B min on 2026-08-03) and absorbs fw-svelte-slim (the same graph reached through two specifiers, 6317 B / 17507 B at that sweep), whose app reached into @comvi/core for the constructor the root now carries. Six sentinels prove the tag pair and the four unused capability subpath entries are absent; comvi-core.js is present by construction, since the root's createI18n re-export is what this app builds with — that is why it is not among them. Measured 6412 B min+gz / 17769 B min; byte budget = measured + 2% (6541 B). Both pre-convergence anchors PRE-DATE the core cutover, so neither is the converged number; they are the before-side of the delta that sweep records."
     },
     {
-      "name": "fw-svelte-slim-t",
-      "entry": ["@comvi/svelte", "@comvi/core"],
-      "fixture": "framework/svelte-slim-t.ts",
+      "name": "fw-svelte-default-t",
+      "entry": ["@comvi/svelte"],
+      "fixture": "framework/svelte-default-t.ts",
       "external": ["svelte", "svelte/*"],
-      "gzipBudgetBytes": 8791,
-      "baseline": {
-        "minBytes": 23874,
-        "gzipBytes": 8637,
-        "measuredAt": "2026-08-03"
-      },
-      "note": "GRADUATED in framework-slim P3: svelte on bare slim that also renders <T>, i.e. the slim+tags rung. +2210 B over fw-svelte-slim — T.svelte's compiled output plus @comvi/core/tags. This row declares NO sentinel of its own: the tags chunks are EXPECTED here — they are what the fixture buys — and core's base entry is present by construction, because `createI18n` is its export. Compare the no-<T> sibling, whose two sentinels name the tag-registration pair and nothing else. Budget = measured + 2%."
-    },
-    {
-      "name": "fw-svelte-slim-preset",
-      "entry": ["@comvi/svelte/slim"],
-      "fixture": "framework/svelte-slim-preset.ts",
-      "external": ["svelte", "svelte/*"],
+      "gzipBudgetBytes": 8776,
       "sentinelModules": [
         "packages/core/dist/comvi-core-tags.js",
         "packages/core/dist/chunks/comvi-core-register-tags.js",
@@ -397,94 +427,99 @@
         "packages/core/dist/comvi-core-devtools.js"
       ],
       "expectSentinels": "absent",
-      "gzipBudgetBytes": 6436,
       "baseline": {
-        "minBytes": 17508,
-        "gzipBytes": 6319,
-        "measuredAt": "2026-08-03",
+        "minBytes": 23811,
+        "gzipBytes": 8603,
+        "measuredAt": "2026-08-02",
         "modules": [
-          "packages/core/dist/chunks/comvi-core-format-C5TnXRjc.js",
-          "packages/core/dist/chunks/comvi-core-i18n-rimLldok.js",
-          "packages/core/dist/chunks/comvi-core-translate-CGaih8RO.js",
-          "packages/core/dist/comvi-core-slim.js",
+          "packages/core/dist/chunks/comvi-core-i18n-BN5l5gwJ.js",
+          "packages/core/dist/chunks/comvi-core-tag-syntax-BfZSMaA0.js",
+          "packages/core/dist/chunks/comvi-core-translate-BgO4T2rq.js",
+          "packages/core/dist/chunks/comvi-core-virtualNode-CPPye3ka.js",
+          "packages/core/dist/comvi-core-rich-text.js",
+          "packages/core/dist/comvi-core.js",
+          "packages/svelte/dist/T.svelte",
           "packages/svelte/dist/context.js",
-          "packages/svelte/dist/slim.js",
+          "packages/svelte/dist/index.js",
           "packages/svelte/dist/stores.js",
           "packages/svelte/dist/useI18n.js"
         ]
       },
-      "note": "framework-slim DX pass: the SINGLE-PACKAGE quickstart — createI18n + bindings from @comvi/svelte/slim only, @comvi/core never named BY THE APP — the entry re-exports core's own createI18n, so comvi-core.js, the base root, is in the graph. Sentinels assert six modules absent: the tag-registration pair (comvi-core-tags.js and chunks/comvi-core-register-tags.js) and all four re-exported capability subpath entries (comvi-core-icu.js, comvi-core-loader.js, comvi-core-plugins.js and comvi-core-devtools.js). The base root is not among them and cannot be: it is what createI18n resolves to. Compare with fw-svelte-slim. framework-slim DX-2: the `.with(installer)` pipe adds ~8 B here (all of it core's); the four capability re-exports — now six, with the `loader()` / `plugins()` / `devtools()` installers — stay sentinel-asserted ABSENT."
+      "note": "P3 default + <T> rung. RETARGETS fw-svelte-slim-t (8637 B min+gz / 23874 B min on 2026-08-03) and replaces the deleted fw-svelte-root-t (11213 B), which measured a byte-identical body through the two-package specifier pair — the -t axis is one row now instead of two. The delta against fw-svelte-default is the whole <T> path: dist/T.svelte's compiled output plus the PURE @comvi/core/rich-text entry and the tag grammar it passes per call. svelte-package preserves modules, so T.svelte is its own dist module and still tree-shakes cleanly out of the no-<T> graph. Unlike its pre-convergence predecessor this row DOES declare the tag-registration sentinels: <T> no longer imports @comvi/core/tags, so rendering rich text buys the grammar without the ambient registry. All six sentinels are the same set as the default row. Measured 8603 B min+gz / 23811 B min; byte budget = measured + 2% (8776 B). Neither anchor is like-for-like here, because the graph changed as well as the specifier."
     },
     {
-      "name": "fw-vue-root",
-      "entry": ["@comvi/vue"],
-      "fixture": "framework/vue-root.ts",
-      "external": ["vue"],
-      "gzipBudgetBytes": 10554,
+      "name": "fw-svelte-icu",
+      "entry": ["@comvi/svelte"],
+      "fixture": "framework/svelte-icu.ts",
+      "external": ["svelte", "svelte/*"],
+      "gzipBudgetBytes": 7444,
+      "sentinelModules": [
+        "packages/core/dist/comvi-core-tags.js",
+        "packages/core/dist/chunks/comvi-core-register-tags.js",
+        "packages/core/dist/comvi-core-loader.js",
+        "packages/core/dist/comvi-core-plugins.js",
+        "packages/core/dist/comvi-core-devtools.js"
+      ],
+      "expectSentinels": "absent",
       "baseline": {
-        "minBytes": 31034,
-        "gzipBytes": 10363,
-        "measuredAt": "2026-08-03"
+        "minBytes": 20077,
+        "gzipBytes": 7298,
+        "measuredAt": "2026-08-02",
+        "modules": [
+          "packages/core/dist/chunks/comvi-core-i18n-BN5l5gwJ.js",
+          "packages/core/dist/chunks/comvi-core-translate-BgO4T2rq.js",
+          "packages/core/dist/comvi-core-icu.js",
+          "packages/core/dist/comvi-core.js",
+          "packages/svelte/dist/context.js",
+          "packages/svelte/dist/index.js",
+          "packages/svelte/dist/stores.js",
+          "packages/svelte/dist/useI18n.js"
+        ]
       },
-      "note": "Root baseline; the \"before\" anchor for S at the P4 vue gate, RE-MEASURED in P4 (was 11935). The app shape is vue's own createI18n, which builds its host on core's root entry internally — the BASE host since the convergence — so the fixture needs no @comvi/core import of its own. HISTORICAL, framework-slim P4: that pass made this graph 1261 B smaller with no app change, because @comvi/vue stopped INLINING verbatim copies of core's tags+translate chunks (fs-p1 blocker B3 — vite.config.ts externalizes every @comvi/core specifier; the pre-convergence list named @comvi/core/slim and @comvi/core/tags) and <T> moved into its own dist chunk. So an app that never renders <T> drops the component AND the tag machinery: the base entry brings no ambient registration, and this package's only @comvi/core/tags import lives in the <T> chunk. RE-MEASURED in P6: removing VueI18n's guarded `use()` proxy (the last typed-present-may-throw member, plan §2.4) took the wrapper graph down again — see the fixture's baseline for the current value. Budget = measured + 2%."
+      "note": "P3 inline-ICU rung, NEW — the svelte twin of fw-react-icu. `compiler: icuCompiler` comes from @comvi/svelte, so opting into one capability never means reaching past the framework package. Five sentinels prove ambient tags, loader, plugins and devtools absent; the ICU entry is deliberately NOT among them because it is what the row buys, and its PRESENCE is proved positively by the `svelte-icu` bundler-matrix case, which formats a real plural from the built bundle in both bundlers and both modes. Measured 7298 B min+gz / 20077 B min; byte budget = measured + 2% (7444 B). No svelte row measured this shape before, so it has no predecessor anchor; react's equivalent rung measured +887 B over its default."
     },
     {
-      "name": "fw-vue-root-t",
-      "entry": ["@comvi/vue"],
-      "fixture": "framework/vue-root-t.ts",
-      "external": ["vue"],
-      "gzipBudgetBytes": 11588,
-      "baseline": {
-        "minBytes": 33916,
-        "gzipBytes": 11377,
-        "measuredAt": "2026-08-03"
-      },
-      "note": "Root baseline, RE-MEASURED in P4 (was 11944). The <T> axis is no longer degenerate: +1031 B over fw-vue-root, where P0 measured +9 B because `var T = defineComponent({...})` was an unannotated top-level call in a single-file dist. P4 pinned <T> into dist/chunks/comvi-vue-T.js and marked the call /*@__PURE__*/. RE-MEASURED in P6: removing VueI18n's guarded `use()` proxy (the last typed-present-may-throw member, plan §2.4) took the wrapper graph down again — see the fixture's baseline for the current value. Budget = measured + 2%."
-    },
-    {
-      "name": "fw-vue-slim",
-      "entry": ["@comvi/vue", "@comvi/core"],
-      "fixture": "framework/vue-slim.ts",
-      "external": ["vue"],
-      "gzipBudgetBytes": 6994,
+      "name": "fw-svelte-full-composite",
+      "entry": ["@comvi/svelte"],
+      "fixture": "framework/svelte-full-composite.ts",
+      "external": ["svelte", "svelte/*"],
+      "gzipBudgetBytes": 11492,
       "sentinelModules": [
         "packages/core/dist/comvi-core-tags.js",
         "packages/core/dist/chunks/comvi-core-register-tags.js"
       ],
       "expectSentinels": "absent",
       "baseline": {
-        "minBytes": 20740,
-        "gzipBytes": 6875,
-        "measuredAt": "2026-08-03",
+        "minBytes": 31761,
+        "gzipBytes": 11266,
+        "measuredAt": "2026-08-02",
         "modules": [
-          "packages/core/dist/chunks/comvi-core-format-C5TnXRjc.js",
-          "packages/core/dist/chunks/comvi-core-i18n-rimLldok.js",
-          "packages/core/dist/chunks/comvi-core-translate-CGaih8RO.js",
-          "packages/core/dist/comvi-core-slim.js",
-          "packages/vue/dist/chunks/comvi-vue-slim-keys.js",
-          "packages/vue/dist/comvi-vue-slim.js"
+          "packages/core/dist/chunks/comvi-core-i18n-BN5l5gwJ.js",
+          "packages/core/dist/chunks/comvi-core-tag-syntax-BfZSMaA0.js",
+          "packages/core/dist/chunks/comvi-core-translate-BgO4T2rq.js",
+          "packages/core/dist/chunks/comvi-core-utils-DWkssqKA.js",
+          "packages/core/dist/chunks/comvi-core-virtualNode-CPPye3ka.js",
+          "packages/core/dist/comvi-core-devtools.js",
+          "packages/core/dist/comvi-core-icu.js",
+          "packages/core/dist/comvi-core-loader.js",
+          "packages/core/dist/comvi-core-plugins.js",
+          "packages/core/dist/comvi-core-rich-text.js",
+          "packages/core/dist/comvi-core.js",
+          "packages/svelte/dist/T.svelte",
+          "packages/svelte/dist/context.js",
+          "packages/svelte/dist/index.js",
+          "packages/svelte/dist/stores.js",
+          "packages/svelte/dist/useI18n.js"
         ]
       },
-      "note": "GRADUATED in framework-slim P4. PRE-CONVERGENCE D' endpoint, measured while @comvi/core/slim was a separate base-host entry: vue on a bare @comvi/core/slim host through createI18nFromCore. S = fw-vue-root(10535) - 7599 = 2936 B >= the 2500 floor, so P4 proceeds (plan §4 Phase 2 protocol). The sentinels are also measured through the @comvi/vue/slim subpath P4-AB1 shipped, because webpack development retained the whole batteries-included root through index.ts's `export * from \"@comvi/core\"` — a star re-export it cannot prune. What the sentinels pin is exactly two modules: comvi-core-tags.js and chunks/comvi-core-register-tags.js, core's tag-registration pair. The base root is not one of them and IS in this graph, since the fixture imports createI18n from @comvi/core. RE-MEASURED in P6: removing VueI18n's guarded `use()` proxy (the last typed-present-may-throw member, plan §2.4) took the wrapper graph down again — see the fixture's baseline for the current value. Budget = measured + 2%. Numbers above are quoted as measured at the graduation gate; after the framework-slim core golf pass both endpoints moved and S still clears the floor: fw-vue-root(10473) - 7525 = 2948 B. CURRENT converged graph (5 modules): comvi-core.js plus core's i18n/translate chunks, comvi-vue-slim.js and its keys chunk."
+      "note": "P3 full explicit svelte capability composition + <T>: ICU, loader, plugins and devtools are retained through one @comvi/svelte specifier, while <T> reaches the pure rich-text seam. RE-ANCHORED from fw-svelte-root (9836 B min+gz / 27819 B min on 2026-08-03) and its -t sibling (11213 B), which measured the 0.4 batteries-included era — a graph an app reached through two specifiers, whose tag chunks were alive whatever <T> did. This row is NOT behaviour-identical to it, because 0.4 also registered string-API tags ambiently and convergence makes that an explicit @comvi/core/tags import; the tag-registration pair is therefore the one thing this row asserts absent. Composition order is core-full-composite's parity order: loader + plugin host FIRST so the nested-catalog flattener is present at ingestion, devtools LAST so instanceId stays the final public own property, ICU as the constructor option because the catalog is ingested by addTranslations after construction. Measured 11266 B min+gz / 31761 B min; byte budget = measured + 2% (11492 B)."
     },
     {
-      "name": "fw-vue-slim-t",
-      "entry": ["@comvi/vue", "@comvi/core"],
-      "fixture": "framework/vue-slim-t.ts",
+      "name": "fw-vue-default",
+      "entry": ["@comvi/vue"],
+      "fixture": "framework/vue-default.ts",
       "external": ["vue"],
-      "gzipBudgetBytes": 9012,
-      "baseline": {
-        "minBytes": 26231,
-        "gzipBytes": 8847,
-        "measuredAt": "2026-08-03"
-      },
-      "note": "GRADUATED in framework-slim P4: vue on bare slim that also renders <T>, i.e. the slim+tags rung. +1874 B over fw-vue-slim — <T> plus @comvi/core/tags, now that both are opt-in. This row declares NO sentinel of its own: the tags chunks are EXPECTED here — they are what the fixture buys — and core's base entry is present by construction, because `createI18n` is its export. Compare the no-<T> sibling, whose two sentinels name the tag-registration pair and nothing else. RE-MEASURED in P6: removing VueI18n's guarded `use()` proxy (the last typed-present-may-throw member, plan §2.4) took the wrapper graph down again — see the fixture's baseline for the current value. Budget = measured + 2%."
-    },
-    {
-      "name": "fw-vue-slim-preset",
-      "entry": ["@comvi/vue/slim"],
-      "fixture": "framework/vue-slim-preset.ts",
-      "external": ["vue"],
+      "gzipBudgetBytes": 7106,
       "sentinelModules": [
         "packages/core/dist/comvi-core-tags.js",
         "packages/core/dist/chunks/comvi-core-register-tags.js",
@@ -494,21 +529,122 @@
         "packages/core/dist/comvi-core-devtools.js"
       ],
       "expectSentinels": "absent",
-      "gzipBudgetBytes": 7010,
       "baseline": {
-        "minBytes": 20767,
-        "gzipBytes": 6880,
-        "measuredAt": "2026-08-03",
+        "minBytes": 21010,
+        "gzipBytes": 6966,
+        "measuredAt": "2026-08-02",
         "modules": [
-          "packages/core/dist/chunks/comvi-core-format-C5TnXRjc.js",
-          "packages/core/dist/chunks/comvi-core-i18n-rimLldok.js",
-          "packages/core/dist/chunks/comvi-core-translate-CGaih8RO.js",
-          "packages/core/dist/comvi-core-slim.js",
-          "packages/vue/dist/chunks/comvi-vue-slim-keys.js",
-          "packages/vue/dist/comvi-vue-slim.js"
+          "packages/core/dist/chunks/comvi-core-i18n-BN5l5gwJ.js",
+          "packages/core/dist/chunks/comvi-core-translate-BgO4T2rq.js",
+          "packages/core/dist/comvi-core.js",
+          "packages/vue/dist/chunks/comvi-vue-keys.js",
+          "packages/vue/dist/comvi-vue.js"
         ]
       },
-      "note": "framework-slim DX pass: the SINGLE-PACKAGE quickstart — one-call createI18n + bindings from @comvi/vue/slim only, @comvi/core never named BY THE APP — the entry re-exports core's own constructor, so comvi-core.js, the base root, is in the graph. Vue's preset is a real function (it constructs a VueI18n around a core-slim host), so this row carries the wave's only preset glue. Sentinels assert six modules absent: the tag-registration pair (comvi-core-tags.js and chunks/comvi-core-register-tags.js) and all four re-exported capability subpath entries (comvi-core-icu.js, comvi-core-loader.js, comvi-core-plugins.js and comvi-core-devtools.js). The base root is not among them and cannot be: it is what the preset constructs on. Compare with fw-vue-slim, which reaches the same wrapper graph through createI18nFromCore. framework-slim DX-2: the `.with(installer)` pipe adds ~8 B here (all of it core's); the four capability re-exports — now six, with the `loader()` / `plugins()` / `devtools()` installers — stay sentinel-asserted ABSENT."
+      "note": "P3 default vue floor: one @comvi/vue specifier, the one-call VueI18n preset + bindings, no capability and no tags. RETARGETS fw-vue-slim-preset (whose specifier was the retired @comvi/vue/slim, pre-convergence anchor 6880 B min+gz). Vue is the wrapper whose default is NOT core's bare constructor — it carries the wave's only real preset glue — which is why fw-vue-default-composed sits beside it to keep that glue measured rather than claimed. Six sentinels prove the tag pair and the four unused capability subpath entries are absent; comvi-core.js is present by construction, since the preset builds on core's base host. Measured 6966 B min+gz / 21010 B min; byte budget = measured + 2% (7106 B)."
+    },
+    {
+      "name": "fw-vue-default-composed",
+      "entry": ["@comvi/vue"],
+      "fixture": "framework/vue-default-composed.ts",
+      "external": ["vue"],
+      "note": "INFORMATIONAL, by design: measured and printed, never gated. The injected-host path — createCore + createI18nFromCore — retargeted from fw-vue-slim. Read against fw-vue-default the delta IS vue's preset glue, and this row exists so that number stays measured rather than claimed (pre-convergence it was 5 B: 6880 against 6875). It declares no sentinels because it is a comparison row, not an absence claim; the absences for this shape are gated on its fw-vue-default sibling."
+    },
+    {
+      "name": "fw-vue-default-t",
+      "entry": ["@comvi/vue"],
+      "fixture": "framework/vue-default-t.ts",
+      "external": ["vue"],
+      "gzipBudgetBytes": 8989,
+      "sentinelModules": [
+        "packages/core/dist/comvi-core-tags.js",
+        "packages/core/dist/chunks/comvi-core-register-tags.js",
+        "packages/core/dist/comvi-core-icu.js",
+        "packages/core/dist/comvi-core-loader.js",
+        "packages/core/dist/comvi-core-plugins.js",
+        "packages/core/dist/comvi-core-devtools.js"
+      ],
+      "expectSentinels": "absent",
+      "baseline": {
+        "minBytes": 26177,
+        "gzipBytes": 8812,
+        "measuredAt": "2026-08-02",
+        "modules": [
+          "packages/core/dist/chunks/comvi-core-i18n-BN5l5gwJ.js",
+          "packages/core/dist/chunks/comvi-core-tag-syntax-BfZSMaA0.js",
+          "packages/core/dist/chunks/comvi-core-translate-BgO4T2rq.js",
+          "packages/core/dist/chunks/comvi-core-virtualNode-CPPye3ka.js",
+          "packages/core/dist/comvi-core-rich-text.js",
+          "packages/core/dist/comvi-core.js",
+          "packages/vue/dist/chunks/comvi-vue-T.js",
+          "packages/vue/dist/chunks/comvi-vue-keys.js",
+          "packages/vue/dist/comvi-vue.js"
+        ]
+      },
+      "note": "P3 default + <T> rung. RETARGETS fw-vue-slim-t (pre-convergence anchor 8847 B min+gz) and collapses the deleted fw-vue-root-t — the -t axis is one row now instead of two. NOTE THE GRAPH CHANGE: vue's <T> now imports the PURE @comvi/core/rich-text seam, so unlike the old row this one CAN assert the tag-registration pair absent — rendering rich text buys the grammar without the ambient registry. All six sentinels are the same set as the default row. Measured 8812 B min+gz / 26177 B min; byte budget = measured + 2% (8989 B)."
+    },
+    {
+      "name": "fw-vue-icu",
+      "entry": ["@comvi/vue"],
+      "fixture": "framework/vue-icu.ts",
+      "external": ["vue"],
+      "gzipBudgetBytes": 8005,
+      "sentinelModules": [
+        "packages/core/dist/comvi-core-tags.js",
+        "packages/core/dist/chunks/comvi-core-register-tags.js",
+        "packages/core/dist/comvi-core-loader.js",
+        "packages/core/dist/comvi-core-plugins.js",
+        "packages/core/dist/comvi-core-devtools.js"
+      ],
+      "expectSentinels": "absent",
+      "baseline": {
+        "minBytes": 23316,
+        "gzipBytes": 7848,
+        "measuredAt": "2026-08-02",
+        "modules": [
+          "packages/core/dist/chunks/comvi-core-i18n-BN5l5gwJ.js",
+          "packages/core/dist/chunks/comvi-core-translate-BgO4T2rq.js",
+          "packages/core/dist/comvi-core-icu.js",
+          "packages/core/dist/comvi-core.js",
+          "packages/vue/dist/chunks/comvi-vue-keys.js",
+          "packages/vue/dist/comvi-vue.js"
+        ]
+      },
+      "note": "P3 inline-ICU rung, NEW — the vue twin of fw-react-icu. `compiler: icuCompiler` comes from @comvi/vue, so opting into one capability never means reaching past the framework package. Five sentinels prove ambient tags, loader, plugins and devtools absent; the ICU entry is deliberately NOT among them because it is what the row buys, and its PRESENCE is proved positively by the `vue-icu` bundler-matrix case. Measured 7848 B min+gz / 23316 B min; byte budget = measured + 2% (8005 B). No vue row measured this shape before, so it has no predecessor anchor."
+    },
+    {
+      "name": "fw-vue-full-composite",
+      "entry": ["@comvi/vue"],
+      "fixture": "framework/vue-full-composite.ts",
+      "external": ["vue"],
+      "gzipBudgetBytes": 11664,
+      "sentinelModules": [
+        "packages/core/dist/comvi-core-tags.js",
+        "packages/core/dist/chunks/comvi-core-register-tags.js"
+      ],
+      "expectSentinels": "absent",
+      "baseline": {
+        "minBytes": 34118,
+        "gzipBytes": 11435,
+        "measuredAt": "2026-08-02",
+        "modules": [
+          "packages/core/dist/chunks/comvi-core-i18n-BN5l5gwJ.js",
+          "packages/core/dist/chunks/comvi-core-tag-syntax-BfZSMaA0.js",
+          "packages/core/dist/chunks/comvi-core-translate-BgO4T2rq.js",
+          "packages/core/dist/chunks/comvi-core-utils-DWkssqKA.js",
+          "packages/core/dist/chunks/comvi-core-virtualNode-CPPye3ka.js",
+          "packages/core/dist/comvi-core-devtools.js",
+          "packages/core/dist/comvi-core-icu.js",
+          "packages/core/dist/comvi-core-loader.js",
+          "packages/core/dist/comvi-core-plugins.js",
+          "packages/core/dist/comvi-core-rich-text.js",
+          "packages/core/dist/comvi-core.js",
+          "packages/vue/dist/chunks/comvi-vue-T.js",
+          "packages/vue/dist/chunks/comvi-vue-keys.js",
+          "packages/vue/dist/comvi-vue.js"
+        ]
+      },
+      "note": "P3 full explicit vue capability composition + <T>: ICU, loader, plugins and devtools are retained through one @comvi/vue specifier, while <T> reaches the pure rich-text seam. RE-ANCHORED from fw-vue-root (10363 B min+gz) and fw-vue-root-t (11377 B), which measured the 0.4 batteries-included era. This row is NOT behaviour-identical to those, because 0.4 also registered string-API tags ambiently and convergence makes that an explicit @comvi/core/tags import; the tag-registration pair is therefore the one thing this row asserts absent. Composition order is core-full-composite's parity order: loader + plugin host FIRST, devtools LAST, ICU as the constructor option. Measured 11435 B min+gz / 34118 B min; byte budget = measured + 2% (11664 B)."
     },
     {
       "name": "fw-next-composed-factory",
@@ -517,16 +653,16 @@
       "external": ["next", "next/*", "react", "react/*"],
       "gzipBudgetBytes": 10128,
       "baseline": {
-        "minBytes": 28056,
-        "gzipBytes": 10115,
-        "measuredAt": "2026-08-03"
+        "minBytes": 28147,
+        "gzipBytes": 10120,
+        "measuredAt": "2026-08-02"
       },
-      "note": "RE-ANCHORED at single-entry P1. Renamed from `fw-next-root`: the PUBLISHED root's composed semantics are preserved by `packages/next/src/composedHost.ts`, a non-exported builder over the converged base core, so this row measures the builder rather than an inherited batteries-included core. OBSERVED 10115 B min+gz (28056 B min) against the 10128 B budget the pre-convergence row set, so 13 B of current headroom. (Dx2 baseline was 9948/27564: +68 B is Δbase reaching this graph and ~+100 B is the builder.) The budget rule stays measured + 2% at the next re-baseline; P1 deliberately did NOT widen it."
+      "note": "RE-ANCHORED at single-entry P1. Renamed from `fw-next-root`: the published root's composed semantics are preserved by packages/next/src/composedHost.ts, a non-exported builder over converged base core. CURRENT LANDED RUN: 10120 B min+gz / 28147 B min against the unchanged 10128 B pre-convergence budget, leaving 8 B headroom. P2's pure rich-text/ambient-registration chunk split moved gzip 10115 -> 10120 with no minified-payload or behavior change; the published Next root still composes ambient tags explicitly. The DX-2 anchor was 9948 B / 27564 B; P1 deliberately did not widen the gate."
     },
     {
-      "name": "fw-next-server-slim-loader",
+      "name": "fw-next-server-default-loader",
       "entry": ["@comvi/next/server"],
-      "fixture": "framework/next-server-slim-loader.ts",
+      "fixture": "framework/next-server-default-loader.ts",
       "external": ["next", "next/*", "react", "react/*"],
       "gzipBudgetBytes": 7362,
       "sentinelModules": [
@@ -539,15 +675,15 @@
       ],
       "expectSentinels": "absent",
       "baseline": {
-        "minBytes": 19518,
-        "gzipBytes": 7219,
-        "measuredAt": "2026-08-03",
+        "minBytes": 19530,
+        "gzipBytes": 7218,
+        "measuredAt": "2026-08-02",
         "modules": [
-          "packages/core/dist/chunks/comvi-core-format-C5TnXRjc.js",
-          "packages/core/dist/chunks/comvi-core-i18n-rimLldok.js",
-          "packages/core/dist/chunks/comvi-core-importMapLoader-DNfbr0VU.js",
-          "packages/core/dist/chunks/comvi-core-translate-CGaih8RO.js",
-          "packages/core/dist/comvi-core-slim.js",
+          "packages/core/dist/chunks/comvi-core-i18n-BN5l5gwJ.js",
+          "packages/core/dist/chunks/comvi-core-translate-BgO4T2rq.js",
+          "packages/core/dist/chunks/comvi-core-utils-DWkssqKA.js",
+          "packages/core/dist/comvi-core-loader.js",
+          "packages/core/dist/comvi-core.js",
           "packages/next/dist/nextI18nRouting.js",
           "packages/next/dist/routing/defineRouting.js",
           "packages/next/dist/server/cache.js",
@@ -559,14 +695,122 @@
           "packages/next/dist/server/setRequestLocale.js"
         ]
       },
-      "note": "RE-BASELINED in single-entry P1: Δbase reaching this graph took it from 7129 to 7218 B, 18 B over the pre-wave 7200 budget, so the row is re-anchored at measured + 2% under the unchanged convention. The recipe itself is untouched (still `.with(attachLoader)`, fs-dx2 §2.3); its `@comvi/core/slim` specifier collapsed onto the single root entry. P4 renames the row when the next server surface converges."
+      "note": "RENAMED in single-entry P4 from `fw-next-server-slim-loader`: the next server surface converged, so the recipe's constructor is the base `createI18n` re-exported by @comvi/next/server and the retired second name is gone. The RECIPE is otherwise untouched (still `.with(attachLoader)`, fs-dx2 §2.3), and importing the same binding under its other name cannot move the graph, so the P1 byte anchor (7219 B min+gz / 19518 B min, re-baselined at measured + 2% when Δbase took this graph from 7129 to 7218 B) carries the budget forward unchanged. Measured 7218 B min+gz / 19530 B min; byte budget = measured + 2% (7362 B). The landed module graph is recorded in baseline.modules."
     },
     {
-      "name": "fw-next-client-slim",
-      "entry": ["@comvi/next/client", "@comvi/core"],
-      "fixture": "framework/next-client-slim.ts",
+      "name": "fw-next-client-default",
+      "entry": ["@comvi/next/client"],
+      "fixture": "framework/next-client-default.ts",
       "external": ["next", "next/*", "react", "react/*"],
-      "gzipBudgetBytes": 7068,
+      "gzipBudgetBytes": 7095,
+      "sentinelModules": [
+        "packages/core/dist/comvi-core-tags.js",
+        "packages/core/dist/chunks/comvi-core-register-tags.js",
+        "packages/core/dist/comvi-core-icu.js",
+        "packages/core/dist/comvi-core-loader.js",
+        "packages/core/dist/comvi-core-plugins.js",
+        "packages/core/dist/comvi-core-devtools.js",
+        "packages/next/dist/server/createNextI18nFromHost.js",
+        "packages/next/dist/server/cache.js",
+        "packages/next/dist/server/loadTranslations.js"
+      ],
+      "expectSentinels": "absent",
+      "baseline": {
+        "minBytes": 19491,
+        "gzipBytes": 7057,
+        "measuredAt": "2026-08-02",
+        "modules": [
+          "packages/core/dist/chunks/comvi-core-i18n-BN5l5gwJ.js",
+          "packages/core/dist/chunks/comvi-core-translate-BgO4T2rq.js",
+          "packages/core/dist/chunks/comvi-core-virtualNode-CPPye3ka.js",
+          "packages/core/dist/comvi-core.js",
+          "packages/next/dist/client/I18nProvider.js",
+          "packages/next/dist/routing/context.js",
+          "packages/next/dist/routing/defineRouting.js",
+          "packages/react/dist/comvi-react.js"
+        ]
+      },
+      "note": "RENAMED in single-entry P4 from `fw-next-client-slim-preset`, and it ABSORBS the deleted `fw-next-client-slim` row: that row measured the identical graph by naming @comvi/core for its constructor, which this entry's `createI18n` now IS, so the two rows were one graph reached through two specifiers. The DEFAULT next client bundle: base host + provider + hook from @comvi/next/client only, @comvi/core never named by the app, hydrated via addTranslations. The P4 source change is which name the same base binding is imported under, so the DX-pass byte anchor (6964 B min+gz / 19229 B min) carries the budget forward unchanged. Measured 7057 B min+gz / 19491 B min; byte budget = measured + 2% (7095 B). The landed module graph is recorded in baseline.modules."
+    },
+    {
+      "name": "fw-next-client-default-t",
+      "entry": ["@comvi/next/client"],
+      "fixture": "framework/next-client-default-t.ts",
+      "external": ["next", "next/*", "react", "react/*"],
+      "gzipBudgetBytes": 9118,
+      "sentinelModules": [
+        "packages/core/dist/comvi-core-tags.js",
+        "packages/core/dist/chunks/comvi-core-register-tags.js",
+        "packages/core/dist/comvi-core-icu.js",
+        "packages/core/dist/comvi-core-loader.js",
+        "packages/core/dist/comvi-core-plugins.js",
+        "packages/core/dist/comvi-core-devtools.js",
+        "packages/next/dist/server/createNextI18nFromHost.js",
+        "packages/next/dist/server/cache.js",
+        "packages/next/dist/server/loadTranslations.js"
+      ],
+      "expectSentinels": "absent",
+      "baseline": {
+        "minBytes": 24740,
+        "gzipBytes": 8939,
+        "measuredAt": "2026-08-02",
+        "modules": [
+          "packages/core/dist/chunks/comvi-core-i18n-BN5l5gwJ.js",
+          "packages/core/dist/chunks/comvi-core-tag-syntax-BfZSMaA0.js",
+          "packages/core/dist/chunks/comvi-core-translate-BgO4T2rq.js",
+          "packages/core/dist/chunks/comvi-core-virtualNode-CPPye3ka.js",
+          "packages/core/dist/comvi-core-rich-text.js",
+          "packages/core/dist/comvi-core.js",
+          "packages/next/dist/client/I18nProvider.js",
+          "packages/next/dist/routing/context.js",
+          "packages/next/dist/routing/defineRouting.js",
+          "packages/react/dist/chunks/comvi-react-T.js",
+          "packages/react/dist/comvi-react.js"
+        ]
+      },
+      "note": "NEW row in single-entry P4: the default next client bundle that also renders <T>, the tags rung of next's client ladder (react's equivalent is `fw-react-default-t`, landed in P2). Measured 8939 B min+gz / 24740 B min; byte budget = measured + 2% (9118 B). <T> reaches the PURE @comvi/core/rich-text seam and passes tag grammar per call, which is why the ambient tag-registration pair stays in the sentinel list: rendering <T> must not make `i18n.t(\"<b>x</b>\")` parse."
+    },
+    {
+      "name": "fw-next-client-icu",
+      "entry": ["@comvi/next/client"],
+      "fixture": "framework/next-client-icu.ts",
+      "external": ["next", "next/*", "react", "react/*"],
+      "gzipBudgetBytes": 8095,
+      "sentinelModules": [
+        "packages/core/dist/comvi-core-tags.js",
+        "packages/core/dist/chunks/comvi-core-register-tags.js",
+        "packages/core/dist/comvi-core-loader.js",
+        "packages/core/dist/comvi-core-plugins.js",
+        "packages/core/dist/comvi-core-devtools.js",
+        "packages/next/dist/server/createNextI18nFromHost.js",
+        "packages/next/dist/server/cache.js",
+        "packages/next/dist/server/loadTranslations.js"
+      ],
+      "expectSentinels": "absent",
+      "baseline": {
+        "minBytes": 21791,
+        "gzipBytes": 7936,
+        "measuredAt": "2026-08-02",
+        "modules": [
+          "packages/core/dist/chunks/comvi-core-i18n-BN5l5gwJ.js",
+          "packages/core/dist/chunks/comvi-core-translate-BgO4T2rq.js",
+          "packages/core/dist/chunks/comvi-core-virtualNode-CPPye3ka.js",
+          "packages/core/dist/comvi-core-icu.js",
+          "packages/core/dist/comvi-core.js",
+          "packages/next/dist/client/I18nProvider.js",
+          "packages/next/dist/routing/context.js",
+          "packages/next/dist/routing/defineRouting.js",
+          "packages/react/dist/comvi-react.js"
+        ]
+      },
+      "note": "NEW row in single-entry P4, and the client half of P4's ICU acceptance gate: the default next client bundle plus EXACTLY ONE capability, `compiler: icuCompiler` from @comvi/next/client. Measured 7936 B min+gz / 21791 B min; byte budget = measured + 2% (8095 B). The ICU entry is deliberately NOT a sentinel: it is what the row buys. Its PRESENCE is proved positively by the `next-client-icu` bundler-matrix case, which runs the bundle and formats a plural in both bundlers and both modes, because a size sentinel can only assert absence."
+    },
+    {
+      "name": "fw-next-client-full-composite",
+      "entry": ["@comvi/next/client"],
+      "fixture": "framework/next-client-full-composite.ts",
+      "external": ["next", "next/*", "react", "react/*"],
+      "gzipBudgetBytes": 11812,
       "sentinelModules": [
         "packages/core/dist/comvi-core-tags.js",
         "packages/core/dist/chunks/comvi-core-register-tags.js",
@@ -576,28 +820,133 @@
       ],
       "expectSentinels": "absent",
       "baseline": {
-        "minBytes": 19227,
-        "gzipBytes": 6945,
-        "measuredAt": "2026-08-03",
+        "minBytes": 32687,
+        "gzipBytes": 11580,
+        "measuredAt": "2026-08-02",
         "modules": [
-          "packages/core/dist/chunks/comvi-core-format-C5TnXRjc.js",
-          "packages/core/dist/chunks/comvi-core-i18n-rimLldok.js",
-          "packages/core/dist/chunks/comvi-core-translate-CGaih8RO.js",
-          "packages/core/dist/chunks/comvi-core-virtualNode-BBlSOFkG.js",
-          "packages/core/dist/comvi-core-slim.js",
+          "packages/core/dist/chunks/comvi-core-i18n-BN5l5gwJ.js",
+          "packages/core/dist/chunks/comvi-core-tag-syntax-BfZSMaA0.js",
+          "packages/core/dist/chunks/comvi-core-translate-BgO4T2rq.js",
+          "packages/core/dist/chunks/comvi-core-utils-DWkssqKA.js",
+          "packages/core/dist/chunks/comvi-core-virtualNode-CPPye3ka.js",
+          "packages/core/dist/comvi-core-devtools.js",
+          "packages/core/dist/comvi-core-icu.js",
+          "packages/core/dist/comvi-core-loader.js",
+          "packages/core/dist/comvi-core-plugins.js",
+          "packages/core/dist/comvi-core-rich-text.js",
+          "packages/core/dist/comvi-core.js",
           "packages/next/dist/client/I18nProvider.js",
           "packages/next/dist/routing/context.js",
           "packages/next/dist/routing/defineRouting.js",
+          "packages/react/dist/chunks/comvi-react-T.js",
           "packages/react/dist/comvi-react.js"
         ]
       },
-      "note": "GRADUATED in framework-slim P5. The documented client recipe: a base host hydrated via addTranslations, on react's D' surface re-exported by @comvi/next/client. The graduation-gate framing named @comvi/core/slim, the separate base-host entry that existed PRE-CONVERGENCE; the fixture now imports createI18n from @comvi/core's root, so comvi-core.js is in this graph. Not S-gated — the client graph IS react's D' host, whose savings class P2 already gated. Five sentinels: core's tag-registration pair (comvi-core-tags.js and chunks/comvi-core-register-tags.js), plus the server/client boundary — neither the host module (createNextI18nFromHost), nor the once-cell (cache, and with it _resetServerI18n), nor next's loader code (loadTranslations) may reach a client bundle. The base root is not a sentinel: createSlimI18n and createI18n both resolve into it. Core's own loader code is asserted absent by the next-client-slim bundler-matrix case, which matches hashed chunk IDs by fragment. Budget = measured + 2%."
+      "note": "NEW row in single-entry P4: the UPPER BOUND of what @comvi/next/client can compose — ICU, loader, plugin host, devtools discovery and <T> on one host from one specifier, in the parity order core-full-composite pins (loader/plugins first so the nested-catalog flattener is present at ingestion, devtools last so instanceId stays the final public own property). Measured 11580 B min+gz / 32687 B min; byte budget = measured + 2% (11812 B). This row is the migration CEILING for a 0.4 next client app, not a behavior-parity claim: 0.4 also registered string-API tags ambiently, and convergence makes that an explicit @comvi/core/tags import which no next entry re-exports, so the tag-registration pair stays sentinel-asserted absent. The published @comvi/next root's parity is the separate `fw-next-composed-factory` row with its own behavioural suite."
     },
     {
-      "name": "fw-next-client-slim-preset",
-      "entry": ["@comvi/next/client"],
-      "fixture": "framework/next-client-slim-preset.ts",
-      "external": ["next", "next/*", "react", "react/*"],
+      "name": "fw-nuxt-full-composite",
+      "entry": [
+        "@comvi/nuxt/runtime/plugin.js",
+        "@comvi/nuxt/runtime/composables/useI18n.js",
+        "@comvi/nuxt/runtime/server/utils/loadTranslations.js",
+        "@comvi/vue",
+        "@comvi/core",
+        "@comvi/core/icu",
+        "@comvi/core/loader",
+        "@comvi/core/plugins",
+        "@comvi/core/devtools"
+      ],
+      "fixture": "framework/nuxt-full-composite.ts",
+      "external": ["#app", "#build/*", "#imports", "vue", "vue-router", "h3"],
+      "gzipBudgetBytes": 11881,
+      "sentinelModules": [
+        "packages/core/dist/comvi-core-tags.js",
+        "packages/core/dist/chunks/comvi-core-register-tags.js"
+      ],
+      "expectSentinels": "absent",
+      "baseline": {
+        "minBytes": 34543,
+        "gzipBytes": 11648,
+        "measuredAt": "2026-08-02",
+        "modules": [
+          "packages/core/dist/chunks/comvi-core-i18n-BN5l5gwJ.js",
+          "packages/core/dist/chunks/comvi-core-translate-BgO4T2rq.js",
+          "packages/core/dist/chunks/comvi-core-utils-DWkssqKA.js",
+          "packages/core/dist/comvi-core-devtools.js",
+          "packages/core/dist/comvi-core-editor-bridge.js",
+          "packages/core/dist/comvi-core-icu.js",
+          "packages/core/dist/comvi-core-loader.js",
+          "packages/core/dist/comvi-core-plugins.js",
+          "packages/core/dist/comvi-core.js",
+          "packages/nuxt/dist/runtime/composables/useI18n.js",
+          "packages/nuxt/dist/runtime/defaults.js",
+          "packages/nuxt/dist/runtime/plugin.js",
+          "packages/nuxt/dist/runtime/server/utils/loadTranslations.js",
+          "packages/nuxt/dist/runtime/server/utils/request-i18n.js",
+          "packages/nuxt/dist/runtime/server/utils/runtime-config.js",
+          "packages/nuxt/dist/runtime/utils/locale-state.js",
+          "packages/vue/dist/chunks/comvi-vue-keys.js",
+          "packages/vue/dist/comvi-vue.js"
+        ]
+      },
+      "note": "RENAMED and RE-ANCHORED in single-entry P4 from `fw-nuxt-root` (framework/nuxt-root.ts, 12156 B min+gz on 2026-08-03). The UPPER BOUND of a nuxt app's comvi graph: the same runtime plugin, useI18n composable and server translation loader as the other two nuxt rows, on a `hostModule` host that composed EVERY capability — ICU, loader, plugin host and devtools discovery. It is NOT the old row re-measured: `fw-nuxt-root` measured the pre-convergence DEFAULT branch, whose construction dragged a composed core in whether the app used it or not, and 0.4 also registered string-API tag syntax ambiently. This is the capability upper bound, not a restoration. Parity ordering inherited from core-full-composite: loader and plugin host first so the nested-catalog flattener is present at ingestion, devtools last so instanceId stays the final public own property, ICU by constructor option because .with(icu()) is pre-ingestion only. <T> is deliberately out of all three nuxt rows so their differences read as capability cost alone; the rich-text seam is measured on the vue ladder, whose component nuxt re-exports verbatim. The two sentinels keep core's tag-registration pair absent — ambient string-API tags are the deliberate explicit-import residual, not part of the capability upper bound. Measured 11648 B min+gz / 34543 B min; byte budget = measured + 2% (11881 B)."
+    },
+    {
+      "name": "fw-nuxt-server-default-loader",
+      "entry": [
+        "@comvi/nuxt/runtime/plugin.js",
+        "@comvi/nuxt/runtime/composables/useI18n.js",
+        "@comvi/nuxt/runtime/server/utils/loadTranslations.js",
+        "@comvi/vue",
+        "@comvi/core",
+        "@comvi/core/loader"
+      ],
+      "fixture": "framework/nuxt-server-default-loader.ts",
+      "external": ["#app", "#build/*", "#imports", "vue", "vue-router", "h3"],
+      "gzipBudgetBytes": 10218,
+      "sentinelModules": [
+        "packages/core/dist/comvi-core-tags.js",
+        "packages/core/dist/chunks/comvi-core-register-tags.js",
+        "packages/core/dist/comvi-core-icu.js",
+        "packages/core/dist/comvi-core-plugins.js",
+        "packages/core/dist/comvi-core-devtools.js"
+      ],
+      "expectSentinels": "absent",
+      "baseline": {
+        "minBytes": 29737,
+        "gzipBytes": 10017,
+        "measuredAt": "2026-08-02",
+        "modules": [
+          "packages/core/dist/chunks/comvi-core-i18n-BN5l5gwJ.js",
+          "packages/core/dist/chunks/comvi-core-translate-BgO4T2rq.js",
+          "packages/core/dist/chunks/comvi-core-utils-DWkssqKA.js",
+          "packages/core/dist/comvi-core-editor-bridge.js",
+          "packages/core/dist/comvi-core-loader.js",
+          "packages/core/dist/comvi-core.js",
+          "packages/nuxt/dist/runtime/composables/useI18n.js",
+          "packages/nuxt/dist/runtime/defaults.js",
+          "packages/nuxt/dist/runtime/plugin.js",
+          "packages/nuxt/dist/runtime/server/utils/loadTranslations.js",
+          "packages/nuxt/dist/runtime/server/utils/request-i18n.js",
+          "packages/nuxt/dist/runtime/server/utils/runtime-config.js",
+          "packages/nuxt/dist/runtime/utils/locale-state.js",
+          "packages/vue/dist/chunks/comvi-vue-keys.js",
+          "packages/vue/dist/comvi-vue.js"
+        ]
+      },
+      "note": "RENAMED in single-entry P4 from `fw-nuxt-server-slim-loader` (framework/nuxt-server-slim-loader.ts, 9585 B min+gz on 2026-08-03). The nuxt SERVER graph on a `hostModule` host that composed the ONE capability SSR needs: runtime plugin + useI18n composable + server translation loader + @comvi/core/loader. The recipe is unchanged in shape; the word that named it is gone, because there is no second host tier to be slim against. Two things did move the graph, which is why the old anchor is not inherited: the fixture switched from the low-level attachLoader to the configured `.with(loader())` installer the docs now recommend, and @comvi/vue/slim collapsed into @comvi/vue, so the baseline modules list re-anchors from comvi-vue-slim.js + chunks/comvi-vue-slim-keys.js to comvi-vue.js + chunks/comvi-vue-keys.js. Five sentinels prove ICU, the plugin host, devtools discovery and core's tag-registration pair are absent from the module graph; the loader subpath is present by construction. Read against fw-nuxt-client-default (same base host, no server utilities, no capability) and fw-nuxt-full-composite (same graph, every capability) — three rows, one construction seam. Measured 10017 B min+gz / 29737 B min; byte budget = measured + 2% (10218 B)."
+    },
+    {
+      "name": "fw-nuxt-client-default",
+      "entry": [
+        "@comvi/nuxt/runtime/plugin.js",
+        "@comvi/nuxt/runtime/composables/useI18n.js",
+        "@comvi/vue"
+      ],
+      "fixture": "framework/nuxt-client-default.ts",
+      "external": ["#app", "#build/*", "#imports", "vue", "vue-router", "h3"],
+      "gzipBudgetBytes": 8271,
       "sentinelModules": [
         "packages/core/dist/comvi-core-tags.js",
         "packages/core/dist/chunks/comvi-core-register-tags.js",
@@ -607,106 +956,79 @@
         "packages/core/dist/comvi-core-devtools.js"
       ],
       "expectSentinels": "absent",
-      "gzipBudgetBytes": 7095,
       "baseline": {
-        "minBytes": 19229,
-        "gzipBytes": 6964,
-        "measuredAt": "2026-08-03",
+        "minBytes": 24118,
+        "gzipBytes": 8108,
+        "measuredAt": "2026-08-02",
         "modules": [
-          "packages/core/dist/chunks/comvi-core-format-C5TnXRjc.js",
-          "packages/core/dist/chunks/comvi-core-i18n-rimLldok.js",
-          "packages/core/dist/chunks/comvi-core-translate-CGaih8RO.js",
-          "packages/core/dist/chunks/comvi-core-virtualNode-BBlSOFkG.js",
-          "packages/core/dist/comvi-core-slim.js",
-          "packages/next/dist/client/I18nProvider.js",
-          "packages/next/dist/routing/context.js",
-          "packages/next/dist/routing/defineRouting.js",
-          "packages/react/dist/comvi-react.js"
-        ]
-      },
-      "note": "framework-slim DX pass: the SINGLE-PACKAGE quickstart for a Next.js client bundle — createSlimI18n + provider + hook from @comvi/next/client only, @comvi/core never named by the app. @comvi/next/client is not a /slim entry: it exports the published 0.4.x name createI18n AND createSlimI18n side by side, and after the convergence both are the same base-host constructor re-exported from @comvi/core — so comvi-core.js is in the graph whichever name the app calls, and no sentinel excludes it. Sentinels assert six modules absent: the tag-registration pair (comvi-core-tags.js and chunks/comvi-core-register-tags.js) and all four re-exported capability subpath entries (comvi-core-icu.js, comvi-core-loader.js, comvi-core-plugins.js and comvi-core-devtools.js). Compare with fw-next-client-slim. framework-slim DX-2: the `.with(installer)` pipe adds ~8 B here (all of it core's); the four capability re-exports — now six, with the `loader()` / `plugins()` / `devtools()` installers — stay sentinel-asserted ABSENT."
-    },
-    {
-      "name": "fw-nuxt-root",
-      "entry": [
-        "@comvi/nuxt/runtime/plugin.js",
-        "@comvi/nuxt/runtime/composables/useI18n.js",
-        "@comvi/nuxt/runtime/server/utils/loadTranslations.js"
-      ],
-      "fixture": "framework/nuxt-root.ts",
-      "external": ["#app", "#build/*", "#imports", "vue", "vue-router", "h3"],
-      "gzipBudgetBytes": 12382,
-      "baseline": {
-        "minBytes": 36078,
-        "gzipBytes": 12156,
-        "measuredAt": "2026-08-03"
-      },
-      "note": "Root baseline: the nuxt RUNTIME graph on the DEFAULT branch (runtime plugin + useI18n composable + server translation loader + the root construction the generated #build/comvi.host template emits when `hostModule` is unset). RE-MEASURED and RESHAPED in P4 (was 13643 with a fixture that got its root core implicitly, through the plugin's own `createI18n` import). P4 moved construction into the build-time template, which is a nuxt virtual module and therefore external here, so the fixture now carries the template's two imports itself — otherwise it would measure a nuxt app with no i18n core at all. Comparison base for the P4 nuxt server-graph gate. RE-MEASURED in P6: removing VueI18n's guarded `use()` proxy (the last typed-present-may-throw member, plan §2.4) took the wrapper graph down again — see the fixture's baseline for the current value. Budget = measured + 2%."
-    },
-    {
-      "name": "fw-nuxt-server-slim-loader",
-      "entry": [
-        "@comvi/nuxt/runtime/plugin.js",
-        "@comvi/nuxt/runtime/composables/useI18n.js",
-        "@comvi/nuxt/runtime/server/utils/loadTranslations.js",
-        "@comvi/vue",
-        "@comvi/core",
-        "@comvi/core/loader"
-      ],
-      "fixture": "framework/nuxt-server-slim-loader.ts",
-      "external": ["#app", "#build/*", "#imports", "vue", "vue-router", "h3"],
-      "sentinelModules": [
-        "packages/core/dist/comvi-core-tags.js",
-        "packages/core/dist/chunks/comvi-core-register-tags.js"
-      ],
-      "expectSentinels": "absent",
-      "gzipBudgetBytes": 9759,
-      "baseline": {
-        "minBytes": 28666,
-        "gzipBytes": 9585,
-        "measuredAt": "2026-08-03",
-        "modules": [
-          "packages/core/dist/chunks/comvi-core-format-C5TnXRjc.js",
-          "packages/core/dist/chunks/comvi-core-i18n-rimLldok.js",
-          "packages/core/dist/chunks/comvi-core-importMapLoader-DNfbr0VU.js",
-          "packages/core/dist/chunks/comvi-core-translate-CGaih8RO.js",
+          "packages/core/dist/chunks/comvi-core-i18n-BN5l5gwJ.js",
+          "packages/core/dist/chunks/comvi-core-translate-BgO4T2rq.js",
           "packages/core/dist/comvi-core-editor-bridge.js",
-          "packages/core/dist/comvi-core-slim.js",
+          "packages/core/dist/comvi-core.js",
           "packages/nuxt/dist/runtime/composables/useI18n.js",
           "packages/nuxt/dist/runtime/defaults.js",
           "packages/nuxt/dist/runtime/plugin.js",
-          "packages/nuxt/dist/runtime/server/utils/loadTranslations.js",
-          "packages/nuxt/dist/runtime/server/utils/request-i18n.js",
-          "packages/nuxt/dist/runtime/server/utils/runtime-config.js",
           "packages/nuxt/dist/runtime/utils/locale-state.js",
-          "packages/vue/dist/chunks/comvi-vue-slim-keys.js",
-          "packages/vue/dist/comvi-vue-slim.js"
+          "packages/vue/dist/chunks/comvi-vue-keys.js",
+          "packages/vue/dist/comvi-vue.js"
         ]
       },
-      "note": "GRADUATED in framework-slim P4. The nuxt SERVER graph under the `hostModule` recipe: identical modules to fw-nuxt-root except the build-time construction branch, which is base host + attachLoader + createI18nFromCore instead of the default branch's two package roots (createI18n from @comvi/vue and createI18n from @comvi/core, as fw-nuxt-root's fixture names them). PRE-CONVERGENCE measurement: S = fw-nuxt-root(12317) - 10120 = 2197 B >= the 1353 loader-scaled floor, so P4 proceeds (plan §4 Phase 5 protocol). Sentinels assert exactly two modules absent from the module graph, not merely from the output text: comvi-core-tags.js and chunks/comvi-core-register-tags.js, core's tag-registration pair. The base root is in BOTH rows' graphs — comvi-core.js is what createI18n resolves to — so it is no sentinel here. RE-MEASURED in P6: removing VueI18n's guarded `use()` proxy (the last typed-present-may-throw member, plan §2.4) took the wrapper graph down again — see the fixture's baseline for the current value. Budget = measured + 2%. Numbers above are quoted as measured at the graduation gate; after the framework-slim core golf pass both endpoints moved and S still clears the floor: fw-nuxt-root(12254) - 10044 = 2210 B. CURRENT converged graph (15 modules): comvi-core.js, comvi-core-loader.js, comvi-core-editor-bridge.js, core's i18n/translate/utils chunks, nuxt's seven runtime modules and comvi-vue-slim.js with its keys chunk."
+      "note": "RENAMED and RESHAPED in single-entry P4 from `fw-nuxt-client-slim` (framework/nuxt-client-slim.ts, 8013 B min+gz on 2026-08-03). THE DEFAULT nuxt client: runtime plugin + useI18n composable on the base host the generated #build/comvi.host template builds when `hostModule` is unset. The old row measured a bare host reached through the hostModule branch; since the convergence the DEFAULT branch builds exactly that host, so one row states the price — and the fixture now names vue's converged root createI18n instead of the deleted @comvi/vue/slim, which is why the anchor is not inherited. No server loader and no loader capability: nuxt's SSR pass loads and serializes, the client hydrates through addTranslations, a base-host member. The @comvi/core entry left this row's `entry` list because createComviCore is unreachable from a client entry — vue's createI18n is what reaches core's class on this path. Six sentinels prove the four capability subpaths and core's tag-registration pair are absent from the module graph: the default nuxt host composes nothing and the module injects nothing on the app's behalf. Core's BASE entry is present by construction and is deliberately not a sentinel. Measured 8108 B min+gz / 24118 B min; byte budget = measured + 2% (8271 B)."
     },
     {
-      "name": "fw-nuxt-client-slim",
+      "name": "plugin-guards-baseline",
+      "entry": ["@comvi/core", "@comvi/core/plugins"],
+      "fixture": "plugin/guards-baseline.ts",
+      "note": "Informational BASELINE for the plugins-only misuse guards: the plugin host composed onto the base host with one plugin registered and NO reference to ensureInstallable. Paired with `plugin-guards`, the delta is the nested-use guard's whole cost. The RETURN-SHAPE guard is not separable — it is a branch inside _beforeInit, so it rides both rows and shows up as movement in this row's own number across the wave."
+    },
+    {
+      "name": "plugin-guards",
+      "entry": ["@comvi/core", "@comvi/core/plugins"],
+      "fixture": "plugin/guards.ts",
+      "note": "Informational: the smallest graph carrying the nested-use guard — a hand-written installer shaped exactly like the three lowercase plugin-package installers (ensureInstallable first, then the ensure-step, then route into use). Measured against `plugin-guards-baseline`, the delta is what `ensureInstallable` costs a plugin package. Deliberately measured on a hand-written installer so the number is the guard, not a plugin."
+    },
+    {
+      "name": "plugin-fetch-loader-use",
       "entry": [
-        "@comvi/nuxt/runtime/plugin.js",
-        "@comvi/nuxt/runtime/composables/useI18n.js",
-        "@comvi/vue",
-        "@comvi/core"
+        "@comvi/core",
+        "@comvi/core/loader",
+        "@comvi/core/plugins",
+        "@comvi/plugin-fetch-loader"
       ],
-      "fixture": "framework/nuxt-client-slim.ts",
-      "external": ["#app", "#build/*", "#imports", "vue", "vue-router", "h3"],
+      "fixture": "plugin/fetch-loader-use.ts",
+      "note": "Informational BASELINE: the uppercase FetchLoader plugin on a host the app composed by hand with attachLoader/attachPlugins — the recipe that predates the installer. The low-level attaches are deliberate: `loader()` would drag in the import-map adapter it names statically (+124 B on core-base-loader) and make the pair incomparable."
+    },
+    {
+      "name": "plugin-fetch-loader-with",
+      "entry": ["@comvi/core", "@comvi/plugin-fetch-loader"],
+      "fixture": "plugin/fetch-loader-with.ts",
+      "note": "Informational: the lowercase `.with(fetchLoader({…}))` one-call recipe. Measured against `plugin-fetch-loader-use` — same two capabilities, same uppercase plugin underneath — the delta is the installer function plus the nested-use guard it calls as its first ensure-step."
+    },
+    {
+      "name": "plugin-locale-detector-use",
+      "entry": ["@comvi/core", "@comvi/core/plugins", "@comvi/plugin-locale-detector"],
+      "fixture": "plugin/locale-detector-use.ts",
+      "note": "Informational BASELINE: the uppercase LocaleDetector plugin on a hand-composed plugin host. Only the plugin host is composed — the detector loads no catalog, so neither row in this pair carries the loader capability."
+    },
+    {
+      "name": "plugin-locale-detector-with",
+      "entry": ["@comvi/core", "@comvi/plugin-locale-detector"],
+      "fixture": "plugin/locale-detector-with.ts",
+      "note": "Informational: the lowercase `.with(localeDetector({…}))` one-call recipe. Measured against `plugin-locale-detector-use`, the delta is the installer function plus the nested-use guard."
+    },
+    {
+      "name": "plugin-editor-production-with",
+      "entry": ["@comvi/core", "@comvi/plugin-in-context-editor"],
+      "fixture": "plugin/editor-production-with.ts",
       "sentinelModules": [
-        "packages/core/dist/comvi-core-tags.js",
-        "packages/core/dist/chunks/comvi-core-register-tags.js"
+        "packages/plugin-in-context-editor/dist/index.es.js",
+        "packages/core/dist/comvi-core-devtools.js",
+        "packages/core/dist/comvi-core-plugins.js",
+        "packages/core/dist/comvi-core-loader.js",
+        "packages/core/dist/comvi-core-icu.js"
       ],
       "expectSentinels": "absent",
-      "gzipBudgetBytes": 8155,
-      "baseline": {
-        "minBytes": 23847,
-        "gzipBytes": 8013,
-        "measuredAt": "2026-08-03"
-      },
-      "note": "GRADUATED in framework-slim P4: the nuxt CLIENT graph under the `hostModule` recipe — plugin + composable on a bare-slim host, no server loader and no loader capability (the server loads and serializes; the client hydrates through addTranslations). Budgeted from measured but NOT S-gated: its savings class is the one vue's own gate proves (plan P4 checkpoint). RE-MEASURED in P6: removing VueI18n's guarded `use()` proxy (the last typed-present-may-throw member, plan §2.4) took the wrapper graph down again — see the fixture's baseline for the current value. Budget = measured + 2%."
+      "note": "`.with(inContextEditor())` under the package's `production` export condition, which is the condition this gate always applies. The row proves a NEGATIVE in bytes: under `production` the installer is `(host) => host`, importing neither @comvi/core/devtools nor @comvi/core/plugins, so five sentinels assert the editor's development entry AND all four capability subpaths stay out of the graph. The DEFAULT condition is not a byte row — the editor runtime dominates it and the gate cannot select a non-production condition per fixture; its behaviour is pinned by packages/plugin-in-context-editor/tests/installer.test.ts."
     }
   ]
 }

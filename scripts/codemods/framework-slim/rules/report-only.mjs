@@ -6,27 +6,18 @@
  * partial migration can never be mistaken for a clean one.
  */
 import { DROPPED_VUE_PROXIES, HOOK_NAMES, MEMBER_TO_HOOK, SOURCE_HOOK } from "./capabilities.mjs";
+import { localDeclarations } from "./imports.mjs";
 import { scopeOf } from "./scope.mjs";
 
 /** Bindings that would shadow the hooks this codemod introduces. */
 export function detectHookNameCollisions(root) {
   const findings = [];
   for (const hook of HOOK_NAMES) {
-    for (const node of root.findAll({ rule: { kind: "identifier", regex: `^${hook}$` } })) {
-      const parent = node.parent();
-      if (parent === null) continue;
-      const kind = parent.kind();
-      const declaresIt =
-        (kind === "variable_declarator" && parent.field("name")?.text() === hook) ||
-        (kind === "function_declaration" && parent.field("name")?.text() === hook) ||
-        (kind === "class_declaration" && parent.field("name")?.text() === hook) ||
-        kind === "required_parameter" ||
-        kind === "formal_parameters";
-      if (!declaresIt) continue;
+    for (const node of localDeclarations(root, hook)) {
       findings.push({
         offset: node.range().start.index,
         shape: "local-name-collision",
-        detail: `\`${hook}\` is already declared locally — the file is left untouched`,
+        detail: `\`${hook}\` is already declared locally — the destructures here are left alone`,
       });
     }
   }
@@ -43,14 +34,13 @@ export function detectHookNameCollisions(root) {
  * useI18n())` and `const i = useI18n(); i.t(...)` need no migration, and a
  * report that lists them is a report nobody reads.
  */
-export function detectEscapedHookResults(root) {
+export function detectEscapedHookResults(root, sourceHook = SOURCE_HOOK) {
   const findings = [];
   const capabilityMembers = [...MEMBER_TO_HOOK.keys()];
 
   for (const call of root.findAll({ rule: { kind: "call_expression" } })) {
     const callee = call.field("function");
-    if (callee === null || callee.kind() !== "identifier" || callee.text() !== SOURCE_HOOK)
-      continue;
+    if (callee === null || callee.kind() !== "identifier" || callee.text() !== sourceHook) continue;
 
     const parent = call.parent();
     if (parent === null) continue;
@@ -61,7 +51,7 @@ export function detectEscapedHookResults(root) {
         findings.push({
           offset: parent.range().start.index,
           shape: "property-access-on-hook-result",
-          detail: `\`${SOURCE_HOOK}().${property.text()}\` — read it from \`${MEMBER_TO_HOOK.get(property.text())}()\` instead`,
+          detail: `\`${sourceHook}().${property.text()}\` — read it from \`${MEMBER_TO_HOOK.get(property.text())}()\` instead`,
         });
       }
       continue;
@@ -93,7 +83,7 @@ export function detectEscapedHookResults(root) {
       findings.push({
         offset: parent.range().start.index,
         shape: crosses ? "hook-result-crosses-boundary" : "stored-hook-result",
-        detail: `\`${binding}\` holds the \`${SOURCE_HOOK}()\` result and ${used
+        detail: `\`${binding}\` holds the \`${sourceHook}()\` result and ${used
           .map((member) => `\`.${member}\``)
           .join(
             ", ",

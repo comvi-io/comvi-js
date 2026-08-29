@@ -3,10 +3,9 @@ import type { I18n } from "@comvi/core";
 import { createImportMapLoader, type I18nLoaderApi } from "@comvi/core/loader";
 
 // The host this hook DEMANDS: since the single-entry convergence `I18n` is the
-// base host, so a setup hook that registers a loader has to say that its host
-// carries the loader capability. The Nuxt module's generated host template
-// composes it (P4 flips the default template to the base host + explicit
-// composition); until then this annotation is what keeps the requirement
+// base host, a setup hook that registers a loader has to say that its host
+// carries the loader capability. `comvi.host.ts` composes it — the generated
+// default deliberately does not — and this annotation keeps that requirement
 // visible instead of failing at the first `registerLoader` call.
 type ComviSetupContext = {
   i18n: VueI18n<{}, I18n & I18nLoaderApi>;

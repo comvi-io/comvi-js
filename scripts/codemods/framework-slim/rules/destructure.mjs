@@ -100,7 +100,7 @@ function lineEnd(text, index) {
  *             rewrites: number,
  *             hooksUsed: string[] }}
  */
-export function planDestructures(root, text) {
+export function planDestructures(root, text, sourceHook = SOURCE_HOOK) {
   const edits = [];
   const manual = [];
   const hooksUsed = new Set();
@@ -135,14 +135,14 @@ export function planDestructures(root, text) {
 
   for (const declaration of declarations) {
     const declarators = declaration.children().filter((c) => c.kind() === "variable_declarator");
-    const usesSourceHook = declarators.some((d) => isHookCall(d.field("value"), SOURCE_HOOK));
+    const usesSourceHook = declarators.some((d) => isHookCall(d.field("value"), sourceHook));
     if (!usesSourceHook) continue;
 
     if (declarators.length !== 1) {
       manual.push({
         offset: declaration.range().start.index,
         shape: "unsupported-declaration",
-        detail: `\`${SOURCE_HOOK}()\` in a multi-declarator declaration — split it by hand first`,
+        detail: `\`${sourceHook}()\` in a multi-declarator declaration — split it by hand first`,
       });
       continue;
     }
@@ -165,7 +165,7 @@ export function planDestructures(root, text) {
         manual.push({
           offset: declaration.range().start.index,
           shape: "unsupported-destructure",
-          detail: `${blocker} in a \`${SOURCE_HOOK}()\` destructure`,
+          detail: `${blocker} in a \`${sourceHook}()\` destructure`,
         });
       }
       continue;
@@ -231,7 +231,7 @@ export function planDestructures(root, text) {
       const args = call.field("arguments");
       const typeArguments = call.field("type_arguments");
       statements.push(
-        `${keyword} { ${kept.map((entry) => entry.text).join(", ")} } = ${SOURCE_HOOK}${
+        `${keyword} { ${kept.map((entry) => entry.text).join(", ")} } = ${sourceHook}${
           typeArguments === null ? "" : typeArguments.text()
         }${args === null ? "()" : args.text()};`,
       );
@@ -255,10 +255,13 @@ export function planDestructures(root, text) {
       }
       return;
     }
+    // The file's own line ending: a T3/T5 split that emitted LF into a CRLF
+    // source would leave one mixed line behind on every migrated component.
+    const eol = text.includes("\r\n") ? "\r\n" : "\n";
     edits.push({
       start,
       end: declaration.range().end.index,
-      text: statements.join(`\n${indent}`),
+      text: statements.join(`${eol}${indent}`),
     });
     void declarator;
   });

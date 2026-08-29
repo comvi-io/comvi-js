@@ -1,0 +1,8 @@
+[
+  {
+    "line": 4,
+    "column": 10,
+    "shape": "dynamic-slim-specifier",
+    "detail": "`import(\"@comvi/react/slim\")` uses a retired /slim entry — migrate the module specifier and any `createSlimI18n` access together by hand"
+  }
+]

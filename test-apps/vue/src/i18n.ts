@@ -1,16 +1,18 @@
-// The converged single entry: capabilities are composed on explicitly.
+// The converged single entry: everything this app composes — the base host,
+// the ICU compiler for the plural catalogs, the loader for the CDN and the
+// plugin host for the fetch loader — comes from `@comvi/vue`.
+//
+// The ONE exception is `@comvi/core/tags`: importing it registers tag syntax
+// ambiently, so the wrapper deliberately does not re-export it and an app that
+// wants tags in the plain `t()` string API names the side effect itself.
 import "@comvi/core/tags";
-import { createI18nFromCore } from "@comvi/vue";
-import { createI18n as createCore } from "@comvi/core";
-import { icuCompiler } from "@comvi/core/icu";
-import { loader } from "@comvi/core/loader";
-import { plugins } from "@comvi/core/plugins";
+import { createCore, createI18nFromCore, icuCompiler, loader, plugins } from "@comvi/vue";
 import { FetchLoader } from "@comvi/plugin-fetch-loader";
 
-// Compose the host FIRST, then wrap it: `@comvi/core`'s `createI18n` builds the
-// base host and
-// the capabilities this app needs are explicit imports. `createI18nFromCore`
-// preserves the host's exact type, so `i18n.core.use(…)` stays typed.
+// Compose the host FIRST, then wrap it. `createCore` is `@comvi/core`'s own
+// constructor, re-exported by `@comvi/vue` under a name of its own because
+// vue's `createI18n` is the one-call preset. `createI18nFromCore` preserves the
+// host's exact type, so `i18n.core.use(…)` stays typed.
 const core = createCore({
   locale: "en",
   fallbackLocale: "en",

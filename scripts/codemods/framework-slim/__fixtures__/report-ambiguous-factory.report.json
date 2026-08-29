@@ -1,0 +1,14 @@
+[
+  {
+    "line": 15,
+    "column": 52,
+    "shape": "ambiguous-plugin-factory",
+    "detail": "`FetchLoader` is not a value import from \"@comvi/plugin-fetch-loader\" under its own name, so it cannot be proven to be the first-party factory — write `.with(fetchLoader(…))` by hand"
+  },
+  {
+    "line": 16,
+    "column": 54,
+    "shape": "ambiguous-plugin-factory",
+    "detail": "`LocaleDetector` is not a value import from \"@comvi/plugin-locale-detector\" under its own name, so it cannot be proven to be the first-party factory — write `.with(localeDetector(…))` by hand"
+  }
+]

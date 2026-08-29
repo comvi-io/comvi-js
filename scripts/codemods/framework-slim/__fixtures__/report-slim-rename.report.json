@@ -1,0 +1,14 @@
+[
+  {
+    "line": 7,
+    "column": 7,
+    "shape": "slim-rename-blocked",
+    "detail": "`createI18n` is already bound in this module — rename `createSlimI18n` by hand"
+  },
+  {
+    "line": 9,
+    "column": 27,
+    "shape": "slim-rename-blocked",
+    "detail": "`{ createSlimI18n }` is an object shorthand — the rename would rename its KEY too"
+  }
+]

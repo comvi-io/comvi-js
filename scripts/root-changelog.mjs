@@ -73,12 +73,22 @@ export function coordinatedVersion(packages) {
 }
 
 export function summarizeChangeset(body) {
-  const firstLine = body
-    .split("\n")
-    .map((line) => line.trim())
-    .find(Boolean);
-  if (!firstLine) throw new Error("changeset has no summary");
-  return firstLine.replace(/^#{1,6}\s+/, "").replace(/:\s*$/, "");
+  const lines = body.split("\n").map((line) => line.trim());
+  const start = lines.findIndex(Boolean);
+  if (start < 0) throw new Error("changeset has no summary");
+
+  const summaryLines = [];
+  for (let index = start; index < lines.length; index++) {
+    const line = lines[index];
+    if (!line || (index > start && /^(?:[-*+]\s|#{1,6}\s|```)/.test(line))) break;
+    summaryLines.push(line);
+  }
+
+  return summaryLines
+    .join(" ")
+    .replace(/^#{1,6}\s+/, "")
+    .replace(/^[-*+]\s+/, "")
+    .replace(/:\s*$/, "");
 }
 
 function changesetBump(changeset) {
@@ -113,7 +123,7 @@ export function renderRootReleaseSection({ version, date, changesets, publishabl
   const lines = [
     `## [${version}]${date ? ` - ${date}` : ""}`,
     "",
-    `Coordinated \`${version}\` release across all publishable \`@comvi/*\` packages. Detailed package-level notes and migration guidance are available in the linked GitHub Release.`,
+    `Coordinated \`${version}\` release for the main \`@comvi/*\` package train. Independently versioned packages included below keep their own versions. Detailed package-level notes and migration guidance are available in the linked GitHub Release.`,
   ];
 
   for (const bump of ["major", "minor", "patch"]) {

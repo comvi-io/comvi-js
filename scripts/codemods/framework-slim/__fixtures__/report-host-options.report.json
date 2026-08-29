@@ -1,0 +1,20 @@
+[
+  {
+    "line": 9,
+    "column": 26,
+    "shape": "opaque-host-options",
+    "detail": "`createI18n(hostOptions)` options are not an inline object — check them by hand for `exposeGlobal` / `instanceId`, ICU comma syntax and nested catalogs"
+  },
+  {
+    "line": 11,
+    "column": 54,
+    "shape": "opaque-host-options",
+    "detail": "`translation` is not an inline catalog — check it by hand for ICU comma syntax and nested keys"
+  },
+  {
+    "line": 13,
+    "column": 49,
+    "shape": "devtools-options-conflict",
+    "detail": "`instanceId` is a constructor option while the chain already composes `devtools(…)` — merge it into that call by hand"
+  }
+]

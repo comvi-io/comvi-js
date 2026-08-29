@@ -1,11 +1,20 @@
 #!/usr/bin/env node
 /**
- * framework-slim 0.5.0 codemod — the checked-in migration deliverable
- * (`.omc/plans/comvi-framework-slim.md` §3.1).
+ * The checked-in migration deliverable for the 0.5.0 train — ONE command for
+ * two waves, because a user migrates once:
  *
- * Moves the four members that left `useI18n()` onto the capability hooks
- * `useI18nLoader()` / `useI18nPlugins()` and reports — deterministically,
- * never silently — every shape it refuses to rewrite.
+ *   • framework-slim §3.1 (`.omc/plans/comvi-framework-slim.md`): the four
+ *     members that left `useI18n()` move onto the capability hooks
+ *     `useI18nLoader()` / `useI18nPlugins()`.
+ *   • single-entry §7.2 (`.omc/plans/comvi-single-entry.md`): `/slim`
+ *     specifiers and `createSlimI18n` collapse into the one entry, chained
+ *     `.use(Plugin(o))` becomes a `.with(installer(o))`, and the constructor
+ *     options that became capabilities (`compiler: icuCompiler`,
+ *     `devtools({ exposeGlobal, instanceId })`, `flattenCatalog`) move with
+ *     their imports.
+ *
+ * Both report — deterministically, never silently — every shape they refuse to
+ * rewrite (§3.1 report-only, §7.3 residuals).
  *
  *   node scripts/codemods/framework-slim/run.mjs "<glob>" [--report report.json]
  *
@@ -28,9 +37,13 @@ import {
 import {
   applyEdits,
   braceListInsertion,
+  braceListMembers,
+  braceListRemoval,
   extractScriptBlocks,
   positionAt,
 } from "./rules/script-blocks.mjs";
+import { planSingleEntry } from "./rules/single-entry.mjs";
+import { namedImports } from "./rules/imports.mjs";
 
 const REPO_ROOT = path.resolve(path.dirname(url.fileURLToPath(import.meta.url)), "../../..");
 
@@ -46,6 +59,71 @@ const LANG_BY_EXTENSION = new Map([
 ]);
 
 const SFC_EXTENSIONS = new Set([".vue", ".svelte"]);
+const HOOK_MODULES = new Set([
+  "@comvi/react",
+  "@comvi/solid",
+  "@comvi/svelte",
+  "@comvi/vue",
+  "@comvi/next/client",
+]);
+
+function detectNamespaceHookCalls(root) {
+  const namespaces = new Map();
+  for (const declaration of root.findAll({ rule: { kind: "import_statement" } })) {
+    const namespace = declaration.find({ rule: { kind: "namespace_import" } });
+    const source = declaration.field("source");
+    const match =
+      namespace === null ? undefined : /^\*\s+as\s+([A-Za-z_$][\w$]*)$/.exec(namespace.text());
+    if (
+      match !== undefined &&
+      match !== null &&
+      source?.kind() === "string" &&
+      HOOK_MODULES.has(source.text().slice(1, -1))
+    ) {
+      namespaces.set(match[1], source.text().slice(1, -1));
+    }
+  }
+
+  const findings = [];
+  for (const declarator of root.findAll({ rule: { kind: "variable_declarator" } })) {
+    const name = declarator.field("name");
+    let value = declarator.field("value");
+    if (name?.kind() !== "identifier" || value === null) continue;
+    if (value.kind() === "await_expression") {
+      value = value.find({ rule: { kind: "call_expression" } });
+    }
+    if (value?.kind() !== "call_expression") continue;
+    const loader = value.field("function")?.text();
+    if (loader !== "import" && loader !== "require") continue;
+    const source = value
+      .field("arguments")
+      ?.find({ rule: { kind: "string" } })
+      ?.text()
+      .slice(1, -1);
+    if (source !== undefined && HOOK_MODULES.has(source)) namespaces.set(name.text(), source);
+  }
+  for (const call of root.findAll({ rule: { kind: "call_expression" } })) {
+    const callee = call.field("function");
+    if (callee?.kind() !== "member_expression") continue;
+    const object = callee.field("object");
+    const property = callee.field("property");
+    if (
+      object?.kind() !== "identifier" ||
+      property?.text() !== SOURCE_HOOK ||
+      !namespaces.has(object.text())
+    ) {
+      continue;
+    }
+    findings.push({
+      offset: call.range().start.index,
+      shape: "namespace-hook-source",
+      detail:
+        `\`${callee.text()}()\` comes through a namespace import from ` +
+        `"${namespaces.get(object.text())}" — use a named hook import and re-run`,
+    });
+  }
+  return findings;
+}
 
 /** Every extension the codemod knows how to open. */
 export const SUPPORTED_EXTENSIONS = [...LANG_BY_EXTENSION.keys(), ...SFC_EXTENSIONS];
@@ -55,61 +133,43 @@ export const SUPPORTED_EXTENSIONS = [...LANG_BY_EXTENSION.keys(), ...SFC_EXTENSI
 // ---------------------------------------------------------------------------
 
 /**
- * Adds the hooks a rewrite introduced to the import that already provides
- * `useI18n`. Bare specifiers merge in place; anything else (a relative import
- * of the wrapper's source, a nuxt auto-import) is a manual action, because
- * guessing the module path would be a silent breakage.
+ * Adds capability hooks to the exact value import that provides Comvi's
+ * `useI18n`. Provenance is load-bearing: a same-spelled local hook or an
+ * unrelated package must never be rewritten.
  */
-function planHookImport(root, text, hooksUsed) {
-  const wanted = hooksUsed.filter((hook) => !hasLocalBinding(root, hook));
-  if (wanted.length === 0) return { edits: [], manual: [] };
-
-  for (const declaration of root.findAll({ rule: { kind: "import_statement" } })) {
-    const clause = declaration.text();
-    if (!new RegExp(`\\b${SOURCE_HOOK}\\b`).test(clause)) continue;
-
-    const source = declaration.field("source");
-    if (source === null) continue;
-    const specifier = source.text().slice(1, -1);
-
-    const named = declaration.find({ rule: { kind: "named_imports" } });
-    if (named === null) continue;
-
-    if (specifier.startsWith(".") || specifier.startsWith("/")) {
-      return {
-        edits: [],
-        manual: [
-          {
-            offset: declaration.range().start.index,
-            shape: "manual-import",
-            detail: `\`${SOURCE_HOOK}\` comes from the relative module "${specifier}" — add \`${wanted.join(
-              ", ",
-            )}\` to the import that fits your layout`,
-          },
-        ],
-      };
+function planHookImport(root, sourceImport, hooksUsed) {
+  const wanted = [];
+  const manual = [];
+  const imports = namedImports(root);
+  for (const hook of hooksUsed) {
+    const existing = imports.filter((entry) => entry.local === hook);
+    if (existing.length === 0) {
+      wanted.push(hook);
+      continue;
     }
-
-    return { edits: [braceListInsertion(named, wanted)], manual: [] };
+    const valid = existing.some(
+      (entry) =>
+        !entry.typeOnly &&
+        entry.imported === hook &&
+        (entry.source === sourceImport.source ||
+          (sourceImport.source === "@comvi/next/client" && entry.source === "@comvi/react")),
+    );
+    if (!valid || existing.length > 1) {
+      manual.push({
+        offset: existing[0].specifier.range().start.index,
+        shape: "local-name-collision",
+        detail: `\`${hook}\` is not the expected value import for ${sourceImport.source} — the destructures here are left alone`,
+      });
+    }
   }
-
   return {
-    edits: [],
-    manual: [
-      {
-        offset: 0,
-        shape: "manual-import",
-        detail: `no import of \`${SOURCE_HOOK}\` found — import \`${wanted.join(", ")}\` from your comvi binding`,
-      },
-    ],
+    blocked: manual.length > 0,
+    edits:
+      manual.length === 0 && wanted.length > 0
+        ? [braceListInsertion(sourceImport.clause, wanted)]
+        : [],
+    manual,
   };
-}
-
-function hasLocalBinding(root, name) {
-  return root.findAll({ rule: { kind: "import_specifier" } }).some((specifier) => {
-    const alias = specifier.field("alias");
-    return (alias === null ? specifier.field("name")?.text() : alias.text()) === name;
-  });
 }
 
 // ---------------------------------------------------------------------------
@@ -119,48 +179,120 @@ function hasLocalBinding(root, name) {
 /**
  * Transforms one JS/TS body.
  *
- * @returns {{ text: string, rewrites: number, manual: Array<{offset:number,shape:string,detail:string}> }}
+ * The two rule families are INDEPENDENT and are planned against the same parse
+ * of the original text: the single-entry rewrites (§7.2) never touch a
+ * `useI18n()` destructure, and the capability-hook rewrites (§3.1) never touch
+ * a host construction. So a hook-name collision refuses the destructures alone,
+ * and a refused chain refuses itself alone — one undecidable shape never
+ * silently withdraws a migration a human already read in the report.
+ *
+ * @returns {{ text: string, rewrites: number,
+ *             transforms: Map<string, number>,
+ *             manual: Array<{offset:number,shape:string,detail:string}> }}
  */
 export function transformBody(body, lang, { vueProxies = false } = {}) {
   const root = parse(lang, body).root();
 
-  const manual = [
-    ...detectEscapedHookResults(root),
-    ...(vueProxies ? detectVueProxyCalls(root) : []),
-  ];
+  const manual = [...(vueProxies ? detectVueProxyCalls(root) : [])];
+  manual.push(...detectNamespaceHookCalls(root));
 
-  const plan = planDestructures(root, body);
-  manual.push(...plan.manual);
-  if (plan.edits.length === 0) return { text: body, rewrites: 0, manual };
+  const single = planSingleEntry(root, body);
+  manual.push(...single.manual);
 
-  // A shadowing local only matters once there IS something to rewrite — the
-  // module that DEFINES `useI18nLoader` is not a migration candidate.
-  const collisions = detectHookNameCollisions(root);
-  if (collisions.length > 0) return { text: body, rewrites: 0, manual: [...manual, ...collisions] };
+  const edits = [...single.edits];
+  const transforms = new Map(single.transforms);
+  const orphaned = [...single.prunable];
+  let rewrites = [...single.transforms.values()].reduce((sum, count) => sum + count, 0);
 
-  const importPlan = planHookImport(root, body, plan.hooksUsed);
-  manual.push(...importPlan.manual);
+  const sourceImports = namedImports(root).filter((entry) => entry.imported === SOURCE_HOOK);
+  const supported = sourceImports.filter(
+    (entry) => !entry.typeOnly && HOOK_MODULES.has(entry.source),
+  );
 
-  const rewritten = applyEdits(body, [...plan.edits, ...importPlan.edits]);
+  if (supported.length === 1) {
+    const [sourceImport] = supported;
+    const plan = planDestructures(root, body, sourceImport.local);
+    manual.push(...plan.manual, ...detectEscapedHookResults(root, sourceImport.local));
+    if (plan.edits.length > 0) {
+      // A shadowing local only matters once there IS something to rewrite —
+      // the module that defines a capability hook is not a migration target.
+      const collisions = detectHookNameCollisions(root);
+      if (collisions.length > 0) {
+        manual.push(...collisions);
+      } else {
+        const importPlan = planHookImport(root, sourceImport, plan.hooksUsed);
+        manual.push(...importPlan.manual);
+        if (!importPlan.blocked) {
+          edits.push(...plan.edits, ...importPlan.edits);
+          transforms.set("capability-hook", plan.rewrites);
+          rewrites += plan.rewrites;
+          orphaned.push(sourceImport.local);
+        }
+      }
+    }
+  } else {
+    const locals = new Set([SOURCE_HOOK, ...sourceImports.map((entry) => entry.local)]);
+    const hasCandidate = [...locals].some((local) => {
+      const probe = planDestructures(root, body, local);
+      return (
+        probe.edits.length > 0 ||
+        probe.manual.length > 0 ||
+        detectEscapedHookResults(root, local).length > 0
+      );
+    });
+    if (hasCandidate) {
+      manual.push({
+        offset: sourceImports[0]?.declaration.range().start.index ?? 0,
+        shape: "unproven-hook-source",
+        detail:
+          supported.length > 1
+            ? `multiple Comvi imports provide \`${SOURCE_HOOK}\` — keep one binding and re-run`
+            : `\`${SOURCE_HOOK}\` is not a value import from a supported Comvi binding — its calls are left untouched`,
+      });
+    }
+  }
 
-  return { text: pruneOrphanedSourceHook(rewritten, lang), rewrites: plan.rewrites, manual };
+  // One report order, and it is the reader's: two rule families and six
+  // detectors contribute findings, and a list that jumps around the file is a
+  // list nobody reads. The CLI sorts across files; this sorts within one.
+  manual.sort((a, b) => a.offset - b.offset);
+
+  if (edits.length === 0) return { text: body, rewrites: 0, transforms, manual };
+
+  return {
+    text: pruneOrphanedImports(applyEdits(body, edits), lang, orphaned),
+    rewrites,
+    transforms,
+    manual,
+  };
 }
 
 /**
- * Drops `useI18n` from its import when a pure T1/T2 rewrite left it with no
- * remaining reference. Without this every migrated loader-only component
- * inherits a fresh `no-unused-vars` error from the codemod.
+ * Drops the names a rewrite left with no remaining reference from their import:
+ * `useI18n` after a pure T1/T2 destructure move, `FetchLoader` after its
+ * `.use(FetchLoader(o))` became `.with(fetchLoader(o))`. Without this every
+ * migrated file inherits a fresh `no-unused-vars` error from the codemod.
+ *
+ * Runs on the REWRITTEN text, because "no remaining reference" is a property of
+ * the output, not of the input.
  */
-function pruneOrphanedSourceHook(text, lang) {
+function pruneOrphanedImports(text, lang, names) {
+  let out = text;
+  for (const name of new Set(names)) out = pruneOrphanedImport(out, lang, name);
+  return out;
+}
+
+function pruneOrphanedImport(text, lang, name) {
   const root = parse(lang, text).root();
 
-  const specifiers = root
-    .findAll({ rule: { kind: "import_specifier" } })
-    .filter((specifier) => specifier.field("name")?.text() === SOURCE_HOOK);
+  const specifiers = root.findAll({ rule: { kind: "import_specifier" } }).filter((specifier) => {
+    const local = specifier.field("alias") ?? specifier.field("name");
+    return local?.text() === name;
+  });
   if (specifiers.length !== 1) return text;
 
   const stillUsed = root
-    .findAll({ rule: { kind: "identifier", regex: `^${SOURCE_HOOK}$` } })
+    .findAll({ rule: { kind: "identifier", regex: `^${name}$` } })
     .some((identifier) => identifier.parent()?.kind() !== "import_specifier");
   if (stillUsed) return text;
 
@@ -168,24 +300,19 @@ function pruneOrphanedSourceHook(text, lang) {
   const clause = specifier.parent();
   if (clause === null || clause.kind() !== "named_imports") return text;
 
-  const members = clause.children().filter((child) => child.kind() === "import_specifier");
+  const members = braceListMembers(clause);
   if (members.length === 1) return text; // sole import: removing the statement is the user's call
 
-  const index = members.findIndex(
-    (member) => member.range().start.index === specifier.range().start.index,
-  );
-  const span =
-    index === members.length - 1
-      ? { start: members[index - 1].range().end.index, end: specifier.range().end.index }
-      : { start: specifier.range().start.index, end: members[index + 1].range().start.index };
-
-  return applyEdits(text, [{ ...span, text: "" }]);
+  const at = specifier.range().start.index;
+  const doomed = braceListRemoval(clause, (member) => member.range().start.index === at);
+  return applyEdits(text, doomed);
 }
 
 /**
  * Transforms one file's contents, `.vue` / `.svelte` script blocks included.
  *
- * @returns {{ text: string, rewrites: number, manual: Array<{line:number,column:number,shape:string,detail:string}> }}
+ * @returns {{ text: string, rewrites: number, transforms: Map<string, number>,
+ *             manual: Array<{line:number,column:number,shape:string,detail:string}> }}
  */
 export function transformSource(source, filePath) {
   const extension = path.extname(filePath);
@@ -204,12 +331,14 @@ export function transformSource(source, filePath) {
     return {
       text: result.text,
       rewrites: result.rewrites,
+      transforms: result.transforms,
       manual: result.manual.map((item) => ({ ...positionAt(source, item.offset), ...item })),
     };
   }
 
   const { blocks, failures } = extractScriptBlocks(source);
   const manual = failures.map((failure) => ({ ...failure, shape: "script-block-extraction" }));
+  const transforms = new Map();
   const edits = [];
   let rewrites = 0;
 
@@ -217,6 +346,9 @@ export function transformSource(source, filePath) {
     const lang = block.lang === "ts" ? Lang.TypeScript : Lang.JavaScript;
     const result = transformBody(block.body, lang, { vueProxies });
     rewrites += result.rewrites;
+    for (const [kind, count] of result.transforms) {
+      transforms.set(kind, (transforms.get(kind) ?? 0) + count);
+    }
     for (const item of result.manual) {
       // Remap: positions are relative to the extracted body.
       manual.push({ ...positionAt(source, block.offset + item.offset), ...item });
@@ -226,7 +358,7 @@ export function transformSource(source, filePath) {
     }
   }
 
-  return { text: applyEdits(source, edits), rewrites, manual };
+  return { text: applyEdits(source, edits), rewrites, transforms, manual };
 }
 
 // ---------------------------------------------------------------------------
@@ -237,6 +369,7 @@ export function runCodemod({ patterns, cwd = REPO_ROOT, write = true }) {
   const files = collectFiles(patterns, cwd);
   const changed = [];
   const manual = [];
+  const transforms = new Map();
   let rewrites = 0;
 
   for (const file of files) {
@@ -245,6 +378,9 @@ export function runCodemod({ patterns, cwd = REPO_ROOT, write = true }) {
     const result = transformSource(source, absolute);
     const relative = path.relative(cwd, absolute).split(path.sep).join("/");
     rewrites += result.rewrites;
+    for (const [kind, count] of result.transforms) {
+      transforms.set(kind, (transforms.get(kind) ?? 0) + count);
+    }
     for (const item of result.manual) manual.push({ path: relative, ...item });
     if (result.text !== source) {
       changed.push(relative);
@@ -262,6 +398,9 @@ export function runCodemod({ patterns, cwd = REPO_ROOT, write = true }) {
       filesChanged: changed.length,
       rewrites,
       manualActions: manual.length,
+      // Per shape, so a release checklist can say WHICH migrations a tree
+      // needed instead of just how many edits landed.
+      transforms: Object.fromEntries([...transforms].sort()),
     },
     changed,
     manual,
@@ -313,17 +452,20 @@ function collectFiles(patterns, cwd) {
 export function renderReport(report) {
   const lines = [
     `framework-slim codemod: ${report.summary.filesScanned} file(s) scanned, ` +
-      `${report.summary.filesChanged} rewritten (${report.summary.rewrites} destructure(s)), ` +
+      `${report.summary.filesChanged} rewritten (${report.summary.rewrites} rewrite(s)), ` +
       `${report.summary.manualActions} manual action(s)`,
   ];
   for (const file of report.changed) lines.push(`  rewritten  ${file}`);
+  for (const [kind, count] of Object.entries(report.summary.transforms)) {
+    lines.push(`  transform  ${kind} x${count}`);
+  }
   for (const item of report.manual) {
     lines.push(
       `  MANUAL     ${item.path}:${item.line}:${item.column}  [${item.shape}] ${item.detail}`,
     );
   }
   if (report.summary.manualActions === 0 && report.summary.filesChanged === 0) {
-    lines.push("  nothing to migrate — every call site already uses the 0.5.0 hooks");
+    lines.push("  nothing to migrate — this tree is already on the 0.5.0 surface");
   }
   lines.push(
     "",

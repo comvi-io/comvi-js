@@ -45,6 +45,19 @@ Instance-level defaults:
   assert.equal(summarizeChangeset(changeset.body), "Instance-level defaults");
 });
 
+test("summarizeChangeset joins soft wraps without absorbing nested details", () => {
+  assert.equal(
+    summarizeChangeset(
+      "**BREAKING: the default host is the base\nhost.** Migration follows.\n\nDetails.",
+    ),
+    "**BREAKING: the default host is the base host.** Migration follows.",
+  );
+  assert.equal(
+    summarizeChangeset("- **Removed** the old API.\n  - Nested detail."),
+    "**Removed** the old API.",
+  );
+});
+
 test("renderRootReleaseSection emits each changeset once and groups by highest bump", () => {
   const section = renderRootReleaseSection({
     version: "0.5.0",
@@ -70,6 +83,10 @@ test("renderRootReleaseSection emits each changeset once and groups by highest b
   });
 
   assert.match(section, /^## \[0\.5\.0\] - 2026-08-01/m);
+  assert.match(
+    section,
+    /Independently versioned packages included below keep their own versions\./,
+  );
   assert.match(section, /- \*\*All packages\*\* — Shared framework API\./);
   assert.match(section, /- \*\*@comvi\/core, @comvi\/react\*\* — React integration update\./);
   assert.match(section, /### Patch Changes\n\n- \*\*@comvi\/core\*\* — Parser bug fix\./);
