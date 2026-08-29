@@ -37,8 +37,10 @@ files in `scripts/` (126 tests). Baseline ids/timings: scratchpad `tests/baselin
   duplicates are deleted with a `duplicate-of` row (lock) and, in wrappers, a manifest row.
 
 ## Status
-- [x] baseline · [x] review pass · [ ] execute pass (running) · [ ] merge manifest rows ·
-  [ ] verify pass · [ ] commit
+- [x] baseline · [x] review pass · [x] execute pass · [x] merge manifest rows (6 rows) ·
+  [x] second-pass review with mutation probes (2 blockers, ~25 should-fix, all closed) ·
+  [x] final gates (lock 14/14, manifest, test:commit, tooling, lint, format, typecheck, perf alone) ·
+  [x] committed
 
 ## Open (owner decisions / follow-ups, not done here)
-Filled in from the executors' reports at the end of the pass.
+See `.omc/handoffs/test-quality.md` §Open (seams, owner decisions) and §Cross-cutting facts.
