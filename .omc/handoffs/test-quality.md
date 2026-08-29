@@ -54,3 +54,31 @@ wrapper manifest gate green with 6 new `removals[]` rows (45 total).
   `test-manifest.listPackageTests` has no injection point for its "did not print JSON" path.
 - wrappers: svelte real `svelte/server` coverage needs a second vitest project (owner's call);
   `describe("T.tsx")` in solid names the file (21 manifest rows to rename — rejected as S3).
+
+## CI audit (2026-08-29, `eb05262` … `8ec1fc7`)
+Owner: "прибираємо все, що тільки робить вигляд, що перевіряє". 12 jobs → 4 (`quality`, `tests`,
+`build` = build → publint/attw → size 15 rows → bundler-matrix 64, `extension` = artifact + gate-e).
+Deleted with their tooling (35 files, 4 077 lines): perf gate + `perf.test.mjs` (a 10 % threshold on
+0.12 µs ops measured runner noise — A/A runs differed by 16 %; `pnpm perf` stays manual),
+wrapper test-manifest gate + JSON, codemod "no-op on repo" job, coverage-% job, always-skipped
+dispatch job, `check-release-plan.mjs` (633 lines of G7 prose gate) + `prose-guards.test.mjs`,
+size sentinels/probes + `size-check.test.mjs`. Hot-path invariants replace the perf gate
+deterministically (`packages/core/tests/features/hot-path-invariants.test.ts`, 8 tests, all
+proved red). The 5 red jobs at `bd2edb7` were all CI wiring never observed on a runner: unit
+tests of tools running before the build, turbo dependsOn missing `solid`, next needing
+`locale-routing` dist.
+
+Gate E on the merged `extension` job failed 3× deterministically while passing locally in the
+same order: the artifact job's job-level `VITE_COMVI_API_BASE_URL=https://api.comvi.io` was
+carried over; vite `loadEnv` prefers `process.env` over `.env.gate-e`, so the gate-e build shipped
+`host_permissions: https://api.comvi.io/*`, the popup could not read `tab.url`, took `init()`'s
+early return and rendered "not detected" although the service worker had `comviDetected: true`.
+Found only after `expectPopupView()` started naming the popup's view, tab resolution and storage
+(rule 4.2 — the bare "expected visible, received hidden" said nothing). Fix: env scoped to the
+production build step + a gate-e build refuses a non-loopback API origin (observed failing).
+
+## Mutation testing (Stryker 10, `pnpm mutation <pkg>`, manual tool)
+locale-routing pilot 92 %. Core first run (15.6 min, 3 329 mutants): **69.4 %** — 2 159 killed,
+57 timeout, 736 survived, 240 uncovered; worst: translate.ts 143 survived, i18n.ts 126,
+tags.ts 117, compile-icu 66, parser 57, loader 40, params 31, format.ts 34 %, editor-bridge.ts
+0 % (no tests). Kill-pass in progress in five lots (reports `mutation-A..E`).
