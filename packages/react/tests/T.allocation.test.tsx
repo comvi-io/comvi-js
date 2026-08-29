@@ -5,7 +5,7 @@
  */
 
 import React from "react";
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { render } from "@testing-library/react";
 
 import { createI18n } from "../src";
@@ -14,27 +14,25 @@ import { T } from "../src/T";
 
 const OriginalMap = globalThis.Map;
 
-describe("<T> allocation behavior", () => {
-  let mapCount: number;
-
-  beforeEach(() => {
-    mapCount = 0;
-    class CountingMap<K, V> extends OriginalMap<K, V> {
-      constructor(entries?: readonly (readonly [K, V])[] | null) {
-        super(entries ?? undefined);
-        mapCount += 1;
-      }
+/** Swaps in a counting Map for the current test only; `unstubGlobals` restores it. */
+const countMapAllocations = () => {
+  const counter = { n: 0 };
+  class CountingMap<K, V> extends OriginalMap<K, V> {
+    constructor(entries?: readonly (readonly [K, V])[] | null) {
+      super(entries ?? undefined);
+      counter.n += 1;
     }
-    globalThis.Map = CountingMap as unknown as MapConstructor;
-  });
+  }
+  vi.stubGlobal("Map", CountingMap);
+  return counter;
+};
 
-  afterEach(() => {
-    globalThis.Map = OriginalMap;
-  });
-
+describe("<T> allocation behavior", () => {
   it("attributes zero extra Maps to <T> when `components` prop is undefined", async () => {
     const i18nDiv = createI18n({ locale: "en", translation: { en: { greeting: "Hello" } } });
     await i18nDiv.init();
+
+    const counter = countMapAllocations();
 
     // Baseline captures the framework/provider Maps that scale with children.
     const divBaseline = render(
@@ -44,12 +42,12 @@ describe("<T> allocation behavior", () => {
         <div />
       </I18nProvider>,
     );
-    const divMaps = mapCount;
+    const divMaps = counter.n;
     divBaseline.unmount();
 
     const i18nT = createI18n({ locale: "en", translation: { en: { greeting: "Hello" } } });
     await i18nT.init();
-    mapCount = 0;
+    counter.n = 0;
     render(
       <I18nProvider i18n={i18nT}>
         <T i18nKey={"greeting" as never} />
@@ -57,7 +55,7 @@ describe("<T> allocation behavior", () => {
         <T i18nKey={"greeting" as never} />
       </I18nProvider>,
     );
-    const tMaps = mapCount;
+    const tMaps = counter.n;
 
     // Slack of 3 absorbs React-internal bookkeeping that differs between div
     // and T fiber types; the regression this pins allocated 2 Maps PER T.
@@ -71,14 +69,14 @@ describe("<T> allocation behavior", () => {
     });
     await i18n.init();
 
-    mapCount = 0;
+    const counter = countMapAllocations();
     render(
       <I18nProvider i18n={i18n}>
         <T i18nKey={"greeting" as never} components={{ bold: "strong" }} />
       </I18nProvider>,
     );
 
-    expect(mapCount).toBeGreaterThan(0);
+    expect(counter.n).toBeGreaterThan(0);
   });
 
   it("plain text rendering is unchanged for the common case (no components)", async () => {

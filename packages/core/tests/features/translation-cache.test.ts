@@ -1,6 +1,19 @@
 import { describe, it, expect } from "vitest";
 import { TranslationCache } from "../../src";
 
+/** Two locales set, plus a clone that has been mutated away from the cache. */
+function cacheWithMutatedClone() {
+  const cache = new TranslationCache();
+  cache.set("en", "default", { hello: "Hello" });
+  cache.set("fr", "default", { bonjour: "Bonjour" });
+
+  const cloned = cache.clone();
+  cloned.delete("en:default");
+  cloned.set("de:default", { hallo: "Hallo" });
+
+  return cache;
+}
+
 describe("TranslationCache", () => {
   it("uses configured default namespace for get/has", () => {
     const cache = new TranslationCache({ defaultNs: "common" });
@@ -89,21 +102,14 @@ describe("TranslationCache", () => {
   });
 
   it("mutating a clone does not poison future clone(), keys(), or getInternalMap() calls", () => {
-    const cache = new TranslationCache();
-
-    cache.set("en", "default", { hello: "Hello" });
-    cache.set("fr", "default", { bonjour: "Bonjour" });
-
-    const cloned = cache.clone();
-    cloned.delete("en:default");
-    cloned.set("de:default", { hallo: "Hallo" });
+    const cache = cacheWithMutatedClone();
 
     expect(Array.from(cache.clone().keys()).sort()).toEqual(["en:default", "fr:default"]);
     expect(Array.from(cache.keys()).sort()).toEqual(["en:default", "fr:default"]);
     expect(Array.from(cache.getInternalMap().keys()).sort()).toEqual(["en:default", "fr:default"]);
   });
 
-  it("exposes an internal snapshot (readonly at the type level)", () => {
+  it("getInternalMap() exposes the current entries", () => {
     const cache = new TranslationCache();
 
     cache.set("en", "default", { hello: "Hello" });
@@ -114,14 +120,7 @@ describe("TranslationCache", () => {
   });
 
   it("mutating the cloned Map does not corrupt get/has/size lookups on the cache", () => {
-    const cache = new TranslationCache();
-
-    cache.set("en", "default", { hello: "Hello" });
-    cache.set("fr", "default", { bonjour: "Bonjour" });
-
-    const cloned = cache.clone();
-    cloned.delete("en:default");
-    cloned.set("de:default", { hallo: "Hallo" });
+    const cache = cacheWithMutatedClone();
 
     expect(cache.get("en", "default")).toEqual({ hello: "Hello" });
     expect(cache.get("fr", "default")).toEqual({ bonjour: "Bonjour" });
@@ -143,25 +142,22 @@ describe("TranslationCache", () => {
 
   it("increments revision on mutations and keeps it stable on reads", () => {
     const cache = new TranslationCache();
-    const initialRevision = cache.getRevision();
-    expect(initialRevision).toBe(0);
+    expect(cache.getRevision()).toBe(0);
 
     cache.set("en", "default", { hello: "Hello" });
-    const afterSet = cache.getRevision();
-    expect(afterSet).toBe(initialRevision + 1);
+    expect(cache.getRevision()).toBe(1);
 
     cache.get("en", "default");
     cache.has("en", "default");
     cache.clone();
     cache.getInternalMap();
-    expect(cache.getRevision()).toBe(afterSet);
+    expect(cache.getRevision()).toBe(1);
 
     cache.delete("en", "default");
-    const afterDelete = cache.getRevision();
-    expect(afterDelete).toBe(afterSet + 1);
+    expect(cache.getRevision()).toBe(2);
 
     cache.clear();
-    expect(cache.getRevision()).toBe(afterDelete + 1);
+    expect(cache.getRevision()).toBe(3);
   });
 
   it("clone() reflects merged updates without reusing mutated snapshots", () => {
@@ -175,5 +171,26 @@ describe("TranslationCache", () => {
     expect(firstClone).not.toBe(secondClone);
     expect(firstClone.get("en:default")).toEqual({ hello: "Hello" });
     expect(secondClone.get("en:default")).toEqual({ hello: "Hello Updated" });
+  });
+
+  it("get()/has() return undefined/false for an absent locale or namespace", () => {
+    const cache = new TranslationCache();
+    cache.set("en", "default", { hello: "Hello" });
+
+    expect(cache.get("zz")).toBeUndefined();
+    expect(cache.get("en", "nope")).toBeUndefined();
+    expect(cache.has("zz")).toBe(false);
+    expect(cache.has("en", "nope")).toBe(false);
+  });
+
+  it("delete() for an absent locale or namespace leaves the entries untouched", () => {
+    const cache = new TranslationCache();
+    cache.set("en", "default", { hello: "Hello" });
+
+    cache.delete("zz");
+    cache.delete("en", "nope");
+
+    expect(cache.size).toBe(1);
+    expect(Array.from(cache.keys())).toEqual(["en:default"]);
   });
 });

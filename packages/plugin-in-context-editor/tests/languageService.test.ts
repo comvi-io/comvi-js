@@ -26,8 +26,6 @@ describe("languageService", () => {
   });
 
   afterEach(() => {
-    vi.unstubAllGlobals();
-    vi.restoreAllMocks();
     resetApiConfig();
   });
 
@@ -40,10 +38,30 @@ describe("languageService", () => {
     expect(fetch).not.toHaveBeenCalled();
   });
 
-  it("fetches locales and enriches them with plural forms and source marker", async () => {
+  it("requests the project locales with the configured bearer key", async () => {
     initApiConfig("test-api-key");
     const fetchMock = vi.mocked(fetch);
     fetchMock.mockResolvedValueOnce(
+      mockOkResponse({
+        sourceLocale: "en",
+        locales: [{ id: 1, code: "en", name: "English", nativeName: "English" }],
+      }),
+    );
+
+    await getLanguages();
+
+    expect(fetchMock).toHaveBeenCalledWith("https://api.example.com/v1/project/locales", {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: "Bearer test-api-key",
+      },
+    });
+  });
+
+  it("enriches each locale with its CLDR plural forms and the source marker", async () => {
+    initApiConfig("test-api-key");
+    vi.mocked(fetch).mockResolvedValueOnce(
       mockOkResponse({
         sourceLocale: "en",
         locales: [
@@ -55,24 +73,60 @@ describe("languageService", () => {
 
     const result = await getLanguages();
 
-    expect(fetchMock).toHaveBeenCalledWith("https://api.example.com/v1/project/locales", {
-      method: "GET",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: "Bearer test-api-key",
+    expect(result).toEqual([
+      {
+        id: 1,
+        code: "en",
+        name: "English",
+        nativeName: "English",
+        pluralForms: ["one", "other"],
+        isSource: true,
       },
-    });
-    expect(result).toHaveLength(2);
-    expect(result[0]?.isSource).toBe(true);
-    expect(result[1]?.isSource).toBe(false);
-    expect(result[0]?.pluralForms.length).toBeGreaterThan(0);
-    expect(result[1]?.pluralForms.length).toBeGreaterThan(0);
+      {
+        id: 2,
+        code: "uk",
+        name: "Ukrainian",
+        nativeName: "Українська",
+        pluralForms: ["one", "few", "many", "other"],
+        isSource: false,
+      },
+    ]);
+  });
+
+  it("returns an empty list when the project has no locales", async () => {
+    initApiConfig("test-api-key");
+    vi.mocked(fetch).mockResolvedValueOnce(mockOkResponse({ sourceLocale: "en", locales: [] }));
+
+    await expect(getLanguages()).resolves.toEqual([]);
   });
 
   it("throws normalized error when API responds with non-ok status", async () => {
     initApiConfig("test-api-key");
-    const fetchMock = vi.mocked(fetch);
-    fetchMock.mockResolvedValueOnce(mockErrorResponse(500, "Server Error"));
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.mocked(fetch).mockResolvedValueOnce(mockErrorResponse(500, "Server Error"));
+
+    await expect(getLanguages()).rejects.toThrow("Failed to fetch languages");
+  });
+
+  it("throws normalized error when fetch fails", async () => {
+    initApiConfig("test-api-key");
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.mocked(fetch).mockRejectedValueOnce(new Error("Network down"));
+
+    await expect(getLanguages()).rejects.toThrow("Failed to fetch languages");
+  });
+
+  it("throws normalized error when the response body is not JSON", async () => {
+    initApiConfig("test-api-key");
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.mocked(fetch).mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      statusText: "OK",
+      json: async () => {
+        throw new SyntaxError("Unexpected token <");
+      },
+    } as unknown as Response);
 
     await expect(getLanguages()).rejects.toThrow("Failed to fetch languages");
   });
@@ -91,6 +145,7 @@ describe("languageService", () => {
 
     await getLanguages("runtime-a");
 
+    expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(fetchMock).toHaveBeenCalledWith("https://api.example.com/v1/project/locales", {
       method: "GET",
       headers: {
@@ -98,13 +153,5 @@ describe("languageService", () => {
         Authorization: "Bearer runtime-a-key",
       },
     });
-  });
-
-  it("throws normalized error when fetch fails", async () => {
-    initApiConfig("test-api-key");
-    const fetchMock = vi.mocked(fetch);
-    fetchMock.mockRejectedValueOnce(new Error("Network down"));
-
-    await expect(getLanguages()).rejects.toThrow("Failed to fetch languages");
   });
 });

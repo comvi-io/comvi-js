@@ -38,11 +38,13 @@ describe("svelte integration smoke", () => {
       props: { i18n },
     });
 
-    expect(target.textContent).toContain("Hello-en");
+    const hook = () => target.querySelector('[data-testid="hook"]')?.textContent;
+
+    expect(hook()).toBe("Hello-en");
 
     await i18n.setLocaleAsync("fr");
     await tick();
 
-    expect(target.textContent).toContain("Bonjour-fr");
+    expect(hook()).toBe("Bonjour-fr");
   });
 });

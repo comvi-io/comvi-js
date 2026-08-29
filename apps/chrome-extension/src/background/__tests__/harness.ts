@@ -5,8 +5,12 @@
  * lands in this fake.
  */
 import { vi } from "vitest";
+import { clearTabLimits } from "../proxy-handler";
 
 type Listener = (...args: unknown[]) => unknown;
+
+/** Enough rounds for the longest fire-and-forget chain: badge render → storage read → setIcon. */
+const FLUSH_ROUNDS = 5;
 
 class FakeStorageArea {
   private data = new Map<string, unknown>();
@@ -75,7 +79,8 @@ export interface Harness {
   openPopupLease(leaseId: string): { disconnect(): void };
   /** Wait for handlers that respond synchronously but do async follow-up work. */
   flush(): Promise<void>;
-  reset(): void;
+  /** Re-stub `chrome`, clear storage and mock history, and clear the proxy rate limits of `tabIds`. */
+  reset(...tabIds: number[]): void;
 }
 
 export function installFakeChrome(): Harness {
@@ -188,11 +193,14 @@ export function installFakeChrome(): Harness {
     },
     async flush() {
       // Drain a few macrotask/microtask rounds for fire-and-forget handlers.
-      for (let i = 0; i < 5; i++) {
+      for (let i = 0; i < FLUSH_ROUNDS; i++) {
         await new Promise((resolve) => setTimeout(resolve, 0));
       }
     },
-    reset() {
+    reset(...tabIds: number[]) {
+      // `unstubGlobals` tears the fake down after every test, but the service
+      // worker was imported once and holds listeners in THIS object.
+      vi.stubGlobal("chrome", fake);
       fake.storage.session.clear();
       fake.storage.local.clear();
       fake.action.setIcon.mockClear();
@@ -200,6 +208,9 @@ export function installFakeChrome(): Harness {
       fake.runtime.sendMessage.mockClear();
       fake.tabs.sendMessage.mockClear();
       tabUrls.clear();
+      // proxy-work keeps a module-level per-tab request log with a 60s window;
+      // without this the suite's own requests accumulate against the rate cap.
+      for (const tabId of tabIds) clearTabLimits(tabId);
     },
   };
 }

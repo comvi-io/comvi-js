@@ -13,6 +13,7 @@ import {
   splitPathAndSuffix,
   stripLocalePrefix,
 } from "../src/index";
+import type { LocalePrefixMode } from "../src/index";
 
 const LOCALES = ["en", "de", "uk"] as const;
 
@@ -37,7 +38,9 @@ describe("extractLocaleFromPath (identical in both stacks — nuxt locale-path.t
 });
 
 describe("stripLocalePrefix (reconciled: segment matching [next] + trailing-slash preservation [nuxt])", () => {
-  const table: Array<[input: string, nextOld: string, nuxtOld: string, shared: string]> = [
+  // `shared` is the asserted expectation and therefore comes second, so the row
+  // title prints it; the historical columns follow as documentation.
+  const table: Array<[input: string, shared: string, nextOld: string, nuxtOld: string]> = [
     ["/de/about", "/about", "/about", "/about"],
     ["/de", "/", "/", "/"],
     ["/de/", "/", "/", "/"],
@@ -46,25 +49,22 @@ describe("stripLocalePrefix (reconciled: segment matching [next] + trailing-slas
     ["/", "/", "/", "/"],
     ["/de/de/about", "/de/about", "/de/about", "/de/about"], // only first prefix stripped
     // CONFLICT: trailing slash — nuxt wins (preserve)
-    ["/de/about/", "/about", "/about/", "/about/"],
-    ["/de/about/team/", "/about/team", "/about/team/", "/about/team/"],
+    ["/de/about/", "/about/", "/about", "/about/"],
+    ["/de/about/team/", "/about/team/", "/about/team", "/about/team/"],
     // CONFLICT: input normalization — next wins (leading slash added)
-    ["", "/", "", "/"],
-    ["about", "/about", "about", "/about"],
-    ["de/about", "/about", "de/about", "/about"],
+    ["", "/", "/", ""],
+    ["about", "/about", "/about", "about"],
+    ["de/about", "/about", "/about", "de/about"],
     // CONFLICT: interior duplicate slashes — preserved verbatim (next collapsed)
-    ["/de//about", "/about", "//about", "//about"],
+    ["/de//about", "//about", "/about", "//about"],
     // no-first-segment-match oddities stay untouched
-    ["//de/about", "/de/about", "//de/about", "//de/about"],
+    ["//de/about", "//de/about", "/de/about", "//de/about"],
     ["/DE/about", "/DE/about", "/DE/about", "/DE/about"],
   ];
 
-  it.each(table)(
-    "stripLocalePrefix(%j) -> %j [next-old: %j is dropped where columns differ]",
-    (input, _nextOld, _nuxtOld, shared) => {
-      expect(stripLocalePrefix(input, LOCALES)).toBe(shared);
-    },
-  );
+  it.each(table)("stripLocalePrefix(%j) -> %j", (input, shared) => {
+    expect(stripLocalePrefix(input, LOCALES)).toBe(shared);
+  });
 });
 
 describe("splitPathAndSuffix (verified-identical in both stacks: next splitHref / nuxt splitPathAndSuffix)", () => {
@@ -172,6 +172,28 @@ describe("buildLocalizedPath (nuxt buildLocalizedPath ∪ next createGetPathname
     it("looks up by the exact given path (next-pinned: no normalization before lookup)", () => {
       // "about" (no leading slash) is not a key in the map -> falls through, then normalized
       expect(buildLocalizedPath("about", "de", { ...base, pathnames })).toBe("/de/about");
+    });
+  });
+
+  describe("degenerate config reachable from next's option surface", () => {
+    it("leaves the path untouched when the locale list is empty", () => {
+      expect(extractLocaleFromPath("/de/about", [])).toBeUndefined();
+      expect(stripLocalePrefix("/de/about", [])).toBe("/de/about");
+    });
+
+    it("treats an unknown localePrefix as no prefixing", () => {
+      expect(
+        buildLocalizedPath("/about", "de", {
+          defaultLocale: "en",
+          localePrefix: "sometimes" as LocalePrefixMode,
+        }),
+      ).toBe("/about");
+    });
+
+    it("falls back to the canonical path when a pathnames entry is undefined", () => {
+      expect(
+        buildLocalizedPath("/about", "de", { ...base, pathnames: { "/about": { de: undefined } } }),
+      ).toBe("/de/about");
     });
   });
 

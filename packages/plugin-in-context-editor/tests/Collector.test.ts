@@ -3,7 +3,7 @@ import { EventBus } from "../src/EventBus";
 import { TranslationRegistry } from "../src/TranslationRegistry";
 import { Collector } from "../src/collector/Collector";
 import { initApiConfig, resetApiConfig } from "../src/config/api";
-import { mockBoundingClientRect, cleanupDOM } from "./helpers";
+import { mockBoundingClientRect, cleanupDOM, flushMicrotasks, registerVisible } from "./helpers";
 
 const SCOPE = "collector-test-scope";
 
@@ -15,14 +15,22 @@ function mockErrorResponse(status: number): Response {
   return { ok: false, status, statusText: "Error", json: async () => ({}) } as Response;
 }
 
+async function waitForUsagesCall(fetchMock: ReturnType<typeof vi.fn>) {
+  return vi.waitFor(() => {
+    const call = fetchMock.mock.calls.find(([url]) =>
+      (url as string).includes("/v1/context/usages"),
+    );
+    if (!call) throw new Error("no POST /v1/context/usages was made");
+    return call;
+  });
+}
+
 describe("collector/Collector — lifecycle & fault isolation", () => {
   beforeEach(() => {
     initApiConfig("test-api-key", SCOPE);
   });
 
   afterEach(() => {
-    vi.unstubAllGlobals();
-    vi.restoreAllMocks();
     resetApiConfig(SCOPE);
     cleanupDOM();
   });
@@ -33,9 +41,13 @@ describe("collector/Collector — lifecycle & fault isolation", () => {
     const registry = new TranslationRegistry(eventBus);
     const collector = new Collector(eventBus, registry, SCOPE, { enabled: false });
 
+    const div = registerVisible(registry, "a");
     await collector.start();
+    eventBus.emit("structureChanges", [div]);
+    await flushMicrotasks();
 
     expect(fetch).not.toHaveBeenCalled();
+    // `isDisabled()` means "disabled by a failed handshake", which never ran here.
     expect(collector.isDisabled()).toBe(false);
 
     expect(() => collector.destroy()).not.toThrow();
@@ -88,27 +100,14 @@ describe("collector/Collector — lifecycle & fault isolation", () => {
     const eventBus = new EventBus();
     const registry = new TranslationRegistry(eventBus);
 
-    const div = document.createElement("div");
-    document.body.appendChild(div);
-    mockBoundingClientRect(div, {
-      top: 0,
-      left: 0,
-      width: 100,
-      height: 20,
-      right: 100,
-      bottom: 20,
-    });
-    registry.add(div, {
-      nodes: new Map([[document.createTextNode("x"), { key: "a", ns: "ns" }]]),
-    });
+    const div = registerVisible(registry, "a");
 
     const collector = new Collector(eventBus, registry, SCOPE, { enabled: true });
     await collector.start(); // handshake + immediate first settle pass
-    await Promise.resolve();
-    await Promise.resolve();
+    await flushMicrotasks();
 
-    const callsAfterInitial = fetchMock.mock.calls.length;
-    expect(callsAfterInitial).toBeGreaterThan(0);
+    // Handshake + the first settle pass.
+    expect(fetchMock).toHaveBeenCalledTimes(2);
 
     try {
       vi.useFakeTimers();
@@ -117,12 +116,10 @@ describe("collector/Collector — lifecycle & fault isolation", () => {
       // a new network call once the debounce elapses.
       eventBus.emit("structureChanges", [div]);
       await vi.advanceTimersByTimeAsync(1100);
-      expect(fetchMock.mock.calls.length).toBe(callsAfterInitial);
+      expect(fetchMock).toHaveBeenCalledTimes(2);
 
       // A real change to the visible set DOES produce a new pass.
-      const second = document.createElement("div");
-      document.body.appendChild(second);
-      mockBoundingClientRect(second, {
+      const second = registerVisible(registry, "b", {
         top: 30,
         left: 0,
         width: 100,
@@ -130,13 +127,10 @@ describe("collector/Collector — lifecycle & fault isolation", () => {
         right: 100,
         bottom: 50,
       });
-      registry.add(second, {
-        nodes: new Map([[document.createTextNode("y"), { key: "b", ns: "ns" }]]),
-      });
 
       eventBus.emit("structureChanges", [second]);
       await vi.advanceTimersByTimeAsync(1100);
-      expect(fetchMock.mock.calls.length).toBeGreaterThan(callsAfterInitial);
+      expect(fetchMock).toHaveBeenCalledTimes(3);
     } finally {
       vi.useRealTimers();
     }
@@ -154,26 +148,13 @@ describe("collector/Collector — lifecycle & fault isolation", () => {
     const eventBus = new EventBus();
     const registry = new TranslationRegistry(eventBus);
 
-    const div = document.createElement("div");
-    document.body.appendChild(div);
-    mockBoundingClientRect(div, {
-      top: 0,
-      left: 0,
-      width: 100,
-      height: 20,
-      right: 100,
-      bottom: 20,
-    });
-    registry.add(div, {
-      nodes: new Map([[document.createTextNode("x"), { key: "a", ns: "ns" }]]),
-    });
+    const div = registerVisible(registry, "a");
 
     const collector = new Collector(eventBus, registry, SCOPE, { enabled: true });
     await collector.start(); // handshake + immediate first settle pass
-    await Promise.resolve();
-    await Promise.resolve();
+    await flushMicrotasks();
 
-    const callsAfterInitial = fetchMock.mock.calls.length;
+    expect(fetchMock).toHaveBeenCalledTimes(2);
     // Spy AFTER the initial pass so we only observe calls from subsequent
     // settles. mockBoundingClientRect sets an own property on the element
     // (shadowing the prototype), so the spy must target that same instance.
@@ -191,7 +172,7 @@ describe("collector/Collector — lifecycle & fault isolation", () => {
       await vi.advanceTimersByTimeAsync(1100);
 
       expect(rectSpy).toHaveBeenCalled();
-      expect(fetchMock.mock.calls.length).toBe(callsAfterInitial);
+      expect(fetchMock).toHaveBeenCalledTimes(2);
     } finally {
       vi.useRealTimers();
     }
@@ -209,26 +190,13 @@ describe("collector/Collector — lifecycle & fault isolation", () => {
     const eventBus = new EventBus();
     const registry = new TranslationRegistry(eventBus);
 
-    const div = document.createElement("div");
-    document.body.appendChild(div);
-    mockBoundingClientRect(div, {
-      top: 0,
-      left: 0,
-      width: 100,
-      height: 20,
-      right: 100,
-      bottom: 20,
-    });
-    registry.add(div, {
-      nodes: new Map([[document.createTextNode("x"), { key: "a", ns: "ns" }]]),
-    });
+    const div = registerVisible(registry, "a");
 
     const collector = new Collector(eventBus, registry, SCOPE, { enabled: true });
     await collector.start();
-    await Promise.resolve();
-    await Promise.resolve();
+    await flushMicrotasks();
 
-    const callsAfterInitial = fetchMock.mock.calls.length;
+    expect(fetchMock).toHaveBeenCalledTimes(2);
 
     try {
       vi.useFakeTimers();
@@ -246,12 +214,12 @@ describe("collector/Collector — lifecycle & fault isolation", () => {
       });
       eventBus.emit("attributeChanges", [div]);
       await vi.advanceTimersByTimeAsync(1100);
-      await Promise.resolve();
+      await flushMicrotasks();
     } finally {
       vi.useRealTimers();
     }
 
-    expect(fetchMock.mock.calls.length).toBeGreaterThan(callsAfterInitial);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
     const lastBody = JSON.parse(
       (fetchMock.mock.calls[fetchMock.mock.calls.length - 1]![1] as RequestInit).body as string,
     );
@@ -271,19 +239,7 @@ describe("collector/Collector — lifecycle & fault isolation", () => {
     const eventBus = new EventBus();
     const registry = new TranslationRegistry(eventBus);
 
-    const background = document.createElement("div");
-    document.body.appendChild(background);
-    mockBoundingClientRect(background, {
-      top: 0,
-      left: 0,
-      width: 100,
-      height: 20,
-      right: 100,
-      bottom: 20,
-    });
-    registry.add(background, {
-      nodes: new Map([[document.createTextNode("x"), { key: "page.title", ns: "ns" }]]),
-    });
+    registerVisible(registry, "page.title");
 
     const dialog = document.createElement("div");
     dialog.setAttribute("role", "dialog");
@@ -314,21 +270,17 @@ describe("collector/Collector — lifecycle & fault isolation", () => {
 
     const collector = new Collector(eventBus, registry, SCOPE, { enabled: true });
     await collector.start();
-    await Promise.resolve();
-    await Promise.resolve();
+    await flushMicrotasks();
 
-    const usagesCall = fetchMock.mock.calls.find(([url]) =>
-      (url as string).includes("/v1/context/usages"),
-    );
-    expect(usagesCall).toBeDefined();
-    const body = JSON.parse((usagesCall![1] as RequestInit).body as string);
+    const usagesCall = await waitForUsagesCall(fetchMock);
+    const body = JSON.parse((usagesCall[1] as RequestInit).body as string);
     const byKey = new Map(body.items.map((item: { key: string }) => [item.key, item]));
 
     const insideItem = byKey.get("modal.title") as { screenGroup: string };
     const backgroundItem = byKey.get("page.title") as { screenGroup: string };
-    expect(insideItem.screenGroup).toContain("#modal:");
     expect(backgroundItem.screenGroup).not.toContain("#modal:");
-    expect(insideItem.screenGroup.startsWith(backgroundItem.screenGroup)).toBe(true);
+    // "settings-modal" digested to 12 hex chars — the raw id never goes on the wire.
+    expect(insideItem.screenGroup).toBe(`${backgroundItem.screenGroup}#modal:a812ad7ac4b7`);
 
     collector.destroy();
   });
@@ -364,14 +316,10 @@ describe("collector/Collector — lifecycle & fault isolation", () => {
 
     const collector = new Collector(eventBus, registry, SCOPE, { enabled: true });
     await collector.start();
-    await Promise.resolve();
-    await Promise.resolve();
+    await flushMicrotasks();
 
-    const sendPassCall = fetchMock.mock.calls.find(([url]) =>
-      (url as string).includes("/v1/context/usages"),
-    );
-    expect(sendPassCall).toBeDefined();
-    const body = JSON.parse((sendPassCall![1] as RequestInit).body as string);
+    const sendPassCall = await waitForUsagesCall(fetchMock);
+    const body = JSON.parse((sendPassCall[1] as RequestInit).body as string);
     expect(body.items).toHaveLength(1);
     expect(body.items[0].uiType).toBe("primary-button");
     expect(body.items[0].translationRole).toBe("imperative-verb");
@@ -404,7 +352,16 @@ describe("collector/Collector — lifecycle & fault isolation", () => {
     resolveHandshake(mockOkResponse({ entries: [] }));
 
     await expect(startPromise).resolves.toBeUndefined();
-    // No further assertion needed beyond "did not throw" — destroying mid-flight
-    // must be a safe no-op once the handshake eventually resolves.
+
+    // The triggers were never subscribed, so a post-destroy registry event
+    // cannot schedule a pass.
+    eventBus.emit("structureChanges", [document.createElement("div")]);
+    await flushMicrotasks();
+
+    expect(
+      (fetch as unknown as ReturnType<typeof vi.fn>).mock.calls.filter(([url]) =>
+        (url as string).includes("/v1/context/usages"),
+      ),
+    ).toHaveLength(0);
   });
 });

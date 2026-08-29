@@ -10,12 +10,21 @@
  */
 
 import React, { Suspense } from "react";
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach } from "vitest";
 import { render, act } from "@testing-library/react";
 
 import { I18nProvider } from "../src/client/I18nProvider";
 import { useI18n } from "@comvi/react";
 import { FakeI18n } from "../../../tooling/test-utils/fakeI18n";
+import { flushMicrotasks, renderWarnings, spyOnConsoleError } from "./helpers/consoleWarnings";
+
+// `messages` is keyed "locale:namespace": a bare `{ default: … }` would land in
+// cache key `default:default` and the consumer, which reads `en:default`, would
+// never see it.
+const EN = { "en:default": { greeting: "Hello" } };
+const EN_UPDATED = { "en:default": { greeting: "Hi there" } };
+const EN_V2 = { "en:default": { greeting: "Hey" } };
+const EN_V3 = { "en:default": { greeting: "Hi" } };
 
 function makeSuspender() {
   let resolve!: () => void;
@@ -35,29 +44,22 @@ function makeSuspender() {
   return { Suspender, resolve };
 }
 
+function Consumer() {
+  const { t } = useI18n();
+  return <span data-testid="consumer">{t("greeting" as never)}</span>;
+}
+
 describe("OQ-A — Suspense + microtask deferral (pre-merge gate)", () => {
-  let errorSpy: ReturnType<typeof vi.spyOn>;
+  let errorSpy: ReturnType<typeof spyOnConsoleError>;
 
   beforeEach(() => {
-    errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
-  });
-
-  afterEach(() => {
-    errorSpy.mockRestore();
+    errorSpy = spyOnConsoleError();
   });
 
   it("cache mutation during Suspense does not fire 'Cannot update a component' after resume", async () => {
     const fake = new FakeI18n();
     fake.isInitialized = true;
     const i18n = fake.asI18n();
-
-    const EN = { default: { greeting: "Hello" } };
-    const EN_UPDATED = { default: { greeting: "Hi there" } };
-
-    function Consumer() {
-      const { t } = useI18n();
-      return <span data-testid="consumer">{t("greeting" as never)}</span>;
-    }
 
     const { Suspender, resolve } = makeSuspender();
 
@@ -78,26 +80,19 @@ describe("OQ-A — Suspense + microtask deferral (pre-merge gate)", () => {
     // The deferred callback is queued while Consumer is not yet committed.
     await act(async () => {
       fake.addTranslations(EN_UPDATED);
-      await Promise.resolve();
+      await flushMicrotasks();
     });
 
-    const warningsAfterMutation = errorSpy.mock.calls.filter(
-      (args) => typeof args[0] === "string" && args[0].includes("Cannot update a component"),
-    );
-    expect(warningsAfterMutation).toHaveLength(0);
+    expect(renderWarnings(errorSpy)).toHaveLength(0);
 
     await act(async () => {
       resolve();
-      await Promise.resolve();
-      await Promise.resolve();
+      await flushMicrotasks();
     });
 
     expect(queryByTestId("consumer")).not.toBeNull();
-
-    const warningsAfterResume = errorSpy.mock.calls.filter(
-      (args) => typeof args[0] === "string" && args[0].includes("Cannot update a component"),
-    );
-    expect(warningsAfterResume).toHaveLength(0);
+    expect(queryByTestId("consumer")?.textContent).toBe("Hi there");
+    expect(renderWarnings(errorSpy)).toHaveLength(0);
   });
 
   it("multiple cache mutations during Suspense coalesce correctly after resume", async () => {
@@ -105,18 +100,9 @@ describe("OQ-A — Suspense + microtask deferral (pre-merge gate)", () => {
     fake.isInitialized = true;
     const i18n = fake.asI18n();
 
-    const EN = { default: { greeting: "Hello" } };
-    const EN_V2 = { default: { greeting: "Hey" } };
-    const EN_V3 = { default: { greeting: "Hi" } };
-
-    function Consumer() {
-      const { t } = useI18n();
-      return <span data-testid="consumer">{t("greeting" as never)}</span>;
-    }
-
     const { Suspender, resolve } = makeSuspender();
 
-    render(
+    const { queryByTestId } = render(
       <I18nProvider i18n={i18n} locale="en" messages={EN} autoInit={false}>
         <Suspense fallback={<span data-testid="fallback">loading</span>}>
           <Suspender>
@@ -129,23 +115,21 @@ describe("OQ-A — Suspense + microtask deferral (pre-merge gate)", () => {
     await act(async () => {
       fake.addTranslations(EN_V2);
       fake.addTranslations(EN_V3);
-      await Promise.resolve();
+      await flushMicrotasks();
     });
 
-    const warningsDuringMutation = errorSpy.mock.calls.filter(
-      (args) => typeof args[0] === "string" && args[0].includes("Cannot update a component"),
-    );
-    expect(warningsDuringMutation).toHaveLength(0);
+    expect(renderWarnings(errorSpy)).toHaveLength(0);
 
     await act(async () => {
       resolve();
-      await Promise.resolve();
-      await Promise.resolve();
+      await flushMicrotasks();
     });
 
-    const warningsAfterResume = errorSpy.mock.calls.filter(
-      (args) => typeof args[0] === "string" && args[0].includes("Cannot update a component"),
-    );
-    expect(warningsAfterResume).toHaveLength(0);
+    // Coalescing is what makes this different from the single-mutation case:
+    // both writes landed while suspended, and the resumed render shows the LAST
+    // one exactly once rather than replaying EN_V2 first.
+    expect(queryByTestId("consumer")).not.toBeNull();
+    expect(queryByTestId("consumer")?.textContent).toBe("Hi");
+    expect(renderWarnings(errorSpy)).toHaveLength(0);
   });
 });

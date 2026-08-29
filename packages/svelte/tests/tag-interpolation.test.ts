@@ -3,7 +3,23 @@ import { mount, unmount } from "svelte";
 import T from "../src/T.svelte";
 import TInterpolationWrapper from "./TInterpolationWrapper.test.svelte";
 import { FakeI18n } from "../../../tooling/test-utils/fakeI18n";
+import { createI18n } from "../src/index";
 import type { TranslationResult } from "@comvi/core";
+
+// The mapping cases run against the REAL core pipeline: a double that calls
+// `params.strong(...)` itself and assembles the node array would be asserting
+// core's tag-handler protocol, not T.svelte's rendering of it.
+const makeRealI18n = () =>
+  createI18n({
+    locale: "en",
+    exposeGlobal: false,
+    translation: {
+      en: {
+        welcome: "Hello <strong>{name}</strong>!",
+        linebreak: "Top<break/>Bottom",
+      },
+    },
+  });
 
 const createInterpolationI18n = (): FakeI18n => {
   const fake = new FakeI18n({ language: "en", defaultNamespace: "default" });
@@ -65,7 +81,7 @@ describe("T.svelte tag interpolation contract", () => {
     component = mount(TInterpolationWrapper, {
       target,
       props: {
-        i18n: fake.asI18n(),
+        i18n: makeRealI18n(),
         i18nKey: "welcome",
         params: { name: "Alice" },
         components: {
@@ -87,14 +103,14 @@ describe("T.svelte tag interpolation contract", () => {
     expect(em!.hasAttribute("hidden")).toBe(true);
     expect(em!.hasAttribute("disabled")).toBe(false);
     expect(em!.textContent).toBe("Alice");
-    expect(target.textContent).toContain("Hello Alice!");
+    expect(target.textContent).toBe("Hello Alice!");
   });
 
   it("supports shorthand string mapping for interpolation tags", () => {
     component = mount(TInterpolationWrapper, {
       target,
       props: {
-        i18n: fake.asI18n(),
+        i18n: makeRealI18n(),
         i18nKey: "welcome",
         params: { name: "Alice" },
         components: {
@@ -106,14 +122,14 @@ describe("T.svelte tag interpolation contract", () => {
     const strong = target.querySelector("strong");
     expect(strong).not.toBeNull();
     expect(strong!.textContent).toBe("Alice");
-    expect(target.textContent).toContain("Hello Alice!");
+    expect(target.textContent).toBe("Hello Alice!");
   });
 
   it("renders mapped self-closing tags", () => {
     component = mount(TInterpolationWrapper, {
       target,
       props: {
-        i18n: fake.asI18n(),
+        i18n: makeRealI18n(),
         i18nKey: "linebreak",
         components: {
           break: {
@@ -124,8 +140,7 @@ describe("T.svelte tag interpolation contract", () => {
     });
 
     expect(target.querySelector("br")).not.toBeNull();
-    expect(target.textContent).toContain("Top");
-    expect(target.textContent).toContain("Bottom");
+    expect(target.textContent).toBe("TopBottom");
   });
 
   it("renders plain HTML in string translations as text (no markup injection)", () => {
@@ -138,7 +153,7 @@ describe("T.svelte tag interpolation contract", () => {
     });
 
     expect(target.querySelector("img")).toBeNull();
-    expect(target.textContent).toContain("<img src=x onerror=alert(1)>");
+    expect(target.textContent).toBe("<img src=x onerror=alert(1)>");
   });
 
   it("forwards raw flag to translation call params", () => {
@@ -180,7 +195,7 @@ describe("T.svelte tag interpolation contract", () => {
         raw: true,
       }),
     );
-    expect(target.textContent).toContain("locale=fr|ns=admin|fallback=Fallback Text|raw=true");
+    expect(target.textContent).toBe("locale=fr|ns=admin|fallback=Fallback Text|raw=true");
   });
 
   it("throws when i18n context is not provided", () => {

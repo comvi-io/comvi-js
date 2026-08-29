@@ -28,8 +28,12 @@ const variants = [
 const entry = (name: string, suffix: string) => path.join(DIST, `comvi-core-${name}${suffix}.js`);
 
 beforeAll(() => {
-  if (!fs.existsSync(entry("rich-text", ""))) {
-    throw new Error("dist is missing — run `pnpm --filter @comvi/core build` before the tests");
+  // Both variants: the walk below reads the dev entry too, so a missing dev
+  // artifact would otherwise surface as a raw ENOENT from `reachableFrom`.
+  for (const { suffix } of variants) {
+    if (!fs.existsSync(entry("rich-text", suffix))) {
+      throw new Error("dist is missing — run `pnpm --filter @comvi/core build` before the tests");
+    }
   }
 });
 

@@ -4,6 +4,9 @@ import { resolve } from "path";
 export default defineConfig({
   test: {
     globals: true,
+    restoreMocks: true,
+    unstubEnvs: true,
+    unstubGlobals: true,
     environment: "node",
     coverage: {
       provider: "v8",

@@ -116,7 +116,29 @@ test("report-only fixtures are never rewritten", () => {
  */
 test("CRLF sources come back with CRLF", () => {
   const rewritten = inputs.filter(isRewritten);
-  assert.ok(rewritten.length > 10, "the CRLF invariant must cover every rewritten golden");
+  assert.deepEqual(
+    rewritten.map(caseNameOf).sort(),
+    [
+      "chain-icu-order",
+      "chain-plugin-host",
+      "chain-plugin-installers",
+      "ctor-devtools-options",
+      "ctor-icu-compiler",
+      "ctor-nested-catalog",
+      "ctor-type-only-import",
+      "prologue-shebang",
+      "sfc-svelte",
+      "sfc-vue",
+      "slim-factory-rename",
+      "slim-specifier",
+      "t1-pure-loader",
+      "t2-pure-plugins",
+      "t3-mixed",
+      "t4-aliased",
+      "t5-repeated",
+    ],
+    "the CRLF invariant must cover every rewritten golden",
+  );
   for (const input of rewritten) {
     const source = fs.readFileSync(path.join(FIXTURES, input), "utf8").replaceAll("\n", "\r\n");
     const expected = fs.readFileSync(expectedOf(input), "utf8").replaceAll("\n", "\r\n");
@@ -223,132 +245,221 @@ const i18n = createI18n({ locale: "en", exposeGlobal: false });
   }
 });
 
-test("hook rewrites require exact Comvi value-import provenance", () => {
+test("hook rewrites require exact Comvi value-import provenance", async (t) => {
   const refused = [
-    `import { useI18n } from "other-i18n";
+    {
+      name: "useI18n imported from another library",
+      source: `import { useI18n } from "other-i18n";
 const { reloadTranslations } = useI18n();
 `,
-    `function useI18n() { return { reloadTranslations() {} }; }
+    },
+    {
+      name: "a locally declared useI18n",
+      source: `function useI18n() { return { reloadTranslations() {} }; }
 const { reloadTranslations } = useI18n();
 `,
-    `import { useI18n } from "@comvi/react";
+    },
+    {
+      name: "the useI18nLoader name already bound to another library's hook",
+      source: `import { useI18n } from "@comvi/react";
 import { otherHook as useI18nLoader } from "other-i18n";
 const { reloadTranslations } = useI18n();
 `,
-    `import { useI18n } from "@comvi/react";
+    },
+    {
+      name: "useI18nLoader imported as a type only",
+      source: `import { useI18n } from "@comvi/react";
 import type { useI18nLoader } from "@comvi/react";
 const { reloadTranslations } = useI18n();
 `,
+    },
   ];
-  for (const source of refused) {
-    const result = transformSource(source, "hook-provenance.ts");
-    assert.equal(result.text, source);
-    assert.equal(result.rewrites, 0);
-    assert.ok(
-      result.manual.some(({ shape }) =>
-        ["unproven-hook-source", "local-name-collision"].includes(shape),
-      ),
-    );
-  }
 
+  for (const { name, source } of refused) {
+    await t.test(name, () => {
+      const result = transformSource(source, "hook-provenance.ts");
+
+      assert.equal(result.text, source);
+      assert.equal(result.rewrites, 0);
+      assert.ok(
+        result.manual.some(({ shape }) =>
+          ["unproven-hook-source", "local-name-collision"].includes(shape),
+        ),
+        `expected an unproven-hook-source or local-name-collision action, got ${JSON.stringify(result.manual)}`,
+      );
+    });
+  }
+});
+
+test("an aliased Comvi useI18n import is rewritten to useI18nLoader", () => {
   const aliased = `import { useI18n as useComviI18n } from "@comvi/react";
 const { reloadTranslations } = useComviI18n();
 `;
+
   const transformed = transformSource(aliased, "hook-alias.ts");
+
   assert.equal(transformed.rewrites, 1);
   assert.match(transformed.text, /import \{ useI18nLoader \} from "@comvi\/react"/);
   assert.match(transformed.text, /const \{ reloadTranslations \} = useI18nLoader\(\)/);
   assert.doesNotMatch(transformed.text, /useComviI18n/);
 });
 
-test("plugin and existing-installer classification requires owning imports", () => {
+test("plugin and existing-installer classification requires owning imports", async (t) => {
   const cases = [
-    `import { createI18n } from "@comvi/react";
+    {
+      name: "an uppercase plugin factory imported from another library",
+      source: `import { createI18n } from "@comvi/react";
 import { FetchLoader } from "other-lib";
 const i18n = createI18n({ locale: "en" }).use(FetchLoader({ cdnUrl: "/x" }));
 `,
-    `import { createI18n } from "@comvi/react";
+    },
+    {
+      name: "a `plugins` installer imported from another library",
+      source: `import { createI18n } from "@comvi/react";
 import { plugins } from "other-lib";
 const i18n = createI18n({ locale: "en" }).with(plugins()).use(CustomPlugin({}));
 `,
+    },
   ];
-  for (const source of cases) {
-    const result = transformSource(source, "installer-provenance.ts");
-    assert.equal(result.text, source);
-    assert.equal(result.rewrites, 0);
-    assert.ok(result.manual.length > 0);
+
+  for (const { name, source } of cases) {
+    await t.test(name, () => {
+      const result = transformSource(source, "installer-provenance.ts");
+
+      assert.equal(result.text, source);
+      assert.equal(result.rewrites, 0);
+      assert.ok(result.manual.length > 0, "the shape must be reported for a human");
+    });
   }
 });
 
-test("namespace hooks are reported across ESM, dynamic import, and require", () => {
+test("namespace hooks are reported across ESM, dynamic import, and require", async (t) => {
   const cases = [
-    `import * as Comvi from "@comvi/react";
+    {
+      name: "ESM namespace import",
+      source: `import * as Comvi from "@comvi/react";
 const { reloadTranslations } = Comvi.useI18n();
 `,
-    `const Comvi = await import("@comvi/react");
+    },
+    {
+      name: "dynamic import",
+      source: `const Comvi = await import("@comvi/react");
 const { reloadTranslations } = Comvi.useI18n();
 `,
-    `const Comvi = require("@comvi/react");
+    },
+    {
+      name: "require",
+      source: `const Comvi = require("@comvi/react");
 const { reloadTranslations } = Comvi.useI18n();
 `,
+    },
   ];
-  for (const source of cases) {
-    const result = transformSource(source, "namespace-hook.ts");
-    assert.equal(result.text, source);
-    assert.equal(result.rewrites, 0);
-    assert.ok(result.manual.some(({ shape }) => shape === "namespace-hook-source"));
+
+  for (const { name, source } of cases) {
+    await t.test(name, () => {
+      const result = transformSource(source, "namespace-hook.ts");
+
+      assert.equal(result.text, source);
+      assert.equal(result.rewrites, 0);
+      assert.ok(
+        result.manual.some(({ shape }) => shape === "namespace-hook-source"),
+        `expected a namespace-hook-source action, got ${JSON.stringify(result.manual)}`,
+      );
+    });
   }
 });
 
-test("unsupported host import shapes never receive partial slim rewrites", () => {
+test("unsupported host import shapes never receive partial slim rewrites", async (t) => {
   const cases = [
-    `export { createSlimI18n } from "@comvi/next/client";\n`,
-    `import { createSlimI18n } from "@comvi/next/client";
+    {
+      name: "createSlimI18n re-exported straight from the module",
+      source: `export { createSlimI18n } from "@comvi/next/client";\n`,
+    },
+    {
+      name: "createSlimI18n imported, called and re-exported",
+      source: `import { createSlimI18n } from "@comvi/next/client";
 export { createSlimI18n };
 createSlimI18n({ locale: "en" });
 `,
-    `import { createSlimI18n } from "@comvi/next/client";
+    },
+    {
+      name: "createSlimI18n imported, called and re-exported under an alias",
+      source: `import { createSlimI18n } from "@comvi/next/client";
 export { createSlimI18n as makeI18n };
 createSlimI18n({ locale: "en" });
 `,
-    `const { createI18n } = require("@comvi/react");
+    },
+    {
+      name: "createI18n destructured from require()",
+      source: `const { createI18n } = require("@comvi/react");
 createI18n({ locale: "en" });
 `,
-    `const { createI18n } = await import("@comvi/react");
+    },
+    {
+      name: "createI18n destructured from a dynamic import",
+      source: `const { createI18n } = await import("@comvi/react");
 createI18n({ locale: "en" });
 `,
-    `const Comvi = await import("@comvi/react");
+    },
+    {
+      name: "createI18n called on a dynamic-import namespace",
+      source: `const Comvi = await import("@comvi/react");
 Comvi.createI18n({ locale: "en" });
 `,
-    `const Comvi = require("@comvi/react");
+    },
+    {
+      name: "createI18n called on a require() namespace",
+      source: `const Comvi = require("@comvi/react");
 Comvi.createI18n({ locale: "en" });
 `,
-    `const Comvi = await import("@comvi/react/slim");
+    },
+    {
+      name: "createSlimI18n called on a dynamic-import namespace",
+      source: `const Comvi = await import("@comvi/react/slim");
 Comvi.createSlimI18n({ locale: "en" });
 `,
-    `const Comvi = require("@comvi/react/slim");
+    },
+    {
+      name: "createSlimI18n called on a require() namespace",
+      source: `const Comvi = require("@comvi/react/slim");
 Comvi.createSlimI18n({ locale: "en" });
 `,
-    `import * as Comvi from "@comvi/react/slim";
+    },
+    {
+      name: "createSlimI18n called on an ESM namespace",
+      source: `import * as Comvi from "@comvi/react/slim";
 Comvi.createSlimI18n({ locale: "en" });
 `,
-    `export { createSlimI18n as makeI18n } from "@comvi/react/slim";\n`,
-    `import { createSlimI18n } from "@comvi/next/client";
+    },
+    {
+      name: "an aliased re-export from the slim subpath",
+      source: `export { createSlimI18n as makeI18n } from "@comvi/react/slim";\n`,
+    },
+    {
+      name: "createSlimI18n shadowed by a function parameter",
+      source: `import { createSlimI18n } from "@comvi/next/client";
 function preview(createSlimI18n) {
   return createSlimI18n({ locale: "de" });
 }
 createSlimI18n({ locale: "en" });
 `,
+    },
   ];
-  for (const source of cases) {
-    const result = transformSource(source, "unsupported-host.ts");
-    assert.equal(result.text, source);
-    assert.equal(result.rewrites, 0);
-    assert.ok(result.manual.length > 0);
+
+  for (const { name, source } of cases) {
+    await t.test(name, () => {
+      const result = transformSource(source, "unsupported-host.ts");
+
+      assert.equal(result.text, source);
+      assert.equal(result.rewrites, 0);
+      assert.ok(result.manual.length > 0, "the shape must be reported for a human");
+    });
   }
 });
-test("transformed TypeScript goldens compile", () => {
+
+test("transformed TypeScript goldens compile", (t) => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "comvi-codemod-tsc-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
   // Only the goldens the codemod actually REWROTE: the report-only fixtures
   // keep their unmigrated shape on purpose, and TypeScript rejecting that
   // shape is the point of reporting it.
@@ -403,8 +514,13 @@ test("transformed TypeScript goldens compile", () => {
     ),
   );
 
-  execFileSync(process.execPath, [tscBin(), "--noEmit", "-p", dir], { stdio: "pipe" });
-  fs.rmSync(dir, { recursive: true, force: true });
+  try {
+    execFileSync(process.execPath, [tscBin(), "--noEmit", "-p", dir], { stdio: "pipe" });
+  } catch (error) {
+    // tsc writes diagnostics to stdout; execFileSync only puts stderr in
+    // `error.message`, so without this a red run says nothing but "Command failed".
+    assert.fail(`the transformed goldens do not type-check:\n${error.stdout}`);
+  }
 });
 
 /**
@@ -525,8 +641,11 @@ function tscBin() {
   return candidate;
 }
 
-test("CLI exits 0 on a clean tree and 2 when manual actions remain", () => {
+// One accumulating tree, run three times: the second and third runs are only
+// meaningful against what the previous one left behind.
+test("CLI run, rerun, then a residual manual action: exit 0, 0 rewritten, exit 2", (t) => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "comvi-codemod-cli-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
 
   fs.copyFileSync(path.join(FIXTURES, "t3-mixed.input.tsx"), path.join(dir, "a.tsx"));
   const applied = run(["*.tsx", "--report", "report.json"], dir);
@@ -547,8 +666,6 @@ test("CLI exits 0 on a clean tree and 2 when manual actions remain", () => {
   const partial = run(["*.tsx", "--report", "report.json"], dir);
   assert.equal(partial.status, 2, "manual items remaining must exit 2");
   assert.match(partial.stdout, /MANUAL .*rest spread/);
-
-  fs.rmSync(dir, { recursive: true, force: true });
 });
 
 /**
@@ -556,13 +673,21 @@ test("CLI exits 0 on a clean tree and 2 when manual actions remain", () => {
  * landed: a release checklist that claims "mechanical migration" has to be able
  * to name the shapes it mechanized.
  */
-test("the report counts every transform by shape", () => {
+/** A tree covering three transform shapes across three file extensions. */
+function makeShapesTree(t) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "comvi-codemod-shapes-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
   fs.copyFileSync(path.join(FIXTURES, "prologue-shebang.input.mjs"), path.join(dir, "cli.mjs"));
   fs.copyFileSync(path.join(FIXTURES, "t1-pure-loader.input.tsx"), path.join(dir, "a.tsx"));
   fs.copyFileSync(path.join(FIXTURES, "ctor-nested-catalog.input.ts"), path.join(dir, "i18n.ts"));
+  return dir;
+}
+
+test("the report counts every transform by shape", (t) => {
+  const dir = makeShapesTree(t);
 
   const report = runCodemod({ patterns: ["*"], cwd: dir, write: false });
+
   assert.deepEqual(report.summary.transforms, {
     "capability-hook": 2,
     "devtools-options": 1,
@@ -571,23 +696,27 @@ test("the report counts every transform by shape", () => {
     "slim-specifier": 1,
   });
   assert.equal(report.summary.rewrites, 7);
-  // The human report names the same breakdown the JSON carries.
-  assert.match(run(["*"], dir).stdout, /transform {2}nested-catalog x2/);
-
-  fs.rmSync(dir, { recursive: true, force: true });
 });
 
-test("the report is sorted by path:line", () => {
+test("the human report names the same breakdown the JSON carries", (t) => {
+  const dir = makeShapesTree(t);
+
+  const rendered = run(["*"], dir).stdout;
+
+  assert.match(rendered, /transform {2}nested-catalog x2/);
+});
+
+test("the report is sorted by path:line", (t) => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "comvi-codemod-sort-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
   fs.copyFileSync(path.join(FIXTURES, "report-stored-result.input.tsx"), path.join(dir, "z.tsx"));
   fs.copyFileSync(path.join(FIXTURES, "report-rest-spread.input.tsx"), path.join(dir, "a.tsx"));
 
   const report = runCodemod({ patterns: ["*.tsx"], cwd: dir, write: false });
+
   const keys = report.manual.map((item) => `${item.path}:${String(item.line).padStart(4, "0")}`);
   assert.deepEqual(keys, [...keys].sort());
   assert.ok(report.manual[0].path.endsWith("a.tsx"));
-
-  fs.rmSync(dir, { recursive: true, force: true });
 });
 
 function run(args, cwd) {

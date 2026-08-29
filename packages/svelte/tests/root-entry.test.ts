@@ -103,14 +103,9 @@ describe("@comvi/svelte — ICU, both shapes, one specifier", () => {
       translation: { en: { greeting: "Hello" } },
     });
 
-    let code: unknown;
-    try {
-      i18n.with(root.icu());
-    } catch (error) {
-      if (error && typeof error === "object" && "code" in error) code = error.code;
-    }
-
-    expect(code).toBe("E_COMPILER_LOCKED");
+    expect(() => i18n.with(root.icu())).toThrow(
+      expect.objectContaining({ code: "E_COMPILER_LOCKED" }),
+    );
     expect(i18n.t("greeting" as never)).toBe("Hello");
   });
 });

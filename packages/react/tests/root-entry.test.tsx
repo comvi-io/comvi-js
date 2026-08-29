@@ -153,6 +153,8 @@ describe("@comvi/react — the export surface", () => {
     expect(root.createI18n).toBe(createI18n);
     expect(root.I18n).toBe(I18n);
 
+    // Arity-coupled and therefore weak, but it is the only pin on the base
+    // constructor's published shape.
     expect(root.I18n.length).toBe(1);
     const built = new root.I18n({
       locale: "en",

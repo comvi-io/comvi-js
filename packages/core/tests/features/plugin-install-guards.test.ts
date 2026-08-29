@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import { createI18n } from "../../src";
 import { attachLoader } from "../../src/loader";
 import { attachPlugins, ensureInstallable, plugins } from "../../src/plugins";
@@ -115,6 +115,10 @@ describe("nested-use guard", () => {
 });
 
 describe("plugin init return-shape guard", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   const host = {};
   const rejected: [label: string, value: unknown][] = [
     ["a host-shaped object", host],
@@ -196,20 +200,19 @@ describe("plugin init return-shape guard", () => {
 
   it("times out before it can return anything", async () => {
     vi.useFakeTimers();
-    try {
-      // Executor form on purpose: this promise must NEVER settle, so there is
-      // nothing for `Promise.withResolvers` to hand back, and it keeps the
-      // suite runnable on the Node versions that predate that method.
-      const i18n = pluginHost();
-      i18n.use(() => new Promise<void>(() => {}), { timeout: 100 });
+    // Executor form on purpose: this promise must NEVER settle, so there is
+    // nothing for `Promise.withResolvers` to hand back, and it keeps the
+    // suite runnable on the Node versions that predate that method.
+    const i18n = pluginHost();
+    i18n.use(() => new Promise<void>(() => {}), { timeout: 100 });
 
-      const init = i18n.init();
-      vi.advanceTimersByTime(150);
+    const init = i18n.init();
+    // Attached before the clock moves: advancing async drains the microtask
+    // queue, so an unattached rejection would surface as an unhandled one.
+    const rejection = expect(init).rejects.toThrow(/timed out after 100ms/);
 
-      await expect(init).rejects.toThrow(/timed out|E_PLUGIN_INIT_TIMEOUT/);
-    } finally {
-      vi.runOnlyPendingTimers();
-      vi.useRealTimers();
-    }
+    await vi.advanceTimersByTimeAsync(150);
+
+    await rejection;
   });
 });

@@ -6,6 +6,10 @@ interface CapturedTransportInit {
 
 type CapturedTransport = (path: string, init?: CapturedTransportInit) => Promise<Response>;
 
+/**
+ * `window.__COMVI__` is the published contract between the SDK and the
+ * extension, so tests that read the hook's shape are asserting behaviour.
+ */
 describe("MAIN-world detector transport contract", () => {
   let testWindow: EventTarget & Record<string, any>;
   let transport: CapturedTransport | undefined;
@@ -36,6 +40,16 @@ describe("MAIN-world detector transport contract", () => {
     vi.unstubAllGlobals();
   });
 
+  it("does not pass collectContext into editor.activate()", () => {
+    testWindow.dispatchEvent(
+      new CustomEvent("comvi-extension:activate", {
+        detail: { apiBaseUrl: "https://api.comvi.io" },
+      }),
+    );
+
+    expect(activationOptions).not.toHaveProperty("collectContext");
+  });
+
   it("reports the effective SDK collectContext value in activation acknowledgement", () => {
     let activationDetail: Record<string, unknown> | undefined;
     testWindow.addEventListener("comvi-extension:activated", ((event: CustomEvent) => {
@@ -48,7 +62,6 @@ describe("MAIN-world detector transport contract", () => {
       }),
     );
 
-    expect(activationOptions).not.toHaveProperty("collectContext");
     expect(activationDetail).toEqual({
       success: true,
       instanceId: "editor-1",

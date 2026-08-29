@@ -27,3 +27,20 @@ export const createDeferred = <T>() => {
   });
   return { promise, resolve, reject };
 };
+
+/**
+ * The package's ONE deterministic flush. `turns` is the number of microtask
+ * turns the code under test needs to settle — a stated fact rather than a
+ * copy-pasted `await Promise.resolve()` chain whose count nobody can justify.
+ */
+export const flushMicrotasks = async (turns = 1) => {
+  for (let i = 0; i < turns; i += 1) {
+    await Promise.resolve();
+  }
+};
+
+/** `flushMicrotasks` inside `act()`, so effects scheduled by the drained work commit. */
+export const flushEffects = (turns = 1) =>
+  act(async () => {
+    await flushMicrotasks(turns);
+  });

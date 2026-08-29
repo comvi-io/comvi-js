@@ -1,32 +1,35 @@
-/**
- * TranslationScanner Integration Tests
- * Tests TranslationScanner with real EventBus and TranslationRegistry
- */
-
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { TranslationScanner } from "../src/TranslationScanner";
 import { TranslationRegistry } from "../src/TranslationRegistry";
 import { EventBus } from "../src/EventBus";
-import { encodeKeyToInvisible, registerKey, loadKeyMappings } from "../src/translation";
+import { encodeKeyToInvisible, registerKey, resetEncoder } from "../src/translation";
 import { TAG_ATTRIBUTES } from "../src/constants";
+import { INVALID_DATA } from "./fixtures";
 import { cleanupDOM } from "./helpers";
 
-describe("TranslationScanner.integration.test.ts", () => {
+describe("TranslationScanner", () => {
   let eventBus: EventBus;
   let map: TranslationRegistry;
+  let scanner: TranslationScanner;
+
+  /** The (key, namespace) pairs the scanner decoded onto `element`, in registration order. */
+  function registeredKeys(element: Element): Array<{ key: string; ns: string }> {
+    return [...(map.get(element)?.nodes.values() ?? [])].map(({ key, ns }) => ({ key, ns }));
+  }
 
   beforeEach(() => {
     eventBus = new EventBus();
     map = new TranslationRegistry(eventBus);
-    new TranslationScanner(eventBus, map, {
+    scanner = new TranslationScanner(eventBus, map, {
       targetElement: document,
       tagAttributes: TAG_ATTRIBUTES,
     });
   });
 
   afterEach(() => {
+    scanner.destroy();
     cleanupDOM();
-    loadKeyMappings({});
+    resetEncoder();
   });
 
   describe("Text node processing", () => {
@@ -40,9 +43,11 @@ describe("TranslationScanner.integration.test.ts", () => {
 
       eventBus.emit("structureChanges", [p]);
 
-      expect(map.has(p)).toBe(true);
-      const data = map.get(p);
-      expect(data?.nodes.size).toBeGreaterThan(0);
+      expect(map.get(p)?.nodes.get(textNode)).toEqual({
+        key: "text.key",
+        ns: "default",
+        textPreview: "Text",
+      });
     });
 
     it("should process multiple text nodes in same element", () => {
@@ -58,8 +63,10 @@ describe("TranslationScanner.integration.test.ts", () => {
 
       eventBus.emit("structureChanges", [div]);
 
-      const data = map.get(div);
-      expect(data?.nodes.size).toBe(2);
+      expect(registeredKeys(div)).toEqual([
+        { key: "key1", ns: "default" },
+        { key: "key2", ns: "default" },
+      ]);
     });
 
     it("should handle textChanges events", () => {
@@ -74,9 +81,7 @@ describe("TranslationScanner.integration.test.ts", () => {
 
       eventBus.emit("textChanges", [textNode]);
 
-      expect(map.has(p)).toBe(true);
-
-      p.remove();
+      expect(registeredKeys(p)).toEqual([{ key: "change.key", ns: "default" }]);
     });
 
     it("should remove stale text registrations when encoded markers disappear", () => {
@@ -86,7 +91,7 @@ describe("TranslationScanner.integration.test.ts", () => {
       p.appendChild(textNode);
 
       eventBus.emit("structureChanges", [p]);
-      expect(map.has(p)).toBe(true);
+      expect(registeredKeys(p)).toEqual([{ key: "ghost.key", ns: "default" }]);
 
       textNode.nodeValue = "Plain value";
       eventBus.emit("textChanges", [textNode]);
@@ -105,7 +110,7 @@ describe("TranslationScanner.integration.test.ts", () => {
 
       eventBus.emit("attributeChanges", [input]);
 
-      expect(map.has(input)).toBe(true);
+      expect(registeredKeys(input)).toEqual([{ key: "attr.key", ns: "default" }]);
     });
 
     it("should process multiple attributes on same element", () => {
@@ -120,8 +125,11 @@ describe("TranslationScanner.integration.test.ts", () => {
 
       eventBus.emit("attributeChanges", [input]);
 
-      const data = map.get(input);
-      expect(data?.nodes.size).toBe(3);
+      expect(registeredKeys(input)).toEqual([
+        { key: "placeholder.key", ns: "default" },
+        { key: "title.key", ns: "default" },
+        { key: "aria.key", ns: "default" },
+      ]);
     });
 
     it("should handle tag-specific attributes", () => {
@@ -133,7 +141,7 @@ describe("TranslationScanner.integration.test.ts", () => {
 
       eventBus.emit("attributeChanges", [textarea]);
 
-      expect(map.has(textarea)).toBe(true);
+      expect(registeredKeys(textarea)).toEqual([{ key: "textarea.placeholder", ns: "default" }]);
     });
 
     it("should handle universal attributes (*)", () => {
@@ -145,7 +153,7 @@ describe("TranslationScanner.integration.test.ts", () => {
 
       eventBus.emit("attributeChanges", [span]);
 
-      expect(map.has(span)).toBe(true);
+      expect(registeredKeys(span)).toEqual([{ key: "universal.title", ns: "default" }]);
     });
 
     it("should handle selector-based tagAttributes rules", () => {
@@ -158,7 +166,7 @@ describe("TranslationScanner.integration.test.ts", () => {
 
       eventBus.emit("attributeChanges", [inputButton]);
 
-      expect(map.has(inputButton)).toBe(true);
+      expect(registeredKeys(inputButton)).toEqual([{ key: "input.button.value", ns: "default" }]);
     });
 
     it("should remove stale attribute registrations when encoded markers disappear", () => {
@@ -167,7 +175,7 @@ describe("TranslationScanner.integration.test.ts", () => {
       input.setAttribute("placeholder", `Placeholder ${encodeKeyToInvisible(key)}`);
 
       eventBus.emit("attributeChanges", [input]);
-      expect(map.has(input)).toBe(true);
+      expect(registeredKeys(input)).toEqual([{ key: "placeholder.key", ns: "default" }]);
 
       input.setAttribute("placeholder", "Plain placeholder");
       eventBus.emit("attributeChanges", [input]);
@@ -191,29 +199,33 @@ describe("TranslationScanner.integration.test.ts", () => {
 
       eventBus.emit("structureChanges", [parent]);
 
-      expect(map.has(parent)).toBe(true);
-      expect(map.has(child)).toBe(true);
+      expect(registeredKeys(parent)).toEqual([{ key: "parent.key", ns: "default" }]);
+      expect(registeredKeys(child)).toEqual([{ key: "child.key", ns: "default" }]);
     });
 
     it("should process deeply nested structures", () => {
       const root = document.createElement("div");
       let current = root;
 
-      const keys = [];
+      const levels: HTMLElement[] = [];
       for (let i = 0; i < 5; i++) {
-        const key = registerKey(`level${i}`);
-        keys.push(key);
-
         const child = document.createElement("div");
-        child.setAttribute("title", `Level ${i} ${encodeKeyToInvisible(key)}`);
+        child.setAttribute("title", `Level ${i} ${encodeKeyToInvisible(registerKey(`level${i}`))}`);
         current.appendChild(child);
         current = child;
+        levels.push(child);
       }
 
       eventBus.emit("structureChanges", [root]);
 
-      // Should process all levels
       expect(map.size()).toBe(5);
+      expect(levels.map(registeredKeys)).toEqual([
+        [{ key: "level0", ns: "default" }],
+        [{ key: "level1", ns: "default" }],
+        [{ key: "level2", ns: "default" }],
+        [{ key: "level3", ns: "default" }],
+        [{ key: "level4", ns: "default" }],
+      ]);
     });
 
     it("should avoid duplicate processing for overlapping structure roots", () => {
@@ -229,7 +241,7 @@ describe("TranslationScanner.integration.test.ts", () => {
 
       eventBus.emit("structureChanges", [parent, child]);
 
-      expect(map.has(child)).toBe(true);
+      expect(registeredKeys(child)).toEqual([{ key: "overlap.key", ns: "default" }]);
       expect(updatedSpy).not.toHaveBeenCalled();
     });
   });
@@ -242,13 +254,10 @@ describe("TranslationScanner.integration.test.ts", () => {
       div.appendChild(textNode);
 
       eventBus.emit("structureChanges", [div]);
-      expect(map.has(div)).toBe(true);
+      expect(registeredKeys(div)).toEqual([{ key: "removed.key", ns: "default" }]);
 
-      // Remove node
       eventBus.emit("nodesRemoved", [textNode]);
 
-      // Element should be cleaned up if it has no more nodes
-      // After removal, element might be removed entirely from map
       expect(map.has(div)).toBe(false);
     });
 
@@ -258,9 +267,8 @@ describe("TranslationScanner.integration.test.ts", () => {
       div.setAttribute("title", `Title ${encodeKeyToInvisible(key)}`);
 
       eventBus.emit("structureChanges", [div]);
-      expect(map.has(div)).toBe(true);
+      expect(registeredKeys(div)).toEqual([{ key: "element.key", ns: "default" }]);
 
-      // Remove element
       eventBus.emit("nodesRemoved", [div]);
 
       expect(map.has(div)).toBe(false);
@@ -289,7 +297,6 @@ describe("TranslationScanner.integration.test.ts", () => {
 
       eventBus.emit("structureChanges", [script]);
 
-      // Should not be added to map
       expect(map.has(script)).toBe(false);
     });
 
@@ -300,7 +307,6 @@ describe("TranslationScanner.integration.test.ts", () => {
 
       eventBus.emit("structureChanges", [style]);
 
-      // Should not be added to map
       expect(map.has(style)).toBe(false);
     });
   });
@@ -317,12 +323,11 @@ describe("TranslationScanner.integration.test.ts", () => {
 
       eventBus.emit("structureChanges", [select]);
 
-      // Should map to select, not option
-      expect(map.has(select)).toBe(true);
+      expect(registeredKeys(select)).toEqual([{ key: "option.key", ns: "default" }]);
       expect(map.has(option)).toBe(false);
     });
 
-    it("should map optgroup to select parent", () => {
+    it("registers an optgroup label attribute on the optgroup itself, not the select parent", () => {
       const key = registerKey("optgroup.key");
       const select = document.createElement("select");
       const optgroup = document.createElement("optgroup");
@@ -332,11 +337,8 @@ describe("TranslationScanner.integration.test.ts", () => {
 
       eventBus.emit("structureChanges", [select]);
 
-      // 'label' attribute is not in TAG_ATTRIBUTES for optgroup
-      // This test was incorrect - optgroup doesn't have 'label' as a watched attribute
-      // The mapping only applies to text content, not attributes
-      // Verify no error occurred - optgroup.label is not processed
-      expect(map.has(select)).toBe(false); // Not added since label is not watched
+      expect(map.has(select)).toBe(false);
+      expect(registeredKeys(optgroup)).toEqual([{ key: "optgroup.key", ns: "default" }]);
     });
   });
 
@@ -347,7 +349,6 @@ describe("TranslationScanner.integration.test.ts", () => {
 
       eventBus.emit("structureChanges", [div]);
 
-      // Should not be added to map
       expect(map.has(div)).toBe(false);
     });
 
@@ -372,9 +373,20 @@ describe("TranslationScanner.integration.test.ts", () => {
 
       eventBus.emit("structureChanges", [div]);
 
-      const data = map.get(div);
-      // Should only track the encoded text node
-      expect(data?.nodes.size).toBe(1);
+      expect([...(map.get(div)?.nodes.keys() ?? [])]).toEqual([text2]);
+      expect(registeredKeys(div)).toEqual([{ key: "mixed.key", ns: "default" }]);
     });
+
+    it.each(Object.entries(INVALID_DATA))(
+      "should not register text carrying a malformed encoded id (%s)",
+      (_name, malformed) => {
+        const div = document.createElement("div");
+        div.appendChild(document.createTextNode(`Broken ${malformed}`));
+
+        eventBus.emit("structureChanges", [div]);
+
+        expect(map.has(div)).toBe(false);
+      },
+    );
   });
 });

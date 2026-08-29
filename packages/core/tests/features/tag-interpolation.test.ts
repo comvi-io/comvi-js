@@ -25,7 +25,7 @@ describe("Tag Interpolation", () => {
     expect(result).toBe("Click A(B(here))");
   });
 
-  it("handles self-closing tags", () => {
+  it("renders a self-closing <br/> through its param handler", () => {
     i18n.addTranslations({ en: { msg: "Line 1<br/>Line 2" } });
 
     const result = i18n.t("msg", {
@@ -113,8 +113,6 @@ describe("Tag Interpolation", () => {
 
     expect(result).toBe("Click <link>here");
     expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("Unclosed tag"));
-
-    warnSpy.mockRestore();
   });
 
   it("warns and degrades on mismatched nested tags", () => {
@@ -126,8 +124,6 @@ describe("Tag Interpolation", () => {
 
     expect(result).toBe("Click <a><b>here</a></b>");
     expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("Tag mismatch"));
-
-    warnSpy.mockRestore();
   });
 
   describe("Strict Mode", () => {
@@ -173,21 +169,30 @@ describe("Tag Interpolation", () => {
   });
 
   describe("Basic HTML Tags Whitelist", () => {
-    it("renders whitelisted tags as virtual nodes and allows handler override", () => {
-      const i18nWithWhitelist = createI18n({
+    const whitelistHost = () => {
+      const host = createI18n({
         locale: "en",
         tagInterpolation: { basicHtmlTags: ["strong"] },
       });
-      i18nWithWhitelist.addTranslations({
-        en: { msg: "This is <strong>bold</strong>" },
-      });
+      host.addTranslations({ en: { msg: "This is <strong>bold</strong>" } });
+      return host;
+    };
 
-      const result = i18nWithWhitelist.tRaw("msg");
+    it("renders a whitelisted tag as a VirtualNode through tRaw()", () => {
+      const result = whitelistHost().tRaw("msg");
 
-      expect((result as any[])[1]).toMatchObject({ type: "element", tag: "strong" });
-      expect(i18nWithWhitelist.t("msg")).toBe("This is bold");
+      expect(result).toEqual([
+        "This is ",
+        expect.objectContaining({ type: "element", tag: "strong" }),
+      ]);
+    });
 
-      const overridden = i18nWithWhitelist.tRaw("msg", {
+    it("flattens a whitelisted tag to its inner text through t()", () => {
+      expect(whitelistHost().t("msg")).toBe("This is bold");
+    });
+
+    it("a param handler overrides the whitelist", () => {
+      const overridden = whitelistHost().tRaw("msg", {
         strong: ({ children }: { children: string }) => `CUSTOM:${children}`,
       });
 
@@ -197,7 +202,6 @@ describe("Tag Interpolation", () => {
 
   it("returns an array when a handler returns a virtual node", () => {
     i18n.addTranslations({ en: { msg: "Click <link>here</link>" } });
-
     const vnode = {
       type: "element" as const,
       tag: "a",
@@ -205,12 +209,20 @@ describe("Tag Interpolation", () => {
       children: ["here"],
     };
 
-    const result = i18n.tRaw("msg", {
-      link: () => vnode,
-    });
+    const result = i18n.tRaw("msg", { link: () => vnode });
 
-    expect((result as any[])[0]).toBe("Click ");
-    expect((result as any[])[1]).toBe(vnode);
+    expect(result).toEqual(["Click ", vnode]);
+  });
+
+  it("stringifies a handler-returned virtual node to its inner text through t()", () => {
+    i18n.addTranslations({ en: { msg: "Click <link>here</link>" } });
+    const vnode = {
+      type: "element" as const,
+      tag: "a",
+      props: { href: "#" },
+      children: ["here"],
+    };
+
     expect(i18n.t("msg", { link: () => vnode })).toBe("Click here");
   });
 });

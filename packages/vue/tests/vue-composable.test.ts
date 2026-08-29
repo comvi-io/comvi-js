@@ -6,7 +6,7 @@ import { useI18n } from "../src/composables/useI18n";
 
 describe("useI18n composable", () => {
   it("throws when used without provider", () => {
-    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    vi.spyOn(console, "warn").mockImplementation(() => {});
 
     const C = {
       setup() {
@@ -18,8 +18,6 @@ describe("useI18n composable", () => {
     expect(() => mount(C)).toThrow(
       /useI18n must be used within a Vue app with i18n plugin installed/i,
     );
-
-    warnSpy.mockRestore();
   });
 
   it("provides reactive locale and translates through installed plugin", async () => {
@@ -154,18 +152,16 @@ describe("useI18n composable", () => {
     expect(wrapper.text()).toBe("Hello <strong>Alice</strong>!-false");
   });
 
-  it("supports destructured imperative methods and event subscriptions", async () => {
-    const onError = vi.fn();
+  const mountDestructuredHarness = (onError: (...args: never[]) => void) => {
     const i18n = createI18n({
       locale: "en",
       defaultNs: "common",
-      onError,
+      onError: onError as never,
     });
     i18n.addTranslations({
       en: { greeting: "Hello" },
       fr: { greeting: "Bonjour" },
     });
-    await i18n.init();
 
     const C = defineComponent({
       setup() {
@@ -188,7 +184,14 @@ describe("useI18n composable", () => {
       `,
     });
 
-    const wrapper = mount(C, { global: { plugins: [i18n] } });
+    return { i18n, mount: () => mount(C, { global: { plugins: [i18n] } }) };
+  };
+
+  it("supports destructured imperative methods and event subscriptions", async () => {
+    const harness = mountDestructuredHarness(vi.fn());
+    await harness.i18n.init();
+
+    const wrapper = harness.mount();
 
     expect(wrapper.get('[data-testid="change-locale"]').text()).toBe("Hello");
     expect(wrapper.get('[data-testid="last-locale-change"]').text()).toBe("none");
@@ -199,6 +202,14 @@ describe("useI18n composable", () => {
       expect(wrapper.get('[data-testid="change-locale"]').text()).toBe("Bonjour");
       expect(wrapper.get('[data-testid="last-locale-change"]').text()).toBe("fr");
     });
+  });
+
+  it("routes a destructured reportError call to the configured onError handler", async () => {
+    const onError = vi.fn();
+    const harness = mountDestructuredHarness(onError);
+    await harness.i18n.init();
+
+    const wrapper = harness.mount();
 
     await wrapper.get('[data-testid="report-error"]').trigger("click");
 

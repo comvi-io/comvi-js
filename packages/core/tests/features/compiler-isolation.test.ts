@@ -3,12 +3,12 @@ import { I18n } from "../../src/core/i18n";
 import { clearTemplateCache, _templateCacheSize } from "../../src/core/translate";
 import { icuCompiler } from "../../src/core/translate/compile-icu";
 import { simpleCompiler } from "../../src/core/translate/compile-simple";
-import { TK_TEXT } from "../../src/core/translate/cache";
 import {
   _resetSyntaxExtensions,
   getCompilerId,
   type MessageCompiler,
 } from "../../src/core/translate/syntax";
+import { markerCompiler } from "../helpers/compilers";
 
 const PLURAL_TEMPLATE = "{count, plural, one {# item} other {# items}}";
 
@@ -40,21 +40,20 @@ describe("compiler isolation in the shared template cache", () => {
     expect(icu.t("items" as never, { count: 1 } as never)).toBe("1 item");
   });
 
-  it("pre-assigned ids: simple=1, icu=2", () => {
+  it("assigns the two built-in compilers stable, distinct ids (simple=1, icu=2)", () => {
+    expect(getCompilerId(simpleCompiler)).toBe(1);
+    expect(getCompilerId(icuCompiler)).toBe(2);
+
+    // Stable across calls: the id is what keys the shared template cache, so a
+    // second lookup must not mint a new one.
     expect(getCompilerId(simpleCompiler)).toBe(1);
     expect(getCompilerId(icuCompiler)).toBe(2);
   });
 
   it("a third user-injected compiler gets a WeakMap id >= 3 and its own cache variants", () => {
-    // Deliberately odd: every {…} argument compiles to a marker.
-    const markerCompiler: MessageCompiler = {
-      makeArgToken(content) {
-        return [TK_TEXT, `«${content.trim().split(",")[0]}»`];
-      },
-    };
     const injectedId = getCompilerId(markerCompiler);
     expect(injectedId).toBeGreaterThanOrEqual(3);
-    expect(getCompilerId(markerCompiler)).toBe(injectedId); // stable
+    expect(getCompilerId(markerCompiler)).toBe(injectedId);
 
     const icu = makeInstance(icuCompiler);
     const injected = makeInstance(markerCompiler);

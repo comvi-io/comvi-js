@@ -64,7 +64,7 @@ import { createI18n } from "@comvi/core";
 
 // base: plain options, missingParam option, and compiler injection all type.
 const slim = createBaseI18n({ locale: "en" });
-// (TranslationKeys is augmented by default-params.test-d.ts in this program.)
+// (TranslationKeys is augmented by translation-keys.test-d.ts in this program.)
 slim.t("count", { count: 1 });
 createBaseI18n({ locale: "en", missingParam: "drop" });
 createBaseI18n({ locale: "en", compiler: icuCompiler });

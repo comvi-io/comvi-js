@@ -1,13 +1,7 @@
 import { createI18n, type DefaultTranslationParams } from "@comvi/core";
 
-declare module "@comvi/core" {
-  interface TranslationKeys {
-    review: { formality: "formal" | "informal" };
-    greeting: { formality: "formal" | "informal"; name: string };
-    count: { count: number };
-    "admin:title": never;
-  }
-}
+// `TranslationKeys` is augmented once for the whole program in
+// tests/types/translation-keys.test-d.ts.
 
 type ConfiguredDefaults = { formality: "formal" | "informal" };
 

@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { createI18n } from "../src";
 import { I18nProvider } from "../src/I18nProvider";
@@ -67,8 +67,7 @@ describe("<T /> tag interpolation smoke", () => {
     });
     await i18n.init();
 
-    const originalError = console.error;
-    console.error = () => {};
+    vi.spyOn(console, "error").mockImplementation(() => {});
 
     expect(() =>
       render(
@@ -76,8 +75,6 @@ describe("<T /> tag interpolation smoke", () => {
           <T i18nKey="msg" />
         </I18nProvider>,
       ),
-    ).toThrow(/Missing handler for tag: <link>|E_MISSING_TAG_HANDLER/);
-
-    console.error = originalError;
+    ).toThrow("[i18n] Missing handler for tag: <link>");
   });
 });

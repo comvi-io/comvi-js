@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach, type MockedFunction } from "vitest";
 import { TypeGenerator } from "../src/core/TypeGenerator";
 import { ConfigLoader } from "../src/core/ConfigLoader";
 import { InMemoryFileSystem, FileSystemWriter } from "../src/core/FileSystemWriter";
@@ -6,327 +6,190 @@ import { CollectingReporter } from "../src/core/GenerationReporter";
 import { SilentLogger } from "../src/utils/logger";
 import type { ProjectSchema, GeneratorOptions } from "../src/types";
 import { promises as nodeFs } from "fs";
+import { join } from "path";
+import { makeTempDir, removeTempDirs } from "./helpers";
 
 /**
- * The command handlers run for real: only `fetch` is mocked, and the seams are
+ * TypeGenerator runs for real here: only `fetch` is mocked, and the seams are
  * filled with test doubles (InMemoryFileSystem, CollectingReporter,
  * SilentLogger) rather than by mocking ConfigLoader or TypeGenerator.
  */
 
-describe("CLI", () => {
-  let mockFileSystem: InMemoryFileSystem;
-  let mockWriter: FileSystemWriter;
-  let mockReporter: CollectingReporter;
-  let mockLogger: SilentLogger;
-
-  const mockSchema: ProjectSchema = {
-    keys: {
-      "common:welcome": { params: [] },
-      "common:greeting": {
-        params: [{ name: "name", type: "string" }],
-      },
+const mockSchema: ProjectSchema = {
+  keys: {
+    "common:welcome": { params: [] },
+    "common:greeting": {
+      params: [{ name: "name", type: "string" }],
     },
-  };
+  },
+};
 
-  beforeEach(() => {
-    mockFileSystem = new InMemoryFileSystem();
-    mockWriter = new FileSystemWriter(mockFileSystem);
-    mockReporter = new CollectingReporter();
-    mockLogger = new SilentLogger();
+/** Enough for the retry ladder: 500 ms + 1000 ms of backoff between 3 attempts. */
+const RETRY_LADDER_MS = 2000;
 
-    global.fetch = vi.fn();
-  });
+describe("ConfigLoader.create() on the real filesystem", () => {
+  afterEach(removeTempDirs);
 
-  afterEach(() => {
-    vi.restoreAllMocks();
-  });
+  it("should create config file with provided options via ConfigLoader.create", async () => {
+    const outputPath = join(await makeTempDir("comvi-cli-create"), ".comvirc.json");
 
-  function stubDefaultNamespace(generator: TypeGenerator): void {
-    vi.spyOn(generator.getApiClient(), "fetchDefaultNamespace").mockResolvedValue("default");
-  }
-
-  describe("init command", () => {
-    const tmpFiles: string[] = [];
-
-    afterEach(async () => {
-      for (const f of tmpFiles) {
-        try {
-          await nodeFs.unlink(f);
-        } catch {
-          // file may not exist
-        }
-      }
-      tmpFiles.length = 0;
-    });
-
-    it("should create config file with provided options via ConfigLoader.create", async () => {
-      const config = {
+    const filePath = await ConfigLoader.create(
+      {
         apiKey: "test-key",
         apiBaseUrl: "https://api.custom.com",
         outputPath: "custom/types/i18n.d.ts",
         strictParams: false,
-      };
+      },
+      outputPath,
+    );
 
-      // Use /tmp directly (guaranteed to exist) as output path
-      const outputPath = "/tmp/.comvirc-test-cli-create.json";
-      tmpFiles.push(outputPath);
-
-      const filePath = await ConfigLoader.create(config, outputPath);
-
-      expect(filePath).toBe(outputPath);
-
-      const content = await nodeFs.readFile(outputPath);
-      const parsed = JSON.parse(content);
-      expect(parsed.apiKey).toBe("test-key");
-      expect(parsed.apiBaseUrl).toBe("https://api.custom.com");
-      expect(parsed.outputPath).toBe("custom/types/i18n.d.ts");
-      expect(parsed.strictParams).toBe(false);
-    });
-
-    it("should merge default values for missing config options", async () => {
-      const outputPath = "/tmp/.comvirc-test-cli-defaults.json";
-      tmpFiles.push(outputPath);
-
-      const filePath = await ConfigLoader.create({}, outputPath);
-
-      expect(filePath).toBe(outputPath);
-
-      const content = await nodeFs.readFile(outputPath);
-      const parsed = JSON.parse(content);
-      expect(parsed.apiKey).toBeUndefined();
-      expect(parsed.apiBaseUrl).toBe("https://api.comvi.io");
-      expect(parsed.outputPath).toBe("src/types/i18n.d.ts");
-      expect(parsed.strictParams).toBe(true);
-    });
-
-    it("should convert config to generator options with correct defaults", () => {
-      const config = {
-        apiKey: "test-key",
-        apiBaseUrl: "https://api.custom.com",
-      };
-
-      const options = ConfigLoader.toGeneratorOptions(config as any);
-
-      expect(options.apiKey).toBe("test-key");
-      expect(options.apiBaseUrl).toBe("https://api.custom.com");
-      expect(options.outputPath).toBe("src/types/i18n.d.ts");
-      expect(options.strictParams).toBe(true);
-    });
-
-    it("should throw when converting config without apiKey", () => {
-      expect(() => ConfigLoader.toGeneratorOptions({} as any)).toThrow("API key is required");
+    expect(filePath).toBe(outputPath);
+    expect(JSON.parse(await nodeFs.readFile(outputPath, "utf-8"))).toMatchObject({
+      apiKey: "test-key",
+      apiBaseUrl: "https://api.custom.com",
+      outputPath: "custom/types/i18n.d.ts",
+      strictParams: false,
     });
   });
 
-  describe("generate command", () => {
-    it("should generate types successfully and write to file", async () => {
-      (global.fetch as any).mockResolvedValue({
-        ok: true,
-        json: async () => mockSchema,
-      });
+  it("should merge default values for missing config options", async () => {
+    const outputPath = join(await makeTempDir("comvi-cli-defaults"), ".comvirc.json");
 
-      const options: GeneratorOptions = {
-        apiKey: "test-key",
-        apiBaseUrl: "https://api.test.com",
-        outputPath: "src/types/i18n.d.ts",
-        strictParams: true,
-      };
+    const filePath = await ConfigLoader.create({}, outputPath);
 
-      const generator = new TypeGenerator(options, {
-        writer: mockWriter,
+    expect(filePath).toBe(outputPath);
+    const parsed = JSON.parse(await nodeFs.readFile(outputPath, "utf-8"));
+    expect(parsed.apiKey).toBeUndefined();
+    expect(parsed.apiBaseUrl).toBe("https://api.comvi.io");
+    expect(parsed.outputPath).toBe("src/types/i18n.d.ts");
+    expect(parsed.strictParams).toBe(true);
+  });
+});
+
+describe("TypeGenerator.generate() over a mocked fetch", () => {
+  let mockFileSystem: InMemoryFileSystem;
+  let mockReporter: CollectingReporter;
+  let fetchMock: MockedFunction<typeof fetch>;
+
+  const options: GeneratorOptions = {
+    apiKey: "test-key",
+    apiBaseUrl: "https://api.test.com",
+    outputPath: "src/types/i18n.d.ts",
+    strictParams: true,
+  };
+
+  function makeGenerator(overrides: Partial<GeneratorOptions> = {}): TypeGenerator {
+    const generator = new TypeGenerator(
+      { ...options, ...overrides },
+      {
+        writer: new FileSystemWriter(mockFileSystem),
         reporter: mockReporter,
-        logger: mockLogger,
-      });
-      stubDefaultNamespace(generator);
+        logger: new SilentLogger(),
+      },
+    );
+    vi.spyOn(generator.getApiClient(), "fetchDefaultNamespace").mockResolvedValue("default");
+    return generator;
+  }
 
-      const result = await generator.generate();
-
-      expect(result.success).toBe(true);
-      expect(result.keysGenerated).toBe(2);
-      expect(result.filePath).toBe("src/types/i18n.d.ts");
-
-      const written = mockFileSystem.getFile("src/types/i18n.d.ts");
-      expect(written).toContain("declare module '@comvi/core'");
-      expect(written).toContain("interface TranslationKeys");
-    });
-
-    it("should generate an empty declaration file when no keys are found in schema", async () => {
-      (global.fetch as any).mockResolvedValue({
-        ok: true,
-        json: async () => ({ keys: {} }),
-      });
-
-      const options: GeneratorOptions = {
-        apiKey: "test-key",
-        apiBaseUrl: "https://api.test.com",
-        outputPath: "src/types/i18n.d.ts",
-      };
-
-      const generator = new TypeGenerator(options, {
-        writer: mockWriter,
-        reporter: mockReporter,
-        logger: mockLogger,
-      });
-      stubDefaultNamespace(generator);
-
-      const result = await generator.generate();
-
-      expect(result.success).toBe(true);
-      expect(result.keysGenerated).toBe(0);
-    });
-
-    it("should return failure result when API returns an error", async () => {
-      (global.fetch as any).mockResolvedValue({
-        ok: false,
-        status: 500,
-        statusText: "Internal Server Error",
-      });
-
-      const options: GeneratorOptions = {
-        apiKey: "test-key",
-        apiBaseUrl: "https://api.test.com",
-        outputPath: "src/types/i18n.d.ts",
-      };
-
-      const generator = new TypeGenerator(options, {
-        writer: mockWriter,
-        reporter: mockReporter,
-        logger: mockLogger,
-      });
-      stubDefaultNamespace(generator);
-
-      const result = await generator.generate();
-
-      expect(result.success).toBe(false);
-      expect(result.error).toContain("500");
-    });
-
-    it("should respect strictParams=false and produce optional params", async () => {
-      (global.fetch as any).mockResolvedValue({
-        ok: true,
-        json: async () => mockSchema,
-      });
-
-      const options: GeneratorOptions = {
-        apiKey: "test-key",
-        apiBaseUrl: "https://api.test.com",
-        outputPath: "src/types/i18n.d.ts",
-        strictParams: false,
-      };
-
-      const generator = new TypeGenerator(options, {
-        writer: mockWriter,
-        reporter: mockReporter,
-        logger: mockLogger,
-      });
-      stubDefaultNamespace(generator);
-
-      const result = await generator.generate();
-
-      expect(result.success).toBe(true);
-
-      const written = mockFileSystem.getFile("src/types/i18n.d.ts");
-      expect(written).toContain("name?: string");
-    });
+  beforeEach(() => {
+    vi.useFakeTimers();
+    mockFileSystem = new InMemoryFileSystem();
+    mockReporter = new CollectingReporter();
+    fetchMock = vi.fn() as MockedFunction<typeof fetch>;
+    vi.stubGlobal("fetch", fetchMock);
   });
 
-  describe("watch command", () => {
-    it("should regenerate types from schema update via generateFromSchema", async () => {
-      (global.fetch as any).mockResolvedValue({
-        ok: true,
-        json: async () => mockSchema,
-      });
-
-      const options: GeneratorOptions = {
-        apiKey: "test-key",
-        apiBaseUrl: "https://api.test.com",
-        outputPath: "src/types/i18n.d.ts",
-        strictParams: true,
-      };
-
-      const generator = new TypeGenerator(options, {
-        writer: mockWriter,
-        reporter: mockReporter,
-        logger: mockLogger,
-      });
-      stubDefaultNamespace(generator);
-
-      // Simulate SSE callback: generateFromSchema with updated schema
-      const updatedSchema: ProjectSchema = {
-        keys: {
-          "common:welcome": { params: [] },
-          "common:greeting": {
-            params: [{ name: "name", type: "string" }],
-          },
-          "common:new_key": {
-            params: [{ name: "count", type: "number" }],
-          },
-        },
-      };
-
-      const updateResult = await generator.generateFromSchema(updatedSchema);
-
-      expect(updateResult.success).toBe(true);
-      expect(updateResult.keysGenerated).toBe(3);
-
-      const written = mockFileSystem.getFile("src/types/i18n.d.ts");
-      expect(written).toContain("'common:new_key'");
-      expect(written).toContain("count: number");
-    });
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
-  describe("common scenarios", () => {
-    it("should handle network errors gracefully with failure result", async () => {
-      (global.fetch as any).mockRejectedValue(new Error("Network error"));
+  it("should generate types successfully and write to file", async () => {
+    fetchMock.mockResolvedValue({ ok: true, json: async () => mockSchema } as Response);
 
-      const options: GeneratorOptions = {
-        apiKey: "test-key",
-        apiBaseUrl: "https://api.test.com",
-        outputPath: "src/types/i18n.d.ts",
-      };
+    const result = await makeGenerator().generate();
 
-      const generator = new TypeGenerator(options, {
-        writer: mockWriter,
-        reporter: mockReporter,
-        logger: mockLogger,
-      });
-      stubDefaultNamespace(generator);
+    expect(result.success).toBe(true);
+    expect(result.keysGenerated).toBe(2);
+    expect(result.filePath).toBe("src/types/i18n.d.ts");
 
-      const result = await generator.generate();
+    const written = mockFileSystem.getFile("src/types/i18n.d.ts");
+    expect(written).toContain("declare module '@comvi/core'");
+    expect(written).toContain("interface TranslationKeys");
+  });
 
-      expect(result.success).toBe(false);
-      expect(result.error).toContain("Network error");
+  it("should generate an empty declaration file when no keys are found in schema", async () => {
+    fetchMock.mockResolvedValue({ ok: true, json: async () => ({ keys: {} }) } as Response);
 
-      const errorReport = mockReporter.reports.find((r) => r.type === "error");
-      expect(errorReport?.data).toBeInstanceOf(Error);
-    });
+    const result = await makeGenerator().generate();
 
-    it("should report all progress events during successful generation", async () => {
-      (global.fetch as any).mockResolvedValue({
-        ok: true,
-        json: async () => mockSchema,
-      });
+    expect(result.success).toBe(true);
+    expect(result.keysGenerated).toBe(0);
+  });
 
-      const options: GeneratorOptions = {
-        apiKey: "test-key",
-        apiBaseUrl: "https://api.test.com",
-        outputPath: "src/types/i18n.d.ts",
-      };
+  it("should return failure result when API returns an error", async () => {
+    fetchMock.mockResolvedValue({
+      ok: false,
+      status: 500,
+      statusText: "Internal Server Error",
+    } as Response);
 
-      const generator = new TypeGenerator(options, {
-        writer: mockWriter,
-        reporter: mockReporter,
-        logger: mockLogger,
-      });
-      stubDefaultNamespace(generator);
+    const promise = makeGenerator().generate();
+    await vi.advanceTimersByTimeAsync(RETRY_LADDER_MS);
+    const result = await promise;
 
-      await generator.generate();
+    expect(result.success).toBe(false);
+    expect(result.error).toContain("500");
+  });
 
-      const reportTypes = mockReporter.reports.map((r) => r.type);
-      expect(reportTypes).toContain("start");
-      expect(reportTypes).toContain("fetching");
-      expect(reportTypes).toContain("generating");
-      expect(reportTypes).toContain("success");
-    });
+  it("should respect strictParams=false and produce optional params", async () => {
+    fetchMock.mockResolvedValue({ ok: true, json: async () => mockSchema } as Response);
+
+    const result = await makeGenerator({ strictParams: false }).generate();
+
+    expect(result.success).toBe(true);
+    expect(mockFileSystem.getFile("src/types/i18n.d.ts")).toContain("name?: string");
+  });
+
+  it("should handle network errors gracefully with failure result", async () => {
+    fetchMock.mockRejectedValue(new Error("Network error"));
+
+    const promise = makeGenerator().generate();
+    await vi.advanceTimersByTimeAsync(RETRY_LADDER_MS);
+    const result = await promise;
+
+    expect(result.success).toBe(false);
+    expect(result.error).toContain("Network error");
+    expect(mockReporter.reports.find((r) => r.type === "error")?.data).toBeInstanceOf(Error);
+  });
+
+  it("should report all progress events during successful generation", async () => {
+    fetchMock.mockResolvedValue({ ok: true, json: async () => mockSchema } as Response);
+
+    await makeGenerator().generate();
+
+    expect(mockReporter.reports.map((r) => r.type)).toEqual([
+      "start",
+      "fetching",
+      "generating",
+      "success",
+    ]);
+  });
+
+  it("should regenerate types from schema update via generateFromSchema", async () => {
+    const updatedSchema: ProjectSchema = {
+      keys: {
+        ...mockSchema.keys,
+        "common:new_key": { params: [{ name: "count", type: "number" }] },
+      },
+    };
+
+    const result = await makeGenerator().generateFromSchema(updatedSchema);
+
+    expect(result.success).toBe(true);
+    expect(result.keysGenerated).toBe(3);
+
+    const written = mockFileSystem.getFile("src/types/i18n.d.ts");
+    expect(written).toContain("'common:new_key'");
+    expect(written).toContain("count: number");
   });
 });

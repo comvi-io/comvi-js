@@ -28,6 +28,18 @@ describe("Security and Error Handling", () => {
       const longKey = "a".repeat(10000);
       expect(i18n.t(longKey)).toBe(longKey);
     });
+
+    it("does not re-parse braces that arrive inside a parameter value", () => {
+      i18n.addTranslations({ en: { msg: "User: {name}" } });
+
+      expect(i18n.t("msg", { name: "{injected}" })).toBe("User: {injected}");
+    });
+
+    it("does not resolve a placeholder smuggled in through another parameter's value", () => {
+      i18n.addTranslations({ en: { msg: "User: {name}" } });
+
+      expect(i18n.t("msg", { name: "{injected}", injected: "owned" })).toBe("User: {injected}");
+    });
   });
 
   describe("Malformed Templates", () => {
@@ -38,13 +50,14 @@ describe("Security and Error Handling", () => {
       // Best effort plus a warning; never a throw.
       expect(i18n.t("bad", { name: "World" })).toBe("Hello {name");
       expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("Unbalanced braces"));
-
-      warnSpy.mockRestore();
     });
 
-    it("should handle unexpected closing braces", () => {
+    it("renders an unmatched closing brace literally and does not warn", () => {
       i18n.addTranslations({ en: { bad: "Hello } name" } });
+      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
       expect(i18n.t("bad")).toBe("Hello } name");
+      expect(warnSpy).not.toHaveBeenCalled();
     });
   });
 });

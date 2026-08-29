@@ -3,20 +3,22 @@ import { TranslationRegistry } from "../src/TranslationRegistry";
 import { EventBus } from "../src/EventBus";
 import { cleanupDOM } from "./helpers";
 
-describe("translatedElementsMap.ts - Element Translation Map", () => {
+describe("TranslationRegistry", () => {
   let map: TranslationRegistry;
   let eventBus: EventBus;
   let onTranslationRegistered: ReturnType<typeof vi.fn>;
   let onTranslationRemoved: ReturnType<typeof vi.fn>;
+  let onTranslationUpdated: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
     eventBus = new EventBus();
     onTranslationRegistered = vi.fn();
     onTranslationRemoved = vi.fn();
+    onTranslationUpdated = vi.fn();
 
-    // Subscribe to events to verify they are emitted
     eventBus.on("translationRegistered", onTranslationRegistered);
     eventBus.on("translationRemoved", onTranslationRemoved);
+    eventBus.on("translationUpdated", onTranslationUpdated);
 
     map = new TranslationRegistry(eventBus);
   });
@@ -62,8 +64,8 @@ describe("translatedElementsMap.ts - Element Translation Map", () => {
       map.add(element, data1);
       map.add(element, data2);
 
-      // Should keep original data
       expect(map.get(element)).toEqual(data1);
+      expect(onTranslationRegistered).toHaveBeenCalledTimes(1);
     });
 
     it("should throw error for null element", () => {
@@ -96,6 +98,20 @@ describe("translatedElementsMap.ts - Element Translation Map", () => {
       expect(map.has(span)).toBe(true);
       expect(map.has(p)).toBe(true);
     });
+
+    it("should emit one translationRegistered per added element", () => {
+      const elements = [
+        document.createElement("div"),
+        document.createElement("span"),
+        document.createElement("p"),
+      ];
+
+      elements.forEach((el, i) => {
+        map.add(el, { nodes: new Map([[document.createTextNode("test"), { key: i }]]) });
+      });
+
+      expect(onTranslationRegistered.mock.calls.map(([el]) => el)).toEqual(elements);
+    });
   });
 
   describe("remove", () => {
@@ -110,6 +126,7 @@ describe("translatedElementsMap.ts - Element Translation Map", () => {
 
       map.remove(element);
       expect(map.has(element)).toBe(false);
+      expect(map.get(element)).toBeUndefined();
     });
 
     it("should emit translationRemoved event when removing", () => {
@@ -243,6 +260,10 @@ describe("translatedElementsMap.ts - Element Translation Map", () => {
       expect(result).toBeUndefined();
     });
 
+    it("should return undefined for null rather than throwing like add/remove", () => {
+      expect(map.get(null as any)).toBeUndefined();
+    });
+
     it("should return correct data for multiple elements", () => {
       const div = document.createElement("div");
       const span = document.createElement("span");
@@ -274,6 +295,10 @@ describe("translatedElementsMap.ts - Element Translation Map", () => {
       const element = document.createElement("div");
       expect(map.has(element)).toBe(false);
     });
+
+    it("should return false for null rather than throwing like add/remove", () => {
+      expect(map.has(null as any)).toBe(false);
+    });
   });
 
   describe("clear", () => {
@@ -293,9 +318,8 @@ describe("translatedElementsMap.ts - Element Translation Map", () => {
       map.clear();
 
       expect(map.size()).toBe(0);
-      elements.forEach((el) => {
-        expect(map.has(el)).toBe(false);
-      });
+      expect(elements.map((el) => map.has(el))).toEqual([false, false, false]);
+      expect(onTranslationRemoved.mock.calls.map(([el]) => el)).toEqual(elements);
     });
   });
 
@@ -362,6 +386,8 @@ describe("translatedElementsMap.ts - Element Translation Map", () => {
       expect(result?.nodes.size).toBe(1);
       expect(result?.nodes.has(textNode1)).toBe(true);
       expect(result?.nodes.has(textNode2)).toBe(false);
+      expect(onTranslationUpdated).toHaveBeenCalledWith(element, result);
+      expect(onTranslationRemoved).not.toHaveBeenCalled();
     });
 
     it("should remove element if all nodes are removed", () => {
@@ -390,15 +416,13 @@ describe("translatedElementsMap.ts - Element Translation Map", () => {
         nodes: new Map([[textNode, { key: "key" }]]),
       });
 
-      // Remove parent (should affect child)
       const removedNodes = new Set<Node | Attr>([parent]);
       map.cleanupRemovedNodes(removedNodes);
 
-      // Child's text node should be detected as affected
-      const result = map.get(child);
-      if (result) {
-        expect(result.nodes.size).toBe(0);
-      }
+      // The child's only node is contained in the removed parent, so the child
+      // loses every node and is dropped from the registry entirely.
+      expect(map.has(child)).toBe(false);
+      expect(onTranslationRemoved).toHaveBeenCalledWith(child);
     });
 
     it("should handle attribute whose owner element was removed", () => {
@@ -446,13 +470,10 @@ describe("translatedElementsMap.ts - Element Translation Map", () => {
       const removedNodes = new Set<Node | Attr>([textNode2, span]);
       map.cleanupRemovedNodes(removedNodes);
 
-      // div should still exist but with only textNode1
       expect(map.has(div)).toBe(true);
       const divResult = map.get(div);
       expect(divResult?.nodes.size).toBe(1);
       expect(divResult?.nodes.has(textNode1)).toBe(true);
-
-      // span should be removed
       expect(map.has(span)).toBe(false);
     });
   });
@@ -476,8 +497,13 @@ describe("translatedElementsMap.ts - Element Translation Map", () => {
         ]),
       });
 
-      const result = map.get(element);
-      expect(result?.nodes.size).toBe(3);
+      expect(map.get(element)?.nodes).toEqual(
+        new Map([
+          [textNode, { key: "button.text" }],
+          [ariaAttr, { key: "button.aria" }],
+          [titleAttr, { key: "button.title" }],
+        ]),
+      );
     });
 
     it("should track numeric key IDs", () => {
@@ -507,9 +533,8 @@ describe("translatedElementsMap.ts - Element Translation Map", () => {
         nodes: new Map([[document.createTextNode("child2"), { key: "child2.key" }]]),
       });
 
-      expect(map.get(child1)?.nodes.size).toBe(1);
-      expect(map.get(child2)?.nodes.size).toBe(1);
-      expect(map.get(child1)).not.toEqual(map.get(child2));
+      expect([...(map.get(child1)?.nodes.values() ?? [])]).toEqual([{ key: "child1.key" }]);
+      expect([...(map.get(child2)?.nodes.values() ?? [])]).toEqual([{ key: "child2.key" }]);
     });
   });
 });

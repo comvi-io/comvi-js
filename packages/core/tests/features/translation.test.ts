@@ -1,6 +1,9 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { I18n, createElement } from "../helpers/composedHost";
 
+/** The post-processor these tests reuse: brackets a string, passes nodes through. */
+const bracket = (result: unknown) => (typeof result === "string" ? `[${result}]` : result);
+
 describe("Core Translation Features", () => {
   let i18n: I18n;
 
@@ -58,6 +61,7 @@ describe("Core Translation Features", () => {
         en: flatTranslations,
       });
 
+      expect(flatTranslations).toEqual({ "nav.header.title": "Original" });
       expect(Object.getPrototypeOf(flatTranslations)).toBe(Object.prototype);
       expect(i18n.t("nav.header.title")).toBe("Original");
       expect(i18n.hasTranslation("toString")).toBe(false);
@@ -100,6 +104,8 @@ describe("Core Translation Features", () => {
       expect(i18n.t("status", { isActive: false })).toBe("Active: false");
     });
 
+    // The full missingParam option matrix (both modes x all five compile paths)
+    // lives in missing-param.test.ts; this pins the default on the base host.
     it("renders absent/undefined params as literal placeholders and null as empty (missingParam default)", () => {
       i18n.addTranslations({ en: { greet: "Hello {name}!" } });
       expect(i18n.t("greet", {})).toBe("Hello {name}!");
@@ -119,20 +125,12 @@ describe("Core Translation Features", () => {
     });
 
     it("should trigger the missing key handler", () => {
-      let capturedKey = "";
-      let capturedLocale = "";
-      let capturedNamespace = "";
-      i18n.onMissingKey((key, locale, namespace) => {
-        capturedKey = key;
-        capturedLocale = locale;
-        capturedNamespace = namespace;
-      });
+      const onMissingKey = vi.fn();
+      i18n.onMissingKey(onMissingKey);
 
       i18n.t("unknown");
 
-      expect(capturedKey).toBe("unknown");
-      expect(capturedLocale).toBe("en");
-      expect(capturedNamespace).toBe("default");
+      expect(onMissingKey).toHaveBeenCalledWith("unknown", "en", "default");
     });
 
     it("should stop firing after onMissingKey cleanup is called", () => {
@@ -149,24 +147,14 @@ describe("Core Translation Features", () => {
     });
 
     it("should pass missing keys through post-processors", () => {
-      i18n.registerPostProcessor((result) => {
-        if (typeof result === "string") {
-          return `[${result}]`;
-        }
-        return result;
-      });
+      i18n.registerPostProcessor(bracket);
 
       // The key is the missing-result, and it is post-processed like any other.
       expect(i18n.t("missing.key")).toBe("[missing.key]");
     });
 
     it("should pass fallback values through post-processors", () => {
-      i18n.registerPostProcessor((result) => {
-        if (typeof result === "string") {
-          return `[${result}]`;
-        }
-        return result;
-      });
+      i18n.registerPostProcessor(bracket);
 
       // The fallback is the missing-result, and it too is post-processed.
       expect(i18n.t("missing.key", { fallback: "Fallback text" })).toBe("[Fallback text]");

@@ -48,10 +48,10 @@ describe("fetchLoader() installer", () => {
     const explicit = base().with(loader()).with(plugins());
     explicit.use(FetchLoader(OPTIONS));
 
-    for (const host of [installed, explicit]) {
-      await host.init();
-      expect(host.t("greeting")).toBe("Hello");
-    }
+    await installed.init();
+    await explicit.init();
+
+    expect([installed.t("greeting"), explicit.t("greeting")]).toEqual(["Hello", "Hello"]);
 
     await Promise.all([installed.destroy(), explicit.destroy()]);
   });
@@ -118,9 +118,9 @@ describe("fetchLoader() wrong use", () => {
     // `.with` is a dumb pipe: it CALLS what you give it. A plugin handed to it
     // runs against a host that has none of the capabilities it needs, so the
     // invocation is rejected rather than silently half-installing.
-    await expect(i18n.with(FetchLoader(OPTIONS)) as unknown as Promise<void>).rejects.toThrow(
-      TypeError,
-    );
+    const misuse = i18n.with(FetchLoader(OPTIONS)) as unknown as Promise<void>;
+
+    await expect(misuse).rejects.toThrow(TypeError);
 
     expect((i18n as Record<string, unknown>).registerLoader).toBeUndefined();
     expect((i18n as Record<string, unknown>).use).toBeUndefined();

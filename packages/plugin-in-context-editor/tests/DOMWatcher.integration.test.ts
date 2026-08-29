@@ -2,14 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { DOMWatcher } from "../src/DOMWatcher";
 import { EventBus } from "../src/EventBus";
 import { TAG_ATTRIBUTES, EDITOR_UI_SHADOW_HOST_ATTRIBUTE } from "../src/constants";
-import { cleanupDOM } from "./helpers";
-
-/** Wait for MutationObserver callbacks to process DOM mutations */
-const flushDOMMutations = async () => {
-  await new Promise((r) => setTimeout(r, 0));
-  await new Promise((r) => requestAnimationFrame(r));
-  await new Promise((r) => setTimeout(r, 0));
-};
+import { cleanupDOM, flushDOMMutations } from "./helpers";
 
 describe("DOMWatcher.integration.test.ts - DOM Mutation Observation", () => {
   let eventBus: EventBus;
@@ -34,7 +27,7 @@ describe("DOMWatcher.integration.test.ts - DOM Mutation Observation", () => {
   });
 
   describe("start / stop", () => {
-    it("should start observing DOM mutations", () => {
+    it("should start observing DOM mutations", async () => {
       const callback = vi.fn();
       eventBus.on("structureChanges", callback);
 
@@ -43,25 +36,22 @@ describe("DOMWatcher.integration.test.ts - DOM Mutation Observation", () => {
       const newElement = document.createElement("div");
       container.appendChild(newElement);
 
-      return flushDOMMutations().then(() => {
-        expect(callback).toHaveBeenCalled();
-        const capturedNodes = callback.mock.calls.flatMap((call) => call[0] as Node[]);
-        expect(capturedNodes).toContain(newElement);
-      });
+      await flushDOMMutations();
+
+      const capturedNodes = callback.mock.calls.flatMap((call) => call[0] as Node[]);
+      expect(capturedNodes).toContain(newElement);
     });
 
     it("should emit initialScan event on start", () => {
-      return new Promise<void>((resolve) => {
-        eventBus.on("initialScan", (target: Node) => {
-          expect(target).toBe(container);
-          resolve();
-        });
+      const callback = vi.fn();
+      eventBus.on("initialScan", callback);
 
-        domWatcher.start();
-      });
+      domWatcher.start();
+
+      expect(callback).toHaveBeenCalledWith(container);
     });
 
-    it("should stop observing when stopped", () => {
+    it("should stop observing when stopped", async () => {
       const callback = vi.fn();
       eventBus.on("textChanges", callback);
 
@@ -71,9 +61,9 @@ describe("DOMWatcher.integration.test.ts - DOM Mutation Observation", () => {
       const textNode = document.createTextNode("test");
       container.appendChild(textNode);
 
-      return flushDOMMutations().then(() => {
-        expect(callback).not.toHaveBeenCalled();
-      });
+      await flushDOMMutations();
+
+      expect(callback).not.toHaveBeenCalled();
     });
 
     it("should not start multiple times", () => {
@@ -305,106 +295,85 @@ describe("DOMWatcher.integration.test.ts - DOM Mutation Observation", () => {
   });
 
   describe("nodesRemoved events", () => {
-    it("should detect when nodes are removed", () => {
-      return new Promise<void>((resolve) => {
-        const div = document.createElement("div");
-        container.appendChild(div);
+    it("should detect when nodes are removed", async () => {
+      const div = document.createElement("div");
+      container.appendChild(div);
 
-        eventBus.on("nodesRemoved", (nodes: Node[]) => {
-          expect(nodes).toContain(div);
-          resolve();
-        });
+      const callback = vi.fn();
+      eventBus.on("nodesRemoved", callback);
 
-        domWatcher.start();
+      domWatcher.start();
+      container.removeChild(div);
+      await flushDOMMutations();
 
-        setTimeout(() => {
-          if (container.contains(div)) {
-            container.removeChild(div);
-          }
-        }, 10);
-      });
+      const removedNodes = callback.mock.calls.flatMap((call) => call[0] as Node[]);
+      expect(removedNodes).toContain(div);
     });
 
-    it("should collect all descendant nodes when parent is removed", () => {
-      return new Promise<void>((resolve) => {
-        const parent = document.createElement("div");
-        const child1 = document.createElement("span");
-        const child2 = document.createElement("p");
-        const textNode = document.createTextNode("text");
+    it("should collect all descendant nodes when parent is removed", async () => {
+      const parent = document.createElement("div");
+      const child1 = document.createElement("span");
+      const child2 = document.createElement("p");
+      const textNode = document.createTextNode("text");
 
-        child1.appendChild(textNode);
-        parent.appendChild(child1);
-        parent.appendChild(child2);
-        container.appendChild(parent);
+      child1.appendChild(textNode);
+      parent.appendChild(child1);
+      parent.appendChild(child2);
+      container.appendChild(parent);
 
-        eventBus.on("nodesRemoved", (nodes: Node[]) => {
-          expect(nodes).toContain(parent);
-          expect(nodes).toContain(child1);
-          expect(nodes).toContain(child2);
-          expect(nodes).toContain(textNode);
-          resolve();
-        });
+      const callback = vi.fn();
+      eventBus.on("nodesRemoved", callback);
 
-        domWatcher.start();
+      domWatcher.start();
+      container.removeChild(parent);
+      await flushDOMMutations();
 
-        setTimeout(() => {
-          if (container.contains(parent)) {
-            container.removeChild(parent);
-          }
-        }, 10);
-      });
+      const removedNodes = callback.mock.calls.flatMap((call) => call[0] as Node[]);
+      expect(removedNodes).toEqual(expect.arrayContaining([parent, child1, child2, textNode]));
     });
 
-    it("should collect attributes of removed elements", () => {
-      return new Promise<void>((resolve) => {
-        const input = document.createElement("input");
-        input.setAttribute("placeholder", "test");
-        input.setAttribute("title", "tooltip");
-        container.appendChild(input);
+    it("should collect attributes of removed elements", async () => {
+      const input = document.createElement("input");
+      input.setAttribute("placeholder", "test");
+      input.setAttribute("title", "tooltip");
+      container.appendChild(input);
 
-        eventBus.on("nodesRemoved", (nodes: Node[]) => {
-          expect(nodes).toContain(input);
-          const attrs = Array.from(nodes).filter((n) => n.nodeType === Node.ATTRIBUTE_NODE);
-          expect(attrs.length).toBeGreaterThan(0);
-          resolve();
-        });
+      const callback = vi.fn();
+      eventBus.on("nodesRemoved", callback);
 
-        domWatcher.start();
+      domWatcher.start();
+      container.removeChild(input);
+      await flushDOMMutations();
 
-        setTimeout(() => {
-          if (container.contains(input)) {
-            container.removeChild(input);
-          }
-        }, 10);
-      });
+      const removedNodes = callback.mock.calls.flatMap((call) => call[0] as Node[]);
+      expect(removedNodes).toContain(input);
+      const attributeNames = removedNodes
+        .filter((n) => n.nodeType === Node.ATTRIBUTE_NODE)
+        .map((n) => (n as Attr).name)
+        .sort();
+      expect(attributeNames).toEqual(["placeholder", "title"]);
     });
   });
 
   describe("Complex mutation scenarios", () => {
     it("should handle rapid successive mutations", async () => {
-      const textChanges: Node[] = [];
       const structureChanges: Node[] = [];
-
-      eventBus.on("textChanges", (nodes: Node[]) => {
-        textChanges.push(...nodes);
-      });
-
       eventBus.on("structureChanges", (nodes: Node[]) => {
         structureChanges.push(...nodes);
       });
 
       domWatcher.start();
 
-      for (let i = 0; i < 10; i++) {
+      const paragraphs = Array.from({ length: 10 }, (_, i) => {
         const p = document.createElement("p");
-        const text = document.createTextNode(`Text ${i}`);
-        p.appendChild(text);
+        p.appendChild(document.createTextNode(`Text ${i}`));
         container.appendChild(p);
-      }
+        return p;
+      });
 
       await flushDOMMutations();
 
-      expect(structureChanges.length).toBeGreaterThan(0);
+      expect(structureChanges).toEqual(expect.arrayContaining(paragraphs));
     });
 
     it("should handle mixed mutation types", async () => {
@@ -429,7 +398,7 @@ describe("DOMWatcher.integration.test.ts - DOM Mutation Observation", () => {
 
       await flushDOMMutations();
 
-      expect(events.length).toBeGreaterThan(0);
+      expect(new Set(events)).toEqual(new Set(["text", "attr", "structure"]));
     });
 
     it("should handle innerHTML changes", async () => {
@@ -442,26 +411,9 @@ describe("DOMWatcher.integration.test.ts - DOM Mutation Observation", () => {
 
       await flushDOMMutations();
 
-      expect(callback).toHaveBeenCalled();
-      expect(callback.mock.calls[0][0].length).toBeGreaterThan(0);
-    });
-  });
-
-  describe("Initial scan", () => {
-    it("should scan existing DOM on start", () => {
-      const existingDiv = document.createElement("div");
-      const existingText = document.createTextNode("existing");
-      existingDiv.appendChild(existingText);
-      container.appendChild(existingDiv);
-
-      return new Promise<void>((resolve) => {
-        eventBus.on("initialScan", (target: Node) => {
-          expect(target).toBe(container);
-          resolve();
-        });
-
-        domWatcher.start();
-      });
+      const capturedNodes = callback.mock.calls.flatMap((call) => call[0] as Node[]);
+      expect(capturedNodes).toContain(container.querySelector("div"));
+      expect(capturedNodes).toContain(container.querySelector("span"));
     });
   });
 
@@ -574,8 +526,8 @@ describe("DOMWatcher.integration.test.ts - DOM Mutation Observation", () => {
       p.appendChild(textNode);
       container.appendChild(p);
 
-      const textChangesCallCount = vi.fn();
-      eventBus.on("textChanges", textChangesCallCount);
+      const callback = vi.fn();
+      eventBus.on("textChanges", callback);
 
       domWatcher.start();
 
@@ -585,8 +537,29 @@ describe("DOMWatcher.integration.test.ts - DOM Mutation Observation", () => {
 
       await flushDOMMutations();
 
-      // Should be called, but mutations should be batched
-      expect(textChangesCallCount).toHaveBeenCalled();
+      expect(callback).toHaveBeenCalledTimes(1);
+      const captured = callback.mock.calls[0][0] as Node[];
+      expect(captured.filter((n) => n === textNode)).toHaveLength(1);
+    });
+
+    it("keeps notifying the remaining subscribers when one listener throws", async () => {
+      const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+      const survivor = vi.fn();
+      eventBus.on("structureChanges", () => {
+        throw new Error("bad subscriber");
+      });
+      eventBus.on("structureChanges", survivor);
+
+      domWatcher.start();
+      const div = document.createElement("div");
+      container.appendChild(div);
+      await flushDOMMutations();
+
+      expect(survivor).toHaveBeenCalledTimes(1);
+      expect(errorSpy).toHaveBeenCalledWith(
+        'Error in event listener for "structureChanges":',
+        expect.any(Error),
+      );
     });
   });
 });

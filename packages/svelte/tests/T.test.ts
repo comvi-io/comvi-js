@@ -1,33 +1,38 @@
+/**
+ * T.svelte's fallback chain — prop, children snippet, missing-key handler,
+ * bare key — against the REAL `@comvi/core` resolution. A double that
+ * re-implements `value ?? params.fallback ?? key` would assert itself here,
+ * not the component.
+ */
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { mount, tick, unmount } from "svelte";
 import TFallbackWrapper from "./TFallback.test.svelte";
-import { FakeI18n } from "../../../tooling/test-utils/fakeI18n";
-import type { TranslationResult } from "@comvi/core";
+import { attachPlugins, createI18n } from "../src/index";
 
-const createFallbackI18n = (): FakeI18n => {
-  const fake = new FakeI18n({ language: "en", defaultNamespace: "default" });
-  fake.addTranslations({ en: { existing: "Existing Translation" } });
-  fake.tImplementation = (key, params): TranslationResult => {
-    if (key === "missing.with.handler") {
-      return "Handler Fallback";
-    }
-    const value = fake.translationCache.getInternalMap().get(`${fake.language}:default`)?.[key] as
-      | string
-      | undefined;
-    return value ?? params?.fallback ?? key;
-  };
-  return fake;
+const makeI18n = (translations: Record<string, Record<string, string>>) =>
+  createI18n({ locale: "en", exposeGlobal: false, translation: translations });
+
+// `onMissingKey` is a plugin-host member, so the handler cases compose that
+// capability rather than using the base preset.
+const makeHandlerI18n = (translations: Record<string, Record<string, string>>) => {
+  const i18n = createI18n({
+    locale: "en",
+    exposeGlobal: false,
+    translation: translations,
+  }).with(attachPlugins);
+  i18n.onMissingKey(() => "Handler Fallback");
+  return i18n;
 };
 
 describe("T.svelte fallback contract", () => {
-  let fake: FakeI18n;
   let target: HTMLElement;
   let component: ReturnType<typeof mount> | null;
+
+  const rendered = () => target.querySelector('[data-testid="t-wrapper"]')?.textContent ?? null;
 
   beforeEach(() => {
     target = document.createElement("div");
     document.body.appendChild(target);
-    fake = createFallbackI18n();
     component = null;
   });
 
@@ -40,98 +45,111 @@ describe("T.svelte fallback contract", () => {
   });
 
   it("renders existing translation normally", () => {
+    const i18n = makeI18n({ en: { existing: "Existing Translation" } });
+
     component = mount(TFallbackWrapper, {
       target,
-      props: { i18n: fake.asI18n(), i18nKey: "existing", useSlot: true },
+      props: { i18n, i18nKey: "existing", useSlot: true },
     });
 
-    expect(target.innerHTML).toContain("Existing Translation");
-    expect(target.innerHTML).not.toContain("Slot fallback");
+    expect(rendered()).toBe("Existing Translation");
   });
 
   it("renders fallback prop when key is missing", () => {
+    const i18n = makeI18n({ en: { existing: "Existing Translation" } });
+
     component = mount(TFallbackWrapper, {
       target,
       props: {
-        i18n: fake.asI18n(),
+        i18n,
         i18nKey: "missing",
         fallbackProp: "Prop Fallback",
         useSlot: false,
       },
     });
 
-    expect(target.innerHTML).toContain("Prop Fallback");
+    expect(rendered()).toBe("Prop Fallback");
   });
 
   it("prefers fallback prop over slot when both are provided", () => {
+    const i18n = makeI18n({ en: { existing: "Existing Translation" } });
+
     component = mount(TFallbackWrapper, {
       target,
       props: {
-        i18n: fake.asI18n(),
+        i18n,
         i18nKey: "missing",
         fallbackProp: "Prop Fallback",
         useSlot: true,
       },
     });
 
-    expect(target.innerHTML).toContain("Prop Fallback");
-    expect(target.innerHTML).not.toContain("Slot fallback");
+    expect(rendered()).toBe("Prop Fallback");
+    expect(target.querySelector("span")).toBeNull();
   });
 
   it("renders missing-key handler result", () => {
+    const i18n = makeHandlerI18n({ en: { existing: "Existing Translation" } });
+
     component = mount(TFallbackWrapper, {
       target,
-      props: { i18n: fake.asI18n(), i18nKey: "missing.with.handler", useSlot: false },
+      props: { i18n, i18nKey: "missing.with.handler", useSlot: false },
     });
 
-    expect(target.innerHTML).toContain("Handler Fallback");
+    expect(rendered()).toBe("Handler Fallback");
   });
 
   it("renders missing-key handler result even when slot is provided", () => {
+    const i18n = makeHandlerI18n({ en: { existing: "Existing Translation" } });
+
     component = mount(TFallbackWrapper, {
       target,
-      props: { i18n: fake.asI18n(), i18nKey: "missing.with.handler", useSlot: true },
+      props: { i18n, i18nKey: "missing.with.handler", useSlot: true },
     });
 
-    expect(target.innerHTML).toContain("Handler Fallback");
-    expect(target.innerHTML).not.toContain("Slot fallback");
+    expect(rendered()).toBe("Handler Fallback");
+    expect(target.querySelector("span")).toBeNull();
   });
 
   it("renders slot when translation is unresolved and no fallback prop is provided", () => {
+    const i18n = makeI18n({ en: { existing: "Existing Translation" } });
+
     component = mount(TFallbackWrapper, {
       target,
-      props: { i18n: fake.asI18n(), i18nKey: "missing.key", useSlot: true },
+      props: { i18n, i18nKey: "missing.key", useSlot: true },
     });
 
-    expect(target.innerHTML).toContain("<span>Slot fallback</span>");
-    expect(target.innerHTML).not.toContain("missing.key");
+    expect(target.querySelector("span")?.textContent).toBe("Slot fallback");
+    expect(rendered()).toBe("Slot fallback");
   });
 
   it("renders key when no fallback mechanism exists", () => {
+    const i18n = makeI18n({ en: { existing: "Existing Translation" } });
+
     component = mount(TFallbackWrapper, {
       target,
-      props: { i18n: fake.asI18n(), i18nKey: "missing.key", useSlot: false },
+      props: { i18n, i18nKey: "missing.key", useSlot: false },
     });
 
-    expect(target.innerHTML).toContain("missing.key");
+    expect(rendered()).toBe("missing.key");
   });
 
   it("re-renders when language changes through i18n events", async () => {
-    fake.addTranslations({
+    const i18n = makeI18n({
       en: { existing: "Hello World" },
       fr: { existing: "Bonjour le Monde" },
     });
 
     component = mount(TFallbackWrapper, {
       target,
-      props: { i18n: fake.asI18n(), i18nKey: "existing", useSlot: false },
+      props: { i18n, i18nKey: "existing", useSlot: false },
     });
 
-    expect(target.innerHTML).toContain("Hello World");
+    expect(rendered()).toBe("Hello World");
 
-    await fake.setLanguageAsync("fr");
+    await i18n.setLocaleAsync("fr");
     await tick();
 
-    expect(target.innerHTML).toContain("Bonjour le Monde");
+    expect(rendered()).toBe("Bonjour le Monde");
   });
 });

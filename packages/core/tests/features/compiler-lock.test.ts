@@ -1,12 +1,11 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeEach } from "vitest";
 // The BASE host and the pure `/icu` subpath — never the internal composite and
 // never the tags entry, so nothing configures a compiler behind these cases.
 import { createI18n } from "../../src";
-import { icu, icuCompiler, type CompilerLockedError } from "../../src/icu";
+import { icu, icuCompiler } from "../../src/icu";
 import { attachLoader } from "../../src/loader";
 import { clearTemplateCache, _templateCacheSize } from "../../src/core/translate";
-import { TK_TEXT } from "../../src/core/translate/cache";
-import type { MessageCompiler } from "../../src/core/translate/syntax";
+import { countingCompiler } from "../helpers/compilers";
 
 /**
  * The pre-ingestion compiler lock.
@@ -25,22 +24,16 @@ import type { MessageCompiler } from "../../src/core/translate/syntax";
 
 const PLURAL = "{count, plural, one {# item} other {# items}}";
 
-/** A compiler that counts its parses, so a cache re-parse becomes observable. */
-function countingCompiler(): { compiler: MessageCompiler; parses: () => number } {
-  let parses = 0;
-  return {
-    // No `cid`: an explicit id is returned verbatim by `getCompilerId`, so two
-    // custom compilers declaring the same one would legitimately SHARE cache
-    // entries. Omitting it exercises the WeakMap path the contract relies on.
-    compiler: {
-      makeArgToken(content) {
-        parses++;
-        return [TK_TEXT, `«${content.trim().split(",")[0]}»`];
-      },
-    },
-    parses: () => parses,
-  };
+/** Every locked case asserts the SAME structured failure. */
+function expectLocked(run: () => unknown): void {
+  // `objectContaining` alone would also accept a thrown plain object.
+  expect(run).toThrow(Error);
+  expect(run).toThrow(expect.objectContaining({ code: "E_COMPILER_LOCKED" }));
 }
+
+beforeEach(() => {
+  clearTemplateCache();
+});
 
 describe("compiler lock — the two supported recipes", () => {
   it("inline: the constructor option compiles ICU from a constructor catalog", () => {
@@ -68,36 +61,32 @@ describe("compiler lock — the two supported recipes", () => {
     expect(i18n.t("items" as never, { count: 1 } as never)).toBe("1 item");
   });
 
-  it("accepts a custom compiler through the installer and through the option", () => {
-    const a = countingCompiler();
-    const viaInstaller = createI18n({ locale: "en" }).with(icu(a.compiler));
-    viaInstaller.addTranslations({ en: { items: PLURAL } });
-    expect(viaInstaller.t("items" as never, { count: 1 } as never)).toBe("«count»");
+  it.each([
+    [
+      "the icu() installer",
+      () => {
+        const i18n = createI18n({ locale: "en" }).with(icu(countingCompiler().compiler));
+        i18n.addTranslations({ en: { items: PLURAL } });
+        return i18n;
+      },
+    ],
+    [
+      "the compiler option",
+      () =>
+        createI18n({
+          locale: "en",
+          compiler: countingCompiler().compiler,
+          translation: { en: { items: PLURAL } },
+        }),
+    ],
+  ])("accepts a custom compiler through %s", (_label, make) => {
+    const i18n = make();
 
-    const b = countingCompiler();
-    const viaOption = createI18n({
-      locale: "en",
-      compiler: b.compiler,
-      translation: { en: { items: PLURAL } },
-    });
-    expect(viaOption.t("items" as never, { count: 1 } as never)).toBe("«count»");
+    expect(i18n.t("items" as never, { count: 1 } as never)).toBe("«count»");
   });
 });
 
 describe("compiler lock — every ingestion seam locks, irreversibly", () => {
-  /** Every case here asserts the SAME structured failure. */
-  function expectLocked(run: () => unknown): CompilerLockedError {
-    let thrown: unknown;
-    try {
-      run();
-    } catch (error) {
-      thrown = error;
-    }
-    expect(thrown, "expected E_COMPILER_LOCKED").toBeInstanceOf(Error);
-    expect((thrown as CompilerLockedError).code).toBe("E_COMPILER_LOCKED");
-    return thrown as CompilerLockedError;
-  }
-
   it("a constructor catalog locks the host", () => {
     const i18n = createI18n({ locale: "en", translation: { en: { hi: "Hi" } } });
     expectLocked(() => i18n.with(icu()));
@@ -146,13 +135,9 @@ describe("compiler lock — every ingestion seam locks, irreversibly", () => {
     expectLocked(() => i18n.with(icu()));
 
     // Still the simple compiler: an ICU catalog is rejected exactly as before.
-    let thrown: unknown;
-    try {
-      i18n.addTranslations({ en: { items: PLURAL } });
-    } catch (error) {
-      thrown = error;
-    }
-    expect((thrown as { code?: unknown }).code).toBe("E_ICU_SYNTAX");
+    expect(() => i18n.addTranslations({ en: { items: PLURAL } })).toThrow(
+      expect.objectContaining({ code: "E_ICU_SYNTAX" }),
+    );
   });
 });
 
@@ -169,7 +154,6 @@ describe("compiler lock — the cache contract it buys", () => {
   });
 
   it("templates stay keyed per compiler id — two hosts, one string, two semantics", () => {
-    clearTemplateCache();
     const before = _templateCacheSize();
 
     const simple = createI18n({ locale: "en", translation: { en: { plain: "a {x} b" } } });
@@ -183,7 +167,6 @@ describe("compiler lock — the cache contract it buys", () => {
   });
 
   it("a swap on one host never evicts, clears or rekeys another host's entry", () => {
-    clearTemplateCache();
     const a = countingCompiler();
 
     // A per-call `fallback` really does compile, so this proves a cache entry
@@ -192,7 +175,7 @@ describe("compiler lock — the cache contract it buys", () => {
     hostA.addTranslations({ en: {} });
     expect(hostA.t("absent" as never, { fallback: "pre {x}" } as never)).toBe("pre «x»");
     const parsesAfterFirstRender = a.parses();
-    expect(parsesAfterFirstRender).toBeGreaterThan(0);
+    expect(parsesAfterFirstRender).toBe(1);
 
     // Another host swaps its compiler in. A clearTemplateCache(), an eviction
     // or a rekey anywhere on that path would force host A to re-parse.
@@ -205,7 +188,6 @@ describe("compiler lock — the cache contract it buys", () => {
   });
 
   it("two distinct custom compilers each keep their own variant of one string", () => {
-    clearTemplateCache();
     const a = countingCompiler();
     const b = countingCompiler();
 
@@ -217,8 +199,7 @@ describe("compiler lock — the cache contract it buys", () => {
     expect(hostA.t("items" as never, { count: 1 } as never)).toBe("«count»");
     expect(hostB.t("items" as never, { count: 1 } as never)).toBe("«count»");
     // Distinct WeakMap-backed ids ⇒ no shared entry, so BOTH compilers parsed.
-    expect(a.parses()).toBeGreaterThan(0);
-    expect(b.parses()).toBeGreaterThan(0);
+    expect([a.parses(), b.parses()]).toEqual([1, 1]);
   });
 });
 

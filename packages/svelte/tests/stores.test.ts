@@ -83,7 +83,7 @@ describe("Svelte stores", () => {
 
     await pendingInit;
 
-    expect(initializingValues).toContain(true);
+    expect(initializingValues).toEqual([false, true, false]);
     expect(get(initializing)).toBe(false);
     expect(get(initialized)).toBe(true);
 
@@ -132,6 +132,8 @@ describe("Svelte stores", () => {
     unsubscribe2();
   });
 
+  // `setFallbackLocale` is the production caller; the event is emitted directly
+  // here so the store's reaction is tested without the setter in the way.
   it("cacheRevision store updates when configChanged is emitted (e.g. setFallbackLocale)", () => {
     const cacheRevision = createCacheRevisionStore(fake.asI18n());
     const values: number[] = [];
@@ -146,8 +148,8 @@ describe("Svelte stores", () => {
   });
 
   it("cacheRevision is strictly monotonic across all tracked events — no dropped updates", () => {
-    // A fresh FakeI18n, so the revision counter starts at 0 rather than being
-    // shared with the memoized instance from beforeEach.
+    // A fresh FakeI18n, so the revision counter starts at 0 rather than
+    // carrying the addTranslations() the beforeEach instance has already seen.
     const fresh = new FakeI18n({ language: "en", defaultNamespace: "common" });
     fresh.addTranslations({ en: { hello: "Hello" }, fr: { hello: "Bonjour" } });
 
@@ -177,10 +179,8 @@ describe("Svelte stores", () => {
 
     unsubscribe();
 
-    expect(values.length).toBe(7); // initial + 6 events
-
-    for (let i = 1; i < values.length; i++) {
-      expect(values[i]).toBeGreaterThan(values[i - 1]);
-    }
+    // The whole sequence, so a failure names the step that stalled rather than
+    // just "index i is not greater than i-1": initial + one per event.
+    expect(values).toEqual([0, 1, 2, 3, 4, 5, 6]);
   });
 });

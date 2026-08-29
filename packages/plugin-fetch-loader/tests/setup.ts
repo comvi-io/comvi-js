@@ -1,9 +1,10 @@
 import { beforeAll, afterEach, afterAll, beforeEach } from "vitest";
 import { setupServer } from "msw/node";
-import { delay, http, HttpResponse } from "msw";
+import { http, HttpResponse } from "msw";
 import type { ExportApiResponse } from "../src/types";
 import type { ProjectInfo } from "../src/index";
 import { clearProjectInfoCache } from "../src/index";
+import { deferred } from "./helpers/deferred";
 
 export const server = setupServer();
 
@@ -45,12 +46,8 @@ afterAll(() => {
   server.close();
 });
 
-export function createMockTranslations(language: string, namespace: string) {
-  return {
-    [`${language}.${namespace}.key1`]: `Value 1 in ${language}`,
-    [`${language}.${namespace}.key2`]: `Value 2 in ${language}`,
-    [`${language}.${namespace}.nested.key`]: `Nested value in ${language}`,
-  };
+export function createMockTranslations(language: string) {
+  return { key: `Value in ${language}` };
 }
 
 export function createMockApiResponse(
@@ -91,7 +88,7 @@ export function buildTestCdnUrl(
 export function mockCdnSuccessResponse(
   language: string,
   namespace: string,
-  data: any,
+  data: Record<string, unknown>,
   defaultNs: string = "default",
 ) {
   const url = buildTestCdnUrl(language, namespace, defaultNs);
@@ -100,6 +97,27 @@ export function mockCdnSuccessResponse(
       return HttpResponse.json(data);
     }),
   );
+}
+
+/**
+ * Records the request the loader makes for one CDN key and answers it with
+ * `data`. The returned object is filled in when the request arrives.
+ */
+export function captureCdnRequest(
+  language: string,
+  namespace: string,
+  data: Record<string, unknown>,
+  defaultNs: string = "default",
+): { url?: string; headers?: Headers } {
+  const captured: { url?: string; headers?: Headers } = {};
+  server.use(
+    http.get(buildTestCdnUrl(language, namespace, defaultNs), ({ request }) => {
+      captured.url = request.url;
+      captured.headers = request.headers;
+      return HttpResponse.json(data);
+    }),
+  );
+  return captured;
 }
 
 export function mockCdnErrorResponse(
@@ -117,20 +135,45 @@ export function mockCdnErrorResponse(
   );
 }
 
-export function mockCdnDelayedResponse(
+export interface DeferredResponse {
+  /** Settles once the loader has actually issued the request. */
+  requested: Promise<void>;
+  /** Answers the in-flight request. Never calling it holds the request open forever. */
+  resolve: (data: Record<string, unknown>) => void;
+}
+
+function deferredHandlerBody(): DeferredResponse & { body: () => Promise<Response> } {
+  const requested = deferred<void>();
+  const answer = deferred<Record<string, unknown>>();
+  return {
+    requested: requested.promise,
+    resolve: answer.resolve,
+    body: async () => {
+      requested.resolve();
+      return HttpResponse.json(await answer.promise);
+    },
+  };
+}
+
+/**
+ * A CDN response the test releases by hand — the deterministic stand-in for a
+ * slow network. Left unresolved it is a request that never arrives.
+ */
+export function mockCdnDeferredResponse(
   language: string,
   namespace: string,
-  delayMs: number,
-  data: any,
   defaultNs: string = "default",
-) {
-  const url = buildTestCdnUrl(language, namespace, defaultNs);
-  server.use(
-    http.get(url, async () => {
-      await delay(delayMs);
-      return HttpResponse.json(data);
-    }),
-  );
+): DeferredResponse {
+  const { requested, resolve, body } = deferredHandlerBody();
+  server.use(http.get(buildTestCdnUrl(language, namespace, defaultNs), body));
+  return { requested, resolve };
+}
+
+/** The `/v1/project` counterpart of {@link mockCdnDeferredResponse}. */
+export function mockProjectInfoDeferredResponse(): DeferredResponse {
+  const { requested, resolve, body } = deferredHandlerBody();
+  server.use(http.get(/\/v1\/project$/, body));
+  return { requested, resolve };
 }
 
 export function mockCdnNetworkError(
@@ -146,11 +189,7 @@ export function mockCdnNetworkError(
   );
 }
 
-export function mockApiSuccessResponse(
-  language: string,
-  namespaces: string[],
-  data: ExportApiResponse,
-) {
+export function mockApiSuccessResponse(data: ExportApiResponse) {
   server.use(
     http.get(/\/v1\/translations/, () => {
       return HttpResponse.json(data);

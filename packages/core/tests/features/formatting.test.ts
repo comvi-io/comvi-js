@@ -8,7 +8,7 @@ import {
   getTextDirection,
 } from "../helpers/composedHost";
 
-describe("Advanced Formatting (Quoting & Escaping)", () => {
+describe("ICU message formatting and the Intl helpers", () => {
   let i18n: I18n;
 
   beforeEach(() => {
@@ -49,11 +49,11 @@ describe("Advanced Formatting (Quoting & Escaping)", () => {
 
     it("should handle complex quoting in CJK text", () => {
       i18n.addTranslations({
-        jp: {
+        ja: {
           msg: "愛 '{param}' 愛",
         },
       });
-      i18n.locale = "jp";
+      i18n.locale = "ja";
       expect(i18n.t("msg", { param: "Love" })).toBe("愛 {param} 愛");
     });
   });
@@ -223,83 +223,45 @@ describe("Advanced Formatting (Quoting & Escaping)", () => {
     });
   });
 
-  describe("Text direction", () => {
-    it("returns 'ltr' for English", () => {
-      expect(getTextDirection("en")).toBe("ltr");
-    });
-
-    it("returns 'rtl' for Arabic", () => {
-      expect(getTextDirection("ar")).toBe("rtl");
-    });
-
-    it("returns 'rtl' for Hebrew with region", () => {
-      expect(getTextDirection("he-IL")).toBe("rtl");
-    });
-
-    it("returns 'rtl' for Persian, Urdu", () => {
-      expect(getTextDirection("fa")).toBe("rtl");
-      expect(getTextDirection("ur")).toBe("rtl");
-    });
-
-    it("returns 'rtl' for Central Kurdish (Sorani)", () => {
-      expect(getTextDirection("ckb")).toBe("rtl");
-    });
-
-    it("handles script subtags: Kurdish in Arabic script is rtl", () => {
-      expect(getTextDirection("ku-Arab")).toBe("rtl");
-    });
-
-    it("handles script subtags: Kurdish in Latin script is ltr", () => {
-      expect(getTextDirection("ku-Latn")).toBe("ltr");
-    });
-
-    it("handles script subtags: Uzbek in Arabic script is rtl", () => {
-      expect(getTextDirection("uz-Arab")).toBe("rtl");
-    });
-
-    it("handles script subtags: Uzbek in Latin script is ltr", () => {
-      expect(getTextDirection("uz-Latn")).toBe("ltr");
-    });
-
-    it("handles script subtags: Kashmiri in Devanagari is ltr", () => {
-      expect(getTextDirection("ks-Deva")).toBe("ltr");
-    });
-
-    it("handles script subtags: Sindhi in Devanagari is ltr", () => {
-      expect(getTextDirection("sd-Deva")).toBe("ltr");
-    });
-
-    it("handles script subtags: Arabic transliterated in Latin is ltr", () => {
-      expect(getTextDirection("ar-Latn")).toBe("ltr");
-    });
-
-    it("falls back to 'ltr' for invalid locales without throwing", () => {
-      expect(() => getTextDirection("not-a-real-locale")).not.toThrow();
-      expect(getTextDirection("xyz")).toBe("ltr");
-    });
-
-    it("updates when locale changes", () => {
-      const instance = new I18n({ locale: "en" });
-      expect(getTextDirection(instance.locale)).toBe("ltr");
-      instance.locale = "ar";
-      expect(getTextDirection(instance.locale)).toBe("rtl");
-      instance.locale = "ku-Arab";
-      expect(getTextDirection(instance.locale)).toBe("rtl");
+  describe("getTextDirection()", () => {
+    // The base language decides, except where a script subtag overrides it; an
+    // unrecognised tag falls back to "ltr" rather than throwing.
+    it.each([
+      ["en", "ltr"],
+      ["ar", "rtl"],
+      ["he-IL", "rtl"],
+      ["fa", "rtl"],
+      ["ur", "rtl"],
+      ["ckb", "rtl"],
+      ["ku-Arab", "rtl"],
+      ["ku-Latn", "ltr"],
+      ["uz-Arab", "rtl"],
+      ["uz-Latn", "ltr"],
+      ["ks-Deva", "ltr"],
+      ["sd-Deva", "ltr"],
+      ["ar-Latn", "ltr"],
+      ["not-a-real-locale", "ltr"],
+      ["xyz", "ltr"],
+    ])('getTextDirection("%s") → %s', (tag, expected) => {
+      expect(getTextDirection(tag)).toBe(expected);
     });
   });
 
   describe("selectordinal", () => {
-    it("formats English ordinals", () => {
+    it.each([
+      [1, "1st"],
+      [2, "2nd"],
+      [3, "3rd"],
+      [4, "4th"],
+      [21, "21st"],
+    ])("formats English ordinal %i as %s", (place, ordinal) => {
       i18n.addTranslations({
         en: {
           rank: "You are {place, selectordinal, one {#st} two {#nd} few {#rd} other {#th}} place",
         },
       });
-      expect(i18n.t("rank", { place: 1 })).toBe("You are 1st place");
-      expect(i18n.t("rank", { place: 2 })).toBe("You are 2nd place");
-      expect(i18n.t("rank", { place: 3 })).toBe("You are 3rd place");
-      expect(i18n.t("rank", { place: 4 })).toBe("You are 4th place");
-      expect(i18n.t("rank", { place: 21 })).toBe("You are 21st place");
+
+      expect(i18n.t("rank", { place })).toBe(`You are ${ordinal} place`);
     });
 
     it("falls back to 'other' when no match", () => {

@@ -14,8 +14,13 @@ beforeEach(() => {
   clearTemplateCache();
 });
 
+// Mirrors `TEMPLATE_CACHE_MAX` in src/core/translate.ts; eviction is FIFO with
+// one delete per insert past the cap, so the size settles exactly at the cap.
+const CACHE_MAX = 1000;
+const OVER_CAP = CACHE_MAX + 50;
+
 describe("templateCache eviction", () => {
-  it("reuses the context-tagged cache entry for plain static templates", () => {
+  it("reuses the context-tagged cache entry across repeated renders of a static template", () => {
     const i18n = createI18n({
       locale: "en",
       translation: { en: { greeting: "Hello world" } },
@@ -33,34 +38,32 @@ describe("templateCache eviction", () => {
     const i18n = createI18n({ locale: "en" });
     const translations: Record<string, string> = {};
     // Enough distinct parametrized templates that eviction has to fire.
-    const total = 1050;
-    for (let n = 0; n < total; n++) {
+    for (let n = 0; n < OVER_CAP; n++) {
       translations[`key_${n}`] = `Value ${n} for {name}`;
     }
     i18n.addTranslations({ en: translations });
 
-    for (let n = 0; n < total; n++) {
+    for (let n = 0; n < OVER_CAP; n++) {
       i18n.t(`key_${n}` as never, { name: "World" } as never);
     }
 
-    expect(_templateCacheSize()).toBeLessThanOrEqual(1000);
+    expect(_templateCacheSize()).toBe(CACHE_MAX);
   });
 
   it("static templates (no special chars) are also subject to the cap", () => {
-    clearTemplateCache();
     const i18n = createI18n({ locale: "en" });
     const translations: Record<string, string> = {};
     // Pure static strings (no {, ', <, &) — the fast path caches them too.
-    for (let n = 0; n < 1050; n++) {
+    for (let n = 0; n < OVER_CAP; n++) {
       translations[`static_${n}`] = `Hello world number ${n}`;
     }
     i18n.addTranslations({ en: translations });
 
-    for (let n = 0; n < 1050; n++) {
+    for (let n = 0; n < OVER_CAP; n++) {
       i18n.t(`static_${n}` as never);
     }
 
-    expect(_templateCacheSize()).toBeLessThanOrEqual(1000);
+    expect(_templateCacheSize()).toBe(CACHE_MAX);
   });
 });
 
@@ -165,27 +168,23 @@ describe("context-sensitive cache keys", () => {
 
   it("keeps plural-choice caches separate when source text starts with the context marker", () => {
     const source = "other {'#}'} another {x}";
-    clearTemplateCache();
-    const expectedMarkedChoices = parsePluralChoices(`\u0001${source}`, true);
 
-    clearTemplateCache();
     const unmarkedChoices = parsePluralChoices(source, false);
     const markedChoices = parsePluralChoices(`\u0001${source}`, true);
 
-    expect(markedChoices).toEqual(expectedMarkedChoices);
+    expect(markedChoices).toEqual({ other: "'#}'", another: "x" });
+    expect(unmarkedChoices).toEqual({ other: "'#" });
     expect(markedChoices).not.toEqual(unmarkedChoices);
   });
 
   it("keeps plural-choice caches separate in the reverse insertion order", () => {
     const source = "other {'#}'} another {x}";
-    clearTemplateCache();
-    const expectedUnmarkedChoices = parsePluralChoices(source, false);
 
-    clearTemplateCache();
     const markedChoices = parsePluralChoices(`\u0001${source}`, true);
     const unmarkedChoices = parsePluralChoices(source, false);
 
-    expect(unmarkedChoices).toEqual(expectedUnmarkedChoices);
+    expect(markedChoices).toEqual({ other: "'#}'", another: "x" });
+    expect(unmarkedChoices).toEqual({ other: "'#" });
     expect(unmarkedChoices).not.toEqual(markedChoices);
   });
 });

@@ -29,6 +29,9 @@ beforeAll(async () => {
  * below matches an import SPECIFIER, and these artifacts are transpiled rather
  * than bundled, so their comments reach `dist` — where they legitimately quote
  * the very specifier the assertion forbids.
+ *
+ * A bug here would silently weaken the negative assertion, so the same stripper
+ * carries a POSITIVE assertion (`rich-text` import present) in the same test.
  */
 function stripComments(code: string): string {
   let out = "";
@@ -96,7 +99,7 @@ describe("exports map smoke (F0b)", () => {
     const source = readFileSync(resolve(distDir, "T.svelte"), "utf-8");
     expect(source).toContain("$props()");
     expect(source).not.toContain("export let ");
-    expect(source).not.toContain("\n\t$:");
+    expect(source).not.toMatch(/^\s*\$:/m);
   });
 
   it("dist/T.svelte is preprocessed to plain JS — no TypeScript types/imports", () => {

@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ref } from "vue";
 import { useTranslations } from "../src/composables/useTranslations";
-import { DEFAULT_PLURAL_VARIABLE, MAX_PLURAL_VARIABLE_LENGTH } from "../src/utils/icuParser";
+import { DEFAULT_PLURAL_VARIABLE } from "../src/utils/icuParser";
 import type { Language, TranslationData } from "../src/types";
 
 const getTranslationMock = vi.fn();
@@ -33,6 +33,8 @@ function createManager(instanceId?: string) {
   return useTranslations(ref(LANGUAGES), instanceId ? ref(instanceId) : undefined);
 }
 
+type TranslationManager = ReturnType<typeof createManager>;
+
 function createSingularTranslationData(key: string, value: string): TranslationData {
   return {
     key,
@@ -43,6 +45,15 @@ function createSingularTranslationData(key: string, value: string): TranslationD
       },
     },
   };
+}
+
+/** A manager holding a loaded singular key, already switched to plural mode. */
+async function loadedPluralManager(): Promise<TranslationManager> {
+  const manager = createManager();
+  getTranslationMock.mockResolvedValue(createSingularTranslationData("items.count", "Item"));
+  await manager.loadTranslation("items.count", "default");
+  manager.togglePluralMode(true);
+  return manager;
 }
 
 describe("useTranslations", () => {
@@ -173,7 +184,7 @@ describe("useTranslations", () => {
     expect(manager.state.value.data?.translations.en).toEqual({ other: "Item" });
   });
 
-  it("supports select mode conversion and option reconfiguration", async () => {
+  it("converts, reconfigures and unconverts select mode across one lifecycle", async () => {
     const manager = createManager();
     getTranslationMock.mockResolvedValue(createSingularTranslationData("welcome.message", "Hello"));
 
@@ -208,28 +219,23 @@ describe("useTranslations", () => {
     expect(manager.state.value.data?.translations.en).toEqual({ other: "Hello" });
   });
 
-  it("validates plural variable requirements", async () => {
-    const manager = createManager();
-    getTranslationMock.mockResolvedValue(createSingularTranslationData("items.count", "Item"));
-    await manager.loadTranslation("items.count", "default");
-    manager.togglePluralMode(true);
+  it.each([
+    ["", "Plural variable name is required"],
+    ["1count", "Plural variable name must be a valid identifier"],
+    ["a".repeat(31), "Plural variable name must be 30 characters or less"],
+  ])("rejects the plural variable %j", async (variable, message) => {
+    const manager = await loadedPluralManager();
 
-    manager.updatePluralVariable("");
-    expect(manager.validate().errors.map((e) => e.message)).toContain(
-      "Plural variable name is required",
-    );
+    manager.updatePluralVariable(variable);
 
-    manager.updatePluralVariable("1count");
-    expect(manager.validate().errors.map((e) => e.message)).toContain(
-      "Plural variable name must be a valid identifier",
-    );
+    expect(manager.validate().errors.map((e) => e.message)).toContain(message);
+  });
 
-    manager.updatePluralVariable("a".repeat(MAX_PLURAL_VARIABLE_LENGTH + 1));
-    expect(manager.validate().errors.map((e) => e.message)).toContain(
-      `Plural variable name must be ${MAX_PLURAL_VARIABLE_LENGTH} characters or less`,
-    );
+  it.each(["count", "a".repeat(30)])("accepts the plural variable %j", async (variable) => {
+    const manager = await loadedPluralManager();
 
-    manager.updatePluralVariable("count");
+    manager.updatePluralVariable(variable);
+
     expect(manager.validate().isValid).toBe(true);
   });
 
@@ -261,24 +267,47 @@ describe("useTranslations", () => {
     const saved = await manager.saveTranslation();
 
     expect(saved).not.toBeNull();
-    const runtimePayload = addTranslationsMock.mock.calls[0]?.[0] as Record<
-      string,
-      Record<string, string>
-    >;
-    expect(runtimePayload["en:default"]?.["inbox.messages"]).toContain("{formality, select,");
-    expect(runtimePayload["en:default"]?.["inbox.messages"]).toContain("{count, plural,");
+    expect(addTranslationsMock).toHaveBeenCalledExactlyOnceWith({
+      "en:default": {
+        "inbox.messages":
+          "{formality, select, " +
+          "formal {{count, plural, one {You have # message} other {You have # messages}}} " +
+          "informal {{count, plural, one {You've got # message} other {You've got # messages}}}}",
+      },
+    });
   });
 
-  it("handles save errors and missing i18n runtime safely", async () => {
+  it("blocks the save and reports the validation failure when a value is invalid", async () => {
     const manager = createManager();
     getTranslationMock.mockResolvedValue(createSingularTranslationData("home.title", "Initial"));
     await manager.loadTranslation("home.title", "default");
+    manager.updateTranslation("en", "other", "x".repeat(5001));
 
+    const result = await manager.saveTranslation();
+
+    expect(result).toBeNull();
+    expect(saveTranslationMock).not.toHaveBeenCalled();
+    expect(manager.state.value.error).toBe(
+      'Validation failed: Translation for "other" form exceeds maximum length of 5000 characters',
+    );
+  });
+
+  it("stores the error and returns null when the save request rejects", async () => {
+    const manager = createManager();
+    getTranslationMock.mockResolvedValue(createSingularTranslationData("home.title", "Initial"));
+    await manager.loadTranslation("home.title", "default");
     saveTranslationMock.mockRejectedValueOnce(new Error("Save failed"));
+
     const failedSave = await manager.saveTranslation();
+
     expect(failedSave).toBeNull();
     expect(manager.state.value.error).toBe("Save failed");
+  });
 
+  it("still returns the saved data when no i18n runtime is available to update", async () => {
+    const manager = createManager();
+    getTranslationMock.mockResolvedValue(createSingularTranslationData("home.title", "Initial"));
+    await manager.loadTranslation("home.title", "default");
     getI18nInstanceMock.mockReturnValueOnce(null);
     saveTranslationMock.mockResolvedValueOnce(
       createSingularTranslationData("home.title", "Updated"),
@@ -288,23 +317,50 @@ describe("useTranslations", () => {
     const successfulSave = await manager.saveTranslation();
 
     expect(successfulSave).not.toBeNull();
-    expect(warnSpy).toHaveBeenCalledWith(
+    expect(addTranslationsMock).not.toHaveBeenCalled();
+    expect(warnSpy).toHaveBeenCalledExactlyOnceWith(
       "[InContextEditor] Cannot update runtime cache: i18n instance not available",
     );
   });
 
-  it("warns when update methods are called without loaded data", () => {
+  it.each([
+    [
+      "updateTranslation",
+      (m: TranslationManager) => m.updateTranslation("en", "other", "Hello"),
+      "Cannot update translation: no data loaded",
+    ],
+    [
+      "updateMetadata",
+      (m: TranslationManager) => m.updateMetadata({ context: "ctx" }),
+      "Cannot update metadata: no data loaded",
+    ],
+    [
+      "updatePluralVariable",
+      (m: TranslationManager) => m.updatePluralVariable("count"),
+      "Cannot update plural variable: no data loaded",
+    ],
+    [
+      "togglePluralMode",
+      (m: TranslationManager) => m.togglePluralMode(true),
+      "Cannot toggle plural mode: no data loaded",
+    ],
+    [
+      "toggleSelectMode",
+      (m: TranslationManager) => m.toggleSelectMode("en", true),
+      "Cannot toggle select mode: no data loaded",
+    ],
+    [
+      "updateSelectConfig",
+      (m: TranslationManager) => m.updateSelectConfig("en", { enabled: true }),
+      "Cannot update select config: no data loaded",
+    ],
+  ])("warns when %s is called without loaded data", (_name, call, message) => {
     const manager = createManager();
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 
-    manager.updateTranslation("en", "other", "Hello");
-    manager.updateMetadata({ context: "ctx" });
-    manager.updatePluralVariable("count");
-    manager.togglePluralMode(true);
-    manager.toggleSelectMode("en", true);
-    manager.updateSelectConfig("en", { enabled: true });
+    call(manager);
 
-    expect(warnSpy).toHaveBeenCalledTimes(6);
+    expect(warnSpy).toHaveBeenCalledExactlyOnceWith(message);
   });
 
   it("resets state to initial values", async () => {

@@ -10,7 +10,7 @@ describe("useToast", () => {
     vi.useRealTimers();
   });
 
-  it("should start with empty toasts", () => {
+  it("a new manager has no toasts", () => {
     const { toasts } = createToastManager();
     expect(toasts.value).toEqual([]);
   });
@@ -32,11 +32,16 @@ describe("useToast", () => {
   });
 
   it("should assign unique ids to toasts", () => {
-    const { toasts, addToast } = createToastManager();
-    addToast({ title: "First", variant: "success" });
-    addToast({ title: "Second", variant: "error" });
+    const first = createToastManager();
+    const second = createToastManager();
+    first.addToast({ title: "First", variant: "success" });
+    first.addToast({ title: "Second", variant: "error" });
+    second.addToast({ title: "Third", variant: "success" });
 
-    expect(toasts.value[0]!.id).not.toBe(toasts.value[1]!.id);
+    const ids = [...first.toasts.value.map((t) => t.id), second.toasts.value[0]!.id];
+
+    // The id counter is module-level, so it must stay unique across managers too.
+    expect(new Set(ids).size).toBe(3);
   });
 
   it("should auto-remove toast after 3 seconds", () => {
@@ -72,6 +77,17 @@ describe("useToast", () => {
     expect(toasts.value).toHaveLength(1);
   });
 
+  it("should leave the list intact when the auto-remove timer fires after a manual removal", () => {
+    const { toasts, addToast, removeToast } = createToastManager();
+    addToast({ title: "Removed early", variant: "success" });
+    addToast({ title: "Kept", variant: "error" });
+
+    removeToast(toasts.value[0]!.id);
+    vi.advanceTimersByTime(3000);
+
+    expect(toasts.value).toEqual([]);
+  });
+
   it("should auto-remove multiple toasts independently", () => {
     const { toasts, addToast } = createToastManager();
     addToast({ title: "First", variant: "success" });
@@ -81,12 +97,10 @@ describe("useToast", () => {
 
     expect(toasts.value).toHaveLength(2);
 
-    // First toast removed at 3000ms
     vi.advanceTimersByTime(2000);
     expect(toasts.value).toHaveLength(1);
     expect(toasts.value[0]!.title).toBe("Second");
 
-    // Second toast removed at 4000ms
     vi.advanceTimersByTime(1000);
     expect(toasts.value).toHaveLength(0);
   });

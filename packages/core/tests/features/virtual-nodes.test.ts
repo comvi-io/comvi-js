@@ -18,10 +18,8 @@ describe("Virtual Node Interpolation", () => {
 
     const result = i18n.tRaw("text", { bold: vNode });
 
-    expect(result).toHaveLength(3);
-    expect(result[0]).toBe("This is ");
+    expect(result).toEqual(["This is ", vNode, " text"]);
     expect(result[1]).toBe(vNode);
-    expect(result[2]).toBe(" text");
     expect(i18n.t("text", { bold: vNode })).toBe("This is Bold text");
   });
 
@@ -37,16 +35,16 @@ describe("Virtual Node Interpolation", () => {
 
     const result = i18n.tRaw("list", { items: vNodes });
 
-    expect(result).toHaveLength(3);
-    expect(result[0]).toBe("Items: ");
+    expect(result).toEqual(["Items: ", vNodes[0], vNodes[1]]);
     expect(result[1]).toBe(vNodes[0]);
     expect(result[2]).toBe(vNodes[1]);
     expect(i18n.t("list", { items: vNodes })).toBe("Items: OneTwo");
   });
 
-  it("returns a single string when no virtual nodes are present", () => {
+  it("tRaw() returns a single string when no virtual nodes are present", () => {
     i18n.addTranslations({ en: { simple: "Simple text" } });
-    expect(i18n.t("simple")).toBe("Simple text");
+
+    expect(i18n.tRaw("simple")).toBe("Simple text");
   });
 
   it("supports virtual nodes inside plural options", () => {

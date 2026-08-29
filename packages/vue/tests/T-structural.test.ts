@@ -70,7 +70,7 @@ describe("<T /> structural render (wrapper parity)", () => {
     const em = strong.find("em");
     expect(em.exists()).toBe(true);
     expect(em.text()).toBe("fine");
-    expect(wrapper.text()).toContain("Read the fine print.");
+    expect(wrapper.text()).toBe("Read the fine print.");
   });
 
   it("renders untrusted translation markup as text, never as elements", () => {
@@ -82,8 +82,7 @@ describe("<T /> structural render (wrapper parity)", () => {
     // nothing in a translation string can create a DOM element.
     expect(wrapper.find("script").exists()).toBe(false);
     expect(Reflect.get(window, "pwned")).toBeUndefined();
-    expect(wrapper.text()).toContain("hi ");
-    expect(wrapper.text()).toContain(" there");
+    expect(wrapper.text()).toBe("hi window.pwned = true there");
   });
 
   describe("default-slot fallback (children-fallback parity)", () => {

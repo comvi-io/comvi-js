@@ -1,6 +1,6 @@
 import { computed, ref } from "vue";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { mockRuntimeConfig, resetMocks, setMockI18n, useState } from "./mocks/nuxt-app";
+import { resetMocks, setMockI18n, useState } from "./mocks/nuxt-app";
 import { useI18n } from "../src/runtime/composables/useI18n";
 import type * as ComviCore from "@comvi/core";
 
@@ -23,6 +23,8 @@ vi.mock("@comvi/core", async (importOriginal) => ({
   createBoundTranslation,
 }));
 
+// The composable is a pass-through map over the WHOLE host surface, so a
+// partial stub would hand back `undefined` where the contract promises a member.
 function createI18nStub() {
   return {
     locale: ref("en"),
@@ -64,7 +66,7 @@ describe("useI18n composable", () => {
     );
   });
 
-  it("returns bound API and syncs locale state on setLanguage", async () => {
+  it("returns bound API and syncs locale state on setLocale", async () => {
     const i18n = createI18nStub();
     setMockI18n(i18n);
 
@@ -78,8 +80,8 @@ describe("useI18n composable", () => {
       { type: "element", tag: "strong", props: {}, children: ["Alice"] },
       "!",
     ]);
-    expect(api.locales.value).toEqual(mockRuntimeConfig.public.comvi.locales);
-    expect(api.defaultLocale.value).toBe(mockRuntimeConfig.public.comvi.defaultLocale);
+    expect(api.locales.value).toEqual(["en", "de", "uk"]);
+    expect(api.defaultLocale.value).toBe("en");
 
     await api.setLocale("de");
     expect(i18n.setLocale).toHaveBeenCalledWith("de");

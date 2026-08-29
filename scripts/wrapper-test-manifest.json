@@ -923,6 +923,36 @@
       "addedIn": "framework-slim P4 (nuxt)",
       "reason": "Removed by single-entry P4's Nuxt default-template flip: the subject was \"the generated default template yields a loader- and plugin-host-carrying instance\", and the successor asserts the exact opposite (registerLoader/use/getLoader/reloadTranslations absent, hasLoaderApi false) because the default generated host is core's base host now. `hostModule` remains the composition escape and keeps its own cases.",
       "supersededBy": "packages/nuxt/tests/host-template.test.ts > generated #build/comvi.host template > builds core's BASE host on the default branch"
+    },
+    {
+      "id": "packages/nuxt/tests/useI18n.test.ts > useI18n composable > returns bound API and syncs locale state on setLanguage",
+      "reason": "Misleading name, no rename-free fix: the removed subject is `setLanguage`, a method that does not exist on the composable's returned API. The test has always called `api.setLocale` and asserted `i18n.setLocale` plus the `i18n-locale` useState sync; the name was the only thing naming `setLanguage`. The successor keeps the same body and the same claims and only corrects the method it names.",
+      "supersededBy": "packages/nuxt/tests/useI18n.test.ts > useI18n composable > returns bound API and syncs locale state on setLocale"
+    },
+    {
+      "id": "packages/react/tests/T.test.tsx > <T /> > reports and degrades when a function handler throws synchronously",
+      "reason": "Retired exact duplicate, removed by the test-quality pass. The removed subject is a SECOND copy of the throwing-function-handler case: it built the same `t` stub, passed a throwing handler for the same `link` tag, and made the identical two assertions (degraded plain text plus `reportError` with `source: \"translation\"`, `tagName: \"link\"`). Its only difference was a `vi.fn()` wrapper around the throwing handler that no assertion ever read, so the pass asserted one behaviour twice.",
+      "supersededBy": "packages/react/tests/T.test.tsx > <T /> > reports and degrades gracefully when function handler throws"
+    },
+    {
+      "id": "packages/react/tests/tearing.test.tsx > Repro 4 — useSubscribe events-array fragility > re-subscribe is gated on i18n identity only — events list changes are ignored (architectural-only)",
+      "reason": "Retired self-referential test, removed by the test-quality pass. The removed subject is a LOCAL RE-IMPLEMENTATION of `useSubscribe`: the test declared its own `useSubscribeLike` hook inside the test body and asserted against that copy, so no module under src/ was exercised and no production change could fail it. The shape it pinned — re-subscribe gated on i18n identity only — is also the opposite of the hook's real contract, which `tests/useSubscribe.test.tsx` pins against the actual implementation in both directions (identity churns when the event list contents change, stays stable when they do not).",
+      "supersededBy": "packages/react/tests/useSubscribe.test.tsx > useSubscribe — rest-args + stable join-key deps > returns NEW subscribe identity when event list contents change"
+    },
+    {
+      "id": "packages/vue/tests/new-features.test.ts > New Features > on() method > should subscribe to missingKey event",
+      "reason": "Retired exact duplicate. The removed subject is the missingKey SUBSCRIPTION: this test built the same createI18n instance, subscribed the same spy to \"missingKey\", called t() on an absent key and asserted the same { key, locale, namespace } payload as the surviving test two cases above it — only the key string differed. The survivor also pins the unsubscribe handle the duplicate never returned, so it carries strictly more of the claim.",
+      "supersededBy": "packages/vue/tests/new-features.test.ts > New Features > on() method > should expose on() and fire callback when event is triggered"
+    },
+    {
+      "id": "packages/svelte/tests/T-prop-forwarding.test.ts > T.svelte hasExplicitProp forwarding characterization > when ns/locale/fallback/raw ARE passed as props > forwarded prop ns with a concrete value overrides params.ns",
+      "reason": "Retired exact duplicate. The removed subject is the CONCRETE-ns override: this test used the identical mountWrapper arrangement (params.ns present, passNs true, a concrete ns prop) and the identical toHaveBeenLastCalledWith assertion as the surviving first case of the same describe, differing only in the two string literals. Its lead comment set up an ns={undefined} case and then stated it was deliberately left untested, so the test pinned nothing the survivor does not; that comment was moved onto the survivor.",
+      "supersededBy": "packages/svelte/tests/T-prop-forwarding.test.ts > T.svelte hasExplicitProp forwarding characterization > when ns/locale/fallback/raw ARE passed as props > prop ns overrides params.ns in transportParams"
+    },
+    {
+      "id": "packages/solid/tests/useI18n.test.tsx > useI18n > changes language and exposes translation metadata through the returned API",
+      "reason": "Renamed by the test-quality pass after a split. The removed subject is the CATALOG-METADATA half of the name: the test bundled a locale flip with five metadata reads (hasLocale, hasTranslation, getLoadedLocales, getActiveNamespaces, getDefaultNamespace), and those moved to their own test, leaving the surviving body doing only the locale flip. The old name would then have documented behaviour the test no longer exercises, so it was renamed to `changes language through the returned API and re-renders the subtree`. Both halves are live; nothing was dropped.",
+      "supersededBy": "packages/solid/tests/useI18n.test.tsx > useI18n > exposes catalog metadata for what has been loaded"
     }
   ]
 }

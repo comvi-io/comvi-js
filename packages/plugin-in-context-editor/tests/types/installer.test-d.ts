@@ -36,13 +36,13 @@ void edited.use;
 
 // WRONG — the uppercase PLUGIN through `.with`. A plugin demands a plugin
 // host; the pipe hands it whatever it was called on.
-// @ts-expect-error
+// @ts-expect-error — a bare host has no registerPostProcessor for the plugin to take.
 createI18n({ locale: "en" }).with(InContextEditorPlugin());
 
 // WRONG — the lowercase INSTALLER through `.use`. An installer returns a
 // host, and a plugin may only return nothing or a cleanup function. This is
 // the shape the production identity no-op is rejected by at runtime.
-// @ts-expect-error
+// @ts-expect-error — the installer returns a host, which is not a plugin return value.
 createI18n({ locale: "en" }).with(plugins()).use(inContextEditor());
 
 // @ts-expect-error — and identically under the production condition.

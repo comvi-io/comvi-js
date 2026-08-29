@@ -41,4 +41,11 @@ describe("getLocale", () => {
 
     await expect(getLocale()).rejects.toThrow("Unable to determine locale");
   });
+
+  it("throws when the middleware locale header is present but empty", async () => {
+    getRequestLocaleFromCacheMock.mockReturnValue(undefined);
+    headersMock.mockResolvedValue(new Headers([["x-comvi-locale", ""]]));
+
+    await expect(getLocale()).rejects.toThrow("Unable to determine locale");
+  });
 });

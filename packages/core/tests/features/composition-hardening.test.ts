@@ -200,52 +200,66 @@ describe("B4 — a plugins-only host reports the missing loader capability (dev)
 
   it("installs no shims when the loader is already composed", () => {
     const i18n = makeHost().with(loader());
-    const before = Object.getOwnPropertyNames(i18n).sort();
+    const descriptorsBefore = LOADER_MEMBERS.map((name) => [
+      name,
+      Object.getOwnPropertyDescriptor(i18n, name),
+    ]);
+    // Guards the comparison below against an empty member list.
+    expect(descriptorsBefore.length).toBe(LOADER_MEMBERS.length);
+    expect(descriptorsBefore.filter(([, descriptor]) => descriptor === undefined)).toEqual([]);
 
     attachPlugins(i18n);
 
-    const own = new Set(Object.getOwnPropertyNames(i18n));
-    for (const name of LOADER_MEMBERS) {
-      // Still inherited-from-nothing own props installed by attachLoader, not
-      // by the shim pass: the descriptor must be the real implementation.
-      expect(own.has(name), name).toBe(true);
-    }
-    expect(i18n.getLoader()).toBeUndefined();
-    expect(before.length).toBeGreaterThan(0);
+    // attachPlugins adds its OWN members, but must not have replaced a single
+    // loader member with a shim.
+    expect(
+      LOADER_MEMBERS.map((name) => [name, Object.getOwnPropertyDescriptor(i18n, name)]),
+    ).toEqual(descriptorsBefore);
+    // And what is there is the real implementation, not a throwing stand-in.
+    const fn = async () => ({ hello: "Hello" });
+    i18n.registerLoader(fn);
+    expect(i18n.getLoader()).toBe(fn);
   });
 
-  it("lets attachLoader install cleanly over the shims (order independence)", async () => {
+  it("composes to the same own-property set in either order", () => {
     const pluginsFirst = attachLoader(attachPlugins(makeHost()));
     const loaderFirst = attachPlugins(attachLoader(makeHost()));
 
     expect(Object.getOwnPropertyNames(pluginsFirst).sort()).toEqual(
       Object.getOwnPropertyNames(loaderFirst).sort(),
     );
-
-    for (const host of [pluginsFirst, loaderFirst]) {
-      const fn = vi.fn(async () => ({ hello: "Hello" }));
-      host.registerLoader(fn);
-      expect(host.getLoader()).toBe(fn);
-      await host.init();
-      expect(host.t("hello")).toBe("Hello");
-    }
   });
 
-  it("runs a loader-registering plugin identically in both compose orders", async () => {
-    for (const pluginsFirst of [true, false]) {
-      // No static catalog: the loaded value must be the only source of `hello`.
-      const bare = createI18n({ locale: "en", exposeGlobal: false });
-      const i18n = pluginsFirst
-        ? bare.with(plugins()).with(loader())
-        : bare.with(loader()).with(plugins());
+  it.each([
+    ["plugins first", () => attachLoader(attachPlugins(makeHost()))],
+    ["loader first", () => attachPlugins(attachLoader(makeHost()))],
+  ])("lets attachLoader install cleanly over the shims — %s", async (_label, make) => {
+    const host = make();
+    const fn = vi.fn(async () => ({ hello: "Hello" }));
 
-      i18n.use((host) => {
-        host.registerLoader(async () => ({ hello: "Loaded" }));
-      });
-      await i18n.init();
+    host.registerLoader(fn);
+    await host.init();
 
-      expect(i18n.t("hello"), String(pluginsFirst)).toBe("Loaded");
-    }
+    expect(host.getLoader()).toBe(fn);
+    expect(host.t("hello")).toBe("Hello");
+  });
+
+  it.each([
+    ["plugins first", true],
+    ["loader first", false],
+  ])("runs a loader-registering plugin identically — %s", async (_label, pluginsFirst) => {
+    // No static catalog: the loaded value must be the only source of `hello`.
+    const bare = createI18n({ locale: "en", exposeGlobal: false });
+    const i18n = pluginsFirst
+      ? bare.with(plugins()).with(loader())
+      : bare.with(loader()).with(plugins());
+
+    i18n.use((host) => {
+      host.registerLoader(async () => ({ hello: "Loaded" }));
+    });
+    await i18n.init();
+
+    expect(i18n.t("hello")).toBe("Loaded");
   });
 });
 
@@ -300,55 +314,50 @@ describe("B3 — attachDevtools re-runs exposure when a later call flips it on",
     expect(queue()).toHaveLength(0);
   });
 
-  it("exposes windowless hosts exactly once — first id wins, counter bumps once", () => {
-    // The SSR trap: `_initDevtools` assigns the id and then returns at the
-    // `window` check BEFORE it writes `_globalEntry`, so probing the queue
-    // entry would re-fire here on every attach — reassigning the id and
-    // burning a counter slot per call. `instanceId` is the receipt instead.
-    const originalWindow = (globalThis as { window?: unknown }).window;
+  // The SSR trap: `_initDevtools` assigns the id and then returns at the
+  // `window` check BEFORE it writes `_globalEntry`, so probing the queue entry
+  // would re-fire on every attach — reassigning the id and burning a counter
+  // slot per call. `instanceId` is the receipt instead.
+  it("exposes a windowless host exactly once — the auto id survives three attaches", () => {
     vi.stubGlobal("window", undefined);
-    try {
-      const auto = createI18n({ locale: "en" }).with(devtools({ exposeGlobal: true }));
-      const firstAutoId = auto.instanceId;
-      expect(firstAutoId).toMatch(/^comvi-\d+$/);
 
-      auto.with(devtools({ exposeGlobal: true }));
-      auto.with(devtools({ exposeGlobal: true, instanceId: "other" }));
-      expect(auto.instanceId).toBe(firstAutoId);
+    const auto = createI18n({ locale: "en" }).with(devtools({ exposeGlobal: true }));
+    const firstAutoId = auto.instanceId;
+    expect(firstAutoId).toMatch(/^comvi-\d+$/);
 
-      // The counter moved exactly once for `auto`: the next windowless host
-      // takes the very next number, which it could not if the three attaches
-      // above had each generated one.
-      const next = createI18n({ locale: "en" }).with(devtools({ exposeGlobal: true }));
-      expect(Number(next.instanceId!.slice("comvi-".length))).toBe(
-        Number(firstAutoId!.slice("comvi-".length)) + 1,
-      );
+    auto.with(devtools({ exposeGlobal: true }));
+    auto.with(devtools({ exposeGlobal: true, instanceId: "other" }));
 
-      // An explicit id is equally sticky across three attaches.
-      const named = createI18n({ locale: "en" }).with(
-        devtools({ exposeGlobal: true, instanceId: "app" }),
-      );
-      named.with(devtools({ exposeGlobal: true, instanceId: "other" }));
-      named.with(devtools({ exposeGlobal: true, instanceId: "third" }));
-      expect(named.instanceId).toBe("app");
-    } finally {
-      vi.stubGlobal("window", originalWindow);
-      vi.unstubAllGlobals();
-    }
+    expect(auto.instanceId).toBe(firstAutoId);
+    // The counter moved exactly once for `auto`: the next windowless host takes
+    // the very next number, which it could not if the three attaches above had
+    // each generated one.
+    const next = createI18n({ locale: "en" }).with(devtools({ exposeGlobal: true }));
+    expect(Number(next.instanceId!.slice("comvi-".length))).toBe(
+      Number(firstAutoId!.slice("comvi-".length)) + 1,
+    );
+  });
+
+  it("keeps an EXPLICIT windowless id sticky across three attaches", () => {
+    vi.stubGlobal("window", undefined);
+
+    const named = createI18n({ locale: "en" }).with(
+      devtools({ exposeGlobal: true, instanceId: "app" }),
+    );
+    named.with(devtools({ exposeGlobal: true, instanceId: "other" }));
+    named.with(devtools({ exposeGlobal: true, instanceId: "third" }));
+
+    expect(named.instanceId).toBe("app");
   });
 
   it("leaves a windowless-exposed host alone once a window exists", () => {
     // Deliberate: a host exposed under SSR has an id, so it is done. The
     // client builds its own host rather than re-attaching the server's.
-    const originalWindow = (globalThis as { window?: unknown }).window;
     vi.stubGlobal("window", undefined);
-    let i18n: ReturnType<typeof createI18n>;
-    try {
-      i18n = createI18n({ locale: "en" }).with(devtools({ exposeGlobal: true, instanceId: "ssr" }));
-    } finally {
-      vi.stubGlobal("window", originalWindow);
-      vi.unstubAllGlobals();
-    }
+    const i18n = createI18n({ locale: "en" }).with(
+      devtools({ exposeGlobal: true, instanceId: "ssr" }),
+    );
+    vi.unstubAllGlobals();
 
     i18n.with(devtools({ exposeGlobal: true, instanceId: "client" }));
 

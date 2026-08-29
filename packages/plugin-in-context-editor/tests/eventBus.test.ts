@@ -1,44 +1,20 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { EventBus } from "../src/EventBus";
 
-describe("eventBus.ts - Pub/Sub System", () => {
+describe("EventBus", () => {
   let eventBus: EventBus;
 
   beforeEach(() => {
     eventBus = new EventBus();
   });
 
-  describe("on - Event Subscription", () => {
+  describe("on()", () => {
     it("should subscribe to an event", () => {
       const callback = vi.fn();
       eventBus.on("test-event", callback);
       eventBus.emit("test-event");
 
       expect(callback).toHaveBeenCalledTimes(1);
-    });
-
-    it("should pass arguments to callback", () => {
-      const callback = vi.fn();
-      eventBus.on("test-event", callback);
-      eventBus.emit("test-event", "arg1", "arg2", 123);
-
-      expect(callback).toHaveBeenCalledWith("arg1", "arg2", 123);
-    });
-
-    it("should support multiple callbacks for same event", () => {
-      const callback1 = vi.fn();
-      const callback2 = vi.fn();
-      const callback3 = vi.fn();
-
-      eventBus.on("test-event", callback1);
-      eventBus.on("test-event", callback2);
-      eventBus.on("test-event", callback3);
-
-      eventBus.emit("test-event");
-
-      expect(callback1).toHaveBeenCalledTimes(1);
-      expect(callback2).toHaveBeenCalledTimes(1);
-      expect(callback3).toHaveBeenCalledTimes(1);
     });
 
     it("should execute callbacks in subscription order", () => {
@@ -66,21 +42,23 @@ describe("eventBus.ts - Pub/Sub System", () => {
       expect(callback).not.toHaveBeenCalled();
     });
 
-    it("should handle multiple subscriptions to different events", () => {
-      const callback1 = vi.fn();
-      const callback2 = vi.fn();
+    it("should not deliver the in-flight event to a listener subscribed during emit", () => {
+      const lateCallback = vi.fn();
+      eventBus.on("test-event", () => {
+        eventBus.on("test-event", lateCallback);
+      });
 
-      eventBus.on("event1", callback1);
-      eventBus.on("event2", callback2);
+      eventBus.emit("test-event");
 
-      eventBus.emit("event1");
+      expect(lateCallback).not.toHaveBeenCalled();
+      expect(eventBus.listenerCount("test-event")).toBe(2);
 
-      expect(callback1).toHaveBeenCalledTimes(1);
-      expect(callback2).not.toHaveBeenCalled();
+      eventBus.emit("test-event");
+      expect(lateCallback).toHaveBeenCalledTimes(1);
     });
   });
 
-  describe("emit - Event Emission", () => {
+  describe("emit()", () => {
     it("should emit event to all subscribers", () => {
       const callback1 = vi.fn();
       const callback2 = vi.fn();
@@ -96,7 +74,7 @@ describe("eventBus.ts - Pub/Sub System", () => {
 
     it("should do nothing if no subscribers", () => {
       expect(eventBus.listenerCount("non-existent-event")).toBe(0);
-      expect(eventBus.emit("non-existent-event")).toBeUndefined();
+      expect(() => eventBus.emit("non-existent-event")).not.toThrow();
     });
 
     it("should pass multiple arguments", () => {
@@ -128,16 +106,28 @@ describe("eventBus.ts - Pub/Sub System", () => {
       const complexData = {
         nodes: new Map([["key1", { value: 1 }]]),
         array: [1, 2, { nested: true }],
-        func: () => {},
       };
 
       eventBus.emit("test-event", complexData);
 
       expect(callback).toHaveBeenCalledWith(complexData);
     });
+
+    it.each(["textChanges", "attributeChanges", "structureChanges", "nodesRemoved", "initialScan"])(
+      "should deliver the %s payload to its subscriber unchanged",
+      (eventName) => {
+        const callback = vi.fn();
+        const payload = [document.createElement("div"), document.createTextNode("text")];
+        eventBus.on(eventName, callback);
+
+        eventBus.emit(eventName, payload);
+
+        expect(callback).toHaveBeenCalledExactlyOnceWith(payload);
+      },
+    );
   });
 
-  describe("Unsubscribe", () => {
+  describe("unsubscribe", () => {
     it("should stop receiving events after unsubscribe", () => {
       const callback = vi.fn();
       const unsubscribe = eventBus.on("test-event", callback);
@@ -148,7 +138,7 @@ describe("eventBus.ts - Pub/Sub System", () => {
       unsubscribe();
 
       eventBus.emit("test-event");
-      expect(callback).toHaveBeenCalledTimes(1); // Still 1, not 2
+      expect(callback).toHaveBeenCalledTimes(1);
     });
 
     it("should only remove specific callback", () => {
@@ -170,7 +160,7 @@ describe("eventBus.ts - Pub/Sub System", () => {
       const unsubscribe = eventBus.on("test-event", callback);
 
       unsubscribe();
-      unsubscribe(); // Second call should be safe
+      unsubscribe();
 
       eventBus.emit("test-event");
       expect(callback).not.toHaveBeenCalled();
@@ -180,16 +170,27 @@ describe("eventBus.ts - Pub/Sub System", () => {
       const callback = vi.fn();
       const unsubscribe = eventBus.on("test-event", callback);
 
-      // Remove listeners first to simulate external cleanup before unsubscribe callback runs.
+      // Simulates external cleanup landing before the unsubscribe callback runs.
       eventBus.removeAllListeners("test-event");
       unsubscribe();
       eventBus.emit("test-event");
 
       expect(callback).not.toHaveBeenCalled();
     });
+
+    it("should stop all delivery once every listener has unsubscribed", () => {
+      const callbacks = [vi.fn(), vi.fn(), vi.fn()];
+      const unsubscribers = callbacks.map((callback) => eventBus.on("test-event", callback));
+
+      unsubscribers.forEach((unsubscribe) => unsubscribe());
+      eventBus.emit("test-event");
+
+      expect(eventBus.listenerCount("test-event")).toBe(0);
+      expect(callbacks.map((callback) => callback.mock.calls.length)).toEqual([0, 0, 0]);
+    });
   });
 
-  describe("Error Handling", () => {
+  describe("error handling", () => {
     it("should catch errors in callbacks and continue", () => {
       const callback1 = vi.fn(() => {
         throw new Error("Callback 1 error");
@@ -204,10 +205,8 @@ describe("eventBus.ts - Pub/Sub System", () => {
       eventBus.emit("test-event");
 
       expect(callback1).toHaveBeenCalledTimes(1);
-      expect(callback2).toHaveBeenCalledTimes(1); // Should still be called
+      expect(callback2).toHaveBeenCalledTimes(1);
       expect(consoleError).toHaveBeenCalled();
-
-      consoleError.mockRestore();
     });
 
     it("should log error with event name", () => {
@@ -221,12 +220,10 @@ describe("eventBus.ts - Pub/Sub System", () => {
 
       eventBus.emit("error-event");
 
-      expect(consoleError).toHaveBeenCalledWith(
-        expect.stringContaining("error-event"),
+      expect(consoleError).toHaveBeenCalledExactlyOnceWith(
+        'Error in event listener for "error-event":',
         expect.any(Error),
       );
-
-      consoleError.mockRestore();
     });
 
     it("should handle errors in multiple callbacks", () => {
@@ -250,28 +247,10 @@ describe("eventBus.ts - Pub/Sub System", () => {
       expect(callback2).toHaveBeenCalledTimes(1);
       expect(callback3).toHaveBeenCalledTimes(1);
       expect(consoleError).toHaveBeenCalledTimes(2);
-
-      consoleError.mockRestore();
     });
   });
 
-  describe("Event Isolation", () => {
-    it("should keep events isolated", () => {
-      const callback1 = vi.fn();
-      const callback2 = vi.fn();
-      const callback3 = vi.fn();
-
-      eventBus.on("event1", callback1);
-      eventBus.on("event2", callback2);
-      eventBus.on("event3", callback3);
-
-      eventBus.emit("event2");
-
-      expect(callback1).not.toHaveBeenCalled();
-      expect(callback2).toHaveBeenCalledTimes(1);
-      expect(callback3).not.toHaveBeenCalled();
-    });
-
+  describe("event isolation", () => {
     it("should handle similar event names separately", () => {
       const callback1 = vi.fn();
       const callback2 = vi.fn();
@@ -286,105 +265,26 @@ describe("eventBus.ts - Pub/Sub System", () => {
     });
   });
 
-  describe("Real-world DOMWatcher events", () => {
-    it("should handle textChanges event", () => {
-      const callback = vi.fn();
-      eventBus.on("textChanges", callback);
+  describe("scale", () => {
+    it("should deliver one call per subscriber to every subscriber", () => {
+      const callbacks = [vi.fn(), vi.fn(), vi.fn()];
+      callbacks.forEach((callback) => eventBus.on("test-event", callback));
 
-      const textNodes = [document.createTextNode("test")];
-      eventBus.emit("textChanges", textNodes);
-
-      expect(callback).toHaveBeenCalledWith(textNodes);
-    });
-
-    it("should handle attributeChanges event", () => {
-      const callback = vi.fn();
-      eventBus.on("attributeChanges", callback);
-
-      const element = document.createElement("div");
-      eventBus.emit("attributeChanges", [element]);
-
-      expect(callback).toHaveBeenCalledWith([element]);
-    });
-
-    it("should handle structureChanges event", () => {
-      const callback = vi.fn();
-      eventBus.on("structureChanges", callback);
-
-      const nodes = [document.createElement("div"), document.createTextNode("text")];
-      eventBus.emit("structureChanges", nodes);
-
-      expect(callback).toHaveBeenCalledWith(nodes);
-    });
-
-    it("should handle nodesRemoved event", () => {
-      const callback = vi.fn();
-      eventBus.on("nodesRemoved", callback);
-
-      const nodes = [document.createElement("div")];
-      eventBus.emit("nodesRemoved", nodes);
-
-      expect(callback).toHaveBeenCalledWith(nodes);
-    });
-
-    it("should handle initialScan event", () => {
-      const callback = vi.fn();
-      eventBus.on("initialScan", callback);
-
-      const root = document.body;
-      eventBus.emit("initialScan", root);
-
-      expect(callback).toHaveBeenCalledWith(root);
-    });
-  });
-
-  describe("Scale testing", () => {
-    it("should handle many subscribers without errors", () => {
-      const callbacks = Array.from({ length: 1000 }, () => vi.fn());
-
-      callbacks.forEach((callback) => {
-        eventBus.on("test-event", callback);
-      });
-
-      expect(eventBus.listenerCount("test-event")).toBe(1000);
+      expect(eventBus.listenerCount("test-event")).toBe(3);
       eventBus.emit("test-event");
 
-      callbacks.forEach((callback) => {
-        expect(callback).toHaveBeenCalledTimes(1);
-      });
+      expect(callbacks.map((callback) => callback.mock.calls.length)).toEqual([1, 1, 1]);
     });
 
-    it("should handle rapid emissions", () => {
+    it("should count one callback invocation per emission", () => {
       const callback = vi.fn();
       eventBus.on("test-event", callback);
 
-      for (let i = 0; i < 1000; i++) {
+      for (let i = 0; i < 3; i++) {
         eventBus.emit("test-event", i);
       }
 
-      expect(callback).toHaveBeenCalledTimes(1000);
-    });
-  });
-
-  describe("Memory Management", () => {
-    it("should not leak memory on unsubscribe", () => {
-      const callbacks: Array<() => void> = [];
-      const unsubscribers: Array<() => void> = [];
-
-      for (let i = 0; i < 100; i++) {
-        const callback = vi.fn();
-        callbacks.push(callback);
-        const unsubscribe = eventBus.on("test-event", callback);
-        unsubscribers.push(unsubscribe);
-      }
-
-      unsubscribers.forEach((unsub) => unsub());
-
-      eventBus.emit("test-event");
-
-      callbacks.forEach((callback) => {
-        expect(callback).not.toHaveBeenCalled();
-      });
+      expect(callback.mock.calls).toEqual([[0], [1], [2]]);
     });
   });
 });

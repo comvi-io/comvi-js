@@ -89,17 +89,13 @@ describe("prod dist: the ICU literal + best-effort report (D1)", () => {
     const template = "{n, plural, one {# console} other {# consoles}}";
     const spy = vi.spyOn(console, "error").mockImplementation(() => {});
 
-    try {
-      const i18n = createI18n({ locale: "en", translation: { en: { c: template } } });
-      expect(i18n.t("c", { n: 2 })).toBe(template);
-      expect(spy).toHaveBeenCalledTimes(1);
-      expect(spy).toHaveBeenCalledWith("[comvi] E_ICU_SYNTAX", "c", "en");
+    const i18n = createI18n({ locale: "en", translation: { en: { c: template } } });
+    expect(i18n.t("c", { n: 2 })).toBe(template);
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(spy).toHaveBeenCalledWith("[comvi] E_ICU_SYNTAX", "c", "en");
 
-      expect(i18n.t("c", { n: 3 })).toBe(template);
-      expect(spy).toHaveBeenCalledTimes(1);
-    } finally {
-      spy.mockRestore();
-    }
+    expect(i18n.t("c", { n: 3 })).toBe(template);
+    expect(spy).toHaveBeenCalledTimes(1);
   });
 
   it("reports the FALLBACK locale when the template only exists there", async () => {
@@ -149,10 +145,27 @@ describe("prod dist: the ICU literal + best-effort report (D1)", () => {
       namespace: "default",
       locale: "en",
     });
+  });
+
+  it("does not leak a `params.fallback` compile hit into the next translation", async () => {
+    const { createI18n } = await import("../../dist/comvi-core.js");
+    // Distinct from the template above: the compile report fires once per
+    // template across the module-level cache, so a shared one reports nothing.
+    const template = "{n, plural, one {# leak} other {# leaks}}";
+
+    const reports: unknown[] = [];
+    const i18n = createI18n({
+      locale: "en",
+      translation: { en: { plainKey: "Hi, {name}!" } },
+      onError: (error: Error) => void reports.push(error),
+    });
+
+    expect(i18n.t("missing", { n: 2, fallback: template })).toBe(template);
 
     // Before the fix the hit survived into the next, unrelated translation and
     // was reported against key "plainKey".
     expect(i18n.t("plainKey", { name: "Ada" })).toBe("Hi, Ada!");
+
     expect(reports).toHaveLength(1);
   });
 
@@ -208,26 +221,26 @@ describe("prod dist: the ICU literal + best-effort report (D1)", () => {
     expect((reported[0] as { argumentType?: unknown }).argumentType).toBe("select");
   });
 
-  it("reports the truthful parsed token for argument types it does not ship", async () => {
-    const { createI18n } = await import("../../dist/comvi-core.js");
-    const catalog = { n: "{v, number}", d: "{d, date, short}", o: "{name, other}" };
-    const reported: Array<{ argumentType?: unknown }> = [];
-    const i18n = createI18n({
-      locale: "en",
-      translation: { en: catalog },
-      onError: (error: Error) => void reported.push(error),
-    });
+  it.each([
+    ["number", "n", "{v, number}"],
+    ["date", "d", "{d, date, short}"],
+    ["other", "o", "{name, other}"],
+  ])(
+    "reports the truthful parsed token for the unshipped argument type %s",
+    async (argumentType, key, template) => {
+      const { createI18n } = await import("../../dist/comvi-core.js");
+      const reported: Array<{ argumentType?: unknown }> = [];
+      const i18n = createI18n({
+        locale: "en",
+        translation: { en: { [key]: template } },
+        onError: (error: Error) => void reported.push(error),
+      });
 
-    for (const [key, argumentType] of [
-      ["n", "number"],
-      ["d", "date"],
-      ["o", "other"],
-    ] as const) {
-      reported.length = 0;
-      expect(i18n.t(key, { v: 1, d: 1, name: "x" })).toBe(catalog[key]);
+      expect(i18n.t(key, { v: 1, d: 1, name: "x" })).toBe(template);
+
       expect(reported[0]?.argumentType).toBe(argumentType);
-    }
-  });
+    },
+  );
 
   it("leaves quoted literals and plain interpolation alone", async () => {
     const { createI18n } = await import("../../dist/comvi-core.js");
@@ -283,40 +296,9 @@ describe("prod dist: the ICU literal + best-effort report (D1)", () => {
 
     const i18n = createI18n({ locale: "en", translation: { en: { hi: "Hi" } } });
 
-    let thrown: unknown;
-    try {
-      i18n.with(icu());
-    } catch (error) {
-      thrown = error;
-    }
-    expect((thrown as { code?: unknown }).code).toBe("E_COMPILER_LOCKED");
-    expect((thrown as Error).message).toBe("E_COMPILER_LOCKED");
-  });
-
-  // LAST in this describe on purpose: importing the tags entry registers the
-  // `<` grammar AMBIENTLY into the prod core module this file has been using,
-  // and that registration is process-global and retroactive.
-  it("keeps the braces literal even with @comvi/core/tags loaded — no tag parsing inside", async () => {
-    const { createI18n } = await import("../../dist/comvi-core.js");
-    await import("../../dist/comvi-core-tags.js");
-    const template = "{count, plural, one {<b>#</b> tagged} other {<b>#</b> taggeds}}";
-
-    const reports: Array<{ argumentType?: unknown }> = [];
-    const i18n = createI18n({
-      locale: "en",
-      translation: { en: { tagged: template } },
-      onError: (error: Error) => void reports.push(error),
-    });
-
-    // ONE raw text token for the whole balanced group: the `<b>` inside is never
-    // re-parsed by the tags extension, so nothing renders and nothing is dropped.
-    expect(i18n.t("tagged", { count: 2 })).toBe(template);
-    expect(reports).toHaveLength(1);
-    expect(reports[0]!.argumentType).toBe("plural");
-
-    // Without this the claim above would be vacuous.
-    const tagged = createI18n({ locale: "en", translation: { en: { m: "a <b>b</b> c" } } });
-    expect(tagged.t("m", { b: () => "B" })).toBe("a B c");
+    expect(() => i18n.with(icu())).toThrowError(
+      expect.objectContaining({ code: "E_COMPILER_LOCKED", message: "E_COMPILER_LOCKED" }),
+    );
   });
 });
 
@@ -324,15 +306,13 @@ describe("dev dist: the eager preflight (§2.1a)", () => {
   it("throws EAGERLY at construction, before any render", async () => {
     const { createI18n } = await import("../../dist/comvi-core.dev.js");
 
-    let thrown: unknown;
-    try {
-      createI18n({ locale: "en", translation: { en: { items: PLURAL } } });
-    } catch (error) {
-      thrown = error;
-    }
-    expect((thrown as { code?: unknown }).code).toBe("E_ICU_SYNTAX");
-    expect((thrown as { argumentType?: unknown }).argumentType).toBe("plural");
-    expect((thrown as Error).message).toContain("@comvi/core/icu");
+    expect(() => createI18n({ locale: "en", translation: { en: { items: PLURAL } } })).toThrowError(
+      expect.objectContaining({
+        code: "E_ICU_SYNTAX",
+        argumentType: "plural",
+        message: expect.stringContaining("@comvi/core/icu"),
+      }),
+    );
   });
 
   it("throws EAGERLY from addTranslations too, and the host stays locked", async () => {
@@ -342,13 +322,9 @@ describe("dev dist: the eager preflight (§2.1a)", () => {
     const i18n = createI18n({ locale: "en" });
     expect(() => i18n.addTranslations({ en: { items: PLURAL } })).toThrow(/E_ICU_SYNTAX|ICU/);
 
-    let thrown: unknown;
-    try {
-      i18n.with(icu());
-    } catch (error) {
-      thrown = error;
-    }
-    expect((thrown as { code?: unknown }).code).toBe("E_COMPILER_LOCKED");
+    expect(() => i18n.with(icu())).toThrowError(
+      expect.objectContaining({ code: "E_COMPILER_LOCKED" }),
+    );
   });
 
   it("throws EAGERLY from the LOADER's direct merge, before the cache write", async () => {
@@ -378,13 +354,9 @@ describe("dev dist: the eager preflight (§2.1a)", () => {
 
     // The seam locked the compiler on its way through, so a late installer
     // cannot paper over the rejected catalog.
-    let locked: unknown;
-    try {
-      i18n.with(icu());
-    } catch (error) {
-      locked = error;
-    }
-    expect((locked as { code?: unknown }).code).toBe("E_COMPILER_LOCKED");
+    expect(() => i18n.with(icu())).toThrowError(
+      expect.objectContaining({ code: "E_COMPILER_LOCKED" }),
+    );
   });
 
   it("stays silent when the effective compiler is not the simple one", async () => {

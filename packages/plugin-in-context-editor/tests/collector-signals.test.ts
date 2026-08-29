@@ -56,9 +56,13 @@ describe("collector/signals", () => {
       document.body.appendChild(dialog);
 
       const signals = extractSemanticSignals(button);
-      const containerEntry = signals.ancestry.find((a) => a.hasTitle);
 
-      expect(containerEntry).toBeDefined();
+      expect(signals.ancestry).toContainEqual({
+        tag: "dialog",
+        role: null,
+        containerType: "dialog",
+        hasTitle: true,
+      });
       expect(JSON.stringify(signals)).not.toContain("Jane Doe");
     });
 
@@ -66,6 +70,7 @@ describe("collector/signals", () => {
       const div = document.createElement("div");
       document.body.appendChild(div);
       const signals = extractSemanticSignals(div);
+
       expect(signals.semanticRole).toBe("unknown");
     });
 
@@ -75,6 +80,7 @@ describe("collector/signals", () => {
       const legend = document.createElement("legend");
       document.body.appendChild(legend);
       const signals = extractSemanticSignals(legend);
+
       expect(signals.semanticRole).toBe("body-text");
     });
   });
@@ -119,6 +125,42 @@ describe("collector/signals", () => {
       expect(constraints.hard.widthBucket).toBe("full");
       expect(constraints.hard.mustBeShort).toBe(false);
     });
+
+    it("buckets a zero-width element as tiny and mustBeShort", () => {
+      const div = document.createElement("div");
+      document.body.appendChild(div);
+      mockBoundingClientRect(div, { width: 0, height: 0, top: 0, left: 0, right: 0, bottom: 0 });
+
+      const constraints = extractConstraintSignals(div, div.getBoundingClientRect());
+
+      expect(constraints.hard.widthBucket).toBe("tiny");
+      expect(constraints.hard.mustBeShort).toBe(true);
+    });
+
+    it("flags likelyTruncated for a clipped, wrapping element and clears it once nowrap is set", () => {
+      const wrapping = document.createElement("div");
+      wrapping.style.overflow = "hidden";
+      const clamped = document.createElement("div");
+      clamped.style.overflow = "hidden";
+      clamped.style.whiteSpace = "nowrap";
+      document.body.append(wrapping, clamped);
+      const rect = { width: 200, height: 40, top: 0, left: 0, right: 200, bottom: 40 };
+      mockBoundingClientRect(wrapping, rect);
+      mockBoundingClientRect(clamped, rect);
+
+      const wrappingSoft = extractConstraintSignals(
+        wrapping,
+        wrapping.getBoundingClientRect(),
+      ).soft;
+      const clampedSoft = extractConstraintSignals(clamped, clamped.getBoundingClientRect()).soft;
+
+      expect(wrappingSoft).toEqual({
+        likelyTruncated: true,
+        visuallyCompact: true,
+        visualProminence: "medium",
+      });
+      expect(clampedSoft.likelyTruncated).toBe(false);
+    });
   });
 
   describe("buildNeighborCandidates — client-side drop filter (RC4/2g)", () => {
@@ -152,22 +194,16 @@ describe("collector/signals", () => {
       // The wire NeighborRef carries exactly {namespace, key, semanticRole,
       // relativePosition, containerType, sameContainerAs, distance,
       // readingOrderIndex} — no rawText, no textLength, no ariaRole/hasAriaLabel.
-      expect(candidates[0]).not.toHaveProperty("rawText");
-      expect(candidates[0]).not.toHaveProperty("textLength");
-      expect(candidates[0]).not.toHaveProperty("ariaRole");
-      expect(candidates[0]).not.toHaveProperty("hasAriaLabel");
-      expect(Object.keys(candidates[0]!).sort()).toEqual(
-        [
-          "namespace",
-          "key",
-          "semanticRole",
-          "relativePosition",
-          "containerType",
-          "sameContainerAs",
-          "distance",
-          "readingOrderIndex",
-        ].sort(),
-      );
+      expect(Object.keys(candidates[0]!).sort()).toEqual([
+        "containerType",
+        "distance",
+        "key",
+        "namespace",
+        "readingOrderIndex",
+        "relativePosition",
+        "sameContainerAs",
+        "semanticRole",
+      ]);
       expect(JSON.stringify(candidates)).not.toContain("Email address");
     });
 
@@ -223,6 +259,7 @@ describe("collector/signals", () => {
       });
 
       const candidates = buildNeighborCandidates(targetMeta, [targetMeta, neighborMeta]);
+
       expect(candidates).toHaveLength(0);
     });
 
@@ -250,17 +287,15 @@ describe("collector/signals", () => {
       });
 
       const candidates = buildNeighborCandidates(targetMeta, [targetMeta, neighborMeta]);
-      expect(candidates).toHaveLength(1);
-      expect(candidates[0]?.key).toBe("heading.key");
+
+      expect(candidates.map((c) => c.key)).toEqual(["heading.key"]);
     });
 
-    it("drops a neighbor beyond MAX_NEIGHBOR_DISTANCE and dedupes repeated (namespace,key)", () => {
+    it("drops a neighbor beyond MAX_NEIGHBOR_DISTANCE", () => {
       const target = document.createElement("button");
       const far = document.createElement("span");
       far.textContent = "far away";
-      const dupeA = document.createElement("span");
-      const dupeB = document.createElement("span");
-      document.body.append(target, far, dupeA, dupeB);
+      document.body.append(target, far);
 
       const targetMeta = withMeta(target, "ns", "target.key", {
         top: 0,
@@ -277,6 +312,26 @@ describe("collector/signals", () => {
         height: 20,
         right: 2030,
         bottom: 2020,
+      });
+
+      const candidates = buildNeighborCandidates(targetMeta, [targetMeta, farMeta]);
+
+      expect(candidates).toEqual([]);
+    });
+
+    it("dedupes repeated (namespace,key) neighbors down to a single candidate", () => {
+      const target = document.createElement("button");
+      const dupeA = document.createElement("span");
+      const dupeB = document.createElement("span");
+      document.body.append(target, dupeA, dupeB);
+
+      const targetMeta = withMeta(target, "ns", "target.key", {
+        top: 0,
+        left: 0,
+        width: 50,
+        height: 20,
+        right: 50,
+        bottom: 20,
       });
       const dupeAMeta = withMeta(dupeA, "ns", "dupe.key", {
         top: 25,
@@ -295,12 +350,7 @@ describe("collector/signals", () => {
         bottom: 70,
       });
 
-      const candidates = buildNeighborCandidates(targetMeta, [
-        targetMeta,
-        farMeta,
-        dupeAMeta,
-        dupeBMeta,
-      ]);
+      const candidates = buildNeighborCandidates(targetMeta, [targetMeta, dupeAMeta, dupeBMeta]);
 
       expect(candidates.map((c) => c.key)).toEqual(["dupe.key"]);
     });

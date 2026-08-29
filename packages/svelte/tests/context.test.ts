@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { mount, tick, unmount } from "svelte";
 import { FakeI18n } from "../../../tooling/test-utils/fakeI18n";
 import ContextHarness from "./ContextHarness.test.svelte";
@@ -25,13 +25,17 @@ describe("svelte context", () => {
     return target.querySelector(`[data-testid="${testId}"]`)?.textContent ?? "";
   }
 
-  it("provides context to descendant components", async () => {
-    const fake = new FakeI18n({ language: "en", defaultNamespace: "common" });
+  let fake: FakeI18n;
+
+  beforeEach(() => {
+    fake = new FakeI18n({ language: "en", defaultNamespace: "common" });
     fake.addTranslations({
       en: { hello: "Hello" },
       fr: { hello: "Bonjour" },
     });
+  });
 
+  it("provides context to descendant components", async () => {
     component = mount(ContextHarness, {
       target,
       props: { i18n: fake.asI18n(), autoInit: false },
@@ -39,20 +43,17 @@ describe("svelte context", () => {
 
     expect(text("context-language")).toBe("en");
     expect(text("hook")).toBe("Hello-en");
-    expect(text("component")).toContain("Hello");
+    expect(text("component")).toBe("Hello");
 
     await fake.setLanguageAsync("fr");
     await tick();
 
     expect(text("context-language")).toBe("fr");
     expect(text("hook")).toBe("Bonjour-fr");
-    expect(text("component")).toContain("Bonjour");
+    expect(text("component")).toBe("Bonjour");
   });
 
   it("auto-initializes descendants by default", async () => {
-    const fake = new FakeI18n({ language: "en", defaultNamespace: "common" });
-    fake.addTranslations({ en: { hello: "Hello" } });
-
     component = mount(ContextHarness, {
       target,
       props: { i18n: fake.asI18n() },
@@ -60,16 +61,12 @@ describe("svelte context", () => {
 
     expect(text("initialized")).toBe("no");
 
-    await Promise.resolve();
-    await tick();
-
-    expect(text("initialized")).toBe("yes");
+    await vi.waitFor(() => {
+      expect(text("initialized")).toBe("yes");
+    });
   });
 
   it("allows manual initialization when autoInit is disabled", async () => {
-    const fake = new FakeI18n({ language: "en", defaultNamespace: "common" });
-    fake.addTranslations({ en: { hello: "Hello" } });
-
     component = mount(ContextHarness, {
       target,
       props: { i18n: fake.asI18n(), autoInit: false },

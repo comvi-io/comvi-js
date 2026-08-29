@@ -21,7 +21,7 @@ function makeInstance(translations: Record<string, string>) {
 
 function elementAt(content: unknown, index: number): ElementNode {
   const item = (content as Array<string | VirtualNode>)[index];
-  expect(item).toMatchObject({ type: "element" });
+  expect(item, `content[${index}]`).toMatchObject({ type: "element" });
   return item as ElementNode;
 }
 
@@ -36,7 +36,6 @@ afterEach(() => {
 
 describe("prepareTranslation", () => {
   it("renders correctly with ambient registry explicitly reset (per-call channel is self-sufficient)", () => {
-    _resetSyntaxExtensions();
     expect(getAmbientExtensions().length).toBe(0);
 
     const i18n = makeInstance({ msg: "Hello <bold>{name}</bold>!" });
@@ -53,10 +52,6 @@ describe("prepareTranslation", () => {
       { type: "element", tag: "strong", props: {}, children: ["Ada"] },
       "!",
     ]);
-
-    // Contrast: the plain string API on the same instance has NO tag engine —
-    // ambient registry is empty, so the template stays literal.
-    expect(i18n.t("msg" as never, { name: "Ada" } as never)).toBe("Hello <bold>Ada</bold>!");
   });
 
   it("does not leak the per-call extension into later plain calls (cache isolation)", () => {
@@ -124,7 +119,7 @@ describe("prepareTranslation", () => {
       expect(pendingHandlers).toEqual([
         {
           name: "btn",
-          marker: pendingHandlers[0].marker,
+          marker: expect.any(String),
           handler: FakeComponent,
           props: { variant: "primary" },
         },
@@ -132,11 +127,13 @@ describe("prepareTranslation", () => {
       expect(elementAt(content, 0).tag).toBe(pendingHandlers[0].marker);
     });
 
-    it("marker detection rejects non-marker and empty-name tags", () => {
-      expect(getPendingHandlerName("strong")).toBeUndefined();
-      expect(getPendingHandlerName("__comvi_handler_x__")).toBe("x");
-      expect(getPendingHandlerName("__comvi_handler___")).toBeUndefined(); // empty name
-      expect(getPendingHandlerName("__comvi_handler_")).toBeUndefined();
+    it.each([
+      ["strong", undefined],
+      ["__comvi_handler_x__", "x"],
+      ["__comvi_handler___", undefined],
+      ["__comvi_handler_", undefined],
+    ])("getPendingHandlerName(%j) → %j", (tag, expected) => {
+      expect(getPendingHandlerName(tag)).toBe(expected);
     });
   });
 

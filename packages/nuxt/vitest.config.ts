@@ -6,6 +6,9 @@ export default defineConfig({
   plugins: [vue()],
   test: {
     globals: true,
+    restoreMocks: true,
+    unstubEnvs: true,
+    unstubGlobals: true,
     environment: "happy-dom",
     include: ["tests/**/*.{test,test-d}.ts"],
     coverage: {

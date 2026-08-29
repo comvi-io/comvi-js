@@ -1,21 +1,10 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { mount } from "@vue/test-utils";
 import { h, defineComponent, markRaw } from "vue";
 import { createI18n as createRootI18n } from "../src/createI18n";
 import { T } from "../src/components/T";
 import { I18N_INJECTION_KEY } from "../src/keys";
 import { icuCompiler } from "../src";
-
-declare module "@comvi/core" {
-  interface TranslationKeys {
-    "tagged.simple": never;
-    "tagged.multiple": never;
-    "tagged.nested": never;
-    "tagged.self-closing": never;
-    "tagged.with-params": { name: string };
-    "tagged.html": never;
-  }
-}
 
 describe("<T /> component - Tag Interpolation", () => {
   const createI18n = (translations: Record<string, string>, options?: any) => {
@@ -42,8 +31,8 @@ describe("<T /> component - Tag Interpolation", () => {
 
       expect(wrapper.find("a").exists()).toBe(true);
       expect(wrapper.find("a").text()).toBe("here");
-      expect(wrapper.text()).toContain("Click");
-      expect(wrapper.text()).toContain("for help");
+      // No whitespace is injected at the slot boundaries.
+      expect(wrapper.text()).toBe("Clickherefor help");
     });
 
     it("should handle nested tags with slots", () => {
@@ -285,13 +274,17 @@ describe("<T /> component - Tag Interpolation", () => {
           tagInterpolation: { strict: "warn" },
         },
       );
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
 
       const wrapper = mount(T, {
         props: { i18nKey: "msg" },
         global: { provide: { [I18N_INJECTION_KEY as symbol]: i18n } },
       });
 
+      // The warning is the only thing separating "warn" from the plain
+      // no-handler fallback two tests above.
       expect(wrapper.text()).toBe("Click here for help");
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining("link"));
     });
   });
 
@@ -424,8 +417,11 @@ describe("<T /> component - Tag Interpolation", () => {
         global: { provide: { [I18N_INJECTION_KEY as symbol]: i18n } },
       });
 
-      // An array, because the content is mixed.
+      // An array, because the content is mixed: text, element, text. All three
+      // arrive as VNodes — the text segments included — so the claim is
+      // array-ness plus the node count, not the element types.
       expect(Array.isArray(receivedChildren)).toBe(true);
+      expect(receivedChildren).toHaveLength(3);
       expect(wrapper.text()).toBe("Hello world!");
     });
   });

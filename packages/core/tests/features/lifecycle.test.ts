@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { I18n } from "../helpers/composedHost";
 import type { I18nPlugin } from "../helpers/composedHost";
+import { createDeferred } from "../helpers/deferred";
 
 /** Lifecycle behaviour that is observable through the PUBLIC API only. */
 describe("I18n Lifecycle", () => {
@@ -27,10 +28,12 @@ describe("I18n Lifecycle", () => {
     it("cleans plugin hooks and cached translations", async () => {
       const onDestroyed = vi.fn();
       const cleanup = vi.fn();
+      const loaderFn = async () => ({ key: "value" });
+      // Returning the current locale avoids an unintended switch here.
+      const detectorFn = () => "en";
       const plugin: I18nPlugin = (i18n) => {
-        i18n.registerLoader(async () => ({ key: "value" }));
-        // Returning the current locale avoids an unintended switch here.
-        i18n.registerLocaleDetector(() => "en");
+        i18n.registerLoader(loaderFn);
+        i18n.registerLocaleDetector(detectorFn);
         return cleanup;
       };
 
@@ -38,11 +41,8 @@ describe("I18n Lifecycle", () => {
       i18n.addTranslations({ en: { hello: "Hello" } });
       await i18n.init();
 
-      const loaderResult = await i18n.getLoader()!("en", "default");
-      expect(loaderResult).toEqual({ key: "value" });
-
-      expect(i18n.getLanguageDetector()!()).toBe("en");
-
+      expect(i18n.getLoader()).toBe(loaderFn);
+      expect(i18n.getLanguageDetector()).toBe(detectorFn);
       expect(i18n.t("hello")).toBe("Hello");
       i18n.on("destroyed", onDestroyed);
 
@@ -59,13 +59,10 @@ describe("I18n Lifecycle", () => {
     });
 
     it("cleans up even when called during an active load", async () => {
-      let resolveLoad!: (value: Record<string, string>) => void;
-      const loadPromise = new Promise<Record<string, string>>((res) => {
-        resolveLoad = res;
-      });
+      const load = createDeferred<Record<string, string>>();
 
       const plugin: I18nPlugin = (i18n) => {
-        i18n.registerLoader(async () => loadPromise);
+        i18n.registerLoader(async () => load.promise);
       };
 
       const i18n = new I18n({ locale: "en", ns: [] }).use(plugin);
@@ -90,7 +87,7 @@ describe("I18n Lifecycle", () => {
       expect(i18n.getLoadedLocales()).toEqual([]);
 
       // Resolve the pending load after destroy.
-      resolveLoad({ key: "value" });
+      load.resolve({ key: "value" });
       await addPromise;
 
       // The completed in-flight load must not repopulate the destroyed instance.

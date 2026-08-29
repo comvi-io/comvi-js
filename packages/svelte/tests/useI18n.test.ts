@@ -1,7 +1,8 @@
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { mount, tick, unmount } from "svelte";
 import { FakeI18n } from "../../../tooling/test-utils/fakeI18n";
 import UseI18nHarness from "./UseI18nHarness.test.svelte";
+import NoContextHarness from "./NoContextHarness.test.svelte";
 
 describe("useI18n", () => {
   let fake: FakeI18n;
@@ -94,10 +95,14 @@ describe("useI18n", () => {
       props: { i18n: fake.asI18n() },
     });
 
-    const initialNumber = text("number");
-    const initialCurrency = text("currency");
-    const initialDate = text("date");
-    const initialRelative = text("relative");
+    // The harness pins `timeZone: "UTC"` on the date, so every literal below
+    // is a function of the locale alone. NBSPs are escaped on purpose.
+    expect([text("number"), text("currency"), text("date"), text("relative")]).toEqual([
+      "1,234.5",
+      "$99.99",
+      "01/02/2024",
+      "2 days ago",
+    ]);
 
     click("switch-fr");
     await tick();
@@ -105,10 +110,12 @@ describe("useI18n", () => {
     expect(text("hello")).toBe("Bonjour");
     expect(text("language")).toBe("fr");
     expect(text("dir")).toBe("ltr");
-    expect(text("number")).not.toBe(initialNumber);
-    expect(text("currency")).not.toBe(initialCurrency);
-    expect(text("date")).not.toBe(initialDate);
-    expect(text("relative")).not.toBe(initialRelative);
+    expect([text("number"), text("currency"), text("date"), text("relative")]).toEqual([
+      "1\u202f234,5",
+      "99,99\u00a0$US",
+      "02/01/2024",
+      "il y a 2 jours",
+    ]);
 
     click("switch-ar");
     await tick();
@@ -136,10 +143,11 @@ describe("useI18n", () => {
     expect(text("active-namespaces")).toBe("admin,common");
 
     resolveLoad?.();
-    await Promise.resolve();
-    await tick();
 
-    expect(text("loading")).toBe("false");
+    await vi.waitFor(() => {
+      expect(text("loading")).toBe("false");
+    });
+
     expect(text("active-namespaces")).toBe("admin,common");
   });
 
@@ -186,5 +194,12 @@ describe("useI18n", () => {
     await tick();
 
     expect(text("events")).toBe("en->fr");
+  });
+
+  it("throws when called with no i18n context in the tree", () => {
+    expect(() => mount(NoContextHarness, { target })).toThrow(
+      "[@comvi/svelte] i18n context not found. " +
+        "Call setI18nContext(i18n) in your root component (e.g., App.svelte).",
+    );
   });
 });

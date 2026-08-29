@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { NextRequest } from "next/server";
 import { createMiddleware } from "../src/middleware/createMiddleware";
 
@@ -94,8 +94,16 @@ describe("middleware locale prefix handling", () => {
 });
 
 describe("middleware locale detection priority", () => {
+  // The middleware closure is immutable, so one instance serves every case
+  // that does not need its own configuration.
+  const middleware = createMiddleware({
+    locales: ["en", "fr"],
+    defaultLocale: "en",
+    localePrefix: "as-needed",
+  });
+
   it("cookie locale takes priority over Accept-Language", () => {
-    const middleware = createMiddleware({
+    const trilingual = createMiddleware({
       locales: ["en", "fr", "de"],
       defaultLocale: "en",
       localePrefix: "as-needed",
@@ -109,7 +117,7 @@ describe("middleware locale detection priority", () => {
       },
     });
     request.cookies.set("NEXT_LOCALE", "de");
-    const response = middleware(request);
+    const response = trilingual(request);
 
     // The cookie wins over Accept-Language.
     expect(response.headers.get("x-comvi-locale")).toBe("de");
@@ -117,12 +125,6 @@ describe("middleware locale detection priority", () => {
   });
 
   it("falls back to default locale for unsupported Accept-Language", () => {
-    const middleware = createMiddleware({
-      locales: ["en", "fr"],
-      defaultLocale: "en",
-      localePrefix: "as-needed",
-    });
-
     const request = new NextRequest("https://example.com/about", {
       headers: {
         "accept-language": "ja-JP,ja;q=0.9,zh;q=0.8",
@@ -136,12 +138,6 @@ describe("middleware locale detection priority", () => {
   });
 
   it("ignores locales with q=0 in Accept-Language", () => {
-    const middleware = createMiddleware({
-      locales: ["en", "fr"],
-      defaultLocale: "en",
-      localePrefix: "as-needed",
-    });
-
     const request = new NextRequest("https://example.com/about", {
       headers: {
         "accept-language": "fr;q=0,en;q=0.8",
@@ -154,7 +150,7 @@ describe("middleware locale detection priority", () => {
   });
 
   it("supports custom header detection when configured in order", () => {
-    const middleware = createMiddleware({
+    const headerFirst = createMiddleware({
       locales: ["en", "fr", "de"],
       defaultLocale: "en",
       localePrefix: "as-needed",
@@ -170,19 +166,13 @@ describe("middleware locale detection priority", () => {
         "accept-language": "fr;q=1.0,en;q=0.5",
       },
     });
-    const response = middleware(request);
+    const response = headerFirst(request);
 
     expect(response.headers.get("x-comvi-locale")).toBe("de");
     expect(response.headers.get("location")).toBe("https://example.com/de/about");
   });
 
   it("skips locale handling for internal Next.js paths", () => {
-    const middleware = createMiddleware({
-      locales: ["en", "fr"],
-      defaultLocale: "en",
-      localePrefix: "as-needed",
-    });
-
     const request = new NextRequest("https://example.com/_next/static/chunk.js");
     const response = middleware(request);
 
@@ -191,13 +181,62 @@ describe("middleware locale detection priority", () => {
     expect(response.headers.get("x-middleware-rewrite")).toBeNull();
   });
 
-  it("does not skip routes that only start with /api prefix", () => {
-    const middleware = createMiddleware({
+  it.each([["/api"], ["/api/users"]])("skips locale handling for the API route %s", (pathname) => {
+    const request = new NextRequest(`https://example.com${pathname}`, {
+      headers: {
+        "accept-language": "fr",
+      },
+    });
+    const response = middleware(request);
+
+    expect(response.headers.get("x-comvi-locale")).toBeNull();
+    expect(response.headers.get("location")).toBeNull();
+    expect(response.headers.get("x-middleware-rewrite")).toBeNull();
+  });
+
+  it("a custom detectLocale outranks the cookie and Accept-Language", () => {
+    const withDetector = createMiddleware({
+      locales: ["en", "fr", "de"],
+      defaultLocale: "en",
+      localePrefix: "as-needed",
+      detectLocale: () => "de",
+    });
+
+    const request = new NextRequest("https://example.com/about", {
+      headers: {
+        "accept-language": "fr;q=1.0,en;q=0.5",
+      },
+    });
+    request.cookies.set("NEXT_LOCALE", "fr");
+    const response = withDetector(request);
+
+    expect(response.headers.get("x-comvi-locale")).toBe("de");
+    expect(response.headers.get("location")).toBe("https://example.com/de/about");
+  });
+
+  it.each([
+    ["a cookie", (request: NextRequest) => request.cookies.set("NEXT_LOCALE", "zz")],
+    ["a custom header", (request: NextRequest) => request.headers.set("x-user-locale", "zz")],
+  ])("falls back to defaultLocale when %s names an unsupported locale", (_source, poison) => {
+    const headerAware = createMiddleware({
       locales: ["en", "fr"],
       defaultLocale: "en",
       localePrefix: "as-needed",
+      localeDetection: {
+        order: ["cookie", "header"],
+        headerName: "x-user-locale",
+      },
     });
 
+    const request = new NextRequest("https://example.com/about");
+    poison(request);
+    const response = headerAware(request);
+
+    expect(response.headers.get("x-comvi-locale")).toBe("en");
+    expect(response.headers.get("x-middleware-rewrite")).toBe("https://example.com/en/about");
+  });
+
+  it("does not skip routes that only start with /api prefix", () => {
     const request = new NextRequest("https://example.com/apix", {
       headers: {
         "accept-language": "fr",
@@ -210,12 +249,6 @@ describe("middleware locale detection priority", () => {
   });
 
   it("does not skip app routes that contain dots", () => {
-    const middleware = createMiddleware({
-      locales: ["en", "fr"],
-      defaultLocale: "en",
-      localePrefix: "as-needed",
-    });
-
     const request = new NextRequest("https://example.com/john.doe", {
       headers: {
         "accept-language": "fr",
@@ -228,12 +261,6 @@ describe("middleware locale detection priority", () => {
   });
 
   it("processes static-like paths when matcher allows them", () => {
-    const middleware = createMiddleware({
-      locales: ["en", "fr"],
-      defaultLocale: "en",
-      localePrefix: "as-needed",
-    });
-
     const request = new NextRequest("https://example.com/assets/app.js", {
       headers: {
         "accept-language": "fr",
@@ -243,6 +270,82 @@ describe("middleware locale detection priority", () => {
 
     expect(response.headers.get("x-comvi-locale")).toBe("fr");
     expect(response.headers.get("location")).toBe("https://example.com/fr/assets/app.js");
+  });
+});
+
+describe("middleware locale cookie persistence", () => {
+  const middleware = createMiddleware({
+    locales: ["en", "fr"],
+    defaultLocale: "en",
+    localePrefix: "as-needed",
+  });
+
+  it("writes the resolved locale to the response cookie with the persistence attributes", () => {
+    const request = new NextRequest("https://example.com/about", {
+      headers: {
+        "accept-language": "fr",
+      },
+    });
+
+    const response = middleware(request);
+
+    expect(response.cookies.get("NEXT_LOCALE")).toMatchObject({
+      value: "fr",
+      path: "/",
+      maxAge: 365 * 24 * 60 * 60,
+      sameSite: "lax",
+      secure: true,
+    });
+  });
+
+  it("skips the cookie write when the request cookie already carries the resolved locale", () => {
+    const request = new NextRequest("https://example.com/fr/about");
+    request.cookies.set("NEXT_LOCALE", "fr");
+
+    const response = middleware(request);
+
+    expect(response.headers.get("x-comvi-locale")).toBe("fr");
+    expect(response.cookies.get("NEXT_LOCALE")).toBeUndefined();
+  });
+
+  it("honours a custom cookie name from localeDetection", () => {
+    const customCookie = createMiddleware({
+      locales: ["en", "fr"],
+      defaultLocale: "en",
+      localePrefix: "as-needed",
+      localeDetection: { order: ["accept-language"], cookieName: "MY_LOCALE" },
+    });
+
+    const request = new NextRequest("https://example.com/about", {
+      headers: {
+        "accept-language": "fr",
+      },
+    });
+
+    const response = customCookie(request);
+
+    expect(response.cookies.get("MY_LOCALE")?.value).toBe("fr");
+    expect(response.cookies.get("NEXT_LOCALE")).toBeUndefined();
+  });
+
+  it("drops the secure flag in development so localhost HTTP keeps the cookie", () => {
+    // `isDev` is read once, when the middleware closure is built.
+    vi.stubEnv("NODE_ENV", "development");
+    const devMiddleware = createMiddleware({
+      locales: ["en", "fr"],
+      defaultLocale: "en",
+      localePrefix: "as-needed",
+    });
+
+    const request = new NextRequest("https://example.com/about", {
+      headers: {
+        "accept-language": "fr",
+      },
+    });
+
+    const response = devMiddleware(request);
+
+    expect(response.cookies.get("NEXT_LOCALE")?.secure).toBe(false);
   });
 });
 

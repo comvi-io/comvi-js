@@ -7,22 +7,31 @@ import {
 } from "../../src/index";
 import type { I18nEvent } from "../../src/types";
 
+const realInstance = async () => {
+  const i18n = createI18n({
+    locale: "en",
+    defaultNs: "common",
+    translation: { en: { hello: "Hello" }, fr: { hello: "Bonjour" } },
+  });
+  await i18n.init();
+  return i18n;
+};
+
 describe("subscribeToRevision", () => {
   it("covers the canonical 7-event set", () => {
-    expect([...REVISION_EVENTS].sort()).toEqual(
-      [
-        "localeChanged",
-        "namespaceLoaded",
-        "loadingStateChanged",
-        "initialized",
-        "translationsCleared",
-        "defaultNamespaceChanged",
-        "configChanged",
-      ].sort(),
-    );
+    expect(REVISION_EVENTS).toHaveLength(7);
+    expect([...REVISION_EVENTS].sort()).toEqual([
+      "configChanged",
+      "defaultNamespaceChanged",
+      "initialized",
+      "loadingStateChanged",
+      "localeChanged",
+      "namespaceLoaded",
+      "translationsCleared",
+    ]);
   });
 
-  it("subscribes the callback to every canonical event and reports the event name", () => {
+  it("subscribes the callback to every canonical event and forwards each event name", () => {
     const subscribed: I18nEvent[] = [];
     const received: RevisionEvent[] = [];
     const handlers = new Map<I18nEvent, () => void>();
@@ -61,25 +70,29 @@ describe("subscribeToRevision", () => {
   });
 
   it("fires against a real instance on locale and config changes", async () => {
-    const i18n = createI18n({
-      locale: "en",
-      defaultNs: "common",
-      translation: { en: { hello: "Hello" }, fr: { hello: "Bonjour" } },
-    });
-    await i18n.init();
+    const i18n = await realInstance();
+
+    const received: RevisionEvent[] = [];
+    subscribeToRevision(i18n, (event) => received.push(event));
+
+    await i18n.setLocaleAsync("fr");
+
+    expect(received).toEqual(["localeChanged"]);
+
+    i18n.setFallbackLocale("en");
+
+    expect(received).toEqual(["localeChanged", "configChanged"]);
+  });
+
+  it("the disposer stops delivery from a real instance", async () => {
+    const i18n = await realInstance();
 
     const received: RevisionEvent[] = [];
     const unsubscribe = subscribeToRevision(i18n, (event) => received.push(event));
 
-    await i18n.setLocaleAsync("fr");
-    expect(received).toContain("localeChanged");
-
-    i18n.setFallbackLocale("en");
-    expect(received).toContain("configChanged");
-
     unsubscribe();
-    const count = received.length;
-    await i18n.setLocaleAsync("en");
-    expect(received.length).toBe(count);
+    await i18n.setLocaleAsync("fr");
+
+    expect(received).toEqual([]);
   });
 });

@@ -1,13 +1,12 @@
 import { describe, it, expect } from "vitest";
 import { I18n } from "../helpers/composedHost";
 
+const makeI18n = (defaultNs = "common", ns: string[] = [defaultNs]) =>
+  new I18n({ locale: "en", defaultNs, ns });
+
 describe("registerLoader with import map", () => {
   it("loads translations from import map", async () => {
-    const i18n = new I18n({
-      locale: "en",
-      defaultNs: "common",
-      ns: ["common"],
-    });
+    const i18n = makeI18n();
 
     i18n.registerLoader({
       "en:common": () => Promise.resolve({ hello: "Hello" }),
@@ -19,11 +18,7 @@ describe("registerLoader with import map", () => {
   });
 
   it("unwraps { default: ... } from dynamic imports", async () => {
-    const i18n = new I18n({
-      locale: "en",
-      defaultNs: "common",
-      ns: ["common"],
-    });
+    const i18n = makeI18n();
 
     i18n.registerLoader({
       "en:common": () => Promise.resolve({ default: { welcome: "Welcome" } }),
@@ -34,44 +29,26 @@ describe("registerLoader with import map", () => {
     expect(i18n.t("welcome")).toBe("Welcome");
   });
 
-  it("normalizes keys without colon using real defaultNs", async () => {
-    const i18n = new I18n({
-      locale: "en",
-      defaultNs: "common",
-      ns: ["common"],
-    });
+  it.each([
+    ["common", "hello", "Hello"],
+    ["main", "greeting", "Hi"],
+  ])(
+    "normalizes a locale-only import-map key using defaultNs %s",
+    async (defaultNs, key, value) => {
+      const i18n = makeI18n(defaultNs);
 
-    i18n.registerLoader({
-      en: () => Promise.resolve({ hello: "Hello" }),
-    });
+      i18n.registerLoader({
+        en: () => Promise.resolve({ [key]: value }),
+      });
 
-    await i18n.init();
+      await i18n.init();
 
-    expect(i18n.t("hello")).toBe("Hello");
-  });
-
-  it("normalizes with custom defaultNs", async () => {
-    const i18n = new I18n({
-      locale: "en",
-      defaultNs: "main",
-      ns: ["main"],
-    });
-
-    i18n.registerLoader({
-      en: () => Promise.resolve({ greeting: "Hi" }),
-    });
-
-    await i18n.init();
-
-    expect(i18n.t("greeting")).toBe("Hi");
-  });
+      expect(i18n.t(key)).toBe(value);
+    },
+  );
 
   it("uses the current defaultNs when resolving locale-only import map entries", async () => {
-    const i18n = new I18n({
-      locale: "en",
-      defaultNs: "common",
-      ns: [],
-    });
+    const i18n = makeI18n("common", []);
 
     i18n.registerLoader({
       en: () => Promise.resolve({ greeting: "Hi" }),
@@ -84,18 +61,12 @@ describe("registerLoader with import map", () => {
   });
 
   it("throws for missing entries", async () => {
-    const i18n = new I18n({
-      locale: "en",
-      defaultNs: "common",
-      ns: ["common"],
-    });
+    const i18n = makeI18n();
 
     i18n.registerLoader({
       "fr:common": () => Promise.resolve({ hello: "Bonjour" }),
     });
 
-    await expect(i18n.init()).rejects.toThrow(
-      /Failed to load all namespaces|E_ALL_NAMESPACES_FAILED/,
-    );
+    await expect(i18n.init()).rejects.toThrow(/Failed to load all namespaces/);
   });
 });

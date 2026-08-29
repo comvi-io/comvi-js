@@ -63,9 +63,6 @@ describe("SSR cross-request isolation — store-level", () => {
 
     expect(outputA).toBe("Request A message");
     expect(outputB).toBe("Message requête B");
-
-    expect(outputA).not.toContain("requête");
-    expect(outputB).not.toContain("Request A");
   });
 
   it("translation cache is isolated per instance (WeakMap keyed by instance)", async () => {
@@ -128,9 +125,12 @@ describe("svelte/server render() — SSR compilation constraint", () => {
     await i18n.init();
 
     // render() itself does not throw; reading result.body does, because the
-    // browser component reaches for a parent_effect that is null under SSR.
+    // browser component dereferences a parent effect that is null under SSR.
+    // Matched loosely on purpose: enough that an unrelated import/compile
+    // failure cannot pass as this limitation, without pinning V8's exact
+    // wording or Svelte's minified internal field name.
     const result = render(IntegrationSmoke as never, { props: { i18n } });
-    expect(() => result.body).toThrow();
+    expect(() => result.body).toThrow(/Cannot read properties of null/);
   });
 });
 
@@ -153,7 +153,6 @@ describe("hydration warning check", () => {
       component = null;
     }
     target.remove();
-    warnSpy.mockRestore();
   });
 
   function hydrationWarningCount(): number {

@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   createApp: vi.fn(),
@@ -16,20 +16,49 @@ vi.mock("../src/utils/shadowDom", () => ({
   createShadowDomContainer: mocks.createShadowDomContainer,
 }));
 
-/**
- * `beforeEach`'s `vi.resetModules()` forces each dynamic
- * `import("../src/KeySelector")` below to re-transform the whole SFC tree inside
- * the test body. That regularly exceeds vitest's 5 s default while the workspace
- * runs its packages concurrently (`pnpm test:release`), so the budget is explicit
- * here rather than a function of machine load.
- */
-const SFC_IMPORT_TIMEOUT_MS = 30_000;
+// The SFC tree is never the subject here — `createApp` is mocked, so
+// `KeySelectorApp` is only ever an argument. Stubbing it keeps the per-test
+// `vi.resetModules()` from re-transforming the whole component tree.
+vi.mock("../src/KeySelectorApp.vue", () => ({
+  default: { name: "KeySelectorAppStub", render: () => null },
+}));
+
+const VIEWPORT = { innerHeight: 800, innerWidth: 1200, scrollX: 10, scrollY: 20 };
+
+/** The props object `KeySelector` hands to `createApp`. */
+type SelectorProps = {
+  keyData: Array<{ key: string; ns: string; textPreview?: string }>;
+  position: { top: number; left: number };
+  open: { value: boolean };
+  defaultNs: string | undefined;
+  "onUpdate:open": (value: boolean) => void;
+  onSelect: (key: string, ns: string) => void;
+};
+
+function appProps(callIndex = 0): SelectorProps {
+  return mocks.createApp.mock.calls[callIndex]![1] as SelectorProps;
+}
+
+function elementAt(rect: { top: number; bottom: number; left: number; right: number }): Element {
+  const element = document.createElement("button");
+  vi.spyOn(element, "getBoundingClientRect").mockReturnValue({
+    ...rect,
+    width: rect.right - rect.left,
+    height: rect.bottom - rect.top,
+    x: rect.left,
+    y: rect.top,
+    toJSON: () => ({}),
+  });
+  return element;
+}
 
 describe("KeySelector", () => {
   let container: HTMLElement;
   let mountPoint: HTMLElement;
+  let selector: typeof import("../src/KeySelector");
+  const originalViewport = new Map<string, PropertyDescriptor | undefined>();
 
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.resetModules();
     mocks.createApp.mockReset();
     mocks.mount.mockReset();
@@ -40,94 +69,137 @@ describe("KeySelector", () => {
     mountPoint = document.createElement("div");
     mocks.createShadowDomContainer.mockReturnValue({ container, mountPoint });
     mocks.createApp.mockReturnValue({ mount: mocks.mount, unmount: mocks.unmount });
-    Object.defineProperties(window, {
-      innerHeight: { configurable: true, value: 800 },
-      innerWidth: { configurable: true, value: 1200 },
-      scrollX: { configurable: true, value: 10 },
-      scrollY: { configurable: true, value: 20 },
-    });
+
+    for (const [name, value] of Object.entries(VIEWPORT)) {
+      originalViewport.set(name, Object.getOwnPropertyDescriptor(window, name));
+      Object.defineProperty(window, name, { configurable: true, value });
+    }
+
+    selector = await import("../src/KeySelector");
   });
 
-  it(
-    "mounts below the element and cleans up after a selection",
-    async () => {
-      const remove = vi.spyOn(container, "remove");
-      const element = document.createElement("button");
-      vi.spyOn(element, "getBoundingClientRect").mockReturnValue({
-        top: 100,
-        right: 300,
-        bottom: 140,
-        left: 200,
-        width: 100,
-        height: 40,
-        x: 200,
-        y: 100,
-        toJSON: () => ({}),
-      });
-      const onSelect = vi.fn();
-      const selector = await import("../src/KeySelector");
+  afterEach(() => {
+    for (const [name, descriptor] of originalViewport) {
+      if (descriptor) {
+        Object.defineProperty(window, name, descriptor);
+      } else {
+        delete (window as unknown as Record<string, unknown>)[name];
+      }
+    }
+    originalViewport.clear();
+  });
+
+  describe("placement", () => {
+    it("opens the dropdown 8px below the element, in page coordinates", () => {
+      const element = elementAt({ top: 100, right: 300, bottom: 140, left: 200 });
 
       selector.showKeySelector(
         [{ key: "home.title", ns: "default", textPreview: "Home" }],
         element,
-        onSelect,
+        vi.fn(),
         "default",
       );
 
-      const props = mocks.createApp.mock.calls[0]![1] as {
-        position: { top: number; left: number };
-        open: { value: boolean };
-        "onUpdate:open": (value: boolean) => void;
-        onSelect: (key: string, ns: string) => void;
-      };
+      const props = appProps();
       expect(props.position).toEqual({ top: 168, left: 210 });
       expect(props.open.value).toBe(true);
-      expect(mocks.mount).toHaveBeenCalledWith(mountPoint);
+      expect(mocks.mount).toHaveBeenCalledExactlyOnceWith(mountPoint);
+    });
 
-      props.onSelect("home.title", "default");
-      expect(onSelect).toHaveBeenCalledWith("home.title", "default");
-      expect(mocks.unmount).toHaveBeenCalledOnce();
-      expect(remove).toHaveBeenCalledOnce();
-      expect(props.open.value).toBe(false);
+    it("hands the key data and the default namespace to the app", () => {
+      const keyData = [{ key: "home.title", ns: "default", textPreview: "Home" }];
 
-      selector.closeKeySelector();
-      expect(mocks.unmount).toHaveBeenCalledOnce();
-    },
-    SFC_IMPORT_TIMEOUT_MS,
-  );
+      selector.showKeySelector(
+        keyData,
+        elementAt({ top: 100, right: 300, bottom: 140, left: 200 }),
+        vi.fn(),
+        "default",
+      );
 
-  it(
-    "keeps an overflowing selector inside the viewport and cleans up when closed",
-    async () => {
-      const remove = vi.spyOn(container, "remove");
-      const element = document.createElement("button");
-      vi.spyOn(element, "getBoundingClientRect").mockReturnValue({
-        top: 10,
-        right: 1190,
-        bottom: 790,
-        left: 1100,
-        width: 90,
-        height: 780,
-        x: 1100,
-        y: 10,
-        toJSON: () => ({}),
-      });
-      const selector = await import("../src/KeySelector");
+      expect(appProps().keyData).toEqual(keyData);
+      expect(appProps().defaultNs).toBe("default");
+    });
+
+    it("clamps a dropdown that would overflow the viewport back inside it", () => {
+      const element = elementAt({ top: 10, right: 1190, bottom: 790, left: 1100 });
 
       selector.showKeySelector([{ key: "checkout.total", ns: "checkout" }], element, vi.fn());
 
-      const props = mocks.createApp.mock.calls[0]![1] as {
-        position: { top: number; left: number };
-        open: { value: boolean };
-        "onUpdate:open": (value: boolean) => void;
-      };
-      expect(props.position).toEqual({ top: 16, left: 784 });
+      // Flipped above (bottom 790 + 300 > 800) then floored at the 16px margin;
+      // left is viewport 1200 − dropdown 400 − 16px margin.
+      expect(appProps().position).toEqual({ top: 16, left: 784 });
+    });
+
+    it("opens with an empty key list rather than skipping the mount", () => {
+      selector.showKeySelector(
+        [],
+        elementAt({ top: 100, right: 300, bottom: 140, left: 200 }),
+        vi.fn(),
+      );
+
+      expect(appProps().keyData).toEqual([]);
+      expect(mocks.mount).toHaveBeenCalledOnce();
+    });
+  });
+
+  describe("teardown", () => {
+    it("reports the selection to the caller and tears the dropdown down", () => {
+      const remove = vi.spyOn(container, "remove");
+      const onSelect = vi.fn();
+      selector.showKeySelector(
+        [{ key: "home.title", ns: "default", textPreview: "Home" }],
+        elementAt({ top: 100, right: 300, bottom: 140, left: 200 }),
+        onSelect,
+        "default",
+      );
+      const props = appProps();
+
+      props.onSelect("home.title", "default");
+
+      expect(onSelect).toHaveBeenCalledExactlyOnceWith("home.title", "default");
+      expect(mocks.unmount).toHaveBeenCalledOnce();
+      expect(remove).toHaveBeenCalledOnce();
+      expect(props.open.value).toBe(false);
+    });
+
+    it("closeKeySelector() after a selection unmounts nothing more", () => {
+      selector.showKeySelector(
+        [{ key: "home.title", ns: "default" }],
+        elementAt({ top: 100, right: 300, bottom: 140, left: 200 }),
+        vi.fn(),
+      );
+      appProps().onSelect("home.title", "default");
+
+      selector.closeKeySelector();
+
+      expect(mocks.unmount).toHaveBeenCalledOnce();
+    });
+
+    it("the app's onUpdate:open(false) tears the dropdown down", () => {
+      const remove = vi.spyOn(container, "remove");
+      selector.showKeySelector(
+        [{ key: "checkout.total", ns: "checkout" }],
+        elementAt({ top: 10, right: 1190, bottom: 790, left: 1100 }),
+        vi.fn(),
+      );
+      const props = appProps();
 
       props["onUpdate:open"](false);
+
       expect(props.open.value).toBe(false);
       expect(mocks.unmount).toHaveBeenCalledOnce();
       expect(remove).toHaveBeenCalledOnce();
-    },
-    SFC_IMPORT_TIMEOUT_MS,
-  );
+    });
+
+    it("a second showKeySelector() tears the first dropdown down before mounting", () => {
+      const element = elementAt({ top: 100, right: 300, bottom: 140, left: 200 });
+      selector.showKeySelector([{ key: "home.title", ns: "default" }], element, vi.fn());
+
+      selector.showKeySelector([{ key: "checkout.total", ns: "checkout" }], element, vi.fn());
+
+      expect(mocks.unmount).toHaveBeenCalledOnce();
+      expect(mocks.createApp).toHaveBeenCalledTimes(2);
+      expect(appProps(1).keyData).toEqual([{ key: "checkout.total", ns: "checkout" }]);
+    });
+  });
 });

@@ -35,9 +35,11 @@ function request(id = "request-1") {
   return { id, path: "/v1/project/locales", method: "GET" };
 }
 
+/** `vi.waitFor` defaults to a 50 ms retry interval; every wait here settles within a tick. */
+const POLL = { interval: 1 };
+
 beforeEach(() => {
   clearTabLimits(TAB_ID);
-  vi.restoreAllMocks();
   getSession.mockResolvedValue({
     status: "active",
     origin: ORIGIN,
@@ -95,7 +97,7 @@ describe("pending activation ordering", () => {
       sender(),
     );
 
-    await vi.waitFor(() => expect(getSession).toHaveBeenCalled());
+    await vi.waitFor(() => expect(getSession).toHaveBeenCalled(), POLL);
     expect(fetchMock).not.toHaveBeenCalled();
 
     status = "active";
@@ -134,6 +136,7 @@ describe("proxy response limits", () => {
 
   it("counts UTF-8 bytes rather than decoded characters", async () => {
     const encoded = new TextEncoder().encode("😀".repeat(2_600_000));
+    // Guards the fixture, not the code: if this ever drops under the cap the test stops proving anything.
     expect(encoded.byteLength).toBeGreaterThan(10_000_000);
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response(
@@ -163,7 +166,7 @@ describe("proxy request ids", () => {
     );
 
     const first = handleProxyRequest(request("same-id"), sender());
-    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1), POLL);
 
     const duplicate = await handleProxyRequest(request("same-id"), sender());
     expect(duplicate.networkError).toBe("Duplicate request id");
@@ -186,7 +189,7 @@ describe("proxy request headers", () => {
     );
 
     expect(result.status).toBe(204);
-    const init = fetchMock.mock.calls[0][1];
+    const [, init] = fetchMock.mock.calls[0];
     const headers = new Headers(init?.headers);
     expect(headers.get("content-type")).toBeNull();
     expect(init?.body).toBeUndefined();

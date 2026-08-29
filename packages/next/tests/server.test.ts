@@ -8,23 +8,14 @@ vi.mock("../src/server/getLocale", () => ({
   getLocale: vi.fn().mockResolvedValue("fr"),
 }));
 
+// `unstubEnvs` in vitest.config.ts restores NEXT_RUNTIME after every test.
 const runInServerRuntime = async (fn: () => Promise<void>) => {
-  const originalRuntime = process.env.NEXT_RUNTIME;
-  process.env.NEXT_RUNTIME = "nodejs";
-  try {
-    await fn();
-  } finally {
-    if (originalRuntime === undefined) {
-      delete process.env.NEXT_RUNTIME;
-    } else {
-      process.env.NEXT_RUNTIME = originalRuntime;
-    }
-  }
+  vi.stubEnv("NEXT_RUNTIME", "nodejs");
+  await fn();
 };
 
 describe("server getI18n", () => {
   afterEach(() => {
-    vi.restoreAllMocks();
     // The server i18n is a once-cell: a second setI18n with a different
     // instance throws instead of overwriting.
     _resetServerI18n();
@@ -81,21 +72,22 @@ describe("server getI18n", () => {
       devMode: false,
     });
 
-    const hasTranslationSpy = vi.spyOn(i18n, "hasTranslation");
-    hasTranslationSpy
+    const hasTranslationSpy = vi
+      .spyOn(i18n, "hasTranslation")
       .mockReturnValueOnce(true)
       .mockReturnValueOnce(true)
-      .mockReturnValueOnce(false);
+      .mockReturnValueOnce(false)
+      .mockReturnValueOnce(true);
 
     i18n.addTranslations({ "fr:common": { __seed: "ok" } });
     setI18n(i18n);
 
     const { hasTranslation } = await getI18n({ locale: "fr" });
 
-    hasTranslation("greeting");
-    hasTranslation("title", { ns: "admin" });
-    hasTranslation("missing");
-    hasTranslation("greeting", { locale: "en" });
+    expect(hasTranslation("greeting")).toBe(true);
+    expect(hasTranslation("title", { ns: "admin" })).toBe(true);
+    expect(hasTranslation("missing")).toBe(false);
+    expect(hasTranslation("greeting", { locale: "en" })).toBe(true);
 
     expect(hasTranslationSpy).toHaveBeenNthCalledWith(1, "greeting", "fr", "common");
     expect(hasTranslationSpy).toHaveBeenNthCalledWith(2, "title", "fr", "admin");

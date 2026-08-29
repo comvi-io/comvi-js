@@ -41,7 +41,7 @@ describe("Reactive State Transitions", () => {
       i18n.locale = "fr";
       await nextTick();
 
-      expect(watchSpy).toHaveBeenCalledWith("fr", "en", expect.anything());
+      expect(watchSpy).toHaveBeenCalledWith("fr", "en", expect.any(Function));
     });
 
     it("should update computed properties when locale changes", async () => {
@@ -307,8 +307,9 @@ describe("Reactive State Transitions", () => {
 
       expect(i18n.t("hello")).toBe("Hello");
 
-      // Catch, or the setter's rejection reaches console.error.
-      await i18n.setLocale("fr").catch(() => {});
+      await expect(i18n.setLocale("fr")).rejects.toThrow(
+        '[i18n] Failed to load all namespaces for locale "fr": common',
+      );
 
       await vi.waitFor(() => {
         expect(errorSpy).toHaveBeenCalledWith("fr", "common", expect.any(Error));
@@ -347,12 +348,14 @@ describe("Reactive State Transitions", () => {
 
       await i18n.init();
 
-      expect(i18n.loadedLocales.value).toContain("en");
+      expect(i18n.loadedLocales.value).toEqual(["en"]);
+      expect(i18n.hasTranslationNow("hello_en", { namespace: "admin" })).toBe(false);
 
       await i18n.core.addActiveNamespace("admin");
       await nextTick();
 
-      expect(i18n.loadedLocales.value).toContain("en");
+      expect(i18n.loadedLocales.value).toEqual(["en"]);
+      expect(i18n.hasTranslationNow("hello_en", { namespace: "admin" })).toBe(true);
     });
   });
 
@@ -487,7 +490,7 @@ describe("Reactive State Transitions", () => {
 
       await i18n.init();
 
-      const consoleErr = vi.spyOn(console, "error");
+      const consoleErr = vi.spyOn(console, "error").mockImplementation(() => {});
 
       i18n.locale = "badlocale";
       await flushPromises();
@@ -495,10 +498,11 @@ describe("Reactive State Transitions", () => {
       // Either `source` is valid — core reports "namespace-load", VueI18n's
       // catch wrapper reports "setLocale". What matters is that nothing leaks
       // to console.error instead of the user's onError handler.
-      expect(onError).toHaveBeenCalled();
+      expect(onError.mock.calls[0][0]).toBeInstanceOf(Error);
+      expect(onError.mock.calls[0][0].message).toBe(
+        '[i18n] Failed to load all namespaces for locale "badlocale": common',
+      );
       expect(consoleErr).not.toHaveBeenCalled();
-
-      consoleErr.mockRestore();
     });
   });
 
@@ -612,9 +616,8 @@ describe("Reactive State Transitions", () => {
       await nextTick();
 
       expect(i18n.translationCache).toBe(ref1);
-      // `ref1.value` is a Map-LIKE ReadonlyMapView, so duck-type the surface.
-      expect(typeof ref1.value.has).toBe("function");
-      expect(typeof ref1.value.get).toBe("function");
+      expect(ref1.value.has("en:common")).toBe(true);
+      expect(ref1.value.get("en:common")).toEqual({ foo: "bar" });
     });
 
     it("should reflect updated translations in the same Ref after mutation", async () => {

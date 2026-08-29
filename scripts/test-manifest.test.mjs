@@ -82,7 +82,8 @@ test("an unknown removal id is rejected unless it declares the wave that added i
   });
 
   assert.equal(result.ok, false);
-  assert.match(result.errors.join("\n"), /needs `addedIn`|the id is wrong/);
+  assert.equal(result.errors.length, 1);
+  assert.match(result.errors[0], /it needs `addedIn` naming the wave that added it/);
 });
 
 test("a manifest whose count disagrees with its ID list is rejected", () => {
@@ -97,7 +98,7 @@ test("a manifest whose count disagrees with its ID list is rejected", () => {
   assert.match(result.errors.join("\n"), /count 3 does not match/);
 });
 
-test("new tests pass, and a stale allowlist entry reports without failing", () => {
+test("a listing with a new test and a still-present allowlisted removal stays green and reports both", () => {
   const result = compareManifest({
     manifest: manifest({ removals: [{ id: REACT_B, reason: "migrated to useI18nLoader" }] }),
     current: {

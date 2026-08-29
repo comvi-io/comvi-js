@@ -1,13 +1,5 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import {
-  attachLoader,
-  attachPlugins,
-  createCore,
-  createI18nFromCore,
-  icuCompiler,
-  useI18n,
-  T,
-} from "../src";
+import { describe, it, expect, beforeEach, vi } from "vitest";
+import { attachLoader, attachPlugins, createCore, createI18nFromCore, useI18n, T } from "../src";
 import { mount } from "@vue/test-utils";
 import { defineComponent, h, nextTick } from "vue";
 
@@ -25,55 +17,30 @@ describe("Integration Flow", () => {
       loadedLanguages.add(`${locale}:${namespace}`);
 
       const translations: Record<string, Record<string, string>> = {
-        "en:common": {
-          hello: "Hello",
-          welcome: "Welcome {name}",
-          items: "{count, plural, one {# item} other {# items}}",
-        },
-        "en:admin": {
-          title: "Admin Panel",
-        },
-        "fr:common": {
-          hello: "Bonjour",
-          welcome: "Bienvenue {name}",
-          items: "{count, plural, one {# élément} other {# éléments}}",
-        },
-        "fr:admin": {
-          title: "Panneau d'administration",
-        },
-        "de:common": {
-          hello: "Hallo",
-          welcome: "Willkommen {name}",
-        },
-        "de:admin": {
-          title: "Adminbereich",
-        },
+        "en:common": { hello: "Hello", welcome: "Welcome {name}" },
+        "fr:common": { hello: "Bonjour", welcome: "Bienvenue {name}" },
+        "de:common": { hello: "Hallo", welcome: "Willkommen {name}" },
+        "de:admin": { title: "Adminbereich" },
       };
 
       return translations[`${locale}:${namespace}`] || {};
     });
   });
 
-  afterEach(() => {
-    vi.clearAllMocks();
-  });
-
   it("initializes with detector/loader and updates components + namespaces", async () => {
     // The detector is a plugin-host member and the loader its own capability,
-    // so both are composed onto the host explicitly. `mockLoader` serves an
-    // ICU plural, which is why the host names the compiler.
+    // so both are composed onto the host explicitly.
     const i18n = createI18nFromCore(
       createCore({
         locale: "en",
         fallbackLocale: "en",
         defaultNs: "common",
-        compiler: icuCompiler,
       })
         .with(attachLoader)
         .with(attachPlugins),
     );
 
-    i18n.core.registerLocaleDetector(() => mockLanguageDetector());
+    i18n.core.registerLocaleDetector(mockLanguageDetector);
     i18n.core.registerLoader(mockLoader);
 
     await i18n.init();
@@ -122,7 +89,6 @@ describe("Integration Flow", () => {
       createCore({
         locale: "en",
         defaultNs: "common",
-        compiler: icuCompiler,
       }).with(attachLoader),
     );
 
@@ -130,10 +96,9 @@ describe("Integration Flow", () => {
 
     await i18n.init();
 
-    const finalLocale = "de";
-    const localeChanged = new Promise<void>((resolve) => {
+    const settledOnGerman = new Promise<void>((resolve) => {
       const unsubscribe = i18n.on("localeChanged", ({ to }) => {
-        if (to === finalLocale) {
+        if (to === "de") {
           unsubscribe();
           resolve();
         }
@@ -142,16 +107,11 @@ describe("Integration Flow", () => {
 
     i18n.locale = "fr";
     i18n.locale = "en";
-    i18n.locale = finalLocale;
+    i18n.locale = "de";
 
-    await localeChanged;
+    await settledOnGerman;
 
-    expect(i18n.locale.value).toBe(finalLocale);
-    const expectedHello: Record<string, string> = {
-      en: "Hello",
-      fr: "Bonjour",
-      de: "Hallo",
-    };
-    expect(i18n.t("hello")).toBe(expectedHello[finalLocale]);
+    expect(i18n.locale.value).toBe("de");
+    expect(i18n.t("hello")).toBe("Hallo");
   });
 });

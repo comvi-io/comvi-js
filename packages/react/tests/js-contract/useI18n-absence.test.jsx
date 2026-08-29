@@ -32,6 +32,13 @@ const baseHost = () =>
 
 const composedHost = () => attachPlugins(attachLoader(baseHost()));
 
+const CAPABILITY_MEMBERS = [
+  "addActiveNamespace",
+  "reloadTranslations",
+  "onLoadError",
+  "onMissingKey",
+];
+
 // A capability-CARRYING host must behave exactly like the base one here: the
 // members are gone from `useI18n()` by absence, not by host sniffing.
 describe.each([
@@ -76,13 +83,8 @@ describe.each([
   it("does not carry the members as own or inherited keys", () => {
     const { result } = render();
 
-    for (const name of [
-      "addActiveNamespace",
-      "reloadTranslations",
-      "onLoadError",
-      "onMissingKey",
-    ]) {
-      expect(name in result.current).toBe(false);
-    }
+    const present = CAPABILITY_MEMBERS.filter((name) => name in result.current);
+
+    expect(present).toEqual([]);
   });
 });

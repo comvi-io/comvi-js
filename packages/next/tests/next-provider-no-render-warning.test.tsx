@@ -20,17 +20,21 @@
  */
 
 import React, { StrictMode, useState as useReactState } from "react";
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach } from "vitest";
 import { render, act } from "@testing-library/react";
 
 import { I18nProvider } from "../src/client/I18nProvider";
 import { useI18n, useLocale, useIsLoading, I18nProvider as ReactI18nProvider } from "@comvi/react";
 import { useStoreRevision } from "../../react/src/I18nProvider";
 import { FakeI18n } from "../../../tooling/test-utils/fakeI18n";
+import { flushMicrotasks, renderWarnings, spyOnConsoleError } from "./helpers/consoleWarnings";
 
-const DE = { default: { greeting: "Hallo" } };
-const EN = { default: { greeting: "Hello" } };
-const FR = { default: { greeting: "Bonjour" } };
+// Keyed "locale:namespace": a bare `{ default: … }` normalises to cache key
+// `default:default`, which no consumer ever reads, so the fixtures would be
+// inert and the locale round-trip below fictional.
+const DE = { "de:default": { greeting: "Hallo" } };
+const EN = { "en:default": { greeting: "Hello" } };
+const FR = { "fr:default": { greeting: "Bonjour" } };
 
 function makeSharedI18n() {
   const fake = new FakeI18n();
@@ -63,14 +67,10 @@ function MutatingProvider({
 }
 
 describe("Test A — cross-fiber render-time mutation warning (useI18n sibling)", () => {
-  let errorSpy: ReturnType<typeof vi.spyOn>;
+  let errorSpy: ReturnType<typeof spyOnConsoleError>;
 
   beforeEach(() => {
-    errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
-  });
-
-  afterEach(() => {
-    errorSpy.mockRestore();
+    errorSpy = spyOnConsoleError();
   });
 
   it("mounting a mutating provider while a sibling subscriber is committed does not fire 'Cannot update a component'", async () => {
@@ -102,27 +102,20 @@ describe("Test A — cross-fiber render-time mutation warning (useI18n sibling)"
 
     await act(async () => {
       rerender(<Host showMutator={true} />);
-      await Promise.resolve();
+      await flushMicrotasks();
     });
 
-    const renderWarnings = errorSpy.mock.calls.filter(
-      (args) => typeof args[0] === "string" && args[0].includes("Cannot update a component"),
-    );
-    expect(renderWarnings).toHaveLength(0);
+    expect(renderWarnings(errorSpy)).toHaveLength(0);
   });
 });
 
 // A2 exercises the useSubscribe → subLang path.
 
 describe("Test A2 — cross-fiber warning via useLocale() sibling", () => {
-  let errorSpy: ReturnType<typeof vi.spyOn>;
+  let errorSpy: ReturnType<typeof spyOnConsoleError>;
 
   beforeEach(() => {
-    errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
-  });
-
-  afterEach(() => {
-    errorSpy.mockRestore();
+    errorSpy = spyOnConsoleError();
   });
 
   it("useLocale() sibling: no 'Cannot update a component' when mutating provider mounts", async () => {
@@ -154,27 +147,20 @@ describe("Test A2 — cross-fiber warning via useLocale() sibling", () => {
 
     await act(async () => {
       rerender(<Host showMutator={true} />);
-      await Promise.resolve();
+      await flushMicrotasks();
     });
 
-    const renderWarnings = errorSpy.mock.calls.filter(
-      (args) => typeof args[0] === "string" && args[0].includes("Cannot update a component"),
-    );
-    expect(renderWarnings).toHaveLength(0);
+    expect(renderWarnings(errorSpy)).toHaveLength(0);
   });
 });
 
 // A3 exercises the useSubscribe → subLoading path.
 
 describe("Test A3 — cross-fiber warning via useIsLoading() sibling", () => {
-  let errorSpy: ReturnType<typeof vi.spyOn>;
+  let errorSpy: ReturnType<typeof spyOnConsoleError>;
 
   beforeEach(() => {
-    errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
-  });
-
-  afterEach(() => {
-    errorSpy.mockRestore();
+    errorSpy = spyOnConsoleError();
   });
 
   it("useIsLoading() sibling: no 'Cannot update a component' when mutating provider mounts", async () => {
@@ -206,25 +192,18 @@ describe("Test A3 — cross-fiber warning via useIsLoading() sibling", () => {
 
     await act(async () => {
       rerender(<Host showMutator={true} />);
-      await Promise.resolve();
+      await flushMicrotasks();
     });
 
-    const renderWarnings = errorSpy.mock.calls.filter(
-      (args) => typeof args[0] === "string" && args[0].includes("Cannot update a component"),
-    );
-    expect(renderWarnings).toHaveLength(0);
+    expect(renderWarnings(errorSpy)).toHaveLength(0);
   });
 });
 
 describe("Test B — locale round-trip: mutating provider mounts 3 times (de→en→fr→de)", () => {
-  let errorSpy: ReturnType<typeof vi.spyOn>;
+  let errorSpy: ReturnType<typeof spyOnConsoleError>;
 
   beforeEach(() => {
-    errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
-  });
-
-  afterEach(() => {
-    errorSpy.mockRestore();
+    errorSpy = spyOnConsoleError();
   });
 
   it("no render warning fires across 3 mount cycles (StrictMode)", async () => {
@@ -257,24 +236,30 @@ describe("Test B — locale round-trip: mutating provider mounts 3 times (de→e
       );
     }
 
-    const { rerender } = render(<Host cycleKey={0} messages={DE} />);
+    const { rerender, getByTestId } = render(<Host cycleKey={0} messages={DE} />);
 
-    const trips: Array<[number, Record<string, Record<string, string>>]> = [
-      [1, EN],
-      [2, FR],
-      [3, DE],
+    await act(async () => {
+      await fake.setLocaleAsync("de");
+      await flushMicrotasks();
+    });
+
+    expect(getByTestId("sibling").textContent).toBe("Hallo");
+
+    const trips: Array<[number, Record<string, Record<string, string>>, string, string]> = [
+      [1, EN, "en", "Hello"],
+      [2, FR, "fr", "Bonjour"],
+      [3, DE, "de", "Hallo"],
     ];
 
-    for (const [cycleKey, messages] of trips) {
+    for (const [cycleKey, messages, locale, expected] of trips) {
       await act(async () => {
         rerender(<Host cycleKey={cycleKey} messages={messages} />);
-        await Promise.resolve();
+        await fake.setLocaleAsync(locale);
+        await flushMicrotasks();
       });
 
-      const warnings = errorSpy.mock.calls.filter(
-        (args) => typeof args[0] === "string" && args[0].includes("Cannot update a component"),
-      );
-      expect(warnings).toHaveLength(0);
+      expect(getByTestId("sibling").textContent, `cycle ${cycleKey} (${locale})`).toBe(expected);
+      expect(renderWarnings(errorSpy), `cycle ${cycleKey} (${locale})`).toHaveLength(0);
     }
   });
 });
@@ -302,7 +287,7 @@ describe("Test C — out-of-render events still drive consumer re-renders", () =
 
     await act(async () => {
       fake.addTranslations({ en: { greeting: "Updated" } });
-      await Promise.resolve();
+      await flushMicrotasks();
     });
 
     expect(renderCount).toBeGreaterThan(countAfterMount);
@@ -333,14 +318,14 @@ describe("Test D — useStoreRevision re-renders on canonical events with real s
     await act(async () => {
       fake.setFallbackLocale("de");
       fake.emit("configChanged", { source: "fallbackLocale" });
-      await Promise.resolve();
+      await flushMicrotasks();
     });
     expect(renders).toBeGreaterThan(afterMount);
     const afterConfig = renders;
 
     await act(async () => {
       fake.emit("configChanged", { source: "fallbackLocale" });
-      await Promise.resolve();
+      await flushMicrotasks();
     });
     expect(renders).toBe(afterConfig);
 
@@ -349,7 +334,7 @@ describe("Test D — useStoreRevision re-renders on canonical events with real s
     await act(async () => {
       fake.translationCache.set("en", "default", { extra: "v" });
       fake.emit("namespaceLoaded", { locale: "en", namespace: "default" });
-      await Promise.resolve();
+      await flushMicrotasks();
     });
     expect(renders).toBeGreaterThan(afterConfig);
   });

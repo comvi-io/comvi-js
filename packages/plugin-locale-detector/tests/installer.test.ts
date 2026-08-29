@@ -76,13 +76,15 @@ describe("localeDetector() installer", () => {
     const order: string[] = [];
 
     const i18n = base().with(localeDetector(QS_ONLY));
-    i18n.use(() => () => void order.push("after"));
+    i18n.use(() => () => void order.push("second"));
+    i18n.use(() => () => void order.push("third"));
 
     await i18n.init();
     await i18n.destroy();
 
-    // The installer's plugin was queued FIRST, so its cleanup runs LAST.
-    expect(order).toEqual(["after"]);
+    // The installer's plugin was queued FIRST, so its cleanup runs LAST — which
+    // is only observable with more than one marker.
+    expect(order).toEqual(["third", "second"]);
     expect(i18n.getLanguageDetector()).toBeUndefined();
   });
 });

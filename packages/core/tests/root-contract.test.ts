@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, afterEach } from "vitest";
 import { createI18n, I18n } from "../src";
 // The internal composite (`src/core/full.ts`): the batteries-included host the
 // CDN global ships and `@comvi/next`'s builder mirrors.
@@ -127,9 +127,19 @@ function findOnPrototypeChain(instance: object, name: string): Found | undefined
   return undefined;
 }
 
+/** Restores registered by `patchPrototype`, drained after every test. */
+const pendingRestores: Array<() => void> = [];
+
+afterEach(() => {
+  while (pendingRestores.length) pendingRestores.pop()!();
+});
+
 /**
  * Patch a member on a prototype the way a consumer would, and restore the
- * exact previous state (own property vs. inherited) afterwards.
+ * exact previous state (own property vs. inherited) afterwards. The returned
+ * restore is idempotent and also registered with `afterEach`, so a test may
+ * call it where exact restoration is part of the claim, and a failing test
+ * still leaves the prototype clean.
  */
 function patchPrototype(
   proto: object,
@@ -139,10 +149,15 @@ function patchPrototype(
   const target = proto as Record<string, unknown>;
   const previous = Object.getOwnPropertyDescriptor(target, name);
   target[name] = impl;
-  return () => {
+  let restored = false;
+  const restore = () => {
+    if (restored) return;
+    restored = true;
     if (previous) Object.defineProperty(target, name, previous);
     else delete target[name];
   };
+  pendingRestores.push(restore);
+  return restore;
 }
 
 /** Assert the class-method descriptor contract for one prototype member. */
@@ -210,10 +225,6 @@ describe("base root reflective contract (A11)", () => {
     expect(Object.prototype.hasOwnProperty.call(i18n, DISCOVERY_OWN_KEY)).toBe(false);
     expect(i18n.instanceId).toBeUndefined();
 
-    const exposed = new I18n({ locale: "en", exposeGlobal: true, instanceId: "a11-probe" });
-    expect(Object.keys(exposed).filter((k) => !k.startsWith("_"))).toEqual([...PUBLIC_OWN_KEYS]);
-    expect(exposed.instanceId).toBeUndefined();
-
     const members: string[] = [
       ...BASE_PROTOTYPE_METHODS,
       ...PROTOTYPE_ACCESSORS.map((a) => a.name),
@@ -223,6 +234,13 @@ describe("base root reflective contract (A11)", () => {
     // A spread copy carries data only — never behavior.
     const spread = { ...i18n } as Record<string, unknown>;
     expect(Object.keys(spread).filter((k) => typeof spread[k] === "function")).toEqual([]);
+  });
+
+  it("exposeGlobal and instanceId options add no own property to the base host", () => {
+    const exposed = new I18n({ locale: "en", exposeGlobal: true, instanceId: "a11-probe" });
+
+    expect(Object.keys(exposed).filter((k) => !k.startsWith("_"))).toEqual([...PUBLIC_OWN_KEYS]);
+    expect(exposed.instanceId).toBeUndefined();
   });
 
   it("publishes a ONE-ARGUMENT construct signature that shares the base prototype", () => {
@@ -237,8 +255,8 @@ describe("base root reflective contract (A11)", () => {
     expect(I18n.length, "the construct signature takes exactly one argument").toBe(1);
 
     // `with` is a plain non-enumerable prototype method, not an own property.
+    // (Its identity-pipe behaviour is pinned in plugin-install-guards.test.ts.)
     expectPrototypeMethod(viaFactory, "with");
-    expect(viaFactory.with((host) => host)).toBe(viaFactory);
   });
 
   it("lets prototype patching intercept instance calls", () => {
@@ -250,12 +268,10 @@ describe("base root reflective contract (A11)", () => {
       return "patched";
     });
 
-    try {
-      expect(i18n.t("anything")).toBe("patched");
-      expect(calls).toEqual(["t"]);
-    } finally {
-      restoreT();
-    }
+    expect(i18n.t("anything")).toBe("patched");
+    expect(calls).toEqual(["t"]);
+
+    restoreT();
 
     // Restoration is exact: the real implementation is back.
     expect(i18n.t("anything")).toBe("anything");
@@ -335,14 +351,12 @@ describe("composed host reflective contract (A11)", () => {
       },
     );
 
-    try {
-      expect(i18n.t("anything")).toBe("patched");
-      i18n.registerLoader(async () => ({}));
-      expect(calls).toEqual(["t", "registerLoader"]);
-    } finally {
-      restoreRegisterLoader();
-      restoreT();
-    }
+    expect(i18n.t("anything")).toBe("patched");
+    i18n.registerLoader(async () => ({}));
+    expect(calls).toEqual(["t", "registerLoader"]);
+
+    restoreRegisterLoader();
+    restoreT();
 
     // Restoration is exact: the real implementations are back.
     expect(i18n.t("anything")).toBe("anything");

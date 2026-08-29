@@ -10,7 +10,7 @@ import {
 } from "../src/utils/icuParser";
 
 describe("icuParser", () => {
-  describe("parseICUPlural (existing)", () => {
+  describe("parseICUPlural", () => {
     it("should parse simple plural ICU string", () => {
       const icu = "{count, plural, one {1 item} other {# items}}";
       const result = parseICUPlural(icu);
@@ -20,6 +20,12 @@ describe("icuParser", () => {
         one: "1 item",
         other: "# items",
       });
+    });
+
+    it("should return the singular fallback for a non-plural string", () => {
+      const result = parseICUPlural("Hello world");
+
+      expect(result).toEqual({ variable: "count", forms: { other: "Hello world" } });
     });
 
     it("should handle all plural forms", () => {
@@ -39,12 +45,16 @@ describe("icuParser", () => {
     });
   });
 
-  describe("generateICUPlural (existing)", () => {
+  describe("generateICUPlural", () => {
     it("should generate ICU plural string", () => {
       const forms = { one: "1 item", other: "# items" };
       const result = generateICUPlural(forms, "count");
 
       expect(result).toBe("{count, plural, one {1 item} other {# items}}");
+    });
+
+    it("should generate an empty arm list for empty forms", () => {
+      expect(generateICUPlural({}, "n")).toBe("{n, plural, }");
     });
 
     it("should order forms correctly", () => {
@@ -89,12 +99,15 @@ describe("icuParser", () => {
       expect(result.forms.informal).toBe("Du hast {count} Nachrichten");
     });
 
-    it("should handle select with special characters", () => {
-      const icu = "{type, select, admin {Welcome, admin!} user {Hello, user.}}";
+    it("should keep commas and the # placeholder inside form values", () => {
+      const icu = "{type, select, admin {Welcome, admin: # left} user {Hello, user.}}";
+
       const result = parseICUSelect(icu);
 
-      expect(result.forms.admin).toBe("Welcome, admin!");
-      expect(result.forms.user).toBe("Hello, user.");
+      expect(result.forms).toEqual({
+        admin: "Welcome, admin: # left",
+        user: "Hello, user.",
+      });
     });
 
     it("should return fallback for non-select strings", () => {
@@ -117,12 +130,10 @@ describe("icuParser", () => {
   describe("generateICUSelect", () => {
     it("should generate ICU select string", () => {
       const forms = { male: "He", female: "She", other: "They" };
+
       const result = generateICUSelect(forms, "gender");
 
-      expect(result).toContain("{gender, select,");
-      expect(result).toContain("male {He}");
-      expect(result).toContain("female {She}");
-      expect(result).toContain("other {They}");
+      expect(result).toBe("{gender, select, male {He} female {She} other {They}}");
     });
 
     it("should generate formality select", () => {
@@ -139,22 +150,26 @@ describe("icuParser", () => {
       expect(result).toBe("{type, select, other {Default text}}");
     });
 
-    it("should preserve order of forms", () => {
-      const forms = { formal: "A", informal: "B", other: "C" };
+    it("should put the other arm last, whatever the key order", () => {
+      const forms = { other: "C", formal: "A", informal: "B" };
+
       const result = generateICUSelect(forms, "f");
 
-      // Other should come last
-      expect(result.endsWith("other {C}}")).toBe(true);
+      expect(result).toBe("{f, select, formal {A} informal {B} other {C}}");
     });
 
     it("roundtrip: parse -> generate -> parse should be consistent", () => {
       const original = "{gender, select, male {He went} female {She went} other {They went}}";
+
       const parsed = parseICUSelect(original);
       const generated = generateICUSelect(parsed.forms, parsed.variable);
-      const reparsed = parseICUSelect(generated);
 
-      expect(reparsed.variable).toBe(parsed.variable);
-      expect(reparsed.forms).toEqual(parsed.forms);
+      expect(parsed).toEqual({
+        variable: "gender",
+        forms: { male: "He went", female: "She went", other: "They went" },
+      });
+      expect(generated).toBe(original);
+      expect(parseICUSelect(generated)).toEqual(parsed);
     });
   });
 
@@ -187,10 +202,8 @@ describe("icuParser", () => {
       expect(detectICUType(combined)).toBe("combined");
     });
 
-    it("should handle edge cases", () => {
-      // Text containing "plural" but not ICU format
+    it("should treat prose containing the words plural or select as singular", () => {
       expect(detectICUType("The plural form is used here")).toBe("singular");
-      // Text containing "select" but not ICU format
       expect(detectICUType("Please select an option")).toBe("singular");
     });
   });
@@ -211,24 +224,21 @@ describe("icuParser", () => {
         ["one", "other"],
       );
 
-      expect(result).toContain("{formality, select,");
-      expect(result).toContain("formal {{count, plural,");
-      expect(result).toContain("informal {{count, plural,");
-      expect(result).toContain("one {Sie haben # Nachricht}");
-      expect(result).toContain("other {Sie haben # Nachrichten}");
+      expect(result).toBe(
+        "{formality, select, " +
+          "formal {{count, plural, one {Sie haben # Nachricht} other {Sie haben # Nachrichten}}} " +
+          "informal {{count, plural, one {Du hast # Nachricht} other {Du hast # Nachrichten}}}}",
+      );
     });
 
     it("should handle missing forms gracefully", () => {
-      const forms = {
-        "formal:one": "Text",
-        // Missing formal:other, informal:one, informal:other
-      };
+      const forms = { "formal:one": "Text" };
+
       const result = generateICUCombined(forms, "f", "n", ["formal", "informal"], ["one", "other"]);
 
-      expect(result).toContain("{f, select,");
-      expect(result).toContain("formal {{n, plural,");
-      expect(result).toContain("one {Text}");
-      expect(result).toContain("other {}"); // Empty for missing
+      expect(result).toBe(
+        "{f, select, formal {{n, plural, one {Text} other {}}} informal {{n, plural, one {} other {}}}}",
+      );
     });
   });
 
@@ -238,12 +248,33 @@ describe("icuParser", () => {
         "{formality, select, formal {{count, plural, one {Sie haben # Nachricht} other {Sie haben # Nachrichten}}} informal {{count, plural, one {Du hast # Nachricht} other {Du hast # Nachrichten}}}}";
       const result = parseICUCombined(icu);
 
-      expect(result.selectVariable).toBe("formality");
-      expect(result.pluralVariable).toBe("count");
-      expect(result.forms["formal:one"]).toBe("Sie haben # Nachricht");
-      expect(result.forms["formal:other"]).toBe("Sie haben # Nachrichten");
-      expect(result.forms["informal:one"]).toBe("Du hast # Nachricht");
-      expect(result.forms["informal:other"]).toBe("Du hast # Nachrichten");
+      expect(result).toEqual({
+        selectVariable: "formality",
+        pluralVariable: "count",
+        forms: {
+          "formal:one": "Sie haben # Nachricht",
+          "formal:other": "Sie haben # Nachrichten",
+          "informal:one": "Du hast # Nachricht",
+          "informal:other": "Du hast # Nachrichten",
+        },
+      });
+    });
+
+    it("should key a select arm that holds no inner plural as <arm>:other", () => {
+      const icu =
+        "{formality, select, formal {Guten Tag} informal {{count, plural, one {Hi} other {Hi all}}}}";
+
+      const result = parseICUCombined(icu);
+
+      expect(result).toEqual({
+        selectVariable: "formality",
+        pluralVariable: "count",
+        forms: {
+          "formal:other": "Guten Tag",
+          "informal:one": "Hi",
+          "informal:other": "Hi all",
+        },
+      });
     });
 
     it("roundtrip: generate -> parse should be consistent", () => {
@@ -262,12 +293,10 @@ describe("icuParser", () => {
       );
       const parsed = parseICUCombined(generated);
 
-      expect(parsed.selectVariable).toBe("f");
-      expect(parsed.pluralVariable).toBe("n");
-      expect(parsed.forms["formal:one"]).toBe("A");
-      expect(parsed.forms["formal:other"]).toBe("B");
-      expect(parsed.forms["informal:one"]).toBe("C");
-      expect(parsed.forms["informal:other"]).toBe("D");
+      expect(generated).toBe(
+        "{f, select, formal {{n, plural, one {A} other {B}}} informal {{n, plural, one {C} other {D}}}}",
+      );
+      expect(parsed).toEqual({ selectVariable: "f", pluralVariable: "n", forms: original });
     });
   });
 });

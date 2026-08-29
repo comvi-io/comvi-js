@@ -5,11 +5,23 @@ import path from "node:path";
 import test from "node:test";
 import url from "node:url";
 import { spawnSync } from "node:child_process";
-import { CASES, DEFAULT_THRESHOLD_PCT, median, regressions, renderCompare } from "./perf.mjs";
+import { DEFAULT_THRESHOLD_PCT, median, regressions, renderCompare } from "./perf.mjs";
 
 const SCRIPT_DIR = path.dirname(url.fileURLToPath(import.meta.url));
 const PERF = path.join(SCRIPT_DIR, "perf.mjs");
 const REAL_DIST = path.join(SCRIPT_DIR, "..", "packages", "core", "dist");
+
+/**
+ * Spelled out rather than imported from perf.mjs: the gate's value is that this
+ * exact set is measured, so a renamed or dropped case must fail here.
+ */
+const CASE_NAMES = [
+  "constructor (200-key catalog)",
+  "t() static key",
+  "t() with {name}",
+  "t() ICU plural (icuCompiler)",
+  "prepareTranslation(<b>)",
+];
 
 function runPerf(args) {
   return spawnSync(process.execPath, [PERF, ...args], { encoding: "utf8" });
@@ -46,13 +58,20 @@ function makeSlowDist(root, busyIterations) {
 test("single mode reports every case with a median and a JSON line", () => {
   const result = runPerf([REAL_DIST]);
   assert.equal(result.status, 0, result.stderr);
-  for (const testCase of CASES) assert.ok(result.stdout.includes(testCase.name), testCase.name);
-  const json = JSON.parse(result.stdout.trim().split("\n").pop());
   assert.deepEqual(
-    Object.keys(json),
-    CASES.map((testCase) => testCase.name),
+    CASE_NAMES.filter((name) => !result.stdout.includes(name)),
+    [],
+    `cases missing from the human report:\n${result.stdout}`,
   );
-  for (const value of Object.values(json)) assert.ok(value > 0, "medians must be positive");
+
+  const json = JSON.parse(result.stdout.trim().split("\n").pop());
+
+  assert.deepEqual(Object.keys(json), CASE_NAMES);
+  assert.deepEqual(
+    Object.entries(json).filter(([, median]) => !(median > 0)),
+    [],
+    "every case must report a positive median",
+  );
 });
 
 test("compare mode exits 1 on a real slowdown in B", (t) => {
@@ -79,7 +98,10 @@ test("compare mode exits 1 on a real slowdown in B", (t) => {
     deltas["constructor (200-key catalog)"] > DEFAULT_THRESHOLD_PCT,
     `constructor Δ was ${deltas["constructor (200-key catalog)"]}%`,
   );
-  assert.ok(deltas["t() static key"] < DEFAULT_THRESHOLD_PCT);
+  assert.ok(
+    deltas["t() static key"] < DEFAULT_THRESHOLD_PCT,
+    `t() static key Δ was ${deltas["t() static key"]}%`,
+  );
 });
 
 test("compare mode exits 0 when both roots are the same dist", () => {
@@ -122,7 +144,9 @@ test("compare mode fails loudly when a dist root has no core build", (t) => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "perf-test-"));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
   const result = runPerf(["--compare", REAL_DIST, root, "--repetitions", "1"]);
-  assert.notEqual(result.status, 0);
+  // Exit 1, not merely non-zero: exit 2 is the usage path, so `notEqual(0)` would
+  // also pass if the flags stopped parsing.
+  assert.equal(result.status, 1, `${result.stdout}\n${result.stderr}`);
   assert.match(result.stderr, /perf worker failed/);
 });
 

@@ -6,6 +6,7 @@ import { useI18n } from "../src/useI18n";
 import { createI18n, icuCompiler } from "../src/index";
 import type { TranslationResult } from "../src/index";
 import { FakeI18n } from "../../../tooling/test-utils/fakeI18n";
+import { flushMicrotasks } from "./test-utils";
 
 const createWrapper = (fake: FakeI18n) => {
   return ({ children }: { children: ReactNode }) => (
@@ -70,7 +71,7 @@ describe("useI18n", () => {
   it("rebuilds t() reference on locale change so callers re-translate with new locale", async () => {
     // The identity churn is intended: a rebuilt closure captures the new
     // locale, which is what prevents tearing during a transition-wrapped flip.
-    // `await act` + `Promise.resolve()` flushes `useSubscribe`'s microtask.
+    // The act-wrapped flush drains `useSubscribe`'s microtask.
     const fake = new FakeI18n();
     const { result } = renderHook(() => useI18n("admin"), { wrapper: createWrapper(fake) });
     const tBefore = result.current.t;
@@ -79,7 +80,7 @@ describe("useI18n", () => {
     await act(async () => {
       fake.language = "fr";
       fake.emit("localeChanged", { from: "en", to: "fr" });
-      await Promise.resolve();
+      await flushMicrotasks();
     });
 
     expect(result.current.locale).toBe("fr");
@@ -93,15 +94,13 @@ describe("useI18n", () => {
     const formatNumberFromEnglishRender = result.current.formatNumber;
     const setLocaleBefore = result.current.setLocale;
 
-    act(() => {
-      fake.language = "de";
-    });
+    fake.language = "de";
 
     expect(formatNumberFromEnglishRender(1234)).toBe("1,234");
 
     await act(async () => {
       fake.emit("localeChanged", { from: "en", to: "de" });
-      await Promise.resolve();
+      await flushMicrotasks();
     });
 
     expect(result.current.locale).toBe("de");
@@ -240,13 +239,10 @@ describe("useI18n", () => {
   });
 
   it("throws when used outside I18nProvider", () => {
-    const originalError = console.error;
-    console.error = vi.fn();
+    vi.spyOn(console, "error").mockImplementation(() => {});
 
     expect(() => renderHook(() => useI18n())).toThrow(
       "[i18n] Hooks must be used within an I18nProvider",
     );
-
-    console.error = originalError;
   });
 });

@@ -10,6 +10,7 @@ import type { UseI18nReturn as NuxtUseI18nReturn } from "../src/runtime/composab
 import type {
   NuxtHostFactory,
   NuxtHostFactoryOptions,
+  NuxtI18nOptions,
   NuxtI18nSetup,
   NuxtServerHost,
   NuxtServerLoaderHost,
@@ -23,7 +24,7 @@ describe("UseI18nReturn type parity", () => {
 
 describe("published package-root types", () => {
   it("exports both module options and the custom host factory vocabulary", () => {
-    expectTypeOf<ModuleOptions>().toMatchTypeOf<Partial<import("../src/types").NuxtI18nOptions>>();
+    expectTypeOf<ModuleOptions>().toMatchTypeOf<Partial<NuxtI18nOptions>>();
     expectTypeOf<PublicNuxtHostFactoryOptions>().toMatchTypeOf<{ locale: string }>();
     expectTypeOf<PublicNuxtHostFactory>().toBeFunction();
   });

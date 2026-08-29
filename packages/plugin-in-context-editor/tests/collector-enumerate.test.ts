@@ -1,4 +1,4 @@
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, afterEach, beforeEach } from "vitest";
 import { EventBus } from "../src/EventBus";
 import { TranslationRegistry } from "../src/TranslationRegistry";
 import { enumerateVisibleTargets, collectAllKeyRefs } from "../src/collector/enumerate";
@@ -16,14 +16,17 @@ function registerElement(
 }
 
 describe("collector/enumerate", () => {
+  let registry: TranslationRegistry;
+
+  beforeEach(() => {
+    registry = new TranslationRegistry(new EventBus());
+  });
+
   afterEach(() => {
     cleanupDOM();
   });
 
   it("only includes elements intersecting the viewport", () => {
-    const eventBus = new EventBus();
-    const registry = new TranslationRegistry(eventBus);
-
     const visible = document.createElement("div");
     const offscreen = document.createElement("div");
     const zeroSized = document.createElement("div");
@@ -65,9 +68,6 @@ describe("collector/enumerate", () => {
   });
 
   it("skips password inputs and contenteditable elements even when visible", () => {
-    const eventBus = new EventBus();
-    const registry = new TranslationRegistry(eventBus);
-
     const password = document.createElement("input");
     password.type = "password";
     const editable = document.createElement("div");
@@ -100,9 +100,6 @@ describe("collector/enumerate", () => {
   });
 
   it("orders targets top-to-bottom then left-to-right and assigns a deterministic readingOrderIndex", () => {
-    const eventBus = new EventBus();
-    const registry = new TranslationRegistry(eventBus);
-
     const bottomRight = document.createElement("div");
     const topLeft = document.createElement("div");
     const topRight = document.createElement("div");
@@ -144,9 +141,6 @@ describe("collector/enumerate", () => {
   });
 
   it("collectAllKeyRefs dedupes by (namespace,key) regardless of visibility", () => {
-    const eventBus = new EventBus();
-    const registry = new TranslationRegistry(eventBus);
-
     const a = document.createElement("div");
     const b = document.createElement("div");
     document.body.append(a, b);
@@ -171,12 +165,17 @@ describe("collector/enumerate", () => {
 
     const refs = collectAllKeyRefs(registry);
 
-    expect(refs).toHaveLength(2);
-    expect(refs).toEqual(
-      expect.arrayContaining([
-        { namespace: "ns1", key: "shared.key" },
-        { namespace: "ns2", key: "other.key" },
-      ]),
-    );
+    expect([...refs].sort((l, r) => l.key.localeCompare(r.key))).toEqual([
+      { namespace: "ns2", key: "other.key" },
+      { namespace: "ns1", key: "shared.key" },
+    ]);
+  });
+
+  it("collectAllKeyRefs returns an empty list for an empty registry", () => {
+    expect(collectAllKeyRefs(registry)).toEqual([]);
+  });
+
+  it("returns no targets when the registry is empty", () => {
+    expect(enumerateVisibleTargets(registry)).toEqual([]);
   });
 });

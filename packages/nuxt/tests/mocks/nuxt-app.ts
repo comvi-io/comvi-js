@@ -193,11 +193,7 @@ export function setMockRoute(partial: Partial<typeof routeState>) {
   Object.assign(routeState, partial);
 }
 
-export function setMockRuntimeConfig(partial: Partial<typeof mockRuntimeConfig>) {
-  mockRuntimeConfig = { ...mockRuntimeConfig, ...partial };
-}
-
-export function resetRuntimeConfig() {
+function resetRuntimeConfig() {
   mockRuntimeConfig = cloneRuntimeConfig();
 }
 
@@ -211,4 +207,6 @@ export function resetMocks() {
   Object.assign(routeState, defaultRouteState);
 }
 
-export { mockRuntimeConfig, mockNuxtApp };
+// Live binding: `resetRuntimeConfig` reassigns it, which is what makes
+// `resetMocks()` reach importers.
+export { mockRuntimeConfig };

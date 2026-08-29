@@ -16,7 +16,7 @@ import type {
   LoaderFn,
   TranslationValue,
 } from "@comvi/core";
-import { createI18n, I18n } from "@comvi/core";
+import { createI18n, I18n, TranslationCache } from "@comvi/core";
 import { loader, type LoaderImportMap } from "@comvi/core/loader";
 import { icuCompiler } from "@comvi/core/icu";
 import { plugins } from "@comvi/core/plugins";
@@ -187,3 +187,12 @@ new I18n({ locale: "en" }, icuCompiler);
 // The option form is how a caller chooses a compiler.
 const icuByOption: I18n = new I18n({ locale: "en", compiler: icuCompiler });
 void icuByOption;
+
+// `getInternalMap()` hands back a ReadonlyMap: the runtime suite pins the
+// contents, and only the type level can pin that callers may not write to it.
+const internalMap = new TranslationCache().getInternalMap();
+void internalMap.get("en:default");
+// @ts-expect-error — the snapshot is readonly at the type level
+internalMap.set("en:default", { hello: "Hello" });
+// @ts-expect-error — the snapshot is readonly at the type level
+internalMap.delete("en:default");

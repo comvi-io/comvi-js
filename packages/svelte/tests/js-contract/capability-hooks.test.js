@@ -153,10 +153,8 @@ describe(`capability acquisition (${__COMVI_CORE_BUILD__} core build)`, () => {
   it("returns plain bound functions, not stores (§3.2 svelte idiom)", () => {
     const bag = acquire(attachLoader(baseHost()), useI18nLoader);
 
-    for (const member of Object.values(bag)) {
-      expect(typeof member).toBe("function");
-      expect(member.subscribe).toBeUndefined();
-    }
+    expect(Object.entries(bag).filter(([, member]) => typeof member !== "function")).toEqual([]);
+    expect(Object.entries(bag).filter(([, member]) => member.subscribe !== undefined)).toEqual([]);
   });
 
   // ONE canonical behaviour for a non-string `onMissingKey` result:

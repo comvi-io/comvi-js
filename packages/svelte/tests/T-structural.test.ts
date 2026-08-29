@@ -10,6 +10,7 @@
  * truth the react/vue/solid copies are kept in sync with.
  */
 import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { mount, unmount } from "svelte";
 import { createI18n } from "../src/index";
@@ -63,7 +64,7 @@ describe("T.svelte structural render", () => {
   });
 
   it("has no HTML-string sink in the component source (grep gate: {@html})", () => {
-    const source = readFileSync("src/T.svelte", "utf8");
+    const source = readFileSync(resolve(__dirname, "../src/T.svelte"), "utf8");
     expect(source).not.toContain("{@html");
     expect(source).not.toContain("innerHTML");
   });
@@ -85,7 +86,7 @@ describe("T.svelte structural render", () => {
     const em = strong!.querySelector("em");
     expect(em).not.toBeNull();
     expect(em!.textContent).toBe("fine");
-    expect(target.textContent).toContain("Read the fine print.");
+    expect(target.textContent).toBe("Read the fine print.");
   });
 
   it("renders untrusted translation markup as text, never as elements", () => {
@@ -97,8 +98,7 @@ describe("T.svelte structural render", () => {
     // nothing in a translation string can create a DOM element.
     expect(target.querySelector("script")).toBeNull();
     expect(Reflect.get(window, "pwned")).toBeUndefined();
-    expect(target.textContent).toContain("hi ");
-    expect(target.textContent).toContain(" there");
+    expect(target.textContent).toBe("hi window.pwned = true there");
   });
 
   describe("component handlers (wrapper parity)", () => {

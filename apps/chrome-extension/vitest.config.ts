@@ -6,5 +6,8 @@ export default defineConfig({
   },
   test: {
     exclude: [...configDefaults.exclude, "gate-e/**"],
+    restoreMocks: true,
+    unstubEnvs: true,
+    unstubGlobals: true,
   },
 });

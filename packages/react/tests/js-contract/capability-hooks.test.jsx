@@ -26,6 +26,13 @@ const EXPECTED = {
     : "[comvi] missing plugins capability — attach @comvi/core/plugins",
 };
 
+// Same rule as EXPECTED: the message is written out per build family rather
+// than imported, and prod ships only the code.
+const allNamespacesFailed = (ns) =>
+  IS_DEV_BUILD
+    ? `[i18n] Failed to load all namespaces for locale "en": ${ns}`
+    : "E_ALL_NAMESPACES_FAILED";
+
 const wrapperFor = (i18n) =>
   function Wrapper({ children }) {
     return (
@@ -57,13 +64,8 @@ describe(`capability acquisition (${__COMVI_CORE_BUILD__} core build)`, () => {
     expect(() => renderHook(() => useI18nLoader(), { wrapper: loaderOnly })).not.toThrow();
   });
 
-  it("returns a working loader bag on base + attachLoader", async () => {
+  it("returns a working loader bag on base + attachLoader", () => {
     const host = attachLoader(baseHost());
-    const loaded = [];
-    host.registerLoader(async (locale, ns) => {
-      loaded.push(`${locale}:${ns}`);
-      return { extra: "loaded" };
-    });
 
     const { result } = renderHook(() => useI18nLoader(), { wrapper: wrapperFor(host) });
 
@@ -73,14 +75,46 @@ describe(`capability acquisition (${__COMVI_CORE_BUILD__} core build)`, () => {
       "onLoadError",
       "reloadTranslations",
     ]);
+  });
+
+  it("routes a namespace load through the registered loader", async () => {
+    const host = attachLoader(baseHost());
+    const loaded = [];
+    host.registerLoader(async (locale, ns) => {
+      loaded.push(`${locale}:${ns}`);
+      return { extra: "loaded" };
+    });
+
+    const { result } = renderHook(() => useI18nLoader(), { wrapper: wrapperFor(host) });
 
     await result.current.addActiveNamespace("dashboard");
-    expect(loaded).toContain("en:dashboard");
+
+    expect(loaded).toEqual(["en:dashboard"]);
+  });
+
+  it("delivers load failures to onLoadError until its unsubscribe is called", async () => {
+    const host = attachLoader(baseHost());
+    host.registerLoader(async () => {
+      throw new Error("catalog 500");
+    });
+
+    const { result } = renderHook(() => useI18nLoader(), { wrapper: wrapperFor(host) });
 
     const errors = [];
-    const off = result.current.onLoadError((locale, ns, error) => errors.push([locale, ns, error]));
-    expect(typeof off).toBe("function");
+    const off = result.current.onLoadError((locale, ns, error) =>
+      errors.push([locale, ns, error.message]),
+    );
+
+    await expect(result.current.addActiveNamespace("dashboard")).rejects.toThrow(
+      allNamespacesFailed("dashboard"),
+    );
+    expect(errors).toEqual([["en", "dashboard", "catalog 500"]]);
+
     off();
+    await expect(result.current.addActiveNamespace("reports")).rejects.toThrow(
+      allNamespacesFailed("reports"),
+    );
+    expect(errors).toHaveLength(1);
   });
 
   it("returns a working plugins bag on base + attachPlugins", () => {

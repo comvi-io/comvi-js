@@ -10,28 +10,37 @@ import {
 
 describe("useSelectPresets", () => {
   describe("SELECT_PRESETS", () => {
-    it("should have gender preset", () => {
-      const gender = SELECT_PRESETS.find((p) => p.id === "gender");
-      expect(gender?.id).toBe("gender");
-      expect(gender?.variable).toBe("gender");
-      expect(gender?.requiresOther).toBe(true);
-      expect(gender?.options.map((o) => o.key)).toEqual(["male", "female", "other"]);
-    });
-
-    it("should have formality preset", () => {
-      const formality = SELECT_PRESETS.find((p) => p.id === "formality");
-      expect(formality?.id).toBe("formality");
-      expect(formality?.variable).toBe("formality");
-      expect(formality?.requiresOther).toBe(false);
-      expect(formality?.options.map((o) => o.key)).toEqual(["formal", "informal"]);
-    });
-
-    it("should have custom preset", () => {
-      const custom = SELECT_PRESETS.find((p) => p.id === "custom");
-      expect(custom?.id).toBe("custom");
-      expect(custom?.variable).toBe("select");
-      expect(custom?.options).toEqual([]);
-      expect(custom?.requiresOther).toBe(false);
+    it("should ship the gender, formality and custom presets in that order", () => {
+      expect(SELECT_PRESETS).toEqual([
+        {
+          id: "gender",
+          name: "Gender",
+          variable: "gender",
+          options: [
+            { key: "male", label: "Male" },
+            { key: "female", label: "Female" },
+            { key: "other", label: "Other / Neutral" },
+          ],
+          requiresOther: true,
+        },
+        {
+          id: "formality",
+          name: "Formality",
+          variable: "formality",
+          options: [
+            { key: "formal", label: "Formal" },
+            { key: "informal", label: "Informal" },
+          ],
+          requiresOther: false,
+        },
+        {
+          id: "custom",
+          name: "Custom",
+          variable: "select",
+          options: [],
+          requiresOther: false,
+        },
+      ]);
     });
   });
 
@@ -46,6 +55,10 @@ describe("useSelectPresets", () => {
       const unknown = getPresetById("nonexistent");
       expect(unknown).toBeUndefined();
     });
+
+    it("should return undefined for an empty id", () => {
+      expect(getPresetById("")).toBeUndefined();
+    });
   });
 
   describe("getDefaultPreset", () => {
@@ -56,33 +69,32 @@ describe("useSelectPresets", () => {
   });
 
   describe("getPresetOptions", () => {
-    it("should return array of options for dropdown", () => {
-      const options = getPresetOptions();
-      expect(options.length).toBe(SELECT_PRESETS.length);
-      expect(options[0]).toHaveProperty("value");
-      expect(options[0]).toHaveProperty("label");
-    });
-
-    it("should map preset id to value and name to label", () => {
-      const options = getPresetOptions();
-      const genderOption = options.find((o) => o.value === "gender");
-      expect(genderOption).toEqual({ value: "gender", label: "Gender" });
+    it("should map every preset id to value and name to label", () => {
+      expect(getPresetOptions()).toEqual([
+        { value: "gender", label: "Gender" },
+        { value: "formality", label: "Formality" },
+        { value: "custom", label: "Custom" },
+      ]);
     });
   });
 
   describe("createCustomPreset", () => {
     it("should create custom preset with given options", () => {
-      const preset = createCustomPreset("status", ["active", "inactive"]);
-      expect(preset.id).toBe("custom");
-      expect(preset.variable).toBe("status");
-      expect(preset.options).toHaveLength(2);
-      expect(preset.options[0].key).toBe("active");
-      expect(preset.options[0].label).toBe("active");
+      expect(createCustomPreset("status", ["active", "inactive"])).toEqual({
+        id: "custom",
+        name: "Custom",
+        variable: "status",
+        options: [
+          { key: "active", label: "active" },
+          { key: "inactive", label: "inactive" },
+        ],
+        requiresOther: false,
+      });
     });
 
     it("should create preset with empty options", () => {
       const preset = createCustomPreset("empty", []);
-      expect(preset.options).toHaveLength(0);
+      expect(preset.options).toEqual([]);
     });
   });
 
@@ -117,6 +129,11 @@ describe("useSelectPresets", () => {
     it("should return custom when keys dont match preset", () => {
       const preset = detectPresetFromForms("gender", ["man", "woman"]);
       expect(preset.id).toBe("custom");
+    });
+
+    it("should match the first preset whose variable matches when no form keys are given", () => {
+      // Every key of an empty list trivially matches, so the variable decides.
+      expect(detectPresetFromForms("gender", [])).toBe(SELECT_PRESETS[0]);
     });
   });
 });

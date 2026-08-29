@@ -26,6 +26,20 @@ const CLASS_METHOD_DESCRIPTOR = { writable: true, enumerable: false, configurabl
 const shapeOf = (d: PropertyDescriptor | undefined) =>
   d && { writable: d.writable, enumerable: d.enumerable, configurable: d.configurable };
 
+/** Every capability member `attachLoader` / `attachPlugins` compose onto the host. */
+const COMPOSED_MEMBERS = [
+  "registerLoader",
+  "getLoader",
+  "reloadTranslations",
+  "addActiveNamespace",
+  "addActiveNamespaces",
+  "onLoadError",
+  "use",
+  "onMissingKey",
+  "setPluginData",
+  "getPluginData",
+] as const;
+
 describe("createNextI18n composed host — reflective contract (B7)", () => {
   it("keeps registerLoader a NON-ENUMERABLE own property with the class-method descriptor", () => {
     const { i18n } = createNextI18n({ ...ROUTING });
@@ -55,24 +69,30 @@ describe("createNextI18n composed host — reflective contract (B7)", () => {
   it("gives every composed capability member the same non-enumerable own shape", () => {
     const { i18n } = createNextI18n({ ...ROUTING });
 
-    // The members `attachLoader` / `attachPlugins` copy onto the instance:
-    // the builder must not single any of them out.
-    for (const name of [
-      "registerLoader",
-      "getLoader",
-      "reloadTranslations",
-      "addActiveNamespace",
-      "addActiveNamespaces",
-      "onLoadError",
-      "use",
-      "onMissingKey",
-      "setPluginData",
-      "getPluginData",
-    ] as const) {
-      const descriptor = Object.getOwnPropertyDescriptor(i18n, name);
-      if (!descriptor) continue; // inherited members are already non-enumerable
-      expect(shapeOf(descriptor), `${name} descriptor`).toEqual(CLASS_METHOD_DESCRIPTOR);
-    }
+    // The members `attachLoader` / `attachPlugins` copy onto the instance: the
+    // builder must not single any of them out. Members reached through the
+    // prototype are already non-enumerable, so only OWN ones carry a shape —
+    // asserting the collected map (rather than skipping inside the loop) keeps
+    // a builder that stopped installing them from passing vacuously.
+    const shapes = Object.fromEntries(
+      COMPOSED_MEMBERS.filter((name) => Object.getOwnPropertyDescriptor(i18n, name)).map((name) => [
+        name,
+        shapeOf(Object.getOwnPropertyDescriptor(i18n, name)),
+      ]),
+    );
+
+    expect(shapes).toEqual({
+      registerLoader: CLASS_METHOD_DESCRIPTOR,
+      getLoader: CLASS_METHOD_DESCRIPTOR,
+      reloadTranslations: CLASS_METHOD_DESCRIPTOR,
+      addActiveNamespace: CLASS_METHOD_DESCRIPTOR,
+      addActiveNamespaces: CLASS_METHOD_DESCRIPTOR,
+      onLoadError: CLASS_METHOD_DESCRIPTOR,
+      use: CLASS_METHOD_DESCRIPTOR,
+      onMissingKey: CLASS_METHOD_DESCRIPTOR,
+      setPluginData: CLASS_METHOD_DESCRIPTOR,
+      getPluginData: CLASS_METHOD_DESCRIPTOR,
+    });
   });
 
   it("still serves BOTH registerLoader overloads after the descriptor install", async () => {

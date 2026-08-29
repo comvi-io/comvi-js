@@ -1,54 +1,5 @@
-import { encodeKeyToInvisible, registerKey } from "../src/translation";
-
-export function createTestElement(
-  html: string,
-  keys: Record<string, string | number> = {},
-): HTMLElement {
-  const container = document.createElement("div");
-  container.innerHTML = html;
-
-  // Replace placeholders like {{key:home.title}} with encoded invisible chars
-  Object.entries(keys).forEach(([placeholder, key]) => {
-    const encoded = encodeKeyToInvisible(key);
-    container.innerHTML = container.innerHTML.replace(
-      new RegExp(`{{key:${placeholder}}}`, "g"),
-      encoded,
-    );
-  });
-
-  return container.firstElementChild as HTMLElement;
-}
-
-export function createEncodedTextNode(key: string | number): Text {
-  const encoded = encodeKeyToInvisible(key);
-  return document.createTextNode(`Some text ${encoded}`);
-}
-
-export function createEncodedAttribute(
-  tagName: string,
-  attrName: string,
-  key: string | number,
-): Element {
-  const element = document.createElement(tagName);
-  const encoded = encodeKeyToInvisible(key);
-  element.setAttribute(attrName, `Value ${encoded}`);
-  return element;
-}
-
-export function createScrollableContainer(width = 200, height = 200): HTMLElement {
-  const container = document.createElement("div");
-  container.style.width = `${width}px`;
-  container.style.height = `${height}px`;
-  container.style.overflow = "auto";
-  container.style.position = "relative";
-
-  const content = document.createElement("div");
-  content.style.width = `${width * 2}px`;
-  content.style.height = `${height * 2}px`;
-  container.appendChild(content);
-
-  return container;
-}
+import { DEFAULT_HIGHLIGHT_Z_INDEX } from "../src/config/highlight";
+import type { TranslationRegistry } from "../src/TranslationRegistry";
 
 export function simulateKeyEvent(
   type: "keydown" | "keyup",
@@ -94,33 +45,84 @@ export function mockBoundingClientRect(element: Element, rect: Partial<DOMRect>)
   element.getBoundingClientRect = () => ({ ...defaultRect, ...rect });
 }
 
-export function registerTestKeys(keys: string[]): Map<string, number> {
-  const mapping = new Map<string, number>();
-  keys.forEach((key) => {
-    const id = registerKey(key);
-    mapping.set(key, id);
-  });
-  return mapping;
-}
-
 export function cleanupDOM(): void {
   document.body.innerHTML = "";
   const highlights = document.querySelectorAll("[data-test-highlight]");
   highlights.forEach((el) => el.remove());
 }
 
-export function spyConsole(method: "log" | "warn" | "error" = "log") {
-  const original = console[method];
-  const calls: any[][] = [];
+/**
+ * The package's single deterministic flush: one macrotask, one animation
+ * frame, one more macrotask — enough for a MutationObserver callback plus the
+ * scanner's own rAF work. Not a sleep (the 0 delay yields, it does not wait).
+ */
+export async function flushDOMMutations(): Promise<void> {
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  await new Promise((resolve) => requestAnimationFrame(resolve));
+  await new Promise((resolve) => setTimeout(resolve, 0));
+}
 
-  console[method] = (...args: any[]) => {
-    calls.push(args);
-  };
+/** Yields for exactly one animation frame — the beat a rAF-deferred style flip lands on. */
+export async function flushAnimationFrame(): Promise<void> {
+  await new Promise((resolve) => requestAnimationFrame(resolve));
+}
 
-  return {
-    calls,
-    restore: () => {
-      console[method] = original;
-    },
-  };
+/** Drains the microtask queue so fire-and-forget promise chains settle. */
+export async function flushMicrotasks(): Promise<void> {
+  await Promise.resolve();
+  await Promise.resolve();
+}
+
+const VISIBLE_RECT: Partial<DOMRect> = {
+  top: 0,
+  left: 0,
+  width: 100,
+  height: 20,
+  right: 100,
+  bottom: 20,
+};
+
+/**
+ * Attaches a registered, on-screen element the collector will enumerate.
+ * `rect` overrides the default in-viewport 100×20 box.
+ */
+export function registerVisible(
+  registry: TranslationRegistry,
+  key: string,
+  rect: Partial<DOMRect> = VISIBLE_RECT,
+): HTMLElement {
+  const el = document.createElement("div");
+  document.body.appendChild(el);
+  mockBoundingClientRect(el, rect);
+  registry.add(el, { nodes: new Map([[document.createTextNode("x"), { key, ns: "ns" }]]) });
+  return el;
+}
+
+/**
+ * The highlight overlay currently in the document, located by the style
+ * signature `createHighlightOverlay()` writes. `zIndex` must match the
+ * highlighter's configured z-index.
+ */
+export function getActiveOverlay(
+  zIndex: number = DEFAULT_HIGHLIGHT_Z_INDEX,
+): HTMLDivElement | null {
+  const overlay = Array.from(document.body.querySelectorAll("div")).find(
+    (node) =>
+      node.style.position === "absolute" &&
+      node.style.pointerEvents === "none" &&
+      node.style.zIndex === String(zIndex),
+  );
+  return (overlay as HTMLDivElement | undefined) ?? null;
+}
+
+/** The key tooltip currently in the document, located by its style signature. */
+export function getActiveTooltip(): HTMLDivElement | null {
+  const tooltip = Array.from(document.body.querySelectorAll("div")).find(
+    (node) =>
+      node.style.position === "absolute" &&
+      node.style.fontSize === "11px" &&
+      node.style.pointerEvents === "none" &&
+      node.style.whiteSpace === "nowrap",
+  );
+  return (tooltip as HTMLDivElement | undefined) ?? null;
 }

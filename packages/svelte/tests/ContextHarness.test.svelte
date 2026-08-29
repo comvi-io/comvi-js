@@ -1,8 +1,9 @@
 <script lang="ts">
   import { setI18nContext } from "../src/context";
   import ContextConsumer from "./ContextConsumer.test.svelte";
+  import type { WrapperI18nHost } from "@comvi/core";
 
-  export let i18n: any;
+  export let i18n: WrapperI18nHost;
   export let autoInit: boolean | undefined = undefined;
 
   if (autoInit === undefined) {

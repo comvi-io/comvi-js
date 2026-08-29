@@ -20,6 +20,8 @@ import { I18n } from "../../src/core/full";
 import type { ComviQueueEntry } from "../../src";
 import { createI18n } from "../../src";
 import { attachDevtools } from "../../src/devtools";
+// The same source vitest.config.ts folds into `__VERSION__`.
+import pkg from "../../package.json";
 
 const win = window as { __COMVI__?: unknown };
 
@@ -57,8 +59,7 @@ describe.each(Object.keys(SURFACES))(
       expect(Array.isArray(queue)).toBe(true);
       expect(queue).toHaveLength(1);
       expect(queue[0]!.i).toBe(i18n);
-      expect(typeof queue[0]!.v).toBe("string");
-      expect(queue[0]!.v.length).toBeGreaterThan(0);
+      expect(queue[0]!.v).toBe(pkg.version);
       expect(i18n.instanceId).toBe("gd-fresh");
     });
 
@@ -171,7 +172,7 @@ describe.each(Object.keys(SURFACES))(
       expect(win.__COMVI__).toBe(registry);
     });
 
-    it("does not throw against a mocked minimal legacy registry object", () => {
+    it("registers (id, instance) into a minimal v1 registry", () => {
       const register = vi.fn();
       win.__COMVI__ = { register };
 
@@ -193,7 +194,7 @@ describe.each(Object.keys(SURFACES))(
       expect(win.__COMVI__).toBe(42);
     });
 
-    it("survives a throwing hook without breaking construction", () => {
+    it("survives a throwing hook on both construction and destroy", () => {
       win.__COMVI__ = {
         push: () => {
           throw new Error("hostile hook");
@@ -204,7 +205,9 @@ describe.each(Object.keys(SURFACES))(
       };
 
       const i18n = makeExposed("gd-hostile");
+
       expect(i18n.instanceId).toBe("gd-hostile");
+      return expect(i18n.destroy()).resolves.toBeUndefined();
     });
   },
 );
@@ -256,12 +259,16 @@ describe("attachDevtools install surface", () => {
     // `_`-prefixed members are mangled in the dist, so the DESCRIPTOR SHAPE, not
     // the name, is the contract. Enumerability is the one that matters: a spread
     // copy must carry data only, never behaviour.
-    const hooks = Object.getOwnPropertyNames(i18n).filter((k) => k.startsWith("_"));
-    for (const name of hooks) {
-      const value = (i18n as unknown as Record<string, unknown>)[name];
-      if (typeof value !== "function") continue;
-      expect(Object.getOwnPropertyDescriptor(i18n, name)!.enumerable, name).toBe(false);
-    }
+    const hooks = Object.getOwnPropertyNames(i18n).filter(
+      (k) =>
+        k.startsWith("_") && typeof (i18n as unknown as Record<string, unknown>)[k] === "function",
+    );
+    // Without this the loop below can assert nothing at all — a rename or a move
+    // to a WeakMap would empty `hooks` and the test would still pass.
+    expect(hooks.length).toBeGreaterThan(0);
+    expect(hooks.filter((name) => Object.getOwnPropertyDescriptor(i18n, name)!.enumerable)).toEqual(
+      [],
+    );
     expect(
       Object.keys({ ...i18n }).filter((k) => typeof ({ ...i18n } as never)[k] === "function"),
     ).toEqual([]);

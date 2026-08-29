@@ -17,36 +17,13 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { attachDevtools } from "@comvi/core/devtools";
 import { plugins } from "@comvi/core/plugins";
 import type { I18nPlugin } from "@comvi/core";
-import type * as CoreModule from "../src/Core";
 import { createI18n } from "./helpers/composedHost";
 import { createI18n as createBaseI18n } from "@comvi/core";
 
-const coreCtorMock = vi.fn();
-const coreStartMock = vi.fn();
-const coreStopMock = vi.fn();
-let mockCoreCounter = 0;
+const { coreCtorMock, coreStartMock, coreStopMock, mockCoreModule, resetCoreMocks } =
+  await vi.hoisted(() => import("./helpers/mockCore"));
 
-vi.mock("../src/Core", async (importOriginal) => {
-  const actual = await importOriginal<typeof CoreModule>();
-  return {
-    ...actual,
-    Core: class MockCore {
-      private readonly id = `mock-core-${++mockCoreCounter}`;
-      constructor(...args: unknown[]) {
-        coreCtorMock(...args);
-      }
-      start(): void {
-        coreStartMock();
-      }
-      stop(): void {
-        coreStopMock();
-      }
-      getInstanceId(): string {
-        return this.id;
-      }
-    },
-  };
-});
+vi.mock("../src/Core", mockCoreModule);
 
 import { InContextEditorPlugin, inContextEditor } from "../src/index";
 import {
@@ -62,14 +39,12 @@ const base = () => createBaseI18n({ locale: "en", defaultNs: "default", exposeGl
 const browserGlobals = globalThis as Record<string, unknown>;
 
 afterEach(() => {
-  coreCtorMock.mockReset();
-  coreStartMock.mockReset();
-  coreStopMock.mockReset();
+  resetCoreMocks();
   delete browserGlobals.__COMVI__;
 });
 
 describe("inContextEditor() installer — default entry", () => {
-  it("ensures discovery and the plugin host, then registers the editor", async () => {
+  it("ensures discovery and the plugin host, starts the editor at init() and stops it at destroy()", async () => {
     const i18n = base().with(inContextEditor());
 
     // Discovery came FIRST, and the plugin host is composed on.
@@ -100,7 +75,17 @@ describe("inContextEditor() installer — default entry", () => {
 
     await i18n.init();
 
-    expect(coreCtorMock.mock.calls[0]![0]).toMatchObject({ targetElement: target, debug: true });
+    expect(coreCtorMock).toHaveBeenCalledWith(
+      {
+        targetElement: target,
+        tagAttributes: undefined,
+        debug: true,
+        highlightStyle: undefined,
+        collectContext: undefined,
+        screenGroupResolver: undefined,
+      },
+      i18n,
+    );
     await i18n.destroy();
   });
 
@@ -123,6 +108,7 @@ describe("inContextEditor() installer — default entry", () => {
     // `use` is the caller's own capability here — the editor installer does
     // not widen the host, so the recipe composes `plugins()` explicitly.
     const i18n = base().with(plugins()).with(inContextEditor());
+    coreStopMock.mockImplementation(() => void order.push("editor"));
 
     i18n.use(() => () => void order.push("after"));
 
@@ -130,8 +116,7 @@ describe("inContextEditor() installer — default entry", () => {
     await i18n.destroy();
 
     // The installer's plugin was queued FIRST, so its cleanup runs LAST.
-    expect(order).toEqual(["after"]);
-    expect(coreStopMock).toHaveBeenCalledTimes(1);
+    expect(order).toEqual(["after", "editor"]);
   });
 });
 

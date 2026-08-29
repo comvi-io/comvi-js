@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, vi } from "vitest";
+import { describe, it, expect, beforeAll, afterEach, vi } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -41,6 +41,13 @@ const INTERNAL_NAMES = [
   "_preflightSimpleCatalog",
 ];
 
+/** Dev-only text: absent from every prod artifact, readable verbatim in dev. */
+const DEV_ONLY_STRINGS = [
+  "comviShim",
+  "compose capabilities before init()",
+  "capabilityShim",
+] as const;
+
 function distFiles(dev: boolean): string[] {
   const roots = [DIST, path.join(DIST, "chunks")];
   const out: string[] = [];
@@ -60,6 +67,14 @@ beforeAll(() => {
   if (!fs.existsSync(path.join(DIST, "comvi-core-plugins.js"))) {
     throw new Error("dist is missing — run `pnpm --filter @comvi/core build` before the tests");
   }
+});
+
+// The devtools discovery queue is a real `window` global under happy-dom.
+const win: { __COMVI__?: unknown } = window;
+const previousGlobal = win.__COMVI__;
+afterEach(() => {
+  if (previousGlobal === undefined) delete win.__COMVI__;
+  else win.__COMVI__ = previousGlobal;
 });
 
 describe("prod dist: base + /loader + /plugins composition (A6)", () => {
@@ -88,19 +103,23 @@ describe("prod dist: base + /loader + /plugins composition (A6)", () => {
     await i18n.reloadTranslations();
     expect(i18n.t("hello")).toBe("Salut");
 
-    // The relocated import-map adapter resolves through the same subpath.
+    await i18n.destroy();
+    expect(i18n.getLoader()).toBeUndefined();
+  });
+
+  it("resolves the relocated import-map adapter through the same subpath", async () => {
+    const { createI18n } = await import("../../dist/comvi-core.js");
+    const { attachLoader, createImportMapLoader } = await import("../../dist/comvi-core-loader.js");
+
     const mapped = attachLoader(createI18n({ locale: "en", exposeGlobal: false }));
     mapped.registerLoader(
-      createImportMapLoader(
-        { en: async () => ({ default: { hello: "Hi" } }) },
-        () => mapped.getDefaultNamespace(),
+      createImportMapLoader({ en: async () => ({ default: { hello: "Hi" } }) }, () =>
+        mapped.getDefaultNamespace(),
       ),
     );
     await mapped.init();
-    expect(mapped.t("hello")).toBe("Hi");
 
-    await i18n.destroy();
-    expect(i18n.getLoader()).toBeUndefined();
+    expect(mapped.t("hello")).toBe("Hi");
   });
 
   it("hosts plugins, detectors and missing-key callbacks against the mangled build", async () => {
@@ -142,31 +161,32 @@ describe("prod dist: base + /loader + /plugins composition (A6)", () => {
     expect(i18n.getLanguageDetector()).toBeUndefined();
   });
 
-  it("attaches discovery and flattens nested catalogs against the mangled build", async () => {
+  it("attaches discovery against the mangled build", async () => {
     const { createI18n } = await import("../../dist/comvi-core.js");
     const { attachDevtools } = await import("../../dist/comvi-core-devtools.js");
-    const { attachLoader, flattenCatalog } = await import("../../dist/comvi-core-loader.js");
 
     // `_initDevtools` / `_disposeDevtools` / `_globalEntry` are mangled and
     // installed from a DIFFERENT chunk than the base class reads them from;
     // only the built artifacts can prove the nameCache agreed. The suite runs
     // on happy-dom, so `window` is real here.
-    const win: { __COMVI__?: unknown } = window;
-    delete win.__COMVI__;
-    try {
-      const i18n = attachDevtools(createI18n({ locale: "en" }), { instanceId: "dist-probe" });
-      expect(i18n.instanceId).toBe("dist-probe");
+    const i18n = attachDevtools(createI18n({ locale: "en", exposeGlobal: true }), {
+      instanceId: "dist-probe",
+    });
 
-      const queue = win.__COMVI__;
-      expect(Array.isArray(queue)).toBe(true);
-      expect(queue).toHaveLength(1);
-      expect((queue as Array<{ i: unknown }>)[0]!.i).toBe(i18n);
+    expect(i18n.instanceId).toBe("dist-probe");
+    const queue = win.__COMVI__;
+    expect(Array.isArray(queue)).toBe(true);
+    expect(queue).toHaveLength(1);
+    expect((queue as Array<{ i: unknown }>)[0]!.i).toBe(i18n);
 
-      await i18n.destroy();
-      expect(queue).toHaveLength(0);
-    } finally {
-      delete win.__COMVI__;
-    }
+    await i18n.destroy();
+
+    expect(queue).toHaveLength(0);
+  });
+
+  it("flattens nested catalogs against the mangled build", async () => {
+    const { createI18n } = await import("../../dist/comvi-core.js");
+    const { attachLoader, flattenCatalog } = await import("../../dist/comvi-core-loader.js");
 
     // `_flattenNs` is a prototype member of the loader chunk consumed by the
     // base class's `_nsAddTranslations` — the same cross-chunk contract.
@@ -181,7 +201,7 @@ describe("prod dist: base + /loader + /plugins composition (A6)", () => {
     expect(loaded.t("nav.home")).toBe("Home");
   });
 
-  it("folds the late-compose warnings AND the loader shims out of prod (B2/B4)", async () => {
+  it("folds the late-compose warnings out of prod (B2)", async () => {
     const { createI18n } = await import("../../dist/comvi-core.js");
     const { attachLoader } = await import("../../dist/comvi-core-loader.js");
     const { attachPlugins } = await import("../../dist/comvi-core-plugins.js");
@@ -190,26 +210,27 @@ describe("prod dist: base + /loader + /plugins composition (A6)", () => {
     // warning, and its string, away — so a late compose is silent here even
     // though the same calls warn once each in dev.
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-    try {
-      const i18n = createI18n({
-        locale: "en",
-        exposeGlobal: false,
-        translation: { en: { hello: "Hello" } },
-      });
-      await i18n.init();
+    const i18n = createI18n({
+      locale: "en",
+      exposeGlobal: false,
+      translation: { en: { hello: "Hello" } },
+    });
+    await i18n.init();
 
-      attachPlugins(i18n).use(() => {});
-      attachLoader(i18n);
+    attachPlugins(i18n).use(() => {});
+    attachLoader(i18n);
 
-      expect(warnSpy).not.toHaveBeenCalled();
-    } finally {
-      warnSpy.mockRestore();
-    }
+    expect(warnSpy).not.toHaveBeenCalled();
+  });
 
+  it("folds the loader capability shims out of prod (B4)", async () => {
     // The capability shims are DEV-ONLY. Production keeps the bare `TypeError`
     // — still loud, just without the guidance — because only a plugin author,
     // at development time, ever reads them.
-    const { hasLoaderApi } = await import("../../dist/comvi-core.js");
+    const { createI18n, hasLoaderApi } = await import("../../dist/comvi-core.js");
+    const { attachLoader } = await import("../../dist/comvi-core-loader.js");
+    const { attachPlugins } = await import("../../dist/comvi-core-plugins.js");
+
     const pluginsOnly = attachPlugins(createI18n({ locale: "en", exposeGlobal: false }));
 
     expect(pluginsOnly.registerLoader).toBeUndefined();
@@ -220,7 +241,9 @@ describe("prod dist: base + /loader + /plugins composition (A6)", () => {
     // to read as "no loader" in prod exactly as in dev — where the branded shims
     // exist and are rejected, and here there are none to reject.
     expect(hasLoaderApi(pluginsOnly)).toBe(false);
-    expect(hasLoaderApi(attachLoader(createI18n({ locale: "en", exposeGlobal: false })))).toBe(true);
+    expect(hasLoaderApi(attachLoader(createI18n({ locale: "en", exposeGlobal: false })))).toBe(
+      true,
+    );
   });
 
   it("leaves no dev-only B2/B4 text in the prod artifacts", () => {
@@ -230,11 +253,10 @@ describe("prod dist: base + /loader + /plugins composition (A6)", () => {
     const files = distFiles(false);
     expect(files.length).toBeGreaterThan(0);
 
-    const devOnly = ["comviShim", "compose capabilities before init()", "capabilityShim"];
     const leaked: string[] = [];
     for (const file of files) {
       const source = fs.readFileSync(file, "utf8");
-      for (const needle of devOnly) {
+      for (const needle of DEV_ONLY_STRINGS) {
         if (source.includes(needle)) leaked.push(`${path.basename(file)} → ${needle}`);
       }
     }
@@ -245,7 +267,7 @@ describe("prod dist: base + /loader + /plugins composition (A6)", () => {
     const dev = distFiles(true)
       .map((file) => fs.readFileSync(file, "utf8"))
       .join("\n");
-    for (const needle of devOnly.slice(0, 2)) {
+    for (const needle of DEV_ONLY_STRINGS) {
       expect(dev, `${needle} must be readable in the dev build`).toContain(needle);
     }
   });
@@ -266,6 +288,8 @@ describe("prod dist: base + /loader + /plugins composition (A6)", () => {
 
   it("emits no dangling pure annotations before return statements", () => {
     const files = distFiles(false);
+    expect(files.length).toBeGreaterThan(0);
+
     const invalid: string[] = [];
     for (const file of files) {
       const source = fs.readFileSync(file, "utf8");

@@ -219,35 +219,56 @@ export function scanCorpus() {
   );
 }
 
-test("the pattern set fires on every retired phrasing it claims to retire", () => {
+/** One line, so a subtest name stays a name. */
+const label = (text) => text.split("\n")[0].trim();
+
+test("the pattern set fires on every retired phrasing it claims to retire", async (t) => {
   for (const canary of CANARIES) {
-    const fired = scanLines(canary.text.split("\n")).map((hit) => hit.pattern);
-    assert.ok(
-      fired.includes(canary.caughtBy),
-      `canary escaped its family "${canary.caughtBy}" (fired: ${fired.join(", ") || "none"}):\n  ${canary.text}`,
-    );
+    await t.test(`${canary.caughtBy}: ${label(canary.text)}`, () => {
+      const fired = scanLines(canary.text.split("\n")).map((hit) => hit.pattern);
+
+      assert.ok(
+        fired.includes(canary.caughtBy),
+        `canary escaped its family "${canary.caughtBy}" (fired: ${fired.join(", ") || "none"}):\n  ${canary.text}`,
+      );
+    });
   }
 });
 
-test("no pattern fires on prose that is still true", () => {
+test("no pattern fires on prose that is still true", async (t) => {
   for (const text of MUTATIONS) {
-    const fired = scanLines(text.split("\n")).map((hit) => hit.pattern);
-    assert.deepEqual(
-      fired,
-      [],
-      `pattern(s) ${fired.join(", ")} would demand an allow marker on correct prose:\n  ${text}\n` +
-        `Narrow the pattern; do not mark true prose as allowed.`,
-    );
+    await t.test(label(text), () => {
+      const fired = scanLines(text.split("\n")).map((hit) => hit.pattern);
+
+      assert.deepEqual(
+        fired,
+        [],
+        `pattern(s) ${fired.join(", ")} would demand an allow marker on correct prose:\n  ${text}\n` +
+          `Narrow the pattern; do not mark true prose as allowed.`,
+      );
+    });
   }
 });
 
-test("the allow marker is honoured, and only on the line that carries it", () => {
+test("the allow marker suppresses the line that carries it", () => {
   const line = "| `.with(icu())` after a loader | moved before the loader |";
+
   assert.deepEqual(
     scanLines([line]).map((hit) => hit.pattern),
     ["icu-before-loader"],
   );
   assert.deepEqual(scanLines([`${line} <!-- ${ALLOW_MARKER} -->`]), []);
+});
+
+test("a claim wrapped onto a second line is reported once, on the line it starts on, and the marker may sit on either line", () => {
+  const wrapped = ["`.with(icu())` before", "the loader yourself."];
+
+  assert.deepEqual(
+    scanLines(wrapped).map((hit) => `${hit.line}:${hit.pattern}`),
+    ["1:icu-before-loader"],
+  );
+  assert.deepEqual(scanLines([`${wrapped[0]} <!-- ${ALLOW_MARKER} -->`, wrapped[1]]), []);
+  assert.deepEqual(scanLines([wrapped[0], `${wrapped[1]} <!-- ${ALLOW_MARKER} -->`]), []);
 });
 
 test("release-facing prose carries no retired ordering rule", () => {

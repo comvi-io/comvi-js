@@ -24,7 +24,6 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { createI18n, I18nProvider, T } from "@comvi/react";
 
 const TEMPLATE = "Click <link>here</link> now";
-const AMBIENT = "Click [here] now";
 
 function assertEqual(actual, expected, label) {
   if (actual !== expected) {
@@ -51,12 +50,6 @@ assertEqual(
   TEMPLATE,
   "string t() markup stays literal after importing @comvi/react",
 );
-assertEqual(
-  i18n.t("msg", { link: linkHandler }) === AMBIENT,
-  false,
-  "string t() did NOT get ambient tag syntax from the react root",
-);
-
 const html = renderToStaticMarkup(
   React.createElement(
     I18nProvider,

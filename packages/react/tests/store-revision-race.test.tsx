@@ -18,11 +18,13 @@ describe("useStoreRevision — commit→subscribe (t2) window", () => {
       },
     });
 
-    let rendered = "";
     function Consumer() {
       const { t, defaultParams } = useI18n<{ formality: "formal" | "informal" }>();
-      rendered = `${defaultParams.formality}:${t("review" as never)}`;
-      return <span>{rendered}</span>;
+      return (
+        <span data-testid="out">
+          {defaultParams.formality}:{t("review" as never)}
+        </span>
+      );
     }
 
     function Injector() {
@@ -32,7 +34,7 @@ describe("useStoreRevision — commit→subscribe (t2) window", () => {
       return null;
     }
 
-    render(
+    const { getByTestId } = render(
       <I18nProvider i18n={i18n} autoInit={false}>
         <Injector />
         <Consumer />
@@ -40,7 +42,7 @@ describe("useStoreRevision — commit→subscribe (t2) window", () => {
     );
 
     await waitFor(() => {
-      expect(rendered).toBe("informal:Informal");
+      expect(getByTestId("out").textContent).toBe("informal:Informal");
     });
   });
 
@@ -53,11 +55,9 @@ describe("useStoreRevision — commit→subscribe (t2) window", () => {
       },
     });
 
-    let rendered = "";
     function Consumer() {
       const { t } = useI18n();
-      rendered = t("fallbackOnly" as never) as string;
-      return <span data-testid="out">{rendered}</span>;
+      return <span data-testid="out">{t("fallbackOnly" as never)}</span>;
     }
 
     // Layout effect runs during commit, before the consumer's passive subscribe (t2).
@@ -70,7 +70,7 @@ describe("useStoreRevision — commit→subscribe (t2) window", () => {
 
     const revisionBefore = i18n.translationCache.getRevision();
 
-    render(
+    const { getByTestId } = render(
       <I18nProvider i18n={i18n} autoInit={false}>
         <Injector />
         <Consumer />
@@ -80,7 +80,7 @@ describe("useStoreRevision — commit→subscribe (t2) window", () => {
     expect(i18n.translationCache.getRevision()).toBe(revisionBefore);
 
     await waitFor(() => {
-      expect(rendered).toBe("Fallback");
+      expect(getByTestId("out").textContent).toBe("Fallback");
     });
   });
 });

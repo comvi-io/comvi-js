@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { I18nProvider } from "../src/I18nProvider";
 import { useSetLocaleTransition } from "../src/useSetLocaleTransition";
 import { FakeI18n } from "../../../tooling/test-utils/fakeI18n";
+import { createDeferred } from "./test-utils";
 
 const createWrapper = (fake: FakeI18n) => {
   return ({ children }: { children: ReactNode }) => (
@@ -39,14 +40,9 @@ describe("useSetLocaleTransition", () => {
   it("keeps isPending true until the async locale change settles", async () => {
     const fake = new FakeI18n();
 
-    let resolveFn!: () => void;
-    const deferred = new Promise<void>((resolve) => {
-      resolveFn = resolve;
-    });
+    const deferred = createDeferred<void>();
 
-    fake.setLocaleAsync.mockImplementation(async () => {
-      await deferred;
-    });
+    fake.setLocaleAsync.mockImplementation(() => deferred.promise);
 
     const { result } = renderHook(() => useSetLocaleTransition(), {
       wrapper: createWrapper(fake),
@@ -61,8 +57,8 @@ describe("useSetLocaleTransition", () => {
     expect(result.current.isPending).toBe(true);
 
     await act(async () => {
-      resolveFn();
-      await deferred;
+      deferred.resolve();
+      await deferred.promise;
     });
 
     await waitFor(() => {
@@ -87,14 +83,40 @@ describe("useSetLocaleTransition", () => {
   });
 
   it("throws when used outside I18nProvider", () => {
-    const originalError = console.error;
-    console.error = vi.fn();
+    vi.spyOn(console, "error").mockImplementation(() => {});
 
     expect(() => renderHook(() => useSetLocaleTransition())).toThrow(
       "[i18n] Hooks must be used within an I18nProvider",
     );
+  });
 
-    console.error = originalError;
+  it("clears isPending and reports the error when the locale change rejects", async () => {
+    const fake = new FakeI18n();
+    const deferred = createDeferred<void>();
+    fake.setLocaleAsync.mockImplementation(() => deferred.promise);
+
+    const { result } = renderHook(() => useSetLocaleTransition(), {
+      wrapper: createWrapper(fake),
+    });
+
+    await act(async () => {
+      result.current.setLocale("fr");
+    });
+
+    expect(result.current.isPending).toBe(true);
+
+    await act(async () => {
+      deferred.reject(new Error("catalog 500"));
+      await deferred.promise.catch(() => {});
+    });
+
+    await waitFor(() => {
+      expect(result.current.isPending).toBe(false);
+    });
+    expect(fake.reportError).toHaveBeenCalledWith(new Error("catalog 500"), {
+      source: "setLocale",
+      locale: "fr",
+    });
   });
 
   it("setLocale reference is stable across re-renders", () => {

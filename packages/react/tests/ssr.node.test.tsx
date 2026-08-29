@@ -23,7 +23,7 @@ describe("@comvi/react SSR — getServerSnapshot paths (W4)", () => {
       </I18nProvider>,
     );
 
-    expect(html).toContain("Bonjour");
+    expect(html.replaceAll("<!-- -->", "")).toBe("Bonjour");
   });
 
   it("ssrInitialLocale overrides the i18n.locale on the server snapshot path", () => {
@@ -89,7 +89,28 @@ describe("@comvi/react SSR — getServerSnapshot paths (W4)", () => {
       </I18nProvider>,
     );
 
-    expect(html).toContain("Hello");
-    expect(html).toContain('data-locale="en"');
+    expect(html.replaceAll("<!-- -->", "")).toBe('<span data-locale="en">Hello</span>');
+  });
+
+  it("falls back to the live host state when no ssrInitial* prop is given", () => {
+    const i18n = createI18n({ locale: "en", translation: { en: { x: "x" } } });
+
+    function Show() {
+      const { isLoading, isInitializing } = useIsLoading();
+      return (
+        <span data-loading={String(isLoading)} data-init={String(isInitializing)}>
+          state
+        </span>
+      );
+    }
+
+    const html = renderToString(
+      <I18nProvider i18n={i18n} autoInit={false}>
+        <Show />
+      </I18nProvider>,
+    );
+
+    expect(html).toContain('data-loading="false"');
+    expect(html).toContain('data-init="false"');
   });
 });

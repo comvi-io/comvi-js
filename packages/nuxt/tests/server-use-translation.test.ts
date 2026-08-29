@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { hasLoaderApi } from "@comvi/core";
 
 const getCookie = vi.fn();
 const getHeader = vi.fn();
@@ -18,7 +19,8 @@ vi.mock("#build/comvi.setup", () => ({
   runComviSetup,
 }));
 
-function createEvent(runtimeConfigOverrides: Partial<any> = {}) {
+/** Overrides merge into `public.comvi`, so a test shows only the field it varies. */
+function createEvent(comviOverrides: Record<string, unknown> = {}) {
   return {
     context: {
       runtimeConfig: {
@@ -36,10 +38,10 @@ function createEvent(runtimeConfigOverrides: Partial<any> = {}) {
             },
             cdnUrl: undefined,
             apiBaseUrl: "https://api.example.com",
+            ...comviOverrides,
           },
         },
         comvi: {},
-        ...runtimeConfigOverrides,
       },
     },
   } as any;
@@ -153,9 +155,8 @@ describe("useTranslation (server)", () => {
 
     expect(locale).toBe("de");
     expect(t("hello")).toBe("translated-value");
-    expect(i18n.addActiveNamespace).toBeUndefined();
+    expect(hasLoaderApi(i18n)).toBe(false);
     expect(warnSpy).not.toHaveBeenCalled();
-    warnSpy.mockRestore();
   });
 
   it("detects locale from cookie when enabled and supported", async () => {
@@ -189,21 +190,10 @@ describe("useTranslation (server)", () => {
 
     const { locale } = await useTranslation(
       createEvent({
-        public: {
-          comvi: {
-            locales: ["en-US", "de-DE"],
-            defaultLocale: "en-US",
-            cookieName: "i18n_locale",
-            defaultNs: "common",
-            fallbackLocale: "en-US",
-            detectBrowserLanguage: {
-              useCookie: true,
-              fallbackLocale: "en-US",
-            },
-            cdnUrl: undefined,
-            apiBaseUrl: "https://api.example.com",
-          },
-        },
+        locales: ["en-US", "de-DE"],
+        defaultLocale: "en-US",
+        fallbackLocale: "en-US",
+        detectBrowserLanguage: { useCookie: true, fallbackLocale: "en-US" },
       }),
     );
 
@@ -218,17 +208,7 @@ describe("useTranslation (server)", () => {
     const useTranslation = await importUseTranslation();
 
     const { locale } = await useTranslation(
-      createEvent({
-        public: {
-          comvi: {
-            locales: ["en", "de"],
-            defaultLocale: "en",
-            defaultNs: "common",
-            cookieName: "i18n_locale",
-            detectBrowserLanguage: false,
-          },
-        },
-      }),
+      createEvent({ locales: ["en", "de"], detectBrowserLanguage: false }),
     );
 
     expect(locale).toBe("en");
@@ -264,16 +244,38 @@ describe("useTranslation (server)", () => {
 
     const pendingA = useTranslation(event, { locale: "en" });
     const pendingB = useTranslation(event, { locale: "en" });
-    await vi.waitFor(() => {
-      expect(createComviCore).toHaveBeenCalledTimes(1);
-      expect(runComviSetup).toHaveBeenCalledTimes(1);
-      expect(i18n.init).toHaveBeenCalledTimes(1);
-    });
+    // While init is still gated, both calls are in flight: the second joined the
+    // first rather than constructing a host of its own.
+    await Promise.resolve();
+    expect(createComviCore).toHaveBeenCalledTimes(1);
+    expect(runComviSetup).toHaveBeenCalledTimes(1);
+    expect(i18n.init).toHaveBeenCalledTimes(1);
 
     releaseInit();
     const [resultA, resultB] = await Promise.all([pendingA, pendingB]);
+
+    // Re-checked after both settled: an init scheduled later in the sequence would
+    // be caught here, not only within the first microtask.
+    expect(createComviCore).toHaveBeenCalledTimes(1);
+    expect(runComviSetup).toHaveBeenCalledTimes(1);
+    expect(i18n.init).toHaveBeenCalledTimes(1);
     expect(resultA.locale).toBe("en");
     expect(resultB.locale).toBe("en");
+  });
+
+  it("evicts a failed request instance so a later call in the same request retries", async () => {
+    const failing = createI18nStub("en");
+    failing.init.mockRejectedValueOnce(new Error("comvi.setup blew up"));
+    const healthy = createI18nStub("en");
+    createComviCore.mockImplementationOnce(() => failing).mockImplementationOnce(() => healthy);
+    const useTranslation = await importUseTranslation();
+    const event = createEvent();
+
+    await expect(useTranslation(event, { locale: "en" })).rejects.toThrow("comvi.setup blew up");
+    const { locale } = await useTranslation(event, { locale: "en" });
+
+    expect(locale).toBe("en");
+    expect(createComviCore).toHaveBeenCalledTimes(2);
   });
 
   it("creates isolated request-scoped i18n instances per locale", async () => {

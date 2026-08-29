@@ -69,10 +69,11 @@ describe("Subtree instance shadowing via I18N_INJECTION_KEY", () => {
       global: { provide: { [I18N_INJECTION_KEY as symbol]: appI18n } },
     });
 
-    const sections = wrapper.findAll("section");
-    expect(wrapper.find("span.app").text()).toBe("Your review");
-    expect(sections[0].text()).toBe("Ihre BewertungIhre Bewertung");
-    expect(sections[1].text()).toBe("Ton avis");
+    const deScope = wrapper.get("section.de");
+    expect(wrapper.get("span.app").text()).toBe("Your review");
+    expect(deScope.get("span").text()).toBe("Ihre Bewertung");
+    expect(deScope.text()).toBe("Ihre BewertungIhre Bewertung");
+    expect(wrapper.get("section.fr").text()).toBe("Ton avis");
   });
 
   it("call-level params still override the subtree instance defaults", () => {

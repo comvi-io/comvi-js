@@ -13,6 +13,19 @@ declare module "@comvi/core" {
   }
 }
 
+/** A plugins host whose post-processor upper-cases anything not asked for raw. */
+const hostWithUppercasePostProcessor = () => {
+  const i18n = createI18n({ locale: "en" }).with(plugins());
+  i18n.addTranslations({ "en:default": { reserved: "English default" } });
+  i18n.registerPostProcessor((result, _key, _ns, params) => {
+    if (params?.raw === true) {
+      return result;
+    }
+    return typeof result === "string" ? result.toUpperCase() : result;
+  });
+  return i18n;
+};
+
 const renderWithI18n = async (i18n: I18n, ui: ReactElement) => {
   await i18n.init();
 
@@ -32,7 +45,7 @@ describe("<T /> behavior", () => {
       },
     });
 
-    await renderWithI18n(
+    const { container } = await renderWithI18n(
       i18n,
       <T
         i18nKey="farewell"
@@ -42,30 +55,31 @@ describe("<T /> behavior", () => {
       />,
     );
 
-    expect(screen.getByText("Goodbye Right, see you tomorrow").textContent).toBe(
-      "Goodbye Right, see you tomorrow",
-    );
+    expect(container.textContent).toBe("Goodbye Right, see you tomorrow");
   });
 
   it("uses children as fallback when translation is missing", async () => {
     const i18n = createI18n({ locale: "en" });
 
-    await renderWithI18n(i18n, <T i18nKey="missing.key">Children fallback</T>);
+    const { container } = await renderWithI18n(
+      i18n,
+      <T i18nKey="missing.key">Children fallback</T>,
+    );
 
-    expect(screen.getByText("Children fallback").textContent).toBe("Children fallback");
+    expect(container.textContent).toBe("Children fallback");
   });
 
   it("prefers fallback prop over children when translation is missing", async () => {
     const i18n = createI18n({ locale: "en" });
 
-    await renderWithI18n(
+    const { container } = await renderWithI18n(
       i18n,
       <T i18nKey="missing.key" fallback="Fallback text">
         Children fallback
       </T>,
     );
 
-    expect(screen.getByText("Fallback text").textContent).toBe("Fallback text");
+    expect(container.textContent).toBe("Fallback text");
     expect(screen.queryByText("Children fallback")).toBeNull();
   });
 
@@ -76,50 +90,31 @@ describe("<T /> behavior", () => {
       "fr:dashboard": { greeting: "Bonjour dashboard" },
     });
 
-    await renderWithI18n(i18n, <T i18nKey="greeting" locale="fr" ns="dashboard" />);
+    const { container } = await renderWithI18n(
+      i18n,
+      <T i18nKey="greeting" locale="fr" ns="dashboard" />,
+    );
 
-    expect(screen.getByText("Bonjour dashboard").textContent).toBe("Bonjour dashboard");
+    expect(container.textContent).toBe("Bonjour dashboard");
     expect(screen.queryByText("Hello")).toBeNull();
   });
 
   it("preserves reserved params from params when explicit overrides are absent", async () => {
-    const i18n = createI18n({ locale: "en" }).with(plugins());
-    i18n.addTranslations({
-      "en:default": { reserved: "English default" },
-    });
-    i18n.registerPostProcessor((result, _key, _ns, params) => {
-      if (params?.raw === true) {
-        return result;
-      }
-      return typeof result === "string" ? result.toUpperCase() : result;
-    });
-
-    await renderWithI18n(
-      i18n,
+    const { container } = await renderWithI18n(
+      hostWithUppercasePostProcessor(),
       <T
         i18nKey="reserved"
         params={{ locale: "fr", ns: "custom", fallback: "fallback text", raw: true }}
       />,
     );
 
-    expect(screen.getByText("fallback text").textContent).toBe("fallback text");
+    expect(container.textContent).toBe("fallback text");
     expect(screen.queryByText("English default")).toBeNull();
   });
 
   it("lets explicit reserved props override reserved values inside params", async () => {
-    const i18n = createI18n({ locale: "en" }).with(plugins());
-    i18n.addTranslations({
-      "en:default": { reserved: "English default" },
-    });
-    i18n.registerPostProcessor((result, _key, _ns, params) => {
-      if (params?.raw === true) {
-        return result;
-      }
-      return typeof result === "string" ? result.toUpperCase() : result;
-    });
-
-    await renderWithI18n(
-      i18n,
+    const { container } = await renderWithI18n(
+      hostWithUppercasePostProcessor(),
       <T
         i18nKey="reserved"
         locale="fr"
@@ -130,7 +125,7 @@ describe("<T /> behavior", () => {
       />,
     );
 
-    expect(screen.getByText("FALLBACK TEXT").textContent).toBe("FALLBACK TEXT");
+    expect(container.textContent).toBe("FALLBACK TEXT");
     expect(screen.queryByText("English default")).toBeNull();
   });
 });

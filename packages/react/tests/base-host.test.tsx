@@ -26,8 +26,8 @@ const makeHost = () =>
     locale: "en",
     exposeGlobal: false,
     translation: {
-      en: { greeting: "Hello, {name}!", rich: "Click <link>here</link>", price: "Price" },
-      fr: { greeting: "Bonjour, {name} !", rich: "Cliquez <link>ici</link>", price: "Prix" },
+      en: { greeting: "Hello, {name}!", rich: "Click <link>here</link>" },
+      fr: { greeting: "Bonjour, {name} !", rich: "Cliquez <link>ici</link>" },
     },
   });
 
@@ -39,6 +39,14 @@ const wrapperFor = (i18n: WrapperI18nHost) =>
       </I18nProvider>
     );
   };
+
+const HOST_SAFE_MEMBERS = ["t", "tRaw", "setLocale", "addTranslations", "on", "reportError"];
+const CAPABILITY_MEMBERS = [
+  "addActiveNamespace",
+  "reloadTranslations",
+  "onLoadError",
+  "onMissingKey",
+];
 
 describe("react on a base host", () => {
   it("renders translations through useI18n()", () => {
@@ -54,17 +62,19 @@ describe("react on a base host", () => {
     const i18n = makeHost();
     const { result } = renderHook(() => useI18n(), { wrapper: wrapperFor(i18n) });
 
-    for (const name of ["t", "tRaw", "setLocale", "addTranslations", "on", "reportError"]) {
-      expect(typeof (result.current as unknown as Record<string, unknown>)[name]).toBe("function");
-    }
-    for (const name of [
-      "addActiveNamespace",
-      "reloadTranslations",
-      "onLoadError",
-      "onMissingKey",
-    ]) {
-      expect(name in result.current).toBe(false);
-    }
+    const present = CAPABILITY_MEMBERS.filter((name) => name in result.current);
+
+    expect(present).toEqual([]);
+  });
+
+  it("exposes every host-safe member of the bag as a callable", () => {
+    const i18n = makeHost();
+    const { result } = renderHook(() => useI18n(), { wrapper: wrapperFor(i18n) });
+
+    const bag = result.current as unknown as Record<string, unknown>;
+    const missing = HOST_SAFE_MEMBERS.filter((name) => typeof bag[name] !== "function");
+
+    expect(missing).toEqual([]);
   });
 
   it("re-renders on a locale change driven through the host", async () => {
@@ -83,8 +93,8 @@ describe("react on a base host", () => {
     const i18n = makeHost();
     const { result } = renderHook(() => useFormatters(), { wrapper: wrapperFor(i18n) });
 
-    expect(result.current.formatNumber(1234.5)).toBe(new Intl.NumberFormat("en").format(1234.5));
-    expect(result.current.formatCurrency(10, "USD")).toContain("10");
+    expect(result.current.formatNumber(1234.5)).toBe("1,234.5");
+    expect(result.current.formatCurrency(10, "USD")).toBe("$10.00");
   });
 
   it("switches locale through useSetLocaleTransition()", async () => {

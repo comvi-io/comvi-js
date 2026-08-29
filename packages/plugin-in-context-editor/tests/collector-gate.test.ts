@@ -17,6 +17,7 @@ describe("collector/gate", () => {
       ],
       "/home",
     );
+
     expect(a).toBe(b);
   });
 
@@ -24,6 +25,7 @@ describe("collector/gate", () => {
     const targets = [{ namespace: "ns", key: "a" }];
     const home = computeVisibleSetSignature(targets, "/home");
     const settings = computeVisibleSetSignature(targets, "/settings");
+
     expect(home).not.toBe(settings);
   });
 
@@ -42,6 +44,7 @@ describe("collector/gate", () => {
       ],
       "",
     );
+
     expect(plain).not.toBe(withModal);
   });
 
@@ -54,12 +57,25 @@ describe("collector/gate", () => {
       ],
       "/home",
     );
+
     expect(base).not.toBe(withExtra);
+  });
+
+  it("computeVisibleSetSignature returns a screenGroup-specific signature for an empty target list", () => {
+    const emptyHome = computeVisibleSetSignature([], "/home");
+    const emptySettings = computeVisibleSetSignature([], "/settings");
+
+    expect(emptyHome).toBe(computeVisibleSetSignature([], "/home"));
+    expect(emptyHome).not.toBe(emptySettings);
+    expect(emptyHome).not.toBe(
+      computeVisibleSetSignature([{ namespace: "ns", key: "a" }], "/home"),
+    );
   });
 
   describe("VisibleSetGate", () => {
     it("reports a change on the first call", () => {
       const gate = new VisibleSetGate();
+
       expect(gate.hasChanged("sig-1")).toBe(true);
     });
 
@@ -73,13 +89,16 @@ describe("collector/gate", () => {
     it("reports a change again once the signature differs", () => {
       const gate = new VisibleSetGate();
       gate.hasChanged("sig-1");
+
       expect(gate.hasChanged("sig-2")).toBe(true);
     });
 
     it("reset() forgets the last signature", () => {
       const gate = new VisibleSetGate();
       gate.hasChanged("sig-1");
+
       gate.reset();
+
       expect(gate.hasChanged("sig-1")).toBe(true);
     });
   });

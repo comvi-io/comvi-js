@@ -6,8 +6,8 @@ import { icuCompiler } from "../../src/icu";
 import { clearTemplateCache } from "../../src/core/translate";
 import { simpleCompiler, type IcuSyntaxError } from "../../src/core/translate/compile-simple";
 import { parseTemplate } from "../../src/core/translate/parser";
-import { TK_TEXT } from "../../src/core/translate/cache";
-import { _resetSyntaxExtensions, type MessageCompiler } from "../../src/core/translate/syntax";
+import { _resetSyntaxExtensions } from "../../src/core/translate/syntax";
+import { markerCompiler } from "../helpers/compilers";
 
 /**
  * The structured `E_ICU_SYNTAX` detector.
@@ -118,29 +118,21 @@ describe("E_ICU_SYNTAX — what the detector must NOT claim", () => {
 
 describe("E_ICU_SYNTAX — repetition and bypass", () => {
   it("re-throws on every attempt: a failed parse is never cached", () => {
-    for (let attempt = 0; attempt < 3; attempt++) {
-      expect(parseFailure("{count, plural, other {#}}").code).toBe("E_ICU_SYNTAX");
-    }
+    const codes = [1, 2, 3].map(() => parseFailure("{count, plural, other {#}}").code);
+
+    expect(codes).toEqual(["E_ICU_SYNTAX", "E_ICU_SYNTAX", "E_ICU_SYNTAX"]);
   });
 
-  it("is bypassed by the ICU compiler and by any custom compiler", () => {
-    const icu = createI18n({
+  it.each([
+    ["the ICU compiler", icuCompiler, "2 items"],
+    ["a custom compiler", markerCompiler, "«count»"],
+  ])("is bypassed by %s", (_label, compiler, expected) => {
+    const i18n = createI18n({
       locale: "en",
-      compiler: icuCompiler,
+      compiler,
       translation: { en: { items: "{count, plural, one {# item} other {# items}}" } },
     });
-    expect(icu.t("items" as never, { count: 2 } as never)).toBe("2 items");
 
-    const marker: MessageCompiler = {
-      makeArgToken(content) {
-        return [TK_TEXT, `«${content.trim().split(",")[0]}»`];
-      },
-    };
-    const custom = createI18n({
-      locale: "en",
-      compiler: marker,
-      translation: { en: { items: "{count, plural, one {# item} other {# items}}" } },
-    });
-    expect(custom.t("items" as never, { count: 2 } as never)).toBe("«count»");
+    expect(i18n.t("items" as never, { count: 2 } as never)).toBe(expected);
   });
 });

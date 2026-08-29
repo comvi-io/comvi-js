@@ -81,7 +81,18 @@ vi.mock("../src/KeySelector", () => ({
   cleanup: () => cleanupKeySelectorMock(),
 }));
 
-import { Core } from "../src/Core";
+import { Core, type EditorI18n } from "../src/Core";
+import { flushMicrotasks } from "./helpers";
+
+const HOST = { apiKey: "test-key" } as unknown as EditorI18n;
+
+/** The click handler `Core` hands to `ElementHighlighter`, captured by ctor position. */
+function clickElement(element: Element): void {
+  if (!capturedElementClickHandler) {
+    throw new Error("Core never handed a click handler to ElementHighlighter");
+  }
+  capturedElementClickHandler(element);
+}
 
 describe("Core unit behavior", () => {
   beforeEach(() => {
@@ -110,7 +121,7 @@ describe("Core unit behavior", () => {
   });
 
   it("should open modal when element has a single translation key", async () => {
-    const core = new Core({}, { apiKey: "test-key" } as any);
+    const core = new Core({}, HOST);
     const instanceId = core.getInstanceId();
     const element = document.createElement("div");
     const textNode = document.createTextNode("text");
@@ -128,7 +139,7 @@ describe("Core unit behavior", () => {
       ]),
     });
 
-    capturedElementClickHandler?.(element);
+    clickElement(element);
 
     await vi.waitFor(() => {
       expect(showModalMock).toHaveBeenCalledWith("home.title", "default", instanceId);
@@ -138,7 +149,7 @@ describe("Core unit behavior", () => {
   });
 
   it("should show key selector when element has multiple keys, then open modal on selection", async () => {
-    const core = new Core({}, { apiKey: "test-key" } as any);
+    const core = new Core({}, HOST);
     const instanceId = core.getInstanceId();
     const element = document.createElement("div");
     const textNodeA = document.createTextNode("a");
@@ -165,7 +176,7 @@ describe("Core unit behavior", () => {
       ]),
     });
 
-    capturedElementClickHandler?.(element);
+    clickElement(element);
 
     await vi.waitFor(() => {
       expect(showKeySelectorMock).toHaveBeenCalledTimes(1);
@@ -188,22 +199,47 @@ describe("Core unit behavior", () => {
   });
 
   it("does not open lazy UI when stopped before the import resolves", async () => {
-    const core = new Core({}, { apiKey: "test-key" } as any);
+    const core = new Core({}, HOST);
     const element = document.createElement("div");
     registryGetMock.mockReturnValue({
       nodes: new Map([[document.createTextNode("text"), { key: "home.title", ns: "default" }]]),
     });
 
-    capturedElementClickHandler?.(element);
+    clickElement(element);
     core.stop();
-    await Promise.resolve();
-    await Promise.resolve();
+    await flushMicrotasks();
 
     expect(showModalMock).not.toHaveBeenCalled();
   });
 
+  it("opens neither the modal nor the selector for an element missing from the registry", async () => {
+    const core = new Core({}, HOST);
+    registryGetMock.mockReturnValue(undefined);
+
+    clickElement(document.createElement("div"));
+    await flushMicrotasks();
+
+    expect(showModalMock).not.toHaveBeenCalled();
+    expect(showKeySelectorMock).not.toHaveBeenCalled();
+
+    core.stop();
+  });
+
+  it("opens neither the modal nor the selector for a registry entry with no nodes", async () => {
+    const core = new Core({}, HOST);
+    registryGetMock.mockReturnValue({ nodes: new Map() });
+
+    clickElement(document.createElement("div"));
+    await flushMicrotasks();
+
+    expect(showModalMock).not.toHaveBeenCalled();
+    expect(showKeySelectorMock).not.toHaveBeenCalled();
+
+    core.stop();
+  });
+
   it("reports lazy UI failures without leaking an unhandled rejection", async () => {
-    const core = new Core({}, { apiKey: "test-key" } as any);
+    const core = new Core({}, HOST);
     const element = document.createElement("div");
     const error = new Error("chunk failed");
     const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
@@ -214,7 +250,7 @@ describe("Core unit behavior", () => {
       nodes: new Map([[document.createTextNode("text"), { key: "home.title", ns: "default" }]]),
     });
 
-    expect(() => capturedElementClickHandler?.(element)).not.toThrow();
+    expect(() => clickElement(element)).not.toThrow();
     await vi.waitFor(() => {
       expect(consoleError).toHaveBeenCalledWith("[comvi] Failed to load editor UI:", error);
     });

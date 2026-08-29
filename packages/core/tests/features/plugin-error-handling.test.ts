@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { I18n } from "../helpers/composedHost";
 import type { I18nPlugin } from "../helpers/composedHost";
+import { flushMicrotasks } from "../helpers/flush";
 
 /**
  * The plugin error-handling contract: required plugins fail fast, optional ones
@@ -116,9 +117,13 @@ describe("Plugin Error Handling", () => {
       i18n.use(slowPlugin, { required: true, timeout: 100 });
 
       const initPromise = i18n.init();
-      vi.advanceTimersByTime(150);
+      // Attached before the clock moves: advancing async drains the microtask
+      // queue, so an unattached rejection would surface as an unhandled one.
+      const rejection = expect(initPromise).rejects.toThrow(/timed out after 100ms/);
 
-      await expect(initPromise).rejects.toThrow(/timed out|E_PLUGIN_INIT_TIMEOUT/);
+      await vi.advanceTimersByTimeAsync(150);
+
+      await rejection;
     });
 
     it("continues after an optional plugin times out", async () => {
@@ -134,7 +139,7 @@ describe("Plugin Error Handling", () => {
       i18n.use(fastPlugin, { required: true });
 
       const initPromise = i18n.init();
-      vi.advanceTimersByTime(150);
+      await vi.advanceTimersByTimeAsync(150);
 
       await expect(initPromise).resolves.toBe(i18n);
       expect(executionOrder).toEqual(["fast"]);
@@ -163,37 +168,31 @@ describe("Plugin Error Handling", () => {
     it("continues cleanup even if one throws", async () => {
       const onError = vi.fn();
       const cleanupOrder: string[] = [];
-      const cleanup1 = vi.fn(() => {
+
+      const i18n = new I18n({ locale: "en", onError });
+      i18n.use(() => () => {
         cleanupOrder.push("cleanup1");
       });
-      const cleanup2 = vi.fn(() => {
+      i18n.use(() => () => {
         cleanupOrder.push("cleanup2");
         throw new Error("Cleanup error");
       });
-      const cleanup3 = vi.fn(() => {
+      i18n.use(() => () => {
         cleanupOrder.push("cleanup3");
       });
-
-      const i18n = new I18n({ locale: "en", onError });
-      i18n.use(() => cleanup1);
-      i18n.use(() => cleanup2);
-      i18n.use(() => cleanup3);
 
       await i18n.init();
       await i18n.destroy();
 
-      expect(cleanup3).toHaveBeenCalledTimes(1);
-      expect(cleanup2).toHaveBeenCalledTimes(1);
-      expect(cleanup1).toHaveBeenCalledTimes(1);
       expect(cleanupOrder).toEqual(["cleanup3", "cleanup2", "cleanup1"]);
       expect(onError).toHaveBeenCalledWith(
-        expect.any(Error),
+        expect.objectContaining({ message: "Cleanup error" }),
         expect.objectContaining({ source: "plugin-cleanup" }),
       );
     });
 
     it("awaits async cleanup functions", async () => {
-      let destroyFinished = false;
+      const order: string[] = [];
       let resolveCleanup!: () => void;
 
       const cleanupPromise = new Promise<void>((resolve) => {
@@ -205,16 +204,20 @@ describe("Plugin Error Handling", () => {
       await i18n.init();
 
       const destroyPromise = i18n.destroy().then(() => {
-        destroyFinished = true;
+        order.push("destroy-done");
       });
 
-      await Promise.resolve();
-      expect(destroyFinished).toBe(false);
+      // A macrotask boundary drains every pending microtask, so a `destroy()`
+      // that did NOT await the cleanup promise would already have settled here.
+      await flushMicrotasks();
 
+      expect(order).toEqual([]);
+
+      order.push("cleanup-resolved");
       resolveCleanup();
       await destroyPromise;
 
-      expect(destroyFinished).toBe(true);
+      expect(order).toEqual(["cleanup-resolved", "destroy-done"]);
     });
   });
 });

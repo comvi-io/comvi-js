@@ -8,14 +8,14 @@
  * wrappers — source of truth packages/svelte/tests/T-structural.test.ts, keep
  * the four in sync.
  */
-import { describe, it, expect, afterEach } from "vitest";
-import { render } from "solid-js/web";
+import { describe, it, expect, beforeAll } from "vitest";
 import type { JSX } from "solid-js";
 import { createI18n } from "../src/index";
 import type { WrapperI18nHost } from "@comvi/core";
 import { I18nProvider } from "../src/context";
 import { T } from "../src/T";
 import type { ComponentMap } from "../src/types";
+import { renderSolid } from "./test-utils";
 
 export const WRAPPER_PARITY_FIXTURE = {
   translations: {
@@ -51,25 +51,12 @@ const makeI18n = async (translations: Record<string, string>) => {
 };
 
 describe("<T /> structural render (real core)", () => {
-  let dispose: (() => void) | undefined;
-
-  afterEach(() => {
-    dispose?.();
-    dispose = undefined;
-  });
-
-  const renderT = (i18n: WrapperI18nHost, ui: () => JSX.Element) => {
-    const container = document.createElement("div");
-    dispose = render(
-      () => (
-        <I18nProvider i18n={i18n} autoInit={false}>
-          {ui()}
-        </I18nProvider>
-      ),
-      container,
-    );
-    return container;
-  };
+  const renderT = (i18n: WrapperI18nHost, ui: () => JSX.Element) =>
+    renderSolid(() => (
+      <I18nProvider i18n={i18n} autoInit={false}>
+        {ui()}
+      </I18nProvider>
+    ));
 
   it("invokes a Solid component handler with the tag content as children", async () => {
     const i18n = await makeI18n({ earned: "You earned <badge>gold</badge>!" });
@@ -93,10 +80,14 @@ describe("<T /> structural render (real core)", () => {
   // only because `prepareTranslation` passes the tag extension per call. Every
   // row must produce byte-identical text to the svelte/vue/react wrappers.
   describe("fallback-parity fixture (shared with svelte/vue/react)", () => {
-    for (const parityCase of WRAPPER_PARITY_FIXTURE.cases) {
-      it(`produces the shared text for "${parityCase.key}"`, async () => {
-        const i18n = await makeI18n({ ...WRAPPER_PARITY_FIXTURE.translations });
+    let i18n: Awaited<ReturnType<typeof makeI18n>>;
 
+    beforeAll(async () => {
+      i18n = await makeI18n({ ...WRAPPER_PARITY_FIXTURE.translations });
+    });
+
+    for (const parityCase of WRAPPER_PARITY_FIXTURE.cases) {
+      it(`produces the shared text for "${parityCase.key}"`, () => {
         const container = renderT(i18n, () => (
           <T
             i18nKey={parityCase.key as never}

@@ -1,12 +1,19 @@
 import { describe, it, expect } from "vitest";
 import { computeObservationHash, HASH_FN_VERSION } from "../src/collector/hash";
-import { computeObservationHash as computeCanonicalHash } from "../src/collector/hash/observation-hash";
 import type { ConstraintSignals, NeighborCandidate } from "../src/collector/types";
 
-function makeConstraints(overrides: Partial<ConstraintSignals["hard"]> = {}): ConstraintSignals {
+function makeConstraints(
+  hard: Partial<ConstraintSignals["hard"]> = {},
+  soft: Partial<ConstraintSignals["soft"]> = {},
+): ConstraintSignals {
   return {
-    hard: { mustBeShort: false, singleLine: false, widthBucket: "medium", ...overrides },
-    soft: { likelyTruncated: false, visuallyCompact: false, visualProminence: "medium" },
+    hard: { mustBeShort: false, singleLine: false, widthBucket: "medium", ...hard },
+    soft: {
+      likelyTruncated: false,
+      visuallyCompact: false,
+      visualProminence: "medium",
+      ...soft,
+    },
   };
 }
 
@@ -106,8 +113,7 @@ describe("collector/hash", () => {
     expect(hashA).not.toBe(hashB);
   });
 
-  it("canonical sort compares namespace first, then key, tying on identical tuples", () => {
-    // Different namespace, same key -> namespace comparator branch.
+  it("is invariant to a namespace-ordered reorder when the keys are equal", () => {
     const byNamespace = computeObservationHash({
       uiType: "form-label",
       translationRole: "field-label",
@@ -126,19 +132,50 @@ describe("collector/hash", () => {
         makeNeighbor({ namespace: "b", key: "same" }),
       ],
     });
-    expect(byNamespace).toBe(byNamespaceReordered);
 
-    // Identical (namespace,key) tuple appearing twice -> the tie ("equal") branch.
+    expect(byNamespace).toBe(byNamespaceReordered);
+  });
+
+  it("keeps a repeated (namespace,key) neighbour as a second entry rather than collapsing it", () => {
+    const duplicate = makeNeighbor({ namespace: "ns", key: "dup", relativePosition: "above" });
+
     const withTie = computeObservationHash({
       uiType: "form-label",
       translationRole: "field-label",
       constraints: makeConstraints(),
-      neighbors: [
-        makeNeighbor({ namespace: "ns", key: "dup", relativePosition: "above" }),
-        makeNeighbor({ namespace: "ns", key: "dup", relativePosition: "above" }),
-      ],
+      neighbors: [duplicate, { ...duplicate }],
     });
-    expect(typeof withTie).toBe("string");
+    const withoutTie = computeObservationHash({
+      uiType: "form-label",
+      translationRole: "field-label",
+      constraints: makeConstraints(),
+      neighbors: [duplicate],
+    });
+
+    expect(withTie).toBe("d6a66df04a8946d4b918f64a61170019a368733535d03cb54cd106d6d8b8b730");
+    expect(withTie).not.toBe(withoutTie);
+  });
+
+  it("ignores the soft constraint signals, which never reach the hash input", () => {
+    const neighbors = [makeNeighbor()];
+
+    const neutral = computeObservationHash({
+      uiType: "form-label",
+      translationRole: "field-label",
+      constraints: makeConstraints(),
+      neighbors,
+    });
+    const softChanged = computeObservationHash({
+      uiType: "form-label",
+      translationRole: "field-label",
+      constraints: makeConstraints(
+        {},
+        { likelyTruncated: true, visuallyCompact: true, visualProminence: "high" },
+      ),
+      neighbors,
+    });
+
+    expect(softChanged).toBe(neutral);
   });
 
   it("changes when the neighbor SET identity changes (different key)", () => {
@@ -186,7 +223,7 @@ describe("collector/hash", () => {
     expect(hashA).toBe(hashB);
   });
 
-  it("adapts faithfully to the canonical function — matches calling it directly with the mapped shape", () => {
+  it("matches the primary-button-with-neighbors golden vector", () => {
     const neighbors: NeighborCandidate[] = [
       makeNeighbor({
         namespace: "common",
@@ -205,37 +242,20 @@ describe("collector/hash", () => {
         distance: 60,
       }),
     ];
-    const constraints = makeConstraints({
-      widthBucket: "small",
-      mustBeShort: true,
-      singleLine: true,
-    });
 
-    const viaAdapter = computeObservationHash({
+    const hash = computeObservationHash({
       uiType: "primary-button",
       translationRole: "imperative-verb",
-      constraints,
+      constraints: makeConstraints({
+        widthBucket: "small",
+        mustBeShort: true,
+        singleLine: true,
+      }),
       neighbors,
     });
 
-    const viaCanonical = computeCanonicalHash({
-      uiType: "primary-button",
-      translationRole: "imperative-verb",
-      mustBeShort: constraints.hard.mustBeShort,
-      singleLine: constraints.hard.singleLine,
-      widthBucket: constraints.hard.widthBucket,
-      neighbors: neighbors.map((n) => ({
-        namespace: n.namespace,
-        key: n.key,
-        relativePosition: n.relativePosition,
-        sameContainerAs: n.sameContainerAs,
-        readingOrderIndex: n.readingOrderIndex,
-        distance: n.distance,
-      })),
-    });
-
-    expect(viaAdapter).toBe(viaCanonical);
-    // Matches the "primary-button-with-neighbors" golden vector exactly.
-    expect(viaAdapter).toBe("687e589ddb606fc0bd7a07284be11bbaa4d5a4d22c562f8adf87d92833a4610a");
+    // The cross-repo "primary-button-with-neighbors" vector: the server derives
+    // the same digest from the same observation, so this pins the wire contract.
+    expect(hash).toBe("687e589ddb606fc0bd7a07284be11bbaa4d5a4d22c562f8adf87d92833a4610a");
   });
 });

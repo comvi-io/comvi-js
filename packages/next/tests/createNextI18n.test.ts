@@ -3,18 +3,10 @@ import type { I18nPlugin, PluginOptions } from "@comvi/core";
 import { createNextI18n } from "../src/createNextI18n";
 import { localizeHref } from "../src/routing/utils";
 
+// `unstubEnvs` in vitest.config.ts restores every stubbed var after each test.
 const runInServerRuntime = async (fn: () => Promise<void>) => {
-  const originalRuntime = process.env.NEXT_RUNTIME;
-  process.env.NEXT_RUNTIME = "nodejs";
-  try {
-    await fn();
-  } finally {
-    if (originalRuntime === undefined) {
-      delete process.env.NEXT_RUNTIME;
-    } else {
-      process.env.NEXT_RUNTIME = originalRuntime;
-    }
-  }
+  vi.stubEnv("NEXT_RUNTIME", "nodejs");
+  await fn();
 };
 
 describe("createNextI18n", () => {
@@ -222,25 +214,14 @@ describe("createNextI18n", () => {
   });
 
   it("uses NODE_ENV to infer devMode when not explicitly provided", () => {
-    const originalNodeEnv = process.env.NODE_ENV;
-    try {
-      process.env.NODE_ENV = "production";
-      const production = createNextI18n({
-        locales: ["en"],
-        defaultLocale: "en",
-      });
+    vi.stubEnv("NODE_ENV", "production");
+    const production = createNextI18n({ locales: ["en"], defaultLocale: "en" });
 
-      process.env.NODE_ENV = "development";
-      const development = createNextI18n({
-        locales: ["en"],
-        defaultLocale: "en",
-      });
+    vi.stubEnv("NODE_ENV", "development");
+    const development = createNextI18n({ locales: ["en"], defaultLocale: "en" });
 
-      expect(production.i18n.devMode).toBe(false);
-      expect(development.i18n.devMode).toBe(true);
-    } finally {
-      process.env.NODE_ENV = originalNodeEnv;
-    }
+    expect(production.i18n.devMode).toBe(false);
+    expect(development.i18n.devMode).toBe(true);
   });
 
   it("exposes chainable use() and forwards plugin options to i18n.use()", () => {
@@ -332,53 +313,31 @@ describe("createNextI18n", () => {
   });
 
   it("respects scoped environment options", async () => {
-    const originalNodeEnv = process.env.NODE_ENV;
-    process.env.NODE_ENV = "production";
-    try {
-      const nextI18n = createNextI18n({
-        locales: ["en", "de"],
-        defaultLocale: "en",
-      });
+    vi.stubEnv("NODE_ENV", "production");
+    const nextI18n = createNextI18n({
+      locales: ["en", "de"],
+      defaultLocale: "en",
+    });
 
-      const devPlugin = vi.fn(async () => undefined);
-      const prodPlugin = vi.fn(async () => undefined);
+    const devPlugin = vi.fn(async () => undefined);
+    const prodPlugin = vi.fn(async () => undefined);
 
-      nextI18n.useServer(devPlugin, { environment: "development" });
-      nextI18n.useServer(prodPlugin, { environment: "production" });
+    nextI18n.useServer(devPlugin, { environment: "development" });
+    nextI18n.useServer(prodPlugin, { environment: "production" });
 
-      const originalRuntime = process.env.NEXT_RUNTIME;
-      process.env.NEXT_RUNTIME = "nodejs";
-      try {
-        await nextI18n.i18n.init();
-      } finally {
-        if (originalRuntime === undefined) {
-          delete process.env.NEXT_RUNTIME;
-        } else {
-          process.env.NEXT_RUNTIME = originalRuntime;
-        }
-      }
+    await runInServerRuntime(async () => {
+      await nextI18n.i18n.init();
+    });
 
-      expect(devPlugin).not.toHaveBeenCalled();
-      expect(prodPlugin).toHaveBeenCalledTimes(1);
-    } finally {
-      process.env.NODE_ENV = originalNodeEnv;
-    }
+    expect(devPlugin).not.toHaveBeenCalled();
+    expect(prodPlugin).toHaveBeenCalledTimes(1);
   });
 });
 
 describe("createNextI18n unified use()", () => {
   const runInClientRuntime = async (fn: () => Promise<void>) => {
-    const originalRuntime = process.env.NEXT_RUNTIME;
-    delete process.env.NEXT_RUNTIME;
-    try {
-      await fn();
-    } finally {
-      if (originalRuntime === undefined) {
-        delete process.env.NEXT_RUNTIME;
-      } else {
-        process.env.NEXT_RUNTIME = originalRuntime;
-      }
-    }
+    vi.stubEnv("NEXT_RUNTIME", undefined);
+    await fn();
   };
 
   const create = () =>
@@ -446,6 +405,19 @@ describe("createNextI18n unified use()", () => {
     });
   });
 
+  it("use with lazy rejects init when the module is neither a function nor { default }", async () => {
+    await runInServerRuntime(async () => {
+      const nextI18n = create();
+      const loadPlugin = vi.fn(async () => ({}) as unknown as I18nPlugin);
+      // Plugins are `required` by default, so the resolver's throw surfaces
+      // out of init() instead of being swallowed.
+      nextI18n.use(loadPlugin, { runtime: "server", lazy: true });
+
+      await expect(nextI18n.i18n.init()).rejects.toThrow(/Invalid lazy plugin module/);
+      expect(loadPlugin).toHaveBeenCalledTimes(1);
+    });
+  });
+
   it("use with lazy does not resolve non-matching lazy plugin on server", async () => {
     await runInServerRuntime(async () => {
       const nextI18n = create();
@@ -471,41 +443,35 @@ describe("createNextI18n unified use()", () => {
   });
 
   it("use respects environment option combined with runtime", async () => {
-    const originalNodeEnv = process.env.NODE_ENV;
-    process.env.NODE_ENV = "production";
-    try {
-      await runInServerRuntime(async () => {
-        const nextI18n = create();
-        const devPlugin = vi.fn(async () => undefined);
-        const prodPlugin = vi.fn(async () => undefined);
+    vi.stubEnv("NODE_ENV", "production");
 
-        nextI18n.use(devPlugin, { runtime: "server", environment: "development" });
-        nextI18n.use(prodPlugin, { runtime: "server", environment: "production" });
+    await runInServerRuntime(async () => {
+      const nextI18n = create();
+      const devPlugin = vi.fn(async () => undefined);
+      const prodPlugin = vi.fn(async () => undefined);
 
-        await nextI18n.i18n.init();
-        expect(devPlugin).not.toHaveBeenCalled();
-        expect(prodPlugin).toHaveBeenCalledTimes(1);
-      });
-    } finally {
-      process.env.NODE_ENV = originalNodeEnv;
-    }
+      nextI18n.use(devPlugin, { runtime: "server", environment: "development" });
+      nextI18n.use(prodPlugin, { runtime: "server", environment: "production" });
+
+      await nextI18n.i18n.init();
+
+      expect(devPlugin).not.toHaveBeenCalled();
+      expect(prodPlugin).toHaveBeenCalledTimes(1);
+    });
   });
 
   it("use respects environment option without runtime", async () => {
-    const originalNodeEnv = process.env.NODE_ENV;
-    process.env.NODE_ENV = "production";
-    try {
-      await runInServerRuntime(async () => {
-        const nextI18n = create();
-        const devPlugin = vi.fn(async () => undefined);
-        nextI18n.use(devPlugin, { environment: "development" });
+    vi.stubEnv("NODE_ENV", "production");
 
-        await nextI18n.i18n.init();
-        expect(devPlugin).not.toHaveBeenCalled();
-      });
-    } finally {
-      process.env.NODE_ENV = originalNodeEnv;
-    }
+    await runInServerRuntime(async () => {
+      const nextI18n = create();
+      const devPlugin = vi.fn(async () => undefined);
+      nextI18n.use(devPlugin, { environment: "development" });
+
+      await nextI18n.i18n.init();
+
+      expect(devPlugin).not.toHaveBeenCalled();
+    });
   });
 
   it("use strips runtime/lazy/environment before forwarding plugin options", () => {

@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
 // IMPORTANT: this file never imports the tags entry or the internal composite,
 // so no ambient tag registration and no ICU wiring happen behind its back.
 import { createI18n } from "../../src";
@@ -15,9 +15,9 @@ beforeEach(() => {
   clearTemplateCache();
 });
 
-describe("@comvi/core", () => {
+describe("createI18n() — the base host", () => {
   it("does not register any ambient syntax extension", () => {
-    expect(getAmbientExtensions().length).toBe(0);
+    expect(getAmbientExtensions()).toEqual([]);
   });
 
   it("interpolates {param} like the composed host", () => {
@@ -36,18 +36,12 @@ describe("@comvi/core", () => {
   // suite can observe that half, because only there is the `__DEV__` fold real.
   it("throws E_ICU_SYNTAX on ICU argument syntax instead of rendering it literally", () => {
     const template = "{count, plural, one {# item} other {# items}}";
+    const construct = () => createI18n({ locale: "en", translation: { en: { items: template } } });
 
-    let thrown: unknown;
-    try {
-      createI18n({ locale: "en", translation: { en: { items: template } } });
-    } catch (error) {
-      thrown = error;
-    }
-
-    expect(thrown).toBeInstanceOf(Error);
-    expect((thrown as { code?: unknown }).code).toBe("E_ICU_SYNTAX");
-    expect((thrown as { argumentType?: unknown }).argumentType).toBe("plural");
-    expect((thrown as Error).message).toContain("@comvi/core/icu");
+    expect(construct).toThrow(
+      expect.objectContaining({ code: "E_ICU_SYNTAX", argumentType: "plural" }),
+    );
+    expect(construct).toThrow(/@comvi\/core\/icu/);
   });
 
   it("renders <tag> markup literally (no tag graph on the base host)", () => {
@@ -162,8 +156,7 @@ describe("@comvi/core", () => {
       i18n.addTranslations({ en: { nav: { home: "Home" } } as never });
 
       expect(i18n.hasTranslation("nav.home")).toBe(false);
-      expect(warnSpy.mock.calls.map((c) => String(c[0])).join("\n")).toContain("flattenCatalog()");
-      warnSpy.mockRestore();
+      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("flattenCatalog()"));
     });
 
     it("accepts a nested catalog wrapped in flattenCatalog()", () => {

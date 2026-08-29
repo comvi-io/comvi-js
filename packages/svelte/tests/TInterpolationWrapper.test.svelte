@@ -1,9 +1,10 @@
 <script lang="ts">
   import { setI18nContext } from "../src/context";
   import type { ComponentMap } from "../src/types";
+  import type { WrapperI18nHost } from "@comvi/core";
   import T from "../src/T.svelte";
 
-  export let i18n: any;
+  export let i18n: WrapperI18nHost;
   export let i18nKey: string;
   export let params: Record<string, unknown> = {};
   export let components: ComponentMap = {};

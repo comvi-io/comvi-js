@@ -39,6 +39,9 @@ const fixtures = fixturesJson as unknown as Fixture;
 
 const nodeSha = (s: string) => createHash("sha256").update(s, "utf8").digest("hex");
 
+/** Index of the neighbour array inside the canonical tuple — part of the versioned spec. */
+const NEIGHBORS_FIELD = 6;
+
 describe("sha256Hex (self-contained pure SHA-256)", () => {
   it("matches known NIST vectors", () => {
     expect(sha256Hex("")).toBe("e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855");
@@ -47,16 +50,14 @@ describe("sha256Hex (self-contained pure SHA-256)", () => {
     );
   });
 
-  it("matches node:crypto across ASCII, long, and unicode inputs", () => {
-    for (const msg of [
-      "The quick brown fox jumps over the lazy dog",
-      "a".repeat(1000),
-      "x".repeat(55), // block-boundary edge (55 bytes -> single block)
-      "y".repeat(56), // block-boundary edge (56 bytes -> two blocks)
-      "unicode: ключ café 日本語 🚀",
-    ]) {
-      expect(sha256Hex(msg)).toBe(nodeSha(msg));
-    }
+  it.each([
+    ["ascii sentence", "The quick brown fox jumps over the lazy dog"],
+    ["1000 repeated chars", "a".repeat(1000)],
+    ["55 bytes (single block)", "x".repeat(55)],
+    ["56 bytes (two blocks)", "y".repeat(56)],
+    ["unicode", "unicode: ключ café 日本語 🚀"],
+  ])("matches node:crypto for %s", (_label, msg) => {
+    expect(sha256Hex(msg)).toBe(nodeSha(msg));
   });
 });
 
@@ -64,14 +65,11 @@ describe("observation hash spec constants", () => {
   it("matches the committed fixture version + top-K", () => {
     expect(HASH_FN_VERSION).toBe(fixtures.hashFnVersion);
     expect(HASH_NEIGHBOR_TOP_K).toBe(fixtures.neighborTopK);
+    expect(fixtures.vectors.length).toBeGreaterThan(0);
   });
 });
 
 describe("golden-vector conformance", () => {
-  it("has vectors to check", () => {
-    expect(fixtures.vectors.length).toBeGreaterThan(0);
-  });
-
   for (const v of fixtures.vectors) {
     it(`reproduces canonical + hash for "${v.name}"`, () => {
       // The canonical serialization is byte-stable...
@@ -87,8 +85,10 @@ describe("golden-vector conformance", () => {
 describe("top-K neighbor selection", () => {
   it("caps the hashed neighbor set at HASH_NEIGHBOR_TOP_K", () => {
     const vector = fixtures.vectors.find((v) => v.name === "error-message-topk-truncation");
-    expect(vector).toBeDefined();
-    const neighborArray = JSON.parse(vector!.canonical)[6] as unknown[];
+    expect(vector).not.toBeUndefined();
+
+    const neighborArray = JSON.parse(vector!.canonical)[NEIGHBORS_FIELD] as unknown[];
+
     expect(neighborArray.length).toBe(HASH_NEIGHBOR_TOP_K);
   });
 
@@ -118,9 +118,24 @@ describe("top-K neighbor selection", () => {
         neighbors: many,
       }),
     );
-    const hashedKeys = (canonical[6] as string[][]).map((n) => n[1]);
+    const hashedKeys = (canonical[NEIGHBORS_FIELD] as string[][]).map((n) => n[1]);
     // Reading order 0..7 kept, 8..11 dropped.
     expect(hashedKeys).toEqual(["k00", "k01", "k02", "k03", "k04", "k05", "k06", "k07"]);
+  });
+
+  it("serializes an empty neighbor list as an empty array", () => {
+    const canonical = JSON.parse(
+      serializeObservationForHash({
+        uiType: "body-text",
+        translationRole: "descriptive-text",
+        mustBeShort: false,
+        singleLine: false,
+        widthBucket: "full",
+        neighbors: [],
+      }),
+    );
+
+    expect(canonical[NEIGHBORS_FIELD]).toEqual([]);
   });
 });
 

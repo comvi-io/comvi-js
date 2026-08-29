@@ -49,9 +49,18 @@ describe("syntax extension registry", () => {
     expect(i18n.t("msg" as never, { link: linkHandler } as never)).toBe("[hi]");
 
     dispose();
-    dispose(); // disposer is itself idempotent
+
     expect(getAmbientExtensions().length).toBe(0);
     expect(i18n.t("msg" as never, { link: linkHandler } as never)).toBe(TEMPLATE);
+  });
+
+  it("the disposer is itself idempotent", () => {
+    const dispose = registerTagSyntax();
+
+    dispose();
+    dispose();
+
+    expect(getAmbientExtensions().length).toBe(0);
   });
 
   it("tags on/off occupy distinct cache entries for the same template (no cross-poisoning)", () => {
@@ -63,6 +72,8 @@ describe("syntax extension registry", () => {
     dispose();
     const withoutTags = makeInstance();
     expect(withoutTags.t("msg" as never, { link: linkHandler } as never)).toBe(TEMPLATE);
+    // The size delta is part of the claim: a SECOND entry must appear, rather
+    // than the tags-on entry being overwritten in place.
     expect(_templateCacheSize()).toBe(sizeAfterTags + 1);
 
     // Re-registering must not clear or corrupt either variant.
@@ -80,6 +91,7 @@ describe("syntax extension registry", () => {
     // distinct cache entry, un-poisoned literal output.
     const plain = makeInstance();
     expect(plain.t("msg" as never, { link: linkHandler } as never)).toBe(TEMPLATE);
+    // As above: a distinct variant, not an overwrite of the per-call entry.
     expect(_templateCacheSize()).toBe(sizeAfterPerCall + 1);
 
     // And the per-call instance keeps rendering through its own variant.

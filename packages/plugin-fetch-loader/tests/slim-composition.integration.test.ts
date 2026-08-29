@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { createI18n } from "@comvi/core";
+import { createI18n, hasPluginHostApi } from "@comvi/core";
 import { loader, attachLoader } from "@comvi/core/loader";
 import { plugins } from "@comvi/core/plugins";
 import { FetchLoader, FETCH_LOADER_PLUGIN_KEY } from "../src/index";
@@ -91,11 +91,12 @@ describe("published plugins on a composed slim host", () => {
       createI18n({ locale: "en", exposeGlobal: false, devMode: false }),
     ).with(plugins());
 
-    for (const host of [piped, attached]) {
-      host.use(FetchLoader({ cdnUrl: TEST_CDN_URL, loadOnInit: true }));
-      await host.init();
-      expect(host.t("greeting")).toBe("Hello");
-    }
+    piped.use(FetchLoader({ cdnUrl: TEST_CDN_URL, loadOnInit: true }));
+    attached.use(FetchLoader({ cdnUrl: TEST_CDN_URL, loadOnInit: true }));
+    await piped.init();
+    await attached.init();
+
+    expect([piped.t("greeting"), attached.t("greeting")]).toEqual(["Hello", "Hello"]);
 
     await Promise.all([piped.destroy(), attached.destroy()]);
   });
@@ -103,7 +104,7 @@ describe("published plugins on a composed slim host", () => {
   it("a loader-only host cannot host the plugin — plugins() is what adds use()", () => {
     const loaderOnly = createI18n({ locale: "en", exposeGlobal: false }).with(loader());
 
-    expect((loaderOnly as Record<string, unknown>).use).toBeUndefined();
-    expect(typeof loaderOnly.with(plugins()).use).toBe("function");
+    expect(hasPluginHostApi(loaderOnly)).toBe(false);
+    expect(hasPluginHostApi(loaderOnly.with(plugins()))).toBe(true);
   });
 });

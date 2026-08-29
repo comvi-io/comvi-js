@@ -20,6 +20,7 @@ import { TranslationRegistry } from "../src/TranslationRegistry";
 import { Collector } from "../src/collector/Collector";
 import { initApiConfig, resetApiConfig } from "../src/config/api";
 import { mockBoundingClientRect, cleanupDOM } from "./helpers";
+import type { Collector as CollectorType } from "../src/collector/Collector";
 import fixture from "../src/collector/hash/wire-observation.fixture.json";
 
 const SCOPE = "wire-observation-fixture-scope";
@@ -29,22 +30,20 @@ function mockOkResponse<T>(payload: T): Response {
 }
 
 describe("collector wire shape — cross-repo fixture lock (B1)", () => {
+  let collector: CollectorType | undefined;
+
   beforeEach(() => {
     initApiConfig("test-api-key", SCOPE);
   });
 
   afterEach(() => {
-    vi.unstubAllGlobals();
-    vi.restoreAllMocks();
+    collector?.destroy();
+    collector = undefined;
     resetApiConfig(SCOPE);
     cleanupDOM();
   });
 
   it("produces the exact committed fixture when driven through the real pipeline", async () => {
-    (window as unknown as { happyDOM?: { setURL?: (url: string) => void } }).happyDOM?.setURL?.(
-      "https://example.com/checkout",
-    );
-
     const fetchMock = vi.fn();
     fetchMock.mockResolvedValue(mockOkResponse({ entries: [] }));
     vi.stubGlobal("fetch", fetchMock);
@@ -99,22 +98,21 @@ describe("collector wire shape — cross-repo fixture lock (B1)", () => {
 
     // The fixture's "/checkout" models an integration-supplied route template;
     // without a resolver the default screenGroup is an opaque route digest.
-    const collector = new Collector(eventBus, registry, SCOPE, {
+    collector = new Collector(eventBus, registry, SCOPE, {
       enabled: true,
       screenGroupResolver: () => "/checkout",
     });
     await collector.start();
-    await Promise.resolve();
-    await Promise.resolve();
 
-    const usagesCall = fetchMock.mock.calls.find(([url]) =>
-      (url as string).includes("/v1/context/usages"),
-    );
-    expect(usagesCall).toBeDefined();
-    const body = JSON.parse((usagesCall![1] as RequestInit).body as string);
+    const usagesCall = await vi.waitFor(() => {
+      const call = fetchMock.mock.calls.find(([url]) =>
+        (url as string).includes("/v1/context/usages"),
+      );
+      if (!call) throw new Error("no POST /v1/context/usages was made");
+      return call;
+    });
+    const body = JSON.parse((usagesCall[1] as RequestInit).body as string);
 
     expect(body.items).toEqual(fixture.items);
-
-    collector.destroy();
   });
 });

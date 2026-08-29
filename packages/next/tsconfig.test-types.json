@@ -9,6 +9,7 @@
     "rootDir": ".",
     "noEmit": true,
     "paths": {
+      "@comvi/next": ["./src/index.ts"],
       "@comvi/next/server": ["./src/server.ts"]
     }
   },

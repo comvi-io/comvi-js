@@ -3,10 +3,12 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
+import { fileURLToPath } from "node:url";
 import {
   DEFAULT_PACKAGE_ROOTS,
   PRODUCTION_CONDITIONS,
   assertPublishedFile,
+  hasDeclaredSideEffects,
   parseSpecifier,
   resolveFixtureSpecifier,
   resolvePackageExport,
@@ -120,15 +122,89 @@ test("assertPublishedFile rejects targets outside the files allowlist", () => {
   );
 });
 
+// `hasDeclaredSideEffects` decides whether a plugin-resolved module stays in
+// the measured graph, so its verdict moves every byte figure and every sentinel
+// result this file gates on.
+test("hasDeclaredSideEffects assumes side effects unless the field rules them out", async (t) => {
+  const cases = [
+    { name: "no sideEffects field at all", sideEffects: undefined, expected: true },
+    { name: "sideEffects: false", sideEffects: false, expected: false },
+    { name: "sideEffects: true", sideEffects: true, expected: true },
+    { name: "a bare string instead of a list", sideEffects: "./dist/other.js", expected: true },
+    { name: "an empty list exempts every module", sideEffects: [], expected: false },
+  ];
+
+  for (const { name, sideEffects, expected } of cases) {
+    await t.test(name, () => {
+      assert.equal(
+        hasDeclaredSideEffects({ name: "@fake/pkg", sideEffects }, "./dist/index.js"),
+        expected,
+      );
+    });
+  }
+});
+
+test("hasDeclaredSideEffects matches a sideEffects glob list the way a bundler does", async (t) => {
+  const cases = [
+    {
+      name: "an exact path hits",
+      patterns: ["./dist/register-tags.js"],
+      target: "./dist/register-tags.js",
+      expected: true,
+    },
+    {
+      name: "an unlisted path misses",
+      patterns: ["./dist/register-tags.js"],
+      target: "./dist/index.js",
+      expected: false,
+    },
+    {
+      name: "`*` matches within one segment",
+      patterns: ["./dist/*.js"],
+      target: "./dist/a.js",
+      expected: true,
+    },
+    {
+      name: "`*` does not cross a path separator",
+      patterns: ["./dist/*.js"],
+      target: "./dist/chunks/a.js",
+      expected: false,
+    },
+    {
+      name: "`**` crosses path separators",
+      patterns: ["./dist/**"],
+      target: "./dist/chunks/a.js",
+      expected: true,
+    },
+    {
+      name: "a pattern without the `./` prefix still matches",
+      patterns: ["dist/x.js"],
+      target: "./dist/x.js",
+      expected: true,
+    },
+    {
+      name: "a literal dot is not a regex wildcard",
+      patterns: ["./dist/a.b.js"],
+      target: "./dist/axbxjs",
+      expected: false,
+    },
+  ];
+
+  for (const { name, patterns, target, expected } of cases) {
+    await t.test(name, () => {
+      assert.equal(
+        hasDeclaredSideEffects({ name: "@fake/pkg", sideEffects: patterns }, target),
+        expected,
+      );
+    });
+  }
+});
+
 test("resolveFixtureSpecifier resolves @comvi/core through its published exports map", () => {
-  const corePkg = JSON.parse(
-    fs.readFileSync(path.join(DEFAULT_PACKAGE_ROOTS["@comvi/core"], "package.json"), "utf8"),
+  assert.equal(
+    resolveFixtureSpecifier("@comvi/core", DEFAULT_PACKAGE_ROOTS),
+    path.join(DEFAULT_PACKAGE_ROOTS["@comvi/core"], "dist", "comvi-core.js"),
   );
-  const expected = path.resolve(
-    DEFAULT_PACKAGE_ROOTS["@comvi/core"],
-    resolvePackageExport(corePkg, ".", PRODUCTION_CONDITIONS),
-  );
-  assert.equal(resolveFixtureSpecifier("@comvi/core", DEFAULT_PACKAGE_ROOTS), expected);
 });
 
 test("bundling resolves entries via the exports map, not main/module fields", async (t) => {
@@ -150,11 +226,16 @@ test("bundling resolves entries via the exports map, not main/module fields", as
     fixtures: [{ name: "fake", entry: "@fake/pkg", fixture: "entry.ts", gzipBudgetBytes: 1024 }],
   };
   const results = await runSizeCheck({ budgets, fixturesDir, packageRoots });
+
   assert.equal(results.length, 1);
   assert.equal(results[0].status, "pass");
-  // The exports-map target is tiny; the decoys are equally tiny, so size alone
-  // cannot distinguish them — the resolved-path assertion above is the gate.
-  assert.ok(results[0].gzipBytes > 0);
+  // The decoys are the same size as the real target, so bytes cannot tell them
+  // apart — the measured graph can.
+  assert.deepEqual(
+    results[0].moduleIds.filter((id) => /main-field\.js$|module-field\.js$/.test(id)),
+    [],
+  );
+  assert.equal(results[0].moduleIds.filter((id) => id.endsWith("exports-entry.js")).length, 1);
 });
 
 test("runSizeCheck skips pending fixtures whose subpath is not exported yet", async (t) => {
@@ -313,81 +394,107 @@ test("a pattern subpath resolves and bundles like any other published entry", as
   assert.equal(results[0].status, "pass");
 });
 
-test("external keeps framework peer deps out of the measured graph", async (t) => {
+/** A fixture importing `@fake/pkg/with-peer`, whose peer "fake-peer" is installed nowhere. */
+function makePeerFixture(t) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "size-check-"));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
   const { pkgDir } = makeFakePackage(root);
-  const packageRoots = { "@fake/pkg": pkgDir };
   const fixturesDir = path.join(root, "fixtures");
   fs.mkdirSync(fixturesDir);
   fs.writeFileSync(
     path.join(fixturesDir, "entry.ts"),
     'import { marker } from "@fake/pkg/with-peer";\nconsole.log(marker);\n',
   );
-  const fixture = {
-    name: "peer",
-    entry: "@fake/pkg/with-peer",
-    fixture: "entry.ts",
-    gzipBudgetBytes: 1024,
+  return {
+    fixturesDir,
+    packageRoots: { "@fake/pkg": pkgDir },
+    fixture: {
+      name: "peer",
+      entry: "@fake/pkg/with-peer",
+      fixture: "entry.ts",
+      gzipBudgetBytes: 1024,
+    },
   };
+}
 
-  // "fake-peer" is not installed anywhere: without `external` the bundle
-  // cannot resolve it, which is exactly what keeps the peer out of the bytes.
+test("an unresolvable peer import fails the build when the fixture does not declare it external", async (t) => {
+  const { fixturesDir, packageRoots, fixture } = makePeerFixture(t);
+
   await assert.rejects(
     runSizeCheck({ budgets: { fixtures: [fixture] }, fixturesDir, packageRoots }),
+    /Could not resolve "fake-peer"/,
   );
+});
+
+test("external keeps framework peer deps out of the measured graph", async (t) => {
+  const { fixturesDir, packageRoots, fixture } = makePeerFixture(t);
 
   const results = await runSizeCheck({
     budgets: { fixtures: [{ ...fixture, external: ["fake-peer"] }] },
     fixturesDir,
     packageRoots,
   });
+
   assert.equal(results[0].status, "pass");
-  assert.ok(!results[0].moduleIds.some((id) => id.includes("fake-peer")));
+  assert.deepEqual(
+    results[0].moduleIds.filter((id) => id.includes("fake-peer")),
+    [],
+  );
+});
+
+// Real @comvi/core: `@comvi/core/tags` pulls the side-effectful register-tags
+// chunk, the base root must not. This is the mechanism behind
+// probe-react-tags-pinning — module IDs, never output text.
+const SENTINEL_MODULES = ["packages/core/dist/chunks/comvi-core-register-tags.js"];
+
+function makeSentinelPoles(t) {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "size-check-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  // The tags pole imports the toolbox it actually exports; the base pole
+  // imports the host. Both keep one named import live for the bundler.
+  fs.writeFileSync(
+    path.join(root, "tags.ts"),
+    'import { registerTagSyntax } from "@comvi/core/tags";\nconsole.log(registerTagSyntax);\n',
+  );
+  fs.writeFileSync(
+    path.join(root, "base.ts"),
+    'import { createI18n } from "@comvi/core";\nconsole.log(createI18n);\n',
+  );
+  return root;
+}
+
+const sentinelFixture = (name, expectSentinels) => ({
+  name,
+  entry: name === "tags" ? "@comvi/core/tags" : "@comvi/core",
+  fixture: `${name}.ts`,
+  sentinelModules: SENTINEL_MODULES,
+  expectSentinels,
 });
 
 test("sentinel module IDs gate on the metafile graph, in both polarities", async (t) => {
-  // Real @comvi/core: `@comvi/core/tags` pulls the side-effectful register-tags
-  // chunk, the base root must not. This is the mechanism behind
-  // probe-react-tags-pinning — module IDs, never output text.
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "size-check-"));
-  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
-  const sentinelModules = ["packages/core/dist/chunks/comvi-core-register-tags.js"];
-  for (const [name, specifier] of [
-    ["tags", "@comvi/core/tags"],
-    ["base", "@comvi/core"],
-  ]) {
-    // The tags pole imports the toolbox it actually exports; the base pole
-    // imports the host. Both keep one named import live for the bundler.
-    fs.writeFileSync(
-      path.join(root, `${name}.ts`),
-      name === "tags"
-        ? `import { registerTagSyntax } from "${specifier}";\nconsole.log(registerTagSyntax);\n`
-        : `import { createI18n } from "${specifier}";\nconsole.log(createI18n);\n`,
-    );
-  }
-  const fixtureFor = (name, expectSentinels) => ({
-    name,
-    entry: name === "tags" ? "@comvi/core/tags" : "@comvi/core",
-    fixture: `${name}.ts`,
-    sentinelModules,
-    expectSentinels,
-  });
+  const root = makeSentinelPoles(t);
 
   const [tagsResult, baseResult] = await runSizeCheck({
-    budgets: { fixtures: [fixtureFor("tags", "present"), fixtureFor("base", "absent")] },
+    budgets: { fixtures: [sentinelFixture("tags", "present"), sentinelFixture("base", "absent")] },
     fixturesDir: root,
   });
+
   assert.equal(tagsResult.status, "pass");
-  assert.deepEqual(tagsResult.sentinels.found, sentinelModules);
+  assert.deepEqual(tagsResult.sentinels.found, SENTINEL_MODULES);
   assert.equal(baseResult.status, "pass");
   assert.deepEqual(baseResult.sentinels.found, []);
+});
+
+test("an unmet expectSentinels verdict fails the fixture", async (t) => {
+  const root = makeSentinelPoles(t);
 
   const [inverted] = await runSizeCheck({
-    budgets: { fixtures: [fixtureFor("base", "present")] },
+    budgets: { fixtures: [sentinelFixture("base", "present")] },
     fixturesDir: root,
   });
+
   assert.equal(inverted.status, "fail");
+  assert.deepEqual(inverted.sentinels, { expect: "present", found: [], ok: false });
 });
 
 test("sentinelModules without an expectSentinels verdict is rejected", async (t) => {
@@ -421,7 +528,7 @@ test("sentinelModules without an expectSentinels verdict is rejected", async (t)
 // maintenance conventions written down in scripts/size-budgets.md have nothing
 // but a test keeping them from rotting silently.
 
-const SCRIPT_DIR = path.dirname(new URL(import.meta.url).pathname);
+const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
 const shippedBudgets = JSON.parse(
   fs.readFileSync(path.join(SCRIPT_DIR, "size-budgets.json"), "utf8"),
 );

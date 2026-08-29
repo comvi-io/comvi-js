@@ -3,7 +3,7 @@ import { createApp, defineComponent } from "vue";
 import { attachPlugins, createCore, createI18n, createI18nFromCore } from "../src";
 
 describe("Vue plugin integration", () => {
-  it("installs and exposes $t and $i18n", async () => {
+  it("installs and exposes $t and $i18n", () => {
     const app = createApp(defineComponent({ template: "<div />" }));
     const i18nPlugin = createI18n({ locale: "en" });
     i18nPlugin.addTranslations({ en: { hello: "Hello" } });
@@ -19,6 +19,26 @@ describe("Vue plugin integration", () => {
     expect(app.config.globalProperties.$t("hello")).toBe("Hello");
 
     app.unmount();
+  });
+
+  it("stays usable when the same instance is installed into two apps", () => {
+    const i18nPlugin = createI18n({ locale: "en" });
+    i18nPlugin.addTranslations({ en: { hello: "Hello" } });
+
+    const first = createApp(defineComponent({ template: "<div />" }));
+    const second = createApp(defineComponent({ template: "<div />" }));
+    first.use(i18nPlugin);
+    second.use(i18nPlugin);
+
+    first.mount(document.createElement("div"));
+    second.mount(document.createElement("div"));
+
+    expect(first.config.globalProperties.$i18n).toBe(i18nPlugin);
+    expect(second.config.globalProperties.$i18n).toBe(i18nPlugin);
+    expect(second.config.globalProperties.$t("hello")).toBe("Hello");
+
+    first.unmount();
+    second.unmount();
   });
 
   it("initializes plugins even when translations are preloaded", async () => {

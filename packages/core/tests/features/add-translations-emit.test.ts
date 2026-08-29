@@ -31,7 +31,7 @@ describe("addTranslations event behaviour", () => {
     i18n.addTranslations({ en: { greeting: "hi" } });
 
     expect(i18n.t("greeting")).toBe("hi");
-    expect(i18n.getTranslations("en", "default")).toMatchObject({ greeting: "hi" });
+    expect(i18n.getTranslations("en", "default")).toEqual({ greeting: "hi" });
   });
 
   it("emits namespaceLoaded for multiple locales at once", () => {
@@ -63,5 +63,19 @@ describe("addTranslations event behaviour", () => {
 
     expect(namespaceSpy).not.toHaveBeenCalled();
     expect(configSpy).not.toHaveBeenCalled();
+  });
+
+  // Asymmetry with the constructor, which throws E_TRANSLATION_NOT_OBJECT for the
+  // same input (src/core/i18n.ts:284-293); addTranslations has no such validation.
+  it("stores an empty catalog and still emits for a non-object locale value", () => {
+    const spy = vi.fn();
+    i18n.on("namespaceLoaded", spy);
+
+    expect(() =>
+      i18n.addTranslations({ en: null as unknown as Record<string, string> }),
+    ).not.toThrow();
+
+    expect(spy).toHaveBeenCalledWith({ locale: "en", namespace: "default" });
+    expect(i18n.getTranslations("en", "default")).toEqual({});
   });
 });

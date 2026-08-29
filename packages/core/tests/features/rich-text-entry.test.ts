@@ -12,7 +12,7 @@
  * `registerTagSyntax()` on import — so every app rendering `<T>` had `<tag>`
  * markup silently activated for plain string-API `t()` as well.
  */
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, afterEach } from "vitest";
 import { createI18n } from "../../src";
 import {
   prepareTranslation,
@@ -24,7 +24,7 @@ import {
   isVirtualNode,
 } from "../../src/rich-text";
 import { clearTemplateCache } from "../../src/core/translate";
-import { getAmbientExtensions } from "../../src/core/translate/syntax";
+import { getAmbientExtensions, _resetSyntaxExtensions } from "../../src/core/translate/syntax";
 
 const TEMPLATE = "Click <link>here</link> now";
 
@@ -38,6 +38,14 @@ const host = () =>
   });
 
 describe("@comvi/core/rich-text (pure seam)", () => {
+  // The last test reaches `@comvi/core/tags`, which registers the grammar
+  // process-globally; without this the file would end on a dirty registry and
+  // every earlier case would depend on running before it.
+  afterEach(() => {
+    _resetSyntaxExtensions();
+    clearTemplateCache();
+  });
+
   it("registers no ambient syntax extension when imported", () => {
     expect(getAmbientExtensions()).toHaveLength(0);
   });
@@ -84,15 +92,24 @@ describe("@comvi/core/rich-text (pure seam)", () => {
     expect(getPendingHandlerName("b")).toBeUndefined();
   });
 
-  it("publishes the VirtualNode toolbox framework converters need", () => {
+  it("publishes createElement() from the VirtualNode toolbox", () => {
     expect(createElement("b", { id: "x" }, ["hi"])).toEqual({
       type: "element",
       tag: "b",
       props: { id: "x" },
       children: ["hi"],
     });
+  });
+
+  it("publishes createTextNode() from the VirtualNode toolbox", () => {
     expect(createTextNode("hi")).toEqual({ type: "text", text: "hi" });
+  });
+
+  it("publishes createFragment() from the VirtualNode toolbox", () => {
     expect(createFragment(["hi"])).toEqual({ type: "fragment", children: ["hi"], key: undefined });
+  });
+
+  it("publishes isVirtualNode(), which rejects a plain object with an unknown type", () => {
     expect(isVirtualNode({ type: "nope" })).toBe(false);
   });
 

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { existsSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { PROXY_ROUTE_CONTRACT, validateProxyRequest, type ProxySessionContext } from "../proxy";
 import proxyContract from "../../../../../contracts/chrome-extension-proxy.json";
 import wireFixture from "../__fixtures__/wire-observation.fixture.json";
@@ -49,7 +49,6 @@ describe("SDK telemetry wire fixture", () => {
       "../../../../../packages/plugin-in-context-editor/src/collector/hash/wire-observation.fixture.json",
       import.meta.url,
     );
-    if (!existsSync(sdkFixtureUrl)) return;
     expect(JSON.parse(readFileSync(sdkFixtureUrl, "utf8"))).toEqual(wireFixture);
   });
 
@@ -148,20 +147,18 @@ describe("proxy contract — allowed SDK calls", () => {
 // --- route/method authorization ---------------------------------------------
 
 describe("proxy contract — route and method rejection", () => {
-  it("rejects unrelated and destructive routes locally", () => {
-    for (const path of [
-      "/v1/organizations",
-      "/v1/members",
-      "/v1/api-keys",
-      "/v1/admin/users",
-      "/v1/projects/42",
-      "/v1/projects",
-      "/v1/keys", // GET on collection is not a contract call
-      "/v2/project",
-      "/",
-    ]) {
-      expectRejected({ path, method: "GET" });
-    }
+  it.each([
+    "/v1/organizations",
+    "/v1/members",
+    "/v1/api-keys",
+    "/v1/admin/users",
+    "/v1/projects/42",
+    "/v1/projects",
+    "/v1/keys", // GET on collection is not a contract call
+    "/v2/project",
+    "/",
+  ])("rejects the unrelated route GET %s locally", (path) => {
+    expectRejected({ path, method: "GET" });
   });
 
   it("rejects known paths with a wrong method", () => {
@@ -172,11 +169,12 @@ describe("proxy contract — route and method rejection", () => {
     expectRejected({ path: "/v1/translations", method: "PUT" });
   });
 
-  it("rejects methods outside the contract entirely", () => {
-    for (const method of ["PATCH", "OPTIONS", "HEAD", "TRACE", "CONNECT"]) {
+  it.each(["PATCH", "OPTIONS", "HEAD", "TRACE", "CONNECT"])(
+    "rejects the method %s, which is outside the contract entirely",
+    (method) => {
       expectRejected({ method });
-    }
-  });
+    },
+  );
 
   it("rejects trailing slashes", () => {
     expectRejected({ path: "/v1/project/" });
@@ -269,38 +267,48 @@ describe("proxy contract — body validation", () => {
     expectRejected({ path: "/v1/keys", method: "PUT", body });
   });
 
-  it("rejects malformed save payloads", () => {
-    for (const bad of [
-      { key: "", namespace: "b", isPlural: false, translations: {} },
-      { key: "a", namespace: "b", isPlural: "no", translations: {} },
-      { key: "a", namespace: "b", isPlural: false, translations: [] },
+  it.each([
+    ["an empty key", { key: "", namespace: "b", isPlural: false, translations: {} }],
+    ["a non-boolean isPlural", { key: "a", namespace: "b", isPlural: "no", translations: {} }],
+    ["translations as an array", { key: "a", namespace: "b", isPlural: false, translations: [] }],
+    [
+      "a non-string translation value",
       {
         key: "a",
         namespace: "b",
         isPlural: false,
         translations: { en: { value: 42, status: "s" } },
       },
+    ],
+    [
+      "an oversized translation value",
       {
         key: "a",
         namespace: "b",
         isPlural: false,
         translations: { en: { value: "x".repeat(30_000), status: "s" } },
       },
+    ],
+    [
+      "an unknown translation status",
       {
         key: "a",
         namespace: "b",
         isPlural: false,
         translations: { en: { value: "x", status: "draft" } },
       },
+    ],
+    [
+      "an extra field inside a translation",
       {
         key: "a",
         namespace: "b",
         isPlural: false,
         translations: { en: { value: "x", status: "not_reviewed", privileged: true } },
       },
-    ]) {
-      expectRejected({ path: "/v1/keys", method: "PUT", body: JSON.stringify(bad) });
-    }
+    ],
+  ])("rejects a save payload with %s", (_label, bad) => {
+    expectRejected({ path: "/v1/keys", method: "PUT", body: JSON.stringify(bad) });
   });
 
   it("rejects extra fields in handshake key references", () => {
@@ -310,50 +318,68 @@ describe("proxy contract — body validation", () => {
     expectRejected({ path: "/v1/context/handshake", method: "POST", body }, TELEMETRY_CTX);
   });
 
-  it("rejects missing, extra, and invalid nested observation fields", () => {
-    const observation = validObservation();
-    const invalidItems = [
-      { ...observation, observationHash: "client-controlled" },
-      { ...observation, uiType: "text" },
-      { ...observation, translationRole: "content" },
-      { ...observation, semantic: { ...observation.semantic, rawText: "secret" } },
-      { ...observation, semantic: { ...observation.semantic, ariaRole: undefined } },
-      {
-        ...observation,
-        semantic: {
-          ...observation.semantic,
-          ancestry: [{ ...observation.semantic.ancestry[0], title: "rendered text" }],
-        },
-      },
-      { ...observation, constraints: { ...observation.constraints, debug: true } },
-      {
-        ...observation,
-        neighbors: [{ ...observation.neighbors[0], textContent: "secret" }],
-      },
-      { ...observation, neighbors: [{ ...observation.neighbors[0], distance: -1 }] },
-      {
-        ...observation,
-        spatial: {
-          rect: { x: 1, y: 2, w: 3, h: 4, raw: true },
-          centerPoint: { x: 1, y: 2 },
-          readingOrderIndex: 0,
-        },
-      },
-    ];
-
-    for (const item of invalidItems) {
-      const body = JSON.stringify({ ...validUsagesBody(), items: [item] });
-      expectRejected({ path: "/v1/context/usages", method: "POST", body }, TELEMETRY_CTX);
-    }
+  it.each(
+    (() => {
+      const observation = validObservation();
+      return [
+        ["a client-controlled observationHash", { ...observation, observationHash: "spoofed" }],
+        ["an extra uiType field", { ...observation, uiType: "text" }],
+        ["an extra translationRole field", { ...observation, translationRole: "content" }],
+        [
+          "rawText inside semantic",
+          { ...observation, semantic: { ...observation.semantic, rawText: "secret" } },
+        ],
+        [
+          "an undefined ariaRole",
+          { ...observation, semantic: { ...observation.semantic, ariaRole: undefined } },
+        ],
+        [
+          "a title on a semantic ancestry entry",
+          {
+            ...observation,
+            semantic: {
+              ...observation.semantic,
+              ancestry: [{ ...observation.semantic.ancestry[0], title: "rendered text" }],
+            },
+          },
+        ],
+        [
+          "an extra debug flag in constraints",
+          { ...observation, constraints: { ...observation.constraints, debug: true } },
+        ],
+        [
+          "textContent on a neighbor",
+          { ...observation, neighbors: [{ ...observation.neighbors[0], textContent: "secret" }] },
+        ],
+        [
+          "a negative neighbor distance",
+          { ...observation, neighbors: [{ ...observation.neighbors[0], distance: -1 }] },
+        ],
+        [
+          "a raw flag inside the spatial rect",
+          {
+            ...observation,
+            spatial: {
+              rect: { x: 1, y: 2, w: 3, h: 4, raw: true },
+              centerPoint: { x: 1, y: 2 },
+              readingOrderIndex: 0,
+            },
+          },
+        ],
+      ] as const;
+    })(),
+  )("rejects an observation with %s", (_label, item) => {
+    const body = JSON.stringify({ ...validUsagesBody(), items: [item] });
+    expectRejected({ path: "/v1/context/usages", method: "POST", body }, TELEMETRY_CTX);
   });
 
-  it("rejects malformed usages envelope and still-valid pings", () => {
-    const invalidBodies = [
-      { ...validUsagesBody(), hashFnVersion: "1" },
-      { ...validUsagesBody(), hashFnVersion: 1.5 },
-      { ...validUsagesBody(), env: "production" },
+  it.each([
+    ["a string hashFnVersion", { hashFnVersion: "1" }],
+    ["a fractional hashFnVersion", { hashFnVersion: 1.5 }],
+    ["an extra env field", { env: "production" }],
+    [
+      "a profileHash on a still-valid ping",
       {
-        ...validUsagesBody(),
         stillValid: [
           {
             namespace: "common",
@@ -364,13 +390,10 @@ describe("proxy contract — body validation", () => {
           },
         ],
       },
-    ];
-    for (const invalid of invalidBodies) {
-      expectRejected(
-        { path: "/v1/context/usages", method: "POST", body: JSON.stringify(invalid) },
-        TELEMETRY_CTX,
-      );
-    }
+    ],
+  ])("rejects a usages envelope with %s", (_label, override) => {
+    const body = JSON.stringify({ ...validUsagesBody(), ...override });
+    expectRejected({ path: "/v1/context/usages", method: "POST", body }, TELEMETRY_CTX);
   });
 
   it("measures the body limit in UTF-8 bytes, not JS string length", () => {
@@ -433,17 +456,26 @@ describe("proxy contract — telemetry gating", () => {
 // --- envelope validation ---------------------------------------------------------
 
 describe("proxy contract — request envelope", () => {
-  it("rejects missing or invalid ids", () => {
+  it("rejects a request with no id at all", () => {
     expect(validateProxyRequest({ path: "/v1/project" }, BASE, CTX).ok).toBe(false);
-    expectRejected({ id: "" });
-    expectRejected({ id: "x".repeat(200) });
-    expectRejected({ id: 42 });
   });
 
-  it("rejects non-object payloads", () => {
-    for (const payload of [null, undefined, "str", 42, []]) {
-      expect(validateProxyRequest(payload, BASE, CTX).ok).toBe(false);
-    }
+  it.each([
+    ["an empty string", ""],
+    ["a 200-character string", "x".repeat(200)],
+    ["a number", 42],
+  ])("rejects an id that is %s", (_label, id) => {
+    expectRejected({ id });
+  });
+
+  it.each([
+    ["null", null],
+    ["undefined", undefined],
+    ["a string", "str"],
+    ["a number", 42],
+    ["an array", []],
+  ])("rejects a payload that is %s", (_label, payload) => {
+    expect(validateProxyRequest(payload, BASE, CTX).ok).toBe(false);
   });
 
   it("rejects oversized paths", () => {

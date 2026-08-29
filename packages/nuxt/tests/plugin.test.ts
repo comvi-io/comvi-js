@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { computed, nextTick, ref } from "vue";
+import { EDITOR_INITIAL_MAPPINGS_GLOBAL } from "@comvi/core/editor-bridge";
 import * as nuxtAppMocks from "./mocks/nuxt-app";
 import { resetComviSetupMock, runComviSetup } from "./mocks/comvi-setup";
 
@@ -119,7 +120,7 @@ describe("runtime plugin", () => {
       }),
     );
 
-    expect((i18n as any).__comviInContextEditorInitialMappings).toEqual({
+    expect(i18n[EDITOR_INITIAL_MAPPINGS_GLOBAL]).toEqual({
       "default:rich_text.user_messages": 42,
     });
     expect(i18n.init).toHaveBeenCalledTimes(1);
@@ -262,7 +263,16 @@ describe("runtime plugin", () => {
     await plugin.setup(createNuxtAppStub());
 
     expect(useCookieSpy).not.toHaveBeenCalled();
-    useCookieSpy.mockRestore();
+  });
+
+  it("surfaces a host construction failure instead of booting a half-built app", async () => {
+    createComviI18n.mockImplementation(() => {
+      throw new Error("hostModule factory blew up");
+    });
+
+    const plugin = await importPlugin();
+
+    await expect(plugin.setup(createNuxtAppStub())).rejects.toThrow("hostModule factory blew up");
   });
 
   it("rich translation content with VirtualNode shape survives JSON round-trip hydration", async () => {
@@ -285,7 +295,6 @@ describe("runtime plugin", () => {
 
     // The structure has to survive the JSON round-trip Nuxt payloads impose.
     const serialized = JSON.parse(JSON.stringify(ssrTranslations));
-    expect(serialized["en:default"].highlighted).toEqual(virtualNodeTranslation);
 
     const plugin = await importPlugin();
     await plugin.setup(
@@ -296,7 +305,14 @@ describe("runtime plugin", () => {
       }),
     );
 
-    expect(i18n.addTranslations).toHaveBeenCalledWith(serialized);
+    // A literal, not `serialized` itself: comparing the payload to the object the
+    // test handed in would pin nothing about surviving the round trip.
+    expect(i18n.addTranslations).toHaveBeenCalledWith({
+      "en:default": {
+        greeting: "Hello",
+        highlighted: { tag: "strong", props: {}, children: ["important text"] },
+      },
+    });
     expect(i18n.addTranslations.mock.invocationCallOrder[0]).toBeLessThan(
       i18n.init.mock.invocationCallOrder[0],
     );

@@ -2,9 +2,11 @@ import { describe, it, expect, vi } from "vitest";
 import { I18n } from "../helpers/composedHost";
 
 describe("Initialization & Configuration", () => {
-  it("throws when locale is not provided", () => {
-    expect(() => new I18n({} as any)).toThrow(/Locale is not set|E_LOCALE_NOT_SET/);
-    expect(() => new I18n({ locale: "" } as any)).toThrow(/Locale is not set|E_LOCALE_NOT_SET/);
+  it.each([
+    ["omitted", {}],
+    ["an empty string", { locale: "" }],
+  ])("throws when locale is %s", (_label, options) => {
+    expect(() => new I18n(options as any)).toThrow(/Locale is not set|E_LOCALE_NOT_SET/);
   });
 
   it("throws a validation error when translation is null", () => {
@@ -82,6 +84,7 @@ describe("Initialization & Configuration", () => {
     await i18n.init();
 
     i18n.addTranslations({ "en:default": { testKey: "Found It" } });
+
     expect(i18n.t("testKey")).toBe("Found It");
   });
 
@@ -154,6 +157,10 @@ describe("Initialization & Configuration", () => {
 
     expect(Object.getPrototypeOf(flatTranslations)).toBe(Object.prototype);
     expect(i18n.t("nested.deep")).toBe("Frozen");
+    // A COPY, not the frozen object itself — otherwise the merge below throws.
+    expect(i18n.getTranslations()).not.toBe(flatTranslations);
+    i18n.addTranslations({ en: { extra: "X" } });
+    expect(i18n.t("extra")).toBe("X");
   });
 
   it("should load initial namespaces during init()", async () => {
@@ -209,6 +216,21 @@ describe("Initialization & Configuration", () => {
 
     expect(loaderCalls).toEqual([]);
     expect(i18n.getActiveNamespaces()).toEqual([]);
+  });
+
+  it("rejects init() when the initial namespace load fails", async () => {
+    const i18n = new I18n({ locale: "en", ns: ["common"] });
+    i18n.registerLoader(async () => {
+      throw new Error("backend exploded");
+    });
+
+    await expect(i18n.init()).rejects.toThrow(
+      /Failed to load all namespaces|E_ALL_NAMESPACES_FAILED/,
+    );
+
+    expect(i18n.isInitialized).toBe(false);
+    expect(i18n.isInitializing).toBe(false);
+    expect(i18n.isLoading).toBe(false);
   });
 
   it("uses updated default namespace if changed before init()", async () => {

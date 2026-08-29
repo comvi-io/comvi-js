@@ -72,7 +72,7 @@ describe("@comvi/solid — the single root entry", () => {
     const i18n = root.createI18n({ locale: "en", exposeGlobal: false });
 
     expect(i18n).toBeInstanceOf(root.I18n);
-    expect(new root.I18n({ locale: "en", exposeGlobal: false })).toBeInstanceOf(root.I18n);
+    expect(new root.I18n({ locale: "en", exposeGlobal: false })).toBeInstanceOf(CoreI18n);
   });
 });
 
@@ -118,14 +118,9 @@ describe("@comvi/solid — ICU, both shapes, one specifier", () => {
       translation: { en: { greeting: "Hello" } },
     });
 
-    let code: unknown;
-    try {
-      i18n.with(root.icu());
-    } catch (error) {
-      if (error && typeof error === "object" && "code" in error) code = error.code;
-    }
-
-    expect(code).toBe("E_COMPILER_LOCKED");
+    expect(() => i18n.with(root.icu())).toThrow(
+      expect.objectContaining({ code: "E_COMPILER_LOCKED" }),
+    );
     expect(i18n.t("greeting" as never)).toBe("Hello");
   });
 });
@@ -222,7 +217,7 @@ describe("@comvi/solid — the export surface", () => {
   ];
 
   it("publishes exactly the documented named surface — nothing more", () => {
-    expect(Object.keys(root).sort()).toEqual(SURFACE);
+    expect(Object.keys(root).sort()).toEqual([...SURFACE].sort());
   });
 
   it("never re-exports the side-effectful tags toolbox", () => {

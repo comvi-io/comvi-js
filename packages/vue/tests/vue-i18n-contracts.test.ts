@@ -94,20 +94,19 @@ describe("VueI18n contracts", () => {
 
     i18n.locale.value = "fr";
     await vi.waitFor(() => {
-      expect(onError).toHaveBeenCalled();
-      // The exact `source` is unasserted on purpose: core reports
-      // "namespace-load" before VueI18n's catch wrapper would report
-      // "setLocale", and either path satisfies the contract.
-      const errorCalls = onError.mock.calls.filter(
-        (call) => call[0] instanceof Error && /failed/i.test(call[0].message),
+      expect(onError).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: '[i18n] Failed to load all namespaces for locale "fr": common',
+        }),
+        // Core reports "namespace-load" before VueI18n's catch wrapper would
+        // report "setLocale"; either path satisfies the contract.
+        expect.objectContaining({ source: expect.stringMatching(/^(namespace-load|setLocale)$/) }),
       );
-      expect(errorCalls.length).toBeGreaterThan(0);
     });
 
     expect(consoleErr).not.toHaveBeenCalled();
     expect(i18n.locale.value).toBe("en");
     expect(i18n.t("hello")).toBe("Hello");
-    consoleErr.mockRestore();
   });
 
   it("routes imperative locale setter errors through onError with source: setLocale", async () => {
@@ -124,24 +123,24 @@ describe("VueI18n contracts", () => {
 
     i18n.locale = "fr";
     await vi.waitFor(() => {
-      expect(onError).toHaveBeenCalled();
-      // The exact `source` is unasserted on purpose: core reports
-      // "namespace-load" before VueI18n's catch wrapper would report
-      // "setLocale", and either path satisfies the contract.
-      const errorCalls = onError.mock.calls.filter(
-        (call) => call[0] instanceof Error && /failed/i.test(call[0].message),
+      expect(onError).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: '[i18n] Failed to load all namespaces for locale "fr": common',
+        }),
+        // Core reports "namespace-load" before VueI18n's catch wrapper would
+        // report "setLocale"; either path satisfies the contract.
+        expect.objectContaining({ source: expect.stringMatching(/^(namespace-load|setLocale)$/) }),
       );
-      expect(errorCalls.length).toBeGreaterThan(0);
     });
 
     expect(consoleErr).not.toHaveBeenCalled();
     expect(i18n.locale.value).toBe("en");
     expect(i18n.t("hello")).toBe("Hello");
-    consoleErr.mockRestore();
   });
 
-  it("exposes public loader, detector, fallback, and formatting behavior", async () => {
-    const onError = vi.fn();
+  // This host drives BOTH: the detector is a plugin-host member and the loader
+  // its own capability, so it composes loader then plugins.
+  const createDetectedFrenchI18n = (onError?: I18nOptions["onError"]) => {
     const localeDetector = vi.fn(() => "fr");
     const loader = vi.fn(async (locale: string, namespace: string) => {
       if (namespace === "admin") {
@@ -153,23 +152,18 @@ describe("VueI18n contracts", () => {
       };
       return translations[`${locale}:${namespace}`] ?? {};
     });
-    // This one drives BOTH: the detector is a plugin-host member and the
-    // loader its own capability, so the host composes loader then plugins.
     const i18n = createI18nFromCore(
-      createCore({
-        locale: "en",
-        defaultNs: "common",
-        onError,
-      })
+      createCore({ locale: "en", defaultNs: "common", ...(onError ? { onError } : {}) })
         .with(attachLoader)
         .with(attachPlugins),
     );
-    const loadErrorSpy = vi.fn();
-
     i18n.core.registerLocaleDetector(localeDetector);
     i18n.core.registerLoader(loader);
-    const unsubscribeMissing = i18n.core.onMissingKey((key) => `fallback:${key}`);
-    const unsubscribeLoadError = i18n.core.onLoadError(loadErrorSpy);
+    return { i18n, localeDetector, loader };
+  };
+
+  it("exposes public loader, detector, fallback, and formatting behavior", async () => {
+    const { i18n, localeDetector } = createDetectedFrenchI18n();
 
     await i18n.init();
 
@@ -184,6 +178,7 @@ describe("VueI18n contracts", () => {
 
     i18n.addTranslations({ en: { fallbackOnly: "Fallback only" } });
     i18n.setFallbackLocale("en");
+
     expect(i18n.t("fallbackOnly")).toBe("Fallback only");
     expect(
       i18n.hasTranslation("fallbackOnly", {
@@ -194,25 +189,59 @@ describe("VueI18n contracts", () => {
     ).toBe(true);
     expect([...i18n.loadedLocales.value].sort()).toEqual(["en", "fr"]);
 
-    await expect(i18n.core.addActiveNamespace("admin")).rejects.toThrow(/failed|admin/i);
+    // The detected locale drives Intl too; `timeZone` is pinned so the date is
+    // not a function of the machine running the suite.
+    expect(i18n.formatNumber(1234.5)).toBe("1\u202f234,5");
+    expect(i18n.formatCurrency(12.5, "USD")).toBe("12,50\u00a0$US");
+    expect(i18n.formatDate(new Date("2026-01-01T00:00:00Z"), { timeZone: "UTC" })).toBe(
+      "01/01/2026",
+    );
+    expect(i18n.formatRelativeTime(-1, "day")).toBe("il y a 1 jour");
+  });
+
+  it("rejects addActiveNamespace and notifies onLoadError when that namespace fails to load", async () => {
+    // The host takes an onError so core's expected failure is routed to a
+    // handler rather than printed to the suite's stderr.
+    const { i18n } = createDetectedFrenchI18n(vi.fn());
+    const loadErrorSpy = vi.fn();
+    i18n.core.onLoadError(loadErrorSpy);
+
+    await i18n.init();
+
+    await expect(i18n.core.addActiveNamespace("admin")).rejects.toThrow(
+      '[i18n] Failed to load all namespaces for locale "fr": admin',
+    );
+
     await vi.waitFor(() => {
-      expect(loadErrorSpy).toHaveBeenCalledWith("fr", "admin", expect.any(Error));
+      expect(loadErrorSpy).toHaveBeenCalledWith(
+        "fr",
+        "admin",
+        expect.objectContaining({ message: "admin load failed" }),
+      );
     });
+  });
 
+  it("forwards reportError arguments to the configured onError handler verbatim", async () => {
+    const onError = vi.fn();
+    const { i18n } = createDetectedFrenchI18n(onError);
+    await i18n.init();
     onError.mockClear();
-    i18n.reportError(new Error("boom"), { source: "translation", tagName: "link" });
-    expect(onError).toHaveBeenCalledWith(expect.objectContaining({ message: "boom" }), {
-      source: "translation",
-      tagName: "link",
-    });
 
-    expect(typeof i18n.formatNumber(1234.5)).toBe("string");
-    expect(typeof i18n.formatDate(new Date("2026-01-01T00:00:00Z"))).toBe("string");
-    expect(typeof i18n.formatCurrency(12.5, "USD")).toBe("string");
-    expect(typeof i18n.formatRelativeTime(-1, "day")).toBe("string");
+    const reported = new Error("boom");
+    i18n.reportError(reported, { source: "translation", tagName: "link" });
+
+    expect(onError).toHaveBeenCalledWith(reported, { source: "translation", tagName: "link" });
+  });
+
+  it("returns the raw key again once the onMissingKey handler unsubscribes", async () => {
+    const { i18n } = createDetectedFrenchI18n();
+    const unsubscribeMissing = i18n.core.onMissingKey((key) => `fallback:${key}`);
+    await i18n.init();
+
+    expect(i18n.t("unknown.key")).toBe("fallback:unknown.key");
 
     unsubscribeMissing();
-    unsubscribeLoadError();
+
     expect(i18n.t("unknown.key")).toBe("unknown.key");
   });
 
@@ -241,7 +270,11 @@ describe("VueI18n contracts", () => {
 
     i18n.destroy();
 
-    await expect(i18n.init()).rejects.toThrow(/destroy|E_INSTANCE_DESTROYED/);
+    // The unit project resolves ../src with __DEV__ true, so only the dev
+    // message is reachable here; the prod text is pinned in tests/js-contract/.
+    await expect(i18n.init()).rejects.toThrow(
+      "[i18n] Cannot call init() after destroy(). Create a new i18n instance.",
+    );
   });
 
   it("supports fallback return values from onMissingKey callback", () => {

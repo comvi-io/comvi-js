@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { mkdtempSync, rmSync, writeFileSync, mkdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
@@ -6,21 +6,23 @@ import { findEnvFile, loadEnv, MissingEnvFileError } from "../src/core/EnvLoader
 
 /**
  * EnvLoader uses real fs (existsSync / readFileSync) so we drive it with
- * temp directories rather than mocks. Each test sets up its own sandbox to
- * avoid cross-contamination — process.env is also restored per test.
+ * temp directories rather than mocks. Each test sets up its own sandbox.
  */
 describe("EnvLoader", () => {
   let sandbox: string;
-  const originalEnv = { ...process.env };
+  let envKeysBefore: Set<string>;
 
   beforeEach(() => {
     sandbox = mkdtempSync(resolve(tmpdir(), "comvi-envloader-"));
-    process.env = { ...originalEnv };
+    envKeysBefore = new Set(Object.keys(process.env));
   });
 
   afterEach(() => {
     rmSync(sandbox, { recursive: true, force: true });
-    process.env = { ...originalEnv };
+    // loadEnv assigns to process.env directly, which vi.unstubAllEnvs cannot undo
+    for (const key of Object.keys(process.env)) {
+      if (!envKeysBefore.has(key)) delete process.env[key];
+    }
   });
 
   describe("findEnvFile", () => {
@@ -42,12 +44,8 @@ describe("EnvLoader", () => {
     });
 
     it("stops at the project root (package.json) — does not escape into shared CI dirs", () => {
-      // Layout:
-      //   sandbox/.env                <- DECOY (must NOT be picked up)
-      //   sandbox/project/package.json
-      //   sandbox/project/src/        <- start dir
-      // The walk-up should hit project/package.json and stop, never seeing
-      // sandbox/.env. This is the CI-runner-with-shared-builds-dir scenario.
+      // The walk-up must stop at project/package.json and never reach the
+      // decoy sandbox/.env — the CI-runner-with-a-shared-builds-dir scenario.
       writeFileSync(resolve(sandbox, ".env"), "DECOY=1");
       const project = resolve(sandbox, "project");
       mkdirSync(resolve(project, "src"), { recursive: true });
@@ -79,7 +77,7 @@ describe("EnvLoader", () => {
     it("does NOT overwrite existing process.env vars (CI safety)", () => {
       // The whole point of this loader: a checked-in .env must NEVER
       // override what the CI pipeline exported.
-      process.env.COMVI_API_KEY = "real-prod-key";
+      vi.stubEnv("COMVI_API_KEY", "real-prod-key");
       writeFileSync(resolve(sandbox, "package.json"), "{}");
       writeFileSync(resolve(sandbox, ".env"), "COMVI_API_KEY=fake-dev-key\nCOMVI_TEST_NEW=ok");
 
@@ -95,7 +93,7 @@ describe("EnvLoader", () => {
       // Edge case: shells frequently export empty strings. We must NOT
       // promote a .env value over an explicitly-set-empty real env var,
       // because the user may have chosen empty deliberately.
-      process.env.COMVI_TEST_EMPTY = "";
+      vi.stubEnv("COMVI_TEST_EMPTY", "");
       writeFileSync(resolve(sandbox, "package.json"), "{}");
       writeFileSync(resolve(sandbox, ".env"), "COMVI_TEST_EMPTY=fallback");
 
@@ -156,20 +154,25 @@ describe("EnvLoader", () => {
       mkdirSync(dirAsFile);
       writeFileSync(resolve(sandbox, "package.json"), "{}");
 
-      const stderrChunks: string[] = [];
-      const originalWrite = process.stderr.write.bind(process.stderr);
-      process.stderr.write = ((chunk: unknown) => {
-        stderrChunks.push(String(chunk));
-        return true;
-      }) as typeof process.stderr.write;
+      const stderr = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
 
-      try {
-        const result = loadEnv({ cwd: sandbox });
-        expect(result).toBeNull();
-        expect(stderrChunks.join("")).toMatch(/failed to parse/);
-      } finally {
-        process.stderr.write = originalWrite;
-      }
+      const result = loadEnv({ cwd: sandbox });
+
+      expect(result).toBeNull();
+      expect(stderr).toHaveBeenCalledWith(expect.stringContaining("failed to parse"));
+    });
+
+    it("returns null when the .env file yields no variables", () => {
+      writeFileSync(resolve(sandbox, "package.json"), "{}");
+      writeFileSync(resolve(sandbox, ".env"), "# only a comment\n\n");
+
+      expect(loadEnv({ cwd: sandbox })).toBeNull();
+    });
+
+    it("returns null without reading an explicitPath when disabled", () => {
+      const missing = resolve(sandbox, "missing.env");
+
+      expect(loadEnv({ cwd: sandbox, disabled: true, explicitPath: missing })).toBeNull();
     });
   });
 });

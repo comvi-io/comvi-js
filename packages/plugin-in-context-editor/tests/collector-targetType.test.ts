@@ -12,10 +12,18 @@ function makeSemantic(overrides: Partial<SemanticSignals> = {}): SemanticSignals
   };
 }
 
-function makeConstraints(overrides: Partial<ConstraintSignals["hard"]> = {}): ConstraintSignals {
+function makeConstraints(
+  hard: Partial<ConstraintSignals["hard"]> = {},
+  soft: Partial<ConstraintSignals["soft"]> = {},
+): ConstraintSignals {
   return {
-    hard: { mustBeShort: false, singleLine: false, widthBucket: "medium", ...overrides },
-    soft: { likelyTruncated: false, visuallyCompact: false, visualProminence: "medium" },
+    hard: { mustBeShort: false, singleLine: false, widthBucket: "medium", ...hard },
+    soft: {
+      likelyTruncated: false,
+      visuallyCompact: false,
+      visualProminence: "medium",
+      ...soft,
+    },
   };
 }
 
@@ -56,41 +64,30 @@ describe("collector/targetType — inferTargetType branches", () => {
     expect(result).toEqual({ uiType: "primary-button", translationRole: "imperative-verb" });
   });
 
-  it("also recognizes an html submit input and an aria role=button as a button", () => {
-    const bySubmitType = inferTargetType(
+  it.each([
+    ["an html submit input", { htmlType: "submit" }],
+    ["an aria role=button", { ariaRole: "button" }],
+  ])("also recognizes %s as a button", (_label, marker) => {
+    const result = inferTargetType(
       "form.go",
-      makeSemantic({ semanticRole: "unknown", htmlType: "submit" }),
+      makeSemantic({ semanticRole: "unknown", ...marker }),
       makeConstraints(),
     );
-    expect(bySubmitType.uiType).toBe("primary-button");
 
-    const byAriaRole = inferTargetType(
-      "form.go",
-      makeSemantic({ semanticRole: "unknown", ariaRole: "button" }),
-      makeConstraints(),
-    );
-    expect(byAriaRole.uiType).toBe("primary-button");
+    expect(result).toEqual({ uiType: "primary-button", translationRole: "imperative-verb" });
   });
 
-  it("classifies a high-prominence heading as page-title, else section-title", () => {
-    const pageTitle = inferTargetType(
-      "home.title",
-      makeSemantic({ semanticRole: "heading" }),
-      makeConstraints({}),
-    );
-    // default visualProminence is "medium" in makeConstraints -> section-title
-    expect(pageTitle).toEqual({ uiType: "section-title", translationRole: "noun-phrase" });
-
-    const constraintsHighProminence: ConstraintSignals = {
-      hard: { mustBeShort: false, singleLine: false, widthBucket: "full" },
-      soft: { likelyTruncated: false, visuallyCompact: false, visualProminence: "high" },
-    };
+  it.each([
+    ["high", "page-title"],
+    ["medium", "section-title"],
+  ] as const)("classifies a %s-prominence heading as %s", (visualProminence, uiType) => {
     const result = inferTargetType(
       "home.title",
       makeSemantic({ semanticRole: "heading" }),
-      constraintsHighProminence,
+      makeConstraints({}, { visualProminence }),
     );
-    expect(result).toEqual({ uiType: "page-title", translationRole: "noun-phrase" });
+
+    expect(result).toEqual({ uiType, translationRole: "noun-phrase" });
   });
 
   it("classifies a label role as form-label", () => {
@@ -102,23 +99,13 @@ describe("collector/targetType — inferTargetType branches", () => {
     expect(result).toEqual({ uiType: "form-label", translationRole: "field-label" });
   });
 
-  it("classifies an input role as form-placeholder when the key mentions placeholder, else form-label", () => {
-    const placeholder = inferTargetType(
-      "auth.email.placeholder",
-      makeSemantic({ semanticRole: "input" }),
-      makeConstraints(),
-    );
-    expect(placeholder).toEqual({
-      uiType: "form-placeholder",
-      translationRole: "placeholder-hint",
-    });
+  it.each([
+    ["auth.email.placeholder", "form-placeholder", "placeholder-hint"],
+    ["auth.email.field", "form-label", "field-label"],
+  ] as const)("classifies the input-role key %s as %s", (key, uiType, translationRole) => {
+    const result = inferTargetType(key, makeSemantic({ semanticRole: "input" }), makeConstraints());
 
-    const label = inferTargetType(
-      "auth.email.field",
-      makeSemantic({ semanticRole: "input" }),
-      makeConstraints(),
-    );
-    expect(label).toEqual({ uiType: "form-label", translationRole: "field-label" });
+    expect(result).toEqual({ uiType, translationRole });
   });
 
   it("classifies an alert role as an error-message", () => {
@@ -130,37 +117,31 @@ describe("collector/targetType — inferTargetType branches", () => {
     expect(result).toEqual({ uiType: "error-message", translationRole: "error-sentence" });
   });
 
-  it("classifies menu-item and link roles as nav-item", () => {
-    const menuItem = inferTargetType(
+  it.each(["menu-item", "link"] as const)("classifies the %s role as nav-item", (semanticRole) => {
+    const result = inferTargetType(
       "nav.settings",
-      makeSemantic({ semanticRole: "menu-item" }),
+      makeSemantic({ semanticRole }),
       makeConstraints(),
     );
-    expect(menuItem).toEqual({ uiType: "nav-item", translationRole: "nav-label" });
 
-    const link = inferTargetType(
-      "nav.home",
-      makeSemantic({ semanticRole: "link" }),
-      makeConstraints(),
-    );
-    expect(link).toEqual({ uiType: "nav-item", translationRole: "nav-label" });
+    expect(result).toEqual({ uiType: "nav-item", translationRole: "nav-label" });
   });
 
-  it("classifies a small/tiny caption or body-text as a status-badge", () => {
-    const caption = inferTargetType(
-      "order.status",
-      makeSemantic({ semanticRole: "caption" }),
-      makeConstraints({ widthBucket: "tiny" }),
-    );
-    expect(caption).toEqual({ uiType: "status-badge", translationRole: "short-status" });
+  it.each([
+    ["caption", "tiny"],
+    ["body-text", "small"],
+  ] as const)(
+    "classifies a %s in a %s width bucket as a status-badge",
+    (semanticRole, widthBucket) => {
+      const result = inferTargetType(
+        "order.status",
+        makeSemantic({ semanticRole }),
+        makeConstraints({ widthBucket }),
+      );
 
-    const bodyText = inferTargetType(
-      "order.status",
-      makeSemantic({ semanticRole: "body-text" }),
-      makeConstraints({ widthBucket: "small" }),
-    );
-    expect(bodyText).toEqual({ uiType: "status-badge", translationRole: "short-status" });
-  });
+      expect(result).toEqual({ uiType: "status-badge", translationRole: "short-status" });
+    },
+  );
 
   it("does not classify a large caption as a status-badge", () => {
     const result = inferTargetType(
@@ -178,5 +159,21 @@ describe("collector/targetType — inferTargetType branches", () => {
       makeConstraints(),
     );
     expect(result).toEqual({ uiType: "body-text", translationRole: "descriptive-text" });
+  });
+
+  it("prefers the destructive pattern over the secondary one when a button key matches both", () => {
+    const result = inferTargetType(
+      "modal.cancel.delete",
+      makeSemantic({ semanticRole: "button" }),
+      makeConstraints(),
+    );
+
+    expect(result).toEqual({ uiType: "destructive-button", translationRole: "imperative-verb" });
+  });
+
+  it("classifies an empty button key as primary-button", () => {
+    const result = inferTargetType("", makeSemantic({ semanticRole: "button" }), makeConstraints());
+
+    expect(result).toEqual({ uiType: "primary-button", translationRole: "imperative-verb" });
   });
 });

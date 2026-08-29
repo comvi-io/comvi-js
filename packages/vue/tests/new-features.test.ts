@@ -56,10 +56,6 @@ describe("New Features", () => {
       const i18n = createI18n({ locale: "en", defaultNs: "common" });
       await i18n.init();
 
-      i18n.addTranslations({
-        en: { hello: "Hello" },
-      });
-
       const spy = vi.fn();
       const unsub = i18n.on("missingKey", spy);
 
@@ -119,28 +115,18 @@ describe("New Features", () => {
 
       unsubscribe();
 
+      // A second, still-live subscription is the only proof that the
+      // localeChanged event has actually been dispatched; the ref settles on a
+      // different code path and can race the event.
+      const stillSubscribed = vi.fn();
+      i18n.on("localeChanged", stillSubscribed);
+
       i18n.locale = "de";
       await vi.waitFor(() => {
-        expect(i18n.locale.value).toBe("de");
+        expect(stillSubscribed).toHaveBeenCalledWith({ from: "fr", to: "de" });
       });
 
       expect(spy).toHaveBeenCalledTimes(1);
-    });
-
-    it("should subscribe to missingKey event", async () => {
-      const i18n = createI18n({ locale: "en", defaultNs: "common" });
-      await i18n.init();
-
-      const spy = vi.fn();
-      i18n.on("missingKey", spy);
-
-      i18n.t("nonexistent.key");
-
-      expect(spy).toHaveBeenCalledWith({
-        key: "nonexistent.key",
-        locale: "en",
-        namespace: "common",
-      });
     });
 
     it("should subscribe to namespaceLoaded event", async () => {
@@ -259,8 +245,10 @@ describe("New Features", () => {
       });
       scope.stop();
 
-      expect(i18n.hasTranslationNow("greeting")).toBe(reactiveHasGreeting);
-      expect(i18n.hasTranslationNow("missing.key")).toBe(reactiveHasMissing);
+      expect(reactiveHasGreeting).toBe(true);
+      expect(reactiveHasMissing).toBe(false);
+      expect(i18n.hasTranslationNow("greeting")).toBe(true);
+      expect(i18n.hasTranslationNow("missing.key")).toBe(false);
     });
 
     it("hasTranslationNow can be called in a loop outside any effectScope without throwing", async () => {
@@ -270,15 +258,13 @@ describe("New Features", () => {
 
       const results: boolean[] = [];
       expect(() => {
-        for (let i = 0; i < 50; i++) {
-          results.push(i18n.hasTranslationNow(`key${i % 3}`));
+        for (const key of ["key0", "key1", "key2"]) {
+          results.push(i18n.hasTranslationNow(key));
         }
       }).not.toThrow();
 
-      for (const r of results) {
-        expect(typeof r).toBe("boolean");
-        expect(isRef(r)).toBe(false);
-      }
+      expect(results).toEqual([true, true, true]);
+      expect(results.map(isRef)).toEqual([false, false, false]);
     });
 
     it("hasLocaleNow returns a plain boolean (not a ref)", async () => {
@@ -314,8 +300,10 @@ describe("New Features", () => {
       });
       scope.stop();
 
-      expect(i18n.hasLocaleNow("en")).toBe(reactiveHasEn);
-      expect(i18n.hasLocaleNow("fr")).toBe(reactiveHasFr);
+      expect(reactiveHasEn).toBe(true);
+      expect(reactiveHasFr).toBe(false);
+      expect(i18n.hasLocaleNow("en")).toBe(true);
+      expect(i18n.hasLocaleNow("fr")).toBe(false);
     });
 
     it("hasTranslation() returns a ComputedRef while hasTranslationNow() returns a primitive", async () => {
@@ -431,7 +419,7 @@ describe("New Features", () => {
 
       // The core still processes the change; the ref must not follow it,
       // because destroy() removed the internal "localeChanged" listener.
-      await i18n.setLocale("fr").catch(() => {});
+      await expect(i18n.setLocale("fr")).resolves.toBeUndefined();
       await nextTick();
 
       expect(localeRef.value).toBe("en");

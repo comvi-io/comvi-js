@@ -7,7 +7,6 @@ import {
   findModalContext,
   computeScreenGroup,
 } from "../src/collector/screenGroup";
-import { sha256Hex } from "../src/collector/hash/observation-hash";
 import { mockBoundingClientRect, cleanupDOM } from "./helpers";
 
 const VISIBLE_RECT = { top: 0, left: 0, width: 200, height: 100, right: 200, bottom: 100 };
@@ -69,6 +68,7 @@ describe("collector/screenGroup", () => {
   describe("routeDigest — the default, opaque group", () => {
     it("never carries raw path segments (PII barrier is the digest, not the heuristics)", () => {
       const digest = routeDigest("/users/johndoe/profile");
+
       expect(digest).toMatch(/^route:[0-9a-f]{16}$/);
       expect(digest).not.toContain("johndoe");
       expect(digest).not.toContain("profile");
@@ -93,9 +93,7 @@ describe("collector/screenGroup", () => {
       const context = findModalContext(document, makeRegistry());
 
       expect(context?.element).toBe(dialog);
-      expect(context?.discriminator).toBe(
-        "modal:" + sha256Hex("confirm-delete-user@x.co").slice(0, 12),
-      );
+      expect(context?.discriminator).toBe("modal:3ee0c93781c4");
       expect(context?.discriminator).not.toContain("user@x.co");
     });
 
@@ -147,14 +145,15 @@ describe("collector/screenGroup", () => {
         "/projects/42/settings",
       );
 
-      expect(screenGroup).toBe(routeDigest("/projects/42/settings"));
+      expect(screenGroup).toBe("route:f1bc0b4b50001b60");
       expect(modal?.element).toBe(dialog);
-      expect(modal?.discriminator).toBe("modal:" + sha256Hex("settings-modal").slice(0, 12));
+      expect(modal?.discriminator).toBe("modal:a812ad7ac4b7");
     });
 
     it("has a null modal when no dialog is open", () => {
       const { screenGroup, modal } = computeScreenGroup(document, makeRegistry(), "/dashboard");
-      expect(screenGroup).toBe(routeDigest("/dashboard"));
+
+      expect(screenGroup).toBe("route:89347bb23a645278");
       expect(modal).toBeNull();
     });
 
@@ -168,23 +167,31 @@ describe("collector/screenGroup", () => {
       expect(screenGroup).toBe("/users/:id/profile");
     });
 
-    it("falls back to the digest when the resolver returns null or throws", () => {
-      const registry = makeRegistry();
-      expect(computeScreenGroup(document, registry, "/dashboard", () => null).screenGroup).toBe(
-        routeDigest("/dashboard"),
-      );
-      expect(
-        computeScreenGroup(document, registry, "/dashboard", () => {
+    it.each([
+      ["returning null", () => null],
+      [
+        "throwing",
+        () => {
           throw new Error("host resolver bug");
-        }).screenGroup,
-      ).toBe(routeDigest("/dashboard"));
+        },
+      ],
+    ])("falls back to the route digest when the resolver is %s", (_label, resolver) => {
+      const { screenGroup } = computeScreenGroup(
+        document,
+        makeRegistry(),
+        "/dashboard",
+        resolver as () => string | null,
+      );
+
+      expect(screenGroup).toBe("route:89347bb23a645278");
     });
 
-    it("caps an oversized resolver value", () => {
+    it("caps an oversized resolver value at 120 characters", () => {
       const { screenGroup } = computeScreenGroup(document, makeRegistry(), "/x", () =>
         "/a".repeat(400),
       );
-      expect(screenGroup.length).toBeLessThanOrEqual(120);
+
+      expect(screenGroup).toBe("/a".repeat(60));
     });
   });
 });

@@ -36,11 +36,11 @@ describe("<T /> component", () => {
   });
 
   it("throws when used without provider", () => {
-    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+
     expect(() => mount(T, { props: { i18nKey: "hello" } })).toThrow(
       /<T> component must be used within a Vue app with i18n plugin installed/i,
     );
-    warnSpy.mockRestore();
   });
 
   it("renders with params", () => {
@@ -83,7 +83,7 @@ describe("<T /> component", () => {
       global: { provide: { [I18N_INJECTION_KEY as symbol]: i18n } },
     });
 
-    expect(wrapper.text()).toMatch(/Hello\s*world/);
+    expect(wrapper.text()).toBe("Helloworld");
     expect(wrapper.find("template").exists()).toBe(false);
   });
 
@@ -108,7 +108,7 @@ describe("<T /> component", () => {
     expect(wrapper.find("strong").text()).toBe("here");
     expect(wrapper.find("em").exists()).toBe(true);
     expect(wrapper.find("em").text()).toBe("!");
-    expect(wrapper.text()).toMatch(/Click\s*here!/);
+    expect(wrapper.text()).toBe("Clickhere!");
   });
 
   it("handles empty slot content", () => {
@@ -125,7 +125,7 @@ describe("<T /> component", () => {
       global: { provide: { [I18N_INJECTION_KEY as symbol]: i18n } },
     });
 
-    expect(wrapper.text()).toMatch(/Start\s*end/);
+    expect(wrapper.text()).toBe("Startend");
   });
 
   describe("fallback prop", () => {
@@ -163,16 +163,19 @@ describe("<T /> component", () => {
   const createPostProcessorI18n = (translation: Record<string, Record<string, string>>) =>
     createI18nFromCore(createCore({ locale: "en", translation }).with(attachPlugins));
 
+  const upperCaseUnlessRaw = (
+    result: TranslationResult,
+    _key: string,
+    _ns: string | undefined,
+    params?: Record<string, unknown>,
+  ): TranslationResult =>
+    params?.raw === true || typeof result !== "string" ? result : result.toUpperCase();
+
   describe("raw prop", () => {
     it("skips post-processor when raw is true", () => {
       const i18n = createPostProcessorI18n({ en: { greeting: "hello" } });
 
-      i18n.core.registerPostProcessor((result, key, ns, params) => {
-        if (params?.raw === true) {
-          return result;
-        }
-        return typeof result === "string" ? result.toUpperCase() : result;
-      });
+      i18n.core.registerPostProcessor(upperCaseUnlessRaw);
 
       const wrapper = mount(T, {
         props: { i18nKey: "greeting", raw: true },
@@ -185,12 +188,7 @@ describe("<T /> component", () => {
     it("applies post-processor when raw is false", () => {
       const i18n = createPostProcessorI18n({ en: { greeting: "hello" } });
 
-      i18n.core.registerPostProcessor((result, key, ns, params) => {
-        if (params?.raw === true) {
-          return result;
-        }
-        return typeof result === "string" ? result.toUpperCase() : result;
-      });
+      i18n.core.registerPostProcessor(upperCaseUnlessRaw);
 
       const wrapper = mount(T, {
         props: { i18nKey: "greeting", raw: false },
@@ -203,12 +201,7 @@ describe("<T /> component", () => {
     it("applies post-processor when raw is not specified", () => {
       const i18n = createPostProcessorI18n({ en: { greeting: "hello" } });
 
-      i18n.core.registerPostProcessor((result, key, ns, params) => {
-        if (params?.raw === true) {
-          return result;
-        }
-        return typeof result === "string" ? result.toUpperCase() : result;
-      });
+      i18n.core.registerPostProcessor(upperCaseUnlessRaw);
 
       const wrapper = mount(T, {
         props: { i18nKey: "greeting" },
@@ -221,12 +214,7 @@ describe("<T /> component", () => {
     it("works with other props combined", () => {
       const i18n = createPostProcessorI18n({ en: { greeting: "hello {name}" } });
 
-      i18n.core.registerPostProcessor((result, key, ns, params) => {
-        if (params?.raw === true) {
-          return result;
-        }
-        return typeof result === "string" ? result.toUpperCase() : result;
-      });
+      i18n.core.registerPostProcessor(upperCaseUnlessRaw);
 
       const wrapper = mount(T, {
         props: {

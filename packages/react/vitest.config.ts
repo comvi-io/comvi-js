@@ -40,6 +40,9 @@ const shared = {
 const jsContract = {
   environment: "happy-dom" as const,
   globals: true,
+  restoreMocks: true,
+  unstubEnvs: true,
+  unstubGlobals: true,
   include: ["tests/js-contract/**/*.test.jsx"],
 };
 
@@ -65,6 +68,9 @@ export default defineConfig({
         test: {
           name: "unit",
           globals: true,
+          restoreMocks: true,
+          unstubEnvs: true,
+          unstubGlobals: true,
           environment: "happy-dom",
           include: ["tests/**/*.test.{ts,tsx}"],
         },

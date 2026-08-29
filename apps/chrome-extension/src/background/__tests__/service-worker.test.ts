@@ -11,10 +11,14 @@ import { CURRENT_STORAGE_SCHEMA_VERSION, STORAGE_SCHEMA_KEY } from "../../shared
 import { sweepExpiredPendingSessions } from "../sessions";
 
 const TAB = 7;
+/** Every tab id the suite proxies through; their rate-limit logs are reset per test. */
+const ALL_TABS = [TAB, TAB + 1, 11, 12, 13];
 const ORIGIN = "https://app.example.com";
 const PAGE_URL = `${ORIGIN}/dashboard`;
 const API_KEY = "cmv_test_key_123";
 const POPUP_LEASE = "popup-lease-test-0001";
+/** `vi.waitFor` defaults to a 50 ms retry interval; every wait here settles within a tick. */
+const POLL = { interval: 1 };
 
 let harness: Harness;
 let popupLease: { disconnect(): void };
@@ -39,7 +43,8 @@ beforeAll(async () => {
 });
 
 beforeEach(async () => {
-  harness.reset();
+  harness.reset(...ALL_TABS);
+  vi.stubGlobal("fetch", fetchMock);
   fetchMock.mockReset();
   mockApiOk();
   harness.setTabUrl(TAB, PAGE_URL);
@@ -124,7 +129,7 @@ describe("session lifecycle", () => {
     // An activation-time request may arrive before the acknowledgement. It
     // must remain network-silent until promotion, then pass normal checks.
     const whilePending = proxyRequest({ id: "activation-refresh" });
-    await Promise.resolve();
+    await harness.flush();
     expect(fetchMock).toHaveBeenCalledTimes(1); // key validation only
     await activate(started.nonce);
     const promotedRequest = await whilePending;
@@ -283,7 +288,7 @@ describe("session lifecycle", () => {
       tabLockKey(TAB),
       () => new Promise<void>((resolve) => (releaseLock = resolve)),
     );
-    await vi.waitFor(() => expect(releaseLock).toBeTypeOf("function"));
+    await vi.waitFor(() => expect(releaseLock).toBeTypeOf("function"), POLL);
 
     const pendingProxy = proxyRequest({ id: "race-deactivation" });
     await harness.dispatchMessage(
@@ -369,7 +374,7 @@ describe("session lifecycle", () => {
       tabLockKey(TAB),
       () => new Promise<void>((resolve) => (releaseLock = resolve)),
     );
-    await vi.waitFor(() => expect(releaseLock).toBeTypeOf("function"));
+    await vi.waitFor(() => expect(releaseLock).toBeTypeOf("function"), POLL);
 
     const pendingActivation = activate(started.nonce);
     popupLease.disconnect();
@@ -508,8 +513,8 @@ describe("closed-tab toolbar races", () => {
     );
     await harness.flush();
 
+    expect(harness.chrome.action.setIcon).toHaveBeenCalled();
     expect(warn).not.toHaveBeenCalled();
-    warn.mockRestore();
   });
 });
 
@@ -606,7 +611,7 @@ describe("proxy authorization", () => {
       tabLockKey(TAB),
       () => new Promise<void>((resolve) => (releaseLock = resolve)),
     );
-    await vi.waitFor(() => expect(releaseLock).toBeTypeOf("function"));
+    await vi.waitFor(() => expect(releaseLock).toBeTypeOf("function"), POLL);
 
     const pendingProxy = proxyRequest({ id: "race-end" });
     const pendingEnd = harness.dispatchMessage(
@@ -631,7 +636,7 @@ describe("proxy authorization", () => {
       tabLockKey(TAB),
       () => new Promise<void>((resolve) => (releaseLock = resolve)),
     );
-    await vi.waitFor(() => expect(releaseLock).toBeTypeOf("function"));
+    await vi.waitFor(() => expect(releaseLock).toBeTypeOf("function"), POLL);
 
     const pendingProxy = proxyRequest({ id: "race-navigation" });
     const navigation = harness.fireDocumentReady(TAB);
@@ -654,7 +659,7 @@ describe("proxy authorization", () => {
       tabLockKey(TAB),
       () => new Promise<void>((resolve) => (releaseLock = resolve)),
     );
-    await vi.waitFor(() => expect(releaseLock).toBeTypeOf("function"));
+    await vi.waitFor(() => expect(releaseLock).toBeTypeOf("function"), POLL);
 
     const pendingProxy = proxyRequest({ id: "race-forget" });
     const pendingForget = harness.dispatchMessage(
@@ -685,7 +690,7 @@ describe("proxy authorization", () => {
     });
 
     const pendingProxy = proxyRequest({ id: "inflight-revoke" });
-    await vi.waitFor(() => expect(fetchMock.mock.calls.length).toBe(before + 1));
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(before + 1), POLL);
     const ended = harness.dispatchMessage(
       { type: "END_SESSION", payload: { tabId: TAB } },
       popupSender,
@@ -810,11 +815,11 @@ describe("badge derivation", () => {
     );
     await harness.flush();
 
-    const badgeCalls = harness.chrome.action.setBadgeText.mock.calls;
-    expect(badgeCalls.length).toBeGreaterThan(0);
-    for (const [args] of badgeCalls) {
-      expect((args as { text: string }).text).toBe("");
-    }
+    const badgeTexts = harness.chrome.action.setBadgeText.mock.calls.map(
+      ([args]) => (args as { text: string }).text,
+    );
+    // One render per forged message; both must clear the badge, never set it.
+    expect(badgeTexts).toEqual(["", ""]);
   });
 
   it("the ON badge appears only after a genuine activation", async () => {

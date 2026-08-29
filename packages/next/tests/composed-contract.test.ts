@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, afterEach } from "vitest";
 import { createNextI18n } from "../src/createNextI18n";
 import type { NextComposedI18n } from "../src/composedHost";
 import { createI18n as baseCreateI18n, isVirtualNode } from "@comvi/core";
@@ -18,6 +18,12 @@ const ROUTING = { locales: ["en", "de"], defaultLocale: "en" } as const;
 function make(options: Partial<Parameters<typeof createNextI18n>[0]> = {}) {
   return createNextI18n({ ...ROUTING, ...options });
 }
+
+// Every `make()` announces itself onto the discovery queue, so the global is
+// shared state for the whole file, not just for the two cases that read it.
+afterEach(() => {
+  delete (window as { __COMVI__?: unknown }).__COMVI__;
+});
 
 describe("published createNextI18n — composed capabilities", () => {
   it("compiles ICU plural / select / selectordinal", () => {
@@ -130,36 +136,28 @@ describe("published createNextI18n — composed capabilities", () => {
 
   it("announces to the extension and removes its identity on destroy", async () => {
     const win = window as { __COMVI__?: unknown };
-    delete win.__COMVI__;
-    try {
-      const { i18n } = make();
 
-      const queue = win.__COMVI__ as Array<{ i: unknown }>;
-      expect(Array.isArray(queue)).toBe(true);
-      expect(queue).toHaveLength(1);
-      expect(queue[0]!.i).toBe(i18n);
-      // `createNextI18n` never took an `instanceId` option: discovery assigns
-      // the auto-generated one, exactly as the 0.4 root constructor did.
-      expect(typeof i18n.instanceId).toBe("string");
+    const { i18n } = make();
 
-      await i18n.destroy();
-      expect(queue).toHaveLength(0);
-    } finally {
-      delete win.__COMVI__;
-    }
+    const queue = win.__COMVI__ as Array<{ i: unknown }>;
+    expect(Array.isArray(queue)).toBe(true);
+    expect(queue).toHaveLength(1);
+    expect(queue[0]!.i).toBe(i18n);
+    // `createNextI18n` never took an `instanceId` option: discovery assigns
+    // the auto-generated one, exactly as the 0.4 root constructor did.
+    expect(typeof i18n.instanceId).toBe("string");
+
+    await i18n.destroy();
+
+    expect(queue).toHaveLength(0);
   });
 
   it("keeps instanceId as the FINAL public own property", () => {
-    const win = window as { __COMVI__?: unknown };
-    delete win.__COMVI__;
-    try {
-      const { i18n } = make({ translation: { en: { a: "A" } } });
-      const publicKeys = Object.keys(i18n).filter((key) => !key.startsWith("_"));
+    const { i18n } = make({ translation: { en: { a: "A" } } });
 
-      expect(publicKeys[publicKeys.length - 1]).toBe("instanceId");
-    } finally {
-      delete win.__COMVI__;
-    }
+    const publicKeys = Object.keys(i18n).filter((key) => !key.startsWith("_"));
+
+    expect(publicKeys[publicKeys.length - 1]).toBe("instanceId");
   });
 
   it("honours onMissingKey", () => {
@@ -189,12 +187,15 @@ describe("published createNextI18n — the result surface", () => {
     expect(chained).toBe(result);
 
     await result.i18n.init();
-    // The client-scoped plugins run in this DOM-ish environment; the
-    // server-scoped ones are scoped out. Both paths registered without error,
-    // which is the contract this pins.
+
+    // The client-scoped plugins run in this DOM-ish environment (happy-dom,
+    // NEXT_RUNTIME unset); the server-scoped ones are scoped out. Both paths
+    // registered without error, which is the contract this pins.
     expect(seen).toContain("use");
     expect(seen).toContain("useClient");
+    expect(seen).toContain("useClientLazy");
     expect(seen).not.toContain("useServer");
+    expect(seen).not.toContain("useServerLazy");
   });
 
   it("exposes the routing config beside the host", () => {
@@ -259,20 +260,19 @@ describe("published createNextI18n — unchanged by the P4 direct-host convergen
     // The base host is the loud one: dev throws at the ingestion preflight,
     // production throws on the first uncached format. Wrapping BOTH steps pins
     // the code without pinning the timing.
-    let thrown: unknown;
-    try {
+    const ingestAndFormat = () => {
       const base = baseCreateI18n({
         locale: "en",
         exposeGlobal: false,
         translation: { en: plural },
       });
       base.t("items" as never, { count: 3 } as never);
-    } catch (error) {
-      thrown = error;
-    }
-    expect(thrown, "expected E_ICU_SYNTAX").toBeInstanceOf(Error);
-    expect((thrown as { code?: unknown }).code).toBe("E_ICU_SYNTAX");
-    expect((thrown as { argumentType?: unknown }).argumentType).toBe("plural");
+    };
+
+    expect(ingestAndFormat, "expected E_ICU_SYNTAX").toThrow(Error);
+    expect(ingestAndFormat).toThrow(
+      expect.objectContaining({ code: "E_ICU_SYNTAX", argumentType: "plural" }),
+    );
   });
 
   it("hosts plugins and flattens nested catalogs where the base host does neither", () => {

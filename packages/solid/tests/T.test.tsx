@@ -1,43 +1,32 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { render } from "solid-js/web";
+import { describe, it, expect, beforeEach } from "vitest";
 import type { JSX } from "solid-js";
 import { I18nProvider } from "../src/context";
 import { T } from "../src/T";
 import { FakeI18n } from "../../../tooling/test-utils/fakeI18n";
 import type { TagCallbackParams, TranslationResult } from "@comvi/core";
+import { flushMicrotasks, renderSolid } from "./test-utils";
 
 describe("T.tsx", () => {
   let fake: FakeI18n;
   let container: HTMLDivElement;
-  let dispose: (() => void) | undefined;
 
   const renderWithProvider = (ui: () => JSX.Element) => {
-    dispose = render(
-      () => (
-        <I18nProvider i18n={fake.asI18n()} autoInit={false}>
-          {ui()}
-        </I18nProvider>
-      ),
-      container,
-    );
+    container = renderSolid(() => (
+      <I18nProvider i18n={fake.asI18n()} autoInit={false}>
+        {ui()}
+      </I18nProvider>
+    ));
   };
 
   beforeEach(() => {
     fake = new FakeI18n({ language: "en", defaultNamespace: "common" });
-    container = document.createElement("div");
     fake.hasTranslation.mockImplementation((key: string) => key !== "missing.key");
-  });
-
-  afterEach(() => {
-    dispose?.();
-    dispose = undefined;
-    container.textContent = "";
   });
 
   it("renders existing translation result", () => {
     fake.tImplementation = (key) => (key === "existing" ? "Existing Translation" : key);
 
-    renderWithProvider(() => <T i18nKey={"existing" as never}>Slot fallback</T>);
+    renderWithProvider(() => <T i18nKey={"existing" as never} />);
 
     expect(container.textContent).toBe("Existing Translation");
   });
@@ -121,7 +110,10 @@ describe("T.tsx", () => {
     ));
 
     expect(container.innerHTML).toContain("<span>fallback</span>");
-    expect(created).toBeGreaterThan(0);
+    // Two: the fallback subtree is evaluated once to decide it is non-empty and
+    // once to render it. The exact number is what the mirror test's `toBe(0)`
+    // is being compared against.
+    expect(created).toBe(2);
   });
 
   it("renders string tag handler mappings", () => {
@@ -299,16 +291,33 @@ describe("T.tsx", () => {
   it("does not recompute when global locale changes and locale prop is pinned", async () => {
     fake.tImplementation = (_key, params) => `locale=${String(params?.locale ?? fake.language)}`;
 
-    renderWithProvider(() => <T i18nKey={"greeting" as never} locale="fr" />);
+    // The unpinned sibling is the positive control: it proves the locale flip
+    // DID reach a `<T>` in the same flush, so the pinned one's unchanged call
+    // count is a real negative rather than a not-yet.
+    renderWithProvider(() => (
+      <>
+        <span data-testid="pinned">
+          <T i18nKey={"greeting" as never} locale="fr" />
+        </span>
+        <span data-testid="unpinned">
+          <T i18nKey={"greeting" as never} />
+        </span>
+      </>
+    ));
 
-    expect(container.textContent).toBe("locale=fr");
+    const pinned = container.querySelector('[data-testid="pinned"]')!;
+    const unpinned = container.querySelector('[data-testid="unpinned"]')!;
+
+    expect(pinned.textContent).toBe("locale=fr");
+    expect(unpinned.textContent).toBe("locale=en");
     const callsAfterRender = fake.tRaw.mock.calls.length;
 
     await fake.setLocaleAsync("de");
-    await Promise.resolve();
+    await flushMicrotasks(2);
 
-    expect(container.textContent).toBe("locale=fr");
-    expect(fake.tRaw).toHaveBeenCalledTimes(callsAfterRender);
+    expect(unpinned.textContent).toBe("locale=de");
+    expect(pinned.textContent).toBe("locale=fr");
+    expect(fake.tRaw).toHaveBeenCalledTimes(callsAfterRender + 1);
   });
 
   it("passes params to the translation call for interpolation", () => {
@@ -339,7 +348,7 @@ describe("T.tsx", () => {
     expect(container.textContent).toBe("Hello");
 
     await fake.setLocaleAsync("fr");
-    await Promise.resolve();
+    await flushMicrotasks();
 
     expect(container.textContent).toBe("Bonjour");
   });

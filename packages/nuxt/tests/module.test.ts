@@ -58,6 +58,16 @@ async function importModule() {
   return (await import("../src/module")).default as any;
 }
 
+/** Templates are looked up by filename; their registration order is not a contract. */
+function template(filename: string) {
+  return nuxtKitMocks.addTemplate.mock.calls.find(
+    ([candidate]: [{ filename: string }]) => candidate.filename === filename,
+  )?.[0] as { filename: string; getContents: () => string } | undefined;
+}
+
+const setupTemplateContents = () => template("comvi.setup.mjs")?.getContents();
+const hostTemplateContents = () => template("comvi.host.mjs")?.getContents();
+
 describe("nuxt module setup", () => {
   beforeEach(() => {
     extendPagesHandler = undefined;
@@ -144,13 +154,6 @@ describe("nuxt module setup", () => {
         getContents: expect.any(Function),
       }),
     );
-    const templateWithSetup = nuxtKitMocks.addTemplate.mock.calls[0]?.[0];
-    expect(templateWithSetup?.getContents()).toContain(
-      'import userSetup from "/app/comvi.setup.ts";',
-    );
-    expect(templateWithSetup?.getContents()).toContain(
-      "[@comvi/nuxt] comvi.setup must export a default function.",
-    );
     expect(nuxtKitMocks.addImports).toHaveBeenCalledWith([
       { name: "useI18n", from: "/resolved/./runtime/composables/useI18n" },
       { name: "useI18nLoader", from: "/resolved/./runtime/composables/capabilities" },
@@ -179,6 +182,26 @@ describe("nuxt module setup", () => {
       path: "/resolved/./runtime/middleware/i18n.global",
       global: true,
     });
+  });
+
+  it("emits the user setup template with a default-export guard", async () => {
+    const moduleDefinition = await importModule();
+    const nuxt = createNuxtStub();
+    nuxtKitMocks.findPath.mockResolvedValue("/app/comvi.setup.ts");
+
+    await moduleDefinition.setup({ locales: ["en"], defaultLocale: "en" }, nuxt);
+
+    const contents = setupTemplateContents();
+
+    expect(contents).toContain('import userSetup from "/app/comvi.setup.ts";');
+    expect(contents).toContain("[@comvi/nuxt] comvi.setup must export a default function.");
+  });
+
+  it("transpiles the runtime and pre-bundles the wrapper packages", async () => {
+    const moduleDefinition = await importModule();
+    const nuxt = createNuxtStub();
+
+    await moduleDefinition.setup({ locales: ["en"], defaultLocale: "en" }, nuxt);
 
     expect(nuxt.options.build.transpile).toContain("/resolved/./runtime");
     expect(nuxt.options.build.transpile).toContain("@comvi/vue");
@@ -202,10 +225,7 @@ describe("nuxt module setup", () => {
     );
 
     expect(warnSpy).toHaveBeenCalledTimes(1);
-    expect(
-      warnSpy.mock.calls.some(([message]) => String(message).includes("No locales configured")),
-    ).toBe(true);
-    warnSpy.mockRestore();
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("No locales configured"));
   });
 
   it("generates a no-op setup template when setup option is omitted", async () => {
@@ -220,9 +240,7 @@ describe("nuxt module setup", () => {
       nuxt,
     );
 
-    const templateWithoutSetup = nuxtKitMocks.addTemplate.mock.calls[0]?.[0];
-    expect(templateWithoutSetup?.filename).toBe("comvi.setup.mjs");
-    expect(templateWithoutSetup?.getContents()).toContain("runComviSetup() {}");
+    expect(setupTemplateContents()).toContain("runComviSetup() {}");
   });
 
   it("auto-detects ./comvi.setup when setup option is omitted", async () => {
@@ -238,8 +256,7 @@ describe("nuxt module setup", () => {
       nuxt,
     );
 
-    const template = nuxtKitMocks.addTemplate.mock.calls[0]?.[0];
-    expect(template?.getContents()).toContain('import userSetup from "/app/comvi.setup.ts";');
+    expect(setupTemplateContents()).toContain('import userSetup from "/app/comvi.setup.ts";');
   });
 
   it("throws when setup option points to missing file", async () => {
@@ -265,18 +282,12 @@ describe("nuxt module setup", () => {
 
     await moduleDefinition.setup({ locales: ["en"], defaultLocale: "en" }, nuxt);
 
-    const hostTemplate = nuxtKitMocks.addTemplate.mock.calls.find(
-      ([template]: [{ filename: string }]) => template.filename === "comvi.host.mjs",
-    )?.[0];
-    const contents = hostTemplate?.getContents();
+    const contents = hostTemplateContents();
 
     expect(contents).toContain('import { createI18n } from "@comvi/vue";');
     expect(contents).toContain('import { createI18n as createCore } from "@comvi/core";');
     expect(contents).not.toContain("createI18nFromCore");
-    // The default branch composes NOTHING and there is no compiler sugar: no
-    // capability subpath is imported and no installer is piped in. That is the
-    // single-entry policy stated as codegen — a capability is an import the
-    // app adds in its own `hostModule`, never one the module injects.
+    // Single-entry policy as codegen: no capability subpath, no installer, no compiler.
     expect(contents).not.toContain("@comvi/core/");
     expect(contents).not.toContain(".with(");
     expect(contents).not.toContain("compiler");
@@ -288,20 +299,13 @@ describe("nuxt module setup", () => {
 
     await moduleDefinition.setup({ locales: ["en"], defaultLocale: "en", icu: true }, nuxt);
 
-    const contents = nuxtKitMocks.addTemplate.mock.calls
-      .find(([template]: [{ filename: string }]) => template.filename === "comvi.host.mjs")?.[0]
-      .getContents();
+    const contents = hostTemplateContents();
 
-    // The one capability an app on the default host cannot reach any other
-    // way: `compiler` is a constructor argument, not something `.with()` can
-    // pipe on afterwards.
+    // `compiler` is a constructor argument, so `.with()` cannot pipe it on afterwards.
     expect(contents).toContain('import { icuCompiler } from "@comvi/core/icu";');
-    // BOTH constructed hosts get it — the client wrapper and the per-request
-    // server core — or SSR and hydration would compile the same catalog with
-    // two different compilers.
+    // Both hosts, or SSR and hydration compile the same catalog with two compilers.
     expect(contents).toContain("createI18n({ ...options, compiler: icuCompiler })");
     expect(contents).toContain("createCore({ ...options, compiler: icuCompiler })");
-    // Still the default branch: ICU is the only thing the option adds.
     expect(contents).toContain('import { createI18n } from "@comvi/vue";');
     expect(contents).not.toContain("createI18nFromCore");
     expect(contents).not.toContain(".with(");
@@ -314,13 +318,9 @@ describe("nuxt module setup", () => {
     // No `icu` key at all: what an app that never heard of the option gets.
     await moduleDefinition.setup({ locales: ["en"], defaultLocale: "en" }, nuxt);
 
-    const contents = nuxtKitMocks.addTemplate.mock.calls
-      .find(([template]: [{ filename: string }]) => template.filename === "comvi.host.mjs")?.[0]
-      .getContents();
+    const contents = hostTemplateContents();
 
-    // The option is a codegen branch, so an app that did not ask for ICU emits
-    // a module that cannot pull `@comvi/core/icu` into its graph at all — there
-    // is nothing for a bundler to have to prove dead.
+    // A codegen branch, so `@comvi/core/icu` never enters the graph — nothing to tree-shake.
     expect(contents).not.toContain("@comvi/core/icu");
     expect(contents).not.toContain("icuCompiler");
     expect(contents).not.toContain("compiler");
@@ -341,18 +341,12 @@ describe("nuxt module setup", () => {
       nuxt,
     );
 
-    // A composed host picks its own compiler, so the option would be silently
-    // overruled rather than merged — the app has to hear about it once.
-    expect(
-      warnSpy.mock.calls.some(([message]) =>
-        String(message).includes("`comvi.icu` has no effect when `hostModule` is set"),
-      ),
-    ).toBe(true);
-    warnSpy.mockRestore();
+    // A composed host picks its own compiler, so the option is overruled, not merged.
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining("`comvi.icu` has no effect when `hostModule` is set"),
+    );
 
-    const contents = nuxtKitMocks.addTemplate.mock.calls
-      .find(([template]: [{ filename: string }]) => template.filename === "comvi.host.mjs")?.[0]
-      .getContents();
+    const contents = hostTemplateContents();
 
     // Ignored means ignored: the hostModule variant, unaltered.
     expect(contents).toContain('import hostFactory from "/app/comvi.host.ts";');
@@ -373,10 +367,7 @@ describe("nuxt module setup", () => {
       nuxt,
     );
 
-    const hostTemplate = nuxtKitMocks.addTemplate.mock.calls.find(
-      ([template]: [{ filename: string }]) => template.filename === "comvi.host.mjs",
-    )?.[0];
-    const contents = hostTemplate?.getContents();
+    const contents = hostTemplateContents();
 
     expect(contents).toContain('import { createI18nFromCore } from "@comvi/vue";');
     expect(contents).toContain('import hostFactory from "/app/comvi.host.ts";');
@@ -384,8 +375,7 @@ describe("nuxt module setup", () => {
     expect(contents).not.toContain('from "@comvi/core"');
     expect(contents).toContain("comvi hostModule must export a default function");
     expect(contents).toContain("returned no i18n host");
-    // The factory is handed nuxt's resolved options, so a composed host
-    // honours the same nuxt.config the default branch does.
+    // A composed host honours the same nuxt.config the default branch does.
     expect(contents).toContain("hostFactory(options)");
     expect(contents).toContain("createHost({ ...options, locale })");
   });
@@ -538,12 +528,7 @@ describe("nuxt module setup", () => {
     extendPagesHandler!(pages);
     const paths = pages.map((page) => page.path);
 
-    expect(paths).toContain("/");
-    expect(paths).toContain("/about");
-    expect(paths).toContain("/de");
-    expect(paths).toContain("/de/about");
-    expect(paths).not.toContain("/en");
-    expect(paths.some((path) => path.includes("/:locale"))).toBe(false);
+    expect(paths).toEqual(["/", "/about", "/de", "/de/about"]);
   });
 
   it("does not remove routes that only start with ':locale' (e.g. :localeId)", async () => {
@@ -564,8 +549,7 @@ describe("nuxt module setup", () => {
     extendPagesHandler!(pages);
 
     const paths = pages.map((page) => page.path);
-    expect(paths).toContain("/:localeId/profile");
-    expect(paths).toContain("/de/:localeId/profile");
+    expect(paths).toEqual(["/:localeId/profile", "/de/:localeId/profile"]);
   });
 
   it("keeps relative child paths when cloning localized nested routes", async () => {
@@ -623,12 +607,7 @@ describe("nuxt module setup", () => {
     extendPagesHandler!(pages);
     const paths = pages.map((page) => page.path);
 
-    expect(paths).toContain("/en");
-    expect(paths).toContain("/de");
-    expect(paths).toContain("/en/about");
-    expect(paths).toContain("/de/about");
-    expect(paths).not.toContain("/");
-    expect(paths).not.toContain("/about");
+    expect(paths).toEqual(["/en", "/en/about", "/de", "/de/about"]);
   });
 
   it("skips route extension in never mode", async () => {
@@ -648,22 +627,24 @@ describe("nuxt module setup", () => {
     expect(extendPagesHandler).toBeUndefined();
   });
 
-  it("registers an explicit import for every composable file", () => {
-    const dir = resolve(__dirname, "../src/runtime/composables");
-    const composableNames = readdirSync(dir)
-      .filter((f) => f.endsWith(".ts"))
-      .map((f) => f.replace(/\.ts$/, ""))
+  it("registers an explicit import for every composable file", async () => {
+    const moduleDefinition = await importModule();
+    const nuxt = createNuxtStub();
+
+    await moduleDefinition.setup({ locales: ["en"], defaultLocale: "en" }, nuxt);
+
+    // Derived from the directory, not a hand-copied list: a composable added
+    // without an `addImports` entry has to fail here.
+    const composableModules = readdirSync(resolve(__dirname, "../src/runtime/composables"))
+      .filter((file) => file.endsWith(".ts"))
+      .map((file) => `/resolved/./runtime/composables/${file.replace(/\.ts$/, "")}`)
       .sort();
-    expect(composableNames).toEqual(
-      [
-        "capabilities",
-        "useI18n",
-        "useLocaleHead",
-        "useLocalePath",
-        "useLocaleRoute",
-        "useRouteConfig",
-        "useSwitchLocalePath",
-      ].sort(),
-    );
+    const registered = nuxtKitMocks.addImports.mock.calls[0]?.[0] as Array<{
+      name: string;
+      from: string;
+    }>;
+
+    // `capabilities` registers two names from one file, so `from` is the seam.
+    expect([...new Set(registered.map((entry) => entry.from))].sort()).toEqual(composableModules);
   });
 });

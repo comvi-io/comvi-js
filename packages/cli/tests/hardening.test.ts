@@ -1,13 +1,16 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach, type MockedFunction } from "vitest";
 import { promises as nodeFs, readFileSync } from "fs";
 import { fileURLToPath } from "url";
 import { resolve, dirname, join } from "path";
+import { makeTempDir, removeTempDirs, mockEventSource, type FakeEventSource } from "./helpers";
 import { CLI_VERSION } from "../src/utils/version";
 import { ConfigLoader } from "../src/core/ConfigLoader";
 import { ApiClient } from "../src/core/ApiClient";
 import { FileSystemWriter, InMemoryFileSystem } from "../src/core/FileSystemWriter";
 import { TranslationSync } from "../src/core/TranslationSync";
 import type { ProjectSchema } from "../src/types";
+
+type TaggedSchema = ProjectSchema & { tag: string };
 
 const PKG_DIR = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -29,28 +32,10 @@ describe("CLI hardening", () => {
   });
 
   describe("ConfigLoader.create permissions", () => {
-    const tmpFiles: string[] = [];
-    const tmpDirs: string[] = [];
-
-    afterEach(async () => {
-      for (const f of tmpFiles) {
-        try {
-          await nodeFs.unlink(f);
-        } catch {
-          // already gone
-        }
-      }
-      tmpFiles.length = 0;
-      for (const dir of tmpDirs) {
-        await nodeFs.rm(dir, { recursive: true, force: true });
-      }
-      tmpDirs.length = 0;
-      vi.restoreAllMocks();
-    });
+    afterEach(removeTempDirs);
 
     it("writes 0600 when the config contains an apiKey", async () => {
-      const outputPath = "/tmp/.comvirc-test-mode-secret.json";
-      tmpFiles.push(outputPath);
+      const outputPath = join(await makeTempDir("comvi-config-mode"), ".comvirc.json");
 
       await ConfigLoader.create({ apiKey: "secret-key" }, outputPath);
 
@@ -59,18 +44,24 @@ describe("CLI hardening", () => {
     });
 
     it("keeps default permissions without an apiKey", async () => {
-      const outputPath = "/tmp/.comvirc-test-mode-plain.json";
-      tmpFiles.push(outputPath);
+      const dir = await makeTempDir("comvi-config-mode");
+      const outputPath = join(dir, ".comvirc.json");
+      const controlPath = join(dir, "control.json");
 
       await ConfigLoader.create({}, outputPath);
+      // The claim is "no explicit 0600 was applied", not a fixed mode: a
+      // hardened runner's umask makes any literal expectation wrong.
+      await nodeFs.writeFile(controlPath, "{}");
 
-      const stat = await nodeFs.stat(outputPath);
-      expect(stat.mode & 0o077).not.toBe(0); // group/other readable is fine here
+      const [written, control] = await Promise.all([
+        nodeFs.stat(outputPath),
+        nodeFs.stat(controlPath),
+      ]);
+      expect(written.mode & 0o777).toBe(control.mode & 0o777);
     });
 
     it("does not expose a secret through the existing config when atomic replace fails", async () => {
-      const dir = await nodeFs.mkdtemp("/tmp/comvi-config-atomic-");
-      tmpDirs.push(dir);
+      const dir = await makeTempDir("comvi-config-atomic");
       const outputPath = join(dir, ".comvirc.json");
       await nodeFs.writeFile(outputPath, '{"apiBaseUrl":"https://old.test"}', { mode: 0o644 });
 
@@ -90,18 +81,19 @@ describe("CLI hardening", () => {
   });
 
   describe("ApiClient retry", () => {
+    let fetchMock: MockedFunction<typeof fetch>;
+
     beforeEach(() => {
       vi.useFakeTimers();
-      global.fetch = vi.fn();
+      fetchMock = vi.fn() as MockedFunction<typeof fetch>;
+      vi.stubGlobal("fetch", fetchMock);
     });
 
     afterEach(() => {
       vi.useRealTimers();
-      vi.restoreAllMocks();
     });
 
     it("retries 429 honoring Retry-After and succeeds", async () => {
-      const fetchMock = global.fetch as ReturnType<typeof vi.fn>;
       fetchMock
         .mockResolvedValueOnce(
           jsonResponse({ error: "rate limited" }, { status: 429, headers: { "Retry-After": "1" } }),
@@ -118,7 +110,6 @@ describe("CLI hardening", () => {
 
     it("honors an HTTP-date Retry-After value", async () => {
       vi.setSystemTime(new Date("2026-07-13T08:00:00.000Z"));
-      const fetchMock = global.fetch as ReturnType<typeof vi.fn>;
       fetchMock
         .mockResolvedValueOnce(
           jsonResponse(
@@ -142,7 +133,6 @@ describe("CLI hardening", () => {
     });
 
     it("retries 5xx for GET requests", async () => {
-      const fetchMock = global.fetch as ReturnType<typeof vi.fn>;
       fetchMock
         .mockResolvedValueOnce(jsonResponse({ error: "boom" }, { status: 500 }))
         .mockResolvedValueOnce(jsonResponse({ id: 1, name: "proj" }));
@@ -156,11 +146,11 @@ describe("CLI hardening", () => {
     });
 
     it("gives up after bounded retries", async () => {
-      const fetchMock = global.fetch as ReturnType<typeof vi.fn>;
       fetchMock.mockResolvedValue(jsonResponse({ error: "boom" }, { status: 500 }));
 
       const client = new ApiClient({ apiKey: "k", apiBaseUrl: "https://api.test" });
       const promise = client.validateApiKey();
+      // the rejection handler must be attached before the backoff timers run
       const assertion = expect(promise).rejects.toThrow(/500/);
       await vi.advanceTimersByTimeAsync(5000);
 
@@ -169,7 +159,6 @@ describe("CLI hardening", () => {
     });
 
     it("does not retry a 5xx on push (non-idempotent POST)", async () => {
-      const fetchMock = global.fetch as ReturnType<typeof vi.fn>;
       fetchMock
         .mockResolvedValueOnce(jsonResponse({ id: 1, name: "proj" })) // validateApiKey
         .mockResolvedValueOnce(jsonResponse({ error: "boom" }, { status: 500 }));
@@ -187,7 +176,6 @@ describe("CLI hardening", () => {
     });
 
     it("does not retry a 429 on push (non-idempotent POST)", async () => {
-      const fetchMock = global.fetch as ReturnType<typeof vi.fn>;
       fetchMock
         .mockResolvedValueOnce(jsonResponse({ id: 1, name: "proj" }))
         .mockResolvedValueOnce(
@@ -209,49 +197,43 @@ describe("CLI hardening", () => {
 
   describe("SSE serialization", () => {
     afterEach(() => {
-      vi.restoreAllMocks();
       vi.doUnmock("eventsource");
       vi.resetModules();
     });
 
-    it("processes schema updates one at a time, in order", async () => {
-      const instances: any[] = [];
-      vi.doMock("eventsource", () => ({
-        EventSource: class {
-          onmessage: ((event: MessageEvent) => void) | null = null;
-          onerror: (() => void) | null = null;
-          constructor() {
-            instances.push(this);
-          }
-          close() {}
-        },
-      }));
-
-      global.fetch = vi
-        .fn()
-        .mockResolvedValue(new Response(JSON.stringify({ id: 1, name: "proj" }), { status: 200 }));
+    async function subscribeWithFakeEventSource(
+      onSchema: (schema: TaggedSchema) => Promise<void>,
+    ): Promise<{ es: FakeEventSource; cleanup: () => void }> {
+      const { instances } = mockEventSource();
+      vi.stubGlobal(
+        "fetch",
+        vi.fn().mockResolvedValue(new Response(JSON.stringify({ id: 1, name: "proj" }))),
+      );
 
       const { ApiClient: MockedApiClient } = await import("../src/core/ApiClient");
       const client = new MockedApiClient({ apiKey: "k", apiBaseUrl: "https://api.test" });
+      const cleanup = await client.subscribeToSchemaUpdates((schema) =>
+        onSchema(schema as TaggedSchema),
+      );
 
+      return { es: instances[0], cleanup };
+    }
+
+    it("processes schema updates one at a time, in order", async () => {
       const seen: string[] = [];
       let releaseFirst!: () => void;
       const firstGate = new Promise<void>((r) => {
         releaseFirst = r;
       });
 
-      const cleanup = await client.subscribeToSchemaUpdates(async (schema: ProjectSchema) => {
-        const tag = (schema as any).tag as string;
+      const { es, cleanup } = await subscribeWithFakeEventSource(async ({ tag }) => {
         seen.push(`start:${tag}`);
-        if (tag === "a") {
-          await firstGate;
-        }
+        if (tag === "a") await firstGate;
         seen.push(`end:${tag}`);
       });
 
-      const es = instances[0];
-      es.onmessage({ data: JSON.stringify({ tag: "a", keys: {} }) } as MessageEvent);
-      es.onmessage({ data: JSON.stringify({ tag: "b", keys: {} }) } as MessageEvent);
+      es.onmessage!({ data: JSON.stringify({ tag: "a", keys: {} }) } as MessageEvent);
+      es.onmessage!({ data: JSON.stringify({ tag: "b", keys: {} }) } as MessageEvent);
 
       await vi.waitFor(() => expect(seen).toContain("start:a"));
       expect(seen).not.toContain("start:b"); // b waits for a
@@ -263,52 +245,31 @@ describe("CLI hardening", () => {
     });
 
     it("drops queued schema updates after cleanup", async () => {
-      const instances: any[] = [];
-      vi.doMock("eventsource", () => ({
-        EventSource: class {
-          onmessage: ((event: MessageEvent) => void) | null = null;
-          onerror: (() => void) | null = null;
-          constructor() {
-            instances.push(this);
-          }
-          close() {}
-        },
-      }));
-
-      global.fetch = vi
-        .fn()
-        .mockResolvedValue(new Response(JSON.stringify({ id: 1, name: "proj" }), { status: 200 }));
-
-      const { ApiClient: MockedApiClient } = await import("../src/core/ApiClient");
-      const client = new MockedApiClient({ apiKey: "k", apiBaseUrl: "https://api.test" });
       const seen: string[] = [];
       let releaseFirst!: () => void;
-      const firstGate = new Promise<void>((resolveGate) => {
-        releaseFirst = resolveGate;
+      const firstGate = new Promise<void>((r) => {
+        releaseFirst = r;
       });
 
-      const cleanup = await client.subscribeToSchemaUpdates(async (schema: ProjectSchema) => {
-        const tag = (schema as { tag: string }).tag;
+      const { es, cleanup } = await subscribeWithFakeEventSource(async ({ tag }) => {
         seen.push(`start:${tag}`);
         if (tag === "a") await firstGate;
         seen.push(`end:${tag}`);
       });
 
-      const es = instances[0];
-      es.onmessage({ data: JSON.stringify({ tag: "a", keys: {} }) } as MessageEvent);
-      es.onmessage({ data: JSON.stringify({ tag: "b", keys: {} }) } as MessageEvent);
+      es.onmessage!({ data: JSON.stringify({ tag: "a", keys: {} }) } as MessageEvent);
+      es.onmessage!({ data: JSON.stringify({ tag: "b", keys: {} }) } as MessageEvent);
       await vi.waitFor(() => expect(seen).toEqual(["start:a"]));
 
       cleanup();
       releaseFirst();
-      await vi.waitFor(() => expect(seen).toContain("end:a"));
-      await Promise.resolve();
-
-      expect(seen).toEqual(["start:a", "end:a"]);
+      await vi.waitFor(() => expect(seen).toEqual(["start:a", "end:a"]));
     });
   });
 
   describe("atomic writes", () => {
+    afterEach(removeTempDirs);
+
     it("FileSystemWriter uses temp + rename when the fs supports it", async () => {
       const calls: string[] = [];
       const files = new Map<string, string>();
@@ -340,12 +301,15 @@ describe("CLI hardening", () => {
 
     it("FileSystemWriter falls back to plain write without rename support", async () => {
       const memFs = new InMemoryFileSystem();
+      // InMemoryFileSystem cannot enumerate its files, so "no temp file was
+      // written" is pinned through the writeFile calls instead.
+      const writeFile = vi.spyOn(memFs, "writeFile");
       const writer = new FileSystemWriter(memFs);
 
       await writer.write("/out/types.d.ts", "content");
 
       expect(memFs.getFile("/out/types.d.ts")).toBe("content");
-      expect(memFs.hasFile(`/out/types.d.ts.${process.pid}.tmp`)).toBe(false);
+      expect(writeFile).toHaveBeenCalledExactlyOnceWith("/out/types.d.ts", "content");
     });
 
     it("uses a different temp file for concurrent writes to the same target", async () => {
@@ -397,7 +361,7 @@ describe("CLI hardening", () => {
     });
 
     it("TranslationSync leaves no temp files after writeTranslations", async () => {
-      const dir = `/tmp/comvi-sync-atomic-${process.pid}`;
+      const dir = await makeTempDir("comvi-sync-atomic");
       const sync = new TranslationSync({
         translationsPath: dir,
         fileTemplate: "{languageTag}/{namespace}.json",
@@ -414,12 +378,10 @@ describe("CLI hardening", () => {
       expect(entries).toEqual(["common.json"]);
       const written = JSON.parse(await nodeFs.readFile(`${dir}/en/common.json`, "utf-8"));
       expect(written).toEqual({ hello: "Hi" });
-
-      await nodeFs.rm(dir, { recursive: true, force: true });
     });
 
     it("supports concurrent writes to the same translation file", async () => {
-      const dir = await nodeFs.mkdtemp("/tmp/comvi-sync-concurrent-");
+      const dir = await makeTempDir("comvi-sync-concurrent");
       const sync = new TranslationSync({
         translationsPath: dir,
         fileTemplate: "{languageTag}/{namespace}.json",
@@ -444,8 +406,6 @@ describe("CLI hardening", () => {
       expect(["First", "Second"]).toContain(
         JSON.parse(await nodeFs.readFile(join(dir, "en/common.json"), "utf-8")).hello,
       );
-
-      await nodeFs.rm(dir, { recursive: true, force: true });
     });
   });
 });

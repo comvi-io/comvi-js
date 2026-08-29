@@ -55,10 +55,12 @@ describe("vue on a base host", () => {
   it("exposes the formatters and the direction ref", () => {
     const i18n = createI18nFromCore(baseHost());
 
-    expect(i18n.formatNumber(1234.5)).toBe(new Intl.NumberFormat("en").format(1234.5));
-    expect(i18n.formatCurrency(12, "USD")).toContain("12");
-    expect(i18n.formatDate(new Date("2026-08-02T00:00:00Z"))).toBeTypeOf("string");
-    expect(i18n.formatRelativeTime(-1, "day")).toBeTypeOf("string");
+    // The host locale is "en" and the date carries an explicit `timeZone`, so
+    // every literal below is a function of the fixture alone.
+    expect(i18n.formatNumber(1234.5)).toBe("1,234.5");
+    expect(i18n.formatCurrency(12, "USD")).toBe("$12.00");
+    expect(i18n.formatDate(new Date("2026-08-02T00:00:00Z"), { timeZone: "UTC" })).toBe("8/2/2026");
+    expect(i18n.formatRelativeTime(-1, "day")).toBe("1 day ago");
     expect(i18n.dir.value).toBe("ltr");
   });
 
@@ -106,6 +108,12 @@ describe("vue on a base host", () => {
     expect(i18n.isInitializing.value).toBe(false);
 
     i18n.destroy();
+
+    // The unit project resolves ../src with __DEV__ true, so only the dev
+    // message is reachable here; the prod text is pinned in tests/js-contract/.
+    await expect(i18n.init()).rejects.toThrow(
+      "[i18n] Cannot call init() after destroy(). Create a new i18n instance.",
+    );
   });
 
   it("has no use() anywhere on a base host — wrapper or core", () => {
@@ -159,8 +167,10 @@ describe("vue on a base host", () => {
       return keys;
     };
 
-    expect(keysFor(createI18nFromCore(attachPlugins(attachLoader(baseHost()))))).toEqual(
-      keysFor(createI18nFromCore(baseHost())),
-    );
+    const baseKeys = keysFor(createI18nFromCore(baseHost()));
+
+    // Anchored: an empty bag on both paths would satisfy the equality below.
+    expect(baseKeys).toContain("t");
+    expect(keysFor(createI18nFromCore(attachPlugins(attachLoader(baseHost()))))).toEqual(baseKeys);
   });
 });

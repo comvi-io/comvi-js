@@ -32,15 +32,13 @@ describe("Next <I18nProvider> locale validation", () => {
     expect(fake.language).toBe("en");
     // syncLocaleSafely runs both during the first render and again in
     // useLayoutEffect, so the count is >= 1, not exactly 1.
-    expect(fake.reportError).toHaveBeenCalled();
-    const [errArg, ctxArg] = fake.reportError.mock.calls[0];
-    expect(errArg).toBeInstanceOf(Error);
-    expect((errArg as Error).message).toContain(`"zz"`);
-    expect((errArg as Error).message).toContain("not in routing.locales");
-    expect(ctxArg).toMatchObject({
-      source: "init",
-      locale: "zz",
-    });
+    expect(fake.reportError).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: expect.stringContaining(`"zz" is not in routing.locales`),
+      }),
+      expect.objectContaining({ source: "init", locale: "zz" }),
+    );
+    expect(fake.reportError.mock.calls[0]![0]).toBeInstanceOf(Error);
   });
 
   it("DOES mutate i18n.locale when locale IS in routing.locales", () => {

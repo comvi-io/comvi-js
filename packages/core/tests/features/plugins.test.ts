@@ -1,14 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { I18n } from "../helpers/composedHost";
 import type { I18nPlugin } from "../helpers/composedHost";
-
-const createDeferred = <T>() => {
-  let resolve!: (value: T) => void;
-  const promise = new Promise<T>((res) => {
-    resolve = res;
-  });
-  return { promise, resolve };
-};
+import { createDeferred } from "../helpers/deferred";
 
 describe("Plugin System", () => {
   it("executes plugins sequentially and in order", async () => {
@@ -31,6 +24,8 @@ describe("Plugin System", () => {
     const initPromise = i18n.init();
     await Promise.resolve();
 
+    // Exactly one microtask in: plugin 1 is parked on the gate and plugin 2
+    // must not have started, because `init()` runs the queue sequentially.
     expect(executionOrder).toEqual(["start-1"]);
 
     gate.resolve();
@@ -105,7 +100,7 @@ describe("Plugin System", () => {
     const i18n = new I18n({ locale: "en" });
 
     expect(() => i18n.registerPostProcessor("invalid" as any)).toThrow(
-      /registerPostProcessor\(\).*function|E_REGISTER_POST_PROCESSOR/,
+      /registerPostProcessor\(\): argument must be a function/,
     );
   });
 });

@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { I18n } from "../helpers/composedHost";
 
-describe("Select Format Features", () => {
+describe("t() with ICU select", () => {
   let i18n: I18n;
 
   beforeEach(() => {
@@ -65,5 +65,15 @@ describe("Select Format Features", () => {
     expect(i18n.t("fallback", { val: "toString" })).toBe("Gray");
     expect(i18n.t("fallback", { val: "constructor" })).toBe("Gray");
     expect(i18n.t("proto", { val: "__proto__" })).toBe("Proto");
+  });
+
+  it("renders empty when no branch matches and there is no other branch", () => {
+    i18n.addTranslations({
+      en: {
+        strict: "{val, select, active {Green}}",
+      },
+    });
+
+    expect(i18n.t("strict", { val: "unknown" })).toBe("");
   });
 });

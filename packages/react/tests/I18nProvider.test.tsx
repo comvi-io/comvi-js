@@ -3,6 +3,7 @@ import { render, screen, waitFor, act } from "@testing-library/react";
 import { renderToString } from "react-dom/server";
 import { I18nProvider, useI18nContext } from "../src/I18nProvider";
 import { FakeI18n } from "../../../tooling/test-utils/fakeI18n";
+import { flushEffects } from "./test-utils";
 
 describe("I18nProvider", () => {
   it("provides context to child components", () => {
@@ -45,7 +46,8 @@ describe("I18nProvider", () => {
       </I18nProvider>,
     );
 
-    await act(async () => {});
+    await flushEffects();
+
     expect(fake.init).not.toHaveBeenCalled();
   });
 
@@ -59,7 +61,8 @@ describe("I18nProvider", () => {
       </I18nProvider>,
     );
 
-    await act(async () => {});
+    await flushEffects();
+
     expect(fake.init).not.toHaveBeenCalled();
   });
 
@@ -196,6 +199,7 @@ describe("I18nProvider", () => {
       </I18nProvider>,
     );
 
+    expect(screen.getByTestId("cache-size").textContent).toBe("0");
     expect(renderSpy).toHaveBeenCalledTimes(1);
 
     act(() => {
@@ -206,8 +210,9 @@ describe("I18nProvider", () => {
     });
 
     await waitFor(() => {
-      expect(renderSpy).toHaveBeenCalledTimes(2);
+      expect(screen.getByTestId("cache-size").textContent).toBe("1");
     });
+    expect(renderSpy).toHaveBeenCalledTimes(2);
   });
 
   it("returns a fresh legacy context value when config changes without a cache revision change", async () => {
@@ -233,8 +238,41 @@ describe("I18nProvider", () => {
     });
 
     await waitFor(() => {
-      expect(values).toHaveLength(2);
+      expect(screen.getByTestId("renders").textContent).toBe("2");
     });
+    expect(values).toHaveLength(2);
     expect(values[1]).not.toBe(firstValue);
+  });
+
+  it("switches to the new i18n instance when the i18n prop changes", async () => {
+    const first = new FakeI18n();
+    const second = new FakeI18n();
+    second.language = "fr";
+
+    const Wrapped = () => {
+      const { locale } = useI18nContext();
+      return <div data-testid="lang">{locale}</div>;
+    };
+    const Host = ({ fake }: { fake: FakeI18n }) => (
+      <I18nProvider i18n={fake.asI18n()} autoInit={false}>
+        <Wrapped />
+      </I18nProvider>
+    );
+
+    const { rerender } = render(<Host fake={first} />);
+
+    expect(screen.getByTestId("lang").textContent).toBe("en");
+
+    rerender(<Host fake={second} />);
+    await flushEffects();
+
+    expect(screen.getByTestId("lang").textContent).toBe("fr");
+
+    act(() => {
+      first.language = "de";
+      first.emit("localeChanged", { from: "en", to: "de" });
+    });
+
+    expect(screen.getByTestId("lang").textContent).toBe("fr");
   });
 });

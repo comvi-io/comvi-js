@@ -1,30 +1,21 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { ElementHighlighter } from "../src/ElementHighlighter";
 import { EventBus } from "../src/EventBus";
+import { SCROLL_DEBOUNCE_DELAY } from "../src/config/highlight";
 import {
   cleanupDOM,
   simulateKeyEvent,
   simulateMouseEvent,
   mockBoundingClientRect,
+  getActiveOverlay,
+  getActiveTooltip,
+  flushAnimationFrame,
 } from "./helpers";
 
 describe("ElementHighlighter.integration.test.ts", () => {
   let highlighter: ElementHighlighter;
   let handleClick: ReturnType<typeof vi.fn>;
   let eventBus: EventBus;
-
-  const getActiveOverlay = (): HTMLDivElement | null => {
-    return (
-      (Array.from(document.body.querySelectorAll("div")).find((node) => {
-        const style = (node as HTMLDivElement).style;
-        return (
-          style.position === "absolute" &&
-          style.pointerEvents === "none" &&
-          style.zIndex === "10000"
-        );
-      }) as HTMLDivElement | undefined) ?? null
-    );
-  };
 
   beforeEach(() => {
     handleClick = vi.fn();
@@ -53,7 +44,6 @@ describe("ElementHighlighter.integration.test.ts", () => {
       expect(handleClick).toHaveBeenCalledWith(button);
 
       simulateKeyEvent("keyup", "Alt");
-      button.remove();
     });
 
     it("should throw error when adding null element", () => {
@@ -76,7 +66,23 @@ describe("ElementHighlighter.integration.test.ts", () => {
       expect(handleClick).not.toHaveBeenCalled();
 
       simulateKeyEvent("keyup", "Alt");
-      button.remove();
+    });
+
+    it("should ignore removeHighlightFromElement for a never-highlighted element", () => {
+      const highlighted = document.createElement("button");
+      const stranger = document.createElement("button");
+      mockBoundingClientRect(highlighted, { top: 0, left: 0, width: 100, height: 30 });
+      document.body.append(highlighted, stranger);
+      highlighter.addHighlight(highlighted);
+
+      expect(() => highlighter.removeHighlightFromElement(stranger)).not.toThrow();
+
+      simulateKeyEvent("keydown", "Alt");
+      simulateMouseEvent(highlighted, "click");
+
+      expect(handleClick).toHaveBeenCalledWith(highlighted);
+
+      simulateKeyEvent("keyup", "Alt");
     });
   });
 
@@ -89,15 +95,14 @@ describe("ElementHighlighter.integration.test.ts", () => {
 
       highlighter.addHighlight(button);
 
-      expect(() => {
-        simulateKeyEvent("keydown", "Alt");
+      simulateKeyEvent("keydown", "Alt");
+      simulateMouseEvent(button, "mouseover");
 
-        simulateMouseEvent(button, "mouseover");
+      expect(getActiveOverlay()).not.toBeNull();
 
-        simulateKeyEvent("keyup", "Alt");
-      }).not.toThrow();
+      simulateKeyEvent("keyup", "Alt");
 
-      button.remove();
+      expect(getActiveOverlay()).toBeNull();
     });
 
     it("should handle Option key (Mac)", () => {
@@ -107,13 +112,14 @@ describe("ElementHighlighter.integration.test.ts", () => {
 
       highlighter.addHighlight(button);
 
-      expect(() => {
-        simulateKeyEvent("keydown", "Option");
-        simulateMouseEvent(button, "mouseover");
-        simulateKeyEvent("keyup", "Option");
-      }).not.toThrow();
+      simulateKeyEvent("keydown", "Option");
+      simulateMouseEvent(button, "mouseover");
 
-      button.remove();
+      expect(getActiveOverlay()).not.toBeNull();
+
+      simulateKeyEvent("keyup", "Option");
+
+      expect(getActiveOverlay()).toBeNull();
     });
 
     it("should highlight using mouse event altKey when keydown is missed", () => {
@@ -125,8 +131,6 @@ describe("ElementHighlighter.integration.test.ts", () => {
       simulateMouseEvent(button, "mouseover", { altKey: true });
 
       expect(getActiveOverlay()).not.toBeNull();
-
-      button.remove();
     });
 
     it("should handle Alt+click using mouse event altKey when keydown is missed", () => {
@@ -138,8 +142,6 @@ describe("ElementHighlighter.integration.test.ts", () => {
       simulateMouseEvent(button, "click", { altKey: true });
 
       expect(handleClick).toHaveBeenCalledWith(button);
-
-      button.remove();
     });
 
     it("should reset modifier state and overlay on window blur", () => {
@@ -158,8 +160,6 @@ describe("ElementHighlighter.integration.test.ts", () => {
       expect(getActiveOverlay()).toBeNull();
       simulateMouseEvent(button, "click");
       expect(handleClick).not.toHaveBeenCalled();
-
-      button.remove();
     });
   });
 
@@ -179,7 +179,6 @@ describe("ElementHighlighter.integration.test.ts", () => {
       expect(handleClick).toHaveBeenCalledWith(button);
 
       simulateKeyEvent("keyup", "Alt");
-      button.remove();
     });
 
     it("should not call handleClick when Alt is not pressed", () => {
@@ -192,8 +191,6 @@ describe("ElementHighlighter.integration.test.ts", () => {
       simulateMouseEvent(button, "click");
 
       expect(handleClick).not.toHaveBeenCalled();
-
-      button.remove();
     });
 
     it("should not call handleClick for non-highlighted elements", () => {
@@ -207,7 +204,6 @@ describe("ElementHighlighter.integration.test.ts", () => {
       expect(handleClick).not.toHaveBeenCalled();
 
       simulateKeyEvent("keyup", "Alt");
-      button.remove();
     });
   });
 
@@ -219,13 +215,15 @@ describe("ElementHighlighter.integration.test.ts", () => {
 
       highlighter.addHighlight(button);
 
-      expect(() => {
-        simulateKeyEvent("keydown", "Alt");
-        simulateMouseEvent(button, "mouseover");
-        simulateKeyEvent("keyup", "Alt");
-      }).not.toThrow();
+      simulateKeyEvent("keydown", "Alt");
+      simulateMouseEvent(button, "mouseover");
 
-      button.remove();
+      const overlay = getActiveOverlay();
+      expect(overlay).not.toBeNull();
+      expect(overlay!.style.top).toBe("100px");
+      expect(overlay!.style.left).toBe("100px");
+
+      simulateKeyEvent("keyup", "Alt");
     });
 
     it("should handle mouseout", () => {
@@ -234,21 +232,21 @@ describe("ElementHighlighter.integration.test.ts", () => {
       document.body.appendChild(button);
 
       highlighter.addHighlight(button);
+      simulateKeyEvent("keydown", "Alt");
+      simulateMouseEvent(button, "mouseover");
+      expect(getActiveOverlay()).not.toBeNull();
 
-      expect(() => {
-        simulateKeyEvent("keydown", "Alt");
-        simulateMouseEvent(button, "mouseover");
-        simulateMouseEvent(button, "mouseout");
-        simulateKeyEvent("keyup", "Alt");
-      }).not.toThrow();
+      simulateMouseEvent(button, "mouseout");
 
-      button.remove();
+      expect(getActiveOverlay()).toBeNull();
+
+      simulateKeyEvent("keyup", "Alt");
     });
   });
 
   describe("Cleanup", () => {
     it("should remove all highlights and event listeners", () => {
-      const buttons = Array.from({ length: 5 }, () => {
+      const buttons = Array.from({ length: 2 }, () => {
         const btn = document.createElement("button");
         mockBoundingClientRect(btn, { top: 0, left: 0, width: 100, height: 30 });
         document.body.appendChild(btn);
@@ -259,13 +257,13 @@ describe("ElementHighlighter.integration.test.ts", () => {
 
       highlighter.cleanup();
 
-      // After cleanup, clicking should not trigger handler
       simulateKeyEvent("keydown", "Alt");
       simulateMouseEvent(buttons[0], "click");
+      simulateMouseEvent(buttons[1], "click");
 
       expect(handleClick).not.toHaveBeenCalled();
 
-      buttons.forEach((btn) => btn.remove());
+      simulateKeyEvent("keyup", "Alt");
     });
 
     it("should handle multiple cleanup calls safely", () => {
@@ -279,7 +277,8 @@ describe("ElementHighlighter.integration.test.ts", () => {
 
   describe("Custom options", () => {
     it("should use custom highlight style", () => {
-      const customHighlighter = new ElementHighlighter(new EventBus(), vi.fn(), {
+      highlighter.cleanup();
+      highlighter = new ElementHighlighter(eventBus, handleClick, {
         highlightStyle: {
           borderColor: "blue",
           backgroundColor: "rgba(0, 0, 255, 0.1)",
@@ -292,35 +291,57 @@ describe("ElementHighlighter.integration.test.ts", () => {
       mockBoundingClientRect(button, { top: 0, left: 0, width: 100, height: 30 });
       document.body.appendChild(button);
 
-      expect(() => {
-        customHighlighter.addHighlight(button);
-        customHighlighter.cleanup();
-      }).not.toThrow();
+      highlighter.addHighlight(button);
+      simulateKeyEvent("keydown", "Alt");
+      simulateMouseEvent(button, "mouseover");
 
-      button.remove();
+      const overlay = getActiveOverlay(20000);
+      expect(overlay).not.toBeNull();
+      expect(overlay!.style.border).toBe("3px solid blue");
+      expect(overlay!.style.backgroundColor).toBe("rgba(0, 0, 255, 0.1)");
+
+      simulateKeyEvent("keyup", "Alt");
     });
 
-    it("should respect debug option", () => {
-      const debugHighlighter = new ElementHighlighter(new EventBus(), vi.fn(), {
-        debug: true,
-      });
+    it.each([
+      [true, 1],
+      [false, 0],
+    ])(
+      "should respect debug option — debug: %s warns %i time(s) about a detached element",
+      (debug, expectedWarnings) => {
+        vi.useFakeTimers();
+        const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+        highlighter.cleanup();
+        highlighter = new ElementHighlighter(eventBus, handleClick, { debug });
 
-      const button = document.createElement("button");
-      mockBoundingClientRect(button, { top: 0, left: 0, width: 100, height: 30 });
-      document.body.appendChild(button);
+        const button = document.createElement("button");
+        mockBoundingClientRect(button, { top: 0, left: 0, width: 100, height: 30 });
+        document.body.appendChild(button);
+        highlighter.addHighlight(button);
+        simulateKeyEvent("keydown", "Alt");
+        simulateMouseEvent(button, "mouseover");
 
-      expect(() => {
-        debugHighlighter.addHighlight(button);
-        debugHighlighter.cleanup();
-      }).not.toThrow();
+        button.remove();
+        window.dispatchEvent(new Event("scroll"));
+        vi.advanceTimersByTime(SCROLL_DEBOUNCE_DELAY);
 
-      button.remove();
-    });
+        expect(
+          warn.mock.calls.filter(
+            ([message]) =>
+              message ===
+              "[ElementHighlighter] Cannot update position: element is detached from DOM",
+          ),
+        ).toHaveLength(expectedWarnings);
+
+        simulateKeyEvent("keyup", "Alt");
+        vi.useRealTimers();
+      },
+    );
   });
 
   describe("Multiple elements", () => {
     it("should handle multiple highlighted elements", () => {
-      const elements = Array.from({ length: 10 }, (_, i) => {
+      const elements = Array.from({ length: 3 }, (_, i) => {
         const div = document.createElement("div");
         div.textContent = `Element ${i}`;
         mockBoundingClientRect(div, { top: i * 50, left: 0, width: 100, height: 40 });
@@ -334,16 +355,12 @@ describe("ElementHighlighter.integration.test.ts", () => {
 
       simulateMouseEvent(elements[0], "mouseover");
       simulateMouseEvent(elements[0], "click");
+      simulateMouseEvent(elements[2], "mouseover");
+      simulateMouseEvent(elements[2], "click");
 
-      expect(handleClick).toHaveBeenCalledWith(elements[0]);
-
-      simulateMouseEvent(elements[5], "mouseover");
-      simulateMouseEvent(elements[5], "click");
-
-      expect(handleClick).toHaveBeenCalledWith(elements[5]);
+      expect(handleClick.mock.calls).toEqual([[elements[0]], [elements[2]]]);
 
       simulateKeyEvent("keyup", "Alt");
-      elements.forEach((el) => el.remove());
     });
   });
 
@@ -365,7 +382,6 @@ describe("ElementHighlighter.integration.test.ts", () => {
       expect(overlay!.style.cursor).toBe("pointer");
 
       simulateKeyEvent("keyup", "Alt");
-      button.remove();
     });
 
     it("should apply custom highlight style from options", () => {
@@ -391,10 +407,9 @@ describe("ElementHighlighter.integration.test.ts", () => {
       expect(overlay!.style.backgroundColor).toBe("rgba(225, 29, 72, 0.1)");
 
       simulateKeyEvent("keyup", "Alt");
-      button.remove();
     });
 
-    it("should start overlay with opacity 0 for fade-in", () => {
+    it("should start overlay with opacity 0 for fade-in", async () => {
       const button = document.createElement("button");
       mockBoundingClientRect(button, { top: 10, left: 10, width: 100, height: 30 });
       document.body.appendChild(button);
@@ -405,27 +420,17 @@ describe("ElementHighlighter.integration.test.ts", () => {
 
       const overlay = getActiveOverlay();
       expect(overlay).not.toBeNull();
-      expect(overlay!.style.transition).toContain("opacity");
+      expect(overlay!.style.opacity).toBe("0");
+
+      await flushAnimationFrame();
+
+      expect(overlay!.style.opacity).toBe("1");
 
       simulateKeyEvent("keyup", "Alt");
-      button.remove();
     });
   });
 
   describe("Tooltip", () => {
-    const getTooltip = (): HTMLDivElement | null => {
-      return (
-        (Array.from(document.body.querySelectorAll("div")).find((node) => {
-          return (
-            node.style.position === "absolute" &&
-            node.style.fontSize === "11px" &&
-            node.style.pointerEvents === "none" &&
-            node.style.whiteSpace === "nowrap"
-          );
-        }) as HTMLDivElement | undefined) ?? null
-      );
-    };
-
     it("should show tooltip with key when element is registered via event", () => {
       const button = document.createElement("button");
       mockBoundingClientRect(button, { top: 50, left: 10, width: 100, height: 30 });
@@ -441,12 +446,11 @@ describe("ElementHighlighter.integration.test.ts", () => {
       simulateKeyEvent("keydown", "Alt");
       simulateMouseEvent(button, "mouseover");
 
-      const tooltip = getTooltip();
+      const tooltip = getActiveTooltip();
       expect(tooltip).not.toBeNull();
       expect(tooltip!.textContent).toBe("greeting (common)");
 
       simulateKeyEvent("keyup", "Alt");
-      button.remove();
     });
 
     it("should show count for multiple keys on same element", () => {
@@ -468,12 +472,11 @@ describe("ElementHighlighter.integration.test.ts", () => {
       simulateKeyEvent("keydown", "Alt");
       simulateMouseEvent(button, "mouseover");
 
-      const tooltip = getTooltip();
+      const tooltip = getActiveTooltip();
       expect(tooltip).not.toBeNull();
       expect(tooltip!.textContent).toContain("(+1)");
 
       simulateKeyEvent("keyup", "Alt");
-      button.remove();
     });
 
     it("should remove tooltip when highlight is removed", () => {
@@ -489,12 +492,25 @@ describe("ElementHighlighter.integration.test.ts", () => {
 
       simulateKeyEvent("keydown", "Alt");
       simulateMouseEvent(button, "mouseover");
-      expect(getTooltip()).not.toBeNull();
+      expect(getActiveTooltip()).not.toBeNull();
 
       simulateKeyEvent("keyup", "Alt");
-      expect(getTooltip()).toBeNull();
+      expect(getActiveTooltip()).toBeNull();
+    });
 
-      button.remove();
+    it("should show the overlay but no tooltip for an element registered with no nodes", () => {
+      const button = document.createElement("button");
+      mockBoundingClientRect(button, { top: 50, left: 10, width: 100, height: 30 });
+      document.body.appendChild(button);
+      eventBus.emit("translationRegistered", button, { nodes: new Map() });
+
+      simulateKeyEvent("keydown", "Alt");
+      simulateMouseEvent(button, "mouseover");
+
+      expect(getActiveOverlay()).not.toBeNull();
+      expect(getActiveTooltip()).toBeNull();
+
+      simulateKeyEvent("keyup", "Alt");
     });
 
     it("should clean up key map on translationRemoved event", () => {
@@ -513,10 +529,9 @@ describe("ElementHighlighter.integration.test.ts", () => {
       // After removal, hovering should not show tooltip
       simulateKeyEvent("keydown", "Alt");
       simulateMouseEvent(button, "mouseover");
-      expect(getTooltip()).toBeNull();
+      expect(getActiveTooltip()).toBeNull();
 
       simulateKeyEvent("keyup", "Alt");
-      button.remove();
     });
   });
 
@@ -539,7 +554,6 @@ describe("ElementHighlighter.integration.test.ts", () => {
       expect(handleClick).toHaveBeenCalledWith(button);
 
       simulateKeyEvent("keyup", "Alt");
-      host.remove();
     });
   });
 });

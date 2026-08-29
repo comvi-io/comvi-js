@@ -8,7 +8,7 @@
  * wrappers — source of truth packages/svelte/tests/T-structural.test.ts, keep
  * the four in sync.
  */
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeAll } from "vitest";
 import { createI18n } from "../src/index";
 import React from "react";
 import { render } from "@testing-library/react";
@@ -76,10 +76,14 @@ describe("<T /> structural render (real core)", () => {
   // only because `prepareTranslation` passes the tag extension per call. Every
   // row must produce byte-identical text to the svelte/vue/solid wrappers.
   describe("fallback-parity fixture (shared with svelte/vue/solid)", () => {
-    for (const parityCase of WRAPPER_PARITY_FIXTURE.cases) {
-      it(`produces the shared text for "${parityCase.key}"`, async () => {
-        const i18n = await makeI18n({ ...WRAPPER_PARITY_FIXTURE.translations });
+    let i18n: Awaited<ReturnType<typeof makeI18n>>;
 
+    beforeAll(async () => {
+      i18n = await makeI18n({ ...WRAPPER_PARITY_FIXTURE.translations });
+    });
+
+    for (const parityCase of WRAPPER_PARITY_FIXTURE.cases) {
+      it(`produces the shared text for "${parityCase.key}"`, () => {
         const { container } = render(
           <I18nProvider i18n={i18n} autoInit={false}>
             <T

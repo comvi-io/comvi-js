@@ -1,7 +1,9 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { I18n } from "../helpers/composedHost";
 
-describe("Core API Contracts", () => {
+// `__DEV__` is defined true by vitest.config.ts, so the DEV branch of every
+// error message below is the one this suite observes.
+describe("I18n core API contracts", () => {
   it("emits loadError from locale setter when async locale load fails", async () => {
     const i18n = new I18n({ locale: "en", exposeGlobal: false });
 
@@ -27,37 +29,59 @@ describe("Core API Contracts", () => {
       ).toBe(true);
     });
 
-    expect(onLoadError.mock.calls.map(([payload]) => payload.namespace)).toContain("default");
-    expect(onLoadError.mock.calls.map(([payload]) => payload.namespace)).toContain("locale-change");
+    expect(onLoadError.mock.calls.map(([payload]) => payload.namespace).sort()).toEqual([
+      "default",
+      "locale-change",
+    ]);
     expect(i18n.locale).toBe("en");
   });
 
-  it("respects checkFallbacks in hasTranslation()", () => {
-    const i18n = new I18n({
-      locale: "de",
-      fallbackLocale: ["de", "en"],
-      exposeGlobal: false,
-    });
-    i18n.addTranslations({ en: { hello: "Hello" } });
+  describe("hasTranslation()", () => {
+    function makeI18n() {
+      const i18n = new I18n({ locale: "de", fallbackLocale: ["de", "en"], exposeGlobal: false });
+      i18n.addTranslations({ en: { hello: "Hello" } });
+      return i18n;
+    }
 
-    expect(i18n.hasTranslation("hello", "de", "default", false)).toBe(false);
-    expect(i18n.hasTranslation("hello", "de", "default", true)).toBe(true);
+    it("respects checkFallbacks in hasTranslation()", () => {
+      const i18n = makeI18n();
+
+      expect(i18n.hasTranslation("hello", "de", "default", false)).toBe(false);
+      expect(i18n.hasTranslation("hello", "de", "default", true)).toBe(true);
+    });
+
+    it("returns false for a locale that was never loaded, fallbacks or not", () => {
+      const i18n = makeI18n();
+
+      expect(i18n.hasTranslation("hello", "ja", "default", false)).toBe(false);
+      // "ja" is not in the fallback chain, but "en" is — the chain is consulted
+      // regardless of the requested locale.
+      expect(i18n.hasTranslation("hello", "ja", "default", true)).toBe(true);
+    });
+
+    it("returns false for an empty key", () => {
+      const i18n = makeI18n();
+
+      expect(i18n.hasTranslation("", "en", "default", false)).toBe(false);
+      expect(i18n.hasTranslation("", "en", "default", true)).toBe(false);
+    });
   });
 
   it("validates registerLocaleDetector() argument type", () => {
     const i18n = new I18n({ locale: "en", exposeGlobal: false });
 
     expect(() => i18n.registerLocaleDetector("invalid" as any)).toThrow(
-      /registerLocaleDetector\(\).*function|E_REGISTER_LOCALE_DETECTOR/,
+      "[i18n] registerLocaleDetector(): argument must be a function.",
     );
   });
 
   it("validates registerLoader() argument type", () => {
     const i18n = new I18n({ locale: "en", exposeGlobal: false });
+    const call = () => i18n.registerLoader(123 as any);
 
-    expect(() => i18n.registerLoader(123 as any)).toThrow(
-      /registerLoader\(\).*loader function|E_REGISTER_LOADER_ARG/,
-    );
+    expect(call).toThrow(/registerLoader\(\): argument must be a loader function/);
+    expect(call).toThrow(/\.with\(loader\(map\)\)/);
+    expect(call).toThrow(/createImportMapLoader/);
   });
 
   it("stores and retrieves plugin data", () => {
@@ -91,25 +115,29 @@ describe("Core API Contracts", () => {
       },
     });
 
-    i18n.reportError(new Error("original"), { source: "init" });
+    expect(() => i18n.reportError(new Error("original"), { source: "init" })).not.toThrow();
 
     expect(warnSpy).toHaveBeenCalledWith(
       expect.stringContaining("[i18n] onError handler threw: onError failed"),
     );
-
-    warnSpy.mockRestore();
   });
 
-  it("pushes and removes its queue entry on window.__COMVI__", async () => {
-    const previousGlobal = (window as { __COMVI__?: unknown }).__COMVI__;
-    delete (window as { __COMVI__?: unknown }).__COMVI__;
-    try {
+  describe("window.__COMVI__ discovery queue", () => {
+    let previousGlobal: unknown;
+
+    beforeEach(() => {
+      previousGlobal = (window as { __COMVI__?: unknown }).__COMVI__;
+      delete (window as { __COMVI__?: unknown }).__COMVI__;
+    });
+
+    afterEach(() => {
+      (window as { __COMVI__?: unknown }).__COMVI__ = previousGlobal;
+    });
+
+    it("pushes its queue entry on construction and removes it on destroy()", async () => {
+      // `Date.now()` only makes the id unique; it never influences an assertion.
       const id = `core-contract-${Date.now()}`;
-      const i18n = new I18n({
-        locale: "en",
-        exposeGlobal: true,
-        instanceId: id,
-      });
+      const i18n = new I18n({ locale: "en", exposeGlobal: true, instanceId: id });
 
       const queue = (window as { __COMVI__?: Array<{ v: string; i: unknown }> }).__COMVI__;
       expect(i18n.instanceId).toBe(id);
@@ -119,34 +147,32 @@ describe("Core API Contracts", () => {
       await i18n.destroy();
 
       expect(queue!.some((entry) => entry.i === i18n)).toBe(false);
-      await expect(i18n.init()).rejects.toThrow(/destroy|E_INSTANCE_DESTROYED/);
-      expect(queue!.some((entry) => entry.i === i18n)).toBe(false);
-    } finally {
-      (window as { __COMVI__?: unknown }).__COMVI__ = previousGlobal;
-    }
-  });
+    });
 
-  it("supports exposeGlobal in SSR-like environments without window", async () => {
-    const originalWindow = (globalThis as any).window;
-    const originalCustomEvent = (globalThis as any).CustomEvent;
-
-    vi.stubGlobal("window", undefined);
-    vi.stubGlobal("CustomEvent", undefined);
-
-    try {
+    it("does not re-push the entry when init() is rejected after destroy()", async () => {
       const i18n = new I18n({
         locale: "en",
         exposeGlobal: true,
-        instanceId: "ssr-instance",
+        instanceId: `core-contract-rejected-${Date.now()}`,
       });
-
-      expect(i18n.instanceId).toBe("ssr-instance");
+      const queue = (window as { __COMVI__?: Array<{ v: string; i: unknown }> }).__COMVI__!;
       await i18n.destroy();
-      expect(i18n.isInitialized).toBe(false);
-    } finally {
-      vi.stubGlobal("window", originalWindow);
-      vi.stubGlobal("CustomEvent", originalCustomEvent);
-      vi.unstubAllGlobals();
-    }
+
+      await expect(i18n.init()).rejects.toThrow(/Cannot call init\(\) after destroy\(\)/);
+
+      expect(queue.some((entry) => entry.i === i18n)).toBe(false);
+    });
+  });
+
+  it("constructs and destroys with exposeGlobal in an SSR-like environment without window", async () => {
+    vi.stubGlobal("window", undefined);
+    vi.stubGlobal("CustomEvent", undefined);
+
+    const i18n = new I18n({ locale: "en", exposeGlobal: true, instanceId: "ssr-instance" });
+
+    expect(i18n.instanceId).toBe("ssr-instance");
+    expect(globalThis.window).toBeUndefined();
+    await expect(i18n.destroy()).resolves.toBeUndefined();
+    await expect(i18n.init()).rejects.toThrow(/Cannot call init\(\) after destroy\(\)/);
   });
 });

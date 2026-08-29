@@ -6,8 +6,8 @@
  * test-apps/next Playwright suite is the browser-observable complement.
  */
 
-import React, { Profiler, StrictMode, startTransition, type ProfilerOnRenderCallback } from "react";
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { Profiler, StrictMode, startTransition, type ProfilerOnRenderCallback } from "react";
+import { describe, it, expect, beforeEach } from "vitest";
 import { render, act } from "@testing-library/react";
 
 import { I18nProvider } from "../src/I18nProvider";
@@ -16,7 +16,7 @@ import { I18nProvider as NextI18nProvider } from "../../next/src/client/I18nProv
 import type { MessagesMap } from "../../next/src/client/I18nProvider";
 
 import { FakeI18n } from "../../../tooling/test-utils/fakeI18n";
-import { createDeferred } from "./test-utils";
+import { createDeferred, flushMicrotasks } from "./test-utils";
 
 function makeCounter() {
   let count = 0;
@@ -76,18 +76,16 @@ describe("Repro 1 — startTransition + locale flip", () => {
       startTransition(() => {
         void fake.setLocaleAsync("fr");
       });
-      // Two ticks: the gated `setLocaleAsync` resolves on the second.
-      await Promise.resolve();
-      await Promise.resolve();
+      // Two turns: the gated `setLocaleAsync` resolves on the second.
+      await flushMicrotasks(2);
     });
 
     expect(getByTestId("probe-a").textContent).toBe("Bonjour");
     expect(getByTestId("probe-b").textContent).toBe("Bonjour");
 
     // Pair-consistency: both probes are EN or both FR after every observable
-    // commit; a sane commit count is the rest of the evidence.
-    expect(counter.get()).toBeGreaterThan(0);
-    expect(counter.get()).toBeLessThanOrEqual(3);
+    // commit; the exact commit count is the rest of the evidence.
+    expect(counter.get()).toBe(1);
   });
 
   it("two <T> consumers commit pair-consistent locale under startTransition (StrictMode ON)", async () => {
@@ -107,8 +105,7 @@ describe("Repro 1 — startTransition + locale flip", () => {
       startTransition(() => {
         void fake.setLocaleAsync("fr");
       });
-      await Promise.resolve();
-      await Promise.resolve();
+      await flushMicrotasks(2);
     });
 
     expect(getByTestId("probe-a").textContent).toBe("Bonjour");
@@ -149,7 +146,7 @@ describe("Repro 2 — Aborted transition leakage", () => {
       startTransition(() => {
         void fake.setLocaleAsync("fr");
       });
-      await Promise.resolve();
+      await flushMicrotasks();
     });
 
     expect(fake.locale).toBe("en");
@@ -160,16 +157,14 @@ describe("Repro 2 — Aborted transition leakage", () => {
       startTransition(() => {
         void fake.setLocaleAsync("de");
       });
-      await Promise.resolve();
+      await flushMicrotasks();
     });
 
     await act(async () => {
       firstGate.resolve();
-      await Promise.resolve();
+      await flushMicrotasks();
       secondGate.resolve();
-      await Promise.resolve();
-      await Promise.resolve();
-      await Promise.resolve();
+      await flushMicrotasks(3);
     });
 
     // Fails if the aborted `fr` transition leaks — final locale must be `de`.
@@ -272,57 +267,5 @@ describe("Repro 3 — Next provider render-time mutation idempotency", () => {
     });
     // Exactly +1: the new messages identity is picked up by the layout effect.
     expect(fake.addTranslations).toHaveBeenCalledTimes(2);
-  });
-});
-
-describe("Repro 4 — useSubscribe events-array fragility", () => {
-  // Internal fragility, not a runtime bug: every production call site passes a
-  // stable literal and no public hook surfaces `useSubscribe`. The shape is
-  // pinned anyway — a `useCallback([i18n])` closing over `events` does not
-  // re-subscribe when only `events` changes.
-
-  it("re-subscribe is gated on i18n identity only — events list changes are ignored (architectural-only)", () => {
-    const fake = new FakeI18n();
-
-    const onSpy = vi.spyOn(fake, "on");
-
-    // Mirrors the production `useSubscribe` shape.
-    function useSubscribeLike<EventName extends string>(
-      i18n: { on: (e: EventName, cb: () => void) => () => void },
-      events: EventName[],
-    ) {
-      return React.useCallback(
-        (callback: () => void) => {
-          const unsubs = events.map((e) => i18n.on(e, callback));
-          return () => unsubs.forEach((u) => u());
-        },
-        // BUG SHAPE under test: `events` excluded from the deps. (The
-        // react-hooks eslint plugin is not enabled here, so no disable.)
-        [i18n],
-      );
-    }
-
-    const i18nStable = fake.asI18n() as never;
-
-    function Subject({ events }: { events: Array<"localeChanged" | "initialized"> }) {
-      const sub = useSubscribeLike(i18nStable, events);
-      React.useEffect(() => {
-        const unsub = sub(() => {});
-        return () => unsub();
-      }, [sub]);
-      return null;
-    }
-
-    const { rerender, unmount } = render(<Subject events={["localeChanged"]} />);
-    const callsAfterMount = onSpy.mock.calls.length;
-    expect(callsAfterMount).toBeGreaterThan(0);
-    expect(onSpy.mock.calls.some((c) => c[0] === "localeChanged")).toBe(true);
-
-    rerender(<Subject events={["initialized"]} />);
-
-    // Identity stays stable, so the effect never re-runs: no new subscription.
-    expect(onSpy.mock.calls.length).toBe(callsAfterMount);
-
-    unmount();
   });
 });

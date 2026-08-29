@@ -1,14 +1,12 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { I18n } from "../helpers/composedHost";
 
+const makeI18n = (options: ConstructorParameters<typeof I18n>[0] = { locale: "en" }) =>
+  new I18n({ locale: "en", ...options });
+
 describe("Namespace Management", () => {
-  let i18n: I18n;
-
-  beforeEach(() => {
-    i18n = new I18n({ locale: "en" });
-  });
-
   it("should support explicit namespace parameter", () => {
+    const i18n = makeI18n();
     i18n.addTranslations({
       "en:ns1": { key: "Value 1" },
       "en:ns2": { key: "Value 2" },
@@ -19,6 +17,7 @@ describe("Namespace Management", () => {
   });
 
   it("should not fall back to default namespace when explicit ns is missing", () => {
+    const i18n = makeI18n();
     i18n.addTranslations({
       "en:default": { key: "Default Value" },
       "en:admin": { other: "Admin Value" },
@@ -28,12 +27,14 @@ describe("Namespace Management", () => {
   });
 
   it("should support configuring a default namespace", () => {
-    i18n = new I18n({ locale: "en", defaultNs: "common" });
+    const i18n = makeI18n({ defaultNs: "common" });
     i18n.addTranslations({ "en:common": { key: "Common Value" } });
+
     expect(i18n.t("key")).toBe("Common Value");
   });
 
   it("emits defaultNamespaceChanged and switches lookups to the new namespace", () => {
+    const i18n = makeI18n();
     i18n.addTranslations({
       "en:default": { key: "Default Value" },
       "en:admin": { key: "Admin Value" },
@@ -46,18 +47,25 @@ describe("Namespace Management", () => {
     expect(onDefaultNamespaceChanged).toHaveBeenCalledTimes(1);
     expect(onDefaultNamespaceChanged).toHaveBeenCalledWith({ from: "default", to: "admin" });
     expect(i18n.t("key")).toBe("Admin Value");
+  });
+
+  it("setDefaultNamespace() to the namespace already in effect emits nothing", () => {
+    const i18n = makeI18n();
+    i18n.setDefaultNamespace("admin");
+    const onDefaultNamespaceChanged = vi.fn();
+    i18n.on("defaultNamespaceChanged", onDefaultNamespaceChanged);
 
     i18n.setDefaultNamespace("admin");
-    expect(onDefaultNamespaceChanged).toHaveBeenCalledTimes(1);
+
+    expect(onDefaultNamespaceChanged).not.toHaveBeenCalled();
   });
 
   it("should clear translations for a specific namespace", () => {
+    const i18n = makeI18n();
     i18n.addTranslations({
       "en:common": { key: "Keep me" },
       "en:temp": { key: "Delete me" },
     });
-
-    expect(i18n.t("key", { ns: "temp" })).toBe("Delete me");
 
     i18n.clearTranslations("en", "temp");
 
@@ -65,7 +73,8 @@ describe("Namespace Management", () => {
     expect(i18n.hasTranslation("key", "en", "temp")).toBe(false);
   });
 
-  it("should remove namespace from active tracking when cleared", async () => {
+  it("clearTranslations(ns) drops the namespace from active tracking, so a later locale switch does not reload it", async () => {
+    const i18n = makeI18n();
     const loaderCalls: string[] = [];
     i18n.registerLoader(async (lang, ns) => {
       loaderCalls.push(`${lang}:${ns}`);
@@ -84,12 +93,13 @@ describe("Namespace Management", () => {
     expect(i18n.getActiveNamespaces()).not.toContain("admin");
 
     await i18n.setLocaleAsync("fr");
+
     expect(loaderCalls).toEqual(["en:admin"]);
   });
 
   it("keeps successful namespace loads when another namespace fails", async () => {
     const onError = vi.fn();
-    i18n = new I18n({ locale: "en", ns: [], onError });
+    const i18n = makeI18n({ ns: [], onError });
 
     i18n.registerLoader(async (_lang, ns) => {
       if (ns === "bad") {
@@ -116,7 +126,7 @@ describe("Namespace Management", () => {
   });
 
   it("reloads only the requested locale and namespace", async () => {
-    i18n = new I18n({ locale: "en", fallbackLocale: "fr", ns: [] });
+    const i18n = makeI18n({ fallbackLocale: "fr", ns: [] });
 
     const loaderCalls: string[] = [];
     const loadVersions = new Map<string, number>();
@@ -149,6 +159,7 @@ describe("Namespace Management", () => {
   });
 
   it("should throw an error if all reload attempts fail", async () => {
+    const i18n = makeI18n();
     i18n.registerLoader(async () => {
       throw new Error("Network error");
     });
@@ -156,14 +167,12 @@ describe("Namespace Management", () => {
     i18n.addTranslations({ "en:admin": { key: "val" } });
     await i18n.addActiveNamespace("admin");
 
-    await expect(i18n.reloadTranslations()).rejects.toThrow(
-      /Failed to reload translations|E_FAILED_RELOAD_TRANSLATIONS/,
-    );
+    await expect(i18n.reloadTranslations()).rejects.toThrow(/Failed to reload translations/);
   });
 
   describe("colon in key name", () => {
     it("resolves a literal colon-containing key in the default namespace", () => {
-      const instance = new I18n({ locale: "en" });
+      const instance = makeI18n();
       instance.addTranslations({
         "en:default": { "foo:bar": "Value with colon" },
       });
@@ -172,7 +181,7 @@ describe("Namespace Management", () => {
     });
 
     it("resolves a literal colon-containing key in a non-default namespace", () => {
-      const instance = new I18n({ locale: "en" });
+      const instance = makeI18n();
       instance.addTranslations({
         "en:ui": { "a:b:c": "Deep colons" },
       });
@@ -181,7 +190,7 @@ describe("Namespace Management", () => {
     });
 
     it("does not confuse a colon-containing key with namespace:key shorthand", () => {
-      const instance = new I18n({ locale: "en" });
+      const instance = makeI18n();
       instance.addTranslations({
         "en:default": { "foo:bar": "Key in default ns" },
         "en:foo": { bar: "Key in foo ns" },

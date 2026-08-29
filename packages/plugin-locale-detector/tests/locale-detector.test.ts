@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { I18n } from "./helpers/composedHost";
 import type { LocaleDetectorOptions } from "../src/index";
 import { LocaleDetector, resolveLocale } from "../src/index";
-import { mockCookie, mockNavigator, mockWindowLocation } from "./setup";
+import { mockCookie, mockNavigator, mockWindowLocation, withDisabledBrowserGlobals } from "./setup";
 
 function createI18n(locale: string = "en"): I18n {
   return new I18n({ locale, exposeGlobal: false });
@@ -16,36 +16,6 @@ async function initWithPlugin(
   i18n.use(LocaleDetector(options));
   await i18n.init();
   return i18n;
-}
-
-type BrowserGlobal = "window" | "document" | "navigator";
-
-async function withDisabledBrowserGlobals(run: () => Promise<void> | void): Promise<void> {
-  const keys: BrowserGlobal[] = ["window", "document", "navigator"];
-  const descriptors = new Map<BrowserGlobal, PropertyDescriptor | undefined>(
-    keys.map((key) => [key, Object.getOwnPropertyDescriptor(globalThis, key)]),
-  );
-
-  for (const key of keys) {
-    Object.defineProperty(globalThis, key, {
-      value: undefined,
-      configurable: true,
-      writable: true,
-    });
-  }
-
-  try {
-    await run();
-  } finally {
-    for (const key of keys) {
-      const descriptor = descriptors.get(key);
-      if (descriptor) {
-        Object.defineProperty(globalThis, key, descriptor);
-      } else {
-        Reflect.deleteProperty(globalThis, key);
-      }
-    }
-  }
 }
 
 describe("LocaleDetector plugin", () => {
@@ -355,9 +325,8 @@ describe("LocaleDetector plugin", () => {
       expect(document.cookie).toContain("i18n_lang=fr");
     });
 
-    it("updates caches when the locale changes after init", async () => {
-      const cookieSetter = vi.spyOn(document, "cookie", "set");
-      const i18n = await initWithPlugin(
+    const initWithEveryCacheTarget = () =>
+      initWithPlugin(
         {
           order: ["navigator"],
           caches: ["localStorage", "sessionStorage", "cookie"],
@@ -375,18 +344,26 @@ describe("LocaleDetector plugin", () => {
         "en",
       );
 
+    it("writes every configured cache target on a post-init locale change", async () => {
+      const cookieSetter = vi.spyOn(document, "cookie", "set");
+      const i18n = await initWithEveryCacheTarget();
+
       await i18n.setLocaleAsync("pt");
 
       expect(localStorage.getItem("custom_lang_key")).toBe("pt");
       expect(sessionStorage.getItem("session_lang_key")).toBe("pt");
+      expect(cookieSetter.mock.calls.at(-1)?.[0]).toContain("language=pt");
+    });
 
-      const cookieWrite = cookieSetter.mock.calls.at(-1)?.[0] as string;
-      expect(cookieWrite).toContain("language=pt");
-      expect(cookieWrite).toContain("max-age=86400");
-      expect(cookieWrite).toContain("path=/app");
-      expect(cookieWrite).toContain("domain=example.com");
-      expect(cookieWrite).toContain("samesite=strict");
-      expect(cookieWrite).toContain("secure");
+    it("serializes cookieOptions and cookieMaxAge into one cookie write", async () => {
+      const cookieSetter = vi.spyOn(document, "cookie", "set");
+      const i18n = await initWithEveryCacheTarget();
+
+      await i18n.setLocaleAsync("pt");
+
+      expect(cookieSetter.mock.calls.at(-1)?.[0]).toBe(
+        "language=pt; max-age=86400; path=/app; samesite=strict; domain=example.com; secure",
+      );
     });
 
     it("forces Secure when sameSite is none", async () => {
@@ -427,8 +404,10 @@ describe("LocaleDetector plugin", () => {
     });
 
     it("swallows storage write failures", async () => {
-      const originalSetItem = localStorage.setItem;
-      localStorage.setItem = vi.fn().mockImplementation(() => {
+      // Must be the INSTANCE: a `Storage.prototype` spy is never reached by
+      // `localStorage.setItem` in a full-file run, which makes this test vacuous.
+      // `restoreMocks` does not restore an inherited-member spy, hence the finally.
+      const setItemSpy = vi.spyOn(globalThis.localStorage, "setItem").mockImplementation(() => {
         throw new Error("Quota exceeded");
       });
 
@@ -443,8 +422,11 @@ describe("LocaleDetector plugin", () => {
 
         await expect(i18n.setLocaleAsync("fr")).resolves.toBeUndefined();
         expect(i18n.locale).toBe("fr");
+        // Both writes (init's cache populate and the change above) really threw, so
+        // the resolution asserted above is the swallow and not an untaken path.
+        expect(setItemSpy.mock.results.map((result) => result.type)).toEqual(["throw", "throw"]);
       } finally {
-        localStorage.setItem = originalSetItem;
+        setItemSpy.mockRestore();
       }
     });
   });
@@ -639,11 +621,9 @@ describe("LocaleDetector plugin", () => {
         "de",
       );
 
-      // Fallback resolution — caches should be empty
       expect(localStorage.getItem("i18n_locale")).toBeNull();
       expect(sessionStorage.getItem("i18n_locale")).toBeNull();
 
-      // Manual locale change — caches should be written
       await i18n.setLocaleAsync("fr");
       expect(localStorage.getItem("i18n_locale")).toBe("fr");
       expect(sessionStorage.getItem("i18n_locale")).toBe("fr");

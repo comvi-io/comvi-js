@@ -18,7 +18,6 @@ beforeEach(() => {
 
 afterEach(() => {
   _resetSyntaxExtensions();
-  registerTagSyntax();
 });
 
 type Mode = "literal" | "drop";
@@ -134,9 +133,10 @@ describe("missingParam — path 5: slim compiler", () => {
 describe("missingParam — dev warning", () => {
   it("warns once per (template, param) pair", () => {
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-    // Unique template so the module-level dedup set cannot have seen it.
-    const template = `Warn check {missing_${Date.now()}}`;
-    const paramName = template.slice(template.indexOf("{") + 1, template.indexOf("}"));
+    // The dedup key is (template, param), so a test-unique TEMPLATE is what
+    // keeps the module-level set from having seen this pair before.
+    const paramName = "missingName";
+    const template = `Warn check #${expect.getState().currentTestName} {${paramName}}`;
     const i18n = makeFull(undefined, { warned: template });
 
     i18n.t("warned");
@@ -146,6 +146,5 @@ describe("missingParam — dev warning", () => {
       (call) => typeof call[0] === "string" && call[0].includes(`Missing parameter "${paramName}"`),
     );
     expect(matching.length).toBe(1);
-    warnSpy.mockRestore();
   });
 });

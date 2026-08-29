@@ -6,6 +6,7 @@ import { createI18n } from "../../src";
 import { attachLoader } from "../../src/loader";
 import { attachPlugins } from "../../src/plugins";
 import type { I18nEvent, I18nEventData } from "../../src/types";
+import { createDeferred, type Deferred } from "../helpers/deferred";
 
 /**
  * The locale-race seam.
@@ -34,23 +35,6 @@ function traceLocaleEvents(i18n: EventSource): string[] {
   return trace;
 }
 
-/** A promise whose settlement the test drives. */
-interface Deferred<T> {
-  promise: Promise<T>;
-  resolve: (value: T) => void;
-  reject: (reason: unknown) => void;
-}
-
-function createDeferred<T>(): Deferred<T> {
-  let resolve!: (value: T) => void;
-  let reject!: (reason: unknown) => void;
-  const promise = new Promise<T>((res, rej) => {
-    resolve = res;
-    reject = rej;
-  });
-  return { promise, resolve, reject };
-}
-
 describe("locale switch on a host WITHOUT the loader capability", () => {
   it("applies the locale synchronously and emits localeChanged only", async () => {
     const i18n = createI18n({
@@ -64,7 +48,6 @@ describe("locale switch on a host WITHOUT the loader capability", () => {
 
     // Nothing to await: the locale is applied before the first microtask.
     expect(i18n.locale).toBe("fr");
-    expect(pending).toBeInstanceOf(Promise);
     await expect(pending).resolves.toBeUndefined();
 
     // Nothing loads on a bare host, so nothing reports loading — no transient

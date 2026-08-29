@@ -131,20 +131,15 @@ describe("ISOLATED-world bridge activation ordering", () => {
         }),
       );
 
-    expect(request).not.toThrow();
-    expect(request).not.toThrow();
-    expect(responses).toEqual([
-      expect.objectContaining({
-        id: "stale-1",
-        status: 0,
-        networkError: "Extension was reloaded. Reload this page to reconnect.",
-      }),
-      expect.objectContaining({
-        id: "stale-1",
-        status: 0,
-        networkError: "Extension was reloaded. Reload this page to reconnect.",
-      }),
-    ]);
+    request();
+    request();
+
+    const controlledFailure = expect.objectContaining({
+      id: "stale-1",
+      status: 0,
+      networkError: "Extension was reloaded. Reload this page to reconnect.",
+    });
+    expect(responses).toEqual([controlledFailure, controlledFailure]);
     expect(deactivations).toBe(1);
   });
 });

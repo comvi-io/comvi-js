@@ -47,9 +47,13 @@ const REQUIRED_IMPORTS = [
   'import type { I18nLoaderApi, I18nPluginHostApi, WrapperI18nHost } from "@comvi/core";',
 ];
 
-function readWrapper(relativePath) {
-  return fs.readFileSync(path.join(REPO_ROOT, relativePath), "utf8");
-}
+/** The four sources, read once: they cannot change while the suite runs. */
+const SOURCES = Object.fromEntries(
+  Object.entries(WRAPPERS).map(([pkg, relativePath]) => [
+    pkg,
+    fs.readFileSync(path.join(REPO_ROOT, relativePath), "utf8"),
+  ]),
+);
 
 /** Extract the marked region, markers included. */
 export function extractSharedBlock(source, relativePath) {
@@ -76,11 +80,35 @@ function stripComments(block) {
   return block.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^[ \t]*\/\/.*$/gm, "");
 }
 
+test("extractSharedBlock refuses a source whose region markers are missing, reversed or repeated", () => {
+  const block = `${START}\nconst x = 1;\n${END}\n`;
+
+  assert.throws(
+    () => extractSharedBlock(`const x = 1;\n${END}\n`, "f.ts"),
+    /missing "\/\/ #region/,
+  );
+  assert.throws(
+    () => extractSharedBlock(`${START}\nconst x = 1;\n`, "f.ts"),
+    /missing "\/\/ #endregion/,
+  );
+  assert.throws(
+    () => extractSharedBlock(`${END}\n${START}\n`, "f.ts"),
+    /region markers are out of order/,
+  );
+  assert.throws(() => extractSharedBlock(`${block}${block}`, "f.ts"), /more than one region start/);
+});
+
+test("stripComments removes a commented mention so it cannot pass for code", () => {
+  assert.equal(stripComments("// String(x)\nconst a = 1;\n").includes("String("), false);
+  assert.equal(stripComments("/* String(x) */\nconst a = 1;\n").includes("String("), false);
+  assert.equal(stripComments("const a = String(1);\n").includes("String("), true);
+});
+
 test("all four wrappers carry the capability-parity block byte for byte", () => {
   const entries = Object.entries(WRAPPERS).map(([pkg, relativePath]) => [
     pkg,
     relativePath,
-    extractSharedBlock(readWrapper(relativePath), relativePath),
+    extractSharedBlock(SOURCES[pkg], relativePath),
   ]);
 
   const [referencePkg, referencePath, reference] = entries[0];
@@ -97,9 +125,9 @@ test("all four wrappers carry the capability-parity block byte for byte", () => 
 });
 
 test("the shared block defines the whole acquisition, not a fragment of it", () => {
-  const block = extractSharedBlock(readWrapper(WRAPPERS["@comvi/react"]), WRAPPERS["@comvi/react"]);
+  const block = extractSharedBlock(SOURCES["@comvi/react"], WRAPPERS["@comvi/react"]);
 
-  for (const needle of [
+  const needles = [
     "export interface UseI18nLoaderReturn",
     "export interface UseI18nPluginsReturn",
     "const loaderBags = new WeakMap<AnyHost, UseI18nLoaderReturn>();",
@@ -109,35 +137,51 @@ test("the shared block defines the whole acquisition, not a fragment of it", () 
     'if (!hasLoaderApi(host)) throw missingCapability("loader");',
     'if (!hasPluginHostApi(host)) throw missingCapability("plugins");',
     "onMissingKey: host.onMissingKey.bind(host),",
-  ]) {
-    assert.ok(block.includes(needle), `the shared block must contain: ${needle}`);
-  }
+  ];
+
+  assert.deepEqual(
+    needles.filter((needle) => !block.includes(needle)),
+    [],
+    `the shared block is missing declarations. It reads:\n${block}`,
+  );
 });
 
-test("onMissingKey is core's type and core's method, with no wrapper-side coercion", () => {
-  // The exact drift this gate was filed for. `onMissingKey` must be the BOUND HOST
-  // METHOD and its declared type must be core's, so a callback returning the
-  // `Array<string | VirtualNode>` half of `TranslationResult` survives.
-  for (const [pkg, relativePath] of Object.entries(WRAPPERS)) {
-    const block = extractSharedBlock(readWrapper(relativePath), relativePath);
+// The exact drift this gate was filed for. `onMissingKey` must be the BOUND HOST
+// METHOD and its declared type must be core's, so a callback returning the
+// `Array<string | VirtualNode>` half of `TranslationResult` survives.
+test("onMissingKey is declared with core's type in every wrapper", () => {
+  const missing = Object.entries(WRAPPERS).filter(
+    ([pkg, relativePath]) =>
+      !extractSharedBlock(SOURCES[pkg], relativePath).includes(
+        'onMissingKey: I18nPluginHostApi["onMissingKey"];',
+      ),
+  );
 
-    assert.ok(
-      block.includes('onMissingKey: I18nPluginHostApi["onMissingKey"];'),
-      `${pkg}: onMissingKey must be typed as I18nPluginHostApi["onMissingKey"]`,
-    );
-    assert.ok(
-      !/String\s*\(/.test(stripComments(block)),
-      `${pkg}: the shared block must not coerce a callback result (String(...))`,
-    );
-  }
+  assert.deepEqual(
+    missing.map(([pkg]) => pkg),
+    [],
+    'onMissingKey must be typed as I18nPluginHostApi["onMissingKey"]',
+  );
+});
+
+test("no wrapper coerces the onMissingKey callback result", () => {
+  const coercing = Object.entries(WRAPPERS).filter(([pkg, relativePath]) =>
+    /String\s*\(/.test(stripComments(extractSharedBlock(SOURCES[pkg], relativePath))),
+  );
+
+  assert.deepEqual(
+    coercing.map(([pkg]) => pkg),
+    [],
+    "the shared block must not coerce a callback result (String(...))",
+  );
 });
 
 test("every wrapper imports the guards the shared block calls", () => {
   for (const [pkg, relativePath] of Object.entries(WRAPPERS)) {
-    const source = readWrapper(relativePath);
-
-    for (const line of REQUIRED_IMPORTS) {
-      assert.ok(source.includes(line), `${pkg} (${relativePath}) must import:\n  ${line}`);
-    }
+    assert.deepEqual(
+      REQUIRED_IMPORTS.filter((line) => !SOURCES[pkg].includes(line)),
+      [],
+      `${pkg} (${relativePath}) is missing required imports`,
+    );
   }
 });

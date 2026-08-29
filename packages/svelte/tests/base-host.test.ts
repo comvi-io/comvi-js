@@ -10,7 +10,7 @@
  * (exact dev AND prod messages) lives in tests/js-contract/, against the
  * published dist under both build conditions.
  */
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { mount, tick, unmount } from "svelte";
 import { attachLoader, createI18n } from "../src/index";
 import type { WrapperI18nHost } from "../src/index";
@@ -74,17 +74,17 @@ describe("svelte on a base host", () => {
   it("exposes only the host-safe bag — the four capability members are gone", () => {
     const bag = render(makeHost());
 
-    for (const name of ["t", "tRaw", "setLocale", "addTranslations", "on", "reportError"]) {
-      expect(typeof (bag as unknown as Record<string, unknown>)[name]).not.toBe("undefined");
-    }
-    for (const name of [
+    const members = bag as unknown as Record<string, unknown>;
+    const hostSafe = ["t", "tRaw", "setLocale", "addTranslations", "on", "reportError"];
+    const capabilityOnly = [
       "addActiveNamespace",
       "reloadTranslations",
       "onLoadError",
       "onMissingKey",
-    ]) {
-      expect(name in bag).toBe(false);
-    }
+    ];
+
+    expect(hostSafe.filter((name) => members[name] === undefined)).toEqual([]);
+    expect(capabilityOnly.filter((name) => name in members)).toEqual([]);
   });
 
   it("re-renders on a locale change driven through the host", async () => {
@@ -103,17 +103,18 @@ describe("svelte on a base host", () => {
     render(i18n);
 
     click("switch-fr");
-    await tick();
-    await Promise.resolve();
 
-    expect(i18n.locale).toBe("fr");
+    await vi.waitFor(() => {
+      expect(i18n.locale).toBe("fr");
+    });
   });
 
   it("formats through the bag's Intl helpers", () => {
     render(makeHost());
 
-    expect(text("number")).toBe(new Intl.NumberFormat("en").format(1234.5));
-    expect(text("currency")).toContain("10");
+    // The host locale is "en", so both literals are a function of the fixture.
+    expect(text("number")).toBe("1,234.5");
+    expect(text("currency")).toBe("$10.00");
   });
 
   it("adds translations at runtime without a loader", async () => {
@@ -161,6 +162,10 @@ describe("svelte on base + attachLoader (composed host)", () => {
       );
     }
 
-    expect(Object.keys(bags[1]).sort()).toEqual(Object.keys(bags[0]).sort());
+    const baseKeys = Object.keys(bags[0]).sort();
+
+    // Anchored: two empty bags would satisfy the equality below.
+    expect(baseKeys).toContain("t");
+    expect(Object.keys(bags[1]).sort()).toEqual(baseKeys);
   });
 });

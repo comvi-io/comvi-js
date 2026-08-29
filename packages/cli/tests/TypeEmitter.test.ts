@@ -1,6 +1,11 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { TypeEmitter } from "../src/core/TypeEmitter";
 import type { ProjectSchema } from "../src/types";
+
+/** The emitted `TranslationKeys` member lines, in emitted order, without indentation. */
+function keyLinesOf(output: string): string[] {
+  return (output.match(/^ {4}'.*$/gm) ?? []).map((line) => line.trim());
+}
 
 /** Schema keys are flat, with a colon separating namespace from key. */
 describe("TypeEmitter", () => {
@@ -8,6 +13,10 @@ describe("TypeEmitter", () => {
 
   beforeEach(() => {
     typeEmitter = new TypeEmitter();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   describe("generate", () => {
@@ -27,8 +36,6 @@ describe("TypeEmitter", () => {
       expect(result).toContain("interface TranslationKeys");
       expect(result).toContain("'common:greeting': { name: string };");
       expect(result).toContain("'common:welcome': never;");
-      // @comvi/vue and @comvi/react re-export from @comvi/core,
-      // so augmenting @comvi/core is sufficient
       expect(result).toContain("DO NOT EDIT MANUALLY");
     });
 
@@ -59,12 +66,11 @@ describe("TypeEmitter", () => {
 
       const result = typeEmitter.generate(schema);
 
-      const alphaIndex = result.indexOf("'alpha:key'");
-      const betaIndex = result.indexOf("'beta:key'");
-      const zebraIndex = result.indexOf("'zebra:key'");
-
-      expect(alphaIndex).toBeLessThan(betaIndex);
-      expect(betaIndex).toBeLessThan(zebraIndex);
+      expect(keyLinesOf(result)).toEqual([
+        "'alpha:key': never;",
+        "'beta:key': never;",
+        "'zebra:key': never;",
+      ]);
     });
 
     it("should sort keys from same namespace alphabetically", () => {
@@ -78,15 +84,15 @@ describe("TypeEmitter", () => {
 
       const result = typeEmitter.generate(schema);
 
-      const appleIndex = result.indexOf("'common:apple'");
-      const bananaIndex = result.indexOf("'common:banana'");
-      const zebraIndex = result.indexOf("'common:zebra'");
-
-      expect(appleIndex).toBeLessThan(bananaIndex);
-      expect(bananaIndex).toBeLessThan(zebraIndex);
+      expect(keyLinesOf(result)).toEqual([
+        "'common:apple': never;",
+        "'common:banana': never;",
+        "'common:zebra': never;",
+      ]);
     });
 
     it("should include generation timestamp", () => {
+      vi.useFakeTimers({ now: Date.UTC(2026, 0, 1) });
       const schema: ProjectSchema = {
         keys: {
           "test:key": { params: [] },
@@ -95,7 +101,7 @@ describe("TypeEmitter", () => {
 
       const result = typeEmitter.generate(schema);
 
-      expect(result).toMatch(/Generated at: \d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/);
+      expect(result).toContain(" * Generated at: 2026-01-01T00:00:00.000Z");
     });
 
     it("should generate number type for number parameters", () => {
@@ -190,7 +196,6 @@ describe("TypeEmitter", () => {
 
       const result = typeEmitter.generate(schema);
 
-      // Key preserves dots within the key part, colon separates namespace
       expect(result).toContain("'common:nested.deep.key': { value: string };");
     });
 
@@ -206,26 +211,6 @@ describe("TypeEmitter", () => {
 
       expect(result).toContain("'common:key-with-dashes': never;");
       expect(result).toContain("'common:key_with_underscores': never;");
-    });
-
-    it("should handle multiple parameters", () => {
-      const schema: ProjectSchema = {
-        keys: {
-          "common:complex": {
-            params: [
-              { name: "firstName", type: "string" },
-              { name: "lastName", type: "string" },
-              { name: "age", type: "number" },
-            ],
-          },
-        },
-      };
-
-      const result = typeEmitter.generate(schema);
-
-      expect(result).toContain("firstName: string");
-      expect(result).toContain("lastName: string");
-      expect(result).toContain("age: number");
     });
 
     it("should handle keys that are TypeScript reserved words", () => {
@@ -282,46 +267,44 @@ describe("TypeEmitter", () => {
 
       const result = typeEmitter.generate(schema);
 
-      expect(result).toContain("'test:key0': never;");
-      expect(result).toContain("'test:key999': never;");
+      const lines = keyLinesOf(result);
+      expect(lines).toHaveLength(1000);
+      expect(lines[0]).toBe("'test:key0': never;");
+      expect(lines.at(-1)).toBe("'test:key999': never;");
     });
 
-    it("should handle keys with many parameters", () => {
-      const params = Array.from({ length: 10 }, (_, i) => ({
-        name: `param${i}`,
-        type: "string" as const,
-      }));
-
-      const schema: ProjectSchema = {
-        keys: {
-          "test:many": { params },
-        },
-      };
+    it.each([
+      {
+        name: "several string params",
+        params: [
+          { name: "firstName", type: "string" as const },
+          { name: "lastName", type: "string" as const },
+        ],
+        expected: "'test:key': { firstName: string; lastName: string };",
+      },
+      {
+        name: "mixed string and number params",
+        params: [
+          { name: "name", type: "string" as const },
+          { name: "count", type: "number" as const },
+          { name: "price", type: "number" as const },
+        ],
+        expected: "'test:key': { name: string; count: number; price: number };",
+      },
+      {
+        name: "ten params",
+        params: Array.from({ length: 10 }, (_, i) => ({
+          name: `param${i}`,
+          type: "string" as const,
+        })),
+        expected: `'test:key': { ${Array.from({ length: 10 }, (_, i) => `param${i}: string`).join("; ")} };`,
+      },
+    ])("should render $name in declaration order", ({ params, expected }) => {
+      const schema: ProjectSchema = { keys: { "test:key": { params } } };
 
       const result = typeEmitter.generate(schema);
 
-      expect(result).toContain("param0: string");
-      expect(result).toContain("param9: string");
-    });
-
-    it("should handle mixed parameter types", () => {
-      const schema: ProjectSchema = {
-        keys: {
-          "test:mixed": {
-            params: [
-              { name: "name", type: "string" },
-              { name: "count", type: "number" },
-              { name: "price", type: "number" },
-            ],
-          },
-        },
-      };
-
-      const result = typeEmitter.generate(schema);
-
-      expect(result).toContain("name: string");
-      expect(result).toContain("count: number");
-      expect(result).toContain("price: number");
+      expect(keyLinesOf(result)).toEqual([expected]);
     });
 
     it("should strip default namespace prefix from keys", () => {
@@ -381,7 +364,8 @@ describe("TypeEmitter", () => {
       );
     });
 
-    it("should generate syntactically valid TypeScript declaration output", () => {
+    it("emits one declaration line per key, wrapped in the module augmentation", () => {
+      vi.useFakeTimers({ now: Date.UTC(2026, 0, 1) });
       const schema: ProjectSchema = {
         keys: {
           "common:welcome": { params: [] },
@@ -397,24 +381,30 @@ describe("TypeEmitter", () => {
 
       const result = typeEmitter.generate(schema);
 
-      expect(result).toMatch(/^\/\*\*[\s\S]*?\*\//);
-      expect(result).toContain("import '@comvi/core';");
-
-      expect(result).toMatch(/declare module '@comvi\/core' \{/);
-      expect(result).toMatch(/\s+interface TranslationKeys \{/);
-
-      // Pattern: '  'key': never;' or '  'key': { param: type; ... };'
-      const keyLinePattern = /^\s+'[^']+': (never|\{[^}]+\});$/gm;
-      const keyLines = result.match(keyLinePattern);
-      expect(keyLines).not.toBeNull();
-      expect(keyLines!.length).toBe(4);
-
-      expect(result).toMatch(/\s+\}\n\}\n/);
-      expect(result).toContain("export {};");
-
-      const openBraces = (result.match(/\{/g) || []).length;
-      const closeBraces = (result.match(/\}/g) || []).length;
-      expect(openBraces).toBe(closeBraces);
+      expect(result).toBe(
+        [
+          "/**",
+          " * Auto-generated translation keys",
+          " * DO NOT EDIT MANUALLY - This file is generated by @comvi/cli",
+          " * Generated at: 2026-01-01T00:00:00.000Z",
+          " */",
+          "",
+          "// Import to ensure module is resolved before augmentation",
+          "import '@comvi/core';",
+          "",
+          "declare module '@comvi/core' {",
+          "  interface TranslationKeys {",
+          "    'admin:dashboard': never;",
+          "    'common:greeting': { name: string };",
+          "    'common:items': { count: number };",
+          "    'common:welcome': never;",
+          "  }",
+          "}",
+          "",
+          "export {};",
+          "",
+        ].join("\n"),
+      );
     });
   });
 });

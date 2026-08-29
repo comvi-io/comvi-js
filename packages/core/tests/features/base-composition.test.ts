@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 // The COMPOSITE host (`src/core/full.ts`), imported DIRECTLY rather than
 // through the tags-registering helper, so this file's ambient-extension
 // assertions stay meaningful.
@@ -11,6 +11,7 @@ import { attachLoader, createImportMapLoader, loader } from "../../src/loader";
 import { attachPlugins, plugins } from "../../src/plugins";
 import { attachDevtools, devtools } from "../../src/devtools";
 import { hasLoaderApi, hasPluginHostApi, missingCapability } from "../../src/utils/capability";
+import { createDeferred } from "../helpers/deferred";
 
 /**
  * The capabilities are absent from a bare base instance by module graph;
@@ -48,11 +49,12 @@ describe("base + /loader composition", () => {
 
   it("is idempotent and preserves already-registered state", () => {
     const i18n = attachLoader(createI18n({ locale: "en", exposeGlobal: false }));
-    const loader = vi.fn(async () => ({ hello: "Hello" }));
-    i18n.registerLoader(loader);
+    // Named `loaderFn`, not `loader`: the `loader()` installer is imported above.
+    const loaderFn = vi.fn(async () => ({ hello: "Hello" }));
+    i18n.registerLoader(loaderFn);
 
     expect(attachLoader(i18n)).toBe(i18n);
-    expect(i18n.getLoader()).toBe(loader);
+    expect(i18n.getLoader()).toBe(loaderFn);
   });
 
   it("loads, switches locale and reloads through the attached loader", async () => {
@@ -60,10 +62,10 @@ describe("base + /loader composition", () => {
       "en:default": { hello: "Hello" },
       "fr:default": { hello: "Bonjour" },
     };
-    const loader = vi.fn(async (locale: string, ns: string) => store[`${locale}:${ns}`] ?? {});
+    const loaderFn = vi.fn(async (locale: string, ns: string) => store[`${locale}:${ns}`] ?? {});
 
     const i18n = attachLoader(createI18n({ locale: "en", exposeGlobal: false }));
-    i18n.registerLoader(loader);
+    i18n.registerLoader(loaderFn);
     await i18n.init();
 
     expect(i18n.t("hello")).toBe("Hello");
@@ -97,17 +99,14 @@ describe("base + /loader composition", () => {
   });
 
   it("cancels in-flight loads when translations are cleared", async () => {
-    let release!: (value: Record<string, string>) => void;
-    const pending = new Promise<Record<string, string>>((resolve) => {
-      release = resolve;
-    });
+    const pending = createDeferred<Record<string, string>>();
 
     const i18n = attachLoader(createI18n({ locale: "en", exposeGlobal: false }));
-    i18n.registerLoader(async () => pending);
+    i18n.registerLoader(async () => pending.promise);
 
     const load = i18n.addActiveNamespaces(["default"]);
     i18n.clearTranslations();
-    release({ hello: "Hello" });
+    pending.resolve({ hello: "Hello" });
     await load;
 
     // The cancelled load must not repopulate the cache.
@@ -146,26 +145,18 @@ describe("the loader capability's argument contract", () => {
     // import-map user to "use the root entry" would send them to a host without
     // the method. The remedies it names must both exist on THIS host.
     const i18n = attachLoader(createI18n({ locale: "en", exposeGlobal: false }));
-
-    let thrown: unknown;
-    try {
+    const call = () =>
       (i18n as unknown as { registerLoader: (value: unknown) => void }).registerLoader({
         en: () => Promise.resolve({ default: {} }),
       });
-    } catch (error) {
-      thrown = error;
-    }
 
-    const message = (thrown as Error).message;
-    expect(message).toContain("must be a loader function");
-    expect(message).toContain(".with(loader(map))");
-    expect(message).toContain("createImportMapLoader");
-    expect(message).not.toMatch(/use the root/i);
+    expect(call).toThrow(/must be a loader function/);
+    expect(call).toThrow(/\.with\(loader\(map\)\)/);
+    expect(call).toThrow(/createImportMapLoader/);
+    expect(call).not.toThrow(/use the root/i);
   });
 
   it("names the composition remedy in the missing-capability error, not the root", () => {
-    const bare = createI18n({ locale: "en", exposeGlobal: false });
-
     const loaderError = missingCapability("loader").message;
     expect(loaderError).toContain(".with(loader())");
     expect(loaderError).toContain("@comvi/core/loader");
@@ -174,8 +165,11 @@ describe("the loader capability's argument contract", () => {
     const pluginsError = missingCapability("plugins").message;
     expect(pluginsError).toContain(".with(plugins())");
     expect(pluginsError).not.toMatch(/use the root/i);
+  });
 
-    // And the guard those errors serve still reports the bare host honestly.
+  it("reports both capabilities as absent on a bare host", () => {
+    const bare = createI18n({ locale: "en", exposeGlobal: false });
+
     expect(hasLoaderApi(bare)).toBe(false);
     expect(hasPluginHostApi(bare)).toBe(false);
   });
@@ -332,18 +326,25 @@ describe.each([
     expect(i18n.t("absent" as never)).toBe("second");
   });
 
-  it("falls back to the onMissingKey option, then the key", () => {
+  it("falls back to the onMissingKey option while every callback returns undefined", () => {
     const i18n = make();
 
     expect(i18n.t("absent" as never)).toBe("option");
 
     const dispose = i18n.onMissingKey(() => undefined);
     expect(i18n.t("absent" as never)).toBe("option");
-    dispose();
 
-    const bare = attachPlugins(createI18n({ locale: "en", exposeGlobal: false }));
-    expect(bare.t("absent" as never)).toBe("absent");
+    dispose();
+    expect(i18n.t("absent" as never)).toBe("option");
   });
+});
+
+// Outside the `.each`: it builds its own host, so a parametrized label would
+// name a maker this case never calls.
+it("returns the key itself when neither an option nor a callback supplies a value", () => {
+  const bare = attachPlugins(createI18n({ locale: "en", exposeGlobal: false }));
+
+  expect(bare.t("absent" as never)).toBe("absent");
 });
 
 /**
@@ -502,6 +503,17 @@ describe(".with(loader(…)) — the configured loader installer", () => {
 });
 
 describe(".with(plugins()) / .with(devtools()) — the other two installers", () => {
+  // Two cases below expose on the real `window.__COMVI__`; leave it as found.
+  const win = window as { __COMVI__?: unknown };
+
+  beforeEach(() => {
+    delete win.__COMVI__;
+  });
+
+  afterEach(() => {
+    delete win.__COMVI__;
+  });
+
   it("plugins() installs the host and is idempotent", () => {
     const i18n = createI18n({ locale: "en", exposeGlobal: false }).with(plugins());
     i18n.setPluginData("probe", "set");
@@ -531,13 +543,15 @@ describe(".with(plugins()) / .with(devtools()) — the other two installers", ()
     expect(i18n.instanceId).toBe("app");
   });
 
-  it("devtools() changes nothing on a ROOT instance", () => {
+  it("devtools() changes nothing on a ROOT instance", async () => {
     const root = new I18n({ locale: "en", exposeGlobal: true, instanceId: "root-app" });
     const before = Object.getOwnPropertyNames(root);
 
     expect(root.with(devtools({ instanceId: "hijack" }))).toBe(root);
     expect(Object.getOwnPropertyNames(root)).toEqual(before);
     expect(root.instanceId).toBe("root-app");
+
+    await root.destroy();
   });
 
   it("matches the descriptors the bare attaches install", () => {

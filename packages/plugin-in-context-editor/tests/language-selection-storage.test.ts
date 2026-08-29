@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import {
+  LANGUAGE_SELECTION_STORAGE_KEY,
   persistSelectedLanguages,
   restoreSelectedLanguages,
 } from "../src/utils/languageSelectionStorage";
@@ -9,7 +10,20 @@ const languages = [
   { code: "uk", name: "Ukrainian" },
 ];
 
-describe("language selection storage", () => {
+describe("restoreSelectedLanguages()", () => {
+  it("returns the persisted selection when every code is available", () => {
+    const storage = { getItem: vi.fn(() => '["uk"]') };
+
+    expect(restoreSelectedLanguages(languages, storage)).toEqual(["uk"]);
+    expect(storage.getItem).toHaveBeenCalledWith(LANGUAGE_SELECTION_STORAGE_KEY);
+  });
+
+  it("falls back to all languages when nothing is persisted", () => {
+    const storage = { getItem: vi.fn(() => null) };
+
+    expect(restoreSelectedLanguages(languages, storage)).toEqual(["en", "uk"]);
+  });
+
   it("falls back to all languages when storage reads throw", () => {
     const storage = {
       getItem: vi.fn(() => {
@@ -31,6 +45,24 @@ describe("language selection storage", () => {
 
     expect(restoreSelectedLanguages(languages, storage)).toEqual(["uk"]);
   });
+});
+
+describe("persistSelectedLanguages()", () => {
+  it("writes the selection as a JSON array under the storage key", () => {
+    const storage = { setItem: vi.fn() };
+
+    persistSelectedLanguages(["en"], storage);
+
+    expect(storage.setItem).toHaveBeenCalledWith(LANGUAGE_SELECTION_STORAGE_KEY, '["en"]');
+  });
+
+  it("writes an empty array when no language is selected", () => {
+    const storage = { setItem: vi.fn() };
+
+    persistSelectedLanguages([], storage);
+
+    expect(storage.setItem).toHaveBeenCalledWith(LANGUAGE_SELECTION_STORAGE_KEY, "[]");
+  });
 
   it("ignores storage write failures", () => {
     const storage = {
@@ -40,5 +72,6 @@ describe("language selection storage", () => {
     };
 
     expect(() => persistSelectedLanguages(["en"], storage)).not.toThrow();
+    expect(storage.setItem).toHaveBeenCalledWith(LANGUAGE_SELECTION_STORAGE_KEY, '["en"]');
   });
 });

@@ -85,17 +85,13 @@ describe.each([
 
   it("property access yields undefined", () => {
     render((bag) => {
-      for (const name of CAPABILITY_MEMBERS) {
-        expect(bag[name]).toBeUndefined();
-      }
+      expect(CAPABILITY_MEMBERS.filter((name) => bag[name] !== undefined)).toEqual([]);
     });
   });
 
   it("does not carry the members as own or inherited keys", () => {
     render((bag) => {
-      for (const name of CAPABILITY_MEMBERS) {
-        expect(name in bag).toBe(false);
-      }
+      expect(CAPABILITY_MEMBERS.filter((name) => name in bag)).toEqual([]);
     });
   });
 });

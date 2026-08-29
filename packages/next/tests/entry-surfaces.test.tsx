@@ -1,5 +1,4 @@
 /**
-/**
  * The two `@comvi/next` host surfaces. `/client` and `/server` are ONE surface
  * split by runtime, not by host tier: both export the base `createI18n` and the
  * same capability toolkit, so the contract under test is "one name, one host,
@@ -78,14 +77,11 @@ describe("@comvi/next/client — createI18n", () => {
     // The constructor catalog locked the compiler, so the wrong ICU shape fails
     // loud instead of silently doing nothing — this is why the two shapes are
     // documented per catalog source, not as interchangeable spellings.
-    let thrown: unknown;
-    try {
-      i18n.with(client.icu());
-    } catch (error) {
-      thrown = error;
-    }
-    expect(thrown, "expected E_COMPILER_LOCKED").toBeInstanceOf(Error);
-    expect((thrown as { code?: unknown }).code).toBe("E_COMPILER_LOCKED");
+    // `icu()` throws before mutating anything, so probing it twice is safe.
+    const installIcu = () => i18n.with(client.icu());
+
+    expect(installIcu).toThrow(Error);
+    expect(installIcu).toThrow(expect.objectContaining({ code: "E_COMPILER_LOCKED" }));
   });
 });
 

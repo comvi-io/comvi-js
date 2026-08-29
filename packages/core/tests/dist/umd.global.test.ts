@@ -99,17 +99,20 @@ beforeAll(() => {
 });
 
 describe("UMD global build (A12)", () => {
-  it("publishes the composed namespace on the context global", () => {
+  // A `<script src>` consumer has no import graph, so anything missing from
+  // the namespace is unreachable for them.
+  it.each([
+    ["I18n", "function"],
+    ["createI18n", "function"],
+    ["icuCompiler", "object"],
+    ["flattenCatalog", "function"],
+    ["isVirtualNode", "function"],
+    ["TranslationCache", "function"],
+    ["translationResultToString", "function"],
+  ])("publishes %s on the context global, typeof %s", (member, kind) => {
     const ComviCore = loadUmd();
-    expect(typeof ComviCore.I18n).toBe("function");
-    expect(typeof ComviCore.createI18n).toBe("function");
-    // A `<script src>` consumer has no import graph, so anything missing from
-    // the namespace is unreachable for them.
-    expect(typeof ComviCore.icuCompiler).toBe("object");
-    expect(typeof ComviCore.flattenCatalog).toBe("function");
-    expect(typeof ComviCore.isVirtualNode).toBe("function");
-    expect(typeof ComviCore.TranslationCache).toBe("function");
-    expect(typeof ComviCore.translationResultToString).toBe("function");
+
+    expect(typeof ComviCore[member as keyof typeof ComviCore]).toBe(kind);
   });
 
   it("constructs, loads, translates, switches locale and destroys in order", async () => {
@@ -199,14 +202,16 @@ describe("UMD global build (A12)", () => {
 
     let handled: unknown;
     const out = i18n.t("rich", {
-      b: (children: string) => {
-        handled = children;
+      b: (props: unknown) => {
+        handled = props;
         return "HANDLED";
       },
     });
 
     expect(out).toBe("click HANDLED now");
-    expect(handled).toBeDefined();
+    // The whole handler argument, not just its presence: the CDN build has to
+    // deliver the same `{ children, name }` shape the ESM entries do.
+    expect(handled).toEqual({ children: "here", name: "b" });
   });
 
   it("produces virtual nodes for ambient tags through tRaw", () => {
@@ -219,11 +224,12 @@ describe("UMD global build (A12)", () => {
     });
 
     const parts = i18n.tRaw("rich");
-    expect(Array.isArray(parts)).toBe(true);
-    const element = (parts as unknown[]).find((part) => part !== null && typeof part === "object");
-    expect(element).toBeDefined();
-    expect((element as { tag?: string }).tag).toBe("strong");
-    expect(isVirtualNode(element)).toBe(true);
+
+    expect(parts).toEqual([
+      "read ",
+      { type: "element", tag: "strong", props: {}, children: ["this"] },
+    ]);
+    expect(isVirtualNode((parts as unknown[])[1])).toBe(true);
   });
 
   it("announces on window.__COMVI__ and removes its identity on destroy", async () => {
@@ -273,6 +279,9 @@ describe("UMD global build (A12)", () => {
     // The UMD IIFE leaks two mangled top-level names onto the page global. This
     // gate is PRESERVATION — the leak set must not grow. Closing it outright is
     // a UMD wrapper/mangler defect, tracked separately, not a composition one.
+    // The exact names are mangler output and are EXPECTED to churn on a terser
+    // upgrade: re-baseline by reading the failure's `leaked` array, and only
+    // after checking the list did not get longer.
     const seeded = ["console", "setTimeout", "clearTimeout", "queueMicrotask", "ComviCore"];
     const sandbox: UmdSandbox = { console, setTimeout, clearTimeout, queueMicrotask };
     loadUmdIn(sandbox);

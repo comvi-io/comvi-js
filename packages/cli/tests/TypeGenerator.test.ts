@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { TypeGenerator } from "../src/core/TypeGenerator";
 import { ApiClient } from "../src/core/ApiClient";
 import { InMemoryFileSystem, FileSystemWriter } from "../src/core/FileSystemWriter";
@@ -40,16 +40,19 @@ describe("TypeGenerator", () => {
     mockReporter = new CollectingReporter();
     mockLogger = new SilentLogger();
 
-    const mockApiClient = vi.mocked(ApiClient);
-    mockApiClient.prototype.validateConnection = vi.fn().mockResolvedValue(true);
-    mockApiClient.prototype.fetchSchema = vi.fn().mockResolvedValue(mockSchema);
-    mockApiClient.prototype.fetchDefaultNamespace = vi.fn().mockResolvedValue("default");
+    vi.mocked(ApiClient.prototype.validateConnection).mockResolvedValue(true);
+    vi.mocked(ApiClient.prototype.fetchSchema).mockResolvedValue(mockSchema);
+    vi.mocked(ApiClient.prototype.fetchDefaultNamespace).mockResolvedValue("default");
 
     generator = new TypeGenerator(mockOptions, {
       writer: mockWriter,
       reporter: mockReporter,
       logger: mockLogger,
     });
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   describe("constructor", () => {
@@ -68,8 +71,6 @@ describe("TypeGenerator", () => {
 
       await gen.generate();
 
-      // Verify strictParams defaults to true by checking the generated output
-      // With strictParams=true, params should be required (no ? suffix)
       const written = mockFileSystem.getFile("types/i18n.d.ts");
       expect(written).toContain("name: string");
       expect(written).not.toContain("name?: string");
@@ -91,9 +92,7 @@ describe("TypeGenerator", () => {
 
       await gen.generate();
 
-      // Verify strictParams=false produces optional params in the output
-      const written = mockFileSystem.getFile("types/i18n.d.ts");
-      expect(written).toContain("name?: string");
+      expect(mockFileSystem.getFile("types/i18n.d.ts")).toContain("name?: string");
     });
   });
 
@@ -118,26 +117,36 @@ describe("TypeGenerator", () => {
   });
 
   describe("generate", () => {
-    it("should generate types successfully", async () => {
+    it("should return success and the generated key count", async () => {
       const result = await generator.generate();
 
       expect(result.success).toBe(true);
       expect(result.filePath).toBe("src/types/i18n.d.ts");
-      expect(result.keysGenerated).toBe(2); // 2 keys in mockSchema
-      expect(result.duration).toBeGreaterThanOrEqual(0);
+      expect(result.keysGenerated).toBe(2);
 
       expect(ApiClient.prototype.fetchSchema).toHaveBeenCalled();
       expect(ApiClient.prototype.fetchDefaultNamespace).toHaveBeenCalled();
+    });
+
+    it("should write the declaration file for every schema key", async () => {
+      await generator.generate();
 
       const written = mockFileSystem.getFile("src/types/i18n.d.ts");
       expect(written).toContain("interface TranslationKeys");
       expect(written).toContain("'common:welcome': never;");
       expect(written).toContain("'common:greeting': { name: string };");
+    });
 
-      expect(mockReporter.reports).toContainEqual({ type: "start" });
-      expect(mockReporter.reports).toContainEqual({ type: "fetching" });
-      expect(mockReporter.reports).toContainEqual({ type: "generating" });
-      expect(mockReporter.reports).toContainEqual({
+    it("should report start, fetching, generating and success in order", async () => {
+      await generator.generate();
+
+      expect(mockReporter.reports.map((r) => r.type)).toEqual([
+        "start",
+        "fetching",
+        "generating",
+        "success",
+      ]);
+      expect(mockReporter.reports.at(-1)).toEqual({
         type: "success",
         data: {
           keysGenerated: 2,
@@ -148,18 +157,13 @@ describe("TypeGenerator", () => {
     });
 
     it("should generate an empty declaration file if no translation keys are found", async () => {
-      // Empty schema = no keys
-      vi.mocked(ApiClient.prototype.fetchSchema).mockResolvedValueOnce({
-        keys: {},
-      });
+      vi.mocked(ApiClient.prototype.fetchSchema).mockResolvedValueOnce({ keys: {} });
 
       const result = await generator.generate();
 
       expect(result.success).toBe(true);
       expect(result.keysGenerated).toBe(0);
-
-      const written = mockFileSystem.getFile("src/types/i18n.d.ts");
-      expect(written).toContain("interface TranslationKeys");
+      expect(mockFileSystem.getFile("src/types/i18n.d.ts")).toContain("interface TranslationKeys");
     });
 
     it("should strip the namespace marked default by the backend", async () => {
@@ -177,13 +181,10 @@ describe("TypeGenerator", () => {
     it("should create output directory if it doesn't exist", async () => {
       await generator.generate();
 
-      expect(
-        mockFileSystem.hasDirectory("/src/types") || mockFileSystem.hasDirectory("src/types"),
-      ).toBe(true);
+      expect(mockFileSystem.hasDirectory("/src/types")).toBe(true);
     });
 
     it("should handle file write errors", async () => {
-      // Make in-memory filesystem throw error
       const failingWriter = new FileSystemWriter({
         mkdir: vi.fn().mockResolvedValue(undefined),
         writeFile: vi.fn().mockRejectedValue(new Error("Disk full")),
@@ -213,16 +214,17 @@ describe("TypeGenerator", () => {
     });
 
     it("should handle TypeEmitter errors", async () => {
-      // Provide a schema that causes TypeEmitter to throw by making
-      // apiClient return a malformed schema where keys is not iterable
       vi.mocked(ApiClient.prototype.fetchSchema).mockResolvedValueOnce({
-        keys: null as any,
+        keys: {
+          "default:greeting": { params: [] },
+          greeting: { params: [] },
+        },
       });
 
       const result = await generator.generate();
 
       expect(result.success).toBe(false);
-      expect(result.error).toContain("null");
+      expect(result.error).toContain("Translation key collision after stripping default namespace");
     });
 
     it("should report errors on failure", async () => {
@@ -235,13 +237,125 @@ describe("TypeGenerator", () => {
     });
 
     it("should handle unknown errors gracefully", async () => {
-      // Throw non-Error object
       vi.mocked(ApiClient.prototype.fetchSchema).mockRejectedValueOnce("String error");
 
       const result = await generator.generate();
 
       expect(result.success).toBe(false);
       expect(result.error).toBe("Unknown error occurred");
+    });
+
+    it("should handle generation with multiple namespaces", async () => {
+      vi.mocked(ApiClient.prototype.fetchSchema).mockResolvedValueOnce({
+        keys: {
+          "common:welcome": { params: [] },
+          "dashboard:title": { params: [] },
+        },
+      });
+
+      const result = await generator.generate();
+
+      expect(result.success).toBe(true);
+      expect(result.keysGenerated).toBe(2);
+      const written = mockFileSystem.getFile("src/types/i18n.d.ts");
+      expect(written).toContain("'common:welcome': never;");
+      expect(written).toContain("'dashboard:title': never;");
+    });
+
+    it("should handle generation with complex parameter types", async () => {
+      vi.mocked(ApiClient.prototype.fetchSchema).mockResolvedValueOnce({
+        keys: {
+          "common:greeting": { params: [{ name: "name", type: "string" }] },
+          "common:items": { params: [{ name: "count", type: "number" }] },
+        },
+      });
+
+      const result = await generator.generate();
+
+      expect(result.success).toBe(true);
+      expect(result.keysGenerated).toBe(2);
+
+      const written = mockFileSystem.getFile("src/types/i18n.d.ts");
+      expect(written).toContain("name: string");
+      expect(written).toContain("count: number");
+    });
+
+    it("should measure generation time accurately", async () => {
+      vi.useFakeTimers();
+      vi.mocked(ApiClient.prototype.fetchSchema).mockImplementationOnce(async () => {
+        vi.advanceTimersByTime(10);
+        return mockSchema;
+      });
+
+      const result = await generator.generate();
+
+      expect(result.success).toBe(true);
+      expect(result.duration).toBe(10);
+    });
+  });
+
+  describe("check", () => {
+    it("reports up to date when the file on disk matches the generated output", async () => {
+      await generator.generate();
+
+      const result = await generator.check();
+
+      expect(result).toEqual({
+        upToDate: true,
+        keysGenerated: 2,
+        currentKeys: 2,
+        filePath: "src/types/i18n.d.ts",
+      });
+    });
+
+    it("ignores the Generated at: line when comparing", async () => {
+      await generator.generate();
+      const current = mockFileSystem.getFile("src/types/i18n.d.ts")!;
+      await mockFileSystem.writeFile(
+        "src/types/i18n.d.ts",
+        current.replace(/Generated at: .*/, "Generated at: 1999-01-01T00:00:00.000Z"),
+      );
+
+      await expect(generator.check()).resolves.toMatchObject({ upToDate: true });
+    });
+
+    it("reports drift when the file on disk is missing a key", async () => {
+      await mockFileSystem.writeFile(
+        "src/types/i18n.d.ts",
+        [
+          "declare module '@comvi/core' {",
+          "  interface TranslationKeys {",
+          "    'common:welcome': never;",
+          "  }",
+          "}",
+        ].join("\n"),
+      );
+
+      const result = await generator.check();
+
+      expect(result).toEqual({
+        upToDate: false,
+        keysGenerated: 2,
+        currentKeys: 1,
+        filePath: "src/types/i18n.d.ts",
+      });
+    });
+
+    it("reports not up to date when the output file does not exist", async () => {
+      const result = await generator.check();
+
+      expect(result).toEqual({
+        upToDate: false,
+        keysGenerated: 2,
+        currentKeys: 0,
+        filePath: "src/types/i18n.d.ts",
+      });
+    });
+
+    it("propagates a schema fetch failure instead of reporting drift", async () => {
+      vi.mocked(ApiClient.prototype.fetchSchema).mockRejectedValueOnce(new Error("Network error"));
+
+      await expect(generator.check()).rejects.toThrow("Network error");
     });
   });
 
@@ -280,6 +394,22 @@ describe("TypeGenerator", () => {
       expect(ApiClient.prototype.fetchDefaultNamespace).not.toHaveBeenCalled();
     });
 
+    it("retries the default namespace lookup after it rejected", async () => {
+      // The cached promise is cleared on rejection, so a later call must ask again
+      // instead of replaying the failure forever in watch mode.
+      vi.mocked(ApiClient.prototype.fetchDefaultNamespace).mockRejectedValueOnce(
+        new Error("Namespace lookup failed"),
+      );
+      const schema: ProjectSchema = { keys: { "common:updated": { params: [] } } };
+
+      const failed = await generator.generateFromSchema(schema);
+      const retried = await generator.generateFromSchema(schema);
+
+      expect(failed.success).toBe(false);
+      expect(retried.success).toBe(true);
+      expect(ApiClient.prototype.fetchDefaultNamespace).toHaveBeenCalledTimes(2);
+    });
+
     it("should generate types for an empty schema", async () => {
       const schema: ProjectSchema = { keys: {} };
 
@@ -287,80 +417,6 @@ describe("TypeGenerator", () => {
 
       expect(result.success).toBe(true);
       expect(result.keysGenerated).toBe(0);
-    });
-  });
-
-  describe("integration scenarios", () => {
-    it("should handle generation with multiple namespaces", async () => {
-      const multiNsSchema: ProjectSchema = {
-        keys: {
-          "common:welcome": { params: [] },
-          "dashboard:title": { params: [] },
-        },
-      };
-
-      vi.mocked(ApiClient.prototype.fetchSchema).mockResolvedValueOnce(multiNsSchema);
-
-      const result = await generator.generate();
-
-      expect(result.success).toBe(true);
-      expect(result.keysGenerated).toBe(2);
-    });
-
-    it("should handle generation with complex parameter types", async () => {
-      const complexSchema: ProjectSchema = {
-        keys: {
-          "common:greeting": {
-            params: [{ name: "name", type: "string" }],
-          },
-          "common:items": {
-            params: [{ name: "count", type: "number" }],
-          },
-        },
-      };
-
-      vi.mocked(ApiClient.prototype.fetchSchema).mockResolvedValueOnce(complexSchema);
-
-      const result = await generator.generate();
-
-      expect(result.success).toBe(true);
-      expect(result.keysGenerated).toBe(2);
-
-      const written = mockFileSystem.getFile("src/types/i18n.d.ts");
-      expect(written).toContain("name: string");
-      expect(written).toContain("count: number");
-    });
-
-    it("should measure generation time accurately", async () => {
-      // Add small delay to ensure measurable time
-      vi.mocked(ApiClient.prototype.fetchSchema).mockImplementationOnce(async () => {
-        await new Promise((resolve) => setTimeout(resolve, 10));
-        return mockSchema;
-      });
-
-      const result = await generator.generate();
-
-      expect(result.success).toBe(true);
-      expect(result.duration).toBeGreaterThan(0);
-    });
-
-    it("should pass strictParams option to TypeEmitter", async () => {
-      const optionsWithConfig: GeneratorOptions = {
-        ...mockOptions,
-        strictParams: false,
-      };
-
-      const genWithConfig = new TypeGenerator(optionsWithConfig, {
-        writer: mockWriter,
-        reporter: mockReporter,
-        logger: mockLogger,
-      });
-
-      await genWithConfig.generate();
-
-      // Verify the output reflects strictParams=false (optional params)
-      const written = mockFileSystem.getFile("src/types/i18n.d.ts");
-      expect(written).toContain("name?: string");
     });
   });
 });

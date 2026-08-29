@@ -10,19 +10,19 @@ describe("parseEventDetail", () => {
     expect(parseEventDetail("{oops")).toEqual({});
   });
 
-  it("returns {} for JSON primitives", () => {
-    expect(parseEventDetail('"str"')).toEqual({});
-    expect(parseEventDetail("42")).toEqual({});
-    expect(parseEventDetail("null")).toEqual({});
+  it.each(['"str"', "42", "null"])("returns {} for the JSON primitive %s", (json) => {
+    expect(parseEventDetail(json)).toEqual({});
   });
 
   it("passes through plain objects", () => {
     expect(parseEventDetail({ b: 2 })).toEqual({ b: 2 });
   });
 
-  it("returns {} for non-object details", () => {
-    expect(parseEventDetail(undefined)).toEqual({});
-    expect(parseEventDetail(7)).toEqual({});
+  it.each([
+    ["undefined", undefined],
+    ["a number", 7],
+  ])("returns {} for a detail that is %s", (_label, detail) => {
+    expect(parseEventDetail(detail)).toEqual({});
   });
 });
 
@@ -57,11 +57,13 @@ describe("sanitizeStatus", () => {
     expect(sanitizeStatus({ version: "v".repeat(100) }).version).toBeUndefined();
   });
 
-  it("normalizes weird instance counts to 0", () => {
-    expect(sanitizeStatus({ instanceCount: -5 }).instanceCount).toBe(0);
-    expect(sanitizeStatus({ instanceCount: NaN }).instanceCount).toBe(0);
-    expect(sanitizeStatus({ instanceCount: "9" }).instanceCount).toBe(0);
-    expect(sanitizeStatus({ instanceCount: 2.9 }).instanceCount).toBe(2);
+  it.each([
+    ["clamps a negative instance count to 0", -5, 0],
+    ["turns a NaN instance count into 0", NaN, 0],
+    ["turns a numeric-string instance count into 0", "9", 0],
+    ["truncates a fractional instance count to its integer part", 2.9, 2],
+  ])("%s", (_label, instanceCount, expected) => {
+    expect(sanitizeStatus({ instanceCount }).instanceCount).toBe(expected);
   });
 
   it("survives malformed JSON detail", () => {

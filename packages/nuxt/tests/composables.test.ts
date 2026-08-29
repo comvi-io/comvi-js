@@ -160,7 +160,6 @@ describe("useLocalePath - trailing slashes", () => {
   it("does not add trailing slash to root locale path", () => {
     const localePath = useLocalePath();
 
-    // Root path / for non-default locale should be /de (not /de/)
     expect(localePath("/", "de")).toBe("/de");
   });
 });
@@ -191,10 +190,9 @@ describe("useSwitchLocalePath", () => {
     setMockRoute({ path: "/about", fullPath: "/about" });
 
     const switchLocalePath = useSwitchLocalePath();
-    // "es" is not in configured locales, so it falls back to defaultLocale "en".
-    // In as-needed mode, the default locale "en" produces no prefix: "/about"
-    const defaultLocalePath = switchLocalePath("en");
-    expect(switchLocalePath("es")).toBe(defaultLocalePath);
+
+    // "es" is unsupported, so it falls back to "en", which is unprefixed in as-needed mode.
+    expect(switchLocalePath("es")).toBe("/about");
   });
 
   it.each([
@@ -254,6 +252,34 @@ describe("useLocaleRoute", () => {
     const resolved = localeRoute("/about", "de");
     expect(resolved!.fullPath).toBe("/de/about");
   });
+
+  it("resolves route objects through the localized path", () => {
+    const localeRoute = useLocaleRoute();
+
+    const resolved = localeRoute({ name: "about", query: { q: "1" } }, "de");
+
+    expect(resolved!.fullPath).toBe("/de/about?q=1");
+  });
+
+  it("leaves the path unprefixed in never mode", () => {
+    mockRuntimeConfig.public.comvi.localePrefix = "never";
+    const localeRoute = useLocaleRoute();
+
+    const resolved = localeRoute("/about", "de");
+
+    expect(resolved!.fullPath).toBe("/about");
+  });
+
+  it("returns undefined when the router cannot resolve the localized path", () => {
+    const localeRoute = useLocaleRoute();
+    setRouterResolveOverride(() => {
+      throw new Error("No route found");
+    });
+
+    const resolved = localeRoute("/about", "de");
+
+    expect(resolved).toBeUndefined();
+  });
 });
 
 describe("useLocaleHead", () => {
@@ -269,23 +295,13 @@ describe("useLocaleHead", () => {
     const head = headConfig.value as Record<string, unknown>;
     const links = head.link as Array<Record<string, string>>;
 
-    const canonical = links.find((link) => link.rel === "canonical");
-    expect(canonical?.href).toBe("https://example.com/de/about");
-
-    const alternates = links.filter((link) => link.rel === "alternate");
-    expect(alternates).toHaveLength(mockRuntimeConfig.public.comvi.locales.length + 1);
-
-    const enAlternate = alternates.find((link) => link.hreflang === "en");
-    expect(enAlternate?.href).toBe("https://example.com/about");
-
-    const deAlternate = alternates.find((link) => link.hreflang === "de");
-    expect(deAlternate?.href).toBe("https://example.com/de/about");
-
-    const ukAlternate = alternates.find((link) => link.hreflang === "uk");
-    expect(ukAlternate?.href).toBe("https://example.com/uk/about");
-
-    const xDefault = alternates.find((link) => link.hreflang === "x-default");
-    expect(xDefault?.href).toBe("https://example.com/about");
+    expect(links).toEqual([
+      { rel: "canonical", href: "https://example.com/de/about" },
+      { rel: "alternate", hreflang: "en", href: "https://example.com/about" },
+      { rel: "alternate", hreflang: "de", href: "https://example.com/de/about" },
+      { rel: "alternate", hreflang: "uk", href: "https://example.com/uk/about" },
+      { rel: "alternate", hreflang: "x-default", href: "https://example.com/about" },
+    ]);
   });
 
   it("supports iso/dir html attrs and trimming baseUrl slash", () => {

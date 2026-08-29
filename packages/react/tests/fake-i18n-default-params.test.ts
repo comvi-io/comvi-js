@@ -45,4 +45,12 @@ describe("FakeI18n defaultParams contract", () => {
     expect(() => fake.setDefaultParams({})).toThrow(/formality/);
     expect(fake.defaultParams).toEqual({ formality: "formal" });
   });
+
+  it("accepts a valid replacement and exposes it on defaultParams", () => {
+    const fake = new FakeI18n({ defaultParams: { formality: "formal" } } as never);
+
+    fake.setDefaultParams({ formality: "informal" });
+
+    expect(fake.defaultParams).toEqual({ formality: "informal" });
+  });
 });

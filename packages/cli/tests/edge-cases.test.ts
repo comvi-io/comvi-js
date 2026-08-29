@@ -3,151 +3,126 @@ import { TypeEmitter } from "../src/core/TypeEmitter";
 import { InMemoryFileSystem } from "../src/core/FileSystemWriter";
 import type { ProjectSchema } from "../src/types";
 
-describe("Edge Cases", () => {
-  describe("TypeEmitter edge cases", () => {
-    let emitter: TypeEmitter;
+describe("TypeEmitter key shapes", () => {
+  let emitter: TypeEmitter;
 
-    beforeEach(() => {
-      emitter = new TypeEmitter();
-    });
-
-    it("should handle keys with dots after namespace", () => {
-      const schema: ProjectSchema = {
-        keys: {
-          "button:v2.submit": { params: [] },
-        },
-      };
-
-      const result = emitter.generate(schema);
-
-      // Flat key format: 'namespace:key.subkey'
-      expect(result).toContain("'button:v2.submit': never;");
-    });
-
-    it("should handle keys with slashes after namespace", () => {
-      const schema: ProjectSchema = {
-        keys: {
-          "test:path/to/key": { params: [] },
-        },
-      };
-
-      const result = emitter.generate(schema);
-
-      expect(result).toContain("'test:path/to/key': never;");
-    });
-
-    it("should handle keys with no parameters", () => {
-      const schema: ProjectSchema = {
-        keys: {
-          "test:empty": { params: [] },
-        },
-      };
-
-      const result = emitter.generate(schema);
-
-      expect(result).toContain("'test:empty': never;");
-    });
+  beforeEach(() => {
+    emitter = new TypeEmitter();
   });
 
-  describe("InMemoryFileSystem edge cases", () => {
-    let fs: InMemoryFileSystem;
+  it("should handle keys with dots after namespace", () => {
+    const schema: ProjectSchema = {
+      keys: {
+        "button:v2.submit": { params: [] },
+      },
+    };
 
-    beforeEach(() => {
-      fs = new InMemoryFileSystem();
-    });
+    const result = emitter.generate(schema);
 
-    it("should handle reading non-existent files", async () => {
-      await expect(fs.readFile("non-existent.txt")).rejects.toThrow("ENOENT");
-    });
+    expect(result).toContain("'button:v2.submit': never;");
+  });
 
-    it("should handle writing to non-existent directories", async () => {
-      // InMemoryFileSystem stores files directly; it needs no directory first.
-      await fs.mkdir("test", { recursive: true });
-      await fs.writeFile("test/file.txt", "content");
+  it("should handle keys with slashes after namespace", () => {
+    const schema: ProjectSchema = {
+      keys: {
+        "test:path/to/key": { params: [] },
+      },
+    };
 
-      const content = await fs.readFile("test/file.txt");
-      expect(content).toBe("content");
-    });
+    const result = emitter.generate(schema);
 
-    it("should handle creating nested directories", async () => {
-      // InMemoryFileSystem mkdir is a no-op, it doesn't actually track directories
-      await fs.mkdir("a/b/c", { recursive: true });
+    expect(result).toContain("'test:path/to/key': never;");
+  });
 
-      await fs.writeFile("a/b/c/file.txt", "content");
-      const content = await fs.readFile("a/b/c/file.txt");
-      expect(content).toBe("content");
-    });
+  it("should handle keys with no parameters", () => {
+    const schema: ProjectSchema = {
+      keys: {
+        "test:empty": { params: [] },
+      },
+    };
 
-    it("should handle very long file paths", async () => {
-      const longPath = "a/".repeat(50) + "file.txt";
+    const result = emitter.generate(schema);
 
-      await fs.mkdir(longPath.substring(0, longPath.lastIndexOf("/")), {
-        recursive: true,
-      });
+    expect(result).toContain("'test:empty': never;");
+  });
+});
 
-      await fs.writeFile(longPath, "content");
-      const content = await fs.readFile(longPath);
+describe("InMemoryFileSystem", () => {
+  let fs: InMemoryFileSystem;
 
-      expect(content).toBe("content");
-    });
+  beforeEach(() => {
+    fs = new InMemoryFileSystem();
+  });
 
-    it("should handle files with special characters in names", async () => {
-      await fs.mkdir("test", { recursive: true });
+  it("should handle reading non-existent files", async () => {
+    await expect(fs.readFile("non-existent.txt")).rejects.toThrow(/ENOENT/);
+  });
 
-      const specialNames = [
-        "test/file-with-dashes.txt",
-        "test/file_with_underscores.txt",
-        "test/file.multiple.dots.txt",
-      ];
+  it.each([
+    { shape: "a path under a directory", path: "test/file.txt" },
+    { shape: "a deeply nested path", path: "a/b/c/file.txt" },
+    { shape: "a very long path", path: "a/".repeat(50) + "file.txt" },
+    { shape: "dashes in the file name", path: "test/file-with-dashes.txt" },
+    { shape: "underscores in the file name", path: "test/file_with_underscores.txt" },
+    { shape: "multiple dots in the file name", path: "test/file.multiple.dots.txt" },
+  ])("round-trips content written to $shape", async ({ path }) => {
+    await fs.writeFile(path, "content");
 
-      for (const name of specialNames) {
-        await fs.writeFile(name, "content");
-        const content = await fs.readFile(name);
-        expect(content).toBe("content");
-      }
-    });
+    await expect(fs.readFile(path)).resolves.toBe("content");
+  });
 
-    it("should handle overwriting existing files", async () => {
-      await fs.mkdir("test", { recursive: true });
-      await fs.writeFile("test/file.txt", "original");
-      await fs.writeFile("test/file.txt", "updated");
+  it("should handle creating nested directories", async () => {
+    await fs.mkdir("a/b/c", { recursive: true });
 
-      const content = await fs.readFile("test/file.txt");
-      expect(content).toBe("updated");
-    });
+    expect(fs.hasDirectory("/a")).toBe(true);
+    expect(fs.hasDirectory("/a/b")).toBe(true);
+    expect(fs.hasDirectory("/a/b/c")).toBe(true);
+  });
 
-    it("should handle large file contents", async () => {
-      await fs.mkdir("test", { recursive: true });
+  it("should handle overwriting existing files", async () => {
+    await fs.writeFile("test/file.txt", "original");
+    await fs.writeFile("test/file.txt", "updated");
 
-      const largeContent = "x".repeat(1_000_000); // 1MB
-      await fs.writeFile("test/large.txt", largeContent);
+    await expect(fs.readFile("test/file.txt")).resolves.toBe("updated");
+  });
 
-      const content = await fs.readFile("test/large.txt");
-      expect(content).toBe(largeContent);
-    });
+  it("rejects an exclusive write when the file already exists", async () => {
+    await fs.writeFile("test/file.txt", "original");
 
-    it("should handle checking file existence correctly", async () => {
-      await fs.mkdir("a/b/c", { recursive: true });
-      await fs.writeFile("a/b/c/file.txt", "content");
+    await expect(fs.writeFile("test/file.txt", "second", { exclusive: true })).rejects.toThrow(
+      /EEXIST/,
+    );
+    await expect(fs.readFile("test/file.txt")).resolves.toBe("original");
+  });
 
-      // InMemoryFileSystem tracks files, not directories
-      expect(fs.hasFile("a/b/c/file.txt")).toBe(true);
-      expect(fs.hasFile("a/b/c/non-existent.txt")).toBe(false);
-    });
+  it("should handle large file contents", async () => {
+    const largeContent = "x".repeat(1024);
 
-    it("should handle accessing non-existent files", async () => {
-      await expect(fs.access("non-existent.txt")).rejects.toThrow();
-    });
+    await fs.writeFile("test/large.txt", largeContent);
 
-    it("should clear all files", async () => {
-      await fs.mkdir("test", { recursive: true });
-      await fs.writeFile("test/file1.txt", "content1");
-      await fs.writeFile("test/file2.txt", "content2");
+    await expect(fs.readFile("test/large.txt")).resolves.toBe(largeContent);
+  });
 
-      fs.clear();
+  it("should handle checking file existence correctly", async () => {
+    await fs.writeFile("a/b/c/file.txt", "content");
 
-      expect(fs.hasFile("test/file1.txt")).toBe(false);
-      expect(fs.hasFile("test/file2.txt")).toBe(false);
-    });
+    expect(fs.hasFile("a/b/c/file.txt")).toBe(true);
+    expect(fs.hasFile("a/b/c/non-existent.txt")).toBe(false);
+  });
+
+  it("should handle accessing non-existent files", async () => {
+    await expect(fs.access("non-existent.txt")).rejects.toThrow(/ENOENT/);
+  });
+
+  it("should clear all files", async () => {
+    await fs.mkdir("/test", { recursive: true });
+    await fs.writeFile("test/file1.txt", "content1");
+    await fs.writeFile("test/file2.txt", "content2");
+
+    fs.clear();
+
+    expect(fs.hasFile("test/file1.txt")).toBe(false);
+    expect(fs.hasFile("test/file2.txt")).toBe(false);
+    expect(fs.hasDirectory("/test")).toBe(false);
   });
 });

@@ -18,6 +18,9 @@ export default defineConfig({
       },
     },
     globals: true,
+    restoreMocks: true,
+    unstubEnvs: true,
+    unstubGlobals: true,
     setupFiles: ["./tests/setup.ts"],
   },
   resolve: {

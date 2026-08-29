@@ -50,6 +50,12 @@ function makePassItem(overrides: Partial<Observation> = {}, localHash = "hash-a"
   };
 }
 
+/** Re-initializes the scope without an apiKey, which is what demo mode is. */
+function useDemoMode(): void {
+  resetApiConfig(SCOPE);
+  initApiConfig(undefined, SCOPE);
+}
+
 describe("collector/transport", () => {
   beforeEach(() => {
     initApiConfig("test-api-key", SCOPE);
@@ -57,8 +63,6 @@ describe("collector/transport", () => {
   });
 
   afterEach(() => {
-    vi.unstubAllGlobals();
-    vi.restoreAllMocks();
     resetApiConfig(SCOPE);
   });
 
@@ -71,8 +75,7 @@ describe("collector/transport", () => {
     });
 
     it("returns false without a network call in demo mode", async () => {
-      resetApiConfig(SCOPE);
-      initApiConfig(undefined, SCOPE); // no apiKey -> demo mode
+      useDemoMode();
       const transport = new CollectorTransport(SCOPE);
       const ok = await transport.handshake([{ namespace: "ns", key: "a" }]);
       expect(ok).toBe(false);
@@ -257,23 +260,18 @@ describe("collector/transport", () => {
       expect(body.items[0].uiType).toBe("primary-button");
       expect(body.items[0].translationRole).toBe("imperative-verb");
       // readingOrderIndex/debug/spatial are client-only — the server's
-      // ObservationSchema has `additionalProperties: false` and doesn't
-      // define them, so sending them would be a 400.
-      expect(body.items[0]).not.toHaveProperty("readingOrderIndex");
-      expect(body.items[0]).not.toHaveProperty("debug");
-      expect(body.items[0]).not.toHaveProperty("spatial");
-      expect(Object.keys(body.items[0]).sort()).toEqual(
-        [
-          "constraints",
-          "key",
-          "namespace",
-          "neighbors",
-          "screenGroup",
-          "semantic",
-          "translationRole",
-          "uiType",
-        ].sort(),
-      );
+      // ObservationSchema has `additionalProperties: false`, so sending them
+      // would be a 400.
+      expect(Object.keys(body.items[0]).sort()).toEqual([
+        "constraints",
+        "key",
+        "namespace",
+        "neighbors",
+        "screenGroup",
+        "semantic",
+        "translationRole",
+        "uiType",
+      ]);
     });
 
     it("sends a still-valid ping once the handshake hash matches the local hash", async () => {
@@ -482,6 +480,24 @@ describe("collector/transport", () => {
       expect(body.stillValid).toHaveLength(0);
     });
 
+    it("a non-ok (500) full send is NOT recorded as delivered and retries on the next pass", async () => {
+      const fetchMock = vi.mocked(fetch);
+      fetchMock
+        .mockResolvedValueOnce(mockErrorResponse(500))
+        .mockResolvedValueOnce(
+          mockOkResponse({ updated: [], resend: [], orphanObservations: 0, hashSkew: 0 }),
+        );
+
+      const transport = new CollectorTransport(SCOPE);
+      await transport.sendPass([makePassItem({}, "hash-a")]);
+      await transport.sendPass([makePassItem({}, "hash-a")]);
+
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+      const body = JSON.parse((fetchMock.mock.calls[1]![1] as RequestInit).body as string);
+      expect(body.items).toHaveLength(1);
+      expect(body.stillValid).toHaveLength(0);
+    });
+
     it("a forced-resend marker survives a failed POST and still forces full on the pass after (RC-A)", async () => {
       const fetchMock = vi.mocked(fetch);
       fetchMock.mockResolvedValueOnce(
@@ -553,8 +569,7 @@ describe("collector/transport", () => {
     });
 
     it("never calls fetch in demo mode", async () => {
-      resetApiConfig(SCOPE);
-      initApiConfig(undefined, SCOPE);
+      useDemoMode();
       const transport = new CollectorTransport(SCOPE);
       await transport.sendPass([makePassItem()]);
       expect(fetch).not.toHaveBeenCalled();
@@ -569,7 +584,7 @@ describe("collector/transport", () => {
   });
 
   describe("flushOnTeardown", () => {
-    it("sends a keepalive request capped well below a normal batch", async () => {
+    it("caps the keepalive batch at 20 items", async () => {
       const fetchMock = vi.mocked(fetch);
       fetchMock.mockResolvedValueOnce(mockOkResponse({}));
 
@@ -579,14 +594,12 @@ describe("collector/transport", () => {
       );
       transport.flushOnTeardown(pass);
 
-      await Promise.resolve();
-      await Promise.resolve();
+      await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
 
-      expect(fetchMock).toHaveBeenCalledTimes(1);
       const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
       expect(init.keepalive).toBe(true);
       const body = JSON.parse(init.body as string);
-      expect(body.items.length).toBeLessThanOrEqual(20);
+      expect(body.items).toHaveLength(20);
     });
 
     it("does nothing for an empty pass", () => {

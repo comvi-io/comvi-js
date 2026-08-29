@@ -3,9 +3,16 @@ import { createNextI18n } from "../src/createNextI18n";
 import { loadTranslations, setI18n } from "../src/server";
 import { _resetServerI18n } from "../src/server/cache";
 
+const makeHost = () =>
+  createNextI18n({
+    locales: ["en", "fr"],
+    defaultLocale: "en",
+    defaultNs: "common",
+    devMode: false,
+  }).i18n;
+
 describe("loadTranslations", () => {
   afterEach(() => {
-    vi.restoreAllMocks();
     // The server i18n is a once-cell: a second setI18n with a different
     // instance throws instead of overwriting.
     _resetServerI18n();
@@ -14,12 +21,7 @@ describe("loadTranslations", () => {
   it("warns and returns empty object when no loader is configured", async () => {
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 
-    const { i18n } = createNextI18n({
-      locales: ["en", "fr"],
-      defaultLocale: "en",
-      defaultNs: "common",
-      devMode: false,
-    });
+    const i18n = makeHost();
     setI18n(i18n);
 
     const result = await loadTranslations("fr");
@@ -31,12 +33,7 @@ describe("loadTranslations", () => {
   it("warns about missing loader only once per i18n instance", async () => {
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 
-    const { i18n } = createNextI18n({
-      locales: ["en", "fr"],
-      defaultLocale: "en",
-      defaultNs: "common",
-      devMode: false,
-    });
+    const i18n = makeHost();
     setI18n(i18n);
 
     await loadTranslations("fr");
@@ -51,12 +48,7 @@ describe("loadTranslations", () => {
   it("returns cached namespace when no loader is configured", async () => {
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 
-    const { i18n } = createNextI18n({
-      locales: ["en", "fr"],
-      defaultLocale: "en",
-      defaultNs: "common",
-      devMode: false,
-    });
+    const i18n = makeHost();
     i18n.addTranslations({ "fr:common": { greeting: "Bonjour cached" } });
     setI18n(i18n);
 
@@ -69,12 +61,7 @@ describe("loadTranslations", () => {
   });
 
   it("returns plain serializable objects for Server->Client boundaries", async () => {
-    const { i18n } = createNextI18n({
-      locales: ["en", "fr"],
-      defaultLocale: "en",
-      defaultNs: "common",
-      devMode: false,
-    });
+    const i18n = makeHost();
     i18n.addTranslations({ "fr:common": { greeting: "Bonjour cached" } });
     setI18n(i18n);
 
@@ -85,12 +72,7 @@ describe("loadTranslations", () => {
   });
 
   it("loads requested namespaces via registered loader and caches loaded entries", async () => {
-    const { i18n } = createNextI18n({
-      locales: ["en", "fr"],
-      defaultLocale: "en",
-      defaultNs: "common",
-      devMode: false,
-    });
+    const i18n = makeHost();
     i18n.addTranslations({ "en:common": { __seed: "seed" } });
 
     const loaderMock = vi.fn(async (language: string, namespace: string) => {
@@ -120,12 +102,7 @@ describe("loadTranslations", () => {
   });
 
   it("uses cache for already loaded namespaces and fetches only missing ones", async () => {
-    const { i18n } = createNextI18n({
-      locales: ["en", "fr"],
-      defaultLocale: "en",
-      defaultNs: "common",
-      devMode: false,
-    });
+    const i18n = makeHost();
     i18n.addTranslations({
       "en:common": { __seed: "seed" },
       "fr:common": { greeting: "Bonjour cached" },
@@ -155,12 +132,7 @@ describe("loadTranslations", () => {
   it("reports and warns when a namespace load fails but keeps successful results", async () => {
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 
-    const { i18n } = createNextI18n({
-      locales: ["en", "fr"],
-      defaultLocale: "en",
-      defaultNs: "common",
-      devMode: false,
-    });
+    const i18n = makeHost();
     i18n.addTranslations({ "en:common": { __seed: "seed" } });
 
     const loaderMock = vi.fn(async (_language: string, namespace: string) => {
@@ -187,13 +159,8 @@ describe("loadTranslations", () => {
   });
 
   it("deduplicates concurrent init calls during parallel translation loads", async () => {
-    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-    const { i18n } = createNextI18n({
-      locales: ["en", "fr"],
-      defaultLocale: "en",
-      defaultNs: "common",
-      devMode: false,
-    });
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    const i18n = makeHost();
 
     const originalInit = i18n.init.bind(i18n);
     let releaseInit!: () => void;
@@ -215,8 +182,11 @@ describe("loadTranslations", () => {
 
     releaseInit();
     const [resultA, resultB] = await Promise.all([pendingA, pendingB]);
+
     expect(resultA).toEqual({});
     expect(resultB).toEqual({});
-    expect(warnSpy).toHaveBeenCalled();
+    // Re-checked after both loads settled: a second init scheduled later in the
+    // sequence would be caught here, not only within the first microtask.
+    expect(initSpy).toHaveBeenCalledTimes(1);
   });
 });

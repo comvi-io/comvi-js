@@ -1,3 +1,10 @@
+// Type-level contract for `InferKeys`, the mapper that turns a catalog shape
+// into the `TranslationKeys` augmentation `t()` is typed against.
+//
+// This file lives in `tests/types/` because `expectTypeOf` is a RUNTIME no-op:
+// under `vitest run` every assertion below passes unconditionally. It is only
+// enforced where a type checker sees it — `pnpm test:types`
+// (`tsc --noEmit -p tsconfig.test-types.json`), which includes this directory.
 import { describe, it, expectTypeOf } from "vitest";
 import type { InferKeys } from "../../src/types";
 
@@ -37,14 +44,15 @@ describe("InferKeys", () => {
     }>();
   });
 
+  // `toEqualTypeOf` is identity-strict: an intersection of two mapped types is
+  // never identical to the flat literal it resolves to, so the merge cases below
+  // pin the key set and the (always-`never`) value type separately.
   it("should work with multiple InferKeys merged via extends", () => {
     type Combined = InferKeys<{ greeting: string }, "common"> &
       InferKeys<{ title: string }, "dashboard">;
 
-    expectTypeOf<Combined>().toEqualTypeOf<{
-      "common:greeting": never;
-      "dashboard:title": never;
-    }>();
+    expectTypeOf<keyof Combined>().toEqualTypeOf<"common:greeting" | "dashboard:title">();
+    expectTypeOf<Combined[keyof Combined]>().toEqualTypeOf<never>();
   });
 
   it("should generate keys without prefix when namespace is omitted", () => {
@@ -62,10 +70,8 @@ describe("InferKeys", () => {
   it("should work with default ns (no prefix) and named ns combined", () => {
     type Combined = InferKeys<{ greeting: string }> & InferKeys<{ dashboard: string }, "admin">;
 
-    expectTypeOf<Combined>().toEqualTypeOf<{
-      greeting: never;
-      "admin:dashboard": never;
-    }>();
+    expectTypeOf<keyof Combined>().toEqualTypeOf<"greeting" | "admin:dashboard">();
+    expectTypeOf<Combined[keyof Combined]>().toEqualTypeOf<never>();
   });
 
   it("should strip prefix when NS matches DefaultNS", () => {
@@ -99,10 +105,22 @@ describe("InferKeys", () => {
       InferKeys<{ dashboard: string }, "admin", DefaultNS> &
       InferKeys<{ not_found: string }, "errors", DefaultNS>;
 
-    expectTypeOf<Combined>().toEqualTypeOf<{
-      greeting: never;
-      "admin:dashboard": never;
-      "errors:not_found": never;
+    expectTypeOf<keyof Combined>().toEqualTypeOf<
+      "greeting" | "admin:dashboard" | "errors:not_found"
+    >();
+    expectTypeOf<Combined[keyof Combined]>().toEqualTypeOf<never>();
+  });
+
+  it("maps an empty catalog to an empty key set", () => {
+    expectTypeOf<keyof InferKeys<Record<never, never>, "common">>().toEqualTypeOf<never>();
+  });
+
+  it("keeps a non-string leaf as a key rather than descending into it", () => {
+    type Result = InferKeys<{ count: number; nested: { flag: boolean } }, "ns">;
+
+    expectTypeOf<Result>().toEqualTypeOf<{
+      "ns:count": never;
+      "ns:nested.flag": never;
     }>();
   });
 });

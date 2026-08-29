@@ -7,17 +7,10 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { mount, unmount } from "svelte";
 import TPropForwardingWrapper from "./TPropForwarding.test.svelte";
 import { FakeI18n } from "../../../tooling/test-utils/fakeI18n";
-import type { TranslationResult } from "@comvi/core";
 
 const createI18n = (): FakeI18n => {
   const fake = new FakeI18n({ language: "en", defaultNamespace: "default" });
   fake.addTranslations({ en: { probe: "x" }, fr: { probe: "x" }, "fr:admin": { probe: "x" } });
-  fake.tImplementation = (key, params): TranslationResult => {
-    // Echoed so assertions can inspect what was forwarded.
-    return `ns=${String(params?.ns)}|locale=${String(params?.locale)}|fallback=${String(
-      params?.fallback,
-    )}|raw=${String(params?.raw)}`;
-  };
   return fake;
 };
 
@@ -141,6 +134,9 @@ describe("T.svelte hasExplicitProp forwarding characterization", () => {
         ns: "from-prop",
       });
 
+      // `ns={undefined}` is deliberately not covered: `prepareTranslation`
+      // forwards a reserved prop only when it is not `undefined` (the rule in
+      // all four wrappers), so the contract is that a CONCRETE value wins.
       expect(fake.tRaw).toHaveBeenLastCalledWith(
         "probe",
         expect.objectContaining({ ns: "from-prop" }),
@@ -227,25 +223,6 @@ describe("T.svelte hasExplicitProp forwarding characterization", () => {
       });
 
       expect(fake.hasTranslation).toHaveBeenCalledWith("probe", "fr", "admin", true);
-    });
-
-    // `ns={undefined}` cannot be distinguished from an omitted prop:
-    // `prepareTranslation` forwards a reserved prop only when it is not
-    // `undefined` (the rule in all four wrappers), so `params.ns` wins. Left
-    // untested on purpose — the contract is that a CONCRETE value overrides.
-    it("forwarded prop ns with a concrete value overrides params.ns", () => {
-      mountWrapper({
-        i18n: fake.asI18n(),
-        i18nKey: "probe",
-        params: { ns: "from-params" },
-        passNs: true,
-        ns: "explicit-ns",
-      });
-
-      expect(fake.tRaw).toHaveBeenLastCalledWith(
-        "probe",
-        expect.objectContaining({ ns: "explicit-ns" }),
-      );
     });
   });
 

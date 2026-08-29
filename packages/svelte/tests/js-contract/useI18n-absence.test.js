@@ -85,13 +85,13 @@ describe.each([
   it("does not carry the members as own or inherited keys", () => {
     const api = bag();
 
-    for (const name of [
+    const capabilityOnly = [
       "addActiveNamespace",
       "reloadTranslations",
       "onLoadError",
       "onMissingKey",
-    ]) {
-      expect(name in api).toBe(false);
-    }
+    ];
+
+    expect(capabilityOnly.filter((name) => name in api)).toEqual([]);
   });
 });

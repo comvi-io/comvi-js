@@ -177,7 +177,6 @@ describe("loadTranslations", () => {
       "[@comvi/nuxt] Failed to load en:admin:",
       "load failed for en:admin",
     );
-    warnSpy.mockRestore();
   });
 
   it("warns when no loader is configured and no cached translations exist", async () => {
@@ -192,7 +191,6 @@ describe("loadTranslations", () => {
     expect(warnSpy).toHaveBeenCalledWith(
       "[@comvi/nuxt] No loader configured. Register one in comvi.setup via i18n.core.registerLoader(...) or i18n.core.use(...).",
     );
-    warnSpy.mockRestore();
   });
 
   it("warns about missing loader only once per request i18n instance", async () => {
@@ -212,7 +210,6 @@ describe("loadTranslations", () => {
         "[@comvi/nuxt] No loader configured. Register one in comvi.setup via i18n.core.registerLoader(...) or i18n.core.use(...).",
     );
     expect(noLoaderWarnings).toHaveLength(1);
-    warnSpy.mockRestore();
   });
 
   it("names the composition fix when the host has no loader CAPABILITY", async () => {
@@ -227,13 +224,12 @@ describe("loadTranslations", () => {
     const result = await loadTranslations(createEvent(), "en");
 
     expect(result).toEqual({});
-    const message = String(warnSpy.mock.calls[0]?.[0]);
+    const [message] = warnSpy.mock.lastCall ?? [];
     expect(message).toContain("has no loader capability");
     expect(message).toContain("hostModule");
     expect(message).toContain("with(loader(map))");
     // The capability-less message must not send a reader to comvi.setup.
     expect(message).not.toContain("registerLoader");
-    warnSpy.mockRestore();
   });
 
   it("serves cached translations on a capability-less host without warning", async () => {
@@ -252,7 +248,6 @@ describe("loadTranslations", () => {
 
     expect(result).toEqual({ "en:default": { welcome: "Welcome" } });
     expect(warnSpy).not.toHaveBeenCalled();
-    warnSpy.mockRestore();
   });
 
   it("deduplicates concurrent per-request initialization", async () => {
@@ -275,14 +270,21 @@ describe("loadTranslations", () => {
 
     const pendingA = loadTranslations(event, "en");
     const pendingB = loadTranslations(event, "en");
-    await vi.waitFor(() => {
-      expect(createComviCore).toHaveBeenCalledTimes(1);
-      expect(runComviSetup).toHaveBeenCalledTimes(1);
-      expect(i18n.init).toHaveBeenCalledTimes(1);
-    });
+    // While init is still gated, both calls are in flight: the second joined the
+    // first rather than constructing a host of its own.
+    await Promise.resolve();
+    expect(createComviCore).toHaveBeenCalledTimes(1);
+    expect(runComviSetup).toHaveBeenCalledTimes(1);
+    expect(i18n.init).toHaveBeenCalledTimes(1);
 
     releaseInit();
     const [resultA, resultB] = await Promise.all([pendingA, pendingB]);
+
+    // Re-checked after both settled: an init scheduled later in the sequence would
+    // be caught here, not only within the first microtask.
+    expect(createComviCore).toHaveBeenCalledTimes(1);
+    expect(runComviSetup).toHaveBeenCalledTimes(1);
+    expect(i18n.init).toHaveBeenCalledTimes(1);
     expect(resultA).toEqual({
       "en:default": { hello: "Hello" },
     });

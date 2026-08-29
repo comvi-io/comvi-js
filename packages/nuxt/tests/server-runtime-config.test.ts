@@ -1,7 +1,11 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { getServerRuntimeConfig } from "../src/runtime/server/utils/runtime-config";
 
 describe("getServerRuntimeConfig", () => {
+  afterEach(() => {
+    delete (globalThis as any).__NUXT_CONFIG__;
+  });
+
   it("prefers runtime config from event context", () => {
     const runtimeConfig = {
       public: { comvi: { defaultLocale: "en" } },
@@ -24,16 +28,25 @@ describe("getServerRuntimeConfig", () => {
   });
 
   it("uses global Nuxt config as a last known fallback", () => {
-    (globalThis as any).__NUXT_CONFIG__ = { public: { comvi: { defaultLocale: "uk" } } };
+    const globalConfig = { public: { comvi: { defaultLocale: "uk" } } };
+    (globalThis as any).__NUXT_CONFIG__ = globalConfig;
 
     const result = getServerRuntimeConfig(undefined);
-    expect(result).toEqual({ public: { comvi: { defaultLocale: "uk" } } });
 
-    delete (globalThis as any).__NUXT_CONFIG__;
+    expect(result).toBe(globalConfig);
   });
 
   it("returns a populated fallback config when nothing is available", () => {
     const result = getServerRuntimeConfig(undefined);
+
+    expect(result.public.comvi.defaultLocale).toBe("en");
+    expect(result.public.comvi.locales).toEqual([]);
+    expect(result.comvi).toEqual({});
+  });
+
+  it("returns the populated fallback when the event context carries no runtime config", () => {
+    const result = getServerRuntimeConfig({ context: {} } as any);
+
     expect(result.public.comvi.defaultLocale).toBe("en");
     expect(result.public.comvi.locales).toEqual([]);
     expect(result.comvi).toEqual({});

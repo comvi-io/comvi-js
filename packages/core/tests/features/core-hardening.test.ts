@@ -1,17 +1,8 @@
 import { describe, it, expect, vi } from "vitest";
 import { I18n } from "../helpers/composedHost";
+import { createDeferred as deferred } from "../helpers/deferred";
 
-function deferred<T>() {
-  let resolve!: (v: T) => void;
-  let reject!: (e: unknown) => void;
-  const promise = new Promise<T>((res, rej) => {
-    resolve = res;
-    reject = rej;
-  });
-  return { promise, resolve, reject };
-}
-
-describe("normalizeTranslationObject — no input mutation", () => {
+describe("addTranslations() / the `translation` option — no input mutation", () => {
   it("addTranslations does not mutate the caller's object", () => {
     const catalog = { hello: "Hello" };
     const i18n = new I18n({ locale: "en" });
@@ -65,7 +56,6 @@ describe("catalog leaf hardening — non-string values", () => {
       en: { list: ["a", "b"], num: 5, nothing: null } as never,
     });
 
-    expect(() => i18n.t("list")).not.toThrow();
     expect(i18n.t("list")).toBe("a,b");
     expect(i18n.t("num")).toBe("5");
     // A null leaf is dropped, so the key behaves as missing.
@@ -104,9 +94,9 @@ describe("isInitializing — owned by init()", () => {
     await i18n.init();
 
     expect(flagInsideLoader).toBe(true);
-    // No event may report isInitializing=false before init() completes.
-    expect(initializingStates[initializingStates.length - 1]).toBe(false);
-    expect(initializingStates.slice(0, -1).every(Boolean)).toBe(true);
+    // No event may report isInitializing=false before init() completes, and the
+    // intermediate `true` must actually be emitted.
+    expect(initializingStates).toEqual([true, false]);
     expect(i18n.isInitializing).toBe(false);
     expect(i18n.locale).toBe("de");
   });

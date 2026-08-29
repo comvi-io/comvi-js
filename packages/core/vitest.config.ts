@@ -11,6 +11,9 @@ export default defineConfig({
       reporter: ["text", "json", "html"],
     },
     globals: true,
+    restoreMocks: true,
+    unstubEnvs: true,
+    unstubGlobals: true,
   },
   define: {
     __DEV__: JSON.stringify(true),

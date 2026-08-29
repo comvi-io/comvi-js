@@ -5,7 +5,7 @@
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
-import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { hasLoaderApi } from "@comvi/core";
 import type { WrapperI18nHost } from "@comvi/core";
 
@@ -76,11 +76,9 @@ async function emitHostTemplate(
   extraOptions: Record<string, unknown> = {},
 ): Promise<HostTemplate> {
   vi.resetModules();
-  // Dynamic on purpose: the module has to be re-evaluated per case so its
-  // @nuxt/kit calls land in a freshly reset mock.
+  // Dynamic on purpose: re-evaluated per case so its @nuxt/kit calls hit a fresh mock.
   const imported = await import("../src/module");
-  // `defineNuxtModule` is mocked to the identity, so the default export is the
-  // definition object itself — a shape @nuxt/schema's NuxtModule type hides.
+  // `defineNuxtModule` is the identity here, so the default export is the definition object.
   const moduleDefinition = imported.default as unknown as ModuleDefinition;
 
   await moduleDefinition.setup(
@@ -116,11 +114,26 @@ function writeHostModule(body: string): string {
   return file;
 }
 
+const globals = globalThis as unknown as Record<string, unknown>;
+
 describe("generated #build/comvi.host template", () => {
+  let previousComviGlobal: unknown;
+
   beforeEach(() => {
-    nuxtKitMocks.addTemplate.mockReset();
-    nuxtKitMocks.findPath.mockReset();
+    for (const mock of Object.values(nuxtKitMocks)) mock.mockReset();
+    nuxtKitMocks.createResolver.mockReturnValue({ resolve: (id: string) => `/resolved/${id}` });
     nuxtKitMocks.findPath.mockResolvedValue(null);
+
+    previousComviGlobal = globals.__COMVI__;
+    delete globals.__COMVI__;
+  });
+
+  afterEach(() => {
+    if (previousComviGlobal === undefined) {
+      delete globals.__COMVI__;
+    } else {
+      globals.__COMVI__ = previousComviGlobal;
+    }
   });
 
   it("builds core's BASE host on the default branch", async () => {
@@ -128,10 +141,7 @@ describe("generated #build/comvi.host template", () => {
 
     const i18n = createComviI18n({ locale: "en", exposeGlobal: false });
     expect(i18n.locale.value).toBe("en");
-    // The default branch is the BASE host and nothing else: no loader, no
-    // plugin host, no devtools discovery, no ICU compiler. A capability is an
-    // import the app adds in its `hostModule` factory, so these members are
-    // absent from the module graph, not merely disabled.
+    // Absent from the module graph, not merely disabled: a capability is a `hostModule` import.
     expect(i18n.core.registerLoader).toBeUndefined();
     expect(i18n.core.use).toBeUndefined();
 
@@ -139,8 +149,7 @@ describe("generated #build/comvi.host template", () => {
     expect(core.locale).toBe("de");
     expect(core.reloadTranslations).toBeUndefined();
     expect(core.getLoader).toBeUndefined();
-    // The wrapper seam agrees, which is what makes the absence loud rather
-    // than a TypeError deep inside a server utility.
+    // The wrapper seam agrees, so the absence is loud instead of a TypeError later.
     expect(hasLoaderApi(core as unknown as WrapperI18nHost)).toBe(false);
   });
 
@@ -148,35 +157,20 @@ describe("generated #build/comvi.host template", () => {
     const { createComviCore } = await emitHostTemplate();
 
     const core = createComviCore({ locale: "en" });
-    let error: unknown;
 
-    try {
+    // `__DEV__` is true here, so the eager ingestion check throws; production
+    // renders the braced segment literally and reports the same code via onError.
+    expect(() =>
       core.addTranslations({
         en: { cart: "{count, plural, one {# item} other {# items}}" },
-      });
-      core.t("cart", { count: 2 });
-    } catch (caught) {
-      error = caught;
-    }
-
-    // ICU syntax under the simple compiler never renders plausibly-wrong
-    // text. This suite runs with `__DEV__` true, so the eager ingestion check
-    // throws here; production instead renders the braced segment literally and
-    // reports `E_ICU_SYNTAX` through `onError` (or `console.error`) on the
-    // compilation that hit it. Nuxt inherits whichever half applies by
-    // building the base host, and there is no compiler sugar in the template
-    // that could quietly paper over it — `compiler: icuCompiler` belongs to a
-    // `hostModule` factory or the `icu: true` module option.
-    expect(error).toMatchObject({ code: "E_ICU_SYNTAX", argumentType: "plural" });
+      }),
+    ).toThrow(expect.objectContaining({ code: "E_ICU_SYNTAX", argumentType: "plural" }));
   });
 
   it("compiles ICU on the default branch when icu is true", async () => {
     const { createComviI18n, createComviCore } = await emitHostTemplate(undefined, { icu: true });
 
-    // The counterpart to the detector test above: same default branch, same
-    // message, and the option is the whole difference. This is what proves the
-    // emitted `compiler: icuCompiler` is wired rather than merely present in
-    // the generated text.
+    // Counterpart to the detector test: proves `compiler: icuCompiler` is wired, not just emitted.
     const core = createComviCore({ locale: "en" });
     core.addTranslations({
       en: { cart: "{count, plural, one {# item} other {# items}}" },
@@ -184,8 +178,7 @@ describe("generated #build/comvi.host template", () => {
     expect(core.t("cart", { count: 5 })).toBe("5 items");
     expect(core.t("cart", { count: 1 })).toBe("1 item");
 
-    // The vue wrapper's host is constructed by the same template function, so
-    // SSR and the client cannot end up on two different compilers.
+    // Same template function builds both, so SSR and client share one compiler.
     const i18n = createComviI18n({ locale: "en", exposeGlobal: false });
     i18n.core.addTranslations({
       en: { cart: "{count, plural, one {# item} other {# items}}" },
@@ -194,25 +187,12 @@ describe("generated #build/comvi.host template", () => {
   });
 
   it("introduces no browser global on the default branch", async () => {
-    const globals = globalThis as unknown as Record<string, unknown>;
-    const previous = globals.__COMVI__;
-    delete globals.__COMVI__;
+    const { createComviCore } = await emitHostTemplate();
 
-    try {
-      const { createComviCore } = await emitHostTemplate();
-      createComviCore({ locale: "en" });
+    createComviCore({ locale: "en" });
 
-      // Discovery is `@comvi/core/devtools`, composed in explicitly. Importing
-      // and constructing the default branch must announce nothing — the SSR
-      // graph runs this same module.
-      expect(globals.__COMVI__).toBeUndefined();
-    } finally {
-      if (previous === undefined) {
-        delete globals.__COMVI__;
-      } else {
-        globals.__COMVI__ = previous;
-      }
-    }
+    // Discovery is `@comvi/core/devtools`, composed in explicitly; the SSR graph runs this module.
+    expect(globals.__COMVI__).toBeUndefined();
   });
 
   it("wires the user host through createI18nFromCore on the hostModule branch", async () => {
@@ -238,8 +218,7 @@ export default () => {
     const core = createComviCore();
     expect(built).toHaveLength(1);
     expect(core).toBe(built[0]);
-    // …and it is a composed host: exactly the capabilities the factory added,
-    // loader yes, plugin host no.
+    // Exactly the capabilities the factory added: loader yes, plugin host no.
     expect(typeof core.reloadTranslations).toBe("function");
     expect(core.use).toBeUndefined();
 
@@ -275,10 +254,7 @@ export default (options) => {
       seen: Record<string, unknown>[];
     };
 
-    // The composed host is where every capability lives now, so it has to see
-    // the same `nuxt.config` the default branch does — otherwise migrating to
-    // `hostModule` would silently drop fallbackLocale, defaultNs, defaultParams
-    // and basicHtmlTags.
+    // Migrating to `hostModule` must not silently drop the nuxt.config options.
     const core = createComviCore({
       locale: "de",
       fallbackLocale: "en",
@@ -294,8 +270,7 @@ export default (options) => {
     expect(core.locale).toBe("de");
     expect(core.getDefaultNamespace()).toBe("admin");
 
-    // On the client branch the render locale wins over the configured one, so
-    // the factory is handed the locale the host must actually be built with.
+    // On the client branch the render locale wins over the configured one.
     const i18n = createComviI18n({ locale: "en", ssrLocale: "uk", defaultNs: "admin" });
     expect(seen[1]).toMatchObject({ locale: "uk", defaultNs: "admin" });
     expect(i18n.core.locale).toBe("uk");
@@ -306,16 +281,14 @@ export default (options) => {
     nuxtKitMocks.findPath.mockResolvedValue(writeHostModule("export default () => undefined;\n"));
     const { createComviCore } = await emitHostTemplate("./comvi.host.mjs");
 
-    // A factory that forgets its `return` used to fail deep inside
-    // `createI18nFromCore`, or worse, only when a composable touched the host.
+    // Regression: a factory missing its `return` used to fail deep inside createI18nFromCore.
     expect(() => createComviCore()).toThrow(
       "[@comvi/nuxt] comvi hostModule's default export returned no i18n host.",
     );
   });
 
   it("throws a named error when the host module's default export is not a function", async () => {
-    // A missing default is an ESM link error before any of our code runs; a
-    // WRONG default (an object, a re-exported instance) is the reachable shape.
+    // A missing default is an ESM link error; a WRONG default is the reachable shape.
     nuxtKitMocks.findPath.mockResolvedValue(writeHostModule("export default {};\n"));
     const { createComviCore } = await emitHostTemplate("./comvi.host.mjs");
 
