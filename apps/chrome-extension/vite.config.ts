@@ -54,6 +54,12 @@ export default defineConfig(({ mode }) => {
   // below honors the same value — do NOT use vite's --outDir flag, which the
   // plugin cannot see.
   const outDir = env.COMVI_OUT_DIR?.trim() || "dist";
+  // A gate-e build that points at a non-loopback API is a mis-configured build (typically a
+  // production VITE_COMVI_API_BASE_URL leaking in from the environment): its host_permissions
+  // would not cover the mock origin and every popup check would silently fail.
+  if (mode === "gate-e" && !isLoopbackHttp) {
+    throw new Error(`gate-e builds require a loopback VITE_COMVI_API_BASE_URL, got: ${apiBaseUrl}`);
+  }
   const outPath = (...parts: string[]) => resolve(__dirname, outDir, ...parts);
   const testPageOriginValue = env.COMVI_TEST_PAGE_ORIGIN?.trim();
   let testPageOrigin: string | undefined;

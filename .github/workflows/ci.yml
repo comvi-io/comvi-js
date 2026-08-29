@@ -191,8 +191,6 @@ jobs:
     name: Chrome extension
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    env:
-      VITE_COMVI_API_BASE_URL: https://api.comvi.io
 
     steps:
       - name: Checkout
@@ -214,8 +212,13 @@ jobs:
 
       # Builds @comvi/plugin-in-context-editor first via turbo `^build` — the
       # bundle Gate E loads.
+      # The production origin is scoped to THIS step: vite's loadEnv lets process.env
+      # override .env.gate-e, so a job-level value would also poison the Gate E build
+      # (host_permissions would name api.comvi.io and the popup could not see tab URLs).
       - name: Build editor and extension
         run: pnpm extension:build
+        env:
+          VITE_COMVI_API_BASE_URL: https://api.comvi.io
 
       - name: Verify built artifact
         run: pnpm --filter @comvi/chrome-extension exec vitest run src/__tests__/artifacts.test.ts
