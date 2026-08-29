@@ -2,10 +2,10 @@
 // (whose composed host is built by the package's non-exported builder over the
 // converged base core) plus the public server helpers.
 //
-// This is the row that proves the composed root still fits: the builder costs
-// ~+100 B over a pristine wiring, and the graph must stay under the budget the
-// pre-convergence `fw-next-root` row set. `next` and `react` are external, so
-// this measures the comvi graph only.
+// The row keeps the composed root's cost visible — the builder is ~+100 B over
+// a pristine wiring — but it is INFORMATIONAL since the 0.5.0 hardening pass:
+// `fw-next-client-default` and `fw-next-server-default-loader` are the gated
+// Next rows. `next` and `react` are external, so this measures the comvi graph only.
 import { createNextI18n } from "@comvi/next";
 import { getI18n, loadTranslations, setRequestLocale } from "@comvi/next/server";
 

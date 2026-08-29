@@ -50,7 +50,9 @@
     "prepare": "husky",
     "lint:fix": "turbo run lint:fix",
     "audit:published": "node scripts/audit-published.mjs",
-    "release:version": "node scripts/version-release.mjs"
+    "release:version": "node scripts/version-release.mjs",
+    "perf": "node scripts/perf.mjs",
+    "test:perf-tools": "node --test scripts/perf.test.mjs"
   },
   "devDependencies": {
     "@ast-grep/napi": "^0.45.0",

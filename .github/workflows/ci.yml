@@ -143,6 +143,109 @@ jobs:
       - name: Size gate (min+gz budgets)
         run: pnpm exec turbo run "//#size"
 
+  perf:
+    name: Core runtime perf gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          # The A/B reference is origin/main, so the job needs more than the
+          # single-commit default checkout.
+          fetch-depth: 0
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 9.12.1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Perf harness unit tests
+        run: pnpm test:perf-tools
+
+      - name: Build @comvi/core (PR head)
+        run: pnpm exec turbo run build --filter @comvi/core
+
+      # The reference build. A full `pnpm install --frozen-lockfile` in the
+      # worktree would double the job; instead the worktree borrows THIS
+      # checkout's node_modules by symlink and builds main's core SOURCES with
+      # the head toolchain. That is the right variable to isolate for a perf
+      # A/B — the compiler, bundler and Node are held constant and only the
+      # library sources differ — but it does mean the job cannot catch a
+      # regression that lives in a toolchain bump.
+      - name: Build @comvi/core from origin/main (reference)
+        id: reference
+        continue-on-error: true
+        run: |
+          set -euo pipefail
+          REF_DIR="$RUNNER_TEMP/main-ref"
+          rm -rf "$REF_DIR"
+          git worktree add --detach "$REF_DIR" origin/main
+          ln -s "$PWD/node_modules" "$REF_DIR/node_modules"
+          ln -s "$PWD/packages/core/node_modules" "$REF_DIR/packages/core/node_modules"
+          cd "$REF_DIR/packages/core"
+          ../../node_modules/.bin/tsc
+          ../../node_modules/.bin/vite build
+          echo "dist=$REF_DIR/packages/core/dist" >> "$GITHUB_OUTPUT"
+
+      # `--probe` asks whether main's dist exposes the three entries the
+      # protocol loads. It does not on a pre-0.5.0 main (comvi-core-icu.js and
+      # comvi-core-rich-text.js are single-entry-convergence artifacts), so
+      # until 0.5.0 lands the job prints the head table and warns instead of
+      # comparing. It becomes a real gate the moment main is comparable, with
+      # no edit to this file.
+      - name: Perf A/B against origin/main (10 % median threshold on shared runners; 5 % is the local/phase gate)
+        run: |
+          # -e is off deliberately: a failing comparison must still reach the
+          # step summary before the step exits with the gate's status.
+          set +e
+          set -uo pipefail
+          REF_DIST="${{ steps.reference.outputs.dist }}"
+
+          if [ "${{ steps.reference.outcome }}" != "success" ] || [ -z "$REF_DIST" ]; then
+            REASON="the origin/main reference build failed"
+          elif ! node scripts/perf.mjs --probe "$REF_DIST"; then
+            REASON="origin/main predates the entry points this protocol measures"
+          else
+            REASON=""
+          fi
+
+          if [ -n "$REASON" ]; then
+            echo "::warning::Perf A/B skipped — $REASON. Printing the head-only table; NOTHING IS GATED in this run."
+            {
+              echo "### Perf gate: informational only"
+              echo ""
+              echo "No A/B was possible — $REASON."
+              echo ""
+              node scripts/perf.mjs packages/core/dist
+            } >> "$GITHUB_STEP_SUMMARY"
+            node scripts/perf.mjs packages/core/dist
+            exit 0
+          fi
+
+          # Shared runners measure a ~3.5 % noise floor; the 5 % phase threshold
+          # (scripts/perf.mjs default) is for a quiet machine. CI gates at 10 %.
+          node scripts/perf.mjs --compare "$REF_DIST" packages/core/dist --threshold 10 | tee perf-compare.txt
+          STATUS="${PIPESTATUS[0]}"
+          {
+            echo "### Perf gate: origin/main vs PR head"
+            echo ""
+            echo '```'
+            cat perf-compare.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit "$STATUS"
+
   test-manifest:
     name: Wrapper test manifest gate (G2)
     runs-on: ubuntu-latest

@@ -1,9 +1,8 @@
 // Size-gate fixture: the base host + the ICU compiler injected from the pure
-// /icu subpath. Gate: <= 7680 B min+gz — fails visibly if tag machinery ever
-// leaks into the base+ICU graph (plan Risk 9 / defect A). Observed 5890 B on the
-// landed run; the 6592 B this header used to quote is the HISTORICAL
-// post-Phase-7 measurement, and the frozen budget is the release captain's
-// post-0.5.0 ratchet, not a margin.
+// /icu subpath. Gated on measured + 5%, so it fails visibly if tag machinery
+// ever leaks into the base+ICU graph (plan Risk 9 / defect A). The 7680 B this
+// header used to quote was a frozen ceiling carrying ~1.8 KB of dead headroom;
+// the 0.5.0 hardening pass ratcheted it to the standard rule (size-budgets.md).
 import { createI18n } from "@comvi/core";
 import { icuCompiler } from "@comvi/core/icu";
 

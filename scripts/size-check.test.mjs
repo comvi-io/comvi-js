@@ -416,3 +416,89 @@ test("sentinelModules without an expectSentinels verdict is rejected", async (t)
     /requires "expectSentinels"/,
   );
 });
+
+// --- The shipped scripts/size-budgets.json, as a file ----------------------
+//
+// These assert the FILE's shape rather than the gate's behaviour, so the
+// maintenance conventions written down in scripts/size-budgets.md cannot rot
+// silently: the 0.5.0 hardening pass cut the file from 33 hand-tuned byte
+// budgets and a ~34 KB prose blob to 15 rows on one mechanical rule, and
+// nothing but a test keeps it there.
+
+const SCRIPT_DIR = path.dirname(new URL(import.meta.url).pathname);
+const shippedBudgets = JSON.parse(
+  fs.readFileSync(path.join(SCRIPT_DIR, "size-budgets.json"), "utf8"),
+);
+
+test("every shipped budget is exactly ceil(baseline * 1.05)", () => {
+  const gated = shippedBudgets.fixtures.filter(
+    (fixture) => typeof fixture.gzipBudgetBytes === "number",
+  );
+  assert.ok(gated.length > 0, "expected at least one gated row");
+  for (const fixture of gated) {
+    assert.ok(fixture.baseline, `${fixture.name}: a gated row must record its baseline sweep`);
+    assert.equal(
+      fixture.gzipBudgetBytes,
+      Math.ceil(fixture.baseline.gzipBytes * 1.05),
+      `${fixture.name}: budget must be ceil(baseline.gzipBytes * 1.05) — re-baseline, do not hand-tune`,
+    );
+  }
+});
+
+test("every shipped row records one authoritative sweep", () => {
+  const dates = new Set();
+  for (const fixture of shippedBudgets.fixtures) {
+    assert.ok(fixture.baseline, `${fixture.name}: missing baseline`);
+    assert.equal(typeof fixture.baseline.minBytes, "number", `${fixture.name}: baseline.minBytes`);
+    assert.equal(
+      typeof fixture.baseline.gzipBytes,
+      "number",
+      `${fixture.name}: baseline.gzipBytes`,
+    );
+    dates.add(fixture.baseline.measuredAt);
+    // `modules` is the diff input for a sentinel verdict; a row without
+    // sentinels has nothing to diff and must not carry a stale list.
+    assert.equal(
+      fixture.baseline.modules !== undefined,
+      fixture.sentinelModules !== undefined,
+      `${fixture.name}: baseline.modules belongs on sentinel rows and only on those`,
+    );
+  }
+  assert.equal(
+    dates.size,
+    1,
+    `budgets must derive from ONE run; found measuredAt values: ${[...dates].join(", ")}`,
+  );
+});
+
+test("no shipped row is pending", () => {
+  // `pending` skips a row's sentinels too, so a row that cannot be measured
+  // yet is added when it can be, never parked here.
+  const pending = shippedBudgets.fixtures.filter((fixture) => fixture.pending);
+  assert.deepEqual(
+    pending.map((fixture) => fixture.name),
+    [],
+  );
+});
+
+test("shipped notes are one line each and the prose lives in size-budgets.md", () => {
+  for (const fixture of shippedBudgets.fixtures) {
+    assert.equal(typeof fixture.note, "string", `${fixture.name}: missing note`);
+    assert.ok(!fixture.note.includes("\n"), `${fixture.name}: note must be one line`);
+    assert.ok(
+      fixture.note.length <= 280,
+      `${fixture.name}: note is ${fixture.note.length} chars — history belongs in scripts/size-budgets.md`,
+    );
+  }
+  assert.match(shippedBudgets.note, /size-budgets\.md/);
+  assert.ok(fs.existsSync(path.join(SCRIPT_DIR, "size-budgets.md")));
+});
+
+test("every shipped row points at a fixture that exists", () => {
+  for (const fixture of shippedBudgets.fixtures) {
+    assert.ok(
+      fs.existsSync(path.join(SCRIPT_DIR, "size-fixtures", fixture.fixture)),
+      `${fixture.name}: fixture ${fixture.fixture} does not exist`,
+    );
+  }
+});

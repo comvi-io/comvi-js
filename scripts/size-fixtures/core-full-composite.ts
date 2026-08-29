@@ -12,11 +12,11 @@
 // introduced a `const host = …` temporary cost 4 B for fixture shape alone.
 // Same observable app surface as the pre-convergence `full.ts`.
 //
-// Gate: <= 8605 B min+gz, an owner-signed HARD ceiling with no automatic 2%
-// margin. Observed 8604 B (minified payload 23957 B), so 1 B of current
-// headroom — and that byte is an allowance for one proven effect only: the
-// content-hash characters in the two chunk names this graph imports move gzip
-// by ~1 B each while the payload length does not change. Any real byte fails.
+// Gated on the standard rule — measured + 5% — like every other budget row;
+// the 8605 B owner-signed ceiling this header used to quote is retired. See
+// scripts/size-budgets.md for why, and for the chunk-hash effect (gzip moves
+// ~1 B per imported content-hashed chunk name on any source edit, with the
+// minified payload unchanged) that the 5% margin now absorbs.
 import "@comvi/core/tags";
 import { createI18n } from "@comvi/core";
 import { icuCompiler } from "@comvi/core/icu";
