@@ -424,7 +424,7 @@ function g7Corpus() {
 const G7_ALLOWLIST = [
   {
     file: ".changeset/next-unified-plugin-use.md",
-    line: 30,
+    line: 31,
     pattern: "0.6.0-reference",
     reason:
       "Annotated forward-pointer, not a stale claim: the entry deprecates useClient/useServer/useClientLazy/useServerLazy and names the release that removes them. The framework-slim wave folded into 0.5.0 and does not touch that deprecation window.",
