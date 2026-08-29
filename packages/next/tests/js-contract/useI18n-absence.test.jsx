@@ -32,7 +32,7 @@ const CAPABILITY_MEMBERS = [
   "onMissingKey",
 ];
 
-const bareSlim = () =>
+const baseHost = () =>
   createI18n({ locale: "en", exposeGlobal: false, translation: { en: { greeting: "Hello" } } });
 
 const wrapperFor = (i18n) =>
@@ -48,8 +48,8 @@ const renderUseI18n = (i18n) =>
   renderHook(() => useI18n(), { wrapper: wrapperFor(i18n) }).result.current;
 
 describe.each([
-  ["bare slim", bareSlim],
-  ["slim + loader + plugins", () => attachPlugins(attachLoader(bareSlim()))],
+  ["bare base", baseHost],
+  ["base + loader + plugins", () => attachPlugins(attachLoader(baseHost()))],
 ])("useI18n() through @comvi/next/client on a %s host", (_label, makeHost) => {
   it("does not expose the capability members under a pure destructure", () => {
     const { reloadTranslations, addActiveNamespace, onLoadError } = renderUseI18n(makeHost());
@@ -90,20 +90,20 @@ describe.each([
 });
 
 describe(`capability acquisition through @comvi/next/client (${__COMVI_CORE_BUILD__} core build)`, () => {
-  it("throws the exact loader message on a bare-slim host", () => {
-    const wrapper = wrapperFor(bareSlim());
+  it("throws the exact loader message on a bare base host", () => {
+    const wrapper = wrapperFor(baseHost());
 
     expect(() => renderHook(() => useI18nLoader(), { wrapper })).toThrow(EXPECTED.loader);
   });
 
-  it("throws the exact plugins message on a bare-slim host", () => {
-    const wrapper = wrapperFor(bareSlim());
+  it("throws the exact plugins message on a bare base host", () => {
+    const wrapper = wrapperFor(baseHost());
 
     expect(() => renderHook(() => useI18nPlugins(), { wrapper })).toThrow(EXPECTED.plugins);
   });
 
-  it("returns working bags on a composed slim host", () => {
-    const wrapper = wrapperFor(attachPlugins(attachLoader(bareSlim())));
+  it("returns working bags on a composed base host", () => {
+    const wrapper = wrapperFor(attachPlugins(attachLoader(baseHost())));
 
     const loader = renderHook(() => useI18nLoader(), { wrapper }).result.current;
     const plugins = renderHook(() => useI18nPlugins(), { wrapper }).result.current;

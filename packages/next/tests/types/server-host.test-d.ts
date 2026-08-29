@@ -89,27 +89,34 @@ createNextI18nFromHost(() => composedHost, {
 });
 
 // ---------------------------------------------------------------------------
-// The server ALWAYS needs the loader: a bare-slim host is a compile error.
+// The server ALWAYS needs the loader: an uncomposed BASE host is a compile
+// error, and after the convergence that is what the plain constructor builds.
 // ---------------------------------------------------------------------------
-const bareSlimHost = createI18n({ locale: "en" });
+const bareBaseHost = createI18n({ locale: "en" });
 
 // @ts-expect-error -- NextServerHost = WrapperI18nHost & I18nLoaderApi
-createNextI18nFromHost(() => bareSlimHost, ROUTING);
+createNextI18nFromHost(() => bareBaseHost, ROUTING);
 
-export type _BareSlimIsNotAServerHost = Expect<
-  Equal<typeof bareSlimHost extends NextServerHost ? true : false, false>
+export type _BareBaseIsNotAServerHost = Expect<
+  Equal<typeof bareBaseHost extends NextServerHost ? true : false, false>
 >;
 export type _ComposedIsAServerHost = Expect<
   Equal<typeof composedHost extends NextServerHost ? true : false, true>
 >;
 
 // ---------------------------------------------------------------------------
-// framework-slim DX pass: the SINGLE-PACKAGE server recipe. `createSlimI18n`
-// and the capability toolkit are re-exported from `@comvi/next/server`, so an
-// SSR app builds a `NextServerHost` without ever naming `@comvi/core`.
+// single-entry P4: the SINGLE-PACKAGE server recipe. `createI18n` — the same
+// base constructor `@comvi/next/client` exports — and the capability toolkit
+// are re-exported from `@comvi/next/server`, so an SSR app builds a
+// `NextServerHost` without ever naming `@comvi/core`. The retired second
+// constructor name is gone from this entry too.
 // ---------------------------------------------------------------------------
+export type _RetiredNameIsGone = Expect<
+  Equal<Extract<keyof typeof serverEntry, "createSlimI18n">, never>
+>;
+
 const singlePackageHost = serverEntry.attachLoader(
-  serverEntry.createSlimI18n({ locale: "en", defaultNs: "common" }),
+  serverEntry.createI18n({ locale: "en", defaultNs: "common" }),
 );
 const _singlePackage = createNextI18nFromHost(() => singlePackageHost, ROUTING);
 
@@ -119,18 +126,24 @@ export type _SinglePackageHostIsExact = Expect<
 export type _SinglePackageHostIsAServerHost = Expect<
   Equal<typeof singlePackageHost extends NextServerHost ? true : false, true>
 >;
-// The re-exported constructor is core-slim's, so it builds the same bare host
-// the two-package recipe did — and the same compile error when unattached.
-export type _SinglePackageConstructorIsSlim = Expect<
-  Equal<typeof serverEntry.createSlimI18n, typeof createI18n>
+// The re-exported constructor IS core's base one, so it builds the same bare
+// host the two-package recipe did — and the same compile error when unattached.
+export type _SinglePackageConstructorIsBase = Expect<
+  Equal<typeof serverEntry.createI18n, typeof createI18n>
 >;
 // @ts-expect-error -- still NextServerHost = WrapperI18nHost & I18nLoaderApi
-createNextI18nFromHost(() => serverEntry.createSlimI18n({ locale: "en" }), ROUTING);
+createNextI18nFromHost(() => serverEntry.createI18n({ locale: "en" }), ROUTING);
 
-// ICU stays injectable from the same specifier.
+// ICU stays injectable from the same specifier, in BOTH shapes: the compiler
+// option for an inline catalog, and the pre-ingestion installer for the remote
+// catalogs an SSR loader fetches.
 void serverEntry.attachLoader(
-  serverEntry.createSlimI18n({ locale: "en", compiler: serverEntry.icuCompiler }),
+  serverEntry.createI18n({ locale: "en", compiler: serverEntry.icuCompiler }),
 );
+void serverEntry.attachLoader(serverEntry.createI18n({ locale: "en" }).with(serverEntry.icu()));
+export type _ServerLockedErrorCode = Expect<
+  Equal<serverEntry.CompilerLockedError["code"], "E_COMPILER_LOCKED">
+>;
 const serverFlat: Record<string, string> = serverEntry.flattenCatalog({ nav: { home: "Home" } });
 void serverFlat;
 
@@ -141,7 +154,7 @@ void serverFlat;
 // negative case below would stop erroring.
 // ---------------------------------------------------------------------------
 const pipedHost = serverEntry
-  .createSlimI18n({ locale: "en", defaultNs: "common" })
+  .createI18n({ locale: "en", defaultNs: "common" })
   .with(serverEntry.loader({ en: async () => ({ default: { hello: "Hello" } }) }));
 const _piped = createNextI18nFromHost(() => pipedHost, ROUTING);
 
@@ -150,13 +163,13 @@ export type _PipedHostIsAServerHost = Expect<
   Equal<typeof pipedHost extends NextServerHost ? true : false, true>
 >;
 // `.with(attachLoader)` is the installer for a host with no import map — the
-// form `fw-next-server-slim-loader` measures.
+// form `fw-next-server-default-loader` measures.
 void createNextI18nFromHost(
-  () => serverEntry.createSlimI18n({ locale: "en" }).with(serverEntry.attachLoader),
+  () => serverEntry.createI18n({ locale: "en" }).with(serverEntry.attachLoader),
   ROUTING,
 );
 createNextI18nFromHost(
   // @ts-expect-error -- plugins() is not the loader: the server host still needs one
-  () => serverEntry.createSlimI18n({ locale: "en" }).with(serverEntry.plugins()),
+  () => serverEntry.createI18n({ locale: "en" }).with(serverEntry.plugins()),
   ROUTING,
 );

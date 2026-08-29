@@ -1,5 +1,6 @@
 import type { H3Event } from "h3";
 import { getCookie, getHeader } from "h3";
+import { hasLoaderApi } from "@comvi/core";
 import type { TranslationParams } from "@comvi/core";
 import type { NuxtServerHost } from "../../../types";
 import { getServerRuntimeConfig } from "./runtime-config";
@@ -162,7 +163,13 @@ export async function useTranslation(
 }
 
 /**
- * Load translations for a specific locale
+ * Load translations for a specific locale.
+ *
+ * The host may have no loader at all: the generated default `#build/comvi.host`
+ * builds core's BASE host, and only a `hostModule` factory composes
+ * `@comvi/core/loader` onto it. Without the capability there is nothing to
+ * load — whatever `comvi.setup` put in the catalog is already there — so this
+ * returns instead of calling a member the host does not have.
  */
 async function loadTranslationsForLocale(
   i18n: NuxtServerHost,
@@ -172,6 +179,10 @@ async function loadTranslationsForLocale(
   // Ensure we're loading for the correct locale
   if (i18n.locale !== locale) {
     await i18n.setLocaleAsync(locale);
+  }
+
+  if (!hasLoaderApi(i18n)) {
+    return;
   }
 
   // Load each namespace

@@ -259,7 +259,7 @@ describe("nuxt module setup", () => {
     ).rejects.toThrow('Failed to resolve comvi.setup path: "./missing.setup.ts"');
   });
 
-  it("emits the root construction branch when hostModule is unset", async () => {
+  it("emits the base construction branch when hostModule is unset", async () => {
     const moduleDefinition = await importModule();
     const nuxt = createNuxtStub();
 
@@ -273,6 +273,13 @@ describe("nuxt module setup", () => {
     expect(contents).toContain('import { createI18n } from "@comvi/vue";');
     expect(contents).toContain('import { createI18n as createCore } from "@comvi/core";');
     expect(contents).not.toContain("createI18nFromCore");
+    // The default branch composes NOTHING and there is no compiler sugar: no
+    // capability subpath is imported and no installer is piped in. That is the
+    // single-entry policy stated as codegen — a capability is an import the
+    // app adds in its own `hostModule`, never one the module injects.
+    expect(contents).not.toContain("@comvi/core/");
+    expect(contents).not.toContain(".with(");
+    expect(contents).not.toContain("compiler");
   });
 
   it("emits the composed-host branch and never imports @comvi/core itself when hostModule is set", async () => {
@@ -297,6 +304,11 @@ describe("nuxt module setup", () => {
     // The whole point of branching at build time: no root import to tree-shake.
     expect(contents).not.toContain('from "@comvi/core"');
     expect(contents).toContain("comvi hostModule must export a default function");
+    expect(contents).toContain("returned no i18n host");
+    // The factory is handed nuxt's resolved options, so a composed host
+    // honours the same nuxt.config the default branch does.
+    expect(contents).toContain("hostFactory(options)");
+    expect(contents).toContain("createHost({ ...options, locale })");
   });
 
   it("throws when hostModule points to missing file", async () => {

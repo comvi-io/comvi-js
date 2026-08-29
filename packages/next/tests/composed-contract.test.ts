@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { createNextI18n } from "../src/createNextI18n";
 import type { NextComposedI18n } from "../src/composedHost";
-import { isVirtualNode } from "@comvi/core";
+import { createI18n as baseCreateI18n, isVirtualNode } from "@comvi/core";
 import type { I18nPlugin } from "@comvi/core";
 
 /**
@@ -230,5 +230,70 @@ describe("published createNextI18n — the result surface", () => {
     ] as const) {
       expect(typeof (host as unknown as Record<string, unknown>)[member], member).toBe("function");
     }
+  });
+});
+
+describe("published createNextI18n — unchanged by the P4 direct-host convergence", () => {
+  // The named risk of P4 (plan R1 / PM2): `@comvi/next/client` and
+  // `@comvi/next/server` now expose ONE direct-host constructor, and it is the
+  // BASE host. Rebinding those names must not reach the published root, and the
+  // root's composition must not leak back onto the base. Every claim below is a
+  // DIFFERENTIAL: the same input through both surfaces, asserted to differ.
+  it("is a factory over the base constructor, not the base constructor", () => {
+    expect(typeof createNextI18n).toBe("function");
+    // `baseCreateI18n` is the binding BOTH direct-host entries re-export — that
+    // identity is pinned in tests/entry-surfaces.test.tsx. Here it is the other
+    // side of the same coin: the published root is a factory OVER it, and it
+    // hands back the routing-plus-plugins result, never a host.
+    expect(createNextI18n).not.toBe(baseCreateI18n);
+    expect(Object.keys(make()).sort()).toEqual([
+      "i18n",
+      "routing",
+      "use",
+      "useClient",
+      "useClientLazy",
+      "useServer",
+      "useServerLazy",
+    ]);
+  });
+
+  it("compiles ICU where the direct-host base throws E_ICU_SYNTAX", () => {
+    const plural = { items: "{count, plural, one {# item} other {# items}}" };
+
+    expect(make({ translation: { en: plural } }).i18n.t("items", { count: 3 })).toBe("3 items");
+
+    // The base host is the loud one: dev throws at the ingestion preflight,
+    // production throws on the first uncached format. Wrapping BOTH steps pins
+    // the code without pinning the timing.
+    let thrown: unknown;
+    try {
+      const base = baseCreateI18n({
+        locale: "en",
+        exposeGlobal: false,
+        translation: { en: plural },
+      });
+      base.t("items" as never, { count: 3 } as never);
+    } catch (error) {
+      thrown = error;
+    }
+    expect(thrown, "expected E_ICU_SYNTAX").toBeInstanceOf(Error);
+    expect((thrown as { code?: unknown }).code).toBe("E_ICU_SYNTAX");
+    expect((thrown as { argumentType?: unknown }).argumentType).toBe("plural");
+  });
+
+  it("hosts plugins and flattens nested catalogs where the base host does neither", () => {
+    const nested = { nav: { home: "Home" } };
+
+    const composed = make({ translation: { en: nested } }).i18n;
+    expect(typeof composed.use).toBe("function");
+    expect(composed.t("nav.home")).toBe("Home");
+
+    const base = baseCreateI18n({
+      locale: "en",
+      exposeGlobal: false,
+      translation: { en: nested },
+    }) as unknown as Record<string, unknown>;
+    expect(base.use).toBeUndefined();
+    expect(base.registerLoader).toBeUndefined();
   });
 });

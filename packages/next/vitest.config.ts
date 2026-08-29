@@ -20,12 +20,12 @@ const SRC_ALIAS = { find: "@", replacement: resolve(__dirname, "./src") };
  * artifact with `__DEV__` false. Exact-match regexes, never string prefixes: a
  * string alias for `@comvi/core` would also swallow `@comvi/core`.
  *
- * All four entries move together — mixing a dev base host with a prod
- * `attachLoader` would compose across two different terser nameCaches and
+ * All five entries move together — mixing a dev base host with a prod
+ * capability module would compose across two different terser nameCaches and
  * break core's `_`-internal contract.
  */
 const coreBuild = (suffix: "" | ".dev") =>
-  (["", "-loader", "-plugins", "-tags"] as const).map((entry) => ({
+  (["", "-loader", "-plugins", "-rich-text", "-tags"] as const).map((entry) => ({
     find: new RegExp(`^@comvi/core${entry === "" ? "" : `/${entry.slice(1)}`}$`),
     replacement: `${CORE_DIST}/comvi-core${entry}${suffix}.js`,
   }));

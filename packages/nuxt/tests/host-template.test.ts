@@ -7,6 +7,8 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { hasLoaderApi } from "@comvi/core";
+import type { WrapperI18nHost } from "@comvi/core";
 
 const nuxtKitMocks = {
   createResolver: vi.fn(() => ({ resolve: (id: string) => `/resolved/${id}` })),
@@ -39,14 +41,19 @@ const workDir = mkdtempSync(join(process.cwd(), "node_modules", ".comvi-host-tem
 
 afterAll(() => rmSync(workDir, { recursive: true, force: true }));
 
+interface HostStub extends Record<string, unknown> {
+  locale: string;
+  addTranslations: (translations: Record<string, Record<string, string>>) => void;
+  getDefaultNamespace: () => string;
+  t: (key: string, params?: Record<string, unknown>) => string;
+}
+
 interface HostTemplate {
   createComviI18n: (options: Record<string, unknown>) => {
-    core: Record<string, unknown> & { locale: string };
+    core: HostStub;
     locale: { value: string };
   };
-  createComviCore: (
-    options?: Record<string, unknown>,
-  ) => Record<string, unknown> & { locale: string };
+  createComviCore: (options?: Record<string, unknown>) => HostStub;
 }
 
 let moduleId = 0;
@@ -109,24 +116,72 @@ describe("generated #build/comvi.host template", () => {
     nuxtKitMocks.findPath.mockResolvedValue(null);
   });
 
-  it("builds a full-capability root instance on the default branch", async () => {
+  it("builds core's BASE host on the default branch", async () => {
     const { createComviI18n, createComviCore } = await emitHostTemplate();
 
     const i18n = createComviI18n({ locale: "en", exposeGlobal: false });
     expect(i18n.locale.value).toBe("en");
-    // Default branch: the emitted template builds vue's own `createI18n` on
-    // core's ROOT entry, which since the single-entry convergence is the BASE
-    // host — no loader, no plugin host. The expectations below, and the
-    // `reloadTranslations` one further down, still encode the 0.4 capability
-    // surface, so they FAIL on this tree: a real break for the nuxt phase to
-    // resolve — compose the capabilities in the template, or retarget the
-    // assertion — not something a comment can repair.
-    expect(typeof i18n.core.registerLoader).toBe("function");
-    expect(typeof i18n.core.use).toBe("function");
+    // Since the single-entry convergence the default branch is the BASE host
+    // and nothing else: no loader, no plugin host, no devtools discovery, no
+    // ICU compiler. A capability is an import the app adds in its `hostModule`
+    // factory — the module never injects one on the app's behalf, so these
+    // members are absent from the module graph, not merely disabled.
+    expect(i18n.core.registerLoader).toBeUndefined();
+    expect(i18n.core.use).toBeUndefined();
 
     const core = createComviCore({ locale: "de", exposeGlobal: false });
     expect(core.locale).toBe("de");
-    expect(typeof core.reloadTranslations).toBe("function");
+    expect(core.reloadTranslations).toBeUndefined();
+    expect(core.getLoader).toBeUndefined();
+    // The wrapper seam agrees, which is what makes the absence loud rather
+    // than a TypeError deep inside a server utility.
+    expect(hasLoaderApi(core as unknown as WrapperI18nHost)).toBe(false);
+  });
+
+  it("carries the ICU detector on the default branch", async () => {
+    const { createComviCore } = await emitHostTemplate();
+
+    const core = createComviCore({ locale: "en" });
+    let error: unknown;
+
+    try {
+      core.addTranslations({
+        en: { cart: "{count, plural, one {# item} other {# items}}" },
+      });
+      core.t("cart", { count: 2 });
+    } catch (caught) {
+      error = caught;
+    }
+
+    // Policy A: ICU syntax under the simple compiler throws in dev AND prod
+    // rather than rendering plausibly-wrong text. Dev catches it eagerly at
+    // ingestion; production catches it lazily at the first translation. Nuxt
+    // inherits both by building the base host, and there is no compiler sugar
+    // in the template that could quietly paper over it — `compiler:
+    // icuCompiler` belongs to a `hostModule` factory.
+    expect(error).toMatchObject({ code: "E_ICU_SYNTAX", argumentType: "plural" });
+  });
+
+  it("introduces no browser global on the default branch", async () => {
+    const globals = globalThis as unknown as Record<string, unknown>;
+    const previous = globals.__COMVI__;
+    delete globals.__COMVI__;
+
+    try {
+      const { createComviCore } = await emitHostTemplate();
+      createComviCore({ locale: "en" });
+
+      // Discovery is `@comvi/core/devtools`, composed in explicitly. Importing
+      // and constructing the default branch must announce nothing — the SSR
+      // graph runs this same module.
+      expect(globals.__COMVI__).toBeUndefined();
+    } finally {
+      if (previous === undefined) {
+        delete globals.__COMVI__;
+      } else {
+        globals.__COMVI__ = previous;
+      }
+    }
   });
 
   it("wires the user host through createI18nFromCore on the hostModule branch", async () => {
@@ -152,7 +207,8 @@ export default () => {
     const core = createComviCore();
     expect(built).toHaveLength(1);
     expect(core).toBe(built[0]);
-    // …and it is a composed slim host: loader yes, plugin host no.
+    // …and it is a composed host: exactly the capabilities the factory added,
+    // loader yes, plugin host no.
     expect(typeof core.reloadTranslations).toBe("function");
     expect(core.use).toBeUndefined();
 
@@ -168,6 +224,62 @@ export default () => {
 
     // The dropped proxies are gone from the wrapper on this branch too.
     expect("reloadTranslations" in i18n).toBe(false);
+  });
+
+  it("hands nuxt's resolved options to the host factory", async () => {
+    const hostPath = writeHostModule(`
+import { createI18n } from "@comvi/core";
+
+export const seen = [];
+
+export default (options) => {
+  seen.push(options);
+  return createI18n({ ...options, exposeGlobal: false });
+};
+`);
+    nuxtKitMocks.findPath.mockResolvedValue(hostPath);
+    const { createComviI18n, createComviCore } = await emitHostTemplate("./comvi.host.mjs");
+    // Dynamic by necessity: the specifier is a file this test just generated.
+    const { seen } = (await import(pathToFileURL(hostPath).href)) as {
+      seen: Record<string, unknown>[];
+    };
+
+    // The composed host is where every capability lives now, so it has to see
+    // the same `nuxt.config` the default branch does — otherwise migrating to
+    // `hostModule` would silently drop fallbackLocale, defaultNs, defaultParams
+    // and basicHtmlTags.
+    const core = createComviCore({
+      locale: "de",
+      fallbackLocale: "en",
+      defaultNs: "admin",
+      apiKey: "k",
+    });
+    expect(seen[0]).toMatchObject({
+      locale: "de",
+      fallbackLocale: "en",
+      defaultNs: "admin",
+      apiKey: "k",
+    });
+    expect(core.locale).toBe("de");
+    expect(core.getDefaultNamespace()).toBe("admin");
+
+    // On the client branch the render locale wins over the configured one, so
+    // the factory is handed the locale the host must actually be built with.
+    const i18n = createComviI18n({ locale: "en", ssrLocale: "uk", defaultNs: "admin" });
+    expect(seen[1]).toMatchObject({ locale: "uk", defaultNs: "admin" });
+    expect(i18n.core.locale).toBe("uk");
+    expect(i18n.locale.value).toBe("uk");
+  });
+
+  it("throws a named error when the host factory returns no host", async () => {
+    nuxtKitMocks.findPath.mockResolvedValue(writeHostModule("export default () => undefined;\n"));
+    const { createComviCore } = await emitHostTemplate("./comvi.host.mjs");
+
+    // A factory that forgets its `return` used to fail deep inside
+    // `createI18nFromCore`, or worse, only when a composable touched the host.
+    expect(() => createComviCore()).toThrow(
+      "[@comvi/nuxt] comvi hostModule's default export returned no i18n host.",
+    );
   });
 
   it("throws a named error when the host module's default export is not a function", async () => {

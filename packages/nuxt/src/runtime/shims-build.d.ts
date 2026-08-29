@@ -16,6 +16,15 @@ declare module "#build/comvi.host" {
   // not whether `@comvi/core` is in it, since a `hostModule` factory imports
   // the base root itself — so it cannot be a runtime conditional here
   // (framework-slim P4 step 5).
+  //
+  // Both branches are typed at their LOWEST common denominator, which since
+  // the single-entry convergence is the base host: the default branch has no
+  // capability at all, and a composed one has exactly the capabilities its
+  // factory added — a fact this one declaration cannot know. Server utilities
+  // therefore probe with core's `hasLoaderApi` rather than trusting the
+  // annotation, and an app that wants its own composition typed end-to-end
+  // annotates its factory `NuxtHostFactory<MyHost>` and its hook
+  // `NuxtI18nSetup<MyHost>`.
   export function createComviI18n<D extends import("@comvi/core").DefaultTranslationParams = {}>(
     options: import("@comvi/vue").VueI18nOptions<D>,
   ): import("@comvi/vue").AnyVueI18n;

@@ -32,8 +32,8 @@ Comvi i18n is a modern, framework-agnostic internationalization library built on
 - **Rich text without XSS.** Embed components inside translation strings (`Click <link>here</link>`) — translators see clean markup, you decide what each tag renders to. No raw HTML, no unsafe DOM injection, no splitting a sentence across template fragments.
 - **Real ICU MessageFormat.** Plurals, ordinals, and select all follow locale-correct grammar via `Intl.PluralRules` — Polish, Ukrainian, Arabic, Welsh, and the rest. Same syntax every major TMS (Crowdin, Lokalise, Phrase) already speaks.
 - **Locale-aware formatters built in.** `formatNumber`, `formatDate`, `formatCurrency`, and `formatRelativeTime` follow the active locale via native `Intl`, with reactive updates in every framework binding.
-- **~8 kB minified + gzipped (as bundled by your app), zero runtime dependencies.** No `eval` or `new Function` anywhere — runs under a strict CSP without `unsafe-eval`. Safe for Chrome extensions, Cloudflare Workers, and locked-down enterprise apps.
-- **Pluggable, not monolithic.** Translation loading (CDN/API), locale detection, and in-context editing are opt-in plugins via `@comvi/plugin-fetch-loader`, `@comvi/plugin-locale-detector`, and `@comvi/plugin-in-context-editor`. You only ship what you use.
+- **~7.1 kB minified + gzipped for a default client graph, ~7.2 kB for the server graph (measured, `next` and `react` externalized), zero runtime dependencies.** That is the base host plus the bindings; ICU, async loading, the plugin host and devtools discovery cost only where you compose them. No `eval` or `new Function` anywhere — runs under a strict CSP without `unsafe-eval`. Safe for Chrome extensions, Cloudflare Workers, and locked-down enterprise apps.
+- **Pluggable, not monolithic.** Translation loading (CDN/API), locale detection, and in-context editing are opt-in plugins via `@comvi/plugin-fetch-loader`, `@comvi/plugin-locale-detector`, and `@comvi/plugin-in-context-editor` — one lowercase `.with(installer)` each. You only ship what you use.
 - **Same API across 6 frameworks.** `useI18n()` and `<T>` look the same in [Vue](https://www.npmjs.com/package/@comvi/vue), [React](https://www.npmjs.com/package/@comvi/react), [SolidJS](https://www.npmjs.com/package/@comvi/solid), [Svelte](https://www.npmjs.com/package/@comvi/svelte), [Next.js](https://www.npmjs.com/package/@comvi/next), and [Nuxt](https://www.npmjs.com/package/@comvi/nuxt) — switch frameworks without relearning your i18n layer.
 - **First-class SSR.** `@comvi/next` and `@comvi/nuxt` ship server-side translation loading, locale-routed layouts, and middleware for redirect-on-detect — no flash of untranslated content.
 
@@ -244,14 +244,29 @@ There is no next-specific hook API. Migrating from 0.4.x:
 `pnpm codemod:framework-slim "src/**/*.{ts,tsx,js,jsx}"`, or the
 [0.5.0 migration guide](https://github.com/comvi-io/comvi-js/blob/main/MIGRATION.md).
 
-## The composed root: `createNextI18n` and `NextComposedI18n`
+## Two hosts, one package: the composed root and the base constructor
 
-Since `@comvi/core` converged to a single BASE entry, `createNextI18n` no longer
-inherits a batteries-included core — it **composes one explicitly**, inside this
-package, so its published semantics are unchanged: ICU, ambient tag syntax, the
-loader (with BOTH `registerLoader` overloads — a loader function and a static
-import map), the plugin host, nested constructor catalogs, default params and
-devtools discovery, in that order.
+`@comvi/next` publishes THREE ways to get an i18n host, and the difference is
+worth ten seconds before you pick:
+
+| you call                                         | from                 | what you get                                                         |
+| ------------------------------------------------ | -------------------- | -------------------------------------------------------------------- |
+| `createNextI18n(options)`                        | `@comvi/next`        | the COMPOSED host + routing + `.use*`, exactly as 0.4.x published it |
+| `createI18n(options)`                            | `@comvi/next/client` | the BASE host — capabilities are things you compose, on the client   |
+| `createI18n(options)` + `createNextI18nFromHost` | `@comvi/next/server` | the BASE host you compose yourself, handed to the SSR factory        |
+
+The two entries expose the SAME `createI18n`: the client/server split is a
+runtime split (which helpers are reachable), never a host-tier split. There is
+one direct-host constructor name in this package, on both entries.
+
+### `createNextI18n` — the composed root
+
+Since core converged to a single BASE entry, `createNextI18n` no longer inherits
+a composed core: it **composes one explicitly**, inside this package, so its
+published behaviour is preserved exactly — ICU, ambient tag syntax, the loader
+(with BOTH `registerLoader` overloads, a loader function and a static import
+map), the plugin host, nested constructor catalogs, default params and devtools
+discovery, in that order.
 
 The host type is published as `NextComposedI18n<D>`, which is exactly
 `CreateNextI18nResult<D>["i18n"]`:
@@ -265,25 +280,85 @@ function withHost(i18n: NextComposedI18n) {
 }
 ```
 
-Measured: **10115 B** min+gz for the server graph (`fw-next-composed-factory`),
-against a 10128 B budget — 13 B of current headroom. Nothing about the call site changes.
+Measured: **10120 B** min+gz for the server graph (`fw-next-composed-factory`),
+against a 10128 B budget — 8 B of current headroom. Nothing about the call site
+changes, and `packages/next/tests/composed-contract.test.ts` pins every
+capability a 0.4 caller could reach through `result.i18n`.
+
+### `createI18n` — the base host on both entries
+
+**Upgrading from 0.4.x? Read this.** `createI18n` from `@comvi/next/client` is
+the name 0.4 published, and it now builds the BASE host. ICU, tag syntax, the
+loader, the plugin host and devtools discovery became things you compose:
+
+| 0.4 behaviour of `createI18n`                         | after                       | loudness                                        | migration                                    |
+| ----------------------------------------------------- | --------------------------- | ----------------------------------------------- | -------------------------------------------- |
+| ICU plurals, select, selectordinal                    | the default compiler throws | **dev AND prod throw** `E_ICU_SYNTAX`           | see the two ICU shapes below                 |
+| loader (`registerLoader`, `reloadTranslations`, …)    | absent until composed       | the loud capability error, at `useI18nLoader()` | `.with(loader(map))` / `.with(attachLoader)` |
+| `.use(plugin)`, `onMissingKey`                        | absent until composed       | TS error + runtime `TypeError`                  | `.with(plugins())`, then `use(p)`            |
+| devtools discovery (`instanceId`, `window.__COMVI__`) | absent                      | invisible to the browser extension (documented) | `.with(devtools({ instanceId }))`            |
+| nested constructor catalogs                           | stored verbatim             | dev warning                                     | `flattenCatalog(…)`, or compose `loader()`   |
+| tag markup through `t()` (`"<b>hi</b>"`)              | literal text                | dev warning; prod literal, never a throw        | render `<T>`, or `import "@comvi/core/tags"` |
+| `<I18nProvider>`, every hook, `<T>`, routing          | untouched                   | —                                               | —                                            |
+
+Staying on the 0.4 semantics with no composition work at all is one line:
+`createNextI18n` above is that recipe, preserved.
+
+If your tree was built against 0.5 development, the second constructor name that
+briefly sat beside `createI18n` on these two entries for the bare host is
+deleted. It never published, so there is no deprecation debt — run
+`pnpm codemod:framework-slim "src/**/*.{ts,tsx,js,jsx}"`, which renames it, and
+see the [0.5.0 migration guide](https://github.com/comvi-io/comvi-js/blob/main/MIGRATION.md)
+for the rename table.
+
+### ICU has two shapes, and the wrong one throws
+
+`icuCompiler` is a compiler and `icu()` is an installer, so which one you need
+depends on **where the catalog comes from**. Both are exported from both
+`@comvi/next` entries:
+
+```tsx
+// INLINE — the constructor ingests the catalog, so choose the compiler in the
+// same call.
+import { createI18n, icuCompiler } from "@comvi/next/client";
+
+const i18n = createI18n({ locale: "en", compiler: icuCompiler, translation });
+
+// LATER — a hydrated client catalog, or anything an SSR loader fetches:
+// install BEFORE the first catalog reaches the host.
+import { createI18n, icu, loader } from "@comvi/next/server";
+
+const host = createI18n({ locale: "en" })
+  .with(icu())
+  .with(loader({ uk: () => import("./uk.json") }));
+```
+
+`.with(icu())` is **pre-ingestion only**. The compiler locks the moment any
+catalog reaches the host — a constructor `translation`, an `addTranslations`
+call, or a loader merge — and a later `icu()` throws with own
+`code === "E_COMPILER_LOCKED"` before mutating anything. So
+`createI18n({ translation }).with(icu())` is invalid by construction: pass
+`compiler: icuCompiler` there instead. `CompilerLockedError` is exported for
+typing that failure.
+
+A client host is hydrated rather than loaded, so the installer form is the usual
+one there: nothing is ingested at construction, and the catalog arrives through
+`<I18nProvider messages>`.
 
 ## Composed server hosts: `createNextI18nFromHost`
 
-`createNextI18n` is unchanged and still the batteries-included recipe — the
-section above shows how `@comvi/next` composes that graph itself now. When you
-want the server to pay only for what it uses, build the host yourself and hand
-it to the companion factory — exported from **`@comvi/next/server`** and nowhere
-else:
+When you want the server to pay only for what it uses, build the host yourself
+and hand it to the companion factory — exported from **`@comvi/next/server`** and
+nowhere else:
 
 ```ts
 // i18n/index.ts
 import "server-only";
-import { createNextI18nFromHost, createSlimI18n, loader } from "@comvi/next/server";
+import { createI18n, createNextI18nFromHost, loader } from "@comvi/next/server";
 
 export const { i18n, routing } = createNextI18nFromHost(
   () =>
-    createSlimI18n({ locale: "en", defaultNs: "default" }).with(
+    createI18n({ locale: "en", defaultNs: "default" }).with(
       loader({ uk: () => import("./uk.json") }),
     ),
   { locales: ["en", "de"], defaultLocale: "en", localePrefix: "as-needed" },
@@ -313,59 +388,65 @@ to overwrite the first silently; it now throws, in development and production,
 naming both sources. A same-instance `setI18n()` stays a no-op.
 
 The client recipe is a base host hydrated from the catalog the server
-serialized — `createSlimI18n` from `@comvi/next/client`. Whole-app comvi graph,
-min+gz, `next` and `react` externalized (`node scripts/size-check.mjs`):
+serialized. Whole-app comvi graph, min+gz, `next` and `react` externalized
+(`node scripts/size-check.mjs`):
 
-| graph                                                    | min+gz   |
-| -------------------------------------------------------- | -------- |
-| server, `createNextI18n` (the composed root)             | 10115    |
-| server, `createNextI18nFromHost` on a composed base host | **7218** |
-| client, base host hydrated                               | **6964** |
+| graph                                                    | min+gz    | row                             |
+| -------------------------------------------------------- | --------- | ------------------------------- |
+| server, `createNextI18n` (the composed host)             | 10120     | `fw-next-composed-factory`      |
+| server, `createNextI18nFromHost` on a composed base host | **7218**  | `fw-next-server-default-loader` |
+| client, base host hydrated                               | **7057**  | `fw-next-client-default`        |
+| client, base host + `<T>`                                | **8939**  | `fw-next-client-default-t`      |
+| client, base host + inline ICU                           | **7936**  | `fw-next-client-icu`            |
+| client, ICU + loader + plugins + devtools + `<T>`        | **11580** | `fw-next-client-full-composite` |
 
-Moving the server to a composed base host saves **2897 B (−28.6%)**. Both rows
-were re-measured on the single-entry landing (`node scripts/size-check.mjs`,
-rows `fw-next-composed-factory` and `fw-next-server-slim-loader`).
+Moving the server onto a composed base host saves **2902 B (−28.7%)**. Every row
+is gated on its emitted module graph as well as its bytes, at the corpus-wide
+measured + 2%. The last row is the migration CEILING for a fully composed 0.4
+client, not a parity claim: 0.4 also registered string-API tag syntax ambiently,
+and that is now an explicit `@comvi/core/tags` import which neither next entry
+re-exports.
 
 ## One package: both `@comvi/next` entries
 
-`@comvi/next/client` and `@comvi/next/server` each carry a base host
-constructor and the capability toolkit, so a next app never names
-`@comvi/core`:
+`@comvi/next/client` and `@comvi/next/server` each carry the base host
+constructor and the identical nine-name capability toolkit, so a next app never
+names `@comvi/core`:
 
-| export                                     | on          | what it is                                           |
-| ------------------------------------------ | ----------- | ---------------------------------------------------- |
-| `createSlimI18n`                           | both        | `@comvi/core`'s base constructor                     |
-| `createI18n`                               | client only | the same base constructor (both names now denote it) |
-| `icuCompiler`                              | both        | from `@comvi/core/icu`                               |
-| `loader`, `attachLoader`, `flattenCatalog` | both        | from `@comvi/core/loader`                            |
-| `plugins`, `attachPlugins`                 | both        | from `@comvi/core/plugins`                           |
-| `devtools`, `attachDevtools`               | both        | from `@comvi/core/devtools`                          |
+| export                                     | what it is                                                      |
+| ------------------------------------------ | --------------------------------------------------------------- |
+| `createI18n`                               | core's base host constructor — the same binding on both entries |
+| `icu`, `icuCompiler`                       | the two ICU shapes, from core's pure `/icu` subpath             |
+| `loader`, `attachLoader`, `flattenCatalog` | from core's pure `/loader` subpath                              |
+| `plugins`, `attachPlugins`                 | from core's pure `/plugins` subpath                             |
+| `devtools`, `attachDevtools`               | from core's pure `/devtools` subpath                            |
 
-**Why there are two names for one constructor.** `@comvi/next/client` is next's
-only client surface. It published `createI18n` (0.4's batteries-included root)
-and later added `createSlimI18n` for the bare host, because rebinding the first
-name would have silently dropped ICU plurals and tag syntax out from under an
-existing app. The single-entry convergence in `@comvi/core` then made the bare
-host THE host, so both names now denote the same base constructor and
-`createSlimI18n` is a duplicate — a later phase deletes it and codemods the
-name. Either way you compose what you need: `compiler: icuCompiler`,
-`import "@comvi/core/tags"`, `.with(loader())`, `.with(plugins())`.
-`@comvi/next/server` deliberately exports no ambient-tag-registering entry, and
-the `next-server-on-slim` matrix case asserts the tag chunks never reach a
-server graph.
+`CompilerLockedError` and `DevtoolsOptions` come with them as types. The server
+entry carries the toolkit because `NextServerHost = WrapperI18nHost & I18nLoaderApi`
+makes the loader **mandatory** for SSR — the one host an app cannot avoid
+composing should not require a second package to compose.
 
 These are **named** re-exports of core's own bindings, from core's pure
 subpaths only — never through `@comvi/react`, because webpack development
 reconnects a single `export … from` across one `sideEffects: false` package but
 not a two-package chain. The ones you do not call are pruned: the
-`next-client-slim-preset` and `next-server-on-slim` matrix cases assert the icu,
-plugins and devtools subpaths never enter either graph, in webpack and vite,
-development and production. Single packaging costs the client **+17 B** and the
-server **+47 B**.
+`next-client-default`, `next-client-icu` and `next-server-on-default` matrix
+cases assert that every capability subpath an app did not reach for stays out of
+its module graph, in webpack and vite, development and production.
+
+Neither entry re-exports `@comvi/core/tags`, the one side-effectful subpath:
+importing it registers string-API tag syntax ambiently, and that stays your
+app's explicit call. `next-server-on-default` asserts those tag chunks never
+reach a server graph at all.
 
 ## Rich text with `<T>`
 
 The `<T>` component is inherited from [`@comvi/react`](../react). Embed components in translation strings without raw HTML or unsafe DOM injection.
+
+`<T>` uses React's pure `@comvi/core/rich-text` path and does not register
+string-API tag syntax ambiently. Importing or rendering it leaves
+`i18n.t("Click <link>here</link>")` literal; import `@comvi/core/tags` explicitly
+at your app entry only if the string API itself should parse tags.
 
 ```json
 { "help": "Click <link>here</link> for more information." }

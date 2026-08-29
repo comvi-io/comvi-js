@@ -71,7 +71,10 @@ export default defineConfig({
         "@comvi/core/devtools",
         // The composed builder registers ambient tag syntax by importing this
         // side-effectful subpath (the 0.4 root did it for us); leaving it
-        // non-external inlines core's whole tag graph into `dist`.
+        // non-external inlines core's whole tag graph into `dist`. Its pure
+        // half rides along for the same reason: `@comvi/react`'s `<T>` is what
+        // names it, and a private inlined copy could not dedupe with the app's.
+        "@comvi/core/rich-text",
         "@comvi/core/tags",
         "@comvi/locale-routing",
         "@comvi/react",

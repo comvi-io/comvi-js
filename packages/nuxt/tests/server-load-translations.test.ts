@@ -34,6 +34,7 @@ type StubTranslations = Record<string, Record<string, string>>;
 function createI18nStub(
   options: {
     hasLoader?: boolean;
+    loaderCapability?: boolean;
     initialLanguage?: string;
     defaultNs?: string;
     cached?: StubTranslations;
@@ -43,6 +44,7 @@ function createI18nStub(
 ) {
   const {
     hasLoader = true,
+    loaderCapability = true,
     initialLanguage = "en",
     defaultNs = "default",
     cached = {},
@@ -53,6 +55,7 @@ function createI18nStub(
   const loaded = new Set(Object.keys(cached));
   const translations = new Map(Object.entries(cached));
 
+  // The BASE host — what the generated default `#build/comvi.host` builds.
   const i18n: any = {
     locale: initialLanguage,
     init: vi.fn().mockResolvedValue(undefined),
@@ -60,10 +63,29 @@ function createI18nStub(
       i18n.locale = newLocale;
     }),
     getDefaultNamespace: vi.fn(() => defaultNs),
-    getLoader: vi.fn(() => (hasLoader ? { name: "loader" } : undefined)),
     hasLocale: vi.fn((locale: string, namespace = defaultNs) =>
       loaded.has(`${locale}:${namespace}`),
     ),
+    getTranslations: vi.fn((locale: string, namespace = defaultNs) => {
+      const key = `${locale}:${namespace}`;
+      return translations.get(key) ?? Object.create(null);
+    }),
+  };
+
+  if (!loaderCapability) {
+    return i18n;
+  }
+
+  // `@comvi/core/loader` attaches all-or-nothing, and core's `hasLoaderApi`
+  // probes for the WHOLE surface — a stub carrying only the two members this
+  // file drives would read as capability-less and silently take the wrong
+  // branch, so the composed shape is modelled in full.
+  Object.assign(i18n, {
+    registerLoader: vi.fn(),
+    getLoader: vi.fn(() => (hasLoader ? { name: "loader" } : undefined)),
+    addActiveNamespace: vi.fn().mockResolvedValue(undefined),
+    addActiveNamespaces: vi.fn().mockResolvedValue(undefined),
+    onLoadError: vi.fn(() => () => {}),
     reloadTranslations: vi.fn(async (locale: string, namespace: string) => {
       const key = `${locale}:${namespace}`;
       if (reloadErrors.includes(key)) {
@@ -76,11 +98,7 @@ function createI18nStub(
       translations.set(key, value);
       loaded.add(key);
     }),
-    getTranslations: vi.fn((locale: string, namespace = defaultNs) => {
-      const key = `${locale}:${namespace}`;
-      return translations.get(key) ?? Object.create(null);
-    }),
-  };
+  });
 
   return i18n;
 }
@@ -194,6 +212,47 @@ describe("loadTranslations", () => {
         "[@comvi/nuxt] No loader configured. Register one in comvi.setup via i18n.core.registerLoader(...) or i18n.core.use(...).",
     );
     expect(noLoaderWarnings).toHaveLength(1);
+    warnSpy.mockRestore();
+  });
+
+  it("names the composition fix when the host has no loader CAPABILITY", async () => {
+    // The generated default host is core's BASE host since the single-entry
+    // convergence, so this is the likely shape now — and the fix is a
+    // different FILE from "you forgot to register a loader": the capability is
+    // composed in the `hostModule` factory, not in `comvi.setup`.
+    const i18n = createI18nStub({ loaderCapability: false });
+    createComviCore.mockReturnValue(i18n);
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    const loadTranslations = await importLoadTranslations();
+    const result = await loadTranslations(createEvent(), "en");
+
+    expect(result).toEqual({});
+    const message = String(warnSpy.mock.calls[0]?.[0]);
+    expect(message).toContain("has no loader capability");
+    expect(message).toContain("hostModule");
+    expect(message).toContain("with(loader(map))");
+    // The capability-less message must not send a reader to comvi.setup.
+    expect(message).not.toContain("registerLoader");
+    warnSpy.mockRestore();
+  });
+
+  it("serves cached translations on a capability-less host without warning", async () => {
+    // A base host is a legitimate configuration: `comvi.setup` can put a
+    // catalog in with addTranslations and SSR renders it. Nothing is missing,
+    // so nothing is said — and no absent member is ever called.
+    const i18n = createI18nStub({
+      loaderCapability: false,
+      cached: { "en:default": { welcome: "Welcome" } },
+    });
+    createComviCore.mockReturnValue(i18n);
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    const loadTranslations = await importLoadTranslations();
+    const result = await loadTranslations(createEvent(), "en");
+
+    expect(result).toEqual({ "en:default": { welcome: "Welcome" } });
+    expect(warnSpy).not.toHaveBeenCalled();
     warnSpy.mockRestore();
   });
 

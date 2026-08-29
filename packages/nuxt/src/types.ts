@@ -176,15 +176,16 @@ export interface NuxtI18nOptions {
   setup?: string;
 
   /**
-   * Path to a module whose DEFAULT export is a host factory —
-   * `() => WrapperI18nHost` — used INSTEAD of `@comvi/vue`'s own constructor.
+   * Path to a module whose DEFAULT export is a {@link NuxtHostFactory} —
+   * `(options) => WrapperI18nHost` — used INSTEAD of `@comvi/vue`'s own
+   * constructor.
    *
-   * This is the composed-host recipe: build the host yourself out of
-   * `@comvi/core` plus only the capabilities you use, and nuxt wires it
-   * through `@comvi/vue`'s `createI18nFromCore` on the client and uses it
-   * directly in the server utilities. Unset (the default) builds the host with
-   * `@comvi/vue`'s `createI18n`, which since the single-entry convergence is a
-   * base `@comvi/core` host with no capability composed onto it.
+   * This is THE composition escape, and since the single-entry convergence it
+   * is how a nuxt app gets any capability at all. Unset (the default) builds
+   * the BASE host: text + `{param}`, the cache, events and default params.
+   * ICU, the loader, the plugin host and devtools discovery are absent from
+   * that graph, and the module will not inject them on your behalf — compose
+   * what the app uses here, explicitly, and pay for nothing else.
    *
    * It is a module PATH, not a function: module options are serialized into
    * build-time template codegen, and the branch that decides whether
@@ -196,17 +197,29 @@ export interface NuxtI18nOptions {
    *
    * The factory is called once per constructed instance (the client plugin,
    * and each per-request server instance), so it must return a FRESH host
-   * every call. The server always loads translations, so a server-rendered
-   * app's host needs `attachLoader`.
+   * every call. It receives nuxt's RESOLVED core options — locale,
+   * fallbackLocale, defaultNs, defaultParams, tagInterpolation (from
+   * `basicHtmlTags`), devMode and apiKey — so a composed host honours the same
+   * `nuxt.config` it would on the default branch. SSR always loads
+   * translations, so a server-rendered app composes the loader here; without
+   * it the server utilities say so once, by name, and render what the catalog
+   * already holds.
    *
    * @example "./comvi.host.ts"
    * @example
    * ```ts
-   * // comvi.host.ts
+   * // comvi.host.ts — the full explicit composition
    * import { createI18n } from "@comvi/core";
-   * import { attachLoader } from "@comvi/core/loader";
+   * import { icuCompiler } from "@comvi/core/icu";
+   * import { loader } from "@comvi/core/loader";
+   * import { plugins } from "@comvi/core/plugins";
+   * import { devtools } from "@comvi/core/devtools";
    *
-   * export default () => attachLoader(createI18n({ locale: "en" }));
+   * export default (options) =>
+   *   createI18n({ ...options, compiler: icuCompiler })
+   *     .with(loader({ uk: () => import("./locales/uk.json") }))
+   *     .with(plugins())
+   *     .with(devtools());
    * ```
    */
   hostModule?: string;
@@ -306,15 +319,57 @@ export interface NuxtI18nSetupEvent extends H3Event {
 }
 
 /**
- * The host shape nuxt's SERVER utilities require: the wrapper surface plus
- * the loader capability. SSR always loads translations
- * (`loadTranslations`/`useTranslation` drive `reloadTranslations` and
- * `addActiveNamespace`), so a `hostModule` used by a server-rendered app must
- * compose `attachLoader`. ICU and tag syntax enter the server graph only if
- * the app composes them.
+ * The host shape nuxt's SERVER utilities accept.
+ *
+ * Since the single-entry convergence this is the BASE host and nothing more,
+ * because that is what the generated default `#build/comvi.host` template
+ * builds. The loader is NOT part of it: `loadTranslations` and
+ * `useTranslation` probe for the capability with core's `hasLoaderApi` and
+ * say so once, by name, when it is absent — they never call a member the
+ * host does not have. ICU, the plugin host and tag syntax enter the server
+ * graph only if the app composes them in its `hostModule` factory.
  */
-export type NuxtServerHost<D extends DefaultTranslationParams = {}> = WrapperI18nHost<D> &
+export type NuxtServerHost<D extends DefaultTranslationParams = {}> = WrapperI18nHost<D>;
+
+/**
+ * A {@link NuxtServerHost} whose `hostModule` factory composed
+ * `@comvi/core/loader`. This is the shape SSR translation loading actually
+ * needs, and the one the server utilities narrow to before driving
+ * `reloadTranslations` / `addActiveNamespace`.
+ */
+export type NuxtServerLoaderHost<D extends DefaultTranslationParams = {}> = WrapperI18nHost<D> &
   I18nLoaderApi;
+
+/**
+ * The resolved options nuxt hands a `hostModule` factory: every core option
+ * the module derived from `nuxt.config` and runtime config, so a composed
+ * host honours the same configuration the default branch does.
+ *
+ * `locale` is already nuxt's resolved render locale (the client plugin's
+ * hydration locale, or the per-request server locale), so a factory that
+ * forwards it into `createI18n` is constructed correct rather than corrected
+ * afterwards.
+ */
+export type NuxtHostFactoryOptions<D extends DefaultTranslationParams = {}> = {
+  locale: string;
+  fallbackLocale?: string | string[];
+  defaultNs?: string;
+  devMode?: boolean;
+  apiKey?: string;
+  tagInterpolation?: { basicHtmlTags?: string[] };
+  /** Present on the client plugin's call only; equal to `locale`. */
+  ssrLocale?: string;
+} & (keyof D extends never ? {} : { defaultParams: D });
+
+/**
+ * The `hostModule` default export: a factory returning a FRESH host per call.
+ *
+ * `C` is the host the app composed, and it flows all the way through — a
+ * factory typed `NuxtHostFactory<I18n & I18nLoaderApi>` is what makes
+ * `NuxtI18nSetup<I18n & I18nLoaderApi>` the matching hook signature.
+ */
+export type NuxtHostFactory<C = WrapperI18nHost, D extends DefaultTranslationParams = {}> =
+  C extends WrapperI18nHost<D> ? (options: NuxtHostFactoryOptions<D>) => C : never;
 
 /**
  * Context passed to `comvi.setup` hook.
@@ -355,14 +410,20 @@ export interface NuxtI18nSetupContext<C extends WrapperI18nHost = I18n> {
 }
 
 /**
- * Signature for `comvi.setup` default export.
+ * Signature for a `comvi.setup` default export.
+ *
+ * The default type parameter is the BASE host, so capability calls do not
+ * compile by accident. Give it the host shape the matching `hostModule`
+ * factory composed:
  *
  * @example
  * ```ts
- * // comvi.setup.ts — default (root) host
+ * // comvi.setup.ts
+ * import type { I18n, I18nLoaderApi } from "@comvi/core";
+ *
  * export default (({ i18n }) => {
  *   i18n.core.registerLoader(myLoader);
- * }) satisfies NuxtI18nSetup;
+ * }) satisfies NuxtI18nSetup<I18n & I18nLoaderApi>;
  * ```
  */
 export type NuxtI18nSetup<C extends WrapperI18nHost = I18n> = (

@@ -45,9 +45,10 @@ function createEvent(runtimeConfigOverrides: Partial<any> = {}) {
   } as any;
 }
 
-function createI18nStub(initialLanguage = "en") {
+function createI18nStub(initialLanguage = "en", { loaderCapability = true } = {}) {
   const loaded = new Set<string>();
 
+  // The BASE host — what the generated default `#build/comvi.host` builds.
   const i18n: any = {
     locale: initialLanguage,
     init: vi.fn().mockResolvedValue(undefined),
@@ -58,12 +59,27 @@ function createI18nStub(initialLanguage = "en") {
     hasLocale: vi.fn((locale: string, namespace = "common") =>
       loaded.has(`${locale}:${namespace}`),
     ),
-    addActiveNamespace: vi.fn(async (namespace: string) => {
-      loaded.add(`${i18n.locale}:${namespace}`);
-    }),
     t: vi.fn(() => "translated-value"),
     hasTranslation: vi.fn(() => true),
   };
+
+  if (!loaderCapability) {
+    return i18n;
+  }
+
+  // `@comvi/core/loader` attaches all-or-nothing and core's `hasLoaderApi`
+  // probes for the WHOLE surface, so a composed host has to be modelled in
+  // full or it reads as capability-less.
+  Object.assign(i18n, {
+    registerLoader: vi.fn(),
+    getLoader: vi.fn(() => ({ name: "loader" })),
+    reloadTranslations: vi.fn().mockResolvedValue(undefined),
+    addActiveNamespaces: vi.fn().mockResolvedValue(undefined),
+    onLoadError: vi.fn(() => () => {}),
+    addActiveNamespace: vi.fn(async (namespace: string) => {
+      loaded.add(`${i18n.locale}:${namespace}`);
+    }),
+  });
 
   return i18n;
 }
@@ -118,6 +134,28 @@ describe("useTranslation (server)", () => {
 
     hasTranslation("hello", { locale: "de", ns: "admin" });
     expect(i18n.hasTranslation).toHaveBeenCalledWith("hello", "de", "admin");
+  });
+
+  it("translates on a capability-less base host without touching the loader", async () => {
+    // The generated default host has no loader, so there is nothing to load:
+    // whatever `comvi.setup` put in the catalog is what renders. Calling an
+    // absent member would be a TypeError swallowed by a warn — this proves the
+    // capability probe runs instead.
+    const i18n = createI18nStub("en", { loaderCapability: false });
+    createComviCore.mockReturnValue(i18n);
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const useTranslation = await importUseTranslation();
+
+    const { t, locale } = await useTranslation(createEvent(), {
+      locale: "de",
+      namespace: "admin",
+    });
+
+    expect(locale).toBe("de");
+    expect(t("hello")).toBe("translated-value");
+    expect(i18n.addActiveNamespace).toBeUndefined();
+    expect(warnSpy).not.toHaveBeenCalled();
+    warnSpy.mockRestore();
   });
 
   it("detects locale from cookie when enabled and supported", async () => {

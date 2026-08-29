@@ -2,10 +2,10 @@
 // constructor of its own.
 //
 // Everything here runs against a COMPOSED host the test builds itself
-// (`@comvi/core`'s base root + `attachLoader`), never through Next's own
+// (`@comvi/core`'s base entry + `attachLoader`), never through Next's own
 // composed-host builder: that is the configuration the
-// `fw-next-server-slim-loader` fixture measures, and the reason the companion
-// exists at all.
+// `fw-next-server-default-loader` fixture measures, and the reason the
+// companion exists at all.
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
@@ -83,7 +83,7 @@ describe("createNextI18nFromHost — lazy trigger", () => {
   });
 });
 
-describe("createNextI18nFromHost — server render on a slim + loader host", () => {
+describe("createNextI18nFromHost — server render on a base + loader host", () => {
   // The default locale/namespace is seeded so `init()` has nothing to fetch:
   // every loader call below is one the request actually caused.
   const hostWithLoader =

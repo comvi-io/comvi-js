@@ -52,10 +52,12 @@ export async function getRequestI18n(event: H3Event, locale: string): Promise<Nu
         ? createComviCore({ ...baseI18nOptions, defaultParams: publicConfig.defaultParams })
         : createComviCore(baseI18nOptions);
 
-      // A `hostModule` factory builds the host from its own configuration and
-      // cannot know the request locale, so it is applied here — before init(),
-      // so the first load is already for the right locale. On the default
-      // branch the core was constructed with it and this is a no-op.
+      // Both branches now receive the request locale in their options — the
+      // default branch constructs core with it, and a `hostModule` factory is
+      // handed the same resolved options — so this is a no-op for any factory
+      // that forwards them. It stays because the factory is free to ignore
+      // them, and a host on the wrong locale would load the wrong catalog:
+      // corrected here, before init(), so the first load is already right.
       if (i18n.locale !== locale) {
         i18n.locale = locale;
       }

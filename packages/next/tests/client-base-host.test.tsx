@@ -1,11 +1,16 @@
-// framework-slim P5 step 3 — the documented client recipe end to end.
+// single-entry P4 (was the framework-slim P5 client-recipe suite) — the
+// documented next client recipe end to end.
 //
 // The server loads (createNextI18nFromHost + loadTranslations, covered in
-// createNextI18nFromHost.test.ts); the client pays the bare-slim price and is
+// createNextI18nFromHost.test.ts); the client constructs the BASE host and is
 // hydrated from the serialized catalog through `<I18nProvider messages>`.
-// This is exactly the graph `fw-next-client-slim` measures — core's base root
-// and react's bindings, and nothing else: no loader, no tag machinery, none of
-// next's server modules.
+// This is exactly the graph `fw-next-client-default` measures — core's base
+// entry and react's bindings, and nothing else: no loader, no tag machinery,
+// none of next's server modules.
+//
+// The constructor comes from `@comvi/next/client`, the way an app writes it:
+// after the convergence that entry's `createI18n` IS core's base constructor,
+// so the recipe no longer names `@comvi/core` to get a bare host.
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import type { MockInstance } from "vitest";
 import React from "react";
@@ -13,13 +18,12 @@ import { renderToString } from "react-dom/server";
 import { hydrateRoot } from "react-dom/client";
 import type { Root } from "react-dom/client";
 import { act, renderHook } from "@testing-library/react";
-import { createI18n } from "@comvi/core";
 import type { WrapperI18nHost } from "@comvi/core";
-import { useI18n } from "../src/client";
+import { createI18n, useI18n } from "../src/client";
 import { I18nProvider } from "../src/client/I18nProvider";
 import type { MessagesMap } from "../src/client/I18nProvider";
 
-const bareSlimClient = (): WrapperI18nHost => createI18n({ locale: "en", exposeGlobal: false });
+const baseClientHost = (): WrapperI18nHost => createI18n({ locale: "en", exposeGlobal: false });
 
 const hydrated = (
   i18n: WrapperI18nHost,
@@ -34,9 +38,9 @@ const hydrated = (
 
 const MESSAGES: MessagesMap = { "fr:default": { greeting: "Bonjour" } };
 
-describe("next client on a bare @comvi/core host", () => {
+describe("next client on the base host", () => {
   it("translates from a server-serialized catalog", () => {
-    const i18n = bareSlimClient();
+    const i18n = baseClientHost();
     const wrapper = ({ children }: { children: React.ReactNode }) =>
       hydrated(i18n, "fr", MESSAGES, children);
 
@@ -47,14 +51,14 @@ describe("next client on a bare @comvi/core host", () => {
   });
 
   it("has no loader or plugin capability to bind", () => {
-    const i18n = bareSlimClient() as unknown as Record<string, unknown>;
+    const i18n = baseClientHost() as unknown as Record<string, unknown>;
 
     expect(i18n.reloadTranslations).toBeUndefined();
     expect(i18n.use).toBeUndefined();
   });
 });
 
-describe("next client-slim hydration round-trip", () => {
+describe("next client hydration round-trip", () => {
   let errorSpy: MockInstance;
   let warnSpy: MockInstance;
 
@@ -71,14 +75,14 @@ describe("next client-slim hydration round-trip", () => {
   it("renders on the server and hydrates on the client without warnings", async () => {
     const content = <span data-testid="greeting">static</span>;
 
-    const html = renderToString(hydrated(bareSlimClient(), "fr", MESSAGES, content));
+    const html = renderToString(hydrated(baseClientHost(), "fr", MESSAGES, content));
     const container = document.createElement("div");
     container.innerHTML = html;
     document.body.appendChild(container);
 
     let root!: Root;
     await act(async () => {
-      root = hydrateRoot(container, hydrated(bareSlimClient(), "fr", MESSAGES, content));
+      root = hydrateRoot(container, hydrated(baseClientHost(), "fr", MESSAGES, content));
     });
 
     expect(container.textContent).toContain("static");
