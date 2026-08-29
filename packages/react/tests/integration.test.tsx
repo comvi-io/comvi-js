@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, waitFor, act } from "@testing-library/react";
 import { useState } from "react";
-import { createI18n } from "../src";
+import { attachLoader, createI18n } from "../src/index";
 import { I18nProvider } from "../src/I18nProvider";
 import { useI18n } from "../src/useI18n";
 import { useI18nLoader } from "../src/capabilityHooks";
@@ -78,17 +78,18 @@ describe("Integration Tests", () => {
     const deferred = createDeferred<Record<string, string>>();
     const loader = vi.fn(() => deferred.promise);
 
+    // The base host has no loader capability, so the app composes one. The
+    // low-level `attachLoader` is the right tool here: this test registers a
+    // raw `LoaderFn` rather than an import map.
     const i18n = createI18n({
       locale: "en",
       defaultNs: "common",
       translation: {
         en: { home: "Home", loading: "Loading..." },
       },
-    });
+    }).with(attachLoader);
 
-    i18n.use((i18n) => {
-      i18n.registerLoader((locale, namespace) => loader(locale, namespace));
-    });
+    i18n.registerLoader((locale, namespace) => loader(locale, namespace));
 
     await i18n.init();
 

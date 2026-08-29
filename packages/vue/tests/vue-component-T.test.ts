@@ -1,7 +1,13 @@
 import { describe, it, expect, vi } from "vitest";
 import { mount } from "@vue/test-utils";
 import { h } from "vue";
-import { type TranslationResult, type FragmentNode } from "../src";
+import {
+  attachPlugins,
+  createCore,
+  createI18nFromCore,
+  type TranslationResult,
+  type FragmentNode,
+} from "../src";
 import { createI18n } from "../src/createI18n";
 import { T } from "../src/components/T";
 import { I18N_INJECTION_KEY } from "../src/keys";
@@ -153,12 +159,14 @@ describe("<T /> component", () => {
     });
   });
 
+  // `registerPostProcessor` is a `@comvi/core/plugins` member, so every case
+  // here wraps a host that composed the plugin capability.
+  const createPostProcessorI18n = (translation: Record<string, Record<string, string>>) =>
+    createI18nFromCore(createCore({ locale: "en", translation }).with(attachPlugins));
+
   describe("raw prop", () => {
     it("skips post-processor when raw is true", () => {
-      const i18n = createI18n({
-        locale: "en",
-        translation: { en: { greeting: "hello" } },
-      });
+      const i18n = createPostProcessorI18n({ en: { greeting: "hello" } });
 
       // Post-processor that uppercases text
       i18n.core.registerPostProcessor((result, key, ns, params) => {
@@ -178,10 +186,7 @@ describe("<T /> component", () => {
     });
 
     it("applies post-processor when raw is false", () => {
-      const i18n = createI18n({
-        locale: "en",
-        translation: { en: { greeting: "hello" } },
-      });
+      const i18n = createPostProcessorI18n({ en: { greeting: "hello" } });
 
       i18n.core.registerPostProcessor((result, key, ns, params) => {
         if (params?.raw === true) {
@@ -200,10 +205,7 @@ describe("<T /> component", () => {
     });
 
     it("applies post-processor when raw is not specified", () => {
-      const i18n = createI18n({
-        locale: "en",
-        translation: { en: { greeting: "hello" } },
-      });
+      const i18n = createPostProcessorI18n({ en: { greeting: "hello" } });
 
       i18n.core.registerPostProcessor((result, key, ns, params) => {
         if (params?.raw === true) {
@@ -222,10 +224,7 @@ describe("<T /> component", () => {
     });
 
     it("works with other props combined", () => {
-      const i18n = createI18n({
-        locale: "en",
-        translation: { en: { greeting: "hello {name}" } },
-      });
+      const i18n = createPostProcessorI18n({ en: { greeting: "hello {name}" } });
 
       i18n.core.registerPostProcessor((result, key, ns, params) => {
         if (params?.raw === true) {

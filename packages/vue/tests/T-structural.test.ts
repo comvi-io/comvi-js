@@ -14,9 +14,7 @@
 import { describe, it, expect } from "vitest";
 import { mount } from "@vue/test-utils";
 import { h, defineComponent } from "vue";
-import { createI18n as createSlimI18n } from "@comvi/core";
 import { createI18n } from "../src/createI18n";
-import { createI18nFromCore } from "../src/createI18nFromCore";
 import type { AnyVueI18n } from "../src/VueI18n";
 import { T } from "../src/components/T";
 import { I18N_INJECTION_KEY } from "../src/keys";
@@ -139,36 +137,20 @@ describe("<T /> structural render (wrapper parity)", () => {
     });
   });
 
+  // The host is the BASE one `@comvi/vue`'s single entry builds, and it has no
+  // tag syntax of its own: `<T>` does not depend on ambient registration,
+  // because prepareTranslation passes the tag extension per call — which is
+  // why `<T>` imports the PURE `@comvi/core/rich-text` seam and nothing in
+  // this package imports `@comvi/core/tags` at all.
+  // So every row below must produce byte-identical text to the
+  // react/svelte/solid wrappers. (Before the entries converged this table ran
+  // twice — once through vue's own preset, once through `createI18nFromCore`
+  // on a core-built host — and the two hosts are now the same object, so one
+  // pass is the whole claim.)
   describe("fallback-parity fixture (shared with svelte/react)", () => {
     for (const parityCase of WRAPPER_PARITY_FIXTURE.cases) {
       it(`produces the shared text for "${parityCase.key}"`, () => {
         const i18n = makeI18n({ ...WRAPPER_PARITY_FIXTURE.translations });
-
-        const wrapper = mountT(i18n, {
-          i18nKey: parityCase.key,
-          params: { ...parityCase.params },
-          components: { ...parityCase.components },
-        });
-
-        expect(wrapper.text()).toBe(parityCase.text);
-      });
-    }
-  });
-
-  // framework-slim P4: the same table on a BARE @comvi/core host. <T>
-  // does not depend on ambient tag registration — prepareTranslation passes
-  // the tag extension per call (components/T.ts:10-17) — so every row must
-  // produce byte-identical text on a host that has no tag syntax of its own.
-  describe("fallback-parity fixture on a bare-slim host", () => {
-    for (const parityCase of WRAPPER_PARITY_FIXTURE.cases) {
-      it(`produces the shared text for "${parityCase.key}"`, () => {
-        const i18n = createI18nFromCore(
-          createSlimI18n({
-            locale: "en",
-            exposeGlobal: false,
-            translation: { en: { ...WRAPPER_PARITY_FIXTURE.translations } },
-          }),
-        );
 
         const wrapper = mountT(i18n, {
           i18nKey: parityCase.key,

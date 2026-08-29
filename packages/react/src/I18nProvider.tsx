@@ -12,7 +12,7 @@ import type { WrapperI18nHost, FlattenedTranslations, I18nEvent } from "@comvi/c
 /**
  * What every react binding demands of the instance it is handed: the reactive
  * translation host (`WrapperI18nHost` = `I18nCoreInstance & I18nCoreExtraApi`),
- * which is exactly what a bare `@comvi/core` instance implements.
+ * which is exactly what the base `@comvi/core` / `@comvi/react` factory builds.
  * Loader/plugin capabilities are acquired separately — see `capabilityHooks`.
  */
 type Host = WrapperI18nHost;

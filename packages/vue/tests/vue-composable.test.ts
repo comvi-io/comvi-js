@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { mount } from "@vue/test-utils";
 import { nextTick, defineComponent, ref } from "vue";
-import { createI18n } from "../src";
+import { createI18n, icuCompiler } from "../src";
 import { useI18n } from "../src/composables/useI18n";
 
 describe("useI18n composable", () => {
@@ -98,6 +98,7 @@ describe("useI18n composable", () => {
   it("exposes reactive defaultParams and setDefaultParams through the composable", async () => {
     const i18n = createI18n({
       locale: "en",
+      compiler: icuCompiler,
       defaultParams: { formality: "formal" as const },
       translation: {
         en: {
@@ -122,7 +123,11 @@ describe("useI18n composable", () => {
     expect(wrapper.text()).toBe("Informal-informal");
   });
 
-  it("returns plain text from t and structured content from tRaw", async () => {
+  it("returns plain text from t and leaves string-API tag markup literal", async () => {
+    // The documented residual: `basicHtmlTags` configures how tag TOKENS are
+    // rendered, but the base host never claims `<` as syntax, so plain `t()` /
+    // `tRaw()` see one literal string. Rich text is `<T>` (per-call grammar) or
+    // an explicit `@comvi/core/tags` import — never a side effect of `useI18n`.
     const i18n = createI18n({
       locale: "en",
       defaultNs: "common",
@@ -146,7 +151,7 @@ describe("useI18n composable", () => {
 
     const wrapper = mount(C, { global: { plugins: [i18n] } });
 
-    expect(wrapper.text()).toBe("Hello Alice!-true");
+    expect(wrapper.text()).toBe("Hello <strong>Alice</strong>!-false");
   });
 
   it("supports destructured imperative methods and event subscriptions", async () => {

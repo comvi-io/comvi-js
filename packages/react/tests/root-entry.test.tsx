@@ -1,19 +1,19 @@
 /**
- * framework-slim DX pass — the `@comvi/react/slim` SINGLE-PACKAGE surface.
+ * single-entry convergence P2 — the `@comvi/react` SINGLE-PACKAGE root.
  *
- * What is new here is the ENTRY, not the bindings: a one-call `createI18n`
- * built on core-slim, plus named re-exports of the capability toolkit so an
- * app never has to name `@comvi/core`. Behaviour of the hooks on a slim host
- * is already covered by tests/slim-host.test.tsx and the js-contract suites;
- * this file pins the surface itself.
+ * There is one entry now, and this file pins what it publishes: a one-call
+ * `createI18n` on core's BASE host, core's `I18n` class beside it, the react
+ * bindings, and named re-exports of the capability toolkit so an app never has
+ * to name `@comvi/core`. Behaviour of the hooks on a base host is covered by
+ * tests/base-host.test.tsx and the js-contract suites; this file pins the
+ * surface itself.
  *
  * The absence claims that need a real bundler — the tag chunks staying out of
- * the graph, and the three unused capability subpaths pruning in webpack AND
- * vite, development AND production — live in scripts/bundler-matrix (case
- * `react-slim-preset`) and in the `fw-react-slim-preset` size fixture. They
- * cannot be made from source, where every module is loaded eagerly. The base
- * `@comvi/core` root is NOT among those absences: `src/slim.ts` re-exports its
- * `createI18n`, so it is in the graph by design.
+ * the graph, and the unused capability subpaths pruning in webpack AND vite,
+ * development AND production — live in scripts/bundler-matrix and in the size
+ * fixtures. They cannot be made from source, where every module is loaded
+ * eagerly. The base `@comvi/core` root is NOT among those absences: this entry
+ * re-exports its `createI18n` and `I18n`, so it is in the graph by design.
  */
 import { describe, it, expect } from "vitest";
 import { renderHook } from "@testing-library/react";
@@ -22,22 +22,22 @@ import { attachDevtools, devtools } from "@comvi/core/devtools";
 import { icuCompiler } from "@comvi/core/icu";
 import { attachLoader, flattenCatalog, loader } from "@comvi/core/loader";
 import { attachPlugins, plugins } from "@comvi/core/plugins";
+import { I18n, createI18n } from "@comvi/core";
 import type { WrapperI18nHost } from "@comvi/core";
-import * as slim from "../src/slim";
 import * as root from "../src/index";
 
 const wrapperFor = (i18n: WrapperI18nHost) =>
   function Wrapper({ children }: { children: ReactNode }) {
     return (
-      <slim.I18nProvider i18n={i18n} autoInit={false}>
+      <root.I18nProvider i18n={i18n} autoInit={false}>
         {children}
-      </slim.I18nProvider>
+      </root.I18nProvider>
     );
   };
 
-describe("@comvi/react/slim — the one-call preset", () => {
+describe("@comvi/react — the one-call host", () => {
   it("builds a working host from one import, with no @comvi/core specifier", () => {
-    const i18n = slim.createI18n({
+    const i18n = root.createI18n({
       locale: "en",
       exposeGlobal: false,
       translation: { en: { greeting: "Hello, {name}!" } },
@@ -48,7 +48,7 @@ describe("@comvi/react/slim — the one-call preset", () => {
   });
 
   it("builds a BARE host — the capabilities are absent, not disabled", () => {
-    const i18n = slim.createI18n({ locale: "en", exposeGlobal: false });
+    const i18n = root.createI18n({ locale: "en", exposeGlobal: false });
 
     expect(i18n.reloadTranslations).toBeUndefined();
     expect(i18n.onMissingKey).toBeUndefined();
@@ -57,10 +57,10 @@ describe("@comvi/react/slim — the one-call preset", () => {
   });
 
   it("injects ICU through the re-exported compiler — still one package", () => {
-    const i18n = slim.createI18n({
+    const i18n = root.createI18n({
       locale: "en",
       exposeGlobal: false,
-      compiler: slim.icuCompiler,
+      compiler: root.icuCompiler,
       translation: { en: { items: "{count, plural, one {# item} other {# items}}" } },
     });
 
@@ -69,23 +69,23 @@ describe("@comvi/react/slim — the one-call preset", () => {
   });
 });
 
-describe("@comvi/react/slim — the capability toolkit", () => {
+describe("@comvi/react — the capability toolkit", () => {
   it("re-exports core's own bindings, not copies", () => {
-    expect(slim.icuCompiler).toBe(icuCompiler);
-    expect(slim.attachLoader).toBe(attachLoader);
-    expect(slim.flattenCatalog).toBe(flattenCatalog);
-    expect(slim.attachPlugins).toBe(attachPlugins);
-    expect(slim.attachDevtools).toBe(attachDevtools);
+    expect(root.icuCompiler).toBe(icuCompiler);
+    expect(root.attachLoader).toBe(attachLoader);
+    expect(root.flattenCatalog).toBe(flattenCatalog);
+    expect(root.attachPlugins).toBe(attachPlugins);
+    expect(root.attachDevtools).toBe(attachDevtools);
     // The DX-2 installers are core's own factories, one hop, same rule.
-    expect(slim.loader).toBe(loader);
-    expect(slim.plugins).toBe(plugins);
-    expect(slim.devtools).toBe(devtools);
+    expect(root.loader).toBe(loader);
+    expect(root.plugins).toBe(plugins);
+    expect(root.devtools).toBe(devtools);
   });
 
-  it("composes a capability the preset host did not have, acquirable through the hook", () => {
-    const i18n = slim.attachLoader(slim.createI18n({ locale: "en", exposeGlobal: false }));
+  it("composes a capability the host did not have, acquirable through the hook", () => {
+    const i18n = root.attachLoader(root.createI18n({ locale: "en", exposeGlobal: false }));
 
-    const { result } = renderHook(() => slim.useI18nLoader(), { wrapper: wrapperFor(i18n) });
+    const { result } = renderHook(() => root.useI18nLoader(), { wrapper: wrapperFor(i18n) });
 
     expect(typeof result.current.reloadTranslations).toBe("function");
     expect(typeof result.current.addActiveNamespace).toBe("function");
@@ -96,17 +96,17 @@ describe("@comvi/react/slim — the capability toolkit", () => {
 
   it("composes AND configures in one expression — the documented recipe", async () => {
     // The target DX, verbatim from the README: host, capability and import
-    // map in a single expression, all from `@comvi/react/slim`.
-    const i18n = slim
-      .createI18n({ locale: "en", exposeGlobal: false, compiler: slim.icuCompiler })
+    // map in a single expression, all from `@comvi/react`.
+    const i18n = root
+      .createI18n({ locale: "en", exposeGlobal: false, compiler: root.icuCompiler })
       .with(
-        slim.loader({
+        root.loader({
           en: async () => ({ default: { greeting: "Hello" } }),
           uk: async () => ({ default: { greeting: "Привіт" } }),
         }),
       );
 
-    const { result } = renderHook(() => slim.useI18nLoader(), { wrapper: wrapperFor(i18n) });
+    const { result } = renderHook(() => root.useI18nLoader(), { wrapper: wrapperFor(i18n) });
     expect(typeof result.current.reloadTranslations).toBe("function");
     // Unlike bare `attachLoader`, this one is CONFIGURED.
     expect(typeof i18n.getLoader()).toBe("function");
@@ -119,53 +119,90 @@ describe("@comvi/react/slim — the capability toolkit", () => {
   });
 
   it("attaching one capability does not smuggle in the other", () => {
-    const i18n = slim.attachLoader(slim.createI18n({ locale: "en", exposeGlobal: false }));
+    const i18n = root.attachLoader(root.createI18n({ locale: "en", exposeGlobal: false }));
 
-    expect(() => renderHook(() => slim.useI18nPlugins(), { wrapper: wrapperFor(i18n) })).toThrow(
+    expect(() => renderHook(() => root.useI18nPlugins(), { wrapper: wrapperFor(i18n) })).toThrow(
       /no plugins capability/,
     );
   });
 });
 
-describe("@comvi/react/slim — the export surface", () => {
-  const TOOLKIT = [
+describe("@comvi/react — the export surface", () => {
+  // The whole published value surface, in namespace order. A binding that
+  // appears here without a decision is a leak; one that disappears is a break.
+  const SURFACE = [
+    "I18n",
+    "I18nProvider",
+    "T",
     "attachDevtools",
     "attachLoader",
     "attachPlugins",
     "createI18n",
     "devtools",
     "flattenCatalog",
+    "icu",
     "icuCompiler",
     "loader",
     "plugins",
+    "useFormatters",
+    "useI18n",
+    "useI18nContext",
+    "useI18nLoader",
+    "useI18nPlugins",
+    "useIsLoading",
+    "useLocale",
+    "useSetLocaleTransition",
   ];
 
-  it("carries every binding @comvi/react does", () => {
-    // `createI18n` and `I18n` are the root entry's own construction exports;
-    // everything else must exist on both.
-    const bindings = Object.keys(root).filter((key) => key !== "createI18n" && key !== "I18n");
-
-    expect(bindings.length).toBeGreaterThan(0);
-    for (const binding of bindings) expect(slim).toHaveProperty(binding);
+  it("publishes exactly the bindings, the toolkit and the two construction names", () => {
+    expect(Object.keys(root).sort()).toEqual([...SURFACE].sort());
   });
 
-  it("adds exactly the preset and the toolkit, and nothing else", () => {
-    const added = Object.keys(slim)
-      .filter((key) => !(key in root) || key === "createI18n")
-      .sort();
+  it("re-exports core's base `I18n` and `createI18n` by name, not copies", () => {
+    expect(root.createI18n).toBe(createI18n);
+    expect(root.I18n).toBe(I18n);
 
-    expect(added).toEqual(TOOLKIT);
+    // The one-argument facade survives the wrapper hop, and the class builds
+    // the same base host the factory does.
+    expect(root.I18n.length).toBe(1);
+    const built = new root.I18n({
+      locale: "en",
+      exposeGlobal: false,
+      translation: { en: { greeting: "Hello" } },
+    });
+    expect(built).toBeInstanceOf(I18n);
+    expect(built.t("greeting" as never)).toBe("Hello");
+    expect("registerLoader" in built).toBe(false);
   });
 
-  it("never re-exports the root class or the side-effectful tags toolbox", () => {
-    // `I18n` is core's base class, re-exported by `@comvi/react` and left off
-    // this entry on purpose: the slim surface publishes one construction
-    // export, `createI18n`. `registerTagSyntax` / `prepareTranslation` come
-    // from `@comvi/core/tags`, whose import registers tag syntax ambiently, so
-    // either of THOSE would put a side effect in every slim graph.
-    expect(slim).not.toHaveProperty("I18n");
-    expect(slim).not.toHaveProperty("registerTagSyntax");
-    expect(slim).not.toHaveProperty("tagSyntaxExtension");
-    expect(slim).not.toHaveProperty("prepareTranslation");
+  it("never re-exports the side-effectful tags toolbox", () => {
+    // `registerTagSyntax` / `prepareTranslation` come from `@comvi/core/tags`,
+    // whose import registers tag syntax ambiently, so re-exporting either
+    // would put a side effect in every graph. `<T>` owns that import and is
+    // pinned into its own dist chunk (vite.config.ts).
+    expect(root).not.toHaveProperty("registerTagSyntax");
+    expect(root).not.toHaveProperty("tagSyntaxExtension");
+    expect(root).not.toHaveProperty("prepareTranslation");
+  });
+
+  it("is ONE entry, so its provider and its hooks share one React context", () => {
+    // The retired hazard, asserted from the other side: while `.` and `./slim`
+    // were separate build passes their `I18nProvider`/`useI18n()` pairs held
+    // distinct context objects and could not see each other. One build cannot
+    // split them.
+    const i18n = root.createI18n({
+      locale: "en",
+      exposeGlobal: false,
+      translation: { en: { greeting: "Hello" } },
+    });
+
+    const { result } = renderHook(
+      () => ({ context: root.useI18nContext(), bag: root.useI18n(), locale: root.useLocale() }),
+      { wrapper: wrapperFor(i18n) },
+    );
+
+    expect(result.current.context.i18n).toBe(i18n);
+    expect(result.current.locale).toBe("en");
+    expect(result.current.bag.t("greeting" as never)).toBe("Hello");
   });
 });

@@ -1,5 +1,13 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { createI18n, useI18n, T } from "../src";
+import {
+  attachLoader,
+  attachPlugins,
+  createCore,
+  createI18nFromCore,
+  icuCompiler,
+  useI18n,
+  T,
+} from "../src";
 import { mount } from "@vue/test-utils";
 import { defineComponent, h, nextTick } from "vue";
 
@@ -53,19 +61,22 @@ describe("Integration Flow", () => {
   });
 
   it("initializes with detector/loader and updates components + namespaces", async () => {
-    const i18n = createI18n({
-      locale: "en",
-      fallbackLocale: "en",
-      defaultNs: "common",
-    });
+    // The detector is a plugin-host member and the loader its own capability,
+    // so both are composed onto the host explicitly. `mockLoader` serves an
+    // ICU plural, which is why the host names the compiler.
+    const i18n = createI18nFromCore(
+      createCore({
+        locale: "en",
+        fallbackLocale: "en",
+        defaultNs: "common",
+        compiler: icuCompiler,
+      })
+        .with(attachLoader)
+        .with(attachPlugins),
+    );
 
-    i18n.core.use((i18n) => {
-      i18n.registerLocaleDetector(() => mockLanguageDetector());
-    });
-
-    i18n.core.use((i18n) => {
-      i18n.registerLoader(mockLoader);
-    });
+    i18n.core.registerLocaleDetector(() => mockLanguageDetector());
+    i18n.core.registerLoader(mockLoader);
 
     await i18n.init();
 
@@ -109,14 +120,15 @@ describe("Integration Flow", () => {
   });
 
   it("handles rapid locale switches without ending in stale state", async () => {
-    const i18n = createI18n({
-      locale: "en",
-      defaultNs: "common",
-    });
+    const i18n = createI18nFromCore(
+      createCore({
+        locale: "en",
+        defaultNs: "common",
+        compiler: icuCompiler,
+      }).with(attachLoader),
+    );
 
-    i18n.core.use((i18n) => {
-      i18n.registerLoader(mockLoader);
-    });
+    i18n.core.registerLoader(mockLoader);
 
     await i18n.init();
 

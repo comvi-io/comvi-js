@@ -3,12 +3,15 @@ import { render, waitFor } from "@testing-library/react";
 import { useLayoutEffect } from "react";
 import { I18nProvider } from "../src/I18nProvider";
 import { useI18n } from "../src/useI18n";
-import { createI18n } from "@comvi/core";
+import { createI18n, icuCompiler } from "../src/index";
 
 describe("useStoreRevision — commit→subscribe (t2) window", () => {
   it("re-renders when defaultParams change during the commit→subscribe window", async () => {
     const i18n = createI18n<{ formality: "formal" | "informal" }>({
       locale: "en",
+      // `{…, select, …}` is ICU, and the base host's compiler rejects it — the
+      // capability is an explicit `compiler:`, never an implicit default.
+      compiler: icuCompiler,
       defaultParams: { formality: "formal" },
       translation: {
         en: { review: "{formality, select, formal {Formal} other {Informal}}" },

@@ -13,12 +13,15 @@ const CORE_DIST = resolve(__dirname, "../core/dist");
  * (`__DEV__`). Exact-match regexes, never string prefixes: a string alias for
  * `@comvi/core` would also swallow `@comvi/core`.
  *
- * All four entries move together — mixing a dev base host with a prod
+ * All five entries move together — mixing a dev base host with a prod
  * `attachLoader` would compose across two different terser nameCaches and
- * break core's `_`-internal contract.
+ * break core's `_`-internal contract. `-rich-text` is in the list because
+ * `<T>` names it; `-tags` stays because an app (or a fixture) may still opt
+ * into the ambient entry, and a mixed pair there would mean two copies of the
+ * grammar and two ambient registries.
  */
 const coreBuild = (suffix: "" | ".dev") =>
-  (["", "-loader", "-plugins", "-tags"] as const).map((entry) => ({
+  (["", "-loader", "-plugins", "-rich-text", "-tags"] as const).map((entry) => ({
     find: new RegExp(`^@comvi/core${entry === "" ? "" : `/${entry.slice(1)}`}$`),
     replacement: `${CORE_DIST}/comvi-core${entry}${suffix}.js`,
   }));

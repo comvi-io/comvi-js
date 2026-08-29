@@ -4,6 +4,7 @@ import { h, defineComponent, markRaw } from "vue";
 import { createI18n as createRootI18n } from "../src/createI18n";
 import { T } from "../src/components/T";
 import { I18N_INJECTION_KEY } from "../src/keys";
+import { icuCompiler } from "../src";
 
 // Type declarations for test translation keys
 declare module "@comvi/core" {
@@ -299,9 +300,15 @@ describe("<T /> component - Tag Interpolation", () => {
 
   describe("Integration with ICU Parameters", () => {
     it("should handle tags with pluralization", () => {
-      const i18n = createI18n({
-        msg: "You have <bold>{count, plural, one {# item} other {# items}}</bold>",
-      });
+      // The catalog carries an inline ICU plural, so it names the compiler in
+      // the same constructor call; `<bold>` still comes from `<T>`'s per-call
+      // tag grammar.
+      const i18n = createI18n(
+        {
+          msg: "You have <bold>{count, plural, one {# item} other {# items}}</bold>",
+        },
+        { compiler: icuCompiler },
+      );
 
       const wrapper = mount(T, {
         props: {

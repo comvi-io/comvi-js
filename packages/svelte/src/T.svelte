@@ -1,9 +1,13 @@
 <script lang="ts">
-  // Importing from '@comvi/core/tags' also registers tag syntax AMBIENTLY for
-  // any plain string-API `t()` use in the app (§1.2). <T> itself does NOT
-  // depend on that: prepareTranslation passes the tag extension per call.
-  import { prepareTranslation } from '@comvi/core/tags';
-  import type { PendingHandler } from '@comvi/core/tags';
+  // The PURE rich-text seam, NOT '@comvi/core/tags': importing the tags entry
+  // would register tag syntax AMBIENTLY, so every app that renders <T> would
+  // silently start parsing `<tag>` markup in plain string-API `t()` too. <T>
+  // never needed that — prepareTranslation passes the tag extension per call
+  // — and this module is the only thing that pulled it in, so `@comvi/svelte`
+  // now leaves the ambient switch entirely to the app
+  // (`import "@comvi/core/tags"`).
+  import { prepareTranslation } from '@comvi/core/rich-text';
+  import type { PendingHandler } from '@comvi/core/rich-text';
   import type { Component } from 'svelte';
   import type { VirtualNode } from '@comvi/core';
   import { getI18nContext } from './context.js';

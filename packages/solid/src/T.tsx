@@ -1,8 +1,3 @@
-// Ambient tag-syntax registration for string-API convenience (plan §1.2).
-// <T> itself does NOT depend on it: prepareTranslation passes the tag
-// extension per call (the bare-tRaw fast path below is covered by this
-// ambient registration — see the fast-path comment).
-import "@comvi/core/tags";
 import {
   children as resolveChildren,
   type Component,
@@ -14,7 +9,13 @@ import {
 } from "solid-js";
 import { Dynamic } from "solid-js/web";
 import { useI18nContextValue } from "./context";
-import { prepareTranslation, type PendingHandler } from "@comvi/core/tags";
+// The PURE rich-text seam, NOT `@comvi/core/tags`: importing the tags entry
+// would register tag syntax AMBIENTLY, so every app that renders `<T>` would
+// silently start parsing `<tag>` markup in plain string-API `t()` too. `<T>`
+// never needed that — `prepareTranslation` passes the tag extension per call
+// — and this module is the only thing that pulled it in, so `@comvi/solid` now
+// leaves the ambient switch entirely to the app (`import "@comvi/core/tags"`).
+import { prepareTranslation, type PendingHandler } from "@comvi/core/rich-text";
 import type {
   TranslationParams,
   VirtualNode,
@@ -197,22 +198,32 @@ export const T: Component<TProps> = (props) => {
       props.raw !== undefined;
 
     // Fine-grained fast path: a bare tRaw call keeps core's static-template
-    // cache hit (zero per-render allocation). Tag templates without handlers
-    // rely on the ambient registration performed by this module's
-    // `import "@comvi/core/tags"` (a tag-bearing template is never "static"
-    // under the ambient tag extension bits, so it still parses correctly).
+    // cache hit (zero per-render allocation) for the overwhelmingly common
+    // shape — a plain-text template rendered with no props but the key.
+    //
+    // It used to be unconditional, because this module registered tag syntax
+    // ambiently and a bare `tRaw` therefore parsed markup on its own. It no
+    // longer does: `<T>` reaches the PURE `@comvi/core/rich-text` seam, which
+    // hands the tag grammar over PER CALL, so a template that still contains
+    // markup has to go through `prepareTranslation` to be parsed at all.
+    // `indexOf("<")` on the already-resolved string is what tells the two
+    // apart, and plain text — which cannot contain a tag — never leaves the
+    // fast path. A non-string result is already structured and needs no
+    // second pass either.
     if (!hasComponents && !hasParams && !hasOverrides) {
       const content = ctx.i18n.tRaw(keyString as never);
-      const isMissing =
-        typeof content === "string" &&
-        content === keyString &&
-        !ctx.i18n.hasTranslation(keyString, targetLocale, targetNamespace, true);
+      if (typeof content !== "string" || content.indexOf("<") === -1) {
+        const isMissing =
+          typeof content === "string" &&
+          content === keyString &&
+          !ctx.i18n.hasTranslation(keyString, targetLocale, targetNamespace, true);
 
-      if (isMissing && props.children !== undefined) {
-        return fallbackChildren();
+        if (isMissing && props.children !== undefined) {
+          return fallbackChildren();
+        }
+
+        return renderContent(content, NO_HANDLERS, reportTagError);
       }
-
-      return renderContent(content, NO_HANDLERS, reportTagError);
     }
 
     const { content, pendingHandlers, isMissing } = prepareTranslation(ctx.i18n, {

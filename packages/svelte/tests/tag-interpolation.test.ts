@@ -225,5 +225,4 @@ describe("T.svelte tag interpolation contract", () => {
     expect(anchor!.getAttribute("title")).toBe("it's a <test>");
     expect(anchor!.textContent).toBe("click");
   });
-
 });

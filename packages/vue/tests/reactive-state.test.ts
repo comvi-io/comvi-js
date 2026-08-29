@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
-import { createI18n, useI18n, T } from "../src";
+import { attachLoader, createCore, createI18n, createI18nFromCore, useI18n, T } from "../src";
+import type { I18nOptions } from "../src";
 import { watch, computed, nextTick } from "vue";
 import { mount, flushPromises } from "@vue/test-utils";
 import { defineComponent, h } from "vue";
@@ -11,6 +12,13 @@ const createDeferred = <T>() => {
   });
   return { promise, resolve };
 };
+
+// The loader is a capability, not part of the base host vue's preset builds.
+// Every case below that registers a loader, activates a namespace or reloads
+// composes it explicitly — including the "no loader registered" case, which
+// needs the capability present precisely to show it works without a loader fn.
+const createLoaderI18n = (options: I18nOptions) =>
+  createI18nFromCore(createCore(options).with(attachLoader));
 
 describe("Reactive State Transitions", () => {
   describe("Language Reactivity", () => {
@@ -100,7 +108,7 @@ describe("Reactive State Transitions", () => {
     });
 
     it("should react when namespace is loaded", async () => {
-      const i18n = createI18n({
+      const i18n = createLoaderI18n({
         locale: "en",
         defaultNs: "common",
       });
@@ -109,9 +117,7 @@ describe("Reactive State Transitions", () => {
         adminTitle: "Admin Panel",
       }));
 
-      i18n.core.use((i18n) => {
-        i18n.registerLoader(loader);
-      });
+      i18n.core.registerLoader(loader);
 
       await i18n.init();
 
@@ -127,7 +133,7 @@ describe("Reactive State Transitions", () => {
     });
 
     it("should react when translations are reloaded", async () => {
-      const i18n = createI18n({
+      const i18n = createLoaderI18n({
         locale: "en",
         defaultNs: "common",
       });
@@ -135,9 +141,7 @@ describe("Reactive State Transitions", () => {
       let currentTranslations = { hello: "Hello" };
       const loader = vi.fn(async () => currentTranslations);
 
-      i18n.core.use((i18n) => {
-        i18n.registerLoader(loader);
-      });
+      i18n.core.registerLoader(loader);
 
       await i18n.init();
 
@@ -201,7 +205,7 @@ describe("Reactive State Transitions", () => {
 
   describe("Loading State Reactivity", () => {
     it("should react to loading state in components", async () => {
-      const i18n = createI18n({
+      const i18n = createLoaderI18n({
         locale: "en",
         defaultNs: "common",
       });
@@ -214,9 +218,7 @@ describe("Reactive State Transitions", () => {
         return { hello: "Hello" };
       });
 
-      i18n.core.use((i18n) => {
-        i18n.registerLoader(loader);
-      });
+      i18n.core.registerLoader(loader);
 
       const TestComponent = defineComponent({
         setup() {
@@ -263,14 +265,12 @@ describe("Reactive State Transitions", () => {
         return translations[`${locale}:${namespace}`] || {};
       });
 
-      const i18n = createI18n({
+      const i18n = createLoaderI18n({
         locale: "en",
         defaultNs: "common",
       });
 
-      i18n.core.use((i18n) => {
-        i18n.registerLoader(loader);
-      });
+      i18n.core.registerLoader(loader);
 
       await i18n.init();
 
@@ -303,19 +303,15 @@ describe("Reactive State Transitions", () => {
         return { hello: "Hello" };
       });
 
-      const i18n = createI18n({
+      const i18n = createLoaderI18n({
         locale: "en",
         defaultNs: "common",
       });
 
-      i18n.core.use((i18n) => {
-        i18n.registerLoader(loader);
-      });
+      i18n.core.registerLoader(loader);
 
       const errorSpy = vi.fn();
-      i18n.core.use((i18n) => {
-        i18n.onLoadError(errorSpy);
-      });
+      i18n.core.onLoadError(errorSpy);
 
       await i18n.init();
 
@@ -353,14 +349,12 @@ describe("Reactive State Transitions", () => {
         [`hello_${locale}`]: `Hello in ${locale}`,
       }));
 
-      const i18n = createI18n({
+      const i18n = createLoaderI18n({
         locale: "en",
         defaultNs: "common",
       });
 
-      i18n.core.use((i18n) => {
-        i18n.registerLoader(loader);
-      });
+      i18n.core.registerLoader(loader);
 
       await i18n.init();
 
@@ -377,14 +371,12 @@ describe("Reactive State Transitions", () => {
     it("should update activeNamespaces after addActiveNamespace", async () => {
       const loader = vi.fn(async () => ({ title: "Admin" }));
 
-      const i18n = createI18n({
+      const i18n = createLoaderI18n({
         locale: "en",
         defaultNs: "common",
       });
 
-      i18n.core.use((i18n) => {
-        i18n.registerLoader(loader);
-      });
+      i18n.core.registerLoader(loader);
 
       await i18n.init();
 
@@ -496,15 +488,13 @@ describe("Reactive State Transitions", () => {
         return { hello: "Hello" };
       });
 
-      const i18n = createI18n({
+      const i18n = createLoaderI18n({
         locale: "en",
         defaultNs: "common",
         onError,
       });
 
-      i18n.core.use((i18n) => {
-        i18n.registerLoader(loader);
-      });
+      i18n.core.registerLoader(loader);
 
       await i18n.init();
 
@@ -584,7 +574,7 @@ describe("Reactive State Transitions", () => {
 
   describe("addActiveNamespace no-loader reactivity", () => {
     it("should include namespace in activeNamespaces without a loader", async () => {
-      const i18n = createI18n({
+      const i18n = createLoaderI18n({
         locale: "en",
         defaultNs: "common",
       });

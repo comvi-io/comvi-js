@@ -32,7 +32,7 @@ import type {
 
 /**
  * Host type every svelte binding demands (framework-slim D′): the reactive
- * translation host, exactly what a bare `@comvi/core` instance
+ * translation host, exactly what the base `@comvi/svelte` factory
  * implements. The loader/plugin-host members are deliberately NOT part of it —
  * they are acquired through `useI18nLoader()` / `useI18nPlugins()`.
  */
@@ -135,10 +135,10 @@ function getOrCreateTextTranslationStore<D extends DefaultTranslationParams>(
  * The host-only translation surface. The four capability members that used to
  * live here — `addActiveNamespace`, `reloadTranslations`, `onLoadError`
  * (loader) and `onMissingKey` (plugins) — moved to `useI18nLoader()` /
- * `useI18nPlugins()` in 0.5.0: they do not exist on a bare-slim host, so a
+ * `useI18nPlugins()` in 0.5.0: they do not exist on a base host, so a
  * type that promised them was lying (plan §2.4). Svelte is the wrapper where
  * that lie crashed EAGERLY — `useI18n()` used to `.bind()` all four at call
- * time, so a bare-slim host threw before returning anything.
+ * time, so a base host threw before returning anything.
  */
 export interface UseI18nReturn<D extends DefaultTranslationParams = {}> {
   /**
@@ -356,7 +356,7 @@ export function useI18n<D extends DefaultTranslationParams = {}>(ns?: string): U
     //
     // `addActiveNamespace`, `reloadTranslations`, `onLoadError` and
     // `onMissingKey` are NOT here: they belong to the `@comvi/core/loader` /
-    // `@comvi/core/plugins` capabilities, which a bare-slim host does not
+    // `@comvi/core/plugins` capabilities, which a base host does not
     // have — and `.bind()` on an absent member throws EAGERLY, so before
     // 0.5.0 this very object literal crashed `useI18n()` on such a host. They
     // are acquired through `useI18nLoader()` / `useI18nPlugins()` instead,

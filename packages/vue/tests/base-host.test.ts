@@ -1,23 +1,36 @@
-// @comvi/vue running on a BARE `@comvi/core` host (framework-slim P4).
+// `@comvi/vue`'s bindings on the BASE host.
 //
-// Everything here is reachable without the loader or plugin-host capability:
-// if any of it regressed, the wrapper would be pulling a member a slim host
-// does not have, and the whole point of the D′ split would be lost. The
-// composed-host parity check at the end is what keeps the two configurations
-// from drifting into different `useI18n()` shapes.
+// This is the D′ endpoint: the host implements `WrapperI18nHost` and nothing
+// more, which is exactly what `createCore` — and vue's own one-call
+// `createI18n` — from the single `@comvi/vue` entry builds. Everything
+// `useI18n()` still returns must work on it, and nothing the wrapper does at
+// render time may touch a loader/plugin member: a single eager `.bind()` of an
+// absent capability would crash every case below. The composed-host parity
+// check at the end is what keeps the two configurations from drifting into
+// different `useI18n()` shapes.
+//
+// Every specifier here is the root entry, the way an app writes it: the host,
+// the bindings and the `attachLoader`/`attachPlugins` composition all come from
+// one package.
+//
+// The loud-error side of the contract (exact dev AND prod messages) lives in
+// tests/js-contract/, which runs against the published dist under both build
+// conditions.
 import { describe, it, expect } from "vitest";
 import { defineComponent, h, nextTick } from "vue";
 import { mount } from "@vue/test-utils";
-import { createI18n as createSlimI18n } from "@comvi/core";
-import { attachLoader } from "@comvi/core/loader";
-import { attachPlugins } from "@comvi/core/plugins";
-import { createI18nFromCore } from "../src/createI18nFromCore";
-import type { AnyVueI18n } from "../src/VueI18n";
-import { useI18n } from "../src/composables/useI18n";
-import { T } from "../src/components/T";
+import {
+  attachLoader,
+  attachPlugins,
+  createCore,
+  createI18nFromCore,
+  T,
+  useI18n,
+} from "../src/index";
+import type { AnyVueI18n } from "../src/index";
 
-const bareSlim = () =>
-  createSlimI18n({
+const baseHost = () =>
+  createCore({
     locale: "en",
     exposeGlobal: false,
     defaultNs: "common",
@@ -27,9 +40,9 @@ const bareSlim = () =>
     },
   });
 
-describe("vue on a bare slim host", () => {
+describe("vue on a base host", () => {
   it("translates and stays reactive across a locale switch", async () => {
-    const i18n = createI18nFromCore(bareSlim());
+    const i18n = createI18nFromCore(baseHost());
     const wrapper = mount(
       defineComponent({
         setup() {
@@ -49,7 +62,7 @@ describe("vue on a bare slim host", () => {
   });
 
   it("exposes the formatters and the direction ref", () => {
-    const i18n = createI18nFromCore(bareSlim());
+    const i18n = createI18nFromCore(baseHost());
 
     expect(i18n.formatNumber(1234.5)).toBe(new Intl.NumberFormat("en").format(1234.5));
     expect(i18n.formatCurrency(12, "USD")).toContain("12");
@@ -59,7 +72,7 @@ describe("vue on a bare slim host", () => {
   });
 
   it("accepts runtime translations and reflects them in the cache refs", async () => {
-    const i18n = createI18nFromCore(bareSlim());
+    const i18n = createI18nFromCore(baseHost());
 
     i18n.addTranslations({ "en:common": { late: "Late" } });
     await nextTick();
@@ -70,7 +83,7 @@ describe("vue on a bare slim host", () => {
   });
 
   it("renders <T> with tag interpolation — the per-call extension path", () => {
-    const i18n = createI18nFromCore(bareSlim());
+    const i18n = createI18nFromCore(baseHost());
     const wrapper = mount(
       defineComponent({
         setup() {
@@ -86,8 +99,17 @@ describe("vue on a bare slim host", () => {
     expect(wrapper.html()).toContain("<strong>c</strong>");
   });
 
+  it("leaves the same markup literal through t() — <T> registers nothing", () => {
+    // `<T>` reaches the PURE `@comvi/core/rich-text` seam and passes the tag
+    // grammar per call, so rendering it above cannot have made `<b>` ambient
+    // for the string API. That residual is documented, not a bug.
+    const i18n = createI18nFromCore(baseHost());
+
+    expect(i18n.t("tagged")).toBe("a <b>c</b> d");
+  });
+
   it("initializes and destroys without a loader capability", async () => {
-    const i18n = createI18nFromCore(bareSlim());
+    const i18n = createI18nFromCore(baseHost());
 
     await i18n.init();
     expect(i18n.isLoading.value).toBe(false);
@@ -96,8 +118,8 @@ describe("vue on a bare slim host", () => {
     i18n.destroy();
   });
 
-  it("has no use() anywhere on a bare host — wrapper or core", () => {
-    const i18n = createI18nFromCore(bareSlim());
+  it("has no use() anywhere on a base host — wrapper or core", () => {
+    const i18n = createI18nFromCore(baseHost());
 
     // P6 removed the guarded proxy: no member of VueI18n is typed present and
     // then throws "missing capability" (§2.4). Plugin registration is a
@@ -108,18 +130,25 @@ describe("vue on a bare slim host", () => {
   });
 
   it("registers a plugin through i18n.core.use() once the capability is attached", async () => {
-    const host = attachPlugins(bareSlim());
+    const host = attachPlugins(baseHost());
     const i18n = createI18nFromCore(host);
     let installed = false;
 
-    // `use()` registers on the host; core runs plugins at init().
-    expect(i18n.core.use(() => (installed = true))).toBe(host);
+    // `use()` registers on the host; core runs plugins at init(). The plugin
+    // body is a STATEMENT block returning void: P5's plugin-init contract
+    // rejects a returned value that is neither void nor a cleanup function,
+    // and an expression-bodied `() => (installed = true)` returns `true`.
+    expect(
+      i18n.core.use(() => {
+        installed = true;
+      }),
+    ).toBe(host);
     await i18n.init();
     expect(installed).toBe(true);
   });
 
   it("adopts ssrLocale as the host locale, so the ref and the core agree", () => {
-    const host = bareSlim();
+    const host = baseHost();
     const i18n = createI18nFromCore(host, { ssrLocale: "fr" });
 
     expect(host.locale).toBe("fr");
@@ -142,8 +171,8 @@ describe("vue on a bare slim host", () => {
       return keys;
     };
 
-    expect(keysFor(createI18nFromCore(attachPlugins(attachLoader(bareSlim()))))).toEqual(
-      keysFor(createI18nFromCore(bareSlim())),
+    expect(keysFor(createI18nFromCore(attachPlugins(attachLoader(baseHost()))))).toEqual(
+      keysFor(createI18nFromCore(baseHost())),
     );
   });
 });

@@ -4,7 +4,7 @@ import type { WrapperI18nHost, DefaultTranslationParams, DefaultParamsSnapshot }
 
 /**
  * Host type every svelte binding demands (framework-slim D′): the reactive
- * translation host, exactly what a bare `@comvi/core` instance
+ * translation host, exactly what the base `@comvi/svelte` factory
  * implements.
  */
 type Host<D extends DefaultTranslationParams = {}> = WrapperI18nHost<D>;

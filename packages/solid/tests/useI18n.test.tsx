@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { render } from "solid-js/web";
-import { createI18n } from "@comvi/core";
+import { attachLoader, attachPlugins, createI18n, icuCompiler } from "../src/index";
 import { I18nProvider } from "../src/context";
 import { useI18n } from "../src/useI18n";
 import { useI18nLoader, useI18nPlugins } from "../src/capabilityHooks";
@@ -91,6 +91,9 @@ describe("useI18n", () => {
     const container = document.createElement("div");
     const i18n = createI18n({
       locale: "en",
+      // `{…, select, …}` is ICU: the base host does not compile it unless the
+      // app says so, and this one says so in the same call.
+      compiler: icuCompiler,
       defaultParams: { formality: "formal" as const },
       translation: {
         en: { review: "{formality, select, formal {Formal} other {Informal}}" },
@@ -217,7 +220,9 @@ describe("useI18n", () => {
       translation: {
         "en:common": { title: commonTitle },
       },
-    });
+      // The base host has no loader capability; this test registers a raw
+      // `LoaderFn`, so the low-level attach is the right composition here.
+    }).with(attachLoader);
 
     i18n.registerLoader(async (_language, namespace) => {
       if (namespace === "common") {
@@ -276,7 +281,7 @@ describe("useI18n", () => {
       translation: {
         "fr:common": { hello: "Bonjour" },
       },
-    });
+    }).with(attachPlugins);
 
     await i18n.init();
 
@@ -313,7 +318,7 @@ describe("useI18n", () => {
 
   it("surfaces load errors through the returned callbacks", async () => {
     const container = document.createElement("div");
-    const i18n = createI18n({ locale: "en", defaultNs: "common" });
+    const i18n = createI18n({ locale: "en", defaultNs: "common" }).with(attachLoader);
     i18n.registerLoader(async (_language, namespace) => {
       if (namespace === "admin") {
         throw new Error("admin namespace failed");

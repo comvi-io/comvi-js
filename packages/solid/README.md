@@ -30,8 +30,8 @@ Comvi i18n is a modern, framework-agnostic internationalization library built on
 - **Rich text without XSS.** Embed components inside translation strings (`Click <link>here</link>`) — translators see clean markup, you decide what each tag renders to. No raw HTML, no unsafe DOM injection, no splitting a sentence across template fragments.
 - **Real ICU MessageFormat.** Plurals, ordinals, and select all follow locale-correct grammar via `Intl.PluralRules` — Polish, Ukrainian, Arabic, Welsh, and the rest. Same syntax every major TMS (Crowdin, Lokalise, Phrase) already speaks.
 - **Locale-aware formatters built in.** `formatNumber`, `formatDate`, `formatCurrency`, and `formatRelativeTime` follow the active locale via native `Intl`, with reactive updates in every framework binding.
-- **~8 kB minified + gzipped (as bundled by your app), zero runtime dependencies.** No `eval` or `new Function` anywhere — runs under a strict CSP without `unsafe-eval`. Safe for Chrome extensions, Cloudflare Workers, and locked-down enterprise apps.
-- **Pluggable, not monolithic.** Translation loading (CDN/API), locale detection, and in-context editing are opt-in plugins via `@comvi/plugin-fetch-loader`, `@comvi/plugin-locale-detector`, and `@comvi/plugin-in-context-editor`. You only ship what you use.
+- **~6.3 kB minified + gzipped for a default app graph (measured, `solid-js` externalized), zero runtime dependencies.** That is the base host plus the solid bindings; ICU, async loading, the plugin host and devtools discovery cost only where you compose them. No `eval` or `new Function` anywhere — runs under a strict CSP without `unsafe-eval`. Safe for Chrome extensions, Cloudflare Workers, and locked-down enterprise apps.
+- **Pluggable, not monolithic.** Translation loading (CDN/API), locale detection, and in-context editing are opt-in plugins via `@comvi/plugin-fetch-loader`, `@comvi/plugin-locale-detector`, and `@comvi/plugin-in-context-editor` — one lowercase `.with(installer)` each. You only ship what you use.
 - **Same API across 6 frameworks.** `useI18n()` and `<T>` look the same in [Vue](https://www.npmjs.com/package/@comvi/vue), [React](https://www.npmjs.com/package/@comvi/react), [SolidJS](https://www.npmjs.com/package/@comvi/solid), [Svelte](https://www.npmjs.com/package/@comvi/svelte), [Next.js](https://www.npmjs.com/package/@comvi/next), and [Nuxt](https://www.npmjs.com/package/@comvi/nuxt) — switch frameworks without relearning your i18n layer.
 
 ## Why @comvi/solid?
@@ -154,69 +154,183 @@ or the [0.5.0 migration guide](https://github.com/comvi-io/comvi-js/blob/main/MI
 ## Supported hosts and what they cost
 
 `<I18nProvider i18n={…}>`, `useI18nContext()` and all six reactive primitives
-accept any `WrapperI18nHost` — `createI18n` from `@comvi/core` (the same
-constructor `@comvi/solid/slim` re-exports), with or without `.with(loader())` /
-`.with(plugins())` composed on. Whole-app comvi graph, min+gz, `solid-js`
-externalized (`node scripts/size-check.mjs`):
+accept any `WrapperI18nHost` — `createI18n` from `@comvi/solid` (core's own
+base-host constructor, re-exported by name), with or without `.with(loader())` /
+`.with(plugins())` composed on. The base host is the cheap one: ICU, tag syntax,
+async loading, the plugin host and devtools discovery are each something you
+compose, never something you carry by default.
 
-| host                      | no `<T>` | with `<T>` |
-| ------------------------- | -------- | ---------- |
-| 0.4 composed root         | 9773     | 10714      |
-| `@comvi/core` (base host) | **6236** | 8162       |
+Whole-app comvi graph, min+gz, `solid-js` externalized (`node scripts/size-check.mjs`):
 
-Moving off the 0.4 composed root onto the base host saves **3537 B (−36.2%)**.
-`<T>` now ships as its own dist chunk, so an app that never imports it drops the
-component _and_ core's side-effectful tag-registration chunk.
+| app shape                         | size fixture              | min+gz      |
+| --------------------------------- | ------------------------- | ----------- |
+| base host, no `<T>`               | `fw-solid-default`        | **6336 B**  |
+| base host + `<T>`                 | `fw-solid-default-t`      | **8131 B**  |
+| base host + inline ICU            | `fw-solid-icu`            | **7222 B**  |
+| full explicit composition + `<T>` | `fw-solid-full-composite` | **10791 B** |
 
-```tsx
-import { createI18n, I18nProvider } from "@comvi/solid/slim";
+All four rows are live in `scripts/size-budgets.json`, gated at measured +2%,
+and sentinel-checked from the emitted module graph. The default is +100 B
+(+1.60%) over the pre-convergence single-package anchor and 3437 B (35.2%)
+below the historical 0.4 composed root, which measured 9773 B. `<T>` adds the
+pure `@comvi/core/rich-text` path; it does not register ambient string-API tags,
+and its graph still excludes the tag-registration pair and unused capabilities.
 
-const i18n = createI18n({ locale: "en", translation: { en: { hello: "Hello" } } });
+## One package, one entry
 
-<I18nProvider i18n={i18n}>…</I18nProvider>;
-```
+`@comvi/solid` is the whole toolkit: core's base host constructor and class, the
+solid bindings, and core's capability installers as **named** re-exports. One
+entry, one build pass, one solid context — a solid app names one package and
+nothing else, and no sibling entry exists whose `<I18nProvider>` could be
+invisible to this one's `useI18n()`.
 
-## One package: `@comvi/solid/slim`
+| export                                          | what it is                                      |
+| ----------------------------------------------- | ----------------------------------------------- |
+| `createI18n`, `I18n`                            | core's base host — constructor and class        |
+| `icuCompiler`, `icu`                            | from `@comvi/core/icu` — compiler and installer |
+| `loader`, `attachLoader`, `flattenCatalog`      | from `@comvi/core/loader`                       |
+| `plugins`, `attachPlugins`                      | from `@comvi/core/plugins`                      |
+| `devtools`, `attachDevtools`                    | from `@comvi/core/devtools`                     |
+| every primitive, `I18nProvider`, `T`, the types | the solid bindings                              |
 
-`@comvi/solid/slim` is `@comvi/solid` plus the pieces a slim app used to reach
-into `@comvi/core` for, minus the broad `I18n` class re-export. Both entries
-re-export core's own `createI18n`, so core's base entry is in either graph —
-what `/slim` drops is the class, not core. A slim solid app names one package:
-
-| export                                          | what it is                                          |
-| ----------------------------------------------- | --------------------------------------------------- |
-| `createI18n`                                    | `@comvi/core`'s constructor — builds the host       |
-| `icuCompiler`                                   | from `@comvi/core/icu` — `createI18n({ compiler })` |
-| `loader`, `attachLoader`, `flattenCatalog`      | from `@comvi/core/loader`                           |
-| `plugins`, `attachPlugins`                      | from `@comvi/core/plugins`                          |
-| `devtools`, `attachDevtools`                    | from `@comvi/core/devtools`                         |
-| every primitive, `I18nProvider`, `T`, the types | identical to `@comvi/solid`                         |
-
-```tsx
-import { createI18n, I18nProvider, loader, useI18nLoader } from "@comvi/solid/slim";
-
-const i18n = createI18n({ locale: "en" }).with(loader({ uk: () => import("./uk.json") }));
-// inside a component: const { reloadTranslations } = useI18nLoader();
-```
+`I18n` is the class `createI18n` instantiates — core's base one, not a solid
+subclass. Reach for it to type a host you compose yourself, or to call
+`new I18n(options)` directly; the factory is the recommended form and takes the
+same single options object.
 
 `.with(installer)` is core's composition pipe — `i18n.with(f)` is `f(i18n)`.
 `loader(map)` attaches the capability **and** registers the map; for a plain
 `LoaderFn`, compose `.with(attachLoader)` and call `registerLoader(fn)`
 yourself (it keeps the import-map adapter out of your bundle).
 
+### Default — text and `{param}` interpolation
+
+```tsx
+import { createI18n, I18nProvider } from "@comvi/solid";
+
+const i18n = createI18n({
+  locale: "en",
+  translation: { en: { hello: "Hello, {name}!" } },
+});
+
+<I18nProvider i18n={i18n}>…</I18nProvider>;
+```
+
+### Inline catalogs with ICU — the `compiler` option
+
+The constructor ingests `translation`, so the compiler has to be chosen in the
+same call:
+
+```tsx
+import { createI18n, icuCompiler } from "@comvi/solid";
+
+const i18n = createI18n({
+  locale: "en",
+  compiler: icuCompiler,
+  translation: {
+    en: { messages: "{count, plural, one {# message} other {# messages}}" },
+  },
+});
+```
+
+### Remote catalogs with ICU — `.with(icu())` before ingestion
+
+When the catalog arrives from a loader there is nothing to compile at
+construction time, so install the compiler first. `icu()` is the installer half
+of `@comvi/core/icu` and is re-exported here beside `icuCompiler`, so the whole
+recipe stays inside the one import:
+
+```tsx
+import { createI18n, icu, loader } from "@comvi/solid";
+
+const i18n = createI18n({ locale: "en" })
+  .with(icu())
+  .with(loader({ uk: () => import("./uk.json") }));
+```
+
+`.with(icu())` is **pre-ingestion only**. The compiler locks the moment any
+catalog reaches the host — a constructor `translation`, an `addTranslations`
+call, or a loader merge — and a later `icu()` throws with own
+`code === "E_COMPILER_LOCKED"`. So `createI18n({ translation }).with(icu())` is
+invalid by construction: pass `compiler: icuCompiler` there instead.
+
+### Async loading — `loader()`
+
+```tsx
+import { createI18n, I18nProvider, loader, useI18nLoader } from "@comvi/solid";
+
+const i18n = createI18n({ locale: "en" }).with(loader({ uk: () => import("./uk.json") }));
+// inside a component: const { reloadTranslations } = useI18nLoader();
+```
+
+### Plugins — one `.with(installer)`
+
+The three first-party plugin packages ship a lowercase **installer** beside the
+uppercase factory. The installer composes the capabilities that plugin needs —
+`fetchLoader` attaches `/loader`, then `/plugins` — and registers it, in one
+call:
+
+```tsx
+import { createI18n } from "@comvi/solid";
+import { fetchLoader } from "@comvi/plugin-fetch-loader";
+
+const i18n = createI18n({ locale: "en", defaultNs: "common" }).with(
+  fetchLoader({ cdnUrl: "https://cdn.comvi.io/your-distribution-id" }),
+);
+```
+
+The explicit form is that composition spelled out, and it is what you want when
+you register plugins from a list. `loader()` goes on first when a plugin
+registers a loader: plugins run at `init()`, and `registerLoader` has to exist by
+then.
+
+```tsx
+import { createI18n, loader, plugins } from "@comvi/solid";
+import { FetchLoader } from "@comvi/plugin-fetch-loader";
+
+const i18n = createI18n({ locale: "en", defaultNs: "common" }).with(loader()).with(plugins());
+
+i18n.use(FetchLoader({ cdnUrl: "https://cdn.comvi.io/your-distribution-id" }));
+```
+
+Swapping the two slots is a type error and loud at runtime:
+`.use(fetchLoader(…))` throws at `init()` before any capability is attached.
+
+### Devtools — `devtools()`
+
+Browser-extension discovery (`instanceId`, the `window.__COMVI__` queue) is
+opt-in too:
+
+```tsx
+import { createI18n, devtools } from "@comvi/solid";
+
+const i18n = createI18n({ locale: "en" }).with(devtools({ instanceId: "storefront" }));
+```
+
 These are **named** re-exports of core's own bindings, so the ones you do not
-call are pruned — the bundler-matrix case `solid-slim-preset` asserts the icu,
-plugins and devtools subpaths never enter the graph in webpack or vite, in
-development or production. The single-package recipe measures **6236 B**, the
-same as the two-package one to the byte.
+call are pruned. Two bundler-matrix cases hold that line, on webpack and vite,
+in development and production: `solid-default` calls no capability and asserts
+all four subpath entries — icu, loader, plugins, devtools — out of the module
+graph, while `solid-icu` calls `icuCompiler`, formats a real plural from the
+built bundle, and asserts the other three out.
 
 `@comvi/core/tags` is deliberately not re-exported: importing it registers tag
-syntax ambiently. `<T>` owns that import and lives in its own dist chunk.
+syntax ambiently. `<T>` uses the pure `@comvi/core/rich-text` seam in its own
+dist chunk and does not change string-API tag behavior.
 
-**Pick one entry per app.** `@comvi/solid` and `@comvi/solid/slim` are separate
-build passes, so their solid contexts are distinct objects — an `I18nProvider`
-from one is invisible to a `useI18n()` from the other. `/slim` is a superset of
-the bindings, so there is never a reason to mix.
+### String-API tags render literally — the one residual
+
+`t("Click <b>here</b>")` hands back that markup as text on the base host: tag
+syntax is a grammar the host has to be taught, and no entry teaches it
+ambiently. Development warns the first time; production stays literal and never
+throws, because a literal `<b>` is visibly broken in review while a wrong plural
+is not. Two ways out:
+
+- render `<T>` — it passes the tag extension per call and needs no ambient
+  registration at all (see [Rich text with `<T>`](#rich-text-with-t));
+- `import "@comvi/core/tags";` once at your entry, if you want tag
+  interpolation through `t()` itself. That import is the side effect
+  `@comvi/solid` will not hand you by re-exporting it.
 
 ## Rich text with `<T>`
 
@@ -259,6 +373,13 @@ You can also map to plain HTML tags:
 ## ICU MessageFormat — locale-correct grammar, not just singular/plural
 
 `count === 1 ? "item" : "items"` works in English. It silently ships broken grammar in Polish, Ukrainian, Arabic, Welsh, and 30+ other locales — those languages have 3, 4, sometimes 6 distinct plural categories that a binary if/else can't express. [ICU MessageFormat](https://unicode-org.github.io/icu/userguide/format_parse/messages/) is the standard syntax for handling them — the same syntax Crowdin, Lokalise, Phrase, and every major TMS already speak. Comvi i18n parses it via native [`Intl.PluralRules`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Intl/PluralRules), so every CLDR plural category is correct by default.
+
+ICU is opt-in on the base host: pass `compiler: icuCompiler` for the inline
+catalogs below, or `.with(icu())` before a loader ingests a remote one. Both
+names are re-exported from `@comvi/solid` — see
+[One package, one entry](#one-package-one-entry). Without a compiler the default
+one throws `E_ICU_SYNTAX` on these templates rather than rendering wrong
+grammar.
 
 ### Plurals across languages
 
@@ -387,16 +508,14 @@ Pair with `@comvi/plugin-fetch-loader` to load translations from a CDN or API. N
 
 ```tsx
 import { createI18n, I18nProvider } from "@comvi/solid";
-import { FetchLoader } from "@comvi/plugin-fetch-loader";
+import { fetchLoader } from "@comvi/plugin-fetch-loader";
 
+// CDN for production, API for dev/staging
 const i18n = createI18n({
   locale: "en",
   defaultNs: "common",
-});
-
-// CDN for production, API for dev/staging
-i18n.use(
-  FetchLoader({
+}).with(
+  fetchLoader({
     cdnUrl: "https://cdn.comvi.io/your-distribution-id",
   }),
 );

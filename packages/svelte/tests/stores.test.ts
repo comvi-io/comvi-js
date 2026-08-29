@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { get } from "svelte/store";
-import { createI18n } from "@comvi/core";
+import { createI18n } from "../src/index";
 import {
   createLocaleStore,
   createLoadingStore,

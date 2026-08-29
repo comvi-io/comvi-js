@@ -1,7 +1,3 @@
-// Ambient tag-syntax registration for string-API convenience (plan §1.2).
-// <T> itself does NOT depend on it: prepareTranslation passes the tag
-// extension per call.
-import "@comvi/core/tags";
 import React from "react";
 import { useI18n } from "./useI18n";
 import { isVirtualNode } from "@comvi/core";
@@ -12,7 +8,13 @@ import type {
   PermissiveKey,
   TranslationResult,
 } from "@comvi/core";
-import { prepareTranslation, type PendingHandler } from "@comvi/core/tags";
+// The PURE rich-text seam, NOT `@comvi/core/tags`: importing the tags entry
+// would register tag syntax AMBIENTLY, so every app that renders `<T>` would
+// silently start parsing `<tag>` markup in plain string-API `t()` too. `<T>`
+// never needed that — `prepareTranslation` passes the tag extension per call
+// — and this module is the only thing that pulled it in, so `@comvi/react` now
+// leaves the ambient switch entirely to the app (`import "@comvi/core/tags"`).
+import { prepareTranslation, type PendingHandler } from "@comvi/core/rich-text";
 
 /**
  * Component handler types for the `components` prop
@@ -332,11 +334,12 @@ const TComponent = function T({
   );
 };
 
-// /*@__PURE__*/ so a bundler may drop the component (and this module's
-// `@comvi/core/tags` import) from an app that never renders <T>. Without the
-// annotation a top-level `React.memo(...)` call is an unremovable side effect
-// — which is exactly what pinned the tags chunk into every react app before
-// the module split (plan §2.1 caveat 1, P0 finding 2).
+// /*@__PURE__*/ so a bundler may drop the component — and with it the
+// `@comvi/core/rich-text` pipeline — from an app that never renders <T>.
+// Without the annotation a top-level `React.memo(...)` call is an unremovable
+// side effect, which is exactly what pinned the tag machinery into every react
+// app before the module split (plan §2.1 caveat 1, P0 finding 2). The seam is
+// pure now, so the worst case is dead weight rather than ambient registration.
 export const T = /*@__PURE__*/ React.memo(TComponent) as React.NamedExoticComponent<TProps>;
 
 // Add display name for React DevTools

@@ -1,5 +1,12 @@
 import { describe, it, expect, vi } from "vitest";
-import { createI18n, useI18n } from "../src";
+import {
+  attachLoader,
+  attachPlugins,
+  createCore,
+  createI18n,
+  createI18nFromCore,
+  useI18n,
+} from "../src";
 import { nextTick, isRef, effectScope } from "vue";
 import { mount } from "@vue/test-utils";
 
@@ -146,8 +153,10 @@ describe("New Features", () => {
     it("should subscribe to namespaceLoaded event", async () => {
       const loader = vi.fn(async () => ({ title: "Title" }));
 
-      const i18n = createI18n({ locale: "en", defaultNs: "common" });
-      i18n.core.use((i18n) => i18n.registerLoader(loader));
+      const i18n = createI18nFromCore(
+        createCore({ locale: "en", defaultNs: "common" }).with(attachLoader),
+      );
+      i18n.core.registerLoader(loader);
       await i18n.init();
 
       const spy = vi.fn();
@@ -390,7 +399,9 @@ describe("New Features", () => {
   describe("destroy() cleanup", () => {
     it("should cleanup plugin resources on destroy", async () => {
       const cleanupSpy = vi.fn();
-      const i18n = createI18n({ locale: "en", defaultNs: "common" });
+      const i18n = createI18nFromCore(
+        createCore({ locale: "en", defaultNs: "common" }).with(attachPlugins),
+      );
 
       i18n.core.use(() => () => cleanupSpy());
       await i18n.init();
@@ -404,7 +415,7 @@ describe("New Features", () => {
 
     it("should be safe to call destroy multiple times", async () => {
       const cleanupSpy = vi.fn();
-      const i18n = createI18n({ locale: "en" });
+      const i18n = createI18nFromCore(createCore({ locale: "en" }).with(attachPlugins));
       i18n.core.use(() => () => cleanupSpy());
       await i18n.init();
 

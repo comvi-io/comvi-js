@@ -1,10 +1,14 @@
 /**
- * framework-slim P2 — @comvi/react on a BARE `@comvi/core` host.
+ * framework-slim P2 — @comvi/react's bindings on the BASE host.
  *
  * This is the D′ endpoint: the host implements `WrapperI18nHost` and nothing
- * more. Everything `useI18n()` still returns must work on it, and nothing the
- * wrapper does at render time may touch a loader/plugin member — a single
- * eager `.bind()` of an absent capability would crash every case below.
+ * more, which is exactly what `createI18n` from the single `@comvi/react`
+ * entry builds. Everything `useI18n()` still returns must work on it, and
+ * nothing the wrapper does at render time may touch a loader/plugin member — a
+ * single eager `.bind()` of an absent capability would crash every case below.
+ *
+ * Every specifier here is the root entry, the way an app writes it: host,
+ * bindings and the `attachLoader` composition all come from one package.
  *
  * The loud-error side of the contract (exact dev AND prod messages) lives in
  * tests/js-contract/, which runs against the published dist under both build
@@ -13,14 +17,16 @@
 import { describe, it, expect } from "vitest";
 import { render, renderHook, act } from "@testing-library/react";
 import type { ReactNode } from "react";
-import { createI18n } from "@comvi/core";
-import type { WrapperI18nHost } from "@comvi/core";
-import { attachLoader } from "@comvi/core/loader";
-import { I18nProvider } from "../src/I18nProvider";
-import { useI18n } from "../src/useI18n";
-import { useFormatters } from "../src/useFormatters";
-import { useSetLocaleTransition } from "../src/useSetLocaleTransition";
-import { T } from "../src/T";
+import {
+  attachLoader,
+  createI18n,
+  I18nProvider,
+  T,
+  useFormatters,
+  useI18n,
+  useSetLocaleTransition,
+} from "../src/index";
+import type { WrapperI18nHost } from "../src/index";
 
 const makeHost = () =>
   createI18n({
@@ -41,7 +47,7 @@ const wrapperFor = (i18n: WrapperI18nHost) =>
     );
   };
 
-describe("react on a bare-slim host", () => {
+describe("react on a base host", () => {
   it("renders translations through useI18n()", () => {
     const i18n = makeHost();
     const { result } = renderHook(() => useI18n(), { wrapper: wrapperFor(i18n) });
@@ -123,8 +129,8 @@ describe("react on a bare-slim host", () => {
   });
 });
 
-describe("react on slim + attachLoader (composed host)", () => {
-  it("keeps useI18n()'s bag identical to the bare-slim one", () => {
+describe("react on base + attachLoader (composed host)", () => {
+  it("keeps useI18n()'s bag identical to the base-host one", () => {
     const bare = renderHook(() => useI18n(), { wrapper: wrapperFor(makeHost()) });
     const composed = renderHook(() => useI18n(), { wrapper: wrapperFor(attachLoader(makeHost())) });
 

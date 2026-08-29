@@ -31,6 +31,45 @@ beforeAll(async () => {
   pkg = await import(pathToFileURL(resolve(distDir, "index.js")).href);
 }, 120_000);
 
+/**
+ * Code with `//` and block comments removed, string literals preserved.
+ *
+ * The seam assertion below matches an import SPECIFIER, and these artifacts are
+ * transpiled rather than bundled, so their comments survive into `dist` — where
+ * they legitimately quote the very specifier the assertion forbids.
+ */
+function stripComments(code: string): string {
+  let out = "";
+  let i = 0;
+  while (i < code.length) {
+    const char = code[i];
+    if (char === "/" && code[i + 1] === "/") {
+      while (i < code.length && code[i] !== "\n") i++;
+    } else if (char === "/" && code[i + 1] === "*") {
+      i += 2;
+      while (i < code.length && !(code[i] === "*" && code[i + 1] === "/")) i++;
+      i += 2;
+    } else if (char === '"' || char === "'" || char === "`") {
+      out += char;
+      i++;
+      while (i < code.length) {
+        if (code[i] === "\\") {
+          out += code[i] + (code[i + 1] ?? "");
+          i += 2;
+          continue;
+        }
+        out += code[i];
+        i++;
+        if (code[i - 1] === char) break;
+      }
+    } else {
+      out += char;
+      i++;
+    }
+  }
+  return out;
+}
+
 describe("exports map smoke (F0b)", () => {
   it("dist/index.js exports T as a function (Svelte component)", () => {
     expect(typeof pkg.T).toBe("function");
@@ -104,5 +143,73 @@ describe("exports map smoke (F0b)", () => {
     // under moduleResolution:bundler picks it up in the right order.
     const keys = Object.keys(dotExport);
     expect(keys.indexOf("types")).toBeLessThan(keys.indexOf("import"));
+  });
+
+  it("publishes exactly ONE entry — the retired /slim subpath is gone", () => {
+    // Single-entry P3: `@comvi/svelte/slim` was the single-package toolkit
+    // while the root carried only the bindings. The root IS that toolkit now,
+    // so a second entry would be a second name for the same modules — and, in
+    // every wrapper whose build does NOT preserve modules, a second context
+    // object. It never published, so there is no deprecation debt.
+    const pkgJson = JSON.parse(readFileSync(resolve(pkgRoot, "package.json"), "utf-8"));
+
+    expect(Object.keys(pkgJson.exports)).toEqual(["."]);
+    expect(existsSync(resolve(distDir, "slim.js"))).toBe(false);
+    expect(existsSync(resolve(distDir, "slim.d.ts"))).toBe(false);
+  });
+
+  it("dist/index.js exports the capability toolkit and the base I18n class", () => {
+    // The nine-name toolkit every converged wrapper root carries, plus the
+    // class behind `createI18n`. These are named re-exports of core's own
+    // bindings, so what this asserts through dist is that svelte-package
+    // emitted them at all.
+    const surface = pkg as unknown as Record<string, unknown>;
+
+    for (const name of [
+      "I18n",
+      "icu",
+      "loader",
+      "attachLoader",
+      "flattenCatalog",
+      "plugins",
+      "attachPlugins",
+      "devtools",
+      "attachDevtools",
+    ]) {
+      expect(typeof surface[name], `${name} must be callable`).toBe("function");
+    }
+
+    // The ninth name is the odd one out on purpose: `icuCompiler` is a
+    // `MessageCompiler` record (`cid`, `makeArgToken`, …), not a factory. It is
+    // what `createI18n({ compiler })` takes; `icu()` above is the installer.
+    expect(typeof surface.icuCompiler).toBe("object");
+    expect(surface.icuCompiler).not.toBeNull();
+  });
+
+  it("names the PURE core seam and never the side-effectful tags entry", () => {
+    // The specifier-level claim behind the runtime one, made against the BUILT
+    // artifacts. Importing `@comvi/core/tags` registers tag syntax AMBIENTLY,
+    // so an app that merely renders `<T>` would silently start parsing `<tag>`
+    // markup in plain string-API `t()` too. `svelte-package` preserves modules,
+    // so `dist/T.svelte` is where the seam is named and `dist/index.js` is what
+    // an app imports — both must be clean, or importing the root would register
+    // on its own.
+    //
+    // COMMENTS ARE STRIPPED FIRST, and that is not fussiness: `svelte-package`
+    // transpiles rather than bundles, so both artifacts keep the source prose
+    // that names the tags subpath in order to explain why nothing imports it —
+    // including the literal `import "@comvi/core/tags"` recipe an app is told
+    // to use. A plain substring check would fail on the very comment that
+    // documents the rule, and a comment-blind regex would too.
+    const importsTags = /\b(?:from|import)\s*\(?\s*["']@comvi\/core\/tags["']/;
+    const importsRichText = /\b(?:from|import)\s*\(?\s*["']@comvi\/core\/rich-text["']/;
+
+    for (const file of ["index.js", "T.svelte"]) {
+      const code = stripComments(readFileSync(resolve(distDir, file), "utf-8"));
+      expect(importsTags.test(code), `dist/${file} must not import @comvi/core/tags`).toBe(false);
+    }
+
+    const tComponent = stripComments(readFileSync(resolve(distDir, "T.svelte"), "utf-8"));
+    expect(importsRichText.test(tComponent), "dist/T.svelte must import the pure seam").toBe(true);
   });
 });

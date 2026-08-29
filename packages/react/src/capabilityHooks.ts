@@ -1,4 +1,4 @@
-// Capability-segregated hooks (framework-slim plan §3.2, D′).
+// Capability-segregated hooks (landed in the framework-slim plan §3.2, D′).
 //
 // `useI18n()` is type-honest by ABSENCE: the loader/plugin-host members are
 // not on its return, in types or at runtime, in any build. They live here

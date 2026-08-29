@@ -1,6 +1,8 @@
 import { describe, it, expect, vi } from "vitest";
 import { nextTick } from "vue";
 import { createI18n } from "../src/createI18n";
+import { attachLoader, attachPlugins, createCore, createI18nFromCore } from "../src";
+import type { I18nOptions } from "../src";
 
 declare module "@comvi/core" {
   interface TranslationKeys {
@@ -10,9 +12,15 @@ declare module "@comvi/core" {
   }
 }
 
+// Vue's preset builds the BASE host, so each contract below composes exactly
+// the capability it exercises: the loader for `registerLoader`/`onLoadError`/
+// `addActiveNamespace`, the plugin host for `use`/`onMissingKey`/the detector.
+const createLoaderI18n = (options: I18nOptions) =>
+  createI18nFromCore(createCore(options).with(attachLoader));
+
 describe("VueI18n contracts", () => {
   it("keeps the last requested locale when computed setter is called rapidly", async () => {
-    const i18n = createI18n({ locale: "en", defaultNs: "common" });
+    const i18n = createLoaderI18n({ locale: "en", defaultNs: "common" });
     let resolveFrench!: () => void;
     const frenchGate = new Promise<void>((resolve) => {
       resolveFrench = resolve;
@@ -51,7 +59,7 @@ describe("VueI18n contracts", () => {
       }
       return locale === "fr" ? { hello: "Bonjour" } : { hello: "Hello" };
     });
-    const i18n = createI18n({ locale: "en", defaultNs: "common" });
+    const i18n = createLoaderI18n({ locale: "en", defaultNs: "common" });
     i18n.core.registerLoader(loader);
     await i18n.init();
     loader.mockClear();
@@ -75,7 +83,7 @@ describe("VueI18n contracts", () => {
   it("routes computed locale setter errors through onError with source: setLocale", async () => {
     const err = new Error("setLocale failed");
     const onError = vi.fn();
-    const i18n = createI18n({ locale: "en", defaultNs: "common", onError });
+    const i18n = createLoaderI18n({ locale: "en", defaultNs: "common", onError });
     i18n.core.registerLoader(async (locale: string, namespace: string) => {
       if (namespace !== "common") return {};
       if (locale === "fr") throw err;
@@ -106,7 +114,7 @@ describe("VueI18n contracts", () => {
   it("routes imperative locale setter errors through onError with source: setLocale", async () => {
     const err = new Error("imperative set failed");
     const onError = vi.fn();
-    const i18n = createI18n({ locale: "en", defaultNs: "common", onError });
+    const i18n = createLoaderI18n({ locale: "en", defaultNs: "common", onError });
     i18n.core.registerLoader(async (locale: string, namespace: string) => {
       if (namespace !== "common") return {};
       if (locale === "fr") throw err;
@@ -147,11 +155,17 @@ describe("VueI18n contracts", () => {
       };
       return translations[`${locale}:${namespace}`] ?? {};
     });
-    const i18n = createI18n({
-      locale: "en",
-      defaultNs: "common",
-      onError,
-    });
+    // This one drives BOTH: the detector is a plugin-host member and the
+    // loader its own capability, so the host composes loader then plugins.
+    const i18n = createI18nFromCore(
+      createCore({
+        locale: "en",
+        defaultNs: "common",
+        onError,
+      })
+        .with(attachLoader)
+        .with(attachPlugins),
+    );
     const loadErrorSpy = vi.fn();
 
     i18n.core.registerLocaleDetector(localeDetector);
@@ -206,11 +220,9 @@ describe("VueI18n contracts", () => {
 
   it("reports async cleanup failures through the configured error handler", async () => {
     const onError = vi.fn();
-    const i18n = createI18n({
-      locale: "en",
-      defaultNs: "common",
-      onError,
-    });
+    const i18n = createI18nFromCore(
+      createCore({ locale: "en", defaultNs: "common", onError }).with(attachPlugins),
+    );
     const destroyError = new Error("destroy failed");
 
     i18n.core.use(() => async () => {
@@ -235,7 +247,9 @@ describe("VueI18n contracts", () => {
   });
 
   it("supports fallback return values from onMissingKey callback", () => {
-    const i18n = createI18n({ locale: "en", defaultNs: "common" });
+    const i18n = createI18nFromCore(
+      createCore({ locale: "en", defaultNs: "common" }).with(attachPlugins),
+    );
     const unsubscribe = i18n.core.onMissingKey((key) => `fallback:${key}`);
 
     expect(i18n.t("unknown.key")).toBe("fallback:unknown.key");

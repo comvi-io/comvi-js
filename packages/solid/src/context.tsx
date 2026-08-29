@@ -19,8 +19,8 @@ import {
 
 /**
  * Host type every solid binding demands (framework-slim D′): the reactive
- * translation host, exactly what a bare `@comvi/core` instance
- * implements. Loader/plugin-host capabilities are acquired separately through
+ * translation host, exactly what the base `@comvi/core` / `@comvi/solid`
+ * factory builds. Loader/plugin-host capabilities are acquired separately through
  * `useI18nLoader()` / `useI18nPlugins()` (plan §3.2), so the Provider accepts
  * a host that never had them.
  */

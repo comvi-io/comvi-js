@@ -15,7 +15,6 @@ import { mount, unmount } from "svelte";
 import { createI18n } from "@comvi/core";
 import { attachLoader } from "@comvi/core/loader";
 import { attachPlugins } from "@comvi/core/plugins";
-import { createI18n as createRootI18n } from "@comvi/core";
 import { useI18nLoader, useI18nPlugins } from "../../src/capabilities";
 import HostProbe from "./HostProbe.test.svelte";
 
@@ -31,7 +30,7 @@ const EXPECTED = {
     : "[comvi] missing plugins capability — attach @comvi/core/plugins",
 };
 
-const bareSlim = () =>
+const baseHost = () =>
   createI18n({ locale: "en", exposeGlobal: false, translation: { en: { greeting: "Hello" } } });
 
 describe(`capability acquisition (${__COMVI_CORE_BUILD__} core build)`, () => {
@@ -57,23 +56,23 @@ describe(`capability acquisition (${__COMVI_CORE_BUILD__} core build)`, () => {
     return bag;
   };
 
-  it("throws the exact message on a bare-slim host — loader", () => {
-    expect(() => acquire(bareSlim(), useI18nLoader)).toThrow(EXPECTED.loader);
+  it("throws the exact message on a base host — loader", () => {
+    expect(() => acquire(baseHost(), useI18nLoader)).toThrow(EXPECTED.loader);
   });
 
-  it("throws the exact message on a bare-slim host — plugins", () => {
-    expect(() => acquire(bareSlim(), useI18nPlugins)).toThrow(EXPECTED.plugins);
+  it("throws the exact message on a base host — plugins", () => {
+    expect(() => acquire(baseHost(), useI18nPlugins)).toThrow(EXPECTED.plugins);
   });
 
   it("throws for the capability that is missing, not the one that is present", () => {
-    const loaderOnly = attachLoader(bareSlim());
+    const loaderOnly = attachLoader(baseHost());
 
     expect(() => acquire(loaderOnly, useI18nPlugins)).toThrow(EXPECTED.plugins);
     expect(() => acquire(loaderOnly, useI18nLoader)).not.toThrow();
   });
 
-  it("returns a working loader bag on slim + attachLoader", async () => {
-    const host = attachLoader(bareSlim());
+  it("returns a working loader bag on base + attachLoader", async () => {
+    const host = attachLoader(baseHost());
     const loaded = [];
     host.registerLoader(async (locale, ns) => {
       loaded.push(`${locale}:${ns}`);
@@ -97,8 +96,8 @@ describe(`capability acquisition (${__COMVI_CORE_BUILD__} core build)`, () => {
     off();
   });
 
-  it("returns a working plugins bag on slim + attachPlugins", () => {
-    const host = attachPlugins(bareSlim());
+  it("returns a working plugins bag on base + attachPlugins", () => {
+    const host = attachPlugins(baseHost());
     const bag = acquire(host, useI18nPlugins);
 
     expect(Object.keys(bag)).toEqual(["onMissingKey"]);
@@ -108,12 +107,11 @@ describe(`capability acquisition (${__COMVI_CORE_BUILD__} core build)`, () => {
     off();
   });
 
-  it("works on a ROOT host — 0.4.x behaviour, new acquisition point", () => {
-    const host = createRootI18n({
-      locale: "en",
-      exposeGlobal: false,
-      translation: { en: { greeting: "Hello" } },
-    });
+  it("keeps 0.4.x's ROOT-host reach on a fully composed host", () => {
+    // 0.4.x shipped both capabilities on the root `createI18n`. 0.5.0 makes
+    // them explicit, so the same reach is one composition expression — and the
+    // acquisition point is the reader, exactly as it is for a partial host.
+    const host = attachPlugins(attachLoader(baseHost()));
 
     const loader = acquire(host, useI18nLoader);
     const plugins = acquire(host, useI18nPlugins);
@@ -125,7 +123,7 @@ describe(`capability acquisition (${__COMVI_CORE_BUILD__} core build)`, () => {
   });
 
   it("keeps member identity stable per host across components (§3.2)", () => {
-    const host = attachPlugins(attachLoader(bareSlim()));
+    const host = attachPlugins(attachLoader(baseHost()));
 
     const a = acquire(host, useI18nLoader);
     const b = acquire(host, useI18nLoader);
@@ -139,13 +137,13 @@ describe(`capability acquisition (${__COMVI_CORE_BUILD__} core build)`, () => {
   });
 
   it("gives DIFFERENT hosts different bags", () => {
-    expect(acquire(attachLoader(bareSlim()), useI18nLoader)).not.toBe(
-      acquire(attachLoader(bareSlim()), useI18nLoader),
+    expect(acquire(attachLoader(baseHost()), useI18nLoader)).not.toBe(
+      acquire(attachLoader(baseHost()), useI18nLoader),
     );
   });
 
   it("acquires the capability after a late attach on the same host", () => {
-    const host = bareSlim();
+    const host = baseHost();
 
     expect(() => acquire(host, useI18nLoader)).toThrow(EXPECTED.loader);
 
@@ -154,7 +152,7 @@ describe(`capability acquisition (${__COMVI_CORE_BUILD__} core build)`, () => {
   });
 
   it("returns plain bound functions, not stores (§3.2 svelte idiom)", () => {
-    const bag = acquire(attachLoader(bareSlim()), useI18nLoader);
+    const bag = acquire(attachLoader(baseHost()), useI18nLoader);
 
     for (const member of Object.values(bag)) {
       expect(typeof member).toBe("function");

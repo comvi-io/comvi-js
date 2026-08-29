@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { createRoot, createEffect } from "solid-js";
-import { createI18n } from "@comvi/core";
+import { attachLoader, createI18n } from "../src/index";
 import {
   createLocaleSignal,
   createDefaultNamespaceSignal,
@@ -61,7 +61,9 @@ describe("Solid primitives", () => {
   });
 
   it("updates loading and initializing signals during initialization work", async () => {
-    const i18n = createI18n({ locale: "en", defaultNs: "common" });
+    // The only host in this file that needs a capability: the loading signals
+    // are driven by a real loader, which the base host does not have.
+    const i18n = createI18n({ locale: "en", defaultNs: "common" }).with(attachLoader);
     let resolveLoader!: (value: Record<string, string>) => void;
     const loaderResult = new Promise<Record<string, string>>((resolve) => {
       resolveLoader = resolve;

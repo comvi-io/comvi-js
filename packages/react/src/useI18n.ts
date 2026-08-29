@@ -105,7 +105,7 @@ function translationResultToString(result: TranslationResult): string {
 
 /**
  * Host type every react binding demands (framework-slim D′): the reactive
- * translation host, exactly what bare `@comvi/core` implements.
+ * translation host, exactly what the base `@comvi/react` factory implements.
  */
 type Host = WrapperI18nHost;
 
@@ -113,10 +113,10 @@ type Host = WrapperI18nHost;
  * Core methods rebound to the host instance.
  *
  * `addActiveNamespace`, `reloadTranslations` and `onLoadError` are NOT here:
- * they belong to the `@comvi/core/loader` capability, which a bare-slim host
- * does not have — binding them eagerly would crash at bind time. They are
- * acquired through `useI18nLoader()` instead (plan §3.2), as `onMissingKey`
- * is through `useI18nPlugins()`.
+ * they belong to the `@comvi/core/loader` capability, which a base host does
+ * not have — binding them eagerly would crash at bind time. They are acquired
+ * through `useI18nLoader()` instead (plan §3.2), as `onMissingKey` is through
+ * `useI18nPlugins()`.
  */
 const BIND_METHODS = [
   "addTranslations",
@@ -136,8 +136,8 @@ const BIND_METHODS = [
  * The host-only translation surface. The four capability members that used to
  * live here — `addActiveNamespace`, `reloadTranslations`, `onLoadError`
  * (loader) and `onMissingKey` (plugins) — moved to `useI18nLoader()` /
- * `useI18nPlugins()` in 0.5.0: they do not exist on a bare-slim host, so a
- * type that promised them was lying (plan §2.4).
+ * `useI18nPlugins()` in 0.5.0: they do not exist on a base host, so a type
+ * that promised them was lying (plan §2.4).
  */
 export interface UseI18nReturn<D extends DefaultTranslationParams = {}> {
   /** Translate a key. Returns plain text; for rich-text use `tRaw()` or `<T>`. */

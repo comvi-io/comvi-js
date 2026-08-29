@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
 import type { ReactElement } from "react";
-import { createI18n, I18nProvider, T } from "../src";
+import { createI18n, I18nProvider, plugins, T } from "../src";
 import type { I18n } from "../src";
 
 declare module "@comvi/core" {
@@ -83,7 +83,7 @@ describe("<T /> behavior", () => {
   });
 
   it("preserves reserved params from params when explicit overrides are absent", async () => {
-    const i18n = createI18n({ locale: "en" });
+    const i18n = createI18n({ locale: "en" }).with(plugins());
     i18n.addTranslations({
       "en:default": { reserved: "English default" },
     });
@@ -107,7 +107,7 @@ describe("<T /> behavior", () => {
   });
 
   it("lets explicit reserved props override reserved values inside params", async () => {
-    const i18n = createI18n({ locale: "en" });
+    const i18n = createI18n({ locale: "en" }).with(plugins());
     i18n.addTranslations({
       "en:default": { reserved: "English default" },
     });

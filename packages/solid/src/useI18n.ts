@@ -24,8 +24,8 @@ import type {
 
 /**
  * Host type every solid binding demands (framework-slim D′): the reactive
- * translation host, exactly what a bare `@comvi/core` instance
- * implements. The loader/plugin-host members are deliberately NOT part of it —
+ * translation host, exactly what the base `@comvi/solid` factory builds.
+ * The loader/plugin-host members are deliberately NOT part of it —
  * they are acquired through `useI18nLoader()` / `useI18nPlugins()`.
  */
 type Host<D extends DefaultTranslationParams = {}> = WrapperI18nHost<D>;
@@ -69,8 +69,8 @@ type UseI18nRawTranslation<
  * The host-only translation surface. The four capability members that used to
  * live here — `addActiveNamespace`, `reloadTranslations`, `onLoadError`
  * (loader) and `onMissingKey` (plugins) — moved to `useI18nLoader()` /
- * `useI18nPlugins()` in 0.5.0: they do not exist on a bare-slim host, so a
- * type that promised them was lying (plan §2.4).
+ * `useI18nPlugins()` in 0.5.0: they do not exist on a base host, so a type
+ * that promised them was lying (plan §2.4).
  */
 export interface UseI18nReturn<
   DefaultNS extends string | undefined = undefined,
@@ -331,7 +331,7 @@ export function useI18n<
     //
     // `addActiveNamespace`, `reloadTranslations`, `onLoadError` and
     // `onMissingKey` are NOT here: they belong to the `@comvi/core/loader` /
-    // `@comvi/core/plugins` capabilities, which a bare-slim host does not
+    // `@comvi/core/plugins` capabilities, which a base host does not
     // have. A closure over an absent member is a silent `undefined is not a
     // function` at CALL time — exactly the failure class §2.4 bans. They are
     // acquired through `useI18nLoader()` / `useI18nPlugins()` instead, which

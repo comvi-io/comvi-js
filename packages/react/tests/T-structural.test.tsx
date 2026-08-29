@@ -10,10 +10,9 @@
  *     packages/svelte/tests/T-structural.test.ts — keep in sync).
  */
 import { describe, it, expect } from "vitest";
-import { createI18n as createSlimI18n } from "@comvi/core";
+import { createI18n } from "../src/index";
 import React from "react";
 import { render } from "@testing-library/react";
-import { createI18n } from "../src";
 import { I18nProvider } from "../src/I18nProvider";
 import { T } from "../src/T";
 
@@ -78,39 +77,19 @@ describe("<T /> structural render (real core)", () => {
     expect(container.textContent).toBe("You earned gold!");
   });
 
+  // The host is the BASE one `@comvi/react`'s single entry builds, and it has
+  // no tag syntax of its own: `<T>` does not depend on ambient registration,
+  // because prepareTranslation passes the tag extension per call — which is
+  // why `<T>` imports the PURE `@comvi/core/rich-text` seam and nothing in this
+  // package imports `@comvi/core/tags` at all.
+  // So every row below must produce byte-identical text to the svelte/vue/solid
+  // wrappers. (Before the entries converged this table ran twice — once on the
+  // wrapper's composed root, once on core's — and the two hosts are now the
+  // same object, so one pass is the whole claim.)
   describe("fallback-parity fixture (shared with svelte/vue/solid)", () => {
     for (const parityCase of WRAPPER_PARITY_FIXTURE.cases) {
       it(`produces the shared text for "${parityCase.key}"`, async () => {
         const i18n = await makeI18n({ ...WRAPPER_PARITY_FIXTURE.translations });
-
-        const { container } = render(
-          <I18nProvider i18n={i18n} autoInit={false}>
-            <T
-              i18nKey={parityCase.key as never}
-              params={{ ...parityCase.params }}
-              components={{ ...parityCase.components }}
-            />
-          </I18nProvider>,
-        );
-
-        expect(container.textContent).toBe(parityCase.text);
-      });
-    }
-  });
-
-  // framework-slim P2: the same table on a BARE @comvi/core host. <T>
-  // does not depend on ambient tag registration — prepareTranslation passes
-  // the tag extension per call (T.tsx:1-4) — so every row must produce
-  // byte-identical text on a host that has no tag syntax of its own.
-  describe("fallback-parity fixture on a bare-slim host", () => {
-    for (const parityCase of WRAPPER_PARITY_FIXTURE.cases) {
-      it(`produces the shared text for "${parityCase.key}"`, async () => {
-        const i18n = createSlimI18n({
-          locale: "en",
-          exposeGlobal: false,
-          translation: { en: { ...WRAPPER_PARITY_FIXTURE.translations } },
-        });
-        await i18n.init();
 
         const { container } = render(
           <I18nProvider i18n={i18n} autoInit={false}>

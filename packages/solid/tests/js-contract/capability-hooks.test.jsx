@@ -11,7 +11,6 @@ import { renderHook } from "@solidjs/testing-library";
 import { createI18n } from "@comvi/core";
 import { attachLoader } from "@comvi/core/loader";
 import { attachPlugins } from "@comvi/core/plugins";
-import { createI18n as createRootI18n } from "@comvi/core";
 import { I18nProvider } from "../../src/context";
 import { useI18nLoader, useI18nPlugins } from "../../src/capabilityHooks";
 
@@ -36,28 +35,28 @@ const wrapperFor = (i18n) =>
     );
   };
 
-const bareSlim = () =>
+const baseHost = () =>
   createI18n({ locale: "en", exposeGlobal: false, translation: { en: { greeting: "Hello" } } });
 
 describe(`capability acquisition (${__COMVI_CORE_BUILD__} core build)`, () => {
-  it("throws the exact message on a bare-slim host — loader", () => {
-    const wrapper = wrapperFor(bareSlim());
+  it("throws the exact message on a base host — loader", () => {
+    const wrapper = wrapperFor(baseHost());
     expect(() => renderHook(useI18nLoader, { wrapper })).toThrow(EXPECTED.loader);
   });
 
-  it("throws the exact message on a bare-slim host — plugins", () => {
-    const wrapper = wrapperFor(bareSlim());
+  it("throws the exact message on a base host — plugins", () => {
+    const wrapper = wrapperFor(baseHost());
     expect(() => renderHook(useI18nPlugins, { wrapper })).toThrow(EXPECTED.plugins);
   });
 
   it("throws for the capability that is missing, not the one that is present", () => {
-    const loaderOnly = wrapperFor(attachLoader(bareSlim()));
+    const loaderOnly = wrapperFor(attachLoader(baseHost()));
     expect(() => renderHook(useI18nPlugins, { wrapper: loaderOnly })).toThrow(EXPECTED.plugins);
     expect(() => renderHook(useI18nLoader, { wrapper: loaderOnly })).not.toThrow();
   });
 
-  it("returns a working loader bag on slim + attachLoader", async () => {
-    const host = attachLoader(bareSlim());
+  it("returns a working loader bag on base + attachLoader", async () => {
+    const host = attachLoader(baseHost());
     const loaded = [];
     host.registerLoader(async (locale, ns) => {
       loaded.push(`${locale}:${ns}`);
@@ -82,8 +81,8 @@ describe(`capability acquisition (${__COMVI_CORE_BUILD__} core build)`, () => {
     off();
   });
 
-  it("returns a working plugins bag on slim + attachPlugins", () => {
-    const host = attachPlugins(bareSlim());
+  it("returns a working plugins bag on base + attachPlugins", () => {
+    const host = attachPlugins(baseHost());
     const { result } = renderHook(useI18nPlugins, { wrapper: wrapperFor(host) });
 
     expect(Object.keys(result)).toEqual(["onMissingKey"]);
@@ -93,12 +92,11 @@ describe(`capability acquisition (${__COMVI_CORE_BUILD__} core build)`, () => {
     off();
   });
 
-  it("works on a ROOT host — 0.4.x behaviour, new acquisition point", () => {
-    const host = createRootI18n({
-      locale: "en",
-      exposeGlobal: false,
-      translation: { en: { greeting: "Hello" } },
-    });
+  it("keeps 0.4.x's ROOT-host reach on a fully composed host", () => {
+    // 0.4.x shipped both capabilities on the root `createI18n`. 0.5.0 makes
+    // them explicit, so the same reach is one composition expression — and the
+    // acquisition point is the hook, exactly as it is for a partial host.
+    const host = attachPlugins(attachLoader(baseHost()));
     const wrapper = wrapperFor(host);
 
     const loader = renderHook(useI18nLoader, { wrapper });
@@ -111,7 +109,7 @@ describe(`capability acquisition (${__COMVI_CORE_BUILD__} core build)`, () => {
   });
 
   it("keeps member identity stable per host across components (§3.2)", () => {
-    const host = attachPlugins(attachLoader(bareSlim()));
+    const host = attachPlugins(attachLoader(baseHost()));
     const wrapper = wrapperFor(host);
 
     const a = renderHook(useI18nLoader, { wrapper });
@@ -127,8 +125,8 @@ describe(`capability acquisition (${__COMVI_CORE_BUILD__} core build)`, () => {
   });
 
   it("gives DIFFERENT hosts different bags", () => {
-    const one = attachLoader(bareSlim());
-    const two = attachLoader(bareSlim());
+    const one = attachLoader(baseHost());
+    const two = attachLoader(baseHost());
 
     const a = renderHook(useI18nLoader, { wrapper: wrapperFor(one) });
     const b = renderHook(useI18nLoader, { wrapper: wrapperFor(two) });
@@ -137,7 +135,7 @@ describe(`capability acquisition (${__COMVI_CORE_BUILD__} core build)`, () => {
   });
 
   it("acquires the capability after a late attach on the same host", () => {
-    const host = bareSlim();
+    const host = baseHost();
     const wrapper = wrapperFor(host);
 
     expect(() => renderHook(useI18nLoader, { wrapper })).toThrow(EXPECTED.loader);

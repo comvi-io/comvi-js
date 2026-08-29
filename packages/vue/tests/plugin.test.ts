@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { createApp, defineComponent } from "vue";
-import { createI18n } from "../src";
+import { attachPlugins, createCore, createI18n, createI18nFromCore } from "../src";
 
 describe("Vue plugin integration", () => {
   it("installs and exposes $t and $i18n", async () => {
@@ -25,7 +25,9 @@ describe("Vue plugin integration", () => {
 
   it("initializes plugins even when translations are preloaded", async () => {
     const plugin = vi.fn();
-    const i18nPlugin = createI18n({ locale: "en" });
+    // `use` is the plugin-host capability, so this instance is built on a host
+    // that composes it rather than on the base preset.
+    const i18nPlugin = createI18nFromCore(createCore({ locale: "en" }).with(attachPlugins));
     i18nPlugin.core.use(plugin);
     i18nPlugin.addTranslations({ en: { hello: "Hi" } });
 

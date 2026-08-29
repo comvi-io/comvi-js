@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { render } from "solid-js/web";
-import { createI18n } from "@comvi/core";
+import { attachLoader, createI18n } from "../src/index";
 import { I18nProvider } from "../src/context";
 import { useI18n } from "../src/useI18n";
 import { T } from "../src/T";
@@ -58,7 +58,9 @@ describe("solid integration smoke", () => {
       translation: {
         en: { hello: "Hello" },
       },
-    });
+      // The base host has no loader capability — this test drives a raw
+      // `LoaderFn`, so it composes the low-level attach.
+    }).with(attachLoader);
     i18n.registerLoader(async (_language, namespace) => {
       if (namespace === "admin") return { title: "Admin Panel" };
       return {};

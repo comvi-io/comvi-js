@@ -1,27 +1,29 @@
-// Type-level contract for the framework-slim vue factory boundary (plan §3.2,
+// Type-level contract for the vue factory boundary (framework-slim §3.2,
 // "Vue inject-path type honesty" — the two tests named there).
 //
 // The claim under test is that the host type `C` is exact exactly where the
 // factory result is held, and NOWHERE else: through `inject`, a component sees
 // a capability-free `WrapperI18nHost`, so a capability call there is a compile
 // error rather than a typed-then-crashes path.
-import type { I18n, I18nLoaderApi, I18nPluginHostApi, WrapperI18nHost } from "@comvi/core";
-import { createI18n as createSlimI18n } from "@comvi/core";
-import { attachLoader } from "@comvi/core/loader";
-import { attachPlugins } from "@comvi/core/plugins";
+import type { I18n, I18nLoaderApi, I18nPluginHostApi, WrapperI18nHost } from "../../src/index";
+import {
+  attachLoader,
+  attachPlugins,
+  createCore,
+  createI18n,
+  createI18nFromCore,
+  I18N_INJECTION_KEY,
+} from "../../src/index";
 import { inject } from "vue";
-import { createI18n } from "../../src/createI18n";
-import { createI18nFromCore } from "../../src/createI18nFromCore";
-import { I18N_INJECTION_KEY } from "../../src/keys";
 import type { VueI18n } from "../../src/VueI18n";
 
 type Equal<X, Y> =
   (<T>() => T extends X ? 1 : 2) extends <T>() => T extends Y ? 1 : 2 ? true : false;
 type Expect<T extends true> = T;
 
-const slimCore = createSlimI18n({ locale: "en" });
-const loaderHost = attachLoader(createSlimI18n({ locale: "en" }));
-const composedHost = attachPlugins(attachLoader(createSlimI18n({ locale: "en" })));
+const baseCore = createCore({ locale: "en" });
+const loaderHost = attachLoader(createCore({ locale: "en" }));
+const composedHost = attachPlugins(attachLoader(createCore({ locale: "en" })));
 
 // ---------------------------------------------------------------------------
 // (i) The INJECTED instance's core is not an `I18n`: capability members are
@@ -32,7 +34,7 @@ const injected = inject(I18N_INJECTION_KEY)!;
 
 type InjectedCore = (typeof injected)["core"];
 type _InjectedCoreIsHostTyped = Expect<Equal<InjectedCore, WrapperI18nHost>>;
-type _InjectedCoreIsNotRoot = Expect<Equal<InjectedCore extends I18n ? true : false, false>>;
+type _InjectedCoreIsNotTheClass = Expect<Equal<InjectedCore extends I18n ? true : false, false>>;
 
 // @ts-expect-error — loader capability is absent from the injected core's type
 injected.core.reloadTranslations();
@@ -69,20 +71,24 @@ void fromLoader.core.reloadTranslations();
 // @ts-expect-error — this host was composed WITHOUT the plugin capability
 fromLoader.core.registerPostProcessor((result) => result);
 
-// A bare slim host keeps its bare type: nothing is invented for it.
-const fromBare = createI18nFromCore(slimCore);
-type _BareCoreIsExact = Expect<Equal<(typeof fromBare)["core"], typeof slimCore>>;
-// @ts-expect-error — bare slim has no loader capability, at any level
-fromBare.core.reloadTranslations();
+// A base host keeps its bare type: nothing is invented for it.
+const fromBase = createI18nFromCore(baseCore);
+type _BaseCoreIsExact = Expect<Equal<(typeof fromBase)["core"], typeof baseCore>>;
+// @ts-expect-error — a base host has no loader capability, at any level
+fromBase.core.reloadTranslations();
 
-// The `@comvi/vue` factory keeps its 0.4.x CALL shape, but its core is core's
-// own `I18n` — the BASE host since the single-entry convergence, so it carries
-// no loader and no plugin host. The `fromRoot.core.*` lines below still expect
-// the 0.4 capability surface and no longer type-check: a real surface break to
-// resolve in the vue phase, not something a comment can repair.
-const fromRoot = createI18n({ locale: "en" });
-type _RootCoreIsRoot = Expect<Equal<(typeof fromRoot)["core"], I18n<{}>>>;
-void fromRoot.core.registerLoader(() => Promise.resolve({}));
+// Vue's own one-call factory keeps its 0.4.x CALL shape, and since the
+// single-entry convergence its core is core's BASE `I18n` — the same class
+// `createCore` builds. So the preset path is capability-free too: this is the
+// deliberate published break, stated here as a compile error rather than as
+// prose. Compose what the app needs on `i18n.core`, or build the host with
+// `createCore` and hand it to `createI18nFromCore`.
+const fromPreset = createI18n({ locale: "en" });
+type _PresetCoreIsBase = Expect<Equal<(typeof fromPreset)["core"], I18n<{}>>>;
+// @ts-expect-error — 0.4's root shipped the loader; the converged preset does not
+fromPreset.core.registerLoader(() => Promise.resolve({}));
+// …and one `.with(loader())` on that same host buys it back, exactly typed.
+void fromPreset.core.with(attachLoader).registerLoader(() => Promise.resolve({}));
 
 // The instance itself never regains the dropped proxies, whatever `C` is —
 // including `use`, whose guarded proxy was the last typed-present-may-throw
@@ -91,11 +97,12 @@ void fromRoot.core.registerLoader(() => Promise.resolve({}));
 fromComposed.reloadTranslations();
 // @ts-expect-error — dropped in 0.5.0; use `i18n.core.use(...)`
 fromComposed.use(() => undefined);
-// @ts-expect-error — dropped in 0.5.0 even where `C` is the ROOT `I18n`
-fromRoot.use(() => undefined);
-// @ts-expect-error — dropped in 0.5.0; a bare slim `C` has no `core.use` either
-fromBare.use(() => undefined);
+// @ts-expect-error — dropped in 0.5.0 even on the one-call preset's wrapper
+fromPreset.use(() => undefined);
+// @ts-expect-error — dropped in 0.5.0; a base `C` has no `core.use` either
+fromBase.use(() => undefined);
 
 // The migrated shape compiles wherever the host really has the capability.
 void fromComposed.core.use(() => undefined);
-void fromRoot.core.use(() => undefined);
+// @ts-expect-error — …and does NOT where it does not: the preset host is base
+fromPreset.core.use(() => undefined);

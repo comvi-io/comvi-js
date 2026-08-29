@@ -1,8 +1,8 @@
 <script lang="ts">
-  // framework-slim P3 probe: the host-safe `useI18n()` surface only. Nothing
+  // Single-entry P3 probe: the host-safe `useI18n()` surface only. Nothing
   // here may touch a loader/plugin member — before 0.5.0 `useI18n()` itself
-  // eagerly `.bind()`-ed four of them and threw on a bare-slim host before
-  // this component could render at all.
+  // eagerly `.bind()`-ed four of them and threw on a base host before this
+  // component could render at all.
   import { setI18nContext } from "../src/context";
   import { useI18n } from "../src/useI18n";
   import type { WrapperI18nHost } from "@comvi/core";

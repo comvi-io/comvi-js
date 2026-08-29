@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { mount, tick, unmount } from "svelte";
-import { createI18n } from "@comvi/core";
+import { createI18n } from "../src/index";
 import IntegrationSmoke from "./IntegrationSmoke.test.svelte";
 
 describe("svelte integration smoke", () => {

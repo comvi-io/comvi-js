@@ -21,7 +21,7 @@
  */
 import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
 import { get } from "svelte/store";
-import { createI18n } from "@comvi/core";
+import { createI18n } from "../src/index";
 import { mount, hydrate, unmount, tick } from "svelte";
 import IntegrationSmoke from "./IntegrationSmoke.test.svelte";
 

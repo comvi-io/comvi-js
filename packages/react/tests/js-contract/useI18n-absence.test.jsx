@@ -23,20 +23,20 @@ const wrapperFor = (i18n) =>
     );
   };
 
-const bareSlim = () =>
+const baseHost = () =>
   createI18n({
     locale: "en",
     exposeGlobal: false,
     translation: { en: { greeting: "Hello" } },
   });
 
-const capableSlim = () => attachPlugins(attachLoader(bareSlim()));
+const composedHost = () => attachPlugins(attachLoader(baseHost()));
 
-// A capability-CARRYING host must behave exactly like the bare one here: the
+// A capability-CARRYING host must behave exactly like the base one here: the
 // members are gone from `useI18n()` by absence, not by host sniffing.
 describe.each([
-  ["bare slim host", bareSlim],
-  ["slim + attachLoader + attachPlugins", capableSlim],
+  ["base host", baseHost],
+  ["base + attachLoader + attachPlugins", composedHost],
 ])("useI18n() capability-member absence (%s)", (_label, makeHost) => {
   const render = () => renderHook(() => useI18n(), { wrapper: wrapperFor(makeHost()) });
 

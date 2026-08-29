@@ -1,25 +1,27 @@
 /**
- * framework-slim P3 — @comvi/svelte on a BARE `@comvi/core` host.
+ * Single-entry P3 — @comvi/svelte's bindings on the BASE host.
  *
  * This is the D′ endpoint: the host implements `WrapperI18nHost` and nothing
- * more. Svelte is the wrapper where the pre-0.5.0 contract crashed EAGERLY —
- * `useI18n()` `.bind()`-ed `addActiveNamespace`, `reloadTranslations`,
- * `onLoadError` and `onMissingKey` in the object literal it returned, so a
- * bare-slim host threw `Cannot read properties of undefined (reading 'bind')`
- * before a single translation rendered. Every case below would fail on the
- * pre-wave wrapper.
+ * more, which is exactly what `createI18n` from the single `@comvi/svelte`
+ * entry builds. Svelte is the wrapper where the pre-0.5.0 contract crashed
+ * EAGERLY — `useI18n()` `.bind()`-ed `addActiveNamespace`,
+ * `reloadTranslations`, `onLoadError` and `onMissingKey` in the object literal
+ * it returned, so a base host threw
+ * `Cannot read properties of undefined (reading 'bind')` before a single
+ * translation rendered. Every case below would fail on the pre-wave wrapper.
  *
- * The loud-error side of the contract (exact dev AND prod messages) lives in
+ * The ENTRY itself — the export surface, the ICU shapes, the toolkit identity
+ * — is pinned in tests/root-entry.test.ts. The loud-error side of the
+ * capability contract (exact dev AND prod messages) lives in
  * tests/js-contract/, which runs against the published dist under both build
  * conditions.
  */
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { mount, tick, unmount } from "svelte";
-import { createI18n } from "@comvi/core";
-import { attachLoader } from "@comvi/core/loader";
-import type { WrapperI18nHost } from "@comvi/core";
+import { attachLoader, createI18n } from "../src/index";
+import type { WrapperI18nHost } from "../src/index";
 import type { UseI18nReturn } from "../src/useI18n";
-import SlimHostHarness from "./SlimHostHarness.test.svelte";
+import BaseHostHarness from "./BaseHostHarness.test.svelte";
 import TInterpolationWrapper from "./TInterpolationWrapper.test.svelte";
 
 const makeHost = (): WrapperI18nHost =>
@@ -32,7 +34,7 @@ const makeHost = (): WrapperI18nHost =>
     },
   });
 
-describe("svelte on a bare-slim host", () => {
+describe("svelte on a base host", () => {
   let target: HTMLElement;
   let component: ReturnType<typeof mount> | null;
 
@@ -60,7 +62,7 @@ describe("svelte on a bare-slim host", () => {
 
   function render(i18n: WrapperI18nHost): UseI18nReturn {
     let bag!: UseI18nReturn;
-    component = mount(SlimHostHarness, {
+    component = mount(BaseHostHarness, {
       target,
       props: { i18n, report: (value: UseI18nReturn) => (bag = value) },
     });
@@ -140,7 +142,7 @@ describe("svelte on a bare-slim host", () => {
   });
 });
 
-describe("svelte on slim + attachLoader (composed host)", () => {
+describe("svelte on base + attachLoader (composed host)", () => {
   let target: HTMLElement;
   const mounted: ReturnType<typeof mount>[] = [];
 
@@ -154,11 +156,11 @@ describe("svelte on slim + attachLoader (composed host)", () => {
     target.remove();
   });
 
-  it("keeps useI18n()'s bag identical to the bare-slim one", () => {
+  it("keeps useI18n()'s bag identical to the base one", () => {
     const bags: UseI18nReturn[] = [];
     for (const i18n of [makeHost(), attachLoader(makeHost())]) {
       mounted.push(
-        mount(SlimHostHarness, {
+        mount(BaseHostHarness, {
           target,
           props: { i18n, report: (value: UseI18nReturn) => bags.push(value) },
         }),

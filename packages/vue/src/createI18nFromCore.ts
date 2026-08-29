@@ -1,7 +1,9 @@
-// The injected-host construction path (framework-slim P4 step 1): wrap a host
-// the app composed itself — `createI18n` from `@comvi/core`, optionally with
-// `.with(loader())` / `.with(plugins())` — without this package constructing
-// anything, so `createI18n.ts` and core's class never enter the graph.
+// The injected-host construction path: wrap a host the app composed itself —
+// `createCore` from `@comvi/vue`, optionally with `.with(loader())` /
+// `.with(plugins())` — without this package constructing anything, so vue's
+// own one-call preset (`createI18n.ts`) stays out of the graph. Core's base
+// entry does not: since the single-entry convergence `index.ts` names it, and
+// `createCore` IS its constructor.
 import type { DefaultTranslationParams, WrapperI18nHost } from "@comvi/core";
 import { VueI18n, type VueI18nCoreOptions } from "./VueI18n";
 
@@ -14,18 +16,17 @@ import { VueI18n, type VueI18nCoreOptions } from "./VueI18n";
  * compiles, `createI18nFromCore(baseCore).core.reloadTranslations(...)`
  * does not.
  *
- * @param core - A host built by the app: `createI18n` from `@comvi/core`, plus
- *   whatever capabilities it composed on.
+ * @param core - A host built by the app: `createCore` from `@comvi/vue` (core's
+ *   own constructor, re-exported by name), plus whatever capabilities it
+ *   composed on.
  * @param options - Vue-layer options only; every core option belongs to the
  *   host you built.
  *
  * @example
  * ```ts
- * import { createI18n } from "@comvi/core";
- * import { attachLoader } from "@comvi/core/loader";
- * import { createI18nFromCore } from "@comvi/vue";
+ * import { attachLoader, createCore, createI18nFromCore } from "@comvi/vue";
  *
- * const i18n = createI18nFromCore(attachLoader(createI18n({ locale: "en" })));
+ * const i18n = createI18nFromCore(attachLoader(createCore({ locale: "en" })));
  * i18n.core.registerLoader(myLoader);
  * ```
  */

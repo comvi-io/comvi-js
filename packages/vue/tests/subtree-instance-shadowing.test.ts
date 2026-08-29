@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { mount } from "@vue/test-utils";
 import { defineComponent, h, provide, type PropType } from "vue";
-import { useI18n } from "../src";
+import { icuCompiler, useI18n } from "../src";
 import { createI18n } from "../src/createI18n";
 import type { VueI18n } from "../src/VueI18n";
 import { T } from "../src/components/T";
@@ -20,8 +20,11 @@ const REVIEW_SELECT: Record<string, Record<string, string>> = {
 };
 
 function createInstance(locale: string, formality?: string) {
+  // The catalog is ICU `select`, so the constructor names the compiler that
+  // understands it — the base host's simple compiler does not.
   return createI18n({
     locale,
+    compiler: icuCompiler,
     translation: REVIEW_SELECT,
     ...(formality ? { defaultParams: { formality } } : {}),
   });

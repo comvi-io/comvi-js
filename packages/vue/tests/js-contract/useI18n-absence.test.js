@@ -16,14 +16,14 @@ import { attachPlugins } from "@comvi/core/plugins";
 import { createI18nFromCore } from "../../src/createI18nFromCore";
 import { useI18n } from "../../src/composables/useI18n";
 
-const bareSlim = () =>
+const baseHost = () =>
   createI18n({
     locale: "en",
     exposeGlobal: false,
     translation: { en: { greeting: "Hello" } },
   });
 
-const capableSlim = () => attachPlugins(attachLoader(bareSlim()));
+const composedHost = () => attachPlugins(attachLoader(baseHost()));
 
 /** Runs `body(useI18n())` inside a real component under an installed plugin. */
 function inSetup(i18n, body) {
@@ -49,11 +49,11 @@ const CAPABILITY_MEMBERS = [
   "onMissingKey",
 ];
 
-// A capability-CARRYING host must behave exactly like the bare one here: the
+// A capability-CARRYING host must behave exactly like the base one here: the
 // members are gone from `useI18n()` by absence, not by host sniffing.
 describe.each([
-  ["bare slim host", bareSlim],
-  ["slim + attachLoader + attachPlugins", capableSlim],
+  ["base host", baseHost],
+  ["base + attachLoader + attachPlugins", composedHost],
 ])("useI18n() capability-member absence (%s)", (_label, makeHost) => {
   const render = (body) => inSetup(createI18nFromCore(makeHost()), body);
 
@@ -120,14 +120,14 @@ const DROPPED_PROXIES = [
 describe("VueI18n dropped instance proxies", () => {
   it.each(DROPPED_PROXIES)("%s is absent from the instance", (name) => {
     // Even on a fully composed host: absence is by design, not host sniffing.
-    const i18n = createI18nFromCore(capableSlim());
+    const i18n = createI18nFromCore(composedHost());
 
     expect(name in i18n).toBe(false);
     expect(i18n[name]).toBeUndefined();
   });
 
   it("exposes the same operations on i18n.core when the host has them", async () => {
-    const host = capableSlim();
+    const host = composedHost();
     const i18n = createI18nFromCore(host);
     const loaded = [];
     i18n.core.registerLoader(async (locale, ns) => {
@@ -143,13 +143,20 @@ describe("VueI18n dropped instance proxies", () => {
     off();
 
     let pluginRan = false;
-    expect(i18n.core.use(() => (pluginRan = true))).toBe(host);
+    // A STATEMENT body: P5's plugin-init contract rejects a returned value
+    // that is neither void nor a cleanup function, and an expression-bodied
+    // `() => (pluginRan = true)` returns `true`.
+    expect(
+      i18n.core.use(() => {
+        pluginRan = true;
+      }),
+    ).toBe(host);
     await i18n.init();
     expect(pluginRan).toBe(true);
   });
 
   it("is the injected host itself, not a copy", () => {
-    const host = bareSlim();
+    const host = baseHost();
 
     expect(createI18nFromCore(host).core).toBe(host);
   });

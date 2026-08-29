@@ -30,8 +30,8 @@ Comvi i18n is a modern, framework-agnostic internationalization library built on
 - **Rich text without XSS.** Embed components inside translation strings (`Click <link>here</link>`) — translators see clean markup, you decide what each tag renders to. No raw HTML, no unsafe DOM injection, no splitting a sentence across template fragments.
 - **Real ICU MessageFormat.** Plurals, ordinals, and select all follow locale-correct grammar via `Intl.PluralRules` — Polish, Ukrainian, Arabic, Welsh, and the rest. Same syntax every major TMS (Crowdin, Lokalise, Phrase) already speaks.
 - **Locale-aware formatters built in.** `formatNumber`, `formatDate`, `formatCurrency`, and `formatRelativeTime` follow the active locale via native `Intl`, with reactive updates in every framework binding.
-- **~8 kB minified + gzipped (as bundled by your app), zero runtime dependencies.** No `eval` or `new Function` anywhere — runs under a strict CSP without `unsafe-eval`. Safe for Chrome extensions, Cloudflare Workers, and locked-down enterprise apps.
-- **Pluggable, not monolithic.** Translation loading (CDN/API), locale detection, and in-context editing are opt-in plugins via `@comvi/plugin-fetch-loader`, `@comvi/plugin-locale-detector`, and `@comvi/plugin-in-context-editor`. You only ship what you use.
+- **~6.4 kB minified + gzipped for a default app graph (measured, `svelte` externalized), zero runtime dependencies.** That is the base host plus the svelte bindings; ICU, async loading, the plugin host and devtools discovery cost only where you compose them. No `eval` or `new Function` anywhere — runs under a strict CSP without `unsafe-eval`. Safe for Chrome extensions, Cloudflare Workers, and locked-down enterprise apps.
+- **Pluggable, not monolithic.** Translation loading (CDN/API), locale detection, and in-context editing are opt-in plugins via `@comvi/plugin-fetch-loader`, `@comvi/plugin-locale-detector`, and `@comvi/plugin-in-context-editor` — one lowercase `.with(installer)` each. You only ship what you use.
 - **Same API across 6 frameworks.** `useI18n()` and `<T>` look the same in [Vue](https://www.npmjs.com/package/@comvi/vue), [React](https://www.npmjs.com/package/@comvi/react), [SolidJS](https://www.npmjs.com/package/@comvi/solid), [Svelte](https://www.npmjs.com/package/@comvi/svelte), [Next.js](https://www.npmjs.com/package/@comvi/next), and [Nuxt](https://www.npmjs.com/package/@comvi/nuxt) — switch frameworks without relearning your i18n layer.
 
 ## Why @comvi/svelte?
@@ -126,47 +126,115 @@ or the [0.5.0 migration guide](https://github.com/comvi-io/comvi-js/blob/main/MI
 ## Supported hosts and what they cost
 
 `setI18nContext(i18n)`, `getI18nContext()` and all six store factories accept
-any `WrapperI18nHost` — `createI18n` from `@comvi/core` (the same constructor
-`@comvi/svelte/slim` re-exports), with or without `.with(loader())` /
+any `WrapperI18nHost` — `createI18n` from `@comvi/svelte` (core's own base-host
+constructor, re-exported by name), with or without `.with(loader())` /
 `.with(plugins())` composed on. Before 0.5.0 a base host did not merely mistype
 here, it **crashed**: `useI18n()` eagerly `.bind()`-ed the capability members in
-the object literal it returned. Whole-app comvi graph, min+gz, `svelte`
-externalized (`node scripts/size-check.mjs`):
+the object literal it returned. The base host is also the cheap one: ICU, tag
+syntax, async loading, the plugin host and devtools discovery are each something
+you compose, never something you carry by default.
 
-| host                      | no `<T>` | with `<T>` |
-| ------------------------- | -------- | ---------- |
-| 0.4 composed root         | 9827     | 11204      |
-| `@comvi/core` (base host) | **6309** | 8628       |
+Whole-app comvi graph, min+gz, `svelte` externalized (`node scripts/size-check.mjs`):
 
-Moving off the 0.4 composed root onto the base host saves **3518 B (−35.8%)**.
+| app shape                         | size fixture               | min+gz      | its sentinels assert absent                 |
+| --------------------------------- | -------------------------- | ----------- | ------------------------------------------- |
+| base host, no `<T>`               | `fw-svelte-default`        | **6412 B**  | ambient tags + all four capability subpaths |
+| base host + `<T>`                 | `fw-svelte-default-t`      | **8603 B**  | the same six — `<T>` registers nothing      |
+| base host + inline ICU            | `fw-svelte-icu`            | **7298 B**  | ambient tags, loader, plugins, devtools     |
+| full explicit composition + `<T>` | `fw-svelte-full-composite` | **11266 B** | ambient tag registration                    |
+
+All four rows are live in `scripts/size-budgets.json`, gated at measured +2%,
+and checked against the emitted module graph on every run — so the "an unused
+re-export costs nothing" claim is a gate rather than a sentence. The default is
++93 B (+1.47%) over the pre-convergence single-package anchor and 3424 B (34.8%)
+below the historical 0.4 composed root, which measured 9836 B.
+
+## One package, one entry
+
+`@comvi/svelte` is the whole toolkit: core's base host constructor and class,
+the svelte bindings, and core's capability installers as **named** re-exports.
+A svelte app names one package and nothing else.
+
+| export                                       | what it is                                      |
+| -------------------------------------------- | ----------------------------------------------- |
+| `createI18n`, `I18n`                         | core's base host — constructor and class        |
+| `icuCompiler`, `icu`                         | from `@comvi/core/icu` — compiler and installer |
+| `loader`, `attachLoader`, `flattenCatalog`   | from `@comvi/core/loader`                       |
+| `plugins`, `attachPlugins`                   | from `@comvi/core/plugins`                      |
+| `devtools`, `attachDevtools`                 | from `@comvi/core/devtools`                     |
+| every store factory, the readers, `T`, types | the svelte bindings                             |
+
+There is no svelte-side wrapper object to build — the host goes straight into
+`setI18nContext(i18n)` — so the constructor IS core's own `createI18n`,
+re-exported by name. `I18n` is the class it instantiates; reach for it to type a
+host you compose yourself, or to call `new I18n(options)` directly.
+
+`.with(installer)` is core's composition pipe — `i18n.with(f)` is `f(i18n)`.
+`loader(map)` attaches the capability **and** registers the map; for a plain
+`LoaderFn`, compose `.with(attachLoader)` and call `registerLoader(fn)`
+yourself (it keeps the import-map adapter out of your bundle).
+
+### Default — text and `{param}` interpolation
 
 ```svelte
 <script lang="ts">
-  import { createI18n, setI18nContext } from "@comvi/svelte/slim";
+  import { createI18n, setI18nContext } from "@comvi/svelte";
 
   setI18nContext(createI18n({ locale: "en", translation: { en: { hello: "Hello" } } }));
 </script>
 ```
 
-## One package: `@comvi/svelte/slim`
+### Inline catalogs with ICU — the `compiler` option
 
-`@comvi/svelte/slim` is `@comvi/svelte` plus the pieces a slim app used to reach
-into `@comvi/core` for, minus the broad `I18n` class re-export. Both entries
-re-export core's own `createI18n`, so core's base entry is in either graph —
-what `/slim` drops is the class, not core. A slim svelte app names one package:
-
-| export                                       | what it is                                          |
-| -------------------------------------------- | --------------------------------------------------- |
-| `createI18n`                                 | `@comvi/core`'s constructor — builds the host       |
-| `icuCompiler`                                | from `@comvi/core/icu` — `createI18n({ compiler })` |
-| `loader`, `attachLoader`, `flattenCatalog`   | from `@comvi/core/loader`                           |
-| `plugins`, `attachPlugins`                   | from `@comvi/core/plugins`                          |
-| `devtools`, `attachDevtools`                 | from `@comvi/core/devtools`                         |
-| every store factory, the readers, `T`, types | identical to `@comvi/svelte`                        |
+The constructor ingests `translation`, so the compiler has to be chosen in the
+same call:
 
 ```svelte
 <script lang="ts">
-  import { createI18n, loader, setI18nContext, useI18nLoader } from "@comvi/svelte/slim";
+  import { createI18n, icuCompiler, setI18nContext } from "@comvi/svelte";
+
+  const i18n = createI18n({
+    locale: "en",
+    compiler: icuCompiler,
+    translation: {
+      en: { messages: "{count, plural, one {# message} other {# messages}}" },
+    },
+  });
+
+  setI18nContext(i18n);
+</script>
+```
+
+### Remote catalogs with ICU — `.with(icu())` before ingestion
+
+When the catalog arrives from a loader there is nothing to compile at
+construction time, so install the compiler first. `icu()` is the installer half
+of `@comvi/core/icu` and is re-exported here beside `icuCompiler`, so the whole
+recipe stays inside the one import:
+
+```svelte
+<script lang="ts">
+  import { createI18n, icu, loader, setI18nContext } from "@comvi/svelte";
+
+  const i18n = createI18n({ locale: "en" })
+    .with(icu())
+    .with(loader({ uk: () => import("./uk.json") }));
+
+  setI18nContext(i18n);
+</script>
+```
+
+`.with(icu())` is **pre-ingestion only**. The compiler locks the moment any
+catalog reaches the host — a constructor `translation`, an `addTranslations`
+call, or a loader merge — and a later `icu()` throws with own
+`code === "E_COMPILER_LOCKED"`. So `createI18n({ translation }).with(icu())` is
+invalid by construction: pass `compiler: icuCompiler` there instead.
+
+### Async loading — `loader()`
+
+```svelte
+<script lang="ts">
+  import { createI18n, loader, setI18nContext, useI18nLoader } from "@comvi/svelte";
 
   const i18n = createI18n({ locale: "en" }).with(loader({ uk: () => import("./uk.json") }));
   setI18nContext(i18n);
@@ -175,23 +243,89 @@ what `/slim` drops is the class, not core. A slim svelte app names one package:
 </script>
 ```
 
-`.with(installer)` is core's composition pipe — `i18n.with(f)` is `f(i18n)`.
-`loader(map)` attaches the capability **and** registers the map; for a plain
-`LoaderFn`, compose `.with(attachLoader)` and call `registerLoader(fn)`
-yourself (it keeps the import-map adapter out of your bundle).
+### Plugins — one `.with(installer)`
+
+The three first-party plugin packages ship a lowercase **installer** beside the
+uppercase factory. The installer composes the capabilities that plugin needs —
+`fetchLoader` attaches `/loader`, then `/plugins` — and registers it, in one
+call:
+
+```svelte
+<script lang="ts">
+  import { createI18n, setI18nContext } from "@comvi/svelte";
+  import { fetchLoader } from "@comvi/plugin-fetch-loader";
+
+  const i18n = createI18n({ locale: "en", defaultNs: "common" }).with(
+    fetchLoader({ cdnUrl: "https://cdn.comvi.io/your-distribution-id" }),
+  );
+
+  setI18nContext(i18n);
+</script>
+```
+
+The explicit form is that composition spelled out, and it is what you want when
+you register plugins from a list. `loader()` goes on first when a plugin
+registers a loader: plugins run at `init()`, and `registerLoader` has to exist by
+then.
+
+```svelte
+<script lang="ts">
+  import { createI18n, loader, plugins, setI18nContext } from "@comvi/svelte";
+  import { FetchLoader } from "@comvi/plugin-fetch-loader";
+
+  const i18n = createI18n({ locale: "en", defaultNs: "common" })
+    .with(loader())
+    .with(plugins());
+
+  i18n.use(FetchLoader({ cdnUrl: "https://cdn.comvi.io/your-distribution-id" }));
+  setI18nContext(i18n);
+</script>
+```
+
+Swapping the two slots is a type error and loud at runtime:
+`.use(fetchLoader(…))` throws at `init()` before any capability is attached.
+
+### Devtools — `devtools()`
+
+Browser-extension discovery (`instanceId`, the `window.__COMVI__` queue) is
+opt-in too:
+
+```svelte
+<script lang="ts">
+  import { createI18n, devtools, setI18nContext } from "@comvi/svelte";
+
+  setI18nContext(createI18n({ locale: "en" }).with(devtools({ instanceId: "storefront" })));
+</script>
+```
 
 These are **named** re-exports of core's own bindings, so the ones you do not
-call are pruned — the bundler-matrix case `svelte-slim-preset` asserts the icu,
-plugins and devtools subpaths never enter the graph in webpack or vite, in
-development or production. The single-package recipe measures **6319 B**, 2 B
-over the two-package one.
+call are pruned. Two bundler-matrix cases hold that line, on webpack and vite,
+in development and production: `svelte-default` calls no capability and asserts
+all four subpath entries — icu, loader, plugins, devtools — out of the module
+graph, while `svelte-icu` calls `icuCompiler`, formats a real plural from the
+built bundle, and asserts the other three out.
 
 `@comvi/core/tags` is deliberately not re-exported: importing it registers tag
-syntax ambiently. `<T>` owns that import and lives in its own dist module.
+syntax ambiently. `<T>` uses the pure `@comvi/core/rich-text` seam and does not
+change string-API tag behavior. Unlike react, solid and vue, `svelte-package`
+preserves modules, so `dist/T.svelte` is its own module: an app that never
+renders `<T>` drops the whole rich-text path, and the one context key
+`@comvi/svelte` sets is the same object no matter which module a component
+imports it from.
 
-Unlike react, solid and vue, `svelte-package` preserves modules, so this entry
-and `@comvi/svelte` share every binding module: mixing the two specifiers is
-byte-wasteful but not broken — the context key is one object either way.
+### String-API tags render literally — the one residual
+
+`t("Click <b>here</b>")` hands back that markup as text on the base host: tag
+syntax is a grammar the host has to be taught, and no entry teaches it
+ambiently. Development warns the first time; production stays literal and never
+throws, because a literal `<b>` is visibly broken in review while a wrong plural
+is not. Two ways out:
+
+- render `<T>` — it passes the tag extension per call and needs no ambient
+  registration at all (see [Rich text with `<T>`](#rich-text-with-t));
+- `import "@comvi/core/tags";` once at your entry, if you want tag
+  interpolation through `t()` itself. That import is the side effect
+  `@comvi/svelte` will not hand you by re-exporting it.
 
 ## Rich text with `<T>`
 
@@ -229,6 +363,14 @@ The `<T>` component renders the translation structurally — real DOM nodes buil
 ## ICU MessageFormat — locale-correct grammar, not just singular/plural
 
 `count === 1 ? "item" : "items"` works in English. It silently ships broken grammar in Polish, Ukrainian, Arabic, Welsh, and 30+ other locales — those languages have 3, 4, sometimes 6 distinct plural categories that a binary if/else can't express. [ICU MessageFormat](https://unicode-org.github.io/icu/userguide/format_parse/messages/) is the standard syntax for handling them — the same syntax Crowdin, Lokalise, Phrase, and every major TMS already speak. Comvi i18n parses it via native [`Intl.PluralRules`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Intl/PluralRules), so every CLDR plural category is correct by default.
+
+**ICU is an explicit capability since 0.5.0.** The default compiler handles text
+and `{param}` interpolation; a template with ICU syntax throws `E_ICU_SYNTAX`
+rather than rendering plausible-but-wrong text. Every catalog below therefore
+needs the ICU compiler on the host: `createI18n({ compiler: icuCompiler, … })`
+for inline catalogs, `.with(icu())` before the loader for remote ones. Both
+names come from `@comvi/svelte` — see
+[One package, one entry](#one-package-one-entry).
 
 ### Plurals across languages
 
@@ -360,17 +502,19 @@ Pair with `@comvi/plugin-fetch-loader` to load translations from a CDN or API. N
 <!-- src/routes/+layout.svelte -->
 <script lang="ts">
   import { createI18n, setI18nContext } from "@comvi/svelte";
-  import { FetchLoader } from "@comvi/plugin-fetch-loader";
+  import { fetchLoader } from "@comvi/plugin-fetch-loader";
   import type { Snippet } from "svelte";
 
   const { children }: { children: Snippet } = $props();
 
-  const i18n = createI18n({ locale: "en" });
-
-  // CDN for production, API for dev/staging
-  i18n.use(FetchLoader({
-    cdnUrl: "https://cdn.comvi.io/your-distribution-id",
-  }));
+  // The installer composes the loader capability, then the plugin host, then
+  // registers the plugin — the order a loader-registering plugin needs.
+  // CDN for production, API for dev/staging.
+  const i18n = createI18n({ locale: "en" }).with(
+    fetchLoader({
+      cdnUrl: "https://cdn.comvi.io/your-distribution-id",
+    }),
+  );
 
   setI18nContext(i18n);
 </script>
@@ -427,7 +571,7 @@ export const load: LayoutLoad = async ({ fetch }) => {
 
 Child components call `useI18n()` as normal — the context carries the per-request instance.
 
-> Prefer the runtime CDN/API loader (`@comvi/plugin-fetch-loader`) for client navigation? Keep the per-request `createI18n(...)` + `i18n.use(FetchLoader(...))` in `+layout.svelte` and `await i18n.init()` inside an `$effect` / `onMount` for the client, while still seeding `translation` from `load` data for the initial server render. The rule is the same: only serializable data crosses `load`.
+> Prefer the runtime CDN/API loader (`@comvi/plugin-fetch-loader`) for client navigation? Keep the per-request `createI18n(...).with(fetchLoader(...))` in `+layout.svelte` and `await i18n.init()` inside an `$effect` / `onMount` for the client, while still seeding `translation` from `load` data for the initial server render. The rule is the same: only serializable data crosses `load`.
 
 ## License
 

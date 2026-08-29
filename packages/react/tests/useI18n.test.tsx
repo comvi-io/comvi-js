@@ -3,7 +3,8 @@ import { renderHook, act, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { I18nProvider } from "../src/I18nProvider";
 import { useI18n } from "../src/useI18n";
-import { createI18n, type TranslationResult } from "@comvi/core";
+import { createI18n, icuCompiler } from "../src/index";
+import type { TranslationResult } from "../src/index";
 import { FakeI18n } from "../../../tooling/test-utils/fakeI18n";
 
 const createWrapper = (fake: FakeI18n) => {
@@ -144,6 +145,9 @@ describe("useI18n", () => {
   it("exposes defaultParams and re-renders after setDefaultParams", async () => {
     const i18n = createI18n({
       locale: "en",
+      // `{…, select, …}` is ICU: the base host does not compile it unless the
+      // app says so, and this one says so in the same call.
+      compiler: icuCompiler,
       defaultParams: { formality: "formal" as const },
       translation: {
         en: { review: "{formality, select, formal {Formal} other {Informal}}" },

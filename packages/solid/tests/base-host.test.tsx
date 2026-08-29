@@ -1,10 +1,14 @@
 /**
- * framework-slim P3 — @comvi/solid on a BARE `@comvi/core` host.
+ * @comvi/solid on the BASE host its single entry builds.
  *
  * This is the D′ endpoint: the host implements `WrapperI18nHost` and nothing
  * more. Everything `useI18n()` still returns must work on it, and nothing the
  * wrapper does at render time may touch a loader/plugin member — a single
  * capability closure reached from the returned bag would blow up here.
+ *
+ * The constructor comes from `../src/index` on purpose: `@comvi/solid` is the
+ * one specifier an app names, and it re-exports core's own base `createI18n`
+ * by name, so this suite runs against exactly what an app gets.
  *
  * The loud-error side of the contract (exact dev AND prod messages) lives in
  * tests/js-contract/, which runs against the published dist under both build
@@ -12,8 +16,7 @@
  */
 import { describe, it, expect } from "vitest";
 import { render } from "solid-js/web";
-import { createI18n } from "@comvi/core";
-import { attachLoader } from "@comvi/core/loader";
+import { attachLoader, createI18n } from "../src/index";
 import type { WrapperI18nHost } from "@comvi/core";
 import { I18nProvider } from "../src/context";
 import { useI18n } from "../src/useI18n";
@@ -54,7 +57,7 @@ function useI18nUnder(i18n: WrapperI18nHost) {
   return { api, container, dispose };
 }
 
-describe("solid on a bare-slim host", () => {
+describe("solid on a base host", () => {
   it("renders translations through useI18n()", () => {
     const i18n = makeHost();
     const { api, dispose } = useI18nUnder(i18n);
@@ -164,8 +167,8 @@ describe("solid on a bare-slim host", () => {
   });
 });
 
-describe("solid on slim + attachLoader (composed host)", () => {
-  it("keeps useI18n()'s bag identical to the bare-slim one", () => {
+describe("solid on base + attachLoader (composed host)", () => {
+  it("keeps useI18n()'s bag identical to the base one", () => {
     const bare = useI18nUnder(makeHost());
     const composed = useI18nUnder(attachLoader(makeHost()));
 

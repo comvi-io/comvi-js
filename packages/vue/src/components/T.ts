@@ -7,14 +7,16 @@ import {
   type Component,
   type VNode,
 } from "vue";
-// Importing from "@comvi/core/tags" also registers tag syntax AMBIENTLY for
-// any plain string-API `t()` use in the app (§1.2). <T> itself does NOT
-// depend on that: prepareTranslation passes the tag extension per call.
+// The PURE rich-text seam: `prepareTranslation` hands the tag grammar to core
+// through `tagInterpolation.extensions` on EVERY call, so rendering `<T>`
+// never makes `<tag>` markup ambient for plain string-API `t()`. Importing
+// `@comvi/core/tags` instead would do exactly that — it is the one
+// side-effectful subpath, and no module in this package names it.
 import {
   prepareTranslation,
   type PendingHandler,
   type PrepareTranslationSource,
-} from "@comvi/core/tags";
+} from "@comvi/core/rich-text";
 import type { TranslationParams, TranslationResult, VirtualNode } from "@comvi/core";
 import { I18N_INJECTION_KEY } from "../keys";
 

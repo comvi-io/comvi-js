@@ -1,4 +1,4 @@
-// Capability-segregated accessors (framework-slim plan §3.2, D′).
+// Capability-segregated accessors (landed in the framework-slim plan §3.2, D′).
 //
 // `useI18n()` is type-honest by ABSENCE: the loader/plugin-host members are
 // not on its return, in types or at runtime, in any build. They live here
@@ -111,7 +111,7 @@ export function useI18nLoader(): UseI18nLoaderReturn {
  * Acquire the plugin-host capability of the host provided by `<I18nProvider>`.
  *
  * Throws `missingCapability("plugins")` — in dev and in prod — when the host
- * is a bare `@comvi/core` instance.
+ * is the base host `@comvi/solid`'s `createI18n` builds.
  *
  * @example
  * ```tsx

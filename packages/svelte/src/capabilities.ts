@@ -1,4 +1,4 @@
-// Capability-segregated acquisition (framework-slim plan §3.2, D′).
+// Capability-segregated acquisition (landed in the framework-slim plan §3.2, D′).
 //
 // `useI18n()` is type-honest by ABSENCE: the loader/plugin-host members are
 // not on its return, in types or at runtime, in any build. They live here
@@ -122,8 +122,8 @@ export function useI18nLoader(): UseI18nLoaderReturn {
  * Acquire the plugin-host capability of the host in svelte context.
  *
  * Call during component initialisation, like `useI18n()`. Throws
- * `missingCapability("plugins")` — in dev and in prod — when the host is a
- * bare `@comvi/core` instance.
+ * `missingCapability("plugins")` — in dev and in prod — when the host is the
+ * base one `@comvi/svelte`'s `createI18n` builds.
  *
  * @example
  * ```svelte
