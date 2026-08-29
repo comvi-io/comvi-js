@@ -6,7 +6,9 @@
  * a visual editor for managing translations directly in the browser.
  */
 
-import type { I18nPlugin, I18nPluginFactory, I18nPluginHost } from "@comvi/core";
+import type { I18n, I18nPlugin, I18nPluginFactory, I18nPluginHost } from "@comvi/core";
+import { attachDevtools } from "@comvi/core/devtools";
+import { attachPlugins, ensureInstallable } from "@comvi/core/plugins";
 import {
   EDITOR_MAPPINGS_GLOBAL,
   EDITOR_INITIAL_MAPPINGS_GLOBAL,
@@ -247,6 +249,55 @@ export const InContextEditorPlugin: I18nPluginFactory<EditorOptions> = (options)
     };
   };
 };
+
+/** The host surface `inContextEditor` guarantees on the way out. */
+export type InContextEditorInstaller = <T extends I18n<any>>(i18n: T) => T;
+
+/**
+ * The in-context editor as a `.with(…)` installer — the lowercase half of
+ * this package, and the one to start from.
+ *
+ * ```ts
+ * import { createI18n } from "@comvi/core";
+ * import { inContextEditor } from "@comvi/plugin-in-context-editor";
+ *
+ * const i18n = createI18n({ locale: "en", apiKey }).with(inContextEditor());
+ * await i18n.init();
+ * ```
+ *
+ * It ensures `@comvi/core/devtools` and then `@comvi/core/plugins`, and
+ * registers `InContextEditorPlugin(options)` through the host's own `use`.
+ * Discovery comes FIRST on purpose: the editor is the one capability whose
+ * whole point is being driven from outside the page, so an editor-enabled
+ * host announces itself on the `window.__COMVI__` queue without a second
+ * `.with(devtools())`. Both attaches are idempotent — an already-composed
+ * host keeps its `instanceId`, its queue entry and every registered plugin.
+ *
+ * The lifecycle is NOT re-implemented here: `required`, `timeout`, `onError`,
+ * cleanup registration and LIFO destroy keep running inside
+ * `I18nPluginHost`, because the last thing this installer does is call `use`.
+ *
+ * Widening is exact, and it is deliberately NONE. The host type comes back
+ * unchanged because this is also the signature the package's `production`
+ * condition ships, where the installer is `(host) => host` and attaches
+ * nothing at all. Promising `I18nPluginHostApi` here would be a member that
+ * is typed present and absent in production — the exact failure class this
+ * release removes. Need `use` yourself? Compose `.with(plugins())`.
+ *
+ * WRONG USE. `.use(inContextEditor(…))` is a type error. Under this entry it
+ * fails at `init()` on the first ensure-step (`ensureInstallable`), before
+ * discovery or the plugin capability is attached. Under the `production`
+ * condition the identity no-op runs and hands the host back, and the plugin
+ * host's return-shape guard rejects it at init — only nothing or a cleanup
+ * function is a legal plugin result — before any cleanup is registered.
+ */
+export function inContextEditor(options?: EditorOptions): InContextEditorInstaller {
+  return (i18n) => {
+    const host = attachPlugins(attachDevtools(ensureInstallable(i18n, "inContextEditor")));
+    host.use(InContextEditorPlugin(options));
+    return i18n;
+  };
+}
 
 // Export types
 export type { TranslationSystemOptions, HighlightStyleOptions } from "./types";

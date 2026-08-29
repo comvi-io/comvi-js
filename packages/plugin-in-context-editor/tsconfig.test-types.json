@@ -1,0 +1,12 @@
+{
+  "extends": "./tsconfig.app.json",
+  "compilerOptions": {
+    "baseUrl": ".",
+    "ignoreDeprecations": "6.0",
+    "rootDir": ".",
+    "noEmit": true,
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.test-types.tsbuildinfo"
+  },
+  "include": ["src/**/*.ts", "src/**/*.tsx", "src/**/*.vue", "tests/types/**/*.test-d.ts"],
+  "exclude": ["src/**/*.test.ts", "src/**/*.spec.ts"]
+}

@@ -1,8 +1,8 @@
 import type { DefaultTranslationParams, I18nOptions, I18nPluginHostApi, LoaderFn } from "../types";
 import type { I18nInternal } from "./i18n";
 import { I18nWithLoader } from "./loader";
-import { pluginApi } from "./plugins";
-import { devtoolsApi } from "./devtools";
+import { I18nWithPlugins } from "./plugins";
+import { I18nWithDevtools } from "./devtools";
 import { createImportMapLoader, type LoaderImportMap } from "./importMapLoader";
 import { icuCompiler } from "./translate/compile-icu";
 
@@ -75,12 +75,13 @@ export class I18n<D extends DefaultTranslationParams = {}> extends I18nWithLoade
 }
 
 // Second and third capabilities, same implementations, prototype-level
-// install: the keys are the already-mangled runtime names, so this is
-// mangling-safe by construction (plan R2) and the members stay
-// non-enumerable prototype members — the composed reflective contract (A11) is
-// unchanged.
-Object.defineProperties(I18n.prototype, pluginApi);
-Object.defineProperties(I18n.prototype, devtoolsApi);
+// install. Snapshot each class exactly as the low-level attach functions do;
+// the keys are the already-mangled runtime names, so the install remains
+// mangling-safe and the members remain non-enumerable.
+for (const capability of [I18nWithPlugins, I18nWithDevtools]) {
+  const { constructor: _ctor, ...api } = Object.getOwnPropertyDescriptors(capability.prototype);
+  Object.defineProperties(I18n.prototype, api);
+}
 
 /**
  * Create a fully composed instance: ICU plurals/selects, the loader, the

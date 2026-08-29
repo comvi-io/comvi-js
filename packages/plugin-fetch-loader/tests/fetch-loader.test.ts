@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { FetchLoader, buildCdnUrl, buildApiExportUrl } from "../src/index";
-import { I18n } from "@comvi/core";
+import { I18n } from "./helpers/composedHost";
 import { http, HttpResponse } from "msw";
 import {
   server,

@@ -135,17 +135,6 @@ export class I18nWithDevtools<D extends DefaultTranslationParams = {}> extends I
 }
 
 /**
- * Prototype descriptors of the capability, minus `constructor` — installing
- * that would repoint `instance.constructor` at the capability class.
- *
- * @internal Shared by `attachDevtools` and the composite install in `core/full.ts`.
- */
-const { constructor: _ctor, ...devtoolsApi } = Object.getOwnPropertyDescriptors(
-  I18nWithDevtools.prototype,
-);
-export { devtoolsApi };
-
-/**
  * Make a base host discoverable by browser devtools extensions.
  *
  * ```ts
@@ -170,7 +159,10 @@ export { devtoolsApi };
 export function attachDevtools<T extends I18nBase<any>>(i18n: T, options?: DevtoolsOptions): T {
   const i = i18n as unknown as I18nInternal;
   if (i._disposeDevtools === undefined) {
-    Object.defineProperties(i, devtoolsApi);
+    const { constructor: _ctor, ...api } = Object.getOwnPropertyDescriptors(
+      I18nWithDevtools.prototype,
+    );
+    Object.defineProperties(i, api);
     i._initDevtools!(options?.instanceId, options?.exposeGlobal);
   }
   return i18n;

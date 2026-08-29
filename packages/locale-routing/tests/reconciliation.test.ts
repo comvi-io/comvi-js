@@ -48,9 +48,7 @@ describe("extractLocaleFromPath (identical in both stacks — nuxt locale-path.t
 
 describe("stripLocalePrefix (reconciled: segment matching [next] + trailing-slash preservation [nuxt])", () => {
   // Columns: input | next-old | nuxt-old | shared (reconciled)
-  const table: Array<
-    [input: string, nextOld: string, nuxtOld: string, shared: string]
-  > = [
+  const table: Array<[input: string, nextOld: string, nuxtOld: string, shared: string]> = [
     // agreeing cases
     ["/de/about", "/about", "/about", "/about"],
     ["/de", "/", "/", "/"],
@@ -129,12 +127,7 @@ describe("buildLocalizedPath (nuxt buildLocalizedPath ∪ next createGetPathname
 
   describe("prefix modes (both stacks agreed)", () => {
     const table: Array<
-      [
-        path: string,
-        locale: string,
-        mode: "always" | "as-needed" | "never",
-        expected: string,
-      ]
+      [path: string, locale: string, mode: "always" | "as-needed" | "never", expected: string]
     > = [
       ["/about", "de", "always", "/de/about"],
       ["/about", "en", "always", "/en/about"],
@@ -156,9 +149,9 @@ describe("buildLocalizedPath (nuxt buildLocalizedPath ∪ next createGetPathname
     ];
 
     it.each(table)("buildLocalizedPath(%j, %j, %j) -> %j", (path, locale, mode, expected) => {
-      expect(
-        buildLocalizedPath(path, locale, { defaultLocale: "en", localePrefix: mode }),
-      ).toBe(expected);
+      expect(buildLocalizedPath(path, locale, { defaultLocale: "en", localePrefix: mode })).toBe(
+        expected,
+      );
     });
   });
 

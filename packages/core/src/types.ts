@@ -5,9 +5,9 @@ import type { I18n } from "./core/i18n";
 import type { I18nPlugin, PluginOptions } from "./plugins/types";
 
 /**
- * Entry pushed onto the `window.__COMVI__` queue by every instance created
- * with `exposeGlobal` (discovery protocol v2 — see
- * `contracts/chrome-extension-proxy.json`).
+ * Entry pushed onto the `window.__COMVI__` queue by instances carrying the
+ * devtools discovery capability with `exposeGlobal` enabled (protocol v2 —
+ * see `contracts/chrome-extension-proxy.json`).
  */
 export interface ComviQueueEntry {
   /** Core library version that produced the entry */
@@ -439,15 +439,17 @@ export interface I18nBaseOptions {
    */
   collectContext?: boolean;
   /**
-   * Expose this instance on the window.__COMVI__ discovery queue for browser
-   * extensions. Extensions like Comvi In-Context Editor drain the queue (or
-   * swap in a hook) to detect and interact with instances.
-   * @default true (in browser environments)
+   * Discovery option for composed compatibility hosts (the CDN/UMD host and
+   * `@comvi/next`'s composed preset). The base `@comvi/core` host accepts this
+   * shared option shape but does not install discovery; base-host users compose
+   * `devtools({ exposeGlobal })` or call `attachDevtools`.
+   * @default true when the devtools capability is installed in a browser
    */
   exposeGlobal?: boolean;
   /**
-   * Unique identifier for this instance when using multiple i18n instances.
-   * Auto-generated if not provided.
+   * Discovery identifier for composed compatibility hosts. Auto-generated
+   * when the devtools capability is installed and no value is provided. On a
+   * base host, pass it to `devtools({ instanceId })` or `attachDevtools`.
    */
   instanceId?: string;
   /**

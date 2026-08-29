@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { I18n } from "@comvi/core";
+import { I18n } from "./helpers/composedHost";
 import type { LocaleDetectorOptions } from "../src/index";
 import { LocaleDetector, resolveLocale } from "../src/index";
 import { mockCookie, mockNavigator, mockWindowLocation } from "./setup";

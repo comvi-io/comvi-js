@@ -21,10 +21,10 @@
 
 ## About Comvi i18n
 
-Comvi i18n is a modern, framework-agnostic internationalization library — ICU MessageFormat, rich-text component embedding, and locale-aware `Intl` formatters in **~8 kB minified + gzipped (as bundled by your app)** with **zero runtime dependencies** and **no `eval`** (CSP-safe for Chrome extensions, Cloudflare Workers, and locked-down enterprise apps).
+Comvi i18n is a modern, framework-agnostic internationalization library — ICU MessageFormat, rich-text component embedding, and locale-aware `Intl` formatters in **~5 kB minified + gzipped for the base host, ~8.6 kB with every capability composed (as bundled by your app)** with **zero runtime dependencies** and **no `eval`** (CSP-safe for Chrome extensions, Cloudflare Workers, and locked-down enterprise apps).
 
 - **Same API** across [Vue](https://www.npmjs.com/package/@comvi/vue), [React](https://www.npmjs.com/package/@comvi/react), [SolidJS](https://www.npmjs.com/package/@comvi/solid), [Svelte](https://www.npmjs.com/package/@comvi/svelte), [Next.js](https://www.npmjs.com/package/@comvi/next), and [Nuxt](https://www.npmjs.com/package/@comvi/nuxt).
-- **Real ICU MessageFormat** — locale-correct plurals, ordinals, and gender via `Intl.PluralRules`. Recognized by every major TMS.
+- **Real ICU MessageFormat** — locale-correct plurals, ordinals, and gender via `Intl.PluralRules`. Recognized by every major TMS. One explicit import: `compiler: icuCompiler` from `@comvi/core/icu`.
 - **Type-safe translation keys** via TypeScript declaration merging — autocomplete and parameter validation everywhere.
 - **Pluggable** — translation loading, locale detection, and in-context editing are opt-in plugins.
 
@@ -49,10 +49,10 @@ npm install @comvi/plugin-locale-detector
 
 ```ts
 import { createI18n } from "@comvi/core";
-import { LocaleDetector } from "@comvi/plugin-locale-detector";
+import { localeDetector } from "@comvi/plugin-locale-detector";
 
-const i18n = createI18n({ locale: "en" }).use(
-  LocaleDetector({
+const i18n = createI18n({ locale: "en" }).with(
+  localeDetector({
     supportedLocales: ["en", "uk", "de"],
     order: ["querystring", "localStorage", "cookie", "navigator"],
     caches: ["localStorage", "cookie"],
@@ -63,6 +63,43 @@ const i18n = createI18n({ locale: "en" }).use(
 await i18n.init();
 // → if URL has ?lng=uk, locale becomes "uk" and is saved to localStorage + cookie
 ```
+
+## Two ways in
+
+`@comvi/core` is the BASE host: the plugin host is an import you add, not
+something every app pays for. This package exports one name for each way of
+adding it.
+
+|                   | `.with(localeDetector(options))`                                                                      | `.use(LocaleDetector(options))`                                                  |
+| ----------------- | ----------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| what it is        | the **installer** — lowercase                                                                         | the **plugin factory** — uppercase                                               |
+| the host it needs | any host, including a bare `createI18n(…)`                                                            | one that already has `@comvi/core/plugins`                                       |
+| what it composes  | the plugin host, idempotently. No loader — the detector hands core a locale, it never loads a catalog | nothing — it only registers                                                      |
+| lifecycle         | the host's own: it ends in `use(LocaleDetector(options))`                                             | the host's own                                                                   |
+| reach for it when | you are setting up the host                                                                           | you already compose capabilities explicitly, or you register plugins from a list |
+
+Both end in the same place. The installer is the one-call form of this:
+
+```ts
+import { createI18n } from "@comvi/core";
+import { attachPlugins } from "@comvi/core/plugins";
+import { LocaleDetector } from "@comvi/plugin-locale-detector";
+
+const i18n = createI18n({ locale: "en" }).with(attachPlugins);
+i18n.use(LocaleDetector({ supportedLocales: ["en", "uk", "de"] }));
+```
+
+**Swapping the two is a type error, and it is loud at runtime too.** Nothing is
+branded — an installer and a plugin are both "a function of the host" — so each
+slot rejects the other explicitly instead of half-working:
+
+- `.use(localeDetector(…))` fails at `init()`, on the installer's first
+  ensure-step, **before** the plugin host is attached and before a second
+  plugin reaches the queue. The message names `localeDetector` and the `.with`
+  form.
+- `.with(LocaleDetector(…))` calls the plugin against a host that has no
+  `registerLocaleDetector`, so the invocation is rejected. `.with` is a pipe and
+  nothing more: it never inspects, orders or brands what you hand it.
 
 ## How detection works
 
@@ -84,10 +121,10 @@ BCP 47 lookup means `de-DE` matches `de` if `supportedLocales: ["en", "de"]`, an
 ```tsx
 // React
 import { createI18n, I18nProvider } from "@comvi/react";
-import { LocaleDetector } from "@comvi/plugin-locale-detector";
+import { localeDetector } from "@comvi/plugin-locale-detector";
 
-const i18n = createI18n({ locale: "en", fallbackLocale: "en" }).use(
-  LocaleDetector({
+const i18n = createI18n({ locale: "en", fallbackLocale: "en" }).with(
+  localeDetector({
     supportedLocales: ["en", "uk", "de"],
     order: ["querystring", "cookie", "navigator"],
     caches: ["cookie", "localStorage"],
@@ -97,7 +134,12 @@ const i18n = createI18n({ locale: "en", fallbackLocale: "en" }).use(
 <I18nProvider i18n={i18n}>{/* ... */}</I18nProvider>;
 ```
 
-Same setup works in Vue, Solid, Svelte. For Next.js and Nuxt, prefer the framework's middleware (`@comvi/next`'s `createMiddleware()` or `@comvi/nuxt`'s `detectBrowserLanguage` config) — they detect on the server before the page renders.
+Same setup works in Solid and Svelte. Vue's `createI18n` returns a `VueI18n`
+wrapper rather than a core host, so install onto the host it exposes:
+`i18n.core.with(localeDetector({ … }))`. For Next.js and Nuxt, prefer the
+framework's middleware (`@comvi/next`'s `createMiddleware()` or `@comvi/nuxt`'s
+`detectBrowserLanguage` config) — they detect on the server before the page
+renders.
 
 For all detection sources, cookie/storage key options, BCP 47 normalization rules, and the full options reference, see the [documentation](https://comvi.io/docs/i18n/plugins/locale-detector/).
 

@@ -16,8 +16,12 @@
 //     detector / missing-key callbacks / post-processors / plugin data;
 //   • `@comvi/core/devtools` — `devtools()` / `attachDevtools`: `instanceId`
 //     and the `window.__COMVI__` extension handshake;
-//   • `@comvi/core/tags`     — tag interpolation (importing it registers tag
-//     syntax ambiently), plus the VirtualNode toolbox.
+//   • `@comvi/core/rich-text` — the PURE `<T>` toolbox: `prepareTranslation`
+//     and the VirtualNode helpers, with NO registration side effect (the tag
+//     grammar travels per call). This is what framework `<T>` components
+//     import;
+//   • `@comvi/core/tags`     — the same toolbox PLUS ambient registration:
+//     importing it makes `<tag>…</tag>` syntax for plain string-API `t()`.
 //
 // ICU syntax under the default compiler FAILS LOUD in development and in
 // production: `{count, plural, …}` throws `E_ICU_SYNTAX` rather than rendering

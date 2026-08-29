@@ -52,7 +52,7 @@ export type { I18nLoaderApi, LoaderFn, LoaderResult } from "./types";
  *
  * PICK THE INSTALLER BY WHAT YOU HAVE. `loader` names the import-map adapter
  * statically, so referencing it pulls that adapter into the graph whether or
- * not you pass a map (+111 B min+gz measured on `fw-next-server-slim-loader`,
+ * not you pass a map (+111 B min+gz measured on `fw-next-server-default-loader`,
  * +124 B on the composed `core-base-loader` graph). Bare `loader()` is therefore
  * attach-only but NOT free: for a plain `LoaderFn`, compose
  * `.with(attachLoader)` and register it yourself — 2 B over calling

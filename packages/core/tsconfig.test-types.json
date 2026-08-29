@@ -11,6 +11,7 @@
       "@comvi/core/plugins": ["./src/plugins.ts"],
       "@comvi/core/devtools": ["./src/devtools.ts"],
       "@comvi/core/icu": ["./src/icu.ts"],
+      "@comvi/core/rich-text": ["./src/rich-text.ts"],
       "@comvi/core/tags": ["./src/tags.ts"],
       "@comvi/core/editor-bridge": ["./src/editor-bridge.ts"]
     }

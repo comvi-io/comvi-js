@@ -28,10 +28,10 @@
 
 ## About Comvi i18n
 
-Comvi i18n is a modern, framework-agnostic internationalization library — ICU MessageFormat, rich-text component embedding, and locale-aware `Intl` formatters in **~8 kB minified + gzipped (as bundled by your app)** with **zero runtime dependencies** and **no `eval`** (CSP-safe for Chrome extensions, Cloudflare Workers, and locked-down enterprise apps).
+Comvi i18n is a modern, framework-agnostic internationalization library — ICU MessageFormat, rich-text component embedding, and locale-aware `Intl` formatters in **~5 kB minified + gzipped for the base host, ~8.6 kB with every capability composed (as bundled by your app)** with **zero runtime dependencies** and **no `eval`** (CSP-safe for Chrome extensions, Cloudflare Workers, and locked-down enterprise apps).
 
 - **Same API** across [Vue](https://www.npmjs.com/package/@comvi/vue), [React](https://www.npmjs.com/package/@comvi/react), [SolidJS](https://www.npmjs.com/package/@comvi/solid), [Svelte](https://www.npmjs.com/package/@comvi/svelte), [Next.js](https://www.npmjs.com/package/@comvi/next), and [Nuxt](https://www.npmjs.com/package/@comvi/nuxt).
-- **Real ICU MessageFormat** — locale-correct plurals, ordinals, and gender via `Intl.PluralRules`. Recognized by every major TMS.
+- **Real ICU MessageFormat** — locale-correct plurals, ordinals, and gender via `Intl.PluralRules`. Recognized by every major TMS. One explicit import: `compiler: icuCompiler` from `@comvi/core/icu`.
 - **Type-safe translation keys** via TypeScript declaration merging — autocomplete and parameter validation everywhere.
 - **Pluggable** — translation loading, locale detection, and in-context editing are opt-in plugins.
 
@@ -56,14 +56,52 @@ npm install @comvi/plugin-fetch-loader
 
 ```ts
 import { createI18n } from "@comvi/core";
-import { FetchLoader } from "@comvi/plugin-fetch-loader";
+import { fetchLoader } from "@comvi/plugin-fetch-loader";
 
-const i18n = createI18n({ locale: "en" }).use(
-  FetchLoader({ cdnUrl: "https://cdn.comvi.io/your-distribution-id" }),
+const i18n = createI18n({ locale: "en" }).with(
+  fetchLoader({ cdnUrl: "https://cdn.comvi.io/your-distribution-id" }),
 );
 
 await i18n.init();
 ```
+
+## Two ways in
+
+`@comvi/core` is the BASE host: async loading and the plugin host are imports
+you add, not things every app pays for. This package exports one name for each
+way of adding them.
+
+|                   | `.with(fetchLoader(options))`                          | `.use(FetchLoader(options))`                                                     |
+| ----------------- | ------------------------------------------------------ | -------------------------------------------------------------------------------- |
+| what it is        | the **installer** — lowercase                          | the **plugin factory** — uppercase                                               |
+| the host it needs | any host, including a bare `createI18n(…)`             | one that already has `@comvi/core/loader` **and** `@comvi/core/plugins`          |
+| what it composes  | both capabilities, idempotently, loader first          | nothing — it only registers                                                      |
+| lifecycle         | the host's own: it ends in `use(FetchLoader(options))` | the host's own                                                                   |
+| reach for it when | you are setting up the host                            | you already compose capabilities explicitly, or you register plugins from a list |
+
+Both end in the same place. The installer is the one-call form of this:
+
+```ts
+import { createI18n } from "@comvi/core";
+import { attachLoader } from "@comvi/core/loader";
+import { attachPlugins } from "@comvi/core/plugins";
+import { FetchLoader } from "@comvi/plugin-fetch-loader";
+
+const i18n = createI18n({ locale: "en" }).with(attachLoader).with(attachPlugins);
+i18n.use(FetchLoader({ cdnUrl: "https://cdn.comvi.io/your-distribution-id" }));
+```
+
+**Swapping the two is a type error, and it is loud at runtime too.** Nothing is
+branded — an installer and a plugin are both "a function of the host" — so each
+slot rejects the other explicitly instead of half-working:
+
+- `.use(fetchLoader(…))` fails at `init()`, on the installer's first
+  ensure-step, **before** the loader or plugin capability is attached and
+  before a second plugin reaches the queue. The message names `fetchLoader`
+  and the `.with` form.
+- `.with(FetchLoader(…))` calls the plugin against a host that has none of the
+  capabilities it needs, so the invocation is rejected. `.with` is a pipe and
+  nothing more: it never inspects, orders or brands what you hand it.
 
 ## CDN namespace layout
 
@@ -79,8 +117,8 @@ const i18n = createI18n({
   locale: "en",
   defaultNs: "storefront",
   ns: ["storefront", "default"],
-}).use(
-  FetchLoader({
+}).with(
+  fetchLoader({
     cdnUrl: "https://cdn.comvi.io/your-distribution-id",
     cdnLayout: { rootNamespace: "default" },
   }),
@@ -100,13 +138,13 @@ Pass an `apiKey` on `createI18n` to switch to authenticated API mode — used fo
 
 ```ts
 import { createI18n } from "@comvi/core";
-import { FetchLoader } from "@comvi/plugin-fetch-loader";
+import { fetchLoader } from "@comvi/plugin-fetch-loader";
 
 const i18n = createI18n({
   locale: "en",
   apiKey: process.env.COMVI_API_KEY, // triggers API mode
-}).use(
-  FetchLoader({
+}).with(
+  fetchLoader({
     cdnUrl: "https://cdn.comvi.io/your-distribution-id", // required by the loader
     apiBaseUrl: process.env.COMVI_API_URL || "https://api.comvi.io",
   }),
@@ -125,10 +163,10 @@ Same setup, framework-idiomatic integration. The plugin lives on the underlying 
 
 ```tsx
 import { createI18n, I18nProvider } from "@comvi/react";
-import { FetchLoader } from "@comvi/plugin-fetch-loader";
+import { fetchLoader } from "@comvi/plugin-fetch-loader";
 
-const i18n = createI18n({ locale: "en" }).use(
-  FetchLoader({ cdnUrl: "https://cdn.comvi.io/your-distribution-id" }),
+const i18n = createI18n({ locale: "en" }).with(
+  fetchLoader({ cdnUrl: "https://cdn.comvi.io/your-distribution-id" }),
 );
 
 <I18nProvider i18n={i18n}>{/* ... */}</I18nProvider>;
@@ -139,11 +177,12 @@ const i18n = createI18n({ locale: "en" }).use(
 ```ts
 import { createApp } from "vue";
 import { createI18n } from "@comvi/vue";
-import { FetchLoader } from "@comvi/plugin-fetch-loader";
+import { fetchLoader } from "@comvi/plugin-fetch-loader";
 
-const i18n = createI18n({ locale: "en" }).use(
-  FetchLoader({ cdnUrl: "https://cdn.comvi.io/your-distribution-id" }),
-);
+// `VueI18n` wraps a core host and exposes it as `readonly core`, which is
+// where installers and plugins go.
+const i18n = createI18n({ locale: "en" });
+i18n.core.with(fetchLoader({ cdnUrl: "https://cdn.comvi.io/your-distribution-id" }));
 
 createApp(App).use(i18n).mount("#app");
 ```

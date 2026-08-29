@@ -1,4 +1,5 @@
-import type { I18nPlugin, I18nPluginFactory } from "@comvi/core";
+import type { I18n, I18nPlugin, I18nPluginFactory, I18nPluginHostApi } from "@comvi/core";
+import { attachPlugins, ensureInstallable } from "@comvi/core/plugins";
 
 /**
  * Detection source types
@@ -289,6 +290,54 @@ export const LocaleDetector: I18nPluginFactory<LocaleDetectorOptions> = (
     };
   };
 };
+
+/** The host surface `localeDetector` guarantees on the way out. */
+export type LocaleDetectorInstaller = <T extends I18n<any>>(i18n: T) => T & I18nPluginHostApi;
+
+/**
+ * The locale detector as a `.with(…)` installer — the lowercase half of this
+ * package, and the one to start from.
+ *
+ * ```ts
+ * import { createI18n } from "@comvi/core";
+ * import { localeDetector } from "@comvi/plugin-locale-detector";
+ *
+ * const i18n = createI18n({ locale: "en" }).with(
+ *   localeDetector({ supportedLocales: ["en", "uk", "de"], caches: ["cookie"] }),
+ * );
+ * await i18n.init();
+ * ```
+ *
+ * It ensures `@comvi/core/plugins` — `registerLocaleDetector` and the host's
+ * detector hand-off both live there — and then registers
+ * `LocaleDetector(options)` through the host's own `use`. The attach is
+ * idempotent, so composing onto a host that already has the plugin capability
+ * installs nothing and keeps every plugin already registered, and composing
+ * twice registers the plugin twice exactly as two `use` calls would.
+ *
+ * The lifecycle is NOT re-implemented here: `required`, `timeout`, `onError`,
+ * cleanup registration and LIFO destroy keep running inside
+ * `I18nPluginHost`, because the last thing this installer does is call `use`.
+ *
+ * Widening is exact — the plugin host API is precisely what the attach added.
+ * No loader capability is composed: the detector never loads a catalog, it
+ * hands core a locale and core loads namespaces through whatever loading the
+ * host already has.
+ *
+ * WRONG USE. `.use(localeDetector(…))` is a type error, and at runtime it
+ * fails at `init()` on the first ensure-step (`ensureInstallable`) with an
+ * actionable message, before the plugin capability is attached and before a
+ * second plugin reaches the queue. The uppercase `LocaleDetector` factory is
+ * unchanged and stays the right thing to hand to `.use` on a host that
+ * already has the capability.
+ */
+export function localeDetector(options?: LocaleDetectorOptions): LocaleDetectorInstaller {
+  return (i18n) => {
+    const host = attachPlugins(ensureInstallable(i18n, "localeDetector"));
+    host.use(LocaleDetector(options));
+    return host;
+  };
+}
 
 const SR = /[-_]/;
 const VR = /^[a-z]{2,8}([_-][a-z\d]{1,8})*$/i;

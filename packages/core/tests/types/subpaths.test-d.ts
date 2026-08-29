@@ -1,5 +1,6 @@
-// Type-level smoke test: the root, /icu, /tags, /loader, /plugins, /devtools
-// and /editor-bridge entries resolve and expose the contracted surface.
+// Type-level smoke test: the root, /icu, /rich-text, /tags, /loader, /plugins,
+// /devtools and /editor-bridge entries resolve and expose the contracted
+// surface.
 // The root is the BASE host, so every capability assertion below is about a
 // capability being ABSENT until it is composed in.
 // (Published-artifact resolution under moduleResolution bundler/node16 is
@@ -39,9 +40,22 @@ import {
   tagSyntaxExtension,
   createElement,
   isVirtualNode,
+  prepareTranslation as tagsPrepareTranslation,
   type SyntaxExtension,
   type VirtualNode,
 } from "@comvi/core/tags";
+import {
+  prepareTranslation,
+  getPendingHandlerName,
+  childrenToArray,
+  createFragment,
+  type PendingHandler,
+  type PrepareTranslationProps,
+  type PreparedTranslation,
+  type PrepareTranslationSource,
+  type TagComponentsMap,
+  type TranslationResult,
+} from "@comvi/core/rich-text";
 import {
   EDITOR_MAPPINGS_GLOBAL,
   EDITOR_INITIAL_MAPPINGS_GLOBAL,
@@ -72,6 +86,26 @@ const node: VirtualNode = createElement("strong", {}, ["hi"]);
 if (isVirtualNode(node)) {
   node.type satisfies "element" | "text" | "fragment";
 }
+
+// rich-text: the pure `<T>` seam types independently of the ambient entry, and
+// `@comvi/core/tags` re-exports the SAME declarations — so a binding taken from
+// one is assignable to the slot typed by the other. That assignability is the
+// backward-compatibility contract of the split.
+declare const richSource: PrepareTranslationSource;
+const richProps: PrepareTranslationProps = { i18nKey: "msg", components: { link: "a" } };
+const prepared: PreparedTranslation = prepareTranslation(richSource, richProps);
+prepared.content satisfies TranslationResult;
+prepared.pendingHandlers satisfies PendingHandler[];
+const handlerName: string | undefined = getPendingHandlerName("__comvi_handler_link__");
+void handlerName;
+const richChildren: (string | VirtualNode)[] = childrenToArray(prepared.content);
+richChildren.push(createFragment(["x"]));
+const componentsMap: TagComponentsMap = { link: "a" };
+void componentsMap;
+// The ambient entry re-exports the SAME declaration, so the two bindings are
+// interchangeable in a consumer's type positions.
+const viaTags: typeof prepareTranslation = tagsPrepareTranslation;
+void viaTags;
 
 // root: missingParam is part of the base options.
 createI18n({ locale: "en", missingParam: "literal" });

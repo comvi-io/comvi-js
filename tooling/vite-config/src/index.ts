@@ -172,8 +172,9 @@ export const treeshakeOptions = {
  * `@comvi/vue` shipped a duplicate tag graph that could not dedupe with the
  * app's own `@comvi/core` and ran core's ambient `registerTagSyntax()` from
  * inside the vue bundle. The list is shared because forgetting one entry
- * fails silently and expensively, and because every wrapper's `/slim` entry
- * now re-exports the capability subpaths.
+ * fails silently and expensively, and because since the single-entry
+ * convergence every wrapper ROOT re-exports the capability subpaths — there is
+ * no second wrapper entry to carry them.
  */
 export const COMVI_CORE_EXTERNALS = [
   "@comvi/core",
@@ -181,6 +182,11 @@ export const COMVI_CORE_EXTERNALS = [
   "@comvi/core/loader",
   "@comvi/core/plugins",
   "@comvi/core/devtools",
+  // The PURE rich-text seam every wrapper `<T>` imports, and its ambient
+  // counterpart. Both must be external: inlining `rich-text` would give the
+  // wrapper a private copy of the `<T>` pipeline that cannot dedupe with the
+  // app's `@comvi/core`, and inlining `tags` re-creates blocker B3 outright.
+  "@comvi/core/rich-text",
   "@comvi/core/tags",
 ];
 

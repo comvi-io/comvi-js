@@ -198,6 +198,16 @@ describe("prod dist: base + /loader + /plugins composition (A6)", () => {
     expect(leaked).toEqual([]);
   });
 
+  it("emits no dangling pure annotations before return statements", () => {
+    const files = distFiles(false);
+    const invalid: string[] = [];
+    for (const file of files) {
+      const source = fs.readFileSync(file, "utf8");
+      if (/\/\* @__PURE__ \*\/\s*return\b/.test(source)) invalid.push(path.basename(file));
+    }
+    expect(invalid).toEqual([]);
+  });
+
   it("leaves the dev artifacts unmangled (proves the prod scan is meaningful)", () => {
     const files = distFiles(true);
     expect(files.length).toBeGreaterThan(0);

@@ -64,6 +64,11 @@
       "development": "./dist/comvi-core-icu.dev.js",
       "default": "./dist/comvi-core-icu.js"
     },
+    "./rich-text": {
+      "types": "./dist/rich-text.d.ts",
+      "development": "./dist/comvi-core-rich-text.dev.js",
+      "default": "./dist/comvi-core-rich-text.js"
+    },
     "./tags": {
       "types": "./dist/tags.d.ts",
       "development": "./dist/comvi-core-tags.dev.js",

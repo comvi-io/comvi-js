@@ -4,7 +4,8 @@
  * Entries (see `coreEntries` below — that list is the authority):
  * - index          → the BASE host: simple {param} compiler, no ambient tags
  * - icu            → pure icuCompiler subpath
- * - tags           → tag toolbox + ambient registration
+ * - rich-text      → PURE `<T>` pipeline + VirtualNode toolbox, no registration
+ * - tags           → rich-text re-exported + ambient registration
  * - loader/plugins/devtools/editor-bridge → the capability subpaths
  *
  * The CDN global (`src/umd.ts`, built by `vite.config.umd.ts`) is the one
@@ -13,10 +14,13 @@
  * src/register-tags.ts (the shared registration side-effect module) is pinned
  * into its OWN chunk with a DETERMINISTIC (hash-free) file name: the
  * package.json `sideEffects` array lists it by exact path, and a hash-named
- * shared chunk would let that array drift per build (plan R2). Only the module
- * containing the top-level call needs the listing — its dependencies are
- * retained through used-export edges. Since the single-entry convergence the
- * ESM root no longer imports it bare; `tags` and the UMD entry do.
+ * shared chunk would let that array drift per build (plan R2). ONLY the module
+ * containing the top-level call is in that chunk and in that array — its
+ * dependencies, the tag grammar included, are retained through used-export
+ * edges and stay PURE and hash-named, which is what lets `@comvi/core/rich-text`
+ * reach the grammar without dragging the registration in. Since the
+ * single-entry convergence the ESM root no longer imports it bare; `tags` and
+ * the UMD entry do.
  */
 import { resolve } from "path";
 import type { Plugin } from "vite";
@@ -34,6 +38,7 @@ export const coreEntries = (dir: string): Record<string, string> => ({
   // `src/umd.ts` is deliberately absent: the CDN global is a separate
   // invocation (`vite.config.umd.ts`) and is not an ESM package entry.
   icu: resolve(dir, "src/icu.ts"),
+  "rich-text": resolve(dir, "src/rich-text.ts"),
   tags: resolve(dir, "src/tags.ts"),
   loader: resolve(dir, "src/loader.ts"),
   plugins: resolve(dir, "src/plugins.ts"),
@@ -44,32 +49,51 @@ export const coreEntries = (dir: string): Record<string, string> => ({
 /** Internal chunk name for the pinned registration module. */
 export const REGISTER_CHUNK = "register-tags";
 
+/** Internal chunk name for the pure tag grammar the registration installs. */
+export const TAG_SYNTAX_CHUNK = "tag-syntax";
+
 /**
- * Pin src/register-tags.ts into its own chunk — together with the tag grammar
- * it registers, and nothing else (recursive dependency capture would drag
- * shared pipeline modules into the side-effectful chunk, which would execute
- * the registration for base-entry consumers).
+ * Pin `src/register-tags.ts` — and NOTHING else — into the side-effectful
+ * chunk, and the tag grammar it registers (`src/core/translate/tags.ts`) into
+ * a separate PURE one. Recursive dependency capture stays off: it would drag
+ * shared pipeline modules into the side-effectful chunk and execute the
+ * registration for base-entry consumers.
  *
- * The grammar joined it in the single-entry convergence. The ESM root no longer
- * imports `register-tags`, so `@comvi/core/tags` became the only entry reaching
- * `core/translate/tags.ts` — and rolldown then folds that module INTO the entry
- * chunk, which the pinned registration chunk imports back: `comvi-core-tags.js`
- * → register chunk → `comvi-core-tags.js`, a cycle whose TDZ makes
- * `registerTagSyntax()` see an uninitialized `tagSyntaxExtension` and throw at
- * import time. Keeping both modules in ONE chunk removes the cycle without
- * adding a chunk boundary. A separate `tag-syntax` chunk fixes the cycle too,
- * but it measured +9 B min+gz on `core-full-composite` — a row whose ceiling is
- * owner-signed at 8605 B with the landed run observed at 8604, i.e. 1 B of
- * headroom that is an allowance for chunk-name hash characters and nothing
- * else, so those 9 B are disallowed.
- * Only graphs that opt into tags ever load this chunk.
+ * The grammar has to be its own chunk because two entries reach it now and
+ * only one of them may register: `@comvi/core/rich-text` imports
+ * `tagSyntaxExtension` (through `core/prepareTranslation`) to pass per call,
+ * while `@comvi/core/tags` additionally bare-imports `register-tags`. Folding
+ * the grammar in with the registration call — which is what this group did
+ * while `/tags` was its only reachable entry — would make importing the pure
+ * seam execute `registerTagSyntax()`, i.e. exactly the ambient side effect the
+ * seam exists to avoid.
+ *
+ * It also keeps the TDZ cycle away. With one reachable entry rolldown folded
+ * the grammar INTO the entry chunk, which the pinned registration chunk
+ * imports back: `comvi-core-tags.js` → register chunk → `comvi-core-tags.js`,
+ * a cycle whose TDZ makes `registerTagSyntax()` see an uninitialized
+ * `tagSyntaxExtension` and throw at import time. A named group for the grammar
+ * removes the cycle by construction and does not depend on how many entries
+ * happen to reach it. The extra dist chunk boundary is free once an app
+ * bundler re-bundles through the exports map: the landed full-composite row
+ * stayed 23957 B min and moved 8604 → 8603 B min+gz.
+ *
+ * Only graphs that opt into tags load the registration chunk; only graphs that
+ * render rich text or opt into tags load the grammar chunk.
  */
 export const coreCodeSplitting = {
   includeDependenciesRecursively: false,
   groups: [
     {
       name: REGISTER_CHUNK,
-      test: /src[\\/](register-tags\.ts|core[\\/]translate[\\/]tags\.ts)/,
+      test: /src[\\/]register-tags\.ts/,
+      minSize: 0,
+      minShareCount: 1,
+      priority: 20,
+    },
+    {
+      name: TAG_SYNTAX_CHUNK,
+      test: /src[\\/]core[\\/]translate[\\/]tags\.ts/,
       minSize: 0,
       minShareCount: 1,
       priority: 10,
@@ -165,7 +189,14 @@ export const mangleInternalProps = (): Plugin => {
           nameCache,
           format: { preserve_annotations: true, comments: false },
         });
-        if (result.code) chunk.code = result.code;
+        if (result.code) {
+          // Terser can move a preserved pure annotation from a returned
+          // expression in front of the `return` keyword. The annotation has
+          // no tree-shaking value inside a function and downstream Rollup
+          // warns because only annotations directly before an expression are
+          // valid. Keep top-level annotations; remove only this invalid form.
+          chunk.code = result.code.replace(/\/\* @__PURE__ \*\/\s*(?=return\b)/g, "");
+        }
       }
     },
   };

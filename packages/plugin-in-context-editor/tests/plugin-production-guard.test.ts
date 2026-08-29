@@ -7,7 +7,7 @@
  */
 
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createI18n } from "@comvi/core";
+import { createI18n } from "./helpers/composedHost";
 import type * as CoreModule from "../src/Core";
 
 const coreCtorMock = vi.fn();
@@ -94,9 +94,7 @@ describe("InContextEditorPlugin production guard", () => {
 
     expect(coreCtorMock).toHaveBeenCalledTimes(1);
     expect(coreStartMock).toHaveBeenCalledTimes(1);
-    expect(
-      (i18n as unknown as Record<string, unknown>)[MAPPINGS_BRIDGE_KEY],
-    ).toBeDefined();
+    expect((i18n as unknown as Record<string, unknown>)[MAPPINGS_BRIDGE_KEY]).toBeDefined();
 
     (cleanup as () => void)?.();
     expect(coreStopMock).toHaveBeenCalledTimes(1);

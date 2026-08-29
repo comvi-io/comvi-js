@@ -54,7 +54,8 @@
     "build:standalone": "vite build --config vite.config.standalone.ts",
     "build:all": "pnpm build",
     "preview": "vite preview",
-    "test": "vitest run",
+    "test:types": "vue-tsc --noEmit -p tsconfig.test-types.json",
+    "test": "vitest run && pnpm test:types",
     "test:watch": "vitest",
     "test:ui": "vitest --ui",
     "test:coverage": "vitest run --coverage",
@@ -64,13 +65,11 @@
     "lint:fix": "eslint . --fix"
   },
   "peerDependencies": {
-    "@comvi/core": "^0.4.0"
-  },
-  "dependencies": {
-    "@comvi/plugin-fetch-loader": "workspace:*"
+    "@comvi/core": "^0.5.0"
   },
   "devDependencies": {
     "@comvi/core": "workspace:*",
+    "@comvi/plugin-fetch-loader": "workspace:*",
     "@lucide/vue": "^1.7.0",
     "@playwright/test": "^1.59.1",
     "@tailwindcss/vite": "^4.2.2",

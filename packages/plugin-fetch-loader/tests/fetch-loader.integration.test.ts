@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { FetchLoader, fetchProjectInfo, clearProjectInfoCache } from "../src/index";
-import { I18n } from "@comvi/core";
+import { I18n } from "./helpers/composedHost";
 import { delay, http, HttpResponse } from "msw";
 import {
   server,

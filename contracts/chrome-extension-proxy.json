@@ -9,7 +9,7 @@
       "i": "the exposed i18n instance"
     },
     "coreToPage": {
-      "description": "Every core instance created with exposeGlobal (default true in browsers) announces itself on window.__COMVI__ at construction time.",
+      "description": "A core instance announces itself on window.__COMVI__ at construction time when the devtools capability is present in its module graph and exposeGlobal is on (default true in browsers). In 0.4 the root entry always carried that capability. From 0.5 the single entry is the base host, so the capability arrives through the devtools() installer, attachDevtools, or a plugin installer that ensures devtools (in-context-editor); an app that composes none of them is invisible to the extension by construction, not by failure.",
       "probeOrder": [
         "Array.isArray(g) -> g.push({v, i}) — raw v2 queue array, or a consumer's array-masquerading hook whose OWN push/remove shadow Array.prototype",
         "typeof g.push === 'function' && typeof g.remove === 'function' -> g.push({v, i}) — v2 hook object, including dual-protocol hooks that also expose register; probed BEFORE legacy so new/new never downgrades to v1",

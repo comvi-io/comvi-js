@@ -17,11 +17,19 @@
 // loader — plugins run at `init()`, and `registerLoader` has to exist by then.
 // On a host that already has the capability — a second `.with(plugins())`, or
 // the internal composite the CDN global ships — installing is a no-op.
+//
+// Two misuse guards live in this capability, and only apps that compose it
+// pay for them. `ensureInstallable` is the nested-use guard a lowercase
+// plugin-package installer calls as its first ensure-step, so
+// `.use(fetchLoader(…))` fails before anything is attached. Independently,
+// `init()` rejects a plugin that returns an OBJECT: only nothing and a
+// cleanup function are legal results, which is what catches an installer
+// that hands the host back instead of registering a cleanup.
 import type { I18n } from "./core/i18n";
 import type { I18nPluginHostApi } from "./types";
 import { attachPlugins } from "./core/plugins";
 
-export { attachPlugins } from "./core/plugins";
+export { attachPlugins, ensureInstallable } from "./core/plugins";
 export type { I18nPluginHostApi, I18nPluginHost } from "./types";
 export type { I18nPlugin, I18nPluginFactory, PluginOptions } from "./plugins/types";
 

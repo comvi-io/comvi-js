@@ -19,22 +19,22 @@
 
 `@comvi/core` is the framework-independent runtime that powers every Comvi i18n binding. If you already use [`@comvi/vue`](../vue), [`@comvi/react`](../react), [`@comvi/solid`](../solid), [`@comvi/svelte`](../svelte), [`@comvi/next`](../next), or [`@comvi/nuxt`](../nuxt), you have it transitively — install this package directly only when you're building a custom integration or running Comvi i18n in vanilla Node/browser code.
 
-Ships an ICU MessageFormat parser, a plugin system, and locale-aware `Intl` formatters out of the box.
+Locale-aware `Intl` formatters ride on the base host; the ICU MessageFormat parser, async loading, the plugin system and extension discovery are pure subpaths you compose in.
 
 ## About Comvi i18n
 
-Comvi i18n is a modern, framework-agnostic internationalization library — ICU MessageFormat, rich-text component embedding, and locale-aware `Intl` formatters in **~8 kB minified + gzipped (as bundled by your app)** with **zero runtime dependencies** and **no `eval`** (CSP-safe for Chrome extensions, Cloudflare Workers, and locked-down enterprise apps).
+Comvi i18n is a modern, framework-agnostic internationalization library — ICU MessageFormat, rich-text component embedding, and locale-aware `Intl` formatters in **~5 kB minified + gzipped for the base host, ~8.6 kB with every capability composed (as bundled by your app)** with **zero runtime dependencies** and **no `eval`** (CSP-safe for Chrome extensions, Cloudflare Workers, and locked-down enterprise apps).
 
 - **Same API** across [Vue](https://www.npmjs.com/package/@comvi/vue), [React](https://www.npmjs.com/package/@comvi/react), [SolidJS](https://www.npmjs.com/package/@comvi/solid), [Svelte](https://www.npmjs.com/package/@comvi/svelte), [Next.js](https://www.npmjs.com/package/@comvi/next), and [Nuxt](https://www.npmjs.com/package/@comvi/nuxt).
-- **Real ICU MessageFormat** — locale-correct plurals, ordinals, and gender via `Intl.PluralRules`. Recognized by every major TMS.
+- **Real ICU MessageFormat** — locale-correct plurals, ordinals, and gender via `Intl.PluralRules`. Recognized by every major TMS. One explicit import: `compiler: icuCompiler` from `@comvi/core/icu`.
 - **Type-safe translation keys** via TypeScript declaration merging — autocomplete and parameter validation everywhere.
-- **Pluggable** — translation loading, locale detection, and in-context editing are opt-in plugins.
+- **Pluggable** — translation loading, locale detection, and in-context editing are opt-in plugins, each one `.with(…)` call.
 
 See the [main repo](https://github.com/comvi-io/comvi-js) for the full library overview, runnable demos, and the framework binding matrix.
 
 ## Why @comvi/core?
 
-- **Zero runtime dependencies, ~8 kB minified + gzipped (as bundled by your app)** — drops into any JS environment without a tree of transitive packages.
+- **Zero runtime dependencies, ~5 kB minified + gzipped for the base host (as bundled by your app)** — drops into any JS environment without a tree of transitive packages.
 - **No `eval` or `new Function`** — runs under a strict CSP without `unsafe-eval`. Safe for Chrome extensions, Cloudflare Workers, and locked-down enterprise apps.
 - **Plugin system, not a kitchen sink** — translation loading, locale detection, and editing are opt-in plugins. You only ship what you use.
 
@@ -210,9 +210,10 @@ a host that was already composed — installs nothing and shadows nothing.
 > loader first and the ordering concern goes away:
 > `createI18n({ … }).with(loader()).with(plugins())`.
 >
-> Published plugin packages are unchanged: compose the host, then `use` them.
-> That is the current recipe, not the final one — plugin packages will become
-> directly `.with`-able in a follow-up.
+> Published plugin packages ship a lowercase **installer** that does the ordering
+> for you: `.with(fetchLoader({ … }))` composes `/loader`, then `/plugins`, then
+> registers the plugin — one call. The uppercase factory is unchanged; reach for
+> it when you compose capabilities yourself or register plugins from a list.
 
 ### What the base host does not have
 
@@ -230,7 +231,8 @@ a missing capability is caught by TypeScript, never discovered in production.
 | Post-processors       | `@comvi/core/plugins`                 | `registerPostProcessor`                                                                                         |
 | Devtools discovery    | `@comvi/core/devtools` (`devtools()`) | `instanceId`, the `window.__COMVI__` queue protocol, removal on `destroy()`                                     |
 | ICU plural/select     | `@comvi/core/icu`                     | `createI18n({ …, compiler: icuCompiler })`, or `.with(icu())` before any catalog                                |
-| Tag interpolation     | `@comvi/core/tags`                    | ambient import, or `tagInterpolation.extensions` per call — also `&lt;` / `&gt;` / `&amp;` and the `\<` escape  |
+| Rich-text components  | `@comvi/core/rich-text`               | pure `prepareTranslation` / VirtualNode toolbox; tag syntax is passed per call and never registered ambiently   |
+| String-API tags       | `@comvi/core/tags`                    | ambient registration plus the same rich-text toolbox — also `&lt;` / `&gt;` / `&amp;` and the `\<` escape       |
 
 Four placements are worth calling out because they are not where you might guess:
 
@@ -327,11 +329,11 @@ Measured min+gz through the published exports map, from the landed run
 | ---------------------------------------- | ------- |
 | `@comvi/core` (the base host)            | 5,016 B |
 | `+ /icu` (constructor option)            | 5,890 B |
-| `+ /icu` (`.with(icu())` installer)      | 5,943 B |
-| `+ /tags`                                | 5,977 B |
-| `+ /loader + /plugins`                   | 6,545 B |
-| `+ /icu + /tags`                         | 6,805 B |
-| everything composed (0.4 root semantics) | 8,604 B |
+| `+ /icu` (`.with(icu())` installer)      | 5,941 B |
+| `+ /tags`                                | 5,976 B |
+| `+ /loader + /plugins`                   | 6,549 B |
+| `+ /icu + /tags`                         | 6,803 B |
+| everything composed (0.4 root semantics) | 8,600 B |
 
 `@comvi/core/devtools` shows up in a graph only when you compose it; the last row
 composes all five capabilities plus a tag extension, which is what a 0.4 composed root was.
@@ -446,22 +448,26 @@ i18n.t("typo", { name: "Alice" });
 
 ## Plugins
 
-Translation loading, locale detection, and editing are opt-in plugins. Pass them through `.use()` before `.init()`:
+Translation loading, locale detection, and editing are opt-in plugins. Each
+first-party package exports two names for the same plugin: a lowercase
+**installer** for `.with(…)`, which composes the capabilities that plugin needs
+and then registers it, and the uppercase **factory** for `.use(…)` on a host you
+composed yourself.
 
 ```ts
 import { createI18n } from "@comvi/core";
-import { FetchLoader } from "@comvi/plugin-fetch-loader";
-import { LocaleDetector } from "@comvi/plugin-locale-detector";
+import { fetchLoader } from "@comvi/plugin-fetch-loader";
+import { localeDetector } from "@comvi/plugin-locale-detector";
 
 const i18n = createI18n({ locale: "en", fallbackLocale: "en" })
-  .use(
-    LocaleDetector({
+  .with(
+    localeDetector({
       order: ["querystring", "cookie", "localStorage", "navigator"],
       lookupCookie: "i18n_locale",
     }),
   )
-  .use(
-    FetchLoader({
+  .with(
+    fetchLoader({
       cdnUrl: "https://cdn.comvi.io/your-distribution-id",
     }),
   );
@@ -469,7 +475,32 @@ const i18n = createI18n({ locale: "en", fallbackLocale: "en" })
 await i18n.init();
 ```
 
-Plugins run sequentially during `.init()`, with timeout protection (10s default) and error recovery for non-required plugins. Each can return a cleanup function called on `.destroy()` in LIFO order.
+The explicit form spells out the same thing, and it is what you want when you
+compose capabilities yourself or register plugins from a list:
+
+```ts
+import { createI18n } from "@comvi/core";
+import { loader } from "@comvi/core/loader";
+import { plugins } from "@comvi/core/plugins";
+import { FetchLoader } from "@comvi/plugin-fetch-loader";
+
+const i18n = createI18n({ locale: "en", fallbackLocale: "en" }).with(loader()).with(plugins());
+
+i18n.use(FetchLoader({ cdnUrl: "https://cdn.comvi.io/your-distribution-id" }));
+```
+
+Swapping the two slots is a type error, and loud at runtime as well:
+`.use(fetchLoader(…))` throws at `init()` on the installer's first ensure-step,
+before any capability is attached, and `.with(FetchLoader(…))` invokes a plugin
+against a host that has none of the capabilities it needs, which is rejected.
+`.with` is a pipe and nothing more — it never inspects, orders or brands what
+you hand it, so each slot has to reject the other explicitly.
+
+Plugins run sequentially during `.init()`, with timeout protection (10s default)
+and error recovery for non-required plugins. A plugin may return **nothing or a
+cleanup function** — called on `.destroy()` in LIFO order. Any other return value
+throws at `init()`: write a statement body (`() => { ready = true; }`), never an
+expression-bodied arrow (`() => (ready = true)`, which returns `true`).
 
 For the full API — namespaces, fallback chains, missing-key handling, RTL detection, lifecycle events, and writing your own plugins — see the [documentation](https://comvi.io/docs/i18n/vanilla/).
 

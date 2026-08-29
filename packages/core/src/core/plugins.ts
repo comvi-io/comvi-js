@@ -38,6 +38,10 @@ const ERR_REGISTER_LOCALE_DETECTOR = IS_DEV
   ? "[i18n] registerLocaleDetector(): argument must be a function."
   : "E_REGISTER_LOCALE_DETECTOR";
 
+const ERR_PLUGIN_INIT_RETURN = IS_DEV
+  ? "[i18n] A plugin returned a value. A plugin may only return nothing (`undefined`) or a cleanup function, so nothing was registered. If this was a lowercase installer, compose it with `.with(installer(…))` — `.use()` runs it as a plugin and it hands the host back. If it was your own plugin, use a statement body: `(i18n) => { flag = true; }`."
+  : "E_PLUGIN_INIT_RETURN";
+
 /** @internal Registered plugin tuple; owned by the plugin capability. */
 export type PluginEntry = [
   plugin: I18nPluginFn,
@@ -66,6 +70,15 @@ export class I18nWithPlugins<D extends DefaultTranslationParams = {}> extends I1
   >;
 
   /**
+   * TRANSIENT: true only while `_beforeInit` has a plugin function on the
+   * stack. It is the whole state behind `ensureInstallable` below — the
+   * plugins-only nested-use guard — and it is deliberately NOT created by
+   * `_initPlugins`: a host that never ran `init()` has no own property for
+   * it, on the composite and on an attached base host alike.
+   */
+  declare protected _pluginInit?: boolean;
+
+  /**
    * Initialize plugin-owned state. Called by the composite's constructor and by
    * `attachPlugins`; this class declares no constructor of its own.
    */
@@ -82,7 +95,7 @@ export class I18nWithPlugins<D extends DefaultTranslationParams = {}> extends I1
    * handling are the pre-Phase-7 behavior verbatim.
    */
   protected async _preDestroy(): Promise<void> {
-    while (this._pluginCleanups.length > 0) {
+    while (this._pluginCleanups.length) {
       try {
         await this._pluginCleanups.pop()!();
       } catch (error) {
@@ -130,8 +143,11 @@ export class I18nWithPlugins<D extends DefaultTranslationParams = {}> extends I1
   protected async _beforeInit(): Promise<void> {
     for (const [plugin, required, timeout, onError] of this._plugins) {
       let timeoutId: ReturnType<typeof setTimeout> | undefined;
+      // The guard window is exactly one plugin invocation: `ensureInstallable`
+      // reads this flag, and the locale detector below is not a plugin.
+      this._pluginInit = true;
       try {
-        const result = await Promise.race([
+        const result: unknown = await Promise.race([
           // `I18nPluginHost` is the `{}`-defaults host surface; an instance
           // with constructor-guaranteed defaults narrows `setDefaultParams`,
           // which the interface's property-style declaration checks strictly.
@@ -151,8 +167,14 @@ export class I18nWithPlugins<D extends DefaultTranslationParams = {}> extends I1
             );
           }),
         ]);
-        if (typeof result === "function") {
-          this._pluginCleanups.push(result);
+        // Only `undefined` and a cleanup function are legal. Anything else —
+        // an installer handing the host back is the shape this catches, and
+        // an expression-bodied arrow that leaks its last value is the other —
+        // fails HERE, before a cleanup is registered and before the plugin
+        // can be counted as initialized.
+        if (result !== undefined) {
+          if (typeof result !== "function") throw new Error(ERR_PLUGIN_INIT_RETURN);
+          this._pluginCleanups.push(result as () => void | Promise<void>);
         }
       } catch (error) {
         const err =
@@ -177,6 +199,7 @@ export class I18nWithPlugins<D extends DefaultTranslationParams = {}> extends I1
           throw err;
         }
       } finally {
+        this._pluginInit = false;
         clearTimeout(timeoutId);
       }
     }
@@ -234,8 +257,8 @@ export class I18nWithPlugins<D extends DefaultTranslationParams = {}> extends I1
     let fallbackValue: TranslationResult | undefined;
     for (const callback of this._missingKeyCallbacks) {
       const result = callback(key, locale, namespace);
-      if (fallbackValue === undefined && result !== undefined) {
-        fallbackValue = result;
+      if (fallbackValue === undefined) {
+        fallbackValue = result as TranslationResult | undefined;
       }
     }
     return fallbackValue;
@@ -274,19 +297,6 @@ export class I18nWithPlugins<D extends DefaultTranslationParams = {}> extends I1
 }
 
 /**
- * Own descriptors of the capability prototype — already carrying the mangled
- * runtime names, which is what makes both install surfaces mangling-safe by
- * construction. `constructor` is excluded: installing it would repoint
- * `instance.constructor` at the capability class.
- *
- * @internal Shared by `attachPlugins` and the composite install in `core/full.ts`.
- */
-const { constructor: _ctor, ...pluginApi } = Object.getOwnPropertyDescriptors(
-  I18nWithPlugins.prototype,
-);
-export { pluginApi };
-
-/**
  * Add the plugin-host capability to a base host.
  *
  * ```ts
@@ -304,8 +314,58 @@ export { pluginApi };
 export function attachPlugins<T extends I18nBase<any>>(i18n: T): T & I18nPluginHostApi {
   const i = i18n as unknown as I18nInternal;
   if (i._beforeInit === undefined) {
-    Object.defineProperties(i, pluginApi);
+    const { constructor: _ctor, ...api } = Object.getOwnPropertyDescriptors(
+      I18nWithPlugins.prototype,
+    );
+    Object.defineProperties(i, api);
     i._initPlugins!();
   }
   return i18n as T & I18nPluginHostApi;
+}
+
+/** @internal Structural view of the transient flag, for the guard below. */
+interface PluginInitProbe {
+  _pluginInit?: boolean;
+}
+
+/**
+ * The FIRST ensure-step of a lowercase plugin-package installer
+ * (`fetchLoader`, `localeDetector`, `inContextEditor`) — the plugins-only
+ * nested-use guard.
+ *
+ * ```ts
+ * export function fetchLoader(options: FetchLoaderOptions) {
+ *   return (i18n) => {
+ *     const host = attachPlugins(attachLoader(ensureInstallable(i18n, "fetchLoader")));
+ *     host.use(FetchLoader(options));
+ *     return host;
+ *   };
+ * }
+ * ```
+ *
+ * An installer is a function of the host, and so is a plugin — nothing brands
+ * them apart, and `.with` stays a dumb pipe. `.use(fetchLoader(…))` is
+ * therefore a type error that would otherwise RUN: the queued "plugin" is the
+ * installer, and `init()` would hand it the host and let it attach
+ * capabilities and queue a second plugin from inside the drain loop.
+ *
+ * This throws instead, at the innermost expression of the installer — before
+ * `attachLoader`/`attachPlugins`, before `use`, before any lifecycle state
+ * moves — so a rejected install leaves the host exactly as it was. The failure
+ * then travels the plugin lifecycle's own error path (`onError`,
+ * `reportError`, and a rethrow when the entry is required).
+ *
+ * Outside plugin initialization this returns the host untouched, which is why
+ * it is safe as the first line of every installer and costs one property read
+ * on the valid `.with` path.
+ */
+export function ensureInstallable<T>(i18n: T, installer: string): T {
+  if ((i18n as unknown as PluginInitProbe)._pluginInit) {
+    throw new Error(
+      IS_DEV
+        ? `[i18n] ${installer}() is a .with(…) installer, not a plugin, and it ran during plugin initialization — it was registered with .use(${installer}(…)). Compose it instead: createI18n(…).with(${installer}(…)). Nothing was installed.`
+        : "E_INSTALLER_NESTED_USE",
+    );
+  }
+  return i18n;
 }

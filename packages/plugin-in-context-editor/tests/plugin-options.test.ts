@@ -6,7 +6,7 @@
  */
 
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createI18n } from "@comvi/core";
+import { createI18n } from "./helpers/composedHost";
 
 const coreCtorMock = vi.fn();
 const coreStartMock = vi.fn();
