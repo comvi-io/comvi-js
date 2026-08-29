@@ -146,6 +146,22 @@ describe("Instance-level defaultParams", () => {
     expect(i18n.t("review")).toBe("Ihre Bewertung");
   });
 
+  it("accepts a replacement that keeps every constructor-guaranteed key", () => {
+    const i18n = createInstance({ formality: "formal" });
+
+    i18n.setDefaultParams({ formality: "informal" });
+
+    expect(i18n.t("review")).toBe("Deine Bewertung");
+  });
+
+  it("accepts extra keys alongside a constructor-guaranteed one", () => {
+    const i18n = createInstance({ formality: "formal" });
+
+    i18n.setDefaultParams({ formality: "formal", name: "Ada" });
+
+    expect(i18n.t("review")).toBe("Ihre Bewertung");
+  });
+
   it("does not accept an inherited value for a constructor-guaranteed key", () => {
     const i18n = createInstance({ formality: "formal" });
     const inherited = Object.create({ formality: "informal" }) as Record<string, string>;

@@ -90,6 +90,35 @@ describe("unclaimed tag syntax — the development warning", () => {
     expect(tagWarnings()).toEqual([]);
   });
 
+  it.each([
+    ["A", " <Alpha tail"],
+    ["Z", " <Zulu tail"],
+    ["a", " <alpha tail"],
+    ["z", " <zulu tail"],
+  ])("warns for a `<` followed by ASCII letter %s", (letter, template) => {
+    const i18n = createI18n({ locale: "en", translation: { en: { [letter]: template } } });
+
+    i18n.t(letter as never);
+
+    expect(tagWarnings()).toHaveLength(1);
+  });
+
+  it.each([
+    ["@ — one below A", "at", "y<@ tail"],
+    ["[ — one above Z", "bracket", "y<[ tail"],
+    ["` — one below a", "backtick", "y<` tail"],
+    ["~ — above z", "tilde", "y<~ tail"],
+    ["a digit", "digit", "y<1 tail"],
+    ["the end of the template", "eot", "tail y<"],
+  ])("stays silent for a `<` followed by %s", (_label, key, template) => {
+    const i18n = createI18n({ locale: "en", translation: { en: { [key]: template } } });
+
+    const rendered = i18n.t(key as never);
+
+    expect(rendered).toBe(template);
+    expect(tagWarnings()).toEqual([]);
+  });
+
   it("stays silent inside a quoted section", () => {
     // Apostrophe quoting starts before a syntax character (`{`), and everything
     // up to the closing apostrophe is literal — including the `<`.

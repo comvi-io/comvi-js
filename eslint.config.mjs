@@ -33,7 +33,7 @@ export default [
       "**/.svelte-kit/**",
       "**/playwright-report/**",
       "**/.stryker/**",
-      "**/.stryker-tmp/**",
+      "**/.stryker-tmp*/**",
       "**/*.d.ts",
       // Frozen codemod inputs/outputs: linting them would rewrite the exact
       // text the goldens assert (scripts/codemods/framework-slim/run.test.mjs).

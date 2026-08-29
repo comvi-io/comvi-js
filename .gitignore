@@ -75,4 +75,4 @@ smithers.db-wal
 
 # mutation testing (scripts/mutation/run.mjs)
 .stryker/
-.stryker-tmp/
+.stryker-tmp*/

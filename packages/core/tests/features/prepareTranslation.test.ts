@@ -119,12 +119,12 @@ describe("prepareTranslation", () => {
       expect(pendingHandlers).toEqual([
         {
           name: "btn",
-          marker: expect.any(String),
+          marker: "__comvi_handler_btn__",
           handler: FakeComponent,
           props: { variant: "primary" },
         },
       ]);
-      expect(elementAt(content, 0).tag).toBe(pendingHandlers[0].marker);
+      expect(elementAt(content, 0).tag).toBe("__comvi_handler_btn__");
     });
 
     it.each([
@@ -132,6 +132,7 @@ describe("prepareTranslation", () => {
       ["__comvi_handler_x__", "x"],
       ["__comvi_handler___", undefined],
       ["__comvi_handler_", undefined],
+      ["__comvi_handler_widget", undefined],
     ])("getPendingHandlerName(%j) → %j", (tag, expected) => {
       expect(getPendingHandlerName(tag)).toBe(expected);
     });

@@ -15,7 +15,7 @@
       "gzipBudgetBytes": 9125,
       "baseline": {
         "minBytes": 24320,
-        "gzipBytes": 8690,
+        "gzipBytes": 8693,
         "measuredAt": "2026-08-29"
       },
       "note": "Gated core ceiling: all six core subpaths recomposed with `.with(...)` in the 0.4 parity order (parity itself is covered by packages/core/tests/features/composite-parity.test.ts)."
@@ -27,7 +27,7 @@
       "gzipBudgetBytes": 5337,
       "baseline": {
         "minBytes": 13745,
-        "gzipBytes": 5082,
+        "gzipBytes": 5081,
         "measuredAt": "2026-08-29"
       },
       "note": "Gated base floor: `@comvi/core` alone, no capability composed — the anchor every other core row is read against."
@@ -39,7 +39,7 @@
       "gzipBudgetBytes": 6256,
       "baseline": {
         "minBytes": 16047,
-        "gzipBytes": 5958,
+        "gzipBytes": 5960,
         "measuredAt": "2026-08-29"
       },
       "note": "Gated: base host + the ICU compiler as a constructor option."
@@ -52,7 +52,7 @@
       "gzipBudgetBytes": 7020,
       "baseline": {
         "minBytes": 18493,
-        "gzipBytes": 6685,
+        "gzipBytes": 6684,
         "measuredAt": "2026-08-29"
       },
       "note": "Gated React floor: one `@comvi/react` specifier, base createI18n + bindings — the anchor the React ceiling row is read against."
@@ -91,7 +91,7 @@
       "gzipBudgetBytes": 11422,
       "baseline": {
         "minBytes": 31279,
-        "gzipBytes": 10878,
+        "gzipBytes": 10880,
         "measuredAt": "2026-08-29"
       },
       "note": "Gated Solid ceiling: every capability composed through the one `@comvi/solid` specifier."
@@ -117,7 +117,7 @@
       "gzipBudgetBytes": 11930,
       "baseline": {
         "minBytes": 32035,
-        "gzipBytes": 11361,
+        "gzipBytes": 11362,
         "measuredAt": "2026-08-29"
       },
       "note": "Gated Svelte ceiling: every capability composed through the one `@comvi/svelte` specifier."
@@ -143,7 +143,7 @@
       "gzipBudgetBytes": 12104,
       "baseline": {
         "minBytes": 34390,
-        "gzipBytes": 11527,
+        "gzipBytes": 11526,
         "measuredAt": "2026-08-29"
       },
       "note": "Gated Vue ceiling: every capability composed through the one `@comvi/vue` specifier."
@@ -156,7 +156,7 @@
       "gzipBudgetBytes": 7649,
       "baseline": {
         "minBytes": 19771,
-        "gzipBytes": 7284,
+        "gzipBytes": 7281,
         "measuredAt": "2026-08-29"
       },
       "note": "Gated Next server floor: the `@comvi/next/server` entry with the loader composed."
@@ -169,7 +169,7 @@
       "gzipBudgetBytes": 7476,
       "baseline": {
         "minBytes": 19732,
-        "gzipBytes": 7120,
+        "gzipBytes": 7118,
         "measuredAt": "2026-08-29"
       },
       "note": "Gated Next client floor: the `@comvi/next/client` entry only, no server module in the graph."
@@ -192,7 +192,7 @@
       "gzipBudgetBytes": 12332,
       "baseline": {
         "minBytes": 34830,
-        "gzipBytes": 11744,
+        "gzipBytes": 11745,
         "measuredAt": "2026-08-29"
       },
       "note": "Gated Nuxt ceiling: every capability composed on the Nuxt runtime through its published runtime subpaths."

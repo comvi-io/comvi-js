@@ -298,6 +298,9 @@ export function translateSegment(
     cached = createCachedTemplate(segment, hashIsSyntax, ctx.extensions, ctx.compiler);
     cacheTemplate(cacheKey, cached);
   }
+  // `translate()` stores static templates as a token-less placeholder; rendering that entry
+  // through the token path would yield "" (a per-call `fallback` equal to a catalog value hit this).
+  if (cached.isStatic) return segment;
   return translateTemplateWithCache(cached, ctx, hashIsSyntax);
 }
 
