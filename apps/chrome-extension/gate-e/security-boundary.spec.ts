@@ -2,7 +2,7 @@ import { expect, test, chromium, type Browser, type Page, type Worker } from "@p
 import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { extensionWorker, openPopup, reservePort } from "./helpers";
+import { expectPopupView, extensionWorker, openPopup, reservePort } from "./helpers";
 
 const extensionPath = resolve(import.meta.dirname, "../dist-gate-e");
 const POLL = { timeout: 10_000 };
@@ -14,7 +14,7 @@ async function activateEditor(
   tabId: number,
   apiKey = "gate-e-key",
 ) {
-  await expect(popup.locator("#state-idle")).toBeVisible({ timeout: 10_000 });
+  await expectPopupView(popup, worker, hostilePage, "idle");
   const key = popup.locator("#api-key");
   if (!(await key.inputValue())) await key.fill(apiKey);
   await popup.locator("#enable-btn").click();
@@ -150,7 +150,7 @@ test("built MV3 extension enforces the hostile-page trust boundary", async () =>
       // Opening the real action popup rechecks the already-detected page. Close
       // it before probing so Phase 1 still has no authenticated session.
       const setupPopup = await openPopup(worker, extensionId, debuggingPort, cdpConnections);
-      await expect(setupPopup.locator("#state-idle")).toBeVisible({ timeout: 10_000 });
+      await expectPopupView(setupPopup, worker, page, "idle");
       await setupPopup.close();
       await page.bringToFront();
 
@@ -214,7 +214,7 @@ test("built MV3 extension enforces the hostile-page trust boundary", async () =>
       const forgetPopup = await openPopup(worker, extensionId, debuggingPort, cdpConnections);
       await activateEditor(forgetPopup, page, worker, tabId);
       await forgetPopup.locator("#disable-btn").click();
-      await expect(forgetPopup.locator("#state-idle")).toBeVisible({ timeout: 10_000 });
+      await expectPopupView(forgetPopup, worker, page, "idle");
       await expect
         .poll(
           () =>
@@ -241,7 +241,7 @@ test("built MV3 extension enforces the hostile-page trust boundary", async () =>
         void (globalThis as any).gateE.runPhase5();
       });
       const racePopup = await openPopup(worker, extensionId, debuggingPort, cdpConnections);
-      await expect(racePopup.locator("#state-idle")).toBeVisible({ timeout: 10_000 });
+      await expectPopupView(racePopup, worker, page, "idle");
       await racePopup.locator("#api-key").fill("gate-e-key");
       await racePopup.locator("#enable-btn").click();
       await racePopup.close();
@@ -253,7 +253,7 @@ test("built MV3 extension enforces the hostile-page trust boundary", async () =>
         void (globalThis as any).gateE.runPhase4();
       });
       const navigationPopup = await openPopup(worker, extensionId, debuggingPort, cdpConnections);
-      await expect(navigationPopup.locator("#state-idle")).toBeVisible({ timeout: 10_000 });
+      await expectPopupView(navigationPopup, worker, page, "idle");
       await navigationPopup.locator("#api-key").fill("gate-e-key");
       await navigationPopup.locator("#enable-btn").click();
       await page.waitForURL("**/?navigation-race=check", { timeout: 10_000 });

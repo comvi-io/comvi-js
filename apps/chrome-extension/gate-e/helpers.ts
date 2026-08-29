@@ -1,4 +1,5 @@
 import {
+  expect,
   chromium,
   type Browser,
   type BrowserContext,
@@ -60,4 +61,47 @@ export async function openPopup(
     .find((page) => page.url() === popupUrl);
   if (!popup) throw new Error(`Toolbar popup target was not exposed at ${popupUrl}`);
   return popup;
+}
+
+/**
+ * `expect(#state-<view>).toBeVisible()` with a failure message that names the view the
+ * popup actually settled in, its error line, the service worker's session storage and the
+ * page's content-script markers — a bare "hidden" says nothing about which side stalled.
+ */
+export async function expectPopupView(
+  popup: Page,
+  worker: Worker,
+  page: Page,
+  view: "idle" | "active",
+  timeout = 10_000,
+): Promise<void> {
+  try {
+    await expect(popup.locator(`#state-${view}`)).toBeVisible({ timeout });
+  } catch (error) {
+    const diagnostics = {
+      visibleViews: await popup
+        .locator(".comvi-view:not(.hidden)")
+        .evaluateAll((els) => els.map((el) => el.id)),
+      error: await popup
+        .locator("#error-msg")
+        .textContent()
+        .catch(() => null),
+      popupUrl: popup.url(),
+      storage: await worker.evaluate(() => {
+        const chromeApi = (globalThis as typeof globalThis & { chrome: typeof chrome }).chrome;
+        return chromeApi.storage.session.get(null);
+      }),
+      page: await page
+        .evaluate(() => ({
+          readyState: document.readyState,
+          url: location.href,
+          comviGlobal: typeof (globalThis as any).__COMVI__,
+          bridge: Boolean((globalThis as any).__comviExtensionBridge),
+        }))
+        .catch((e: unknown) => String(e)),
+    };
+    throw new Error(`popup never reached #state-${view}: ${JSON.stringify(diagnostics)}`, {
+      cause: error,
+    });
+  }
 }
