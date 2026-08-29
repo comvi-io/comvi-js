@@ -1,6 +1,5 @@
 ---
 "@comvi/core": minor
-"@comvi/next": minor
 ---
 
 **BREAKING (0.x minor, WATCHDOG policy): the root `@comvi/core` entry changes semantics.** `@comvi/core` is now ONE entry — the base host — and capability is an import you add, never an entry you switch. The second entry, `@comvi/core/slim`, is deleted (it never published, so there is no deprecation debt). If you are on 0.4.x's root entry, read the table below before upgrading: ICU plurals now THROW instead of rendering wrong text, and `.use()`, the loader, devtools discovery and nested-catalog flattening are absent until composed.
@@ -51,6 +50,29 @@ Development is EAGER — the catalog is walked at both ingestion seams, so a bad
 - **`@comvi/next`'s `createNextI18n` keeps its composed semantics verbatim** — ICU, ambient tags, both `registerLoader` overloads (function and static import map), the plugin lifecycle, nested constructor catalogs, default params, devtools discovery and every `result.use*` method. The host type is now published explicitly as `NextComposedI18n<D>`.
 - **The CDN global stays batteries-included.** `unpkg`/`jsdelivr` serve a bundle built from its own entry, and it additionally exposes `icuCompiler`, `flattenCatalog`, `prepareTranslation`, `registerTagSyntax` and `tagSyntaxExtension` — a `<script src>` consumer has no import graph to extend. This ESM-base / global-composed split is deliberate.
 - `flattenCatalog` is exported from the root as well as from `@comvi/core/loader`.
+- **`@comvi/core/rich-text` is the pure framework-component toolbox.** It exports `prepareTranslation` and the VirtualNode helpers without ambient registration. `@comvi/core/tags` still registers string-API tag syntax and re-exports the same toolbox; framework `<T>` components use the pure seam.
+
+### BREAKING for plugin authors: a plugin may only return nothing or a cleanup function
+
+`@comvi/core/plugins` used to ignore whatever a plugin returned unless it was a function. It now **throws** at `init()` on any other value, through the plugin lifecycle's normal error path (`onError`, `reportError`, and a rethrow when the entry is required). Nothing is registered and no cleanup is queued.
+
+This matches the published `I18nPlugin` type, which has always been `void | Promise<void> | PluginCleanup | Promise<PluginCleanup>` — a union, so TypeScript's "any return type satisfies `void`" rule never applied to it. What changes is that the runtime now agrees. The shape that actually bites is the expression-bodied arrow:
+
+```diff
+-i18n.use(() => (ready = true));   // returns `true` — now throws
++i18n.use(() => { ready = true; }); // returns nothing — fine
+```
+
+The reason it is worth a throw: a lowercase plugin-package installer returns the HOST, and `.use(inContextEditor())` under the `production` condition is exactly that shape. Silently ignoring it would leave the editor unregistered with no signal.
+
+### Installers and plugins reject each other's slot
+
+`.with` stays a dumb pipe — no registry, no ordering, no branding — so the two are told apart by their signatures, and both cross-uses are type errors. At runtime:
+
+- `.use(lowercaseInstaller(…))` fails at `init()` on the installer's first ensure-step, before any capability is attached and before a second plugin reaches the queue. `@comvi/core/plugins` exports the guard behind it, `ensureInstallable(host, name)`, so third-party installers get the same behaviour and the same actionable message.
+- `.with(UppercasePlugin(…))` calls the plugin against a host without the capabilities it needs, so the invocation is rejected.
+
+Both guards live in `@comvi/core/plugins`: a base host that composes no plugin capability carries neither.
 
 ### Reflective consumers
 

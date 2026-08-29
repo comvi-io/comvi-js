@@ -21,7 +21,7 @@ The 0.4 root was batteries-included. The converged root is the base host: text +
 | 0.4 root behaviour                           | converged root                | loudness                                | migration                                                                 |
 | -------------------------------------------- | ----------------------------- | --------------------------------------- | ------------------------------------------------------------------------- |
 | ICU plurals / select                         | the default compiler throws   | **dev AND prod throw** `E_ICU_SYNTAX`   | inline: `compiler: icuCompiler`; remote: `.with(icu())` before the loader |
-| `.use(plugin)`                               | absent                        | TS error + runtime `TypeError`          | `.with(plugins()).use(p)`                                                 |
+| `.use(plugin)`                               | absent                        | TS error + runtime `TypeError`          | `.with(plugins()).use(p)`, or a plugin package's lowercase installer      |
 | loader (`registerLoader`, …)                 | absent                        | existing loud capability error          | `.with(loader())` / `fetchLoader(opts)`                                   |
 | discovery (`instanceId`, `window.__COMVI__`) | absent                        | invisible to the extension (documented) | `.with(devtools())`, or the in-context-editor installer                   |
 | nested catalogs                              | stored verbatim               | dev warning                             | `flattenCatalog(…)`, or compose `loader()`                                |
@@ -29,6 +29,7 @@ The 0.4 root was batteries-included. The converged root is the base host: text +
 | `new I18n(options)`                          | unchanged, one argument       | —                                       | —                                                                         |
 | published `createNextI18n`                   | unchanged composed host       | —                                       | —                                                                         |
 | the CDN global                               | unchanged, batteries-included | —                                       | —                                                                         |
+| a plugin returning a value                   | rejected at `init()`          | throws through the plugin error path    | return nothing or a cleanup function: `() => { flag = true; }`            |
 
 ### 0.1 The compiler has a timing rule
 
@@ -146,11 +147,41 @@ pnpm codemod:framework-slim "src/**/*.{ts,tsx,js,jsx,vue,svelte}" [--report repo
 | `2`  | rewrites applied **and** manual items remain |
 | `1`  | error                                        |
 
-It rewrites pure, mixed, aliased and repeated destructures, drops the now-illegal
-namespace argument from the capability call, merges into a capability destructure
-that already exists in the same function, maintains the import statement (adding
-the hooks, removing an orphaned `useI18n`), and reads `.vue` / `.svelte` script
-blocks with position remapping. Running it twice is a byte-identical no-op.
+One command covers both halves of 0.5.0, because you migrate once.
+
+**The capability hooks.** It rewrites pure, mixed, aliased and repeated
+destructures, drops the now-illegal namespace argument from the capability call,
+merges into a capability destructure that already exists in the same function,
+and maintains the import statement (adding the hooks, removing an orphaned
+`useI18n`).
+
+**The single entry.** It also migrates the shapes the one-entry convergence
+changed, host construction by host construction:
+
+| shape                                                          | becomes                                       |
+| -------------------------------------------------------------- | --------------------------------------------- |
+| `@comvi/<pkg>/slim` — react, solid, svelte, vue, next client   | `@comvi/<pkg>`                                |
+| `@comvi/core/slim`                                             | `@comvi/core`                                 |
+| `createSlimI18n`                                               | `createI18n` (import, references and aliases) |
+| `.use(FetchLoader(o))` and the two other first-party factories | `.with(fetchLoader(o))` in place              |
+| `.use(YourPlugin(o))`                                          | `.with(plugins()).use(YourPlugin(o))`         |
+| inline `translation` with ICU comma syntax                     | `compiler: icuCompiler` in the same call      |
+| `exposeGlobal` / `instanceId` options                          | `.with(devtools({ … }))`, options moved       |
+| a nested inline `translation` catalog                          | `flattenCatalog(…)`, per locale               |
+| `.with(icu())` after a loader in one chain                     | `.with(icu())` moved BEFORE the loader        |
+
+Every binding a rewrite introduces is imported in the same pass — merged into
+the `@comvi/*` import the file already has, or added on its own line after it —
+and an uppercase factory whose last reference just left is dropped from its
+import. `new I18n(options)` migrates exactly like `createI18n(options)`.
+
+A chain is the unit: `createI18n(…)` plus the `.use` / `.with` calls chained
+directly onto it. Nothing outside a chain is guessed at, comments, directive
+prologues, shebangs and CRLF endings survive, and running the codemod twice is a
+byte-identical no-op.
+
+The report counts what it did per shape (`transform  nested-catalog x2`), so a
+release note can name the migrations a tree actually needed.
 
 **It never rewrites silently.** These shapes are reported — sorted by
 `path:line:column`, as a human list and as JSON — and left alone:
@@ -159,26 +190,42 @@ blocks with position remapping. Running it twice is a byte-identical no-op.
 - computed member access
 - a hook result stored in a variable (`const bag = useI18n(); bag.reloadTranslations()`)
 - a hook result crossing a function boundary
-- a local name that would collide with the hook the codemod wants to introduce
-- `useI18n` imported from a relative path or a nuxt auto-import (the driver will
-  not guess where the capability API lives — reported as `manual-import`)
+- a local name that would collide with a hook or an installer the codemod wants
+  to introduce
+- `useI18n` or `createI18n` imported from a relative path or a nuxt auto-import
+  (the driver will not guess where the capability API lives — `manual-import`)
 - `.vue` / `.svelte` script blocks that fail extraction
 - the eight dropped `VueI18n` instance proxies, in `.vue` files and
   `comvi.setup.*` modules: `i18n.reloadTranslations()` may be a `VueI18n`
   (migrate to `i18n.core.*`) or a raw core instance (already correct), and the
   receiver's type is textually undecidable
+- `.use(...plugins)`, `.use([a, b])`, `.use(registry[key])` and every other
+  `.use` whose plugin is not a statically named factory call, plus `.use` on a
+  stored host (`const i18n = createI18n(…); i18n.use(p)`) — the fix is a change
+  at CONSTRUCTION, so the recipe is printed instead
+- a first-party factory NAME that is not a first-party import
+  (`const FetchLoader = pkg.FetchLoader`), which cannot be resolved to the
+  package that owns the installer
+- `exposeGlobal` / `instanceId` next to a chain that already composes
+  `devtools(…)`: merging them would decide a precedence you never wrote
+- `createI18n(optionsBuiltElsewhere)` — the codemod cannot see whether those
+  options carry ICU syntax, a nested catalog or the two discovery options
+- catalogs loaded at RUNTIME: if a loaded catalog uses ICU syntax, compose
+  `.with(icu())` before the loader yourself. Nothing textual proves what a CDN
+  will return, so this one is advisory on every chain that composes a loader
+  without a compiler
 
 ## 4. Per binding
 
 ### One package per app
 
 A host used to take two packages to build: the constructor from
-`@comvi/core`, the bindings from `@comvi/<framework>`. 0.5.0 closes that —
-every binding ships a `/slim` entry that carries the host constructor **and**
-the capability toolkit, so an app names one package and nothing else:
+`@comvi/core`, the bindings from `@comvi/<framework>`. 0.5.0 closes that. Every
+binding now carries the base constructor and the capability toolkit on the ONE
+entry it publishes:
 
 ```ts
-import { createI18n, icuCompiler, loader } from "@comvi/react/slim";
+import { createI18n, icuCompiler, loader } from "@comvi/react";
 //        ^ core's own constructor  ^ from @comvi/core/icu   ^ from @comvi/core/loader
 
 const i18n = createI18n({ locale: "en", compiler: icuCompiler }).with(
@@ -186,23 +233,41 @@ const i18n = createI18n({ locale: "en", compiler: icuCompiler }).with(
 );
 ```
 
-| binding         | single-package specifier | host constructor                       |
-| --------------- | ------------------------ | -------------------------------------- |
-| `@comvi/react`  | `@comvi/react/slim`      | `createI18n`                           |
-| `@comvi/solid`  | `@comvi/solid/slim`      | `createI18n`                           |
-| `@comvi/svelte` | `@comvi/svelte/slim`     | `createI18n`                           |
-| `@comvi/vue`    | `@comvi/vue/slim`        | `createI18n` (one-call) / `createCore` |
-| `@comvi/next`   | `@comvi/next/client`     | `createSlimI18n`                       |
-| `@comvi/next`   | `@comvi/next/server`     | `createSlimI18n`                       |
-| `@comvi/nuxt`   | auto-imported            | see the nuxt section                   |
+| binding         | single-package specifier | host constructor                                              |
+| --------------- | ------------------------ | ------------------------------------------------------------- |
+| `@comvi/react`  | `@comvi/react`           | `createI18n`                                                  |
+| `@comvi/solid`  | `@comvi/solid`           | `createI18n`                                                  |
+| `@comvi/svelte` | `@comvi/svelte`          | `createI18n`                                                  |
+| `@comvi/vue`    | `@comvi/vue`             | `createI18n` (one-call) / `createCore` / `createI18nFromCore` |
+| `@comvi/next`   | `@comvi/next/client`     | `createI18n`                                                  |
+| `@comvi/next`   | `@comvi/next/server`     | `createI18n`                                                  |
+| `@comvi/nuxt`   | auto-imported            | see the nuxt section                                          |
 
-Eight bindings are re-exported on every one of those entries — `icuCompiler`,
-`loader`, `plugins`, `devtools`, `attachLoader`, `flattenCatalog`,
-`attachPlugins`, `attachDevtools`. They are **named** re-exports of core's own
-bindings (`slim.loader === loader`), so the ones you do not call are pruned:
-the `*-slim-preset` bundler-matrix cases assert the icu, plugins and devtools
-subpaths never enter the module graph, in webpack and vite, development and
-production.
+`@comvi/next`'s two rows are a RUNTIME split — client bundle versus server
+module — not a host-tier split: both entries publish the same base constructor
+and the same toolkit. No package publishes a second host tier any more.
+
+Nine bindings are re-exported on every one of those entries — `@comvi/nuxt` is
+the deliberate exception, see below — `icu`,
+`icuCompiler`, `loader`, `attachLoader`, `flattenCatalog`, `plugins`,
+`attachPlugins`, `devtools`, `attachDevtools` — plus the base `I18n` class and
+the core type vocabulary. `icu` is in that set because each entry is now the
+package's whole surface: there is no second specifier to fall back on for the
+pre-ingestion installer, so the remote-catalog ICU recipe has to be reachable
+from the one import an app already has. They are **named** re-exports of core's
+own bindings, so the ones you do not call are pruned: the bundler-matrix cases
+assert the unused capability subpaths never enter the module graph, in webpack
+and vite, development and production.
+
+`@comvi/nuxt` does not re-export that toolkit, and that is the point: a nuxt app
+imports nothing at all, because `useI18n()`, `useI18nLoader()`,
+`useI18nPlugins()`, `<T>` and `<NuxtLinkLocale>` are auto-imported. Composition
+lives in the one `hostModule` file, which names `@comvi/core` and its subpaths
+directly — see the nuxt section below.
+
+`createI18n` IS core's own constructor on every binding but `@comvi/vue`, whose
+`createI18n` builds the `VueI18n` preset around it; there, `createCore` is core's
+constructor and `createI18nFromCore` takes a host you built yourself.
 
 ### `.with(installer)` — composing a capability
 
@@ -242,60 +307,117 @@ no own property shadows the inherited prototype member, and registered state is
 kept. That holds for a second `.with(loader())` on a host that already has it, and
 for any `.with(…)` on the internal composite the CDN global ships.
 
-**Plugins on a composed host.** Published plugin packages are unchanged and work
-exactly as they always have — compose the host, then `use` them:
+**Plugins on a composed host.** The three first-party plugin packages now ship
+a lowercase INSTALLER each, next to the uppercase factory they always had. The
+installer composes the capabilities that plugin needs and then registers it —
+one call instead of three:
 
 ```ts
 import { createI18n } from "@comvi/core";
+import { fetchLoader } from "@comvi/plugin-fetch-loader";
+
+const i18n = createI18n({ locale: "en" }).with(
+  fetchLoader({ cdnUrl: "https://cdn.comvi.io/my-project" }),
+);
+await i18n.init();
+```
+
+| package                           | `.with(lowercase)`          | `.use(Uppercase)` — unchanged     |
+| --------------------------------- | --------------------------- | --------------------------------- |
+| `@comvi/plugin-fetch-loader`      | `fetchLoader(options)`      | `FetchLoader(options)`            |
+| `@comvi/plugin-locale-detector`   | `localeDetector(options?)`  | `LocaleDetector(options?)`        |
+| `@comvi/plugin-in-context-editor` | `inContextEditor(options?)` | `InContextEditorPlugin(options?)` |
+
+What each installer composes, idempotently: `fetchLoader` → `@comvi/core/loader`
+then `@comvi/core/plugins`; `localeDetector` → `@comvi/core/plugins` only (it
+hands core a locale, it never loads a catalog); `inContextEditor` →
+`@comvi/core/devtools` then `@comvi/core/plugins`, so an editor-enabled host is
+visible to the browser extension without a second `.with(devtools())`.
+
+The uppercase factories are unchanged, and the explicit recipe still works
+exactly as it did — reach for it when you compose capabilities yourself or
+register plugins from a list:
+
+```ts
 import { loader } from "@comvi/core/loader";
 import { plugins } from "@comvi/core/plugins";
 import { FetchLoader } from "@comvi/plugin-fetch-loader";
 
 const i18n = createI18n({ locale: "en" }).with(loader()).with(plugins());
 i18n.use(FetchLoader({ cdnUrl: "https://cdn.comvi.io/my-project" }));
-await i18n.init();
 ```
 
 `loader()` before `plugins()` when a plugin registers a loader — plugins run at
-`init()`, and `registerLoader` has to exist by then. This is the current
-recipe, not the final one: plugin packages will become directly `.with`-able in
-a follow-up, and `.with`'s signature is already wide enough to take them.
+`init()`, and `registerLoader` has to exist by then. The installers already
+order their own attaches that way.
 
-`@comvi/core/tags` is deliberately **not** re-exported. Importing it registers
-tag syntax ambiently, which is a side effect no entry should hand you by
-accident; `<T>` owns that import and lives in its own dist chunk. Nothing about
-`<T>` changes — keep importing it from your binding.
+No lifecycle is duplicated. An installer's last act is `use`, so `required`,
+`timeout`, `onError`, cleanup registration and LIFO destroy all keep running
+inside `I18nPluginHost` exactly as before. Two timing details are worth
+knowing: `fetchLoader` builds its plugin while it composes, so a missing
+`cdnUrl` throws at COMPOSITION rather than at `init()`; and
+`inContextEditor` returns the host type UNCHANGED, because under the package's
+`production` export condition it is `(host) => host` and promising
+`I18nPluginHostApi` there would be a member typed present and absent at once.
+Compose `.with(plugins())` when you want `use` yourself.
 
-Two rules if you use these entries:
+**Swapping an installer and a plugin.** Nothing is branded. `.with` is a pipe
+and nothing more — no registry, no ordering, no dispatch — so an installer and
+a plugin are told apart by their signatures alone. Both cross-uses are TYPE
+errors, and both are loud at runtime:
 
-- **Pick one entry per app.** `@comvi/react` and `@comvi/react/slim` (and the
-  solid and vue pairs) are separate build passes, so their provider/injection
-  identities are distinct objects. A provider from one and a hook from the other
-  will not see each other. The `/slim` entry is a superset of the bindings, so
-  there is never a reason to mix. (`@comvi/svelte` preserves modules and
-  `@comvi/next` has a single client entry, so neither can hit this.)
-- **The entry decides which graph you get, not which host.** `createI18n` is
-  core's one base-host constructor, re-exported by `@comvi/react` and by
-  `@comvi/react/slim` alike; the slim entry differs by dropping the rest of the
-  core re-exports and adding the capability toolkit beside the bindings. The
-  instance you get is the same object either way.
+| you wrote                                     | what happens                                                                                                                                                                                                                           |
+| --------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `.use(fetchLoader(…))`                        | throws at `init()`, on the installer's first ensure-step: **before** any capability is attached, before a second plugin reaches the queue, before any status or cleanup changes. The message names the installer and the `.with` form. |
+| `.use(inContextEditor(…))` under `production` | the identity no-op has no ensure-step to stop on, so it runs and hands the host back — and a plugin may only return nothing or a cleanup function, so `init()` rejects the RESULT, before anything is queued for teardown              |
+| `.with(FetchLoader(…))`                       | the pipe calls the plugin against a host that has none of the capabilities it needs, so the invocation is rejected                                                                                                                     |
 
-The `/slim` entries are additive. Every 0.4.x import path still resolves, and an
-app that keeps building its host from `@comvi/core` keeps working.
+Both runtime guards live in `@comvi/core/plugins`, so a base host that composes
+no plugin capability carries neither. The first one is exported —
+`ensureInstallable(host, name)` — so a third-party installer gets the same
+behaviour and the same actionable message by calling it first.
 
-### `@comvi/react`, `@comvi/solid`, `@comvi/svelte`
+**The return-shape rule is a real break for plugin authors**, independent of
+installers: `init()` used to ignore any non-function return, and now throws on
+any non-`undefined` one. The published `I18nPlugin` type never allowed those
+values (its return is a union, so TypeScript's "any return type satisfies
+`void`" rule does not apply), but the runtime used to. The shape that bites is
+the expression-bodied arrow — `i18n.use(() => (ready = true))` returns `true`;
+write `i18n.use(() => { ready = true; })` instead.
 
-Nothing but the four renames. `I18nProviderProps.i18n`, the context value types,
-solid's six reactive primitives and svelte's six store factories all accept
-`WrapperI18nHost` now, so a host composed to 0.4 root semantics keeps working
-unchanged and a base host starts working.
+`@comvi/core/tags` is deliberately **not** re-exported by any binding. Importing
+it registers string-API tag syntax ambiently, which is a side effect no
+framework entry should hand you by accident. Every `<T>` now takes the pure
+`@comvi/core/rich-text` seam instead, which passes the tag grammar per call and
+registers nothing — so rendering rich text never changes what plain `t()` does
+with `<b>` markup, in any binding.
 
-There is no framework-side wrapper object in these three — the host goes
-straight into the provider or the context setter — so their `/slim` preset IS
-core's own `createI18n`, re-exported. The whole quickstart:
+**One entry per package, so the entry-mixing rule is gone.** Through 0.5
+development each wrapper published a root and a `/slim` subpath, which were
+separate build passes and therefore separate provider/injection identities: a
+provider from one could not see a hook from the other. Those subpaths never
+published and no longer exist. There is nothing to pick between, and no import
+path can put a second copy of a binding in your graph.
+
+Every 0.4.x import path still resolves. What changed is the HOST those entries
+construct, not the specifier you write — that is the break §0 opens with.
+
+### `@comvi/react`
+
+In addition to the four hook renames, React converges onto its root as the only
+entry — the package publishes no subpath at all. The root is the former
+single-package toolkit plus the named base `I18n` class, base `createI18n` and
+`icu`: all react bindings, `icuCompiler` and `icu`, the loader/plugin/devtools
+installers, and the core types. Every value is a named re-export, so one entry
+means one build pass and one React context — the provider/hook identity mismatch
+two entries used to make cannot happen here.
+`@comvi/core/tags` is deliberately absent. `<T>` uses
+`@comvi/core/rich-text` in its own dist chunk and never registers syntax
+ambiently; markup passed through `t()` itself remains literal (dev warning, no
+prod throw) until you `import "@comvi/core/tags"` at your own entry.
 
 ```tsx
-import { createI18n, I18nProvider, loader, useI18n } from "@comvi/react/slim";
+import { createI18n, I18nProvider, loader, useI18n } from "@comvi/react";
 
 const i18n = createI18n({ locale: "en", translation: { en: { hi: "Hi" } } }).with(
   loader({ uk: () => import("./uk.json") }),
@@ -304,14 +426,16 @@ const i18n = createI18n({ locale: "en", translation: { en: { hi: "Hi" } } }).wit
 // <I18nProvider i18n={i18n}>…</I18nProvider>, then useI18n() / useI18nLoader() inside.
 ```
 
-Solid is identical. Svelte swaps the provider for `setI18nContext(i18n)` and
-imports from `@comvi/svelte/slim`.
+For inline ICU catalogs, add `compiler: icuCompiler` to that constructor call.
+For remote ICU catalogs, import `icu` from `@comvi/react` — the same entry — and
+compose `.with(icu())` **before** the loader; the compiler locks at first
+ingestion.
 
 Attaching a capability is not configuring it. `loader(map)` does both; the
 low-level pair still splits them, and is what you want for a plain `LoaderFn`:
 
 ```tsx
-import { attachLoader, createI18n } from "@comvi/react/slim";
+import { attachLoader, createI18n } from "@comvi/react";
 
 const i18n = createI18n({ locale: "en" }).with(attachLoader);
 i18n.registerLoader(myLoader);
@@ -319,10 +443,88 @@ i18n.registerLoader(myLoader);
 
 Compose neither and `useI18nLoader()` throws with the message in §5.
 
-Svelte's `useI18nLoader()` / `useI18nPlugins()` are **context readers**, not
-stores: callable during component initialisation only, returning plain bound
-functions. Do not `$`-prefix a member. Solid's are plain accessors — a capability
-action is an imperative operation, not a reactive value.
+### `@comvi/solid`
+
+In addition to the four hook renames, solid converges onto its root as the only
+entry — the package publishes no subpath at all, and there is only one build
+pass, so there is one solid context and the provider/hook identity mismatch two
+entries used to make cannot happen here. The root is the former single-package
+toolkit plus the named base `I18n` class, base `createI18n` and `icu`: every
+reactive primitive, `<I18nProvider>`, the capability accessors, `<T>`,
+`icuCompiler` and `icu`, the loader/plugin/devtools installers, and the core
+types. There is no solid-side wrapper object — the host goes straight into the
+provider — so `createI18n` is core's own constructor, re-exported by name.
+Its provider/context types accept `WrapperI18nHost`, so a host composed to 0.4
+root semantics keeps working and a base host starts working.
+`@comvi/core/tags` is deliberately absent. `<T>` uses `@comvi/core/rich-text` in
+its own dist chunk and never registers syntax ambiently; markup passed through
+`t()` itself remains literal (dev warning, no prod throw) until you
+`import "@comvi/core/tags"` at your own entry.
+
+```tsx
+import { createI18n, I18nProvider, loader, useI18n } from "@comvi/solid";
+
+const i18n = createI18n({ locale: "en", translation: { en: { hi: "Hi" } } }).with(
+  loader({ uk: () => import("./uk.json") }),
+);
+
+// <I18nProvider i18n={i18n}>…</I18nProvider>, then useI18n() / useI18nLoader() inside.
+```
+
+For inline ICU catalogs, add `compiler: icuCompiler` to that constructor call.
+For remote ICU catalogs, import `icu` from `@comvi/solid` — the same entry — and
+compose `.with(icu())` **before** the loader; the compiler locks at first
+ingestion.
+
+Solid's capability readers are plain accessors: a capability action is an
+imperative operation, not a reactive value. Compose neither capability and
+`useI18nLoader()` throws with the message in §5.
+
+### `@comvi/svelte`
+
+In addition to the four hook renames, svelte converges onto its root as the only
+entry — the package publishes no subpath at all. The root is the former
+single-package toolkit plus the named base `I18n` class, base `createI18n` and
+`icu`: every store factory, the capability readers, `<T>`, `icuCompiler` and
+`icu`, the loader/plugin/devtools installers, and the core types. There is no
+svelte-side wrapper object — the host goes straight into `setI18nContext(i18n)`
+— so `createI18n` is core's own constructor, re-exported by name, and
+`setI18nContext`, `getI18nContext`, `useI18n` and `<T>` are the binding modules
+themselves rather than wrappers around them, which is what keeps the
+`getContext` key a single object.
+
+```svelte
+<script lang="ts">
+  import { createI18n, loader, setI18nContext } from "@comvi/svelte";
+
+  const i18n = createI18n({ locale: "en", translation: { en: { hi: "Hi" } } }).with(
+    loader({ uk: () => import("./uk.json") }),
+  );
+
+  setI18nContext(i18n);
+  // then useI18n() / useI18nLoader() in any descendant.
+</script>
+```
+
+For inline ICU catalogs, add `compiler: icuCompiler` to that constructor call.
+For remote ICU catalogs, import `icu` from `@comvi/svelte` — the same entry —
+and compose `.with(icu())` **before** the loader; the compiler locks at first
+ingestion.
+
+`useI18nLoader()` / `useI18nPlugins()` are **context readers**, not stores:
+callable during component initialisation only, returning plain bound functions.
+Do not `$`-prefix a member. The asymmetry with `createLocaleStore()` & friends is
+deliberate — a capability action is an imperative operation, not a value that
+changes over time. Compose neither capability and the reader throws with the
+message in §5.
+
+`<T>` changed one import and no behaviour: it took `prepareTranslation` from
+`@comvi/core/tags`, whose import registers tag syntax ambiently, and now takes it
+from the pure `@comvi/core/rich-text` seam. Rendering `<T>` no longer switches
+plain `t()` over to parsing `<tag>` markup; that is your own
+`import "@comvi/core/tags"` from here on. `svelte-package` preserves modules, so
+`dist/T.svelte` is still its own module and an app that never renders it drops
+the whole rich-text path.
 
 Svelte also gets an unrelated fix that was blocking bundlers: `dist/*.js` used to
 re-export its siblings with extensionless specifiers, which strict-ESM resolvers
@@ -347,28 +549,29 @@ exists to remove — so it left with the others. Note that `i18n.core.use(...)`
 returns the **host**, not the wrapper, so it no longer chains off the factory
 call.
 
-`createI18n(options)` is unchanged and still the default on `@comvi/vue`.
-`createI18nFromCore(core, options?)` is new, for a host you composed yourself.
+In addition to the composable renames, vue converges onto its root as the only
+entry — the package publishes no subpath at all, and there is only one build
+pass, so there is one `I18N_INJECTION_KEY` symbol and the plugin/composable
+identity mismatch two entries used to make cannot happen here. The root is the
+former single-package toolkit plus the named base `I18n` class: all three
+construction paths, every composable, `<T>`, the injection key, `icuCompiler`
+and `icu`, the loader/plugin/devtools installers, and the core types.
+`@comvi/core/tags` is deliberately absent. `<T>` uses `@comvi/core/rich-text` in
+its own dist chunk and never registers syntax ambiently; markup passed through
+`t()` itself remains literal (dev warning, no prod throw) until you
+`import "@comvi/core/tags"` at your own entry. That is a change in this release
+— vue's `<T>` used to import the ambient entry, so rendering it anywhere also
+switched tag syntax on for every plain `t()` call.
 
-**Build your slim vue app against `@comvi/vue/slim`.** The main entry
-tree-shakes core out of a `createI18nFromCore`-only app under esbuild, vite
-(both modes) and webpack production — but not under webpack _development_,
-where a star re-export (`export * from "@comvi/core"`) cannot be pruned, so the
-whole core entry and vue's own `createI18n` stay in the bundle.
-`@comvi/vue/slim` carries the same classes, composables, `<T>` and injection
-key with no `export *` at all, and keeps its one-call preset in a construction
-module of its own, so a development bundle holds only the bindings the app
-actually names. The base `@comvi/core` module is not what it drops —
-`createI18n` and `createCore` both resolve to it, so it is in every graph that
-constructs a host. What `/slim` drops is the broad `I18n`/star re-export
-surface, `@comvi/core/tags`, and any capability subpath the app never calls.
-
-Vue is the one binding whose preset is a real function — there is a `VueI18n`
-to construct — so `@comvi/vue/slim` exports **both** halves:
+Vue is the one binding whose preset is a REAL function: there is a `VueI18n` to
+construct, and `ssrLocale` has to reach the host before the reactive ref is
+seeded, so the ref and `core.locale` cannot disagree for a render. All three
+construction paths therefore keep distinct names, and all three ship from the
+one entry:
 
 ```ts
-// one call: a VueI18n over a bare @comvi/core host
-import { createI18n } from "@comvi/vue/slim";
+// one call: a VueI18n over a base @comvi/core host
+import { createI18n } from "@comvi/vue";
 
 const i18n = createI18n({ locale: "en", translation: { en: { hi: "Hi" } } });
 createApp(App).use(i18n).mount("#app");
@@ -376,25 +579,50 @@ createApp(App).use(i18n).mount("#app");
 
 ```ts
 // composed host: `createCore` is core's own constructor, same package
-import { createCore, createI18nFromCore, loader } from "@comvi/vue/slim";
+import { createCore, createI18nFromCore, loader } from "@comvi/vue";
 
 const core = createCore({ locale: "en" }).with(loader({ uk: () => import("./uk.json") }));
-const i18n = createI18nFromCore(core, { ssrLocale: "en" });
+const i18n = createI18nFromCore(core, { ssrLocale: "en" }); // i18n.core is exactly `core`
 ```
 
-The one-call preset's host takes the pipe too — it is `i18n.core`.
+`createI18n(options)` keeps its 0.4.x call shape, `ssrLocale` and `compiler`
+included, and returns `VueI18n<D, I18n<D>>` over the BASE `I18n`, so `i18n.core`
+is typed without the capabilities it does not have. `createCore` is named after
+what it builds because `createI18n` is taken by the preset; use it whenever you
+want the exact-`C` `createI18nFromCore` path.
 
-`createI18n` here takes the same options as `@comvi/vue`'s, `ssrLocale`
-included, plus `compiler` — so `compiler: icuCompiler` from the same import
-buys ICU back. The wrapper it returns is `VueI18n<D, I18n<D>>` over the SLIM
-`I18n`, so `i18n.core` is typed without the capabilities it does not have.
-`createCore` is named after what it builds because `createI18n` is taken by the
-one-call preset; use it whenever you want the exact-`C` `createI18nFromCore`
-path.
+**The pipe goes on the host, one level down.** `createI18n` returns a wrapper,
+not the host, so composition happens on `i18n.core` — or on the value
+`createCore` handed you, which is what you want when the capability has to be in
+place before a catalog is ingested:
+
+```ts
+import { createI18n, loader, plugins } from "@comvi/vue";
+
+const i18n = createI18n({ locale: "en" });
+i18n.core.with(loader({ uk: () => import("./uk.json") })).with(plugins());
+```
+
+For inline ICU catalogs, add `compiler: icuCompiler` to the `createI18n` call.
+For remote ICU catalogs, import `icu` from `@comvi/vue` — the same entry — build
+the host with `createCore`, and compose `.with(icu())` **before** the loader; the
+compiler locks at first ingestion, and the preset ingests its `translation`
+immediately, so `createI18n({ translation }).core.with(icu())` throws
+`E_COMPILER_LOCKED` by construction.
 
 ### `@comvi/nuxt`
 
-Set `hostModule` in `nuxt.config.ts` to opt into a composed host:
+**The generated default host is the base host.** Nuxt's entries are unchanged
+and `useI18n()`, `useI18nLoader()`, `useI18nPlugins()`, `<T>` and
+`<NuxtLinkLocale>` are still auto-imported, so no import in your app moves. What
+moved is what the module hands them: with `hostModule` unset it builds text +
+`{param}` interpolation, the cache, events and default params, and nothing else.
+ICU throws `E_ICU_SYNTAX`; SSR loading warns once naming the missing loader;
+`i18n.core.use(...)` is not a function. Discovery is the documented residual:
+the browser extension cannot see the instance until devtools is composed.
+
+**The fix is one file.** `hostModule` is the composition escape and it is now
+the mainstream path: set it, and compose exactly what the app uses.
 
 ```ts
 // nuxt.config.ts
@@ -404,57 +632,101 @@ comvi: { locales: ["en", "de"], defaultLocale: "en", hostModule: "./comvi.host.t
 ```ts
 // comvi.host.ts — default-export a factory returning a FRESH host per call
 import { createI18n } from "@comvi/core";
+import { icuCompiler } from "@comvi/core/icu";
 import { loader } from "@comvi/core/loader";
+import { plugins } from "@comvi/core/plugins";
+import { devtools } from "@comvi/core/devtools";
+import type { NuxtHostFactory } from "@comvi/nuxt";
 
-export default () => createI18n({ locale: "en" }).with(loader({ uk: () => import("./uk.json") }));
+export default ((options) =>
+  createI18n({ ...options, compiler: icuCompiler })
+    .with(loader({ uk: () => import("./uk.json") }))
+    .with(plugins())
+    .with(devtools())) satisfies NuxtHostFactory;
 ```
 
-It is a module **path**, and the branch is taken at build time: the generated
-`#build/comvi.host` template imports `@comvi/core` directly only when
-`hostModule` is unset. Unset is the default and is unchanged. A server-rendered
-app's host needs the loader capability — `NuxtServerHost = WrapperI18nHost &
-I18nLoaderApi`.
+Drop the lines you do not need — that is the point. Compose `loader()` and
+`plugins()` before any catalog is ingested and `devtools()` last, the same
+parity order every other binding uses.
+
+| 0.4 nuxt behavior                          | after                                                              |
+| ------------------------------------------ | ------------------------------------------------------------------ |
+| ICU plurals in a catalog                   | `compiler: icuCompiler` in the factory's options                   |
+| SSR / async translation loading            | `.with(loader(map))`                                               |
+| `comvi.setup` calling `i18n.core.use(...)` | `.with(plugins())`                                                 |
+| visible to the browser extension           | `.with(devtools())`                                                |
+| `<tag>` in plain string-API `t()`          | `import "@comvi/core/tags"` once                                   |
+| nested (non-flat) inline catalogs          | `flattenCatalog`, or `.with(loader())` which flattens on ingestion |
+
+**New: the factory receives nuxt's resolved options.** `locale` (the render
+locale on the client, the request locale on the server), `fallbackLocale`,
+`defaultNs`, `defaultParams`, `tagInterpolation` from `basicHtmlTags`, `devMode`
+and `apiKey` are passed in, so a composed host honours the same `nuxt.config` an
+uncomposed one does. A 0.5.0-development factory that takes no argument keeps
+working untouched.
+
+**`NuxtServerHost` is the base host now**, not the loader-carrying shape it
+named before; `NuxtServerLoaderHost` is the composed one, and it is what SSR
+translation loading actually needs. The server utilities probe with core's
+`hasLoaderApi` rather than trusting an annotation: on a host with no loader,
+`loadTranslations` warns once naming `hostModule` and returns whatever the
+catalog already holds, and `useTranslation` translates without touching a member
+that is not there.
 
 `comvi.setup` hooks receive a `VueI18n`, so their proxy calls move to
 `i18n.core.*`. `NuxtI18nSetupContext<C>` / `NuxtI18nSetup<C>` are generic in the
-host and default to core's `I18n`, so a default-configuration hook needs no
-annotation.
+host and default to core's `I18n`. Annotate the hook with the host your factory
+returns — `NuxtI18nSetup<I18n & I18nLoaderApi>` — and a call the host cannot
+serve fails at type-check instead of at request time.
 
-**Why nuxt has no `/slim` entry, and does not need one.** In a nuxt app you
-never import the bindings at all — `useI18n()`, `useI18nLoader()` and
-`useI18nPlugins()` are auto-imported by the module, so app code already names
-zero packages. What is left is the host, and a host in nuxt is not app code: it
-is a build-time template branch selected by a module OPTION, and `hostModule`
-is a PATH the module resolves and inlines into `#build/comvi.host`. A `/slim`
-entry could not participate in that — the generated template is what decides
-which core is imported, and it decides before any of your imports exist.
-
-So `comvi.host.ts` is the one file in a nuxt app that names `@comvi/core`
-specifiers, and that is deliberate: it is the composition root the module
-branches on, and seeing `@comvi/core` + `loader()` there is how you
-know which branch you are on. Everything downstream stays import-free.
+So `comvi.host.ts` is the one file in a nuxt app that names comvi specifiers,
+and that is deliberate: it is the composition root the module branches on, and
+reading it tells you exactly what the app pays for. Everything downstream stays
+import-free.
 
 ### `@comvi/next`
 
 The client inherits react's migration verbatim — `@comvi/next/client` re-exports
 `useI18nLoader` / `useI18nPlugins` alongside `useI18n`.
 
-**What "single package" means for next, and why there are two names.**
-`@comvi/next/client` is next's only client surface. It published `createI18n`
-(0.4's batteries-included constructor) and later added `createSlimI18n` for the
-bare host, because rebinding the first name would have silently dropped ICU
-plurals and tag syntax out from under an existing app. Since §0 made the bare
-host THE host, both names now denote the same base constructor — a later phase
-deletes the duplicate and codemods the name. Compose what you need either way:
+**`@comvi/next` has three host entry points, and only one of them changed.**
+`createNextI18n` from `@comvi/next` is preserved exactly: it composes ICU,
+ambient tags, the loader with both `registerLoader` overloads, the plugin host,
+nested constructor catalogs, default params and devtools discovery inside the
+package, so a 0.4 app that calls it needs no migration at all. What changed is
+the DIRECT-host constructor on the two runtime entries.
+
+**`createI18n` on `@comvi/next/client` and `@comvi/next/server` is the base
+host.** That name is what 0.4 published on the client, and §0's convergence
+rebound it: ICU plurals now throw, the loader and plugin host are absent until
+composed, discovery is invisible until installed, and nested catalogs are stored
+verbatim. The §0 table is the full list, row for row; every installer it names is
+re-exported from both entries, so each fix stays inside the specifier you already
+import. The two entries expose the SAME constructor — the client/server split is
+a runtime split, not a host-tier split — and the second constructor name that
+briefly stood beside it during 0.5 development for the bare host is deleted (§3's
+rename table has it; the codemod does the rename).
 
 ```tsx
 "use client";
-import { createSlimI18n, I18nProvider, useI18n } from "@comvi/next/client";
+import { createI18n, I18nProvider, useI18n } from "@comvi/next/client";
 
 // Client hosts do not load; they are hydrated from the catalog the server
-// serialized. `createI18n` is still exported and denotes the same constructor.
-const i18n = createSlimI18n({ locale: "en", defaultNs: "default" });
+// serialized, so nothing is ingested at construction.
+const i18n = createI18n({ locale: "en", defaultNs: "default" });
 ```
+
+**ICU timing, in the exact words that matter.** An INLINE catalog — one passed
+to the constructor — is ingested immediately, so it takes the compiler in the
+same call: `createI18n({ translation, compiler: icuCompiler })`. A catalog that
+arrives LATER — hydrated through `<I18nProvider messages>`, or fetched by an SSR
+loader — takes the installer instead, and the installer must run BEFORE the first
+catalog reaches the host: `createI18n({ locale }).with(icu()).with(loader(map))`.
+After any ingestion the compiler is locked and `icu()` throws own
+`code === "E_COMPILER_LOCKED"` before mutating anything, so
+`createI18n({ translation }).with(icu())` is invalid by construction. Clearing
+translations never unlocks it. Both `icu` and `icuCompiler` are exported from
+both entries, and `CompilerLockedError` types the failure.
 
 The server gains a compose-it-yourself companion, exported from `@comvi/next/server` and
 nowhere else — and that entry carries the toolkit too, because
@@ -463,30 +735,27 @@ for SSR and the host factory should not have to reach past next to satisfy it:
 
 ```ts
 import "server-only";
-import { createNextI18nFromHost, createSlimI18n, loader } from "@comvi/next/server";
+import { createI18n, createNextI18nFromHost, loader } from "@comvi/next/server";
 
 export const { i18n, routing } = createNextI18nFromHost(
   () =>
-    createSlimI18n({ locale: "en", defaultNs: "default" }).with(
+    createI18n({ locale: "en", defaultNs: "default" }).with(
       loader({ uk: () => import("./uk.json") }),
     ),
   { locales: ["en", "de"], defaultLocale: "en", localePrefix: "as-needed" },
 );
 ```
 
-`@comvi/next/server` deliberately exports no batteries-included constructor and
-no tag entry: a server graph that reached for the 0.4 composed recipe would pull
-in ICU and core's ambient tag-registration chunk, and the `next-server-on-slim`
-gate asserts neither ever arrives.
+`@comvi/next/server` deliberately exports no composed constructor and no tag
+entry: a server graph that reached for the 0.4 composed recipe would pull in ICU
+and core's ambient tag-registration chunk, and the `next-server-on-default` gate
+asserts neither ever arrives.
 
 Options are routing-only; everything else belongs to the host factory. The
 result is exactly `{ i18n, routing }` with no `.use*` methods. `host()` is not
 called when the factory returns — the first `result.i18n` access or the first
 server helper that needs the instance resolves it, exactly once, in either
 order.
-
-`createNextI18n` keeps its exact signature and behavior — `@comvi/next` now
-composes that graph explicitly inside the package instead of inheriting it.
 
 ## 5. Capability errors you may now see
 
@@ -501,15 +770,17 @@ Thrown at the `useI18nLoader()` / `useI18nPlugins()` call, in both build
 conditions, never silently. Either compose the capability where you build the
 host (`createI18n(…).with(loader(map))`) or the lower-level attachLoader.
 
-| symptom                                                             | fix                                                             |
-| ------------------------------------------------------------------- | --------------------------------------------------------------- |
-| `addActiveNamespace is not a function`                              | `useI18nLoader()`                                               |
-| `reloadTranslations is not a function`                              | `useI18nLoader()`                                               |
-| `onLoadError is not a function`                                     | `useI18nLoader()`                                               |
-| `onMissingKey is not a function`                                    | `useI18nPlugins()`                                              |
-| vue: `i18n.registerLoader is not a function`                        | `i18n.core.registerLoader(…)`                                   |
-| vue: `i18n.use is not a function`                                   | `i18n.core.use(…)`                                              |
-| vue: `i18n.core.reloadTranslations` does not compile in a component | the inject path is host-typed by design — use `useI18nLoader()` |
+| symptom                                                                             | fix                                                                                                                                                                                                      |
+| ----------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `addActiveNamespace is not a function`                                              | `useI18nLoader()`                                                                                                                                                                                        |
+| `reloadTranslations is not a function`                                              | `useI18nLoader()`                                                                                                                                                                                        |
+| `onLoadError is not a function`                                                     | `useI18nLoader()`                                                                                                                                                                                        |
+| `onMissingKey is not a function`                                                    | `useI18nPlugins()`                                                                                                                                                                                       |
+| vue: `i18n.registerLoader is not a function`                                        | `i18n.core.registerLoader(…)`                                                                                                                                                                            |
+| vue: `i18n.use is not a function`                                                   | `i18n.core.use(…)`                                                                                                                                                                                       |
+| vue: `i18n.core.reloadTranslations` does not compile in a component                 | the inject path is host-typed by design — use `useI18nLoader()`                                                                                                                                          |
+| `fetchLoader() is a .with(…) installer, not a plugin` (or `E_INSTALLER_NESTED_USE`) | you wrote `.use(fetchLoader(…))`; write `.with(fetchLoader(…))`. Nothing was installed                                                                                                                   |
+| `A plugin returned a value` (or `E_PLUGIN_INIT_RETURN`)                             | a plugin returned something other than a cleanup function — usually an expression-bodied arrow (`() => (flag = true)`) or a lowercase installer reached through `.use`. Use a statement body, or `.with` |
 
 ## 6. Deliberate behavioral changes
 
@@ -538,7 +809,9 @@ These three left the base host, and the base host is now the root — so on a
 composed root had all three, and the two composed exceptions still do: the
 published `createNextI18n` host and the CDN global. Together the three took the
 base host from 5,563 B to **4,917 B** min+gz (of which 8 B is the `.with` pipe
-added in the same release).
+added in the same release). The converged base then measures **5,016 B**: this
+release adds +99 B for the loud-ICU detector, the public one-argument `I18n`
+facade and the compiler-lock seam.
 
 | what                                                  | on the base host                    | how to get it back                                                                | on a 0.4 composed root |
 | ----------------------------------------------------- | ----------------------------------- | --------------------------------------------------------------------------------- | ---------------------- |
@@ -590,29 +863,79 @@ unchanged property descriptors, and a spread copy still carries data only.
 ## 7. What you get
 
 Whole-app comvi graph, min+gz, framework peer dependency externalized, measured
-by `node scripts/size-check.mjs` at the DX-2 commit. The `/slim` column is
-the SINGLE-PACKAGE recipe from §4 — the one the fixtures actually build:
+by `node scripts/size-check.mjs`; the committed anchors live in
+`scripts/size-budgets.json`. The right column is the ONE published entry from
+§4 — the specifier the fixtures actually build — carrying the base host and
+nothing you did not compose:
 
-| binding                | 0.4 composed root | single-package `/slim` | saving           |
-| ---------------------- | ----------------- | ---------------------- | ---------------- |
-| `@comvi/react`         | 10054             | **6532**               | −3522 B (−35.0%) |
-| `@comvi/solid`         | 9773              | **6236**               | −3537 B (−36.2%) |
-| `@comvi/svelte`        | 9836              | **6319**               | −3517 B (−35.8%) |
-| `@comvi/vue`           | 10363             | **6880**               | −3483 B (−33.6%) |
-| `@comvi/next` (server) | 9948              | **7129**               | −2819 B (−28.3%) |
-| `@comvi/next` (client) | 9948              | **6964**               | −2984 B (−30.0%) |
-| `@comvi/nuxt` (server) | 12156             | **9585**               | −2571 B (−21.2%) |
+| binding         | 0.4 composed-root shape | converged default entry | saving           |
+| --------------- | ----------------------- | ----------------------- | ---------------- |
+| `@comvi/react`  | 10054                   | **6622**                | −3432 B (−34.1%) |
+| `@comvi/solid`  | 9773                    | **6336**                | −3437 B (−35.2%) |
+| `@comvi/svelte` | 9836                    | **6412**                | −3424 B (−34.8%) |
+| `@comvi/vue`    | 10363                   | **6966**                | −3397 B (−32.8%) |
+
+The left column is each package's pre-convergence root fixture, measured
+2026-08-03. Vue's row is the one-call preset (`createI18n` builds a `VueI18n`
+over a base host); the injected `createCore` + `createI18nFromCore` path is
+measured separately as the informational `fw-vue-default-composed` row, which
+measures 6962 B — 4 B under the one-call row, which is vue's preset glue, the
+delta no other binding pays.
+
+`@comvi/next` and `@comvi/nuxt` do not reduce to one before/after pair, because
+each publishes more than one graph:
+
+| graph                                                         | min+gz    | row                             |
+| ------------------------------------------------------------- | --------- | ------------------------------- |
+| next server, `createNextI18n` — the PRESERVED composed host   | 10120     | `fw-next-composed-factory`      |
+| next server, `createNextI18nFromHost` on base + `loader()`    | **7218**  | `fw-next-server-default-loader` |
+| next client, base host hydrated from the serialized catalog   | **7057**  | `fw-next-client-default`        |
+| nuxt client, the generated default host                       | **8108**  | `fw-nuxt-client-default`        |
+| nuxt server, `hostModule` host + the one capability SSR needs | **10017** | `fw-nuxt-server-default-loader` |
+| nuxt, every capability composed — the migration ceiling       | 11648     | `fw-nuxt-full-composite`        |
+
+Moving the next server off the composed host onto a base host plus `loader()`
+saves **2902 B (−28.7%)**. The nuxt rows are deliberately NOT the old
+`fw-nuxt-root` 12156 B figure re-measured: that fixture priced the
+pre-convergence DEFAULT branch, which dragged a composed core in whether the app
+used it or not. Today's default branch builds the base host, and
+`fw-nuxt-full-composite` prices the opposite end — the capability upper bound.
+
+Every binding also has a `<T>` rung, an inline-ICU rung and a
+full-explicit-composition rung, gated the same way:
+
+| binding                | default | + `<T>` | + inline ICU | full composition |
+| ---------------------- | ------- | ------- | ------------ | ---------------- |
+| `@comvi/react`         | 6622    | 8501    | 7506         | 11156            |
+| `@comvi/solid`         | 6336    | 8131    | 7222         | 10791            |
+| `@comvi/svelte`        | 6412    | 8603    | 7298         | 11266            |
+| `@comvi/vue`           | 6966    | 8812    | 7848         | 11435            |
+| `@comvi/next` (client) | 7057    | 8939    | 7936         | 11580            |
+
+Every budget is measured + 2%, and every default row asserts — from the emitted
+module graph, never from output text — that ambient tag registration and the
+four unused capability subpaths never arrived. `<T>` adds the pure
+`@comvi/core/rich-text` path and registers nothing, so even the `<T>` rungs keep
+the tag-registration pair out. The full-composition column is the migration
+CEILING for a fully composed 0.4 app rather than a parity claim: 0.4 also
+registered string-API tag syntax ambiently, and that is now an explicit
+`@comvi/core/tags` import which no framework entry re-exports.
 
 Single packaging is close to free: measured against the two-package recipe
-(constructor from `@comvi/core`, bindings from the framework), react is
-**0 B**, solid **0 B**, svelte **+2 B**, vue **+5 B**, next client **+19 B**.
+(constructor from `@comvi/core`, bindings from the framework), React measured
+**+3 B** at P2; at DX-2, solid was **0 B**, svelte **+2 B** and vue **+5 B**.
 The unused capability re-exports cost nothing at all — they are not in the
 graph.
 
 `.with(installer)` costs **8 B** on the base host and **7 B** on the fully
-composed graph, and that is its whole price: every row above is +7…+10 B against the
-same fixture before the pipe existed. The configured installers cost only where
-they are used — see §4 for the `loader()` / `attachLoader` trade.
+composed graph, and that is its whole price. The configured installers cost only
+where they are used — see §4 for the `loader()` / `attachLoader` trade. A plugin
+package's lowercase installer costs **+54 B** over composing the capabilities
+yourself and calling `.use(Uppercase(…))` — measured identically on
+`fetchLoader` and `localeDetector` — and the nested-use guard that makes
+wrong-slot use loud is **35 B**, carried only by graphs that compose the plugin
+host. Under the `production` export condition the in-context-editor installer is
+a host-identity no-op and its graph carries no editor runtime at all.
 
 Several bindings also got smaller on the **0.4 composed root** path, with no app change at
 all, because `<T>` and the tag machinery it needs became opt-in and core itself got smaller: react −1240 B,

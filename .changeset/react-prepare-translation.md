@@ -1,8 +1,8 @@
 ---
-"@comvi/react": patch
+"@comvi/react": minor
 ---
 
-`<T>` internals now consume the shared `prepareTranslation` pipeline from `@comvi/core/tags` instead of a package-local marker transport. Public props and rendering behavior are unchanged (typed-prop API, direct-prop params, children-as-fallback, element/function handlers, error reporting on throwing handlers).
+`<T>` internals now consume the shared `prepareTranslation` pipeline from the pure `@comvi/core/rich-text` seam instead of a package-local marker transport. Public props and rendering behavior are unchanged (typed-prop API, direct-prop params, children-as-fallback, element/function handlers, error reporting on throwing handlers). The ambient `@comvi/core/tags` entry re-exports the same toolbox but is not part of the React graph.
 
 Faithful-superset details:
 

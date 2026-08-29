@@ -10,4 +10,4 @@ Before: `t("greet")` with `greet: "Hello, {name}!"` produced `"Hello, !"`. Now i
 - A parameter explicitly set to `null` renders as an empty string in BOTH modes — `null` stays the intentional-erasure escape.
 - Apps depending on the old silent-drop behavior can opt out with `createI18n({ ..., missingParam: "drop" })`, shipped in this same release.
 
-The semantics are identical across all render paths (single-param fast path, simple-params path, full token pipeline, tag-interpolation children, and the slim compiler).
+The semantics are identical across all render paths (single-param fast path, simple-params path, full token pipeline, tag-interpolation children, and the base host's simple compiler).

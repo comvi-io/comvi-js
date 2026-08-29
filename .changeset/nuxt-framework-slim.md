@@ -2,9 +2,26 @@
 "@comvi/nuxt": minor
 ---
 
-**BREAKING — composed-host support (`hostModule`) + the `comvi.setup` proxy migration.**
+**BREAKING (0.x minor, WATCHDOG policy): the generated default host is the base
+host.** `nuxt-single-entry-convergence.md` in this same release leads with what a
+0.4 Nuxt app experiences; this entry is the recipe and the migration table.
 
-**New: `hostModule`**
+`@comvi/nuxt` keeps every published entry, composable, component, middleware and
+server utility. What changes is the build-time `#build/comvi.host` template when
+`hostModule` is unset: it now builds text + `{param}` interpolation, the cache,
+events and default params, and NOTHING ELSE.
+
+- ICU syntax under the simple compiler throws `E_ICU_SYNTAX` in development and
+  production.
+- The loader, plugin host and devtools discovery are absent until the app
+  composes them.
+- String-API tag syntax is literal in production (dev-warned); `<T>` keeps its
+  pure per-call rich-text grammar.
+- Nested inline catalogs need `flattenCatalog`; the loader flattens at ingestion.
+
+There is no compiler auto-injection or Nuxt-specific capability sugar.
+`hostModule` is the explicit composition escape and, for any app that loads
+translations asynchronously, the migration path.
 
 ```ts
 // nuxt.config.ts
@@ -12,95 +29,94 @@ comvi: { locales: ["en", "de"], defaultLocale: "en", hostModule: "./comvi.host.t
 ```
 
 ```ts
-// comvi.host.ts — default-export a factory returning a FRESH host per call
+// comvi.host.ts — return a FRESH host per call
 import { createI18n } from "@comvi/core";
-import { attachLoader } from "@comvi/core/loader";
+import { icuCompiler } from "@comvi/core/icu";
+import { loader } from "@comvi/core/loader";
+import { plugins } from "@comvi/core/plugins";
+import { devtools } from "@comvi/core/devtools";
+import type { NuxtHostFactory } from "@comvi/nuxt";
 
-export default () => attachLoader(createI18n({ locale: "en" }));
+export default ((options) =>
+  createI18n({ ...options, compiler: icuCompiler })
+    .with(loader({ de: () => import("./locales/de.json") }))
+    .with(plugins())
+    .with(devtools())) satisfies NuxtHostFactory;
 ```
 
-The option is a module PATH, and the branch is taken at BUILD TIME: the module
-generates `#build/comvi.host`, which imports `@comvi/core` directly only when
-`hostModule` is unset. With it set, neither the runtime plugin nor the server
-utilities name a core entry at all — that is the whole saving, and a runtime
-`if` could not deliver it. Unset (the default) is unchanged.
+Drop the lines the app does not use. Compose `loader()` and `plugins()` before
+catalog ingestion and `devtools()` last. Inline / constructor catalogs select
+ICU with the `compiler` option shown above; `.with(icu())` is only for an empty
+host before its first ingestion, so it is not Nuxt's catalog-bearing recipe.
 
-Notes: the server always loads translations, so a server-rendered app's host
-needs `attachLoader` (`NuxtServerHost = WrapperI18nHost & I18nLoaderApi`); the
-factory is called once per constructed instance (client plugin, and each
-per-request server instance); nuxt's resolved locale is applied to the host, so
-routing/detection still win.
+The branch remains build-time. With `hostModule` configured, the emitted module
+imports the user factory and `createI18nFromCore`; it does not retain Nuxt's own
+construction path behind a runtime `if`. The factory is called once for the
+client plugin and once per request-scoped server instance.
 
-**BREAKING: `comvi.setup` hooks and `useI18n()`**
+**New: the factory receives Nuxt's resolved host options.** It is called with
+`locale` (render locale on the client, request locale on the server),
+`fallbackLocale`, `defaultNs`, `defaultParams`, `tagInterpolation` from
+`basicHtmlTags`, `devMode` and `apiKey`. Spreading `options` into `createI18n`
+preserves every existing Nuxt configuration and request-locale contract. A
+factory written earlier in the 0.5.0 development train that accepts no argument
+still works.
 
-`i18n` in the app plugin is a `VueI18n`, and `VueI18n` dropped its eight
-capability proxies — move those calls to `i18n.core.*`:
+**Server host types now tell the truth.** `NuxtServerHost` is the base
+`WrapperI18nHost` server utilities accept; `NuxtServerLoaderHost` is that host
+plus `I18nLoaderApi`, the shape SSR loading needs. Server utilities narrow with
+`hasLoaderApi` before driving the loader:
 
-```diff
--export default ({ i18n }) => { i18n.registerLoader(myLoader); };
-+export default ({ i18n }) => { i18n.core.registerLoader(myLoader); };
+- a base host with cached / setup-provided translations renders them;
+- a base host with an empty catalog warns once, naming the `hostModule` +
+  `.with(loader(map))` fix, and returns no payload;
+- a loader-capable host with no registered loader keeps the separate
+  `comvi.setup` registration warning;
+- no path calls an absent loader member or introduces a browser global at
+  import time.
 
--export default ({ i18n }) => { i18n.use(FetchLoader({ … })); };
-+export default ({ i18n }) => { i18n.core.use(FetchLoader({ … })); };
-```
+`NuxtHostFactory` / `NuxtHostFactoryOptions` are public types for the factory,
+and the existing `NuxtI18nSetup<C>` generic carries the same composed host type
+into `comvi.setup`.
 
-`NuxtI18nSetupContext<C>` / `NuxtI18nSetup<C>` are now generic in the host type
-and default to core's `I18n`, so a default-configuration app needs no
-annotation.
+`comvi.setup` still receives a `VueI18n` in the app plugin. Its removed
+capability proxies remain a breaking migration: move them to `i18n.core.*`, and
+compose that capability in the host factory first.
 
-**Migration**
+| 0.4 usage                                  | 0.5.0 migration                                         |
+| ------------------------------------------ | ------------------------------------------------------- |
+| ICU catalog                                | `compiler: icuCompiler` in `comvi.host.ts`              |
+| SSR / async translations                   | `.with(loader(importMap))`                              |
+| `comvi.setup` calls `i18n.use(...)`        | `.with(plugins())`, then `i18n.core.use(...)`           |
+| browser-extension visibility               | `.with(devtools())`                                     |
+| `const { reloadTranslations } = useI18n()` | `const { reloadTranslations } = useI18nLoader()`        |
+| `const { onMissingKey } = useI18n()`       | `const { onMissingKey } = useI18nPlugins()`             |
+| dropped `VueI18n` proxy in `comvi.setup`   | call the same member on `i18n.core`                     |
+| nested inline catalog                      | `flattenCatalog`, or ingest through `.with(loader())`   |
+| string-API `<tag>` syntax                  | `<T>`, or import the explicit ambient tags subpath once |
 
-| Old (0.4.x)                                                                 | New (0.5.0)                                                                                                                                                                                                                                                  |
-| --------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `const { addActiveNamespace, reloadTranslations, onLoadError } = useI18n()` | `const { addActiveNamespace, addActiveNamespaces, reloadTranslations, onLoadError } = useI18nLoader()` — auto-imported, like `useI18n`                                                                                                                       |
-| `const { onMissingKey } = useI18n()`                                        | `const { onMissingKey } = useI18nPlugins()` — auto-imported                                                                                                                                                                                                  |
-| `const { t, reloadTranslations } = useI18n("ns")`                           | `const { t } = useI18n("ns"); const { reloadTranslations } = useI18nLoader();` — the namespace argument stays on `useI18n`, the capability composables take none                                                                                             |
-| `comvi.setup` hook calling a dropped `VueI18n` proxy                        | `i18n.core.registerLoader(…)`, `i18n.core.use(…)`, `i18n.core.registerLocaleDetector(…)`, `i18n.core.registerPostProcessor(…)`, `i18n.core.onLoadError(…)`, `i18n.core.onMissingKey(…)`, `i18n.core.addActiveNamespace(…)`, `i18n.core.reloadTranslations()` |
-| server host built without `attachLoader` under `hostModule`                 | compose `attachLoader(createI18n(…))` — `NuxtServerHost = WrapperI18nHost & I18nLoaderApi`                                                                                                                                                                   |
-
-```
+```sh
 pnpm codemod:framework-slim "app/**/*.{ts,vue}"
 ```
 
-Exit `0` = clean or fully transformed, `2` = rewrites applied and manual items
-remain. The codemod rewrites the destructure shapes and reports — never
-rewrites — the shapes whose receiver type it cannot decide: rest spreads,
-computed keys, hook results stored in a variable or crossing a function
-boundary, local-name collisions with the introduced composables, script blocks
-that fail extraction, and every dropped-proxy call in a `.vue` file or a
-`comvi.setup.*` module. Nuxt auto-imports are reported as `manual-import`
-rather than guessed. See the
-[0.5.0 migration guide](https://github.com/comvi-io/comvi-js/blob/main/MIGRATION.md).
+Exit `0` means clean or fully transformed; `2` means rewrites were applied and
+manual items remain. Nuxt auto-imports are report-only (`manual-import`), and
+proxy calls in `.vue` / `comvi.setup.*` remain report-only because the receiver
+type is textually undecidable.
 
-**Troubleshooting**
+**Size fixtures were converged, without inheriting incomparable numbers:**
 
-| Symptom                                                                  | Cause / fix                                                       |
-| ------------------------------------------------------------------------ | ----------------------------------------------------------------- |
-| `i18n.registerLoader is not a function` in `comvi.setup`                 | use `i18n.core.registerLoader(…)`                                 |
-| `i18n.use is not a function` in `comvi.setup`                            | use `i18n.core.use(…)`                                            |
-| `addActiveNamespace is not a function` in a component                    | use `useI18nLoader()`                                             |
-| `onMissingKey is not a function` in a component                          | use `useI18nPlugins()`                                            |
-| `[comvi] missing loader capability — attach @comvi/core/loader` on SSR   | your `hostModule` host has no `attachLoader`; the server needs it |
-| `comvi hostModule must export a default function returning an i18n host` | the module's default export is not a function                     |
+- `fw-nuxt-client-default` — generated default client host; six absent
+  sentinels (ICU, loader, plugins, devtools and the ambient tag pair);
+- `fw-nuxt-server-default-loader` — server graph with exactly the loader;
+  five absent sentinels;
+- `fw-nuxt-full-composite` — ICU + loader + plugins + devtools; ambient tag pair
+  still absent.
 
-**Measured** (`node scripts/size-check.mjs`, min+gz, comvi graph only; both
-fixtures are the same runtime modules and differ only in the emitted
-construction branch):
-
-| fixture                                                   | min+gz    |
-| --------------------------------------------------------- | --------- |
-| `fw-nuxt-root` (default root branch)                      | **12254** |
-| `fw-nuxt-server-slim-loader` (`hostModule`, server graph) | **10044** |
-| `fw-nuxt-client-slim` (`hostModule`, client graph)        | **8661**  |
-
-A nuxt server on a composed slim+loader host saves **2210 B min+gz (−18.0 %)**
-of comvi graph; the client graph is 3593 B smaller than the root server graph.
-
-> Rewritten in place at the single-entry convergence (same release): the separate
-> base-host subpath this changeset was written against no longer exists, and
-> `@comvi/core`'s root IS that base host — so every specifier above names the
-> root, and every "the root has it already" claim reads against the base host.
-> The 0.4 composed root survives only as a recipe (`.with(loader())`,
-> `.with(plugins())`, `.with(devtools())`, `compiler: icuCompiler` from
-> `@comvi/core/icu`, `import "@comvi/core/tags"`); see
-> `core-single-entry-convergence.md` for the break and the migration.
+The three rows gate their sentinels immediately, and the 0.5.0 measurement sweep
+filled their min+gzip baselines and measured +2% budgets: `fw-nuxt-client-default`
+**8108 B**, `fw-nuxt-server-default-loader` **10017 B** and
+`fw-nuxt-full-composite` **11648 B** min+gz, as recorded in
+`scripts/size-budgets.json`. No saving against the 0.4 host is
+claimed: the generated default host and the 0.4 batteries-included one are not
+comparable row for row, so there is no before column to subtract.

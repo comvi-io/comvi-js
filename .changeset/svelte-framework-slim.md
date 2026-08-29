@@ -2,7 +2,7 @@
 "@comvi/svelte": minor
 ---
 
-**BREAKING (0.5.0):** `@comvi/svelte` now runs on a base `@comvi/core` host, and the four loader/plugin members left `useI18n()` for two dedicated context readers (framework-slim P3, same D′ contract as `@comvi/react`).
+**BREAKING (0.5.0 — a 0.x minor, WATCHDOG policy):** `@comvi/svelte` now runs on a base `@comvi/core` host, and the four loader/plugin members left `useI18n()` for two dedicated context readers (framework-slim P3, same D′ contract as `@comvi/react`).
 
 This is the binding where the old contract did not merely mistype the host — it **crashed** on one. `useI18n()` eagerly `.bind()`-ed `addActiveNamespace`, `reloadTranslations`, `onLoadError` and `onMissingKey` in the object literal it returned, so on a host without those capabilities it threw `Cannot read properties of undefined (reading 'bind')` before a single translation rendered.
 
@@ -20,7 +20,7 @@ Codemod (checked in, goldens + idempotence gated in CI; it reads `.svelte` scrip
 pnpm codemod:framework-slim "src/**/*.{ts,js,svelte}"
 ```
 
-Exit `0` = clean or fully transformed, `2` = rewrites applied and manual items remain (each printed as `path:line [shape] detail`; `--report report.json` writes the same list as JSON). It handles pure, mixed, aliased and repeated destructures and merges into an existing capability destructure; it refuses — loudly, never silently — rest spreads, computed keys, hook results stored in a variable or crossing a function boundary, local-name collisions with the introduced readers, `.svelte` script blocks that fail extraction, and relative-import call sites it cannot retarget. See the [0.5.0 migration guide](https://github.com/comvi-io/comvi-js/blob/main/MIGRATION.md).
+Exit `0` = clean or fully transformed, `2` = rewrites applied and manual items remain (each printed as `path:line [shape] detail`; `--report report.json` writes the same list as JSON). It handles pure, mixed, aliased and repeated destructures and merges into an existing capability destructure; it refuses — loudly, never silently — rest spreads, computed keys, hook results stored in a variable or crossing a function boundary, local-name collisions with the introduced readers, `.svelte` script blocks that fail extraction, and relative-import call sites it cannot retarget. It also rewrites the retired subpath specifier and the constructor options that became capabilities. See the [0.5.0 migration guide](https://github.com/comvi-io/comvi-js/blob/main/MIGRATION.md).
 
 ### `useI18nLoader()` / `useI18nPlugins()` are readers, NOT stores
 
@@ -47,7 +47,7 @@ Troubleshooting: `addActiveNamespace is not a function` / `reloadTranslations is
 
 ### Types accept any host
 
-`setI18nContext(i18n)`, `getI18nContext()` and all six store factories accept `WrapperI18nHost` (`I18nCoreInstance & I18nCoreExtraApi`) instead of the concrete `I18n` class. Every host satisfies it — the base `createI18n` from `@comvi/core` and any `attachLoader`/`attachPlugins`/`.with(…)` composition of it. The store factories gained an optional `D` type parameter (inferred) because `WrapperI18nHost<D>` — unlike the old `I18n` class — is invariant in `D`.
+`setI18nContext(i18n)`, `getI18nContext()` and all six store factories accept `WrapperI18nHost` (`I18nCoreInstance & I18nCoreExtraApi`) instead of the concrete `I18n` class. Every host satisfies it — the base `createI18n` (from `@comvi/svelte`, which re-exports core's own by name) and any `attachLoader`/`attachPlugins`/`.with(…)` composition of it. The store factories gained an optional `D` type parameter (inferred) because `WrapperI18nHost<D>` — unlike the old `I18n` class — is invariant in `D`.
 
 ### Measured
 
@@ -60,13 +60,19 @@ Whole comvi graph, min+gz, framework externalized, same commit (`pnpm size`):
 | svelte + bare `@comvi/core`, no `<T>`   | — (crashed) | **6972** |
 | svelte + bare `@comvi/core`, with `<T>` | — (crashed) | 9180     |
 
-**Moving a svelte app off the 0.4 composed root onto the base host saves 2977 B min+gz (−29.9%).** The bare-host fixture asserts — through the bundler's module graph, not an output-text grep — that core's tag-registration pair (`comvi-core-tags.js` plus its `register-tags` chunk) never enters the graph; the `<T>` row declares no such sentinel, because rendering `<T>` is exactly what buys that pair. Core's base entry is in both graphs by construction — `createI18n` is its export — so no fixture asserts it away. The `svelte-on-slim` case is green on webpack and vite in both development and production.
+**At that framework-slim checkpoint, moving a svelte app off the 0.4 composed root onto the base host saved 2977 B min+gz (−29.9%).** The then-current bare-host row asserted the tag-registration pair absent; its `<T>` row had no such sentinel, because `<T>` still imported the ambient tags entry at that checkpoint. Core's base entry is in every one of those graphs by construction — `createI18n` is its export — so no fixture asserted it away. The convergence measurement below supersedes those graphs.
 
-> Rewritten in place at the single-entry convergence (same release): the separate
-> base-host subpath this changeset was written against no longer exists, and
-> `@comvi/core`'s root IS that base host — so every specifier above names the
-> root, and every "the root has it already" claim reads against the base host.
-> The 0.4 composed root survives only as a recipe (`.with(loader())`,
+Those four numbers were measured at the framework-slim P3 commit, when the base host lived on a core subpath the app named directly. Svelte convergence then collapsed the two specifiers and removed `<T>`'s ambient tag-registration import. The live rows are now `fw-svelte-default`, `fw-svelte-default-t`, `fw-svelte-icu` and `fw-svelte-full-composite`, all measured through the one published specifier; `svelte-default` absorbed the old `svelte-on-slim` case, and because `<T>` reaches the pure rich-text seam every row now asserts the ambient tag pair absent. Their byte budgets landed with the 0.5.0 re-baseline sweep at the usual measured + 2%, over measurements of 6412, 8603, 7298 and 11266 B min+gz.
+
+> Rewritten in place at the single-entry convergence and at the svelte convergence
+> that followed it (same release), which is why the file name still says `slim`:
+> the separate base-host subpath this changeset was written against no longer
+> exists, and `@comvi/core`'s root IS that base host — so every specifier above
+> names the root, and every "the root has it already" claim reads against the
+> base host. Svelte then converged the same way: it publishes its root and
+> nothing beside it, and the subpath this file was originally about is gone. The
+> 0.4 composed root survives only as a recipe (`.with(loader())`,
 > `.with(plugins())`, `.with(devtools())`, `compiler: icuCompiler` from
 > `@comvi/core/icu`, `import "@comvi/core/tags"`); see
-> `core-single-entry-convergence.md` for the break and the migration.
+> `core-single-entry-convergence.md` and `svelte-single-entry-convergence.md` for
+> the breaks and the migrations.

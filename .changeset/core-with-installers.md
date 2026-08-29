@@ -40,7 +40,7 @@ Each lives in its capability's own subpath, so its bytes ride that graph only �
 
 Installing a capability a host already has changes nothing: no descriptors are copied, no own property shadows the inherited prototype member, and registered state is kept. That covers a second `.with(loader())` on a host that already has it, and every `.with(…)` on the internal composite (which the CDN global ships) — its reflective contract is unchanged. Configuration is separate: `.with(loader(map))` on an already-composed host still registers the map.
 
-Plugin packages are unaffected and work as they always have — compose the host, then `use` them (`createI18n({…}).with(loader()).with(plugins())`, then `i18n.use(FetchLoader({…}))`). That is the current recipe, not the final one: plugin packages will become directly `.with`-able in a follow-up.
+Plugin packages are unaffected: `.use(FetchLoader({…}))` on a host that composes `@comvi/core/loader` and `@comvi/core/plugins` works exactly as it always has. They now ALSO ship a lowercase installer each — `fetchLoader`, `localeDetector`, `inContextEditor` — which composes the capabilities their plugin needs and then routes into that same `use`. Same lifecycle, one call. See each plugin package's own changeset.
 
 ### Measured
 

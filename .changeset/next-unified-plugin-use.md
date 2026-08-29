@@ -15,10 +15,11 @@ const nextI18n = createNextI18n({ locales: ["en", "de"], defaultLocale: "en" })
   // Was: .useServerLazy(() => import("./server-plugin"))
   .use(() => import("./server-plugin"), { runtime: "server", lazy: true })
   // Was: .useClientLazy(() => import("@comvi/plugin-in-context-editor").then((m) => m.InContextEditorPlugin()), { required: false })
-  .use(
-    () => import("@comvi/plugin-in-context-editor").then((m) => m.InContextEditorPlugin()),
-    { runtime: "client", lazy: true, required: false },
-  );
+  .use(() => import("@comvi/plugin-in-context-editor").then((m) => m.InContextEditorPlugin()), {
+    runtime: "client",
+    lazy: true,
+    required: false,
+  });
 ```
 
 New capabilities of the unified signature:

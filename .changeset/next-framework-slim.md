@@ -2,7 +2,7 @@
 "@comvi/next": minor
 ---
 
-**BREAKING (0.5.0):** `@comvi/next` gains a server factory that takes the host you composed, the server i18n becomes a once-cell that refuses two configuration sources, and the client inherits react's D′ surface (framework-slim P5).
+**BREAKING (0.5.0 — a 0.x minor, WATCHDOG policy):** `@comvi/next` gains a server factory that takes the host you composed, the server i18n becomes a once-cell that refuses two configuration sources, and the client inherits react's D′ surface (framework-slim P5).
 
 ### New: `createNextI18nFromHost(host, options)`
 
@@ -11,9 +11,7 @@ Exported from **`@comvi/next/server`** and nowhere else. `createNextI18n` keeps 
 ```typescript
 // i18n/index.ts
 import "server-only";
-import { createI18n } from "@comvi/core";
-import { attachLoader } from "@comvi/core/loader";
-import { createNextI18nFromHost } from "@comvi/next/server";
+import { attachLoader, createI18n, createNextI18nFromHost } from "@comvi/next/server";
 
 export const { i18n, routing } = createNextI18nFromHost(
   () => {
@@ -75,12 +73,16 @@ introduced hooks, and relative-import call sites it cannot retarget. See the
 
 Troubleshooting: `addActiveNamespace is not a function` / `reloadTranslations is not a function` / `onLoadError is not a function` → `useI18nLoader()`. `onMissingKey is not a function` → `useI18nPlugins()`. `[comvi/next] i18n already configured by …` → two configuration sources; keep one.
 
-`createI18n` is now re-exported straight from `@comvi/core` instead of through
-`@comvi/react` — same binding, same API, one hop fewer, and that hop kept
-core's tag-registration chunk alive in webpack development bundles.
+`createI18n` is re-exported straight from `@comvi/core` instead of through
+`@comvi/react` — same binding, same API, one hop fewer. The hop is what webpack
+_development_ cannot prune: it reconnects a single `export … from` across one
+`sideEffects: false` package, not a two-package chain, so the re-exported
+module stayed in the bundle. It used to drag core's tag-registration chunk in
+with it as well; `<T>` moving into its own dist chunk in this same release ended
+that, so react's entry is side-effect-free now and the hop costs only itself.
 
-The documented client recipe is a base `@comvi/core` host hydrated from
-the catalog the server serialized:
+The documented client recipe is a base host, built with that `createI18n` from
+`@comvi/next/client` itself, hydrated from the catalog the server serialized:
 
 ```tsx
 const messages = await loadTranslations(locale); // server
@@ -91,23 +93,27 @@ const messages = await loadTranslations(locale); // server
 
 ### Measured
 
-Whole comvi graph, min+gz, `next` and `react` externalized, same commit (`pnpm size`):
+Whole comvi graph, min+gz, `next` and `react` externalized (`pnpm size`), measured at the framework-slim P5 checkpoint (HISTORICAL — the live rows, recorded in `scripts/size-budgets.json`, are `fw-next-composed-factory` **10120 B**, `fw-next-server-default-loader` **7218 B** and `fw-next-client-default` **7057 B**):
 
-| app shape                                              | before         | after    |
-| ------------------------------------------------------ | -------------- | -------- |
-| next server, `createNextI18n` on the 0.4 composed root | 10127          | 10055    |
-| next server, `createNextI18nFromHost` on slim + loader | — (impossible) | **7549** |
-| next client, bare `@comvi/core` hydrated               | — (impossible) | **7593** |
+| app shape                                              | before         | after     |
+| ------------------------------------------------------ | -------------- | --------- |
+| next server, `createNextI18n` (the composed factory)   | 10127          | **10120** |
+| next server, `createNextI18nFromHost` on base + loader | — (impossible) | **7219**  |
+| next client, base host hydrated                        | — (impossible) | **6964**  |
 
-**Moving a next server off the 0.4 composed root onto a `@comvi/core` + `attachLoader` host saves 2506 B min+gz (−24.9%).** The saving depends on `getI18n` no longer value-importing the batteries-included graph: with that one import still in place, the same companion-only graph measures 9882 B and carries `comvi-core.js` plus core's tag, plugin and ICU chunks.
+**At that checkpoint, moving a next server off the composed factory onto a base + `attachLoader` host saved 2901 B min+gz (−28.7%); against the live rows the same move is 2902 B (−28.7%).** The saving depends on `getI18n` no longer value-importing a composed graph: with that one import still in place, the same companion-only graph measured 9882 B at the time and carried core's tag, plugin and ICU chunks with it.
 
-Both slim fixtures assert through the bundler's module graph — never an output-text grep — that core's two tag-registration modules stay out, that the server graph carries neither next's own composed builder (`createNextI18n.js`) nor the ICU, plugins and devtools subpaths, and that the client graph carries neither the server host module nor any loader code. Core's base entry is present in both: it is the host they compose on. The `next-server-on-slim` / `next-client-slim` bundler-matrix cases are green on webpack and vite in development and production.
+Both direct-host fixtures assert through the bundler's module graph — never an output-text grep — that core's two tag-registration modules stay out, that the server graph carries neither next's own composed builder (`createNextI18n.js`) nor the ICU, plugins and devtools subpaths, and that the client graph carries neither any server module nor any loader code. Core's base entry is present in both: it is the host they compose on. The `next-server-on-default`, `next-client-default` and `next-client-icu` bundler-matrix cases are green on webpack and vite in development and production.
 
-> Rewritten in place at the single-entry convergence (same release): the separate
-> base-host subpath this changeset was written against no longer exists, and
-> `@comvi/core`'s root IS that base host — so every specifier above names the
-> root, and every "the root has it already" claim reads against the base host.
-> The 0.4 composed root survives only as a recipe (`.with(loader())`,
-> `.with(plugins())`, `.with(devtools())`, `compiler: icuCompiler` from
-> `@comvi/core/icu`, `import "@comvi/core/tags"`); see
-> `core-single-entry-convergence.md` for the break and the migration.
+> Rewritten in place twice in the same release. At the single-entry convergence:
+> the separate base-host subpath this changeset was written against no longer
+> exists, and `@comvi/core`'s root IS that base host, so every specifier above
+> names the root. At single-entry P4: the two `@comvi/next` entries converged onto
+> ONE direct-host constructor name (`createI18n`) and the size/matrix ladder was
+> renamed after the surface it measures (`fw-next-client-default`,
+> `fw-next-server-default-loader`, cases `next-client-default` /
+> `next-client-icu` / `next-server-on-default`). The 0.4 composed semantics
+> survive as the published `createNextI18n` factory and, à la carte, as a recipe
+> (`.with(loader())`, `.with(plugins())`, `.with(devtools())`,
+> `compiler: icuCompiler`, `import "@comvi/core/tags"`); see
+> `next-single-entry-convergence.md` and `core-single-entry-convergence.md`.
