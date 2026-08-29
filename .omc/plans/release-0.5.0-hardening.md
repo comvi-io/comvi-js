@@ -2,11 +2,14 @@
 
 Status: **rev 3 — 2026-08-29. D1/D2 decided by the owner; rev 1 critiqued (4/10) → rev 2 (8/10) →
 rev 3 closes the RC-machinery blockers and the D1 implementation ambiguities.
-Phase 0 EXECUTED 2026-08-29 (commits `069aeb6..9e31672`, evidence in
-`.omc/handoffs/hardening-p0.md`): all automated gates green; the human Web Store upload of
-`comvi-extension.zip` 0.5.0 is the one open Phase-0 item. D2 was done by reconstruction from
-`.omc/tmp/changeset-status.json` (51 changesets, 10 of which the version run had never consumed),
-not from HEAD — see the handoff §2. Next: Phase 1.**
+**Phases 0–5 EXECUTED 2026-08-29** (evidence: `.omc/handoffs/hardening-p0.md`, `-p1-p3.md`,
+`-p4-p5.md`). Every automated gate green at the final commit (2 732 tests, 64/64 matrix, size, G7,
+prose-guards, test-manifest). Deviations from the plan as written: B4 shims are DEV-ONLY (prod shims
+cost +170 B on the platform path — rejected); B7 was a false positive (fixed anyway); CI perf gate
+is 10 % (noise floor ≈ 3.5 %), 5 % stays local; MIGRATION/changesets landed at −48 %, not −75 % (the
+user-fact keep-list is the floor); D2 was a reconstruction from `.omc/tmp/changeset-status.json`
+(51 changesets, 10 never consumed by the version run). **Phase 6 is owner-gated and NOT started:**
+push, release.yml-to-main PR, platform docs PR, Web Store upload, RC dispatch.**
 Scope: take `feat/weight-refactor-0.5` (HEAD `0672133` + ~408 uncommitted single-entry P2–P6 changes)
 to a shippable 0.5.0. The direction (one entry per package, base host + `.with()` capabilities) is
 CONFIRMED and is not reopened here.
