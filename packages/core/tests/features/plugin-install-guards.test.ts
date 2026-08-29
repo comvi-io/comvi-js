@@ -3,6 +3,8 @@ import { createI18n } from "../../src";
 import { attachLoader } from "../../src/loader";
 import { attachPlugins, ensureInstallable, plugins } from "../../src/plugins";
 import type { I18n } from "../../src/core/i18n";
+import type { I18nLoaderApi } from "../../src/types";
+import { hasLoaderApi } from "../../src/utils/capability";
 import type { I18nPlugin } from "../../src/plugins/types";
 
 /**
@@ -76,8 +78,15 @@ describe("nested-use guard", () => {
 
     await expect(i18n.init()).rejects.toThrow();
 
-    // The guard fired at the INNERMOST expression, so `attachLoader` never ran…
-    expect((i18n as Record<string, unknown>).registerLoader).toBeUndefined();
+    // The guard fired at the INNERMOST expression, so `attachLoader` never
+    // ran. Probed through `hasLoaderApi`, not `registerLoader === undefined`:
+    // since B4 a plugins-only host carries a BRANDED throwing stand-in for
+    // every loader member, so the member exists while the capability does not
+    // — and calling it says exactly that.
+    expect(hasLoaderApi(i18n)).toBe(false);
+    expect(() => (i18n as unknown as I18nLoaderApi).registerLoader(async () => ({}))).toThrow(
+      /no loader capability/,
+    );
     // …the installer never reached `use`, so its plugin never entered the queue…
     expect(inner).not.toHaveBeenCalled();
     // …and destroy has no cleanup to run.

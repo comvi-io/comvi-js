@@ -155,14 +155,46 @@ export class I18nWithDevtools<D extends DefaultTranslationParams = {}> extends I
  * string key: see the mangling contract above). The members land as
  * non-enumerable own properties with class-method descriptors, so
  * `Object.keys(i18n)` and spread copies see only the public `instanceId`.
+ *
+ * IDEMPOTENCY IS PER EXPOSURE, NOT PER INSTALL (B3). `_initDevtools` returns
+ * early on `exposeGlobal: false`, so an install-only probe would let a host
+ * that opted out — the SSR construct — stay unexposed forever once the client
+ * flipped `exposeGlobal` back on:
+ *
+ * ```ts
+ * const i18n = createI18n({ locale: "en" }).with(devtools({ exposeGlobal: false }));
+ * // …hydrate…
+ * i18n.with(devtools({ exposeGlobal: true, instanceId: "app" })); // now exposes
+ * ```
+ *
+ * Exposure therefore re-runs while the instance has NOT been exposed, and
+ * `instanceId` is the receipt for that — not `_globalEntry`. Assigning an id
+ * is the FIRST thing exposure does and the one thing it always does:
+ * `_initDevtools` assigns the id and then returns before `_globalEntry` when
+ * there is no `window`, so probing the queue entry would re-fire on every
+ * later call under SSR, reassigning the id and bumping the instance counter.
+ * Opting out assigns no id (that coupling is the pre-existing contract), which
+ * is exactly what makes this probe the right one.
+ *
+ * A host exposed WITHOUT a window therefore stays quiet even if a `window`
+ * appears later: it has an id, so it is done. That is deliberate — the client
+ * constructs its own host rather than re-attaching the server's. The
+ * flip-it-on case above works because opting out never assigned an id at all.
+ *
+ * Once exposed, every later call is a true no-op: the `instanceId` assigned
+ * first wins, nothing is pushed twice, and a `destroy()`d host (which clears
+ * `_globalEntry` but keeps its id) is not resurrected.
  */
 export function attachDevtools<T extends I18nBase<any>>(i18n: T, options?: DevtoolsOptions): T {
   const i = i18n as unknown as I18nInternal;
-  if (i._disposeDevtools === undefined) {
+  const fresh = i._disposeDevtools === undefined;
+  if (fresh) {
     const { constructor: _ctor, ...api } = Object.getOwnPropertyDescriptors(
       I18nWithDevtools.prototype,
     );
     Object.defineProperties(i, api);
+  }
+  if (fresh || i.instanceId === undefined) {
     i._initDevtools!(options?.instanceId, options?.exposeGlobal);
   }
   return i18n;

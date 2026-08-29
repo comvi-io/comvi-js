@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll } from "vitest";
+import { describe, it, expect, beforeAll, vi } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -182,6 +182,77 @@ describe("prod dist: base + /loader + /plugins composition (A6)", () => {
     const loaded = attachLoader(createI18n({ locale: "en", exposeGlobal: false }));
     loaded.addTranslations({ en: { nav: { home: "Home" } } });
     expect(loaded.t("nav.home")).toBe("Home");
+  });
+
+  it("folds the late-compose warnings AND the loader shims out of prod (B2/B4)", async () => {
+    const { createI18n } = await import("../../dist/comvi-core.js");
+    const { attachLoader } = await import("../../dist/comvi-core-loader.js");
+    const { attachPlugins } = await import("../../dist/comvi-core-plugins.js");
+
+    // B2's guidance is DEV-ONLY: the prod build must fold every warning (and
+    // its string) away, so a late compose is silent here even though the same
+    // calls warn once each in dev.
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const i18n = createI18n({
+        locale: "en",
+        exposeGlobal: false,
+        translation: { en: { hello: "Hello" } },
+      });
+      await i18n.init();
+
+      attachPlugins(i18n).use(() => {});
+      attachLoader(i18n);
+
+      expect(warnSpy).not.toHaveBeenCalled();
+    } finally {
+      warnSpy.mockRestore();
+    }
+
+    // B4 is DEV-ONLY. Production keeps the bare `TypeError` — still loud, just
+    // without the guidance — because the shims cost ~190 B min+gz on every
+    // plugin-host graph and only a plugin author, at development time, ever
+    // reads them. `composition-hardening.test.ts` asserts the dev half.
+    const { hasLoaderApi } = await import("../../dist/comvi-core.js");
+    const pluginsOnly = attachPlugins(createI18n({ locale: "en", exposeGlobal: false }));
+
+    expect(pluginsOnly.registerLoader).toBeUndefined();
+    expect(() => pluginsOnly.registerLoader(async () => ({}))).toThrow(TypeError);
+
+    // The gate that MUST NOT differ between the builds: `hasLoaderApi` is a
+    // feature detect (`@comvi/nuxt`'s server loader) and an acquisition guard
+    // (every wrapper's `useI18nLoader`), so a plugins-only host has to read as
+    // "no loader" in prod exactly as it does in dev — there the branded shims
+    // exist and are rejected, here there are none to reject.
+    expect(hasLoaderApi(pluginsOnly)).toBe(false);
+    expect(hasLoaderApi(attachLoader(createI18n({ locale: "en", exposeGlobal: false })))).toBe(true);
+  });
+
+  it("leaves no dev-only B2/B4 text in the prod artifacts", () => {
+    // Behavioural assertions can pass while the STRINGS still ship: a folded
+    // branch that terser kept would cost bytes on every plugin-host graph and
+    // never be observed by a test that only calls the API. Scan the text.
+    const files = distFiles(false);
+    expect(files.length).toBeGreaterThan(0);
+
+    const devOnly = ["comviShim", "compose capabilities before init()", "capabilityShim"];
+    const leaked: string[] = [];
+    for (const file of files) {
+      const source = fs.readFileSync(file, "utf8");
+      for (const needle of devOnly) {
+        if (source.includes(needle)) leaked.push(`${path.basename(file)} → ${needle}`);
+      }
+    }
+    expect(leaked).toEqual([]);
+
+    // …and the same strings MUST be present in the dev build, or the scan
+    // above is proving nothing.
+    const dev = distFiles(true)
+      .map((file) => fs.readFileSync(file, "utf8"))
+      .join("\n");
+    for (const needle of devOnly.slice(0, 2)) {
+      expect(dev, `${needle} must be readable in the dev build`).toContain(needle);
+    }
   });
 
   it("mangles every cross-chunk internal in the prod artifacts", () => {

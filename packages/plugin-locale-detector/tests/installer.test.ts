@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { createI18n } from "@comvi/core";
+import { createI18n, hasLoaderApi } from "@comvi/core";
 import { plugins } from "@comvi/core/plugins";
 import type { I18nPlugin } from "@comvi/core";
 import { LocaleDetector, localeDetector } from "../src/index";
@@ -51,7 +51,14 @@ describe("localeDetector() installer", () => {
   it("composes no loader capability", () => {
     const i18n = base().with(localeDetector());
 
-    expect((i18n as Record<string, unknown>).registerLoader).toBeUndefined();
+    // Probed through `hasLoaderApi`, not `registerLoader === undefined`: since
+    // core's B4 fix a plugins-only host carries a BRANDED throwing stand-in
+    // for every loader member, so the member exists while the capability does
+    // not — and calling it says exactly that.
+    expect(hasLoaderApi(i18n)).toBe(false);
+    expect(() => (i18n as unknown as { registerLoader: () => void }).registerLoader()).toThrow(
+      /no loader capability/,
+    );
   });
 
   it("returns the same instance and keeps registered state when composed twice", async () => {

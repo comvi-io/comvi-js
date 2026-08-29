@@ -30,9 +30,23 @@ import type {
 } from "../types";
 import { I18n as I18nBase, type I18nInternal } from "./i18n";
 import { normalizeTranslationObject } from "../utils";
+import { warnLateCompose } from "../utils/lateCompose";
 
 declare const __DEV__: boolean | undefined;
 const IS_DEV = typeof __DEV__ !== "undefined" && __DEV__;
+
+/**
+ * B2 — `init()` loads the initial namespaces once. A loader composed after it
+ * is never asked for them, so the host looks composed and stays empty until
+ * something else (`addActiveNamespace`, `reloadTranslations`, a locale switch)
+ * happens to trigger a load.
+ *
+ * Dev-only: the string is behind `IS_DEV` at its call site, so terser drops it
+ * from a prod build.
+ */
+const ERR_LATE_LOADER = IS_DEV
+  ? "[i18n] .with(loader()) ran after init(): compose capabilities before init(). init() has already loaded the initial namespaces and will not re-run for this loader — call reloadTranslations() or addActiveNamespace() to load now."
+  : "";
 
 const ERR_NO_LOADER_REGISTERED = IS_DEV
   ? "[i18n] No loader registered. Cannot reload translations."
@@ -412,10 +426,18 @@ export class I18nWithLoader<D extends DefaultTranslationParams = {}> extends I18
  * i18n.registerLoader(async (locale, ns) => (await fetch(`/${locale}/${ns}.json`)).json());
  * ```
  *
+ * MUST run BEFORE `init()`, which loads the initial namespaces exactly once.
+ * A loader composed afterwards is never consulted for them; that warns in dev
+ * and the recovery is an explicit `addActiveNamespace()` /
+ * `reloadTranslations()`.
+ *
  * Idempotent (dot-access probe on an installed hook — never `in`, never a
  * string key: see the mangling contract above). The members land as
  * non-enumerable own properties with class-method descriptors, so
- * `Object.keys(i18n)` and spread copies are unaffected.
+ * `Object.keys(i18n)` and spread copies are unaffected. They also overwrite
+ * the throwing stand-ins `attachPlugins` installs on a plugins-only host (B4),
+ * which is why `attachPlugins` then `attachLoader` ends up identical to the
+ * other order.
  */
 export function attachLoader<T extends I18nBase<any>>(i18n: T): T & I18nLoaderApi {
   const i = i18n as unknown as I18nInternal;
@@ -425,6 +447,7 @@ export function attachLoader<T extends I18nBase<any>>(i18n: T): T & I18nLoaderAp
     );
     Object.defineProperties(i, api);
     i._initLoader!();
+    if (IS_DEV && i18n.isInitialized) warnLateCompose(i18n, ERR_LATE_LOADER);
   }
   return i18n as T & I18nLoaderApi;
 }

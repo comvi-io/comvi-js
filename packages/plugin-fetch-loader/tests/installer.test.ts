@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { createI18n } from "@comvi/core";
+import { createI18n, hasLoaderApi } from "@comvi/core";
 import { loader } from "@comvi/core/loader";
 import { plugins } from "@comvi/core/plugins";
 import type { I18nPlugin } from "@comvi/core";
@@ -105,8 +105,12 @@ describe("fetchLoader() wrong use", () => {
 
     await expect(i18n.init()).rejects.toThrow(/fetchLoader\(\) is a \.with\(…\) installer/);
 
-    // The nested-use guard is the FIRST ensure-step: no loader capability…
-    expect((i18n as Record<string, unknown>).registerLoader).toBeUndefined();
+    // The nested-use guard is the FIRST ensure-step: no loader capability.
+    // Probed through `hasLoaderApi`, not `registerLoader === undefined`: since
+    // core's B4 fix a plugins-only host carries a BRANDED throwing stand-in
+    // for every loader member, so the member exists while the capability does
+    // not — and calling it says exactly that.
+    expect(hasLoaderApi(i18n)).toBe(false);
     // …no plugin data, so the plugin never reached the queue…
     expect(i18n.getPluginData(FETCH_LOADER_PLUGIN_KEY)).toBeUndefined();
     // …and nothing to tear down.
