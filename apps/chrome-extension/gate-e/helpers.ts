@@ -73,6 +73,7 @@ export async function expectPopupView(
   worker: Worker,
   page: Page,
   view: "idle" | "active",
+  tabId?: number,
   timeout = 10_000,
 ): Promise<void> {
   try {
@@ -87,6 +88,28 @@ export async function expectPopupView(
         .textContent()
         .catch(() => null),
       popupUrl: popup.url(),
+      popupTabs: await popup
+        .evaluate(async (expectedTabId) => {
+          const chromeApi = (globalThis as typeof globalThis & { chrome: typeof chrome }).chrome;
+          const current = await chromeApi.windows.getCurrent();
+          const active = await chromeApi.tabs.query({ active: true, currentWindow: true });
+          const probe =
+            typeof expectedTabId === "number"
+              ? await new Promise((resolve) =>
+                  chromeApi.tabs.sendMessage(expectedTabId, { type: "GET_STATUS" }, (response) =>
+                    resolve(chromeApi.runtime.lastError?.message ?? response),
+                  ),
+                )
+              : "no expected tab";
+          return { window: current.id, active: active.map((t) => [t.id, t.url]), probe };
+        }, tabId)
+        .catch((e: unknown) => String(e)),
+      workerTabs: await worker.evaluate(() => {
+        const chromeApi = (globalThis as typeof globalThis & { chrome: typeof chrome }).chrome;
+        return chromeApi.tabs
+          .query({})
+          .then((tabs) => tabs.map((t) => [t.id, t.windowId, t.active, t.url]));
+      }),
       storage: await worker.evaluate(() => {
         const chromeApi = (globalThis as typeof globalThis & { chrome: typeof chrome }).chrome;
         return chromeApi.storage.session.get(null);

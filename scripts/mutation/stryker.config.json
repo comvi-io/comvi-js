@@ -9,13 +9,23 @@
     "!src/**/*.test.ts"
   ],
   "reporters": ["clear-text", "html", "json"],
-  "htmlReporter": { "fileName": ".stryker/report.html" },
-  "jsonReporter": { "fileName": ".stryker/report.json" },
+  "htmlReporter": {
+    "fileName": ".stryker/report.html"
+  },
+  "jsonReporter": {
+    "fileName": ".stryker/report.json"
+  },
   "tempDirName": ".stryker-tmp",
   "cleanTempDir": true,
   "concurrency": 4,
   "timeoutMS": 30000,
   "disableTypeChecks": true,
   "ignoreStatic": true,
-  "thresholds": { "high": 90, "low": 70, "break": null }
+  "thresholds": {
+    "high": 90,
+    "low": 70,
+    "break": null
+  },
+  "incremental": true,
+  "incrementalFile": ".stryker/incremental.json"
 }

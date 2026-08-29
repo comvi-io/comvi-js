@@ -14,7 +14,7 @@ async function activateEditor(
   tabId: number,
   apiKey = "gate-e-key",
 ) {
-  await expectPopupView(popup, worker, hostilePage, "idle");
+  await expectPopupView(popup, worker, hostilePage, "idle", tabId);
   const key = popup.locator("#api-key");
   if (!(await key.inputValue())) await key.fill(apiKey);
   await popup.locator("#enable-btn").click();
@@ -150,7 +150,7 @@ test("built MV3 extension enforces the hostile-page trust boundary", async () =>
       // Opening the real action popup rechecks the already-detected page. Close
       // it before probing so Phase 1 still has no authenticated session.
       const setupPopup = await openPopup(worker, extensionId, debuggingPort, cdpConnections);
-      await expectPopupView(setupPopup, worker, page, "idle");
+      await expectPopupView(setupPopup, worker, page, "idle", tabId);
       await setupPopup.close();
       await page.bringToFront();
 
@@ -214,7 +214,7 @@ test("built MV3 extension enforces the hostile-page trust boundary", async () =>
       const forgetPopup = await openPopup(worker, extensionId, debuggingPort, cdpConnections);
       await activateEditor(forgetPopup, page, worker, tabId);
       await forgetPopup.locator("#disable-btn").click();
-      await expectPopupView(forgetPopup, worker, page, "idle");
+      await expectPopupView(forgetPopup, worker, page, "idle", tabId);
       await expect
         .poll(
           () =>
@@ -241,7 +241,7 @@ test("built MV3 extension enforces the hostile-page trust boundary", async () =>
         void (globalThis as any).gateE.runPhase5();
       });
       const racePopup = await openPopup(worker, extensionId, debuggingPort, cdpConnections);
-      await expectPopupView(racePopup, worker, page, "idle");
+      await expectPopupView(racePopup, worker, page, "idle", tabId);
       await racePopup.locator("#api-key").fill("gate-e-key");
       await racePopup.locator("#enable-btn").click();
       await racePopup.close();
@@ -253,7 +253,7 @@ test("built MV3 extension enforces the hostile-page trust boundary", async () =>
         void (globalThis as any).gateE.runPhase4();
       });
       const navigationPopup = await openPopup(worker, extensionId, debuggingPort, cdpConnections);
-      await expectPopupView(navigationPopup, worker, page, "idle");
+      await expectPopupView(navigationPopup, worker, page, "idle", tabId);
       await navigationPopup.locator("#api-key").fill("gate-e-key");
       await navigationPopup.locator("#enable-btn").click();
       await page.waitForURL("**/?navigation-race=check", { timeout: 10_000 });
