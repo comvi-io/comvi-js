@@ -1,7 +1,6 @@
 /**
- * useSubscribe identity stability: rest-args + a join-key derivation so
- * callback identity churns iff the event-list contents change (not on every
- * render with a fresh literal).
+ * Callback identity must churn iff the event-list CONTENTS change — a fresh
+ * array literal each render (the production shape) must not churn it.
  */
 
 import React, { useEffect, useRef } from "react";
@@ -39,8 +38,7 @@ describe("useSubscribe — rest-args + stable join-key deps", () => {
       <Probe fake={fake} events={["localeChanged", "initialized"]} onSub={(s) => subs.push(s)} />,
     );
 
-    // Same content, different array identity — must NOT trigger a new
-    // subscribe identity (fresh literal each render is the production shape).
+    // Same contents, different array identity.
     rerender(
       <Probe fake={fake} events={["localeChanged", "initialized"]} onSub={(s) => subs.push(s)} />,
     );
@@ -60,21 +58,18 @@ describe("useSubscribe — rest-args + stable join-key deps", () => {
     );
     expect(subs.length).toBe(1);
 
-    // Add an event — identity MUST change so a useEffect using sub as a dep
-    // re-runs and re-subscribes to the new event set. This is the fragility
-    // the fix targets.
+    // Identity MUST change so a `useEffect` holding `sub` as a dep re-runs and
+    // subscribes to the new event set.
     rerender(
       <Probe fake={fake} events={["localeChanged", "initialized"]} onSub={(s) => subs.push(s)} />,
     );
     expect(subs.length).toBe(2);
 
-    // Reorder — different join("|") key — also a new identity.
     rerender(
       <Probe fake={fake} events={["initialized", "localeChanged"]} onSub={(s) => subs.push(s)} />,
     );
     expect(subs.length).toBe(3);
 
-    // Drop one — different join("|") key — also a new identity.
     rerender(<Probe fake={fake} events={["initialized"]} onSub={(s) => subs.push(s)} />);
     expect(subs.length).toBe(4);
   });
@@ -113,7 +108,6 @@ describe("useSubscribe — rest-args + stable join-key deps", () => {
       firedCount += 1;
     });
 
-    // Both subscribed events should trigger the callback.
     await act(async () => {
       fake.emit("localeChanged", { from: "en", to: "fr" });
     });
@@ -124,13 +118,11 @@ describe("useSubscribe — rest-args + stable join-key deps", () => {
     });
     expect(firedCount).toBe(2);
 
-    // An UN-subscribed event must NOT fire.
     await act(async () => {
       fake.emit("loadingStateChanged", { isLoading: true });
     });
     expect(firedCount).toBe(2);
 
-    // After unsubscribe, no more deliveries.
     unsubscribe();
     await act(async () => {
       fake.emit("localeChanged", { from: "fr", to: "de" });

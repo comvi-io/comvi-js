@@ -85,7 +85,7 @@ test("compare mode exits 1 on a real slowdown in B", (t) => {
 test("compare mode exits 0 when both roots are the same dist", () => {
   // The gate must not fire on identical inputs. Asserted at 20 % rather than the
   // production 5 %: the measured noise floor of this protocol is ~3.5 % on a
-  // loaded machine (recorded in the Phase 4 handoff), and a unit test that
+  // loaded machine, and a unit test that
   // depends on a busy CI runner staying quiet is a flake, not a gate.
   const result = runPerf([
     "--compare",

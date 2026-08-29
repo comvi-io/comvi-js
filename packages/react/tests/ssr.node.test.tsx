@@ -1,10 +1,5 @@
 // @vitest-environment node
-/**
- * SSR coverage via react-dom/server.renderToString. Exercises the
- * `getServerSnapshot` paths that happy-dom doesn't hit. Verifies
- * `ssrInitialLocale` / `ssrInitialIsLoading` / `ssrInitialIsInitializing`
- * flow through to consumers.
- */
+/** Exercises the `getServerSnapshot` paths that happy-dom does not hit. */
 
 import { describe, it, expect } from "vitest";
 import React from "react";
@@ -32,9 +27,6 @@ describe("@comvi/react SSR — getServerSnapshot paths (W4)", () => {
   });
 
   it("ssrInitialLocale overrides the i18n.locale on the server snapshot path", () => {
-    // Instance defaults to 'en' but we tell the provider the SSR locale is
-    // 'de'. The server snapshot getter should return 'de' for any consumer
-    // that uses useLocale() / useI18n().locale.
     const i18n = createI18n({
       locale: "en",
       translation: {

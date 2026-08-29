@@ -121,7 +121,6 @@ export class ApiClient {
   private projectInfoPromise?: Promise<ProjectInfo>;
 
   constructor(options: ApiClientOptions) {
-    // Validate API key
     if (!options.apiKey || typeof options.apiKey !== "string" || options.apiKey.trim() === "") {
       throw new TypegenError(
         "API key is required and must be a non-empty string",
@@ -129,7 +128,6 @@ export class ApiClient {
       );
     }
 
-    // Validate API base URL
     if (!options.apiBaseUrl || typeof options.apiBaseUrl !== "string") {
       throw new TypegenError(
         "API base URL is required and must be a string",
@@ -137,7 +135,6 @@ export class ApiClient {
       );
     }
 
-    // Validate URL format
     try {
       new URL(options.apiBaseUrl);
     } catch {
@@ -147,7 +144,6 @@ export class ApiClient {
       );
     }
 
-    // Validate timeout if provided
     if (options.timeout !== undefined) {
       if (typeof options.timeout !== "number" || options.timeout <= 0) {
         throw new TypegenError("Timeout must be a positive number", ErrorCodes.INVALID_INPUT);
@@ -552,7 +548,6 @@ export class ApiClient {
       return () => undefined;
     }
 
-    // Create EventSource with authorization
     const apiKey = this.apiKey;
     const eventSource = new EventSource(url, {
       fetch: (input, init) => {
@@ -591,7 +586,6 @@ export class ApiClient {
       console.warn("[comvi] Schema update stream interrupted; reconnecting...");
     };
 
-    // Return cleanup function
     return () => {
       eventSource.close();
       if (this.eventSource === eventSource) {

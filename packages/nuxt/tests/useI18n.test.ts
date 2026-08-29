@@ -16,8 +16,8 @@ const { createBoundTranslation, boundT } = vi.hoisted(() => {
   };
 });
 
-// The composable takes `createBoundTranslation` from the SLIM entry now: it
-// runs on a bare WrapperI18nHost, which is all `$i18n` promises (§3.2).
+// The composable takes `createBoundTranslation` from the SLIM entry: it runs on
+// a bare WrapperI18nHost, which is all `$i18n` promises.
 vi.mock("@comvi/core", async (importOriginal) => ({
   ...(await importOriginal<typeof ComviCore>()),
   createBoundTranslation,
@@ -92,7 +92,6 @@ describe("useI18n composable", () => {
 
     useI18n("dashboard");
 
-    // createBoundTranslation should be called with the i18n instance and namespace
     expect(createBoundTranslation).toHaveBeenCalledTimes(1);
     expect(createBoundTranslation).toHaveBeenCalledWith(i18n, "dashboard");
   });
@@ -103,7 +102,6 @@ describe("useI18n composable", () => {
 
     useI18n();
 
-    // createBoundTranslation called with i18n and undefined (no default ns override)
     expect(createBoundTranslation).toHaveBeenCalledTimes(1);
     expect(createBoundTranslation).toHaveBeenCalledWith(i18n, undefined);
   });
@@ -114,10 +112,9 @@ describe("useI18n composable", () => {
 
     const api = useI18n();
 
-    // locale should be the same reactive ref from the i18n stub
     expect(api.locale.value).toBe("en");
 
-    // Mutating the source ref should be visible through api.locale
+    // The ref is shared, not copied.
     i18n.locale.value = "fr";
     expect(api.locale.value).toBe("fr");
   });
@@ -132,7 +129,6 @@ describe("useI18n composable", () => {
     api.setDefaultParams({ formality: "informal" });
     expect(i18n.setDefaultParams).toHaveBeenCalledWith({ formality: "informal" });
 
-    // Call methods through the composable and verify they delegate to the i18n stub
     api.addTranslations({ "en:common": { greeting: "Hello" } });
     expect(i18n.addTranslations).toHaveBeenCalledWith({ "en:common": { greeting: "Hello" } });
 

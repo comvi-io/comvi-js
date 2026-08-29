@@ -1,17 +1,11 @@
 import { createNextI18n } from "@comvi/next";
 
-/**
- * Central i18n configuration using createNextI18n factory.
- *
- * This creates both the i18n instance and routing config in one call.
- */
+/** Creates both the i18n instance and the routing config in one call. */
 export const nextI18n = createNextI18n({
-  // Routing
   locales: ["en", "de", "fr", "es", "uk", "ar"],
   defaultLocale: "en",
   localePrefix: "as-needed",
 
-  // i18n options
   fallbackLocale: "en",
   defaultNs: "default",
   basicHtmlTags: ["strong", "em", "br", "a"],

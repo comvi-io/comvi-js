@@ -15,12 +15,7 @@ export interface UseI18nReturn<
 }
 
 /**
- * Nuxt composable to access the i18n instance
- *
- * Wraps @comvi/vue's useI18n with Nuxt state synchronization
- *
- * @param ns - Optional namespace to scope translations to
- * @returns Object with translation function, reactive state, and i18n methods
+ * Wraps @comvi/vue's useI18n with Nuxt state synchronization.
  *
  * @example
  * ```vue
@@ -51,15 +46,13 @@ export function useI18n<D extends DefaultTranslationParams = {}>(ns?: string): U
     );
   }
 
-  // Get locale state for synchronization
   const localeState = useLocaleState();
 
-  // Create scoped translation functions
   const tRaw = createBoundTranslation(i18n, ns) as UseI18nReturn<D>["tRaw"];
   const t = ((key: string, params?: TranslationParams) =>
     translationResultToString(tRaw(key as never, params as never))) as UseI18nReturn<D>["t"];
 
-  // Wrap setLocale to sync with Nuxt state
+  // setLocale must also advance the Nuxt state the middleware watches.
   const setLocale = async (newLocale: string) => {
     await i18n.setLocale(newLocale);
     localeState.value = newLocale;
@@ -93,7 +86,6 @@ export function useI18n<D extends DefaultTranslationParams = {}>(ns?: string): U
     formatRelativeTime: i18n.formatRelativeTime,
     dir: i18n.dir,
     destroy: i18n.destroy,
-    // Nuxt-specific
     locales: computed(() => publicConfig.locales as readonly string[]),
     defaultLocale: computed(() => publicConfig.defaultLocale),
   };

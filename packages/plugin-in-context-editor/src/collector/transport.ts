@@ -1,8 +1,8 @@
 /**
- * Handshake + batching + the local send-vs-ping gate (2e, B1/RC-A/MF-1).
+ * Handshake, batching, and the local send-vs-ping gate.
  *
  * Owns all network I/O for the collector. Every public method is designed to
- * never throw past its own boundary (RC3/P8) — a handshake or batch failure
+ * never throw past its own boundary — a handshake or batch failure
  * is reported back as a boolean/silently swallowed, never rejected, so the
  * caller (Collector) can disable collection without any unhandled rejection
  * reaching the host page.
@@ -60,7 +60,7 @@ function chunk<T>(items: T[], size: number): T[][] {
 }
 
 export class CollectorTransport {
-  /** (namespace,key,screenGroup) -> server-authoritative observationHash, hydrated by the handshake and by every `updated` echo (MF-1). */
+  /** (namespace,key,screenGroup) -> server-authoritative observationHash, hydrated by the handshake and by every `updated` echo. */
   private readonly gateMap = new Map<string, string>();
   /** Groups the server told us to resend in full. Consumed only after a CONFIRMED (2xx) send — a failed POST keeps the marker so the resend retries. */
   private readonly forcedResend = new Set<string>();
@@ -78,7 +78,7 @@ export class CollectorTransport {
 
   /**
    * Session-start handshake. Chunks `keys` into ≤`MAX_ITEMS_PER_BATCH`-key
-   * batches (B2 — the server caps `keys` at the same 100/batch limit, so an
+   * batches (the server caps `keys` at the same 100/batch limit, so an
    * unchunked request on any page with >100 registered keys would 400 the
    * whole handshake and disable collection for the entire session).
    *
@@ -87,8 +87,8 @@ export class CollectorTransport {
    * successfully hydrated hashes. Returns false (disabling the collector)
    * ONLY if every chunk failed; a partial success keeps the collector active
    * with a partially-hydrated gate map (any group missing from a failed
-   * chunk simply sends FULL on its first pass instead of pinging, same as
-   * MF-1's mid-session-discovered-group case — never a correctness bug).
+   * chunk simply sends FULL on its first pass instead of pinging, exactly
+   * like a group first discovered mid-session — never a correctness bug).
    */
   public async handshake(keys: KeyRef[]): Promise<boolean> {
     if (isDemoMode(this.scopeId)) {
@@ -181,9 +181,9 @@ export class CollectorTransport {
   }
 
   /**
-   * Sends one settle's worth of observations, split full-vs-ping per the B1
+   * Sends one settle's worth of observations, split full-vs-ping by the local
    * gate, chunked to the 100/batch cap, folding each response back into the
-   * local gate map (MF-1) and forced-resend set.
+   * local gate map and forced-resend set.
    */
   public async sendPass(pass: PassItem[]): Promise<void> {
     if (isDemoMode(this.scopeId) || pass.length === 0) {
@@ -244,7 +244,7 @@ export class CollectorTransport {
   }
 
   /**
-   * Best-effort final flush on stop()/pagehide (2e). Uses `fetch` with
+   * Best-effort final flush on stop()/pagehide. Uses `fetch` with
    * `keepalive: true` rather than `navigator.sendBeacon` — sendBeacon cannot
    * carry the `Authorization: Bearer` header this API-key-authenticated
    * endpoint requires. Capped much smaller than a normal batch: browsers

@@ -54,7 +54,7 @@ export function getPublishablePackages(root) {
     .sort((a, b) => a.name.localeCompare(b.name));
 }
 
-// Packages versioned independently of the coordinated release train
+// Packages versioned independently of the coordinated release
 // (not members of the changeset `fixed` group; e.g. @comvi/locale-routing@0.1.0).
 const INDEPENDENT_PACKAGES = new Set(["@comvi/locale-routing"]);
 

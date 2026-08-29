@@ -8,7 +8,7 @@
  * a source file with no registration import still registered on import. Only
  * the emitted chunk graph can rule that out, so this suite reads it.
  *
- * Requires a fresh build — CI runs `pnpm --filter @comvi/core build` first.
+ * Requires a fresh build.
  */
 import { describe, it, expect, beforeAll } from "vitest";
 import fs from "node:fs";

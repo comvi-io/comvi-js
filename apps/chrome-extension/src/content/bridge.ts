@@ -1,9 +1,7 @@
 /**
- * Content script running in ISOLATED world
- *
- * Bridges communication between the page (MAIN world) and the extension
- * (background/popup). Preloaded by the manifest and safely re-injectable by
- * the popup when it needs an immediate status refresh.
+ * ISOLATED-world content script bridging the page (MAIN world) and the
+ * extension (background/popup). Preloaded by the manifest and safely
+ * re-injectable by the popup for an immediate status refresh.
  *
  * Trust model: every CustomEvent arriving here originates in the MAIN world
  * and can be forged by page scripts. All payloads are sanitized before being
@@ -84,7 +82,6 @@ if (!window.__comviExtensionBridgeInstalled) {
 }
 
 function installBridge() {
-  // State
   let currentStatus: StatusResponsePayload = {
     comviDetected: false,
     editorActive: false,
@@ -137,7 +134,6 @@ function installBridge() {
     });
   }
 
-  // Listen for status from detector (MAIN world)
   window.addEventListener("comvi-extension:status", ((event: CustomEvent) => {
     const status = sanitizeStatus(event.detail);
     const wasDetected = currentStatus.comviDetected;
@@ -151,7 +147,6 @@ function installBridge() {
     }
   }) as EventListener);
 
-  // Listen for detection events
   window.addEventListener("comvi-extension:detected", ((event: CustomEvent) => {
     currentStatus = { ...sanitizeStatus(event.detail), comviDetected: true };
     sendRuntimeMessage({ type: "COMVI_DETECTED", payload: currentStatus });
@@ -162,7 +157,6 @@ function installBridge() {
     sendRuntimeMessage({ type: "COMVI_NOT_FOUND", payload: currentStatus });
   });
 
-  // Listen for activation result
   window.addEventListener("comvi-extension:activated", ((event: CustomEvent) => {
     const detail = sanitizeActivationResult(event.detail);
     if (detail.success) {
@@ -176,7 +170,6 @@ function installBridge() {
     });
   }) as EventListener);
 
-  // Listen for deactivation result
   window.addEventListener("comvi-extension:deactivated", ((event: CustomEvent) => {
     const detail = sanitizeActivationResult(event.detail);
     if (detail.success) {
@@ -222,13 +215,10 @@ function installBridge() {
     sendRuntimeMessage({ type: "API_PROXY_ABORT", payload: { id: raw.id } });
   }) as EventListener);
 
-  // Listen for messages from popup/background
   chrome.runtime.onMessage.addListener((message: Message, _sender, sendResponse) => {
     switch (message.type) {
       case "GET_STATUS":
-        // Request fresh status from detector
         window.dispatchEvent(new CustomEvent("comvi-extension:get-status"));
-        // Send current cached status immediately
         sendResponse({ type: "STATUS_RESPONSE", payload: currentStatus });
         break;
 
@@ -261,7 +251,6 @@ function installBridge() {
     return false;
   });
 
-  // Request initial status
   setTimeout(() => {
     window.dispatchEvent(new CustomEvent("comvi-extension:get-status"));
   }, 100);

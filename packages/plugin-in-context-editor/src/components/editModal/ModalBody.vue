@@ -25,7 +25,6 @@ if (!translationManager) {
   <div class="flex flex-grow overflow-hidden" style="height: calc(90vh - 130px)">
     <ModalSidebar :languages="languages" />
 
-    <!-- Loading skeleton -->
     <div
       v-if="translationManager.state.value.isLoading || isLoadingLanguages"
       class="flex-1 overflow-y-auto p-4 space-y-6"
@@ -39,7 +38,6 @@ if (!translationManager) {
       </div>
     </div>
 
-    <!-- Full-page error state -->
     <div
       v-else-if="translationManager.state.value.error && !translationManager.state.value.data"
       class="flex-1 flex items-center justify-center"
@@ -65,7 +63,6 @@ if (!translationManager) {
       </div>
     </div>
 
-    <!-- Content with optional inline error banner -->
     <div v-else class="flex-1 flex flex-col overflow-hidden">
       <div
         v-if="translationManager.state.value.error"

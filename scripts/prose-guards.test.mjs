@@ -1,6 +1,6 @@
-// Prose guard for the ONE true composition-ordering rule (0.5.0 hardening, B1).
+// Prose guard for the ONE true composition-ordering rule.
 //
-// Runtime probes proved the 0.5 corpus wrong on two counts: `loader()`,
+// Runtime probes proved two widely-repeated claims wrong: `loader()`,
 // `plugins()` and `devtools()` may be composed in ANY order among themselves
 // (hosted plugins run at `init()`, by which point every capability composed
 // before `init()` is attached), and `.with(icu())` does not have to precede a
@@ -64,8 +64,8 @@ const RETIRED_PATTERNS = [
 ];
 
 /**
- * Verbatim claims from the pre-B1 tree, each naming the family that must catch
- * it. Multi-line entries are the soft-wrapped ones: prose and block comments
+ * Verbatim claims captured from the tree, each naming the family that must
+ * catch it. Multi-line entries are the soft-wrapped ones: prose and block comments
  * wrap mid-sentence, so the scanner has to see across one line break or the
  * writer's line width decides whether the gate fires.
  */

@@ -8,17 +8,15 @@ const CORE_DIST = resolve(__dirname, "../core/dist");
  * Pin every `@comvi/core*` specifier — the wrapper's own imports included — to
  * ONE published build family.
  *
- * The §2.4 JS-consumer contract has to be proved under BOTH build conditions,
- * because the only difference between them is the text `missingCapability()`
- * throws, and that text is baked into the core artifact at build time
- * (`__DEV__`). Exact-match regexes, never string prefixes: a string alias for
- * `@comvi/core` would also swallow `@comvi/core`.
+ * The JS-consumer contract must be proved under BOTH build conditions: the
+ * only difference between them is the text `missingCapability()` throws, and
+ * `__DEV__` bakes that into the core artifact at build time. Exact-match
+ * regexes, never string prefixes, which would swallow the subpaths too.
  *
- * All five entries move together — mixing a dev base host with a prod
- * `attachLoader` would compose across two different terser nameCaches and
- * break core's `_`-internal contract. `-rich-text` is in the list because
- * `<T>` names it; `-tags` stays because an app (or a fixture) may still opt
- * into the ambient entry, and a mixed pair there would mean two copies of the
+ * All five entries move together: mixing a dev base host with a prod
+ * `attachLoader` composes across two terser nameCaches and breaks core's
+ * `_`-internal contract. `-tags` is in the list because an app or fixture may
+ * opt into the ambient entry, and a mixed pair there means two copies of the
  * grammar and two ambient registries.
  */
 const coreBuild = (suffix: "" | ".dev") =>

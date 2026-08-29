@@ -7,12 +7,8 @@ import {
 } from "../utils/locale-path";
 
 /**
- * Composable to get paths for switching locales
- *
  * Returns the current route path with a different locale. When query-parameter
  * detection is configured, the generated URL keeps that parameter synchronized.
- *
- * @returns Function that returns the current path in a different locale
  *
  * @example
  * ```vue
@@ -41,14 +37,10 @@ export function useSwitchLocalePath() {
   const route = useRoute();
 
   /**
-   * Get current route path with a different locale
-   *
-   * @param locale - Target locale (must be in configured locales list)
-   * @returns Path with new locale prefix
-   * @throws Warning in dev mode if locale is not in the configured list
+   * @param locale - must be in the configured locales list; an unknown one
+   *   warns in dev mode and falls back to the default locale.
    */
   function switchLocalePath(locale: string): string {
-    // Validate locale is in the allowed list
     if (!locales.includes(locale)) {
       if (import.meta.dev) {
         console.warn(
@@ -56,13 +48,11 @@ export function useSwitchLocalePath() {
             `Available locales: ${locales.join(", ")}`,
         );
       }
-      // Fall back to default locale for invalid input
       locale = defaultLocale;
     }
 
     const { pathname, suffix } = splitPathAndSuffix(route.fullPath || route.path);
 
-    // Strip current locale prefix if present
     const cleanPath = stripLocalePrefix(pathname, locales);
 
     // Apply prefix based on mode and keep the configured locale query in sync.

@@ -24,17 +24,9 @@ export default defineConfig({
     },
     chunkFileNames: "chunks/comvi-solid-[name].js",
     // `<T>` — and with it this package's only `@comvi/core/rich-text` import —
-    // is pinned into its own chunk so an app that never renders <T> drops the
-    // whole module. In the previous single-file dist the top-level rich-text
-    // import sat in the SAME module as `useI18n`, and while it still named the
-    // side-effectful `@comvi/core/tags` entry, core's `sideEffects` array
-    // forbade dropping the tags chunk — so every solid app shipped the tag
-    // machinery (P0 finding 3 / fs-p1 blocker B1). The seam is pure now, but
-    // the chunk split is still what keeps the `<T>` pipeline out of an app
-    // that does not render it.
-    // This is now the package's only build pass and therefore its only chunk
-    // graph/solid context. `sideEffects: false` lets a bundler prune the pure
-    // named `T` re-export when unused.
+    // is pinned into its own chunk, so an app that never renders `<T>` drops
+    // the whole module. Sharing a module with `useI18n` once put the rich-text
+    // pipeline into every solid app.
     pinnedChunks: [{ name: "T", test: /src[\\/]T\.tsx/ }],
   }),
   resolve: {

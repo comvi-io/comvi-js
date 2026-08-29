@@ -18,7 +18,7 @@ import { warn } from "../logger";
 /**
  * Hosts that have already been told. A `WeakSet` rather than a flag on the
  * instance: an own property would show up in the reflective contracts that
- * assert exactly what a composed host carries (`tests/root-contract.test.ts`).
+ * assert exactly what a composed host carries.
  */
 const warned = /* @__PURE__ */ new WeakSet<object>();
 

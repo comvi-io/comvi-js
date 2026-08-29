@@ -1,17 +1,10 @@
-/**
- * Locale prefix mode for URL routing
- */
 export type LocalePrefixMode = "always" | "as-needed" | "never";
 
 /**
- * Configuration for i18n routing
- *
  * @typeParam T - Union type of supported locale strings (e.g., 'en' | 'uk' | 'de')
  */
 export interface RoutingConfig<T extends string = string> {
-  /** Supported locales */
   locales: readonly T[];
-  /** Default locale */
   defaultLocale: T;
   /**
    * Locale prefix mode:
@@ -27,8 +20,7 @@ export interface RoutingConfig<T extends string = string> {
    */
   localeCookie?: string;
   /**
-   * Path configurations for different locales (optional)
-   * Allows different URL paths per locale
+   * A different URL path per locale.
    * @example { '/about': { en: '/about', de: '/ueber-uns' } }
    */
   pathnames?: Record<string, Partial<Record<T, string>>>;

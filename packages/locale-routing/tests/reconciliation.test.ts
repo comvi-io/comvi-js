@@ -1,19 +1,9 @@
 /**
  * Table-driven reconciliation matrix for @comvi/locale-routing.
  *
- * Each table pins behavior against what the two consuming stacks did BEFORE
- * extraction (columns `next` / `nuxt` document the pre-0.5 behavior of
- * packages/next/src/routing/utils.ts + middleware and
- * packages/nuxt/src/runtime/utils/locale-path.ts). Where the stacks CONFLICT,
- * the plan's §5.1 reconciliation table decides (`shared` column):
- *
- * - Matching is SEGMENT-based (next's correctness: `/ensemble` never matches "en").
- * - Trailing slashes are PRESERVED (nuxt's behavior: `/de/about/` → `/about/`;
- *   next previously collapsed to `/about`).
- * - Inputs are normalized to a leading slash (next's behavior; nuxt previously
- *   returned `"about"` / `""` unchanged).
- * - Interior path bytes are never rewritten (next previously collapsed
- *   duplicate slashes via split/join; shared preserves them).
+ * The `nextOld` / `nuxtOld` columns record what packages/next and packages/nuxt
+ * each did before the shared extraction; `shared` is the reconciled behavior
+ * that wins where they disagree.
  */
 import { describe, expect, it } from "vitest";
 import {
@@ -47,9 +37,7 @@ describe("extractLocaleFromPath (identical in both stacks — nuxt locale-path.t
 });
 
 describe("stripLocalePrefix (reconciled: segment matching [next] + trailing-slash preservation [nuxt])", () => {
-  // Columns: input | next-old | nuxt-old | shared (reconciled)
   const table: Array<[input: string, nextOld: string, nuxtOld: string, shared: string]> = [
-    // agreeing cases
     ["/de/about", "/about", "/about", "/about"],
     ["/de", "/", "/", "/"],
     ["/de/", "/", "/", "/"],
@@ -142,7 +130,7 @@ describe("buildLocalizedPath (nuxt buildLocalizedPath ∪ next createGetPathname
       // leading slash normalization
       ["about", "de", "always", "/de/about"],
       ["about", "en", "as-needed", "/about"],
-      // trailing slash preservation (nuxt-pinned; next produced the same here)
+      // trailing slash preservation
       ["/about/", "de", "always", "/de/about/"],
       ["/about/", "en", "as-needed", "/about/"],
       ["/about/", "en", "always", "/en/about/"],

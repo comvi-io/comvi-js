@@ -1,11 +1,8 @@
-// The COMPOSED host these suites have always assumed.
-//
-// Since the single-entry convergence `@comvi/core` IS the base host, these
-// editor suites must opt into both capabilities they exercise:
-// `@comvi/core/plugins` for post-processors and `@comvi/core/devtools` for the
-// standalone runtime's `window.__COMVI__` discovery. The package's own
-// `inContextEditor()` installer remains the subject of `tests/installer.test.ts`,
-// so this helper stays on the low-level attaches.
+// `@comvi/core`'s root is the bare base host, so these suites opt into both
+// capabilities they exercise: `@comvi/core/plugins` for post-processors and
+// `@comvi/core/devtools` for the standalone runtime's `window.__COMVI__`
+// discovery. The low-level attaches are deliberate — `inContextEditor()` is
+// the subject of `tests/installer.test.ts`, not a tool for these suites.
 import { createI18n as createBaseI18n } from "@comvi/core";
 import type { I18n, I18nOptions, I18nPluginHostApi } from "@comvi/core";
 import { attachPlugins } from "@comvi/core/plugins";

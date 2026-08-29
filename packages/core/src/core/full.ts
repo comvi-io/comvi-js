@@ -7,21 +7,16 @@ import { createImportMapLoader, type LoaderImportMap } from "./importMapLoader";
 import { icuCompiler } from "./translate/compile-icu";
 
 /**
- * Full-featured `I18n` with the ICU message compiler wired in — the class
- * the CDN global publishes and `@comvi/next`'s builder mirrors. Kept as a
- * subclass (instead of a factory closure)
- * so `new I18n(options)` keeps its 0.4.0 single-argument signature.
+ * Full-featured `I18n` with the ICU message compiler wired in — the class the
+ * CDN global publishes and `@comvi/next`'s builder mirrors. A subclass rather
+ * than a factory closure, so `new I18n(options)` keeps its single-argument
+ * signature. This is the compatibility host, NOT the ESM root (that is the base
+ * host in `src/index.ts`).
  *
- * Every capability the `@comvi/core/loader`, `@comvi/core/plugins` and
- * `@comvi/core/devtools` subpaths attach to a base host is inherited
- * here from the same implementation, so this composed surface is unchanged
- * from 0.4.0 — which is the point: it is the compatibility host, NOT the ESM
- * root (that is the base host in `src/index.ts`).
- *
- * The loader arrives through `extends`; the plugin host — which must
- * NOT extend the loader capability, or a base+plugins-only graph would drag
- * the loader in — and the discovery capability arrive as prototype
- * descriptors installed just below.
+ * The loader arrives through `extends`; the plugin host — which must NOT extend
+ * the loader capability, or a base+plugins-only graph would drag the loader in
+ * — and the discovery capability arrive as prototype descriptors installed just
+ * below.
  */
 /*
  * Declaration merging is the point, not an accident: the plugin members are
@@ -62,8 +57,8 @@ export class I18n<D extends DefaultTranslationParams = {}> extends I18nWithLoade
    * });
    * ```
    *
-   * Keys without `:` are expanded to `"locale:defaultNs"`.
-   * The `{ default: ... }` wrapper from dynamic `import()` is unwrapped automatically.
+   * Keys without `:` are expanded to `"locale:defaultNs"`, and the
+   * `{ default: … }` wrapper from a dynamic `import()` is unwrapped.
    */
   public override registerLoader(loader: LoaderFn | LoaderImportMap): void {
     if (typeof loader === "object" && loader !== null) {
@@ -74,10 +69,9 @@ export class I18n<D extends DefaultTranslationParams = {}> extends I18nWithLoade
   }
 }
 
-// Second and third capabilities, same implementations, prototype-level
-// install. Snapshot each class exactly as the low-level attach functions do;
-// the keys are the already-mangled runtime names, so the install remains
-// mangling-safe and the members remain non-enumerable.
+// Snapshot each capability class exactly as the low-level attach functions do:
+// the keys are the already-mangled runtime names, so the install stays
+// mangling-safe and the members stay non-enumerable.
 for (const capability of [I18nWithPlugins, I18nWithDevtools]) {
   const { constructor: _ctor, ...api } = Object.getOwnPropertyDescriptors(capability.prototype);
   Object.defineProperties(I18n.prototype, api);

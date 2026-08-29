@@ -156,7 +156,7 @@ describe("Core Translation Features", () => {
         return result;
       });
 
-      // The key itself is returned as missing result, then post-processed
+      // The key is the missing-result, and it is post-processed like any other.
       expect(i18n.t("missing.key")).toBe("[missing.key]");
     });
 
@@ -168,7 +168,7 @@ describe("Core Translation Features", () => {
         return result;
       });
 
-      // The fallback is returned as missing result, then post-processed
+      // The fallback is the missing-result, and it too is post-processed.
       expect(i18n.t("missing.key", { fallback: "Fallback text" })).toBe("[Fallback text]");
     });
 
@@ -241,13 +241,10 @@ describe("Core Translation Features", () => {
     });
 
     it("should not cache the fallback as the translation for the key", () => {
-      // First call uses fallback
       expect(i18n.t("missing", { fallback: "F1" })).toBe("F1");
 
-      // Second call with different fallback
       expect(i18n.t("missing", { fallback: "F2" })).toBe("F2");
 
-      // Third call without fallback returns key
       expect(i18n.t("missing")).toBe("missing");
     });
   });

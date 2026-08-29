@@ -38,9 +38,6 @@ declare global {
   }
 }
 
-/**
- * Available i18n events
- */
 export type I18nEvent =
   | "initialized"
   | "destroyed"
@@ -53,9 +50,6 @@ export type I18nEvent =
   | "loadError"
   | "configChanged";
 
-/**
- * Event data payloads for each event type
- */
 export type I18nEventData = {
   initialized: void;
   destroyed: void;
@@ -66,15 +60,13 @@ export type I18nEventData = {
   namespaceLoaded: { namespace: string; locale: string };
   missingKey: { key: string; locale: string; namespace: string };
   loadError: { locale: string; namespace: string; error: Error };
-  /** Fired when runtime config changes: fallback locales, added translations, or activated namespaces */
   configChanged: {
     source: "fallbackLocale" | "translationsAdded" | "namespaceActivated" | "defaultParams";
   };
 };
 
 /**
- * Translation key schema interface
- * Extend this interface via declaration merging to add type-safe translation keys
+ * Extend via declaration merging to add type-safe translation keys.
  *
  * @example
  * ```typescript
@@ -88,57 +80,38 @@ export type I18nEventData = {
  * ```
  */
 export interface TranslationKeys {
-  // Empty by default - extended via declaration merging
+  // Deliberately empty — consumers extend it by declaration merging.
 }
 
-/**
- * Check if TranslationKeys has been extended with actual keys
- * Used to provide permissive fallback when types are not generated
- */
+/** False when no keys were generated, which is what enables the permissive fallback. */
 export type HasTranslationKeys = keyof TranslationKeys extends never ? false : true;
 
-/**
- * Permissive key type - only active when TranslationKeys is empty
- * When TranslationKeys has keys: never (disabled)
- * When TranslationKeys is empty: string (any key allowed)
- */
+/** `string` while `TranslationKeys` is empty, `never` once keys exist. */
 export type PermissiveKey = keyof TranslationKeys extends never ? string : never;
 
 /**
- * Keys without namespace prefix (default namespace keys).
- * Filters out "ns:key" format keys so they don't appear in autocomplete for t(key).
- * Namespaced keys are accessible via t(key, { ns: 'namespace' }) instead.
+ * Default-namespace keys. `"ns:key"` entries are filtered out so they do not
+ * pollute `t(key)` autocomplete; reach them with `t(key, { ns })`.
  */
 export type DefaultNsKeys = {
   [K in keyof TranslationKeys]: K extends `${string}:${string}` ? never : K;
 }[keyof TranslationKeys];
 
-/**
- * Extract all namespace prefixes from keys (e.g., "admin" from "admin:dashboard")
- */
+/** `"admin"` from `"admin:dashboard"`. */
 export type ExtractNamespaces<K = keyof TranslationKeys> = K extends `${infer NS}:${string}`
   ? NS
   : never;
 
-/**
- * All available namespaces derived from TranslationKeys
- */
 export type Namespaces = ExtractNamespaces<keyof TranslationKeys>;
 
-/**
- * Extract keys for a specific namespace (without the prefix)
- * e.g., NamespacedKeys<"admin"> = "dashboard" | "settings" | ...
- */
+/** `NamespacedKeys<"admin">` is `"dashboard" | "settings" | …` — prefix stripped. */
 export type NamespacedKeys<NS extends string> = keyof TranslationKeys extends infer K
   ? K extends `${NS}:${infer Rest}`
     ? Rest
     : never
   : never;
 
-/**
- * Get params type for a namespaced key
- * e.g., NamespacedKeyParams<"admin", "dashboard"> = TranslationKeys["admin:dashboard"]
- */
+/** `NamespacedKeyParams<"admin", "dashboard">` is `TranslationKeys["admin:dashboard"]`. */
 export type NamespacedKeyParams<
   NS extends string,
   K extends string,
@@ -247,11 +220,7 @@ type CallParams<P, D> = MissingParams<P, D> &
   Partial<Pick<P, CompatibleDefaultKeys<P, D>>> &
   TranslationParams;
 
-/**
- * Helper type for conditional parameter validation
- * - If key requires params, params are required and typed
- * - If key has no params (never), params are optional
- */
+/** Params are required and typed when the key declares any, optional when it declares `never`. */
 export type ParamsArg<K extends keyof TranslationKeys, D extends DefaultTranslationParams = {}> = [
   TranslationKeys[K],
 ] extends [never]
@@ -260,9 +229,6 @@ export type ParamsArg<K extends keyof TranslationKeys, D extends DefaultTranslat
     ? [params?: CallParams<TranslationKeys[K], D>]
     : [params: CallParams<TranslationKeys[K], D>];
 
-/**
- * Helper type for namespaced key parameter validation
- */
 export type NamespacedParamsArg<
   NS extends string,
   K extends string,
@@ -273,11 +239,11 @@ export type NamespacedParamsArg<
     : [params: { ns: NS } & CallParams<NamespacedKeyParams<NS, K>, D>];
 
 /**
- * Generic typed translation function — the canonical call-signature set shared
- * by the framework wrappers' `t` / `tRaw` (replaces the per-wrapper overload blocks).
+ * The canonical call-signature set shared by every framework wrapper's `t` /
+ * `tRaw`.
  *
  * @typeParam D - Instance-level default interpolation params.
- * @typeParam R - Return type: `string` for `t`, `TranslationResult` for `tRaw`.
+ * @typeParam R - `string` for `t`, `TranslationResult` for `tRaw`.
  */
 export interface TranslateFn<D extends DefaultTranslationParams = {}, R = string> {
   /** Namespaced keys (explicit `ns` in params). */
@@ -291,35 +257,28 @@ export interface TranslateFn<D extends DefaultTranslationParams = {}, R = string
   (key: PermissiveKey, params?: TranslationParams): R;
 }
 
-/**
- * Tag callback params passed to tag handlers
- */
 export interface TagCallbackParams {
-  /** Inner content of the tag (already processed) */
+  /** Inner content of the tag, already processed. */
   children: TranslationResult;
-  /** Tag name as it appears in the translation */
+  /** Tag name as written in the translation. */
   name: string;
 }
 
-/**
- * Tag handler function type
- */
 export type TagCallback = (params: TagCallbackParams) => VirtualNode | string;
 
 export interface TranslationParams {
   ns?: string;
   locale?: string;
-  /** Fallback text to return if translation key is missing (after checking locale chain and onMissingKey callback) */
+  /** Used when the key is missing — after the locale chain and the `onMissingKey` callback. */
   fallback?: string;
-  /** When true, post-processors that support it (e.g., IncontextEditor) will skip their processing for this call */
+  /** Post-processors that support it (the in-context editor) skip this call. */
   raw?: boolean;
   /**
-   * Per-call tag interpolation options, merged over the instance-level
-   * `tagInterpolation` constructor option for this call only (per-call
-   * `extensions` UNION with instance-level ones; other fields override).
-   * This is the ordering-proof channel `<T>` / `prepareTranslation` use to
-   * activate tag syntax without ambient registration. Reserved key — not an
-   * interpolation value.
+   * Merged over the instance-level `tagInterpolation` for this call only:
+   * `extensions` UNION with the instance-level ones, other fields override.
+   * The ordering-proof channel `<T>` / `prepareTranslation` use to activate tag
+   * syntax without ambient registration. Reserved key — NOT an interpolation
+   * value.
    */
   tagInterpolation?: TagInterpolationOptions;
   [key: string]: TranslationParamValue | TagInterpolationOptions;
@@ -352,13 +311,9 @@ export interface MissingKeyInfo {
   namespace: string;
 }
 
-/**
- * Configuration options for tag interpolation feature
- */
 export interface TagInterpolationOptions {
   /**
-   * Whitelist of HTML tags that are rendered as-is without requiring handlers.
-   * These tags will be rendered as actual HTML elements.
+   * Tags rendered as real HTML elements without requiring a handler.
    * @default []
    * @example ['strong', 'em', 'br', 'b', 'i', 'p', 'span']
    */
@@ -371,10 +326,7 @@ export interface TagInterpolationOptions {
    * @default false
    */
   strict?: boolean | "warn";
-  /**
-   * Called when strict="warn" and a tag has no handler.
-   * Use to route through reportError for consistent error pipeline.
-   */
+  /** Called when `strict: "warn"` and a tag has no handler; route it through `reportError`. */
   onTagWarning?: (tagName: string) => void;
   /**
    * Per-call syntax extensions. The effective extension set at parse time is
@@ -399,7 +351,7 @@ export interface I18nBaseOptions {
    * How to render a placeholder whose parameter is absent or `undefined`:
    * - `"literal"` (default): the placeholder renders as itself, e.g. `{name}`
    *   (ICU-aligned; one dev warning per (template, param) pair)
-   * - `"drop"`: the placeholder renders as an empty string (pre-0.5 behavior)
+   * - `"drop"`: the placeholder renders as an empty string
    *
    * A `null` param always renders as an empty string in both modes
    * (explicit erasure).
@@ -407,34 +359,28 @@ export interface I18nBaseOptions {
    */
   missingParam?: MissingParamMode;
   /**
-   * Namespaces to load during initialization
-   * If not specified, only the default namespace will be loaded
-   * To skip initial namespace loading, pass an empty array: []
+   * Namespaces to load during initialization. Omitted, only the default
+   * namespace loads; pass `[]` to skip initial loading entirely.
    */
   ns?: string[];
   translation?: Record<string, Record<string, TranslationValue>>;
-  /** Single or chain of fallback locales to try when a key is missing in the active locale */
+  /** Tried in order when a key is missing in the active locale. */
   fallbackLocale?: string | string[];
-  /** Optional post-processing applied to every translation result */
+  /** Applied to every translation result. */
   postProcess?: PostProcessFn;
-  /** Optional hook invoked when a key is missing (after fallbacks). Return string/parts to override default. */
+  /** Invoked when a key is missing, AFTER the fallback chain; a returned value overrides the key. */
   onMissingKey?: (info: MissingKeyInfo) => TranslationResult | void;
-  /** Optional strict diagnostics mode */
   strict?: "dev" | "off";
-  /**
-   * API key for translation management services.
-   * Plugins can access this via i18n.apiKey to authenticate with backend services.
-   */
+  /** Plugins read it back off `i18n.apiKey` to authenticate with backend services. */
   apiKey?: string;
   /**
    * Whether the in-context editor may collect anonymous translation context
    * (translation keys, on-screen layout hints, screen groups) and send it to
    * the project's own Comvi backend to improve translation suggestions.
    *
-   * Collection is ON by default — the in-context editor (including the Chrome
-   * extension) exists primarily to gather this context. Set to `false` here,
-   * in your app's i18n setup, to opt out; it is the single developer-level
-   * control and is honored even when the editor is enabled via the extension.
+   * ON by default. Setting `false` here, in the app's i18n setup, is the single
+   * developer-level opt-out, and it is honored even when the editor is enabled
+   * through the Chrome extension.
    * @default true
    */
   collectContext?: boolean;
@@ -452,23 +398,18 @@ export interface I18nBaseOptions {
    * base host, pass it to `devtools({ instanceId })` or `attachDevtools`.
    */
   instanceId?: string;
-  /**
-   * Configuration for XML-like tag interpolation in translations.
-   * Allows using `<tag>content</tag>` syntax in translation strings.
-   */
+  /** Enables `<tag>content</tag>` syntax in translation strings. */
   tagInterpolation?: TagInterpolationOptions;
   /**
-   * Development mode flag.
-   * Plugins use this to determine behavior (e.g., API vs CDN loading).
-   * Auto-detected if not provided: true when import.meta.env.DEV or NODE_ENV !== 'production'
+   * Read by plugins to pick behaviour (API vs CDN loading). Auto-detected when
+   * omitted: true under `import.meta.env.DEV` or `NODE_ENV !== "production"`.
    */
   devMode?: boolean;
   /**
-   * Global error handler for errors.
-   * Called for: plugin failures, plugin-cleanup failures, init failures, translation render errors
-   * (including missing tag handlers when strict="warn"), namespace-load failures, post-processor
-   * failures, and event-listener failures.
-   * Use to report to Sentry, DataDog, or other monitoring.
+   * Called for plugin and plugin-cleanup failures, init failures, translation
+   * render errors (missing tag handlers under `strict: "warn"` included),
+   * namespace-load failures, post-processor failures and event-listener
+   * failures.
    *
    * @example
    * ```typescript
@@ -494,11 +435,7 @@ export type I18nOptions<D extends DefaultTranslationParams = {}> = I18nBaseOptio
         ? { defaultParams: D }
         : never);
 
-/**
- * Context for error reporting - helps identify error source
- */
 export interface ErrorReportContext {
-  /** Where the error originated */
   source:
     | "plugin"
     | "plugin-cleanup"
@@ -558,10 +495,7 @@ type L4<T, P extends string> = {
     : `${P}${K}`;
 }[keyof T & string];
 
-/**
- * Flatten a nested object type to dot-notation keys (non-recursive, up to 5 levels).
- * { a: { b: "val" } } → "a.b"
- */
+/** `{ a: { b: "val" } }` → `"a.b"`. Non-recursive: five levels deep at most. */
 type FlattenKeys<T extends Record<string, unknown>> = {
   [K in keyof T & string]: IsObject<T[K]> extends true
     ? T[K] extends infer V extends Record<string, unknown>
@@ -612,9 +546,9 @@ type AddPrefix<
  * }
  * ```
  *
- * Note: Parameter types are not inferred from translation values.
- * All keys have `never` params (params optional). For full parameter
- * typing, use the CLI `generate-types` command.
+ * Parameter types are NOT inferred from translation values — every key gets
+ * `never` params (so params are optional). Use the CLI `generate-types`
+ * command for full parameter typing.
  */
 export type InferKeys<
   T extends Record<string, unknown>,
@@ -640,97 +574,50 @@ export type LoaderFn = (locale: string, namespace: string) => Promise<LoaderResu
 
 /**
  * The always-present instance surface: everything the base `I18n` class keeps
- * in every graph, including the pure `@comvi/core` entry.
+ * in every graph, the pure `@comvi/core` entry included.
  *
  * Capability APIs live in `I18nLoaderApi` / `I18nPluginHostApi` below and
  * arrive from the `@comvi/core/loader` and `@comvi/core/plugins` subpaths. The
- * ROOT entry is this surface and nothing more; the internal composite (which
- * the CDN global ships) and `@comvi/next`'s composed host recompose all three
- * (see `I18nPluginHost`). `I18nInstance` re-picks exactly the members the
- * pre-split root exposed (pinned by the exact-keys type test), so it describes
- * a COMPOSED host, not the base one.
+ * ROOT entry is this surface and nothing more. Note that `I18nInstance`
+ * describes a COMPOSED host, not this one.
  */
 export interface I18nCoreInstance<D extends DefaultTranslationParams = {}> {
-  /**
-   * The current locale
-   * @returns The current locale (getter)
-   * @param value - The locale string to set (setter)
-   */
   get locale(): string;
   set locale(value: string);
 
-  /**
-   * API key for translation management services.
-   * Plugins can use this to authenticate with backend services.
-   */
   get apiKey(): string | undefined;
 
   /**
-   * Context-collection preference (see I18nOptions.collectContext).
-   * `false` means the site opted out; `undefined` means the default (on).
-   * The in-context editor reads this to decide whether to collect context.
+   * `false` means the site opted out; `undefined` means the default (on). Read
+   * by the in-context editor. See {@link I18nBaseOptions.collectContext}.
    */
   get collectContext(): boolean | undefined;
 
-  /**
-   * Development mode flag.
-   * Plugins use this to determine behavior (e.g., API vs CDN loading).
-   */
+  /** Read by plugins to pick behaviour (API vs CDN loading). */
   get devMode(): boolean;
 
-  /**
-   * Get the translations for all languages
-   * @returns The translations for all languages (readonly)
-   */
   get translationCache(): TranslationCache;
 
-  /**
-   * Flag indicating if translations are currently being loaded
-   */
   get isLoading(): boolean;
 
-  /**
-   * Flag indicating if Comvi i18n is currently initializing (only true during init())
-   */
+  /** True only for the duration of `init()`. */
   get isInitializing(): boolean;
 
-  /**
-   * Flag indicating if Comvi i18n has been initialized (init() completed successfully)
-   */
+  /** True once `init()` has completed successfully. */
   get isInitialized(): boolean;
 
-  /**
-   * Check if a locale exists in the cache
-   * @param locale - The locale to check
-   * @param namespace? - The namespace to check (optional)
-   * @returns True if the locale exists, false otherwise
-   */
   hasLocale: (locale: string, namespace?: string) => boolean;
 
-  /**
-   * Add translations to the cache
-   * @param translations - The translations to add
-   */
   addTranslations: (translations: Record<string, Record<string, TranslationValue>>) => void;
 
-  /**
-   * Get the translations for the given locale
-   * @param locale - The locale to get the translations for
-   * @param namespace - The namespace to get the translations for
-   * @returns The translations for the given locale
-   */
   getTranslations: (locale?: string, namespace?: string) => FlattenedTranslations;
 
-  /**
-   * Clear translations from cache
-   * @param locale - Optional locale to clear (if not provided, clears all)
-   * @param namespace - Optional namespace to clear (if not provided, clears all)
-   */
+  /** An omitted `locale` or `namespace` clears all of them. */
   clearTranslations: (locale?: string, namespace?: string) => void;
 
   /**
-   * Translate a namespaced key
-   * When ns is provided, suggests keys without the namespace prefix
+   * Translate a namespaced key; with `ns` given, autocomplete offers keys
+   * WITHOUT the namespace prefix.
    *
    * @example
    * ```typescript
@@ -752,10 +639,8 @@ export interface I18nCoreInstance<D extends DefaultTranslationParams = {}> {
   ): TranslationResult;
 
   /**
-   * Translate a key to the current locale
-   * @param key - The translation key (must be defined in TranslationKeys interface)
-   * @param params - The parameters to pass to the translation
-   * @returns The translated value
+   * Translate a key in the current locale. The key must exist in
+   * `TranslationKeys` once types have been generated.
    *
    * @example
    * ```typescript
@@ -775,10 +660,7 @@ export interface I18nCoreInstance<D extends DefaultTranslationParams = {}> {
    */
   tRaw<K extends DefaultNsKeys>(key: K, ...params: ParamsArg<K, D>): TranslationResult;
 
-  /**
-   * Permissive overload - only active when TranslationKeys is empty
-   * Allows any string key when types are not generated
-   */
+  /** Permissive overload — only active when `TranslationKeys` is empty. */
   t(key: PermissiveKey, params?: TranslationParams): string;
 
   /**
@@ -786,13 +668,7 @@ export interface I18nCoreInstance<D extends DefaultTranslationParams = {}> {
    */
   tRaw(key: PermissiveKey, params?: TranslationParams): TranslationResult;
 
-  /**
-   * Check if a translation key exists
-   * @param key - The key to check
-   * @param locale - The locale to check (optional, defaults to current locale)
-   * @param namespace - The namespace to check (optional, defaults to current namespace)
-   * @returns True if the key exists, false otherwise
-   */
+  /** `locale` and `namespace` default to the instance's current ones. */
   hasTranslation: (
     key: string,
     locale?: string,
@@ -818,18 +694,10 @@ export interface I18nCoreInstance<D extends DefaultTranslationParams = {}> {
   /** Update default namespace at runtime */
   setDefaultNamespace: (namespace: string) => void;
 
-  /**
-   * Subscribe to a specific i18n event
-   * @param event - Event name to subscribe to
-   * @param callback - Event handler function
-   * @returns Unsubscribe function
-   */
+  /** @returns Unsubscribe function. */
   on<E extends I18nEvent>(event: E, callback: (data: I18nEventData[E]) => void): () => void;
 
-  /**
-   * Report an error to the configured onError handler.
-   * Use for custom error reporting in your app.
-   */
+  /** Report through the configured `onError` handler. */
   reportError: (error: unknown, context?: ErrorReportContext) => void;
 }
 
@@ -846,18 +714,16 @@ export interface I18nLoaderApi {
    * This signature takes a loader FUNCTION. For a static import map use the
    * configured installer `loader(map)`, or wrap it yourself with
    * `createImportMapLoader` — both from `@comvi/core/loader`. The two-overload
-   * form (function OR import map) survives only on the internal composite the
-   * CDN global ships and on `@comvi/next`'s published composed host.
+   * form (function OR import map) exists only on the composite and on
+   * `@comvi/next`'s published composed host.
    */
   registerLoader: (loader: LoaderFn) => void;
 
-  /** Get the registered loader function */
   getLoader: () => LoaderFn | undefined;
 
   /**
-   * Reload translations from registered loader
-   * @param locale - Optional locale to reload (defaults to current + fallbacks)
-   * @param namespace - Optional namespace to reload (defaults to active namespaces)
+   * An omitted `locale` reloads the current one plus its fallbacks; an omitted
+   * `namespace` reloads every active namespace.
    */
   reloadTranslations: (locale?: string, namespace?: string) => Promise<void>;
 
@@ -865,8 +731,8 @@ export interface I18nLoaderApi {
    * Activate a namespace and load it for the current locale.
    *
    * Activation only matters when something loads namespaces, so it belongs to
-   * the loader capability (contingency C1). Base hosts activate
-   * implicitly — `addTranslations` self-activates the namespaces it carries.
+   * the loader capability. Base hosts activate implicitly — `addTranslations`
+   * self-activates the namespaces it carries.
    */
   addActiveNamespace: (namespace: string) => Promise<void>;
 
@@ -874,9 +740,9 @@ export interface I18nLoaderApi {
   addActiveNamespaces: (namespaces: string[]) => Promise<void>;
 
   /**
-   * Subscribe to load failures (contingency C2 — only the loader capability
-   * can emit `loadError`).
-   * @returns Cleanup function to remove the callback
+   * Subscribe to load failures. Lives here because only the loader capability
+   * can emit `loadError`.
+   * @returns Cleanup function that removes the callback.
    */
   onLoadError: (callback: (locale: string, namespace: string, error: Error) => void) => () => void;
 }
@@ -888,76 +754,45 @@ export interface I18nLoaderApi {
  * only the runtime registration APIs are a capability.
  */
 export interface I18nPluginHostApi {
-  /**
-   * Register a plugin (chainable)
-   * @param plugin - The plugin to register
-   * @param options - Plugin options (required, timeout, onError)
-   */
+  /** Chainable. MUST be called before `init()`, which drains the queue once. */
   use(plugin: I18nPlugin, options?: PluginOptions): this;
 
-  /**
-   * Register a locale detector function.
-   * Used by plugins to provide automatic locale detection.
-   */
+  /** `init()` consults it after the plugins have run. */
   registerLocaleDetector: (detector: () => string | Promise<string>) => void;
 
-  /** Get the registered locale detector function */
   getLanguageDetector: () => (() => string | Promise<string>) | undefined;
 
   /**
-   * Register a callback for missing translation keys
-   * @param callback - Function called when a key is missing. Can return a value to use as fallback.
-   * @returns Cleanup function to remove the callback
+   * The callback may return a value to use as the fallback.
+   * @returns Cleanup function that removes the callback.
    */
   onMissingKey: (
     callback: (key: string, locale: string, namespace: string) => TranslationResult | void,
   ) => () => void;
 
-  /**
-   * Register a post-processor function.
-   * Post-processors are chained in the order they are registered (FIFO).
-   */
+  /** Post-processors are chained in registration order (FIFO). */
   registerPostProcessor: (fn: PostProcessFn) => void;
 
   /**
-   * Store plugin-specific data on the i18n instance.
-   * This allows plugins to store configuration that persists with the instance.
-   *
-   * @param key - Unique key for the plugin data (e.g., 'fetchLoader')
-   * @param data - The data to store
+   * Store plugin-specific data that persists for the life of the instance.
    *
    * @example
    * ```typescript
-   * // In FetchLoader plugin
    * i18n.setPluginData('fetchLoader', { cdnUniqueId, projectId });
    * ```
    */
   setPluginData: (key: string, data: unknown) => void;
 
-  /**
-   * Retrieve plugin-specific data from the i18n instance.
-   *
-   * @param key - The key used when storing the data
-   * @returns The stored data or undefined if not found
-   *
-   * @example
-   * ```typescript
-   * // In loadTranslations
-   * const config = i18n.getPluginData('fetchLoader');
-   * ```
-   */
+  /** @returns The stored data, or `undefined` when the key was never set. */
   getPluginData: <T = unknown>(key: string) => T | undefined;
 }
 
 /**
- * Public members the base `I18n` class has always had but the declarative
- * `I18nInstance` contract never listed: lifecycle, namespace inspection and
- * instance identity.
+ * Lifecycle, namespace inspection and instance identity: public members of the
+ * base class that the declarative `I18nInstance` contract does not list.
  *
- * They are named here rather than folded into `I18nCoreInstance` because
- * `I18nInstance` is recomposed from that interface and must keep an exactly
- * unchanged member set. The plugin host, in contrast, has always been the
- * whole class — so it composes these in too, and plugins keep compiling.
+ * They live here rather than in `I18nCoreInstance` because `I18nInstance` is
+ * recomposed from that interface and must keep an exactly unchanged member set.
  */
 export interface I18nCoreExtraApi {
   /** Stable id under which the instance is exposed on `window.__COMVI__`. */
@@ -989,20 +824,18 @@ export interface I18nCoreExtraApi {
  * The instance surface a framework wrapper (react/solid/svelte/vue/next/nuxt)
  * requires of its host: reactive translation + lifecycle, and nothing else.
  *
- * Structurally this is EXACTLY what `class I18n` declares it implements
- * (`core/i18n.ts`: `implements I18nCoreInstance<D>, I18nCoreExtraApi`), so a
- * bare `@comvi/core` instance satisfies it without any capability
- * attached. Loader/plugin members are deliberately absent: wrappers acquire
- * those through their own capability hooks, which verify presence once and
- * throw {@link missingCapability} when the host has none.
+ * Structurally EXACTLY what `class I18n` declares it implements, so a bare
+ * `@comvi/core` instance satisfies it with no capability attached.
+ * Loader/plugin members are deliberately absent: wrappers acquire those through
+ * their own capability hooks, which verify presence once and throw
+ * {@link missingCapability} when the host has none.
  */
 export type WrapperI18nHost<D extends DefaultTranslationParams = {}> = I18nCoreInstance<D> &
   I18nCoreExtraApi;
 
 /**
- * The instance surface a plugin may rely on: the composed full capability set
- * a composed host exposes. Plugins that call loader APIs on a base host
- * need `attachLoader` to have run first (see the README's one-entry section).
+ * The instance surface a plugin may rely on. A plugin that calls loader APIs on
+ * a base host needs `attachLoader` to have run first.
  */
 export type I18nPluginHost<D extends DefaultTranslationParams = {}> = I18nCoreInstance<D> &
   I18nCoreExtraApi &
@@ -1010,19 +843,13 @@ export type I18nPluginHost<D extends DefaultTranslationParams = {}> = I18nCoreIn
   I18nPluginHostApi;
 
 /**
- * The I18nInstance interface defines the methods and properties that an I18n instance must implement.
- * It provides access to the current locale, translation cache, and methods for checking locale existence,
- * adding translations, and translating keys.
+ * A COMPOSED host's shape. Only `reloadTranslations`, `setPluginData` and
+ * `getPluginData` of the capability APIs belong to it, so they are re-picked
+ * one by one — inheriting the whole capability interfaces would silently widen
+ * this exported type.
  *
- * Recomposed from the split above with an EXACTLY unchanged member set: only
- * `reloadTranslations`, `setPluginData` and `getPluginData` of the capability
- * APIs were ever part of it, so they are re-picked one by one instead of
- * inheriting the whole capability interfaces (which would silently widen the
- * exported type). Pinned by `Equal<keyof I18nInstance, PreSplitKeySnapshot>`.
- *
- * NOTE: this is a COMPOSED host's shape. A base `@comvi/core` host satisfies
- * `I18nCoreInstance`, not this — it is assignable only once the loader and
- * plugin capabilities are composed on.
+ * A base `@comvi/core` host satisfies `I18nCoreInstance`, NOT this: it becomes
+ * assignable only once the loader and plugin capabilities are composed on.
  */
 export interface I18nInstance<D extends DefaultTranslationParams = {}>
   extends

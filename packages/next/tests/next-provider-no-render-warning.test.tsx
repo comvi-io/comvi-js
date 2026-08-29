@@ -11,13 +11,9 @@
  *   1. isRendering === true (we are inside a component's render body)
  *   2. root === workInProgressRoot (both components share the same React root)
  *
- * The tests here reproduce condition 1 by having a component call
- * addTranslations() from its useState lazy initializer (same pattern as the
- * Next I18nProvider), while condition 2 is satisfied by having the subscribed
- * sibling in the same React root.
- *
- * Test A MUST fail on develop (before the queueMicrotask fix) and pass after.
- * Failure output is saved to .omc/handoffs/task1-failure.txt.
+ * Condition 1 is reproduced by calling addTranslations() from a useState lazy
+ * initializer (the Next I18nProvider's own pattern); condition 2 by keeping the
+ * subscribed sibling in the same React root.
  *
  * NOTE: vitest.config.ts aliases @comvi/react → ../react/src/index.ts so
  * all hooks and context objects share the same module instance.
@@ -32,17 +28,9 @@ import { useI18n, useLocale, useIsLoading, I18nProvider as ReactI18nProvider } f
 import { useStoreRevision } from "../../react/src/I18nProvider";
 import { FakeI18n } from "../../../tooling/test-utils/fakeI18n";
 
-// ---------------------------------------------------------------------------
-// Translation fixtures
-// ---------------------------------------------------------------------------
-
 const DE = { default: { greeting: "Hallo" } };
 const EN = { default: { greeting: "Hello" } };
 const FR = { default: { greeting: "Bonjour" } };
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
 
 function makeSharedI18n() {
   const fake = new FakeI18n();
@@ -50,9 +38,8 @@ function makeSharedI18n() {
   return fake;
 }
 
-// Triggers the same render-time-mutation chain as the Next I18nProvider's
-// useState(() => { i18n.addTranslations(messages) }). Used to reproduce the
-// warning independently of the full Next provider tree.
+// Reproduces the Next I18nProvider's render-time-mutation chain without the
+// full provider tree.
 function MutatingProvider({
   fake,
   messages,
@@ -62,10 +49,8 @@ function MutatingProvider({
   messages: Record<string, Record<string, string>>;
   children?: React.ReactNode;
 }) {
-  // Lazy initializer: runs synchronously during render on FIRST mount.
-  // Calling addTranslations here emits configChanged synchronously,
-  // which (without the fix) calls scheduleUpdateOnFiber on any committed
-  // sibling fiber that subscribed via useStoreRevision or useSubscribe.
+  // The lazy initializer runs synchronously during the FIRST render, so the
+  // configChanged it emits lands mid-render.
   useReactState(() => {
     fake.addTranslations(messages);
     return null;
@@ -76,16 +61,6 @@ function MutatingProvider({
     </ReactI18nProvider>
   );
 }
-
-// ===========================================================================
-// TEST A — cross-fiber sibling subscriber under StrictMode (load-bearing)
-//
-// A Sibling is mounted and committed (with its useStoreRevision subscription
-// active). Then MutatingProvider mounts in the same React root — its
-// useState initializer calls addTranslations() during render, emitting
-// configChanged synchronously, which without the fix causes
-// scheduleUpdateOnFiber(SiblingFiber) while isRendering=true.
-// ===========================================================================
 
 describe("Test A — cross-fiber render-time mutation warning (useI18n sibling)", () => {
   let errorSpy: ReturnType<typeof vi.spyOn>;
@@ -107,8 +82,6 @@ describe("Test A — cross-fiber render-time mutation warning (useI18n sibling)"
       return <span data-testid="sibling">{t("greeting" as never)}</span>;
     }
 
-    // Host renders a permanent Sibling (always committed) plus a conditionally
-    // mounted MutatingProvider controlled by showMutator.
     function Host({ showMutator }: { showMutator: boolean }) {
       return (
         <StrictMode>
@@ -124,16 +97,9 @@ describe("Test A — cross-fiber render-time mutation warning (useI18n sibling)"
       );
     }
 
-    // Phase 1: Mount with Sibling only — it subscribes to configChanged via
-    // useStoreRevision inside useI18n.
     const { rerender } = render(<Host showMutator={false} />);
     expect(errorSpy).not.toHaveBeenCalled();
 
-    // Phase 2: Mount the MutatingProvider in the same React root. Its
-    // useState initializer calls addTranslations(EN) during render, emitting
-    // configChanged synchronously while the renderer is still mid-render.
-    // Without the fix, Sibling's subscribe callback fires synchronously →
-    // scheduleUpdateOnFiber(SiblingFiber) → warning.
     await act(async () => {
       rerender(<Host showMutator={true} />);
       await Promise.resolve();
@@ -146,9 +112,7 @@ describe("Test A — cross-fiber render-time mutation warning (useI18n sibling)"
   });
 });
 
-// ===========================================================================
-// TEST A2 — useLocale() sibling (exercises useSubscribe → subLang path)
-// ===========================================================================
+// A2 exercises the useSubscribe → subLang path.
 
 describe("Test A2 — cross-fiber warning via useLocale() sibling", () => {
   let errorSpy: ReturnType<typeof vi.spyOn>;
@@ -200,9 +164,7 @@ describe("Test A2 — cross-fiber warning via useLocale() sibling", () => {
   });
 });
 
-// ===========================================================================
-// TEST A3 — useIsLoading() sibling (exercises useSubscribe → subLoading path)
-// ===========================================================================
+// A3 exercises the useSubscribe → subLoading path.
 
 describe("Test A3 — cross-fiber warning via useIsLoading() sibling", () => {
   let errorSpy: ReturnType<typeof vi.spyOn>;
@@ -254,11 +216,6 @@ describe("Test A3 — cross-fiber warning via useIsLoading() sibling", () => {
   });
 });
 
-// ===========================================================================
-// TEST B — locale round-trip: mount/unmount MutatingProvider 3 times with
-// new messages while sibling remains committed
-// ===========================================================================
-
 describe("Test B — locale round-trip: mutating provider mounts 3 times (de→en→fr→de)", () => {
   let errorSpy: ReturnType<typeof vi.spyOn>;
 
@@ -279,8 +236,8 @@ describe("Test B — locale round-trip: mutating provider mounts 3 times (de→e
       return <span data-testid="sibling">{t("greeting" as never)}</span>;
     }
 
-    // Use a unique key to force remount of MutatingProvider each cycle,
-    // re-triggering the useState initializer with new messages.
+    // The unique key forces a remount each cycle, re-triggering the useState
+    // initializer with new messages.
     function Host({
       cycleKey,
       messages,
@@ -322,10 +279,6 @@ describe("Test B — locale round-trip: mutating provider mounts 3 times (de→e
   });
 });
 
-// ===========================================================================
-// TEST C — events still drive updates after the microtask fix (behavior check)
-// ===========================================================================
-
 describe("Test C — out-of-render events still drive consumer re-renders", () => {
   it("addTranslations outside a render triggers consumer re-render within one microtask tick", async () => {
     const fake = makeSharedI18n();
@@ -357,10 +310,6 @@ describe("Test C — out-of-render events still drive consumer re-renders", () =
   });
 });
 
-// ===========================================================================
-// TEST D — useStoreRevision content-addressed snapshot (canonical event set)
-// ===========================================================================
-
 describe("Test D — useStoreRevision re-renders on canonical events with real state changes", () => {
   it("re-renders for events that change state; not for a no-op emit", async () => {
     const fake = makeSharedI18n();
@@ -381,7 +330,6 @@ describe("Test D — useStoreRevision re-renders on canonical events with real s
     );
     const afterMount = renders;
 
-    // real config change → re-render
     await act(async () => {
       fake.setFallbackLocale("de");
       fake.emit("configChanged", { source: "fallbackLocale" });
@@ -390,15 +338,14 @@ describe("Test D — useStoreRevision re-renders on canonical events with real s
     expect(renders).toBeGreaterThan(afterMount);
     const afterConfig = renders;
 
-    // no-op emit (nothing changed) → no re-render
     await act(async () => {
       fake.emit("configChanged", { source: "fallbackLocale" });
       await Promise.resolve();
     });
     expect(renders).toBe(afterConfig);
 
-    // namespaceLoaded that bumps the cache revision → re-render (7-of-7 coverage,
-    // plan 6.4: previously this depended on the caller's hand-picked event list)
+    // namespaceLoaded bumps the cache revision, so the 7th canonical event
+    // re-renders too.
     await act(async () => {
       fake.translationCache.set("en", "default", { extra: "v" });
       fake.emit("namespaceLoaded", { locale: "en", namespace: "default" });

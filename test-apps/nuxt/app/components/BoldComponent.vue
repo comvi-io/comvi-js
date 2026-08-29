@@ -1,6 +1,4 @@
-<script setup lang="ts">
-// Simple Bold Component wrapper
-</script>
+<script setup lang="ts"></script>
 
 <template>
   <span class="font-extrabold text-purple-600">

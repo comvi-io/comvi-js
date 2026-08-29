@@ -1,8 +1,5 @@
-// Informational fixture: the ICU INSTALLER path — `.with(icu())` before any
-// catalog is ingested, which is the remote-catalog recipe. Costs more than the
-// constructor-option form (`core-base-icu`) because the installer module and
-// its structured `E_COMPILER_LOCKED` error ride along; the delta between the
-// two rows is what a reader is meant to take from this pair.
+// Informational fixture: the ICU INSTALLER path — `.with(icu())` before any catalog is
+// ingested, which is the remote-catalog recipe.
 import { createI18n } from "@comvi/core";
 import { icu } from "@comvi/core/icu";
 

@@ -5,15 +5,10 @@ import { createI18n as baseCreateI18n, isVirtualNode } from "@comvi/core";
 import type { I18nPlugin } from "@comvi/core";
 
 /**
- * `fw-next-composed-factory` — the PUBLISHED `@comvi/next` root contract.
- *
- * `createNextI18n` is published API: it returned a batteries-included host
- * because `@comvi/core`'s root was one. The single-entry convergence made that
- * root the BASE host, so the composed semantics now come from a non-exported
- * builder (`src/composedHost.ts`) that recomposes them explicitly, in the
- * parity order the core suite pins. This file is the behavioural half of that
- * preservation claim — every capability a 0.4 caller could reach through
- * `result.i18n`, exercised through the published factory only.
+ * The PUBLISHED `@comvi/next` root contract: every capability a 0.4 caller
+ * could reach through `result.i18n`, exercised through the published factory
+ * only. The composed semantics now come from the non-exported
+ * `src/composedHost.ts` builder rather than from core's root.
  *
  * The type half is `tests/types/next-contract.test-d.ts`.
  */
@@ -234,17 +229,16 @@ describe("published createNextI18n — the result surface", () => {
 });
 
 describe("published createNextI18n — unchanged by the P4 direct-host convergence", () => {
-  // The named risk of P4 (plan R1 / PM2): `@comvi/next/client` and
-  // `@comvi/next/server` now expose ONE direct-host constructor, and it is the
-  // BASE host. Rebinding those names must not reach the published root, and the
-  // root's composition must not leak back onto the base. Every claim below is a
-  // DIFFERENTIAL: the same input through both surfaces, asserted to differ.
+  // `@comvi/next/client` and `@comvi/next/server` expose ONE direct-host
+  // constructor and it is the BASE host: rebinding those names must not reach
+  // the published root, and the root's composition must not leak back onto the
+  // base. Every claim below is a DIFFERENTIAL — the same input through both
+  // surfaces, asserted to differ.
   it("is a factory over the base constructor, not the base constructor", () => {
     expect(typeof createNextI18n).toBe("function");
-    // `baseCreateI18n` is the binding BOTH direct-host entries re-export — that
-    // identity is pinned in tests/entry-surfaces.test.tsx. Here it is the other
-    // side of the same coin: the published root is a factory OVER it, and it
-    // hands back the routing-plus-plugins result, never a host.
+    // `baseCreateI18n` is the binding BOTH direct-host entries re-export (that
+    // identity is pinned in tests/entry-surfaces.test.tsx); the published root
+    // is a factory OVER it and hands back a result, never a host.
     expect(createNextI18n).not.toBe(baseCreateI18n);
     expect(Object.keys(make()).sort()).toEqual([
       "i18n",

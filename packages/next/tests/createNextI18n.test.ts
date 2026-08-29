@@ -101,12 +101,11 @@ describe("createNextI18n", () => {
       devMode: false,
     });
 
-    // Add translation only in fallback language (fr)
     i18n.addTranslations({
       "fr:default": { hello: "Bonjour" },
     });
 
-    // Switch to de (no translations loaded) - should fall back to fr
+    // `de` is registered empty, so lookups must fall back to `fr`.
     i18n.addTranslations({
       "de:default": {},
     });
@@ -138,7 +137,6 @@ describe("createNextI18n", () => {
       devMode: false,
     });
 
-    // Default locale gets a prefix in "always" mode
     expect(localizeHref("/about", "en", routing)).toBe("/en/about");
     expect(localizeHref("/about", "de", routing)).toBe("/de/about");
   });
@@ -151,7 +149,6 @@ describe("createNextI18n", () => {
       devMode: false,
     });
 
-    // No prefix for any locale in "never" mode
     expect(localizeHref("/about", "en", routing)).toBe("/about");
     expect(localizeHref("/about", "de", routing)).toBe("/about");
   });
@@ -163,7 +160,6 @@ describe("createNextI18n", () => {
       devMode: false,
     });
 
-    // Default locale has no prefix, non-default does
     expect(localizeHref("/about", "en", routing)).toBe("/about");
     expect(localizeHref("/about", "de", routing)).toBe("/de/about");
   });

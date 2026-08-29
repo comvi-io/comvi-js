@@ -1,22 +1,12 @@
 /**
- * single-entry P4 — the two `@comvi/next` host surfaces.
+/**
+ * The two `@comvi/next` host surfaces. `/client` and `/server` are ONE surface
+ * split by runtime, not by host tier: both export the base `createI18n` and the
+ * same capability toolkit, so the contract under test is "one name, one host,
+ * on both entries".
  *
- * `@comvi/next/client` and `@comvi/next/server` are ONE surface split by
- * runtime, not by host tier: both export the base `createI18n` and the same
- * nine-name capability toolkit, so a next app never has to name `@comvi/core`
- * on either side of the boundary. The transitional second constructor name that
- * stood beside `createI18n` for the bare host is DELETED here (it never
- * published; the codemod renames it, §7.2-2), so the contract under test is
- * "one name, one host, on both entries".
- *
- * The absence claims that need a real bundler — core's tag-registration pair
- * and the unused capability subpaths pruning in webpack AND vite, development
- * AND production — live in scripts/bundler-matrix (cases `next-client-default`,
- * `next-client-icu`, `next-server-on-default`) and in the
- * `fw-next-client-default` / `fw-next-server-default-loader` size fixtures.
- * Core's base entry is not one of them: `createI18n` IS its export, so it is in
- * the graph by construction. They cannot be made from source, where every
- * module is loaded eagerly.
+ * The ABSENCE claims cannot be made here — from source every module is loaded
+ * eagerly, so they live in scripts/bundler-matrix and the size fixtures.
  */
 import { describe, it, expect } from "vitest";
 import { renderHook } from "@testing-library/react";
@@ -107,7 +97,7 @@ describe("@comvi/next/client — the capability toolkit", () => {
     expect(client.flattenCatalog).toBe(flattenCatalog);
     expect(client.attachPlugins).toBe(attachPlugins);
     expect(client.attachDevtools).toBe(attachDevtools);
-    // The DX-2 installers are core's own factories, one hop, same rule.
+    // The installers are core's own factories, one hop, same rule.
     expect(client.loader).toBe(loader);
     expect(client.plugins).toBe(plugins);
     expect(client.devtools).toBe(devtools);
@@ -169,8 +159,8 @@ describe("@comvi/next/server — the same surface for the SSR half", () => {
   it("never re-exports the side-effectful tags toolbox — that one IS a graph claim", async () => {
     const server = await importServerEntry();
 
-    // Re-exporting these would name `@comvi/core/tags` and break the
-    // tag-registration sentinels `fw-next-server-default-loader` pins.
+    // Re-exporting these would name `@comvi/core/tags` and register tag syntax
+    // ambiently in every server bundle.
     expect(server).not.toHaveProperty("registerTagSyntax");
     expect(server).not.toHaveProperty("tagSyntaxExtension");
     expect(server).not.toHaveProperty("prepareTranslation");

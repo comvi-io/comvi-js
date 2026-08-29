@@ -12,7 +12,6 @@ import { createI18n } from "../src/createI18n";
 import { T } from "../src/components/T";
 import { I18N_INJECTION_KEY } from "../src/keys";
 
-// Type declarations for test translation keys
 declare module "@comvi/core" {
   interface TranslationKeys {
     hello: never;
@@ -168,7 +167,6 @@ describe("<T /> component", () => {
     it("skips post-processor when raw is true", () => {
       const i18n = createPostProcessorI18n({ en: { greeting: "hello" } });
 
-      // Post-processor that uppercases text
       i18n.core.registerPostProcessor((result, key, ns, params) => {
         if (params?.raw === true) {
           return result;
@@ -181,7 +179,6 @@ describe("<T /> component", () => {
         global: { provide: { [I18N_INJECTION_KEY as symbol]: i18n } },
       });
 
-      // Should be lowercase because post-processor was skipped
       expect(wrapper.text()).toBe("hello");
     });
 
@@ -200,7 +197,6 @@ describe("<T /> component", () => {
         global: { provide: { [I18N_INJECTION_KEY as symbol]: i18n } },
       });
 
-      // Should be uppercase because post-processor was applied
       expect(wrapper.text()).toBe("HELLO");
     });
 
@@ -219,7 +215,6 @@ describe("<T /> component", () => {
         global: { provide: { [I18N_INJECTION_KEY as symbol]: i18n } },
       });
 
-      // Should be uppercase because raw is not set
       expect(wrapper.text()).toBe("HELLO");
     });
 
@@ -242,7 +237,6 @@ describe("<T /> component", () => {
         global: { provide: { [I18N_INJECTION_KEY as symbol]: i18n } },
       });
 
-      // Should be lowercase with interpolation applied
       expect(wrapper.text()).toBe("hello World");
     });
   });

@@ -1,5 +1,5 @@
-// §7.2-6 — a base host stores catalogs AS GIVEN, so a nested inline catalog
-// gets the explicit flattener (§7.1 nested-catalogs row: dev-warn at runtime,
+// a base host stores catalogs AS GIVEN, so a nested inline catalog
+// gets the explicit flattener (nested catalogs: dev-warn at runtime,
 // `flattenCatalog` in the migration).
 //
 // Per LOCALE, because that is the unit the host ingests — and only where nesting

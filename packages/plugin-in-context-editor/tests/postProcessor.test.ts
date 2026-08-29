@@ -9,7 +9,6 @@ import type { TranslationParams } from "@comvi/core";
 
 describe("IncontextEditor Post-Processor", () => {
   beforeEach(() => {
-    // Clear key mappings before each test
     loadKeyMappings({});
   });
 
@@ -50,7 +49,6 @@ describe("IncontextEditor Post-Processor", () => {
 
       const result = postProcessor("Translation", key, ns, {});
 
-      // Verify the key was registered and encoded
       const id = registerKey(key, ns);
       const expectedEncoding = encodeKeyToInvisible(id);
 
@@ -111,7 +109,6 @@ describe("IncontextEditor Post-Processor", () => {
       const postProcessor = createInvisibleCharPostProcessor();
       const params: TranslationParams = { raw: true };
 
-      // Clear mappings
       loadKeyMappings({});
 
       postProcessor("Translation", "skip.this.key", "default", params);
@@ -209,7 +206,6 @@ describe("IncontextEditor Post-Processor", () => {
       const postProcessor = createInvisibleCharPostProcessor();
       const result = postProcessor([], "empty", "default", {});
 
-      // Should append invisible chars as a new element
       expect(Array.isArray(result)).toBe(true);
       expect(result.length).toBeGreaterThan(0);
     });

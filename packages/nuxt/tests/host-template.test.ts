@@ -1,8 +1,7 @@
 // The `#build/comvi.host` template is generated TEXT, so module.test.ts can
-// only assert what it says. This file executes it: both branches are written
-// to disk and imported, which is the only way to prove the emitted code parses,
-// resolves, and wires the host the way the option promises (framework-slim P4
-// step 5).
+// only assert what it says. This file executes it: both branches are written to
+// disk and imported, which is the only way to prove the emitted code parses,
+// resolves, and wires the host the way the option promises.
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -129,11 +128,10 @@ describe("generated #build/comvi.host template", () => {
 
     const i18n = createComviI18n({ locale: "en", exposeGlobal: false });
     expect(i18n.locale.value).toBe("en");
-    // Since the single-entry convergence the default branch is the BASE host
-    // and nothing else: no loader, no plugin host, no devtools discovery, no
-    // ICU compiler. A capability is an import the app adds in its `hostModule`
-    // factory — the module never injects one on the app's behalf, so these
-    // members are absent from the module graph, not merely disabled.
+    // The default branch is the BASE host and nothing else: no loader, no
+    // plugin host, no devtools discovery, no ICU compiler. A capability is an
+    // import the app adds in its `hostModule` factory, so these members are
+    // absent from the module graph, not merely disabled.
     expect(i18n.core.registerLoader).toBeUndefined();
     expect(i18n.core.use).toBeUndefined();
 
@@ -255,7 +253,7 @@ export default () => {
     expect(i18n.core.locale).toBe("de");
     expect(i18n.locale.value).toBe("de");
 
-    // The dropped proxies are gone from the wrapper on this branch too.
+    // The capability proxies are absent from the wrapper on this branch too.
     expect("reloadTranslations" in i18n).toBe(false);
   });
 

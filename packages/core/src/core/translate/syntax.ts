@@ -110,10 +110,6 @@ export interface SyntaxExtension {
   ): string | VirtualNode | Array<string | VirtualNode> | undefined;
 }
 
-// ---------------------------------------------------------------------------
-// Compiler identity
-// ---------------------------------------------------------------------------
-
 const injectedCompilerIds = new WeakMap<MessageCompiler, number>();
 let nextCompilerId = 3;
 
@@ -132,11 +128,9 @@ export function getCompilerId(compiler: MessageCompiler): number {
   return id;
 }
 
-// ---------------------------------------------------------------------------
-// Ambient extension registry (module-global; string-API channel)
-// ---------------------------------------------------------------------------
+// Ambient extension registry — the module-global, string-API channel.
 
-/** Live registration list (mutated in place). */
+/** Live registration list, mutated in place. */
 const ambient: SyntaxExtension[] = [];
 /**
  * Stable snapshot of the ambient set. `effectiveExtensions()` returns this
@@ -201,10 +195,6 @@ export function _resetSyntaxExtensions(): void {
 export function getAmbientExtensions(): readonly SyntaxExtension[] {
   return ambientSnapshot;
 }
-
-// ---------------------------------------------------------------------------
-// Effective set (ambient ∪ per-call) with O(1) hot path
-// ---------------------------------------------------------------------------
 
 interface EffectiveEntry {
   /** Ambient snapshot this union was computed against. */

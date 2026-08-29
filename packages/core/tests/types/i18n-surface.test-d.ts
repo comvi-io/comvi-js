@@ -1,10 +1,8 @@
-// Type-level contract for the Phase-7 capability split (acceptance A7).
-//
-// `I18nInstance` was split into `I18nCoreInstance` + `I18nLoaderApi` +
-// `I18nPluginHostApi` and recomposed with an exact-member Pick. These tests
-// are the proof that the recomposition did not widen (or narrow) the
-// root-exported surface, and that the root class overloads the framework
-// wrappers derive their public types from are unchanged.
+// Type-level contract for the capability split: `I18nInstance` is
+// `I18nCoreInstance` + `I18nLoaderApi` + `I18nPluginHostApi` recomposed with an
+// exact-member Pick. These tests prove the recomposition neither widened nor
+// narrowed the root-exported surface, and that the class overloads the
+// framework wrappers derive their public types from are unchanged.
 import type {
   I18nInstance,
   I18nCoreInstance,
@@ -28,8 +26,7 @@ type Equal<X, Y> =
 type Expect<T extends true> = T;
 
 /**
- * The `keyof I18nInstance` snapshot taken from the tree BEFORE the split
- * (`packages/core/src/types.ts` at commit cb1735a). Never regenerate this
+ * The `keyof I18nInstance` snapshot from before the split. NEVER regenerate it
  * from the source type — it exists precisely to be independent of it.
  */
 type PreSplitKeySnapshot =
@@ -63,10 +60,9 @@ export type _ExactKeysDefault = Expect<Equal<keyof I18nInstance, PreSplitKeySnap
 export type _ExactKeysAny = Expect<Equal<keyof I18nInstance<any>, PreSplitKeySnapshot>>;
 
 // The capability interfaces carry exactly the extracted members, and the base
-// interface carries none of them.
-// Deliberate C1/C2 update: `addActiveNamespace(s)` and `onLoadError` moved
-// out of `I18nCoreExtraApi` into the loader capability. `I18nInstance` never
-// listed them, so `PreSplitKeySnapshot` above is untouched.
+// interface carries none of them. `addActiveNamespace(s)` and `onLoadError`
+// deliberately moved into the loader capability; `I18nInstance` never listed
+// them, so the snapshot above is untouched.
 export type _LoaderApiKeys = Expect<
   Equal<
     keyof I18nLoaderApi,
@@ -94,11 +90,10 @@ export type _CoreHasNoCapabilities = Expect<
   Equal<Extract<keyof I18nCoreInstance, keyof I18nLoaderApi | keyof I18nPluginHostApi>, never>
 >;
 
-// Composed-surface exactness: these are the shapes a framework binding sees
-// once the capabilities are composed on, so interface-merge resolution
-// drifting here would slip past the wrapper zero-diff gate. Since the
-// single-entry convergence they are derived from the COMPOSED host, because
-// the base root deliberately has neither member.
+// The shapes a framework binding sees once the capabilities are composed on:
+// interface-merge resolution drifting here would slip past the wrapper
+// zero-diff gate. Derived from the COMPOSED host, because the base root
+// deliberately has neither member.
 type ComposedHost = I18nPluginHost & I18nLoaderApi & I18nCoreInstance;
 export type _RegisterLoaderArg = Expect<
   Equal<Parameters<ComposedHost["registerLoader"]>[0], LoaderFn>
@@ -107,8 +102,7 @@ export type _UseOptionsArg = Expect<
   Equal<Parameters<ComposedHost["use"]>[1], PluginOptions | undefined>
 >;
 // The published import-map shape survives as `@comvi/next`'s composed host and
-// as the configured installer's argument (`next-contract.test-d.ts` pins the
-// two-overload form; here it is the installer's).
+// as the configured installer's argument — pinned here for the installer.
 export type _LoaderInstallerArg = Expect<
   Equal<Parameters<typeof loader>[0], LoaderImportMap | undefined>
 >;
@@ -143,13 +137,10 @@ export type _HostIsComposed = Expect<
   Equal<I18nPluginHost, I18nCoreInstance & I18nCoreExtraApi & I18nLoaderApi & I18nPluginHostApi>
 >;
 
-// ── WrapperI18nHost: the framework-slim P1 wrapper contract ───────────────
-//
-// The alias must stay EXACTLY the pair of interfaces `class I18n` declares it
-// implements (`core/i18n.ts`: `implements I18nCoreInstance<D>, I18nCoreExtraApi`).
-// If a member is ever added to the class outside those two interfaces, or a
-// capability leaks into either of them, this pin fails before any wrapper
-// retypes against a host that bare slim cannot satisfy.
+// The wrapper host alias must stay EXACTLY the pair of interfaces `class I18n`
+// declares it implements. If a member is added to the class outside those two,
+// or a capability leaks into either, this pin fails before any wrapper retypes
+// against a host a bare instance cannot satisfy.
 export type _WrapperHostIsWhatI18nImplements = Expect<
   Equal<WrapperI18nHost, I18nCoreInstance & I18nCoreExtraApi>
 >;
@@ -167,14 +158,14 @@ export type _PluginHostExtendsWrapperHost = Expect<
   Equal<I18nPluginHost, WrapperI18nHost & I18nLoaderApi & I18nPluginHostApi>
 >;
 
-// A ROOT instance is a wrapper host (Principle 5: root stays first-class).
+// A ROOT instance is a wrapper host — the root stays first-class.
 const rootAsHost: WrapperI18nHost = createI18n({ locale: "en" });
 void rootAsHost;
 
 // @ts-expect-error — the host type does not carry loader members
 rootAsHost.reloadTranslations();
 
-// ── the published one-argument facade (P0.4 candidate C4n, A11) ────────────
+// The published one-argument facade.
 //
 // The runtime binding IS the base class, whose constructor takes an internal
 // second `compiler` parameter. The published `I18n` is annotated with a

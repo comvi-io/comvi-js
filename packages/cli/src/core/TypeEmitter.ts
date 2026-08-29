@@ -1,15 +1,7 @@
-/**
- * TypeEmitter - Generates TypeScript declaration files from schema
- *
- * Simplified: just converts backend schema to .d.ts
- * Key format: "namespace:key" (e.g., "common:greeting")
- */
+/** Schema keys arrive as `"namespace:key"`, e.g. `"common:greeting"`. */
 
 import type { ProjectSchema, SchemaParam } from "../types";
 
-/**
- * Options for type generation
- */
 export interface TypeEmitterOptions {
   /**
    * Whether params are required (true) or optional (false)
@@ -30,9 +22,6 @@ export interface TypeEmitterOptions {
 }
 
 export class TypeEmitter {
-  /**
-   * Generate TypeScript declaration file from project schema
-   */
   generate(schema: ProjectSchema, options: TypeEmitterOptions = {}): string {
     const { strictParams = true, defaultNsName = "default" } = options;
 
@@ -50,7 +39,6 @@ export class TypeEmitter {
       "  interface TranslationKeys {",
     ];
 
-    // Convert schema keys: strip default namespace prefix for cleaner types
     const flatKeys = this.convertToFlatKeys(schema.keys, defaultNsName);
     const sortedKeys = Object.keys(flatKeys).sort();
 
@@ -69,21 +57,16 @@ export class TypeEmitter {
     return lines.join("\n");
   }
 
-  /**
-   * Generate type for a single key
-   */
   private generateKeyType(
     key: string,
     params: SchemaParam[],
     indent: string,
     strictParams: boolean,
   ): string {
-    // No params
     if (params.length === 0) {
       return `${indent}'${key}': never;`;
     }
 
-    // Generate param types
     const paramTypes = params.map((param) => {
       const optional = strictParams ? "" : "?";
       return `${param.name}${optional}: ${param.type}`;
@@ -93,8 +76,7 @@ export class TypeEmitter {
   }
 
   /**
-   * Convert schema keys to flat format for TypeScript interface
-   * Strips the namespace prefix for keys from the default namespace.
+   * Keys from the default namespace lose their prefix.
    *
    * @example
    * // With defaultNsName = 'default':
@@ -119,7 +101,6 @@ export class TypeEmitter {
         );
       }
 
-      // Strip default namespace prefix
       result[emittedKey] = keySchema;
     }
 

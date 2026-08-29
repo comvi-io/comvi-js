@@ -216,10 +216,9 @@ describe("loadTranslations", () => {
   });
 
   it("names the composition fix when the host has no loader CAPABILITY", async () => {
-    // The generated default host is core's BASE host since the single-entry
-    // convergence, so this is the likely shape now — and the fix is a
-    // different FILE from "you forgot to register a loader": the capability is
-    // composed in the `hostModule` factory, not in `comvi.setup`.
+    // The generated default host is core's BASE host, so the fix is a different
+    // FILE from "you forgot to register a loader": the capability is composed in
+    // the `hostModule` factory, not in `comvi.setup`.
     const i18n = createI18nStub({ loaderCapability: false });
     createComviCore.mockReturnValue(i18n);
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});

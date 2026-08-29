@@ -1,4 +1,4 @@
-// §7.2-5 — discovery left the constructor (§2.2): `exposeGlobal` and
+// discovery left the constructor: `exposeGlobal` and
 // `instanceId` are `devtools()` arguments now, and on a base host the two
 // options are inert, so leaving them would be a SILENT loss of extension
 // visibility. They move with their own source text — a shorthand stays a

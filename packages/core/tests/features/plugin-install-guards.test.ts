@@ -8,7 +8,7 @@ import { hasLoaderApi } from "../../src/utils/capability";
 import type { I18nPlugin } from "../../src/plugins/types";
 
 /**
- * The two plugins-only misuse guards (single-entry convergence, plan §4).
+ * The two plugins-only misuse guards.
  *
  * Installers and plugins are both "a function of the host" and NOTHING brands
  * them apart — `.with` stays a dumb pipe, so the type system rejects the two
@@ -78,18 +78,17 @@ describe("nested-use guard", () => {
 
     await expect(i18n.init()).rejects.toThrow();
 
-    // The guard fired at the INNERMOST expression, so `attachLoader` never
-    // ran. Probed through `hasLoaderApi`, not `registerLoader === undefined`:
-    // since B4 a plugins-only host carries a BRANDED throwing stand-in for
-    // every loader member, so the member exists while the capability does not
-    // — and calling it says exactly that.
+    // The guard fired at the INNERMOST expression, so `attachLoader` never ran.
+    // Probed through `hasLoaderApi`, not `registerLoader === undefined`: a
+    // plugins-only host carries a BRANDED throwing stand-in for every loader
+    // member, so the member exists while the capability does not.
     expect(hasLoaderApi(i18n)).toBe(false);
     expect(() => (i18n as unknown as I18nLoaderApi).registerLoader(async () => ({}))).toThrow(
       /no loader capability/,
     );
-    // …the installer never reached `use`, so its plugin never entered the queue…
+    // The installer never reached `use`, so its plugin never entered the queue.
     expect(inner).not.toHaveBeenCalled();
-    // …and destroy has no cleanup to run.
+    // And destroy has no cleanup to run.
     await expect(i18n.destroy()).resolves.toBeUndefined();
   });
 

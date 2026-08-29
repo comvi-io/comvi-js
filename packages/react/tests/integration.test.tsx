@@ -8,7 +8,6 @@ import { useI18nLoader } from "../src/capabilityHooks";
 import { T } from "../src/T";
 import { createDeferred, setLocale } from "./test-utils";
 
-// Type declarations for test translation keys
 declare module "@comvi/core" {
   interface TranslationKeys {
     title: never;
@@ -78,9 +77,8 @@ describe("Integration Tests", () => {
     const deferred = createDeferred<Record<string, string>>();
     const loader = vi.fn(() => deferred.promise);
 
-    // The base host has no loader capability, so the app composes one. The
-    // low-level `attachLoader` is the right tool here: this test registers a
-    // raw `LoaderFn` rather than an import map.
+    // `attachLoader` rather than `loader()`: this registers a raw `LoaderFn`,
+    // not an import map.
     const i18n = createI18n({
       locale: "en",
       defaultNs: "common",
@@ -127,7 +125,6 @@ describe("Integration Tests", () => {
       screen.getByTestId("load").click();
     });
 
-    // While the deferred is pending, verify loading indicator is shown
     await waitFor(() => {
       expect(screen.getByTestId("loading").textContent).toBe("Loading...");
     });

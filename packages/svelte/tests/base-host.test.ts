@@ -1,20 +1,14 @@
 /**
- * Single-entry P3 — @comvi/svelte's bindings on the BASE host.
+ * `@comvi/svelte`'s bindings on the BASE host — a host that implements
+ * `WrapperI18nHost` and nothing more. Svelte is the wrapper where promising
+ * capability members crashed EAGERLY: `useI18n()` `.bind()`s its members in
+ * the object literal it returns, so a base host threw "Cannot read properties
+ * of undefined (reading 'bind')" before a single translation rendered.
  *
- * This is the D′ endpoint: the host implements `WrapperI18nHost` and nothing
- * more, which is exactly what `createI18n` from the single `@comvi/svelte`
- * entry builds. Svelte is the wrapper where the pre-0.5.0 contract crashed
- * EAGERLY — `useI18n()` `.bind()`-ed `addActiveNamespace`,
- * `reloadTranslations`, `onLoadError` and `onMissingKey` in the object literal
- * it returned, so a base host threw
- * `Cannot read properties of undefined (reading 'bind')` before a single
- * translation rendered. Every case below would fail on the pre-wave wrapper.
- *
- * The ENTRY itself — the export surface, the ICU shapes, the toolkit identity
- * — is pinned in tests/root-entry.test.ts. The loud-error side of the
- * capability contract (exact dev AND prod messages) lives in
- * tests/js-contract/, which runs against the published dist under both build
- * conditions.
+ * The ENTRY itself — export surface, ICU shapes, toolkit identity — is pinned
+ * in tests/root-entry.test.ts. The loud-error half of the capability contract
+ * (exact dev AND prod messages) lives in tests/js-contract/, against the
+ * published dist under both build conditions.
  */
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { mount, tick, unmount } from "svelte";

@@ -4,32 +4,24 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 /**
- * The compiler policy, proved on the BUILT artifacts (plan §2.1/§2.1a/§2.1b,
- * D1 of `.omc/plans/release-0.5.0-hardening.md`).
+ * The compiler policy, proved on the BUILT artifacts. Three claims can only be
+ * checked here, never at src level:
  *
- * Three claims can only be checked here, never at src level:
+ *  1. **dev/prod topology.** Development throws EAGERLY at ingestion; production
+ *     keeps the preflight hook out of the bundle and stays LAZY, rendering the
+ *     braced segment literally and reporting `E_ICU_SYNTAX` on the compile.
+ *  2. **0 B in production.** The preflight identifier occurs in no prod
+ *     artifact — the `__DEV__` fold removed it, not the mangler.
+ *  3. **cross-chunk mangling.** `icu()` lives in `comvi-core-icu.js` and reaches
+ *     `_setCompilerBeforeIngestion` on a host built by `comvi-core.js`: a
+ *     mangled `_`-internal dot access across a chunk boundary, which only the
+ *     shared-nameCache prod build can satisfy.
  *
- *  1. **dev/prod topology.** Development throws EAGERLY at ingestion, because
- *     `_preflightSimpleCatalog` walks the catalog behind an `IS_DEV` gate.
- *     Production keeps that hook out of the bundle entirely and stays LAZY:
- *     the same catalog ingests, and on the compile that hits ICU syntax the
- *     braced segment renders LITERALLY while `E_ICU_SYNTAX` is reported
- *     through `onError` (or `console.error`) — best-effort, per process,
- *     never on cached renders. Neither side is silent; only dev is fatal.
+ * THE TEMPLATE CACHE is module-global to the imported dist module, so every
+ * case below uses a DISTINCT template string — two cases sharing one would make
+ * the second a cache hit that reports nothing.
  *
- *  NOTE ON THE CACHE: the template cache is module-global to the imported
- *  dist module, so every case below uses a DISTINCT template string. Two
- *  cases that shared one would make the second a cache hit and report
- *  nothing — which is itself asserted, deliberately, in "reports on the
- *  COMPILATION, never on a cached render".
- *  2. **0 B in production.** The preflight identifier does not occur in any
- *     prod artifact — the `__DEV__` fold removed it, not the mangler.
- *  3. **cross-chunk mangling.** `icu()` lives in `comvi-core-icu.js` and
- *     reaches `_setCompilerBeforeIngestion` on a host built by
- *     `comvi-core.js` — a mangled `_`-internal dot access across a chunk
- *     boundary, which only the shared-nameCache prod build can satisfy.
- *
- * Requires a fresh build — CI runs `pnpm --filter @comvi/core build` first.
+ * Requires a fresh build.
  */
 const DIST = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../dist");
 const PLURAL = "{count, plural, one {# item} other {# items}}";
@@ -49,7 +41,6 @@ describe("prod dist: the ICU literal + best-effort report (D1)", () => {
     const { createI18n } = await import("../../dist/comvi-core.js");
 
     const reports: Array<{ error: Error; context?: Record<string, unknown> }> = [];
-    // Production has no eager preflight, so construction succeeds…
     const i18n = createI18n({
       locale: "en",
       translation: { en: { items: PLURAL } },
@@ -57,8 +48,8 @@ describe("prod dist: the ICU literal + best-effort report (D1)", () => {
         void reports.push({ error, context }),
     });
 
-    // …and the compile miss renders the braced group verbatim, character for
-    // character — one raw text token, never a plausibly-wrong rendering.
+    // Verbatim, character for character: one raw text token, never a
+    // plausibly-wrong rendering.
     expect(i18n.t("items", { count: 2 })).toBe(PLURAL);
 
     expect(reports).toHaveLength(1);
@@ -66,7 +57,6 @@ describe("prod dist: the ICU literal + best-effort report (D1)", () => {
     expect((error as { code?: unknown }).code).toBe("E_ICU_SYNTAX");
     expect((error as { argumentType?: unknown }).argumentType).toBe("plural");
     expect(error.message).toBe("E_ICU_SYNTAX");
-    // The telemetry the compiler cannot see travels in the CONTEXT.
     expect(context).toEqual({
       source: "compile",
       key: "items",
@@ -89,8 +79,7 @@ describe("prod dist: the ICU literal + best-effort report (D1)", () => {
     expect(i18n.t("cached", { n: 1 })).toBe(template);
     expect(reports).toHaveLength(1);
 
-    // Second render: the parse is cached, so there is no compilation to
-    // report on. Best-effort per process is exactly this shape.
+    // The parse is cached, so there is no compilation left to report on.
     expect(i18n.t("cached", { n: 5 })).toBe(template);
     expect(reports).toHaveLength(1);
   });
@@ -106,7 +95,6 @@ describe("prod dist: the ICU literal + best-effort report (D1)", () => {
       expect(spy).toHaveBeenCalledTimes(1);
       expect(spy).toHaveBeenCalledWith("[comvi] E_ICU_SYNTAX", "c", "en");
 
-      // …and the cached render stays quiet, like the onError path.
       expect(i18n.t("c", { n: 3 })).toBe(template);
       expect(spy).toHaveBeenCalledTimes(1);
     } finally {
@@ -149,9 +137,9 @@ describe("prod dist: the ICU literal + best-effort report (D1)", () => {
         void reports.push({ error, context }),
     });
 
-    // `params.fallback` is a TEMPLATE compiled by the missing-key path, so it
-    // is a compile site like any other — literal render, exactly ONE report,
-    // and the key is the one the CALLER asked for, not the fallback's text.
+    // `params.fallback` is a TEMPLATE compiled by the missing-key path, so it is
+    // a compile site like any other — and the key reported is the one the CALLER
+    // asked for, not the fallback's text.
     expect(i18n.t("missing", { n: 2, fallback: template })).toBe(template);
     expect(reports).toHaveLength(1);
     expect((reports[0]!.error as { argumentType?: unknown }).argumentType).toBe("plural");
@@ -162,8 +150,8 @@ describe("prod dist: the ICU literal + best-effort report (D1)", () => {
       locale: "en",
     });
 
-    // …and the hit does not survive into the NEXT, unrelated translation.
-    // Before the fix this reported `E_ICU_SYNTAX` against key "plainKey".
+    // Before the fix the hit survived into the next, unrelated translation and
+    // was reported against key "plainKey".
     expect(i18n.t("plainKey", { name: "Ada" })).toBe("Hi, Ada!");
     expect(reports).toHaveLength(1);
   });
@@ -185,13 +173,13 @@ describe("prod dist: the ICU literal + best-effort report (D1)", () => {
       onError: (error: Error) => void bReports.push(error),
     });
 
-    // Through the `params.fallback` compile — the path whose hit used to reach
-    // nobody, and therefore the one that used to cross the instance boundary.
+    // The `params.fallback` compile is the path whose hit used to reach nobody,
+    // and so the one that used to cross the instance boundary.
     expect(a.t("hit", { n: 3, fallback: template })).toBe(template);
 
-    // THE LEAK CLAIM, asserted first so it is what fails: same tick, other
-    // instance, unrelated plain key. The module-global slot must carry nothing
-    // into it — before the fix B reported `E_ICU_SYNTAX` against "plain".
+    // The leak claim, asserted FIRST so it is what fails: same tick, other
+    // instance, unrelated plain key. Before the fix B reported `E_ICU_SYNTAX`
+    // against "plain".
     expect(b.t("plain")).toBe("Just text");
     expect(bReports).toHaveLength(0);
 
@@ -209,10 +197,9 @@ describe("prod dist: the ICU literal + best-effort report (D1)", () => {
     });
 
     expect(i18n.t("g", { g: "a" })).toBe("{g, select, other{x}}");
-    // Everything a plain `new Error(msg)` already owns is baseline; what the
-    // detector ADDS must be exactly the two contract fields. No locale, no
-    // namespace, no key, no catalog source: §2.1a makes those
-    // application-supplied telemetry, deliberately not core-error fields.
+    // What the detector ADDS over a plain `new Error(msg)` must be exactly the
+    // two contract fields. Locale, namespace, key and catalog source are
+    // application-supplied telemetry, deliberately NOT core-error fields.
     const baseline = new Set(Object.getOwnPropertyNames(new Error("x")));
     const added = Object.getOwnPropertyNames(reported[0]!)
       .filter((name) => !baseline.has(name))
@@ -264,8 +251,8 @@ describe("prod dist: the ICU literal + best-effort report (D1)", () => {
     });
     expect(viaOption.t("items", { count: 2 })).toBe("2 items");
 
-    // The installer reaches the MANGLED `_setCompilerBeforeIngestion` across a
-    // chunk boundary — this call is the nameCache canary.
+    // This call is the nameCache canary: it reaches the MANGLED
+    // `_setCompilerBeforeIngestion` across a chunk boundary.
     const viaInstaller = createI18n({ locale: "en" }).with(icu());
     viaInstaller.addTranslations({ en: { items: PLURAL } });
     expect(viaInstaller.t("items", { count: 1 })).toBe("1 item");
@@ -282,11 +269,9 @@ describe("prod dist: the ICU literal + best-effort report (D1)", () => {
     );
     i18n.registerLoader(async () => ({ items: template }));
 
-    // No eager walk in production, so the catalog merges…
     await i18n.init();
     expect(i18n.t("greeting", { fallback: "ok" })).toBe("ok");
 
-    // …and the literal + report arrive at the first compile of that template.
     expect(i18n.t("items", { count: 2 })).toBe(template);
     expect(reports).toHaveLength(1);
     expect(reports[0]!.code).toBe("E_ICU_SYNTAX");
@@ -323,15 +308,13 @@ describe("prod dist: the ICU literal + best-effort report (D1)", () => {
       onError: (error: Error) => void reports.push(error),
     });
 
-    // ONE raw text token for the whole balanced group: the `<b>` inside it is
-    // never re-parsed by the tags extension, so nothing renders and nothing
-    // is dropped — the braces come back exactly as authored.
+    // ONE raw text token for the whole balanced group: the `<b>` inside is never
+    // re-parsed by the tags extension, so nothing renders and nothing is dropped.
     expect(i18n.t("tagged", { count: 2 })).toBe(template);
     expect(reports).toHaveLength(1);
     expect(reports[0]!.argumentType).toBe("plural");
 
-    // The tags grammar is genuinely live on this module — otherwise the claim
-    // above would be vacuous.
+    // Without this the claim above would be vacuous.
     const tagged = createI18n({ locale: "en", translation: { en: { m: "a <b>b</b> c" } } });
     expect(tagged.t("m", { b: () => "B" })).toBe("a B c");
   });
@@ -349,7 +332,6 @@ describe("dev dist: the eager preflight (§2.1a)", () => {
     }
     expect((thrown as { code?: unknown }).code).toBe("E_ICU_SYNTAX");
     expect((thrown as { argumentType?: unknown }).argumentType).toBe("plural");
-    // Dev carries the actionable prose the production message drops.
     expect((thrown as Error).message).toContain("@comvi/core/icu");
   });
 
@@ -377,29 +359,25 @@ describe("dev dist: the eager preflight (§2.1a)", () => {
     const i18n = attachLoader(createI18n({ locale: "en" }));
     i18n.registerLoader(async () => ({ items: PLURAL }));
 
-    // Ingestion seam 2: the preflight runs on the loaded catalog BEFORE
-    // `translationCache.set`. The loader reports a failed namespace through
-    // `loadError` rather than rejecting `init()` — that is the shipped loader
-    // contract for ANY loader failure — so the error is observed there.
+    // The preflight runs on the loaded catalog BEFORE `translationCache.set`.
+    // A failed namespace surfaces through `loadError` rather than rejecting
+    // `init()` — the shipped contract for ANY loader failure.
     const errors: Array<{ code?: unknown; argumentType?: unknown }> = [];
     i18n.on("loadError", (data: { error: Error }) => void errors.push(data.error));
 
-    // `init()` surfaces the namespace failure (the shipped loader contract);
-    // the STRUCTURED cause is on the `loadError` payload.
     await expect(i18n.init()).rejects.toThrow(/Failed to load all namespaces/);
 
     expect(errors).toHaveLength(1);
     expect(errors[0]!.code).toBe("E_ICU_SYNTAX");
     expect(errors[0]!.argumentType).toBe("plural");
 
-    // Nothing was merged: the key is still missing, which is what "before the
-    // cache merge" means observably — no template that can only throw later
-    // ever entered the cache.
+    // "Before the cache merge", observably: no template that can only throw
+    // later ever entered the cache.
     expect(i18n.t("items", { count: 2 })).toBe("items");
     expect(i18n.hasTranslation("items")).toBe(false);
 
-    // And the seam locked the compiler on its way through, so a late installer
-    // cannot paper over the catalog that was rejected.
+    // The seam locked the compiler on its way through, so a late installer
+    // cannot paper over the rejected catalog.
     let locked: unknown;
     try {
       i18n.with(icu());
@@ -440,9 +418,8 @@ describe("the preflight costs the production bundle 0 B", () => {
     const files = prodFiles();
     expect(files.length).toBeGreaterThan(0);
 
-    // The hook is installed inside an `if (IS_DEV)` block and called through
-    // `?.()` behind the same gate, so the __DEV__ fold removes the whole
-    // thing. Nothing to mangle means nothing to pay for.
+    // Installed inside an `if (IS_DEV)` block and called through `?.()` behind
+    // the same gate, so the __DEV__ fold removes the whole thing.
     for (const file of files) {
       const source = fs.readFileSync(file, "utf8");
       expect(source, `${path.basename(file)} must not carry the preflight`).not.toContain(
@@ -451,8 +428,8 @@ describe("the preflight costs the production bundle 0 B", () => {
       expect(source, `${path.basename(file)} must not carry the dev guidance`).not.toContain(
         "is not a shipped ICU argument type",
       );
-      // The §2.3 ambient-tag warning is the same deal: development-only, so
-      // neither its guidance nor its once-per-template bookkeeping may ship.
+      // The ambient-tag warning is the same deal: development-only, so neither
+      // its guidance nor its once-per-template bookkeeping may ship.
       expect(source, `${path.basename(file)} must not carry the tag guidance`).not.toContain(
         "rendering as literal text",
       );

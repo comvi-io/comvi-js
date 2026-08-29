@@ -8,10 +8,8 @@ import {
   type VNode,
 } from "vue";
 // The PURE rich-text seam: `prepareTranslation` hands the tag grammar to core
-// through `tagInterpolation.extensions` on EVERY call, so rendering `<T>`
-// never makes `<tag>` markup ambient for plain string-API `t()`. Importing
-// `@comvi/core/tags` instead would do exactly that — it is the one
-// side-effectful subpath, and no module in this package names it.
+// per call, so rendering `<T>` never makes `<tag>` markup ambient for plain
+// string-API `t()`. Importing `@comvi/core/tags` would do exactly that.
 import {
   prepareTranslation,
   type PendingHandler,
@@ -20,9 +18,6 @@ import {
 import type { TranslationParams, TranslationResult, VirtualNode } from "@comvi/core";
 import { I18N_INJECTION_KEY } from "../keys";
 
-/**
- * Component handler types for the `components` prop
- */
 type ComponentHandler =
   | string // HTML tag name: "strong", "em", etc.
   | Component // Vue component
@@ -31,99 +26,60 @@ type ComponentHandler =
       props?: Record<string, unknown>;
     };
 
-/**
- * Components prop type for tag interpolation
- */
 type ComponentsMap = Record<string, ComponentHandler>;
 
 /**
- * Translation component for Vue
- * Renders translated content with support for slots and components prop as tag handlers
+ * Renders a translation. Named slots and the `components` prop both act as tag
+ * handlers; the default slot is the fallback for a missing key.
  *
  * @example
  * ```vue
- * <!-- Simple usage -->
- * <T i18nKey="greeting" />
+ * <T i18nKey="welcome" :params="{ name: 'John' }" ns="forms" locale="fr" />
  *
- * <!-- With parameters -->
- * <T i18nKey="welcome" :params="{ name: 'John' }" />
- *
- * <!-- With tag interpolation using slots -->
  * <T i18nKey="welcome_link">
  *   <template #link="{ children }">
  *     <a href="/help">{{ children }}</a>
  *   </template>
  * </T>
  *
- * <!-- With tag interpolation using components prop -->
- * <T
- *   i18nKey="welcome_link"
- *   :components="{
- *     link: { component: 'a', props: { href: '/help' } },
- *     bold: 'strong'
- *   }"
- * />
+ * <T i18nKey="welcome_link" :components="{ link: { component: 'a', props: { href: '/help' } } }" />
  *
- * <!-- With default-slot fallback for missing translations -->
  * <T i18nKey="maybe.missing">Shown when the key has no translation</T>
- *
- * <!-- With specific namespace -->
- * <T i18nKey="button.submit" ns="forms" />
- *
- * <!-- With specific locale -->
- * <T i18nKey="greeting" locale="fr" />
  * ```
  */
 export const T = /*@__PURE__*/ defineComponent({
   name: "T",
   props: {
-    /**
-     * Translation key to look up
-     */
     i18nKey: {
       type: String,
       required: true,
     },
 
-    /**
-     * Parameters for interpolation
-     * These will be merged with slot content
-     */
+    /** Merged with slot content. */
     params: {
       type: Object as PropType<Record<string, unknown>>,
       default: () => ({}),
     },
 
-    /**
-     * Namespace to use (optional)
-     * If not specified, uses the default namespace
-     */
     ns: {
       type: String,
       default: undefined,
     },
 
-    /**
-     * Specific locale to use (optional)
-     * If not specified, uses the current locale
-     */
     locale: {
       type: String,
       default: undefined,
     },
 
-    /**
-     * Fallback text to display if translation is missing (optional)
-     * If not specified, returns the key itself
-     */
+    /** Shown when the key is missing; without it the key itself is rendered. */
     fallback: {
       type: String,
       default: undefined,
     },
 
     /**
-     * Skip post-processing (optional)
-     * When true, prevents post-processors like IncontextEditor from adding invisible marker characters
+     * Skip post-processing — notably the invisible marker characters the
+     * in-context editor injects.
      */
     raw: {
       type: Boolean,
@@ -131,8 +87,7 @@ export const T = /*@__PURE__*/ defineComponent({
     },
 
     /**
-     * Components map for tag interpolation (optional)
-     * Maps tag names to their handlers (string tag name, component, or config object)
+     * Tag-name → handler map for tag interpolation.
      *
      * @example
      * {
@@ -156,22 +111,20 @@ export const T = /*@__PURE__*/ defineComponent({
       );
     }
 
-    // prepareTranslation consumes the core-shaped hasTranslation; VueI18n's
-    // hasTranslation returns a ComputedRef, so adapt to the imperative check.
-    // Reactivity is carried by tRaw (locale/cache/config refs).
+    // `prepareTranslation` wants the core-shaped imperative `hasTranslation`,
+    // but VueI18n's returns a ComputedRef. Reactivity is carried by `tRaw`.
     const source: PrepareTranslationSource = {
       tRaw: (key, params) => i18n.tRaw(key, params),
       hasTranslation: (key, locale, namespace, checkFallbacks) =>
         i18n.hasTranslationNow(key, { locale, namespace, checkFallbacks }),
     };
 
-    // Flatten single-string arrays for template {{ children }} compatibility
+    // Single-string arrays are flattened for template `{{ children }}`.
     const flattenChildren = (children: (string | VNode)[]) =>
       children.length === 1 && typeof children[0] === "string" ? children[0] : children;
 
     return () => {
-      // Slots participate as tag handlers (default included, for compat);
-      // the components prop wins on name collisions.
+      // Slots act as tag handlers too; `components` wins a name collision.
       const merged: Record<string, unknown> = {};
       let hasHandlers = false;
       for (const name of Object.keys(slots)) {
@@ -195,8 +148,7 @@ export const T = /*@__PURE__*/ defineComponent({
         components: hasHandlers ? merged : undefined,
       });
 
-      // Default-slot fallback for missing translations (parity with the
-      // react/solid/svelte wrappers' children fallback).
+      // Parity with the react/solid/svelte wrappers' children fallback.
       const defaultSlot = slots.default;
       if (prepared.isMissing && defaultSlot) {
         return defaultSlot();
@@ -207,14 +159,13 @@ export const T = /*@__PURE__*/ defineComponent({
         return content;
       }
 
-      // Marker tag → pending framework handler (slot or Vue component)
       const pendingByMarker = new Map<string, PendingHandler>();
       for (const pending of prepared.pendingHandlers) {
         pendingByMarker.set(pending.marker, pending);
       }
 
-      // Resolve an opaque handler: slot functions receive { children },
-      // Vue components receive children through their default slot.
+      // Slot functions receive `{ children }`; Vue components receive them
+      // through their default slot.
       const resolvePending = (pending: PendingHandler, children: (string | VNode)[]): VNode => {
         try {
           const slot = slots[pending.name];
@@ -235,7 +186,6 @@ export const T = /*@__PURE__*/ defineComponent({
         }
       };
 
-      // Convert VirtualNode children to Vue VNodes (recursively resolves markers)
       const convertList = (items: TranslationResult): (string | VNode)[] => {
         if (typeof items === "string") {
           return items ? [items] : [];

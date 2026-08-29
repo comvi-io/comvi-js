@@ -13,10 +13,8 @@ export interface LocalizedLinkProps extends Omit<ComponentProps<typeof NextLink>
 }
 
 /**
- * Localized Link component that adds locale prefix based on routing config
- *
- * This component wraps Next.js Link and prepends the current locale
- * using localePrefix/pathnames rules from the routing configuration.
+ * Wraps Next.js Link and prepends the locale, using the localePrefix /
+ * pathnames rules from the routing configuration.
  *
  * @example
  * ```tsx
@@ -37,7 +35,6 @@ export const Link = forwardRef<HTMLAnchorElement, LocalizedLinkProps>(function L
   const locale = targetLocale ?? currentLocale;
   const routing = useRoutingConfig();
 
-  // Prepend locale to href
   const localizedHref =
     typeof href === "string"
       ? localizeHref(href, locale, routing ?? undefined)
@@ -46,5 +43,4 @@ export const Link = forwardRef<HTMLAnchorElement, LocalizedLinkProps>(function L
   return <NextLink ref={ref} href={localizedHref} {...props} />;
 });
 
-// Add display name for React DevTools
 Link.displayName = "LocalizedLink";

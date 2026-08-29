@@ -1,26 +1,23 @@
 #!/usr/bin/env node
 /**
- * The checked-in migration deliverable for the 0.5.0 train — ONE command for
- * two waves, because a user migrates once:
+ * The checked-in 0.5.0 migration deliverable — ONE command for two rule
+ * families, because a user migrates once:
  *
- *   • framework-slim §3.1 (`.omc/plans/comvi-framework-slim.md`): the four
- *     members that left `useI18n()` move onto the capability hooks
- *     `useI18nLoader()` / `useI18nPlugins()`.
- *   • single-entry §7.2 (`.omc/plans/comvi-single-entry.md`): `/slim`
- *     specifiers and `createSlimI18n` collapse into the one entry, chained
- *     `.use(Plugin(o))` becomes a `.with(installer(o))`, and the constructor
- *     options that became capabilities (`compiler: icuCompiler`,
+ *   • the four members that left `useI18n()` move onto the capability hooks
+ *     `useI18nLoader()` / `useI18nPlugins()`;
+ *   • `/slim` specifiers and `createSlimI18n` collapse into the one entry,
+ *     chained `.use(Plugin(o))` becomes `.with(installer(o))`, and the
+ *     constructor options that became capabilities (`compiler: icuCompiler`,
  *     `devtools({ exposeGlobal, instanceId })`, `flattenCatalog`) move with
  *     their imports.
  *
  * Both report — deterministically, never silently — every shape they refuse to
- * rewrite (§3.1 report-only, §7.3 residuals).
+ * rewrite.
  *
  *   node scripts/codemods/framework-slim/run.mjs "<glob>" [--report report.json]
  *
  * Exit codes: 0 = clean or fully transformed; 2 = rewrites applied and manual
- * items remain; 1 = error. No changeset may claim "mechanical migration"
- * before `node --test scripts/codemods/framework-slim/run.test.mjs` is green.
+ * items remain; 1 = error.
  */
 import fs from "node:fs";
 import path from "node:path";
@@ -180,9 +177,9 @@ function planHookImport(root, sourceImport, hooksUsed) {
  * Transforms one JS/TS body.
  *
  * The two rule families are INDEPENDENT and are planned against the same parse
- * of the original text: the single-entry rewrites (§7.2) never touch a
- * `useI18n()` destructure, and the capability-hook rewrites (§3.1) never touch
- * a host construction. So a hook-name collision refuses the destructures alone,
+ * of the original text: the single-entry rewrites never touch a `useI18n()`
+ * destructure, and the capability-hook rewrites never touch a host
+ * construction. So a hook-name collision refuses the destructures alone,
  * and a refused chain refuses itself alone — one undecidable shape never
  * silently withdraws a migration a human already read in the report.
  *
@@ -316,8 +313,8 @@ function pruneOrphanedImport(text, lang, name) {
  */
 export function transformSource(source, filePath) {
   const extension = path.extname(filePath);
-  // Receiver set for the dropped VueI18n proxies (plan §3.1 report-only, §6.2):
-  // `.vue` components, plus nuxt's `comvi.setup` hook — its context `i18n` is
+  // Receiver set for the dropped VueI18n proxies: `.vue` components, plus
+  // nuxt's `comvi.setup` hook — its context `i18n` is
   // a VueI18n in the app plugin, so `i18n.registerLoader(...)` there is exactly
   // the shape that must become `i18n.core.registerLoader(...)`. Everywhere else
   // the same shape is overwhelmingly a raw core instance, and reporting it
@@ -350,7 +347,6 @@ export function transformSource(source, filePath) {
       transforms.set(kind, (transforms.get(kind) ?? 0) + count);
     }
     for (const item of result.manual) {
-      // Remap: positions are relative to the extracted body.
       manual.push({ ...positionAt(source, block.offset + item.offset), ...item });
     }
     if (result.text !== block.body) {

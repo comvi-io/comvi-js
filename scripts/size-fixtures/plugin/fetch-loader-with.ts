@@ -1,10 +1,5 @@
-// Informational: the lowercase `.with(fetchLoader(…))` installer — the
-// documented one-call recipe for this package.
-//
-// Measured against `plugin-fetch-loader-use`, which composes the same two
-// capabilities by hand and registers the same uppercase plugin, the delta is
-// the whole price of the installer: the installer function itself plus the
-// plugins-only nested-use guard it calls as its first ensure-step.
+// Informational: the lowercase `.with(fetchLoader(…))` installer — the documented one-
+// call recipe for this package.
 import { createI18n } from "@comvi/core";
 import { fetchLoader } from "@comvi/plugin-fetch-loader";
 

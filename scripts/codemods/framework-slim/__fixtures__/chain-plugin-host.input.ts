@@ -1,4 +1,4 @@
-// §7.2-3 — a plugin the codemod does not know keeps its `.use`, and the chain
+// a plugin the codemod does not know keeps its `.use`, and the chain
 // gains the generic plugin host BEFORE it.
 //
 // `plugins()` attaches idempotently, so the third chain — which composed the

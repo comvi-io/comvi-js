@@ -9,7 +9,7 @@ import { TK_TEXT } from "../../src/core/translate/cache";
 import type { MessageCompiler } from "../../src/core/translate/syntax";
 
 /**
- * The pre-ingestion compiler lock (plan §2.1b, P0.5).
+ * The pre-ingestion compiler lock.
  *
  * The base compiler is internally mutable through EXACTLY one pinned seam,
  * `I18nInternal._setCompilerBeforeIngestion`, and only while no catalog has
@@ -127,7 +127,7 @@ describe("compiler lock — every ingestion seam locks, irreversibly", () => {
     const i18n = createI18n({ locale: "en" });
 
     // The lock is the FIRST statement of the ingestion seam, before the dev
-    // preflight can throw — so a rejected catalog cannot reopen the compiler.
+    // preflight can throw — so a REJECTED catalog cannot reopen the compiler.
     expect(() => i18n.addTranslations({ en: { items: PLURAL } })).toThrow(/E_ICU_SYNTAX|ICU/);
     expectLocked(() => i18n.with(icu()));
   });
@@ -186,8 +186,8 @@ describe("compiler lock — the cache contract it buys", () => {
     clearTemplateCache();
     const a = countingCompiler();
 
-    // A per-call `fallback` really does compile (it goes through
-    // translateTemplate), so this proves a cache entry EXISTS before the swap.
+    // A per-call `fallback` really does compile, so this proves a cache entry
+    // EXISTS before the swap.
     const hostA = createI18n({ locale: "en", compiler: a.compiler });
     hostA.addTranslations({ en: {} });
     expect(hostA.t("absent" as never, { fallback: "pre {x}" } as never)).toBe("pre «x»");

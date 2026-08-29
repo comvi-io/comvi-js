@@ -1,6 +1,5 @@
 /**
- * The single-entry convergence transforms (`.omc/plans/comvi-single-entry.md`
- * §7.2) and the residuals §7.3 owns.
+ * The single-entry convergence transforms.
  *
  * | 1 | `@comvi/<pkg>/slim` -> `@comvi/<pkg>` | the retired host tier        |
  * | 2 | `createSlimI18n` -> `createI18n`      | never published, so renamed  |
@@ -8,7 +7,7 @@
  * | 4 | inline ICU catalog                    | `compiler: icuCompiler`      |
  * | 5 | `exposeGlobal` / `instanceId` options | `.with(devtools({…}))`       |
  * | 6 | non-flat inline catalog               | `flattenCatalog(…)`          |
- * | + | `.with(icu())` after a loader         | moved BEFORE it (§7.3)       |
+ * | + | `.with(icu())` after a loader         | moved BEFORE it              |
  *
  * TWO invariants make this safe to run on someone else's app:
  *
@@ -355,8 +354,8 @@ function detectUnprovenHostConstructions(root) {
 
 /**
  * Where a capability binding comes from, given the module the HOST came from.
- * Core keeps one capability per pure subpath (§2.4); every wrapper package
- * re-exports all of them from its single entry. A host imported from anywhere
+ * Core keeps one capability per pure subpath; every wrapper package re-exports
+ * all of them from its single entry. A host imported from anywhere
  * else is undecidable — the codemod will not guess a user's barrel file.
  */
 function bindingModule(hostModule, name) {
@@ -376,7 +375,7 @@ function referencesOf(root, name) {
 }
 
 // ---------------------------------------------------------------------------
-// §7.2-1 — module specifiers
+// module specifiers
 // ---------------------------------------------------------------------------
 
 /** Static ESM specifiers; dynamic imports and `require` need a manual cutover. */
@@ -418,7 +417,7 @@ function detectDynamicSlimSpecifiers(root) {
 }
 
 // ---------------------------------------------------------------------------
-// §7.2-2 — the host-factory rename
+// the host-factory rename
 // ---------------------------------------------------------------------------
 
 /**
@@ -485,7 +484,7 @@ function planHostRename(root) {
 }
 
 // ---------------------------------------------------------------------------
-// §7.3 — `.use` that never reaches a static chain
+// `.use` that never reaches a static chain
 // ---------------------------------------------------------------------------
 
 /**
@@ -729,7 +728,7 @@ function planChain(root, text, call, hostModule) {
 
   if (blockers.length > 0) return refuse();
 
-  // --- §7.2-3, unknown plugins: the generic host, once, before the first use -
+  // --- unknown plugins: the generic host, once, before the first use -------
   //
   // A lowercase installer this pass just wrote (`fetchLoader`) ensures the
   // plugin host itself, so the `plugins()` below is redundant beside one — and
@@ -748,7 +747,7 @@ function planChain(root, text, call, hostModule) {
     }
   }
 
-  // --- §7.3, safe ordering: `icu()` cannot run once a loader has ingested ----
+  // --- safe ordering: `icu()` cannot run once a loader has ingested --------
   if (icuStep !== undefined && loaderStep !== undefined) {
     if (steps.indexOf(icuStep) > steps.indexOf(loaderStep)) {
       const from = icuStep.object.range().end.index;
@@ -858,7 +857,7 @@ function planChain(root, text, call, hostModule) {
     }
   }
 
-  // --- §7.2-5: the two options that became `devtools()` arguments ------------
+  // --- the two options that became `devtools()` arguments -------------------
   if (moved.length > 0) {
     edits.push(...braceListRemoval(options, isMoved));
     const last = steps[steps.length - 1];
@@ -875,7 +874,7 @@ function planChain(root, text, call, hostModule) {
     count("devtools-options");
   }
 
-  // --- §7.3: the catalogs the codemod cannot read ----------------------------
+  // --- the catalogs the codemod cannot read --------------------------------
   const compilerProven =
     compilerAdded ||
     icuStep !== undefined ||

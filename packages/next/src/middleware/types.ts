@@ -1,18 +1,10 @@
 import type { NextRequest } from "next/server";
 import type { RoutingConfig } from "../routing/types";
 
-/**
- * Locale detection source types
- */
 export type LocaleDetectionSource = "cookie" | "header" | "accept-language";
 
 /**
- * Function type for custom Accept-Language resolution
- *
- * @param acceptLanguage - The Accept-Language header value
- * @param locales - Array of supported locales
- * @param defaultLocale - The default locale to fall back to
- * @returns The matched locale or undefined
+ * Function type for custom Accept-Language resolution.
  *
  * @example Using @formatjs/intl-localematcher (recommended for production)
  * ```typescript
@@ -37,9 +29,6 @@ export type ResolveAcceptLanguage = (
   defaultLocale: string,
 ) => string | undefined;
 
-/**
- * Configuration for locale detection
- */
 export interface LocaleDetectionConfig {
   /**
    * Detection order (URL path is always checked first)
@@ -69,20 +58,15 @@ export interface LocaleDetectionConfig {
   headerName?: string;
 
   /**
-   * Custom Accept-Language resolution function (pluggable)
-   *
-   * By default, uses a simple parser that handles common cases.
-   * For production apps with diverse locales (especially CJK languages),
-   * consider using @formatjs/intl-localematcher for RFC-compliant matching.
+   * The built-in default is a simple parser that handles common cases. For
+   * production apps with diverse locales (especially CJK), consider
+   * @formatjs/intl-localematcher for RFC-compliant matching.
    *
    * @default Built-in simple parser
    */
   resolveAcceptLanguage?: ResolveAcceptLanguage;
 }
 
-/**
- * Configuration for i18n middleware
- */
 export interface MiddlewareConfig extends RoutingConfig {
   /**
    * Custom locale detection logic (optional)
@@ -91,9 +75,5 @@ export interface MiddlewareConfig extends RoutingConfig {
    */
   detectLocale?: (request: NextRequest) => string | undefined;
 
-  /**
-   * Locale detection configuration
-   * Allows customizing detection sources and their order
-   */
   localeDetection?: LocaleDetectionConfig;
 }

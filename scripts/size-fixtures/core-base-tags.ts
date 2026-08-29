@@ -1,5 +1,4 @@
-// Size-gate fixture: slim entry + ambient tag registration. Informational
-// (printed, not gated) until Phase 1 stabilizes; then gated at slim + 1.2 KB.
+// Size-gate fixture: slim entry + ambient tag registration.
 import "@comvi/core/tags";
 import { createI18n } from "@comvi/core";
 

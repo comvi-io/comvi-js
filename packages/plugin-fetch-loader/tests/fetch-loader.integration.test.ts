@@ -160,14 +160,12 @@ describe("FetchLoader Integration Tests", () => {
     it("should handle language change during ongoing load", async () => {
       const i18n = new I18n({ locale: "en", devMode: false });
 
-      // Slow EN response
       server.use(
         http.get(`${TEST_CDN_URL}/en.json`, async () => {
           await delay(100);
           return HttpResponse.json({ key: "Hello" });
         }),
       );
-      // Fast FR response
       mockCdnSuccessResponse("fr", "default", { key: "Bonjour" });
 
       const plugin = FetchLoader({ cdnUrl: TEST_CDN_URL, loadOnInit: false });

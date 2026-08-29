@@ -1,16 +1,8 @@
-/**
- * Debounce utility function
- * Creates a debounced version of a function that delays invocation
- */
-
 export interface DebouncedFunction<T extends (...args: any[]) => void> {
   (...args: Parameters<T>): void;
   cancel: () => void;
 }
 
-/**
- * Options for {@link debounce}.
- */
 export interface DebounceOptions {
   /**
    * Upper bound (ms) on how long invocation may be deferred. When set, the
@@ -22,13 +14,7 @@ export interface DebounceOptions {
   maxWait?: number;
 }
 
-/**
- * Creates a debounced version of a function
- * @param fn - The function to debounce
- * @param delay - Delay in milliseconds
- * @param options - Optional behavior tweaks (see {@link DebounceOptions})
- * @returns Debounced function with cancel method
- */
+/** The returned function carries a `cancel` method. */
 export function debounce<T extends (...args: any[]) => void>(
   fn: T,
   delay: number,

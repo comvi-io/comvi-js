@@ -6,7 +6,7 @@
 // fflate streams ~128KB chunks, so any tarball that decompresses to >128KB (every one
 // of ours) loses all but the final chunk → `untar([])` → `data[0].filename` throws
 // `Cannot read properties of undefined (reading 'filename')`. This hits the CLI and
-// every `createPackageFrom*` helper. See .omc/plans/types-attw-publint.md "#1 RISK".
+// every `createPackageFrom*` helper.
 //
 // This wrapper builds the in-memory file map itself: `pnpm pack` → `zlib.gunzipSync`
 // (single-shot, multi-chunk-safe) → `tar.Parser` → a `/node_modules/<name>/...` map

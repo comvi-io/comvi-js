@@ -1,12 +1,7 @@
-/**
- * Mock Nuxt app composables for testing
- */
 import { ref, reactive, computed } from "vue";
 
-// Mock state store
 const stateStore = new Map<string, any>();
 
-// Mock runtime config
 const defaultRuntimeConfig = {
   public: {
     comvi: {
@@ -41,13 +36,10 @@ const defaultRuntimeConfig = {
 const cloneRuntimeConfig = () => structuredClone(defaultRuntimeConfig);
 let mockRuntimeConfig = cloneRuntimeConfig();
 
-// Mock request headers
 let mockRequestHeaders: Record<string, string> = {};
 
-// Mock cookies
 const cookieStore = new Map<string, ReturnType<typeof ref>>();
 
-// Mock route state
 const defaultRouteState = {
   path: "/",
   params: {},
@@ -61,7 +53,6 @@ const defaultRouteState = {
 };
 const routeState = reactive({ ...defaultRouteState });
 
-// Mock Nuxt app
 const mockNuxtApp = {
   $i18n: null as any,
   provide: (key: string, value: any) => {
@@ -174,7 +165,6 @@ export function useRequestHeaders(keys?: string[]) {
 }
 
 export function useHead(config: any) {
-  // Mock useHead - just returns the config
   return computed(() => config.value || config);
 }
 
@@ -211,7 +201,6 @@ export function resetRuntimeConfig() {
   mockRuntimeConfig = cloneRuntimeConfig();
 }
 
-// Reset mocks between tests
 export function resetMocks() {
   stateStore.clear();
   mockNuxtApp.$i18n = null;

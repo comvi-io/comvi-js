@@ -1,23 +1,17 @@
-// Single-entry P3 gate: the vue COMPOSED-HOST recipe — `createCore` plus a
-// configured capability, wrapped by `createI18nFromCore`. Every specifier in
-// this file is `@comvi/vue`; `@comvi/core` is never named.
+// The vue COMPOSED-HOST recipe — `createCore` plus a configured capability,
+// wrapped by `createI18nFromCore`. Every specifier is `@comvi/vue`.
 //
-// RETARGETED from `vue-slim-preset`, keeping its whole question: does a named
-// re-export hop through a `sideEffects: false` wrapper tree-shake in a REAL
-// bundler, in DEVELOPMENT as well as production, when the app DOES call one of
-// the re-exported capabilities? `@comvi/vue` re-exports the whole toolkit; this
-// app uses only the loader half, and the runner asserts from the bundler's own
-// module graph that the icu, plugins and devtools subpaths never enter it — and,
-// as always, that core's tag-registration chunks do not.
+// The question it answers: does a named re-export hop through a
+// `sideEffects: false` wrapper tree-shake in a REAL bundler, in DEVELOPMENT as
+// well as production, when the app DOES call one of the re-exported
+// capabilities? This app uses only the loader half, and the runner asserts from
+// the bundler's own module graph that the icu, plugins and devtools subpaths
+// never enter it — nor core's tag-registration chunks.
 //
-// Vue keeps a case of its own here because it is the one binding with TWO
+// Vue keeps a case of its own because it is the one binding with TWO
 // construction paths on one entry: the wrapper preset (`vue-default`) and this
 // injected-host escape hatch, whose exact host type survives into `i18n.core`.
-// The pipe is exercised where it actually belongs for vue — on the CORE, both
-// through `createCore` and through the preset's own `i18n.core`.
-//
-// Core's base entry IS in the graph — `createCore` is its constructor — so it is
-// never what the assertion is about.
+// Core's base entry IS in the graph — `createCore` is its constructor.
 //
 // <T> rendering needs a renderer and is NOT exercised here. No top-level await:
 // the webpack leg emits commonjs2.

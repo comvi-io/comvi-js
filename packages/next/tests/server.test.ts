@@ -25,8 +25,8 @@ const runInServerRuntime = async (fn: () => Promise<void>) => {
 describe("server getI18n", () => {
   afterEach(() => {
     vi.restoreAllMocks();
-    // framework-slim 0.5.0: the server i18n is a once-cell, so a second
-    // setI18n with a different instance throws instead of overwriting.
+    // The server i18n is a once-cell: a second setI18n with a different
+    // instance throws instead of overwriting.
     _resetServerI18n();
   });
 

@@ -3,9 +3,6 @@ import { getI18nInstance } from "./cache";
 import { ensureInitialized } from "./ensureInitialized";
 import type { ServerI18nHost } from "./hostTypes";
 
-/**
- * Options for loadTranslations
- */
 export interface LoadTranslationsOptions {
   /**
    * Namespaces to load. Defaults to default namespace only.

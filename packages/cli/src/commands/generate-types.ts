@@ -1,16 +1,3 @@
-/**
- * Generate Types command - Generate TypeScript types from TMS
- *
- * Usage:
- *   comvi typegen                     # One-time generation (preferred name)
- *   comvi typegen --watch             # Real-time updates via SSE
- *   comvi typegen --check             # CI mode: check if types are up to date
- *
- * Aliases:
- *   comvi generate-types              # Original verbose name
- *   comvi generate                    # Short legacy alias (one-time only)
- */
-
 import { Command } from "commander";
 import { TypeGenerator } from "../core/TypeGenerator";
 import { ConfigLoader } from "../core/ConfigLoader";
@@ -25,21 +12,16 @@ export function createGenerateTypesCommand(): Command {
       try {
         console.log("🔄 Loading configuration...");
 
-        // Load configuration
         const config = await ConfigLoader.load(options.config);
         const generatorOptions = ConfigLoader.toGeneratorOptions(config);
 
-        // Create generator
         const generator = new TypeGenerator(generatorOptions);
 
         if (options.check) {
-          // CI mode: check if types are up to date
           await runCheckMode(generator);
         } else if (options.watch) {
-          // Watch mode: subscribe to SSE updates
           await runWatchMode(generator);
         } else {
-          // One-time generation
           await runGenerateOnce(generator);
         }
       } catch (error) {
@@ -52,9 +34,8 @@ export function createGenerateTypesCommand(): Command {
 }
 
 /**
- * 'typegen' alias for 'generate-types' — short, canonical name used by the docs.
- * Mirrors the full feature set (--watch, --check) so every documented invocation
- * works regardless of which name the user types.
+ * `typegen` is the canonical name in the docs. It mirrors the full feature set
+ * (--watch, --check) so every documented invocation works under either name.
  */
 export function createTypegenCommand(): Command {
   return new Command("typegen")
@@ -86,9 +67,7 @@ export function createTypegenCommand(): Command {
     });
 }
 
-/**
- * Backward compatibility: 'generate' command that aliases to 'generate-types'
- */
+/** Legacy `generate` alias, kept for backward compatibility. */
 export function createGenerateCommand(): Command {
   return new Command("generate")
     .description("Generate TypeScript types from TMS (alias for generate-types)")
@@ -97,14 +76,11 @@ export function createGenerateCommand(): Command {
       try {
         console.log("🔄 Loading configuration...");
 
-        // Load configuration
         const config = await ConfigLoader.load(options.config);
         const generatorOptions = ConfigLoader.toGeneratorOptions(config);
 
-        // Create generator
         const generator = new TypeGenerator(generatorOptions);
 
-        // One-time generation
         await runGenerateOnce(generator);
       } catch (error) {
         if (error instanceof Error) {
@@ -115,9 +91,6 @@ export function createGenerateCommand(): Command {
     });
 }
 
-/**
- * Run one-time type generation
- */
 async function runGenerateOnce(generator: TypeGenerator): Promise<void> {
   console.log("🔄 Fetching schema from TMS...");
   const result = await generator.generate();
@@ -131,11 +104,7 @@ async function runGenerateOnce(generator: TypeGenerator): Promise<void> {
   }
 }
 
-/**
- * Run watch mode with SSE subscription
- */
 async function runWatchMode(generator: TypeGenerator): Promise<void> {
-  // Initial generation
   console.log("🔄 Fetching initial schema from TMS...");
   const result = await generator.generate();
 
@@ -146,7 +115,6 @@ async function runWatchMode(generator: TypeGenerator): Promise<void> {
 
   console.log(`✓ Generated ${result.keysGenerated} keys → ${result.filePath}`);
 
-  // Subscribe to SSE updates
   console.log("\n👀 Subscribing to real-time updates...");
 
   const apiClient = generator.getApiClient();
@@ -165,7 +133,6 @@ async function runWatchMode(generator: TypeGenerator): Promise<void> {
   console.log("✓ Watching for changes...");
   console.log("Press Ctrl+C to stop\n");
 
-  // Handle graceful shutdown
   process.on("SIGINT", () => {
     console.log("\n\n🛑 Closing SSE connection...");
     cleanup();
@@ -177,9 +144,6 @@ async function runWatchMode(generator: TypeGenerator): Promise<void> {
   process.stdin.resume();
 }
 
-/**
- * Run check mode for CI
- */
 async function runCheckMode(generator: TypeGenerator): Promise<void> {
   console.log("🔄 Checking if types are up to date...");
 

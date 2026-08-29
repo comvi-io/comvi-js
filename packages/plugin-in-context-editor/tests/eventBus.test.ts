@@ -199,7 +199,6 @@ describe("eventBus.ts - Pub/Sub System", () => {
       eventBus.on("test-event", callback1);
       eventBus.on("test-event", callback2);
 
-      // Mock console.error to suppress error output
       const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
 
       eventBus.emit("test-event");
@@ -343,7 +342,6 @@ describe("eventBus.ts - Pub/Sub System", () => {
     it("should handle many subscribers without errors", () => {
       const callbacks = Array.from({ length: 1000 }, () => vi.fn());
 
-      // Subscribe all callbacks
       callbacks.forEach((callback) => {
         eventBus.on("test-event", callback);
       });
@@ -351,7 +349,6 @@ describe("eventBus.ts - Pub/Sub System", () => {
       expect(eventBus.listenerCount("test-event")).toBe(1000);
       eventBus.emit("test-event");
 
-      // All callbacks should have been called
       callbacks.forEach((callback) => {
         expect(callback).toHaveBeenCalledTimes(1);
       });
@@ -381,12 +378,10 @@ describe("eventBus.ts - Pub/Sub System", () => {
         unsubscribers.push(unsubscribe);
       }
 
-      // Unsubscribe all
       unsubscribers.forEach((unsub) => unsub());
 
       eventBus.emit("test-event");
 
-      // None should be called
       callbacks.forEach((callback) => {
         expect(callback).not.toHaveBeenCalled();
       });

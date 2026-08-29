@@ -92,7 +92,7 @@ export function comviTypes(options: ComviTypesOptions): Plugin {
 
       const content = emitDeclarations(schema, emitOptions);
 
-      // Only write if content changed (avoid unnecessary TS re-checks)
+      // Skipping the unchanged write avoids a TS re-check storm in dev.
       if (content === lastContent) return;
       lastContent = content;
 
@@ -133,7 +133,6 @@ export function comviTypes(options: ComviTypesOptions): Plugin {
     },
 
     configureServer(server) {
-      // Watch translation files for changes during dev
       server.watcher.add(resolvedTranslationsPath);
       const triggerGenerate = (file: string) => {
         if (shouldRegenerateForFile(file)) {

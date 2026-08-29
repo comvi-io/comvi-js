@@ -182,9 +182,6 @@ function makeIcuArgToken(
   return [TK_PARAM, content.trim()];
 }
 
-/**
- * Processes an ICU plural token.
- */
 function processPlural(
   token: PluralToken,
   ctx: TranslateCtx,
@@ -231,12 +228,7 @@ function processPlural(
   return selected;
 }
 
-/**
- * Processes an ICU select token.
- * Expects choices string of the form:
- *   male {He} female {She} other {They}
- * Matches param value directly to keys.
- */
+/** Choices are `male {He} female {She} other {They}`; the param value matches a key directly. */
 function processSelect(
   token: SelectToken,
   ctx: TranslateCtx,
@@ -246,10 +238,9 @@ function processSelect(
   const choices = token[3] ?? parsePluralChoices(token[2], hashIsSyntax);
   const value = String(ctx.params[param] ?? "");
 
-  // Direct match or fallback to 'other'
   const selected = choices[value] ?? choices.other ?? "";
 
-  // Process nested tokens if they exist (ICU params, tags or quoting)
+  // A chosen branch may itself contain ICU params, tags or quoting.
   if (selected.includes("{") || selected.includes("<") || selected.includes("'")) {
     return translateSegment(selected, ctx, hashIsSyntax);
   }
@@ -259,9 +250,8 @@ function processSelect(
 
 /**
  * The full ICU message compiler: `{param}`, `plural`, `selectordinal`,
- * `select`. Lives ONLY on the pure `@comvi/core/icu` subpath (and inside the
- * internal composite); pass it as `compiler` to restore ICU behaviour on the
- * base host.
+ * `select`. Reachable ONLY through the pure `@comvi/core/icu` subpath and the
+ * composite; pass it as `compiler` to get ICU behaviour on a base host.
  */
 export const icuCompiler: MessageCompiler = {
   cid: 2,

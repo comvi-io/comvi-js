@@ -14,8 +14,7 @@ import {
   transformApiResponse,
 } from "./http";
 
-/** Cache for project info by API base URL + API key with TTL */
-const PROJECT_INFO_TTL_MS = 60 * 60 * 1000; // 1 hour
+const PROJECT_INFO_TTL_MS = 60 * 60 * 1000;
 const projectInfoCache = new Map<string, { info: ProjectInfo; expiresAt: number }>();
 interface PendingProjectInfo {
   promise: Promise<ProjectInfo>;
@@ -74,10 +73,7 @@ function joinPendingProjectInfo(
   });
 }
 
-/**
- * Fetch project info from API using the apiKey
- * Results are cached with a 1-hour TTL to avoid redundant requests
- */
+/** Results are cached for `PROJECT_INFO_TTL_MS`; concurrent callers share one request. */
 export async function fetchProjectInfo(
   apiKey: string,
   apiBaseUrl?: string,

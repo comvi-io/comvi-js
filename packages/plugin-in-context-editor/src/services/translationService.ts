@@ -1,8 +1,3 @@
-/**
- * Translation Service
- * Handles fetching and saving translations via API
- */
-
 import type { TranslationData, PluralFormTranslation, LanguageSelectConfig } from "../types";
 import { isDemoMode } from "../config/api";
 import {
@@ -18,9 +13,6 @@ import {
 } from "../utils/icuParser";
 import { apiFetch } from "./apiClient";
 
-/**
- * Demo mode error class
- */
 export class DemoModeError extends Error {
   constructor(operation: string) {
     super(
@@ -30,9 +22,6 @@ export class DemoModeError extends Error {
   }
 }
 
-/**
- * API Response type from server
- */
 interface ApiTranslationResponse {
   id: number;
   key: string;
@@ -158,19 +147,12 @@ function transformApiResponse(
   };
 }
 
-/**
- * Get translation data by key and namespace
- * @param key - Translation key
- * @param ns - Namespace for the translation key
- * @param scopeId - Optional runtime scope used to isolate editor instances
- * @returns Translation data or null if not found
- */
+/** Returns null in demo mode and for keys the server does not know. */
 export async function getTranslation(
   key: string,
   ns: string,
   scopeId?: string,
 ): Promise<TranslationData | null> {
-  // In demo mode, return null - the UI will show a simplified view
   if (isDemoMode(scopeId)) {
     return null;
   }
@@ -183,7 +165,7 @@ export async function getTranslation(
     );
 
     if (response.status === 404) {
-      // Return empty translation structure for missing keys (default to singular)
+      // Missing key: hand back an empty singular structure to edit into.
       return {
         key: key,
         isPlural: false,
@@ -208,15 +190,8 @@ export async function getTranslation(
 }
 
 /**
- * Save translation data
- * @param key - Translation key
- * @param ns - Namespace for the translation key
- * @param translations - Translation data to save
- * @param isPlural - Whether the translation uses plural forms
- * @param pluralVariable - Variable name for ICU plural format (e.g., "count", "n")
- * @param selectConfigs - Per-language select configurations
+ * @param pluralVariable - Variable name for the ICU plural format (e.g. "count")
  * @param scopeId - Optional runtime scope used to isolate editor instances
- * @returns Saved translation data
  */
 export async function saveTranslation(
   key: string,
@@ -227,21 +202,18 @@ export async function saveTranslation(
   selectConfigs?: Record<string, LanguageSelectConfig>,
   scopeId?: string,
 ): Promise<TranslationData> {
-  // In demo mode, throw an error to prevent saving
   if (isDemoMode(scopeId)) {
     throw new DemoModeError("Saving translations");
   }
 
   try {
-    // Transform translations to match API format
     const apiTranslations: Record<string, { value: string; status: string }> = {};
     Object.entries(translations).forEach(([langCode, forms]) => {
       const selectConfig = selectConfigs?.[langCode];
 
       if (isPlural && selectConfig?.enabled) {
-        // Combined: select wrapping plural
-        // Forms have composite keys like "formal:one", "formal:other"
-        // Extract plural forms from composite keys
+        // Select wrapping plural: forms carry composite keys like
+        // "formal:one" / "formal:other", split apart here.
         const pluralFormsSet = new Set<string>();
         Object.keys(forms).forEach((key) => {
           const parts = key.split(":");
@@ -307,14 +279,8 @@ export async function saveTranslation(
   }
 }
 
-/**
- * Delete translation data
- * @param key - Translation key
- * @param ns - Namespace for the translation key
- * @param scopeId - Optional runtime scope used to isolate editor instances
- */
+/** @param scopeId - Optional runtime scope used to isolate editor instances */
 export async function deleteTranslation(key: string, ns: string, scopeId?: string): Promise<void> {
-  // In demo mode, throw an error to prevent deletion
   if (isDemoMode(scopeId)) {
     throw new DemoModeError("Deleting translations");
   }
@@ -335,13 +301,8 @@ export async function deleteTranslation(key: string, ns: string, scopeId?: strin
   }
 }
 
-/**
- * Get all translation keys
- * @param scopeId - Optional runtime scope used to isolate editor instances
- * @returns Array of translation keys
- */
+/** @param scopeId - Optional runtime scope used to isolate editor instances */
 export async function getAllTranslationKeys(scopeId?: string): Promise<(string | number)[]> {
-  // In demo mode, return empty array
   if (isDemoMode(scopeId)) {
     return [];
   }

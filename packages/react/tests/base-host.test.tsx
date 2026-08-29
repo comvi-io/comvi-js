@@ -1,18 +1,11 @@
 /**
- * framework-slim P2 — @comvi/react's bindings on the BASE host.
+ * `@comvi/react`'s bindings on the BASE host — a host that implements
+ * `WrapperI18nHost` and nothing more. Nothing the wrapper does at render time
+ * may touch a loader/plugin member: a single eager `.bind()` of an absent
+ * capability would crash every case below.
  *
- * This is the D′ endpoint: the host implements `WrapperI18nHost` and nothing
- * more, which is exactly what `createI18n` from the single `@comvi/react`
- * entry builds. Everything `useI18n()` still returns must work on it, and
- * nothing the wrapper does at render time may touch a loader/plugin member — a
- * single eager `.bind()` of an absent capability would crash every case below.
- *
- * Every specifier here is the root entry, the way an app writes it: host,
- * bindings and the `attachLoader` composition all come from one package.
- *
- * The loud-error side of the contract (exact dev AND prod messages) lives in
- * tests/js-contract/, which runs against the published dist under both build
- * conditions.
+ * The loud-error half of the contract (exact dev AND prod messages) lives in
+ * tests/js-contract/, against the published dist under both build conditions.
  */
 import { describe, it, expect } from "vitest";
 import { render, renderHook, act } from "@testing-library/react";

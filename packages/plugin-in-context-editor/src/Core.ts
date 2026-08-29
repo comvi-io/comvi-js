@@ -1,13 +1,3 @@
-/**
- * Core - Main orchestrator for the in-context editor
- *
- * Creates and connects all components for translation editing.
- * Refactored to use:
- * - TranslationRegistry (decoupled from ElementHighlighter)
- * - TranslationScanner (with proper lifecycle)
- * - Event-based communication through EventBus
- */
-
 import { DOMWatcher } from "./DOMWatcher";
 import { TranslationScanner } from "./TranslationScanner";
 import { TranslationRegistry } from "./TranslationRegistry";
@@ -19,12 +9,9 @@ import type { I18nCoreInstance, I18nCoreExtraApi } from "@comvi/core";
 import { TAG_ATTRIBUTES } from "./constants";
 
 /**
- * The public instance surface the editor needs. Since the single-entry
- * convergence `@comvi/core`'s published `I18n` IS the base class — the loader
- * and plugin capabilities live only in the `@comvi/core/loader` and
- * `@comvi/core/plugins` subpaths — and instances reach the editor from both
- * directions: the discovery queue hands over base instances, the plugin entry
- * hands over a composed host. Both satisfy this.
+ * The public instance surface the editor needs. Instances arrive from both
+ * directions — the discovery queue hands over base `@comvi/core` instances,
+ * the plugin entry hands over a composed host — and both satisfy this.
  */
 export type EditorI18n = I18nCoreInstance & I18nCoreExtraApi;
 
@@ -111,7 +98,6 @@ export class Core {
     const nodeDataArray = Array.from(nodes?.values() || []);
 
     if (nodeDataArray.length > 1) {
-      // Multiple keys found - show selector dropdown
       const keyData = nodeDataArray.map((nodeData) => ({
         key: nodeData.key,
         ns: nodeData.ns,
@@ -134,7 +120,6 @@ export class Core {
           if (!this.stopped) console.error("[comvi] Failed to load editor UI:", error);
         });
     } else if (nodeDataArray.length === 1) {
-      // Single key - open modal directly
       void loadEditModal()
         .then(({ showModal }) => {
           if (this.stopped) return;
@@ -153,39 +138,35 @@ export class Core {
       tagAttributes: options?.tagAttributes || TAG_ATTRIBUTES,
     };
 
-    // Register i18n instance with unique ID for multi-instance support
     if (i18n) {
       registerI18nInstance(this.instanceId, i18n);
     }
 
     this.defaultNs = i18n?.getDefaultNamespace?.();
 
-    // Create EventBus first (shared communication channel)
+    // EventBus wiring: DOMWatcher and TranslationRegistry emit, while
+    // TranslationScanner and ElementHighlighter only listen.
     this.eventBus = new EventBus();
 
-    // Create ElementHighlighter with EventBus (listens for translation events)
     this.elementHighlighter = new ElementHighlighter(this.eventBus, this.handleElementClick, {
       debug: options?.debug,
       highlightStyle: options?.highlightStyle,
       defaultNs: i18n?.getDefaultNamespace?.(),
     });
 
-    // Create TranslationRegistry with EventBus (emits translation events)
     this.translationRegistry = new TranslationRegistry(this.eventBus);
 
-    // Create DOMWatcher (emits DOM mutation events)
     this.domWatcher = new DOMWatcher(this.eventBus, this.options);
 
-    // Create TranslationScanner (listens for DOM events, updates registry)
     this.translationScanner = new TranslationScanner(
       this.eventBus,
       this.translationRegistry,
       this.options,
     );
 
-    // Create the passive context collector (extension channel only — RALPLAN
-    // wave-2a). Constructed here so both activation paths (standalone.ts and
-    // index.ts) cover it; it only does anything once start()/stop() run.
+    // Passive context collector (extension channel only). Constructed here so
+    // both activation paths (standalone.ts and index.ts) cover it; it does
+    // nothing until start()/stop() run.
     this.collector = new Collector(this.eventBus, this.translationRegistry, this.instanceId, {
       enabled: options?.collectContext !== false,
       screenGroupResolver: options?.screenGroupResolver,
@@ -206,41 +187,23 @@ export class Core {
     // tears down state it depends on.
     this.collector.destroy();
 
-    // Stop DOM watching first
     this.domWatcher.stop();
-
-    // Destroy scanner (unsubscribes from events)
     this.translationScanner.destroy();
-
-    // Cleanup highlighter (removes event listeners)
     this.elementHighlighter.cleanup();
-
-    // Destroy registry (clears data, emits removal events)
     this.translationRegistry.destroy();
-
-    // Remove all event listeners from EventBus
     this.eventBus.removeAllListeners();
 
     // Cleanup UI only when its lazy chunk has been loaded.
     editModalModule?.cleanup();
     keySelectorModule?.cleanup();
 
-    // Unregister i18n instance
     unregisterI18nInstance(this.instanceId);
   }
 
-  /**
-   * Get the instance ID for this Core
-   * Useful for debugging multi-instance scenarios
-   */
   public getInstanceId(): string {
     return this.instanceId;
   }
 
-  /**
-   * Get the translation registry
-   * Useful for testing and debugging
-   */
   public getRegistry(): TranslationRegistry {
     return this.translationRegistry;
   }

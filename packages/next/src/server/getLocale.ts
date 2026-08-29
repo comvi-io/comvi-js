@@ -1,19 +1,13 @@
 import { headers } from "next/headers";
 import { getRequestLocaleFromCache } from "./cache";
 
-/**
- * Header name set by middleware to pass locale to Server Components
- */
+// Set by the middleware to pass the locale to Server Components.
 const LOCALE_HEADER = "x-comvi-locale";
 
 /**
- * Get the current request locale
+ * Get the current request locale, from — in order — the request cache (set by
+ * setRequestLocale) and the x-comvi-locale header (set by middleware).
  *
- * This function reads the locale from:
- * 1. Request cache (set by setRequestLocale)
- * 2. x-comvi-locale header (set by middleware)
- *
- * @returns The current locale
  * @throws Error if locale cannot be determined
  *
  * @example
@@ -27,13 +21,11 @@ const LOCALE_HEADER = "x-comvi-locale";
  * ```
  */
 export async function getLocale(): Promise<string> {
-  // First check if setRequestLocale was called
   const cachedLocale = getRequestLocaleFromCache();
   if (cachedLocale) {
     return cachedLocale;
   }
 
-  // Fallback to middleware header
   const headersList = await headers();
   const localeFromHeader = headersList.get(LOCALE_HEADER);
 

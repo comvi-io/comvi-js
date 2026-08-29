@@ -1,10 +1,9 @@
 import type { I18nEvent, I18nEventData } from "../types";
 
 /**
- * Canonical revision event set — every event after which translation output,
- * resolved config, or loading state observable through an i18n instance may
- * differ. This is the single source of truth for the wrappers' event→reactivity
- * bridges (vue/react/solid/svelte); do not hand-copy subsets into wrappers.
+ * Every event after which translation output, resolved config or loading state
+ * may differ. The single source of truth for the wrappers' event→reactivity
+ * bridges — never hand-copy a subset into a wrapper.
  */
 export const REVISION_EVENTS = [
   "localeChanged",
@@ -28,12 +27,11 @@ export interface RevisionEventSource {
 }
 
 /**
- * Subscribe `callback` to the canonical revision event set of an i18n instance.
+ * Subscribe `callback` to every {@link REVISION_EVENTS} event of an instance.
  *
- * The callback receives the event name so bridges that maintain separate
- * reactive axes (locale, loading, cache/config revision) can route without
- * re-declaring the event list. Returns a disposer that removes all
- * subscriptions.
+ * The callback receives the event name, so a bridge maintaining separate
+ * reactive axes (locale, loading, cache revision) can route without
+ * re-declaring the list. Returns a disposer that removes all subscriptions.
  *
  * @example
  * ```ts

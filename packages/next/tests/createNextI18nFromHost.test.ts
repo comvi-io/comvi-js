@@ -1,11 +1,7 @@
-// framework-slim P5 step 4 — the server companion that imports no core
-// constructor of its own.
-//
-// Everything here runs against a COMPOSED host the test builds itself
-// (`@comvi/core`'s base entry + `attachLoader`), never through Next's own
-// composed-host builder: that is the configuration the
-// `fw-next-server-default-loader` fixture measures, and the reason the
-// companion exists at all.
+// The server companion that imports no core constructor of its own: everything
+// here runs against a COMPOSED host the test builds itself (`@comvi/core`'s
+// base entry + `attachLoader`), never through Next's own composed-host
+// builder — which is the reason the companion exists at all.
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
@@ -133,7 +129,6 @@ describe("createNextI18nFromHost — export boundary", () => {
       exports: Record<string, { default: string }>;
     };
 
-    // The specifier every fixture, doc and changeset names.
     expect(pkg.exports["./server"].default).toBe("./dist/server.js");
 
     const serverEntry = await import("../src/server");

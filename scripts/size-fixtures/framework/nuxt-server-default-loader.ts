@@ -1,18 +1,6 @@
-// Framework size fixture (single-entry P4): the nuxt SERVER graph — the
-// runtime plugin, the `useI18n` composable and the server translation loader —
-// on a `hostModule` host that composed the ONE capability SSR needs.
-//
-// RENAMED from `nuxt-server-slim-loader.ts`. The recipe is unchanged; the word
-// that named it is gone, because there is no second host tier to be slim
-// against. What the row measures is the default nuxt server graph plus
-// `@comvi/core/loader`, and the module never adds that for you: SSR loading is
-// a capability an app composes in its own factory.
-//
-// This row and `fw-nuxt-client-default` are the same runtime modules and the
-// same base host; they differ in the server utilities and in the one composed
-// capability. `fw-nuxt-full-composite` is the same graph again with every
-// capability composed — three rows, one construction seam, which is what makes
-// the ladder readable.
+// Framework size fixture: the nuxt SERVER graph — the runtime plugin, the `useI18n`
+// composable and the server translation loader — on a `hostModule` host that composed
+// the ONE capability SSR needs.
 import plugin from "@comvi/nuxt/runtime/plugin.js";
 import { useI18n } from "@comvi/nuxt/runtime/composables/useI18n.js";
 import { loadTranslations } from "@comvi/nuxt/runtime/server/utils/loadTranslations.js";

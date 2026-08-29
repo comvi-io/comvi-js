@@ -1,10 +1,7 @@
 // Type-level smoke test: the root, /icu, /rich-text, /tags, /loader, /plugins,
 // /devtools and /editor-bridge entries resolve and expose the contracted
-// surface.
-// The root is the BASE host, so every capability assertion below is about a
-// capability being ABSENT until it is composed in.
-// (Published-artifact resolution under moduleResolution bundler/node16 is
-// exercised by attw/publint and the bundler-matrix job against dist.)
+// surface. The root is the BASE host, so every capability assertion below is
+// about a capability being ABSENT until it is composed in.
 import {
   createI18n as createBaseI18n,
   subscribeToRevision,
@@ -87,10 +84,9 @@ if (isVirtualNode(node)) {
   node.type satisfies "element" | "text" | "fragment";
 }
 
-// rich-text: the pure `<T>` seam types independently of the ambient entry, and
-// `@comvi/core/tags` re-exports the SAME declarations — so a binding taken from
-// one is assignable to the slot typed by the other. That assignability is the
-// backward-compatibility contract of the split.
+// The pure `<T>` seam types independently of the ambient entry, and
+// `@comvi/core/tags` re-exports the SAME declarations — that assignability IS
+// the backward-compatibility contract of the split.
 declare const richSource: PrepareTranslationSource;
 const richProps: PrepareTranslationProps = { i18nKey: "msg", components: { link: "a" } };
 const prepared: PreparedTranslation = prepareTranslation(richSource, richProps);
@@ -102,8 +98,7 @@ const richChildren: (string | VirtualNode)[] = childrenToArray(prepared.content)
 richChildren.push(createFragment(["x"]));
 const componentsMap: TagComponentsMap = { link: "a" };
 void componentsMap;
-// The ambient entry re-exports the SAME declaration, so the two bindings are
-// interchangeable in a consumer's type positions.
+// Interchangeable in a consumer's type positions.
 const viaTags: typeof prepareTranslation = tagsPrepareTranslation;
 void viaTags;
 
@@ -130,7 +125,7 @@ if (bridge) {
 // @ts-expect-error — the guard result may be undefined; direct call must not type
 readEditorMappings({}).getKeyMappings();
 
-// ── /loader: the composition surface (Phase 7) ────────────────────────────
+// ── /loader: the composition surface ─────────────────────────────────────
 
 // A bare slim instance genuinely lacks the loader capability.
 // @ts-expect-error — registerLoader lives in @comvi/core/loader
@@ -138,13 +133,13 @@ slim.registerLoader(async () => ({}));
 // @ts-expect-error — reloadTranslations lives in @comvi/core/loader
 slim.reloadTranslations();
 
-// Contingencies C1/C2: namespace activation and the loadError wrapper are
-// loader-domain and absent from a bare slim instance.
-// @ts-expect-error — addActiveNamespace lives in @comvi/core/loader (C1)
+// Namespace activation and the loadError wrapper are loader-domain, so they are
+// absent from a bare instance.
+// @ts-expect-error — addActiveNamespace lives in @comvi/core/loader
 slim.addActiveNamespace("common");
-// @ts-expect-error — addActiveNamespaces lives in @comvi/core/loader (C1)
+// @ts-expect-error — addActiveNamespaces lives in @comvi/core/loader
 slim.addActiveNamespaces(["common"]);
-// @ts-expect-error — onLoadError lives in @comvi/core/loader (C2)
+// @ts-expect-error — onLoadError lives in @comvi/core/loader
 slim.onLoadError(() => {});
 
 // attachLoader returns the instance widened with the loader API.
@@ -166,16 +161,15 @@ const mapLoader: LoaderFn = createImportMapLoader(
 );
 withLoader.registerLoader(mapLoader);
 
-// The import-map form is the CONFIGURED installer's job now: the base root
-// has no `registerLoader` at all, and the loader capability's own signature
-// takes a `LoaderFn`. `@comvi/next`'s composed host restores the published
-// two-overload shape (pinned by `next-contract.test-d.ts`).
+// The import-map form is the CONFIGURED installer's job: the base root has no
+// `registerLoader` at all, and the loader capability's signature takes a
+// `LoaderFn`. `@comvi/next`'s composed host restores the two-overload shape.
 const mapConfigured = createBaseI18n({ locale: "en" }).with(
   loader({ en: async () => ({ hello: "world" }) }),
 );
 void mapConfigured.getLoader();
 
-// ── /plugins: the plugin-host surface (Phase 7) ───────────────────────────
+// ── /plugins: the plugin-host surface ────────────────────────────────────
 
 // A bare slim instance genuinely lacks the plugin host.
 // @ts-expect-error — use() lives in @comvi/core/plugins
@@ -186,7 +180,7 @@ slim.registerPostProcessor((r) => r);
 slim.setPluginData("k", 1);
 
 // The attach chain composes: loader first, then the plugin host that may run
-// loader-registering plugins (README ordering warning / R8).
+// loader-registering plugins.
 const composed = attachPlugins(attachLoader(createBaseI18n({ locale: "en" })));
 composed.registerLoader(loaderFn);
 composed.use(() => {});
@@ -212,11 +206,8 @@ composed.use(fetchLoaderShaped);
 // @ts-expect-error — the base root is not a plugin host until `.with(plugins())`
 createBaseI18n({ locale: "en" }).use(fetchLoaderShaped);
 
-// ── root: the framework-slim P1 wrapper enablers ──────────────────────────
-//
 // Every value a wrapper runtime module needs resolves through the single root
-// entry, which is side-effect-free (the ambient `register-tags` registration
-// lives in `@comvi/core/tags`) — so reaching for a helper costs a wrapper
+// entry, which is side-effect-free — so reaching for a helper costs a wrapper
 // nothing beyond the helper.
 const disposeRevision: () => void = subscribeToRevision(slim, (event) => {
   event satisfies RevisionEvent;
@@ -253,7 +244,7 @@ if (hasPluginHostApi(slimHost)) {
 const composedHost: WrapperI18nHost = composed;
 void composedHost;
 
-// ── /devtools: the discovery capability (framework-slim tier-3, C1) ───────
+// ── /devtools: the discovery capability ──────────────────────────────────
 //
 // A bare slim instance has no discovery code at all: `instanceId` is declared
 // on the class (it is part of `I18nCoreExtraApi`) and stays `undefined` until

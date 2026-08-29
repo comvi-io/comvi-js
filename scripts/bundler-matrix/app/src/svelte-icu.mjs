@@ -1,26 +1,18 @@
-// Single-entry P3 gate: the default svelte recipe plus EXACTLY ONE capability.
-// Every import comes from `@comvi/svelte`; `@comvi/core` is never named by the
-// app — including for `icuCompiler`, which is the point of the single-entry
-// surface: reaching a capability never means reaching past your framework
-// package.
+// The default svelte recipe plus EXACTLY ONE capability, every import from
+// `@comvi/svelte` — `icuCompiler` included, which is the point of the
+// single-entry surface: reaching a capability never means reaching past your
+// framework package.
 //
-// NEW case in P3, on the model of `react-icu`. It is the POSITIVE half of the
-// `fw-svelte-icu` size row: a size sentinel can only assert a module ABSENT, so
-// that row leaves ICU out of its sentinel list and this case proves ICU's
-// presence by running the bundle and formatting a plural for real, in both
-// bundlers and both modes. The base host without a compiler THROWS
-// E_ICU_SYNTAX on the very template below, so the two assertions here fail
-// loudly if the re-export hop ever drops the compiler instead of shipping it.
+// The POSITIVE half of the ICU claim: a size sentinel can only assert a module
+// ABSENT, so this case proves ICU's presence by formatting a plural for real.
+// The base host without a compiler THROWS E_ICU_SYNTAX on the very template
+// below, so the assertions fail loudly if the re-export hop ever drops the
+// compiler instead of shipping it. The runner asserts the capabilities this app
+// does NOT buy stay out of the module graph.
 //
-// The runner also asserts from the module graphs that the capabilities this app
-// does NOT buy — loader, plugins, devtools — plus core's tag-registration pair
-// stay out. The behavioral mirror of those absences is asserted below. Core's
-// BASE entry is present, since its `createI18n` is what this app constructs
-// with, so it is never an absence sentinel.
-//
-// <T> rendering needs a DOM and is NOT exercised here (same documented skip as
-// wrappers.mjs), and not importing `T` keeps the webpack leg — which has no
-// svelte loader — able to prune `T.svelte` without resolving it.
+// <T> rendering needs a DOM and is NOT exercised here, and not importing `T`
+// keeps the webpack leg — which has no svelte loader — able to prune `T.svelte`
+// without resolving it.
 import { createI18n, I18n, icuCompiler, setI18nContext, useI18n } from "@comvi/svelte";
 
 function assert(condition, label) {

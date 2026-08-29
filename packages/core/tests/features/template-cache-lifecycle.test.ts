@@ -4,13 +4,12 @@ import { clearTemplateCache, isStaticTemplate, _templateCacheSize } from "../../
 import { parsePluralChoices, icuCompiler } from "../../src/core/translate/compile-icu";
 import { effectiveExtBits, getCompilerId } from "../../src/core/translate/syntax";
 
-// The composed-host helper (the 0.4 root's semantics, which the converged base
-// root no longer carries) registers tag syntax ambiently and wires the ICU
-// compiler, so the cache variant used by its instances — `rootVariant` below,
-// named for that historical root — is (icu, ambient bits).
+// The composed-host helper registers tag syntax ambiently and wires the ICU
+// compiler, so the cache variant its instances use — `rootVariant` below — is
+// (icu, ambient bits).
 const rootVariant = () => [getCompilerId(icuCompiler), effectiveExtBits()] as const;
 
-// Reset the module-level template cache before each test so tests are isolated.
+// The template cache is MODULE-level, so it must be reset between tests.
 beforeEach(() => {
   clearTemplateCache();
 });
@@ -33,7 +32,7 @@ describe("templateCache eviction", () => {
   it("keeps size at or below the cap after inserting many distinct templates", () => {
     const i18n = createI18n({ locale: "en" });
     const translations: Record<string, string> = {};
-    // Insert TEMPLATE_CACHE_MAX + 50 distinct parametrized templates so eviction fires.
+    // Enough distinct parametrized templates that eviction has to fire.
     const total = 1050;
     for (let n = 0; n < total; n++) {
       translations[`key_${n}`] = `Value ${n} for {name}`;
@@ -51,7 +50,7 @@ describe("templateCache eviction", () => {
     clearTemplateCache();
     const i18n = createI18n({ locale: "en" });
     const translations: Record<string, string> = {};
-    // Pure static strings (no {, ', <, &) — the fast-path caches them too.
+    // Pure static strings (no {, ', <, &) — the fast path caches them too.
     for (let n = 0; n < 1050; n++) {
       translations[`static_${n}`] = `Hello world number ${n}`;
     }
@@ -75,7 +74,7 @@ describe("templateCache correctness after clearTranslations", () => {
     i18n.clearTranslations();
     i18n.addTranslations({ en: { greeting: "Hello, {name}!" } });
 
-    // Template is still compiled in the module-level cache; translation must still work.
+    // Still compiled in the module-level cache, so translation must still work.
     expect(i18n.t("greeting" as never, { name: "Bob" } as never)).toBe("Hello, Bob!");
   });
 
@@ -105,7 +104,6 @@ describe("templateCache cross-instance isolation", () => {
     i18nA.addTranslations({ en: { shared: template } });
     i18nB.addTranslations({ en: { shared: template } });
 
-    // Populate the shared template cache from both instances.
     expect(i18nA.t(key, params)).toBe(expected);
     expect(i18nB.t(key, params)).toBe(expected);
 
@@ -130,7 +128,6 @@ describe("templateCache cross-instance isolation", () => {
 
     i18nA.clearTranslations();
 
-    // B still has its translation data and the template cache should be intact.
     expect(i18nB.t(key, { name: "Z" } as never)).toBe("Hi Z");
   });
 });

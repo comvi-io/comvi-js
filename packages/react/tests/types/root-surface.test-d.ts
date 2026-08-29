@@ -1,15 +1,8 @@
-// Type-level contract for the `@comvi/react` SINGLE-ENTRY surface.
-//
-// Two claims are under test. First, the entry's factory really builds a BASE
-// host: the capability members are absent from its TYPE, so the §2.4
-// "type-honest by absence" rule survives the convenience. Second, the entry's
-// type vocabulary and the capability toolkit are core's own — a wrapper that
-// re-declared them would hand an app types that drift from the runtime it
-// composes against.
-//
-// Every specifier below is the wrapper's ONE entry. That is the point: an app
-// gets its whole type vocabulary, and its react bindings, without ever naming
-// `@comvi/core`.
+// Two claims. First, the entry's factory builds a BASE host: the capability
+// members are absent from its TYPE, so "type-honest by absence" survives the
+// convenience. Second, the type vocabulary and the capability toolkit are
+// core's own — a wrapper that re-declared them would hand an app types that
+// drift from the runtime it composes against.
 import type {
   DefaultTranslationParams,
   I18n,
@@ -35,9 +28,7 @@ type Equal<X, Y> =
   (<T>() => T extends X ? 1 : 2) extends <T>() => T extends Y ? 1 : 2 ? true : false;
 type Expect<T extends true> = T;
 
-// ---------------------------------------------------------------------------
-// (i) The entry's factory builds a BASE host — core's own root host type.
-// ---------------------------------------------------------------------------
+// The entry's factory builds a BASE host — core's own root host type.
 
 const bare = createI18n({ locale: "en" });
 
@@ -55,13 +46,10 @@ bare.reloadTranslations();
 // @ts-expect-error -- ...and none of the plugin host either
 bare.onMissingKey(() => undefined);
 
-// The core-safe surface is of course there.
 bare.addTranslations({ en: { greeting: "Hello" } });
 
-// ---------------------------------------------------------------------------
-// (ii) ICU has TWO shapes and BOTH are named by this entry: the compiler for
-//      an inline constructor catalog, the installer for a pre-ingestion pipe.
-// ---------------------------------------------------------------------------
+// ICU has TWO shapes, both named by this entry: the compiler for an inline
+// constructor catalog, the installer for a pre-ingestion pipe.
 
 const _withIcu = createI18n({ locale: "en", compiler: icuCompiler });
 export type _IcuHostIsStillBase = Expect<Equal<typeof _withIcu, I18n<{}>>>;
@@ -76,19 +64,15 @@ export type _IcuInstallerTakesACompiler = Expect<Equal<typeof _withIcuCustom, I1
 // @ts-expect-error -- `icu` is the installer FACTORY; the pipe wants its result
 createI18n({ locale: "en" }).with(icu);
 
-// ---------------------------------------------------------------------------
-// (ii-b) The host the entry builds is the host the entry's provider accepts —
-//        one entry, one `WrapperI18nHost`, no cross-entry structural drift.
-// ---------------------------------------------------------------------------
+// The host the entry builds is the host its provider accepts: one entry, one
+// `WrapperI18nHost`, no cross-entry structural drift.
 
 export type _BaseHostFitsTheProvider = Expect<
   Equal<typeof bare extends I18nProviderProps["i18n"] ? true : false, true>
 >;
 
-// ---------------------------------------------------------------------------
-// (iii) `const D` inference survives the entry hop: a declared default-param
-//       set stays exact, so `setDefaultParams` keeps its narrow signature.
-// ---------------------------------------------------------------------------
+// `const D` inference survives the entry hop: a declared default-param set
+// stays exact, so `setDefaultParams` keeps its narrow signature.
 
 const _withDefaults = createI18n({ locale: "en", defaultParams: { brand: "Comvi" } });
 export type _DefaultsAreExact = Expect<
@@ -98,9 +82,7 @@ export type _DefaultsSatisfyTheConstraint = Expect<
   Equal<{ readonly brand: "Comvi" } extends DefaultTranslationParams ? true : false, true>
 >;
 
-// ---------------------------------------------------------------------------
-// (iv) The toolkit re-exports carry core's own widening types.
-// ---------------------------------------------------------------------------
+// The toolkit re-exports carry core's own widening types.
 
 const withLoader = attachLoader(createI18n({ locale: "en" }));
 export type _LoaderWidens = Expect<
@@ -123,18 +105,12 @@ void _withPlugins.use(() => undefined);
 const _withDevtools = attachDevtools(createI18n({ locale: "en" }), { exposeGlobal: false });
 export type _DevtoolsKeepsHostType = Expect<Equal<typeof _withDevtools, I18n<{}>>>;
 
-// The pure flattener needs no host at all.
 const flat: Record<string, string> = flattenCatalog({ nav: { home: "Home" } });
 void flat;
 
-// ---------------------------------------------------------------------------
-// (v) `.with(installer)` — the composition pipe and the configured installers
-//     (framework-slim DX-2). The claim: the generic host type flows THROUGH
-//     the pipe and comes out widened, never decayed to `any`.
-// ---------------------------------------------------------------------------
-
-// The target DX, VERBATIM (README / MIGRATION §4 quickstart), against a real
-// `./uk.json` so the dynamic-import thunk is typed the way an app's is.
+// `.with(installer)`: the generic host type flows THROUGH the pipe and comes
+// out widened, never decayed to `any`. Against a real `./uk.json`, so the
+// dynamic-import thunk is typed the way an app's is.
 const piped = createI18n({ locale: "en", compiler: icuCompiler }).with(
   loader({ uk: () => import("./uk.json") }),
 );

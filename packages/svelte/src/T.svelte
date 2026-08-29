@@ -1,11 +1,8 @@
 <script lang="ts">
   // The PURE rich-text seam, NOT '@comvi/core/tags': importing the tags entry
-  // would register tag syntax AMBIENTLY, so every app that renders <T> would
-  // silently start parsing `<tag>` markup in plain string-API `t()` too. <T>
-  // never needed that — prepareTranslation passes the tag extension per call
-  // — and this module is the only thing that pulled it in, so `@comvi/svelte`
-  // now leaves the ambient switch entirely to the app
-  // (`import "@comvi/core/tags"`).
+  // would register tag syntax AMBIENTLY, so every app rendering <T> would also
+  // start parsing `<tag>` markup in plain string-API `t()`. prepareTranslation
+  // passes the tag extension per call, so the ambient switch stays the app's.
   import { prepareTranslation } from '@comvi/core/rich-text';
   import type { PendingHandler } from '@comvi/core/rich-text';
   import type { Component } from 'svelte';
@@ -29,9 +26,8 @@
   const languageStore = createLocaleStore(i18n);
   const cacheRevision = createCacheRevisionStore(i18n);
 
-  // Shared <T> pipeline — reacts to all props and both stores.
   const prepared = $derived.by(() => {
-    // Access stores to establish reactive dependency
+    // These two reads ARE the reactive dependency.
     void $languageStore;
     void $cacheRevision;
 
@@ -46,7 +42,6 @@
     });
   });
 
-  // Marker tag → pending framework handler, for the structural converter below.
   const pendingByTag = $derived.by(() => {
     const byTag: Record<string, PendingHandler> = Object.create(null);
     for (const pending of prepared.pendingHandlers) {
@@ -57,9 +52,8 @@
 
   const renderSlot = $derived(prepared.isMissing && children != null);
 
-  // Attribute contract parity with the other wrappers (and the pre-rewrite
-  // string renderer): a boolean `false` prop means "omit the attribute".
-  // `<svelte:element>` spreads would otherwise serialize it as `attr="false"`.
+  // A boolean `false` prop means "omit the attribute", as in the other
+  // wrappers; a `<svelte:element>` spread would serialize it as `attr="false"`.
   function elementProps(props: Record<string, unknown>): Record<string, unknown> {
     let filtered: Record<string, unknown> | null = null;
     for (const name in props) {
@@ -73,9 +67,9 @@
 </script>
 
 <!--
-  Recursive structural render of the VirtualNode tree. Translation content can
-  only ever produce text nodes and handler-mapped elements — there is no HTML
-  string sink, so untrusted translations cannot inject markup.
+  Translation content can only ever produce text nodes and handler-mapped
+  elements — there is no HTML string sink, so untrusted translations cannot
+  inject markup.
 -->
 {#snippet renderList(items: Array<VirtualNode | string>)}
   {#each items as item, index (index)}

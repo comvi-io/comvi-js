@@ -134,7 +134,6 @@ describe("session lifecycle", () => {
     expect(afterActivation.ok).toBe(true);
     expect(afterActivation.status).toBe(200);
 
-    // The authenticated request went to the fixed API origin with the key.
     const proxiedCall = fetchMock.mock.calls[fetchMock.mock.calls.length - 1];
     expect(String(proxiedCall[0])).toBe("https://api.comvi.io/v1/project/locales");
     expect(proxiedCall[1].headers.Authorization).toBe(`Bearer ${API_KEY}`);

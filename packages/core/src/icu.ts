@@ -13,12 +13,11 @@
 //
 // The rule is about the first CATALOG, never about a particular installer:
 // composing a loader ingests nothing, so `.with(loader(map)).with(icu())` is
-// exactly as valid as the recipe above. The order of `loader()`, `plugins()`
-// and `devtools()` among themselves is free.
+// exactly as valid as the recipe above.
 //
-// Deliberately not exported from the root: the root entry is the BASE host
-// with the simple compiler, and ICU is an import you add — never an entry you
-// switch. This subpath stays out of the package `sideEffects` array forever.
+// Deliberately not exported from the root, which is the BASE host with the
+// simple compiler. This subpath must stay out of the package `sideEffects`
+// array.
 import type { I18n, I18nInternal } from "./core/i18n";
 import { icuCompiler } from "./core/translate/compile-icu";
 import type { MessageCompiler } from "./core/translate/syntax";

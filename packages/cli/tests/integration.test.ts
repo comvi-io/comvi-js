@@ -9,20 +9,12 @@ import type { GeneratorOptions, ProjectSchema } from "../src/types";
 // Mock ApiClient only (network calls) - TypeEmitter runs for real
 vi.mock("../src/core/ApiClient");
 
-/**
- * Integration Tests
- *
- * These tests verify that all components work together correctly in real-world scenarios.
- * These tests use mocked API and TypeEmitter to focus on the integration between
- * TypeGenerator, FileSystemWriter, and Reporter.
- */
 describe("Integration Tests", () => {
   let fs: InMemoryFileSystem;
   let fileWriter: FileSystemWriter;
   let reporter: CollectingReporter;
   let logger: SilentLogger;
 
-  // Mock schema that matches a typical app setup
   const mockSchema: ProjectSchema = {
     keys: {
       "common:app.title": { params: [] },
@@ -46,7 +38,6 @@ describe("Integration Tests", () => {
     reporter = new CollectingReporter();
     logger = new SilentLogger();
 
-    // Setup ApiClient mocks
     const mockApiClient = vi.mocked(ApiClient);
     mockApiClient.prototype.validateConnection = vi.fn().mockResolvedValue(true);
     mockApiClient.prototype.fetchSchema = vi.fn().mockResolvedValue(mockSchema);
@@ -70,22 +61,18 @@ describe("Integration Tests", () => {
 
       const result = await generator.generate();
 
-      // Verify successful generation
       expect(result.success).toBe(true);
       expect(result.keysGenerated).toBe(3); // 3 keys in mockSchema
       expect(result.filePath).toBe("src/types/i18n.d.ts");
 
-      // Verify file was written
       expect(fs.hasFile("src/types/i18n.d.ts")).toBe(true);
 
-      // Verify file content
       const content = await fs.readFile("src/types/i18n.d.ts");
       expect(content).toContain("declare module '@comvi/core'");
       expect(content).toContain("'common:app.title'");
       expect(content).toContain("'common:user.greeting'");
       expect(content).toContain("'common:cart.items'");
 
-      // Verify reporter received events
       const reports = reporter.reports;
       expect(reports).toContainEqual(
         expect.objectContaining({
@@ -141,7 +128,6 @@ describe("Integration Tests", () => {
       expect(result.success).toBe(false);
       expect(result.error).toContain("Network timeout");
 
-      // Verify error was reported
       const errorReport = reporter.reports.find((r) => r.type === "error");
       expect(errorReport?.data).toBeInstanceOf(Error);
     });
@@ -171,7 +157,6 @@ describe("Integration Tests", () => {
 
   describe("Multi-Namespace Scenarios", () => {
     it("should generate types for multiple namespaces", async () => {
-      // Mock schema with multiple namespace keys
       const multiNsSchema: ProjectSchema = {
         keys: {
           "common:hello": { params: [] },
@@ -260,7 +245,6 @@ describe("Integration Tests", () => {
 
       const content = await fs.readFile("src/types/i18n.d.ts");
 
-      // Verify all keys are present
       expect(content).toContain("'complex:items'");
       expect(content).toContain("'complex:greeting'");
       expect(content).toContain("'complex:stats'");
@@ -325,7 +309,6 @@ describe("Integration Tests", () => {
       expect(result.error).toContain("Rate limit exceeded");
       expect(result.duration).toBeGreaterThanOrEqual(0);
 
-      // Verify error was reported with context
       const errorReport = reporter.reports.find((r) => r.type === "error");
       expect(errorReport?.data).toBeInstanceOf(Error);
     });
@@ -477,7 +460,6 @@ describe("Integration Tests", () => {
       expect(result.keysGenerated).toBe(3);
       expect(result.filePath).toBe("src/types/i18n.d.ts");
 
-      // Verify metrics were reported
       const completeReport = reporter.reports.find((r) => r.type === "success");
       expect(completeReport?.data).toMatchObject({
         keysGenerated: 3,
@@ -486,7 +468,6 @@ describe("Integration Tests", () => {
     });
 
     it("should handle large datasets efficiently", async () => {
-      // Create schema with 1000 keys
       const largeSchema: ProjectSchema = {
         keys: Object.fromEntries(
           Array.from({ length: 1000 }, (_, i) => [
@@ -521,7 +502,6 @@ describe("Integration Tests", () => {
       expect(result.keysGenerated).toBe(1000);
       expect(duration).toBeLessThan(5000); // Should complete in under 5 seconds
 
-      // Verify file was generated correctly
       const content = await fs.readFile("src/types/i18n.d.ts");
       expect(content).toContain("'large:key0'");
       expect(content).toContain("'large:key999'");

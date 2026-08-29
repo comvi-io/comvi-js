@@ -318,10 +318,9 @@ describe("nuxt module setup", () => {
       .find(([template]: [{ filename: string }]) => template.filename === "comvi.host.mjs")?.[0]
       .getContents();
 
-    // The 0 B claim, asserted where it is actually decided. The option is a
-    // codegen branch, so an app that did not ask for ICU emits a module that
-    // cannot pull `@comvi/core/icu` into its graph at all — there is nothing
-    // for a bundler to have to prove dead.
+    // The option is a codegen branch, so an app that did not ask for ICU emits
+    // a module that cannot pull `@comvi/core/icu` into its graph at all — there
+    // is nothing for a bundler to have to prove dead.
     expect(contents).not.toContain("@comvi/core/icu");
     expect(contents).not.toContain("icuCompiler");
     expect(contents).not.toContain("compiler");

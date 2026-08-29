@@ -30,12 +30,7 @@ import type {
   DefaultParamsSnapshot,
 } from "@comvi/core";
 
-/**
- * Host type every svelte binding demands (framework-slim D′): the reactive
- * translation host, exactly what the base `@comvi/svelte` factory
- * implements. The loader/plugin-host members are deliberately NOT part of it —
- * they are acquired through `useI18nLoader()` / `useI18nPlugins()`.
- */
+/** Loader/plugin-host members are NOT part of it — see `capabilities.ts`. */
 type Host<D extends DefaultTranslationParams = {}> = WrapperI18nHost<D>;
 
 const DEFAULT_NS_CACHE_KEY = Symbol("comvi-default-ns");
@@ -59,8 +54,8 @@ type CachedRawTranslationStore = RawTranslationStore<{}>;
 type CachedTextTranslationStore = TextTranslationStore<{}>;
 
 /**
- * Cache of derived raw translation stores per i18n instance and default namespace.
- * Keeps store references stable across repeated useI18n() calls.
+ * One derived store per (instance, namespace), so repeated `useI18n()` calls
+ * get stable store references.
  *
  * Keyed by object IDENTITY: `WrapperI18nHost<D>` is INVARIANT in `D`
  * (`init(): Promise<this>` recurses back through the `D`-typed
@@ -132,79 +127,53 @@ function getOrCreateTextTranslationStore<D extends DefaultTranslationParams>(
 }
 
 /**
- * The host-only translation surface. The four capability members that used to
- * live here — `addActiveNamespace`, `reloadTranslations`, `onLoadError`
- * (loader) and `onMissingKey` (plugins) — moved to `useI18nLoader()` /
- * `useI18nPlugins()` in 0.5.0: they do not exist on a base host, so a
- * type that promised them was lying (plan §2.4). Svelte is the wrapper where
- * that lie crashed EAGERLY — `useI18n()` used to `.bind()` all four at call
- * time, so a base host threw before returning anything.
+ * The host-only translation surface. Loader and plugin-host members are not
+ * part of it — they do not exist on a base host, and svelte is the wrapper
+ * where promising them crashed EAGERLY: `useI18n()` `.bind()`s its members at
+ * call time, so a base host threw before returning anything.
  */
 export interface UseI18nReturn<D extends DefaultTranslationParams = {}> {
   /**
-   * Reactive translation function store
-   * Subscribe to get the translation function that updates when language/cache changes
+   * A STORE of the translation function — `$`-prefix it at the call site.
    *
    * @example
    * ```svelte
-   * <script>
-   *   const { t } = useI18n();
-   * </script>
-   *
    * <p>{$t('greeting')}</p>
    * ```
    */
   t: Readable<SvelteTextTranslationFunction<D>>;
 
-  /**
-   * Reactive raw translation function store
-   * Returns structured TranslationResult for advanced integrations.
-   */
+  /** The rich-text half: a store of a function returning `TranslationResult`. */
   tRaw: Readable<SvelteRawTranslationFunction<D>>;
 
-  /** Current locale as a readable store */
   locale: Readable<string>;
 
-  /** Loading state as a readable store */
   isLoading: Readable<boolean>;
 
-  /** Initializing state as a readable store */
   isInitializing: Readable<boolean>;
 
-  /** Initialized state as a readable store */
   isInitialized: Readable<boolean>;
 
-  /** Translation cache revision (for triggering reactivity) */
+  /** Monotonic; subscribe to depend on cache and config changes. */
   cacheRevision: Readable<number>;
 
-  /** Reactive shallow snapshot of instance-level interpolation defaults. */
+  /** Shallow snapshot of instance-level interpolation defaults. */
   defaultParams: Readable<DefaultParamsSnapshot<D>>;
 
-  // ===== Critical Methods =====
-
-  /** Change the current locale and wait for translations to load */
+  /** Resolves once translations for the new locale have loaded. */
   setLocale: Host["setLocaleAsync"];
 
-  /** Add translations programmatically at runtime */
   addTranslations: (translations: Record<string, Record<string, TranslationValue>>) => void;
 
-  // ===== Advanced Methods =====
-
-  /** Configure fallback locale chain */
   setFallbackLocale: (locales: string | string[]) => void;
 
   /** Replace instance-level interpolation defaults. */
   setDefaultParams: Host<D>["setDefaultParams"];
 
-  /** Clear translations from cache */
   clearTranslations: (locale?: string, namespace?: string) => void;
 
-  // ===== Informational Methods =====
-
-  /** Check if a locale is loaded for a namespace */
   hasLocale: (locale: string, namespace?: string) => boolean;
 
-  /** Check if a translation exists */
   hasTranslation: (
     key: string,
     locale?: string,
@@ -212,42 +181,29 @@ export interface UseI18nReturn<D extends DefaultTranslationParams = {}> {
     checkFallbacks?: boolean,
   ) => boolean;
 
-  /** Get list of all loaded locales */
   getLoadedLocales: () => string[];
 
-  /** Get list of active namespaces */
   getActiveNamespaces: () => string[];
 
-  /** Get default namespace */
   getDefaultNamespace: () => string;
 
-  /** Get direct access to translation cache */
   getTranslationCache: () => ReadonlyMap<string, FlattenedTranslations>;
 
-  // ===== Event Subscription =====
-
-  /**
-   * Subscribe to i18n events
-   * Provides direct access to core event system for advanced use cases
-   */
+  /** Returns an unsubscribe function. */
   on: <E extends I18nEvent>(event: E, callback: (payload: I18nEventData[E]) => void) => () => void;
 
-  /** Report an error to the configured onError handler */
+  /** Routes to the configured `onError` handler. */
   reportError: Host["reportError"];
 
-  // ===== Formatting =====
-
-  /** Format a number using the current locale */
+  // The formatters below are plain functions, not stores.
   formatNumber: (value: number, options?: Intl.NumberFormatOptions, locale?: string) => string;
 
-  /** Format a date using the current locale */
   formatDate: (
     value: Date | number,
     options?: Intl.DateTimeFormatOptions,
     locale?: string,
   ) => string;
 
-  /** Format a number as currency using the current locale */
   formatCurrency: (
     value: number,
     currency: string,
@@ -255,7 +211,7 @@ export interface UseI18nReturn<D extends DefaultTranslationParams = {}> {
     locale?: string,
   ) => string;
 
-  /** Format a relative time ("2 hours ago", "in 3 days") using the current locale */
+  /** e.g. "2 hours ago", "in 3 days". */
   formatRelativeTime: (
     value: number,
     unit: Intl.RelativeTimeFormatUnit,
@@ -263,73 +219,30 @@ export interface UseI18nReturn<D extends DefaultTranslationParams = {}> {
     locale?: string,
   ) => string;
 
-  /** Text direction for the current locale as a readable store */
   dir: Readable<"ltr" | "rtl">;
 }
 
 /**
- * Hook to access i18n functionality in Svelte components
- * Must be used within a component that has i18n context set
+ * Call during component initialisation, under a `setI18nContext` ancestor.
  *
- * @param ns - Optional namespace to scope translations to
- * @returns Object with reactive stores and i18n methods
+ * @param ns - Scopes `t` / `tRaw` so key lookups default to this namespace.
  *
- * @example Basic usage
+ * @example
  * ```svelte
  * <script>
- *   import { useI18n } from '@comvi/svelte';
- *
  *   const { t, locale, setLocale } = useI18n();
  * </script>
  *
- * <p>{$t('greeting')}</p>
- * <p>Current locale: {$locale}</p>
- * <button onclick={() => setLocale('fr')}>Switch to French</button>
- * ```
- *
- * @example With parameters
- * ```svelte
- * <script>
- *   import { useI18n } from '@comvi/svelte';
- *
- *   const { t } = useI18n();
- *   let count = 5;
- * </script>
- *
- * <p>{$t('items', { count })}</p>
- * ```
- *
- * @example Dynamic namespace loading
- * ```svelte
- * <script>
- *   import { useI18n } from '@comvi/svelte';
- *
- *   const { t, addActiveNamespace, isLoading } = useI18n();
- *   let isAdminLoaded = false;
- *
- *   async function loadAdmin() {
- *     await addActiveNamespace('admin');
- *     isAdminLoaded = true;
- *   }
- * </script>
- *
- * {#if $isLoading}
- *   <p>Loading...</p>
- * {:else if isAdminLoaded}
- *   <p>{$t('dashboard', { ns: 'admin' })}</p>
- * {:else}
- *   <button onclick={loadAdmin}>Load Admin</button>
- * {/if}
+ * <p>{$t('greeting')} ({$locale})</p>
+ * <button onclick={() => setLocale('fr')}>Français</button>
  * ```
  */
 export function useI18n<D extends DefaultTranslationParams = {}>(ns?: string): UseI18nReturn<D> {
-  // Svelte context is type-erased (one fixed key, plan §2.3), so `D` can only
-  // come from the call site. `WrapperI18nHost<D>` is invariant in `D`, hence
-  // the two-step assertion — the same erasure the pre-0.5.0 `as I18n<D>` cast
-  // expressed when the host type was a bivariant class.
+  // Svelte context is type-erased — one fixed key — so `D` can only come from
+  // the call site, and `WrapperI18nHost<D>` is invariant in `D`: hence the
+  // two-step assertion.
   const i18n = getI18nContext() as unknown as Host<D>;
 
-  // Create reactive stores
   const locale = createLocaleStore(i18n);
   const isLoading = createLoadingStore(i18n);
   const isInitializing = createInitializingStore(i18n);
@@ -337,8 +250,8 @@ export function useI18n<D extends DefaultTranslationParams = {}>(ns?: string): U
   const cacheRevision = createCacheRevisionStore(i18n);
   const defaultParams = createDefaultParamsStore(i18n);
 
-  // Create or reuse derived translation stores for this i18n + namespace scope.
-  // The derived function still re-computes on locale/cache changes.
+  // Reused per (instance, namespace); the derived function still re-computes
+  // on locale and cache changes.
   const tRaw = getOrCreateRawTranslationStore(i18n, ns);
   const t = getOrCreateTextTranslationStore(i18n, ns);
 
@@ -352,15 +265,12 @@ export function useI18n<D extends DefaultTranslationParams = {}>(ns?: string): U
     cacheRevision,
     defaultParams,
 
-    // Methods bound to the i18n instance.
-    //
     // `addActiveNamespace`, `reloadTranslations`, `onLoadError` and
-    // `onMissingKey` are NOT here: they belong to the `@comvi/core/loader` /
-    // `@comvi/core/plugins` capabilities, which a base host does not
-    // have — and `.bind()` on an absent member throws EAGERLY, so before
-    // 0.5.0 this very object literal crashed `useI18n()` on such a host. They
-    // are acquired through `useI18nLoader()` / `useI18nPlugins()` instead,
-    // which throw one loud, named error at the acquisition point (§2.4).
+    // `onMissingKey` are NOT here: they belong to capabilities a base host does
+    // not have, and `.bind()` on an absent member throws EAGERLY — this very
+    // object literal used to crash `useI18n()` on such a host.
+    // `useI18nLoader()` / `useI18nPlugins()` acquire them instead, throwing one
+    // named error at the acquisition point.
     setLocale: i18n.setLocaleAsync.bind(i18n),
     addTranslations: i18n.addTranslations.bind(i18n),
     setFallbackLocale: i18n.setFallbackLocale.bind(i18n),
@@ -380,7 +290,6 @@ export function useI18n<D extends DefaultTranslationParams = {}>(ns?: string): U
       formatCurrency(i18n, value, currency, options, loc),
     formatRelativeTime: (value, unit, options, loc) =>
       formatRelativeTime(i18n, value, unit, options, loc),
-    // Derived store that recomputes when locale changes
     dir: derived(locale, ($locale) => getTextDirection($locale)),
   };
 }

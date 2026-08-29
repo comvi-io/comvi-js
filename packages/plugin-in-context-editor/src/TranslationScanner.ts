@@ -1,13 +1,6 @@
 /**
- * TranslationScanner - Scans DOM nodes for encoded translation keys
- *
- * This class listens for DOM change events and processes nodes to find
- * translation keys encoded as invisible characters.
- *
- * Features:
- * - Proper lifecycle management (destroy method)
- * - Shared utility functions
- * - Event-based architecture via EventBus
+ * Listens for DOM change events and scans the affected nodes for translation
+ * keys encoded as invisible characters.
  */
 
 import type { TranslationSystemInnerOptions } from "./types";
@@ -22,9 +15,6 @@ import {
   createTreeWalker,
 } from "./utils";
 
-/**
- * Scans DOM for encoded translation keys and registers them
- */
 export class TranslationScanner {
   private eventBus: EventBus;
   private registry: TranslationRegistry;
@@ -43,10 +33,6 @@ export class TranslationScanner {
     this.registerEventHandlers();
   }
 
-  /**
-   * Registers event handlers for DOM changes
-   * Stores unsubscribe functions for cleanup
-   */
   private registerEventHandlers(): void {
     this.unsubscribers.push(
       this.eventBus.on("textChanges", (nodes: Node[]) => {
@@ -85,9 +71,6 @@ export class TranslationScanner {
     );
   }
 
-  /**
-   * Destroys the scanner and unsubscribes from all events
-   */
   public destroy(): void {
     this.unsubscribers.forEach((unsubscribe) => unsubscribe());
     this.unsubscribers = [];
@@ -106,9 +89,6 @@ export class TranslationScanner {
     }
   }
 
-  /**
-   * Processes a text node to find encoded translation keys
-   */
   private processTextNode(textNode: Text): void {
     const nearestElementNode = getNearestElementNode(textNode);
     if (!nearestElementNode) {
@@ -145,10 +125,7 @@ export class TranslationScanner {
     this.registry.removeNodesForElement(correspondingNode, (node) => node === textNode);
   }
 
-  /**
-   * Gets the list of attributes to check for a given element
-   * Combines tag-specific and universal (*) attributes from options
-   */
+  /** Tag-specific attributes plus the universal `*` entry. */
   private getAttributesToCheck(element: Element): string[] {
     const tagName = element.tagName.toLowerCase();
     const attributesToCheck = new Set<string>();
@@ -172,9 +149,6 @@ export class TranslationScanner {
     return Array.from(attributesToCheck);
   }
 
-  /**
-   * Finds and returns attributes that contain invisible character encodings
-   */
   private findEncodedAttributes(element: Element, attributeNames: string[]): Attr[] {
     return attributeNames
       .filter((attributeName) => element.hasAttribute(attributeName))
@@ -185,9 +159,6 @@ export class TranslationScanner {
       );
   }
 
-  /**
-   * Processes an element's attributes to find encoded translation keys
-   */
   private processAttributeNode(element: Element): void {
     if (IGNORED_NODES.includes(element.tagName.toLowerCase())) {
       return;
@@ -226,10 +197,6 @@ export class TranslationScanner {
     });
   }
 
-  /**
-   * Traverses a node tree and processes all text nodes and element attributes
-   * Uses shared utility for TreeWalker creation
-   */
   private traverseAndProcessNodes(node: Node): void {
     const walker = createTreeWalker(node, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT);
 
@@ -245,9 +212,6 @@ export class TranslationScanner {
     }
   }
 
-  /**
-   * Processes a structural node change (new element added to DOM)
-   */
   private processStructureNode(node: Node): void {
     if (
       node.nodeType === Node.ELEMENT_NODE &&
@@ -256,7 +220,6 @@ export class TranslationScanner {
       return;
     }
 
-    // Process the node itself first
     if (node.nodeType === Node.ELEMENT_NODE) {
       this.processAttributeNode(node as Element);
     }
@@ -266,7 +229,6 @@ export class TranslationScanner {
       return;
     }
 
-    // Traverse and process all descendant nodes
     this.traverseAndProcessNodes(node);
   }
 

@@ -1,4 +1,4 @@
-// Report-only (§7.3) — a first-party factory NAME that is not a first-party
+// Report-only — a first-party factory NAME that is not a first-party
 // import. The lowercase installer lives in the package the uppercase factory
 // came from, so a call the codemod cannot resolve to that package is a call it
 // cannot rewrite.

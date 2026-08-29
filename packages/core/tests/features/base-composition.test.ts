@@ -1,14 +1,10 @@
 import { describe, it, expect, vi } from "vitest";
-// The COMPOSITE host: since the single-entry convergence `../../src` is the
-// BASE host, and the batteries-included 0.4 semantics live on in the internal
-// composite `src/core/full.ts` (what the CDN global ships and `@comvi/next`'s
-// builder mirrors). Imported directly — never through the tags-registering
-// helper — so this file's ambient-extension assertions stay meaningful.
+// The COMPOSITE host (`src/core/full.ts`), imported DIRECTLY rather than
+// through the tags-registering helper, so this file's ambient-extension
+// assertions stay meaningful.
 //
-// NAMING: the `root` locals and the "ROOT instance/entry" wording in the cases
-// below all denote THAT internal composite — the surface core's root entry had
-// in 0.4 — never core's converged root, which is the base host `createI18n`
-// builds here.
+// NAMING: the `root` locals and the "ROOT instance/entry" wording below all
+// denote that composite, never `../../src`, which is the base host.
 import { I18n } from "../../src/core/full";
 import { createI18n } from "../../src";
 import { attachLoader, createImportMapLoader, loader } from "../../src/loader";
@@ -17,12 +13,9 @@ import { attachDevtools, devtools } from "../../src/devtools";
 import { hasLoaderApi, hasPluginHostApi, missingCapability } from "../../src/utils/capability";
 
 /**
- * `@comvi/core` + `@comvi/core/loader` + `@comvi/core/plugins`
- * composition (Phase 7).
- *
  * The capabilities are absent from a bare base instance by module graph;
  * `attachLoader` / `attachPlugins` install the same implementations the
- * internal composite class carries on its prototype chain.
+ * composite class carries on its prototype chain.
  */
 describe("base + /loader composition", () => {
   it("has no loader capability before attaching", () => {
@@ -35,9 +28,9 @@ describe("base + /loader composition", () => {
   it("installs the capability as non-enumerable own properties", () => {
     const i18n = attachLoader(createI18n({ locale: "en", exposeGlobal: false }));
 
-    // `setLocaleAsync` is the P1 race-machinery OVERRIDE: it shadows the base
-    // prototype method and must carry the same class-method descriptor as
-    // every other attached member (A11 contract, attach surface).
+    // `setLocaleAsync` is the race-machinery OVERRIDE: it shadows the base
+    // prototype method and must carry the same class-method descriptor as every
+    // other attached member.
     for (const name of ["registerLoader", "getLoader", "reloadTranslations", "setLocaleAsync"]) {
       const descriptor = Object.getOwnPropertyDescriptor(i18n, name);
       expect(descriptor, name).toBeDefined();
@@ -121,9 +114,9 @@ describe("base + /loader composition", () => {
     expect(i18n.getTranslations()).toEqual({});
   });
 
-  // The `_flattenNs` seam (tier-3, C6): a loader returns raw JSON, so
-  // nested-catalog flattening belongs to the loader capability. Attaching it
-  // must restore the root entry's `addTranslations` semantics exactly.
+  // The `_flattenNs` seam: a loader returns raw JSON, so nested-catalog
+  // flattening belongs to the loader capability, and attaching it must restore
+  // the composite's `addTranslations` semantics exactly.
   it("restores nested-catalog flattening on addTranslations", () => {
     const i18n = attachLoader(createI18n({ locale: "en", exposeGlobal: false }));
 
@@ -136,10 +129,7 @@ describe("base + /loader composition", () => {
 
   it("flattens options.translation too — the hook is a prototype member", () => {
     // `options.translation` is merged inside the constructor, so a hook that
-    // only existed after `_initLoader` would be too late. The composite gets
-    // it via `extends`; a base instance only after attaching, which is why
-    // this case is asserted through `attachLoader` + `addTranslations` above
-    // and through the composite here.
+    // only existed after `_initLoader` would be too late.
     const root = new I18n({
       locale: "en",
       exposeGlobal: false,
@@ -357,19 +347,14 @@ describe.each([
 });
 
 /**
- * `.with(installer)` — the composition pipe (fs-dx2).
+ * `.with(installer)` — the composition pipe. `with` lives on the BASE class and
+ * is literally `installer(this)`. These cases pin the two things that make it
+ * safe there: it is an ordinary prototype method, and composing a capability
+ * the host ALREADY has changes nothing.
  *
- * `with` lives on the BASE class and is literally `installer(this)`. These
- * cases pin the two things that makes it safe to put there: it is an ordinary
- * prototype method (A11), and composing a capability the host already has
- * changes NOTHING — the contract a follow-up lane needs before published
- * plugin packages become directly `.with`-able.
- *
- * The published plugin ecosystem is exercised against this API end-to-end in
- * `packages/plugin-fetch-loader/tests/slim-composition.integration.test.ts`,
- * which runs the real `FetchLoader` on core's BUILT `/slim` + `/loader` +
- * `/plugins` surfaces (it cannot live here: @comvi/core must not devDepend on
- * a package that peer-depends on it).
+ * The published plugin ecosystem is exercised against this API end-to-end from
+ * `@comvi/plugin-fetch-loader`'s own suite — it cannot live here, because
+ * @comvi/core must not devDepend on a package that peer-depends on it.
  */
 describe(".with(installer) — the composition pipe", () => {
   it.each([
@@ -378,8 +363,9 @@ describe(".with(installer) — the composition pipe", () => {
   ] as const)("is a non-enumerable prototype method (%s)", (_label, make) => {
     const i18n = make();
 
-    // Resolve it the way the language does: root reaches the base class two
-    // links up, slim one — either way it must never be an own property.
+    // Resolve it the way the language does: the composite reaches the base
+    // class two links up, a base instance one — either way it must never be an
+    // own property.
     let descriptor: PropertyDescriptor | undefined;
     for (
       let proto = Object.getPrototypeOf(i18n) as object | null;
@@ -486,7 +472,7 @@ describe(".with(loader(…)) — the configured loader installer", () => {
     const piped = root.with(loader());
 
     expect(piped).toBe(root);
-    // A11: no own property shadows the inherited prototype member.
+    // No own property shadows the inherited prototype member.
     expect(Object.getOwnPropertyNames(root)).toEqual(before);
     expect(Object.prototype.hasOwnProperty.call(root, "registerLoader")).toBe(false);
     expect(root.registerLoader).toBe(inheritedRegisterLoader);

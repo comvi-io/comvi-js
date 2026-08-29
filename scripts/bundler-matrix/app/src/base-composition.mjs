@@ -1,19 +1,13 @@
-// Phase-7 gating fixture: the slim composition chain resolved through the
-// three PACKAGE SPECIFIERS (`@comvi/core`, `@comvi/core/loader`,
-// `@comvi/core/plugins`) out of the packed tarball, so this exercises the
-// published exports map and the consumer bundler's tree-shaking — the axis
-// the direct-dist canary (A6) cannot see.
+// The composition chain resolved through the three PACKAGE SPECIFIERS
+// (`@comvi/core`, `@comvi/core/loader`, `@comvi/core/plugins`) out of the packed
+// tarball, so this exercises the published exports map and the consumer
+// bundler's tree-shaking. The capabilities live in separate chunks and reach
+// into base-class state through terser-mangled `_`-prefixed members; if the
+// exports map, the chunk graph or a bundler transform breaks that contract, one
+// of the assertions below fails instead of printing the success marker.
 //
-// The capabilities live in separate chunks and reach into base-class state
-// through terser-mangled `_`-prefixed members; if the exports map, the chunk
-// graph or a bundler transform breaks that contract, one of the assertions
-// below fails instead of printing the success marker.
-//
-// fs-dx2 adds the `.with(installer)` half: the SAME two capabilities composed
-// through the pipe and the configured `loader()` / `plugins()` factories,
-// resolved through the same published subpaths. Both halves stay — `attach*`
-// is the low-level API the factories delegate to, and each is now gated in
-// four bundler×mode combinations.
+// Both call forms stay: `attach*` is the low-level API the configured
+// `loader()` / `plugins()` factories delegate to.
 //
 // No top-level await: the webpack leg emits commonjs2, where a TLA module
 // would change the emitted module shape rather than test the composition.
@@ -68,7 +62,7 @@ async function main() {
   assertEqual(i18n.getLoader(), undefined, "loader state reset after destroy");
   assertEqual(i18n.getPluginData("probe"), undefined, "plugin state reset after destroy");
 
-  // ── the same composition through `.with(…)` (fs-dx2) ────────────────────
+  // ── the same composition through `.with(…)` ────────────────────────────
   const piped = createI18n({ locale: "en", exposeGlobal: false })
     .with(
       loader({

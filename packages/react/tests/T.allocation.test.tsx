@@ -1,7 +1,7 @@
 /**
- * Verifies <T> does not allocate Map/object instances when `components` is
- * undefined. Counts via a Map-constructor wrapper and compares <div> vs <T>
- * subtrees with the same provider, isolating <T>'s own allocation behavior.
+ * `<T>` must not allocate a Map when `components` is undefined. Counted with a
+ * Map-constructor wrapper, comparing <div> and <T> subtrees under the same
+ * provider so the delta isolates `<T>`'s own allocations.
  */
 
 import React from "react";
@@ -36,8 +36,7 @@ describe("<T> allocation behavior", () => {
     const i18nDiv = createI18n({ locale: "en", translation: { en: { greeting: "Hello" } } });
     await i18nDiv.init();
 
-    // Baseline: provider + N <div> children. Captures all framework +
-    // provider Maps that scale with child count.
+    // Baseline captures the framework/provider Maps that scale with children.
     const divBaseline = render(
       <I18nProvider i18n={i18nDiv}>
         <div />
@@ -48,7 +47,6 @@ describe("<T> allocation behavior", () => {
     const divMaps = mapCount;
     divBaseline.unmount();
 
-    // Same provider, same N children, swap <div> for <T>. Delta isolates T.
     const i18nT = createI18n({ locale: "en", translation: { en: { greeting: "Hello" } } });
     await i18nT.init();
     mapCount = 0;
@@ -61,10 +59,8 @@ describe("<T> allocation behavior", () => {
     );
     const tMaps = mapCount;
 
-    // T must NOT exceed div baseline. (Equal or fewer = optimization works.)
-    // We allow a small constant slack of 3 to absorb any React-internal
-    // bookkeeping that differs between div and T fiber types; the audit
-    // bug allocated 2 Maps PER T (= 6 for 3 Ts), well above this slack.
+    // Slack of 3 absorbs React-internal bookkeeping that differs between div
+    // and T fiber types; the regression this pins allocated 2 Maps PER T.
     expect(tMaps - divMaps).toBeLessThan(3);
   });
 
@@ -82,7 +78,6 @@ describe("<T> allocation behavior", () => {
       </I18nProvider>,
     );
 
-    // Sanity: the `if (components)` branch DID allocate the bag.
     expect(mapCount).toBeGreaterThan(0);
   });
 

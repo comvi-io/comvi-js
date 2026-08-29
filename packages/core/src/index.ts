@@ -1,36 +1,24 @@
-// @comvi/core — THE entry. One entry per package, one mental model.
-//
-// The root is the BASE host: text + `{param}` interpolation, the translation
+// @comvi/core — the BASE host: text + `{param}` interpolation, the translation
 // cache, events, default params and the `.with(installer)` composition pipe.
-// Nothing else is in the module graph, and nothing is behind a runtime flag —
-// a capability is absent because its module never entered your bundle.
+// A capability is absent because its module never entered your bundle, never
+// because a runtime flag turned it off. Each one is a subpath import:
+//   • `@comvi/core/icu`      — `icuCompiler` for plural/select/selectordinal
+//     (`compiler: icuCompiler` for inline catalogs, `.with(icu())` BEFORE any
+//     catalog for remote ones);
+//   • `@comvi/core/loader`   — registerLoader / reloadTranslations,
+//     `createImportMapLoader`, automatic nested-catalog flattening;
+//   • `@comvi/core/plugins`  — use / locale detector / missing-key callbacks /
+//     post-processors / plugin data;
+//   • `@comvi/core/devtools` — `instanceId` and the `window.__COMVI__` handshake;
+//   • `@comvi/core/rich-text` — the PURE `<T>` toolbox, no registration side
+//     effect (the tag grammar travels per call); framework `<T>` imports this;
+//   • `@comvi/core/tags`     — the same toolbox PLUS ambient registration, which
+//     makes `<tag>…</tag>` syntax for plain string-API `t()`.
 //
-// Capability = an import you add, never an entry you switch:
-//   • `@comvi/core/icu`      — `icuCompiler` for ICU plural/select/selectordinal
-//     (`createI18n({ translation, compiler: icuCompiler })` for inline
-//     catalogs; `.with(icu())` BEFORE any catalog for remote ones);
-//   • `@comvi/core/loader`   — `loader()` / `attachLoader`: registerLoader /
-//     getLoader / reloadTranslations, `createImportMapLoader`, and automatic
-//     nested-catalog flattening;
-//   • `@comvi/core/plugins`  — `plugins()` / `attachPlugins`: use / locale
-//     detector / missing-key callbacks / post-processors / plugin data;
-//   • `@comvi/core/devtools` — `devtools()` / `attachDevtools`: `instanceId`
-//     and the `window.__COMVI__` extension handshake;
-//   • `@comvi/core/rich-text` — the PURE `<T>` toolbox: `prepareTranslation`
-//     and the VirtualNode helpers, with NO registration side effect (the tag
-//     grammar travels per call). This is what framework `<T>` components
-//     import;
-//   • `@comvi/core/tags`     — the same toolbox PLUS ambient registration:
-//     importing it makes `<tag>…</tag>` syntax for plain string-API `t()`.
-//
-// ICU syntax under the default compiler is never rendered plausibly-wrong:
-// development throws `E_ICU_SYNTAX` at ingestion; production renders the
-// braced segment literally and reports `E_ICU_SYNTAX` through `onError` (or
-// `console.error`) on the compilation that hit it — best-effort, per process,
-// never on cached renders. Without a tags extension `<tag>…</tag>` is not syntax
-// and stays literal text (dev-warned). Rich non-primitive param values behave
-// the same on every graph: `t` coerces them into the string, `tRaw` preserves
-// them as a parts array.
+// ICU syntax under the default compiler is never rendered plausibly-wrong: dev
+// throws `E_ICU_SYNTAX` at ingestion, production renders the braced segment
+// literally and reports through `onError`. Without a tags extension
+// `<tag>…</tag>` is not syntax and stays literal text (dev-warned).
 import type { DefaultTranslationParams, I18nOptions } from "./types";
 import { I18n as I18nImpl } from "./core/i18n";
 
@@ -61,7 +49,6 @@ export { TranslationCache } from "./core/TranslationCache";
  */
 export { normalizeTranslationObject as flattenCatalog } from "./utils";
 
-// Utility exports
 export { createBoundTranslation } from "./utils/createBoundTranslation";
 export { translationResultToString } from "./utils/translationResultToString";
 export { subscribeToRevision, REVISION_EVENTS } from "./utils/subscribeToRevision";
@@ -69,7 +56,6 @@ export type { RevisionEvent, RevisionEventSource } from "./utils/subscribeToRevi
 export { missingCapability, hasLoaderApi, hasPluginHostApi } from "./utils/capability";
 export type { CapabilityName } from "./utils/capability";
 
-// Tree-shakeable Intl formatting helpers
 export {
   formatNumber,
   formatDate,
@@ -79,7 +65,6 @@ export {
 } from "./format";
 export type { LocaleSource } from "./format";
 
-// Type exports
 export type * from "./types";
 export type { MessageCompiler, SyntaxExtension } from "./core/translate/syntax";
 export type { IcuSyntaxError } from "./core/translate/compile-simple";
@@ -91,8 +76,7 @@ export type {
   TranslationResult,
 } from "./virtualNode";
 
-// VirtualNode helpers for tag interpolation
 export { createElement, isVirtualNode } from "./virtualNode";
 
-// Plugin system - only export types for plugin development
+// Plugin authoring is types-only from the root: the host itself is a capability.
 export type { I18nPlugin, I18nPluginFactory, PluginOptions } from "./plugins/types";

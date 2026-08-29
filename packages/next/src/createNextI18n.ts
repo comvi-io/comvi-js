@@ -109,14 +109,7 @@ const createScopedLazyPlugin = (
   };
 };
 
-/**
- * Options for createNextI18n factory
- */
 export interface CreateNextI18nBaseOptions extends NextRoutingOptions {
-  // ============================================
-  // i18n config (optional)
-  // ============================================
-
   /**
    * API key available to plugins/loaders that need authenticated requests.
    */
@@ -166,19 +159,9 @@ export interface CreateNextI18nBaseOptions extends NextRoutingOptions {
 export type CreateNextI18nOptions<D extends DefaultTranslationParams = {}> =
   CreateNextI18nBaseOptions & Pick<I18nOptions<D>, "defaultParams">;
 
-/**
- * Result of createNextI18n factory
- */
 export interface CreateNextI18nResult<D extends DefaultTranslationParams = {}> {
   /**
    * The i18n instance (use with I18nProvider and setI18n).
-   *
-   * Composed by the non-exported builder `createComposedNextI18n`
-   * (`./composedHost`): the base host plus ICU, ambient tags, the loader
-   * capability (both `registerLoader` overloads), the plugin host and devtools
-   * discovery. That builder is where the published 0.4 root semantics are
-   * preserved verbatim — the `createNextI18n` exception — never on core's
-   * converged root, which stays the base host.
    */
   i18n: NextComposedI18n<D>;
 
@@ -259,10 +242,6 @@ export interface CreateNextI18nResult<D extends DefaultTranslationParams = {}> {
 /**
  * Create a fully configured Next.js i18n setup with a single function call.
  *
- * This factory creates:
- * - i18n instance
- * - Routing configuration for middleware and navigation
- *
  * @example
  * ```typescript
  * // i18n/config.ts
@@ -276,32 +255,6 @@ export interface CreateNextI18nResult<D extends DefaultTranslationParams = {}> {
  *   // Optional
  *   basicHtmlTags: ["strong", "em", "br", "a"],
  * });
- * ```
- *
- * @example
- * ```typescript
- * // Optional plugin registration (same DX as core/react)
- * import { FetchLoader } from "@comvi/plugin-fetch-loader";
- *
- * const nextI18n = createNextI18n({
- *   locales: ["en", "de"],
- *   defaultLocale: "en",
- * })
- *   .use(
- *     FetchLoader({
- *       cdnUrl: "https://cdn.comvi.io/your-distribution-id",
- *       loadOnInit: false,
- *     }),
- *   )
- *   .use(MyServerPlugin(), { runtime: "server" })
- *   .use(
- *     () => import("@comvi/plugin-in-context-editor").then((m) => m.InContextEditorPlugin()),
- *     { runtime: "client", lazy: true, environment: "development", required: false },
- *   )
- *   .use(MyPlugin())
- *   .use(AnotherPlugin(), { required: false });
- *
- * export const { i18n, routing } = nextI18n;
  * ```
  *
  * @example
@@ -333,13 +286,11 @@ export function createNextI18n<const D extends DefaultTranslationParams = {}>(
     onMissingKey,
   } = options;
 
-  // Determine devMode - use explicit option or detect from NODE_ENV
-  // This works in Next.js because bundler replaces process.env.NODE_ENV at build time
+  // Statically analysable in Next.js: the bundler replaces process.env.NODE_ENV at build time.
   const devMode = devModeOption ?? process.env.NODE_ENV === "development";
 
-  // Build the host through Next's own non-exported composed-host builder, so
-  // the published `i18n` is a `NextComposedI18n`, never core's base root
-  // instance.
+  // Built through Next's own composed-host builder so the published `i18n` is a
+  // `NextComposedI18n`, never core's base root instance.
   const i18n = createComposedNextI18n<D>({
     locale: defaultLocale,
     fallbackLocale,
@@ -353,7 +304,6 @@ export function createNextI18n<const D extends DefaultTranslationParams = {}>(
     tagInterpolation: basicHtmlTags ? { basicHtmlTags } : undefined,
   } as unknown as I18nOptions<D>);
 
-  // Create routing config
   const routing = resolveRouting(options);
 
   const result: CreateNextI18nResult<D> = {

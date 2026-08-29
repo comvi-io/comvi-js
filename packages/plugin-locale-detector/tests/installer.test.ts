@@ -6,13 +6,9 @@ import { LocaleDetector, localeDetector } from "../src/index";
 import { mockWindowLocation } from "./setup";
 
 /**
- * The LOWERCASE installer (single-entry convergence, plan §4).
- *
  * `localeDetector(options)` is the one-call form of `.with(plugins())` then
- * `.use(LocaleDetector(options))`. It must produce the same host, the same
- * lifecycle and the same teardown — it routes into `use`, it does not
- * re-implement anything — and it must reject the two cross-uses that the type
- * system also rejects.
+ * `.use(LocaleDetector(options))`: same host, same lifecycle, same teardown,
+ * and it must reject the two cross-uses the type system also rejects.
  */
 const base = () => createI18n({ locale: "en", exposeGlobal: false });
 const QS_ONLY = { order: ["querystring" as const], caches: [] };
@@ -51,10 +47,9 @@ describe("localeDetector() installer", () => {
   it("composes no loader capability", () => {
     const i18n = base().with(localeDetector());
 
-    // Probed through `hasLoaderApi`, not `registerLoader === undefined`: since
-    // core's B4 fix a plugins-only host carries a BRANDED throwing stand-in
-    // for every loader member, so the member exists while the capability does
-    // not — and calling it says exactly that.
+    // Probed through `hasLoaderApi`, not `registerLoader === undefined`: a
+    // plugins-only host carries a branded throwing stand-in for every loader
+    // member, so the member exists while the capability does not.
     expect(hasLoaderApi(i18n)).toBe(false);
     expect(() => (i18n as unknown as { registerLoader: () => void }).registerLoader()).toThrow(
       /no loader capability/,

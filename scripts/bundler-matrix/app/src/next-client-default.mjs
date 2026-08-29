@@ -1,25 +1,13 @@
-// Single-entry P4 gate: THE DEFAULT Next.js CLIENT recipe. Every import in this
-// file comes from `@comvi/next/client`; `@comvi/core` is never named by the app.
+// THE DEFAULT Next.js CLIENT recipe. Every import in this file comes from
+// `@comvi/next/client`; `@comvi/core` is never named by the app, which uses NO
+// capability — the runner asserts from the bundlers' module graphs that ICU,
+// loader, plugins, devtools, core's tag-registration pair AND next's server
+// modules all stay out, in development as well as production. Core's BASE entry
+// is present — its `createI18n` is what this app constructs with — so it is
+// never an absence sentinel.
 //
-// This case RETARGETS the former `next-client-slim-preset` and ABSORBS the
-// former `next-client-slim`: that second app named `@comvi/core` for its
-// constructor, which this entry's `createI18n` now IS, so the two cases built
-// one graph through two specifiers. `@comvi/next/client` is not a `/slim` entry
-// — it is next's only client surface, its `createI18n` is the published 0.4.x
-// name, and after the convergence that name denotes the BASE host. (The retired
-// second constructor name's absence is pinned from source, in
-// packages/next/tests/entry-surfaces.test.tsx and the type tests: a namespace
-// import here would keep every re-export of this entry live and defeat the very
-// absences this case exists to assert.)
-//
-// Like `react-default`, this app deliberately uses NO capability: the runner
-// asserts from the bundlers' module graphs that ICU, loader, plugins, devtools,
-// core's tag-registration pair AND next's server modules all stay out, in
-// development as well as production. Core's BASE entry is present — its
-// `createI18n` is what this app constructs with — so it is never an absence
-// sentinel. The "one capability in, the other three out" half of the re-export
-// gate is `next-client-icu` on this entry and `next-server-on-default` on the
-// server one.
+// A namespace import here would keep every re-export of this entry live and
+// defeat the very absences the case exists to assert.
 //
 // Tag interpolation is asserted BEHAVIOURALLY here (markup stays literal);
 // rendering `<T>` needs a DOM and is NOT exercised.

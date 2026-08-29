@@ -14,8 +14,6 @@ import {
 import { fetchApiTranslations } from "./cache";
 
 /**
- * Resolve fallback import function
- *
  * Resolution order:
  * 1. Exact key "locale:namespace"
  * 2. Shorthand "locale" (only if ns === defaultNs)
@@ -36,7 +34,6 @@ interface FallbackLoadResult {
   error?: Error;
 }
 
-/** Try to load from fallback, returning data or error details */
 async function tryFallback(
   fallback: FallbackMap | undefined,
   locale: string,
@@ -59,10 +56,8 @@ async function tryFallback(
 }
 
 /**
- * Fetch Loader Plugin
- *
- * Loads translations from Comvi's backend API in development mode
- * and from CDN in production mode.
+ * Loads translations from Comvi's backend API in development mode and from the
+ * CDN in production mode.
  *
  * @example
  * ```typescript

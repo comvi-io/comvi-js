@@ -1,8 +1,4 @@
-/**
- * Emit TypeScript declaration file from a ProjectSchema.
- *
- * Reuses the same output format as @comvi/cli's TypeEmitter.
- */
+/** Output format must stay identical to @comvi/cli's TypeEmitter. */
 
 import type { ProjectSchema, SchemaParam } from "./extract";
 
@@ -13,9 +9,6 @@ export interface EmitOptions {
   defaultNs?: string;
 }
 
-/**
- * Generate .d.ts content from a project schema.
- */
 export function emitDeclarations(schema: ProjectSchema, options: EmitOptions = {}): string {
   const { strictParams = true, defaultNs = "default" } = options;
   const defaultPrefix = `${defaultNs}:`;
@@ -33,7 +26,6 @@ export function emitDeclarations(schema: ProjectSchema, options: EmitOptions = {
     "  interface TranslationKeys {",
   ];
 
-  // Sort keys, strip default namespace prefix
   const entries = Object.entries(schema.keys)
     .map(([fullKey, keySchema]) => {
       const displayKey = fullKey.startsWith(defaultPrefix)

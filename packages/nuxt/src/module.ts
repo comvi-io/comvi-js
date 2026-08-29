@@ -40,9 +40,6 @@ export type {
   I18n,
 } from "./types";
 
-/**
- * Normalize locale configuration to consistent format
- */
 function normalizeLocales(locales: (string | LocaleObject)[]): {
   codes: string[];
   objects: Record<string, LocaleObject>;
@@ -63,10 +60,7 @@ function normalizeLocales(locales: (string | LocaleObject)[]): {
   return { codes, objects };
 }
 
-/**
- * Detect routes that use the dedicated `:locale` dynamic param segment.
- * Must not match params like `:localeId`.
- */
+/** Must not match params like `:localeId`. */
 function isLocaleParamRoute(path: string): boolean {
   return /(?:^|\/):locale(?:$|[/?+*()])/u.test(path);
 }
@@ -90,7 +84,6 @@ const comviNuxtModule: NuxtModule<NuxtI18nOptions> = defineNuxtModule<NuxtI18nOp
   },
 
   async setup(options, nuxt) {
-    // Validate required options
     if (!options.locales || options.locales.length === 0) {
       console.warn(
         "[@comvi/nuxt] No locales configured. Add locales to your nuxt.config.ts comvi options.",
@@ -135,14 +128,12 @@ const comviNuxtModule: NuxtModule<NuxtI18nOptions> = defineNuxtModule<NuxtI18nOp
       );
     }
 
-    // Normalize locale configuration
     const { codes: localeCodes, objects: localeObjects } = normalizeLocales(options.locales);
 
     const existingPublicRuntimeConfig = nuxt.options.runtimeConfig.public.comvi ?? {};
     const detectBrowserLanguageSource =
       existingPublicRuntimeConfig.detectBrowserLanguage ?? options.detectBrowserLanguage;
 
-    // Resolve detection options
     const detectBrowserLanguage =
       detectBrowserLanguageSource === false
         ? false
@@ -151,13 +142,11 @@ const comviNuxtModule: NuxtModule<NuxtI18nOptions> = defineNuxtModule<NuxtI18nOp
             ...(typeof detectBrowserLanguageSource === "object" ? detectBrowserLanguageSource : {}),
           };
 
-    // Cookie name for locale storage
     const cookieName =
       typeof detectBrowserLanguage === "object"
         ? detectBrowserLanguage.cookieName
         : DEFAULT_DETECT_BROWSER_LANGUAGE.cookieName;
 
-    // Build routing config
     const routingConfig: ResolvedRoutingConfig = {
       locales: localeCodes,
       localeObjects,
@@ -166,7 +155,6 @@ const comviNuxtModule: NuxtModule<NuxtI18nOptions> = defineNuxtModule<NuxtI18nOp
       cookieName,
     };
 
-    // Add runtime config (public)
     nuxt.options.runtimeConfig.public.comvi = {
       ...existingPublicRuntimeConfig,
       locales: localeCodes,
@@ -187,24 +175,20 @@ const comviNuxtModule: NuxtModule<NuxtI18nOptions> = defineNuxtModule<NuxtI18nOp
       detectBrowserLanguage,
     };
 
-    // Add private runtime config (server-only)
     nuxt.options.runtimeConfig.comvi = {
       ...(nuxt.options.runtimeConfig.comvi ?? {}),
       ...(options.apiKey !== undefined ? { apiKey: options.apiKey } : {}),
     };
 
-    // Provide routing config to templates
     nuxt.options.appConfig.comvi = {
       routing: routingConfig,
     };
 
-    // Add runtime plugin
     addPlugin({
       src: resolve("./runtime/plugin"),
       mode: "all",
     });
 
-    // Generate runtime bridge for user setup hook
     addTemplate({
       filename: "comvi.setup.mjs",
       getContents: () => {
@@ -232,39 +216,12 @@ export async function runComviSetup(context) {
       },
     });
 
-    // Generate the i18n construction bridge. THIS is where the host is
-    // decided, and it has to be here: the runtime plugin and the server
-    // utilities import whatever this template exports, so the construction
-    // path is fixed at build time. An app that sets `hostModule` emits ONLY
-    // the branch that imports its own factory, and never nuxt's default
-    // `@comvi/vue` construction path. That selection is the whole saving —
-    // not the absence of `@comvi/core`, which a custom factory is free to
-    // import: the documented recipe builds on the base root plus the
-    // capability subpaths it composes. The same branch taken at runtime (an
-    // `if` in plugin.ts) would keep BOTH paths alive in every bundle and save
-    // nothing (framework-slim P4 step 5).
-    //
-    // WHAT THE DEFAULT BRANCH BUILDS, since the single-entry convergence: the
-    // BASE host — text + `{param}`, the cache, events, default params — plus
-    // the ICU compiler if, and only if, `icu: true` asked for it. No loader,
-    // no plugin host, no devtools discovery. That is a deliberate policy, not
-    // an omission: a capability is an import the app adds, so the module never
-    // injects one on the app's behalf.
-    //
-    // ICU is the ONE capability with a module option, because it is the one an
-    // app cannot reach any other way on this branch: it is a constructor
-    // argument, not something `.with()` can pipe onto a built host, so without
-    // the option a default-host app could never choose it. The option is still
-    // a CHOICE and still costs nothing when unchosen — the import is emitted
-    // here, at codegen, so `icu: false` produces a module that does not mention
-    // `@comvi/core/icu`. A runtime `if` would pin the compiler into every
-    // bundle and save nothing (same reason as the hostModule branch itself).
-    //
-    // Every other capability arrives through `hostModule`, which is why
-    // that branch forwards nuxt's RESOLVED options into the factory: locale,
-    // fallbackLocale, defaultNs, defaultParams, tagInterpolation, devMode and
-    // apiKey all come from `nuxt.config` / runtime config, and a composed host
-    // that could not see them would silently drop them.
+    // The host is decided HERE, at codegen: the same branch taken at runtime
+    // would keep BOTH paths alive in every bundle. The default branch builds the
+    // BASE host — ICU is the one capability with a module option, because it is
+    // a constructor argument rather than something `.with()` can pipe on. Every
+    // other capability arrives through `hostModule`, which is why that branch
+    // forwards nuxt's RESOLVED options into the factory.
     addTemplate({
       filename: "comvi.host.mjs",
       getContents: () => {
@@ -338,9 +295,9 @@ export function createComviCore(options) {
       },
     });
 
-    // Register explicit composable imports so Nuxt generates stable #imports types
-    // for published package consumers. Keep this list in sync with
-    // src/runtime/composables/ — asserted by tests/module.test.ts.
+    // Explicit, so Nuxt generates stable #imports types for published package
+    // consumers. Keep in sync with src/runtime/composables/ — asserted by
+    // tests/module.test.ts.
     addImports([
       { name: "useI18n", from: resolve("./runtime/composables/useI18n") },
       { name: "useI18nLoader", from: resolve("./runtime/composables/capabilities") },
@@ -364,29 +321,23 @@ export function createComviCore(options) {
       export: "default",
     });
 
-    // Add server utilities
     addServerImportsDir(resolve("./runtime/server/utils"));
 
-    // Add route middleware for locale detection
     addRouteMiddleware({
       name: "i18n",
       path: resolve("./runtime/middleware/i18n.global"),
       global: true,
     });
 
-    // Transpile runtime
     nuxt.options.build.transpile.push(resolve("./runtime"));
 
-    // Add @comvi/vue and @comvi/core to transpile
     nuxt.options.build.transpile.push("@comvi/vue", "@comvi/core");
 
-    // Optimize dependencies
     nuxt.options.vite = nuxt.options.vite || {};
     nuxt.options.vite.optimizeDeps = nuxt.options.vite.optimizeDeps || {};
     nuxt.options.vite.optimizeDeps.include = nuxt.options.vite.optimizeDeps.include || [];
     nuxt.options.vite.optimizeDeps.include.push("@comvi/vue", "@comvi/core");
 
-    // Extend pages to create locale-prefixed routes
     const localePrefix = options.localePrefix ?? "as-needed";
     const defaultLocale = options.defaultLocale;
 
@@ -406,7 +357,6 @@ export function createComviCore(options) {
           return path;
         };
 
-        // Helper to clone a page with a new path
         const clonePageWithPrefix = (page: NuxtPage, locale: string): NuxtPage => {
           return {
             ...page,
@@ -416,14 +366,11 @@ export function createComviCore(options) {
           };
         };
 
-        // Filter out pages inside [locale] folder (handled differently)
         const rootPages = pages.filter(
           (page) => !isLocaleParamRoute(page.path) && !page.file?.includes("[locale]"),
         );
 
         for (const locale of localeCodes) {
-          // For 'always' mode: prefix all locales including default
-          // For 'as-needed' mode: only prefix non-default locales
           const shouldPrefix =
             localePrefix === "always" || (localePrefix === "as-needed" && locale !== defaultLocale);
 
@@ -434,11 +381,10 @@ export function createComviCore(options) {
           }
         }
 
-        // Add localized pages
         pages.push(...localizedPages);
 
         if (localePrefix === "always" && rootPages.length > 0) {
-          // Remove unprefixed routes - only prefixed routes should exist
+          // In `always` mode only prefixed routes may exist.
           for (let i = pages.length - 1; i >= 0; i--) {
             if (rootPages.includes(pages[i])) {
               pages.splice(i, 1);
@@ -446,12 +392,10 @@ export function createComviCore(options) {
           }
         }
 
-        // Remove [locale] dynamic routes if they exist (we're handling routing differently)
         const localeRouteIndex = pages.findIndex(
           (page) => isLocaleParamRoute(page.path) || page.file?.includes("[locale]"),
         );
         if (localeRouteIndex !== -1) {
-          // Remove all [locale] routes
           for (let i = pages.length - 1; i >= 0; i--) {
             if (isLocaleParamRoute(pages[i].path) || pages[i].file?.includes("[locale]")) {
               pages.splice(i, 1);

@@ -36,9 +36,8 @@ describe("useI18n", () => {
     const { result } = renderHook(() => useI18n("admin"), { wrapper: createWrapper(fake) });
 
     expect(result.current.t("title" as never)).toBe("title|admin");
-    // tRaw injects the React-tracked locale into every call so translations
-    // resolve against the locale-at-render-time, not the mutable instance
-    // locale.
+    // `tRaw` injects the React-tracked locale into every call, so lookups
+    // resolve against the render-time locale, not the mutable instance one.
     expect(fake.tRaw).toHaveBeenLastCalledWith("title", { ns: "admin", locale: "en" });
   });
 
@@ -69,11 +68,9 @@ describe("useI18n", () => {
   });
 
   it("rebuilds t() reference on locale change so callers re-translate with new locale", async () => {
-    // t/tRaw rebuild when locale changes so the closure captures the new
-    // React-tracked locale — identity churning is the intended behavior to
-    // prevent tearing during startTransition-wrapped locale flips.
-    // await act + Promise.resolve() flushes the queueMicrotask deferral
-    // inside useSubscribe before asserting on re-rendered state.
+    // The identity churn is intended: a rebuilt closure captures the new
+    // locale, which is what prevents tearing during a transition-wrapped flip.
+    // `await act` + `Promise.resolve()` flushes `useSubscribe`'s microtask.
     const fake = new FakeI18n();
     const { result } = renderHook(() => useI18n("admin"), { wrapper: createWrapper(fake) });
     const tBefore = result.current.t;
@@ -96,14 +93,12 @@ describe("useI18n", () => {
     const formatNumberFromEnglishRender = result.current.formatNumber;
     const setLocaleBefore = result.current.setLocale;
 
-    // Mutate language without emitting — no re-render yet.
     act(() => {
       fake.language = "de";
     });
 
     expect(formatNumberFromEnglishRender(1234)).toBe("1,234");
 
-    // Emit localeChanged and flush the queueMicrotask deferral before asserting.
     await act(async () => {
       fake.emit("localeChanged", { from: "en", to: "de" });
       await Promise.resolve();
@@ -146,7 +141,7 @@ describe("useI18n", () => {
     const i18n = createI18n({
       locale: "en",
       // `{…, select, …}` is ICU: the base host does not compile it unless the
-      // app says so, and this one says so in the same call.
+      // app asks, and this one asks in the same call.
       compiler: icuCompiler,
       defaultParams: { formality: "formal" as const },
       translation: {

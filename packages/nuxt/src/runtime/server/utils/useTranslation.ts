@@ -8,24 +8,13 @@ import { getRequestI18n } from "./request-i18n";
 import { resolveAcceptLanguage } from "../../utils/resolve-locale";
 import { DEFAULT_DETECT_BROWSER_LANGUAGE } from "../../defaults";
 
-/**
- * Options for useTranslation
- */
 export interface UseTranslationOptions {
-  /**
-   * Default namespace for translations
-   */
   namespace?: string;
 
-  /**
-   * Explicit locale (overrides detection)
-   */
+  /** Overrides detection. */
   locale?: string;
 }
 
-/**
- * Translation function type for server-side usage
- */
 export interface ServerTranslationFunction {
   <NS extends import("@comvi/core").Namespaces, K extends import("@comvi/core").NamespacedKeys<NS>>(
     key: K,
@@ -38,30 +27,17 @@ export interface ServerTranslationFunction {
   (key: import("@comvi/core").PermissiveKey, params?: TranslationParams): string;
 }
 
-/**
- * Server-side translation result
- */
 export interface UseTranslationResult {
-  /** Translation function */
   t: ServerTranslationFunction;
-  /** Detected/provided locale */
   locale: string;
-  /** Check if translation exists */
   hasTranslation: (key: string, opts?: { locale?: string; ns?: string }) => boolean;
 }
 
 /**
- * Server-side translation utility for API routes and server middleware
+ * Server-side translation utility for API routes and server middleware.
  *
- * Detects locale from:
- * 1. Explicit locale option
- * 2. Cookie (i18n_locale)
- * 3. Accept-Language header
- * 4. Default locale
- *
- * @param event - H3 event from the request
- * @param options - Configuration options
- * @returns Translation function and locale info
+ * Locale precedence: the explicit `locale` option, then the cookie, then the
+ * Accept-Language header, then `defaultLocale`.
  *
  * @example
  * ```typescript
@@ -86,7 +62,6 @@ export async function useTranslation(
   event: H3Event,
   options: UseTranslationOptions = {},
 ): Promise<UseTranslationResult> {
-  // Get runtime config
   const config = getServerRuntimeConfig(event);
   const publicConfig = config.public.comvi;
 
@@ -113,10 +88,8 @@ export async function useTranslation(
       : defaultLocale;
   const resolvedFallbackLocale = locales.includes(fallbackLocale) ? fallbackLocale : defaultLocale;
 
-  // Detect locale
   let locale = options.locale;
 
-  // 1. Check cookie
   if (!locale && useCookieForDetection) {
     const cookieLocale = getCookie(event, cookieName);
     if (cookieLocale && locales.includes(cookieLocale)) {
@@ -124,7 +97,6 @@ export async function useTranslation(
     }
   }
 
-  // 2. Check Accept-Language header
   if (!locale && detectConfig !== false) {
     const acceptLanguage = getHeader(event, "accept-language");
     if (acceptLanguage) {
@@ -132,29 +104,23 @@ export async function useTranslation(
     }
   }
 
-  // 3. Fallback to default
   const resolvedLocale = locale || resolvedFallbackLocale;
 
-  // Get or create per-request i18n instance
   const i18n = await getRequestI18n(event, resolvedLocale);
 
-  // Ensure translations are loaded for the requested locale
   if (!i18n.hasLocale(resolvedLocale, namespace)) {
     await loadTranslationsForLocale(i18n, resolvedLocale, [namespace]);
   }
 
-  // Create translation function bound to the resolved locale
   const t: ServerTranslationFunction = ((key: string, params?: TranslationParams) => {
     const result = i18n.t(key, {
       ...params,
       locale: resolvedLocale,
       ns: params?.ns ?? namespace,
     });
-    // Server expects string
     return typeof result === "string" ? result : String(result);
   }) as ServerTranslationFunction;
 
-  // Create hasTranslation helper
   const hasTranslation = (key: string, opts?: { locale?: string; ns?: string }) => {
     return i18n.hasTranslation(key, opts?.locale ?? resolvedLocale, opts?.ns ?? namespace);
   };
@@ -163,12 +129,10 @@ export async function useTranslation(
 }
 
 /**
- * Load translations for a specific locale.
- *
  * The host may have no loader at all: the generated default `#build/comvi.host`
  * builds core's BASE host, and only a `hostModule` factory composes
- * `@comvi/core/loader` onto it. Without the capability there is nothing to
- * load — whatever `comvi.setup` put in the catalog is already there — so this
+ * `@comvi/core/loader` onto it. Without the capability there is nothing to load
+ * — whatever `comvi.setup` put in the catalog is already there — so this
  * returns instead of calling a member the host does not have.
  */
 async function loadTranslationsForLocale(
@@ -176,7 +140,6 @@ async function loadTranslationsForLocale(
   locale: string,
   namespaces: string[],
 ): Promise<void> {
-  // Ensure we're loading for the correct locale
   if (i18n.locale !== locale) {
     await i18n.setLocaleAsync(locale);
   }
@@ -185,7 +148,6 @@ async function loadTranslationsForLocale(
     return;
   }
 
-  // Load each namespace
   for (const ns of namespaces) {
     try {
       await i18n.addActiveNamespace(ns);

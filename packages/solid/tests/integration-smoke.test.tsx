@@ -58,8 +58,7 @@ describe("solid integration smoke", () => {
       translation: {
         en: { hello: "Hello" },
       },
-      // The base host has no loader capability — this test drives a raw
-      // `LoaderFn`, so it composes the low-level attach.
+      // `attachLoader` rather than `loader()`: this drives a raw `LoaderFn`.
     }).with(attachLoader);
     i18n.registerLoader(async (_language, namespace) => {
       if (namespace === "admin") return { title: "Admin Panel" };

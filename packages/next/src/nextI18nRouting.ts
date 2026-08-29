@@ -2,9 +2,7 @@ import { defineRouting } from "./routing/defineRouting";
 import type { LocalePrefixMode, RoutingConfig } from "./routing/types";
 
 /**
- * The routing half of both Next.js factories' options — the only fields
- * `createNextI18nFromHost` accepts, and the first block of
- * `createNextI18n`'s options.
+ * The routing half of both Next.js factories' options.
  *
  * Core-free by construction: nothing here imports `@comvi/core`, which is why
  * `createNextI18nFromHost` can share it without adding a core module the
@@ -40,11 +38,8 @@ export interface NextRoutingOptions {
 }
 
 /**
- * Feed the routing half of a factory's options to `defineRouting` — which
- * applies the `localePrefix` / `localeCookie` / `pathnames` defaults — and
- * produce the `routing` field both factory results expose. The explicit pick
- * is the point: `createNextI18n`'s options also carry i18n fields, and
- * `defineRouting` spreads whatever it is handed.
+ * The explicit pick is the point: `createNextI18n`'s options also carry i18n
+ * fields, and `defineRouting` spreads whatever it is handed.
  *
  * @internal
  */

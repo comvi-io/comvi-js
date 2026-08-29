@@ -256,7 +256,7 @@ describe("collector/transport", () => {
       // mirror drift can never cause a silent hash mismatch.
       expect(body.items[0].uiType).toBe("primary-button");
       expect(body.items[0].translationRole).toBe("imperative-verb");
-      // B1: readingOrderIndex/debug/spatial are client-only — the server's
+      // readingOrderIndex/debug/spatial are client-only — the server's
       // ObservationSchema has `additionalProperties: false` and doesn't
       // define them, so sending them would be a 400.
       expect(body.items[0]).not.toHaveProperty("readingOrderIndex");

@@ -19,7 +19,6 @@ describe("useFormatters", () => {
     const { result } = renderHook(() => useFormatters(), { wrapper: createWrapper(fake) });
 
     const formatted = result.current.formatNumber(1234);
-    // en locale produces "1,234"
     expect(formatted).toBe("1,234");
   });
 
@@ -33,7 +32,6 @@ describe("useFormatters", () => {
       await fake.setLocaleAsync("de");
     });
 
-    // de locale produces "1.234"
     expect(result.current.formatNumber(1234)).toBe("1.234");
   });
 

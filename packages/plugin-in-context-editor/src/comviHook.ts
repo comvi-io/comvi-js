@@ -14,11 +14,9 @@
 import type { ComviQueueEntry as CoreQueueEntry, I18nPluginHostApi } from "@comvi/core";
 
 /**
- * The instance type the core discovery queue actually carries. Since the
- * single-entry convergence this IS `@comvi/core`'s published `I18n` — the BASE
- * class, with the loader and plugin capabilities living only in the
- * `@comvi/core/loader` and `@comvi/core/plugins` subpaths. Deriving it from
- * the published entry keeps this hook assignable to `window.__COMVI__`.
+ * What the core discovery queue carries: `@comvi/core`'s published BASE `I18n`,
+ * with loader and plugin capabilities living only in the subpaths. Deriving it
+ * from the published entry keeps this hook assignable to `window.__COMVI__`.
  */
 type QueueI18n = CoreQueueEntry["i"];
 

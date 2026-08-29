@@ -33,9 +33,7 @@ const toQueryString = (query: QueryRecord | undefined): string => {
 };
 
 /**
- * Composable to get locale-prefixed paths
- *
- * @returns Function that converts a path to locale-prefixed path
+ * Composable to get locale-prefixed paths.
  *
  * @example
  * ```vue
@@ -55,13 +53,7 @@ export function useLocalePath() {
   const localeState = useLocaleState();
   const router = useRouter();
 
-  /**
-   * Get locale-prefixed path
-   *
-   * @param path - The path to localize
-   * @param locale - Target locale (defaults to current locale)
-   * @returns Localized path
-   */
+  /** @param locale - defaults to the current locale. */
   function localePath(path: RouteLocationRaw, locale?: string): string {
     const targetLocale = locale || localeState.value || defaultLocale;
 
@@ -70,7 +62,7 @@ export function useLocalePath() {
     // Handle named routes by appending the correct locale suffix
     if (typeof path === "object" && path !== null && "name" in path && path.name) {
       const nameStr = String(path.name);
-      // Strip any existing locale suffix if the user passed it manually
+      // The user may have passed the suffix manually.
       const baseName = nameStr.split("___")[0];
 
       const shouldPrefix =
@@ -90,12 +82,11 @@ export function useLocalePath() {
           ? resolvedPath
           : router.resolve(resolvedPath).fullPath || "/";
     } catch {
-      // Fallback if route resolution fails
       if (typeof path === "object" && "path" in path && path.path) {
         fullPath = path.path;
       } else if (typeof resolvedPath === "object" && "name" in resolvedPath) {
-        // If we can't resolve a named route, mock the full path based on the name for basic tests
-        // This is primarily for testing when the router isn't fully mocked
+        // Unresolvable named route (a partially mocked router in tests):
+        // synthesize a path from the name.
         const nameParams = resolvedPath.name
           ? `/${String(resolvedPath.name).replace(/___.*$/, "")}`
           : "";
@@ -107,10 +98,8 @@ export function useLocalePath() {
 
     const { pathname, suffix } = splitPathAndSuffix(fullPath);
 
-    // Normalize path
     const normalizedPath = pathname.startsWith("/") ? pathname : `/${pathname}`;
 
-    // Strip any existing locale prefix
     const cleanPath = stripLocalePrefix(normalizedPath, locales);
 
     // Apply prefix based on mode and preserve query/hash

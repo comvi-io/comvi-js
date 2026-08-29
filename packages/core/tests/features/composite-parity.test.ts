@@ -13,18 +13,13 @@ import type { I18nPluginHost, LoaderFn, TranslationValue } from "../../src/types
 import type { LoaderImportMap } from "../../src/core/importMapLoader";
 
 /**
- * R6 — old-root semantics vs the recomposed base host (plan §2.4/§3.1, P0.3).
+ * The batteries-included host vs the published composition RECIPE, proved to be
+ * the same thing: every scenario runs twice — once on the internal composite
+ * (`src/core/full.ts`) and once on the base host composed with explicit
+ * capability imports — and passes only when both produce a deep-equal
+ * observation.
  *
- * `/slim` and the batteries-included public root both die in the single-entry
- * convergence; what replaces the latter is a RECIPE. This suite is the proof
- * that the recipe is not an approximation: every scenario runs twice — once on
- * the internal composite (`src/core/full.ts`, the shape the CDN global ships
- * and `@comvi/next`'s builder mirrors) and once on the published base host
- * composed with explicit capability imports — and passes only when both sides
- * produce a deep-equal observation.
- *
- * The COMPOSITION ORDER below is normative (P0.3 §3.1) and is what
- * `scripts/size-fixtures/core-full-composite.ts` measures:
+ * The COMPOSITION ORDER below is normative:
  *
  *   capabilities first → catalog ingested → discovery LAST
  *
@@ -220,7 +215,7 @@ describe("composite parity — loader capability", () => {
         de: () => Promise.resolve({ default: { k: "DE" } }),
       };
       // Each maker reaches the adapter its own documented way: the composite
-      // through the 0.4 `registerLoader(importMap)` overload it keeps on its
+      // through the `registerLoader(importMap)` overload it keeps on its
       // prototype, the recomposed host through the configured `loader(map)`.
       const i18n = make({ importMap: map });
       await i18n.init();

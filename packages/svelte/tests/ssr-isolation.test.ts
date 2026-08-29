@@ -1,23 +1,17 @@
 /**
- * SSR cross-request isolation test (F2a / F2b)
+ * Two i18n instances must never share store state, which is what makes the
+ * per-request-instance SSR pattern safe and proves the module-level WeakMap
+ * caches in useI18n.ts are instance-keyed. Plus: a correct mount emits ZERO
+ * hydration warnings, and a deliberately mismatched `hydrate()` DOES emit one
+ * (the negative control that keeps the check honest).
  *
- * Goals:
- *  1. Prove that two separate i18n instances never share store state (locale / translations).
- *     This validates the per-request-instance pattern documented in the README SSR section
- *     and that the module-level WeakMap caches in useI18n.ts are correctly instance-keyed.
- *  2. Verify that a correctly mounted component produces ZERO hydration warnings, and that a
- *     mismatched hydrate() call DOES emit a warning (negative control to prove the check is live).
- *
- * NOTE on svelte/server render() in this test environment:
- *   The vitest config uses resolve.conditions: ["browser"], so .svelte files compile as browser
- *   components. svelte/server render() requires server-compiled components. Calling render() on a
- *   browser component does not throw synchronously, but accessing result.body triggers a runtime
- *   error because the browser reactive machinery (parent_effect) is absent in the SSR renderer.
- *   This limitation is documented in the assertion below and in the README SSR section.
- *   The cross-bleed store assertions are the primary gate for the `ssr` keyword.
- *
- *   Hydration marker format in Svelte 5: <!--[--> (start) and <!--]--> (end).
- *   hydrate() from "svelte" is the correct API (not mount({ hydrate: true })).
+ * HARNESS LIMITATION: the vitest config sets resolve.conditions ["browser"],
+ * so .svelte files compile as browser components, and `svelte/server`
+ * render() needs server-compiled ones. render() does not throw synchronously,
+ * but reading `result.body` errors because the browser reactive machinery
+ * (parent_effect) is absent in the SSR renderer. Real server-render coverage
+ * needs a separate vitest project with ssr.resolve.conditions
+ * ["svelte", "node"]; the cross-bleed assertions are the primary gate here.
  */
 import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
 import { get } from "svelte/store";
@@ -25,16 +19,9 @@ import { createI18n } from "../src/index";
 import { mount, hydrate, unmount, tick } from "svelte";
 import IntegrationSmoke from "./IntegrationSmoke.test.svelte";
 
-// ---------------------------------------------------------------------------
-// 1. Store / WeakMap isolation — two instances, zero cross-bleed
-// ---------------------------------------------------------------------------
-
+// Store / WeakMap isolation — two instances, zero cross-bleed.
 describe("SSR cross-request isolation — store-level", () => {
-  /**
-   * Simulate two concurrent server requests, each with its own i18n instance.
-   * Assert that locale and translation output from instance A never appear in
-   * instance B's stores.
-   */
+  /** Two concurrent server requests, each with its own i18n instance. */
   it("two separate i18n instances have fully isolated locale state", async () => {
     const instanceA = createI18n({
       locale: "en",
@@ -50,12 +37,10 @@ describe("SSR cross-request isolation — store-level", () => {
     expect(instanceA.locale).toBe("en");
     expect(instanceB.locale).toBe("uk");
 
-    // Switch A — B must not change.
     await instanceA.setLocaleAsync("fr");
     expect(instanceA.locale).toBe("fr");
     expect(instanceB.locale).toBe("uk");
 
-    // Switch B — A must not change.
     await instanceB.setLocaleAsync("de");
     expect(instanceB.locale).toBe("de");
     expect(instanceA.locale).toBe("fr");
@@ -98,11 +83,10 @@ describe("SSR cross-request isolation — store-level", () => {
     expect(instanceA.t("key")).toBe("Value A");
     expect(instanceB.t("key")).toBe("Value B");
 
-    // Add translations to A — B's cache must not be affected.
     instanceA.addTranslations({ en: { extra: "Extra A" } });
 
     expect(instanceA.t("extra")).toBe("Extra A");
-    // B falls back to key name — it never received "Extra A".
+    // B falls back to the key: it never received "Extra A".
     expect(instanceB.t("extra")).toBe("extra");
   });
 
@@ -126,7 +110,6 @@ describe("SSR cross-request isolation — store-level", () => {
     expect(get(storeA)).toBe("en");
     expect(get(storeB)).toBe("de");
 
-    // Mutate A — B's store must remain "de".
     await instanceA.setLocaleAsync("es");
 
     expect(get(storeA)).toBe("es");
@@ -134,21 +117,8 @@ describe("SSR cross-request isolation — store-level", () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// 2. svelte/server render() — SSR compilation constraint
-// ---------------------------------------------------------------------------
-
+// svelte/server render() — the SSR compilation constraint.
 describe("svelte/server render() — SSR compilation constraint", () => {
-  /**
-   * Documents the known limitation: vitest resolve.conditions: ["browser"] compiles
-   * .svelte files as browser components. svelte/server render() requires server-compiled
-   * components. Calling render() on a browser component does not throw synchronously, but
-   * accessing result.body errors because browser reactive machinery (parent_effect) is absent.
-   *
-   * To get true svelte/server render coverage, run vitest with a separate project config
-   * using ssr.resolve.conditions: ["svelte", "node"]. The cross-bleed assertions above are
-   * the primary gate for the `ssr` keyword.
-   */
   it("documents that accessing render().body on a browser-compiled component throws", async () => {
     const { render } = await import("svelte/server");
     const i18n = createI18n({
@@ -157,17 +127,14 @@ describe("svelte/server render() — SSR compilation constraint", () => {
     });
     await i18n.init();
 
-    // render() itself does not throw — accessing result.body does, because the
-    // browser component tries to access parent_effect which is null in SSR context.
+    // render() itself does not throw; reading result.body does, because the
+    // browser component reaches for a parent_effect that is null under SSR.
     const result = render(IntegrationSmoke as never, { props: { i18n } });
     expect(() => result.body).toThrow();
   });
 });
 
-// ---------------------------------------------------------------------------
-// 3. Hydration warning check
-// ---------------------------------------------------------------------------
-
+// Hydration warning check.
 describe("hydration warning check", () => {
   let target: HTMLElement;
   let component: ReturnType<typeof mount> | null;
@@ -196,15 +163,10 @@ describe("hydration warning check", () => {
   }
 
   /**
-   * NEGATIVE CONTROL — proves the warning spy is live.
-   *
-   * svelte/server render() produces HTML with <!--[--> / <!--]--> hydration markers.
-   * svelte's hydrate() uses those markers to walk the DOM and diff against what
-   * the component would render. When the content inside the markers doesn't match,
-   * Svelte 5 emits a console.warn matching /hydrat/.
-   *
-   * We manually construct SSR-style HTML with the correct markers but wrong content,
-   * then call hydrate() to trigger the mismatch warning.
+   * NEGATIVE CONTROL — proves the warning spy is live. Svelte 5's hydration
+   * markers are `<!--[-->` / `<!--]-->`; `hydrate()` walks them and warns when
+   * the content between them does not match what the component renders, so
+   * this hand-builds markers around deliberately wrong content.
    */
   it("NEGATIVE CONTROL — mismatched hydration HTML triggers a hydration warning", async () => {
     const i18n = createI18n({
@@ -213,9 +175,6 @@ describe("hydration warning check", () => {
     });
     await i18n.init();
 
-    // Construct SSR-style HTML: correct Svelte 5 hydration markers wrapping wrong content.
-    // hydrate() will walk the markers, find content that doesn't match the component output,
-    // and emit a /hydrat/ warning.
     target.innerHTML =
       '<!--[--><div data-testid="hook">WRONG CONTENT</div><div data-testid="component">ALSO WRONG</div><!--]-->';
 
@@ -225,14 +184,9 @@ describe("hydration warning check", () => {
     });
     await tick();
 
-    // Must have at least one hydration warning — proves the spy is live.
     expect(hydrationWarningCount()).toBeGreaterThan(0);
   });
 
-  /**
-   * Correct fresh mount (no pre-existing HTML) must produce zero hydration warnings.
-   * This is the normal client-side boot path: Svelte renders from scratch.
-   */
   it("correct client mount produces zero hydration warnings", async () => {
     const i18n = createI18n({
       locale: "en",

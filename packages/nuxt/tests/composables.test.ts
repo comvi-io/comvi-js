@@ -275,7 +275,6 @@ describe("useLocaleHead", () => {
     const alternates = links.filter((link) => link.rel === "alternate");
     expect(alternates).toHaveLength(mockRuntimeConfig.public.comvi.locales.length + 1);
 
-    // Verify each locale's alternate link has the correct hreflang and href
     const enAlternate = alternates.find((link) => link.hreflang === "en");
     expect(enAlternate?.href).toBe("https://example.com/about");
 

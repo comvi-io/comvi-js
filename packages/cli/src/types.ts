@@ -1,49 +1,25 @@
 /**
- * Core types for @comvi/cli
- *
- * Architecture:
- * - Backend provides schema via /v1/projects/:projectId/schema
- * - Backend provides translations via /v1/translations
- * - SSE streams full schema on updates
- * - CLI generates types and syncs translations
+ * Core types for @comvi/cli. The backend serves the schema from
+ * `/v1/projects/:projectId/schema` and translations from `/v1/translations`;
+ * SSE streams the full schema on every update.
  */
 
-// ============================================
-// Schema types (from backend API)
-// ============================================
-
-/**
- * Parameter schema from backend
- * Only two types: string and number (for plurals)
- */
+/** `number` is the type carried by plural counts. */
 export interface SchemaParam {
   name: string;
   type: "string" | "number";
 }
 
-/**
- * Key schema from backend
- */
 export interface KeySchema {
   params: SchemaParam[];
 }
 
-/**
- * Full project schema from backend
- * Keys are in format "namespace:key" (e.g., "common:greeting")
- */
+/** Keys are in `"namespace:key"` format, e.g. `"common:greeting"`. */
 export interface ProjectSchema {
   keys: Record<string, KeySchema>;
 }
 
-// ============================================
-// Translation types
-// ============================================
-
-/**
- * Translation data structure
- * { lang: { namespace: { key: value } } }
- */
+/** `{ lang: { namespace: { key: value } } }`. */
 export type TranslationData = Record<string, Record<string, Record<string, string>>>;
 
 /**
@@ -66,9 +42,7 @@ export interface ApiTranslationsResponse {
   namespaces: Record<string, Record<string, Record<string, string>>>;
 }
 
-/**
- * Response from /v1/project endpoint
- */
+/** Response from `/v1/project`. */
 export interface ProjectInfo {
   id: number;
   organizationId: number;
@@ -77,27 +51,15 @@ export interface ProjectInfo {
   sourceLocale: string;
 }
 
-/**
- * Push result from the bulk import commit endpoint
- */
+/** Result of the bulk import commit endpoint. */
 export interface PushResult {
   created: number;
   updated: number;
   skipped: number;
 }
 
-/**
- * Force mode for push conflicts
- */
 export type ForceMode = "override" | "keep" | "ask" | "abort";
 
-// ============================================
-// Configuration types
-// ============================================
-
-/**
- * Push-specific configuration
- */
 export interface PushConfig {
   /**
    * How to handle conflicts
@@ -110,9 +72,6 @@ export interface PushConfig {
   forceMode?: ForceMode;
 }
 
-/**
- * Pull-specific configuration
- */
 export interface PullConfig {
   /**
    * Clear translations directory before pull
@@ -193,24 +152,12 @@ export interface ComviConfig {
    */
   locales?: string[];
 
-  /**
-   * Push-specific configuration
-   */
   push?: PushConfig;
 
-  /**
-   * Pull-specific configuration
-   */
   pull?: PullConfig;
 }
 
-/**
- * Configuration options for the type generator
- */
 export interface GeneratorOptions {
-  /**
-   * API key for authenticating with the Translation Management System
-   */
   apiKey: string;
 
   /**
@@ -232,133 +179,46 @@ export interface GeneratorOptions {
   strictParams?: boolean;
 }
 
-/**
- * Options for TranslationSync
- */
 export interface TranslationSyncOptions {
-  /**
-   * Local translations folder path
-   */
   translationsPath: string;
-
-  /**
-   * File template pattern
-   */
   fileTemplate: string;
-
-  /**
-   * File format
-   */
   format: "json";
 }
 
-// ============================================
-// Result types
-// ============================================
-
-/**
- * Result of type generation
- */
 export interface GenerationResult {
-  /**
-   * Whether generation was successful
-   */
   success: boolean;
-
-  /**
-   * Path to the generated file
-   */
   filePath?: string;
-
-  /**
-   * Number of keys generated
-   */
   keysGenerated?: number;
-
-  /**
-   * Error message if generation failed
-   */
   error?: string;
-
-  /**
-   * Time taken to generate (in ms)
-   */
+  /** Time taken to generate, in milliseconds. */
   duration?: number;
 }
 
-/**
- * Result of type check (CI mode)
- */
+/** Result of the CI-mode type check. */
 export interface CheckResult {
-  /**
-   * Whether types are up to date
-   */
   upToDate: boolean;
-
-  /**
-   * Number of keys in generated types
-   */
+  /** Keys the generator produced. */
   keysGenerated?: number;
-
-  /**
-   * Number of keys in current file (if exists)
-   */
+  /** Keys already in the file on disk, when it exists. */
   currentKeys?: number;
-
-  /**
-   * Path to the types file
-   */
   filePath?: string;
 }
 
-/**
- * Result of pull operation
- */
 export interface PullResult {
-  /**
-   * Locales that were pulled
-   */
   locales: string[];
-
-  /**
-   * Namespaces that were pulled
-   */
   namespaces: string[];
-
-  /**
-   * Number of files written
-   */
   filesWritten: number;
 }
 
-/**
- * Diff result for comparing translations
- */
+/** Prospective counts for a push: what a run WOULD create, update or delete,
+ * and how many keys conflict. Contrast {@link PushResult}, which counts what a
+ * run actually did. */
 export interface TranslationDiff {
-  /**
-   * Number of new keys to create
-   */
   created: number;
-
-  /**
-   * Number of translations to update
-   */
   updated: number;
-
-  /**
-   * Number of conflicting keys
-   */
   conflicts: number;
-
-  /**
-   * Number of keys to delete
-   */
   deleted: number;
 }
-
-// ============================================
-// Re-exports
-// ============================================
 
 export type { Logger, LogLevel } from "./utils/logger";
 export type { TypegenError } from "./utils/errors";

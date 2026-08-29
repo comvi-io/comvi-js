@@ -1,12 +1,3 @@
-/**
- * TypeGenerator - Main orchestrator for type generation
- *
- * Simplified flow:
- * 1. Fetch schema and the backend default namespace
- * 2. Convert schema to .d.ts using TypeEmitter
- * 3. Write to file
- */
-
 import { ApiClient } from "./ApiClient";
 import { TypeEmitter } from "./TypeEmitter";
 import { FileSystemWriter } from "./FileSystemWriter";
@@ -38,28 +29,20 @@ export class TypeGenerator {
       ...options,
     };
 
-    // Initialize logger
     this.logger = dependencies?.logger ?? createLogger();
 
-    // Initialize API client
     this.apiClient = new ApiClient({
       apiKey: this.options.apiKey,
       apiBaseUrl: this.options.apiBaseUrl,
     });
 
-    // Initialize type emitter
     this.typeEmitter = new TypeEmitter();
 
-    // Initialize file writer (injectable for testing)
     this.writer = dependencies?.writer ?? new FileSystemWriter();
 
-    // Initialize reporter (injectable for testing/customization)
     this.reporter = dependencies?.reporter ?? new ConsoleReporter(this.logger);
   }
 
-  /**
-   * Validate connection to the TMS API
-   */
   async validateConnection(): Promise<boolean> {
     try {
       return await this.apiClient.validateConnection();
@@ -69,23 +52,18 @@ export class TypeGenerator {
     }
   }
 
-  /**
-   * Generate TypeScript types from the TMS
-   */
   async generate(): Promise<GenerationResult> {
     const startTime = Date.now();
 
     try {
       this.reporter.reportStart();
 
-      // Fetch schema from TMS
       this.reporter.reportFetching();
       const [schema, defaultNsName] = await Promise.all([
         this.apiClient.fetchSchema(),
         this.getDefaultNamespaceName(),
       ]);
 
-      // Generate and write types
       return await this.generateFromSchema(schema, startTime, defaultNsName);
     } catch (error) {
       const duration = Date.now() - startTime;
@@ -116,25 +94,20 @@ export class TypeGenerator {
     }
   }
 
-  /**
-   * Check if types are up to date (CI mode)
-   */
+  /** CI mode: compares the file on disk against freshly generated output. */
   async check(): Promise<CheckResult> {
     try {
-      // Fetch schema from TMS
       const [schema, defaultNsName] = await Promise.all([
         this.apiClient.fetchSchema(),
         this.getDefaultNamespaceName(),
       ]);
       const keyCount = Object.keys(schema.keys).length;
 
-      // Generate expected types
       const expectedTypes = this.typeEmitter.generate(schema, {
         strictParams: this.options.strictParams,
         defaultNsName,
       });
 
-      // Read current types file
       let currentTypes: string | null = null;
       let currentKeyCount = 0;
 
@@ -153,7 +126,6 @@ export class TypeGenerator {
         };
       }
 
-      // Compare (normalize whitespace for comparison)
       const normalizeContent = (content: string) =>
         content.replace(/Generated at:.*$/gm, "").trim();
 
@@ -173,10 +145,7 @@ export class TypeGenerator {
     }
   }
 
-  /**
-   * Generate types from an already-fetched schema
-   * Used by SSE handler to avoid re-fetching
-   */
+  /** Used by the SSE handler, which already holds the schema. */
   async generateFromSchema(
     schema: ProjectSchema,
     startTime: number = Date.now(),
@@ -186,14 +155,12 @@ export class TypeGenerator {
       const keyCount = Object.keys(schema.keys).length;
       const resolvedDefaultNsName = defaultNsName ?? (await this.getDefaultNamespaceName());
 
-      // Generate TypeScript declarations
       this.reporter.reportGenerating();
       const typeDeclarations = this.typeEmitter.generate(schema, {
         strictParams: this.options.strictParams,
         defaultNsName: resolvedDefaultNsName,
       });
 
-      // Write to file
       await this.writer.write(this.options.outputPath, typeDeclarations);
 
       const duration = Date.now() - startTime;
@@ -230,9 +197,7 @@ export class TypeGenerator {
     }
   }
 
-  /**
-   * Get the API client for SSE subscription
-   */
+  /** Exposed so the watch command can open an SSE subscription. */
   getApiClient(): ApiClient {
     return this.apiClient;
   }

@@ -43,15 +43,8 @@ export interface LocaleHeadOptions {
 }
 
 /**
- * Composable for SEO-related head tags
- *
- * Automatically sets:
- * - html lang and dir attributes
- * - Canonical URL
- * - Alternate hreflang links
- * - OpenGraph locale tags
- *
- * @param options - Configuration options
+ * Composable for SEO-related head tags: html lang/dir, canonical URL, hreflang
+ * alternates and OpenGraph locale tags.
  *
  * @example
  * ```vue
@@ -76,7 +69,6 @@ export function useLocaleHead(options: LocaleHeadOptions = {}) {
     addLang = true,
   } = options;
 
-  // Try to get base URL from options, request URL, or environment
   const getBaseUrl = () => {
     if (options.baseUrl) {
       return options.baseUrl.replace(/\/$/, "");
@@ -89,18 +81,15 @@ export function useLocaleHead(options: LocaleHeadOptions = {}) {
     }
   };
 
-  // Get clean path without locale prefix
   const getCleanPath = () => {
     return stripLocalePrefix(route.path, locales);
   };
 
-  // Build locale-prefixed URL
   const buildLocalizedUrl = (baseUrl: string, path: string, locale: string) => {
     const localizedPath = buildLocalizedPath(path, locale, defaultLocale, localePrefix);
     return `${baseUrl}${localizedPath}`;
   };
 
-  // Compute head configuration
   const headConfig = computed(() => {
     const currentLocale = localeState.value || defaultLocale;
     const localeObj = localeObjects[currentLocale] || { code: currentLocale };
@@ -109,7 +98,6 @@ export function useLocaleHead(options: LocaleHeadOptions = {}) {
 
     const head: Record<string, unknown> = {};
 
-    // HTML attributes
     const htmlAttrs: Record<string, string> = {};
     if (addLang) {
       htmlAttrs.lang = localeObj.iso || currentLocale;
@@ -121,17 +109,14 @@ export function useLocaleHead(options: LocaleHeadOptions = {}) {
       head.htmlAttrs = htmlAttrs;
     }
 
-    // Meta tags
     const meta: Array<Record<string, string>> = [];
 
     if (addOgLocale) {
-      // Current locale
       meta.push({
         property: "og:locale",
         content: (localeObj.iso || currentLocale).replace("-", "_"),
       });
 
-      // Alternate locales
       for (const locale of locales) {
         if (locale !== currentLocale) {
           const altLocaleObj = localeObjects[locale] || { code: locale };
@@ -147,7 +132,6 @@ export function useLocaleHead(options: LocaleHeadOptions = {}) {
       head.meta = meta;
     }
 
-    // Link tags
     const link: Array<Record<string, string>> = [];
 
     if (baseUrl) {
@@ -159,7 +143,6 @@ export function useLocaleHead(options: LocaleHeadOptions = {}) {
       }
 
       if (addAlternateLinks) {
-        // Alternate links for each locale
         for (const locale of locales) {
           const altLocaleInfo = localeObjects[locale] || { code: locale };
           link.push({
@@ -169,7 +152,7 @@ export function useLocaleHead(options: LocaleHeadOptions = {}) {
           });
         }
 
-        // x-default link (points to default locale)
+        // x-default points at the default locale.
         link.push({
           rel: "alternate",
           hreflang: "x-default",
@@ -185,7 +168,6 @@ export function useLocaleHead(options: LocaleHeadOptions = {}) {
     return head;
   });
 
-  // Apply head configuration
   useHead(headConfig as ComputedRef<Record<string, unknown>>);
 
   return headConfig;

@@ -92,7 +92,7 @@ describe("useI18n", () => {
     const i18n = createI18n({
       locale: "en",
       // `{…, select, …}` is ICU: the base host does not compile it unless the
-      // app says so, and this one says so in the same call.
+      // app asks, and this one asks in the same call.
       compiler: icuCompiler,
       defaultParams: { formality: "formal" as const },
       translation: {
@@ -220,8 +220,7 @@ describe("useI18n", () => {
       translation: {
         "en:common": { title: commonTitle },
       },
-      // The base host has no loader capability; this test registers a raw
-      // `LoaderFn`, so the low-level attach is the right composition here.
+      // `attachLoader` rather than `loader()`: this registers a raw `LoaderFn`.
     }).with(attachLoader);
 
     i18n.registerLoader(async (_language, namespace) => {

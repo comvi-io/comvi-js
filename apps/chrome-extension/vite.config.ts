@@ -107,19 +107,15 @@ export default defineConfig(({ mode }) => {
           ];
           writeFileSync(outPath("manifest.json"), JSON.stringify(manifest, null, 2) + "\n");
 
-          // Copy popup.html
           copyFileSync(resolve(__dirname, "src/popup/popup.html"), outPath("popup.html"));
 
-          // Copy the bundled in-context editor runtime
           copyFileSync(editorBundlePath, outPath("editor.iife.js"));
 
-          // Create icons directory and copy icons
           const iconsDir = outPath("icons");
           if (!existsSync(iconsDir)) {
             mkdirSync(iconsDir, { recursive: true });
           }
 
-          // Copy icons if they exist
           const publicIconsDir = resolve(__dirname, "public/icons");
           if (existsSync(publicIconsDir)) {
             for (const fileName of readdirSync(publicIconsDir)) {

@@ -5,10 +5,7 @@ import type { UserConfig, BuildOptions } from "vite";
 // module resolution failures in consuming apps.
 const isWatchMode = process.argv.includes("--watch");
 
-/**
- * Map of workspace packages to their source entry points
- * These packages will be resolved to source for instant HMR in development
- */
+/** Workspace packages resolved to source for instant HMR in development. */
 const sourcePackages: Record<string, string> = {
   "@comvi/core": "packages/core/src/index.ts",
   "@comvi/vue": "packages/vue/src/index.ts",
@@ -20,18 +17,12 @@ const sourcePackages: Record<string, string> = {
   "@comvi/plugin-in-context-editor": "packages/plugin-in-context-editor/src/index.ts",
 };
 
-/**
- * Internal aliases for packages with their own path aliases
- * These aliases are added to consuming apps to resolve internal imports
- */
+/** Package-internal path aliases, re-declared so consuming apps can resolve them. */
 const internalAliases: Record<string, string> = {
   // Note: '@' alias for plugin-in-context-editor is internal only (not exported to consuming apps)
 };
 
-/**
- * Packages that require watch mode instead of source imports
- * These use non-Vite build tools (e.g., tsup) or have complex build requirements
- */
+/** Packages built by non-Vite tooling, so they must be watched rather than source-imported. */
 const defaultWatchPackages = [
   "@comvi/next", // Uses tsup with "use client" directive
   "@comvi/plugin-in-context-editor", // Complex Vue plugin with CSS injection
@@ -45,23 +36,15 @@ export interface ComviDevOptions {
   rootDir: string;
 
   /**
-   * Packages that should use watch mode instead of source imports
-   * These packages will be watched for dist/ changes instead of importing from src/
+   * Packages watched for dist/ changes instead of imported from src/.
    * @default ['@comvi/next']
    */
   watchPackages?: string[];
 }
 
 /**
- * Creates Vite configuration for transparent HMR with workspace packages
- *
- * In development mode:
- * - Resolves workspace packages to their source files for instant HMR
- * - Configures file system access for workspace packages
- * - Watches dist/ for packages using watch mode
- *
- * In production mode:
- * - Uses normal package resolution (dist/ files)
+ * Vite configuration for transparent HMR with workspace packages: development
+ * resolves them to source, production uses normal dist resolution.
  *
  * @example
  * // test-apps/vue/vite.config.ts
@@ -80,7 +63,6 @@ export function comviDevConfig(options: ComviDevOptions): UserConfig {
   const isDev = process.env.NODE_ENV !== "production";
   const resolvedRootDir = resolve(process.cwd(), rootDir);
 
-  // Build aliases for source imports (dev only)
   const aliases: Record<string, string> = {};
   const excludeFromOptimize: string[] = [];
 
@@ -91,11 +73,10 @@ export function comviDevConfig(options: ComviDevOptions): UserConfig {
         excludeFromOptimize.push(pkg);
       }
     }
-    // Add internal aliases for packages with their own path aliases
     for (const [alias, srcPath] of Object.entries(internalAliases)) {
       aliases[alias] = resolve(resolvedRootDir, srcPath);
     }
-    // Also exclude watch packages from pre-bundling to ensure fresh imports
+    // Watch packages are excluded from pre-bundling too, so each change is a fresh import.
     excludeFromOptimize.push(...watchPackages);
   }
 
@@ -104,19 +85,14 @@ export function comviDevConfig(options: ComviDevOptions): UserConfig {
       alias: aliases,
     },
     optimizeDeps: {
-      // Exclude all workspace packages from pre-bundling
-      // - Source-imported packages: resolved via aliases
-      // - Watch packages: need fresh imports on each change
       exclude: excludeFromOptimize,
     },
     server: {
       fs: {
-        // Allow serving files from workspace packages
         allow: [resolvedRootDir],
       },
       watch: {
-        // Ensure Vite watches workspace packages in node_modules
-        // By default Vite ignores node_modules, we need to watch our packages
+        // Vite ignores node_modules by default; the workspace packages have to be watched.
         ignored: ["!**/node_modules/@comvi/**"],
       },
     },
@@ -124,13 +100,11 @@ export function comviDevConfig(options: ComviDevOptions): UserConfig {
 }
 
 /**
- * Generates TypeScript path mappings for workspace packages
- * Use this to update tsconfig.json paths for proper IDE support
+ * TypeScript path mappings for workspace packages, for tsconfig.json `paths`.
  *
  * @example
- * // Generate paths for tsconfig.json
  * const paths = generateTsPaths('../..')
- * // Returns: { '@comvi/core': ['../../packages/core/src/index.ts'], ... }
+ * // { '@comvi/core': ['../../packages/core/src/index.ts'], ... }
  */
 export function generateTsPaths(rootDir: string): Record<string, string[]> {
   const paths: Record<string, string[]> = {};
@@ -140,24 +114,10 @@ export function generateTsPaths(rootDir: string): Record<string, string[]> {
   return paths;
 }
 
-/**
- * List of all source-importable packages
- * Useful for conditional configuration
- */
 export const sourceImportablePackages = Object.keys(sourcePackages);
 
-/**
- * Default packages that use watch mode
- */
 export const watchModePackages = defaultWatchPackages;
 
-// ============================================================================
-// Library Build Configuration
-// ============================================================================
-
-/**
- * Standard treeshake options
- */
 export const treeshakeOptions = {
   moduleSideEffects: false,
   propertyReadSideEffects: false as const,
@@ -168,13 +128,10 @@ export const treeshakeOptions = {
  * external list.
  *
  * A wrapper that externalizes only the bare specifier gets verbatim COPIES of
- * core's chunks inlined into its own dist — that is fs-p1 blocker B3, where
- * `@comvi/vue` shipped a duplicate tag graph that could not dedupe with the
- * app's own `@comvi/core` and ran core's ambient `registerTagSyntax()` from
- * inside the vue bundle. The list is shared because forgetting one entry
- * fails silently and expensively, and because since the single-entry
- * convergence every wrapper ROOT re-exports the capability subpaths — there is
- * no second wrapper entry to carry them.
+ * core's chunks inlined into its own dist: `@comvi/vue` once shipped a
+ * duplicate tag graph that could not dedupe with the app's own `@comvi/core`
+ * and ran core's ambient `registerTagSyntax()` from inside the vue bundle. The
+ * list is shared because forgetting one entry fails silently and expensively.
  */
 export const COMVI_CORE_EXTERNALS = [
   "@comvi/core",
@@ -183,9 +140,9 @@ export const COMVI_CORE_EXTERNALS = [
   "@comvi/core/plugins",
   "@comvi/core/devtools",
   // The PURE rich-text seam every wrapper `<T>` imports, and its ambient
-  // counterpart. Both must be external: inlining `rich-text` would give the
-  // wrapper a private copy of the `<T>` pipeline that cannot dedupe with the
-  // app's `@comvi/core`, and inlining `tags` re-creates blocker B3 outright.
+  // counterpart. Both must be external: inlining `rich-text` gives the wrapper a
+  // private copy of the `<T>` pipeline that cannot dedupe with the app's
+  // `@comvi/core`, and inlining `tags` re-creates the duplicate-graph bug above.
   "@comvi/core/rich-text",
   "@comvi/core/tags",
 ];
@@ -217,7 +174,7 @@ export interface LibraryBuildOptions {
 }
 
 /**
- * Creates standard build options for library packages
+ * Standard build options for library packages.
  *
  * @example
  * ```ts
@@ -304,7 +261,7 @@ export interface PluginBuildOptions {
 }
 
 /**
- * Creates build options for plugin packages (ESM + CJS)
+ * Build options for plugin packages.
  *
  * @example
  * ```ts

@@ -5,8 +5,7 @@ import { compareManifest, renderComparison } from "./test-manifest.mjs";
 const REACT_A = "packages/react/tests/useI18n.test.tsx > useI18n > returns t";
 const REACT_B = "packages/react/tests/useI18n.test.tsx > useI18n > exposes reloadTranslations";
 const VUE_A = "packages/vue/tests/VueI18n.test.ts > VueI18n > proxies reloadTranslations";
-// Added and retired inside one wave, so it is in no baseline — the shape the
-// single-entry convergence produced when it collapsed the `/slim` suites.
+// Added and retired between two baselines, so it appears in neither.
 const WAVE_ID =
   "packages/react/tests/slim-preset.test.tsx > @comvi/react/slim > carries every binding";
 const WAVE_SUCCESSOR =
@@ -131,7 +130,7 @@ test("packages missing from the listing are skipped, so per-wrapper runs work", 
 });
 
 // --- the rename map: post-baseline retirements and file-level renames -------
-// A test added and retired inside ONE wave is invisible to a baseline-only gate.
+// A test added and retired between two baselines is invisible to that gate.
 // These rows are how it stops being invisible, and every one of them is checked
 // against the live listing rather than believed.
 

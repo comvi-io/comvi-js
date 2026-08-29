@@ -40,7 +40,6 @@ describe("Language Management", () => {
         de: { other: "German" },
       });
 
-      // 'key' missing in 'de', found in 'en'
       expect(i18n.t("key")).toBe("English");
     });
 
@@ -69,14 +68,11 @@ describe("Language Management", () => {
         de: { other: "Andere" },
       });
 
-      // No fallback configured yet, so missing key returns the key itself
       expect(i18n.t("greeting")).toBe("greeting");
 
-      // Set fallback to French at runtime
       i18n.setFallbackLocale(["fr", "en"]);
       expect(i18n.t("greeting")).toBe("Bonjour");
 
-      // Change fallback to English only
       i18n.setFallbackLocale("en");
       expect(i18n.t("greeting")).toBe("Hello");
     });

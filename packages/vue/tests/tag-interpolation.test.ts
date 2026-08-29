@@ -6,7 +6,6 @@ import { T } from "../src/components/T";
 import { I18N_INJECTION_KEY } from "../src/keys";
 import { icuCompiler } from "../src";
 
-// Type declarations for test translation keys
 declare module "@comvi/core" {
   interface TranslationKeys {
     "tagged.simple": never;
@@ -117,8 +116,7 @@ describe("<T /> component - Tag Interpolation", () => {
         msg: "Click <btn>Submit</btn>",
       });
 
-      // markRaw prevents Vue from making the component reactive
-      // (avoids performance overhead warning)
+      // markRaw, or Vue makes the component reactive and warns about the cost.
       const MyButton = markRaw(
         defineComponent({
           name: "MyButton",
@@ -158,7 +156,6 @@ describe("<T /> component - Tag Interpolation", () => {
         global: { provide: { [I18N_INJECTION_KEY as symbol]: i18n } },
       });
 
-      // Components prop should win
       expect(wrapper.find("span").exists()).toBe(true);
       expect(wrapper.find("div").exists()).toBe(false);
     });
@@ -239,7 +236,7 @@ describe("<T /> component - Tag Interpolation", () => {
         global: { provide: { [I18N_INJECTION_KEY as symbol]: i18n } },
       });
 
-      // Should use <b> from components, not <strong> from whitelist
+      // `<b>` from components wins over `<strong>` from the whitelist.
       expect(wrapper.find("b").exists()).toBe(true);
       expect(wrapper.find("strong").exists()).toBe(false);
     });
@@ -256,7 +253,7 @@ describe("<T /> component - Tag Interpolation", () => {
         global: { provide: { [I18N_INJECTION_KEY as symbol]: i18n } },
       });
 
-      // No slot or components for "link", should show inner text
+      // No handler for "link", so only its inner text survives.
       expect(wrapper.text()).toBe("Click here for help");
       expect(wrapper.find("a").exists()).toBe(false);
     });
@@ -300,9 +297,8 @@ describe("<T /> component - Tag Interpolation", () => {
 
   describe("Integration with ICU Parameters", () => {
     it("should handle tags with pluralization", () => {
-      // The catalog carries an inline ICU plural, so it names the compiler in
-      // the same constructor call; `<bold>` still comes from `<T>`'s per-call
-      // tag grammar.
+      // An inline ICU plural, so the compiler is named in the same constructor
+      // call; `<bold>` still comes from `<T>`'s per-call tag grammar.
       const i18n = createI18n(
         {
           msg: "You have <bold>{count, plural, one {# item} other {# items}}</bold>",
@@ -405,7 +401,7 @@ describe("<T /> component - Tag Interpolation", () => {
         global: { provide: { [I18N_INJECTION_KEY as symbol]: i18n } },
       });
 
-      // children should be "click here" (string), not ["click here"] (array)
+      // A string, not a one-element array.
       expect(receivedChildren).toBe("click here");
       expect(wrapper.find("a").text()).toBe("click here");
     });
@@ -428,7 +424,7 @@ describe("<T /> component - Tag Interpolation", () => {
         global: { provide: { [I18N_INJECTION_KEY as symbol]: i18n } },
       });
 
-      // children should be array when mixed content
+      // An array, because the content is mixed.
       expect(Array.isArray(receivedChildren)).toBe(true);
       expect(wrapper.text()).toBe("Hello world!");
     });

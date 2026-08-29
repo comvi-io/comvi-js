@@ -48,13 +48,12 @@ describe("Initialization & Configuration", () => {
     await i18n.init();
     await i18n.init();
 
-    // Plugin executed twice, so cleanup was registered twice
     expect(plugin).toHaveBeenCalledTimes(2);
     expect(cleanupOrder).toEqual([]);
 
     await i18n.destroy();
 
-    // Both accumulated cleanup entries are called on destroy in LIFO order
+    // LIFO order.
     expect(cleanupOrder).toEqual(["cleanup-2", "cleanup-1"]);
   });
 
@@ -82,7 +81,6 @@ describe("Initialization & Configuration", () => {
     const i18n = new I18n({ locale: "en" });
     await i18n.init();
 
-    // Translations added to "default" namespace should be accessible without explicit ns
     i18n.addTranslations({ "en:default": { testKey: "Found It" } });
     expect(i18n.t("testKey")).toBe("Found It");
   });

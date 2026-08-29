@@ -24,7 +24,6 @@ beforeEach(async () => {
   // Re-import each test so a fresh request store is created
   vi.resetModules();
 
-  // Re-apply mocks after resetModules
   vi.doMock("react", () => ({
     cache: (fn: () => unknown) => {
       let cached: unknown;

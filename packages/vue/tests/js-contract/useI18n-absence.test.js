@@ -1,12 +1,11 @@
-// Plan §2.4 — the JS-consumer contract for the four members that LEFT
-// `useI18n()` in 0.5.0, plus the seven proxies that left the `VueI18n`
-// instance.
+// The JS-consumer contract for the members that left `useI18n()` and the
+// proxies that left the `VueI18n` instance.
 //
 // Deliberately .js, not .ts: a TypeScript file would fail to compile on every
 // shape below, which proves nothing about what a JavaScript consumer
 // experiences at runtime. Run by BOTH the `js-contract-dev` and
 // `js-contract-prod` vitest projects, which pin `@comvi/core*` to the dev and
-// prod build family respectively (vitest.config.ts).
+// prod build family respectively.
 import { describe, it, expect } from "vitest";
 import { defineComponent, h } from "vue";
 import { mount } from "@vue/test-utils";
@@ -101,11 +100,10 @@ describe.each([
   });
 });
 
-// The vue-specific half of §2.4: the EIGHT instance proxies are gone from
-// VueI18n, and the same operations are reachable through `i18n.core` on a host
-// that has the capability. `use` joined the list in P6 — a guarded proxy that
-// is typed present and throws "missing capability" is the banned failure class
-// §2.4 exists to prevent, so it was removed rather than kept behind a guard.
+// The vue-specific half: the instance proxies are gone from VueI18n, and the
+// same operations are reachable through `i18n.core` on a host that has the
+// capability. `use` is on the list too — a proxy typed present that throws
+// "missing capability" is the failure class this contract exists to prevent.
 const DROPPED_PROXIES = [
   "addActiveNamespace",
   "reloadTranslations",
@@ -143,7 +141,7 @@ describe("VueI18n dropped instance proxies", () => {
     off();
 
     let pluginRan = false;
-    // A STATEMENT body: P5's plugin-init contract rejects a returned value
+    // A STATEMENT body: core's plugin-init contract rejects a return value
     // that is neither void nor a cleanup function, and an expression-bodied
     // `() => (pluginRan = true)` returns `true`.
     expect(

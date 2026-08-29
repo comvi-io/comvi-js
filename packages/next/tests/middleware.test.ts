@@ -101,9 +101,8 @@ describe("middleware locale detection priority", () => {
       localePrefix: "as-needed",
     });
 
-    // Cookie says "de", Accept-Language says "fr"
-    // Note: Setting cookie via headers doesn't work in happy-dom (forbidden header).
-    // Use NextRequest.cookies.set() instead.
+    // Setting a cookie via headers does not work in happy-dom (forbidden
+    // header) — it has to go through NextRequest.cookies.set().
     const request = new NextRequest("https://example.com/about", {
       headers: {
         "accept-language": "fr;q=1.0,en;q=0.5",
@@ -112,7 +111,7 @@ describe("middleware locale detection priority", () => {
     request.cookies.set("NEXT_LOCALE", "de");
     const response = middleware(request);
 
-    // Cookie should win — locale detected as "de"
+    // The cookie wins over Accept-Language.
     expect(response.headers.get("x-comvi-locale")).toBe("de");
     expect(response.headers.get("location")).toBe("https://example.com/de/about");
   });
@@ -131,9 +130,8 @@ describe("middleware locale detection priority", () => {
     });
     const response = middleware(request);
 
-    // None of the Accept-Language values match supported locales, so default "en" is used
     expect(response.headers.get("x-comvi-locale")).toBe("en");
-    // Default locale in as-needed mode rewrites (no redirect)
+    // The default locale in as-needed mode rewrites rather than redirecting.
     expect(response.headers.get("x-middleware-rewrite")).toBe("https://example.com/en/about");
   });
 

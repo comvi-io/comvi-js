@@ -61,10 +61,9 @@ const ERR_INSTANCE_DESTROYED = IS_DEV
   : "E_INSTANCE_DESTROYED";
 
 /**
- * DEV-ONLY diagnostic for the `_flattenNs` seam: a bare host stores catalogs
- * verbatim, so a nested object or a non-string leaf silently becomes an
- * un-renderable template. Behind `IS_DEV`, so it costs the production bundle
- * nothing — which is the entire point of putting the flattener behind a seam.
+ * A bare host stores catalogs verbatim, so a nested object or a non-string leaf
+ * silently becomes an un-renderable template. DEV-only: the production bundle
+ * pays nothing for the flattener seam.
  */
 function warnIfNotFlat(localeOrKey: string, catalog: Record<string, unknown>): void {
   for (const key in catalog) {
@@ -78,11 +77,7 @@ function warnIfNotFlat(localeOrKey: string, catalog: Record<string, unknown>): v
   }
 }
 
-/**
- * Loader types live in `types.ts` (they are part of `I18nLoaderApi`); this
- * type-only re-export keeps `full.ts` / `importMapLoader.ts` importing them
- * from the class module. Zero emitted bytes.
- */
+/** Type-only re-export so `full.ts` / `importMapLoader.ts` can import them from here. */
 export type { LoaderFn, LoaderResult };
 
 /**
@@ -91,15 +86,14 @@ export type { LoaderFn, LoaderResult };
  * (`core/loader.ts`, `core/plugins.ts`) see instances ONLY through this type
  * — never through the class, whose `_`-members are TS-private.
  *
- * MANGLING CONTRACT (plan R2): every `_`-prefixed member below is renamed by
- * the single shared terser nameCache in `vite.shared.ts#mangleInternalProps`.
- * That only stays consistent across chunks because every core subpath entry
- * is built by ONE vite invocation (`coreEntries`). Access these members by
- * DOT only — never `i["_loader"]`, never `"_loadNs" in i`, never
- * `Object.keys`-driven logic over them.
+ * MANGLING CONTRACT: every `_`-prefixed member below is renamed by the single
+ * shared terser nameCache in `vite.shared.ts#mangleInternalProps`. That only
+ * stays consistent across chunks because every core subpath entry is built by
+ * ONE vite invocation (`coreEntries`). Access these members by DOT only —
+ * never `i["_loader"]`, never `"_loadNs" in i`, never `Object.keys`-driven
+ * logic over them.
  */
 export interface I18nInternal<D extends DefaultTranslationParams = {}> extends I18nCoreInstance<D> {
-  // ── base state capability modules read/write ──
   _locale: string;
   _fallbackLocales: string[];
   _cachedDefaultNs: string;
@@ -107,10 +101,8 @@ export interface I18nInternal<D extends DefaultTranslationParams = {}> extends I
   _emit<E extends I18nEvent>(event: E, data?: I18nEventData[E]): void;
   _setLoadingState(isLoading: boolean): void;
 
-  // ── two-phase destroy ──
-  // Named seams rather than a registry: the base already declares one seam
-  // per capability hook, and a single optional call is markedly cheaper than
-  // an array field + push + loop (measured on the full entry).
+  // Named seams rather than a destroy registry: one optional call is markedly
+  // cheaper than an array field + push + loop.
   /** Awaited before any lifecycle reset or emit — capability state still live. */
   _preDestroy?: () => void | Promise<void>;
   /** Discovery removal, run FIRST — before any lifecycle reset (see `destroy`). */
@@ -123,7 +115,6 @@ export interface I18nInternal<D extends DefaultTranslationParams = {}> extends I
   _initPlugins?: () => void;
   _initDevtools?: (instanceId?: string, exposeGlobal?: boolean) => void;
 
-  // ── capability hooks (installed by attach* / the full subclass) ──
   _loadNs?: (locale: string, namespaces: string[], skipLoaded: boolean) => Promise<void>;
   _cancelNs?: (locale?: string, namespace?: string) => void;
   _beforeInit?: () => Promise<void>;
@@ -136,24 +127,20 @@ export interface I18nInternal<D extends DefaultTranslationParams = {}> extends I
    */
   _flattenNs?: (catalog: Record<string, TranslationValue>) => FlattenedTranslations;
 
-  // ── pre-ingestion compiler seam (`/icu`'s only entry point) ──
-  /** The instance's effective compiler; read by the dev-only preflight hook. */
+  // Pre-ingestion compiler seam — `/icu`'s only entry point.
   _compiler: MessageCompiler;
-  /** Per-instance tag options; read by the dev-only preflight hook. */
   _tagInterpolation?: TagInterpolationOptions;
   _setCompilerBeforeIngestion(compiler: MessageCompiler): boolean;
 
   /** DEV-ONLY eager catalog check; absent from production builds. */
   _preflightSimpleCatalog?: (catalog: Record<string, unknown>) => void;
 
-  // ── devtools discovery capability (`core/devtools.ts`) ──
   // `instanceId` is PUBLIC (`I18nCoreExtraApi`) but writable only here: the
   // base declares it and never assigns it, so it is an own property exactly
   // when the discovery capability exposed the instance.
   instanceId: string | undefined;
   _globalEntry?: ComviQueueEntry;
 
-  // ── loader capability state (initLoaderState) ──
   // `_currentLocaleChangeId`/`_requestedLocale` arbitrate rapid locale
   // switches; they live here rather than on the base because only the
   // `/loader` `setLocaleAsync` override can have a load in flight.
@@ -165,15 +152,12 @@ export interface I18nInternal<D extends DefaultTranslationParams = {}> extends I
 }
 
 /**
- * I18n is the main entry point for the i18n system.
- * It acts as a Facade coordinating three specialized managers:
- * - NamespaceManager: Handles namespace loading and tracking
- * - Internal plugin lifecycle runtime: Handles plugin init/cleanup and error recovery
+ * The base i18n host: locale state, catalogs, translation and events.
+ * Loading, plugins and devtools are opt-in capabilities layered on top.
  */
 export class I18n<D extends DefaultTranslationParams = {}>
   implements I18nCoreInstance<D>, I18nCoreExtraApi
 {
-  // Core state
   /** `protected`, not `private`: the capability subclasses in `core/loader.ts` / `core/plugins.ts` read it. */
   protected _locale: string;
   public readonly translationCache: TranslationCache;
@@ -186,10 +170,9 @@ export class I18n<D extends DefaultTranslationParams = {}>
   public readonly collectContext: boolean | undefined;
   public readonly devMode: boolean;
   /**
-   * Assigned ONLY by the discovery capability (`core/devtools.ts`), which the
-   * internal composite composes in and `attachDevtools` installs on a base host.
-   * `declare`: the base must not emit an initializer for it, so on an
-   * instance that was never exposed it is not an own property at all.
+   * Assigned ONLY by the discovery capability (`core/devtools.ts`). `declare`:
+   * the base must not emit an initializer, so on an instance that was never
+   * exposed it is not an own property at all.
    */
   declare public readonly instanceId: string | undefined;
   private _cachedDefaultNs: string;
@@ -214,20 +197,17 @@ export class I18n<D extends DefaultTranslationParams = {}>
   private _primaryTranslationsLocale: string = "";
   private _primaryTranslationsNamespace: string = "";
 
-  // Namespace state (inlined from NamespaceManager)
   protected _activeNamespaces = new Set<string>();
 
-  // Capability seams (`_loadNs`, `_cancelNs`, `_loader`) are NOT declared
-  // here: the composite subclass declares them as real methods (`core/loader.ts`,
-  // `core/plugins.ts`) and `attach*` copies those descriptors onto a base
-  // instance. The base only ever READS them, through the `I18nInternal`
-  // cross-module contract — a type-only cast that emits nothing.
+  // Capability seams (`_loadNs`, `_cancelNs`, `_loader`) are deliberately NOT
+  // declared here: the composite subclass declares them as real methods
+  // (`core/loader.ts`, `core/plugins.ts`) and `attach*` copies those
+  // descriptors onto a base instance. The base only ever READS them, through
+  // the `I18nInternal` cast — which emits nothing.
 
-  // Event system for framework wrappers and plugins
   private _eventCallbacks: Partial<Record<I18nEvent, Set<(data?: unknown) => void>>> =
     Object.create(null);
 
-  // Options storage
   private _fallbackOnMissingKey?: (info: {
     key: string;
     locale: string;
@@ -236,12 +216,10 @@ export class I18n<D extends DefaultTranslationParams = {}>
   private _onError?: (error: Error, context?: ErrorReportContext) => void;
 
   /**
-   * @param compiler Message compiler for this instance. Defaults to
-   * `options.compiler` and then to the simple `{param}` compiler, so the
-   * published `new I18n(options)` is a one-argument constructor; the internal
-   * full composite (`core/full.ts`) is the only caller that passes it
-   * positionally. Its identity is part of every template cache key this
-   * instance produces.
+   * @param compiler Defaults to `options.compiler`, then to the simple
+   * `{param}` compiler, so the published `new I18n(options)` stays a
+   * one-argument constructor. Its identity is part of every template cache key
+   * this instance produces.
    */
   constructor(
     options: I18nOptions<D>,
@@ -254,7 +232,6 @@ export class I18n<D extends DefaultTranslationParams = {}>
     this._compilerId = getCompilerId(compiler);
     this._missingParam = options.missingParam ?? "literal";
 
-    // Initialize core state
     this._locale = options.locale;
     const defaultNs = options.defaultNs ?? DEFAULT_NS;
     const initialNamespaces = options.ns;
@@ -298,7 +275,6 @@ export class I18n<D extends DefaultTranslationParams = {}>
       this._postProcessors.push(options.postProcess);
     }
 
-    // Validate and process initial translations if provided
     if (options.translation !== undefined) {
       if (
         typeof options.translation !== "object" ||
@@ -308,7 +284,6 @@ export class I18n<D extends DefaultTranslationParams = {}>
         throw new Error(ERR_TRANSLATION_NOT_OBJECT);
       }
 
-      // Validate all translation values are objects (only in DEV for performance)
       if (IS_DEV) {
         for (const key in options.translation) {
           const value = options.translation[key];
@@ -318,23 +293,19 @@ export class I18n<D extends DefaultTranslationParams = {}>
         }
       }
 
-      // Initialize namespaces from provided translations
       this._nsAddTranslations(options.translation);
     }
 
-    // Store API key for plugins to use
     this.apiKey = options.apiKey;
 
-    // Context-collection preference for the in-context editor (default on).
+    // `undefined` means the in-context editor's own default (on).
     this.collectContext = options.collectContext;
 
-    // Development mode: the build-time __DEV__ flag unless the caller overrides it.
     this.devMode = options.devMode ?? IS_DEV;
 
-    // Discovery (`window.__COMVI__`) is NOT here: it is the `core/devtools.ts`
-    // capability, composed in by the internal composite's constructor and
-    // installed on a base host by `attachDevtools`. `options.exposeGlobal` /
-    // `options.instanceId` are read there, not by the base.
+    // Discovery (`window.__COMVI__`) is deliberately NOT here: it is the
+    // `core/devtools.ts` capability, which is where `options.exposeGlobal` /
+    // `options.instanceId` are read.
   }
 
   /**
@@ -351,36 +322,22 @@ export class I18n<D extends DefaultTranslationParams = {}>
   }
 
   /**
-   * Apply a capability installer and return whatever it produces — the
-   * composition pipe.
+   * Apply a capability installer and return whatever it produces.
    *
    * ```ts
-   * import { createI18n } from "@comvi/core";
-   * import { loader } from "@comvi/core/loader";
-   *
    * const i18n = createI18n({ locale: "en" }).with(loader({ uk: () => import("./uk.json") }));
    * ```
    *
-   * It is a pipe and NOTHING more: `with(f)` is `f(this)`. No registry, no
-   * ordering, no capability semantics — which is why it can sit on the base
-   * class for ~10 B and never lie about what an instance has. The installer's
-   * own return type decides the result: `loader()` from `@comvi/core/loader`
-   * widens the host with the loader API, `(i) => i` widens nothing.
-   *
-   * `attachLoader` / `attachPlugins` / `attachDevtools` are themselves valid
-   * installers (`i18n.with(attachLoader)` works); the `loader()` /
-   * `plugins()` / `devtools()` factories exist to CONFIGURE the capability in
-   * the same call. The parameter is deliberately the widest honest shape —
-   * any `(host) => value` — so a future branded installer (a plugin package
-   * exporting itself as `.with`-able) fits without a signature change.
+   * A pipe and nothing more: `with(f)` is `f(this)`. No registry, no ordering,
+   * no capability semantics — the installer's own return type decides what the
+   * host widens to. `attachLoader` / `attachPlugins` / `attachDevtools` are
+   * themselves valid installers; the `loader()` / `plugins()` / `devtools()`
+   * factories exist to CONFIGURE the capability in the same call.
    */
   public with<T>(installer: (i18n: this) => T): T {
     return installer(this);
   }
 
-  /**
-   * Initialize Comvi i18n - executes plugins and loads translations
-   */
   public async init(): Promise<this> {
     try {
       if (this._isDestroyed) {
@@ -390,8 +347,8 @@ export class I18n<D extends DefaultTranslationParams = {}>
       this._isInitializing = true;
       this._setLoadingState(true);
 
-      // Plugin capability: run the registered plugins, then a
-      // plugin-registered locale detector. Order preserved exactly.
+      // Plugins first, then any plugin-registered locale detector: a detector
+      // must be able to change the locale before namespaces are loaded.
       await (this as unknown as I18nInternal)._beforeInit?.();
 
       const namespacesToLoad = this._initialNamespaces ?? [this._cachedDefaultNs];
@@ -412,10 +369,8 @@ export class I18n<D extends DefaultTranslationParams = {}>
   }
 
   /**
-   * Subscribe to a specific i18n event
-   * @param event - Event name to subscribe to
-   * @param callback - Event handler function
-   * @returns Unsubscribe function
+   * Subscribe to an i18n event.
+   * @returns Unsubscribe function.
    */
   public on<E extends I18nEvent>(event: E, callback: (data: I18nEventData[E]) => void): () => void {
     let callbacks = this._eventCallbacks[event];
@@ -436,10 +391,6 @@ export class I18n<D extends DefaultTranslationParams = {}>
     };
   }
 
-  /**
-   * Emit an event to all subscribers
-   * @private
-   */
   protected _emit<E extends I18nEvent>(event: E, data?: I18nEventData[E]): void {
     if (event === "configChanged") {
       this._configRevision++;
@@ -461,31 +412,26 @@ export class I18n<D extends DefaultTranslationParams = {}>
   }
 
   set locale(value: string) {
-    // Synchronous setter - fires and forgets namespace loading
+    // Fire-and-forget: the synchronous setter cannot await the namespace load,
+    // so a failure is surfaced as an event instead. Already went through
+    // reportError — do not log it a second time.
     this.setLocaleAsync(value).catch((error) => {
-      // Emit error event so apps can handle failures in production
       this._emit("loadError", {
         locale: value,
         namespace: "locale-change",
         error: error as Error,
       });
-      // Already reported via reportError (dev fallback); avoid duplicate log
     });
   }
 
   /**
    * Set the locale and emit `localeChanged`.
    *
-   * The base transition is synchronous by construction: a bare instance has
-   * no loader, so there is nothing to await, no stale result to suppress and
-   * no loading refcount to move. `@comvi/core/loader` OVERRIDES this method
-   * with the guarded version (changeId staleness + mid-flight cancellation +
-   * `_setLoadingState` refcount around the namespace load); the composite
-   * inherits that override through `extends`, a base host receives it
-   * from `attachLoader`. Both paths keep this `Promise`-returning signature.
-   *
-   * @param value - The locale code to set
-   * @returns Promise that resolves when the locale has been applied
+   * The base transition is synchronous by construction: a bare instance has no
+   * loader, so there is nothing to await. `@comvi/core/loader` OVERRIDES this
+   * method with the guarded version (changeId staleness, mid-flight
+   * cancellation, loading refcount); both paths keep this `Promise`-returning
+   * signature.
    */
   async setLocaleAsync(value: string): Promise<void> {
     if (this._locale === value) return;
@@ -524,12 +470,11 @@ export class I18n<D extends DefaultTranslationParams = {}>
   }
 
   /**
-   * Clear translations from cache
-   * @param locale - Optional locale to clear (if not provided, clears all locales)
-   * @param namespace - Optional namespace to clear (if not provided, clears all namespaces)
+   * Clear translations from the cache. An omitted `locale` clears every locale,
+   * an omitted `namespace` every namespace.
    */
   clearTranslations(locale?: string, namespace?: string): void {
-    // Cancel in-flight loads for the cleared scope so they don't repopulate the cache
+    // Cancel in-flight loads for the cleared scope so they don't repopulate it.
     (this as unknown as I18nInternal)._cancelNs?.(locale, namespace);
 
     if (locale) {
@@ -552,11 +497,10 @@ export class I18n<D extends DefaultTranslationParams = {}>
   }
 
   /**
-   * Add translations to the cache programmatically
-   * @param translations - Object with locale codes as keys, translation objects as values
+   * Merge catalogs into the cache. Keys are `locale` or `"locale:namespace"`;
+   * an empty map is a no-op. Emits `namespaceLoaded` per catalog.
    */
   addTranslations(translations: Record<string, Record<string, TranslationValue>>) {
-    // _nsAddTranslations already emits namespaceLoaded + bumps cache revision; empty input is a no-op.
     this._nsAddTranslations(translations);
   }
 
@@ -603,18 +547,14 @@ export class I18n<D extends DefaultTranslationParams = {}>
     return this._isInitializing;
   }
 
-  /**
-   * Whether Comvi i18n has been initialized (init() has been called successfully)
-   */
   get isInitialized(): boolean {
     return this._isInitialized;
   }
 
   /**
-   * Helper to update loading state and emit event.
-   * Uses a reference counter to handle overlapping async operations.
-   * _isInitializing is owned by init() exclusively — nested loads (e.g. a
-   * locale detector triggering setLocaleAsync mid-init) must not clear it.
+   * Reference-counted so overlapping async loads emit one state change.
+   * `_isInitializing` is owned by `init()` exclusively — nested loads (e.g. a
+   * locale detector calling setLocaleAsync mid-init) must not clear it.
    */
   protected _setLoadingState(isLoading: boolean): void {
     const wasLoading = this._loadingCount > 0;
@@ -657,30 +597,19 @@ export class I18n<D extends DefaultTranslationParams = {}>
     return [...this._fallbackLocales];
   }
 
-  /**
-   * Translate a namespaced key (when ns is provided)
-   */
   tRaw<NS extends Namespaces, K extends NamespacedKeys<NS>>(
     translationKey: K | null,
     ...params: NamespacedParamsArg<NS, K, D>
   ): TranslationResult;
 
-  /**
-   * Translate a key with typed params
-   */
   tRaw<K extends keyof TranslationKeys>(
     translationKey: K | null,
     ...params: ParamsArg<K, D>
   ): TranslationResult;
 
-  /**
-   * Permissive overload - only active when TranslationKeys is empty
-   */
+  /** Permissive overload — only active when `TranslationKeys` is empty. */
   tRaw(translationKey: PermissiveKey | null, params?: TranslationParams): TranslationResult;
 
-  /**
-   * Implementation
-   */
   tRaw(translationKey: string | null, ...params: [TranslationParams?]): TranslationResult {
     if (translationKey === null) {
       return "";
@@ -689,7 +618,7 @@ export class I18n<D extends DefaultTranslationParams = {}>
     const key = translationKey as string;
     const userParams = params[0];
 
-    // Fast-path for known static templates (no params, no post-processors)
+    // Fast path: a template with no placeholders needs no compile at all.
     if (userParams == null && !this._postProcessors.length) {
       const translations = this._getPrimaryTranslations();
       if (translations !== undefined) {
@@ -717,27 +646,16 @@ export class I18n<D extends DefaultTranslationParams = {}>
     );
   }
 
-  /**
-   * Translate a namespaced key (when ns is provided)
-   */
   t<NS extends Namespaces, K extends NamespacedKeys<NS>>(
     translationKey: K | null,
     ...params: NamespacedParamsArg<NS, K, D>
   ): string;
 
-  /**
-   * Translate a key with typed params
-   */
   t<K extends keyof TranslationKeys>(translationKey: K | null, ...params: ParamsArg<K, D>): string;
 
-  /**
-   * Permissive overload - only active when TranslationKeys is empty
-   */
+  /** Permissive overload — only active when `TranslationKeys` is empty. */
   t(translationKey: PermissiveKey | null, params?: TranslationParams): string;
 
-  /**
-   * Implementation
-   */
   t(translationKey: string | null, ...params: [TranslationParams?]): string {
     return translationResultToString(this.tRaw(translationKey as any, ...(params as any)));
   }
@@ -767,17 +685,16 @@ export class I18n<D extends DefaultTranslationParams = {}>
     fallbackLocales: string[],
     params?: TranslationParams,
   ): TranslationResult {
-    // PROD-ONLY (§D1.3): drop any hit left behind by a compile this call did
-    // not make — a `translate()` that threw before its read-and-clear, or a
-    // compile outside the host (`prepareTranslation`). One assignment here is
-    // what makes every read below attributable to THIS call.
+    // Drop any ICU hit left behind by a compile this call did not make (a
+    // `translate()` that threw before its read-and-clear, or a compile outside
+    // the host). This is what makes every read below attributable to THIS call.
     if (!IS_DEV) clearIcuHit();
     const hasParams = params != null;
     const locale = hasParams && params.locale !== undefined ? params.locale : currentLocale;
     const namespace = hasParams && params.ns !== undefined ? params.ns : defaultNamespace;
     const skipPostProcess = !this._postProcessors.length;
-    // Per-call channel (§1.1 dual-channel): params.tagInterpolation merges
-    // over the instance option for this call only (no-op without params).
+    // `params.tagInterpolation` merges over the instance option for this call
+    // only; a no-op when there are no params.
     const tagInterpolation = mergeTagInterpolation(
       this._tagInterpolation,
       params?.tagInterpolation,
@@ -797,9 +714,8 @@ export class I18n<D extends DefaultTranslationParams = {}>
         this._compiler,
         this._missingParam,
       );
-      // PROD-ONLY (§D1.3): the compile that just ran may have rendered an ICU
-      // segment literally. Read-and-clear the hit here, where the telemetry
-      // (key/namespace/locale) exists. Folded out of dev builds entirely.
+      // The compile that just ran may have rendered an ICU segment literally.
+      // Read-and-clear here, where the key/namespace/locale telemetry exists.
       if (!IS_DEV && icuHit !== undefined) {
         this._reportIcuLiteral(translationKey, namespace, locale);
       }
@@ -820,8 +736,7 @@ export class I18n<D extends DefaultTranslationParams = {}>
           this._compiler,
           this._missingParam,
         );
-        // Same read-and-clear as the primary compile, with the locale that
-        // actually compiled — the fallback one.
+        // Same read-and-clear, with the locale that actually compiled.
         if (!IS_DEV && icuHit !== undefined) {
           this._reportIcuLiteral(translationKey, namespace, fallbackLoc);
         }
@@ -838,9 +753,8 @@ export class I18n<D extends DefaultTranslationParams = {}>
       params,
       tagInterpolation,
     );
-    // A per-call `params.fallback` is a TEMPLATE and is compiled here, having
-    // bypassed ingestion entirely — so it needs the same read-and-clear as the
-    // catalog paths, against the key the caller asked for.
+    // A per-call `params.fallback` is a TEMPLATE compiled here, having bypassed
+    // ingestion entirely — so it needs the same read-and-clear.
     if (!IS_DEV && icuHit !== undefined) {
       this._reportIcuLiteral(translationKey, namespace, locale);
     }
@@ -850,12 +764,10 @@ export class I18n<D extends DefaultTranslationParams = {}>
   }
 
   /**
-   * PRODUCTION-ONLY (§D1.3): report an ICU segment the default compiler just
-   * rendered literally. Best-effort and per process — it fires on the
-   * COMPILATION, so a cached render never re-reports. The error owns exactly
-   * `code` + `argumentType`; the telemetry travels in the context. Without an
-   * `onError` handler production would otherwise be silent, so this one path
-   * also writes to the console — `reportError` itself is unchanged.
+   * Report an ICU segment the default compiler just rendered literally. Fires
+   * on the COMPILATION, so a cached render never re-reports. Without an
+   * `onError` handler production would be silent, so this one path also writes
+   * to the console — `reportError` itself is unchanged.
    */
   private _reportIcuLiteral(key: string, namespace: string, locale: string): void {
     const err = new Error("E_ICU_SYNTAX") as IcuSyntaxError;
@@ -902,11 +814,11 @@ export class I18n<D extends DefaultTranslationParams = {}>
 
     this._emit("missingKey", { key, locale, namespace });
 
-    // The plugin capability's missing-key callbacks always run (plugins track
-    // missing keys through side effects); the first defined result wins.
+    // The plugin missing-key callbacks always run — plugins track misses
+    // through side effects — but the first defined result wins.
     let fallbackValue = (this as unknown as I18nInternal)._missHook?.(key, locale, namespace);
 
-    // Per-call fallback has the highest priority — skip the instance-level handler
+    // A per-call fallback outranks the instance-level handler.
     if (params?.fallback !== undefined) {
       return translateTemplate(
         params.fallback,
@@ -926,18 +838,15 @@ export class I18n<D extends DefaultTranslationParams = {}>
     return fallbackValue !== undefined ? fallbackValue : key;
   }
 
-  /**
-   * Get all loaded locale codes (for debugging)
-   * @returns Array of locale codes that have translations loaded
-   */
+  /** Locale codes that currently have translations loaded. */
   public getLoadedLocales(): string[] {
     return this.translationCache.getLocales();
   }
 
   /**
-   * Report an error to the configured onError handler (if any).
-   * In dev mode, falls back to warn() when onError is not configured.
-   * Marks the error with COMVI_REPORTED to prevent double-reporting when rethrown.
+   * Report to the configured `onError` handler, or `warn()` in dev when there
+   * is none. Marks the error with `COMVI_REPORTED` so a rethrow cannot report
+   * it twice.
    */
   public reportError(error: unknown, context?: ErrorReportContext): void {
     const err = error instanceof Error ? error : new Error(String(error));
@@ -968,12 +877,9 @@ export class I18n<D extends DefaultTranslationParams = {}>
     }
   }
 
-  // ── Namespace management (inlined from NamespaceManager) ──
-
   protected async _nsAddActiveNamespaces(namespaces: string[]): Promise<void> {
-    // Add to active set optimistically. If the load fails, the namespace
-    // stays active so it will be retried automatically on the next locale
-    // switch — this matches caller expectations and avoids forcing manual retry.
+    // Optimistic: on a failed load the namespace stays active, so the next
+    // locale switch retries it instead of requiring a manual retry.
     for (const ns of namespaces) this._activeNamespaces.add(ns);
     await (this as unknown as I18nInternal)._loadNs?.(this._locale, namespaces, true);
   }
@@ -981,25 +887,21 @@ export class I18n<D extends DefaultTranslationParams = {}>
   /**
    * Merge a `{ locale | "locale:ns": catalog }` map into the cache.
    *
-   * The base accepts FLAT catalogs — `{ "a.b": "…" }` — and copies them onto
-   * a prototype-less object, which is its prototype-pollution guard. NESTED
-   * catalogs and non-string leaves are the
-   * `_flattenNs` capability's job (`core/loader.ts`, installed on the
-   * composite's class and by `attachLoader` / `attachNestedCatalogs`): a nested object is
-   * data the loader path produces, and a base host that never loads
-   * anything should not carry a recursive flattener for it.
+   * The base accepts FLAT catalogs only — `{ "a.b": "…" }`. Nested catalogs are
+   * the `_flattenNs` capability's job (`core/loader.ts`): a nested object is
+   * data the loader path produces, and a host that never loads anything should
+   * not carry a recursive flattener for it.
    */
   private _nsAddTranslations(translations: Record<string, Record<string, TranslationValue>>): void {
-    // Ingestion seam 1 — locks BEFORE any catalog (including an empty map) is
-    // handled, and before the dev preflight can throw.
+    // Lock BEFORE any catalog (an empty map included) is handled, and before
+    // the dev preflight can throw.
     this._compilerLocked = true;
     for (const localeOrKey in translations) {
       const value = translations[localeOrKey];
-      // A bare host has no `_flattenNs`, so it stores the caller's catalog as
-      // given — the copy onto a prototype-less target IS its
-      // prototype-pollution guard, and it happens here, once, where the raw
-      // object enters. The flattener already returns a fresh prototype-less
-      // object, so a host that has one never pays a second copy.
+      // The copy onto a prototype-less target IS the prototype-pollution
+      // guard, and it happens here, once, where the raw object enters. The
+      // flattener already returns a fresh null-prototype object, so a host that
+      // has one never pays a second copy.
       const flat =
         (this as unknown as I18nInternal)._flattenNs?.(value) ??
         Object.assign(Object.create(null), value);
@@ -1013,12 +915,10 @@ export class I18n<D extends DefaultTranslationParams = {}>
       const loc = colonIdx === -1 ? localeOrKey : localeOrKey.slice(0, colonIdx);
       const ns = colonIdx === -1 ? this._cachedDefaultNs : localeOrKey.slice(colonIdx + 1);
 
-      // Only a genuine MERGE copies again. `flat` is already fresh and
-      // prototype-less either way, so the first write stores it directly:
-      // `Object.assign` out of a dictionary-mode (null-prototype) source has
-      // no fast path in V8 and costs ~130 ns PER KEY, so copying the whole
-      // catalog a second time made a composed `new I18n({ translation })` 2.5x
-      // slower than 6fa713b (.omc/handoffs/ctor-perf.md).
+      // Only a genuine MERGE copies again: `Object.assign` out of a
+      // dictionary-mode (null-prototype) source has no V8 fast path and costs
+      // ~130 ns PER KEY, so storing `flat` directly on the first write is what
+      // keeps `new I18n({ translation })` from being 2.5x slower.
       const existing = this.translationCache.get(loc, ns);
       this.translationCache.set(
         loc,
@@ -1031,20 +931,17 @@ export class I18n<D extends DefaultTranslationParams = {}>
     }
   }
 
-  /**
-   * Destroy Comvi i18n and clean up all resources
-   */
+  /** Tear the instance down; it cannot be re-initialized afterwards. */
   public async destroy(): Promise<void> {
     if (this._isDestroyed) {
       return;
     }
     this._isDestroyed = true;
 
-    // Phase 0 — discovery removal, at the exact position the inline
-    // `window.__COMVI__` block occupied (`core/devtools.ts`).
+    // Phase 0 — discovery removal, before any lifecycle reset.
     (this as unknown as I18nInternal)._disposeDevtools?.();
 
-    // Phase 1 — awaited pre-lifecycle cleanup, while capability state is live.
+    // Phase 1 — awaited cleanup, while capability state is still live.
     await (this as unknown as I18nInternal)._preDestroy?.();
 
     // Reset lifecycle flags before tearing down event subscriptions so wrappers can react.
@@ -1062,27 +959,21 @@ export class I18n<D extends DefaultTranslationParams = {}>
     this._activeNamespaces.clear();
     this._postProcessors = [];
 
-    // Clear cache and other state
     this.translationCache.clear();
 
-    // Phase 3 — capability reset, after the `destroyed` listeners have seen
-    // the still-live capability state.
+    // Phase 3 — capability reset, after the `destroyed` listeners have seen the
+    // still-live capability state.
     const self = this as unknown as I18nInternal;
     self._resetLoader?.();
     self._resetPlugins?.();
   }
 }
 
-// DEV-ONLY (§2.1a): eager catalog preflight at both real ingestion seams —
-// `_nsAddTranslations` (constructor catalog + `addTranslations`) and the
-// loader's pre-merge call in `core/loader.ts`. In development an ICU-shaped
-// string in an ingested catalog throws `E_ICU_SYNTAX` at ingestion instead of
-// at first render; production stays lazy, renders the braced segment
-// literally and reports `E_ICU_SYNTAX` through `onError` (or `console.error`)
-// on the compilation that hit it — best-effort, per process, never on cached
-// renders.
-// The entire block is stripped from production builds by the __DEV__ fold, so
-// it costs the shipped bundle nothing.
+// Eager catalog preflight at both ingestion seams (`_nsAddTranslations` and
+// the loader's pre-merge call). In development an ICU-shaped string in an
+// ingested catalog throws `E_ICU_SYNTAX` at ingestion instead of at first
+// render; production stays lazy and reports on the compilation that hits it.
+// The whole block is folded out of production builds by `__DEV__`.
 if (IS_DEV) {
   (I18n.prototype as unknown as I18nInternal)._preflightSimpleCatalog = function (
     this: I18nInternal,
@@ -1091,7 +982,7 @@ if (IS_DEV) {
     if (this._compiler !== simpleCompiler) return;
     // The EFFECTIVE extension set, not an empty one: a host whose app imported
     // `@comvi/core/tags` really does claim `<`, and preflighting without that
-    // knowledge would emit the §2.3 tag warning for markup that renders fine.
+    // knowledge would warn about markup that renders fine.
     const extensions = effectiveExtensions(this._tagInterpolation?.extensions);
     for (const key in catalog) {
       const value = catalog[key];

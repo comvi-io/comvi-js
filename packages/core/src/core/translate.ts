@@ -33,21 +33,16 @@ declare const __DEV__: boolean | undefined;
 
 const IS_DEV = typeof __DEV__ !== "undefined" && __DEV__;
 
-// Character codes for fast comparison
 const CHAR_OPEN_BRACE = 123; // {
 const CHAR_APOSTROPHE = 39; // '
 const CHAR_LESS_THAN = 60; // <
 const CHAR_AMPERSAND = 38; // &
 
-// Template compilation cache for performance.
-// Key: variant prefix (hash bit + extension bits + compiler id) + template
-// string, Value: cached template with metadata. The cache is module-global
-// and shared by every entry/instance in the process; the key, not the
-// instance, carries compiler identity and the effective extension set.
+// Module-global and shared by every entry/instance in the process: the KEY,
+// not the instance, carries compiler identity and the effective extension set.
 const templateCache = new Map<string, CachedTemplate>();
 
-// Maximum number of compiled templates to hold before evicting oldest entries.
-// Insertion-order eviction (Map iteration is insertion-order in JS).
+// Eviction is insertion-order, which works because JS Map iteration is.
 const TEMPLATE_CACHE_MAX = 1000;
 
 /** @internal */
@@ -55,10 +50,7 @@ export function _templateCacheSize(): number {
   return templateCache.size;
 }
 
-/**
- * Insert a compiled template into the cache, evicting the oldest entry when the
- * cap is reached. Use instead of raw templateCache.set() everywhere.
- */
+/** Use instead of a raw `templateCache.set()` — this is what enforces the cap. */
 function cacheTemplate(key: string, value: CachedTemplate): void {
   if (templateCache.size >= TEMPLATE_CACHE_MAX) {
     templateCache.delete(templateCache.keys().next().value!);
@@ -67,10 +59,9 @@ function cacheTemplate(key: string, value: CachedTemplate): void {
 }
 
 /**
- * Clears the compiled-template cache.
- * Exported for power-user / test use; not called automatically on reload/destroy
- * to avoid cross-instance cache invalidation. Registering or disposing a syntax
- * extension never requires clearing: keys differ by construction.
+ * Deliberately NOT called on reload/destroy — the cache is shared, so that would
+ * invalidate other instances. Registering or disposing a syntax extension never
+ * requires clearing either: the keys differ by construction.
  */
 export function clearTemplateCache(): void {
   templateCache.clear();
@@ -115,9 +106,6 @@ function templateCacheKey(
   );
 }
 
-/**
- * Create cached template with optimization metadata.
- */
 function createCachedTemplate(
   template: string,
   hashIsSyntax: boolean,
@@ -140,7 +128,6 @@ function createCachedTemplate(
         flags |= TF_HAS_SELECT;
         hasDynamic = true;
       } else if (kind !== TK_TEXT) {
-        // Extension tokens (tags today)
         flags |= TF_HAS_TAGS;
         hasDynamic = true;
       }
@@ -159,7 +146,6 @@ function createCachedTemplate(
     (tokens.length === 0 || (tokens.length === 1 && tokens[0][1] === template));
   const cached: CachedTemplate = { tokens, flags, isStatic };
 
-  // Pre-compute single param template parts for fast-path
   if (
     flags === TF_SIMPLE_PARAMS &&
     tokens.length === 3 &&
@@ -171,7 +157,6 @@ function createCachedTemplate(
     cached.singleParamName = tokens[1][1];
     cached.suffix = tokens[2][1];
   } else if (flags === TF_SIMPLE_PARAMS && tokens.length === 2) {
-    // Handle "{param}suffix" or "prefix{param}"
     if (tokens[0][0] === TK_PARAM && tokens[1][0] === TK_TEXT) {
       cached.prefix = "";
       cached.singleParamName = tokens[0][1];
@@ -182,7 +167,6 @@ function createCachedTemplate(
       cached.suffix = "";
     }
   } else if (flags === TF_SIMPLE_PARAMS && tokens.length === 1 && tokens[0][0] === TK_PARAM) {
-    // Handle "{param}" only
     cached.prefix = "";
     cached.singleParamName = tokens[0][1];
     cached.suffix = "";
@@ -191,7 +175,7 @@ function createCachedTemplate(
   return cached;
 }
 
-// Empty params object singleton to avoid allocations
+// Shared singleton: a paramless call must not allocate.
 const EMPTY_PARAMS: TranslationParams = Object.freeze({});
 
 /** Dev-only dedup of missing-parameter warnings per (template, param) pair. */
@@ -235,9 +219,6 @@ function makeCtx(
   };
 }
 
-/**
- * Main translation function.
- */
 export function translate(
   template: string,
   locale: string,
@@ -255,7 +236,6 @@ export function translate(
   );
   const cached = templateCache.get(cacheKey);
   if (cached) {
-    // Already cached - use cached analysis
     if (cached.isStatic) {
       return template;
     }
@@ -304,9 +284,8 @@ export function translate(
 }
 
 /**
- * Get-or-compile a template for the ctx's cache variant and render it.
- * Used for top-level templates and for nested dynamic segments (which reuse
- * the parent ctx, so nested parses land in the same cache variant).
+ * Nested dynamic segments reuse the PARENT ctx, so their parses land in the
+ * same cache variant.
  */
 export function translateSegment(
   segment: string,
@@ -322,9 +301,6 @@ export function translateSegment(
   return translateTemplateWithCache(cached, ctx, hashIsSyntax);
 }
 
-/**
- * Processes the template (compile if needed, then render).
- */
 export function translateTemplate(
   template: string,
   params: TranslationParams,
@@ -338,15 +314,11 @@ export function translateTemplate(
   return translateSegment(template, ctx, hashIsSyntax);
 }
 
-/**
- * Process template with pre-existing cached data.
- */
 function translateTemplateWithCache(
   cached: CachedTemplate,
   ctx: TranslateCtx,
   hashIsSyntax: boolean,
 ): TranslationResult {
-  // Fast path for single-param templates: "Hello, {name}!" -> prefix + value + suffix
   if (cached.singleParamName !== undefined) {
     const value = ctx.params[cached.singleParamName];
     if (value !== undefined && value !== null) {
@@ -354,15 +326,12 @@ function translateTemplateWithCache(
       if (t === "string" || t === "number" || t === "boolean") {
         return cached.prefix! + value + cached.suffix!;
       }
-      // Non-primitive value - fall through to full processing
     } else {
       const prefix = cached.prefix!;
       const suffix = cached.suffix!;
       if (value === undefined && ctx.missingParam === "literal") {
-        // Absent/undefined param renders as the literal placeholder
         return prefix + missingParamText(cached.singleParamName, ctx) + suffix;
       }
-      // null (explicit erasure, both modes) or "drop" mode: empty string
       return prefix + suffix;
     }
   }
@@ -371,14 +340,11 @@ function translateTemplateWithCache(
     return processSimpleParams(cached.tokens, ctx);
   }
 
-  // Full processing for complex templates
   const resultParts = processTokens(cached.tokens, ctx, hashIsSyntax);
   return finalizeResult(resultParts);
 }
 
-/**
- * Fast path for templates with only text and simple params.
- */
+/** Fast path: text and simple params only — no plural, select or tag tokens. */
 function processSimpleParams(tokens: ParsedToken[], ctx: TranslateCtx): TranslationResult {
   const params = ctx.params;
   let result = "";
@@ -413,7 +379,6 @@ function processSimpleParams(tokens: ParsedToken[], ctx: TranslateCtx): Translat
       } else if (value === undefined && ctx.missingParam === "literal") {
         result += missingParamText(token[1], ctx);
       }
-      // null: explicit erasure — empty string in both modes
     }
   }
   return result;
@@ -426,9 +391,6 @@ export function finalizeResult(parts: Array<string | VirtualNode>): TranslationR
   return parts.every(isPrimitive) ? parts.join("") : parts;
 }
 
-/**
- * Helper: append string to parts array, merging with last element if possible.
- */
 function appendString(parts: Array<string | VirtualNode>, str: string): void {
   const lastIdx = parts.length - 1;
   const lastPart = parts[lastIdx];
@@ -439,11 +401,7 @@ function appendString(parts: Array<string | VirtualNode>, str: string): void {
   }
 }
 
-/**
- * Helper: append a translation parameter value to parts.
- * Supports primitives, VNodes, and TranslationResult arrays.
- * Missing (undefined) params follow ctx.missingParam; null always erases.
- */
+/** Missing (`undefined`) params follow `ctx.missingParam`; `null` always erases. */
 function appendParamValue(
   parts: Array<string | VirtualNode>,
   value: unknown,
@@ -476,8 +434,6 @@ function appendParamValue(
 }
 
 /**
- * Processes parsed tokens into result parts.
- *
  * Compiler-owned argument tokens (plural/select) dispatch through
  * `ctx.compiler.processArgToken`; extension tokens (tags) dispatch through
  * the effective extension set's process-hooks. Cache-variant keying
@@ -514,7 +470,7 @@ export function processTokens(
       continue;
     }
 
-    // Extension tokens (tags today)
+    // An extension token — tags, today.
     for (let e = 0; e < ctx.extensions.length; e++) {
       const result = ctx.extensions[e].processHook(token, ctx, hashIsSyntax);
       if (result !== undefined) {
@@ -527,10 +483,7 @@ export function processTokens(
   return parts;
 }
 
-/**
- * Helper to append a result (string, VNode, or array) to parts array.
- * Merges consecutive strings for efficiency.
- */
+/** Merges consecutive strings rather than pushing them as separate parts. */
 function appendResult(
   parts: Array<string | VirtualNode>,
   result: string | VirtualNode | Array<string | VirtualNode>,

@@ -1,22 +1,16 @@
-// Single-entry P3 gate: THE DEFAULT vue recipe. Every import in this file
-// comes from `@comvi/vue`; `@comvi/core` is never named by the app.
+// THE DEFAULT vue recipe. Every import comes from `@comvi/vue`; `@comvi/core` is
+// never named by the app, which uses NO capability — the composed escape hatch
+// keeps its own case (`vue-composed`), because vue is the one binding whose
+// `createI18n` is a wrapper preset rather than core's constructor and both
+// halves ship from this entry.
 //
-// This case ABSORBS the former `vue-on-slim` and RETARGETS the former
-// `vue-slim-preset`: `/slim` was unpublished and is gone, so the
-// single-package toolkit is the published root now, and the two apps that used
-// to reach the same wrapper through two specifiers are one graph. Unlike the
-// old preset case, this default app deliberately uses NO capability; the
-// composed escape hatch keeps its own case (`vue-composed`), because vue is the
-// one binding whose `createI18n` is a wrapper preset rather than core's
-// constructor and both halves ship from this entry.
+// The runner asserts from the bundlers' module graphs that ICU, loader, plugins,
+// devtools and core's tag-registration pair all stay out, in development as well
+// as production. Core's BASE entry is present — the preset constructs on it — so
+// it is never an absence sentinel.
 //
-// The runner asserts from the bundlers' module graphs that ICU, loader,
-// plugins, devtools and core's tag-registration pair all stay out, in
-// development as well as production. Core's BASE entry is present — the preset
-// constructs on it — so it is never an absence sentinel.
-//
-// <T> rendering needs a renderer and is NOT exercised here (same documented
-// skip as wrappers.mjs). No top-level await: the webpack leg emits commonjs2.
+// <T> rendering needs a renderer and is NOT exercised here. No top-level await:
+// the webpack leg emits commonjs2.
 import { createCore, createI18n, createI18nFromCore, I18n, useI18n } from "@comvi/vue";
 
 function assert(condition, label) {

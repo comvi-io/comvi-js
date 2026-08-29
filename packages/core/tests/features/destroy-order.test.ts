@@ -1,29 +1,23 @@
 import { describe, it, expect } from "vitest";
-// The COMPOSITE host: since the single-entry convergence `../../src` is the
-// BASE host, and the batteries-included 0.4 semantics live on in the internal
-// composite `src/core/full.ts` (what the CDN global ships and `@comvi/next`'s
-// builder mirrors). Imported directly — never through the tags-registering
-// helper — so this file's ambient-extension assertions stay meaningful.
+// The COMPOSITE host (`src/core/full.ts`), imported directly rather than
+// through the tags-registering helper.
 import { I18n } from "../../src/core/full";
 import { createI18n as createBaseI18n } from "../../src";
 import { attachLoader } from "../../src/loader";
 import { attachPlugins } from "../../src/plugins";
 
 /**
- * The two-phase destroy contract (plan R10).
- *
- * Capability cleanup must run while capability state is still live, and
- * `destroyed` listeners must still observe that state; only afterwards may a
- * capability reset itself. Extracting the loader/plugin capabilities out of
- * the class must not reorder any of it.
+ * The two-phase destroy contract: capability cleanup runs while capability
+ * state is still live, `destroyed` listeners still observe that state, and only
+ * afterwards may a capability reset itself.
  */
 describe("destroy ordering", () => {
   it("runs cleanup, then lifecycle events, then capability reset", async () => {
     const order: string[] = [];
     const i18n = new I18n({ locale: "en", exposeGlobal: false });
 
-    // "pending" never resolves, so a load is still in flight at destroy time
-    // and the destroy path emits `loadingStateChanged`.
+    // "pending" never resolves, so a load is still in flight at destroy time and
+    // the destroy path emits `loadingStateChanged`.
     i18n.registerLoader(async (_locale, ns) =>
       ns === "pending" ? new Promise<never>(() => {}) : { hello: "Hello" },
     );

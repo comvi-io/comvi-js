@@ -2,19 +2,15 @@ import type { VueI18n } from "@comvi/vue";
 import type { I18n } from "@comvi/core";
 import { createImportMapLoader, type I18nLoaderApi } from "@comvi/core/loader";
 
-// The host this hook DEMANDS: since the single-entry convergence `I18n` is the
-// base host, a setup hook that registers a loader has to say that its host
-// carries the loader capability. `comvi.host.ts` composes it — the generated
-// default deliberately does not — and this annotation keeps that requirement
-// visible instead of failing at the first `registerLoader` call.
+// `I18n` is the base host, so a setup hook that registers a loader must say its
+// host carries the loader capability — `comvi.host.ts` is where it is composed.
 type ComviSetupContext = {
   i18n: VueI18n<{}, I18n & I18nLoaderApi>;
 };
 
 export default ({ i18n }: ComviSetupContext) => {
-  // The import-map form is the adapter's job now: the loader capability's own
-  // `registerLoader` takes a `LoaderFn`, and `createImportMapLoader` turns a
-  // static map into one (reading the default namespace live off the host).
+  // `registerLoader` takes a `LoaderFn`; `createImportMapLoader` turns a static
+  // map into one, reading the default namespace live off the host.
   i18n.core.registerLoader(
     createImportMapLoader(
       {

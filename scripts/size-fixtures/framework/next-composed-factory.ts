@@ -1,11 +1,6 @@
-// Framework size fixture: the PUBLISHED `@comvi/next` root — `createNextI18n`
-// (whose composed host is built by the package's non-exported builder over the
-// converged base core) plus the public server helpers.
-//
-// The row keeps the composed root's cost visible — the builder is ~+100 B over
-// a pristine wiring — but it is INFORMATIONAL since the 0.5.0 hardening pass:
-// `fw-next-client-default` and `fw-next-server-default-loader` are the gated
-// Next rows. `next` and `react` are external, so this measures the comvi graph only.
+// Framework size fixture: the PUBLISHED `@comvi/next` root — `createNextI18n` (whose
+// composed host is built by the package's non-exported builder over the converged base
+// core) plus the public server helpers.
 import { createNextI18n } from "@comvi/next";
 import { getI18n, loadTranslations, setRequestLocale } from "@comvi/next/server";
 

@@ -1,11 +1,6 @@
 /**
- * ElementHighlighter - Provides visual highlighting for translated elements
- *
- * This class manages the highlight overlay when hovering over translated
- * elements with the Alt/Option key pressed. Refactored to:
- * - Use EventBus for decoupling from TranslationRegistry
- * - Cache findRegisteredAncestor results for performance
- * - Use shared debounce utility
+ * The highlight overlay shown when hovering a translated element with the
+ * Alt/Option key held.
  */
 
 import {
@@ -19,15 +14,11 @@ import type { EventBus } from "./EventBus";
 import type { ElementData } from "./types/translation";
 import { debounce, type DebouncedFunction } from "./utils/debounce";
 
-// Modifier key constants
 const MODIFIER_KEYS = {
   ALT: "Alt",
   OPTION: "Option",
 } as const;
 
-/**
- * Interface for highlight style configuration
- */
 interface HighlightStyle {
   borderColor: string;
   backgroundColor: string;
@@ -35,18 +26,12 @@ interface HighlightStyle {
   zIndex: number;
 }
 
-/**
- * Options for ElementHighlighter
- */
 interface ElementHighlighterOptions {
   debug?: boolean;
   highlightStyle?: Partial<HighlightStyle>;
   defaultNs?: string;
 }
 
-/**
- * Default highlight style configuration
- */
 const DEFAULT_HIGHLIGHT_STYLE: HighlightStyle = {
   borderColor: DEFAULT_HIGHLIGHT_BORDER_COLOR,
   backgroundColor: DEFAULT_HIGHLIGHT_BACKGROUND_COLOR,
@@ -54,10 +39,6 @@ const DEFAULT_HIGHLIGHT_STYLE: HighlightStyle = {
   zIndex: DEFAULT_HIGHLIGHT_Z_INDEX,
 };
 
-/**
- * Class responsible for highlighting elements when hovering with Alt/Option key pressed
- * Now uses EventBus for decoupled communication with TranslationRegistry
- */
 export class ElementHighlighter {
   private activeHighlight: HTMLDivElement | null = null;
   private activeTooltip: HTMLDivElement | null = null;
@@ -70,16 +51,12 @@ export class ElementHighlighter {
   private scrollableContainers: Set<Element> = new Set();
   private readonly highlightStyle: HighlightStyle;
 
-  // Map from element to translation keys for tooltip display
   private elementKeyMap: Map<Element, string[]> = new Map();
 
-  // Cache for findRegisteredAncestor results
   private ancestorCache: WeakMap<Element, Element | null> = new WeakMap();
 
-  // Debounced scroll handler
   private debouncedScrollHandler: DebouncedFunction<() => void>;
 
-  // Event unsubscribers for cleanup
   private unsubscribers: (() => void)[] = [];
 
   constructor(
@@ -94,14 +71,12 @@ export class ElementHighlighter {
       ...options.highlightStyle,
     };
 
-    // Create debounced scroll handler
     this.debouncedScrollHandler = debounce(() => {
       if (this.activeHighlight && this.activeElement) {
         this.updateHighlightPosition(this.activeHighlight, this.activeElement);
       }
     }, SCROLL_DEBOUNCE_DELAY);
 
-    // Bind event handlers
     this.handleKeyEvent = this.handleKeyEvent.bind(this);
     this.handleMouseOver = this.handleMouseOver.bind(this);
     this.handleMouseOut = this.handleMouseOut.bind(this);
@@ -109,10 +84,8 @@ export class ElementHighlighter {
     this.handleScroll = this.handleScroll.bind(this);
     this.handleWindowBlur = this.handleWindowBlur.bind(this);
 
-    // Subscribe to EventBus events
     this.subscribeToEvents();
 
-    // Add DOM event listeners
     document.addEventListener("keydown", this.handleKeyEvent, {
       passive: true,
     });
@@ -127,11 +100,7 @@ export class ElementHighlighter {
     window.addEventListener("blur", this.handleWindowBlur);
   }
 
-  /**
-   * Subscribe to EventBus events for translation changes
-   */
   private subscribeToEvents(): void {
-    // When a translation is registered, add highlight and track keys
     this.unsubscribers.push(
       this.eventBus.on("translationRegistered", (element, data: ElementData) => {
         this.addHighlight(element);
@@ -139,14 +108,12 @@ export class ElementHighlighter {
       }),
     );
 
-    // When a translation is updated, refresh keys
     this.unsubscribers.push(
       this.eventBus.on("translationUpdated", (element, data: ElementData) => {
         this.updateElementKeys(element, data);
       }),
     );
 
-    // When a translation is removed, remove highlight and keys
     this.unsubscribers.push(
       this.eventBus.on("translationRemoved", (element) => {
         this.removeHighlightFromElement(element);
@@ -155,9 +122,6 @@ export class ElementHighlighter {
     );
   }
 
-  /**
-   * Updates the key map for an element from its translation data
-   */
   private updateElementKeys(element: Element, data: ElementData): void {
     const keys: string[] = [];
     for (const nodeData of data.nodes.values()) {
@@ -237,43 +201,33 @@ export class ElementHighlighter {
     return this.findRegisteredAncestor(node);
   }
 
-  /**
-   * Finds the nearest ancestor element that is registered for highlighting.
-   * Uses caching for improved performance.
-   */
   private findRegisteredAncestor(element: Element | null): Element | null {
     if (!element) {
       return null;
     }
 
-    // Check cache first
     const cached = this.ancestorCache.get(element);
     if (cached !== undefined) {
       return cached;
     }
 
-    // Walk up the tree to find registered ancestor
     let current: Element | null = element;
     while (current) {
       if (this.highlightedElements.has(current)) {
-        // Cache the result
         this.ancestorCache.set(element, current);
         return current;
       }
       current = this.getParentElementAcrossShadow(current);
     }
 
-    // Cache null result
+    // Cache the miss too: repeated hovers over unregistered subtrees are common.
     this.ancestorCache.set(element, null);
     return null;
   }
 
-  /**
-   * Invalidates cache for an element and its descendants
-   */
   private invalidateAncestorCache(): void {
-    // WeakMap doesn't have clear(), but we can create a new one
-    // This is safe since WeakMap entries are garbage collected
+    // WeakMap has no clear(); dropping the map is safe because its entries
+    // are garbage-collected with their keys.
     this.ancestorCache = new WeakMap();
   }
 
@@ -331,9 +285,6 @@ export class ElementHighlighter {
     return overlay;
   }
 
-  /**
-   * Creates a tooltip element showing the translation key
-   */
   private createTooltip(element: Element): HTMLDivElement | null {
     const keys = this.elementKeyMap.get(element);
     if (!keys || keys.length === 0) return null;
@@ -357,9 +308,6 @@ export class ElementHighlighter {
     return tooltip;
   }
 
-  /**
-   * Positions the tooltip above or below the element
-   */
   private updateTooltipPosition(tooltip: HTMLDivElement, element: Element): void {
     const rect = element.getBoundingClientRect();
     const tooltipHeight = 28; // approximate height
@@ -376,7 +324,6 @@ export class ElementHighlighter {
   }
 
   private updateHighlightPosition(overlay: HTMLDivElement, element: Element): void {
-    // Check if element is still connected to the DOM
     if (!element.isConnected) {
       if (this.debug) {
         console.warn("[ElementHighlighter] Cannot update position: element is detached from DOM");
@@ -399,9 +346,6 @@ export class ElementHighlighter {
     this.debouncedScrollHandler();
   };
 
-  /**
-   * Finds all scrollable ancestor containers of an element
-   */
   private findScrollableAncestors(element: Element): Element[] {
     const scrollableAncestors: Element[] = [];
     let current = this.getParentElementAcrossShadow(element);
@@ -426,9 +370,6 @@ export class ElementHighlighter {
     return scrollableAncestors;
   }
 
-  /**
-   * Removes scroll listeners from all tracked scrollable containers
-   */
   private cleanupScrollListeners(): void {
     this.scrollableContainers.forEach((container) => {
       container.removeEventListener("scroll", this.handleScroll);
@@ -444,7 +385,6 @@ export class ElementHighlighter {
       this.activeHighlight = overlay;
       this.activeElement = element;
 
-      // Create and append tooltip
       const tooltip = this.createTooltip(element);
       if (tooltip) {
         this.updateTooltipPosition(tooltip, element);
@@ -452,16 +392,13 @@ export class ElementHighlighter {
         this.activeTooltip = tooltip;
       }
 
-      // Trigger fade-in animation
       requestAnimationFrame(() => {
         if (this.activeHighlight) this.activeHighlight.style.opacity = "1";
         if (this.activeTooltip) this.activeTooltip.style.opacity = "1";
       });
 
-      // Add scroll listener to window
       window.addEventListener("scroll", this.handleScroll, { passive: true });
 
-      // Add scroll listeners to all scrollable ancestor containers
       const scrollableAncestors = this.findScrollableAncestors(element);
       scrollableAncestors.forEach((container) => {
         container.addEventListener("scroll", this.handleScroll, {
@@ -470,12 +407,10 @@ export class ElementHighlighter {
         this.scrollableContainers.add(container);
       });
     } else {
-      // When switching elements, cleanup old listeners and add new ones
       this.cleanupScrollListeners();
       this.activeElement = element;
       this.updateHighlightPosition(this.activeHighlight, element);
 
-      // Update tooltip for new element
       this.removeTooltip();
       const tooltip = this.createTooltip(element);
       if (tooltip) {
@@ -487,7 +422,6 @@ export class ElementHighlighter {
         });
       }
 
-      // Add scroll listeners for new element
       const scrollableAncestors = this.findScrollableAncestors(element);
       scrollableAncestors.forEach((container) => {
         container.addEventListener("scroll", this.handleScroll, {
@@ -498,11 +432,7 @@ export class ElementHighlighter {
     }
   }
 
-  /**
-   * Adds highlight functionality to an element
-   * @param element - The element to add highlighting to
-   * @throws {Error} If the element is null or undefined
-   */
+  /** @throws {Error} If the element is null or undefined. */
   public addHighlight(element: Element): void {
     if (!element) {
       throw new Error("Element cannot be null or undefined");
@@ -513,27 +443,16 @@ export class ElementHighlighter {
     this.invalidateAncestorCache();
   }
 
-  /**
-   * Removes highlight functionality from a specific element
-   * @param element - The element to remove highlighting from
-   */
   public removeHighlightFromElement(element: Element): void {
     this.highlightedElements.delete(element);
     // Invalidate cache since registered elements changed
     this.invalidateAncestorCache();
 
-    // If this was the actively highlighted element, remove overlay
     if (this.activeElement === element) {
       this.removeHighlightOverlay();
     }
   }
 
-  /**
-   * Removes the active highlight overlay
-   */
-  /**
-   * Removes the tooltip element from the DOM
-   */
   private removeTooltip(): void {
     if (this.activeTooltip) {
       this.activeTooltip.remove();
@@ -552,22 +471,16 @@ export class ElementHighlighter {
     }
   }
 
-  /**
-   * Cleans up all highlights and event listeners
-   */
   public cleanup(): void {
     this.removeHighlightOverlay();
     this.highlightedElements.clear();
     this.elementKeyMap.clear();
 
-    // Cancel debounced handler
     this.debouncedScrollHandler.cancel();
 
-    // Unsubscribe from EventBus
     this.unsubscribers.forEach((unsubscribe) => unsubscribe());
     this.unsubscribers = [];
 
-    // Remove DOM event listeners
     document.removeEventListener("keydown", this.handleKeyEvent);
     document.removeEventListener("keyup", this.handleKeyEvent);
     document.removeEventListener("mouseover", this.handleMouseOver, {
@@ -580,7 +493,6 @@ export class ElementHighlighter {
     window.removeEventListener("scroll", this.handleScroll);
     window.removeEventListener("blur", this.handleWindowBlur);
 
-    // Ensure all scrollable container listeners are removed
     this.cleanupScrollListeners();
   }
 }

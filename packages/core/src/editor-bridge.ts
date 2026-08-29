@@ -2,14 +2,13 @@
  * Typed contract for the in-context editor mappings bridge —
  * `@comvi/core/editor-bridge`.
  *
- * The editor plugin (`@comvi/plugin-in-context-editor`) exposes a small
- * key-mapping bridge on the i18n instance so framework adapters (Nuxt/Next)
- * can transfer SSR key mappings to the client before hydration. Both sides
- * previously hand-copied the property keys, the bridge shape, and the
- * `toRecordOfNumbers` validator; this module is the single canonical home.
+ * The editor plugin (`@comvi/plugin-in-context-editor`) exposes a key-mapping
+ * bridge on the i18n instance so framework adapters (Nuxt/Next) can transfer
+ * SSR key mappings to the client before hydration. This module is the single
+ * canonical home of the property keys, the bridge shape and the validator —
+ * both sides used to hand-copy them.
  *
- * PURE module: types + constants + two small helpers, no side effects.
- * It intentionally stays OUT of the package.json `sideEffects` array.
+ * PURE module, and it must stay OUT of the package.json `sideEffects` array.
  */
 
 /**

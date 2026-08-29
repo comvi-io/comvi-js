@@ -185,7 +185,6 @@ describe("I18nProvider", () => {
     const renderSpy = vi.fn();
 
     const Wrapped = () => {
-      // Observe translationCache so subCache subscription drives re-renders
       const { translationCache } = useI18nContext();
       renderSpy(translationCache.size);
       return <div data-testid="cache-size">{translationCache.size}</div>;
@@ -200,8 +199,8 @@ describe("I18nProvider", () => {
     expect(renderSpy).toHaveBeenCalledTimes(1);
 
     act(() => {
-      // Directly bump the cache revision (simulates a plugin mutating translations),
-      // then fire configChanged — the only event subCache will see here
+      // Bump the cache revision the way a plugin mutating translations would,
+      // then fire the only event the cache subscription sees here.
       fake.translationCache.set("en", "default", { greeting: "Hello" });
       fake.emit("configChanged", { source: "translationsAdded" });
     });

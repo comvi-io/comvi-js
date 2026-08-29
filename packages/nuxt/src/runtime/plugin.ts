@@ -4,9 +4,8 @@ import { runComviSetup } from "#build/comvi.setup";
 import { watch } from "vue";
 // The i18n instance is built by the BUILD-TIME template, never by a runtime
 // branch here: a static `createI18n` import in this module would pin nuxt's
-// default `@comvi/vue` construction path (and the base `@comvi/core` root it
-// builds on) into every nuxt bundle, including apps that configured their own
-// `hostModule` (framework-slim P4 step 5).
+// default `@comvi/vue` construction path into every nuxt bundle, including apps
+// that configured their own `hostModule`.
 import { createComviI18n } from "#build/comvi.host";
 import type { AnyVueI18n } from "@comvi/vue";
 import type { TranslationValue } from "@comvi/core";
@@ -23,9 +22,8 @@ const I18N_TRANSLATIONS_PAYLOAD_KEY = "__comvi_translations__";
 type TranslationsPayload = Record<string, Record<string, TranslationValue>>;
 
 /**
- * Serialize the translation cache Map to a plain object for Nuxt payload.
- * Each entry is keyed by "locale:namespace" and the value is a plain object
- * (not null-prototype) so JSON serialization works.
+ * Keyed by "locale:namespace"; values must be plain (not null-prototype)
+ * objects or JSON serialization drops them.
  */
 function serializeTranslationCache(
   cacheMap: ReadonlyMap<string, Record<string, TranslationValue>>,
@@ -37,16 +35,6 @@ function serializeTranslationCache(
   return result;
 }
 
-/**
- * Nuxt plugin that initializes the i18n instance
- *
- * This plugin:
- * 1. Creates the i18n instance using @comvi/vue
- * 2. Runs optional comvi.setup hook (plugin registration)
- * 3. Hydrates translations from SSR payload (avoids double-fetch)
- * 4. Syncs locale with Nuxt state and cookie
- * 5. Provides the i18n instance to components
- */
 export default defineNuxtPlugin({
   name: "@comvi/nuxt",
   enforce: "pre",
@@ -55,10 +43,8 @@ export default defineNuxtPlugin({
     const config = useRuntimeConfig();
     const publicConfig = config.public.comvi;
 
-    // Get private config (server-only)
     const privateConfig = import.meta.server ? config.comvi : undefined;
 
-    // Initialize locale state (SSR-safe)
     const localeState = useLocaleState(publicConfig.defaultLocale);
 
     const useCookieForLocale =
@@ -66,7 +52,6 @@ export default defineNuxtPlugin({
       (typeof publicConfig.detectBrowserLanguage !== "object" ||
         publicConfig.detectBrowserLanguage.useCookie !== false);
 
-    // Cookie for locale persistence
     const detectCfg =
       typeof publicConfig.detectBrowserLanguage === "object"
         ? publicConfig.detectBrowserLanguage
@@ -84,7 +69,6 @@ export default defineNuxtPlugin({
         })
       : null;
 
-    // Create i18n instance
     const baseI18nOptions = {
       locale: localeState.value,
       fallbackLocale: publicConfig.fallbackLocale,
@@ -94,7 +78,6 @@ export default defineNuxtPlugin({
       tagInterpolation: publicConfig.basicHtmlTags
         ? { basicHtmlTags: publicConfig.basicHtmlTags }
         : undefined,
-      // Pass initial locale for SSR hydration
       ssrLocale: localeState.value,
     };
     const i18n = publicConfig.defaultParams
@@ -105,10 +88,8 @@ export default defineNuxtPlugin({
       nuxtApp.payload?.state?.[I18N_EDITOR_MAPPINGS_STATE_KEY],
     );
 
-    // --- SSR: save translations to payload after rendering ---
     if (import.meta.server) {
       nuxtApp.hook("app:rendered", () => {
-        // Save in-context editor mappings
         const mappings = readEditorMappings(i18n)?.getKeyMappings();
         if (mappings) {
           if (!nuxtApp.payload.state) {
@@ -117,7 +98,6 @@ export default defineNuxtPlugin({
           nuxtApp.payload.state[I18N_EDITOR_MAPPINGS_STATE_KEY] = mappings;
         }
 
-        // Save loaded translations to payload for client hydration
         const cacheMap = i18n.translationCache.value;
         if (cacheMap.size > 0) {
           nuxtApp.payload[I18N_TRANSLATIONS_PAYLOAD_KEY] = serializeTranslationCache(cacheMap);
@@ -125,7 +105,6 @@ export default defineNuxtPlugin({
       });
     }
 
-    // --- Client: hydrate translations from SSR payload before init ---
     if (!import.meta.server) {
       if (initialInContextEditorMappings) {
         (i18n as unknown as Record<string, unknown>)[EDITOR_INITIAL_MAPPINGS_GLOBAL] =
@@ -157,11 +136,9 @@ export default defineNuxtPlugin({
       throw error;
     }
 
-    // Initialize i18n (only once, after all plugins are registered)
-    // init() reports errors before rethrowing
+    // Only after every plugin is registered.
     await i18n.init();
 
-    // Sync locale changes to cookie
     const unsubLocaleChanged = i18n.on("localeChanged", ({ to }) => {
       localeState.value = to;
       if (localeCookie) {
@@ -169,7 +146,7 @@ export default defineNuxtPlugin({
       }
     });
 
-    // Watch for locale state changes (from middleware) and sync to i18n
+    // The middleware writes localeState; mirror it onto the instance.
     const unwatchLocale = watch(
       localeState,
       async (newLocale) => {
@@ -189,7 +166,6 @@ export default defineNuxtPlugin({
       });
     }
 
-    // Install Vue plugin
     nuxtApp.vueApp.use(i18n);
 
     return {
@@ -200,10 +176,9 @@ export default defineNuxtPlugin({
   },
 });
 
-// Type augmentation for useNuxtApp. `$i18n` is an ambient channel — a
-// component cannot know how the app composed its host — so the core is seen
-// capability-free there; capabilities come from `useI18nLoader()` /
-// `useI18nPlugins()`, which verify them (framework-slim §3.2).
+// `$i18n` is an ambient channel — a component cannot know how the app composed
+// its host — so the core is seen capability-free there; capabilities come from
+// `useI18nLoader()` / `useI18nPlugins()`, which verify them.
 declare module "#app" {
   interface NuxtApp {
     $i18n: AnyVueI18n;

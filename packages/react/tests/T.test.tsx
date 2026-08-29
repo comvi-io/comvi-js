@@ -149,8 +149,6 @@ describe("<T />", () => {
   });
 
   it("reports and degrades when a function handler throws synchronously", () => {
-    // Exercises the registerHandler try/catch via a function handler that
-    // throws synchronously when invoked.
     const reportError = vi.fn();
     const t = vi.fn((_key: string, params?: TranslationParams) => {
       const node = (params?.link as (args: { children: string; name: string }) => unknown)({

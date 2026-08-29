@@ -1,13 +1,10 @@
 /**
  * @comvi/locale-routing — framework-neutral locale routing primitives.
  *
- * Single source of truth for the URL/locale mechanics previously duplicated
- * (and drifting) between @comvi/next (src/routing/utils.ts + middleware) and
- * @comvi/nuxt (src/runtime/utils/locale-path.ts). Zero dependencies, pure
- * functions, no `node:`/`url` imports — framework couplings (e.g. Next's
- * `UrlObject`) stay in framework-side adapters.
+ * Zero dependencies, pure functions, no `node:`/`url` imports — framework
+ * couplings (e.g. Next's `UrlObject`) stay in framework-side adapters.
  *
- * Reconciled semantics (plan §5.1):
+ * Semantics:
  * - Locale matching is SEGMENT-based: `/ensemble` never matches `en`.
  * - Trailing slashes are PRESERVED: `/de/` → `/`, `/de/about/` → `/about/`.
  * - Inputs are normalized to a leading slash; interior bytes are never rewritten.
@@ -26,7 +23,6 @@ export type PathnamesMap = Record<string, Record<string, string | undefined>>;
 export interface BuildLocalizedPathOptions {
   /** Default locale code (left unprefixed in `"as-needed"` mode). */
   defaultLocale: string;
-  /** Prefix mode. */
   localePrefix: LocalePrefixMode;
   /**
    * Optional canonical-path → per-locale slug map. Looked up by the exact
@@ -150,8 +146,6 @@ export function setQueryParamInSuffix(suffix: string, key: string, value: string
  * always `/{locale}` (no trailing slash).
  *
  * @param path - Clean canonical path (without locale prefix)
- * @param locale - Target locale
- * @param options - Prefixing configuration
  */
 export function buildLocalizedPath(
   path: string,
@@ -160,7 +154,6 @@ export function buildLocalizedPath(
 ): string {
   const { defaultLocale, localePrefix, pathnames } = options;
 
-  // Next-style pathnames map: look up by the exact given path.
   const mapped = pathnames?.[path]?.[locale] ?? path;
   const normalizedPath = mapped === "" || mapped.startsWith("/") ? mapped || "/" : `/${mapped}`;
 

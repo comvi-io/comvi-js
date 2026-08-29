@@ -8,11 +8,9 @@ import type { ProjectSchema, GeneratorOptions } from "../src/types";
 import { promises as nodeFs } from "fs";
 
 /**
- * CLI command handler tests
- *
- * These tests exercise the actual command handler logic (ConfigLoader + TypeGenerator)
- * without mocking the classes themselves. Instead we inject test dependencies
- * (InMemoryFileSystem, CollectingReporter, SilentLogger) and mock only fetch.
+ * The command handlers run for real: only `fetch` is mocked, and the seams are
+ * filled with test doubles (InMemoryFileSystem, CollectingReporter,
+ * SilentLogger) rather than by mocking ConfigLoader or TypeGenerator.
  */
 
 describe("CLI", () => {
@@ -36,7 +34,6 @@ describe("CLI", () => {
     mockReporter = new CollectingReporter();
     mockLogger = new SilentLogger();
 
-    // Mock global fetch
     global.fetch = vi.fn();
   });
 
@@ -78,7 +75,6 @@ describe("CLI", () => {
 
       expect(filePath).toBe(outputPath);
 
-      // Verify file content
       const content = await nodeFs.readFile(outputPath);
       const parsed = JSON.parse(content);
       expect(parsed.apiKey).toBe("test-key");
@@ -95,7 +91,6 @@ describe("CLI", () => {
 
       expect(filePath).toBe(outputPath);
 
-      // Verify default values were written
       const content = await nodeFs.readFile(outputPath);
       const parsed = JSON.parse(content);
       expect(parsed.apiKey).toBeUndefined();
@@ -125,7 +120,6 @@ describe("CLI", () => {
 
   describe("generate command", () => {
     it("should generate types successfully and write to file", async () => {
-      // Mock fetch to return schema
       (global.fetch as any).mockResolvedValue({
         ok: true,
         json: async () => mockSchema,
@@ -151,7 +145,6 @@ describe("CLI", () => {
       expect(result.keysGenerated).toBe(2);
       expect(result.filePath).toBe("src/types/i18n.d.ts");
 
-      // Verify file was actually written
       const written = mockFileSystem.getFile("src/types/i18n.d.ts");
       expect(written).toContain("declare module '@comvi/core'");
       expect(written).toContain("interface TranslationKeys");
@@ -239,7 +232,6 @@ describe("CLI", () => {
 
   describe("watch command", () => {
     it("should regenerate types from schema update via generateFromSchema", async () => {
-      // Mock fetch for initial generation
       (global.fetch as any).mockResolvedValue({
         ok: true,
         json: async () => mockSchema,
@@ -305,7 +297,6 @@ describe("CLI", () => {
       expect(result.success).toBe(false);
       expect(result.error).toContain("Network error");
 
-      // Verify error was reported
       const errorReport = mockReporter.reports.find((r) => r.type === "error");
       expect(errorReport?.data).toBeInstanceOf(Error);
     });

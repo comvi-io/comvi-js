@@ -3,12 +3,9 @@ import { I18n } from "../helpers/composedHost";
 import { createI18n } from "../helpers/composedHost";
 
 /**
- * High-signal contract tests for tag interpolation:
- * - parsing + nesting
- * - strict mode behavior
- * - basic HTML whitelist
- * - ICU interactions
- * - malformed templates degrade gracefully
+ * The tag-interpolation contract: parsing and nesting, strict mode, the basic
+ * HTML whitelist, ICU interactions, and graceful degradation on malformed
+ * templates.
  */
 describe("Tag Interpolation", () => {
   let i18n: I18n;

@@ -16,7 +16,6 @@ describe("TypeGenerator", () => {
   let mockReporter: CollectingReporter;
   let mockLogger: Logger;
 
-  // Mock schema data for the schema endpoint
   const mockSchema: ProjectSchema = {
     keys: {
       "common:welcome": { params: [] },
@@ -36,19 +35,16 @@ describe("TypeGenerator", () => {
 
     vi.clearAllMocks();
 
-    // Create mock dependencies
     mockFileSystem = new InMemoryFileSystem();
     mockWriter = new FileSystemWriter(mockFileSystem);
     mockReporter = new CollectingReporter();
     mockLogger = new SilentLogger();
 
-    // Setup API client mocks
     const mockApiClient = vi.mocked(ApiClient);
     mockApiClient.prototype.validateConnection = vi.fn().mockResolvedValue(true);
     mockApiClient.prototype.fetchSchema = vi.fn().mockResolvedValue(mockSchema);
     mockApiClient.prototype.fetchDefaultNamespace = vi.fn().mockResolvedValue("default");
 
-    // Create generator with injected dependencies
     generator = new TypeGenerator(mockOptions, {
       writer: mockWriter,
       reporter: mockReporter,
@@ -133,13 +129,11 @@ describe("TypeGenerator", () => {
       expect(ApiClient.prototype.fetchSchema).toHaveBeenCalled();
       expect(ApiClient.prototype.fetchDefaultNamespace).toHaveBeenCalled();
 
-      // Verify the actual generated content was written to the filesystem
       const written = mockFileSystem.getFile("src/types/i18n.d.ts");
       expect(written).toContain("interface TranslationKeys");
       expect(written).toContain("'common:welcome': never;");
       expect(written).toContain("'common:greeting': { name: string };");
 
-      // Check reporter received correct events
       expect(mockReporter.reports).toContainEqual({ type: "start" });
       expect(mockReporter.reports).toContainEqual({ type: "fetching" });
       expect(mockReporter.reports).toContainEqual({ type: "generating" });
@@ -183,7 +177,6 @@ describe("TypeGenerator", () => {
     it("should create output directory if it doesn't exist", async () => {
       await generator.generate();
 
-      // Check that directory exists in in-memory filesystem
       expect(
         mockFileSystem.hasDirectory("/src/types") || mockFileSystem.hasDirectory("src/types"),
       ).toBe(true);
@@ -266,7 +259,6 @@ describe("TypeGenerator", () => {
       expect(result.success).toBe(true);
       expect(result.keysGenerated).toBe(2);
 
-      // Verify the actual generated content
       const written = mockFileSystem.getFile("src/types/i18n.d.ts");
       expect(written).toContain("'custom:key1': never;");
       expect(written).toContain("id: number");
@@ -334,7 +326,6 @@ describe("TypeGenerator", () => {
       expect(result.success).toBe(true);
       expect(result.keysGenerated).toBe(2);
 
-      // Verify the generated output contains the complex parameter types
       const written = mockFileSystem.getFile("src/types/i18n.d.ts");
       expect(written).toContain("name: string");
       expect(written).toContain("count: number");

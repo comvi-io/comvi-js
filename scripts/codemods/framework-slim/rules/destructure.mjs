@@ -1,5 +1,5 @@
 /**
- * T1–T5 — the destructure transform (plan §3.1).
+ * T1–T5 — the destructure transform.
  *
  * | T1 | pure loader destructure            | hook -> `useI18nLoader()`, `ns` dropped |
  * | T2 | pure plugins destructure           | hook -> `useI18nPlugins()`              |

@@ -6,24 +6,14 @@ import { FetchLoader, FETCH_LOADER_PLUGIN_KEY } from "../src/index";
 import { mockCdnSuccessResponse, mockCdnErrorResponse, TEST_CDN_URL } from "./setup";
 
 /**
- * The plugin ecosystem on a COMPOSED SLIM host (framework-slim DX-2).
- *
- * The question this file answers is the one the 0.5.0 slim tiers raise: **does
- * a real, published plugin still work when the host is a bare `@comvi/core`
- * instance that acquired its capabilities by EXPLICIT composition —
- * `.with(loader()).with(plugins())`?** Nothing is inherited from an entry:
- * since the single-entry convergence `@comvi/core`'s root IS the base host, so
- * those two subpaths are precisely what put `registerLoader` and
- * `setPluginData` on the instance under test.
- *
- * Nothing here is a stub. `FetchLoader` is the shipped plugin, imported from
- * this package's own source, and every core specifier resolves through the
- * workspace link to `@comvi/core`'s BUILT dist — i.e. the published exports
- * map, the terser-mangled internals and the real chunk graph. A slim host
- * reaches the plugin's two requirements from two different subpaths
- * (`setPluginData` from `/plugins`, `registerLoader` from `/loader`), so this
- * is also the end-to-end proof that the descriptor-copy composition keeps
- * cross-capability plugins working.
+ * A real published plugin on a host that acquired its capabilities by explicit
+ * composition — `.with(loader()).with(plugins())`. Nothing here is a stub:
+ * every core specifier resolves through the workspace link to `@comvi/core`'s
+ * BUILT dist, so the terser-mangled internals and the real exports map are
+ * what the plugin runs against. The plugin's two requirements come from two
+ * different subpaths (`registerLoader` from `/loader`, `setPluginData` from
+ * `/plugins`), which is what makes this the end-to-end proof that
+ * descriptor-copy composition keeps cross-capability plugins working.
  *
  * It lives here rather than beside core's own `slim-composition.test.ts`
  * because `@comvi/core` must not devDepend on a package that peer-depends on
@@ -47,20 +37,15 @@ describe("published plugins on a composed slim host", () => {
     i18n.use(FetchLoader({ cdnUrl: TEST_CDN_URL, loadOnInit: true }));
     await i18n.init();
 
-    // 1. the plugin registered its loader through the /loader capability
     expect(typeof i18n.getLoader()).toBe("function");
-    // 2. …and stored its config through the /plugins capability
     expect(i18n.getPluginData(FETCH_LOADER_PLUGIN_KEY)).toMatchObject({
       cdnUrl: TEST_CDN_URL,
     });
-    // 3. translations actually arrived over the mocked transport
     expect(i18n.t("greeting")).toBe("Hello");
 
-    // 4. the registered loader keeps serving locale switches
     await i18n.setLocaleAsync("fr");
     expect(i18n.t("greeting")).toBe("Bonjour");
 
-    // 5. the plugin's cleanup runs on destroy, and host state resets
     await i18n.destroy();
     expect(i18n.getLoader()).toBeUndefined();
     expect(i18n.getPluginData(FETCH_LOADER_PLUGIN_KEY)).toBeUndefined();

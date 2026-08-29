@@ -1,4 +1,4 @@
-// §7.3 — the ONE remote-ICU ordering the codemod can prove: `icu()` has to
+// the ONE remote-ICU ordering the codemod can prove: `icu()` has to
 // reach the host before a loader ingests anything, and in a static chain both
 // steps are visible in one expression.
 //

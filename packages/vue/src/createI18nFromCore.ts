@@ -1,9 +1,5 @@
-// The injected-host construction path: wrap a host the app composed itself —
-// `createCore` from `@comvi/vue`, optionally with `.with(loader())` /
-// `.with(plugins())` — without this package constructing anything, so vue's
-// own one-call preset (`createI18n.ts`) stays out of the graph. Core's base
-// entry does not: since the single-entry convergence `index.ts` names it, and
-// `createCore` IS its constructor.
+// Constructs nothing itself, so vue's one-call preset (`createI18n.ts`) stays
+// out of the graph of an app that composes its own host.
 import type { DefaultTranslationParams, WrapperI18nHost } from "@comvi/core";
 import { VueI18n, type VueI18nCoreOptions } from "./VueI18n";
 

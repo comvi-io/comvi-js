@@ -1,14 +1,3 @@
-/**
- * Pull command - Download translations from TMS to local files
- *
- * Usage:
- *   comvi pull                         # All locales, all namespaces
- *   comvi pull --locale en,uk          # Filter by locales
- *   comvi pull --ns common,admin       # Filter by namespaces
- *   comvi pull --path ./locales        # Override output path
- *   comvi pull --empty-dir             # Clear directory before pull
- */
-
 import { Command } from "commander";
 import { ConfigLoader } from "../core/ConfigLoader";
 import { ApiClient } from "../core/ApiClient";
@@ -32,7 +21,6 @@ export function createPullCommand(): Command {
       try {
         console.log("🔄 Loading configuration...");
 
-        // Load configuration (validates apiKey is present)
         const config = await ConfigLoader.load(options.config);
 
         // apiKey is validated by ConfigLoader.load(), so it's guaranteed to be set
@@ -40,13 +28,11 @@ export function createPullCommand(): Command {
           throw new Error("API key is required. Set COMVI_API_KEY environment variable.");
         }
 
-        // Create API client
         const apiClient = new ApiClient({
           apiKey: config.apiKey,
           apiBaseUrl: config.apiBaseUrl || "https://api.comvi.io",
         });
 
-        // Create translation sync
         const fileTemplate = config.fileTemplate || DEFAULT_FILE_TEMPLATE;
         const sync = new TranslationSync({
           translationsPath: options.path || config.translationsPath || "./src/locales",
@@ -65,7 +51,6 @@ export function createPullCommand(): Command {
           console.log(`📄 Using namespaces from .comvirc.json: ${nss.value!.join(", ")}`);
         }
 
-        // Empty directory if requested
         if (options.emptyDir || config.pull?.emptyDir) {
           if (options.dryRun) {
             console.log("🗑️  [dry-run] Would clear translations directory");
@@ -75,7 +60,6 @@ export function createPullCommand(): Command {
           }
         }
 
-        // Fetch translations
         console.log("🔄 Fetching translations from TMS...");
         const translations = await apiClient.fetchTranslations({
           locales: locs.value,
@@ -87,7 +71,6 @@ export function createPullCommand(): Command {
         assertAllReturned("namespaces", nss.value, translations.namespaces);
         assertAllReturned("locales", locs.value, translations.locales);
 
-        // Write to files
         const defaultNamespace = isDefaultFileTemplate(fileTemplate)
           ? await apiClient.fetchDefaultNamespace()
           : undefined;

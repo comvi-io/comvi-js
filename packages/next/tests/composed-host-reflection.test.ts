@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { createNextI18n } from "../src/createNextI18n";
 
 /**
- * B7 — the REFLECTIVE half of the `@comvi/next` composed-host contract.
+ * The REFLECTIVE half of the `@comvi/next` composed-host contract.
  *
  * `tests/composed-contract.test.ts` pins what the composed host DOES;
  * this file pins what it LOOKS LIKE to reflection. The claim is the same one
@@ -20,7 +20,7 @@ import { createNextI18n } from "../src/createNextI18n";
 
 const ROUTING = { locales: ["en", "de"], defaultLocale: "en" } as const;
 
-/** The class-method descriptor shape core's A11 suite pins. */
+/** The class-method descriptor shape core's own suite pins. */
 const CLASS_METHOD_DESCRIPTOR = { writable: true, enumerable: false, configurable: true };
 
 const shapeOf = (d: PropertyDescriptor | undefined) =>

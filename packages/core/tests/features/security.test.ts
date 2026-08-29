@@ -9,9 +9,8 @@ describe("Security and Error Handling", () => {
   });
 
   describe("String Safety (Passthrough)", () => {
-    // Comvi i18n itself is output-agnostic (returns strings/nodes).
-    // It should NOT strip tags automatically, as that might break valid HTML translations.
-    // It's the consumer's job to sanitize. Comvi i18n acts as a passthrough.
+    // Deliberate passthrough: stripping tags automatically would break valid
+    // HTML translations, so sanitizing is the consumer's job.
 
     it("should interpolate malicious scripts into parameters without executing them (passthrough)", () => {
       const malicious = "<script>alert(1)</script>";
@@ -27,7 +26,6 @@ describe("Security and Error Handling", () => {
 
     it("should handle excessively long keys by returning the key itself when missing", () => {
       const longKey = "a".repeat(10000);
-      // It returns the key itself when it's missing
       expect(i18n.t(longKey)).toBe(longKey);
     });
   });
@@ -37,7 +35,7 @@ describe("Security and Error Handling", () => {
       i18n.addTranslations({ en: { bad: "Hello {name" } });
       const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 
-      // Parser returns best effort and warns about malformed template
+      // Best effort plus a warning; never a throw.
       expect(i18n.t("bad", { name: "World" })).toBe("Hello {name");
       expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("Unbalanced braces"));
 

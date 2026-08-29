@@ -1,12 +1,11 @@
-// NON-EXPORTED (plan §2.6): the compatibility builder that preserves the
-// published `createNextI18n` composed semantics on top of the converged single
-// base entry. Not listed in package.json#exports; `createNextI18n` is its only
-// caller, and `NextComposedI18n` is the exact public host type it produces.
+// The compatibility builder that preserves the published `createNextI18n`
+// composed semantics on top of the converged single base entry. Not listed in
+// package.json#exports; `createNextI18n` is its only caller.
 //
 // Composition order mirrors the 0.4 root constructor exactly:
 //   loader capability → plugin host → catalog ingestion → discovery,
 // so nested constructor catalogs still flatten and the reflective own-property
-// order is unchanged (P0.3 parity ordering, 18/18 behaviour parity).
+// order is unchanged.
 import "@comvi/core/tags"; // ambient tag syntax, as the 0.4 root registered it
 import { I18n, createI18n } from "@comvi/core";
 import { icuCompiler } from "@comvi/core/icu";
@@ -50,20 +49,16 @@ export function createComposedNextI18n<const D extends DefaultTranslationParams 
   );
 
   // The 0.4 root's `registerLoader` accepted a static import map as well as a
-  // loader function. `attachLoader` installs only the function form, so the
-  // overload is restored here — the builder is the only place that knows the
-  // published root promised it.
+  // loader function; `attachLoader` installs only the function form, so the
+  // overload is restored here.
   //
-  // `defineProperty`, never a plain assignment (B7): the reflective contract
-  // is that a spread of a host carries DATA only, never behaviour
-  // (`core/src/core/devtools.ts:17-18`, pinned by core's
-  // `tests/root-contract.test.ts` and by `tests/composed-host-reflection.test.ts`
-  // here). An assignment only preserves `enumerable: false` while
-  // `attachLoader` happens to install `registerLoader` as an OWN descriptor;
-  // the moment a capability moves to a prototype install — which is exactly
-  // what `core/full.ts` does — `host.registerLoader = fn` would silently
-  // create an enumerable own property and leak the method into `{ ...host }`.
-  // Spelling the descriptor out removes that coupling.
+  // `defineProperty`, never a plain assignment: the reflective contract is that
+  // a spread of a host carries DATA only, never behaviour. An assignment only
+  // preserves `enumerable: false` while `attachLoader` happens to install
+  // `registerLoader` as an OWN descriptor; the moment a capability moves to a
+  // prototype install — which is what `core/full.ts` does — `host.registerLoader
+  // = fn` would silently create an enumerable own property and leak the method
+  // into `{ ...host }`.
   const registerLoaderFn = host.registerLoader.bind(host) as (loader: LoaderFn) => void;
   Object.defineProperty(host, "registerLoader", {
     value: (loader: LoaderFn | LoaderImportMap): void => {
@@ -82,8 +77,8 @@ export function createComposedNextI18n<const D extends DefaultTranslationParams 
     host.addTranslations(translation as Record<string, Record<string, never>>);
   }
 
-  // LAST, exactly as the 0.4 root constructor did: discovery is the only
-  // capability that assigns a PUBLIC field (`instanceId`).
+  // LAST, as the 0.4 root constructor did: discovery is the only capability
+  // that assigns a PUBLIC field (`instanceId`).
   attachDevtools(host, { instanceId, exposeGlobal });
 
   return host as unknown as NextComposedI18n<D>;

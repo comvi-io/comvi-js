@@ -3,11 +3,9 @@ import { I18n } from "../helpers/composedHost";
 import type { I18nPlugin } from "../helpers/composedHost";
 
 /**
- * Focus on the error-handling contract:
- * - required plugins fail fast
- * - optional plugins degrade gracefully
- * - timeouts protect init
- * - cleanup runs in LIFO order and continues on errors
+ * The plugin error-handling contract: required plugins fail fast, optional ones
+ * degrade, timeouts protect `init()`, and cleanup runs LIFO and continues past
+ * an error.
  */
 describe("Plugin Error Handling", () => {
   describe("Required Plugins", () => {

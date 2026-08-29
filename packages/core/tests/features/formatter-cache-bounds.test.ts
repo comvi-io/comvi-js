@@ -2,13 +2,9 @@ import { describe, it, expect } from "vitest";
 import { I18n, formatNumber, formatDate, formatRelativeTime } from "../../src";
 
 /**
- * Behavioural tests for the bounded Intl formatter caches introduced in fix/v030-core-reactivity.
- *
- * The caches (_numberFormatCache, _dateFormatCache, _relativeTimeFormatCache) are private,
- * so we exercise them purely through the public formatNumber / formatDate / formatRelativeTime
- * APIs.  The goal is to show that:
- *   1. Correctness is preserved after the FIFO eviction threshold (1000) is crossed.
- *   2. The process does not throw or produce garbled output when the cache wraps over.
+ * The bounded Intl formatter caches are private, so they are exercised purely
+ * through the public format* APIs. The claims: correctness survives crossing the
+ * FIFO eviction threshold, and nothing throws or garbles when the cache wraps.
  */
 
 // Real BCP-47 locale tags used for cache-key variation.
@@ -140,7 +136,7 @@ describe("Intl formatter cache — bounded FIFO eviction", () => {
       const pinLocale = "ja";
       const pinValue = 12345.6;
 
-      // Get a baseline result before eviction (this populates the cache for "ja").
+      // Populates the cache entry for "ja".
       const before = formatNumber(i18n, pinValue, undefined, pinLocale);
 
       // Push the cache past the eviction threshold, evicting the pinned "ja" entry.

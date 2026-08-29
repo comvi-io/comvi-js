@@ -40,11 +40,10 @@ describe("normalizeTranslationObject — no input mutation", () => {
   });
 
   it("adopts an already-prototype-less catalog on the first write instead of copying it", () => {
-    // A host WITH the flattener (`_flattenNs`) gets a fresh prototype-less
-    // catalog out of it, so the first write stores that object as-is. The
-    // identity is the cheap, deterministic proxy for "the constructor does
-    // not copy the whole catalog a second time" — the copy that made
-    // `new I18n({ translation })` 2.5x slower (.omc/handoffs/ctor-perf.md).
+    // A host WITH the flattener gets a fresh prototype-less catalog out of it,
+    // so the first write stores that object as-is. Object IDENTITY is the cheap,
+    // deterministic proxy for "the constructor does not copy the whole catalog a
+    // second time" — the copy that made `new I18n({ translation })` 2.5x slower.
     const catalog: Record<string, string> = Object.assign(Object.create(null), {
       hello: "Hello",
     });
@@ -69,7 +68,7 @@ describe("catalog leaf hardening — non-string values", () => {
     expect(() => i18n.t("list")).not.toThrow();
     expect(i18n.t("list")).toBe("a,b");
     expect(i18n.t("num")).toBe("5");
-    // null leaves are dropped → key behaves as missing
+    // A null leaf is dropped, so the key behaves as missing.
     expect(i18n.t("nothing")).toBe("nothing");
   });
 
@@ -105,8 +104,7 @@ describe("isInitializing — owned by init()", () => {
     await i18n.init();
 
     expect(flagInsideLoader).toBe(true);
-    // No event may report isInitializing=false before init() completes;
-    // the final event reports false.
+    // No event may report isInitializing=false before init() completes.
     expect(initializingStates[initializingStates.length - 1]).toBe(false);
     expect(initializingStates.slice(0, -1).every(Boolean)).toBe(true);
     expect(i18n.isInitializing).toBe(false);

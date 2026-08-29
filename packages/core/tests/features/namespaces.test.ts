@@ -24,7 +24,6 @@ describe("Namespace Management", () => {
       "en:admin": { other: "Admin Value" },
     });
 
-    // Should NOT find 'key' in 'admin'
     expect(i18n.t("key", { ns: "admin" })).toBe("key");
   });
 

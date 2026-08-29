@@ -1,56 +1,34 @@
 import { describe, it, expect } from "vitest";
 import { createI18n, I18n } from "../src";
 // The internal composite (`src/core/full.ts`): the batteries-included host the
-// CDN global ships and `@comvi/next`'s builder mirrors. Since the single-entry
-// convergence the ROOT is the base host, so A11 pins BOTH shapes — the
-// published one-argument base facade, and the composed surface whose
-// reflective contract 0.4 consumers already depend on.
+// CDN global ships and `@comvi/next`'s builder mirrors.
 import { I18n as ComposedI18n } from "../src/core/full";
 
 /**
- * Acceptance A11 — the root reflective contract (Phase 7, Principle 1).
+ * The REFLECTIVE contract of the published surface. Consumers spy on, patch,
+ * enumerate and feature-detect the class, so its shape is as much a contract as
+ * its behaviour, and the capability decomposition must not disturb it.
  *
- * Phase 7 decomposes the `I18n` class into capability modules. The root entry
- * must keep not only its behavior but its *reflective* surface: consumers spy
- * on, patch, enumerate and feature-detect the class. This suite is written
- * against the untouched class at S1 (it IS the "before" snapshot) and must
- * stay green through S5.
+ * On `Object.keys`: what is pinned is the PUBLIC observable shape — the exact
+ * public own-property list, plus the absence of any public METHOD from the
+ * own-property set (the failure mode an own-property attach path would
+ * introduce if it leaked onto the host). The `_`-prefixed own properties are
+ * deliberately NOT pinned by name: they are TS-private, renamed by terser in
+ * every shipped artifact, and capability state may legitimately move between
+ * the base and subclass constructors.
  *
- * On `Object.keys`: the contract pinned here is the PUBLIC observable shape —
- * the exact public own-property list, and the absence of any public method
- * from the own-property set (the failure mode the slim own-prop attach path
- * would introduce if it ever leaked onto root). The `_`-prefixed own
- * properties are deliberately NOT pinned name-by-name: they are TS-private,
- * renamed by terser in every shipped artifact, and capability state
- * initialization legitimately moves between the base constructor and the
- * subclass constructor during the decomposition.
- *
- * ── DELIBERATE CHANGE, framework-slim tier-3 (`.omc/handoffs/fs-tier3.md`) ──
- * `useDefineForClassFields` is now `false` (−191 B min+gz on `/slim`), so a
- * class field is an own property only once something ASSIGNS it. `instanceId`
- * is assigned only by the discovery capability — which the internal composite
- * composes back in and the base root does not carry at all — and which
- * `exposeGlobal: false` opts out of. The own-property
- * assertion below therefore SPLIT in two rather than losing a name:
+ * `useDefineForClassFields` is `false`, so a class field becomes an own
+ * property only once something ASSIGNS it. `instanceId` is assigned only by the
+ * discovery capability, which `exposeGlobal: false` opts out of — hence two
+ * own-property assertions rather than one:
  *   • `exposeGlobal: false` → the four always-assigned publics, `instanceId`
- *     ABSENT (it used to be present with value `undefined`);
- *   • `exposeGlobal: true`  → the same four plus `instanceId` LAST, which
- *     additionally pins the second consequence of the flag: own-property
- *     order is now constructor-assignment order, not declaration order.
- * Nothing else in this file moved: every prototype/descriptor assertion is
- * unaffected, because public members were never class fields.
+ *     ABSENT;
+ *   • `exposeGlobal: true`  → the same four plus `instanceId` LAST, which also
+ *     pins the flag's second consequence: own-property order is
+ *     constructor-ASSIGNMENT order, not declaration order.
  *
- * ── DELIBERATE CHANGE, single-entry convergence (P1) ──
- * The root is now the BASE host, so this file pins two shapes instead of one:
- *   • `describe("base root …")` — the published `@comvi/core` surface: base
- *     prototype members only, the four public own properties, NO `instanceId`
- *     (discovery is an installer away), and the one-ARGUMENT `new I18n(opts)`
- *     facade;
- *   • `describe("composed host …")` — the batteries-included composite, whose
- *     reflective contract is verbatim what this file asserted before P1
- *     (capability members on the prototype chain, `instanceId` LAST).
- * Nothing was dropped: every assertion that used to run against the full root
- * now runs against the composite, and the base gets its own half.
+ * Two shapes are pinned, because the root is the base host: `base root …` for
+ * the published `@comvi/core` surface, `composed host …` for the composite.
  */
 
 /**
@@ -61,9 +39,8 @@ const BASE_PROTOTYPE_METHODS = [
   "init",
   "destroy",
   "on",
-  // DELIBERATE EXTENSION, fs-dx2: `.with(installer)` is the composition pipe
-  // and lives on the BASE class, so it is an ordinary prototype method and
-  // the contract grows by exactly one name — nothing else in this file moves.
+  // `.with(installer)` is the composition pipe and lives on the BASE class, so
+  // it is an ordinary prototype method like any other.
   "with",
   "t",
   "tRaw",
@@ -249,10 +226,9 @@ describe("base root reflective contract (A11)", () => {
   });
 
   it("publishes a ONE-ARGUMENT construct signature that shares the base prototype", () => {
-    // The published binding IS the base class; the narrowed construct type
-    // keeps the internal compiler parameter out of the emitted declaration
-    // (P0.4 candidate C4n). At runtime that means one prototype, one
-    // `instanceof`, and `createI18n` producing the very same shape.
+    // The published binding IS the base class; the narrowed construct type only
+    // keeps the internal compiler parameter out of the emitted declaration. At
+    // runtime: one prototype, one `instanceof`, one shape.
     const viaClass = new I18n({ locale: "en" });
     const viaFactory = createI18n({ locale: "en" });
 
@@ -306,8 +282,8 @@ describe("composed host reflective contract (A11)", () => {
     const ownKeys = Object.keys(i18n);
 
     // `useDefineForClassFields: false`: a field is an own property only once
-    // assigned, so an instance that opted out of discovery has no
-    // `instanceId` own property at all (pre-flag it was present, undefined).
+    // assigned, so an instance that opted out of discovery has no `instanceId`
+    // own property at all.
     expect(ownKeys.filter((k) => !k.startsWith("_"))).toEqual([...PUBLIC_OWN_KEYS]);
     expect(Object.prototype.hasOwnProperty.call(i18n, DISCOVERY_OWN_KEY)).toBe(false);
     expect(i18n.instanceId).toBeUndefined();
@@ -324,10 +300,9 @@ describe("composed host reflective contract (A11)", () => {
   });
 
   it("appends instanceId in assignment order when discovery exposes the instance", () => {
-    // The composite composes discovery back in, so exposure still assigns
-    // `instanceId` — and pins the flag's second consequence: own-property
-    // order is constructor-assignment order, so the discovery key lands LAST,
-    // after every field the base constructor assigned.
+    // Discovery initializes LAST, and own-property order is
+    // constructor-assignment order — so the discovery key lands after every
+    // field the base constructor assigned.
     const i18n = new ComposedI18n({ locale: "en", exposeGlobal: true, instanceId: "a11-probe" });
 
     expect(Object.keys(i18n).filter((k) => !k.startsWith("_"))).toEqual([

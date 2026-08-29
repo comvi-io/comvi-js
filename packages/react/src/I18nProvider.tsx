@@ -9,12 +9,7 @@ import {
 import { subscribeToRevision } from "@comvi/core";
 import type { WrapperI18nHost, FlattenedTranslations, I18nEvent } from "@comvi/core";
 
-/**
- * What every react binding demands of the instance it is handed: the reactive
- * translation host (`WrapperI18nHost` = `I18nCoreInstance & I18nCoreExtraApi`),
- * which is exactly what the base `@comvi/core` / `@comvi/react` factory builds.
- * Loader/plugin capabilities are acquired separately — see `capabilityHooks`.
- */
+/** Loader/plugin capabilities are not part of it — see `capabilityHooks`. */
 type Host = WrapperI18nHost;
 
 interface I18nContextValue {
@@ -46,13 +41,10 @@ export function useSubscribe(i18n: Host, ...events: I18nEvent[]) {
       const eventList = eventsKey.split("|") as I18nEvent[];
       const unsubs = eventList.map((e) =>
         i18n.on(e, () => {
-          // Defer React's store-update notification out of the synchronous
-          // _emit call stack (packages/core/src/core/i18n.ts:438-448).
-          // Without deferral, callback() runs inside the emit loop while a
-          // parent component is mid-render, causing scheduleUpdateOnFiber to
-          // target a sibling fiber and fire the "Cannot update a component
-          // while rendering a different component" warning.
-          // The disposed flag prevents stale callbacks after unsubscribe.
+          // Defer out of core's synchronous `_emit` stack: undeferred, this
+          // runs inside the emit loop while a parent component is mid-render,
+          // and React warns "Cannot update a component while rendering a
+          // different component".
           queueMicrotask(() => {
             if (!disposed) callback();
           });
@@ -72,8 +64,7 @@ export function useStoreRevision(i18n: Host): string {
   const subscribe = useCallback(
     (callback: () => void) => {
       let disposed = false;
-      // Canonical 7-event revision set from core (subscribeToRevision) — react
-      // subscribes to all of them (plan 6.4; was a hand-copied 5-event subset).
+      // Core's canonical revision event set: never hand-copy a subset here.
       const unsubscribe = subscribeToRevision(i18n, () => {
         // Defer out of the synchronous _emit stack to avoid mid-render setState.
         queueMicrotask(() => {
@@ -88,9 +79,8 @@ export function useStoreRevision(i18n: Host): string {
     [i18n],
   );
 
-  // Content-addressed snapshot (subscription-timing-independent) so events that fire
-  // before the subscribe effect attaches are still detected on the post-subscribe read.
-  // Locale + loading segments make the two events the old subset missed re-render-visible.
+  // Content-addressed, not counter-based, so an event that fires before the
+  // subscribe effect attaches is still detected on the post-subscribe read.
   const getSnapshot = useCallback(
     () =>
       `${i18n.translationCache.getRevision()}:${i18n.isInitialized ? 1 : 0}:` +
@@ -206,7 +196,6 @@ export function useLocale(): string {
   return locale;
 }
 
-/** Read `{ isLoading, isInitializing }` slice. */
 export function useIsLoading(): { isLoading: boolean; isInitializing: boolean } {
   const { isLoading, isInitializing } = useI18nInstance();
   return { isLoading, isInitializing };

@@ -1,6 +1,5 @@
 import { beforeEach, afterEach } from "vitest";
 
-// Mock storage for testing
 class MockStorage implements Storage {
   private store: Map<string, string> = new Map();
 
@@ -30,7 +29,6 @@ class MockStorage implements Storage {
   }
 }
 
-// Mock navigator for language detection
 export function mockNavigator(languages: string[] = ["en-US", "en"], language: string = "en-US") {
   Object.defineProperty(globalThis.navigator, "languages", {
     value: languages,
@@ -45,7 +43,6 @@ export function mockNavigator(languages: string[] = ["en-US", "en"], language: s
   });
 }
 
-// Mock document.cookie
 export function mockCookie(value: string = "") {
   let cookieValue = value;
 
@@ -60,7 +57,6 @@ export function mockCookie(value: string = "") {
   });
 }
 
-// Mock URL search params
 export function mockWindowLocation(search: string = "") {
   Object.defineProperty(globalThis.window, "location", {
     value: {
@@ -79,23 +75,15 @@ export function mockWindowLocation(search: string = "") {
   });
 }
 
-// Reset all mocks before each test
 beforeEach(() => {
-  // Clear storages
   localStorage.clear();
   sessionStorage.clear();
 
-  // Reset cookies
   mockCookie("");
-
-  // Reset location
   mockWindowLocation();
-
-  // Reset navigator
   mockNavigator();
 });
 
-// Clean up after each test
 afterEach(() => {
   localStorage.clear();
   sessionStorage.clear();

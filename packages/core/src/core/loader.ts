@@ -1,26 +1,22 @@
 // Async translation-loading capability — the implementation half of
 // `@comvi/core/loader`.
 //
-// ONE implementation, TWO install surfaces (plan M-1): the capability is a
-// class body, `I18nWithLoader`.
-//   • composite — `core/full.ts` extends it, so the members are ordinary inherited
-//            prototype methods (no install glue in the composite at all);
-//   • base host — `attachLoader(i18n)` copies that prototype's own descriptors
-//            onto the instance. Class-body methods are already
-//            non-enumerable / writable / configurable, so the two surfaces
-//            are reflectively identical (`tests/root-contract.test.ts`).
-// Descriptor copying (rather than prototype chaining) is what keeps
-// capabilities composable: `attachPlugins(attachLoader(i18n))` needs no
-// combinatorial Loader+Plugins class.
+// ONE implementation, TWO install surfaces: the capability is a class body,
+// `I18nWithLoader`. `core/full.ts` extends it, so the composite gets ordinary
+// inherited prototype methods and needs no install glue; `attachLoader(i18n)`
+// copies that prototype's own descriptors onto a base instance. Class-body
+// methods are already non-enumerable / writable / configurable, so the two
+// surfaces are reflectively identical. Descriptor copying rather than
+// prototype chaining is what keeps capabilities composable:
+// `attachPlugins(attachLoader(i18n))` needs no combinatorial class.
 //
-// MANGLING CONTRACT (plan R2): the `_`-prefixed members below are renamed by
-// the single shared terser nameCache (`vite.shared.ts#mangleInternalProps`),
-// which is only consistent because every core entry — including this one — is
-// built by ONE vite invocation (`coreEntries`). Method definitions and dot
-// access are what terser can correlate: never install or read a `_` member
-// through a string (`i["_loader"]`, `Object.defineProperty(o, "_loadNs", …)`),
-// because terser does not rewrite string arguments and the prod dist would
-// break silently. `tests/dist/base-composition.dist.test.ts` is the canary.
+// MANGLING CONTRACT: the `_`-prefixed members below are renamed by the single
+// shared terser nameCache (`vite.shared.ts#mangleInternalProps`), which is only
+// consistent because every core entry is built by ONE vite invocation
+// (`coreEntries`). Terser can only correlate method definitions and dot access:
+// never install or read a `_` member through a string (`i["_loader"]`,
+// `Object.defineProperty(o, "_loadNs", …)`) — terser does not rewrite string
+// arguments and the prod dist would break silently.
 import type {
   DefaultTranslationParams,
   FlattenedTranslations,
@@ -36,13 +32,10 @@ declare const __DEV__: boolean | undefined;
 const IS_DEV = typeof __DEV__ !== "undefined" && __DEV__;
 
 /**
- * B2 — `init()` loads the initial namespaces once. A loader composed after it
- * is never asked for them, so the host looks composed and stays empty until
+ * `init()` loads the initial namespaces once. A loader composed after it is
+ * never asked for them, so the host looks composed and stays empty until
  * something else (`addActiveNamespace`, `reloadTranslations`, a locale switch)
- * happens to trigger a load.
- *
- * Dev-only: the string is behind `IS_DEV` at its call site, so terser drops it
- * from a prod build.
+ * happens to trigger a load. Empty in prod so terser drops the string.
  */
 const ERR_LATE_LOADER = IS_DEV
   ? "[i18n] .with(loader()) ran after init(): compose capabilities before init(). init() has already loaded the initial namespaces and will not re-run for this loader — call reloadTranslations() or addActiveNamespace() to load now."
@@ -83,17 +76,15 @@ function createAllNamespacesFailedError(locale: string, failedNamespaces: string
 }
 
 /**
- * The loader capability. Not exported from any entry point: the internal
- * composite (`core/full.ts`, which the CDN global ships) exposes it by
- * extending this class (its constructor calls `_initLoader`), and any other
- * host gets it from `attachLoader` / `.with(loader())`.
+ * The loader capability. Not exported from any entry point: the composite
+ * (`core/full.ts`) extends this class, any other host gets it from
+ * `attachLoader` / `.with(loader())`.
  *
- * Members are accessed through `this` exactly as they were when they lived in
- * the base class — `this.x` is the single most repeated token in the bundle,
- * and aliasing it to a local (`const i = this as I18nInternal`) shrinks the
- * minified size but measurably WORSENS the gzipped size (+90 B on the full
- * entry, measured). Hence `protected declare` re-declarations below and
- * `protected` state on the base rather than per-access casts.
+ * Members are reached through `this`, never through a local alias: `this.x` is
+ * the most repeated token in the bundle, and aliasing it (`const i = this as
+ * I18nInternal`) shrinks the minified size but WORSENS the gzipped size by
+ * ~90 B. Hence the `protected declare` re-declarations below and `protected`
+ * state on the base rather than per-access casts.
  */
 export class I18nWithLoader<D extends DefaultTranslationParams = {}> extends I18nBase<D> {
   /** Loader-owned state; created by `_initLoader`, never by a field initializer. */
@@ -104,10 +95,7 @@ export class I18nWithLoader<D extends DefaultTranslationParams = {}> extends I18
   declare protected _currentLocaleChangeId: number;
   declare protected _requestedLocale: string;
 
-  /**
-   * Initialize loader-owned state. Called by the composite's constructor and by
-   * `attachLoader`; this class declares no constructor of its own.
-   */
+  /** Called by the composite's constructor and by `attachLoader`; this class declares none of its own. */
   protected _initLoader(): void {
     this._pendingLoads = Object.create(null);
     this._nsGeneration = 0;
@@ -130,10 +118,7 @@ export class I18nWithLoader<D extends DefaultTranslationParams = {}> extends I18
     return normalizeTranslationObject(catalog);
   }
 
-  /**
-   * Destroy phase 3: the reset runs only after the `destroyed` listeners have
-   * observed the still-live state (two-phase destroy contract).
-   */
+  /** Destroy phase 3 — runs only after the `destroyed` listeners saw the still-live state. */
   protected _resetLoader(): void {
     this._nsGeneration++;
     this._pendingLoads = {};
@@ -144,7 +129,7 @@ export class I18nWithLoader<D extends DefaultTranslationParams = {}> extends I18
    * Locale switching WITH a loader in the graph: the base transition wrapped
    * in the race machinery a bare instance can never need.
    *
-   * Three things happen here and nowhere else (framework-slim P1 seam):
+   * Three things happen here and nowhere else:
    *  • active namespaces are loaded for the target locale BEFORE it applies,
    *    so the UI never flashes untranslated;
    *  • a `changeId` suppresses both the result and the error of a request
@@ -168,41 +153,37 @@ export class I18nWithLoader<D extends DefaultTranslationParams = {}> extends I18
       return;
     }
 
-    // Track this request to handle race conditions when locale changes rapidly
     this._requestedLocale = value;
     const changeId = ++this._currentLocaleChangeId;
 
     this._setLoadingState(true);
 
     try {
-      // Load any active namespaces that aren't loaded for the new locale FIRST.
-      // The `_loader` probe (not `_loadNs`) keeps byte-parity with 0.4.x: with
-      // no loader registered the old code awaited NOTHING, so
-      // `i18n.locale = "fr"` applied synchronously. Probing the hook would add
-      // a microtask tick.
+      // Load the active namespaces BEFORE the locale applies, so the UI never
+      // flashes untranslated. Probe `_loader`, not `_loadNs`: with no loader
+      // registered nothing must be awaited, or `i18n.locale = "fr"` would stop
+      // applying synchronously (one extra microtask tick).
       if (this._loader && this._activeNamespaces.size > 0) {
         await this._loadNs(value, [...this._activeNamespaces], true);
       }
 
-      // Check staleness after EVERY async operation to prevent applying outdated results
+      // Staleness must be re-checked after EVERY await.
       if (changeId !== this._currentLocaleChangeId) {
         return;
       }
 
-      // Switch locale only after successful load
       const oldLocale = this._locale;
       this._locale = value;
       this._emit("localeChanged", { from: oldLocale, to: value });
     } catch (error) {
-      // Re-check staleness: if a newer request superseded this one, suppress the error
-      // so only the latest request's outcome is observed by callers
+      // A superseded request must not surface its error either — only the
+      // latest request's outcome is observable.
       if (changeId !== this._currentLocaleChangeId) {
         return;
       }
       throw error;
     } finally {
-      // ALWAYS decrement the loading state because we incremented it unconditionally.
-      // The reference counter handles overlapping requests seamlessly.
+      // Unconditional, to match the unconditional increment above.
       this._setLoadingState(false);
     }
   }
@@ -228,7 +209,6 @@ export class I18nWithLoader<D extends DefaultTranslationParams = {}> extends I18
     this._loader = loader;
   }
 
-  /** Get the registered loader function */
   public getLoader(): LoaderFn | undefined {
     return this._loader;
   }
@@ -237,14 +217,13 @@ export class I18nWithLoader<D extends DefaultTranslationParams = {}> extends I18
    * Activate a namespace and load it for the current locale.
    *
    * Namespace ACTIVATION only matters when something loads namespaces, so it
-   * lives with the loader (contingency C1). A base host activates
-   * implicitly: `addTranslations` self-activates every namespace it carries.
+   * lives with the loader. A base host activates implicitly: `addTranslations`
+   * self-activates every namespace it carries.
    */
   public async addActiveNamespace(namespace: string): Promise<void> {
     return this.addActiveNamespaces([namespace]);
   }
 
-  /** Activate several namespaces and load them for the current locale. */
   public async addActiveNamespaces(namespaces: string[]): Promise<void> {
     this._setLoadingState(true);
     try {
@@ -256,10 +235,9 @@ export class I18nWithLoader<D extends DefaultTranslationParams = {}> extends I18
   }
 
   /**
-   * Register a callback for load errors (contingency C2 — a `loadError`
-   * event can only be emitted by the loader capability).
-   * @param callback - Function called when loading translations fails
-   * @returns Cleanup function to remove the callback
+   * Register a callback for load errors. Lives here because only the loader
+   * capability can emit `loadError`.
+   * @returns Cleanup function that removes the callback.
    */
   public onLoadError(
     callback: (locale: string, namespace: string, error: Error) => void,
@@ -287,8 +265,8 @@ export class I18nWithLoader<D extends DefaultTranslationParams = {}> extends I18
 
     for (const loc of localesToReload) {
       for (const ns of namespacesToReload) {
-        // Cancel any in-flight load so reload fetches fresh data instead of
-        // resolving to a request that started before the cache was cleared
+        // Otherwise the reload could resolve to a request that started before
+        // the cache was cleared.
         this._cancelNs(loc, ns);
         this.translationCache.delete(loc, ns);
       }
@@ -331,10 +309,10 @@ export class I18nWithLoader<D extends DefaultTranslationParams = {}> extends I18
       try {
         const translations = await loader(locale, namespace);
         if (generation !== this._nsGeneration || this._pendingLoads[key] !== guarded) return;
-        // Ingestion seam 2 — immediately before the direct cache merge.
+        // Lock immediately before the direct cache merge.
         this._compilerLocked = true;
-        // Dev preflight runs on its own normalized copy so the PRODUCTION
-        // statement below stays byte-identical to the shipped one (0 B prod).
+        // The preflight normalizes its own copy so the production statement
+        // below stays byte-identical to the shipped one.
         if (IS_DEV)
           (this as unknown as I18nInternal)._preflightSimpleCatalog?.(
             normalizeTranslationObject(translations),
@@ -431,13 +409,12 @@ export class I18nWithLoader<D extends DefaultTranslationParams = {}> extends I18
  * and the recovery is an explicit `addActiveNamespace()` /
  * `reloadTranslations()`.
  *
- * Idempotent (dot-access probe on an installed hook — never `in`, never a
- * string key: see the mangling contract above). The members land as
- * non-enumerable own properties with class-method descriptors, so
- * `Object.keys(i18n)` and spread copies are unaffected. They also overwrite
- * the throwing stand-ins `attachPlugins` installs on a plugins-only host (B4),
- * which is why `attachPlugins` then `attachLoader` ends up identical to the
- * other order.
+ * Idempotent via a dot-access probe on an installed hook — never `in`, never a
+ * string key (see the mangling contract above). The members land as
+ * non-enumerable own properties, so `Object.keys(i18n)` and spread copies are
+ * unaffected. They also overwrite the throwing stand-ins `attachPlugins`
+ * installs on a plugins-only host, which is why the two attach orders end up
+ * identical.
  */
 export function attachLoader<T extends I18nBase<any>>(i18n: T): T & I18nLoaderApi {
   const i = i18n as unknown as I18nInternal;
@@ -462,13 +439,12 @@ export function attachLoader<T extends I18nBase<any>>(i18n: T): T & I18nLoaderAp
  * i18n.addTranslations({ en: flattenCatalog({ nav: { home: "Home" } }) }); // -> "nav.home"
  * ```
  *
- * A base `@comvi/core` host stores catalogs as given, so it wants FLAT
- * keys (`{ "nav.home": "Home" }`) or `"locale:namespace"`-keyed flat objects.
- * Composing the loader (`.with(loader())` / `attachLoader`) flattens for you —
- * a loader returns raw JSON, so it is part of that job. This is the escape hatch for a
- * host that loads nothing and still has nested objects in hand; being a plain
- * function it also works on `options.translation`, which the constructor
- * merges before anything can be attached.
+ * A base `@comvi/core` host stores catalogs as given, so it wants FLAT keys
+ * (`{ "nav.home": "Home" }`) or `"locale:namespace"`-keyed flat objects.
+ * Composing the loader flattens for you; this is the escape hatch for a host
+ * that loads nothing and still has nested objects in hand. Being a plain
+ * function it also works on `options.translation`, which the constructor merges
+ * before anything can be attached.
  *
  * Non-string leaves are coerced with `String()` and `null`/`undefined` leaves
  * are dropped (with a dev warning), exactly as on the loader path. Input with

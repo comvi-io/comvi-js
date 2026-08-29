@@ -1,10 +1,6 @@
-// The converged single entry: everything this app composes — the base host, the
-// ICU compiler for the plural catalogs, the loader for the import map and the
-// plugin host for the locale detector — comes from `@comvi/svelte`.
-//
-// The ONE exception is `@comvi/core/tags`: importing it registers tag syntax
-// ambiently, so the wrapper deliberately does not re-export it and an app that
-// wants tags in the plain `t()` string API names the side effect itself.
+// Everything this app composes comes from ONE specifier. The exception is
+// `@comvi/core/tags`: it registers tag syntax ambiently, so an app that wants
+// tags in the plain `t()` string API names that side effect itself.
 import "@comvi/core/tags";
 import { createI18n, icuCompiler, loader, plugins } from "@comvi/svelte";
 import type { I18n, I18nLoaderApi, I18nPluginHostApi } from "@comvi/svelte";
@@ -20,9 +16,8 @@ export const i18n: I18n & I18nLoaderApi & I18nPluginHostApi = createI18n({
     basicHtmlTags: ["strong", "em", "br", "a"],
   },
 })
-  // The import map goes through the CONFIGURED installer: the loader
-  // capability's own `registerLoader` takes a `LoaderFn`, and `loader(map)`
-  // attaches + registers the import-map adapter in one call.
+  // `loader(map)` attaches the capability and registers the import-map adapter
+  // in one call; `registerLoader` on its own takes a plain `LoaderFn`.
   .with(
     loader({
       en: () => import("../../../locales/en.json"),

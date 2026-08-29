@@ -1,5 +1,4 @@
-// /tags subpath: ambient registration on import, then the per-call channel
-// (plan §1.1 dual-channel rule / amendment 6 assertion (b)).
+// The /tags subpath's two channels:
 //
 // 1. Importing "@comvi/core/tags" must register tag syntax ambiently — the
 //    registration lives in the sideEffects-listed chunk, so a bundler that

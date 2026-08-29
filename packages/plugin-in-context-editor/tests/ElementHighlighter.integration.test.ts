@@ -1,8 +1,3 @@
-/**
- * ElementHighlighter Integration Tests
- * Tests highlighting and interaction functionality
- */
-
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { ElementHighlighter } from "../src/ElementHighlighter";
 import { EventBus } from "../src/EventBus";
@@ -51,7 +46,7 @@ describe("ElementHighlighter.integration.test.ts", () => {
 
       highlighter.addHighlight(button);
 
-      // Verify element was added by testing observable behavior: Alt+click should trigger handler
+      // Observable behavior only: Alt+click must reach the handler.
       simulateKeyEvent("keydown", "Alt");
       simulateMouseEvent(button, "click");
 
@@ -75,7 +70,6 @@ describe("ElementHighlighter.integration.test.ts", () => {
       highlighter.addHighlight(button);
       highlighter.removeHighlightFromElement(button);
 
-      // Verify element was removed: Alt+click should NOT trigger handler
       simulateKeyEvent("keydown", "Alt");
       simulateMouseEvent(button, "click");
 
@@ -96,13 +90,10 @@ describe("ElementHighlighter.integration.test.ts", () => {
       highlighter.addHighlight(button);
 
       expect(() => {
-        // Press Alt
         simulateKeyEvent("keydown", "Alt");
 
-        // Hover over element
         simulateMouseEvent(button, "mouseover");
 
-        // Release Alt
         simulateKeyEvent("keyup", "Alt");
       }).not.toThrow();
 
@@ -181,10 +172,8 @@ describe("ElementHighlighter.integration.test.ts", () => {
 
       highlighter.addHighlight(button);
 
-      // Press Alt
       simulateKeyEvent("keydown", "Alt");
 
-      // Click element
       simulateMouseEvent(button, "click");
 
       expect(handleClick).toHaveBeenCalledWith(button);
@@ -200,7 +189,6 @@ describe("ElementHighlighter.integration.test.ts", () => {
 
       highlighter.addHighlight(button);
 
-      // Click without Alt
       simulateMouseEvent(button, "click");
 
       expect(handleClick).not.toHaveBeenCalled();
@@ -213,7 +201,6 @@ describe("ElementHighlighter.integration.test.ts", () => {
       mockBoundingClientRect(button, { top: 0, left: 0, width: 100, height: 30 });
       document.body.appendChild(button);
 
-      // Don't add highlight
       simulateKeyEvent("keydown", "Alt");
       simulateMouseEvent(button, "click");
 
@@ -345,7 +332,6 @@ describe("ElementHighlighter.integration.test.ts", () => {
 
       simulateKeyEvent("keydown", "Alt");
 
-      // Hover and click different elements
       simulateMouseEvent(elements[0], "mouseover");
       simulateMouseEvent(elements[0], "click");
 

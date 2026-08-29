@@ -1,6 +1,6 @@
 /**
- * Triggers (2c) — decides WHEN to attempt a pass: subscribes to the existing
- * DOMWatcher/EventBus events (DOMWatcher itself has no debounce, C9) plus
+ * Decides WHEN to attempt a pass: subscribes to the existing
+ * DOMWatcher/EventBus events (DOMWatcher itself has no debounce) plus
  * route-change signals (popstate + wrapped pushState/replaceState). The settle
  * is implemented as a trailing debounce (`SETTLE_DEBOUNCE_MS`, 1s) bounded by
  * a `maxWait` ceiling (`SETTLE_MAX_WAIT_MS`, 500ms), but because the ceiling is
@@ -46,8 +46,8 @@ const SETTLE_DEBOUNCE_MS = 1000;
  * trailing pass could measure them. This deliberately trades a lower
  * short-lived hit-rate (misses <500ms loaders) for far fewer passes — each
  * pass runs computeScreenGroup's querySelectorAll+getComputedStyle before the
- * pre-gate, so halving the cadence vs 250ms materially cuts churn cost (PO
- * anti-churn constraint). Residual is burst-alignment-dependent (not a clean
+ * pre-gate, so halving the cadence vs 250ms materially cuts churn cost.
+ * Residual is burst-alignment-dependent (not a clean
  * per-element floor) — sub-window lifetimes remain an accepted miss.
  */
 const SETTLE_MAX_WAIT_MS = 500;
@@ -231,7 +231,7 @@ export class CollectorTriggers {
 
   private setupIntersectionObserver(): void {
     if (typeof IntersectionObserver === "undefined") {
-      // ADR: IntersectionObserver is the SINGLE visibility source of truth and
+      // IntersectionObserver is the SINGLE visibility source of truth and
       // is universally available in the browsers the ICE editor targets. Where
       // it is genuinely absent (SSR / very old engines) this is a DELIBERATE
       // "no source of truth ⇒ no collection" trade-off — the intersecting set
@@ -241,7 +241,7 @@ export class CollectorTriggers {
     }
 
     this.observer = new IntersectionObserver((entries) => {
-      // Fault-isolated like handleSettle/route-notify (RC3/P8): a throw during
+      // Fault-isolated like handleSettle/route-notify: a throw during
       // Set mutation or scheduling must be caught + logged here, never escape
       // into IO's callback caller.
       try {

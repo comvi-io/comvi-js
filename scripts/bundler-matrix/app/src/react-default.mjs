@@ -1,16 +1,12 @@
-// Single-entry P2 gate: THE DEFAULT react recipe. Every import in this file
-// comes from `@comvi/react`; `@comvi/core` is never named by the app.
-//
-// This case RETARGETS the former `react-slim-preset`: `/slim` was unpublished
-// and is gone, so the single-package toolkit is the published root now. Unlike
-// the old case, this default app deliberately uses NO capability. The runner
+// THE DEFAULT react recipe. Every import comes from `@comvi/react`;
+// `@comvi/core` is never named by the app, which uses NO capability — the runner
 // asserts from the bundlers' module graphs that ICU, loader, plugins, devtools
 // and core's tag-registration pair all stay out, in development as well as
 // production. Core's BASE entry is present — its `createI18n` is what this app
 // constructs with — so it is never an absence sentinel.
 //
-// <T> rendering needs a DOM and is NOT exercised here (same documented skip as
-// wrappers.mjs). No top-level await: the webpack leg emits commonjs2.
+// <T> rendering needs a DOM and is NOT exercised here. No top-level await: the
+// webpack leg emits commonjs2.
 import { createI18n, I18n, I18nProvider, useI18n } from "@comvi/react";
 
 function assert(condition, label) {

@@ -1,8 +1,6 @@
 /**
- * Standalone entry point for CDN loading
- *
- * This file is built as an IIFE that exposes ComviInContextEditor on window.
- * Used by Chrome extension to dynamically load the plugin into pages.
+ * Built as an IIFE that exposes `ComviInContextEditor` on `window`; the Chrome
+ * extension loads it into pages at runtime.
  */
 
 import { InContextEditorPlugin, type EditorOptions } from "./index";
@@ -15,7 +13,6 @@ import { fetchApiTranslations, clearProjectInfoCache } from "@comvi/plugin-fetch
 import type { TranslationValue } from "@comvi/core";
 import type { EditorI18n } from "./Core";
 
-/** Active Core instance for cleanup */
 let activeCore: Core | null = null;
 let activeLifecycleCallback: ((detail: EditorLifecycleDetail) => void) | undefined;
 
@@ -70,9 +67,7 @@ export interface ActivateOptions extends EditorOptions {
 }
 
 export interface ActivateResult {
-  /** Stop the editor and clean up */
   stop: () => void;
-  /** The Core instance ID */
   instanceId: string;
   /** Effective context collection after the site-level opt-out is applied. */
   collectContext: boolean;
@@ -179,10 +174,7 @@ function refreshRenderedTranslations(i18n: EditorI18n): void {
 }
 
 /**
- * Activate the in-context editor on the current page
- *
- * @param options - Editor options including apiKey
- * @returns Activation result with stop function, or null if failed
+ * Activate the in-context editor on the current page.
  *
  * @example
  * ```js
@@ -195,7 +187,6 @@ function refreshRenderedTranslations(i18n: EditorI18n): void {
  * ```
  */
 export function activate(options: ActivateOptions): ActivateResult | null {
-  // Check if already active
   if (activeCore) {
     console.warn("[ComviInContextEditor] Already active. Call deactivate() first.");
     return null;
@@ -211,7 +202,6 @@ export function activate(options: ActivateOptions): ActivateResult | null {
     return null;
   }
 
-  // Get i18n instance
   const i18n = comviHook.get(options.instanceId);
   if (!i18n) {
     console.error(
@@ -231,7 +221,6 @@ export function activate(options: ActivateOptions): ActivateResult | null {
   // Otherwise fall back to any explicit caller value, else default on.
   const collectContext = i18n.collectContext === false ? false : (options.collectContext ?? true);
 
-  // Create and start Core
   activeCore = new Core(
     {
       targetElement: options.targetElement || document.body,
@@ -318,23 +307,14 @@ function deactivateInstance(expectedInstanceId?: string): void {
   }
 }
 
-/**
- * Deactivate the in-context editor and clean up resources
- */
 export function deactivate(): void {
   deactivateInstance();
 }
 
-/**
- * Check if the editor is currently active
- */
 export function isActive(): boolean {
   return activeCore !== null;
 }
 
-/**
- * Get information about the current state
- */
 export function getStatus(): {
   active: boolean;
   instanceId: string | null;
@@ -349,7 +329,6 @@ export function getStatus(): {
   };
 }
 
-// Also export the plugin factory for advanced usage
 export { InContextEditorPlugin };
 
 // Expose on window for CDN usage
@@ -368,7 +347,6 @@ declare global {
 // Boot-time drain-and-swap: replace a raw __COMVI__ queue (or a legacy v1
 // registry) with the dual-protocol hook BEFORE any instance lookup, so
 // entries pushed between now and activate() are never lost.
-// Auto-expose when loaded.
 if (typeof window !== "undefined") {
   ensureComviHook();
   window.ComviInContextEditor = {

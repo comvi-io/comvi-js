@@ -1,19 +1,12 @@
 /**
- * single-entry convergence P2 — the `@comvi/react` SINGLE-PACKAGE root.
+ * Pins WHAT the single `@comvi/react` entry publishes; behaviour of the hooks
+ * on a base host lives in tests/base-host.test.tsx and the js-contract suites.
  *
- * There is one entry now, and this file pins what it publishes: a one-call
- * `createI18n` on core's BASE host, core's `I18n` class beside it, the react
- * bindings, and named re-exports of the capability toolkit so an app never has
- * to name `@comvi/core`. Behaviour of the hooks on a base host is covered by
- * tests/base-host.test.tsx and the js-contract suites; this file pins the
- * surface itself.
- *
- * The absence claims that need a real bundler — the tag chunks staying out of
- * the graph, and the unused capability subpaths pruning in webpack AND vite,
- * development AND production — live in scripts/bundler-matrix and in the size
- * fixtures. They cannot be made from source, where every module is loaded
- * eagerly. The base `@comvi/core` root is NOT among those absences: this entry
- * re-exports its `createI18n` and `I18n`, so it is in the graph by design.
+ * The absence claims — tag chunks staying out of the graph, unused capability
+ * subpaths pruning — cannot be made from source, where every module loads
+ * eagerly; they live in scripts/bundler-matrix and the size fixtures. Core's
+ * base root is NOT one of those absences: this entry re-exports `createI18n`
+ * and `I18n`, so it is in the graph by design.
  */
 import { describe, it, expect } from "vitest";
 import { renderHook } from "@testing-library/react";
@@ -76,7 +69,7 @@ describe("@comvi/react — the capability toolkit", () => {
     expect(root.flattenCatalog).toBe(flattenCatalog);
     expect(root.attachPlugins).toBe(attachPlugins);
     expect(root.attachDevtools).toBe(attachDevtools);
-    // The DX-2 installers are core's own factories, one hop, same rule.
+    // The installers are core's own factories, one hop, same rule.
     expect(root.loader).toBe(loader);
     expect(root.plugins).toBe(plugins);
     expect(root.devtools).toBe(devtools);
@@ -95,8 +88,6 @@ describe("@comvi/react — the capability toolkit", () => {
   });
 
   it("composes AND configures in one expression — the documented recipe", async () => {
-    // The target DX, verbatim from the README: host, capability and import
-    // map in a single expression, all from `@comvi/react`.
     const i18n = root
       .createI18n({ locale: "en", exposeGlobal: false, compiler: root.icuCompiler })
       .with(
@@ -128,8 +119,8 @@ describe("@comvi/react — the capability toolkit", () => {
 });
 
 describe("@comvi/react — the export surface", () => {
-  // The whole published value surface, in namespace order. A binding that
-  // appears here without a decision is a leak; one that disappears is a break.
+  // The whole published value surface. A binding that appears here without a
+  // decision is a leak; one that disappears is a break.
   const SURFACE = [
     "I18n",
     "I18nProvider",
@@ -162,8 +153,6 @@ describe("@comvi/react — the export surface", () => {
     expect(root.createI18n).toBe(createI18n);
     expect(root.I18n).toBe(I18n);
 
-    // The one-argument facade survives the wrapper hop, and the class builds
-    // the same base host the factory does.
     expect(root.I18n.length).toBe(1);
     const built = new root.I18n({
       locale: "en",
@@ -176,20 +165,16 @@ describe("@comvi/react — the export surface", () => {
   });
 
   it("never re-exports the side-effectful tags toolbox", () => {
-    // `registerTagSyntax` / `prepareTranslation` come from `@comvi/core/tags`,
-    // whose import registers tag syntax ambiently, so re-exporting either
-    // would put a side effect in every graph. `<T>` owns that import and is
-    // pinned into its own dist chunk (vite.config.ts).
+    // Importing `@comvi/core/tags` registers tag syntax ambiently, so
+    // re-exporting any of its names would put a side effect in every graph.
     expect(root).not.toHaveProperty("registerTagSyntax");
     expect(root).not.toHaveProperty("tagSyntaxExtension");
     expect(root).not.toHaveProperty("prepareTranslation");
   });
 
   it("is ONE entry, so its provider and its hooks share one React context", () => {
-    // The retired hazard, asserted from the other side: while `.` and `./slim`
-    // were separate build passes their `I18nProvider`/`useI18n()` pairs held
-    // distinct context objects and could not see each other. One build cannot
-    // split them.
+    // Two entries built separately would hold two distinct context objects
+    // whose provider/hook pairs cannot see each other; one build cannot.
     const i18n = root.createI18n({
       locale: "en",
       exposeGlobal: false,

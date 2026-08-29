@@ -4,9 +4,9 @@ declare const __DEV__: boolean | undefined;
 const IS_DEV = typeof __DEV__ !== "undefined" && __DEV__;
 
 /**
- * Normalize a leaf catalog value to a string.
- * Returns undefined for null/undefined (key treated as missing) and coerces
- * other non-strings with String() so translate() never crashes on lookup.
+ * `undefined` for a null/undefined leaf (the key is then simply missing); every
+ * other non-string is coerced with `String()`, so `translate()` can never crash
+ * on a lookup.
  */
 function normalizeLeafValue(key: string, value: unknown): string | undefined {
   if (typeof value === "string") return value;
@@ -27,17 +27,14 @@ function normalizeLeafValue(key: string, value: unknown): string | undefined {
 }
 
 /**
- * Converts a nested object structure to a flattened structure with dot notation keys.
- * Uses iterative approach with a stack for better performance.
- * @param obj - The nested object to flatten
- * @param prefix - The prefix to add to each key (optional)
- * @returns A flattened object with dot notation keys (no prototype)
+ * Flatten a nested catalog to dot-notation keys. Iterative rather than
+ * recursive, and the result has a NULL PROTOTYPE — which is what makes it safe
+ * to store directly.
  */
 export function flattenNestedObject(
   obj: Record<string, any>,
   prefix: string = "",
 ): Record<string, string> {
-  // Create object without prototype for faster property access
   const result: Record<string, string> = Object.create(null);
   const objectStack: Record<string, any>[] = [obj];
   const prefixStack: string[] = [prefix];
@@ -53,7 +50,6 @@ export function flattenNestedObject(
       const newKey = currentPrefix ? currentPrefix + "." + key : key;
 
       if (typeof value === "object" && value !== null && !Array.isArray(value)) {
-        // Push nested object to stack for processing
         objectStack.push(value);
         prefixStack.push(newKey);
       } else {
@@ -67,9 +63,9 @@ export function flattenNestedObject(
 }
 
 /**
- * Normalizes translation input into the prototype-less flat shape used by the cache.
- * Never mutates the caller's object: `flattenNestedObject` handles flat catalogs as the
- * depth-1 case (the prefix stays empty, so every key passes through unchanged).
+ * Normalize catalog input to the prototype-less flat shape the cache stores.
+ * NEVER mutates the caller's object: a flat catalog is just the depth-1 case,
+ * where the prefix stays empty and every key passes through unchanged.
  * Prototype-less input is assumed already normalized.
  */
 export function normalizeTranslationObject(obj: Record<string, any>): Record<string, string> {

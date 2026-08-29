@@ -1,12 +1,10 @@
-// Plan §2.4 — the JS-consumer contract for the four members that LEFT
-// `useI18n()` in 0.5.0.
+// The JS-consumer contract for the members that LEFT `useI18n()`.
 //
-// Deliberately .js + a plain-JS probe component, not .ts: a TypeScript file
+// Deliberately .js plus a plain-JS probe component, not .ts: a TypeScript file
 // would fail to compile on every shape below, which proves nothing about what
 // a JavaScript consumer experiences at runtime. Run by BOTH the
 // `js-contract-dev` and `js-contract-prod` vitest projects, which pin
-// `@comvi/core*` to the dev and prod build family respectively
-// (vitest.config.ts).
+// `@comvi/core*` to the dev and prod build family respectively.
 import { afterEach, beforeEach, describe, it, expect } from "vitest";
 import { mount, unmount } from "svelte";
 import { get } from "svelte/store";

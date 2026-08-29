@@ -9,13 +9,13 @@
 // core's `TranslationResult | void` return to a string in one framework only.
 //
 // The code cannot live in one place today — a wrapper importing another
-// wrapper would be a cross-framework dependency, and `@comvi/core` is off
-// limits this phase — so the copies are pinned instead: each file carries the
-// block verbatim between `#region capability-parity (B8)` markers, and this
-// test fails the release if any byte differs.
+// wrapper would be a cross-framework dependency — so the copies are pinned
+// instead: each file carries the block verbatim between
+// `#region capability-parity (B8)` markers, and this test fails the release if
+// any byte differs.
 //
-// PHASE 3: move the block into `@comvi/core` (every wrapper already imports it)
-// as `acquireLoaderApi(host: WrapperI18nHost)` / `acquirePluginsApi(host:
+// TODO: move the block into `@comvi/core` (every wrapper already imports it) as
+// `acquireLoaderApi(host: WrapperI18nHost)` / `acquirePluginsApi(host:
 // WrapperI18nHost)`, delete the four copies, and delete this file with them.
 import assert from "node:assert/strict";
 import fs from "node:fs";
@@ -115,7 +115,7 @@ test("the shared block defines the whole acquisition, not a fragment of it", () 
 });
 
 test("onMissingKey is core's type and core's method, with no wrapper-side coercion", () => {
-  // The exact drift B8 was filed for. `onMissingKey` must be the BOUND HOST
+  // The exact drift this gate was filed for. `onMissingKey` must be the BOUND HOST
   // METHOD and its declared type must be core's, so a callback returning the
   // `Array<string | VirtualNode>` half of `TranslationResult` survives.
   for (const [pkg, relativePath] of Object.entries(WRAPPERS)) {

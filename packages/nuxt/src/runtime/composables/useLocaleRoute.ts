@@ -3,11 +3,8 @@ import type { RouteLocationRaw, RouteLocationResolved } from "vue-router";
 import { useLocalePath } from "./useLocalePath";
 
 /**
- * Composable to get locale-prefixed route objects
- *
- * Similar to useLocalePath but returns a full route object instead of just the path
- *
- * @returns Function that returns a resolved route with locale prefix
+ * Like useLocalePath, but returns a full resolved route object instead of just
+ * the path.
  *
  * @example
  * ```vue

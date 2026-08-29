@@ -100,8 +100,8 @@ export class FakeI18n {
   // ===== I18nLoaderApi completeness =====
   //
   // `asI18n()` claims a ROOT instance, and a root instance carries the WHOLE
-  // `@comvi/core/loader` surface. Core's `hasLoaderApi` guard (framework-slim
-  // P1) checks every public member, so a double that implements only the
+  // `@comvi/core/loader` surface. Core's `hasLoaderApi` guard checks every
+  // public member, so a double that implements only the
   // three above is structurally NOT loader-capable and makes every wrapper's
   // `useI18nLoader()` throw `missingCapability("loader")` on a fake host.
 

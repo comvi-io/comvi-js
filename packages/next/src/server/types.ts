@@ -7,9 +7,6 @@ import type {
   PermissiveKey,
 } from "@comvi/core";
 
-/**
- * Options for getI18n function
- */
 export interface GetI18nOptions {
   /** Explicit locale (for generateMetadata, etc.) - defaults to request locale */
   locale?: string;
@@ -18,7 +15,8 @@ export interface GetI18nOptions {
 }
 
 /**
- * Translation function type for Server Components (returns string)
+ * The Server Component translation function: returns a plain string, never a
+ * `TranslationResult`.
  */
 export interface TranslationFunction {
   <NS extends Namespaces, K extends NamespacedKeys<NS>>(
@@ -29,9 +27,6 @@ export interface TranslationFunction {
   (key: PermissiveKey, params?: TranslationParams): string;
 }
 
-/**
- * Options for hasTranslation check
- */
 export interface HasTranslationOptions {
   /** Namespace to check (defaults to defaultNamespace) */
   ns?: string;
@@ -39,19 +34,11 @@ export interface HasTranslationOptions {
   locale?: string;
 }
 
-/**
- * Result returned by getI18n
- */
 export interface ServerI18n {
-  /** Translation function */
   t: TranslationFunction;
-  /** Check if a translation key exists */
   hasTranslation: (key: string, options?: HasTranslationOptions) => boolean;
 }
 
-/**
- * Internal request store interface
- */
 export interface RequestStore {
   locale: string | undefined;
 }

@@ -114,7 +114,7 @@ describe("collector/Collector — lifecycle & fault isolation", () => {
       vi.useFakeTimers();
 
       // Same visible key set, no actual DOM change — this must NOT produce
-      // a new network call once the debounce elapses (P3).
+      // a new network call once the debounce elapses.
       eventBus.emit("structureChanges", [div]);
       await vi.advanceTimersByTimeAsync(1100);
       expect(fetchMock.mock.calls.length).toBe(callsAfterInitial);
@@ -234,8 +234,8 @@ describe("collector/Collector — lifecycle & fault isolation", () => {
       vi.useFakeTimers();
 
       // The visible key SET is unchanged, but the element's width bucket
-      // drifts (small -> large). Before the mutation-force fix this change
-      // was invisible forever; now it must reach the wire as a full resend.
+      // drifts (small -> large), which must still reach the wire as a full
+      // resend — the set gates alone would never see it.
       mockBoundingClientRect(div, {
         top: 0,
         left: 0,

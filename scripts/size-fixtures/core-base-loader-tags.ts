@@ -1,6 +1,5 @@
-// Composed-additivity fixture (plan P0.9): slim + loader + plugins + tags —
-// the "loader (+plugins) + <T>" rung of the §2.1 ladder. Measured as an ACTUAL
-// composed graph; the row is never derived by summing per-entry deltas.
+// Composed-additivity fixture: base host + loader + plugins + tags, measured as an
+// ACTUAL composed graph — never derived by summing the per-capability deltas.
 import "@comvi/core/tags";
 import { createI18n } from "@comvi/core";
 import { attachLoader } from "@comvi/core/loader";

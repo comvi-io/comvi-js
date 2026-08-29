@@ -4,7 +4,7 @@ import url from "node:url";
 import { execFileSync } from "node:child_process";
 
 /**
- * Wrapper test-manifest gate (framework-slim plan, G2 — "test migration, not deletion").
+ * Wrapper test-manifest gate: test migration, not deletion.
  *
  * `snapshot` enumerates every test of the six framework bindings with
  * `vitest list --json` and writes the sorted, fully-qualified IDs to
@@ -16,22 +16,19 @@ import { execFileSync } from "node:child_process";
  * the manifest is the contract. Renaming or moving a test therefore reads as a
  * removal — migrate the ID or allowlist it with the removed subject.
  *
- * The baseline is a PRE-WAVE snapshot and is never re-taken mid-wave: doing so
- * would erase the guarantee it exists to provide. That leaves one hole, which the
- * single-entry convergence walked straight into — a test ADDED during the wave
- * and then deleted by a later phase of the same wave is invisible to a
- * baseline-only gate, and the `/slim`-entry suites the convergence retired are
- * exactly that shape. So the manifest carries a RENAME MAP beside the baseline
- * (plan §8.6, "rename-map-driven"), in two granularities, and every row of both
- * is checked against the live listing rather than taken on trust:
+ * The baseline is never re-taken: doing so would erase the guarantee it exists
+ * to provide. That leaves one hole — a test ADDED and then deleted between two
+ * baselines is invisible to a baseline-only gate — so the manifest carries a
+ * RENAME MAP beside the baseline, in two granularities, every row of which is
+ * checked against the live listing rather than taken on trust:
  *
  *   * `renames[]` is FILE level — `{ fromFile, toFile, minIds, reason }`. The
  *     source file must list ZERO tests (or the rename did not happen) and the
  *     target must still list at least the `minIds` audited when the row landed
  *     (or the file lost tests rather than moving them).
  *   * `removals[]` is ID level. A baseline id behaves as it always has. A
- *     post-baseline id needs `addedIn` naming the wave that added it — which is
- *     what stops a typo masquerading as a baseline row — and must genuinely be
+ *     post-baseline id needs `addedIn` naming what added it — which is what
+ *     stops a typo masquerading as a baseline row — and must genuinely be
  *     gone. Either kind may name `supersededBy`, the LIVE id that carries the
  *     retired claim, which is how an id-level rename is recorded: the gate fails
  *     if that successor does not exist, so "migrated" is never a bare assertion.
@@ -96,7 +93,7 @@ function packageOf(manifest, idOrFile) {
  * Compares a manifest against freshly listed suites. Pure — the caller owns IO.
  *
  * `current` maps package name to its listed IDs; packages absent from it are
- * not checked (targeted per-wrapper runs during a phase). Every rename-map row
+ * not checked (targeted per-wrapper runs). Every rename-map row
  * is checked against the same listing, and a row whose package is not in this
  * run is skipped rather than guessed at.
  */
@@ -152,9 +149,9 @@ export function compareManifest({ manifest, current }) {
       continue;
     }
     if (!isBaseline) {
-      // Not in the baseline: it was added and retired inside the same wave. The
-      // gate cannot check that it ever existed, so the row must SAY which wave
-      // added it — otherwise a mistyped baseline id would pass as one of these.
+      // Not in the baseline: added and retired between two baselines. The gate
+      // cannot check that it ever existed, so the row must SAY what added it —
+      // otherwise a mistyped baseline id would pass as one of these.
       if (!hasAddedIn) {
         errors.push(
           `${where}: id is not a baseline test ID, so it needs \`addedIn\` naming the wave that ` +

@@ -1,24 +1,16 @@
 /**
- * The `@comvi/svelte` SINGLE-ENTRY surface.
+ * Pins WHAT the single `@comvi/svelte` entry publishes; binding behaviour on a
+ * base host lives in tests/base-host.test.ts and the js-contract suites.
  *
- * One package specifier is the whole app-facing story: the host constructor,
- * the svelte bindings and the capability toolkit all come from `../src/index`,
- * and there is no second entry to import them from. This file pins the surface
- * itself; binding behaviour on a base host lives in tests/base-host.test.ts and
- * the js-contract suites.
- *
- * The absence claims that need a real bundler — `dist/T.svelte` staying out of
- * a graph that never renders it, and the unused capability subpaths pruning in
- * webpack AND vite, development AND production — live in the bundler-matrix
- * cases `svelte-default` / `svelte-icu` and in the `fw-svelte-default`,
- * `fw-svelte-default-t`, `fw-svelte-icu` and `fw-svelte-full-composite` size
- * rows. They cannot be made from source, where every module is loaded eagerly.
- * The one absence that IS observable without a bundler — no module in this
- * package naming `@comvi/core/tags`, so importing the built root never
+ * The absence claims — `dist/T.svelte` staying out of a graph that never
+ * renders it, unused capability subpaths pruning — cannot be made from source,
+ * where every module loads eagerly; they live in the bundler-matrix cases and
+ * the size rows. The one absence that IS observable without a bundler — no
+ * module here naming `@comvi/core/tags`, so importing the built root never
  * registers tag syntax — is pinned against the BUILT artifacts in
- * tests/exports-smoke.test.ts. Core's BASE root is deliberately not among these
- * absences: `src/index.ts` re-exports its `createI18n` and `I18n`, so it is in
- * the graph by design.
+ * tests/exports-smoke.test.ts. Core's BASE root is deliberately not one of
+ * them: this entry re-exports `createI18n` and `I18n`, so it is in the graph
+ * by design.
  */
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { mount, unmount } from "svelte";
@@ -27,9 +19,8 @@ import { attachDevtools, devtools } from "@comvi/core/devtools";
 import { icu, icuCompiler } from "@comvi/core/icu";
 import { attachLoader, flattenCatalog, loader } from "@comvi/core/loader";
 import { attachPlugins, plugins } from "@comvi/core/plugins";
-// Spelled with the `.js` extension the entry itself uses, so the identity
-// assertions below compare the SAME resolved module rather than two spellings
-// of one path.
+// The `.js` extension the entry itself uses, so the identity assertions below
+// compare the SAME resolved module rather than two spellings of one path.
 import {
   getI18nContext as deepGetI18nContext,
   setI18nContext as deepSetI18nContext,
@@ -85,8 +76,7 @@ describe("@comvi/svelte — ICU, both shapes, one specifier", () => {
 
   it("takes the INSTALLER before ingestion for a remote catalog", () => {
     // The remote-catalog recipe: `.with(icu())` runs on a host that has not
-    // seen a catalog yet, so the merge a loader performs later is compiled by
-    // the ICU compiler.
+    // seen a catalog yet, so a later loader merge is compiled by ICU.
     const i18n = root.createI18n({ locale: "en", exposeGlobal: false }).with(root.icu());
 
     i18n.addTranslations({ en: { items: "{count, plural, one {# item} other {# items}}" } });
@@ -149,7 +139,7 @@ describe("@comvi/svelte — the capability toolkit", () => {
     expect(root.flattenCatalog).toBe(flattenCatalog);
     expect(root.attachPlugins).toBe(attachPlugins);
     expect(root.attachDevtools).toBe(attachDevtools);
-    // The DX-2 installers are core's own factories, one hop, same rule.
+    // The installers are core's own factories, one hop, same rule.
     expect(root.loader).toBe(loader);
     expect(root.plugins).toBe(plugins);
     expect(root.devtools).toBe(devtools);
@@ -179,8 +169,6 @@ describe("@comvi/svelte — the capability toolkit", () => {
   });
 
   it("composes AND configures in one expression — the documented recipe", async () => {
-    // The target DX, verbatim from the README: host, capability and import
-    // map in a single expression, all from `@comvi/svelte`.
     const i18n = root
       .createI18n({ locale: "en", exposeGlobal: false })
       .with(root.icu())
@@ -273,10 +261,9 @@ describe("@comvi/svelte — the export surface", () => {
 
   it("never re-exports the side-effectful tags toolbox", () => {
     // Every name below is a real `@comvi/core/tags` export, and importing that
-    // subpath registers tag syntax ambiently. Naming any of them here would put
-    // the side effect in every svelte graph. No module in this package imports
-    // that subpath at all — `<T>` takes the pure `@comvi/core/rich-text` seam —
-    // and the built-artifact proof of that lives in tests/exports-smoke.test.ts.
+    // subpath registers tag syntax ambiently, so naming any of them here would
+    // put the side effect in every svelte graph. (The built-artifact half of
+    // that proof lives in tests/exports-smoke.test.ts.)
     expect(root).not.toHaveProperty("registerTagSyntax");
     expect(root).not.toHaveProperty("tagSyntaxExtension");
     expect(root).not.toHaveProperty("prepareTranslation");
@@ -301,14 +288,11 @@ describe("@comvi/svelte — one entry, one context key", () => {
   });
 
   it("re-exports the binding modules themselves — one context key by identity", () => {
-    // `svelte-package` preserves modules, so the root and the modules behind it
-    // were always the same objects here: mixing the retired `/slim` specifier
-    // with this one was byte-wasteful rather than broken, and the react/solid/vue
-    // "two entries, two contexts" hazard never existed for svelte. With one
-    // entry the question cannot be asked at all. What still has to hold is that
-    // the root re-exports the bindings THEMSELVES rather than wrapping them —
-    // a wrapper would mint a second `getContext` key and reintroduce the hazard
-    // this package never had.
+    // `svelte-package` preserves modules, so the root and the modules behind
+    // it are the same objects and the react/solid/vue "two entries, two
+    // contexts" hazard never existed here. What must still hold is that the
+    // root re-exports the bindings THEMSELVES rather than wrapping them: a
+    // wrapper would mint a second `getContext` key and introduce that hazard.
     expect(root.setI18nContext).toBe(deepSetI18nContext);
     expect(root.getI18nContext).toBe(deepGetI18nContext);
     expect(root.useI18n).toBe(deepUseI18n);
@@ -322,9 +306,9 @@ describe("@comvi/svelte — one entry, one context key", () => {
       translation: { en: { hello: "Hello" } },
     });
 
-    // ContextHarness sets the context through `../src/context` and renders a
-    // consumer that reads it through `../src/useI18n` and `../src/T.svelte` —
-    // the exact three modules the assertion above pins to the root's names.
+    // ContextHarness sets the context through `../src/context` and reads it
+    // through `../src/useI18n` and `../src/T.svelte` — the three modules the
+    // assertion above pins to the root's names.
     component = mount(ContextHarness, { target, props: { i18n, autoInit: false } });
 
     expect(target.querySelector('[data-testid="hook"]')?.textContent).toBe("Hello-en");

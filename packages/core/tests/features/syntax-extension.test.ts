@@ -71,12 +71,12 @@ describe("syntax extension registry", () => {
   });
 
   it("per-call extension renders tags with NO ambient registration, then a plain call stays literal", () => {
-    // Per-call channel (tagInterpolation.extensions) — ordering-proof.
+    // The per-call channel is ordering-proof.
     const perCall = makeInstance({ extensions: [tagSyntaxExtension] });
     expect(perCall.t("msg" as never, { link: linkHandler } as never)).toBe("[hi]");
     const sizeAfterPerCall = _templateCacheSize();
 
-    // Same template WITHOUT the per-call extension (ambient still empty):
+    // The same template WITHOUT the per-call extension (ambient still empty):
     // distinct cache entry, un-poisoned literal output.
     const plain = makeInstance();
     expect(plain.t("msg" as never, { link: linkHandler } as never)).toBe(TEMPLATE);

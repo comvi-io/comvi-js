@@ -8,27 +8,23 @@
 // it is absent from the module graph, not disabled by a flag.
 //
 // ONE implementation, TWO install surfaces, exactly like `core/loader.ts`:
-//   • composite — `core/full.ts` installs `devtoolsApi` on its prototype and
-//            calls `_initDevtools` from its constructor, so composed behaviour is
-//            byte-for-byte what it was before the extraction;
-//   • base host — `attachDevtools(i18n)` copies the same prototype descriptors
-//            onto the instance and then exposes it.
-// The descriptor copy (never a plain `i._x = fn` assignment) is what keeps
-// the hooks NON-ENUMERABLE, which the composed reflective contract asserts:
-// `{ ...i18n }` must carry data only, never behaviour.
+// `core/full.ts` installs the prototype descriptors and calls `_initDevtools`
+// from its constructor; `attachDevtools(i18n)` copies the same descriptors onto
+// a base instance and then exposes it. The descriptor copy (never a plain
+// `i._x = fn` assignment) is what keeps the hooks NON-ENUMERABLE, which the
+// reflective contract asserts: `{ ...i18n }` must carry data only, never
+// behaviour.
 //
-// MANGLING CONTRACT (plan R2): `_globalEntry`, `_initDevtools` and
-// `_disposeDevtools` are renamed by the single shared terser nameCache in
+// MANGLING CONTRACT: `_globalEntry`, `_initDevtools` and `_disposeDevtools` are
+// renamed by the single shared terser nameCache in
 // `vite.shared.ts#mangleInternalProps`. Dot access only — never a string key.
 import type { ComviHook, ComviQueueEntry, DefaultTranslationParams } from "../types";
 import { I18n as I18nBase, type I18nInternal } from "./i18n";
 
 declare const __VERSION__: string | undefined;
 
-/** Library version — injected at build time or fallback. */
 const VERSION = typeof __VERSION__ !== "undefined" ? __VERSION__ : "0.1.0";
 
-/** Counter for auto-generating instance IDs. */
 let instanceCounter = 0;
 
 /**
@@ -42,14 +38,9 @@ interface LegacyComviRegistry {
 
 /** Discovery options; the same two fields the composite reads off `I18nOptions`. */
 export interface DevtoolsOptions {
-  /**
-   * Stable id for this instance. Auto-generated (`comvi-<n>`) when omitted.
-   */
+  /** Stable id for this instance. Auto-generated (`comvi-<n>`) when omitted. */
   instanceId?: string;
-  /**
-   * Expose on `window.__COMVI__`. Defaults to `true` in a browser and `false`
-   * under SSR — the same default the 0.4 root always applied.
-   */
+  /** Expose on `window.__COMVI__`. Defaults to `true` in a browser, `false` under SSR. */
   exposeGlobal?: boolean;
 }
 
@@ -68,7 +59,6 @@ export class I18nWithDevtools<D extends DefaultTranslationParams = {}> extends I
    * constructor of its own.
    */
   protected _initDevtools(instanceId?: string, exposeGlobal?: boolean): void {
-    // Default to exposure in browser environments, silence in SSR.
     if (!(exposeGlobal ?? typeof window !== "undefined")) return;
 
     const self = this as unknown as I18nInternal;
@@ -109,10 +99,10 @@ export class I18nWithDevtools<D extends DefaultTranslationParams = {}> extends I
   }
 
   /**
-   * @internal `_disposeDevtools` hook — remove from the global `__COMVI__`
-   * queue (identity-based; defensive: hook/masquerading-array remove → raw
-   * array splice → legacy unregister). Runs at the very top of `destroy()`,
-   * the exact position the inline block occupied before the extraction.
+   * @internal `_disposeDevtools` hook — identity-based removal from the global
+   * `__COMVI__` queue, probed in the same order as exposure:
+   * hook/masquerading-array remove → raw array splice → legacy unregister.
+   * Runs at the very top of `destroy()`.
    */
   protected _disposeDevtools(): void {
     if (!this.instanceId || typeof window === "undefined") return;
@@ -147,18 +137,17 @@ export class I18nWithDevtools<D extends DefaultTranslationParams = {}> extends I
  *
  * `instanceId` / `exposeGlobal` are passed HERE, not to `createI18n`: the base
  * host has no discovery code to configure, so those two constructor options are
- * inert until this capability is composed on. The internal composite (the CDN
- * global) and `@comvi/next`'s composed host install it in the constructor and
- * therefore still read both options off `I18nOptions`.
+ * inert until this capability is composed on. The composite installs it in its
+ * constructor and therefore still reads both options off `I18nOptions`.
  *
- * Idempotent (dot-access probe on an installed hook — never `in`, never a
- * string key: see the mangling contract above). The members land as
- * non-enumerable own properties with class-method descriptors, so
- * `Object.keys(i18n)` and spread copies see only the public `instanceId`.
+ * Idempotent via a dot-access probe on an installed hook — never `in`, never a
+ * string key (see the mangling contract above). The members land as
+ * non-enumerable own properties, so `Object.keys(i18n)` and spread copies see
+ * only the public `instanceId`.
  *
- * IDEMPOTENCY IS PER EXPOSURE, NOT PER INSTALL (B3). `_initDevtools` returns
- * early on `exposeGlobal: false`, so an install-only probe would let a host
- * that opted out — the SSR construct — stay unexposed forever once the client
+ * IDEMPOTENCY IS PER EXPOSURE, NOT PER INSTALL. `_initDevtools` returns early
+ * on `exposeGlobal: false`, so an install-only probe would let a host that
+ * opted out — the SSR construct — stay unexposed forever once the client
  * flipped `exposeGlobal` back on:
  *
  * ```ts
@@ -171,10 +160,9 @@ export class I18nWithDevtools<D extends DefaultTranslationParams = {}> extends I
  * `instanceId` is the receipt for that — not `_globalEntry`. Assigning an id
  * is the FIRST thing exposure does and the one thing it always does:
  * `_initDevtools` assigns the id and then returns before `_globalEntry` when
- * there is no `window`, so probing the queue entry would re-fire on every
- * later call under SSR, reassigning the id and bumping the instance counter.
- * Opting out assigns no id (that coupling is the pre-existing contract), which
- * is exactly what makes this probe the right one.
+ * there is no `window`, so probing the queue entry would re-fire on every later
+ * call under SSR, reassigning the id and bumping the instance counter. Opting
+ * out assigns no id, which is exactly what makes this probe the right one.
  *
  * A host exposed WITHOUT a window therefore stays quiet even if a `window`
  * appears later: it has an id, so it is done. That is deliberate — the client

@@ -1,6 +1,5 @@
 /**
- * The LOWERCASE installer, under BOTH export conditions (single-entry
- * convergence, plan §4).
+ * The lowercase installer, under BOTH export conditions.
  *
  * Default entry: `inContextEditor(options)` ensures discovery and the plugin
  * host, then routes into `use` — it re-implements no lifecycle.

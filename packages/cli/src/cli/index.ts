@@ -1,22 +1,5 @@
 #!/usr/bin/env node
 
-/**
- * Comvi CLI
- *
- * Commands:
- * - init: Create .comvirc.json configuration
- * - typegen: Generate TypeScript types from TMS (canonical name in docs)
- * - generate-types: Alias for typegen (verbose form)
- * - generate: Alias for typegen (legacy short form, one-time only)
- * - pull: Download translations from TMS
- * - push: Upload translations to TMS
- *
- * Global flags:
- * - --env-file <path>: load a specific .env file instead of auto-discovery
- * - --no-env-file:     skip auto-loading .env entirely
- *   (env equivalent: COMVI_NO_ENV=1)
- */
-
 import { Command } from "commander";
 import { createInitCommand } from "../commands/init";
 import {
@@ -67,7 +50,6 @@ program
     }
   });
 
-// Register commands
 program.addCommand(createInitCommand());
 program.addCommand(createTypegenCommand());
 program.addCommand(createGenerateTypesCommand()); // Verbose alias
@@ -75,5 +57,4 @@ program.addCommand(createGenerateCommand()); // Legacy alias
 program.addCommand(createPullCommand());
 program.addCommand(createPushCommand());
 
-// Parse arguments
 program.parse();

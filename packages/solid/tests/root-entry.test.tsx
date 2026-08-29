@@ -1,25 +1,17 @@
 /**
- * The `@comvi/solid` SINGLE-ENTRY surface.
+ * Pins WHAT the single `@comvi/solid` entry publishes; accessor behaviour on a
+ * base host lives in tests/base-host.test.tsx and the js-contract suites.
  *
- * One package specifier is the whole app-facing story: the host constructor,
- * the solid bindings and the capability toolkit all come from `../src/index`,
- * and there is no second entry to import them from. This file pins the surface
- * itself; accessor behaviour on a base host lives in tests/base-host.test.tsx
- * and the js-contract suites.
- *
- * The absence claims that need a real bundler — the `<T>` chunk staying out of
- * a graph that never renders it, and the unused capability subpaths pruning in
- * webpack AND vite, development AND production — live in the bundler-matrix
- * cases `solid-default` / `solid-icu` and in the `fw-solid-default`,
- * `fw-solid-default-t`, `fw-solid-icu` and `fw-solid-full-composite` size rows.
- * They cannot be made from source, where every module is loaded eagerly, and
- * ambient tag registration in particular cannot be observed here at all:
- * vitest shares one native module registry across a worker, so any sibling
- * file that ever touched `@comvi/core/tags` would decide the answer. What IS
- * checkable from source is that no name from that subpath is re-exported, and
- * that is pinned below. Core's BASE root is deliberately not among these
- * absences: `src/index.ts` re-exports its `createI18n` and `I18n`, so it is in
- * the graph by design.
+ * The absence claims — the `<T>` chunk staying out of a graph that never
+ * renders it, unused capability subpaths pruning — cannot be made from source,
+ * where every module loads eagerly; they live in the bundler-matrix cases and
+ * the size rows. Ambient tag registration especially cannot be observed here:
+ * vitest shares ONE native module registry per worker, so any sibling file
+ * that ever touched `@comvi/core/tags` would decide the answer. What is
+ * checkable from source — that no name from that subpath is re-exported — is
+ * pinned below. Core's BASE root is deliberately not one of these absences:
+ * this entry re-exports `createI18n` and `I18n`, so it is in the graph by
+ * design.
  */
 import { describe, it, expect } from "vitest";
 import { render } from "solid-js/web";
@@ -99,8 +91,7 @@ describe("@comvi/solid — ICU, both shapes, one specifier", () => {
 
   it("takes the INSTALLER before ingestion for a remote catalog", () => {
     // The remote-catalog recipe: `.with(icu())` runs on a host that has not
-    // seen a catalog yet, so the merge a loader performs later is compiled by
-    // the ICU compiler.
+    // seen a catalog yet, so a later loader merge is compiled by ICU.
     const i18n = root.createI18n({ locale: "en", exposeGlobal: false }).with(root.icu());
 
     i18n.addTranslations({ en: { items: "{count, plural, one {# item} other {# items}}" } });
@@ -149,7 +140,7 @@ describe("@comvi/solid — the capability toolkit", () => {
     expect(root.flattenCatalog).toBe(flattenCatalog);
     expect(root.attachPlugins).toBe(attachPlugins);
     expect(root.attachDevtools).toBe(attachDevtools);
-    // The DX-2 installers are core's own factories, one hop, same rule.
+    // The installers are core's own factories, one hop, same rule.
     expect(root.loader).toBe(loader);
     expect(root.plugins).toBe(plugins);
     expect(root.devtools).toBe(devtools);
@@ -168,8 +159,6 @@ describe("@comvi/solid — the capability toolkit", () => {
   });
 
   it("composes AND configures in one expression — the documented recipe", async () => {
-    // The target DX, verbatim from the README: host, capability and import
-    // map in a single expression, all from `@comvi/solid`.
     const i18n = root
       .createI18n({ locale: "en", exposeGlobal: false })
       .with(root.icu())
@@ -238,11 +227,9 @@ describe("@comvi/solid — the export surface", () => {
 
   it("never re-exports the side-effectful tags toolbox", () => {
     // Every name below is a real `@comvi/core/tags` export, and importing that
-    // subpath registers tag syntax ambiently. Naming any of them here would put
-    // the side effect in every solid graph. No module in this package imports
-    // that subpath at all — `<T>` takes the pure `@comvi/core/rich-text` seam —
-    // and the module-graph proof of that lives in the `fw-solid-*` size rows'
-    // sentinels and the `solid-default` / `solid-icu` bundler-matrix cases.
+    // subpath registers tag syntax ambiently, so naming any of them here would
+    // put the side effect in every solid graph. (The module-graph half of that
+    // proof lives in the size-row sentinels and the bundler-matrix cases.)
     expect(root).not.toHaveProperty("registerTagSyntax");
     expect(root).not.toHaveProperty("tagSyntaxExtension");
     expect(root).not.toHaveProperty("prepareTranslation");
@@ -253,10 +240,9 @@ describe("@comvi/solid — the export surface", () => {
 
 describe("@comvi/solid — one entry, one solid context", () => {
   it("shares a single context between the root entry and the module behind it", () => {
-    // One chunk graph means one `createContext()` call. A second entry used to
-    // make a second copy, and a provider from one could not be seen by a hook
-    // from the other. Same binding, and a provider taken from the deep module
-    // still feeds an accessor taken from the root.
+    // One chunk graph means one `createContext()` call. Two entries would make
+    // a second copy, and a provider from one could not be seen by a hook from
+    // the other.
     expect(root.I18nProvider).toBe(DeepI18nProvider);
 
     const i18n = root.createI18n({

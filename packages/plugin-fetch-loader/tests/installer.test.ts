@@ -7,14 +7,10 @@ import { FETCH_LOADER_PLUGIN_KEY, FetchLoader, fetchLoader } from "../src/index"
 import { mockCdnSuccessResponse, TEST_CDN_URL } from "./setup";
 
 /**
- * The LOWERCASE installer (single-entry convergence, plan §4).
- *
  * `fetchLoader(options)` is the one-call form of the recipe the composed-host
  * suite spells out: `.with(loader()).with(plugins())` then
- * `.use(FetchLoader(options))`. It must produce the same host, the same
- * lifecycle and the same teardown — it routes into `use`, it does not
- * re-implement anything — and it must reject the two cross-uses that the type
- * system also rejects.
+ * `.use(FetchLoader(options))` — same host, same lifecycle, same teardown, and
+ * it must reject the two cross-uses the type system also rejects.
  */
 const base = () => createI18n({ locale: "en", exposeGlobal: false, devMode: false });
 const OPTIONS = { cdnUrl: TEST_CDN_URL, loadOnInit: true };
@@ -106,10 +102,9 @@ describe("fetchLoader() wrong use", () => {
     await expect(i18n.init()).rejects.toThrow(/fetchLoader\(\) is a \.with\(…\) installer/);
 
     // The nested-use guard is the FIRST ensure-step: no loader capability.
-    // Probed through `hasLoaderApi`, not `registerLoader === undefined`: since
-    // core's B4 fix a plugins-only host carries a BRANDED throwing stand-in
-    // for every loader member, so the member exists while the capability does
-    // not — and calling it says exactly that.
+    // Probed through `hasLoaderApi`, not `registerLoader === undefined`: a
+    // plugins-only host carries a branded throwing stand-in for every loader
+    // member, so the member exists while the capability does not.
     expect(hasLoaderApi(i18n)).toBe(false);
     // …no plugin data, so the plugin never reached the queue…
     expect(i18n.getPluginData(FETCH_LOADER_PLUGIN_KEY)).toBeUndefined();

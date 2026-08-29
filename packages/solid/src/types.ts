@@ -1,6 +1,6 @@
 /**
- * Component mapping for tag interpolation in T component
- * Maps custom tag names to HTML elements, SolidJS components, or elements with props
+ * Tag-name → handler map for `<T>`'s tag interpolation: an HTML tag name, a
+ * Solid component, or a tag plus props.
  *
  * @example
  * ```tsx

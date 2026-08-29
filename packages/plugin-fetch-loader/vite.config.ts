@@ -12,9 +12,8 @@ export default defineConfig({
   build: createPluginBuildOptions({
     entry: resolve(__dirname, "src/index.ts"),
     name: "ComviFetchLoader",
-    // The lowercase installer reaches two capability subpaths; every
-    // `@comvi/core` specifier stays external so the host's code is never
-    // duplicated into this bundle.
+    // Every `@comvi/core` specifier stays external so the host's code is
+    // never duplicated into this bundle.
     external: ["@comvi/core", "@comvi/core/loader", "@comvi/core/plugins"],
   }),
 });

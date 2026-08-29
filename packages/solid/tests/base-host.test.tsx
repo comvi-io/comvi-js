@@ -1,18 +1,11 @@
 /**
- * @comvi/solid on the BASE host its single entry builds.
+ * `@comvi/solid` on the BASE host — a host that implements `WrapperI18nHost`
+ * and nothing more. Nothing the wrapper does at render time may touch a
+ * loader/plugin member: one capability closure reached from the returned bag
+ * would blow up here.
  *
- * This is the D′ endpoint: the host implements `WrapperI18nHost` and nothing
- * more. Everything `useI18n()` still returns must work on it, and nothing the
- * wrapper does at render time may touch a loader/plugin member — a single
- * capability closure reached from the returned bag would blow up here.
- *
- * The constructor comes from `../src/index` on purpose: `@comvi/solid` is the
- * one specifier an app names, and it re-exports core's own base `createI18n`
- * by name, so this suite runs against exactly what an app gets.
- *
- * The loud-error side of the contract (exact dev AND prod messages) lives in
- * tests/js-contract/, which runs against the published dist under both build
- * conditions.
+ * The loud-error half of the contract (exact dev AND prod messages) lives in
+ * tests/js-contract/, against the published dist under both build conditions.
  */
 import { describe, it, expect } from "vitest";
 import { render } from "solid-js/web";

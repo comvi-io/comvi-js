@@ -1,19 +1,17 @@
 /**
- * Composition hardening — release 0.5.0 §3 defects B2, B4 and B3.
+ * Composition hardening: three defects about the ORDER a host is composed in,
+ * each of which used to fail SILENTLY.
  *
- * All three are about the ORDER a host is composed in, and all three used to
- * fail silently:
- *
- *  • B2 — composing a capability (or queueing a plugin) AFTER `init()` is a
- *    no-op, because the plugin queue is drained inside `init()` and the
- *    initial namespace load already happened. Nothing warned.
- *  • B4 — a plugins-only host hands every plugin an `I18nPluginHost`, whose
- *    type promises the loader API. Calling `registerLoader` on one died with a
- *    bare `TypeError: … is not a function` instead of the actionable
+ *  • Composing a capability (or queueing a plugin) AFTER `init()` is a no-op,
+ *    because the plugin queue is drained inside `init()` and the initial
+ *    namespace load already happened. Nothing warned.
+ *  • A plugins-only host hands every plugin an `I18nPluginHost`, whose type
+ *    promises the loader API. Calling `registerLoader` on one died with a bare
+ *    `TypeError: … is not a function` instead of the actionable
  *    `missingCapability("loader")` every wrapper throws.
- *  • B3 — `attachDevtools`'s idempotency probe swallowed an `exposeGlobal`
- *    flip, so the SSR-construct / client-enable shape left the instance
- *    unannounced forever.
+ *  • `attachDevtools`'s idempotency probe swallowed an `exposeGlobal` flip, so
+ *    the SSR-construct / client-enable shape left the instance unannounced
+ *    forever.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import type { ComviQueueEntry, I18nLoaderApi } from "../../src";
@@ -135,12 +133,11 @@ describe("B2 — composing after init() warns instead of silently doing nothing"
 });
 
 /**
- * B4 is a DEVELOPMENT affordance: `attachPlugins` installs the branded shims
- * behind its own `IS_DEV` fold, so production keeps the bare `TypeError` and
- * pays nothing. This suite runs with `__DEV__: true` (see `vitest.config.ts`),
- * so it asserts the dev half; `tests/dist/base-composition.dist.test.ts`
- * asserts the prod half against the mangled build, INCLUDING that
- * `hasLoaderApi` answers the same in both.
+ * The capability shims are a DEVELOPMENT affordance: `attachPlugins` installs
+ * them behind its own `IS_DEV` fold, so production keeps the bare `TypeError`
+ * and pays nothing. This suite runs with `__DEV__: true`, so it asserts the dev
+ * half; the dist suite asserts the prod half against the mangled build,
+ * INCLUDING that `hasLoaderApi` answers the same in both.
  */
 describe("B4 — a plugins-only host reports the missing loader capability (dev)", () => {
   it("throws the actionable capability error instead of a bare TypeError", () => {
@@ -194,9 +191,7 @@ describe("B4 — a plugins-only host reports the missing loader capability (dev)
   it("keeps `hasLoaderApi` false — a shim is not the capability", () => {
     const i18n = makeHost().with(plugins());
 
-    // This is the prod/dev parity gate, dev half. `hasLoaderApi` is a feature
-    // detect for `@comvi/nuxt`'s server loader and the acquisition guard for
-    // every wrapper's `useI18nLoader()`: prod has no shims to reject, so dev
+    // The prod/dev parity gate, dev half. Prod has no shims to reject, so dev
     // MUST reject the ones it installs, or the two builds take different
     // branches on the same host.
     expect(hasLoaderApi(i18n)).toBe(false);

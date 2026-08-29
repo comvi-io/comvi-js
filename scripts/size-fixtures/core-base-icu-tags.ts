@@ -1,6 +1,5 @@
-// Composed-additivity fixture (plan P0.9): slim + ICU compiler + tags — the
-// "+ ICU + <T>" rung of the §2.1 ladder. Measured as an ACTUAL composed graph;
-// the row is never derived by summing the slim-icu and slim-tags deltas.
+// Composed-additivity fixture: base host + ICU compiler + tags, measured as an ACTUAL
+// composed graph — never derived by summing the per-capability deltas.
 import "@comvi/core/tags";
 import { createI18n } from "@comvi/core";
 import { icuCompiler } from "@comvi/core/icu";

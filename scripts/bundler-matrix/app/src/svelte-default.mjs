@@ -1,26 +1,19 @@
-// Single-entry P3 gate: THE DEFAULT svelte recipe. Every import in this file
-// comes from `@comvi/svelte`; `@comvi/core` is never named by the app.
-//
-// This case RETARGETS the former `svelte-slim-preset`: `/slim` was unpublished
-// and is gone, so the single-package toolkit is the published root now. It also
-// ABSORBS the former `svelte-on-slim`, which named `@comvi/core` for its
-// constructor — the root carries that constructor, so the two cases had become
-// one graph reached through two specifiers. Unlike either predecessor this
-// default app uses NO capability. The runner asserts from the bundlers' module
-// graphs that ICU, loader, plugins, devtools and core's tag-registration pair
-// all stay out, in development as well as production. Core's BASE entry is
-// present — its `createI18n` is what this app constructs with — so it is never
-// an absence sentinel.
+// THE DEFAULT svelte recipe. Every import comes from `@comvi/svelte`;
+// `@comvi/core` is never named by the app, which uses NO capability — the runner
+// asserts from the bundlers' module graphs that ICU, loader, plugins, devtools
+// and core's tag-registration pair all stay out. Core's BASE entry is present —
+// its `createI18n` is what this app constructs with — so it is never an absence
+// sentinel.
 //
 // It is also the regression pin for the wrapper that crashed at BIND time:
 // before 0.5.0 `useI18n()` eagerly `.bind()`-ed four capability members that a
 // base host does not have.
 //
-// <T> rendering needs a DOM and is NOT exercised here (same documented skip as
-// wrappers.mjs). Not importing `T` is load-bearing on the webpack leg: it
-// prunes the unused `T.svelte` re-export via `sideEffects: false` WITHOUT
-// resolving it, and that leg has no svelte loader — so if `<T>` ever re-entered
-// this graph the webpack build would fail outright rather than quietly grow.
+// <T> rendering needs a DOM and is NOT exercised here. Not importing `T` is
+// load-bearing on the webpack leg: it prunes the unused `T.svelte` re-export via
+// `sideEffects: false` WITHOUT resolving it, and that leg has no svelte loader —
+// so if `<T>` ever re-entered this graph the webpack build would fail outright
+// rather than quietly grow.
 import {
   createI18n,
   I18n,

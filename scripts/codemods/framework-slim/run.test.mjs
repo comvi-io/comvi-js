@@ -10,10 +10,9 @@ import { runCodemod, transformSource } from "./run.mjs";
 import { HOOKS, MEMBER_TO_HOOK } from "./rules/capabilities.mjs";
 
 /**
- * The verification gate for both waves this codemod carries: a golden per
- * transform-matrix row AND per report-only shape (framework-slim §3.1,
- * single-entry §7.2 / §7.3), idempotence, CRLF fidelity, `tsc --noEmit` over the
- * transformed TS goldens, and the CLI's exit-code contract.
+ * The verification gate: a golden per transform-matrix row AND per report-only
+ * shape, idempotence, CRLF fidelity, `tsc --noEmit` over the transformed TS
+ * goldens, and the CLI's exit-code contract.
  */
 const HERE = path.dirname(url.fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(HERE, "../../..");
@@ -34,7 +33,7 @@ const isRewritten = (input) =>
 // Every matrix row and every report-only shape needs a fixture — a silently
 // missing golden is the failure mode this list exists to prevent.
 const REQUIRED_CASES = [
-  // framework-slim §3.1 — the capability-hook destructures.
+  // the capability-hook destructures.
   "t1-pure-loader",
   "t2-pure-plugins",
   "t3-mixed",
@@ -47,11 +46,11 @@ const REQUIRED_CASES = [
   "report-rest-spread",
   "report-computed",
   "report-vue-proxy",
-  // P4 (§6.2): the same shape in nuxt's `comvi.setup` hook, whose context
-  // `i18n` is a VueI18n — detected by filename, not by extension.
+  // the same shape in nuxt's `comvi.setup` hook, whose context `i18n` is a
+  // VueI18n — detected by filename, not by extension.
   "comvi.setup",
   "report-script-extract",
-  // single-entry §7.2 — one golden per enumerated shape.
+  // one golden per enumerated single-entry shape.
   "slim-specifier", // 1: `@comvi/<pkg>/slim` -> `@comvi/<pkg>`
   "slim-factory-rename", // 2: `createSlimI18n` -> `createI18n`
   "chain-plugin-installers", // 3: known factory -> lowercase installer
@@ -60,9 +59,9 @@ const REQUIRED_CASES = [
   "ctor-devtools-options", // 5: exposeGlobal / instanceId -> `devtools({…})`
   "ctor-type-only-import", // runtime installer never merges into `import type`
   "ctor-nested-catalog", // 6: non-flat catalog -> `flattenCatalog(…)`
-  "chain-icu-order", // §7.3: the one provable remote-ICU reorder
+  "chain-icu-order", // the one provable remote-ICU reorder
   "prologue-shebang", // shebang + directive prologue keep their positions
-  // single-entry §7.3 — one golden per report-only residual.
+  // one golden per report-only residual.
   "report-slim-rename",
   "report-dynamic-slim",
   "report-dynamic-plugins",

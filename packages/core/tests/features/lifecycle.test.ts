@@ -2,13 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import { I18n } from "../helpers/composedHost";
 import type { I18nPlugin } from "../helpers/composedHost";
 
-/**
- * Focus on observable lifecycle behavior:
- * - loading state transitions during init
- * - destroy() cleanup that is visible via public API
- * - load error notifications
- * - initialized event behavior
- */
+/** Lifecycle behaviour that is observable through the PUBLIC API only. */
 describe("I18n Lifecycle", () => {
   describe("Loading States", () => {
     it("emits loadingStateChanged transitions that start initializing and end idle", async () => {
@@ -35,7 +29,7 @@ describe("I18n Lifecycle", () => {
       const cleanup = vi.fn();
       const plugin: I18nPlugin = (i18n) => {
         i18n.registerLoader(async () => ({ key: "value" }));
-        // Return current language to avoid unintended language switch in this test.
+        // Returning the current locale avoids an unintended switch here.
         i18n.registerLocaleDetector(() => "en");
         return cleanup;
       };
@@ -54,7 +48,6 @@ describe("I18n Lifecycle", () => {
 
       await i18n.destroy();
 
-      // destroy() resets isInitialized to false because the instance is no longer active
       expect(i18n.isInitialized).toBe(false);
       expect(onDestroyed).toHaveBeenCalledTimes(1);
 
@@ -82,11 +75,9 @@ describe("I18n Lifecycle", () => {
         loadingStates.push(state);
       });
 
-      // Start a load, putting i18n in isLoading state
       const addPromise = i18n.addActiveNamespace("slow");
       expect(i18n.isLoading).toBe(true);
 
-      // Destroy while the load is still pending
       await i18n.destroy();
 
       expect(i18n.isLoading).toBe(false);

@@ -19,21 +19,17 @@ import { isServer } from "../utils/runtime";
 import { DEFAULT_DETECT_BROWSER_LANGUAGE } from "../defaults";
 
 /**
- * Global route middleware for locale detection and URL prefix handling
+/**
+ * Global route middleware for locale detection and URL prefix handling.
  *
- * This middleware:
- * 1. Detects locale from URL path
- * 2. Falls back to the configured query parameter, then cookie, then Accept-Language header
- * 3. Handles URL prefix modes (always, as-needed, never)
- * 4. Persists locale in cookie
- * 5. Syncs locale with Nuxt state
+ * Locale precedence: the URL path prefix, then the configured query parameter,
+ * then the cookie, then the Accept-Language header, then `defaultLocale`.
  */
 export default defineNuxtRouteMiddleware(async (to) => {
   const config = useRuntimeConfig();
   const { locales, defaultLocale, localePrefix, cookieName, detectBrowserLanguage } =
     config.public.comvi;
 
-  // Get locale state
   const localeState = useLocaleState();
 
   const detectConfig =
@@ -46,7 +42,6 @@ export default defineNuxtRouteMiddleware(async (to) => {
 
   const useCookieForDetection = detectConfig !== false && detectConfig.useCookie === true;
 
-  // Get locale cookie
   const detectCfg = typeof detectBrowserLanguage === "object" ? detectBrowserLanguage : undefined;
   const cookieSecure = detectCfg?.cookieSecure ?? true;
 
@@ -70,10 +65,8 @@ export default defineNuxtRouteMiddleware(async (to) => {
     return;
   }
 
-  // 1. Extract locale from URL path
   const pathLocale = extractLocaleFromPath(pathname, locales);
 
-  // 2. Detect locale from various sources
   let detectedLocale: string | undefined;
   let detectedSource: "path" | "query" | "cookie" | "header" | "fallback" = "fallback";
   const queryParam = detectConfig !== false ? detectConfig.queryParam : undefined;
@@ -106,7 +99,7 @@ export default defineNuxtRouteMiddleware(async (to) => {
     detectedSource = "cookie";
   }
 
-  // Then Accept-Language (server-side only)
+  // Accept-Language is server-side only.
   if (!detectedLocale && isServer() && detectConfig !== false) {
     const headers = useRequestHeaders(["accept-language"]);
     const acceptLanguage = headers["accept-language"];
@@ -118,7 +111,6 @@ export default defineNuxtRouteMiddleware(async (to) => {
     }
   }
 
-  // Fallback to default locale
   const fallbackLocale =
     detectConfig && "fallbackLocale" in detectConfig && detectConfig.fallbackLocale
       ? detectConfig.fallbackLocale
@@ -131,7 +123,7 @@ export default defineNuxtRouteMiddleware(async (to) => {
   const locale =
     detectedLocale && locales.includes(detectedLocale) ? detectedLocale : resolvedFallbackLocale;
 
-  // 3. Handle locale prefix modes using the locale that actually rendered.
+  // Prefix modes are applied against the locale that actually rendered.
   const getRedirectPathForLocale = (targetLocale: string): string | null => {
     const cleanPath = stripLocalePrefix(pathname, locales);
     const localizedPath = buildLocalizedPath(cleanPath, targetLocale, defaultLocale, localePrefix);
@@ -171,7 +163,6 @@ export default defineNuxtRouteMiddleware(async (to) => {
     localeCookie.value = renderedLocale;
   }
 
-  // 5. Redirect if needed
   // `redirectOnFirstVisit` only gates redirects triggered by header detection.
   // Path-based redirects and route normalization should still happen regardless.
   const allowHeaderDetectionRedirect =

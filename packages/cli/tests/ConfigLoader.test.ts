@@ -311,9 +311,7 @@ describe("ConfigLoader", () => {
       const writtenContent = vi.mocked(fs.writeFile).mock.calls[0][1] as string;
       const writtenConfig = JSON.parse(writtenContent);
 
-      // apiKey should NOT be in the config
       expect(writtenConfig.apiKey).toBeUndefined();
-      // But other defaults should be present
       expect(writtenConfig.apiBaseUrl).toBe("https://api.comvi.io");
       expect(writtenConfig.outputPath).toBe("src/types/i18n.d.ts");
     });
@@ -380,7 +378,6 @@ describe("ConfigLoader", () => {
 
       const writtenContent = vi.mocked(fs.writeFile).mock.calls[0][1] as string;
 
-      // Check for proper indentation (2 spaces)
       expect(writtenContent).toContain('  "apiBaseUrl"');
       expect(writtenContent).toMatch(/\n}/); // Proper closing brace
     });
@@ -490,19 +487,16 @@ describe("ConfigLoader", () => {
       const mockReadFile = vi.mocked(fs.readFile);
       const mockWriteFile = vi.mocked(fs.writeFile);
 
-      // Mock file exists check and load existing config
       mockAccess.mockResolvedValueOnce(undefined);
       mockReadFile.mockResolvedValueOnce(JSON.stringify(mockConfig));
 
       const config = await ConfigLoader.load("/project/.comvirc.json");
 
-      // Modify config
       const modifiedConfig = {
         ...config,
         outputPath: "new/path/i18n.d.ts",
       };
 
-      // Save modified config
       mockWriteFile.mockResolvedValueOnce(undefined);
       await ConfigLoader.create(modifiedConfig);
 

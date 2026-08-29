@@ -1,9 +1,6 @@
 /**
- * DOMWatcher - Observes DOM mutations and emits categorized events
- *
- * Uses MutationObserver to watch for changes in the target element
- * and its descendants. Categorizes mutations into text changes,
- * attribute changes, structure changes, and node removals.
+ * MutationObserver over the target subtree, batching mutations into four
+ * categories: text, attribute, structure, and node removal.
  */
 
 import type { TranslationSystemInnerOptions } from "./types";
@@ -277,18 +274,12 @@ export class DOMWatcher {
     });
   }
 
-  /**
-   * Categorizes text changes from a mutation
-   */
   private categorizeTextChanges(mutation: MutationRecord, textChanges: Set<Node>): void {
     if (mutation.type === "characterData") {
       textChanges.add(mutation.target);
     }
   }
 
-  /**
-   * Categorizes attribute changes from a mutation
-   */
   private categorizeAttributeChanges(
     mutation: MutationRecord,
     attributeChanges: Set<Element>,
@@ -298,10 +289,6 @@ export class DOMWatcher {
     }
   }
 
-  /**
-   * Categorizes structure changes (added/removed nodes) from a mutation
-   * Uses shared utility for collecting descendant nodes
-   */
   private categorizeStructureChanges(
     mutation: MutationRecord,
     structureChanges: Set<Node>,
@@ -319,7 +306,6 @@ export class DOMWatcher {
       mutation.removedNodes.forEach((node) => {
         removedNodes.add(node);
         this.unobserveRootsInRemovedSubtree(node);
-        // Use shared utility to collect all descendant nodes
         const descendants = collectAllDescendantNodes(node);
         descendants.forEach((descendant) => {
           if (descendant instanceof Node) {
@@ -330,10 +316,7 @@ export class DOMWatcher {
     }
   }
 
-  /**
-   * Emits batched changes to the event bus
-   * Only emits events for non-empty change sets
-   */
+  /** Nothing is emitted for an empty change set. */
   private emitBatchedChanges(
     textChanges: Set<Node>,
     attributeChanges: Set<Element>,
@@ -373,14 +356,12 @@ export class DOMWatcher {
     const removedNodes = new Set<Node>();
     const newlyObservedRoots = new Set<Node>();
 
-    // Categorize all mutations
     mutations.forEach((mutation) => {
       this.categorizeTextChanges(mutation, textChanges);
       this.categorizeAttributeChanges(mutation, attributeChanges);
       this.categorizeStructureChanges(mutation, structureChanges, removedNodes, newlyObservedRoots);
     });
 
-    // Emit batched changes
     this.emitBatchedChanges(
       textChanges,
       attributeChanges,

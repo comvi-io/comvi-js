@@ -4,7 +4,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 /**
- * Acceptance A6 — the dist-level mangling canary.
+ * The dist-level mangling canary.
  *
  * `core/loader.ts`, `core/plugins.ts` and `core/devtools.ts` reach into
  * base-class state through `_`-prefixed members that terser renames with ONE
@@ -13,7 +13,7 @@ import { fileURLToPath } from "node:url";
  * admissible proof: this suite composes and drives the MANGLED prod dist
  * directly, and asserts the mangler actually ran on it.
  *
- * Requires a fresh build — CI runs `pnpm --filter @comvi/core build` first.
+ * Requires a fresh build.
  */
 const DIST = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../dist");
 
@@ -30,14 +30,12 @@ const INTERNAL_NAMES = [
   "_missHook",
   "_resetPlugins",
   "_initPlugins",
-  // framework-slim tier-3 seams
   "_flattenNs",
   "_initDevtools",
   "_disposeDevtools",
   "_globalEntry",
-  // single-entry convergence seams: `/icu`'s installer reaches
-  // `_setCompilerBeforeIngestion` by dot access ACROSS a chunk boundary, so
-  // these are live nameCache canaries too.
+  // `/icu`'s installer reaches `_setCompilerBeforeIngestion` by dot access
+  // ACROSS a chunk boundary, so these are live nameCache canaries too.
   "_setCompilerBeforeIngestion",
   "_compilerLocked",
   "_preflightSimpleCatalog",
@@ -66,10 +64,9 @@ beforeAll(() => {
 
 describe("prod dist: base + /loader + /plugins composition (A6)", () => {
   it("composes, loads, switches locale and reloads against the mangled build", async () => {
-    // Dynamic on purpose: these are BUILD OUTPUTS, not source modules. A
-    // static import is hoisted above `beforeAll`, so a missing/stale dist
-    // would fail with an opaque resolution error instead of the actionable
-    // "run the build first" message.
+    // Dynamic on purpose: these are BUILD OUTPUTS, not source modules. A static
+    // import is hoisted above `beforeAll`, so a missing or stale dist would fail
+    // with an opaque resolution error instead of "run the build first".
     const { createI18n } = await import("../../dist/comvi-core.js");
     const { attachLoader, createImportMapLoader } = await import("../../dist/comvi-core-loader.js");
 
@@ -189,9 +186,9 @@ describe("prod dist: base + /loader + /plugins composition (A6)", () => {
     const { attachLoader } = await import("../../dist/comvi-core-loader.js");
     const { attachPlugins } = await import("../../dist/comvi-core-plugins.js");
 
-    // B2's guidance is DEV-ONLY: the prod build must fold every warning (and
-    // its string) away, so a late compose is silent here even though the same
-    // calls warn once each in dev.
+    // The late-compose guidance is DEV-ONLY: the prod build must fold every
+    // warning, and its string, away — so a late compose is silent here even
+    // though the same calls warn once each in dev.
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
     try {
       const i18n = createI18n({
@@ -209,29 +206,27 @@ describe("prod dist: base + /loader + /plugins composition (A6)", () => {
       warnSpy.mockRestore();
     }
 
-    // B4 is DEV-ONLY. Production keeps the bare `TypeError` — still loud, just
-    // without the guidance — because the shims cost ~190 B min+gz on every
-    // plugin-host graph and only a plugin author, at development time, ever
-    // reads them. `composition-hardening.test.ts` asserts the dev half.
+    // The capability shims are DEV-ONLY. Production keeps the bare `TypeError`
+    // — still loud, just without the guidance — because only a plugin author,
+    // at development time, ever reads them.
     const { hasLoaderApi } = await import("../../dist/comvi-core.js");
     const pluginsOnly = attachPlugins(createI18n({ locale: "en", exposeGlobal: false }));
 
     expect(pluginsOnly.registerLoader).toBeUndefined();
     expect(() => pluginsOnly.registerLoader(async () => ({}))).toThrow(TypeError);
 
-    // The gate that MUST NOT differ between the builds: `hasLoaderApi` is a
-    // feature detect (`@comvi/nuxt`'s server loader) and an acquisition guard
-    // (every wrapper's `useI18nLoader`), so a plugins-only host has to read as
-    // "no loader" in prod exactly as it does in dev — there the branded shims
-    // exist and are rejected, here there are none to reject.
+    // The one gate that MUST NOT differ between the builds: `hasLoaderApi` is
+    // both a feature detect and an acquisition guard, so a plugins-only host has
+    // to read as "no loader" in prod exactly as in dev — where the branded shims
+    // exist and are rejected, and here there are none to reject.
     expect(hasLoaderApi(pluginsOnly)).toBe(false);
     expect(hasLoaderApi(attachLoader(createI18n({ locale: "en", exposeGlobal: false })))).toBe(true);
   });
 
   it("leaves no dev-only B2/B4 text in the prod artifacts", () => {
-    // Behavioural assertions can pass while the STRINGS still ship: a folded
-    // branch that terser kept would cost bytes on every plugin-host graph and
-    // never be observed by a test that only calls the API. Scan the text.
+    // Behavioural assertions can pass while the STRINGS still ship — a folded
+    // branch terser kept costs bytes and no API-level test would ever see it.
+    // Hence the text scan.
     const files = distFiles(false);
     expect(files.length).toBeGreaterThan(0);
 
@@ -245,8 +240,8 @@ describe("prod dist: base + /loader + /plugins composition (A6)", () => {
     }
     expect(leaked).toEqual([]);
 
-    // …and the same strings MUST be present in the dev build, or the scan
-    // above is proving nothing.
+    // The same strings MUST be present in the dev build, or the scan above is
+    // proving nothing.
     const dev = distFiles(true)
       .map((file) => fs.readFileSync(file, "utf8"))
       .join("\n");

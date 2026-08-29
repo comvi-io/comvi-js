@@ -1,5 +1,5 @@
 /**
- * RC versioning for the release rehearsal (release plan §7.1).
+ * RC versioning for the release rehearsal.
  *
  * Rewrites, IN THE WORKING TREE ONLY (never committed, no changeset consumed):
  *   - every package in the `fixed` group of .changeset/config.json to

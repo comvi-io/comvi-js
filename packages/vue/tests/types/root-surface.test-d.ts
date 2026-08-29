@@ -1,19 +1,10 @@
-// Type-level contract for the `@comvi/vue` SINGLE-ENTRY surface. Companion to
-// factory-boundary.test-d.ts, which covers the inject boundary and the dropped
-// proxies.
-//
-// Three claims are under test. First, vue's preset really builds a BASE host:
-// `VueI18n<D, I18n<D>>` where `I18n` is core's own base class, so the capability
-// members are absent from the TYPE and the §2.4 "type-honest by absence" rule
-// survives the convenience. Second, the exact-`C` custom-host path
-// (`createCore` + `createI18nFromCore`) still preserves whatever the app
-// composed. Third, the entry's type vocabulary and the capability toolkit are
-// core's own — a wrapper that re-declared them would hand an app types that
-// drift from the runtime it composes against.
-//
-// Every specifier below is the wrapper's ONE entry. That is the point: an app
-// gets its whole type vocabulary, its three constructors and its vue bindings
-// without ever naming `@comvi/core`.
+// Companion to factory-boundary.test-d.ts, which covers the inject boundary
+// and the dropped proxies. Three claims: vue's preset builds a BASE host
+// (`VueI18n<D, I18n<D>>` over core's own class, so capability members are
+// absent from the TYPE); the exact-`C` custom-host path (`createCore` +
+// `createI18nFromCore`) preserves whatever the app composed; and the type
+// vocabulary and toolkit are core's own — a wrapper that re-declared them
+// would hand an app types that drift from the runtime it composes against.
 import type {
   I18n,
   I18nLoaderApi,
@@ -40,10 +31,7 @@ type Equal<X, Y> =
   (<T>() => T extends X ? 1 : 2) extends <T>() => T extends Y ? 1 : 2 ? true : false;
 type Expect<T extends true> = T;
 
-// ---------------------------------------------------------------------------
-// (i) The preset returns a VueI18n over the BASE core, exactly typed.
-// ---------------------------------------------------------------------------
-
+// The preset returns a VueI18n over the BASE core, exactly typed.
 const preset = createI18n({ locale: "en", ssrLocale: "en" });
 
 export type _PresetIsVueI18nOverBase = Expect<Equal<typeof preset, VueI18n<{}, I18n<{}>>>>;
@@ -67,24 +55,17 @@ preset.registerLoader(() => Promise.resolve({}));
 // @ts-expect-error -- `use` left the class in 0.5.0 and does not come back here
 preset.use(() => undefined);
 
-// The core-safe surface is of course there.
 preset.core.addTranslations({ en: { greeting: "Hello" } });
 
-// The class behind `createCore` is the one the preset builds on. Before the
-// convergence this file also pinned "the preset's core is NOT the root class",
-// distinguishing two entries that no longer exist: `@comvi/core` publishes ONE
-// host and both construction paths reach it, so the distinction is gone with
-// the second entry and the row that encoded it is deleted rather than inverted.
+// The class behind `createCore` is the one the preset builds on: core
+// publishes ONE host and both construction paths reach it.
 const _coreProbe = createCore({ locale: "en" });
 export type _CreateCoreBuildsThePresetsClass = Expect<
   Equal<typeof _coreProbe, (typeof preset)["core"]>
 >;
 
-// ---------------------------------------------------------------------------
-// (ii) ICU has TWO shapes and BOTH are named by this entry: the compiler for
-//      an inline constructor catalog, the installer for a pre-ingestion pipe.
-// ---------------------------------------------------------------------------
-
+// ICU has TWO shapes, both named by this entry: the compiler for an inline
+// constructor catalog, the installer for a pre-ingestion pipe.
 const _withIcu = createI18n({ locale: "en", compiler: icuCompiler });
 export type _IcuPresetIsStillBase = Expect<Equal<typeof _withIcu, VueI18n<{}, I18n<{}>>>>;
 
@@ -93,10 +74,7 @@ export type _IcuPresetIsStillBase = Expect<Equal<typeof _withIcu, VueI18n<{}, I1
 const _icuInstalled = createCore({ locale: "en" }).with(icu());
 export type _IcuInstallerKeepsHostType = Expect<Equal<typeof _icuInstalled, I18n<{}>>>;
 
-// ---------------------------------------------------------------------------
-// (iii) `const D` inference survives the entry hop.
-// ---------------------------------------------------------------------------
-
+// `const D` inference survives the entry hop.
 const _withDefaults = createI18n({ locale: "en", defaultParams: { brand: "Comvi" } });
 export type _DefaultsAreExact = Expect<
   Equal<
@@ -105,11 +83,8 @@ export type _DefaultsAreExact = Expect<
   >
 >;
 
-// ---------------------------------------------------------------------------
-// (iv) The custom-host path, from the same entry: createCore is core's own
-//      constructor and `createI18nFromCore` preserves the composed type.
-// ---------------------------------------------------------------------------
-
+// The custom-host path: `createCore` is core's own constructor and
+// `createI18nFromCore` preserves the composed type.
 const _bareCore = createCore({ locale: "en" });
 export type _CreateCoreIsBaseI18n = Expect<Equal<typeof _bareCore, I18n<{}>>>;
 
@@ -131,24 +106,15 @@ export type _PluginsWiden = Expect<
   Equal<typeof _pluginHost extends I18nPluginHostApi ? true : false, true>
 >;
 
-// Devtools installs discovery without changing the host type.
 const _withDevtools = attachDevtools(createCore({ locale: "en" }), { exposeGlobal: false });
 export type _DevtoolsKeepsHostType = Expect<Equal<typeof _withDevtools, I18n<{}>>>;
 
-// The pure flattener needs no host at all.
 const flat: Record<string, string> = flattenCatalog({ nav: { home: "Home" } });
 void flat;
 
-// ---------------------------------------------------------------------------
-// (v) `.with(installer)` — the composition pipe and the configured installers
-//     (framework-slim DX-2). The claim: the generic host type flows THROUGH
-//     the pipe and comes out widened, never decayed to `any`.
-// ---------------------------------------------------------------------------
-
-// The target DX, VERBATIM (README / MIGRATION §4 quickstart) on vue's core
-// host, against a real `./uk.json` so the dynamic-import thunk is typed the
-// way an app's is. `createCore` is core's constructor; `createI18n` here is
-// vue's own preset, whose host is reachable as `i18n.core`.
+// `.with(installer)`: the generic host type flows THROUGH the pipe and comes
+// out widened, never decayed to `any`. Against a real `./uk.json`, so the
+// dynamic-import thunk is typed the way an app's is.
 const piped = createCore({ locale: "en", compiler: icuCompiler }).with(
   loader({ uk: () => import("./uk.json") }),
 );
@@ -160,9 +126,8 @@ void piped.registerLoader(() => Promise.resolve({}));
 // @ts-expect-error -- loader() composes ONLY the loader capability
 piped.use(() => undefined);
 
-// The preset's own host takes the pipe too — that is the one shape react has
-// no counterpart for, because vue's factory returns a wrapper rather than the
-// host itself.
+// The preset's own host takes the pipe too, at `i18n.core` — vue's factory
+// returns a wrapper rather than the host itself.
 const _presetPiped = createI18n({ locale: "en" }).core.with(loader());
 export type _PresetHostTakesThePipe = Expect<Equal<typeof _presetPiped, I18n<{}> & I18nLoaderApi>>;
 

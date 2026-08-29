@@ -1,15 +1,15 @@
 /**
  * Collector — orchestrates passive context collection inside an active ICE
- * session (RALPLAN wave-2a, Item 2).
+ * session.
  *
- * Hard invariants this class exists to uphold (RALPLAN §0):
+ * Hard invariants this class exists to uphold:
  *   - collection lives ONLY inside an active session: constructed by `Core`,
  *     started in `Core.start()`, destroyed FIRST in `Core.stop()`.
  *   - event-driven, no polling: passes only run on trigger settle. IO-only
  *     settles are gated on the visible-key SET; mutation-class triggers force
  *     re-evaluation past the set gates (same-key signal drift), with the
  *     transport's per-item hash gate as the network authority.
- *   - every entry point is fault-isolated (RC3/P8): a handshake rejection,
+ *   - every entry point is fault-isolated: a handshake rejection,
  *     network failure, or unexpected throw anywhere in a pass silently
  *     disables collection for the rest of the session and NEVER reaches the
  *     editor's critical path.
@@ -40,7 +40,7 @@ export interface CollectorOptions {
 export class Collector {
   private readonly transport: CollectorTransport;
   private readonly triggers: CollectorTriggers;
-  /** M1 pre-gate: registry key-set + screenGroup, checked BEFORE any rect measurement. */
+  /** Pre-gate: registry key-set + screenGroup, checked BEFORE any rect measurement. */
   private readonly registryGate = new VisibleSetGate();
   /** Post-gate: the VISIBLE key-set, checked after enumeration has measured rects. */
   private readonly gate = new VisibleSetGate();
@@ -158,7 +158,7 @@ export class Collector {
       // re-evaluations off the network when nothing actually changed.
       const forcePass = this.triggers.consumeMutationFlag();
 
-      // M1: cheap pre-gate over the currently-VISIBLE key SET (the
+      // Cheap pre-gate over the currently-VISIBLE key SET (the
       // IntersectionObserver-intersecting elements mapped to {ns,key}, no rect
       // access at all) before any per-element measurement. Because this is
       // visibility-sensitive, a scroll that reveals a static element changes

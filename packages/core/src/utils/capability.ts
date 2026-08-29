@@ -1,5 +1,5 @@
 // Capability presence: the shared, loud boundary between a wrapper and the
-// host instance it was handed (framework-slim §2.4).
+// host instance it was handed.
 //
 // A bare `@comvi/core` instance is a `WrapperI18nHost` and nothing more:
 // the loader and plugin-host APIs are absent from its module graph, not
@@ -10,9 +10,9 @@
 //
 // `core/plugins.ts` is the other consumer: on a plugins-only host it installs
 // one {@link capabilityShim} per {@link LOADER_MEMBERS} entry, so a PLUGIN
-// handed that host gets the same error a wrapper would (B4) rather than a bare
-// `TypeError`. That is also why the probes below have to know about shims —
-// a stand-in is an absence, and reporting it as presence would flip the very
+// handed that host gets the same error a wrapper would rather than a bare
+// `TypeError`. That is also why the probes below have to know about shims — a
+// stand-in is an absence, and reporting it as presence would flip the very
 // guards it exists to serve.
 //
 // The checks are STRUCTURAL and read PUBLIC names only. `_`-prefixed
@@ -42,11 +42,9 @@ export type CapabilityName = "loader" | "plugins";
  *
  * ONE list, TWO readers: `hasLoaderApi` probes it and `attachPlugins` installs
  * one {@link capabilityShim} per entry. A hand-written second list in either
- * place would drift out of sync with the interface the moment a member is
- * added. Both directions are gated at compile time by
- * `tests/types/capability-members.test-d.ts`: the `satisfies` below rejects a
- * name that is not a member, and the assignment there rejects a member that is
- * missing here.
+ * place would drift from the interface the moment a member is added, so both
+ * directions are gated at compile time: the `satisfies` below rejects a name
+ * that is not a member, and a type test rejects a member missing from here.
  *
  * @internal
  */

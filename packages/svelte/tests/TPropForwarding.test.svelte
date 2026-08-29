@@ -5,8 +5,8 @@
   export let i18n: any;
   export let i18nKey: string;
   export let params: Record<string, unknown> = {};
-  // Each of these is conditionally passed so the harness can test
-  // the "prop explicitly provided vs omitted" distinction.
+  // Conditionally passed, so the harness can exercise the "prop explicitly
+  // provided vs omitted" distinction.
   export let passNs: boolean = false;
   export let ns: string | undefined = undefined;
   export let passLocale: boolean = false;

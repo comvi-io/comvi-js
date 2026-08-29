@@ -26,7 +26,7 @@ const DECLARATION_KINDS = new Set([
  * The quoted `source` of an import/export statement, unquoted.
  *
  * A retired `/slim` subpath reports as the entry it is about to become: the
- * specifier rewrite (§7.2-1) lands in the SAME edit set, so a capability the
+ * specifier rewrite lands in the SAME edit set, so a capability the
  * chain needs merges into that clause instead of opening a second import of a
  * module the file will already have.
  */

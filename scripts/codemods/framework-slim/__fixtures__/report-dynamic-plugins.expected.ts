@@ -1,4 +1,4 @@
-// Report-only (§7.3) — every `.use` whose plugin is not a statically named
+// Report-only — every `.use` whose plugin is not a statically named
 // factory call, the chain a needed import would be shadowed in, and `.use` on a
 // stored host. All five are left byte-identical, each with the recipe.
 import { createI18n } from "@comvi/react";

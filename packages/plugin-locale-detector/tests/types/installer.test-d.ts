@@ -40,6 +40,5 @@ createI18n({ locale: "en" }).with(LocaleDetector(OPTIONS));
 createI18n({ locale: "en" }).with(plugins()).use(localeDetector(OPTIONS));
 
 // VALID — the uppercase factory on a host that already has the capability.
-// This is the pre-existing recipe and it is unchanged.
 export const manual = createI18n({ locale: "en" }).with(plugins());
 manual.use(LocaleDetector(OPTIONS));

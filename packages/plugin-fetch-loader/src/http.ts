@@ -2,7 +2,6 @@ import type { ExportApiResponse, TranslationStore } from "./types";
 import type { CdnLayoutOptions, FetchLoaderOptions } from "./options";
 import { API_BASE_URL } from "./options";
 
-/** Extended fetch options with SSR cache support */
 export interface ExtendedFetchOptions extends RequestInit {
   next?: { revalidate?: number | false; tags?: string[] };
 }
@@ -12,7 +11,6 @@ export interface FetchRequestOptions {
   next?: ExtendedFetchOptions["next"];
 }
 
-/** Build cache options for SSR frameworks */
 export function buildCacheOptions(
   cache?: FetchLoaderOptions["cache"],
 ): Pick<ExtendedFetchOptions, "next"> {
@@ -75,7 +73,6 @@ export async function parseJsonResponse<T>(response: Response, url: string): Pro
   }
 }
 
-/** Strip trailing slash */
 export const stripSlash = (url: string) => url.replace(/\/$/, "");
 
 /**
@@ -89,7 +86,6 @@ export function buildAuthHeaders(apiKey: string): Record<string, string> {
   return headers;
 }
 
-/** Ensure value is Error instance */
 export const toError = (e: unknown): Error => (e instanceof Error ? e : new Error(String(e)));
 
 /** Validate locale/namespace identifiers to prevent malformed URLs */

@@ -5,27 +5,13 @@ import { createGetPathname } from "../routing/defineRouting";
 import type { RoutingConfig } from "../routing/types";
 import { getCanonicalPathname, stripLocalePrefix } from "../routing/utils";
 
-/**
- * Header name for passing locale to Server Components
- */
+// Passes the resolved locale to Server Components.
 const LOCALE_HEADER = "x-comvi-locale";
 
-/**
- * Default detection order
- */
 const DEFAULT_DETECTION_ORDER: LocaleDetectionSource[] = ["cookie", "accept-language"];
 
 /**
- * Creates i18n middleware for Next.js
- *
- * The middleware handles:
- * - Locale detection from URL, cookie, header, and Accept-Language
- * - Locale persistence via cookie
- * - URL prefix handling based on localePrefix mode
- * - Setting x-comvi-locale header for Server Components
- *
- * @param config - Middleware configuration
- * @returns Next.js middleware function
+ * Creates i18n middleware for Next.js.
  *
  * @example
  * ```typescript
@@ -59,7 +45,6 @@ export function createMiddleware(config: MiddlewareConfig) {
     localeDetection,
   } = config;
 
-  // Detection configuration
   const detectionOrder = localeDetection?.order ?? DEFAULT_DETECTION_ORDER;
   const cookieName = localeDetection?.cookieName ?? localeCookie;
   const cookieSecureConfig = localeDetection?.cookieSecure ?? true;
@@ -79,28 +64,24 @@ export function createMiddleware(config: MiddlewareConfig) {
   return function middleware(request: NextRequest): NextResponse {
     const { pathname } = request.nextUrl;
 
-    // Skip internal paths
     if (shouldSkipPath(pathname)) {
       return NextResponse.next();
     }
 
-    // 1. Extract locale from URL path (always first priority)
     const pathLocale = extractLocaleFromPath(pathname, locales);
 
-    // 2. Detect locale using configured priority
+    // Precedence: custom detector, then the URL path, then the configured
+    // sources in order, then `defaultLocale`.
     let detectedLocale: string | undefined;
 
-    // Custom detector has highest priority
     if (customDetector) {
       detectedLocale = customDetector(request);
     }
 
-    // URL path is always checked after custom detector
     if (!detectedLocale && pathLocale) {
       detectedLocale = pathLocale;
     }
 
-    // Then check configured detection sources in order
     if (!detectedLocale) {
       for (const source of detectionOrder) {
         const detected = detectFromSource(
@@ -119,7 +100,6 @@ export function createMiddleware(config: MiddlewareConfig) {
       }
     }
 
-    // Fallback to default locale
     const locale =
       detectedLocale && locales.includes(detectedLocale) ? detectedLocale : defaultLocale;
 
@@ -131,7 +111,6 @@ export function createMiddleware(config: MiddlewareConfig) {
       locale,
     );
 
-    // 3. Redirect to the canonical public pathname when needed.
     const publicPathname = getPathname({ locale, href: canonicalPathname });
     let response: NextResponse;
 
@@ -140,7 +119,6 @@ export function createMiddleware(config: MiddlewareConfig) {
       url.pathname = publicPathname;
       response = NextResponse.redirect(url);
     } else {
-      // 4. Rewrite localized public paths to the internal app route shape.
       const internalPathname = getInternalPathname(locale, canonicalPathname);
       const middlewareInit = { request: { headers: requestHeaders } };
       if (pathname === internalPathname) {
@@ -152,10 +130,8 @@ export function createMiddleware(config: MiddlewareConfig) {
       }
     }
 
-    // 5. Set locale header for Server Components to read
     response.headers.set(LOCALE_HEADER, locale);
 
-    // 6. Set/update locale cookie for persistence (if locale changed or not set)
     const existingCookie = request.cookies.get(cookieName)?.value;
     if (existingCookie !== locale) {
       response.cookies.set(cookieName, locale, {
@@ -171,9 +147,6 @@ export function createMiddleware(config: MiddlewareConfig) {
   };
 }
 
-/**
- * Detect locale from a specific source
- */
 function detectFromSource(
   request: NextRequest,
   source: LocaleDetectionSource,
@@ -214,7 +187,6 @@ function detectFromSource(
 }
 
 /**
- * Check if path should be skipped by middleware.
  * Static asset filtering is expected to be handled by Next.js matcher config.
  */
 function shouldSkipPath(pathname: string): boolean {
@@ -223,10 +195,8 @@ function shouldSkipPath(pathname: string): boolean {
 }
 
 /**
- * Default Accept-Language resolver
- *
- * Handles common cases with a simple parser. For production apps with
- * diverse locales (CJK, regional variants), use @formatjs/intl-localematcher.
+ * Handles common cases with a simple parser. For production apps with diverse
+ * locales (CJK, regional variants), use @formatjs/intl-localematcher.
  *
  * Matching strategy:
  * 1. Try exact match (e.g., "en-US" matches "en-US")
@@ -252,20 +222,16 @@ function defaultResolveAcceptLanguage(
     .filter(({ code, quality }) => code.length > 0 && quality > 0)
     .sort((a, b) => b.quality - a.quality);
 
-  // Try to find a matching locale for each language preference
   for (const { code } of languages) {
     const normalizedCode = code.toLowerCase();
 
-    // 1. Exact match (e.g., "en-US" === "en-US")
     const exactMatch = locales.find((locale) => locale.toLowerCase() === normalizedCode);
     if (exactMatch) return exactMatch;
 
-    // 2. Base language match (e.g., "en-US" -> "en")
     const baseLang = normalizedCode.split("-")[0];
     const baseMatch = locales.find((locale) => locale.toLowerCase() === baseLang);
     if (baseMatch) return baseMatch;
 
-    // 3. Find locale starting with the base language (e.g., "en" -> "en-US")
     const prefixMatch = locales.find((locale) => locale.toLowerCase().startsWith(baseLang + "-"));
     if (prefixMatch) return prefixMatch;
   }

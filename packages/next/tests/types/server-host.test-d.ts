@@ -1,5 +1,4 @@
-// framework-slim P5 step 4 (vi) (vii) (viii) (ix) — the compile-time contract
-// of `createNextI18nFromHost`.
+// The compile-time contract of `createNextI18nFromHost`.
 //
 // Every import below names `@comvi/next/server` exactly, which is the import
 // path the contract fixes (package.json maps `./server` straight to
@@ -24,27 +23,21 @@ const ROUTING = {
   defaultLocale: "en",
 } satisfies CreateNextI18nFromHostOptions;
 
-// ---------------------------------------------------------------------------
-// (vi) The supplied host type `C` is preserved EXACTLY.
-// ---------------------------------------------------------------------------
+// The supplied host type `C` is preserved EXACTLY.
 const composedHost = attachLoader(createI18n({ locale: "en", defaultNs: "common" }));
 const composed = createNextI18nFromHost(() => composedHost, ROUTING);
 
 export type _ExactHostType = Expect<Equal<typeof composed.i18n, typeof composedHost>>;
 
 // A host composed through the INSTALLER pipe instead of `attachLoader`: the
-// second acquisition path, and the one a converged app writes. (Before the
-// single-entry convergence this probe used the batteries-included root host,
-// which is now the base host and cannot satisfy `NextServerHost` on its own.)
+// second acquisition path.
 const installerHost = createI18n({ locale: "en" }).with(loader());
 const _onPiped = createNextI18nFromHost(() => installerHost, ROUTING);
 
 export type _PipedHostAlsoExact = Expect<Equal<typeof _onPiped.i18n, typeof installerHost>>;
 
-// ---------------------------------------------------------------------------
-// (vii) The result has NO `.use*` methods — all five of `CreateNextI18nResult`.
-// The positive control keeps these five probes from passing vacuously.
-// ---------------------------------------------------------------------------
+// The result has NO `.use*` methods — all five of `CreateNextI18nResult`. The
+// positive control keeps these five probes from passing vacuously.
 export type _ResultIsTwoFields = Expect<
   Equal<keyof CreateNextI18nFromHostResult, "i18n" | "routing">
 >;
@@ -63,17 +56,13 @@ const _useClientLazy: unknown = composed.useClientLazy;
 // @ts-expect-error -- plugin composition belongs in the host factory
 const _useServerLazy: unknown = composed.useServerLazy;
 
-// ---------------------------------------------------------------------------
-// (viii) The suite-only cell reset is not part of the public server surface.
-// ---------------------------------------------------------------------------
+// The suite-only cell reset is not part of the public server surface.
 export type _ResetIsNotPublic = Expect<
   Equal<Extract<keyof typeof serverEntry, "_resetServerI18n">, never>
 >;
 
-// ---------------------------------------------------------------------------
-// Host ownership: the options are routing-only. Locale, translations, loader
-// and plugins belong to the host factory and do not exist here at all.
-// ---------------------------------------------------------------------------
+// The options are routing-only: locale, translations, loader and plugins belong
+// to the host factory and do not exist here at all.
 export type _OptionsAreRoutingOnly = Expect<
   Equal<
     keyof CreateNextI18nFromHostOptions,
@@ -88,10 +77,8 @@ createNextI18nFromHost(() => composedHost, {
   translation: { en: {} },
 });
 
-// ---------------------------------------------------------------------------
-// The server ALWAYS needs the loader: an uncomposed BASE host is a compile
-// error, and after the convergence that is what the plain constructor builds.
-// ---------------------------------------------------------------------------
+// The server ALWAYS needs the loader: an uncomposed BASE host — what the plain
+// constructor builds — is a compile error.
 const bareBaseHost = createI18n({ locale: "en" });
 
 // @ts-expect-error -- NextServerHost = WrapperI18nHost & I18nLoaderApi
@@ -104,13 +91,9 @@ export type _ComposedIsAServerHost = Expect<
   Equal<typeof composedHost extends NextServerHost ? true : false, true>
 >;
 
-// ---------------------------------------------------------------------------
-// single-entry P4: the SINGLE-PACKAGE server recipe. `createI18n` — the same
-// base constructor `@comvi/next/client` exports — and the capability toolkit
-// are re-exported from `@comvi/next/server`, so an SSR app builds a
-// `NextServerHost` without ever naming `@comvi/core`. The retired second
-// constructor name is gone from this entry too.
-// ---------------------------------------------------------------------------
+// The SINGLE-PACKAGE server recipe: `createI18n` and the capability toolkit are
+// re-exported from `@comvi/next/server`, so an SSR app builds a
+// `NextServerHost` without ever naming `@comvi/core`.
 export type _RetiredNameIsGone = Expect<
   Equal<Extract<keyof typeof serverEntry, "createSlimI18n">, never>
 >;
@@ -147,12 +130,9 @@ export type _ServerLockedErrorCode = Expect<
 const serverFlat: Record<string, string> = serverEntry.flattenCatalog({ nav: { home: "Home" } });
 void serverFlat;
 
-// ---------------------------------------------------------------------------
-// framework-slim DX-2: the same recipe through the `.with(installer)` pipe.
-// `NextServerHost = WrapperI18nHost & I18nLoaderApi`, so this is the sharpest
-// possible decay probe — if the pipe let the host collapse to `any`, the
-// negative case below would stop erroring.
-// ---------------------------------------------------------------------------
+// The same recipe through the `.with(installer)` pipe — the sharpest decay
+// probe: if the pipe let the host collapse to `any`, the negative case below
+// would stop erroring.
 const pipedHost = serverEntry
   .createI18n({ locale: "en", defaultNs: "common" })
   .with(serverEntry.loader({ en: async () => ({ default: { hello: "Hello" } }) }));
@@ -162,8 +142,7 @@ export type _PipedHostIsExact = Expect<Equal<typeof _piped.i18n, typeof pipedHos
 export type _PipedHostIsAServerHost = Expect<
   Equal<typeof pipedHost extends NextServerHost ? true : false, true>
 >;
-// `.with(attachLoader)` is the installer for a host with no import map — the
-// form `fw-next-server-default-loader` measures.
+// `.with(attachLoader)` is the installer for a host with no import map.
 void createNextI18nFromHost(
   () => serverEntry.createI18n({ locale: "en" }).with(serverEntry.attachLoader),
   ROUTING,

@@ -1,4 +1,3 @@
-// Re-export encoding constants
 export * from "./encoding";
 
 export const TAG_ATTRIBUTES = {

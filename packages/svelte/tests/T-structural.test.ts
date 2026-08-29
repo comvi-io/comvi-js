@@ -1,17 +1,13 @@
 /**
- * Structural-render contract for the rewritten T.svelte (§4.2):
- *   - the component renders the VirtualNode tree as real DOM nodes; there is
- *     no HTML-string sink ({@html}) anywhere in the component source;
- *   - Svelte component handlers participate in tag interpolation (parity with
- *     the vue/react/solid wrappers);
- *   - children snippet acts as missing-translation fallback;
- *   - a fallback-parity fixture pins the same template + params table the
- *     vue/react wrappers produce (the cross-wrapper harness lands in Wave 2b —
- *     keep WRAPPER_PARITY_FIXTURE in sync when porting).
+ * Structural-render contract for T.svelte against the REAL `@comvi/core`
+ * pipeline (no FakeI18n), so tag parsing, the per-call extension channel and
+ * missing-param semantics are exercised end to end: the VirtualNode tree
+ * renders as real DOM nodes with no `{@html}` sink anywhere in the component,
+ * Svelte component handlers participate in tag interpolation, and the children
+ * snippet is the missing-translation fallback.
  *
- * Unlike the FakeI18n-driven suites, these tests run against the REAL
- * @comvi/core pipeline so tag parsing, the per-call extension channel, and
- * missing-param semantics are exercised end to end.
+ * WRAPPER_PARITY_FIXTURE below is the shared table — this file is the source of
+ * truth the react/vue/solid copies are kept in sync with.
  */
 import { readFileSync } from "node:fs";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -21,10 +17,6 @@ import TInterpolationWrapper from "./TInterpolationWrapper.test.svelte";
 import TFallbackWrapper from "./TFallback.test.svelte";
 import StructuralBadge from "./StructuralBadge.test.svelte";
 import type { ComponentMap } from "../src/types";
-
-// ---------------------------------------------------------------------------
-// Shared fallback-parity fixture (same table as the vue/react wrappers)
-// ---------------------------------------------------------------------------
 
 export const WRAPPER_PARITY_FIXTURE = {
   translations: {
@@ -44,7 +36,7 @@ export const WRAPPER_PARITY_FIXTURE = {
       components: { outer: "strong", inner: "em" },
       text: "Read the fine print.",
     },
-    // missingParam: "literal" (core 0.5 default) — placeholder renders as itself
+    // Core's default `missingParam: "literal"` renders the placeholder as-is.
     { key: "missing-param", params: {}, components: {}, text: "Hi {name}" },
   ],
 } as const;
@@ -101,8 +93,8 @@ describe("T.svelte structural render", () => {
 
     component = mount(TInterpolationWrapper, { target, props: { i18n, i18nKey: "evil" } });
 
-    // No handler for <script> → the tag falls back to its inner text; nothing
-    // in a translation string can create DOM elements.
+    // No handler for `<script>`, so the tag falls back to its inner text:
+    // nothing in a translation string can create a DOM element.
     expect(target.querySelector("script")).toBeNull();
     expect(Reflect.get(window, "pwned")).toBeUndefined();
     expect(target.textContent).toContain("hi ");
@@ -163,15 +155,9 @@ describe("T.svelte structural render", () => {
     expect(target.textContent).not.toContain("missing.key");
   });
 
-  // The host is the BASE one `@comvi/svelte`'s single entry builds, and it has
-  // no tag syntax of its own: `<T>` does not depend on ambient registration,
-  // because prepareTranslation passes the tag extension per call — which is
-  // why `<T>` imports the PURE `@comvi/core/rich-text` seam and nothing in this
-  // package imports `@comvi/core/tags` at all.
-  // So every row below must produce byte-identical text to the react/vue/solid
-  // wrappers. (Before the entries converged this table ran twice — once on the
-  // wrapper's composed root, once on core's — and the two hosts are now the
-  // same object, so one pass is the whole claim.)
+  // The host is the BASE one, with no tag syntax of its own: these rows pass
+  // only because `prepareTranslation` passes the tag extension per call. Every
+  // row must produce byte-identical text to the react/vue/solid wrappers.
   describe("fallback-parity fixture (shared with vue/react)", () => {
     for (const parityCase of WRAPPER_PARITY_FIXTURE.cases) {
       it(`produces the shared text for "${parityCase.key}"`, () => {

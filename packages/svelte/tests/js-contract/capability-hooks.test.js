@@ -1,15 +1,15 @@
-// Plan §2.4 + §3.2 — the acquisition contract of `useI18nLoader()` /
-// `useI18nPlugins()`, asserted against BOTH published build families.
+// The acquisition contract of `useI18nLoader()` / `useI18nPlugins()`, asserted
+// against BOTH published build families.
 //
 // The dev and prod messages are written out verbatim below rather than
 // imported from `missingCapability`: importing the factory would compare the
 // artifact against itself and pass no matter what it says.
-// `__COMVI_CORE_BUILD__` is defined per vitest project (vitest.config.ts) and
-// says which core dist this run resolved.
+// `__COMVI_CORE_BUILD__` is defined per vitest project and says which core
+// dist this run resolved.
 //
-// Svelte specific (§3.2): these are context READERS, not stores — they are
-// called during component initialisation, so the throw surfaces out of
-// `mount()`, and what they return is a plain object of bound functions.
+// Svelte specific: these are context READERS, not stores — called during
+// component initialisation, so the throw surfaces out of `mount()`, and what
+// they return is a plain object of bound functions.
 import { afterEach, beforeEach, describe, it, expect } from "vitest";
 import { mount, unmount } from "svelte";
 import { createI18n } from "@comvi/core";
@@ -108,9 +108,8 @@ describe(`capability acquisition (${__COMVI_CORE_BUILD__} core build)`, () => {
   });
 
   it("keeps 0.4.x's ROOT-host reach on a fully composed host", () => {
-    // 0.4.x shipped both capabilities on the root `createI18n`. 0.5.0 makes
-    // them explicit, so the same reach is one composition expression — and the
-    // acquisition point is the reader, exactly as it is for a partial host.
+    // Both capabilities composed at once: the acquisition point is still the
+    // reader, exactly as it is for a partial host.
     const host = attachPlugins(attachLoader(baseHost()));
 
     const loader = acquire(host, useI18nLoader);
@@ -160,20 +159,14 @@ describe(`capability acquisition (${__COMVI_CORE_BUILD__} core build)`, () => {
     }
   });
 
-  // ── B8: ONE canonical behaviour for a non-string `onMissingKey` result ──
+  // ONE canonical behaviour for a non-string `onMissingKey` result:
+  // PASS-THROUGH. Core's `I18nPluginHostApi["onMissingKey"]` declares the
+  // callback returns `TranslationResult | void`, and `_missHook` takes it
+  // as-is. React once coerced it with `String(result)`, flattening a rich
+  // fallback to `"rich-,[object Object]"` in one wrapper alone.
   //
-  // The four wrappers had drifted here: react wrapped the callback and coerced
-  // its result with `String(result)`; vue, solid and svelte bound the host
-  // method raw. Core decides, and core's `I18nPluginHostApi["onMissingKey"]`
-  // declares the callback returns `TranslationResult | void` — a string OR the
-  // `Array<string | VirtualNode>` a rich-text fallback is made of — which
-  // `_missHook` takes as-is. So the canonical behaviour is PASS-THROUGH; the
-  // coercion invented a semantic core does not have and flattened a rich
-  // fallback to `"rich-,[object Object]"` in react alone.
-  //
-  // The identical assertions live in all four wrapper packages
-  // (`scripts/wrapper-hooks-parity.test.mjs` pins the implementation they
-  // exercise), so this is the behavioural half of the parity claim.
+  // The identical assertions live in all four wrapper packages — the
+  // behavioural half of what `scripts/wrapper-hooks-parity.test.mjs` pins.
   it("hands core a non-string onMissingKey result UNTOUCHED (B8 parity)", () => {
     const richFallback = [
       "rich-",

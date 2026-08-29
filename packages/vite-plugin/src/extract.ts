@@ -1,9 +1,4 @@
-/**
- * Extract translation keys and params from local JSON files.
- *
- * Reads JSON translation files → flattens nested keys to dot-notation →
- * parses ICU-like params ({name}, {count, plural, ...}) from values.
- */
+/** Extract translation keys and ICU params from local JSON files. */
 
 import fs from "node:fs/promises";
 import path from "node:path";
@@ -41,9 +36,6 @@ function buildTemplateRegex(fileTemplate: string): RegExp {
   return new RegExp(`^${pattern}$`);
 }
 
-/**
- * Recursively find all JSON files in a directory.
- */
 async function findFiles(dir: string): Promise<string[]> {
   const results: string[] = [];
   const entries = await fs.readdir(dir, { withFileTypes: true });
@@ -58,9 +50,6 @@ async function findFiles(dir: string): Promise<string[]> {
   return results;
 }
 
-/**
- * Discover translation files matching the template pattern.
- */
 async function discoverFiles(
   translationsPath: string,
   fileTemplate: string,
@@ -129,15 +118,13 @@ function extractParams(value: string): SchemaParam[] {
     if (!startMatch) continue;
 
     const name = startMatch[1];
-    const delimiter = startMatch[2].trim(); // "," or "}"
+    const delimiter = startMatch[2].trim();
 
     if (params.has(name)) continue;
 
     if (delimiter === "}") {
-      // Simple placeholder: {name}
       params.set(name, { name, type: "string" });
     } else {
-      // Complex ICU: {varName, type, ...}
       const afterName = rest.slice(name.length).trimStart().slice(1).trimStart(); // skip comma
       if (afterName.startsWith("plural") || afterName.startsWith("selectordinal")) {
         params.set(name, { name, type: "number" });
@@ -169,7 +156,6 @@ function mergeParams(existing: SchemaParam[], incoming: SchemaParam[]): SchemaPa
     if (!prev) {
       map.set(p.name, p);
     } else if (p.type === "number") {
-      // number is more specific (plural), prefer it
       map.set(p.name, p);
     }
   }
@@ -199,7 +185,6 @@ export async function extractSchema(options: {
   const allJsonFiles = await findFiles(translationsPath);
   const matchedPaths = new Set<string>();
 
-  // Step 1: Match files against template pattern
   const templateFiles = await discoverFiles(translationsPath, fileTemplate);
   for (const file of templateFiles) {
     matchedPaths.add(file.filePath);
@@ -218,7 +203,7 @@ export async function extractSchema(options: {
     }
   }
 
-  // Step 2: Unmatched JSON files → default namespace
+  // JSON files the template did not match fall back to the default namespace.
   for (const filePath of allJsonFiles) {
     if (matchedPaths.has(filePath)) continue;
 

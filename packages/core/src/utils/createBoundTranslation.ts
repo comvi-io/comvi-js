@@ -6,10 +6,7 @@ import type {
   DefaultTranslationParams,
 } from "../types";
 
-/**
- * Interface for any i18n instance that has a compatible translation method.
- * This allows createBoundTranslation to work with both I18n and framework-specific wrappers.
- */
+/** Structural: satisfied by `I18n` and by the framework wrappers alike. */
 export interface I18nTranslatable<D extends DefaultTranslationParams = {}> {
   t<K extends keyof TranslationKeys | (string & Record<never, never>)>(
     key: K,
@@ -22,14 +19,8 @@ export interface I18nTranslatable<D extends DefaultTranslationParams = {}> {
 }
 
 /**
- * Creates a translation function with optional namespace binding.
- *
- * This utility simplifies framework binding implementations by extracting
- * the complex namespace merging logic into a single reusable function.
- *
- * @param i18n - Any i18n instance with a compatible t() method
- * @param ns - Optional namespace to bind to all translations
- * @returns A translation function with the same signature as i18n.t
+ * A translation function with an optional namespace bound in. Prefers `tRaw`
+ * when the host has one, so structured results survive.
  *
  * @example Without namespace binding
  * ```typescript
@@ -66,17 +57,17 @@ export function createBoundTranslation<D extends DefaultTranslationParams = {}>(
   ): TranslationResult => {
     const userParams = params[0];
 
-    // No user params: bind namespace with a fresh object to avoid cross-call mutation leaks.
+    // A fresh object per call: a shared one would leak mutations across calls.
     if (userParams == null) {
       return translateRaw(key as any, { ns } as any) as TranslationResult;
     }
 
-    // User explicitly provided ns - don't override, use their params as-is
+    // An explicit `ns` from the caller is never overridden.
     if (userParams.ns !== undefined) {
       return translateRaw(key as any, userParams as any) as TranslationResult;
     }
 
-    // SLOW PATH: Must merge ns with user params (rare case)
+    // Slow path — a merge allocates.
     return translateRaw(key as any, { ns, ...userParams } as any) as TranslationResult;
   };
 }

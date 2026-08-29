@@ -1,8 +1,7 @@
 <script lang="ts">
-  // Single-entry P3 probe: everything this component needs comes from
-  // `../src/index` — the ONE published surface. It reports the loader bag so
-  // the test can assert a root-built host composes and acquires a capability
-  // without the app ever naming `@comvi/core`.
+  // Everything here comes from `../src/index`, the ONE published surface. It
+  // reports the loader bag so the test can assert a root-built host composes
+  // and acquires a capability without the app ever naming `@comvi/core`.
   import { setI18nContext, useI18n, useI18nLoader } from "../src/index";
   import type { UseI18nLoaderReturn, WrapperI18nHost } from "../src/index";
 

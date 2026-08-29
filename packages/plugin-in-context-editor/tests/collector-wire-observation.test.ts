@@ -1,5 +1,5 @@
 /**
- * Cross-repo shape lock (RALPLAN wave-2a code-review B1). Drives an actual
+ * Cross-repo shape lock. Drives an actual
  * element through the FULL collector pipeline (enumerate -> signals ->
  * buildNeighborCandidates -> inferTargetType -> Observation construction ->
  * transport) and asserts the exact JSON sent on POST /v1/context/usages
@@ -7,12 +7,11 @@
  * byte-for-byte (well, structurally — JSON key order doesn't matter for
  * `toEqual`, but every field/value must match exactly).
  *
- * worker-platform validates a byte-identical copy of the fixture against the
+ * The platform validates a byte-identical copy of the fixture against the
  * server's `ObservationSchema`/`NeighborRefSchema`
- * (apps/api/src/modules/context/api.schemas.ts) — this is the seam test that
- * would have caught the B1 shape mismatch (stray `readingOrderIndex`/`debug`
- * top-level fields, extra `ariaRole`/`hasAriaLabel`/`textLength` on
- * neighbors) before it ever reached real traffic.
+ * (apps/api/src/modules/context/api.schemas.ts). This is the seam that catches
+ * a shape mismatch — stray `readingOrderIndex`/`debug` top-level fields, extra
+ * `ariaRole`/`hasAriaLabel`/`textLength` on neighbors — before real traffic.
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";

@@ -12,11 +12,10 @@ import type {
 } from "./types";
 
 /**
- * Get i18n for use in Server Components, Server Actions, and Route Handlers
+ * Get i18n for use in Server Components, Server Actions, and Route Handlers.
  *
- * This function uses the global i18n instance (configured via setI18n) and
- * automatically reads the locale from the request context (set by setRequestLocale
- * or middleware).
+ * Uses the global i18n instance (configured via setI18n) and reads the locale
+ * from the request context (set by setRequestLocale or middleware).
  *
  * @param options - Options object with locale and namespace
  * @returns Object with t() function and hasTranslation() helper
@@ -46,24 +45,6 @@ import type {
  * t('roles.admin', { ns: 'admin' })  // → "Administrator"
  * ```
  *
- * @example
- * ```tsx
- * // With explicit locale (for generateMetadata)
- * export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }) {
- *   const { locale } = await params;
- *   const { t } = await getI18n({ locale });
- *   return { title: t('common.title') };
- * }
- * ```
- *
- * @example
- * ```tsx
- * // Check if translation exists (with namespace support)
- * const { t, hasTranslation } = await getI18n();
- * hasTranslation('common.title')              // true (default namespace)
- * hasTranslation('title', { ns: 'admin' })    // true (admin namespace)
- * ```
- *
  * @remarks
  * getI18n auto-loads only the default namespace (or the namespace passed via
  * getI18n({ ns })). If you call t() with a different ns, ensure you preloaded it
@@ -73,7 +54,6 @@ export async function getI18n(options?: GetI18nOptions): Promise<ServerI18n> {
   const i18n = getI18nInstance();
   await ensureInitialized(i18n);
 
-  // Get locale from options or request context
   let locale = options?.locale;
   if (!locale) {
     try {
@@ -90,8 +70,7 @@ export async function getI18n(options?: GetI18nOptions): Promise<ServerI18n> {
 
   const defaultNs = options?.ns ?? i18n.getDefaultNamespace();
 
-  // Auto-load translations if not available
-  // This ensures translations work even when page renders before layout completes
+  // A page can render before its layout completes, so the namespace may not be in yet.
   if (!i18n.hasLocale(locale, defaultNs)) {
     await loadTranslations(locale, { namespaces: [defaultNs] });
   }
@@ -101,7 +80,7 @@ export async function getI18n(options?: GetI18nOptions): Promise<ServerI18n> {
     params?: TranslationParams,
   ) => TranslationResult;
 
-  // Create translation function that passes locale in params for thread-safety
+  // The locale travels in params, so concurrent renders cannot race on it.
   const t = ((key: string, params?: TranslationParams) => {
     const result = translate(key, {
       ...params,
@@ -110,7 +89,6 @@ export async function getI18n(options?: GetI18nOptions): Promise<ServerI18n> {
     return translationResultToString(result);
   }) as TranslationFunction;
 
-  // Create hasTranslation helper
   const hasTranslation = (key: string, opts?: HasTranslationOptions) => {
     const checkLocale = opts?.locale ?? locale;
     const checkNs = opts?.ns ?? defaultNs;

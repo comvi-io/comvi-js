@@ -3,11 +3,8 @@ import type { NextServerHost, ServerI18nHost } from "./hostTypes";
 import type { RequestStore } from "./types";
 
 /**
- * Request-scoped locale storage using React cache()
- * This allows setRequestLocale() to store locale that getTranslations() can read
- *
- * React's cache() creates a per-request memoized value in Server Components,
- * allowing us to share state across the component tree without prop drilling.
+ * React's cache() creates a per-request memoized value in Server Components, so
+ * the locale is shared across the component tree without prop drilling.
  */
 const getRequestStore = cache(
   (): RequestStore => ({
@@ -16,27 +13,22 @@ const getRequestStore = cache(
 );
 
 /**
- * The server i18n once-cell.
+ * The server i18n once-cell. Two configuration sources feed it
+ * (`setI18n(instance)` and `createNextI18nFromHost()`, a factory that must not
+ * run until something needs the instance) and two paths resolve it (the factory
+ * result's `i18n` getter and `getI18nInstance()`); neither path is required to
+ * run first.
  *
- * Two configuration sources feed it — `setI18n(instance)` (a ready instance)
- * and `createNextI18nFromHost()` (a host FACTORY that must not run until
- * something needs the instance) — and two trigger paths resolve it: the
- * factory result's `i18n` getter and `getI18nInstance()` (reached from
- * `getI18n()` / `loadTranslations()`). Neither path is required to run first.
+ * `resolving` is a transient micro-state held only for the duration of the
+ * synchronous factory call, so re-entrancy is a loud cycle error rather than a
+ * second `host()` invocation. Resolution is synchronous by construction (the
+ * factory is `() => C`), so concurrent server renders — which can only
+ * interleave at await points — observe `factory` → `resolved` as atomic.
  *
- * Durable states are `empty | factory | resolved`; `resolving` is the one
- * transient micro-state, held only for the duration of the synchronous
- * factory call so that re-entrancy is a loud cycle error rather than a second
- * `host()` invocation. Resolution is synchronous by construction (the factory
- * is `() => C`, no await exists inside it), so concurrent server renders —
- * which can only interleave at await points — observe `factory` → `resolved`
- * as atomic.
- *
- * The cell is a module-local binding and is deliberately NEVER anchored on
- * `globalThis`: a Next dev recompile re-evaluates this module and gets a fresh
- * `empty` cell. Nothing resets it in dev; a surviving cell that a re-run setup
- * module conflicts with throws loudly, which is the correct signal (remedy: a
- * full dev-server restart), not a silent dev-only reset.
+ * Module-local, deliberately NEVER anchored on `globalThis`: a Next dev
+ * recompile re-evaluates this module and gets a fresh `empty` cell. A surviving
+ * cell that a re-run setup module conflicts with throws loudly (remedy: a full
+ * dev-server restart) rather than silently resetting.
  */
 type HostFactory = () => ServerI18nHost;
 
@@ -57,10 +49,8 @@ let cell: CellState = EMPTY;
  * Two configuration sources is a programming error, not a last-write-wins
  * merge. Thrown in development AND production, naming both sources.
  *
- * Deliberately terse — it ships in every consumer's server bundle, and §2.4's
- * production-message convention is "name the subject and the fix, drop the
- * prose". Which source configured the cell is derived, not stored as a label,
- * so an app that never calls `setI18n` drops both names with this function.
+ * Which source configured the cell is derived, not stored as a label, so an app
+ * that never calls `setI18n` drops both names along with this function.
  */
 const configurationConflict = (configured: CellState, incoming: string): Error =>
   new Error(
@@ -70,9 +60,7 @@ const configurationConflict = (configured: CellState, incoming: string): Error =
   );
 
 /**
- * Configure the global i18n instance for server-side usage
- *
- * Call this once in your i18n configuration file to make getTranslations() work.
+ * Configure the global i18n instance for server-side usage.
  *
  * Calling it again with the SAME instance is a no-op (setup files commonly run
  * more than once). Any other second configuration — a different instance, or a
@@ -179,18 +167,12 @@ export function _resetServerI18n(): void {
   cell = EMPTY;
 }
 
-/**
- * Set the request locale in the cache
- * @internal
- */
+/** @internal */
 export function setRequestLocaleInternal(locale: string): void {
   getRequestStore().locale = locale;
 }
 
-/**
- * Get the request locale from cache
- * @internal
- */
+/** @internal */
 export function getRequestLocaleFromCache(): string | undefined {
   return getRequestStore().locale;
 }

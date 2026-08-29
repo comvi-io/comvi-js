@@ -216,9 +216,8 @@ describe("T.svelte tag interpolation contract", () => {
       },
     });
 
-    // XSS payload must not create an actual <img> element
     expect(target.querySelector("img")).toBeNull();
-    // The <a> element must exist with the payload safely contained as attribute text
+    // The `<a>` exists; the payload stays inert attribute text.
     const anchor = target.querySelector("a");
     expect(anchor).not.toBeNull();
     expect(anchor!.getAttribute("href")).toBe('"><img src=x onerror=alert(1)>');

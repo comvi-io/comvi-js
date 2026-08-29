@@ -306,7 +306,6 @@ describe("i18n middleware", () => {
       fullPath: "/de/about",
     } as any);
 
-    // Path already has locale prefix, no redirect needed
     expect(result).toBeUndefined();
     const localeState = useState<string>("i18n-locale");
     expect(localeState.value).toBe("de");

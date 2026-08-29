@@ -4,13 +4,11 @@ import { defineComponent, h, ref } from "vue";
 
 const { t } = useI18n();
 
-// ICU Select examples state
 const gender = ref<"male" | "female" | "other">("male");
 const formality = ref<"formal" | "informal">("formal");
 const genderCount = ref(5);
 const formalityCount = ref(3);
 
-// Nested tags example state
 const nestedCount = ref(3);
 
 const CardWrapper = defineComponent({
@@ -62,7 +60,6 @@ useLocaleHead({
       {{ t("rich_text.title") }}
     </h2>
 
-    <!-- HTML Interpolation -->
     <div class="space-y-2">
       <h3 class="font-semibold">HTML Tags</h3>
       <p class="p-4 bg-gray-50 rounded border">
@@ -70,7 +67,6 @@ useLocaleHead({
       </p>
     </div>
 
-    <!-- Link Interpolation -->
     <div class="space-y-2">
       <h3 class="font-semibold">Links</h3>
       <p class="p-4 bg-gray-50 rounded border">
@@ -89,7 +85,6 @@ useLocaleHead({
       </p>
     </div>
 
-    <!-- Component Interpolation -->
     <div class="space-y-2">
       <h3 class="font-semibold">Component Interpolation using &lt;T&gt;</h3>
       <div class="p-4 bg-gray-50 rounded border">
@@ -105,13 +100,11 @@ useLocaleHead({
       </p>
     </div>
 
-    <!-- Nested Tag Interpolation Section -->
     <div class="border-t pt-8 mt-8">
       <h3 class="text-xl font-bold mb-4">
         {{ t("rich_text.nested_tags_title") }}
       </h3>
 
-      <!-- Simple Nested Tags -->
       <div class="space-y-3 mb-6">
         <h4 class="font-semibold">
           Simple Nesting: &lt;link&gt;&lt;bold&gt;text&lt;/bold&gt;&lt;/link&gt;
@@ -137,7 +130,6 @@ useLocaleHead({
         </p>
       </div>
 
-      <!-- Mixed Content with Params -->
       <div class="space-y-3 mb-6">
         <h4 class="font-semibold">Mixed Content with ICU Params</h4>
         <div class="flex items-center gap-4 mb-2">
@@ -171,7 +163,6 @@ useLocaleHead({
         </p>
       </div>
 
-      <!-- Deep Nesting (3+ levels) -->
       <div class="space-y-3 mb-6">
         <h4 class="font-semibold">Deep Nesting (3+ levels)</h4>
         <div class="p-4 bg-blue-50 rounded border border-blue-200">
@@ -200,7 +191,6 @@ useLocaleHead({
       </div>
     </div>
 
-    <!-- ICU Select Section -->
     <div class="border-t pt-8 mt-8">
       <h3 class="text-xl font-bold mb-4">
         {{ t("rich_text.select_title") }}
@@ -209,7 +199,6 @@ useLocaleHead({
         {{ t("rich_text.select_intro") }}
       </p>
 
-      <!-- Gender Select Example -->
       <div class="space-y-3 mb-6">
         <h4 class="font-semibold">Gender Select</h4>
         <div class="flex items-center gap-4">
@@ -235,7 +224,6 @@ useLocaleHead({
         </div>
       </div>
 
-      <!-- Formality Select Example -->
       <div class="space-y-3 mb-6">
         <h4 class="font-semibold">Formality Select</h4>
         <div class="flex items-center gap-4">
@@ -266,13 +254,11 @@ useLocaleHead({
       </div>
     </div>
 
-    <!-- Combined Select + Plural Section -->
     <div class="border-t pt-8 mt-8">
       <h3 class="text-xl font-bold mb-4">
         {{ t("rich_text.combined_title") }}
       </h3>
 
-      <!-- Gender + Plural Example -->
       <div class="space-y-3 mb-6">
         <h4 class="font-semibold">Gender + Message Count</h4>
         <div class="flex items-center gap-4 flex-wrap">
@@ -307,7 +293,6 @@ useLocaleHead({
         </div>
       </div>
 
-      <!-- Formality + Plural Example -->
       <div class="space-y-3 mb-6">
         <h4 class="font-semibold">Formality + Notification Count</h4>
         <div class="flex items-center gap-4 flex-wrap">

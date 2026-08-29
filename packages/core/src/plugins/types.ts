@@ -1,17 +1,11 @@
 import type { I18nPluginHost } from "../types";
 
-/**
- * Plugin Cleanup Function
- *
- * Returned by plugins to clean up resources when Comvi i18n is destroyed
- */
+/** Returned by a plugin to release its resources when the instance is destroyed. */
 export type PluginCleanup = () => void | Promise<void>;
 
 /**
- * I18n Plugin Function Type
- *
- * Plugins receive the i18n instance and can interact with it directly.
- * They can register hooks, loaders, detectors, and use all public i18n methods.
+ * A plugin receives the i18n instance and may register hooks, loaders and
+ * detectors on it.
  *
  * The host type is the **composed full surface** (`I18nPluginHost`) — the base
  * host plus the loader and plugin capabilities. A plugin only ever runs on a
@@ -22,8 +16,7 @@ export type PluginCleanup = () => void | Promise<void>;
  * `createI18n({ … }).with(loader()).with(plugins())` and
  * `createI18n({ … }).with(plugins()).with(loader())` are equivalent.
  *
- * @param i18n - The i18n instance
- * @returns void, Promise<void>, or a cleanup function
+ * @returns Nothing, or a cleanup function.
  *
  * @example
  * ```typescript
@@ -44,7 +37,7 @@ export type I18nPlugin = (
 ) => void | Promise<void> | PluginCleanup | Promise<PluginCleanup>;
 
 /**
- * Plugin Factory - Common pattern for creating configurable plugins
+ * The conventional shape for a configurable plugin.
  *
  * @example
  * ```typescript
@@ -58,26 +51,19 @@ export type I18nPlugin = (
  */
 export type I18nPluginFactory<T = unknown> = (options?: T) => I18nPlugin;
 
-/**
- * Options for plugin registration
- */
 export interface PluginOptions {
   /**
-   * Whether the plugin is required for operation
-   * Required plugins will throw errors if they fail
-   * Optional plugins will log errors but allow Comvi i18n to continue
+   * A required plugin's failure throws out of `init()`; an optional one's is
+   * reported and initialization continues.
    * @default true
    */
   required?: boolean;
 
   /**
-   * Timeout in milliseconds for plugin initialization
-   * @default 10000 (10 seconds)
+   * Milliseconds allowed for plugin initialization before it is failed.
+   * @default 10000
    */
   timeout?: number;
 
-  /**
-   * Custom error handler for plugin failures
-   */
   onError?: (error: Error) => void;
 }

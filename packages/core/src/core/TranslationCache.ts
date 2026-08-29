@@ -1,17 +1,14 @@
 import type { FlattenedTranslations } from "../types";
 
-/**
- * TranslationCache encapsulates translation storage with a clear API.
- * Uses nested Map<locale, Map<namespace, translations>> for fast lookups.
- */
+/** Nested `Map<locale, Map<namespace, translations>>` storage. */
 export class TranslationCache {
   private _cache = new Map<string, Map<string, FlattenedTranslations>>();
   private _defaultNs: string;
   private _revision = 0;
   /**
-   * Lazily-built flat snapshot of the cache. Invalidated on any mutation.
-   * Framework bindings rely on this being referentially stable between revisions
-   * (React excludes it from memo deps and uses getRevision() for change detection).
+   * Lazily built, invalidated on any mutation. Framework bindings rely on the
+   * reference being STABLE between revisions — React excludes it from memo deps
+   * and uses `getRevision()` for change detection.
    */
   private _flatSnapshot: Map<string, FlattenedTranslations> | null = null;
 
@@ -19,19 +16,10 @@ export class TranslationCache {
     this._defaultNs = options?.defaultNs ?? "default";
   }
 
-  /**
-   * Get translations for a specific locale and namespace
-   */
   get(locale: string, namespace?: string): FlattenedTranslations | undefined {
     return this._cache.get(locale)?.get(namespace ?? this._defaultNs);
   }
 
-  /**
-   * Set translations for a specific locale and namespace
-   * @param locale - The locale code
-   * @param namespace - The namespace
-   * @param translations - The flattened translations
-   */
   set(locale: string, namespace: string, translations: FlattenedTranslations): void {
     let localeMap = this._cache.get(locale);
     if (!localeMap) {
@@ -44,18 +32,11 @@ export class TranslationCache {
     this._revision++;
   }
 
-  /**
-   * Check if translations exist for a specific locale and namespace
-   */
   has(locale: string, namespace?: string): boolean {
     return this._cache.get(locale)?.has(namespace ?? this._defaultNs) === true;
   }
 
-  /**
-   * Delete translations for a specific locale and namespace, or all namespaces for a locale
-   * @param locale - The locale code
-   * @param namespace - Optional namespace (if omitted, deletes all namespaces for the locale)
-   */
+  /** An omitted `namespace` deletes every namespace for the locale. */
   delete(locale: string, namespace?: string): void {
     if (namespace !== undefined) {
       const localeMap = this._cache.get(locale);
@@ -72,42 +53,29 @@ export class TranslationCache {
     this._revision++;
   }
 
-  /**
-   * Clear all translations from the cache
-   */
   clear(): void {
     this._cache.clear();
     this._flatSnapshot = null;
     this._revision++;
   }
 
-  /**
-   * Get all locale codes that have translations loaded
-   */
   getLocales(): string[] {
     return [...this._cache.keys()];
   }
 
-  /**
-   * Get all cache keys in "locale:namespace" format
-   */
+  /** Keys in `"locale:namespace"` format. */
   keys(): IterableIterator<string> {
     return this._getFlatSnapshot().keys();
   }
 
-  /**
-   * Get the number of cached locale-namespace combinations
-   */
+  /** Number of cached locale-namespace combinations. */
   get size(): number {
     let count = 0;
     for (const nsMap of this._cache.values()) count += nsMap.size;
     return count;
   }
 
-  /**
-   * Get a detached flat Map copy of the cache.
-   * Safe for callers to mutate without affecting the cached snapshot used internally.
-   */
+  /** A detached copy — callers may mutate it without touching the internal snapshot. */
   clone(): Map<string, FlattenedTranslations> {
     return new Map(this._getFlatSnapshot());
   }
@@ -126,19 +94,16 @@ export class TranslationCache {
   }
 
   /**
-   * Get a readonly flat snapshot used by framework bindings.
-   * The snapshot reference is stable between revisions. Readonly is enforced
-   * at the type level only — do not mutate.
+   * The flat snapshot used by framework bindings; the reference is stable
+   * between revisions. Readonly is enforced at the TYPE level only — mutating
+   * it corrupts the cache.
    * @internal
    */
   getInternalMap(): ReadonlyMap<string, FlattenedTranslations> {
     return this._getFlatSnapshot();
   }
 
-  /**
-   * Get the current revision number
-   * Used by framework bindings for efficient change detection
-   */
+  /** Bumped on every mutation; framework bindings use it for change detection. */
   getRevision(): number {
     return this._revision;
   }

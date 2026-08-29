@@ -5,15 +5,12 @@ import type { ExportApiResponse } from "../src/types";
 import type { ProjectInfo } from "../src/index";
 import { clearProjectInfoCache } from "../src/index";
 
-// Create MSW server for mocking HTTP requests
 export const server = setupServer();
 
-// Default test configuration
 export const TEST_CDN_URL = "https://cdn.comvi.io/test-project-123";
-export const TEST_PROJECT_ID = 456; // Now a number from API
+export const TEST_PROJECT_ID = 456;
 export const TEST_API_KEY = "test-api-key-789";
 
-// Mock project info response
 export const TEST_PROJECT_INFO: ProjectInfo = {
   id: TEST_PROJECT_ID,
   organizationId: 1,
@@ -22,15 +19,13 @@ export const TEST_PROJECT_INFO: ProjectInfo = {
   sourceLocale: "en",
 };
 
-// Start server before all tests
 beforeAll(() => {
   server.listen({ onUnhandledRequest: "error" });
 });
 
-// Clear project info cache and set up default handlers before each test
 beforeEach(() => {
   clearProjectInfoCache();
-  // Default handler for project info API (needed for dev mode tests)
+  // Dev-mode tests resolve the project before requesting translations.
   server.use(
     http.get(/\/v1\/project$/, ({ request }) => {
       const authHeader = request.headers.get("Authorization");
@@ -42,17 +37,14 @@ beforeEach(() => {
   );
 });
 
-// Reset handlers after each test
 afterEach(() => {
   server.resetHandlers();
 });
 
-// Clean up after all tests
 afterAll(() => {
   server.close();
 });
 
-// Helper to create mock translation data for CDN format (flat object)
 export function createMockTranslations(language: string, namespace: string) {
   return {
     [`${language}.${namespace}.key1`]: `Value 1 in ${language}`,
@@ -61,7 +53,6 @@ export function createMockTranslations(language: string, namespace: string) {
   };
 }
 
-// Helper to create mock API export response
 export function createMockApiResponse(
   locales: string[],
   namespaces: string[],
@@ -86,7 +77,6 @@ export function createMockApiResponse(
   return response;
 }
 
-// Build CDN URL for testing
 export function buildTestCdnUrl(
   language: string,
   namespace: string,
@@ -98,7 +88,6 @@ export function buildTestCdnUrl(
   return `${TEST_CDN_URL}/${namespace}/${language}.json`;
 }
 
-// Helper to setup CDN success response
 export function mockCdnSuccessResponse(
   language: string,
   namespace: string,
@@ -113,7 +102,6 @@ export function mockCdnSuccessResponse(
   );
 }
 
-// Helper to setup CDN error response
 export function mockCdnErrorResponse(
   language: string,
   namespace: string,
@@ -129,7 +117,6 @@ export function mockCdnErrorResponse(
   );
 }
 
-// Helper to setup delayed CDN response
 export function mockCdnDelayedResponse(
   language: string,
   namespace: string,
@@ -146,7 +133,6 @@ export function mockCdnDelayedResponse(
   );
 }
 
-// Helper to setup CDN network error
 export function mockCdnNetworkError(
   language: string,
   namespace: string,
@@ -160,7 +146,6 @@ export function mockCdnNetworkError(
   );
 }
 
-// Helper to setup API success response
 export function mockApiSuccessResponse(
   language: string,
   namespaces: string[],
@@ -173,7 +158,6 @@ export function mockApiSuccessResponse(
   );
 }
 
-// Helper to setup API error response
 export function mockApiErrorResponse(status: number, message?: string) {
   server.use(
     http.get(/\/v1\/translations/, () => {

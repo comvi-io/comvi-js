@@ -186,8 +186,8 @@ test("runSizeCheck skips pending fixtures whose subpath is not exported yet", as
 });
 
 test("pending is declared, not inferred: a resolvable slot still skips", async (t) => {
-  // The framework-slim slots resolve through the exports map today yet measure
-  // the wrong graph until their phase lands, so resolution cannot decide this.
+  // A slot can resolve through the exports map yet still measure the wrong
+  // graph, so resolution cannot decide measurability.
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "size-check-"));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
   const { pkgDir } = makeFakePackage(root);
@@ -348,10 +348,8 @@ test("external keeps framework peer deps out of the measured graph", async (t) =
 
 test("sentinel module IDs gate on the metafile graph, in both polarities", async (t) => {
   // Real @comvi/core: `@comvi/core/tags` pulls the side-effectful register-tags
-  // chunk, the base root must not. (Before the single-entry convergence the
-  // polarity ran root-vs-slim; the root is the base host now, so the tags
-  // subpath is the positive pole.) This is the mechanism behind
-  // probe-react-tags-pinning (plan P0.3) — module IDs, never output text.
+  // chunk, the base root must not. This is the mechanism behind
+  // probe-react-tags-pinning — module IDs, never output text.
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "size-check-"));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
   const sentinelModules = ["packages/core/dist/chunks/comvi-core-register-tags.js"];
@@ -419,11 +417,9 @@ test("sentinelModules without an expectSentinels verdict is rejected", async (t)
 
 // --- The shipped scripts/size-budgets.json, as a file ----------------------
 //
-// These assert the FILE's shape rather than the gate's behaviour, so the
-// maintenance conventions written down in scripts/size-budgets.md cannot rot
-// silently: the 0.5.0 hardening pass cut the file from 33 hand-tuned byte
-// budgets and a ~34 KB prose blob to 15 rows on one mechanical rule, and
-// nothing but a test keeps it there.
+// These assert the FILE's shape rather than the gate's behaviour: the
+// maintenance conventions written down in scripts/size-budgets.md have nothing
+// but a test keeping them from rotting silently.
 
 const SCRIPT_DIR = path.dirname(new URL(import.meta.url).pathname);
 const shippedBudgets = JSON.parse(

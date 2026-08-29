@@ -1,30 +1,18 @@
-// Single-entry P3 gate: the default vue recipe plus EXACTLY ONE capability.
-// Every import comes from `@comvi/vue`; `@comvi/core` is never named by the
-// app — including for `icuCompiler`, which is the point of the single-entry
+// The default vue recipe plus EXACTLY ONE capability, every import from
+// `@comvi/vue` — `icuCompiler` included, which is the point of the single-entry
 // surface: reaching a capability never means reaching past your framework
 // package.
 //
-// NEW case in P3, modelled on `react-icu`. It is the POSITIVE half of the
-// `fw-vue-icu` size row: a size sentinel can only assert a module ABSENT, so
-// that row leaves ICU out of its sentinel list and this case proves ICU's
-// presence by running the bundle and formatting a plural for real, in both
-// bundlers and both modes. The base host without a compiler THROWS
-// E_ICU_SYNTAX on the very template below, so the assertions here fail loudly
-// if the re-export hop ever drops the compiler instead of shipping it.
-//
+// The POSITIVE half of the ICU claim: a size sentinel can only assert a module
+// ABSENT, so this case proves ICU's presence by formatting a plural for real.
 // It also pins the vue-specific half of the ICU contract: the compiler option
 // travels through vue's PRESET — `createI18n` builds the host itself, so the
-// option has to reach the constructor it calls, and `ssrLocale` must not
-// disturb it.
+// option has to reach the constructor it calls, and `ssrLocale` must not disturb
+// it. The runner asserts the capabilities this app does NOT buy stay out of the
+// module graph.
 //
-// The runner also asserts from the module graphs that the capabilities this app
-// does NOT buy — loader, plugins, devtools — plus core's tag-registration pair
-// stay out. The behavioral mirror of those absences is asserted below. Core's
-// BASE entry is present, since the preset constructs on it, so it is never an
-// absence sentinel.
-//
-// <T> rendering needs a renderer and is NOT exercised here (same documented
-// skip as wrappers.mjs). No top-level await: the webpack leg emits commonjs2.
+// <T> rendering needs a renderer and is NOT exercised here. No top-level await:
+// the webpack leg emits commonjs2.
 import { createI18n, I18n, icuCompiler, useI18n } from "@comvi/vue";
 
 function assert(condition, label) {

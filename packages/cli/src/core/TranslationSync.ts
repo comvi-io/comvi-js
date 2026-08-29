@@ -1,13 +1,3 @@
-/**
- * TranslationSync - Handle local translation file operations
- *
- * Responsibilities:
- * - Write translations to local files (pull)
- * - Read translations from local files (push)
- * - Parse file template patterns
- * - Compare local vs remote translations
- */
-
 import { promises as fs } from "fs";
 import { dirname, isAbsolute, join, relative, resolve, sep } from "path";
 import type {
@@ -48,9 +38,6 @@ export class TranslationSync {
     this.format = options.format;
   }
 
-  /**
-   * Write translations to local files
-   */
   async writeTranslations(
     data: TranslationsResponse,
     options: WriteTranslationsOptions = {},
@@ -107,9 +94,6 @@ export class TranslationSync {
     return { files };
   }
 
-  /**
-   * Read translations from local files
-   */
   async readTranslations(options: ReadTranslationsOptions = {}): Promise<LocalTranslations> {
     const defaultNamespace = options.defaultNamespace ?? DEFAULT_NAMESPACE;
     const result: TranslationData = {};
@@ -117,11 +101,9 @@ export class TranslationSync {
     const foundNamespaces = new Set<string>();
     const sourceFiles = new Map<string, string>();
 
-    // Find all translation files
     const files = await this.findTranslationFiles(defaultNamespace);
 
     for (const { locale, namespace, filePath } of files) {
-      // Apply filters
       if (options.locales?.length && !options.locales.includes(locale)) {
         continue;
       }
@@ -168,9 +150,6 @@ export class TranslationSync {
     };
   }
 
-  /**
-   * Clear the translations directory
-   */
   async clearDirectory(): Promise<void> {
     try {
       const cwd = resolve(process.cwd());
@@ -198,9 +177,6 @@ export class TranslationSync {
     }
   }
 
-  /**
-   * Compare local translations with remote translations
-   */
   compareTranslations(local: TranslationData, remote: TranslationData): TranslationDiff {
     let created = 0;
     let updated = 0;
@@ -249,9 +225,6 @@ export class TranslationSync {
     return { created, updated, conflicts, deleted };
   }
 
-  /**
-   * Resolve file path from template
-   */
   private resolveFilePath(locale: string, namespace: string, defaultNamespace: string): string {
     const extension = this.format;
 
@@ -317,9 +290,6 @@ export class TranslationSync {
     return isDefaultFileTemplate(this.fileTemplate);
   }
 
-  /**
-   * Find all translation files in the translations directory
-   */
   private async findTranslationFiles(
     defaultNamespace: string,
   ): Promise<Array<{ locale: string; namespace: string; filePath: string }>> {
@@ -348,9 +318,6 @@ export class TranslationSync {
     return results;
   }
 
-  /**
-   * Recursively walk a directory
-   */
   private async walkDirectory(dir: string, callback: (filePath: string) => void): Promise<void> {
     const entries = await fs.readdir(dir, { withFileTypes: true });
 
@@ -365,9 +332,6 @@ export class TranslationSync {
     }
   }
 
-  /**
-   * Ensure directory exists
-   */
   private async ensureDirectory(path: string): Promise<void> {
     try {
       await fs.mkdir(path, { recursive: true });

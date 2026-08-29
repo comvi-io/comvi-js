@@ -1,9 +1,6 @@
 import { describe, it, expect } from "vitest";
-// The COMPOSITE host: since the single-entry convergence `../../src` is the
-// BASE host, and the batteries-included 0.4 semantics live on in the internal
-// composite `src/core/full.ts` (what the CDN global ships and `@comvi/next`'s
-// builder mirrors). Imported directly — never through the tags-registering
-// helper — so this file's ambient-extension assertions stay meaningful.
+// The COMPOSITE host (`src/core/full.ts`), imported directly rather than
+// through the tags-registering helper.
 import { I18n } from "../../src/core/full";
 import { createI18n } from "../../src";
 import { attachLoader } from "../../src/loader";
@@ -11,21 +8,18 @@ import { attachPlugins } from "../../src/plugins";
 import type { I18nEvent, I18nEventData } from "../../src/types";
 
 /**
- * The framework-slim P1 locale-race seam.
+ * The locale-race seam.
  *
- * `setLocaleAsync` used to carry its race machinery — changeId staleness
- * arbitration, mid-flight cancellation and the loading refcount — on the base
- * class, where a bare `@comvi/core` instance paid for it without ever
- * being able to have a load in flight. The machinery now lives in
- * `@comvi/core/loader`, which OVERRIDES the method: the internal composite
- * inherits the override through `extends`, a base host gets it from
- * `attachLoader`.
+ * The race machinery — changeId staleness arbitration, mid-flight cancellation,
+ * the loading refcount — lives in `@comvi/core/loader`, which OVERRIDES
+ * `setLocaleAsync`. A bare instance can never have a load in flight, so it must
+ * not pay for any of it.
  *
- * These are the event-trace and race tests that pin the split:
- *  • bare (and plugins-only) hosts: one synchronous `localeChanged`, and — the
- *    one deliberate 0.5.0 behavior delta — NO `loadingStateChanged` pair;
- *  • loader-carrying hosts (the composite and a composed base host): the
- *    race semantics, byte for byte identical between the two install surfaces.
+ * The event-trace and race tests that pin the split:
+ *  • bare (and plugins-only) hosts: one synchronous `localeChanged`, and NO
+ *    `loadingStateChanged` pair;
+ *  • loader-carrying hosts (the composite and a composed base host): the race
+ *    semantics, identical between the two install surfaces.
  */
 
 interface EventSource {
@@ -73,9 +67,8 @@ describe("locale switch on a host WITHOUT the loader capability", () => {
     expect(pending).toBeInstanceOf(Promise);
     await expect(pending).resolves.toBeUndefined();
 
-    // 0.5.0 BEHAVIOR DELTA (documented): 0.4.x emitted a transient
-    // loadingStateChanged true→false pair here even with no loader in the
-    // graph. Nothing loads on a bare host, so nothing reports loading.
+    // Nothing loads on a bare host, so nothing reports loading — no transient
+    // `loadingStateChanged` true→false pair.
     expect(trace).toEqual(["locale:en->fr"]);
     expect(i18n.isLoading).toBe(false);
     expect(i18n.t("hi")).toBe("Salut");

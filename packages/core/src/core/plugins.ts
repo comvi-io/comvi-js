@@ -1,25 +1,17 @@
 // Plugin-host capability — the implementation half of `@comvi/core/plugins`.
 //
-// ONE implementation, TWO install surfaces (plan M-1), exactly as
-// `core/loader.ts`: the capability is a class body, `I18nWithPlugins`.
-//   • composite — `core/full.ts` copies this prototype's own descriptors onto
-//            `I18n.prototype` at module scope (the composite already spends its one
-//            `extends` slot on the loader capability, and this class must NOT
-//            extend `I18nWithLoader` — that would drag the loader into a
-//            base+plugins-only module graph);
-//   • base host — `attachPlugins(i18n)` copies the same descriptors onto the
-//            instance.
-// Class-body methods are non-enumerable / writable / configurable, so both
-// surfaces are reflectively identical to the pre-Phase-7 class
-// (`tests/root-contract.test.ts`).
+// ONE implementation, TWO install surfaces, exactly as `core/loader.ts`:
+// `core/full.ts` copies this prototype's own descriptors onto `I18n.prototype`
+// at module scope, and `attachPlugins(i18n)` copies the same descriptors onto a
+// base instance. This class must NOT extend `I18nWithLoader` — the composite
+// already spends its one `extends` slot on the loader capability, and extending
+// it here would drag the loader into a base+plugins-only module graph.
 //
-// MANGLING CONTRACT (plan R2): the `_`-prefixed members below are renamed by
-// the single shared terser nameCache (`vite.shared.ts#mangleInternalProps`),
-// which is only consistent because every core entry — including this one — is
-// built by ONE vite invocation (`coreEntries`). Dot access and method
-// definitions are what terser can correlate: never install or read a `_`
-// member through a string. `tests/dist/base-composition.dist.test.ts` is the
-// canary.
+// MANGLING CONTRACT: the `_`-prefixed members below are renamed by the single
+// shared terser nameCache (`vite.shared.ts#mangleInternalProps`), which is only
+// consistent because every core entry is built by ONE vite invocation
+// (`coreEntries`). Terser can only correlate method definitions and dot access:
+// never install or read a `_` member through a string.
 import type {
   DefaultTranslationParams,
   I18nPluginHost,
@@ -41,13 +33,9 @@ const ERR_REGISTER_LOCALE_DETECTOR = IS_DEV
   : "E_REGISTER_LOCALE_DETECTOR";
 
 /**
- * B2 — the plugin queue is drained inside `init()` and never again, so a
- * plugin registered afterwards silently never runs. Both of the ways to get
- * there (composing the host late, queueing into an already-composed host late)
- * name the same rule.
- *
- * Dev-only by construction: the strings are behind `IS_DEV` at every call
- * site, so terser drops them — and the WeakSet with them — from a prod build.
+ * The plugin queue is drained inside `init()` and never again, so a plugin
+ * registered afterwards silently never runs. Empty in prod so terser drops the
+ * strings — and the WeakSet with them.
  */
 const ERR_LATE_PLUGINS = IS_DEV
   ? "[i18n] .with(plugins()) ran after init(): compose capabilities before init(). The plugin queue is drained inside init() and never again, so a plugin queued now will never run. Create the host, compose it, then init()."
@@ -71,12 +59,11 @@ export type PluginEntry = [
 
 /**
  * The plugin-host capability. Not exported from any entry point: the composite
- * composite installs it on its prototype, a base host gets it via `attachPlugins`.
+ * installs it on its prototype, a base host gets it via `attachPlugins`.
  *
- * Members are accessed through `this` exactly as they were when they lived in
- * the base class — aliasing it to a local shrinks the minified size but
- * measurably WORSENS the gzipped size, so `protected declare` re-declarations
- * are used instead of per-access casts.
+ * Members are reached through `this`, never through a local alias: aliasing
+ * shrinks the minified size but WORSENS the gzipped size, so `protected
+ * declare` re-declarations are used instead of per-access casts.
  */
 export class I18nWithPlugins<D extends DefaultTranslationParams = {}> extends I18nBase<D> {
   /** Plugin-owned state; created by `_initPlugins`, never by a field initializer. */
@@ -90,17 +77,13 @@ export class I18nWithPlugins<D extends DefaultTranslationParams = {}> extends I1
 
   /**
    * TRANSIENT: true only while `_beforeInit` has a plugin function on the
-   * stack. It is the whole state behind `ensureInstallable` below — the
-   * plugins-only nested-use guard — and it is deliberately NOT created by
-   * `_initPlugins`: a host that never ran `init()` has no own property for
-   * it, on the composite and on an attached base host alike.
+   * stack. It is the whole state behind `ensureInstallable` below, and it is
+   * deliberately NOT created by `_initPlugins` — a host that never ran `init()`
+   * has no own property for it.
    */
   declare protected _pluginInit?: boolean;
 
-  /**
-   * Initialize plugin-owned state. Called by the composite's constructor and by
-   * `attachPlugins`; this class declares no constructor of its own.
-   */
+  /** Called by the composite's constructor and by `attachPlugins`; this class declares none of its own. */
   protected _initPlugins(): void {
     this._plugins = [];
     this._pluginCleanups = [];
@@ -109,9 +92,9 @@ export class I18nWithPlugins<D extends DefaultTranslationParams = {}> extends I1
   }
 
   /**
-   * Destroy phase 1: awaited before any lifecycle reset or emit, so cleanups
-   * observe live capability state. LIFO iteration and per-cleanup error
-   * handling are the pre-Phase-7 behavior verbatim.
+   * Destroy phase 1 — awaited before any lifecycle reset or emit, so cleanups
+   * observe live capability state. LIFO: a cleanup may depend on one queued
+   * before it.
    */
   protected async _preDestroy(): Promise<void> {
     while (this._pluginCleanups.length) {
@@ -126,11 +109,11 @@ export class I18nWithPlugins<D extends DefaultTranslationParams = {}> extends I1
   }
 
   /**
-   * Destroy phase 3: the reset runs only after the `destroyed` listeners have
-   * observed the still-live state (two-phase destroy contract). Re-running
-   * the initializer restores exactly the constructed state — a fresh
-   * `_missingKeyCallbacks` is indistinguishable from a cleared one, since the
-   * disposer `onMissingKey` returns reads the field off `this`.
+   * Destroy phase 3 — runs only after the `destroyed` listeners saw the
+   * still-live state. Re-running the initializer restores exactly the
+   * constructed state: a fresh `_missingKeyCallbacks` is indistinguishable from
+   * a cleared one, since the disposer `onMissingKey` returns reads the field
+   * off `this`.
    */
   protected _resetPlugins(): void {
     this._initPlugins();
@@ -138,18 +121,13 @@ export class I18nWithPlugins<D extends DefaultTranslationParams = {}> extends I1
   }
 
   /**
-   * Register a plugin (chainable)
+   * Register a plugin (chainable).
    *
-   * MUST be called BEFORE `init()`. The queue is drained once, inside
-   * `init()`, and re-running it is not supported (a plugin's cleanup and the
-   * lifecycle events around it assume a single drain), so a plugin registered
-   * afterwards never runs. Doing it warns in dev and is a no-op in prod.
-   * Registering from INSIDE a plugin is fine: `init()` has not completed yet,
-   * and the drain loop picks the new entry up.
-   *
-   * @param plugin - The plugin to register
-   * @param options - Plugin options (required, timeout, onError)
-   * @returns this for chaining
+   * MUST be called BEFORE `init()`. The queue is drained once, inside `init()`,
+   * and re-running it is not supported (a plugin's cleanup and the lifecycle
+   * events around it assume a single drain), so a plugin registered afterwards
+   * never runs — that warns in dev and is a no-op in prod. Registering from
+   * INSIDE a plugin is fine: the drain loop picks the new entry up.
    */
   public use(plugin: I18nPluginFn, options?: PluginOptions): this {
     if (IS_DEV && this.isInitialized) warnLateCompose(this, ERR_LATE_USE);
@@ -163,10 +141,9 @@ export class I18nWithPlugins<D extends DefaultTranslationParams = {}> extends I1
   }
 
   /**
-   * @internal `_beforeInit` hook — run the registered plugins, then hand over
-   * to a plugin-registered locale detector. Order is init's pre-Phase-7
-   * sequence exactly: plugins first, detector second (through the public
-   * `setLocaleAsync`, so namespaces load before the locale applies).
+   * @internal `_beforeInit` hook. Plugins first, detector second, and the
+   * detector goes through the public `setLocaleAsync` so namespaces load before
+   * the locale applies.
    */
   protected async _beforeInit(): Promise<void> {
     for (const [plugin, required, timeout, onError] of this._plugins) {
@@ -176,10 +153,9 @@ export class I18nWithPlugins<D extends DefaultTranslationParams = {}> extends I1
       this._pluginInit = true;
       try {
         const result: unknown = await Promise.race([
-          // `I18nPluginHost` is the `{}`-defaults host surface; an instance
+          // `I18nPluginHost` is the `{}`-defaults host surface: an instance
           // with constructor-guaranteed defaults narrows `setDefaultParams`,
           // which the interface's property-style declaration checks strictly.
-          // The class was bivariant here before the type split — preserved.
           plugin(this as unknown as I18nPluginHost),
           new Promise<never>((_, reject) => {
             timeoutId = setTimeout(
@@ -195,11 +171,10 @@ export class I18nWithPlugins<D extends DefaultTranslationParams = {}> extends I1
             );
           }),
         ]);
-        // Only `undefined` and a cleanup function are legal. Anything else —
-        // an installer handing the host back is the shape this catches, and
-        // an expression-bodied arrow that leaks its last value is the other —
-        // fails HERE, before a cleanup is registered and before the plugin
-        // can be counted as initialized.
+        // Only `undefined` and a cleanup function are legal. The two shapes
+        // this catches are an installer handing the host back and an
+        // expression-bodied arrow leaking its last value; both fail HERE,
+        // before a cleanup is registered or the plugin counts as initialized.
         if (result !== undefined) {
           if (typeof result !== "function") throw new Error(ERR_PLUGIN_INIT_RETURN);
           this._pluginCleanups.push(result as () => void | Promise<void>);
@@ -240,10 +215,7 @@ export class I18nWithPlugins<D extends DefaultTranslationParams = {}> extends I1
     }
   }
 
-  /**
-   * Register a locale detector function
-   * Used by plugins to provide automatic locale detection
-   */
+  /** Register a locale detector; `init()` consults it after the plugins have run. */
   public registerLocaleDetector(detector: () => string | Promise<string>): void {
     if (typeof detector !== "function") {
       throw new Error(ERR_REGISTER_LOCALE_DETECTOR);
@@ -251,17 +223,14 @@ export class I18nWithPlugins<D extends DefaultTranslationParams = {}> extends I1
     this._localeDetector = detector;
   }
 
-  /**
-   * Get the registered locale detector function
-   */
   public getLanguageDetector(): (() => string | Promise<string>) | undefined {
     return this._localeDetector;
   }
 
   /**
-   * Register a callback for missing translation keys
-   * @param callback - Function called when a key is missing. Can return a string to use as fallback.
-   * @returns Cleanup function to remove the callback
+   * Register a callback for missing keys; it may return a value to use as the
+   * fallback.
+   * @returns Cleanup function that removes the callback.
    */
   public onMissingKey(
     callback: (key: string, locale: string, namespace: string) => TranslationResult | void,
@@ -271,11 +240,9 @@ export class I18nWithPlugins<D extends DefaultTranslationParams = {}> extends I1
   }
 
   /**
-   * @internal `_missHook` hook — runs at the exact position of the base
-   * class's former callback loop: every callback always runs (plugins track
-   * missing keys through side effects) and the first defined result wins.
-   * `params.fallback` still outranks it and `onMissingKey` from the options
-   * still runs last — both stay base-side.
+   * @internal `_missHook` hook. Every callback always runs — plugins track
+   * missing keys through side effects — and the first defined result wins.
+   * `params.fallback` outranks it; the `onMissingKey` option runs last.
    */
   protected _missHook(
     key: string,
@@ -292,11 +259,7 @@ export class I18nWithPlugins<D extends DefaultTranslationParams = {}> extends I1
     return fallbackValue;
   }
 
-  /**
-   * Register a post-processor function
-   * Post-processors are chained in the order they are registered (FIFO)
-   * @param fn - The post-processor function to register
-   */
+  /** Post-processors are chained in registration order (FIFO). */
   public registerPostProcessor(fn: PostProcessFn): void {
     if (typeof fn !== "function") {
       throw new Error(
@@ -308,17 +271,11 @@ export class I18nWithPlugins<D extends DefaultTranslationParams = {}> extends I1
     this._postProcessors.push(fn);
   }
 
-  /**
-   * Store plugin-specific data on the i18n instance.
-   * This allows plugins to store configuration that persists with the instance.
-   */
+  /** Store plugin-specific data that persists for the life of the instance. */
   public setPluginData(key: string, data: unknown): void {
     this._pluginData[key] = data;
   }
 
-  /**
-   * Retrieve plugin-specific data from the i18n instance.
-   */
   public getPluginData<T = unknown>(key: string): T | undefined {
     return this._pluginData[key] as T | undefined;
   }
@@ -327,37 +284,19 @@ export class I18nWithPlugins<D extends DefaultTranslationParams = {}> extends I1
 /**
  * Add the plugin-host capability to a base host.
  *
- * ```ts
- * const i18n = attachPlugins(attachLoader(createI18n({ locale: "en" })));
- * i18n.use(myPlugin);
- * ```
+ * MUST run BEFORE `init()`, which drains the plugin queue exactly once — a host
+ * composed afterwards has a `use()` that can never take effect.
  *
- * MUST run BEFORE `init()`. `attachPlugins` installs the queue and `init()`
- * drains it exactly once, so composing the host afterwards leaves a host whose
- * `use()` can never take effect — it warns in dev and does nothing in prod.
+ * Attach `attachLoader` TOO if any hosted plugin registers a loader, in either
+ * order. Without it, this installs — IN DEVELOPMENT ONLY — a branded throwing
+ * stand-in for every `I18nLoaderApi` member, so a plugin reaching for
+ * `registerLoader` fails with {@link missingCapability}`("loader")` rather than
+ * a bare `TypeError`. The brand is what keeps `hasLoaderApi` answering the same
+ * in both builds, and the stand-ins carry the real members' descriptors so a
+ * later `attachLoader` overwrites them cleanly.
  *
- * Attach `attachLoader` TOO if any hosted plugin registers a loader — in
- * either order, since both only have to be in place by `init()`, which is when
- * plugins run. When it has NOT run at all, this installs — IN DEVELOPMENT
- * ONLY — a throwing stand-in for
- * every `I18nLoaderApi` member (B4), so a plugin that reaches for
- * `registerLoader` on a plugins-only host fails with
- * {@link missingCapability}`("loader")`, the actionable error every wrapper
- * throws. **Dev-only shims; production throws a bare `TypeError` on a
- * plugins-only host — compose `loader()` as well.** Both builds still throw; only
- * the guidance is a development affordance, and it is not worth ~190 B min+gz
- * in every shipped bundle.
- *
- * The stand-ins are branded, so `hasLoaderApi` reports the capability as
- * absent in dev exactly as it does in prod (where there is no shim to reject),
- * and they carry the same non-enumerable/writable/configurable descriptors the
- * real members do, so a later `attachLoader` overwrites them cleanly (its own
- * `_loadNs` idempotency probe is untouched: only PUBLIC members are shimmed).
- *
- * Idempotent (dot-access probe on an installed hook — never `in`, never a
- * string key: see the mangling contract above). The members land as
- * non-enumerable own properties with class-method descriptors, so
- * `Object.keys(i18n)` and spread copies are unaffected.
+ * Idempotent via a dot-access probe on an installed hook — never `in`, never a
+ * string key (see the mangling contract above).
  */
 export function attachPlugins<T extends I18nBase<any>>(i18n: T): T & I18nPluginHostApi {
   const i = i18n as unknown as I18nInternal;
@@ -366,21 +305,10 @@ export function attachPlugins<T extends I18nBase<any>>(i18n: T): T & I18nPluginH
       I18nWithPlugins.prototype,
     );
 
-    // B4, DEV ONLY: stand in for the loader API this host promises its plugins
-    // but does not have. `_loadNs` is `attachLoader`'s OWN idempotency probe —
-    // the same dot access, so the two can never disagree about whether the
-    // capability is installed (and `hasLoaderApi` would be a second, heavier
-    // answer to a question this module can already ask). ONE shim serves every
-    // member: they all report the same absence. Folded into `api` rather than
-    // defined separately, so the stand-ins land in the same call, with the same
-    // non-enumerable/writable/configurable descriptor the real members carry —
-    // which is what lets a later `attachLoader` overwrite them cleanly.
-    //
-    // The `IS_DEV` guard comes FIRST so terser drops the block, the member list
-    // and the shim factory from a production build: this buys guidance for a
-    // plugin author at development time, and the ~190 B min+gz it costs on
-    // every plugin-host graph is not worth spending on the shipped bundle of
-    // an app whose plugins already work.
+    // The probe is `_loadNs` — `attachLoader`'s OWN idempotency probe, so the
+    // two can never disagree about whether the capability is installed. The
+    // `IS_DEV` guard comes FIRST so terser drops the block, the member list and
+    // the shim factory from a production build.
     if (IS_DEV && i._loadNs === undefined) {
       const shim: PropertyDescriptor = {
         value: capabilityShim("loader"),
@@ -405,35 +333,18 @@ interface PluginInitProbe {
 }
 
 /**
- * The FIRST ensure-step of a lowercase plugin-package installer
- * (`fetchLoader`, `localeDetector`, `inContextEditor`) — the plugins-only
- * nested-use guard.
+ * The FIRST ensure-step of a lowercase plugin-package installer — the
+ * plugins-only nested-use guard.
  *
- * ```ts
- * export function fetchLoader(options: FetchLoaderOptions) {
- *   return (i18n) => {
- *     const host = attachPlugins(attachLoader(ensureInstallable(i18n, "fetchLoader")));
- *     host.use(FetchLoader(options));
- *     return host;
- *   };
- * }
- * ```
+ * An installer is a function of the host, and so is a plugin: nothing brands
+ * them apart, so `.use(fetchLoader(…))` is a type error that would otherwise
+ * RUN, letting the installer attach capabilities and queue a second plugin from
+ * inside the drain loop. This throws instead, at the installer's innermost
+ * expression — before anything is attached — so a rejected install leaves the
+ * host exactly as it was.
  *
- * An installer is a function of the host, and so is a plugin — nothing brands
- * them apart, and `.with` stays a dumb pipe. `.use(fetchLoader(…))` is
- * therefore a type error that would otherwise RUN: the queued "plugin" is the
- * installer, and `init()` would hand it the host and let it attach
- * capabilities and queue a second plugin from inside the drain loop.
- *
- * This throws instead, at the innermost expression of the installer — before
- * `attachLoader`/`attachPlugins`, before `use`, before any lifecycle state
- * moves — so a rejected install leaves the host exactly as it was. The failure
- * then travels the plugin lifecycle's own error path (`onError`,
- * `reportError`, and a rethrow when the entry is required).
- *
- * Outside plugin initialization this returns the host untouched, which is why
- * it is safe as the first line of every installer and costs one property read
- * on the valid `.with` path.
+ * Outside plugin initialization it returns the host untouched, which is what
+ * makes it safe as the first line of every installer.
  */
 export function ensureInstallable<T>(i18n: T, installer: string): T {
   if ((i18n as unknown as PluginInitProbe)._pluginInit) {

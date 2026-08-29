@@ -1,4 +1,4 @@
-// §7.2-1 — static ESM imports and re-exports move off the retired `/slim`
+// static ESM imports and re-exports move off the retired `/slim`
 // host tier. Every binding keeps the same API on the converged root entry.
 import { createI18n } from "@comvi/core";
 import { useI18n } from "@comvi/react";

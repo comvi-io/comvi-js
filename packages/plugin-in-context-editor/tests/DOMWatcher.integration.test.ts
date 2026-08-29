@@ -83,7 +83,6 @@ describe("DOMWatcher.integration.test.ts - DOM Mutation Observation", () => {
       domWatcher.start();
       domWatcher.start(); // Second call should be ignored
 
-      // Should only emit initialScan once
       expect(callback).toHaveBeenCalledTimes(1);
     });
 
@@ -209,7 +208,6 @@ describe("DOMWatcher.integration.test.ts - DOM Mutation Observation", () => {
 
       await flushDOMMutations();
 
-      // Callback should not have been called for non-watched attribute
       expect(callback).not.toHaveBeenCalled();
     });
 
@@ -320,7 +318,6 @@ describe("DOMWatcher.integration.test.ts - DOM Mutation Observation", () => {
         domWatcher.start();
 
         setTimeout(() => {
-          // Check if div is still a child before removing
           if (container.contains(div)) {
             container.removeChild(div);
           }
@@ -341,7 +338,6 @@ describe("DOMWatcher.integration.test.ts - DOM Mutation Observation", () => {
         container.appendChild(parent);
 
         eventBus.on("nodesRemoved", (nodes: Node[]) => {
-          // Should include parent and all descendants
           expect(nodes).toContain(parent);
           expect(nodes).toContain(child1);
           expect(nodes).toContain(child2);
@@ -367,7 +363,6 @@ describe("DOMWatcher.integration.test.ts - DOM Mutation Observation", () => {
         container.appendChild(input);
 
         eventBus.on("nodesRemoved", (nodes: Node[]) => {
-          // Should include the element and its attributes
           expect(nodes).toContain(input);
           const attrs = Array.from(nodes).filter((n) => n.nodeType === Node.ATTRIBUTE_NODE);
           expect(attrs.length).toBeGreaterThan(0);
@@ -584,7 +579,6 @@ describe("DOMWatcher.integration.test.ts - DOM Mutation Observation", () => {
 
       domWatcher.start();
 
-      // Rapid changes to same text node
       textNode.nodeValue = "change1";
       textNode.nodeValue = "change2";
       textNode.nodeValue = "change3";

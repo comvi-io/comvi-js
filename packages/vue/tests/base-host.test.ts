@@ -1,21 +1,12 @@
-// `@comvi/vue`'s bindings on the BASE host.
+// `@comvi/vue`'s bindings on the BASE host — a host that implements
+// `WrapperI18nHost` and nothing more. Nothing the wrapper does at render time
+// may touch a loader/plugin member: a single eager `.bind()` of an absent
+// capability would crash every case below. The composed-host parity check at
+// the end keeps the two configurations from drifting into different
+// `useI18n()` shapes.
 //
-// This is the D′ endpoint: the host implements `WrapperI18nHost` and nothing
-// more, which is exactly what `createCore` — and vue's own one-call
-// `createI18n` — from the single `@comvi/vue` entry builds. Everything
-// `useI18n()` still returns must work on it, and nothing the wrapper does at
-// render time may touch a loader/plugin member: a single eager `.bind()` of an
-// absent capability would crash every case below. The composed-host parity
-// check at the end is what keeps the two configurations from drifting into
-// different `useI18n()` shapes.
-//
-// Every specifier here is the root entry, the way an app writes it: the host,
-// the bindings and the `attachLoader`/`attachPlugins` composition all come from
-// one package.
-//
-// The loud-error side of the contract (exact dev AND prod messages) lives in
-// tests/js-contract/, which runs against the published dist under both build
-// conditions.
+// The loud-error half of the contract (exact dev AND prod messages) lives in
+// tests/js-contract/, against the published dist under both build conditions.
 import { describe, it, expect } from "vitest";
 import { defineComponent, h, nextTick } from "vue";
 import { mount } from "@vue/test-utils";
@@ -100,9 +91,8 @@ describe("vue on a base host", () => {
   });
 
   it("leaves the same markup literal through t() — <T> registers nothing", () => {
-    // `<T>` reaches the PURE `@comvi/core/rich-text` seam and passes the tag
-    // grammar per call, so rendering it above cannot have made `<b>` ambient
-    // for the string API. That residual is documented, not a bug.
+    // `<T>` passes the tag grammar per call, so rendering it above cannot have
+    // made `<b>` ambient for the string API.
     const i18n = createI18nFromCore(baseHost());
 
     expect(i18n.t("tagged")).toBe("a <b>c</b> d");
@@ -121,9 +111,8 @@ describe("vue on a base host", () => {
   it("has no use() anywhere on a base host — wrapper or core", () => {
     const i18n = createI18nFromCore(baseHost());
 
-    // P6 removed the guarded proxy: no member of VueI18n is typed present and
-    // then throws "missing capability" (§2.4). Plugin registration is a
-    // `@comvi/core/plugins` capability, so it is absent from the host too.
+    // No member of VueI18n is typed present and then throws "missing
+    // capability"; plugin registration is a capability, absent from the host.
     expect("use" in i18n).toBe(false);
     expect((i18n as unknown as Record<string, unknown>).use).toBeUndefined();
     expect("use" in i18n.core).toBe(false);
@@ -134,10 +123,9 @@ describe("vue on a base host", () => {
     const i18n = createI18nFromCore(host);
     let installed = false;
 
-    // `use()` registers on the host; core runs plugins at init(). The plugin
-    // body is a STATEMENT block returning void: P5's plugin-init contract
-    // rejects a returned value that is neither void nor a cleanup function,
-    // and an expression-bodied `() => (installed = true)` returns `true`.
+    // The plugin body must be a STATEMENT block: core's plugin-init contract
+    // rejects a return value that is neither void nor a cleanup function, and
+    // an expression-bodied `() => (installed = true)` returns `true`.
     expect(
       i18n.core.use(() => {
         installed = true;

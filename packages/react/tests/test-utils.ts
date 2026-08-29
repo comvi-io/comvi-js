@@ -1,26 +1,14 @@
 import { act } from "@testing-library/react";
 import type { I18n } from "../src";
 
-/**
- * Helper to change locale with proper act() wrapping
- * Prevents "An update to I18nProvider inside a test was not wrapped in act(...)" warnings
- *
- * @example
- * await setLocale(i18n, 'fr');
- */
+/** act()-wrapped, so the provider update does not warn. */
 export const setLocale = async (i18n: I18n, locale: string) => {
   await act(async () => {
     await i18n.setLocaleAsync(locale);
   });
 };
 
-/**
- * Helper to add translations with proper act() wrapping
- * Prevents "An update to I18nProvider inside a test was not wrapped in act(...)" warnings
- *
- * @example
- * await addTranslations(i18n, { en: { key: 'value' } });
- */
+/** act()-wrapped, so the provider update does not warn. */
 export const addTranslations = async (
   i18n: I18n,
   translations: Parameters<I18n["addTranslations"]>[0],

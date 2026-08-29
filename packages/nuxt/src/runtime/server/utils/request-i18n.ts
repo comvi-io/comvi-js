@@ -2,9 +2,7 @@ import type { H3Event } from "h3";
 import { runComviSetup } from "#build/comvi.setup";
 // Same build-time branch as the client plugin: with `hostModule` set, the
 // generated template returns the app's own composed host and nuxt's default
-// `@comvi/vue` construction path is not in the server graph — the app's
-// factory still imports whatever core modules it composes (framework-slim P4
-// step 5).
+// `@comvi/vue` construction path is not in the server graph.
 import { createComviCore } from "#build/comvi.host";
 import type { NuxtServerHost } from "../../../types";
 import { getServerRuntimeConfig } from "./runtime-config";
@@ -21,10 +19,7 @@ const getContextKey = (event: H3Event): object => {
   return event as unknown as object;
 };
 
-/**
- * Get or create per-request i18n instance.
- * Uses WeakMap with event context as key for automatic cleanup.
- */
+/** Keyed by event context in a WeakMap, so cleanup is automatic. */
 export async function getRequestI18n(event: H3Event, locale: string): Promise<NuxtServerHost> {
   const contextKey = getContextKey(event);
   let localeInstances = requestI18nMap.get(contextKey);

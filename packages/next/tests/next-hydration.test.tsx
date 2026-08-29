@@ -1,11 +1,8 @@
 /**
- * Verifies:
- *  - renderToString produces locale-specific text (setup runs before the
- *    inner React provider renders descendants)
- *  - hydrateRoot of the SSR output emits no console.error/warn
- *  - Boundary: no instance-locale mutation outside `syncLocaleSafely` in
- *    `next/client/I18nProvider.tsx` (a future refactor that reintroduces
- *    render-time mutation will fail this test)
+/**
+ * Includes a source boundary: no instance-locale mutation outside
+ * `syncLocaleSafely` in `next/client/I18nProvider.tsx`, so a future refactor
+ * that reintroduces render-time mutation fails here.
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
@@ -78,7 +75,7 @@ describe("Next <I18nProvider> SSR + hydration", () => {
       });
 
       expect(container.textContent).toContain("Bonjour");
-      // A hydration mismatch would emit console.error; neither should fire.
+      // A hydration mismatch would emit console.error.
       expect(errorSpy).not.toHaveBeenCalled();
       expect(warnSpy).not.toHaveBeenCalled();
 
@@ -143,10 +140,8 @@ describe("Next <I18nProvider> SSR + hydration", () => {
 
       expect(container.textContent).toContain("Bonjour");
 
-      // Prop-only re-render with the SAME messages reference. The
-      // useIsomorphicLayoutEffect guard (messages === lastAddedMessagesRef.current)
-      // prevents addTranslations from being called again — no emit, no warning.
-      // Verify microtask deferral does not introduce any new error path here.
+      // Same messages reference: the useIsomorphicLayoutEffect identity guard
+      // must skip addTranslations, so nothing is emitted.
       await act(async () => {
         root.render(
           <I18nProvider i18n={i18n} locale="fr" messages={messages} autoInit={false}>
@@ -173,13 +168,11 @@ describe("Next <I18nProvider> SSR + hydration", () => {
   describe("Architectural boundary — no render-time i18n.locale mutation", () => {
     it("`i18n.locale =` only appears inside the syncLocaleSafely helper", () => {
       const source = readFileSync(resolve(__dirname, "../src/client/I18nProvider.tsx"), "utf8");
-      // Strip out the syncLocaleSafely function body (the one place this
-      // mutation is allowed to live).
+      // syncLocaleSafely is the one place this mutation is allowed to live.
       const stripped = source.replace(
         /function syncLocaleSafely[\s\S]*?\n\}/m,
         "/* syncLocaleSafely stripped for boundary check */",
       );
-      // Anywhere else: forbidden.
       expect(stripped).not.toMatch(/i18n\.locale\s*=\s*[^=]/);
     });
   });

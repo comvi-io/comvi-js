@@ -2,14 +2,8 @@ import type { H3Event } from "h3";
 import type { DefaultTranslationParams, I18n, I18nLoaderApi, WrapperI18nHost } from "@comvi/core";
 import type { VueI18n } from "@comvi/vue";
 
-/**
- * Locale prefix mode for URL routing
- */
 export type LocalePrefixMode = "always" | "as-needed" | "never";
 
-/**
- * Locale object with metadata
- */
 export interface LocaleObject {
   /** Locale code (e.g., "en", "de") */
   code: string;
@@ -21,9 +15,6 @@ export interface LocaleObject {
   iso?: string;
 }
 
-/**
- * Browser language detection options
- */
 export interface DetectBrowserLanguageOptions {
   /**
    * Use cookie to persist language preference
@@ -84,14 +75,7 @@ export interface DetectBrowserLanguageOptions {
   fallbackLocale?: string;
 }
 
-/**
- * Nuxt i18n module options
- */
 export interface NuxtI18nOptions {
-  // ============================================
-  // Routing config (required)
-  // ============================================
-
   /**
    * List of supported locales
    * Can be string codes or LocaleObject for additional metadata
@@ -115,10 +99,6 @@ export interface NuxtI18nOptions {
    */
   localePrefix?: LocalePrefixMode;
 
-  // ============================================
-  // FetchLoader config
-  // ============================================
-
   /**
    * Full CDN URL for production mode
    * @example "https://cdn.comvi.io/your-distribution-id"
@@ -137,10 +117,6 @@ export interface NuxtI18nOptions {
    * @example 'https://api.comvi.io'
    */
   apiBaseUrl?: string;
-
-  // ============================================
-  // i18n config
-  // ============================================
 
   /**
    * Default namespace for translations
@@ -168,7 +144,7 @@ export interface NuxtI18nOptions {
   /**
    * Path to a setup file that runs before i18n.init().
    * Use it to register plugins via i18n.core.use(...) — `i18n` is a `VueI18n`,
-   * which dropped its capability proxies in 0.5.0.
+   * whose capability APIs live on `i18n.core`.
    * If omitted, module auto-detects ./comvi.setup.* in project root.
    *
    * @example "./comvi.setup.ts"
@@ -176,24 +152,18 @@ export interface NuxtI18nOptions {
   setup?: string;
 
   /**
-   * Opt the module's OWN generated host into the ICU compiler.
-   *
-   * ICU is never automatic — it is a capability, and this is the way an app
-   * that has no {@link NuxtI18nOptions.hostModule} chooses it. With `icu: true`
-   * the generated `#build/comvi.host` imports `icuCompiler` from
-   * `@comvi/core/icu` and builds the host with `compiler: icuCompiler`, so
+   * Opt the module's OWN generated host into the ICU compiler, so
    * `{count, plural, one {# item} other {# items}}` renders instead of throwing
    * `E_ICU_SYNTAX`.
    *
    * The choice is made at BUILD time, in codegen: left `false` the generated
    * module contains no `@comvi/core/icu` import at all, so the option costs
-   * 0 B when off. A runtime `if` would pin the compiler into every bundle.
+   * nothing when off. A runtime `if` would pin the compiler into every bundle.
    *
    * `hostModule` wins: when it is set this option is ignored with a build-time
-   * warning, because a composed host already decides its own compiler
-   * (`createI18n({ ...options, compiler: icuCompiler })`). ICU is the only
-   * capability with a module option — the loader, the plugin host and devtools
-   * discovery still require `hostModule`.
+   * warning, because a composed host already decides its own compiler. ICU is
+   * the only capability with a module option — the loader, the plugin host and
+   * devtools discovery still require `hostModule`.
    *
    * @default false
    */
@@ -204,29 +174,20 @@ export interface NuxtI18nOptions {
    * `(options) => WrapperI18nHost` — used INSTEAD of `@comvi/vue`'s own
    * constructor.
    *
-   * This is THE composition escape, and since the single-entry convergence it
-   * is how a nuxt app gets any capability at all. Unset (the default) builds
-   * the BASE host: text + `{param}`, the cache, events and default params.
-   * ICU, the loader, the plugin host and devtools discovery are absent from
-   * that graph, and the module will not inject them on your behalf — compose
-   * what the app uses here, explicitly, and pay for nothing else.
+   * This is how a nuxt app gets any capability at all. Unset (the default)
+   * builds the BASE host, and the module will not inject ICU, the loader, the
+   * plugin host or devtools on your behalf.
    *
-   * It is a module PATH, not a function: module options are serialized into
-   * build-time template codegen, and the branch that decides whether
-   * `@comvi/vue`'s constructor is imported at all has to be taken there — a
-   * runtime `if` would pin it into every bundle and save nothing. The saving is
-   * the SELECTED graph: your factory's imports — which may well include the
-   * base `@comvi/core` root and the capability subpaths, as the example below
-   * does — instead of nuxt's default construction path. It is not root absence.
+   * It is a module PATH, not a function: the branch that decides whether
+   * `@comvi/vue`'s constructor is imported at all is taken in build-time
+   * codegen — a runtime `if` would pin it into every bundle and save nothing.
    *
-   * The factory is called once per constructed instance (the client plugin,
-   * and each per-request server instance), so it must return a FRESH host
-   * every call. It receives nuxt's RESOLVED core options — locale,
-   * fallbackLocale, defaultNs, defaultParams, tagInterpolation (from
-   * `basicHtmlTags`), devMode and apiKey — so a composed host honours the same
-   * `nuxt.config` it would on the default branch. SSR always loads
-   * translations, so a server-rendered app composes the loader here; without
-   * it the server utilities say so once, by name, and render what the catalog
+   * The factory is called once per constructed instance (the client plugin, and
+   * each per-request server instance), so it must return a FRESH host every
+   * call. It receives nuxt's RESOLVED core options, so a composed host honours
+   * the same `nuxt.config` the default branch does. SSR always loads
+   * translations, so a server-rendered app composes the loader here; without it
+   * the server utilities say so once, by name, and render what the catalog
    * already holds.
    *
    * @example "./comvi.host.ts"
@@ -269,25 +230,15 @@ export type NuxtDefaultTranslationParams = Record<string, string | number | bool
   raw?: never;
 };
 
-/**
- * Resolved routing configuration
- */
 export interface ResolvedRoutingConfig {
-  /** Normalized locale codes */
   locales: readonly string[];
   /** Locale metadata by code */
   localeObjects: Record<string, LocaleObject>;
-  /** Default locale code */
   defaultLocale: string;
-  /** Locale prefix mode */
   localePrefix: LocalePrefixMode;
-  /** Cookie name for locale storage */
   cookieName: string;
 }
 
-/**
- * Runtime config for Nuxt
- */
 export interface NuxtI18nRuntimeConfig {
   comvi: {
     locales: string[];
@@ -305,9 +256,6 @@ export interface NuxtI18nRuntimeConfig {
   };
 }
 
-/**
- * Private runtime config (server-only)
- */
 export interface NuxtI18nPrivateRuntimeConfig {
   comvi: {
     apiKey?: string;
@@ -343,15 +291,11 @@ export interface NuxtI18nSetupEvent extends H3Event {
 }
 
 /**
- * The host shape nuxt's SERVER utilities accept.
- *
- * Since the single-entry convergence this is the BASE host and nothing more,
- * because that is what the generated default `#build/comvi.host` template
- * builds. The loader is NOT part of it: `loadTranslations` and
- * `useTranslation` probe for the capability with core's `hasLoaderApi` and
- * say so once, by name, when it is absent — they never call a member the
- * host does not have. ICU, the plugin host and tag syntax enter the server
- * graph only if the app composes them in its `hostModule` factory.
+ * The host shape nuxt's SERVER utilities accept: the BASE host and nothing
+ * more, because that is what the generated default `#build/comvi.host` builds.
+ * The loader is NOT part of it — `loadTranslations` and `useTranslation` probe
+ * for the capability with core's `hasLoaderApi` and say so once, by name, when
+ * it is absent, rather than calling a member the host does not have.
  */
 export type NuxtServerHost<D extends DefaultTranslationParams = {}> = WrapperI18nHost<D>;
 
@@ -400,9 +344,9 @@ export type NuxtHostFactory<C = WrapperI18nHost, D extends DefaultTranslationPar
  *
  * `C` is the host the app runs on. It defaults to the base `I18n` that
  * `@comvi/vue`'s `createI18n` builds — the no-`hostModule` configuration. An
- * app that DOES set it declares its own host type
- * (`NuxtI18nSetup<MyHost>`) and gets exactly the capabilities it composed;
- * capability calls move to `i18n.core.*` on the plugin side (framework-slim §3).
+ * app that DOES set it declares its own host type (`NuxtI18nSetup<MyHost>`) and
+ * gets exactly the capabilities it composed; capability calls live on
+ * `i18n.core.*` on the plugin side.
  */
 export interface NuxtI18nSetupContext<C extends WrapperI18nHost = I18n> {
   /**
@@ -454,7 +398,6 @@ export type NuxtI18nSetup<C extends WrapperI18nHost = I18n> = (
   context: NuxtI18nSetupContext<C>,
 ) => void | Promise<void>;
 
-// Module augmentation for Nuxt
 declare module "@nuxt/schema" {
   interface NuxtConfig {
     comvi?: NuxtI18nOptions;
@@ -470,5 +413,4 @@ declare module "@nuxt/schema" {
   }
 }
 
-// Re-export types from core for convenience
 export type { TranslationParams, TranslationResult, TranslationKeys, I18n } from "@comvi/core";

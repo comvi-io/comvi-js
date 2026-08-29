@@ -1,8 +1,8 @@
 import { describe, it, expect, vi } from "vitest";
 
 /**
- * B7, the MECHANISM half — the builder must install its `registerLoader`
- * overload with a DESCRIPTOR, not with a plain assignment.
+ * The builder must install its `registerLoader` overload with a DESCRIPTOR,
+ * not with a plain assignment.
  *
  * `tests/composed-host-reflection.test.ts` pins the observable invariant
  * (`{ ...host }` carries data only). That invariant is satisfied by a plain

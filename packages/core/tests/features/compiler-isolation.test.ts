@@ -26,12 +26,10 @@ beforeEach(() => {
 describe("compiler isolation in the shared template cache", () => {
   it("the ICU and the simple compiler resolve the same template independently", () => {
     const icu = makeInstance(icuCompiler);
-    // A simple-compiler instance never ingests this template successfully in
-    // DEVELOPMENT (the eager preflight throws), so the isolation claim is
-    // about the ICU entry surviving a failed parse under the other id — the
-    // two never share a cache slot. In production the same instance would
-    // render the segment literally and report; the cache keys are per
-    // compiler either way.
+    // In DEVELOPMENT the simple-compiler instance never ingests this template
+    // at all (the eager preflight throws), so the isolation claim here is that
+    // the ICU entry survives a failed parse under the other id. Cache keys are
+    // per compiler either way.
     const simple = new I18n({ locale: "en", exposeGlobal: false }, simpleCompiler);
 
     expect(icu.t("items" as never, { count: 2 } as never)).toBe("2 items");
@@ -48,7 +46,7 @@ describe("compiler isolation in the shared template cache", () => {
   });
 
   it("a third user-injected compiler gets a WeakMap id >= 3 and its own cache variants", () => {
-    // A deliberately odd compiler: every {…} argument compiles to a marker.
+    // Deliberately odd: every {…} argument compiles to a marker.
     const markerCompiler: MessageCompiler = {
       makeArgToken(content) {
         return [TK_TEXT, `«${content.trim().split(",")[0]}»`];
@@ -67,7 +65,6 @@ describe("compiler isolation in the shared template cache", () => {
     // Two compilers → two distinct cache entries for one template string.
     expect(_templateCacheSize()).toBe(before + 2);
 
-    // Re-render each variant: still isolated after both are cached.
     expect(icu.t("items" as never, { count: 1 } as never)).toBe("1 item");
     expect(injected.t("items" as never, { count: 1 } as never)).toBe("«count»");
   });

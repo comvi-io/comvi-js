@@ -9,67 +9,40 @@ import type {
   TranslationResult,
 } from "@comvi/core";
 // The PURE rich-text seam, NOT `@comvi/core/tags`: importing the tags entry
-// would register tag syntax AMBIENTLY, so every app that renders `<T>` would
-// silently start parsing `<tag>` markup in plain string-API `t()` too. `<T>`
-// never needed that — `prepareTranslation` passes the tag extension per call
-// — and this module is the only thing that pulled it in, so `@comvi/react` now
-// leaves the ambient switch entirely to the app (`import "@comvi/core/tags"`).
+// would register tag syntax AMBIENTLY, so every app rendering `<T>` would also
+// start parsing `<tag>` markup in plain string-API `t()`. `prepareTranslation`
+// passes the tag extension per call, so the ambient switch stays the app's own.
 import { prepareTranslation, type PendingHandler } from "@comvi/core/rich-text";
 
-/**
- * Component handler types for the `components` prop
- */
 type ComponentHandler =
   | string // HTML tag name: "strong", "em", etc.
   | React.ReactElement // React element - children auto-injected
   | ((params: { children: React.ReactNode }) => React.ReactElement); // Function handler
 
-/**
- * Components prop type for tag interpolation
- */
 type ComponentsMap = Record<string, ComponentHandler>;
 
-/**
- * Base props shared by all key modes
- */
 interface TBaseProps {
-  /**
-   * Namespace to use (optional)
-   */
   ns?: string;
 
-  /**
-   * Specific locale to use (optional)
-   */
   locale?: string;
 
-  /**
-   * Parameters for interpolation
-   * Can also be passed as direct props
-   */
+  /** Interpolation parameters; the same values may be passed as direct props. */
   params?: TranslationParams;
 
-  /**
-   * Explicit fallback text to display if translation is missing (optional)
-   * Takes priority over children fallback
-   */
+  /** Text shown when the translation is missing. Takes priority over children. */
   fallback?: string;
 
   /**
-   * Skip post-processing (optional)
-   * When true, prevents post-processors like IncontextEditor from adding invisible marker characters
+   * Skip post-processing — notably the invisible marker characters the
+   * in-context editor injects.
    */
   raw?: boolean;
 
-  /**
-   * Fallback content to display if translation is missing (optional)
-   * Will be rendered if the translation key is not found and no fallback prop is provided
-   */
+  /** Rendered when the key is missing and no `fallback` prop was given. */
   children?: React.ReactNode;
 
   /**
-   * Components map for tag interpolation (optional)
-   * Maps tag names to their handlers (React element or function)
+   * Tag-name → handler map for tag interpolation.
    *
    * @example
    * {
@@ -104,41 +77,19 @@ type PermissiveTProps = [TypedKey] extends [never]
   : never;
 
 /**
- * Props for the T component
- * For required params keys, provide either:
- * - `params={{ ...required }}` OR
- * - direct props with required fields (e.g. `<T i18nKey="x" count={1} />`)
+ * For a key with required params, provide either `params={{ ...required }}` or
+ * direct props carrying the required fields (`<T i18nKey="x" count={1} />`).
  */
 export type TProps = StrictTypedProps | PermissiveTProps;
 
 /**
- * Translation component for React
- * Renders translated content with support for dynamic parameters via props
+ * Renders a translation. Params may be React nodes, and a `<T>` child is the
+ * fallback for a missing key.
  *
  * @example
  * ```tsx
- * // Simple usage
- * <T i18nKey="greeting" />
- *
- * // With parameters
- * <T i18nKey="welcome" name="John" />
- *
- * // With params object
- * <T i18nKey="welcome" params={{ name: "John" }} />
- *
- * // With React components as parameters
- * <T
- *   i18nKey="greeting"
- *   name={<strong>{userName}</strong>}
- * />
- *
- * // With specific namespace
- * <T i18nKey="button.submit" ns="forms" />
- *
- * // With specific locale
- * <T i18nKey="greeting" locale="fr" />
- *
- * // With fallback content
+ * <T i18nKey="welcome" name={<strong>{userName}</strong>} />
+ * <T i18nKey="button.submit" ns="forms" locale="fr" />
  * <T i18nKey="missing.key">Fallback Text</T>
  * ```
  */
@@ -167,7 +118,7 @@ const TComponent = function T({
     ((key: string, params?: TranslationParams) =>
       t(key as never, params) as unknown as TranslationResult);
 
-  // Remove 'components' from restProps to avoid passing it as a translation param
+  // Peeled off restProps so it is never passed as a translation param.
   const { components: _, ...cleanRestProps } = restProps as {
     components?: ComponentsMap;
     [key: string]: unknown;
@@ -178,8 +129,8 @@ const TComponent = function T({
   // Direct props take precedence over same-named `params` entries.
   const allParams = { ...params, ...cleanRestProps } as TranslationParams;
 
-  // Shared <T> pipeline: transports opaque React handlers as marker nodes and
-  // passes the tag syntax extension per call.
+  // Transports opaque React handlers as marker nodes and passes the tag syntax
+  // extension per call.
   const { content, pendingHandlers, isMissing } = prepareTranslation(
     {
       tRaw: translate,
@@ -197,16 +148,14 @@ const TComponent = function T({
     { i18nKey: keyString, params: allParams, ns, locale, fallback, raw, components },
   );
 
-  // Use children as fallback if translation is missing and no explicit fallback provided
-  // Priority: translation (including processed fallback/onMissing) > children fallback > key
+  // Priority: translation (including a processed fallback/onMissing) > children
+  // > the key itself.
   const finalContent = isMissing && children !== undefined ? children : content;
 
-  // Handle different content types
   if (typeof finalContent === "string") {
     return <>{finalContent}</>;
   }
 
-  // If children was used as fallback and it's not an array, return it directly
   if (finalContent === children) {
     return <>{children}</>;
   }
@@ -220,9 +169,8 @@ const TComponent = function T({
     }
   }
 
-  // Helper to convert VirtualNode children to React nodes (recursively handles markers)
-  // Runtime can include raw React nodes here (e.g., <bold>{name}</bold> with name={<em/>}),
-  // so we must preserve non-VirtualNode values.
+  // Children can hold raw React nodes at runtime (`<bold>{name}</bold>` with
+  // `name={<em/>}`), so non-VirtualNode values must survive the conversion.
   const convertChildren = (childResult: unknown): React.ReactNode[] => {
     if (typeof childResult === "string") {
       return childResult ? [childResult] : [];
@@ -243,8 +191,7 @@ const TComponent = function T({
     });
   };
 
-  // Resolve an opaque handler against the converted tag children.
-  // Throws when a function handler returns a non-element (reported by caller).
+  // Throws when a function handler returns a non-element; the caller reports it.
   const resolvePending = (
     pending: PendingHandler,
     convertedChildren: React.ReactNode[],
@@ -272,14 +219,11 @@ const TComponent = function T({
     return convertedChildren;
   };
 
-  // Helper to convert VirtualNode to React element, handling markers
   const convertNode = (node: VirtualNode, index: number): React.ReactElement => {
-    // Handle text nodes
     if (node.type === "text") {
       return <React.Fragment key={`${keyString}-${index}`}>{node.text}</React.Fragment>;
     }
 
-    // Handle fragment nodes
     if (node.type === "fragment") {
       const convertedChildren = convertChildren(node.children);
       return (
@@ -289,15 +233,12 @@ const TComponent = function T({
       );
     }
 
-    // Element node
     const tag = node.tag;
     const reactKey = node.key ?? `${keyString}-${index}`;
     const childResult = node.children;
 
-    // Always convert children first (handles nested markers)
     const convertedChildren = convertChildren(childResult);
 
-    // Check for handler-transport marker
     const pending = pendingByMarker?.get(tag);
     if (pending) {
       try {
@@ -309,11 +250,9 @@ const TComponent = function T({
       }
     }
 
-    // Regular ElementNode - convert to React element
     return React.createElement(tag, { ...node.props, key: reactKey }, ...convertedChildren);
   };
 
-  // Convert result array to React nodes
   const resultArray = finalContent as Array<string | VirtualNode | React.ReactNode>;
   return (
     <>
@@ -321,11 +260,9 @@ const TComponent = function T({
         if (typeof item === "string") {
           return <React.Fragment key={`${keyString}-${index}`}>{item}</React.Fragment>;
         }
-        // Check if it's a VirtualNode (from tag interpolation) or a React element (from ICU params)
         if (isVirtualNode(item)) {
           return convertNode(item, index);
         }
-        // React element passed directly through ICU interpolation
         return (
           <React.Fragment key={`${keyString}-${index}`}>{item as React.ReactNode}</React.Fragment>
         );
@@ -334,13 +271,9 @@ const TComponent = function T({
   );
 };
 
-// /*@__PURE__*/ so a bundler may drop the component — and with it the
-// `@comvi/core/rich-text` pipeline — from an app that never renders <T>.
-// Without the annotation a top-level `React.memo(...)` call is an unremovable
-// side effect, which is exactly what pinned the tag machinery into every react
-// app before the module split (plan §2.1 caveat 1, P0 finding 2). The seam is
-// pure now, so the worst case is dead weight rather than ambient registration.
+// Without /*@__PURE__*/ the top-level `React.memo(...)` call is an unremovable
+// side effect, pinning the component — and the `@comvi/core/rich-text` pipeline
+// behind it — into apps that never render `<T>`.
 export const T = /*@__PURE__*/ React.memo(TComponent) as React.NamedExoticComponent<TProps>;
 
-// Add display name for React DevTools
 T.displayName = "T";

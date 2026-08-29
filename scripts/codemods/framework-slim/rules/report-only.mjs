@@ -1,5 +1,5 @@
 /**
- * Report-only shapes (plan §3.1) — deterministic manual-action detection.
+ * Report-only shapes — deterministic manual-action detection.
  *
  * Nothing here ever rewrites. Each detector answers one question a codemod
  * cannot answer from the text alone, and its findings force exit code 2 so a
@@ -103,10 +103,10 @@ export function detectEscapedHookResults(root, sourceHook = SOURCE_HOOK) {
  * may be a `VueI18n` (migrate to `i18n.core.*`) or a raw core instance
  * (already correct) — so these are listed for a human, never rewritten. Only
  * `.vue` sources are scanned: elsewhere the same shape is overwhelmingly a
- * core instance and reporting it would be pure noise. P4 extends the receiver
- * set for nuxt `comvi.setup` hooks. P6 adds `use`, which VueI18n dropped with
- * the rest; `app.use(plugin)` in a component is the one benign shape this
- * catches, and the report says "if the receiver is a VueI18n" for that reason.
+ * core instance and reporting it would be pure noise. The receiver set covers
+ * nuxt `comvi.setup` hooks too. `app.use(plugin)` in a component is the one
+ * benign shape this catches, which is why the report hedges with "if the
+ * receiver is a VueI18n".
  */
 export function detectVueProxyCalls(root) {
   const findings = [];

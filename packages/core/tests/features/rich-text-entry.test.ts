@@ -7,11 +7,10 @@
  * is reached exactly once, dynamically, in the last test — which is also what
  * makes the before/after switch observable in a single module registry.
  *
- * Why the seam exists: framework `<T>` components need `prepareTranslation`
- * and the VirtualNode toolbox, and before the split the only entry that
- * published them also ran `registerTagSyntax()` on import. Every app that
- * rendered `<T>` therefore had `<tag>` markup silently activated for plain
- * string-API `t()` as well.
+ * Why the seam exists: framework `<T>` components need `prepareTranslation` and
+ * the VirtualNode toolbox, and the only entry that used to publish them also ran
+ * `registerTagSyntax()` on import — so every app rendering `<T>` had `<tag>`
+ * markup silently activated for plain string-API `t()` as well.
  */
 import { describe, it, expect } from "vitest";
 import { createI18n } from "../../src";
@@ -65,7 +64,7 @@ describe("@comvi/core/rich-text (pure seam)", () => {
     expect(isVirtualNode(element)).toBe(true);
     expect(element).toMatchObject({ type: "element", tag: "b", children: ["here"] });
 
-    // ...and it left nothing behind for the string API.
+    // And it left nothing behind for the string API.
     expect(getAmbientExtensions()).toHaveLength(0);
     expect(host().t("msg" as never, { link: linkHandler } as never)).toBe(TEMPLATE);
   });
@@ -114,7 +113,7 @@ describe("@comvi/core/rich-text (pure seam)", () => {
     expect(tags.createFragment).toBe(createFragment);
     expect(tags.isVirtualNode).toBe(isVirtualNode);
 
-    // ...plus the registration half, which the pure seam does not carry.
+    // Plus the registration half, which the pure seam does not carry.
     expect(tags.registerTagSyntax).toBeTypeOf("function");
     expect(getAmbientExtensions()).toHaveLength(1);
 

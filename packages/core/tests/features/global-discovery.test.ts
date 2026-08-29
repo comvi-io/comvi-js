@@ -1,26 +1,21 @@
 /**
- * Discovery protocol v2 (queue-hook) — plan Phase 2 acceptance, re-gated in
- * framework-slim tier-3 against BOTH install surfaces.
+ * Discovery protocol v2, the queue-hook one, run against BOTH install surfaces.
  *
- * Every EXPOSED instance announces itself on window.__COMVI__ by pushing a
- * {v, i} envelope; consumers may swap the raw queue array for a hook object
+ * Every EXPOSED instance announces itself on `window.__COMVI__` by pushing a
+ * `{v, i}` envelope; a consumer may swap the raw queue array for a hook object
  * (push/remove). Mixed-version pages are realistic, so construction must also
  * tolerate the v1 legacy registry (register WITHOUT remove) and arbitrary
  * garbage in the global slot.
  *
- * The whole protocol now lives in the `@comvi/core/devtools` capability. The
- * INTERNAL 0.4 composite — `src/core/full.ts`, what the CDN global ships and
- * `@comvi/next`'s builder mirrors — composes it back in; the converged base
- * root does NOT, so a base instance opts in with `attachDevtools`. The suite
- * below runs the ENTIRE protocol against both surfaces — the parity proof that
- * the extraction relocated the capability instead of reimplementing it.
+ * The protocol lives entirely in the `@comvi/core/devtools` capability. The
+ * composite composes it back in; the base root does NOT, so a base instance
+ * opts in with `attachDevtools`. Running the ENTIRE protocol against both
+ * surfaces is the parity proof that the extraction RELOCATED the capability
+ * rather than reimplementing it.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-// The COMPOSITE host: since the single-entry convergence `../../src` is the
-// BASE host, and the batteries-included 0.4 semantics live on in the internal
-// composite `src/core/full.ts` (what the CDN global ships and `@comvi/next`'s
-// builder mirrors). Imported directly — never through the tags-registering
-// helper — so this file's ambient-extension assertions stay meaningful.
+// The COMPOSITE host (`src/core/full.ts`), imported directly rather than
+// through the tags-registering helper.
 import { I18n } from "../../src/core/full";
 import type { ComviQueueEntry } from "../../src";
 import { createI18n } from "../../src";
@@ -112,7 +107,7 @@ describe.each(Object.keys(SURFACES))(
       const entry = push.mock.calls[0]![0] as ComviQueueEntry;
       expect(entry.i).toBe(i18n);
       expect(typeof entry.v).toBe("string");
-      // Own push shadowed Array.prototype.push: the carrier array stays empty
+      // Own push shadowed Array.prototype.push, so the carrier array stays empty.
       expect(hook.length).toBe(0);
 
       await i18n.destroy();
@@ -151,7 +146,7 @@ describe.each(Object.keys(SURFACES))(
     });
 
     it("registers two-arg into a real legacy registry so get(id) resolves, and unregisters on destroy", async () => {
-      // v1 registry shape: register WITHOUT remove
+      // v1 registry shape: register WITHOUT remove.
       const instances = new Map<string, unknown>();
       const registry = {
         version: "0.4.0",
@@ -224,17 +219,16 @@ describe("discovery is absent from a bare @comvi/core instance", () => {
   });
 
   it("never touches the global and never assigns an instanceId", async () => {
-    // No `exposeGlobal: false` here — the DEFAULT is what changed. In a
-    // browser (this suite runs on happy-dom) a bare slim instance used to
-    // expose itself; the protocol now lives in `@comvi/core/devtools`, so
-    // there is nothing in the module graph to do it.
+    // No `exposeGlobal: false` here — the DEFAULT is the subject. In a browser
+    // (this suite runs on happy-dom) a bare instance carries no discovery code
+    // at all, so there is nothing in the module graph to expose it.
     const i18n = createI18n({ locale: "en" });
 
     expect(win.__COMVI__).toBeUndefined();
     expect(i18n.instanceId).toBeUndefined();
     expect(Object.keys(i18n)).not.toContain("instanceId");
 
-    // destroy() must stay a no-op for discovery, not throw on the absent hook
+    // destroy() must stay a no-op for discovery, never throw on the absent hook.
     await expect(i18n.destroy()).resolves.toBeUndefined();
     expect(win.__COMVI__).toBeUndefined();
   });
@@ -259,9 +253,9 @@ describe("attachDevtools install surface", () => {
   it("installs its hooks as non-enumerable own properties", () => {
     const i18n = attachDevtools(createI18n({ locale: "en" }), { instanceId: "gd-attach-desc" });
 
-    // `_`-prefixed members are mangled in the dist, so the descriptor shape —
-    // not the name — is the contract. Enumerability is the one that matters:
-    // A11 requires a spread copy to carry data only, never behavior.
+    // `_`-prefixed members are mangled in the dist, so the DESCRIPTOR SHAPE, not
+    // the name, is the contract. Enumerability is the one that matters: a spread
+    // copy must carry data only, never behaviour.
     const hooks = Object.getOwnPropertyNames(i18n).filter((k) => k.startsWith("_"));
     for (const name of hooks) {
       const value = (i18n as unknown as Record<string, unknown>)[name];
@@ -272,7 +266,7 @@ describe("attachDevtools install surface", () => {
       Object.keys({ ...i18n }).filter((k) => typeof ({ ...i18n } as never)[k] === "function"),
     ).toEqual([]);
 
-    // `instanceId` IS public data and IS enumerable, exactly as on root.
+    // `instanceId` IS public data and IS enumerable.
     expect(Object.keys(i18n)).toContain("instanceId");
   });
 

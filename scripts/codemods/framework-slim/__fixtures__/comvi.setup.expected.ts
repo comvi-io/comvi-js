@@ -1,5 +1,5 @@
 // Report-only — nuxt's `comvi.setup` hook receives a VueI18n in the app
-// plugin, so its dropped-proxy calls are candidates for `i18n.core.*` (§6.2).
+// plugin, so its dropped-proxy calls are candidates for `i18n.core.*`.
 // The receiver's type is still textually undecidable, so nothing is rewritten.
 import type { NuxtI18nSetup } from "@comvi/nuxt";
 

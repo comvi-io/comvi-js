@@ -1,15 +1,9 @@
-// The Next.js server factory that imports no core constructor of its own
-// (framework-slim plan P5 step 1).
-//
-// `createNextI18n` builds a `NextComposedI18n` through Next's own non-exported
-// composed-host builder (`createComposedNextI18n`), so it is permanently bound
-// to `@comvi/core` plus the capability subpaths that composition needs. This
-// companion takes the host as a FACTORY instead and preserves the caller's
-// exact `NextServerHost`, so the only core modules in the graph are the ones
-// the app itself composed — `@comvi/core` + `@comvi/core/loader` for the
-// documented SSR recipe. Nothing here imports `createI18n` or any other core
-// value, and it is exported ONLY from `@comvi/next/server`, never from the
-// root or client entry.
+// Unlike `createNextI18n` — permanently bound to `@comvi/core` plus the
+// capability subpaths its composed-host builder needs — this companion takes
+// the host as a FACTORY, so the only core modules in the graph are the ones the
+// app itself composed. Nothing here imports `createI18n` or any other core
+// value, and it is exported ONLY from `@comvi/next/server`, never from the root
+// or client entry.
 import { resolveRouting } from "../nextI18nRouting";
 import type { NextRoutingOptions } from "../nextI18nRouting";
 import { getI18nInstance, registerServerI18nFactory } from "./cache";
@@ -29,12 +23,10 @@ export type CreateNextI18nFromHostOptions = NextRoutingOptions;
 /**
  * Result of {@link createNextI18nFromHost}.
  *
- * Exactly two fields. There are no `.use*` methods: plugin and loader
- * composition happen inside the host factory, at construction time. `C` is the
- * host type the caller supplied, preserved exactly — this deliberately does
- * NOT reuse `CreateNextI18nResult`, whose `i18n` is the composed
- * `NextComposedI18n<D>` and whose `.use*` methods call a plugin-host API a
- * plain `NextServerHost` does not have.
+ * No `.use*` methods: plugin and loader composition happen inside the host
+ * factory, at construction time. `C` is the caller's host type, preserved
+ * exactly — deliberately not `CreateNextI18nResult`, whose `.use*` methods call
+ * a plugin-host API a plain `NextServerHost` does not have.
  */
 export interface CreateNextI18nFromHostResult<
   D extends DefaultTranslationParams = {},

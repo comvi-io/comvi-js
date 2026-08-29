@@ -4,13 +4,8 @@ import type { NuxtServerHost } from "../../../types";
 import type { H3Event } from "h3";
 import { getRequestI18n } from "./request-i18n";
 
-/**
- * Options for loadTranslations
- */
 export interface LoadTranslationsOptions {
-  /**
-   * Namespaces to load (defaults to default namespace)
-   */
+  /** Defaults to the default namespace. */
   namespaces?: string[];
 }
 
@@ -24,12 +19,11 @@ const toError = (error: unknown): Error =>
 const noLoaderWarnings = new WeakSet<NuxtServerHost>();
 
 // Two distinct failures, two distinct sentences. The generated DEFAULT host is
-// core's BASE host since the single-entry convergence, so "no loader" now has
-// a second, much more likely cause than "you forgot to register one": the
-// capability is not on the host at all, and no amount of `comvi.setup` fixes
-// that — the composition happens in the `hostModule` factory. Naming the wrong
-// one would send a reader to the wrong file, so the capability probe below
-// picks the message.
+// core's BASE host, so "no loader" has a second and likelier cause than "you
+// forgot to register one": the capability is not on the host at all, and no
+// amount of `comvi.setup` fixes that — the composition happens in the
+// `hostModule` factory. Naming the wrong one would send a reader to the wrong
+// file, so the capability probe below picks the message.
 const NO_LOADER_CAPABILITY_MESSAGE =
   '[@comvi/nuxt] This i18n host has no loader capability, so SSR loaded nothing. The generated default host is core\'s base host — compose the loader in a `hostModule` factory: createI18n(options).with(loader(map)) from "@comvi/core" + "@comvi/core/loader", and set `comvi.hostModule` in nuxt.config.';
 const NO_LOADER_REGISTERED_MESSAGE =

@@ -1,16 +1,10 @@
-// single-entry P4 (was the framework-slim P5 client-recipe suite) — the
-// documented next client recipe end to end.
-//
-// The server loads (createNextI18nFromHost + loadTranslations, covered in
+// The documented next client recipe end to end: the server loads (covered in
 // createNextI18nFromHost.test.ts); the client constructs the BASE host and is
-// hydrated from the serialized catalog through `<I18nProvider messages>`.
-// This is exactly the graph `fw-next-client-default` measures — core's base
-// entry and react's bindings, and nothing else: no loader, no tag machinery,
-// none of next's server modules.
+// hydrated from the serialized catalog through `<I18nProvider messages>` —
+// core's base entry and react's bindings and nothing else: no loader, no tag
+// machinery, none of next's server modules.
 //
-// The constructor comes from `@comvi/next/client`, the way an app writes it:
-// after the convergence that entry's `createI18n` IS core's base constructor,
-// so the recipe no longer names `@comvi/core` to get a bare host.
+// The constructor comes from `@comvi/next/client`, the way an app writes it.
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import type { MockInstance } from "vitest";
 import React from "react";

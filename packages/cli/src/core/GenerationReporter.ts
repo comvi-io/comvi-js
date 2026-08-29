@@ -1,25 +1,12 @@
-/**
- * GenerationReporter - Handles reporting and statistics for type generation
- *
- * This abstraction separates reporting concerns from the core generation logic,
- * making TypeGenerator cleaner and the reporting behavior testable and customizable.
- */
-
 import type { Logger } from "../utils/logger";
 import { createLogger } from "../utils/logger";
 
-/**
- * Statistics about a generation run
- */
 export interface GenerationStats {
   keysGenerated: number;
   duration: number;
   filePath: string;
 }
 
-/**
- * Reporter interface for dependency injection
- */
 export interface GenerationReporter {
   reportStart(): void;
   reportFetching(): void;
@@ -29,9 +16,6 @@ export interface GenerationReporter {
   reportWarning(message: string): void;
 }
 
-/**
- * Console-based reporter implementation
- */
 export class ConsoleReporter implements GenerationReporter {
   constructor(private logger: Logger = createLogger()) {}
 
@@ -61,9 +45,6 @@ export class ConsoleReporter implements GenerationReporter {
   }
 }
 
-/**
- * Silent reporter for testing or silent mode
- */
 export class SilentReporter implements GenerationReporter {
   reportStart(): void {}
   reportFetching(): void {}
@@ -73,9 +54,6 @@ export class SilentReporter implements GenerationReporter {
   reportWarning(): void {}
 }
 
-/**
- * Collecting reporter for testing - stores all reports
- */
 export class CollectingReporter implements GenerationReporter {
   public reports: Array<{
     type: "start" | "fetching" | "generating" | "success" | "error" | "warning";
@@ -106,16 +84,10 @@ export class CollectingReporter implements GenerationReporter {
     this.reports.push({ type: "warning", data: message });
   }
 
-  /**
-   * Get all reports of a specific type
-   */
   getReports(type: string): unknown[] {
     return this.reports.filter((r) => r.type === type).map((r) => r.data);
   }
 
-  /**
-   * Clear all collected reports
-   */
   clear(): void {
     this.reports = [];
   }

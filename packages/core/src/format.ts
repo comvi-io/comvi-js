@@ -1,7 +1,6 @@
 /**
- * Tree-shakeable Intl formatting helpers.
- * Standalone functions (not I18n methods) so apps that never format
- * don't carry this code in their bundle.
+ * Standalone functions rather than `I18n` methods, so an app that never formats
+ * does not carry this code in its bundle.
  */
 
 /** Anything with a current locale — typically an I18n instance. */
@@ -99,12 +98,10 @@ export function formatRelativeTime(
 const textDirectionCache = new Map<string, "ltr" | "rtl">();
 
 /**
- * Text direction for a locale ("ltr" or "rtl").
- * Use for HTML `dir` attribute or CSS logical properties.
- *
- * Uses `Intl.Locale.textInfo` (ES2023+) as the authoritative source,
- * which correctly handles script subtags and regional variants from CLDR.
- * Falls back to a script/language check on older runtimes.
+ * Text direction for a locale, for an HTML `dir` attribute or CSS logical
+ * properties. `Intl.Locale.textInfo` (ES2023+) is the authoritative source —
+ * it handles script subtags and regional variants from CLDR — with the
+ * hand-rolled script/language check below as the fallback on older runtimes.
  */
 export function getTextDirection(locale: string): "ltr" | "rtl" {
   const cached = textDirectionCache.get(locale);
@@ -124,14 +121,14 @@ export function getTextDirection(locale: string): "ltr" | "rtl" {
   } catch {
     // Invalid locale — fall through to the hardcoded check
   }
-  // 1. Explicit RTL script subtag wins (e.g. "ku-Arab")
+  // An explicit RTL script subtag wins ("ku-Arab").
   if (/[-_](arab|hebr|thaa|syrc|nkoo|samr|mand|mend|rohg|adlm)([-_]|$)/i.test(locale)) {
     result = "rtl";
   } else if (/^[a-z]{2,3}[-_][a-z]{4}([-_]|$)/i.test(locale)) {
-    // 2. Any other explicit script subtag means LTR (e.g. "ks-Deva", "ar-Latn")
+    // Any OTHER explicit script subtag means LTR ("ks-Deva", "ar-Latn").
     result = "ltr";
   } else {
-    // 3. No script subtag — use default direction by language code
+    // No script subtag — fall back to the language code's default direction.
     result = /^(ar|arc|ckb|dv|fa|glk|he|khw|ks|lrc|mzn|pnb|ps|sd|syr|ug|ur|yi)([-_]|$)/i.test(
       locale,
     )

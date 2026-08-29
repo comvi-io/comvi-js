@@ -1,10 +1,9 @@
 /**
- * The observation hash (RALPLAN "observation hash & convergence contract",
- * RC2/RC-A) — thin adapter over the canonical cross-repo spec.
+ * The observation hash — a thin adapter over the canonical cross-repo spec.
  *
  * `./hash/observation-hash.ts` is a BYTE-IDENTICAL copy of the platform's
- * canonical implementation (`apps/api/src/modules/context/hash/observation-hash.ts`,
- * authored by worker-platform per RALPLAN iteration-4 1b). It has zero
+ * canonical implementation (`apps/api/src/modules/context/hash/observation-hash.ts`).
+ * It has zero
  * imports and is pure/synchronous, so the exact same source runs in both
  * repos and produces identical output. Any change to it must be mirrored
  * byte-for-byte in both places, together with a `HASH_FN_VERSION` bump and a
@@ -16,10 +15,9 @@
  * with (`ConstraintSignals`, `NeighborCandidate`), so `Collector.ts`'s call
  * site didn't need to change when the canonical spec landed.
  *
- * This hash is used ONLY for this client's local send-vs-ping gate (RC-A) —
- * the server recomputes authoritatively on ingest and that value always
- * wins; a client/server divergence is never an error (RALPLAN "honest
- * degradation" note).
+ * This hash is used ONLY for this client's local send-vs-ping gate — the
+ * server recomputes authoritatively on ingest and that value always wins; a
+ * client/server divergence is never an error, only honest degradation.
  */
 
 import type { ConstraintSignals, NeighborCandidate, TranslationRole, UiType } from "./types";

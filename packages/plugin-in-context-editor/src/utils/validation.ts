@@ -1,15 +1,5 @@
-/**
- * Translation validation utilities
- */
-
 import type { ValidationResult, ValidationError, Language, PluralFormTranslation } from "../types";
 
-/**
- * Validate translations for all languages
- * @param languages - Array of language configurations
- * @param translations - Translation data for all languages
- * @returns Validation result with errors
- */
 export function validateTranslations(
   languages: Language[],
   translations: Record<string, PluralFormTranslation>,
@@ -19,11 +9,10 @@ export function validateTranslations(
   for (const language of languages) {
     const langTranslations = translations[language.code] || {};
 
-    // Check plural forms - only validate max length, allow empty fields
+    // Plural forms may be empty; only the max length is enforced.
     for (const form of language.pluralForms) {
       const value = langTranslations[form];
 
-      // Check max length only
       if (value && value.length > 5000) {
         errors.push({
           languageId: language.code,
@@ -33,7 +22,6 @@ export function validateTranslations(
       }
     }
 
-    // Validate variable placeholders consistency
     const sourceForms = Object.values(langTranslations);
     if (sourceForms.length > 0) {
       const sourceVariables = extractVariables(sourceForms[0] || "");
@@ -42,10 +30,9 @@ export function validateTranslations(
         const formValue = langTranslations[form] || "";
         const formVariables = extractVariables(formValue);
 
-        // Check if variables match (warn only, not error)
         if (formValue && !arraysEqual(sourceVariables, formVariables)) {
-          // This is a warning, not blocking
-          // Could add a warnings array to ValidationResult if needed
+          // Deliberately non-blocking: a placeholder mismatch is a warning,
+          // and ValidationResult has nowhere to carry warnings yet.
         }
       }
     }
@@ -57,12 +44,7 @@ export function validateTranslations(
   };
 }
 
-/**
- * Extract variable placeholders from text
- * Matches patterns like {{variable}}, {variable}, %variable%
- * @param text - Text to extract variables from
- * @returns Array of variable names
- */
+/** Matches `{{variable}}`, `{variable}` and `%variable%`. */
 function extractVariables(text: string): string[] {
   const patterns = [
     /\{\{([^}]+)\}\}/g, // {{variable}}
@@ -85,9 +67,6 @@ function extractVariables(text: string): string[] {
   return Array.from(variables).sort();
 }
 
-/**
- * Check if two arrays are equal
- */
 function arraysEqual(a: string[], b: string[]): boolean {
   if (a.length !== b.length) return false;
   for (let i = 0; i < a.length; i++) {
@@ -96,12 +75,6 @@ function arraysEqual(a: string[], b: string[]): boolean {
   return true;
 }
 
-/**
- * Validate a single translation field
- * @param value - Translation value
- * @param isRequired - Whether the field is required
- * @returns Error message or null if valid
- */
 export function validateField(value: string, isRequired: boolean = false): string | null {
   if (isRequired && (!value || value.trim() === "")) {
     return "This field is required";

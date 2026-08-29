@@ -9,7 +9,7 @@ import { fileURLToPath } from "node:url";
 import type * as ComviUmdModule from "../../src/umd";
 
 /**
- * Acceptance A12 — the UMD/global behavioral smoke.
+ * The UMD/global behavioural smoke.
  *
  * `dist/comvi-core.global.prod.js` is the artifact `unpkg`/`jsdelivr` serve, and
  * it is built by a THIRD vite invocation (`vite.config.umd.ts`) with
@@ -18,20 +18,17 @@ import type * as ComviUmdModule from "../../src/umd";
  * Nothing else in the repo executes it, so a break here ships silently to every
  * CDN consumer.
  *
- * Since the single-entry convergence the global has its own ENTRY as well:
- * `src/umd.ts`, because the ESM root is now the bare base host while a
- * `<script src>` consumer has no import graph to extend. The composition it
- * owns — ambient tags, ICU, loader, plugin host, devtools discovery — is
- * therefore exactly what this file has to pin, and P1 extended it with the two
- * cases the retarget makes load-bearing: ambient string-API tag rendering and
- * browser-like discovery announce / identity removal on destroy.
+ * The global has its own ENTRY, `src/umd.ts`, because the ESM root is the bare
+ * base host while a `<script src>` consumer has no import graph to extend. The
+ * composition that entry owns — ambient tags, ICU, loader, plugin host,
+ * discovery — is exactly what this file has to pin.
  *
  * This drives the real IIFE in a bare `node:vm` context: no bundler, no module
  * loader, no DOM — exactly what a `<script src=…>` tag provides. The namespace
  * is typed against the package's own public types, so the smoke also pins that
  * the global surface still matches what `@comvi/core` declares.
  *
- * Requires a fresh build — CI runs `pnpm --filter @comvi/core build` first.
+ * Requires a fresh build.
  */
 const UMD = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -106,9 +103,8 @@ describe("UMD global build (A12)", () => {
     const ComviCore = loadUmd();
     expect(typeof ComviCore.I18n).toBe("function");
     expect(typeof ComviCore.createI18n).toBe("function");
-    // The five globals the dedicated entry newly exposes: a `<script src>`
-    // consumer has no import graph, so what is not on the namespace is
-    // unreachable for them.
+    // A `<script src>` consumer has no import graph, so anything missing from
+    // the namespace is unreachable for them.
     expect(typeof ComviCore.icuCompiler).toBe("object");
     expect(typeof ComviCore.flattenCatalog).toBe("function");
     expect(typeof ComviCore.isVirtualNode).toBe("function");
@@ -274,12 +270,9 @@ describe("UMD global build (A12)", () => {
   });
 
   it("introduces no NEW context-global leak", () => {
-    // The UMD IIFE has leaked two mangled top-level names onto the page global
-    // since before this wave (P0.9 §8.3 measured `["e","t"]` on the pristine
-    // `src/index.ts`-targeted build at 3efcda9, and the dedicated `src/umd.ts`
-    // entry neither causes nor fixes it). The GATE here is preservation: the
-    // leak set must not grow. Closing it outright is tracked separately — it is
-    // a UMD wrapper/mangler defect, not a composition one.
+    // The UMD IIFE leaks two mangled top-level names onto the page global. This
+    // gate is PRESERVATION — the leak set must not grow. Closing it outright is
+    // a UMD wrapper/mangler defect, tracked separately, not a composition one.
     const seeded = ["console", "setTimeout", "clearTimeout", "queueMicrotask", "ComviCore"];
     const sandbox: UmdSandbox = { console, setTimeout, clearTimeout, queueMicrotask };
     loadUmdIn(sandbox);

@@ -1,6 +1,3 @@
-/**
- * Log levels for controlling verbosity
- */
 export enum LogLevel {
   ERROR = 0,
   WARN = 1,
@@ -8,9 +5,6 @@ export enum LogLevel {
   DEBUG = 3,
 }
 
-/**
- * Logger interface for dependency injection
- */
 export interface Logger {
   error(message: string, context?: unknown): void;
   warn(message: string, context?: unknown): void;
@@ -19,9 +13,6 @@ export interface Logger {
   setLevel(level: LogLevel): void;
 }
 
-/**
- * Console-based logger implementation
- */
 export class ConsoleLogger implements Logger {
   private level: LogLevel;
 
@@ -29,9 +20,6 @@ export class ConsoleLogger implements Logger {
     this.level = level ?? this.getDefaultLevel();
   }
 
-  /**
-   * Get log level from environment variable or default to INFO
-   */
   private getDefaultLevel(): LogLevel {
     const envLevel = process.env.COMVI_LOG_LEVEL?.toLowerCase();
 
@@ -94,9 +82,6 @@ export class ConsoleLogger implements Logger {
   }
 }
 
-/**
- * Silent logger for testing or when logging should be disabled
- */
 export class SilentLogger implements Logger {
   error(): void {}
   warn(): void {}
@@ -105,9 +90,6 @@ export class SilentLogger implements Logger {
   setLevel(): void {}
 }
 
-/**
- * Create a default logger instance
- */
 export function createLogger(silent = false, level?: LogLevel): Logger {
   if (silent) {
     return new SilentLogger();

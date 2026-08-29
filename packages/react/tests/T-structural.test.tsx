@@ -1,13 +1,12 @@
 /**
- * Structural-render contract for the prepareTranslation-backed <T> (§4.3):
- *   - the component consumes the shared T-core pipeline against REAL
- *     @comvi/core (tag parsing, per-call extension channel, missing-param
- *     semantics exercised end to end — no FakeI18n);
- *   - opaque React handlers round-trip through the `__comvi_handler_<name>__`
- *     marker transport;
- *   - a fallback-parity fixture pins the same template + params table as the
- *     svelte/vue/solid wrappers (source of truth:
- *     packages/svelte/tests/T-structural.test.ts — keep in sync).
+ * Structural-render contract for `<T>` against REAL `@comvi/core` (no
+ * FakeI18n): tag parsing, the per-call extension channel, missing-param
+ * semantics, and opaque React handlers round-tripping through the
+ * `__comvi_handler_<name>__` marker transport.
+ *
+ * The fallback-parity fixture below is the same table as the svelte/vue/solid
+ * wrappers — source of truth packages/svelte/tests/T-structural.test.ts, keep
+ * the four in sync.
  */
 import { describe, it, expect } from "vitest";
 import { createI18n } from "../src/index";
@@ -15,10 +14,6 @@ import React from "react";
 import { render } from "@testing-library/react";
 import { I18nProvider } from "../src/I18nProvider";
 import { T } from "../src/T";
-
-// ---------------------------------------------------------------------------
-// Shared fallback-parity fixture (same table as the svelte/vue wrappers)
-// ---------------------------------------------------------------------------
 
 export const WRAPPER_PARITY_FIXTURE = {
   translations: {
@@ -38,7 +33,7 @@ export const WRAPPER_PARITY_FIXTURE = {
       components: { outer: "strong", inner: "em" },
       text: "Read the fine print.",
     },
-    // missingParam: "literal" (core 0.5 default) — placeholder renders as itself
+    // Core's default `missingParam: "literal"` renders the placeholder as-is.
     { key: "missing-param", params: {}, components: {}, text: "Hi {name}" },
   ],
 } as const;
@@ -77,15 +72,9 @@ describe("<T /> structural render (real core)", () => {
     expect(container.textContent).toBe("You earned gold!");
   });
 
-  // The host is the BASE one `@comvi/react`'s single entry builds, and it has
-  // no tag syntax of its own: `<T>` does not depend on ambient registration,
-  // because prepareTranslation passes the tag extension per call — which is
-  // why `<T>` imports the PURE `@comvi/core/rich-text` seam and nothing in this
-  // package imports `@comvi/core/tags` at all.
-  // So every row below must produce byte-identical text to the svelte/vue/solid
-  // wrappers. (Before the entries converged this table ran twice — once on the
-  // wrapper's composed root, once on core's — and the two hosts are now the
-  // same object, so one pass is the whole claim.)
+  // The host is the BASE one, with no tag syntax of its own: these rows pass
+  // only because `prepareTranslation` passes the tag extension per call. Every
+  // row must produce byte-identical text to the svelte/vue/solid wrappers.
   describe("fallback-parity fixture (shared with svelte/vue/solid)", () => {
     for (const parityCase of WRAPPER_PARITY_FIXTURE.cases) {
       it(`produces the shared text for "${parityCase.key}"`, async () => {

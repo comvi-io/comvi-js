@@ -1,5 +1,5 @@
 /**
- * screenGroup (2d, Axis C1): stable screen discriminator, PII-safe by
+ * screenGroup: a stable screen discriminator, PII-safe by
  * construction. The integration can supply a readable route template via
  * `screenGroupResolver` (e.g. "/users/:id"); without one the group is an
  * opaque digest of the client-side normalized route, so raw path segments
@@ -87,7 +87,7 @@ export interface ModalContext {
 
 /**
  * Finds the topmost open modal/dialog and derives a stable identifier for
- * it — never rendered text (RC4). A DOM id/data-testid/labelledby ref is
+ * it — never rendered text. A DOM id/data-testid/labelledby ref is
  * digested rather than sent verbatim (dynamic ids can embed user data);
  * the fallback is the {namespace,key} ref of the first registered
  * translation found inside it, which is safe on the wire as-is.

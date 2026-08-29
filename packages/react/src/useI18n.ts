@@ -103,20 +103,13 @@ function translationResultToString(result: TranslationResult): string {
   return text;
 }
 
-/**
- * Host type every react binding demands (framework-slim D′): the reactive
- * translation host, exactly what the base `@comvi/react` factory implements.
- */
 type Host = WrapperI18nHost;
 
 /**
- * Core methods rebound to the host instance.
- *
- * `addActiveNamespace`, `reloadTranslations` and `onLoadError` are NOT here:
- * they belong to the `@comvi/core/loader` capability, which a base host does
- * not have — binding them eagerly would crash at bind time. They are acquired
- * through `useI18nLoader()` instead (plan §3.2), as `onMissingKey` is through
- * `useI18nPlugins()`.
+ * `addActiveNamespace`, `reloadTranslations`, `onLoadError` and `onMissingKey`
+ * are NOT here: they belong to capabilities a base host does not have, so
+ * binding them eagerly would crash at bind time. `useI18nLoader()` /
+ * `useI18nPlugins()` acquire them instead.
  */
 const BIND_METHODS = [
   "addTranslations",
@@ -133,17 +126,15 @@ const BIND_METHODS = [
 ] as const;
 
 /**
- * The host-only translation surface. The four capability members that used to
- * live here — `addActiveNamespace`, `reloadTranslations`, `onLoadError`
- * (loader) and `onMissingKey` (plugins) — moved to `useI18nLoader()` /
- * `useI18nPlugins()` in 0.5.0: they do not exist on a base host, so a type
- * that promised them was lying (plan §2.4).
+ * The host-only translation surface. Loader and plugin-host members are not
+ * part of it — they do not exist on a base host, so a type promising them
+ * would be lying; `useI18nLoader()` / `useI18nPlugins()` acquire those.
  */
 export interface UseI18nReturn<D extends DefaultTranslationParams = {}> {
   /** Translate a key. Returns plain text; for rich-text use `tRaw()` or `<T>`. */
   t: TranslateFn<D, string>;
 
-  /** Raw translation function returning the full core `TranslationResult` (string or structured array). */
+  /** The full core `TranslationResult`: a string or a structured array. */
   tRaw: TranslateFn<D, TranslationResult>;
 
   locale: string;
@@ -153,48 +144,37 @@ export interface UseI18nReturn<D extends DefaultTranslationParams = {}> {
 
   /** Change the current locale and wait for translations to load. */
   setLocale: (locale: string) => Promise<void>;
-  /** Add translations programmatically at runtime. */
   addTranslations: (translations: Record<string, Record<string, TranslationValue>>) => void;
 
-  /** Configure fallback locale chain. */
   setFallbackLocale: (locales: string | string[]) => void;
   /** Current interpolation defaults for this render (shallow snapshot). */
   defaultParams: DefaultParamsSnapshot<D>;
   /** Replace instance-level interpolation defaults. */
   setDefaultParams: Host["setDefaultParams"];
-  /** Clear translations from cache. */
   clearTranslations: (locale?: string, namespace?: string) => void;
 
-  /** Check if a locale is loaded for a namespace. */
   hasLocale: (locale: string, namespace?: string) => boolean;
-  /** Check if a translation exists. */
   hasTranslation: (
     key: string,
     locale?: string,
     namespace?: string,
     checkFallbacks?: boolean,
   ) => boolean;
-  /** Get list of all loaded locale codes. */
   getLoadedLocales: () => string[];
-  /** Get list of active namespaces. */
   getActiveNamespaces: () => string[];
-  /** Get default namespace. */
   getDefaultNamespace: () => string;
 
-  /** Format a number using the current locale. */
+  // The formatters below are bound to the render-time locale.
   formatNumber: (value: number, options?: Intl.NumberFormatOptions) => string;
-  /** Format a date using the current locale. */
   formatDate: (value: Date | number, options?: Intl.DateTimeFormatOptions) => string;
-  /** Format a number as currency using the current locale. */
   formatCurrency: (value: number, currency: string, options?: Intl.NumberFormatOptions) => string;
-  /** Format a relative time ("2 hours ago"). */
+  /** e.g. "2 hours ago". */
   formatRelativeTime: (
     value: number,
     unit: Intl.RelativeTimeFormatUnit,
     options?: Intl.RelativeTimeFormatOptions,
   ) => string;
 
-  /** Text direction for the current locale. */
   dir: "ltr" | "rtl";
 
   /** Subscribe to i18n events. Returns an unsubscribe function. */

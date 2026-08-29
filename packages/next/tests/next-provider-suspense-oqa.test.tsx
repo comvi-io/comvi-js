@@ -1,16 +1,10 @@
 /**
- * OQ-A (pre-merge gate): Does queueMicrotask deferral affect React 19 Suspense
- * boundaries that read translations during a suspended render?
+ * Does queueMicrotask deferral introduce a new warning class on React 19
+ * Suspense boundaries that read translations during a suspended render?
  *
- * Scenario: a useI18n() child is inside a <Suspense> boundary. The child
- * suspends (throws a Promise). While it is suspended, an i18n event fires
- * (addTranslations → configChanged). When Suspense resumes, the deferred
- * microtask callback would schedule a React update. We assert:
- *   - no "Cannot update a component" warning fires
- *   - after resume the consumer re-renders correctly
- *
- * Result: PASS — microtask deferral does not introduce a new warning class
- * under Suspense. Documented as known-safe in the PR description.
+ * A useI18n() child inside a <Suspense> boundary suspends; while it is
+ * suspended an i18n event fires (addTranslations → configChanged), so on resume
+ * the deferred microtask callback would schedule a React update.
  *
  * NOTE: vitest.config.ts aliases @comvi/react → ../react/src/index.ts.
  */
@@ -22,10 +16,6 @@ import { render, act } from "@testing-library/react";
 import { I18nProvider } from "../src/client/I18nProvider";
 import { useI18n } from "@comvi/react";
 import { FakeI18n } from "../../../tooling/test-utils/fakeI18n";
-
-// ---------------------------------------------------------------------------
-// Suspense helper: a component that suspends until a promise resolves
-// ---------------------------------------------------------------------------
 
 function makeSuspender() {
   let resolve!: () => void;
@@ -81,35 +71,29 @@ describe("OQ-A — Suspense + microtask deferral (pre-merge gate)", () => {
       </I18nProvider>,
     );
 
-    // Consumer is suspended — fallback is shown.
     expect(queryByTestId("fallback")).not.toBeNull();
     expect(queryByTestId("consumer")).toBeNull();
     expect(errorSpy).not.toHaveBeenCalled();
 
-    // Fire addTranslations while Consumer is suspended. The microtask deferred
-    // callback will be queued but Consumer is not yet committed.
+    // The deferred callback is queued while Consumer is not yet committed.
     await act(async () => {
       fake.addTranslations(EN_UPDATED);
       await Promise.resolve();
     });
 
-    // Still no warning.
     const warningsAfterMutation = errorSpy.mock.calls.filter(
       (args) => typeof args[0] === "string" && args[0].includes("Cannot update a component"),
     );
     expect(warningsAfterMutation).toHaveLength(0);
 
-    // Resolve suspension — Consumer mounts and renders.
     await act(async () => {
       resolve();
       await Promise.resolve();
       await Promise.resolve();
     });
 
-    // Consumer should now be rendered.
     expect(queryByTestId("consumer")).not.toBeNull();
 
-    // No warning should have fired during or after resume.
     const warningsAfterResume = errorSpy.mock.calls.filter(
       (args) => typeof args[0] === "string" && args[0].includes("Cannot update a component"),
     );
@@ -142,7 +126,6 @@ describe("OQ-A — Suspense + microtask deferral (pre-merge gate)", () => {
       </I18nProvider>,
     );
 
-    // Fire two mutations while suspended.
     await act(async () => {
       fake.addTranslations(EN_V2);
       fake.addTranslations(EN_V3);

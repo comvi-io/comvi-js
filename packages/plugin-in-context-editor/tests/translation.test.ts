@@ -266,19 +266,15 @@ describe("translation.ts - Encoding/Decoding System", () => {
 
   describe("loadKeyMappings / getKeyMappings", () => {
     it("should save and load key mappings", () => {
-      // Register some keys
       registerKey("key1");
       registerKey("key2");
       registerKey("key3");
 
-      // Get current mappings
       const mappings = getKeyMappings();
 
-      // Clear and reload
       loadKeyMappings({});
       loadKeyMappings(mappings);
 
-      // Verify mappings restored
       const reloadedMappings = getKeyMappings();
       expect(reloadedMappings).toEqual(mappings);
     });
@@ -406,11 +402,9 @@ describe("translation.ts - Encoding/Decoding System", () => {
       const ids = keys.map((k) => registerKey(k)); // Register each key
       const encodings = ids.map((id) => encodeKeyToInvisible(id)); // Encode IDs
 
-      // All encodings should be unique
       const uniqueEncodings = new Set(encodings);
       expect(uniqueEncodings.size).toBe(keys.length);
 
-      // All should decode correctly
       encodings.forEach((encoded, i) => {
         const decoded = decodeInvisibleToKey(encoded);
         expect(decoded).toEqual({ key: keys[i], ns: "default" });
@@ -421,7 +415,6 @@ describe("translation.ts - Encoding/Decoding System", () => {
   describe("Error Handling", () => {
     it("should handle invalid encoding gracefully", () => {
       const decoded = decodeInvisibleToKey(INVALID_DATA.INVALID_BASE5);
-      // Should not throw, might return null or a number
       expect(decoded === null || typeof decoded === "number").toBe(true);
     });
 
@@ -432,7 +425,6 @@ describe("translation.ts - Encoding/Decoding System", () => {
 
     it("should handle mixed valid/invalid characters", () => {
       const decoded = decodeInvisibleToKey(INVALID_DATA.MIXED_VALID_INVALID);
-      // Should not throw
       expect(decoded !== undefined).toBe(true);
     });
   });
@@ -457,10 +449,8 @@ describe("translation.ts - Encoding/Decoding System", () => {
     });
 
     it("should handle sequential IDs correctly", () => {
-      // Clear mappings first
       loadKeyMappings({});
 
-      // Register IDs and verify round-trip
       for (let i = 1; i <= 100; i++) {
         const encoded = encodeKeyToInvisible(i);
         const keys = scanForInvisibleKeys(encoded);

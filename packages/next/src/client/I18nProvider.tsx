@@ -3,7 +3,7 @@
 import React, { useLayoutEffect, useEffect, useRef, useState } from "react";
 import { I18nProvider as ReactI18nProvider } from "@comvi/react";
 
-// Safe isomorphic layout effect to avoid React warnings during SSR
+// useLayoutEffect warns when it runs during SSR.
 const useIsomorphicLayoutEffect = typeof window !== "undefined" ? useLayoutEffect : useEffect;
 import type { I18nProviderProps as ReactI18nProviderProps } from "@comvi/react";
 import type { TranslationValue } from "@comvi/core";
@@ -39,9 +39,8 @@ export interface I18nProviderProps extends Omit<ReactI18nProviderProps, "ssrInit
 }
 
 /**
- * Update the i18n instance locale if valid against `routing.locales` (when
- * routing is provided). Calls `i18n.reportError` on misconfiguration so devs
- * get a meaningful diagnostic instead of silent fallback.
+ * Reports through `i18n.reportError` on misconfiguration so devs get a
+ * meaningful diagnostic instead of a silent fallback.
  */
 function syncLocaleSafely(
   i18n: import("@comvi/core").WrapperI18nHost,
@@ -64,29 +63,11 @@ function syncLocaleSafely(
 }
 
 /**
- * I18nProvider for Next.js App Router
+ * I18nProvider for Next.js App Router.
  *
- * This provider handles hydration by syncing the server locale with the client
- * i18n instance, preventing hydration mismatches.
- *
- * Translations should be pre-loaded in the i18n instance via the `translation`
- * option in `createI18n()`.
- *
- * @example
- * ```tsx
- * // i18n/index.ts
- * import { createI18n } from '@comvi/next';
- * import { setI18n } from '@comvi/next/server';
- * import { translations } from './translations';
- *
- * export const i18n = createI18n({
- *   locale: 'en',
- *   defaultNs: 'default',
- *   translation: translations, // Pre-loaded translations
- * });
- *
- * setI18n(i18n);
- * ```
+ * Syncs the server locale onto the client i18n instance, preventing hydration
+ * mismatches. Translations should be pre-loaded in the instance via the
+ * `translation` option in `createI18n()`.
  *
  * @example
  * ```tsx
@@ -164,5 +145,4 @@ export function I18nProvider({
   return routing ? <RoutingProvider routing={routing}>{content}</RoutingProvider> : content;
 }
 
-// Add display name for React DevTools
 I18nProvider.displayName = "I18nProvider";

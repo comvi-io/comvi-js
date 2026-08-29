@@ -1,8 +1,3 @@
-/**
- * Shared API client utilities
- * Provides common functions for making authenticated API requests
- */
-
 import { getApiConfig } from "../config/api";
 
 /** Request init accepted by apiFetch. */
@@ -31,7 +26,6 @@ export interface ApiFetchInit {
  *
  * @param scopeId - Optional runtime scope used to isolate editor instances
  * @param path - Path relative to the API base URL (e.g. "/v1/keys")
- * @param init - Request options
  */
 export function apiFetch(
   scopeId: string | undefined,
@@ -62,11 +56,7 @@ export function apiFetch(
   });
 }
 
-/**
- * Get API base URL from configuration
- * @param scopeId - Optional runtime scope used to isolate editor instances
- * @returns Base URL string
- */
+/** @param scopeId - Optional runtime scope used to isolate editor instances */
 export function getBaseUrl(scopeId?: string): string {
   const { baseUrl } = getApiConfig(scopeId);
   return baseUrl;

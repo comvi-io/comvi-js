@@ -5,9 +5,7 @@ import { performance } from "node:perf_hooks";
 import { spawnSync } from "node:child_process";
 
 /**
- * Runtime perf gate for `@comvi/core` (release-0.5.0-hardening plan §5, protocol
- * §6.5 — the method of `.omc/handoffs/core-ng-spike.md` §0 as run in
- * `.omc/handoffs/hardening-p0.md` §4).
+ * Runtime perf gate for `@comvi/core`.
  *
  * Five fixed cases over a fixed 200-key catalog: construction, `t()` on a static
  * key, `t()` with a `{name}` param, `t()` on an ICU plural through `icuCompiler`,
@@ -16,7 +14,7 @@ import { spawnSync } from "node:child_process";
  *
  *   node scripts/perf.mjs [distRoot]
  *     Prints the table plus a JSON line for one dist (default:
- *     packages/core/dist). This is the shape pasted into phase handoffs.
+ *     packages/core/dist).
  *
  *   node scripts/perf.mjs --probe <distRoot>
  *     Exits 0 when that dist exposes every entry the protocol loads, 3 when it
@@ -27,7 +25,7 @@ import { spawnSync } from "node:child_process";
  *     Interleaved A/B: for each repetition it measures A then B for every case,
  *     three times, and keeps the MIN per side (the least-disturbed run — a
  *     benchmark's noise is one-sided). Prints Δ% per case and exits 1 when any
- *     case regresses by more than the threshold (default 5 %, the plan's number).
+ *     case regresses by more than the threshold (default 5 %).
  *     A is the reference (main), B the candidate (PR head).
  *
  * Every individual measurement runs in its own child process (`--measure-one`),

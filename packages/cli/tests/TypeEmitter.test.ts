@@ -2,12 +2,7 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { TypeEmitter } from "../src/core/TypeEmitter";
 import type { ProjectSchema } from "../src/types";
 
-/**
- * TypeEmitter Tests
- *
- * Tests for generating TypeScript declaration files from ProjectSchema.
- * Key format: "namespace:key" (colon separator)
- */
+/** Schema keys are flat, with a colon separating namespace from key. */
 describe("TypeEmitter", () => {
   let typeEmitter: TypeEmitter;
 
@@ -30,7 +25,6 @@ describe("TypeEmitter", () => {
 
       expect(result).toContain("declare module '@comvi/core'");
       expect(result).toContain("interface TranslationKeys");
-      // Keys are flat with colon separator: "namespace:key"
       expect(result).toContain("'common:greeting': { name: string };");
       expect(result).toContain("'common:welcome': never;");
       // @comvi/vue and @comvi/react re-export from @comvi/core,
@@ -48,10 +42,8 @@ describe("TypeEmitter", () => {
 
       const result = typeEmitter.generate(schema);
 
-      // Keys are flat with colon: "namespace:key"
       expect(result).toContain("'auth:login': never;");
       expect(result).toContain("'common:hello': never;");
-      // Should NOT have nested structure
       expect(result).not.toContain("'common': {");
       expect(result).not.toContain("'auth': {");
     });
@@ -67,7 +59,6 @@ describe("TypeEmitter", () => {
 
       const result = typeEmitter.generate(schema);
 
-      // Keys are sorted alphabetically
       const alphaIndex = result.indexOf("'alpha:key'");
       const betaIndex = result.indexOf("'beta:key'");
       const zebraIndex = result.indexOf("'zebra:key'");
@@ -87,7 +78,6 @@ describe("TypeEmitter", () => {
 
       const result = typeEmitter.generate(schema);
 
-      // Keys sorted: common:apple, common:banana, common:zebra
       const appleIndex = result.indexOf("'common:apple'");
       const bananaIndex = result.indexOf("'common:banana'");
       const zebraIndex = result.indexOf("'common:zebra'");
@@ -348,15 +338,12 @@ describe("TypeEmitter", () => {
 
       const result = typeEmitter.generate(schema, { defaultNsName: "default" });
 
-      // Keys from the default namespace should have their prefix stripped
       expect(result).toContain("'greeting': { name: string };");
       expect(result).toContain("'welcome': never;");
 
-      // Keys from non-default namespaces should keep their prefix
       expect(result).toContain("'admin:dashboard': never;");
       expect(result).toContain("'errors:not_found': { code: number };");
 
-      // The stripped keys should NOT appear with their original prefix
       expect(result).not.toContain("'default:welcome'");
       expect(result).not.toContain("'default:greeting'");
     });
@@ -372,14 +359,11 @@ describe("TypeEmitter", () => {
 
       const result = typeEmitter.generate(schema, { defaultNsName: "common" });
 
-      // Keys from custom default namespace should have prefix stripped
       expect(result).toContain("'goodbye': never;");
       expect(result).toContain("'hello': never;");
 
-      // Non-default namespace keys keep their prefix
       expect(result).toContain("'auth:login': never;");
 
-      // Original prefixed keys should not appear
       expect(result).not.toContain("'common:hello'");
       expect(result).not.toContain("'common:goodbye'");
     });
@@ -413,27 +397,21 @@ describe("TypeEmitter", () => {
 
       const result = typeEmitter.generate(schema);
 
-      // Verify the overall structure is valid TypeScript declaration syntax
-      // 1. Must start with comment header and import statement
       expect(result).toMatch(/^\/\*\*[\s\S]*?\*\//);
       expect(result).toContain("import '@comvi/core';");
 
-      // 2. Must have proper module declaration block
       expect(result).toMatch(/declare module '@comvi\/core' \{/);
       expect(result).toMatch(/\s+interface TranslationKeys \{/);
 
-      // 3. Each key line must follow valid TypeScript interface member syntax
       // Pattern: '  'key': never;' or '  'key': { param: type; ... };'
       const keyLinePattern = /^\s+'[^']+': (never|\{[^}]+\});$/gm;
       const keyLines = result.match(keyLinePattern);
       expect(keyLines).not.toBeNull();
       expect(keyLines!.length).toBe(4);
 
-      // 4. Must close properly with } and export {}
       expect(result).toMatch(/\s+\}\n\}\n/);
       expect(result).toContain("export {};");
 
-      // 5. Braces must be balanced
       const openBraces = (result.match(/\{/g) || []).length;
       const closeBraces = (result.match(/\}/g) || []).length;
       expect(openBraces).toBe(closeBraces);

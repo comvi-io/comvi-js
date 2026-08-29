@@ -1,14 +1,5 @@
-/**
- * Test helper utilities
- */
 import { encodeKeyToInvisible, registerKey } from "../src/translation";
 
-/**
- * Creates a DOM element with encoded translation keys
- * @param html - HTML template string
- * @param keys - Translation keys to encode
- * @returns HTMLElement
- */
 export function createTestElement(
   html: string,
   keys: Record<string, string | number> = {},
@@ -28,17 +19,11 @@ export function createTestElement(
   return container.firstElementChild as HTMLElement;
 }
 
-/**
- * Creates a text node with encoded translation key
- */
 export function createEncodedTextNode(key: string | number): Text {
   const encoded = encodeKeyToInvisible(key);
   return document.createTextNode(`Some text ${encoded}`);
 }
 
-/**
- * Creates an element with encoded attribute
- */
 export function createEncodedAttribute(
   tagName: string,
   attrName: string,
@@ -50,9 +35,6 @@ export function createEncodedAttribute(
   return element;
 }
 
-/**
- * Creates a scrollable container for testing scroll behavior
- */
 export function createScrollableContainer(width = 200, height = 200): HTMLElement {
   const container = document.createElement("div");
   container.style.width = `${width}px`;
@@ -68,9 +50,6 @@ export function createScrollableContainer(width = 200, height = 200): HTMLElemen
   return container;
 }
 
-/**
- * Simulates keyboard event
- */
 export function simulateKeyEvent(
   type: "keydown" | "keyup",
   key: string,
@@ -85,9 +64,6 @@ export function simulateKeyEvent(
   document.dispatchEvent(event);
 }
 
-/**
- * Simulates mouse event on element
- */
 export function simulateMouseEvent(
   element: Element,
   type: "mouseover" | "mouseout" | "click",
@@ -102,9 +78,6 @@ export function simulateMouseEvent(
   element.dispatchEvent(event);
 }
 
-/**
- * Gets bounding rect for testing
- */
 export function mockBoundingClientRect(element: Element, rect: Partial<DOMRect>): void {
   const defaultRect: DOMRect = {
     x: 0,
@@ -121,9 +94,6 @@ export function mockBoundingClientRect(element: Element, rect: Partial<DOMRect>)
   element.getBoundingClientRect = () => ({ ...defaultRect, ...rect });
 }
 
-/**
- * Registers multiple keys for testing
- */
 export function registerTestKeys(keys: string[]): Map<string, number> {
   const mapping = new Map<string, number>();
   keys.forEach((key) => {
@@ -133,19 +103,12 @@ export function registerTestKeys(keys: string[]): Map<string, number> {
   return mapping;
 }
 
-/**
- * Cleans up DOM after test
- */
 export function cleanupDOM(): void {
   document.body.innerHTML = "";
-  // Clean up any global state
   const highlights = document.querySelectorAll("[data-test-highlight]");
   highlights.forEach((el) => el.remove());
 }
 
-/**
- * Creates a spy for console methods
- */
 export function spyConsole(method: "log" | "warn" | "error" = "log") {
   const original = console[method];
   const calls: any[][] = [];

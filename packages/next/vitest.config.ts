@@ -14,11 +14,11 @@ const SRC_ALIAS = { find: "@", replacement: resolve(__dirname, "./src") };
  * Pin every `@comvi/core*` specifier — next's own imports, and react's
  * through the source alias — to ONE published build family.
  *
- * The §2.4 JS-consumer contract and P5's loud server-cell errors both have to
- * hold under BOTH build conditions; the only way to prove a message is not
- * stripped in production is to run the same file against the production
- * artifact with `__DEV__` false. Exact-match regexes, never string prefixes: a
- * string alias for `@comvi/core` would also swallow `@comvi/core`.
+ * The JS-consumer contract and the loud server-cell errors both have to hold
+ * under BOTH build conditions; the only way to prove a message is not stripped
+ * in production is to run the same file against the production artifact with
+ * `__DEV__` false. Exact-match regexes, never string prefixes: a string alias
+ * for `@comvi/core` would also swallow `@comvi/core`.
  *
  * All five entries move together — mixing a dev base host with a prod
  * capability module would compose across two different terser nameCaches and

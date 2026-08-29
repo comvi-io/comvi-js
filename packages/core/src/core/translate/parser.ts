@@ -34,18 +34,14 @@ function isQuoteStart(str: string, index: number, len: number, hashIsSyntax: boo
 }
 
 /**
- * DEV-ONLY (plan §2.3): the ambient-tag loudness residual.
- *
  * Tag syntax through the string API (`t("click <b>here</b>")`) is literal text
- * when no extension claims `<`, and it stays literal in production — unlike an
- * ICU plural, a literal `<b>` is visibly broken in any UI review, so the
- * loudness bar is met by a development warning plus that visibility rather
- * than by a throw. This is the named, owned decision, not an oversight.
+ * when no extension claims `<`, and it stays literal in production: unlike an
+ * ICU plural, a literal `<b>` is visibly broken in any UI review, so a dev
+ * warning plus that visibility is deliberately chosen over a throw.
  *
  * Once per template, and only for genuinely tag-like input (`<` followed by an
- * ASCII letter): a bare `<` in "a < b" is arithmetic, not markup. The whole
- * mechanism is behind `IS_DEV`, so production pays 0 B — the same fold
- * `warnIfNotFlat` uses.
+ * ASCII letter) — the bare `<` in "a < b" is arithmetic, not markup. Behind
+ * `IS_DEV`, so production pays nothing.
  */
 const warnedTagTemplates = IS_DEV ? new Set<string>() : undefined;
 
@@ -61,7 +57,7 @@ function warnUnclaimedTag(template: string, index: number, len: number): void {
   );
 }
 
-/** Skip a quoted section, returns index after closing quote */
+/** @returns the index AFTER the closing quote. */
 function skipQuotedSection(str: string, startIndex: number, len: number): number {
   let i = startIndex + 1;
   while (i < len) {
@@ -195,8 +191,7 @@ export function parseTemplate(
         lastIndex = i;
       } else {
         // No extension claims the position — the character is literal text.
-        // Tag-like input gets one development warning per template (§2.3); a
-        // real tags extension never reaches here, because it claimed the `<`.
+        // A real tags extension never reaches here: it claimed the `<`.
         if (IS_DEV && code === LESS_THAN) warnUnclaimedTag(template, i, len);
         i++;
       }

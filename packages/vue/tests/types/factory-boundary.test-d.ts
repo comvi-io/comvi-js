@@ -1,10 +1,7 @@
-// Type-level contract for the vue factory boundary (framework-slim §3.2,
-// "Vue inject-path type honesty" — the two tests named there).
-//
-// The claim under test is that the host type `C` is exact exactly where the
-// factory result is held, and NOWHERE else: through `inject`, a component sees
-// a capability-free `WrapperI18nHost`, so a capability call there is a compile
-// error rather than a typed-then-crashes path.
+// The host type `C` is exact exactly where the factory result is held, and
+// NOWHERE else: through `inject` a component sees a capability-free
+// `WrapperI18nHost`, so a capability call there is a compile error rather than
+// a typed-then-crashes path.
 import type { I18n, I18nLoaderApi, I18nPluginHostApi, WrapperI18nHost } from "../../src/index";
 import {
   attachLoader,
@@ -25,11 +22,8 @@ const baseCore = createCore({ locale: "en" });
 const loaderHost = attachLoader(createCore({ locale: "en" }));
 const composedHost = attachPlugins(attachLoader(createCore({ locale: "en" })));
 
-// ---------------------------------------------------------------------------
-// (i) The INJECTED instance's core is not an `I18n`: capability members are
-//     absent from its type, so they cannot be called through the inject path.
-// ---------------------------------------------------------------------------
-
+// The INJECTED instance's core is not an `I18n`: capability members are absent
+// from its type, so they cannot be called through the inject path.
 const injected = inject(I18N_INJECTION_KEY)!;
 
 type InjectedCore = (typeof injected)["core"];
@@ -45,14 +39,10 @@ injected.registerLoader(() => Promise.resolve({}));
 // @ts-expect-error — `use` dropped in 0.5.0 (P6); register through `core.use`
 injected.use(() => undefined);
 
-// The core-safe surface still resolves through the same path.
 injected.core.addTranslations({ en: { greeting: "Hello" } });
 void injected.t("greeting");
 
-// ---------------------------------------------------------------------------
-// (ii) The FACTORY RESULT preserves the exact host type `C`.
-// ---------------------------------------------------------------------------
-
+// The FACTORY RESULT preserves the exact host type `C`.
 const fromComposed = createI18nFromCore(composedHost);
 type _ComposedCoreIsExact = Expect<Equal<(typeof fromComposed)["core"], typeof composedHost>>;
 type _ComposedInstanceIsExact = Expect<
@@ -71,18 +61,14 @@ void fromLoader.core.reloadTranslations();
 // @ts-expect-error — this host was composed WITHOUT the plugin capability
 fromLoader.core.registerPostProcessor((result) => result);
 
-// A base host keeps its bare type: nothing is invented for it.
 const fromBase = createI18nFromCore(baseCore);
 type _BaseCoreIsExact = Expect<Equal<(typeof fromBase)["core"], typeof baseCore>>;
 // @ts-expect-error — a base host has no loader capability, at any level
 fromBase.core.reloadTranslations();
 
-// Vue's own one-call factory keeps its 0.4.x CALL shape, and since the
-// single-entry convergence its core is core's BASE `I18n` — the same class
-// `createCore` builds. So the preset path is capability-free too: this is the
-// deliberate published break, stated here as a compile error rather than as
-// prose. Compose what the app needs on `i18n.core`, or build the host with
-// `createCore` and hand it to `createI18nFromCore`.
+// The preset path is capability-free too: its core is core's BASE `I18n`, the
+// same class `createCore` builds. Compose what the app needs on `i18n.core`,
+// or build the host with `createCore` and hand it to `createI18nFromCore`.
 const fromPreset = createI18n({ locale: "en" });
 type _PresetCoreIsBase = Expect<Equal<(typeof fromPreset)["core"], I18n<{}>>>;
 // @ts-expect-error — 0.4's root shipped the loader; the converged preset does not
@@ -90,9 +76,9 @@ fromPreset.core.registerLoader(() => Promise.resolve({}));
 // …and one `.with(loader())` on that same host buys it back, exactly typed.
 void fromPreset.core.with(attachLoader).registerLoader(() => Promise.resolve({}));
 
-// The instance itself never regains the dropped proxies, whatever `C` is —
-// including `use`, whose guarded proxy was the last typed-present-may-throw
-// member on the class (§2.4). Probed on every `C` shape the factories produce.
+// The instance never regains the dropped proxies, whatever `C` is — including
+// `use`, the last typed-present-may-throw member the class had. Probed on
+// every `C` shape the factories produce.
 // @ts-expect-error — dropped in 0.5.0; use `i18n.core.reloadTranslations()`
 fromComposed.reloadTranslations();
 // @ts-expect-error — dropped in 0.5.0; use `i18n.core.use(...)`

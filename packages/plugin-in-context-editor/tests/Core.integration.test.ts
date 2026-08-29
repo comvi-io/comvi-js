@@ -1,9 +1,3 @@
-/**
- * Core Integration Tests
- * Tests the full system working together: Core orchestrating
- * DOMWatcher, TextNodeProcessor, TranslatedElementsMap, and ElementHighlighter
- */
-
 import { describe, it, expect, afterEach } from "vitest";
 import { Core } from "../src/Core";
 import { encodeKeyToInvisible, registerKey, loadKeyMappings } from "../src/translation";
@@ -28,11 +22,9 @@ describe("Core.integration.test.ts - Full System Integration", () => {
       const container = document.createElement("div");
       document.body.appendChild(container);
 
-      // Register keys
       const titleKey = registerKey("home.title");
       const descKey = registerKey("home.description");
 
-      // Create DOM with encoded content
       const h1 = document.createElement("h1");
       const titleText = document.createTextNode(`Welcome ${encodeKeyToInvisible(titleKey)}`);
       h1.appendChild(titleText);
@@ -45,7 +37,6 @@ describe("Core.integration.test.ts - Full System Integration", () => {
       container.appendChild(h1);
       container.appendChild(p);
 
-      // Create Core system
       const core = new Core({
         targetElement: container,
         tagAttributes: TAG_ATTRIBUTES,
@@ -53,12 +44,10 @@ describe("Core.integration.test.ts - Full System Integration", () => {
 
       core.start();
 
-      // Wait for initial scan
       await flushDOMMutations();
 
       core.stop();
 
-      // Verify core processed content without errors
       expect(h1.textContent).toContain("Welcome");
       expect(p.getAttribute("title")).toContain("Tooltip");
 
@@ -76,7 +65,6 @@ describe("Core.integration.test.ts - Full System Integration", () => {
 
       core.start();
 
-      // Add content dynamically
       const key = registerKey("dynamic.key");
       const encoded = encodeKeyToInvisible(key);
 
@@ -89,7 +77,6 @@ describe("Core.integration.test.ts - Full System Integration", () => {
       core.stop();
       container.remove();
 
-      // Verify element was added and processed
       expect(newDiv.getAttribute("aria-label")).toContain("Dynamic");
     });
 
@@ -105,7 +92,6 @@ describe("Core.integration.test.ts - Full System Integration", () => {
 
       core.start();
 
-      // Add multiple elements
       keys.forEach((key, index) => {
         const div = document.createElement("div");
         div.setAttribute("title", `Title ${index} ${encodeKeyToInvisible(key)}`);
@@ -117,7 +103,6 @@ describe("Core.integration.test.ts - Full System Integration", () => {
       core.stop();
       container.remove();
 
-      // Verify all elements were processed
       expect(keys.length).toBe(5);
     });
   });
@@ -172,7 +157,6 @@ describe("Core.integration.test.ts - Full System Integration", () => {
 
       core.start();
 
-      // Add some content
       const div = document.createElement("div");
       container.appendChild(div);
 
@@ -184,7 +168,6 @@ describe("Core.integration.test.ts - Full System Integration", () => {
 
       container.remove();
 
-      // Verify cleanup is proper - no errors should occur
       expect(container.contains(div)).toBe(true);
       expect(container.contains(div2)).toBe(true);
     });
@@ -192,7 +175,6 @@ describe("Core.integration.test.ts - Full System Integration", () => {
 
   describe("Element click handling", () => {
     it("should handle element with single key", () => {
-      // This is more of a structural test since we can't easily test the modal
       const container = document.createElement("div");
       document.body.appendChild(container);
 
@@ -209,13 +191,12 @@ describe("Core.integration.test.ts - Full System Integration", () => {
       button.textContent = `Click ${encoded}`;
       container.appendChild(button);
 
-      // Can't easily test click without full modal integration
-      // This test ensures the structure is in place
+      // Clicking cannot be exercised without the full modal; this only pins
+      // that the structure is in place.
 
       core.stop();
       container.remove();
 
-      // Verify button was created with encoded content
       expect(button.textContent).toContain("Click");
     });
   });
@@ -288,10 +269,8 @@ describe("Core.integration.test.ts - Full System Integration", () => {
       input.setAttribute("placeholder", `Enter text ${encoded}`);
       container.appendChild(input);
 
-      // Wait for processing
       await flushDOMMutations();
 
-      // Should process without errors
       expect(() => {
         core.stop();
       }).not.toThrow();
@@ -303,14 +282,12 @@ describe("Core.integration.test.ts - Full System Integration", () => {
       const container = document.createElement("div");
       document.body.appendChild(container);
 
-      // Pass empty options object
       const core = new Core({});
 
       expect(() => {
         core.start();
       }).not.toThrow();
 
-      // Test with various HTML elements that have default tag attributes
       const key1 = registerKey("test.placeholder");
       const key2 = registerKey("test.aria");
       const encoded1 = encodeKeyToInvisible(key1);
@@ -324,10 +301,8 @@ describe("Core.integration.test.ts - Full System Integration", () => {
       div.setAttribute("aria-label", `Label ${encoded2}`);
       container.appendChild(div);
 
-      // Wait for processing
       await flushDOMMutations();
 
-      // Should process all elements without errors
       expect(() => {
         core.stop();
       }).not.toThrow();

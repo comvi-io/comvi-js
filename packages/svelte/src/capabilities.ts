@@ -1,49 +1,35 @@
-// Capability-segregated acquisition (landed in the framework-slim plan §3.2, D′).
-//
 // `useI18n()` is type-honest by ABSENCE: the loader/plugin-host members are
 // not on its return, in types or at runtime, in any build. They live here
 // instead, behind one acquisition call per capability that verifies the host
-// STRUCTURALLY and throws a loud, hint-carrying error when the capability was
-// never attached — in dev AND in prod (§2.4). There is no silent no-op and no
-// dev-only tombstone.
+// STRUCTURALLY and throws when the capability was never attached — in dev AND
+// in prod. There is no silent no-op and no dev-only tombstone.
 //
-// Svelte idiom (§3.2): these are CONTEXT READERS, not stores. They call
-// `getI18nContext()`, so — exactly like `useI18n()` and `getI18nContext()`
-// itself — they are callable during component initialisation only. What they
-// return is a plain object of bound functions captured at that moment;
-// nothing here is reactive, and `$`-prefixing a member is a type error. The
-// asymmetry with `createLocaleStore()` & friends is deliberate: a capability
-// action is an imperative operation, not a value that changes over time.
+// These are CONTEXT READERS, not stores: they call `getI18nContext()`, so —
+// exactly like `useI18n()` — they are callable during component initialisation
+// only, and what they return is a plain object of bound functions captured at
+// that moment. Nothing here is reactive and `$`-prefixing a member is a type
+// error. The asymmetry with `createLocaleStore()` & friends is deliberate: a
+// capability action is an imperative operation, not a value that changes.
 //
 // Naming: `useI18nLoader` / `useI18nPlugins` rather than a svelte-flavoured
-// `getI18nLoader` — the package already ships `useI18n()`, so the `use*` idiom
-// is established in-package, and one grep finds the same API across all four
-// wrappers (plan §3.2, decided).
+// `getI18nLoader`, so one grep finds the same API across all four wrappers.
 //
-// Identity contract (§3.2): a module-level `WeakMap<host, bag>` per
-// capability. The bag and every member are referentially stable per host
-// instance across components and re-initialisations.
+// Identity contract: the bag is cached in a module-level `WeakMap<host, bag>`,
+// so members are referentially stable per host across components.
 import { hasLoaderApi, hasPluginHostApi, missingCapability } from "@comvi/core";
 import type { I18nLoaderApi, I18nPluginHostApi, WrapperI18nHost } from "@comvi/core";
 import { getI18nContext } from "./context.js";
 
 // #region capability-parity (B8) — FRAMEWORK-NEUTRAL, BYTE-IDENTICAL
 // Everything between the region markers is the same text in @comvi/react,
-// @comvi/vue, @comvi/solid and @comvi/svelte, character for character.
-// `scripts/wrapper-hooks-parity.test.mjs` (root `pnpm test:release-tools`)
-// fails if it drifts, because the four copies drifted before: react used to
-// wrap the `onMissingKey` callback in a `String(result)` coercion the other
-// three did not have — an invented semantic (see `UseI18nPluginsReturn`).
-// Only the host acquisition below the region may differ per framework.
+// @comvi/vue, @comvi/solid and @comvi/svelte, character for character, and
+// `scripts/wrapper-hooks-parity.test.mjs` fails if it drifts. The copies did
+// drift once: react wrapped the `onMissingKey` callback in a `String(result)`
+// coercion the other three did not have. Only the host acquisition below the
+// region may differ per framework.
 //
-// PHASE 3 FOLLOW-UP: this region belongs in `@comvi/core`, which every wrapper
-// already imports, as the exact pair
-//   export function acquireLoaderApi(host: WrapperI18nHost): UseI18nLoaderReturn;
-//   export function acquirePluginsApi(host: WrapperI18nHost): UseI18nPluginsReturn;
-// (with `UseI18nLoaderReturn` / `UseI18nPluginsReturn` re-exported from core and
-// the WeakMaps living beside them, so bag identity stays per-host and per-core-
-// module). Each wrapper then shrinks to a context read plus one call, and this
-// parity test retires with it.
+// TODO: move the region into `@comvi/core` as `acquireLoaderApi(host)` /
+// `acquirePluginsApi(host)`, then delete the four copies and the parity test.
 
 /**
  * The `@comvi/core/loader` surface a component may drive: the three members
@@ -74,13 +60,11 @@ export interface UseI18nPluginsReturn {
   /**
    * Register a callback for missing keys. Returns an unsubscribe function.
    *
-   * The type is core's `I18nPluginHostApi["onMissingKey"]` verbatim, and the
-   * member is the bound host method — nothing wraps it. A callback may
-   * therefore return the full `TranslationResult` core accepts, i.e. a string
-   * OR the `Array<string | VirtualNode>` a rich-text fallback needs, and core
-   * decides what to do with it (`_missHook`: every callback runs, the first
-   * defined result wins). A wrapper-side coercion would narrow that contract
-   * to a semantic core does not have.
+   * The member is the bound host method — nothing wraps it, so a callback may
+   * return the full `TranslationResult` core accepts: a string, or the
+   * `Array<string | VirtualNode>` a rich-text fallback needs. Core runs every
+   * callback and the first defined result wins. A wrapper-side coercion would
+   * narrow that contract to a semantic core does not have.
    */
   onMissingKey: I18nPluginHostApi["onMissingKey"];
 }
@@ -92,7 +76,7 @@ const pluginBags = new WeakMap<AnyHost, UseI18nPluginsReturn>();
 
 function acquireLoader(host: AnyHost): UseI18nLoaderReturn {
   // A cached bag implies the capability was already verified for this host:
-  // attach is monotonic, capabilities are added and never removed (§3.2).
+  // attach is monotonic, capabilities are added and never removed.
   const cached = loaderBags.get(host);
   if (cached) return cached;
 

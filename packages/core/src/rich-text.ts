@@ -9,11 +9,9 @@
 //
 // NEVER add `import "./register-tags"` (or any other module-level side effect)
 // to this file. That import is the entire difference between this entry and
-// `@comvi/core/tags`, which imports registration and then re-exports
-// everything below unchanged so the ambient API stays source-compatible.
-// `tests/features/rich-text-entry.test.ts` pins both halves.
+// `@comvi/core/tags`, which imports registration and then re-exports everything
+// below unchanged so the ambient API stays source-compatible.
 
-// T-core: the shared `<T>` pipeline (framework wrappers consume this)
 export {
   prepareTranslation,
   getPendingHandlerName,
@@ -28,7 +26,6 @@ export type {
   TagComponentConfig,
 } from "./core/prepareTranslation";
 
-// VirtualNode toolbox for rich-text consumers
 export { createElement, createTextNode, createFragment, isVirtualNode } from "./virtualNode";
 export type {
   VirtualNode,

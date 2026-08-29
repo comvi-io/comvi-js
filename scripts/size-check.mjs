@@ -5,22 +5,14 @@ import zlib from "node:zlib";
 import { createRequire } from "node:module";
 
 /**
- * Bundle-size gate (weight-refactor plan, Phase 0).
+ * Bundle-size gate: bundles each scripts/size-fixtures/ entry with esbuild and
+ * asserts min+gz against scripts/size-budgets.json.
  *
- * Bundles each fixture in scripts/size-fixtures/ with esbuild (minified,
- * production conditions) and asserts the min+gz output against the budgets in
- * scripts/size-budgets.json.
- *
- * Fixture entries are resolved through the PUBLISHED `exports` map of the
- * target package (never through dist/ paths or the legacy `module`/`main`
- * fields), so the gate fails when the exports/conditions matrix is broken for
- * real consumers. Budget entries marked `pending: true` are declared slots a
- * later phase graduates: they are skipped with the notice in `pendingReason`
- * and gate nothing until the flag is dropped.
- *
- * A fixture may also declare `sentinelModules` + `expectSentinels`: the gate
- * then asserts module-graph membership from the esbuild metafile (module IDs,
- * never output-text substrings) — the framework-slim tags-pinning probe.
+ * Entries resolve through the PUBLISHED `exports` map, never a dist/ path, so a
+ * broken exports/conditions matrix fails the gate. `pending: true` budgets are
+ * declared slots that gate nothing. A fixture may also declare
+ * `sentinelModules` + `expectSentinels`, asserting module-graph membership from
+ * the metafile — module IDs, never output-text substrings.
  */
 
 const SCRIPT_DIR = path.dirname(url.fileURLToPath(import.meta.url));
@@ -32,8 +24,8 @@ export const PRODUCTION_CONDITIONS = ["production", "import", "module", "browser
 
 /**
  * Workspace packages whose imports the fixtures resolve through the PUBLISHED
- * exports map. Framework wrappers are here because the framework-slim
- * fixtures (scripts/size-fixtures/framework/) measure wrapper-on-core graphs;
+ * exports map. Framework wrappers are here because the framework fixtures
+ * (scripts/size-fixtures/framework/) measure wrapper-on-core graphs;
  * locale-routing and plugin-fetch-loader are transitive @comvi/next graph
  * members. Framework peer deps (react, vue, solid-js, svelte, next, nuxt)
  * are NOT here — fixtures mark them external, so only the comvi graph counts.
@@ -198,21 +190,12 @@ export function resolveFixtureSpecifier(
 }
 
 /**
- * Whether the published `sideEffects` field marks `relTarget` as
- * side-effectful — `false`/an array that does not list it means a bundler may
- * drop the module when none of its exports are used.
+ * Whether the published `sideEffects` field marks `relTarget` as side-effectful.
  *
- * esbuild applies this itself for paths IT resolves, but a plugin-resolved
- * path defaults to side-effectful. Without this, an entry a real bundler
- * prunes stays in the measured graph: `@comvi/react`'s index re-export
- * `export { createI18n, I18n } from "@comvi/core"` (fs-p1 blocker B2) pinned
- * core's entry into every framework fixture, inflating both the bytes and the
- * sentinel verdict. At that time — PRE-CONVERGENCE — that entry was the
- * batteries-included, tag-registering one, so pinning it dragged the ambient
- * tags chunks along too. The converged entry is the side-effect-free base
- * host: pinning it costs bytes and nothing else, and the tags chunks now
- * enter a measured graph only through an explicit `@comvi/core/tags` import
- * (the wrapper `<T>` chunk, or the app's own).
+ * esbuild applies this itself for paths IT resolves, but a PLUGIN-resolved path
+ * defaults to side-effectful — so without this, an entry a real bundler prunes
+ * stays in the measured graph, inflating both the bytes and the sentinel
+ * verdict.
  */
 export function hasDeclaredSideEffects(pkgJson, relTarget) {
   const declared = pkgJson.sideEffects;
@@ -306,7 +289,7 @@ export function svelteComponentPlugin(packageRoots) {
  * tree-shaking removed completely. Reading it made every sentinel a false
  * positive — a `sideEffects:false` re-export chain esbuild had fully dropped
  * still "found" its module ID, which is exactly the absence these fixtures
- * exist to prove (framework-slim P2).
+ * exist to prove.
  */
 function metafileModuleIds(metafile) {
   const retained = new Set();
@@ -405,9 +388,9 @@ export async function runSizeCheck({
     const unresolved = specifiers.filter(
       (specifier) => resolveFixtureSpecifier(specifier, packageRoots, conditions) === undefined,
     );
-    // `pending` is declared, never inferred: a framework-slim slot resolves
-    // through the exports map today yet still measures the wrong graph until
-    // its phase lands, so resolution alone cannot decide measurability.
+    // `pending` is declared, never inferred: a slot can resolve through the
+    // exports map yet still measure the wrong graph, so resolution alone
+    // cannot decide measurability.
     if (fixture.pending) {
       if (typeof fixture.pendingReason !== "string" || fixture.pendingReason.length === 0) {
         throw new Error(
@@ -501,11 +484,7 @@ export function renderResults(results) {
   return lines.join("\n");
 }
 
-/**
- * `--modules` prints the comvi module IDs behind every sentinel fixture. That
- * list is the before/after diff input the plan's P2 diagnosis cycle consumes
- * (§4 Phase 2 abort protocol) and the evidence recorded in `baseline.modules`.
- */
+/** `--modules` prints the comvi module IDs behind every sentinel fixture. */
 function renderModuleGraphs(results) {
   const lines = [];
   for (const result of results) {

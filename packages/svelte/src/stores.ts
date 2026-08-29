@@ -2,23 +2,18 @@ import { readable, type Readable } from "svelte/store";
 import { subscribeToRevision } from "@comvi/core";
 import type { WrapperI18nHost, DefaultTranslationParams, DefaultParamsSnapshot } from "@comvi/core";
 
-/**
- * Host type every svelte binding demands (framework-slim D′): the reactive
- * translation host, exactly what the base `@comvi/svelte` factory
- * implements.
- */
 type Host<D extends DefaultTranslationParams = {}> = WrapperI18nHost<D>;
 
 /**
- * Cache for memoized stores per i18n instance
- * Prevents creating duplicate stores when useI18n() or <T> is called multiple times
+ * One store set per instance, so repeated `useI18n()` / `<T>` calls do not
+ * build duplicates.
  *
  * Keyed by object IDENTITY, not by a host type: `WrapperI18nHost<D>` is
  * INVARIANT in `D` (`init(): Promise<this>` recurses back through the
- * `D`-typed `setDefaultParams`), so no single host type all hosts widen to
- * exists. Nothing in this module reads `D` — every store below is either
- * `D`-free or `D`-erased, and `createDefaultParamsStore` re-applies the
- * caller's `D` on the way out.
+ * `D`-typed `setDefaultParams`), so there is no single host type every host
+ * widens to. Nothing here reads `D` — every store below is `D`-free or
+ * `D`-erased, and `createDefaultParamsStore` re-applies the caller's `D` on
+ * the way out.
  */
 const storeCache = new WeakMap<
   object,
@@ -32,10 +27,6 @@ const storeCache = new WeakMap<
   }
 >();
 
-/**
- * Get or create memoized stores for an i18n instance
- * Ensures only one set of stores exists per i18n instance
- */
 function getOrCreateStores<D extends DefaultTranslationParams>(i18n: Host<D>) {
   let stores = storeCache.get(i18n);
 
@@ -71,10 +62,9 @@ function getOrCreateStores<D extends DefaultTranslationParams>(i18n: Host<D>) {
         };
       }),
       cacheRevision: readable(i18n.translationCache.getRevision(), (set) => {
-        // Single monotonic counter — avoids the old cacheRev+configRev sum collision (dropped re-render).
-        // Subscribed to the canonical revision event set from core (subscribeToRevision),
-        // so the revision now also bumps on localeChanged/loadingStateChanged — the full
-        // set of axes vue's bridge reacts to.
+        // ONE monotonic counter: summing a cache and a config revision let two
+        // opposite steps collide and drop a re-render. Bumps on core's whole
+        // canonical event set, the locale/loading axes included.
         let revision = 0;
         set(revision);
         return subscribeToRevision(i18n, () => set(++revision));
@@ -94,44 +84,28 @@ function getOrCreateStores<D extends DefaultTranslationParams>(i18n: Host<D>) {
   return stores;
 }
 
-/**
- * Creates a Svelte store for the current locale
- * Updates automatically when locale changes
- * Memoized per i18n instance
- */
+/** Memoized per i18n instance. */
 export function createLocaleStore<D extends DefaultTranslationParams = {}>(
   i18n: Host<D>,
 ): Readable<string> {
   return getOrCreateStores(i18n).locale;
 }
 
-/**
- * Creates a Svelte store for the loading state
- * Updates when translations are being loaded
- * Memoized per i18n instance
- */
+/** Memoized per i18n instance. */
 export function createLoadingStore<D extends DefaultTranslationParams = {}>(
   i18n: Host<D>,
 ): Readable<boolean> {
   return getOrCreateStores(i18n).loading;
 }
 
-/**
- * Creates a Svelte store for the initializing state
- * Updates during initialization
- * Memoized per i18n instance
- */
+/** Memoized per i18n instance. */
 export function createInitializingStore<D extends DefaultTranslationParams = {}>(
   i18n: Host<D>,
 ): Readable<boolean> {
   return getOrCreateStores(i18n).initializing;
 }
 
-/**
- * Creates a Svelte store for the initialized state
- * Becomes true once initialization finishes successfully
- * Memoized per i18n instance
- */
+/** True once initialization finishes successfully. Memoized per instance. */
 export function createInitializedStore<D extends DefaultTranslationParams = {}>(
   i18n: Host<D>,
 ): Readable<boolean> {
@@ -139,9 +113,8 @@ export function createInitializedStore<D extends DefaultTranslationParams = {}>(
 }
 
 /**
- * Creates a Svelte store that tracks translation cache/config changes
- * Uses revision counter for efficient O(1) change detection
- * Memoized per i18n instance
+ * Tracks translation cache/config changes as a monotonic revision counter.
+ * Memoized per i18n instance.
  */
 export function createCacheRevisionStore<D extends DefaultTranslationParams = {}>(
   i18n: Host<D>,
@@ -149,7 +122,7 @@ export function createCacheRevisionStore<D extends DefaultTranslationParams = {}
   return getOrCreateStores(i18n).cacheRevision;
 }
 
-/** Reactive shallow snapshot of the instance-level interpolation defaults. */
+/** Shallow snapshot of the instance-level interpolation defaults. */
 export function createDefaultParamsStore<D extends DefaultTranslationParams = {}>(
   i18n: Host<D>,
 ): Readable<DefaultParamsSnapshot<D>> {

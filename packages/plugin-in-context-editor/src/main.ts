@@ -1,9 +1,4 @@
-/**
- * Main entry point for manual initialization
- *
- * Provides init/stop functions for standalone usage without the plugin system.
- * For most use cases, prefer using InContextEditorPlugin from index.ts.
- */
+/** Manual init/stop for standalone use; prefer `InContextEditorPlugin`. */
 
 import { Core } from "./Core";
 import type { TranslationSystemOptions } from "./types";

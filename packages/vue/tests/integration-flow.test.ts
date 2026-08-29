@@ -19,10 +19,8 @@ describe("Integration Flow", () => {
   beforeEach(() => {
     loadedLanguages = new Set();
 
-    // Mock language detector
     mockLanguageDetector = vi.fn(() => "fr");
 
-    // Mock loader
     mockLoader = vi.fn(async (locale: string, namespace: string) => {
       loadedLanguages.add(`${locale}:${namespace}`);
 

@@ -30,12 +30,10 @@ describe("@comvi/core", () => {
   });
 
   // ICU argument syntax on the default compiler is fatal in DEVELOPMENT (this
-  // suite runs with `__DEV__` true): ingesting the catalog is the dev-eager
-  // seam, so the throw arrives at construction rather than at first render.
-  // Production instead renders the braced segment literally and reports
-  // `E_ICU_SYNTAX` through `onError` (or `console.error`) on the compilation
-  // that hit it — see `tests/dist/compiler-policy.dist.test.ts`, the only
-  // place the `__DEV__` fold can be observed.
+  // suite runs with `__DEV__` true): ingestion is the dev-eager seam, so the
+  // throw arrives at CONSTRUCTION, not at first render. Production instead
+  // renders the segment literally and reports through `onError` — only the dist
+  // suite can observe that half, because only there is the `__DEV__` fold real.
   it("throws E_ICU_SYNTAX on ICU argument syntax instead of rendering it literally", () => {
     const template = "{count, plural, one {# item} other {# items}}";
 
@@ -70,10 +68,9 @@ describe("@comvi/core", () => {
     expect(i18n.t("items" as never, { count: 5 } as never)).toBe("5 items");
   });
 
-  // ── tag-grammar escapes are tags-only (framework-slim tier-3, C5a) ──
-  // `<`, `&` and `\` are offered to the effective extension set; with no tag
-  // extension in the graph there is no `<` grammar, so there is nothing to
-  // escape from and the sequences are literal content.
+  // Tag-grammar escapes are TAGS-ONLY: `<`, `&` and `\` are offered to the
+  // effective extension set, and with no tag extension in the graph there is no
+  // `<` grammar to escape from, so the sequences stay literal content.
   it("leaves &lt; / &gt; / &amp; and \\< literal with no tag extension", () => {
     const i18n = createI18n({
       locale: "en",
@@ -105,9 +102,8 @@ describe("@comvi/core", () => {
     expect(i18n.t("escape" as never, { tagInterpolation } as never)).toBe("Use <div>");
   });
 
-  // ── ICU apostrophe quoting STAYS in the core grammar (C5b NOT extracted) ──
-  // It is live, documented bare-slim behavior; only the tag-grammar escapes
-  // moved. This is the regression guard for that decision.
+  // ICU apostrophe quoting STAYS in the core grammar — only the tag-grammar
+  // escapes moved out. This is the regression guard for that decision.
   it("still applies ICU '' apostrophe quoting with no extension at all", () => {
     const i18n = createI18n({
       locale: "en",
@@ -125,7 +121,7 @@ describe("@comvi/core", () => {
     expect(i18n.t("plain" as never)).toBe("Superiors' behavior");
   });
 
-  // ── nested-catalog flattening is a capability (tier-3, C6) ──
+  // Nested-catalog flattening is a capability, not base behaviour.
   describe("addTranslations on a bare host", () => {
     it("stores a FLAT catalog, including colon-keyed namespaces", () => {
       const i18n = createI18n({ locale: "en" });

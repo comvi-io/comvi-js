@@ -61,8 +61,7 @@ describe("Edge Cases", () => {
     });
 
     it("should handle writing to non-existent directories", async () => {
-      // InMemoryFileSystem doesn't require directory creation
-      // It stores files directly in memory
+      // InMemoryFileSystem stores files directly; it needs no directory first.
       await fs.mkdir("test", { recursive: true });
       await fs.writeFile("test/file.txt", "content");
 
@@ -74,7 +73,6 @@ describe("Edge Cases", () => {
       // InMemoryFileSystem mkdir is a no-op, it doesn't actually track directories
       await fs.mkdir("a/b/c", { recursive: true });
 
-      // We can still write files to nested paths
       await fs.writeFile("a/b/c/file.txt", "content");
       const content = await fs.readFile("a/b/c/file.txt");
       expect(content).toBe("content");
@@ -83,7 +81,6 @@ describe("Edge Cases", () => {
     it("should handle very long file paths", async () => {
       const longPath = "a/".repeat(50) + "file.txt";
 
-      // Create all directories
       await fs.mkdir(longPath.substring(0, longPath.lastIndexOf("/")), {
         recursive: true,
       });

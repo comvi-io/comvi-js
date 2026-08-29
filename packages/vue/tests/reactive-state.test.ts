@@ -13,10 +13,10 @@ const createDeferred = <T>() => {
   return { promise, resolve };
 };
 
-// The loader is a capability, not part of the base host vue's preset builds.
-// Every case below that registers a loader, activates a namespace or reloads
-// composes it explicitly — including the "no loader registered" case, which
-// needs the capability present precisely to show it works without a loader fn.
+// The loader is a capability, not part of the base host vue's preset builds,
+// so every case below composes it explicitly — including the "no loader
+// registered" case, which needs the capability present to show that a host
+// without a loader FUNCTION still behaves.
 const createLoaderI18n = (options: I18nOptions) =>
   createI18nFromCore(createCore(options).with(attachLoader));
 
@@ -38,7 +38,6 @@ describe("Reactive State Transitions", () => {
       const watchSpy = vi.fn();
       watch(i18n.locale, watchSpy);
 
-      // Change locale
       i18n.locale = "fr";
       await nextTick();
 
@@ -62,7 +61,6 @@ describe("Reactive State Transitions", () => {
 
       expect(greeting.value).toBe("Hello");
 
-      // Change locale
       i18n.locale = "fr";
       await nextTick();
 
@@ -82,7 +80,6 @@ describe("Reactive State Transitions", () => {
       const greeting = computed(() => i18n.t("hello"));
       expect(greeting.value).toBe("hello"); // Missing key
 
-      // Add translation
       i18n.addTranslations({
         en: { hello: "Hello" },
       });
@@ -91,7 +88,6 @@ describe("Reactive State Transitions", () => {
 
       expect(greeting.value).toBe("Hello");
 
-      // Update translation
       i18n.addTranslations({
         en: { hello: "Hi" },
       });
@@ -100,7 +96,6 @@ describe("Reactive State Transitions", () => {
 
       expect(greeting.value).toBe("Hi");
 
-      // Clear translations
       i18n.clearTranslations("en", "common");
       await nextTick();
 
@@ -125,7 +120,6 @@ describe("Reactive State Transitions", () => {
 
       expect(adminTitle.value).toBe("adminTitle"); // Not loaded yet
 
-      // Load admin namespace
       await i18n.core.addActiveNamespace("admin");
       await nextTick();
 
@@ -232,8 +226,7 @@ describe("Reactive State Transitions", () => {
         global: { plugins: [i18n] },
       });
 
-      // Note: install() auto-calls init(), so isLoading is initially true
-      // Wait for init to complete first
+      // install() auto-calls init(), so isLoading starts out true.
       await vi.waitFor(() => {
         expect(i18n.isLoading.value).toBe(false);
       });
@@ -274,7 +267,6 @@ describe("Reactive State Transitions", () => {
 
       await i18n.init();
 
-      // Load admin namespace
       await i18n.core.addActiveNamespace("admin");
 
       expect(loader).toHaveBeenCalledWith("en", "common");
@@ -282,11 +274,9 @@ describe("Reactive State Transitions", () => {
 
       loader.mockClear();
 
-      // Change locale - should reload both namespaces
       i18n.locale = "fr";
       await nextTick();
 
-      // Wait for loaders to complete and reactivity to trigger
       await vi.waitFor(() => {
         expect(loader).toHaveBeenCalledWith("fr", "common");
         expect(loader).toHaveBeenCalledWith("fr", "admin");
@@ -317,10 +307,9 @@ describe("Reactive State Transitions", () => {
 
       expect(i18n.t("hello")).toBe("Hello");
 
-      // Switch to French - should fail (catch to avoid console.error from setter)
+      // Catch, or the setter's rejection reaches console.error.
       await i18n.setLocale("fr").catch(() => {});
 
-      // Wait for error with specific arguments
       await vi.waitFor(() => {
         expect(errorSpy).toHaveBeenCalledWith("fr", "common", expect.any(Error));
       });
@@ -503,10 +492,9 @@ describe("Reactive State Transitions", () => {
       i18n.locale = "badlocale";
       await flushPromises();
 
-      // Error must be routed through user's onError handler (not console.error).
-      // The exact `source` may be "namespace-load" (reported by core during
-      // namespace-loading failure) or "setLocale" (reported by VueI18n's catch
-      // wrapper); both are valid — what matters is no leak to console.
+      // Either `source` is valid — core reports "namespace-load", VueI18n's
+      // catch wrapper reports "setLocale". What matters is that nothing leaks
+      // to console.error instead of the user's onError handler.
       expect(onError).toHaveBeenCalled();
       expect(consoleErr).not.toHaveBeenCalled();
 
@@ -601,7 +589,7 @@ describe("Reactive State Transitions", () => {
 
       expect(i18n.defaultNamespace.value).toBe("common");
 
-      // VueI18n doesn't proxy setDefaultNamespace; drive the host directly
+      // VueI18n does not proxy setDefaultNamespace; drive the host directly.
       i18n.core.setDefaultNamespace("admin");
       await nextTick();
 
@@ -624,7 +612,7 @@ describe("Reactive State Transitions", () => {
       await nextTick();
 
       expect(i18n.translationCache).toBe(ref1);
-      // ref1.value is a ReadonlyMapView (Map-like). Duck-type the API surface.
+      // `ref1.value` is a Map-LIKE ReadonlyMapView, so duck-type the surface.
       expect(typeof ref1.value.has).toBe("function");
       expect(typeof ref1.value.get).toBe("function");
     });

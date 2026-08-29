@@ -1,5 +1,5 @@
 /**
- * Message types for communication between extension components
+ * Message types for the extension's internal channels.
  *
  * Security note: API keys never appear in any message that crosses the
  * page/DOM boundary (bridge <-> detector). Credentials travel only between

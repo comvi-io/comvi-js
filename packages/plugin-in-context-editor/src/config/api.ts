@@ -28,9 +28,6 @@ export interface ApiTransportInit {
  */
 export type ApiTransport = (path: string, init?: ApiTransportInit) => Promise<Response>;
 
-/**
- * API Configuration interface
- */
 export interface ApiConfig {
   apiKey: string;
   baseUrl: string;
@@ -38,9 +35,6 @@ export interface ApiConfig {
   transport?: ApiTransport;
 }
 
-/**
- * Options for initApiConfig
- */
 export interface InitApiConfigOptions {
   /** Proxy transport for all API requests. When set, no API key is kept in-page. */
   transport?: ApiTransport;
@@ -51,9 +45,6 @@ export interface InitApiConfigOptions {
   baseUrl?: string;
 }
 
-/**
- * Internal configuration state
- */
 const DEFAULT_CONFIG_SCOPE = "__default__";
 const configs = new Map<string, ApiConfig>();
 
@@ -62,8 +53,7 @@ function getConfigScope(scopeId?: string): string {
 }
 
 /**
- * Initialize API configuration
- * This should be called once by the plugin when it initializes
+ * Called once per editor runtime, by the plugin.
  *
  * @param apiKey - API key for authentication (optional - demo mode if not provided)
  * @param scopeId - Optional runtime scope. Use this to isolate multiple editor runtimes.
@@ -87,7 +77,6 @@ export function initApiConfig(
     return;
   }
 
-  // Demo mode if no API key provided
   const isDemoMode = !apiKey;
 
   // In demo mode, use a placeholder URL (requests will be blocked anyway)
@@ -109,7 +98,6 @@ export function initApiConfig(
 }
 
 /**
- * Get the current API configuration
  * @param scopeId - Optional runtime scope. Defaults to the shared scope for backward compatibility.
  * @throws Error if configuration hasn't been initialized
  */
@@ -138,11 +126,7 @@ function resolveBaseUrl(): string {
   return "https://api.comvi.io";
 }
 
-/**
- * Check if the editor is running in demo mode (no API key configured)
- * @param scopeId - Optional runtime scope. Defaults to the shared scope for backward compatibility.
- * @returns true if in demo mode
- */
+/** Demo mode means no API key was configured. */
 export function isDemoMode(scopeId?: string): boolean {
   const config = configs.get(getConfigScope(scopeId));
   if (config) {
@@ -152,9 +136,6 @@ export function isDemoMode(scopeId?: string): boolean {
   return false;
 }
 
-/**
- * Reset configuration (useful for testing)
- */
 export function resetApiConfig(scopeId?: string): void {
   if (scopeId !== undefined) {
     configs.delete(getConfigScope(scopeId));

@@ -1,8 +1,6 @@
 import type { VirtualNode } from "../../virtualNode";
 
-/**
- * Check if value is a primitive (string, number, boolean, null, undefined, symbol, bigint).
- */
+/** String, number, boolean, null, undefined, symbol or bigint. */
 export function isPrimitive(val: unknown): boolean {
   const t = typeof val;
   return (
@@ -15,10 +13,7 @@ export function isPrimitive(val: unknown): boolean {
   );
 }
 
-/**
- * Check if a value is a VirtualNode (framework-agnostic virtual node).
- * Also detects Vue VNodes and React elements for backward compatibility.
- */
+/** LOOSE: a framework-agnostic VirtualNode, but also a Vue VNode or React element. */
 export function isVNodeLoose(value: unknown): boolean {
   if (!value || typeof value !== "object") return false;
 
@@ -28,12 +23,12 @@ export function isVNodeLoose(value: unknown): boolean {
     return true;
   }
 
-  // Check for Vue VNode (backward compatibility)
+  // Vue VNode.
   if ((value as any).__v_isVNode === true) {
     return true;
   }
 
-  // Check for React elements (backward compatibility)
+  // React element.
   if ((value as any).$$typeof) {
     return true;
   }

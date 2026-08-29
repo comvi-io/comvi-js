@@ -1,10 +1,9 @@
 import { describe, it, expect } from "vitest";
 // Composed-host tag parity gate: this file imports ONLY the composed-host test
-// helper — zero "/tags" imports anywhere in its module graph. That helper
-// mirrors the 0.4 root, which registered tag syntax itself, so string-API tag
-// interpolation must behave exactly as 0.4.0 (where parseTag was
-// unconditionally active). The converged `@comvi/core` root registers nothing;
-// the names below are kept for the historical root this gate stands in for.
+// helper — zero "/tags" imports anywhere in its module graph. The helper is what
+// registers tag syntax, so string-API tag interpolation must behave here exactly
+// as it does on a host that registered it directly. The base `@comvi/core` root
+// registers nothing.
 import { createI18n, I18n } from "../helpers/composedHost";
 import type { ElementNode } from "../helpers/composedHost";
 

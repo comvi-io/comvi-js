@@ -27,7 +27,6 @@ describe("Async Operations", () => {
     const i18n = new I18n({ locale: "en", ns: [] }).use(loaderPlugin);
     await i18n.init();
 
-    // Ensure a namespace is active so loaders run on language change
     const enKey = "en:common";
     deferreds.set(enKey, createDeferred());
     const addPromise = i18n.addActiveNamespace("common");
@@ -38,7 +37,7 @@ describe("Async Operations", () => {
     const p2 = i18n.setLocaleAsync("de");
     const p3 = i18n.setLocaleAsync("es");
 
-    // Resolve latest language first, then stale ones
+    // Resolve the LATEST language first, then the stale ones.
     deferreds.get("es:common")!.resolve({ key: "value_es" });
     deferreds.get("fr:common")!.resolve({ key: "value_fr" });
     deferreds.get("de:common")!.resolve({ key: "value_de" });
@@ -47,7 +46,6 @@ describe("Async Operations", () => {
 
     expect(i18n.locale).toBe("es");
 
-    // Verify that the active translation is from the winning language (es)
     expect(i18n.t("key", { ns: "common" })).toBe("value_es");
   });
 
@@ -74,7 +72,6 @@ describe("Async Operations", () => {
     deferred.resolve({ key: "value" });
     await Promise.all([p1, p2, p3]);
 
-    // Verify the translation data was actually stored correctly
     expect(i18n.t("key", { ns: "shared" })).toBe("value");
   });
 

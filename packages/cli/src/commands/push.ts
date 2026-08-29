@@ -1,14 +1,3 @@
-/**
- * Push command - Upload local translations to TMS
- *
- * Usage:
- *   comvi push                         # All files
- *   comvi push --locale en             # Only specified locale
- *   comvi push --dry-run               # Preview changes without applying
- *   comvi push --force-mode override   # Overwrite existing translations
- *   comvi push --force-mode keep       # Keep existing translations
- */
-
 import { Command } from "commander";
 import { createInterface } from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
@@ -37,7 +26,6 @@ export function createPushCommand(): Command {
       try {
         console.log("🔄 Loading configuration...");
 
-        // Load configuration (validates apiKey is present)
         const config = await ConfigLoader.load(options.config);
 
         // apiKey is validated by ConfigLoader.load(), so it's guaranteed to be set
@@ -45,13 +33,11 @@ export function createPushCommand(): Command {
           throw new Error("API key is required. Set COMVI_API_KEY environment variable.");
         }
 
-        // Create API client
         const apiClient = new ApiClient({
           apiKey: config.apiKey,
           apiBaseUrl: config.apiBaseUrl || "https://api.comvi.io",
         });
 
-        // Create translation sync
         const fileTemplate = config.fileTemplate || DEFAULT_FILE_TEMPLATE;
         const sync = new TranslationSync({
           translationsPath: options.path || config.translationsPath || "./src/locales",
@@ -72,16 +58,13 @@ export function createPushCommand(): Command {
           console.log(`📄 Using namespaces from .comvirc.json: ${nss.value!.join(", ")}`);
         }
 
-        // Determine force mode
         const forceMode: ForceMode = options.forceMode || config.push?.forceMode || "ask";
 
-        // Validate force mode
         if (!["override", "keep", "ask", "abort"].includes(forceMode)) {
           console.error(`✗ Invalid force-mode: ${forceMode}. Use: override, keep, ask, or abort`);
           process.exit(1);
         }
 
-        // Read local translations
         const defaultNamespace = isDefaultFileTemplate(fileTemplate)
           ? await apiClient.fetchDefaultNamespace()
           : undefined;
@@ -98,11 +81,9 @@ export function createPushCommand(): Command {
           process.exit(0);
         }
 
-        // Dry run mode
         if (options.dryRun) {
           console.log("\n📦 Push preview (dry run):");
 
-          // Fetch current TMS state to compare
           const remoteTranslations = await apiClient.fetchTranslations({
             locales,
             namespaces,
@@ -142,7 +123,6 @@ export function createPushCommand(): Command {
           apiForceMode = await promptConflictResolution(diff.conflicts);
         }
 
-        // Actual push
         console.log("🔄 Pushing translations to TMS...");
 
         const result = await apiClient.pushTranslations({

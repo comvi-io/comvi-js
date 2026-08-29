@@ -95,10 +95,9 @@ describe("VueI18n contracts", () => {
     i18n.locale.value = "fr";
     await vi.waitFor(() => {
       expect(onError).toHaveBeenCalled();
-      // Verify SOME call carried an Error matching our injected loader failure.
-      // We don't assert the exact `source` because the error may be reported by
-      // core (source: "namespace-load") before our VueI18n catch wrapper would
-      // re-report it (source: "setLocale"); either path satisfies the contract.
+      // The exact `source` is unasserted on purpose: core reports
+      // "namespace-load" before VueI18n's catch wrapper would report
+      // "setLocale", and either path satisfies the contract.
       const errorCalls = onError.mock.calls.filter(
         (call) => call[0] instanceof Error && /failed/i.test(call[0].message),
       );
@@ -126,10 +125,9 @@ describe("VueI18n contracts", () => {
     i18n.locale = "fr";
     await vi.waitFor(() => {
       expect(onError).toHaveBeenCalled();
-      // Verify SOME call carried an Error matching our injected loader failure.
-      // We don't assert the exact `source` because the error may be reported by
-      // core (source: "namespace-load") before our VueI18n catch wrapper would
-      // re-report it (source: "setLocale"); either path satisfies the contract.
+      // The exact `source` is unasserted on purpose: core reports
+      // "namespace-load" before VueI18n's catch wrapper would report
+      // "setLocale", and either path satisfies the contract.
       const errorCalls = onError.mock.calls.filter(
         (call) => call[0] instanceof Error && /failed/i.test(call[0].message),
       );

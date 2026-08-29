@@ -1,18 +1,16 @@
 /**
- * T-core: the framework-neutral `<T>` pipeline shared by every wrapper.
+ * The framework-neutral `<T>` pipeline shared by every wrapper: the
+ * marker-based handler transport, `childrenToArray`, the reserved-prop
+ * transport and the missing-translation check. Wrappers keep only a small
+ * VirtualNode → native-node converter.
  *
- * Absorbs the previously 4×-duplicated component plumbing (vue/react/solid/
- * svelte): the marker-based handler transport, `childrenToArray`, the
- * reserved-prop transport if-chains, and the missing-translation check.
- * Wrappers keep only a small VirtualNode → native-node converter.
+ * Tag syntax is activated PER CALL through `params.tagInterpolation`, so
+ * rendering never depends on ambient registration, `sideEffects` arrays, or
+ * import order.
  *
- * Tag syntax is activated PER CALL through `params.tagInterpolation`
- * (§1.1 dual-channel): rendering never depends on ambient registration,
- * `sideEffects` arrays, or import order.
- *
- * Exported from `@comvi/core/tags` ONLY — it is meaningless without tag
- * machinery and must never enter a base consumer's graph — which is why the
- * ESM root does not re-export it.
+ * Exported from `@comvi/core/tags` ONLY: it is meaningless without the tag
+ * machinery and must never enter a base consumer's graph, which is why the ESM
+ * root does not re-export it.
  */
 import type { TagCallbackParams, TagInterpolationOptions, TranslationParams } from "../types";
 import type { TranslationResult, VirtualNode } from "../virtualNode";
@@ -134,11 +132,7 @@ function isTagComponentConfig(value: object): value is TagComponentConfig {
   return "tag" in value || "component" in value;
 }
 
-/**
- * Core-format tag handler rendering `tag` (an element name or a transport
- * marker) around the tag's processed children. Single factory for every
- * components-map entry shape.
- */
+/** One factory for every components-map entry shape; `tag` may be an element name or a marker. */
 function elementHandler(
   tag: string,
   props?: Record<string, unknown>,
@@ -189,7 +183,7 @@ export function prepareTranslation(
         continue;
       }
 
-      // Opaque framework handler (component, element, render/slot function)
+      // Opaque: a component, element, or render/slot function.
       const marker = MARKER_PREFIX + name + MARKER_SUFFIX;
       pendingHandlers.push({ name, marker, handler });
       transport[name] = elementHandler(marker);
@@ -201,8 +195,8 @@ export function prepareTranslation(
   if (props.fallback !== undefined) transport.fallback = props.fallback;
   if (props.raw !== undefined) transport.raw = props.raw;
 
-  // Per-call tag activation (§1.1 dual-channel). A caller-supplied per-call
-  // option keeps its fields; the tag extension is guaranteed present either way.
+  // A caller-supplied per-call option keeps its own fields; the tag extension
+  // is guaranteed present either way.
   const callerTagOptions = transport.tagInterpolation;
   transport.tagInterpolation =
     callerTagOptions === undefined ? TAG_OPTIONS : withTagExtension(callerTagOptions);

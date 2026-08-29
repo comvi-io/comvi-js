@@ -1,9 +1,6 @@
 import type { I18n, I18nPlugin, I18nPluginFactory, I18nPluginHostApi } from "@comvi/core";
 import { attachPlugins, ensureInstallable } from "@comvi/core/plugins";
 
-/**
- * Detection source types
- */
 export type DetectorType =
   | "querystring"
   | "localStorage"
@@ -11,14 +8,9 @@ export type DetectorType =
   | "cookie"
   | "navigator";
 
-/**
- * Cache target types (subset of detector types that support writing)
- */
+/** The detector types that can also be written to. */
 export type CacheType = "localStorage" | "sessionStorage" | "cookie";
 
-/**
- * Cookie options for setting cookies
- */
 export interface CookieOptions {
   path?: string;
   domain?: string;
@@ -26,9 +18,6 @@ export interface CookieOptions {
   secure?: boolean;
 }
 
-/**
- * Options for LocaleDetector plugin
- */
 export interface LocaleDetectorOptions {
   /**
    * Order of detection methods to try (stops at first match)
@@ -75,9 +64,6 @@ export interface LocaleDetectorOptions {
    */
   lookupSessionStorage?: string;
 
-  /**
-   * Cookie options
-   */
   cookieOptions?: CookieOptions;
 
   /**
@@ -132,16 +118,9 @@ interface DetectionResult {
 }
 
 /**
- * Locale Detector Plugin
- *
- * Unified plugin for locale detection and persistence.
- * Combines detection from multiple sources with automatic caching.
- *
- * Features:
- * - Detects locale from: querystring, localStorage, sessionStorage, cookie, navigator
- * - Auto-caches detected locale to: localStorage, sessionStorage, cookie
- * - Configurable detection order
- * - SSR-safe with graceful fallbacks
+ * Locale detection plus persistence, for a host that already has the plugin
+ * capability. Every source and cache target is SSR-safe: a missing `window`
+ * or `document` falls through instead of throwing.
  *
  * @example
  * ```typescript
@@ -169,7 +148,7 @@ export const LocaleDetector: I18nPluginFactory<LocaleDetectorOptions> = (
     lookupLocalStorage = "i18n_locale",
     lookupSessionStorage = "i18n_locale",
     cookieOptions = {},
-    cookieMaxAge = 365 * 24 * 60 * 60, // 1 year
+    cookieMaxAge = 365 * 24 * 60 * 60,
   } = options;
 
   const supportedLocales = options.supportedLocales;
@@ -193,9 +172,8 @@ export const LocaleDetector: I18nPluginFactory<LocaleDetectorOptions> = (
 
   return (i18n) => {
     const fallbackLocale = options.fallbackLocale ?? i18n.locale;
-    // `pendingInitResult` only bridges a single `detect()` call to the immediately
-    // following `localeChanged` event emitted by core during `init()`.
-    // It exists so we can suppress cache writes for fallback-only resolutions.
+    // Bridges a single `detect()` call to the `localeChanged` event core emits
+    // right after it, so a fallback-only resolution suppresses its cache write.
     let pendingInitResult: DetectionResult | null = null;
 
     const process = (raw: string): DetectionResult | null => {
@@ -295,41 +273,28 @@ export const LocaleDetector: I18nPluginFactory<LocaleDetectorOptions> = (
 export type LocaleDetectorInstaller = <T extends I18n<any>>(i18n: T) => T & I18nPluginHostApi;
 
 /**
- * The locale detector as a `.with(…)` installer — the lowercase half of this
- * package, and the one to start from.
+ * The locale detector as a `.with(…)` installer.
  *
  * ```ts
- * import { createI18n } from "@comvi/core";
- * import { localeDetector } from "@comvi/plugin-locale-detector";
- *
  * const i18n = createI18n({ locale: "en" }).with(
  *   localeDetector({ supportedLocales: ["en", "uk", "de"], caches: ["cookie"] }),
  * );
  * await i18n.init();
  * ```
  *
- * It ensures `@comvi/core/plugins` — `registerLocaleDetector` and the host's
- * detector hand-off both live there — and then registers
- * `LocaleDetector(options)` through the host's own `use`. The attach is
- * idempotent, so composing onto a host that already has the plugin capability
- * installs nothing and keeps every plugin already registered, and composing
- * twice registers the plugin twice exactly as two `use` calls would.
+ * The attach is idempotent: composing onto a host that already has the plugin
+ * capability keeps every plugin already registered, and composing twice
+ * registers the plugin twice, exactly as two `use` calls would. No loader
+ * capability is composed — the detector hands core a locale, and core loads
+ * namespaces through whatever loading the host already has.
  *
- * The lifecycle is NOT re-implemented here: `required`, `timeout`, `onError`,
- * cleanup registration and LIFO destroy keep running inside
- * `I18nPluginHost`, because the last thing this installer does is call `use`.
+ * `required`, `timeout`, `onError`, cleanup registration and LIFO destroy are
+ * not re-implemented here; they keep running inside `I18nPluginHost`, because
+ * the last thing this installer does is call `use`.
  *
- * Widening is exact — the plugin host API is precisely what the attach added.
- * No loader capability is composed: the detector never loads a catalog, it
- * hands core a locale and core loads namespaces through whatever loading the
- * host already has.
- *
- * WRONG USE. `.use(localeDetector(…))` is a type error, and at runtime it
- * fails at `init()` on the first ensure-step (`ensureInstallable`) with an
- * actionable message, before the plugin capability is attached and before a
- * second plugin reaches the queue. The uppercase `LocaleDetector` factory is
- * unchanged and stays the right thing to hand to `.use` on a host that
- * already has the capability.
+ * `.use(localeDetector(…))` is a type error, and at runtime fails at `init()`
+ * on `ensureInstallable` before the plugin capability is attached. Hand the
+ * uppercase `LocaleDetector` factory to `.use` instead.
  */
 export function localeDetector(options?: LocaleDetectorOptions): LocaleDetectorInstaller {
   return (i18n) => {

@@ -2,16 +2,14 @@ import { useRuntimeConfig } from "#app";
 import { buildLocalizedPath } from "../utils/locale-path";
 
 export interface GetPathnameOptions {
-  /** Target locale */
   locale: string;
   /** The pathname (without locale prefix) */
   href: string;
 }
 
 /**
- * Get routing configuration and helpers
- *
- * Useful for sitemap generation and other routing utilities
+ * Get routing configuration and helpers — for sitemap generation and other
+ * routing utilities.
  *
  * @example
  * ```typescript
@@ -31,19 +29,6 @@ export interface GetPathnameOptions {
  * })
  * ```
  *
- * @example
- * ```typescript
- * // Integration with @nuxtjs/sitemap
- * // nuxt.config.ts
- * export default defineNuxtConfig({
- *   sitemap: {
- *     urls: () => {
- *       const { locales, getPathname } = useRouteConfig()
- *       // generate localized URLs...
- *     }
- *   }
- * })
- * ```
  */
 export function useRouteConfig() {
   const config = useRuntimeConfig();

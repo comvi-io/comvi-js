@@ -1,21 +1,14 @@
-// framework-slim gate (plan P5 step 2, retargeted by the DX pass, renamed by
-// single-entry P4): a Next.js SERVER app on a composed BASE + `attachLoader`
-// host, built from a SINGLE package. Every specifier here is
-// `@comvi/next/server` — the constructor and the capability toolkit included,
-// because `NextServerHost = WrapperI18nHost & I18nLoaderApi` makes the loader
-// mandatory for SSR and an app should not have to reach past its framework
-// package to satisfy that.
-//
-// After the convergence that constructor is `createI18n`, the SAME base binding
-// `@comvi/next/client` exports; the transitional second name this app used to
-// call is deleted.
+// A Next.js SERVER app on a composed BASE + `attachLoader` host, built from a
+// SINGLE package: every specifier is `@comvi/next/server`, the capability
+// toolkit included, because `NextServerHost = WrapperI18nHost & I18nLoaderApi`
+// makes the loader mandatory for SSR.
 //
 // The runner asserts, from the bundler's own module graph, that core's
 // tag-registration chunks do not survive, that next's own composed builder
 // (`createNextI18n.js`) never enters, and that the three capability subpaths
-// this recipe does NOT use stay out too — the re-export hop has to pay for
-// itself here exactly as on the client entry. Core's base entry IS in the
-// graph: `createI18n` is its export.
+// this recipe does NOT use stay out too. Core's base entry IS in the graph:
+// `createI18n` is its export.
+//
 // `getI18n` is deliberately NOT imported: it reaches `next/headers` through
 // `getLocale`, so its absence from this graph is also proved by the fact that
 // this bundle builds and runs with `next` not installed at all.

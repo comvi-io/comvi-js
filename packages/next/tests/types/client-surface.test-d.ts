@@ -1,10 +1,9 @@
-// Type-level contract for the `@comvi/next/client` surface (single-entry P4).
+// Type-level contract for the `@comvi/next/client` surface.
 // Companion to server-host.test-d.ts.
 //
 // `@comvi/next/client` exports exactly ONE host constructor, `createI18n`, and
 // it is core's BASE host: every capability member is absent from its type until
-// something composes it. The transitional second name that stood beside it for
-// the bare host is deleted, which the first probe below pins by keyof.
+// something composes it.
 import type { I18nLoaderApi, I18nPluginHostApi } from "@comvi/core";
 import type { I18n as BaseI18n } from "@comvi/core";
 import * as clientEntry from "../../src/client";
@@ -26,9 +25,7 @@ type Equal<X, Y> =
   (<T>() => T extends X ? 1 : 2) extends <T>() => T extends Y ? 1 : 2 ? true : false;
 type Expect<T extends true> = T;
 
-// ---------------------------------------------------------------------------
-// (i) One constructor, and it is the base host.
-// ---------------------------------------------------------------------------
+// One constructor, and it is the base host.
 
 const host = createI18n({ locale: "en" });
 
@@ -53,12 +50,9 @@ void host.registerLoader(() => Promise.resolve({}));
 // The hydration path a client actually uses.
 host.addTranslations({ "en:default": { greeting: "Hello" } });
 
-// ---------------------------------------------------------------------------
-// (ii) ICU has two shapes on this entry, both typed, and neither makes the app
-//      name `@comvi/core/icu`. The COMPILER is for inline constructor catalogs;
-//      the INSTALLER is for catalogs that arrive later, and it must run before
-//      ingestion (`CompilerLockedError` is what a late call throws).
-// ---------------------------------------------------------------------------
+// ICU has two shapes on this entry, both typed. The COMPILER is for inline
+// constructor catalogs; the INSTALLER is for catalogs that arrive later, and it
+// must run before ingestion (`CompilerLockedError` is what a late call throws).
 
 const _withIcuCompiler = createI18n({ locale: "en", compiler: icuCompiler });
 export type _IcuHostIsStillBase = Expect<Equal<typeof _withIcuCompiler, BaseI18n<{}>>>;
@@ -67,9 +61,7 @@ const _withIcuInstaller = createI18n({ locale: "en" }).with(icu());
 export type _IcuInstallerKeepsHostType = Expect<Equal<typeof _withIcuInstaller, BaseI18n<{}>>>;
 export type _LockedErrorCode = Expect<Equal<CompilerLockedError["code"], "E_COMPILER_LOCKED">>;
 
-// ---------------------------------------------------------------------------
-// (iii) The toolkit re-exports carry core's own widening types.
-// ---------------------------------------------------------------------------
+// The toolkit re-exports carry core's own widening types.
 
 const withLoader = attachLoader(createI18n({ locale: "en" }));
 export type _LoaderWidens = Expect<
@@ -90,11 +82,8 @@ export type _DevtoolsKeepsHostType = Expect<Equal<typeof _withDevtools, BaseI18n
 const flat: Record<string, string> = flattenCatalog({ nav: { home: "Home" } });
 void flat;
 
-// ---------------------------------------------------------------------------
-// (iv) `.with(installer)` — the composition pipe (framework-slim DX-2). The
-//      generic host type must flow THROUGH the pipe and come out widened,
-//      never decayed to `any`.
-// ---------------------------------------------------------------------------
+// `.with(installer)` — the composition pipe. The generic host type must flow
+// THROUGH it and come out widened, never decayed to `any`.
 
 const piped = createI18n({ locale: "en", compiler: icuCompiler }).with(
   loader({ uk: async () => ({ default: { greeting: "Привіт" } }) }),

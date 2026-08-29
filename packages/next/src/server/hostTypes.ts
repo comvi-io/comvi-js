@@ -1,18 +1,7 @@
-// Host contracts for the Next.js server pipeline (framework-slim plan P5).
-//
-// Two types, deliberately separate:
-//
-//   `NextServerHost<D>` is the PUBLIC contract of `createNextI18nFromHost` —
-//   the wrapper host surface plus the loader capability, because a server
-//   ALWAYS needs `loadTranslations`. ICU and tag interpolation enter the graph
-//   only when the app composes them into its own host factory.
-//
-//   `ServerI18nHost` is INTERNAL: the narrow structural surface the server
-//   pipeline (cache / ensureInitialized / loadTranslations / getI18n) actually
-//   touches. It is a `Pick`, not an alias of `NextServerHost`, so that BOTH
-//   `@comvi/next`'s own composed host (`NextComposedI18n`, any `D`) and every
-//   `NextServerHost<D>` satisfy it structurally. It is never re-exported from
-//   `@comvi/next/server`.
+// `ServerI18nHost` is a `Pick`, not an alias of `NextServerHost`, so that BOTH
+// `@comvi/next`'s own composed host (`NextComposedI18n`, any `D`) and every
+// `NextServerHost<D>` satisfy it structurally. It is never re-exported from
+// `@comvi/next/server`.
 import type { DefaultTranslationParams, I18nLoaderApi, WrapperI18nHost } from "@comvi/core";
 
 /**

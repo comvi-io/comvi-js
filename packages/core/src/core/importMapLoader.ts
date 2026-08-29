@@ -8,9 +8,8 @@ export type LoaderImportResult = LoaderResult | { default: LoaderResult };
 export type LoaderImportMap = Record<string, () => Promise<LoaderImportResult>>;
 
 /**
- * Narrow a loader import result to the `{ default: … }` module-namespace
- * shape. Mirrors 0.4.0 behavior: the presence of a `default` key decides,
- * matching how dynamic `import()` wraps JSON/ESM translation modules.
+ * The presence of a `default` key decides, matching how dynamic `import()`
+ * wraps JSON/ESM translation modules.
  */
 function hasDefaultExport(result: LoaderImportResult): result is { default: LoaderResult } {
   return "default" in result;
@@ -22,9 +21,9 @@ function hasDefaultExport(result: LoaderImportResult): result is { default: Load
  * Keys without `:` are expanded to `"locale:defaultNs"`; the `{ default: … }`
  * wrapper from dynamic `import()` is unwrapped automatically.
  *
- * The internal composite's `registerLoader` accepts an import map directly; base
- * consumers wrap explicitly so the adapter stays out of graphs that never
- * use it: `i18n.registerLoader(createImportMapLoader(map, () => "default"))`.
+ * The composite's `registerLoader` accepts an import map directly; base
+ * consumers wrap explicitly so the adapter stays out of graphs that never use
+ * it: `i18n.registerLoader(createImportMapLoader(map, () => "default"))`.
  */
 export function createImportMapLoader(
   importMap: LoaderImportMap,

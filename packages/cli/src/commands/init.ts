@@ -1,11 +1,3 @@
-/**
- * Init command - Create .comvirc.json configuration file
- *
- * Usage:
- *   comvi init                    # Create config (apiKey from env var)
- *   comvi init --api-key <key>    # Create config with apiKey (not recommended)
- */
-
 import { Command } from "commander";
 import { ConfigLoader } from "../core/ConfigLoader";
 import { ApiClient } from "../core/ApiClient";
@@ -30,7 +22,6 @@ export function createInitCommand(): Command {
           );
         }
 
-        // Check for API key from env var or flag
         const apiKey = options.apiKey || process.env.COMVI_API_KEY;
 
         const config: Partial<ComviConfig> = {
@@ -44,7 +35,6 @@ export function createInitCommand(): Command {
           fileTemplate: options.fileTemplate,
         };
 
-        // Validate API key if available (from flag or env var)
         if (apiKey) {
           console.log("🔄 Validating API key...");
           try {
@@ -66,7 +56,6 @@ export function createInitCommand(): Command {
 
         console.log(`✓ Created configuration file: ${filePath}`);
 
-        // Show appropriate message based on API key source
         if (!apiKey) {
           console.log("\n⚠  API key not found. Set COMVI_API_KEY environment variable:");
           console.log("   export COMVI_API_KEY=your_api_key_here");

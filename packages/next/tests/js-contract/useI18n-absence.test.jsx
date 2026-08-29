@@ -1,10 +1,10 @@
-// framework-slim §2.4 — the JS-consumer contract, next-harness pass.
+// The JS-consumer contract, next-harness pass.
 //
-// The react package proves the contract for its own provider; this file
-// proves that nothing in `@comvi/next/client` re-adds the four members or
-// softens their absence. Deliberately `.jsx`: a TS file would hide the
-// runtime shape behind compile errors. Run against BOTH core build families,
-// which is also what makes the capability messages below differ.
+// The react package proves the contract for its own provider; this file proves
+// that nothing in `@comvi/next/client` re-adds the four members or softens their
+// absence. Deliberately `.jsx`: a TS file would hide the runtime shape behind
+// compile errors. Run against BOTH core build families, which is also what makes
+// the capability messages below differ.
 import { describe, it, expect } from "vitest";
 import { renderHook } from "@testing-library/react";
 import { createI18n } from "@comvi/core";
@@ -119,9 +119,7 @@ describe(`capability acquisition through @comvi/next/client (${__COMVI_CORE_BUIL
 
   it("returns working bags on a host composed through the installers", () => {
     // The other acquisition path: `.with(loader()).with(plugins())` instead of
-    // the low-level `attach*` calls above. Before the single-entry convergence
-    // this case used the batteries-included ROOT host, which no longer exists —
-    // the root is the base host now, and it is the "bare" case at the top.
+    // the low-level `attach*` calls above.
     const wrapper = wrapperFor(
       createI18n({ locale: "en", exposeGlobal: false, translation: { en: {} } })
         .with(loaderInstaller())

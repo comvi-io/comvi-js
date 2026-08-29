@@ -55,8 +55,7 @@ describe("NuxtLinkLocale component", () => {
       rel: "noreferrer",
     });
 
-    // Verify a second setup() with different props produces a different localized path,
-    // confirming the computed property uses the props reactively.
+    // A second setup() with different props proves the computed reads them.
     const render2 = component.setup(
       { to: "/about", locale: "uk" },
       {

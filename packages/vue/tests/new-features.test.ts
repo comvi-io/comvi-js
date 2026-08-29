@@ -18,7 +18,6 @@ describe("New Features", () => {
 
       const cache = i18n.translationCache;
 
-      // Initially no translations loaded
       expect(cache.value.size).toBe(0);
 
       i18n.addTranslations({
@@ -27,7 +26,6 @@ describe("New Features", () => {
 
       await nextTick();
 
-      // Cache should contain exactly the translations we added
       expect(cache.value.size).toBe(1);
       expect(cache.value.has("en:common")).toBe(true);
       const enCommon = cache.value.get("en:common");
@@ -92,7 +90,6 @@ describe("New Features", () => {
       i18n.locale = "fr";
       await nextTick();
 
-      // Wait for async setLocale to complete
       await vi.waitFor(() => {
         expect(spy).toHaveBeenCalledWith({ from: "en", to: "fr" });
       });
@@ -120,16 +117,13 @@ describe("New Features", () => {
         expect(spy).toHaveBeenCalledTimes(1);
       });
 
-      // Unsubscribe
       unsubscribe();
 
-      // Change locale again
       i18n.locale = "de";
       await vi.waitFor(() => {
         expect(i18n.locale.value).toBe("de");
       });
 
-      // Should still be 1 (not called again)
       expect(spy).toHaveBeenCalledTimes(1);
     });
 
@@ -140,7 +134,6 @@ describe("New Features", () => {
       const spy = vi.fn();
       i18n.on("missingKey", spy);
 
-      // Access missing key
       i18n.t("nonexistent.key");
 
       expect(spy).toHaveBeenCalledWith({
@@ -173,15 +166,13 @@ describe("New Features", () => {
 
   describe("SSR support (ssrLocale option)", () => {
     it("should use ssrLocale for initial locale state to prevent hydration mismatch", () => {
-      // When the server detects a locale (e.g., "fr"), ssrLocale ensures
-      // the client-side Vue ref matches the server-rendered HTML, preventing
-      // hydration warnings like "Text content does not match server-rendered HTML"
+      // `ssrLocale` makes the client-side ref match the server-rendered HTML,
+      // which is what keeps hydration from warning about mismatched text.
       const i18n = createI18n({
         locale: "en",
         ssrLocale: "fr",
       });
 
-      // Vue ref should have ssrLocale value
       expect(i18n.locale.value).toBe("fr");
     });
 
@@ -205,13 +196,12 @@ describe("New Features", () => {
         fr: { hello: "Bonjour" },
       });
 
-      // SSR locale should drive translations immediately (before init)
+      // `ssrLocale` drives translations before init, not after.
       expect(i18n.t("hello")).toBe("Bonjour");
       expect(i18n.locale.value).toBe("fr");
 
       await i18n.init();
 
-      // Without a detector override, ssrLocale remains the active locale
       expect(i18n.locale.value).toBe("fr");
       expect(i18n.t("hello")).toBe("Bonjour");
     });
@@ -227,12 +217,10 @@ describe("New Features", () => {
         fr: { hello: "Bonjour" },
       });
 
-      // Before init, ssrLocale matches
       expect(i18n.locale.value).toBe("fr");
 
       await i18n.init();
 
-      // After init, locale should remain "fr" since ssrLocale matches core locale
       expect(i18n.locale.value).toBe("fr");
     });
   });
@@ -287,7 +275,6 @@ describe("New Features", () => {
         }
       }).not.toThrow();
 
-      // All returned values are plain booleans
       for (const r of results) {
         expect(typeof r).toBe("boolean");
         expect(isRef(r)).toBe(false);
@@ -437,21 +424,16 @@ describe("New Features", () => {
         fr: { hello: "Bonjour" },
       });
 
-      // Record the locale ref value before destroy
       const localeRef = i18n.locale;
       expect(localeRef.value).toBe("en");
 
-      // Destroy should unsubscribe all internal event listeners
       i18n.destroy();
 
-      // Attempt to change the locale after destroy
-      // The core still processes it, but the Vue ref should NOT update
-      // because the internal "localeChanged" listener was removed
+      // The core still processes the change; the ref must not follow it,
+      // because destroy() removed the internal "localeChanged" listener.
       await i18n.setLocale("fr").catch(() => {});
       await nextTick();
 
-      // The locale ref should remain "en" since the internal
-      // event subscription was cleaned up by destroy
       expect(localeRef.value).toBe("en");
     });
   });

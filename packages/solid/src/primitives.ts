@@ -2,13 +2,10 @@ import { from, type Accessor } from "solid-js";
 import { subscribeToRevision } from "@comvi/core";
 import type { WrapperI18nHost } from "@comvi/core";
 
-// CSR-only: provider auto-init does not run during SSR. Producers call set() synchronously so the first read is always defined.
+// CSR-only: provider auto-init does not run during SSR. Every producer below
+// calls `set()` synchronously, so the first read is always defined.
 
-/**
- * Creates a SolidJS signal for the current locale
- * Updates automatically when locale changes
- * MUST be called within a reactive context (component or effect)
- */
+/** MUST be called within a reactive context (component or effect). */
 export function createLocaleSignal(i18n: WrapperI18nHost): Accessor<string> {
   const signal = from<string>((set) => {
     set(i18n.locale);
@@ -17,11 +14,7 @@ export function createLocaleSignal(i18n: WrapperI18nHost): Accessor<string> {
   return signal as Accessor<string>;
 }
 
-/**
- * Creates a SolidJS signal for the default namespace
- * Updates automatically when default namespace changes
- * MUST be called within a reactive context (component or effect)
- */
+/** MUST be called within a reactive context (component or effect). */
 export function createDefaultNamespaceSignal(i18n: WrapperI18nHost): Accessor<string> {
   const signal = from<string>((set) => {
     set(i18n.getDefaultNamespace());
@@ -30,11 +23,7 @@ export function createDefaultNamespaceSignal(i18n: WrapperI18nHost): Accessor<st
   return signal as Accessor<string>;
 }
 
-/**
- * Creates a SolidJS signal for the loading state
- * Updates when translations are being loaded
- * MUST be called within a reactive context (component or effect)
- */
+/** MUST be called within a reactive context (component or effect). */
 export function createLoadingSignal(i18n: WrapperI18nHost): Accessor<boolean> {
   const signal = from<boolean>((set) => {
     set(i18n.isLoading);
@@ -43,11 +32,7 @@ export function createLoadingSignal(i18n: WrapperI18nHost): Accessor<boolean> {
   return signal as Accessor<boolean>;
 }
 
-/**
- * Creates a SolidJS signal for the initializing state
- * Updates during initialization
- * MUST be called within a reactive context (component or effect)
- */
+/** MUST be called within a reactive context (component or effect). */
 export function createInitializingSignal(i18n: WrapperI18nHost): Accessor<boolean> {
   const signal = from<boolean>((set) => {
     set(i18n.isInitializing);
@@ -56,11 +41,7 @@ export function createInitializingSignal(i18n: WrapperI18nHost): Accessor<boolea
   return signal as Accessor<boolean>;
 }
 
-/**
- * Creates a SolidJS signal for the initialized state
- * Updates during initialization
- * MUST be called within a reactive context (component or effect)
- */
+/** MUST be called within a reactive context (component or effect). */
 export function createInitializedSignal(i18n: WrapperI18nHost): Accessor<boolean> {
   const signal = from<boolean>((set) => {
     const syncInitializedState = () => set(i18n.isInitialized);
@@ -78,17 +59,18 @@ export function createInitializedSignal(i18n: WrapperI18nHost): Accessor<boolean
 }
 
 /**
- * Creates a SolidJS signal that tracks translation cache/config changes
- * Uses revision counter for efficient O(1) change detection
- * MUST be called within a reactive context (component or effect)
+ * Tracks translation cache/config changes as a monotonic revision counter.
+ * MUST be called within a reactive context (component or effect).
  */
 export function createCacheRevisionSignal(i18n: WrapperI18nHost): Accessor<number> {
   const signal = from<number>((set) => {
-    // Single monotonic counter — avoids the old cacheRev+configRev sum collision (dropped re-render).
-    // Consumes core's canonical revision event set (subscribeToRevision) but skips the
-    // locale/loading axes: solid tracks those through the dedicated createLocaleSignal /
-    // createLoadingSignal primitives, and bumping here would break the pinned-locale
-    // no-recompute contract (<T locale="…"> must not recompute on global locale changes).
+    // ONE monotonic counter: summing a cache and a config revision let two
+    // opposite steps collide and drop a re-render.
+    //
+    // Core's canonical revision event set MINUS the locale/loading axes, which
+    // have their own primitives here — bumping on those would break the
+    // pinned-locale contract that `<T locale="…">` does not recompute when the
+    // global locale changes.
     let revision = 0;
     set(revision);
     return subscribeToRevision(i18n, (event) => {

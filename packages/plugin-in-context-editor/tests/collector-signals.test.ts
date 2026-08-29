@@ -149,7 +149,7 @@ describe("collector/signals", () => {
 
       expect(candidates).toHaveLength(1);
       expect(candidates[0]).toMatchObject({ namespace: "ns", key: "neighbor.key" });
-      // B1: the wire NeighborRef carries exactly {namespace, key, semanticRole,
+      // The wire NeighborRef carries exactly {namespace, key, semanticRole,
       // relativePosition, containerType, sameContainerAs, distance,
       // readingOrderIndex} — no rawText, no textLength, no ariaRole/hasAriaLabel.
       expect(candidates[0]).not.toHaveProperty("rawText");

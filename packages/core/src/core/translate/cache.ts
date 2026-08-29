@@ -1,7 +1,4 @@
-/**
- * Template classification flags for optimization.
- * Allows fast-path execution based on template complexity.
- */
+// Template classification, so rendering can pick a fast path by complexity.
 export const TF_STATIC = 0;
 export const TF_SIMPLE_PARAMS = 1;
 export const TF_HAS_PLURAL = 2;
@@ -9,26 +6,18 @@ export const TF_HAS_SELECT = 4;
 export const TF_HAS_TAGS = 8;
 export type TemplateFlags = number;
 
-/**
- * Cached template with pre-computed metadata for optimization.
- */
 export interface CachedTemplate {
   tokens: ParsedToken[];
   flags: TemplateFlags;
-  /** True if template has no special chars at all */
+  /** True only when rendered output is byte-equal to the raw template. */
   isStatic?: boolean;
-  /** For single-param templates: the param name */
+  /** Set only for a single-param template; `prefix`/`suffix` surround the `{param}`. */
   singleParamName?: string;
-  /** For single-param templates: prefix before {param} */
   prefix?: string;
-  /** For single-param templates: suffix after {param} */
   suffix?: string;
 }
 
-/**
- * Discriminated union for parsed tokens.
- * Compact tuple representation to reduce runtime object overhead and bundle size.
- */
+/** Tuples rather than objects: less runtime overhead and fewer bundle bytes. */
 export type ParsedToken = TextToken | ParamToken | PluralToken | SelectToken | TagToken;
 
 export const TK_TEXT = 0;
@@ -68,7 +57,7 @@ export function getPluralRules(locale: string, ordinal: boolean = false): Intl.P
     try {
       rules = new Intl.PluralRules(locale, opts);
     } catch {
-      // Fallback to default if locale is invalid
+      // An invalid locale falls back to the runtime default.
       rules = new Intl.PluralRules(undefined, opts);
     }
     pluralRulesCache.set(cacheKey, rules);

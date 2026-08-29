@@ -1,10 +1,7 @@
 /**
- * Content script running in MAIN world to detect Comvi i18n
- *
- * Runs in the page's JavaScript context (direct access to window.__COMVI__)
- * and is preloaded by the manifest for automatic toolbar detection. The popup
- * may safely re-inject it for an immediate refresh. It talks to the
- * ISOLATED-world bridge via custom events.
+ * MAIN-world content script: detects Comvi i18n through direct access to
+ * window.__COMVI__ and talks to the ISOLATED-world bridge via custom events.
+ * The popup may safely re-inject it for an immediate refresh.
  *
  * Security model: this world is shared with arbitrary page scripts, so
  * nothing here ever sees an API key. The editor runtime is activated with a
@@ -39,10 +36,8 @@ interface TransportInit {
 // `__comviEditorHook` marker as the in-context editor's hook, so whichever
 // side installs first, the other reuses it instead of swapping again.
 //
-// v1 legacy registry objects (register fn / instances Map) are left alone —
-// the detector keeps its original duck-typed status reads and COMVI_READY
-// listener, and the editor's own boot drains them. Truthy non-conforming
-// globals are never clobbered.
+// v1 legacy registry objects (register fn / instances Map) are left alone, and
+// truthy non-conforming globals are never clobbered.
 
 interface I18nLike {
   instanceId?: string;
@@ -222,7 +217,7 @@ function installDetector() {
       };
     }
 
-    // v1 path, unchanged: legacy registry objects are duck-typed and truthy
+    // v1 path: legacy registry objects are duck-typed, and truthy
     // non-conforming globals are reported but never touched.
     const comvi = (window as any).__COMVI__;
     return {
@@ -235,12 +230,12 @@ function installDetector() {
   }
 
   function notifyDetected(status: ComviStatus) {
-    if (detectionComplete && status.detected) return; // Already notified
+    if (detectionComplete && status.detected) return;
     detectionComplete = status.detected;
 
     window.dispatchEvent(new CustomEvent("comvi-extension:detected", { detail: status }));
 
-    // Respond to Comvi i18n with COMVI_PLUGIN_READY (handshake)
+    // The handshake half Comvi i18n waits for.
     if (status.detected) {
       window.dispatchEvent(new CustomEvent("COMVI_PLUGIN_READY"));
     }
@@ -262,9 +257,8 @@ function installDetector() {
   }
 
   // --- API proxy transport ---
-  // Forwards editor API requests to the bridge over DOM events. Responses
-  // are matched by a per-request id. No credentials are involved on this
-  // side of the boundary.
+  // Forwards editor API requests to the bridge over DOM events, matched by a
+  // per-request id. No credentials are involved on this side of the boundary.
 
   const PROXY_TIMEOUT_MS = 30_000;
   let requestCounter = 0;
@@ -350,8 +344,6 @@ function installDetector() {
     });
   }
 
-  // --- Event-based detection (preferred) ---
-  // Listen for COMVI_READY event dispatched by @comvi/core when it loads
   window.addEventListener("COMVI_READY", ((event: CustomEvent) => {
     const detail = event.detail || {};
     const status: ComviStatus = {
@@ -364,11 +356,10 @@ function installDetector() {
     notifyDetected(status);
   }) as EventListener);
 
-  // --- Polling fallback ---
-  // For pages where Comvi i18n was loaded before this script
+  // Polling fallback, for pages where Comvi i18n loaded before this script.
   let pollCount = 0;
-  const MAX_POLLS = 30; // 3 seconds max
-  const POLL_INTERVAL = 100; // 100ms
+  const MAX_POLLS = 30;
+  const POLL_INTERVAL = 100;
 
   function pollForComvi() {
     const status = getComviStatus();
@@ -386,16 +377,14 @@ function installDetector() {
     }
   }
 
-  // --- Extension communication handlers ---
-
-  // Listen for status requests from content script (ISOLATED world)
+  // Status requests come from the ISOLATED-world bridge.
   window.addEventListener("comvi-extension:get-status", () => {
     const status = getComviStatus();
     window.dispatchEvent(new CustomEvent("comvi-extension:status", { detail: status }));
   });
 
-  // Listen for activate requests. The payload contains only the non-secret
-  // base URL for path building; credentials never reach this world.
+  // The activate payload carries only the non-secret base URL for path
+  // building; credentials never reach this world.
   window.addEventListener("comvi-extension:activate", ((event: CustomEvent) => {
     let detail: any;
     try {
@@ -449,7 +438,6 @@ function installDetector() {
     }
   }) as EventListener);
 
-  // Listen for deactivate requests
   window.addEventListener("comvi-extension:deactivate", () => {
     const editor = (window as any).ComviInContextEditor;
     if (editor?.isActive?.()) {
@@ -466,13 +454,10 @@ function installDetector() {
     }
   });
 
-  // --- Initialization ---
-  // Check immediately (Comvi i18n might already be loaded)
   const initialStatus = getComviStatus();
   if (initialStatus.detected) {
     notifyDetected(initialStatus);
   } else {
-    // Start polling as fallback
     pollForComvi();
   }
 }

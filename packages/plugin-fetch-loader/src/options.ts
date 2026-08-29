@@ -1,9 +1,5 @@
 import type { TranslationValue } from "@comvi/core";
 
-/**
- * Fallback import function type
- * Returns a module with default export containing translations
- */
 export type FallbackImport = () => Promise<{ default: Record<string, TranslationValue> }>;
 
 /**
@@ -15,9 +11,6 @@ export type FallbackImport = () => Promise<{ default: Record<string, Translation
  */
 export type FallbackMap = Record<string, FallbackImport>;
 
-/**
- * Project info returned from API
- */
 export interface ProjectInfo {
   id: number;
   organizationId: number;
@@ -41,13 +34,9 @@ export interface CdnLayoutOptions {
   rootNamespace?: string | false;
 }
 
-/**
- * Options for FetchLoader plugin
- */
 export interface FetchLoaderOptions {
   /**
    * Full CDN URL for production mode requests.
-   * This is the base URL where translations are hosted.
    *
    * URL patterns are controlled by `cdnLayout`:
    * - Root namespace: {cdnUrl}/{lang}.json
@@ -107,14 +96,8 @@ export interface FetchLoaderOptions {
    */
   fallback?: FallbackMap;
 
-  /**
-   * Callback when loading fails
-   */
   onLoadError?: (locale: string, namespace: string, error: Error) => void;
 
-  /**
-   * Callback when loading succeeds
-   */
   onLoadSuccess?: (locale: string, namespace: string) => void;
 
   /**
@@ -206,20 +189,14 @@ export const comviPreset = {
   cdnBaseUrl: "https://cdn.comvi.io",
 } as const;
 
-/**
- * Production API base URL.
- * Can be overridden via VITE_API_BASE_URL or NEXT_PUBLIC_COMVI_API_URL for local development.
- */
+/** Production API base URL; the env overrides exist for local development. */
 export const API_BASE_URL =
   // @ts-expect-error - import.meta.env is Vite-specific
   import.meta.env?.VITE_API_BASE_URL ||
   (typeof process !== "undefined" && process.env?.NEXT_PUBLIC_COMVI_API_URL) ||
   comviPreset.apiBaseUrl;
 
-/**
- * Production CDN base URL.
- * Can be overridden via VITE_CDN_BASE_URL or NEXT_PUBLIC_COMVI_CDN_URL for local development.
- */
+/** Production CDN base URL; the env overrides exist for local development. */
 export const CDN_BASE_URL =
   // @ts-expect-error - import.meta.env is Vite-specific
   import.meta.env?.VITE_CDN_BASE_URL ||

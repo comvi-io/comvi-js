@@ -1,11 +1,11 @@
 /**
- * Shared types for the passive context collector (RALPLAN wave-2a, Item 2).
+ * Shared types for the passive context collector.
  *
- * Wire contract is structured `{namespace, key}` everywhere (RC-B) — never a
- * flat `"ns:key"` string, never a client-supplied numeric keyId (M1/M4).
- * Neighbor/target signals carry key refs + structural/semantic/geometry data
- * only — rendered text never leaves the page (RC4): any v3 field that used
- * to carry text content is represented here as a presence boolean instead.
+ * The wire contract is structured `{namespace, key}` everywhere — never a flat
+ * `"ns:key"` string, never a client-supplied numeric keyId. Neighbor/target
+ * signals carry key refs plus structural/semantic/geometry data only: rendered
+ * text never leaves the page, so any field that used to carry text content is
+ * a presence boolean here instead.
  */
 
 export interface KeyRef {
@@ -65,7 +65,7 @@ export type ContainerType =
   | "generic";
 
 /**
- * No rendered text (RC4) — a container's title is presence-only.
+ * No rendered text — a container's title is presence-only.
  *
  * `role` is required-but-nullable on the wire (server `AncestorInfoSchema`:
  * `Type.Union([Type.String(...), Type.Null()])`, not `Type.Optional`) — use
@@ -106,7 +106,7 @@ export interface ConstraintSignals {
 
 /**
  * Neighbor reference — {namespace,key} + structural/geometry signals only,
- * never rendered text (RC4). This is exactly the wire shape (server
+ * never rendered text. This is exactly the wire shape (server
  * `NeighborRefSchema`, `additionalProperties: false`) — `ariaRole`,
  * `hasAriaLabel`, and `textLength` are deliberately NOT here: they were
  * client-only extras nothing consumes, and the server rejects unrecognized
@@ -139,7 +139,7 @@ export interface ElementWithSignals extends ElementWithMeta {
 
 /**
  * Full observation body (`items[]` on POST /v1/context/usages). Never
- * carries observationHash (RC-A). This is exactly the server's
+ * carries observationHash. This is exactly the server's
  * `ObservationSchema` (`additionalProperties: false` — any extra field is a
  * 400, not silently ignored):
  *   - `uiType`/`translationRole` ARE wire fields (not client-local-only):
@@ -153,9 +153,8 @@ export interface ElementWithSignals extends ElementWithMeta {
  *     `transport.ts`, never serialized) that the server's schema doesn't
  *     define and would reject.
  *   - there is deliberately NO `spatial` field — the client never measures
- *     or transmits raw rect/centerPoint geometry (RC4); the server's schema
- *     currently still requires `spatial`, which worker-platform is making
- *     optional to match this contract.
+ *     or transmits raw rect/centerPoint geometry; the server's schema still
+ *     requires `spatial` and is being relaxed to match this contract.
  */
 export interface Observation {
   namespace: string;
@@ -225,7 +224,7 @@ export interface UsagesResponse {
   hashSkew: number;
 }
 
-/** Body-limit caps (§1b) — the client stays under these defensively; the server enforces them authoritatively. */
+/** The client stays under these defensively; the server enforces them authoritatively. */
 export const MAX_ITEMS_PER_BATCH = 100;
 export const MAX_NEIGHBORS_PER_OBSERVATION = 12;
 export const MAX_ANCESTRY_ENTRIES = 3;

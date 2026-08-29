@@ -124,10 +124,10 @@ describe("useI18n composable", () => {
   });
 
   it("returns plain text from t and leaves string-API tag markup literal", async () => {
-    // The documented residual: `basicHtmlTags` configures how tag TOKENS are
-    // rendered, but the base host never claims `<` as syntax, so plain `t()` /
-    // `tRaw()` see one literal string. Rich text is `<T>` (per-call grammar) or
-    // an explicit `@comvi/core/tags` import — never a side effect of `useI18n`.
+    // `basicHtmlTags` configures how tag TOKENS render, but the base host
+    // never claims `<` as syntax, so plain `t()` / `tRaw()` see one literal
+    // string. Rich text comes from `<T>` or an explicit `@comvi/core/tags`
+    // import — never as a side effect of `useI18n`.
     const i18n = createI18n({
       locale: "en",
       defaultNs: "common",

@@ -16,21 +16,14 @@
 // Compose `loader()` as well when any hosted plugin registers a loader. The
 // ORDER of `loader()`, `plugins()` and `devtools()` among themselves is free:
 // plugins run at `init()`, by which point every capability composed before
-// `init()` is attached. The one ordering rule in the library is `icu()`'s — it
-// must run before the first catalog reaches the host (constructor
-// `translation`, `addTranslations`, or a loader merge), and COMPOSING a loader
-// is not ingestion.
+// `init()` is attached.
 //
-// On a host that already has the capability — a second `.with(plugins())`, or
-// the internal composite the CDN global ships — installing is a no-op.
-//
-// Two misuse guards live in this capability, and only apps that compose it
-// pay for them. `ensureInstallable` is the nested-use guard a lowercase
-// plugin-package installer calls as its first ensure-step, so
-// `.use(fetchLoader(…))` fails before anything is attached. Independently,
-// `init()` rejects a plugin that returns an OBJECT: only nothing and a
-// cleanup function are legal results, which is what catches an installer
-// that hands the host back instead of registering a cleanup.
+// Two misuse guards live in this capability, so only apps that compose it pay
+// for them. `ensureInstallable` is the nested-use guard a lowercase installer
+// calls first, so `.use(fetchLoader(…))` fails before anything is attached.
+// Independently, `init()` rejects a plugin that returns an OBJECT — only
+// nothing and a cleanup function are legal, which catches an installer that
+// hands the host back instead of registering a cleanup.
 import type { I18n } from "./core/i18n";
 import type { I18nPluginHostApi } from "./types";
 import { attachPlugins } from "./core/plugins";
@@ -48,9 +41,9 @@ export type { I18nPlugin, I18nPluginFactory, PluginOptions } from "./plugins/typ
  * ```
  *
  * The host takes no configuration today, so `plugins()` is `attachPlugins`
- * under the pipe's calling convention — it exists so every capability reads
- * the same way in a `.with` chain (and so options can arrive later without a
- * call-shape migration). `.with(attachPlugins)` is equally valid.
+ * under the pipe's calling convention — it exists so every capability reads the
+ * same way in a `.with` chain, and so options can arrive later without a
+ * call-shape migration. `.with(attachPlugins)` is equally valid.
  *
  * Attaching is idempotent: a second `.with(plugins())`, or the internal
  * composite, installs nothing and keeps every registered plugin.

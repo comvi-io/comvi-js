@@ -32,7 +32,6 @@ describe("ApiClient", () => {
       timeout: 5000,
     });
 
-    // Mock global fetch
     global.fetch = vi.fn();
   });
 
@@ -137,7 +136,6 @@ describe("ApiClient", () => {
         .mockImplementationOnce(
           (_url: string, options: any) =>
             new Promise((resolve, reject) => {
-              // Simulate abort signal
               if (options?.signal) {
                 options.signal.addEventListener("abort", () => {
                   reject(new DOMException("The operation was aborted", "AbortError"));

@@ -1,16 +1,3 @@
-/**
- * ConfigLoader - Load and validate .comvirc.json configuration
- *
- * Configuration structure:
- * - apiKey: API key for TMS (project determined by key)
- * - apiBaseUrl: Base URL for TMS API
- * - outputPath: Output path for .d.ts file
- * - strictParams: Whether params are required
- * - translationsPath: Local translations folder
- * - fileTemplate: File template pattern
- * - push/pull: Command-specific options
- */
-
 import { promises as fs } from "fs";
 import { resolve } from "path";
 import { DEFAULT_FILE_TEMPLATE } from "../defaults";
@@ -21,9 +8,6 @@ import { atomicWriteFile } from "../utils/atomicWrite";
 export class ConfigLoader {
   private static readonly CONFIG_FILENAME = ".comvirc.json";
 
-  /**
-   * Find the config file by searching up the directory tree
-   */
   private static async findConfigFile(startDir: string = process.cwd()): Promise<string | null> {
     let currentDir = resolve(startDir);
     const root = resolve("/");
@@ -35,12 +19,10 @@ export class ConfigLoader {
         await fs.access(configPath);
         return configPath;
       } catch {
-        // File doesn't exist, go up one directory
         currentDir = resolve(currentDir, "..");
       }
     }
 
-    // Check root directory
     const rootConfigPath = resolve(root, this.CONFIG_FILENAME);
     try {
       await fs.access(rootConfigPath);
@@ -50,9 +32,6 @@ export class ConfigLoader {
     }
   }
 
-  /**
-   * Load configuration from .comvirc.json with environment variable overrides
-   */
   static async load(configPath?: string): Promise<ComviConfig> {
     let filePath: string | null;
 
@@ -79,10 +58,8 @@ export class ConfigLoader {
 
       this.stripLegacyDefaultNamespace(config);
 
-      // Apply environment variable overrides
       this.applyEnvironmentOverrides(config);
 
-      // Validate required fields
       this.validateConfig(config);
 
       return config;
@@ -100,26 +77,17 @@ export class ConfigLoader {
     }
   }
 
-  /**
-   * Apply environment variable overrides to config
-   * This allows sensitive values like API keys to be kept out of version control
-   */
+  /** Lets sensitive values such as the API key stay out of version control. */
   private static applyEnvironmentOverrides(config: ComviConfig): void {
-    // API key can be overridden by environment variable
     if (process.env.COMVI_API_KEY) {
       config.apiKey = process.env.COMVI_API_KEY;
     }
 
-    // API base URL can also be overridden
     if (process.env.COMVI_API_BASE_URL) {
       config.apiBaseUrl = process.env.COMVI_API_BASE_URL;
     }
   }
 
-  /**
-   * Validate configuration
-   * Note: apiKey can come from environment variable COMVI_API_KEY
-   */
   private static validateConfig(config: ComviConfig): void {
     const errors: string[] = [];
 
@@ -211,10 +179,7 @@ export class ConfigLoader {
     return trimmed;
   }
 
-  /**
-   * Convert ComviConfig to GeneratorOptions
-   * Note: This should only be called after config is validated (apiKey guaranteed to be set)
-   */
+  /** Only valid after validation, which is what guarantees `apiKey` is set. */
   static toGeneratorOptions(config: ComviConfig): GeneratorOptions {
     this.stripLegacyDefaultNamespace(config);
 
@@ -258,10 +223,7 @@ export class ConfigLoader {
     delete legacyConfig.defaultNsName;
   }
 
-  /**
-   * Create a new config file
-   * Note: apiKey should be set via COMVI_API_KEY environment variable, not in config file
-   */
+  /** `apiKey` belongs in COMVI_API_KEY, not in the written config file. */
   static async create(config: Partial<ComviConfig>, outputPath?: string): Promise<string> {
     const filePath = outputPath || resolve(process.cwd(), this.CONFIG_FILENAME);
 

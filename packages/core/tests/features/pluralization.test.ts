@@ -84,7 +84,6 @@ describe("Advanced Pluralization Features", () => {
           change: "{count, plural, =0 {no change} one {# change} other {# changes}}",
         },
       });
-      // In English, -1 is "one"
       expect(i18n.t("change", { count: -1 })).toBe("-1 change");
       expect(i18n.t("change", { count: -2 })).toBe("-2 changes");
     });
@@ -136,8 +135,8 @@ describe("Advanced Pluralization Features", () => {
     it("does not replace a quoted # with the count", () => {
       i18n.addTranslations({
         en: {
-          // The interpolation ensures the branch is run through the template
-          // processor so the quoted literal is unwrapped.
+          // The interpolation forces the branch through the template processor,
+          // which is what unwraps the quoted literal.
           price: "{count, plural, other {'#'# {label}}}",
         },
       });

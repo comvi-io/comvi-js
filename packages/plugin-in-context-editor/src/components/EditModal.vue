@@ -22,7 +22,6 @@ import {
   restoreSelectedLanguages,
 } from "@/utils/languageSelectionStorage";
 
-// Toast notifications
 const toast = inject(TOAST_INJECTION_KEY);
 
 const props = defineProps<{
@@ -93,7 +92,6 @@ watch(
   { immediate: true },
 );
 
-// Watch selected languages and save to localStorage
 watch(
   selectedLanguageCodes,
   (newCodes) => {
@@ -105,21 +103,16 @@ watch(
   { deep: true },
 );
 
-// Compute filtered languages based on selection
 const filteredLanguages = computed(() => {
   return languages.value.filter((lang) => selectedLanguageCodes.value.includes(lang.code));
 });
 
-// Initialize translation state management
 const translationManager = useTranslations(languages, props.translationInstanceId);
 
-// Provide translation manager to child components
 provide("translationManager", translationManager);
 
-// Provide demo mode flag to child components
 provide("isInDemoMode", isInDemoMode);
 
-// Load translation when modal opens or when key/namespace changes while open
 watch(
   () => [isOpenInternal.value, unref(props.translationKey), unref(props.translationNamespace)],
   () => {
@@ -133,7 +126,6 @@ watch(
   { immediate: true },
 );
 
-// Handle save without closing
 async function handleSaveOnly() {
   const savedData = await translationManager.saveTranslation();
   if (savedData) {
@@ -152,7 +144,6 @@ async function handleSaveOnly() {
   return savedData;
 }
 
-// Handle save and close
 async function handleSaveAndClose() {
   const savedData = await handleSaveOnly();
   if (savedData) {
@@ -160,7 +151,6 @@ async function handleSaveAndClose() {
   }
 }
 
-// Provide save handlers to children
 provide("handleSaveOnly", handleSaveOnly);
 provide("handleSaveAndClose", handleSaveAndClose);
 
@@ -187,7 +177,6 @@ onUnmounted(() => {
   document.removeEventListener("keydown", handleKeydown);
 });
 
-// Unsaved changes warning
 const showUnsavedWarning = ref(false);
 
 function tryClose() {
@@ -229,7 +218,6 @@ function handleInteractOutside(event: Event) {
       @escape-key-down="handleEscapeKeyDown"
       @interact-outside="handleInteractOutside"
     >
-      <!-- Demo mode: simplified view -->
       <div v-if="isInDemoMode" class="flex flex-col p-6">
         <div class="flex items-center gap-3 mb-6">
           <div
@@ -274,7 +262,6 @@ function handleInteractOutside(event: Event) {
         <Button class="w-full" @click="isOpenInternal = false"> Close </Button>
       </div>
 
-      <!-- Normal mode: full editor -->
       <div v-else class="flex flex-col h-[90vh] max-h-[90vh]">
         <DialogHeader>
           <ModalHeader
@@ -297,7 +284,6 @@ function handleInteractOutside(event: Event) {
     </DialogContent>
   </Dialog>
 
-  <!-- Unsaved changes confirmation dialog -->
   <Dialog v-model:open="showUnsavedWarning">
     <DialogContent class="w-full max-w-sm p-6">
       <DialogHeader>

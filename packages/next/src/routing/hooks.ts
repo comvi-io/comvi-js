@@ -7,12 +7,7 @@ import { useRoutingConfig } from "./context";
 import { getCanonicalPathname, localizeHref, stripLocalePrefix } from "./utils";
 
 /**
- * Get pathname without locale prefix
- *
- * This hook returns the current pathname with the locale prefix removed,
- * making it easier to work with routes in a locale-agnostic way.
- *
- * @returns Pathname without locale prefix
+ * Get pathname without locale prefix.
  *
  * @example
  * ```tsx
@@ -35,7 +30,7 @@ export function usePathname(): string {
     return getCanonicalPathname(publicPathname, routing, locale);
   }
 
-  // Fallback: remove locale prefix based on current locale only
+  // No routing config: strip the current locale only.
   if (pathname.startsWith(`/${locale}/`)) {
     return pathname.slice(locale.length + 1);
   }
@@ -45,31 +40,20 @@ export function usePathname(): string {
   return pathname;
 }
 
-/**
- * Return type for useLocalizedRouter
- */
 export interface LocalizedRouter {
   /** Navigate to a localized path */
   push: (href: string, locale?: string) => void;
   /** Replace current history entry with a localized path */
   replace: (href: string, locale?: string) => void;
-  /** Navigate back */
   back: () => void;
-  /** Navigate forward */
   forward: () => void;
-  /** Refresh the current page */
   refresh: () => void;
   /** Prefetch a localized path */
   prefetch: (href: string, locale?: string) => void;
 }
 
 /**
- * Localized router with automatic locale prefixing
- *
- * This hook wraps Next.js useRouter and automatically adds locale
- * prefixes to navigation methods.
- *
- * @returns Localized router object
+ * Wraps Next.js useRouter and adds locale prefixes to the navigation methods.
  *
  * @example
  * ```tsx

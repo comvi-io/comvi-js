@@ -6,19 +6,16 @@ import { _resetSyntaxExtensions, registerSyntaxExtension } from "../../src/core/
 import { tagSyntaxExtension } from "../../src/core/translate/tags";
 
 /**
- * The ambient string-API tag residual (plan §2.3).
+ * The ambient string-API tag residual.
  *
  * `t("click <b>here</b>")` with no tag extension in the graph renders the markup
- * as literal text, in development AND production. That is the owned decision:
- * unlike an ICU plural — which reads plausible and is therefore a throw — a
- * literal `<b>` is visibly broken in any UI review, so the loudness bar is met
- * by a development warning plus that visibility.
+ * as literal text, in development AND production — unlike an ICU plural, which
+ * reads plausible and is therefore a throw, a literal `<b>` is visibly broken in
+ * any UI review.
  *
- * What this file pins is the warning's contract: once per template, only for
- * genuinely tag-like input, never inside a quoted section, and never when a real
- * tag extension claims `<`. The production side (literal output, and 0 B for the
- * whole mechanism) is pinned on the built artifacts by
- * `tests/dist/compiler-policy.dist.test.ts`.
+ * Pinned here: the warning fires once per template, only for genuinely tag-like
+ * input, never inside a quoted section, and never when a real tag extension
+ * claims `<`. The production side is pinned on the built artifacts.
  */
 
 let caseId = 0;
@@ -57,8 +54,8 @@ describe("unclaimed tag syntax — the development warning", () => {
 
     const warnings = tagWarnings();
     expect(warnings).toHaveLength(1);
-    // BOTH prescribed fixes, because which one applies depends on whether the
-    // caller is rendering a component or a string.
+    // BOTH prescribed fixes: which one applies depends on whether the caller is
+    // rendering a component or a string.
     expect(warnings[0]).toContain("<T>");
     expect(warnings[0]).toContain("@comvi/core/tags");
     expect(warnings[0]).toContain(template);
@@ -118,8 +115,8 @@ describe("unclaimed tag syntax — the development warning", () => {
     const template = tagTemplate();
     const i18n = createI18n({ locale: "en", translation: { en: { rich: template } } });
 
-    // The handler receives the tag body, so the markup is GONE from the output
-    // — proof the extension claimed `<` rather than the warning branch seeing it.
+    // The markup is GONE from the output — proof the extension claimed `<`
+    // rather than the warning branch seeing it.
     const rendered = i18n.t(
       "rich" as never,
       { b: ({ children }: { children: string }) => children } as never,

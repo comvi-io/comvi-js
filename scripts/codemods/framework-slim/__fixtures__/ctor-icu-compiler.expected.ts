@@ -1,7 +1,7 @@
-// §7.2-4 — an inline catalog with ICU comma syntax takes the COMPILER in the
+// an inline catalog with ICU comma syntax takes the COMPILER in the
 // same call. `.with(icu())` is NEVER appended to a translation-bearing
 // constructor: the host locks its compiler on the first catalog it ingests, so
-// a late installer would throw `E_COMPILER_LOCKED` (§2.1b).
+// a late installer would throw `E_COMPILER_LOCKED`.
 import { createI18n, icuCompiler } from "@comvi/react";
 
 export const shop = createI18n({

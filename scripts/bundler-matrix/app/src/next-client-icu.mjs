@@ -1,25 +1,16 @@
-// Single-entry P4 gate: the default Next.js CLIENT recipe plus EXACTLY ONE
-// capability. Every import comes from `@comvi/next/client`; `@comvi/core` is
-// never named by the app — including for `icuCompiler`, which is the point of
-// the single-package surface: reaching a capability never means reaching past
-// your framework package.
+// The default Next.js CLIENT recipe plus EXACTLY ONE capability, every import
+// from `@comvi/next/client` — `icuCompiler` included, which is the point of the
+// single-package surface: reaching a capability never means reaching past your
+// framework package.
 //
-// NEW case in P4, the client twin of `react-icu`. It is the POSITIVE half of the
-// `fw-next-client-icu` size row: a size sentinel can only assert a module
-// ABSENT, so that row leaves ICU out of its sentinel list and this case proves
-// ICU's presence by running the bundle and formatting a plural for real, in both
-// bundlers and both modes. The base host without a compiler THROWS
-// E_ICU_SYNTAX on the very template below, so the assertions here fail loudly if
-// the re-export hop ever drops the compiler instead of shipping it.
+// The POSITIVE half of the ICU claim: a size sentinel can only assert a module
+// ABSENT, so this case proves ICU's presence by formatting a plural for real.
+// The base host without a compiler THROWS E_ICU_SYNTAX on the very template
+// below, so the assertions fail loudly if the re-export hop ever drops the
+// compiler instead of shipping it.
 //
-// The runner also asserts from the module graphs that the capabilities this app
-// does NOT buy — loader, plugins, devtools — plus core's tag-registration pair
-// and next's server modules stay out. The behavioral mirror of those absences is
-// asserted below. Core's BASE entry is present, since its `createI18n` is what
-// this app constructs with, so it is never an absence sentinel.
-//
-// `<T>` rendering needs a DOM and is NOT exercised here (same documented skip as
-// wrappers.mjs). No top-level await: the webpack leg emits commonjs2.
+// `<T>` rendering needs a DOM and is NOT exercised here. No top-level await:
+// the webpack leg emits commonjs2.
 import { createI18n, I18nProvider, icuCompiler, useI18n } from "@comvi/next/client";
 
 function assert(condition, label) {

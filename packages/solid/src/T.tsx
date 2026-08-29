@@ -10,11 +10,9 @@ import {
 import { Dynamic } from "solid-js/web";
 import { useI18nContextValue } from "./context";
 // The PURE rich-text seam, NOT `@comvi/core/tags`: importing the tags entry
-// would register tag syntax AMBIENTLY, so every app that renders `<T>` would
-// silently start parsing `<tag>` markup in plain string-API `t()` too. `<T>`
-// never needed that — `prepareTranslation` passes the tag extension per call
-// — and this module is the only thing that pulled it in, so `@comvi/solid` now
-// leaves the ambient switch entirely to the app (`import "@comvi/core/tags"`).
+// would register tag syntax AMBIENTLY, so every app rendering `<T>` would also
+// start parsing `<tag>` markup in plain string-API `t()`. `prepareTranslation`
+// passes the tag extension per call, so the ambient switch stays the app's own.
 import { prepareTranslation, type PendingHandler } from "@comvi/core/rich-text";
 import type {
   TranslationParams,
@@ -32,13 +30,10 @@ type MarkerHandlers = Map<string, (children: JSX.Element) => JSX.Element>;
 
 const NO_HANDLERS: MarkerHandlers = new Map();
 
-// ============ Helper functions ============
-
 /**
- * Resolve the opaque handlers `prepareTranslation` transported as marker
- * nodes into Solid render functions. Component handlers render through JSX
- * (createComponent) so they run with proper Solid component semantics (own
- * owner, context, untracked setup) instead of being invoked as bare functions.
+ * Component handlers render through JSX rather than being invoked as bare
+ * functions, so they get real Solid component semantics: their own owner,
+ * context, and untracked setup.
  */
 function buildMarkerHandlers(
   pendingHandlers: PendingHandler[],
@@ -65,11 +60,6 @@ function buildMarkerHandlers(
   return handlers;
 }
 
-// ============ JSX Rendering Functions ============
-
-/**
- * Renders a VirtualNode to JSX elements
- */
 function renderNode(
   node: VirtualNode,
   markerHandlers: MarkerHandlers,
@@ -83,7 +73,6 @@ function renderNode(
     return <>{renderContent(node.children as TranslationResult, markerHandlers, reportTagError)}</>;
   }
 
-  // Element node
   const tag = node.tag;
   const childResult = node.children as TranslationResult;
 
@@ -99,9 +88,6 @@ function renderNode(
   );
 }
 
-/**
- * Renders TranslationResult (string or array) to JSX elements
- */
 function renderContent(
   content: TranslationResult,
   markerHandlers: MarkerHandlers,
@@ -124,33 +110,28 @@ function renderContent(
   );
 }
 
-// ============ Main Component ============
-
 export interface TProps {
-  /** The translation key to look up */
   i18nKey: keyof TranslationKeys | PermissiveKey;
-  /** Optional parameters for interpolation */
   params?: TranslationParams;
-  /** Override namespace for this translation */
   ns?: string;
-  /** Override locale for this translation */
   locale?: string;
-  /** Fallback text if translation is not found */
+  /** Text shown when the translation is missing. Takes priority over children. */
   fallback?: string;
-  /** Skip post-processing if true */
-  raw?: boolean;
-  /** Component mapping for tag interpolation */
-  components?: ComponentMap;
   /**
-   * Fallback content if translation is not found.
+   * Skip post-processing — notably the invisible marker characters the
+   * in-context editor injects.
    */
+  raw?: boolean;
+  /** Tag-name → handler map for tag interpolation. */
+  components?: ComponentMap;
+  /** Rendered when the key is missing and no `fallback` prop was given. */
   children?: JSX.Element;
 }
 
 /**
- * Translation component for rendering translations with tag interpolation
+ * Renders a translation.
  *
- * @example Basic usage
+ * @example
  * ```tsx
  * <T i18nKey="greeting" />
  * ```
@@ -158,12 +139,11 @@ export interface TProps {
 export const T: Component<TProps> = (props) => {
   const ctx = useI18nContextValue();
 
-  // Resolve fallback children lazily — only when a translation is actually
-  // missing. Resolving eagerly here would create (and run side effects in) the
-  // fallback subtree on every render even when the translation exists. The
-  // `children()` helper is created once, under the component owner via
-  // `runWithOwner`, so it survives memo recomputes and is disposed with the
-  // component (not recreated/disposed on each recompute, which would churn).
+  // Fallback children resolve LAZILY: resolving eagerly would build the
+  // fallback subtree — and run its side effects — on every render, translation
+  // present or not. The `children()` helper is created once under the
+  // component owner, so it survives memo recomputes and is disposed with the
+  // component rather than churning on each recompute.
   const owner = getOwner();
   let resolveFallback: (() => ResolvedChildren) | undefined;
   const fallbackChildren = (): ResolvedChildren => {
@@ -174,13 +154,11 @@ export const T: Component<TProps> = (props) => {
   };
 
   const finalContent = createMemo(() => {
-    // Access signals to track dependencies from the latest memoized signals.
     ctx.signals.cacheRevision();
     const keyString = props.i18nKey as string;
 
-    // Only subscribe to the global locale signal when no explicit locale is
-    // pinned, so <T locale="…"> does not recompute on unrelated global locale
-    // changes (the `??` short-circuits the signal read when props.locale is set).
+    // The `??` short-circuits the signal read when `props.locale` is set, so
+    // `<T locale="…">` does not recompute on unrelated global locale changes.
     const targetLocale = props.locale ?? ctx.signals.locale();
     const targetNamespace = props.ns ?? ctx.signals.defaultNamespace();
 
@@ -197,19 +175,14 @@ export const T: Component<TProps> = (props) => {
       props.fallback !== undefined ||
       props.raw !== undefined;
 
-    // Fine-grained fast path: a bare tRaw call keeps core's static-template
-    // cache hit (zero per-render allocation) for the overwhelmingly common
-    // shape — a plain-text template rendered with no props but the key.
+    // Fast path: a bare `tRaw` call keeps core's static-template cache hit
+    // (zero per-render allocation) for the common shape — a plain-text template
+    // rendered with nothing but the key.
     //
-    // It used to be unconditional, because this module registered tag syntax
-    // ambiently and a bare `tRaw` therefore parsed markup on its own. It no
-    // longer does: `<T>` reaches the PURE `@comvi/core/rich-text` seam, which
-    // hands the tag grammar over PER CALL, so a template that still contains
-    // markup has to go through `prepareTranslation` to be parsed at all.
-    // `indexOf("<")` on the already-resolved string is what tells the two
-    // apart, and plain text — which cannot contain a tag — never leaves the
-    // fast path. A non-string result is already structured and needs no
-    // second pass either.
+    // It cannot be unconditional. The tag grammar is handed over PER CALL, so a
+    // template that still contains markup must go through `prepareTranslation`
+    // to be parsed at all; `indexOf("<")` on the resolved string is what tells
+    // the two apart. A non-string result is already structured.
     if (!hasComponents && !hasParams && !hasOverrides) {
       const content = ctx.i18n.tRaw(keyString as never);
       if (typeof content !== "string" || content.indexOf("<") === -1) {

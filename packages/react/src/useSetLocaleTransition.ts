@@ -2,15 +2,13 @@ import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { useI18nInstance } from "./I18nProvider";
 
 export interface UseSetLocaleTransitionReturn {
-  /** True while a setLocale transition is pending */
   isPending: boolean;
-  /** Initiate a locale change inside a React transition (non-blocking) */
   setLocale: (locale: string) => void;
 }
 
 /**
  * Wraps `i18n.setLocaleAsync()` in a React `useTransition` so the old UI
- * remains interactive while the new locale loads. Returns `{ isPending, setLocale }`.
+ * remains interactive while the new locale loads.
  *
  * @example
  * function LangSwitcher() {

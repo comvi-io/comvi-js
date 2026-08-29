@@ -1,10 +1,3 @@
-/**
- * Utility functions index
- *
- * Re-exports all utilities from their respective modules for convenient access.
- */
-
-// DOM manipulation utilities
 export {
   collectElementAttributes,
   collectAllDescendantNodes,
@@ -15,13 +8,10 @@ export {
   findCorrespondingNode,
 } from "./domHelpers";
 
-// Debounce utility
 export { debounce, type DebouncedFunction } from "./debounce";
 
-// Encoding utilities
 export { removeInvisibleCharacters } from "./encoding";
 
-// Shadow DOM utilities
 export {
   createShadowDomContainer,
   removeShadowDomContainer,

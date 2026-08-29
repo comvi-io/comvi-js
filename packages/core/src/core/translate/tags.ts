@@ -198,13 +198,7 @@ function findClosingTag(
   return undefined;
 }
 
-/**
- * Processes a tag token.
- * Handles:
- * - Tag handlers from params (TagCallback functions)
- * - Basic HTML tags from whitelist
- * - Strict mode behavior (fallback, warn, error)
- */
+/** Resolution order: a handler in params, then the basic-HTML whitelist, then `strict`. */
 function processTag(
   token: TagToken,
   ctx: TranslateCtx,
@@ -215,11 +209,9 @@ function processTag(
   const isSelfClosing = token[3] === 1;
   const tagInterpolation = ctx.tagInterpolation;
 
-  // Process children first to get their result
   const childrenResult = processTokens(children, ctx, hashIsSyntax);
   const flattenedChildren = finalizeResult(childrenResult);
 
-  // Check for tag handler in params
   const handler = ctx.params[tagName];
   if (typeof handler === "function") {
     return (handler as TagCallback)({
@@ -228,13 +220,10 @@ function processTag(
     });
   }
 
-  // Check for basic HTML tags whitelist
   if (tagInterpolation?.basicHtmlTags?.includes(tagName)) {
-    // Render as basic HTML VNode
     return createElement(tagName, {}, isSelfClosing ? [] : childrenResult);
   }
 
-  // Handle missing handler based on strict mode
   const strict = tagInterpolation?.strict;
 
   if (strict === true) {

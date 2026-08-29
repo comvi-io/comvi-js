@@ -1,21 +1,13 @@
-/**
- * Language Service
- * Handles fetching available languages from the API
- */
-
 import type { Language, LanguageResponse } from "../types";
 import { isDemoMode } from "../config/api";
 import { detectPluralCategories } from "../composables/usePluralRules";
 import { apiFetch } from "./apiClient";
 
 /**
- * Fetch available languages/locales from the API.
- * In demo mode (no API key), returns empty array - the UI will show a simplified view.
- * @param scopeId - Optional runtime scope used to isolate editor instances
- * @returns Array of available languages enriched with plural forms
+ * Returns an empty array in demo mode (no API key) — the UI then shows a
+ * simplified view. Successful results are enriched with plural forms.
  */
 export async function getLanguages(scopeId?: string): Promise<Language[]> {
-  // In demo mode, return empty array - the UI shows a simplified view
   if (isDemoMode(scopeId)) {
     return [];
   }
@@ -30,7 +22,6 @@ export async function getLanguages(scopeId?: string): Promise<Language[]> {
     const data = await response.json();
     const { sourceLocale, locales } = data;
 
-    // Enrich each language with plural forms and isSource flag
     return locales.map(
       (lang: LanguageResponse): Language => ({
         ...lang,

@@ -170,7 +170,6 @@ describe("runtime plugin", () => {
   it("does not trigger duplicate setLocale calls when middleware updates locale state", async () => {
     const i18n = createI18nStub("en");
     i18n.setLocale = vi.fn(async (newLocale: string) => {
-      // Simulate async locale switching to mirror real library behavior.
       await Promise.resolve();
       i18n.locale.value = newLocale;
     });
@@ -210,9 +209,8 @@ describe("runtime plugin", () => {
     await middleware({ path: "/about", fullPath: "/about" } as any);
     await flushWatchers();
 
-    // The middleware drove i18n to the path-implied default…
     expect(i18n.setLocale).toHaveBeenCalledWith("en");
-    // …yet the user's cookie preference survives the localeChanged clobber.
+    // The user's cookie preference survives the localeChanged clobber.
     const localeCookie = nuxtAppMocks.useCookie("i18n_locale");
     expect(localeCookie.value).toBe("de");
   });
@@ -236,7 +234,6 @@ describe("runtime plugin", () => {
       }),
     );
 
-    // addTranslations should be called before init()
     expect(i18n.addTranslations).toHaveBeenCalledWith(ssrTranslations);
     expect(i18n.addTranslations.mock.invocationCallOrder[0]).toBeLessThan(
       i18n.init.mock.invocationCallOrder[0],
@@ -273,8 +270,7 @@ describe("runtime plugin", () => {
     i18n.addTranslations = vi.fn();
     createComviI18n.mockReturnValue(i18n);
 
-    // Simulate SSR payload containing a translation with a VirtualNode-like structure
-    // (tag interpolation produces objects like { tag, props, children } in the cache)
+    // Tag interpolation puts { tag, props, children } objects in the cache.
     const virtualNodeTranslation = {
       tag: "strong",
       props: {},
@@ -287,7 +283,7 @@ describe("runtime plugin", () => {
       },
     };
 
-    // Verify the structure survives JSON serialization (as happens in Nuxt payload transfer)
+    // The structure has to survive the JSON round-trip Nuxt payloads impose.
     const serialized = JSON.parse(JSON.stringify(ssrTranslations));
     expect(serialized["en:default"].highlighted).toEqual(virtualNodeTranslation);
 
@@ -300,7 +296,6 @@ describe("runtime plugin", () => {
       }),
     );
 
-    // addTranslations should receive the deserialized payload before init
     expect(i18n.addTranslations).toHaveBeenCalledWith(serialized);
     expect(i18n.addTranslations.mock.invocationCallOrder[0]).toBeLessThan(
       i18n.init.mock.invocationCallOrder[0],

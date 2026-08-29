@@ -10,21 +10,14 @@ import { TK_TEXT } from "../../src/core/translate/cache";
 import { _resetSyntaxExtensions, type MessageCompiler } from "../../src/core/translate/syntax";
 
 /**
- * The structured `E_ICU_SYNTAX` detector (plan §2.1, D1 of
- * `.omc/plans/release-0.5.0-hardening.md`).
+ * The structured `E_ICU_SYNTAX` detector.
  *
  * A comma inside parsed braces is the ICU argument-type marker. On the default
- * compiler DEVELOPMENT THROWS at ingestion — this file's subject, because
- * `__DEV__` is `true` under vitest. Production renders the braced segment
- * literally and reports `E_ICU_SYNTAX` through `onError` (or `console.error`)
- * on the compilation that hit it — best-effort, per process, never on cached
- * renders. Neither side renders plausibly-wrong text, which is the one silent
- * failure this convergence set out to remove.
- * `tests/dist/compiler-policy.dist.test.ts` pins BOTH halves on the built
- * artifacts (production behaviour is only observable there: the `__DEV__` fold
- * decides it).
+ * compiler DEVELOPMENT THROWS at ingestion, which is this file's subject
+ * (`__DEV__` is true under vitest); production renders the segment literally and
+ * reports through `onError`. Neither side renders plausibly-wrong text.
  *
- * Most cases parse directly, because ingesting an ICU catalog through the base
+ * Most cases parse DIRECTLY, because ingesting an ICU catalog through the base
  * host throws at the dev preflight before any render can be attempted — and
  * `parseTemplate` is exactly what both seams call.
  */
@@ -74,8 +67,8 @@ describe("E_ICU_SYNTAX — argument types nothing in this package ships", () => 
 
     expect(error.code).toBe("E_ICU_SYNTAX");
     expect(error.argumentType).toBe(argumentType);
-    // Truthfulness is the point: `icuCompiler` does NOT implement these, so
-    // the guidance must never name it as the fix.
+    // `icuCompiler` does NOT implement these, so the guidance must never name it
+    // as the fix.
     expect(error.message).toContain("is not a shipped ICU argument type");
     expect(error.message).not.toContain("icuCompiler");
   });

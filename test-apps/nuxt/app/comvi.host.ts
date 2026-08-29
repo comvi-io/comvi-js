@@ -3,9 +3,7 @@ import { icuCompiler } from "@comvi/core/icu";
 import { loader } from "@comvi/core/loader";
 import type { NuxtHostFactory } from "@comvi/nuxt";
 
-// The generated Nuxt default is deliberately the base host. This app renders
-// ICU catalogs and loads them on the server, so its composition root says both
-// things explicitly; `comvi.setup.ts` registers the import map on the loader
-// capability composed here.
+// The generated Nuxt default is deliberately the base host; this app renders ICU
+// catalogs and loads them on the server, so it composes both explicitly.
 export default ((options) =>
   createI18n({ ...options, compiler: icuCompiler }).with(loader())) satisfies NuxtHostFactory;

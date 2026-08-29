@@ -2,10 +2,10 @@
  * Golden-vector conformance for the canonical observation hash
  * (`src/collector/hash/observation-hash.ts`).
  *
- * This file is a byte-identical copy of the platform's
- * `apps/api/src/modules/context/hash/observation-hash.ts` (RALPLAN
- * iteration-4 1b — the cross-repo hash-fold). This test mirrors the
- * platform's reference test (`apps/api/src/__tests__/unit/context-observation-hash.test.ts`)
+ * The hashed file is a byte-identical copy of the platform's
+ * `apps/api/src/modules/context/hash/observation-hash.ts`, and this test
+ * mirrors the platform's reference test
+ * (`apps/api/src/__tests__/unit/context-observation-hash.test.ts`),
  * so drift in EITHER the ported file or the committed fixture fails CI here
  * before it ships, per the versioned-spec contract.
  */

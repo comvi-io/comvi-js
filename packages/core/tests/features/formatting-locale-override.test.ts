@@ -1,8 +1,7 @@
 /**
- * Verifies the optional `locale` argument on `formatNumber` / `formatDate` /
- * `formatCurrency` / `formatRelativeTime`: instance locale is used when
- * omitted, override locale wins when passed, and the Intl cache keys on
- * the active locale.
+ * The optional `locale` argument on the format* helpers: the instance locale is
+ * used when it is omitted, the override wins when passed, and the Intl cache
+ * keys on the locale actually used.
  */
 
 import { describe, it, expect, beforeEach } from "vitest";
@@ -29,9 +28,7 @@ describe("Formatters — optional `locale` override", () => {
     });
 
     it("re-uses cached Intl.NumberFormat per (locale, options)", () => {
-      // Just call twice; correctness is the same value, and the impl asserts
-      // by cache-key construction. Coverage of the cache key including
-      // override locale is the real win here.
+      // The real claim is that the cache key includes the OVERRIDE locale.
       expect(formatNumber(i18n, 1, undefined, "fr")).toBe("1");
       expect(formatNumber(i18n, 2, undefined, "fr")).toBe("2");
       expect(formatNumber(i18n, 2, undefined, "de")).toBe("2");
@@ -80,8 +77,7 @@ describe("Formatters — optional `locale` override", () => {
 
   describe("backwards compatibility", () => {
     it("existing 2-arg / 3-arg call sites still compile and behave identically", () => {
-      // Vue / Svelte / Solid pass options without locale today; behavior
-      // must be unchanged.
+      // The wrappers pass options without a locale; that path must not change.
       const n = formatNumber(i18n, 1, { maximumFractionDigits: 0 });
       const d = formatDate(i18n, new Date("2026-01-01"), { day: "numeric" });
       const c = formatCurrency(i18n, 0.5, "USD", { minimumFractionDigits: 1 });

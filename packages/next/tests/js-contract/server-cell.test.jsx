@@ -1,13 +1,12 @@
-// framework-slim P5 step 4 (iv), (x), (xi) — the server once-cell's loud
-// failures, asserted against BOTH published build families.
+// The server once-cell's loud failures, asserted against BOTH published build
+// families.
 //
 // The messages are written out verbatim rather than imported from cache.ts:
 // importing them would compare the module against itself and pass whatever it
-// says. They are IDENTICAL in both runs on purpose — a conflict is a
-// programming error in production too, and a dev-only diagnostic would be the
-// dev/prod divergence §2.4 bans. `__COMVI_CORE_BUILD__` (vitest.config.ts)
-// says which core artifact this run resolved, and `__DEV__` is false in the
-// production project.
+// says. They are IDENTICAL in both runs on purpose — a conflict is a programming
+// error in production too, and a dev-only diagnostic would be a dev/prod
+// divergence. `__COMVI_CORE_BUILD__` (vitest.config.ts) says which core artifact
+// this run resolved, and `__DEV__` is false in the production project.
 import { describe, it, expect, beforeEach } from "vitest";
 import { createI18n } from "@comvi/core";
 import { attachLoader } from "@comvi/core/loader";
