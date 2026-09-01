@@ -5769,7 +5769,7 @@
       "file": "src/VueI18n.ts",
       "mutators": ["MethodExpression"],
       "snippet": "this._unsubscribers",
-      "lineHint": 421,
+      "lineHint": 425,
       "kind": "equivalent",
       "reason": "pushed exactly once (single subscribeToRevision disposer); no public path adds a second, so reverse order is unobservable. Both mutants hand-applied; green."
     },

@@ -101,3 +101,8 @@ current Stryker mutant set — entries dropped as stale rather than kept specula
   useI18n.ts:38 `"props" in value` entry: the mutant is genuinely redundant (implied by the
   typeof that follows) but absent from the current mutant set — if it reappears surviving, that
   is the ready-made reason, not a regression.
+- Registry notes (2026-09-01): Stryker's ConditionalExpression mutator skips ternary conditions
+  that are bare identifiers or non-comparison BinaryExpressions (e.g. `instanceof`) — hand-probing
+  such conditions explores mutants the real set never contains. Fragile-hint pair: the two
+  `this._configRevision.value++;` entries (VueI18n 167/172) share a snippet and are disambiguated
+  only by lineHint — an edit above line 172 would silently re-bind them.
