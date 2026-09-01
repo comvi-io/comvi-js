@@ -196,3 +196,31 @@ Gotchas learned: `pnpm mutation` takes packages/<dir> not bare name; process.chd
 Stryker's worker threads (use vi.spyOn(process,"cwd") — same honesty for clearDirectory's cwd guard);
 a failed Stryker dry run leaves .stryker-tmp inside the package and vitest then runs every test TWICE
 (suite showed 32 files/548 — delete .stryker-tmp before trusting counts).
+
+## Round 7a — wrapper mutation measurement fix (2026-09-01, commit 0aa1181)
+
+ROOT CAUSE of the skewed wrapper scores: Stryker's vitest-runner SILENTLY DROPS test files that
+fail to load in its sandbox (.stryker-tmp copies only the package dir). React ran 55/163 tests,
+svelte 51/147 — three load-breakers: (1) `../../../tooling/test-utils/fakeI18n` points outside
+the package; (2) CORE_DIST alias `resolve(__dirname, "../core/dist")` — no sibling core in the
+sandbox; (3) react tearing.test.tsx imported `../../next/src/...`. The dry run still reports
+SUCCESS, so nothing ever surfaced. (Silent-drop residual: files that load-fail vanish from the
+run without a trace — treat any dry-run count mismatch as a red flag.)
+
+Fix: tooling/test-utils became the @comvi/test-utils workspace package (resolves via
+node_modules symlink chain even from a sandbox; also unblocks packages/next, whose tests import
+it too); configs resolve core dist via dirname(createRequire(import.meta.url).resolve("@comvi/core"))
+(NOTE: "@comvi/core/package.json" is NOT exported — resolve the main entry); react got a
+~next-src alias the same way. Build-artifact tests (react tests/dist/**, svelte
+exports-smoke.test.ts) are now EXCLUDED under COMVI_MUTATION=1, which run.mjs sets — declared
+policy instead of silent dropping (they test dist; exports-smoke even rebuilds the package in
+beforeAll).
+
+Honest baselines after fix (same tests, same src): react 36.1→63.2 (nocov 124→42),
+solid 43.8→85.7 (41→5), svelte 35.6→79.7 (25→0), vue 68.3→72.4 (20→14). Dry runs: solid 129/129
+and vue 214/214 complete; react 152 (excluded dist 2, fake-i18n-default-params covers no src,
+js-contract dev/prod same-name dedupe); svelte 134 = 147 − 13 excluded.
+
+Round 7b (kill-pass) in flight: 4 agents in worktrees (scratchpad tests/wrappers/wt/<pkg>,
+node_modules symlinked, core/next dist copied real), targets: react 98+42, vue 67+14, solid 33+5,
+svelte 24+0. Protocol: hand-probes parenthesised, accepted-entry proposals merged by lead only.
