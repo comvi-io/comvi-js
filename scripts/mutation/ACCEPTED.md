@@ -64,3 +64,20 @@ killable, which is why the metadata assignments above are not disabled.
   through to `[].map(...)`. Evidence: mutant 100:19-100:39 hand-applied, full suite 146/146 green.
 - T.tsx:190 `typeof content === "string"` -> true: redundant with `content === keyString`, which can
   only hold for a string primitive. Evidence: mutant 190:11-190:38 hand-applied, 146/146 green.
+
+## packages/react (kill-pass 2026-09-01)
+
+Three families, every member hand-applied with the full suite observed green:
+
+- **String fast paths** (useI18n.ts:63/83/89, T.tsx:175/184/260, and the allocation guard T.tsx:165):
+  each guard's body is behaviourally identical to the generic branch below it — String(s)===s,
+  Fragment wrap reuses the same key, empty-Map vs null lookup both yield undefined. Performance
+  guards, not behaviour; killable only by deleting the redundant fast paths in src.
+- **mountedRef latches** (useSetLocaleTransition.ts:30/31/32/40, I18nProvider.tsx:71/75): React 19
+  performs setState-after-unmount as a silent no-op, so the latches have no observable effect.
+  useSubscribe's identical latch IS killed because its subscribe fn is exported and drivable.
+- **Singles**: useI18n.ts:38 (`"props" in value` implied by the typeof that follows), :270 (right
+  operand of `locale || i18n.locale` unreachable — a test pinning the divergence failed on
+  unmutated src), I18nProvider.tsx:87 (namespace join separator — the list only grows, so no
+  colliding pair exists; the fallback-locale join, whose list is replaced, IS killed),
+  useSetLocaleTransition.ts:34 (constant-content deps array).

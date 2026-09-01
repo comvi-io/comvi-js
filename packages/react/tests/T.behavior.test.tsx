@@ -10,6 +10,7 @@ declare module "@comvi/core" {
     greeting: never;
     reserved: never;
     "missing.key": never;
+    echo: never;
   }
 }
 
@@ -81,6 +82,59 @@ describe("<T /> behavior", () => {
 
     expect(container.textContent).toBe("Fallback text");
     expect(screen.queryByText("Children fallback")).toBeNull();
+  });
+
+  // A value equal to its own key is the only state in which the
+  // translation-exists check, rather than the rendered text, decides
+  // `isMissing` — so these three pin that check's locale/namespace defaults.
+  it("renders a translation whose value equals its key instead of the children fallback", async () => {
+    const i18n = createI18n({ locale: "en" });
+    i18n.addTranslations({ "en:default": { echo: "echo" } });
+
+    const { container } = await renderWithI18n(i18n, <T i18nKey="echo">Children fallback</T>);
+
+    expect(container.textContent).toBe("echo");
+  });
+
+  it("checks for the translation in the locale requested by the locale prop", async () => {
+    const i18n = createI18n({ locale: "en" });
+    i18n.addTranslations({ "fr:default": { echo: "echo" } });
+
+    const { container } = await renderWithI18n(
+      i18n,
+      <T i18nKey="echo" locale="fr">
+        Children fallback
+      </T>,
+    );
+
+    expect(container.textContent).toBe("echo");
+  });
+
+  it("checks for the translation in the namespace requested by the ns prop", async () => {
+    const i18n = createI18n({ locale: "en" });
+    i18n.addTranslations({ "en:dashboard": { echo: "echo" } });
+
+    const { container } = await renderWithI18n(
+      i18n,
+      <T i18nKey="echo" ns="dashboard">
+        Children fallback
+      </T>,
+    );
+
+    expect(container.textContent).toBe("echo");
+  });
+
+  it("renders element children as the fallback for a missing key", async () => {
+    const i18n = createI18n({ locale: "en" });
+
+    const { container } = await renderWithI18n(
+      i18n,
+      <T i18nKey="missing.key">
+        <em>Fallback</em>
+      </T>,
+    );
+
+    expect(container.querySelector("em")!.textContent).toBe("Fallback");
   });
 
   it("renders the translation from the requested locale and namespace", async () => {

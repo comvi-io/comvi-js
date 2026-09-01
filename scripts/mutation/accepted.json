@@ -5592,6 +5592,159 @@
       "lineHint": 190,
       "kind": "equivalent",
       "reason": "redundant with the next conjunct: `content === keyString` only holds for a string primitive, so dropping the typeof guard cannot change isMissing for any tRaw return. Hand-applied, 146/146 green."
+    },
+    {
+      "package": "packages/react",
+      "file": "src/useI18n.ts",
+      "mutators": ["ConditionalExpression"],
+      "snippet": "\"props\" in value &&",
+      "lineHint": 38,
+      "kind": "equivalent",
+      "reason": "redundant guard: `typeof value.props === \"object\"` cannot be true unless `\"props\" in value` already is. Hand-applied `true &&`; 219 green."
+    },
+    {
+      "package": "packages/react",
+      "file": "src/useI18n.ts",
+      "mutators": ["ConditionalExpression", "LogicalOperator", "StringLiteral", "BlockStatement"],
+      "snippet": "if (typeof node === \"string\" || typeof node === \"number\") {",
+      "lineHint": 63,
+      "kind": "equivalent",
+      "reason": "fast path only: falling through Array/isVirtualNode/isReactElementLike reaches `return String(node)` — identical value. 4 mutants hand-applied, all green; the `!==` mutant on this line IS killed."
+    },
+    {
+      "package": "packages/react",
+      "file": "src/useI18n.ts",
+      "mutators": ["ConditionalExpression", "StringLiteral", "BlockStatement"],
+      "snippet": "if (typeof result === \"string\") {",
+      "lineHint": 83,
+      "kind": "equivalent",
+      "reason": "fast path only: for-of over the string yields its code points and reconcatenates identically. 3 mutants hand-applied, green."
+    },
+    {
+      "package": "packages/react",
+      "file": "src/useI18n.ts",
+      "mutators": ["ConditionalExpression", "StringLiteral", "BlockStatement"],
+      "snippet": "if (typeof part === \"string\") {",
+      "lineHint": 89,
+      "kind": "equivalent",
+      "reason": "fast path only: falls through to `text += String(part)`, String(s) === s. 3 mutants hand-applied, green."
+    },
+    {
+      "package": "packages/react",
+      "file": "src/useI18n.ts",
+      "mutators": ["LogicalOperator"],
+      "snippet": "dir: getTextDirection(locale || i18n.locale),",
+      "lineHint": 270,
+      "kind": "equivalent",
+      "reason": "right operand unreachable: LocaleContext re-reads i18n.locale each render, so falsy `locale` implies the same falsy `i18n.locale`; a test pinning the divergence FAILED against unmutated src. `getTextDirection` true/false mutants ARE killed by the rtl test."
+    },
+    {
+      "package": "packages/react",
+      "file": "src/T.tsx",
+      "mutators": ["ConditionalExpression", "EqualityOperator"],
+      "snippet": "if (pendingHandlers.length > 0) {",
+      "lineHint": 165,
+      "kind": "equivalent",
+      "reason": "allocation-only: an empty Map vs null makes `pendingByMarker?.get(tag)` return undefined either way; a Map-count instrument drowned in ~69 background Maps, so no honest test isolates it. Both mutants hand-applied, green."
+    },
+    {
+      "package": "packages/react",
+      "file": "src/T.tsx",
+      "mutators": ["ConditionalExpression", "StringLiteral"],
+      "snippet": "if (typeof childResult === \"string\") {",
+      "lineHint": 175,
+      "kind": "equivalent",
+      "reason": "skip reaches `[childResult]`; for \"\" the `[]` vs `[\"\"]` difference renders identically in React (no text node). Hand-applied with bare/empty-string children tests present; green."
+    },
+    {
+      "package": "packages/react",
+      "file": "src/T.tsx",
+      "mutators": ["ConditionalExpression", "StringLiteral", "BlockStatement"],
+      "snippet": "if (typeof child === \"string\") {",
+      "lineHint": 184,
+      "kind": "equivalent",
+      "reason": "fast path only: falls through isVirtualNode (false) to `return child` — same value. 3 mutants hand-applied, green."
+    },
+    {
+      "package": "packages/react",
+      "file": "src/T.tsx",
+      "mutators": ["ConditionalExpression", "StringLiteral", "BlockStatement"],
+      "snippet": "if (typeof item === \"string\") {",
+      "lineHint": 260,
+      "kind": "equivalent",
+      "reason": "fast path only: generic branch wraps in a Fragment with the SAME `${keyString}-${index}` key. 3 mutants hand-applied, green; the L261 template literal IS killed."
+    },
+    {
+      "package": "packages/react",
+      "file": "src/I18nProvider.tsx",
+      "mutators": ["ConditionalExpression"],
+      "snippet": "if (!disposed) callback();",
+      "lineHint": 71,
+      "kind": "needs-seam",
+      "reason": "useStoreRevision's disposed latch guards a post-teardown microtask; React 19 ignores store notifications for an unmounted store. The identical latch in useSubscribe IS killed (its subscribe fn is exported). Hand-applied `if (true)`; green."
+    },
+    {
+      "package": "packages/react",
+      "file": "src/I18nProvider.tsx",
+      "mutators": ["BooleanLiteral"],
+      "snippet": "disposed = true;",
+      "lineHint": 75,
+      "kind": "needs-seam",
+      "reason": "same latch: unsubscribe() still runs next line; only an already-queued microtask differs, unobservably. L74/L76 mutants ARE killed by the listener-release test. Hand-applied; green."
+    },
+    {
+      "package": "packages/react",
+      "file": "src/I18nProvider.tsx",
+      "mutators": ["StringLiteral"],
+      "snippet": "`${i18n.getDefaultNamespace()}:${i18n.getActiveNamespaces().join(\",\")}:` +",
+      "lineHint": 87,
+      "kind": "equivalent",
+      "reason": "join separator cannot matter: active namespaces only grow, so consecutive states differ under join(\"\") too; the L88 fallback-locale separator (list REPLACED) IS killed. Hand-applied; green."
+    },
+    {
+      "package": "packages/react",
+      "file": "src/useSetLocaleTransition.ts",
+      "mutators": ["BlockStatement"],
+      "snippet": "useEffect(() => {",
+      "lineHint": 30,
+      "kind": "needs-seam",
+      "reason": "removing the unmount cleanup only enables setState after unmount — a silent no-op in React 19. Hand-applied; green."
+    },
+    {
+      "package": "packages/react",
+      "file": "src/useSetLocaleTransition.ts",
+      "mutators": ["BlockStatement"],
+      "snippet": "return () => {",
+      "lineHint": 31,
+      "kind": "needs-seam",
+      "reason": "same as L30: an emptied cleanup is unobservable. Hand-applied; green."
+    },
+    {
+      "package": "packages/react",
+      "file": "src/useSetLocaleTransition.ts",
+      "mutators": ["BooleanLiteral"],
+      "snippet": "mountedRef.current = false;",
+      "lineHint": 32,
+      "kind": "needs-seam",
+      "reason": "latch true on unmount only re-enables a setState React discards; StrictMode A/B showed identical pending lifecycle. Hand-applied; green."
+    },
+    {
+      "package": "packages/react",
+      "file": "src/useSetLocaleTransition.ts",
+      "mutators": ["ArrayDeclaration"],
+      "snippet": "}, []);",
+      "lineHint": 34,
+      "kind": "equivalent",
+      "reason": "`[\"Stryker was here\"]` has constant contents and React compares deps element-wise — effect still runs once. Hand-applied; green."
+    },
+    {
+      "package": "packages/react",
+      "file": "src/useSetLocaleTransition.ts",
+      "mutators": ["ConditionalExpression"],
+      "snippet": "if (mountedRef.current) {",
+      "lineHint": 40,
+      "kind": "needs-seam",
+      "reason": "true for the whole mounted lifetime; after unmount only permits a discarded setState. The L52 sibling (also gated on pendingCountRef) IS killed. Hand-applied; green."
     }
   ]
 }

@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
+import React from "react";
 import { createI18n } from "../src";
 import { I18nProvider } from "../src/I18nProvider";
 import { T } from "../src/T";
@@ -57,6 +58,77 @@ describe("<T /> tag interpolation smoke", () => {
     const strong = container.querySelector("strong");
     expect(strong?.querySelector("em")?.textContent).toBe("Alice");
     expect(container.textContent).toBe("Hello Alice");
+  });
+
+  // Core's `{ tag | component, props }` entry form works at runtime but is not
+  // described by the react `ComponentsMap` type — see the report's type gap.
+  const configComponents = (map: Record<string, unknown>) =>
+    map as React.ComponentProps<typeof T>["components"];
+
+  it("renders a string-target config entry with its configured props", async () => {
+    const i18n = createI18n({
+      locale: "en",
+      translation: { en: { msg: "Click <link>here</link>" } },
+    });
+    await i18n.init();
+
+    render(
+      <I18nProvider i18n={i18n}>
+        <T
+          i18nKey="msg"
+          components={configComponents({ link: { tag: "a", props: { href: "/help" } } })}
+        />
+      </I18nProvider>,
+    );
+
+    expect(screen.getByRole("link").getAttribute("href")).toBe("/help");
+  });
+
+  it("merges configured props into a React element handler", async () => {
+    const i18n = createI18n({
+      locale: "en",
+      translation: { en: { msg: "Click <link>here</link>" } },
+    });
+    await i18n.init();
+
+    render(
+      <I18nProvider i18n={i18n}>
+        <T
+          i18nKey="msg"
+          components={configComponents({
+            link: { component: <a href="/placeholder" />, props: { href: "/help" } },
+          })}
+        />
+      </I18nProvider>,
+    );
+
+    expect(screen.getByRole("link").getAttribute("href")).toBe("/help");
+  });
+
+  it("passes configured props to a function handler", async () => {
+    const i18n = createI18n({
+      locale: "en",
+      translation: { en: { msg: "Click <btn>here</btn>" } },
+    });
+    await i18n.init();
+
+    render(
+      <I18nProvider i18n={i18n}>
+        <T
+          i18nKey="msg"
+          components={configComponents({
+            btn: {
+              component: ({ children, tone }: { children: React.ReactNode; tone?: string }) => (
+                <button data-tone={tone}>{children}</button>
+              ),
+              props: { tone: "warn" },
+            },
+          })}
+        />
+      </I18nProvider>,
+    );
+
+    expect(screen.getByRole("button").getAttribute("data-tone")).toBe("warn");
   });
 
   it("throws in strict mode when handler is missing", async () => {

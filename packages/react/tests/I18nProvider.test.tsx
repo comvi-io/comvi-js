@@ -1,9 +1,16 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, waitFor, act } from "@testing-library/react";
 import { renderToString } from "react-dom/server";
-import { I18nProvider, useI18nContext } from "../src/I18nProvider";
+import { I18nProvider, useI18nContext, useIsLoading, useLocale } from "../src/I18nProvider";
 import { FakeI18n } from "@comvi/test-utils/fakeI18n";
 import { flushEffects } from "./test-utils";
+
+const LocaleProbe = () => <div data-testid="lang">{useLocale()}</div>;
+
+const LoadingProbe = () => {
+  const { isLoading, isInitializing } = useIsLoading();
+  return <div data-testid="loading">{`${isLoading}|${isInitializing}`}</div>;
+};
 
 describe("I18nProvider", () => {
   it("provides context to child components", () => {
@@ -83,6 +90,129 @@ describe("I18nProvider", () => {
 
     expect(onError.mock.calls[0][0]).toBeInstanceOf(Error);
     expect(onError.mock.calls[0][0].message).toBe("plugin failed");
+  });
+
+  it("passes an Error init rejection through to onError unchanged", async () => {
+    const fake = new FakeI18n();
+    const initError = new Error("loader offline");
+    fake.initError = initError;
+    const onError = vi.fn();
+
+    render(
+      <I18nProvider i18n={fake.asI18n()} onError={onError}>
+        <div />
+      </I18nProvider>,
+    );
+
+    await waitFor(() => {
+      expect(onError).toHaveBeenCalledWith(initError);
+    });
+  });
+
+  it("logs the initialization failure when no onError handler is given", async () => {
+    const fake = new FakeI18n();
+    fake.initError = "plugin failed";
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    render(
+      <I18nProvider i18n={fake.asI18n()}>
+        <div />
+      </I18nProvider>,
+    );
+
+    await waitFor(() => {
+      expect(consoleError).toHaveBeenCalledWith(
+        "[i18n] Initialization failed:",
+        expect.objectContaining({ message: "plugin failed" }),
+      );
+    });
+  });
+
+  it("initializes once autoInit flips from false to true", async () => {
+    const fake = new FakeI18n();
+    const Host = ({ autoInit }: { autoInit: boolean }) => (
+      <I18nProvider i18n={fake.asI18n()} autoInit={autoInit}>
+        <div />
+      </I18nProvider>
+    );
+
+    const { rerender } = render(<Host autoInit={false} />);
+    await flushEffects();
+    rerender(<Host autoInit={true} />);
+
+    await waitFor(() => {
+      expect(fake.init).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  // `useLocale` reads ONLY the provider's locale store, so each of the three
+  // events feeding that store needs its own row.
+  it.each(["localeChanged", "initialized", "configChanged"] as const)(
+    "updates useLocale() when %s is emitted",
+    async (event) => {
+      const fake = new FakeI18n();
+
+      render(
+        <I18nProvider i18n={fake.asI18n()} autoInit={false}>
+          <LocaleProbe />
+        </I18nProvider>,
+      );
+
+      act(() => {
+        fake.language = "fr";
+        fake.emit(event, undefined as never);
+      });
+
+      await waitFor(() => {
+        expect(screen.getByTestId("lang").textContent).toBe("fr");
+      });
+    },
+  );
+
+  it.each(["loadingStateChanged", "initialized"] as const)(
+    "updates useIsLoading() when %s is emitted",
+    async (event) => {
+      const fake = new FakeI18n();
+
+      render(
+        <I18nProvider i18n={fake.asI18n()} autoInit={false}>
+          <LoadingProbe />
+        </I18nProvider>,
+      );
+
+      act(() => {
+        fake.isLoading = true;
+        fake.isInitializing = true;
+        fake.emit(event, undefined as never);
+      });
+
+      await waitFor(() => {
+        expect(screen.getByTestId("loading").textContent).toBe("true|true");
+      });
+    },
+  );
+
+  it("throws when useLocale is used outside I18nProvider", () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+
+    expect(() => render(<LocaleProbe />)).toThrow(
+      "[i18n] useLocale must be used within an I18nProvider",
+    );
+  });
+
+  it("releases its host event listeners on unmount", () => {
+    const fake = new FakeI18n();
+
+    const { unmount } = render(
+      <I18nProvider i18n={fake.asI18n()} autoInit={false}>
+        <LocaleProbe />
+      </I18nProvider>,
+    );
+    const whileMounted = fake.listenerCount("localeChanged");
+    unmount();
+
+    expect(whileMounted).toBeGreaterThan(0);
+    expect(fake.listenerCount("localeChanged")).toBe(0);
   });
 
   it("re-renders consumers when localeChanged is emitted", async () => {

@@ -4,7 +4,7 @@
  */
 
 import React, { useEffect, useRef } from "react";
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { render, act } from "@testing-library/react";
 
 import { useSubscribe } from "../src/I18nProvider";
@@ -128,5 +128,56 @@ describe("useSubscribe — rest-args + stable join-key deps", () => {
       fake.emit("localeChanged", { from: "fr", to: "de" });
     });
     expect(firedCount).toBe(2);
+  });
+
+  /** Renders `useSubscribe` and hands back the subscribe function it produced. */
+  const captureSubscribe = (fake: FakeI18n, ...events: I18nEvent[]) => {
+    const box: { current: ((cb: () => void) => () => void) | null } = { current: null };
+
+    function Driver() {
+      const sub = useSubscribe(fake.asI18n(), ...events);
+      useEffect(() => {
+        box.current = sub;
+      }, [sub]);
+      return null;
+    }
+
+    render(<Driver />);
+
+    if (!box.current) {
+      throw new Error("useSubscribe produced no subscribe function");
+    }
+    return box.current;
+  };
+
+  // The callback is deferred out of core's synchronous `_emit` stack, so an
+  // event can land while the subscription is still live and only reach the
+  // callback after it has been torn down.
+  it("ignores an event emitted before unsubscribe once the deferral runs", async () => {
+    const fake = new FakeI18n();
+    const subscribe = captureSubscribe(fake, "localeChanged");
+    const callback = vi.fn();
+
+    const unsubscribe = subscribe(callback);
+    fake.emit("localeChanged", { from: "en", to: "fr" });
+    unsubscribe();
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(callback).not.toHaveBeenCalled();
+  });
+
+  it("removes its host listeners on unsubscribe", () => {
+    const fake = new FakeI18n();
+    const subscribe = captureSubscribe(fake, "localeChanged", "initialized");
+
+    const unsubscribe = subscribe(() => {});
+    const whileSubscribed = fake.listenerCount("localeChanged");
+    unsubscribe();
+
+    expect(whileSubscribed).toBe(1);
+    expect(fake.listenerCount("localeChanged")).toBe(0);
+    expect(fake.listenerCount("initialized")).toBe(0);
   });
 });

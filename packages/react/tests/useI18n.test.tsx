@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { renderHook, act, waitFor } from "@testing-library/react";
+import { render, renderHook, act, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { I18nProvider } from "../src/I18nProvider";
 import { useI18n } from "../src/useI18n";
@@ -236,6 +236,68 @@ describe("useI18n", () => {
 
     expect(result.current.setLocale).toBe(setLocaleBefore);
     expect(result.current.on).toBe(onBefore);
+  });
+
+  it("formats dates with the render locale in the requested time zone", () => {
+    const fake = new FakeI18n({ language: "en" });
+    const { result } = renderHook(() => useI18n(), { wrapper: createWrapper(fake) });
+
+    const formatted = result.current.formatDate(Date.UTC(2024, 0, 15), {
+      timeZone: "UTC",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    });
+
+    expect(formatted).toBe("01/15/2024");
+  });
+
+  it("formats currency with the render locale", () => {
+    const fake = new FakeI18n({ language: "en" });
+    const { result } = renderHook(() => useI18n(), { wrapper: createWrapper(fake) });
+
+    expect(result.current.formatCurrency(1234.5, "EUR")).toBe("€1,234.50");
+  });
+
+  it("formats relative time with the render locale", () => {
+    const fake = new FakeI18n({ language: "en" });
+    const { result } = renderHook(() => useI18n(), { wrapper: createWrapper(fake) });
+
+    expect(result.current.formatRelativeTime(-2, "hour")).toBe("2 hours ago");
+  });
+
+  it("reports rtl direction for a right-to-left render locale", () => {
+    const fake = new FakeI18n({ language: "ar" });
+
+    const { result } = renderHook(() => useI18n(), { wrapper: createWrapper(fake) });
+
+    expect(result.current.dir).toBe("rtl");
+  });
+
+  it("rebinds host methods to the new instance when the i18n prop changes", async () => {
+    const first = new FakeI18n();
+    const second = new FakeI18n();
+    let setLocale: ((locale: string) => Promise<void>) | undefined;
+
+    const Probe = () => {
+      setLocale = useI18n().setLocale;
+      return null;
+    };
+    const Host = ({ fake }: { fake: FakeI18n }) => (
+      <I18nProvider i18n={fake.asI18n()} autoInit={false}>
+        <Probe />
+      </I18nProvider>
+    );
+
+    const { rerender } = render(<Host fake={first} />);
+    rerender(<Host fake={second} />);
+
+    await act(async () => {
+      await setLocale!("fr");
+    });
+
+    expect(second.setLocaleAsync).toHaveBeenCalledWith("fr");
+    expect(first.setLocaleAsync).not.toHaveBeenCalled();
   });
 
   it("throws when used outside I18nProvider", () => {
