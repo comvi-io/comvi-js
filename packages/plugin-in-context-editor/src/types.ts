@@ -54,9 +54,17 @@ export interface ValidationError {
   message: string;
 }
 
+export interface ValidationWarning {
+  languageId: string;
+  pluralForm: string;
+  message: string;
+}
+
 export interface ValidationResult {
   isValid: boolean;
   errors: ValidationError[];
+  /** Non-blocking findings, e.g. a translation whose placeholders differ from the source form. */
+  warnings?: ValidationWarning[];
 }
 
 export interface HighlightStyleOptions {

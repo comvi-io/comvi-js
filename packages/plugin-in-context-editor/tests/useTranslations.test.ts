@@ -241,6 +241,7 @@ describe("useTranslations", () => {
     expect(manager.validate()).toEqual({
       isValid: false,
       errors: [{ languageId: "", pluralForm: "", message }],
+      warnings: [],
     });
   });
 

@@ -100,3 +100,47 @@ describe("validateField()", () => {
     expect(validateField("x".repeat(5000))).toBeNull();
   });
 });
+
+describe("validateTranslations — placeholder warnings", () => {
+  const lang = { code: "de", name: "German", pluralForms: ["one", "other"] } as never;
+
+  it("warns when a form's placeholders differ from the first form → names the missing and unexpected ones", () => {
+    const result = validateTranslations([lang], {
+      de: { one: "Hallo {name}", other: "Hallo {nom}" },
+    });
+
+    expect(result.warnings).toEqual([
+      {
+        languageId: "de",
+        pluralForm: "other",
+        message: "Placeholders differ from the first form; missing: name; unexpected: nom",
+      },
+    ]);
+  });
+
+  it("a placeholder mismatch stays non-blocking → isValid remains true and errors stay empty", () => {
+    const result = validateTranslations([lang], {
+      de: { one: "Hallo {name}", other: "Hallo" },
+    });
+
+    expect(result).toEqual({
+      isValid: true,
+      errors: [],
+      warnings: [
+        {
+          languageId: "de",
+          pluralForm: "other",
+          message: "Placeholders differ from the first form; missing: name",
+        },
+      ],
+    });
+  });
+
+  it("matching placeholders across forms → no warnings", () => {
+    const result = validateTranslations([lang], {
+      de: { one: "Hallo {name}", other: "Hi {name}" },
+    });
+
+    expect(result.warnings).toEqual([]);
+  });
+});

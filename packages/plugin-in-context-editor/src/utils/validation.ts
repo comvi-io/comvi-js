@@ -1,10 +1,17 @@
-import type { ValidationResult, ValidationError, Language, PluralFormTranslation } from "../types";
+import type {
+  ValidationResult,
+  ValidationError,
+  ValidationWarning,
+  Language,
+  PluralFormTranslation,
+} from "../types";
 
 export function validateTranslations(
   languages: Language[],
   translations: Record<string, PluralFormTranslation>,
 ): ValidationResult {
   const errors: ValidationError[] = [];
+  const warnings: ValidationWarning[] = [];
 
   for (const language of languages) {
     const langTranslations = translations[language.code] || {};
@@ -31,8 +38,16 @@ export function validateTranslations(
         const formVariables = extractVariables(formValue);
 
         if (formValue && !arraysEqual(sourceVariables, formVariables)) {
-          // Deliberately non-blocking: a placeholder mismatch is a warning,
-          // and ValidationResult has nowhere to carry warnings yet.
+          const missing = sourceVariables.filter((v) => !formVariables.includes(v));
+          const extra = formVariables.filter((v) => !sourceVariables.includes(v));
+          warnings.push({
+            languageId: language.code,
+            pluralForm: form,
+            message:
+              `Placeholders differ from the first form` +
+              (missing.length ? `; missing: ${missing.join(", ")}` : "") +
+              (extra.length ? `; unexpected: ${extra.join(", ")}` : ""),
+          });
         }
       }
     }
@@ -41,6 +56,7 @@ export function validateTranslations(
   return {
     isValid: errors.length === 0,
     errors,
+    warnings,
   };
 }
 
