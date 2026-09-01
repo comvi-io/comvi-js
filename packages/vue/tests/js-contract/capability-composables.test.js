@@ -169,7 +169,22 @@ describe(`capability acquisition (${__COMVI_CORE_BUILD__} core build)`, () => {
     });
 
     expect(() => mount(Probe)).toThrow(
-      "[i18n] useI18nLoader must be used within a Vue app with i18n plugin installed.",
+      "[i18n] useI18nLoader must be used within a Vue app with i18n plugin installed. " +
+        "Make sure you called app.use(i18n) before using this composable.",
+    );
+  });
+
+  it("names the plugins composable in the install error outside an installed app", () => {
+    const Probe = defineComponent({
+      setup() {
+        useI18nPlugins();
+        return () => h("div");
+      },
+    });
+
+    expect(() => mount(Probe)).toThrow(
+      "[i18n] useI18nPlugins must be used within a Vue app with i18n plugin installed. " +
+        "Make sure you called app.use(i18n) before using this composable.",
     );
   });
 

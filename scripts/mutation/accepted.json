@@ -5596,15 +5596,6 @@
     {
       "package": "packages/react",
       "file": "src/useI18n.ts",
-      "mutators": ["ConditionalExpression"],
-      "snippet": "\"props\" in value &&",
-      "lineHint": 38,
-      "kind": "equivalent",
-      "reason": "redundant guard: `typeof value.props === \"object\"` cannot be true unless `\"props\" in value` already is. Hand-applied `true &&`; 219 green."
-    },
-    {
-      "package": "packages/react",
-      "file": "src/useI18n.ts",
       "mutators": ["ConditionalExpression", "LogicalOperator", "StringLiteral", "BlockStatement"],
       "snippet": "if (typeof node === \"string\" || typeof node === \"number\") {",
       "lineHint": 63,
@@ -5745,6 +5736,105 @@
       "lineHint": 40,
       "kind": "needs-seam",
       "reason": "true for the whole mounted lifetime; after unmount only permits a discarded setState. The L52 sibling (also gated on pendingCountRef) IS killed. Hand-applied; green."
+    },
+    {
+      "package": "packages/vue",
+      "file": "src/VueI18n.ts",
+      "mutators": ["ConditionalExpression"],
+      "snippet": "if (core.locale !== initialLocale) {",
+      "lineHint": 128,
+      "kind": "equivalent",
+      "reason": "assigning the host the locale it already has is a core no-op: no event, no loader call (probed directly). Hand-applied `if (true)`; 255/255 green."
+    },
+    {
+      "package": "packages/vue",
+      "file": "src/VueI18n.ts",
+      "mutators": ["UpdateOperator"],
+      "snippet": "this._configRevision.value++;",
+      "lineHint": 167,
+      "kind": "equivalent",
+      "reason": "change signal only — a decrement changes the shallowRef and invalidates the same computeds. Hand-applied; green. (defaultNamespaceChanged case)"
+    },
+    {
+      "package": "packages/vue",
+      "file": "src/VueI18n.ts",
+      "mutators": ["UpdateOperator"],
+      "snippet": "this._configRevision.value++;",
+      "lineHint": 172,
+      "kind": "equivalent",
+      "reason": "same as line 167: the value is never read, only its change matters. (configChanged case) Hand-applied; green."
+    },
+    {
+      "package": "packages/vue",
+      "file": "src/VueI18n.ts",
+      "mutators": ["MethodExpression"],
+      "snippet": "this._unsubscribers",
+      "lineHint": 421,
+      "kind": "equivalent",
+      "reason": "pushed exactly once (single subscribeToRevision disposer); no public path adds a second, so reverse order is unobservable. Both mutants hand-applied; green."
+    },
+    {
+      "package": "packages/vue",
+      "file": "src/VueI18n.ts",
+      "mutators": ["ConditionalExpression"],
+      "snippet": "this.core.reportError(error instanceof Error ? error : new Error(String(error)), {",
+      "lineHint": 449,
+      "kind": "equivalent",
+      "reason": "only `-> true` survives: core's reportError runs the identical normalisation, so the raw value reaches onError as the same Error; `-> false` IS killed. Hand-applied; green incl. the non-Error rejection test."
+    },
+    {
+      "package": "packages/vue",
+      "file": "src/components/T.ts",
+      "mutators": ["BooleanLiteral"],
+      "snippet": "let hasHandlers = false;",
+      "lineHint": 129,
+      "kind": "equivalent",
+      "reason": "hasHandlers only chooses `components: merged` vs undefined; prepareTranslation treats an empty map like undefined. Hand-applied `= true`; green."
+    },
+    {
+      "package": "packages/vue",
+      "file": "src/components/T.ts",
+      "mutators": ["ConditionalExpression"],
+      "snippet": "if (slots[name]) {",
+      "lineHint": 131,
+      "kind": "equivalent",
+      "reason": "a falsy slot copied into merged is skipped by prepareTranslation (`handler == null` continue); the hasHandlers=true only swaps undefined for an empty map. Hand-applied; green."
+    },
+    {
+      "package": "packages/vue",
+      "file": "src/components/T.ts",
+      "mutators": ["ConditionalExpression"],
+      "snippet": "if (props.components) {",
+      "lineHint": 136,
+      "kind": "equivalent",
+      "reason": "Object.assign(merged, undefined) is a no-op; same empty-map equivalence. Hand-applied; green."
+    },
+    {
+      "package": "packages/vue",
+      "file": "src/components/T.ts",
+      "mutators": ["ConditionalExpression", "EqualityOperator", "BlockStatement"],
+      "snippet": "if (nodes.length <= 1) {",
+      "lineHint": 175,
+      "kind": "equivalent",
+      "reason": "all three degrade to 'always wrap in a Fragment' — rendered HTML/text byte-identical, only Vue's internal empty-text anchors differ (DOM-dump verified). 3 mutants hand-applied; green."
+    },
+    {
+      "package": "packages/vue",
+      "file": "src/components/T.ts",
+      "mutators": ["ConditionalExpression"],
+      "snippet": "return items ? [items] : [];",
+      "lineHint": 191,
+      "kind": "equivalent",
+      "reason": "only `-> true` survives: [\"\"] and [] render identically (empty text node = no markup, no text); `-> false` and the ArrayDeclaration mutants ARE killed. Hand-applied; green."
+    },
+    {
+      "package": "packages/vue",
+      "file": "src/components/T.ts",
+      "mutators": ["ObjectLiteral"],
+      "snippet": "return h(Fragment, { key: node.key }, convertList(node.children as TranslationResult));",
+      "lineHint": 200,
+      "kind": "equivalent",
+      "reason": "core never emits keyed fragments; a callback-built keyed fragment holds only strings/VirtualNodes, so a key change recreates text nodes with identical output (re-key probe verified). Hand-applied; green."
     }
   ]
 }

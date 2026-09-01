@@ -81,3 +81,13 @@ Three families, every member hand-applied with the full suite observed green:
   unmutated src), I18nProvider.tsx:87 (namespace join separator — the list only grows, so no
   colliding pair exists; the fallback-locale join, whose list is replaced, IS killed),
   useSetLocaleTransition.ts:34 (constant-content deps array).
+
+## packages/vue (kill-pass 2026-09-01)
+
+Every entry hand-applied with the full suite observed green; DOM dumps where rendering was the
+question. Families: revision counters whose VALUE is never read (only the change matters:
+VueI18n 167/172), no-op guards around empty/undefined component maps (T 129/131/136 — an empty
+merged map and undefined behave identically in prepareTranslation), fragment-wrapping shortcuts
+whose output is byte-identical up to Vue's internal empty-text anchors (T 175/191/200), the
+initial-locale no-op assignment (VueI18n 128), single-element unsubscriber list (VueI18n 421),
+and double error normalisation (VueI18n 449 — core re-runs the identical instanceof wrap).

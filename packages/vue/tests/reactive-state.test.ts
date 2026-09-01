@@ -601,6 +601,32 @@ describe("Reactive State Transitions", () => {
     });
   });
 
+  describe("defaultParams notification scope", () => {
+    it("notifies defaultParams watchers on setDefaultParams but not on clearTranslations", async () => {
+      const i18n = createI18n<{ name: string }>({
+        locale: "en",
+        defaultNs: "common",
+        defaultParams: { name: "Ada" },
+      });
+
+      await i18n.init();
+
+      i18n.addTranslations({ en: { greeting: "Hello" } });
+      const watchSpy = vi.fn();
+      watch(i18n.defaultParams, watchSpy);
+
+      i18n.clearTranslations("en", "common");
+      await nextTick();
+
+      expect(watchSpy).not.toHaveBeenCalled();
+
+      i18n.setDefaultParams({ name: "Grace" });
+      await nextTick();
+
+      expect(watchSpy).toHaveBeenCalledTimes(1);
+    });
+  });
+
   describe("translationCache Ref Identity", () => {
     it("should return the same Ref instance across mutations", async () => {
       const i18n = createI18n({
