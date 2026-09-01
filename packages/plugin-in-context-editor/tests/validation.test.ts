@@ -45,6 +45,7 @@ describe("validateTranslations()", () => {
           message: 'Translation for "few" form exceeds maximum length of 5000 characters',
         },
       ],
+      warnings: [],
     });
   });
 
@@ -55,7 +56,7 @@ describe("validateTranslations()", () => {
 
     const result = validateTranslations(LANGUAGES, translations);
 
-    expect(result).toEqual({ isValid: true, errors: [] });
+    expect(result).toEqual({ isValid: true, errors: [], warnings: [] });
   });
 
   it("allows empty and missing plural forms", () => {
@@ -66,7 +67,7 @@ describe("validateTranslations()", () => {
 
     const result = validateTranslations(LANGUAGES, translations);
 
-    expect(result).toEqual({ isValid: true, errors: [] });
+    expect(result).toEqual({ isValid: true, errors: [], warnings: [] });
   });
 });
 
