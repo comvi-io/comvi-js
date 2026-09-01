@@ -149,3 +149,50 @@ Update (2026-09-01, owner rule "real bugs get fixed, not pinned"): both editor d
 proved red on the old code; changesets added. Standing rule recorded in AGENTS.md and memory:
 a defect found by testing is reported loudly as a bug to fix; pinning "as is" is only a temporary
 src-frozen-pass measure with an explicit BUG flag.
+
+## Round 6 — CLI src/commands coverage (2026-09-01, commits bb7eaa9 + 5baabc3)
+
+Scope chosen by owner: close the 585-untested-line gap in packages/cli/src/commands/** (classic
+coverage, not a mutation kill-pass).
+
+Delivered (2 parallel agents, same checkout — no hand-mutation, so no worktrees needed):
+- 62 new tests (suite 212 → 274, 16 files, ~750 ms): commands-init (17), commands-generate-types (14),
+  commands-pull (14), commands-push (17). Real ConfigLoader/ApiClient/TranslationSync/TypeGenerator
+  over temp dirs; only fetch / readline / eventsource mocked; files asserted ON DISK.
+- Shared test kit hoisted to tests/helpers.ts: ExitSignal (FIRST-exit-code memoization — commands
+  re-exit(1) from their catch after the sentinel throw), stubProcessExit, captureConsole (both
+  line-array and joined-string views), exact-pathname fetch router with afterEach
+  assertNoUnexpectedRequests. PATHS/writeConfig/run* wrappers deliberately stayed per-file.
+
+BUGS FOUND AND FIXED (red-proofed on old code first; changesets cli-init-no-overwrite [minor],
+cli-push-forcemode-config [patch]):
+1. comvi init silently overwrote an existing .comvirc.json (data loss: namespaces/locales/
+   push/pull settings gone). Now refuses + exits 1 unless --force; ConfigLoader.defaultConfigPath()
+   extracted so check and write target can't drift. RELEASE NOTE: scripts re-running init need --force.
+2. init next-steps numbered 1,3,4,5 with a key configured; now contiguous, --watch demoted to hint.
+3. push.forceMode in .comvirc.json was DEAD: --force-mode declared commander default "ask", so the
+   flag always shadowed config. Config {"push":{"forceMode":"override"}} still died in CI with
+   "requires an interactive terminal". Fixed by dropping the option default (help text keeps it).
+4. (pre-existing, hidden) type error in tests/integration.test.ts it.each union — invisible because
+   package tsconfig includes only src/**; typed the cases as ProjectSchema.
+
+Open decisions for owner (NOT fixed, recorded):
+- --check exits 1 for both "types outdated" and "TMS unreachable" (CI can't tell a blip from stale).
+- invalid --force-mode exits 1 while other validation exits 4.
+- push progress throttle unreachable (ApiClient calls onProgress once per bulk commit; docstring
+  still describes per-key PUTs); dry-run Updated==Conflicts always equal; unreachable apiKey guards;
+  generate-types/typegen byte-identical bodies should share one impl; init blames the API key for a
+  malformed --api-url and writes it anyway; process.exit(0) right after console.log can truncate
+  piped stdout.
+- REPO-WIDE: pnpm typecheck covers src/** only — test files are never type-checked in any package.
+
+Mutation re-measure (pnpm mutation packages/cli): adjusted 50.2% → 70.9% (covered 79.3%),
+nocov 773 → 203. Commands now: pull 77.8 / push 75.0 / init 67.6 / generate-types 60.0 (residual
+survivors are mostly cosmetic StringLiteral message texts the manifest says not to pin line-by-line).
+Weakest remaining: logger.ts 2.9, GenerationReporter 39.0, cli/index.ts 46 nocov (entry runs
+program.parse on import — needs subprocess or seam), ApiClient 70.6.
+
+Gotchas learned: `pnpm mutation` takes packages/<dir> not bare name; process.chdir() unsupported in
+Stryker's worker threads (use vi.spyOn(process,"cwd") — same honesty for clearDirectory's cwd guard);
+a failed Stryker dry run leaves .stryker-tmp inside the package and vitest then runs every test TWICE
+(suite showed 32 files/548 — delete .stryker-tmp before trusting counts).
