@@ -39,7 +39,6 @@ const DEFAULT_NAMESPACE_ROUTES: Routes = {
 describe("comvi pull", () => {
   let root: string;
   let localesDir: string;
-  let originalCwd: string;
   let exits: ProcessExitCapture;
   let output: ConsoleCapture;
   let http: FetchCapture;
@@ -83,12 +82,10 @@ describe("comvi pull", () => {
 
     root = await fs.realpath(await makeTempDir("comvi-pull"));
     localesDir = join(root, "locales");
-    originalCwd = process.cwd();
-    process.chdir(root);
+    vi.spyOn(process, "cwd").mockReturnValue(root);
   });
 
   afterEach(async () => {
-    process.chdir(originalCwd);
     await removeTempDirs();
     assertNoUnexpectedRequests();
   });
