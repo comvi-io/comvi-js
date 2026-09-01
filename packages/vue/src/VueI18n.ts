@@ -296,10 +296,14 @@ export class VueI18n<
     });
   }
 
-  /** Re-evaluates when the translation cache changes. */
+  /** Re-evaluates when the translation cache or the default namespace changes. */
   hasLocale(locale: string, namespace?: string): ComputedRef<boolean> {
     return computed(() => {
       void this._cacheRevision.value;
+      // With no explicit namespace the host resolves against the DEFAULT
+      // namespace, which is config: on defaultNamespaceChanged the cache
+      // revision is re-assigned, not bumped, so it alone never triggers.
+      void this._configRevision.value;
       return this.core.hasLocale(locale, namespace);
     });
   }

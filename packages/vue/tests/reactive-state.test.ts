@@ -665,3 +665,20 @@ describe("Reactive State Transitions", () => {
     });
   });
 });
+
+describe("hasLocale reactivity across a default-namespace change", () => {
+  it("re-evaluates when the default namespace changes, agreeing with hasLocaleNow", async () => {
+    const i18n = createI18n({ locale: "en", defaultNs: "common" } as I18nOptions);
+    await i18n.init();
+    i18n.addTranslations({ "en:admin": { title: "Admin" } });
+
+    const has = i18n.hasLocale("en");
+    expect(has.value).toBe(false);
+
+    i18n.core.setDefaultNamespace("admin");
+    await nextTick();
+
+    expect(i18n.hasLocaleNow("en")).toBe(true);
+    expect(has.value).toBe(true);
+  });
+});
