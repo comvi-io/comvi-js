@@ -5,7 +5,7 @@ import { I18nProvider } from "../src/I18nProvider";
 import { useI18n } from "../src/useI18n";
 import { createI18n, icuCompiler } from "../src/index";
 import type { TranslationResult } from "../src/index";
-import { FakeI18n } from "../../../tooling/test-utils/fakeI18n";
+import { FakeI18n } from "@comvi/test-utils/fakeI18n";
 import { flushMicrotasks } from "./test-utils";
 
 const createWrapper = (fake: FakeI18n) => {

@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { mount, tick, unmount } from "svelte";
-import { FakeI18n } from "../../../tooling/test-utils/fakeI18n";
+import { FakeI18n } from "@comvi/test-utils/fakeI18n";
 import UseI18nHarness from "./UseI18nHarness.test.svelte";
 import NoContextHarness from "./NoContextHarness.test.svelte";
 

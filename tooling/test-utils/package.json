@@ -1,0 +1,27 @@
+{
+  "name": "@comvi/test-utils",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Shared fake-i18n test doubles for wrapper test suites. A workspace package so imports resolve through node_modules — including from inside a Stryker sandbox, where relative paths out of the package do not exist.",
+  "exports": {
+    "./fakeI18n": "./fakeI18n.ts",
+    "./fakeI18nCore": "./fakeI18nCore.ts",
+    "./fakeVueI18n": "./fakeVueI18n.ts"
+  },
+  "dependencies": {
+    "@comvi/core": "workspace:*"
+  },
+  "peerDependencies": {
+    "vitest": "*",
+    "vue": "*"
+  },
+  "peerDependenciesMeta": {
+    "vitest": {
+      "optional": true
+    },
+    "vue": {
+      "optional": true
+    }
+  }
+}

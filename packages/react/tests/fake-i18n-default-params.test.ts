@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { FakeI18n } from "../../../tooling/test-utils/fakeI18n";
+import { FakeI18n } from "@comvi/test-utils/fakeI18n";
 
 describe("FakeI18n defaultParams contract", () => {
   it.each(["locale", "ns", "fallback", "raw"])(

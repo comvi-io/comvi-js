@@ -3,7 +3,7 @@ import { renderHook, act } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { I18nProvider } from "../src/I18nProvider";
 import { useFormatters } from "../src/useFormatters";
-import { FakeI18n } from "../../../tooling/test-utils/fakeI18n";
+import { FakeI18n } from "@comvi/test-utils/fakeI18n";
 
 const createWrapper = (fake: FakeI18n) => {
   return ({ children }: { children: ReactNode }) => (

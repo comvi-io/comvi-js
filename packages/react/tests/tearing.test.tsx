@@ -12,10 +12,10 @@ import { render, act } from "@testing-library/react";
 
 import { I18nProvider } from "../src/I18nProvider";
 import { useI18n } from "../src/useI18n";
-import { I18nProvider as NextI18nProvider } from "../../next/src/client/I18nProvider";
-import type { MessagesMap } from "../../next/src/client/I18nProvider";
+import { I18nProvider as NextI18nProvider } from "~next-src/client/I18nProvider";
+import type { MessagesMap } from "~next-src/client/I18nProvider";
 
-import { FakeI18n } from "../../../tooling/test-utils/fakeI18n";
+import { FakeI18n } from "@comvi/test-utils/fakeI18n";
 import { createDeferred, flushMicrotasks } from "./test-utils";
 
 function makeCounter() {

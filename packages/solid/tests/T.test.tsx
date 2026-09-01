@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from "vitest";
 import type { JSX } from "solid-js";
 import { I18nProvider } from "../src/context";
 import { T } from "../src/T";
-import { FakeI18n } from "../../../tooling/test-utils/fakeI18n";
+import { FakeI18n } from "@comvi/test-utils/fakeI18n";
 import type { TagCallbackParams, TranslationResult } from "@comvi/core";
 import { flushMicrotasks, renderSolid } from "./test-utils";
 

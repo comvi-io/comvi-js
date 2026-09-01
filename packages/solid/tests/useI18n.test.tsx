@@ -5,7 +5,7 @@ import { I18nProvider } from "../src/context";
 import { useI18n } from "../src/useI18n";
 import { useI18nLoader, useI18nPlugins } from "../src/capabilityHooks";
 import type { UseI18nLoaderReturn, UseI18nPluginsReturn } from "../src/capabilityHooks";
-import { FakeI18n } from "../../../tooling/test-utils/fakeI18n";
+import { FakeI18n } from "@comvi/test-utils/fakeI18n";
 import { flushMicrotasks, renderSolid } from "./test-utils";
 
 /** A base host whose only catalog is `fr:common`, plus the plugins capability. */

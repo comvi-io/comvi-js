@@ -1,8 +1,12 @@
 import { defineConfig } from "vitest/config";
 import { svelte } from "@sveltejs/vite-plugin-svelte";
-import { resolve } from "path";
+import { createRequire } from "node:module";
+import { dirname } from "path";
 
-const CORE_DIST = resolve(__dirname, "../core/dist");
+// Resolve core's dist through node_modules, not a relative path: inside a Stryker
+// sandbox (.stryker-tmp/sandbox-*) the package is copied, so "../core" does not
+// exist — but the node_modules symlink chain still reaches the real workspace.
+const CORE_DIST = dirname(createRequire(import.meta.url).resolve("@comvi/core"));
 
 /**
  * Pin every `@comvi/core*` specifier — the wrapper's own imports included — to
@@ -58,6 +62,9 @@ export default defineConfig({
           unstubEnvs: true,
           unstubGlobals: true,
           include: ["tests/**/*.test.ts"],
+          // exports-smoke rebuilds dist in beforeAll and asserts on the artefact —
+          // meaningless (and ruinously slow) against mutated src under Stryker.
+          exclude: process.env.COMVI_MUTATION ? ["tests/exports-smoke.test.ts"] : [],
         },
       },
       {

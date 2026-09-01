@@ -3,7 +3,7 @@ import { render } from "solid-js/web";
 import { createSignal } from "solid-js";
 import { I18nProvider, useI18nContext } from "../src/context";
 import { useI18n } from "../src/useI18n";
-import { FakeI18n } from "../../../tooling/test-utils/fakeI18n";
+import { FakeI18n } from "@comvi/test-utils/fakeI18n";
 import { flushMicrotasks, renderSolid } from "./test-utils";
 
 describe("solid context", () => {

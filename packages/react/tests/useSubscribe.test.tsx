@@ -8,7 +8,7 @@ import { describe, it, expect } from "vitest";
 import { render, act } from "@testing-library/react";
 
 import { useSubscribe } from "../src/I18nProvider";
-import { FakeI18n } from "../../../tooling/test-utils/fakeI18n";
+import { FakeI18n } from "@comvi/test-utils/fakeI18n";
 import type { I18nEvent } from "@comvi/core";
 
 describe("useSubscribe — rest-args + stable join-key deps", () => {

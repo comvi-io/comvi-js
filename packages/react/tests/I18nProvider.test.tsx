@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import { render, screen, waitFor, act } from "@testing-library/react";
 import { renderToString } from "react-dom/server";
 import { I18nProvider, useI18nContext } from "../src/I18nProvider";
-import { FakeI18n } from "../../../tooling/test-utils/fakeI18n";
+import { FakeI18n } from "@comvi/test-utils/fakeI18n";
 import { flushEffects } from "./test-utils";
 
 describe("I18nProvider", () => {

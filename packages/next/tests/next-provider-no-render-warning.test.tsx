@@ -26,7 +26,7 @@ import { render, act } from "@testing-library/react";
 import { I18nProvider } from "../src/client/I18nProvider";
 import { useI18n, useLocale, useIsLoading, I18nProvider as ReactI18nProvider } from "@comvi/react";
 import { useStoreRevision } from "../../react/src/I18nProvider";
-import { FakeI18n } from "../../../tooling/test-utils/fakeI18n";
+import { FakeI18n } from "@comvi/test-utils/fakeI18n";
 import { flushMicrotasks, renderWarnings, spyOnConsoleError } from "./helpers/consoleWarnings";
 
 // Keyed "locale:namespace": a bare `{ default: … }` normalises to cache key

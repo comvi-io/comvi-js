@@ -1,8 +1,12 @@
 import { defineConfig } from "vitest/config";
 import react from "@vitejs/plugin-react";
-import { resolve } from "path";
+import { createRequire } from "node:module";
+import { dirname, resolve } from "path";
 
-const CORE_DIST = resolve(__dirname, "../core/dist");
+// Resolve core's dist through node_modules, not a relative path: inside a Stryker
+// sandbox (.stryker-tmp/sandbox-*) the package is copied, so "../core" does not
+// exist — but the node_modules symlink chain still reaches the real workspace.
+const CORE_DIST = dirname(createRequire(import.meta.url).resolve("@comvi/core"));
 
 /**
  * Pin every `@comvi/core*` specifier — the wrapper's own imports included — to
@@ -30,6 +34,12 @@ const shared = {
   resolve: {
     alias: {
       "@": resolve(__dirname, "./src"),
+      // tearing.test.tsx compares the react provider against next's SRC provider;
+      // resolved through node_modules for the same sandbox reason as CORE_DIST.
+      "~next-src": resolve(
+        dirname(createRequire(import.meta.url).resolve("@comvi/next")),
+        "../src",
+      ),
     },
   },
   define: {
@@ -73,6 +83,9 @@ export default defineConfig({
           unstubGlobals: true,
           environment: "happy-dom",
           include: ["tests/**/*.test.{ts,tsx}"],
+          // Build-artifact tests exercise dist via a subprocess; under Stryker the
+          // sandbox has no sibling core checkout and they kill no src mutants.
+          exclude: process.env.COMVI_MUTATION ? ["tests/dist/**"] : [],
         },
       },
       {

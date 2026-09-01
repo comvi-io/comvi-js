@@ -3,7 +3,7 @@ import { renderHook, act, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { I18nProvider } from "../src/I18nProvider";
 import { useSetLocaleTransition } from "../src/useSetLocaleTransition";
-import { FakeI18n } from "../../../tooling/test-utils/fakeI18n";
+import { FakeI18n } from "@comvi/test-utils/fakeI18n";
 import { createDeferred } from "./test-utils";
 
 const createWrapper = (fake: FakeI18n) => {

@@ -43,6 +43,10 @@ const result = spawnSync(
   {
     cwd,
     stdio: "inherit",
+    // Wrapper vitest configs exclude build-artifact tests (they exercise dist,
+    // not the mutated src) when this is set — declared policy instead of the
+    // runner silently dropping files that cannot load in the sandbox.
+    env: { ...process.env, COMVI_MUTATION: "1" },
   },
 );
 if (result.status === 0) summarize(cwd, pkg);

@@ -8,7 +8,7 @@ import {
   createInitializedStore,
   createCacheRevisionStore,
 } from "../src/stores";
-import { FakeI18n } from "../../../tooling/test-utils/fakeI18n";
+import { FakeI18n } from "@comvi/test-utils/fakeI18n";
 
 describe("Svelte stores", () => {
   let fake: FakeI18n;

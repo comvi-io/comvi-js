@@ -15,7 +15,7 @@ import { render, act } from "@testing-library/react";
 
 import { I18nProvider } from "../src/client/I18nProvider";
 import { useI18n } from "@comvi/react";
-import { FakeI18n } from "../../../tooling/test-utils/fakeI18n";
+import { FakeI18n } from "@comvi/test-utils/fakeI18n";
 import { flushMicrotasks, renderWarnings, spyOnConsoleError } from "./helpers/consoleWarnings";
 
 // `messages` is keyed "locale:namespace": a bare `{ default: … }` would land in

@@ -64,9 +64,10 @@
     "react": "^18.0.0 || ^19.0.0"
   },
   "devDependencies": {
+    "@comvi/test-utils": "workspace:*",
+    "@comvi/vite-config": "workspace:*",
     "@testing-library/react": "^16.3.2",
     "@testing-library/user-event": "^14.6.1",
-    "@comvi/vite-config": "workspace:*",
     "@types/node": "^22.13.0",
     "@types/react": "^19.2.14",
     "@typescript-eslint/eslint-plugin": "^8.58.0",
