@@ -47,7 +47,8 @@ describe("discovery probe order on a half-formed global", () => {
   it("prefers the legacy registry over a hook that can remove but not push", () => {
     const remove = vi.fn();
     const register = vi.fn();
-    win.__COMVI__ = { remove, register };
+    const hook = { remove, register };
+    win.__COMVI__ = hook;
 
     const i18n = attachDevtools(createI18n({ locale: "en" }), {
       exposeGlobal: true,
@@ -55,6 +56,9 @@ describe("discovery probe order on a half-formed global", () => {
     });
 
     expect(register).toHaveBeenCalledWith("remove-only", i18n);
+    // The other half: the half-formed hook is neither pushed to nor replaced by
+    // a fresh queue array.
+    expect(win.__COMVI__).toBe(hook);
   });
 });
 

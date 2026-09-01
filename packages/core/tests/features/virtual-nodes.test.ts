@@ -2,7 +2,13 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { I18n } from "../helpers/composedHost";
 import type { VirtualNode } from "../helpers/composedHost";
 
-describe("Virtual Node Interpolation", () => {
+const NODE: VirtualNode = { type: "element", tag: "strong", props: {}, children: ["Bold"] };
+const NODES = [
+  { type: "text", text: "One" },
+  { type: "text", text: "Two" },
+] as VirtualNode[];
+
+describe("tRaw() with node params", () => {
   let i18n: I18n;
 
   beforeEach(() => {
@@ -10,35 +16,48 @@ describe("Virtual Node Interpolation", () => {
   });
 
   it("interpolates a virtual node param into an array result", () => {
-    const vNode: VirtualNode = { type: "element", tag: "strong", props: {}, children: ["Bold"] };
+    i18n.addTranslations({ en: { text: "This is {bold} text" } });
 
-    i18n.addTranslations({
-      en: { text: "This is {bold} text" },
-    });
+    const result = i18n.tRaw("text", { bold: NODE });
 
-    const result = i18n.tRaw("text", { bold: vNode });
+    expect(result).toEqual(["This is ", NODE, " text"]);
+  });
 
-    expect(result).toEqual(["This is ", vNode, " text"]);
-    expect(result[1]).toBe(vNode);
-    expect(i18n.t("text", { bold: vNode })).toBe("This is Bold text");
+  it("passes the caller's node through by reference rather than cloning it", () => {
+    i18n.addTranslations({ en: { text: "This is {bold} text" } });
+
+    const result = i18n.tRaw("text", { bold: NODE });
+
+    expect(result[1]).toBe(NODE);
+  });
+
+  it("t() flattens a virtual node param to its inner text", () => {
+    i18n.addTranslations({ en: { text: "This is {bold} text" } });
+
+    expect(i18n.t("text", { bold: NODE })).toBe("This is Bold text");
   });
 
   it("flattens arrays of virtual nodes", () => {
-    const vNodes = [
-      { type: "text", text: "One" },
-      { type: "text", text: "Two" },
-    ] as VirtualNode[];
+    i18n.addTranslations({ en: { list: "Items: {items}" } });
 
-    i18n.addTranslations({
-      en: { list: "Items: {items}" },
-    });
+    const result = i18n.tRaw("list", { items: NODES });
 
-    const result = i18n.tRaw("list", { items: vNodes });
+    expect(result).toEqual(["Items: ", NODES[0], NODES[1]]);
+  });
 
-    expect(result).toEqual(["Items: ", vNodes[0], vNodes[1]]);
-    expect(result[1]).toBe(vNodes[0]);
-    expect(result[2]).toBe(vNodes[1]);
-    expect(i18n.t("list", { items: vNodes })).toBe("Items: OneTwo");
+  it("passes each node of an array param through by reference", () => {
+    i18n.addTranslations({ en: { list: "Items: {items}" } });
+
+    const result = i18n.tRaw("list", { items: NODES });
+
+    expect(result[1]).toBe(NODES[0]);
+    expect(result[2]).toBe(NODES[1]);
+  });
+
+  it("t() flattens an array of virtual node params to their text", () => {
+    i18n.addTranslations({ en: { list: "Items: {items}" } });
+
+    expect(i18n.t("list", { items: NODES })).toBe("Items: OneTwo");
   });
 
   it("tRaw() returns a single string when no virtual nodes are present", () => {
@@ -57,6 +76,7 @@ describe("Virtual Node Interpolation", () => {
     });
 
     const result = i18n.tRaw("plural", { count: 5, badge: vNode });
+
     expect(result).toEqual(["Count: ", vNode]);
     expect(i18n.t("plural", { count: 5, badge: vNode })).toBe("Count: 5");
   });

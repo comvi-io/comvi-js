@@ -61,11 +61,12 @@ describe("t() fallback-chain traversal", () => {
   });
 
   // The literal value matters: probing the template cache with a missing key's
-  // `undefined` would hit the cached entry for the template "undefined".
+  // `undefined` would hit the entry cached for the template "undefined", so the
+  // first assertion is what puts that entry in the cache.
   it('does not resolve a missing key to a catalog entry whose value is the string "undefined"', () => {
     const i18n = createI18n({ locale: "en", translation: { en: { ghost: "undefined" } } });
-    i18n.t("ghost");
 
+    expect(i18n.t("ghost")).toBe("undefined");
     expect(i18n.t("absent")).toBe("absent");
   });
 });

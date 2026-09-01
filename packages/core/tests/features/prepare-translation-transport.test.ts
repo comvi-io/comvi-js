@@ -15,9 +15,8 @@ import { describe, it, expect } from "vitest";
 import { createI18n } from "../../src";
 import { createElement } from "../../src/virtualNode";
 import type { VirtualNode } from "../../src/virtualNode";
-import type { ParsedToken } from "../../src/core/translate/cache";
-import type { SyntaxExtension } from "../../src/core/translate/syntax";
 import { prepareTranslation, childrenToArray } from "../../src/core/prepareTranslation";
+import { makeMarkExtension } from "../helpers/extensions";
 
 const makeHost = (translation: Record<string, Record<string, string>>) =>
   createI18n({ locale: "en", translation });
@@ -45,6 +44,28 @@ describe("prepareTranslation() reserved props", () => {
     expect(content).toBe("from default");
   });
 
+  const twoLocales = () =>
+    createI18n({ locale: "en", translation: { en: { msg: "en" }, fr: { msg: "fr" } } });
+
+  it("leaves a params-supplied locale in place when the prop is omitted", () => {
+    const { content } = prepareTranslation(twoLocales(), {
+      i18nKey: "msg",
+      params: { locale: "fr" },
+    });
+
+    expect(content).toBe("fr");
+  });
+
+  it("overrides a params-supplied locale with the prop", () => {
+    const { content } = prepareTranslation(twoLocales(), {
+      i18nKey: "msg",
+      params: { locale: "fr" },
+      locale: "en",
+    });
+
+    expect(content).toBe("en");
+  });
+
   it("leaves a params-supplied fallback in place when the prop is omitted", () => {
     const { content, isMissing } = prepareTranslation(makeHost({ en: {} }), {
       i18nKey: "nope",
@@ -67,7 +88,9 @@ describe("prepareTranslation() reserved props", () => {
       });
 
     it("post-processes when neither the prop nor params ask for raw", () => {
-      expect(prepareTranslation(withPostProcessor(), { i18nKey: "msg" }).content).toBe("text!");
+      const { content } = prepareTranslation(withPostProcessor(), { i18nKey: "msg" });
+
+      expect(content).toBe("text!");
     });
 
     it("leaves a params-supplied raw flag in place when the prop is omitted", () => {
@@ -104,17 +127,7 @@ describe("prepareTranslation() with caller-supplied tagInterpolation", () => {
   });
 
   it("unions the caller's own syntax extension with the tag extension", () => {
-    /** A token kind no core path claims — only the extension below produces it. */
-    const TK_MARK = 90 as unknown as ParsedToken[0];
-    const markExtension: SyntaxExtension = {
-      id: "test:mark",
-      cacheBit: 32,
-      parseHook: (template, index) =>
-        template.startsWith("<mark>", index)
-          ? { token: [TK_MARK, "mark"] as ParsedToken, endIndex: index + "<mark>".length }
-          : undefined,
-      processHook: (token) => (token[0] === TK_MARK ? "★" : undefined),
-    };
+    const markExtension = makeMarkExtension({ id: "test:mark", cacheBit: 32, result: "★" });
     const i18n = makeHost({ en: { msg: "<mark><b>x</b>" } });
 
     const { content } = prepareTranslation(i18n, {

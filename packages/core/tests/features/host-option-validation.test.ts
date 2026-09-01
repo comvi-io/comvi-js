@@ -32,6 +32,18 @@ describe("new I18n(options) — option defaults", () => {
     expect(i18n.getFallbackLocales()).toEqual(["de"]);
   });
 
+  it("keeps a fallbackLocale array as the chain, in the order given", () => {
+    const i18n = createI18n({ locale: "en", fallbackLocale: ["de", "fr"] });
+
+    expect(i18n.getFallbackLocales()).toEqual(["de", "fr"]);
+  });
+
+  it("keeps a fallbackLocale equal to the current locale in the chain", () => {
+    const i18n = createI18n({ locale: "en", fallbackLocale: "en" });
+
+    expect(i18n.getFallbackLocales()).toEqual(["en"]);
+  });
+
   it("defaults devMode to the build's development flag", () => {
     const i18n = createI18n({ locale: "en" });
 

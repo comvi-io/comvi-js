@@ -3,7 +3,7 @@ import { I18n } from "../helpers/composedHost";
 import type { I18nPlugin } from "../helpers/composedHost";
 import { createDeferred } from "../helpers/deferred";
 
-describe("Plugin System", () => {
+describe("I18n#use()", () => {
   it("executes plugins sequentially and in order", async () => {
     const executionOrder: string[] = [];
     const gate = createDeferred<void>();
@@ -22,11 +22,12 @@ describe("Plugin System", () => {
     const i18n = new I18n({ locale: "en" }).use(plugin1).use(plugin2);
 
     const initPromise = i18n.init();
-    await Promise.resolve();
 
-    // Exactly one microtask in: plugin 1 is parked on the gate and plugin 2
-    // must not have started, because `init()` runs the queue sequentially.
-    expect(executionOrder).toEqual(["start-1"]);
+    // Plugin 1 is parked on the gate and plugin 2 must not have started,
+    // because `init()` runs the queue sequentially. waitFor rather than a
+    // counted `await Promise.resolve()`: the claim is the ordering, not how
+    // many microtasks `init()` spends before the first plugin runs.
+    await vi.waitFor(() => expect(executionOrder).toEqual(["start-1"]));
 
     gate.resolve();
     await initPromise;

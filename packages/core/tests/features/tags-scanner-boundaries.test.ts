@@ -204,8 +204,9 @@ describe("input the scanner refuses", () => {
   });
 
   it("names the unclosed tag in the development warning", () => {
-    render("<wrapper>text");
+    const rendered = render("<wrapper>text");
 
+    expect(rendered).toBe("<wrapper>text");
     expect(warnSpy).toHaveBeenCalledWith("[i18n] Unclosed tag: <wrapper>");
   });
 });

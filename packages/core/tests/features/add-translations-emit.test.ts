@@ -43,14 +43,10 @@ describe("addTranslations event behaviour", () => {
       fr: { hello: "Bonjour" },
     });
 
-    expect(spy).toHaveBeenCalledTimes(2);
-    const calls = spy.mock.calls.map((c) => c[0]);
-    expect(calls).toEqual(
-      expect.arrayContaining([
-        { locale: "en", namespace: "default" },
-        { locale: "fr", namespace: "default" },
-      ]),
-    );
+    expect(spy.mock.calls.map((c) => c[0])).toEqual([
+      { locale: "en", namespace: "default" },
+      { locale: "fr", namespace: "default" },
+    ]);
   });
 
   it("empty-object addTranslations({}) fires neither namespaceLoaded nor configChanged and does not throw", () => {
@@ -66,7 +62,7 @@ describe("addTranslations event behaviour", () => {
   });
 
   // Asymmetry with the constructor, which throws E_TRANSLATION_NOT_OBJECT for the
-  // same input (src/core/i18n.ts:284-293); addTranslations has no such validation.
+  // same input; addTranslations has no such validation.
   it("stores an empty catalog and still emits for a non-object locale value", () => {
     const spy = vi.fn();
     i18n.on("namespaceLoaded", spy);

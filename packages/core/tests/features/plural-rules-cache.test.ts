@@ -1,8 +1,8 @@
 import { describe, it, expect } from "vitest";
 import { getPluralRules } from "../../src/core/translate/cache";
 
-// An unusable locale tag must degrade to the runtime default rather than throw out of `t()`.
-
+// needs-seam: the PluralRules cache is module-level with no reset export, so
+// every locale tag below must appear in exactly one test.
 describe("getPluralRules()", () => {
   it("returns the same instance for a repeated locale", () => {
     const first = getPluralRules("en");
@@ -20,8 +20,10 @@ describe("getPluralRules()", () => {
   });
 
   it("falls back to a usable rules object for a locale tag Intl rejects", () => {
-    // The fallback deliberately uses the RUNTIME default locale, so the claim
-    // is that a category comes back at all — not which one.
+    // An unusable tag must degrade rather than throw out of `t()`. The fallback
+    // uses the RUNTIME default locale, whose category for 1 is not knowable as a
+    // literal here — deriving it from `Intl` is the only portable expected value,
+    // and it re-implements nothing: the production path is the `catch` branch.
     const rules = getPluralRules("not a locale");
 
     expect(rules).toBeInstanceOf(Intl.PluralRules);

@@ -126,7 +126,7 @@ describe("setLocaleAsync() / addActiveNamespace() concurrency", () => {
     await i18n.init();
 
     await expect(i18n.addActiveNamespace("failing")).rejects.toThrow(
-      /Failed to load all namespaces|E_ALL_NAMESPACES_FAILED/,
+      '[i18n] Failed to load all namespaces for locale "en": failing',
     );
     expect(i18n.isLoading).toBe(false);
   });

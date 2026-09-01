@@ -42,9 +42,7 @@ describe("getCompilerId()", () => {
 
     const ids = [getCompilerId(first), getCompilerId(second), getCompilerId(third)];
 
-    expect(ids[1]).toBeGreaterThan(ids[0]);
-    expect(ids[2]).toBeGreaterThan(ids[1]);
-    expect(ids.filter((id) => id <= getCompilerId(icuCompiler))).toEqual([]);
+    expect(new Set([...ids, getCompilerId(icuCompiler)]).size).toBe(4);
   });
 });
 

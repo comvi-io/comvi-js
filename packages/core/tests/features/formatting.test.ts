@@ -1,12 +1,5 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import {
-  I18n,
-  formatNumber,
-  formatDate,
-  formatCurrency,
-  formatRelativeTime,
-  getTextDirection,
-} from "../helpers/composedHost";
+import { I18n, getTextDirection, type TranslationParams } from "../helpers/composedHost";
 
 describe("ICU message formatting and the Intl helpers", () => {
   let i18n: I18n;
@@ -56,6 +49,20 @@ describe("ICU message formatting and the Intl helpers", () => {
       i18n.locale = "ja";
       expect(i18n.t("msg", { param: "Love" })).toBe("愛 {param} 愛");
     });
+
+    it("renders a doubled quote alone as one literal quote", () => {
+      i18n.addTranslations({ en: { empty: "''" } });
+
+      expect(i18n.t("empty")).toBe("'");
+    });
+
+    it("renders a quote-brace-quote template as one literal brace", () => {
+      // '{' — the leading quote opens a literal section, { is literal text, and
+      // the trailing quote closes the section.
+      i18n.addTranslations({ en: { brace: "'{'" } });
+
+      expect(i18n.t("brace")).toBe("{");
+    });
   });
 
   describe("Apostrophes (ICU DOUBLE_OPTIONAL)", () => {
@@ -88,139 +95,94 @@ describe("ICU message formatting and the Intl helpers", () => {
       expect(i18n.t("geresh")).toBe("ג'מוס");
     });
 
-    it("should keep a bare apostrophe literal unless it precedes a syntax character", () => {
-      i18n.addTranslations({
-        en: {
-          unescapedClock: "o' clock",
-          escapedClock: "o'' clock",
-          possessive: "Superiors' behavior",
-          trailing: "l'",
-        },
-      });
+    it.each([
+      ["a bare apostrophe before a space", "o' clock", "o' clock"],
+      ["a doubled apostrophe before a space", "o'' clock", "o' clock"],
+      ["a possessive apostrophe after a word", "Superiors' behavior", "Superiors' behavior"],
+      ["an apostrophe at the end of the template", "l'", "l'"],
+    ])(
+      "should keep an apostrophe literal unless it precedes a syntax character: %s",
+      (_label, template, expected) => {
+        i18n.addTranslations({ en: { msg: template } });
 
-      expect(i18n.t("unescapedClock")).toBe("o' clock");
-      expect(i18n.t("escapedClock")).toBe("o' clock");
-      expect(i18n.t("possessive")).toBe("Superiors' behavior");
-      expect(i18n.t("trailing")).toBe("l'");
-    });
+        expect(i18n.t("msg")).toBe(expected);
+      },
+    );
 
-    it("should start quoted text only before {, } or #", () => {
-      i18n.addTranslations({
-        en: {
-          quotedParam: "This is '{not}' a param.",
-          quotedBrace: "brace '}' quoted",
-          quotedHash: "{count, plural, other {'#' of them: #}}",
-        },
-      });
+    it.each<[string, string, TranslationParams, string]>([
+      ["a quoted param", "This is '{not}' a param.", { not: "ignored" }, "This is {not} a param."],
+      ["a quoted closing brace", "brace '}' quoted", {}, "brace } quoted"],
+      [
+        "a quoted hash inside a plural",
+        "{count, plural, other {'#' of them: #}}",
+        { count: 3 },
+        "# of them: 3",
+      ],
+    ])(
+      "should start quoted text only before {, } or #: %s",
+      (_label, template, params, expected) => {
+        i18n.addTranslations({ en: { msg: template } });
 
-      expect(i18n.t("quotedParam", { not: "ignored" })).toBe("This is {not} a param.");
-      expect(i18n.t("quotedBrace")).toBe("brace } quoted");
-      expect(i18n.t("quotedHash", { count: 3 })).toBe("# of them: 3");
-    });
+        expect(i18n.t("msg", params)).toBe(expected);
+      },
+    );
 
-    it("should treat # as syntax only inside plural sub-messages", () => {
-      i18n.addTranslations({
-        en: {
-          topLevel: "Price '#' {amount}",
-          topLevelUnterminated: "Price '# {amount}",
-          standaloneSelect: "{kind, select, other {Price '#' {amount}}}",
-          selectInPlural: "{count, plural, other {{kind, select, other {'#' means the count: #}}}}",
-          pluralUnterminated: "{count, plural, other {'# {amount} swallows the closing braces}}",
-        },
-      });
-
-      expect(i18n.t("topLevel", { amount: 5 })).toBe("Price '#' 5");
-      expect(i18n.t("topLevelUnterminated", { amount: 5 })).toBe("Price '# 5");
-      expect(i18n.t("standaloneSelect", { kind: "any", amount: 5 })).toBe("Price '#' 5");
-      expect(i18n.t("selectInPlural", { count: 3, kind: "any" })).toBe("# means the count: 3");
-      // An unterminated quote before # inside a plural swallows the argument's
-      // closing braces: the message is malformed ICU (FormatJS throws
-      // EXPECT_ARGUMENT_CLOSING_BRACE) and falls back to the raw source.
-      expect(i18n.t("pluralUnterminated", { count: 3, amount: 5 })).toBe(
+    it.each<[string, string, TranslationParams, string]>([
+      ["at the top level", "Price '#' {amount}", { amount: 5 }, "Price '#' 5"],
+      ["at the top level, unterminated", "Price '# {amount}", { amount: 5 }, "Price '# 5"],
+      [
+        "inside a standalone select",
+        "{kind, select, other {Price '#' {amount}}}",
+        { kind: "any", amount: 5 },
+        "Price '#' 5",
+      ],
+      [
+        "inside a select nested in a plural",
+        "{count, plural, other {{kind, select, other {'#' means the count: #}}}}",
+        { count: 3, kind: "any" },
+        "# means the count: 3",
+      ],
+      [
+        // An unterminated quote before # inside a plural swallows the argument's
+        // closing braces: the message is malformed ICU (FormatJS throws
+        // EXPECT_ARGUMENT_CLOSING_BRACE) and falls back to the raw source.
+        "unterminated inside a plural, swallowing the closing braces",
         "{count, plural, other {'# {amount} swallows the closing braces}}",
-      );
-    });
+        { count: 3, amount: 5 },
+        "{count, plural, other {'# {amount} swallows the closing braces}}",
+      ],
+    ])(
+      "should treat # as syntax only inside plural sub-messages: %s",
+      (_label, template, params, expected) => {
+        i18n.addTranslations({ en: { msg: template } });
 
-    it("should keep apostrophes literal inside plural and select branches", () => {
-      i18n.addTranslations({
-        de: {
-          promo:
-            "{variant, select, five {Gib' eine Bewertung ab und {company} pflanzt einen Baum!} other {x}}",
-          flatBranch: "{g, select, other {Gib' acht}}",
-          doubled: "{count, plural, other {It''s # trees}}",
-        },
-      });
-      i18n.locale = "de";
+        expect(i18n.t("msg", params)).toBe(expected);
+      },
+    );
 
-      expect(i18n.t("promo", { variant: "five", company: "ACME" })).toBe(
+    it.each<[string, string, TranslationParams, string]>([
+      [
+        "a select branch with other params",
+        "{variant, select, five {Gib' eine Bewertung ab und {company} pflanzt einen Baum!} other {x}}",
+        { variant: "five", company: "ACME" },
         "Gib' eine Bewertung ab und ACME pflanzt einen Baum!",
-      );
-      expect(i18n.t("flatBranch", { g: "any" })).toBe("Gib' acht");
-      expect(i18n.t("doubled", { count: 3 })).toBe("It's 3 trees");
-    });
-  });
+      ],
+      ["a flat select branch", "{g, select, other {Gib' acht}}", { g: "any" }, "Gib' acht"],
+      [
+        "a doubled apostrophe in a plural branch",
+        "{count, plural, other {It''s # trees}}",
+        { count: 3 },
+        "It's 3 trees",
+      ],
+    ])(
+      "should keep apostrophes literal inside plural and select branches: %s",
+      (_label, template, params, expected) => {
+        i18n.addTranslations({ de: { msg: template } });
+        i18n.locale = "de";
 
-  describe("Intl Formatting", () => {
-    it("formatNumber: should format a number using current locale", () => {
-      expect(formatNumber(i18n, 1234.5)).toBe(new Intl.NumberFormat("en").format(1234.5));
-    });
-
-    it("formatNumber: should respect options", () => {
-      expect(formatNumber(i18n, 0.75, { style: "percent" })).toBe(
-        new Intl.NumberFormat("en", { style: "percent" }).format(0.75),
-      );
-    });
-
-    it("formatDate: should format a date using current locale", () => {
-      const date = new Date(2025, 0, 15);
-      expect(formatDate(i18n, date)).toBe(new Intl.DateTimeFormat("en").format(date));
-    });
-
-    it("formatDate: should respect options", () => {
-      const date = new Date(2025, 0, 15);
-      const opts: Intl.DateTimeFormatOptions = {
-        year: "numeric",
-        month: "long",
-        day: "numeric",
-      };
-      expect(formatDate(i18n, date, opts)).toBe(new Intl.DateTimeFormat("en", opts).format(date));
-    });
-
-    it("formatCurrency: should format currency", () => {
-      expect(formatCurrency(i18n, 99.99, "USD")).toBe(
-        new Intl.NumberFormat("en", { style: "currency", currency: "USD" }).format(99.99),
-      );
-    });
-
-    it("formatCurrency: should respect locale for currency formatting", () => {
-      const deI18n = new I18n({ locale: "de" });
-      expect(formatCurrency(deI18n, 1234.5, "EUR")).toBe(
-        new Intl.NumberFormat("de", { style: "currency", currency: "EUR" }).format(1234.5),
-      );
-    });
-
-    it("should use locale after locale change", () => {
-      i18n.locale = "de";
-      expect(formatNumber(i18n, 1234.5)).toBe(new Intl.NumberFormat("de").format(1234.5));
-    });
-
-    it("formatRelativeTime: should format past time", () => {
-      expect(formatRelativeTime(i18n, -2, "hour")).toBe(
-        new Intl.RelativeTimeFormat("en").format(-2, "hour"),
-      );
-    });
-
-    it("formatRelativeTime: should format future time", () => {
-      expect(formatRelativeTime(i18n, 3, "day")).toBe(
-        new Intl.RelativeTimeFormat("en").format(3, "day"),
-      );
-    });
-
-    it("formatRelativeTime: should respect options", () => {
-      expect(formatRelativeTime(i18n, -1, "day", { numeric: "auto" })).toBe(
-        new Intl.RelativeTimeFormat("en", { numeric: "auto" }).format(-1, "day"),
-      );
-    });
+        expect(i18n.t("msg", params)).toBe(expected);
+      },
+    );
   });
 
   describe("getTextDirection()", () => {
@@ -264,28 +226,14 @@ describe("ICU message formatting and the Intl helpers", () => {
       expect(i18n.t("rank", { place })).toBe(`You are ${ordinal} place`);
     });
 
-    it("falls back to 'other' when no match", () => {
+    it("selects the 'other' branch for a count no keyword matches", () => {
       i18n.addTranslations({
         en: {
           msg: "{n, selectordinal, one {first} other {nth}}",
         },
       });
+
       expect(i18n.t("msg", { n: 100 })).toBe("nth");
-    });
-  });
-
-  describe("Edge Cases", () => {
-    it("should handle quoted empty strings", () => {
-      i18n.addTranslations({ en: { empty: "''" } });
-      expect(i18n.t("empty")).toBe("'"); // '' -> ' (escaped quote)
-    });
-
-    it("should handle empty quote blocks", () => {
-      // Template is '{'  — the leading single quote starts a quoted
-      // (literal) section, { is treated as literal text, and the trailing
-      // single quote ends the quoted section.  Result: {
-      i18n.addTranslations({ en: { brace: "'{'" } });
-      expect(i18n.t("brace")).toBe("{");
     });
   });
 });

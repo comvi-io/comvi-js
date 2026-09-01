@@ -30,7 +30,7 @@ afterEach(() => {
   _resetSyntaxExtensions();
 });
 
-describe("syntax extension registry", () => {
+describe("registerTagSyntax()", () => {
   it("renders unregistered <link>hi</link> literally (no tag engine in the effective set)", () => {
     const i18n = makeInstance();
     expect(i18n.t("msg" as never, { link: linkHandler } as never)).toBe(TEMPLATE);

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createBoundTranslation } from "../../src";
+import { createI18n, createBoundTranslation } from "../../src";
 
 type Host = Parameters<typeof createBoundTranslation>[0];
 
@@ -21,5 +21,12 @@ describe("createBoundTranslation()", () => {
 
   it("routes through t when the host has no tRaw", () => {
     expect(createBoundTranslation(makeHost(false))("hello")).toBe("t:hello");
+  });
+
+  it("binds nothing for an empty namespace, so lookups keep hitting the default one", () => {
+    const i18n = createI18n({ locale: "en" });
+    i18n.addTranslations({ "en:default": { hello: "Hello" } });
+
+    expect(createBoundTranslation(i18n, "")("hello")).toBe("Hello");
   });
 });

@@ -80,6 +80,35 @@ describe("clearTranslations() with no scope", () => {
   });
 });
 
+describe("clearTranslations() over a scope that holds nothing", () => {
+  it("leaves every catalog and every active namespace in place for an unknown locale", () => {
+    const i18n = twoLocalesTwoNamespaces();
+
+    i18n.clearTranslations("xx");
+
+    expect(i18n.getLoadedLocales()).toEqual(["en", "de"]);
+    expect(i18n.getActiveNamespaces()).toEqual(["nav", "footer"]);
+  });
+
+  it("still bumps the cache revision for an unknown locale, so memoized reads re-read", () => {
+    const i18n = twoLocalesTwoNamespaces();
+    const before = i18n.translationCache.getRevision();
+
+    i18n.clearTranslations("xx");
+
+    expect(i18n.translationCache.getRevision()).toBe(before + 1);
+  });
+
+  it("leaves every catalog and every active namespace in place for an unknown namespace", () => {
+    const i18n = twoLocalesTwoNamespaces();
+
+    i18n.clearTranslations(undefined, "unknown");
+
+    expect(i18n.getLoadedLocales()).toEqual(["en", "de"]);
+    expect(i18n.getActiveNamespaces()).toEqual(["nav", "footer"]);
+  });
+});
+
 describe("translationsCleared event", () => {
   it("carries the cleared scope", () => {
     const i18n = twoLocalesTwoNamespaces();

@@ -320,7 +320,13 @@ describe("dev dist: the eager preflight (§2.1a)", () => {
     const { icu } = await import("../../dist/comvi-core-icu.dev.js");
 
     const i18n = createI18n({ locale: "en" });
-    expect(() => i18n.addTranslations({ en: { items: PLURAL } })).toThrow(/E_ICU_SYNTAX|ICU/);
+    expect(() => i18n.addTranslations({ en: { items: PLURAL } })).toThrowError(
+      expect.objectContaining({
+        code: "E_ICU_SYNTAX",
+        argumentType: "plural",
+        message: expect.stringContaining("@comvi/core/icu"),
+      }),
+    );
 
     expect(() => i18n.with(icu())).toThrowError(
       expect.objectContaining({ code: "E_COMPILER_LOCKED" }),

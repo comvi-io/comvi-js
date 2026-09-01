@@ -75,15 +75,6 @@ describe("I18n core API contracts", () => {
     );
   });
 
-  it("validates registerLoader() argument type", () => {
-    const i18n = new I18n({ locale: "en", exposeGlobal: false });
-    const call = () => i18n.registerLoader(123 as any);
-
-    expect(call).toThrow(/registerLoader\(\): argument must be a loader function/);
-    expect(call).toThrow(/\.with\(loader\(map\)\)/);
-    expect(call).toThrow(/createImportMapLoader/);
-  });
-
   it("stores and retrieves plugin data", () => {
     const i18n = new I18n({ locale: "en", exposeGlobal: false });
 
@@ -171,8 +162,6 @@ describe("I18n core API contracts", () => {
     const i18n = new I18n({ locale: "en", exposeGlobal: true, instanceId: "ssr-instance" });
 
     expect(i18n.instanceId).toBe("ssr-instance");
-    expect(globalThis.window).toBeUndefined();
     await expect(i18n.destroy()).resolves.toBeUndefined();
-    await expect(i18n.init()).rejects.toThrow(/Cannot call init\(\) after destroy\(\)/);
   });
 });

@@ -67,6 +67,26 @@ describe("t() with ICU select", () => {
     expect(i18n.t("proto", { val: "__proto__" })).toBe("Proto");
   });
 
+  it("matches a branch by the string form of a non-string value", () => {
+    i18n.addTranslations({
+      en: {
+        count: "{n, select, 2 {a pair} other {some}}",
+      },
+    });
+
+    expect(i18n.t("count", { n: 2 })).toBe("a pair");
+  });
+
+  it("falls back to other when the select value is null", () => {
+    i18n.addTranslations({
+      en: {
+        status: "Status: {val, select, active {Green} other {Gray}}",
+      },
+    });
+
+    expect(i18n.t("status", { val: null })).toBe("Status: Gray");
+  });
+
   it("renders empty when no branch matches and there is no other branch", () => {
     i18n.addTranslations({
       en: {

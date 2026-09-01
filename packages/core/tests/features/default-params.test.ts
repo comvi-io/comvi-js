@@ -16,7 +16,7 @@ function createInstance(defaultParams?: Record<string, string>) {
   return i18n;
 }
 
-describe("Instance-level defaultParams", () => {
+describe("defaultParams — the constructor option and setDefaultParams()", () => {
   it("renders select branches from instance defaults without call-level params", () => {
     const i18n = createInstance({ formality: "formal" });
     expect(i18n.t("review")).toBe("Ihre Bewertung");

@@ -45,6 +45,11 @@ function isQuoteStart(str: string, index: number, len: number, hashIsSyntax: boo
  */
 const warnedTagTemplates = IS_DEV ? new Set<string>() : undefined;
 
+/** @internal Test teardown: forgets which templates already raised the unclaimed-tag warning. */
+export function _resetTagWarnings(): void {
+  warnedTagTemplates?.clear();
+}
+
 function warnUnclaimedTag(template: string, index: number, len: number): void {
   const next = index + 1 < len ? template.charCodeAt(index + 1) : 0;
   const isLetter = (next >= 65 && next <= 90) || (next >= 97 && next <= 122);

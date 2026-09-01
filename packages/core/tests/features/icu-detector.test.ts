@@ -22,16 +22,18 @@ import { markerCompiler } from "../helpers/compilers";
  * `parseTemplate` is exactly what both seams call.
  */
 
-/** Parse `template` on the default compiler and return the failure it throws. */
+/**
+ * Parse `template` on the default compiler and return the failure it throws.
+ * The error OBJECT is what the assertions below read (`.code`,
+ * `.argumentType`, its own property names), which `toThrow()` cannot hand back.
+ */
 function parseFailure(template: string): IcuSyntaxError {
-  let thrown: unknown;
   try {
     parseTemplate(template, false, [], simpleCompiler);
   } catch (error) {
-    thrown = error;
+    return error as IcuSyntaxError;
   }
-  expect(thrown, `"${template}" must throw`).toBeInstanceOf(Error);
-  return thrown as IcuSyntaxError;
+  expect.unreachable(`"${template}" must throw`);
 }
 
 beforeEach(() => {

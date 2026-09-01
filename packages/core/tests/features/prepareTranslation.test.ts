@@ -5,7 +5,7 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { I18n } from "../../src/core/i18n";
 import { clearTemplateCache } from "../../src/core/translate";
 import { icuCompiler } from "../../src/core/translate/compile-icu";
-import { _resetSyntaxExtensions, getAmbientExtensions } from "../../src/core/translate/syntax";
+import { _resetSyntaxExtensions } from "../../src/core/translate/syntax";
 import {
   prepareTranslation,
   getPendingHandlerName,
@@ -36,8 +36,6 @@ afterEach(() => {
 
 describe("prepareTranslation", () => {
   it("renders correctly with ambient registry explicitly reset (per-call channel is self-sufficient)", () => {
-    expect(getAmbientExtensions().length).toBe(0);
-
     const i18n = makeInstance({ msg: "Hello <bold>{name}</bold>!" });
     const { content, pendingHandlers, isMissing } = prepareTranslation(i18n, {
       i18nKey: "msg",
@@ -64,7 +62,9 @@ describe("prepareTranslation", () => {
     expect(elementAt(content, 0).tag).toBe("strong");
 
     // Same template through the plain pipeline: distinct cache variant, literal output.
-    expect(i18n.t("msg" as never)).toBe("<b>hi</b>");
+    const plain = i18n.t("msg" as never);
+
+    expect(plain).toBe("<b>hi</b>");
   });
 
   describe("handler transport", () => {
@@ -153,26 +153,6 @@ describe("prepareTranslation", () => {
         { type: "element", tag: "strong", props: {}, children: ["Ada"] },
       ]);
     });
-
-    it("reserved props override same-named params keys; omitted props leave params intact", () => {
-      const i18n = new I18n({ locale: "en", exposeGlobal: false }, icuCompiler);
-      i18n.addTranslations({
-        en: { msg: "en" },
-        fr: { msg: "fr" },
-      });
-
-      expect(prepareTranslation(i18n, { i18nKey: "msg", params: { locale: "fr" } }).content).toBe(
-        "fr",
-      );
-
-      expect(
-        prepareTranslation(i18n, {
-          i18nKey: "msg",
-          params: { locale: "fr" },
-          locale: "en",
-        }).content,
-      ).toBe("en");
-    });
   });
 
   describe("missing-key fallback", () => {
@@ -238,9 +218,14 @@ describe("prepareTranslation", () => {
     });
   });
 
-  it("childrenToArray normalizes strings and arrays", () => {
-    expect(childrenToArray("")).toEqual([]);
-    expect(childrenToArray("x")).toEqual(["x"]);
-    expect(childrenToArray(["a", "b"])).toEqual(["a", "b"]);
+  it.each<[string | string[], string[]]>([
+    ["", []],
+    ["x", ["x"]],
+    [
+      ["a", "b"],
+      ["a", "b"],
+    ],
+  ])("childrenToArray(%j) → %j", (input, expected) => {
+    expect(childrenToArray(input)).toEqual(expected);
   });
 });

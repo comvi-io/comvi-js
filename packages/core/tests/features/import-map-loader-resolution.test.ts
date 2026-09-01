@@ -40,6 +40,19 @@ describe("createImportMapLoader()", () => {
     );
   });
 
+  it("propagates the importer's own rejection rather than a missing-entry error", async () => {
+    const load = createImportMapLoader(
+      {
+        "en:common": async () => {
+          throw new Error("chunk 404");
+        },
+      },
+      () => "common",
+    );
+
+    await expect(load("en", "common")).rejects.toThrow("chunk 404");
+  });
+
   it("names the missing key when neither an exact nor a locale entry matches", async () => {
     const load = createImportMapLoader({ "en:common": async () => catalog }, () => "common");
 

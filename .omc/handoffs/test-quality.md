@@ -82,3 +82,27 @@ locale-routing pilot 92 %. Core first run (15.6 min, 3 329 mutants): **69.4 %** 
 57 timeout, 736 survived, 240 uncovered; worst: translate.ts 143 survived, i18n.ts 126,
 tags.ts 117, compile-icu 66, parser 57, loader 40, params 31, format.ts 34 %, editor-bridge.ts
 0 % (no tests). Kill-pass in progress in five lots (reports `mutation-A..E`).
+
+## Mutation rounds 2–3 and the production-level pass (2026-08-30)
+Core after the kill-pass (`fdba92e`): raw Stryker 87.3 %, adjusted 91.9 %, 213 real survivors.
+Round 2: two auditors HAND-APPLIED all 100 accepted entries (suite run or differential fuzzing
+through `t()` with 400k–800k generated ICU templates); verdicts: 55 equivalent, 32 gap:prod-build,
+10 unnecessary (already killed by round-2 tests), **5 killable** — one hid an infinite loop
+(`compile-icu.ts:124` on `"{n, plural, '{one'}"`), one a non-enumerable `setDefaultParams` key
+bypass. Four executors resolved the 213 survivors: 12 killed by behaviour tests, 201 accepted with
+hand-applied evidence (lot B: 74 via a 3 470-render differential corpus). Lesson: six agents
+hand-mutating one checkout corrupt each other's verdicts — each got its own `git worktree`.
+Round 3: three reviewers re-read all 94 core test files against the manifest (6 blockers:
+formatter-cache tests green without their setup, 8 dead `dev|prod` alternations, a
+`currentTestName`-keyed dedup workaround, the `window.__COMVI__` leak from default
+`exposeGlobal`); fixers applied ~70 should-fixes, deleted 2 redundant files and 9 duplicate tests
+(each with a named survivor), added `tests/setup.ts` (afterEach: `__COMVI__`, template cache,
+warn-dedup sets, formatter caches) and three dev-only seams in src (`_resetMissingParamWarnings`,
+`_resetTagWarnings`, `_formatterCacheSize`/`_resetFormatterCaches`; 0 B in prod).
+**Final full run (non-incremental, 19.6 min): raw 88.6 % / 90.2 % covered; adjusted for the
+audited accepted list 98.3 % / 99.1 % — 2 841 killed, 25 real survivors (being resolved), 24
+uncovered; core tests 596 → 1 101 (95 files).**
+Real bugs found by the whole pass: `t(key, { fallback })` → "" (fixed), gate-e env leak (fixed),
+`sync-peer-ranges.nextReleaseVersion()` ignores `root` (open), `TF_HAS_*` dead writes in
+translate.ts (open, −bytes), CLI vs vite-plugin type emitters diverge (open), prod `E_*` error
+codes asserted by no test (open → `__DEV__: false` vitest project).

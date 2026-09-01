@@ -50,7 +50,7 @@ describe("addTranslations() / the `translation` option — no input mutation", (
 });
 
 describe("catalog leaf hardening — non-string values", () => {
-  it("array, number, and null leaves do not crash t()", () => {
+  it("joins an array leaf, coerces a number leaf and drops a null leaf", () => {
     const i18n = new I18n({ locale: "en" });
     i18n.addTranslations({
       en: { list: ["a", "b"], num: 5, nothing: null } as never,

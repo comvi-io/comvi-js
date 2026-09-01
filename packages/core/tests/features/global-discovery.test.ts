@@ -257,22 +257,29 @@ describe("attachDevtools install surface", () => {
     const i18n = attachDevtools(createI18n({ locale: "en" }), { instanceId: "gd-attach-desc" });
 
     // `_`-prefixed members are mangled in the dist, so the DESCRIPTOR SHAPE, not
-    // the name, is the contract. Enumerability is the one that matters: a spread
-    // copy must carry data only, never behaviour.
+    // the name, is the contract; `src/devtools` exports no list of the hook
+    // names, so name-scanning is the only handle there is (needs-seam).
     const hooks = Object.getOwnPropertyNames(i18n).filter(
       (k) =>
         k.startsWith("_") && typeof (i18n as unknown as Record<string, unknown>)[k] === "function",
     );
-    // Without this the loop below can assert nothing at all — a rename or a move
-    // to a WeakMap would empty `hooks` and the test would still pass.
+
+    // Without this the filter below can assert nothing at all — a rename or a
+    // move to a WeakMap would empty `hooks` and the test would still pass.
     expect(hooks.length).toBeGreaterThan(0);
     expect(hooks.filter((name) => Object.getOwnPropertyDescriptor(i18n, name)!.enumerable)).toEqual(
       [],
     );
-    expect(
-      Object.keys({ ...i18n }).filter((k) => typeof ({ ...i18n } as never)[k] === "function"),
-    ).toEqual([]);
+  });
 
+  it("keeps a spread copy free of behaviour while carrying instanceId", () => {
+    const i18n = attachDevtools(createI18n({ locale: "en" }), { instanceId: "gd-attach-spread" });
+
+    const copy = { ...i18n };
+
+    expect(
+      Object.keys(copy).filter((k) => typeof (copy as Record<string, unknown>)[k] === "function"),
+    ).toEqual([]);
     // `instanceId` IS public data and IS enumerable.
     expect(Object.keys(i18n)).toContain("instanceId");
   });

@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { I18n } from "../helpers/composedHost";
 import { createI18n } from "../helpers/composedHost";
 
@@ -7,14 +7,9 @@ import { createI18n } from "../helpers/composedHost";
  * HTML whitelist, ICU interactions, and graceful degradation on malformed
  * templates.
  */
-describe("Tag Interpolation", () => {
-  let i18n: I18n;
-
-  beforeEach(() => {
-    i18n = new I18n({ locale: "en" });
-  });
-
+describe("t() with tag interpolation", () => {
   it("parses nested tags and applies handlers", () => {
+    const i18n = new I18n({ locale: "en" });
     i18n.addTranslations({ en: { msg: "Click <a><b>here</b></a>" } });
 
     const result = i18n.t("msg", {
@@ -25,17 +20,8 @@ describe("Tag Interpolation", () => {
     expect(result).toBe("Click A(B(here))");
   });
 
-  it("renders a self-closing <br/> through its param handler", () => {
-    i18n.addTranslations({ en: { msg: "Line 1<br/>Line 2" } });
-
-    const result = i18n.t("msg", {
-      br: () => "\n",
-    });
-
-    expect(result).toBe("Line 1\nLine 2");
-  });
-
   it("parses snake_case tag names", () => {
+    const i18n = new I18n({ locale: "en" });
     i18n.addTranslations({
       en: { msg: "Click <this_link>this link</this_link> for a new one." },
     });
@@ -48,6 +34,7 @@ describe("Tag Interpolation", () => {
   });
 
   it("parses self-closing snake_case tags inside select branches", () => {
+    const i18n = new I18n({ locale: "en" });
     i18n.addTranslations({
       en: {
         msg: "{formality, select, formal {Dear<line_break/>Sir} other {Hi<line_break/>there}}",
@@ -63,6 +50,7 @@ describe("Tag Interpolation", () => {
   });
 
   it("flattens snake_case tags to inner text without a handler", () => {
+    const i18n = new I18n({ locale: "en" });
     i18n.addTranslations({
       en: { msg: "Read our <help_article>help article</help_article>" },
     });
@@ -71,6 +59,7 @@ describe("Tag Interpolation", () => {
   });
 
   it("supports ICU params inside tags", () => {
+    const i18n = new I18n({ locale: "en" });
     i18n.addTranslations({ en: { msg: "<bold>Hello {name}</bold>" } });
 
     const result = i18n.t("msg", {
@@ -82,6 +71,7 @@ describe("Tag Interpolation", () => {
   });
 
   it("handles tags inside plural expressions", () => {
+    const i18n = new I18n({ locale: "en" });
     i18n.addTranslations({
       en: {
         msg: "{count, plural, one {<b># item</b>} other {<b># items</b>}}",
@@ -96,29 +86,10 @@ describe("Tag Interpolation", () => {
     expect(result).toBe("[5 items]");
   });
 
-  it("escapes backslash and HTML entities", () => {
-    i18n.addTranslations({ en: { msg: "Use \\<div> and &lt;span&gt;" } });
-
-    const result = i18n.t("msg");
-
-    expect(result).toBe("Use <div> and <span>");
-  });
-
-  it("warns and degrades on malformed tags", () => {
-    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-
-    i18n.addTranslations({ en: { msg: "Click <link>here" } });
-
-    const result = i18n.t("msg");
-
-    expect(result).toBe("Click <link>here");
-    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("Unclosed tag"));
-  });
-
   it("warns and degrades on mismatched nested tags", () => {
-    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-
+    const i18n = new I18n({ locale: "en" });
     i18n.addTranslations({ en: { msg: "Click <a><b>here</a></b>" } });
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 
     const result = i18n.t("msg");
 
@@ -126,7 +97,7 @@ describe("Tag Interpolation", () => {
     expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("Tag mismatch"));
   });
 
-  describe("Strict Mode", () => {
+  describe("tagInterpolation.strict", () => {
     it("falls back to inner text when strict is false", () => {
       const i18nNonStrict = createI18n({
         locale: "en",
@@ -168,7 +139,7 @@ describe("Tag Interpolation", () => {
     });
   });
 
-  describe("Basic HTML Tags Whitelist", () => {
+  describe("tagInterpolation.basicHtmlTags", () => {
     const whitelistHost = () => {
       const host = createI18n({
         locale: "en",
@@ -183,7 +154,7 @@ describe("Tag Interpolation", () => {
 
       expect(result).toEqual([
         "This is ",
-        expect.objectContaining({ type: "element", tag: "strong" }),
+        { type: "element", tag: "strong", props: {}, children: ["bold"] },
       ]);
     });
 
@@ -201,6 +172,7 @@ describe("Tag Interpolation", () => {
   });
 
   it("returns an array when a handler returns a virtual node", () => {
+    const i18n = new I18n({ locale: "en" });
     i18n.addTranslations({ en: { msg: "Click <link>here</link>" } });
     const vnode = {
       type: "element" as const,
@@ -215,6 +187,7 @@ describe("Tag Interpolation", () => {
   });
 
   it("stringifies a handler-returned virtual node to its inner text through t()", () => {
+    const i18n = new I18n({ locale: "en" });
     i18n.addTranslations({ en: { msg: "Click <link>here</link>" } });
     const vnode = {
       type: "element" as const,

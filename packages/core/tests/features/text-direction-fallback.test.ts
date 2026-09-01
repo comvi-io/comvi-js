@@ -11,6 +11,10 @@ import { getTextDirection } from "../../src";
 // with no reset export, so every tag in this file must appear in exactly ONE
 // test. Reuse a tag across two stubs and the second reads the first's cached
 // answer without ever consulting the stub — a silent pass.
+//
+// Why hand-rolled save/restore rather than `vi.stubGlobal`: `Intl.Locale` is a
+// property OF a global, not a `globalThis` key, so `unstubAllGlobals` never
+// reaches it.
 const RealLocale = Intl.Locale;
 
 function stubTextInfo(textInfo: { direction?: string } | undefined): void {

@@ -18,20 +18,44 @@ beforeEach(() => {
 // one delete per insert past the cap, so the size settles exactly at the cap.
 const CACHE_MAX = 1000;
 const OVER_CAP = CACHE_MAX + 50;
+const HOT_KEY = `key_${OVER_CAP - 1}`;
 
 describe("templateCache eviction", () => {
+  // needs-seam: "the entry was REUSED, not rebuilt" has no public observable —
+  // `isStaticTemplate` is the only window onto the cached verdict.
   it("reuses the context-tagged cache entry across repeated renders of a static template", () => {
     const i18n = createI18n({
       locale: "en",
       translation: { en: { greeting: "Hello world" } },
     });
-
     const [compilerId, extBits] = rootVariant();
     expect(isStaticTemplate("Hello world", false, compilerId, extBits)).toBeUndefined();
     expect(i18n.t("greeting" as never)).toBe("Hello world");
     expect(isStaticTemplate("Hello world", false, compilerId, extBits)).toBe(true);
-    expect(i18n.t("greeting" as never)).toBe("Hello world");
+
+    const repeated = i18n.t("greeting" as never);
+
+    expect(repeated).toBe("Hello world");
     expect(isStaticTemplate("Hello world", false, compilerId, extBits)).toBe(true);
+  });
+
+  // Folded in from translate-cache-hit-eviction.test.ts, which duplicated this
+  // file's cap constant and its insert-past-the-cap setup.
+  it("re-rendering an already cached template evicts nothing", () => {
+    const translations: Record<string, string> = {};
+    for (let n = 0; n < OVER_CAP; n++) {
+      translations[`key_${n}`] = `Value number ${n}`;
+    }
+    const i18n = createI18n({ locale: "en", translation: { en: translations } });
+    // Per-call options skip the host's static fast path, so every call really
+    // does reach the cache.
+    for (let n = 0; n < OVER_CAP; n++) {
+      i18n.t(`key_${n}` as never, { locale: "en" } as never);
+    }
+
+    i18n.t(HOT_KEY as never, { locale: "en" } as never);
+
+    expect(_templateCacheSize()).toBe(CACHE_MAX);
   });
 
   it("keeps size at or below the cap after inserting many distinct templates", () => {

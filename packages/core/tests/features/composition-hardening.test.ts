@@ -175,11 +175,14 @@ describe("B4 — a plugins-only host reports the missing loader capability (dev)
     for (const name of LOADER_MEMBERS) {
       const descriptor = Object.getOwnPropertyDescriptor(i18n, name);
       expect(descriptor, name).toBeDefined();
-      expect({
-        writable: descriptor!.writable,
-        enumerable: descriptor!.enumerable,
-        configurable: descriptor!.configurable,
-      }).toEqual({ writable: true, enumerable: false, configurable: true });
+      expect(
+        {
+          writable: descriptor!.writable,
+          enumerable: descriptor!.enumerable,
+          configurable: descriptor!.configurable,
+        },
+        name,
+      ).toEqual({ writable: true, enumerable: false, configurable: true });
       expect(() => (descriptor!.value as () => void)(), name).toThrow(/no loader capability/);
     }
 

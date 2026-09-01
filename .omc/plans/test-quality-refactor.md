@@ -44,3 +44,12 @@ files in `scripts/` (126 tests). Baseline ids/timings: scratchpad `tests/baselin
 
 ## Open (owner decisions / follow-ups, not done here)
 See `.omc/handoffs/test-quality.md` §Open (seams, owner decisions) and §Cross-cutting facts.
+
+## Rounds 2–3 (2026-08-29/30) — mutation testing and the production-level pass
+- [x] Stryker installed (`pnpm mutation <pkg>`), core 69.4 % → 91.9 % (kill-pass) → 98.3 % adjusted
+  after audits; accepted mutants live in `scripts/mutation/accepted.json`, audited by hand-application.
+- [x] CI 12 → 4 jobs; gate-e env leak fixed; perf gate replaced by deterministic invariants.
+- [x] Round 3: every core test file re-reviewed against the manifest; blockers fixed; `tests/setup.ts`.
+- [ ] Open: `__DEV__: false` mutation/test profile for prod `E_*` codes; `TF_HAS_*` dead writes;
+  CLI/vite-plugin emitter divergence; `sync-peer-ranges` root bug; shared `as never` helper;
+  mutation pass on fetch-loader / editor / cli / locale-detector.

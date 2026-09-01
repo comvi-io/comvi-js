@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { createI18n } from "../../src";
 import { createI18n as createFullI18n } from "../../src/core/full";
 import { clearTemplateCache, isStaticTemplate } from "../../src/core/translate";
@@ -7,7 +7,9 @@ import {
   _resetSyntaxExtensions,
   effectiveExtBits,
   getCompilerId,
+  registerSyntaxExtension,
 } from "../../src/core/translate/syntax";
+import { MARK, makeMarkExtension } from "../helpers/extensions";
 
 // `isStatic` gates the fast path that returns the RAW template, so a template whose parse
 // collapses quoting must never be marked static (keying is pinned by compiler-isolation).
@@ -17,6 +19,10 @@ const baseVariant = () => [getCompilerId(simpleCompiler), effectiveExtBits()] as
 beforeEach(() => {
   _resetSyntaxExtensions();
   clearTemplateCache();
+});
+
+afterEach(() => {
+  _resetSyntaxExtensions();
 });
 
 describe("isStaticTemplate()", () => {
@@ -54,6 +60,28 @@ describe("isStaticTemplate()", () => {
     const isStatic = isStaticTemplate("Hi {name}", false, compilerId, extBits);
 
     expect(isStatic).toBe(false);
+  });
+});
+
+describe("a template consumed whole by a syntax extension", () => {
+  // `payload: "source"` is the whole point: the token carries text byte-equal to
+  // the template, which static detection must not read as "rendered unchanged".
+  const sourceEchoingExtension = makeMarkExtension({
+    id: "source-echo",
+    cacheBit: 4,
+    result: "X",
+    payload: "source",
+  });
+
+  it("renders through the extension when the token's payload equals the template", () => {
+    registerSyntaxExtension(sourceEchoingExtension);
+    const i18n = createI18n({ locale: "en", translation: { en: { mark: MARK } } });
+    const [compilerId, extBits] = baseVariant();
+
+    const rendered = i18n.t("mark" as never);
+
+    expect(rendered).toBe("X");
+    expect(isStaticTemplate(MARK, false, compilerId, extBits)).toBe(false);
   });
 });
 

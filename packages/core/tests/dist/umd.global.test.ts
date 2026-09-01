@@ -92,10 +92,15 @@ function loadBrowserUmd(): { ComviCore: ComviCoreGlobal; sandbox: UmdSandbox } {
   return { ComviCore: loadUmdIn(sandbox), sandbox };
 }
 
+// The published namespace is immutable, so the membership table below shares
+// one evaluation of the bundle instead of re-running the IIFE per row.
+let published: ComviCoreGlobal;
+
 beforeAll(() => {
   if (!fs.existsSync(UMD)) {
     throw new Error("dist is missing — run `pnpm --filter @comvi/core build` before the tests");
   }
+  published = loadUmd();
 });
 
 describe("UMD global build (A12)", () => {
@@ -110,9 +115,7 @@ describe("UMD global build (A12)", () => {
     ["TranslationCache", "function"],
     ["translationResultToString", "function"],
   ])("publishes %s on the context global, typeof %s", (member, kind) => {
-    const ComviCore = loadUmd();
-
-    expect(typeof ComviCore[member as keyof typeof ComviCore]).toBe(kind);
+    expect(typeof published[member as keyof ComviCoreGlobal]).toBe(kind);
   });
 
   it("constructs, loads, translates, switches locale and destroys in order", async () => {

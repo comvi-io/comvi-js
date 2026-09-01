@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { I18n } from "../helpers/composedHost";
 
-describe("Initialization & Configuration", () => {
+describe("new I18n(options) — option validation", () => {
   it.each([
     ["omitted", {}],
     ["an empty string", { locale: "" }],
@@ -14,8 +14,78 @@ describe("Initialization & Configuration", () => {
       /Translation is not an object|E_TRANSLATION_NOT_OBJECT/,
     );
   });
+});
 
-  it("calling init() twice re-executes plugins and emits initialized again", async () => {
+describe("new I18n(options) — initial translations", () => {
+  it("should accept initial translations", () => {
+    const i18n = new I18n({
+      locale: "en",
+      translation: {
+        en: { key: "Value" },
+      },
+    });
+
+    expect(i18n.t("key")).toBe("Value");
+  });
+
+  it("should flatten nested keys in initial translations", () => {
+    const i18n = new I18n({
+      locale: "en",
+      translation: {
+        en: {
+          nested: {
+            deep: "Value",
+          },
+        },
+      },
+    });
+
+    expect(i18n.t("nested.deep")).toBe("Value");
+  });
+
+  it("normalizes an already-flat catalog into a prototype-less one, leaving the input untouched", () => {
+    const flatTranslations = {
+      "nested.deep": "Original",
+    };
+
+    const i18n = new I18n({
+      locale: "en",
+      translation: {
+        en: flatTranslations,
+      },
+    });
+
+    expect(Object.getPrototypeOf(flatTranslations)).toBe(Object.prototype);
+    expect(i18n.t("nested.deep")).toBe("Original");
+    expect(i18n.hasTranslation("toString")).toBe(false);
+    expect(i18n.t("toString")).toBe("toString");
+  });
+
+  it("falls back to copying frozen flat initial translations, so a later merge still works (sequence)", () => {
+    const flatTranslations = Object.freeze({
+      "nested.deep": "Frozen",
+    });
+
+    const i18n = new I18n({
+      locale: "en",
+      translation: {
+        en: flatTranslations,
+      },
+    });
+
+    expect(Object.getPrototypeOf(flatTranslations)).toBe(Object.prototype);
+    expect(i18n.t("nested.deep")).toBe("Frozen");
+    // A COPY, not the frozen object itself — otherwise the merge below throws.
+    expect(i18n.getTranslations()).not.toBe(flatTranslations);
+
+    i18n.addTranslations({ en: { extra: "X" } });
+
+    expect(i18n.t("extra")).toBe("X");
+  });
+});
+
+describe("init()", () => {
+  it("calling init() twice re-executes plugins and emits initialized again (sequence)", async () => {
     const pluginSpy = vi.fn();
     const initCallback = vi.fn();
 
@@ -59,26 +129,6 @@ describe("Initialization & Configuration", () => {
     expect(cleanupOrder).toEqual(["cleanup-2", "cleanup-1"]);
   });
 
-  it("rejects init() after destroy() and requires a new instance", async () => {
-    const plugin = vi.fn((i18n: I18n) => {
-      i18n.registerLoader(async (lang, ns) => ({ key: `${lang}:${ns}` }));
-    });
-
-    const i18n = new I18n({ locale: "en", ns: [] });
-    i18n.use(plugin);
-
-    await i18n.init();
-    await i18n.addActiveNamespace("common");
-    expect(i18n.t("key", { ns: "common" })).toBe("en:common");
-
-    await i18n.destroy();
-
-    expect(i18n.isInitialized).toBe(false);
-    expect(i18n.getLoader()).toBeUndefined();
-    await expect(i18n.init()).rejects.toThrow(/destroy|E_INSTANCE_DESTROYED/);
-    expect(plugin).toHaveBeenCalledTimes(1);
-  });
-
   it("should use 'default' namespace when none specified", async () => {
     const i18n = new I18n({ locale: "en" });
     await i18n.init();
@@ -86,81 +136,6 @@ describe("Initialization & Configuration", () => {
     i18n.addTranslations({ "en:default": { testKey: "Found It" } });
 
     expect(i18n.t("testKey")).toBe("Found It");
-  });
-
-  it("should accept initial translations", () => {
-    const i18n = new I18n({
-      locale: "en",
-      translation: {
-        en: { key: "Value" },
-      },
-    });
-    expect(i18n.t("key")).toBe("Value");
-  });
-
-  it("should accept already-flat initial translations", () => {
-    const i18n = new I18n({
-      locale: "en",
-      translation: {
-        en: {
-          "nested.deep": "Value",
-        },
-      },
-    });
-
-    expect(i18n.t("nested.deep")).toBe("Value");
-  });
-
-  it("should flatten nested keys in initial translations", () => {
-    const i18n = new I18n({
-      locale: "en",
-      translation: {
-        en: {
-          nested: {
-            deep: "Value",
-          },
-        },
-      },
-    });
-    expect(i18n.t("nested.deep")).toBe("Value");
-  });
-
-  it("normalizes already-flat initial translations without mutating the input", () => {
-    const flatTranslations = {
-      "nested.deep": "Original",
-    };
-
-    const i18n = new I18n({
-      locale: "en",
-      translation: {
-        en: flatTranslations,
-      },
-    });
-
-    expect(Object.getPrototypeOf(flatTranslations)).toBe(Object.prototype);
-    expect(i18n.t("nested.deep")).toBe("Original");
-    expect(i18n.hasTranslation("toString")).toBe(false);
-    expect(i18n.t("toString")).toBe("toString");
-  });
-
-  it("falls back to copying frozen flat initial translations", () => {
-    const flatTranslations = Object.freeze({
-      "nested.deep": "Frozen",
-    });
-
-    const i18n = new I18n({
-      locale: "en",
-      translation: {
-        en: flatTranslations,
-      },
-    });
-
-    expect(Object.getPrototypeOf(flatTranslations)).toBe(Object.prototype);
-    expect(i18n.t("nested.deep")).toBe("Frozen");
-    // A COPY, not the frozen object itself — otherwise the merge below throws.
-    expect(i18n.getTranslations()).not.toBe(flatTranslations);
-    i18n.addTranslations({ en: { extra: "X" } });
-    expect(i18n.t("extra")).toBe("X");
   });
 
   it("should load initial namespaces during init()", async () => {
@@ -247,5 +222,19 @@ describe("Initialization & Configuration", () => {
 
     expect(loaderCalls).toEqual(["en:common"]);
     expect(i18n.t("key")).toBe("Value");
+  });
+});
+
+describe("init() after destroy()", () => {
+  it("rejects and does not re-run the plugins", async () => {
+    const plugin = vi.fn();
+    const i18n = new I18n({ locale: "en", ns: [] });
+    i18n.use(plugin);
+    await i18n.init();
+    await i18n.destroy();
+
+    await expect(i18n.init()).rejects.toThrow(/destroy|E_INSTANCE_DESTROYED/);
+
+    expect(plugin).toHaveBeenCalledTimes(1);
   });
 });

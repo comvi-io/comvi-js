@@ -4,7 +4,7 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { createI18n } from "../../src";
 import { icu, icuCompiler } from "../../src/icu";
 import { attachLoader } from "../../src/loader";
-import { clearTemplateCache, _templateCacheSize } from "../../src/core/translate";
+import { clearTemplateCache } from "../../src/core/translate";
 import { countingCompiler } from "../helpers/compilers";
 
 /**
@@ -117,7 +117,9 @@ describe("compiler lock — every ingestion seam locks, irreversibly", () => {
 
     // The lock is the FIRST statement of the ingestion seam, before the dev
     // preflight can throw — so a REJECTED catalog cannot reopen the compiler.
-    expect(() => i18n.addTranslations({ en: { items: PLURAL } })).toThrow(/E_ICU_SYNTAX|ICU/);
+    expect(() => i18n.addTranslations({ en: { items: PLURAL } })).toThrow(
+      expect.objectContaining({ code: "E_ICU_SYNTAX", argumentType: "plural" }),
+    );
     expectLocked(() => i18n.with(icu()));
   });
 
@@ -154,16 +156,23 @@ describe("compiler lock — the cache contract it buys", () => {
   });
 
   it("templates stay keyed per compiler id — two hosts, one string, two semantics", () => {
-    const before = _templateCacheSize();
+    const custom = countingCompiler();
 
-    const simple = createI18n({ locale: "en", translation: { en: { plain: "a {x} b" } } });
+    const customHost = createI18n({
+      locale: "en",
+      compiler: custom.compiler,
+      translation: { en: { plain: "a {x} b" } },
+    });
     const icuHost = createI18n({ locale: "en" }).with(icu());
     icuHost.addTranslations({ en: { plain: "a {x} b" } });
 
-    expect(simple.t("plain" as never, { x: 1 } as never)).toBe("a 1 b");
+    // The ICU host compiles the shared string FIRST. One entry keyed on the
+    // string alone would then be handed to the custom host, which would render
+    // "a 1 b" without ever parsing.
     expect(icuHost.t("plain" as never, { x: 1 } as never)).toBe("a 1 b");
-    // One template string, two compiler ids ⇒ two independent cache entries.
-    expect(_templateCacheSize()).toBe(before + 2);
+
+    expect(customHost.t("plain" as never, { x: 1 } as never)).toBe("a «x» b");
+    expect(custom.parses()).toBe(1);
   });
 
   it("a swap on one host never evicts, clears or rekeys another host's entry", () => {
@@ -217,6 +226,6 @@ describe("compiler lock — ordering against the loader", () => {
     i18n.registerLoader(async () => ({ hi: "Hi" }));
     await i18n.init();
 
-    expect(() => i18n.with(icu())).toThrow(/E_COMPILER_LOCKED|catalog was ingested/);
+    expectLocked(() => i18n.with(icu()));
   });
 });

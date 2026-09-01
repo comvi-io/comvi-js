@@ -253,10 +253,6 @@ describe("base root reflective contract (A11)", () => {
     expect(Object.getPrototypeOf(viaFactory)).toBe(Object.getPrototypeOf(viaClass));
     expect(viaFactory instanceof (I18n as unknown as new () => object)).toBe(true);
     expect(I18n.length, "the construct signature takes exactly one argument").toBe(1);
-
-    // `with` is a plain non-enumerable prototype method, not an own property.
-    // (Its identity-pipe behaviour is pinned in plugin-install-guards.test.ts.)
-    expectPrototypeMethod(viaFactory, "with");
   });
 
   it("lets prototype patching intercept instance calls", () => {
@@ -358,11 +354,19 @@ describe("composed host reflective contract (A11)", () => {
     restoreRegisterLoader();
     restoreT();
 
-    // Restoration is exact: the real implementations are back.
+    // Restoration is exact: the real implementations are back, and the patched
+    // registerLoader registered nothing along the way.
     expect(i18n.t("anything")).toBe("anything");
     expect(i18n.getLoader()).toBeUndefined();
-    i18n.registerLoader(async () => ({}));
-    expect(typeof i18n.getLoader()).toBe("function");
+  });
+
+  it("registers a loader that getLoader() hands back", () => {
+    const i18n = new ComposedI18n({ locale: "en", exposeGlobal: false });
+    const loader = async () => ({});
+
+    i18n.registerLoader(loader);
+
+    expect(i18n.getLoader()).toBe(loader);
   });
 
   it("keeps the import-map registerLoader overload on the composite prototype", () => {

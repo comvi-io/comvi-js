@@ -73,20 +73,25 @@ describe("namespace-load error reports", () => {
     );
   });
 
-  it("counts the failures against the attempted namespaces when only some fail", async () => {
+  it("keeps the successful namespace and counts the failures against the attempted ones", async () => {
     const onError = vi.fn();
     const i18n = makeHost(onError);
     i18n.registerLoader(async (_locale, namespace) => {
       if (namespace === "bad") throw new Error("network down");
-      return { key: "value" };
+      return { key: `${namespace}-value` };
     });
 
     await i18n.addActiveNamespaces(["good", "bad"]);
 
+    expect(i18n.t("key", { ns: "good" })).toBe("good-value");
+    expect(i18n.t("key", { ns: "bad" })).toBe("key");
     expect(onError).toHaveBeenCalledTimes(1);
-    expect(onError.mock.calls[0]![0]).toMatchObject({
-      message: '[i18n] Partial namespace load failure for "en": 1/2 failed (bad)',
-    });
+    expect(onError).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: '[i18n] Partial namespace load failure for "en": 1/2 failed (bad)',
+      }),
+      { source: "namespace-load", locale: "en", namespace: "bad" },
+    );
   });
 });
 

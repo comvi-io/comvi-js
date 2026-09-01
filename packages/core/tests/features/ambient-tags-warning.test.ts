@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { createI18n } from "../../src";
 import { clearTemplateCache } from "../../src/core/translate";
 import { _resetSyntaxExtensions, registerSyntaxExtension } from "../../src/core/translate/syntax";
+import { _resetTagWarnings } from "../../src/core/translate/parser";
 import { tagSyntaxExtension } from "../../src/core/translate/tags";
 
 /**
@@ -18,14 +19,8 @@ import { tagSyntaxExtension } from "../../src/core/translate/tags";
  * claims `<`. The production side is pinned on the built artifacts.
  */
 
-/**
- * A fresh tag template per case. The dedupe is module-global and has no reset
- * seam, so uniqueness has to come from the template string itself; deriving it
- * from the test name keeps that independent of execution order.
- */
-function tagTemplate(variant = ""): string {
-  return `click <b>here</b> now #${expect.getState().currentTestName}${variant}`;
-}
+const TAG_TEMPLATE = "click <b>here</b> now";
+const OTHER_TAG_TEMPLATE = "read <i>this</i> too";
 
 let warnSpy: ReturnType<typeof vi.spyOn>;
 
@@ -39,39 +34,41 @@ function tagWarnings(): string[] {
 beforeEach(() => {
   _resetSyntaxExtensions();
   clearTemplateCache();
+  // The dedupe set is module-global; without this reset the second file-level
+  // use of a template would silently expect zero warnings.
+  _resetTagWarnings();
   warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 });
 
 describe("unclaimed tag syntax — the development warning", () => {
   it("warns ONCE per template and names both fixes", () => {
-    const template = tagTemplate();
-    const i18n = createI18n({ locale: "en", translation: { en: { rich: template } } });
+    const i18n = createI18n({ locale: "en", translation: { en: { rich: TAG_TEMPLATE } } });
 
+    const first = i18n.t("rich" as never);
     i18n.t("rich" as never);
-    i18n.t("rich" as never);
-    i18n.t("rich" as never);
+    const third = i18n.t("rich" as never);
 
-    expect(i18n.t("rich" as never)).toBe(template);
+    expect(first).toBe(TAG_TEMPLATE);
+    expect(third).toBe(TAG_TEMPLATE);
     const warnings = tagWarnings();
     expect(warnings).toHaveLength(1);
     // BOTH prescribed fixes: which one applies depends on whether the caller is
     // rendering a component or a string.
     expect(warnings[0]).toContain("<T>");
     expect(warnings[0]).toContain("@comvi/core/tags");
-    expect(warnings[0]).toContain(template);
+    expect(warnings[0]).toContain(TAG_TEMPLATE);
   });
 
   it("warns per TEMPLATE, not per instance or per key", () => {
-    const template = tagTemplate();
-    const first = createI18n({ locale: "en", translation: { en: { a: template } } });
-    const second = createI18n({ locale: "en", translation: { en: { b: template } } });
+    const first = createI18n({ locale: "en", translation: { en: { a: TAG_TEMPLATE } } });
+    const second = createI18n({ locale: "en", translation: { en: { b: TAG_TEMPLATE } } });
 
     first.t("a" as never);
     second.t("b" as never);
     expect(tagWarnings()).toHaveLength(1);
 
     // A DIFFERENT template warns again — the dedupe is not a global latch.
-    second.addTranslations({ en: { c: tagTemplate(" second") } });
+    second.addTranslations({ en: { c: OTHER_TAG_TEMPLATE } });
     second.t("c" as never);
     expect(tagWarnings()).toHaveLength(2);
   });
@@ -135,8 +132,7 @@ describe("unclaimed tag syntax — the development warning", () => {
     // The extension claims the position, so the parser never reaches the
     // unclaimed branch the warning lives in.
     registerSyntaxExtension(tagSyntaxExtension);
-    const template = tagTemplate();
-    const i18n = createI18n({ locale: "en", translation: { en: { rich: template } } });
+    const i18n = createI18n({ locale: "en", translation: { en: { rich: TAG_TEMPLATE } } });
 
     const rendered = i18n.t(
       "rich" as never,
@@ -145,14 +141,14 @@ describe("unclaimed tag syntax — the development warning", () => {
 
     // The markup is GONE from the output — proof the extension claimed `<`
     // rather than the warning branch seeing it.
-    expect(rendered).toBe(template.replace("<b>", "").replace("</b>", ""));
+    expect(rendered).toBe("click here now");
     expect(tagWarnings()).toEqual([]);
   });
 
   it("stays silent when the extension arrives per call instead of ambiently", () => {
     const i18n = createI18n({
       locale: "en",
-      translation: { en: { rich: tagTemplate() } },
+      translation: { en: { rich: TAG_TEMPLATE } },
       tagInterpolation: { extensions: [tagSyntaxExtension] },
     });
 

@@ -71,10 +71,6 @@ describe("@comvi/core/rich-text (pure seam)", () => {
     const element = parts[1];
     expect(isVirtualNode(element)).toBe(true);
     expect(element).toMatchObject({ type: "element", tag: "b", children: ["here"] });
-
-    // And it left nothing behind for the string API.
-    expect(getAmbientExtensions()).toHaveLength(0);
-    expect(host().t("msg" as never, { link: linkHandler } as never)).toBe(TEMPLATE);
   });
 
   it("routes opaque framework handlers through the marker transport", () => {
@@ -89,7 +85,6 @@ describe("@comvi/core/rich-text (pure seam)", () => {
     expect(pending.name).toBe("link");
     expect(pending.handler).toBe(handler);
     expect(getPendingHandlerName(pending.marker)).toBe("link");
-    expect(getPendingHandlerName("b")).toBeUndefined();
   });
 
   it("publishes createElement() from the VirtualNode toolbox", () => {

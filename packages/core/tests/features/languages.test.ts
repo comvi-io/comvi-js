@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import { I18n } from "../../src";
 
 describe("i18n.locale setter", () => {
-  it("should switch locale and use new translations", () => {
+  it("should switch locale and use new translations (sequence)", () => {
     const i18n = new I18n({ locale: "en" });
     i18n.addTranslations({
       en: { hello: "Hello" },
@@ -63,7 +63,7 @@ describe("fallbackLocale resolution", () => {
     expect(i18n.t("greeting")).toBe("greeting");
   });
 
-  it("should use updated fallback chain after setFallbackLocale() at runtime", () => {
+  it("should use updated fallback chain after each setFallbackLocale() at runtime (sequence)", () => {
     const i18n = new I18n({ locale: "de" });
     i18n.addTranslations({
       en: { greeting: "Hello" },

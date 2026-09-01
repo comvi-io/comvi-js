@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { I18n } from "../../src/core/i18n";
-import { clearTemplateCache, _templateCacheSize } from "../../src/core/translate";
+import { clearTemplateCache } from "../../src/core/translate";
 import { icuCompiler } from "../../src/core/translate/compile-icu";
 import { simpleCompiler } from "../../src/core/translate/compile-simple";
 import {
@@ -8,7 +8,7 @@ import {
   getCompilerId,
   type MessageCompiler,
 } from "../../src/core/translate/syntax";
-import { markerCompiler } from "../helpers/compilers";
+import { countingCompiler } from "../helpers/compilers";
 
 const PLURAL_TEMPLATE = "{count, plural, one {# item} other {# items}}";
 
@@ -34,7 +34,7 @@ describe("compiler isolation in the shared template cache", () => {
 
     expect(icu.t("items" as never, { count: 2 } as never)).toBe("2 items");
     expect(() => simple.addTranslations({ en: { items: PLURAL_TEMPLATE } })).toThrow(
-      /E_ICU_SYNTAX|ICU/,
+      expect.objectContaining({ code: "E_ICU_SYNTAX", argumentType: "plural" }),
     );
     // The failed parse inserted nothing, and the ICU instance is untouched.
     expect(icu.t("items" as never, { count: 1 } as never)).toBe("1 item");
@@ -51,20 +51,25 @@ describe("compiler isolation in the shared template cache", () => {
   });
 
   it("a third user-injected compiler gets a WeakMap id >= 3 and its own cache variants", () => {
-    const injectedId = getCompilerId(markerCompiler);
+    const custom = countingCompiler();
+    const injectedId = getCompilerId(custom.compiler);
     expect(injectedId).toBeGreaterThanOrEqual(3);
-    expect(getCompilerId(markerCompiler)).toBe(injectedId);
+    expect(getCompilerId(custom.compiler)).toBe(injectedId);
 
     const icu = makeInstance(icuCompiler);
-    const injected = makeInstance(markerCompiler);
+    const injected = makeInstance(custom.compiler);
 
-    const before = _templateCacheSize();
+    // The ICU host compiles the shared string first: a cache keyed on the string
+    // alone would serve THAT entry here, and the custom compiler would render
+    // "2 items" without ever parsing.
     expect(icu.t("items" as never, { count: 2 } as never)).toBe("2 items");
     expect(injected.t("items" as never, { count: 2 } as never)).toBe("«count»");
-    // Two compilers → two distinct cache entries for one template string.
-    expect(_templateCacheSize()).toBe(before + 2);
+    expect(custom.parses()).toBe(1);
 
+    // And back again, each from its own entry — neither re-parsed, neither
+    // rekeyed by the other.
     expect(icu.t("items" as never, { count: 1 } as never)).toBe("1 item");
     expect(injected.t("items" as never, { count: 1 } as never)).toBe("«count»");
+    expect(custom.parses()).toBe(1);
   });
 });

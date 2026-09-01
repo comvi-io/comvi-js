@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { I18n } from "../helpers/composedHost";
 
-describe("strict / devMode options", () => {
+describe("the devMode option", () => {
   it.each([true, false])("exposes devMode=%s to plugins", async (devMode) => {
     let pluginDevModeValue: boolean | undefined;
 
@@ -15,7 +15,9 @@ describe("strict / devMode options", () => {
 
     expect(pluginDevModeValue).toBe(devMode);
   });
+});
 
+describe("the strict option", () => {
   it("strict mode logs warnings for missing keys via console.warn", () => {
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
     const i18n = new I18n({ locale: "en", strict: "dev" });

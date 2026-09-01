@@ -17,9 +17,17 @@ const realInstance = async () => {
   return i18n;
 };
 
+/** An `on()`-only source that records what was subscribed and keeps each handler callable. */
+const recordingSource = (subscribed: I18nEvent[], handlers: Map<I18nEvent, () => void>) => ({
+  on(event: I18nEvent, callback: (data: never) => void) {
+    subscribed.push(event);
+    handlers.set(event, callback as () => void);
+    return () => handlers.delete(event);
+  },
+});
+
 describe("subscribeToRevision", () => {
   it("covers the canonical 7-event set", () => {
-    expect(REVISION_EVENTS).toHaveLength(7);
     expect([...REVISION_EVENTS].sort()).toEqual([
       "configChanged",
       "defaultNamespaceChanged",
@@ -31,24 +39,23 @@ describe("subscribeToRevision", () => {
     ]);
   });
 
-  it("subscribes the callback to every canonical event and forwards each event name", () => {
+  it("subscribes the callback to every canonical event", () => {
     const subscribed: I18nEvent[] = [];
-    const received: RevisionEvent[] = [];
-    const handlers = new Map<I18nEvent, () => void>();
+    const source = recordingSource(subscribed, new Map());
 
-    const source = {
-      on(event: I18nEvent, callback: (data: never) => void) {
-        subscribed.push(event);
-        handlers.set(event, callback as () => void);
-        return () => handlers.delete(event);
-      },
-    };
-
-    subscribeToRevision(source, (event) => received.push(event));
+    subscribeToRevision(source, () => {});
 
     expect([...subscribed].sort()).toEqual([...REVISION_EVENTS].sort());
+  });
+
+  it("forwards each event name to the callback", () => {
+    const handlers = new Map<I18nEvent, () => void>();
+    const received: RevisionEvent[] = [];
+    const source = recordingSource([], handlers);
+    subscribeToRevision(source, (event) => received.push(event));
 
     for (const event of REVISION_EVENTS) handlers.get(event)?.();
+
     expect([...received].sort()).toEqual([...REVISION_EVENTS].sort());
   });
 

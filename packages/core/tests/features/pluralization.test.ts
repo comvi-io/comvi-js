@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { I18n } from "../helpers/composedHost";
 
-describe("Advanced Pluralization Features", () => {
-  describe("Standard English Pluralization (one/other)", () => {
+describe("t() with ICU plural", () => {
+  describe("English (one/other)", () => {
     let i18n: I18n;
 
     beforeEach(() => {
@@ -37,7 +37,7 @@ describe("Advanced Pluralization Features", () => {
 
   // Why these counts: Ukrainian one = ends in 1 except 11; few = ends in 2-4
   // except 12-14; many = 0, 5-9 and 11-14; other = fractions only.
-  describe("Ukrainian Pluralization (one/few/many/other)", () => {
+  describe("Ukrainian (one/few/many/other)", () => {
     let i18n: I18n;
 
     beforeEach(() => {
@@ -75,7 +75,7 @@ describe("Advanced Pluralization Features", () => {
     });
   });
 
-  describe("Plural Formatting Edge Cases", () => {
+  describe("edge cases", () => {
     let i18n: I18n;
 
     beforeEach(() => {
@@ -88,6 +88,7 @@ describe("Advanced Pluralization Features", () => {
           change: "{count, plural, =0 {no change} one {# change} other {# changes}}",
         },
       });
+
       expect(i18n.t("change", { count: -1 })).toBe("-1 change");
       expect(i18n.t("change", { count: -2 })).toBe("-2 changes");
     });
@@ -139,7 +140,7 @@ describe("Advanced Pluralization Features", () => {
     });
   });
 
-  describe("Nested plurals", () => {
+  describe("nested plurals", () => {
     let i18n: I18n;
 
     beforeEach(() => {

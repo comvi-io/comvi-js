@@ -97,6 +97,24 @@ export function formatRelativeTime(
 
 const textDirectionCache = new Map<string, "ltr" | "rtl">();
 
+/** @internal Test probe: entries across the formatter and text-direction caches. */
+export function _formatterCacheSize(): number {
+  return (
+    numberFormatCache.size +
+    dateFormatCache.size +
+    relativeTimeFormatCache.size +
+    textDirectionCache.size
+  );
+}
+
+/** @internal Test teardown. */
+export function _resetFormatterCaches(): void {
+  numberFormatCache.clear();
+  dateFormatCache.clear();
+  relativeTimeFormatCache.clear();
+  textDirectionCache.clear();
+}
+
 /**
  * Text direction for a locale, for an HTML `dir` attribute or CSS logical
  * properties. `Intl.Locale.textInfo` (ES2023+) is the authoritative source —

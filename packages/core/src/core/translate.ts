@@ -181,6 +181,11 @@ const EMPTY_PARAMS: TranslationParams = Object.freeze({});
 /** Dev-only dedup of missing-parameter warnings per (template, param) pair. */
 const missingParamWarned = IS_DEV ? new Set<string>() : undefined;
 
+/** @internal Test teardown: forgets which (template, param) pairs already warned. */
+export function _resetMissingParamWarnings(): void {
+  missingParamWarned?.clear();
+}
+
 /**
  * Literal rendering of a missing (absent or `undefined`) parameter under
  * `missingParam: "literal"`; warns once per (template, param) pair in dev.

@@ -25,7 +25,7 @@
       "snippet": "private _primaryTranslationsNamespace: string = \"\";",
       "lineHint": 200,
       "kind": "equivalent",
-      "reason": "same seed \u2014 unreadable before the first recompute overwrites it."
+      "reason": "same seed — unreadable before the first recompute overwrites it."
     },
     {
       "package": "packages/core",
@@ -43,7 +43,7 @@
       "snippet": "if (currentCallbacks.size === 0) {",
       "lineHint": 391,
       "kind": "equivalent",
-      "reason": "keeping the drained Set is unobservable \u2014 `_emit` over an empty Set calls nothing."
+      "reason": "keeping the drained Set is unobservable — `_emit` over an empty Set calls nothing."
     },
     {
       "package": "packages/core",
@@ -61,7 +61,7 @@
       "snippet": "if (translations !== undefined) {",
       "lineHint": 630,
       "kind": "equivalent",
-      "reason": "as above \u2014 falling through to `_translate` yields the same string."
+      "reason": "as above — falling through to `_translate` yields the same string."
     },
     {
       "package": "packages/core",
@@ -70,7 +70,7 @@
       "snippet": "false,",
       "lineHint": 637,
       "kind": "equivalent",
-      "reason": "`true` probes the stricter \"# is syntax\" parse variant, which is static only where this one is too \u2014 the fast path can be skipped, never wrongly taken."
+      "reason": "`true` probes the stricter \"# is syntax\" parse variant, which is static only where this one is too — the fast path can be skipped, never wrongly taken."
     },
     {
       "package": "packages/core",
@@ -88,7 +88,7 @@
       "snippet": "if (!IS_DEV && icuHit !== undefined) {",
       "lineHint": 728,
       "kind": "gap:prod-build",
-      "reason": "production-only \u2014 `icuHit` stays undefined whenever __DEV__ is true (compile-simple.ts), so both variants evaluate false exactly like the original."
+      "reason": "production-only — `icuHit` stays undefined whenever __DEV__ is true (compile-simple.ts), so both variants evaluate false exactly like the original."
     },
     {
       "package": "packages/core",
@@ -97,7 +97,7 @@
       "snippet": "if (!IS_DEV && icuHit !== undefined) {",
       "lineHint": 750,
       "kind": "gap:prod-build",
-      "reason": "production-only \u2014 `icuHit` stays undefined whenever __DEV__ is true (compile-simple.ts), so both variants evaluate false exactly like the original."
+      "reason": "production-only — `icuHit` stays undefined whenever __DEV__ is true (compile-simple.ts), so both variants evaluate false exactly like the original."
     },
     {
       "package": "packages/core",
@@ -106,7 +106,7 @@
       "snippet": "if (!IS_DEV && icuHit !== undefined) {",
       "lineHint": 769,
       "kind": "gap:prod-build",
-      "reason": "production-only \u2014 `icuHit` stays undefined whenever __DEV__ is true (compile-simple.ts), so both variants evaluate false exactly like the original."
+      "reason": "production-only — `icuHit` stays undefined whenever __DEV__ is true (compile-simple.ts), so both variants evaluate false exactly like the original."
     },
     {
       "package": "packages/core",
@@ -124,7 +124,7 @@
       "snippet": "IS_DEV ? `[i18n] registerLoader: no entry for \"${key}\"` : \"E_REGISTER_LOADER_ENTRY\",",
       "lineHint": 41,
       "kind": "gap:prod-build",
-      "reason": "prod-only branch. This build defines __DEV__ true, so the `: \"E_\u2026\"` arm is unreachable; the shipped code is what the dual-build regexes in tests/features assert."
+      "reason": "prod-only branch. This build defines __DEV__ true, so the `: \"E_…\"` arm is unreachable The production error code itself is asserted by NO test in this package (the six dev|prod alternation regexes only match the dev text) — closing this needs a __DEV__:false test project or dist-level assertions on the E_ codes."
     },
     {
       "package": "packages/core",
@@ -142,7 +142,7 @@
       "snippet": ": \"E_NO_LOADER_REGISTERED\";",
       "lineHint": 48,
       "kind": "gap:prod-build",
-      "reason": "prod-only branch. This build defines __DEV__ true, so the `: \"E_\u2026\"` arm is unreachable; the shipped code is what the dual-build regexes in tests/features assert."
+      "reason": "prod-only branch. This build defines __DEV__ true, so the `: \"E_…\"` arm is unreachable The production error code itself is asserted by NO test in this package (the six dev|prod alternation regexes only match the dev text) — closing this needs a __DEV__:false test project or dist-level assertions on the E_ codes."
     },
     {
       "package": "packages/core",
@@ -151,7 +151,7 @@
       "snippet": ": \"E_FAILED_RELOAD_TRANSLATIONS\";",
       "lineHint": 52,
       "kind": "gap:prod-build",
-      "reason": "prod-only branch. This build defines __DEV__ true, so the `: \"E_\u2026\"` arm is unreachable; the shipped code is what the dual-build regexes in tests/features assert."
+      "reason": "prod-only branch. This build defines __DEV__ true, so the `: \"E_…\"` arm is unreachable The production error code itself is asserted by NO test in this package (the six dev|prod alternation regexes only match the dev text) — closing this needs a __DEV__:false test project or dist-level assertions on the E_ codes."
     },
     {
       "package": "packages/core",
@@ -160,7 +160,7 @@
       "snippet": ": \"E_REGISTER_LOADER_ARG\";",
       "lineHint": 56,
       "kind": "gap:prod-build",
-      "reason": "prod-only branch. This build defines __DEV__ true, so the `: \"E_\u2026\"` arm is unreachable; the shipped code is what the dual-build regexes in tests/features assert."
+      "reason": "prod-only branch. This build defines __DEV__ true, so the `: \"E_…\"` arm is unreachable The production error code itself is asserted by NO test in this package (the six dev|prod alternation regexes only match the dev text) — closing this needs a __DEV__:false test project or dist-level assertions on the E_ codes."
     },
     {
       "package": "packages/core",
@@ -169,7 +169,7 @@
       "snippet": "return new Error(\"E_PARTIAL_NAMESPACE_LOAD\");",
       "lineHint": 71,
       "kind": "gap:prod-build",
-      "reason": "prod-only branch. This build defines __DEV__ true, so the `: \"E_\u2026\"` arm is unreachable; the shipped code is what the dual-build regexes in tests/features assert."
+      "reason": "prod-only branch. This build defines __DEV__ true, so the `: \"E_…\"` arm is unreachable The production error code itself is asserted by NO test in this package (the six dev|prod alternation regexes only match the dev text) — closing this needs a __DEV__:false test project or dist-level assertions on the E_ codes."
     },
     {
       "package": "packages/core",
@@ -178,7 +178,7 @@
       "snippet": "return new Error(\"E_ALL_NAMESPACES_FAILED\");",
       "lineHint": 81,
       "kind": "gap:prod-build",
-      "reason": "prod-only branch. This build defines __DEV__ true, so the `: \"E_\u2026\"` arm is unreachable; the shipped code is what the dual-build regexes in tests/features assert."
+      "reason": "prod-only branch. This build defines __DEV__ true, so the `: \"E_…\"` arm is unreachable The production error code itself is asserted by NO test in this package (the six dev|prod alternation regexes only match the dev text) — closing this needs a __DEV__:false test project or dist-level assertions on the E_ codes."
     },
     {
       "package": "packages/core",
@@ -196,7 +196,7 @@
       "snippet": "this._loadNs(loc, namespacesToReload, false).catch((reason) => {",
       "lineHint": 286,
       "kind": "equivalent",
-      "reason": "equivalent. `skipLoaded` filters against the cache, and the loop above deleted every (locale, namespace) pair being reloaded before any load starts \u2014 nothing is left for `true` to skip."
+      "reason": "equivalent. `skipLoaded` filters against the cache, and the loop above deleted every (locale, namespace) pair being reloaded before any load starts — nothing is left for `true` to skip."
     },
     {
       "package": "packages/core",
@@ -223,7 +223,7 @@
       "snippet": ": \"E_REGISTER_LOCALE_DETECTOR\";",
       "lineHint": 34,
       "kind": "gap:prod-build",
-      "reason": "prod-only branch. This build defines __DEV__ true, so the `: \"E_\u2026\"` arm is unreachable; the shipped code is what the dual-build regexes in tests/features assert."
+      "reason": "prod-only branch. This build defines __DEV__ true, so the `: \"E_…\"` arm is unreachable The production error code itself is asserted by NO test in this package (the six dev|prod alternation regexes only match the dev text) — closing this needs a __DEV__:false test project or dist-level assertions on the E_ codes."
     },
     {
       "package": "packages/core",
@@ -250,7 +250,7 @@
       "snippet": ": \"E_PLUGIN_INIT_RETURN\";",
       "lineHint": 54,
       "kind": "gap:prod-build",
-      "reason": "prod-only branch. This build defines __DEV__ true, so the `: \"E_\u2026\"` arm is unreachable; the shipped code is what the dual-build regexes in tests/features assert."
+      "reason": "prod-only branch. This build defines __DEV__ true, so the `: \"E_…\"` arm is unreachable The production error code itself is asserted by NO test in this package (the six dev|prod alternation regexes only match the dev text) — closing this needs a __DEV__:false test project or dist-level assertions on the E_ codes."
     },
     {
       "package": "packages/core",
@@ -259,7 +259,7 @@
       "snippet": ": \"E_PLUGIN_INIT_TIMEOUT\",",
       "lineHint": 172,
       "kind": "gap:prod-build",
-      "reason": "prod-only branch. This build defines __DEV__ true, so the `: \"E_\u2026\"` arm is unreachable; the shipped code is what the dual-build regexes in tests/features assert."
+      "reason": "prod-only branch. This build defines __DEV__ true, so the `: \"E_…\"` arm is unreachable The production error code itself is asserted by NO test in this package (the six dev|prod alternation regexes only match the dev text) — closing this needs a __DEV__:false test project or dist-level assertions on the E_ codes."
     },
     {
       "package": "packages/core",
@@ -268,7 +268,7 @@
       "snippet": "IS_DEV ? `Plugin initialization failed: ${String(error)}` : \"E_PLUGIN_INIT_FAILED\",",
       "lineHint": 195,
       "kind": "gap:prod-build",
-      "reason": "prod-only branch. This build defines __DEV__ true, so the `: \"E_\u2026\"` arm is unreachable; the shipped code is what the dual-build regexes in tests/features assert."
+      "reason": "prod-only branch. This build defines __DEV__ true, so the `: \"E_…\"` arm is unreachable The production error code itself is asserted by NO test in this package (the six dev|prod alternation regexes only match the dev text) — closing this needs a __DEV__:false test project or dist-level assertions on the E_ codes."
     },
     {
       "package": "packages/core",
@@ -277,7 +277,7 @@
       "snippet": ": \"E_REGISTER_POST_PROCESSOR\",",
       "lineHint": 277,
       "kind": "gap:prod-build",
-      "reason": "prod-only branch. This build defines __DEV__ true, so the `: \"E_\u2026\"` arm is unreachable; the shipped code is what the dual-build regexes in tests/features assert."
+      "reason": "prod-only branch. This build defines __DEV__ true, so the `: \"E_…\"` arm is unreachable The production error code itself is asserted by NO test in this package (the six dev|prod alternation regexes only match the dev text) — closing this needs a __DEV__:false test project or dist-level assertions on the E_ codes."
     },
     {
       "package": "packages/core",
@@ -286,7 +286,7 @@
       "snippet": ": \"E_INSTALLER_NESTED_USE\",",
       "lineHint": 364,
       "kind": "gap:prod-build",
-      "reason": "prod-only branch. This build defines __DEV__ true, so the `: \"E_\u2026\"` arm is unreachable; the shipped code is what the dual-build regexes in tests/features assert."
+      "reason": "prod-only branch. This build defines __DEV__ true, so the `: \"E_…\"` arm is unreachable The production error code itself is asserted by NO test in this package (the six dev|prod alternation regexes only match the dev text) — closing this needs a __DEV__:false test project or dist-level assertions on the E_ codes."
     },
     {
       "package": "packages/core",
@@ -305,24 +305,6 @@
       "lineHint": 76,
       "kind": "equivalent",
       "reason": "findMatchingBraceEnd returns either -1 or an index past a closing brace (>= 2), so comparing it with +1 is never true."
-    },
-    {
-      "package": "packages/core",
-      "file": "src/core/translate/compile-icu.ts",
-      "mutators": ["BlockStatement", "LogicalOperator"],
-      "snippet": "if (i >= len || choicesStr.charCodeAt(i) !== OPEN_BRACE) {",
-      "lineHint": 111,
-      "kind": "equivalent",
-      "reason": "at the end of the list charCodeAt is NaN, so the second operand breaks anyway. Before any other character the tail cannot balance: choicesStr is sliced out of an already brace-balanced {\u2026} span and `'{'`/`'}'` are quote-skipped whatever hashIsSyntax says, so no unmatched `}` can appear \u2014 findMatchingBraceEnd returns -1 and the loop ends one guard later."
-    },
-    {
-      "package": "packages/core",
-      "file": "src/core/translate/compile-icu.ts",
-      "mutators": ["UnaryOperator"],
-      "snippet": "if (endIndex === -1) break;",
-      "lineHint": 124,
-      "kind": "equivalent",
-      "reason": "endIndex is either -1 or an index past a closing brace (>= 2), so comparing it with +1 is never true."
     },
     {
       "package": "packages/core",
@@ -349,7 +331,7 @@
       "snippet": ": \"E_INVALID_PLURAL_PARAM\",",
       "lineHint": 207,
       "kind": "gap:prod-build",
-      "reason": "production-only arm \u2014 this build defines __DEV__ as true, so the dev message above is the one that runs."
+      "reason": "production-only arm — this build defines __DEV__ as true, so the dev message above is the one that runs."
     },
     {
       "package": "packages/core",
@@ -358,7 +340,7 @@
       "snippet": "const choices = token[3] ?? parsePluralChoices(token[2], hashIsSyntax);",
       "lineHint": 246,
       "kind": "equivalent",
-      "reason": "token[3] is the map parsePluralChoices already built from token[2], and templateCacheKey (core/translate.ts) includes hashIsSyntax, so a cached SelectToken was parsed under exactly the value processSelect is handed \u2014 the re-parse yields an equal map."
+      "reason": "token[3] is the map parsePluralChoices already built from token[2], and templateCacheKey (core/translate.ts) includes hashIsSyntax, so a cached SelectToken was parsed under exactly the value processSelect is handed — the re-parse yields an equal map."
     },
     {
       "package": "packages/core",
@@ -367,7 +349,7 @@
       "snippet": "export function clearIcuHit(): void {",
       "lineHint": 39,
       "kind": "gap:prod-build",
-      "reason": "untested \u2014 production-only branch. The"
+      "reason": "untested — production-only branch. The"
     },
     {
       "package": "packages/core",
@@ -376,7 +358,7 @@
       "snippet": "if (!IS_DEV) {",
       "lineHint": 64,
       "kind": "gap:prod-build",
-      "reason": "untested \u2014 production-only branch,"
+      "reason": "untested — production-only branch,"
     },
     {
       "package": "packages/core",
@@ -412,7 +394,7 @@
       "snippet": "if (i < len && str.charCodeAt(i) === SLASH) {",
       "lineHint": 59,
       "kind": "equivalent",
-      "reason": "redundant fast path \u2014 falling through, `/` is rejected as a tag-name start character on the next check."
+      "reason": "redundant fast path — falling through, `/` is rejected as a tag-name start character on the next check."
     },
     {
       "package": "packages/core",
@@ -421,7 +403,7 @@
       "snippet": "return { endIndex: startIndex + 1, isTag: false };",
       "lineHint": 61,
       "kind": "equivalent",
-      "reason": "dead fields on a not-a-tag result \u2014 parseHook reads endIndex only when isTag AND token are set, and this return has no token. Paired with the L314 disable: each holds while the other line is unmutated, which is what Stryker's one-mutant-at-a-time execution guarantees."
+      "reason": "dead fields on a not-a-tag result — parseHook reads endIndex only when isTag AND token are set, and this return has no token. Paired with the L314 disable: each holds while the other line is unmutated, which is what Stryker's one-mutant-at-a-time execution guarantees."
     },
     {
       "package": "packages/core",
@@ -430,7 +412,7 @@
       "snippet": "return { endIndex: startIndex + 1, isTag: false };",
       "lineHint": 66,
       "kind": "equivalent",
-      "reason": "dead fields on a not-a-tag result \u2014 parseHook reads endIndex only when isTag AND token are set, and this return has no token. Paired with the L314 disable: each holds while the other line is unmutated, which is what Stryker's one-mutant-at-a-time execution guarantees."
+      "reason": "dead fields on a not-a-tag result — parseHook reads endIndex only when isTag AND token are set, and this return has no token. Paired with the L314 disable: each holds while the other line is unmutated, which is what Stryker's one-mutant-at-a-time execution guarantees."
     },
     {
       "package": "packages/core",
@@ -448,7 +430,7 @@
       "snippet": "return { endIndex: startIndex + 1, isTag: false };",
       "lineHint": 78,
       "kind": "equivalent",
-      "reason": "dead fields on a not-a-tag result \u2014 parseHook reads endIndex only when isTag AND token are set, and this return has no token. Paired with the L314 disable: each holds while the other line is unmutated, which is what Stryker's one-mutant-at-a-time execution guarantees."
+      "reason": "dead fields on a not-a-tag result — parseHook reads endIndex only when isTag AND token are set, and this return has no token. Paired with the L314 disable: each holds while the other line is unmutated, which is what Stryker's one-mutant-at-a-time execution guarantees."
     },
     {
       "package": "packages/core",
@@ -457,7 +439,7 @@
       "snippet": "return { endIndex: startIndex + 1, isTag: false };",
       "lineHint": 93,
       "kind": "equivalent",
-      "reason": "dead fields on a not-a-tag result \u2014 parseHook reads endIndex only when isTag AND token are set, and this return has no token. Paired with the L314 disable: each holds while the other line is unmutated, which is what Stryker's one-mutant-at-a-time execution guarantees."
+      "reason": "dead fields on a not-a-tag result — parseHook reads endIndex only when isTag AND token are set, and this return has no token. Paired with the L314 disable: each holds while the other line is unmutated, which is what Stryker's one-mutant-at-a-time execution guarantees."
     },
     {
       "package": "packages/core",
@@ -466,7 +448,7 @@
       "snippet": "return { endIndex: startIndex + 1, isTag: false };",
       "lineHint": 104,
       "kind": "equivalent",
-      "reason": "dead fields on a not-a-tag result \u2014 parseHook reads endIndex only when isTag AND token are set, and this return has no token. Paired with the L314 disable: each holds while the other line is unmutated, which is what Stryker's one-mutant-at-a-time execution guarantees."
+      "reason": "dead fields on a not-a-tag result — parseHook reads endIndex only when isTag AND token are set, and this return has no token. Paired with the L314 disable: each holds while the other line is unmutated, which is what Stryker's one-mutant-at-a-time execution guarantees."
     },
     {
       "package": "packages/core",
@@ -475,7 +457,7 @@
       "snippet": "return { endIndex: startIndex + 1, isTag: false };",
       "lineHint": 120,
       "kind": "equivalent",
-      "reason": "dead fields on a not-a-tag result \u2014 parseHook reads endIndex only when isTag AND token are set, and this return has no token. Paired with the L314 disable: each holds while the other line is unmutated, which is what Stryker's one-mutant-at-a-time execution guarantees."
+      "reason": "dead fields on a not-a-tag result — parseHook reads endIndex only when isTag AND token are set, and this return has no token. Paired with the L314 disable: each holds while the other line is unmutated, which is what Stryker's one-mutant-at-a-time execution guarantees."
     },
     {
       "package": "packages/core",
@@ -484,7 +466,7 @@
       "snippet": "if (afterNameCode === SLASH && i + 1 < len && str.charCodeAt(i + 1) === GREATER_THAN) {",
       "lineHint": 182,
       "kind": "equivalent",
-      "reason": "`<name\u2026/` holds only name characters and whitespace, so re-scanning from `<` reaches the same closing tag as skipping `/>`."
+      "reason": "`<name…/` holds only name characters and whitespace, so re-scanning from `<` reaches the same closing tag as skipping `/>`."
     },
     {
       "package": "packages/core",
@@ -525,53 +507,11 @@
     {
       "package": "packages/core",
       "file": "src/core/translate.ts",
-      "mutators": [
-        "ConditionalExpression",
-        "BooleanLiteral",
-        "LogicalOperator",
-        "EqualityOperator",
-        "BlockStatement"
-      ],
-      "snippet": "if (!(tokens.length === 0 || (tokens.length === 1 && tokens[0][0] === TK_TEXT))) {",
-      "lineHint": 127,
-      "kind": "equivalent",
-      "reason": "equivalent \u2014 flags are not observable (see the note above)"
-    },
-    {
-      "package": "packages/core",
-      "file": "src/core/translate.ts",
       "mutators": ["BooleanLiteral"],
       "snippet": "let hasDynamic = false;",
       "lineHint": 129,
       "kind": "equivalent",
-      "reason": "equivalent \u2014 flags are not observable (see the note above)"
-    },
-    {
-      "package": "packages/core",
-      "file": "src/core/translate.ts",
-      "mutators": ["ConditionalExpression", "BlockStatement"],
-      "snippet": "for (let i = 0; i < tokens.length; i++) {",
-      "lineHint": 131,
-      "kind": "equivalent",
-      "reason": "equivalent \u2014 flags are not observable (see the note above)"
-    },
-    {
-      "package": "packages/core",
-      "file": "src/core/translate.ts",
-      "mutators": ["BlockStatement"],
-      "snippet": "if (kind === TK_PARAM) {",
-      "lineHint": 134,
-      "kind": "equivalent",
-      "reason": "equivalent \u2014 flags are not observable (see the note above)"
-    },
-    {
-      "package": "packages/core",
-      "file": "src/core/translate.ts",
-      "mutators": ["BooleanLiteral"],
-      "snippet": "hasDynamic = true;",
-      "lineHint": 136,
-      "kind": "equivalent",
-      "reason": "equivalent \u2014 flags are not observable (see the note above)"
+      "reason": "equivalent — flags are not observable (see the note above)"
     },
     {
       "package": "packages/core",
@@ -580,61 +520,7 @@
       "snippet": "} else if (kind === TK_PLURAL) {",
       "lineHint": 138,
       "kind": "equivalent",
-      "reason": "equivalent \u2014 flags are not observable (see the note above)"
-    },
-    {
-      "package": "packages/core",
-      "file": "src/core/translate.ts",
-      "mutators": ["BooleanLiteral"],
-      "snippet": "hasDynamic = true;",
-      "lineHint": 141,
-      "kind": "equivalent",
-      "reason": "equivalent \u2014 flags are not observable (see the note above)"
-    },
-    {
-      "package": "packages/core",
-      "file": "src/core/translate.ts",
-      "mutators": ["ConditionalExpression", "EqualityOperator", "BlockStatement"],
-      "snippet": "} else if (kind === TK_SELECT) {",
-      "lineHint": 143,
-      "kind": "equivalent",
-      "reason": "equivalent \u2014 flags are not observable (see the note above)"
-    },
-    {
-      "package": "packages/core",
-      "file": "src/core/translate.ts",
-      "mutators": ["BooleanLiteral"],
-      "snippet": "hasDynamic = true;",
-      "lineHint": 146,
-      "kind": "equivalent",
-      "reason": "equivalent \u2014 flags are not observable (see the note above)"
-    },
-    {
-      "package": "packages/core",
-      "file": "src/core/translate.ts",
-      "mutators": ["EqualityOperator"],
-      "snippet": "} else if (kind !== TK_TEXT) {",
-      "lineHint": 148,
-      "kind": "equivalent",
-      "reason": "equivalent \u2014 flags are not observable (see the note above)"
-    },
-    {
-      "package": "packages/core",
-      "file": "src/core/translate.ts",
-      "mutators": ["BooleanLiteral"],
-      "snippet": "hasDynamic = true;",
-      "lineHint": 151,
-      "kind": "equivalent",
-      "reason": "equivalent \u2014 flags are not observable (see the note above)"
-    },
-    {
-      "package": "packages/core",
-      "file": "src/core/translate.ts",
-      "mutators": ["BlockStatement"],
-      "snippet": "if (hasDynamic && flags === TF_STATIC) {",
-      "lineHint": 155,
-      "kind": "equivalent",
-      "reason": "equivalent \u2014 flags are not observable (see the note above)"
+      "reason": "equivalent — flags are not observable (see the note above)"
     },
     {
       "package": "packages/core",
@@ -643,7 +529,7 @@
       "snippet": "flags === TF_SIMPLE_PARAMS &&",
       "lineHint": 177,
       "kind": "equivalent",
-      "reason": "equivalent \u2014 a three-token parse under"
+      "reason": "equivalent — a three-token parse under"
     },
     {
       "package": "packages/core",
@@ -652,7 +538,7 @@
       "snippet": "tokens[1][0] === TK_PARAM &&",
       "lineHint": 183,
       "kind": "equivalent",
-      "reason": "equivalent \u2014 under"
+      "reason": "equivalent — under"
     },
     {
       "package": "packages/core",
@@ -661,7 +547,7 @@
       "snippet": "} else if (flags === TF_SIMPLE_PARAMS && tokens.length === 2) {",
       "lineHint": 190,
       "kind": "equivalent",
-      "reason": "equivalent \u2014 see the note above"
+      "reason": "equivalent — see the note above"
     },
     {
       "package": "packages/core",
@@ -670,7 +556,7 @@
       "snippet": "if (tokens[0][0] === TK_PARAM && tokens[1][0] === TK_TEXT) {",
       "lineHint": 192,
       "kind": "equivalent",
-      "reason": "equivalent \u2014 see the note above"
+      "reason": "equivalent — see the note above"
     },
     {
       "package": "packages/core",
@@ -679,7 +565,7 @@
       "snippet": "} else if (tokens[0][0] === TK_TEXT && tokens[1][0] === TK_PARAM) {",
       "lineHint": 197,
       "kind": "equivalent",
-      "reason": "equivalent \u2014 see the note above"
+      "reason": "equivalent — see the note above"
     },
     {
       "package": "packages/core",
@@ -688,7 +574,7 @@
       "snippet": "} else if (flags === TF_SIMPLE_PARAMS && tokens.length === 1 && tokens[0][0] === TK_PARAM) {",
       "lineHint": 203,
       "kind": "equivalent",
-      "reason": "equivalent \u2014 see the note above"
+      "reason": "equivalent — see the note above"
     },
     {
       "package": "packages/core",
@@ -697,25 +583,7 @@
       "snippet": "if (IS_DEV && missingParamWarned !== undefined) {",
       "lineHint": 225,
       "kind": "gap:prod-build",
-      "reason": "equivalent \u2014 under __DEV__ both operands"
-    },
-    {
-      "package": "packages/core",
-      "file": "src/core/translate.ts",
-      "mutators": ["StringLiteral"],
-      "snippet": "const dedupKey = ctx.template + \"\\u0000\" + name;",
-      "lineHint": 229,
-      "kind": "equivalent",
-      "reason": "equivalent \u2014 the separator only guards"
-    },
-    {
-      "package": "packages/core",
-      "file": "src/core/translate.ts",
-      "mutators": ["BlockStatement"],
-      "snippet": "if (cached) {",
-      "lineHint": 279,
-      "kind": "equivalent",
-      "reason": "equivalent \u2014 skipping the compiled branch"
+      "reason": "equivalent — under __DEV__ both operands"
     },
     {
       "package": "packages/core",
@@ -724,7 +592,7 @@
       "snippet": "let hasSpecialChar = false;",
       "lineHint": 301,
       "kind": "equivalent",
-      "reason": "equivalent \u2014 always taking the slow route"
+      "reason": "equivalent — always taking the slow route"
     },
     {
       "package": "packages/core",
@@ -733,7 +601,7 @@
       "snippet": "if (!hasSpecialChar) {",
       "lineHint": 316,
       "kind": "equivalent",
-      "reason": "equivalent \u2014 skipping the placeholder caches"
+      "reason": "equivalent — skipping the placeholder caches"
     },
     {
       "package": "packages/core",
@@ -751,7 +619,7 @@
       "snippet": "if (cached.singleParamName !== undefined) {",
       "lineHint": 380,
       "kind": "equivalent",
-      "reason": "equivalent \u2014 see the note above"
+      "reason": "equivalent — see the note above"
     },
     {
       "package": "packages/core",
@@ -760,7 +628,7 @@
       "snippet": "if (value !== undefined && value !== null) {",
       "lineHint": 383,
       "kind": "equivalent",
-      "reason": "equivalent \u2014 see the note above"
+      "reason": "equivalent — see the note above"
     },
     {
       "package": "packages/core",
@@ -769,7 +637,7 @@
       "snippet": "if (t === \"string\" || t === \"number\" || t === \"boolean\") {",
       "lineHint": 386,
       "kind": "equivalent",
-      "reason": "equivalent \u2014 see the note above"
+      "reason": "equivalent — see the note above"
     },
     {
       "package": "packages/core",
@@ -778,25 +646,7 @@
       "snippet": "} else {",
       "lineHint": 390,
       "kind": "equivalent",
-      "reason": "equivalent \u2014 see the note above"
-    },
-    {
-      "package": "packages/core",
-      "file": "src/core/translate.ts",
-      "mutators": ["BlockStatement"],
-      "snippet": "if (cached.flags === TF_SIMPLE_PARAMS) {",
-      "lineHint": 401,
-      "kind": "equivalent",
-      "reason": "equivalent \u2014 see the note above"
-    },
-    {
-      "package": "packages/core",
-      "file": "src/core/translate.ts",
-      "mutators": ["LogicalOperator", "StringLiteral"],
-      "snippet": "if (typeof value === \"string\" || typeof value === \"number\" || typeof value === \"boolean\") {",
-      "lineHint": 424,
-      "kind": "equivalent",
-      "reason": "equivalent \u2014 a primitive that"
+      "reason": "equivalent — see the note above"
     },
     {
       "package": "packages/core",
@@ -805,7 +655,7 @@
       "snippet": "if (parts.length === 1 && typeof parts[0] === \"string\") {",
       "lineHint": 455,
       "kind": "equivalent",
-      "reason": "equivalent \u2014 a single-string"
+      "reason": "equivalent — a single-string"
     },
     {
       "package": "packages/core",
@@ -814,7 +664,7 @@
       "snippet": "return parts.every(isPrimitive) ? parts.join(\"\") : parts;",
       "lineHint": 461,
       "kind": "equivalent",
-      "reason": "equivalent \u2014 appendString merges adjacent"
+      "reason": "equivalent — appendString merges adjacent"
     },
     {
       "package": "packages/core",
@@ -838,10 +688,10 @@
       "package": "packages/core",
       "file": "src/utils/capability.ts",
       "mutators": ["StringLiteral"],
-      "snippet": ": `[comvi] missing ${name} capability \u2014 attach @comvi/core/${name}`,",
+      "snippet": ": `[comvi] missing ${name} capability — attach @comvi/core/${name}`,",
       "lineHint": 95,
       "kind": "gap:prod-build",
-      "reason": "production-only arm \u2014 this build defines __DEV__ as true, so the dev message above is the one under test."
+      "reason": "production-only arm — this build defines __DEV__ as true, so the dev message above is the one under test."
     },
     {
       "package": "packages/core",
@@ -850,7 +700,7 @@
       "snippet": ": (member) => typeof member === \"function\";",
       "lineHint": 147,
       "kind": "gap:prod-build",
-      "reason": "production-only arm \u2014 IS_DEV is true in this build, so the shim-aware predicate above is the one selected."
+      "reason": "production-only arm — IS_DEV is true in this build, so the shim-aware predicate above is the one selected."
     },
     {
       "package": "packages/core",
@@ -859,7 +709,7 @@
       "snippet": ": \"E_RESERVED_DEFAULT_PARAMS\";",
       "lineHint": 17,
       "kind": "gap:prod-build",
-      "reason": "production-only arm \u2014 this build defines __DEV__ as true, so the dev message above is the one thrown."
+      "reason": "production-only arm — this build defines __DEV__ as true, so the dev message above is the one thrown."
     },
     {
       "package": "packages/core",
@@ -868,16 +718,7 @@
       "snippet": ": \"E_NULLISH_DEFAULT_PARAMS\";",
       "lineHint": 21,
       "kind": "gap:prod-build",
-      "reason": "production-only arm \u2014 this build defines __DEV__ as true, so the dev message above is the one thrown."
-    },
-    {
-      "package": "packages/core",
-      "file": "src/utils/defaultParams.ts",
-      "mutators": ["ConditionalExpression"],
-      "snippet": "params[key] == null",
-      "lineHint": 51,
-      "kind": "equivalent",
-      "reason": "assertInterpolationDefaults rejects a nullish own value before this runs, so by here the value is never nullish."
+      "reason": "production-only arm — this build defines __DEV__ as true, so the dev message above is the one thrown."
     },
     {
       "package": "packages/core",
@@ -886,7 +727,7 @@
       "snippet": ": \"E_DEFAULT_PARAMS_GUARANTEED_KEY\",",
       "lineHint": 57,
       "kind": "gap:prod-build",
-      "reason": "production-only arm \u2014 this build defines __DEV__ as true, so the dev message above is the one thrown."
+      "reason": "production-only arm — this build defines __DEV__ as true, so the dev message above is the one thrown."
     },
     {
       "package": "packages/core",
@@ -905,6 +746,1346 @@
       "lineHint": 41,
       "kind": "equivalent",
       "reason": "the exported entry point always starts with an empty prefix, so seeding the stack with it is unobservable."
+    },
+    {
+      "package": "packages/core",
+      "file": "src/core/translate.ts",
+      "mutators": ["ConditionalExpression"],
+      "snippet": "} else if (kind !== TK_TEXT) {",
+      "lineHint": 130,
+      "kind": "equivalent",
+      "reason": "`flags` has exactly two readers: `isStatic` (144) and the route pick at 342. Marking a TEXT token as a tag can only push a text+param template off processSimpleParams onto processTokens, which assembles the same parts — appendString merges every text into the preceding string, and the one place the routes differ (processSimpleParams drops an EMPTY accumulated string before a node part) needs every token before the node to render empty, which a TEXT token never does.",
+      "round": 2
+    },
+    {
+      "package": "packages/core",
+      "file": "src/core/translate.ts",
+      "mutators": ["ConditionalExpression"],
+      "snippet": "(tokens.length === 0 || (tokens.length === 1 && tokens[0][1] === template));",
+      "lineHint": 146,
+      "kind": "equivalent",
+      "reason": "Both operands are unreachable as mutated. `tokens.length === 0` is only true for the empty segment, and an empty token list renders \"\" through the token path exactly as the isStatic return does. `tokens.length === 1 -> true` only bites on a parse of two or more tokens whose FIRST payload equals the whole template, which no parse produces: in a multi-token parse the first payload is a strict prefix.",
+      "round": 2
+    },
+    {
+      "package": "packages/core",
+      "file": "src/core/translate.ts",
+      "mutators": ["ConditionalExpression"],
+      "snippet": "flags === TF_SIMPLE_PARAMS &&",
+      "lineHint": 150,
+      "kind": "equivalent",
+      "reason": "The prefix/singleParamName/suffix metadata is a pure fast path. Dropping it (whole condition false) hands the same token list to processSimpleParams, which renders the identical string for every value shape — primitive, null, undefined under both missingParam modes, node/array. Widening the flags test admits nothing new either: a TEXT,PARAM,TEXT token list is always classified TF_SIMPLE_PARAMS.",
+      "round": 2
+    },
+    {
+      "package": "packages/core",
+      "file": "src/core/translate.ts",
+      "mutators": ["BlockStatement"],
+      "snippet": ") {",
+      "lineHint": 155,
+      "kind": "equivalent",
+      "reason": "Emptying the three-token metadata block only skips the single-parameter fast path; the template still renders through processSimpleParams, which produces the same string for every value shape. Setting the metadata WRONG is what is observable, and those mutants are killed by translate-param-shapes.",
+      "round": 2
+    },
+    {
+      "package": "packages/core",
+      "file": "src/core/translate.ts",
+      "mutators": ["ConditionalExpression", "EqualityOperator"],
+      "snippet": "} else if (flags === TF_SIMPLE_PARAMS && tokens.length === 2) {",
+      "lineHint": 159,
+      "kind": "equivalent",
+      "reason": "Each surviving mutant either drops the two-token metadata — unobservable, processSimpleParams renders the same string — or widens the guard to two-token lists that are NOT TF_SIMPLE_PARAMS. Those necessarily contain a plural/select/tag token, so both inner arrangement tests ([PARAM,TEXT] and [TEXT,PARAM]) fail and no metadata is set.",
+      "round": 2
+    },
+    {
+      "package": "packages/core",
+      "file": "src/core/translate.ts",
+      "mutators": ["ConditionalExpression", "EqualityOperator"],
+      "snippet": "if (tokens[0][0] === TK_PARAM && tokens[1][0] === TK_TEXT) {",
+      "lineHint": 160,
+      "kind": "equivalent",
+      "reason": "The survivors all drop the [PARAM,TEXT] metadata rather than mis-set it: negating or falsifying the first operand leaves the second (`tokens[1][0] === TK_TEXT`) to reject every arrangement the branch would newly claim, and the template then renders through processSimpleParams to the same string. The whole-condition -> true mutant, which would attach the metadata to a [TEXT,PARAM] template, is killed by translate-param-shapes.",
+      "round": 2
+    },
+    {
+      "package": "packages/core",
+      "file": "src/core/translate.ts",
+      "mutators": ["ConditionalExpression", "EqualityOperator"],
+      "snippet": "} else if (tokens[0][0] === TK_TEXT && tokens[1][0] === TK_PARAM) {",
+      "lineHint": 164,
+      "kind": "equivalent",
+      "reason": "Same shape as line 160: every survivor only prevents the [TEXT,PARAM] metadata from being set (the surviving operand rejects the arrangements the mutation would newly admit), and the template renders identically through processSimpleParams.",
+      "round": 2
+    },
+    {
+      "package": "packages/core",
+      "file": "src/core/translate.ts",
+      "mutators": ["ConditionalExpression", "EqualityOperator"],
+      "snippet": "} else if (flags === TF_SIMPLE_PARAMS && tokens.length === 1 && tokens[0][0] === TK_PARAM) {",
+      "lineHint": 169,
+      "kind": "equivalent",
+      "reason": "The survivors drop the single-token metadata (unobservable) or widen a conjunct that another conjunct then rejects: a one-token list is TF_SIMPLE_PARAMS exactly when its token is a PARAM, so `flags === TF_SIMPLE_PARAMS` and `tokens[0][0] === TK_PARAM` are equivalent tests here. The `tokens.length === 1 -> true` mutant, which would claim a longer param-only list, is killed by translate-param-shapes.",
+      "round": 2
+    },
+    {
+      "package": "packages/core",
+      "file": "src/core/translate.ts",
+      "mutators": ["ConditionalExpression"],
+      "snippet": "if (IS_DEV && missingParamWarned !== undefined) {",
+      "lineHint": 189,
+      "kind": "gap:prod-build",
+      "reason": "IS_DEV is a compile-time constant and this package has ONE vitest project, which defines __DEV__ true, so both conjuncts are fixed true and neither mutant changes dev behaviour. The whole-condition mutant would be observable in a production build (it dereferences the undefined dedup set), so closing it needs a second vitest project built with __DEV__ false — the same gap as compile-simple.ts:60. The second mutant (`missingParamWarned !== undefined -> true`) is equivalent in EVERY build: the set exists exactly when IS_DEV is true, and `IS_DEV &&` short-circuits in production; it is a type-narrowing guard only.",
+      "round": 2
+    },
+    {
+      "package": "packages/core",
+      "file": "src/core/translate.ts",
+      "mutators": ["EqualityOperator"],
+      "snippet": "for (let i = 0; i < template.length; i++) {",
+      "lineHint": 254,
+      "kind": "equivalent",
+      "reason": "The extra iteration reads `template.charCodeAt(template.length)`, which is NaN and equals none of the four special-character codes, so hasSpecialChar cannot change and the loop still terminates.",
+      "round": 2
+    },
+    {
+      "package": "packages/core",
+      "file": "src/core/translate.ts",
+      "mutators": ["ConditionalExpression"],
+      "snippet": "c === CHAR_OPEN_BRACE ||",
+      "lineHint": 257,
+      "kind": "equivalent",
+      "reason": "Forcing hasSpecialChar routes a template that contains none of `{ ' < &` through the parser instead of the no-parse placeholder. Such a template offers nothing for the grammar or an extension parse hook to claim, so it parses to one TEXT token equal to itself, isStatic is true, and both routes return the template unchanged; only the cached token list differs.",
+      "round": 2
+    },
+    {
+      "package": "packages/core",
+      "file": "src/core/translate.ts",
+      "mutators": ["ConditionalExpression"],
+      "snippet": "if (!hasSpecialChar) {",
+      "lineHint": 266,
+      "kind": "equivalent",
+      "reason": "Skipping the placeholder shortcut sends a special-character-free template to translateSegment, which parses it to a single TEXT token equal to itself, records isStatic true and returns the segment — the same string, the same isStatic, one cache entry either way.",
+      "round": 2
+    },
+    {
+      "package": "packages/core",
+      "file": "src/core/translate.ts",
+      "mutators": ["ConditionalExpression"],
+      "snippet": "if (cached.singleParamName !== undefined) {",
+      "lineHint": 325,
+      "kind": "equivalent",
+      "reason": "Skipping the single-parameter fast path falls through to processSimpleParams over the same tokens — the metadata is only ever set for a TF_SIMPLE_PARAMS template — and that route produces the same string for every value shape.",
+      "round": 2
+    },
+    {
+      "package": "packages/core",
+      "file": "src/core/translate.ts",
+      "mutators": ["ConditionalExpression"],
+      "snippet": "if (value !== undefined && value !== null) {",
+      "lineHint": 327,
+      "kind": "equivalent",
+      "reason": "Entering the primitive branch with undefined or null cannot return from it: neither typeof is in the primitive list, so control falls out of the single-parameter block into processSimpleParams, which renders exactly what the else-branch returns — prefix+suffix for null and for a dropped missing param, prefix+{name}+suffix (same warning, same dedup) under missingParam literal.",
+      "round": 2
+    },
+    {
+      "package": "packages/core",
+      "file": "src/core/translate.ts",
+      "mutators": ["ConditionalExpression"],
+      "snippet": "if (t === \"string\" || t === \"number\" || t === \"boolean\") {",
+      "lineHint": 329,
+      "kind": "equivalent",
+      "reason": "The early return is an optimization only. With the type test false a primitive value falls through to processSimpleParams over the same tokens, which concatenates prefix + value + suffix — the identical string, including the coercion of numbers and booleans.",
+      "round": 2
+    },
+    {
+      "package": "packages/core",
+      "file": "src/core/translate.ts",
+      "mutators": ["ConditionalExpression"],
+      "snippet": "} else if (kind === TK_PARAM) {",
+      "lineHint": 359,
+      "kind": "equivalent",
+      "reason": "processSimpleParams only ever runs on a TF_SIMPLE_PARAMS token list, whose tokens are TEXT or PARAM by construction (any other kind sets a TF_HAS_* bit), so the else-if is reached only with a PARAM token and widening it selects the same branch.",
+      "round": 2
+    },
+    {
+      "package": "packages/core",
+      "file": "src/core/translate.ts",
+      "mutators": ["ConditionalExpression"],
+      "snippet": "if (value != null) {",
+      "lineHint": 361,
+      "kind": "equivalent",
+      "reason": "Entering the branch with null or undefined fails the primitive test and switches to the parts route at the SAME token index, where appendParamValue re-applies exactly the rules the else-branch applies (null erases; undefined follows missingParam) and appendString merges the result into the preceding string. The one structural difference — dropping an empty accumulated string — is what the unmutated code does at that point too.",
+      "round": 2
+    },
+    {
+      "package": "packages/core",
+      "file": "src/core/translate.ts",
+      "mutators": ["ConditionalExpression"],
+      "snippet": "if (typeof value === \"string\" || typeof value === \"number\" || typeof value === \"boolean\") {",
+      "lineHint": 362,
+      "kind": "equivalent",
+      "reason": "The two survivors are the `number` and `boolean` operands. Sending a number or boolean down the parts route instead of the string accumulator appends the identical String(value) at the identical position: the routes differ only in that the parts route drops an EMPTY accumulated string, and a number or boolean never renders empty. The three sibling mutants that also admit a string ARE killed (translate-parts-assembly: an empty-string parameter before a node parameter).",
+      "round": 2
+    },
+    {
+      "package": "packages/core",
+      "file": "src/core/translate.ts",
+      "mutators": ["ConditionalExpression"],
+      "snippet": "} else if (kind === TK_PARAM) {",
+      "lineHint": 375,
+      "kind": "equivalent",
+      "reason": "Same unreachability as line 359: the inner parts loop walks the same TF_SIMPLE_PARAMS token list, which holds TEXT and PARAM tokens only, so the else-if is reached only with a PARAM token.",
+      "round": 2
+    },
+    {
+      "package": "packages/core",
+      "file": "src/core/translate.ts",
+      "mutators": ["ConditionalExpression"],
+      "snippet": "if (parts.length === 1 && typeof parts[0] === \"string\") {",
+      "lineHint": 391,
+      "kind": "equivalent",
+      "reason": "A one-string part list falls through to `parts.every(isPrimitive) ? parts.join(\"\") : parts`, which joins that single string to itself — the same value, and the same type, the fast path returns.",
+      "round": 2
+    },
+    {
+      "package": "packages/core",
+      "file": "src/core/translate.ts",
+      "mutators": ["ConditionalExpression"],
+      "snippet": "if (lastIdx >= 0 && typeof lastPart === \"string\") {",
+      "lineHint": 400,
+      "kind": "equivalent",
+      "reason": "The bounds test is redundant beside the typeof test it guards: on an empty parts array lastIdx is -1 and parts[-1] is undefined, so `typeof lastPart === \"string\"` is false and the string is pushed either way.",
+      "round": 2
+    },
+    {
+      "package": "packages/core",
+      "file": "src/core/translate.ts",
+      "mutators": ["ConditionalExpression"],
+      "snippet": "if (value !== undefined || ctx.missingParam === \"literal\") {",
+      "lineHint": 462,
+      "kind": "equivalent",
+      "reason": "appendParamValue re-checks the same condition: an undefined value appends the literal placeholder only under missingParam literal and otherwise returns without touching parts — exactly what skipping the call does. (The `-> false` and EqualityOperator mutants on this line, which drop a PRESENT value, are killed.)",
+      "round": 2
+    },
+    {
+      "package": "packages/core",
+      "file": "src/core/translate/syntax.ts",
+      "mutators": ["ConditionalExpression"],
+      "snippet": "return perCall !== undefined && perCall.length !== 0 ? effectiveEntry(perCall).bits : ambientBits;",
+      "lineHint": 252,
+      "kind": "equivalent",
+      "reason": "For an empty per-call extension array effectiveEntry([]) seeds bits with ambientBits and unions nothing, so the mutant returns the same number; only an allocation and a WeakMap entry differ. The sibling mutant in effectiveExtensions IS killed, by the ambient-snapshot identity assertion — a number has no identity to assert.",
+      "round": 2
+    },
+    {
+      "package": "packages/core",
+      "file": "src/core/translate/compile-simple.ts",
+      "mutators": ["ConditionalExpression"],
+      "snippet": "if (!IS_DEV) {",
+      "lineHint": 60,
+      "kind": "gap:prod-build",
+      "reason": "The icuHit / return-undefined arm is the PRODUCTION ICU fail-soft path. This package has one vitest project and it defines __DEV__ true, so `!IS_DEV` is already false and no suite can reach the branch; the dev arm (throw E_ICU_SYNTAX) is the one under test. Closing it needs a second vitest project built with __DEV__ false.",
+      "round": 2
+    },
+    {
+      "package": "packages/core",
+      "file": "src/core/translate/parser.ts",
+      "mutators": ["ConditionalExpression", "EqualityOperator"],
+      "snippet": "if (index + 1 >= len) return false;",
+      "lineHint": 30,
+      "kind": "equivalent",
+      "reason": "isQuoteStart's past-the-end guard, reached by a template whose last character is the apostrophe (`\"l'\"`, `\"x'\"`). Without the early return `str.charCodeAt(len)` is NaN, which equals neither `{` nor `}` nor `#`, so the function still returns false; `index + 1 > len` differs only at index + 1 === len, that same NaN case.",
+      "round": 2
+    },
+    {
+      "package": "packages/core",
+      "file": "src/core/translate/parser.ts",
+      "mutators": ["ArithmeticOperator", "ConditionalExpression", "EqualityOperator"],
+      "snippet": "const next = index + 1 < len ? template.charCodeAt(index + 1) : 0;",
+      "lineHint": 49,
+      "kind": "equivalent",
+      "reason": "warnUnclaimedTag's lookahead guard, reached by the template `\"<\"` (a trailing `<`). `charCodeAt(len)` is NaN, so the ASCII-letter test on the next line is false exactly as the `: 0` arm makes it, and no warning is emitted either way. The ArithmeticOperator mutant is on the GUARD's `index + 1` (columns 16-25); the one inside `charCodeAt` is killed and stays live.",
+      "round": 2
+    },
+    {
+      "package": "packages/core",
+      "file": "src/core/translate/parser.ts",
+      "mutators": ["ConditionalExpression"],
+      "snippet": "if (!isLetter || warnedTagTemplates === undefined || warnedTagTemplates.has(template)) return;",
+      "lineHint": 51,
+      "kind": "equivalent",
+      "reason": "`warnedTagTemplates === undefined` is a type-narrowing operand that is never true where it is evaluated: the Set exists whenever IS_DEV, and the only caller is `if (IS_DEV && code === LESS_THAN) warnUnclaimedTag(...)`, so in the production build (where the Set is undefined) the function is unreachable. Dropping the operand cannot change any build's behaviour.",
+      "round": 2
+    },
+    {
+      "package": "packages/core",
+      "file": "src/core/translate/parser.ts",
+      "mutators": ["ArithmeticOperator", "ConditionalExpression", "EqualityOperator"],
+      "snippet": "if (i + 1 < len && str.charCodeAt(i + 1) === APOSTROPHE) {",
+      "lineHint": 66,
+      "kind": "equivalent",
+      "reason": "skipQuotedSection's `''` lookahead, reached when a quoted section's closing apostrophe is the last character (`\"'{'\"`). `charCodeAt` past the end of a string is NaN, and every comparison against NaN is false, so the mutants fall to the same `return i + 1`. The ArithmeticOperator mutant is the guard's `i + 1`, not `charCodeAt`'s.",
+      "round": 2
+    },
+    {
+      "package": "packages/core",
+      "file": "src/core/translate/parser.ts",
+      "mutators": ["ArithmeticOperator", "ConditionalExpression", "EqualityOperator"],
+      "snippet": "if (index + 1 < len && str.charCodeAt(index + 1) === APOSTROPHE) {",
+      "lineHint": 84,
+      "kind": "equivalent",
+      "reason": "advancePastApostrophe's `''` lookahead, reached by an apostrophe at the end of the scanned string (`\"{a'\"` through findMatchingBraceEnd). `charCodeAt` past the end of a string is NaN, and every comparison against NaN is false, so the mutants fall through to isQuoteStart, which also returns false there, and the function returns the same `index + 1`. The ArithmeticOperator mutant is the guard's `index + 1`.",
+      "round": 2
+    },
+    {
+      "package": "packages/core",
+      "file": "src/core/translate/parser.ts",
+      "mutators": ["EqualityOperator"],
+      "snippet": "while (i < len && braceCount > 0) {",
+      "lineHint": 113,
+      "kind": "equivalent",
+      "reason": "`i <= len` adds one iteration in which `charCodeAt(len)` is NaN — neither apostrophe nor brace — so braceCount is unchanged and the loop leaves on i = len + 1 with the same `braceCount === 0 ? i : -1`. Reached by any unbalanced `{` (`\"{name\"`).",
+      "round": 2
+    },
+    {
+      "package": "packages/core",
+      "file": "src/core/translate/parser.ts",
+      "mutators": ["ConditionalExpression", "EqualityOperator"],
+      "snippet": "if (contextStack.length > 0) context = contextStack.pop()!;",
+      "lineHint": 127,
+      "kind": "equivalent",
+      "reason": "contextStack is pushed once per `{` and popped once per `}`, so it is empty only for the `}` that takes braceCount to 0 — after which the loop ends and `context` is never read again. Both mutants only assign `contextStack.pop()` (undefined) to that dead variable. Reached by `\"{n, plural, other {#}}\"`.",
+      "round": 2
+    },
+    {
+      "package": "packages/core",
+      "file": "src/core/translate/parser.ts",
+      "mutators": ["EqualityOperator"],
+      "snippet": "while (i < len) {",
+      "lineHint": 164,
+      "kind": "equivalent",
+      "reason": "`i <= len` runs one more iteration whose `charCodeAt(len)` is NaN: no branch matches, so it falls to the trailing `i++` and leaves, and the `lastIndex < len` push below is unchanged. Every template reaches it.",
+      "round": 2
+    },
+    {
+      "package": "packages/core",
+      "file": "src/core/translate/parser.ts",
+      "mutators": ["ArithmeticOperator", "ConditionalExpression", "EqualityOperator"],
+      "snippet": "if (i + 1 < len && template.charCodeAt(i + 1) === APOSTROPHE) {",
+      "lineHint": 168,
+      "kind": "equivalent",
+      "reason": "parseTemplate's `''` lookahead, reached by a template ending in an apostrophe (`\"It's\"`, `\"l'\"`). `charCodeAt` past the end of a string is NaN, and every comparison against NaN is false, so both guard mutants fall to the same `else if (isQuoted || isQuoteStart(...))` arm. The ArithmeticOperator mutant is the guard's `i + 1`.",
+      "round": 2
+    },
+    {
+      "package": "packages/core",
+      "file": "src/core/translate/parser.ts",
+      "mutators": ["ConditionalExpression", "EqualityOperator"],
+      "snippet": "if (i > lastIndex) tokens.push([TK_TEXT, template.slice(lastIndex, i)]);",
+      "lineHint": 169,
+      "kind": "equivalent",
+      "reason": "In the `''` branch these push an EMPTY text token when the escape starts a segment (`\"''x\"`: i === lastIndex === 0). The branch always pushes `[TK_TEXT, \"'\"]` on the very next line and appendString merges an empty string into it, so the parts list, the joined string and the VNode child arrays are identical; the token count cannot make a template static either, since a `''` template renders differently from its source.",
+      "round": 2
+    },
+    {
+      "package": "packages/core",
+      "file": "src/core/translate/parser.ts",
+      "mutators": ["ConditionalExpression", "EqualityOperator"],
+      "snippet": "if (i > lastIndex) tokens.push([TK_TEXT, template.slice(lastIndex, i)]);",
+      "lineHint": 174,
+      "kind": "equivalent",
+      "reason": "Same empty-token push when a QUOTED section starts a segment (`\"'{'x\"`, or `\"'{'\"` right after a tag token). An empty quoted run is impossible — `''` is taken by the branch above — so a text token always follows and appendString merges the empty string into it. The extra token also cannot arm the single-param fast path: that needs exactly [TEXT, PARAM, TEXT] and this branch only ever produces two adjacent TEXT tokens.",
+      "round": 2
+    },
+    {
+      "package": "packages/core",
+      "file": "src/core/translate/parser.ts",
+      "mutators": ["ConditionalExpression"],
+      "snippet": "if (tokenResult.shouldBreak) break;",
+      "lineHint": 208,
+      "kind": "equivalent",
+      "reason": "extractToken sets `shouldBreak` only on the unbalanced-brace return, which also returns `endIndex: len`; `i = tokenResult.endIndex` therefore ends the `while (i < len)` loop on the next test, so not breaking exits at the same place with the same tokens. Reached by `\"{name\"`.",
+      "round": 2
+    },
+    {
+      "package": "packages/core",
+      "file": "src/core/translate/parser.ts",
+      "mutators": ["ConditionalExpression"],
+      "snippet": "if (IS_DEV) {",
+      "lineHint": 237,
+      "kind": "gap:prod-build",
+      "reason": "The unbalanced-brace warning sits behind `if (IS_DEV)`, and the only vitest config defines `__DEV__: true`, so `true` is the value the condition already has. Closable by a second vitest project built with `__DEV__: false`.",
+      "round": 2
+    },
+    {
+      "package": "packages/core",
+      "file": "src/core/translate/tags.ts",
+      "mutators": ["ConditionalExpression"],
+      "snippet": "return (code >= UPPER_A && code <= UPPER_Z) || (code >= LOWER_A && code <= LOWER_Z);",
+      "lineHint": 35,
+      "kind": "equivalent",
+      "reason": "The surviving mutant is the upper bound of the a-z range (`code <= LOWER_Z` -> true), which admits code > 122 as a tag-name START char. isTagNameChar is not mutated, so the name loop stops on that same character: the name is empty and the character is re-read as the byte after the name, where it is neither `/` nor `>` — parseTag returns not-a-tag and findClosingTag's copy falls through to `i = openTagStart + 1`, the index its `i++` would produce. `\"<~>x</~>\"`, `\"<{n}>\"` and `\"<b>a<~/>b</b>\"` render identically.",
+      "round": 2
+    },
+    {
+      "package": "packages/core",
+      "file": "src/core/translate/tags.ts",
+      "mutators": ["ConditionalExpression", "EqualityOperator"],
+      "snippet": "if (i < len && str.charCodeAt(i) === SLASH) {",
+      "lineHint": 58,
+      "kind": "equivalent",
+      "reason": "The `</` fast path. With the whole condition false, `/` reaches the name-start test below, which rejects code 47 and returns the identical `{ endIndex: startIndex + 1, isTag: false }` (`\"</b>\"`). `i < len` -> true only lets `charCodeAt(len)` = NaN through (`\"<\"`), and `i >= len` merely moves the same rejection one line down.",
+      "round": 2
+    },
+    {
+      "package": "packages/core",
+      "file": "src/core/translate/tags.ts",
+      "mutators": ["ConditionalExpression", "EqualityOperator"],
+      "snippet": "if (i >= len || !isTagNameStartChar(str.charCodeAt(i))) {",
+      "lineHint": 62,
+      "kind": "equivalent",
+      "reason": "The past-the-end half of the name-start test, reached by the template `\"<\"`. `isTagNameStartChar(NaN)` is false, so the negated call returns the same not-a-tag result the `i >= len` operand did; `i > len` differs only at i === len, that same NaN.",
+      "round": 2
+    },
+    {
+      "package": "packages/core",
+      "file": "src/core/translate/tags.ts",
+      "mutators": ["ConditionalExpression", "EqualityOperator"],
+      "snippet": "while (i < len && isTagNameChar(str.charCodeAt(i))) i++;",
+      "lineHint": 67,
+      "kind": "equivalent",
+      "reason": "Tag-name scan. `isTagNameChar(NaN)` is false, so the loop still stops at the end of input (`\"<b\"`) and the name slice is unchanged.",
+      "round": 2
+    },
+    {
+      "package": "packages/core",
+      "file": "src/core/translate/tags.ts",
+      "mutators": ["ConditionalExpression", "EqualityOperator"],
+      "snippet": "while (i < len && str.charCodeAt(i) <= SPACE) i++;",
+      "lineHint": 70,
+      "kind": "equivalent",
+      "reason": "Whitespace skip after the tag name. `NaN <= 32` is false, so the loop still stops at the end of input (`\"<b \"`).",
+      "round": 2
+    },
+    {
+      "package": "packages/core",
+      "file": "src/core/translate/tags.ts",
+      "mutators": ["ConditionalExpression", "EqualityOperator"],
+      "snippet": "if (i >= len) {",
+      "lineHint": 72,
+      "kind": "equivalent",
+      "reason": "The end-of-input check after the whitespace skip, reached by `\"<b \"`. Both mutants fall through to `const code = str.charCodeAt(i)` = NaN, which is neither SLASH nor GREATER_THAN, so parseTag returns the same not-a-tag result from its last line.",
+      "round": 2
+    },
+    {
+      "package": "packages/core",
+      "file": "src/core/translate/tags.ts",
+      "mutators": ["ArithmeticOperator", "ConditionalExpression", "EqualityOperator"],
+      "snippet": "if (i + 1 < len && str.charCodeAt(i + 1) === GREATER_THAN) {",
+      "lineHint": 80,
+      "kind": "equivalent",
+      "reason": "Self-closing lookahead, reached by `\"<b/\"`. `charCodeAt(len)` is NaN, not `>`, so the mutants take the same not-a-tag return. The ArithmeticOperator mutant is the guard's `i + 1`, not `charCodeAt`'s.",
+      "round": 2
+    },
+    {
+      "package": "packages/core",
+      "file": "src/core/translate/tags.ts",
+      "mutators": ["ArrayDeclaration"],
+      "snippet": "token: [TK_TAG, tagName, [], 1],",
+      "lineHint": 82,
+      "kind": "equivalent",
+      "reason": "The self-closing token's children array. The injected string is not a token: `token[0]` is the character \"S\", which matches no TK_* kind and no processHook in the effective extension set (the tag extension's own hook tests `token[0] === TK_TAG`), so processTokens appends nothing and the children flatten to `\"\"` — what the empty array produces on every route: a param handler's `children`, the basic-HTML whitelist (which passes `[]` for a self-closing tag) and the strict:\"warn\" fallback text.",
+      "round": 2
+    },
+    {
+      "package": "packages/core",
+      "file": "src/core/translate/tags.ts",
+      "mutators": ["ConditionalExpression", "EqualityOperator"],
+      "snippet": "while (i < len && tagStack.length > 0) {",
+      "lineHint": 124,
+      "kind": "equivalent",
+      "reason": "`tagStack.length > 0` is true on every iteration: the only `pop()` is followed by a `return` as soon as the stack empties. `i <= len` adds one iteration whose `charCodeAt(len)` is NaN — neither `\\` nor `<` — leaving on i = len + 1 with the same unclosed-tag warning and `undefined` (`\"<b>x\"`).",
+      "round": 2
+    },
+    {
+      "package": "packages/core",
+      "file": "src/core/translate/tags.ts",
+      "mutators": ["ArithmeticOperator", "ConditionalExpression", "EqualityOperator"],
+      "snippet": "const nextCode = i + 1 < len ? str.charCodeAt(i + 1) : 0;",
+      "lineHint": 133,
+      "kind": "equivalent",
+      "reason": "The lookahead that classifies `<` inside a tag body, reached by a body ending in `<` (`\"<b>x<\"`). `charCodeAt(len)` is NaN, which is neither SLASH nor a name-start char, so the mutants behave exactly like the `: 0` arm. The ArithmeticOperator mutant is the guard's `i + 1`.",
+      "round": 2
+    },
+    {
+      "package": "packages/core",
+      "file": "src/core/translate/tags.ts",
+      "mutators": ["ConditionalExpression", "EqualityOperator"],
+      "snippet": "while (i < len && isTagNameChar(str.charCodeAt(i))) i++;",
+      "lineHint": 140,
+      "kind": "equivalent",
+      "reason": "Closing-tag name scan. `isTagNameChar(NaN)` is false, so the loop still stops at the end of input (`\"<b>x</b\"`).",
+      "round": 2
+    },
+    {
+      "package": "packages/core",
+      "file": "src/core/translate/tags.ts",
+      "mutators": ["ConditionalExpression", "EqualityOperator"],
+      "snippet": "while (i < len && str.charCodeAt(i) <= SPACE) i++;",
+      "lineHint": 142,
+      "kind": "equivalent",
+      "reason": "Whitespace skip inside a closing tag. `NaN <= 32` is false, so the loop still stops at the end of input (`\"<b>x</b \"`).",
+      "round": 2
+    },
+    {
+      "package": "packages/core",
+      "file": "src/core/translate/tags.ts",
+      "mutators": ["ConditionalExpression", "EqualityOperator"],
+      "snippet": "if (i < len && str.charCodeAt(i) === GREATER_THAN) {",
+      "lineHint": 144,
+      "kind": "equivalent",
+      "reason": "The `>` test that completes a closing tag, reached by `\"<b>x</b\"`. NaN is not `>`, so the closing tag is still not accepted and the scan ends with the unclosed-tag warning.",
+      "round": 2
+    },
+    {
+      "package": "packages/core",
+      "file": "src/core/translate/tags.ts",
+      "mutators": ["ConditionalExpression"],
+      "snippet": "if (IS_DEV) {",
+      "lineHint": 153,
+      "kind": "gap:prod-build",
+      "reason": "The tag-mismatch warning sits behind `if (IS_DEV)`, and the only vitest config defines `__DEV__: true`, so `true` is the value the condition already has. Closable by a second vitest project built with `__DEV__: false`.",
+      "round": 2
+    },
+    {
+      "package": "packages/core",
+      "file": "src/core/translate/tags.ts",
+      "mutators": ["ConditionalExpression", "EqualityOperator"],
+      "snippet": "while (i < len && isTagNameChar(str.charCodeAt(i))) i++;",
+      "lineHint": 167,
+      "kind": "equivalent",
+      "reason": "Nested opening-tag name scan. `isTagNameChar(NaN)` is false, so the loop still stops at the end of input (`\"<b>a<i\"`).",
+      "round": 2
+    },
+    {
+      "package": "packages/core",
+      "file": "src/core/translate/tags.ts",
+      "mutators": ["ConditionalExpression", "EqualityOperator"],
+      "snippet": "while (i < len && str.charCodeAt(i) <= SPACE) i++;",
+      "lineHint": 169,
+      "kind": "equivalent",
+      "reason": "Whitespace skip inside a nested opening tag. `NaN <= 32` is false, so the loop still stops at the end of input (`\"<b>a<i \"`).",
+      "round": 2
+    },
+    {
+      "package": "packages/core",
+      "file": "src/core/translate/tags.ts",
+      "mutators": ["ConditionalExpression", "EqualityOperator"],
+      "snippet": "if (i < len) {",
+      "lineHint": 171,
+      "kind": "equivalent",
+      "reason": "The end-of-input check after a nested tag's name, reached by `\"<b>a<i\"`. Inside the mutant's block `afterNameCode` is NaN, which is neither SLASH nor GREATER_THAN, so control reaches the same `i = openTagStart + 1; continue;` that skipping the block reaches.",
+      "round": 2
+    },
+    {
+      "package": "packages/core",
+      "file": "src/core/translate/tags.ts",
+      "mutators": ["ConditionalExpression", "EqualityOperator"],
+      "snippet": "if (afterNameCode === SLASH && i + 1 < len && str.charCodeAt(i + 1) === GREATER_THAN) {",
+      "lineHint": 173,
+      "kind": "equivalent",
+      "reason": "The nested self-closing skip. Falsifying it (or `i + 1 >= len`) makes the scanner re-scan from `openTagStart + 1` instead of jumping past `/>`; the bytes it re-reads are the tag name, optional whitespace, `/` and `>` — none of which is `<` or `\\` — so it reaches the same index with the same (unchanged) tag stack and returns the same closing tag (`\"<b>a<br/>c</b>\"`, `\"<b>a<b/>c</b>\"`). `i + 1 < len` -> true and `i + 1 <= len` only let `charCodeAt(len)` = NaN through, which is not `>` (`\"<b>a<i /\"`).",
+      "round": 2
+    },
+    {
+      "package": "packages/core",
+      "file": "src/core/translate/tags.ts",
+      "mutators": ["ConditionalExpression", "EqualityOperator"],
+      "snippet": "if (tagStack.length > 0) {",
+      "lineHint": 191,
+      "kind": "equivalent",
+      "reason": "Reached only when the scan left the loop with a non-empty stack — the empty-stack exit returns from inside the loop — so the condition is already true and `true` / `>= 0` are the same value, with the same unclosed-tag warning and `undefined` (`\"<b>x\"`).",
+      "round": 2
+    },
+    {
+      "package": "packages/core",
+      "file": "src/core/translate/tags.ts",
+      "mutators": ["ConditionalExpression"],
+      "snippet": "if (IS_DEV) {",
+      "lineHint": 192,
+      "kind": "gap:prod-build",
+      "reason": "The unclosed-tag warning sits behind `if (IS_DEV)`, and the only vitest config defines `__DEV__: true`, so `true` is the value the condition already has. Closable by a second vitest project built with `__DEV__: false`.",
+      "round": 2
+    },
+    {
+      "package": "packages/core",
+      "file": "src/core/translate/tags.ts",
+      "mutators": ["ConditionalExpression"],
+      "snippet": "const isSelfClosing = token[3] === 1;",
+      "lineHint": 209,
+      "kind": "equivalent",
+      "reason": "`isSelfClosing` is read only by `isSelfClosing ? [] : childrenResult`, and a self-closing token carries `children: []`, whose processTokens result is an empty array as well — createElement stores an equal-valued empty children array either way (`\"a<br/>b\"` with `basicHtmlTags: [\"br\"]`).",
+      "round": 2
+    },
+    {
+      "package": "packages/core",
+      "file": "src/core/translate/tags.ts",
+      "mutators": ["StringLiteral"],
+      "snippet": "IS_DEV ? `[i18n] Missing handler for tag: <${tagName}>` : \"E_MISSING_TAG_HANDLER\",",
+      "lineHint": 231,
+      "kind": "gap:prod-build",
+      "reason": "The production arm of the strict-throw message, unreachable while the only vitest config defines `__DEV__: true` — the ternary always takes the DEV template literal (whose own StringLiteral mutant is killed and stays live, which is why round 1 could not disable this line). Reported by Stryker as NoCoverage, not Survived, and closable by a second vitest project built with `__DEV__: false`.",
+      "round": 2
+    },
+    {
+      "package": "packages/core",
+      "file": "src/core/translate/tags.ts",
+      "mutators": ["ConditionalExpression"],
+      "snippet": "if (tagInterpolation?.onTagWarning) {",
+      "lineHint": 239,
+      "kind": "equivalent",
+      "reason": "With the condition forced true, an absent `onTagWarning` is called as `undefined(...)`, which throws a TypeError into the adjacent `catch`, and that catch warns the same message the `else` branch warns — one identical console.warn either way (`strict: \"warn\"` and no onTagWarning on `\"Click <link>here</link>\"`).",
+      "round": 2
+    },
+    {
+      "package": "packages/core",
+      "file": "src/core/translate/tags.ts",
+      "mutators": ["ArithmeticOperator", "ConditionalExpression", "EqualityOperator"],
+      "snippet": "return index + 1 < len && template.charCodeAt(index + 1) === LESS_THAN",
+      "lineHint": 296,
+      "kind": "equivalent",
+      "reason": "The `\\<` escape lookahead, reached by a template ending in a backslash. `charCodeAt(len)` is NaN, not `<`, so the extension still declines the position and the backslash stays literal text. The ArithmeticOperator mutant is the guard's `index + 1`.",
+      "round": 2
+    },
+    {
+      "package": "packages/core",
+      "file": "src/core/translate/tags.ts",
+      "mutators": ["ConditionalExpression"],
+      "snippet": "return result.isTag && result.token !== undefined",
+      "lineHint": 302,
+      "kind": "equivalent",
+      "reason": "`result.isTag` is true only on the two returns that also set `token`, so `result.token !== undefined` is redundant where it is evaluated and forcing it true cannot admit a token-less claim (`\"<b>x</b>\"` accepted, `\"<9>x</9>\"` rejected).",
+      "round": 2
+    },
+    {
+      "package": "packages/core",
+      "file": "src/core/devtools.ts",
+      "mutators": ["ConditionalExpression"],
+      "snippet": "} else if (g && typeof (g as LegacyComviRegistry).register === \"function\") {",
+      "lineHint": 88,
+      "kind": "equivalent",
+      "reason": "Forcing the typeof test true takes the legacy-register branch for ANY truthy __COMVI__. A truthy global that reaches this branch is neither an array nor a push+remove hook, so it carries no callable register: the call throws inside the try whose catch exists to swallow discovery failures, and the only statement it skips is the `else if (!g)` queue install, which a truthy global never reaches either. window.__COMVI__ is left untouched in both versions, instanceId is assigned before the try, and a falsy global still short-circuits on `g`.",
+      "round": 2
+    },
+    {
+      "package": "packages/core",
+      "file": "src/core/devtools.ts",
+      "mutators": ["ConditionalExpression", "StringLiteral"],
+      "snippet": "if (!this.instanceId || typeof window === \"undefined\") return;",
+      "lineHint": 108,
+      "kind": "equivalent",
+      "reason": "Both mutants (drop the window probe / compare typeof against \"\") only differ for an instance that has an id while `window` is undefined - exposeGlobal:true under SSR. There the first statement of the try, `window.__COMVI__`, throws a ReferenceError that the catch swallows, and `_globalEntry = undefined` runs afterwards either way; nothing was removed from any global because there is none. happy-dom always defines window, so in every environment the suite can build the mutated condition evaluates exactly as the original.",
+      "round": 2
+    },
+    {
+      "package": "packages/core",
+      "file": "src/core/devtools.ts",
+      "mutators": ["ConditionalExpression", "LogicalOperator"],
+      "snippet": "} else if (g && typeof (g as LegacyComviRegistry).unregister === \"function\") {",
+      "lineHint": 117,
+      "kind": "equivalent",
+      "reason": "All three mutants force (or `||`) the legacy-unregister branch, which is reached only for a global that is neither an array nor a remove-hook. Such a value has no callable unregister, so the forced call/read throws inside the swallowing catch, and the try body has no statement after it; `_globalEntry = undefined` runs unconditionally below. A real legacy registry carries unregister and takes the branch in both versions, so destroy() removes exactly the same entries.",
+      "round": 2
+    },
+    {
+      "package": "packages/core",
+      "file": "src/core/i18n.ts",
+      "mutators": ["ConditionalExpression"],
+      "snippet": "if (IS_DEV) {",
+      "lineHint": 287,
+      "kind": "gap:prod-build",
+      "reason": "IS_DEV is `__DEV__`, pinned to true by vitest.config.ts's define, so `if (IS_DEV) -> true` is a no-op in the only build any test can compile. Killing it needs a second vitest project compiled with __DEV__:false, asserting that the dev-only warning/message this guard protects is absent (and that the E_* production literal is used instead) - a vitest.config.ts change, not a test that today's harness can express.",
+      "round": 2
+    },
+    {
+      "package": "packages/core",
+      "file": "src/core/i18n.ts",
+      "mutators": ["ConditionalExpression", "EqualityOperator"],
+      "snippet": "if (namespacesToLoad.length > 0) {",
+      "lineHint": 355,
+      "kind": "equivalent",
+      "reason": "The list is empty only for `ns: []`. The mutant then also awaits _nsAddActiveNamespaces([]), which activates no namespace and reaches _loadNs(locale, [], true), whose own empty-list guard returns before the loader is touched. No loader call, no namespaceLoaded/loadError event, no cache write - only one extra microtask before `initialized` is emitted.",
+      "round": 2
+    },
+    {
+      "package": "packages/core",
+      "file": "src/core/i18n.ts",
+      "mutators": ["ConditionalExpression"],
+      "snippet": "if (currentCallbacks.size === 0) {",
+      "lineHint": 387,
+      "kind": "equivalent",
+      "reason": "The empty Set is kept in _eventCallbacks instead of being deleted. That record is read in exactly three places: on() reuses the Set it finds, _emit() iterates it (zero listeners either way), and destroy() replaces the whole object. Nothing exposes its key set, so no return value, event or handler call changes.",
+      "round": 2
+    },
+    {
+      "package": "packages/core",
+      "file": "src/core/i18n.ts",
+      "mutators": ["ConditionalExpression"],
+      "snippet": "if (defaults === undefined) return userParams;",
+      "lineHint": 468,
+      "kind": "equivalent",
+      "reason": "Makes _withDefaultParams(undefined) return {} instead of undefined. Its single call site is tRaw -> _translate, where the two are interchangeable: `params != null` only gates reads of params.locale/params.ns (both undefined on {}), params?.tagInterpolation and params?.fallback are undefined, translate() substitutes `params ?? EMPTY_PARAMS`, and _postProcess substitutes `params ?? {}` before handing them to a user post-processor. With defaultParams configured the branch is not taken at all.",
+      "round": 2
+    },
+    {
+      "package": "packages/core",
+      "file": "src/core/i18n.ts",
+      "mutators": ["ConditionalExpression"],
+      "snippet": "loc === this._locale && ns === this._cachedDefaultNs",
+      "lineHint": 524,
+      "kind": "equivalent",
+      "reason": "Routes the read through translationCache.get(...) instead of the primary-translations memo. _getPrimaryTranslations() returns translationCache.get(this._locale, this._cachedDefaultNs) and re-reads it whenever the cache revision, the locale or the default namespace moved, so both arms yield the same catalog object; only the memo hit rate differs.",
+      "round": 2
+    },
+    {
+      "package": "packages/core",
+      "file": "src/core/i18n.ts",
+      "mutators": ["ConditionalExpression"],
+      "snippet": "if (fallbackLoc === loc) continue;",
+      "lineHint": 532,
+      "kind": "equivalent",
+      "reason": "Drops the `continue` that skips the fallback locale equal to the one already read. Reaching the fallback loop means that catalog has no entry for the key, so consulting it a second time can only yield the same undefined; hasTranslation returns the same boolean for every locale/namespace/checkFallbacks combination.",
+      "round": 2
+    },
+    {
+      "package": "packages/core",
+      "file": "src/core/i18n.ts",
+      "mutators": ["ConditionalExpression"],
+      "snippet": "if (userParams == null && !this._postProcessors.length) {",
+      "lineHint": 622,
+      "kind": "equivalent",
+      "reason": "All four mutants only make tRaw's no-params fast path fall through into _translate, which recomputes the same value: the path is entered only with no user params, an empty post-processor list and a template isStaticTemplate() accepted, and a static template renders to itself for any locale and any tagInterpolation. Return value, events and reported errors are unchanged; only a compile-cache lookup is added.",
+      "round": 2
+    },
+    {
+      "package": "packages/core",
+      "file": "src/core/i18n.ts",
+      "mutators": ["ConditionalExpression"],
+      "snippet": "if (translations !== undefined) {",
+      "lineHint": 624,
+      "kind": "equivalent",
+      "reason": "All four mutants only make tRaw's no-params fast path fall through into _translate, which recomputes the same value: the path is entered only with no user params, an empty post-processor list and a template isStaticTemplate() accepted, and a static template renders to itself for any locale and any tagInterpolation. Return value, events and reported errors are unchanged; only a compile-cache lookup is added.",
+      "round": 2
+    },
+    {
+      "package": "packages/core",
+      "file": "src/core/i18n.ts",
+      "mutators": ["ConditionalExpression"],
+      "snippet": "template !== undefined &&",
+      "lineHint": 627,
+      "kind": "equivalent",
+      "reason": "All four mutants only make tRaw's no-params fast path fall through into _translate, which recomputes the same value: the path is entered only with no user params, an empty post-processor list and a template isStaticTemplate() accepted, and a static template renders to itself for any locale and any tagInterpolation. Return value, events and reported errors are unchanged; only a compile-cache lookup is added.",
+      "round": 2
+    },
+    {
+      "package": "packages/core",
+      "file": "src/core/i18n.ts",
+      "mutators": ["BlockStatement"],
+      "snippet": ") {",
+      "lineHint": 634,
+      "kind": "equivalent",
+      "reason": "All four mutants only make tRaw's no-params fast path fall through into _translate, which recomputes the same value: the path is entered only with no user params, an empty post-processor list and a template isStaticTemplate() accepted, and a static template renders to itself for any locale and any tagInterpolation. Return value, events and reported errors are unchanged; only a compile-cache lookup is added.",
+      "round": 2
+    },
+    {
+      "package": "packages/core",
+      "file": "src/core/i18n.ts",
+      "mutators": ["ConditionalExpression"],
+      "snippet": "this._primaryTranslationsRevision === revision &&",
+      "lineHint": 666,
+      "kind": "equivalent",
+      "reason": "A forced miss in _getPrimaryTranslations re-reads the same (locale, namespace) entry out of the cache and re-seeds the memo with it, so the returned catalog - and therefore every t()/tRaw()/hasTranslation() result built on it - is identical. Only the number of cache reads changes.",
+      "round": 2
+    },
+    {
+      "package": "packages/core",
+      "file": "src/core/i18n.ts",
+      "mutators": ["BlockStatement"],
+      "snippet": ") {",
+      "lineHint": 669,
+      "kind": "equivalent",
+      "reason": "A forced miss in _getPrimaryTranslations re-reads the same (locale, namespace) entry out of the cache and re-seeds the memo with it, so the returned catalog - and therefore every t()/tRaw()/hasTranslation() result built on it - is identical. Only the number of cache reads changes.",
+      "round": 2
+    },
+    {
+      "package": "packages/core",
+      "file": "src/core/i18n.ts",
+      "mutators": ["ConditionalExpression"],
+      "snippet": "locale === this._locale && namespace === this._cachedDefaultNs",
+      "lineHint": 704,
+      "kind": "equivalent",
+      "reason": "Routes the read through translationCache.get(...) instead of the primary-translations memo. _getPrimaryTranslations() returns translationCache.get(this._locale, this._cachedDefaultNs) and re-reads it whenever the cache revision, the locale or the default namespace moved, so both arms yield the same catalog object; only the memo hit rate differs.",
+      "round": 2
+    },
+    {
+      "package": "packages/core",
+      "file": "src/core/i18n.ts",
+      "mutators": ["ConditionalExpression"],
+      "snippet": "if (!IS_DEV && icuHit !== undefined) {",
+      "lineHint": 719,
+      "kind": "gap:prod-build",
+      "reason": "`!IS_DEV && icuHit !== undefined` is already false under __DEV__:true, so replacing it with false changes nothing the suite can compile; icuHit is only ever assigned on the production compiler path (`if (!IS_DEV) clearIcuHit()` above it). The E_ICU_SYNTAX report it guards is pinned on the built output by tests/dist, which reads dist/ and therefore cannot see a src mutation. Needs a __DEV__:false vitest project.",
+      "round": 2
+    },
+    {
+      "package": "packages/core",
+      "file": "src/core/i18n.ts",
+      "mutators": ["ConditionalExpression"],
+      "snippet": "if (!IS_DEV && icuHit !== undefined) {",
+      "lineHint": 740,
+      "kind": "gap:prod-build",
+      "reason": "`!IS_DEV && icuHit !== undefined` is already false under __DEV__:true, so replacing it with false changes nothing the suite can compile; icuHit is only ever assigned on the production compiler path (`if (!IS_DEV) clearIcuHit()` above it). The E_ICU_SYNTAX report it guards is pinned on the built output by tests/dist, which reads dist/ and therefore cannot see a src mutation. Needs a __DEV__:false vitest project.",
+      "round": 2
+    },
+    {
+      "package": "packages/core",
+      "file": "src/core/i18n.ts",
+      "mutators": ["ConditionalExpression"],
+      "snippet": "if (!IS_DEV && icuHit !== undefined) {",
+      "lineHint": 758,
+      "kind": "gap:prod-build",
+      "reason": "`!IS_DEV && icuHit !== undefined` is already false under __DEV__:true, so replacing it with false changes nothing the suite can compile; icuHit is only ever assigned on the production compiler path (`if (!IS_DEV) clearIcuHit()` above it). The E_ICU_SYNTAX report it guards is pinned on the built output by tests/dist, which reads dist/ and therefore cannot see a src mutation. Needs a __DEV__:false vitest project.",
+      "round": 2
+    },
+    {
+      "package": "packages/core",
+      "file": "src/core/i18n.ts",
+      "mutators": ["ConditionalExpression"],
+      "snippet": "if (r !== undefined) fallbackValue = r;",
+      "lineHint": 835,
+      "kind": "equivalent",
+      "reason": "The assignment sits inside `if (fallbackValue === undefined)`, so running it with an undefined `r` leaves fallbackValue undefined and the closing `return fallbackValue !== undefined ? fallbackValue : key` still returns the key. A defined `r` is assigned in both versions.",
+      "round": 2
+    },
+    {
+      "package": "packages/core",
+      "file": "src/core/i18n.ts",
+      "mutators": ["ConditionalExpression"],
+      "snippet": "if (IS_DEV) {",
+      "lineHint": 861,
+      "kind": "gap:prod-build",
+      "reason": "IS_DEV is `__DEV__`, pinned to true by vitest.config.ts's define, so `if (IS_DEV) -> true` is a no-op in the only build any test can compile. Killing it needs a second vitest project compiled with __DEV__:false, asserting that the dev-only warning/message this guard protects is absent (and that the E_* production literal is used instead) - a vitest.config.ts change, not a test that today's harness can express.",
+      "round": 2
+    },
+    {
+      "package": "packages/core",
+      "file": "src/core/i18n.ts",
+      "mutators": ["ConditionalExpression"],
+      "snippet": "} else if (IS_DEV) {",
+      "lineHint": 865,
+      "kind": "gap:prod-build",
+      "reason": "IS_DEV is `__DEV__`, pinned to true by vitest.config.ts's define, so `if (IS_DEV) -> true` is a no-op in the only build any test can compile. Killing it needs a second vitest project compiled with __DEV__:false, asserting that the dev-only warning/message this guard protects is absent (and that the E_* production literal is used instead) - a vitest.config.ts change, not a test that today's harness can express.",
+      "round": 2
+    },
+    {
+      "package": "packages/core",
+      "file": "src/core/i18n.ts",
+      "mutators": ["ConditionalExpression"],
+      "snippet": "if (IS_DEV) {",
+      "lineHint": 909,
+      "kind": "gap:prod-build",
+      "reason": "IS_DEV is `__DEV__`, pinned to true by vitest.config.ts's define, so `if (IS_DEV) -> true` is a no-op in the only build any test can compile. Killing it needs a second vitest project compiled with __DEV__:false, asserting that the dev-only warning/message this guard protects is absent (and that the E_* production literal is used instead) - a vitest.config.ts change, not a test that today's harness can express.",
+      "round": 2
+    },
+    {
+      "package": "packages/core",
+      "file": "src/core/loader.ts",
+      "mutators": ["ConditionalExpression"],
+      "snippet": "if (IS_DEV) {",
+      "lineHint": 60,
+      "kind": "gap:prod-build",
+      "reason": "IS_DEV is `__DEV__`, pinned to true by vitest.config.ts's define, so `if (IS_DEV) -> true` is a no-op in the only build any test can compile. Killing it needs a second vitest project compiled with __DEV__:false, asserting that the dev-only warning/message this guard protects is absent (and that the E_* production literal is used instead) - a vitest.config.ts change, not a test that today's harness can express.",
+      "round": 2
+    },
+    {
+      "package": "packages/core",
+      "file": "src/core/loader.ts",
+      "mutators": ["ConditionalExpression"],
+      "snippet": "if (IS_DEV) {",
+      "lineHint": 70,
+      "kind": "gap:prod-build",
+      "reason": "IS_DEV is `__DEV__`, pinned to true by vitest.config.ts's define, so `if (IS_DEV) -> true` is a no-op in the only build any test can compile. Killing it needs a second vitest project compiled with __DEV__:false, asserting that the dev-only warning/message this guard protects is absent (and that the E_* production literal is used instead) - a vitest.config.ts change, not a test that today's harness can express.",
+      "round": 2
+    },
+    {
+      "package": "packages/core",
+      "file": "src/core/loader.ts",
+      "mutators": ["ConditionalExpression"],
+      "snippet": "if (this._requestedLocale !== value) {",
+      "lineHint": 149,
+      "kind": "equivalent",
+      "reason": "Bumps _currentLocaleChangeId even when the requested locale already equals the applied one. Any pending switch this extra bump could cancel was started with a different target, and the call that pointed _requestedLocale back at the current locale bumped the id already - so the mutant can only re-invalidate a request that is invalid. localeChanged, isLoading and the returned promise's settlement are unchanged.",
+      "round": 2
+    },
+    {
+      "package": "packages/core",
+      "file": "src/core/loader.ts",
+      "mutators": ["ConditionalExpression"],
+      "snippet": "if (generation !== this._nsGeneration || this._pendingLoads[key] !== guarded) return;",
+      "lineHint": 311,
+      "kind": "equivalent",
+      "reason": "The disjunct is redundant: the only writer of _nsGeneration is _resetLoader, which replaces _pendingLoads with a fresh object in the next statement, so `this._pendingLoads[key] !== guarded` is already true whenever the generation moved. A cancelled load still neither writes the cache, nor emits namespaceLoaded/loadError, nor rethrows.",
+      "round": 2
+    },
+    {
+      "package": "packages/core",
+      "file": "src/core/loader.ts",
+      "mutators": ["ConditionalExpression"],
+      "snippet": "if (IS_DEV)",
+      "lineHint": 316,
+      "kind": "gap:prod-build",
+      "reason": "IS_DEV is `__DEV__`, pinned to true by vitest.config.ts's define, so `if (IS_DEV) -> true` is a no-op in the only build any test can compile. Killing it needs a second vitest project compiled with __DEV__:false, asserting that the dev-only warning/message this guard protects is absent (and that the E_* production literal is used instead) - a vitest.config.ts change, not a test that today's harness can express.",
+      "round": 2
+    },
+    {
+      "package": "packages/core",
+      "file": "src/core/loader.ts",
+      "mutators": ["ConditionalExpression"],
+      "snippet": "if (generation !== this._nsGeneration || this._pendingLoads[key] !== guarded) return;",
+      "lineHint": 323,
+      "kind": "equivalent",
+      "reason": "The disjunct is redundant: the only writer of _nsGeneration is _resetLoader, which replaces _pendingLoads with a fresh object in the next statement, so `this._pendingLoads[key] !== guarded` is already true whenever the generation moved. A cancelled load still neither writes the cache, nor emits namespaceLoaded/loadError, nor rethrows.",
+      "round": 2
+    },
+    {
+      "package": "packages/core",
+      "file": "src/core/loader.ts",
+      "mutators": ["ConditionalExpression"],
+      "snippet": "if (namespacesToLoad.length === 0) return;",
+      "lineHint": 349,
+      "kind": "equivalent",
+      "reason": "With nothing to fetch the mutant runs Promise.all([]) and returns at the `failedNamespacesList.length === 0` guard immediately below: no loader invocation, no partial/all-failed report, no throw. Only extra microtasks separate it from the original.",
+      "round": 2
+    },
+    {
+      "package": "packages/core",
+      "file": "src/core/plugins.ts",
+      "mutators": ["ConditionalExpression"],
+      "snippet": "if (IS_DEV) {",
+      "lineHint": 194,
+      "kind": "gap:prod-build",
+      "reason": "IS_DEV is `__DEV__`, pinned to true by vitest.config.ts's define, so `if (IS_DEV) -> true` is a no-op in the only build any test can compile. Killing it needs a second vitest project compiled with __DEV__:false, asserting that the dev-only warning/message this guard protects is absent (and that the E_* production literal is used instead) - a vitest.config.ts change, not a test that today's harness can express.",
+      "round": 2
+    },
+    {
+      "package": "packages/core",
+      "file": "src/core/prepareTranslation.ts",
+      "mutators": ["ConditionalExpression"],
+      "snippet": "typeof content === \"string\" &&",
+      "lineHint": 210,
+      "kind": "equivalent",
+      "reason": "The guard only protects the `content === key` comparison that follows it. A non-string content is the VirtualNode[] tRaw returns for a tag/rich template, which is never === a string key, so isMissing stays false either way and the returned { content, pendingHandlers, isMissing } is identical.",
+      "round": 2
+    },
+    {
+      "package": "packages/core",
+      "file": "src/core/prepareTranslation.ts",
+      "mutators": ["ConditionalExpression"],
+      "snippet": "if (extensions === undefined || extensions.length === 0) {",
+      "lineHint": 218,
+      "kind": "equivalent",
+      "reason": "For a caller-supplied `extensions: []` the mutant falls into the loop, finds nothing, and returns { ...options, extensions: [tagSyntaxExtension] }; the original returns { ...options, extensions: TAG_OPTIONS.extensions } - the same one-element set, differing only in array identity, which effectiveExtensions/effectiveExtBits fold into the same effective list and cache bits. An `extensions: undefined` caller still takes the early return through the first disjunct.",
+      "round": 2
+    },
+    {
+      "package": "packages/core",
+      "file": "src/core/prepareTranslation.ts",
+      "mutators": ["BlockStatement"],
+      "snippet": "for (const ext of extensions) {",
+      "lineHint": 221,
+      "kind": "equivalent",
+      "reason": "Both mutants stop the loop from recognising an already-present tag extension, so the options carry tagSyntaxExtension twice. Duplicate ids are part of the documented contract of the effective-set union (cache bits OR idempotently, hook dispatch stops at the first claim), so content, pendingHandlers and isMissing come back identical.",
+      "round": 2
+    },
+    {
+      "package": "packages/core",
+      "file": "src/core/prepareTranslation.ts",
+      "mutators": ["ConditionalExpression"],
+      "snippet": "if (ext.id === tagSyntaxExtension.id) return options;",
+      "lineHint": 222,
+      "kind": "equivalent",
+      "reason": "Both mutants stop the loop from recognising an already-present tag extension, so the options carry tagSyntaxExtension twice. Duplicate ids are part of the documented contract of the effective-set union (cache bits OR idempotently, hook dispatch stops at the first claim), so content, pendingHandlers and isMissing come back identical.",
+      "round": 2
+    },
+    {
+      "package": "packages/core",
+      "file": "src/editor-bridge.ts",
+      "mutators": ["ConditionalExpression"],
+      "snippet": "if (typeof item !== \"number\" || !Number.isFinite(item)) {",
+      "lineHint": 49,
+      "kind": "equivalent",
+      "reason": "Subsumed by the second disjunct: Number.isFinite does not coerce, so it is false for every value that is not a finite number - a string, null, an object, NaN and Infinity all still make toRecordOfNumbers return undefined. Only a finite number passes both versions.",
+      "round": 2
+    },
+    {
+      "package": "packages/core",
+      "file": "src/editor-bridge.ts",
+      "mutators": ["ConditionalExpression"],
+      "snippet": "if (!host || (typeof host !== \"object\" && typeof host !== \"function\")) {",
+      "lineHint": 63,
+      "kind": "equivalent",
+      "reason": "Leaves `!host` as the only guard, so a truthy primitive host (string, number, boolean, symbol, bigint) reaches the property read host[EDITOR_MAPPINGS_GLOBAL]. That read is undefined on a primitive, and the very next guard returns undefined for it - the same result the removed test produced.",
+      "round": 2
+    },
+    {
+      "package": "packages/core",
+      "file": "src/core/translate/compile-icu.ts",
+      "mutators": ["EqualityOperator"],
+      "snippet": "while (i < len) {",
+      "lineHint": 34,
+      "kind": "equivalent",
+      "reason": "isPluralArgStart is only ever called with len === str.length (extractToken, findMatchingBraceEnd and replaceTopLevelHash all thread the full string length through, and MessageCompiler.argOpensHashScope reaches no other caller), so the extra pass reads charCodeAt(len) === NaN, which is neither COMMA nor a brace; i then leaves the loop at len + 1 and the line-40 guard returns false exactly as before.",
+      "round": 2
+    },
+    {
+      "package": "packages/core",
+      "file": "src/core/translate/compile-icu.ts",
+      "mutators": ["ConditionalExpression", "EqualityOperator"],
+      "snippet": "if (i >= len) return false;",
+      "lineHint": 40,
+      "kind": "equivalent",
+      "reason": "with the early return skipped (or narrowed to i > len) the type scan starts at or past the end of the string, every slice clamps to \"\", and \"\" is neither \"plural\" nor \"selectordinal\" — the function still returns false.",
+      "round": 2
+    },
+    {
+      "package": "packages/core",
+      "file": "src/core/translate/compile-icu.ts",
+      "mutators": ["ConditionalExpression", "EqualityOperator"],
+      "snippet": "while (i < len && str.charCodeAt(i) <= SPACE) i++;",
+      "lineHint": 42,
+      "kind": "equivalent",
+      "reason": "reading one index past the end yields NaN and NaN <= SPACE is false, so the whitespace skip stops on exactly the same index whether the bound is checked or not.",
+      "round": 2
+    },
+    {
+      "package": "packages/core",
+      "file": "src/core/translate/compile-icu.ts",
+      "mutators": ["EqualityOperator"],
+      "snippet": "while (i < len) {",
+      "lineHint": 44,
+      "kind": "equivalent",
+      "reason": "charCodeAt(len) is NaN, which matches none of the four break codes, so the loop exits one index later and str.slice(typeStart, len + 1) clamps to the same type string.",
+      "round": 2
+    },
+    {
+      "package": "packages/core",
+      "file": "src/core/translate/compile-icu.ts",
+      "mutators": ["ConditionalExpression"],
+      "snippet": "if (str.indexOf(\"#\") === -1) return str;",
+      "lineHint": 59,
+      "kind": "equivalent",
+      "reason": "skipping the fast path runs the scan over a #-free string, where `out` is only ever appended in the HASH branch — so out + str.slice(segStart) rebuilds the identical string.",
+      "round": 2
+    },
+    {
+      "package": "packages/core",
+      "file": "src/core/translate/compile-icu.ts",
+      "mutators": ["EqualityOperator"],
+      "snippet": "while (i < len) {",
+      "lineHint": 66,
+      "kind": "equivalent",
+      "reason": "charCodeAt(len) is NaN and matches neither APOSTROPHE, OPEN_BRACE nor HASH, so the extra pass appends nothing and the same out + str.slice(segStart) is returned.",
+      "round": 2
+    },
+    {
+      "package": "packages/core",
+      "file": "src/core/translate/compile-icu.ts",
+      "mutators": ["ConditionalExpression"],
+      "snippet": "i = end === -1 ? len : end;",
+      "lineHint": 74,
+      "kind": "equivalent",
+      "reason": "`end` is never -1 here: replaceTopLevelHash only runs on a plural BRANCH value, which parsePluralChoices sliced out of an already brace-balanced span under the same hashIsSyntax = true, so findMatchingBraceEnd always finds the nested argument's closing brace.",
+      "round": 2
+    },
+    {
+      "package": "packages/core",
+      "file": "src/core/translate/compile-icu.ts",
+      "mutators": ["EqualityOperator"],
+      "snippet": "while (i < len) {",
+      "lineHint": 95,
+      "kind": "equivalent",
+      "reason": "at i === len the inner whitespace skip is a no-op and the `i >= len` guard on the next line breaks immediately, so the extra pass adds no choice.",
+      "round": 2
+    },
+    {
+      "package": "packages/core",
+      "file": "src/core/translate/compile-icu.ts",
+      "mutators": ["ConditionalExpression", "EqualityOperator"],
+      "snippet": "while (i < len && choicesStr.charCodeAt(i) <= SPACE) i++;",
+      "lineHint": 96,
+      "kind": "equivalent",
+      "reason": "NaN <= SPACE is false, so the whitespace skip stops on the same index with or without the bound.",
+      "round": 2
+    },
+    {
+      "package": "packages/core",
+      "file": "src/core/translate/compile-icu.ts",
+      "mutators": ["ConditionalExpression", "EqualityOperator"],
+      "snippet": "if (i >= len) break;",
+      "lineHint": 97,
+      "kind": "equivalent",
+      "reason": "without this break the key scan produces the empty key and the `i >= len ||` guard on line 108 breaks one guard later, leaving the same choices map.",
+      "round": 2
+    },
+    {
+      "package": "packages/core",
+      "file": "src/core/translate/compile-icu.ts",
+      "mutators": ["EqualityOperator"],
+      "snippet": "while (i < len) {",
+      "lineHint": 100,
+      "kind": "equivalent",
+      "reason": "NaN is neither <= SPACE nor OPEN_BRACE, so the key slice clamps to the same text and the loop still ends at the line-108 guard.",
+      "round": 2
+    },
+    {
+      "package": "packages/core",
+      "file": "src/core/translate/compile-icu.ts",
+      "mutators": ["ConditionalExpression", "EqualityOperator"],
+      "snippet": "while (i < len && choicesStr.charCodeAt(i) <= SPACE) i++;",
+      "lineHint": 107,
+      "kind": "equivalent",
+      "reason": "same NaN argument as line 96 — the whitespace skip stops on the same index.",
+      "round": 2
+    },
+    {
+      "package": "packages/core",
+      "file": "src/core/translate/compile-icu.ts",
+      "mutators": ["ConditionalExpression", "EqualityOperator"],
+      "snippet": "if (i >= len || choicesStr.charCodeAt(i) !== OPEN_BRACE) {",
+      "lineHint": 108,
+      "kind": "equivalent",
+      "reason": "dropping the guard (whole condition or either operand) hands findMatchingBraceEnd a start position with no balanced `}` left: choicesStr is sliced out of an already brace-balanced {…} span and quoted sections are skipped identically, so it returns -1 and line 120 ends the loop with the same choices map.",
+      "round": 2
+    },
+    {
+      "package": "packages/core",
+      "file": "src/core/translate/compile-icu.ts",
+      "mutators": ["EqualityOperator"],
+      "snippet": "for (let k = 0; k < len; k++) {",
+      "lineHint": 143,
+      "kind": "equivalent",
+      "reason": "charCodeAt(len) is NaN, so the extra iteration is neither an apostrophe, a brace nor a comma and touches neither depth nor either comma index.",
+      "round": 2
+    },
+    {
+      "package": "packages/core",
+      "file": "src/core/translate/compile-icu.ts",
+      "mutators": ["ConditionalExpression"],
+      "snippet": "else if (secondComma === -1) {",
+      "lineHint": 155,
+      "kind": "equivalent",
+      "reason": "the branch is reachable at most once — it assigns secondComma and breaks — and on that single visit secondComma is still -1.",
+      "round": 2
+    },
+    {
+      "package": "packages/core",
+      "file": "src/core/translate/compile-icu.ts",
+      "mutators": ["ConditionalExpression"],
+      "snippet": "if (firstComma !== -1 && secondComma !== -1) {",
+      "lineHint": 162,
+      "kind": "equivalent",
+      "reason": "secondComma is only ever assigned in the `else` of `firstComma === -1`, so secondComma !== -1 already implies this operand; the whole-condition and second-operand mutants on the line are killed.",
+      "round": 2
+    },
+    {
+      "package": "packages/core",
+      "file": "src/core/translate/compile-icu.ts",
+      "mutators": ["ConditionalExpression"],
+      "snippet": "choicesStr.indexOf(\"=\") !== -1 ? 1 : 0,",
+      "lineHint": 172,
+      "kind": "equivalent",
+      "reason": "forcing hasExactSelectors on only adds a choices[\"=\" + count] probe, and a choice key beginning with `=` cannot exist unless choicesStr contains `=` — which is exactly when the flag is set anyway. The probe misses and the plural-category path runs unchanged.",
+      "round": 2
+    },
+    {
+      "package": "packages/core",
+      "file": "src/core/translate/compile-icu.ts",
+      "mutators": ["MethodExpression"],
+      "snippet": "const choicesStr = content.slice(secondComma + 1).trim();",
+      "lineHint": 177,
+      "kind": "equivalent",
+      "reason": "this is the SELECT arm: the untrimmed string only reaches parsePluralChoices, which skips leading whitespace itself, and token[2] is never read back because processSelect always finds token[3] populated (translate.ts is the only other token consumer and it reads token[0] alone).",
+      "round": 2
+    },
+    {
+      "package": "packages/core",
+      "file": "src/core/translate/compile-icu.ts",
+      "mutators": ["ConditionalExpression"],
+      "snippet": "const hasExactSelectors = token[4] === 1;",
+      "lineHint": 192,
+      "kind": "equivalent",
+      "reason": "same as line 172 — an always-set hasExactSelectors only adds a choices[\"=\" + count] lookup that can hit only when the choice list really contains `=`.",
+      "round": 2
+    },
+    {
+      "package": "packages/core",
+      "file": "src/core/translate/compile-icu.ts",
+      "mutators": ["ConditionalExpression"],
+      "snippet": "if (hasExactSelectors) {",
+      "lineHint": 207,
+      "kind": "equivalent",
+      "reason": "same as line 172 — the extra choices[\"=\" + count] probe misses whenever no `=` selector exists, leaving `selected` undefined and the plural-category path unchanged.",
+      "round": 2
+    },
+    {
+      "package": "packages/core",
+      "file": "src/format.ts",
+      "mutators": ["ConditionalExpression"],
+      "snippet": "if (cached !== undefined) {",
+      "lineHint": 108,
+      "kind": "equivalent",
+      "reason": "needs-seam, same reason: skipping the cache hit recomputes the direction from the same locale string and returns the same \"ltr\"/\"rtl\".",
+      "round": 2
+    },
+    {
+      "package": "packages/core",
+      "file": "src/logger.ts",
+      "mutators": ["ConditionalExpression"],
+      "snippet": "if (typeof __DEV__ === \"undefined\" || __DEV__) {",
+      "lineHint": 4,
+      "kind": "gap:prod-build",
+      "reason": "__DEV__ is a build-time literal and vitest.config.ts defines it as true, so both the whole-condition `true` and the first-operand `false` leave the guard true and warn() still logs. Separating them needs a build with __DEV__ === false. The whole-condition `false` mutant on this line IS killed by the warning suites.",
+      "round": 2
+    },
+    {
+      "package": "packages/core",
+      "file": "src/utils.ts",
+      "mutators": ["ConditionalExpression"],
+      "snippet": "if (IS_DEV) {",
+      "lineHint": 14,
+      "kind": "gap:prod-build",
+      "reason": "IS_DEV is true in this build (vitest defines __DEV__ as true), so forcing the guard true changes nothing. Only a __DEV__ === false build separates them; the `false` mutant on this line is killed by catalog-flatten-warnings.test.ts.",
+      "round": 2
+    },
+    {
+      "package": "packages/core",
+      "file": "src/utils.ts",
+      "mutators": ["ConditionalExpression"],
+      "snippet": "if (IS_DEV) {",
+      "lineHint": 19,
+      "kind": "gap:prod-build",
+      "reason": "IS_DEV is true in this build, so forcing the guard true changes nothing — same prod-build gap as line 14.",
+      "round": 2
+    },
+    {
+      "package": "packages/core",
+      "file": "src/utils/createBoundTranslation.ts",
+      "mutators": ["ConditionalExpression", "BlockStatement"],
+      "snippet": "if (userParams.ns !== undefined) {",
+      "lineHint": 66,
+      "kind": "equivalent",
+      "reason": "taking the merge path unconditionally yields an EQUAL params object: { ns, ...userParams } copies the caller's own `ns` last, so an explicit namespace still wins. Only the object identity and the key order differ, and neither reaches any public observable — I18n reads params.ns / params.locale / interpolation values by name and never enumerates or retains the object.",
+      "round": 2
+    },
+    {
+      "package": "packages/core",
+      "file": "src/utils/translationResultToString.ts",
+      "mutators": ["ConditionalExpression"],
+      "snippet": "if (typeof result === \"string\") {",
+      "lineHint": 16,
+      "kind": "equivalent",
+      "reason": "falling through iterates the string with for…of and concatenates its own code points, rebuilding the identical string (surrogate pairs included).",
+      "round": 2
+    },
+    {
+      "package": "packages/core",
+      "file": "src/format.ts",
+      "mutators": ["ConditionalExpression"],
+      "snippet": "if (oldest !== undefined) cache.delete(oldest);",
+      "lineHint": 17,
+      "kind": "equivalent",
+      "reason": "the guard is unreachable-false: `cachePut` only reaches it once `cache.size >= 1000`, and a non-empty Map always yields a first key from `keys().next().value`. Every key is a `JSON.stringify` string, never `undefined`, so the eviction always had a real key to delete and `delete(undefined)` could not have happened anyway.",
+      "round": 3
+    },
+    {
+      "package": "packages/core",
+      "file": "src/core/translate/parser.ts",
+      "mutators": ["OptionalChaining"],
+      "snippet": "warnedTagTemplates?.clear();",
+      "lineHint": 50,
+      "kind": "gap:prod-build",
+      "reason": "`warnedTagTemplates` is `IS_DEV ? new Set() : undefined` and `__DEV__` is defined `true` for every core suite, so the optional call and the plain call are the same call under the runner. Only a production build makes the set `undefined`, where the plain call would throw — and the seam is test teardown, never called there. Its contract (a reset makes the same template warn again) is pinned by tests/features/dev-warning-resets.test.ts.",
+      "round": 3
+    },
+    {
+      "package": "packages/core",
+      "file": "src/core/translate.ts",
+      "mutators": ["ConditionalExpression", "LogicalOperator", "EqualityOperator"],
+      "snippet": "if (!(tokens.length === 0 || (tokens.length === 1 && tokens[0][0] === TK_TEXT))) {",
+      "lineHint": 118,
+      "kind": "equivalent",
+      "reason": "the guard only skips a classification loop that is a no-op for the token lists it skips. Mutants that OPEN the guard (whole condition to true/false, `||` to `&&`, either operand to false) let the loop run for an empty token list (no iterations) or a lone TK_TEXT token (matches no branch): `hasDynamic` stays false and `flags` stays TF_STATIC, so nothing downstream changes. Mutants that CLOSE it (`tokens.length === 1` to `true` / to `!==`) skip the loop for a TEXT-first list of two or more tokens, leaving `flags` at TF_STATIC; `isStatic` is additionally gated on `tokens.length <= 1`, so no template can be wrongly returned raw, and the only remaining effect is rendering through the generic `processTokens` instead of the simple-params/single-param fast path. Those fast paths differ from `processTokens` in exactly one place — `processSimpleParams` drops an accumulated empty prefix before a node part — which a TEXT-first template can never reach, since its leading text token is non-empty by construction (the parser never emits an empty TK_TEXT).",
+      "round": 3
+    },
+    {
+      "package": "packages/core",
+      "file": "src/core/translate.ts",
+      "mutators": ["BooleanLiteral"],
+      "snippet": "hasDynamic = true;",
+      "lineHint": 126,
+      "kind": "equivalent",
+      "reason": "`hasDynamic` is read once, in `hasDynamic && flags === TF_STATIC`. The line above this one has already done `flags |= TF_HAS_PLURAL` (2), so `flags === TF_STATIC` (0) is false for the rest of the pass whatever this assignment says; the assignment is dead in the plural branch.",
+      "round": 3
+    },
+    {
+      "package": "packages/core",
+      "file": "src/core/translate.ts",
+      "mutators": ["ConditionalExpression"],
+      "snippet": "} else if (kind === TK_SELECT) {",
+      "lineHint": 127,
+      "kind": "equivalent",
+      "reason": "for the `false` mutant (the `true` mutant on this line is killed by tests/features/translate-fast-path-selection.test.ts): a TK_SELECT token then falls through to the `kind !== TK_TEXT` arm and is tagged TF_HAS_TAGS (8) instead of TF_HAS_SELECT (4), with `hasDynamic` set either way. Neither bit is ever read — the only reads of `flags` are `=== TF_STATIC` (0) and `=== TF_SIMPLE_PARAMS` (1) — so both values classify the template identically and it renders through `processTokens` either way.",
+      "round": 3
+    },
+    {
+      "package": "packages/core",
+      "file": "src/core/translate.ts",
+      "mutators": ["BooleanLiteral"],
+      "snippet": "hasDynamic = true;",
+      "lineHint": 129,
+      "kind": "equivalent",
+      "reason": "same dead assignment as line 126: the preceding `flags |= TF_HAS_SELECT` (4) already makes `flags === TF_STATIC` false, and that comparison is the only reader of `hasDynamic`.",
+      "round": 3
+    },
+    {
+      "package": "packages/core",
+      "file": "src/core/translate.ts",
+      "mutators": ["BooleanLiteral"],
+      "snippet": "hasDynamic = true;",
+      "lineHint": 132,
+      "kind": "equivalent",
+      "reason": "same dead assignment as line 126: the preceding `flags |= TF_HAS_TAGS` (8) already makes `flags === TF_STATIC` false, and that comparison is the only reader of `hasDynamic`.",
+      "round": 3
+    },
+    {
+      "package": "packages/core",
+      "file": "src/core/translate.ts",
+      "mutators": ["OptionalChaining"],
+      "snippet": "missingParamWarned?.clear();",
+      "lineHint": 186,
+      "kind": "gap:prod-build",
+      "reason": "`missingParamWarned` is `IS_DEV ? new Set() : undefined` and `__DEV__` is defined `true` for every core suite, so the optional call and the plain call are the same call under the runner. Only a production build makes the set `undefined`, where the plain call would throw — and the seam is test teardown, never called there. Its contract (a reset makes the same (template, param) pair warn again) is pinned by tests/features/dev-warning-resets.test.ts.",
+      "round": 3
+    },
+    {
+      "package": "packages/core",
+      "file": "src/core/translate.ts",
+      "mutators": ["StringLiteral"],
+      "snippet": "if (typeof value === \"string\" || typeof value === \"number\" || typeof value === \"boolean\") {",
+      "lineHint": 367,
+      "kind": "equivalent",
+      "reason": "emptying `\"number\"` or `\"boolean\"` only makes that primitive miss the string-accumulator arm and take the part-list arm instead. That arm re-processes the SAME token index through `appendParamValue`, which appends `String(value)` for a non-null non-array non-node value — byte-identical to the `result += value` it replaced — and `finalizeResult` collapses an all-primitive part list back to one string. The accumulated prefix is preserved because it is pushed first whenever it is non-empty, and when it is empty there is nothing to preserve. Same reasoning already accepted for the ConditionalExpression mutants on this line.",
+      "round": 3
     }
   ]
 }

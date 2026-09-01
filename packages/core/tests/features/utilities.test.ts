@@ -1,18 +1,30 @@
 import { describe, it, expect, vi } from "vitest";
 import { I18n, createBoundTranslation } from "../helpers/composedHost";
 
+const twoNamespaces = () => {
+  const i18n = new I18n({ locale: "en" });
+  i18n.addTranslations({
+    "en:common": { cancel: "Cancel", greeting: "Hello {name}" },
+    "en:modal": { cancel: "Close Modal", greeting: "Modal {name}" },
+  });
+  return i18n;
+};
+
 describe("createBoundTranslation", () => {
-  it("uses the bound namespace and still allows explicit namespace override", () => {
-    const i18n = new I18n({ locale: "en" });
-    i18n.addTranslations({
-      "en:common": { cancel: "Cancel", greeting: "Hello {name}" },
-      "en:modal": { cancel: "Close Modal", greeting: "Modal {name}" },
-    });
+  it("resolves keys against the bound namespace", () => {
+    const i18n = twoNamespaces();
 
     const t = createBoundTranslation(i18n, "common");
 
     expect(t("cancel")).toBe("Cancel");
     expect(t("greeting", { name: "Alice" })).toBe("Hello Alice");
+  });
+
+  it("lets a per-call ns override the bound namespace", () => {
+    const i18n = twoNamespaces();
+
+    const t = createBoundTranslation(i18n, "common");
+
     expect(t("cancel", { ns: "modal" })).toBe("Close Modal");
     expect(t("greeting", { ns: "modal", name: "Alice" })).toBe("Modal Alice");
   });

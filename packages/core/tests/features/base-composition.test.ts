@@ -10,7 +10,7 @@ import { createI18n } from "../../src";
 import { attachLoader, createImportMapLoader, loader } from "../../src/loader";
 import { attachPlugins, plugins } from "../../src/plugins";
 import { attachDevtools, devtools } from "../../src/devtools";
-import { hasLoaderApi, hasPluginHostApi, missingCapability } from "../../src/utils/capability";
+import { hasLoaderApi, hasPluginHostApi } from "../../src/utils/capability";
 import { createDeferred } from "../helpers/deferred";
 
 /**
@@ -35,11 +35,14 @@ describe("base + /loader composition", () => {
     for (const name of ["registerLoader", "getLoader", "reloadTranslations", "setLocaleAsync"]) {
       const descriptor = Object.getOwnPropertyDescriptor(i18n, name);
       expect(descriptor, name).toBeDefined();
-      expect({
-        writable: descriptor!.writable,
-        enumerable: descriptor!.enumerable,
-        configurable: descriptor!.configurable,
-      }).toEqual({ writable: true, enumerable: false, configurable: true });
+      expect(
+        {
+          writable: descriptor!.writable,
+          enumerable: descriptor!.enumerable,
+          configurable: descriptor!.configurable,
+        },
+        name,
+      ).toEqual({ writable: true, enumerable: false, configurable: true });
     }
 
     // The attach must not change what enumeration sees.
@@ -82,7 +85,7 @@ describe("base + /loader composition", () => {
     const i18n = attachLoader(createI18n({ locale: "en", exposeGlobal: false }));
 
     await expect(i18n.reloadTranslations()).rejects.toThrow(
-      /No loader registered|E_NO_LOADER_REGISTERED/,
+      "[i18n] No loader registered. Cannot reload translations.",
     );
   });
 
@@ -139,40 +142,11 @@ describe("base + /loader composition", () => {
   });
 });
 
-describe("the loader capability's argument contract", () => {
-  it("rejects a non-function loader with an ACTIONABLE message — never 'use the root'", () => {
-    // The base host has no `registerLoader` at all, so an error that told an
-    // import-map user to "use the root entry" would send them to a host without
-    // the method. The remedies it names must both exist on THIS host.
-    const i18n = attachLoader(createI18n({ locale: "en", exposeGlobal: false }));
-    const call = () =>
-      (i18n as unknown as { registerLoader: (value: unknown) => void }).registerLoader({
-        en: () => Promise.resolve({ default: {} }),
-      });
+it("reports both capabilities as absent on a bare host", () => {
+  const bare = createI18n({ locale: "en", exposeGlobal: false });
 
-    expect(call).toThrow(/must be a loader function/);
-    expect(call).toThrow(/\.with\(loader\(map\)\)/);
-    expect(call).toThrow(/createImportMapLoader/);
-    expect(call).not.toThrow(/use the root/i);
-  });
-
-  it("names the composition remedy in the missing-capability error, not the root", () => {
-    const loaderError = missingCapability("loader").message;
-    expect(loaderError).toContain(".with(loader())");
-    expect(loaderError).toContain("@comvi/core/loader");
-    expect(loaderError).not.toMatch(/use the root/i);
-
-    const pluginsError = missingCapability("plugins").message;
-    expect(pluginsError).toContain(".with(plugins())");
-    expect(pluginsError).not.toMatch(/use the root/i);
-  });
-
-  it("reports both capabilities as absent on a bare host", () => {
-    const bare = createI18n({ locale: "en", exposeGlobal: false });
-
-    expect(hasLoaderApi(bare)).toBe(false);
-    expect(hasPluginHostApi(bare)).toBe(false);
-  });
+  expect(hasLoaderApi(bare)).toBe(false);
+  expect(hasPluginHostApi(bare)).toBe(false);
 });
 
 describe("base + /plugins composition", () => {
@@ -198,11 +172,14 @@ describe("base + /plugins composition", () => {
     for (const name of PLUGIN_API) {
       const descriptor = Object.getOwnPropertyDescriptor(i18n, name);
       expect(descriptor, name).toBeDefined();
-      expect({
-        writable: descriptor!.writable,
-        enumerable: descriptor!.enumerable,
-        configurable: descriptor!.configurable,
-      }).toEqual({ writable: true, enumerable: false, configurable: true });
+      expect(
+        {
+          writable: descriptor!.writable,
+          enumerable: descriptor!.enumerable,
+          configurable: descriptor!.configurable,
+        },
+        name,
+      ).toEqual({ writable: true, enumerable: false, configurable: true });
     }
 
     expect(Object.keys(i18n)).not.toContain("use");
@@ -261,7 +238,7 @@ describe("base + /plugins composition", () => {
     expect(i18n.t("hello")).toBe("Hello");
   });
 
-  it("chains registered post-processors FIFO and rejects non-functions", () => {
+  it("chains registered post-processors FIFO", () => {
     const i18n = attachPlugins(
       createI18n({ locale: "en", translation: { en: { hello: "Hello" } }, exposeGlobal: false }),
     );
@@ -270,8 +247,13 @@ describe("base + /plugins composition", () => {
     i18n.registerPostProcessor((r) => `${r as string}-b`);
 
     expect(i18n.t("hello")).toBe("Hello-a-b");
+  });
+
+  it("rejects a non-function post-processor", () => {
+    const i18n = attachPlugins(createI18n({ locale: "en", exposeGlobal: false }));
+
     expect(() => i18n.registerPostProcessor(undefined as never)).toThrow(
-      /must be a function|E_REGISTER_POST_PROCESSOR/,
+      "[i18n] registerPostProcessor(): argument must be a function. Received: undefined",
     );
   });
 
@@ -279,7 +261,7 @@ describe("base + /plugins composition", () => {
     const i18n = attachPlugins(createI18n({ locale: "en", exposeGlobal: false }));
 
     expect(() => i18n.registerLocaleDetector(undefined as never)).toThrow(
-      /must be a function|E_REGISTER_LOCALE_DETECTOR/,
+      "[i18n] registerLocaleDetector(): argument must be a function.",
     );
   });
 });

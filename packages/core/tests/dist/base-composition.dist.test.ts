@@ -83,7 +83,7 @@ describe("prod dist: base + /loader + /plugins composition (A6)", () => {
     // import is hoisted above `beforeAll`, so a missing or stale dist would fail
     // with an opaque resolution error instead of "run the build first".
     const { createI18n } = await import("../../dist/comvi-core.js");
-    const { attachLoader, createImportMapLoader } = await import("../../dist/comvi-core-loader.js");
+    const { attachLoader } = await import("../../dist/comvi-core-loader.js");
 
     const store: Record<string, Record<string, string>> = {
       "en:default": { hello: "Hello" },
@@ -184,20 +184,29 @@ describe("prod dist: base + /loader + /plugins composition (A6)", () => {
     expect(queue).toHaveLength(0);
   });
 
-  it("flattens nested catalogs against the mangled build", async () => {
+  it("a bare host needs flattenCatalog for a nested catalog", async () => {
     const { createI18n } = await import("../../dist/comvi-core.js");
-    const { attachLoader, flattenCatalog } = await import("../../dist/comvi-core-loader.js");
+    const { flattenCatalog } = await import("../../dist/comvi-core-loader.js");
+
+    const bare = createI18n({ locale: "en", exposeGlobal: false });
+
+    bare.addTranslations({ en: { nav: { home: "Home" } } });
+    expect(bare.t("nav.home")).toBe("nav.home");
+
+    bare.addTranslations({ en: flattenCatalog({ nav: { home: "Home" } }) });
+    expect(bare.t("nav.home")).toBe("Home");
+  });
+
+  it("a loader-attached host flattens a nested catalog against the mangled build", async () => {
+    const { createI18n } = await import("../../dist/comvi-core.js");
+    const { attachLoader } = await import("../../dist/comvi-core-loader.js");
 
     // `_flattenNs` is a prototype member of the loader chunk consumed by the
     // base class's `_nsAddTranslations` — the same cross-chunk contract.
-    const bare = createI18n({ locale: "en", exposeGlobal: false });
-    bare.addTranslations({ en: { nav: { home: "Home" } } });
-    expect(bare.t("nav.home")).toBe("nav.home");
-    bare.addTranslations({ en: flattenCatalog({ nav: { home: "Home" } }) });
-    expect(bare.t("nav.home")).toBe("Home");
-
     const loaded = attachLoader(createI18n({ locale: "en", exposeGlobal: false }));
+
     loaded.addTranslations({ en: { nav: { home: "Home" } } });
+
     expect(loaded.t("nav.home")).toBe("Home");
   });
 
