@@ -1,8 +1,18 @@
 import { Command } from "commander";
+import { promises as fs } from "fs";
 import { ConfigLoader } from "../core/ConfigLoader";
 import { ApiClient } from "../core/ApiClient";
 import { DEFAULT_FILE_TEMPLATE } from "../defaults";
 import type { ComviConfig } from "../types";
+
+async function fileExists(filePath: string): Promise<boolean> {
+  try {
+    await fs.access(filePath);
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 export function createInitCommand(): Command {
   return new Command("init")
@@ -13,7 +23,20 @@ export function createInitCommand(): Command {
     .option("--no-strict-params", "Make all params optional")
     .option("--translations-path <path>", "Local translations folder", "./src/locales")
     .option("--file-template <template>", "File template pattern", DEFAULT_FILE_TEMPLATE)
+    .option("--force", "Overwrite an existing .comvirc.json")
     .action(async (options) => {
+      // `create()` replaces the file wholesale, so re-running init without this
+      // guard silently dropped a configured project's namespaces, locales and
+      // push/pull settings.
+      const configPath = ConfigLoader.defaultConfigPath();
+      if (!options.force && (await fileExists(configPath))) {
+        console.error(`✗ Configuration already exists: ${configPath}`);
+        console.error(
+          "   Re-run 'comvi init --force' to overwrite it. The existing file was left untouched.",
+        );
+        process.exit(1);
+      }
+
       try {
         if (options.apiKey) {
           console.error(
@@ -70,15 +93,23 @@ export function createInitCommand(): Command {
         }
 
         console.log("\nNext steps:");
-        if (!apiKey) {
-          console.log("  1. Set COMVI_API_KEY environment variable");
-          console.log("  2. Run 'comvi generate-types' to generate types");
-        } else {
-          console.log("  1. Run 'comvi generate-types' to generate types");
-        }
-        console.log("  3. Or run 'comvi generate-types --watch' for real-time updates");
-        console.log("  4. Run 'comvi pull' to download translations");
-        console.log("  5. Run 'comvi push' to upload translations");
+
+        const steps: Array<{ text: string; hint?: string }> = [
+          ...(apiKey ? [] : [{ text: "Set COMVI_API_KEY environment variable" }]),
+          {
+            text: "Run 'comvi generate-types' to generate types",
+            hint: "or 'comvi generate-types --watch' for real-time updates",
+          },
+          { text: "Run 'comvi pull' to download translations" },
+          { text: "Run 'comvi push' to upload translations" },
+        ];
+
+        steps.forEach((step, index) => {
+          console.log(`  ${index + 1}. ${step.text}`);
+          if (step.hint) {
+            console.log(`     (${step.hint})`);
+          }
+        });
       } catch (error) {
         if (error instanceof Error) {
           console.error(`✗ Failed to initialize: ${error.message}`);

@@ -75,7 +75,7 @@ describe("TypeGenerator over the real TypeEmitter and an in-memory filesystem", 
     ]);
   });
 
-  it.each([
+  it.each<{ shape: string; schema: ProjectSchema; expected: string[] }>([
     {
       shape: "multi-namespace",
       schema: {

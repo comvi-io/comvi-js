@@ -21,7 +21,7 @@ export function createPushCommand(): Command {
     .option("-n, --ns <namespaces>", "Filter by namespaces (comma-separated)")
     .option("-p, --path <path>", "Override translations source path")
     .option("--dry-run", "Preview changes without applying")
-    .option("--force-mode <mode>", "Conflict resolution: override, keep, ask, abort", "ask")
+    .option("--force-mode <mode>", "Conflict resolution: override, keep, ask, abort (default: ask)")
     .action(async (options) => {
       try {
         console.log("🔄 Loading configuration...");
@@ -58,6 +58,8 @@ export function createPushCommand(): Command {
           console.log(`📄 Using namespaces from .comvirc.json: ${nss.value!.join(", ")}`);
         }
 
+        // Resolution: CLI flag > config > "ask". `--force-mode` deliberately declares no
+        // commander default; a default is always set, so it would shadow config.push.forceMode.
         const forceMode: ForceMode = options.forceMode || config.push?.forceMode || "ask";
 
         if (!["override", "keep", "ask", "abort"].includes(forceMode)) {

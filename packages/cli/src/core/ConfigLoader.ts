@@ -223,9 +223,14 @@ export class ConfigLoader {
     delete legacyConfig.defaultNsName;
   }
 
+  /** Where `create()` writes when the caller gives no explicit output path. */
+  static defaultConfigPath(): string {
+    return resolve(process.cwd(), this.CONFIG_FILENAME);
+  }
+
   /** `apiKey` belongs in COMVI_API_KEY, not in the written config file. */
   static async create(config: Partial<ComviConfig>, outputPath?: string): Promise<string> {
-    const filePath = outputPath || resolve(process.cwd(), this.CONFIG_FILENAME);
+    const filePath = outputPath || this.defaultConfigPath();
 
     // Build config object - apiKey is NOT included by default (use env var instead).
     // namespaces/locales are persisted only when set so init doesn't bake an
