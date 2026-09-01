@@ -5775,15 +5775,6 @@
     },
     {
       "package": "packages/vue",
-      "file": "src/VueI18n.ts",
-      "mutators": ["ConditionalExpression"],
-      "snippet": "this.core.reportError(error instanceof Error ? error : new Error(String(error)), {",
-      "lineHint": 449,
-      "kind": "equivalent",
-      "reason": "only `-> true` survives: core's reportError runs the identical normalisation, so the raw value reaches onError as the same Error; `-> false` IS killed. Hand-applied; green incl. the non-Error rejection test."
-    },
-    {
-      "package": "packages/vue",
       "file": "src/components/T.ts",
       "mutators": ["BooleanLiteral"],
       "snippet": "let hasHandlers = false;",
@@ -5821,20 +5812,20 @@
     {
       "package": "packages/vue",
       "file": "src/components/T.ts",
-      "mutators": ["ConditionalExpression"],
-      "snippet": "return items ? [items] : [];",
-      "lineHint": 191,
-      "kind": "equivalent",
-      "reason": "only `-> true` survives: [\"\"] and [] render identically (empty text node = no markup, no text); `-> false` and the ArrayDeclaration mutants ARE killed. Hand-applied; green."
-    },
-    {
-      "package": "packages/vue",
-      "file": "src/components/T.ts",
       "mutators": ["ObjectLiteral"],
       "snippet": "return h(Fragment, { key: node.key }, convertList(node.children as TranslationResult));",
       "lineHint": 200,
       "kind": "equivalent",
       "reason": "core never emits keyed fragments; a callback-built keyed fragment holds only strings/VirtualNodes, so a key change recreates text nodes with identical output (re-key probe verified). Hand-applied; green."
+    },
+    {
+      "package": "packages/vue",
+      "file": "src/components/T.ts",
+      "mutators": ["ArrayDeclaration"],
+      "snippet": "const nodes = Array.isArray(rendered) ? rendered : [rendered];",
+      "lineHint": 174,
+      "kind": "equivalent",
+      "reason": "unreachable defensive wrap: Vue normalizes every slot function's return to an array (normalizeSlotValue) before T calls it, so `rendered` is always an array and the else branch never runs. Hand-applied `: []`; full suite 256/256 green."
     }
   ]
 }

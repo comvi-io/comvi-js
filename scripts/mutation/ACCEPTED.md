@@ -88,6 +88,10 @@ Every entry hand-applied with the full suite observed green; DOM dumps where ren
 question. Families: revision counters whose VALUE is never read (only the change matters:
 VueI18n 167/172), no-op guards around empty/undefined component maps (T 129/131/136 — an empty
 merged map and undefined behave identically in prepareTranslation), fragment-wrapping shortcuts
-whose output is byte-identical up to Vue's internal empty-text anchors (T 175/191/200), the
-initial-locale no-op assignment (VueI18n 128), single-element unsubscriber list (VueI18n 421),
-and double error normalisation (VueI18n 449 — core re-runs the identical instanceof wrap).
+whose output is byte-identical up to Vue's internal empty-text anchors (T 175/200), the
+initial-locale no-op assignment (VueI18n 128), and the single-element unsubscriber list
+(VueI18n 421). (T 191 and VueI18n 449 were proposed too, but those mutants are absent from the
+current Stryker mutant set — entries dropped as stale rather than kept speculatively.)
+
+- T.ts:174 `[rendered]` -> `[]` (nocov): unreachable — Vue's normalizeSlotValue hands T an array
+  from every slot function, so the single-node wrap never executes. Hand-applied, suite green.
