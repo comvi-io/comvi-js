@@ -163,14 +163,14 @@ describe("useI18n", () => {
     const revision = container.querySelector('[data-testid="revision"]')!;
 
     expect(state.textContent).toBe("en|false|false|false");
-    const revisionBefore = Number(revision.textContent);
+    expect(revision.textContent).toBe("0");
 
     fake.emit("loadingStateChanged", { isLoading: true, isInitializing: true });
     await flushMicrotasks();
 
     expect(state.textContent).toBe("en|true|true|false");
     // The loading axis deliberately does NOT bump the cache revision.
-    expect(Number(revision.textContent)).toBe(revisionBefore);
+    expect(revision.textContent).toBe("0");
 
     await fake.setLocaleAsync("fr");
     fake.addTranslations({ fr: { greeting: "Bonjour" } });
@@ -182,7 +182,7 @@ describe("useI18n", () => {
     expect(state.textContent).toBe("fr|false|false|true");
     // Exactly two bumps for the three events: `initialized` re-reads an
     // unchanged cache and must not add a third.
-    expect(Number(revision.textContent)).toBe(revisionBefore + 2);
+    expect(revision.textContent).toBe("2");
   });
 
   it("changes language through the returned API and re-renders the subtree", async () => {
@@ -410,6 +410,75 @@ describe("useI18n", () => {
     await flushMicrotasks();
 
     expect(container.textContent).toBe("rtl");
+  });
+
+  it("empties the host catalog through clearTranslations()", () => {
+    const fake = new FakeI18n({ language: "en", defaultNamespace: "common" });
+    fake.addTranslations({ en: { greeting: "Hello" } });
+
+    let api!: ReturnType<typeof useI18n>;
+    const Probe = () => {
+      api = useI18n();
+      return <div />;
+    };
+
+    renderSolid(() => (
+      <I18nProvider i18n={fake.asI18n()} autoInit={false}>
+        <Probe />
+      </I18nProvider>
+    ));
+
+    expect(api.t("greeting" as never)).toBe("Hello");
+
+    api.clearTranslations();
+
+    expect(api.t("greeting" as never)).toBe("greeting");
+  });
+
+  it("exposes the host's loaded catalog through getTranslationCache()", () => {
+    const fake = new FakeI18n({ language: "en", defaultNamespace: "common" });
+    fake.addTranslations({ en: { greeting: "Hello" } });
+
+    let api!: ReturnType<typeof useI18n>;
+    const Probe = () => {
+      api = useI18n();
+      return <div />;
+    };
+
+    renderSolid(() => (
+      <I18nProvider i18n={fake.asI18n()} autoInit={false}>
+        <Probe />
+      </I18nProvider>
+    ));
+
+    expect(api.getTranslationCache().get("en:common")).toEqual({ greeting: "Hello" });
+  });
+
+  it("routes reportError() to the host's configured error handler", () => {
+    const reported: Array<{ message: string; source: string | undefined }> = [];
+    const i18n = createI18n({
+      locale: "en",
+      exposeGlobal: false,
+      onError: (error, context) =>
+        reported.push({ message: error.message, source: context?.source }),
+    });
+    const failure = new Error("plugin blew up");
+
+    let api!: ReturnType<typeof useI18n>;
+    const Probe = () => {
+      api = useI18n();
+      return <div />;
+    };
+
+    renderSolid(() => (
+      <I18nProvider i18n={i18n} autoInit={false}>
+        <Probe />
+      </I18nProvider>
+    ));
+
+    api.reportError(failure, { source: "plugin" });
+
+    expect(reported).toEqual([{ message: "plugin blew up", source: "plugin" }]);
   });
 
   it("supports on() subscriptions with unsubscribe", async () => {

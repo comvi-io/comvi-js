@@ -15,7 +15,7 @@ describe("solid context", () => {
     };
 
     expect(() => render(() => <Bad />, container)).toThrow(
-      "[@comvi/solid] i18n context not found.",
+      "[@comvi/solid] i18n context not found. Wrap your app with <I18nProvider i18n={i18n}>.",
     );
   });
 

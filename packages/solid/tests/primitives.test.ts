@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { createRoot } from "solid-js";
+import { FakeI18n } from "@comvi/test-utils/fakeI18n";
 import { attachLoader, createI18n } from "../src/index";
 import {
   createLocaleSignal,
@@ -67,6 +68,26 @@ describe("Solid primitives", () => {
     await i18n.setLocaleAsync("de");
 
     expect(locale()).toBe("fr");
+  });
+
+  it("freezes the initialized signal after its root is disposed, for both initialized and destroyed", () => {
+    const fake = new FakeI18n({ language: "en" });
+    const { isInitialized, dispose } = createRoot((disposeRoot) => ({
+      isInitialized: createInitializedSignal(fake.asI18n()),
+      dispose: disposeRoot,
+    }));
+
+    expect(isInitialized()).toBe(false);
+
+    dispose();
+    fake.isInitialized = true;
+    fake.emit("initialized", undefined);
+
+    expect(isInitialized()).toBe(false);
+
+    fake.emit("destroyed", undefined);
+
+    expect(isInitialized()).toBe(false);
   });
 
   it("updates loading and initializing signals during initialization work", async () => {

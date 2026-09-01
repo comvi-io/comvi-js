@@ -56,3 +56,11 @@ killable, which is why the metadata assignments above are not disabled.
   capability.ts: the `: "E_…"` arms and `!IS_DEV` branches are unreachable while the only vitest
   config pins `__DEV__: true` — recorded as `gap:prod-build`, closable with a second vitest project
   built with `__DEV__: false` (which would also exercise the prod ICU fail-soft path directly).
+
+## packages/solid (kill-pass 2026-09-01)
+
+- T.tsx:100 `content.length === 0` -> false: strings are handled one branch earlier, null/undefined
+  still caught by `!content`, and an empty array renders nothing whether it returns `<></>` or falls
+  through to `[].map(...)`. Evidence: mutant 100:19-100:39 hand-applied, full suite 146/146 green.
+- T.tsx:190 `typeof content === "string"` -> true: redundant with `content === keyString`, which can
+  only hold for a string primitive. Evidence: mutant 190:11-190:38 hand-applied, 146/146 green.

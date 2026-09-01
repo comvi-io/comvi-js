@@ -5574,6 +5574,24 @@
       "kind": "equivalent",
       "reason": "equivalent. `visitedRoots` only prevents re-walking a root, and re-walking cannot change the answer: `collection` is a Set, `collectElementAttributes` returns the same Attr nodes for the same element, and the walk only descends into the shadow roots of elements it has just collected, so it still terminates. Dropping the dedup can at most repeat work into a Set. Same finding as lot d2. Hand-applied at the report's exact offsets (the replacement placed as Stryker places it, parenthesised), full package suite green (1361/1361), src restored byte-identically.",
       "round": 5
+    },
+    {
+      "package": "packages/solid",
+      "file": "src/T.tsx",
+      "mutators": ["ConditionalExpression"],
+      "snippet": "if (!content || content.length === 0) {",
+      "lineHint": 100,
+      "kind": "equivalent",
+      "reason": "`content.length === 0` -> false is output-identical: strings took the branch above, null/undefined is caught by `!content`, and an empty array renders nothing either way (<></> vs [].map). Hand-applied, 146/146 green. NB: line also carries the killed 100:7 mutant — this entry would absorb a regression of it (matcher is per-line)."
+    },
+    {
+      "package": "packages/solid",
+      "file": "src/T.tsx",
+      "mutators": ["ConditionalExpression"],
+      "snippet": "typeof content === \"string\" &&",
+      "lineHint": 190,
+      "kind": "equivalent",
+      "reason": "redundant with the next conjunct: `content === keyString` only holds for a string primitive, so dropping the typeof guard cannot change isMissing for any tRaw return. Hand-applied, 146/146 green."
     }
   ]
 }
