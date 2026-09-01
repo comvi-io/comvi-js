@@ -114,6 +114,27 @@ describe("Svelte stores", () => {
     unsubscribeInitialized();
   });
 
+  it("shows a subscriber attaching after init the current state, not the creation-time value", async () => {
+    const i18n = createI18n({
+      locale: "en",
+      defaultNs: "common",
+      translation: {
+        en: { hello: "Hello" },
+      },
+    });
+    const initialized = createInitializedStore(i18n);
+
+    await i18n.init();
+
+    const values: boolean[] = [];
+    const unsubscribe = initialized.subscribe((value) => values.push(value));
+
+    expect(values).toEqual([true]);
+
+    unsubscribe();
+    await i18n.destroy();
+  });
+
   it("removes both host listeners when the last subscriber unsubscribes", () => {
     const initialized = createInitializedStore(fake.asI18n());
     const unsubscribe = initialized.subscribe(() => {});
