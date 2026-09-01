@@ -34,12 +34,14 @@ const shared = {
   resolve: {
     alias: {
       "@": resolve(__dirname, "./src"),
-      // tearing.test.tsx compares the react provider against next's SRC provider;
-      // resolved through node_modules for the same sandbox reason as CORE_DIST.
-      "~next-src": resolve(
-        dirname(createRequire(import.meta.url).resolve("@comvi/next")),
-        "../src",
-      ),
+      // tearing.test.tsx compares the react provider against next's SRC provider.
+      // Derived from CORE_DIST rather than resolve("@comvi/next"): next is not a
+      // dependency of react (adding it would cycle react <-> next), so its dist —
+      // which the exports map points at — may not be built when tests run in CI.
+      // core IS a dependency, so its resolution is guaranteed, and next/src sits
+      // beside it in the real workspace even when this config runs in a Stryker
+      // sandbox (the node_modules chain leads back to the real checkout).
+      "~next-src": resolve(CORE_DIST, "../../next/src"),
     },
   },
   define: {
