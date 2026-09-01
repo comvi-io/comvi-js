@@ -2086,6 +2086,518 @@
       "kind": "equivalent",
       "reason": "emptying `\"number\"` or `\"boolean\"` only makes that primitive miss the string-accumulator arm and take the part-list arm instead. That arm re-processes the SAME token index through `appendParamValue`, which appends `String(value)` for a non-null non-array non-node value — byte-identical to the `result += value` it replaced — and `finalizeResult` collapses an all-primitive part list back to one string. The accumulated prefix is preserved because it is pushed first whenever it is non-empty, and when it is empty there is nothing to preserve. Same reasoning already accepted for the ConditionalExpression mutants on this line.",
       "round": 3
+    },
+    {
+      "package": "packages/plugin-fetch-loader",
+      "file": "src/cache.ts",
+      "mutators": ["ConditionalExpression"],
+      "snippet": "if (released) return;",
+      "lineHint": 49,
+      "kind": "equivalent",
+      "reason": "release() is idempotent in effect: the second run removes an already-removed listener and decrements a counter whose entry has, by then, settled and been deleted from pendingProjectInfoCache. A consumer only releases twice when its signal aborted AND the shared promise later settled, and an abort() on a settled request is a no-op.",
+      "round": 4
+    },
+    {
+      "package": "packages/plugin-fetch-loader",
+      "file": "src/cache.ts",
+      "mutators": ["BooleanLiteral"],
+      "snippet": "released = true;",
+      "lineHint": 50,
+      "kind": "equivalent",
+      "reason": "same guard from the other side: never latching `released` only re-runs the idempotent body. See the entry for `if (released) return;`.",
+      "round": 4
+    },
+    {
+      "package": "packages/plugin-fetch-loader",
+      "file": "src/cache.ts",
+      "mutators": ["StringLiteral"],
+      "snippet": "signal.removeEventListener(\"abort\", onAbort);",
+      "lineHint": 51,
+      "kind": "equivalent",
+      "reason": "removing the wrong event name leaks the listener but cannot change behaviour: the listener is registered `{ once: true }`, and the only thing its handler can still do after release() is reject a promise that has already settled.",
+      "round": 4
+    },
+    {
+      "package": "packages/plugin-fetch-loader",
+      "file": "src/cache.ts",
+      "mutators": ["ObjectLiteral", "BooleanLiteral"],
+      "snippet": "signal.addEventListener(\"abort\", onAbort, { once: true });",
+      "lineHint": 62,
+      "kind": "equivalent",
+      "reason": "`{ once: true }` on an AbortSignal's \"abort\" event is redundant — a signal fires abort at most once — and release() removes the listener anyway.",
+      "round": 4
+    },
+    {
+      "package": "packages/plugin-fetch-loader",
+      "file": "src/cache.ts",
+      "mutators": ["CallExpression"],
+      "snippet": "release();",
+      "lineHint": 65,
+      "kind": "equivalent",
+      "reason": "release() on the resolve path only removes a listener and decrements a counter belonging to a pending entry that the .finally() has already deleted; the abort it could trigger lands on a settled request.",
+      "round": 4
+    },
+    {
+      "package": "packages/plugin-fetch-loader",
+      "file": "src/cache.ts",
+      "mutators": ["CallExpression"],
+      "snippet": "release();",
+      "lineHint": 69,
+      "kind": "equivalent",
+      "reason": "same as the resolve handler's release(): the shared promise has settled, so neither the counter nor the listener can affect an observable outcome.",
+      "round": 4
+    },
+    {
+      "package": "packages/plugin-fetch-loader",
+      "file": "src/cache.ts",
+      "mutators": ["ConditionalExpression", "LogicalOperator"],
+      "snippet": "projectInfoGlobalGeneration === globalGeneration &&",
+      "lineHint": 117,
+      "kind": "equivalent",
+      "reason": "the three conjuncts of the stale-write guard are redundant by construction. A scoped clear bumps the scope generation AND deletes the pending entry; a global clear bumps the global generation AND clears the pending map. Every invalidation therefore fails at least two conjuncts, so no single-conjunct mutant can let a stale response repopulate the cache.",
+      "round": 4
+    },
+    {
+      "package": "packages/plugin-fetch-loader",
+      "file": "src/cache.ts",
+      "mutators": ["ConditionalExpression"],
+      "snippet": "(projectInfoCacheGenerations.get(cacheKey) ?? 0) === cacheGeneration &&",
+      "lineHint": 118,
+      "kind": "equivalent",
+      "reason": "redundant with the entry-identity conjunct on the next line: a scoped clear that changes this generation also deletes the entry from pendingProjectInfoCache.",
+      "round": 4
+    },
+    {
+      "package": "packages/plugin-fetch-loader",
+      "file": "src/cache.ts",
+      "mutators": ["ConditionalExpression"],
+      "snippet": "pendingProjectInfoCache.get(cacheKey) === entry",
+      "lineHint": 119,
+      "kind": "equivalent",
+      "reason": "redundant with the two generation conjuncts above: an entry can only stop being the map's current one through a clear, and every clear also bumps a generation.",
+      "round": 4
+    },
+    {
+      "package": "packages/plugin-fetch-loader",
+      "file": "src/cache.ts",
+      "mutators": ["LogicalOperator", "OptionalChaining", "StringLiteral"],
+      "snippet": "`Failed to fetch project info: ${lastNotFound?.status ?? 404} ${lastNotFound?.statusText ?? \"Not Found\"}`,",
+      "lineHint": 165,
+      "kind": "equivalent",
+      "reason": "this throw is only reachable after every URL answered 404, so `lastNotFound` is always assigned and its status is always 404: `?? 404` and `&& 404` both yield 404, and the optional chains can never short-circuit. `statusText` is always a string on a Response, so the `?? \"Not Found\"` default is unreachable — an empty statusText renders as empty (pinned by the \"Nope\" status-text test).",
+      "round": 4
+    },
+    {
+      "package": "packages/plugin-fetch-loader",
+      "file": "src/cache.ts",
+      "mutators": ["ArithmeticOperator"],
+      "snippet": "projectInfoCacheGenerations.set(cacheKey, (projectInfoCacheGenerations.get(cacheKey) ?? 0) + 1);",
+      "lineHint": 177,
+      "kind": "equivalent",
+      "reason": "the generation counter is only ever compared for equality with a previously captured value; decrementing produces a distinct value just as incrementing does.",
+      "round": 4
+    },
+    {
+      "package": "packages/plugin-fetch-loader",
+      "file": "src/cache.ts",
+      "mutators": ["AssignmentOperator"],
+      "snippet": "projectInfoGlobalGeneration += 1;",
+      "lineHint": 182,
+      "kind": "equivalent",
+      "reason": "same as the per-scope generation: only inequality with the captured value matters, and -= 1 changes the value exactly as += 1 does.",
+      "round": 4
+    },
+    {
+      "package": "packages/plugin-fetch-loader",
+      "file": "src/cache.ts",
+      "mutators": ["CallExpression"],
+      "snippet": "projectInfoCacheGenerations.clear();",
+      "lineHint": 185,
+      "kind": "equivalent",
+      "reason": "the generations map is only read together with the global generation, which a global clear has already bumped; leaving stale per-scope numbers behind cannot flip the guard, because the captured cacheGeneration would then match while the global check still fails.",
+      "round": 4
+    },
+    {
+      "package": "packages/plugin-fetch-loader",
+      "file": "src/http.ts",
+      "mutators": ["OptionalChaining"],
+      "snippet": "const abortFromExternal = () => controller.abort(externalSignal?.reason);",
+      "lineHint": 43,
+      "kind": "equivalent",
+      "reason": "abortFromExternal is only ever invoked from the `externalSignal?.aborted` branch or from a listener registered on externalSignal, so it never runs with externalSignal undefined.",
+      "round": 4
+    },
+    {
+      "package": "packages/plugin-fetch-loader",
+      "file": "src/http.ts",
+      "mutators": ["ObjectLiteral", "BooleanLiteral"],
+      "snippet": "externalSignal?.addEventListener(\"abort\", abortFromExternal, { once: true });",
+      "lineHint": 47,
+      "kind": "equivalent",
+      "reason": "`{ once: true }` is redundant on an AbortSignal (abort fires at most once) and the finally block removes the listener regardless.",
+      "round": 4
+    },
+    {
+      "package": "packages/plugin-fetch-loader",
+      "file": "src/http.ts",
+      "mutators": ["StringLiteral"],
+      "snippet": "externalSignal?.removeEventListener(\"abort\", abortFromExternal);",
+      "lineHint": 64,
+      "kind": "equivalent",
+      "reason": "removing the wrong event name leaks the listener; it cannot change behaviour, because the handler only aborts a controller whose request has already settled.",
+      "round": 4
+    },
+    {
+      "package": "packages/plugin-fetch-loader",
+      "file": "src/http.ts",
+      "mutators": ["ConditionalExpression", "BooleanLiteral"],
+      "snippet": "return rootNamespace !== false && namespace === rootNamespace",
+      "lineHint": 160,
+      "kind": "equivalent",
+      "reason": "`namespace` is a validated non-empty string, so `namespace === rootNamespace` is false whenever rootNamespace is `false`. Both mutants only relax a check the second conjunct already enforces, and the folder path is taken either way.",
+      "round": 4
+    },
+    {
+      "package": "packages/plugin-fetch-loader",
+      "file": "src/loader.ts",
+      "mutators": ["ObjectLiteral"],
+      "snippet": "if (!importFn) return { attempted: false };",
+      "lineHint": 46,
+      "kind": "equivalent",
+      "reason": "`{}` gives `attempted: undefined`, and every reader tests it for truthiness (`if (fallbackResult.attempted)` / `!fallbackResult.attempted`), where undefined and false are indistinguishable.",
+      "round": 4
+    },
+    {
+      "package": "packages/plugin-fetch-loader",
+      "file": "src/loader.ts",
+      "mutators": ["OptionalChaining"],
+      "snippet": "onSuccess?.(locale, ns);",
+      "lineHint": 49,
+      "kind": "equivalent",
+      "reason": "both call sites of tryFallback pass reportSuccess for onSuccess, so it is never undefined. (The onError parameter IS optional at the missing-namespace call site, which is why the matching mutant there is killed.)",
+      "round": 4
+    },
+    {
+      "package": "packages/plugin-fetch-loader",
+      "file": "src/loader.ts",
+      "mutators": ["ArrowFunction"],
+      "snippet": "release: () => inflight.delete(controller),",
+      "lineHint": 123,
+      "kind": "equivalent",
+      "reason": "`inflight` is only iterated by abortAll(); leaving a settled request's controller in the set means aborting a controller whose request has already finished, which is a no-op. The mutant is a memory leak, not a behaviour change.",
+      "round": 4
+    },
+    {
+      "package": "packages/plugin-fetch-loader",
+      "file": "src/loader.ts",
+      "mutators": ["CallExpression"],
+      "snippet": "inflight.clear();",
+      "lineHint": 129,
+      "kind": "equivalent",
+      "reason": "the set has just been walked and every controller aborted; clearing it only releases memory.",
+      "round": 4
+    },
+    {
+      "package": "packages/plugin-fetch-loader",
+      "file": "src/loader.ts",
+      "mutators": ["MethodExpression", "StringLiteral"],
+      "snippet": "const key = `${locale}:${[...requestedNamespaces].sort().join(\",\")}`;",
+      "lineHint": 149,
+      "kind": "equivalent",
+      "reason": "the dedup key is built from getActiveNamespaces() optionally plus the requested namespace, so two concurrent calls that cover the same SET always build it in the same ORDER — sorting cannot change the key. The join separator can only matter for a namespace-name collision (\"a\"+\"bc\" vs \"ab\"+\"c\"), which needs two in-flight calls with different active sets and is unreachable while active namespaces are instance-wide.",
+      "round": 4
+    },
+    {
+      "package": "packages/plugin-fetch-loader",
+      "file": "src/loader.ts",
+      "mutators": ["LogicalOperator", "StringLiteral"],
+      "snippet": "if (signal.aborted || stopped) throw new RequestAbortedError(\"API translations\");",
+      "lineHint": 169,
+      "kind": "equivalent",
+      "reason": "the message literal never surfaces: this throw is caught two lines below, where the abort branch rethrows a RequestAbortedError with the identical \"API translations\" text (that literal IS killed). The || -> && mutant is equivalent because `stopped` and `signal.aborted` are set together for every tracked request: abortAll() sets `stopped` and aborts every controller in `inflight`, and trackRequest() aborts a controller created after `stopped`.",
+      "round": 4
+    },
+    {
+      "package": "packages/plugin-fetch-loader",
+      "file": "src/loader.ts",
+      "mutators": ["LogicalOperator"],
+      "snippet": "if (signal.aborted || stopped || isAborted(error)) {",
+      "lineHint": 174,
+      "kind": "equivalent",
+      "reason": "same equality of `stopped` and `signal.aborted` as above; and with `isAborted(error)` still ORed in, the mutant differs only where the original was already true.",
+      "round": 4
+    },
+    {
+      "package": "packages/plugin-fetch-loader",
+      "file": "src/loader.ts",
+      "mutators": ["ConditionalExpression"],
+      "snippet": "if (!store.has(ck)) {",
+      "lineHint": 180,
+      "kind": "equivalent",
+      "reason": "on this path the API request threw before any entry was written, so the store is always empty and `!store.has(ck)` is always true. (A response that filled the store and was then cancelled rethrows above, before this loop.)",
+      "round": 4
+    },
+    {
+      "package": "packages/plugin-fetch-loader",
+      "file": "src/loader.ts",
+      "mutators": ["LogicalOperator"],
+      "snippet": "if (signal.aborted || stopped) {",
+      "lineHint": 189,
+      "kind": "equivalent",
+      "reason": "`stopped` and `signal.aborted` are set together for every tracked request; see the entry for `if (signal.aborted || stopped) throw new RequestAbortedError(\"API translations\");`.",
+      "round": 4
+    },
+    {
+      "package": "packages/plugin-fetch-loader",
+      "file": "src/loader.ts",
+      "mutators": ["ConditionalExpression"],
+      "snippet": "if (fallbackResult.attempted) attemptedFallbacks.add(ck);",
+      "lineHint": 192,
+      "kind": "equivalent",
+      "reason": "`attempted` is false exactly when no fallback resolves for that key, so recording the key anyway only skips a retry that would itself be a no-op — resolveFallback is deterministic and would find nothing the second time either.",
+      "round": 4
+    },
+    {
+      "package": "packages/plugin-fetch-loader",
+      "file": "src/loader.ts",
+      "mutators": ["CallExpression"],
+      "snippet": "release();",
+      "lineHint": 201,
+      "kind": "equivalent",
+      "reason": "leaving the controller in `inflight` is a leak; abortAll() would abort a controller whose request already settled.",
+      "round": 4
+    },
+    {
+      "package": "packages/plugin-fetch-loader",
+      "file": "src/loader.ts",
+      "mutators": ["ConditionalExpression", "EqualityOperator"],
+      "snippet": "if (Object.keys(translations).length > 0) {",
+      "lineHint": 253,
+      "kind": "equivalent",
+      "reason": "core's addTranslations({}) is a no-op: it emits no event and activates no namespace, so calling it with an empty record is indistinguishable from skipping it.",
+      "round": 4
+    },
+    {
+      "package": "packages/plugin-fetch-loader",
+      "file": "src/loader.ts",
+      "mutators": ["CallExpression"],
+      "snippet": "pending.clear();",
+      "lineHint": 263,
+      "kind": "equivalent",
+      "reason": "every entry of `pending` deletes itself in its own finally block, so by the time cleanup's abort has propagated the map is empty; the clear only releases memory.",
+      "round": 4
+    },
+    {
+      "package": "packages/plugin-fetch-loader",
+      "file": "src/loader.ts",
+      "mutators": ["LogicalOperator"],
+      "snippet": "if (signal.aborted || stopped) throw new RequestAbortedError(url);",
+      "lineHint": 288,
+      "kind": "equivalent",
+      "reason": "`stopped` and `signal.aborted` are set together for every tracked request; see the API-mode entry.",
+      "round": 4
+    },
+    {
+      "package": "packages/plugin-fetch-loader",
+      "file": "src/loader.ts",
+      "mutators": ["LogicalOperator"],
+      "snippet": "if (signal.aborted || stopped || isAborted(error)) {",
+      "lineHint": 292,
+      "kind": "equivalent",
+      "reason": "same equality of `stopped` and `signal.aborted`; `isAborted(error)` is still ORed in, so the mutant differs only where the original was already true.",
+      "round": 4
+    },
+    {
+      "package": "packages/plugin-fetch-loader",
+      "file": "src/loader.ts",
+      "mutators": ["LogicalOperator"],
+      "snippet": "if (signal.aborted || stopped) throw new RequestAbortedError(url);",
+      "lineHint": 304,
+      "kind": "equivalent",
+      "reason": "`stopped` and `signal.aborted` are set together for every tracked request; see the API-mode entry.",
+      "round": 4
+    },
+    {
+      "package": "packages/plugin-fetch-loader",
+      "file": "src/loader.ts",
+      "mutators": ["CallExpression"],
+      "snippet": "release();",
+      "lineHint": 314,
+      "kind": "equivalent",
+      "reason": "leaving the controller in `inflight` is a leak; abortAll() would abort a controller whose request already settled.",
+      "round": 4
+    },
+    {
+      "package": "packages/plugin-fetch-loader",
+      "file": "src/loader.ts",
+      "mutators": ["CallExpression"],
+      "snippet": "loading.clear();",
+      "lineHint": 343,
+      "kind": "equivalent",
+      "reason": "every entry of `loading` deletes itself in its own finally block, so the clear only releases memory.",
+      "round": 4
+    },
+    {
+      "package": "packages/plugin-fetch-loader",
+      "file": "src/options.ts",
+      "mutators": [
+        "ConditionalExpression",
+        "EqualityOperator",
+        "LogicalOperator",
+        "OptionalChaining",
+        "StringLiteral"
+      ],
+      "snippet": "(typeof process !== \"undefined\" && process.env?.NEXT_PUBLIC_COMVI_API_URL) ||",
+      "lineHint": 196,
+      "kind": "gap:prod-build",
+      "reason": "unreachable under this package's vitest config, which `define`s import.meta.env.VITE_API_BASE_URL to a truthy value: the first operand of the || chain always wins, so the process.env override and the comviPreset fallback are never evaluated. Closable with a second vitest project that drops the `define`.",
+      "round": 4
+    },
+    {
+      "package": "packages/plugin-fetch-loader",
+      "file": "src/options.ts",
+      "mutators": [
+        "ConditionalExpression",
+        "EqualityOperator",
+        "LogicalOperator",
+        "OptionalChaining",
+        "StringLiteral"
+      ],
+      "snippet": "(typeof process !== \"undefined\" && process.env?.NEXT_PUBLIC_COMVI_CDN_URL) ||",
+      "lineHint": 203,
+      "kind": "gap:prod-build",
+      "reason": "same as VITE_API_BASE_URL: the vitest config `define`s import.meta.env.VITE_CDN_BASE_URL truthy, so neither the process.env override nor the preset fallback is ever evaluated.",
+      "round": 4
+    },
+    {
+      "package": "packages/plugin-locale-detector",
+      "file": "src/index.ts",
+      "mutators": ["ConditionalExpression"],
+      "snippet": "if (caches.length === 0) return null;",
+      "lineHint": 197,
+      "kind": "equivalent",
+      "reason": "`caches.length === 0` -> false. The guard is a short-circuit, not a behaviour: with `caches: []`, `firstCache` is `undefined`, so the fall-through reads `readStorage(undefined, lookupLocalStorage)`, where `window[undefined]` is `undefined` and the optional chain yields `null` -> `detectFromCache()` returns `null` on both paths. No cache is read and none can be written, so no public observable (locale, storage, cookie) differs. Hand-applied: 71/71 tests pass.",
+      "round": 4
+    },
+    {
+      "package": "packages/plugin-locale-detector",
+      "file": "src/index.ts",
+      "mutators": ["ConditionalExpression", "BlockStatement"],
+      "snippet": "if (fallbackLocale === i18n.locale) {",
+      "lineHint": 243,
+      "kind": "equivalent",
+      "reason": "Both mutants leave `pendingInitResult = { locale: fallbackLocale, cache: false }` in place instead of clearing it when the fallback already IS the current locale. That stale value can only be read by the next `localeChanged`, and core (`i18n.ts`/`loader.ts`: `if (this._locale === value) return;`) never emits an event whose `to` equals the current locale — which here is exactly `fallbackLocale`. So the suppression branch at line 257 (`initResult.locale === locale`) can never match the stale entry: it is cleared and ignored, and the cache write proceeds identically. Hand-applied: 71/71 tests pass.",
+      "round": 4
+    },
+    {
+      "package": "packages/plugin-locale-detector",
+      "file": "src/index.ts",
+      "mutators": ["OptionalChaining"],
+      "snippet": "return (win() ? window[type] : undefined)?.getItem(key) || null;",
+      "lineHint": 322,
+      "kind": "equivalent",
+      "reason": "Dropping `?.` turns a missing `window[type]` (SSR, or a browser with storage disabled) from `undefined?.getItem` into a TypeError — thrown inside the function's own `try`, whose `catch` returns the same `null`. The `?.` and the `catch` are two spellings of one fallback, so no caller can tell them apart. Covered from both sides now: `keeps the current locale when browser globals are unavailable` and `continues to the next source when reading storage throws`. Hand-applied: 71/71 tests pass.",
+      "round": 4
+    },
+    {
+      "package": "packages/plugin-locale-detector",
+      "file": "src/index.ts",
+      "mutators": ["BlockStatement"],
+      "snippet": "} catch {",
+      "lineHint": 323,
+      "kind": "equivalent",
+      "reason": "Emptying `readStorage`'s catch returns `undefined` instead of `null`. Both are falsy at every call site — `if (d && isValid(d))` in the detection loop and `raw && isValid(raw)` in `detectFromCache` — and the value never leaves the module, so the source is skipped identically. The catch itself is no longer a coverage hole: `continues to the next source when reading storage throws` drives a throwing `getItem` through it and asserts the fall-through. Hand-applied: 71/71 tests pass.",
+      "round": 4
+    },
+    {
+      "package": "packages/plugin-locale-detector",
+      "file": "src/index.ts",
+      "mutators": ["ConditionalExpression"],
+      "snippet": "if (!doc()) continue;",
+      "lineHint": 368,
+      "kind": "equivalent",
+      "reason": "`!doc()` -> false, so with no `document` the cookie write is attempted instead of skipped: `document.cookie = v` throws, and `writeCaches` catches per cache target inside the loop, so the remaining targets are still written and nothing propagates. Guard and catch produce the same end state. Exercised by `skips every cache target when browser globals are unavailable`. Hand-applied: 71/71 tests pass.",
+      "round": 4
+    },
+    {
+      "package": "packages/plugin-locale-detector",
+      "file": "src/index.ts",
+      "mutators": ["ConditionalExpression"],
+      "snippet": "if (win())",
+      "lineHint": 383,
+      "kind": "equivalent",
+      "reason": "`win()` -> true: with no `window`, `window[t]?.setItem` throws (TypeError on the undefined global, ReferenceError where the binding is absent entirely) into the same per-target `catch`. Same as line 368 — the SSR guard and the swallow are redundant with each other, and no storage, cookie or locale observable changes. Hand-applied: 71/71 tests pass.",
+      "round": 4
+    },
+    {
+      "package": "packages/plugin-locale-detector",
+      "file": "src/index.ts",
+      "mutators": ["OptionalChaining"],
+      "snippet": "window[t]?.setItem(",
+      "lineHint": 384,
+      "kind": "equivalent",
+      "reason": "Dropping `?.` only matters when `window` exists but `window.localStorage`/`sessionStorage` does not (storage disabled by policy); the resulting TypeError lands in the enclosing `catch` that already swallows quota and privacy-mode failures, and later cache targets are written either way. Hand-applied: 71/71 tests pass.",
+      "round": 4
+    },
+    {
+      "package": "packages/locale-routing",
+      "file": "src/index.ts",
+      "mutators": ["ConditionalExpression"],
+      "snippet": "return firstSegment !== undefined && locales.includes(firstSegment) ? firstSegment : undefined;",
+      "lineHint": 48,
+      "kind": "equivalent",
+      "reason": "`firstSegment !== undefined` -> true. The guard is redundant: when the path has no segments, `firstSegment` is `undefined` and `locales.includes(undefined)` is false for a `readonly string[]`, so the ternary still yields `undefined`. Hand-applied: 96/96 tests pass; no input to extractLocaleFromPath can distinguish the two.",
+      "round": 4
+    },
+    {
+      "package": "packages/locale-routing",
+      "file": "src/index.ts",
+      "mutators": ["ConditionalExpression", "StringLiteral"],
+      "snippet": "const normalized = pathname === \"\" || pathname.startsWith(\"/\") ? pathname || \"/\" : `/${pathname}`;",
+      "lineHint": 66,
+      "kind": "equivalent",
+      "reason": "`pathname === \"\"` -> false, and the same literal -> \"Stryker was here!\". The `=== \"\"` disjunct is redundant with both branches: for `pathname === \"\"` the true branch gives `\"\" || \"/\"` = \"/\" and the false branch gives `` `/${\"\"}` `` = \"/\". Every other input is unaffected because it either starts with \"/\" or takes the template branch unchanged. The literal mutant is distinguishable only by the sentinel string itself, which is not a contract-meaningful path. Hand-applied: 96/96 pass for both.",
+      "round": 4
+    },
+    {
+      "package": "packages/locale-routing",
+      "file": "src/index.ts",
+      "mutators": ["ConditionalExpression"],
+      "snippet": "if (first === undefined || !locales.includes(first)) {",
+      "lineHint": 70,
+      "kind": "equivalent",
+      "reason": "`first === undefined` -> false. When there is no first segment, `locales.includes(undefined)` is false, so `!locales.includes(first)` is true and the early return is taken anyway. Hand-applied: 96/96 pass; stripLocalePrefix(\"/\") and stripLocalePrefix(\"\") still return \"/\".",
+      "round": 4
+    },
+    {
+      "package": "packages/locale-routing",
+      "file": "src/index.ts",
+      "mutators": ["ConditionalExpression"],
+      "snippet": "if (!match || match.index === undefined) {",
+      "lineHint": 90,
+      "kind": "equivalent",
+      "reason": "`match.index === undefined` -> false. `String.prototype.match` with the non-global regex `/[?#]/` always populates `index` on a successful match, so the disjunct is a TypeScript narrowing guard that is never true at runtime; `!match` alone decides the branch. Hand-applied: 96/96 pass.",
+      "round": 4
+    },
+    {
+      "package": "packages/locale-routing",
+      "file": "src/index.ts",
+      "mutators": ["EqualityOperator"],
+      "snippet": "const queryWithPrefix = hashIndex >= 0 ? suffix.slice(0, hashIndex) : suffix;",
+      "lineHint": 104,
+      "kind": "equivalent",
+      "reason": "`hashIndex >= 0` -> `hashIndex > 0`. The two differ only when `hashIndex === 0`, i.e. the suffix starts with \"#\": `queryWithPrefix` then becomes the whole \"#...\" string instead of \"\". The next line only reads it via `queryWithPrefix.startsWith(\"?\")`, which is false for any \"#...\" string, so `rawQuery` is \"\" either way and the emitted query is identical. The hash itself is taken from line 103, which is unmutated here. Hand-applied: 96/96 pass, including [\"#top\", \"lang\", \"de\"] -> \"?lang=de#top\".",
+      "round": 4
+    },
+    {
+      "package": "packages/locale-routing",
+      "file": "src/index.ts",
+      "mutators": ["ConditionalExpression", "StringLiteral"],
+      "snippet": "const normalizedPath = mapped === \"\" || mapped.startsWith(\"/\") ? mapped || \"/\" : `/${mapped}`;",
+      "lineHint": 158,
+      "kind": "equivalent",
+      "reason": "Same redundant `=== \"\"` disjunct as line 66, applied to the pathnames-mapped path: an empty `mapped` yields \"/\" through either branch, so `mapped === \"\"` -> false is unobservable, and the literal -> \"Stryker was here!\" mutant is distinguishable only by a pathnames entry equal to the sentinel string. The reachable empty-path behaviour is now pinned by buildLocalizedPath(\"\", ...) rows. Hand-applied: 96/96 pass for both.",
+      "round": 4
     }
   ]
 }

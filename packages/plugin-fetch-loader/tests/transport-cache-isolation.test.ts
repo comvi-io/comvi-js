@@ -10,18 +10,9 @@
 import { describe, it, expect, afterEach, vi } from "vitest";
 import { fetchApiTranslations, fetchProjectInfo, clearProjectInfoCache } from "../src/index";
 import { deferred } from "./helpers/deferred";
+import { asFetch, jsonResponse } from "./helpers/transport";
 
 const BASE = "https://api.comvi.io";
-
-/** The transports below are partial stand-ins; `fetchProjectInfo` only ever calls them. */
-const asFetch = (fn: unknown) => fn as typeof fetch;
-
-function jsonResponse(data: unknown): Response {
-  return new Response(JSON.stringify(data), {
-    status: 200,
-    headers: { "Content-Type": "application/json" },
-  });
-}
 
 function fetchFnReturningProject(id: number) {
   return vi.fn(async () => jsonResponse({ id }));

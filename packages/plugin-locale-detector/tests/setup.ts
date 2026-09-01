@@ -30,6 +30,21 @@ export function mockNavigator(languages: string[] = ["en-US", "en"], language: s
   });
 }
 
+/** Older/embedded browsers expose `navigator.language` but no `languages` array at all. */
+export function mockNavigatorWithoutLanguages(language: string) {
+  Object.defineProperty(globalThis.navigator, "languages", {
+    value: undefined,
+    writable: true,
+    configurable: true,
+  });
+
+  Object.defineProperty(globalThis.navigator, "language", {
+    value: language,
+    writable: true,
+    configurable: true,
+  });
+}
+
 export function mockCookie(value: string = "") {
   let cookieValue = value;
 

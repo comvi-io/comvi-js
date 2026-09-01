@@ -1,22 +1,13 @@
 import { describe, expect, it, vi } from "vitest";
-import { I18n } from "./helpers/composedHost";
-import type { LocaleDetectorOptions } from "../src/index";
+import { createI18n, initWithPlugin } from "./helpers/init";
 import { LocaleDetector, resolveLocale } from "../src/index";
-import { mockCookie, mockNavigator, mockWindowLocation, withDisabledBrowserGlobals } from "./setup";
-
-function createI18n(locale: string = "en"): I18n {
-  return new I18n({ locale, exposeGlobal: false });
-}
-
-async function initWithPlugin(
-  options: LocaleDetectorOptions = {},
-  initialLocale: string = "en",
-): Promise<I18n> {
-  const i18n = createI18n(initialLocale);
-  i18n.use(LocaleDetector(options));
-  await i18n.init();
-  return i18n;
-}
+import {
+  mockCookie,
+  mockNavigator,
+  mockNavigatorWithoutLanguages,
+  mockWindowLocation,
+  withDisabledBrowserGlobals,
+} from "./setup";
 
 describe("LocaleDetector plugin", () => {
   describe("initialization flow", () => {
@@ -578,6 +569,95 @@ describe("LocaleDetector plugin", () => {
 
       expect(i18n.locale).toBe("it");
     });
+
+    it("reads a sessionStorage cache target under the session key, not the localStorage key", async () => {
+      sessionStorage.setItem("sess_lang", "it");
+
+      const i18n = await initWithPlugin(
+        {
+          order: ["navigator"],
+          caches: ["sessionStorage"],
+          lookupSessionStorage: "sess_lang",
+          lookupLocalStorage: "local_lang",
+        },
+        "en",
+      );
+
+      expect(i18n.locale).toBe("it");
+    });
+
+    it("falls back to navigator.language when navigator.languages is absent", async () => {
+      mockNavigatorWithoutLanguages("ko");
+
+      const i18n = await initWithPlugin(
+        {
+          order: ["navigator"],
+          caches: [],
+        },
+        "en",
+      );
+
+      expect(i18n.locale).toBe("ko");
+    });
+
+    it("continues to the next source when reading storage throws", async () => {
+      // Privacy mode: `getItem` itself throws. Must be the INSTANCE spy — see the
+      // note on the write-failure test — and `restoreMocks` does not restore it.
+      const getItemSpy = vi.spyOn(globalThis.localStorage, "getItem").mockImplementation(() => {
+        throw new Error("SecurityError");
+      });
+
+      try {
+        mockNavigator(["fr-FR"], "fr-FR");
+
+        const i18n = await initWithPlugin(
+          {
+            order: ["localStorage", "navigator"],
+            caches: [],
+          },
+          "en",
+        );
+
+        expect(i18n.locale).toBe("fr");
+        expect(getItemSpy.mock.results.map((result) => result.type)).toEqual(["throw"]);
+      } finally {
+        getItemSpy.mockRestore();
+      }
+    });
+  });
+
+  describe("locale tag validation", () => {
+    // 35 characters, the inclusive upper bound; the second is the same tag one character over.
+    const TAG_AT_LIMIT = "en-abcdefgh-abcdefgh-abcdefgh-abcde";
+    const TAG_OVER_LIMIT = "en-abcdefgh-abcdefgh-abcdefgh-abcdef";
+
+    it("accepts a 35-character tag", async () => {
+      mockWindowLocation(`?lng=${TAG_AT_LIMIT}`);
+
+      const i18n = await initWithPlugin(
+        {
+          order: ["querystring"],
+          caches: [],
+        },
+        "de",
+      );
+
+      expect(i18n.locale).toBe("en");
+    });
+
+    it("rejects a 36-character tag", async () => {
+      mockWindowLocation(`?lng=${TAG_OVER_LIMIT}`);
+
+      const i18n = await initWithPlugin(
+        {
+          order: ["querystring"],
+          caches: [],
+        },
+        "de",
+      );
+
+      expect(i18n.locale).toBe("de");
+    });
   });
 
   describe("caching edge cases", () => {
@@ -628,6 +708,73 @@ describe("LocaleDetector plugin", () => {
       expect(localStorage.getItem("i18n_locale")).toBe("fr");
       expect(sessionStorage.getItem("i18n_locale")).toBe("fr");
     });
+
+    it("skips every cache target when browser globals are unavailable", async () => {
+      await withDisabledBrowserGlobals(async () => {
+        const i18n = createI18n("en");
+        const cleanup = LocaleDetector({
+          caches: ["localStorage", "sessionStorage", "cookie"],
+        })(i18n);
+
+        await expect(i18n.setLocaleAsync("fr")).resolves.toBeUndefined();
+
+        expect(i18n.locale).toBe("fr");
+
+        cleanup?.();
+      });
+    });
+
+    it("does not persist a locale the registered detector only reported", async () => {
+      mockWindowLocation("?lng=fr");
+      const i18n = createI18n("en");
+      const cleanup = LocaleDetector({
+        order: ["querystring"],
+        caches: ["localStorage"],
+      })(i18n);
+
+      const reported = await i18n.getLanguageDetector()?.();
+
+      expect(reported).toBe("fr");
+      expect(i18n.locale).toBe("en");
+      expect(localStorage.getItem("i18n_locale")).toBeNull();
+
+      cleanup?.();
+    });
+
+    it("fills the remaining cache targets when the cached locale already is the current locale", async () => {
+      localStorage.setItem("i18n_locale", "fr");
+      mockNavigator(["de-DE"], "de-DE");
+      const cookieSetter = vi.spyOn(document, "cookie", "set");
+
+      const i18n = await initWithPlugin(
+        {
+          order: ["navigator"],
+          caches: ["localStorage", "cookie"],
+        },
+        "fr",
+      );
+
+      expect(i18n.locale).toBe("fr");
+      expect(cookieSetter.mock.calls.at(-1)?.[0]).toContain("i18n_lang=fr");
+    });
+
+    it("persists a later locale change after the detector reported only the fallback", async () => {
+      mockWindowLocation("");
+      const i18n = createI18n("en");
+      const cleanup = LocaleDetector({
+        order: ["querystring"],
+        caches: ["localStorage"],
+        fallbackLocale: "fr",
+      })(i18n);
+
+      expect(await i18n.getLanguageDetector()?.()).toBe("fr");
+
+      await i18n.setLocaleAsync("de");
+
+      expect(localStorage.getItem("i18n_locale")).toBe("de");
+
+      cleanup?.();
+    });
   });
 
   describe("resolveLocale", () => {
@@ -645,6 +792,18 @@ describe("LocaleDetector plugin", () => {
 
     it("supports underscore separators", () => {
       expect(resolveLocale("zh_CN", ["en", "zh-CN"])).toBe("zh-CN");
+    });
+
+    it("prefers an exact match over a sibling regional variant", () => {
+      expect(resolveLocale("pt-PT", ["pt-BR", "pt-PT"])).toBe("pt-PT");
+    });
+
+    it("prefers the base language over a sibling regional variant", () => {
+      expect(resolveLocale("de-DE", ["de-AT", "de"])).toBe("de");
+    });
+
+    it("prefers the base language when the detected tag uses an underscore separator", () => {
+      expect(resolveLocale("zh_CN", ["zh", "zh-CN"])).toBe("zh");
     });
 
     it("returns undefined when nothing matches", () => {

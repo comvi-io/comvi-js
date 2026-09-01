@@ -103,6 +103,13 @@ describe("setQueryParamInSuffix (nuxt-only feature, exported on shared primitive
     ["?bad=%zz&x=1", "lang", "de", "?bad=%zz&x=1&lang=de"],
     // key/value are encoded on write
     ["", "sp ace", "a&b", "?sp%20ace=a%26b"],
+    // a valueless occurrence of the key is replaced, not appended to
+    ["?lang", "lang", "de", "?lang=de"],
+    ["?debug&lang=uk", "lang", "de", "?debug&lang=de"],
+    // an empty key names the segment whose name is empty
+    ["?=1", "", "de", "?=de"],
+    // a suffix that is not a query string carries no params of its own
+    ["lang=uk", "lang", "de", "?lang=de"],
   ];
 
   it.each(table)("setQueryParamInSuffix(%j, %j, %j) -> %j", (suffix, key, value, expected) => {
@@ -134,6 +141,10 @@ describe("buildLocalizedPath (nuxt buildLocalizedPath ∪ next createGetPathname
       ["/about/", "de", "always", "/de/about/"],
       ["/about/", "en", "as-needed", "/about/"],
       ["/about/", "en", "always", "/en/about/"],
+      // the empty path is the root
+      ["", "en", "never", "/"],
+      ["", "en", "as-needed", "/"],
+      ["", "de", "always", "/de"],
     ];
 
     it.each(table)("buildLocalizedPath(%j, %j, %j) -> %j", (path, locale, mode, expected) => {
