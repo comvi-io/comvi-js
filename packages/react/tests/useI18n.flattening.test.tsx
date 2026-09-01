@@ -111,4 +111,11 @@ describe("useI18n() — t() flattening of malformed entries", () => {
 
     expect(flatten(["a", branded])).toBe("a");
   });
+
+  // Same guard, one level deeper: the recursive walk hits its own `props?.`.
+  it("tolerates a branded value with null props nested inside an element", () => {
+    const branded = { $$typeof: Symbol.for("react.transitional.element"), props: null };
+
+    expect(flatten([element(branded)])).toBe("");
+  });
 });

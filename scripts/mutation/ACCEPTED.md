@@ -95,3 +95,9 @@ current Stryker mutant set — entries dropped as stale rather than kept specula
 
 - T.ts:174 `[rendered]` -> `[]` (nocov): unreachable — Vue's normalizeSlotValue hands T an array
   from every slot function, so the single-node wrap never executes. Hand-applied, suite green.
+- react follow-up (round 2): T.tsx:175 extended to the emptied-block mutant; T.tsx:180 null-child
+  vs empty-list (React renders both as zero-child DOM, probed); the two `?? ""` locale fallbacks
+  (I18nProvider:212, useI18n:204) unreachable behind the throwing instance guard. The dropped
+  useI18n.ts:38 `"props" in value` entry: the mutant is genuinely redundant (implied by the
+  typeof that follows) but absent from the current mutant set — if it reappears surviving, that
+  is the ready-made reason, not a regression.

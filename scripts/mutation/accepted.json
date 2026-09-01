@@ -5641,11 +5641,11 @@
     {
       "package": "packages/react",
       "file": "src/T.tsx",
-      "mutators": ["ConditionalExpression", "StringLiteral"],
+      "mutators": ["ConditionalExpression", "StringLiteral", "BlockStatement"],
       "snippet": "if (typeof childResult === \"string\") {",
       "lineHint": 175,
       "kind": "equivalent",
-      "reason": "skip reaches `[childResult]`; for \"\" the `[]` vs `[\"\"]` difference renders identically in React (no text node). Hand-applied with bare/empty-string children tests present; green."
+      "reason": "fast path only: emptied block / skipped guard falls through to `[childResult]` — identical for non-empty strings; for \"\" the `[]` vs `[\"\"]` difference renders as the same zero-child DOM (probed: [] / [\"\"] / [null] all yield <i></i>). All three mutants hand-applied; green."
     },
     {
       "package": "packages/react",
@@ -5826,6 +5826,33 @@
       "lineHint": 174,
       "kind": "equivalent",
       "reason": "unreachable defensive wrap: Vue normalizes every slot function's return to an array (normalizeSlotValue) before T calls it, so `rendered` is always an array and the else branch never runs. Hand-applied `: []`; full suite 256/256 green."
+    },
+    {
+      "package": "packages/react",
+      "file": "src/T.tsx",
+      "mutators": ["ConditionalExpression"],
+      "snippet": "return childResult == null ? [] : [childResult as React.ReactNode];",
+      "lineHint": 180,
+      "kind": "equivalent",
+      "reason": "forcing the test false yields [null] instead of [] for absent children; React renders a null child as nothing — same zero-child DOM (probed). Hand-applied; green."
+    },
+    {
+      "package": "packages/react",
+      "file": "src/I18nProvider.tsx",
+      "mutators": ["StringLiteral"],
+      "snippet": "const locale = useContext(LocaleContext) ?? \"\";",
+      "lineHint": 212,
+      "kind": "equivalent",
+      "reason": "?? right side unreachable: useI18nInstance() throws first, the instance context is module-private, and I18nProvider always nests a string LocaleContext. Hand-applied sentinel; green; v8 shows the operand uncovered."
+    },
+    {
+      "package": "packages/react",
+      "file": "src/useI18n.ts",
+      "mutators": ["StringLiteral"],
+      "snippet": "const locale = useContext(LocaleContext) ?? \"\";",
+      "lineHint": 204,
+      "kind": "equivalent",
+      "reason": "identical to I18nProvider.tsx:212 — the throwing guard above makes the fallback unreachable. Hand-applied sentinel; green; v8 shows the operand uncovered."
     }
   ]
 }

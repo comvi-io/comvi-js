@@ -130,18 +130,26 @@ describe("<T /> React keys", () => {
     expect(container.querySelector("b")).toBe(before);
   });
 
+  // One row per key-producing branch of the converter: bare strings, element
+  // nodes, text nodes, keyless fragments, and raw React nodes. Each pair would
+  // collide if its branch stopped folding the index into the key.
   it("gives sibling entries distinct keys so React logs no duplicate-key warning", () => {
     const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
 
-    renderResult([
+    const { container } = renderResult([
       "a",
       elementNode("b", ["one"]),
       "c",
       elementNode("b", ["two"]),
+      { type: "text", text: "t1" },
+      { type: "text", text: "t2" },
+      { type: "fragment", children: ["f1"] },
+      { type: "fragment", children: ["f2"] },
       React.createElement("em", null, "d"),
       React.createElement("em", null, "e"),
     ]);
 
+    expect(container.textContent).toBe("aonectwot1t2f1f2de");
     expect(consoleError.mock.calls.flat().join(" ")).not.toContain("same key");
   });
 });
@@ -158,8 +166,11 @@ describe("<T /> handler resolution", () => {
       return ["Click ", handler({ children, name })] as unknown as TranslationResult;
     };
 
+  // Degrading is the documented outcome for a handler that is neither element
+  // nor function — a quiet fallback, NOT an error the app should hear about.
   it("degrades to the tag's children when the handler cannot be invoked", () => {
-    mockUseI18n.mockReturnValue(createHookStub({ t: invokeHandler("link", "here") }));
+    const reportError = vi.fn();
+    mockUseI18n.mockReturnValue(createHookStub({ t: invokeHandler("link", "here"), reportError }));
 
     const { container } = render(
       <T i18nKey="msg" components={{ link: 42 as unknown as string }} />,
@@ -167,6 +178,7 @@ describe("<T /> handler resolution", () => {
 
     expect(container.textContent).toBe("Click here");
     expect(container.querySelector("a")).toBeNull();
+    expect(reportError).not.toHaveBeenCalled();
   });
 
   it("degrades each failing handler independently and keeps their keys distinct", () => {

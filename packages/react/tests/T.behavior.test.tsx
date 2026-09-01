@@ -59,6 +59,14 @@ describe("<T /> behavior", () => {
     expect(container.textContent).toBe("Goodbye Right, see you tomorrow");
   });
 
+  it("renders the key itself when the translation is missing and nothing falls back", async () => {
+    const i18n = createI18n({ locale: "en" });
+
+    const { container } = await renderWithI18n(i18n, <T i18nKey="missing.key" />);
+
+    expect(container.textContent).toBe("missing.key");
+  });
+
   it("uses children as fallback when translation is missing", async () => {
     const i18n = createI18n({ locale: "en" });
 
