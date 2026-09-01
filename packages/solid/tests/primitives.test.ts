@@ -80,6 +80,12 @@ describe("Solid primitives", () => {
     expect(isInitialized()).toBe(false);
 
     dispose();
+
+    // Listener counts, not just a frozen read: `from()` hands back a plain
+    // signal, so a stale read alone would not prove the host was let go.
+    expect(fake.listenerCount("initialized")).toBe(0);
+    expect(fake.listenerCount("destroyed")).toBe(0);
+
     fake.isInitialized = true;
     fake.emit("initialized", undefined);
 
