@@ -142,3 +142,10 @@ re-importing the module per test (`vi.resetModules()`); Stryker's vitest runner 
 registry across mutants, so module-level memo caches hide analysis; hand-probes of expression
 mutants must parenthesise the replacement (Stryker does); `kind: tooling:*` records runner
 limitations honestly.
+
+Update (2026-09-01, owner rule "real bugs get fixed, not pinned"): both editor defects are FIXED —
+`parseICUSelect` off-by-one (`3f0f7ad`) and the dead placeholder-warning, now a real
+`ValidationResult.warnings[]` (`a08dccd`+`0370ebf`); tests flipped to the correct behaviour and
+proved red on the old code; changesets added. Standing rule recorded in AGENTS.md and memory:
+a defect found by testing is reported loudly as a bug to fix; pinning "as is" is only a temporary
+src-frozen-pass measure with an explicit BUG flag.
