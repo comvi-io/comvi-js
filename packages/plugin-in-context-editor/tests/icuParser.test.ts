@@ -205,11 +205,10 @@ describe("icuParser", () => {
       expect(result).toEqual({ variable: "gender", forms: { male: "He" } });
     });
 
-    it("drops the last character of an arm whose closing brace is missing", () => {
-      // Pins the current lossy fallback for unbalanced braces.
+    it("keeps the full arm text when the closing brace is missing", () => {
       const result = parseICUSelect("{gender, select, male {He}");
 
-      expect(result).toEqual({ variable: "gender", forms: { male: "H" } });
+      expect(result).toEqual({ variable: "gender", forms: { male: "He" } });
     });
   });
 

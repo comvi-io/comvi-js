@@ -133,7 +133,9 @@ export function parseICUSelect(icu: string): ParsedICUSelect {
       i++;
     }
 
-    const formContent = remaining.slice(0, i - 1);
+    // `i - 1` excludes the matched closing brace; when the scan ran off the end of an
+    // unbalanced arm there is no brace to exclude, so the full text is the arm.
+    const formContent = remaining.slice(0, depth === 0 ? i - 1 : i);
     forms[formName] = formContent;
     remaining = remaining.slice(i).trim();
   }
