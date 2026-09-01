@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { mount, tick, unmount } from "svelte";
 import { FakeI18n } from "@comvi/test-utils/fakeI18n";
 import ContextHarness from "./ContextHarness.test.svelte";
+import EagerInitHarness from "./EagerInitHarness.test.svelte";
 
 describe("svelte context", () => {
   let target: HTMLElement;
@@ -64,6 +65,19 @@ describe("svelte context", () => {
     await vi.waitFor(() => {
       expect(text("initialized")).toBe("yes");
     });
+  });
+
+  it("skips its auto-init when the component starts init() first — no double init", async () => {
+    component = mount(EagerInitHarness, {
+      target,
+      props: { i18n: fake.asI18n() },
+    });
+
+    await vi.waitFor(() => {
+      expect(fake.isInitialized).toBe(true);
+    });
+
+    expect(fake.init).toHaveBeenCalledTimes(1);
   });
 
   it("allows manual initialization when autoInit is disabled", async () => {

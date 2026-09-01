@@ -7,8 +7,19 @@ import {
   createInitializingStore,
   createInitializedStore,
   createCacheRevisionStore,
+  createDefaultParamsStore,
 } from "../src/stores";
 import { FakeI18n } from "@comvi/test-utils/fakeI18n";
+import type { I18n } from "@comvi/core";
+
+const memoizedStoreFactories: ReadonlyArray<readonly [string, (i18n: I18n) => unknown]> = [
+  ["createLocaleStore", createLocaleStore],
+  ["createLoadingStore", createLoadingStore],
+  ["createInitializingStore", createInitializingStore],
+  ["createInitializedStore", createInitializedStore],
+  ["createCacheRevisionStore", createCacheRevisionStore],
+  ["createDefaultParamsStore", createDefaultParamsStore],
+];
 
 describe("Svelte stores", () => {
   let fake: FakeI18n;
@@ -75,6 +86,13 @@ describe("Svelte stores", () => {
     const unsubscribeInitializing = initializing.subscribe((value) => {
       initializingValues.push(value);
     });
+    // A persistent subscriber, so the assertions below read what the store
+    // PUSHED. A bare get() on an unsubscribed store re-runs the start function
+    // and re-syncs from the host, which passes even if no event is tracked.
+    const initializedValues: boolean[] = [];
+    const unsubscribeInitialized = initialized.subscribe((value) => {
+      initializedValues.push(value);
+    });
 
     const pendingInit = i18n.init();
 
@@ -90,8 +108,24 @@ describe("Svelte stores", () => {
     await i18n.destroy();
 
     expect(get(initialized)).toBe(false);
+    expect(initializedValues).toEqual([false, true, false]);
 
     unsubscribeInitializing();
+    unsubscribeInitialized();
+  });
+
+  it("removes both host listeners when the last subscriber unsubscribes", () => {
+    const initialized = createInitializedStore(fake.asI18n());
+    const unsubscribe = initialized.subscribe(() => {});
+    const whileSubscribed = [
+      fake.listenerCount("initialized"),
+      fake.listenerCount("destroyed"),
+    ] as const;
+
+    unsubscribe();
+
+    expect(whileSubscribed).toEqual([1, 1]);
+    expect([fake.listenerCount("initialized"), fake.listenerCount("destroyed")]).toEqual([0, 0]);
   });
 
   it("tracks cache revisions as translations are added and cleared", () => {
@@ -131,6 +165,58 @@ describe("Svelte stores", () => {
 
     unsubscribe2();
   });
+
+  it("gives a new loading subscriber the host's current state, not the one captured at creation", async () => {
+    const loading = createLoadingStore(fake.asI18n());
+    let resolveLoad: (() => void) | undefined;
+    fake.namespaceLoadResult = new Promise<void>((resolve) => {
+      resolveLoad = resolve;
+    });
+    const pendingNamespace = fake.addActiveNamespace("admin");
+
+    const values: boolean[] = [];
+    const unsubscribe = loading.subscribe((value) => values.push(value));
+
+    expect(values).toEqual([true]);
+
+    unsubscribe();
+    resolveLoad?.();
+    await pendingNamespace;
+  });
+
+  it("gives a new initializing subscriber the host's current state, not the one captured at creation", async () => {
+    const initializing = createInitializingStore(fake.asI18n());
+    const pendingInit = fake.init();
+
+    const values: boolean[] = [];
+    const unsubscribe = initializing.subscribe((value) => values.push(value));
+
+    expect(values).toEqual([true]);
+
+    unsubscribe();
+    await pendingInit;
+  });
+
+  it("gives a new defaultParams subscriber the host's current defaults, not the ones captured at creation", () => {
+    const defaultParams = createDefaultParamsStore(fake.asI18n());
+    fake.setDefaultParams({ formality: "formal" });
+
+    const values: unknown[] = [];
+    const unsubscribe = defaultParams.subscribe((value) => values.push(value));
+
+    expect(values).toEqual([{ formality: "formal" }]);
+
+    unsubscribe();
+  });
+
+  it.each(memoizedStoreFactories)(
+    "%s returns the same store instance for repeated calls on one host",
+    (_name, createStore) => {
+      const host = fake.asI18n();
+
+      expect(createStore(host)).toBe(createStore(host));
+    },
+  );
 
   // `setFallbackLocale` is the production caller; the event is emitted directly
   // here so the store's reaction is tested without the setter in the way.

@@ -3,6 +3,8 @@ import { mount, tick, unmount } from "svelte";
 import { FakeI18n } from "@comvi/test-utils/fakeI18n";
 import UseI18nHarness from "./UseI18nHarness.test.svelte";
 import NoContextHarness from "./NoContextHarness.test.svelte";
+import StoreCacheHarness from "./StoreCacheHarness.test.svelte";
+import TranslationCacheHarness from "./TranslationCacheHarness.test.svelte";
 
 describe("useI18n", () => {
   let fake: FakeI18n;
@@ -194,6 +196,37 @@ describe("useI18n", () => {
     await tick();
 
     expect(text("events")).toBe("en->fr");
+  });
+
+  it("exposes the host's translation cache map, keyed by locale:namespace", () => {
+    component = mount(TranslationCacheHarness, {
+      target,
+      props: { i18n: fake.asI18n() },
+    });
+
+    expect(text("cache-keys")).toBe("ar:admin,ar:common,en:admin,en:common,fr:admin,fr:common");
+    expect(text("cache-en-hello")).toBe("Hello");
+  });
+
+  it("hands repeated calls on one instance the same t and tRaw stores", () => {
+    component = mount(StoreCacheHarness, {
+      target,
+      props: { i18n: fake.asI18n() },
+    });
+
+    expect([text("t-stable"), text("traw-stable")]).toEqual(["true", "true"]);
+  });
+
+  it("keeps namespaces apart — each useI18n(ns) translates in its own namespace", () => {
+    fake.addTranslations({ "en:billing": { title: "Billing" } });
+
+    component = mount(StoreCacheHarness, {
+      target,
+      props: { i18n: fake.asI18n() },
+    });
+
+    expect([text("admin-title"), text("billing-title")]).toEqual(["Admin", "Billing"]);
+    expect([text("admin-title-raw"), text("billing-title-raw")]).toEqual(["Admin", "Billing"]);
   });
 
   it("throws when called with no i18n context in the tree", () => {
