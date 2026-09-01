@@ -106,3 +106,15 @@ Real bugs found by the whole pass: `t(key, { fallback })` → "" (fixed), gate-e
 `sync-peer-ranges.nextReleaseVersion()` ignores `root` (open), `TF_HAS_*` dead writes in
 translate.ts (open, −bytes), CLI vs vite-plugin type emitters diverge (open), prod `E_*` error
 codes asserted by no test (open → `__DEV__: false` vitest project).
+
+## Repo-wide mutation sweep (2026-09-01, measurement only)
+score % / covered % / survived / nocov: core **98.9/99.7/0/24** · locale-routing 92.1/92.7/11/1 ·
+vite-plugin 80.6/89.1/26/25 · locale-detector 78.9/79.6/46/2 · vue 68.3/73.3/73/20 ·
+nuxt 67.9/71.7/303/60 · fetch-loader 64.7/70.5/147/45 · editor 56.4/67.5/**1408**/853 ·
+cli 50.2/84.8/170/**773** (the nocov = untested `src/commands/**`) · solid 43.8/51.8/109/41 ·
+react 36.1/53.5/119/124 · svelte 35.6/45.2/51/25 · extension 34.3/62.3/667/**1444** (gate-e is
+Playwright — invisible to Stryker). Wrapper numbers are skewed low: js-contract/dist suites test the
+BUILD while Stryker mutates src, and `.svelte` files are not mutated. `packages/next` cannot run in
+Stryker's sandbox (pnpm workspace symlink breaks `@comvi/react` resolution in `.stryker-tmp`) — needs
+`--inPlace`. Owner decision: full kill-pass now for fetch-loader + locale-detector + locale-routing
+(round 4, in flight); editor/wrappers/cli-commands later.
