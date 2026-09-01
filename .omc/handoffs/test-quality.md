@@ -118,3 +118,12 @@ BUILD while Stryker mutates src, and `.svelte` files are not mutated. `packages/
 Stryker's sandbox (pnpm workspace symlink breaks `@comvi/react` resolution in `.stryker-tmp`) — needs
 `--inPlace`. Owner decision: full kill-pass now for fetch-loader + locale-detector + locale-routing
 (round 4, in flight); editor/wrappers/cli-commands later.
+
+## Round 4 (2026-09-01, `9814952`): fetch-loader + locale-detector + locale-routing
+Same discipline as core; every accept hand-applied. fetch-loader 64.7 → 89.2 % raw / 100 % adjusted
+(tests 115 → 182, 10 new subject files); locale-detector 78.9 → 96.5 % / 100 % (tests 50 → 71, the
+default cookie serialization pinned as one literal); locale-routing 92.1 → 94.7 % / 100 %
+(query-reconciliation edges). `accepted.json`: 267 entries. Remaining backlog for mutation work:
+editor (1 408 survived / 853 nocov), wrappers (fix the src-vs-dist measurement first),
+next (`--inPlace`), cli `src/commands/**` coverage, extension (667/1 444; gate-e invisible to
+Stryker), `__DEV__: false` profile for prod `E_*` codes.
