@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   SELECT_PRESETS,
+  useSelectPresets,
   getPresetById,
   getDefaultPreset,
   getPresetOptions,
@@ -134,6 +135,45 @@ describe("useSelectPresets", () => {
     it("should match the first preset whose variable matches when no form keys are given", () => {
       // Every key of an empty list trivially matches, so the variable decides.
       expect(detectPresetFromForms("gender", [])).toBe(SELECT_PRESETS[0]);
+    });
+
+    it("should return custom when the keys match a preset but the variable does not", () => {
+      expect(detectPresetFromForms("tone", ["formal", "informal"])).toEqual({
+        id: "custom",
+        name: "Custom",
+        variable: "tone",
+        options: [
+          { key: "formal", label: "formal" },
+          { key: "informal", label: "informal" },
+        ],
+        requiresOther: false,
+      });
+    });
+
+    it("should build a fresh custom preset instead of returning the shared custom entry", () => {
+      const preset = detectPresetFromForms("select", []);
+
+      expect(preset).not.toBe(SELECT_PRESETS[2]);
+      expect(preset).toEqual({
+        id: "custom",
+        name: "Custom",
+        variable: "select",
+        options: [],
+        requiresOther: false,
+      });
+    });
+  });
+
+  describe("useSelectPresets()", () => {
+    it("should expose the preset list and every helper", () => {
+      const api = useSelectPresets();
+
+      expect(api.presets).toBe(SELECT_PRESETS);
+      expect(api.getPresetById).toBe(getPresetById);
+      expect(api.getDefaultPreset).toBe(getDefaultPreset);
+      expect(api.getPresetOptions).toBe(getPresetOptions);
+      expect(api.createCustomPreset).toBe(createCustomPreset);
+      expect(api.detectPresetFromForms).toBe(detectPresetFromForms);
     });
   });
 });

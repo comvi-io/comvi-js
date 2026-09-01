@@ -45,6 +45,12 @@ describe("restoreSelectedLanguages()", () => {
 
     expect(restoreSelectedLanguages(languages, storage)).toEqual(["uk"]);
   });
+
+  it("falls back to all languages when no persisted code is still available", () => {
+    const storage = { getItem: vi.fn(() => '["fr"]') };
+
+    expect(restoreSelectedLanguages(languages, storage)).toEqual(["en", "uk"]);
+  });
 });
 
 describe("persistSelectedLanguages()", () => {

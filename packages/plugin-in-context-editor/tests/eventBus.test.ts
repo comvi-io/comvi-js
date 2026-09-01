@@ -190,6 +190,73 @@ describe("EventBus", () => {
     });
   });
 
+  describe("removeListener()", () => {
+    it("leaves the registered listeners in place when the callback was never added", () => {
+      const registered = vi.fn();
+      const other = vi.fn();
+      eventBus.on("textChanges", registered);
+      eventBus.on("textChanges", other);
+
+      eventBus.removeListener("textChanges", vi.fn());
+      eventBus.emit("textChanges", []);
+
+      expect(eventBus.listenerCount("textChanges")).toBe(2);
+      expect([registered.mock.calls.length, other.mock.calls.length]).toEqual([1, 1]);
+    });
+
+    it("removes only the given callback when it sits between other listeners", () => {
+      const first = vi.fn();
+      const middle = vi.fn();
+      const last = vi.fn();
+      eventBus.on("textChanges", first);
+      eventBus.on("textChanges", middle);
+      eventBus.on("textChanges", last);
+
+      eventBus.removeListener("textChanges", middle);
+      eventBus.emit("textChanges", []);
+
+      expect([first.mock.calls.length, middle.mock.calls.length, last.mock.calls.length]).toEqual([
+        1, 0, 1,
+      ]);
+    });
+  });
+
+  describe("removeAllListeners()", () => {
+    it("drops every listener of the named event and leaves other events subscribed", () => {
+      const firstOnText = vi.fn();
+      const secondOnText = vi.fn();
+      const onAttributes = vi.fn();
+      eventBus.on("textChanges", firstOnText);
+      eventBus.on("textChanges", secondOnText);
+      eventBus.on("attributeChanges", onAttributes);
+
+      eventBus.removeAllListeners("textChanges");
+      eventBus.emit("textChanges", []);
+      eventBus.emit("attributeChanges", []);
+
+      expect(eventBus.listenerCount("textChanges")).toBe(0);
+      expect([firstOnText.mock.calls.length, secondOnText.mock.calls.length]).toEqual([0, 0]);
+      expect(onAttributes).toHaveBeenCalledTimes(1);
+    });
+
+    it("drops the listeners of every event when called without an event name", () => {
+      const onText = vi.fn();
+      const onAttributes = vi.fn();
+      eventBus.on("textChanges", onText);
+      eventBus.on("attributeChanges", onAttributes);
+
+      eventBus.removeAllListeners();
+      eventBus.emit("textChanges", []);
+      eventBus.emit("attributeChanges", []);
+
+      expect([
+        eventBus.listenerCount("textChanges"),
+        eventBus.listenerCount("attributeChanges"),
+      ]).toEqual([0, 0]);
+      expect([onText.mock.calls.length, onAttributes.mock.calls.length]).toEqual([0, 0]);
+    });
+  });
+
   describe("error handling", () => {
     it("should catch errors in callbacks and continue", () => {
       const callback1 = vi.fn(() => {

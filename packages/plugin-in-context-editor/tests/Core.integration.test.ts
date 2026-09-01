@@ -1,13 +1,20 @@
 import { describe, it, expect, afterEach } from "vitest";
-import { Core } from "../src/Core";
+import { Core, type EditorI18n } from "../src/Core";
 import { encodeKeyToInvisible, registerKey, loadKeyMappings } from "../src/translation";
 import { TAG_ATTRIBUTES } from "../src/constants";
-import { cleanupDOM, flushDOMMutations, getActiveTooltip, simulateMouseEvent } from "./helpers";
+import {
+  cleanupDOM,
+  flushDOMMutations,
+  getActiveOverlay,
+  getActiveTooltip,
+  simulateKeyEvent,
+  simulateMouseEvent,
+} from "./helpers";
 
 /**
- * `Core` exposes no accessor for its registry, so every assertion here reads
- * the one public output of the scan pipeline: the Alt+hover tooltip, whose text
- * is the key the scanner decoded onto the element.
+ * The rendered output of the scan pipeline: the Alt+hover tooltip, whose text is
+ * the key the scanner decoded onto the element. `Core.getRegistry()` exposes the
+ * decoded data itself; this reads what the user actually sees.
  */
 function hoverLabel(element: Element): string | null {
   simulateMouseEvent(element, "mouseover", { altKey: true });
@@ -85,6 +92,45 @@ describe("Core end-to-end", () => {
 
       core.stop();
     });
+
+    it("should expose the scanned elements through getRegistry()", async () => {
+      const container = document.createElement("div");
+      document.body.appendChild(container);
+
+      const h1 = document.createElement("h1");
+      h1.appendChild(
+        document.createTextNode(`Welcome ${encodeKeyToInvisible(registerKey("home.title"))}`),
+      );
+      container.appendChild(h1);
+
+      const core = new Core({ targetElement: container, tagAttributes: TAG_ATTRIBUTES });
+      core.start();
+      await flushDOMMutations();
+
+      expect([...core.getRegistry().getElements()]).toEqual([h1]);
+
+      core.stop();
+    });
+
+    it("should drop the namespace suffix from the hover label for the host's default namespace", async () => {
+      const host = { getDefaultNamespace: () => "default" } as unknown as EditorI18n;
+      const container = document.createElement("div");
+      document.body.appendChild(container);
+
+      const h1 = document.createElement("h1");
+      h1.appendChild(
+        document.createTextNode(`Welcome ${encodeKeyToInvisible(registerKey("home.title"))}`),
+      );
+      container.appendChild(h1);
+
+      const core = new Core({ targetElement: container, tagAttributes: TAG_ATTRIBUTES }, host);
+      core.start();
+      await flushDOMMutations();
+
+      expect(hoverLabel(h1)).toBe("home.title");
+
+      core.stop();
+    });
   });
 
   describe("System lifecycle", () => {
@@ -136,6 +182,26 @@ describe("Core end-to-end", () => {
       await flushDOMMutations();
 
       expect(hoverLabel(div)).toBeNull();
+    });
+
+    it("should stop answering the modifier key after being stopped mid-hover", async () => {
+      const container = document.createElement("div");
+      document.body.appendChild(container);
+      const heading = document.createElement("h1");
+      heading.appendChild(
+        document.createTextNode(`Welcome ${encodeKeyToInvisible(registerKey("home.title"))}`),
+      );
+      container.appendChild(heading);
+
+      const core = new Core({ targetElement: container, tagAttributes: TAG_ATTRIBUTES });
+      core.start();
+      await flushDOMMutations();
+      simulateMouseEvent(heading, "mouseover");
+      core.stop();
+
+      simulateKeyEvent("keydown", "Alt");
+
+      expect(getActiveOverlay()).toBeNull();
     });
   });
 

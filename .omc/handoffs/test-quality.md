@@ -127,3 +127,18 @@ default cookie serialization pinned as one literal); locale-routing 92.1 → 94.
 editor (1 408 survived / 853 nocov), wrappers (fix the src-vs-dist measurement first),
 next (`--inPlace`), cli `src/commands/**` coverage, extension (667/1 444; gate-e invisible to
 Stryker), `__DEV__: false` profile for prod `E_*` codes.
+
+## Round 5 (2026-09-01): editor kill-pass
+8 parallel lots in per-agent worktrees + one closing lot. Editor: raw 56.4 % → 89.4 % (91.0 % on
+covered); adjusted **98.8 % / 99.7 %** — 4 694 killed, 0 unexplained survivors, 584 accepted
+entries repo-wide, tests 651 → 1 361 (57 files). Previously untested modules covered from scratch:
+useTranslationHighlighter (27 tests), comviHook (46 — pins the COMVI_READY handshake contract with
+the extension), useTheme, ui variants, domHelpers, TranslationKeyEncoder, apiClient, api-config.
+NEW REAL FINDINGS: `validation.ts` computes placeholder mismatches and feeds them into an EMPTY
+`if` — the whole warning feature is dead code (needs `warnings[]` on ValidationResult, src fix);
+`parseICUSelect` drops a character on unbalanced braces (`"male {He}"` → `{male:"H"}`), pinned as
+is. Tooling lessons: static module-scope mutants are invisible to per-test coverage — kill them by
+re-importing the module per test (`vi.resetModules()`); Stryker's vitest runner reuses the module
+registry across mutants, so module-level memo caches hide analysis; hand-probes of expression
+mutants must parenthesise the replacement (Stryker does); `kind: tooling:*` records runner
+limitations honestly.

@@ -29,6 +29,15 @@ const LANGUAGES: Language[] = [
   },
 ];
 
+const RUSSIAN: Language = {
+  id: 2,
+  code: "ru",
+  name: "Russian",
+  nativeName: "Russkiy",
+  pluralForms: ["one", "few", "many", "other"],
+  isSource: false,
+};
+
 function createManager(instanceId?: string) {
   return useTranslations(ref(LANGUAGES), instanceId ? ref(instanceId) : undefined);
 }
@@ -221,6 +230,7 @@ describe("useTranslations", () => {
 
   it.each([
     ["", "Plural variable name is required"],
+    ["   ", "Plural variable name is required"],
     ["1count", "Plural variable name must be a valid identifier"],
     ["a".repeat(31), "Plural variable name must be 30 characters or less"],
   ])("rejects the plural variable %j", async (variable, message) => {
@@ -228,7 +238,10 @@ describe("useTranslations", () => {
 
     manager.updatePluralVariable(variable);
 
-    expect(manager.validate().errors.map((e) => e.message)).toContain(message);
+    expect(manager.validate()).toEqual({
+      isValid: false,
+      errors: [{ languageId: "", pluralForm: "", message }],
+    });
   });
 
   it.each(["count", "a".repeat(30)])("accepts the plural variable %j", async (variable) => {
@@ -302,6 +315,7 @@ describe("useTranslations", () => {
 
     expect(failedSave).toBeNull();
     expect(manager.state.value.error).toBe("Save failed");
+    expect(manager.state.value.isLoading).toBe(false);
   });
 
   it("still returns the saved data when no i18n runtime is available to update", async () => {
@@ -400,5 +414,667 @@ describe("useTranslations", () => {
     await manager.loadTranslation("home.title", "default");
 
     expect(manager.description.value).toBe("");
+  });
+
+  it("exposes empty defaults from every accessor before a translation is loaded", () => {
+    const manager = createManager();
+
+    expect(manager.state.value).toEqual({
+      data: null,
+      isLoading: false,
+      error: null,
+      isDirty: false,
+    });
+    expect(manager.currentKey.value).toBeUndefined();
+    expect(manager.description.value).toBe("");
+    expect(manager.translations.value).toEqual({});
+    expect(manager.hasUnsavedChanges.value).toBe(false);
+    expect(manager.isPlural.value).toBe(false);
+    expect(manager.pluralVariable.value).toBe("");
+    expect(manager.selectConfigs.value).toEqual({});
+    expect(manager.getSelectConfig("en")).toBeUndefined();
+  });
+
+  it("exposes the key, translations, plural flag, variable and select config of loaded data", async () => {
+    const manager = createManager();
+    getTranslationMock.mockResolvedValue({
+      key: "cart.items",
+      isPlural: true,
+      pluralVariable: "n",
+      translations: { en: { one: "# item", other: "# items" } },
+      selectConfigs: {
+        en: { enabled: true, variable: "formality", options: ["formal", "informal"] },
+      },
+    } satisfies TranslationData);
+
+    await manager.loadTranslation("cart.items", "shop");
+
+    expect(manager.currentKey.value).toBe("cart.items");
+    expect(manager.translations.value).toEqual({ en: { one: "# item", other: "# items" } });
+    expect(manager.isPlural.value).toBe(true);
+    expect(manager.pluralVariable.value).toBe("n");
+    expect(manager.selectConfigs.value).toEqual({
+      en: { enabled: true, variable: "formality", options: ["formal", "informal"] },
+    });
+    expect(manager.hasUnsavedChanges.value).toBe(false);
+    expect(manager.getSelectConfig("en")).toEqual({
+      enabled: true,
+      variable: "formality",
+      options: ["formal", "informal"],
+    });
+  });
+
+  it("stays loading from the start of a fetch until it settles", async () => {
+    const manager = createManager();
+    let resolveLoad!: (value: TranslationData) => void;
+    getTranslationMock.mockImplementation(
+      () =>
+        new Promise<TranslationData>((resolve) => {
+          resolveLoad = resolve;
+        }),
+    );
+
+    const pending = manager.loadTranslation("home.title", "default");
+
+    expect(manager.state.value.isLoading).toBe(true);
+
+    resolveLoad(createSingularTranslationData("home.title", "Welcome"));
+    await pending;
+
+    expect(manager.state.value.isLoading).toBe(false);
+  });
+
+  it("clears the state without an error when the key has no translation", async () => {
+    const manager = createManager();
+    getTranslationMock.mockResolvedValue(null);
+
+    await manager.loadTranslation("missing.key", "default");
+
+    expect(manager.state.value).toEqual({
+      data: null,
+      isLoading: false,
+      error: null,
+      isDirty: false,
+    });
+  });
+
+  it("forgets the dirty baseline when a later load finds no translation", async () => {
+    const manager = createManager();
+    getTranslationMock
+      .mockResolvedValueOnce(createSingularTranslationData("home.title", "Welcome"))
+      .mockResolvedValueOnce(null);
+    await manager.loadTranslation("home.title", "default");
+    manager.updateTranslation("en", "other", "Changed");
+
+    await manager.loadTranslation("missing.key", "default");
+
+    expect(manager.isFieldDirty("en", "other")).toBe(false);
+  });
+
+  it("reports a generic load error when the failure is not an Error", async () => {
+    const manager = createManager();
+    getTranslationMock.mockRejectedValueOnce("network down");
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    await manager.loadTranslation("home.title", "default");
+
+    expect(manager.state.value.error).toBe("Failed to load translation");
+    expect(errorSpy).toHaveBeenCalledExactlyOnceWith("Error loading translation:", "network down");
+  });
+
+  it("ignores a stale rejection while a newer request is still loading", async () => {
+    const manager = createManager();
+    let rejectFirst!: (reason: unknown) => void;
+    let resolveSecond!: (value: TranslationData) => void;
+    getTranslationMock
+      .mockImplementationOnce(
+        () =>
+          new Promise<TranslationData>((_resolve, reject) => {
+            rejectFirst = reject;
+          }),
+      )
+      .mockImplementationOnce(
+        () =>
+          new Promise<TranslationData>((resolve) => {
+            resolveSecond = resolve;
+          }),
+      );
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const firstLoad = manager.loadTranslation("key.first", "default");
+    const secondLoad = manager.loadTranslation("key.second", "default");
+    rejectFirst(new Error("Load failed"));
+    await firstLoad;
+
+    expect(manager.state.value.error).toBeNull();
+    expect(manager.state.value.isLoading).toBe(true);
+    expect(errorSpy).not.toHaveBeenCalled();
+
+    resolveSecond(createSingularTranslationData("key.second", "Second"));
+    await secondLoad;
+
+    expect(manager.state.value.data?.key).toBe("key.second");
+  });
+
+  it("rejects a save when the namespace is only whitespace", async () => {
+    const manager = createManager();
+    getTranslationMock.mockResolvedValue(createSingularTranslationData("home.title", "Hello"));
+    await manager.loadTranslation("home.title", "   ");
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const result = await manager.saveTranslation();
+
+    expect(result).toBeNull();
+    expect(manager.state.value.error).toBe(
+      "No namespace set. Please ensure the translation has a valid namespace.",
+    );
+    expect(saveTranslationMock).not.toHaveBeenCalled();
+    expect(errorSpy).toHaveBeenCalledExactlyOnceWith("Save failed: namespace is", "   ");
+  });
+
+  it("stays loading from the start of a save until it settles", async () => {
+    const manager = createManager();
+    getTranslationMock.mockResolvedValue(createSingularTranslationData("home.title", "Initial"));
+    await manager.loadTranslation("home.title", "default");
+    let resolveSave!: (value: TranslationData) => void;
+    saveTranslationMock.mockImplementation(
+      () =>
+        new Promise<TranslationData>((resolve) => {
+          resolveSave = resolve;
+        }),
+    );
+
+    const pending = manager.saveTranslation();
+
+    expect(manager.state.value.isLoading).toBe(true);
+
+    resolveSave(createSingularTranslationData("home.title", "Initial"));
+    await pending;
+
+    expect(manager.state.value.isLoading).toBe(false);
+  });
+
+  it("reports a generic save error when the failure is not an Error", async () => {
+    const manager = createManager();
+    getTranslationMock.mockResolvedValue(createSingularTranslationData("home.title", "Initial"));
+    await manager.loadTranslation("home.title", "default");
+    saveTranslationMock.mockRejectedValueOnce("offline");
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const result = await manager.saveTranslation();
+
+    expect(result).toBeNull();
+    expect(manager.state.value.error).toBe("Failed to save translation");
+    expect(errorSpy).toHaveBeenCalledExactlyOnceWith("Error saving translation:", "offline");
+  });
+
+  it("clears the unsaved-changes flags once a save succeeds", async () => {
+    const manager = createManager();
+    getTranslationMock.mockResolvedValue(createSingularTranslationData("home.title", "Initial"));
+    saveTranslationMock.mockResolvedValue(createSingularTranslationData("home.title", "Updated"));
+    await manager.loadTranslation("home.title", "default");
+    manager.updateTranslation("en", "other", "Updated");
+
+    await manager.saveTranslation();
+
+    expect(manager.hasUnsavedChanges.value).toBe(false);
+    expect(manager.isFieldDirty("en", "other")).toBe(false);
+  });
+
+  it("joins every validation error into the reported message", async () => {
+    const manager = createManager();
+    const tooLong = "x".repeat(5001);
+    getTranslationMock.mockResolvedValue({
+      key: "home.title",
+      isPlural: false,
+      translations: { en: { one: tooLong, other: tooLong } },
+    } satisfies TranslationData);
+    await manager.loadTranslation("home.title", "default");
+
+    const result = await manager.saveTranslation();
+
+    expect(result).toBeNull();
+    expect(manager.state.value.error).toBe(
+      'Validation failed: Translation for "one" form exceeds maximum length of 5000 characters, ' +
+        'Translation for "other" form exceeds maximum length of 5000 characters',
+    );
+  });
+
+  it("updates the runtime cache with plain ICU plural when select is disabled", async () => {
+    const manager = createManager();
+    getTranslationMock.mockResolvedValue(createSingularTranslationData("cart.items", "seed"));
+    saveTranslationMock.mockResolvedValue({
+      key: "cart.items",
+      isPlural: true,
+      pluralVariable: "n",
+      translations: { en: { one: "# item", other: "# items" } },
+    } satisfies TranslationData);
+
+    await manager.loadTranslation("cart.items", "default");
+    await manager.saveTranslation();
+
+    expect(addTranslationsMock).toHaveBeenCalledExactlyOnceWith({
+      "en:default": { "cart.items": "{n, plural, one {# item} other {# items}}" },
+    });
+  });
+
+  it("updates the runtime cache with the default plural variable when the data has none", async () => {
+    const manager = createManager();
+    getTranslationMock.mockResolvedValue(createSingularTranslationData("cart.items", "seed"));
+    saveTranslationMock.mockResolvedValue({
+      key: "cart.items",
+      isPlural: true,
+      pluralVariable: "",
+      translations: { en: { one: "# item", other: "# items" } },
+    } satisfies TranslationData);
+
+    await manager.loadTranslation("cart.items", "default");
+    await manager.saveTranslation();
+
+    expect(addTranslationsMock).toHaveBeenCalledExactlyOnceWith({
+      "en:default": { "cart.items": "{count, plural, one {# item} other {# items}}" },
+    });
+  });
+
+  it("updates the runtime cache with the default select variable when the config has none", async () => {
+    const manager = createManager();
+    getTranslationMock.mockResolvedValue(createSingularTranslationData("greeting", "seed"));
+    saveTranslationMock.mockResolvedValue({
+      key: "greeting",
+      isPlural: false,
+      translations: { en: { formal: "Good evening", informal: "Hey" } },
+      selectConfigs: { en: { enabled: true, variable: "", options: ["formal", "informal"] } },
+    } satisfies TranslationData);
+
+    await manager.loadTranslation("greeting", "default");
+    await manager.saveTranslation();
+
+    expect(addTranslationsMock).toHaveBeenCalledExactlyOnceWith({
+      "en:default": { greeting: "{select, select, formal {Good evening} informal {Hey}}" },
+    });
+  });
+
+  it("updates the runtime cache with an empty string when the singular form is missing", async () => {
+    const manager = createManager();
+    getTranslationMock.mockResolvedValue(createSingularTranslationData("home.title", "seed"));
+    saveTranslationMock.mockResolvedValue({
+      key: "home.title",
+      isPlural: false,
+      translations: { en: {} },
+    } satisfies TranslationData);
+
+    await manager.loadTranslation("home.title", "default");
+    await manager.saveTranslation();
+
+    expect(addTranslationsMock).toHaveBeenCalledExactlyOnceWith({
+      "en:default": { "home.title": "" },
+    });
+  });
+
+  it("falls back to one/other plural forms for a language that is not configured", async () => {
+    const manager = createManager();
+    getTranslationMock.mockResolvedValue(createSingularTranslationData("inbox.messages", "seed"));
+    saveTranslationMock.mockResolvedValue({
+      key: "inbox.messages",
+      isPlural: true,
+      pluralVariable: "n",
+      translations: { de: { "formal:one": "1 Nachricht", "formal:other": "# Nachrichten" } },
+      selectConfigs: { de: { enabled: true, variable: "formality", options: ["formal"] } },
+    } satisfies TranslationData);
+
+    await manager.loadTranslation("inbox.messages", "default");
+    await manager.saveTranslation();
+
+    expect(addTranslationsMock).toHaveBeenCalledExactlyOnceWith({
+      "de:default": {
+        "inbox.messages":
+          "{formality, select, formal {{n, plural, one {1 Nachricht} other {# Nachrichten}}}}",
+      },
+    });
+  });
+
+  it("uses the plural forms configured for the language in the combined ICU", async () => {
+    const manager = useTranslations(ref([LANGUAGES[0]!, RUSSIAN]));
+    getTranslationMock.mockResolvedValue(createSingularTranslationData("inbox.messages", "seed"));
+    saveTranslationMock.mockResolvedValue({
+      key: "inbox.messages",
+      isPlural: true,
+      pluralVariable: "count",
+      translations: {
+        ru: {
+          "formal:one": "# soobshchenie",
+          "formal:few": "# soobshcheniya",
+          "formal:many": "# soobshcheniy",
+          "formal:other": "# soobshcheniya",
+        },
+      },
+      selectConfigs: { ru: { enabled: true, variable: "formality", options: ["formal"] } },
+    } satisfies TranslationData);
+
+    await manager.loadTranslation("inbox.messages", "default");
+    await manager.saveTranslation();
+
+    expect(addTranslationsMock).toHaveBeenCalledExactlyOnceWith({
+      "ru:default": {
+        "inbox.messages":
+          "{formality, select, formal {{count, plural, one {# soobshchenie} " +
+          "few {# soobshcheniya} many {# soobshcheniy} other {# soobshcheniya}}}}",
+      },
+    });
+  });
+
+  it("creates the form bucket for a language that has no translations yet", async () => {
+    const manager = createManager();
+    getTranslationMock.mockResolvedValue(createSingularTranslationData("home.title", "Welcome"));
+    await manager.loadTranslation("home.title", "default");
+
+    manager.updateTranslation("de", "other", "Willkommen");
+
+    expect(manager.translations.value).toEqual({
+      en: { other: "Welcome" },
+      de: { other: "Willkommen" },
+    });
+  });
+
+  it("keeps earlier edits to the same language and flags unsaved changes", async () => {
+    const manager = createManager();
+    getTranslationMock.mockResolvedValue(createSingularTranslationData("cart.items", "Item"));
+    await manager.loadTranslation("cart.items", "default");
+
+    manager.updateTranslation("en", "one", "One item");
+    manager.updateTranslation("en", "other", "Many items");
+
+    expect(manager.translations.value.en).toEqual({ one: "One item", other: "Many items" });
+    expect(manager.hasUnsavedChanges.value).toBe(true);
+  });
+
+  it("reports a single error when there is no data to validate", () => {
+    const manager = createManager();
+
+    expect(manager.validate()).toEqual({
+      isValid: false,
+      errors: [{ languageId: "", pluralForm: "", message: "No translation data to validate" }],
+    });
+  });
+
+  it("reports no dirty field before anything is loaded", () => {
+    const manager = createManager();
+
+    expect(manager.isFieldDirty("en", "other")).toBe(false);
+  });
+
+  it("reports no dirty field directly after a load", async () => {
+    const manager = createManager();
+    getTranslationMock.mockResolvedValue(createSingularTranslationData("home.title", "Welcome"));
+
+    await manager.loadTranslation("home.title", "default");
+
+    expect(manager.isFieldDirty("en", "other")).toBe(false);
+  });
+
+  it("reports a field dirty once its value differs from the loaded one", async () => {
+    const manager = createManager();
+    getTranslationMock.mockResolvedValue(createSingularTranslationData("home.title", "Welcome"));
+    await manager.loadTranslation("home.title", "default");
+
+    manager.updateTranslation("en", "other", "Welcome back");
+
+    expect(manager.isFieldDirty("en", "other")).toBe(true);
+  });
+
+  it("reports a field clean again once it is edited back to the loaded value", async () => {
+    const manager = createManager();
+    getTranslationMock.mockResolvedValue(createSingularTranslationData("home.title", "Welcome"));
+    await manager.loadTranslation("home.title", "default");
+
+    manager.updateTranslation("en", "other", "Welcome back");
+    manager.updateTranslation("en", "other", "Welcome");
+
+    expect(manager.isFieldDirty("en", "other")).toBe(false);
+  });
+
+  it("reports fields of a language outside the baseline as clean", async () => {
+    const manager = createManager();
+    getTranslationMock.mockResolvedValue(createSingularTranslationData("home.title", "Welcome"));
+    await manager.loadTranslation("home.title", "default");
+
+    expect(manager.isFieldDirty("de", "other")).toBe(false);
+  });
+
+  it("reports the baseline fields dirty when a later load failed and dropped the data", async () => {
+    const manager = createManager();
+    getTranslationMock
+      .mockResolvedValueOnce(createSingularTranslationData("home.title", "Welcome"))
+      .mockRejectedValueOnce(new Error("Load failed"));
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    await manager.loadTranslation("home.title", "default");
+
+    await manager.loadTranslation("other.key", "default");
+
+    expect(manager.isFieldDirty("en", "other")).toBe(true);
+    expect(errorSpy).toHaveBeenCalledExactlyOnceWith(
+      "Error loading translation:",
+      new Error("Load failed"),
+    );
+  });
+
+  it("merges metadata into the loaded data and flags unsaved changes", async () => {
+    const manager = createManager();
+    getTranslationMock.mockResolvedValue({
+      key: "home.title",
+      isPlural: false,
+      translations: { en: { other: "Welcome" } },
+      metadata: { context: "Homepage", tags: ["seo"] },
+    } satisfies TranslationData);
+    await manager.loadTranslation("home.title", "default");
+
+    manager.updateMetadata({ context: "Header" });
+
+    expect(manager.state.value.data?.metadata).toEqual({ context: "Header", tags: ["seo"] });
+    expect(manager.hasUnsavedChanges.value).toBe(true);
+  });
+
+  it("keeps an explicit plural variable when plural mode is switched on", async () => {
+    const manager = createManager();
+    getTranslationMock.mockResolvedValue({
+      key: "cart.items",
+      isPlural: false,
+      pluralVariable: "n",
+      translations: { en: { other: "Item" } },
+    } satisfies TranslationData);
+    await manager.loadTranslation("cart.items", "default");
+
+    manager.togglePluralMode(true);
+
+    expect(manager.pluralVariable.value).toBe("n");
+  });
+
+  it("does not invent a plural variable when plural mode is switched off", async () => {
+    const manager = createManager();
+    getTranslationMock.mockResolvedValue({
+      key: "cart.items",
+      isPlural: true,
+      translations: { en: { one: "Item", other: "Items" } },
+    } satisfies TranslationData);
+    await manager.loadTranslation("cart.items", "default");
+
+    manager.togglePluralMode(false);
+
+    expect(manager.pluralVariable.value).toBe("");
+  });
+
+  it("leaves unconfigured languages untouched when converting to plural", async () => {
+    const manager = createManager();
+    getTranslationMock.mockResolvedValue({
+      key: "cart.items",
+      isPlural: false,
+      translations: { en: { other: "Item" }, de: { other: "Artikel" } },
+    } satisfies TranslationData);
+    await manager.loadTranslation("cart.items", "default");
+
+    manager.togglePluralMode(true);
+
+    expect(manager.translations.value).toEqual({
+      en: { one: "Item", other: "Item" },
+      de: { other: "Artikel" },
+    });
+    expect(manager.hasUnsavedChanges.value).toBe(true);
+  });
+
+  it("seeds every plural form with an empty string when the singular form is missing", async () => {
+    const manager = createManager();
+    getTranslationMock.mockResolvedValue({
+      key: "cart.items",
+      isPlural: false,
+      translations: { en: {} },
+    } satisfies TranslationData);
+    await manager.loadTranslation("cart.items", "default");
+
+    manager.togglePluralMode(true);
+
+    expect(manager.translations.value.en).toEqual({ one: "", other: "" });
+  });
+
+  it("enables select mode with the default variable and options", async () => {
+    const manager = createManager();
+    getTranslationMock.mockResolvedValue(createSingularTranslationData("greeting", "Hello"));
+    await manager.loadTranslation("greeting", "default");
+
+    manager.toggleSelectMode("en", true);
+
+    expect(manager.getSelectConfig("en")).toEqual({
+      enabled: true,
+      variable: "select",
+      options: ["formal", "informal"],
+    });
+    expect(manager.translations.value.en).toEqual({ formal: "Hello", informal: "Hello" });
+    expect(manager.hasUnsavedChanges.value).toBe(true);
+  });
+
+  it("seeds select forms with an empty string for a language with no translation", async () => {
+    const manager = createManager();
+    getTranslationMock.mockResolvedValue(createSingularTranslationData("greeting", "Hello"));
+    await manager.loadTranslation("greeting", "default");
+
+    manager.toggleSelectMode("de", true, { variable: "formality", options: ["formal"] });
+
+    expect(manager.translations.value.de).toEqual({ formal: "" });
+  });
+
+  it("converts back to a singular value for a language that was never in select mode", async () => {
+    const manager = createManager();
+    getTranslationMock.mockResolvedValue(createSingularTranslationData("greeting", "Hello"));
+    await manager.loadTranslation("greeting", "default");
+
+    manager.toggleSelectMode("en", false);
+
+    expect(manager.translations.value.en).toEqual({ other: "Hello" });
+    expect(manager.getSelectConfig("en")).toBeUndefined();
+  });
+
+  it("falls back to an empty singular value when the language has no forms left", async () => {
+    const manager = createManager();
+    getTranslationMock.mockResolvedValue({
+      key: "greeting",
+      isPlural: false,
+      translations: { en: {} },
+    } satisfies TranslationData);
+    await manager.loadTranslation("greeting", "default");
+
+    manager.toggleSelectMode("en", false);
+
+    expect(manager.translations.value.en).toEqual({ other: "" });
+  });
+
+  it("creates the select config store for data that has none", async () => {
+    const manager = createManager();
+    getTranslationMock.mockResolvedValue(createSingularTranslationData("greeting", "Hello"));
+    await manager.loadTranslation("greeting", "default");
+
+    manager.updateSelectConfig("en", { variable: "tone" });
+
+    expect(manager.getSelectConfig("en")).toEqual({
+      enabled: false,
+      variable: "tone",
+      options: [],
+    });
+    expect(manager.hasUnsavedChanges.value).toBe(true);
+  });
+
+  it("keeps form values that are not options when the option list is unchanged", async () => {
+    const manager = createManager();
+    getTranslationMock.mockResolvedValue(createSingularTranslationData("greeting", "Hello"));
+    await manager.loadTranslation("greeting", "default");
+    manager.toggleSelectMode("en", true, {
+      variable: "formality",
+      options: ["formal", "informal"],
+    });
+    manager.updateTranslation("en", "draft", "Draft");
+
+    manager.updateSelectConfig("en", { options: ["formal", "informal"] });
+
+    expect(manager.translations.value.en).toEqual({
+      formal: "Hello",
+      informal: "Hello",
+      draft: "Draft",
+    });
+  });
+
+  it("rebuilds the forms when one option is replaced by two shorter ones", async () => {
+    const manager = createManager();
+    getTranslationMock.mockResolvedValue(createSingularTranslationData("greeting", "Hello"));
+    await manager.loadTranslation("greeting", "default");
+    manager.toggleSelectMode("en", true, { variable: "tone", options: ["ab"] });
+
+    manager.updateSelectConfig("en", { options: ["a", "b"] });
+
+    expect(manager.translations.value.en).toEqual({ a: "Hello", b: "Hello" });
+  });
+
+  it("fills new options with an empty string when the language has no forms", async () => {
+    const manager = createManager();
+    getTranslationMock.mockResolvedValue({
+      key: "greeting",
+      isPlural: false,
+      translations: { en: {} },
+    } satisfies TranslationData);
+    await manager.loadTranslation("greeting", "default");
+
+    manager.updateSelectConfig("en", { options: ["formal", "informal"] });
+
+    expect(manager.translations.value.en).toEqual({ formal: "", informal: "" });
+  });
+
+  it("requires a plural variable when the loaded data has none", async () => {
+    const manager = createManager();
+    getTranslationMock.mockResolvedValue({
+      key: "cart.items",
+      isPlural: true,
+      translations: { en: { one: "Item", other: "Items" } },
+    } satisfies TranslationData);
+    await manager.loadTranslation("cart.items", "default");
+
+    expect(manager.validate()).toEqual({
+      isValid: false,
+      errors: [{ languageId: "", pluralForm: "", message: "Plural variable name is required" }],
+    });
+  });
+
+  it("flags unsaved changes after the plural variable is changed", async () => {
+    const manager = await loadedPluralManager();
+
+    manager.updatePluralVariable("n");
+
+    expect(manager.pluralVariable.value).toBe("n");
+    expect(manager.hasUnsavedChanges.value).toBe(true);
+  });
+
+  it("has no select config for a language until select mode is configured", async () => {
+    const manager = createManager();
+    getTranslationMock.mockResolvedValue(createSingularTranslationData("greeting", "Hello"));
+
+    await manager.loadTranslation("greeting", "default");
+
+    expect(manager.getSelectConfig("en")).toBeUndefined();
   });
 });

@@ -171,6 +171,39 @@ describe("collector/targetType — inferTargetType branches", () => {
     expect(result).toEqual({ uiType: "destructive-button", translationRole: "imperative-verb" });
   });
 
+  it.each(["banner.nothanks", "banner.no_thanks", "banner.no-thanks"])(
+    "classifies the button key %s as a secondary button",
+    (key) => {
+      const result = inferTargetType(
+        key,
+        makeSemantic({ semanticRole: "button" }),
+        makeConstraints(),
+      );
+
+      expect(result).toEqual({ uiType: "secondary-button", translationRole: "imperative-verb" });
+    },
+  );
+
+  it("prefers the primary pattern over the secondary one when a button key matches both", () => {
+    const result = inferTargetType(
+      "dialog.cancel.save",
+      makeSemantic({ semanticRole: "button" }),
+      makeConstraints(),
+    );
+
+    expect(result).toEqual({ uiType: "primary-button", translationRole: "imperative-verb" });
+  });
+
+  it("leaves a tiny-width role that is neither caption nor body-text as body-text", () => {
+    const result = inferTargetType(
+      "misc.value",
+      makeSemantic({ semanticRole: "unknown" }),
+      makeConstraints({ widthBucket: "tiny" }),
+    );
+
+    expect(result).toEqual({ uiType: "body-text", translationRole: "descriptive-text" });
+  });
+
   it("classifies an empty button key as primary-button", () => {
     const result = inferTargetType("", makeSemantic({ semanticRole: "button" }), makeConstraints());
 

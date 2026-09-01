@@ -2,8 +2,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { EventBus } from "../src/EventBus";
 import { TranslationRegistry } from "../src/TranslationRegistry";
 import { Collector } from "../src/collector/Collector";
+import { CollectorTransport } from "../src/collector/transport";
 import { initApiConfig, resetApiConfig } from "../src/config/api";
 import { mockBoundingClientRect, cleanupDOM, flushMicrotasks, registerVisible } from "./helpers";
+import {
+  MockIntersectionObserver,
+  resetIntersectionObserverMock,
+  setIntersecting,
+} from "./intersectionObserverMock";
 
 const SCOPE = "collector-test-scope";
 
@@ -31,9 +37,27 @@ describe("collector/Collector — lifecycle & fault isolation", () => {
   });
 
   afterEach(() => {
+    vi.useRealTimers();
     resetApiConfig(SCOPE);
+    resetIntersectionObserverMock();
     cleanupDOM();
   });
+
+  /** Every POST /v1/context/usages made so far, in order. */
+  function usagesCalls(fetchMock: ReturnType<typeof vi.fn>): unknown[][] {
+    return fetchMock.mock.calls.filter(([url]) => (url as string).includes("/v1/context/usages"));
+  }
+
+  /** fetch double whose handshake succeeds and whose every usages POST 500s. */
+  function stubFailingUsagesFetch(): ReturnType<typeof vi.fn> {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(mockOkResponse({ entries: [] }))
+      .mockResolvedValue(mockErrorResponse(500));
+    vi.stubGlobal("fetch", fetchMock);
+
+    return fetchMock;
+  }
 
   it("does nothing when disabled via options.enabled = false (no fetch, never subscribes)", async () => {
     vi.stubGlobal("fetch", vi.fn());
@@ -327,6 +351,395 @@ describe("collector/Collector — lifecycle & fault isolation", () => {
     collector.destroy();
   });
 
+  it("start() after destroy() warns and never re-runs the handshake", async () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    const eventBus = new EventBus();
+    const registry = new TranslationRegistry(eventBus);
+    registerVisible(registry, "a");
+    const collector = new Collector(eventBus, registry, SCOPE, { enabled: true });
+
+    collector.destroy();
+    await collector.start();
+
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining("Collector.start() called after destroy()"),
+    );
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("a throw while collecting the handshake keys disables collection and is logged", async () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.stubGlobal("fetch", vi.fn());
+    const eventBus = new EventBus();
+    const registry = new TranslationRegistry(eventBus);
+    vi.spyOn(registry, "entries").mockImplementation(() => {
+      throw new Error("registry exploded");
+    });
+    const collector = new Collector(eventBus, registry, SCOPE, { enabled: true });
+
+    await expect(collector.start()).resolves.toBeUndefined();
+
+    expect(collector.isDisabled()).toBe(true);
+    expect(errorSpy).toHaveBeenCalledWith(
+      expect.stringContaining("Collector failed to start"),
+      expect.any(Error),
+    );
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("logs a rejected sendPass instead of letting it escape the pass", async () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.spyOn(CollectorTransport.prototype, "sendPass").mockRejectedValue(new Error("boom"));
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(mockOkResponse({ entries: [] })));
+
+    const eventBus = new EventBus();
+    const registry = new TranslationRegistry(eventBus);
+    registerVisible(registry, "a");
+
+    const collector = new Collector(eventBus, registry, SCOPE, { enabled: true });
+    await collector.start();
+    await flushMicrotasks();
+
+    expect(errorSpy).toHaveBeenCalledWith(
+      expect.stringContaining("Collector pass failed to send"),
+      expect.any(Error),
+    );
+    expect(collector.isDisabled()).toBe(false);
+
+    collector.destroy();
+  });
+
+  it("flushes the last undelivered pass with a keepalive POST on pagehide", async () => {
+    const fetchMock = stubFailingUsagesFetch();
+    const eventBus = new EventBus();
+    const registry = new TranslationRegistry(eventBus);
+    registerVisible(registry, "a");
+
+    const collector = new Collector(eventBus, registry, SCOPE, { enabled: true });
+    await collector.start();
+    await flushMicrotasks();
+    const before = fetchMock.mock.calls.length;
+
+    window.dispatchEvent(new Event("pagehide"));
+
+    const flushed = fetchMock.mock.calls.slice(before);
+    expect(flushed).toHaveLength(1);
+    expect((flushed[0]![1] as RequestInit).keepalive).toBe(true);
+
+    collector.destroy();
+  });
+
+  it("destroy() flushes the last undelivered pass with a keepalive POST", async () => {
+    const fetchMock = stubFailingUsagesFetch();
+    const eventBus = new EventBus();
+    const registry = new TranslationRegistry(eventBus);
+    registerVisible(registry, "a");
+
+    const collector = new Collector(eventBus, registry, SCOPE, { enabled: true });
+    await collector.start();
+    await flushMicrotasks();
+    const before = fetchMock.mock.calls.length;
+
+    collector.destroy();
+
+    const flushed = fetchMock.mock.calls.slice(before);
+    expect(flushed).toHaveLength(1);
+    expect((flushed[0]![1] as RequestInit).keepalive).toBe(true);
+  });
+
+  it("stops flushing on pagehide once destroyed", async () => {
+    const fetchMock = stubFailingUsagesFetch();
+    const eventBus = new EventBus();
+    const registry = new TranslationRegistry(eventBus);
+    registerVisible(registry, "a");
+
+    const collector = new Collector(eventBus, registry, SCOPE, { enabled: true });
+    await collector.start();
+    await flushMicrotasks();
+    collector.destroy();
+    const before = fetchMock.mock.calls.length;
+
+    window.dispatchEvent(new Event("pagehide"));
+
+    expect(fetchMock.mock.calls).toHaveLength(before);
+  });
+
+  it("destroy() unsubscribes the triggers, so a later registration is never observed", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(mockOkResponse({ entries: [] })));
+    const eventBus = new EventBus();
+    const registry = new TranslationRegistry(eventBus);
+    registerVisible(registry, "a");
+
+    const collector = new Collector(eventBus, registry, SCOPE, { enabled: true });
+    await collector.start();
+    await flushMicrotasks();
+    const io = MockIntersectionObserver.instances[0]!;
+
+    collector.destroy();
+
+    const late = document.createElement("div");
+    registry.add(late, {
+      nodes: new Map([[document.createTextNode("x"), { key: "late", ns: "ns" }]]),
+    });
+
+    expect(io.observed.has(late)).toBe(false);
+  });
+
+  describe("after a pass crashes", () => {
+    async function startThenCrash(): Promise<{
+      collector: Collector;
+      fetchMock: ReturnType<typeof vi.fn>;
+      registry: TranslationRegistry;
+    }> {
+      const fetchMock = stubFailingUsagesFetch();
+      const eventBus = new EventBus();
+      const registry = new TranslationRegistry(eventBus);
+      const div = registerVisible(registry, "a");
+
+      const collector = new Collector(eventBus, registry, SCOPE, { enabled: true });
+      await collector.start();
+      await flushMicrotasks();
+
+      vi.spyOn(registry, "get").mockImplementation(() => {
+        throw new Error("registry exploded mid-pass");
+      });
+      vi.useFakeTimers();
+      eventBus.emit("structureChanges", [div]);
+      await vi.advanceTimersByTimeAsync(1100);
+      vi.useRealTimers();
+
+      return { collector, fetchMock, registry };
+    }
+
+    it("disables collection and logs the crash", async () => {
+      const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+      const { collector } = await startThenCrash();
+
+      expect(collector.isDisabled()).toBe(true);
+      expect(errorSpy).toHaveBeenCalledWith(
+        expect.stringContaining("Collector pass crashed"),
+        expect.any(Error),
+      );
+    });
+
+    it("tears the triggers down so nothing stays observed", async () => {
+      vi.spyOn(console, "error").mockImplementation(() => {});
+
+      await startThenCrash();
+
+      expect(MockIntersectionObserver.instances[0]!.observed.size).toBe(0);
+    });
+
+    it("skips the teardown flush, because a disabled collector has nothing trustworthy to send", async () => {
+      vi.spyOn(console, "error").mockImplementation(() => {});
+      const { collector, fetchMock } = await startThenCrash();
+      const before = fetchMock.mock.calls.length;
+
+      collector.destroy();
+
+      expect(fetchMock.mock.calls).toHaveLength(before);
+    });
+  });
+
+  describe("when teardown itself throws", () => {
+    async function startThenFailTeardown(): Promise<{
+      collector: Collector;
+      eventBus: EventBus;
+      registry: TranslationRegistry;
+      fetchMock: ReturnType<typeof vi.fn>;
+    }> {
+      const fetchMock = stubFailingUsagesFetch();
+      const eventBus = new EventBus();
+      const registry = new TranslationRegistry(eventBus);
+      registerVisible(registry, "a");
+
+      const collector = new Collector(eventBus, registry, SCOPE, { enabled: true });
+      await collector.start();
+      await flushMicrotasks();
+
+      // Fails on the FIRST unsubscribe, so the triggers stay wired up.
+      vi.spyOn(eventBus, "removeListener").mockImplementation(() => {
+        throw new Error("unsubscribe exploded");
+      });
+
+      return { collector, eventBus, registry, fetchMock };
+    }
+
+    it("is caught and logged rather than thrown at the caller", async () => {
+      const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+      const { collector } = await startThenFailTeardown();
+
+      expect(() => collector.destroy()).not.toThrow();
+      expect(errorSpy).toHaveBeenCalledWith(
+        expect.stringContaining("Collector teardown failed"),
+        expect.any(Error),
+      );
+    });
+
+    it("still leaves a destroyed collector unable to run another pass", async () => {
+      vi.spyOn(console, "error").mockImplementation(() => {});
+      const { collector, eventBus, registry, fetchMock } = await startThenFailTeardown();
+      collector.destroy();
+      const before = fetchMock.mock.calls.length;
+
+      vi.useFakeTimers();
+      const late = registerVisible(registry, "late.key", {
+        top: 40,
+        left: 0,
+        width: 100,
+        height: 20,
+        right: 100,
+        bottom: 60,
+      });
+      eventBus.emit("structureChanges", [late]);
+      await vi.advanceTimersByTimeAsync(1100);
+      vi.useRealTimers();
+
+      expect(fetchMock.mock.calls).toHaveLength(before);
+    });
+  });
+
+  describe("gating an IO-only settle", () => {
+    it("measures no rects on a repeat settle once the mutation flag is consumed", async () => {
+      MockIntersectionObserver.autoIntersect = false;
+      vi.stubGlobal(
+        "fetch",
+        vi
+          .fn()
+          .mockResolvedValue(
+            mockOkResponse({ updated: [], resend: [], orphanObservations: 0, hashSkew: 0 }),
+          ),
+      );
+      const eventBus = new EventBus();
+      const registry = new TranslationRegistry(eventBus);
+      const div = registerVisible(registry, "a");
+
+      const collector = new Collector(eventBus, registry, SCOPE, { enabled: true });
+      await collector.start();
+      await flushMicrotasks();
+
+      vi.useFakeTimers();
+      setIntersecting(div, true);
+      await vi.advanceTimersByTimeAsync(600);
+
+      const rectSpy = vi.spyOn(div, "getBoundingClientRect");
+      // A mutation-class settle DOES force a re-measure, and consumes the flag.
+      eventBus.emit("structureChanges", [div]);
+      await vi.advanceTimersByTimeAsync(600);
+      expect(rectSpy).toHaveBeenCalled();
+
+      rectSpy.mockClear();
+      setIntersecting(div, true);
+      await vi.advanceTimersByTimeAsync(600);
+      vi.useRealTimers();
+
+      expect(rectSpy).not.toHaveBeenCalled();
+
+      collector.destroy();
+    });
+
+    it("sends nothing further when the settle only added a rect-filtered element", async () => {
+      MockIntersectionObserver.autoIntersect = false;
+      const fetchMock = stubFailingUsagesFetch();
+      const eventBus = new EventBus();
+      const registry = new TranslationRegistry(eventBus);
+      const visible = registerVisible(registry, "visible.key");
+      const clipped = registerVisible(registry, "clipped.key", {
+        top: -500,
+        left: 0,
+        width: 100,
+        height: 20,
+        right: 100,
+        bottom: -480,
+      });
+
+      const collector = new Collector(eventBus, registry, SCOPE, { enabled: true });
+      await collector.start();
+      await flushMicrotasks();
+
+      vi.useFakeTimers();
+      setIntersecting(visible, true);
+      await vi.advanceTimersByTimeAsync(600);
+      const before = usagesCalls(fetchMock).length;
+      expect(before).toBeGreaterThan(0);
+
+      setIntersecting(clipped, true);
+      await vi.advanceTimersByTimeAsync(600);
+      vi.useRealTimers();
+
+      expect(usagesCalls(fetchMock)).toHaveLength(before);
+
+      collector.destroy();
+    });
+
+    it("re-runs the pass each time the open modal changes over an unchanged key set", async () => {
+      MockIntersectionObserver.autoIntersect = false;
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValue(
+          mockOkResponse({ updated: [], resend: [], orphanObservations: 0, hashSkew: 0 }),
+        );
+      vi.stubGlobal("fetch", fetchMock);
+
+      const eventBus = new EventBus();
+      const registry = new TranslationRegistry(eventBus);
+      const div = registerVisible(registry, "a");
+
+      /** A visible open dialog appended after any earlier one, so it is topmost. */
+      function openDialog(id: string): HTMLElement {
+        const dialog = document.createElement("div");
+        dialog.setAttribute("role", "dialog");
+        dialog.id = id;
+        document.body.appendChild(dialog);
+        mockBoundingClientRect(dialog, {
+          top: 0,
+          left: 0,
+          width: 300,
+          height: 200,
+          right: 300,
+          bottom: 200,
+        });
+
+        return dialog;
+      }
+
+      function lastSentScreenGroup(): string {
+        const calls = usagesCalls(fetchMock);
+        const body = JSON.parse((calls[calls.length - 1]![1] as RequestInit).body as string);
+
+        return body.items[0].screenGroup as string;
+      }
+
+      const collector = new Collector(eventBus, registry, SCOPE, { enabled: true });
+      await collector.start();
+      await flushMicrotasks();
+
+      vi.useFakeTimers();
+      setIntersecting(div, true);
+      await vi.advanceTimersByTimeAsync(600);
+      expect(lastSentScreenGroup()).not.toContain("#modal:");
+
+      // Each dialog opens AROUND the already-registered element: no registry
+      // change and no mutation event — only the screenGroup moves.
+      openDialog("modal-a").appendChild(div);
+      setIntersecting(div, true);
+      await vi.advanceTimersByTimeAsync(600);
+      expect(lastSentScreenGroup()).toContain("#modal:a6e7cafa00f1");
+
+      openDialog("modal-b").appendChild(div);
+      setIntersecting(div, true);
+      await vi.advanceTimersByTimeAsync(600);
+      vi.useRealTimers();
+
+      expect(lastSentScreenGroup()).toContain("#modal:a9e71fd27a7d");
+
+      collector.destroy();
+    });
+  });
+
   it("destroy() before the handshake resolves does not subscribe triggers or crash", async () => {
     let resolveHandshake!: (value: Response) => void;
     vi.stubGlobal(
@@ -363,5 +776,7 @@ describe("collector/Collector — lifecycle & fault isolation", () => {
         (url as string).includes("/v1/context/usages"),
       ),
     ).toHaveLength(0);
+    // Never subscribed at all: triggers.start() is what creates the observer.
+    expect(MockIntersectionObserver.instances).toHaveLength(0);
   });
 });

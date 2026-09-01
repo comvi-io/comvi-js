@@ -98,6 +98,51 @@ describe("TranslationScanner", () => {
 
       expect(map.has(p)).toBe(false);
     });
+
+    it("should ignore a non-text node reported by textChanges", () => {
+      const key = registerKey("comment.key");
+      const p = document.createElement("p");
+      p.appendChild(document.createComment(`Comment ${encodeKeyToInvisible(key)}`));
+
+      eventBus.emit("textChanges", [p.firstChild!]);
+
+      expect(map.has(p)).toBe(false);
+    });
+
+    it("should ignore a detached text node that has no element ancestor", () => {
+      const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+      const key = registerKey("orphan.key");
+      const orphan = document.createTextNode(`Orphan ${encodeKeyToInvisible(key)}`);
+
+      eventBus.emit("textChanges", [orphan]);
+
+      expect(map.size()).toBe(0);
+      expect(consoleError).not.toHaveBeenCalled();
+    });
+
+    it("should drop only the blanked text node's registration and keep its sibling's", () => {
+      const keptKey = registerKey("kept.key");
+      const blankedKey = registerKey("blanked.key");
+      const p = document.createElement("p");
+      const keptNode = document.createTextNode(`Kept ${encodeKeyToInvisible(keptKey)}`);
+      const blankedNode = document.createTextNode(`Blanked ${encodeKeyToInvisible(blankedKey)}`);
+      p.append(keptNode, blankedNode);
+      eventBus.emit("structureChanges", [p]);
+
+      blankedNode.nodeValue = "";
+      eventBus.emit("textChanges", [blankedNode]);
+
+      expect(registeredKeys(p)).toEqual([{ key: "kept.key", ns: "default" }]);
+    });
+
+    it("should not register text whose encoded id has no key mapping", () => {
+      const div = document.createElement("div");
+      div.appendChild(document.createTextNode(`Ghost ${encodeKeyToInvisible(4242)}`));
+
+      eventBus.emit("structureChanges", [div]);
+
+      expect(map.has(div)).toBe(false);
+    });
   });
 
   describe("Attribute processing", () => {
@@ -182,6 +227,99 @@ describe("TranslationScanner", () => {
 
       expect(map.has(input)).toBe(false);
     });
+
+    it("should remove a stale selector-matched attribute registration once its markers disappear", () => {
+      const key = registerKey("submit.value");
+      const input = document.createElement("input");
+      input.setAttribute("type", "submit");
+      input.setAttribute("value", `Send ${encodeKeyToInvisible(key)}`);
+      eventBus.emit("attributeChanges", [input]);
+
+      input.setAttribute("value", "Send");
+      eventBus.emit("attributeChanges", [input]);
+
+      expect(map.has(input)).toBe(false);
+    });
+
+    it("should not scan an attribute that only another tag's rule lists", () => {
+      const key = registerKey("stray.placeholder");
+      const div = document.createElement("div");
+      div.setAttribute("placeholder", `Stray ${encodeKeyToInvisible(key)}`);
+
+      eventBus.emit("attributeChanges", [div]);
+
+      expect(map.has(div)).toBe(false);
+    });
+
+    it("should not register an attribute whose encoded id has no key mapping", () => {
+      const input = document.createElement("input");
+      input.setAttribute("placeholder", `Ghost ${encodeKeyToInvisible(4242)}`);
+
+      eventBus.emit("attributeChanges", [input]);
+
+      expect(map.has(input)).toBe(false);
+    });
+
+    it("should not re-register an unchanged attribute on a repeated scan", () => {
+      const key = registerKey("stable.key");
+      const input = document.createElement("input");
+      input.setAttribute("placeholder", `Placeholder ${encodeKeyToInvisible(key)}`);
+      eventBus.emit("attributeChanges", [input]);
+      const removedSpy = vi.fn();
+      eventBus.on("translationRemoved", removedSpy);
+
+      eventBus.emit("attributeChanges", [input]);
+
+      expect(removedSpy).not.toHaveBeenCalled();
+      expect(registeredKeys(input)).toEqual([{ key: "stable.key", ns: "default" }]);
+    });
+
+    it("should skip an element's text registrations, without erroring on them, when only the attributes are re-scanned", () => {
+      const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+      const textKey = registerKey("text.key");
+      const attrKey = registerKey("attr.key");
+      const div = document.createElement("div");
+      div.setAttribute("aria-label", `Label ${encodeKeyToInvisible(attrKey)}`);
+      div.appendChild(document.createTextNode(`Body ${encodeKeyToInvisible(textKey)}`));
+      eventBus.emit("structureChanges", [div]);
+
+      eventBus.emit("attributeChanges", [div]);
+
+      expect(registeredKeys(div)).toEqual([
+        { key: "attr.key", ns: "default" },
+        { key: "text.key", ns: "default" },
+      ]);
+      expect(consoleError).not.toHaveBeenCalled();
+    });
+
+    it("should remove a stale attribute registration when its value is edited in place", () => {
+      // `setAttributeNode` + a `value` write keeps the Attr identity that
+      // `setAttribute` replaces, which is the case the encoded-marker check guards.
+      const key = registerKey("inplace.key");
+      const input = document.createElement("input");
+      const placeholder = document.createAttribute("placeholder");
+      placeholder.value = `Placeholder ${encodeKeyToInvisible(key)}`;
+      input.setAttributeNode(placeholder);
+      eventBus.emit("attributeChanges", [input]);
+
+      placeholder.value = "Plain placeholder";
+      eventBus.emit("attributeChanges", [input]);
+
+      expect(map.has(input)).toBe(false);
+    });
+
+    it("should keep a registration for an attribute that leaves the element's checked set", () => {
+      const key = registerKey("button.value");
+      const input = document.createElement("input");
+      input.setAttribute("type", "button");
+      input.setAttribute("value", `Click ${encodeKeyToInvisible(key)}`);
+      eventBus.emit("attributeChanges", [input]);
+
+      input.setAttribute("type", "text");
+      eventBus.emit("attributeChanges", [input]);
+
+      expect(registeredKeys(input)).toEqual([{ key: "button.value", ns: "default" }]);
+    });
   });
 
   describe("Structure changes", () => {
@@ -243,6 +381,42 @@ describe("TranslationScanner", () => {
 
       expect(registeredKeys(child)).toEqual([{ key: "overlap.key", ns: "default" }]);
       expect(updatedSpy).not.toHaveBeenCalled();
+    });
+
+    it("should process a root listed twice in one batch only once", () => {
+      const key = registerKey("dup.key");
+      const p = document.createElement("p");
+      p.appendChild(document.createTextNode(`Value ${encodeKeyToInvisible(key)}`));
+      const updatedSpy = vi.fn();
+      eventBus.on("translationUpdated", updatedSpy);
+
+      eventBus.emit("structureChanges", [p, p]);
+
+      expect(registeredKeys(p)).toEqual([{ key: "dup.key", ns: "default" }]);
+      expect(updatedSpy).not.toHaveBeenCalled();
+    });
+
+    it("should register a text node handed directly to structureChanges", () => {
+      const key = registerKey("direct.text");
+      const p = document.createElement("p");
+      const textNode = document.createTextNode(`Direct ${encodeKeyToInvisible(key)}`);
+      p.appendChild(textNode);
+
+      eventBus.emit("structureChanges", [textNode]);
+
+      expect(registeredKeys(p)).toEqual([{ key: "direct.text", ns: "default" }]);
+    });
+
+    it("should ignore an option element that has no parent to map onto", () => {
+      const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+      const key = registerKey("orphan.option");
+      const option = document.createElement("option");
+      option.appendChild(document.createTextNode(`Option ${encodeKeyToInvisible(key)}`));
+
+      eventBus.emit("structureChanges", [option]);
+
+      expect(map.size()).toBe(0);
+      expect(consoleError).not.toHaveBeenCalled();
     });
   });
 
@@ -308,6 +482,41 @@ describe("TranslationScanner", () => {
       eventBus.emit("structureChanges", [style]);
 
       expect(map.has(style)).toBe(false);
+    });
+
+    it("should ignore encoded text inside a script reached through a scanned container", () => {
+      const key = registerKey("script.text");
+      const container = document.createElement("div");
+      const script = document.createElement("script");
+      script.appendChild(document.createTextNode(`var x = "${encodeKeyToInvisible(key)}"`));
+      container.appendChild(script);
+
+      eventBus.emit("structureChanges", [container]);
+
+      expect(map.size()).toBe(0);
+    });
+
+    it("should ignore encoded attributes on a script element", () => {
+      const key = registerKey("script.aria");
+      const script = document.createElement("script");
+      script.setAttribute("aria-label", `Label ${encodeKeyToInvisible(key)}`);
+
+      eventBus.emit("attributeChanges", [script]);
+
+      expect(map.has(script)).toBe(false);
+    });
+  });
+
+  describe("destroy()", () => {
+    it("should stop registering translations after destroy()", () => {
+      const key = registerKey("after.destroy");
+      const p = document.createElement("p");
+      p.appendChild(document.createTextNode(`Text ${encodeKeyToInvisible(key)}`));
+
+      scanner.destroy();
+      eventBus.emit("structureChanges", [p]);
+
+      expect(map.has(p)).toBe(false);
     });
   });
 

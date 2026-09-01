@@ -238,6 +238,85 @@ describe("TranslationRegistry", () => {
         map.addOrUpdate(null as any, { nodes: new Map() });
       }).toThrow("Element cannot be null or undefined");
     });
+
+    it("should emit translationUpdated with the merged data for an already registered element", () => {
+      const element = document.createElement("div");
+      const first = document.createTextNode("first");
+      const second = document.createTextNode("second");
+      map.add(element, { nodes: new Map([[first, { key: "first.key", ns: "default" }]]) });
+
+      map.addOrUpdate(element, {
+        nodes: new Map([[second, { key: "second.key", ns: "default" }]]),
+      });
+
+      expect(onTranslationUpdated).toHaveBeenCalledExactlyOnceWith(element, map.get(element));
+      expect([...(map.get(element)?.nodes.keys() ?? [])]).toEqual([first, second]);
+    });
+  });
+
+  describe("removeNodesForElement", () => {
+    it("should keep the element untouched and emit nothing when the predicate matches no node", () => {
+      const element = document.createElement("div");
+      const textNode = document.createTextNode("text");
+      map.add(element, { nodes: new Map([[textNode, { key: "kept.key", ns: "default" }]]) });
+
+      map.removeNodesForElement(element, () => false);
+
+      expect(map.get(element)?.nodes.get(textNode)).toEqual({ key: "kept.key", ns: "default" });
+      expect(onTranslationUpdated).not.toHaveBeenCalled();
+      expect(onTranslationRemoved).not.toHaveBeenCalled();
+    });
+
+    it("should emit translationUpdated and keep the element when only some nodes match", () => {
+      const element = document.createElement("div");
+      const doomed = document.createTextNode("gone");
+      const kept = document.createTextNode("kept");
+      map.add(element, {
+        nodes: new Map([
+          [doomed, { key: "gone.key", ns: "default" }],
+          [kept, { key: "kept.key", ns: "default" }],
+        ]),
+      });
+
+      map.removeNodesForElement(element, (node) => node === doomed);
+
+      expect([...(map.get(element)?.nodes.keys() ?? [])]).toEqual([kept]);
+      expect(onTranslationUpdated).toHaveBeenCalledExactlyOnceWith(element, map.get(element));
+      expect(onTranslationRemoved).not.toHaveBeenCalled();
+    });
+
+    it("should remove the element once its last node matches", () => {
+      const element = document.createElement("div");
+      map.add(element, {
+        nodes: new Map([[document.createTextNode("text"), { key: "only.key", ns: "default" }]]),
+      });
+
+      map.removeNodesForElement(element, () => true);
+
+      expect(map.has(element)).toBe(false);
+      expect(onTranslationRemoved).toHaveBeenCalledExactlyOnceWith(element);
+    });
+
+    it("should emit nothing for an element that is not registered", () => {
+      map.removeNodesForElement(document.createElement("div"), () => true);
+
+      expect(onTranslationUpdated).not.toHaveBeenCalled();
+      expect(onTranslationRemoved).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("destroy", () => {
+    it("should empty the registry and emit translationRemoved for every tracked element", () => {
+      const first = document.createElement("div");
+      const second = document.createElement("span");
+      map.add(first, { nodes: new Map() });
+      map.add(second, { nodes: new Map() });
+
+      map.destroy();
+
+      expect(map.size()).toBe(0);
+      expect(onTranslationRemoved.mock.calls.map(([element]) => element)).toEqual([first, second]);
+    });
   });
 
   describe("get", () => {
@@ -475,6 +554,60 @@ describe("TranslationRegistry", () => {
       expect(divResult?.nodes.size).toBe(1);
       expect(divResult?.nodes.has(textNode1)).toBe(true);
       expect(map.has(span)).toBe(false);
+    });
+
+    it("should emit nothing for a registered element none of whose nodes were removed", () => {
+      const element = document.createElement("div");
+      map.add(element, {
+        nodes: new Map([[document.createTextNode("text"), { key: "key", ns: "default" }]]),
+      });
+
+      map.cleanupRemovedNodes(new Set([document.createTextNode("unrelated")]));
+
+      expect(map.has(element)).toBe(true);
+      expect(onTranslationUpdated).not.toHaveBeenCalled();
+    });
+
+    it("should drop a tracked attribute reported removed on its own", () => {
+      const element = document.createElement("div");
+      const attr = document.createAttribute("title");
+      element.setAttributeNode(attr);
+      map.add(element, { nodes: new Map([[attr, { key: "attr.key", ns: "default" }]]) });
+
+      map.cleanupRemovedNodes(new Set([attr]));
+
+      expect(map.has(element)).toBe(false);
+    });
+
+    it("should drop an element whose ancestor was removed, tracked attribute included", () => {
+      const ancestor = document.createElement("section");
+      const element = document.createElement("div");
+      ancestor.appendChild(element);
+      const attr = document.createAttribute("title");
+      element.setAttributeNode(attr);
+      const textNode = document.createTextNode("text");
+      element.appendChild(textNode);
+      map.add(element, {
+        nodes: new Map([
+          [textNode, { key: "text.key", ns: "default" }],
+          [attr, { key: "attr.key", ns: "default" }],
+        ]),
+      });
+
+      map.cleanupRemovedNodes(new Set([ancestor]));
+
+      expect(map.has(element)).toBe(false);
+    });
+
+    it("should keep a tracked attribute when only an unrelated node was removed", () => {
+      const element = document.createElement("div");
+      const attr = document.createAttribute("title");
+      element.setAttributeNode(attr);
+      map.add(element, { nodes: new Map([[attr, { key: "attr.key", ns: "default" }]]) });
+
+      map.cleanupRemovedNodes(new Set([document.createTextNode("unrelated")]));
+
+      expect(map.get(element)?.nodes.get(attr)).toEqual({ key: "attr.key", ns: "default" });
     });
   });
 

@@ -130,6 +130,31 @@ describe("KeySelector", () => {
       expect(appProps().position).toEqual({ top: 16, left: 784 });
     });
 
+    it("flips the dropdown above the element when it would overflow the bottom edge", () => {
+      const element = elementAt({ top: 400, right: 300, bottom: 600, left: 200 });
+
+      selector.showKeySelector([{ key: "home.title", ns: "default" }], element, vi.fn());
+
+      // Element top 400 + scroll 20 − dropdown 300 − the same 8px gap.
+      expect(appProps().position).toEqual({ top: 112, left: 210 });
+    });
+
+    it("keeps the dropdown below the element when it fits the viewport exactly", () => {
+      const element = elementAt({ top: 460, right: 300, bottom: 500, left: 200 });
+
+      selector.showKeySelector([{ key: "home.title", ns: "default" }], element, vi.fn());
+
+      expect(appProps().position).toEqual({ top: 528, left: 210 });
+    });
+
+    it("leaves the dropdown at the element when it reaches the right edge exactly", () => {
+      const element = elementAt({ top: 100, right: 900, bottom: 140, left: 800 });
+
+      selector.showKeySelector([{ key: "home.title", ns: "default" }], element, vi.fn());
+
+      expect(appProps().position).toEqual({ top: 168, left: 810 });
+    });
+
     it("opens with an empty key list rather than skipping the mount", () => {
       selector.showKeySelector(
         [],
@@ -200,6 +225,37 @@ describe("KeySelector", () => {
       expect(mocks.unmount).toHaveBeenCalledOnce();
       expect(mocks.createApp).toHaveBeenCalledTimes(2);
       expect(appProps(1).keyData).toEqual([{ key: "checkout.total", ns: "checkout" }]);
+    });
+
+    it("the app's onUpdate:open(true) leaves the dropdown mounted", () => {
+      const remove = vi.spyOn(container, "remove");
+      selector.showKeySelector(
+        [{ key: "home.title", ns: "default" }],
+        elementAt({ top: 100, right: 300, bottom: 140, left: 200 }),
+        vi.fn(),
+      );
+      const props = appProps();
+
+      props["onUpdate:open"](true);
+
+      expect(props.open.value).toBe(true);
+      expect(mocks.unmount).not.toHaveBeenCalled();
+      expect(remove).not.toHaveBeenCalled();
+    });
+
+    it("closeKeySelector() unmounts the dropdown and removes its container", () => {
+      const remove = vi.spyOn(container, "remove");
+      selector.showKeySelector(
+        [{ key: "home.title", ns: "default" }],
+        elementAt({ top: 100, right: 300, bottom: 140, left: 200 }),
+        vi.fn(),
+      );
+
+      selector.closeKeySelector();
+
+      expect(mocks.unmount).toHaveBeenCalledOnce();
+      expect(remove).toHaveBeenCalledOnce();
+      expect(appProps().open.value).toBe(false);
     });
   });
 });

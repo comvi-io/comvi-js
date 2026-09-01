@@ -61,6 +61,35 @@ describe("collector/gate", () => {
     expect(base).not.toBe(withExtra);
   });
 
+  it("computeVisibleSetSignature joins the screenGroup, namespace and key with '::'", () => {
+    expect(computeVisibleSetSignature([{ namespace: "ns", key: "a" }], "/home")).toBe(
+      "/home::ns::a",
+    );
+  });
+
+  it("computeVisibleSetSignature appends a per-target screenGroup as a third '::' field", () => {
+    const signature = computeVisibleSetSignature(
+      [
+        { namespace: "ns", key: "b" },
+        { namespace: "ns", key: "a", screenGroup: "/home#modal:x" },
+      ],
+      "",
+    );
+
+    expect(signature).toBe("::ns::a::/home#modal:x::ns::b");
+  });
+
+  it("computeVisibleSetSignature emits the bare screenGroup plus a separator for no targets", () => {
+    expect(computeVisibleSetSignature([], "/home")).toBe("/home::");
+  });
+
+  it("distinguishes a namespace/key boundary shift (ns 'a' + key 'bc' vs ns 'ab' + key 'c')", () => {
+    const first = computeVisibleSetSignature([{ namespace: "a", key: "bc" }], "/home");
+    const second = computeVisibleSetSignature([{ namespace: "ab", key: "c" }], "/home");
+
+    expect(first).not.toBe(second);
+  });
+
   it("computeVisibleSetSignature returns a screenGroup-specific signature for an empty target list", () => {
     const emptyHome = computeVisibleSetSignature([], "/home");
     const emptySettings = computeVisibleSetSignature([], "/settings");

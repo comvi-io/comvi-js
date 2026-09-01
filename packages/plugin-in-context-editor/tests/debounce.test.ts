@@ -73,6 +73,22 @@ describe("debounce", () => {
     expect(callback).toHaveBeenCalledExactlyOnceWith("after-idle-cancel");
   });
 
+  it("cancel() leaves no timer behind that could fire the next call early", () => {
+    const callback = vi.fn();
+    const debounced = debounce(callback, 100);
+
+    debounced("cancelled");
+    debounced.cancel();
+    vi.advanceTimersByTime(50);
+    debounced("scheduled");
+
+    vi.advanceTimersByTime(50);
+    expect(callback).not.toHaveBeenCalled();
+
+    vi.advanceTimersByTime(50);
+    expect(callback).toHaveBeenCalledExactlyOnceWith("scheduled");
+  });
+
   describe("debounce() with maxWait", () => {
     it("fires within maxWait of the first pending call under sustained calls", () => {
       const callback = vi.fn();
@@ -133,6 +149,64 @@ describe("debounce", () => {
       debounced.cancel();
       vi.advanceTimersByTime(1000);
       expect(callback).not.toHaveBeenCalled();
+    });
+
+    it("disarms the trailing timer when maxWait fires, so a later burst is not cut short", () => {
+      const callback = vi.fn();
+      const debounced = debounce(callback, 1000, { maxWait: 100 });
+
+      debounced("first-burst");
+      vi.advanceTimersByTime(100);
+      expect(callback).toHaveBeenCalledExactlyOnceWith("first-burst");
+
+      // t=950: the first burst's abandoned 1000ms trailing timer is due at t=1000,
+      // 50ms before this burst's own 100ms ceiling.
+      vi.advanceTimersByTime(850);
+      debounced("second-burst");
+
+      vi.advanceTimersByTime(50);
+      expect(callback).toHaveBeenCalledTimes(1);
+
+      vi.advanceTimersByTime(50);
+      expect(callback).toHaveBeenCalledTimes(2);
+      expect(callback).toHaveBeenLastCalledWith("second-burst");
+    });
+
+    it("disarms the maxWait timer when the trailing delay fires, so a later burst is not cut short", () => {
+      const callback = vi.fn();
+      const debounced = debounce(callback, 100, { maxWait: 1000 });
+
+      debounced("first-burst");
+      vi.advanceTimersByTime(100);
+      expect(callback).toHaveBeenCalledExactlyOnceWith("first-burst");
+
+      // t=950: the first burst's abandoned 1000ms ceiling is due at t=1000,
+      // 50ms before this burst's own 100ms trailing delay.
+      vi.advanceTimersByTime(850);
+      debounced("second-burst");
+
+      vi.advanceTimersByTime(50);
+      expect(callback).toHaveBeenCalledTimes(1);
+
+      vi.advanceTimersByTime(50);
+      expect(callback).toHaveBeenCalledTimes(2);
+      expect(callback).toHaveBeenLastCalledWith("second-burst");
+    });
+
+    it("cancel() leaves no maxWait timer behind that could fire the next call early", () => {
+      const callback = vi.fn();
+      const debounced = debounce(callback, 1000, { maxWait: 100 });
+
+      debounced("cancelled");
+      debounced.cancel();
+      vi.advanceTimersByTime(50);
+      debounced("scheduled");
+
+      vi.advanceTimersByTime(50);
+      expect(callback).not.toHaveBeenCalled();
+
+      vi.advanceTimersByTime(50);
+      expect(callback).toHaveBeenCalledExactlyOnceWith("scheduled");
     });
 
     it("unset maxWait behaves exactly as the historical trailing debounce", () => {

@@ -11,12 +11,20 @@ function mockOkResponse<T>(payload: T): Response {
   } as Response;
 }
 
+/**
+ * The body is a *valid* locales payload on purpose: a service that stopped
+ * checking `response.ok` would then succeed instead of throwing, so the status
+ * check is what the error tests actually pin.
+ */
 function mockErrorResponse(status: number, statusText: string): Response {
   return {
     ok: false,
     status,
     statusText,
-    json: async () => ({}),
+    json: async () => ({
+      sourceLocale: "en",
+      locales: [{ id: 1, code: "en", name: "English", nativeName: "English" }],
+    }),
   } as Response;
 }
 
@@ -106,6 +114,10 @@ describe("languageService", () => {
     vi.mocked(fetch).mockResolvedValueOnce(mockErrorResponse(500, "Server Error"));
 
     await expect(getLanguages()).rejects.toThrow("Failed to fetch languages");
+    expect(console.error).toHaveBeenCalledWith(
+      "Error fetching languages:",
+      new Error("API error: 500 Server Error"),
+    );
   });
 
   it("throws normalized error when fetch fails", async () => {

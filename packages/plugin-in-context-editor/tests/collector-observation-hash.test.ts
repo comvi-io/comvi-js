@@ -11,7 +11,7 @@
  */
 
 import { createHash } from "node:crypto";
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import {
   computeObservationHash,
   serializeObservationForHash,
@@ -58,6 +58,19 @@ describe("sha256Hex (self-contained pure SHA-256)", () => {
     ["unicode", "unicode: ключ café 日本語 🚀"],
   ])("matches node:crypto for %s", (_label, msg) => {
     expect(sha256Hex(msg)).toBe(nodeSha(msg));
+  });
+
+  // The 64 FIPS 180-4 round constants are built once when the module is first
+  // imported. Re-evaluating the module inside the test pins that table itself:
+  // the vectors above only exercise the copy imported at collection time.
+  it("still reproduces a NIST vector when the module is evaluated afresh", async () => {
+    vi.resetModules();
+
+    const fresh = await import("../src/collector/hash/observation-hash");
+
+    expect(fresh.sha256Hex("abc")).toBe(
+      "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+    );
   });
 });
 
@@ -136,6 +149,86 @@ describe("top-K neighbor selection", () => {
     );
 
     expect(canonical[NEIGHBORS_FIELD]).toEqual([]);
+  });
+});
+
+describe("neighbor selection order", () => {
+  const neighbor = (
+    key: string,
+    readingOrderIndex: number,
+    distance: number,
+  ): ObservationHashNeighbor => ({
+    namespace: "ns",
+    key,
+    relativePosition: "below",
+    sameContainerAs: null,
+    readingOrderIndex,
+    distance,
+  });
+
+  function hashedKeys(neighbors: ObservationHashNeighbor[]): string[] {
+    const canonical = JSON.parse(
+      serializeObservationForHash({
+        uiType: "body-text",
+        translationRole: "descriptive-text",
+        mustBeShort: false,
+        singleLine: false,
+        widthBucket: "full",
+        neighbors,
+      }),
+    );
+
+    return (canonical[NEIGHBORS_FIELD] as string[][]).map((entry) => entry[1]!);
+  }
+
+  const filler = Array.from({ length: 7 }, (_, i) => neighbor(`k${i}`, i, 10));
+
+  it("sorts the hashed set by (namespace,key), not by the order selection left them in", () => {
+    expect(hashedKeys([neighbor("b", 0, 10), neighbor("a", 1, 10)])).toEqual(["a", "b"]);
+  });
+
+  it("selects by readingOrderIndex even when distance ranks the neighbors the other way", () => {
+    // Input order and distance order both disagree with reading order, so only
+    // a reading-order-first selection can produce k00..k07.
+    const neighbors = Array.from({ length: 12 }, (_, i) =>
+      neighbor(`k${String(i).padStart(2, "0")}`, i, 1000 - i),
+    ).reverse();
+
+    expect(hashedKeys(neighbors)).toEqual(["k00", "k01", "k02", "k03", "k04", "k05", "k06", "k07"]);
+  });
+
+  it.each([
+    ["farthest first", [neighbor("a-far", 7, 500), neighbor("z-near", 7, 5)]],
+    ["nearest first", [neighbor("z-near", 7, 5), neighbor("a-far", 7, 500)]],
+  ])(
+    "breaks a readingOrderIndex tie by the smaller distance, given the pair %s",
+    (_label, tied) => {
+      expect(hashedKeys([...filler, ...tied])).toEqual([
+        "k0",
+        "k1",
+        "k2",
+        "k3",
+        "k4",
+        "k5",
+        "k6",
+        "z-near",
+      ]);
+    },
+  );
+
+  it("breaks a readingOrderIndex AND distance tie by the (namespace,key) tuple", () => {
+    const tied = [neighbor("z-second", 7, 5), neighbor("a-first", 7, 5)];
+
+    expect(hashedKeys([...filler, ...tied])).toEqual([
+      "a-first",
+      "k0",
+      "k1",
+      "k2",
+      "k3",
+      "k4",
+      "k5",
+      "k6",
+    ]);
   });
 });
 

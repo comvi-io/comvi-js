@@ -163,6 +163,118 @@ describe("collector triggers — IntersectionObserver visibility + maxWait", () 
       expect(triggers.getIntersectingElements().size).toBe(0);
     });
 
+    it.each([
+      ["initialScan", (bus: EventBus) => bus.emit("initialScan", document.body)],
+      ["structureChanges", (bus: EventBus) => bus.emit("structureChanges", [document.body])],
+      ["textChanges", (bus: EventBus) => bus.emit("textChanges", [document.createTextNode("x")])],
+      ["attributeChanges", (bus: EventBus) => bus.emit("attributeChanges", [document.body])],
+      ["nodesRemoved", (bus: EventBus) => bus.emit("nodesRemoved", [document.body])],
+      [
+        "translationUpdated",
+        (bus: EventBus) =>
+          bus.emit("translationUpdated", document.body, {
+            nodes: new Map([[document.createTextNode("x"), { key: "k", ns: "ns" }]]),
+          }),
+      ],
+    ])("schedules a settle on the %s event", (_name, emit) => {
+      vi.useFakeTimers();
+      const eventBus = new EventBus();
+      const registry = new TranslationRegistry(eventBus);
+      const onSettle = vi.fn();
+      const triggers = new CollectorTriggers(eventBus, registry, onSettle);
+      triggers.start();
+
+      emit(eventBus);
+      vi.advanceTimersByTime(500);
+
+      expect(onSettle).toHaveBeenCalledTimes(1);
+
+      triggers.destroy();
+    });
+
+    it("a window resize triggers a scheduled settle (responsive width drift)", () => {
+      vi.useFakeTimers();
+      const eventBus = new EventBus();
+      const registry = new TranslationRegistry(eventBus);
+      const onSettle = vi.fn();
+      const triggers = new CollectorTriggers(eventBus, registry, onSettle);
+      triggers.start();
+
+      window.dispatchEvent(new Event("resize"));
+      vi.advanceTimersByTime(500);
+
+      expect(onSettle).toHaveBeenCalledTimes(1);
+
+      triggers.destroy();
+    });
+
+    it("start() is idempotent — a second call creates no second observer", () => {
+      const eventBus = new EventBus();
+      const registry = new TranslationRegistry(eventBus);
+      const triggers = new CollectorTriggers(eventBus, registry, vi.fn());
+
+      triggers.start();
+      triggers.start();
+
+      expect(MockIntersectionObserver.instances).toHaveLength(1);
+
+      triggers.destroy();
+    });
+
+    it("start() after destroy() resubscribes, and a second destroy() never throws", () => {
+      vi.useFakeTimers();
+      const eventBus = new EventBus();
+      const registry = new TranslationRegistry(eventBus);
+      const onSettle = vi.fn();
+      const triggers = new CollectorTriggers(eventBus, registry, onSettle);
+
+      triggers.start();
+      triggers.destroy();
+      triggers.start();
+
+      eventBus.emit("structureChanges", [document.body]);
+      vi.advanceTimersByTime(500);
+      expect(onSettle).toHaveBeenCalledTimes(1);
+
+      triggers.destroy();
+      expect(() => triggers.destroy()).not.toThrow();
+    });
+
+    it("cancels a settle that was already pending when destroy() ran", () => {
+      vi.useFakeTimers();
+      const eventBus = new EventBus();
+      const registry = new TranslationRegistry(eventBus);
+      const onSettle = vi.fn();
+      const triggers = new CollectorTriggers(eventBus, registry, onSettle);
+      triggers.start();
+
+      eventBus.emit("structureChanges", [document.body]);
+      triggers.destroy();
+      vi.advanceTimersByTime(1100);
+
+      expect(onSettle).not.toHaveBeenCalled();
+    });
+
+    it("removing a registered element drops it from the intersecting set", () => {
+      const eventBus = new EventBus();
+      const registry = new TranslationRegistry(eventBus);
+      const triggers = new CollectorTriggers(eventBus, registry, vi.fn());
+      triggers.start();
+
+      const el = document.createElement("div");
+      registry.add(el, {
+        nodes: new Map([[document.createTextNode("x"), { key: "k", ns: "ns" }]]),
+      });
+      setIntersecting(el, true);
+      expect(triggers.getIntersectingElements().size).toBe(1);
+
+      registry.remove(el);
+
+      expect(triggers.getIntersectingElements().size).toBe(0);
+
+      triggers.destroy();
+    });
+
     it("a throw inside the IO callback is caught and never escapes (MED-2, RC3/P8)", () => {
       const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
       const eventBus = new EventBus();
@@ -188,6 +300,28 @@ describe("collector triggers — IntersectionObserver visibility + maxWait", () 
       );
 
       triggers.destroy();
+    });
+  });
+
+  describe("without IntersectionObserver (SSR / very old engines)", () => {
+    it("starts, observes, unobserves and destroys silently, collecting nothing", () => {
+      vi.stubGlobal("IntersectionObserver", undefined);
+      const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+      const eventBus = new EventBus();
+      const registry = new TranslationRegistry(eventBus);
+      const triggers = new CollectorTriggers(eventBus, registry, vi.fn());
+
+      expect(() => triggers.start()).not.toThrow();
+
+      const el = document.createElement("div");
+      registry.add(el, {
+        nodes: new Map([[document.createTextNode("x"), { key: "k", ns: "ns" }]]),
+      });
+      registry.remove(el);
+
+      expect(triggers.getIntersectingElements().size).toBe(0);
+      expect(errorSpy).not.toHaveBeenCalled();
+      expect(() => triggers.destroy()).not.toThrow();
     });
   });
 
@@ -228,6 +362,75 @@ describe("collector triggers — IntersectionObserver visibility + maxWait", () 
       expect(onSettle).toHaveBeenCalledTimes(2);
 
       triggers.destroy();
+    });
+
+    it("a hashchange dispatch triggers a scheduled settle", () => {
+      vi.useFakeTimers();
+      const eventBus = new EventBus();
+      const registry = new TranslationRegistry(eventBus);
+      const onSettle = vi.fn();
+      const triggers = new CollectorTriggers(eventBus, registry, onSettle);
+      triggers.start();
+
+      window.dispatchEvent(new Event("hashchange"));
+      vi.advanceTimersByTime(500);
+
+      expect(onSettle).toHaveBeenCalledTimes(1);
+
+      triggers.destroy();
+    });
+
+    it.each([
+      ["popstate", () => new PopStateEvent("popstate")],
+      ["hashchange", () => new Event("hashchange")],
+      ["resize", () => new Event("resize")],
+    ])("stops scheduling settles on %s once destroyed", (_label, makeEvent) => {
+      vi.useFakeTimers();
+      const eventBus = new EventBus();
+      const registry = new TranslationRegistry(eventBus);
+      const onSettle = vi.fn();
+      const triggers = new CollectorTriggers(eventBus, registry, onSettle);
+      triggers.start();
+
+      triggers.destroy();
+      window.dispatchEvent(makeEvent());
+      vi.advanceTimersByTime(1100);
+
+      expect(onSettle).not.toHaveBeenCalled();
+    });
+
+    it("destroy() takes our pushState/replaceState patch back off window.history", () => {
+      const eventBus = new EventBus();
+      const registry = new TranslationRegistry(eventBus);
+      const triggers = new CollectorTriggers(eventBus, registry, vi.fn());
+      triggers.start();
+
+      const patchedPushState = window.history.pushState;
+      const patchedReplaceState = window.history.replaceState;
+
+      triggers.destroy();
+
+      expect(window.history.pushState).not.toBe(patchedPushState);
+      expect(window.history.replaceState).not.toBe(patchedReplaceState);
+    });
+
+    it("keeps the history patch while another CollectorTriggers instance is still subscribed", () => {
+      vi.useFakeTimers();
+      const busA = new EventBus();
+      const busB = new EventBus();
+      const onSettleB = vi.fn();
+      const first = new CollectorTriggers(busA, new TranslationRegistry(busA), vi.fn());
+      const second = new CollectorTriggers(busB, new TranslationRegistry(busB), onSettleB);
+      first.start();
+      second.start();
+
+      first.destroy();
+      window.history.pushState({}, "", "/still-observed");
+      vi.advanceTimersByTime(500);
+
+      expect(onSettleB).toHaveBeenCalledTimes(1);
+
+      second.destroy();
     });
 
     it("destroy() restores the original pushState/replaceState when nothing else re-wrapped them", () => {
@@ -305,6 +508,37 @@ describe("collector triggers — IntersectionObserver visibility + maxWait", () 
         // Not a vi.spyOn: the wrapper is installed by assignment to model a
         // host router, so restoreMocks cannot undo it.
         window.history.pushState = trueOriginalPushState;
+      }
+    });
+    it("MED-3: a host router that re-wraps replaceState AFTER us is left in place on destroy()", () => {
+      const eventBus = new EventBus();
+      const registry = new TranslationRegistry(eventBus);
+      const triggers = new CollectorTriggers(eventBus, registry, vi.fn());
+      const trueOriginalReplaceState = window.history.replaceState;
+
+      try {
+        triggers.start();
+
+        const ourReplaceState = window.history.replaceState;
+        const hostRouterWrapper = vi.fn(function (
+          this: History,
+          ...args: Parameters<History["replaceState"]>
+        ) {
+          return ourReplaceState.apply(this, args);
+        }) as unknown as History["replaceState"];
+        window.history.replaceState = hostRouterWrapper;
+
+        triggers.destroy();
+
+        expect(window.history.replaceState).toBe(hostRouterWrapper);
+
+        window.history.replaceState({}, "", "/still-works");
+        expect(hostRouterWrapper).toHaveBeenCalledTimes(1);
+        expect(location.pathname).toBe("/still-works");
+      } finally {
+        // Not a vi.spyOn: the wrapper is installed by assignment to model a
+        // host router, so restoreMocks cannot undo it.
+        window.history.replaceState = trueOriginalReplaceState;
       }
     });
   });

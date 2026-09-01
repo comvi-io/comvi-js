@@ -61,12 +61,21 @@ function mockOkResponse<T>(payload: T): Response {
   } as Response;
 }
 
-function mockErrorResponse(status: number, statusText: string): Response {
+/**
+ * The body is a *valid* payload on purpose: a service that stopped checking
+ * `response.ok` would then succeed on it instead of failing on a malformed
+ * body, so these tests pin the status check itself.
+ */
+function mockErrorResponse(
+  status: number,
+  statusText: string,
+  payload: unknown = makeKeyResponse({ key: "home.title", values: { en: "Hello" } }),
+): Response {
   return {
     ok: false,
     status,
     statusText,
-    json: async () => ({}),
+    json: async () => payload,
   } as Response;
 }
 
@@ -216,6 +225,10 @@ describe("translationService", () => {
     await expect(getTranslation("home.title", "default")).rejects.toThrow(
       "Failed to fetch translation",
     );
+    expect(console.error).toHaveBeenCalledWith(
+      "Error fetching translation:",
+      new Error("API error: 500 Server Error"),
+    );
   });
 
   it("should throw normalized error when saveTranslation receives non-ok response", async () => {
@@ -224,6 +237,10 @@ describe("translationService", () => {
     await expect(
       saveTranslation("home.title", "default", { en: { other: "Hello" } }, false),
     ).rejects.toThrow("Failed to save translation");
+    expect(console.error).toHaveBeenCalledWith(
+      "Error saving translation:",
+      new Error("API error: 500 Server Error"),
+    );
   });
 
   it("should keep scoped API configs isolated across editor runtimes", async () => {
@@ -267,14 +284,22 @@ describe("translationService", () => {
       { en: { enabled: true, variable: "formality", options: ["formal", "informal"] } },
     );
 
-    expect(sentBody(fetchMock).translations.en.value).toBe(
-      "{formality, select, formal {Welcome} informal {Hi}}",
-    );
+    expect(sentBody(fetchMock).translations.en).toEqual({
+      value: "{formality, select, formal {Welcome} informal {Hi}}",
+      status: "not_reviewed",
+    });
   });
 
   it("should throw demo mode error when trying to save in demo mode", async () => {
     initApiConfig(undefined);
 
+    await expect(
+      saveTranslation("home.title", "default", { en: { other: "Hello" } }, false),
+    ).rejects.toMatchObject({
+      name: "DemoModeError",
+      message:
+        "[Demo Mode] Saving translations is not available. Please configure an API key to enable this feature.",
+    });
     await expect(
       saveTranslation("home.title", "default", { en: { other: "Hello" } }, false),
     ).rejects.toBeInstanceOf(DemoModeError);
@@ -284,6 +309,11 @@ describe("translationService", () => {
   it("should throw demo mode error when trying to delete in demo mode", async () => {
     initApiConfig(undefined);
 
+    await expect(deleteTranslation("home.title", "default")).rejects.toMatchObject({
+      name: "DemoModeError",
+      message:
+        "[Demo Mode] Deleting translations is not available. Please configure an API key to enable this feature.",
+    });
     await expect(deleteTranslation("home.title", "default")).rejects.toBeInstanceOf(DemoModeError);
     expect(fetch).not.toHaveBeenCalled();
   });
@@ -311,6 +341,10 @@ describe("translationService", () => {
 
     await expect(deleteTranslation("home.title", "default")).rejects.toThrow(
       "Failed to delete translation",
+    );
+    expect(console.error).toHaveBeenCalledWith(
+      "Error deleting translation:",
+      new Error("API error: 500 Server Error"),
     );
   });
 
@@ -347,11 +381,19 @@ describe("translationService", () => {
   });
 
   it("should return empty array when getAllTranslationKeys fails", async () => {
-    vi.mocked(fetch).mockResolvedValueOnce(mockErrorResponse(500, "Server Error"));
+    vi.mocked(fetch).mockResolvedValueOnce(
+      mockErrorResponse(500, "Server Error", {
+        namespaces: { default: { en: { "home.title": "Home" } } },
+      }),
+    );
 
     const result = await getAllTranslationKeys();
 
     expect(result).toEqual([]);
+    expect(console.error).toHaveBeenCalledWith(
+      "Error getting translation keys:",
+      new Error("API error: 500 Server Error"),
+    );
   });
 
   it("should return empty array for getAllTranslationKeys in demo mode", async () => {
@@ -386,4 +428,178 @@ describe("translationService", () => {
 
     expect(result?.description).toBeUndefined();
   });
+
+  it("should return null without calling the API in demo mode", async () => {
+    initApiConfig(undefined);
+
+    await expect(getTranslation("home.title", "default")).resolves.toBeNull();
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("should map a singular value to a single other form", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      mockOkResponse(makeKeyResponse({ key: "home.title", values: { en: "Welcome" } })),
+    );
+
+    const result = await getTranslation("home.title", "default");
+
+    expect(result).toEqual({
+      key: "home.title",
+      description: undefined,
+      isPlural: false,
+      pluralVariable: undefined,
+      translations: { en: { other: "Welcome" } },
+      selectConfigs: undefined,
+      metadata: { createdAt: TIMESTAMP, lastModified: TIMESTAMP },
+    });
+  });
+
+  it("should derive plural forms and the plural variable from a plural ICU value", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      mockOkResponse(
+        makeKeyResponse({
+          key: "cart.items",
+          values: { en: "{count, plural, one {1 item} other {# items}}" },
+        }),
+      ),
+    );
+
+    const result = await getTranslation("cart.items", "default");
+
+    expect(result).toEqual({
+      key: "cart.items",
+      description: undefined,
+      isPlural: true,
+      pluralVariable: "count",
+      translations: { en: { one: "1 item", other: "# items" } },
+      selectConfigs: undefined,
+      metadata: { createdAt: TIMESTAMP, lastModified: TIMESTAMP },
+    });
+  });
+
+  it("should derive the select options from a select ICU value", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      mockOkResponse(
+        makeKeyResponse({
+          key: "welcome.message",
+          values: { en: "{formality, select, formal {Welcome} informal {Hi}}" },
+        }),
+      ),
+    );
+
+    const result = await getTranslation("welcome.message", "default");
+
+    expect(result).toEqual({
+      key: "welcome.message",
+      description: undefined,
+      isPlural: false,
+      pluralVariable: undefined,
+      translations: { en: { formal: "Welcome", informal: "Hi" } },
+      selectConfigs: {
+        en: { enabled: true, variable: "formality", options: ["formal", "informal"] },
+      },
+      metadata: { createdAt: TIMESTAMP, lastModified: TIMESTAMP },
+    });
+  });
+
+  it("should keep the first language's plural variable when the languages disagree", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      mockOkResponse(
+        makeKeyResponse({
+          key: "cart.items",
+          values: {
+            en: "{count, plural, one {1 item} other {# items}}",
+            de: "{n, plural, one {1 Artikel} other {# Artikel}}",
+          },
+        }),
+      ),
+    );
+
+    const result = await getTranslation("cart.items", "default");
+
+    expect(result?.pluralVariable).toBe("count");
+  });
+
+  it("should keep the requested key when the API echoes a different one", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      mockOkResponse(makeKeyResponse({ key: "server.key", values: { en: "Hello" } })),
+    );
+
+    const result = await getTranslation("requested.key", "default");
+
+    expect(result?.key).toBe("requested.key");
+  });
+
+  it("should send plural-only values as ICU plural with the given variable", async () => {
+    const fetchMock = vi.mocked(fetch);
+    fetchMock.mockResolvedValueOnce(
+      mockOkResponse(makeKeyResponse({ key: "cart.items", isPlural: true })),
+    );
+
+    await saveTranslation(
+      "cart.items",
+      "default",
+      { en: { one: "1 item", other: "# items" } },
+      true,
+      "n",
+    );
+
+    expect(sentBody(fetchMock).translations.en).toEqual({
+      value: "{n, plural, one {1 item} other {# items}}",
+      status: "not_reviewed",
+    });
+  });
+
+  it("should send an empty value when the singular form carries no text", async () => {
+    const fetchMock = vi.mocked(fetch);
+    fetchMock.mockResolvedValueOnce(mockOkResponse(makeKeyResponse({ key: "home.title" })));
+
+    await saveTranslation("home.title", "default", { en: {} }, false);
+
+    expect(sentBody(fetchMock).translations.en).toEqual({ value: "", status: "not_reviewed" });
+  });
+
+  it("should send the plural forms taken from the composite keys", async () => {
+    const fetchMock = vi.mocked(fetch);
+    fetchMock.mockResolvedValueOnce(
+      mockOkResponse(makeKeyResponse({ key: "cart.items", isPlural: true })),
+    );
+
+    await saveTranslation(
+      "cart.items",
+      "default",
+      { uk: { "formal:few": "# items", "formal:many": "# more items" } },
+      true,
+      "n",
+      { uk: { enabled: true, variable: "formality", options: ["formal"] } },
+    );
+
+    expect(sentBody(fetchMock).translations.uk.value).toBe(
+      "{formality, select, formal {{n, plural, few {# items} many {# more items}}}}",
+    );
+  });
+
+  // Only `<option>:<form>` keys carry a plural form; anything else leaves the
+  // combined value with the default one/other arms.
+  it.each([
+    ["no separator", { other: "Welcome" }],
+    ["an empty plural form part", { "formal:": "junk" }],
+    ["an extra separator", { "formal:few:legacy": "junk" }],
+  ])(
+    "should fall back to empty one/other arms when the only composite key has %s",
+    async (_case, forms) => {
+      const fetchMock = vi.mocked(fetch);
+      fetchMock.mockResolvedValueOnce(
+        mockOkResponse(makeKeyResponse({ key: "home.title", isPlural: true })),
+      );
+
+      await saveTranslation("home.title", "default", { en: forms }, true, undefined, {
+        en: { enabled: true, variable: "formality", options: ["formal"] },
+      });
+
+      expect(sentBody(fetchMock).translations.en.value).toBe(
+        "{formality, select, formal {{count, plural, one {} other {}}}}",
+      );
+    },
+  );
 });

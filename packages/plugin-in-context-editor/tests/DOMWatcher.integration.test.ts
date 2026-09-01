@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { DOMWatcher } from "../src/DOMWatcher";
 import { EventBus } from "../src/EventBus";
 import { TAG_ATTRIBUTES, EDITOR_UI_SHADOW_HOST_ATTRIBUTE } from "../src/constants";
+import type { TranslationSystemInnerOptions } from "../src/types";
 import { cleanupDOM, flushDOMMutations } from "./helpers";
 
 describe("DOMWatcher.integration.test.ts - DOM Mutation Observation", () => {
@@ -560,6 +561,361 @@ describe("DOMWatcher.integration.test.ts - DOM Mutation Observation", () => {
         'Error in event listener for "structureChanges":',
         expect.any(Error),
       );
+    });
+  });
+});
+
+const PRISTINE_ATTACH_SHADOW = Element.prototype.attachShadow;
+
+describe("DOMWatcher", () => {
+  let container: HTMLDivElement;
+  let watchers: DOMWatcher[];
+
+  interface Watched {
+    watcher: DOMWatcher;
+    eventBus: EventBus;
+    scans: Node[];
+  }
+
+  function watch(targetElement: Node): Watched {
+    const eventBus = new EventBus();
+    const scans: Node[] = [];
+    eventBus.on("initialScan", (root: Node) => {
+      scans.push(root);
+    });
+    const watcher = new DOMWatcher(eventBus, { targetElement, tagAttributes: TAG_ATTRIBUTES });
+    watchers.push(watcher);
+    return { watcher, eventBus, scans };
+  }
+
+  function recordEventNames(eventBus: EventBus): string[] {
+    const names: string[] = [];
+    for (const name of [
+      "textChanges",
+      "attributeChanges",
+      "structureChanges",
+      "nodesRemoved",
+    ] as const) {
+      eventBus.on(name, () => names.push(name));
+    }
+    return names;
+  }
+
+  beforeEach(() => {
+    watchers = [];
+    container = document.createElement("div");
+    document.body.appendChild(container);
+  });
+
+  afterEach(() => {
+    watchers.forEach((watcher) => watcher.stop());
+    // Restore the prototype the module patches, so no test can leak a patched
+    // attachShadow into the next one.
+    Element.prototype.attachShadow = PRISTINE_ATTACH_SHADOW;
+    cleanupDOM();
+  });
+
+  describe("observation lifecycle", () => {
+    it("stops reporting text changes after stop()", async () => {
+      const textNode = document.createTextNode("initial");
+      container.appendChild(textNode);
+      const { watcher, eventBus } = watch(container);
+      const callback = vi.fn();
+      eventBus.on("textChanges", callback);
+
+      watcher.start();
+      watcher.stop();
+      textNode.nodeValue = "changed";
+      await flushDOMMutations();
+
+      expect(callback).not.toHaveBeenCalled();
+    });
+
+    it("reports text changes again after being restarted", async () => {
+      const textNode = document.createTextNode("initial");
+      container.appendChild(textNode);
+      const { watcher, eventBus } = watch(container);
+      const callback = vi.fn();
+      eventBus.on("textChanges", callback);
+
+      watcher.start();
+      watcher.stop();
+      watcher.start();
+      textNode.nodeValue = "changed";
+      await flushDOMMutations();
+
+      expect(callback.mock.calls).toEqual([[[textNode]]]);
+    });
+
+    it("patches attachShadow while observing and restores it on stop", () => {
+      const { watcher } = watch(container);
+
+      watcher.start();
+      expect(Element.prototype.attachShadow).not.toBe(PRISTINE_ATTACH_SHADOW);
+
+      watcher.stop();
+
+      expect(Element.prototype.attachShadow).toBe(PRISTINE_ATTACH_SHADOW);
+    });
+
+    it("keeps the attachShadow patch until the last watcher stops", () => {
+      const other = document.createElement("div");
+      document.body.appendChild(other);
+      const first = watch(container);
+      const second = watch(other);
+      first.watcher.start();
+      second.watcher.start();
+
+      first.watcher.stop();
+      const host = document.createElement("div");
+      other.appendChild(host);
+      const shadowRoot = host.attachShadow({ mode: "open" });
+      expect(second.scans).toContain(shadowRoot);
+
+      second.watcher.stop();
+
+      expect(Element.prototype.attachShadow).toBe(PRISTINE_ATTACH_SHADOW);
+    });
+
+    it("leaves attachShadow alone where the environment has no shadow DOM", () => {
+      const { watcher } = watch(container);
+      // @ts-expect-error - modelling a DOM implementation without attachShadow
+      delete Element.prototype.attachShadow;
+
+      watcher.start();
+
+      expect(Element.prototype.attachShadow).toBeUndefined();
+    });
+
+    it("observes nothing when the target is neither a document, an element nor a fragment", async () => {
+      const textNode = document.createTextNode("initial");
+      container.appendChild(textNode);
+      const { watcher, eventBus } = watch(textNode);
+      const callback = vi.fn();
+      eventBus.on("textChanges", callback);
+
+      watcher.start();
+      textNode.nodeValue = "changed";
+      await flushDOMMutations();
+
+      expect(callback).not.toHaveBeenCalled();
+    });
+
+    it("reports no attribute changes when no tag attributes are configured", async () => {
+      const input = document.createElement("input");
+      container.appendChild(input);
+      const eventBus = new EventBus();
+      // The runtime contract has to survive a caller that omits the config.
+      const watcher = new DOMWatcher(eventBus, {
+        targetElement: container,
+      } as TranslationSystemInnerOptions);
+      watchers.push(watcher);
+      const callback = vi.fn();
+      eventBus.on("attributeChanges", callback);
+
+      watcher.start();
+      input.setAttribute("placeholder", "Enter text");
+      await flushDOMMutations();
+
+      expect(callback).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("shadow root discovery", () => {
+    it("scans a shadow root attached to the target element itself", () => {
+      const { watcher, scans } = watch(container);
+      watcher.start();
+
+      const shadowRoot = container.attachShadow({ mode: "open" });
+
+      expect(scans).toContain(shadowRoot);
+    });
+
+    it("ignores a shadow root attached to a host outside the target element", () => {
+      const outside = document.createElement("div");
+      document.body.appendChild(outside);
+      const { watcher, scans } = watch(container);
+      watcher.start();
+
+      const shadowRoot = outside.attachShadow({ mode: "open" });
+
+      expect(scans).not.toContain(shadowRoot);
+    });
+
+    it("ignores a shadow root attached to an editor UI host after start", () => {
+      const host = document.createElement("div");
+      host.setAttribute(EDITOR_UI_SHADOW_HOST_ATTRIBUTE, "true");
+      container.appendChild(host);
+      const { watcher, scans } = watch(container);
+      watcher.start();
+
+      const shadowRoot = host.attachShadow({ mode: "open" });
+
+      expect(scans).not.toContain(shadowRoot);
+    });
+
+    it("scans a shadow root nested inside another shadow root", () => {
+      const outerHost = document.createElement("div");
+      container.appendChild(outerHost);
+      const outerRoot = outerHost.attachShadow({ mode: "open" });
+      const innerHost = document.createElement("div");
+      outerRoot.appendChild(innerHost);
+      const innerRoot = innerHost.attachShadow({ mode: "open" });
+      const { watcher, scans } = watch(container);
+
+      watcher.start();
+
+      expect(scans).toEqual(expect.arrayContaining([container, outerRoot, innerRoot]));
+    });
+
+    it("scans the shadow roots already in the page when the document is the target", () => {
+      const host = document.createElement("div");
+      container.appendChild(host);
+      const shadowRoot = host.attachShadow({ mode: "open" });
+      const { watcher, scans } = watch(document);
+
+      watcher.start();
+
+      expect(scans).toContain(shadowRoot);
+    });
+
+    it("scans a shadow root attached after start when the document is the target", () => {
+      const host = document.createElement("div");
+      container.appendChild(host);
+      const { watcher, scans } = watch(document);
+      watcher.start();
+
+      const shadowRoot = host.attachShadow({ mode: "open" });
+
+      expect(scans).toContain(shadowRoot);
+    });
+
+    it("ignores a shadow root attached inside another document", () => {
+      const foreignDocument = document.implementation.createHTMLDocument("foreign");
+      const foreignHost = foreignDocument.createElement("div");
+      foreignDocument.body.appendChild(foreignHost);
+      const { watcher, scans } = watch(document);
+      watcher.start();
+
+      const shadowRoot = foreignHost.attachShadow({ mode: "open" });
+
+      expect(scans).not.toContain(shadowRoot);
+    });
+
+    it("stops observing a shadow root whose host is removed", async () => {
+      const host = document.createElement("div");
+      container.appendChild(host);
+      const shadowRoot = host.attachShadow({ mode: "open" });
+      const textNode = document.createTextNode("initial");
+      shadowRoot.appendChild(textNode);
+      const { watcher, eventBus } = watch(container);
+      const callback = vi.fn();
+      eventBus.on("textChanges", callback);
+      watcher.start();
+
+      host.remove();
+      await flushDOMMutations();
+      textNode.nodeValue = "changed";
+      await flushDOMMutations();
+
+      expect(callback).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("re-attached subtrees", () => {
+    it("observes a shadow root again when its host is put back", async () => {
+      const host = document.createElement("div");
+      container.appendChild(host);
+      const shadowRoot = host.attachShadow({ mode: "open" });
+      const textNode = document.createTextNode("initial");
+      shadowRoot.appendChild(textNode);
+      const { watcher, eventBus } = watch(container);
+      const callback = vi.fn();
+      eventBus.on("textChanges", callback);
+      watcher.start();
+
+      host.remove();
+      await flushDOMMutations();
+      container.appendChild(host);
+      await flushDOMMutations();
+      textNode.nodeValue = "changed";
+      await flushDOMMutations();
+
+      expect(callback).toHaveBeenCalledWith([textNode]);
+    });
+  });
+
+  describe("initial scan timing", () => {
+    it("defers the initial scan until its own document has finished loading", () => {
+      const foreignDocument = document.implementation.createHTMLDocument("foreign");
+      Object.defineProperty(foreignDocument, "readyState", {
+        configurable: true,
+        get: () => "loading",
+      });
+      const { watcher, scans } = watch(foreignDocument);
+
+      watcher.start();
+      expect(scans).toEqual([]);
+
+      foreignDocument.dispatchEvent(new Event("DOMContentLoaded"));
+
+      expect(scans).toEqual([foreignDocument]);
+    });
+  });
+
+  describe("mutation batching", () => {
+    it("emits only structure changes when a node is added", async () => {
+      const { watcher, eventBus } = watch(container);
+      const emitted = recordEventNames(eventBus);
+      watcher.start();
+
+      container.appendChild(document.createElement("div"));
+      await flushDOMMutations();
+
+      expect(emitted).toEqual(["structureChanges"]);
+    });
+
+    it("emits only text changes when a text node's value changes", async () => {
+      const textNode = document.createTextNode("initial");
+      container.appendChild(textNode);
+      const { watcher, eventBus } = watch(container);
+      const emitted = recordEventNames(eventBus);
+      watcher.start();
+
+      textNode.nodeValue = "changed";
+      await flushDOMMutations();
+
+      expect(emitted).toEqual(["textChanges"]);
+    });
+
+    it("reports the parent of an added node alongside the node", async () => {
+      const { watcher, eventBus } = watch(container);
+      const callback = vi.fn();
+      eventBus.on("structureChanges", callback);
+      watcher.start();
+
+      const added = document.createElement("div");
+      container.appendChild(added);
+      await flushDOMMutations();
+
+      expect(callback).toHaveBeenCalledWith([container, added]);
+    });
+
+    it("reports a mutation inside an added subtree once", async () => {
+      const { watcher, eventBus } = watch(container);
+      const callback = vi.fn();
+      eventBus.on("textChanges", callback);
+      watcher.start();
+
+      const added = document.createElement("div");
+      const textNode = document.createTextNode("initial");
+      added.appendChild(textNode);
+      container.appendChild(added);
+      await flushDOMMutations();
+      textNode.nodeValue = "changed";
+      await flushDOMMutations();
+
+      expect(callback).toHaveBeenCalledTimes(1);
     });
   });
 });

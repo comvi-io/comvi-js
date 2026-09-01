@@ -7,6 +7,7 @@ import {
   generateICUCombined,
   parseICUCombined,
   detectICUType,
+  pluralToSingular,
 } from "../src/utils/icuParser";
 
 describe("icuParser", () => {
@@ -43,6 +44,48 @@ describe("icuParser", () => {
         other: "items",
       });
     });
+
+    it("parses a plural string written without spaces around the ICU keywords", () => {
+      const result = parseICUPlural("{count,plural,one {1 item} other {# items}}");
+
+      expect(result).toEqual({ variable: "count", forms: { one: "1 item", other: "# items" } });
+    });
+
+    it("parses arms written without a space before the brace", () => {
+      const result = parseICUPlural("{count, plural, one{1 item} other{# items}}");
+
+      expect(result).toEqual({ variable: "count", forms: { one: "1 item", other: "# items" } });
+    });
+
+    it("ignores whitespace around the whole ICU string", () => {
+      const result = parseICUPlural("  {count, plural, one {1 item} other {# items}}  ");
+
+      expect(result).toEqual({ variable: "count", forms: { one: "1 item", other: "# items" } });
+    });
+
+    it("trims the whitespace around an arm's text", () => {
+      const result = parseICUPlural("{count, plural, one {  1 item  } other {# items}}");
+
+      expect(result.forms).toEqual({ one: "1 item", other: "# items" });
+    });
+
+    it("keeps a nested placeholder inside an arm's text", () => {
+      const result = parseICUPlural("{count, plural, one {{name} has 1 item} other {# items}}");
+
+      expect(result.forms).toEqual({ one: "{name} has 1 item", other: "# items" });
+    });
+
+    it("returns the singular fallback when the plural block is wrapped in surrounding text", () => {
+      const icu = "You have {count, plural, one {# item} other {# items}} today";
+
+      expect(parseICUPlural(icu)).toEqual({ variable: "count", forms: { other: icu } });
+    });
+
+    it("returns the singular fallback for a plural string split across lines", () => {
+      const icu = "{count, plural,\n  one {1 item}\n  other {# items}\n}";
+
+      expect(parseICUPlural(icu)).toEqual({ variable: "count", forms: { other: icu } });
+    });
   });
 
   describe("generateICUPlural", () => {
@@ -62,6 +105,18 @@ describe("icuParser", () => {
       const result = generateICUPlural(forms, "n");
 
       expect(result).toBe("{n, plural, one {item} few {few items} other {items}}");
+    });
+
+    it("defaults the variable to count when none is given", () => {
+      expect(generateICUPlural({ other: "x" })).toBe("{count, plural, other {x}}");
+    });
+
+    it("orders the zero, two and many arms in CLDR order", () => {
+      const forms = { many: "lots", zero: "none", other: "items", two: "pair" };
+
+      expect(generateICUPlural(forms, "n")).toBe(
+        "{n, plural, zero {none} two {pair} many {lots} other {items}}",
+      );
     });
   });
 
@@ -124,6 +179,51 @@ describe("icuParser", () => {
 
       expect(result.forms.active).toBe("");
       expect(result.forms.inactive).toBe("Not active");
+    });
+
+    it("parses a select string written without spaces around the ICU keywords", () => {
+      const result = parseICUSelect("{gender,select,male{He} female{She}}");
+
+      expect(result).toEqual({ variable: "gender", forms: { male: "He", female: "She" } });
+    });
+
+    it("ignores whitespace around the whole ICU string", () => {
+      const result = parseICUSelect("  {gender, select, male {He} female {She}}  ");
+
+      expect(result).toEqual({ variable: "gender", forms: { male: "He", female: "She" } });
+    });
+
+    it("returns the singular fallback when the select block is wrapped in surrounding text", () => {
+      const icu = "Hello {gender, select, male {He} female {She}}";
+
+      expect(parseICUSelect(icu)).toEqual({ variable: "select", forms: { other: icu } });
+    });
+
+    it("stops at the first arm name it cannot recognize", () => {
+      const result = parseICUSelect("{gender, select, male {He} oops female {She}}");
+
+      expect(result).toEqual({ variable: "gender", forms: { male: "He" } });
+    });
+
+    it("drops the last character of an arm whose closing brace is missing", () => {
+      // Pins the current lossy fallback for unbalanced braces.
+      const result = parseICUSelect("{gender, select, male {He}");
+
+      expect(result).toEqual({ variable: "gender", forms: { male: "H" } });
+    });
+  });
+
+  describe("pluralToSingular", () => {
+    it("prefers the other form over the forms declared before it", () => {
+      expect(pluralToSingular({ one: "One item", other: "Some items" })).toBe("Some items");
+    });
+
+    it("falls back to the first form present when there is no other or one form", () => {
+      expect(pluralToSingular({ few: "A few items" })).toBe("A few items");
+    });
+
+    it("returns an empty string for an empty form map", () => {
+      expect(pluralToSingular({})).toBe("");
     });
   });
 
@@ -205,6 +305,24 @@ describe("icuParser", () => {
     it("should treat prose containing the words plural or select as singular", () => {
       expect(detectICUType("The plural form is used here")).toBe("singular");
       expect(detectICUType("Please select an option")).toBe("singular");
+    });
+
+    it.each([
+      ["{ count, plural, one {a} other {b}}", "space after the opening brace"],
+      ["{count , plural, one {a} other {b}}", "space before the first comma"],
+      ["{count,plural,one {a} other {b}}", "no spaces at all"],
+      ["{count, plural , one {a} other {b}}", "space before the second comma"],
+    ])("detects %j as plural (%s)", (icu) => {
+      expect(detectICUType(icu)).toBe("plural");
+    });
+
+    it.each([
+      ["{ gender, select, male {a} other {b}}", "space after the opening brace"],
+      ["{gender , select, male {a} other {b}}", "space before the first comma"],
+      ["{gender,select,male {a} other {b}}", "no spaces at all"],
+      ["{gender, select , male {a} other {b}}", "space before the second comma"],
+    ])("detects %j as select (%s)", (icu) => {
+      expect(detectICUType(icu)).toBe("select");
     });
   });
 
@@ -297,6 +415,23 @@ describe("icuParser", () => {
         "{f, select, formal {{n, plural, one {A} other {B}}} informal {{n, plural, one {C} other {D}}}}",
       );
       expect(parsed).toEqual({ selectVariable: "f", pluralVariable: "n", forms: original });
+    });
+
+    it("keeps the plural variable of the plural arm when a later arm has none", () => {
+      const icu =
+        "{formality, select, informal {{n, plural, one {Hi} other {Hi all}}} formal {Guten Tag}}";
+
+      const result = parseICUCombined(icu);
+
+      expect(result).toEqual({
+        selectVariable: "formality",
+        pluralVariable: "n",
+        forms: {
+          "informal:one": "Hi",
+          "informal:other": "Hi all",
+          "formal:other": "Guten Tag",
+        },
+      });
     });
   });
 });

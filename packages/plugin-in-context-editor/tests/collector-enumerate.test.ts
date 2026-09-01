@@ -1,7 +1,11 @@
-import { describe, it, expect, afterEach, beforeEach } from "vitest";
+import { describe, it, expect, afterEach, beforeEach, vi } from "vitest";
 import { EventBus } from "../src/EventBus";
 import { TranslationRegistry } from "../src/TranslationRegistry";
-import { enumerateVisibleTargets, collectAllKeyRefs } from "../src/collector/enumerate";
+import {
+  enumerateVisibleTargets,
+  collectAllKeyRefs,
+  collectKeyRefsForElements,
+} from "../src/collector/enumerate";
 import { mockBoundingClientRect, cleanupDOM } from "./helpers";
 
 function registerElement(
@@ -169,6 +173,239 @@ describe("collector/enumerate", () => {
       { namespace: "ns2", key: "other.key" },
       { namespace: "ns1", key: "shared.key" },
     ]);
+  });
+
+  describe("viewport intersection boundaries", () => {
+    // Pinned so the < / > edges below are exact rather than happy-dom defaults.
+    beforeEach(() => {
+      vi.stubGlobal("innerWidth", 400);
+      vi.stubGlobal("innerHeight", 300);
+    });
+
+    function measure(rect: Partial<DOMRect>): number {
+      const element = document.createElement("div");
+      document.body.appendChild(element);
+      mockBoundingClientRect(element, rect);
+      registerElement(registry, element, "probe.key");
+
+      return enumerateVisibleTargets(registry).length;
+    }
+
+    it.each([
+      [
+        "a rect fully inside the viewport is measured",
+        { top: 10, left: 10, width: 100, height: 20, right: 110, bottom: 30 },
+        1,
+      ],
+      [
+        "a rect whose bottom edge sits exactly on the viewport top is dropped",
+        { top: -20, left: 10, width: 100, height: 20, right: 110, bottom: 0 },
+        0,
+      ],
+      [
+        "a rect showing one pixel of its bottom edge is measured",
+        { top: -19, left: 10, width: 100, height: 20, right: 110, bottom: 1 },
+        1,
+      ],
+      [
+        "a rect whose right edge sits exactly on the viewport left is dropped",
+        { top: 10, left: -100, width: 100, height: 20, right: 0, bottom: 30 },
+        0,
+      ],
+      [
+        "a rect showing one pixel of its right edge is measured",
+        { top: 10, left: -99, width: 100, height: 20, right: 1, bottom: 30 },
+        1,
+      ],
+      [
+        "a rect whose top sits exactly on the viewport height is dropped",
+        { top: 300, left: 10, width: 100, height: 20, right: 110, bottom: 320 },
+        0,
+      ],
+      [
+        "a rect whose top is one pixel above the viewport height is measured",
+        { top: 299, left: 10, width: 100, height: 20, right: 110, bottom: 319 },
+        1,
+      ],
+      [
+        "a rect whose left sits exactly on the viewport width is dropped",
+        { top: 10, left: 400, width: 100, height: 20, right: 500, bottom: 30 },
+        0,
+      ],
+      [
+        "a rect whose left is one pixel inside the viewport width is measured",
+        { top: 10, left: 399, width: 100, height: 20, right: 499, bottom: 30 },
+        1,
+      ],
+      [
+        "a rect entirely above the viewport but horizontally in range is dropped",
+        { top: -40, left: 10, width: 100, height: 20, right: 110, bottom: -20 },
+        0,
+      ],
+      [
+        "a rect entirely below the viewport is dropped",
+        { top: 2000, left: 10, width: 100, height: 20, right: 110, bottom: 2020 },
+        0,
+      ],
+      [
+        "a rect entirely left of the viewport is dropped",
+        { top: 10, left: -200, width: 100, height: 20, right: -100, bottom: 30 },
+        0,
+      ],
+    ])("%s", (_label, rect, expected) => {
+      expect(measure(rect)).toBe(expected);
+    });
+  });
+
+  it.each([
+    ["skips a fully collapsed 0x0 box at an on-screen position", { width: 0, height: 0 }, 0],
+    ["measures a zero-height box that still has width", { width: 100, height: 0 }, 1],
+    ["measures a zero-width box that still has height", { width: 0, height: 20 }, 1],
+  ])("%s", (_label, size, expected) => {
+    const element = document.createElement("div");
+    document.body.appendChild(element);
+    mockBoundingClientRect(element, {
+      top: 10,
+      left: 10,
+      right: 10 + size.width,
+      bottom: 10 + size.height,
+      ...size,
+    });
+    registerElement(registry, element, "probe.key");
+
+    expect(enumerateVisibleTargets(registry)).toHaveLength(expected);
+  });
+
+  it("includes a visible non-password input (only password fields are sensitive)", () => {
+    const text = document.createElement("input");
+    text.type = "text";
+    document.body.appendChild(text);
+    mockBoundingClientRect(text, {
+      top: 0,
+      left: 0,
+      width: 100,
+      height: 20,
+      right: 100,
+      bottom: 20,
+    });
+    registerElement(registry, text, "search.query");
+
+    expect(enumerateVisibleTargets(registry).map((t) => t.key)).toEqual(["search.query"]);
+  });
+
+  it("reports the geometric center of each target's rect", () => {
+    const element = document.createElement("div");
+    document.body.appendChild(element);
+    mockBoundingClientRect(element, {
+      top: 10,
+      left: 20,
+      width: 100,
+      height: 40,
+      right: 120,
+      bottom: 50,
+    });
+    registerElement(registry, element, "centered.key");
+
+    expect(enumerateVisibleTargets(registry)[0]?.centerPoint).toEqual({ x: 70, y: 30 });
+  });
+
+  it("orders two targets sharing a top edge by their left edge", () => {
+    const right = document.createElement("div");
+    const left = document.createElement("div");
+    document.body.append(right, left);
+    mockBoundingClientRect(right, {
+      top: 5,
+      left: 80,
+      width: 10,
+      height: 10,
+      right: 90,
+      bottom: 15,
+    });
+    mockBoundingClientRect(left, {
+      top: 5,
+      left: 10,
+      width: 10,
+      height: 10,
+      right: 20,
+      bottom: 15,
+    });
+
+    registerElement(registry, right, "right.key");
+    registerElement(registry, left, "left.key");
+
+    expect(enumerateVisibleTargets(registry).map((t) => t.key)).toEqual(["left.key", "right.key"]);
+  });
+
+  it("skips an element in the visible set that is no longer in the registry", () => {
+    const stale = document.createElement("div");
+    document.body.appendChild(stale);
+    mockBoundingClientRect(stale, {
+      top: 0,
+      left: 0,
+      width: 100,
+      height: 20,
+      right: 100,
+      bottom: 20,
+    });
+
+    expect(enumerateVisibleTargets(registry, new Set<Element>([stale]))).toEqual([]);
+  });
+
+  it("collectAllKeyRefs keeps (ns 'a', key 'bc') and (ns 'ab', key 'c') apart", () => {
+    const element = document.createElement("div");
+    document.body.appendChild(element);
+    registry.add(element, {
+      nodes: new Map([
+        [document.createTextNode("1"), { key: "bc", ns: "a" }],
+        [document.createTextNode("2"), { key: "c", ns: "ab" }],
+      ]),
+    });
+
+    expect(collectAllKeyRefs(registry)).toEqual([
+      { namespace: "a", key: "bc" },
+      { namespace: "ab", key: "c" },
+    ]);
+  });
+
+  describe("collectKeyRefsForElements", () => {
+    it("dedupes the same (namespace,key) rendered on two elements in the set", () => {
+      const first = document.createElement("div");
+      const second = document.createElement("div");
+      document.body.append(first, second);
+      registerElement(registry, first, "shared.key", "ns1");
+      registerElement(registry, second, "shared.key", "ns1");
+
+      const refs = collectKeyRefsForElements(registry, new Set<Element>([first, second]));
+
+      expect(refs).toEqual([{ namespace: "ns1", key: "shared.key" }]);
+    });
+
+    it("keeps (ns 'a', key 'bc') and (ns 'ab', key 'c') apart", () => {
+      const element = document.createElement("div");
+      document.body.appendChild(element);
+      registry.add(element, {
+        nodes: new Map([
+          [document.createTextNode("1"), { key: "bc", ns: "a" }],
+          [document.createTextNode("2"), { key: "c", ns: "ab" }],
+        ]),
+      });
+
+      expect(collectKeyRefsForElements(registry, new Set<Element>([element]))).toEqual([
+        { namespace: "a", key: "bc" },
+        { namespace: "ab", key: "c" },
+      ]);
+    });
+
+    it("skips an element that is no longer in the registry", () => {
+      const present = document.createElement("div");
+      const stale = document.createElement("div");
+      document.body.append(present, stale);
+      registerElement(registry, present, "present.key", "ns");
+
+      const refs = collectKeyRefsForElements(registry, new Set<Element>([present, stale]));
+
+      expect(refs).toEqual([{ namespace: "ns", key: "present.key" }]);
+    });
   });
 
   it("collectAllKeyRefs returns an empty list for an empty registry", () => {

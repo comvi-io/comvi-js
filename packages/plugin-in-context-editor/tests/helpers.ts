@@ -73,6 +73,16 @@ export async function flushMicrotasks(): Promise<void> {
   await Promise.resolve();
 }
 
+/**
+ * Yields past one macrotask, which drains every pending microtask chain —
+ * including a lazy `import()` that has already resolved. Not a sleep (the 0
+ * delay yields, it does not wait); use it to make "nothing happened" assertions
+ * about promise-driven work deterministic.
+ */
+export async function flushPendingImports(): Promise<void> {
+  await new Promise((resolve) => setTimeout(resolve, 0));
+}
+
 const VISIBLE_RECT: Partial<DOMRect> = {
   top: 0,
   left: 0,
