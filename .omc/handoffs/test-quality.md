@@ -224,3 +224,38 @@ js-contract dev/prod same-name dedupe); svelte 134 = 147 − 13 excluded.
 Round 7b (kill-pass) in flight: 4 agents in worktrees (scratchpad tests/wrappers/wt/<pkg>,
 node_modules symlinked, core/next dist copied real), targets: react 98+42, vue 67+14, solid 33+5,
 svelte 24+0. Protocol: hand-probes parenthesised, accepted-entry proposals merged by lead only.
+
+## Round 7b — wrapper kill-pass COMPLETE (2026-09-01, commits 4c950fb..0a95fa3)
+
+ALL FOUR WRAPPERS AT 100.0% ADJUSTED (from the honest post-fix baselines):
+- svelte 79.7 → 100.0 (118 killed, 0 accepted, 0 nocov; +15 tests, 147→162)
+- solid  85.7 → 100.0 (264 killed, 2 accepted; +18 tests, 129→147 incl. listener-release patch)
+- vue    72.4 → 100.0 (280 killed, 13 accepted, 0 nocov; +42 tests, 214→256)
+- react  63.2 → 100.0 (344 killed, 36 accepted, 0 nocov; +60 tests, 163→223)
+Repo accepted.json: 564 → 595 entries, every wrapper entry hand-applied (mutant in, full suite
+observed green, restored byte-identically); stale entries pruned same-day.
+
+REAL BUG FOUND AND FIXED (e891ff1 + changeset vue-haslocale-config-revision): vue's reactive
+hasLocale() went stale after setDefaultNamespace() and disagreed with hasLocaleNow() — it tracked
+only _cacheRevision while the default-namespace lookup is config; red-proven first, now also
+tracks _configRevision like hasTranslation.
+
+METHOD LESSONS (recorded for future passes):
+1. covered ≠ killed: new tests move nocov mutants to covered-but-surviving; never close a lot on
+   coverage deltas — re-run Stryker and enumerate. (React needed a round 2 for exactly this.)
+2. Passive-read false negatives: svelte get(store) re-runs start; React rerender() re-reads
+   getSnapshot; vue computeds recompute on access. Reaction claims need persistent
+   subscribers/watchers collecting values over time or listener counts on the fake host —
+   the vue bridge file was rewritten to watchers (62ae6a9), react audited clean, svelte's
+   stores.ts:54 escapee (623879c) was caused by a get()->persistent-subscriber rewrite dropping
+   the fresh-subscribe claim.
+3. Stryker's mutant set drifts between runs (two proposed vue accepts matched mutants absent from
+   the fresh set) — drop stale entries rather than keep them speculatively; reasons preserved in
+   ACCEPTED.md.
+4. Worktree protocol held: 4 agents, zero cross-contamination, src byte-identical everywhere;
+   worktrees + wt-mut-* branches removed after closure.
+
+Open (owner-gated) src suggestions from the lots: widen react ComponentsMap to the {tag|component,
+props} config form (works at runtime, untypeable today); react capabilityHooks L92-96 uncovered
+despite a 100% score (outside mutate globs?); the redundant string fast paths in react T.tsx /
+useI18n.ts could be deleted instead of accepted (18 entries would fall away).
