@@ -367,3 +367,49 @@ covered; logger/reporter backlog noted) · chrome-extension 3,131/95. Registry: 
 hand-evidence-backed, 0 stale. Real bugs found and fixed by the campaign: core fallback cache,
 editor parseICUSelect + dead warnings, vue hasLocale staleness, CLI init overwrite + dead
 push.forceMode + numbering, gate-e env leak, rolldown-1.2.7-upstream pin.
+
+## Round 11 — pre-release cleanup wave COMPLETE (2026-09-02, 1274775..127c7f1)
+
+Owner greenlit contract changes ("no real users — fix now"). Everything landed, every commit CI-green:
+- CLI contract: --check exits 1/2/4 (outdated / could-not-run / bad config — exit 4 did not even
+  exist in generate-types before), invalid --force-mode and malformed --api-url exit 4,
+  generate-types/typegen share one impl, dead push throttle removed, EXIT_VALIDATION hoisted once.
+- REAL BUG #10: --env-file was NODE'S OWN FLAG — node scans the whole argv, exits 9 on a missing
+  file before our process starts, silently passes it through (unloaded) otherwise; our documented
+  exit-4 branch was unreachable, and the 0.4.0 changelog had recorded the collision as a caveat
+  instead of fixing it. Renamed to --dotenv/--no-dotenv, red-proven 9 -> 4 (cli-dotenv-rename).
+- CLI hardening: logger 2.9 -> 100 adjusted, GenerationReporter 39 -> 100, entry smoked via the
+  built bin (registration order, version, dotenv load/skip); cli ALL 70.9 -> 78.2 adjusted.
+- Dead code deleted with registry cleanup: react string fast-paths (BUT the
+  translationResultToString guard STAYS — deleting it measured a 72x hot-path regression;
+  LESSON: mutation equivalence is about output, not cost — perf constructs need a perf argument,
+  now commented in src), nuxt useLocaleHead || {code} fallbacks, next Accept-Language shadowed
+  defaults, extension normalizeBaseUrl() seam (its needs-seam entry died entirely).
+- ComponentsMap typing unified across react/vue/solid on core's TagComponentConfig with
+  anti-drift guards; two react gaps its own author caught (target-less entry compiled; required-
+  prop components rejected) fixed; props relaxed to Record<string, any> everywhere (interface-
+  typed props must assign — Record<string, unknown> rejects interfaces).
+- FINAL GATE: every package's typecheck now covers tests/** (per-package tsconfig.tests.json,
+  ~350 real test-file errors fixed, exclusions documented: dist-driving tests, js-contract .js/.jsx,
+  nuxt's two module tests pending bug #4 below). Shared-fake contract bug fixed: fakeI18nCore
+  emitted `language` where core's events say `locale`.
+- Registry: 744 entries... -> 770 (cli static wiring) net of drops; zero stale everywhere.
+
+SIX NEW SRC TYPING DEFECTS found by the tests-typecheck gate — recorded, NOT yet fixed
+(worked around with commented casts in tests), awaiting owner decision:
+1. HIGH react/solid/svelte (vue unprobed): providers/context pin the host to WrapperI18nHost<{}>;
+   setDefaultParams makes the host invariant in D, so createI18n({defaultParams}) instances
+   CANNOT be passed to <I18nProvider>/setI18nContext. Entry points need to be generic over D.
+2. HIGH next: NextRoutingOptions.locales is string[] while everything else takes readonly — the
+   package's own defineRouting spread into its own createNextI18n does not compile. One word.
+3. MED core: I18nOptions' `string extends keyof D` branch makes defaultParams REQUIRED when D
+   lands on its constraint (ReturnType<typeof createI18n> positions fail).
+4. MED nuxt: shims-nuxt.d.ts declares module "@nuxt/schema" in a GLOBAL script -> SHADOWS the
+   real package; module.ts cannot be honestly type-checked (why tsconfig.typecheck excludes it).
+5. LOW nuxt shims: defineNuxtRouteMiddleware/Plugin return unknown, erasing call signatures.
+6. LOW/latent vue: T.ts:141 passes string to tRaw whose overloads take never once TranslationKeys
+   is closed — breaks in-package key-closed programs; vue now has no typed-key coverage outside
+   tests/types (three vacuous augmentation tests were removed).
+Remaining known-open: editor ValidationResult.warnings UI (product), cli commands' residual
+survivors (~299 raw, kill-pass never run on the round-6 command tests), svelte .svelte internals
+only via svelte-check.
