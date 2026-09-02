@@ -6935,15 +6935,6 @@
     {
       "file": "src/content/detector.ts",
       "kind": "equivalent",
-      "reason": "PARTIAL LINE - only the `!!g` and `\"__comviEditorHook\" in g` operands are equivalent; the `typeof g === \"object\"` and `g.__comviEditorHook === true` operands ARE killed. `!!g`->true differs only for g===null, where the resulting `in null` TypeError is swallowed by adoptComviGlobal's try/catch and yields the same null; `in`->true can never gate the result because `in` is already true whenever `g.__comviEditorHook === true`.",
-      "package": "apps/chrome-extension",
-      "mutators": ["ConditionalExpression"],
-      "snippet": "return !!g && typeof g === \"object\" && \"__comviEditorHook\" in g && g.__comviEditorHook === true;",
-      "lineHint": 71
-    },
-    {
-      "file": "src/content/detector.ts",
-      "kind": "equivalent",
       "reason": "track() and untrack() re-apply the same object guard to the value, so an envelope with a null/primitive `i` is discarded either way; no caller can observe toInstance returning `{instance: <not an object>}` instead of null. BlockStatement -> {} drops the `return null` and falls through to the same line 88 return, which is exactly the ConditionalExpression -> false case, so it is equivalent for the same reason.",
       "package": "apps/chrome-extension",
       "mutators": ["ConditionalExpression", "LogicalOperator", "BlockStatement"],
@@ -7003,15 +6994,6 @@
       "mutators": ["BlockStatement"],
       "snippet": "} catch {",
       "lineHint": 184
-    },
-    {
-      "file": "src/content/detector.ts",
-      "kind": "equivalent",
-      "reason": "every notifyDetected call site passes a status with detected === true (COMVI_READY hardcodes it; the poll and the initial read call it only when detected), so `= true` is the value already assigned.",
-      "package": "apps/chrome-extension",
-      "mutators": ["BooleanLiteral"],
-      "snippet": "detectionComplete = status.detected;",
-      "lineHint": 234
     },
     {
       "file": "src/content/detector.ts",
@@ -7143,15 +7125,6 @@
       "package": "apps/chrome-extension",
       "file": "src/background/sessions.ts",
       "mutators": ["ConditionalExpression"],
-      "snippet": "!isExpired(session, Date.now())",
-      "kind": "equivalent",
-      "reason": "the timer is scheduled for expiresAt + 1, so the record is always expired when it fires; this operand can only be true when an earlier operand already returned. Hand-applied; green.",
-      "lineHint": 159
-    },
-    {
-      "package": "apps/chrome-extension",
-      "file": "src/background/sessions.ts",
-      "mutators": ["ConditionalExpression"],
       "snippet": "typeof tabId !== \"number\" ||",
       "kind": "equivalent",
       "reason": "subsumed by Number.isInteger, false for every non-number. Hand-applied; green.",
@@ -7224,19 +7197,28 @@
       "package": "apps/chrome-extension",
       "file": "src/background/service-worker.ts",
       "mutators": ["ConditionalExpression"],
-      "snippet": "if (!leaseId || popupLeases.get(leaseId) !== port) return;",
-      "kind": "equivalent",
-      "reason": "undefined leaseId cannot equal the port in the map lookup, so the second operand already returns; whole-guard-false and the && regrouping ARE killed by the superseded-port test. Hand-applied; green.",
-      "lineHint": 125
-    },
-    {
-      "package": "apps/chrome-extension",
-      "file": "src/background/service-worker.ts",
-      "mutators": ["ConditionalExpression"],
       "snippet": "if (result.ok) {",
       "kind": "equivalent",
       "reason": "every failing forgetCredentials path returns revokedTabIds: [], so the guarded loop is empty anyway. Hand-applied `if (true)`; green.",
       "lineHint": 225
+    },
+    {
+      "package": "apps/chrome-extension",
+      "file": "src/shared/origins.ts",
+      "mutators": ["ArrayDeclaration", "StringLiteral"],
+      "snippet": "const LOOPBACK_HOSTNAMES = new Set([\"localhost\", \"127.0.0.1\", \"[::1]\"]);",
+      "lineHint": 11,
+      "kind": "tooling:static-mutant",
+      "reason": "module-scope new Set([...]) is evaluated at import, before Stryker arms the mutant switch; applied by hand each of the four mutants turns the suite RED (named failing tests recorded). NOTE: static:true + coveredBy>0 makes these look like plain Survived — ignoreStatic only filters UNattributed static mutants."
+    },
+    {
+      "package": "apps/chrome-extension",
+      "file": "src/shared/config.ts",
+      "mutators": ["Regex", "StringLiteral"],
+      "snippet": "export const API_BASE_URL = RAW_API_BASE_URL.replace(/\\/+$/, \"\");",
+      "lineHint": 13,
+      "kind": "needs-seam",
+      "reason": "the trailing-slash normalization is live in the real build (vite reads VITE_COMVI_API_BASE_URL from the environment) but unreachable under test: vitest defines the literal without a trailing slash. Closing it needs a second define-project or an exported normalize() — recorded as an open item, NOT equivalence."
     }
   ]
 }
