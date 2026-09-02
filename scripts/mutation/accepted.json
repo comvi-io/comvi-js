@@ -5360,15 +5360,6 @@
     {
       "package": "packages/react",
       "file": "src/useI18n.ts",
-      "mutators": ["ConditionalExpression", "LogicalOperator", "StringLiteral", "BlockStatement"],
-      "snippet": "if (typeof node === \"string\" || typeof node === \"number\") {",
-      "lineHint": 63,
-      "kind": "equivalent",
-      "reason": "fast path only: falling through Array/isVirtualNode/isReactElementLike reaches `return String(node)` — identical value. 4 mutants hand-applied, all green; the `!==` mutant on this line IS killed."
-    },
-    {
-      "package": "packages/react",
-      "file": "src/useI18n.ts",
       "mutators": ["ConditionalExpression", "StringLiteral", "BlockStatement"],
       "snippet": "if (typeof result === \"string\") {",
       "lineHint": 83,
@@ -5378,56 +5369,11 @@
     {
       "package": "packages/react",
       "file": "src/useI18n.ts",
-      "mutators": ["ConditionalExpression", "StringLiteral", "BlockStatement"],
-      "snippet": "if (typeof part === \"string\") {",
-      "lineHint": 89,
-      "kind": "equivalent",
-      "reason": "fast path only: falls through to `text += String(part)`, String(s) === s. 3 mutants hand-applied, green."
-    },
-    {
-      "package": "packages/react",
-      "file": "src/useI18n.ts",
       "mutators": ["LogicalOperator"],
       "snippet": "dir: getTextDirection(locale || i18n.locale),",
       "lineHint": 270,
       "kind": "equivalent",
       "reason": "right operand unreachable: LocaleContext re-reads i18n.locale each render, so falsy `locale` implies the same falsy `i18n.locale`; a test pinning the divergence FAILED against unmutated src. `getTextDirection` true/false mutants ARE killed by the rtl test."
-    },
-    {
-      "package": "packages/react",
-      "file": "src/T.tsx",
-      "mutators": ["ConditionalExpression", "EqualityOperator"],
-      "snippet": "if (pendingHandlers.length > 0) {",
-      "lineHint": 165,
-      "kind": "equivalent",
-      "reason": "allocation-only: an empty Map vs null makes `pendingByMarker?.get(tag)` return undefined either way; a Map-count instrument drowned in ~69 background Maps, so no honest test isolates it. Both mutants hand-applied, green."
-    },
-    {
-      "package": "packages/react",
-      "file": "src/T.tsx",
-      "mutators": ["ConditionalExpression", "StringLiteral", "BlockStatement"],
-      "snippet": "if (typeof childResult === \"string\") {",
-      "lineHint": 175,
-      "kind": "equivalent",
-      "reason": "fast path only: emptied block / skipped guard falls through to `[childResult]` — identical for non-empty strings; for \"\" the `[]` vs `[\"\"]` difference renders as the same zero-child DOM (probed: [] / [\"\"] / [null] all yield <i></i>). All three mutants hand-applied; green."
-    },
-    {
-      "package": "packages/react",
-      "file": "src/T.tsx",
-      "mutators": ["ConditionalExpression", "StringLiteral", "BlockStatement"],
-      "snippet": "if (typeof child === \"string\") {",
-      "lineHint": 184,
-      "kind": "equivalent",
-      "reason": "fast path only: falls through isVirtualNode (false) to `return child` — same value. 3 mutants hand-applied, green."
-    },
-    {
-      "package": "packages/react",
-      "file": "src/T.tsx",
-      "mutators": ["ConditionalExpression", "StringLiteral", "BlockStatement"],
-      "snippet": "if (typeof item === \"string\") {",
-      "lineHint": 260,
-      "kind": "equivalent",
-      "reason": "fast path only: generic branch wraps in a Fragment with the SAME `${keyString}-${index}` key. 3 mutants hand-applied, green; the L261 template literal IS killed."
     },
     {
       "package": "packages/react",
@@ -5598,7 +5544,7 @@
       "snippet": "return childResult == null ? [] : [childResult as React.ReactNode];",
       "lineHint": 180,
       "kind": "equivalent",
-      "reason": "forcing the test false yields [null] instead of [] for absent children; React renders a null child as nothing — same zero-child DOM (probed). Hand-applied; green."
+      "reason": "forcing the test false yields [null] (or [\"\"] for the string case this line now also handles after the fast-path deletion) instead of [] — React renders both as the same zero-child DOM (probed). Hand-applied; green."
     },
     {
       "package": "packages/react",
