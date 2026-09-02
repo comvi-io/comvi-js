@@ -14,17 +14,34 @@ import {
   prepareTranslation,
   type PendingHandler,
   type PrepareTranslationSource,
+  type TagComponentConfig,
 } from "@comvi/core/rich-text";
 import type { TranslationParams, TranslationResult, VirtualNode } from "@comvi/core";
 import { I18N_INJECTION_KEY } from "../keys";
 
-type ComponentHandler =
+/** What a tag can resolve to in Vue. */
+type ComponentTarget =
   | string // HTML tag name: "strong", "em", etc.
-  | Component // Vue component
-  | {
-      component: string | Component;
-      props?: Record<string, unknown>;
-    };
+  | Component; // Vue component
+
+/**
+ * Core's `{ tag | component, props }` entry form, narrowed to Vue targets.
+ * `tag` (solid/svelte convention) and `component` (vue convention) are
+ * aliases — `prepareTranslation` reads `handler.tag ?? handler.component`, so
+ * both have always worked here and only the type said otherwise. Intersecting
+ * core's own `TagComponentConfig` keeps the field set from drifting away from
+ * the pipeline that actually reads it; requiring ONE of the two spellings
+ * keeps the guarantee core's all-optional shape gives up, since an entry with
+ * neither is not a config at all — `isTagComponentConfig` rejects it and the
+ * object is passed on as an opaque handler.
+ */
+type ComponentConfig = TagComponentConfig &
+  (
+    | { tag: ComponentTarget; component?: ComponentTarget }
+    | { component: ComponentTarget; tag?: ComponentTarget }
+  );
+
+type ComponentHandler = ComponentTarget | ComponentConfig;
 
 type ComponentsMap = Record<string, ComponentHandler>;
 
