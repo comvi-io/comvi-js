@@ -444,3 +444,19 @@ cli commands residual kill-pass (~299 raw survivors, optional), svelte-check for
 Branch tip at compact: ffb102a (all CI green). Registry: 770 entries, 0 stale. Suite totals:
 core 1166, editor 1364, ext 976+, next 308+, react 223, svelte 162, vue 256, nuxt 282, solid 146,
 cli 319.
+
+### Git-incident during round 12 (resolved, 2026-09-02)
+prod-profile ran three pathspec-limited `git stash push` / bare `git stash pop` pairs for an
+A/B — but the stash STACK is shared checkout state: a bare pop can apply someone else's (or an
+old) entry. An ancient WIP got popped onto the branch: conflicted test-apps/vue/src/i18n.ts,
+staged editor ModalHeader z-30 tweak. Resolution: applied foreign content backed up to the
+session scratchpad (foreign-stash-i18n.ts.conflicted, foreign-stash-modalheader.patch),
+`git checkout HEAD --` on the conflicted path, restore --staged --worktree on the staged one;
+the owner's two stash entries (WIP on develop; chore/supply-chain-gate-0) untouched; dangling
+stash commits inspected via fsck — all historical, содержимое already merged (SHAs: 33009ec2,
+7e808c2e, c9816619, 1782a690 + 2 more), nothing lost. The in-flight core fix was unaffected and
+is merged as e75b32a.
+STANDING RULE (all agents, recorded): NO git stash / merge / reset / branch ops in a shared
+checkout — for A/B comparisons copy the file to scratchpad and restore with cp, or read the
+baseline via `git show HEAD:<path>`; the only permitted git write is `git checkout -- <file>`
+on a file the agent itself just mutated.
