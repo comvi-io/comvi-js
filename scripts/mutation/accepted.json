@@ -7075,6 +7075,168 @@
       "mutators": ["StringLiteral"],
       "snippet": ": message || \"Extension unavailable\";",
       "lineHint": 31
+    },
+    {
+      "package": "apps/chrome-extension",
+      "file": "src/background/proxy-work.ts",
+      "mutators": ["ConditionalExpression"],
+      "snippet": "if (getProxySessionTransitionGeneration(tabId) !== observedGeneration) {",
+      "kind": "equivalent",
+      "reason": "re-check for a promotion landing between the first generation check and waiter registration; nothing async runs in that window, so it can never differ. Hand-applied `if (false)`; 415/415 green.",
+      "lineHint": 108
+    },
+    {
+      "package": "apps/chrome-extension",
+      "file": "src/background/proxy-work.ts",
+      "mutators": ["ArrayDeclaration"],
+      "snippet": "const recent = (requestLog.get(tabId) ?? []).filter((time) => now - time < RATE_WINDOW_MS);",
+      "kind": "equivalent",
+      "reason": "the injected string is dropped by the very filter it feeds (now - string = NaN), so the fallback array is empty either way. Hand-applied; green.",
+      "lineHint": 135
+    },
+    {
+      "package": "apps/chrome-extension",
+      "file": "src/background/proxy-work.ts",
+      "mutators": ["EqualityOperator"],
+      "snippet": "if (depth <= 1) tabRevocationDepth.delete(tabId);",
+      "kind": "equivalent",
+      "reason": "at depth 1 the branches differ only between deleting the key and storing 0; every reader goes through `?? 0`. Hand-applied `< 1`; green.",
+      "lineHint": 183
+    },
+    {
+      "package": "apps/chrome-extension",
+      "file": "src/background/state.ts",
+      "mutators": ["BlockStatement"],
+      "snippet": "} finally {",
+      "kind": "equivalent",
+      "reason": "the finally only removes the settled lock entry; a retained settled promise chains identically — memory retention, not behaviour. Hand-applied; green.",
+      "lineHint": 69
+    },
+    {
+      "package": "apps/chrome-extension",
+      "file": "src/background/state.ts",
+      "mutators": ["ConditionalExpression", "CallExpression"],
+      "snippet": "if (locks.get(key) === next) locks.delete(key);",
+      "kind": "equivalent",
+      "reason": "skipping the cleanup retains a settled promise that serialises the next mutation identically; the -> true and !== variants ARE killed (they break serialisation). Both mutants hand-applied; green.",
+      "lineHint": 70
+    },
+    {
+      "package": "apps/chrome-extension",
+      "file": "src/background/sessions.ts",
+      "mutators": ["ConditionalExpression", "LogicalOperator"],
+      "snippet": "!session ||",
+      "kind": "equivalent",
+      "reason": "with no session the next operand throws into the timer's swallowed .catch — no side effect either way; the || regrouping differs only in that same thrown-and-swallowed case. Both mutants hand-applied; green.",
+      "lineHint": 156
+    },
+    {
+      "package": "apps/chrome-extension",
+      "file": "src/background/sessions.ts",
+      "mutators": ["ConditionalExpression"],
+      "snippet": "session.status !== \"pending\" ||",
+      "kind": "equivalent",
+      "reason": "strictly subsumed by the !isExpired operand: isExpired is false for any non-pending record. Hand-applied; green.",
+      "lineHint": 157
+    },
+    {
+      "package": "apps/chrome-extension",
+      "file": "src/background/sessions.ts",
+      "mutators": ["ConditionalExpression"],
+      "snippet": "!isExpired(session, Date.now())",
+      "kind": "equivalent",
+      "reason": "the timer is scheduled for expiresAt + 1, so the record is always expired when it fires; this operand can only be true when an earlier operand already returned. Hand-applied; green.",
+      "lineHint": 159
+    },
+    {
+      "package": "apps/chrome-extension",
+      "file": "src/background/sessions.ts",
+      "mutators": ["ConditionalExpression"],
+      "snippet": "typeof tabId !== \"number\" ||",
+      "kind": "equivalent",
+      "reason": "subsumed by Number.isInteger, false for every non-number. Hand-applied; green.",
+      "lineHint": 197
+    },
+    {
+      "package": "apps/chrome-extension",
+      "file": "src/background/sessions.ts",
+      "mutators": ["ConditionalExpression"],
+      "snippet": "if (typeof nonce !== \"string\" || nonce !== session.nonce) return false;",
+      "kind": "equivalent",
+      "reason": "session.nonce is always a string, so a non-string nonce is caught by the inequality operand. Hand-applied; green.",
+      "lineHint": 297
+    },
+    {
+      "package": "apps/chrome-extension",
+      "file": "src/background/sessions.ts",
+      "mutators": ["LogicalOperator", "BooleanLiteral"],
+      "snippet": "renderBadge(tabId, tabState?.comviDetected ?? true, true);",
+      "kind": "equivalent",
+      "reason": "sessionActive is literal true and renderBadge picks the icon on comviDetected || sessionActive, so the comviDetected argument is dead here (recorded observation: the getTabState read feeding it is equally dead). Both mutants hand-applied; green.",
+      "lineHint": 323
+    },
+    {
+      "package": "apps/chrome-extension",
+      "file": "src/background/sessions.ts",
+      "mutators": ["ConditionalExpression"],
+      "snippet": "if (session.status !== \"pending\" || session.popupLeaseId !== popupLeaseId) continue;",
+      "kind": "equivalent",
+      "reason": "snapshot-level pre-filter; the authoritative locked re-check at line 389 repeats both conditions — dropping the filter only takes extra locks. Whole-guard-false and both operand variants hand-applied; green. The -> true and EqualityOperator variants ARE killed.",
+      "lineHint": 386
+    },
+    {
+      "package": "apps/chrome-extension",
+      "file": "src/background/proxy-handler.ts",
+      "mutators": ["ConditionalExpression"],
+      "snippet": "if (declaredLength !== null) {",
+      "kind": "equivalent",
+      "reason": "entering with no content-length parses Number(null)=0, never above the cap; -> false and === variants ARE killed. Hand-applied `if (true)`; green.",
+      "lineHint": 55
+    },
+    {
+      "package": "apps/chrome-extension",
+      "file": "src/background/proxy-handler.ts",
+      "mutators": ["ConditionalExpression"],
+      "snippet": "payload && typeof payload === \"object\" && typeof (payload as { id?: unknown }).id === \"string\"",
+      "kind": "equivalent",
+      "reason": "the object-type operand is subsumed: truthiness excludes null/undefined and the id-type operand rejects primitives (whose .id is undefined). Hand-applied; green.",
+      "lineHint": 92
+    },
+    {
+      "package": "apps/chrome-extension",
+      "file": "src/background/service-worker.ts",
+      "mutators": ["BlockStatement"],
+      "snippet": "chrome.runtime.sendMessage({ type: \"SESSION_STATE_CHANGED\", payload }, () => {",
+      "kind": "needs-seam",
+      "reason": "the callback only reads chrome.runtime.lastError to suppress Chrome's unchecked-lastError warning; the fake has no such warning to observe. Hand-applied; green.",
+      "lineHint": 88
+    },
+    {
+      "package": "apps/chrome-extension",
+      "file": "src/background/service-worker.ts",
+      "mutators": ["BlockStatement"],
+      "snippet": "chrome.tabs.sendMessage(tabId, { type: \"DEACTIVATE_EDITOR\" } satisfies Message, () => {",
+      "kind": "needs-seam",
+      "reason": "same lastError-suppression callback; unobservable outside a real Chrome runtime. Hand-applied; green.",
+      "lineHint": 96
+    },
+    {
+      "package": "apps/chrome-extension",
+      "file": "src/background/service-worker.ts",
+      "mutators": ["ConditionalExpression"],
+      "snippet": "if (!leaseId || popupLeases.get(leaseId) !== port) return;",
+      "kind": "equivalent",
+      "reason": "undefined leaseId cannot equal the port in the map lookup, so the second operand already returns; whole-guard-false and the && regrouping ARE killed by the superseded-port test. Hand-applied; green.",
+      "lineHint": 125
+    },
+    {
+      "package": "apps/chrome-extension",
+      "file": "src/background/service-worker.ts",
+      "mutators": ["ConditionalExpression"],
+      "snippet": "if (result.ok) {",
+      "kind": "equivalent",
+      "reason": "every failing forgetCredentials path returns revokedTabIds: [], so the guarded loop is empty anyway. Hand-applied `if (true)`; green.",
+      "lineHint": 225
     }
   ]
 }

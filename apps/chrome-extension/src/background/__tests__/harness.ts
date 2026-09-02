@@ -66,6 +66,15 @@ export interface FakeChrome {
   };
 }
 
+/** A fake extension Port, so tests can drive the popup lifecycle channel directly. */
+export interface FakePort {
+  /** What the service worker sent back over the port. */
+  postMessage: ReturnType<typeof vi.fn>;
+  /** Deliver a message from the popup end of the port. */
+  send(message: unknown): void;
+  disconnect(): void;
+}
+
 export interface Harness {
   chrome: FakeChrome;
   /** Configure what chrome.tabs.get reports for a tab. */
@@ -76,7 +85,9 @@ export interface Harness {
   fireDocumentReady(tabId: number, documentId?: string): Promise<unknown>;
   fireTabUpdated(tabId: number, changeInfo: { status?: string; url?: string }): void;
   fireInstalled(reason: "install" | "update"): void;
-  openPopupLease(leaseId: string): { disconnect(): void };
+  /** Open a raw port; `sender` defaults to an extension page (no tab). */
+  connectPort(options?: { name?: string; sender?: chrome.runtime.MessageSender }): FakePort;
+  openPopupLease(leaseId: string): FakePort;
   /** Wait for handlers that respond synchronously but do async follow-up work. */
   flush(): Promise<void>;
   /** Re-stub `chrome`, clear storage and mock history, and clear the proxy rate limits of `tabIds`. */
@@ -171,25 +182,32 @@ export function installFakeChrome(): Harness {
     fireInstalled(reason) {
       for (const listener of installedListeners) listener({ reason });
     },
-    openPopupLease(leaseId) {
+    connectPort({ name = "comvi-popup-lifecycle", sender = {} } = {}) {
       const portMessageListeners: Listener[] = [];
       const disconnectListeners: Listener[] = [];
+      const postMessage = vi.fn();
       const port = {
-        name: "comvi-popup-lifecycle",
-        sender: {},
+        name,
+        sender,
         onMessage: { addListener: (fn: Listener) => portMessageListeners.push(fn) },
         onDisconnect: { addListener: (fn: Listener) => disconnectListeners.push(fn) },
-        postMessage: vi.fn(),
+        postMessage,
       } as unknown as chrome.runtime.Port;
       for (const listener of connectListeners) listener(port);
-      for (const listener of portMessageListeners) {
-        listener({ type: "REGISTER_POPUP", leaseId });
-      }
       return {
+        postMessage,
+        send(message) {
+          for (const listener of portMessageListeners) listener(message);
+        },
         disconnect() {
           for (const listener of disconnectListeners) listener();
         },
       };
+    },
+    openPopupLease(leaseId) {
+      const port = this.connectPort();
+      port.send({ type: "REGISTER_POPUP", leaseId });
+      return port;
     },
     async flush() {
       // Drain a few macrotask/microtask rounds for fire-and-forget handlers.

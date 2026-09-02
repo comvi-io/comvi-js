@@ -5,7 +5,7 @@
  * src/shared/__tests__.
  */
 import { describe, it, expect, beforeAll, beforeEach, afterEach, vi } from "vitest";
-import { installFakeChrome, type Harness } from "./harness";
+import { installFakeChrome, type FakePort, type Harness } from "./harness";
 import { tabLockKey, withLock } from "../state";
 import { CURRENT_STORAGE_SCHEMA_VERSION, STORAGE_SCHEMA_KEY } from "../../shared/storage";
 import { sweepExpiredPendingSessions } from "../sessions";
@@ -21,7 +21,8 @@ const POPUP_LEASE = "popup-lease-test-0001";
 const POLL = { interval: 1 };
 
 let harness: Harness;
-let popupLease: { disconnect(): void };
+let popupLease: FakePort;
+let initializeServiceWorkerState: (clearSessions?: boolean) => Promise<void>;
 
 // Deterministic network: /v1/project validates the key, everything else 200s.
 const fetchMock = vi.fn();
@@ -39,7 +40,7 @@ beforeAll(async () => {
   harness = installFakeChrome();
   vi.stubGlobal("fetch", fetchMock);
   // Import AFTER the fakes exist — the module registers listeners on import.
-  await import("../service-worker");
+  ({ initializeServiceWorkerState } = await import("../service-worker"));
 });
 
 beforeEach(async () => {
@@ -897,5 +898,585 @@ describe("storage concurrency", () => {
       unknown
     >;
     expect(Object.keys(credentials).sort()).toEqual([ORIGIN, ORIGIN2].sort());
+  });
+});
+
+// --- message routing details ---
+
+/** Every SESSION_STATE_CHANGED payload the worker has broadcast so far. */
+function broadcasts(): Record<string, unknown>[] {
+  return harness.chrome.runtime.sendMessage.mock.calls
+    .map(([message]) => message as { type?: string; payload?: Record<string, unknown> })
+    .filter((message) => message.type === "SESSION_STATE_CHANGED")
+    .map((message) => message.payload ?? {});
+}
+
+/** Tab ids the worker told to tear the editor down. */
+function deactivatedTabs(): number[] {
+  return harness.chrome.tabs.sendMessage.mock.calls
+    .filter(([, message]) => (message as { type?: string }).type === "DEACTIVATE_EDITOR")
+    .map(([tabId]) => tabId as number);
+}
+
+function lastBadgeText(): string | undefined {
+  const calls = harness.chrome.action.setBadgeText.mock.calls;
+  return (calls[calls.length - 1]?.[0] as { text?: string } | undefined)?.text;
+}
+
+function lastIconPath(): string | undefined {
+  const calls = harness.chrome.action.setIcon.mock.calls;
+  return (calls[calls.length - 1]?.[0] as { path?: Record<number, string> } | undefined)
+    ?.path?.[16];
+}
+
+async function sessionStatus(tabId = TAB) {
+  return (await harness.dispatchMessage(
+    { type: "GET_SESSION_STATUS", payload: { tabId } },
+    popupSender,
+  )) as { active: boolean; pending: boolean; comviDetected?: boolean; version?: string };
+}
+
+describe("popup lease registration", () => {
+  it("confirms a registration back over the port", () => {
+    const port = harness.openPopupLease("popup-lease-confirm-1");
+
+    expect(port.postMessage).toHaveBeenCalledWith({
+      type: "POPUP_REGISTERED",
+      leaseId: "popup-lease-confirm-1",
+    });
+  });
+
+  it("ignores a port opened on another channel", async () => {
+    const port = harness.connectPort({ name: "some-other-channel" });
+    port.send({ type: "REGISTER_POPUP", leaseId: "popup-lease-other-0001" });
+
+    expect(port.postMessage).not.toHaveBeenCalled();
+    await expect(startSession({ popupLeaseId: "popup-lease-other-0001" })).resolves.toEqual({
+      ok: false,
+      error: "Malformed session request",
+    });
+  });
+
+  it("ignores a popup channel port opened from a tab", () => {
+    const port = harness.connectPort({
+      sender: { tab: { id: TAB } as chrome.tabs.Tab } as chrome.runtime.MessageSender,
+    });
+
+    port.send({ type: "REGISTER_POPUP", leaseId: "popup-lease-fromtab-01" });
+
+    expect(port.postMessage).not.toHaveBeenCalled();
+  });
+
+  it("accepts a popup channel port that reports no sender", () => {
+    const port = harness.connectPort({ sender: null as unknown as chrome.runtime.MessageSender });
+
+    port.send({ type: "REGISTER_POPUP", leaseId: "popup-lease-nosender1" });
+
+    expect(port.postMessage).toHaveBeenCalledWith({
+      type: "POPUP_REGISTERED",
+      leaseId: "popup-lease-nosender1",
+    });
+  });
+
+  it("ignores a port message that is not an object", () => {
+    const port = harness.connectPort();
+
+    expect(() => port.send(undefined)).not.toThrow();
+    expect(port.postMessage).not.toHaveBeenCalled();
+  });
+
+  it("ignores a port message of another type", () => {
+    const port = harness.connectPort();
+
+    port.send({ type: "SOMETHING_ELSE", leaseId: "popup-lease-wrongtype" });
+
+    expect(port.postMessage).not.toHaveBeenCalled();
+  });
+
+  it("ignores a registration whose lease id is not a string", () => {
+    const port = harness.connectPort();
+
+    port.send({ type: "REGISTER_POPUP", leaseId: 1234 });
+
+    expect(port.postMessage).not.toHaveBeenCalled();
+  });
+
+  it("ignores a lease id shorter than 16 characters", () => {
+    const port = harness.connectPort();
+
+    port.send({ type: "REGISTER_POPUP", leaseId: "a".repeat(15) });
+
+    expect(port.postMessage).not.toHaveBeenCalled();
+  });
+
+  it("accepts a lease id of exactly 16 characters", () => {
+    const port = harness.connectPort();
+
+    port.send({ type: "REGISTER_POPUP", leaseId: "a".repeat(16) });
+
+    expect(port.postMessage).toHaveBeenCalled();
+  });
+
+  it("ignores a lease id longer than 128 characters", () => {
+    const port = harness.connectPort();
+
+    port.send({ type: "REGISTER_POPUP", leaseId: "a".repeat(129) });
+
+    expect(port.postMessage).not.toHaveBeenCalled();
+  });
+
+  it("accepts a lease id of exactly 128 characters", () => {
+    const port = harness.connectPort();
+
+    port.send({ type: "REGISTER_POPUP", leaseId: "a".repeat(128) });
+
+    expect(port.postMessage).toHaveBeenCalled();
+  });
+});
+
+describe("popup lease disconnect", () => {
+  it("drops the pending session the disconnected popup owned", async () => {
+    await startSession();
+
+    popupLease.disconnect();
+    await harness.flush();
+
+    expect(await sessionStatus()).toMatchObject({ active: false, pending: false });
+  });
+
+  it("keeps the session when a superseded port for the same lease disconnects", async () => {
+    const sharedLease = "popup-lease-shared-01";
+    const first = harness.openPopupLease(sharedLease);
+    harness.openPopupLease(sharedLease);
+    await startSession({ popupLeaseId: sharedLease });
+
+    first.disconnect();
+    await harness.flush();
+
+    expect(await sessionStatus()).toMatchObject({ pending: true });
+  });
+});
+
+describe("DOCUMENT_READY", () => {
+  it("answers a new document with a cleared tab state", async () => {
+    harness.chrome.runtime.sendMessage.mockClear();
+
+    const response = await harness.fireDocumentReady(TAB, "doc-2");
+
+    expect(response).toEqual({ ok: true });
+    expect(broadcasts()).toEqual([
+      { tabId: TAB, active: false, pending: false, comviDetected: false },
+    ]);
+    expect(await sessionStatus()).toMatchObject({ comviDetected: false });
+  });
+
+  it("stays silent for a repeated signal from the same document", async () => {
+    harness.chrome.runtime.sendMessage.mockClear();
+
+    const response = await harness.fireDocumentReady(TAB, "doc-1");
+
+    expect(response).toEqual({ ok: true });
+    expect(broadcasts()).toEqual([]);
+  });
+
+  it("refuses a signal that did not come from a tab", async () => {
+    const response = await harness.dispatchMessage({ type: "DOCUMENT_READY" }, {
+      frameId: 0,
+    } as chrome.runtime.MessageSender);
+
+    expect(response).toEqual({ ok: false });
+  });
+
+  it("refuses a signal from a subframe", async () => {
+    const response = await harness.dispatchMessage(
+      { type: "DOCUMENT_READY" },
+      pageSender({ frameId: 4 }),
+    );
+
+    expect(response).toEqual({ ok: false });
+  });
+
+  it("reports failure when the tab state cannot be written", async () => {
+    vi.spyOn(harness.chrome.storage.session, "set").mockRejectedValue(new Error("storage full"));
+
+    const response = await harness.fireDocumentReady(TAB, "doc-3");
+
+    expect(response).toEqual({ ok: false });
+  });
+});
+
+describe("ROLLBACK_ACTIVATION", () => {
+  it("publishes the rolled-back state and tears the editor down", async () => {
+    const started = await startSession();
+    harness.chrome.runtime.sendMessage.mockClear();
+    harness.chrome.tabs.sendMessage.mockClear();
+
+    const response = await harness.dispatchMessage(
+      { type: "ROLLBACK_ACTIVATION", payload: { tabId: TAB, nonce: started.nonce } },
+      popupSender,
+    );
+
+    expect(response).toEqual({ ok: true });
+    expect(broadcasts()).toEqual([
+      { tabId: TAB, active: false, pending: false, comviDetected: false },
+    ]);
+    expect(deactivatedTabs()).toEqual([TAB]);
+  });
+
+  it("leaves an active session alone when the nonce does not match", async () => {
+    await openActiveSession();
+    harness.chrome.tabs.sendMessage.mockClear();
+
+    await harness.dispatchMessage(
+      { type: "ROLLBACK_ACTIVATION", payload: { tabId: TAB, nonce: "forged" } },
+      popupSender,
+    );
+
+    expect(deactivatedTabs()).toEqual([]);
+    expect(await sessionStatus()).toMatchObject({ active: true });
+  });
+
+  it("refuses a rollback relayed by a content script", async () => {
+    const response = await harness.dispatchMessage(
+      { type: "ROLLBACK_ACTIVATION", payload: { tabId: TAB, nonce: "n" } },
+      pageSender(),
+    );
+
+    expect(response).toEqual({ ok: false });
+  });
+
+  it("refuses a rollback without a numeric tab id", async () => {
+    const response = await harness.dispatchMessage(
+      { type: "ROLLBACK_ACTIVATION", payload: { nonce: "n" } },
+      popupSender,
+    );
+
+    expect(response).toEqual({ ok: false });
+  });
+});
+
+describe("END_SESSION", () => {
+  it("publishes the revoked state and tears the editor down", async () => {
+    await openActiveSession();
+    harness.chrome.runtime.sendMessage.mockClear();
+    harness.chrome.tabs.sendMessage.mockClear();
+
+    const response = await harness.dispatchMessage(
+      { type: "END_SESSION", payload: { tabId: TAB } },
+      popupSender,
+    );
+
+    expect(response).toEqual({ ok: true });
+    expect(broadcasts()).toEqual([{ tabId: TAB, active: false, pending: false }]);
+    expect(deactivatedTabs()).toEqual([TAB]);
+  });
+
+  it("refuses a request relayed by a content script", async () => {
+    const response = await harness.dispatchMessage(
+      { type: "END_SESSION", payload: { tabId: TAB } },
+      pageSender(),
+    );
+
+    expect(response).toEqual({ ok: false });
+  });
+
+  it("refuses a request with no payload", async () => {
+    const response = await harness.dispatchMessage({ type: "END_SESSION" }, popupSender);
+
+    expect(response).toEqual({ ok: false });
+  });
+});
+
+describe("FORGET_CREDENTIALS routing", () => {
+  it("publishes and tears down every revoked tab", async () => {
+    await openActiveSession();
+    harness.chrome.runtime.sendMessage.mockClear();
+    harness.chrome.tabs.sendMessage.mockClear();
+
+    const response = await harness.dispatchMessage(
+      { type: "FORGET_CREDENTIALS", payload: { origin: ORIGIN } },
+      popupSender,
+    );
+
+    expect(response).toEqual({ ok: true, error: undefined });
+    expect(broadcasts()).toEqual([{ tabId: TAB, active: false, pending: false }]);
+    expect(deactivatedTabs()).toEqual([TAB]);
+  });
+
+  it("publishes nothing when the origin is rejected", async () => {
+    await openActiveSession();
+    harness.chrome.runtime.sendMessage.mockClear();
+    harness.chrome.tabs.sendMessage.mockClear();
+
+    const response = await harness.dispatchMessage(
+      { type: "FORGET_CREDENTIALS", payload: { origin: "not-an-origin" } },
+      popupSender,
+    );
+
+    expect(response).toEqual({ ok: false, error: "Invalid origin" });
+    expect(broadcasts()).toEqual([]);
+    expect(deactivatedTabs()).toEqual([]);
+  });
+});
+
+describe("detection messages", () => {
+  it("ignores a detection report that did not come from a tab", async () => {
+    harness.chrome.action.setIcon.mockClear();
+
+    await harness.dispatchMessage(
+      { type: "COMVI_DETECTED", payload: { version: "1.0.0" } },
+      popupSender,
+    );
+    await harness.flush();
+
+    expect(harness.chrome.action.setIcon).not.toHaveBeenCalled();
+  });
+
+  it("records the reported SDK version", async () => {
+    await harness.dispatchMessage(
+      { type: "COMVI_DETECTED", payload: { version: "1.4.2" } },
+      pageSender(),
+    );
+    await harness.flush();
+
+    expect(await sessionStatus()).toMatchObject({ comviDetected: true, version: "1.4.2" });
+  });
+
+  it("drops a reported version that is not a string", async () => {
+    await harness.dispatchMessage(
+      { type: "COMVI_DETECTED", payload: { version: 42 } },
+      pageSender(),
+    );
+    await harness.flush();
+
+    expect((await sessionStatus()).version).toBeUndefined();
+  });
+
+  it("shows the detected icon for a tab that has no cached state", async () => {
+    const freshTab = TAB + 1;
+    harness.setTabUrl(freshTab, PAGE_URL);
+
+    await harness.dispatchMessage(
+      { type: "COMVI_DETECTED", payload: { version: "1.0.0" } },
+      pageSender({ tab: { id: freshTab } as chrome.tabs.Tab }),
+    );
+    await harness.flush();
+
+    expect(lastIconPath()).toContain("icon-detected-16");
+    expect(lastBadgeText()).toBe("");
+  });
+
+  it("keeps the ON badge while a detection report arrives for an active session", async () => {
+    await openActiveSession();
+
+    await harness.dispatchMessage(
+      { type: "COMVI_DETECTED", payload: { version: "1.0.0" } },
+      pageSender(),
+    );
+    await harness.flush();
+
+    expect(lastBadgeText()).toBe("ON");
+  });
+
+  it("clears the detection state when the page reports Comvi is gone", async () => {
+    await harness.dispatchMessage(
+      { type: "COMVI_DETECTED", payload: { version: "1.0.0" } },
+      pageSender(),
+    );
+    await harness.flush();
+
+    await harness.dispatchMessage({ type: "COMVI_NOT_FOUND" }, pageSender());
+    await harness.flush();
+
+    expect(await sessionStatus()).toMatchObject({ comviDetected: false });
+    expect(lastIconPath()).toContain("icon-inactive-16");
+  });
+});
+
+describe("EDITOR_ACTIVATED routing", () => {
+  it("publishes an activation without an error", async () => {
+    const started = await startSession();
+    harness.chrome.runtime.sendMessage.mockClear();
+    harness.chrome.tabs.sendMessage.mockClear();
+
+    await activate(started.nonce);
+
+    expect(broadcasts()).toEqual([
+      { tabId: TAB, active: true, pending: false, comviDetected: false },
+    ]);
+    expect(deactivatedTabs()).toEqual([]);
+  });
+
+  it("publishes an unconfirmed activation with an error and tears the editor down", async () => {
+    await startSession();
+    harness.chrome.runtime.sendMessage.mockClear();
+    harness.chrome.tabs.sendMessage.mockClear();
+
+    await activate("forged-nonce");
+
+    expect(broadcasts()).toEqual([
+      {
+        tabId: TAB,
+        active: false,
+        pending: true,
+        comviDetected: false,
+        error: "The editor activation could not be confirmed. Try again.",
+      },
+    ]);
+    expect(deactivatedTabs()).toEqual([TAB]);
+  });
+
+  it("publishes the reported reason when activation failed", async () => {
+    const started = await startSession();
+    harness.chrome.runtime.sendMessage.mockClear();
+    harness.chrome.tabs.sendMessage.mockClear();
+
+    await harness.dispatchMessage(
+      {
+        type: "EDITOR_ACTIVATED",
+        payload: { success: false, nonce: started.nonce, error: "Editor bundle failed to load" },
+      },
+      pageSender(),
+    );
+    await harness.flush();
+
+    expect(broadcasts()).toEqual([
+      {
+        tabId: TAB,
+        active: false,
+        pending: false,
+        comviDetected: false,
+        error: "Editor bundle failed to load",
+      },
+    ]);
+    expect(deactivatedTabs()).toEqual([TAB]);
+  });
+
+  it("publishes a default reason when activation failed without one", async () => {
+    const started = await startSession();
+    harness.chrome.runtime.sendMessage.mockClear();
+
+    await harness.dispatchMessage(
+      { type: "EDITOR_ACTIVATED", payload: { success: false, nonce: started.nonce } },
+      pageSender(),
+    );
+    await harness.flush();
+
+    expect(broadcasts()).toEqual([
+      {
+        tabId: TAB,
+        active: false,
+        pending: false,
+        comviDetected: false,
+        error: "The editor could not be enabled.",
+      },
+    ]);
+  });
+});
+
+describe("EDITOR_DEACTIVATED routing", () => {
+  it("publishes the revoked state", async () => {
+    await openActiveSession();
+    harness.chrome.runtime.sendMessage.mockClear();
+
+    await harness.dispatchMessage({ type: "EDITOR_DEACTIVATED" }, pageSender());
+    await harness.flush();
+
+    expect(broadcasts()).toEqual([{ tabId: TAB, active: false, pending: false }]);
+  });
+
+  it("publishes nothing for a stale-document event", async () => {
+    await openActiveSession();
+    harness.chrome.runtime.sendMessage.mockClear();
+
+    await harness.dispatchMessage(
+      { type: "EDITOR_DEACTIVATED" },
+      pageSender({ documentId: "doc-9" }),
+    );
+    await harness.flush();
+
+    expect(broadcasts()).toEqual([]);
+    expect(await sessionStatus()).toMatchObject({ active: true });
+  });
+});
+
+describe("in-flight proxy cancellation", () => {
+  /** A fetch that only settles when its caller aborts it. */
+  function stallingFetch() {
+    const started = { value: false };
+    fetchMock.mockImplementation(
+      (_url: string, init: RequestInit) =>
+        new Promise((_resolve, reject) => {
+          started.value = true;
+          init.signal?.addEventListener("abort", () => reject(new Error("Aborted")));
+        }),
+    );
+    return started;
+  }
+
+  it("cancels a proxied request on the page's request", async () => {
+    await openActiveSession();
+    const started = stallingFetch();
+
+    const inFlight = proxyRequest({ id: "cancel-me" });
+    await vi.waitFor(() => expect(started.value).toBe(true), POLL);
+    await harness.dispatchMessage(
+      { type: "API_PROXY_ABORT", payload: { id: "cancel-me" } },
+      pageSender(),
+    );
+
+    await expect(inFlight).resolves.toMatchObject({ networkError: "Request aborted" });
+  });
+
+  it("cancels in-flight work when the tab is closed", async () => {
+    await openActiveSession();
+    const started = stallingFetch();
+
+    const inFlight = proxyRequest({ id: "closing-tab" });
+    await vi.waitFor(() => expect(started.value).toBe(true), POLL);
+    harness.fireTabRemoved(TAB);
+
+    await expect(inFlight).resolves.toMatchObject({ networkError: "Request aborted" });
+  });
+});
+
+describe("extension lifecycle", () => {
+  it("keeps sessions when the worker restarts with a compatible schema", async () => {
+    await openActiveSession();
+
+    await initializeServiceWorkerState();
+
+    expect(await sessionStatus()).toMatchObject({ active: true });
+  });
+
+  it("publishes the cleared state for every tab an update revoked", async () => {
+    await openActiveSession();
+    harness.chrome.runtime.sendMessage.mockClear();
+    harness.chrome.tabs.sendMessage.mockClear();
+
+    harness.fireInstalled("update");
+    await harness.flush();
+
+    expect(broadcasts()).toEqual([{ tabId: TAB, active: false, pending: false }]);
+    expect(deactivatedTabs()).toEqual([TAB]);
+  });
+
+  it("keeps sessions across a fresh install", async () => {
+    await openActiveSession();
+
+    harness.fireInstalled("install");
+    await harness.flush();
+
+    expect(await sessionStatus()).toMatchObject({ active: true });
+  });
+
+  it("leaves badges alone for tabs that report no id", async () => {
+    harness.chrome.tabs.query.mockResolvedValue([{ url: PAGE_URL } as chrome.tabs.Tab]);
+    harness.chrome.action.setIcon.mockClear();
+
+    harness.fireInstalled("update");
+    await harness.flush();
+
+    expect(harness.chrome.action.setIcon).not.toHaveBeenCalled();
   });
 });
