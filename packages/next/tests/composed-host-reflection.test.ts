@@ -18,9 +18,7 @@ import { createNextI18n } from "../src/createNextI18n";
  * spreads, `Object.keys`-enumerates or `JSON.stringify`s a host relies on.
  */
 
-// Deliberately not `as const`: createNextI18n still declares `locales` as a
-// mutable string[], so a readonly tuple would not be assignable.
-const ROUTING = { locales: ["en", "de"], defaultLocale: "en" };
+const ROUTING = { locales: ["en", "de"], defaultLocale: "en" } as const;
 
 /** The class-method descriptor shape core's own suite pins. */
 const CLASS_METHOD_DESCRIPTOR = { writable: true, enumerable: false, configurable: true };

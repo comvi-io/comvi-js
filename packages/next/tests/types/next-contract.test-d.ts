@@ -3,6 +3,7 @@
 // produces. `tests/composed-contract.test.ts` is the behavioural half.
 import type { NextComposedI18n } from "@comvi/next";
 import { createNextI18n } from "@comvi/next";
+import { defineRouting } from "../../src/routing";
 import type { CreateNextI18nResult } from "../../src/createNextI18n";
 import type { I18n, I18nLoaderApi, I18nPluginHostApi, LoaderFn } from "@comvi/core";
 import type { LoaderImportMap } from "@comvi/core/loader";
@@ -81,3 +82,18 @@ const _inferred = createNextI18n({
 export type _DDoesNotInferFromDefaultParams = Expect<
   Equal<typeof _inferred.i18n, NextComposedI18n<{}>>
 >;
+
+// `defineRouting`'s own output must be spreadable into `createNextI18n`. Every
+// other locale list in this package is `readonly` — `RoutingConfig.locales`,
+// `hasLocale`, and the middleware helpers — so a `NextRoutingOptions.locales`
+// that demanded a mutable array made the package's documented composition
+// uncompilable, and rejected the `as const` tuple `hasLocale` narrowing needs.
+const _routing = defineRouting({ locales: ["en", "de"], defaultLocale: "en" } as const);
+const _spread = createNextI18n({ ..._routing, translation: { en: {} } });
+export type _RoutingSpreadsIntoFactory = Expect<Equal<typeof _spread.i18n, NextComposedI18n<{}>>>;
+
+// The same tuple handed straight to the factory, which is what an app that
+// wants `hasLocale(LOCALES, x)` narrowing writes.
+const LOCALES = ["en", "de"] as const;
+const _fromTuple = createNextI18n({ locales: LOCALES, defaultLocale: "en" });
+export type _AsConstLocalesAccepted = Expect<Equal<typeof _fromTuple.i18n, NextComposedI18n<{}>>>;

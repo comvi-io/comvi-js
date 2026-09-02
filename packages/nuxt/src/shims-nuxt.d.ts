@@ -45,15 +45,21 @@ declare module "#app" {
     [key: string]: unknown;
   }
 
-  export function defineNuxtPlugin(plugin: {
-    name?: string;
-    enforce?: string;
-    setup?: (nuxtApp: NuxtApp) => unknown;
-  }): unknown;
+  // Both helpers return what they are handed — Nuxt's real signatures are
+  // identity-shaped. Returning `unknown` here erased the call signature of
+  // every plugin and middleware module's default export, so every consumer of
+  // one had to cast before invoking it.
+  export function defineNuxtPlugin<
+    P extends {
+      name?: string;
+      enforce?: string;
+      setup?: (nuxtApp: NuxtApp) => unknown;
+    },
+  >(plugin: P): P;
 
-  export function defineNuxtRouteMiddleware(
-    middleware: (to: NuxtRouteLike, from?: NuxtRouteLike) => unknown,
-  ): unknown;
+  export function defineNuxtRouteMiddleware<
+    M extends (to: NuxtRouteLike, from?: NuxtRouteLike) => unknown,
+  >(middleware: M): M;
 
   export function useRuntimeConfig(): ComviRuntimeConfig;
   export function useState<T>(key: string, init?: () => T): import("vue").Ref<T>;
@@ -79,11 +85,4 @@ declare module "#app" {
 
 declare module "#components" {
   export const NuxtLink: import("vue").Component;
-}
-
-declare module "@nuxt/schema" {
-  interface NuxtConfig {}
-  interface NuxtOptions {}
-  interface PublicRuntimeConfig {}
-  interface RuntimeConfig {}
 }

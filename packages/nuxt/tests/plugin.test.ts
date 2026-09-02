@@ -1,4 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { Mock } from "vitest";
+import type { NuxtApp } from "#app";
 import { computed, nextTick, ref } from "vue";
 import { EDITOR_INITIAL_MAPPINGS_GLOBAL, EDITOR_MAPPINGS_GLOBAL } from "@comvi/core/editor-bridge";
 import * as nuxtAppMocks from "./mocks/nuxt-app";
@@ -48,12 +50,20 @@ function createI18nStub(initialLocale = "en") {
   return i18n;
 }
 
-function createNuxtAppStub(overrides?: Record<string, unknown>) {
+type NuxtAppStub = NuxtApp & { hook: Mock; vueApp: { use: Mock } };
+
+/**
+ * Deliberately partial: no `payload` (only the SSR stub carries one, which is
+ * how these suites tell the two branches apart) and no `$i18n` (the plugin
+ * assigns it). The shim declares both as required `NuxtApp` members, so the
+ * shape is asserted once here instead of at every `plugin.setup(...)`.
+ */
+function createNuxtAppStub(overrides?: Record<string, unknown>): NuxtAppStub {
   return {
     vueApp: { use: vi.fn() },
     hook: vi.fn(),
     ...overrides,
-  };
+  } as unknown as NuxtAppStub;
 }
 
 /** The Nuxt app shape the SSR branch needs: a payload it can write into. */
@@ -62,7 +72,7 @@ function createServerNuxtAppStub(payload: Record<string, unknown> = {}) {
 }
 
 /** The `app:rendered` callback the plugin registered with Nuxt. */
-function appRenderedHook(nuxtApp: { hook: ReturnType<typeof vi.fn> }) {
+function appRenderedHook(nuxtApp: { hook: Mock }) {
   const registration = nuxtApp.hook.mock.calls.find(([event]) => event === "app:rendered");
   expect(registration).toBeDefined();
   return registration![1] as () => void;
@@ -77,17 +87,13 @@ function withEditorMappings(i18n: any, mappings: Record<string, number>) {
   return i18n;
 }
 
-/**
- * `#app`'s shim types `defineNuxtRouteMiddleware` as returning `unknown`, so the
- * middleware module's default export arrives without its call signature. These
- * two route fields are all the middleware reads.
- */
-function importMiddleware(module: { default: unknown }) {
-  return module.default as (to: { path: string; fullPath: string }) => Promise<unknown>;
+/** The middleware reads only these two fields; a real route also carries `params`. */
+function importMiddleware(module: { default: (to: NuxtRouteLike) => unknown }) {
+  return (route: { path: string; fullPath: string }) => module.default({ params: {}, ...route });
 }
 
 async function importPlugin() {
-  return (await import("../src/runtime/plugin")).default as any;
+  return (await import("../src/runtime/plugin")).default;
 }
 
 async function flushWatchers() {

@@ -41,9 +41,7 @@ vi.mock("@comvi/core/loader", async (importOriginal) => {
   };
 });
 
-// Deliberately not `as const`: createNextI18n still declares `locales` as a
-// mutable string[], so a readonly tuple would not be assignable.
-const ROUTING = { locales: ["en", "de"], defaultLocale: "en" };
+const ROUTING = { locales: ["en", "de"], defaultLocale: "en" } as const;
 
 describe("createNextI18n composed host — descriptor install, not assignment (B7)", () => {
   it("keeps registerLoader non-enumerable even when the capability lives on a prototype", async () => {

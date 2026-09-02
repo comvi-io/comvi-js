@@ -3,11 +3,13 @@ import { resolve } from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { NuxtPage } from "@nuxt/schema";
 
+type NuxtTemplateStub = { filename: string; getContents: () => string };
+
 const nuxtKitMocks = {
   createResolver: vi.fn(),
   findPath: vi.fn(),
   addPlugin: vi.fn(),
-  addTemplate: vi.fn(),
+  addTemplate: vi.fn<(template: NuxtTemplateStub) => void>(),
   addImports: vi.fn(),
   addComponent: vi.fn(),
   addServerImportsDir: vi.fn(),
@@ -22,7 +24,7 @@ vi.mock("@nuxt/kit", () => ({
   createResolver: (...args: unknown[]) => nuxtKitMocks.createResolver(...args),
   findPath: (...args: unknown[]) => nuxtKitMocks.findPath(...args),
   addPlugin: (...args: unknown[]) => nuxtKitMocks.addPlugin(...args),
-  addTemplate: (...args: unknown[]) => nuxtKitMocks.addTemplate(...args),
+  addTemplate: (template: NuxtTemplateStub) => nuxtKitMocks.addTemplate(template),
   addImports: (...args: unknown[]) => nuxtKitMocks.addImports(...args),
   addComponent: (...args: unknown[]) => nuxtKitMocks.addComponent(...args),
   addServerImportsDir: (...args: unknown[]) => nuxtKitMocks.addServerImportsDir(...args),
@@ -63,8 +65,8 @@ async function importModule() {
 /** Templates are looked up by filename; their registration order is not a contract. */
 function template(filename: string) {
   return nuxtKitMocks.addTemplate.mock.calls.find(
-    ([candidate]: [{ filename: string }]) => candidate.filename === filename,
-  )?.[0] as { filename: string; getContents: () => string } | undefined;
+    ([candidate]) => candidate.filename === filename,
+  )?.[0];
 }
 
 const setupTemplateContents = () => template("comvi.setup.mjs")?.getContents();

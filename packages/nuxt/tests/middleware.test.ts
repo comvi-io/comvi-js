@@ -24,16 +24,12 @@ const setServerMode = (value: boolean) => {
 interface RouteStub {
   path: string;
   fullPath: string;
-  query?: Record<string, unknown>;
+  query?: NuxtRouteLike["query"];
 }
 
-/**
- * The single cast in this file. `#app`'s shim types `defineNuxtRouteMiddleware`
- * as returning `unknown`, so the imported default export arrives without its
- * call signature; the middleware itself reads only these three route fields.
- */
-const runMiddleware = (route: RouteStub) =>
-  (middleware as (to: RouteStub) => Promise<unknown>)(route);
+// `params` is what makes the stub a real route shape; the middleware never
+// reads it.
+const runMiddleware = (route: RouteStub) => middleware({ params: {}, ...route });
 
 type DetectConfig = (typeof mockRuntimeConfig)["public"]["comvi"]["detectBrowserLanguage"];
 

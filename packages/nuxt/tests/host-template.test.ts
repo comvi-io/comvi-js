@@ -9,11 +9,18 @@ import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vites
 import { hasLoaderApi } from "@comvi/core";
 import type { WrapperI18nHost } from "@comvi/core";
 
+type NuxtTemplateStub = { filename: string; getContents: () => string };
+
 const nuxtKitMocks = {
-  createResolver: vi.fn(() => ({ resolve: (id: string) => `/resolved/${id}` })),
+  // The `@nuxt/kit` facade below forwards with a rest spread, so every mock
+  // needs a rest-parameter signature; `addTemplate` is given the real argument
+  // shape because the assertions below destructure `mock.calls`.
+  createResolver: vi.fn((..._args: unknown[]) => ({
+    resolve: (id: string) => `/resolved/${id}`,
+  })),
   findPath: vi.fn(),
   addPlugin: vi.fn(),
-  addTemplate: vi.fn(),
+  addTemplate: vi.fn<(template: NuxtTemplateStub) => void>(),
   addImports: vi.fn(),
   addComponent: vi.fn(),
   addServerImportsDir: vi.fn(),
@@ -26,7 +33,7 @@ vi.mock("@nuxt/kit", () => ({
   createResolver: (...args: unknown[]) => nuxtKitMocks.createResolver(...args),
   findPath: (...args: unknown[]) => nuxtKitMocks.findPath(...args),
   addPlugin: (...args: unknown[]) => nuxtKitMocks.addPlugin(...args),
-  addTemplate: (...args: unknown[]) => nuxtKitMocks.addTemplate(...args),
+  addTemplate: (template: NuxtTemplateStub) => nuxtKitMocks.addTemplate(template),
   addImports: (...args: unknown[]) => nuxtKitMocks.addImports(...args),
   addComponent: (...args: unknown[]) => nuxtKitMocks.addComponent(...args),
   addServerImportsDir: (...args: unknown[]) => nuxtKitMocks.addServerImportsDir(...args),
@@ -99,8 +106,8 @@ async function emitHostTemplate(
   );
 
   const template = nuxtKitMocks.addTemplate.mock.calls.find(
-    ([candidate]: [{ filename: string }]) => candidate.filename === "comvi.host.mjs",
-  )?.[0] as { getContents: () => string };
+    ([candidate]) => candidate.filename === "comvi.host.mjs",
+  )?.[0] as NuxtTemplateStub;
 
   const file = join(workDir, `host-${moduleId++}.mjs`);
   writeFileSync(file, template.getContents());

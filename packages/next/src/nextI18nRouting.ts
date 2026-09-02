@@ -11,9 +11,15 @@ import type { LocalePrefixMode, RoutingConfig } from "./routing/types";
 export interface NextRoutingOptions {
   /**
    * List of supported locales
+   *
+   * `readonly` to match `RoutingConfig.locales`, `hasLocale` and the
+   * middleware helpers: nothing here mutates the list, and demanding a mutable
+   * one made `createNextI18n({ ...defineRouting(...) })` — this package's own
+   * routing object spread into its own factory — a type error, along with the
+   * `as const` tuple `hasLocale` narrowing asks callers for.
    * @example ['en', 'de', 'uk', 'fr']
    */
-  locales: string[];
+  locales: readonly string[];
 
   /**
    * Default locale (used when no locale is detected)

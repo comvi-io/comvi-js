@@ -13,9 +13,7 @@ import type { I18nPlugin, LoaderFn, TagCallbackParams } from "@comvi/core";
  * The type half is `tests/types/next-contract.test-d.ts`.
  */
 
-// Deliberately not `as const`: createNextI18n still declares `locales` as a
-// mutable string[], so a readonly tuple would not be assignable.
-const ROUTING = { locales: ["en", "de"], defaultLocale: "en" };
+const ROUTING = { locales: ["en", "de"], defaultLocale: "en" } as const;
 
 function make(options: Partial<Parameters<typeof createNextI18n>[0]> = {}) {
   return createNextI18n({ ...ROUTING, ...options });
