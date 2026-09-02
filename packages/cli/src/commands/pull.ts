@@ -3,10 +3,8 @@ import { ConfigLoader } from "../core/ConfigLoader";
 import { ApiClient } from "../core/ApiClient";
 import { TranslationSync } from "../core/TranslationSync";
 import { DEFAULT_FILE_TEMPLATE, isDefaultFileTemplate } from "../defaults";
-import { ErrorCodes, isTypegenError } from "../utils/errors";
+import { ErrorCodes, EXIT_VALIDATION, isTypegenError } from "../utils/errors";
 import { assertAllReturned, parseListFlag, resolveFilter } from "../utils/filterResolution";
-
-const EXIT_VALIDATION = 4;
 
 export function createPullCommand(): Command {
   return new Command("pull")

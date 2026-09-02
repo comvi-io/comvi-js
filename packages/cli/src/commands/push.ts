@@ -6,12 +6,10 @@ import { ApiClient, type PushProgress } from "../core/ApiClient";
 import { TranslationSync } from "../core/TranslationSync";
 import { DEFAULT_FILE_TEMPLATE, isDefaultFileTemplate } from "../defaults";
 import type { ForceMode } from "../types";
-import { ErrorCodes, isTypegenError } from "../utils/errors";
+import { ErrorCodes, EXIT_VALIDATION, isTypegenError } from "../utils/errors";
 import { parseListFlag, resolveFilter } from "../utils/filterResolution";
 
 type ApiPushForceMode = Exclude<ForceMode, "ask">;
-
-const EXIT_VALIDATION = 4;
 
 export function createPushCommand(): Command {
   return new Command("push")

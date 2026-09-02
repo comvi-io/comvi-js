@@ -13,6 +13,12 @@ export class TypegenError extends Error {
   }
 }
 
+/**
+ * Exit code for input the CLI refuses to act on: an invalid configuration or an
+ * invalid flag value. Shared so every command reports the same code.
+ */
+export const EXIT_VALIDATION = 4;
+
 export const ErrorCodes = {
   API_CONNECTION_FAILED: "API_CONNECTION_FAILED",
   API_AUTH_FAILED: "API_AUTH_FAILED",

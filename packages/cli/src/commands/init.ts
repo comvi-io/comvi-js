@@ -3,9 +3,8 @@ import { promises as fs } from "fs";
 import { ConfigLoader } from "../core/ConfigLoader";
 import { ApiClient } from "../core/ApiClient";
 import { DEFAULT_FILE_TEMPLATE } from "../defaults";
+import { EXIT_VALIDATION } from "../utils/errors";
 import type { ComviConfig } from "../types";
-
-const EXIT_VALIDATION = 4;
 
 async function fileExists(filePath: string): Promise<boolean> {
   try {

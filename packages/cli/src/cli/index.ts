@@ -11,8 +11,7 @@ import { createPullCommand } from "../commands/pull";
 import { createPushCommand } from "../commands/push";
 import { loadEnv, MissingEnvFileError } from "../core/EnvLoader";
 import { CLI_VERSION } from "../utils/version";
-
-const EXIT_VALIDATION = 4;
+import { EXIT_VALIDATION } from "../utils/errors";
 
 const program = new Command();
 
