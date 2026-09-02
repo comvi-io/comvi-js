@@ -146,3 +146,7 @@ payload path, decision recorded in the handoff).
   captures config BEFORE the mutant switch arms — construction-time claims need the factory call
   INSIDE the test body; (2) expect(fn).toThrow(msg) passes when the thrown value is `undefined` —
   assert instanceof Error via a capture helper wherever src RETURNS the error its caller throws.
+- next static closeout: 12 module-init mutants (displayName assignments, module-scope const
+  arrows and string/object constants) + cache.ts:58/101, whose module-level MUTABLE `let cell`
+  the runner never re-evaluates between activations. Every one hand-applied and observed
+  turning the suite RED — claims exist; only the tool cannot see them.

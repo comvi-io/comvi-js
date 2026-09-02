@@ -6445,6 +6445,132 @@
       "lineHint": 102,
       "kind": "equivalent",
       "reason": "both branches normalise before use (normalizePath(\"\") and stripLocalePrefix(\"\") both yield \"/\"), so \"\" and \"/\" converge; the ConditionalExpression on this line IS killed. Hand-applied; green."
+    },
+    {
+      "package": "packages/next",
+      "file": "src/client/I18nProvider.tsx",
+      "mutators": ["StringLiteral"],
+      "snippet": "I18nProvider.displayName = \"NextI18nClientProvider\";",
+      "lineHint": 148,
+      "kind": "tooling:static-mutant",
+      "reason": "module-initialization mutant: Stryker's vitest runner arms the mutant switch after module init, so hand-applying it turns the suite RED (the claim exists) while the runner reports Survived. tooling limit, not a test gap."
+    },
+    {
+      "package": "packages/next",
+      "file": "src/routing/Link.tsx",
+      "mutators": ["StringLiteral"],
+      "snippet": "Link.displayName = \"LocalizedLink\";",
+      "lineHint": 46,
+      "kind": "tooling:static-mutant",
+      "reason": "module-initialization mutant: Stryker's vitest runner arms the mutant switch after module init, so hand-applying it turns the suite RED (the claim exists) while the runner reports Survived. tooling limit, not a test gap."
+    },
+    {
+      "package": "packages/next",
+      "file": "src/createNextI18n.ts",
+      "mutators": ["ArrowFunction"],
+      "snippet": "const shouldRunScoped = (",
+      "lineHint": 75,
+      "kind": "tooling:static-mutant",
+      "reason": "module-initialization mutant: Stryker's vitest runner arms the mutant switch after module init, so hand-applying it turns the suite RED (the claim exists) while the runner reports Survived. tooling limit, not a test gap."
+    },
+    {
+      "package": "packages/next",
+      "file": "src/nextI18nRouting.ts",
+      "mutators": ["ArrowFunction"],
+      "snippet": "export const resolveRouting = ({",
+      "lineHint": 46,
+      "kind": "tooling:static-mutant",
+      "reason": "module-initialization mutant: Stryker's vitest runner arms the mutant switch after module init, so hand-applying it turns the suite RED (the claim exists) while the runner reports Survived. tooling limit, not a test gap."
+    },
+    {
+      "package": "packages/next",
+      "file": "src/server/cache.ts",
+      "mutators": ["StringLiteral"],
+      "snippet": "const SOURCE_FACTORY = \"createNextI18nFromHost()\";",
+      "lineHint": 41,
+      "kind": "tooling:static-mutant",
+      "reason": "module-initialization mutant: Stryker's vitest runner arms the mutant switch after module init, so hand-applying it turns the suite RED (the claim exists) while the runner reports Survived. tooling limit, not a test gap."
+    },
+    {
+      "package": "packages/next",
+      "file": "src/server/cache.ts",
+      "mutators": ["StringLiteral"],
+      "snippet": "const SOURCE_SET_I18N = \"setI18n()\";",
+      "lineHint": 42,
+      "kind": "tooling:static-mutant",
+      "reason": "module-initialization mutant: Stryker's vitest runner arms the mutant switch after module init, so hand-applying it turns the suite RED (the claim exists) while the runner reports Survived. tooling limit, not a test gap."
+    },
+    {
+      "package": "packages/next",
+      "file": "src/server/cache.ts",
+      "mutators": ["ObjectLiteral", "StringLiteral"],
+      "snippet": "const EMPTY: CellState = { kind: \"empty\" };",
+      "lineHint": 44,
+      "kind": "tooling:static-mutant",
+      "reason": "module-initialization mutant: Stryker's vitest runner arms the mutant switch after module init, so hand-applying it turns the suite RED (the claim exists) while the runner reports Survived. tooling limit, not a test gap."
+    },
+    {
+      "package": "packages/next",
+      "file": "src/server/cache.ts",
+      "mutators": ["ArrowFunction"],
+      "snippet": "const configurationConflict = (configured: CellState, incoming: string): Error =>",
+      "lineHint": 55,
+      "kind": "tooling:static-mutant",
+      "reason": "module-initialization mutant: Stryker's vitest runner arms the mutant switch after module init, so hand-applying it turns the suite RED (the claim exists) while the runner reports Survived. tooling limit, not a test gap."
+    },
+    {
+      "package": "packages/next",
+      "file": "src/server/cache.ts",
+      "mutators": ["ConditionalExpression"],
+      "snippet": "configured.kind === \"resolved\" && configured.bySetI18n ? SOURCE_SET_I18N : SOURCE_FACTORY",
+      "lineHint": 58,
+      "kind": "tooling:static-mutant",
+      "reason": "cache.ts holds module-level MUTABLE state (let cell); the runner does not re-evaluate the module between mutant activations, so in-runner state hides what a hand-applied run kills (suite RED when applied). tooling limit, not a test gap."
+    },
+    {
+      "package": "packages/next",
+      "file": "src/server/cache.ts",
+      "mutators": ["ConditionalExpression"],
+      "snippet": "if (cell.kind === \"resolved\" && cell.instance === instance) {",
+      "lineHint": 101,
+      "kind": "tooling:static-mutant",
+      "reason": "cache.ts holds module-level MUTABLE state (let cell); the runner does not re-evaluate the module between mutant activations, so in-runner state hides what a hand-applied run kills (suite RED when applied). tooling limit, not a test gap."
+    },
+    {
+      "package": "packages/next",
+      "file": "src/server/getLocale.ts",
+      "mutators": ["StringLiteral"],
+      "snippet": "const LOCALE_HEADER = \"x-comvi-locale\";",
+      "lineHint": 5,
+      "kind": "tooling:static-mutant",
+      "reason": "module-initialization mutant: Stryker's vitest runner arms the mutant switch after module init, so hand-applying it turns the suite RED (the claim exists) while the runner reports Survived. tooling limit, not a test gap."
+    },
+    {
+      "package": "packages/next",
+      "file": "src/server/loadTranslations.ts",
+      "mutators": ["ArrowFunction"],
+      "snippet": "const toError = (error: unknown): Error =>",
+      "lineHint": 18,
+      "kind": "tooling:static-mutant",
+      "reason": "module-initialization mutant: Stryker's vitest runner arms the mutant switch after module init, so hand-applying it turns the suite RED (the claim exists) while the runner reports Survived. tooling limit, not a test gap."
+    },
+    {
+      "package": "packages/next",
+      "file": "src/server/loadTranslations.ts",
+      "mutators": ["StringLiteral"],
+      "snippet": "\"[comvi/next] No loader configured. \" +",
+      "lineHint": 23,
+      "kind": "tooling:static-mutant",
+      "reason": "module-initialization mutant: Stryker's vitest runner arms the mutant switch after module init, so hand-applying it turns the suite RED (the claim exists) while the runner reports Survived. tooling limit, not a test gap."
+    },
+    {
+      "package": "packages/next",
+      "file": "src/server/loadTranslations.ts",
+      "mutators": ["StringLiteral"],
+      "snippet": "\"Register one via i18n.registerLoader(...) or createNextI18n(...).use(plugin).\";",
+      "lineHint": 24,
+      "kind": "tooling:static-mutant",
+      "reason": "module-initialization mutant: Stryker's vitest runner arms the mutant switch after module init, so hand-applying it turns the suite RED (the claim exists) while the runner reports Survived. tooling limit, not a test gap."
     }
   ]
 }
