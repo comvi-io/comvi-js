@@ -283,8 +283,6 @@ claims through the ordinary suite instead. The leaky file was deleted, all its c
 and each of the 61 was hand-probed: killed by the suite or equivalent (36 probes, evidence in
 scratchpad probe-results-lot3.json).
 
-CAVEAT on the standing report: packages/core/.stryker/report.json still shows the 61 as
-survivors — it predates the unwind, and the fresh no-incremental confirming run was stopped
-before finishing (incremental.json deleted, sandbox cleaned). The next full
-`pnpm mutation packages/core` should show them back under ignoreStatic (069+ ignored) with
-0 real survivors / 0 nocov; the claim rests on hand-probe evidence until that run happens.
+CONFIRMED by a fresh full no-incremental run (2026-09-02): core adjusted 100.0% — 2,912
+killed, 0 real survivors, 0 nocov, 299 accepted, 0 stale entries. The 61 phantoms are back
+under ignoreStatic, exactly as the hand-probes predicted.
