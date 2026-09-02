@@ -15,7 +15,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanupDOM } from "./helpers";
 
 /** Every (element, attribute) pair `TAG_ATTRIBUTES` promises the scanner reads. */
-const SCANNED_ATTRIBUTES = [
+const SCANNED_ATTRIBUTES: ReadonlyArray<{
+  subject: string;
+  tag: string;
+  type?: string;
+  attribute: string;
+}> = [
   { subject: "textarea", tag: "textarea", attribute: "placeholder" },
   { subject: "input", tag: "input", attribute: "placeholder" },
   { subject: "input", tag: "input", attribute: "alt" },
@@ -34,7 +39,7 @@ const SCANNED_ATTRIBUTES = [
   { subject: "any element", tag: "div", attribute: "aria-placeholder" },
   { subject: "any element", tag: "div", attribute: "aria-valuetext" },
   { subject: "any element", tag: "div", attribute: "title" },
-] as const;
+];
 
 /** The tags the scanner must never read a key out of. */
 const IGNORED_TAGS = ["script", "style"] as const;

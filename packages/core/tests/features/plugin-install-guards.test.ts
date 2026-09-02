@@ -97,8 +97,12 @@ describe("nested-use guard", () => {
     await i18n.init();
 
     const inner = vi.fn<I18nPlugin>(() => undefined);
-    expect(i18n.with(installerLike(inner))).toBe(i18n);
-    expect(typeof i18n.registerLoader).toBe("function");
+    // The installer attaches in place and returns the SAME host; the local
+    // only carries the loader capability it added to the type.
+    const installed = i18n.with(installerLike(inner));
+
+    expect(installed).toBe(i18n);
+    expect(typeof installed.registerLoader).toBe("function");
   });
 
   it("stays closed after a plugin throws, so a later install still works", async () => {

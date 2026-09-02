@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { createI18n, hasLoaderApi } from "@comvi/core";
 import { plugins } from "@comvi/core/plugins";
 import type { I18nPlugin } from "@comvi/core";
+import type { LocaleDetectorInstaller } from "../src/index";
 import { LocaleDetector, localeDetector } from "../src/index";
 import { mockWindowLocation } from "./setup";
 
@@ -108,9 +109,13 @@ describe("localeDetector() wrong use", () => {
     const i18n = base();
 
     // `.with` is a dumb pipe: it CALLS what you give it. A plugin handed to it
-    // runs against a host that has none of the capabilities it needs.
-    expect(() => i18n.with(LocaleDetector(QS_ONLY))).toThrow(TypeError);
-    expect((i18n as Record<string, unknown>).use).toBeUndefined();
+    // runs against a host that has none of the capabilities it needs. The casts
+    // stand in for the type errors that same misuse raises: a plugin is not an
+    // installer, and a base host has no `use`.
+    expect(() => i18n.with(LocaleDetector(QS_ONLY) as unknown as LocaleDetectorInstaller)).toThrow(
+      TypeError,
+    );
+    expect((i18n as unknown as { use?: unknown }).use).toBeUndefined();
   });
 
   it("still installs normally after a rejected .use() attempt", async () => {

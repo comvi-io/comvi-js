@@ -5,6 +5,7 @@ import { I18nProvider } from "../src/I18nProvider";
 import { useI18n } from "../src/useI18n";
 import { createI18n, icuCompiler } from "../src/index";
 import type { TranslationResult } from "../src/index";
+import type { WrapperI18nHost } from "@comvi/core";
 import { FakeI18n } from "@comvi/test-utils/fakeI18n";
 import { flushMicrotasks } from "./test-utils";
 
@@ -147,8 +148,12 @@ describe("useI18n", () => {
         en: { review: "{formality, select, formal {Formal} other {Informal}}" },
       },
     });
+    // `I18nProvider`'s `i18n` prop is `WrapperI18nHost<{}>`, not
+    // `WrapperI18nHost<D>`, and `setDefaultParams` makes the host invariant in
+    // `D`, so no `createI18n({ defaultParams })` instance is assignable to it.
+    // The cast stands in until the prop is generic over the defaults type.
     const wrapper = ({ children }: { children: ReactNode }) => (
-      <I18nProvider i18n={i18n} autoInit={false}>
+      <I18nProvider i18n={i18n as unknown as WrapperI18nHost} autoInit={false}>
         {children}
       </I18nProvider>
     );

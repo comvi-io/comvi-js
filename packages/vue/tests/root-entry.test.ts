@@ -41,8 +41,11 @@ describe("@comvi/vue — the single root entry", () => {
   it("wraps a BASE host — the capabilities are absent on the core AND the wrapper", () => {
     const i18n = root.createI18n({ locale: "en", exposeGlobal: false });
 
-    expect(i18n.core.reloadTranslations).toBeUndefined();
-    expect(i18n.core.onMissingKey).toBeUndefined();
+    // The claim is that these members are ABSENT, so the two reads go through a
+    // view that admits them — the base host's own type does not declare them.
+    const bareCore = i18n.core as Partial<root.I18nLoaderApi & root.I18nPluginHostApi>;
+    expect(bareCore.reloadTranslations).toBeUndefined();
+    expect(bareCore.onMissingKey).toBeUndefined();
     expect("registerLoader" in i18n.core).toBe(false);
     expect("instanceId" in i18n.core).toBe(false);
     // The eight dropped proxies stay dropped on the preset path too.
@@ -207,8 +210,9 @@ describe("@comvi/vue — the capability toolkit", () => {
   it("the one-call preset's own host takes the pipe too", () => {
     const i18n = root.createI18n({ locale: "en", ssrLocale: "en", exposeGlobal: false });
 
-    expect(i18n.core.with(root.plugins())).toBe(i18n.core);
-    expect(typeof i18n.core.use).toBe("function");
+    const composed = i18n.core.with(root.plugins());
+    expect(composed).toBe(i18n.core);
+    expect(typeof composed.use).toBe("function");
   });
 
   it("acquires the composed capability through the composable", () => {

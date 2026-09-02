@@ -18,7 +18,10 @@ import type { UseI18nReturn } from "../src/useI18n";
 import BaseHostHarness from "./BaseHostHarness.test.svelte";
 import TInterpolationWrapper from "./TInterpolationWrapper.test.svelte";
 
-const makeHost = (): WrapperI18nHost =>
+// Two views of one instance: `attachLoader` composes onto the concrete class,
+// so it takes `makeCoreHost()`, while `makeHost()` is that same object seen
+// through the base-host type this suite is about.
+const makeCoreHost = () =>
   createI18n({
     locale: "en",
     exposeGlobal: false,
@@ -27,6 +30,8 @@ const makeHost = (): WrapperI18nHost =>
       fr: { greeting: "Bonjour, {name} !", rich: "Cliquez <link>ici</link>" },
     },
   });
+
+const makeHost = (): WrapperI18nHost => makeCoreHost();
 
 describe("svelte on a base host", () => {
   let target: HTMLElement;
@@ -153,7 +158,7 @@ describe("svelte on base + attachLoader (composed host)", () => {
 
   it("keeps useI18n()'s bag identical to the base one", () => {
     const bags: UseI18nReturn[] = [];
-    for (const i18n of [makeHost(), attachLoader(makeHost())]) {
+    for (const i18n of [makeHost(), attachLoader(makeCoreHost())]) {
       mounted.push(
         mount(BaseHostHarness, {
           target,

@@ -1,0 +1,25 @@
+{
+  // Type-checks the runtime test files (tests/**) that the build tsconfig
+  // deliberately excludes. Kept as a SEPARATE project so the `vue-tsc` in
+  // `build` still emits from src only. `tests/types/**` stays with
+  // tsconfig.test-types.json; `tests/js-contract/**` is .js by design (the
+  // untyped JS-consumer contract).
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "composite": false,
+    "declaration": false,
+    "declarationMap": false,
+    "sourceMap": false,
+    "noEmit": true,
+    "rootDir": ".",
+    // Tests run on Node 22 / happy-dom, not the ES2020 floor the shipped
+    // build targets.
+    "lib": ["ES2023", "DOM"],
+    "types": ["vitest/globals", "node"],
+    "paths": {
+      "@/*": ["./src/*"]
+    }
+  },
+  "include": ["src/**/*", "tests/**/*.ts"],
+  "exclude": ["node_modules", "dist", "tests/types/**"]
+}

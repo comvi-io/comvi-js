@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { createI18n } from "../helpers/composedHost";
+import type { TagCallbackParams, TranslationParams } from "../../src/types";
 
 /**
  * Which byte sequences the tag scanner accepts as markup and which it leaves
@@ -8,13 +9,13 @@ import { createI18n } from "../helpers/composedHost";
  */
 
 /** A handler per tag name, so an accepted tag shows up as `[name:children]`. */
-function handlers(...names: string[]): Record<string, unknown> {
+function handlers(...names: string[]): TranslationParams {
   return Object.fromEntries(
-    names.map((name) => [name, ({ children }: { children: string }) => `[${name}:${children}]`]),
+    names.map((name) => [name, ({ children }: TagCallbackParams) => `[${name}:${children}]`]),
   );
 }
 
-function render(template: string, params: Record<string, unknown> = {}): string {
+function render(template: string, params: TranslationParams = {}): string {
   const i18n = createI18n({ locale: "en", translation: { en: { msg: template } } });
   return i18n.t("msg", params) as string;
 }

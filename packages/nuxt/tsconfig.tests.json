@@ -1,0 +1,48 @@
+{
+  // Type-checks the runtime test files (tests/**) that tsconfig.typecheck.json
+  // deliberately excludes. Mirrors tsconfig.test-types.json's `#…` alias mocks
+  // (vitest resolves them the same way) and adds `#build/comvi.host`, which
+  // only the runtime suites import. `tests/types.test-d.ts` stays with
+  // tsconfig.test-types.json / `vitest --typecheck`.
+  //
+  // KNOWN GAP — tests/module.test.ts and tests/host-template.test.ts are
+  // excluded. Both `await import("../src/module")`, which drags src/module.ts
+  // into the program, and src/module.ts cannot be type-checked at all today:
+  // src/shims-nuxt.d.ts is a GLOBAL script file, so its
+  // `declare module "@nuxt/schema" { … }` block is an ambient module
+  // DECLARATION that shadows the real @nuxt/schema rather than augmenting it.
+  // @nuxt/kit's own declarations resolve through that stub too, so
+  // defineNuxtModule/extendPages degrade to `any` and module.ts reports
+  // TS2305 + TS7006. tsconfig.typecheck.json hides this by excluding
+  // module.ts. Re-include both tests once the @nuxt/schema block is moved to
+  // its own module-scoped .d.ts (or dropped — its four interfaces are empty).
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "strict": true,
+    // Tests run on Node 22 / happy-dom, not the ES2020 floor the shipped
+    // build targets.
+    "lib": ["ES2023", "DOM"],
+    "types": ["vitest/globals", "node"],
+    "paths": {
+      "#app": ["./tests/mocks/nuxt-app.ts"],
+      "#build/comvi.setup": ["./tests/mocks/comvi-setup.ts"],
+      "#build/comvi.host": ["./tests/mocks/comvi-host.ts"],
+      "#components": ["./tests/mocks/nuxt-components.ts"]
+    }
+  },
+  "include": [
+    "./src/types.ts",
+    "./src/runtime/**/*.ts",
+    "./src/**/*.d.ts",
+    "./tests/**/*.test.ts",
+    "./tests/mocks/**/*.ts"
+  ],
+  "exclude": [
+    "./coverage",
+    "./dist",
+    "./playground",
+    "./tests/module.test.ts",
+    "./tests/host-template.test.ts"
+  ]
+}

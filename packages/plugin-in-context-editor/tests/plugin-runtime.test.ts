@@ -7,7 +7,7 @@
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { EDITOR_INITIAL_MAPPINGS_GLOBAL, readEditorMappings } from "@comvi/core/editor-bridge";
-import { createI18n, type ComposedHost } from "./helpers/composedHost";
+import { asPluginHost, createI18n, type ComposedHost } from "./helpers/composedHost";
 
 const { coreCtorMock, mockCoreModule, resetCoreMocks, FIRST_MOCK_CORE_ID } = await vi.hoisted(
   () => import("./helpers/mockCore"),
@@ -15,9 +15,20 @@ const { coreCtorMock, mockCoreModule, resetCoreMocks, FIRST_MOCK_CORE_ID } = awa
 
 vi.mock("../src/Core", mockCoreModule);
 
-import { InContextEditorPlugin } from "../src/index";
+import { InContextEditorPlugin, type EditorOptions } from "../src/index";
 import { getApiConfig, resetApiConfig } from "../src/config/api";
 import { getKeyMappings, registerKey, resetEncoder } from "../src/translation";
+
+/**
+ * The editor's install runs synchronously and always hands back its teardown,
+ * while `I18nPlugin`'s return type also covers the async and no-cleanup shapes
+ * other plugins use. Naming the concrete shape once here keeps every
+ * `cleanup?.()` below callable without re-narrowing at each site.
+ */
+function installEditor(options?: EditorOptions): (i18n: ComposedHost) => () => void {
+  const plugin = InContextEditorPlugin(options);
+  return (i18n: ComposedHost) => plugin(asPluginHost(i18n)) as () => void;
+}
 
 function makeI18n(
   overrides: { apiKey?: string; defaultNs?: string; translation?: Record<string, unknown> } = {},
@@ -61,7 +72,7 @@ describe("InContextEditorPlugin mappings bridge", () => {
   it("publishes a bridge that reads and restores the encoder's key ids", () => {
     const i18n = makeI18n();
 
-    const cleanup = InContextEditorPlugin()(i18n);
+    const cleanup = installEditor()(i18n);
 
     const bridge = readEditorMappings(i18n);
     expect(bridge).toBeDefined();
@@ -73,10 +84,10 @@ describe("InContextEditorPlugin mappings bridge", () => {
 
   it("keeps the bridge it already published when a second runtime installs on the same host", () => {
     const i18n = makeI18n();
-    const first = InContextEditorPlugin()(i18n);
+    const first = installEditor()(i18n);
     const published = readEditorMappings(i18n);
 
-    const second = InContextEditorPlugin()(i18n);
+    const second = installEditor()(i18n);
 
     expect(readEditorMappings(i18n)).toBe(published);
 
@@ -86,7 +97,7 @@ describe("InContextEditorPlugin mappings bridge", () => {
 
   it("withdraws the bridge when the runtime is torn down", () => {
     const i18n = makeI18n();
-    const cleanup = InContextEditorPlugin()(i18n);
+    const cleanup = installEditor()(i18n);
 
     cleanup?.();
 
@@ -99,7 +110,7 @@ describe("InContextEditorPlugin mappings bridge", () => {
       "default:hello": 4,
     };
 
-    const cleanup = InContextEditorPlugin()(i18n);
+    const cleanup = installEditor()(i18n);
 
     expect(getKeyMappings()).toEqual({ "default:hello": 4 });
     expect(
@@ -115,7 +126,7 @@ describe("InContextEditorPlugin runtime detection", () => {
     const i18n = makeI18n();
     vi.stubGlobal("window", undefined);
 
-    const cleanup = InContextEditorPlugin()(i18n);
+    const cleanup = installEditor()(i18n);
 
     expect(coreCtorMock).not.toHaveBeenCalled();
     expect(typeof cleanup).toBe("function");
@@ -127,7 +138,7 @@ describe("InContextEditorPlugin runtime detection", () => {
     const i18n = makeI18n();
     vi.stubGlobal("document", undefined);
 
-    const cleanup = InContextEditorPlugin()(i18n);
+    const cleanup = installEditor()(i18n);
 
     expect(coreCtorMock).not.toHaveBeenCalled();
     expect(typeof cleanup).toBe("function");
@@ -144,9 +155,9 @@ describe("InContextEditorPlugin runtime detection", () => {
     // that leaves it missing until the runner's own teardown, which needs
     // `process` itself. Put it back the instant the factory has run.
     Reflect.deleteProperty(globalThis, "process");
-    let cleanup: void | (() => void);
+    let cleanup: (() => void) | undefined;
     try {
-      cleanup = InContextEditorPlugin()(i18n);
+      cleanup = installEditor()(i18n);
     } finally {
       Reflect.defineProperty(globalThis, "process", {
         value: nodeProcess,
@@ -167,7 +178,7 @@ describe("InContextEditorPlugin on a server runtime", () => {
     registerKey("leftover");
     vi.stubGlobal("window", undefined);
 
-    const cleanup = InContextEditorPlugin()(i18n);
+    const cleanup = installEditor()(i18n);
 
     expect(getKeyMappings()).toEqual({});
 
@@ -179,7 +190,7 @@ describe("InContextEditorPlugin on a server runtime", () => {
     const subscriptions = watchSubscriptions(i18n);
     vi.stubGlobal("window", undefined);
 
-    const cleanup = InContextEditorPlugin()(i18n);
+    const cleanup = installEditor()(i18n);
     cleanup?.();
 
     expect(subscriptions.events).toEqual(["namespaceLoaded", "localeChanged"]);
@@ -189,7 +200,7 @@ describe("InContextEditorPlugin on a server runtime", () => {
   it("stops flushing pending keys once the runtime is torn down", () => {
     const i18n = makeI18n();
     vi.stubGlobal("window", undefined);
-    const cleanup = InContextEditorPlugin()(i18n);
+    const cleanup = installEditor()(i18n);
     i18n.addTranslations({ "en:extra": { welcome: "Welcome" } });
 
     cleanup?.();
@@ -204,7 +215,7 @@ describe("InContextEditorPlugin on a server runtime", () => {
 describe("InContextEditorPlugin key enqueueing", () => {
   it("registers the keys of a namespace loaded after install at the next translation", () => {
     const i18n = makeI18n();
-    const cleanup = InContextEditorPlugin()(i18n);
+    const cleanup = installEditor()(i18n);
 
     i18n.addTranslations({ "en:extra": { welcome: "Welcome" } });
     i18n.t("hello");
@@ -218,7 +229,7 @@ describe("InContextEditorPlugin key enqueueing", () => {
     const i18n = makeI18n({
       translation: { "en:default": { hello: "Hello" }, "de:default": { hello: "Hallo" } },
     });
-    const cleanup = InContextEditorPlugin()(i18n);
+    const cleanup = installEditor()(i18n);
     i18n.t("hello");
     const beforeLocaleChange = getKeyMappings();
 
@@ -235,7 +246,7 @@ describe("InContextEditorPlugin key enqueueing", () => {
       defaultNs: "a",
       translation: { "en:a": { zebra: "Zebra", apple: "Apple" } },
     });
-    const cleanup = InContextEditorPlugin()(i18n);
+    const cleanup = installEditor()(i18n);
 
     i18n.t("zebra");
 
@@ -246,11 +257,11 @@ describe("InContextEditorPlugin key enqueueing", () => {
 
   it("keeps the ids an earlier browser runtime assigned when a later one installs", () => {
     const first = makeI18n({ translation: { "en:default": { b_key: "B", a_key: "A" } } });
-    const cleanupFirst = InContextEditorPlugin()(first);
+    const cleanupFirst = installEditor()(first);
     first.t("a_key");
     cleanupFirst?.();
 
-    const cleanupSecond = InContextEditorPlugin()(makeI18n());
+    const cleanupSecond = installEditor()(makeI18n());
 
     expect(getKeyMappings()).toEqual({ "default:a_key": 1, "default:b_key": 2 });
 
@@ -262,7 +273,7 @@ describe("InContextEditorPlugin API configuration", () => {
   it("prefers apiKeyOverride over the host's own apiKey", () => {
     const i18n = makeI18n({ apiKey: "host-key" });
 
-    const cleanup = InContextEditorPlugin({ apiKeyOverride: "override-key" })(i18n);
+    const cleanup = installEditor({ apiKeyOverride: "override-key" })(i18n);
 
     expect(getApiConfig(FIRST_MOCK_CORE_ID).apiKey).toBe("override-key");
 
@@ -272,7 +283,7 @@ describe("InContextEditorPlugin API configuration", () => {
   it("falls back to the host's apiKey when no override is given", () => {
     const i18n = makeI18n({ apiKey: "host-key" });
 
-    const cleanup = InContextEditorPlugin()(i18n);
+    const cleanup = installEditor()(i18n);
 
     expect(getApiConfig(FIRST_MOCK_CORE_ID).apiKey).toBe("host-key");
 
@@ -281,7 +292,7 @@ describe("InContextEditorPlugin API configuration", () => {
 
   it("drops the runtime's API configuration when it is torn down", () => {
     const i18n = makeI18n({ apiKey: "host-key" });
-    const cleanup = InContextEditorPlugin()(i18n);
+    const cleanup = installEditor()(i18n);
 
     cleanup?.();
 
@@ -292,7 +303,7 @@ describe("InContextEditorPlugin API configuration", () => {
     const i18n = makeI18n();
     const subscriptions = watchSubscriptions(i18n);
 
-    const cleanup = InContextEditorPlugin()(i18n);
+    const cleanup = installEditor()(i18n);
     cleanup?.();
 
     expect(subscriptions.events).toEqual(["namespaceLoaded", "localeChanged"]);
@@ -301,7 +312,7 @@ describe("InContextEditorPlugin API configuration", () => {
 
   it("stops flushing pending keys once the browser runtime is torn down", () => {
     const i18n = makeI18n();
-    const cleanup = InContextEditorPlugin()(i18n);
+    const cleanup = installEditor()(i18n);
     i18n.addTranslations({ "en:extra": { welcome: "Welcome" } });
 
     cleanup?.();

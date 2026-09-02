@@ -2,7 +2,7 @@ import { describe, it, expect, afterEach } from "vitest";
 import { createNextI18n } from "../src/createNextI18n";
 import type { NextComposedI18n } from "../src/composedHost";
 import { createI18n as baseCreateI18n, isVirtualNode } from "@comvi/core";
-import type { I18nPlugin, LoaderFn } from "@comvi/core";
+import type { I18nPlugin, LoaderFn, TagCallbackParams } from "@comvi/core";
 
 /**
  * The PUBLISHED `@comvi/next` root contract: every capability a 0.4 caller
@@ -13,7 +13,9 @@ import type { I18nPlugin, LoaderFn } from "@comvi/core";
  * The type half is `tests/types/next-contract.test-d.ts`.
  */
 
-const ROUTING = { locales: ["en", "de"], defaultLocale: "en" } as const;
+// Deliberately not `as const`: createNextI18n still declares `locales` as a
+// mutable string[], so a readonly tuple would not be assignable.
+const ROUTING = { locales: ["en", "de"], defaultLocale: "en" };
 
 function make(options: Partial<Parameters<typeof createNextI18n>[0]> = {}) {
   return createNextI18n({ ...ROUTING, ...options });
@@ -47,8 +49,9 @@ describe("published createNextI18n — composed capabilities", () => {
     const { i18n } = make({ translation: { en: { rich: "click <b>here</b> now" } } });
 
     // The handler arrives through the PARAM channel and receives the tag's
-    // props object, whose `children` is the inner text.
-    expect(i18n.t("rich", { b: ({ children }: { children: string }) => `**${children}**` })).toBe(
+    // props object, whose `children` is the inner text. The declared type is
+    // the wider `TranslationResult`, since a tag can also wrap virtual nodes.
+    expect(i18n.t("rich", { b: ({ children }: TagCallbackParams) => `**${children}**` })).toBe(
       "click **here** now",
     );
   });

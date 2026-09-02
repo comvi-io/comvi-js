@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import type { MockInstance } from "vitest";
 // The BASE host: no tag extension in the graph, which is the whole subject.
 import { createI18n } from "../../src";
 import { clearTemplateCache } from "../../src/core/translate";
@@ -22,7 +23,7 @@ import { tagSyntaxExtension } from "../../src/core/translate/tags";
 const TAG_TEMPLATE = "click <b>here</b> now";
 const OTHER_TAG_TEMPLATE = "read <i>this</i> too";
 
-let warnSpy: ReturnType<typeof vi.spyOn>;
+let warnSpy: MockInstance<typeof console.warn>;
 
 /** Warnings this file is about — never the missing-param or flat-catalog ones. */
 function tagWarnings(): string[] {

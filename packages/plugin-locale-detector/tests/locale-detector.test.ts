@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-import { createI18n, initWithPlugin } from "./helpers/init";
-import { LocaleDetector, resolveLocale } from "../src/index";
+import { createI18n, initWithPlugin, installDetector } from "./helpers/init";
+import { resolveLocale } from "../src/index";
 import {
   mockCookie,
   mockNavigator,
@@ -15,10 +15,10 @@ describe("LocaleDetector plugin", () => {
       mockWindowLocation("?lng=fr");
 
       const i18n = createI18n("en");
-      const cleanup = LocaleDetector({
+      const cleanup = installDetector(i18n, {
         order: ["querystring"],
         caches: [],
-      })(i18n);
+      });
 
       expect(i18n.locale).toBe("en");
       expect(await i18n.getLanguageDetector()?.()).toBe("fr");
@@ -380,10 +380,10 @@ describe("LocaleDetector plugin", () => {
 
     it("returns a cleanup function that stops future cache writes", async () => {
       const i18n = createI18n("en");
-      const cleanup = LocaleDetector({
+      const cleanup = installDetector(i18n, {
         caches: ["localStorage"],
         lookupLocalStorage: "cleanup_test_key",
-      })(i18n);
+      });
 
       await i18n.setLocaleAsync("fr");
       expect(localStorage.getItem("cleanup_test_key")).toBe("fr");
@@ -712,9 +712,9 @@ describe("LocaleDetector plugin", () => {
     it("skips every cache target when browser globals are unavailable", async () => {
       await withDisabledBrowserGlobals(async () => {
         const i18n = createI18n("en");
-        const cleanup = LocaleDetector({
+        const cleanup = installDetector(i18n, {
           caches: ["localStorage", "sessionStorage", "cookie"],
-        })(i18n);
+        });
 
         await expect(i18n.setLocaleAsync("fr")).resolves.toBeUndefined();
 
@@ -727,10 +727,10 @@ describe("LocaleDetector plugin", () => {
     it("does not persist a locale the registered detector only reported", async () => {
       mockWindowLocation("?lng=fr");
       const i18n = createI18n("en");
-      const cleanup = LocaleDetector({
+      const cleanup = installDetector(i18n, {
         order: ["querystring"],
         caches: ["localStorage"],
-      })(i18n);
+      });
 
       const reported = await i18n.getLanguageDetector()?.();
 
@@ -761,11 +761,11 @@ describe("LocaleDetector plugin", () => {
     it("persists a later locale change after the detector reported only the fallback", async () => {
       mockWindowLocation("");
       const i18n = createI18n("en");
-      const cleanup = LocaleDetector({
+      const cleanup = installDetector(i18n, {
         order: ["querystring"],
         caches: ["localStorage"],
         fallbackLocale: "fr",
-      })(i18n);
+      });
 
       expect(await i18n.getLanguageDetector()?.()).toBe("fr");
 

@@ -1,6 +1,7 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi, type Mock } from "vitest";
 import { ElementHighlighter } from "../src/ElementHighlighter";
 import { EventBus } from "../src/EventBus";
+import type { NodeData } from "../src/types/translation";
 import { SCROLL_DEBOUNCE_DELAY, DEFAULT_HIGHLIGHT_Z_INDEX } from "../src/config/highlight";
 import {
   cleanupDOM,
@@ -14,11 +15,11 @@ import {
 
 describe("ElementHighlighter.integration.test.ts", () => {
   let highlighter: ElementHighlighter;
-  let handleClick: ReturnType<typeof vi.fn>;
+  let handleClick: Mock<(element: Element) => void>;
   let eventBus: EventBus;
 
   beforeEach(() => {
-    handleClick = vi.fn();
+    handleClick = vi.fn<(element: Element) => void>();
     eventBus = new EventBus();
     highlighter = new ElementHighlighter(eventBus, handleClick);
   });
@@ -560,7 +561,7 @@ describe("ElementHighlighter.integration.test.ts", () => {
 
 describe("ElementHighlighter", () => {
   let highlighter: ElementHighlighter;
-  let handleClick: ReturnType<typeof vi.fn>;
+  let handleClick: Mock<(element: Element) => void>;
   let eventBus: EventBus;
 
   const scrollDescriptors = {
@@ -594,14 +595,19 @@ describe("ElementHighlighter", () => {
   }
 
   function registerKeys(element: Element, keys: Array<{ key: string; ns?: string }>): void {
-    const nodes = new Map(
-      keys.map((entry) => [document.createTextNode(entry.key), { key: entry.key, ns: entry.ns }]),
+    // `NodeData.ns` is a required string, and the highlighter reads a falsy one
+    // as "no namespace", so an omitted namespace stands in as the empty string.
+    const nodes = new Map<Node | Attr, NodeData>(
+      keys.map((entry) => [
+        document.createTextNode(entry.key),
+        { key: entry.key, ns: entry.ns ?? "" },
+      ]),
     );
     eventBus.emit("translationRegistered", element, { nodes });
   }
 
   beforeEach(() => {
-    handleClick = vi.fn();
+    handleClick = vi.fn<(element: Element) => void>();
     eventBus = new EventBus();
     highlighter = new ElementHighlighter(eventBus, handleClick);
   });

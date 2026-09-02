@@ -14,6 +14,7 @@
  * ["svelte", "node"]; the cross-bleed assertions are the primary gate here.
  */
 import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
+import type { MockInstance } from "vitest";
 import { get } from "svelte/store";
 import { createI18n } from "../src/index";
 import { mount, hydrate, unmount, tick } from "svelte";
@@ -129,7 +130,7 @@ describe("svelte/server render() — SSR compilation constraint", () => {
     // Matched loosely on purpose: enough that an unrelated import/compile
     // failure cannot pass as this limitation, without pinning V8's exact
     // wording or Svelte's minified internal field name.
-    const result = render(IntegrationSmoke as never, { props: { i18n } });
+    const result = render(IntegrationSmoke, { props: { i18n } });
     expect(() => result.body).toThrow(/Cannot read properties of null/);
   });
 });
@@ -138,7 +139,7 @@ describe("svelte/server render() — SSR compilation constraint", () => {
 describe("hydration warning check", () => {
   let target: HTMLElement;
   let component: ReturnType<typeof mount> | null;
-  let warnSpy: ReturnType<typeof vi.spyOn>;
+  let warnSpy: MockInstance<typeof console.warn>;
 
   beforeEach(() => {
     target = document.createElement("div");

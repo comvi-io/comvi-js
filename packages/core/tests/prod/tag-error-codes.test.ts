@@ -7,6 +7,7 @@
 import { describe, it, expect } from "vitest";
 import "../../src/register-tags";
 import { createI18n } from "../../src";
+import type { IcuSyntaxError } from "../../src/core/translate/compile-simple";
 
 const RICH = { en: { msg: "Click <link>here</link>" } };
 
@@ -39,12 +40,12 @@ describe("strict tag interpolation", () => {
 describe("an ICU argument with the tag grammar loaded", () => {
   it("keeps the whole braced group literal — the tags inside it are never parsed", () => {
     const template = "{count, plural, one {<b>#</b> tagged} other {<b>#</b> taggeds}}";
-    const reports: Array<{ argumentType?: unknown }> = [];
+    const reports: IcuSyntaxError[] = [];
     const i18n = createI18n({
       locale: "en",
       exposeGlobal: false,
       translation: { en: { tagged: template } },
-      onError: (error) => void reports.push(error),
+      onError: (error) => void reports.push(error as IcuSyntaxError),
     });
 
     expect(i18n.t("tagged", { count: 2 })).toBe(template);

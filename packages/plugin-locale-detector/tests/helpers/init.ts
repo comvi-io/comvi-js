@@ -18,3 +18,21 @@ export async function initWithPlugin(
 
   return i18n;
 }
+
+/** The detector as narrowly as it is written, against the host this suite composes. */
+type DetectorPlugin = (i18n: I18n) => () => void;
+
+/**
+ * `LocaleDetector(options)` applied straight to a composed host, outside
+ * `init()`, returning the plugin's cleanup.
+ *
+ * `I18nPlugin` is declared wider than this plugin is at both ends: its host is
+ * the full composed surface, loader capability included, while the detector
+ * reads `locale` and calls `registerLocaleDetector` and `on` only; and its
+ * return spans four possibilities, while the detector always hands back a
+ * synchronous cleanup. Naming the narrower shape once here keeps the call
+ * sites free of per-call casts.
+ */
+export function installDetector(i18n: I18n, options: LocaleDetectorOptions = {}): () => void {
+  return (LocaleDetector(options) as unknown as DetectorPlugin)(i18n);
+}

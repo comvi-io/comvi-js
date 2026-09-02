@@ -1,0 +1,38 @@
+{
+  // Type-checks the runtime test files (tests/**) that the build tsconfig
+  // deliberately excludes. Kept as a SEPARATE project so the `tsc` in `build`
+  // still emits from src only. `tests/types/**` stays with
+  // tsconfig.test-types.json; `tests/js-contract/**` is .jsx by design (the
+  // untyped JS-consumer contract) and `tests/dist/**` drives build artifacts
+  // that carry no declarations, so neither is type-checkable here.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "composite": false,
+    "declaration": false,
+    "declarationMap": false,
+    "sourceMap": false,
+    "noEmit": true,
+    // The program reaches core/src (via @comvi/test-utils) and tooling/,
+    // so the emit root has to be the workspace root. Nothing is emitted.
+    "rootDir": "../..",
+    "types": ["vitest/globals", "node"],
+    "paths": {
+      "@/*": ["./src/*"],
+      // `@comvi/test-utils` reaches into core's SOURCE (fakeI18n.ts imports
+      // ../../packages/core/src/utils/defaultParams), so core's src is in this
+      // program either way. Pinning the package specifier to the same source
+      // keeps ONE copy of the `__COMVI__` global augmentation — two copies
+      // (src + dist .d.ts) collide with TS2717.
+      "@comvi/core": ["../core/src/index.ts"],
+      "@comvi/core/loader": ["../core/src/loader.ts"],
+      "@comvi/core/plugins": ["../core/src/plugins.ts"],
+      "@comvi/core/devtools": ["../core/src/devtools.ts"],
+      "@comvi/core/icu": ["../core/src/icu.ts"],
+      "@comvi/core/rich-text": ["../core/src/rich-text.ts"],
+      "@comvi/core/tags": ["../core/src/tags.ts"],
+      "@comvi/core/editor-bridge": ["../core/src/editor-bridge.ts"]
+    }
+  },
+  "include": ["src/**/*", "tests/**/*.ts", "tests/**/*.tsx"],
+  "exclude": ["node_modules", "dist", "tests/types/**", "tests/dist/**"]
+}

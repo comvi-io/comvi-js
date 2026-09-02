@@ -9,7 +9,7 @@
  */
 
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createI18n, type ComposedHost } from "./helpers/composedHost";
+import { asPluginHost, createI18n, type ComposedHost } from "./helpers/composedHost";
 
 const { coreStopMock, mockCoreModule, resetCoreMocks } = await vi.hoisted(
   () => import("./helpers/mockCore"),
@@ -61,7 +61,7 @@ describe("InContextEditorPlugin startup failure", () => {
     const i18n = makeI18n();
     failWith(initApiConfigMock, "bad config");
 
-    expect(() => InContextEditorPlugin()(i18n)).toThrow("bad config");
+    expect(() => InContextEditorPlugin()(asPluginHost(i18n))).toThrow("bad config");
 
     expect(coreStopMock).toHaveBeenCalledTimes(1);
   });

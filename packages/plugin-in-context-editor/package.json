@@ -50,7 +50,7 @@
   "scripts": {
     "dev": "vite build --watch",
     "build": "pnpm --filter @comvi/plugin-fetch-loader build && vue-tsc && vite build && vite build --config vite.config.standalone.ts",
-    "typecheck": "vue-tsc --noEmit -p tsconfig.app.json",
+    "typecheck": "vue-tsc --noEmit -p tsconfig.app.json && vue-tsc --noEmit -p tsconfig.tests.json",
     "build:standalone": "vite build --config vite.config.standalone.ts",
     "build:all": "pnpm build",
     "preview": "vite preview",

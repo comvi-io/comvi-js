@@ -1,19 +1,21 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
+import type { Mock } from "vitest";
 import { attachLoader, attachPlugins, createCore, createI18nFromCore, useI18n, T } from "../src";
+import type { LoaderFn } from "../src";
 import { mount } from "@vue/test-utils";
 import { defineComponent, h, nextTick } from "vue";
 
 describe("Integration Flow", () => {
-  let mockLanguageDetector: ReturnType<typeof vi.fn>;
-  let mockLoader: ReturnType<typeof vi.fn>;
+  let mockLanguageDetector: Mock<() => string>;
+  let mockLoader: Mock<LoaderFn>;
   let loadedLanguages: Set<string>;
 
   beforeEach(() => {
     loadedLanguages = new Set();
 
-    mockLanguageDetector = vi.fn(() => "fr");
+    mockLanguageDetector = vi.fn<() => string>(() => "fr");
 
-    mockLoader = vi.fn(async (locale: string, namespace: string) => {
+    mockLoader = vi.fn<LoaderFn>(async (locale: string, namespace: string) => {
       loadedLanguages.add(`${locale}:${namespace}`);
 
       const translations: Record<string, Record<string, string>> = {

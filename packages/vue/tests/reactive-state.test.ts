@@ -668,7 +668,7 @@ describe("Reactive State Transitions", () => {
 
 describe("hasLocale reactivity across a default-namespace change", () => {
   it("re-evaluates when the default namespace changes, agreeing with hasLocaleNow", async () => {
-    const i18n = createI18n({ locale: "en", defaultNs: "common" } as I18nOptions);
+    const i18n = createI18n({ locale: "en", defaultNs: "common" });
     await i18n.init();
     i18n.addTranslations({ "en:admin": { title: "Admin" } });
 

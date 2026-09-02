@@ -43,6 +43,9 @@ interface HostOptions {
 type FullHost = I18nPluginHost & {
   registerLoader(loader: LoaderFn): void;
   t(key: string, params?: Record<string, unknown>): string;
+  // `with(f)` is `f(this)`; the installers this harness pipes through it are
+  // the low-level attaches, which install in place and hand the host back.
+  with(installer: (host: never) => unknown): FullHost;
 };
 
 /** The internal composite — one constructor call, 0.4 semantics. */

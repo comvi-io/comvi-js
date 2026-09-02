@@ -22,7 +22,6 @@ function makeNeighbor(overrides: Partial<NeighborCandidate> = {}): NeighborCandi
     namespace: "ns",
     key: "heading.title",
     semanticRole: "heading",
-    hasAriaLabel: false,
     distance: 40,
     relativePosition: "above",
     containerType: "form",

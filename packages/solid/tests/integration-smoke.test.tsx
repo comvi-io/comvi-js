@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { attachLoader, createI18n } from "../src/index";
+import type { LoaderResult } from "@comvi/core/loader";
 import { I18nProvider } from "../src/context";
 import { useI18n } from "../src/useI18n";
 import { T } from "../src/T";
@@ -51,7 +52,7 @@ describe("solid integration smoke", () => {
       },
       // `attachLoader` rather than `loader()`: this drives a raw `LoaderFn`.
     }).with(attachLoader);
-    i18n.registerLoader(async (_language, namespace) => {
+    i18n.registerLoader(async (_language, namespace): Promise<LoaderResult> => {
       if (namespace === "admin") return { title: "Admin Panel" };
       return {};
     });

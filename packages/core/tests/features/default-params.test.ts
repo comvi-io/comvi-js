@@ -1,10 +1,13 @@
 import { describe, it, expect, vi } from "vitest";
 import { I18n } from "../helpers/composedHost";
+import type { DefaultTranslationParams } from "../../src/types";
 
 const FORMALITY_SELECT = "{formality, select, formal {Ihre Bewertung} other {Deine Bewertung}}";
 
 function createInstance(defaultParams?: Record<string, string>) {
-  const i18n = new I18n({ locale: "de", defaultParams });
+  // Explicitly the no-guaranteed-defaults instance: inferring `D` from a
+  // possibly-absent `defaultParams` would make the option itself required.
+  const i18n = new I18n<{}>({ locale: "de", defaultParams });
   i18n.addTranslations({
     de: {
       review: FORMALITY_SELECT,
@@ -75,7 +78,9 @@ describe("defaultParams — the constructor option and setDefaultParams()", () =
     options.formality = "informal";
     expect(i18n.t("review")).toBe("Ihre Bewertung");
 
-    const exposed = i18n.defaultParams!;
+    // The snapshot is `Readonly`; writing through it is exactly the misuse
+    // this case proves the instance survives.
+    const exposed = i18n.defaultParams! as DefaultTranslationParams;
     exposed.formality = "informal";
     expect(i18n.t("review")).toBe("Ihre Bewertung");
   });

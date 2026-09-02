@@ -2,15 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import { nextTick } from "vue";
 import { createI18n } from "../src/createI18n";
 import { attachLoader, attachPlugins, createCore, createI18nFromCore } from "../src";
-import type { I18nOptions } from "../src";
-
-declare module "@comvi/core" {
-  interface TranslationKeys {
-    hello: never;
-    fallbackOnly: never;
-    "unknown.key": never;
-  }
-}
+import type { I18nOptions, LoaderResult } from "../src";
 
 // Vue's preset builds the BASE host, so each contract below composes exactly
 // the capability it exercises: the loader for `registerLoader`/`onLoadError`/
@@ -26,7 +18,7 @@ describe("VueI18n contracts", () => {
       resolveFrench = resolve;
     });
 
-    i18n.core.registerLoader(async (locale: string, namespace: string) => {
+    i18n.core.registerLoader(async (locale: string, namespace: string): Promise<LoaderResult> => {
       if (namespace !== "common") {
         return {};
       }
@@ -53,7 +45,7 @@ describe("VueI18n contracts", () => {
   });
 
   it("ignores no-op computed locale assignments and updates on real changes", async () => {
-    const loader = vi.fn(async (locale: string, namespace: string) => {
+    const loader = vi.fn(async (locale: string, namespace: string): Promise<LoaderResult> => {
       if (namespace !== "common") {
         return {};
       }
@@ -84,7 +76,7 @@ describe("VueI18n contracts", () => {
     const err = new Error("setLocale failed");
     const onError = vi.fn();
     const i18n = createLoaderI18n({ locale: "en", defaultNs: "common", onError });
-    i18n.core.registerLoader(async (locale: string, namespace: string) => {
+    i18n.core.registerLoader(async (locale: string, namespace: string): Promise<LoaderResult> => {
       if (namespace !== "common") return {};
       if (locale === "fr") throw err;
       return { hello: "Hello" };
@@ -113,7 +105,7 @@ describe("VueI18n contracts", () => {
     const err = new Error("imperative set failed");
     const onError = vi.fn();
     const i18n = createLoaderI18n({ locale: "en", defaultNs: "common", onError });
-    i18n.core.registerLoader(async (locale: string, namespace: string) => {
+    i18n.core.registerLoader(async (locale: string, namespace: string): Promise<LoaderResult> => {
       if (namespace !== "common") return {};
       if (locale === "fr") throw err;
       return { hello: "Hello" };
@@ -142,7 +134,7 @@ describe("VueI18n contracts", () => {
   // its own capability, so it composes loader then plugins.
   const createDetectedFrenchI18n = (onError?: I18nOptions["onError"]) => {
     const localeDetector = vi.fn(() => "fr");
-    const loader = vi.fn(async (locale: string, namespace: string) => {
+    const loader = vi.fn(async (locale: string, namespace: string): Promise<LoaderResult> => {
       if (namespace === "admin") {
         throw new Error("admin load failed");
       }

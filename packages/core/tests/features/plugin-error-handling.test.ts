@@ -100,7 +100,7 @@ describe("init() plugin timeout protection", () => {
   });
 
   it("rejects when a required plugin times out", async () => {
-    const slowPlugin: I18nPlugin = () => new Promise(() => {});
+    const slowPlugin: I18nPlugin = () => new Promise<void>(() => {});
 
     const i18n = new I18n({ locale: "en" });
     i18n.use(slowPlugin, { required: true, timeout: 100 });
@@ -118,7 +118,7 @@ describe("init() plugin timeout protection", () => {
   it("continues after an optional plugin times out", async () => {
     const executionOrder: string[] = [];
 
-    const slowPlugin: I18nPlugin = () => new Promise(() => {});
+    const slowPlugin: I18nPlugin = () => new Promise<void>(() => {});
     const fastPlugin: I18nPlugin = () => {
       executionOrder.push("fast");
     };
@@ -139,9 +139,9 @@ describe("destroy() plugin cleanup", () => {
   it("calls cleanup functions in LIFO order", async () => {
     const executionOrder: number[] = [];
 
-    const plugin1: I18nPlugin = () => () => executionOrder.push(1);
-    const plugin2: I18nPlugin = () => () => executionOrder.push(2);
-    const plugin3: I18nPlugin = () => () => executionOrder.push(3);
+    const plugin1: I18nPlugin = () => () => void executionOrder.push(1);
+    const plugin2: I18nPlugin = () => () => void executionOrder.push(2);
+    const plugin3: I18nPlugin = () => () => void executionOrder.push(3);
 
     const i18n = new I18n({ locale: "en" });
     i18n.use(plugin1);

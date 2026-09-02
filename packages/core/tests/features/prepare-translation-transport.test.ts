@@ -17,6 +17,7 @@ import { createElement } from "../../src/virtualNode";
 import type { VirtualNode } from "../../src/virtualNode";
 import { prepareTranslation, childrenToArray } from "../../src/core/prepareTranslation";
 import { makeMarkExtension } from "../helpers/extensions";
+import type { TranslationResult } from "../../src/types";
 
 const makeHost = (translation: Record<string, Record<string, string>>) =>
   createI18n({ locale: "en", translation });
@@ -208,6 +209,8 @@ describe("childrenToArray()", () => {
   it("drops a bare VirtualNode — the pipeline only ever hands it a string or an array", () => {
     const node: VirtualNode = createElement("b", {}, ["bold"]);
 
-    expect(childrenToArray(node)).toEqual([]);
+    // A bare node is not a `TranslationResult` — passing one is the misuse
+    // this case pins the defensive branch against.
+    expect(childrenToArray(node as unknown as TranslationResult)).toEqual([]);
   });
 });

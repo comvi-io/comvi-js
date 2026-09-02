@@ -3,6 +3,7 @@ import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { expectPopupView, extensionWorker, openPopup, reservePort } from "./helpers";
+import type { SessionStore, TabStateStore } from "./helpers";
 
 const extensionPath = resolve(import.meta.dirname, "../dist-gate-e");
 const POLL = { timeout: 10_000 };
@@ -25,7 +26,7 @@ async function activateEditor(
           worker.evaluate((id) => {
             const chromeApi = (globalThis as typeof globalThis & { chrome: typeof chrome }).chrome;
             return chromeApi.storage.session
-              .get(`comvi_session_${id}`)
+              .get<SessionStore>(`comvi_session_${id}`)
               .then((state) => state[`comvi_session_${id}`]?.status);
           }, tabId),
         { timeout: 10_000 },
@@ -133,7 +134,7 @@ test("built MV3 extension enforces the hostile-page trust boundary", async () =>
               const chromeApi = (globalThis as typeof globalThis & { chrome: typeof chrome })
                 .chrome;
               return chromeApi.storage.session
-                .get(`comvi_tabstate_${id}`)
+                .get<TabStateStore>(`comvi_tabstate_${id}`)
                 .then((state) => state[`comvi_tabstate_${id}`]?.comviDetected === true);
             }, tabId),
           { timeout: 10_000 },
@@ -194,7 +195,7 @@ test("built MV3 extension enforces the hostile-page trust boundary", async () =>
               const chromeApi = (globalThis as typeof globalThis & { chrome: typeof chrome })
                 .chrome;
               return chromeApi.storage.session
-                .get(`comvi_session_${id}`)
+                .get<SessionStore>(`comvi_session_${id}`)
                 .then((state) => state[`comvi_session_${id}`]?.status);
             }, tabId),
           POLL,
@@ -222,7 +223,7 @@ test("built MV3 extension enforces the hostile-page trust boundary", async () =>
               const chromeApi = (globalThis as typeof globalThis & { chrome: typeof chrome })
                 .chrome;
               return chromeApi.storage.session
-                .get(`comvi_session_${id}`)
+                .get<SessionStore>(`comvi_session_${id}`)
                 .then((state) => state[`comvi_session_${id}`]);
             }, tabId),
           POLL,

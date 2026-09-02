@@ -5,7 +5,9 @@ import type { ConstraintSignals, SemanticSignals } from "../src/collector/types"
 function makeSemantic(overrides: Partial<SemanticSignals> = {}): SemanticSignals {
   return {
     semanticRole: "unknown",
+    ariaRole: null,
     hasAriaLabel: false,
+    htmlType: null,
     hasPlaceholder: false,
     ancestry: [],
     ...overrides,

@@ -18,11 +18,13 @@
  */
 import { describe, it, expect, vi } from "vitest";
 import { createI18n } from "../../src";
+import type { I18n } from "../../src";
+import type { ErrorReportContext } from "../../src/types";
 
 const PLURAL = "{count, plural, one {# item} other {# items}}";
 
 function reportingHost(translation: Record<string, Record<string, string>>) {
-  const reports: Array<{ error: Error; context?: Record<string, unknown> }> = [];
+  const reports: Array<{ error: Error; context?: ErrorReportContext }> = [];
   const i18n = createI18n({
     locale: "en",
     exposeGlobal: false,
@@ -99,7 +101,7 @@ describe("an ICU argument reaching the default compiler", () => {
 
   it("names the FALLBACK locale when the template only exists there", () => {
     const template = "{n, plural, one {# fallback} other {# fallbacks}}";
-    const reports: Array<Record<string, unknown> | undefined> = [];
+    const reports: Array<ErrorReportContext | undefined> = [];
     const i18n = createI18n({
       locale: "fr",
       fallbackLocale: "en",
@@ -174,8 +176,8 @@ describe("hit accounting", () => {
 
   it("lets a nested translation own its report instead of blaming the outer key", () => {
     const template = "{n, plural, one {# nested} other {# nesteds}}";
-    const contexts: Array<Record<string, unknown> | undefined> = [];
-    const i18n: ReturnType<typeof createI18n> = createI18n({
+    const contexts: Array<ErrorReportContext | undefined> = [];
+    const i18n: I18n = createI18n({
       locale: "en",
       exposeGlobal: false,
       translation: { en: { nested: template } },

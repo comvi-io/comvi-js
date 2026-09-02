@@ -58,7 +58,7 @@ function createNuxtAppStub(overrides?: Record<string, unknown>) {
 
 /** The Nuxt app shape the SSR branch needs: a payload it can write into. */
 function createServerNuxtAppStub(payload: Record<string, unknown> = {}) {
-  return createNuxtAppStub({ payload });
+  return { ...createNuxtAppStub(), payload };
 }
 
 /** The `app:rendered` callback the plugin registered with Nuxt. */
@@ -75,6 +75,15 @@ function withEditorMappings(i18n: any, mappings: Record<string, number>) {
     loadKeyMappings: () => undefined,
   };
   return i18n;
+}
+
+/**
+ * `#app`'s shim types `defineNuxtRouteMiddleware` as returning `unknown`, so the
+ * middleware module's default export arrives without its call signature. These
+ * two route fields are all the middleware reads.
+ */
+function importMiddleware(module: { default: unknown }) {
+  return module.default as (to: { path: string; fullPath: string }) => Promise<unknown>;
 }
 
 async function importPlugin() {
@@ -218,11 +227,8 @@ describe("runtime plugin", () => {
     nuxtAppMocks.setMockI18n(i18n);
     nuxtAppMocks.setMockCookie("i18n_locale", "de");
 
-    const middleware = (await import("../src/runtime/middleware/i18n.global")).default;
-    await middleware({
-      path: "/",
-      fullPath: "/",
-    } as any);
+    const middleware = importMiddleware(await import("../src/runtime/middleware/i18n.global"));
+    await middleware({ path: "/", fullPath: "/" });
     await flushWatchers();
 
     expect(i18n.setLocale).toHaveBeenCalledTimes(1);
@@ -243,8 +249,8 @@ describe("runtime plugin", () => {
     nuxtAppMocks.setMockI18n(i18n);
     nuxtAppMocks.setMockCookie("i18n_locale", "de");
 
-    const middleware = (await import("../src/runtime/middleware/i18n.global")).default;
-    await middleware({ path: "/about", fullPath: "/about" } as any);
+    const middleware = importMiddleware(await import("../src/runtime/middleware/i18n.global"));
+    await middleware({ path: "/about", fullPath: "/about" });
     await flushWatchers();
 
     expect(i18n.setLocale).toHaveBeenCalledWith("en");

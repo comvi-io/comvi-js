@@ -1,10 +1,14 @@
 import { describe, it, expect, vi } from "vitest";
 import { mount } from "@vue/test-utils";
-import { h, defineComponent, markRaw } from "vue";
+import { h, defineComponent, markRaw, type VNode } from "vue";
 import { createI18n as createRootI18n } from "../src/createI18n";
 import { T } from "../src/components/T";
 import { I18N_INJECTION_KEY } from "../src/keys";
 import { icuCompiler } from "../src";
+
+// A tag slot is handed the flattened children: a bare string when the tag
+// wraps a lone text node, the node list otherwise.
+type TagSlotProps = { children: string | (string | VNode)[] };
 
 describe("<T /> component - Tag Interpolation", () => {
   const createI18n = (translations: Record<string, string>, options?: any) => {
@@ -386,7 +390,7 @@ describe("<T /> component - Tag Interpolation", () => {
       const wrapper = mount(T, {
         props: { i18nKey: "msg" },
         slots: {
-          link: ({ children }: { children: unknown }) => {
+          link: ({ children }: TagSlotProps) => {
             receivedChildren = children;
             return h("a", { href: "#" }, children);
           },
@@ -408,11 +412,11 @@ describe("<T /> component - Tag Interpolation", () => {
       const wrapper = mount(T, {
         props: { i18nKey: "msg" },
         slots: {
-          wrapper: ({ children }: { children: unknown }) => {
+          wrapper: ({ children }: TagSlotProps) => {
             receivedChildren = children;
             return h("div", {}, children);
           },
-          bold: ({ children }: { children: unknown }) => h("strong", {}, children),
+          bold: ({ children }: TagSlotProps) => h("strong", {}, children),
         },
         global: { provide: { [I18N_INJECTION_KEY as symbol]: i18n } },
       });

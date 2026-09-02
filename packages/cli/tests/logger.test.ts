@@ -114,7 +114,7 @@ describe("ConsoleLogger", () => {
 describe("SilentLogger", () => {
   it("writes nothing to the console, at any level", () => {
     const lines = recordConsole();
-    const logger = new SilentLogger();
+    const logger: Logger = new SilentLogger();
 
     emitEveryLevel(logger);
     logger.setLevel(LogLevel.DEBUG);

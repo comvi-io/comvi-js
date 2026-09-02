@@ -1,8 +1,9 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { I18n, createElement } from "../helpers/composedHost";
+import type { PostProcessFn } from "../../src/types";
 
 /** The post-processor these tests reuse: brackets a string, passes nodes through. */
-const bracket = (result: unknown) => (typeof result === "string" ? `[${result}]` : result);
+const bracket: PostProcessFn = (result) => (typeof result === "string" ? `[${result}]` : result);
 
 const taggedHost = () =>
   new I18n({ locale: "en", tagInterpolation: { basicHtmlTags: ["strong"] } });

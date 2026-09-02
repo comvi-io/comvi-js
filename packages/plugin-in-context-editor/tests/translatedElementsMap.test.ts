@@ -1,20 +1,20 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { TranslationRegistry } from "../src/TranslationRegistry";
+import { describe, it, expect, beforeEach, afterEach, vi, type Mock } from "vitest";
+import { TranslationRegistry, type ElementData, type NodeData } from "../src/TranslationRegistry";
 import { EventBus } from "../src/EventBus";
 import { cleanupDOM } from "./helpers";
 
 describe("TranslationRegistry", () => {
   let map: TranslationRegistry;
   let eventBus: EventBus;
-  let onTranslationRegistered: ReturnType<typeof vi.fn>;
-  let onTranslationRemoved: ReturnType<typeof vi.fn>;
-  let onTranslationUpdated: ReturnType<typeof vi.fn>;
+  let onTranslationRegistered: Mock<(element: Element, data: ElementData) => void>;
+  let onTranslationRemoved: Mock<(element: Element) => void>;
+  let onTranslationUpdated: Mock<(element: Element, data: ElementData) => void>;
 
   beforeEach(() => {
     eventBus = new EventBus();
-    onTranslationRegistered = vi.fn();
-    onTranslationRemoved = vi.fn();
-    onTranslationUpdated = vi.fn();
+    onTranslationRegistered = vi.fn<(element: Element, data: ElementData) => void>();
+    onTranslationRemoved = vi.fn<(element: Element) => void>();
+    onTranslationUpdated = vi.fn<(element: Element, data: ElementData) => void>();
 
     eventBus.on("translationRegistered", onTranslationRegistered);
     eventBus.on("translationRemoved", onTranslationRemoved);
@@ -32,7 +32,7 @@ describe("TranslationRegistry", () => {
       const element = document.createElement("div");
       const textNode = document.createTextNode("test");
       const data = {
-        nodes: new Map([[textNode, { key: "test.key" }]]),
+        nodes: new Map<Node | Attr, NodeData>([[textNode, { key: "test.key", ns: "default" }]]),
       };
 
       map.add(element, data);
@@ -44,7 +44,9 @@ describe("TranslationRegistry", () => {
     it("should emit translationRegistered event when adding", () => {
       const element = document.createElement("div");
       const data = {
-        nodes: new Map([[document.createTextNode("test"), { key: "test.key" }]]),
+        nodes: new Map<Node | Attr, NodeData>([
+          [document.createTextNode("test"), { key: "test.key", ns: "default" }],
+        ]),
       };
 
       map.add(element, data);
@@ -55,10 +57,14 @@ describe("TranslationRegistry", () => {
     it("should not add duplicate elements", () => {
       const element = document.createElement("div");
       const data1 = {
-        nodes: new Map([[document.createTextNode("test1"), { key: "key1" }]]),
+        nodes: new Map<Node | Attr, NodeData>([
+          [document.createTextNode("test1"), { key: "key1", ns: "default" }],
+        ]),
       };
       const data2 = {
-        nodes: new Map([[document.createTextNode("test2"), { key: "key2" }]]),
+        nodes: new Map<Node | Attr, NodeData>([
+          [document.createTextNode("test2"), { key: "key2", ns: "default" }],
+        ]),
       };
 
       map.add(element, data1);
@@ -89,9 +95,21 @@ describe("TranslationRegistry", () => {
       const span = document.createElement("span");
       const p = document.createElement("p");
 
-      map.add(div, { nodes: new Map([[document.createTextNode("div"), { key: "1" }]]) });
-      map.add(span, { nodes: new Map([[document.createTextNode("span"), { key: "2" }]]) });
-      map.add(p, { nodes: new Map([[document.createTextNode("p"), { key: "3" }]]) });
+      map.add(div, {
+        nodes: new Map<Node | Attr, NodeData>([
+          [document.createTextNode("div"), { key: "1", ns: "default" }],
+        ]),
+      });
+      map.add(span, {
+        nodes: new Map<Node | Attr, NodeData>([
+          [document.createTextNode("span"), { key: "2", ns: "default" }],
+        ]),
+      });
+      map.add(p, {
+        nodes: new Map<Node | Attr, NodeData>([
+          [document.createTextNode("p"), { key: "3", ns: "default" }],
+        ]),
+      });
 
       expect(map.size()).toBe(3);
       expect(map.has(div)).toBe(true);
@@ -107,7 +125,11 @@ describe("TranslationRegistry", () => {
       ];
 
       elements.forEach((el, i) => {
-        map.add(el, { nodes: new Map([[document.createTextNode("test"), { key: i }]]) });
+        map.add(el, {
+          nodes: new Map<Node | Attr, NodeData>([
+            [document.createTextNode("test"), { key: String(i), ns: "default" }],
+          ]),
+        });
       });
 
       expect(onTranslationRegistered.mock.calls.map(([el]) => el)).toEqual(elements);
@@ -118,7 +140,9 @@ describe("TranslationRegistry", () => {
     it("should remove element from map", () => {
       const element = document.createElement("div");
       const data = {
-        nodes: new Map([[document.createTextNode("test"), { key: "key" }]]),
+        nodes: new Map<Node | Attr, NodeData>([
+          [document.createTextNode("test"), { key: "key", ns: "default" }],
+        ]),
       };
 
       map.add(element, data);
@@ -132,7 +156,9 @@ describe("TranslationRegistry", () => {
     it("should emit translationRemoved event when removing", () => {
       const element = document.createElement("div");
       const data = {
-        nodes: new Map([[document.createTextNode("test"), { key: "key" }]]),
+        nodes: new Map<Node | Attr, NodeData>([
+          [document.createTextNode("test"), { key: "key", ns: "default" }],
+        ]),
       };
 
       map.add(element, data);
@@ -167,13 +193,13 @@ describe("TranslationRegistry", () => {
       const element = document.createElement("div");
       const textNode = document.createTextNode("test");
       const data = {
-        nodes: new Map([[textNode, { key: "test.key" }]]),
+        nodes: new Map<Node | Attr, NodeData>([[textNode, { key: "test.key", ns: "default" }]]),
       };
 
       map.addOrUpdate(element, data);
 
       expect(map.has(element)).toBe(true);
-      expect(map.get(element)?.nodes.get(textNode)).toEqual({ key: "test.key" });
+      expect(map.get(element)?.nodes.get(textNode)).toEqual({ key: "test.key", ns: "default" });
     });
 
     it("should update element if it exists", () => {
@@ -182,10 +208,10 @@ describe("TranslationRegistry", () => {
       const textNode2 = document.createTextNode("test2");
 
       const data1 = {
-        nodes: new Map([[textNode1, { key: "key1" }]]),
+        nodes: new Map<Node | Attr, NodeData>([[textNode1, { key: "key1", ns: "default" }]]),
       };
       const data2 = {
-        nodes: new Map([[textNode2, { key: "key2" }]]),
+        nodes: new Map<Node | Attr, NodeData>([[textNode2, { key: "key2", ns: "default" }]]),
       };
 
       map.add(element, data1);
@@ -193,8 +219,8 @@ describe("TranslationRegistry", () => {
 
       const result = map.get(element);
       expect(result?.nodes.size).toBe(2);
-      expect(result?.nodes.get(textNode1)).toEqual({ key: "key1" });
-      expect(result?.nodes.get(textNode2)).toEqual({ key: "key2" });
+      expect(result?.nodes.get(textNode1)).toEqual({ key: "key1", ns: "default" });
+      expect(result?.nodes.get(textNode2)).toEqual({ key: "key2", ns: "default" });
     });
 
     it("should merge multiple node data", () => {
@@ -205,13 +231,15 @@ describe("TranslationRegistry", () => {
       const ariaAttr = document.createAttribute("aria-label");
 
       map.addOrUpdate(element, {
-        nodes: new Map([[attrNode, { key: "placeholder.key" }]]),
+        nodes: new Map<Node | Attr, NodeData>([
+          [attrNode, { key: "placeholder.key", ns: "default" }],
+        ]),
       });
       map.addOrUpdate(element, {
-        nodes: new Map([[titleAttr, { key: "title.key" }]]),
+        nodes: new Map<Node | Attr, NodeData>([[titleAttr, { key: "title.key", ns: "default" }]]),
       });
       map.addOrUpdate(element, {
-        nodes: new Map([[ariaAttr, { key: "aria.key" }]]),
+        nodes: new Map<Node | Attr, NodeData>([[ariaAttr, { key: "aria.key", ns: "default" }]]),
       });
 
       const result = map.get(element);
@@ -223,14 +251,14 @@ describe("TranslationRegistry", () => {
       const textNode = document.createTextNode("test");
 
       map.addOrUpdate(element, {
-        nodes: new Map([[textNode, { key: "old.key" }]]),
+        nodes: new Map<Node | Attr, NodeData>([[textNode, { key: "old.key", ns: "default" }]]),
       });
       map.addOrUpdate(element, {
-        nodes: new Map([[textNode, { key: "new.key" }]]),
+        nodes: new Map<Node | Attr, NodeData>([[textNode, { key: "new.key", ns: "default" }]]),
       });
 
       const result = map.get(element);
-      expect(result?.nodes.get(textNode)).toEqual({ key: "new.key" });
+      expect(result?.nodes.get(textNode)).toEqual({ key: "new.key", ns: "default" });
     });
 
     it("should throw error for null element", () => {
@@ -243,10 +271,12 @@ describe("TranslationRegistry", () => {
       const element = document.createElement("div");
       const first = document.createTextNode("first");
       const second = document.createTextNode("second");
-      map.add(element, { nodes: new Map([[first, { key: "first.key", ns: "default" }]]) });
+      map.add(element, {
+        nodes: new Map<Node | Attr, NodeData>([[first, { key: "first.key", ns: "default" }]]),
+      });
 
       map.addOrUpdate(element, {
-        nodes: new Map([[second, { key: "second.key", ns: "default" }]]),
+        nodes: new Map<Node | Attr, NodeData>([[second, { key: "second.key", ns: "default" }]]),
       });
 
       expect(onTranslationUpdated).toHaveBeenCalledExactlyOnceWith(element, map.get(element));
@@ -258,7 +288,9 @@ describe("TranslationRegistry", () => {
     it("should keep the element untouched and emit nothing when the predicate matches no node", () => {
       const element = document.createElement("div");
       const textNode = document.createTextNode("text");
-      map.add(element, { nodes: new Map([[textNode, { key: "kept.key", ns: "default" }]]) });
+      map.add(element, {
+        nodes: new Map<Node | Attr, NodeData>([[textNode, { key: "kept.key", ns: "default" }]]),
+      });
 
       map.removeNodesForElement(element, () => false);
 
@@ -272,7 +304,7 @@ describe("TranslationRegistry", () => {
       const doomed = document.createTextNode("gone");
       const kept = document.createTextNode("kept");
       map.add(element, {
-        nodes: new Map([
+        nodes: new Map<Node | Attr, NodeData>([
           [doomed, { key: "gone.key", ns: "default" }],
           [kept, { key: "kept.key", ns: "default" }],
         ]),
@@ -288,7 +320,9 @@ describe("TranslationRegistry", () => {
     it("should remove the element once its last node matches", () => {
       const element = document.createElement("div");
       map.add(element, {
-        nodes: new Map([[document.createTextNode("text"), { key: "only.key", ns: "default" }]]),
+        nodes: new Map<Node | Attr, NodeData>([
+          [document.createTextNode("text"), { key: "only.key", ns: "default" }],
+        ]),
       });
 
       map.removeNodesForElement(element, () => true);
@@ -323,7 +357,9 @@ describe("TranslationRegistry", () => {
     it("should return element data if exists", () => {
       const element = document.createElement("div");
       const data = {
-        nodes: new Map([[document.createTextNode("test"), { key: "key" }]]),
+        nodes: new Map<Node | Attr, NodeData>([
+          [document.createTextNode("test"), { key: "key", ns: "default" }],
+        ]),
       };
 
       map.add(element, data);
@@ -348,10 +384,14 @@ describe("TranslationRegistry", () => {
       const span = document.createElement("span");
 
       const divData = {
-        nodes: new Map([[document.createTextNode("div"), { key: "div.key" }]]),
+        nodes: new Map<Node | Attr, NodeData>([
+          [document.createTextNode("div"), { key: "div.key", ns: "default" }],
+        ]),
       };
       const spanData = {
-        nodes: new Map([[document.createTextNode("span"), { key: "span.key" }]]),
+        nodes: new Map<Node | Attr, NodeData>([
+          [document.createTextNode("span"), { key: "span.key", ns: "default" }],
+        ]),
       };
 
       map.add(div, divData);
@@ -452,9 +492,9 @@ describe("TranslationRegistry", () => {
       const textNode2 = document.createTextNode("remove");
 
       map.add(element, {
-        nodes: new Map([
-          [textNode1, { key: "key1" }],
-          [textNode2, { key: "key2" }],
+        nodes: new Map<Node | Attr, NodeData>([
+          [textNode1, { key: "key1", ns: "default" }],
+          [textNode2, { key: "key2", ns: "default" }],
         ]),
       });
 
@@ -474,7 +514,7 @@ describe("TranslationRegistry", () => {
       const textNode = document.createTextNode("test");
 
       map.add(element, {
-        nodes: new Map([[textNode, { key: "key" }]]),
+        nodes: new Map<Node | Attr, NodeData>([[textNode, { key: "key", ns: "default" }]]),
       });
 
       const removedNodes = new Set<Node | Attr>([textNode]);
@@ -492,7 +532,7 @@ describe("TranslationRegistry", () => {
       parent.appendChild(child);
 
       map.add(child, {
-        nodes: new Map([[textNode, { key: "key" }]]),
+        nodes: new Map<Node | Attr, NodeData>([[textNode, { key: "key", ns: "default" }]]),
       });
 
       const removedNodes = new Set<Node | Attr>([parent]);
@@ -510,7 +550,7 @@ describe("TranslationRegistry", () => {
       element.setAttributeNode(attr);
 
       map.add(element, {
-        nodes: new Map([[attr, { key: "attr.key" }]]),
+        nodes: new Map<Node | Attr, NodeData>([[attr, { key: "attr.key", ns: "default" }]]),
       });
 
       const removedNodes = new Set<Node | Attr>([element]);
@@ -521,7 +561,11 @@ describe("TranslationRegistry", () => {
 
     it("should handle empty removedNodes set", () => {
       const element = document.createElement("div");
-      map.add(element, { nodes: new Map([[document.createTextNode("test"), { key: "key" }]]) });
+      map.add(element, {
+        nodes: new Map<Node | Attr, NodeData>([
+          [document.createTextNode("test"), { key: "key", ns: "default" }],
+        ]),
+      });
 
       const removedNodes = new Set<Node | Attr>();
       map.cleanupRemovedNodes(removedNodes);
@@ -537,13 +581,13 @@ describe("TranslationRegistry", () => {
       const textNode3 = document.createTextNode("text3");
 
       map.add(div, {
-        nodes: new Map([
-          [textNode1, { key: "key1" }],
-          [textNode2, { key: "key2" }],
+        nodes: new Map<Node | Attr, NodeData>([
+          [textNode1, { key: "key1", ns: "default" }],
+          [textNode2, { key: "key2", ns: "default" }],
         ]),
       });
       map.add(span, {
-        nodes: new Map([[textNode3, { key: "key3" }]]),
+        nodes: new Map<Node | Attr, NodeData>([[textNode3, { key: "key3", ns: "default" }]]),
       });
 
       const removedNodes = new Set<Node | Attr>([textNode2, span]);
@@ -559,7 +603,9 @@ describe("TranslationRegistry", () => {
     it("should emit nothing for a registered element none of whose nodes were removed", () => {
       const element = document.createElement("div");
       map.add(element, {
-        nodes: new Map([[document.createTextNode("text"), { key: "key", ns: "default" }]]),
+        nodes: new Map<Node | Attr, NodeData>([
+          [document.createTextNode("text"), { key: "key", ns: "default" }],
+        ]),
       });
 
       map.cleanupRemovedNodes(new Set([document.createTextNode("unrelated")]));
@@ -572,7 +618,9 @@ describe("TranslationRegistry", () => {
       const element = document.createElement("div");
       const attr = document.createAttribute("title");
       element.setAttributeNode(attr);
-      map.add(element, { nodes: new Map([[attr, { key: "attr.key", ns: "default" }]]) });
+      map.add(element, {
+        nodes: new Map<Node | Attr, NodeData>([[attr, { key: "attr.key", ns: "default" }]]),
+      });
 
       map.cleanupRemovedNodes(new Set([attr]));
 
@@ -588,7 +636,7 @@ describe("TranslationRegistry", () => {
       const textNode = document.createTextNode("text");
       element.appendChild(textNode);
       map.add(element, {
-        nodes: new Map([
+        nodes: new Map<Node | Attr, NodeData>([
           [textNode, { key: "text.key", ns: "default" }],
           [attr, { key: "attr.key", ns: "default" }],
         ]),
@@ -603,7 +651,9 @@ describe("TranslationRegistry", () => {
       const element = document.createElement("div");
       const attr = document.createAttribute("title");
       element.setAttributeNode(attr);
-      map.add(element, { nodes: new Map([[attr, { key: "attr.key", ns: "default" }]]) });
+      map.add(element, {
+        nodes: new Map<Node | Attr, NodeData>([[attr, { key: "attr.key", ns: "default" }]]),
+      });
 
       map.cleanupRemovedNodes(new Set([document.createTextNode("unrelated")]));
 
@@ -623,18 +673,18 @@ describe("TranslationRegistry", () => {
       element.setAttributeNode(titleAttr);
 
       map.add(element, {
-        nodes: new Map([
-          [textNode, { key: "button.text" }],
-          [ariaAttr, { key: "button.aria" }],
-          [titleAttr, { key: "button.title" }],
+        nodes: new Map<Node | Attr, NodeData>([
+          [textNode, { key: "button.text", ns: "default" }],
+          [ariaAttr, { key: "button.aria", ns: "default" }],
+          [titleAttr, { key: "button.title", ns: "default" }],
         ]),
       });
 
       expect(map.get(element)?.nodes).toEqual(
-        new Map([
-          [textNode, { key: "button.text" }],
-          [ariaAttr, { key: "button.aria" }],
-          [titleAttr, { key: "button.title" }],
+        new Map<Node | Attr, NodeData>([
+          [textNode, { key: "button.text", ns: "default" }],
+          [ariaAttr, { key: "button.aria", ns: "default" }],
+          [titleAttr, { key: "button.title", ns: "default" }],
         ]),
       );
     });
@@ -643,8 +693,12 @@ describe("TranslationRegistry", () => {
       const element = document.createElement("div");
       const textNode = document.createTextNode("test");
 
+      // `NodeData.key` is a string, and the scanner only ever stores decoded
+      // string keys. The cast is the point of the test: the registry is an
+      // opaque container that hands back whatever it was given, so it is fed a
+      // value its own type forbids.
       map.add(element, {
-        nodes: new Map([[textNode, { key: 12345 }]]),
+        nodes: new Map<Node | Attr, NodeData>([[textNode, { key: 12345 } as unknown as NodeData]]),
       });
 
       const result = map.get(element);
@@ -660,14 +714,22 @@ describe("TranslationRegistry", () => {
       container.appendChild(child2);
 
       map.add(child1, {
-        nodes: new Map([[document.createTextNode("child1"), { key: "child1.key" }]]),
+        nodes: new Map<Node | Attr, NodeData>([
+          [document.createTextNode("child1"), { key: "child1.key", ns: "default" }],
+        ]),
       });
       map.add(child2, {
-        nodes: new Map([[document.createTextNode("child2"), { key: "child2.key" }]]),
+        nodes: new Map<Node | Attr, NodeData>([
+          [document.createTextNode("child2"), { key: "child2.key", ns: "default" }],
+        ]),
       });
 
-      expect([...(map.get(child1)?.nodes.values() ?? [])]).toEqual([{ key: "child1.key" }]);
-      expect([...(map.get(child2)?.nodes.values() ?? [])]).toEqual([{ key: "child2.key" }]);
+      expect([...(map.get(child1)?.nodes.values() ?? [])]).toEqual([
+        { key: "child1.key", ns: "default" },
+      ]);
+      expect([...(map.get(child2)?.nodes.values() ?? [])]).toEqual([
+        { key: "child2.key", ns: "default" },
+      ]);
     });
   });
 });

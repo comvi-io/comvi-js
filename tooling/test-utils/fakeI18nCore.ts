@@ -202,7 +202,7 @@ export class FakeI18nCore {
         this.defaultNamespace,
       );
       this.cache.set(language, namespace, values);
-      this.emit("namespaceLoaded", { language, namespace });
+      this.emit("namespaceLoaded", { locale: language, namespace });
     }
   }
 
@@ -212,7 +212,7 @@ export class FakeI18nCore {
     this.emit("loadingStateChanged", { isLoading: true, isInitializing: this._isInitializing });
     await this.namespaceLoadResult;
     this._isLoading = false;
-    this.emit("namespaceLoaded", { language: this._language, namespace });
+    this.emit("namespaceLoaded", { locale: this._language, namespace });
     this.emit("loadingStateChanged", { isLoading: false, isInitializing: this._isInitializing });
   }
 
@@ -222,7 +222,7 @@ export class FakeI18nCore {
 
   clearTranslations(language?: string, namespace?: string): void {
     this.cache.clear(language, namespace);
-    this.emit("translationsCleared", { language, namespace });
+    this.emit("translationsCleared", { locale: language, namespace });
   }
 
   setFallbackLanguage(fallback: string | string[]): void {

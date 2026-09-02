@@ -80,10 +80,7 @@ describe("vue on a base host", () => {
     const wrapper = mount(
       defineComponent({
         setup() {
-          return () =>
-            h("span", [
-              h(T, { i18nKey: "tagged", components: { b: "strong" } } as Record<string, unknown>),
-            ]);
+          return () => h("span", [h(T, { i18nKey: "tagged", components: { b: "strong" } })]);
         },
       }),
       { global: { plugins: [i18n] } },

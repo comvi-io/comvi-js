@@ -17,11 +17,14 @@ import type { I18nEvent } from "../src";
 
 const createReplayHost = () => {
   const host = createCore({ locale: "en", defaultNs: "common" });
-  const handlers = new Map<string, () => void>();
-  vi.spyOn(host, "on").mockImplementation(((event: I18nEvent, callback: () => void) => {
+  // The bridge registers zero-argument handlers — `subscribeToRevision` closes
+  // over the event name — so `emit` replays one with no payload. The map is
+  // typed for whatever `on` would have been handed all the same.
+  const handlers = new Map<I18nEvent, (...args: never[]) => void>();
+  vi.spyOn(host, "on").mockImplementation((event, callback) => {
     handlers.set(event, callback);
     return () => handlers.delete(event);
-  }) as typeof host.on);
+  });
 
   return {
     host,

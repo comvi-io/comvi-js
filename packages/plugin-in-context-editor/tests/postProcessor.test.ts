@@ -5,7 +5,7 @@ import {
   registerPostProcessorOnce,
 } from "../src/postProcessor";
 import { getKeyMappings, loadKeyMappings } from "../src/translation";
-import type { TranslationParams } from "@comvi/core";
+import type { TranslationParams, VirtualNode } from "@comvi/core";
 
 // `loadKeyMappings({})` in beforeEach restarts the id sequence, so the first key
 // a test registers is id 1 and the second is id 2. These are those two ids as
@@ -49,7 +49,7 @@ describe("createInvisibleCharPostProcessor()", () => {
   });
 
   it("should append the encoding as a new element when the array ends in a VNode", () => {
-    const mockVNode = { type: "span", children: "test" };
+    const mockVNode: VirtualNode = { type: "element", tag: "span", props: {}, children: ["test"] };
     const postProcessor = createInvisibleCharPostProcessor();
 
     const result = postProcessor(["Hello", mockVNode], "greeting", "default", {});
@@ -114,7 +114,12 @@ describe("createInvisibleCharPostProcessor()", () => {
     });
 
     it("should skip injection for VNode arrays", () => {
-      const mockVNode = { type: "span", children: "test" };
+      const mockVNode: VirtualNode = {
+        type: "element",
+        tag: "span",
+        props: {},
+        children: ["test"],
+      };
       const postProcessor = createInvisibleCharPostProcessor();
       const params: TranslationParams = { raw: true };
       const input = ["Hello", mockVNode];

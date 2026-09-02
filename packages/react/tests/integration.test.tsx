@@ -76,7 +76,7 @@ describe("Integration Tests", () => {
 
   it("loads a dynamic namespace and updates loading state", async () => {
     const deferred = createDeferred<Record<string, string>>();
-    const loader = vi.fn(() => deferred.promise);
+    const loader = vi.fn((_locale: string, _namespace: string) => deferred.promise);
 
     // `attachLoader` rather than `loader()`: this registers a raw `LoaderFn`,
     // not an import map.

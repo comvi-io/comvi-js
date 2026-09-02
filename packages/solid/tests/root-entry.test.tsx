@@ -20,7 +20,9 @@ import type { WrapperI18nHost } from "@comvi/core";
 import { attachDevtools, devtools } from "@comvi/core/devtools";
 import { icu, icuCompiler } from "@comvi/core/icu";
 import { attachLoader, flattenCatalog, loader } from "@comvi/core/loader";
+import type { I18nLoaderApi } from "@comvi/core/loader";
 import { attachPlugins, plugins } from "@comvi/core/plugins";
+import type { I18nPluginHostApi } from "@comvi/core/plugins";
 import { I18nProvider as DeepI18nProvider } from "../src/context";
 import * as root from "../src/index";
 
@@ -61,9 +63,12 @@ describe("@comvi/solid — the single root entry", () => {
 
   it("builds a BASE host — the capabilities are absent, not disabled", () => {
     const i18n = root.createI18n({ locale: "en", exposeGlobal: false });
+    // A base host does not DECLARE the capability members, so the absence
+    // claim needs a view that admits them as optional to be readable at all.
+    const bare = i18n as Partial<I18nLoaderApi & I18nPluginHostApi>;
 
-    expect(i18n.reloadTranslations).toBeUndefined();
-    expect(i18n.onMissingKey).toBeUndefined();
+    expect(bare.reloadTranslations).toBeUndefined();
+    expect(bare.onMissingKey).toBeUndefined();
     expect("registerLoader" in i18n).toBe(false);
     expect("instanceId" in i18n).toBe(false);
   });

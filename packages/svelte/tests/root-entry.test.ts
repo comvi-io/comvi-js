@@ -18,7 +18,9 @@ import { createI18n as coreCreateI18n, I18n as CoreI18n } from "@comvi/core";
 import { attachDevtools, devtools } from "@comvi/core/devtools";
 import { icu, icuCompiler } from "@comvi/core/icu";
 import { attachLoader, flattenCatalog, loader } from "@comvi/core/loader";
+import type { I18nLoaderApi } from "@comvi/core/loader";
 import { attachPlugins, plugins } from "@comvi/core/plugins";
+import type { I18nPluginHostApi } from "@comvi/core/plugins";
 // The `.js` extension the entry itself uses, so the identity assertions below
 // compare the SAME resolved module rather than two spellings of one path.
 import {
@@ -46,9 +48,12 @@ describe("@comvi/svelte — the single root entry", () => {
 
   it("builds a BASE host — the capabilities are absent, not disabled", () => {
     const i18n = root.createI18n({ locale: "en", exposeGlobal: false });
+    // A base host does not DECLARE the capability members, so the absence
+    // claim needs a view that admits them as optional to be readable at all.
+    const bare = i18n as Partial<I18nLoaderApi & I18nPluginHostApi>;
 
-    expect(i18n.reloadTranslations).toBeUndefined();
-    expect(i18n.onMissingKey).toBeUndefined();
+    expect(bare.reloadTranslations).toBeUndefined();
+    expect(bare.onMissingKey).toBeUndefined();
     expect("registerLoader" in i18n).toBe(false);
     expect("instanceId" in i18n).toBe(false);
   });
@@ -217,7 +222,9 @@ describe("@comvi/svelte — the capability toolkit", () => {
     const i18n = root.attachLoader(root.createI18n({ locale: "en", exposeGlobal: false }));
 
     expect(typeof i18n.reloadTranslations).toBe("function");
-    expect(i18n.onMissingKey).toBeUndefined();
+    // The plugin capability was never composed on, so its members are not
+    // declared either — same optional view as the base-host probe above.
+    expect((i18n as Partial<I18nPluginHostApi>).onMissingKey).toBeUndefined();
   });
 });
 

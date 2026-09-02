@@ -76,7 +76,7 @@ describe("getKeyFromId", () => {
 describe("encodeKeyToInvisible", () => {
   it("should encode string key to 8-character invisible sequence", () => {
     const key = "home.title";
-    const encoded = encodeKeyToInvisible(key);
+    const encoded = encodeKeyToInvisible(registerKey(key));
 
     expect(encoded).toHaveLength(8);
     expect(encoded).toContainInvisibleChars();
@@ -284,8 +284,8 @@ describe("scanForInvisibleKeys", () => {
     const key1 = "consecutive1";
     const key2 = "consecutive2";
 
-    const encoded1 = encodeKeyToInvisible(key1);
-    const encoded2 = encodeKeyToInvisible(key2);
+    const encoded1 = encodeKeyToInvisible(registerKey(key1));
+    const encoded2 = encodeKeyToInvisible(registerKey(key2));
 
     const text = `${encoded1}${encoded2}`;
     const keys = scanForInvisibleKeys(text);
@@ -306,7 +306,7 @@ describe("scanForInvisibleKeys", () => {
 
 describe("containsInvisibleCharacters", () => {
   it("should detect invisible characters", () => {
-    const encoded = encodeKeyToInvisible("test");
+    const encoded = encodeKeyToInvisible(registerKey("test"));
     expect(containsInvisibleCharacters(encoded)).toBe(true);
   });
 

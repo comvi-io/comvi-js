@@ -1,8 +1,17 @@
 import { ref, reactive, computed, customRef } from "vue";
+import type { NuxtI18nPrivateRuntimeConfig, NuxtI18nRuntimeConfig } from "../../src/types";
 
 const stateStore = new Map<string, any>();
 
-const defaultRuntimeConfig = {
+/**
+ * Typed as the module's own runtime-config shape, not inferred from the literal:
+ * tests reassign `localePrefix` and `detectBrowserLanguage` across their full
+ * unions, which a literal-inferred type would pin to these defaults.
+ */
+const defaultRuntimeConfig: {
+  public: { comvi: NuxtI18nRuntimeConfig["comvi"] };
+  comvi: NuxtI18nPrivateRuntimeConfig["comvi"];
+} = {
   public: {
     comvi: {
       locales: ["en", "de", "uk"],
@@ -12,7 +21,7 @@ const defaultRuntimeConfig = {
         uk: { code: "uk", name: "Українська" },
       },
       defaultLocale: "en",
-      localePrefix: "as-needed" as const,
+      localePrefix: "as-needed",
       cookieName: "i18n_locale",
       cdnUrl: "https://cdn.example.com",
       apiBaseUrl: "https://api.example.com",

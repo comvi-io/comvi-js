@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
+import type { LoaderResult } from "@comvi/core/loader";
 import { createNextI18n } from "../src/createNextI18n";
 import { loadTranslations, setI18n } from "../src/server";
 import { _resetServerI18n } from "../src/server/cache";
@@ -78,7 +79,7 @@ describe("loadTranslations", () => {
     const i18n = makeHost();
     i18n.addTranslations({ "en:common": { __seed: "seed" } });
 
-    const loaderMock = vi.fn(async (language: string, namespace: string) => {
+    const loaderMock = vi.fn(async (language: string, namespace: string): Promise<LoaderResult> => {
       if (language === "fr" && namespace === "common") {
         return { greeting: "Bonjour" };
       }
@@ -111,12 +112,14 @@ describe("loadTranslations", () => {
       "fr:common": { greeting: "Bonjour cached" },
     });
 
-    const loaderMock = vi.fn(async (_language: string, namespace: string) => {
-      if (namespace === "admin") {
-        return { title: "Admin Panel" };
-      }
-      return {};
-    });
+    const loaderMock = vi.fn(
+      async (_language: string, namespace: string): Promise<LoaderResult> => {
+        if (namespace === "admin") {
+          return { title: "Admin Panel" };
+        }
+        return {};
+      },
+    );
     i18n.registerLoader(loaderMock);
     setI18n(i18n);
 

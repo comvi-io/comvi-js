@@ -39,8 +39,12 @@ describe("@comvi/next/client — createI18n", () => {
     i18n.addTranslations({ "en:default": { greeting: "Hello, {name}!" } });
 
     expect(i18n.t("greeting" as never, { name: "world" } as never)).toBe("Hello, world!");
-    expect(i18n.reloadTranslations).toBeUndefined();
-    expect(i18n.onMissingKey).toBeUndefined();
+    // The bare host omits these from its TYPE as well, so reading them at all
+    // needs a widened view — the claim under test is that the runtime shape
+    // agrees with the type.
+    const bare = i18n as { reloadTranslations?: unknown; onMissingKey?: unknown };
+    expect(bare.reloadTranslations).toBeUndefined();
+    expect(bare.onMissingKey).toBeUndefined();
     expect("instanceId" in i18n).toBe(false);
   });
 

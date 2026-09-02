@@ -26,7 +26,7 @@ describe("FakeI18n defaultParams contract", () => {
   it("validates runtime replacements before changing state", () => {
     const fake = new FakeI18n();
 
-    expect(() => fake.setDefaultParams({ locale: "de" })).toThrow(
+    expect(() => fake.setDefaultParams({ locale: "de" } as never)).toThrow(
       /defaultParams.*locale.*ns.*fallback.*raw/i,
     );
     expect(() => fake.setDefaultParams({ formality: null } as never)).toThrow(

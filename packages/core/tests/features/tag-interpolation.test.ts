@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { I18n } from "../helpers/composedHost";
 import { createI18n } from "../helpers/composedHost";
+import type { TagCallbackParams } from "../../src/types";
 
 /**
  * The tag-interpolation contract: parsing and nesting, strict mode, the basic
@@ -13,8 +14,8 @@ describe("t() with tag interpolation", () => {
     i18n.addTranslations({ en: { msg: "Click <a><b>here</b></a>" } });
 
     const result = i18n.t("msg", {
-      a: ({ children }: { children: string }) => `A(${children})`,
-      b: ({ children }: { children: string }) => `B(${children})`,
+      a: ({ children }: TagCallbackParams) => `A(${children})`,
+      b: ({ children }: TagCallbackParams) => `B(${children})`,
     });
 
     expect(result).toBe("Click A(B(here))");
@@ -27,7 +28,7 @@ describe("t() with tag interpolation", () => {
     });
 
     const result = i18n.t("msg", {
-      this_link: ({ children }: { children: string }) => `[${children}]`,
+      this_link: ({ children }: TagCallbackParams) => `[${children}]`,
     });
 
     expect(result).toBe("Click [this link] for a new one.");
@@ -64,7 +65,7 @@ describe("t() with tag interpolation", () => {
 
     const result = i18n.t("msg", {
       name: "Alice",
-      bold: ({ children }: { children: string }) => `**${children}**`,
+      bold: ({ children }: TagCallbackParams) => `**${children}**`,
     });
 
     expect(result).toBe("**Hello Alice**");
@@ -80,7 +81,7 @@ describe("t() with tag interpolation", () => {
 
     const result = i18n.t("msg", {
       count: 5,
-      b: ({ children }: { children: string }) => `[${children}]`,
+      b: ({ children }: TagCallbackParams) => `[${children}]`,
     });
 
     expect(result).toBe("[5 items]");
@@ -164,7 +165,7 @@ describe("t() with tag interpolation", () => {
 
     it("a param handler overrides the whitelist", () => {
       const overridden = whitelistHost().tRaw("msg", {
-        strong: ({ children }: { children: string }) => `CUSTOM:${children}`,
+        strong: ({ children }: TagCallbackParams) => `CUSTOM:${children}`,
       });
 
       expect(overridden).toBe("This is CUSTOM:bold");

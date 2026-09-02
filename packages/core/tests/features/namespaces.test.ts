@@ -1,8 +1,8 @@
 import { describe, it, expect, vi } from "vitest";
 import { I18n } from "../helpers/composedHost";
+import type { I18nOptions } from "../../src/types";
 
-const makeI18n = (options: ConstructorParameters<typeof I18n>[0] = { locale: "en" }) =>
-  new I18n({ locale: "en", ...options });
+const makeI18n = (options: Partial<I18nOptions> = {}) => new I18n<{}>({ locale: "en", ...options });
 
 describe("t() with an explicit namespace", () => {
   it("should support explicit namespace parameter", () => {

@@ -22,8 +22,8 @@ describe("base + /loader composition", () => {
   it("has no loader capability before attaching", () => {
     const i18n = createI18n({ locale: "en", exposeGlobal: false });
 
-    expect((i18n as Record<string, unknown>).registerLoader).toBeUndefined();
-    expect((i18n as Record<string, unknown>).reloadTranslations).toBeUndefined();
+    expect((i18n as unknown as Record<string, unknown>).registerLoader).toBeUndefined();
+    expect((i18n as unknown as Record<string, unknown>).reloadTranslations).toBeUndefined();
   });
 
   it("installs the capability as non-enumerable own properties", () => {
@@ -161,7 +161,10 @@ describe("base + /plugins composition", () => {
   ];
 
   it("has no plugin host before attaching", () => {
-    const i18n = createI18n({ locale: "en", exposeGlobal: false }) as Record<string, unknown>;
+    const i18n = createI18n({ locale: "en", exposeGlobal: false }) as unknown as Record<
+      string,
+      unknown
+    >;
 
     for (const name of PLUGIN_API) expect(i18n[name], name).toBeUndefined();
   });
@@ -382,8 +385,12 @@ describe(".with(installer) — the composition pipe", () => {
   it("accepts the low-level attaches directly — they ARE installers", () => {
     const i18n = createI18n({ locale: "en", exposeGlobal: false });
 
-    expect(i18n.with(attachLoader)).toBe(i18n);
-    expect(typeof i18n.getLoader).toBe("function");
+    // The attach installs in place and returns the SAME host, so this local is
+    // `i18n` — it just carries the widened type the installer returns.
+    const withLoader = i18n.with(attachLoader);
+
+    expect(withLoader).toBe(i18n);
+    expect(typeof withLoader.getLoader).toBe("function");
     expect(typeof i18n.with(attachPlugins).use).toBe("function");
   });
 });

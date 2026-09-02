@@ -7,7 +7,7 @@
  */
 
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createI18n } from "./helpers/composedHost";
+import { asPluginHost, createI18n } from "./helpers/composedHost";
 
 const { coreCtorMock, coreStartMock, coreStopMock, mockCoreModule, resetCoreMocks } =
   await vi.hoisted(() => import("./helpers/mockCore"));
@@ -38,7 +38,7 @@ describe("InContextEditorPlugin production guard", () => {
     // "no subscriptions" is the observable form of "the host is untouched".
     const onSpy = vi.spyOn(i18n, "on");
 
-    const cleanup = InContextEditorPlugin()(i18n);
+    const cleanup = InContextEditorPlugin()(asPluginHost(i18n));
 
     expect(coreCtorMock).not.toHaveBeenCalled();
     expect(coreStartMock).not.toHaveBeenCalled();
@@ -54,7 +54,9 @@ describe("InContextEditorPlugin production guard", () => {
     vi.stubEnv("NODE_ENV", "production");
     const i18n = makeI18n();
 
-    const cleanup = InContextEditorPlugin({ debug: true, collectContext: false })(i18n);
+    const cleanup = InContextEditorPlugin({ debug: true, collectContext: false })(
+      asPluginHost(i18n),
+    );
 
     expect(coreCtorMock).not.toHaveBeenCalled();
     expect(typeof cleanup).toBe("function");
@@ -65,7 +67,7 @@ describe("InContextEditorPlugin production guard", () => {
     vi.stubEnv("NODE_ENV", "development");
     const i18n = makeI18n();
 
-    const cleanup = InContextEditorPlugin()(i18n);
+    const cleanup = InContextEditorPlugin()(asPluginHost(i18n));
 
     expect(coreCtorMock).toHaveBeenCalledTimes(1);
     expect(coreStartMock).toHaveBeenCalledTimes(1);
@@ -79,7 +81,7 @@ describe("InContextEditorPlugin production guard", () => {
     vi.stubEnv("NODE_ENV", undefined);
     const i18n = makeI18n();
 
-    const cleanup = InContextEditorPlugin()(i18n);
+    const cleanup = InContextEditorPlugin()(asPluginHost(i18n));
 
     expect(coreCtorMock).toHaveBeenCalledTimes(1);
     expect(coreStartMock).toHaveBeenCalledTimes(1);

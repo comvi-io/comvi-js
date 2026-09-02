@@ -705,10 +705,11 @@ describe("DOMWatcher", () => {
       const input = document.createElement("input");
       container.appendChild(input);
       const eventBus = new EventBus();
-      // The runtime contract has to survive a caller that omits the config.
+      // The runtime contract has to survive a caller that omits the config, so
+      // the options are deliberately forced past the required `tagAttributes`.
       const watcher = new DOMWatcher(eventBus, {
         targetElement: container,
-      } as TranslationSystemInnerOptions);
+      } as unknown as TranslationSystemInnerOptions);
       watchers.push(watcher);
       const callback = vi.fn();
       eventBus.on("attributeChanges", callback);

@@ -68,7 +68,7 @@
   "scripts": {
     "dev": "vite build --watch",
     "build": "tsc && vite build",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.tests.json",
     "test": "vitest run && pnpm test:types",
     "test:types": "tsc --noEmit -p tsconfig.test-types.json",
     "test:watch": "vitest",

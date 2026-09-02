@@ -1,0 +1,13 @@
+{
+  // Type-checks the runtime test files (tests/**) that the build tsconfig
+  // deliberately excludes. Kept as a SEPARATE project so `tsc` in `build`
+  // still sees only src.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "rootDir": ".",
+    "noEmit": true,
+    "types": ["vitest/globals", "node"]
+  },
+  "include": ["src/**/*.ts", "tests/**/*.ts"],
+  "exclude": ["tests/types/**"]
+}

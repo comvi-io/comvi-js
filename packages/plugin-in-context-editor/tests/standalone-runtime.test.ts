@@ -33,7 +33,7 @@ vi.mock("../src/Core", mockCoreModule);
 import { activate, deactivate, isActive } from "../src/standalone";
 import { getApiConfig } from "../src/config/api";
 import { resetEncoder } from "../src/translation";
-import type { ApiTransportInit } from "../src/config/api";
+import type { ApiTransport, ApiTransportInit } from "../src/config/api";
 
 type CoreOptions = { targetElement?: Node; collectContext?: boolean };
 
@@ -259,10 +259,10 @@ describe("activate() translation refresh", () => {
 });
 
 describe("activate() proxy transport", () => {
-  const transport = () => vi.fn(async () => new Response("{}", { status: 200 }));
+  const transport = () => vi.fn<ApiTransport>(async () => new Response("{}", { status: 200 }));
 
   function transportInits(mock: ReturnType<typeof transport>): Array<ApiTransportInit | undefined> {
-    return mock.mock.calls.map(([, init]) => init as ApiTransportInit | undefined);
+    return mock.mock.calls.map(([, init]) => init);
   }
 
   it("forwards a request that carries no init at all", async () => {

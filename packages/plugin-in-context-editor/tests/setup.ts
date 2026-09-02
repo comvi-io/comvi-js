@@ -50,12 +50,12 @@ expect.extend({
   },
 });
 
-declare global {
-  // Vitest's documented way to add custom matcher types is namespace augmentation.
-  // eslint-disable-next-line @typescript-eslint/no-namespace
-  namespace Vi {
-    interface Matchers<R = unknown> {
-      toContainInvisibleChars(): R;
-    }
+// Vitest 4 types custom matchers by augmenting its own `Matchers` interface;
+// the `Vi` global namespace this used to declare is no longer consulted. The
+// parameter defaults must match the shipped declaration exactly.
+declare module "vitest" {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  interface Matchers<T = any> {
+    toContainInvisibleChars(): void;
   }
 }

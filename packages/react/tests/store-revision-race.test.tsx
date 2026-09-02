@@ -4,6 +4,7 @@ import { useLayoutEffect } from "react";
 import { I18nProvider } from "../src/I18nProvider";
 import { useI18n } from "../src/useI18n";
 import { createI18n, icuCompiler } from "../src/index";
+import type { WrapperI18nHost } from "@comvi/core";
 
 describe("useStoreRevision — commit→subscribe (t2) window", () => {
   it("re-renders when defaultParams change during the commit→subscribe window", async () => {
@@ -34,8 +35,12 @@ describe("useStoreRevision — commit→subscribe (t2) window", () => {
       return null;
     }
 
+    // `I18nProvider`'s `i18n` prop is `WrapperI18nHost<{}>`, not
+    // `WrapperI18nHost<D>`, and `setDefaultParams` makes the host invariant in
+    // `D`, so no `createI18n({ defaultParams })` instance is assignable to it.
+    // The cast stands in until the prop is generic over the defaults type.
     const { getByTestId } = render(
-      <I18nProvider i18n={i18n} autoInit={false}>
+      <I18nProvider i18n={i18n as unknown as WrapperI18nHost} autoInit={false}>
         <Injector />
         <Consumer />
       </I18nProvider>,

@@ -1,12 +1,13 @@
 import { describe, it, expect, vi } from "vitest";
 import { I18n } from "../helpers/composedHost";
+import type { I18nPlugin } from "../../src/plugins/types";
 
 describe("the devMode option", () => {
   it.each([true, false])("exposes devMode=%s to plugins", async (devMode) => {
     let pluginDevModeValue: boolean | undefined;
 
     const i18n = new I18n({ locale: "en", devMode });
-    const testPlugin = (instance: typeof i18n) => {
+    const testPlugin: I18nPlugin = (instance) => {
       pluginDevModeValue = instance.devMode;
     };
 

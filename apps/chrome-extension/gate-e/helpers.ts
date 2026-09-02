@@ -7,6 +7,17 @@ import {
   type Worker,
 } from "@playwright/test";
 import { createServer } from "node:net";
+import type { SessionRecord, TabState } from "../src/background/state";
+import type { OriginCredentials } from "../src/shared/storage";
+
+/**
+ * `chrome.storage.session.get(key)` cannot infer a record shape from a
+ * computed key, so it falls back to an empty type and every read off the
+ * result is a type error. The specs state the shape they expect with these.
+ */
+export type SessionStore = Record<string, SessionRecord | undefined>;
+export type TabStateStore = Record<string, TabState | undefined>;
+export type CredentialStore = { comvi_credentials?: Record<string, OriginCredentials> };
 
 /** Fail at collection time, so a missing variable fails the file rather than one test. */
 export function requireEnv(name: string): string {

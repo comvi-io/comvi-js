@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { createI18n } from "../helpers/composedHost";
 import { findMatchingBraceEnd, type ArgOpensHashScope } from "../../src/core/translate/parser";
+import type { TranslationParams } from "../../src/types";
 
 /**
  * Walking a `{…}` argument to its closing brace while tracking whether `#` is
@@ -10,7 +11,7 @@ import { findMatchingBraceEnd, type ArgOpensHashScope } from "../../src/core/tra
  * structural where it is not.
  */
 
-function render(template: string, params: Record<string, unknown>): string {
+function render(template: string, params: TranslationParams): string {
   const i18n = createI18n({ locale: "en", translation: { en: { msg: template } } });
   return i18n.t("msg", params) as string;
 }

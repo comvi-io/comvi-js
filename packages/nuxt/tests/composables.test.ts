@@ -12,6 +12,7 @@ import { useLocaleRoute } from "../src/runtime/composables/useLocaleRoute";
 import { useLocaleHead } from "../src/runtime/composables/useLocaleHead";
 import { useRouteConfig } from "../src/runtime/composables/useRouteConfig";
 import { useState } from "#app";
+import type { RouteLocationRaw } from "vue-router";
 
 describe("useLocalePath", () => {
   beforeEach(() => {
@@ -224,7 +225,9 @@ describe("useLocalePath - named routes", () => {
     const seen = captureResolve();
     const localePath = useLocalePath();
 
-    localePath({ path: "/about", name: undefined }, "de");
+    // vue-router's RouteLocationRaw has no member carrying both `path` and
+    // `name`; this test exists because callers still spread such objects.
+    localePath({ path: "/about", name: undefined } as RouteLocationRaw, "de");
 
     expect(seen).toEqual([{ path: "/about", name: undefined }]);
   });

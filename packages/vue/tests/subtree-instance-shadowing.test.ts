@@ -2,16 +2,11 @@ import { describe, it, expect } from "vitest";
 import { mount } from "@vue/test-utils";
 import { defineComponent, h, provide, type PropType } from "vue";
 import { icuCompiler, useI18n } from "../src";
+import type { VueI18nOptions } from "../src";
 import { createI18n } from "../src/createI18n";
 import type { VueI18n } from "../src/VueI18n";
 import { T } from "../src/components/T";
 import { I18N_INJECTION_KEY } from "../src/keys";
-
-declare module "@comvi/core" {
-  interface TranslationKeys {
-    review: never;
-  }
-}
 
 const REVIEW_SELECT: Record<string, Record<string, string>> = {
   en: { review: "Your review" },
@@ -22,12 +17,18 @@ const REVIEW_SELECT: Record<string, Record<string, string>> = {
 function createInstance(locale: string, formality?: string) {
   // The catalog is ICU `select`, so the constructor names the compiler that
   // understands it — the base host's simple compiler does not.
-  return createI18n({
+  // The options are annotated so every instance here shares one `D`: inferring
+  // it per call would make the formality-carrying instance a different
+  // `VueI18n` type from the plain one, and the two are provided through the
+  // same injection key below.
+  const options: VueI18nOptions = {
     locale,
     compiler: icuCompiler,
     translation: REVIEW_SELECT,
     ...(formality ? { defaultParams: { formality } } : {}),
-  });
+  };
+
+  return createI18n(options);
 }
 
 const ReviewText = defineComponent({

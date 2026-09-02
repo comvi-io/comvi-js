@@ -1,6 +1,8 @@
 import { describe, it, expect, vi } from "vitest";
 import { render } from "solid-js/web";
 import { attachLoader, attachPlugins, createI18n, icuCompiler } from "../src/index";
+import type { WrapperI18nHost } from "@comvi/core";
+import type { LoaderResult } from "@comvi/core/loader";
 import { I18nProvider } from "../src/context";
 import { useI18n } from "../src/useI18n";
 import { useI18nLoader, useI18nPlugins } from "../src/capabilityHooks";
@@ -124,8 +126,12 @@ describe("useI18n", () => {
         </div>
       );
     };
+    // `I18nProvider`'s `i18n` prop is `WrapperI18nHost<{}>`, not
+    // `WrapperI18nHost<D>`, and `setDefaultParams` makes the host invariant in
+    // `D`, so no `createI18n({ defaultParams })` instance is assignable to it.
+    // The cast stands in until the prop is generic over the defaults type.
     const container = renderSolid(() => (
-      <I18nProvider i18n={i18n} autoInit={false}>
+      <I18nProvider i18n={i18n as unknown as WrapperI18nHost} autoInit={false}>
         <Probe />
       </I18nProvider>
     ));
@@ -256,7 +262,7 @@ describe("useI18n", () => {
       // `attachLoader` rather than `loader()`: this registers a raw `LoaderFn`.
     }).with(attachLoader);
 
-    i18n.registerLoader(async (_language, namespace) => {
+    i18n.registerLoader(async (_language, namespace): Promise<LoaderResult> => {
       if (namespace === "common") {
         return { title: commonTitle };
       }

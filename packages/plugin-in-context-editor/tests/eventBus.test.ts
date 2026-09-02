@@ -1,6 +1,19 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { EventBus } from "../src/EventBus";
 
+// Most of this suite exercises the bus's generic dispatch machinery rather than
+// any production event, so it drives it with synthetic names. The bus is keyed
+// by EventBusEvents, so those names have to be declared on that map for the
+// tests to type-check; the augmentation is confined to this file's program.
+declare module "../src/EventBus" {
+  interface EventBusEvents {
+    "test-event": unknown[];
+    "non-existent-event": unknown[];
+    "error-event": unknown[];
+    test: unknown[];
+  }
+}
+
 describe("EventBus", () => {
   let eventBus: EventBus;
 
@@ -113,18 +126,21 @@ describe("EventBus", () => {
       expect(callback).toHaveBeenCalledWith(complexData);
     });
 
-    it.each(["textChanges", "attributeChanges", "structureChanges", "nodesRemoved", "initialScan"])(
-      "should deliver the %s payload to its subscriber unchanged",
-      (eventName) => {
-        const callback = vi.fn();
-        const payload = [document.createElement("div"), document.createTextNode("text")];
-        eventBus.on(eventName, callback);
+    it.each([
+      "textChanges",
+      "attributeChanges",
+      "structureChanges",
+      "nodesRemoved",
+      "initialScan",
+    ] as const)("should deliver the %s payload to its subscriber unchanged", (eventName) => {
+      const callback = vi.fn();
+      const payload = [document.createElement("div"), document.createTextNode("text")];
+      eventBus.on(eventName, callback);
 
-        eventBus.emit(eventName, payload);
+      eventBus.emit(eventName, payload);
 
-        expect(callback).toHaveBeenCalledExactlyOnceWith(payload);
-      },
-    );
+      expect(callback).toHaveBeenCalledExactlyOnceWith(payload);
+    });
   });
 
   describe("unsubscribe", () => {

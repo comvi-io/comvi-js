@@ -1,0 +1,15 @@
+{
+  // The unit suites live under src/**/__tests__ and are already covered by
+  // tsconfig.json's `src/**/*.ts`. This project adds the Playwright gate-E
+  // specs, which sit outside src/ and were type-checked by nothing.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    // The specs run on Node 22 (Array.prototype.toSorted), not the ES2020
+    // floor the extension bundle targets.
+    "lib": ["ES2023", "DOM"],
+    "types": ["chrome", "node", "@playwright/test"]
+  },
+  "include": ["gate-e/**/*.ts"],
+  "exclude": ["node_modules", "dist"]
+}

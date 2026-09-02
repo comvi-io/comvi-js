@@ -57,7 +57,7 @@ describe("plugin failure reports", () => {
   it("wraps a non-Error rejection in an initialization-failed message", async () => {
     const onError = vi.fn();
     const i18n = makeHost(onError);
-    i18n.use(() => Promise.reject("socket hung up"), { required: false });
+    i18n.use(() => Promise.reject<void>("socket hung up"), { required: false });
 
     await i18n.init();
 

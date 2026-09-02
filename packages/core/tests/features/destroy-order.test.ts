@@ -137,7 +137,7 @@ describe("destroy ordering", () => {
     const i18n = attachPlugins(attachLoader(createBaseI18n({ locale: "en", exposeGlobal: false })));
 
     i18n.registerLoader(async () => ({ hello: "Hello" }));
-    i18n.use(() => () => order.push("cleanup"));
+    i18n.use(() => () => void order.push("cleanup"));
     i18n.on("destroyed", () => order.push("destroyed"));
     await i18n.init();
     await i18n.destroy();

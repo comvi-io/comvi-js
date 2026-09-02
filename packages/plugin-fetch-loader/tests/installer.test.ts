@@ -118,12 +118,14 @@ describe("fetchLoader() wrong use", () => {
     // `.with` is a dumb pipe: it CALLS what you give it. A plugin handed to it
     // runs against a host that has none of the capabilities it needs, so the
     // invocation is rejected rather than silently half-installing.
-    const misuse = i18n.with(FetchLoader(OPTIONS)) as unknown as Promise<void>;
+    const misuse = i18n.with(
+      FetchLoader(OPTIONS) as unknown as Parameters<typeof i18n.with>[0],
+    ) as unknown as Promise<void>;
 
     await expect(misuse).rejects.toThrow(TypeError);
 
-    expect((i18n as Record<string, unknown>).registerLoader).toBeUndefined();
-    expect((i18n as Record<string, unknown>).use).toBeUndefined();
+    expect((i18n as unknown as Record<string, unknown>).registerLoader).toBeUndefined();
+    expect((i18n as unknown as Record<string, unknown>).use).toBeUndefined();
   });
 
   it("still installs normally after a rejected .use() attempt", async () => {

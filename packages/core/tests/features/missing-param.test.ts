@@ -6,6 +6,7 @@ import { createI18n as createBaseI18n } from "../../src";
 import { clearTemplateCache, _resetMissingParamWarnings } from "../../src/core/translate";
 import { _resetSyntaxExtensions } from "../../src/core/translate/syntax";
 import { registerTagSyntax } from "../../src/core/translate/tags";
+import type { TranslationParams } from "../../src/types";
 
 // Importing the composite registered tag syntax AMBIENTLY (the base root
 // registers nothing), which the tag path below relies on. The template cache
@@ -22,7 +23,7 @@ afterEach(() => {
 });
 
 type Mode = "literal" | "drop";
-type Params = Record<string, unknown> | undefined;
+type Params = TranslationParams | undefined;
 
 function makeFull(mode?: Mode, translations?: Record<string, string>) {
   return createI18n({

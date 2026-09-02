@@ -1,4 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
+import type { MockInstance } from "vitest";
 import { createI18n } from "../../src";
 import { clearTemplateCache, _resetMissingParamWarnings } from "../../src/core/translate";
 import { _resetTagWarnings } from "../../src/core/translate/parser";
@@ -6,7 +7,7 @@ import { _resetTagWarnings } from "../../src/core/translate/parser";
 // Both dev warnings dedup for the lifetime of the module, so `tests/setup.ts` calls these
 // seams in afterEach. What they must actually forget is pinned here, from inside one test.
 
-function warnings(spy: ReturnType<typeof vi.spyOn>, fragment: string): string[] {
+function warnings(spy: MockInstance<typeof console.warn>, fragment: string): string[] {
   return spy.mock.calls
     .map((call) => call[0])
     .filter(

@@ -12,19 +12,6 @@ import { createI18n } from "../src/createI18n";
 import { T } from "../src/components/T";
 import { I18N_INJECTION_KEY } from "../src/keys";
 
-declare module "@comvi/core" {
-  interface TranslationKeys {
-    hello: never;
-    w: { n: string };
-    "missing.key": never;
-    greeting: never;
-    title: never;
-    fragment: never;
-    multiRoot: never;
-    emptySlot: never;
-  }
-}
-
 describe("<T /> component", () => {
   it("renders simple translation", () => {
     const i18n = createI18n({ locale: "en", translation: { en: { hello: "Hello" } } });

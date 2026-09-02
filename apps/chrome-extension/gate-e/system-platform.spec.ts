@@ -4,6 +4,7 @@ import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { extensionWorker, openPopup, requireEnv, reservePort } from "./helpers";
+import type { CredentialStore, SessionStore } from "./helpers";
 import { EXPECTED_CONTENT_SCRIPTS } from "../src/shared/__fixtures__/manifest-content-scripts";
 
 const extensionPath = resolve(import.meta.dirname, "../dist-system");
@@ -67,7 +68,7 @@ async function activate(popup: Page, worker: Worker, tabId: number): Promise<voi
         worker.evaluate((id) => {
           const chromeApi = (globalThis as typeof globalThis & { chrome: typeof chrome }).chrome;
           return chromeApi.storage.session
-            .get(`comvi_session_${id}`)
+            .get<SessionStore>(`comvi_session_${id}`)
             .then((state) => state[`comvi_session_${id}`]?.status);
         }, tabId),
       { timeout: 15_000 },
@@ -84,7 +85,7 @@ async function deactivate(page: Page, worker: Worker, tabId: number): Promise<vo
       worker.evaluate((id) => {
         const chromeApi = (globalThis as typeof globalThis & { chrome: typeof chrome }).chrome;
         return chromeApi.storage.session
-          .get(`comvi_session_${id}`)
+          .get<SessionStore>(`comvi_session_${id}`)
           .then((state) => state[`comvi_session_${id}`]);
       }, tabId),
     )
@@ -439,7 +440,7 @@ test("real platform persists editor writes and SDK-configured context through th
           worker.evaluate((id) => {
             const chromeApi = (globalThis as typeof globalThis & { chrome: typeof chrome }).chrome;
             return chromeApi.storage.session
-              .get(`comvi_session_${id}`)
+              .get<SessionStore>(`comvi_session_${id}`)
               .then((state) => state[`comvi_session_${id}`]);
           }, tabId),
         )
@@ -456,7 +457,7 @@ test("real platform persists editor writes and SDK-configured context through th
           worker.evaluate(() => {
             const chromeApi = (globalThis as typeof globalThis & { chrome: typeof chrome }).chrome;
             return chromeApi.storage.local
-              .get("comvi_credentials")
+              .get<CredentialStore>("comvi_credentials")
               .then((state) => state.comvi_credentials?.["http://127.0.0.1:8791"]);
           }),
         )

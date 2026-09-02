@@ -6,7 +6,7 @@
  */
 
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createI18n } from "./helpers/composedHost";
+import { asPluginHost, createI18n } from "./helpers/composedHost";
 
 const {
   coreCtorMock,
@@ -32,6 +32,7 @@ vi.mock("@comvi/plugin-fetch-loader", async (importOriginal) => {
 vi.mock("../src/Core", mockCoreModule);
 
 import { InContextEditorPlugin } from "../src/index";
+import type { ApiTransport } from "../src/config/api";
 import {
   activate,
   deactivate,
@@ -74,9 +75,11 @@ describe("collectContext / screenGroupResolver pass-through", () => {
   it("InContextEditorPlugin hands collectContext: false and the resolver to Core", () => {
     const resolver = () => "/users/:id";
     const i18n = makeI18n();
+    // The editor's install is synchronous and always hands back its teardown;
+    // `I18nPlugin`'s return type also covers the async and no-cleanup shapes.
     const cleanup = InContextEditorPlugin({ collectContext: false, screenGroupResolver: resolver })(
-      i18n,
-    );
+      asPluginHost(i18n),
+    ) as () => void;
 
     const options = lastCoreOptions();
     expect(options.collectContext).toBe(false);
@@ -87,7 +90,7 @@ describe("collectContext / screenGroupResolver pass-through", () => {
 
   it("InContextEditorPlugin leaves collectContext undefined (Core's default: enabled) when not set", () => {
     const i18n = makeI18n();
-    const cleanup = InContextEditorPlugin()(i18n);
+    const cleanup = InContextEditorPlugin()(asPluginHost(i18n)) as () => void;
 
     expect(lastCoreOptions().collectContext).toBeUndefined();
 
@@ -308,7 +311,7 @@ describe("standalone lifecycle notifications", () => {
   it("refreshes translations through the scoped transport without leaking headers", async () => {
     const i18n = makeI18n();
     const addTranslations = vi.spyOn(i18n, "addTranslations");
-    const transport = vi.fn(async () => new Response("{}", { status: 200 }));
+    const transport = vi.fn<ApiTransport>(async () => new Response("{}", { status: 200 }));
     fetchApiTranslationsMock.mockImplementation(
       async (
         _apiKey: string,

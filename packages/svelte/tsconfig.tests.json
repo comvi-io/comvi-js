@@ -1,0 +1,29 @@
+{
+  // Type-checks the runtime test files (tests/**) that the build tsconfig
+  // deliberately excludes. Kept as a SEPARATE project so `svelte-package`
+  // still sees only src. `tests/types/**` stays with
+  // tsconfig.test-types.json; `tests/js-contract/**` is .js by design.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "composite": false,
+    "declaration": false,
+    "declarationMap": false,
+    "sourceMap": false,
+    "noEmit": true,
+    "rootDir": "../..",
+    "lib": ["ES2023", "DOM"],
+    "types": ["svelte", "vitest/globals", "node"],
+    "paths": {
+      "@comvi/core": ["../core/src/index.ts"],
+      "@comvi/core/loader": ["../core/src/loader.ts"],
+      "@comvi/core/plugins": ["../core/src/plugins.ts"],
+      "@comvi/core/devtools": ["../core/src/devtools.ts"],
+      "@comvi/core/icu": ["../core/src/icu.ts"],
+      "@comvi/core/rich-text": ["../core/src/rich-text.ts"],
+      "@comvi/core/tags": ["../core/src/tags.ts"],
+      "@comvi/core/editor-bridge": ["../core/src/editor-bridge.ts"]
+    }
+  },
+  "include": ["src/**/*.ts", "src/**/*.d.ts", "tests/**/*.ts"],
+  "exclude": ["node_modules", "dist", "tests/types/**"]
+}

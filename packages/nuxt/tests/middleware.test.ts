@@ -27,8 +27,13 @@ interface RouteStub {
   query?: Record<string, unknown>;
 }
 
-/** The single cast in this file: the middleware reads only these three fields. */
-const runMiddleware = (route: RouteStub) => middleware(route as any);
+/**
+ * The single cast in this file. `#app`'s shim types `defineNuxtRouteMiddleware`
+ * as returning `unknown`, so the imported default export arrives without its
+ * call signature; the middleware itself reads only these three route fields.
+ */
+const runMiddleware = (route: RouteStub) =>
+  (middleware as (to: RouteStub) => Promise<unknown>)(route);
 
 type DetectConfig = (typeof mockRuntimeConfig)["public"]["comvi"]["detectBrowserLanguage"];
 

@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { I18n } from "../helpers/composedHost";
+import type { LoaderResult } from "../../src/types";
 
 describe("new I18n(options) — option validation", () => {
   it.each([
@@ -147,7 +148,7 @@ describe("init()", () => {
       ns: ["common", "dashboard"],
     });
 
-    i18n.registerLoader(async (lang, ns) => {
+    i18n.registerLoader(async (lang, ns): Promise<LoaderResult> => {
       loaderCalls.push(`${lang}:${ns}`);
       if (ns === "common") return { hello: "Hello" };
       if (ns === "dashboard") return { title: "Dashboard" };

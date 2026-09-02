@@ -9,7 +9,7 @@ import { render, act } from "@testing-library/react";
 
 import { useSubscribe } from "../src/I18nProvider";
 import { FakeI18n } from "@comvi/test-utils/fakeI18n";
-import type { I18nEvent } from "@comvi/core";
+import type { I18nEvent, I18nEventData } from "@comvi/core";
 
 describe("useSubscribe — rest-args + stable join-key deps", () => {
   function Probe({
@@ -119,7 +119,11 @@ describe("useSubscribe — rest-args + stable join-key deps", () => {
     expect(firedCount).toBe(2);
 
     await act(async () => {
-      fake.emit("loadingStateChanged", { isLoading: true });
+      // Nothing subscribes to `loadingStateChanged` here — this emit is the
+      // negative control, so the payload stands in for the full event shape.
+      fake.emit("loadingStateChanged", {
+        isLoading: true,
+      } as I18nEventData["loadingStateChanged"]);
     });
     expect(firedCount).toBe(2);
 

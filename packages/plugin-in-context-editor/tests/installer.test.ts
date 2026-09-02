@@ -17,7 +17,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { attachDevtools } from "@comvi/core/devtools";
 import { plugins } from "@comvi/core/plugins";
 import type { I18nPlugin } from "@comvi/core";
-import { createI18n } from "./helpers/composedHost";
+import { asPluginHost, createI18n } from "./helpers/composedHost";
 import { createI18n as createBaseI18n } from "@comvi/core";
 
 const { coreCtorMock, coreStartMock, coreStopMock, mockCoreModule, resetCoreMocks } =
@@ -49,7 +49,7 @@ describe("inContextEditor() installer — default entry", () => {
 
     // Discovery came FIRST, and the plugin host is composed on.
     expect(i18n.instanceId).toBeDefined();
-    expect(typeof (i18n as Record<string, unknown>).use).toBe("function");
+    expect(typeof (i18n as unknown as Record<string, unknown>).use).toBe("function");
     // Composition attaches; the PLUGIN runs at init().
     expect(coreCtorMock).not.toHaveBeenCalled();
 
@@ -138,8 +138,11 @@ describe("inContextEditor() wrong use — default entry", () => {
     const i18n = base();
 
     // `.with` is a dumb pipe: it CALLS what you give it, and the plugin needs
-    // `registerPostProcessor`, which a base host does not have.
-    expect(() => i18n.with(InContextEditorPlugin())).toThrow(TypeError);
+    // `registerPostProcessor`, which a base host does not have. Handing an
+    // installer a plugin is the misuse under test, so the cast is deliberate.
+    expect(() =>
+      i18n.with(InContextEditorPlugin() as unknown as (host: typeof i18n) => unknown),
+    ).toThrow(TypeError);
     expect(coreStartMock).not.toHaveBeenCalled();
   });
 });
@@ -153,7 +156,7 @@ describe("inContextEditor() — production condition", () => {
     expect(returned).toBe(host);
     // No discovery, no plugin host, no editor, no mappings bridge.
     expect(host.instanceId).toBeUndefined();
-    expect((host as Record<string, unknown>).use).toBeUndefined();
+    expect((host as unknown as Record<string, unknown>).use).toBeUndefined();
     expect((host as unknown as Record<string, unknown>)[MAPPINGS_BRIDGE_KEY]).toBeUndefined();
     expect(coreCtorMock).not.toHaveBeenCalled();
     expect(browserGlobals.__COMVI__).toBeUndefined();
@@ -197,7 +200,7 @@ describe("inContextEditor() — production condition", () => {
   it("keeps the uppercase production no-op unchanged", () => {
     const i18n = createI18n({ locale: "en", defaultNs: "default" });
 
-    const cleanup = ProdPlugin()(i18n);
+    const cleanup = ProdPlugin()(asPluginHost(i18n));
 
     expect(coreCtorMock).not.toHaveBeenCalled();
     expect(cleanup).toBeUndefined();

@@ -106,12 +106,14 @@ describe("useI18n composable", () => {
       },
     });
 
-    const C = {
-      template: '<div>{{ t("review") }}-{{ defaultParams?.formality }}</div>',
+    // `defineComponent` only so `wrapper.vm` below is typed from the setup
+    // return; a bare options object loses it.
+    const C = defineComponent({
       setup() {
         return useI18n<{ formality: "formal" | "informal" }>();
       },
-    };
+      template: '<div>{{ t("review") }}-{{ defaultParams?.formality }}</div>',
+    });
 
     const wrapper = mount(C, { global: { plugins: [i18n] } });
     expect(wrapper.text()).toBe("Formal-formal");
