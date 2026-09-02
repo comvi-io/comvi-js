@@ -413,3 +413,34 @@ SIX NEW SRC TYPING DEFECTS found by the tests-typecheck gate — recorded, NOT y
 Remaining known-open: editor ValidationResult.warnings UI (product), cli commands' residual
 survivors (~299 raw, kill-pass never run on the round-6 command tests), svelte .svelte internals
 only via svelte-check.
+
+## IN-FLIGHT at compact time (2026-09-02 ~16:4x) — Round 12: the six typing fixes
+
+Owner said "фікси всі". THREE AGENTS RUNNING in main (disjoint packages), reports pending:
+- react-cleanup -> BUG #1 HIGH (react/solid/svelte providers generic over D + vue probe;
+  I18nProvider.tsx:13 / context.tsx:41 / context.ts:9) and BUG #6 (vue T.ts:141 tRaw(string)).
+  Changesets react/solid/svelte likely minor, vue judged by agent.
+- tests-typecheck -> BUG #2 HIGH (next nextI18nRouting.ts:16 locales -> readonly + restore three
+  `as const` fixtures), BUG #4 (nuxt shims-nuxt.d.ts declare-module block shadows @nuxt/schema —
+  move to module-scoped file, then UN-exclude module.ts from tsconfig.typecheck.json and
+  tests/module.test.ts + tests/host-template.test.ts from tsconfig.tests.json, fix what surfaces),
+  BUG #5 (shims defineNuxtRouteMiddleware/Plugin unknown returns). Changesets next patch, nuxt patch.
+- prod-profile -> BUG #3 (core types.ts:432 — the `string extends keyof D` branch makes
+  defaultParams REQUIRED on constraint-landing positions; fix to optional preserving inference,
+  remove the commented casts the typecheck wave left, root `pnpm typecheck` is the blast-radius
+  gate). Changeset core patch.
+
+MERGE PROTOCOL for each report (the lead does this): agents work directly in main, no commits —
+verify the touched packages' gates yourself (vitest both views + typecheck + lint), `git add` the
+reported files + changesets, commit with a story-telling message + trailers, push, one CI watch
+per settled push (cancel-in-progress eats intermediate runs — only the LAST push's run matters).
+All type fixes must carry compile-checked red-proof pins (agent reports the pre-fix error text).
+Every agent knows to report BUG TO FIX loudly instead of pinning wrong behaviour.
+
+AFTER this wave the pre-release list is: editor ValidationResult.warnings UI (product decision),
+cli commands residual kill-pass (~299 raw survivors, optional), svelte-check for .svelte internals
+(accepted limitation). Then Phase 6: PR to main (now with ~14 changesets), RC dispatch, soak, GA.
+
+Branch tip at compact: ffb102a (all CI green). Registry: 770 entries, 0 stale. Suite totals:
+core 1166, editor 1364, ext 976+, next 308+, react 223, svelte 162, vue 256, nuxt 282, solid 146,
+cli 319.
