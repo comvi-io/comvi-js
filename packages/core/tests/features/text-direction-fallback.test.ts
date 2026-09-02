@@ -7,10 +7,10 @@ import { getTextDirection } from "../../src";
 // tags below overlap `formatting.test.ts`'s table on purpose: same expectations,
 // other code path (that one lets the real `textInfo` answer first).
 //
-// INVARIANT, needs-seam: `getTextDirection` memoises into a module-level cache
-// with no reset export, so every tag in this file must appear in exactly ONE
-// test. Reuse a tag across two stubs and the second reads the first's cached
-// answer without ever consulting the stub — a silent pass.
+// `getTextDirection` memoises into a module-level cache; tests/setup.ts wipes
+// it in afterEach via `_resetFormatterCaches`, so reusing a tag across tests is
+// safe. Within ONE test a repeated tag still reads the cached answer without
+// consulting the stub — keep per-test tags distinct unless caching is the claim.
 //
 // Why hand-rolled save/restore rather than `vi.stubGlobal`: `Intl.Locale` is a
 // property OF a global, not a `globalThis` key, so `unstubAllGlobals` never

@@ -6,12 +6,14 @@ describe("new I18n(options) — option validation", () => {
     ["omitted", {}],
     ["an empty string", { locale: "" }],
   ])("throws when locale is %s", (_label, options) => {
-    expect(() => new I18n(options as any)).toThrow(/Locale is not set|E_LOCALE_NOT_SET/);
+    expect(() => new I18n(options as any)).toThrowError(
+      expect.objectContaining({ message: "@comvi/core: Locale is not set" }),
+    );
   });
 
   it("throws a validation error when translation is null", () => {
-    expect(() => new I18n({ locale: "en", translation: null as any })).toThrow(
-      /Translation is not an object|E_TRANSLATION_NOT_OBJECT/,
+    expect(() => new I18n({ locale: "en", translation: null as any })).toThrowError(
+      expect.objectContaining({ message: "@comvi/core: Translation is not an object" }),
     );
   });
 });

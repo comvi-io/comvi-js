@@ -96,7 +96,7 @@ describe("defaultParams — the constructor option and setDefaultParams()", () =
     expect(i18n.defaultParams).toEqual({ formality: "formal" });
   });
 
-  it.each(["locale", "ns", "fallback", "raw"])(
+  it.each(["locale", "ns", "fallback", "raw", "tagInterpolation"])(
     "rejects the reserved call-control key %s in constructor defaults",
     (key) => {
       expect(

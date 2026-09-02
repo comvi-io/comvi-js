@@ -1733,16 +1733,6 @@
     },
     {
       "package": "packages/core",
-      "file": "src/format.ts",
-      "mutators": ["ConditionalExpression"],
-      "snippet": "if (cached !== undefined) {",
-      "lineHint": 108,
-      "kind": "equivalent",
-      "reason": "needs-seam, same reason: skipping the cache hit recomputes the direction from the same locale string and returns the same \"ltr\"/\"rtl\".",
-      "round": 2
-    },
-    {
-      "package": "packages/core",
       "file": "src/logger.ts",
       "mutators": ["ConditionalExpression"],
       "snippet": "if (typeof __DEV__ === \"undefined\" || __DEV__) {",
@@ -5627,6 +5617,51 @@
       "lineHint": 204,
       "kind": "equivalent",
       "reason": "identical to I18nProvider.tsx:212 — the throwing guard above makes the fallback unreachable. Hand-applied sentinel; green; v8 shows the operand uncovered."
+    },
+    {
+      "file": "src/core/i18n.ts",
+      "mutators": ["StringLiteral"],
+      "snippet": "const ERR_LOCALE_NOT_SET = IS_DEV ? \"@comvi/core: Locale is not set\" : \"E_LOCALE_NOT_SET\";",
+      "package": "packages/core",
+      "lineHint": 55,
+      "reason": "module-scope constant: Stryker reports NoCoverage because the value is computed at module load, outside any test. BOTH arms are asserted and hand-probed against the full suite: the dev arm (\"@comvi/core: Locale is not set\") is killed by tests/features/initialization.test.ts (probe n3), the prod arm (\"E_LOCALE_NOT_SET\") by tests/prod/host-error-codes.test.ts (probe n9). Do NOT close this with a vi.resetModules() re-import test: that gives module init per-test coverage for the WHOLE src graph and un-ignores 61 static mutants across 9 files (measured).",
+      "kind": "tooling:static-mutant"
+    },
+    {
+      "file": "src/core/i18n.ts",
+      "mutators": ["StringLiteral"],
+      "snippet": ": \"E_TRANSLATION_NOT_OBJECT\";",
+      "package": "packages/core",
+      "lineHint": 58,
+      "reason": "module-scope constant, same tooling blind spot as line 55. The prod arm is asserted by tests/prod/dev-only-guards.test.ts and the dev arm by tests/features/host-option-validation.test.ts; both hand-probed against the full suite (probes d_i18n_notobj_prod, n4).",
+      "kind": "tooling:static-mutant"
+    },
+    {
+      "file": "src/core/i18n.ts",
+      "mutators": ["StringLiteral"],
+      "snippet": ": \"E_INSTANCE_DESTROYED\";",
+      "package": "packages/core",
+      "lineHint": 61,
+      "reason": "module-scope constant, same tooling blind spot as line 55. The prod arm is asserted by tests/prod/host-error-codes.test.ts (probe n10) and the dev arm by tests/features/host-error-reporting.test.ts (probe n5).",
+      "kind": "tooling:static-mutant"
+    },
+    {
+      "file": "src/core/i18n.ts",
+      "mutators": ["StringLiteral"],
+      "snippet": "IS_DEV ? `Missing handler for tag: <${tagName}>` : \"E_MISSING_TAG_HANDLER\",",
+      "package": "packages/core",
+      "lineHint": 263,
+      "reason": "reported NoCoverage even though the expression is inside the constructor's default onTagWarning — the surrounding tagInterpolation object is built at construction and Stryker attributes it to no test. Both arms are asserted and hand-probed: dev by tests/features/tags-fallback-paths.test.ts (probe n6), prod (\"E_MISSING_TAG_HANDLER\") by tests/prod/tag-error-codes.test.ts (probe p37).",
+      "kind": "tooling:static-mutant"
+    },
+    {
+      "file": "src/core/i18n.ts",
+      "mutators": ["StringLiteral"],
+      "snippet": "warn(IS_DEV ? `[i18n] Translation not found: \"${key}\"` : \"E_TRANSLATION_NOT_FOUND\", {",
+      "package": "packages/core",
+      "lineHint": 808,
+      "reason": "the prod arm is an ARGUMENT to warn(), which the production build compiles to a no-op, so \"E_TRANSLATION_NOT_FOUND\" is unobservable in either build (hand-probed green on the full suite, probe d_i18n_notfound_prod) — the same class as the accepted compile-icu.ts:200 and tags.ts:238 entries. The dev arm on this line IS killed by tests/features/dev-mode.test.ts (probe n7).",
+      "kind": "equivalent"
     }
   ]
 }

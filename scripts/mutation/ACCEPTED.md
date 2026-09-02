@@ -106,3 +106,14 @@ current Stryker mutant set — entries dropped as stale rather than kept specula
   such conditions explores mutants the real set never contains. Fragile-hint pair: the two
   `this._configRevision.value++;` entries (VueI18n 167/172) share a snippet and are disambiguated
   only by lineHint — an edit above line 172 would silently re-bind them.
+
+## packages/core prod-profile closing (2026-09-02)
+
+The resetModules lesson, learned the hard way: a vi.resetModules() + dynamic import inside a test
+re-runs MODULE INITIALIZATION inside the coverage window, un-ignoring every static mutant of the
+transitive graph and attributing them all to that one file — 61 phantom survivors. The file was
+deleted; its claims live in ordinary tests (exact dev messages in initialization/host-option/
+host-error tests, prod arms in tests/prod). Do NOT close static-mutant nocov entries with
+re-import tests. Remaining accepts: 4 module-scope/constructor StringLiterals whose both arms are
+suite-killed but tool-invisible (i18n 55/58/61/263), plus i18n.ts:808's prod arm (argument to a
+warn() that prod compiles out — same class as compile-icu 200 / tags 238).
