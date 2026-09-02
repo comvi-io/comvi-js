@@ -460,3 +460,18 @@ STANDING RULE (all agents, recorded): NO git stash / merge / reset / branch ops 
 checkout — for A/B comparisons copy the file to scratchpad and restore with cp, or read the
 baseline via `git show HEAD:<path>`; the only permitted git write is `git checkout -- <file>`
 on a file the agent itself just mutated.
+
+### Compact-checkpoint UPDATE (2026-09-02 ~20:4x)
+Round 12 progress since the previous checkpoint:
+- BUG #3 (core defaultParams-on-constraint) MERGED as e75b32a, core gates green; prod-profile idle.
+- Shared-stash incident resolved + recorded (cdae3b5); no-stash rule is canon.
+- STILL PENDING: (a) react-cleanup's report for BUG #1 (generic providers react/solid/svelte + vue
+  probe) and BUG #6 (vue tRaw) — live uncommitted edits sit in packages/react|solid|svelte|vue +
+  probe.test-d.ts files; (b) tests-typecheck's report for BUG #2 (next readonly locales — its
+  changeset .changeset/next-readonly-locales.md already exists untracked) and BUGS #4+#5 (nuxt
+  shims) — live edits in packages/next|nuxt; (c) a CI watch on the latest push (cdae3b5) was
+  running at compact time — re-check `gh run list` after resume, only the LAST push's run matters.
+- On resume: process the two agent reports per the MERGE PROTOCOL above (verify package gates,
+  scoped git add of reported files + changesets, commit -F with trailers, push, one CI watch).
+  Both agents were also asked whether they ran git state ops (prod-profile confessed; expect
+  "no" from these two — no action needed either way beyond the recorded rule).
