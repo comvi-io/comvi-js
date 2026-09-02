@@ -7114,15 +7114,6 @@
     },
     {
       "package": "apps/chrome-extension",
-      "file": "src/shared/config.ts",
-      "mutators": ["Regex", "StringLiteral"],
-      "snippet": "return raw.replace(/\\/+$/, \"\");",
-      "lineHint": 14,
-      "kind": "equivalent",
-      "reason": "the trailing-slash normalization now lives in the exported normalizeBaseUrl() and IS directly tested; what may remain is only the Regex mutant \\/+$ -> \\/*$, which is genuinely equivalent (* still strips a trailing run and otherwise matches empty at end). Reclassify per the next measure; anchor/empty-string mutants are killed."
-    },
-    {
-      "package": "apps/chrome-extension",
       "file": "src/background/proxy-handler.ts",
       "mutators": ["ConditionalExpression"],
       "snippet": "if (typeof tabId !== \"number\" || typeof id !== \"string\") return;",
