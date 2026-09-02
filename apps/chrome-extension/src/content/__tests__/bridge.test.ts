@@ -1,107 +1,92 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Message } from "../../shared/messages";
-
-type RuntimeListener = (
-  message: Message,
-  sender: chrome.runtime.MessageSender,
-  sendResponse: (response: unknown) => void,
-) => boolean | void;
+import {
+  createExtensionRuntime,
+  createPageWindow,
+  recordJsonEvents,
+  type ExtensionRuntime,
+  type PageWindow,
+} from "./harness";
 
 describe("ISOLATED-world bridge activation ordering", () => {
-  let testWindow: EventTarget & Record<string, any>;
-  let runtimeListener: RuntimeListener | undefined;
-  let sendMessage: ReturnType<typeof vi.fn>;
+  let page: PageWindow;
+  let runtime: ExtensionRuntime;
 
   beforeEach(async () => {
     vi.useFakeTimers();
     vi.resetModules();
-
-    testWindow = new EventTarget() as EventTarget & Record<string, any>;
-    testWindow.setTimeout = setTimeout;
-    testWindow.clearTimeout = clearTimeout;
-    vi.stubGlobal("window", testWindow);
-
-    sendMessage = vi.fn((message: Message, callback?: (response: unknown) => void) => {
+    page = createPageWindow();
+    runtime = createExtensionRuntime();
+    runtime.respondWith((message, respond) => {
       if (message.type === "API_PROXY_REQUEST") {
-        const id = (message.payload as { id: string }).id;
-        callback?.({ id, ok: true, status: 200, statusText: "OK", body: "{}" });
+        const { id } = message.payload as { id: string };
+        respond({ id, ok: true, status: 200, statusText: "OK", body: "{}" });
+        return;
       }
+      respond(undefined);
     });
-    vi.stubGlobal("chrome", {
-      runtime: {
-        lastError: undefined,
-        sendMessage,
-        onMessage: {
-          addListener: (listener: RuntimeListener) => {
-            runtimeListener = listener;
-          },
-        },
-      },
-    });
+    vi.stubGlobal("window", page);
+    vi.stubGlobal("chrome", runtime.chrome);
 
     await import("../bridge");
   });
 
   afterEach(() => {
     vi.useRealTimers();
-    vi.unstubAllGlobals();
   });
 
-  function deliver(message: Message) {
-    runtimeListener?.(message, {} as chrome.runtime.MessageSender, vi.fn());
+  function sentTypes(): string[] {
+    return runtime.sent.map((message: Message) => message.type);
   }
 
   it("forwards activation-time API requests to the service worker authority queue", () => {
-    testWindow.addEventListener("comvi-extension:activate", () => {
-      testWindow.dispatchEvent(
+    page.addEventListener("comvi-extension:activate", () => {
+      page.dispatchEvent(
         new CustomEvent("comvi-extension:api-request", {
           detail: JSON.stringify({ id: "refresh-1", path: "/v1/translations", method: "GET" }),
         }),
       );
-      testWindow.dispatchEvent(
+      page.dispatchEvent(
         new CustomEvent("comvi-extension:activated", {
           detail: { success: true, instanceId: "editor-1", collectContext: false },
         }),
       );
     });
 
-    deliver({
+    runtime.deliver({
       type: "ACTIVATE_EDITOR",
       payload: { apiBaseUrl: "https://api.comvi.io", nonce: "activation-nonce" },
     });
 
-    expect(sendMessage.mock.calls.map(([message]) => message.type)).toEqual([
-      "DOCUMENT_READY",
-      "API_PROXY_REQUEST",
-      "EDITOR_ACTIVATED",
-    ]);
-    expect(sendMessage.mock.calls[1]?.[0]).toMatchObject({
+    expect(sentTypes()).toEqual(["DOCUMENT_READY", "API_PROXY_REQUEST", "EDITOR_ACTIVATED"]);
+    expect(runtime.sent[1]).toMatchObject({
       payload: { id: "refresh-1", path: "/v1/translations", method: "GET" },
     });
   });
 
   it("relays cancellation for an activation-time request", () => {
-    testWindow.addEventListener("comvi-extension:activate", () => {
-      testWindow.dispatchEvent(
+    page.addEventListener("comvi-extension:activate", () => {
+      page.dispatchEvent(
         new CustomEvent("comvi-extension:api-request", {
           detail: JSON.stringify({ id: "refresh-2", path: "/v1/translations" }),
         }),
       );
-      testWindow.dispatchEvent(
+      page.dispatchEvent(
         new CustomEvent("comvi-extension:api-abort", {
           detail: JSON.stringify({ id: "refresh-2" }),
         }),
       );
-      testWindow.dispatchEvent(
+      page.dispatchEvent(
         new CustomEvent("comvi-extension:activated", { detail: { success: true } }),
       );
     });
 
-    deliver({
+    runtime.deliver({
       type: "ACTIVATE_EDITOR",
       payload: { apiBaseUrl: "https://api.comvi.io", nonce: "activation-nonce" },
     });
-    expect(sendMessage.mock.calls.map(([message]) => message.type)).toEqual([
+
+    expect(sentTypes()).toEqual([
       "DOCUMENT_READY",
       "API_PROXY_REQUEST",
       "API_PROXY_ABORT",
@@ -110,22 +95,19 @@ describe("ISOLATED-world bridge activation ordering", () => {
   });
 
   it("turns an invalidated extension context into a controlled proxy failure", () => {
-    sendMessage.mockImplementation((message: Message) => {
+    runtime.respondWith((message) => {
       if (message.type === "API_PROXY_REQUEST") {
         throw new Error("Extension context invalidated.");
       }
     });
-    const responses: unknown[] = [];
+    const responses = recordJsonEvents(page, "comvi-extension:api-response");
     let deactivations = 0;
-    testWindow.addEventListener("comvi-extension:api-response", ((event: CustomEvent) => {
-      responses.push(JSON.parse(event.detail));
-    }) as EventListener);
-    testWindow.addEventListener("comvi-extension:deactivate", () => {
+    page.addEventListener("comvi-extension:deactivate", () => {
       deactivations += 1;
     });
 
     const request = () =>
-      testWindow.dispatchEvent(
+      page.dispatchEvent(
         new CustomEvent("comvi-extension:api-request", {
           detail: JSON.stringify({ id: "stale-1", path: "/v1/context/handshake" }),
         }),

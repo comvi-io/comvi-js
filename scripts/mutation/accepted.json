@@ -6931,6 +6931,150 @@
       "kind": "equivalent",
       "reason": "the case body is a bare break, so a never-matching label leaves the switch with identical effect. Hand-applied; green.",
       "lineHint": 582
+    },
+    {
+      "file": "src/content/detector.ts",
+      "kind": "equivalent",
+      "reason": "PARTIAL LINE - only the `!!g` and `\"__comviEditorHook\" in g` operands are equivalent; the `typeof g === \"object\"` and `g.__comviEditorHook === true` operands ARE killed. `!!g`->true differs only for g===null, where the resulting `in null` TypeError is swallowed by adoptComviGlobal's try/catch and yields the same null; `in`->true can never gate the result because `in` is already true whenever `g.__comviEditorHook === true`.",
+      "package": "apps/chrome-extension",
+      "mutators": ["ConditionalExpression"],
+      "snippet": "return !!g && typeof g === \"object\" && \"__comviEditorHook\" in g && g.__comviEditorHook === true;",
+      "lineHint": 71
+    },
+    {
+      "file": "src/content/detector.ts",
+      "kind": "equivalent",
+      "reason": "track() and untrack() re-apply the same object guard to the value, so an envelope with a null/primitive `i` is discarded either way; no caller can observe toInstance returning `{instance: <not an object>}` instead of null.",
+      "package": "apps/chrome-extension",
+      "mutators": ["ConditionalExpression", "LogicalOperator"],
+      "snippet": "if (!entry.i || typeof entry.i !== \"object\") {",
+      "lineHint": 85
+    },
+    {
+      "file": "src/content/detector.ts",
+      "kind": "equivalent",
+      "reason": "anonymous instance ids are opaque; a descending counter produces the same one-slot-per-instance behaviour as an ascending one.",
+      "package": "apps/chrome-extension",
+      "mutators": ["UpdateOperator"],
+      "snippet": "id ?? idsByInstance.get(instance) ?? instance.instanceId ?? `comvi-anon-${++anonCounter}`;",
+      "lineHint": 108
+    },
+    {
+      "file": "src/content/detector.ts",
+      "kind": "equivalent",
+      "reason": "PARTIAL LINE - only `prevId !== undefined`->true is equivalent (the whole-condition and second-operand mutants, the LogicalOperator and the EqualityOperator ARE killed). Forcing it true only adds `instances.delete(undefined)`, and resolvedId is always a string so no entry is ever keyed undefined.",
+      "package": "apps/chrome-extension",
+      "mutators": ["ConditionalExpression"],
+      "snippet": "if (prevId !== undefined && prevId !== resolvedId) {",
+      "lineHint": 110
+    },
+    {
+      "file": "src/content/detector.ts",
+      "kind": "equivalent",
+      "reason": "PARTIAL LINE - only `version !== undefined`->true is equivalent (whole-condition, second operand and LogicalOperator ARE killed). It only lets `hook.version = undefined` run when hook.version is already undefined.",
+      "package": "apps/chrome-extension",
+      "mutators": ["ConditionalExpression"],
+      "snippet": "if (version !== undefined && hook.version === undefined) {",
+      "lineHint": 115
+    },
+    {
+      "file": "src/content/detector.ts",
+      "kind": "equivalent",
+      "reason": "untrack's early return is redundant: `idsByInstance.get(undefined)` is undefined, so the `id !== undefined` guard below returns without touching either map.",
+      "package": "apps/chrome-extension",
+      "mutators": ["ConditionalExpression"],
+      "snippet": "if (!instance) {",
+      "lineHint": 121
+    },
+    {
+      "file": "src/content/detector.ts",
+      "kind": "equivalent",
+      "reason": "when id is undefined both deletes are no-ops: the instance is absent from idsByInstance and no entry is ever keyed undefined in instances.",
+      "package": "apps/chrome-extension",
+      "mutators": ["ConditionalExpression"],
+      "snippet": "if (id !== undefined) {",
+      "lineHint": 125
+    },
+    {
+      "file": "src/content/detector.ts",
+      "kind": "equivalent",
+      "reason": "emptying adoptComviGlobal's catch returns undefined instead of null; its only caller tests truthiness (`if (hook)`), so both are indistinguishable.",
+      "package": "apps/chrome-extension",
+      "mutators": ["BlockStatement"],
+      "snippet": "} catch {",
+      "lineHint": 184
+    },
+    {
+      "file": "src/content/detector.ts",
+      "kind": "equivalent",
+      "reason": "every notifyDetected call site passes a status with detected === true (COMVI_READY hardcodes it; the poll and the initial read call it only when detected), so `= true` is the value already assigned.",
+      "package": "apps/chrome-extension",
+      "mutators": ["BooleanLiteral"],
+      "snippet": "detectionComplete = status.detected;",
+      "lineHint": 234
+    },
+    {
+      "file": "src/content/detector.ts",
+      "kind": "equivalent",
+      "reason": "PARTIAL LINE - only ->true is equivalent (->false and the BlockStatement mutant ARE killed). notifyDetected is never reached with detected === false, so the guard's false arm is unreachable defensive code.",
+      "package": "apps/chrome-extension",
+      "mutators": ["ConditionalExpression"],
+      "snippet": "if (status.detected) {",
+      "lineHint": 239
+    },
+    {
+      "file": "src/content/detector.ts",
+      "kind": "equivalent",
+      "reason": "PARTIAL LINE - the StringLiteral mutant (empty id) IS killed. A descending counter and an unsliced random suffix both still produce ids that are unique per request and inside the bridge's 128-char limit, which is the id's entire contract.",
+      "package": "apps/chrome-extension",
+      "mutators": ["UpdateOperator", "MethodExpression"],
+      "snippet": "const id = `comvi-${Date.now()}-${++requestCounter}-${Math.random().toString(36).slice(2)}`;",
+      "lineHint": 268
+    },
+    {
+      "file": "src/content/detector.ts",
+      "kind": "equivalent",
+      "reason": "dropping the catch's `return` leaves `detail` undefined, and the very next line's `if (!detail || ...) return;` bails out anyway.",
+      "package": "apps/chrome-extension",
+      "mutators": ["BlockStatement"],
+      "snippet": "} catch {",
+      "lineHint": 307
+    },
+    {
+      "file": "src/content/detector.ts",
+      "kind": "equivalent",
+      "reason": "unreachable optional chain: line 310 already returned for a falsy detail, so `detail` is always an object here.",
+      "package": "apps/chrome-extension",
+      "mutators": ["OptionalChaining"],
+      "snippet": "reject(new TypeError(detail?.networkError ?? \"Comvi extension API request failed\"));",
+      "lineHint": 315
+    },
+    {
+      "file": "src/content/detector.ts",
+      "kind": "equivalent",
+      "reason": "PARTIAL LINE - the OptionalChaining, StringLiteral and CallExpression mutants ARE killed. `once` is redundant: an AbortSignal fires 'abort' at most once, and cleanup() removes the listener on every settle path.",
+      "package": "apps/chrome-extension",
+      "mutators": ["ObjectLiteral", "BooleanLiteral"],
+      "snippet": "signal?.addEventListener(\"abort\", onAbort, { once: true });",
+      "lineHint": 331
+    },
+    {
+      "file": "src/content/detector.ts",
+      "kind": "equivalent",
+      "reason": "PARTIAL LINE - the BlockStatement mutant and the CallExpression mutant on line 459 ARE killed. Forcing the condition false routes into pollForComvi(), whose first act is to recompute the same status and call notifyDetected synchronously, producing an identical event.",
+      "package": "apps/chrome-extension",
+      "mutators": ["ConditionalExpression"],
+      "snippet": "if (initialStatus.detected) {",
+      "lineHint": 458
+    },
+    {
+      "file": "src/content/bridge.ts",
+      "kind": "equivalent",
+      "reason": "an empty friendlyError makes relayProxyRequest take its `response ?? fallback` branch instead of the error branch, and that fallback carries the same \"Extension unavailable\" networkError; runtimeErrorMessage has no other observable consumer.",
+      "package": "apps/chrome-extension",
+      "mutators": ["StringLiteral"],
+      "snippet": ": message || \"Extension unavailable\";",
+      "lineHint": 31
     }
   ]
 }
