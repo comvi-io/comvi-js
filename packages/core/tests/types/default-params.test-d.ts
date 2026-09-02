@@ -1,4 +1,4 @@
-import { createI18n, type DefaultTranslationParams } from "@comvi/core";
+import { createI18n, I18n, type DefaultTranslationParams } from "@comvi/core";
 
 // `TranslationKeys` is augmented once for the whole program in
 // tests/types/translation-keys.test-d.ts.
@@ -89,6 +89,21 @@ configured.setDefaultParams({ formality: 123 });
 configured.setDefaultParams({ formality: null });
 // @ts-expect-error undefined cannot replace a constructor-guaranteed interpolation value
 configured.setDefaultParams({ formality: undefined });
+
+// Every CONTEXTUAL position instantiates `D` with its own constraint, whose
+// `keyof` is `string` — so the `string extends keyof D` arm of `I18nOptions`
+// decides there, and it must keep `defaultParams` OPTIONAL. An index signature
+// guarantees no key, so there is nothing for the option to promise; requiring it
+// only broke every annotated host.
+const contextualHost: ReturnType<typeof createI18n> = createI18n({ locale: "en" });
+contextualHost.t("greeting", { formality: "formal", name: "Eugene" });
+
+const contextualOptions: ConstructorParameters<typeof I18n>[0] = { locale: "en" };
+new I18n(contextualOptions).t("greeting", { formality: "formal", name: "Eugene" });
+
+// …while a `D` whose keys ARE statically known still owes its guarantees.
+// @ts-expect-error constructor-guaranteed defaults cannot be omitted
+createI18n<ConfiguredDefaults>({ locale: "en" });
 
 // @ts-expect-error routing controls are not interpolation defaults
 createI18n({ locale: "en", defaultParams: { locale: "de" } });

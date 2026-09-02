@@ -5,9 +5,7 @@ import type { DefaultTranslationParams } from "../../src/types";
 const FORMALITY_SELECT = "{formality, select, formal {Ihre Bewertung} other {Deine Bewertung}}";
 
 function createInstance(defaultParams?: Record<string, string>) {
-  // Explicitly the no-guaranteed-defaults instance: inferring `D` from a
-  // possibly-absent `defaultParams` would make the option itself required.
-  const i18n = new I18n<{}>({ locale: "de", defaultParams });
+  const i18n = new I18n({ locale: "de", defaultParams });
   i18n.addTranslations({
     de: {
       review: FORMALITY_SELECT,

@@ -425,12 +425,26 @@ export interface I18nBaseOptions {
 /**
  * Core instance options. Constructor defaults are interpolation values only;
  * call-level routing controls (`locale`, `ns`, `fallback`, `raw`) stay explicit.
+ *
+ * `defaultParams` is REQUIRED for exactly one shape of `D`: one whose keys are
+ * statically known and all required, because those keys are what the instance
+ * then guarantees to `t()` and to `setDefaultParams()`. The two arms around it
+ * carry no guarantees and so require nothing —
+ *
+ *  - `keyof D extends never` — the default `{}`, no defaults at all;
+ *  - `string extends keyof D` — an INDEX SIGNATURE, which promises no
+ *    particular key. This is also the arm every CONTEXTUAL position lands on
+ *    (`ReturnType<typeof createI18n>`, `ConstructorParameters<typeof I18n>[0]`,
+ *    a wrapper's `Pick<I18nOptions<D>, "defaultParams">`), where `D` is
+ *    instantiated with its own constraint. It exists to keep an index-signature
+ *    `D` out of the `never` arm below — `OptionalKeys<Record<string, V>>` is
+ *    `string`, not `never` — and NOT to demand the option.
  */
 export type I18nOptions<D extends DefaultTranslationParams = {}> = I18nBaseOptions &
   (keyof D extends never
     ? { defaultParams?: D }
     : string extends keyof D
-      ? { defaultParams: D }
+      ? { defaultParams?: D }
       : [OptionalKeys<D>] extends [never]
         ? { defaultParams: D }
         : never);

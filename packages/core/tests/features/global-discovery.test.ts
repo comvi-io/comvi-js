@@ -35,14 +35,14 @@ type DiscoveryHost = Pick<I18n, "instanceId" | "destroy">;
 const SURFACES: Record<string, (instanceId: string) => DiscoveryHost> = {
   "composed host": (instanceId) => new I18n({ locale: "en", exposeGlobal: true, instanceId }),
   "base + attachDevtools": (instanceId) =>
-    attachDevtools(createI18n<{}>({ locale: "en" }), { instanceId, exposeGlobal: true }),
+    attachDevtools(createI18n({ locale: "en" }), { instanceId, exposeGlobal: true }),
 };
 
 /** The same two surfaces, opting OUT of exposure. */
 const UNEXPOSED: Record<string, () => DiscoveryHost> = {
   "composed host": () => new I18n({ locale: "en", exposeGlobal: false }),
   "base + attachDevtools": () =>
-    attachDevtools(createI18n<{}>({ locale: "en" }), { exposeGlobal: false }),
+    attachDevtools(createI18n({ locale: "en" }), { exposeGlobal: false }),
 };
 
 describe.each(Object.keys(SURFACES))(
