@@ -57,6 +57,15 @@ describe("sanitizeStatus", () => {
     expect(sanitizeStatus({ version: "v".repeat(100) }).version).toBeUndefined();
   });
 
+  it("keeps a version of exactly the 64-character limit", () => {
+    const version = "v".repeat(64);
+    expect(sanitizeStatus({ version }).version).toBe(version);
+  });
+
+  it("drops a version one character past the limit", () => {
+    expect(sanitizeStatus({ version: "v".repeat(65) }).version).toBeUndefined();
+  });
+
   it.each([
     ["clamps a negative instance count to 0", -5, 0],
     ["turns a NaN instance count into 0", NaN, 0],
@@ -97,6 +106,15 @@ describe("sanitizeActivationResult", () => {
 
   it("drops oversized error strings", () => {
     expect(sanitizeActivationResult({ error: "e".repeat(1000) }).error).toBeUndefined();
+  });
+
+  it("keeps an instanceId of exactly the 128-character limit", () => {
+    const instanceId = "i".repeat(128);
+    expect(sanitizeActivationResult({ instanceId }).instanceId).toBe(instanceId);
+  });
+
+  it("drops an instanceId one character past the limit", () => {
+    expect(sanitizeActivationResult({ instanceId: "i".repeat(129) }).instanceId).toBeUndefined();
   });
 
   it("parses JSON string details", () => {

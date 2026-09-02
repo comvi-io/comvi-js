@@ -6634,6 +6634,150 @@
       "mutators": ["ArrowFunction"],
       "kind": "tooling:static-mutant",
       "lineHint": 1
+    },
+    {
+      "file": "src/shared/proxy.ts",
+      "reason": "the `optional` default is only reachable via hasExactKeys calls that pass no optional list; replacing `[]` with a one-element list only widens the allow-set by a key literally named \"Stryker was here\", which no caller and no payload can produce.",
+      "lineHint": 72,
+      "mutators": ["ArrayDeclaration"],
+      "snippet": "optional: readonly string[] = [],",
+      "kind": "equivalent",
+      "package": "apps/chrome-extension"
+    },
+    {
+      "file": "src/shared/proxy.ts",
+      "reason": "`Number.isFinite` performs no coercion, so it already returns false for every non-number; the `typeof` guard cannot change the result.",
+      "lineHint": 87,
+      "mutators": ["ConditionalExpression"],
+      "snippet": "typeof value === \"number\" &&",
+      "kind": "equivalent",
+      "package": "apps/chrome-extension"
+    },
+    {
+      "file": "src/shared/proxy.ts",
+      "reason": "`Number.isInteger` performs no coercion, so it already returns false for every non-number; the `typeof` guard cannot change the result.",
+      "lineHint": 94,
+      "mutators": ["ConditionalExpression"],
+      "snippet": "return typeof value === \"number\" && Number.isInteger(value) && value >= 0;",
+      "kind": "equivalent",
+      "package": "apps/chrome-extension"
+    },
+    {
+      "file": "src/shared/proxy.ts",
+      "reason": "`allowed.includes` uses SameValueZero against a string-only array, so a non-string is never a member; the `typeof` guard cannot change the result.",
+      "lineHint": 98,
+      "mutators": ["ConditionalExpression"],
+      "snippet": "return typeof value === \"string\" && allowed.includes(value);",
+      "kind": "equivalent",
+      "package": "apps/chrome-extension"
+    },
+    {
+      "file": "src/shared/proxy.ts",
+      "reason": "with the array branch skipped an array falls into the object branch, and `Object.values(array)` yields exactly the same elements at exactly the same decremented depth.",
+      "lineHint": 103,
+      "mutators": ["BlockStatement", "ConditionalExpression"],
+      "snippet": "if (Array.isArray(value)) {",
+      "kind": "equivalent",
+      "package": "apps/chrome-extension"
+    },
+    {
+      "file": "src/shared/proxy.ts",
+      "reason": "`String.prototype.split` never returns an empty array, so `items.length === 0` is unreachable.",
+      "lineHint": 114,
+      "mutators": ["ConditionalExpression"],
+      "snippet": "if (items.length === 0 || items.length > maxItems) return false;",
+      "kind": "equivalent",
+      "package": "apps/chrome-extension"
+    },
+    {
+      "file": "src/shared/proxy.ts",
+      "reason": "VALID_ID (`/^[\\w\\-@.]+$/`) already rejects the empty string, so the `item.length > 0` operand cannot change any verdict.",
+      "lineHint": 116,
+      "mutators": ["ConditionalExpression", "EqualityOperator"],
+      "snippet": "(item) => item.length > 0 && item.length <= maxItemLength && VALID_ID.test(item),",
+      "kind": "equivalent",
+      "package": "apps/chrome-extension"
+    },
+    {
+      "file": "src/shared/proxy.ts",
+      "reason": "with the catch body emptied `decoded` stays undefined, and the following `isBoundedString(decoded, MAX_PARAM_LENGTH)` check returns the same null for the segment.",
+      "lineHint": 501,
+      "mutators": ["BlockStatement"],
+      "snippet": "} catch {",
+      "kind": "equivalent",
+      "package": "apps/chrome-extension"
+    },
+    {
+      "file": "src/shared/proxy.ts",
+      "reason": "`params[...]` is always a string, so when `sessionProjectId` is null the second operand `!== sessionProjectId` is already true; the first operand cannot change the verdict.",
+      "lineHint": 600,
+      "mutators": ["ConditionalExpression"],
+      "snippet": "if (sessionProjectId === null || params[rule.projectIdParam] !== sessionProjectId) {",
+      "kind": "equivalent",
+      "package": "apps/chrome-extension"
+    },
+    {
+      "file": "src/shared/proxy.ts",
+      "reason": "`key` comes from iterating `resolved.searchParams`, so `.get(key)` never returns null and the `?? \"\"` fallback is unreachable.",
+      "lineHint": 616,
+      "mutators": ["StringLiteral"],
+      "snippet": "const value = resolved.searchParams.get(key) ?? \"\";",
+      "kind": "equivalent",
+      "package": "apps/chrome-extension"
+    },
+    {
+      "file": "src/shared/proxy.ts",
+      "reason": "a query value is a substring of the path, which is capped at MAX_PATH_LENGTH (2048), so `value.length > 4096` is unreachable.",
+      "lineHint": 617,
+      "mutators": ["ConditionalExpression", "EqualityOperator"],
+      "snippet": "if (value.length > 4096 || !validator(value)) {",
+      "kind": "equivalent",
+      "package": "apps/chrome-extension"
+    },
+    {
+      "file": "src/shared/origins.ts",
+      "reason": "`new URL(\"\")` throws and is caught below, so the `raw.length === 0` operand returns the same null.",
+      "lineHint": 19,
+      "mutators": ["ConditionalExpression"],
+      "snippet": "if (typeof raw !== \"string\" || raw.length === 0 || raw.length > 2048) return null;",
+      "kind": "equivalent",
+      "package": "apps/chrome-extension"
+    },
+    {
+      "file": "src/shared/origins.ts",
+      "reason": "`new URL(\"\")` throws and is caught below, so the `pageUrl.length === 0` operand returns the same null.",
+      "lineHint": 40,
+      "mutators": ["ConditionalExpression"],
+      "snippet": "if (typeof pageUrl !== \"string\" || pageUrl.length === 0) return null;",
+      "kind": "equivalent",
+      "package": "apps/chrome-extension"
+    },
+    {
+      "file": "src/shared/storage.ts",
+      "reason": "the only falsy apiKey a stored record can hold is undefined (keys are persisted only after API validation, so \"\" is unreachable), and the guarded loop deletes nothing when apiKey is undefined.",
+      "lineHint": 75,
+      "mutators": ["ConditionalExpression"],
+      "snippet": "if (apiKey) {",
+      "kind": "equivalent",
+      "package": "apps/chrome-extension"
+    },
+    {
+      "file": "src/shared/validation.ts",
+      "reason": "with the catch body emptied, control falls to the trailing `detail && typeof detail === \"object\" ? ... : {}` which returns the same {} for the string that failed to parse.",
+      "lineHint": 20,
+      "mutators": ["BlockStatement"],
+      "snippet": "} catch {",
+      "kind": "equivalent",
+      "package": "apps/chrome-extension"
+    },
+    {
+      "file": "src/shared/validation.ts",
+      "reason": "`Number.isFinite` performs no coercion so the `typeof` operand is redundant, and `asCount(0)` yields 0 through either branch, so `>= 0` and `> 0` agree everywhere.",
+      "lineHint": 36,
+      "mutators": ["ConditionalExpression", "EqualityOperator", "LogicalOperator"],
+      "snippet": "return typeof value === \"number\" && Number.isFinite(value) && value >= 0 ? Math.floor(value) : 0;",
+      "kind": "equivalent",
+      "package": "apps/chrome-extension"
     }
   ]
 }
