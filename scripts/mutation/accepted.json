@@ -6450,7 +6450,7 @@
       "package": "packages/next",
       "file": "src/client/I18nProvider.tsx",
       "mutators": ["StringLiteral"],
-      "snippet": "I18nProvider.displayName = \"NextI18nClientProvider\";",
+      "snippet": "I18nProvider.displayName = \"I18nProvider\";",
       "lineHint": 148,
       "kind": "tooling:static-mutant",
       "reason": "module-initialization mutant: Stryker's vitest runner arms the mutant switch after module init, so hand-applying it turns the suite RED (the claim exists) while the runner reports Survived. tooling limit, not a test gap."
