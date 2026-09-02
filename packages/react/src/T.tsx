@@ -25,16 +25,32 @@ type ComponentTarget =
   | ((params: { children: React.ReactNode }) => React.ReactElement); // Function handler
 
 /**
+ * A config entry's target. Looser than `ComponentTarget` on purpose: the
+ * entry's own `props` supply whatever the component needs beyond `children`,
+ * so a component with REQUIRED extra props belongs here — the bare-handler
+ * signature would reject it by contravariance, which is precisely the case
+ * `props` exists to serve.
+ */
+type ComponentConfigTarget =
+  | string // HTML tag name: "strong", "em", etc.
+  | React.ReactElement // React element - `props` merged over its own
+  | ((props: any) => React.ReactElement); // Function handler fed from `props`
+
+/**
  * Core's `{ tag | component, props }` entry form, narrowed to React targets.
  * `tag` (solid/svelte convention) and `component` (vue convention) are
  * aliases; `props` is merged into the resolved handler. Intersecting core's
  * own `TagComponentConfig` keeps the field set from drifting away from the
- * `prepareTranslation` pipeline that actually reads it.
+ * `prepareTranslation` pipeline that actually reads it; requiring ONE of the
+ * two spellings keeps the guarantee core's all-optional shape gives up, since
+ * an entry with neither is not a config at all — `isTagComponentConfig`
+ * rejects it and the object is passed on as an opaque handler.
  */
-type ComponentConfig = TagComponentConfig & {
-  tag?: ComponentTarget;
-  component?: ComponentTarget;
-};
+type ComponentConfig = TagComponentConfig &
+  (
+    | { tag: ComponentConfigTarget; component?: ComponentConfigTarget }
+    | { component: ComponentConfigTarget; tag?: ComponentConfigTarget }
+  );
 
 type ComponentHandler = ComponentTarget | ComponentConfig;
 

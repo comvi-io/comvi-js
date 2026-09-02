@@ -29,8 +29,21 @@ export type _ConfigFnTarget = Accepts<{
 }>;
 export type _ConfigPropsOptional = Accepts<{ link: { tag: "a" } }>;
 
-// The widening is not a blank cheque: an object that is neither a target nor a
-// config entry, and a non-target primitive, are still rejected.
+// A component whose extra prop is REQUIRED can only be fed through `props` —
+// the bare-handler signature rejects it by contravariance, so the config
+// entry's target is deliberately looser than `ComponentTarget`.
+declare const _Button: (props: { children: React.ReactNode; tone: string }) => React.ReactElement;
+export type _ConfigRequiredProp = Accepts<{
+  btn: { component: typeof _Button; props: { tone: string } };
+}>;
+export type _ConfigRequiredPropTagAlias = Accepts<{
+  btn: { tag: typeof _Button; props: { tone: string } };
+}>;
+
+// The widening is not a blank cheque.
+// @ts-expect-error -- a config entry must still name a target; `isTagComponentConfig`
+// rejects a `props`-only object and the pipeline forwards it as an opaque handler
+export type _RejectsTargetlessConfig = Accepts<{ link: { props: { href: string } } }>;
 // @ts-expect-error -- no `tag`/`component`/`props`, so not a config entry
 export type _RejectsForeignObject = Accepts<{ link: { href: "/help" } }>;
 // @ts-expect-error -- a number is not a renderable target
