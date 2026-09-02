@@ -286,3 +286,35 @@ scratchpad probe-results-lot3.json).
 CONFIRMED by a fresh full no-incremental run (2026-09-02): core adjusted 100.0% — 2,912
 killed, 0 real survivors, 0 nocov, 299 accepted, 0 stale entries. The 61 phantoms are back
 under ignoreStatic, exactly as the hand-probes predicted.
+
+## Round 9 — next + nuxt kill-pass COMPLETE (2026-09-02, commits 888d50f..10ce5872)
+
+BOTH PACKAGES AT 100.0% ADJUSTED:
+- next: 71.7 → 100.0 (629 killed, 38 accepted, 0 nocov; tests 217 → 308). The old "--inPlace
+  needed" belief was WRONG: the sandbox breaker was the same __dirname/../ class as the wrappers
+  (CORE_DIST + the @comvi/react src alias) — fixed via node_modules resolution (888d50f), normal
+  sandbox works. Routing modules (hooks/Link/context) went 0% → 100/100 through the public
+  navigation entry.
+- nuxt: 67.9 → 100.0 (1,032 killed, 100 accepted mutants across 76 entries, 0 nocov; tests
+  169 → 280). Two vite seams landed in vitest.config: import.meta.server/dev (behaviour-
+  preserving defaults) and import.meta.hot (NOT preserving — vitest's hot is truthy, the global
+  defaults undefined; HMR registration now runs only under a stubbed hot context, which is what
+  makes the dispose teardown assertable). plugin.ts 41.9% → 100%.
+
+NEW GENERAL LESSONS (recorded in ACCEPTED.md too):
+1. A factory called at DESCRIBE scope captures config before the mutant switch arms —
+   construction-time claims need the factory call inside the test body (next cookie/localePrefix).
+2. expect(fn).toThrow(msg) PASSES when the thrown value is undefined — use a capture helper
+   asserting instanceof Error wherever src returns the error its caller throws (next once-cell).
+3. Standalone module-level vi.fn() stubs are NOT cleared by restoreMocks — calls accumulate and
+   an earlier test's call can satisfy a later toHaveBeenCalledWith (explicit beforeEach mockClear).
+4. Files with module-level MUTABLE state (next cache.ts `let cell`) join module-init mutants in
+   the static class: hand-applied probes turn the suite red, but the runner cannot re-evaluate
+   the module between activations.
+5. Stryker emits no ConditionalExpression for ternary conditions that are bare identifiers /
+   non-comparison binaries, and no ObjectLiteral for an already-empty {}.
+
+Owner-gated src cleanups recorded, not made: useLocaleHead's three dead `|| { code: locale }`
+fallbacks (three permanently-accepted mutants would vanish); createMiddleware's dead `q = "q=1"`
+destructuring default and `|| "1"` (isNaN backstop covers both); nuxt capabilities.ts (pure
+re-export, unmutated, 0% covered) deserves a smoke test some round.
