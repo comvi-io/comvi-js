@@ -5788,6 +5788,627 @@
       "lineHint": 82,
       "kind": "equivalent",
       "reason": "createNextI18n is the only caller and never supplies either option, so both are always undefined — same as {}. Hand-applied; green."
+    },
+    {
+      "snippet": "return /(?:^|\\/):locale(?:$|[/?+*()])/u.test(path);",
+      "reason": "the `^` alternative matches only a page path that starts with `:locale` with no leading slash; Nuxt hands extendPages absolute top-level paths, so that alternative is unreachable. Evidence: hand-applied in the worktree, full suite (256 tests) run, observed GREEN, restored",
+      "package": "packages/nuxt",
+      "kind": "equivalent",
+      "file": "src/module.ts",
+      "lineHint": 65,
+      "mutators": ["Regex"]
+    },
+    {
+      "snippet": "...(typeof detectBrowserLanguageSource === \"object\" ? detectBrowserLanguageSource : {}),",
+      "reason": "detectBrowserLanguageSource is an object or `false` here (the false case took the other ternary arm), and spreading `false` yields {}. Evidence: hand-applied in the worktree, full suite (256 tests) run, observed GREEN, restored",
+      "package": "packages/nuxt",
+      "kind": "equivalent",
+      "file": "src/module.ts",
+      "lineHint": 142,
+      "mutators": ["ConditionalExpression"]
+    },
+    {
+      "snippet": "(page) => !isLocaleParamRoute(page.path) && !page.file?.includes(\"[locale]\"),",
+      "reason": "widening rootPages to every page only adds clones of :locale/[locale] pages, and lines 395-403 delete every page and clone that matches either marker — the final page list is identical. / same: any page the relaxed filter lets through is removed again by the :locale/[locale] cleanup. Evidence: hand-applied in the worktree, full suite (256 tests) run, observed GREEN, restored",
+      "package": "packages/nuxt",
+      "kind": "equivalent",
+      "file": "src/module.ts",
+      "lineHint": 370,
+      "mutators": ["ConditionalExpression", "LogicalOperator"]
+    },
+    {
+      "snippet": "localePrefix === \"always\" || (localePrefix === \"as-needed\" && locale !== defaultLocale);",
+      "reason": "extendPages is not registered in never mode, so localePrefix is \"always\" or \"as-needed\" here; for \"always\" the left operand already short-circuits. Evidence: hand-applied in the worktree, full suite (256 tests) run, observed GREEN, restored",
+      "package": "packages/nuxt",
+      "kind": "equivalent",
+      "file": "src/module.ts",
+      "lineHint": 375,
+      "mutators": ["ConditionalExpression"]
+    },
+    {
+      "snippet": "if (localePrefix === \"always\" && rootPages.length > 0) {",
+      "reason": "the removal loop has nothing to remove when rootPages is empty, so gating on its length is redundant. / same: `>= 0` only lets an empty rootPages enter a loop that removes nothing. Evidence: hand-applied in the worktree, full suite (256 tests) run, observed GREEN, restored",
+      "package": "packages/nuxt",
+      "kind": "equivalent",
+      "file": "src/module.ts",
+      "lineHint": 386,
+      "mutators": ["ConditionalExpression", "EqualityOperator"]
+    },
+    {
+      "snippet": "for (let i = pages.length - 1; i >= 0; i--) {",
+      "reason": "the two extra iterations read pages[i] === undefined, which rootPages.includes rejects, so no extra splice happens. Evidence: hand-applied in the worktree, full suite (256 tests) run, observed GREEN, restored",
+      "package": "packages/nuxt",
+      "kind": "equivalent",
+      "file": "src/module.ts",
+      "lineHint": 388,
+      "mutators": ["ArithmeticOperator"]
+    },
+    {
+      "snippet": "(page) => isLocaleParamRoute(page.path) || page.file?.includes(\"[locale]\"),",
+      "reason": "the cleanup loop removes only pages that match the :locale/[locale] test, so entering it unconditionally is a no-op when none match. Evidence: hand-applied in the worktree, full suite (256 tests) run, observed GREEN, restored",
+      "package": "packages/nuxt",
+      "kind": "equivalent",
+      "file": "src/module.ts",
+      "lineHint": 396,
+      "mutators": ["ConditionalExpression"]
+    },
+    {
+      "snippet": "if (localeRouteIndex !== -1) {",
+      "reason": "same: running the cleanup loop unconditionally removes nothing when no page matches. Evidence: hand-applied in the worktree, full suite (256 tests) run, observed GREEN, restored",
+      "package": "packages/nuxt",
+      "kind": "equivalent",
+      "file": "src/module.ts",
+      "lineHint": 398,
+      "mutators": ["ConditionalExpression"]
+    },
+    {
+      "snippet": "inheritAttrs: false,",
+      "reason": "every attr is already forwarded manually into the NuxtLink vnode, so Vue's fallthrough puts the identical values on the same root element. Evidence: hand-applied in the worktree, full suite (256 tests) run, observed GREEN, restored",
+      "package": "packages/nuxt",
+      "kind": "equivalent",
+      "file": "src/runtime/components/NuxtLinkLocale.ts",
+      "lineHint": 20,
+      "mutators": ["BooleanLiteral"]
+    },
+    {
+      "snippet": "props: {",
+      "reason": "runner artifact, not an equivalent mutant - the claim IS pinned. Hand-applying this mutant turns 4 of this package's tests RED. Stryker still reports it Survived because @stryker-mutator/vitest-runner drives one long-lived vitest with module isolation off, so this module-level initializer is evaluated once, before the mutant switch is ever armed; the mutated value can never take effect inside a mutant run. Evidence: hand-applied in the worktree, full suite (256 tests) run, observed RED, restored",
+      "package": "packages/nuxt",
+      "kind": "tooling:static-mutant",
+      "file": "src/runtime/components/NuxtLinkLocale.ts",
+      "lineHint": 22,
+      "mutators": ["ObjectLiteral"]
+    },
+    {
+      "snippet": "to: {",
+      "reason": "runner artifact, not an equivalent mutant - the claim IS pinned. Hand-applying this mutant turns 1 of this package's tests RED. Stryker still reports it Survived because @stryker-mutator/vitest-runner drives one long-lived vitest with module isolation off, so this module-level initializer is evaluated once, before the mutant switch is ever armed; the mutated value can never take effect inside a mutant run. Evidence: hand-applied in the worktree, full suite (256 tests) run, observed RED, restored",
+      "package": "packages/nuxt",
+      "kind": "tooling:static-mutant",
+      "file": "src/runtime/components/NuxtLinkLocale.ts",
+      "lineHint": 24,
+      "mutators": ["ObjectLiteral"]
+    },
+    {
+      "snippet": "required: true,",
+      "reason": "runner artifact, not an equivalent mutant - the claim IS pinned. Hand-applying this mutant turns 1 of this package's tests RED. Stryker still reports it Survived because @stryker-mutator/vitest-runner drives one long-lived vitest with module isolation off, so this module-level initializer is evaluated once, before the mutant switch is ever armed; the mutated value can never take effect inside a mutant run. Evidence: hand-applied in the worktree, full suite (256 tests) run, observed RED, restored",
+      "package": "packages/nuxt",
+      "kind": "tooling:static-mutant",
+      "file": "src/runtime/components/NuxtLinkLocale.ts",
+      "lineHint": 26,
+      "mutators": ["BooleanLiteral"]
+    },
+    {
+      "snippet": "locale: {",
+      "reason": "an absent `locale` prop is undefined with or without `type: String, default: undefined`; the declared type is only a dev-time validation of a value every caller passes as a string. Evidence: hand-applied in the worktree, full suite (256 tests) run, observed GREEN, restored",
+      "package": "packages/nuxt",
+      "kind": "equivalent",
+      "file": "src/runtime/components/NuxtLinkLocale.ts",
+      "lineHint": 30,
+      "mutators": ["ObjectLiteral"]
+    },
+    {
+      "snippet": "let fullPath = \"/\";",
+      "reason": "the seed value only survives when the catch falls through both branches; line 101 then normalizes \"\" to \"/\" exactly like \"/\". Evidence: hand-applied in the worktree, full suite (256 tests) run, observed GREEN, restored",
+      "package": "packages/nuxt",
+      "kind": "equivalent",
+      "file": "src/runtime/composables/useLocalePath.ts",
+      "lineHint": 78,
+      "mutators": ["StringLiteral"]
+    },
+    {
+      "snippet": "if (typeof path === \"object\" && \"path\" in path && path.path) {",
+      "reason": "`typeof path === \"object\"` is always true inside the catch, so `||` and `&&` select the same operand. Evidence: hand-applied in the worktree, full suite (256 tests) run, observed GREEN, restored",
+      "package": "packages/nuxt",
+      "kind": "equivalent",
+      "file": "src/runtime/composables/useLocalePath.ts",
+      "lineHint": 85,
+      "mutators": ["LogicalOperator"]
+    },
+    {
+      "snippet": "} else if (typeof resolvedPath === \"object\" && \"name\" in resolvedPath) {",
+      "reason": "the else-if is only reached by objects that failed the `path` branch; every valid RouteLocationRaw that gets there carries a `name`, so relaxing the guard changes nothing for any accepted input. / resolvedPath is always an object inside the catch, so the left operand is constant true and `||` selects it. / same as the else-if guard: only name-carrying objects reach it among valid route locations. Evidence: hand-applied in the worktree, full suite (256 tests) run, observed GREEN, restored",
+      "package": "packages/nuxt",
+      "kind": "equivalent",
+      "file": "src/runtime/composables/useLocalePath.ts",
+      "lineHint": 87,
+      "mutators": ["ConditionalExpression", "LogicalOperator"]
+    },
+    {
+      "snippet": "? `/${String(resolvedPath.name).replace(/___.*$/, \"\")}`",
+      "reason": "the `$` anchor only matters for a route name containing a newline, since `.` already spans the rest of a single-line name. Evidence: hand-applied in the worktree, full suite (256 tests) run, observed GREEN, restored",
+      "package": "packages/nuxt",
+      "kind": "equivalent",
+      "file": "src/runtime/composables/useLocalePath.ts",
+      "lineHint": 91,
+      "mutators": ["Regex"]
+    },
+    {
+      "snippet": "const normalizedPath = pathname.startsWith(\"/\") ? pathname : `/${pathname}`;",
+      "reason": "hand-probed against the slashless-path tests: stripLocalePrefix/buildLocalizedPath normalize a path with no leading slash to the same result, so skipping the normalization is unobservable. Evidence: hand-applied in the worktree, full suite (256 tests) run, observed GREEN, restored",
+      "package": "packages/nuxt",
+      "kind": "equivalent",
+      "file": "src/runtime/composables/useLocalePath.ts",
+      "lineHint": 101,
+      "mutators": ["StringLiteral"]
+    },
+    {
+      "snippet": "} catch {",
+      "reason": "the catch is the last statement of the function, so an emptied block returns undefined exactly like `return undefined`. Evidence: hand-applied in the worktree, full suite (256 tests) run, observed GREEN, restored",
+      "package": "packages/nuxt",
+      "kind": "equivalent",
+      "file": "src/runtime/composables/useLocaleRoute.ts",
+      "lineHint": 38,
+      "mutators": ["BlockStatement"]
+    },
+    {
+      "snippet": "detectBrowserLanguage && typeof detectBrowserLanguage === \"object\"",
+      "reason": "detectBrowserLanguage is typed `DetectBrowserLanguageOptions | false` and the module always emits one of those, so `false.queryParam` is undefined — exactly the else-arm. / same: for an object the left operand already short-circuits to true, and for `false` both forms end at an undefined queryParam. / same: forcing the typeof check true leaves `detectBrowserLanguage &&` to reject `false`. Evidence: hand-applied in the worktree, full suite (256 tests) run, observed GREEN, restored",
+      "package": "packages/nuxt",
+      "kind": "equivalent",
+      "file": "src/runtime/composables/useSwitchLocalePath.ts",
+      "lineHint": 34,
+      "mutators": ["ConditionalExpression", "LogicalOperator"]
+    },
+    {
+      "snippet": "if (import.meta.dev) {",
+      "reason": "import.meta.dev is undefined under vitest and there is no seam to set it, so the original guard is already false; the ConditionalExpression->true mutant on this line IS killed by the silent-fallback test. Evidence: hand-applied in the worktree, full suite (256 tests) run, observed GREEN, restored",
+      "package": "packages/nuxt",
+      "kind": "needs-seam",
+      "file": "src/runtime/composables/useSwitchLocalePath.ts",
+      "lineHint": 45,
+      "mutators": ["ConditionalExpression"]
+    },
+    {
+      "snippet": "...(typeof detectBrowserLanguage === \"object\" ? detectBrowserLanguage : {}),",
+      "reason": "detectBrowserLanguage is an object or `false` here (the false case took the other ternary arm), and spreading `false` yields {} — the same as the else-arm. Evidence: hand-applied in the worktree, full suite (256 tests) run, observed GREEN, restored",
+      "package": "packages/nuxt",
+      "kind": "equivalent",
+      "file": "src/runtime/middleware/i18n.global.ts",
+      "lineHint": 40,
+      "mutators": ["ConditionalExpression"]
+    },
+    {
+      "snippet": "const useCookieForDetection = detectConfig !== false && detectConfig.useCookie === true;",
+      "reason": "forcing `detectConfig !== false` true leaves `detectConfig.useCookie === true` to decide, which is already false when detectConfig is false. / `detectConfig !== true` is true for both shapes the value can take, and the right operand then decides exactly as before. Evidence: hand-applied in the worktree, full suite (256 tests) run, observed GREEN, restored",
+      "package": "packages/nuxt",
+      "kind": "equivalent",
+      "file": "src/runtime/middleware/i18n.global.ts",
+      "lineHint": 43,
+      "mutators": ["BooleanLiteral", "ConditionalExpression"]
+    },
+    {
+      "snippet": "const detectCfg = typeof detectBrowserLanguage === \"object\" ? detectBrowserLanguage : undefined;",
+      "reason": "detectCfg is only consulted inside the cookie branch, which requires useCookieForDetection; when detectBrowserLanguage is `false` no cookie is created at all, and `false?.x` is undefined just like the else-arm. Evidence: hand-applied in the worktree, full suite (256 tests) run, observed GREEN, restored",
+      "package": "packages/nuxt",
+      "kind": "equivalent",
+      "file": "src/runtime/middleware/i18n.global.ts",
+      "lineHint": 45,
+      "mutators": ["ConditionalExpression"]
+    },
+    {
+      "snippet": "maxAge: detectCfg?.cookieMaxAge ?? DEFAULT_DETECT_BROWSER_LANGUAGE.cookieMaxAge,",
+      "reason": "the module always emits `detectBrowserLanguage` as an object or `false`, and the `false` case never reaches these options because useCookieForDetection is false — so detectCfg is never nullish here. Evidence: hand-applied in the worktree, full suite (256 tests) run, observed GREEN, restored",
+      "package": "packages/nuxt",
+      "kind": "equivalent",
+      "file": "src/runtime/middleware/i18n.global.ts",
+      "lineHint": 50,
+      "mutators": ["OptionalChaining"]
+    },
+    {
+      "snippet": "sameSite: detectCfg?.sameSite ?? \"lax\",",
+      "reason": "same: detectCfg is never nullish inside the useCookie options object. Evidence: hand-applied in the worktree, full suite (256 tests) run, observed GREEN, restored",
+      "package": "packages/nuxt",
+      "kind": "equivalent",
+      "file": "src/runtime/middleware/i18n.global.ts",
+      "lineHint": 52,
+      "mutators": ["OptionalChaining"]
+    },
+    {
+      "snippet": "domain: detectCfg?.domain,",
+      "reason": "same: detectCfg is never nullish inside the useCookie options object. Evidence: hand-applied in the worktree, full suite (256 tests) run, observed GREEN, restored",
+      "package": "packages/nuxt",
+      "kind": "equivalent",
+      "file": "src/runtime/middleware/i18n.global.ts",
+      "lineHint": 53,
+      "mutators": ["OptionalChaining"]
+    },
+    {
+      "snippet": "let detectedSource: \"path\" | \"query\" | \"cookie\" | \"header\" | \"fallback\" = \"fallback\";",
+      "reason": "detectedSource is only ever compared against \"path\" (line 133) and \"header\" (line 170); every other value behaves identically. Evidence: hand-applied in the worktree, full suite (256 tests) run, observed GREEN, restored",
+      "package": "packages/nuxt",
+      "kind": "equivalent",
+      "file": "src/runtime/middleware/i18n.global.ts",
+      "lineHint": 71,
+      "mutators": ["StringLiteral"]
+    },
+    {
+      "snippet": "const queryParam = detectConfig !== false ? detectConfig.queryParam : undefined;",
+      "reason": "for detectConfig === false, `false.queryParam` is undefined — exactly what the else-arm returns. / `detectConfig !== true` is true for both shapes, and for `false` the true-arm yields undefined anyway. Evidence: hand-applied in the worktree, full suite (256 tests) run, observed GREEN, restored",
+      "package": "packages/nuxt",
+      "kind": "equivalent",
+      "file": "src/runtime/middleware/i18n.global.ts",
+      "lineHint": 72,
+      "mutators": ["BooleanLiteral", "ConditionalExpression"]
+    },
+    {
+      "snippet": "queryParam !== undefined && Object.prototype.hasOwnProperty.call(to.query ?? {}, queryParam);",
+      "reason": "when queryParam is undefined the hasOwnProperty probe looks for the key \"undefined\", which no route query carries; when it is defined the operand is already true. Evidence: hand-applied in the worktree, full suite (256 tests) run, observed GREEN, restored",
+      "package": "packages/nuxt",
+      "kind": "equivalent",
+      "file": "src/runtime/middleware/i18n.global.ts",
+      "lineHint": 75,
+      "mutators": ["ConditionalExpression"]
+    },
+    {
+      "snippet": "if (pathLocale) {",
+      "reason": "with pathLocale falsy the body assigns detectedLocale = undefined (a no-op) and detectedSource = \"path\"; every later branch that could make that source matter (query/cookie/header) overwrites it, and the only reader, line 133's preservedPreference, additionally requires a configured cookie holding a supported locale — which would itself have set detectedSource to \"cookie\". Evidence: hand-applied in the worktree, full suite (256 tests) run, observed GREEN, restored",
+      "package": "packages/nuxt",
+      "kind": "equivalent",
+      "file": "src/runtime/middleware/i18n.global.ts",
+      "lineHint": 77,
+      "mutators": ["ConditionalExpression"]
+    },
+    {
+      "snippet": "detectedSource = \"path\";",
+      "reason": "when this line runs pathLocale is set, so line 133's second operand `pathLocale === undefined` is false regardless of the source string, and line 170 only tests for \"header\". Evidence: hand-applied in the worktree, full suite (256 tests) run, observed GREEN, restored",
+      "package": "packages/nuxt",
+      "kind": "equivalent",
+      "file": "src/runtime/middleware/i18n.global.ts",
+      "lineHint": 79,
+      "mutators": ["StringLiteral"]
+    },
+    {
+      "snippet": "if (typeof queryLocale === \"string\" && locales.includes(queryLocale)) {",
+      "reason": "`locales.includes(queryLocale)` still guards the assignment, and a non-string query value is never a member of the configured locales. Evidence: hand-applied in the worktree, full suite (256 tests) run, observed GREEN, restored",
+      "package": "packages/nuxt",
+      "kind": "equivalent",
+      "file": "src/runtime/middleware/i18n.global.ts",
+      "lineHint": 86,
+      "mutators": ["ConditionalExpression"]
+    },
+    {
+      "snippet": "detectedSource = \"query\";",
+      "reason": "\"query\" is never compared against anything: line 133 tests for \"path\" and line 170 for \"header\". Evidence: hand-applied in the worktree, full suite (256 tests) run, observed GREEN, restored",
+      "package": "packages/nuxt",
+      "kind": "equivalent",
+      "file": "src/runtime/middleware/i18n.global.ts",
+      "lineHint": 88,
+      "mutators": ["StringLiteral"]
+    },
+    {
+      "snippet": "if (!detectedLocale && localePrefix === \"as-needed\" && pathname !== \"/\" && pathname !== \"\") {",
+      "reason": "pathname comes from splitPathAndSuffix(to.fullPath || to.path) and is never the empty string for any route the middleware processes. / same: comparing pathname against any never-occurring string keeps the operand true. Evidence: hand-applied in the worktree, full suite (256 tests) run, observed GREEN, restored",
+      "package": "packages/nuxt",
+      "kind": "equivalent",
+      "file": "src/runtime/middleware/i18n.global.ts",
+      "lineHint": 92,
+      "mutators": ["ConditionalExpression", "StringLiteral"]
+    },
+    {
+      "snippet": "detectedSource = \"cookie\";",
+      "reason": "\"cookie\" is never compared against anything: line 133 tests for \"path\" and line 170 for \"header\". Evidence: hand-applied in the worktree, full suite (256 tests) run, observed GREEN, restored",
+      "package": "packages/nuxt",
+      "kind": "equivalent",
+      "file": "src/runtime/middleware/i18n.global.ts",
+      "lineHint": 99,
+      "mutators": ["StringLiteral"]
+    },
+    {
+      "snippet": "detectConfig && \"fallbackLocale\" in detectConfig && detectConfig.fallbackLocale",
+      "reason": "lines 118-122 normalize the result through `locales.includes(...)`, so an undefined fallbackLocale still resolves to defaultLocale. / same normalization: the rewritten chain is truthy in exactly the cases the original is, for every runtime config shape. / same normalization: forcing the guard true still yields undefined for configs without fallbackLocale. Evidence: hand-applied in the worktree, full suite (256 tests) run, observed GREEN, restored",
+      "package": "packages/nuxt",
+      "kind": "equivalent",
+      "file": "src/runtime/middleware/i18n.global.ts",
+      "lineHint": 115,
+      "mutators": ["ConditionalExpression", "LogicalOperator"]
+    },
+    {
+      "snippet": "detectedLocale && locales.includes(detectedLocale) ? detectedLocale : resolvedFallbackLocale;",
+      "reason": "detectedLocale is only ever assigned a value that was already validated against `locales` (path prefix, allow-listed query, allow-listed cookie, resolved header) or defaultLocale, so the membership re-check never changes the outcome. Evidence: hand-applied in the worktree, full suite (256 tests) run, observed GREEN, restored",
+      "package": "packages/nuxt",
+      "kind": "equivalent",
+      "file": "src/runtime/middleware/i18n.global.ts",
+      "lineHint": 124,
+      "mutators": ["LogicalOperator"]
+    },
+    {
+      "snippet": "return localizedPath !== pathname ? localizedPath : null;",
+      "reason": "line 173 repeats the `redirectPath !== pathname` check, so returning the unchanged path instead of null still produces no redirect. Evidence: hand-applied in the worktree, full suite (256 tests) run, observed GREEN, restored",
+      "package": "packages/nuxt",
+      "kind": "equivalent",
+      "file": "src/runtime/middleware/i18n.global.ts",
+      "lineHint": 130,
+      "mutators": ["ConditionalExpression"]
+    },
+    {
+      "snippet": "detectConfig === false || detectConfig.redirectOnFirstVisit !== false;",
+      "reason": "for detectConfig === false the right operand `false.redirectOnFirstVisit !== false` is `undefined !== false` -> true, so the disjunction is true either way. / `detectConfig === true` is false for both shapes, and the right operand then yields true for `false` and the configured value for an object — same as the original. Evidence: hand-applied in the worktree, full suite (256 tests) run, observed GREEN, restored",
+      "package": "packages/nuxt",
+      "kind": "equivalent",
+      "file": "src/runtime/middleware/i18n.global.ts",
+      "lineHint": 169,
+      "mutators": ["BooleanLiteral", "ConditionalExpression"]
+    },
+    {
+      "snippet": "if (redirectPath && redirectPath !== pathname && (pathLocale || allowFirstVisitRedirect)) {",
+      "reason": "the mirror of line 130: getRedirectPathForLocale already returned null when the localized path equals pathname, so the repeated check is redundant. Evidence: hand-applied in the worktree, full suite (256 tests) run, observed GREEN, restored",
+      "package": "packages/nuxt",
+      "kind": "equivalent",
+      "file": "src/runtime/middleware/i18n.global.ts",
+      "lineHint": 173,
+      "mutators": ["ConditionalExpression"]
+    },
+    {
+      "snippet": "typeof publicConfig.detectBrowserLanguage === \"object\"",
+      "reason": "detectCfg is only read inside the cookie branch, and that branch requires detectBrowserLanguage to be an object; `false?.x` is undefined just like the else-arm. Evidence: hand-applied in the worktree, full suite (256 tests) run, observed GREEN, restored",
+      "package": "packages/nuxt",
+      "kind": "equivalent",
+      "file": "src/runtime/plugin.ts",
+      "lineHint": 56,
+      "mutators": ["ConditionalExpression"]
+    },
+    {
+      "snippet": "maxAge: detectCfg?.cookieMaxAge ?? DEFAULT_DETECT_BROWSER_LANGUAGE.cookieMaxAge,",
+      "reason": "detectCfg is never nullish inside the useCookie options: the only shape that makes it undefined is detectBrowserLanguage === false, which sets useCookieForLocale false so no cookie is created. Evidence: hand-applied in the worktree, full suite (256 tests) run, observed GREEN, restored",
+      "package": "packages/nuxt",
+      "kind": "equivalent",
+      "file": "src/runtime/plugin.ts",
+      "lineHint": 63,
+      "mutators": ["OptionalChaining"]
+    },
+    {
+      "snippet": "sameSite: detectCfg?.sameSite ?? \"lax\",",
+      "reason": "same: detectCfg is never nullish inside the useCookie options. Evidence: hand-applied in the worktree, full suite (256 tests) run, observed GREEN, restored",
+      "package": "packages/nuxt",
+      "kind": "equivalent",
+      "file": "src/runtime/plugin.ts",
+      "lineHint": 65,
+      "mutators": ["OptionalChaining"]
+    },
+    {
+      "snippet": "domain: detectCfg?.domain,",
+      "reason": "same: detectCfg is never nullish inside the useCookie options. Evidence: hand-applied in the worktree, full suite (256 tests) run, observed GREEN, restored",
+      "package": "packages/nuxt",
+      "kind": "equivalent",
+      "file": "src/runtime/plugin.ts",
+      "lineHint": 66,
+      "mutators": ["OptionalChaining"]
+    },
+    {
+      "snippet": "if (import.meta.server) {",
+      "reason": "import.meta.server is undefined under vitest, so the guard is already false; the ConditionalExpression->true mutant on this line IS killed by the client-side 'registers no SSR payload hook' test. Evidence: hand-applied in the worktree, full suite (256 tests) run, observed GREEN, restored",
+      "package": "packages/nuxt",
+      "kind": "needs-seam",
+      "file": "src/runtime/plugin.ts",
+      "lineHint": 91,
+      "mutators": ["ConditionalExpression"]
+    },
+    {
+      "snippet": "if (!import.meta.server) {",
+      "reason": "same seam inverted: `!import.meta.server` is already true under vitest. Evidence: hand-applied in the worktree, full suite (256 tests) run, observed GREEN, restored",
+      "package": "packages/nuxt",
+      "kind": "needs-seam",
+      "file": "src/runtime/plugin.ts",
+      "lineHint": 108,
+      "mutators": ["ConditionalExpression"]
+    },
+    {
+      "snippet": "{ immediate: false },",
+      "reason": "vue's watch defaults `immediate` to false, so an emptied options object schedules the same watcher. / at setup time the host was constructed with `locale: localeState.value`, so an immediate run finds newLocale === i18n.locale.value and calls nothing. Evidence: hand-applied in the worktree, full suite (256 tests) run, observed GREEN, restored",
+      "package": "packages/nuxt",
+      "kind": "equivalent",
+      "file": "src/runtime/plugin.ts",
+      "lineHint": 157,
+      "mutators": ["BooleanLiteral", "ObjectLiteral"]
+    },
+    {
+      "snippet": "if (import.meta.hot) {",
+      "reason": "the HMR dispose registration is unobservable in a vitest run — no reload ever invokes the callback — so forcing the guard changes nothing the suite can see. / same: the dispose callback is never invoked in a test run. / same: an emptied HMR block is unobservable without a reload. Evidence: hand-applied in the worktree, full suite (256 tests) run, observed GREEN, restored",
+      "package": "packages/nuxt",
+      "kind": "needs-seam",
+      "file": "src/runtime/plugin.ts",
+      "lineHint": 161,
+      "mutators": ["BlockStatement", "ConditionalExpression"]
+    },
+    {
+      "snippet": "if (localeInstances.get(locale) === instancePromise) {",
+      "reason": "the promise was stored under that key three lines earlier and nothing else writes the per-request map, so the guard is always true. Evidence: hand-applied in the worktree, full suite (256 tests) run, observed GREEN, restored",
+      "package": "packages/nuxt",
+      "kind": "equivalent",
+      "file": "src/runtime/server/utils/request-i18n.ts",
+      "lineHint": 78,
+      "mutators": ["ConditionalExpression"]
+    },
+    {
+      "snippet": "if (localeInstances.size === 0 && requestI18nMap.get(contextKey) === localeInstances) {",
+      "reason": "dropping the now-empty per-locale Map from the WeakMap is unobservable: the next call for the same context finds an empty Map and behaves identically to finding none, and the entry is keyed by the request context so it is collected with the request either way. / same cleanup: `requestI18nMap.get(contextKey) === localeInstances` is always true here, so replacing it with `true` cannot change the branch. / same cleanup: inverting the identity check only suppresses an unobservable WeakMap delete. / same cleanup: an emptied block only suppresses the unobservable WeakMap delete. Evidence: hand-applied in the worktree, full suite (256 tests) run, observed GREEN, restored",
+      "package": "packages/nuxt",
+      "kind": "equivalent",
+      "file": "src/runtime/server/utils/request-i18n.ts",
+      "lineHint": 80,
+      "mutators": ["BlockStatement", "ConditionalExpression", "EqualityOperator"]
+    },
+    {
+      "snippet": "requestI18nMap.delete(contextKey);",
+      "reason": "same cleanup: removing the delete leaves an empty Map behind, which the next call treats exactly like a missing one. Evidence: hand-applied in the worktree, full suite (256 tests) run, observed GREEN, restored",
+      "package": "packages/nuxt",
+      "kind": "equivalent",
+      "file": "src/runtime/server/utils/request-i18n.ts",
+      "lineHint": 81,
+      "mutators": ["CallExpression"]
+    },
+    {
+      "snippet": "const EMPTY_CONFIG: ComviServerRuntimeConfig = {",
+      "reason": "runner artifact, not an equivalent mutant - the claim IS pinned. Hand-applying this mutant turns 3 of this package's tests RED. Stryker still reports it Survived because @stryker-mutator/vitest-runner drives one long-lived vitest with module isolation off, so this module-level initializer is evaluated once, before the mutant switch is ever armed; the mutated value can never take effect inside a mutant run. Evidence: hand-applied in the worktree, full suite (256 tests) run, observed RED, restored",
+      "package": "packages/nuxt",
+      "kind": "tooling:static-mutant",
+      "file": "src/runtime/server/utils/runtime-config.ts",
+      "lineHint": 16,
+      "mutators": ["ObjectLiteral"]
+    },
+    {
+      "snippet": "public: {",
+      "reason": "runner artifact, not an equivalent mutant - the claim IS pinned. Hand-applying this mutant turns 3 of this package's tests RED. Stryker still reports it Survived because @stryker-mutator/vitest-runner drives one long-lived vitest with module isolation off, so this module-level initializer is evaluated once, before the mutant switch is ever armed; the mutated value can never take effect inside a mutant run. Evidence: hand-applied in the worktree, full suite (256 tests) run, observed RED, restored",
+      "package": "packages/nuxt",
+      "kind": "tooling:static-mutant",
+      "file": "src/runtime/server/utils/runtime-config.ts",
+      "lineHint": 17,
+      "mutators": ["ObjectLiteral"]
+    },
+    {
+      "snippet": "comvi: {",
+      "reason": "runner artifact, not an equivalent mutant - the claim IS pinned. Hand-applying this mutant turns 3 of this package's tests RED. Stryker still reports it Survived because @stryker-mutator/vitest-runner drives one long-lived vitest with module isolation off, so this module-level initializer is evaluated once, before the mutant switch is ever armed; the mutated value can never take effect inside a mutant run. Evidence: hand-applied in the worktree, full suite (256 tests) run, observed RED, restored",
+      "package": "packages/nuxt",
+      "kind": "tooling:static-mutant",
+      "file": "src/runtime/server/utils/runtime-config.ts",
+      "lineHint": 18,
+      "mutators": ["ObjectLiteral"]
+    },
+    {
+      "snippet": "locales: [],",
+      "reason": "runner artifact, not an equivalent mutant - the claim IS pinned. Hand-applying this mutant turns 2 of this package's tests RED. Stryker still reports it Survived because @stryker-mutator/vitest-runner drives one long-lived vitest with module isolation off, so this module-level initializer is evaluated once, before the mutant switch is ever armed; the mutated value can never take effect inside a mutant run. Evidence: hand-applied in the worktree, full suite (256 tests) run, observed RED, restored",
+      "package": "packages/nuxt",
+      "kind": "tooling:static-mutant",
+      "file": "src/runtime/server/utils/runtime-config.ts",
+      "lineHint": 19,
+      "mutators": ["ArrayDeclaration"]
+    },
+    {
+      "snippet": "defaultLocale: \"en\",",
+      "reason": "runner artifact, not an equivalent mutant - the claim IS pinned. Hand-applying this mutant turns 3 of this package's tests RED. Stryker still reports it Survived because @stryker-mutator/vitest-runner drives one long-lived vitest with module isolation off, so this module-level initializer is evaluated once, before the mutant switch is ever armed; the mutated value can never take effect inside a mutant run. Evidence: hand-applied in the worktree, full suite (256 tests) run, observed RED, restored",
+      "package": "packages/nuxt",
+      "kind": "tooling:static-mutant",
+      "file": "src/runtime/server/utils/runtime-config.ts",
+      "lineHint": 21,
+      "mutators": ["StringLiteral"]
+    },
+    {
+      "snippet": "localePrefix: \"as-needed\",",
+      "reason": "runner artifact, not an equivalent mutant - the claim IS pinned. Hand-applying this mutant turns 1 of this package's tests RED. Stryker still reports it Survived because @stryker-mutator/vitest-runner drives one long-lived vitest with module isolation off, so this module-level initializer is evaluated once, before the mutant switch is ever armed; the mutated value can never take effect inside a mutant run. Evidence: hand-applied in the worktree, full suite (256 tests) run, observed RED, restored",
+      "package": "packages/nuxt",
+      "kind": "tooling:static-mutant",
+      "file": "src/runtime/server/utils/runtime-config.ts",
+      "lineHint": 22,
+      "mutators": ["StringLiteral"]
+    },
+    {
+      "snippet": "defaultNs: \"default\",",
+      "reason": "runner artifact, not an equivalent mutant - the claim IS pinned. Hand-applying this mutant turns 1 of this package's tests RED. Stryker still reports it Survived because @stryker-mutator/vitest-runner drives one long-lived vitest with module isolation off, so this module-level initializer is evaluated once, before the mutant switch is ever armed; the mutated value can never take effect inside a mutant run. Evidence: hand-applied in the worktree, full suite (256 tests) run, observed RED, restored",
+      "package": "packages/nuxt",
+      "kind": "tooling:static-mutant",
+      "file": "src/runtime/server/utils/runtime-config.ts",
+      "lineHint": 24,
+      "mutators": ["StringLiteral"]
+    },
+    {
+      "snippet": "fallbackLocale: \"en\",",
+      "reason": "runner artifact, not an equivalent mutant - the claim IS pinned. Hand-applying this mutant turns 1 of this package's tests RED. Stryker still reports it Survived because @stryker-mutator/vitest-runner drives one long-lived vitest with module isolation off, so this module-level initializer is evaluated once, before the mutant switch is ever armed; the mutated value can never take effect inside a mutant run. Evidence: hand-applied in the worktree, full suite (256 tests) run, observed RED, restored",
+      "package": "packages/nuxt",
+      "kind": "tooling:static-mutant",
+      "file": "src/runtime/server/utils/runtime-config.ts",
+      "lineHint": 25,
+      "mutators": ["StringLiteral"]
+    },
+    {
+      "snippet": "detectBrowserLanguage: { ...DEFAULT_DETECT_BROWSER_LANGUAGE },",
+      "reason": "runner artifact, not an equivalent mutant - the claim IS pinned. Hand-applying this mutant turns 1 of this package's tests RED. Stryker still reports it Survived because @stryker-mutator/vitest-runner drives one long-lived vitest with module isolation off, so this module-level initializer is evaluated once, before the mutant switch is ever armed; the mutated value can never take effect inside a mutant run. Evidence: hand-applied in the worktree, full suite (256 tests) run, observed RED, restored",
+      "package": "packages/nuxt",
+      "kind": "tooling:static-mutant",
+      "file": "src/runtime/server/utils/runtime-config.ts",
+      "lineHint": 26,
+      "mutators": ["ObjectLiteral"]
+    },
+    {
+      "snippet": "...(typeof detectBrowserLanguage === \"object\" ? detectBrowserLanguage : {}),",
+      "reason": "at that point detectBrowserLanguage is an object or `false` (the runtime type is `DetectBrowserLanguageOptions | false`), and spreading `false` yields {} — the same as the else-arm. Evidence: hand-applied in the worktree, full suite (256 tests) run, observed GREEN, restored",
+      "package": "packages/nuxt",
+      "kind": "equivalent",
+      "file": "src/runtime/server/utils/useTranslation.ts",
+      "lineHint": 82,
+      "mutators": ["ConditionalExpression"]
+    },
+    {
+      "snippet": "const useCookieForDetection = detectConfig !== false && detectConfig.useCookie === true;",
+      "reason": "for detectConfig === false the right operand `false.useCookie === true` is false anyway, and for an object both `!== false` and `!== true` are true. / same: forcing the left operand true leaves `detectConfig.useCookie === true` to decide, which is already false for the `false` case. Evidence: hand-applied in the worktree, full suite (256 tests) run, observed GREEN, restored",
+      "package": "packages/nuxt",
+      "kind": "equivalent",
+      "file": "src/runtime/server/utils/useTranslation.ts",
+      "lineHint": 84,
+      "mutators": ["BooleanLiteral", "ConditionalExpression"]
+    },
+    {
+      "snippet": "detectConfig && \"fallbackLocale\" in detectConfig && detectConfig.fallbackLocale",
+      "reason": "line 89 normalizes the result through `locales.includes(fallbackLocale) ? fallbackLocale : defaultLocale`, so taking the true arm unconditionally still resolves to defaultLocale when detectConfig carries no fallbackLocale. / same normalization: `(detectConfig && \"fallbackLocale\" in detectConfig) || detectConfig.fallbackLocale` yields a truthy value in exactly the cases where the original does, for every config shape the runtime type allows. / same normalization: forcing the guard true still yields undefined for configs without fallbackLocale, which line 89 maps to defaultLocale. Evidence: hand-applied in the worktree, full suite (256 tests) run, observed GREEN, restored",
+      "package": "packages/nuxt",
+      "kind": "equivalent",
+      "file": "src/runtime/server/utils/useTranslation.ts",
+      "lineHint": 86,
+      "mutators": ["ConditionalExpression", "LogicalOperator"]
+    },
+    {
+      "snippet": "if (i18n.locale !== locale) {",
+      "reason": "getRequestI18n already guarantees `i18n.locale === locale` before it returns, so this defensive re-sync inside loadTranslationsForLocale is never taken; the ConditionalExpression->true and EqualityOperator mutants on the same line ARE killed. Evidence: hand-applied in the worktree, full suite (256 tests) run, observed GREEN, restored",
+      "package": "packages/nuxt",
+      "kind": "equivalent",
+      "file": "src/runtime/server/utils/useTranslation.ts",
+      "lineHint": 143,
+      "mutators": ["ConditionalExpression"]
+    },
+    {
+      "snippet": "const KEY = \"i18n-locale\";",
+      "reason": "runner artifact, not an equivalent mutant - the claim IS pinned. Hand-applying this mutant turns 31 of this package's tests RED. Stryker still reports it Survived because @stryker-mutator/vitest-runner drives one long-lived vitest with module isolation off, so this module-level initializer is evaluated once, before the mutant switch is ever armed; the mutated value can never take effect inside a mutant run. Evidence: hand-applied in the worktree, full suite (256 tests) run, observed RED, restored",
+      "package": "packages/nuxt",
+      "kind": "tooling:static-mutant",
+      "file": "src/runtime/utils/locale-state.ts",
+      "lineHint": 3,
+      "mutators": ["StringLiteral"]
+    },
+    {
+      "snippet": "const [code, q = \"q=1\"] = lang.trim().split(\";\");",
+      "reason": "the destructuring default only feeds `parseFloat(q.split(\"=\")[1] || \"1\")`; `\"\"` splits to [\"\"], so the `|| \"1\"` fallback yields quality 1 either way. / line 22 re-trims with `code.trim()` and parseFloat ignores surrounding whitespace in the q value, so dropping `lang.trim()` changes no parsed language or quality. Evidence: hand-applied in the worktree, full suite (256 tests) run, observed GREEN, restored",
+      "package": "packages/nuxt",
+      "kind": "equivalent",
+      "file": "src/runtime/utils/resolve-locale.ts",
+      "lineHint": 19,
+      "mutators": ["MethodExpression", "StringLiteral"]
+    },
+    {
+      "snippet": "const quality = parseFloat(q.split(\"=\")[1] || \"1\");",
+      "reason": "`\"\"` is falsy, so the `||` still produces `\"\"`; parseFloat(\"\") is NaN, which the isNaN guard maps back to the same quality 1. Evidence: hand-applied in the worktree, full suite (256 tests) run, observed GREEN, restored",
+      "package": "packages/nuxt",
+      "kind": "equivalent",
+      "file": "src/runtime/utils/resolve-locale.ts",
+      "lineHint": 20,
+      "mutators": ["StringLiteral"]
+    },
+    {
+      "snippet": "export const isServer = (): boolean => import.meta.server === true;",
+      "reason": "import.meta.server is undefined under vitest and there is no seam to flip it (Vite's `define` is not applied to import.meta.* in serve mode, and every module gets its own import.meta object), so `=== false` yields the same false the test pins. The ArrowFunction, EqualityOperator and ConditionalExpression->true mutants on this line ARE killed. / same seam: with import.meta.server falsy the original already evaluates to false, so replacing the comparison with `false` is indistinguishable. Evidence: hand-applied in the worktree, full suite (256 tests) run, observed GREEN, restored",
+      "package": "packages/nuxt",
+      "kind": "needs-seam",
+      "file": "src/runtime/utils/runtime.ts",
+      "lineHint": 1,
+      "mutators": ["BooleanLiteral", "ConditionalExpression"]
     }
   ]
 }
