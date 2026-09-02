@@ -137,6 +137,33 @@ describe("useLocalePath", () => {
     expect(result).toBe("/de/dashboard");
   });
 
+  it("adds no query suffix for a named route whose query object is empty", () => {
+    setRouterResolveOverride(() => {
+      throw new Error("No route found");
+    });
+    const localePath = useLocalePath();
+
+    expect(localePath({ name: "home", query: {} }, "de")).toBe("/de/home");
+  });
+
+  it("falls back to the locale root when the router resolves to an empty path", () => {
+    setRouterResolveOverride(() => ({ fullPath: "" }));
+    const localePath = useLocalePath();
+
+    expect(localePath({ name: "about" }, "de")).toBe("/de");
+  });
+
+  it("synthesizes a path from query and hash when the route name is empty", () => {
+    setRouterResolveOverride(() => {
+      throw new Error("No route found");
+    });
+    const localePath = useLocalePath();
+
+    const result = localePath({ name: undefined, query: { a: "b" }, hash: "#top" }, "de");
+
+    expect(result).toBe("/de?a=b#top");
+  });
+
   it("filters null/undefined from array query values in fallback", () => {
     setRouterResolveOverride(() => {
       throw new Error("No route found");
@@ -440,6 +467,17 @@ describe("useLocaleHead", () => {
     >;
 
     expect(links.map((link) => link.hreflang)).toEqual(["en", "de-DE", "uk-UA", "fr", "x-default"]);
+  });
+
+  it("falls back to the locale code for a locale that has no locale object", () => {
+    setMockRoute({ path: "/fr/about", fullPath: "/fr/about" });
+    mockRuntimeConfig.public.comvi.locales = ["en", "fr"];
+    useState<string>("i18n-locale", () => "fr");
+
+    const headConfig = useLocaleHead({ addAlternateLinks: false, addCanonical: false });
+    const head = headConfig.value as Record<string, unknown>;
+
+    expect(head.htmlAttrs).toStrictEqual({ lang: "fr" });
   });
 
   it("omits the dir attribute for a locale that declares no direction", () => {

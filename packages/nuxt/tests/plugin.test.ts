@@ -25,8 +25,16 @@ function createI18nStub(initialLocale = "en") {
       const callbacks = listeners.get(event) ?? [];
       callbacks.push(callback);
       listeners.set(event, callbacks);
-      return () => undefined;
+      // A real unsubscribe, so releasing the listener is observable.
+      return () => {
+        const registered = listeners.get(event) ?? [];
+        const index = registered.indexOf(callback);
+        if (index !== -1) {
+          registered.splice(index, 1);
+        }
+      };
     }),
+    destroy: vi.fn(),
     setLocale: vi.fn(async (newLocale: string) => {
       i18n.locale.value = newLocale;
     }),
@@ -443,6 +451,33 @@ describe("runtime plugin", () => {
     expect(i18n.reportError).toHaveBeenCalledWith(new Error("loader registration blew up"), {
       source: "plugin",
     });
+  });
+
+  it("releases its listeners and destroys the host when HMR disposes the module", async () => {
+    const disposeCallbacks: Array<() => void> = [];
+    vi.stubGlobal("__COMVI_TEST_HOT__", {
+      dispose: (callback: () => void) => disposeCallbacks.push(callback),
+    });
+    const i18n = createI18nStub("en");
+    createComviI18n.mockReturnValue(i18n);
+
+    const plugin = await importPlugin();
+    await plugin.setup(createNuxtAppStub());
+    expect(disposeCallbacks).toHaveLength(1);
+
+    disposeCallbacks[0]();
+
+    const localeState = nuxtAppMocks.useState<string>("i18n-locale");
+    // The localeChanged listener is gone: an event no longer reaches the state.
+    i18n.emit("localeChanged", { to: "de" });
+    expect(localeState.value).toBe("en");
+
+    // The state watcher is stopped: an external write no longer reaches the host.
+    localeState.value = "uk";
+    await flushWatchers();
+    expect(i18n.setLocale).not.toHaveBeenCalled();
+
+    expect(i18n.destroy).toHaveBeenCalledTimes(1);
   });
 
   it("surfaces a host construction failure instead of booting a half-built app", async () => {

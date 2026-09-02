@@ -621,6 +621,16 @@ describe("nuxt module setup", () => {
     ]);
   });
 
+  it("creates the vite pre-bundle entry when the app declares no vite config", async () => {
+    const moduleDefinition = await importModule();
+    const nuxt = createNuxtStub();
+    nuxt.options.vite = undefined;
+
+    await moduleDefinition.setup({ locales: ["en"], defaultLocale: "en" }, nuxt);
+
+    expect(nuxt.options.vite.optimizeDeps.include).toEqual(["@comvi/vue", "@comvi/core"]);
+  });
+
   it("prefixes non-default locales when localePrefix is left unset", async () => {
     const moduleDefinition = await importModule();
     const nuxt = createNuxtStub();
@@ -647,6 +657,21 @@ describe("nuxt module setup", () => {
       expect(pages).toEqual([]);
     },
   );
+
+  it("keeps an ordinary page that has a file but carries no locale marker", async () => {
+    const moduleDefinition = await importModule();
+    const nuxt = createNuxtStub();
+
+    await moduleDefinition.setup({ locales: ["en", "de"], defaultLocale: "en" }, nuxt);
+
+    const pages: NuxtPage[] = [
+      { name: "about", path: "/about", file: "/app/pages/about.vue" },
+      { name: "blog", path: "/blog", file: "/app/pages/[locale]/blog.vue" },
+    ];
+    extendPagesHandler!(pages);
+
+    expect(pages.map((page) => page.path)).toEqual(["/about", "/de/about"]);
+  });
 
   it("strips a [locale] file route whose path carries no :locale param", async () => {
     const moduleDefinition = await importModule();

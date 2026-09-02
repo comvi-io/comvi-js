@@ -409,6 +409,24 @@ describe("useTranslation (server)", () => {
     expect(i18n.hasTranslation).toHaveBeenCalledWith("greeting", "de", "common");
   });
 
+  it("falls back to built-in defaults when the runtime config carries no comvi settings", async () => {
+    const i18n = createI18nStub("en");
+    createComviCore.mockReturnValue(i18n);
+    const useTranslation = await importUseTranslation();
+    const bareEvent = {
+      context: { runtimeConfig: { public: { comvi: {} }, comvi: {} } },
+    } as any;
+
+    const { locale, t } = await useTranslation(bareEvent);
+    t("hello");
+
+    expect(locale).toBe("en");
+    expect(i18n.t).toHaveBeenCalledWith(
+      "hello",
+      expect.objectContaining({ locale: "en", ns: "default" }),
+    );
+  });
+
   it("warns and keeps translating when a namespace fails to load", async () => {
     const i18n = createI18nStub("en");
     i18n.addActiveNamespace.mockRejectedValue(new Error("offline"));
