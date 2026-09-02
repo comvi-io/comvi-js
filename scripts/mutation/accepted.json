@@ -6778,6 +6778,159 @@
       "snippet": "return typeof value === \"number\" && Number.isFinite(value) && value >= 0 ? Math.floor(value) : 0;",
       "kind": "equivalent",
       "package": "apps/chrome-extension"
+    },
+    {
+      "package": "apps/chrome-extension",
+      "file": "src/popup/popup.ts",
+      "mutators": ["StringLiteral"],
+      "snippet": "return window.matchMedia?.(\"(prefers-color-scheme: dark)\").matches ? \"dark\" : \"light\";",
+      "kind": "equivalent",
+      "reason": "applyTheme only ever compares the theme to \"dark\", so every non-\"dark\" string paints the identical DOM. Hand-applied; 354 green.",
+      "lineHint": 66
+    },
+    {
+      "package": "apps/chrome-extension",
+      "file": "src/popup/popup.ts",
+      "mutators": ["ConditionalExpression", "StringLiteral"],
+      "snippet": "if (!currentTabId) return Promise.reject(new Error(\"No tab ID\"));",
+      "kind": "equivalent",
+      "reason": "defensive guard: sendToContentScript only runs after init assigned a truthy tab.id. Both mutants hand-applied; green.",
+      "lineHint": 167
+    },
+    {
+      "package": "apps/chrome-extension",
+      "file": "src/popup/popup.ts",
+      "mutators": ["ConditionalExpression", "BooleanLiteral"],
+      "snippet": "if (!currentTabId) return false;",
+      "kind": "equivalent",
+      "reason": "unreachable with falsy currentTabId (init returns first) and sendToContentScript re-guards. Hand-applied; green.",
+      "lineHint": 193
+    },
+    {
+      "package": "apps/chrome-extension",
+      "file": "src/popup/popup.ts",
+      "mutators": ["OptionalChaining"],
+      "snippet": "if (!response?.payload) return false;",
+      "kind": "equivalent",
+      "reason": "dropping ?. throws on undefined response; the enclosing try/catch returns the same false. Hand-applied; green.",
+      "lineHint": 197
+    },
+    {
+      "package": "apps/chrome-extension",
+      "file": "src/popup/popup.ts",
+      "mutators": ["BlockStatement"],
+      "snippet": "} catch {",
+      "kind": "equivalent",
+      "reason": "emptied catch returns undefined; the only consumer is `if (await requestStatus())` — same branch as false. Hand-applied; green.",
+      "lineHint": 200
+    },
+    {
+      "package": "apps/chrome-extension",
+      "file": "src/popup/popup.ts",
+      "mutators": ["StringLiteral"],
+      "snippet": "apiKeyInput.type = visible ? \"text\" : \"password\";",
+      "kind": "equivalent",
+      "reason": "input.type = \"\" is invalid and reflects back as \"text\" — unmasked either way. Hand-applied; green.",
+      "lineHint": 219
+    },
+    {
+      "package": "apps/chrome-extension",
+      "file": "src/popup/popup.ts",
+      "mutators": ["ConditionalExpression"],
+      "snippet": "if (!currentTabId) return undefined;",
+      "kind": "equivalent",
+      "reason": "getAuthoritativeStatus runs after the tab check or from a deadline armed only after a verified tab. Hand-applied; green.",
+      "lineHint": 268
+    },
+    {
+      "package": "apps/chrome-extension",
+      "file": "src/popup/popup.ts",
+      "mutators": ["BooleanLiteral"],
+      "snippet": "settled = true;",
+      "kind": "equivalent",
+      "reason": "after resolve(true) the flag only gates a second resolve — a no-op on a settled promise; the port/lease reset is outside the guard. (POPUP_REGISTERED branch.) Hand-applied; green.",
+      "lineHint": 290
+    },
+    {
+      "package": "apps/chrome-extension",
+      "file": "src/popup/popup.ts",
+      "mutators": ["ConditionalExpression"],
+      "snippet": "if (!settled) {",
+      "kind": "equivalent",
+      "reason": "forcing the branch calls resolve(false) on an already-resolved promise — a no-op. Hand-applied; green.",
+      "lineHint": 295
+    },
+    {
+      "package": "apps/chrome-extension",
+      "file": "src/popup/popup.ts",
+      "mutators": ["BooleanLiteral"],
+      "snippet": "settled = true;",
+      "kind": "equivalent",
+      "reason": "observable only if Chrome fired onDisconnect twice for one Port, which the Port contract forbids. (onDisconnect branch.) Hand-applied; green.",
+      "lineHint": 296
+    },
+    {
+      "package": "apps/chrome-extension",
+      "file": "src/popup/popup.ts",
+      "mutators": ["ConditionalExpression"],
+      "snippet": "if (popupLifecyclePort === port) {",
+      "kind": "equivalent",
+      "reason": "two lifecycle Ports never coexist — a new one connects only after this handler nulled popupLeaseReady, so the identity check is always true when it runs. Hand-applied; green.",
+      "lineHint": 299
+    },
+    {
+      "package": "apps/chrome-extension",
+      "file": "src/popup/popup.ts",
+      "mutators": ["ConditionalExpression"],
+      "snippet": "if (activationTimeout !== null) {",
+      "kind": "equivalent",
+      "reason": "forcing the branch calls clearTimeout(null) — a no-op — and re-assigns null to null. Hand-applied; green.",
+      "lineHint": 330
+    },
+    {
+      "package": "apps/chrome-extension",
+      "file": "src/popup/popup.ts",
+      "mutators": ["CallExpression"],
+      "snippet": "clearActivationTimeout();",
+      "kind": "equivalent",
+      "reason": "no path arms the deadline twice: handleEnable is the only caller, gated by `operation`, and every path clearing `operation` clears the timer first. Hand-applied; green.",
+      "lineHint": 344
+    },
+    {
+      "package": "apps/chrome-extension",
+      "file": "src/popup/popup.ts",
+      "mutators": ["ConditionalExpression"],
+      "snippet": "if (operation) return;",
+      "kind": "equivalent",
+      "reason": "unreachable: setOperation renders before returning, so with `operation` set the enable button and key field are disabled, and the keydown handler carries its own !operation guard. Hand-applied; green.",
+      "lineHint": 359
+    },
+    {
+      "package": "apps/chrome-extension",
+      "file": "src/popup/popup.ts",
+      "mutators": ["BlockStatement"],
+      "snippet": "} catch {",
+      "kind": "equivalent",
+      "reason": "emptied catch returns undefined; the only consumer is `if (injected)` — same branch as false. Hand-applied; green.",
+      "lineHint": 475
+    },
+    {
+      "package": "apps/chrome-extension",
+      "file": "src/popup/popup.ts",
+      "mutators": ["OptionalChaining"],
+      "snippet": "if (!credentials?.apiKey || keyInputDirty || apiKeyInput.value !== \"\") return;",
+      "kind": "equivalent",
+      "reason": "dropping ?. throws on null credentials, and the chain's own .catch(() => {}) makes that the same do-nothing outcome. Hand-applied; green.",
+      "lineHint": 501
+    },
+    {
+      "package": "apps/chrome-extension",
+      "file": "src/popup/popup.ts",
+      "mutators": ["StringLiteral"],
+      "snippet": "case \"EDITOR_DEACTIVATED\":",
+      "kind": "equivalent",
+      "reason": "the case body is a bare break, so a never-matching label leaves the switch with identical effect. Hand-applied; green.",
+      "lineHint": 582
     }
   ]
 }
