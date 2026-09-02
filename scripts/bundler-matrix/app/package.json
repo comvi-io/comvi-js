@@ -2,7 +2,7 @@
   "name": "bundler-matrix-app",
   "private": true,
   "type": "module",
-  "description": "Standalone consumer fixture for the pack-based bundler-matrix gate. NOT part of the pnpm workspace: installed with npm at runtime so the packed @comvi tarballs resolve exactly like a published install (run.mjs adds the tarballs with `npm install --no-save`).",
+  "description": "Standalone consumer fixture for the pack-based bundler-matrix gate. NOT part of the pnpm workspace: installed with npm at runtime so the packed @comvi tarballs resolve exactly like a published install (run.mjs adds the tarballs with `npm install --no-save`). rolldown is PINNED via overrides: 1.2.7 (2026-09-02) shipped without its native binding packages and breaks every fresh install; drop the override once upstream publishes working bindings.",
   "devDependencies": {
     "@sveltejs/vite-plugin-svelte": "^7.0.0",
     "next": "file:stubs/next",
@@ -13,5 +13,8 @@
     "vue": "^3.5.13",
     "webpack": "^5.94.0",
     "webpack-cli": "^5.1.4"
+  },
+  "overrides": {
+    "rolldown": "1.2.6"
   }
 }
