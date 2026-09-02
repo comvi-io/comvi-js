@@ -486,3 +486,36 @@ packages/react|solid|svelte|vue (incl. tests/vue-i18n-contracts.test.ts mid-edit
 tests/types/probe.test-d.ts files). On resume: merge that report per the protocol, then run the
 ROOT sweep (pnpm typecheck && pnpm test at root — pending since the wave started), write the
 round-12 closing record, and the branch is Phase-6-ready (16 changesets).
+
+## Round 12 — the six typing fixes COMPLETE (2026-09-02, e75b32a..76aae18, all CI-green)
+
+All six merged:
+- #3 core (e75b32a): defaultParams optional on the constraint-landing arm — the arm exists to
+  admit index signatures, not to demand the option; two contextual-position pins kept.
+- #2 next + #4/#5 nuxt (b023375): readonly locales (the package's own defineRouting finally
+  spreads into its own factory); the schema shim's empty interfaces were LOAD-BEARING (they
+  pulled @nuxt/schema into the runtime project for the real augmentation) — replaced by a
+  module-scoped `import type {}` file that shadows nothing; module.ts + both excluded tests
+  joined typecheck; plugin/middleware shims identity-typed.
+- #1 react/solid/svelte + #6 vue (76aae18): generic-over-D PROVABLY cannot work (no inference
+  site — every D position is conditional or bivariant), the instrument is AnyI18nHost: the two
+  invariance carriers (setDefaultParams property, init() return) widened via METHOD bivalence —
+  zero blast radius, assignable both directions. vue unaffected (#1) — already generic with an
+  instance-method install. vue <T> uses the sibling `as never` idiom, guarded by a key-closed
+  tsconfig PROGRAM (tsc succeeding IS the test; proven non-vacuous by A/B). Glob lesson: a
+  tests/** glob swallows a key-closing augmentation into every sibling test — exclude the
+  keys-closed dir from the tests project.
+Root gates observed: repo typecheck via the pre-commit hook, root test 34/34, CI 4/4 on every
+merged slice. Changesets now: 16.
+
+Stash-incident postscript: react-cleanup's failed cwd-relative `git stash push` (pathspec
+`packages/...` FROM INSIDE packages/ resolves to packages/packages/... and errors) followed by
+an unconditional `;`-chained pop is the reproducible mechanism — the pop then operates on
+whatever stack exists. prod-profile's bare pops were the same hazard class. Both owner stashes
+verified intact (stash@{0} = the popped-and-restored old WIP, stash@{1} = release.yml WIP).
+The no-stash rule stands; scratchpad-copy + cp is the sanctioned A/B method.
+
+PRE-RELEASE STATE: branch is Phase-6-ready. Remaining open (all optional/product):
+editor ValidationResult.warnings UI; cli commands residual kill-pass (~299 raw survivors);
+svelte-check for .svelte internals; the keys-closed guard could be replicated to react/solid/
+svelte as a standing gate (clean today, verified once).
