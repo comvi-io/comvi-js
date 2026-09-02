@@ -138,7 +138,13 @@ export const T = /*@__PURE__*/ defineComponent({
     // `prepareTranslation` wants the core-shaped imperative `hasTranslation`,
     // but VueI18n's returns a ComputedRef. Reactivity is carried by `tRaw`.
     const source: PrepareTranslationSource = {
-      tRaw: (key, params) => i18n.tRaw(key, params),
+      // `as never` because the key is a RUNTIME string: once an app closes
+      // `TranslationKeys`, `tRaw`'s overloads narrow their key parameter to
+      // the registered literals (and `never` for the namespaced overload), so
+      // an unconstrained `string` matches none of them and every key-closed
+      // program fails to build. Same idiom as `solid`'s `tRaw(keyString as
+      // never)` and `react`'s `t(key as never, params)`.
+      tRaw: (key, params) => i18n.tRaw(key as never, params),
       hasTranslation: (key, locale, namespace, checkFallbacks) =>
         i18n.hasTranslationNow(key, { locale, namespace, checkFallbacks }),
     };

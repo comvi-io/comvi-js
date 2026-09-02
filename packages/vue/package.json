@@ -50,7 +50,7 @@
     "build": "vue-tsc && vite build",
     "typecheck": "vue-tsc --noEmit && vue-tsc --noEmit -p tsconfig.tests.json",
     "test": "vitest run && pnpm test:types",
-    "test:types": "tsc --noEmit -p tsconfig.test-types.json",
+    "test:types": "tsc --noEmit -p tsconfig.test-types.json && vue-tsc --noEmit -p tsconfig.keys-closed.json",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "lint": "eslint . --max-warnings=0",

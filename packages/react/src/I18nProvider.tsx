@@ -12,6 +12,37 @@ import type { WrapperI18nHost, FlattenedTranslations, I18nEvent } from "@comvi/c
 /** Loader/plugin capabilities are not part of it — see `capabilityHooks`. */
 type Host = WrapperI18nHost;
 
+/**
+ * A host with ANY default-params type — what the provider accepts.
+ *
+ * `I18nCoreInstance` declares `setDefaultParams` as a PROPERTY rather than a
+ * method, so `strictFunctionTypes` checks its parameter contravariantly and
+ * the host is INVARIANT in `D`: an instance from `createI18n({ defaultParams })`
+ * was not assignable to `WrapperI18nHost<{}>` at all, so it could not be
+ * passed to the provider.
+ *
+ * Making the boundary generic over `D` does NOT fix it. Every `D` position in
+ * the host is either a conditional type (`SetDefaultParamsArg<D>`,
+ * `ParamsArg<K, D>`) or a bivariant method, so `D` has no inference site: it
+ * silently falls back to the constraint and the call fails just the same.
+ *
+ * Widening the two members that carry the invariance is what actually works.
+ * `setDefaultParams` is the source; `init()` re-imports it by returning the
+ * host recursively. Every other `D` occurrence is a method (bivariant) or a
+ * return type (covariant), so nothing else has to move.
+ *
+ * Both are widened with METHOD syntax and `any` rather than `never` /
+ * `unknown` on purpose: methods are bivariant, so the result stays assignable
+ * to `WrapperI18nHost<{}>` in BOTH directions. That keeps every downstream
+ * consumer of these props (notably `@comvi/next`, which passes this `i18n`
+ * straight into helpers typed against the plain host) compiling unchanged,
+ * and means the provider needs no internal cast at all.
+ */
+export type AnyI18nHost = Omit<WrapperI18nHost, "setDefaultParams" | "init"> & {
+  setDefaultParams(params: any): void;
+  init(): Promise<any>;
+};
+
 interface I18nContextValue {
   i18n: Host;
   locale: string;
@@ -95,7 +126,8 @@ export function useStoreRevision(i18n: Host): string {
 
 export interface I18nProviderProps {
   children: React.ReactNode;
-  i18n: Host;
+  /** Any host, whatever default-params type it carries. */
+  i18n: AnyI18nHost;
   /** Auto-initialize the i18n instance on mount (default: true). */
   autoInit?: boolean;
   /** Initial locale for SSR hydration. */
