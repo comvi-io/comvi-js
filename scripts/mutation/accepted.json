@@ -5970,15 +5970,6 @@
       "mutators": ["ConditionalExpression", "LogicalOperator"]
     },
     {
-      "snippet": "if (import.meta.dev) {",
-      "reason": "import.meta.dev is undefined under vitest and there is no seam to set it, so the original guard is already false; the ConditionalExpression->true mutant on this line IS killed by the silent-fallback test. Evidence: hand-applied in the worktree, full suite (256 tests) run, observed GREEN, restored",
-      "package": "packages/nuxt",
-      "kind": "needs-seam",
-      "file": "src/runtime/composables/useSwitchLocalePath.ts",
-      "lineHint": 45,
-      "mutators": ["ConditionalExpression"]
-    },
-    {
       "snippet": "...(typeof detectBrowserLanguage === \"object\" ? detectBrowserLanguage : {}),",
       "reason": "detectBrowserLanguage is an object or `false` here (the false case took the other ternary arm), and spreading `false` yields {} — the same as the else-arm. Evidence: hand-applied in the worktree, full suite (256 tests) run, observed GREEN, restored",
       "package": "packages/nuxt",
@@ -6195,24 +6186,6 @@
       "mutators": ["OptionalChaining"]
     },
     {
-      "snippet": "if (import.meta.server) {",
-      "reason": "import.meta.server is undefined under vitest, so the guard is already false; the ConditionalExpression->true mutant on this line IS killed by the client-side 'registers no SSR payload hook' test. Evidence: hand-applied in the worktree, full suite (256 tests) run, observed GREEN, restored",
-      "package": "packages/nuxt",
-      "kind": "needs-seam",
-      "file": "src/runtime/plugin.ts",
-      "lineHint": 91,
-      "mutators": ["ConditionalExpression"]
-    },
-    {
-      "snippet": "if (!import.meta.server) {",
-      "reason": "same seam inverted: `!import.meta.server` is already true under vitest. Evidence: hand-applied in the worktree, full suite (256 tests) run, observed GREEN, restored",
-      "package": "packages/nuxt",
-      "kind": "needs-seam",
-      "file": "src/runtime/plugin.ts",
-      "lineHint": 108,
-      "mutators": ["ConditionalExpression"]
-    },
-    {
       "snippet": "{ immediate: false },",
       "reason": "vue's watch defaults `immediate` to false, so an emptied options object schedules the same watcher. / at setup time the host was constructed with `locale: localeState.value`, so an immediate run finds newLocale === i18n.locale.value and calls nothing. Evidence: hand-applied in the worktree, full suite (256 tests) run, observed GREEN, restored",
       "package": "packages/nuxt",
@@ -6223,7 +6196,7 @@
     },
     {
       "snippet": "if (import.meta.hot) {",
-      "reason": "the HMR dispose registration is unobservable in a vitest run — no reload ever invokes the callback — so forcing the guard changes nothing the suite can see. / same: the dispose callback is never invoked in a test run. / same: an emptied HMR block is unobservable without a reload. Evidence: hand-applied in the worktree, full suite (256 tests) run, observed GREEN, restored",
+      "reason": "import.meta.hot IS truthy under vitest (an object with dispose), so the guard is taken and registration runs; what is unreachable is the dispose CALLBACK body (L163-165), which no test run invokes. Cond-true plain equivalent; Cond-false/Block unobservable-registration. Corrected from the round-1 reason.",
       "package": "packages/nuxt",
       "kind": "needs-seam",
       "file": "src/runtime/plugin.ts",
@@ -6400,15 +6373,6 @@
       "file": "src/runtime/utils/resolve-locale.ts",
       "lineHint": 20,
       "mutators": ["StringLiteral"]
-    },
-    {
-      "snippet": "export const isServer = (): boolean => import.meta.server === true;",
-      "reason": "import.meta.server is undefined under vitest and there is no seam to flip it (Vite's `define` is not applied to import.meta.* in serve mode, and every module gets its own import.meta object), so `=== false` yields the same false the test pins. The ArrowFunction, EqualityOperator and ConditionalExpression->true mutants on this line ARE killed. / same seam: with import.meta.server falsy the original already evaluates to false, so replacing the comparison with `false` is indistinguishable. Evidence: hand-applied in the worktree, full suite (256 tests) run, observed GREEN, restored",
-      "package": "packages/nuxt",
-      "kind": "needs-seam",
-      "file": "src/runtime/utils/runtime.ts",
-      "lineHint": 1,
-      "mutators": ["BooleanLiteral", "ConditionalExpression"]
     },
     {
       "package": "packages/next",

@@ -289,6 +289,20 @@ describe("useSwitchLocalePath", () => {
     expect(warnSpy).not.toHaveBeenCalled();
   });
 
+  it("warns in a dev build when switchLocalePath is called with an unknown locale", () => {
+    vi.stubGlobal("__COMVI_TEST_DEV__", true);
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    setMockRoute({ path: "/about", fullPath: "/about" });
+
+    const switchLocalePath = useSwitchLocalePath();
+
+    expect(switchLocalePath("es")).toBe("/about");
+    expect(warnSpy).toHaveBeenCalledWith(
+      '[@comvi/nuxt] switchLocalePath called with invalid locale "es". ' +
+        "Available locales: en, de, uk",
+    );
+  });
+
   it.each([
     {
       mode: "never" as const,

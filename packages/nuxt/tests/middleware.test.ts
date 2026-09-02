@@ -542,6 +542,15 @@ describe("i18n middleware", () => {
       });
     });
 
+    it("drops the secure flag in a dev build so localhost HTTP keeps the cookie", async () => {
+      vi.stubGlobal("__COMVI_TEST_DEV__", true);
+      withDetect({ cookieSecure: true });
+
+      await runMiddleware({ path: "/", fullPath: "/" });
+
+      expect(getMockCookieOptions("i18n_locale")).toMatchObject({ secure: false });
+    });
+
     it("creates no cookie at all when browser detection is disabled", async () => {
       mockRuntimeConfig.public.comvi.detectBrowserLanguage = false;
       setMockCookie("i18n_locale", "uk");

@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { computed, nextTick, ref } from "vue";
-import { EDITOR_INITIAL_MAPPINGS_GLOBAL } from "@comvi/core/editor-bridge";
+import { EDITOR_INITIAL_MAPPINGS_GLOBAL, EDITOR_MAPPINGS_GLOBAL } from "@comvi/core/editor-bridge";
 import * as nuxtAppMocks from "./mocks/nuxt-app";
 import { resetComviSetupMock, runComviSetup } from "./mocks/comvi-setup";
 
@@ -20,6 +20,7 @@ function createI18nStub(initialLocale = "en") {
     isInitializing: ref(false),
     init: vi.fn().mockResolvedValue(undefined),
     use: vi.fn(),
+    reportError: vi.fn(),
     on: vi.fn((event: string, callback: (payload: unknown) => void) => {
       const callbacks = listeners.get(event) ?? [];
       callbacks.push(callback);
@@ -45,6 +46,27 @@ function createNuxtAppStub(overrides?: Record<string, unknown>) {
     hook: vi.fn(),
     ...overrides,
   };
+}
+
+/** The Nuxt app shape the SSR branch needs: a payload it can write into. */
+function createServerNuxtAppStub(payload: Record<string, unknown> = {}) {
+  return createNuxtAppStub({ payload });
+}
+
+/** The `app:rendered` callback the plugin registered with Nuxt. */
+function appRenderedHook(nuxtApp: { hook: ReturnType<typeof vi.fn> }) {
+  const registration = nuxtApp.hook.mock.calls.find(([event]) => event === "app:rendered");
+  expect(registration).toBeDefined();
+  return registration![1] as () => void;
+}
+
+/** A host that carries the in-context editor's key-mapping bridge. */
+function withEditorMappings(i18n: any, mappings: Record<string, number>) {
+  i18n[EDITOR_MAPPINGS_GLOBAL] = {
+    getKeyMappings: () => mappings,
+    loadKeyMappings: () => undefined,
+  };
+  return i18n;
 }
 
 async function importPlugin() {
@@ -369,6 +391,60 @@ describe("runtime plugin", () => {
     expect(nuxtAppMocks.useState<string>("i18n-locale").value).toBe("de");
   });
 
+  it("drops the secure cookie flag in a dev build so localhost HTTP keeps it", async () => {
+    vi.stubGlobal("__COMVI_TEST_DEV__", true);
+    nuxtAppMocks.mockRuntimeConfig.public.comvi.detectBrowserLanguage = {
+      useCookie: true,
+      cookieSecure: true,
+    } as never;
+    createComviI18n.mockReturnValue(createI18nStub("en"));
+
+    const plugin = await importPlugin();
+    await plugin.setup(createNuxtAppStub());
+
+    expect(nuxtAppMocks.getMockCookieOptions("i18n_locale")).toMatchObject({ secure: false });
+  });
+
+  it("keeps the private api key off the client host", async () => {
+    nuxtAppMocks.mockRuntimeConfig.comvi = { apiKey: "server-secret" };
+    createComviI18n.mockReturnValue(createI18nStub("en"));
+
+    const plugin = await importPlugin();
+    await plugin.setup(createNuxtAppStub());
+
+    expect(createComviI18n).toHaveBeenCalledWith(expect.objectContaining({ apiKey: undefined }));
+  });
+
+  it("reports a failing comvi.setup hook and refuses to initialize on top of it", async () => {
+    const i18n = createI18nStub("en");
+    createComviI18n.mockReturnValue(i18n);
+    const failure = new Error("loader registration blew up");
+    runComviSetup.mockRejectedValue(failure);
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const plugin = await importPlugin();
+
+    await expect(plugin.setup(createNuxtAppStub())).rejects.toBe(failure);
+    // The original instance, not a re-wrapped copy: the stack has to survive.
+    expect(i18n.reportError).toHaveBeenCalledWith(failure, { source: "plugin" });
+    expect(i18n.init).not.toHaveBeenCalled();
+    expect(errorSpy).toHaveBeenCalledWith("[@comvi/nuxt] comvi.setup hook failed:", failure);
+  });
+
+  it("wraps a non-Error comvi.setup rejection before reporting it", async () => {
+    const i18n = createI18nStub("en");
+    createComviI18n.mockReturnValue(i18n);
+    runComviSetup.mockRejectedValue("loader registration blew up");
+    vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const plugin = await importPlugin();
+
+    await expect(plugin.setup(createNuxtAppStub())).rejects.toBe("loader registration blew up");
+    expect(i18n.reportError).toHaveBeenCalledWith(new Error("loader registration blew up"), {
+      source: "plugin",
+    });
+  });
+
   it("surfaces a host construction failure instead of booting a half-built app", async () => {
     createComviI18n.mockImplementation(() => {
       throw new Error("hostModule factory blew up");
@@ -420,5 +496,136 @@ describe("runtime plugin", () => {
     expect(i18n.addTranslations.mock.invocationCallOrder[0]).toBeLessThan(
       i18n.init.mock.invocationCallOrder[0],
     );
+  });
+
+  describe("server rendering", () => {
+    beforeEach(() => {
+      vi.stubGlobal("__COMVI_TEST_SERVER__", true);
+    });
+
+    it("hands the private api key to the host", async () => {
+      nuxtAppMocks.mockRuntimeConfig.comvi = { apiKey: "server-secret" };
+      createComviI18n.mockReturnValue(createI18nStub("en"));
+
+      const plugin = await importPlugin();
+      await plugin.setup(createServerNuxtAppStub());
+
+      expect(createComviI18n).toHaveBeenCalledWith(
+        expect.objectContaining({ apiKey: "server-secret" }),
+      );
+    });
+
+    it("labels the comvi.setup runtime as server", async () => {
+      createComviI18n.mockReturnValue(createI18nStub("en"));
+
+      const plugin = await importPlugin();
+      await plugin.setup(createServerNuxtAppStub());
+
+      expect(runComviSetup).toHaveBeenCalledWith(expect.objectContaining({ runtime: "server" }));
+    });
+
+    it("serializes the rendered translation cache into the Nuxt payload", async () => {
+      const i18n = createI18nStub("en");
+      i18n.translationCache = computed(
+        () =>
+          new Map([
+            ["en:default", { greeting: "Hello" }],
+            ["en:common", { save: "Save" }],
+          ]),
+      );
+      createComviI18n.mockReturnValue(i18n);
+
+      const plugin = await importPlugin();
+      const nuxtApp = createServerNuxtAppStub();
+      await plugin.setup(nuxtApp);
+      appRenderedHook(nuxtApp)();
+
+      expect(nuxtApp.payload).toEqual({
+        __comvi_translations__: {
+          "en:default": { greeting: "Hello" },
+          "en:common": { save: "Save" },
+        },
+      });
+    });
+
+    it("rewrites null-prototype catalogs as plain objects the payload serializer accepts", async () => {
+      const i18n = createI18nStub("en");
+      // Core hands out null-prototype catalogs; Nuxt's payload serializer drops them.
+      const catalog = Object.assign(Object.create(null), { greeting: "Hello" });
+      i18n.translationCache = computed(() => new Map([["en:default", catalog]]));
+      createComviI18n.mockReturnValue(i18n);
+
+      const plugin = await importPlugin();
+      const nuxtApp = createServerNuxtAppStub();
+      await plugin.setup(nuxtApp);
+      appRenderedHook(nuxtApp)();
+
+      const payload = nuxtApp.payload.__comvi_translations__ as Record<string, unknown>;
+      expect(Object.getPrototypeOf(payload["en:default"])).toBe(Object.prototype);
+    });
+
+    it("writes no translations payload when nothing was rendered", async () => {
+      createComviI18n.mockReturnValue(createI18nStub("en"));
+
+      const plugin = await importPlugin();
+      const nuxtApp = createServerNuxtAppStub();
+      await plugin.setup(nuxtApp);
+      appRenderedHook(nuxtApp)();
+
+      expect(nuxtApp.payload).toEqual({});
+    });
+
+    it("carries the in-context editor key mappings into the payload state", async () => {
+      const i18n = withEditorMappings(createI18nStub("en"), { "default:greeting": 7 });
+      createComviI18n.mockReturnValue(i18n);
+
+      const plugin = await importPlugin();
+      const nuxtApp = createServerNuxtAppStub();
+      await plugin.setup(nuxtApp);
+      appRenderedHook(nuxtApp)();
+
+      expect(nuxtApp.payload.state).toEqual({
+        __comvi_ice_mappings__: { "default:greeting": 7 },
+      });
+    });
+
+    it("keeps state another plugin already put in the payload", async () => {
+      const i18n = withEditorMappings(createI18nStub("en"), { "default:greeting": 7 });
+      createComviI18n.mockReturnValue(i18n);
+
+      const plugin = await importPlugin();
+      const nuxtApp = createServerNuxtAppStub({ state: { otherPlugin: "keep-me" } });
+      await plugin.setup(nuxtApp);
+      appRenderedHook(nuxtApp)();
+
+      expect(nuxtApp.payload.state).toEqual({
+        otherPlugin: "keep-me",
+        __comvi_ice_mappings__: { "default:greeting": 7 },
+      });
+    });
+
+    it("writes no payload state when the host carries no editor bridge", async () => {
+      createComviI18n.mockReturnValue(createI18nStub("en"));
+
+      const plugin = await importPlugin();
+      const nuxtApp = createServerNuxtAppStub();
+      await plugin.setup(nuxtApp);
+      appRenderedHook(nuxtApp)();
+
+      expect(nuxtApp.payload.state).toBeUndefined();
+    });
+
+    it("does not hydrate from the payload it is about to write", async () => {
+      const i18n = createI18nStub("en");
+      i18n.addTranslations = vi.fn();
+      createComviI18n.mockReturnValue(i18n);
+
+      const plugin = await importPlugin();
+      await plugin.setup(
+        createServerNuxtAppStub({ __comvi_translations__: { "en:default": { a: "b" } } }),
+      );
+
+      expect(i18n.addTranslations).not.toHaveBeenCalled();
+    });
   });
 });
