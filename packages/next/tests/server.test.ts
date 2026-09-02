@@ -107,9 +107,31 @@ describe("server getI18n", () => {
     setI18n(i18n);
 
     await expect(getI18n()).rejects.toMatchObject({
-      message: expect.stringContaining("Locale not set"),
+      message:
+        "[comvi/next] Locale not set. " +
+        "Call setRequestLocale(locale) in your layout/page first, or configure middleware.",
       cause: expect.any(Error),
     });
+  });
+
+  it("loads the namespace asked for rather than the default one", async () => {
+    const { i18n } = createNextI18n({
+      locales: ["en", "fr"],
+      defaultLocale: "en",
+      defaultNs: "common",
+      devMode: false,
+    });
+    i18n.addTranslations({ "fr:common": { greeting: "Bonjour" } });
+
+    const loaderMock = vi.fn(async () => ({ title: "Console" }));
+    i18n.registerLoader(loaderMock);
+    setI18n(i18n);
+
+    const { t } = await getI18n({ locale: "fr", ns: "admin" });
+
+    expect(loaderMock).toHaveBeenCalledWith("fr", "admin");
+    expect(loaderMock).not.toHaveBeenCalledWith("fr", "common");
+    expect(t("title")).toBe("Console");
   });
 
   it("does not load translations when locale/default namespace is already cached", async () => {

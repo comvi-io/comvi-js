@@ -5662,6 +5662,132 @@
       "lineHint": 808,
       "reason": "the prod arm is an ARGUMENT to warn(), which the production build compiles to a no-op, so \"E_TRANSLATION_NOT_FOUND\" is unobservable in either build (hand-probed green on the full suite, probe d_i18n_notfound_prod) — the same class as the accepted compile-icu.ts:200 and tags.ts:238 entries. The dev arm on this line IS killed by tests/features/dev-mode.test.ts (probe n7).",
       "kind": "equivalent"
+    },
+    {
+      "package": "packages/next",
+      "file": "src/routing/utils.ts",
+      "mutators": ["ConditionalExpression"],
+      "snippet": "if (!path) return \"/\";",
+      "lineHint": 20,
+      "kind": "equivalent",
+      "reason": "`path` is typed string, so the only falsy value is \"\" and the fall-through already yields \"/\" via `/${\"\"}`. Hand-applied; green."
+    },
+    {
+      "package": "packages/next",
+      "file": "src/routing/utils.ts",
+      "mutators": ["MethodExpression", "ConditionalExpression"],
+      "snippet": "? [preferredLocale, ...routing.locales.filter((locale) => locale !== preferredLocale)]",
+      "lineHint": 31,
+      "kind": "equivalent",
+      "reason": "the match loop returns normalizedCanonicalPath, independent of WHICH locale matched — neither the de-dup filter nor its predicate can change the result. Both mutants hand-applied; green."
+    },
+    {
+      "package": "packages/next",
+      "file": "src/routing/utils.ts",
+      "mutators": ["ConditionalExpression"],
+      "snippet": "if (!getPathname) {",
+      "lineHint": 72,
+      "kind": "equivalent",
+      "reason": "WeakMap memoizes a pure factory; always rebuilding changes cost, not output. Hand-applied; green."
+    },
+    {
+      "package": "packages/next",
+      "file": "src/routing/utils.ts",
+      "mutators": ["CallExpression"],
+      "snippet": "getPathnameCache.set(routing, getPathname);",
+      "lineHint": 74,
+      "kind": "equivalent",
+      "reason": "never storing the memo = rebuild a pure factory per call; unobservable. Hand-applied; green."
+    },
+    {
+      "package": "packages/next",
+      "file": "src/middleware/createMiddleware.ts",
+      "mutators": ["MethodExpression"],
+      "snippet": "const [code, q = \"q=1\"] = lang.trim().split(\";\");",
+      "lineHint": 215,
+      "kind": "equivalent",
+      "reason": "every whitespace this trim removes is re-removed by code.trim() on line 218, and parseFloat skips leading whitespace in the quality half. Hand-applied; green."
+    },
+    {
+      "package": "packages/next",
+      "file": "src/middleware/createMiddleware.ts",
+      "mutators": ["EqualityOperator", "ConditionalExpression"],
+      "snippet": ".filter(({ code, quality }) => code.length > 0 && quality > 0)",
+      "lineHint": 222,
+      "kind": "equivalent",
+      "reason": "keeping empty-code entries is harmless: \"\" matches nothing in the exact/base/prefix lookups, the loop falls through. Both mutants hand-applied; green."
+    },
+    {
+      "package": "packages/next",
+      "file": "src/client/I18nProvider.tsx",
+      "mutators": ["ConditionalExpression", "EqualityOperator", "StringLiteral"],
+      "snippet": "const useIsomorphicLayoutEffect = typeof window !== \"undefined\" ? useLayoutEffect : useEffect;",
+      "lineHint": 7,
+      "kind": "needs-seam",
+      "reason": "module-scope, decided once at import; happy-dom always defines window and useLayoutEffect vs useEffect are indistinguishable under act(). Distinguishing needs a resetModules re-import, which the protocol forbids. 4 mutants hand-applied; green."
+    },
+    {
+      "package": "packages/next",
+      "file": "src/client/I18nProvider.tsx",
+      "mutators": ["BooleanLiteral"],
+      "snippet": "return false;",
+      "lineHint": 57,
+      "kind": "equivalent",
+      "reason": "syncLocaleSafely's return value is discarded at both call sites. Hand-applied; green."
+    },
+    {
+      "package": "packages/next",
+      "file": "src/client/I18nProvider.tsx",
+      "mutators": ["BooleanLiteral"],
+      "snippet": "return true;",
+      "lineHint": 62,
+      "kind": "equivalent",
+      "reason": "same discarded return value. Hand-applied; green."
+    },
+    {
+      "package": "packages/next",
+      "file": "src/server/cache.ts",
+      "mutators": ["ObjectLiteral"],
+      "snippet": "(): RequestStore => ({",
+      "lineHint": 10,
+      "kind": "equivalent",
+      "reason": "{ locale: undefined } and {} are indistinguishable: reading .locale gives undefined from both; the setter assigns either way. Hand-applied; green."
+    },
+    {
+      "package": "packages/next",
+      "file": "src/server/ensureInitialized.ts",
+      "mutators": ["ConditionalExpression"],
+      "snippet": "if (initPromises.get(i18n) === initPromise) {",
+      "lineHint": 20,
+      "kind": "equivalent",
+      "reason": "a second promise can only be stored after this one is deleted, so the identity check can never be false; the false/!==/empty-block variants ARE killed by the retry test. Hand-applied; green."
+    },
+    {
+      "package": "packages/next",
+      "file": "src/server/getI18n.ts",
+      "mutators": ["ConditionalExpression"],
+      "snippet": "if (!i18n.hasLocale(locale, defaultNs)) {",
+      "lineHint": 74,
+      "kind": "equivalent",
+      "reason": "loadTranslations re-checks the identical hasLocale before doing anything; with a warm cache it performs no load and warns nothing — the guard saves work, not behaviour. Hand-applied; green."
+    },
+    {
+      "package": "packages/next",
+      "file": "src/composedHost.ts",
+      "mutators": ["ConditionalExpression"],
+      "snippet": "if (translation !== undefined) {",
+      "lineHint": 76,
+      "kind": "equivalent",
+      "reason": "core's addTranslations(undefined) is a no-op; the guard only avoids a redundant call. Hand-applied; green."
+    },
+    {
+      "package": "packages/next",
+      "file": "src/composedHost.ts",
+      "mutators": ["ObjectLiteral"],
+      "snippet": "attachDevtools(host, { instanceId, exposeGlobal });",
+      "lineHint": 82,
+      "kind": "equivalent",
+      "reason": "createNextI18n is the only caller and never supplies either option, so both are always undefined — same as {}. Hand-applied; green."
     }
   ]
 }

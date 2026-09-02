@@ -1,5 +1,5 @@
-import { describe, it, expect } from "vitest";
-import { defineRouting, createGetPathname } from "../src/routing/defineRouting";
+import { describe, it, expect, vi } from "vitest";
+import { defineRouting, createGetPathname, hasLocale } from "../src/routing/defineRouting";
 import {
   getCanonicalPathname,
   localizeHref,
@@ -27,6 +27,22 @@ const ROUTING_BOTH = defineRouting({
     "/about": {
       en: "/about-us",
       de: "/ueber-uns",
+    },
+  },
+});
+
+// One route's German slug is another route's canonical English path: the
+// collision is what makes the exact-match precedence observable.
+const ROUTING_SLUG_COLLISION = defineRouting({
+  locales: ["en", "de"],
+  defaultLocale: "en",
+  localePrefix: "as-needed",
+  pathnames: {
+    "/about": {
+      de: "/ueber-uns",
+    },
+    "/team": {
+      de: "/about",
     },
   },
 });
@@ -112,5 +128,70 @@ describe("routing helpers", () => {
     expect(localizeHref("/de/ueber-uns", "en", ROUTING_BOTH)).toBe("/about-us");
     expect(localizeHref("/about-us", "de", ROUTING_BOTH)).toBe("/de/ueber-uns");
     expect(localizeHref("/ueber-uns", "en", ROUTING_BOTH)).toBe("/about-us");
+  });
+  it("localizes a path whose segment contains a colon", () => {
+    // Only a leading scheme makes an href external; a colon inside a segment
+    // is an ordinary character.
+    expect(localizeHref("/notes:2024", "de", ROUTING_DE_ONLY)).toBe("/de/notes:2024");
+  });
+
+  it("leaves a path that matches no configured route alone", () => {
+    expect(getCanonicalPathname("/contact", ROUTING_DE_ONLY, "de")).toBe("/contact");
+  });
+
+  it("maps a localized slug back when only that locale is configured for it", () => {
+    expect(getCanonicalPathname("/ueber-uns", ROUTING_DE_ONLY, "de")).toBe("/about");
+  });
+
+  it("treats an empty href as the root path", () => {
+    expect(localizeHref("", "de", ROUTING_DE_ONLY)).toBe("/de");
+    expect(localizeUrlObject({ pathname: "" }, "de")).toEqual({ pathname: "/de" });
+  });
+
+  it("maps a localized slug back without being told which locale to prefer", () => {
+    expect(getCanonicalPathname("/ueber-uns", ROUTING_DE_ONLY)).toBe("/about");
+  });
+
+  it("prefers an exact canonical route over another route's localized slug", () => {
+    expect(getCanonicalPathname("/about", ROUTING_SLUG_COLLISION, "de")).toBe("/about");
+  });
+
+  it("localizes a UrlObject without routing config and defaults a missing pathname to root", () => {
+    expect(localizeUrlObject({ pathname: "/about", query: { x: "1" } }, "de")).toEqual({
+      pathname: "/de/about",
+      query: { x: "1" },
+    });
+    expect(localizeUrlObject({ pathname: "about" }, "de")).toEqual({ pathname: "/de/about" });
+    expect(localizeUrlObject({ query: { x: "1" } }, "de")).toEqual({
+      pathname: "/de",
+      query: { x: "1" },
+    });
+    expect(localizeUrlObject({ query: { x: "1" } }, "de", ROUTING_DE_ONLY)).toEqual({
+      pathname: "/de",
+      query: { x: "1" },
+    });
+  });
+
+  it("recognizes configured locales and rejects the rest", () => {
+    expect(hasLocale(["en", "de"], "de")).toBe(true);
+    expect(hasLocale(["en", "de"], "fr")).toBe(false);
+  });
+
+  it("warns when getPathname is asked for a locale outside the configured set", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const getPathname = createGetPathname(ROUTING_DE_ONLY);
+
+    expect(getPathname({ locale: "fr", href: "/about" })).toBe("/fr/about");
+
+    expect(warn).toHaveBeenCalledWith('[getPathname] Unknown locale "fr". Expected one of: en, de');
+  });
+
+  it("does not warn for a configured locale", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const getPathname = createGetPathname(ROUTING_DE_ONLY);
+
+    expect(getPathname({ locale: "de", href: "/about" })).toBe("/de/ueber-uns");
+
+    expect(warn).not.toHaveBeenCalled();
   });
 });

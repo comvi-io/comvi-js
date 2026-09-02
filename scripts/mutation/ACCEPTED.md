@@ -117,3 +117,14 @@ host-error tests, prod arms in tests/prod). Do NOT close static-mutant nocov ent
 re-import tests. Remaining accepts: 4 module-scope/constructor StringLiterals whose both arms are
 suite-killed but tool-invisible (i18n 55/58/61/263), plus i18n.ts:808's prod arm (argument to a
 warn() that prod compiles out — same class as compile-icu 200 / tags 238).
+
+## packages/next (kill-pass 2026-09-02)
+
+Every entry hand-applied with the full suite observed green (184-probe consolidated re-run).
+Families: pure-memo and no-op guards (routing utils WeakMap, composedHost translation/devtools
+options, getI18n's warm-cache hasLocale guard, cache.ts's undefined member), discarded return
+values (syncLocaleSafely), redundant sanitation (Accept-Language trim/empty-code — line 218 and
+the three lookups rescue every case), the once-cell identity check that can never be false, and
+the module-scope useIsomorphicLayoutEffect ternary (act() equalizes the two hooks; do NOT chase
+with resetModules). Watch item: createMiddleware.ts:185 `return undefined;` at a function tail —
+if a survivor appears there it is fall-off-the-end equivalent, evidence already gathered.

@@ -27,7 +27,10 @@ describe("loadTranslations", () => {
     const result = await loadTranslations("fr");
 
     expect(result).toEqual({});
-    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("No loader configured"));
+    expect(warnSpy).toHaveBeenCalledWith(
+      "[comvi/next] No loader configured. " +
+        "Register one via i18n.registerLoader(...) or createNextI18n(...).use(plugin).",
+    );
   });
 
   it("warns about missing loader only once per i18n instance", async () => {

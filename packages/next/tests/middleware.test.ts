@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { NextRequest } from "next/server";
 import { createMiddleware } from "../src/middleware/createMiddleware";
+import type { LocaleDetectionSource } from "../src/middleware/types";
 
 const RECOMMENDED_MATCHER =
   "/((?!api|_next|_vercel|.*\\.(?:avif|bmp|css|csv|eot|gif|ico|jpeg|jpg|js|json|map|mjs|mp3|mp4|otf|pdf|png|svg|txt|ttf|wav|webm|webmanifest|webp|woff|woff2|xml|zip)$).*)";
@@ -294,8 +295,25 @@ describe("middleware locale cookie persistence", () => {
       path: "/",
       maxAge: 365 * 24 * 60 * 60,
       sameSite: "lax",
-      secure: true,
     });
+    expect(response.cookies.get("NEXT_LOCALE")?.secure).toBe(true);
+  });
+
+  it("honours an explicit cookieSecure: false", () => {
+    const insecureCookie = createMiddleware({
+      locales: ["en", "fr"],
+      defaultLocale: "en",
+      localePrefix: "as-needed",
+      localeDetection: { cookieSecure: false },
+    });
+
+    const request = new NextRequest("https://example.com/about", {
+      headers: { "accept-language": "fr" },
+    });
+
+    const response = insecureCookie(request);
+
+    expect(response.cookies.get("NEXT_LOCALE")?.secure).toBe(false);
   });
 
   it("skips the cookie write when the request cookie already carries the resolved locale", () => {
@@ -306,6 +324,9 @@ describe("middleware locale cookie persistence", () => {
 
     expect(response.headers.get("x-comvi-locale")).toBe("fr");
     expect(response.cookies.get("NEXT_LOCALE")).toBeUndefined();
+    // The URL already IS the internal path, so the request passes through
+    // without a rewrite.
+    expect(response.headers.get("x-middleware-rewrite")).toBeNull();
   });
 
   it("honours a custom cookie name from localeDetection", () => {
@@ -451,5 +472,193 @@ describe("middleware matcher preset", () => {
     expect(matcherRegex.test("/assets/app.js")).toBe(false);
     expect(matcherRegex.test("/api/users")).toBe(false);
     expect(matcherRegex.test("/_next/static/chunk.js")).toBe(false);
+  });
+});
+
+describe("middleware detection sources", () => {
+  const trilingual = (localeDetection?: { order?: LocaleDetectionSource[]; headerName?: string }) =>
+    createMiddleware({
+      locales: ["en", "fr", "de"],
+      defaultLocale: "en",
+      localePrefix: "as-needed",
+      localeDetection,
+    });
+
+  it("keeps a custom detector's locale even when the path carries another one", () => {
+    const withDetector = createMiddleware({
+      locales: ["en", "fr", "de"],
+      defaultLocale: "en",
+      localePrefix: "as-needed",
+      detectLocale: () => "de",
+    });
+
+    const response = withDetector(new NextRequest("https://example.com/fr/about"));
+
+    expect(response.headers.get("x-comvi-locale")).toBe("de");
+  });
+
+  it("falls back to the default locale when the custom detector names an unsupported locale", () => {
+    const withDetector = createMiddleware({
+      locales: ["en", "fr"],
+      defaultLocale: "en",
+      localePrefix: "as-needed",
+      detectLocale: () => "zz",
+    });
+
+    const response = withDetector(new NextRequest("https://example.com/about"));
+
+    expect(response.headers.get("x-comvi-locale")).toBe("en");
+  });
+
+  it("moves past a cookie naming an unsupported locale to the next source", () => {
+    const request = new NextRequest("https://example.com/about", {
+      headers: { "accept-language": "fr" },
+    });
+    request.cookies.set("NEXT_LOCALE", "zz");
+
+    const response = trilingual()(request);
+
+    expect(response.headers.get("x-comvi-locale")).toBe("fr");
+  });
+
+  it("moves past a custom header naming an unsupported locale to the next source", () => {
+    const request = new NextRequest("https://example.com/about", {
+      headers: { "x-user-locale": "zz", "accept-language": "fr" },
+    });
+
+    const response = trilingual({
+      order: ["header", "accept-language"],
+      headerName: "x-user-locale",
+    })(request);
+
+    expect(response.headers.get("x-comvi-locale")).toBe("fr");
+  });
+
+  it("skips the header source when no header name is configured", () => {
+    const request = new NextRequest("https://example.com/about", {
+      headers: { "x-user-locale": "de", "accept-language": "fr" },
+    });
+
+    const response = trilingual({ order: ["header", "accept-language"] })(request);
+
+    expect(response.headers.get("x-comvi-locale")).toBe("fr");
+  });
+
+  it("detects nothing from an unrecognized source and keeps going", () => {
+    const order = ["bogus", "accept-language"] as unknown as LocaleDetectionSource[];
+    const request = new NextRequest("https://example.com/about", {
+      headers: { "accept-language": "fr" },
+    });
+
+    const response = trilingual({ order })(request);
+
+    expect(response.headers.get("x-comvi-locale")).toBe("fr");
+  });
+
+  it("falls back to the default locale when the only source is unrecognized", () => {
+    const order = ["bogus"] as unknown as LocaleDetectionSource[];
+    const request = new NextRequest("https://example.com/about", {
+      headers: { "accept-language": "fr" },
+    });
+
+    const response = trilingual({ order })(request);
+
+    expect(response.headers.get("x-comvi-locale")).toBe("en");
+  });
+});
+
+describe("middleware Accept-Language parsing", () => {
+  const resolvedLocale = (
+    acceptLanguage: string,
+    locales: string[] = ["en", "fr"],
+    defaultLocale = "en",
+  ): string | null =>
+    createMiddleware({ locales, defaultLocale, localePrefix: "as-needed" })(
+      new NextRequest("https://example.com/about", {
+        headers: { "accept-language": acceptLanguage },
+      }),
+    ).headers.get("x-comvi-locale");
+
+  it("picks the highest-quality language when it is listed last", () => {
+    expect(resolvedLocale("en;q=0.5,fr;q=1.0")).toBe("fr");
+  });
+
+  it("picks the highest-quality language when it is listed first", () => {
+    expect(resolvedLocale("fr;q=1.0,en;q=0.5")).toBe("fr");
+  });
+
+  it("treats a language with no explicit quality as the most preferred", () => {
+    expect(resolvedLocale("fr,en;q=0.9")).toBe("fr");
+  });
+
+  it("ignores a language explicitly refused with q=0", () => {
+    expect(resolvedLocale("fr;q=0")).toBe("en");
+  });
+
+  it("treats a quality parameter with no value as the most preferred", () => {
+    expect(resolvedLocale("fr;q,en;q=0.9")).toBe("fr");
+  });
+
+  it("ignores an unparsable quality and treats the entry as most preferred", () => {
+    expect(resolvedLocale("fr;q=nonsense,en;q=0.9")).toBe("fr");
+  });
+
+  it("tolerates the whitespace browsers put after the entry separator", () => {
+    expect(resolvedLocale("en;q=0.5, fr;q=1.0")).toBe("fr");
+  });
+
+  it("tolerates whitespace before the quality separator", () => {
+    expect(resolvedLocale("fr ;q=1.0")).toBe("fr");
+  });
+
+  it("prefers an exactly matching regional locale over its base language", () => {
+    expect(resolvedLocale("en-GB", ["en", "en-GB"])).toBe("en-GB");
+  });
+
+  it("matches case-insensitively", () => {
+    expect(resolvedLocale("FR", ["en", "fr"])).toBe("fr");
+  });
+
+  it("falls back to the base language when the requested region is not configured", () => {
+    expect(resolvedLocale("fr-CA", ["de", "fr"], "de")).toBe("fr");
+  });
+
+  it("falls back to a configured regional variant when the base language is requested", () => {
+    expect(resolvedLocale("en", ["en-US", "fr"], "fr")).toBe("en-US");
+  });
+
+  it("keeps looking when the most preferred language matches nothing", () => {
+    expect(resolvedLocale("ja,fr;q=0.9")).toBe("fr");
+  });
+
+  it("does not match a different language that merely starts with the same letters", () => {
+    // "fi" (Finnish) must not resolve to "fil" (Filipino).
+    expect(resolvedLocale("fi", ["fil", "en"], "en")).toBe("en");
+  });
+});
+
+describe("middleware internal pathname", () => {
+  const middleware = createMiddleware({
+    locales: ["en", "fr"],
+    defaultLocale: "en",
+    localePrefix: "as-needed",
+  });
+
+  it("passes the localized root through without a rewrite or redirect", () => {
+    const response = middleware(new NextRequest("https://example.com/fr"));
+
+    expect(response.headers.get("x-comvi-locale")).toBe("fr");
+    expect(response.headers.get("x-middleware-rewrite")).toBeNull();
+    expect(response.headers.get("location")).toBeNull();
+  });
+
+  it("rewrites the root path to the bare locale segment", () => {
+    const request = new NextRequest("https://example.com/", {
+      headers: { "accept-language": "en" },
+    });
+
+    const response = middleware(request);
+
+    expect(response.headers.get("x-middleware-rewrite")).toBe("https://example.com/en");
   });
 });
