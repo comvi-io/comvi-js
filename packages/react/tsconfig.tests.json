@@ -33,7 +33,12 @@
       "@comvi/core/tags": ["../core/src/tags.ts"],
       "@comvi/core/editor-bridge": ["../core/src/editor-bridge.ts"],
       // vitest maps this to next's SOURCE provider (see vitest.config.ts).
-      "~next-src/*": ["../next/src/*"]
+      "~next-src/*": ["../next/src/*"],
+      // next's src (pulled in via ~next-src) imports @comvi/react; resolve it
+      // to THIS package's source so the program never needs react's own dist.
+      // Without this, CI's Quality job races: @comvi/react#build runs there
+      // only as a test-apps dependency, with no ordering vs this typecheck.
+      "@comvi/react": ["./src/index.ts"]
     }
   },
   "include": ["src/**/*", "tests/**/*.ts", "tests/**/*.tsx"],
