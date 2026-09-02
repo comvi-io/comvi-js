@@ -32,6 +32,18 @@ export type _ConfigTagString = Accepts<{ link: { tag: "a"; props: { href: string
 export type _ConfigTagTarget = Accepts<{ btn: { tag: typeof _AnyComponent } }>;
 export type _ConfigPropsOptional = Accepts<{ link: { component: "a" } }>;
 
+// REGRESSION PIN: `props` keeps a permissive value type. An INTERFACE is not
+// assignable to core's `Record<string, unknown>` (only type-literal objects
+// are), so adopting core's `props` verbatim would reject props a caller
+// legitimately holds. All three wrappers agree on this.
+interface LinkProps {
+  href: string;
+}
+declare const interfaceProps: LinkProps;
+export const _InterfacePropsStillAssign: ComponentsMap = {
+  link: { component: "a", props: interfaceProps },
+};
+
 // A non-target primitive is still rejected.
 // @ts-expect-error -- a number is not a renderable target
 export type _RejectsNonTarget = Accepts<{ link: 42 }>;

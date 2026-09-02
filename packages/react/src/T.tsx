@@ -46,8 +46,15 @@ type ComponentConfigTarget =
  * an entry with neither is not a config at all — `isTagComponentConfig`
  * rejects it and the object is passed on as an opaque handler.
  */
-type ComponentConfig = TagComponentConfig &
-  (
+type ComponentConfig = Omit<TagComponentConfig, "props"> & {
+  /**
+   * `any`, not core's `Record<string, unknown>`: an INTERFACE-typed props
+   * object is not assignable to `Record<string, unknown>` (only type-literal
+   * objects are), so core's stricter value type would reject props a caller
+   * legitimately holds. Matches `@comvi/solid`.
+   */
+  props?: Record<string, any>;
+} & (
     | { tag: ComponentConfigTarget; component?: ComponentConfigTarget }
     | { component: ComponentConfigTarget; tag?: ComponentConfigTarget }
   );

@@ -15,4 +15,9 @@
   `Component` type accepts an arbitrary object — which is also why vue, unlike react, still
   accepts entries that name no target. That looseness belongs to `Component` and is unchanged
   here; it is now pinned by a type test so it cannot be mistaken for a regression later.
+- **Follow-up, for parity across the wrappers:** a config entry's `props` is now
+  `Record<string, any>` rather than core's `Record<string, unknown>`. An INTERFACE-typed props
+  object is not assignable to `Record<string, unknown>` (only type-literal objects are), so the
+  stricter type rejected props a caller legitimately holds. `@comvi/react` and `@comvi/solid`
+  type this field the same way.
 - Type-only change: no runtime code was touched.

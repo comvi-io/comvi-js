@@ -29,6 +29,18 @@ export type _ConfigFnTarget = Accepts<{
 }>;
 export type _ConfigPropsOptional = Accepts<{ link: { tag: "a" } }>;
 
+// REGRESSION PIN: `props` keeps a permissive value type. An INTERFACE is not
+// assignable to core's `Record<string, unknown>` (only type-literal objects
+// are), so adopting core's `props` verbatim would reject props a caller
+// legitimately holds. All three wrappers agree on this.
+interface LinkProps {
+  href: string;
+}
+declare const interfaceProps: LinkProps;
+export const _InterfacePropsStillAssign: ComponentsMap = {
+  link: { tag: "a", props: interfaceProps },
+};
+
 // A component whose extra prop is REQUIRED can only be fed through `props` —
 // the bare-handler signature rejects it by contravariance, so the config
 // entry's target is deliberately looser than `ComponentTarget`.

@@ -17,3 +17,8 @@ release. Type-only; no runtime code changed.
   `isTagComponentConfig` rejects it at runtime and the pipeline forwards the raw object as an
   opaque handler. Exactly one of the two spellings is now required. This narrows what the
   previous release admitted, but only by rejecting an entry that never worked.
+- **A config entry's `props` accepts an interface-typed object again.** It took core's
+  `Record<string, unknown>` verbatim, and an INTERFACE is not assignable to that type — only
+  type-literal objects are — so `props: myLinkProps` failed to compile for props a caller
+  legitimately holds. `props` is now `Record<string, any>`, matching `@comvi/vue` and
+  `@comvi/solid`; all three wrappers now type this field identically.
