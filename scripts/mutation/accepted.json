@@ -2755,7 +2755,7 @@
       "mutators": ["ArrayDeclaration"],
       "snippet": "const SEMANTIC_STOP_TAGS = new Set([",
       "lineHint": 29,
-      "kind": "gap:prod-build",
+      "kind": "tooling:static-mutant",
       "reason": "module-scope constant. Stryker's vitest runner activates one mutant per test run, but signals.ts is imported once per worker and its top-level initialisers run before any mutant switch is set, so this mutant can never take effect in-process — Stryker flags all 67 constants in this file `static` and reports testsCompleted=1 for each. Not a test gap: hand-applying this exact edit to the source and running the package suite DOES fail tests (probe log: 62/67 detected; the 5 that are not are filed separately as equivalent).",
       "round": 5
     },
@@ -2765,7 +2765,7 @@
       "mutators": ["StringLiteral"],
       "snippet": "\"button\",",
       "lineHint": 30,
-      "kind": "gap:prod-build",
+      "kind": "tooling:static-mutant",
       "reason": "module-scope constant. Stryker's vitest runner activates one mutant per test run, but signals.ts is imported once per worker and its top-level initialisers run before any mutant switch is set, so this mutant can never take effect in-process — Stryker flags all 67 constants in this file `static` and reports testsCompleted=1 for each. Not a test gap: hand-applying this exact edit to the source and running the package suite DOES fail tests (probe log: 62/67 detected; the 5 that are not are filed separately as equivalent).",
       "round": 5
     },
@@ -2775,7 +2775,7 @@
       "mutators": ["StringLiteral"],
       "snippet": "\"a\",",
       "lineHint": 31,
-      "kind": "gap:prod-build",
+      "kind": "tooling:static-mutant",
       "reason": "module-scope constant. Stryker's vitest runner activates one mutant per test run, but signals.ts is imported once per worker and its top-level initialisers run before any mutant switch is set, so this mutant can never take effect in-process — Stryker flags all 67 constants in this file `static` and reports testsCompleted=1 for each. Not a test gap: hand-applying this exact edit to the source and running the package suite DOES fail tests (probe log: 62/67 detected; the 5 that are not are filed separately as equivalent).",
       "round": 5
     },
@@ -2785,7 +2785,7 @@
       "mutators": ["StringLiteral"],
       "snippet": "\"label\",",
       "lineHint": 32,
-      "kind": "gap:prod-build",
+      "kind": "tooling:static-mutant",
       "reason": "module-scope constant. Stryker's vitest runner activates one mutant per test run, but signals.ts is imported once per worker and its top-level initialisers run before any mutant switch is set, so this mutant can never take effect in-process — Stryker flags all 67 constants in this file `static` and reports testsCompleted=1 for each. Not a test gap: hand-applying this exact edit to the source and running the package suite DOES fail tests (probe log: 62/67 detected; the 5 that are not are filed separately as equivalent).",
       "round": 5
     },
@@ -2795,7 +2795,7 @@
       "mutators": ["StringLiteral"],
       "snippet": "\"input\",",
       "lineHint": 33,
-      "kind": "gap:prod-build",
+      "kind": "tooling:static-mutant",
       "reason": "module-scope constant. Stryker's vitest runner activates one mutant per test run, but signals.ts is imported once per worker and its top-level initialisers run before any mutant switch is set, so this mutant can never take effect in-process — Stryker flags all 67 constants in this file `static` and reports testsCompleted=1 for each. Not a test gap: hand-applying this exact edit to the source and running the package suite DOES fail tests (probe log: 62/67 detected; the 5 that are not are filed separately as equivalent).",
       "round": 5
     },
@@ -2805,7 +2805,7 @@
       "mutators": ["StringLiteral"],
       "snippet": "\"textarea\",",
       "lineHint": 34,
-      "kind": "gap:prod-build",
+      "kind": "tooling:static-mutant",
       "reason": "module-scope constant. Stryker's vitest runner activates one mutant per test run, but signals.ts is imported once per worker and its top-level initialisers run before any mutant switch is set, so this mutant can never take effect in-process — Stryker flags all 67 constants in this file `static` and reports testsCompleted=1 for each. Not a test gap: hand-applying this exact edit to the source and running the package suite DOES fail tests (probe log: 62/67 detected; the 5 that are not are filed separately as equivalent).",
       "round": 5
     },
@@ -2815,7 +2815,7 @@
       "mutators": ["StringLiteral"],
       "snippet": "\"select\",",
       "lineHint": 35,
-      "kind": "gap:prod-build",
+      "kind": "tooling:static-mutant",
       "reason": "module-scope constant. Stryker's vitest runner activates one mutant per test run, but signals.ts is imported once per worker and its top-level initialisers run before any mutant switch is set, so this mutant can never take effect in-process — Stryker flags all 67 constants in this file `static` and reports testsCompleted=1 for each. Not a test gap: hand-applying this exact edit to the source and running the package suite DOES fail tests (probe log: 62/67 detected; the 5 that are not are filed separately as equivalent).",
       "round": 5
     },
@@ -2825,7 +2825,7 @@
       "mutators": ["StringLiteral"],
       "snippet": "\"h1\",",
       "lineHint": 36,
-      "kind": "gap:prod-build",
+      "kind": "tooling:static-mutant",
       "reason": "module-scope constant. Stryker's vitest runner activates one mutant per test run, but signals.ts is imported once per worker and its top-level initialisers run before any mutant switch is set, so this mutant can never take effect in-process — Stryker flags all 67 constants in this file `static` and reports testsCompleted=1 for each. Not a test gap: hand-applying this exact edit to the source and running the package suite DOES fail tests (probe log: 62/67 detected; the 5 that are not are filed separately as equivalent).",
       "round": 5
     },
@@ -2835,7 +2835,7 @@
       "mutators": ["StringLiteral"],
       "snippet": "\"h2\",",
       "lineHint": 37,
-      "kind": "gap:prod-build",
+      "kind": "tooling:static-mutant",
       "reason": "module-scope constant. Stryker's vitest runner activates one mutant per test run, but signals.ts is imported once per worker and its top-level initialisers run before any mutant switch is set, so this mutant can never take effect in-process — Stryker flags all 67 constants in this file `static` and reports testsCompleted=1 for each. Not a test gap: hand-applying this exact edit to the source and running the package suite DOES fail tests (probe log: 62/67 detected; the 5 that are not are filed separately as equivalent).",
       "round": 5
     },
@@ -2845,7 +2845,7 @@
       "mutators": ["StringLiteral"],
       "snippet": "\"h3\",",
       "lineHint": 38,
-      "kind": "gap:prod-build",
+      "kind": "tooling:static-mutant",
       "reason": "module-scope constant. Stryker's vitest runner activates one mutant per test run, but signals.ts is imported once per worker and its top-level initialisers run before any mutant switch is set, so this mutant can never take effect in-process — Stryker flags all 67 constants in this file `static` and reports testsCompleted=1 for each. Not a test gap: hand-applying this exact edit to the source and running the package suite DOES fail tests (probe log: 62/67 detected; the 5 that are not are filed separately as equivalent).",
       "round": 5
     },
@@ -2855,7 +2855,7 @@
       "mutators": ["StringLiteral"],
       "snippet": "\"h4\",",
       "lineHint": 39,
-      "kind": "gap:prod-build",
+      "kind": "tooling:static-mutant",
       "reason": "module-scope constant. Stryker's vitest runner activates one mutant per test run, but signals.ts is imported once per worker and its top-level initialisers run before any mutant switch is set, so this mutant can never take effect in-process — Stryker flags all 67 constants in this file `static` and reports testsCompleted=1 for each. Not a test gap: hand-applying this exact edit to the source and running the package suite DOES fail tests (probe log: 62/67 detected; the 5 that are not are filed separately as equivalent).",
       "round": 5
     },
@@ -2865,7 +2865,7 @@
       "mutators": ["StringLiteral"],
       "snippet": "\"h5\",",
       "lineHint": 40,
-      "kind": "gap:prod-build",
+      "kind": "tooling:static-mutant",
       "reason": "module-scope constant. Stryker's vitest runner activates one mutant per test run, but signals.ts is imported once per worker and its top-level initialisers run before any mutant switch is set, so this mutant can never take effect in-process — Stryker flags all 67 constants in this file `static` and reports testsCompleted=1 for each. Not a test gap: hand-applying this exact edit to the source and running the package suite DOES fail tests (probe log: 62/67 detected; the 5 that are not are filed separately as equivalent).",
       "round": 5
     },
@@ -2875,7 +2875,7 @@
       "mutators": ["StringLiteral"],
       "snippet": "\"h6\",",
       "lineHint": 41,
-      "kind": "gap:prod-build",
+      "kind": "tooling:static-mutant",
       "reason": "module-scope constant. Stryker's vitest runner activates one mutant per test run, but signals.ts is imported once per worker and its top-level initialisers run before any mutant switch is set, so this mutant can never take effect in-process — Stryker flags all 67 constants in this file `static` and reports testsCompleted=1 for each. Not a test gap: hand-applying this exact edit to the source and running the package suite DOES fail tests (probe log: 62/67 detected; the 5 that are not are filed separately as equivalent).",
       "round": 5
     },
@@ -2885,7 +2885,7 @@
       "mutators": ["StringLiteral"],
       "snippet": "\"th\",",
       "lineHint": 42,
-      "kind": "gap:prod-build",
+      "kind": "tooling:static-mutant",
       "reason": "module-scope constant. Stryker's vitest runner activates one mutant per test run, but signals.ts is imported once per worker and its top-level initialisers run before any mutant switch is set, so this mutant can never take effect in-process — Stryker flags all 67 constants in this file `static` and reports testsCompleted=1 for each. Not a test gap: hand-applying this exact edit to the source and running the package suite DOES fail tests (probe log: 62/67 detected; the 5 that are not are filed separately as equivalent).",
       "round": 5
     },
@@ -2895,7 +2895,7 @@
       "mutators": ["StringLiteral"],
       "snippet": "\"caption\",",
       "lineHint": 43,
-      "kind": "gap:prod-build",
+      "kind": "tooling:static-mutant",
       "reason": "module-scope constant. Stryker's vitest runner activates one mutant per test run, but signals.ts is imported once per worker and its top-level initialisers run before any mutant switch is set, so this mutant can never take effect in-process — Stryker flags all 67 constants in this file `static` and reports testsCompleted=1 for each. Not a test gap: hand-applying this exact edit to the source and running the package suite DOES fail tests (probe log: 62/67 detected; the 5 that are not are filed separately as equivalent).",
       "round": 5
     },
@@ -2905,7 +2905,7 @@
       "mutators": ["StringLiteral"],
       "snippet": "\"figcaption\",",
       "lineHint": 44,
-      "kind": "gap:prod-build",
+      "kind": "tooling:static-mutant",
       "reason": "module-scope constant. Stryker's vitest runner activates one mutant per test run, but signals.ts is imported once per worker and its top-level initialisers run before any mutant switch is set, so this mutant can never take effect in-process — Stryker flags all 67 constants in this file `static` and reports testsCompleted=1 for each. Not a test gap: hand-applying this exact edit to the source and running the package suite DOES fail tests (probe log: 62/67 detected; the 5 that are not are filed separately as equivalent).",
       "round": 5
     },
@@ -2915,7 +2915,7 @@
       "mutators": ["StringLiteral"],
       "snippet": "\"legend\",",
       "lineHint": 45,
-      "kind": "gap:prod-build",
+      "kind": "tooling:static-mutant",
       "reason": "module-scope constant. Stryker's vitest runner activates one mutant per test run, but signals.ts is imported once per worker and its top-level initialisers run before any mutant switch is set, so this mutant can never take effect in-process — Stryker flags all 67 constants in this file `static` and reports testsCompleted=1 for each. Not a test gap: hand-applying this exact edit to the source and running the package suite DOES fail tests (probe log: 62/67 detected; the 5 that are not are filed separately as equivalent).",
       "round": 5
     },
@@ -2925,7 +2925,7 @@
       "mutators": ["StringLiteral"],
       "snippet": "\"summary\",",
       "lineHint": 46,
-      "kind": "gap:prod-build",
+      "kind": "tooling:static-mutant",
       "reason": "module-scope constant. Stryker's vitest runner activates one mutant per test run, but signals.ts is imported once per worker and its top-level initialisers run before any mutant switch is set, so this mutant can never take effect in-process — Stryker flags all 67 constants in this file `static` and reports testsCompleted=1 for each. Not a test gap: hand-applying this exact edit to the source and running the package suite DOES fail tests (probe log: 62/67 detected; the 5 that are not are filed separately as equivalent).",
       "round": 5
     },
@@ -2935,7 +2935,7 @@
       "mutators": ["StringLiteral"],
       "snippet": "\"dt\",",
       "lineHint": 47,
-      "kind": "gap:prod-build",
+      "kind": "tooling:static-mutant",
       "reason": "module-scope constant. Stryker's vitest runner activates one mutant per test run, but signals.ts is imported once per worker and its top-level initialisers run before any mutant switch is set, so this mutant can never take effect in-process — Stryker flags all 67 constants in this file `static` and reports testsCompleted=1 for each. Not a test gap: hand-applying this exact edit to the source and running the package suite DOES fail tests (probe log: 62/67 detected; the 5 that are not are filed separately as equivalent).",
       "round": 5
     },
@@ -2945,7 +2945,7 @@
       "mutators": ["StringLiteral"],
       "snippet": "\"li\",",
       "lineHint": 48,
-      "kind": "gap:prod-build",
+      "kind": "tooling:static-mutant",
       "reason": "module-scope constant. Stryker's vitest runner activates one mutant per test run, but signals.ts is imported once per worker and its top-level initialisers run before any mutant switch is set, so this mutant can never take effect in-process — Stryker flags all 67 constants in this file `static` and reports testsCompleted=1 for each. Not a test gap: hand-applying this exact edit to the source and running the package suite DOES fail tests (probe log: 62/67 detected; the 5 that are not are filed separately as equivalent).",
       "round": 5
     },
@@ -2955,7 +2955,7 @@
       "mutators": ["ObjectLiteral"],
       "snippet": "const CONTAINER_TAG_MAP: Record<string, ContainerType> = {",
       "lineHint": 51,
-      "kind": "gap:prod-build",
+      "kind": "tooling:static-mutant",
       "reason": "module-scope constant. Stryker's vitest runner activates one mutant per test run, but signals.ts is imported once per worker and its top-level initialisers run before any mutant switch is set, so this mutant can never take effect in-process — Stryker flags all 67 constants in this file `static` and reports testsCompleted=1 for each. Not a test gap: hand-applying this exact edit to the source and running the package suite DOES fail tests (probe log: 62/67 detected; the 5 that are not are filed separately as equivalent).",
       "round": 5
     },
@@ -2965,7 +2965,7 @@
       "mutators": ["StringLiteral"],
       "snippet": "dialog: \"dialog\",",
       "lineHint": 52,
-      "kind": "gap:prod-build",
+      "kind": "tooling:static-mutant",
       "reason": "module-scope constant. Stryker's vitest runner activates one mutant per test run, but signals.ts is imported once per worker and its top-level initialisers run before any mutant switch is set, so this mutant can never take effect in-process — Stryker flags all 67 constants in this file `static` and reports testsCompleted=1 for each. Not a test gap: hand-applying this exact edit to the source and running the package suite DOES fail tests (probe log: 62/67 detected; the 5 that are not are filed separately as equivalent).",
       "round": 5
     },
@@ -2975,7 +2975,7 @@
       "mutators": ["StringLiteral"],
       "snippet": "form: \"form\",",
       "lineHint": 53,
-      "kind": "gap:prod-build",
+      "kind": "tooling:static-mutant",
       "reason": "module-scope constant. Stryker's vitest runner activates one mutant per test run, but signals.ts is imported once per worker and its top-level initialisers run before any mutant switch is set, so this mutant can never take effect in-process — Stryker flags all 67 constants in this file `static` and reports testsCompleted=1 for each. Not a test gap: hand-applying this exact edit to the source and running the package suite DOES fail tests (probe log: 62/67 detected; the 5 that are not are filed separately as equivalent).",
       "round": 5
     },
@@ -2985,7 +2985,7 @@
       "mutators": ["StringLiteral"],
       "snippet": "fieldset: \"fieldset\",",
       "lineHint": 54,
-      "kind": "gap:prod-build",
+      "kind": "tooling:static-mutant",
       "reason": "module-scope constant. Stryker's vitest runner activates one mutant per test run, but signals.ts is imported once per worker and its top-level initialisers run before any mutant switch is set, so this mutant can never take effect in-process — Stryker flags all 67 constants in this file `static` and reports testsCompleted=1 for each. Not a test gap: hand-applying this exact edit to the source and running the package suite DOES fail tests (probe log: 62/67 detected; the 5 that are not are filed separately as equivalent).",
       "round": 5
     },
@@ -2995,7 +2995,7 @@
       "mutators": ["StringLiteral"],
       "snippet": "table: \"table\",",
       "lineHint": 55,
-      "kind": "gap:prod-build",
+      "kind": "tooling:static-mutant",
       "reason": "module-scope constant. Stryker's vitest runner activates one mutant per test run, but signals.ts is imported once per worker and its top-level initialisers run before any mutant switch is set, so this mutant can never take effect in-process — Stryker flags all 67 constants in this file `static` and reports testsCompleted=1 for each. Not a test gap: hand-applying this exact edit to the source and running the package suite DOES fail tests (probe log: 62/67 detected; the 5 that are not are filed separately as equivalent).",
       "round": 5
     },
@@ -3005,7 +3005,7 @@
       "mutators": ["StringLiteral"],
       "snippet": "thead: \"table\",",
       "lineHint": 56,
-      "kind": "gap:prod-build",
+      "kind": "tooling:static-mutant",
       "reason": "module-scope constant. Stryker's vitest runner activates one mutant per test run, but signals.ts is imported once per worker and its top-level initialisers run before any mutant switch is set, so this mutant can never take effect in-process — Stryker flags all 67 constants in this file `static` and reports testsCompleted=1 for each. Not a test gap: hand-applying this exact edit to the source and running the package suite DOES fail tests (probe log: 62/67 detected; the 5 that are not are filed separately as equivalent).",
       "round": 5
     },
@@ -3015,7 +3015,7 @@
       "mutators": ["StringLiteral"],
       "snippet": "tbody: \"table\",",
       "lineHint": 57,
-      "kind": "gap:prod-build",
+      "kind": "tooling:static-mutant",
       "reason": "module-scope constant. Stryker's vitest runner activates one mutant per test run, but signals.ts is imported once per worker and its top-level initialisers run before any mutant switch is set, so this mutant can never take effect in-process — Stryker flags all 67 constants in this file `static` and reports testsCompleted=1 for each. Not a test gap: hand-applying this exact edit to the source and running the package suite DOES fail tests (probe log: 62/67 detected; the 5 that are not are filed separately as equivalent).",
       "round": 5
     },
@@ -3025,7 +3025,7 @@
       "mutators": ["StringLiteral"],
       "snippet": "nav: \"nav\",",
       "lineHint": 58,
-      "kind": "gap:prod-build",
+      "kind": "tooling:static-mutant",
       "reason": "module-scope constant. Stryker's vitest runner activates one mutant per test run, but signals.ts is imported once per worker and its top-level initialisers run before any mutant switch is set, so this mutant can never take effect in-process — Stryker flags all 67 constants in this file `static` and reports testsCompleted=1 for each. Not a test gap: hand-applying this exact edit to the source and running the package suite DOES fail tests (probe log: 62/67 detected; the 5 that are not are filed separately as equivalent).",
       "round": 5
     },
@@ -3035,7 +3035,7 @@
       "mutators": ["StringLiteral"],
       "snippet": "section: \"titled-section\",",
       "lineHint": 59,
-      "kind": "gap:prod-build",
+      "kind": "tooling:static-mutant",
       "reason": "module-scope constant. Stryker's vitest runner activates one mutant per test run, but signals.ts is imported once per worker and its top-level initialisers run before any mutant switch is set, so this mutant can never take effect in-process — Stryker flags all 67 constants in this file `static` and reports testsCompleted=1 for each. Not a test gap: hand-applying this exact edit to the source and running the package suite DOES fail tests (probe log: 62/67 detected; the 5 that are not are filed separately as equivalent).",
       "round": 5
     },
@@ -3045,7 +3045,7 @@
       "mutators": ["StringLiteral"],
       "snippet": "article: \"titled-section\",",
       "lineHint": 60,
-      "kind": "gap:prod-build",
+      "kind": "tooling:static-mutant",
       "reason": "module-scope constant. Stryker's vitest runner activates one mutant per test run, but signals.ts is imported once per worker and its top-level initialisers run before any mutant switch is set, so this mutant can never take effect in-process — Stryker flags all 67 constants in this file `static` and reports testsCompleted=1 for each. Not a test gap: hand-applying this exact edit to the source and running the package suite DOES fail tests (probe log: 62/67 detected; the 5 that are not are filed separately as equivalent).",
       "round": 5
     },
@@ -3055,7 +3055,7 @@
       "mutators": ["ArrayDeclaration"],
       "snippet": "const INTERACTIVE_ARIA_ROLES = new Set([",
       "lineHint": 67,
-      "kind": "gap:prod-build",
+      "kind": "tooling:static-mutant",
       "reason": "module-scope constant. Stryker's vitest runner activates one mutant per test run, but signals.ts is imported once per worker and its top-level initialisers run before any mutant switch is set, so this mutant can never take effect in-process — Stryker flags all 67 constants in this file `static` and reports testsCompleted=1 for each. Not a test gap: hand-applying this exact edit to the source and running the package suite DOES fail tests (probe log: 62/67 detected; the 5 that are not are filed separately as equivalent).",
       "round": 5
     },
@@ -3065,7 +3065,7 @@
       "mutators": ["StringLiteral"],
       "snippet": "\"button\",",
       "lineHint": 68,
-      "kind": "gap:prod-build",
+      "kind": "tooling:static-mutant",
       "reason": "module-scope constant. Stryker's vitest runner activates one mutant per test run, but signals.ts is imported once per worker and its top-level initialisers run before any mutant switch is set, so this mutant can never take effect in-process — Stryker flags all 67 constants in this file `static` and reports testsCompleted=1 for each. Not a test gap: hand-applying this exact edit to the source and running the package suite DOES fail tests (probe log: 62/67 detected; the 5 that are not are filed separately as equivalent).",
       "round": 5
     },
@@ -3075,7 +3075,7 @@
       "mutators": ["StringLiteral"],
       "snippet": "\"link\",",
       "lineHint": 69,
-      "kind": "gap:prod-build",
+      "kind": "tooling:static-mutant",
       "reason": "module-scope constant. Stryker's vitest runner activates one mutant per test run, but signals.ts is imported once per worker and its top-level initialisers run before any mutant switch is set, so this mutant can never take effect in-process — Stryker flags all 67 constants in this file `static` and reports testsCompleted=1 for each. Not a test gap: hand-applying this exact edit to the source and running the package suite DOES fail tests (probe log: 62/67 detected; the 5 that are not are filed separately as equivalent).",
       "round": 5
     },
@@ -3085,7 +3085,7 @@
       "mutators": ["StringLiteral"],
       "snippet": "\"menuitem\",",
       "lineHint": 70,
-      "kind": "gap:prod-build",
+      "kind": "tooling:static-mutant",
       "reason": "module-scope constant. Stryker's vitest runner activates one mutant per test run, but signals.ts is imported once per worker and its top-level initialisers run before any mutant switch is set, so this mutant can never take effect in-process — Stryker flags all 67 constants in this file `static` and reports testsCompleted=1 for each. Not a test gap: hand-applying this exact edit to the source and running the package suite DOES fail tests (probe log: 62/67 detected; the 5 that are not are filed separately as equivalent).",
       "round": 5
     },
@@ -3095,7 +3095,7 @@
       "mutators": ["StringLiteral"],
       "snippet": "\"menuitemcheckbox\",",
       "lineHint": 71,
-      "kind": "gap:prod-build",
+      "kind": "tooling:static-mutant",
       "reason": "module-scope constant. Stryker's vitest runner activates one mutant per test run, but signals.ts is imported once per worker and its top-level initialisers run before any mutant switch is set, so this mutant can never take effect in-process — Stryker flags all 67 constants in this file `static` and reports testsCompleted=1 for each. Not a test gap: hand-applying this exact edit to the source and running the package suite DOES fail tests (probe log: 62/67 detected; the 5 that are not are filed separately as equivalent).",
       "round": 5
     },
@@ -3105,7 +3105,7 @@
       "mutators": ["StringLiteral"],
       "snippet": "\"menuitemradio\",",
       "lineHint": 72,
-      "kind": "gap:prod-build",
+      "kind": "tooling:static-mutant",
       "reason": "module-scope constant. Stryker's vitest runner activates one mutant per test run, but signals.ts is imported once per worker and its top-level initialisers run before any mutant switch is set, so this mutant can never take effect in-process — Stryker flags all 67 constants in this file `static` and reports testsCompleted=1 for each. Not a test gap: hand-applying this exact edit to the source and running the package suite DOES fail tests (probe log: 62/67 detected; the 5 that are not are filed separately as equivalent).",
       "round": 5
     },
@@ -3115,7 +3115,7 @@
       "mutators": ["StringLiteral"],
       "snippet": "\"tab\",",
       "lineHint": 73,
-      "kind": "gap:prod-build",
+      "kind": "tooling:static-mutant",
       "reason": "module-scope constant. Stryker's vitest runner activates one mutant per test run, but signals.ts is imported once per worker and its top-level initialisers run before any mutant switch is set, so this mutant can never take effect in-process — Stryker flags all 67 constants in this file `static` and reports testsCompleted=1 for each. Not a test gap: hand-applying this exact edit to the source and running the package suite DOES fail tests (probe log: 62/67 detected; the 5 that are not are filed separately as equivalent).",
       "round": 5
     },
@@ -3125,7 +3125,7 @@
       "mutators": ["StringLiteral"],
       "snippet": "\"option\",",
       "lineHint": 74,
-      "kind": "gap:prod-build",
+      "kind": "tooling:static-mutant",
       "reason": "module-scope constant. Stryker's vitest runner activates one mutant per test run, but signals.ts is imported once per worker and its top-level initialisers run before any mutant switch is set, so this mutant can never take effect in-process — Stryker flags all 67 constants in this file `static` and reports testsCompleted=1 for each. Not a test gap: hand-applying this exact edit to the source and running the package suite DOES fail tests (probe log: 62/67 detected; the 5 that are not are filed separately as equivalent).",
       "round": 5
     },
@@ -3135,7 +3135,7 @@
       "mutators": ["StringLiteral"],
       "snippet": "\"checkbox\",",
       "lineHint": 75,
-      "kind": "gap:prod-build",
+      "kind": "tooling:static-mutant",
       "reason": "module-scope constant. Stryker's vitest runner activates one mutant per test run, but signals.ts is imported once per worker and its top-level initialisers run before any mutant switch is set, so this mutant can never take effect in-process — Stryker flags all 67 constants in this file `static` and reports testsCompleted=1 for each. Not a test gap: hand-applying this exact edit to the source and running the package suite DOES fail tests (probe log: 62/67 detected; the 5 that are not are filed separately as equivalent).",
       "round": 5
     },
@@ -3145,7 +3145,7 @@
       "mutators": ["StringLiteral"],
       "snippet": "\"radio\",",
       "lineHint": 76,
-      "kind": "gap:prod-build",
+      "kind": "tooling:static-mutant",
       "reason": "module-scope constant. Stryker's vitest runner activates one mutant per test run, but signals.ts is imported once per worker and its top-level initialisers run before any mutant switch is set, so this mutant can never take effect in-process — Stryker flags all 67 constants in this file `static` and reports testsCompleted=1 for each. Not a test gap: hand-applying this exact edit to the source and running the package suite DOES fail tests (probe log: 62/67 detected; the 5 that are not are filed separately as equivalent).",
       "round": 5
     },
@@ -3155,7 +3155,7 @@
       "mutators": ["StringLiteral"],
       "snippet": "\"switch\",",
       "lineHint": 77,
-      "kind": "gap:prod-build",
+      "kind": "tooling:static-mutant",
       "reason": "module-scope constant. Stryker's vitest runner activates one mutant per test run, but signals.ts is imported once per worker and its top-level initialisers run before any mutant switch is set, so this mutant can never take effect in-process — Stryker flags all 67 constants in this file `static` and reports testsCompleted=1 for each. Not a test gap: hand-applying this exact edit to the source and running the package suite DOES fail tests (probe log: 62/67 detected; the 5 that are not are filed separately as equivalent).",
       "round": 5
     },
@@ -3165,7 +3165,7 @@
       "mutators": ["StringLiteral"],
       "snippet": "\"combobox\",",
       "lineHint": 78,
-      "kind": "gap:prod-build",
+      "kind": "tooling:static-mutant",
       "reason": "module-scope constant. Stryker's vitest runner activates one mutant per test run, but signals.ts is imported once per worker and its top-level initialisers run before any mutant switch is set, so this mutant can never take effect in-process — Stryker flags all 67 constants in this file `static` and reports testsCompleted=1 for each. Not a test gap: hand-applying this exact edit to the source and running the package suite DOES fail tests (probe log: 62/67 detected; the 5 that are not are filed separately as equivalent).",
       "round": 5
     },
@@ -3175,7 +3175,7 @@
       "mutators": ["Regex"],
       "snippet": "const PII_PATTERN = /[@\\d]{5,}|^\\+?\\d[\\d\\s-]{7,}/;",
       "lineHint": 279,
-      "kind": "gap:prod-build",
+      "kind": "tooling:static-mutant",
       "reason": "module-scope constant. Stryker's vitest runner activates one mutant per test run, but signals.ts is imported once per worker and its top-level initialisers run before any mutant switch is set, so this mutant can never take effect in-process — Stryker flags all 67 constants in this file `static` and reports testsCompleted=1 for each. Not a test gap: hand-applying this exact edit to the source and running the package suite DOES fail tests (probe log: 62/67 detected; the 5 that are not are filed separately as equivalent).",
       "round": 5
     },
@@ -3185,7 +3185,7 @@
       "mutators": ["Regex"],
       "snippet": "const MOSTLY_NUMERIC = /^\\d[\\d\\s.,%-]*$/;",
       "lineHint": 280,
-      "kind": "gap:prod-build",
+      "kind": "tooling:static-mutant",
       "reason": "module-scope constant. Stryker's vitest runner activates one mutant per test run, but signals.ts is imported once per worker and its top-level initialisers run before any mutant switch is set, so this mutant can never take effect in-process — Stryker flags all 67 constants in this file `static` and reports testsCompleted=1 for each. Not a test gap: hand-applying this exact edit to the source and running the package suite DOES fail tests (probe log: 62/67 detected; the 5 that are not are filed separately as equivalent).",
       "round": 5
     },
