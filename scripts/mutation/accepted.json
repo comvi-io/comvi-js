@@ -7219,6 +7219,78 @@
       "lineHint": 13,
       "kind": "needs-seam",
       "reason": "the trailing-slash normalization is live in the real build (vite reads VITE_COMVI_API_BASE_URL from the environment) but unreachable under test: vitest defines the literal without a trailing slash. Closing it needs a second define-project or an exported normalize() — recorded as an open item, NOT equivalence."
+    },
+    {
+      "package": "apps/chrome-extension",
+      "file": "src/background/proxy-handler.ts",
+      "mutators": ["ConditionalExpression"],
+      "snippet": "if (typeof tabId !== \"number\" || typeof id !== \"string\") return;",
+      "kind": "equivalent",
+      "reason": "forcing only the tabId operand false leaves abortProxyWork(undefined, id), whose key `undefined:<id>` cannot match any reservation — reserveProxyWork only registers numeric tab ids. The whole-if, id operand and && regrouping ARE killed (numeric-vs-string id type-confusion test). Hand-applied; 978/978 green.",
+      "lineHint": 43
+    },
+    {
+      "package": "apps/chrome-extension",
+      "file": "src/background/sessions.ts",
+      "mutators": ["ConditionalExpression"],
+      "snippet": "if (typeof nonce !== \"string\" || nonce !== session.nonce) return;",
+      "kind": "equivalent",
+      "reason": "session.nonce is always a string, so a non-string nonce is rejected by the inequality operand — same class as the accepted line-297 entry. Hand-applied; green.",
+      "lineHint": 333
+    },
+    {
+      "package": "apps/chrome-extension",
+      "file": "src/background/sessions.ts",
+      "mutators": ["LogicalOperator"],
+      "snippet": "if (session.status !== \"pending\" || session.popupLeaseId !== popupLeaseId) continue;",
+      "kind": "equivalent",
+      "reason": "snapshot pre-filter; the locked re-check at 389 repeats both conditions — narrowing to a conjunction just takes extra locks. Same class as the CE entries on this line. Hand-applied; green.",
+      "lineHint": 386
+    },
+    {
+      "package": "apps/chrome-extension",
+      "file": "src/background/sessions.ts",
+      "mutators": ["BlockStatement"],
+      "snippet": "} catch {",
+      "kind": "equivalent",
+      "reason": "emptying the catch returns undefined instead of null; every caller compares !== against a canonical origin string, where null and undefined are indistinguishable. Covered by the vanished-tab test. Hand-applied; green.",
+      "lineHint": 120
+    },
+    {
+      "package": "apps/chrome-extension",
+      "file": "src/background/proxy-work.ts",
+      "mutators": ["CallExpression"],
+      "snippet": "requestLog.set(tabId, recent);",
+      "kind": "equivalent",
+      "reason": "the write only prunes expired entries while rejecting; the filter re-runs per call, so a longer stored array yields the same decisions — memory retention, not behaviour. Hand-applied; green.",
+      "lineHint": 137
+    },
+    {
+      "package": "apps/chrome-extension",
+      "file": "src/background/proxy-work.ts",
+      "mutators": ["BlockStatement"],
+      "snippet": "if (getProxySessionTransitionGeneration(tabId) !== observedGeneration) {",
+      "kind": "equivalent",
+      "reason": "body of the unreachable check/register race branch — nothing async runs between the first generation check and the waiter entering the map; same class as the accepted CE on this line. Hand-applied; green.",
+      "lineHint": 108
+    },
+    {
+      "package": "apps/chrome-extension",
+      "file": "src/background/proxy-work.ts",
+      "mutators": ["StringLiteral"],
+      "snippet": "settlePendingWaiter(key, \"transitioned\");",
+      "kind": "equivalent",
+      "reason": "outcome string inside that same unreachable race branch. Hand-applied; green.",
+      "lineHint": 109
+    },
+    {
+      "package": "apps/chrome-extension",
+      "file": "src/background/badge.ts",
+      "mutators": ["StringLiteral"],
+      "snippet": "const message = error instanceof Error ? error.message : String(error ?? \"\");",
+      "kind": "equivalent",
+      "reason": "the default applies only to a null/undefined rejection, and neither \"\" nor any literal contains \"No tab with id\", so both warn; console.warn logs `error`, never `message`. Covered by the no-error-value rejection test. Hand-applied; green.",
+      "lineHint": 28
     }
   ]
 }

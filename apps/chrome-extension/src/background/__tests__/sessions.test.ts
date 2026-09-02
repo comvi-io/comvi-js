@@ -25,6 +25,7 @@ import {
 import {
   bumpAuthorityEpoch,
   bumpNavGen,
+  deleteSession,
   getSession,
   putSession,
   putTabState,
@@ -330,6 +331,16 @@ describe("opening a session", () => {
     });
   });
 
+  it("refuses a session for a tab that no longer exists", async () => {
+    harness.chrome.tabs.get.mockRejectedValue(new Error(`No tab with id ${TAB}`));
+
+    await expect(startSession(payload(), popupSender)).resolves.toEqual({
+      ok: false,
+      error: "The page changed. Close and reopen the popup.",
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it("refuses a session for a tab that is showing another origin", async () => {
     harness.setTabUrl(TAB, `${OTHER_ORIGIN}/dashboard`);
 
@@ -407,12 +418,14 @@ describe("opening a session", () => {
       leaseChecks += 1;
       return leaseChecks <= 2;
     };
+    const generationBefore = getProxySessionTransitionGeneration(TAB);
 
     await expect(startSession(payload(), popupSender, isPopupLeaseActive)).resolves.toEqual({
       ok: false,
       error: "The popup closed while validating. Try again.",
     });
     await expect(getSession(TAB)).resolves.toBeUndefined();
+    expect(getProxySessionTransitionGeneration(TAB)).toBeGreaterThan(generationBefore);
   });
 
   it("stores the validated credential for the origin", async () => {
@@ -872,6 +885,19 @@ describe("revocation when a popup lease disappears", () => {
     });
   });
 
+  it("tolerates a session that disappeared after the enumeration snapshot", async () => {
+    await openPendingSession();
+    const holdingLock = holdTabLock();
+    const revoking = revokePendingForLease(LEASE);
+    await settle();
+    await deleteSession(TAB);
+
+    holdingLock.release();
+
+    await expect(revoking).resolves.toBeUndefined();
+    await holdingLock.done;
+  });
+
   it("leaves an active session that the closed popup opened", async () => {
     await openActiveSession();
 
@@ -897,6 +923,16 @@ describe("forgetting a credential", () => {
     await openActiveSession();
     await setCredentials(OTHER_ORIGIN, { apiKey: API_KEY, validated: true });
     await putSession(OTHER_TAB, storedSession({ origin: OTHER_ORIGIN }));
+
+    const result = await forgetCredentials({ origin: ORIGIN }, popupSender);
+
+    expect(result.revokedTabIds).toEqual([TAB, OTHER_TAB]);
+    await expect(getSession(OTHER_TAB)).resolves.toBeUndefined();
+  });
+
+  it("revokes a stale session on the forgotten origin that holds an older key", async () => {
+    await openActiveSession();
+    await putSession(OTHER_TAB, storedSession({ origin: ORIGIN, apiKey: "cmv_previous_key" }));
 
     const result = await forgetCredentials({ origin: ORIGIN }, popupSender);
 

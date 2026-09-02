@@ -474,3 +474,28 @@ describe("activation-time waiters", () => {
     endGlobalProxyRevocation();
   });
 });
+
+describe("per-tab activation budget", () => {
+  it("counts activation waiters per tab rather than globally", async () => {
+    const busyTab = freshTab();
+    const otherTab = freshTab();
+    const observed = getProxySessionTransitionGeneration(busyTab);
+    const waiting: Promise<ProxySessionWaitOutcome>[] = [];
+    for (let index = 0; index < MAX_PENDING_ACTIVATION_REQUESTS_PER_TAB; index += 1) {
+      waiting.push(waitForProxySessionTransition(busyTab, `queued-${index}`, observed));
+    }
+
+    const spare = waitForProxySessionTransition(
+      otherTab,
+      "request-1",
+      getProxySessionTransitionGeneration(otherTab),
+    );
+
+    const settled = track(spare);
+    await Promise.resolve();
+    expect(settled).not.toHaveBeenCalled();
+    abortTabProxyWork(busyTab);
+    abortTabProxyWork(otherTab);
+    await Promise.all([...waiting, spare]);
+  });
+});

@@ -25,11 +25,14 @@ vi.mock("../badge", () => ({ renderBadge }));
 
 const { clearTabLimits, handleProxyRequest, abortProxyRequest } = await import("../proxy-handler");
 const {
+  abortProxyWork,
   abortTabProxyWork,
   beginTabProxyRevocation,
   endTabProxyRevocation,
+  getProxySessionTransitionGeneration,
   notifyProxySessionTransition,
   reserveProxyWork,
+  waitForProxySessionTransition,
 } = await import("../proxy-work");
 
 const TAB_ID = 9;
@@ -333,11 +336,27 @@ describe("authority re-checks", () => {
 describe("waiting out an activation", () => {
   it("refuses rather than waiting twice when the session is still pending", async () => {
     getSession.mockResolvedValue(pendingSession());
-    seam.afterSetupLock = () => notifyProxySessionTransition(TAB_ID);
+    // Exactly one promotion signal: the request may consume it once, and the
+    // re-entry must then answer from state rather than wait for another.
+    let promoted = false;
+    seam.afterSetupLock = () => {
+      if (promoted) return;
+      promoted = true;
+      notifyProxySessionTransition(TAB_ID);
+    };
 
-    const result = await handleProxyRequest(request(), sender());
+    // A second wait would park for the full activation deadline, so racing a
+    // macrotask distinguishes "answered now" from "waiting again".
+    const result = await Promise.race([
+      handleProxyRequest(request(), sender()),
+      new Promise((resolve) => setTimeout(() => resolve("still waiting"), 0)),
+    ]);
+    // Settle before asserting: a failed assertion must not leave a parked request.
+    abortTabProxyWork(TAB_ID);
 
-    expect(result.networkError).toBe("No active editor session for this tab");
+    expect(result).toMatchObject({
+      networkError: "No active editor session for this tab",
+    });
   });
 
   it("reports an aborted request rather than retrying it", async () => {
@@ -565,5 +584,133 @@ describe("tab limit clearing", () => {
     clearTabLimits(TAB_ID);
 
     expect(reserved.reservation.controller.signal.aborted).toBe(true);
+  });
+});
+
+describe("page-requested cancellation", () => {
+  it("cancels the named in-flight request", () => {
+    const reserved = reserveProxyWork(TAB_ID, "cancel-1");
+    if (!reserved.ok) throw new Error(reserved.error);
+
+    abortProxyRequest({ id: "cancel-1" }, sender());
+
+    expect(reserved.reservation.controller.signal.aborted).toBe(true);
+  });
+
+  it("ignores a cancellation that did not come from a tab", () => {
+    const reserved = reserveProxyWork(TAB_ID, "keep-1");
+    if (!reserved.ok) throw new Error(reserved.error);
+
+    abortProxyRequest({ id: "keep-1" }, sender({ tab: undefined }));
+
+    expect(reserved.reservation.controller.signal.aborted).toBe(false);
+    abortTabProxyWork(TAB_ID);
+  });
+
+  it("ignores a cancellation with no payload", () => {
+    const reserved = reserveProxyWork(TAB_ID, "keep-2");
+    if (!reserved.ok) throw new Error(reserved.error);
+
+    abortProxyRequest(undefined, sender());
+
+    expect(reserved.reservation.controller.signal.aborted).toBe(false);
+    abortTabProxyWork(TAB_ID);
+  });
+
+  // Work is keyed by `${tabId}:${requestId}`, so a numeric id would collide
+  // with the string id of a real request if the type check were dropped.
+  it("ignores a cancellation whose request id is not a string", () => {
+    const reserved = reserveProxyWork(TAB_ID, "42");
+    if (!reserved.ok) throw new Error(reserved.error);
+
+    abortProxyRequest({ id: 42 }, sender());
+
+    expect(reserved.reservation.controller.signal.aborted).toBe(false);
+    abortTabProxyWork(TAB_ID);
+  });
+});
+
+describe("navigation invalidation", () => {
+  it("aborts the tab's in-flight work", async () => {
+    const reserved = reserveProxyWork(TAB_ID, "older-request");
+    if (!reserved.ok) throw new Error(reserved.error);
+    getNavGen.mockResolvedValue(4);
+
+    await handleProxyRequest(request(), sender());
+
+    expect(reserved.reservation.controller.signal.aborted).toBe(true);
+  });
+
+  it("clears the badge for a tab with no cached detection state", async () => {
+    getNavGen.mockResolvedValue(4);
+    getTabState.mockResolvedValue(undefined);
+
+    await handleProxyRequest(request(), sender());
+
+    expect(renderBadge).toHaveBeenCalledWith(TAB_ID, false, false);
+  });
+});
+
+describe("activation wait outcomes", () => {
+  it("refuses a request once the tab's activation queue is full", async () => {
+    getSession.mockResolvedValue(pendingSession());
+    const waiting: Promise<unknown>[] = [];
+    for (let index = 0; index < 32; index += 1) {
+      waiting.push(
+        waitForProxySessionTransition(
+          TAB_ID,
+          `queued-${index}`,
+          getProxySessionTransitionGeneration(TAB_ID),
+        ),
+      );
+    }
+
+    const result = await handleProxyRequest(request("over-queue"), sender());
+
+    expect(result.networkError).toBe("Too many pending activation requests");
+    abortTabProxyWork(TAB_ID);
+    await Promise.all(waiting);
+  });
+
+  it("reports an activation that never completes", async () => {
+    vi.useFakeTimers();
+    getSession.mockResolvedValue(pendingSession());
+
+    const inFlight = handleProxyRequest(request("never-activates"), sender());
+    await vi.advanceTimersByTimeAsync(5_000);
+
+    await expect(inFlight).resolves.toMatchObject({
+      networkError: "Editor activation did not complete in time",
+    });
+    vi.useRealTimers();
+  });
+});
+
+describe("release on a pre-fetch abort", () => {
+  it("frees the request id when a revocation aborts the request before its fetch", async () => {
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(new Response("{}", { status: 200 }));
+    // Abort without unregistering, so releasing the reservation is what frees
+    // the id — `abortTabProxyWork` would have removed the entry by itself.
+    seam.afterSetupLock = () => abortProxyWork(TAB_ID, "reusable");
+
+    const aborted = await handleProxyRequest(request("reusable"), sender());
+    seam.afterSetupLock = undefined;
+    const retried = await handleProxyRequest(request("reusable"), sender());
+
+    expect(aborted.networkError).toBe("Request aborted");
+    expect(retried.ok).toBe(true);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("non-Error failures", () => {
+  it("reports a rejection that is not an Error as a generic failure", async () => {
+    vi.spyOn(globalThis, "fetch").mockRejectedValue("connection reset");
+
+    const result = await handleProxyRequest(request(), sender());
+
+    expect(result.networkError).toBe("Request failed");
   });
 });

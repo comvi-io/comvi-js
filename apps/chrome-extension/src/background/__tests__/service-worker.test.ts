@@ -1480,3 +1480,52 @@ describe("extension lifecycle", () => {
     expect(harness.chrome.action.setIcon).not.toHaveBeenCalled();
   });
 });
+
+describe("message channel discipline", () => {
+  // Answering synchronously and still returning true leaves Chrome holding the
+  // response port open for a reply that will never come.
+  it.each([
+    [
+      "DOCUMENT_READY from a subframe",
+      { type: "DOCUMENT_READY" },
+      () => pageSender({ frameId: 4 }),
+    ],
+    [
+      "ROLLBACK_ACTIVATION without a tab id",
+      { type: "ROLLBACK_ACTIVATION", payload: { nonce: "n" } },
+      () => popupSender,
+    ],
+    ["END_SESSION without a payload", { type: "END_SESSION" }, () => popupSender],
+  ])("closes the response channel after refusing %s", async (_label, message, makeSender) => {
+    const { response, keptOpen } = await harness.dispatchMessageWithChannel(message, makeSender());
+
+    expect(response).toEqual({ ok: false });
+    expect(keptOpen).toBe(false);
+  });
+});
+
+describe("COMVI_NOT_FOUND", () => {
+  it("records the cleared detection state for a tab with no cached state", async () => {
+    const freshTab = 12;
+    harness.setTabUrl(freshTab, PAGE_URL);
+    harness.chrome.action.setIcon.mockClear();
+
+    await harness.dispatchMessage(
+      { type: "COMVI_NOT_FOUND" },
+      pageSender({ tab: { id: freshTab } as chrome.tabs.Tab }),
+    );
+    await harness.flush();
+
+    expect(harness.chrome.action.setIcon).toHaveBeenCalled();
+  });
+
+  it("keeps the ON badge while a session is active", async () => {
+    await openActiveSession();
+
+    await harness.dispatchMessage({ type: "COMVI_NOT_FOUND" }, pageSender());
+    await harness.flush();
+
+    const calls = harness.chrome.action.setBadgeText.mock.calls;
+    expect((calls[calls.length - 1]?.[0] as { text?: string })?.text).toBe("ON");
+  });
+});

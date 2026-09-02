@@ -153,3 +153,18 @@ describe("toolbar failures", () => {
     expect(warn).not.toHaveBeenCalled();
   });
 });
+
+describe("failures with no error value", () => {
+  it("reports a toolbar rejection that carries no reason", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    harness.chrome.action.setIcon.mockRejectedValue(undefined);
+
+    renderBadge(TAB, true, false);
+    await settle();
+
+    expect(warn).toHaveBeenCalledWith(
+      "[ComviExtension] Failed to update toolbar state.",
+      undefined,
+    );
+  });
+});

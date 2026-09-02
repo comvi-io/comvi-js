@@ -81,6 +81,15 @@ export interface Harness {
   setTabUrl(tabId: number, url: string | undefined): void;
   /** Deliver a runtime message exactly like Chrome would; resolves with sendResponse's value. */
   dispatchMessage(message: unknown, sender: chrome.runtime.MessageSender): Promise<unknown>;
+  /**
+   * Deliver a message and also report whether a listener asked Chrome to hold
+   * the response channel open (`return true`), which leaks the port when the
+   * handler has already answered synchronously.
+   */
+  dispatchMessageWithChannel(
+    message: unknown,
+    sender: chrome.runtime.MessageSender,
+  ): Promise<{ response: unknown; keptOpen: boolean }>;
   fireTabRemoved(tabId: number): void;
   fireDocumentReady(tabId: number, documentId?: string): Promise<unknown>;
   fireTabUpdated(tabId: number, changeInfo: { status?: string; url?: string }): void;
@@ -135,24 +144,43 @@ export function installFakeChrome(): Harness {
 
   vi.stubGlobal("chrome", fake);
 
+  function dispatchMessageWithChannel(
+    message: unknown,
+    sender: chrome.runtime.MessageSender,
+  ): Promise<{ response: unknown; keptOpen: boolean }> {
+    return new Promise((resolve) => {
+      let responded = false;
+      let response: unknown;
+      let keptOpen = false;
+      let dispatched = false;
+      let settled = false;
+      const settle = () => {
+        if (settled) return;
+        settled = true;
+        resolve({ response, keptOpen });
+      };
+
+      for (const listener of messageListeners) {
+        const result = listener(message, sender, (value: unknown) => {
+          responded = true;
+          response = value;
+          // A synchronous answer must not settle before every listener has
+          // returned, or its `return true` would go unseen.
+          if (dispatched) settle();
+        });
+        if (result === true) keptOpen = true;
+      }
+      dispatched = true;
+
+      if (responded || !keptOpen) settle();
+    });
+  }
+
   function dispatchMessage(
     message: unknown,
     sender: chrome.runtime.MessageSender,
   ): Promise<unknown> {
-    return new Promise((resolve) => {
-      let responded = false;
-      let keptOpen = false;
-      for (const listener of messageListeners) {
-        const result = listener(message, sender, (response: unknown) => {
-          responded = true;
-          resolve(response);
-        });
-        if (result === true) keptOpen = true;
-      }
-      if (!keptOpen && !responded) {
-        void Promise.resolve().then(() => resolve(undefined));
-      }
-    });
+    return dispatchMessageWithChannel(message, sender).then((result) => result.response);
   }
 
   return {
@@ -161,6 +189,7 @@ export function installFakeChrome(): Harness {
       tabUrls.set(tabId, url);
     },
     dispatchMessage,
+    dispatchMessageWithChannel,
     fireTabRemoved(tabId) {
       for (const listener of removedListeners) listener(tabId);
     },
