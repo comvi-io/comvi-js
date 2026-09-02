@@ -100,6 +100,38 @@ describe("ISOLATED-world bridge runtime failures", () => {
     ]);
   });
 
+  it("answers the page when the stale world throws instead of reporting delivery status", async () => {
+    await installBridge();
+    runtime.throwOnLastErrorRead("Extension context invalidated.");
+    const responses = recordJsonEvents(page, "comvi-extension:api-response");
+
+    requestProxy("req-stale");
+
+    expect(responses).toEqual([
+      {
+        id: "req-stale",
+        ok: false,
+        status: 0,
+        statusText: "",
+        body: "",
+        networkError: INVALIDATED,
+      },
+    ]);
+  });
+
+  it("asks the page to deactivate when the stale world throws on lastError", async () => {
+    await installBridge();
+    runtime.throwOnLastErrorRead("Extension context invalidated.");
+    let deactivations = 0;
+    page.addEventListener("comvi-extension:deactivate", () => {
+      deactivations += 1;
+    });
+
+    requestProxy("req-stale-2");
+
+    expect(deactivations).toBe(1);
+  });
+
   it("keeps using the runtime after an ordinary delivery failure", async () => {
     await installBridge();
     let deactivations = 0;

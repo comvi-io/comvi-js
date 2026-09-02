@@ -76,6 +76,11 @@ export interface ExtensionRuntime {
   respondWith(responder: RuntimeResponder): void;
   /** Report a delivery failure on the next response, the way Chrome does. */
   failNextWith(lastError: string): void;
+  /**
+   * Make every read of chrome.runtime.lastError throw. A content script that
+   * outlived its extension gets this instead of an answer.
+   */
+  throwOnLastErrorRead(message: string): void;
   /** Deliver a popup/service-worker command like chrome.runtime.onMessage does. */
   deliver(message: Message): DeliveredCommand;
 }
@@ -106,20 +111,21 @@ export function createExtensionRuntime(options: ExtensionRuntimeOptions = {}): E
   const sent: Message[] = [];
   let responder: RuntimeResponder = (_message, respond) => respond(undefined);
   let pendingLastError: string | undefined;
+  let lastErrorThrow: string | undefined;
+  let currentLastError: { message: string } | undefined;
   let onMessageListener: OnMessageListener | undefined;
 
   const runtime = {
-    lastError: undefined as { message: string } | undefined,
     sendMessage: vi.fn((message: Message, callback?: (response: unknown) => void) => {
       sent.push(message);
       const respond = (response: unknown): void => {
-        runtime.lastError =
+        currentLastError =
           pendingLastError === undefined ? undefined : { message: pendingLastError };
         pendingLastError = undefined;
         try {
           callback?.(response);
         } finally {
-          runtime.lastError = undefined;
+          currentLastError = undefined;
         }
       };
       if (options.asyncResponses) {
@@ -135,6 +141,18 @@ export function createExtensionRuntime(options: ExtensionRuntimeOptions = {}): E
     },
   };
 
+  // Chrome exposes lastError as an accessor, so a stale world throws on the
+  // read itself rather than on anything the content script does with it.
+  Object.defineProperty(runtime, "lastError", {
+    configurable: true,
+    get(): { message: string } | undefined {
+      if (lastErrorThrow !== undefined) {
+        throw new Error(lastErrorThrow);
+      }
+      return currentLastError;
+    },
+  });
+
   return {
     chrome: { runtime },
     sent,
@@ -143,6 +161,9 @@ export function createExtensionRuntime(options: ExtensionRuntimeOptions = {}): E
     },
     failNextWith(lastError) {
       pendingLastError = lastError;
+    },
+    throwOnLastErrorRead(message) {
+      lastErrorThrow = message;
     },
     deliver(message) {
       if (!onMessageListener) {

@@ -6944,9 +6944,9 @@
     {
       "file": "src/content/detector.ts",
       "kind": "equivalent",
-      "reason": "track() and untrack() re-apply the same object guard to the value, so an envelope with a null/primitive `i` is discarded either way; no caller can observe toInstance returning `{instance: <not an object>}` instead of null.",
+      "reason": "track() and untrack() re-apply the same object guard to the value, so an envelope with a null/primitive `i` is discarded either way; no caller can observe toInstance returning `{instance: <not an object>}` instead of null. BlockStatement -> {} drops the `return null` and falls through to the same line 88 return, which is exactly the ConditionalExpression -> false case, so it is equivalent for the same reason.",
       "package": "apps/chrome-extension",
-      "mutators": ["ConditionalExpression", "LogicalOperator"],
+      "mutators": ["ConditionalExpression", "LogicalOperator", "BlockStatement"],
       "snippet": "if (!entry.i || typeof entry.i !== \"object\") {",
       "lineHint": 85
     },
@@ -6980,9 +6980,9 @@
     {
       "file": "src/content/detector.ts",
       "kind": "equivalent",
-      "reason": "untrack's early return is redundant: `idsByInstance.get(undefined)` is undefined, so the `id !== undefined` guard below returns without touching either map.",
+      "reason": "untrack's early return is redundant: `idsByInstance.get(undefined)` is undefined, so the `id !== undefined` guard below returns without touching either map. BlockStatement -> {} drops the `return` and falls into that same guard, so it is equivalent for the same reason (track() only ever keys idsByInstance with a non-null object).",
       "package": "apps/chrome-extension",
-      "mutators": ["ConditionalExpression"],
+      "mutators": ["ConditionalExpression", "BlockStatement"],
       "snippet": "if (!instance) {",
       "lineHint": 121
     },
