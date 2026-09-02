@@ -33,6 +33,7 @@
     "@test-apps/react",
     "@test-apps/solid",
     "@test-apps/svelte",
-    "@test-apps/vue"
+    "@test-apps/vue",
+    "@comvi/chrome-extension"
   ]
 }

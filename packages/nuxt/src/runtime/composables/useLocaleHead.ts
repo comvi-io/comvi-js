@@ -92,7 +92,7 @@ export function useLocaleHead(options: LocaleHeadOptions = {}) {
 
   const headConfig = computed(() => {
     const currentLocale = localeState.value || defaultLocale;
-    const localeObj = localeObjects[currentLocale] || { code: currentLocale };
+    const localeObj = localeObjects[currentLocale];
     const baseUrl = getBaseUrl();
     const cleanPath = getCleanPath();
 
@@ -100,9 +100,9 @@ export function useLocaleHead(options: LocaleHeadOptions = {}) {
 
     const htmlAttrs: Record<string, string> = {};
     if (addLang) {
-      htmlAttrs.lang = localeObj.iso || currentLocale;
+      htmlAttrs.lang = localeObj?.iso || currentLocale;
     }
-    if (addDir && localeObj.dir) {
+    if (addDir && localeObj?.dir) {
       htmlAttrs.dir = localeObj.dir;
     }
     if (Object.keys(htmlAttrs).length > 0) {
@@ -114,15 +114,14 @@ export function useLocaleHead(options: LocaleHeadOptions = {}) {
     if (addOgLocale) {
       meta.push({
         property: "og:locale",
-        content: (localeObj.iso || currentLocale).replace("-", "_"),
+        content: (localeObj?.iso || currentLocale).replace("-", "_"),
       });
 
       for (const locale of locales) {
         if (locale !== currentLocale) {
-          const altLocaleObj = localeObjects[locale] || { code: locale };
           meta.push({
             property: "og:locale:alternate",
-            content: (altLocaleObj.iso || locale).replace("-", "_"),
+            content: (localeObjects[locale]?.iso || locale).replace("-", "_"),
           });
         }
       }
@@ -144,10 +143,9 @@ export function useLocaleHead(options: LocaleHeadOptions = {}) {
 
       if (addAlternateLinks) {
         for (const locale of locales) {
-          const altLocaleInfo = localeObjects[locale] || { code: locale };
           link.push({
             rel: "alternate",
-            hreflang: altLocaleInfo.iso || locale,
+            hreflang: localeObjects[locale]?.iso || locale,
             href: buildLocalizedUrl(baseUrl, cleanPath, locale),
           });
         }

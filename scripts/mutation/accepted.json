@@ -5649,7 +5649,7 @@
       "package": "packages/next",
       "file": "src/middleware/createMiddleware.ts",
       "mutators": ["MethodExpression"],
-      "snippet": "const [code, q = \"q=1\"] = lang.trim().split(\";\");",
+      "snippet": "const [code, q] = lang.trim().split(\";\");",
       "lineHint": 215,
       "kind": "equivalent",
       "reason": "every whitespace this trim removes is re-removed by code.trim() on line 218, and parseFloat skips leading whitespace in the quality half. Hand-applied; green."
@@ -5743,24 +5743,6 @@
       "lineHint": 184,
       "kind": "equivalent",
       "reason": "the switch default is the last statement of detectFromSource and every other case returns — emptying it falls off the end and yields the same undefined. (The predicted 185 equivalence; Stryker emits it at the default: token.) Hand-applied; 308/308 green."
-    },
-    {
-      "package": "packages/next",
-      "file": "src/middleware/createMiddleware.ts",
-      "mutators": ["StringLiteral"],
-      "snippet": "const [code, q = \"q=1\"] = lang.trim().split(\";\");",
-      "lineHint": 215,
-      "kind": "equivalent",
-      "reason": "the destructuring default only feeds line 216, and \"\".split(\"=\")[1] is undefined, which the || \"1\" fallback maps to the same 1. Separate from the MethodExpression (trim) entry on this line. Hand-applied; green."
-    },
-    {
-      "package": "packages/next",
-      "file": "src/middleware/createMiddleware.ts",
-      "mutators": ["StringLiteral"],
-      "snippet": "const quality = parseFloat(q.split(\"=\")[1] || \"1\");",
-      "lineHint": 216,
-      "kind": "equivalent",
-      "reason": "with || \"\" the parse yields NaN and line 219's isNaN backstop maps it to 1 — the literal is redundant. Hand-applied; green."
     },
     {
       "package": "packages/next",
@@ -6031,33 +6013,6 @@
       "mutators": ["BlockStatement"],
       "kind": "equivalent",
       "lineHint": 79
-    },
-    {
-      "reason": "the fallback object's only property, `code`, is never read - this composable reads `.iso` and `.dir` off it and nothing else - so `{}` and `{ code: currentLocale }` produce identical head output. Newly covered by the missing-locale-object test. Evidence: hand-applied in the worktree, full suite (279 tests) run, observed GREEN, restored",
-      "package": "packages/nuxt",
-      "file": "src/runtime/composables/useLocaleHead.ts",
-      "snippet": "const localeObj = localeObjects[currentLocale] || { code: currentLocale };",
-      "mutators": ["ObjectLiteral"],
-      "kind": "equivalent",
-      "lineHint": 95
-    },
-    {
-      "reason": "same as L95: only `.iso` is read off the alternate locale object, so dropping `code` is unobservable in the emitted og:locale:alternate meta. Evidence: hand-applied in the worktree, full suite (279 tests) run, observed GREEN, restored",
-      "package": "packages/nuxt",
-      "file": "src/runtime/composables/useLocaleHead.ts",
-      "snippet": "const altLocaleObj = localeObjects[locale] || { code: locale };",
-      "mutators": ["ObjectLiteral"],
-      "kind": "equivalent",
-      "lineHint": 122
-    },
-    {
-      "reason": "same as L95: only `.iso` is read off the alternate locale info, so dropping `code` is unobservable in the emitted hreflang. Evidence: hand-applied in the worktree, full suite (279 tests) run, observed GREEN, restored",
-      "package": "packages/nuxt",
-      "file": "src/runtime/composables/useLocaleHead.ts",
-      "snippet": "const altLocaleInfo = localeObjects[locale] || { code: locale };",
-      "mutators": ["ObjectLiteral"],
-      "kind": "equivalent",
-      "lineHint": 147
     },
     {
       "reason": "the two surviving variants relax guards that `path.name` already subsumes: `true && path.name` still rejects string paths (a string has no `name`), and forcing `path !== null` true only matters for `localePath(null)`, which is not a RouteLocationRaw. The whole-condition ConditionalExpression and the `\"name\" in path` variant on this line ARE killed. Evidence: hand-applied in the worktree, full suite (279 tests) run, observed GREEN, restored",
@@ -7161,10 +7116,10 @@
       "package": "apps/chrome-extension",
       "file": "src/shared/config.ts",
       "mutators": ["Regex", "StringLiteral"],
-      "snippet": "export const API_BASE_URL = RAW_API_BASE_URL.replace(/\\/+$/, \"\");",
-      "lineHint": 13,
-      "kind": "needs-seam",
-      "reason": "the trailing-slash normalization is live in the real build (vite reads VITE_COMVI_API_BASE_URL from the environment) but unreachable under test: vitest defines the literal without a trailing slash. Closing it needs a second define-project or an exported normalize() — recorded as an open item, NOT equivalence."
+      "snippet": "return raw.replace(/\\/+$/, \"\");",
+      "lineHint": 14,
+      "kind": "equivalent",
+      "reason": "the trailing-slash normalization now lives in the exported normalizeBaseUrl() and IS directly tested; what may remain is only the Regex mutant \\/+$ -> \\/*$, which is genuinely equivalent (* still strips a trailing run and otherwise matches empty at end). Reclassify per the next measure; anchor/empty-string mutants are killed."
     },
     {
       "package": "apps/chrome-extension",

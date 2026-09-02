@@ -212,8 +212,13 @@ function defaultResolveAcceptLanguage(
   const languages = acceptLanguage
     .split(",")
     .map((lang) => {
-      const [code, q = "q=1"] = lang.trim().split(";");
-      const quality = parseFloat(q.split("=")[1] || "1");
+      const [code, q] = lang.trim().split(";");
+      // Anything that is not a number - an entry with no ";q=" part at all, a
+      // bare ";q", a ";q=nonsense" - reaches parseFloat as a non-numeric string
+      // and comes back NaN, so the isNaN backstop below is the single source of
+      // the "most preferred" default. String() is what carries an absent half
+      // into that backstop instead of a second, shadowed fallback here.
+      const quality = parseFloat(String(q?.split("=")[1]));
       return {
         code: code.trim(),
         quality: isNaN(quality) ? 1 : quality,
