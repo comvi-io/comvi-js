@@ -135,6 +135,55 @@ describe("comvi generate-types", () => {
     expect(createGenerateCommand().options.map((option) => option.long)).toEqual(["--config"]);
   });
 
+  it.each([
+    ["generate-types", createGenerateTypesCommand, "Generate TypeScript types from TMS"],
+    ["typegen", createTypegenCommand, "alias for generate-types"],
+    ["generate", createGenerateCommand, "alias for generate-types"],
+  ])("`comvi %s` registers under its own name with a summary", (name, createCommand, summary) => {
+    const command = createCommand();
+
+    expect(command.name()).toBe(name);
+    expect(command.description()).toContain(summary);
+  });
+
+  it("documents the config and watch flags in the option help", () => {
+    const options = createGenerateTypesCommand().options;
+    const byLong = (long: string) => options.find((option) => option.long === long);
+
+    expect(byLong("--config")?.description).toContain(".comvirc.json");
+    expect(byLong("--watch")?.description).toContain("Watch for changes via SSE");
+    expect(
+      createGenerateCommand().options.find((option) => option.long === "--config")?.description,
+    ).toContain(".comvirc.json");
+  });
+
+  it("narrates configuration loading and the schema fetch", async () => {
+    await expect(
+      createGenerateTypesCommand().parseAsync(["-c", configPath], { from: "user" }),
+    ).rejects.toMatchObject({ exitCode: 0 });
+
+    expect(output.stdout).toContain("Loading configuration");
+    expect(output.stdout).toContain("Fetching schema from TMS");
+  });
+
+  it("the legacy generate alias narrates configuration loading", async () => {
+    await expect(
+      createGenerateCommand().parseAsync(["-c", configPath], { from: "user" }),
+    ).rejects.toMatchObject({ exitCode: 0 });
+
+    expect(output.stdout).toContain("Loading configuration");
+  });
+
+  it("the legacy generate alias reports the error and exits 1 when the config is missing", async () => {
+    const missing = join(dirname(configPath), "absent.json");
+
+    await expect(
+      createGenerateCommand().parseAsync(["-c", missing], { from: "user" }),
+    ).rejects.toMatchObject({ exitCode: 1 });
+
+    expect(output.stderr).toContain(`✗ Error: Config file not found: ${missing}`);
+  });
+
   describe("--check", () => {
     it("exits 0 when it checks the file a preceding generate wrote", async () => {
       await expect(
@@ -196,6 +245,57 @@ describe("comvi generate-types", () => {
 
       expect(output.stderr).toContain('"locales" is an empty list');
     });
+
+    it("announces the check and tells the user how to update outdated types", async () => {
+      await expect(
+        createGenerateTypesCommand().parseAsync(["-c", configPath, "--check"], { from: "user" }),
+      ).rejects.toMatchObject({ exitCode: 1 });
+
+      expect(output.stdout).toContain("Checking if types are up to date");
+      expect(output.stderr).toContain("Run 'comvi typegen' to update.");
+    });
+
+    it("exits 1 via the generic error path when generation itself fails", async () => {
+      stubFetch({
+        ...SCHEMA_ROUTES,
+        [PATHS.schema]: {
+          body: { keys: { "default:clash": { params: [] }, clash: { params: [] } } },
+        },
+      });
+
+      await expect(
+        createGenerateTypesCommand().parseAsync(["-c", configPath, "--check"], { from: "user" }),
+      ).rejects.toMatchObject({ exitCode: 1 });
+
+      expect(output.stderr).toContain("✗ Error: Translation key collision");
+      expect(output.stderr).not.toContain("Check could not run");
+    });
+
+    it("documents the exit codes in the --check flag help", async () => {
+      vi.resetModules();
+      const { createGenerateTypesCommand: freshCommand } =
+        await import("../src/commands/generate-types");
+
+      const checkOption = freshCommand().options.find((option) => option.long === "--check");
+
+      expect(checkOption?.description).toContain("CI mode");
+      expect(checkOption?.description).toContain(
+        "exit 1 = outdated, 2 = check could not run, 4 = invalid config",
+      );
+    });
+
+    it("exits 2 for a TMS auth failure even on a freshly loaded module", async () => {
+      vi.resetModules();
+      const { createGenerateTypesCommand: freshCommand } =
+        await import("../src/commands/generate-types");
+      stubFetch(REJECTED_SCHEMA_ROUTES);
+
+      await expect(
+        freshCommand().parseAsync(["-c", configPath, "--check"], { from: "user" }),
+      ).rejects.toMatchObject({ exitCode: 2 });
+
+      expect(output.stderr).toContain("✗ Check could not run: Invalid API key");
+    });
   });
 
   describe("--watch", () => {
@@ -204,7 +304,11 @@ describe("comvi generate-types", () => {
       vi.resetModules();
     });
 
-    async function startWatch(): Promise<{ stream: FakeEventSource; interrupt: () => void }> {
+    async function startWatch(): Promise<{
+      stream: FakeEventSource;
+      interrupt: () => void;
+      resume: ReturnType<typeof vi.spyOn>;
+    }> {
       const { instances } = mockEventSource();
       const listenersOn = process.on.bind(process);
       let interrupt: (() => void) | undefined;
@@ -216,7 +320,7 @@ describe("comvi generate-types", () => {
         }
         return listenersOn(event as "exit", listener);
       }) as never);
-      vi.spyOn(process.stdin, "resume").mockReturnValue(process.stdin);
+      const resume = vi.spyOn(process.stdin, "resume").mockReturnValue(process.stdin);
 
       const { createGenerateTypesCommand: createCommand } =
         await import("../src/commands/generate-types");
@@ -229,7 +333,7 @@ describe("comvi generate-types", () => {
         throw new Error("watch mode did not register a SIGINT handler");
       }
 
-      return { stream: instances[0], interrupt };
+      return { stream: instances[0], interrupt, resume };
     }
 
     it("rewrites the declaration file when the stream pushes a new schema", async () => {
@@ -253,6 +357,47 @@ describe("comvi generate-types", () => {
 
       expect(close).toHaveBeenCalledOnce();
       expect(output.stdout).toContain("✓ Stopped watching");
+      expect(output.stdout).toContain("Closing SSE connection");
+    });
+
+    it("narrates the watch lifecycle and keeps stdin open for updates", async () => {
+      const { resume } = await startWatch();
+
+      expect(output.stdout).toContain("Fetching initial schema from TMS");
+      expect(output.stdout).toContain(`✓ Generated 2 keys → ${outputPath}`);
+      expect(output.stdout).toContain("Subscribing to real-time updates");
+      expect(output.stdout).toContain("Watching for changes");
+      expect(output.stdout).toContain("Press Ctrl+C to stop");
+      expect(resume).toHaveBeenCalledOnce();
+    });
+
+    it("narrates a pushed schema update with the new key count", async () => {
+      const { stream } = await startWatch();
+      const updated: ProjectSchema = {
+        keys: { ...schema.keys, "common:farewell": { params: [] } },
+      };
+
+      stream.onmessage?.({ data: JSON.stringify(updated) } as MessageEvent);
+
+      await vi.waitFor(() => {
+        expect(output.stdout).toContain("Received schema update via SSE");
+        expect(output.stdout).toContain(`✓ Updated 3 keys → ${outputPath}`);
+      });
+      expect(output.stderr).not.toContain("Update failed");
+    });
+
+    it("reports a failed update instead of claiming success", async () => {
+      const { stream } = await startWatch();
+      const clashing: ProjectSchema = {
+        keys: { "default:clash": { params: [] }, clash: { params: [] } },
+      };
+
+      stream.onmessage?.({ data: JSON.stringify(clashing) } as MessageEvent);
+
+      await vi.waitFor(() => {
+        expect(output.stderr).toContain("Update failed: Translation key collision");
+      });
+      expect(output.stdout).not.toContain("✓ Updated");
     });
 
     it("exits 1 without subscribing when the initial generation fails", async () => {

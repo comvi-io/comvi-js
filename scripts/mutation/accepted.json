@@ -7417,6 +7417,51 @@
       "file": "src/cli/index.ts",
       "mutators": ["all"],
       "package": "packages/cli"
+    },
+    {
+      "package": "packages/cli",
+      "file": "src/commands/generate-types.ts",
+      "mutators": ["ConditionalExpression"],
+      "snippet": "if (error instanceof Error) {",
+      "lineHint": 50,
+      "kind": "equivalent",
+      "reason": "guard only distinguishes non-Error throws; every throw site reaching this catch (ConfigLoader, ApiClient via wrapError, commander, fs) throws Error instances, and TypeGenerator wraps non-Errors before rethrowing (hand-applied: condition->true, COMVI_MUTATION suite 339/339 green)"
+    },
+    {
+      "package": "packages/cli",
+      "file": "src/commands/generate-types.ts",
+      "mutators": ["ConditionalExpression"],
+      "snippet": "if (error instanceof Error) {",
+      "lineHint": 85,
+      "kind": "equivalent",
+      "reason": "same instanceof-Error guard in the legacy generate action; a non-Error escape is not producible through the public surface (hand-applied: 339/339 green)"
+    },
+    {
+      "package": "packages/cli",
+      "file": "src/core/TypeGenerator.ts",
+      "mutators": ["ConditionalExpression", "BlockStatement"],
+      "snippet": "if (error instanceof TypegenError) {",
+      "lineHint": 71,
+      "kind": "equivalent",
+      "reason": "TypegenError extends Error and the following instanceof-Error branch has a byte-identical body (reportError + same result object) — skipping or emptying the branch falls through to identical handling (hand-applied both: 339/339 green)"
+    },
+    {
+      "package": "packages/cli",
+      "file": "src/core/TypeGenerator.ts",
+      "mutators": ["Regex"],
+      "snippet": "const keyMatches = currentTypes.match(/^\\s+'[^']+':.*$/gm);",
+      "lineHint": 117,
+      "kind": "equivalent",
+      "reason": "dropping the trailing $ is a no-op: `.` never matches newline, so `.*` already stops at end-of-line; the ^-drop sibling at this line IS killed by a test (hand-applied: 339/339 green)"
+    },
+    {
+      "package": "packages/cli",
+      "file": "src/core/TypeGenerator.ts",
+      "mutators": ["Regex"],
+      "snippet": "content.replace(/Generated at:.*$/gm, \"\").trim();",
+      "lineHint": 130,
+      "kind": "equivalent",
+      "reason": "same $-after-.* redundancy in multiline mode — replacement span identical with or without the anchor; the StringLiteral sibling at this line was NOT equivalent and is killed (hand-applied: 339/339 green)"
     }
   ]
 }

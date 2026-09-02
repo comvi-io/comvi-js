@@ -96,6 +96,29 @@ describe("TypeGenerator", () => {
     });
   });
 
+  describe("logging", () => {
+    it("logs connection validation failures through the injected logger", async () => {
+      const logger: Logger = {
+        error: vi.fn(),
+        warn: vi.fn(),
+        info: vi.fn(),
+        debug: vi.fn(),
+        setLevel: vi.fn(),
+      };
+      const gen = new TypeGenerator(mockOptions, {
+        writer: mockWriter,
+        reporter: mockReporter,
+        logger,
+      });
+      const failure = new Error("Network unreachable");
+      vi.mocked(ApiClient.prototype.validateConnection).mockRejectedValueOnce(failure);
+
+      await gen.validateConnection();
+
+      expect(logger.error).toHaveBeenCalledWith("Connection validation failed", failure);
+    });
+  });
+
   describe("validateConnection", () => {
     it("should return false for failed connection", async () => {
       vi.mocked(ApiClient.prototype.validateConnection).mockResolvedValueOnce(false);
@@ -280,6 +303,19 @@ describe("TypeGenerator", () => {
       expect(written).toContain("count: number");
     });
 
+    it("should measure the elapsed time when the fetch fails", async () => {
+      vi.useFakeTimers();
+      vi.mocked(ApiClient.prototype.fetchSchema).mockImplementationOnce(async () => {
+        vi.advanceTimersByTime(10);
+        throw new Error("Network error");
+      });
+
+      const result = await generator.generate();
+
+      expect(result.success).toBe(false);
+      expect(result.duration).toBe(10);
+    });
+
     it("should measure generation time accurately", async () => {
       vi.useFakeTimers();
       vi.mocked(ApiClient.prototype.fetchSchema).mockImplementationOnce(async () => {
@@ -352,6 +388,77 @@ describe("TypeGenerator", () => {
       });
     });
 
+    it("compares with the configured strictParams instead of the default", async () => {
+      const relaxed = new TypeGenerator(
+        { ...mockOptions, strictParams: false },
+        { writer: mockWriter, reporter: mockReporter, logger: mockLogger },
+      );
+      await relaxed.generate();
+
+      const result = await relaxed.check();
+
+      expect(result.upToDate).toBe(true);
+    });
+
+    it("reports up to date with zero keys for an empty schema", async () => {
+      vi.mocked(ApiClient.prototype.fetchSchema).mockResolvedValue({ keys: {} });
+      await generator.generate();
+
+      const result = await generator.check();
+
+      expect(result).toEqual({
+        upToDate: true,
+        keysGenerated: 0,
+        currentKeys: 0,
+        filePath: "src/types/i18n.d.ts",
+      });
+    });
+
+    it("ignores trailing whitespace when comparing", async () => {
+      await generator.generate();
+      const current = mockFileSystem.getFile("src/types/i18n.d.ts")!;
+      await mockFileSystem.writeFile("src/types/i18n.d.ts", `${current}\n\n`);
+
+      await expect(generator.check()).resolves.toMatchObject({ upToDate: true });
+    });
+
+    it("treats a file that dropped the generated-at text as up to date", async () => {
+      await generator.generate();
+      const current = mockFileSystem.getFile("src/types/i18n.d.ts")!;
+      await mockFileSystem.writeFile(
+        "src/types/i18n.d.ts",
+        current.replace(/ \* Generated at:.*/, " * "),
+      );
+
+      await expect(generator.check()).resolves.toMatchObject({ upToDate: true });
+    });
+
+    it("only counts whole lines shaped like key declarations", async () => {
+      await mockFileSystem.writeFile(
+        "src/types/i18n.d.ts",
+        "const shape = \"quoted 'fake': entry;\"\n",
+      );
+
+      const result = await generator.check();
+
+      expect(result.upToDate).toBe(false);
+      expect(result.currentKeys).toBe(0);
+    });
+
+    it("wraps a non-Error failure into an Error before propagating", async () => {
+      vi.mocked(ApiClient.prototype.fetchSchema).mockRejectedValueOnce("String error");
+
+      const caught = await generator.check().then(
+        () => {
+          throw new Error("expected check() to reject");
+        },
+        (error: unknown) => error,
+      );
+
+      expect(caught).toBeInstanceOf(Error);
+      expect((caught as Error).message).toBe("Unknown error occurred");
+    });
+
     it("propagates a schema fetch failure instead of reporting drift", async () => {
       vi.mocked(ApiClient.prototype.fetchSchema).mockRejectedValueOnce(new Error("Network error"));
 
@@ -408,6 +515,59 @@ describe("TypeGenerator", () => {
       expect(failed.success).toBe(false);
       expect(retried.success).toBe(true);
       expect(ApiClient.prototype.fetchDefaultNamespace).toHaveBeenCalledTimes(2);
+    });
+
+    it("should report the write failure to the reporter", async () => {
+      const failingWriter = new FileSystemWriter({
+        mkdir: vi.fn().mockResolvedValue(undefined),
+        writeFile: vi.fn().mockRejectedValue(new Error("Disk full")),
+        readFile: vi.fn(),
+        access: vi.fn(),
+      });
+      const gen = new TypeGenerator(mockOptions, {
+        writer: failingWriter,
+        reporter: mockReporter,
+        logger: mockLogger,
+      });
+
+      await gen.generateFromSchema({ keys: {} });
+
+      const errorReport = mockReporter.reports.find((r) => r.type === "error");
+      expect(errorReport?.data).toBeInstanceOf(Error);
+      expect((errorReport?.data as Error).message).toContain("Disk full");
+    });
+
+    it("should measure the elapsed time when the write fails", async () => {
+      vi.useFakeTimers();
+      const failingWriter = new FileSystemWriter({
+        mkdir: vi.fn().mockResolvedValue(undefined),
+        writeFile: vi.fn().mockImplementation(async () => {
+          vi.advanceTimersByTime(10);
+          throw new Error("Disk full");
+        }),
+        readFile: vi.fn(),
+        access: vi.fn(),
+      });
+      const gen = new TypeGenerator(mockOptions, {
+        writer: failingWriter,
+        reporter: mockReporter,
+        logger: mockLogger,
+      });
+
+      const result = await gen.generateFromSchema({ keys: {} });
+
+      expect(result.success).toBe(false);
+      expect(result.duration).toBe(10);
+    });
+
+    it("should fall back to a generic message when the failure is not an Error", async () => {
+      vi.mocked(ApiClient.prototype.fetchDefaultNamespace).mockRejectedValueOnce("nope");
+
+      const result = await generator.generateFromSchema({ keys: {} });
+
+      expect(result.success).toBe(false);
+      expect(result.error).toBe("Unknown error occurred");
+      expect(result.duration).toBeGreaterThanOrEqual(0);
     });
 
     it("should generate types for an empty schema", async () => {

@@ -351,6 +351,21 @@ describe("TypeEmitter", () => {
       expect(result).not.toContain("'common:goodbye'");
     });
 
+    it("should strip the conventional 'default' namespace when none is configured", () => {
+      const schema: ProjectSchema = {
+        keys: {
+          "default:home.title": { params: [] },
+          "admin:dashboard": { params: [] },
+        },
+      };
+
+      const result = typeEmitter.generate(schema);
+
+      expect(result).toContain("'home.title': never;");
+      expect(result).not.toContain("'default:home.title'");
+      expect(result).toContain("'admin:dashboard': never;");
+    });
+
     it("should reject key collisions after stripping the default namespace prefix", () => {
       const schema: ProjectSchema = {
         keys: {
