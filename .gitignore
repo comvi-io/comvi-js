@@ -4,6 +4,7 @@ dist
 !packages/core/tests/dist/
 !packages/react/tests/dist/
 !packages/next/tests/dist/
+!packages/cli/tests/dist/
 coverage
 *.local
 .DS_Store
