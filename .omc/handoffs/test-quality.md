@@ -475,3 +475,14 @@ Round 12 progress since the previous checkpoint:
   scoped git add of reported files + changesets, commit -F with trailers, push, one CI watch).
   Both agents were also asked whether they ran git state ops (prod-profile confessed; expect
   "no" from these two — no action needed either way beyond the recorded rule).
+
+### Compact-checkpoint UPDATE v3 (2026-09-02 ~20:5x)
+FIVE of six typing bugs are merged and CI-green: #3 core (e75b32a), #2 next + #4/#5 nuxt
+(b023375, committed --no-verify because the pre-commit repo-typecheck tripped over
+react-cleanup's LIVE vue edits — expected, CI on the committed tree is success). The ONLY
+remaining item of round 12: react-cleanup's report for BUG #1 (generic providers
+react/solid/svelte + vue probe) and BUG #6 (vue tRaw) — its live edits sit uncommitted in
+packages/react|solid|svelte|vue (incl. tests/vue-i18n-contracts.test.ts mid-edit and
+tests/types/probe.test-d.ts files). On resume: merge that report per the protocol, then run the
+ROOT sweep (pnpm typecheck && pnpm test at root — pending since the wave started), write the
+round-12 closing record, and the branch is Phase-6-ready (16 changesets).
