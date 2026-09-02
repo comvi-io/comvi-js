@@ -169,6 +169,33 @@ describe("comvi generate-types", () => {
       expect(output.stderr).toContain("Current: 1 keys");
       expect(output.stderr).toContain("Expected: 2 keys");
     });
+
+    it("exits 2 when the schema request fails, so CI can tell a blip from stale types", async () => {
+      stubFetch(REJECTED_SCHEMA_ROUTES);
+
+      await expect(
+        createGenerateTypesCommand().parseAsync(["-c", configPath, "--check"], { from: "user" }),
+      ).rejects.toMatchObject({ exitCode: 2 });
+
+      expect(output.stderr).toContain("✗ Check could not run: Invalid API key");
+      expect(output.stderr).not.toContain("Types are outdated");
+    });
+
+    it("exits 4 when the config fails validation", async () => {
+      const invalidConfigPath = join(dirname(configPath), "invalid.comvirc.json");
+      await nodeFs.writeFile(
+        invalidConfigPath,
+        JSON.stringify({ apiKey: "test-key", apiBaseUrl: "https://api.test.com", locales: [] }),
+      );
+
+      await expect(
+        createGenerateTypesCommand().parseAsync(["-c", invalidConfigPath, "--check"], {
+          from: "user",
+        }),
+      ).rejects.toMatchObject({ exitCode: 4 });
+
+      expect(output.stderr).toContain('"locales" is an empty list');
+    });
   });
 
   describe("--watch", () => {

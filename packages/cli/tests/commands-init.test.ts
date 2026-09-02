@@ -137,6 +137,27 @@ describe("comvi init", () => {
     expect(output.stdout).toContain("You can still create the config and fix the API key later.");
   });
 
+  it("exits 4 blaming the URL, not the key, when --api-url is not a URL", async () => {
+    await expect(
+      createInitCommand().parseAsync(["--api-key", "flag-key", "--api-url", "nonsense"], {
+        from: "user",
+      }),
+    ).rejects.toMatchObject({ exitCode: 4 });
+
+    expect(output.stderr).toContain("✗ Invalid API base URL: nonsense");
+    expect(output.stderr).not.toContain("API key validation failed");
+  });
+
+  it("writes no config file when --api-url is not a URL", async () => {
+    await expect(
+      createInitCommand().parseAsync(["--api-url", "nonsense"], { from: "user" }),
+    ).rejects.toMatchObject({ exitCode: 4 });
+
+    await expect(nodeFs.access(join(cwd, ".comvirc.json"))).rejects.toMatchObject({
+      code: "ENOENT",
+    });
+  });
+
   it("writes the settings given as flags", async () => {
     await createInitCommand().parseAsync(
       [

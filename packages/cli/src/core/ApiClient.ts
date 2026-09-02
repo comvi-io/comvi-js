@@ -51,8 +51,10 @@ export interface PushTranslationsOptions {
    */
   preloadedRemote?: TranslationsResponse;
   /**
-   * Called after each completed PUT, and once immediately if all work is
-   * skipped. Keep this callback lightweight because it runs on the push path.
+   * Called exactly once, after the bulk commit succeeds, with
+   * `completed === total` — the whole push is a single request, so there is no
+   * intermediate progress to report. `total` is 0 when the payload carries no
+   * translation values. A commit that fails reports nothing.
    */
   onProgress?: (progress: PushProgress) => void;
 }

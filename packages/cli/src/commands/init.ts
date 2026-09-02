@@ -5,9 +5,20 @@ import { ApiClient } from "../core/ApiClient";
 import { DEFAULT_FILE_TEMPLATE } from "../defaults";
 import type { ComviConfig } from "../types";
 
+const EXIT_VALIDATION = 4;
+
 async function fileExists(filePath: string): Promise<boolean> {
   try {
     await fs.access(filePath);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function isValidUrl(value: string): boolean {
+  try {
+    new URL(value);
     return true;
   } catch {
     return false;
@@ -25,6 +36,14 @@ export function createInitCommand(): Command {
     .option("--file-template <template>", "File template pattern", DEFAULT_FILE_TEMPLATE)
     .option("--force", "Overwrite an existing .comvirc.json")
     .action(async (options) => {
+      // ApiClient rejects a malformed URL from inside the key-validation block,
+      // where it read as "API key validation failed" — and the bad value was
+      // written to the config anyway.
+      if (!isValidUrl(options.apiUrl)) {
+        console.error(`✗ Invalid API base URL: ${options.apiUrl}`);
+        process.exit(EXIT_VALIDATION);
+      }
+
       // `create()` replaces the file wholesale, so re-running init without this
       // guard silently dropped a configured project's namespaces, locales and
       // push/pull settings.

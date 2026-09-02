@@ -2,7 +2,7 @@ import { Command } from "commander";
 import { createInterface } from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
 import { ConfigLoader } from "../core/ConfigLoader";
-import { ApiClient } from "../core/ApiClient";
+import { ApiClient, type PushProgress } from "../core/ApiClient";
 import { TranslationSync } from "../core/TranslationSync";
 import { DEFAULT_FILE_TEMPLATE, isDefaultFileTemplate } from "../defaults";
 import type { ForceMode } from "../types";
@@ -64,7 +64,7 @@ export function createPushCommand(): Command {
 
         if (!["override", "keep", "ask", "abort"].includes(forceMode)) {
           console.error(`✗ Invalid force-mode: ${forceMode}. Use: override, keep, ask, or abort`);
-          process.exit(1);
+          process.exit(EXIT_VALIDATION);
         }
 
         const defaultNamespace = isDefaultFileTemplate(fileTemplate)
@@ -131,7 +131,7 @@ export function createPushCommand(): Command {
           translations: localTranslations.translations,
           forceMode: apiForceMode,
           preloadedRemote,
-          onProgress: createPushProgressReporter(),
+          onProgress: reportPushProgress,
         });
 
         console.log(`\n✓ Push complete!`);
@@ -157,33 +157,20 @@ export function createPushCommand(): Command {
     });
 }
 
-function createPushProgressReporter(): (progress: {
-  total: number;
-  completed: number;
-  created: number;
-  updated: number;
-  skipped: number;
-}) => void {
-  let lastReported = 0;
+/**
+ * `pushTranslations` reports once, after the single bulk commit, so this prints
+ * one summary line per push — and stays silent for a push that carries no
+ * translation values.
+ */
+function reportPushProgress(progress: PushProgress): void {
+  if (progress.total === 0) {
+    return;
+  }
 
-  return (progress) => {
-    if (progress.total === 0) {
-      return;
-    }
-
-    const shouldReport =
-      progress.completed === progress.total || progress.completed - lastReported >= 100;
-
-    if (!shouldReport) {
-      return;
-    }
-
-    lastReported = progress.completed;
-    console.log(
-      `  Progress: ${progress.completed}/${progress.total} ` +
-        `(created: ${progress.created}, updated: ${progress.updated}, skipped: ${progress.skipped})`,
-    );
-  };
+  console.log(
+    `  Progress: ${progress.completed}/${progress.total} ` +
+      `(created: ${progress.created}, updated: ${progress.updated}, skipped: ${progress.skipped})`,
+  );
 }
 
 async function promptConflictResolution(conflictCount: number): Promise<ApiPushForceMode> {

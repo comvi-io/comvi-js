@@ -236,14 +236,29 @@ describe("comvi push", () => {
     expect(http.paths()).not.toContain(PATHS.importCommit);
   });
 
-  it("exits 1 on an unknown --force-mode before touching the API", async () => {
+  it("exits 4 on an unknown --force-mode before touching the API", async () => {
     const configPath = await writeConfig({ translationsPath: localesDir });
     await writeTranslationFile("en.json", { greeting: "Hello" });
     http = stubFetch({});
 
     const exitCode = await runPush(["-c", configPath, "--force-mode", "merge"]);
 
-    expect(exitCode).toBe(1);
+    expect(exitCode).toBe(4);
+    expect(output.error[0]).toBe("✗ Invalid force-mode: merge. Use: override, keep, ask, or abort");
+    expect(http.requests).toEqual([]);
+  });
+
+  it("exits 4 when .comvirc.json configures an unknown force mode", async () => {
+    const configPath = await writeConfig({
+      translationsPath: localesDir,
+      push: { forceMode: "merge" },
+    });
+    await writeTranslationFile("en.json", { greeting: "Hello" });
+    http = stubFetch({});
+
+    const exitCode = await runPush(["-c", configPath]);
+
+    expect(exitCode).toBe(4);
     expect(output.error[0]).toBe("✗ Invalid force-mode: merge. Use: override, keep, ask, or abort");
     expect(http.requests).toEqual([]);
   });
