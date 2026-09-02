@@ -64,6 +64,25 @@ describe("missing tag handler", () => {
     expect(warnSpy).not.toHaveBeenCalled();
   });
 
+  it("reports through onError when the instance configured tags without a reporter", () => {
+    const onError = vi.fn();
+    const i18n = createI18n({
+      locale: "en",
+      translation: RICH,
+      tagInterpolation: { strict: "warn" },
+      onError,
+    });
+
+    const result = i18n.t("msg");
+
+    expect(result).toBe("Click here");
+    expect(onError).toHaveBeenCalledWith(
+      expect.objectContaining({ message: "Missing handler for tag: <link>" }),
+      { source: "translation", tagName: "link" },
+    );
+    expect(warnSpy).not.toHaveBeenCalled();
+  });
+
   it("falls back to the console warning when onTagWarning itself throws", () => {
     const i18n = createI18n({ locale: "en", translation: RICH });
 

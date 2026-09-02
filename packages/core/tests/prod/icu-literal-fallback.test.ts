@@ -85,6 +85,18 @@ describe("an ICU argument reaching the default compiler", () => {
     expect(spy).toHaveBeenCalledWith("[comvi] E_ICU_SYNTAX", "c", "en");
   });
 
+  it("writes nothing to the console when an onError handler is installed", () => {
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const { i18n, reports } = reportingHost({
+      en: { quiet: "{n, plural, one {# quiet} other {# quiets}}" },
+    });
+
+    i18n.t("quiet", { n: 1 });
+
+    expect(reports).toHaveLength(1);
+    expect(spy).not.toHaveBeenCalled();
+  });
+
   it("names the FALLBACK locale when the template only exists there", () => {
     const template = "{n, plural, one {# fallback} other {# fallbacks}}";
     const reports: Array<Record<string, unknown> | undefined> = [];
@@ -158,6 +170,26 @@ describe("hit accounting", () => {
     expect(i18n.t("plainKey", { name: "Ada" })).toBe("Hi, Ada!");
 
     expect(reports).toHaveLength(1);
+  });
+
+  it("lets a nested translation own its report instead of blaming the outer key", () => {
+    const template = "{n, plural, one {# nested} other {# nesteds}}";
+    const contexts: Array<Record<string, unknown> | undefined> = [];
+    const i18n: ReturnType<typeof createI18n> = createI18n({
+      locale: "en",
+      exposeGlobal: false,
+      translation: { en: { nested: template } },
+      // The miss handler translates, so a whole compile-and-report cycle runs
+      // INSIDE the outer lookup, before the outer call reads the pending hit.
+      onMissingKey: () => i18n.t("nested", { n: 2 }),
+      onError: (_error, context) => void contexts.push(context),
+    });
+
+    expect(i18n.t("absent")).toBe(template);
+
+    expect(contexts).toEqual([
+      { source: "compile", key: "nested", namespace: "default", locale: "en" },
+    ]);
   });
 
   it("never lets one instance's pending hit surface on another", () => {

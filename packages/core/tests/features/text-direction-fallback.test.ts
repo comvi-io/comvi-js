@@ -48,6 +48,23 @@ describe("getTextDirection() on a runtime without Intl.Locale#textInfo", () => {
   });
 });
 
+describe("getTextDirection() memoisation", () => {
+  it("asks the runtime once per locale and answers every repeat from the cache", () => {
+    let constructions = 0;
+    (Intl as { Locale: unknown }).Locale = class {
+      textInfo = { direction: "rtl" };
+      constructor() {
+        constructions++;
+      }
+    };
+
+    const answers = [getTextDirection("ar-SY"), getTextDirection("ar-SY")];
+
+    expect(answers).toEqual(["rtl", "rtl"]);
+    expect(constructions).toBe(1);
+  });
+});
+
 describe("getTextDirection() with Intl.Locale#textInfo present", () => {
   it("takes an rtl direction from the runtime over the language table", () => {
     stubTextInfo({ direction: "rtl" });

@@ -24,10 +24,11 @@ describe("the strict option", () => {
 
     i18n.t("nonexistent.key");
 
-    expect(warnSpy).toHaveBeenCalledWith(
-      expect.stringContaining('Translation not found: "nonexistent.key"'),
-      { key: "nonexistent.key", locale: "en", namespace: "default" },
-    );
+    expect(warnSpy).toHaveBeenCalledWith('[i18n] Translation not found: "nonexistent.key"', {
+      key: "nonexistent.key",
+      locale: "en",
+      namespace: "default",
+    });
   });
 
   it("does not log warnings for missing keys when strict is off", () => {
