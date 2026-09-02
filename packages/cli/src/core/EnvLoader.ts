@@ -10,7 +10,7 @@
  *   always wins (CI safety): a `.env` cannot silently shadow `COMVI_API_KEY`
  *   exported by the build pipeline.
  * - Missing auto-discovered file → silent no-op.
- * - Explicit `--env-file <path>` that doesn't exist → caller decides (we
+ * - Explicit `--dotenv <path>` that doesn't exist → caller decides (we
  *   surface `MissingEnvFileError` so the CLI handler can exit 4).
  * - Malformed file → warn on stderr, continue with current process.env.
  */
@@ -22,9 +22,9 @@ import { parseEnv } from "node:util";
 export interface LoadEnvOptions {
   /** Working directory to start the walk-up from. Defaults to `process.cwd()`. */
   cwd?: string;
-  /** Explicit file path from `--env-file`. When set, auto-discovery is skipped. */
+  /** Explicit file path from `--dotenv`. When set, auto-discovery is skipped. */
   explicitPath?: string;
-  /** Disable loading entirely (`--no-env-file` or `COMVI_NO_ENV=1`). */
+  /** Disable loading entirely (`--no-dotenv` or `COMVI_NO_ENV=1`). */
   disabled?: boolean;
 }
 
@@ -39,7 +39,7 @@ export interface LoadEnvResult {
 
 export class MissingEnvFileError extends Error {
   constructor(public readonly path: string) {
-    super(`--env-file points to a missing file: ${path}`);
+    super(`--dotenv points to a missing file: ${path}`);
     this.name = "MissingEnvFileError";
   }
 }

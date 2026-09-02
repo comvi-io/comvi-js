@@ -7230,19 +7230,19 @@
       "package": "packages/cli"
     },
     {
-      "snippet": ".option(\"--env-file <path>\", \"load a specific .env file instead of auto-discovery\")",
+      "snippet": ".option(\"--dotenv <path>\", \"load a specific .env file instead of auto-discovery\")",
       "kind": "tooling:static-mutant",
       "reason": "src/cli/index.ts is module-scope program wiring that ends in program.parse(), so importing it in-process would parse vitest's own argv — there is no seam to drive it from a unit test, and every mutant in the file is a static mutant Stryker cannot re-trigger per test. The wiring is covered end to end by tests/dist/cli-entry.dist.test.ts, which runs the BUILT bin in a subprocess (command registration and order, --version, unknown-command exit, --env-file / --no-env-file); those cases cannot kill src mutants because Stryker mutates src without rebuilding dist, and vitest.config.ts excludes tests/dist/** under COMVI_MUTATION by the same declared policy react/svelte use.",
-      "lineHint": 22,
+      "lineHint": 26,
       "file": "src/cli/index.ts",
       "mutators": ["all"],
       "package": "packages/cli"
     },
     {
-      "snippet": ".option(\"--no-env-file\", \"skip auto-loading .env (also: COMVI_NO_ENV=1)\")",
+      "snippet": ".option(\"--no-dotenv\", \"skip auto-loading .env (also: COMVI_NO_ENV=1)\")",
       "kind": "tooling:static-mutant",
       "reason": "src/cli/index.ts is module-scope program wiring that ends in program.parse(), so importing it in-process would parse vitest's own argv — there is no seam to drive it from a unit test, and every mutant in the file is a static mutant Stryker cannot re-trigger per test. The wiring is covered end to end by tests/dist/cli-entry.dist.test.ts, which runs the BUILT bin in a subprocess (command registration and order, --version, unknown-command exit, --env-file / --no-env-file); those cases cannot kill src mutants because Stryker mutates src without rebuilding dist, and vitest.config.ts excludes tests/dist/** under COMVI_MUTATION by the same declared policy react/svelte use.",
-      "lineHint": 23,
+      "lineHint": 27,
       "file": "src/cli/index.ts",
       "mutators": ["all"],
       "package": "packages/cli"
@@ -7251,40 +7251,13 @@
       "snippet": ".hook(\"preAction\", (thisCommand) => {",
       "kind": "tooling:static-mutant",
       "reason": "src/cli/index.ts is module-scope program wiring that ends in program.parse(), so importing it in-process would parse vitest's own argv — there is no seam to drive it from a unit test, and every mutant in the file is a static mutant Stryker cannot re-trigger per test. The wiring is covered end to end by tests/dist/cli-entry.dist.test.ts, which runs the BUILT bin in a subprocess (command registration and order, --version, unknown-command exit, --env-file / --no-env-file); those cases cannot kill src mutants because Stryker mutates src without rebuilding dist, and vitest.config.ts excludes tests/dist/** under COMVI_MUTATION by the same declared policy react/svelte use.",
-      "lineHint": 24,
+      "lineHint": 28,
       "file": "src/cli/index.ts",
       "mutators": ["all"],
       "package": "packages/cli"
     },
     {
-      "snippet": "const disabled = envFile === false || process.env.COMVI_NO_ENV === \"1\";",
-      "kind": "tooling:static-mutant",
-      "reason": "src/cli/index.ts is module-scope program wiring that ends in program.parse(), so importing it in-process would parse vitest's own argv — there is no seam to drive it from a unit test, and every mutant in the file is a static mutant Stryker cannot re-trigger per test. The wiring is covered end to end by tests/dist/cli-entry.dist.test.ts, which runs the BUILT bin in a subprocess (command registration and order, --version, unknown-command exit, --env-file / --no-env-file); those cases cannot kill src mutants because Stryker mutates src without rebuilding dist, and vitest.config.ts excludes tests/dist/** under COMVI_MUTATION by the same declared policy react/svelte use.",
-      "lineHint": 29,
-      "file": "src/cli/index.ts",
-      "mutators": ["all"],
-      "package": "packages/cli"
-    },
-    {
-      "snippet": "try {",
-      "kind": "tooling:static-mutant",
-      "reason": "src/cli/index.ts is module-scope program wiring that ends in program.parse(), so importing it in-process would parse vitest's own argv — there is no seam to drive it from a unit test, and every mutant in the file is a static mutant Stryker cannot re-trigger per test. The wiring is covered end to end by tests/dist/cli-entry.dist.test.ts, which runs the BUILT bin in a subprocess (command registration and order, --version, unknown-command exit, --env-file / --no-env-file); those cases cannot kill src mutants because Stryker mutates src without rebuilding dist, and vitest.config.ts excludes tests/dist/** under COMVI_MUTATION by the same declared policy react/svelte use.",
-      "lineHint": 31,
-      "file": "src/cli/index.ts",
-      "mutators": ["all"],
-      "package": "packages/cli"
-    },
-    {
-      "snippet": "const result = loadEnv({",
-      "kind": "tooling:static-mutant",
-      "reason": "src/cli/index.ts is module-scope program wiring that ends in program.parse(), so importing it in-process would parse vitest's own argv — there is no seam to drive it from a unit test, and every mutant in the file is a static mutant Stryker cannot re-trigger per test. The wiring is covered end to end by tests/dist/cli-entry.dist.test.ts, which runs the BUILT bin in a subprocess (command registration and order, --version, unknown-command exit, --env-file / --no-env-file); those cases cannot kill src mutants because Stryker mutates src without rebuilding dist, and vitest.config.ts excludes tests/dist/** under COMVI_MUTATION by the same declared policy react/svelte use.",
-      "lineHint": 32,
-      "file": "src/cli/index.ts",
-      "mutators": ["all"],
-      "package": "packages/cli"
-    },
-    {
-      "snippet": "explicitPath: typeof envFile === \"string\" ? envFile : undefined,",
+      "snippet": "const disabled = dotenv === false || process.env.COMVI_NO_ENV === \"1\";",
       "kind": "tooling:static-mutant",
       "reason": "src/cli/index.ts is module-scope program wiring that ends in program.parse(), so importing it in-process would parse vitest's own argv — there is no seam to drive it from a unit test, and every mutant in the file is a static mutant Stryker cannot re-trigger per test. The wiring is covered end to end by tests/dist/cli-entry.dist.test.ts, which runs the BUILT bin in a subprocess (command registration and order, --version, unknown-command exit, --env-file / --no-env-file); those cases cannot kill src mutants because Stryker mutates src without rebuilding dist, and vitest.config.ts excludes tests/dist/** under COMVI_MUTATION by the same declared policy react/svelte use.",
       "lineHint": 33,
@@ -7293,7 +7266,25 @@
       "package": "packages/cli"
     },
     {
-      "snippet": "if (result && process.env.COMVI_DEBUG === \"1\") {",
+      "snippet": "try {",
+      "kind": "tooling:static-mutant",
+      "reason": "src/cli/index.ts is module-scope program wiring that ends in program.parse(), so importing it in-process would parse vitest's own argv — there is no seam to drive it from a unit test, and every mutant in the file is a static mutant Stryker cannot re-trigger per test. The wiring is covered end to end by tests/dist/cli-entry.dist.test.ts, which runs the BUILT bin in a subprocess (command registration and order, --version, unknown-command exit, --env-file / --no-env-file); those cases cannot kill src mutants because Stryker mutates src without rebuilding dist, and vitest.config.ts excludes tests/dist/** under COMVI_MUTATION by the same declared policy react/svelte use.",
+      "lineHint": 35,
+      "file": "src/cli/index.ts",
+      "mutators": ["all"],
+      "package": "packages/cli"
+    },
+    {
+      "snippet": "const result = loadEnv({",
+      "kind": "tooling:static-mutant",
+      "reason": "src/cli/index.ts is module-scope program wiring that ends in program.parse(), so importing it in-process would parse vitest's own argv — there is no seam to drive it from a unit test, and every mutant in the file is a static mutant Stryker cannot re-trigger per test. The wiring is covered end to end by tests/dist/cli-entry.dist.test.ts, which runs the BUILT bin in a subprocess (command registration and order, --version, unknown-command exit, --env-file / --no-env-file); those cases cannot kill src mutants because Stryker mutates src without rebuilding dist, and vitest.config.ts excludes tests/dist/** under COMVI_MUTATION by the same declared policy react/svelte use.",
+      "lineHint": 36,
+      "file": "src/cli/index.ts",
+      "mutators": ["all"],
+      "package": "packages/cli"
+    },
+    {
+      "snippet": "explicitPath: typeof dotenv === \"string\" ? dotenv : undefined,",
       "kind": "tooling:static-mutant",
       "reason": "src/cli/index.ts is module-scope program wiring that ends in program.parse(), so importing it in-process would parse vitest's own argv — there is no seam to drive it from a unit test, and every mutant in the file is a static mutant Stryker cannot re-trigger per test. The wiring is covered end to end by tests/dist/cli-entry.dist.test.ts, which runs the BUILT bin in a subprocess (command registration and order, --version, unknown-command exit, --env-file / --no-env-file); those cases cannot kill src mutants because Stryker mutates src without rebuilding dist, and vitest.config.ts excludes tests/dist/** under COMVI_MUTATION by the same declared policy react/svelte use.",
       "lineHint": 37,
@@ -7302,25 +7293,16 @@
       "package": "packages/cli"
     },
     {
+      "snippet": "if (result && process.env.COMVI_DEBUG === \"1\") {",
+      "kind": "tooling:static-mutant",
+      "reason": "src/cli/index.ts is module-scope program wiring that ends in program.parse(), so importing it in-process would parse vitest's own argv — there is no seam to drive it from a unit test, and every mutant in the file is a static mutant Stryker cannot re-trigger per test. The wiring is covered end to end by tests/dist/cli-entry.dist.test.ts, which runs the BUILT bin in a subprocess (command registration and order, --version, unknown-command exit, --env-file / --no-env-file); those cases cannot kill src mutants because Stryker mutates src without rebuilding dist, and vitest.config.ts excludes tests/dist/** under COMVI_MUTATION by the same declared policy react/svelte use.",
+      "lineHint": 41,
+      "file": "src/cli/index.ts",
+      "mutators": ["all"],
+      "package": "packages/cli"
+    },
+    {
       "snippet": "`[comvi] loaded env from ${result.path} ` +",
-      "kind": "tooling:static-mutant",
-      "reason": "src/cli/index.ts is module-scope program wiring that ends in program.parse(), so importing it in-process would parse vitest's own argv — there is no seam to drive it from a unit test, and every mutant in the file is a static mutant Stryker cannot re-trigger per test. The wiring is covered end to end by tests/dist/cli-entry.dist.test.ts, which runs the BUILT bin in a subprocess (command registration and order, --version, unknown-command exit, --env-file / --no-env-file); those cases cannot kill src mutants because Stryker mutates src without rebuilding dist, and vitest.config.ts excludes tests/dist/** under COMVI_MUTATION by the same declared policy react/svelte use.",
-      "lineHint": 39,
-      "file": "src/cli/index.ts",
-      "mutators": ["all"],
-      "package": "packages/cli"
-    },
-    {
-      "snippet": "`(${result.added} added, ${result.skipped} skipped — process.env wins)\\n`,",
-      "kind": "tooling:static-mutant",
-      "reason": "src/cli/index.ts is module-scope program wiring that ends in program.parse(), so importing it in-process would parse vitest's own argv — there is no seam to drive it from a unit test, and every mutant in the file is a static mutant Stryker cannot re-trigger per test. The wiring is covered end to end by tests/dist/cli-entry.dist.test.ts, which runs the BUILT bin in a subprocess (command registration and order, --version, unknown-command exit, --env-file / --no-env-file); those cases cannot kill src mutants because Stryker mutates src without rebuilding dist, and vitest.config.ts excludes tests/dist/** under COMVI_MUTATION by the same declared policy react/svelte use.",
-      "lineHint": 40,
-      "file": "src/cli/index.ts",
-      "mutators": ["all"],
-      "package": "packages/cli"
-    },
-    {
-      "snippet": "} catch (error) {",
       "kind": "tooling:static-mutant",
       "reason": "src/cli/index.ts is module-scope program wiring that ends in program.parse(), so importing it in-process would parse vitest's own argv — there is no seam to drive it from a unit test, and every mutant in the file is a static mutant Stryker cannot re-trigger per test. The wiring is covered end to end by tests/dist/cli-entry.dist.test.ts, which runs the BUILT bin in a subprocess (command registration and order, --version, unknown-command exit, --env-file / --no-env-file); those cases cannot kill src mutants because Stryker mutates src without rebuilding dist, and vitest.config.ts excludes tests/dist/** under COMVI_MUTATION by the same declared policy react/svelte use.",
       "lineHint": 43,
@@ -7329,7 +7311,7 @@
       "package": "packages/cli"
     },
     {
-      "snippet": "if (error instanceof MissingEnvFileError) {",
+      "snippet": "`(${result.added} added, ${result.skipped} skipped — process.env wins)\\n`,",
       "kind": "tooling:static-mutant",
       "reason": "src/cli/index.ts is module-scope program wiring that ends in program.parse(), so importing it in-process would parse vitest's own argv — there is no seam to drive it from a unit test, and every mutant in the file is a static mutant Stryker cannot re-trigger per test. The wiring is covered end to end by tests/dist/cli-entry.dist.test.ts, which runs the BUILT bin in a subprocess (command registration and order, --version, unknown-command exit, --env-file / --no-env-file); those cases cannot kill src mutants because Stryker mutates src without rebuilding dist, and vitest.config.ts excludes tests/dist/** under COMVI_MUTATION by the same declared policy react/svelte use.",
       "lineHint": 44,
@@ -7338,10 +7320,28 @@
       "package": "packages/cli"
     },
     {
+      "snippet": "} catch (error) {",
+      "kind": "tooling:static-mutant",
+      "reason": "src/cli/index.ts is module-scope program wiring that ends in program.parse(), so importing it in-process would parse vitest's own argv — there is no seam to drive it from a unit test, and every mutant in the file is a static mutant Stryker cannot re-trigger per test. The wiring is covered end to end by tests/dist/cli-entry.dist.test.ts, which runs the BUILT bin in a subprocess (command registration and order, --version, unknown-command exit, --env-file / --no-env-file); those cases cannot kill src mutants because Stryker mutates src without rebuilding dist, and vitest.config.ts excludes tests/dist/** under COMVI_MUTATION by the same declared policy react/svelte use.",
+      "lineHint": 47,
+      "file": "src/cli/index.ts",
+      "mutators": ["all"],
+      "package": "packages/cli"
+    },
+    {
+      "snippet": "if (error instanceof MissingEnvFileError) {",
+      "kind": "tooling:static-mutant",
+      "reason": "src/cli/index.ts is module-scope program wiring that ends in program.parse(), so importing it in-process would parse vitest's own argv — there is no seam to drive it from a unit test, and every mutant in the file is a static mutant Stryker cannot re-trigger per test. The wiring is covered end to end by tests/dist/cli-entry.dist.test.ts, which runs the BUILT bin in a subprocess (command registration and order, --version, unknown-command exit, --env-file / --no-env-file); those cases cannot kill src mutants because Stryker mutates src without rebuilding dist, and vitest.config.ts excludes tests/dist/** under COMVI_MUTATION by the same declared policy react/svelte use.",
+      "lineHint": 48,
+      "file": "src/cli/index.ts",
+      "mutators": ["all"],
+      "package": "packages/cli"
+    },
+    {
       "snippet": "process.stderr.write(`✗ ${error.message}\\n`);",
       "kind": "tooling:static-mutant",
       "reason": "src/cli/index.ts is module-scope program wiring that ends in program.parse(), so importing it in-process would parse vitest's own argv — there is no seam to drive it from a unit test, and every mutant in the file is a static mutant Stryker cannot re-trigger per test. The wiring is covered end to end by tests/dist/cli-entry.dist.test.ts, which runs the BUILT bin in a subprocess (command registration and order, --version, unknown-command exit, --env-file / --no-env-file); those cases cannot kill src mutants because Stryker mutates src without rebuilding dist, and vitest.config.ts excludes tests/dist/** under COMVI_MUTATION by the same declared policy react/svelte use.",
-      "lineHint": 45,
+      "lineHint": 49,
       "file": "src/cli/index.ts",
       "mutators": ["all"],
       "package": "packages/cli"
@@ -7350,7 +7350,7 @@
       "snippet": "process.exit(EXIT_VALIDATION);",
       "kind": "tooling:static-mutant",
       "reason": "src/cli/index.ts is module-scope program wiring that ends in program.parse(), so importing it in-process would parse vitest's own argv — there is no seam to drive it from a unit test, and every mutant in the file is a static mutant Stryker cannot re-trigger per test. The wiring is covered end to end by tests/dist/cli-entry.dist.test.ts, which runs the BUILT bin in a subprocess (command registration and order, --version, unknown-command exit, --env-file / --no-env-file); those cases cannot kill src mutants because Stryker mutates src without rebuilding dist, and vitest.config.ts excludes tests/dist/** under COMVI_MUTATION by the same declared policy react/svelte use.",
-      "lineHint": 46,
+      "lineHint": 50,
       "file": "src/cli/index.ts",
       "mutators": ["all"],
       "package": "packages/cli"
@@ -7359,7 +7359,7 @@
       "snippet": "program.addCommand(createInitCommand());",
       "kind": "tooling:static-mutant",
       "reason": "src/cli/index.ts is module-scope program wiring that ends in program.parse(), so importing it in-process would parse vitest's own argv — there is no seam to drive it from a unit test, and every mutant in the file is a static mutant Stryker cannot re-trigger per test. The wiring is covered end to end by tests/dist/cli-entry.dist.test.ts, which runs the BUILT bin in a subprocess (command registration and order, --version, unknown-command exit, --env-file / --no-env-file); those cases cannot kill src mutants because Stryker mutates src without rebuilding dist, and vitest.config.ts excludes tests/dist/** under COMVI_MUTATION by the same declared policy react/svelte use.",
-      "lineHint": 52,
+      "lineHint": 56,
       "file": "src/cli/index.ts",
       "mutators": ["all"],
       "package": "packages/cli"
@@ -7368,7 +7368,7 @@
       "snippet": "program.addCommand(createTypegenCommand());",
       "kind": "tooling:static-mutant",
       "reason": "src/cli/index.ts is module-scope program wiring that ends in program.parse(), so importing it in-process would parse vitest's own argv — there is no seam to drive it from a unit test, and every mutant in the file is a static mutant Stryker cannot re-trigger per test. The wiring is covered end to end by tests/dist/cli-entry.dist.test.ts, which runs the BUILT bin in a subprocess (command registration and order, --version, unknown-command exit, --env-file / --no-env-file); those cases cannot kill src mutants because Stryker mutates src without rebuilding dist, and vitest.config.ts excludes tests/dist/** under COMVI_MUTATION by the same declared policy react/svelte use.",
-      "lineHint": 53,
+      "lineHint": 57,
       "file": "src/cli/index.ts",
       "mutators": ["all"],
       "package": "packages/cli"
@@ -7377,7 +7377,7 @@
       "snippet": "program.addCommand(createGenerateTypesCommand()); // Verbose alias",
       "kind": "tooling:static-mutant",
       "reason": "src/cli/index.ts is module-scope program wiring that ends in program.parse(), so importing it in-process would parse vitest's own argv — there is no seam to drive it from a unit test, and every mutant in the file is a static mutant Stryker cannot re-trigger per test. The wiring is covered end to end by tests/dist/cli-entry.dist.test.ts, which runs the BUILT bin in a subprocess (command registration and order, --version, unknown-command exit, --env-file / --no-env-file); those cases cannot kill src mutants because Stryker mutates src without rebuilding dist, and vitest.config.ts excludes tests/dist/** under COMVI_MUTATION by the same declared policy react/svelte use.",
-      "lineHint": 54,
+      "lineHint": 58,
       "file": "src/cli/index.ts",
       "mutators": ["all"],
       "package": "packages/cli"
@@ -7386,7 +7386,7 @@
       "snippet": "program.addCommand(createGenerateCommand()); // Legacy alias",
       "kind": "tooling:static-mutant",
       "reason": "src/cli/index.ts is module-scope program wiring that ends in program.parse(), so importing it in-process would parse vitest's own argv — there is no seam to drive it from a unit test, and every mutant in the file is a static mutant Stryker cannot re-trigger per test. The wiring is covered end to end by tests/dist/cli-entry.dist.test.ts, which runs the BUILT bin in a subprocess (command registration and order, --version, unknown-command exit, --env-file / --no-env-file); those cases cannot kill src mutants because Stryker mutates src without rebuilding dist, and vitest.config.ts excludes tests/dist/** under COMVI_MUTATION by the same declared policy react/svelte use.",
-      "lineHint": 55,
+      "lineHint": 59,
       "file": "src/cli/index.ts",
       "mutators": ["all"],
       "package": "packages/cli"
@@ -7395,7 +7395,7 @@
       "snippet": "program.addCommand(createPullCommand());",
       "kind": "tooling:static-mutant",
       "reason": "src/cli/index.ts is module-scope program wiring that ends in program.parse(), so importing it in-process would parse vitest's own argv — there is no seam to drive it from a unit test, and every mutant in the file is a static mutant Stryker cannot re-trigger per test. The wiring is covered end to end by tests/dist/cli-entry.dist.test.ts, which runs the BUILT bin in a subprocess (command registration and order, --version, unknown-command exit, --env-file / --no-env-file); those cases cannot kill src mutants because Stryker mutates src without rebuilding dist, and vitest.config.ts excludes tests/dist/** under COMVI_MUTATION by the same declared policy react/svelte use.",
-      "lineHint": 56,
+      "lineHint": 60,
       "file": "src/cli/index.ts",
       "mutators": ["all"],
       "package": "packages/cli"
@@ -7404,7 +7404,7 @@
       "snippet": "program.addCommand(createPushCommand());",
       "kind": "tooling:static-mutant",
       "reason": "src/cli/index.ts is module-scope program wiring that ends in program.parse(), so importing it in-process would parse vitest's own argv — there is no seam to drive it from a unit test, and every mutant in the file is a static mutant Stryker cannot re-trigger per test. The wiring is covered end to end by tests/dist/cli-entry.dist.test.ts, which runs the BUILT bin in a subprocess (command registration and order, --version, unknown-command exit, --env-file / --no-env-file); those cases cannot kill src mutants because Stryker mutates src without rebuilding dist, and vitest.config.ts excludes tests/dist/** under COMVI_MUTATION by the same declared policy react/svelte use.",
-      "lineHint": 57,
+      "lineHint": 61,
       "file": "src/cli/index.ts",
       "mutators": ["all"],
       "package": "packages/cli"
@@ -7413,7 +7413,7 @@
       "snippet": "program.parse();",
       "kind": "tooling:static-mutant",
       "reason": "src/cli/index.ts is module-scope program wiring that ends in program.parse(), so importing it in-process would parse vitest's own argv — there is no seam to drive it from a unit test, and every mutant in the file is a static mutant Stryker cannot re-trigger per test. The wiring is covered end to end by tests/dist/cli-entry.dist.test.ts, which runs the BUILT bin in a subprocess (command registration and order, --version, unknown-command exit, --env-file / --no-env-file); those cases cannot kill src mutants because Stryker mutates src without rebuilding dist, and vitest.config.ts excludes tests/dist/** under COMVI_MUTATION by the same declared policy react/svelte use.",
-      "lineHint": 59,
+      "lineHint": 63,
       "file": "src/cli/index.ts",
       "mutators": ["all"],
       "package": "packages/cli"
