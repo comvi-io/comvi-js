@@ -259,3 +259,32 @@ Open (owner-gated) src suggestions from the lots: widen react ComponentsMap to t
 props} config form (works at runtime, untypeable today); react capabilityHooks L92-96 uncovered
 despite a 100% score (outside mutate globs?); the redundant string fast paths in react T.tsx /
 useI18n.ts could be deleted instead of accepted (18 entries would fall away).
+
+## Round 8 — __DEV__:false prod profile for core (2026-09-02, commits be1c2b1..15e1680)
+
+Core vitest now has two projects: unit (dev) + prod (define __DEV__:false, tests/prod/**).
+Prod suite: 50 tests across 8 files (E_* codes for loader/plugins/tags/defaultParams/host, the
+D1 ICU literal fail-soft with full icuHit accounting, prod missingCapability wording, dev-only
+guard divergences). Unit additions: exact dev-message claims, instance-level default onTagWarning
+(previously NEVER covered), strict-dev warn text, getTextDirection cache-hit via an Intl.Locale
+construction count. Core tests 1112 → 1166.
+
+Registry: 24 gap:prod-build entries DELETED (their mutants now killed), 31 reclassified to
+equivalent-across-both-builds, 5 new entries for tool-invisible static arms (i18n 55/58/61/263 +
+808's warn-argument prod arm). gap:prod-build for core is now zero. TWO previously-unasserted
+prod codes covered: E_LOCALE_NOT_SET, E_INSTANCE_DESTROYED. One real coverage gap fixed:
+"tagInterpolation" was missing from the reserved default-params keys test.
+
+HARD LESSON (recorded in ACCEPTED.md too): vi.resetModules() + dynamic import inside a test
+re-runs module INITIALIZATION in the coverage window — every static mutant of the transitive
+graph stops being ignoreStatic-ignored and is attributed to that single file (61 phantom
+survivors appeared). NEVER close static-mutant nocov with re-import tests; assert the same
+claims through the ordinary suite instead. The leaky file was deleted, all its claims re-homed,
+and each of the 61 was hand-probed: killed by the suite or equivalent (36 probes, evidence in
+scratchpad probe-results-lot3.json).
+
+CAVEAT on the standing report: packages/core/.stryker/report.json still shows the 61 as
+survivors — it predates the unwind, and the fresh no-incremental confirming run was stopped
+before finishing (incremental.json deleted, sandbox cleaned). The next full
+`pnpm mutation packages/core` should show them back under ignoreStatic (069+ ignored) with
+0 real survivors / 0 nocov; the claim rests on hand-probe evidence until that run happens.
