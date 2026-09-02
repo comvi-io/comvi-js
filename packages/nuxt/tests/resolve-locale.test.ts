@@ -52,4 +52,12 @@ describe("resolveAcceptLanguage", () => {
     const withRegional = ["en-US", "en", "de"];
     expect(resolveAcceptLanguage("en-US;q=0.9,en;q=0.8", withRegional)).toBe("en-US");
   });
+
+  it("trims whitespace that survives the quality-value split", () => {
+    expect(resolveAcceptLanguage("de ;q=0.9", locales)).toBe("de");
+  });
+
+  it("keeps trying lower-quality languages after one fails every match strategy", () => {
+    expect(resolveAcceptLanguage("ja,de;q=0.5", locales)).toBe("de");
+  });
 });

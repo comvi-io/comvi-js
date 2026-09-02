@@ -1,4 +1,4 @@
-import { ref, reactive, computed } from "vue";
+import { ref, reactive, computed, customRef } from "vue";
 
 const stateStore = new Map<string, any>();
 
@@ -39,6 +39,28 @@ let mockRuntimeConfig = cloneRuntimeConfig();
 let mockRequestHeaders: Record<string, string> = {};
 
 const cookieStore = new Map<string, ReturnType<typeof ref>>();
+const cookieOptions = new Map<string, Record<string, unknown>>();
+const cookieWrites = new Map<string, Array<string | undefined>>();
+
+/**
+ * A Nuxt cookie ref records every assignment, not only the ones that change the
+ * value: writing an unchanged cookie still re-emits Set-Cookie.
+ */
+function createCookieRef(name: string) {
+  let current: string | undefined;
+  cookieWrites.set(name, []);
+  return customRef<string | undefined>((track, trigger) => ({
+    get() {
+      track();
+      return current;
+    },
+    set(next) {
+      cookieWrites.get(name)!.push(next);
+      current = next;
+      trigger();
+    },
+  }));
+}
 
 const defaultRouteState = {
   path: "/",
@@ -82,11 +104,25 @@ export function useRuntimeConfig() {
   return mockRuntimeConfig;
 }
 
-export function useCookie(name: string, _options?: any) {
+export function useCookie(name: string, options?: any) {
+  // Only a real caller passes options; `setMockCookie` must not clear them.
+  if (options !== undefined) {
+    cookieOptions.set(name, options);
+  }
   if (!cookieStore.has(name)) {
-    cookieStore.set(name, ref<string | undefined>(undefined));
+    cookieStore.set(name, createCookieRef(name));
   }
   return cookieStore.get(name)!;
+}
+
+/** Every assignment to the cookie, in order — including no-op rewrites. */
+export function getMockCookieWrites(name: string) {
+  return cookieWrites.get(name) ?? [];
+}
+
+/** The attributes the code under test asked Nuxt to write the cookie with. */
+export function getMockCookieOptions(name: string) {
+  return cookieOptions.get(name);
 }
 
 export function useRoute() {
@@ -201,6 +237,8 @@ export function resetMocks() {
   stateStore.clear();
   mockNuxtApp.$i18n = null;
   cookieStore.clear();
+  cookieOptions.clear();
+  cookieWrites.clear();
   mockRequestHeaders = {};
   routerResolveOverride = null;
   resetRuntimeConfig();

@@ -128,3 +128,14 @@ the three lookups rescue every case), the once-cell identity check that can neve
 the module-scope useIsomorphicLayoutEffect ternary (act() equalizes the two hooks; do NOT chase
 with resetModules). Watch item: createMiddleware.ts:185 `return undefined;` at a function tail —
 if a survivor appears there it is fall-off-the-end equivalent, evidence already gathered.
+
+## packages/nuxt (kill-pass 2026-09-02)
+
+69 entries, every one hand-applied in the worktree with the full 256-test suite run: 51
+equivalent (redundant guards re-checked downstream — i18n.global's pathname guard, module.ts's
+rootPages filter vs the later cleanup, request-i18n's unobservable WeakMap delete; head/path
+composables' defensive branches), 13 tooling:static-mutant (module-scope EMPTY_CONFIG,
+locale-state KEY, NuxtLinkLocale defineComponent props — hand-probes turn tests RED but the
+mutant switch arms after module init), 5 needs-seam (import.meta.server / import.meta.dev —
+no test seam exists; a config-level rewrite plugin would unlock these plus plugin.ts's SSR
+payload path, decision recorded in the handoff).

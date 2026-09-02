@@ -41,6 +41,8 @@ function createNuxtStub() {
         comvi: {},
       },
       appConfig: {},
+      srcDir: "/app/src",
+      rootDir: "/app",
       build: {
         transpile: [] as string[],
       },
@@ -84,6 +86,29 @@ describe("nuxt module setup", () => {
       resolve: (id: string) => `/resolved/${id}`,
     });
     nuxtKitMocks.findPath.mockResolvedValue(null);
+  });
+
+  it("declares its Nuxt module identity and option defaults", async () => {
+    const moduleDefinition = await importModule();
+
+    expect(moduleDefinition.meta).toEqual({
+      name: "@comvi/nuxt",
+      configKey: "comvi",
+      compatibility: { nuxt: "^3.0.0 || ^4.0.0" },
+    });
+    expect(moduleDefinition.defaults).toEqual({
+      locales: [],
+      defaultLocale: "en",
+      localePrefix: "as-needed",
+      defaultNs: "default",
+      icu: false,
+      detectBrowserLanguage: {
+        useCookie: true,
+        cookieName: "i18n_locale",
+        cookieMaxAge: 31536000,
+        redirectOnFirstVisit: true,
+      },
+    });
   });
 
   it("configures runtime/app settings and registers runtime integrations", async () => {
@@ -228,6 +253,33 @@ describe("nuxt module setup", () => {
     expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("No locales configured"));
   });
 
+  it("stays quiet when locales are configured", async () => {
+    const moduleDefinition = await importModule();
+    const nuxt = createNuxtStub();
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    await moduleDefinition.setup({ locales: ["en"], defaultLocale: "en" }, nuxt);
+
+    expect(warnSpy).not.toHaveBeenCalled();
+  });
+
+  it("looks a user module up in srcDir before falling back to rootDir", async () => {
+    const moduleDefinition = await importModule();
+    const nuxt = createNuxtStub();
+    nuxtKitMocks.findPath.mockImplementation(
+      async (_specifier: string, options: { cwd: string; type: string }) =>
+        options.cwd === "/app" && options.type === "file" ? "/app/comvi.setup.ts" : null,
+    );
+
+    await moduleDefinition.setup({ locales: ["en"], defaultLocale: "en" }, nuxt);
+
+    expect(nuxtKitMocks.findPath).toHaveBeenNthCalledWith(1, "./comvi.setup", {
+      cwd: "/app/src",
+      type: "file",
+    });
+    expect(setupTemplateContents()).toContain('import userSetup from "/app/comvi.setup.ts";');
+  });
+
   it("generates a no-op setup template when setup option is omitted", async () => {
     const moduleDefinition = await importModule();
     const nuxt = createNuxtStub();
@@ -274,6 +326,16 @@ describe("nuxt module setup", () => {
         nuxt,
       ),
     ).rejects.toThrow('Failed to resolve comvi.setup path: "./missing.setup.ts"');
+  });
+
+  it("stays quiet about icu when no hostModule is configured", async () => {
+    const moduleDefinition = await importModule();
+    const nuxt = createNuxtStub();
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    await moduleDefinition.setup({ locales: ["en"], defaultLocale: "en", icu: true }, nuxt);
+
+    expect(warnSpy).not.toHaveBeenCalled();
   });
 
   it("emits the base construction branch when hostModule is unset", async () => {
@@ -504,6 +566,101 @@ describe("nuxt module setup", () => {
       redirectOnFirstVisit: false,
     });
     expect(nuxt.options.runtimeConfig.public.comvi.cookieName).toBe("module_locale");
+  });
+
+  it("keeps browser detection off and uses the default cookie name when it is disabled", async () => {
+    const moduleDefinition = await importModule();
+    const nuxt = createNuxtStub();
+
+    await moduleDefinition.setup(
+      { locales: ["en"], defaultLocale: "en", detectBrowserLanguage: false },
+      nuxt,
+    );
+
+    expect(nuxt.options.runtimeConfig.public.comvi.detectBrowserLanguage).toBe(false);
+    expect(nuxt.options.runtimeConfig.public.comvi.cookieName).toBe("i18n_locale");
+  });
+
+  it("carries an explicit localePrefix into the routing app config", async () => {
+    const moduleDefinition = await importModule();
+    const nuxt = createNuxtStub();
+
+    await moduleDefinition.setup(
+      { locales: ["en"], defaultLocale: "en", localePrefix: "always" },
+      nuxt,
+    );
+
+    expect(nuxt.options.appConfig.comvi.routing.localePrefix).toBe("always");
+  });
+
+  it("defaults the routing prefix mode and namespace when the options omit them", async () => {
+    const moduleDefinition = await importModule();
+    const nuxt = createNuxtStub();
+
+    await moduleDefinition.setup({ locales: ["en"], defaultLocale: "en" }, nuxt);
+
+    expect(nuxt.options.appConfig.comvi.routing.localePrefix).toBe("as-needed");
+    expect(nuxt.options.runtimeConfig.public.comvi.defaultNs).toBe("default");
+  });
+
+  it("keeps the app's own vite configuration while pre-bundling the wrappers", async () => {
+    const moduleDefinition = await importModule();
+    const nuxt = createNuxtStub();
+    nuxt.options.vite = {
+      server: { hmr: false },
+      optimizeDeps: { include: ["existing-dep"] },
+    };
+
+    await moduleDefinition.setup({ locales: ["en"], defaultLocale: "en" }, nuxt);
+
+    expect(nuxt.options.vite.server).toEqual({ hmr: false });
+    expect(nuxt.options.vite.optimizeDeps.include).toEqual([
+      "existing-dep",
+      "@comvi/vue",
+      "@comvi/core",
+    ]);
+  });
+
+  it("prefixes non-default locales when localePrefix is left unset", async () => {
+    const moduleDefinition = await importModule();
+    const nuxt = createNuxtStub();
+
+    await moduleDefinition.setup({ locales: ["en", "de"], defaultLocale: "en" }, nuxt);
+
+    const pages: NuxtPage[] = [{ name: "index", path: "/" }];
+    extendPagesHandler!(pages);
+
+    expect(pages.map((page) => page.path)).toEqual(["/", "/de"]);
+  });
+
+  it.each(["/:locale/blog", "/:locale"])(
+    "strips the %s param route that no [locale] file backs",
+    async (path) => {
+      const moduleDefinition = await importModule();
+      const nuxt = createNuxtStub();
+
+      await moduleDefinition.setup({ locales: ["en", "de"], defaultLocale: "en" }, nuxt);
+
+      const pages: NuxtPage[] = [{ name: "blog", path }];
+      extendPagesHandler!(pages);
+
+      expect(pages).toEqual([]);
+    },
+  );
+
+  it("strips a [locale] file route whose path carries no :locale param", async () => {
+    const moduleDefinition = await importModule();
+    const nuxt = createNuxtStub();
+
+    await moduleDefinition.setup({ locales: ["en", "de"], defaultLocale: "en" }, nuxt);
+
+    const pages: NuxtPage[] = [
+      { name: "index", path: "/" },
+      { name: "blog", path: "/blog", file: "/app/pages/[locale]/blog.vue" },
+    ];
+    extendPagesHandler!(pages);
+
+    expect(pages.map((page) => page.path)).toEqual(["/", "/de"]);
   });
 
   it("adds prefixed routes in as-needed mode and removes locale param routes", async () => {

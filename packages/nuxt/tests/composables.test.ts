@@ -1,4 +1,5 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
+import * as nuxtAppMocks from "./mocks/nuxt-app";
 import {
   resetMocks,
   setMockRoute,
@@ -65,6 +66,12 @@ describe("useLocalePath", () => {
     expect(result).toBe("/de/about");
   });
 
+  it("normalizes a slashless path before stripping its locale prefix", () => {
+    const localePath = useLocalePath();
+
+    expect(localePath("de/about", "uk")).toBe("/uk/about");
+  });
+
   it("returns root path for default locale in as-needed mode", () => {
     const localePath = useLocalePath();
 
@@ -119,6 +126,17 @@ describe("useLocalePath", () => {
     expect(result).toBe("/de/home");
   });
 
+  it("falls back to the route name when the route object carries no usable path", () => {
+    setRouterResolveOverride(() => {
+      throw new Error("No route found");
+    });
+    const localePath = useLocalePath();
+
+    const result = localePath({ name: "dashboard", path: undefined }, "de");
+
+    expect(result).toBe("/de/dashboard");
+  });
+
   it("filters null/undefined from array query values in fallback", () => {
     setRouterResolveOverride(() => {
       throw new Error("No route found");
@@ -130,6 +148,80 @@ describe("useLocalePath", () => {
       "de",
     );
     expect(result).toBe("/de/search?tag=a&tag=b");
+  });
+});
+
+describe("useLocalePath - named routes", () => {
+  beforeEach(() => {
+    resetMocks();
+  });
+
+  /** Records what reaches the router so the generated route name is observable. */
+  const captureResolve = () => {
+    const seen: unknown[] = [];
+    setRouterResolveOverride((to) => {
+      seen.push(to);
+      return { fullPath: "/resolved", path: "/resolved", href: "/resolved" };
+    });
+    return seen;
+  };
+
+  it.each([
+    { mode: "as-needed" as const, locale: "de", expectedName: "about___de" },
+    { mode: "as-needed" as const, locale: "en", expectedName: "about" },
+    { mode: "always" as const, locale: "en", expectedName: "about___en" },
+    { mode: "never" as const, locale: "de", expectedName: "about" },
+  ])(
+    "resolves the named route as $expectedName for $locale in $mode mode",
+    ({ mode, locale, expectedName }) => {
+      mockRuntimeConfig.public.comvi.localePrefix = mode;
+      const seen = captureResolve();
+      const localePath = useLocalePath();
+
+      localePath({ name: "about" }, locale);
+
+      expect(seen).toEqual([{ name: expectedName }]);
+    },
+  );
+
+  it("replaces a manually supplied locale suffix with the target locale", () => {
+    const seen = captureResolve();
+    const localePath = useLocalePath();
+
+    localePath({ name: "about___uk" }, "de");
+
+    expect(seen).toEqual([{ name: "about___de" }]);
+  });
+
+  it("leaves a route object whose name is undefined to the router untouched", () => {
+    const seen = captureResolve();
+    const localePath = useLocalePath();
+
+    localePath({ path: "/about", name: undefined }, "de");
+
+    expect(seen).toEqual([{ path: "/about", name: undefined }]);
+  });
+
+  it("uses string paths verbatim instead of resolving them through the router", () => {
+    const seen = captureResolve();
+    const localePath = useLocalePath();
+
+    expect(localePath("/about", "de")).toBe("/de/about");
+    expect(seen).toEqual([]);
+  });
+
+  it("drops null and undefined scalar query values in the named-route fallback", () => {
+    setRouterResolveOverride(() => {
+      throw new Error("No route found");
+    });
+    const localePath = useLocalePath();
+
+    const result = localePath(
+      { name: "search", query: { keep: "yes", drop: undefined, gone: null } },
+      "de",
+    );
+
+    expect(result).toBe("/de/search?keep=yes");
   });
 });
 
@@ -186,13 +278,15 @@ describe("useSwitchLocalePath", () => {
     expect(switchLocalePath("uk")).toBe("/uk/products?sort=asc#list");
   });
 
-  it("falls back to default locale for invalid input", () => {
+  it("falls back to default locale for invalid input, silently outside dev builds", () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
     setMockRoute({ path: "/about", fullPath: "/about" });
 
     const switchLocalePath = useSwitchLocalePath();
 
     // "es" is unsupported, so it falls back to "en", which is unprefixed in as-needed mode.
     expect(switchLocalePath("es")).toBe("/about");
+    expect(warnSpy).not.toHaveBeenCalled();
   });
 
   it.each([
@@ -285,6 +379,139 @@ describe("useLocaleRoute", () => {
 describe("useLocaleHead", () => {
   beforeEach(() => {
     resetMocks();
+  });
+
+  /** German carries an iso, Ukrainian an iso only, French no locale object at all. */
+  const withMixedLocaleObjects = () => {
+    mockRuntimeConfig.public.comvi.locales = ["en", "de", "uk", "fr"];
+    mockRuntimeConfig.public.comvi.localeObjects.de = {
+      code: "de",
+      name: "Deutsch",
+      iso: "de-DE",
+    };
+    mockRuntimeConfig.public.comvi.localeObjects.uk = {
+      code: "uk",
+      name: "Українська",
+      iso: "uk-UA",
+    };
+  };
+
+  it("emits OpenGraph locale meta for the current locale and every alternate", () => {
+    setMockRoute({ path: "/de/about", fullPath: "/de/about" });
+    useState<string>("i18n-locale", () => "de");
+    withMixedLocaleObjects();
+
+    const headConfig = useLocaleHead({ baseUrl: "https://example.com" });
+    const head = headConfig.value as Record<string, unknown>;
+
+    expect(head.meta).toEqual([
+      { property: "og:locale", content: "de_DE" },
+      { property: "og:locale:alternate", content: "en" },
+      { property: "og:locale:alternate", content: "uk_UA" },
+      { property: "og:locale:alternate", content: "fr" },
+    ]);
+  });
+
+  it("uses each locale's iso for the hreflang of its alternate link", () => {
+    setMockRoute({ path: "/de/about", fullPath: "/de/about" });
+    useState<string>("i18n-locale", () => "de");
+    withMixedLocaleObjects();
+
+    const headConfig = useLocaleHead({
+      baseUrl: "https://example.com",
+      addCanonical: false,
+    });
+    const links = (headConfig.value as Record<string, unknown>).link as Array<
+      Record<string, string>
+    >;
+
+    expect(links.map((link) => link.hreflang)).toEqual(["en", "de-DE", "uk-UA", "fr", "x-default"]);
+  });
+
+  it("omits the dir attribute for a locale that declares no direction", () => {
+    setMockRoute({ path: "/about", fullPath: "/about" });
+    useState<string>("i18n-locale", () => "en");
+
+    const headConfig = useLocaleHead({ addAlternateLinks: false, addCanonical: false });
+    const head = headConfig.value as Record<string, unknown>;
+
+    expect(head.htmlAttrs).toStrictEqual({ lang: "en" });
+  });
+
+  it("omits the dir attribute of an rtl locale when addDir is disabled", () => {
+    setMockRoute({ path: "/de/about", fullPath: "/de/about" });
+    useState<string>("i18n-locale", () => "de");
+    mockRuntimeConfig.public.comvi.localeObjects.de = { code: "de", name: "Deutsch", dir: "rtl" };
+
+    const headConfig = useLocaleHead({
+      addDir: false,
+      addAlternateLinks: false,
+      addCanonical: false,
+    });
+    const head = headConfig.value as Record<string, unknown>;
+
+    expect(head.htmlAttrs).toStrictEqual({ lang: "de" });
+  });
+
+  it("omits htmlAttrs entirely when both lang and dir are disabled", () => {
+    setMockRoute({ path: "/de/about", fullPath: "/de/about" });
+    useState<string>("i18n-locale", () => "de");
+    mockRuntimeConfig.public.comvi.localeObjects.de = { code: "de", name: "Deutsch", dir: "rtl" };
+
+    const headConfig = useLocaleHead({ addLang: false, addDir: false });
+    const head = headConfig.value as Record<string, unknown>;
+
+    expect(head.htmlAttrs).toBeUndefined();
+  });
+
+  it("derives the base URL from the request URL when no baseUrl is configured", () => {
+    setMockRoute({ path: "/de/about", fullPath: "/de/about" });
+    useState<string>("i18n-locale", () => "de");
+
+    const headConfig = useLocaleHead({ addAlternateLinks: false });
+    const links = (headConfig.value as Record<string, unknown>).link as Array<
+      Record<string, string>
+    >;
+
+    expect(links).toEqual([{ rel: "canonical", href: "https://example.com/de/about" }]);
+  });
+
+  it("trims a trailing slash from the configured base URL", () => {
+    setMockRoute({ path: "/de/about", fullPath: "/de/about" });
+    useState<string>("i18n-locale", () => "de");
+
+    const headConfig = useLocaleHead({
+      baseUrl: "https://shop.example.com/",
+      addAlternateLinks: false,
+    });
+    const links = (headConfig.value as Record<string, unknown>).link as Array<
+      Record<string, string>
+    >;
+
+    expect(links).toEqual([{ rel: "canonical", href: "https://shop.example.com/de/about" }]);
+  });
+
+  it("emits no links when neither an option nor the request yields a base URL", () => {
+    setMockRoute({ path: "/de/about", fullPath: "/de/about" });
+    useState<string>("i18n-locale", () => "de");
+    vi.spyOn(nuxtAppMocks, "useRequestURL").mockImplementation(() => {
+      throw new Error("no request URL outside a request");
+    });
+
+    const headConfig = useLocaleHead();
+    const head = headConfig.value as Record<string, unknown>;
+
+    expect(head.link).toBeUndefined();
+    expect(head.htmlAttrs).toStrictEqual({ lang: "de" });
+  });
+
+  it("registers the head configuration with Nuxt", () => {
+    const useHeadSpy = vi.spyOn(nuxtAppMocks, "useHead");
+    setMockRoute({ path: "/about", fullPath: "/about" });
+
+    const headConfig = useLocaleHead({ baseUrl: "https://example.com" });
+
+    expect(useHeadSpy).toHaveBeenCalledWith(headConfig);
   });
 
   it("builds canonical and alternate links for current locale", () => {

@@ -71,6 +71,15 @@ describe("NuxtLinkLocale component", () => {
     expect(anchor.getAttribute("href")).toBe("/contact");
   });
 
+  it("warns that `to` is required when a caller omits it", async () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    await renderLink({});
+
+    const warnings = warnSpy.mock.calls.map((args) => String(args[0]));
+    expect(warnings).toContainEqual(expect.stringContaining('Missing required prop: "to"'));
+  });
+
   it("handles route object in the to prop", async () => {
     const routeObj = { name: "products", query: { sort: "asc" } };
 

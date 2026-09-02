@@ -64,6 +64,13 @@ describe("runtime plugin", () => {
     resetComviSetupMock();
   });
 
+  it("registers as a pre-enforced Nuxt plugin", async () => {
+    const plugin = await importPlugin();
+
+    expect(plugin.name).toBe("@comvi/nuxt");
+    expect(plugin.enforce).toBe("pre");
+  });
+
   it("bootstraps i18n runtime and provides instance to Nuxt app", async () => {
     (nuxtAppMocks.mockRuntimeConfig.public.comvi as any).defaultParams = {
       formality: "formal",
@@ -263,6 +270,103 @@ describe("runtime plugin", () => {
     await plugin.setup(createNuxtAppStub());
 
     expect(useCookieSpy).not.toHaveBeenCalled();
+  });
+
+  it("does not create a locale cookie when detection opts out of the cookie", async () => {
+    nuxtAppMocks.mockRuntimeConfig.public.comvi.detectBrowserLanguage = {
+      useCookie: false,
+    } as never;
+    const useCookieSpy = vi.spyOn(nuxtAppMocks, "useCookie");
+    createComviI18n.mockReturnValue(createI18nStub("en"));
+
+    const plugin = await importPlugin();
+    await plugin.setup(createNuxtAppStub());
+
+    expect(useCookieSpy).not.toHaveBeenCalled();
+  });
+
+  it("creates the locale cookie with the attributes the detection config asks for", async () => {
+    nuxtAppMocks.mockRuntimeConfig.public.comvi.detectBrowserLanguage = {
+      useCookie: true,
+      cookieMaxAge: 600,
+      sameSite: "strict",
+      domain: ".example.com",
+      cookieSecure: false,
+    } as never;
+    createComviI18n.mockReturnValue(createI18nStub("en"));
+
+    const plugin = await importPlugin();
+    await plugin.setup(createNuxtAppStub());
+
+    expect(nuxtAppMocks.getMockCookieOptions("i18n_locale")).toEqual({
+      maxAge: 600,
+      path: "/",
+      sameSite: "strict",
+      domain: ".example.com",
+      secure: false,
+    });
+  });
+
+  it("creates a year-long secure lax cookie when detection configures no attributes", async () => {
+    nuxtAppMocks.mockRuntimeConfig.public.comvi.detectBrowserLanguage = {
+      useCookie: true,
+    } as never;
+    createComviI18n.mockReturnValue(createI18nStub("en"));
+
+    const plugin = await importPlugin();
+    await plugin.setup(createNuxtAppStub());
+
+    expect(nuxtAppMocks.getMockCookieOptions("i18n_locale")).toEqual({
+      maxAge: 31536000,
+      path: "/",
+      sameSite: "lax",
+      domain: undefined,
+      secure: true,
+    });
+  });
+
+  it("forwards the configured basic html tags as tag interpolation options", async () => {
+    createComviI18n.mockReturnValue(createI18nStub("en"));
+
+    const plugin = await importPlugin();
+    await plugin.setup(createNuxtAppStub());
+
+    expect(createComviI18n).toHaveBeenCalledWith(
+      expect.objectContaining({ tagInterpolation: { basicHtmlTags: ["strong", "em"] } }),
+    );
+  });
+
+  it("registers no SSR payload hook on the client", async () => {
+    createComviI18n.mockReturnValue(createI18nStub("en"));
+
+    const plugin = await importPlugin();
+    const nuxtApp = createNuxtAppStub();
+    await plugin.setup(nuxtApp);
+
+    expect(nuxtApp.hook).not.toHaveBeenCalled();
+  });
+
+  it("leaves the editor mappings global unset when the payload carries none", async () => {
+    const i18n = createI18nStub("en");
+    createComviI18n.mockReturnValue(i18n);
+
+    const plugin = await importPlugin();
+    await plugin.setup(createNuxtAppStub());
+
+    expect(EDITOR_INITIAL_MAPPINGS_GLOBAL in i18n).toBe(false);
+  });
+
+  it("syncs localeChanged to the locale state when no cookie is configured", async () => {
+    nuxtAppMocks.mockRuntimeConfig.public.comvi.detectBrowserLanguage = false;
+    const i18n = createI18nStub("en");
+    createComviI18n.mockReturnValue(i18n);
+
+    const plugin = await importPlugin();
+    await plugin.setup(createNuxtAppStub());
+
+    i18n.emit("localeChanged", { to: "de" });
+
+    expect(nuxtAppMocks.useState<string>("i18n-locale").value).toBe("de");
   });
 
   it("surfaces a host construction failure instead of booting a half-built app", async () => {

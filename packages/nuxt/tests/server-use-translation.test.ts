@@ -314,4 +314,114 @@ describe("useTranslation (server)", () => {
       }),
     );
   });
+
+  it("ignores the cookie when the detection config turns useCookie off", async () => {
+    const i18n = createI18nStub("en");
+    createComviCore.mockReturnValue(i18n);
+    getCookie.mockReturnValue("de");
+    const useTranslation = await importUseTranslation();
+
+    const { locale } = await useTranslation(
+      createEvent({ detectBrowserLanguage: { useCookie: false } }),
+    );
+
+    expect(locale).toBe("en");
+  });
+
+  it("uses the detection fallbackLocale when neither cookie nor header resolves", async () => {
+    const i18n = createI18nStub("de");
+    createComviCore.mockReturnValue(i18n);
+    const useTranslation = await importUseTranslation();
+
+    const { locale } = await useTranslation(
+      createEvent({
+        defaultLocale: "en",
+        detectBrowserLanguage: { useCookie: false, fallbackLocale: "de" },
+      }),
+    );
+
+    expect(locale).toBe("de");
+  });
+
+  it("ignores a cookie carrying a locale that is not configured", async () => {
+    const i18n = createI18nStub("en");
+    createComviCore.mockReturnValue(i18n);
+    getCookie.mockReturnValue("es");
+    const useTranslation = await importUseTranslation();
+
+    const { locale } = await useTranslation(createEvent());
+
+    expect(locale).toBe("en");
+  });
+
+  it("reads the browser preference from the Accept-Language header", async () => {
+    const i18n = createI18nStub("en");
+    createComviCore.mockReturnValue(i18n);
+    const useTranslation = await importUseTranslation();
+    const event = createEvent();
+
+    await useTranslation(event);
+
+    expect(getHeader).toHaveBeenCalledWith(event, "accept-language");
+  });
+
+  it("resolves the fallback locale when the request sends no Accept-Language header", async () => {
+    const i18n = createI18nStub("en");
+    createComviCore.mockReturnValue(i18n);
+    const useTranslation = await importUseTranslation();
+
+    const { locale } = await useTranslation(createEvent());
+
+    expect(locale).toBe("en");
+    expect(i18n.t).not.toHaveBeenCalled();
+  });
+
+  it("does not reload a namespace the host already carries", async () => {
+    const i18n = createI18nStub("en");
+    i18n.hasLocale.mockReturnValue(true);
+    createComviCore.mockReturnValue(i18n);
+    const useTranslation = await importUseTranslation();
+
+    await useTranslation(createEvent(), { locale: "en", namespace: "admin" });
+
+    expect(i18n.addActiveNamespace).not.toHaveBeenCalled();
+  });
+
+  it("keeps a host that is already on the resolved locale untouched while loading", async () => {
+    const i18n = createI18nStub("en");
+    createComviCore.mockReturnValue(i18n);
+    const useTranslation = await importUseTranslation();
+
+    await useTranslation(createEvent(), { locale: "en", namespace: "admin" });
+
+    expect(i18n.setLocaleAsync).not.toHaveBeenCalled();
+    expect(i18n.addActiveNamespace).toHaveBeenCalledWith("admin");
+  });
+
+  it("answers hasTranslation against the resolved locale and namespace by default", async () => {
+    const i18n = createI18nStub("en");
+    createComviCore.mockReturnValue(i18n);
+    const useTranslation = await importUseTranslation();
+
+    const { hasTranslation } = await useTranslation(createEvent(), { locale: "de" });
+    hasTranslation("greeting");
+
+    expect(i18n.hasTranslation).toHaveBeenCalledWith("greeting", "de", "common");
+  });
+
+  it("warns and keeps translating when a namespace fails to load", async () => {
+    const i18n = createI18nStub("en");
+    i18n.addActiveNamespace.mockRejectedValue(new Error("offline"));
+    createComviCore.mockReturnValue(i18n);
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const useTranslation = await importUseTranslation();
+
+    const { t } = await useTranslation(createEvent(), { locale: "de", namespace: "admin" });
+
+    expect(t("hello")).toBe("translated-value");
+    expect(warnSpy).toHaveBeenCalledWith(
+      "[@comvi/nuxt] Failed to load de:admin:",
+      expect.any(Error),
+    );
+  });
 });

@@ -39,8 +39,32 @@ describe("getServerRuntimeConfig", () => {
   it("returns a populated fallback config when nothing is available", () => {
     const result = getServerRuntimeConfig(undefined);
 
+    expect(result).toEqual({
+      public: {
+        comvi: {
+          locales: [],
+          localeObjects: {},
+          defaultLocale: "en",
+          localePrefix: "as-needed",
+          cookieName: "i18n_locale",
+          defaultNs: "default",
+          fallbackLocale: "en",
+          detectBrowserLanguage: {
+            useCookie: true,
+            cookieName: "i18n_locale",
+            cookieMaxAge: 31536000,
+            redirectOnFirstVisit: true,
+          },
+        },
+      },
+      comvi: {},
+    });
+  });
+
+  it("returns the populated fallback when the event carries no context at all", () => {
+    const result = getServerRuntimeConfig({} as any);
+
     expect(result.public.comvi.defaultLocale).toBe("en");
-    expect(result.public.comvi.locales).toEqual([]);
     expect(result.comvi).toEqual({});
   });
 
