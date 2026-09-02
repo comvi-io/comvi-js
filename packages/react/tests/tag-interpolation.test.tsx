@@ -60,11 +60,6 @@ describe("<T /> tag interpolation smoke", () => {
     expect(container.textContent).toBe("Hello Alice");
   });
 
-  // Core's `{ tag | component, props }` entry form works at runtime but is not
-  // described by the react `ComponentsMap` type — see the report's type gap.
-  const configComponents = (map: Record<string, unknown>) =>
-    map as React.ComponentProps<typeof T>["components"];
-
   it("renders a string-target config entry with its configured props", async () => {
     const i18n = createI18n({
       locale: "en",
@@ -74,10 +69,7 @@ describe("<T /> tag interpolation smoke", () => {
 
     render(
       <I18nProvider i18n={i18n}>
-        <T
-          i18nKey="msg"
-          components={configComponents({ link: { tag: "a", props: { href: "/help" } } })}
-        />
+        <T i18nKey="msg" components={{ link: { tag: "a", props: { href: "/help" } } }} />
       </I18nProvider>,
     );
 
@@ -95,9 +87,9 @@ describe("<T /> tag interpolation smoke", () => {
       <I18nProvider i18n={i18n}>
         <T
           i18nKey="msg"
-          components={configComponents({
+          components={{
             link: { component: <a href="/placeholder" />, props: { href: "/help" } },
-          })}
+          }}
         />
       </I18nProvider>,
     );
@@ -116,14 +108,14 @@ describe("<T /> tag interpolation smoke", () => {
       <I18nProvider i18n={i18n}>
         <T
           i18nKey="msg"
-          components={configComponents({
+          components={{
             btn: {
               component: ({ children, tone }: { children: React.ReactNode; tone?: string }) => (
                 <button data-tone={tone}>{children}</button>
               ),
               props: { tone: "warn" },
             },
-          })}
+          }}
         />
       </I18nProvider>,
     );

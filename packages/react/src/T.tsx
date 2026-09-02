@@ -12,12 +12,31 @@ import type {
 // would register tag syntax AMBIENTLY, so every app rendering `<T>` would also
 // start parsing `<tag>` markup in plain string-API `t()`. `prepareTranslation`
 // passes the tag extension per call, so the ambient switch stays the app's own.
-import { prepareTranslation, type PendingHandler } from "@comvi/core/rich-text";
+import {
+  prepareTranslation,
+  type PendingHandler,
+  type TagComponentConfig,
+} from "@comvi/core/rich-text";
 
-type ComponentHandler =
+/** What a tag can resolve to in React. */
+type ComponentTarget =
   | string // HTML tag name: "strong", "em", etc.
   | React.ReactElement // React element - children auto-injected
   | ((params: { children: React.ReactNode }) => React.ReactElement); // Function handler
+
+/**
+ * Core's `{ tag | component, props }` entry form, narrowed to React targets.
+ * `tag` (solid/svelte convention) and `component` (vue convention) are
+ * aliases; `props` is merged into the resolved handler. Intersecting core's
+ * own `TagComponentConfig` keeps the field set from drifting away from the
+ * `prepareTranslation` pipeline that actually reads it.
+ */
+type ComponentConfig = TagComponentConfig & {
+  tag?: ComponentTarget;
+  component?: ComponentTarget;
+};
+
+type ComponentHandler = ComponentTarget | ComponentConfig;
 
 type ComponentsMap = Record<string, ComponentHandler>;
 
@@ -160,30 +179,20 @@ const TComponent = function T({
     return <>{children}</>;
   }
 
-  // Only allocate the marker lookup when opaque handlers are in play.
-  let pendingByMarker: Map<string, PendingHandler> | null = null;
-  if (pendingHandlers.length > 0) {
-    pendingByMarker = new Map();
-    for (const pending of pendingHandlers) {
-      pendingByMarker.set(pending.marker, pending);
-    }
+  // Marker lookup for the opaque handlers `prepareTranslation` transported.
+  const pendingByMarker = new Map<string, PendingHandler>();
+  for (const pending of pendingHandlers) {
+    pendingByMarker.set(pending.marker, pending);
   }
 
   // Children can hold raw React nodes at runtime (`<bold>{name}</bold>` with
   // `name={<em/>}`), so non-VirtualNode values must survive the conversion.
   const convertChildren = (childResult: unknown): React.ReactNode[] => {
-    if (typeof childResult === "string") {
-      return childResult ? [childResult] : [];
-    }
-
     if (!Array.isArray(childResult)) {
       return childResult == null ? [] : [childResult as React.ReactNode];
     }
 
     return childResult.map((child, index) => {
-      if (typeof child === "string") {
-        return child;
-      }
       if (isVirtualNode(child)) {
         return convertNode(child, index);
       }
@@ -239,7 +248,7 @@ const TComponent = function T({
 
     const convertedChildren = convertChildren(childResult);
 
-    const pending = pendingByMarker?.get(tag);
+    const pending = pendingByMarker.get(tag);
     if (pending) {
       try {
         const result = resolvePending(pending, convertedChildren);
@@ -257,9 +266,6 @@ const TComponent = function T({
   return (
     <>
       {resultArray.map((item, index) => {
-        if (typeof item === "string") {
-          return <React.Fragment key={`${keyString}-${index}`}>{item}</React.Fragment>;
-        }
         if (isVirtualNode(item)) {
           return convertNode(item, index);
         }
