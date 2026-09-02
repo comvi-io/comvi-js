@@ -318,3 +318,52 @@ Owner-gated src cleanups recorded, not made: useLocaleHead's three dead `|| { co
 fallbacks (three permanently-accepted mutants would vanish); createMiddleware's dead `q = "q=1"`
 destructuring default and `|| "1"` (isNaN backstop covers both); nuxt capabilities.ts (pure
 re-export, unmutated, 0% covered) deserves a smoke test some round.
+
+## Round 10 — chrome-extension kill-pass COMPLETE, CAMPAIGN CLOSED (2026-09-02, 3bc8853..afde3b6)
+
+EXTENSION AT 100.0% ADJUSTED: 3,131 killed / 0 survived / 0 nocov / 95 accepted mutants, 0 stale
+(fresh full no-incremental run). Baseline was 34.3% (667 survived + 1,444 nocov). Tests 189 → 978
+(7 → 25 files, ~1.5 s). Four parallel lots (popup/shared/background/content) + per-slice round 2.
+
+Big finds along the way:
+- ANOTHER silent-drop: proxy.test.ts read a fixture ABOVE the package root; in the Stryker
+  sandbox the whole file failed to load silently and 84 tests scored nothing (proxy.ts was
+  measured against background tests alone). Cross-repo reads now live in their own file.
+- popup.ts (0% → 100%): harness stages the real popup.html body + a chrome fake whose FIDELITY
+  mattered (tabs.query must honour the filter, storage snapshots at call time) — both fidelity
+  fixes converted survivors into kills.
+- content: a page-window fake that PROPAGATES listener exceptions (real EventTarget swallows
+  them) made the never-throw-into-the-page invariant assertable; chrome.runtime.lastError is an
+  ACCESSOR in real Chrome — modelling it as data made the extension-reloaded catch unreachable.
+- background: type-confusion abort (numeric id vs string request key), channel-kept-open captured
+  AFTER listener return, per-tab activation budgets, unhandled-rejection paths asserted through
+  effects.
+- vitest now excludes .stryker-tmp (an interrupted run silently doubled the suite otherwise).
+
+PROBE-PROTOCOL RULES, distilled from three independent audits (now canon):
+1. A mutant can end a run three ways — failing assertion, unhandled rejection from a
+   fire-and-forget path, or a crashed/hung worker — and ONLY the first is a kill. Verdicts must
+   come from the parsed summary line AND agree with the exit code AND match the known
+   BASELINE_TOTAL (a shrunk total = silently unloaded file); anything else is INCONCLUSIVE.
+   vitest 4 rejects --reporter=basic: exit-code-only wrappers mark every mutant killed.
+2. An accept-proposal must name a (file, line, mutator) row that EXISTS in the report — a
+   hand-probe proving an edit survives is necessary but not sufficient (operand-level conditionals
+   may be attributed to the enclosing if and never emitted).
+3. When code under test swallows errors or can recurse unboundedly: assert observable side
+   effects, settle parked work BEFORE asserting, restore src in a SIGTERM handler (finally does
+   not survive a kill).
+4. static:true + coveredBy>0 mutants LOOK like plain survivors: ignoreStatic only filters
+   UNattributed static mutants; module-scope consts imported by tests need hand-probes.
+
+Open (owner-gated): config.ts trailing-slash normalization is live in prod but unreachable under
+the vitest define (needs-seam entry; closable via a second define-project or an exported
+normalize()); gate-e stays the E2E trust-boundary proof, complementary to all of this.
+
+=== CAMPAIGN FINAL STATE ===
+Every mutation-tested package in the repo now stands at 100.0% adjusted (locale-routing 92.1%
+by accepted design): core 2,912/299acc · editor · react 344/36 · solid 264/2 · svelte 118/0 ·
+vue 280/13 · next 629/38 · nuxt 1,032/100 · fetch-loader · locale-detector · cli 70.9% (commands
+covered; logger/reporter backlog noted) · chrome-extension 3,131/95. Registry: 756 entries, all
+hand-evidence-backed, 0 stale. Real bugs found and fixed by the campaign: core fallback cache,
+editor parseICUSelect + dead warnings, vue hasLocale staleness, CLI init overwrite + dead
+push.forceMode + numbering, gate-e env leak, rolldown-1.2.7-upstream pin.
