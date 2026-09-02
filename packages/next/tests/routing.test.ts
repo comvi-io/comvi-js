@@ -148,6 +148,10 @@ describe("routing helpers", () => {
     expect(localizeUrlObject({ pathname: "" }, "de")).toEqual({ pathname: "/de" });
   });
 
+  it("resolves an empty pathname to the root route", () => {
+    expect(getCanonicalPathname("", ROUTING_DE_ONLY, "de")).toBe("/");
+  });
+
   it("maps a localized slug back without being told which locale to prefer", () => {
     expect(getCanonicalPathname("/ueber-uns", ROUTING_DE_ONLY)).toBe("/about");
   });

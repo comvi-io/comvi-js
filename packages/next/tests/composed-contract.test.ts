@@ -2,7 +2,7 @@ import { describe, it, expect, afterEach } from "vitest";
 import { createNextI18n } from "../src/createNextI18n";
 import type { NextComposedI18n } from "../src/composedHost";
 import { createI18n as baseCreateI18n, isVirtualNode } from "@comvi/core";
-import type { I18nPlugin } from "@comvi/core";
+import type { I18nPlugin, LoaderFn } from "@comvi/core";
 
 /**
  * The PUBLISHED `@comvi/next` root contract: every capability a 0.4 caller
@@ -102,6 +102,15 @@ describe("published createNextI18n — composed capabilities", () => {
     expect(i18n.t("k")).toBe("EN");
     await i18n.setLocaleAsync("de");
     expect(i18n.t("k")).toBe("DE");
+  });
+
+  it("rejects a null loader instead of taking it for an import map", () => {
+    const { i18n } = make();
+
+    expect(() => i18n.registerLoader(null as unknown as LoaderFn)).toThrow(
+      /registerLoader\(\): argument must be a loader function/,
+    );
+    expect(i18n.getLoader()).toBeUndefined();
   });
 
   it("accepts namespaced import-map keys", async () => {

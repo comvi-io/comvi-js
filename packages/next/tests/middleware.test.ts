@@ -282,13 +282,21 @@ describe("middleware locale cookie persistence", () => {
   });
 
   it("writes the resolved locale to the response cookie with the persistence attributes", () => {
+    // Built inside the test, not at describe scope: `cookieSecureConfig` and
+    // `isDev` are read once when the closure is created, so a describe-scope
+    // instance would freeze them before this test can make a claim about them.
+    const freshMiddleware = createMiddleware({
+      locales: ["en", "fr"],
+      defaultLocale: "en",
+      localePrefix: "as-needed",
+    });
     const request = new NextRequest("https://example.com/about", {
       headers: {
         "accept-language": "fr",
       },
     });
 
-    const response = middleware(request);
+    const response = freshMiddleware(request);
 
     expect(response.cookies.get("NEXT_LOCALE")).toMatchObject({
       value: "fr",
@@ -642,6 +650,21 @@ describe("middleware internal pathname", () => {
     locales: ["en", "fr"],
     defaultLocale: "en",
     localePrefix: "as-needed",
+  });
+
+  it("prefixes only non-default locales when no localePrefix is configured", () => {
+    const defaulted = createMiddleware({ locales: ["en", "fr"], defaultLocale: "en" });
+
+    const nonDefault = defaulted(
+      new NextRequest("https://example.com/about", { headers: { "accept-language": "fr" } }),
+    );
+    const isDefault = defaulted(
+      new NextRequest("https://example.com/about", { headers: { "accept-language": "en" } }),
+    );
+
+    expect(nonDefault.headers.get("location")).toBe("https://example.com/fr/about");
+    expect(isDefault.headers.get("location")).toBeNull();
+    expect(isDefault.headers.get("x-middleware-rewrite")).toBe("https://example.com/en/about");
   });
 
   it("passes the localized root through without a rewrite or redirect", () => {

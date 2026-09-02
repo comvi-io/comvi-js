@@ -8,7 +8,7 @@
 
 import React from "react";
 import { describe, it, expect, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, act } from "@testing-library/react";
 import { renderToString } from "react-dom/server";
 import { createI18n, useIsLoading } from "@comvi/react";
 import { FakeI18n } from "@comvi/test-utils/fakeI18n";
@@ -152,6 +152,34 @@ describe("Next <I18nProvider> instance sync", () => {
 
     expect(screen.getByTestId("child")).toBeDefined();
     expect(fake.addTranslations).not.toHaveBeenCalled();
+  });
+
+  it("initializes the instance on mount by default", async () => {
+    const fake = new FakeI18n({ language: "fr" });
+
+    await act(async () => {
+      render(
+        <I18nProvider i18n={fake.asI18n()} locale="fr">
+          <div />
+        </I18nProvider>,
+      );
+    });
+
+    expect(fake.init).toHaveBeenCalledOnce();
+  });
+
+  it("leaves the instance uninitialized when autoInit is off", async () => {
+    const fake = new FakeI18n({ language: "fr" });
+
+    await act(async () => {
+      render(
+        <I18nProvider i18n={fake.asI18n()} locale="fr" autoInit={false}>
+          <div />
+        </I18nProvider>,
+      );
+    });
+
+    expect(fake.init).not.toHaveBeenCalled();
   });
 
   it("tells the server renderer that nothing is loading", () => {

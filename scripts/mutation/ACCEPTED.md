@@ -139,3 +139,10 @@ locale-state KEY, NuxtLinkLocale defineComponent props — hand-probes turn test
 mutant switch arms after module init), 5 needs-seam (import.meta.server / import.meta.dev —
 no test seam exists; a config-level rewrite plugin would unlock these plus plugin.ts's SSR
 payload path, decision recorded in the handoff).
+
+- next round 2: the detectFromSource default-case fall-off, two Accept-Language fallback literals
+  made redundant by downstream backstops, and the UrlObject pathname literal that both branches
+  normalise away. TWO GENERAL LESSONS from this round: (1) a factory called at describe scope
+  captures config BEFORE the mutant switch arms — construction-time claims need the factory call
+  INSIDE the test body; (2) expect(fn).toThrow(msg) passes when the thrown value is `undefined` —
+  assert instanceof Error via a capture helper wherever src RETURNS the error its caller throws.

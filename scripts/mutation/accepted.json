@@ -6409,6 +6409,42 @@
       "file": "src/runtime/utils/runtime.ts",
       "lineHint": 1,
       "mutators": ["BooleanLiteral", "ConditionalExpression"]
+    },
+    {
+      "package": "packages/next",
+      "file": "src/middleware/createMiddleware.ts",
+      "mutators": ["ConditionalExpression"],
+      "snippet": "default:",
+      "lineHint": 184,
+      "kind": "equivalent",
+      "reason": "the switch default is the last statement of detectFromSource and every other case returns — emptying it falls off the end and yields the same undefined. (The predicted 185 equivalence; Stryker emits it at the default: token.) Hand-applied; 308/308 green."
+    },
+    {
+      "package": "packages/next",
+      "file": "src/middleware/createMiddleware.ts",
+      "mutators": ["StringLiteral"],
+      "snippet": "const [code, q = \"q=1\"] = lang.trim().split(\";\");",
+      "lineHint": 215,
+      "kind": "equivalent",
+      "reason": "the destructuring default only feeds line 216, and \"\".split(\"=\")[1] is undefined, which the || \"1\" fallback maps to the same 1. Separate from the MethodExpression (trim) entry on this line. Hand-applied; green."
+    },
+    {
+      "package": "packages/next",
+      "file": "src/middleware/createMiddleware.ts",
+      "mutators": ["StringLiteral"],
+      "snippet": "const quality = parseFloat(q.split(\"=\")[1] || \"1\");",
+      "lineHint": 216,
+      "kind": "equivalent",
+      "reason": "with || \"\" the parse yields NaN and line 219's isNaN backstop maps it to 1 — the literal is redundant. Hand-applied; green."
+    },
+    {
+      "package": "packages/next",
+      "file": "src/routing/utils.ts",
+      "mutators": ["StringLiteral"],
+      "snippet": "const pathname = typeof href.pathname === \"string\" ? href.pathname : \"/\";",
+      "lineHint": 102,
+      "kind": "equivalent",
+      "reason": "both branches normalise before use (normalizePath(\"\") and stripLocalePrefix(\"\") both yield \"/\"), so \"\" and \"/\" converge; the ConditionalExpression on this line IS killed. Hand-applied; green."
     }
   ]
 }
