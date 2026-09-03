@@ -114,3 +114,45 @@ describe("@comvi/react SSR — getServerSnapshot paths (W4)", () => {
     expect(html).toContain('data-init="false"');
   });
 });
+
+/**
+ * Under a server-rendered provider the instance locale is the host's static
+ * configured one, not the request's. Every locale-sensitive member of
+ * `useI18n()` has to read the provider's locale instead — `hasTranslation`
+ * included, since it gates whether callers even ask for a string.
+ */
+describe("@comvi/react SSR — useI18n().hasTranslation follows the provider locale", () => {
+  it("answers for ssrInitialLocale, not the instance locale", () => {
+    const i18n = createI18n({
+      locale: "en",
+      translation: { en: {}, fr: { greeting: "Bonjour" } },
+      exposeGlobal: false,
+    });
+    const Probe = () => <>{`has:${useI18n().hasTranslation("greeting")}`}</>;
+
+    const html = renderToString(
+      <I18nProvider i18n={i18n} autoInit={false} ssrInitialLocale="fr">
+        <Probe />
+      </I18nProvider>,
+    );
+
+    expect(html).toContain("has:true");
+  });
+
+  it("reports false for a key the provider locale does not have", () => {
+    const i18n = createI18n({
+      locale: "en",
+      translation: { en: { greeting: "Hello" }, fr: {} },
+      exposeGlobal: false,
+    });
+    const Probe = () => <>{`has:${useI18n().hasTranslation("greeting")}`}</>;
+
+    const html = renderToString(
+      <I18nProvider i18n={i18n} autoInit={false} ssrInitialLocale="fr">
+        <Probe />
+      </I18nProvider>,
+    );
+
+    expect(html).toContain("has:false");
+  });
+});

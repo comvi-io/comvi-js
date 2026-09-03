@@ -37,7 +37,7 @@ const recordLocaleWrites = (fake: FakeI18n): string[] => {
 };
 
 describe("Next <I18nProvider> instance sync", () => {
-  it("applies the server locale before the children render", () => {
+  it("applies the locale before the children render on the client", () => {
     const fake = new FakeI18n({ language: "en" });
     const LocaleAtRenderTime = () => <span data-testid="at-render">{fake.locale}</span>;
 
@@ -69,6 +69,47 @@ describe("Next <I18nProvider> instance sync", () => {
 
     render(
       <I18nProvider i18n={fake.asI18n()} locale="fr" autoInit={false}>
+        <div />
+      </I18nProvider>,
+    );
+
+    expect(writes).toEqual(["fr"]);
+  });
+
+  // The useState initializer only runs on the first render, so client
+  // navigation to a different `[locale]` segment reaches the instance through
+  // the layout effect and nothing else.
+  it("applies a new locale handed over on a later render", () => {
+    const fake = new FakeI18n({ language: "en" });
+    const writes = recordLocaleWrites(fake);
+    const { rerender } = render(
+      <I18nProvider i18n={fake.asI18n()} locale="fr" autoInit={false}>
+        <div />
+      </I18nProvider>,
+    );
+
+    rerender(
+      <I18nProvider i18n={fake.asI18n()} locale="de" autoInit={false}>
+        <div />
+      </I18nProvider>,
+    );
+
+    expect(writes).toEqual(["fr", "de"]);
+    expect(fake.locale).toBe("de");
+  });
+
+  it("does not apply a later locale the routing config rejects", () => {
+    const fake = new FakeI18n({ language: "en" });
+    const writes = recordLocaleWrites(fake);
+    const routing = { locales: ["en", "fr"], defaultLocale: "en" };
+    const { rerender } = render(
+      <I18nProvider i18n={fake.asI18n()} locale="fr" routing={routing} autoInit={false}>
+        <div />
+      </I18nProvider>,
+    );
+
+    rerender(
+      <I18nProvider i18n={fake.asI18n()} locale="zz" routing={routing} autoInit={false}>
         <div />
       </I18nProvider>,
     );

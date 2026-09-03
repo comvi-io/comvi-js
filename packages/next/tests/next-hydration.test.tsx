@@ -1,6 +1,6 @@
 /**
  * Includes a source boundary: no instance-locale mutation outside
- * `syncLocaleSafely` in `next/client/I18nProvider.tsx`, so a future refactor
+ * `applyLocale` in `next/client/I18nProvider.tsx`, so a future refactor
  * that reintroduces render-time mutation fails here.
  */
 
@@ -172,20 +172,76 @@ describe("Next <I18nProvider> SSR + hydration", () => {
   });
 
   describe("Architectural boundary — no render-time i18n.locale mutation", () => {
-    it("`i18n.locale =` only appears inside the syncLocaleSafely helper", () => {
+    it("`i18n.locale =` only appears inside the applyLocale helper", () => {
       const source = readFileSync(resolve(__dirname, "../src/client/I18nProvider.tsx"), "utf8");
 
-      // syncLocaleSafely is the one place this mutation is allowed to live.
-      // The strip is coupled to that helper's NAME and to its closing brace
+      // applyLocale is the one place this mutation is allowed to live. The
+      // strip is coupled to that helper's NAME and to its closing brace
       // sitting at column 0: renaming or reformatting it fails this test with a
       // mismatch on the raw source rather than an explanation.
       const stripped = source.replace(
-        /function syncLocaleSafely[\s\S]*?\n\}/m,
-        "/* syncLocaleSafely stripped for boundary check */",
+        /function applyLocale[\s\S]*?\n\}/m,
+        "/* applyLocale stripped for boundary check */",
       );
 
       expect(stripped).not.toMatch(/i18n\.locale\s*=\s*[^=]/);
-      expect(stripped).toContain("syncLocaleSafely stripped for boundary check");
+      expect(stripped).toContain("applyLocale stripped for boundary check");
     });
+  });
+});
+
+/**
+ * REGRESSION GUARD (passes before and after the server-write fix): the request
+ * locale has to reach the markup and survive hydration even when the host was
+ * configured for a different one. The red proof that the SERVER render leaves
+ * the host alone lives in `next-provider-server-render.test.tsx`, which runs
+ * under the `node` environment — this file's DOM environment takes the client
+ * branch of the provider's `typeof window` guard.
+ */
+describe("Next <I18nProvider> on a host configured for a different locale", () => {
+  let errorSpy: ReturnType<typeof spyOnConsoleError>;
+  let warnSpy: ReturnType<typeof spyOnConsoleError>;
+
+  beforeEach(() => {
+    errorSpy = spyOnConsoleError();
+    warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+  });
+
+  it("renders and hydrates 'fr' on a host configured for 'en'", async () => {
+    const i18n = createI18n({ locale: "en", translation: { en: { greeting: "Hello" } } });
+    const tree = (
+      <I18nProvider
+        i18n={i18n}
+        locale="fr"
+        messages={{ fr: { greeting: "Bonjour" } }}
+        autoInit={false}
+      >
+        <span data-testid="greeting">
+          <T i18nKey={"greeting" as never} />
+        </span>
+      </I18nProvider>
+    );
+
+    const html = renderToString(tree);
+
+    expect(html).toContain("Bonjour");
+    expect(html).not.toContain("Hello");
+
+    const container = mountSsrOutput(html);
+    let root!: ReturnType<typeof hydrateRoot>;
+    await act(async () => {
+      root = hydrateRoot(container, tree);
+    });
+
+    expect(container.textContent).toContain("Bonjour");
+    expect(errorSpy).not.toHaveBeenCalled();
+    expect(warnSpy).not.toHaveBeenCalled();
+    // The client applies the locale before its first commit.
+    expect(i18n.locale).toBe("fr");
+
+    await act(async () => {
+      root.unmount();
+    });
+    document.body.removeChild(container);
   });
 });

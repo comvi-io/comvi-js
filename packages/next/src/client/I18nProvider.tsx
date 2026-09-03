@@ -41,8 +41,13 @@ export interface I18nProviderProps extends Omit<ReactI18nProviderProps, "ssrInit
 /**
  * Reports through `i18n.reportError` on misconfiguration so devs get a
  * meaningful diagnostic instead of a silent fallback.
+ *
+ * Deliberately NOT behind the `typeof window` guard the assignment sits behind:
+ * a `[locale]` segment outside `routing.locales` is a server-side routing
+ * mistake, and it should reach `onError` where the server logs are rather than
+ * waiting for a browser to hydrate.
  */
-function syncLocaleSafely(
+function validateLocale(
   i18n: import("@comvi/core").WrapperI18nHost,
   locale: string,
   routing: RoutingConfig | undefined,
@@ -56,10 +61,17 @@ function syncLocaleSafely(
     );
     return false;
   }
+  return true;
+}
+
+/**
+ * The ONE place `i18n.locale` is assigned. Callers gate it on
+ * `validateLocale` and on being off the server — see the call sites.
+ */
+function applyLocale(i18n: import("@comvi/core").WrapperI18nHost, locale: string): void {
   if (i18n.locale !== locale) {
     i18n.locale = locale;
   }
-  return true;
 }
 
 /**
@@ -69,15 +81,44 @@ function syncLocaleSafely(
  * mismatches. Translations should be pre-loaded in the instance via the
  * `translation` option in `createI18n()`.
  *
+ * Render it from a `"use client"` wrapper that imports the instance itself:
+ * Next.js cannot pass a class instance from a Server Component to a Client
+ * Component, so a layout may not hand `i18n` across the RSC boundary.
+ *
  * @example
  * ```tsx
- * // app/[locale]/layout.tsx
+ * // app/[locale]/I18nClientProvider.tsx
+ * "use client";
+ *
  * import { I18nProvider } from '@comvi/next/client';
- * import { i18n } from '@/i18n';
+ * import type { MessagesMap } from '@comvi/next/client';
+ * import { i18n } from '@/i18n/config';
+ *
+ * export function I18nClientProvider({
+ *   children,
+ *   locale,
+ *   messages,
+ * }: {
+ *   children: React.ReactNode;
+ *   locale: string;
+ *   messages?: MessagesMap;
+ * }) {
+ *   return (
+ *     <I18nProvider i18n={i18n} locale={locale} messages={messages}>
+ *       {children}
+ *     </I18nProvider>
+ *   );
+ * }
+ * ```
+ *
+ * @example
+ * ```tsx
+ * // app/[locale]/layout.tsx — a Server Component; no i18n import here
+ * import { I18nClientProvider } from './I18nClientProvider';
  *
  * export default async function LocaleLayout({
  *   children,
- *   params
+ *   params,
  * }: {
  *   children: React.ReactNode;
  *   params: Promise<{ locale: string }>;
@@ -87,9 +128,7 @@ function syncLocaleSafely(
  *   return (
  *     <html lang={locale}>
  *       <body>
- *         <I18nProvider i18n={i18n} locale={locale}>
- *           {children}
- *         </I18nProvider>
+ *         <I18nClientProvider locale={locale}>{children}</I18nClientProvider>
  *       </body>
  *     </html>
  *   );
@@ -109,9 +148,22 @@ export function I18nProvider({
   // don't re-apply the same messages object.
   const lastAddedMessagesRef = useRef<MessagesMap | undefined>(undefined);
 
-  // Sync locale + messages before the first commit, on both server and client.
+  // Sync locale + messages before the first commit.
   useState(() => {
-    syncLocaleSafely(i18n, locale, routing);
+    // Validation runs on both sides so a misrouted locale is still reported
+    // during SSR; only the WRITE is client-only. The App Router host lives at
+    // module scope and is shared by every concurrent request in the server
+    // process, so writing its locale during a server render leaks one
+    // request's locale into another's tree. The request locale reaches the
+    // tree through `ssrInitialLocale` below.
+    if (validateLocale(i18n, locale, routing) && typeof window !== "undefined") {
+      applyLocale(i18n, locale);
+    }
+    // `addTranslations` stays on the server: it is additive and keyed
+    // `locale:namespace`, so a concurrent request can only write what the other
+    // would have loaded anyway, and after the first add per key it is a no-op
+    // for the cache and for `getActiveNamespaces()`. The first add does emit
+    // `namespaceLoaded` — accepted.
     if (messages && messages !== lastAddedMessagesRef.current) {
       i18n.addTranslations(messages);
       lastAddedMessagesRef.current = messages;
@@ -119,9 +171,12 @@ export function I18nProvider({
     return null;
   });
 
-  // Subsequent renders (client navigation, HMR, prop updates).
+  // Subsequent renders (client navigation, HMR, prop updates). Effects never
+  // run during a server render, so no guard is needed here.
   useIsomorphicLayoutEffect(() => {
-    syncLocaleSafely(i18n, locale, routing);
+    if (validateLocale(i18n, locale, routing)) {
+      applyLocale(i18n, locale);
+    }
 
     if (messages && messages !== lastAddedMessagesRef.current) {
       i18n.addTranslations(messages);
@@ -129,6 +184,11 @@ export function I18nProvider({
     }
   }, [i18n, locale, messages, routing]);
 
+  // `autoInit` runs the React provider's `ensureInitialized` → `i18n.init()`,
+  // which loads the default namespace at the HOST's configured locale. Since
+  // the server render no longer writes that locale, it is now always the static
+  // default from `createNextI18n()` rather than whichever request rendered
+  // first, so the first-request race is gone by construction.
   const content = (
     <ReactI18nProvider
       i18n={i18n}

@@ -5548,24 +5548,6 @@
     },
     {
       "package": "packages/next",
-      "file": "src/client/I18nProvider.tsx",
-      "mutators": ["BooleanLiteral"],
-      "snippet": "return false;",
-      "lineHint": 57,
-      "kind": "equivalent",
-      "reason": "syncLocaleSafely's return value is discarded at both call sites. Hand-applied; green."
-    },
-    {
-      "package": "packages/next",
-      "file": "src/client/I18nProvider.tsx",
-      "mutators": ["BooleanLiteral"],
-      "snippet": "return true;",
-      "lineHint": 62,
-      "kind": "equivalent",
-      "reason": "same discarded return value. Hand-applied; green."
-    },
-    {
-      "package": "packages/next",
       "file": "src/server/cache.ts",
       "mutators": ["ObjectLiteral"],
       "snippet": "(): RequestStore => ({",
