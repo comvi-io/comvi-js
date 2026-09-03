@@ -1,5 +1,5 @@
 import { warn } from "../../logger";
-import { TK_TEXT, type ParsedToken } from "./cache";
+import { TK_HASH, TK_TEXT, type ParsedToken } from "./cache";
 import type { MessageCompiler, SyntaxExtension } from "./syntax";
 
 declare const __DEV__: boolean | undefined;
@@ -200,6 +200,15 @@ export function parseTemplate(
         if (IS_DEV && code === LESS_THAN) warnUnclaimedTag(template, i, len);
         i++;
       }
+    } else if (code === HASH && hashIsSyntax && !isQuoted) {
+      // A `#` bound to the enclosing plural's count. It becomes a token rather
+      // than being substituted into the branch text before the parse, so one
+      // cache entry serves every count. A quoted `'#'` never reaches here:
+      // `isQuoteStart` claims it above and `isQuoted` is set.
+      if (i > lastIndex) tokens.push([TK_TEXT, template.slice(lastIndex, i)]);
+      tokens.push([TK_HASH]);
+      i++;
+      lastIndex = i;
     } else if (code === OPEN_BRACE && !isQuoted) {
       if (i > lastIndex) tokens.push([TK_TEXT, template.slice(lastIndex, i)]);
       const tokenResult = extractToken(template, i, hashIsSyntax, compiler);

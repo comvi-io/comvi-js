@@ -263,17 +263,28 @@ function processPlural(
     selected = choices[category] ?? choices.other ?? "";
   }
 
-  selected = replaceTopLevelHash(selected, String(count));
+  const replacement = String(count);
 
   if (
     selected.indexOf("{") !== -1 ||
     selected.indexOf("<") !== -1 ||
     selected.indexOf("'") !== -1
   ) {
-    return translateSegment(selected, ctx, true);
+    // The branch goes to the parser UNCHANGED, so its cache entry is shared by
+    // every count; `#` arrives as a token the renderer resolves against
+    // `ctx.hash`. `translateSegment` reuses this ctx, so the previous count is
+    // restored — an inner plural must not clobber the count an outer `#` after
+    // it still resolves against.
+    const prev = ctx.hash;
+    ctx.hash = replacement;
+    const result = translateSegment(selected, ctx, true);
+    ctx.hash = prev;
+    return result;
   }
 
-  return selected;
+  // Text-only branch — the hottest plural shape ("# items"). No parse, no cache
+  // entry, so substituting into the text costs nothing and saves the token pass.
+  return replaceTopLevelHash(selected, replacement);
 }
 
 /** Choices are `male {He} female {She} other {They}`; the param value matches a key directly. */
@@ -288,8 +299,15 @@ function processSelect(
 
   const selected = choices[value] ?? choices.other ?? "";
 
-  // A chosen branch may itself contain ICU params, tags or quoting.
-  if (selected.includes("{") || selected.includes("<") || selected.includes("'")) {
+  // A chosen branch may itself contain ICU params, tags or quoting — and,
+  // inside a plural sub-message, a `#` that belongs to the enclosing plural.
+  // A select never rebinds `#`, so `ctx.hash` carries straight through.
+  if (
+    selected.includes("{") ||
+    selected.includes("<") ||
+    selected.includes("'") ||
+    (hashIsSyntax && selected.includes("#"))
+  ) {
     return translateSegment(selected, ctx, hashIsSyntax);
   }
 

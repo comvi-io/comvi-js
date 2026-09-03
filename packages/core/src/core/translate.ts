@@ -3,10 +3,12 @@ import type { VirtualNode } from "../virtualNode";
 import { warn } from "../logger";
 import { isPrimitive, isVNodeLoose } from "./translate/params";
 import {
+  TK_HASH,
   TK_PARAM,
   TK_PLURAL,
   TK_SELECT,
   TK_TEXT,
+  TF_HAS_HASH,
   TF_HAS_PLURAL,
   TF_HAS_SELECT,
   TF_HAS_TAGS,
@@ -16,6 +18,7 @@ import {
   type ParsedToken,
   type PluralToken,
   type SelectToken,
+  type TextToken,
   type CachedTemplate,
 } from "./translate/cache";
 import { parseTemplate } from "./translate/parser";
@@ -127,6 +130,13 @@ function createCachedTemplate(
       } else if (kind === TK_SELECT) {
         flags |= TF_HAS_SELECT;
         hasDynamic = true;
+      } else if (kind === TK_HASH) {
+        // Its own flag, not TF_HAS_TAGS: a `#` renders to a string, so a
+        // hash-only branch must not be pushed onto the vnode path. The flag
+        // still has to be set, or the branch would be classified
+        // TF_SIMPLE_PARAMS and rendered by a fast path that knows no `#`.
+        flags |= TF_HAS_HASH;
+        hasDynamic = true;
       } else if (kind !== TK_TEXT) {
         flags |= TF_HAS_TAGS;
         hasDynamic = true;
@@ -141,9 +151,12 @@ function createCachedTemplate(
   // mean "rendered output is byte-equal to the template". Quoting and escape
   // sequences ('', '{...}', &lt;, \<) produce text-only tokens whose output
   // differs from the raw template; those must keep rendering through tokens.
+  // `flags === TF_STATIC` with one token means that token is TK_TEXT — every
+  // other kind sets a flag or `hasDynamic` above — which is what the cast
+  // asserts; a nullary TK_HASH token would read `undefined` and stay non-static.
   const isStatic =
     flags === TF_STATIC &&
-    (tokens.length === 0 || (tokens.length === 1 && tokens[0][1] === template));
+    (tokens.length === 0 || (tokens.length === 1 && (tokens[0] as TextToken)[1] === template));
   const cached: CachedTemplate = { tokens, flags, isStatic };
 
   if (
@@ -221,6 +234,7 @@ function makeCtx(
     extBits: effectiveExtBits(perCall),
     missingParam,
     pluralRules: undefined,
+    hash: undefined,
   };
 }
 
@@ -467,6 +481,13 @@ export function processTokens(
       if (value !== undefined || ctx.missingParam === "literal") {
         appendParamValue(parts, value, token[1], ctx);
       }
+      continue;
+    }
+
+    if (kind === TK_HASH) {
+      // Only the parser produces this token, and only under `hashIsSyntax`,
+      // which only `processPlural` turns on — after setting `ctx.hash`.
+      appendString(parts, ctx.hash!);
       continue;
     }
 
