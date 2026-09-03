@@ -189,6 +189,8 @@ export function buildLegacyApiExportUrl(
   namespaces: string[],
   customApiBaseUrl?: string,
 ): string {
+  validateId(locale, "locale");
+  for (const ns of namespaces) validateId(ns, "namespace");
   const params = new URLSearchParams();
   params.set("locales", locale);
   params.set("namespaces", namespaces.join(","));
