@@ -13,3 +13,5 @@ produces two files that differ only in key order.
 
 A parameter whose type is neither `string` nor `number` is rejected with an error naming the
 key, the parameter and the type, instead of being pasted verbatim into the declarations.
+`vite build` fails on it; the dev server logs it and keeps the previous `.d.ts` rather than
+stopping.

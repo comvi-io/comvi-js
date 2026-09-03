@@ -116,7 +116,7 @@ export class TypeGenerator {
         // Count keys in current file (simple heuristic: count lines with type
         // definitions). Both quote styles count: this CLI emits JSON-quoted keys,
         // and a file left by an older CLI is single-quoted.
-        const keyMatches = currentTypes.match(/^\s+(?:'[^']+'|"(?:[^"\\]|\\.)+"):.*$/gm);
+        const keyMatches = currentTypes.match(/^\s+(?:'[^']*'|"(?:[^"\\]|\\.)*"):.*$/gm);
         currentKeyCount = keyMatches?.length ?? 0;
       } catch {
         // File doesn't exist

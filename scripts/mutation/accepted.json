@@ -7449,7 +7449,7 @@
       "package": "packages/cli",
       "file": "src/core/TypeGenerator.ts",
       "mutators": ["Regex"],
-      "snippet": "const keyMatches = currentTypes.match(/^\\s+(?:'[^']+'|\"(?:[^\"\\\\]|\\\\.)+\"):.*$/gm);",
+      "snippet": "const keyMatches = currentTypes.match(/^\\s+(?:'[^']*'|\"(?:[^\"\\\\]|\\\\.)*\"):.*$/gm);",
       "lineHint": 119,
       "kind": "equivalent",
       "reason": "dropping the trailing $ is a no-op: `.` never matches newline, so `.*` already stops at end-of-line; the ^-drop sibling at this line IS killed by a test (hand-applied: suite green)"

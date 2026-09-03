@@ -377,6 +377,29 @@ describe("TypeGenerator", () => {
       });
     });
 
+    it("counts an empty key", async () => {
+      await mockFileSystem.writeFile(
+        "src/types/i18n.d.ts",
+        [
+          "declare module '@comvi/core' {",
+          "  interface TranslationKeys {",
+          '    "": never;',
+          '    "common:welcome": never;',
+          "  }",
+          "}",
+        ].join("\n"),
+      );
+
+      const result = await generator.check();
+
+      expect(result).toEqual({
+        upToDate: false,
+        keysGenerated: 2,
+        currentKeys: 2,
+        filePath: "src/types/i18n.d.ts",
+      });
+    });
+
     it("counts the keys of a file left by an older, single-quoting CLI", async () => {
       await mockFileSystem.writeFile(
         "src/types/i18n.d.ts",
