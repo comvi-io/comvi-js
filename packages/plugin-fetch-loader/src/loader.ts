@@ -6,9 +6,8 @@ import {
   RequestAbortedError,
   buildCacheOptions,
   buildCdnUrl,
-  fetchWithTimeout,
+  fetchJsonWithTimeout,
   isAborted,
-  parseJsonResponse,
   toError,
 } from "./http";
 import { fetchApiTranslations } from "./cache";
@@ -277,14 +276,14 @@ export const FetchLoader: I18nPluginFactory<FetchLoaderOptions> = (options): I18
           const { signal, release } = trackRequest();
           const url = buildCdnUrl(cdnUrl, locale, namespace, defaultNs, cdnLayout);
           try {
-            const r = await fetchWithTimeout(
+            const result = await fetchJsonWithTimeout<Record<string, TranslationValue>>(
               url,
               { headers: { Accept: "application/json" }, signal, ...cacheOpts },
               timeout,
             );
-            if (!r.ok) throw new Error(`HTTP ${r.status}: ${r.statusText}`);
+            if (!result.ok) throw new Error(`HTTP ${result.status}: ${result.statusText}`);
 
-            const data = await parseJsonResponse<Record<string, TranslationValue>>(r, url);
+            const data = result.data;
             if (signal.aborted || stopped) throw new RequestAbortedError(url);
             reportSuccess(locale, namespace);
             return data;

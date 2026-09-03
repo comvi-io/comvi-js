@@ -31,13 +31,36 @@ export class RequestAbortedError extends Error {
 export const isAborted = (error: unknown): boolean =>
   error instanceof Error && error.name === "AbortError";
 
-/** Fetch with timeout, external cancellation, and SSR cache support */
-export async function fetchWithTimeout(
+/** An Error the retry policy can tell apart from a transport failure. */
+const named = (name: string, message: string): Error => {
+  const error = new Error(message);
+  error.name = name;
+  return error;
+};
+
+export const isTimeout = (error: unknown): boolean =>
+  error instanceof Error && error.name === "TimeoutError";
+
+/** What a JSON request came back with: the parsed body, or why it was refused. */
+export type JsonResult<T> =
+  | { ok: true; data: T }
+  | { ok: false; status: number; statusText: string; retryAfter: string | null };
+
+/**
+ * Fetch and parse JSON under ONE timeout, with external cancellation and SSR
+ * cache support.
+ *
+ * The controller stays armed until the body has been read, so a server that
+ * sends headers and then stalls fails the same way a stalled connection does.
+ * The body read is raced against the signal because a transport is free to hand
+ * back a body promise that ignores it.
+ */
+export async function fetchJsonWithTimeout<T>(
   url: string,
   options: ExtendedFetchOptions,
   timeoutMs: number,
   fetchFn: typeof fetch = fetch,
-): Promise<Response> {
+): Promise<JsonResult<T>> {
   const controller = new AbortController();
   const externalSignal = options.signal;
   const abortFromExternal = () => controller.abort(externalSignal?.reason);
@@ -52,11 +75,19 @@ export async function fetchWithTimeout(
     controller.abort();
   }, timeoutMs);
   try {
-    const r = await fetchFn(url, { ...options, signal: controller.signal } as RequestInit);
-    return r;
+    const response = await fetchFn(url, { ...options, signal: controller.signal } as RequestInit);
+    if (!response.ok) {
+      return {
+        ok: false,
+        status: response.status,
+        statusText: response.statusText,
+        retryAfter: response.headers.get("Retry-After"),
+      };
+    }
+    return { ok: true, data: await raceAbort(parseJson<T>(response, url), controller.signal) };
   } catch (e) {
     if (timedOut && e instanceof Error && e.name === "AbortError")
-      throw new Error(`Request timeout after ${timeoutMs}ms`);
+      throw named("TimeoutError", `Request timeout after ${timeoutMs}ms`);
     if (externalSignal?.aborted) throw new RequestAbortedError(url);
     throw e;
   } finally {
@@ -65,12 +96,25 @@ export async function fetchWithTimeout(
   }
 }
 
-export async function parseJsonResponse<T>(response: Response, url: string): Promise<T> {
+async function parseJson<T>(response: Response, url: string): Promise<T> {
   try {
     return (await response.json()) as T;
-  } catch {
+  } catch (error) {
+    if (isAborted(error)) throw error;
     throw new Error(`[FetchLoader] Invalid JSON response from ${url}`);
   }
+}
+
+/** Loses to `signal`, so a body read that ignores it cannot outlive the timeout. */
+function raceAbort<T>(work: Promise<T>, signal: AbortSignal): Promise<T> {
+  return Promise.race([
+    work,
+    new Promise<never>((_, reject) => {
+      const fail = () => reject(named("AbortError", "The operation was aborted."));
+      if (signal.aborted) fail();
+      else signal.addEventListener("abort", fail, { once: true });
+    }),
+  ]);
 }
 
 export const stripSlash = (url: string) => url.replace(/\/$/, "");
