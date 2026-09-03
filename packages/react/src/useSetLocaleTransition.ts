@@ -27,6 +27,9 @@ export function useSetLocaleTransition(): UseSetLocaleTransitionReturn {
   const { i18n } = useI18nInstance();
   const [isTransitionPending, startTransition] = useTransition();
   const [isAsyncPending, setIsAsyncPending] = useState(false);
+  // Starts true, not false: layout effects run BEFORE this hook's passive
+  // mount effect, so a consumer calling `setLocale` from one on mount would
+  // otherwise be told the component is gone and never see `isPending`.
   const mountedRef = useRef(true);
   const pendingCountRef = useRef(0);
 

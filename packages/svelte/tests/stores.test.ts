@@ -340,6 +340,25 @@ describe("Svelte cacheRevision store excludes the locale and loading axes", () =
     unsubscribe();
   });
 
+  // The counter is per-subscription-cycle: `readable`'s stored value survives
+  // the last unsubscribe, but the local `revision` restarts at 0, so without
+  // the explicit reset a resubscriber would see a stale high value and then a
+  // LOWER one on the next bump.
+  it("resets to 0 when a new subscription cycle starts", () => {
+    const cacheRevision = createCacheRevisionStore(fake.asI18n());
+    const first: number[] = [];
+    const unsubscribeFirst = cacheRevision.subscribe((v) => first.push(v));
+    fake.addTranslations({ en: { welcome: "Welcome" } });
+    expect(first.at(-1)!).toBeGreaterThan(0);
+    unsubscribeFirst();
+
+    const second: number[] = [];
+    const unsubscribeSecond = cacheRevision.subscribe((v) => second.push(v));
+
+    expect(second[0]).toBe(0);
+    unsubscribeSecond();
+  });
+
   it("still bumps on a cache change", () => {
     const cacheRevision = createCacheRevisionStore(fake.asI18n());
     const values: number[] = [];
