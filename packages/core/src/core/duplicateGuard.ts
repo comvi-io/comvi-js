@@ -16,26 +16,30 @@
 // import, then this module. A bare `import "./duplicateGuard"` was tried and
 // the build tree-shook it away — the guard reached no dist chunk at all.
 //
-// A SEPARATE MODULE on purpose. The tests must be able to reach the guard
-// without re-importing `core/i18n`: re-evaluating the host's static graph
-// inside a running test pulls every module-level initializer in it out of
-// Stryker's `Ignored` bucket and reports it as a survivor (`ignoreStatic: true`
-// runs such a "hybrid" mutant against its covering tests only, and a test that
-// watches `console.warn` cannot kill one). That cost 49 phantom survivors
-// across the package when the guard lived in `i18n.ts`.
+// A SEPARATE MODULE on purpose, and its tests call the function rather than
+// importing anything dynamically. FIRST evaluating a module inside a running
+// test — with `vi.resetModules()`, or with an `await import()` of something the
+// test file does not already import statically — gives every module-level
+// initializer in that graph per-test coverage. Under `ignoreStatic: true` such
+// a mutant stops being `Ignored` and is run against those covering tests only,
+// where a test watching `console.warn` cannot kill it, so it reports
+// `Survived`. That cost 49 phantom survivors across the package when the guard
+// lived in `i18n.ts` and its tests re-imported the host.
 import { warn } from "../logger";
-
-declare const __VERSION__: string | undefined;
 
 const VERSION_KEY = Symbol.for("comvi.core.version");
 
 /**
- * Claim the version slot for this copy of core, or warn that another copy
- * already holds it. Called once per evaluation of the host module.
+ * @internal Claim the shared slot for this copy of core, or warn that another
+ * copy already holds it. `core/i18n.ts` calls this once at module scope, with
+ * its own build's version.
+ *
+ * Takes the version rather than reading `__VERSION__` itself so a test can
+ * drive it with two explicit versions — no build define, no module reset, and
+ * nothing re-evaluated inside a running test.
  */
-export function assertSingleCopy(): void {
+export function claimCoreInstance(version: string): void {
   const slot = globalThis as unknown as Record<symbol, unknown>;
-  const version = typeof __VERSION__ !== "undefined" ? __VERSION__ : "";
   const loaded = slot[VERSION_KEY];
   if (loaded === undefined) slot[VERSION_KEY] = version;
   else if (loaded !== version)

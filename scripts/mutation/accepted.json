@@ -7953,12 +7953,12 @@
     },
     {
       "package": "packages/core",
-      "file": "src/core/duplicateGuard.ts",
-      "mutators": ["ConditionalExpression", "StringLiteral"],
-      "snippet": "const version = typeof __VERSION__ !== \"undefined\" ? __VERSION__ : \"\";",
-      "lineHint": 38,
+      "file": "src/core/i18n.ts",
+      "mutators": ["StringLiteral"],
+      "snippet": "if (IS_DEV) claimCoreInstance(typeof __VERSION__ !== \"undefined\" ? __VERSION__ : \"\");",
+      "lineHint": 68,
       "kind": "equivalent",
-      "reason": "the same shape, and the same argument, as the `const VERSION` entry for src/core/devtools.ts: vitest defines `__VERSION__` from package.json, so the `\"\"` fallback (for a consumer bundling the source without the define) is never taken, and forcing the guard true or widening the `typeof` comparison leaves the same value. Hand-applied all three: the duplicate-core suites stay green."
+      "reason": "the `\"\"` fallback is unreachable in this build, exactly like the `const VERSION` entry for src/core/devtools.ts: vitest defines `__VERSION__` from package.json, so the arm that covers a consumer bundling the source without the define is never taken. The wiring test pins the other arm — it asserts the slot holds package.json's version after importing the host, and passing `\"\"` there instead turns it red."
     }
   ]
 }

@@ -5,19 +5,17 @@
  * feature that "sometimes does not work", so the guard says so once, in
  * development only.
  *
- * The guard is keyed on the version, so a second evaluation of the SAME copy —
- * what `vi.resetModules()` and a dev server's module graph do routinely — is
- * not a duplicate and says nothing.
+ * The guard is keyed on the version, so a second copy at the SAME version — and
+ * a dev server re-running one module graph — is not reported.
  *
- * The guard is called directly here, never reached by re-importing the host:
- * re-evaluating core's static graph inside a running test is a measurement
- * hazard (see the module's own note), and the guard keeps no module state, so
- * calling it twice is exactly what loading it twice does.
+ * `claimCoreInstance` is called directly with explicit versions. Nothing here
+ * imports the host, resets the module registry, or uses a dynamic `import()`:
+ * first-evaluating a module inside a running test is a measurement hazard (see
+ * the guard module's own note), and the function keeps no module state, so
+ * calling it twice is exactly what loading two copies does.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { assertSingleCopy } from "../../src/core/duplicateGuard";
-// The same source vitest.config.ts folds into `__VERSION__`.
-import pkg from "../../package.json";
+import { claimCoreInstance } from "../../src/core/duplicateGuard";
 
 const VERSION_KEY = Symbol.for("comvi.core.version");
 const globalSlot = globalThis as unknown as Record<symbol, unknown>;
@@ -31,50 +29,59 @@ describe("duplicate @comvi/core detection", () => {
     delete globalSlot[VERSION_KEY];
   });
 
-  it("claims the version slot for the first copy, and says nothing", () => {
+  it("claims the slot for the first copy, and says nothing", () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
 
-    assertSingleCopy();
+    claimCoreInstance("0.5.0");
 
-    expect(globalSlot[VERSION_KEY]).toBe(pkg.version);
+    expect(globalSlot[VERSION_KEY]).toBe("0.5.0");
     expect(warn).not.toHaveBeenCalled();
   });
 
-  it("stays silent when the same copy is loaded a second time", () => {
-    assertSingleCopy();
+  it("stays silent for a second copy at the same version", () => {
+    claimCoreInstance("0.5.0");
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
 
-    assertSingleCopy();
+    claimCoreInstance("0.5.0");
 
     expect(warn).not.toHaveBeenCalled();
   });
 
-  it("warns when a copy at another version already holds the slot", () => {
-    globalSlot[VERSION_KEY] = "0.0.0-other";
+  it("warns once when a copy at another version already holds the slot", () => {
+    claimCoreInstance("0.5.0");
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
 
-    assertSingleCopy();
+    claimCoreInstance("0.4.0");
 
     expect(warn).toHaveBeenCalledTimes(1);
   });
 
   it("leaves the first copy's version in the slot", () => {
-    globalSlot[VERSION_KEY] = "0.0.0-other";
+    claimCoreInstance("0.5.0");
     vi.spyOn(console, "warn").mockImplementation(() => {});
 
-    assertSingleCopy();
+    claimCoreInstance("0.4.0");
 
-    expect(globalSlot[VERSION_KEY]).toBe("0.0.0-other");
+    expect(globalSlot[VERSION_KEY]).toBe("0.5.0");
   });
 
   it("names both versions and the features a second copy does not share", () => {
-    globalSlot[VERSION_KEY] = "0.0.0-other";
+    claimCoreInstance("0.5.0");
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
 
-    assertSingleCopy();
+    claimCoreInstance("0.4.0");
 
     expect(warn.mock.calls[0]?.[0]).toBe(
-      `[i18n] Two copies of @comvi/core are loaded, 0.0.0-other and ${pkg.version}. Ambient tags (@comvi/core/tags), the window.__COMVI__ devtools handshake and the template cache belong to one copy each and will not be shared. Align the @comvi/core version your framework binding depends on with the one you installed directly.`,
+      "[i18n] Two copies of @comvi/core are loaded, 0.5.0 and 0.4.0. Ambient tags (@comvi/core/tags), the window.__COMVI__ devtools handshake and the template cache belong to one copy each and will not be shared. Align the @comvi/core version your framework binding depends on with the one you installed directly.",
     );
+  });
+
+  it("claims an empty version when the build defines none", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    claimCoreInstance("");
+
+    expect(globalSlot[VERSION_KEY]).toBe("");
+    expect(warn).not.toHaveBeenCalled();
   });
 });
