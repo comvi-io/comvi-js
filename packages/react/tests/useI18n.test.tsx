@@ -308,3 +308,43 @@ describe("useI18n", () => {
     );
   });
 });
+
+/**
+ * `t()` and the formatters resolve against the locale the tree is rendering in
+ * (the provider's, tracked through React), not the mutable instance locale.
+ * `hasTranslation` has to answer the same question, or a guard like
+ * `hasTranslation(k) ? t(k) : null` hides a string `t()` would have rendered.
+ * The server-render divergence is proved in `ssr.node.test.tsx`; this file
+ * pins the argument contract.
+ */
+describe("useI18n().hasTranslation locale", () => {
+  it("passes the render-time locale as the locale argument", () => {
+    const fake = new FakeI18n();
+    fake.language = "fr";
+
+    const { result } = renderHook(() => useI18n(), { wrapper: createWrapper(fake) });
+    result.current.hasTranslation("greeting");
+
+    expect(fake.hasTranslation).toHaveBeenCalledWith("greeting", "fr", undefined, undefined);
+  });
+
+  it("passes the namespace and checkFallbacks arguments through", () => {
+    const fake = new FakeI18n();
+    fake.language = "fr";
+
+    const { result } = renderHook(() => useI18n(), { wrapper: createWrapper(fake) });
+    result.current.hasTranslation("greeting", undefined, "admin", true);
+
+    expect(fake.hasTranslation).toHaveBeenCalledWith("greeting", "fr", "admin", true);
+  });
+
+  it("still honours an explicit locale argument", () => {
+    const fake = new FakeI18n();
+    fake.language = "fr";
+
+    const { result } = renderHook(() => useI18n(), { wrapper: createWrapper(fake) });
+    result.current.hasTranslation("greeting", "en");
+
+    expect(fake.hasTranslation).toHaveBeenCalledWith("greeting", "en", undefined, undefined);
+  });
+});

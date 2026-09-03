@@ -109,9 +109,20 @@ export function I18nProvider({
   // don't re-apply the same messages object.
   const lastAddedMessagesRef = useRef<MessagesMap | undefined>(undefined);
 
-  // Sync locale + messages before the first commit, on both server and client.
+  // Sync locale + messages before the first commit.
   useState(() => {
-    syncLocaleSafely(i18n, locale, routing);
+    // Client only. The App Router host lives at module scope and is shared by
+    // every concurrent request in the server process, so writing its locale
+    // during a server render leaks one request's locale into another's tree.
+    // The request locale reaches the tree through `ssrInitialLocale` below.
+    if (typeof window !== "undefined") {
+      syncLocaleSafely(i18n, locale, routing);
+    }
+    // `addTranslations` stays on the server: it is additive and keyed
+    // `locale:namespace`, so a concurrent request can only write what the other
+    // would have loaded anyway, and after the first add per key it is a no-op
+    // for the cache and for `getActiveNamespaces()`. The first add does emit
+    // `namespaceLoaded` — accepted.
     if (messages && messages !== lastAddedMessagesRef.current) {
       i18n.addTranslations(messages);
       lastAddedMessagesRef.current = messages;
@@ -129,6 +140,11 @@ export function I18nProvider({
     }
   }, [i18n, locale, messages, routing]);
 
+  // `autoInit` runs the React provider's `ensureInitialized` → `i18n.init()`,
+  // which loads the default namespace at the HOST's configured locale. Since
+  // the server render no longer writes that locale, it is now always the static
+  // default from `createNextI18n()` rather than whichever request rendered
+  // first, so the first-request race is gone by construction.
   const content = (
     <ReactI18nProvider
       i18n={i18n}

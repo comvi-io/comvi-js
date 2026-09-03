@@ -37,7 +37,7 @@ const recordLocaleWrites = (fake: FakeI18n): string[] => {
 };
 
 describe("Next <I18nProvider> instance sync", () => {
-  it("applies the server locale before the children render", () => {
+  it("applies the locale before the children render on the client", () => {
     const fake = new FakeI18n({ language: "en" });
     const LocaleAtRenderTime = () => <span data-testid="at-render">{fake.locale}</span>;
 

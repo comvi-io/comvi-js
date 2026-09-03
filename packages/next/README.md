@@ -122,7 +122,7 @@ The full setup also includes a `[locale]/layout.tsx` that imports the server reg
 
 **Routing components now use `useLocale()`** — `<Link>`, `usePathname()`, and `useLocalizedRouter()` internally switched to the new `useLocale()` hook in v0.3. No behavior change for consumers; routing continues to work identically. Under the hood, this means locale-aware routing skips re-renders on namespace loads and loading-state changes (measurement-confirmed P1 performance improvement).
 
-**Render-time mutation removed** — The internal `i18n.locale` assignment and `i18n.addTranslations()` calls that used to happen in `<I18nProvider>`'s render body have been moved into a `useState` initializer. This is a quality improvement (removes side effects from render) with no API change — `<I18nProvider>` props work identically.
+**Render-time mutation removed** — The internal `i18n.locale` assignment and `i18n.addTranslations()` calls that used to happen in `<I18nProvider>`'s render body have been moved into a `useState` initializer. The server render never writes the shared host's locale; the client applies it before its first commit. Your i18n instance lives at module scope and is shared by every concurrent request in a server process, so this is what keeps one request's locale out of another request's tree. No API change — `<I18nProvider>` props work identically, and the request locale still reaches every hook and `<T>` through the provider.
 
 ## Error Boundaries
 

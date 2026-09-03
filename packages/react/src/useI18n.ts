@@ -106,6 +106,10 @@ type Host = WrapperI18nHost;
  * are NOT here: they belong to capabilities a base host does not have, so
  * binding them eagerly would crash at bind time. `useI18nLoader()` /
  * `useI18nPlugins()` acquire them instead.
+ *
+ * `hasTranslation` is not here either: a raw bind resolves against the mutable
+ * instance locale, so it is wrapped below to default to the render-time locale
+ * like `t` does.
  */
 const BIND_METHODS = [
   "addTranslations",
@@ -113,7 +117,6 @@ const BIND_METHODS = [
   "setDefaultParams",
   "clearTranslations",
   "hasLocale",
-  "hasTranslation",
   "getLoadedLocales",
   "getActiveNamespaces",
   "getDefaultNamespace",
@@ -238,6 +241,16 @@ export function useI18n<D extends DefaultTranslationParams = {}>(ns?: string): U
     };
   }, [i18n]);
 
+  // Defaults to the render-time locale, like `t`. A raw bind would answer for
+  // `i18n.locale`, which under a server-rendered provider is the host's static
+  // configured locale rather than the one this tree is rendering.
+  const hasTranslation = useMemo(
+    () =>
+      ((key: string, loc: string = locale, ns?: string, checkFallbacks?: boolean) =>
+        i18n.hasTranslation(key, loc, ns, checkFallbacks)) as UseI18nReturn<D>["hasTranslation"],
+    [i18n, locale],
+  );
+
   const formatters = useMemo(
     () => ({
       formatNumber: (value: number, options?: Intl.NumberFormatOptions) =>
@@ -264,10 +277,12 @@ export function useI18n<D extends DefaultTranslationParams = {}>(ns?: string): U
     isInitializing,
     defaultParams: i18n.defaultParams as DefaultParamsSnapshot<D>,
     dir: getTextDirection(locale || i18n.locale),
+    hasTranslation,
     ...(boundMethods as Omit<
       UseI18nReturn<D>,
       | "t"
       | "tRaw"
+      | "hasTranslation"
       | "locale"
       | "translationCache"
       | "isLoading"
