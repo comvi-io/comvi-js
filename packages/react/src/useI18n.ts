@@ -215,8 +215,17 @@ export function useI18n<D extends DefaultTranslationParams = {}>(ns?: string): U
       key: string,
       params?: TranslationParams,
     ) => TranslationResult;
+    // ONE options object per render locale, reused by every no-params call:
+    // `t("row.label")` down a 1 000-row list allocated 1 000 of these. Frozen
+    // because it is now SHARED — a `postProcess` that wrote to its `params`
+    // argument would otherwise leak that write into every later call. Solid
+    // keeps core's no-params fast path for the same reason
+    // (`packages/solid/src/useI18n.ts`); react cannot drop the options
+    // entirely, because the locale it injects is the RENDER locale, which is
+    // not always the host's own.
+    const localeOnly = Object.freeze({ locale }) as TranslationParams;
     const wrapper = (key: string, params?: TranslationParams): TranslationResult =>
-      bound(key, { locale, ...params });
+      bound(key, params == null ? localeOnly : { locale, ...params });
     return wrapper as UseI18nReturn<D>["tRaw"];
   }, [i18n, ns, locale]);
 
