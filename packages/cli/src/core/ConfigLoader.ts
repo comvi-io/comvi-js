@@ -1,34 +1,49 @@
 import { promises as fs } from "fs";
-import { resolve } from "path";
+import { dirname, resolve } from "path";
 import { DEFAULT_FILE_TEMPLATE } from "../defaults";
 import type { ComviConfig, GeneratorOptions } from "../types";
 import { TypegenError, ErrorCodes } from "../utils/errors";
 import { atomicWriteFile } from "../utils/atomicWrite";
 
+/** The same project-root marker `EnvLoader` bounds its `.env` walk with. */
+const PROJECT_ROOT_MARKER = "package.json";
+
+async function fileExists(path: string): Promise<boolean> {
+  try {
+    await fs.access(path);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export class ConfigLoader {
   private static readonly CONFIG_FILENAME = ".comvirc.json";
 
+  /**
+   * Find the nearest `.comvirc.json` by walking up from `startDir`.
+   *
+   * Stops at:
+   * - the directory that contains the file (success);
+   * - the directory that contains `package.json` (project root — bound the walk);
+   * - the filesystem root (no config in this project tree).
+   *
+   * The project-root bound is the rule `EnvLoader` already applies to `.env`:
+   * do NOT cross into the parent of the project (CI shared dirs, $HOME), where
+   * an unrelated `.comvirc.json` would be adopted along with its `apiKey`.
+   */
   private static async findConfigFile(startDir: string = process.cwd()): Promise<string | null> {
-    let currentDir = resolve(startDir);
-    const root = resolve("/");
+    let dir = resolve(startDir);
 
-    while (currentDir !== root) {
-      const configPath = resolve(currentDir, this.CONFIG_FILENAME);
+    for (;;) {
+      const configPath = resolve(dir, this.CONFIG_FILENAME);
+      if (await fileExists(configPath)) return configPath;
 
-      try {
-        await fs.access(configPath);
-        return configPath;
-      } catch {
-        currentDir = resolve(currentDir, "..");
-      }
-    }
+      if (await fileExists(resolve(dir, PROJECT_ROOT_MARKER))) return null;
 
-    const rootConfigPath = resolve(root, this.CONFIG_FILENAME);
-    try {
-      await fs.access(rootConfigPath);
-      return rootConfigPath;
-    } catch {
-      return null;
+      const parent = dirname(dir);
+      if (parent === dir) return null; // filesystem root
+      dir = parent;
     }
   }
 

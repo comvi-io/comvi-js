@@ -48,7 +48,9 @@ describe("ConfigLoader", () => {
   };
 
   beforeEach(() => {
-    vi.clearAllMocks();
+    // Reset, not clear: a test that installs a path-aware `fs.access`
+    // implementation must not leak it into the next one.
+    vi.resetAllMocks();
     vi.stubEnv("COMVI_API_KEY", undefined);
     vi.stubEnv("COMVI_API_BASE_URL", undefined);
   });
@@ -134,7 +136,11 @@ describe("ConfigLoader", () => {
     });
 
     it("should auto-discover config file when no path provided", async () => {
-      mockAccess.mockRejectedValueOnce(new Error("Not found")).mockResolvedValueOnce(undefined);
+      mockAccess
+        // no .comvirc.json in cwd, and no package.json marking cwd as the root
+        .mockRejectedValueOnce(new Error("Not found"))
+        .mockRejectedValueOnce(new Error("Not found"))
+        .mockResolvedValueOnce(undefined);
       mockReadFile.mockResolvedValueOnce(JSON.stringify(mockConfig));
 
       const result = await ConfigLoader.load();
@@ -174,6 +180,18 @@ describe("ConfigLoader", () => {
       await expect(ConfigLoader.load("/project/.comvirc.json")).rejects.toThrow(
         "Invalid configuration",
       );
+    });
+
+    it("does not adopt a .comvirc.json above the project root", async () => {
+      const cwd = process.cwd();
+      mockAccess.mockImplementation(async (path) => {
+        if (String(path) === resolve(cwd, "package.json")) return undefined;
+        if (String(path) === resolve(cwd, "..", ".comvirc.json")) return undefined;
+        throw new Error("Not found");
+      });
+      mockReadFile.mockResolvedValue(JSON.stringify(mockConfig));
+
+      await expect(ConfigLoader.load()).rejects.toThrow("No .comvirc.json found");
     });
 
     it("falls back to a config file at the filesystem root", async () => {
