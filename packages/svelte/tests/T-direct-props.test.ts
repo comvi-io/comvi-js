@@ -4,8 +4,9 @@
  * params bag). Declared props keep their own meaning and never become params.
  */
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { mount, unmount } from "svelte";
+import { mount, tick, unmount } from "svelte";
 import TDirectPropsWrapper from "./TDirectProps.test.svelte";
+import TDirectPropsReactiveWrapper from "./TDirectPropsReactive.test.svelte";
 import { createI18n } from "../src/index";
 
 const makeI18n = (translation: Record<string, Record<string, string>>) =>
@@ -93,6 +94,17 @@ describe("T.svelte direct-prop params", () => {
     });
 
     expect(rendered()).toBe("Français Ada");
+  });
+
+  it("direct prop whose value changes → re-renders with the new value", async () => {
+    const i18n = makeI18n({ en: { greet: "Hello {name}" } });
+    component = mount(TDirectPropsReactiveWrapper, { target, props: { i18n } });
+    const rename = target.querySelector<HTMLButtonElement>('[data-testid="rename"]');
+
+    rename?.click();
+    await tick();
+
+    expect(target.querySelector('[data-testid="t-reactive"]')?.textContent).toBe("Hello Bo");
   });
 
   it("no direct props → `params` alone is interpolated", () => {

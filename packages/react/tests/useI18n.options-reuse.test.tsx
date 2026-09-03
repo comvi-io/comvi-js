@@ -10,6 +10,8 @@ import type { ReactNode } from "react";
 import { I18nProvider } from "../src/I18nProvider";
 import { useI18n } from "../src/useI18n";
 import { FakeI18n } from "@comvi/test-utils/fakeI18n";
+import { createI18n } from "../src/index";
+import type { ErrorReportContext } from "@comvi/core";
 import { setLocale } from "./test-utils";
 
 const createWrapper = (fake: FakeI18n) => {
@@ -69,6 +71,50 @@ describe("useI18n t() options object", () => {
     result.current.t("greeting" as never, { name: "Ada" } as never);
 
     expect(optionsOf(fake, 1)).not.toBe(optionsOf(fake, 0));
+  });
+
+  it("a namespaced hook → the host receives a fresh options object per call", () => {
+    const fake = new FakeI18n({ language: "en", defaultNamespace: "common" });
+    const { result } = renderHook(() => useI18n("forms"), { wrapper: createWrapper(fake) });
+
+    result.current.t("greeting" as never);
+    result.current.t("farewell" as never);
+
+    expect(optionsOf(fake, 1)).not.toBe(optionsOf(fake, 0));
+  });
+
+  it("a namespaced hook → the options carry the bound namespace beside the locale", () => {
+    const fake = new FakeI18n({ language: "en", defaultNamespace: "common" });
+    const { result } = renderHook(() => useI18n("forms"), { wrapper: createWrapper(fake) });
+
+    result.current.t("greeting" as never);
+
+    expect(optionsOf(fake, 0)).toEqual({ ns: "forms", locale: "en" });
+  });
+
+  it("a postProcess writing to its params argument → reported, and the render survives", () => {
+    const sources: Array<string | undefined> = [];
+    const i18n = createI18n({
+      locale: "en",
+      exposeGlobal: false,
+      translation: { en: { greeting: "Hello" } },
+      postProcess: (translationResult, _key, _ns, params) => {
+        (params as Record<string, unknown>).touched = true;
+        return translationResult;
+      },
+      onError: (_error: Error, context?: ErrorReportContext) => sources.push(context?.source),
+    });
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <I18nProvider i18n={i18n} autoInit={false}>
+        {children}
+      </I18nProvider>
+    );
+    const { result } = renderHook(() => useI18n(), { wrapper });
+
+    const rendered = result.current.t("greeting" as never);
+
+    expect(rendered).toBe("Hello");
+    expect(sources).toEqual(["post-processor"]);
   });
 
   it("the locale changes → the reused options carry the new locale", async () => {

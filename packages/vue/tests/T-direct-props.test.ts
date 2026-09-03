@@ -87,6 +87,31 @@ describe("<T /> direct-prop params", () => {
     expect(wrapper.text()).toBe("Français Ada");
   });
 
+  it("`class` and `style` → interpolated as params, never written to the markup", () => {
+    const i18n = createI18n({
+      locale: "en",
+      exposeGlobal: false,
+      translation: { en: { probe: "C=[{class}] S=[{style}]" } },
+    });
+
+    const wrapper = mountT(i18n, { i18nKey: "probe", class: "danger", style: "color: red" });
+
+    expect(wrapper.text()).toBe("C=[danger] S=[color: red]");
+    expect(wrapper.html()).not.toContain("class=");
+  });
+
+  it("an undeclared kebab-case attribute → the param keeps the kebab-case name", () => {
+    const i18n = createI18n({
+      locale: "en",
+      exposeGlobal: false,
+      translation: { en: { probe: "kebab=[{max-count}] camel=[{maxCount}]" } },
+    });
+
+    const wrapper = mountT(i18n, { i18nKey: "probe", "max-count": 3 });
+
+    expect(wrapper.text()).toBe("kebab=[3] camel=[{maxCount}]");
+  });
+
   it("no direct props → the `params` object is passed through untouched", () => {
     const i18n = createI18n({
       locale: "en",
