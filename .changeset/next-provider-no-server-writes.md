@@ -16,6 +16,9 @@ The locale assignment now happens on the client only, before the first commit. O
 request locale reaches the tree through React context, exactly as it already did for `t()`,
 `<T>` and the formatters, so nothing about the rendered output changes for a single request.
 
+Validation of `routing.locales` still runs on the server, so a `[locale]` segment your routing
+config does not know about still reaches `onError` during SSR rather than waiting for a browser.
+
 `addTranslations()` still runs on the server. It is additive and keyed by `locale:namespace`, so a
 concurrent request can only write what the other would have loaded anyway.
 

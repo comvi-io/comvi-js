@@ -41,8 +41,13 @@ export interface I18nProviderProps extends Omit<ReactI18nProviderProps, "ssrInit
 /**
  * Reports through `i18n.reportError` on misconfiguration so devs get a
  * meaningful diagnostic instead of a silent fallback.
+ *
+ * Deliberately NOT behind the `typeof window` guard the assignment sits behind:
+ * a `[locale]` segment outside `routing.locales` is a server-side routing
+ * mistake, and it should reach `onError` where the server logs are rather than
+ * waiting for a browser to hydrate.
  */
-function syncLocaleSafely(
+function validateLocale(
   i18n: import("@comvi/core").WrapperI18nHost,
   locale: string,
   routing: RoutingConfig | undefined,
@@ -56,10 +61,17 @@ function syncLocaleSafely(
     );
     return false;
   }
+  return true;
+}
+
+/**
+ * The ONE place `i18n.locale` is assigned. Callers gate it on
+ * `validateLocale` and on being off the server — see the call sites.
+ */
+function applyLocale(i18n: import("@comvi/core").WrapperI18nHost, locale: string): void {
   if (i18n.locale !== locale) {
     i18n.locale = locale;
   }
-  return true;
 }
 
 /**
@@ -138,12 +150,14 @@ export function I18nProvider({
 
   // Sync locale + messages before the first commit.
   useState(() => {
-    // Client only. The App Router host lives at module scope and is shared by
-    // every concurrent request in the server process, so writing its locale
-    // during a server render leaks one request's locale into another's tree.
-    // The request locale reaches the tree through `ssrInitialLocale` below.
-    if (typeof window !== "undefined") {
-      syncLocaleSafely(i18n, locale, routing);
+    // Validation runs on both sides so a misrouted locale is still reported
+    // during SSR; only the WRITE is client-only. The App Router host lives at
+    // module scope and is shared by every concurrent request in the server
+    // process, so writing its locale during a server render leaks one
+    // request's locale into another's tree. The request locale reaches the
+    // tree through `ssrInitialLocale` below.
+    if (validateLocale(i18n, locale, routing) && typeof window !== "undefined") {
+      applyLocale(i18n, locale);
     }
     // `addTranslations` stays on the server: it is additive and keyed
     // `locale:namespace`, so a concurrent request can only write what the other
@@ -157,9 +171,12 @@ export function I18nProvider({
     return null;
   });
 
-  // Subsequent renders (client navigation, HMR, prop updates).
+  // Subsequent renders (client navigation, HMR, prop updates). Effects never
+  // run during a server render, so no guard is needed here.
   useIsomorphicLayoutEffect(() => {
-    syncLocaleSafely(i18n, locale, routing);
+    if (validateLocale(i18n, locale, routing)) {
+      applyLocale(i18n, locale);
+    }
 
     if (messages && messages !== lastAddedMessagesRef.current) {
       i18n.addTranslations(messages);

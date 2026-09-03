@@ -1,6 +1,6 @@
 /**
  * Includes a source boundary: no instance-locale mutation outside
- * `syncLocaleSafely` in `next/client/I18nProvider.tsx`, so a future refactor
+ * `applyLocale` in `next/client/I18nProvider.tsx`, so a future refactor
  * that reintroduces render-time mutation fails here.
  */
 
@@ -172,20 +172,20 @@ describe("Next <I18nProvider> SSR + hydration", () => {
   });
 
   describe("Architectural boundary — no render-time i18n.locale mutation", () => {
-    it("`i18n.locale =` only appears inside the syncLocaleSafely helper", () => {
+    it("`i18n.locale =` only appears inside the applyLocale helper", () => {
       const source = readFileSync(resolve(__dirname, "../src/client/I18nProvider.tsx"), "utf8");
 
-      // syncLocaleSafely is the one place this mutation is allowed to live.
-      // The strip is coupled to that helper's NAME and to its closing brace
+      // applyLocale is the one place this mutation is allowed to live. The
+      // strip is coupled to that helper's NAME and to its closing brace
       // sitting at column 0: renaming or reformatting it fails this test with a
       // mismatch on the raw source rather than an explanation.
       const stripped = source.replace(
-        /function syncLocaleSafely[\s\S]*?\n\}/m,
-        "/* syncLocaleSafely stripped for boundary check */",
+        /function applyLocale[\s\S]*?\n\}/m,
+        "/* applyLocale stripped for boundary check */",
       );
 
       expect(stripped).not.toMatch(/i18n\.locale\s*=\s*[^=]/);
-      expect(stripped).toContain("syncLocaleSafely stripped for boundary check");
+      expect(stripped).toContain("applyLocale stripped for boundary check");
     });
   });
 });

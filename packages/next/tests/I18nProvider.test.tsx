@@ -30,7 +30,7 @@ describe("Next <I18nProvider> locale validation", () => {
     );
 
     expect(fake.language).toBe("en");
-    // syncLocaleSafely runs both during the first render and again in
+    // The locale sync runs both during the first render and again in
     // useLayoutEffect, so the count is >= 1, not exactly 1.
     expect(fake.reportError).toHaveBeenCalledWith(
       expect.objectContaining({

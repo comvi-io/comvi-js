@@ -152,3 +152,55 @@ describe("Next <I18nProvider> server render does not write the shared host", () 
     expect(i18n.locale).toBe("en");
   });
 });
+
+/**
+ * A `[locale]` segment outside `routing.locales` is a SERVER-side routing
+ * mistake. The diagnostic has to reach `onError` during the server render,
+ * where the server logs are — waiting for a browser to hydrate hides it from
+ * exactly the person who can fix it. Only the locale WRITE is client-only.
+ */
+describe("Next <I18nProvider> reports a misrouted locale during a server render", () => {
+  it("reports the misconfiguration without writing the shared host", () => {
+    const fake = new FakeI18n({ language: "en" });
+    const writes = recordLocaleWrites(fake);
+
+    renderToString(
+      <I18nProvider
+        i18n={fake.asI18n()}
+        locale="zz"
+        routing={{ locales: ["en", "fr", "de"], defaultLocale: "en" }}
+        autoInit={false}
+      >
+        <div />
+      </I18nProvider>,
+    );
+
+    expect(fake.reportError).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message:
+          '[next-i18n-provider] Locale "zz" is not in routing.locales (en, fr, de). Skipping locale sync.',
+      }),
+      { source: "init", locale: "zz" },
+    );
+    expect(writes).toEqual([]);
+  });
+
+  it("stays silent during a server render when the locale is routable", () => {
+    const fake = new FakeI18n({ language: "en" });
+    const writes = recordLocaleWrites(fake);
+
+    renderToString(
+      <I18nProvider
+        i18n={fake.asI18n()}
+        locale="fr"
+        routing={{ locales: ["en", "fr", "de"], defaultLocale: "en" }}
+        autoInit={false}
+      >
+        <div />
+      </I18nProvider>,
+    );
+
+    expect(fake.reportError).not.toHaveBeenCalled();
+    expect(writes).toEqual([]);
+  });
+});
