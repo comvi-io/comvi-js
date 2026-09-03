@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, renderHook, act, waitFor } from "@testing-library/react";
-import type { ReactNode } from "react";
+import { StrictMode, useLayoutEffect, type ReactNode } from "react";
 import { I18nProvider } from "../src/I18nProvider";
 import { useSetLocaleTransition } from "../src/useSetLocaleTransition";
 import { FakeI18n } from "@comvi/test-utils/fakeI18n";
@@ -205,6 +205,112 @@ describe("useSetLocaleTransition", () => {
 
     expect(second.setLocaleAsync).toHaveBeenCalledWith("fr");
     expect(first.setLocaleAsync).not.toHaveBeenCalled();
+  });
+
+  // StrictMode mounts, tears down and remounts every effect. The unmount guard
+  // has to come back up on the second mount, or the hook spends the rest of the
+  // session believing the component is gone and never reports pending again.
+  it("reports isPending under StrictMode, whose double-mount runs the cleanup", async () => {
+    const fake = new FakeI18n();
+    const deferred = createDeferred<void>();
+    fake.setLocaleAsync.mockImplementation(() => deferred.promise);
+
+    // `render`, not `renderHook`: only a real element tree gets StrictMode's
+    // mount -> cleanup -> mount effect sequence.
+    let api!: ReturnType<typeof useSetLocaleTransition>;
+    const Probe = () => {
+      api = useSetLocaleTransition();
+      return <span>{String(api.isPending)}</span>;
+    };
+
+    render(
+      <StrictMode>
+        <I18nProvider i18n={fake.asI18n()} autoInit={false}>
+          <Probe />
+        </I18nProvider>
+      </StrictMode>,
+    );
+
+    expect(api.isPending).toBe(false);
+
+    await act(async () => {
+      api.setLocale("de");
+    });
+
+    expect(api.isPending).toBe(true);
+
+    await act(async () => {
+      deferred.resolve();
+      await deferred.promise;
+    });
+
+    await waitFor(() => {
+      expect(api.isPending).toBe(false);
+    });
+    expect(fake.setLocaleAsync).toHaveBeenCalledWith("de");
+  });
+
+  // REGRESSION GUARD (passes before and after): re-arming the mount flag on
+  // every effect run must not resurrect the real unmount case.
+  it("does not update state after a real unmount", async () => {
+    const fake = new FakeI18n();
+    const deferred = createDeferred<void>();
+    fake.setLocaleAsync.mockImplementation(() => deferred.promise);
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const { result, unmount } = renderHook(() => useSetLocaleTransition(), {
+      wrapper: createWrapper(fake),
+    });
+
+    await act(async () => {
+      result.current.setLocale("fr");
+    });
+
+    unmount();
+
+    await act(async () => {
+      deferred.resolve();
+      await deferred.promise;
+    });
+
+    expect(consoleError).not.toHaveBeenCalled();
+  });
+
+  // Layout effects run BEFORE this hook's own passive mount effect, so this is
+  // the earliest point a consumer can reach `setLocale` — and the only place
+  // the initial value of the mount flag is observable.
+  it("reports isPending for a setLocale issued from a mount layout effect", async () => {
+    const fake = new FakeI18n();
+    const deferred = createDeferred<void>();
+    fake.setLocaleAsync.mockImplementation(() => deferred.promise);
+
+    let api!: ReturnType<typeof useSetLocaleTransition>;
+    const Probe = () => {
+      api = useSetLocaleTransition();
+      useLayoutEffect(() => {
+        api.setLocale("fr");
+      }, []);
+      return <span>{String(api.isPending)}</span>;
+    };
+
+    await act(async () => {
+      render(
+        <I18nProvider i18n={fake.asI18n()} autoInit={false}>
+          <Probe />
+        </I18nProvider>,
+      );
+    });
+
+    expect(api.isPending).toBe(true);
+
+    await act(async () => {
+      deferred.resolve();
+      await deferred.promise;
+    });
+
+    await waitFor(() => {
+      expect(api.isPending).toBe(false);
+    });
   });
 
   it("setLocale reference is stable across re-renders", () => {

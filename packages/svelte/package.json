@@ -65,7 +65,7 @@
     "@comvi/core": "workspace:*"
   },
   "peerDependencies": {
-    "svelte": "^5.0.0"
+    "svelte": "^5.3.0"
   },
   "devDependencies": {
     "@arethetypeswrong/cli": "latest",
