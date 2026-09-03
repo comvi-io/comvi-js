@@ -28,10 +28,10 @@
 
 ## About Comvi i18n
 
-Comvi i18n is a modern, framework-agnostic internationalization library — ICU MessageFormat, rich-text component embedding, and locale-aware `Intl` formatters in **~5 kB minified + gzipped for the base host, ~8.6 kB with every capability composed (as bundled by your app)** with **zero runtime dependencies** and **no `eval`** (CSP-safe for Chrome extensions, Cloudflare Workers, and locked-down enterprise apps).
+Comvi i18n is a modern, framework-agnostic internationalization library — ICU MessageFormat, rich-text component embedding, and locale-aware `Intl` formatters in **~5 kB minified + gzipped for the base host, ~8.5 kB with every capability composed (as bundled by your app)** with **zero runtime dependencies** and **no `eval`** (CSP-safe for Chrome extensions, Cloudflare Workers, and locked-down enterprise apps).
 
 - **Same API** across [Vue](https://www.npmjs.com/package/@comvi/vue), [React](https://www.npmjs.com/package/@comvi/react), [SolidJS](https://www.npmjs.com/package/@comvi/solid), [Svelte](https://www.npmjs.com/package/@comvi/svelte), [Next.js](https://www.npmjs.com/package/@comvi/next), and [Nuxt](https://www.npmjs.com/package/@comvi/nuxt).
-- **Real ICU MessageFormat** — locale-correct plurals, ordinals, and gender via `Intl.PluralRules`. Recognized by every major TMS. One explicit import: `compiler: icuCompiler` from `@comvi/core/icu`.
+- **ICU `plural`, `selectordinal` & `select`** — locale-correct plurals, ordinals, and gender via `Intl.PluralRules`. Recognized by every major TMS. One explicit import: `compiler: icuCompiler` from `@comvi/core/icu`. The `number` / `date` / `time` argument types and the plural `offset:` form are not implemented and are not planned — each one is an `E_ICU_SYNTAX` failure, never a wrong render.
 - **Type-safe translation keys** via TypeScript declaration merging — autocomplete and parameter validation everywhere.
 - **Pluggable** — translation loading, locale detection, and in-context editing are opt-in plugins.
 
@@ -56,14 +56,23 @@ npm install @comvi/plugin-fetch-loader
 
 ```ts
 import { createI18n } from "@comvi/core";
+import { icu } from "@comvi/core/icu";
 import { fetchLoader } from "@comvi/plugin-fetch-loader";
 
-const i18n = createI18n({ locale: "en" }).with(
-  fetchLoader({ cdnUrl: "https://cdn.comvi.io/your-distribution-id" }),
-);
+const i18n = createI18n({ locale: "en" })
+  .with(icu())
+  .with(fetchLoader({ cdnUrl: "https://cdn.comvi.io/your-distribution-id" }));
 
 await i18n.init();
 ```
+
+Compose `icu()` before the first catalog arrives, which is why it comes before
+the loader; drop it only if the project uses no plural/select. That is the
+library's only ordering rule — see
+[MIGRATION.md §0.1](../../MIGRATION.md#01-the-compiler-has-a-timing-rule).
+
+The distribution id in `cdnUrl` comes from the Comvi platform: open your project
+and read it off the **Distributions** page.
 
 ## Two ways in
 
