@@ -30,7 +30,7 @@ For Nuxt 3, use [`@comvi/nuxt`](../nuxt) — it adds SSR, locale routing, and au
 Comvi i18n is a modern, framework-agnostic internationalization library built on three principles: type-safe translations, real ICU MessageFormat, and zero compromises on bundle size or security.
 
 - **Rich text without XSS.** Embed components inside translation strings (`Click <link>here</link>`) — translators see clean markup, you decide what each tag renders to. No raw HTML, no unsafe DOM injection, no splitting a sentence across template fragments.
-- **Real ICU MessageFormat.** Plurals, ordinals, and select all follow locale-correct grammar via `Intl.PluralRules` — Polish, Ukrainian, Arabic, Welsh, and the rest. Same syntax every major TMS (Crowdin, Lokalise, Phrase) already speaks.
+- **ICU `plural`, `selectordinal` & `select`.** Locale-correct grammar via `Intl.PluralRules` — Polish, Ukrainian, Arabic, Welsh, and the rest. Same syntax every major TMS (Crowdin, Lokalise, Phrase) already speaks. The `number` / `date` / `time` argument types and the plural `offset:` form are not implemented and are not planned — each one is an `E_ICU_SYNTAX` failure, never a wrong render.
 - **Locale-aware formatters built in.** `formatNumber`, `formatDate`, `formatCurrency`, and `formatRelativeTime` follow the active locale via native `Intl`, with reactive updates in every framework binding.
 - **~7.0 kB minified + gzipped for a default app graph (measured, `vue` externalized), zero runtime dependencies.** That is the base host plus the vue bindings and the `VueI18n` preset; ICU, async loading, the plugin host and devtools discovery cost only where you compose them. No `eval` or `new Function` anywhere — runs under a strict CSP without `unsafe-eval`. Safe for Chrome extensions, Cloudflare Workers, and locked-down enterprise apps.
 - **Pluggable, not monolithic.** Translation loading (CDN/API), locale detection, and in-context editing are opt-in plugins via `@comvi/plugin-fetch-loader`, `@comvi/plugin-locale-detector`, and `@comvi/plugin-in-context-editor` — one lowercase `.with(installer)` each. You only ship what you use.
@@ -86,6 +86,39 @@ const { t, locale, setLocale } = useI18n();
 ```
 
 For the `<T>` component (rich text with slot-based tag interpolation), `$t` template helper, type-safe keys, and the full composable API, see the [documentation](https://comvi.io/docs/i18n/vue/).
+
+## From the Comvi CDN
+
+Translations served by the Comvi platform, fetched at runtime instead of
+bundled. Installers run on the HOST, so compose with `createCore` and wrap the
+result with `createI18nFromCore`:
+
+```ts
+// main.ts
+import { createApp } from "vue";
+import { createCore, createI18nFromCore, icu } from "@comvi/vue";
+import { fetchLoader } from "@comvi/plugin-fetch-loader";
+import App from "./App.vue";
+
+const core = createCore({ locale: "en", fallbackLocale: "en" })
+  .with(icu())
+  .with(fetchLoader({ cdnUrl: "https://cdn.comvi.io/your-distribution-id" }));
+
+const i18n = createI18nFromCore(core);
+
+createApp(App).use(i18n).mount("#app");
+```
+
+`icu()` must be composed before the first catalog reaches the host, which is why
+it comes ahead of the loader. That is the library's only ordering rule; drop
+`icu()` if the project uses no plural/select.
+
+There is no `i18n.init()` call here because `app.use(i18n)` initializes the host
+itself. The first paint therefore happens while the catalog is still in flight —
+gate it on the `isLoading` ref from `useI18n()`.
+
+The distribution id in `cdnUrl` comes from the Comvi platform: open your project
+and read it off the **Distributions** page.
 
 ## Capability composables: `useI18nLoader()` / `useI18nPlugins()`
 

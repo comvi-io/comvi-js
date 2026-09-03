@@ -38,10 +38,10 @@
 
 - **Rich text without XSS.** Embed components into translations (`Click <link>here</link>`) without raw HTML strings or unsafe DOM injection.
 - **Same API across six frameworks.** `useI18n()` and the `<T>` component look the same in Vue, React, SolidJS, Svelte, Next.js, and Nuxt. All bindings ship together with the core — same version, same release cycle.
-- **ICU `plural`, `selectordinal` & `select`.** Locale-correct grammar for every language `Intl.PluralRules` supports, reached through one explicit import — `compiler: icuCompiler` from `@comvi/core/icu`. Numbers, dates, currency, and relative time are formatted via native `Intl` methods on the `i18n` instance.
-- **~5 kB base host, ~8.6 kB fully composed (min+gz, as bundled by your app), zero dependencies.** On the platform path — `fetchLoader` plus ICU — a whole app graph is ≈ 10 kB with `@comvi/core` and ≈ 13.5 kB with `@comvi/react`. Every capability is an import you add, so an app carries only what it composes. No `eval` or `new Function` in any runtime package — works under a strict CSP without `unsafe-eval`.
+- **ICU `plural`, `selectordinal` & `select`.** Locale-correct grammar for every language `Intl.PluralRules` supports, reached through one explicit import — `compiler: icuCompiler` from `@comvi/core/icu`. The `number` / `date` / `time` argument types and the plural `offset:` form are not implemented and are not planned — each one is an `E_ICU_SYNTAX` failure, never a wrong render. Numbers, dates, currency, and relative time are formatted via native `Intl` methods on the `i18n` instance.
+- **~5 kB base host, ~8.5 kB fully composed (min+gz, as bundled by your app), zero dependencies.** On the platform path — `fetchLoader` plus ICU — a whole app graph is ≈ 10.4 kB with `@comvi/core` and ≈ 12 kB with `@comvi/react`. Every capability is an import you add, so an app carries only what it composes. No `eval` or `new Function` in any runtime package — works under a strict CSP without `unsafe-eval`.
 - **Pluggable loading & detection.** Translations come from inline objects, local JSON, or a CDN/API loader plugin — one `.with(fetchLoader({ … }))`. Locale detection (query, cookie, storage, `navigator`) is a separate plugin you opt into.
-- **Server-side rendering for Next.js & Nuxt.** `@comvi/next` ships an App Router `loadTranslations()` for server components, locale-routed layouts under `[locale]`, and a `createMiddleware()` for redirect-on-detect. `@comvi/nuxt` is a Nuxt 3 module with locale composables, middleware, and `<NuxtLinkLocale>`.
+- **Server-side rendering for Next.js & Nuxt.** `@comvi/next` ships an App Router `loadTranslations()` for server components, locale-routed layouts under `[locale]`, and a `createMiddleware()` for redirect-on-detect. `@comvi/nuxt` is a Nuxt 3 / 4 module with locale composables, middleware, and `<NuxtLinkLocale>`.
 
 ## Install
 
@@ -54,7 +54,14 @@ npm install @comvi/react     # React 16.8+
 npm install @comvi/solid     # SolidJS 1.8+
 npm install @comvi/svelte    # Svelte 5
 npm install @comvi/next      # Next.js 14+
-npm install @comvi/nuxt      # Nuxt 3
+npm install @comvi/nuxt      # Nuxt 3 / 4
+```
+
+Loading translations from the Comvi platform CDN adds the loader plugin beside
+the framework package:
+
+```bash
+npm install @comvi/react @comvi/plugin-fetch-loader # platform CDN path
 ```
 
 ## Quick start
@@ -79,6 +86,9 @@ i18n.t("items", { count: 5 }); // "5 items"
 Drop `icu()` if you use no plural/select — plain `{param}` interpolation needs no
 import. It has to be composed before the first catalog reaches the host, which is
 why it comes ahead of the loader here.
+
+The distribution id in `cdnUrl` comes from the Comvi platform: open your project
+and read it off the **Distributions** page.
 
 Or ship the catalogs inline, with the compiler chosen in the same call:
 
@@ -133,6 +143,10 @@ Or jump straight into runnable code in [`test-apps/`](test-apps/) — one demo a
 Every package publishes ONE host entry. A capability is an import you add to
 that entry, never a second entry you switch to — so a bundle carries a
 capability because you composed it, and for no other reason.
+
+Compose before `init()`; a later `.with()` / `.use()` warns in development and
+does nothing. `icu()` is stricter still — it has to come before the first
+catalog reaches the host, which is the library's only ordering rule.
 
 | package         | the entry you import                       | host constructor                                   | notes                                                                                             |
 | --------------- | ------------------------------------------ | -------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
@@ -229,6 +243,13 @@ Comvi uses [ICU MessageFormat](https://unicode-org.github.io/icu/userguide/forma
 {gender, select, female {Welcome, madam} male {Welcome, sir} other {Welcome}}
 ```
 
+Those three argument types are the whole of what the compiler implements. The
+`number`, `date` and `time` argument types are not supported and are not on the
+roadmap, and neither is the plural `offset:` form. Each one is an
+`E_ICU_SYNTAX` failure rather than a wrong render: format the value in code and
+pass it as a plain `{param}`, or quote the braces (`'{'…'}'`) to keep the text
+literal.
+
 ```ts
 t("messages", { count: 1 }); // "You have 1 message"
 t("messages", { count: 5 }); // "You have 5 messages"
@@ -273,7 +294,7 @@ Reactive in every framework binding via `useI18n()`.
 | [`@comvi/solid`](packages/solid)   | SolidJS provider + reactive signals + `<T>` component | [→](https://comvi.io/docs/i18n/solid/)   |
 | [`@comvi/svelte`](packages/svelte) | Svelte stores + context (Svelte 5) + `<T>` component  | [→](https://comvi.io/docs/i18n/svelte/)  |
 | [`@comvi/next`](packages/next)     | Next.js App Router: SSR, middleware, locale routing   | [→](https://comvi.io/docs/i18n/next/)    |
-| [`@comvi/nuxt`](packages/nuxt)     | Nuxt 3 module: auto-imports, SSR, locale routing      | [→](https://comvi.io/docs/i18n/nuxt/)    |
+| [`@comvi/nuxt`](packages/nuxt)     | Nuxt 3 / 4 module: auto-imports, SSR, locale routing  | [→](https://comvi.io/docs/i18n/nuxt/)    |
 
 **Upgrading from 0.4.x?** Every package now has exactly ONE entry, and
 `@comvi/core` is the base host: ICU, async loading, the plugin host and

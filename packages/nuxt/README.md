@@ -7,7 +7,7 @@
 
 <h1 align="center">@comvi/nuxt</h1>
 
-<p align="center">Nuxt 3 module for Comvi i18n — auto-imports, SSR, and locale routing.</p>
+<p align="center">Nuxt 3 / 4 module for Comvi i18n — auto-imports, SSR, and locale routing.</p>
 
 <p align="center">
   <a href="https://www.npmjs.com/package/@comvi/nuxt"><img src="https://img.shields.io/npm/v/@comvi/nuxt?color=blue" alt="npm"></a>
@@ -16,7 +16,7 @@
 
 ---
 
-`@comvi/nuxt` builds on [`@comvi/vue`](../vue) as a Nuxt 3 module for drop-in i18n integration. Handles locale routing, SSR translation loading, browser-language detection, auto-imported composables, and registered components.
+`@comvi/nuxt` builds on [`@comvi/vue`](../vue) as a Nuxt 3 / 4 module for drop-in i18n integration. Handles locale routing, SSR translation loading, browser-language detection, auto-imported composables, and registered components.
 
 📖 **Documentation:** https://comvi.io/docs/i18n/nuxt/
 
@@ -27,9 +27,9 @@
 Comvi i18n is a modern, framework-agnostic internationalization library built on three principles: type-safe translations, real ICU MessageFormat, and zero compromises on bundle size or security.
 
 - **Rich text without XSS.** Embed components inside translation strings (`Click <link>here</link>`) — translators see clean markup, you decide what each tag renders to. No raw HTML, no unsafe DOM injection, no splitting a sentence across template fragments.
-- **Real ICU MessageFormat.** Plurals, ordinals, and select all follow locale-correct grammar via `Intl.PluralRules` — Polish, Ukrainian, Arabic, Welsh, and the rest. Same syntax every major TMS (Crowdin, Lokalise, Phrase) already speaks.
+- **ICU `plural`, `selectordinal` & `select`.** Locale-correct grammar via `Intl.PluralRules` — Polish, Ukrainian, Arabic, Welsh, and the rest. Same syntax every major TMS (Crowdin, Lokalise, Phrase) already speaks. The `number` / `date` / `time` argument types and the plural `offset:` form are not implemented and are not planned — each one is an `E_ICU_SYNTAX` failure, never a wrong render.
 - **Locale-aware formatters built in.** `formatNumber`, `formatDate`, `formatCurrency`, and `formatRelativeTime` follow the active locale via native `Intl`, with reactive updates in every framework binding.
-- **~8.1 kB minified + gzipped for the default client graph, ~10.0 kB for the SSR graph with the loader composed (measured, `vue` / `#app` / `h3` externalized), zero runtime dependencies.** ICU, the plugin host and devtools discovery cost only where your `hostModule` composes them. No `eval` or `new Function` anywhere — runs under a strict CSP without `unsafe-eval`. Safe for Chrome extensions, Cloudflare Workers, and locked-down enterprise apps.
+- **~8.1 kB minified + gzipped for the default client graph, ~10.0 kB for the SSR graph with the loader composed (measured, `vue` / `#app` / `h3` externalized), no runtime dependencies beyond `h3` and `@nuxt/kit`, which every Nuxt app already has.** ICU, the plugin host and devtools discovery cost only where your `hostModule` composes them. No `eval` or `new Function` anywhere — runs under a strict CSP without `unsafe-eval`. Safe for Chrome extensions, Cloudflare Workers, and locked-down enterprise apps.
 - **Pluggable, not monolithic.** Translation loading (CDN/API), locale detection, and in-context editing are opt-in plugins via `@comvi/plugin-fetch-loader`, `@comvi/plugin-locale-detector`, and `@comvi/plugin-in-context-editor` — one lowercase `.with(installer)` each. You only ship what you use.
 - **Same API across 6 frameworks.** `useI18n()` and `<T>` look the same in [Vue](https://www.npmjs.com/package/@comvi/vue), [React](https://www.npmjs.com/package/@comvi/react), [SolidJS](https://www.npmjs.com/package/@comvi/solid), [Svelte](https://www.npmjs.com/package/@comvi/svelte), [Next.js](https://www.npmjs.com/package/@comvi/next), and [Nuxt](https://www.npmjs.com/package/@comvi/nuxt) — switch frameworks without relearning your i18n layer.
 - **First-class SSR.** `@comvi/next` and `@comvi/nuxt` ship server-side translation loading, locale-routed layouts, and middleware for redirect-on-detect — no flash of untranslated content.
@@ -44,7 +44,7 @@ Comvi i18n is a modern, framework-agnostic internationalization library built on
 
 ```bash
 npm install @comvi/nuxt
-# Peer: nuxt ^3.0.0
+# Peer: nuxt ^3.0.0 || ^4.0.0
 ```
 
 ## Quick start

@@ -28,7 +28,7 @@ Same `t()` and `<T>` API as the [Vue](../vue), [React](../react), and [Svelte](.
 Comvi i18n is a modern, framework-agnostic internationalization library built on three principles: type-safe translations, real ICU MessageFormat, and zero compromises on bundle size or security.
 
 - **Rich text without XSS.** Embed components inside translation strings (`Click <link>here</link>`) — translators see clean markup, you decide what each tag renders to. No raw HTML, no unsafe DOM injection, no splitting a sentence across template fragments.
-- **Real ICU MessageFormat.** Plurals, ordinals, and select all follow locale-correct grammar via `Intl.PluralRules` — Polish, Ukrainian, Arabic, Welsh, and the rest. Same syntax every major TMS (Crowdin, Lokalise, Phrase) already speaks.
+- **ICU `plural`, `selectordinal` & `select`.** Locale-correct grammar via `Intl.PluralRules` — Polish, Ukrainian, Arabic, Welsh, and the rest. Same syntax every major TMS (Crowdin, Lokalise, Phrase) already speaks. The `number` / `date` / `time` argument types and the plural `offset:` form are not implemented and are not planned — each one is an `E_ICU_SYNTAX` failure, never a wrong render.
 - **Locale-aware formatters built in.** `formatNumber`, `formatDate`, `formatCurrency`, and `formatRelativeTime` follow the active locale via native `Intl`, with reactive updates in every framework binding.
 - **~6.3 kB minified + gzipped for a default app graph (measured, `solid-js` externalized), zero runtime dependencies.** That is the base host plus the solid bindings; ICU, async loading, the plugin host and devtools discovery cost only where you compose them. No `eval` or `new Function` anywhere — runs under a strict CSP without `unsafe-eval`. Safe for Chrome extensions, Cloudflare Workers, and locked-down enterprise apps.
 - **Pluggable, not monolithic.** Translation loading (CDN/API), locale detection, and in-context editing are opt-in plugins via `@comvi/plugin-fetch-loader`, `@comvi/plugin-locale-detector`, and `@comvi/plugin-in-context-editor` — one lowercase `.with(installer)` each. You only ship what you use.
@@ -94,6 +94,43 @@ export default function App() {
 ```
 
 For `<T>` rich-text components, type-safe keys, and the full reactive primitives, see the [documentation](https://comvi.io/docs/i18n/solid/).
+
+## From the Comvi CDN
+
+Translations served by the Comvi platform, fetched at runtime instead of bundled:
+
+```tsx
+// index.tsx
+import { render } from "solid-js/web";
+import { createI18n, icu, I18nProvider } from "@comvi/solid";
+import { fetchLoader } from "@comvi/plugin-fetch-loader";
+import App from "./App";
+
+const i18n = createI18n({ locale: "en", fallbackLocale: "en" })
+  .with(icu())
+  .with(fetchLoader({ cdnUrl: "https://cdn.comvi.io/your-distribution-id" }));
+
+render(
+  () => (
+    <I18nProvider i18n={i18n}>
+      <App />
+    </I18nProvider>
+  ),
+  document.getElementById("root")!,
+);
+```
+
+`icu()` must be composed before the first catalog reaches the host, which is why
+it comes ahead of the loader. That is the library's only ordering rule; drop
+`icu()` if the project uses no plural/select.
+
+There is no `i18n.init()` call here because `<I18nProvider>` initializes the
+host itself (`autoInit`, on by default). The first paint therefore happens while
+the catalog is still in flight — gate it on the `isLoading()` signal from
+`useI18n()`.
+
+The distribution id in `cdnUrl` comes from the Comvi platform: open your project
+and read it off the **Distributions** page.
 
 ### Reactivity caveat — call `t()` inside a tracking scope
 
