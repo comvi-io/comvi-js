@@ -62,6 +62,30 @@ const ERR_INSTANCE_DESTROYED = IS_DEV
   : "E_INSTANCE_DESTROYED";
 
 /**
+ * DEV-only duplicate-copy guard.
+ *
+ * Everything module-scoped in core belongs to ONE copy of it: ambient tag
+ * registration (`@comvi/core/tags`), the `window.__COMVI__` devtools queue and
+ * the static template cache. A second copy — a binding pinned to a different
+ * `@comvi/core` patch than the one installed directly — makes those features
+ * silently invisible to half the app, so the copy that arrives second says so.
+ *
+ * Module scope, not a constructor: the hazard is the copy being LOADED, not a
+ * host being built from it, and a `Symbol.for` slot is the only thing two
+ * separate module graphs share. Folded out of production with the branch, so
+ * neither the marker nor the message reaches a production bundle.
+ */
+if (IS_DEV) {
+  const slot = globalThis as unknown as Record<symbol, unknown>;
+  const key = Symbol.for("comvi.core.instance");
+  if (slot[key] === undefined) slot[key] = {};
+  else
+    warn(
+      "[i18n] Detected two copies of @comvi/core in one app. Ambient tags (@comvi/core/tags), the window.__COMVI__ devtools handshake and the template cache belong to one copy each and will not be shared. Align the @comvi/core version your framework binding depends on with the one you installed directly.",
+    );
+}
+
+/**
  * A bare host stores catalogs verbatim, so a nested object or a non-string leaf
  * silently becomes an un-renderable template. DEV-only: the production bundle
  * pays nothing for the flattener seam.
