@@ -1,22 +1,21 @@
 /**
  * The duplicate-copy guard is development guidance: production carries neither
- * the `Symbol.for` marker nor the message, so a second copy is silent there.
+ * the version marker nor the message, so a second copy is silent there and the
+ * global slot is never claimed.
  */
 import { describe, it, expect, vi } from "vitest";
 
-const INSTANCE_KEY = Symbol.for("comvi.core.instance");
+const VERSION_KEY = Symbol.for("comvi.core.version");
 const globalSlot = globalThis as unknown as Record<symbol, unknown>;
 
 describe("duplicate @comvi/core detection", () => {
-  it("says nothing about a second copy, and claims no global slot", async () => {
-    delete globalSlot[INSTANCE_KEY];
-    await import("../../src/core/i18n");
-    vi.resetModules();
+  it("claims no global slot, so a second copy has nothing to compare against", async () => {
+    delete globalSlot[VERSION_KEY];
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
 
     await import("../../src/core/i18n");
 
+    expect(globalSlot[VERSION_KEY]).toBeUndefined();
     expect(warn).not.toHaveBeenCalled();
-    expect(globalSlot[INSTANCE_KEY]).toBeUndefined();
   });
 });

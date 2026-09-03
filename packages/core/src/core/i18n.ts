@@ -51,6 +51,7 @@ import {
 } from "./translate/syntax";
 
 declare const __DEV__: boolean | undefined;
+declare const __VERSION__: string | undefined;
 const IS_DEV = typeof __DEV__ !== "undefined" && __DEV__;
 
 const ERR_LOCALE_NOT_SET = IS_DEV ? "@comvi/core: Locale is not set" : "E_LOCALE_NOT_SET";
@@ -66,9 +67,14 @@ const ERR_INSTANCE_DESTROYED = IS_DEV
  *
  * Everything module-scoped in core belongs to ONE copy of it: ambient tag
  * registration (`@comvi/core/tags`), the `window.__COMVI__` devtools queue and
- * the static template cache. A second copy — a binding pinned to a different
- * `@comvi/core` patch than the one installed directly — makes those features
- * silently invisible to half the app, so the copy that arrives second says so.
+ * the static template cache. A binding pinned to a different `@comvi/core`
+ * patch than the one installed directly puts two copies in the app, and those
+ * features then work in only half of it, silently.
+ *
+ * Keyed on the VERSION, not on module identity: a second evaluation of the
+ * SAME copy is routine — `vi.resetModules()` in a test, a dev server
+ * re-running a module graph — and warning about it would be noise. The
+ * mismatch is also what the message asks the reader to fix.
  *
  * Module scope, not a constructor: the hazard is the copy being LOADED, not a
  * host being built from it, and a `Symbol.for` slot is the only thing two
@@ -77,11 +83,13 @@ const ERR_INSTANCE_DESTROYED = IS_DEV
  */
 if (IS_DEV) {
   const slot = globalThis as unknown as Record<symbol, unknown>;
-  const key = Symbol.for("comvi.core.instance");
-  if (slot[key] === undefined) slot[key] = {};
-  else
+  const key = Symbol.for("comvi.core.version");
+  const version = typeof __VERSION__ !== "undefined" ? __VERSION__ : "";
+  const loaded = slot[key];
+  if (loaded === undefined) slot[key] = version;
+  else if (loaded !== version)
     warn(
-      "[i18n] Detected two copies of @comvi/core in one app. Ambient tags (@comvi/core/tags), the window.__COMVI__ devtools handshake and the template cache belong to one copy each and will not be shared. Align the @comvi/core version your framework binding depends on with the one you installed directly.",
+      `[i18n] Two copies of @comvi/core are loaded, ${String(loaded)} and ${version}. Ambient tags (@comvi/core/tags), the window.__COMVI__ devtools handshake and the template cache belong to one copy each and will not be shared. Align the @comvi/core version your framework binding depends on with the one you installed directly.`,
     );
 }
 
