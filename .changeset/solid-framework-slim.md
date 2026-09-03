@@ -2,7 +2,7 @@
 "@comvi/solid": minor
 ---
 
-**BREAKING (0.x minor, WATCHDOG policy):** `@comvi/solid` runs on a base `@comvi/core` host,
+**BREAKING (breaking change on a 0.x minor):** `@comvi/solid` runs on a base `@comvi/core` host,
 and the four loader/plugin members left `useI18n()` for two dedicated accessors — the same
 contract as `@comvi/react`.
 

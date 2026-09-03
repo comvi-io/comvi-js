@@ -2,7 +2,7 @@
 "@comvi/vue": minor
 ---
 
-**BREAKING (0.x minor, WATCHDOG policy) — `@comvi/vue` runs on a base `@comvi/core` host.**
+**BREAKING (breaking change on a 0.x minor) — `@comvi/vue` runs on a base `@comvi/core` host.**
 `VueI18n` is now `VueI18n<D, C extends WrapperI18nHost<D> = I18n<D>>` around an injected
 host it exposes as `readonly core: C`, and the capability APIs live where the host actually
 has them.

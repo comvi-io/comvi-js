@@ -2,7 +2,7 @@
 "@comvi/nuxt": minor
 ---
 
-**BREAKING (0.x minor, WATCHDOG policy): the generated default host is the base host.**
+**BREAKING (breaking change on a 0.x minor): the generated default host is the base host.**
 `@comvi/nuxt` keeps every published entry, composable, component, middleware and server
 utility. What changes is the build-time `#build/comvi.host` template when `hostModule` is
 unset: it builds text + `{param}` interpolation, the cache, events and default params, and

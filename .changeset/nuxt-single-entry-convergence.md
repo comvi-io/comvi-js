@@ -2,7 +2,7 @@
 "@comvi/nuxt": minor
 ---
 
-**BREAKING (0.x minor, WATCHDOG policy): the host under `@comvi/nuxt` is core's base host.**
+**BREAKING (breaking change on a 0.x minor): the host under `@comvi/nuxt` is core's base host.**
 Nuxt is the one package this convergence did not repackage — every published entry,
 composable, component, middleware and server utility stays exactly where it was. What
 changed sits underneath all of them: the generated `#build/comvi.host` template builds

@@ -2,7 +2,7 @@
 "@comvi/react": minor
 ---
 
-**BREAKING (0.x minor, WATCHDOG policy):** `@comvi/react` runs on a base `@comvi/core` host,
+**BREAKING (breaking change on a 0.x minor):** `@comvi/react` runs on a base `@comvi/core` host,
 and the four loader/plugin members left `useI18n()` for two dedicated hooks.
 
 | 0.4.x                                                                       | 0.5.0                                                              |

@@ -2,7 +2,7 @@
 "@comvi/next": minor
 ---
 
-**BREAKING (0.x minor, WATCHDOG policy):** `@comvi/next` gains a server factory that takes
+**BREAKING (breaking change on a 0.x minor):** `@comvi/next` gains a server factory that takes
 the host you composed, and the server i18n becomes a once-cell that refuses two
 configuration sources.
 

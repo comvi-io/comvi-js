@@ -2,7 +2,7 @@
 "@comvi/svelte": minor
 ---
 
-**BREAKING (0.x minor, WATCHDOG policy):** `@comvi/svelte` runs on a base `@comvi/core`
+**BREAKING (breaking change on a 0.x minor):** `@comvi/svelte` runs on a base `@comvi/core`
 host, and the four loader/plugin members left `useI18n()` for two dedicated context readers.
 
 This is the binding where the old contract did not merely mistype the host — it **crashed**

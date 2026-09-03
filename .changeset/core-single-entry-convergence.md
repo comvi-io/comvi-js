@@ -2,7 +2,7 @@
 "@comvi/core": minor
 ---
 
-**BREAKING (0.x minor, WATCHDOG policy): the root `@comvi/core` entry changes semantics.** `@comvi/core` is now ONE entry — the base host — and capability is an import you add, never an entry you switch. The second entry, `@comvi/core/slim`, is deleted; it never published, so there is no deprecation debt.
+**BREAKING (breaking change on a 0.x minor): the root `@comvi/core` entry changes semantics.** `@comvi/core` is now ONE entry — the base host — and capability is an import you add, never an entry you switch. The second entry, `@comvi/core/slim`, is deleted; it never published, so there is no deprecation debt.
 
 | what a 0.4 root had                          | on the converged root                 | compose it back                                          |
 | -------------------------------------------- | ------------------------------------- | -------------------------------------------------------- |
