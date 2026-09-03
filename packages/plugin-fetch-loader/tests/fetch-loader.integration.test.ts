@@ -607,6 +607,38 @@ describe("FetchLoader plugin on a live host", () => {
       expect(loadError).not.toHaveBeenCalled();
     }, 2000);
 
+    /**
+     * In API mode one request carries every active namespace, but a clear that
+     * names ONE of them cancels only that namespace inside core — the others
+     * are still awaited. Aborting the shared request would fail them.
+     */
+    it("leaves an API batch running when only one of its namespaces is cleared", async () => {
+      const i18n = new I18n({ locale: "en", apiKey: TEST_API_KEY, devMode: false });
+      const loadError = vi.fn();
+      i18n.on("loadError", loadError);
+      const onLoadError = vi.fn();
+      const requested = deferred<void>();
+      const answer = deferred<Response>();
+      server.use(
+        http.get(/\/v1\/translations/, () => {
+          requested.resolve();
+          return answer.promise;
+        }),
+      );
+      const plugin = FetchLoader({ cdnUrl: TEST_CDN_URL, loadOnInit: false, onLoadError });
+      await plugin(i18n);
+      const activation = i18n.addActiveNamespaces(["default", "dashboard"]);
+      await requested.promise;
+
+      i18n.clearTranslations("en", "default");
+
+      answer.resolve(HttpResponse.json(createMockApiResponse(["en"], ["default", "dashboard"])));
+      await activation;
+      expect(loadError).not.toHaveBeenCalled();
+      expect(onLoadError).not.toHaveBeenCalled();
+      expect(i18n.hasLocale("en", "dashboard")).toBe(true);
+    }, 2000);
+
     it("stops following the host once the plugin is cleaned up", async () => {
       const i18n = new I18n({ locale: "en", devMode: false });
       const response = mockCdnDeferredResponse("en", "default");

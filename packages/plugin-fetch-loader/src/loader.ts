@@ -143,14 +143,17 @@ export const FetchLoader: I18nPluginFactory<FetchLoaderOptions> = (options): I18
      * letting an answer nobody will read finish arriving — and because core is
      * no longer waiting on them, the abort surfaces no `loadError`.
      *
-     * An omitted locale or namespace means "every one", exactly as it does on
-     * `clearTranslations` itself.
+     * A request is only abandoned when the clear covers ALL of it. In API mode
+     * one request carries every active namespace, while `clearTranslations`
+     * cancels the ONE namespace it names: aborting that shared request would
+     * fail the namespaces core is still waiting for. An omitted locale or
+     * namespace means "every one", exactly as it does on `clearTranslations`.
      */
     const unfollow = i18n.on("translationsCleared", ({ locale, namespace }) => {
       for (const request of inflight) {
         if (
           (locale === undefined || request.locale === locale) &&
-          (namespace === undefined || request.namespaces.includes(namespace))
+          (namespace === undefined || request.namespaces.every((ns) => ns === namespace))
         ) {
           request.controller.abort();
           inflight.delete(request);
