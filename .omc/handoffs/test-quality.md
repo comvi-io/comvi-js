@@ -519,3 +519,54 @@ PRE-RELEASE STATE: branch is Phase-6-ready. Remaining open (all optional/product
 editor ValidationResult.warnings UI; cli commands residual kill-pass (~299 raw survivors);
 svelte-check for .svelte internals; the keys-closed guard could be replicated to react/solid/
 svelte as a standing gate (clean today, verified once).
+
+## Round 13 — cli kill-pass COMPLETE (2026-09-03, 704f482..5534650, CI-green)
+
+THE CAMPAIGN'S LAST PACKAGE: cli 78.2 % -> **100.0 % adjusted** (fresh
+non-incremental Stryker run: 1 819 killed, 0 survived, 0 nocov, 106 accepted;
+suite 319 -> 468 full / 462 mutation view; registry 811 -> 812, 0 stale).
+Every mutation-tested package in the repo is now 100.0 % adjusted.
+
+Four worktree lots (detached HEAD at 84bd7e2, node_modules symlinked, dist
+copied real, dist smoke test copied in — it was UNTRACKED, see below) plus a
+lead closing lot:
+- typegen (add05cc): 52 killed / 6 accepted. "Stryker was here!" at
+  TypeGenerator.ts:130 was NOT equivalent — killed via a hand-edited types
+  file missing the Generated-at line.
+- cmd (573f32c): 86 killed / 16 accepted. --help output contract, prompt
+  trim+lowercase, conflictResolution "fail" end-to-end; unreachable apiKey
+  guards + dead ask-initializer accepted.
+- syncfg (654d183): 95 killed + 1 timeout-kill / 17 accepted. EnvLoader.ts:72
+  -> false = synchronous infinite loop; walk-to-root test reaches it, Stryker
+  scores TimedOut/detected (deliberately no registry entry). captureStackTrace
+  needs-seam: vite-node stacks never carry the constructor frame.
+- api (8d0698c): 115 killed / 18 accepted. Retry backoff, SSE lifecycle;
+  3 needs-seam UpdateOperator generation mutants — the interleaving hides in
+  the awaited import window. CANON GOTCHA: a pending ASYNC vi.doMock factory
+  + concurrent dynamic import of the same specifier silently resolves to the
+  REAL module — gate at most one importer.
+- closing lot (5534650): the fresh rerun surfaced 13 version.ts mutants (the
+  stale incremental report had listed ONE — trust only fresh counts for
+  final claims); happy-path test kills 6/7, the dist-layout candidate literal
+  is gap:prod-build (dist smoke pins --version in full view).
+
+Round finds beyond mutants (both CI-validated):
+- 704f482: packages/cli/tests/dist/cli-entry.dist.test.ts was UNTRACKED — the
+  root `dist` gitignore rule ate tests/dist/ and cli was missing from the
+  canary-suite exception list (core/react/next had it). CI had NEVER run the
+  entry smoke tests. Also removed a stale packages/next/.stryker-tmp.
+- 8b384f8: react tests-typecheck raced @comvi/react#build in the Quality job
+  (react's program pulls next src via ~next-src; next imports @comvi/react ->
+  react's OWN dist, which that job builds only as a test-apps side effect,
+  unordered). Fixed by source-pinning @comvi/react in tsconfig.tests.json —
+  the same pattern as @comvi/core. Verified with dist present AND removed.
+
+Ops notes: agents' probe drivers outlive their turns — agents idle mid-sweep
+and need a wake nudge to compose reports (results.json/probe-results.txt in
+scratchpad are the source of truth for completion). Four hung vitest workers
+from Aug 30 (wt-audit-2 / wt-r2-D, ~40 h CPU each) were killed after
+verifying cwd + owner rounds closed.
+
+Post-round state: branch tip 5534650, cli suite 468, root CI green through
+8d0698c (5534650 watch pending at write time). Phase 6 unchanged: PR to main
+(16 changesets), RC dispatch, soak, GA — owner-gated.
