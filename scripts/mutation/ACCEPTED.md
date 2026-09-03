@@ -150,3 +150,40 @@ payload path, decision recorded in the handoff).
   arrows and string/object constants) + cache.ts:58/101, whose module-level MUTABLE `let cell`
   the runner never re-evaluates between activations. Every one hand-applied and observed
   turning the suite RED — claims exist; only the tool cannot see them.
+
+## Round 13 — cli kill-pass (2026-09-03): the last package to 100.0
+
+packages/cli 78.2 % -> **100.0 % adjusted** (1 819 killed, 0 survived, 0 nocov,
+106 accepted). Four worktree lots (api / cmd / typegen / syncfg) + a lead
+closing lot for version.ts; suite 319 -> 468 (mutation view 462). 61 new cli
+entries, every one hand-applied against the full COMVI_MUTATION=1 suite.
+
+Rationale classes (details in each entry):
+
+- instanceof-Error / instanceof-TypegenError catch preludes: wrapError already
+  passes TypegenError through and no non-Error can reach the command catches —
+  the rethrow guards are unobservable (the `-> true` variants are killed).
+- unreachable apiKey guards in push/pull: ConfigLoader.load() throws
+  CONFIG_INVALID first (matches the src comments).
+- empty-string encodings ("utf-8" -> ""): Node treats "" as unset and falls
+  back to utf8 for string data; readFile Buffers coerce identically through
+  JSON.parse — each proven by a direct node probe.
+- JSON.stringify-omits-undefined spreads (ConfigLoader 247/248).
+- $-after-.\* multiline regex anchors (TypeGenerator): `.` never matches \n.
+- co-varying SSE stale-guards + three needs-seam UpdateOperator generation
+  mutants (ApiClient): the distinguishing interleaving hides inside the
+  awaited import("eventsource") window; a pending ASYNC vi.doMock factory
+  falls through to the REAL module on a concurrent import (canon gotcha).
+- captureStackTrace (errors.ts): vite-node stacks never carry the constructor
+  frame — only the built binary observes trimming (needs-seam).
+- version.ts:9 first candidate literal: dist-layout-only observable
+  (gap:prod-build); tests/dist/cli-entry.dist.test.ts pins --version.
+
+Timeout-kill: EnvLoader.ts:72 `parent === dir` -> false turns findEnvFile into
+a synchronous infinite loop — a walk-to-root test reaches it and Stryker
+scores the hang TimedOut/detected; deliberately NOT an accepted entry.
+
+Round finds beyond mutants: tests/dist/cli-entry.dist.test.ts was untracked
+(root `dist` gitignore pattern; cli missing from the canary exception list —
+CI had never run it) and react's tests-typecheck raced @comvi/react#build in
+the Quality job (fixed by source-pinning @comvi/react like @comvi/core).

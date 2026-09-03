@@ -7786,6 +7786,15 @@
       "lineHint": 604,
       "kind": "needs-seam",
       "reason": "a single close() bump is direction-agnostic under the !== staleness check; divergence needs the same unreachable collision (hand-applied id 1091: suite green)"
+    },
+    {
+      "package": "packages/cli",
+      "file": "src/utils/version.ts",
+      "mutators": ["StringLiteral"],
+      "snippet": "for (const rel of [\"../package.json\", \"../../package.json\"]) {",
+      "lineHint": 9,
+      "kind": "gap:prod-build",
+      "reason": "the \"../package.json\" candidate (dist layout) -> \"\": from src, candidate 2 still resolves the real manifest, so the mutation view cannot observe the loss; only the built CLI walks candidate 1, and tests/dist/cli-entry.dist.test.ts pins --version in the full view (hand-applied id 2088: COMVI_MUTATION suite green 462/462; the src-layout sibling literal IS killed)"
     }
   ]
 }
