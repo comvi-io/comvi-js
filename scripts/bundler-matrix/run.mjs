@@ -72,6 +72,15 @@ const DEVTOOLS_SUBPATH = [
  */
 const UNUSED_CAPABILITY_SUBPATHS = [...ICU_SUBPATH, ...PLUGINS_SUBPATH, ...DEVTOOLS_SUBPATH];
 /**
+ * The in-context editor's heaviest chunk (~100 kB gz), reached through a
+ * dynamic `import()` inside the editor's Core chunk. It is in the graph under
+ * the default export condition and must be gone under `production`, where the
+ * package's exports map swaps the whole entry for a no-op stub.
+ */
+const EDITOR_MODAL_CHUNK = [
+  `@comvi${path.sep}plugin-in-context-editor${path.sep}dist${path.sep}EditModal-`,
+];
+/**
  * Matrix cases. `sentinels` says what the bundler's module graph must look
  * like for core's tag-registration chunks (the `sideEffects` set):
  *   "present" — the app opted into tags (an explicit `@comvi/core/tags` import,
@@ -80,10 +89,21 @@ const UNUSED_CAPABILITY_SUBPATHS = [...ICU_SUBPATH, ...PLUGINS_SUBPATH, ...DEVTO
  *   "absent"  — the app is on the base host without tags, so nothing may pull
  *               it. Core's base entry itself is present either way and is
  *               never what these assert.
- * A case may instead give `{ default, "<bundler>:<mode>": … }` when one
- * combination legitimately differs; no case earns that today.
  * `absentModules` adds case-specific module-ID fragments that must NOT appear
- * in the graph (matched as substrings, so hashed chunk names are covered).
+ * in the graph, and `presentModules` fragments that MUST (both matched as
+ * substrings, so hashed chunk names are covered).
+ *
+ * PER-MODE VALUES. `sentinels`, `absentModules` and `presentModules` all accept
+ * either one value for the whole matrix or a map keyed by `"<bundler>:<mode>"`
+ * with a `default` fallback:
+ *
+ *   absentModules: { default: [], "webpack:production": [FRAGMENT] }
+ *
+ * That is what lets a case assert "absent in production, present in
+ * development" — one claim per direction, because an absence and a presence are
+ * different assertions and a module that is merely missing everywhere would
+ * satisfy the absence alone. `editor-production` is the case that needs it.
+ *
  * `packages` are the workspace tarballs the case needs, `deps` the framework
  * peer deps its bundle imports. A case carrying `pending` is declared but not
  * run — it asserts an absence the wrappers cannot yet deliver.
@@ -235,6 +255,32 @@ const CASES = [
     packages: ["@comvi/core", "@comvi/locale-routing", "@comvi/react", "@comvi/next"],
     deps: ["react", "next"],
   },
+  {
+    // The editor's production exclusion, as a gate rather than a claim. The
+    // package's exports map answers the `production` condition with a no-op
+    // stub that imports nothing, so a production app that composes
+    // `inContextEditor(…)` carries neither the editor runtime nor the
+    // capability subpaths it would otherwise pull in. Development must keep
+    // the modal: a stub on BOTH conditions would satisfy the absence and
+    // silently ship an editor that never opens.
+    //
+    // The fixture composes and runs the host in both modes, so the identity
+    // the two entries share (`.with(inContextEditor())` returns the host) is
+    // exercised as well as the graph.
+    name: "editor-production",
+    sentinels: "absent",
+    absentModules: {
+      default: [],
+      "webpack:production": EDITOR_MODAL_CHUNK,
+      "vite:production": EDITOR_MODAL_CHUNK,
+    },
+    presentModules: {
+      default: [],
+      "webpack:development": EDITOR_MODAL_CHUNK,
+      "vite:development": EDITOR_MODAL_CHUNK,
+    },
+    packages: ["@comvi/core", "@comvi/plugin-in-context-editor"],
+  },
 ];
 const ACTIVE_CASES = CASES.filter((testCase) => testCase.pending === undefined);
 const PENDING_CASES = CASES.filter((testCase) => testCase.pending !== undefined);
@@ -257,6 +303,11 @@ const ALL_PACKAGES = [
     distProbe: "dist/index.js",
   },
   { name: "@comvi/next", dir: "packages/next", distProbe: "dist/server.js" },
+  {
+    name: "@comvi/plugin-in-context-editor",
+    dir: "packages/plugin-in-context-editor",
+    distProbe: "dist/index.es.js",
+  },
 ];
 
 /** Only the tarballs the ACTIVE cases need are built, packed and installed. */
@@ -445,6 +496,15 @@ function readModuleIds(bundler, outFile) {
   return ids;
 }
 
+/**
+ * A case field that is either one value for the whole matrix or a map keyed by
+ * `"<bundler>:<mode>"` with a `default` fallback. Arrays are values, not maps.
+ */
+function perMode(value, bundler, mode) {
+  if (value === undefined || typeof value === "string" || Array.isArray(value)) return value;
+  return value[`${bundler}:${mode}`] ?? value.default;
+}
+
 function bundle(bundler, mode, fixture) {
   const entry = path.join(APP_DIR, "src", `${fixture}.mjs`);
   const outFile = path.join(
@@ -497,10 +557,7 @@ for (const bundler of BUNDLERS) {
 
       // Module-graph check: tag registration is pulled in exactly when the
       // app asked for tags. Module IDs, never output-text substrings.
-      const expectTags =
-        typeof testCase.sentinels === "string"
-          ? testCase.sentinels
-          : (testCase.sentinels[`${bundler}:${mode}`] ?? testCase.sentinels.default);
+      const expectTags = perMode(testCase.sentinels, bundler, mode);
       const found = moduleIds.filter((id) =>
         SENTINEL_FRAGMENTS.some((fragment) => id.includes(fragment)),
       );
@@ -515,11 +572,20 @@ for (const bundler of BUNDLERS) {
 
       // Case-specific absences: module-ID fragments the graph must not
       // contain at all.
-      const leaked = (testCase.absentModules ?? []).flatMap((fragment) =>
+      const leaked = (perMode(testCase.absentModules, bundler, mode) ?? []).flatMap((fragment) =>
         moduleIds.filter((id) => id.includes(fragment)),
       );
       if (leaked.length > 0) {
         failures.push(`${label}: modules expected absent, found ${leaked.join(", ")}`);
+      }
+
+      // Case-specific presences: fragments the graph MUST contain. An absence
+      // assertion alone cannot tell "correctly excluded" from "never built".
+      const absent = (perMode(testCase.presentModules, bundler, mode) ?? []).filter(
+        (fragment) => !moduleIds.some((id) => id.includes(fragment)),
+      );
+      if (absent.length > 0) {
+        failures.push(`${label}: modules expected present, none matched ${absent.join(", ")}`);
       }
 
       const exec = spawnSync(process.execPath, [outFile], { encoding: "utf8" });
@@ -529,7 +595,7 @@ for (const bundler of BUNDLERS) {
           `${label}: bundle execution failed (exit ${exec.status})\n${exec.stdout}${exec.stderr}`,
         );
       }
-      const ok = ran && sentinelsOk && leaked.length === 0;
+      const ok = ran && sentinelsOk && leaked.length === 0 && absent.length === 0;
       results.push(`${ok ? "PASS" : "FAIL"}  ${label}`);
       console.log(`${ok ? "PASS" : "FAIL"}  ${label} [tags ${expectTags}]`);
     }
