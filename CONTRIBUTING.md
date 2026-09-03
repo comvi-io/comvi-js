@@ -17,7 +17,8 @@ packages/{vue,react,solid,svelte,next,nuxt}   framework bindings; kept in behavi
 packages/plugin-fetch-loader       loads translations from the Comvi CDN/API
 packages/plugin-locale-detector    browser locale detection
 packages/plugin-in-context-editor  visual in-page translation editor
-packages/{cli,vite-plugin,locale-routing}     tooling packages
+packages/locale-routing            framework-neutral locale routing primitives (runtime library)
+packages/{cli,vite-plugin}         tooling packages
 apps/chrome-extension              in-context editor extension (own `extension:*` scripts)
 test-apps/*                        one integration app per framework; used by tests, not published
 tooling/, scripts/                 repo checks: package contracts, publint, size budgets, release
@@ -68,7 +69,7 @@ outside this list is checked automatically.
 | `quality`   | changeset guard (pull requests only), `pnpm format:check`, `pnpm lint`, `pnpm typecheck`, `node scripts/audit-published.mjs`, `pnpm test:release-tools` |
 | `tests`     | `pnpm test:commit`                                                                                                                                      |
 | `build`     | `pnpm build`, then `pnpm audit:package-contracts`, `pnpm check:publint`, `pnpm check:types-exports`, `pnpm size`, `pnpm bundler-matrix`                 |
-| `extension` | `pnpm extension:build`, the built-artifact test, a chromium install, `pnpm extension:gate-e`, diagnostics upload                                        |
+| `extension` | `pnpm extension:build`, the built-artifact test, a chromium install, Gate E (`pnpm --filter @comvi/chrome-extension test:e2e`), diagnostics upload      |
 
 Everything that reads `dist/` lives in the single `build` job, after the build. Splitting those
 steps across jobs is what previously let them run against a stale or missing `dist/`.
@@ -186,10 +187,12 @@ pnpm mutation packages/core     # Stryker; report at packages/core/.stryker/repo
 
 A surviving mutant is a claim your tests do not make. Kill it with a behaviour test. A mutant
 that is genuinely equivalent at the behaviour level, or unreachable in the dev test build, is
-recorded in `scripts/mutation/accepted.json` with the file, the mutator, the mutated line's
-text, a reason, and `kind: equivalent | gap:prod-build` — never as a comment in `src/`. The
-runner prints the adjusted score, the real survivors, and any accepted entry that has gone
-stale.
+recorded in `scripts/mutation/accepted.json` — never as a comment in `src/`. An entry names the
+`package` and the `file`, the `mutators` it covers, the `snippet` (the mutated line's text), a
+`lineHint`, a `reason`, and a `kind`, which is one of `equivalent`, `gap:prod-build`,
+`tooling:static-mutant`, `tool-limitation`, or `needs-seam`. Omitting `package` or `snippet`
+produces an entry that matches nothing and the runner reports it as stale. The runner prints the
+adjusted score, the real survivors, and any accepted entry that has gone stale.
 
 ## Verification cheat-sheet
 
