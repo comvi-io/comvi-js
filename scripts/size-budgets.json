@@ -225,6 +225,19 @@
         "measuredAt": "2026-09-03"
       },
       "note": "Gated platform CDN path: base host + ICU + the fetch loader, composed as the fetch-loader README quickstart."
+    },
+    {
+      "name": "platform-path-react",
+      "entry": ["@comvi/react", "@comvi/core/icu", "@comvi/plugin-fetch-loader"],
+      "fixture": "framework/react-platform.ts",
+      "external": ["react", "react/*"],
+      "gzipBudgetBytes": 12861,
+      "baseline": {
+        "minBytes": 34403,
+        "gzipBytes": 12248,
+        "measuredAt": "2026-09-03"
+      },
+      "note": "Gated platform CDN path on React: `@comvi/react` base host + ICU + the fetch loader, composed as the React README's CDN recipe; the number the README quotes for the React platform path."
     }
   ]
 }
