@@ -39,6 +39,15 @@ export function clearIcuHit(): void {
 }
 
 /**
+ * Record a production ICU miss made by another compiler. `icuHit` is an ESM
+ * live binding, so `compile-icu.ts` cannot assign it across the import.
+ * @internal
+ */
+export function setIcuHit(argumentType: string): void {
+  icuHit = argumentType;
+}
+
+/**
  * The default message compiler: text + `{param}` interpolation only.
  *
  * A comma inside parsed braces is the ICU argument-type marker
@@ -50,6 +59,7 @@ export function clearIcuHit(): void {
  */
 export const simpleCompiler: MessageCompiler = {
   cid: 1,
+  preflight: true,
   makeArgToken(content: string, _hashIsSyntax: boolean, template: string): ParsedToken | undefined {
     const comma = content.indexOf(",");
     if (comma !== -1) {

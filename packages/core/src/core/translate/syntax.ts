@@ -28,11 +28,21 @@ export interface MessageCompiler {
    */
   readonly cid?: number;
   /**
+   * Opt in to the development ingestion preflight: every string in an ingested
+   * catalog is parsed with this compiler at `addTranslations` time, so an
+   * argument it cannot compile throws where the catalog entered rather than at
+   * first render. Both shipped compilers set it; a user-supplied compiler
+   * leaves it unset, because a throw from a third-party `makeArgToken` would
+   * then reject the whole catalog.
+   */
+  readonly preflight?: true;
+  /**
    * Build a token from the content between balanced `{`...`}`.
    * Returning `undefined` makes the whole braced segment flow through as
-   * literal text. On ICU argument syntax the shipped simple compiler THROWS
-   * in development and returns `undefined` in production, where the host then
-   * reports `E_ICU_SYNTAX` for the segment it rendered literally.
+   * literal text. On an argument neither shipped compiler can compile they
+   * THROW `E_ICU_SYNTAX` in development and return `undefined` in production,
+   * where the host then reports `E_ICU_SYNTAX` for the segment it rendered
+   * literally.
    */
   makeArgToken(content: string, hashIsSyntax: boolean, template: string): ParsedToken | undefined;
   /**
@@ -72,6 +82,13 @@ export interface TranslateCtx {
   missingParam: MissingParamMode;
   /** Lazily memoized cardinal plural rules for `locale` (ICU compiler only). */
   pluralRules?: Intl.PluralRules;
+  /**
+   * The count a `#` resolves to: set by `processPlural` around a branch it
+   * re-parses, and restored afterwards so a nested plural cannot clobber the
+   * count an outer `#` still needs. Initialised in `makeCtx` — adding it later
+   * would transition the hidden class of the object on the hot path.
+   */
+  hash?: string;
 }
 
 /**

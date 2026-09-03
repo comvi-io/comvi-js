@@ -107,10 +107,11 @@ describe("a template made only of markup characters", () => {
 
 describe("t() — a lone opening brace", () => {
   it("renders literally and warns that the braces are unbalanced", () => {
-    // The ICU host, whose catalogs skip the simple-compiler ingestion
-    // preflight: the warning below can only come from the render-time parse.
-    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    // The spy goes in AFTER the catalog: development preflights ingestion, so
+    // a spy installed before the host would also catch that parse and the
+    // render-time one it is here for would not have to happen at all.
     const i18n = createFullI18n({ locale: "en", translation: { en: { brace: "{" } } });
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 
     expect(i18n.t("brace")).toBe("{");
 

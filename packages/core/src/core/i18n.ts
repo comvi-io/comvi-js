@@ -40,6 +40,7 @@ import {
   type IcuSyntaxError,
 } from "./translate/compile-simple";
 import { parseTemplate } from "./translate/parser";
+import { TK_PLURAL, TK_SELECT, TK_TAG, type ParsedToken } from "./translate/cache";
 import {
   effectiveExtBits,
   effectiveExtensions,
@@ -472,6 +473,16 @@ export class I18n<D extends DefaultTranslationParams = {}>
   /**
    * Clear translations from the cache. An omitted `locale` clears every locale,
    * an omitted `namespace` every namespace.
+   *
+   * This clears CONTENT, not intent: a scopeless `clearTranslations()` leaves
+   * the ACTIVE namespace set alone, so `reloadTranslations()` and a following
+   * locale switch still know what to fetch — the editor-save and
+   * webhook-refresh flow is exactly "drop everything, fetch it again".
+   *
+   * Naming a namespace with no locale (`clearTranslations(undefined, ns)`)
+   * additionally DEACTIVATES it; that is the only public way to stop serving a
+   * namespace today. The default namespace is always reloadable, so
+   * `clearTranslations(undefined, defaultNs)` does not stick across a reload.
    */
   clearTranslations(locale?: string, namespace?: string): void {
     // Cancel in-flight loads for the cleared scope so they don't repopulate it.
@@ -489,8 +500,6 @@ export class I18n<D extends DefaultTranslationParams = {}>
 
     if (!locale && namespace) {
       this._activeNamespaces.delete(namespace);
-    } else if (!locale && !namespace) {
-      this._activeNamespaces.clear();
     }
 
     this._emit("translationsCleared", { locale, namespace });
@@ -970,23 +979,48 @@ export class I18n<D extends DefaultTranslationParams = {}>
 }
 
 // Eager catalog preflight at both ingestion seams (`_nsAddTranslations` and
-// the loader's pre-merge call). In development an ICU-shaped string in an
-// ingested catalog throws `E_ICU_SYNTAX` at ingestion instead of at first
-// render; production stays lazy and reports on the compilation that hits it.
+// the loader's pre-merge call). In development a string the host's compiler
+// cannot compile throws `E_ICU_SYNTAX` at ingestion instead of at first render;
+// production stays lazy and reports on the compilation that hits it.
 // The whole block is folded out of production builds by `__DEV__`.
+//
+// It runs for whichever compiler opted in (`preflight`), which is both shipped
+// ones. A user-supplied compiler is excluded by default: its `makeArgToken` is
+// third-party code, and a throw from it would reject the whole catalog.
 if (IS_DEV) {
   (I18n.prototype as unknown as I18nInternal)._preflightSimpleCatalog = function (
     this: I18nInternal,
     catalog: Record<string, unknown>,
   ): void {
-    if (this._compiler !== simpleCompiler) return;
+    const compiler = this._compiler;
+    if (compiler.preflight !== true) return;
     // The EFFECTIVE extension set, not an empty one: a host whose app imported
     // `@comvi/core/tags` really does claim `<`, and preflighting without that
     // knowledge would warn about markup that renders fine.
     const extensions = effectiveExtensions(this._tagInterpolation?.extensions);
+    // Branch text is stored verbatim by the ICU compiler and only compiled at
+    // render, so the walk descends into every plural/select sub-message (and
+    // through tag children) — a broken argument one level down must still fail
+    // at ingestion, not at first `t()` inside a component.
+    const walk = (tokens: ParsedToken[], hashIsSyntax: boolean): void => {
+      for (const token of tokens) {
+        const kind = token[0];
+        if (kind === TK_PLURAL || kind === TK_SELECT) {
+          const choices = token[3];
+          if (choices) {
+            const nestedHash = kind === TK_PLURAL || hashIsSyntax;
+            for (const branch in choices) {
+              walk(parseTemplate(choices[branch], nestedHash, extensions, compiler), nestedHash);
+            }
+          }
+        } else if (kind === TK_TAG) {
+          walk(token[2], hashIsSyntax);
+        }
+      }
+    };
     for (const key in catalog) {
       const value = catalog[key];
-      if (typeof value === "string") parseTemplate(value, false, extensions, simpleCompiler);
+      if (typeof value === "string") walk(parseTemplate(value, false, extensions, compiler), false);
     }
   };
 }

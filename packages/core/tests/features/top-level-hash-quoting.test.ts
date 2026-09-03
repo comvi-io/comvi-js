@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
 import { createI18n } from "../../src";
 import { createI18n as createFullI18n } from "../../src/core/full";
 import { clearTemplateCache } from "../../src/core/translate";
@@ -34,5 +34,34 @@ describe("a select rendered twice", () => {
     const second = i18n.t("rank", { kind: "sharp" });
 
     expect(second).toBe("'#'1");
+  });
+});
+
+describe("a select's own hash context", () => {
+  // `'` starts a quoted literal only before a syntax character. Inside a plural
+  // sub-message `#` is syntax, so `'#'` is a quoted hash; at the top level it is
+  // not, so the SECOND apostrophe — the one before `}` — opens a quote that
+  // never closes and the choice list cannot be parsed.
+
+  it("renders a top-level select whose branch quotes a # literally, braces unbalanced", () => {
+    // The first apostrophe is ordinary text here, so the second one — before
+    // `}` — opens a quote that swallows both closing braces. The argument never
+    // closes, so the whole template stays literal.
+    const template = "{kind, select, other {'#'}}";
+    const i18n = createFullI18n({ locale: "en", translation: { en: { rank: template } } });
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    expect(i18n.t("rank", { kind: "any" })).toBe(template);
+
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("Unbalanced braces"));
+  });
+
+  it("renders a quoted # in a select branch nested in a plural as the literal", () => {
+    const i18n = createFullI18n({
+      locale: "en",
+      translation: { en: { rank: "{n, plural, other {{kind, select, other {'#' of #}}}}" } },
+    });
+
+    expect(i18n.t("rank", { n: 3, kind: "any" })).toBe("# of 3");
   });
 });

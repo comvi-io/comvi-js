@@ -29,6 +29,11 @@ const STATIC_TEMPLATE = "Static text number 0";
 const PARAM_TEMPLATE = "Hello, {name}!";
 const SECOND_PARAM_TEMPLATE = "Goodbye, {name}.";
 const PLURAL_TEMPLATE = "{count, plural, one {# item} other {# items}}";
+const PLURAL_BRANCH_TEMPLATE = "{count, plural, other {# of {total} messages}}";
+const PLURAL_PLAIN_SELECT_TEMPLATE =
+  "{count, plural, other {{gender, select, male {his files} other {their files}}}}";
+const PLURAL_SELECT_TEMPLATE =
+  "{count, plural, other {{gender, select, male {he has # files} other {they have # files}}}}";
 const RICH_TEMPLATE = "Click <b>here</b> for {what}";
 
 /**
@@ -166,6 +171,64 @@ describe("t() on an ICU plural", () => {
     expect(results[HOT_CALLS - 1]).toBe(`${HOT_CALLS} items`);
     expect(parses()).toBe(1);
     expect(_templateCacheSize()).toBe(1);
+  });
+});
+
+describe("t() on an ICU plural whose branch re-parses", () => {
+  it("called 50 times with a varying count → exactly 2 parses and 2 cache entries", () => {
+    // The branch holds a `{param}`, so it cannot take the text-only fast path
+    // and is handed to `translateSegment`. `#` must therefore reach the parser
+    // as syntax: substituting the count into the branch text first would key a
+    // fresh cache entry per count.
+    const { compiler, parses } = countingShim(icuCompiler);
+    const i18n = makeHost(compiler, { items: PLURAL_BRANCH_TEMPLATE });
+
+    const results: string[] = [];
+    for (let call = 1; call <= HOT_CALLS; call++) {
+      results.push(i18n.t("items" as never, { count: call, total: 99 } as never));
+    }
+
+    expect(results[0]).toBe("1 of 99 messages");
+    expect(results[HOT_CALLS - 1]).toBe(`${HOT_CALLS} of 99 messages`);
+    expect(parses()).toBe(2);
+    expect(_templateCacheSize()).toBe(2);
+  });
+});
+
+describe("t() on an ICU plural whose branch selects on another parameter", () => {
+  it("called 50 times with a varying count → exactly 2 parses and 3 cache entries", () => {
+    // Outer template, the plural branch holding the select, and the select
+    // branch holding the `#` — all three are count-independent text now.
+    const { compiler, parses } = countingShim(icuCompiler);
+    const i18n = makeHost(compiler, { files: PLURAL_SELECT_TEMPLATE });
+
+    const results: string[] = [];
+    for (let call = 1; call <= HOT_CALLS; call++) {
+      results.push(i18n.t("files" as never, { count: call, gender: "male" } as never));
+    }
+
+    expect(results[0]).toBe("he has 1 files");
+    expect(results[HOT_CALLS - 1]).toBe(`he has ${HOT_CALLS} files`);
+    expect(parses()).toBe(2);
+    expect(_templateCacheSize()).toBe(3);
+  });
+});
+
+describe("t() on an ICU plural whose select branch holds no #", () => {
+  it("called 50 times with a varying count → exactly 2 parses and 2 cache entries", () => {
+    // The select branch is plain text: nothing for the parser to do, so it must
+    // be returned as-is rather than re-parsed for a `#` it does not contain.
+    const { compiler, parses } = countingShim(icuCompiler);
+    const i18n = makeHost(compiler, { files: PLURAL_PLAIN_SELECT_TEMPLATE });
+
+    const results: string[] = [];
+    for (let call = 1; call <= HOT_CALLS; call++) {
+      results.push(i18n.t("files" as never, { count: call, gender: "male" } as never));
+    }
+
+    expect(results[HOT_CALLS - 1]).toBe("his files");
+    expect(parses()).toBe(2);
+    expect(_templateCacheSize()).toBe(2);
   });
 });
 
