@@ -6,6 +6,7 @@ import {
   createMemo,
   getOwner,
   runWithOwner,
+  splitProps,
 } from "solid-js";
 import { Dynamic } from "solid-js/web";
 import { useI18nContextValue } from "./context";
@@ -110,7 +111,7 @@ function renderContent(
   );
 }
 
-export interface TProps {
+interface TBaseProps {
   i18nKey: keyof TranslationKeys | PermissiveKey;
   params?: TranslationParams;
   ns?: string;
@@ -129,15 +130,41 @@ export interface TProps {
 }
 
 /**
+ * Every prop that is not declared above is an interpolation param, so the type
+ * has to accept a key it never declared — the same widening `@comvi/react`'s
+ * `TProps` has.
+ */
+export type TProps = TBaseProps & Record<string, unknown>;
+
+/** The props that carry their own meaning; everything else is a param. */
+const DECLARED_PROPS = [
+  "i18nKey",
+  "params",
+  "ns",
+  "locale",
+  "fallback",
+  "raw",
+  "components",
+  "children",
+] as const;
+
+/**
  * Renders a translation.
+ *
+ * Params may be written as `params={{ … }}` or as direct props.
  *
  * @example
  * ```tsx
  * <T i18nKey="greeting" />
+ * <T i18nKey="cart.items" count={2} name="Ada" />
  * ```
  */
 export const T: Component<TProps> = (props) => {
   const ctx = useI18nContextValue();
+
+  // Everything outside `DECLARED_PROPS` is an interpolation param, matching the
+  // react wrapper: `<T i18nKey="cart" count={2} />` is `params: { count: 2 }`.
+  const [local, directParams] = splitProps(props, DECLARED_PROPS);
 
   // Fallback children resolve LAZILY: resolving eagerly would build the
   // fallback subtree — and run its side effects — on every render, translation
@@ -148,32 +175,39 @@ export const T: Component<TProps> = (props) => {
   let resolveFallback: (() => ResolvedChildren) | undefined;
   const fallbackChildren = (): ResolvedChildren => {
     if (!resolveFallback) {
-      resolveFallback = runWithOwner(owner, () => resolveChildren(() => props.children))!;
+      resolveFallback = runWithOwner(owner, () => resolveChildren(() => local.children))!;
     }
     return resolveFallback();
   };
 
   const finalContent = createMemo(() => {
     ctx.signals.cacheRevision();
-    const keyString = props.i18nKey as string;
+    const keyString = local.i18nKey as string;
 
-    // The `??` short-circuits the signal read when `props.locale` is set, so
+    // The `??` short-circuits the signal read when `local.locale` is set, so
     // `<T locale="…">` does not recompute on unrelated global locale changes.
-    const targetLocale = props.locale ?? ctx.signals.locale();
-    const targetNamespace = props.ns ?? ctx.signals.defaultNamespace();
+    const targetLocale = local.locale ?? ctx.signals.locale();
+    const targetNamespace = local.ns ?? ctx.signals.defaultNamespace();
 
     const reportTagError: ReportTagError = (error, tagName) => {
       ctx.i18n.reportError(error, { source: "translation", tagName });
     };
 
+    // The spread is what SUBSCRIBES to each direct param, so it happens inside
+    // the memo. A direct prop wins a name collision with `params`, as in react.
+    const hasDirectParams = Object.keys(directParams).length > 0;
+    const allParams = hasDirectParams
+      ? ({ ...local.params, ...directParams } as TranslationParams)
+      : local.params;
+
     const hasComponents =
-      props.components !== undefined && Object.keys(props.components).length > 0;
-    const hasParams = props.params !== undefined && Object.keys(props.params).length > 0;
+      local.components !== undefined && Object.keys(local.components).length > 0;
+    const hasParams = allParams !== undefined && Object.keys(allParams).length > 0;
     const hasOverrides =
-      props.ns !== undefined ||
-      props.locale !== undefined ||
-      props.fallback !== undefined ||
-      props.raw !== undefined;
+      local.ns !== undefined ||
+      local.locale !== undefined ||
+      local.fallback !== undefined ||
+      local.raw !== undefined;
 
     // Fast path: a bare `tRaw` call keeps core's static-template cache hit
     // (zero per-render allocation) for the common shape — a plain-text template
@@ -191,7 +225,7 @@ export const T: Component<TProps> = (props) => {
           content === keyString &&
           !ctx.i18n.hasTranslation(keyString, targetLocale, targetNamespace, true);
 
-        if (isMissing && props.children !== undefined) {
+        if (isMissing && local.children !== undefined) {
           return fallbackChildren();
         }
 
@@ -201,15 +235,15 @@ export const T: Component<TProps> = (props) => {
 
     const { content, pendingHandlers, isMissing } = prepareTranslation(ctx.i18n, {
       i18nKey: keyString,
-      params: props.params,
-      ns: props.ns,
-      locale: props.locale,
-      fallback: props.fallback,
-      raw: props.raw,
-      components: props.components,
+      params: allParams,
+      ns: local.ns,
+      locale: local.locale,
+      fallback: local.fallback,
+      raw: local.raw,
+      components: local.components,
     });
 
-    if (isMissing && props.children !== undefined) {
+    if (isMissing && local.children !== undefined) {
       return fallbackChildren();
     }
 
