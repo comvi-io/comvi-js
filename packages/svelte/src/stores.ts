@@ -61,13 +61,21 @@ function getOrCreateStores<D extends DefaultTranslationParams>(i18n: Host<D>) {
           unsubDestroyed();
         };
       }),
-      cacheRevision: readable(i18n.translationCache.getRevision(), (set) => {
+      cacheRevision: readable(0, (set) => {
         // ONE monotonic counter: summing a cache and a config revision let two
-        // opposite steps collide and drop a re-render. Bumps on core's whole
-        // canonical event set, the locale/loading axes included.
+        // opposite steps collide and drop a re-render.
+        //
+        // Core's canonical revision event set MINUS the locale/loading axes,
+        // which have their own stores here — bumping on those would break the
+        // pinned-locale contract that `<T locale="…">` does not recompute when
+        // the global locale changes.
         let revision = 0;
         set(revision);
-        return subscribeToRevision(i18n, () => set(++revision));
+        return subscribeToRevision(i18n, (event) => {
+          if (event !== "localeChanged" && event !== "loadingStateChanged") {
+            set(++revision);
+          }
+        });
       }),
       defaultParams: readable<Readonly<DefaultTranslationParams> | undefined>(
         i18n.defaultParams,

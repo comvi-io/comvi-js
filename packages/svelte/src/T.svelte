@@ -27,9 +27,15 @@
   const cacheRevision = createCacheRevisionStore(i18n);
 
   const prepared = $derived.by(() => {
-    // These two reads ARE the reactive dependency.
-    void $languageStore;
+    // This read IS the reactive dependency for the cache/config axis.
     void $cacheRevision;
+    // The locale axis is a dependency only when the locale is NOT pinned:
+    // reading `$languageStore` outside this branch would register the
+    // dependency anyway, and a `<T locale="de">` would recompute on every
+    // global locale change whose answer it cannot depend on.
+    if (locale === undefined) {
+      void $languageStore;
+    }
 
     return prepareTranslation(i18n, {
       i18nKey: i18nKey as string,

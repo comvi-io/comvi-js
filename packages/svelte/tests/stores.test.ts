@@ -291,3 +291,64 @@ describe("Svelte stores", () => {
     expect(values).toEqual([0, 1, 2, 3, 4, 5, 6]);
   });
 });
+
+/**
+ * The revision store must NOT bump on the locale and loading axes: they have
+ * their own stores, and `<T locale="…">` pins a locale precisely so a global
+ * locale change cannot make it recompute. Mirrors
+ * `solid/src/primitives.ts:createCacheRevisionSignal`.
+ */
+describe("Svelte cacheRevision store excludes the locale and loading axes", () => {
+  let fake: FakeI18n;
+
+  beforeEach(() => {
+    fake = new FakeI18n({ language: "en", defaultNamespace: "common" });
+    fake.addTranslations({ en: { hello: "Hello" }, fr: { hello: "Bonjour" } });
+  });
+
+  it("does not bump on localeChanged", async () => {
+    const cacheRevision = createCacheRevisionStore(fake.asI18n());
+    const values: number[] = [];
+    const unsubscribe = cacheRevision.subscribe((v) => values.push(v));
+    const before = values.at(-1)!;
+
+    await fake.setLanguageAsync("fr");
+
+    expect(values.at(-1)!).toBe(before);
+    unsubscribe();
+  });
+
+  it("does not bump on loadingStateChanged", () => {
+    const cacheRevision = createCacheRevisionStore(fake.asI18n());
+    const values: number[] = [];
+    const unsubscribe = cacheRevision.subscribe((v) => values.push(v));
+    const before = values.at(-1)!;
+
+    fake.emit("loadingStateChanged", { isLoading: true, isInitializing: false });
+
+    expect(values.at(-1)!).toBe(before);
+    unsubscribe();
+  });
+
+  it("starts a fresh subscription at 0 rather than the cache's own revision", () => {
+    fake.addTranslations({ de: { hello: "Hallo" } });
+    const cacheRevision = createCacheRevisionStore(fake.asI18n());
+    const values: number[] = [];
+    const unsubscribe = cacheRevision.subscribe((v) => values.push(v));
+
+    expect(values[0]).toBe(0);
+    unsubscribe();
+  });
+
+  it("still bumps on a cache change", () => {
+    const cacheRevision = createCacheRevisionStore(fake.asI18n());
+    const values: number[] = [];
+    const unsubscribe = cacheRevision.subscribe((v) => values.push(v));
+    const before = values.at(-1)!;
+
+    fake.addTranslations({ en: { welcome: "Welcome" } });
+
+    expect(values.at(-1)!).toBeGreaterThan(before);
+    unsubscribe();
+  });
+});
