@@ -75,6 +75,24 @@ describe("registerSyntaxExtension()", () => {
     expect(warnSpy).not.toHaveBeenCalled();
   });
 
+  it("warns when a cacheBit is too wide for the 15-bit field in the cache key", () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    registerSyntaxExtension(inertExtension("too-wide", 0x8000));
+
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining('"too-wide" declares cacheBit 32768'),
+    );
+  });
+
+  it("stays silent for the widest cacheBit the cache key can still carry", () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    registerSyntaxExtension(inertExtension("widest", 0x4000));
+
+    expect(warnSpy).not.toHaveBeenCalled();
+  });
+
   it("publishes a new snapshot per registration instead of mutating the last one", () => {
     registerSyntaxExtension(inertExtension("first", 4));
     const snapshot = getAmbientExtensions();
@@ -209,5 +227,19 @@ describe("mergeTagInterpolation()", () => {
     const merged = mergeTagInterpolation({ strict: true }, { extensions: [perCallExt] });
 
     expect(merged?.extensions).toEqual([perCallExt]);
+  });
+});
+
+describe("getCompilerId() past the cache key's 16-bit compiler field", () => {
+  it("warns once when the assigned id no longer fits the cache key", async () => {
+    // The counter is module-global and never resets, so this test needs its own
+    // copy of the module rather than the one the rest of the file shares.
+    vi.resetModules();
+    const syntax = await import("../../src/core/translate/syntax");
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    for (let i = 0; i < 65535; i++) syntax.getCompilerId(inertCompiler());
+
+    expect(warnSpy.mock.calls.filter((call) => String(call[0]).includes("65535"))).toHaveLength(1);
   });
 });
