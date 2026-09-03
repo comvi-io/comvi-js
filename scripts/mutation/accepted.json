@@ -7953,10 +7953,10 @@
     },
     {
       "package": "packages/core",
-      "file": "src/core/i18n.ts",
+      "file": "src/core/duplicateGuard.ts",
       "mutators": ["ConditionalExpression", "StringLiteral"],
       "snippet": "const version = typeof __VERSION__ !== \"undefined\" ? __VERSION__ : \"\";",
-      "lineHint": 87,
+      "lineHint": 38,
       "kind": "equivalent",
       "reason": "the same shape, and the same argument, as the `const VERSION` entry for src/core/devtools.ts: vitest defines `__VERSION__` from package.json, so the `\"\"` fallback (for a consumer bundling the source without the define) is never taken, and forcing the guard true or widening the `typeof` comparison leaves the same value. Hand-applied all three: the duplicate-core suites stay green."
     }

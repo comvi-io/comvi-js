@@ -31,6 +31,7 @@ import {
   assertPreservesDefaultParamKeys,
 } from "../utils/defaultParams";
 import { translationResultToString } from "../utils/translationResultToString";
+import { assertSingleCopy } from "./duplicateGuard";
 import { TranslationCache } from "./TranslationCache";
 import { isStaticTemplate, translate, translateTemplate } from "./translate";
 import {
@@ -51,7 +52,6 @@ import {
 } from "./translate/syntax";
 
 declare const __DEV__: boolean | undefined;
-declare const __VERSION__: string | undefined;
 const IS_DEV = typeof __DEV__ !== "undefined" && __DEV__;
 
 const ERR_LOCALE_NOT_SET = IS_DEV ? "@comvi/core: Locale is not set" : "E_LOCALE_NOT_SET";
@@ -62,36 +62,9 @@ const ERR_INSTANCE_DESTROYED = IS_DEV
   ? "[i18n] Cannot call init() after destroy(). Create a new i18n instance."
   : "E_INSTANCE_DESTROYED";
 
-/**
- * DEV-only duplicate-copy guard.
- *
- * Everything module-scoped in core belongs to ONE copy of it: ambient tag
- * registration (`@comvi/core/tags`), the `window.__COMVI__` devtools queue and
- * the static template cache. A binding pinned to a different `@comvi/core`
- * patch than the one installed directly puts two copies in the app, and those
- * features then work in only half of it, silently.
- *
- * Keyed on the VERSION, not on module identity: a second evaluation of the
- * SAME copy is routine — `vi.resetModules()` in a test, a dev server
- * re-running a module graph — and warning about it would be noise. The
- * mismatch is also what the message asks the reader to fix.
- *
- * Module scope, not a constructor: the hazard is the copy being LOADED, not a
- * host being built from it, and a `Symbol.for` slot is the only thing two
- * separate module graphs share. Folded out of production with the branch, so
- * neither the marker nor the message reaches a production bundle.
- */
-if (IS_DEV) {
-  const slot = globalThis as unknown as Record<symbol, unknown>;
-  const key = Symbol.for("comvi.core.version");
-  const version = typeof __VERSION__ !== "undefined" ? __VERSION__ : "";
-  const loaded = slot[key];
-  if (loaded === undefined) slot[key] = version;
-  else if (loaded !== version)
-    warn(
-      `[i18n] Two copies of @comvi/core are loaded, ${String(loaded)} and ${version}. Ambient tags (@comvi/core/tags), the window.__COMVI__ devtools handshake and the template cache belong to one copy each and will not be shared. Align the @comvi/core version your framework binding depends on with the one you installed directly.`,
-    );
-}
+// Two copies of core share none of the module-scoped state below. DEV-only:
+// production drops the call, then the import, then the module itself.
+if (IS_DEV) assertSingleCopy();
 
 /**
  * A bare host stores catalogs verbatim, so a nested object or a non-string leaf
