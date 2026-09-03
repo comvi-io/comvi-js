@@ -78,3 +78,29 @@ describe("post-processors", () => {
     });
   });
 });
+
+describe("reportError() deduplication scope", () => {
+  it("reports the same error only once to the host that already saw it", () => {
+    const onError = vi.fn();
+    const i18n = createI18n({ locale: "en", onError });
+    const failure = new Error("boom");
+
+    i18n.reportError(failure);
+    i18n.reportError(failure);
+
+    expect(onError).toHaveBeenCalledTimes(1);
+  });
+
+  it("still reports an error to a second host after a first host reported it", () => {
+    const firstOnError = vi.fn();
+    const secondOnError = vi.fn();
+    const first = createI18n({ locale: "en", onError: firstOnError });
+    const second = createI18n({ locale: "en", onError: secondOnError });
+    const failure = new Error("boom");
+
+    first.reportError(failure);
+    second.reportError(failure);
+
+    expect(secondOnError).toHaveBeenCalledTimes(1);
+  });
+});
