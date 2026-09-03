@@ -175,4 +175,47 @@ describe("EnvLoader", () => {
       expect(loadEnv({ cwd: sandbox, disabled: true, explicitPath: missing })).toBeNull();
     });
   });
+
+  describe("walk-up and reporting contracts", () => {
+    it("walks to the filesystem root and returns null when nothing is found", () => {
+      // sandbox and all tmpdir ancestors carry neither .env nor package.json,
+      // so the walk can only terminate at the filesystem root.
+      expect(findEnvFile(sandbox)).toBeNull();
+    });
+
+    it("names the missing file in the MissingEnvFileError", () => {
+      const missing = resolve(sandbox, "missing.env");
+      let caught: unknown;
+
+      try {
+        loadEnv({ cwd: sandbox, explicitPath: missing });
+      } catch (error) {
+        caught = error;
+      }
+
+      expect(caught).toBeInstanceOf(MissingEnvFileError);
+      expect((caught as MissingEnvFileError).name).toBe("MissingEnvFileError");
+      expect((caught as MissingEnvFileError).message).toContain(missing);
+    });
+
+    it("stays silent when auto-discovery finds no .env", () => {
+      writeFileSync(resolve(sandbox, "package.json"), "{}");
+      const stderr = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
+
+      expect(loadEnv({ cwd: sandbox })).toBeNull();
+
+      expect(stderr).not.toHaveBeenCalled();
+    });
+
+    it("reports a fully-skipped .env instead of pretending nothing happened", () => {
+      vi.stubEnv("COMVI_TEST_PRESET", "real");
+      writeFileSync(resolve(sandbox, "package.json"), "{}");
+      writeFileSync(resolve(sandbox, ".env"), "COMVI_TEST_PRESET=shadow");
+
+      const result = loadEnv({ cwd: sandbox });
+
+      expect(result).toEqual({ path: resolve(sandbox, ".env"), added: 0, skipped: 1 });
+      expect(process.env.COMVI_TEST_PRESET).toBe("real");
+    });
+  });
 });

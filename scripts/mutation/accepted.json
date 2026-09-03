@@ -7570,6 +7570,123 @@
       "lineHint": 84,
       "kind": "equivalent",
       "reason": "right operand unreachable (nocov): options.apiUrl has a commander default and passed isValidUrl — always truthy (hand-applied: suite green)"
+    },
+    {
+      "package": "packages/cli",
+      "file": "src/core/ConfigLoader.ts",
+      "mutators": ["BlockStatement"],
+      "snippet": "} catch {",
+      "lineHint": 30,
+      "kind": "equivalent",
+      "reason": "emptying the catch makes findConfigFile fall through to implicit `return undefined` instead of `return null`; the sole caller only tests falsiness (hand-applied: suite green)"
+    },
+    {
+      "package": "packages/cli",
+      "file": "src/core/ConfigLoader.ts",
+      "mutators": ["ConditionalExpression", "BlockStatement"],
+      "snippet": "if (error instanceof TypegenError) {",
+      "lineHint": 67,
+      "kind": "equivalent",
+      "reason": "without the early rethrow a TypegenError skips the SyntaxError branch and reaches the final `throw error` — identical instance (hand-applied both: suite green)"
+    },
+    {
+      "package": "packages/cli",
+      "file": "src/core/ConfigLoader.ts",
+      "mutators": ["ConditionalExpression"],
+      "snippet": "...(config.namespaces !== undefined ? { namespaces: config.namespaces } : {}),",
+      "lineHint": 247,
+      "kind": "equivalent",
+      "reason": "forcing the guard true spreads `namespaces: undefined`, which JSON.stringify omits — written config byte-identical (hand-applied: suite green)"
+    },
+    {
+      "package": "packages/cli",
+      "file": "src/core/ConfigLoader.ts",
+      "mutators": ["ConditionalExpression"],
+      "snippet": "...(config.locales !== undefined ? { locales: config.locales } : {}),",
+      "lineHint": 248,
+      "kind": "equivalent",
+      "reason": "same JSON.stringify-omits-undefined argument for locales (hand-applied: suite green)"
+    },
+    {
+      "package": "packages/cli",
+      "file": "src/core/ConfigLoader.ts",
+      "mutators": ["StringLiteral"],
+      "snippet": "await fs.writeFile(filePath, content, \"utf-8\");",
+      "lineHint": 265,
+      "kind": "equivalent",
+      "reason": "Node treats empty-string encoding as unset and defaults to utf8 for string data (verified by direct node probe; hand-applied: suite green)"
+    },
+    {
+      "package": "packages/cli",
+      "file": "src/core/EnvLoader.ts",
+      "mutators": ["ConditionalExpression"],
+      "snippet": "if (value === undefined) continue;",
+      "lineHint": 121,
+      "kind": "equivalent",
+      "reason": "util.parseEnv never yields undefined values (bare FOO lines dropped, FOO= yields \"\") — probed directly; unreachable defensive typing (hand-applied: suite green)"
+    },
+    {
+      "package": "packages/cli",
+      "file": "src/core/FileSystemWriter.ts",
+      "mutators": ["StringLiteral"],
+      "snippet": "encoding: \"utf-8\",",
+      "lineHint": 29,
+      "kind": "equivalent",
+      "reason": "empty-string encoding falls back to utf8 for string data (node probe; hand-applied: suite green)"
+    },
+    {
+      "package": "packages/cli",
+      "file": "src/core/FileSystemWriter.ts",
+      "mutators": ["StringLiteral"],
+      "snippet": "flag: options?.exclusive ? \"wx\" : \"w\",",
+      "lineHint": 30,
+      "kind": "equivalent",
+      "reason": "the \"w\" flag literal: fs.writeFile computes options.flag || \"w\", so \"\" falls back to \"w\" (node probe); the sibling \"wx\" literal IS killed (hand-applied: suite green)"
+    },
+    {
+      "package": "packages/cli",
+      "file": "src/core/TranslationSync.ts",
+      "mutators": ["StringLiteral"],
+      "snippet": "const content = await fs.readFile(filePath, \"utf-8\");",
+      "lineHint": 125,
+      "kind": "equivalent",
+      "reason": "empty encoding makes readFile return a Buffer; JSON.parse coerces via utf8 toString and parses identically (node probe; hand-applied: suite green)"
+    },
+    {
+      "package": "packages/cli",
+      "file": "src/core/TranslationSync.ts",
+      "mutators": ["ConditionalExpression", "BlockStatement"],
+      "snippet": "if (error instanceof TypegenError) {",
+      "lineHint": 173,
+      "kind": "equivalent",
+      "reason": "wrapError passes a TypegenError through unchanged — skipping the early rethrow throws the same instance via `throw wrapError(...)` (hand-applied both: suite green)"
+    },
+    {
+      "package": "packages/cli",
+      "file": "src/utils/atomicWrite.ts",
+      "mutators": ["StringLiteral"],
+      "snippet": "encoding: \"utf-8\",",
+      "lineHint": 21,
+      "kind": "equivalent",
+      "reason": "empty-string encoding falls back to utf8; the sibling \"wx\" flag literal IS killed via the fixed-UUID collision test (hand-applied: suite green)"
+    },
+    {
+      "package": "packages/cli",
+      "file": "src/utils/errors.ts",
+      "mutators": ["ConditionalExpression", "BlockStatement"],
+      "snippet": "if (Error.captureStackTrace) {",
+      "lineHint": 10,
+      "kind": "needs-seam",
+      "reason": "->true: Error.captureStackTrace always defined on V8/Node; ->false/{}: frame-trimming unobservable under vite-node — stacks never contain the `at new TypegenError` frame (verified by stack dump under the mutant); only the built dist binary observes it and tests/dist is excluded under COMVI_MUTATION by design (hand-applied all: suite green)"
+    },
+    {
+      "package": "packages/cli",
+      "file": "src/utils/errors.ts",
+      "mutators": ["CallExpression"],
+      "snippet": "Error.captureStackTrace(this, TypegenError);",
+      "lineHint": 11,
+      "kind": "needs-seam",
+      "reason": "removing the captureStackTrace call is unobservable under vite-node — same stack-frame argument as line 10 (hand-applied: suite green)"
     }
   ]
 }

@@ -209,3 +209,16 @@ export function mockEventSource(): { instances: FakeEventSource[] } {
 
   return { instances };
 }
+
+/**
+ * Resolves with the rejection reason of `promise`, and fails the test when the
+ * promise fulfills instead — the async counterpart of `thrownBy`.
+ */
+export async function rejectionOf(promise: Promise<unknown>): Promise<unknown> {
+  return promise.then(
+    () => {
+      throw new Error("expected the promise to reject, but it fulfilled");
+    },
+    (error: unknown) => error,
+  );
+}
