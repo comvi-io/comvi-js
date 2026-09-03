@@ -61,8 +61,15 @@ jobs:
       - name: Build
         run: pnpm build
 
+      # The input reaches the shell through the environment, never through
+      # `${{ }}` inside the `run:` body: interpolation happens before the shell
+      # parses the line, so a `$(…)` in the input would execute even inside
+      # double quotes. rc-version.mjs's own `/^\d+$/` check runs far too late to
+      # help with that. The step NAME may interpolate — it is not executed.
       - name: Rewrite versions to rc.${{ inputs.rc }} (working tree only)
-        run: node scripts/rc-version.mjs --rc "${{ inputs.rc }}"
+        env:
+          RC: ${{ inputs.rc }}
+        run: node scripts/rc-version.mjs --rc "$RC"
 
       - name: Publish rc under dist-tag next
         run: pnpm -r --filter './packages/*' publish --tag next --access public --no-git-checks

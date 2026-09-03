@@ -1,5 +1,13 @@
 # 0.5.0 hardening → production release
 
+> **`scripts/check-release-plan.mjs` no longer exists.** It was deleted in
+> `eb052620` ("ci: keep only what proves something — 12 jobs to 4, delete the noise
+> gates"). Four references to it survive in §§0–6 below, as evidence, as a gate
+> and as a phase step. Those references describe a superseded gate and
+> are left as written, because they record what was true when each phase ran.
+> **Nothing in this plan should be executed against that script.** §7 was rewritten
+> and names only gates that exist.
+
 Status: **rev 3 — 2026-08-29. D1/D2 decided by the owner; rev 1 critiqued (4/10) → rev 2 (8/10) →
 rev 3 closes the RC-machinery blockers and the D1 implementation ambiguities.
 **Phases 0–5 EXECUTED 2026-08-29** (evidence: `.omc/handoffs/hardening-p0.md`, `-p1-p3.md`,

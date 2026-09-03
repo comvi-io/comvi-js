@@ -69,7 +69,17 @@ export function planRcVersions({ root, rc }) {
     let next;
     if (fixed.has(pkg.name)) next = fixedNext;
     else if (bumps[pkg.name]) next = bump(pkg.version, bumps[pkg.name]);
-    else continue; // not released by this train
+    // The RC job publishes with `pnpm -r --filter './packages/*' publish`,
+    // which is a WIDER set than this rewrite: skipping a package here does not
+    // keep it off npm, it publishes it at its GA version under dist-tag `next`.
+    // So refuse instead of skipping.
+    else
+      throw new Error(
+        `${pkg.name} is publishable but this RC would not version it: ` +
+          `it is not in the fixed group and no changeset names it, so the RC job ` +
+          `would publish ${pkg.version} under dist-tag next. Add a changeset for it, ` +
+          `or add it to "ignore" in .changeset/config.json.`,
+      );
     manifests.push({ file, name: pkg.name, from: pkg.version, to: `${next}-rc.${rc}` });
   }
   const versions = Object.fromEntries(manifests.map((m) => [m.name, m.to]));

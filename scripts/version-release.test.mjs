@@ -3,7 +3,12 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { changesetOrder, hoistBreakingEntries, main } from "./version-release.mjs";
+import {
+  COORDINATED_VERSION_FAILED,
+  changesetOrder,
+  hoistBreakingEntries,
+  main,
+} from "./version-release.mjs";
 
 function writeJson(file, value) {
   fs.mkdirSync(path.dirname(file), { recursive: true });
@@ -123,17 +128,33 @@ test("with no changesets both commands still run and the CHANGELOG is left alone
   assert.equal(fs.readFileSync(path.join(root, "CHANGELOG.md"), "utf8"), before);
 });
 
-test("dryRun reports the version it would add and writes no CHANGELOG", (t) => {
+test("skipRootChangelog reports the version it would add and writes no CHANGELOG", (t) => {
   const root = makeFixtureRepo(t);
   const before = fs.readFileSync(path.join(root, "CHANGELOG.md"), "utf8");
   const { run } = recordingRun();
   const logged = [];
 
-  const result = main({ root, dryRun: true, run, log: (line) => logged.push(line) });
+  const result = main({ root, skipRootChangelog: true, run, log: (line) => logged.push(line) });
 
-  assert.deepEqual(result, { versioned: true, version: "0.5.0", changed: false });
+  // Same shape as the full path: nothing was hoisted, and the field says so
+  // rather than going missing.
+  assert.deepEqual(result, { versioned: true, version: "0.5.0", changed: false, hoisted: [] });
   assert.deepEqual(logged, ["root-changelog: would add coordinated 0.5.0 release"]);
   assert.equal(fs.readFileSync(path.join(root, "CHANGELOG.md"), "utf8"), before);
+});
+
+test("skipRootChangelog still runs both commands — it is not a dry run", (t) => {
+  const root = makeFixtureRepo(t);
+  const { calls, run } = recordingRun();
+
+  main({ root, skipRootChangelog: true, run, log: () => {} });
+
+  // The tree is fully versioned and the changesets consumed by the time the
+  // flag is read. Only the root CHANGELOG entry and the hoist are skipped.
+  assert.deepEqual(describeCalls(calls), [
+    "node sync-peer-ranges.mjs",
+    "pnpm exec changeset version",
+  ]);
 });
 
 test("a fixed group that does not share one version is a hard failure", (t) => {
@@ -146,7 +167,29 @@ test("a fixed group that does not share one version is a hard failure", (t) => {
 
   assert.throws(
     () => main({ root, run, log: () => {} }),
-    /publishable packages must share one version/,
+    (error) => {
+      assert.match(error.message, /publishable packages must share one version/);
+      // The CLI prints this one without a stack, and nothing else. The code is
+      // what keeps that catch narrow.
+      assert.equal(error.code, COORDINATED_VERSION_FAILED);
+      return true;
+    },
+  );
+});
+
+test("a failure that is not the coordinated-version check keeps its own identity", (t) => {
+  const root = makeFixtureRepo(t);
+  // A changeset with no summary: `collectChangesets` rejects it. The CLI must
+  // rethrow this rather than reduce it to one line.
+  fs.writeFileSync(path.join(root, ".changeset/broken.md"), '---\n"@comvi/core": patch\n---\n\n');
+  const { run } = recordingRun();
+
+  assert.throws(
+    () => main({ root, run, log: () => {} }),
+    (error) => {
+      assert.notEqual(error.code, COORDINATED_VERSION_FAILED);
+      return true;
+    },
   );
 });
 

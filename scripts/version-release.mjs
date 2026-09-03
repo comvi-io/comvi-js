@@ -9,6 +9,12 @@ import {
   updateRootChangelogFile,
 } from "./root-changelog.mjs";
 
+/**
+ * `error.code` on the one failure the CLI reports without a stack: the fixed
+ * group did not land on a single version.
+ */
+export const COORDINATED_VERSION_FAILED = "E_COORDINATED_VERSION";
+
 /** The real runner: inherits stdio and takes the process down on failure. */
 function spawnOrExit(root) {
   return (command, args) => {
@@ -164,11 +170,18 @@ export function hoistBreakingEntriesInRepo({ root, changesets, log = console.log
  *
  * The changesets are collected BEFORE step 2 because `changeset version`
  * deletes them. `run` is injectable so a test can assert the order without
- * spawning anything; `dryRun` stops short of writing the root CHANGELOG.
+ * spawning anything.
+ *
+ * `skipRootChangelog` (CLI: `--skip-root-changelog`) returns after step 2,
+ * before the hoist and the root CHANGELOG entry. It is deliberately NOT called
+ * a dry run: steps 1 and 2 have already run by then, so the working tree is
+ * fully versioned and the changesets are consumed either way. A real dry run is
+ * not possible here — the version is not known until `changeset version` has
+ * decided it.
  */
 export function main({
   root = process.cwd(),
-  dryRun = false,
+  skipRootChangelog = false,
   run = spawnOrExit(root),
   log = console.log,
 } = {}) {
@@ -182,14 +195,22 @@ export function main({
   }
 
   const packages = getPublishablePackages(root);
-  const version = coordinatedVersion(packages);
+  let version;
+  try {
+    version = coordinatedVersion(packages);
+  } catch (error) {
+    // The one failure whose message stands on its own, so the CLI prints it
+    // without a stack. Anything else escaping `main` is a bug and keeps one.
+    error.code ??= COORDINATED_VERSION_FAILED;
+    throw error;
+  }
   // The release PR is created before npm publication, so its timestamp is not
   // the release date. Keep generated headings undated unless an exact date is
   // supplied.
   const date = process.env.CHANGELOG_DATE;
-  if (dryRun) {
+  if (skipRootChangelog) {
     log(`root-changelog: would add coordinated ${version} release`);
-    return { versioned: true, version, changed: false };
+    return { versioned: true, version, changed: false, hoisted: [] };
   }
   const hoisted = hoistBreakingEntriesInRepo({ root, changesets, log });
   const changed = updateRootChangelogFile({ root, version, date, changesets, packages });
@@ -203,8 +224,13 @@ export function main({
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   try {
-    main({ dryRun: process.argv.includes("--dry-run") });
+    main({ skipRootChangelog: process.argv.includes("--skip-root-changelog") });
   } catch (error) {
+    // Narrow on purpose: only the coordinated-version failure is a message a
+    // release captain can act on. A malformed changeset, an fs error in the
+    // hoist or a throw out of updateRootChangelogFile is a bug, and swallowing
+    // its stack makes a broken cut harder to debug than it already is.
+    if (error?.code !== COORDINATED_VERSION_FAILED) throw error;
     console.error(`root-changelog: ${error.message}`);
     process.exit(1);
   }

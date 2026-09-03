@@ -138,6 +138,24 @@ test("plan: the fixed group shares one version, a separately named package gets 
   });
 });
 
+test("planRcVersions refuses a publishable package this RC would not version", (t) => {
+  // The RC job publishes every non-private package under packages/, so a
+  // package the rewrite skips would go out at its GA version under dist-tag
+  // `next`. The plan has to refuse rather than quietly leave it behind.
+  const root = makeFixtureRepo(t, {
+    extraPackages: { "plugin-z": { name: "@comvi/plugin-z", version: "0.1.0" } },
+  });
+
+  const result = runInFixture(
+    root,
+    '  planRcVersions({ root: process.cwd(), rc: "7" });\n  out(null);',
+  );
+
+  assert.equal(result.status, 3, `${result.stdout}\n${result.stderr}`);
+  assert.match(result.stdout, /@comvi\/plugin-z/);
+  assert.match(result.stdout, /no changeset names it/);
+});
+
 test("planRcVersions rejects an --rc that is not a non-negative integer", () => {
   assert.throws(() => planRcVersions({ root: REPO, rc: "x" }), /non-negative integer/);
 });
