@@ -69,15 +69,44 @@ function syncLocaleSafely(
  * mismatches. Translations should be pre-loaded in the instance via the
  * `translation` option in `createI18n()`.
  *
+ * Render it from a `"use client"` wrapper that imports the instance itself:
+ * Next.js cannot pass a class instance from a Server Component to a Client
+ * Component, so a layout may not hand `i18n` across the RSC boundary.
+ *
  * @example
  * ```tsx
- * // app/[locale]/layout.tsx
+ * // app/[locale]/I18nClientProvider.tsx
+ * "use client";
+ *
  * import { I18nProvider } from '@comvi/next/client';
- * import { i18n } from '@/i18n';
+ * import type { MessagesMap } from '@comvi/next/client';
+ * import { i18n } from '@/i18n/config';
+ *
+ * export function I18nClientProvider({
+ *   children,
+ *   locale,
+ *   messages,
+ * }: {
+ *   children: React.ReactNode;
+ *   locale: string;
+ *   messages?: MessagesMap;
+ * }) {
+ *   return (
+ *     <I18nProvider i18n={i18n} locale={locale} messages={messages}>
+ *       {children}
+ *     </I18nProvider>
+ *   );
+ * }
+ * ```
+ *
+ * @example
+ * ```tsx
+ * // app/[locale]/layout.tsx — a Server Component; no i18n import here
+ * import { I18nClientProvider } from './I18nClientProvider';
  *
  * export default async function LocaleLayout({
  *   children,
- *   params
+ *   params,
  * }: {
  *   children: React.ReactNode;
  *   params: Promise<{ locale: string }>;
@@ -87,9 +116,7 @@ function syncLocaleSafely(
  *   return (
  *     <html lang={locale}>
  *       <body>
- *         <I18nProvider i18n={i18n} locale={locale}>
- *           {children}
- *         </I18nProvider>
+ *         <I18nClientProvider locale={locale}>{children}</I18nClientProvider>
  *       </body>
  *     </html>
  *   );

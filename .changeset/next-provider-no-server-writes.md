@@ -18,3 +18,7 @@ request locale reaches the tree through React context, exactly as it already did
 
 `addTranslations()` still runs on the server. It is additive and keyed by `locale:namespace`, so a
 concurrent request can only write what the other would have loaded anyway.
+
+The JSDoc example on `<I18nProvider>` now shows the `"use client"` wrapper component instead of
+importing the i18n instance straight into a Server Component. Next.js cannot pass a class instance
+across the RSC boundary, so the old example did not work as written.
