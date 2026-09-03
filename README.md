@@ -248,7 +248,8 @@ Those three argument types are the whole of what the compiler implements. The
 roadmap, and neither is the plural `offset:` form. Each one is an
 `E_ICU_SYNTAX` failure rather than a wrong render: format the value in code and
 pass it as a plain `{param}`, or quote the braces (`'{'…'}'`) to keep the text
-literal.
+literal; for the plural `offset:` form, drop `offset:` and write the branches
+out.
 
 ```ts
 t("messages", { count: 1 }); // "You have 1 message"

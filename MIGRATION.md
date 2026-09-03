@@ -77,8 +77,8 @@ process, never on cached renders.
 
 The ICU compiler fails the same way on the two shapes it does not implement, and
 each has its own development message. An argument whose type is not `plural`,
-`selectordinal` or `select` — `{price, number}`, `{d, date}`, `{t, time}`, and
-the plural `offset:` form, none of which are on the roadmap:
+`selectordinal` or `select` — `{price, number}`, `{d, date}`, `{t, time}`, none
+of which are on the roadmap:
 
 ```
 [i18n] ICU argument `{price, number}` is not supported: this compiler implements `plural`, `selectordinal` and `select`, each with a choice list like `other {…}`. Quote the braces ('{'…'}') or format the value in code and pass it as a plain {param}
@@ -92,7 +92,9 @@ braced sub-messages:
 [i18n] The `plural` choice list `one {# item} other` is malformed; every selector needs a braced sub-message, as in `other {…}`
 ```
 
-Give every selector a `{…}` sub-message. Both are development-only text and fold
+Give every selector a `{…}` sub-message. The plural `offset:` form is not
+implemented either, and fails here rather than above: its `offset:N` reads as a
+selector with no sub-message. Both messages are development-only text and fold
 out of production, where the braced segment renders literally and is reported.
 
 `E_ICU_SYNTAX` owns exactly `code` and a truthful `argumentType` (`"plural"`,
@@ -591,13 +593,15 @@ production:
 ```
 
 Format the value in code and interpolate it as a plain `{param}` — `number`,
-`date`, `time` and the plural `offset:` form are not implemented.
+`date` and `time` are not implemented.
 
 ```
 [i18n] The `plural` choice list `one {# item} other` is malformed; every selector needs a braced sub-message, as in `other {…}`
 ```
 
-Give every selector the message names a braced sub-message of its own.
+Give every selector the message names a braced sub-message of its own. The
+plural `offset:` form lands here too, not above: `offset:N` parses as a selector
+with no braced sub-message.
 
 One more silent change worth naming: **escapes travel with the grammar they
 escape.** `&lt;`, `&gt;`, `&amp;` and `\<` exist to write a literal angle bracket
