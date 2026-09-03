@@ -3,9 +3,6 @@
 import type { ProjectSchema, SchemaParam } from "../types";
 import { ErrorCodes, TypegenError } from "../utils/errors";
 
-/** The only param types the emitted declarations can express. */
-const SUPPORTED_PARAM_TYPES = new Set(["string", "number"]);
-
 export interface TypeEmitterOptions {
   /**
    * Whether params are required (true) or optional (false)
@@ -121,7 +118,7 @@ export class TypeEmitter {
  * declarations. Refuse it instead of emitting a file the user has to debug.
  */
 function assertSupportedParamType(key: string, param: SchemaParam): void {
-  if (SUPPORTED_PARAM_TYPES.has(param.type)) {
+  if (param.type === "string" || param.type === "number") {
     return;
   }
 

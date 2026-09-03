@@ -236,6 +236,23 @@ describe("comvi pull", () => {
     });
   });
 
+  it("keeps stale files when neither the flag nor the config asks for a clear", async () => {
+    const configPath = await writeConfig({ translationsPath: localesDir });
+    await fs.mkdir(localesDir, { recursive: true });
+    await fs.writeFile(join(localesDir, "fr.json"), "{}", "utf-8");
+    http = stubFetch({
+      ...DEFAULT_NAMESPACE_ROUTES,
+      [PATHS.translations]: {
+        body: { locales: ["en"], namespaces: { common: { en: { greeting: "Hello" } } } },
+      },
+    });
+
+    const exitCode = await runPull(["-c", configPath]);
+
+    expect(exitCode).toBe(0);
+    expect(await fs.readFile(join(localesDir, "fr.json"), "utf-8")).toBe("{}");
+  });
+
   it("--dry-run with --empty-dir lists the files it would remove and keeps them", async () => {
     const configPath = await writeConfig({ translationsPath: localesDir });
     await fs.mkdir(join(localesDir, "admin"), { recursive: true });

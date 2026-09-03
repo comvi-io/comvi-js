@@ -179,15 +179,17 @@ export class TranslationSync {
         return;
       }
 
-      for (const filePath of await this.listFilesToClear(scope)) {
-        await fs.rm(filePath, { force: true });
+      const files = await this.listFilesToClear(scope);
+      for (const filePath of files) {
+        await fs.unlink(filePath);
       }
 
-      await this.removeEmptyDirectories(this.translationsPath, true);
-    } catch (error) {
-      if (error instanceof TypegenError) {
-        throw error;
+      // Nothing was unlinked, so nothing was emptied — and the translations
+      // directory may not even exist yet.
+      if (files.length > 0) {
+        await this.removeEmptyDirectories(this.translationsPath, true);
       }
+    } catch (error) {
       throw wrapError(error, "Failed to clear directory", ErrorCodes.FS_WRITE_FAILED);
     }
   }
@@ -252,15 +254,7 @@ export class TranslationSync {
    * directory itself is kept: the pull writes into it next.
    */
   private async removeEmptyDirectories(dir: string, isRoot: boolean): Promise<boolean> {
-    let entries;
-    try {
-      entries = await fs.readdir(dir, { withFileTypes: true });
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === "ENOENT") {
-        return false;
-      }
-      throw error;
-    }
+    const entries = await fs.readdir(dir, { withFileTypes: true });
 
     let isEmpty = true;
     for (const entry of entries) {

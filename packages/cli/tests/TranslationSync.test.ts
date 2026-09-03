@@ -6,6 +6,19 @@ import { DEFAULT_FILE_TEMPLATE } from "../src/defaults";
 import { ErrorCodes, TypegenError } from "../src/utils/errors";
 import { makeTempDir, rejectionOf, removeTempDirs } from "./helpers";
 
+/**
+ * A directory listing is unordered — the OS decides. Reversing it makes the
+ * order a test can rely on, so the sorted output the dry run prints is a claim
+ * about the code and not about the filesystem it happened to run on.
+ */
+function stubReversedDirectoryListing(): void {
+  const readdir = fs.readdir.bind(fs);
+  vi.spyOn(fs, "readdir").mockImplementation((async (path: string, options: unknown) =>
+    (
+      (await readdir(path, options as never)) as unknown[]
+    ).reverse()) as unknown as typeof fs.readdir);
+}
+
 describe("TranslationSync", () => {
   afterEach(removeTempDirs);
 
@@ -465,6 +478,104 @@ describe("TranslationSync", () => {
 
     await expect(sync.previewClear({ namespaces: ["common"] })).resolves.toEqual([
       join(locales, "en", "common.json"),
+    ]);
+  });
+
+  it("scopes a clear over a translations directory that does not exist yet", async () => {
+    const dir = await makeTempDir("comvi-cli-clear-scope");
+    vi.spyOn(process, "cwd").mockReturnValue(dir);
+    const sync = makeSync(join(dir, "locales"));
+
+    await expect(sync.clearDirectory({ namespaces: ["common"] })).resolves.toBeUndefined();
+  });
+
+  it("removes every directory a scoped clear empties, and keeps the translations directory", async () => {
+    const dir = await makeTempDir("comvi-cli-clear-nested");
+    vi.spyOn(process, "cwd").mockReturnValue(dir);
+    const locales = join(dir, "locales");
+    await fs.mkdir(join(locales, "deep", "en"), { recursive: true });
+    await fs.writeFile(join(locales, "deep", "en", "common.json"), "{}\n");
+    await fs.writeFile(join(locales, "deep", "en", "admin.json"), "{}\n");
+    const sync = makeSync(locales, "deep/{languageTag}/{namespace}.json");
+
+    await sync.clearDirectory({ namespaces: ["common", "admin"] });
+
+    await expect(fs.readdir(locales)).resolves.toEqual([]);
+  });
+
+  it("keeps a directory a scoped clear did not empty", async () => {
+    const dir = await makeTempDir("comvi-cli-clear-nested");
+    vi.spyOn(process, "cwd").mockReturnValue(dir);
+    const locales = join(dir, "locales");
+    await fs.mkdir(join(locales, "deep", "en"), { recursive: true });
+    await fs.writeFile(join(locales, "deep", "en", "common.json"), "{}\n");
+    await fs.writeFile(join(locales, "deep", "en", "admin.json"), "{}\n");
+    const sync = makeSync(locales, "deep/{languageTag}/{namespace}.json");
+
+    await sync.clearDirectory({ namespaces: ["common"] });
+
+    await expect(fs.readdir(join(locales, "deep", "en"))).resolves.toEqual(["admin.json"]);
+  });
+
+  it("refuses to preview a clear outside the working directory", async () => {
+    const dir = await makeTempDir("comvi-cli-guard");
+    const child = join(dir, "child");
+    await fs.mkdir(child);
+    vi.spyOn(process, "cwd").mockReturnValue(child);
+    const sync = makeSync(dir);
+
+    await expect(sync.previewClear()).rejects.toThrow("Refusing to clear translations directory");
+  });
+
+  it("wraps a directory it cannot read while previewing with FS_WRITE_FAILED", async () => {
+    const dir = await makeTempDir("comvi-cli-clear-preview");
+    vi.spyOn(process, "cwd").mockReturnValue(dir);
+    const locales = join(dir, "locales");
+    const locked = join(locales, "locked");
+    await fs.mkdir(locked, { recursive: true });
+    const sync = makeSync(locales);
+    await fs.chmod(locked, 0o000);
+
+    try {
+      const error = await rejectionOf(sync.previewClear());
+
+      expect(error).toBeInstanceOf(TypegenError);
+      expect((error as TypegenError).code).toBe(ErrorCodes.FS_WRITE_FAILED);
+      expect((error as TypegenError).message).toContain("Failed to list directory");
+    } finally {
+      await fs.chmod(locked, 0o755);
+    }
+  });
+
+  it("sorts the unscoped preview even when the directory lists its entries out of order", async () => {
+    const dir = await makeTempDir("comvi-cli-clear-preview");
+    vi.spyOn(process, "cwd").mockReturnValue(dir);
+    const locales = join(dir, "locales");
+    await fs.mkdir(locales, { recursive: true });
+    await fs.writeFile(join(locales, "a.json"), "{}\n");
+    await fs.writeFile(join(locales, "b.json"), "{}\n");
+    stubReversedDirectoryListing();
+    const sync = makeSync(locales);
+
+    await expect(sync.previewClear()).resolves.toEqual([
+      join(locales, "a.json"),
+      join(locales, "b.json"),
+    ]);
+  });
+
+  it("sorts the scoped preview even when the directory lists its entries out of order", async () => {
+    const dir = await makeTempDir("comvi-cli-clear-preview");
+    vi.spyOn(process, "cwd").mockReturnValue(dir);
+    const locales = join(dir, "locales");
+    await fs.mkdir(join(locales, "en"), { recursive: true });
+    await fs.writeFile(join(locales, "en", "a.json"), "{}\n");
+    await fs.writeFile(join(locales, "en", "b.json"), "{}\n");
+    stubReversedDirectoryListing();
+    const sync = makeSync(locales);
+
+    await expect(sync.previewClear({ namespaces: ["a", "b"] })).resolves.toEqual([
+      join(locales, "en", "a.json"),
+      join(locales, "en", "b.json"),
     ]);
   });
 

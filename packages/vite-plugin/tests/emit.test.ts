@@ -177,6 +177,23 @@ describe("emitDeclarations", () => {
     expect(() => emitDeclarations(schema)).toThrow(/admin:greeting.*onDone.*\(\) => void/);
   });
 
+  it("separates several params of one key with a semicolon", () => {
+    const schema: ProjectSchema = {
+      keys: {
+        "admin:greeting": {
+          params: [
+            { name: "name", type: "string" },
+            { name: "count", type: "number" },
+          ],
+        },
+      },
+    };
+
+    const result = emitDeclarations(schema);
+
+    expect(keyLinesOf(result)).toEqual(['"admin:greeting": { "name": string; "count": number };']);
+  });
+
   it("should order keys by code unit, not by locale", () => {
     const schema: ProjectSchema = {
       keys: {
