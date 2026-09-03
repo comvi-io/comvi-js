@@ -2,7 +2,7 @@
 "@comvi/svelte": minor
 ---
 
-**BREAKING (0.x minor, WATCHDOG policy).** `<T>` now renders structurally: the translation's
+**BREAKING (breaking change on a 0.x minor):** `<T>` now renders structurally: the translation's
 parsed VirtualNode tree becomes real DOM nodes via recursive Svelte 5 snippets
 (`<svelte:element>`), consuming the shared `prepareTranslation` pipeline from the pure
 `@comvi/core/rich-text` seam. The entire HTML-string layer is gone — no `{@html}` sink, no

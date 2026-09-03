@@ -2,7 +2,7 @@
 "@comvi/next": minor
 ---
 
-**BREAKING (0.x minor, WATCHDOG policy): `<T>` from `@comvi/next/client` no longer enables
+**BREAKING (breaking change on a 0.x minor): `<T>` from `@comvi/next/client` no longer enables
 ambient string-API tag syntax.** The component is React's exact `T` binding and now reaches
 the pure `@comvi/core/rich-text` seam: it still renders rich text with the same `components`
 API, but importing or rendering it no longer changes later `i18n.t("<tag>…</tag>")` calls.

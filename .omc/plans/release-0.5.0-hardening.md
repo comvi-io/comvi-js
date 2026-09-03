@@ -1,5 +1,13 @@
 # 0.5.0 hardening → production release
 
+> **`scripts/check-release-plan.mjs` no longer exists.** It was deleted in
+> `eb052620` ("ci: keep only what proves something — 12 jobs to 4, delete the noise
+> gates"). Four references to it survive in §§0–6 below, as evidence, as a gate
+> and as a phase step. Those references describe a superseded gate and
+> are left as written, because they record what was true when each phase ran.
+> **Nothing in this plan should be executed against that script.** §7 was rewritten
+> and names only gates that exist.
+
 Status: **rev 3 — 2026-08-29. D1/D2 decided by the owner; rev 1 critiqued (4/10) → rev 2 (8/10) →
 rev 3 closes the RC-machinery blockers and the D1 implementation ambiguities.
 **Phases 0–5 EXECUTED 2026-08-29** (evidence: `.omc/handoffs/hardening-p0.md`, `-p1-p3.md`,
@@ -195,15 +203,14 @@ version") is resolved by hand in Phase 6 (fs-p6 §8.1.3).
 ## 7. Phase 6 — Release (owner-gated)
 1. **RC rehearsal (target 09.09) — WITHOUT Changesets pre mode.** Pre mode is incompatible with
    the repo's guards: `nextReleaseVersion()` has no prerelease branch (`scripts/sync-peer-ranges.mjs:
-   37-53`), so `check-release-plan.mjs:778-782` would fail on `0.5.0-rc.0` on every push
-   (`ci.yml:72`), `nextReleaseRange()` writes `^0.5.0` which does not satisfy `0.5.0-rc.0`, and
+   37-53`), `nextReleaseRange()` writes `^0.5.0` which does not satisfy `0.5.0-rc.0`, and
    `release.yml` publishes only from `push: main` (`release.yml:3-7`, `baseBranch: main`).
    Mechanism instead: a `workflow_dispatch` input `rc: <N>` on the EXISTING `release.yml` (same
    file, so the npm trusted-publisher binding holds), run from `feat/weight-refactor-0.5`. The job:
    checkout → install → build → a new `scripts/rc-version.mjs` sets every `fixed`-group package to
    `0.5.0-rc.<N>` and every internal peer/dependency range to the exact `0.5.0-rc.<N>` **in the
-   job's working tree only** (nothing committed, no changeset consumed, main untouched, so
-   `check-release-plan` and G7 never see it) → `pnpm -r --filter './packages/*' publish --tag next
+   job's working tree only** (nothing committed, no changeset consumed, main untouched)
+   → `pnpm -r --filter './packages/*' publish --tag next
    --access public --no-git-checks` (OIDC; `--access public` is REQUIRED — `access: "public"` lives
    only in `.changeset/config.json:22`, no manifest has `publishConfig`, and scoped packages default
    to restricted) → NO GitHub release (`create-combined-release.mjs` is gated on the changesets
@@ -217,8 +224,10 @@ version") is resolved by hand in Phase 6 (fs-p6 §8.1.3).
    exports-map/publint/attw finding → fix → `rc.<N+1>`.
    **Known, accepted gap:** the RC publishes via `pnpm publish`, GA via `changeset publish`
    (`release.yml:59`); the soak validates tarball contents and the exports map, not the GA publish
-   path itself — that path is exercised by `check-release-plan.mjs` (sync-peer-ranges + changeset
-   status simulation) on every push and has shipped 0.4.x.
+   path itself. What covers that path instead: the two scripts that decide the version are unit
+   tested (`scripts/sync-peer-ranges.test.mjs`, `scripts/version-release.test.mjs`, both in
+   `pnpm test:release-tools`), `pnpm test:release` is run locally before the cut, and the RC soak
+   exercises the published tarballs. The GA path itself has shipped every 0.4.x release.
    Scope of `rc-version.mjs`: the 12 `fixed`-group packages (`.changeset/config.json`) → `0.5.0-rc.<N>`;
    `@comvi/locale-routing` is versioned independently (0.1.0 today, not in the group, not ignored)
    → `<its next version>-rc.<N>`, and the exact pins on it in `@comvi/next` / `@comvi/nuxt` follow;
@@ -228,7 +237,8 @@ version") is resolved by hand in Phase 6 (fs-p6 §8.1.3).
    published; if CWS rejects, fix and resubmit — GA waits.
 3. Cut checklist (fs-p6 §8.2, named owner: release captain = repo owner, from the RC-soaked SHA):
    `pnpm test:release` locally (it is NOT a CI job — its constituents are split across `quality` /
-   `tests` / `package-contracts`); `check-release-plan` G7 OK; resolve
+   `tests` / `package-contracts`); `pnpm test:release-tools`; `pnpm size`;
+   `pnpm bundler-matrix --from-registry next`; resolve
    `.changeset/core-global-discovery-v2.md:7` by hand ("minimum extension version 0.5.0" + the
    devtools-visibility sentence); merge to `main`; `pnpm release:version` via `changesets/action` on
    the `main` push (`release.yml:54-60`) — the real 0.5.0 uses the normal path, and `npm dist-tag
