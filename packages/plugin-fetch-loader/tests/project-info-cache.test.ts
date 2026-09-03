@@ -119,3 +119,27 @@ describe("clearProjectInfoCache()", () => {
     });
   });
 });
+
+describe("fetchProjectInfo() response validation", () => {
+  it.each([
+    ["a body with no id at all", {}],
+    ["a null id", { id: null }],
+    ["an object id", { id: { value: 1 } }],
+    ["an id that is not path-safe", { id: "../../secrets" }],
+  ])("rejects %s", async (_case, body) => {
+    const { fetchFn, calls } = recordingTransport(() => jsonResponse(body));
+
+    await expect(fetchProjectInfo("key", BASE, 5000, fetchFn)).rejects.toThrow(
+      '[FetchLoader] Invalid API response from https://api.example.com/v1/project: "id" must be a number or a path-safe string',
+    );
+    expect(calls).toHaveLength(1);
+  });
+
+  it("accepts a string project id", async () => {
+    const { fetchFn } = recordingTransport(() => jsonResponse({ id: "proj-1" }));
+
+    await expect(fetchProjectInfo("key", BASE, 5000, fetchFn)).resolves.toMatchObject({
+      id: "proj-1",
+    });
+  });
+});

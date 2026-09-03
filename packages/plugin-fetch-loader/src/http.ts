@@ -142,8 +142,12 @@ export const toError = (e: unknown): Error => (e instanceof Error ? e : new Erro
 /** Validate locale/namespace identifiers to prevent malformed URLs */
 const VALID_ID = /^[\w\-@.]+$/;
 
+/** True when `value` is safe to interpolate as a single URL path segment. */
+export const isSafeId = (value: string): boolean =>
+  !!value && value !== "." && value !== ".." && VALID_ID.test(value);
+
 function validateId(value: string, label: string): void {
-  if (!value || value === "." || value === ".." || !VALID_ID.test(value))
+  if (!isSafeId(value))
     throw new Error(
       `[FetchLoader] Invalid ${label}: "${value}". Only alphanumeric, underscore, hyphen, dot, and @ characters are allowed; dot-only path segments are rejected.`,
     );
@@ -216,12 +220,21 @@ export function buildCdnUrl(
 /** Transform API response to internal cache format */
 export function transformApiResponse(response: ExportApiResponse): TranslationStore {
   const namespaces = (response as ExportApiResponse | undefined)?.namespaces;
-  if (!namespaces || typeof namespaces !== "object" || Array.isArray(namespaces)) {
-    throw new Error('[FetchLoader] Invalid API response: "namespaces" must be an object');
-  }
+  assertObject(namespaces, "namespaces");
   const store: TranslationStore = new Map();
-  for (const [ns, locales] of Object.entries(namespaces))
-    for (const [locale, translations] of Object.entries(locales))
+  for (const [ns, locales] of Object.entries(namespaces)) {
+    // `Object.entries("ab")` is `[["0","a"],["1","b"]]`: a string where a map
+    // belongs would otherwise become junk cache entries instead of an error.
+    assertObject(locales, `namespaces.${ns}`);
+    for (const [locale, translations] of Object.entries(locales)) {
+      assertObject(translations, `namespaces.${ns}.${locale}`);
       store.set(`${locale}:${ns}`, translations);
+    }
+  }
   return store;
+}
+
+function assertObject(value: unknown, path: string): asserts value is Record<string, never> {
+  if (!value || typeof value !== "object" || Array.isArray(value))
+    throw new Error(`[FetchLoader] Invalid API response: "${path}" must be an object`);
 }
