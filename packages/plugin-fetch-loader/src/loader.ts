@@ -112,22 +112,51 @@ export const FetchLoader: I18nPluginFactory<FetchLoaderOptions> = (options): I18
     // for later plugins such as the in-context editor.
     const shouldLoadImmediately = loadOnInit && !i18n.isInitializing;
 
-    const inflight = new Set<AbortController>();
+    // Every in-flight request, with the scope it is loading, so a clear can
+    // release exactly the ones core has already stopped waiting for.
+    const inflight = new Set<{
+      controller: AbortController;
+      locale: string;
+      namespaces: string[];
+    }>();
     let stopped = false;
-    const trackRequest = () => {
+    const trackRequest = (locale: string, namespaces: string[]) => {
       const controller = new AbortController();
       if (stopped) controller.abort();
-      inflight.add(controller);
+      const request = { controller, locale, namespaces };
+      inflight.add(request);
       return {
         signal: controller.signal,
-        release: () => inflight.delete(controller),
+        release: () => inflight.delete(request),
       };
     };
     const abortAll = () => {
       stopped = true;
-      for (const controller of inflight) controller.abort();
+      for (const { controller } of inflight) controller.abort();
       inflight.clear();
     };
+
+    /**
+     * `clearTranslations()` drops the matching pending loads inside core and
+     * only then announces the clear, so by the time this runs their results
+     * would be discarded anyway. Aborting releases the socket instead of
+     * letting an answer nobody will read finish arriving — and because core is
+     * no longer waiting on them, the abort surfaces no `loadError`.
+     *
+     * An omitted locale or namespace means "every one", exactly as it does on
+     * `clearTranslations` itself.
+     */
+    const unfollow = i18n.on("translationsCleared", ({ locale, namespace }) => {
+      for (const request of inflight) {
+        if (
+          (locale === undefined || request.locale === locale) &&
+          (namespace === undefined || request.namespaces.includes(namespace))
+        ) {
+          request.controller.abort();
+          inflight.delete(request);
+        }
+      }
+    });
     const reportSuccess = (locale: string, namespace: string) => {
       if (!stopped) onLoadSuccess?.(locale, namespace);
     };
@@ -153,7 +182,7 @@ export const FetchLoader: I18nPluginFactory<FetchLoaderOptions> = (options): I18
         const promise = (async () => {
           const store: TranslationStore = new Map();
           const attemptedFallbacks = new Set<string>();
-          const { signal, release } = trackRequest();
+          const { signal, release } = trackRequest(locale, requestedNamespaces);
           try {
             for (const [k, v] of await fetchApiTranslations(
               apiKey,
@@ -259,6 +288,7 @@ export const FetchLoader: I18nPluginFactory<FetchLoaderOptions> = (options): I18
       }
 
       return () => {
+        unfollow();
         abortAll();
         pending.clear();
       };
@@ -274,7 +304,7 @@ export const FetchLoader: I18nPluginFactory<FetchLoaderOptions> = (options): I18
         if (existing) return existing;
 
         const promise = (async () => {
-          const { signal, release } = trackRequest();
+          const { signal, release } = trackRequest(locale, [namespace]);
           const url = buildCdnUrl(cdnUrl, locale, namespace, defaultNs, cdnLayout);
           try {
             const result = await fetchJsonWithTimeout<Record<string, TranslationValue>>(
@@ -339,6 +369,7 @@ export const FetchLoader: I18nPluginFactory<FetchLoaderOptions> = (options): I18
       }
 
       return () => {
+        unfollow();
         abortAll();
         loading.clear();
       };

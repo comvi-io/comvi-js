@@ -508,4 +508,116 @@ describe("FetchLoader plugin on a live host", () => {
       expect(result.id).toBe(9);
     });
   });
+  /**
+   * `clearTranslations()` cancels the matching in-flight loads inside core
+   * before it announces the clear, so their results are already discarded. The
+   * plugin follows that announcement to release the sockets too.
+   */
+  describe("Clearing a scope cancels its in-flight request", () => {
+    it("aborts an in-flight CDN load when its own scope is cleared", async () => {
+      const i18n = new I18n({ locale: "en", devMode: false });
+      const onLoadError = vi.fn();
+      const response = mockCdnDeferredResponse("en", "default");
+      const plugin = FetchLoader({ cdnUrl: TEST_CDN_URL, loadOnInit: false, onLoadError });
+      await plugin(i18n);
+      const pendingLoad = i18n.getLoader()!("en", "default");
+      await response.requested;
+
+      i18n.clearTranslations("en", "default");
+
+      await expect(pendingLoad).rejects.toThrow(/aborted/i);
+      expect(onLoadError).not.toHaveBeenCalled();
+    }, 2000);
+
+    it("aborts every in-flight CDN load when the whole cache is cleared", async () => {
+      const i18n = new I18n({ locale: "en", devMode: false });
+      const response = mockCdnDeferredResponse("fr", "dashboard");
+      const plugin = FetchLoader({ cdnUrl: TEST_CDN_URL, loadOnInit: false });
+      await plugin(i18n);
+      const pendingLoad = i18n.getLoader()!("fr", "dashboard");
+      await response.requested;
+
+      i18n.clearTranslations();
+
+      await expect(pendingLoad).rejects.toThrow(/aborted/i);
+    }, 2000);
+
+    it("leaves an in-flight CDN load for another locale running", async () => {
+      const i18n = new I18n({ locale: "en", devMode: false });
+      const response = mockCdnDeferredResponse("en", "default");
+      const plugin = FetchLoader({ cdnUrl: TEST_CDN_URL, loadOnInit: false });
+      await plugin(i18n);
+      const pendingLoad = i18n.getLoader()!("en", "default");
+      await response.requested;
+
+      i18n.clearTranslations("fr", "default");
+
+      response.resolve({ key: "Hello" });
+      await expect(pendingLoad).resolves.toEqual({ key: "Hello" });
+    }, 2000);
+
+    it("leaves an in-flight CDN load for another namespace running", async () => {
+      const i18n = new I18n({ locale: "en", devMode: false });
+      const response = mockCdnDeferredResponse("en", "default");
+      const plugin = FetchLoader({ cdnUrl: TEST_CDN_URL, loadOnInit: false });
+      await plugin(i18n);
+      const pendingLoad = i18n.getLoader()!("en", "default");
+      await response.requested;
+
+      i18n.clearTranslations(undefined, "dashboard");
+
+      response.resolve({ key: "Hello" });
+      await expect(pendingLoad).resolves.toEqual({ key: "Hello" });
+    }, 2000);
+
+    it("aborts the API batch that carries a cleared namespace", async () => {
+      const i18n = new I18n({ locale: "en", apiKey: TEST_API_KEY, devMode: false });
+      const onLoadError = vi.fn();
+      const requested = deferred<void>();
+      server.use(
+        http.get(/\/v1\/translations/, () => {
+          requested.resolve();
+          return new Promise<Response>(() => {});
+        }),
+      );
+      const plugin = FetchLoader({ cdnUrl: TEST_CDN_URL, loadOnInit: false, onLoadError });
+      await plugin(i18n);
+      const pendingLoad = i18n.getLoader()!("en", "default");
+      await requested.promise;
+
+      i18n.clearTranslations("en", "default");
+
+      await expect(pendingLoad).rejects.toThrow(/aborted/i);
+      expect(onLoadError).not.toHaveBeenCalled();
+    }, 2000);
+
+    it("emits no loadError when the host clears a namespace it is loading", async () => {
+      const i18n = new I18n({ locale: "en", devMode: false });
+      const loadError = vi.fn();
+      i18n.on("loadError", loadError);
+      const response = mockCdnDeferredResponse("en", "default");
+      const plugin = FetchLoader({ cdnUrl: TEST_CDN_URL, loadOnInit: false });
+      await plugin(i18n);
+      const activation = i18n.addActiveNamespace("default");
+      await response.requested;
+
+      i18n.clearTranslations("en", "default");
+
+      await activation;
+      expect(loadError).not.toHaveBeenCalled();
+    }, 2000);
+
+    it("stops following the host once the plugin is cleaned up", async () => {
+      const i18n = new I18n({ locale: "en", devMode: false });
+      const response = mockCdnDeferredResponse("en", "default");
+      const plugin = FetchLoader({ cdnUrl: TEST_CDN_URL, loadOnInit: false });
+      const cleanup = (await plugin(i18n)) as () => void;
+      const pendingLoad = i18n.getLoader()!("en", "default");
+      await response.requested;
+      cleanup();
+      await expect(pendingLoad).rejects.toThrow(/aborted/i);
+
+      expect(() => i18n.clearTranslations("en", "default")).not.toThrow();
+    }, 2000);
+  });
 });
