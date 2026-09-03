@@ -158,3 +158,43 @@ describe("unclaimed tag syntax — the development warning", () => {
     expect(tagWarnings()).toEqual([]);
   });
 });
+
+describe("a tag the extension recognises but refuses — the development warning", () => {
+  const ATTR_TEMPLATE = 'see <a href="/x">docs</a>';
+
+  it("tells an app that already registered tag syntax that attributes are unsupported", () => {
+    registerSyntaxExtension(tagSyntaxExtension);
+    const i18n = createI18n({ locale: "en", translation: { en: { link: ATTR_TEMPLATE } } });
+
+    const rendered = i18n.t("link" as never);
+
+    expect(rendered).toBe(ATTR_TEMPLATE);
+    const warnings = tagWarnings();
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toContain("attributes are not supported in tag syntax");
+    expect(warnings[0]).toContain("components");
+    // The old advice is actively wrong here: the module is already imported.
+    expect(warnings[0]).not.toContain("@comvi/core/tags");
+  });
+
+  it("still tells an app with no tag extension to import the module", () => {
+    const i18n = createI18n({ locale: "en", translation: { en: { link: ATTR_TEMPLATE } } });
+
+    i18n.t("link" as never);
+
+    const warnings = tagWarnings();
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toContain("@comvi/core/tags");
+  });
+
+  it("keeps the plain-tag advice when the refused tag carries no attributes", () => {
+    registerSyntaxExtension(tagSyntaxExtension);
+    const i18n = createI18n({ locale: "en", translation: { en: { open: "an <b>unclosed tag" } } });
+
+    i18n.t("open" as never);
+
+    const warnings = tagWarnings();
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toContain("@comvi/core/tags");
+  });
+});
