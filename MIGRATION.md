@@ -59,6 +59,11 @@ and `devtools()` among themselves is free, and all three only have to be compose
 before `init()`. (Composing or registering after `init()` warns once per host in
 development; production is unchanged.)
 
+Ingestion is a deep check, not a scan of the top level: the development
+preflight walks every `plural` / `select` branch and every tag's children, so an
+argument the compiler cannot compile fails where its catalog entered rather than
+at the first `t()` inside a component.
+
 ### 0.2 The ICU failure, and how to report it
 
 Under the default compiler an ICU template never renders as a plural.
@@ -69,6 +74,26 @@ through ingestion (a per-call `params.fallback`) throws at its first compile.
 authored, and `E_ICU_SYNTAX` is reported through `onError` — or `console.error`
 when no handler is configured — on the compilation that hit it. Best-effort, per
 process, never on cached renders.
+
+The ICU compiler fails the same way on the two shapes it does not implement, and
+each has its own development message. An argument whose type is not `plural`,
+`selectordinal` or `select` — `{price, number}`, `{d, date}`, `{t, time}`, and
+the plural `offset:` form, none of which are on the roadmap:
+
+```
+[i18n] ICU argument `{price, number}` is not supported: this compiler implements `plural`, `selectordinal` and `select`, each with a choice list like `other {…}`. Quote the braces ('{'…'}') or format the value in code and pass it as a plain {param}
+```
+
+Format the value in code and pass the result as a plain `{param}`, or quote the
+braces to keep the text literal. A choice list whose selectors are missing their
+braced sub-messages:
+
+```
+[i18n] The `plural` choice list `one {# item} other` is malformed; every selector needs a braced sub-message, as in `other {…}`
+```
+
+Give every selector a `{…}` sub-message. Both are development-only text and fold
+out of production, where the braced segment renders literally and is reported.
 
 `E_ICU_SYNTAX` owns exactly `code` and a truthful `argumentType` (`"plural"`,
 `"select"`, `"selectordinal"`, or the parsed token such as `"number"` /
@@ -556,6 +581,23 @@ conditions, never silently.
 | `E_INSTALLER_NESTED_USE`                                                      | you wrote `.use(installer(…))`; write `.with(…)` |
 | `E_PLUGIN_INIT_RETURN`                                                        | a plugin returned a value — use a statement body |
 | `E_COMPILER_LOCKED`                                                           | `icu()` after a catalog — §0.1                   |
+
+Two more `E_ICU_SYNTAX` messages come from the ICU compiler itself, thrown at
+ingestion in development and reported (with the segment rendered literally) in
+production:
+
+```
+[i18n] ICU argument `{price, number}` is not supported: this compiler implements `plural`, `selectordinal` and `select`, each with a choice list like `other {…}`. Quote the braces ('{'…'}') or format the value in code and pass it as a plain {param}
+```
+
+Format the value in code and interpolate it as a plain `{param}` — `number`,
+`date`, `time` and the plural `offset:` form are not implemented.
+
+```
+[i18n] The `plural` choice list `one {# item} other` is malformed; every selector needs a braced sub-message, as in `other {…}`
+```
+
+Give every selector the message names a braced sub-message of its own.
 
 One more silent change worth naming: **escapes travel with the grammar they
 escape.** `&lt;`, `&gt;`, `&amp;` and `\<` exist to write a literal angle bracket
