@@ -347,4 +347,20 @@ describe("useI18n().hasTranslation locale", () => {
 
     expect(fake.hasTranslation).toHaveBeenCalledWith("greeting", "en", undefined, undefined);
   });
+
+  it("follows a locale change instead of pinning the mount-time locale", async () => {
+    const fake = new FakeI18n();
+    fake.language = "en";
+
+    const { result } = renderHook(() => useI18n(), { wrapper: createWrapper(fake) });
+
+    await act(async () => {
+      fake.language = "fr";
+      fake.emit("localeChanged", { from: "en", to: "fr" });
+      await flushMicrotasks();
+    });
+    result.current.hasTranslation("greeting");
+
+    expect(fake.hasTranslation).toHaveBeenLastCalledWith("greeting", "fr", undefined, undefined);
+  });
 });
