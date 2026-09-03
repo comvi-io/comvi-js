@@ -23,7 +23,7 @@ describe("TypeEmitter key shapes", () => {
 
     const result = emitter.generate(schema);
 
-    expect(result).toContain("'button:v2.submit': never;");
+    expect(result).toContain('"button:v2.submit": never;');
   });
 
   it("should handle keys with slashes after namespace", () => {
@@ -35,7 +35,7 @@ describe("TypeEmitter key shapes", () => {
 
     const result = emitter.generate(schema);
 
-    expect(result).toContain("'test:path/to/key': never;");
+    expect(result).toContain('"test:path/to/key": never;');
   });
 
   it("should handle keys with no parameters", () => {
@@ -47,7 +47,7 @@ describe("TypeEmitter key shapes", () => {
 
     const result = emitter.generate(schema);
 
-    expect(result).toContain("'test:empty': never;");
+    expect(result).toContain('"test:empty": never;');
   });
 });
 

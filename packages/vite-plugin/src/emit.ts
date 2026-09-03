@@ -26,17 +26,19 @@ export function emitDeclarations(schema: ProjectSchema, options: EmitOptions = {
     "  interface TranslationKeys {",
   ];
 
-  const entries = Object.entries(schema.keys)
-    .map(([fullKey, keySchema]) => {
-      const displayKey = fullKey.startsWith(defaultPrefix)
-        ? fullKey.slice(defaultPrefix.length)
-        : fullKey;
-      return [displayKey, keySchema.params] as const;
-    })
-    .sort(([a], [b]) => a.localeCompare(b));
+  // Code-unit order, which is what `Object.keys().sort()` gives @comvi/cli.
+  // `localeCompare` used to order this list, and disagreed with the CLI on any
+  // pair that differs in case.
+  const paramsByKey = new Map<string, SchemaParam[]>();
+  for (const [fullKey, keySchema] of Object.entries(schema.keys)) {
+    const displayKey = fullKey.startsWith(defaultPrefix)
+      ? fullKey.slice(defaultPrefix.length)
+      : fullKey;
+    paramsByKey.set(displayKey, keySchema.params);
+  }
 
-  for (const [key, params] of entries) {
-    lines.push(formatKeyType(key, params, "    ", strictParams));
+  for (const key of [...paramsByKey.keys()].sort()) {
+    lines.push(formatKeyType(key, paramsByKey.get(key)!, "    ", strictParams));
   }
 
   lines.push("  }");
@@ -54,14 +56,32 @@ function formatKeyType(
   indent: string,
   strictParams: boolean,
 ): string {
+  // Property names go through JSON.stringify: a key or param name is free text
+  // from the project, and an apostrophe in it used to close the quote and emit
+  // a file TypeScript could not parse.
   if (params.length === 0) {
-    return `${indent}'${key}': never;`;
+    return `${indent}${JSON.stringify(key)}: never;`;
   }
 
   const paramTypes = params.map((p) => {
+    assertSupportedParamType(key, p);
     const optional = strictParams ? "" : "?";
-    return `${p.name}${optional}: ${p.type}`;
+    return `${JSON.stringify(p.name)}${optional}: ${p.type}`;
   });
 
-  return `${indent}'${key}': { ${paramTypes.join("; ")} };`;
+  return `${indent}${JSON.stringify(key)}: { ${paramTypes.join("; ")} };`;
+}
+
+/**
+ * A param type outside the schema contract would be pasted verbatim into the
+ * declarations. Refuse it instead of emitting a file the user has to debug.
+ */
+function assertSupportedParamType(key: string, param: SchemaParam): void {
+  if (param.type === "string" || param.type === "number") {
+    return;
+  }
+
+  throw new Error(
+    `Unsupported param type for translation key '${key}': param '${param.name}' has type '${param.type}'. Only 'string' and 'number' are supported.`,
+  );
 }

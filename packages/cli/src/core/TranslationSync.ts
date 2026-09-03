@@ -21,6 +21,17 @@ export interface WriteTranslationsOptions {
   defaultNamespace?: string;
 }
 
+/**
+ * Which translations a clear is allowed to touch, in `rsync --delete` terms: the
+ * clear covers exactly the locales and namespaces the pull is about to write.
+ * An empty scope (no locale and no namespace filter) means the whole directory.
+ */
+export interface ClearScope {
+  locales?: string[];
+  namespaces?: string[];
+  defaultNamespace?: string;
+}
+
 export interface LocalTranslations {
   translations: TranslationData;
   locales: string[];
@@ -150,31 +161,116 @@ export class TranslationSync {
     };
   }
 
-  async clearDirectory(): Promise<void> {
+  /**
+   * Remove the translation files a pull is about to replace.
+   *
+   * With no scope this is the whole directory. With a locale or namespace
+   * filter it is only the files that filter selects, so a filtered pull never
+   * deletes translations it was never going to fetch; directories the walk
+   * leaves empty are removed with them.
+   */
+  async clearDirectory(scope?: ClearScope): Promise<void> {
+    this.assertInsideProject();
+
     try {
-      const cwd = resolve(process.cwd());
-      const relativeToCwd = relative(cwd, this.translationsPath);
-
-      if (
-        relativeToCwd === "" ||
-        relativeToCwd === ".." ||
-        relativeToCwd.startsWith(`..${sep}`) ||
-        isAbsolute(relativeToCwd)
-      ) {
-        throw new TypegenError(
-          `Refusing to clear translations directory outside the current project: ${this.translationsPath}`,
-          ErrorCodes.FS_WRITE_FAILED,
-        );
+      if (!isScopedClear(scope)) {
+        await fs.rm(this.translationsPath, { recursive: true, force: true });
+        await this.ensureDirectory(this.translationsPath);
+        return;
       }
 
-      await fs.rm(this.translationsPath, { recursive: true, force: true });
-      await this.ensureDirectory(this.translationsPath);
+      const files = await this.listFilesToClear(scope);
+      for (const filePath of files) {
+        await fs.unlink(filePath);
+      }
+
+      // Nothing was unlinked, so nothing was emptied — and the translations
+      // directory may not even exist yet.
+      if (files.length > 0) {
+        await this.removeEmptyDirectories(this.translationsPath, true);
+      }
     } catch (error) {
-      if (error instanceof TypegenError) {
-        throw error;
-      }
       throw wrapError(error, "Failed to clear directory", ErrorCodes.FS_WRITE_FAILED);
     }
+  }
+
+  /**
+   * List the files `clearDirectory` would remove for the same scope, sorted, so
+   * `--dry-run` can name every one of them.
+   */
+  async previewClear(scope?: ClearScope): Promise<string[]> {
+    this.assertInsideProject();
+
+    try {
+      if (isScopedClear(scope)) {
+        return await this.listFilesToClear(scope);
+      }
+
+      const files: string[] = [];
+      await this.walkDirectory(this.translationsPath, (filePath) => {
+        files.push(filePath);
+      });
+      return files.sort();
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+        return [];
+      }
+      throw wrapError(error, "Failed to list directory", ErrorCodes.FS_WRITE_FAILED);
+    }
+  }
+
+  /** A path outside the project is never a pull target; refuse before deleting anything. */
+  private assertInsideProject(): void {
+    const relativeToCwd = relative(resolve(process.cwd()), this.translationsPath);
+
+    if (
+      relativeToCwd === "" ||
+      relativeToCwd === ".." ||
+      relativeToCwd.startsWith(`..${sep}`) ||
+      isAbsolute(relativeToCwd)
+    ) {
+      throw new TypegenError(
+        `Refusing to clear translations directory outside the current project: ${this.translationsPath}`,
+        ErrorCodes.FS_WRITE_FAILED,
+      );
+    }
+  }
+
+  private async listFilesToClear(scope: ClearScope): Promise<string[]> {
+    const files = await this.findTranslationFiles(scope.defaultNamespace ?? DEFAULT_NAMESPACE);
+
+    return files
+      .filter(
+        ({ locale, namespace }) =>
+          (!scope.locales?.length || scope.locales.includes(locale)) &&
+          (!scope.namespaces?.length || scope.namespaces.includes(namespace)),
+      )
+      .map(({ filePath }) => filePath)
+      .sort();
+  }
+
+  /**
+   * Remove directories the clear emptied, deepest first. The translations
+   * directory itself is kept: the pull writes into it next.
+   */
+  private async removeEmptyDirectories(dir: string, isRoot: boolean): Promise<boolean> {
+    const entries = await fs.readdir(dir, { withFileTypes: true });
+
+    let isEmpty = true;
+    for (const entry of entries) {
+      const removed =
+        entry.isDirectory() && (await this.removeEmptyDirectories(join(dir, entry.name), false));
+      if (!removed) {
+        isEmpty = false;
+      }
+    }
+
+    if (isEmpty && !isRoot) {
+      await fs.rmdir(dir);
+      return true;
+    }
+
+    return false;
   }
 
   compareTranslations(local: TranslationData, remote: TranslationData): TranslationDiff {
@@ -348,4 +444,9 @@ function escapeRegExp(value: string): string {
 function parseDefaultNamespaceFile(relativePath: string, format: "json"): string | null {
   const regex = new RegExp(`^([A-Za-z0-9_-]+)\\.${escapeRegExp(format)}$`);
   return relativePath.match(regex)?.[1] ?? null;
+}
+
+/** An empty scope clears everything; any filter narrows it. */
+function isScopedClear(scope?: ClearScope): scope is ClearScope {
+  return Boolean(scope?.locales?.length || scope?.namespaces?.length);
 }

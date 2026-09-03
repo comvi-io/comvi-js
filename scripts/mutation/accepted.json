@@ -7305,10 +7305,10 @@
       "package": "packages/cli",
       "file": "src/core/TypeGenerator.ts",
       "mutators": ["Regex"],
-      "snippet": "const keyMatches = currentTypes.match(/^\\s+'[^']+':.*$/gm);",
-      "lineHint": 117,
+      "snippet": "const keyMatches = currentTypes.match(/^\\s+(?:'[^']*'|\"(?:[^\"\\\\]|\\\\.)*\"):.*$/gm);",
+      "lineHint": 119,
       "kind": "equivalent",
-      "reason": "dropping the trailing $ is a no-op: `.` never matches newline, so `.*` already stops at end-of-line; the ^-drop sibling at this line IS killed by a test (hand-applied: 339/339 green)"
+      "reason": "dropping the trailing $ is a no-op: `.` never matches newline, so `.*` already stops at end-of-line; the ^-drop sibling at this line IS killed by a test (hand-applied: suite green)"
     },
     {
       "package": "packages/cli",
@@ -7507,15 +7507,6 @@
       "lineHint": 125,
       "kind": "equivalent",
       "reason": "empty encoding makes readFile return a Buffer; JSON.parse coerces via utf8 toString and parses identically (node probe; hand-applied: suite green)"
-    },
-    {
-      "package": "packages/cli",
-      "file": "src/core/TranslationSync.ts",
-      "mutators": ["ConditionalExpression", "BlockStatement"],
-      "snippet": "if (error instanceof TypegenError) {",
-      "lineHint": 173,
-      "kind": "equivalent",
-      "reason": "wrapError passes a TypegenError through unchanged — skipping the early rethrow throws the same instance via `throw wrapError(...)` (hand-applied both: suite green)"
     },
     {
       "package": "packages/cli",

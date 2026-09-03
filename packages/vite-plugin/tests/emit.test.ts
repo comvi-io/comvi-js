@@ -1,10 +1,23 @@
 import { describe, it, expect } from "vitest";
+import ts from "typescript";
 import { emitDeclarations } from "../src/emit";
 import type { ProjectSchema } from "../src/extract";
 
+/** Syntax errors in the emitted declarations, as TypeScript reports them. */
+function syntacticDiagnosticsOf(source: string): string[] {
+  const { diagnostics = [] } = ts.transpileModule(source, {
+    reportDiagnostics: true,
+    compilerOptions: { module: ts.ModuleKind.ESNext },
+  });
+
+  return diagnostics.map((diagnostic) =>
+    ts.flattenDiagnosticMessageText(diagnostic.messageText, " "),
+  );
+}
+
 /** The emitted `TranslationKeys` member lines, in emitted order, without indentation. */
 function keyLinesOf(output: string): string[] {
-  return (output.match(/^ {4}'.*$/gm) ?? []).map((line) => line.trim());
+  return (output.match(/^ {4}\S.*$/gm) ?? []).map((line) => line.trim());
 }
 
 describe("emitDeclarations", () => {
@@ -31,9 +44,9 @@ describe("emitDeclarations", () => {
         "",
         "declare module '@comvi/core' {",
         "  interface TranslationKeys {",
-        "    'admin:dashboard': never;",
-        "    'greeting': { name: string };",
-        "    'logout': never;",
+        '    "admin:dashboard": never;',
+        '    "greeting": { "name": string };',
+        '    "logout": never;',
         "  }",
         "}",
         "",
@@ -61,7 +74,7 @@ describe("emitDeclarations", () => {
 
     const result = emitDeclarations(schema);
 
-    expect(keyLinesOf(result)).toEqual(["'admin:title': never;", "'title': never;"]);
+    expect(keyLinesOf(result)).toEqual(['"admin:title": never;', '"title": never;']);
   });
 
   it("should handle plural params as number", () => {
@@ -75,7 +88,7 @@ describe("emitDeclarations", () => {
 
     const result = emitDeclarations(schema);
 
-    expect(keyLinesOf(result)).toEqual(["'items': { count: number };"]);
+    expect(keyLinesOf(result)).toEqual(['"items": { "count": number };']);
   });
 
   it("should make params optional when strictParams is false", () => {
@@ -89,7 +102,7 @@ describe("emitDeclarations", () => {
 
     const result = emitDeclarations(schema, { strictParams: false });
 
-    expect(keyLinesOf(result)).toEqual(["'greeting': { name?: string };"]);
+    expect(keyLinesOf(result)).toEqual(['"greeting": { "name"?: string };']);
   });
 
   it("should sort keys alphabetically", () => {
@@ -103,7 +116,7 @@ describe("emitDeclarations", () => {
 
     const result = emitDeclarations(schema);
 
-    expect(keyLinesOf(result)).toEqual(["'alpha': never;", "'middle': never;", "'zebra': never;"]);
+    expect(keyLinesOf(result)).toEqual(['"alpha": never;', '"middle": never;', '"zebra": never;']);
   });
 
   it("should emit stable output for unchanged schema", () => {
@@ -120,5 +133,77 @@ describe("emitDeclarations", () => {
 
     expect(first).toBe(second);
     expect(first).not.toContain("Generated at:");
+  });
+
+  it("should emit a syntactically valid file for a key containing an apostrophe", () => {
+    const schema: ProjectSchema = {
+      keys: { "admin:errors.it's": { params: [] } },
+    };
+
+    const result = emitDeclarations(schema);
+
+    expect(syntacticDiagnosticsOf(result)).toEqual([]);
+  });
+
+  it("should quote a param name that is not a bare identifier", () => {
+    const schema: ProjectSchema = {
+      keys: { "admin:greeting": { params: [{ name: "user-name", type: "string" }] } },
+    };
+
+    const result = emitDeclarations(schema);
+
+    expect(keyLinesOf(result)).toEqual(['"admin:greeting": { "user-name": string };']);
+  });
+
+  it("should emit a syntactically valid file for a param name that is not a bare identifier", () => {
+    const schema: ProjectSchema = {
+      keys: { "admin:greeting": { params: [{ name: "user-name", type: "string" }] } },
+    };
+
+    const result = emitDeclarations(schema);
+
+    expect(syntacticDiagnosticsOf(result)).toEqual([]);
+  });
+
+  it("should reject a param type the emitter cannot express, naming key, param and type", () => {
+    const schema: ProjectSchema = {
+      keys: {
+        "admin:greeting": {
+          params: [{ name: "onDone", type: "() => void" as unknown as "string" }],
+        },
+      },
+    };
+
+    expect(() => emitDeclarations(schema)).toThrow(/admin:greeting.*onDone.*\(\) => void/);
+  });
+
+  it("separates several params of one key with a semicolon", () => {
+    const schema: ProjectSchema = {
+      keys: {
+        "admin:greeting": {
+          params: [
+            { name: "name", type: "string" },
+            { name: "count", type: "number" },
+          ],
+        },
+      },
+    };
+
+    const result = emitDeclarations(schema);
+
+    expect(keyLinesOf(result)).toEqual(['"admin:greeting": { "name": string; "count": number };']);
+  });
+
+  it("should order keys by code unit, not by locale", () => {
+    const schema: ProjectSchema = {
+      keys: {
+        "admin:apple": { params: [] },
+        "admin:Zed": { params: [] },
+      },
+    };
+
+    const result = emitDeclarations(schema);
+
+    expect(keyLinesOf(result)).toEqual(['"admin:Zed": never;', '"admin:apple": never;']);
   });
 });

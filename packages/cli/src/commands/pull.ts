@@ -49,15 +49,6 @@ export function createPullCommand(): Command {
           console.log(`📄 Using namespaces from .comvirc.json: ${nss.value!.join(", ")}`);
         }
 
-        if (options.emptyDir || config.pull?.emptyDir) {
-          if (options.dryRun) {
-            console.log("🗑️  [dry-run] Would clear translations directory");
-          } else {
-            console.log("🗑️  Clearing translations directory...");
-            await sync.clearDirectory();
-          }
-        }
-
         console.log("🔄 Fetching translations from TMS...");
         const translations = await apiClient.fetchTranslations({
           locales: locs.value,
@@ -72,6 +63,29 @@ export function createPullCommand(): Command {
         const defaultNamespace = isDefaultFileTemplate(fileTemplate)
           ? await apiClient.fetchDefaultNamespace()
           : undefined;
+
+        // The clear runs only once the fetch has returned everything that was
+        // asked for, and only over the locales and namespaces being pulled: a
+        // failed request, or one missing a requested namespace, must leave the
+        // working copy exactly as it was.
+        if (options.emptyDir || config.pull?.emptyDir) {
+          const scope = {
+            locales: locs.value,
+            namespaces: nss.value,
+            defaultNamespace,
+          };
+
+          if (options.dryRun) {
+            const removable = await sync.previewClear(scope);
+            console.log(`\n🗑️  [dry-run] Would remove ${removable.length} files:`);
+            for (const file of removable) {
+              console.log(`  ${file}`);
+            }
+          } else {
+            console.log("🗑️  Clearing translations directory...");
+            await sync.clearDirectory(scope);
+          }
+        }
 
         if (options.dryRun) {
           const preview = sync.previewTranslations(translations, { defaultNamespace });
