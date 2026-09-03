@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { createGenerationScheduler } from "../src/scheduler";
+import { createGenerationScheduler, type GenerationRunOptions } from "../src/scheduler";
 
 interface Deferred {
   promise: Promise<void>;
@@ -132,5 +132,41 @@ describe("createGenerationScheduler", () => {
     await Promise.all([firstRun, strictRun, lenientRun]);
 
     expect(seenOptions).toEqual([false, true]);
+  });
+  it("does not carry throwOnError into a separately scheduled later run", async () => {
+    const seenOptions: boolean[] = [];
+    const runGeneration = vi.fn(async (options: GenerationRunOptions) => {
+      seenOptions.push(options.throwOnError);
+    });
+    const scheduleGeneration = createGenerationScheduler(runGeneration);
+    await scheduleGeneration({ throwOnError: true });
+
+    await scheduleGeneration({ throwOnError: false });
+
+    expect(seenOptions).toEqual([true, false]);
+  });
+
+  it("serves a run scheduled after a failed one dropped its queue", async () => {
+    const entered = createDeferred();
+    const releaseFirstRun = createDeferred();
+    let invocations = 0;
+    const runGeneration = vi.fn(async () => {
+      invocations++;
+      if (invocations === 1) {
+        entered.resolve();
+        await releaseFirstRun.promise;
+      }
+    });
+    const scheduleGeneration = createGenerationScheduler(runGeneration);
+    const firstRun = scheduleGeneration({ throwOnError: false });
+    await entered.promise;
+    const queuedRun = scheduleGeneration({ throwOnError: false });
+    releaseFirstRun.reject(new Error("generation failed"));
+    await expect(firstRun).rejects.toThrow("generation failed");
+    await expect(queuedRun).rejects.toThrow("generation failed");
+
+    const laterRun = scheduleGeneration({ throwOnError: false });
+
+    await expect(laterRun).resolves.toBeUndefined();
   });
 });

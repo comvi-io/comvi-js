@@ -111,7 +111,25 @@ function outputPath(root: string): string {
 }
 
 describe("comviTypes plugin", () => {
+  it("identifies itself to vite as comvi-types, ordered before other plugins", () => {
+    const plugin = comviTypes({ translations: "./locales", output: OUTPUT });
+
+    expect(plugin.name).toBe("comvi-types");
+    expect(plugin.enforce).toBe("pre");
+  });
+
   describe("buildStart", () => {
+    it("writes to src/types/i18n.d.ts when no output path is given", async () => {
+      const root = await makeProject('{ "greeting": "Hello" }');
+      const plugin = comviTypes({ translations: "./locales" });
+      resolvePlugin(plugin, root, "build");
+
+      await buildStart(plugin);
+
+      const written = await fs.readFile(path.resolve(root, "src/types/i18n.d.ts"), "utf-8");
+      expect(written).toContain('"greeting": never;');
+    });
+
     it("writes the declaration file, creating the output directory", async () => {
       const root = await makeProject('{ "greeting": "Hello {name}" }');
       const plugin = comviTypes({ translations: "./locales", output: OUTPUT });
@@ -265,6 +283,49 @@ describe("comviTypes plugin", () => {
       handlers.get("change")!(path.join(root, ...file));
 
       expect(fsWork.readdir).not.toHaveBeenCalled();
+    });
+
+    it("ignores an event for the watched path itself when that path ends in .json", async () => {
+      const root = await makeProject('{ "greeting": "Hello" }');
+      // `translations` is documented as a directory; pointed at a file, the
+      // watched path IS the event's path and regenerating from it would fail.
+      const plugin = comviTypes({ translations: "./locales/en.json", output: OUTPUT });
+      resolvePlugin(plugin, root, "serve");
+      const { server, handlers } = fakeServer();
+      (plugin.configureServer as (server: ViteDevServer) => void)(server);
+      fsWork.readdir.mockClear();
+
+      handlers.get("change")!(path.join(root, "locales", "en.json"));
+
+      expect(fsWork.readdir).not.toHaveBeenCalled();
+    });
+
+    /**
+     * The watcher discards the promise (`void scheduleGenerate(…)`), so a
+     * regeneration that rethrows would leave an unhandled rejection behind
+     * rather than a caught error. That is what the listener below watches for.
+     */
+    it("reports a watcher-triggered failure without leaving a rejection behind", async () => {
+      const root = await makeProject("{ invalid json");
+      const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+      const unhandled: unknown[] = [];
+      const onUnhandled = (reason: unknown) => unhandled.push(reason);
+      process.on("unhandledRejection", onUnhandled);
+      const plugin = comviTypes({ translations: "./locales", output: OUTPUT });
+      resolvePlugin(plugin, root, "serve");
+      const { server, handlers } = fakeServer();
+      (plugin.configureServer as (server: ViteDevServer) => void)(server);
+
+      handlers.get("change")!(path.join(root, "locales", "en.json"));
+
+      await fsWork.settle();
+      await new Promise((resolve) => setImmediate(resolve));
+      process.off("unhandledRejection", onUnhandled);
+      expect(unhandled).toEqual([]);
+      expect(errorSpy).toHaveBeenCalledWith(
+        expect.stringContaining("[@comvi/vite-plugin] Failed to generate types:"),
+      );
+      await expect(fs.access(outputPath(root))).rejects.toThrow(/ENOENT/);
     });
   });
 });

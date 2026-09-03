@@ -104,28 +104,68 @@ function flattenObject(obj: Record<string, unknown>, prefix = ""): Record<string
  * - {val, number/date/time, ...} → number
  */
 
-// Matches the start of a param after opening brace
-const PARAM_START = /^([a-zA-Z_]\w*)(\s*[,}])/;
+// The whole of an argument's contents: its name, and everything after the
+// first comma when it has an argument type.
+const ARGUMENT = /^([a-zA-Z_]\w*)\s*(,?)/;
 
-function extractParams(value: string): SchemaParam[] {
-  const params = new Map<string, SchemaParam>();
+/** Index of the `}` closing the `{` at `open`, or `undefined` when nothing closes it. */
+function closingBrace(value: string, open: number): number | undefined {
+  let depth = 0;
+  for (let i = open; i < value.length; i++) {
+    if (value[i] === "{") depth++;
+    else if (value[i] === "}" && --depth === 0) return i;
+  }
+  return undefined;
+}
 
+/**
+ * Collect the placeholders of one message.
+ *
+ * A `{…}` group is only a placeholder where a message expects one. The branch
+ * bodies of a `plural` / `select` / `selectordinal` are messages of their own,
+ * so `{count, plural, one {item} other {items}}` has ONE parameter and
+ * `{count, plural, other {# of {total}}}` has two — a body's braces hold text,
+ * the braces inside a body hold a placeholder.
+ *
+ * `branches` says which of the two levels this call is scanning: the tail of a
+ * complex argument, where every group is a body, or an ordinary message, where
+ * every group is a placeholder.
+ */
+function scanMessage(value: string, params: Map<string, SchemaParam>, branches: boolean): void {
   for (let i = 0; i < value.length; i++) {
     if (value[i] !== "{") continue;
 
-    const rest = value.slice(i + 1);
-    const startMatch = rest.match(PARAM_START);
-    if (!startMatch) continue;
+    const close = closingBrace(value, i);
+    if (close === undefined) continue;
 
-    const name = startMatch[1];
-    const delimiter = startMatch[2].trim();
+    const inner = value.slice(i + 1, close);
 
-    if (params.has(name)) continue;
+    if (branches) {
+      scanMessage(inner, params, false);
+      i = close;
+      continue;
+    }
 
-    if (delimiter === "}") {
-      params.set(name, { name, type: "string" });
-    } else {
-      const afterName = rest.slice(name.length).trimStart().slice(1).trimStart(); // skip comma
+    const argument = inner.match(ARGUMENT);
+    if (!argument) continue;
+
+    // Everything up to `close` belongs to this argument; its branch bodies are
+    // scanned below, never again as text of the message around it.
+    i = close;
+
+    const name = argument[1];
+    const known = params.has(name);
+
+    if (argument[2] !== ",") {
+      // A bare `{name}` — anything else after the name (`{name x}`) is text.
+      if (inner.length === argument[0].length && !known) {
+        params.set(name, { name, type: "string" });
+      }
+      continue;
+    }
+
+    const afterName = inner.slice(argument[0].length).trimStart();
+    if (!known) {
       if (afterName.startsWith("plural") || afterName.startsWith("selectordinal")) {
         params.set(name, { name, type: "number" });
       } else if (
@@ -138,8 +178,14 @@ function extractParams(value: string): SchemaParam[] {
         params.set(name, { name, type: "string" });
       }
     }
-  }
 
+    scanMessage(afterName, params, true);
+  }
+}
+
+function extractParams(value: string): SchemaParam[] {
+  const params = new Map<string, SchemaParam>();
+  scanMessage(value, params, false);
   return Array.from(params.values());
 }
 

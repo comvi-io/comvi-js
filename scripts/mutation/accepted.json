@@ -7842,6 +7842,87 @@
       "kind": "tool-limitation",
       "reason": "runner artifact, not an equivalent mutant — the claim IS pinned. Hand-applying this mutant turns 1 of this package's tests RED (the \"discards a response whose body arrives after cleanup\" claim in tests/cdn-mode-loading.test.ts). Stryker still reports it NoCoverage because @stryker-mutator/vitest-runner drives one long-lived vitest instance with perTest coverage analysis, and these suites drive fake timers across await boundaries: the mutant executes on a continuation the runner no longer attributes to the test that is running, so the killing tests are never in the mutant's test set. No additional test can change this.",
       "round": 14
+    },
+    {
+      "package": "packages/vite-plugin",
+      "file": "src/extract.ts",
+      "mutators": ["EqualityOperator"],
+      "snippet": "for (let i = open; i < value.length; i++) {",
+      "lineHint": 114,
+      "kind": "equivalent",
+      "reason": "one extra iteration past the end. `value[value.length]` is `undefined`, which matches neither the `\"{\"` nor the `\"}\"` arm, so `depth` is untouched and the same result is returned."
+    },
+    {
+      "package": "packages/vite-plugin",
+      "file": "src/extract.ts",
+      "mutators": ["EqualityOperator"],
+      "snippet": "for (let i = 0; i < value.length; i++) {",
+      "lineHint": 135,
+      "kind": "equivalent",
+      "reason": "same extra iteration in the message scan: `value[value.length]` is `undefined`, so the `!== \"{\"` guard skips it and no group is opened."
+    },
+    {
+      "package": "packages/vite-plugin",
+      "file": "src/extract.ts",
+      "mutators": ["StringLiteral"],
+      "snippet": "const content = await fs.readFile(file.filePath, \"utf-8\");",
+      "lineHint": 237,
+      "kind": "equivalent",
+      "reason": "with `\"\"` node ignores the encoding and resolves a Buffer; the only consumer is `JSON.parse`, which coerces it with `toString()` — a UTF-8 decode. Probed on node 22 with ASCII and non-ASCII catalogs: identical parse result."
+    },
+    {
+      "package": "packages/vite-plugin",
+      "file": "src/extract.ts",
+      "mutators": ["StringLiteral"],
+      "snippet": "const content = await fs.readFile(filePath, \"utf-8\");",
+      "lineHint": 256,
+      "kind": "equivalent",
+      "reason": "the fallback loop's copy of the same read; see the entry for the template loop above."
+    },
+    {
+      "package": "packages/vite-plugin",
+      "file": "src/index.ts",
+      "mutators": ["BooleanLiteral"],
+      "snippet": "let isBuildCommand = false;",
+      "lineHint": 77,
+      "kind": "equivalent",
+      "reason": "vite runs `configResolved` before `buildStart`, and it assigns `isBuildCommand = config.command === \"build\"` unconditionally, so the initializer is never read. Only a `buildStart` called without `configResolved` — outside the plugin contract, with `resolvedTranslationsPath` still undefined — could observe it."
+    },
+    {
+      "package": "packages/vite-plugin",
+      "file": "src/index.ts",
+      "mutators": ["StringLiteral"],
+      "snippet": "let lastContent = \"\";",
+      "lineHint": 78,
+      "kind": "equivalent",
+      "reason": "the seed is only ever compared against generated content, and every generated file starts with the `DO NOT EDIT` header, so no seed can equal the first result. The unchanged-write skip behaves identically for any seed value."
+    },
+    {
+      "package": "packages/vite-plugin",
+      "file": "src/index.ts",
+      "mutators": ["StringLiteral"],
+      "snippet": "await fs.writeFile(resolvedOutputPath, content, \"utf-8\");",
+      "lineHint": 100,
+      "kind": "equivalent",
+      "reason": "node writes a string as UTF-8 whether the encoding argument is `\"utf-8\"` or `\"\"`; probed on node 22, the file round-trips byte-identically for ASCII and non-ASCII content."
+    },
+    {
+      "package": "packages/vite-plugin",
+      "file": "src/index.ts",
+      "mutators": ["ObjectLiteral"],
+      "snippet": "void scheduleGenerate({ throwOnError: false });",
+      "lineHint": 139,
+      "kind": "equivalent",
+      "reason": "`{}` leaves `throwOnError` undefined; `pendingThrowOnError ||= undefined` keeps the flag falsy and `if (options.throwOnError)` reads `undefined` and `false` the same way. The `false -> true` mutant on this same line IS killed, by the watcher-failure test that asserts no rejection is left behind."
+    },
+    {
+      "package": "packages/vite-plugin",
+      "file": "src/scheduler.ts",
+      "mutators": ["BooleanLiteral"],
+      "snippet": "let rerunRequested = false;",
+      "lineHint": 14,
+      "kind": "equivalent",
+      "reason": "the run loop assigns `rerunRequested = false` before every `runGeneration`, and `while (rerunRequested)` is only reached afterwards, so the initializer can never be read. Hand-applied: the whole package stays green."
     }
   ]
 }
