@@ -559,6 +559,49 @@ createApp(App).use(i18n).mount("#app");
 
 See [`@comvi/plugin-fetch-loader`](https://github.com/comvi-io/comvi-js/tree/main/packages/plugin-fetch-loader) for full options and API endpoints.
 
+## Server-side rendering
+
+**Build one instance per request.** A module-scope `createI18n(...)` is a
+singleton shared by every concurrent request, and its locale is mutable: one
+visitor switching to `uk` moves the locale — and the reactive `locale` ref —
+under everyone else's render. Construct the instance inside the request
+handler, next to the app.
+
+**Pass the request locale as `ssrLocale`**, not as `locale`: it reaches the
+core before the reactive ref is seeded, so the ref and `core.locale` agree on
+the very first render and the client hydrates against the same locale it was
+served.
+
+**`await i18n.init()` before `renderToString`.** `app.use(i18n)` starts
+`init()` fire-and-forget, which is a client-side convenience; on the server
+that races translation loading and can serialize an empty cache.
+
+```ts
+// server.ts — one instance per request
+import { createSSRApp } from "vue";
+import { renderToString } from "vue/server-renderer";
+import { createI18n } from "@comvi/vue";
+import App from "./App.vue";
+
+export async function render(localeFromRequest: string) {
+  const app = createSSRApp(App);
+  const i18n = createI18n({
+    locale: "en",
+    ssrLocale: localeFromRequest,
+    translation: { en: { greeting: "Hello" }, uk: { greeting: "Привіт" } },
+  });
+
+  app.use(i18n);
+  await i18n.init();
+
+  return renderToString(app);
+}
+```
+
+For Nuxt, use [`@comvi/nuxt`](https://www.npmjs.com/package/@comvi/nuxt) — it
+does all of the above per request, and adds locale routing, payload transfer
+and auto-imports.
+
 ## License
 
 [MIT](https://github.com/comvi-io/comvi-js/blob/main/LICENSE) © Comvi
