@@ -64,4 +64,19 @@ describe("a select's own hash context", () => {
 
     expect(i18n.t("rank", { n: 3, kind: "any" })).toBe("# of 3");
   });
+
+  it("renders a top-level select branch whose apostrophes do not sit against a brace", () => {
+    // The mirror of the case above, and the reason it is not a defect: move the
+    // second apostrophe off the `}` and nothing quotes, so `'`, `#` and the
+    // argument all come through. Both halves match the reference ICU parser
+    // (@formatjs/icu-messageformat-parser 2.x): it accepts this template with
+    // the same literal segments and rejects `{kind, select, other {'#'}}` with
+    // EXPECT_ARGUMENT_CLOSING_BRACE, exactly as the scanner does.
+    const i18n = createFullI18n({
+      locale: "en",
+      translation: { en: { rank: "{kind, select, other {'#{x}' tail}}" } },
+    });
+
+    expect(i18n.t("rank", { kind: "any", x: 7 })).toBe("'#7' tail");
+  });
 });
