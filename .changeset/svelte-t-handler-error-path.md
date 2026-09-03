@@ -11,6 +11,7 @@ satisfies the new range.
 
 **What changed.** A component passed through `components={{ strong: MyBadge }}` used to be rendered
 unguarded: if it threw — a bad prop access, a failing child import — the error escaped `<T>` and
-Svelte tore down the surrounding tree. It now degrades to the translation's own children, exactly
-as the React binding does, and reports through `i18n.reportError(error, { source: "translation",
-tagName })` so the failure is still visible to your error handler. A working handler is untouched.
+Svelte tore down the surrounding tree. It now degrades to the translation's own children — the same
+degradation the React binding gives function handlers — and reports through
+`i18n.reportError(error, { source: "translation", tagName })` so the failure is still visible to
+your error handler. A working handler is untouched.

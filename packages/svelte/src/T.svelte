@@ -94,8 +94,12 @@
       {@const Handler = pending.handler as Component<Record<string, unknown>>}
       <!--
         A handler that throws degrades to the translation's own children rather
-        than taking the tree down with it — the same contract React's <T>
-        carries. Needs svelte >= 5.3 for <svelte:boundary>.
+        than taking the tree down with it — the same degradation the React
+        binding gives FUNCTION handlers (react/src/T.tsx wraps `resolvePending`,
+        which only invokes those; an element or component handler is
+        createElement'd and a throw during its render still escapes <T> there).
+        A boundary is broader, so this covers every handler form.
+        Needs svelte >= 5.3 for <svelte:boundary>.
       -->
       <svelte:boundary
         onerror={(error) =>
