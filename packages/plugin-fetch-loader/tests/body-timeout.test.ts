@@ -179,3 +179,34 @@ describe("a response body that fails while it is read", () => {
     ).rejects.toThrow(`[FetchLoader] Request aborted: ${url}`);
   });
 });
+
+describe("a transport that answers with a bare response object", () => {
+  it("reports a non-OK response whose headers cannot be read", async () => {
+    const fetchFn = asFetch(
+      vi.fn(() =>
+        Promise.resolve({
+          ok: false,
+          status: 503,
+          statusText: "Unavailable",
+          headers: {},
+        } as unknown as Response),
+      ),
+    );
+
+    await expect(
+      fetchProjectInfo("key", BASE, 5000, fetchFn, undefined, { retry: false }),
+    ).rejects.toThrow("Failed to fetch project info: 503 Unavailable");
+  });
+
+  it("reports a non-OK response that carries no headers", async () => {
+    const fetchFn = asFetch(
+      vi.fn(() =>
+        Promise.resolve({ ok: false, status: 503, statusText: "Unavailable" } as Response),
+      ),
+    );
+
+    await expect(
+      fetchProjectInfo("key", BASE, 5000, fetchFn, undefined, { retry: false }),
+    ).rejects.toThrow("Failed to fetch project info: 503 Unavailable");
+  });
+});

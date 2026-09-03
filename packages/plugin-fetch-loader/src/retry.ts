@@ -1,6 +1,6 @@
 import { RequestAbortedError, isAborted, isTimeout } from "./http";
 
-/** Extra attempts a failed request gets, and the ceiling on what they may cost. */
+/** Extra attempts a failed request gets, and the ceiling on the waits between them. */
 const MAX_RETRIES = 2;
 const BACKOFF_MS = 250;
 const LATENCY_BUDGET_MS = 5000;
@@ -28,8 +28,12 @@ export function httpFailure(
  * Never after a timeout — core's fallback-locale loop and `onLoadError` would
  * wait three of them instead of one. Never after a 404, which on the API path
  * is how the legacy export URL is selected rather than a failure. Never after
- * an abort. The added latency is capped at five seconds in total, so a server
- * asking for a longer `Retry-After` is taken at its word and not retried.
+ * an abort.
+ *
+ * The budget covers the WAITS between attempts, not the attempts themselves:
+ * each attempt still runs under its own `timeout`. A server asking for a
+ * `Retry-After` longer than the waiting budget left is taken at its word and
+ * not retried at all.
  */
 export async function withRetry<T>(
   attempt: () => Promise<T>,
@@ -62,9 +66,13 @@ function delayFor(error: unknown, retryIndex: number, budgetLeft: number): numbe
   return waitMs <= budgetLeft ? waitMs : undefined;
 }
 
-/** `Retry-After` in seconds. An HTTP-date, or anything else, falls back to the backoff. */
+/**
+ * `Retry-After` in seconds. An HTTP-date, an empty header, or anything else
+ * that is not a non-negative number falls back to the backoff — `Number("")` is
+ * 0, which would otherwise retry with no wait at all.
+ */
 function retryAfterMs(value: string | null | undefined): number | undefined {
-  const seconds = value == null ? NaN : Number(value);
+  const seconds = value == null || value.trim() === "" ? NaN : Number(value);
   return seconds >= 0 ? seconds * 1000 : undefined;
 }
 

@@ -7848,6 +7848,46 @@
       "lineHint": 288,
       "kind": "equivalent",
       "reason": "unreachable since E1, for the same reason as the API-mode guard at :169 — the CDN request now rejects inside fetchJsonWithTimeout when the signal fires. The LogicalOperator sibling on this line was already accepted (hand-applied: 204/204 green)"
+    },
+    {
+      "package": "packages/plugin-fetch-loader",
+      "file": "src/loader.ts",
+      "mutators": ["ConditionalExpression"],
+      "snippet": "if (signal.aborted || stopped || isAborted(error)) {",
+      "lineHint": 174,
+      "kind": "tool-limitation",
+      "reason": "runner artifact, not an equivalent mutant — the claim IS pinned. Hand-applying this mutant turns 2 of this package's tests RED (the two \"after cleanup\" cases in tests/api-mode-loading.test.ts, which then reach the fallback). Stryker still reports it Survived because @stryker-mutator/vitest-runner drives one long-lived vitest instance with perTest coverage analysis, and these suites drive fake timers across await boundaries: the mutant executes on a continuation the runner no longer attributes to the test that is running, so the killing tests are never in the mutant's test set. No additional test can change this.",
+      "round": 14
+    },
+    {
+      "package": "packages/plugin-fetch-loader",
+      "file": "src/loader.ts",
+      "mutators": ["ConditionalExpression"],
+      "snippet": "if (signal.aborted || stopped || isAborted(error)) {",
+      "lineHint": 292,
+      "kind": "tool-limitation",
+      "reason": "runner artifact, not an equivalent mutant — the claim IS pinned. Hand-applying this mutant turns 2 of this package's tests RED (the two \"after cleanup\" cases in tests/cdn-mode-loading.test.ts, which then reach the fallback). Stryker still reports it Survived because @stryker-mutator/vitest-runner drives one long-lived vitest instance with perTest coverage analysis, and these suites drive fake timers across await boundaries: the mutant executes on a continuation the runner no longer attributes to the test that is running, so the killing tests are never in the mutant's test set. No additional test can change this.",
+      "round": 14
+    },
+    {
+      "package": "packages/plugin-fetch-loader",
+      "file": "src/retry.ts",
+      "mutators": ["ConditionalExpression"],
+      "snippet": "if (status !== undefined && status !== 429 && status < 500) return undefined;",
+      "lineHint": 59,
+      "kind": "tool-limitation",
+      "reason": "runner artifact, not an equivalent mutant — the claim IS pinned. Hand-applying this mutant turns 14 of this package's tests RED (every retrying case in tests/retry.test.ts, since nothing is retried any more). Stryker still reports it Survived because @stryker-mutator/vitest-runner drives one long-lived vitest instance with perTest coverage analysis, and these suites drive fake timers across await boundaries: the mutant executes on a continuation the runner no longer attributes to the test that is running, so the killing tests are never in the mutant's test set. No additional test can change this.",
+      "round": 14
+    },
+    {
+      "package": "packages/plugin-fetch-loader",
+      "file": "src/loader.ts",
+      "mutators": ["CallExpression"],
+      "snippet": "if (signal.aborted || stopped) throw new RequestAbortedError(url);",
+      "lineHint": 288,
+      "kind": "tool-limitation",
+      "reason": "runner artifact, not an equivalent mutant — the claim IS pinned. Hand-applying this mutant turns 1 of this package's tests RED (the \"discards a response whose body arrives after cleanup\" claim in tests/cdn-mode-loading.test.ts). Stryker still reports it NoCoverage because @stryker-mutator/vitest-runner drives one long-lived vitest instance with perTest coverage analysis, and these suites drive fake timers across await boundaries: the mutant executes on a continuation the runner no longer attributes to the test that is running, so the killing tests are never in the mutant's test set. No additional test can change this.",
+      "round": 14
     }
   ]
 }

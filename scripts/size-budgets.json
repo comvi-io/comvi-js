@@ -1,5 +1,5 @@
 {
-  "note": "min+gz budgets in bytes, enforced by scripts/size-check.mjs (esbuild bundle through the published exports map, minify, gzip -9). Every row is gated: gzipBudgetBytes is ceil(baseline.gzipBytes * 1.05) from the one sweep baseline records. Rules and how to re-baseline live in scripts/size-budgets.md \u2014 read that before editing this file. Every note here is one line.",
+  "note": "min+gz budgets in bytes, enforced by scripts/size-check.mjs (esbuild bundle through the published exports map, minify, gzip -9). Every row is gated: gzipBudgetBytes is ceil(baseline.gzipBytes * 1.05) from the one sweep baseline records. Rules and how to re-baseline live in scripts/size-budgets.md — read that before editing this file. Every note here is one line.",
   "fixtures": [
     {
       "name": "core-full-composite",
@@ -30,7 +30,7 @@
         "gzipBytes": 5081,
         "measuredAt": "2026-08-29"
       },
-      "note": "Gated base floor: `@comvi/core` alone, no capability composed \u2014 the anchor every other core row is read against."
+      "note": "Gated base floor: `@comvi/core` alone, no capability composed — the anchor every other core row is read against."
     },
     {
       "name": "core-base-icu",
@@ -55,7 +55,7 @@
         "gzipBytes": 6684,
         "measuredAt": "2026-08-29"
       },
-      "note": "Gated React floor: one `@comvi/react` specifier, base createI18n + bindings \u2014 the anchor the React ceiling row is read against."
+      "note": "Gated React floor: one `@comvi/react` specifier, base createI18n + bindings — the anchor the React ceiling row is read against."
     },
     {
       "name": "fw-react-full-composite",
@@ -81,7 +81,7 @@
         "gzipBytes": 6403,
         "measuredAt": "2026-08-29"
       },
-      "note": "Gated Solid floor: one `@comvi/solid` specifier, base createI18n + bindings \u2014 the anchor the Solid ceiling row is read against."
+      "note": "Gated Solid floor: one `@comvi/solid` specifier, base createI18n + bindings — the anchor the Solid ceiling row is read against."
     },
     {
       "name": "fw-solid-full-composite",
@@ -107,7 +107,7 @@
         "gzipBytes": 6475,
         "measuredAt": "2026-08-29"
       },
-      "note": "Gated Svelte floor: one `@comvi/svelte` specifier, base createI18n + bindings \u2014 the anchor the Svelte ceiling row is read against."
+      "note": "Gated Svelte floor: one `@comvi/svelte` specifier, base createI18n + bindings — the anchor the Svelte ceiling row is read against."
     },
     {
       "name": "fw-svelte-full-composite",
@@ -133,7 +133,7 @@
         "gzipBytes": 7029,
         "measuredAt": "2026-08-29"
       },
-      "note": "Gated Vue floor: one `@comvi/vue` specifier, base createI18n + bindings \u2014 the anchor the Vue ceiling row is read against."
+      "note": "Gated Vue floor: one `@comvi/vue` specifier, base createI18n + bindings — the anchor the Vue ceiling row is read against."
     },
     {
       "name": "fw-vue-full-composite",
@@ -212,7 +212,7 @@
         "gzipBytes": 8168,
         "measuredAt": "2026-08-29"
       },
-      "note": "Gated Nuxt client floor: the runtime client entry only \u2014 the anchor the Nuxt ceiling row is read against."
+      "note": "Gated Nuxt client floor: the runtime client entry only — the anchor the Nuxt ceiling row is read against."
     },
     {
       "name": "plugin-fetch-loader-cdn",

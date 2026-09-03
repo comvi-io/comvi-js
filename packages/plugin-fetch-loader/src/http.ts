@@ -86,7 +86,9 @@ export async function fetchJsonWithTimeout<T>(
         ok: false,
         status: response.status,
         statusText: response.statusText,
-        retryAfter: response.headers.get("Retry-After"),
+        // `fetchFn` is a public seam: a hand-written transport may answer with a
+        // bare `{ ok, status, statusText }` object and no headers at all.
+        retryAfter: response.headers?.get?.("Retry-After") ?? null,
       };
     }
     return { ok: true, data: await raceAbort(parseJson<T>(response, url), controller.signal) };

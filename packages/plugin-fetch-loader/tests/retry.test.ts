@@ -241,6 +241,24 @@ describe("retrying the project-info request", () => {
     await expect(request).resolves.toEqual(PROJECT);
   });
 
+  it.each([
+    { name: "empty", header: "" },
+    { name: "whitespace", header: "  " },
+  ])("falls back to the backoff when Retry-After is $name", async ({ header }) => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    const { fetchFn, calls } = transportThatRecovers(() =>
+      failure(429, "Too Many Requests", { "Retry-After": header }),
+    );
+
+    const request = fetchProjectInfo("key", BASE, 5000, fetchFn);
+    await vi.advanceTimersByTimeAsync(BACKOFF_MS - 1);
+    const callsBeforeTheBackoffEnded = calls.length;
+    await vi.advanceTimersByTimeAsync(1);
+
+    await expect(request).resolves.toEqual(PROJECT);
+    expect(callsBeforeTheBackoffEnded).toBe(1);
+  });
+
   it("retries a request made without a caller signal", async () => {
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
     const { fetchFn, calls } = transportThatRecovers(() => failure(503, "Unavailable"));
