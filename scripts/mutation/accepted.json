@@ -7687,6 +7687,105 @@
       "lineHint": 11,
       "kind": "needs-seam",
       "reason": "removing the captureStackTrace call is unobservable under vite-node — same stack-frame argument as line 10 (hand-applied: suite green)"
+    },
+    {
+      "package": "packages/cli",
+      "file": "src/core/ApiClient.ts",
+      "mutators": ["ConditionalExpression"],
+      "snippet": "if (retryAfterValue !== null && retryAfterValue !== undefined) {",
+      "lineHint": 93,
+      "kind": "equivalent",
+      "reason": "right operand -> true only matters when retry-after is undefined; Number(undefined)=NaN and Date.parse coerce to NaN and fall through to the same base delay (hand-applied id 667: suite green)"
+    },
+    {
+      "package": "packages/cli",
+      "file": "src/core/ApiClient.ts",
+      "mutators": ["ConditionalExpression", "BlockStatement"],
+      "snippet": "if (error instanceof TypegenError) {",
+      "lineHint": 238,
+      "kind": "equivalent",
+      "reason": "wrapError already passes TypegenError through unchanged and TypegenError.name never equals AbortError — skipping the rethrow is unobservable (hand-applied ids 809/810: suite green)"
+    },
+    {
+      "package": "packages/cli",
+      "file": "src/core/ApiClient.ts",
+      "mutators": ["ConditionalExpression", "BlockStatement"],
+      "snippet": "if (error instanceof TypegenError) {",
+      "lineHint": 281,
+      "kind": "equivalent",
+      "reason": "same wrapError passthrough (fetchSchema catch; hand-applied ids 846/847: suite green)"
+    },
+    {
+      "package": "packages/cli",
+      "file": "src/core/ApiClient.ts",
+      "mutators": ["ConditionalExpression", "BlockStatement"],
+      "snippet": "if (error instanceof TypegenError) {",
+      "lineHint": 333,
+      "kind": "equivalent",
+      "reason": "same wrapError passthrough (fetchTranslations catch); the ->true variant IS killed (hand-applied ids 899/900: suite green)"
+    },
+    {
+      "package": "packages/cli",
+      "file": "src/core/ApiClient.ts",
+      "mutators": ["ConditionalExpression", "BlockStatement"],
+      "snippet": "if (error instanceof TypegenError) {",
+      "lineHint": 384,
+      "kind": "equivalent",
+      "reason": "same wrapError passthrough (fetchNamespaces catch); ->true killed (hand-applied ids 942/943: suite green)"
+    },
+    {
+      "package": "packages/cli",
+      "file": "src/core/ApiClient.ts",
+      "mutators": ["ConditionalExpression", "BlockStatement"],
+      "snippet": "if (error instanceof TypegenError) {",
+      "lineHint": 502,
+      "kind": "equivalent",
+      "reason": "same wrapError passthrough (pushTranslations catch); ->true killed (hand-applied ids 1035/1036: suite green)"
+    },
+    {
+      "package": "packages/cli",
+      "file": "src/core/ApiClient.ts",
+      "mutators": ["ObjectLiteral"],
+      "snippet": "const result: PushResult = {",
+      "lineHint": 429,
+      "kind": "equivalent",
+      "reason": "created/updated/skipped are all unconditionally assigned before any read or return of result (hand-applied id 978: suite green)"
+    },
+    {
+      "package": "packages/cli",
+      "file": "src/core/ApiClient.ts",
+      "mutators": ["ConditionalExpression", "LogicalOperator"],
+      "snippet": "if (generation !== this.subscriptionGeneration || this.eventSource !== eventSource) {",
+      "lineHint": 573,
+      "kind": "equivalent",
+      "reason": "generation bump and eventSource reset always happen in the same synchronous block, so the two mismatches co-vary on every reachable dispatch — either operand alone and ||->&& are unobservable; whole-condition mutants killed (hand-applied ids 1071/1072/1074: suite green)"
+    },
+    {
+      "package": "packages/cli",
+      "file": "src/core/ApiClient.ts",
+      "mutators": ["UpdateOperator"],
+      "snippet": "const generation = ++this.subscriptionGeneration;",
+      "lineHint": 541,
+      "kind": "needs-seam",
+      "reason": "++ vs -- diverges only when close()+subscribe collide inside the awaited import(eventsource) window; not deterministically reachable — a pending async doMock factory falls through to the REAL module on concurrent import, and the !== check is direction-agnostic (hand-applied id 1054: suite green)"
+    },
+    {
+      "package": "packages/cli",
+      "file": "src/core/ApiClient.ts",
+      "mutators": ["UpdateOperator"],
+      "snippet": "this.subscriptionGeneration++;",
+      "lineHint": 594,
+      "kind": "needs-seam",
+      "reason": "cleanup only bumps while its stream is current; a decrement can only re-collide through the same unreachable import-window interleaving (hand-applied id 1089: suite green)"
+    },
+    {
+      "package": "packages/cli",
+      "file": "src/core/ApiClient.ts",
+      "mutators": ["UpdateOperator"],
+      "snippet": "this.subscriptionGeneration++;",
+      "lineHint": 604,
+      "kind": "needs-seam",
+      "reason": "a single close() bump is direction-agnostic under the !== staleness check; divergence needs the same unreachable collision (hand-applied id 1091: suite green)"
     }
   ]
 }
