@@ -7749,6 +7749,33 @@
       "kind": "equivalent",
       "reason": "NaN is neither <= SPACE nor OPEN_BRACE, so the key slice clamps to the same text and the loop still ends at the line-108 guard.",
       "round": 2
+    },
+    {
+      "package": "packages/core",
+      "file": "src/core/i18n.ts",
+      "mutators": ["ConditionalExpression"],
+      "snippet": "if (choices) {",
+      "lineHint": 1010,
+      "kind": "equivalent",
+      "reason": "dev-only preflight walk; both compilers that opt in (`preflight: true`) always parse the choice map eagerly, so `token[3]` is never undefined here, and `for…in undefined` is a no-op anyway."
+    },
+    {
+      "package": "packages/core",
+      "file": "src/core/i18n.ts",
+      "mutators": ["ConditionalExpression", "EqualityOperator", "LogicalOperator"],
+      "snippet": "const nestedHash = kind === TK_PLURAL || hashIsSyntax;",
+      "lineHint": 1011,
+      "kind": "equivalent",
+      "reason": "only the `→ true` arm survives (plural/`&&`/`!==` variants die on the quoted-`'#` plural case): `hashIsSyntax` changes nothing but `'#` quoting, and the one template that could observe it — `'#{…}'` inside a TOP-LEVEL select — is rejected by the outer brace scanner before the walk sees the branch (pre-existing scanner quirk, P2), so the preflight cannot tell the arms apart."
+    },
+    {
+      "package": "packages/core",
+      "file": "src/core/i18n.ts",
+      "mutators": ["BooleanLiteral"],
+      "snippet": "if (typeof value === \"string\") walk(parseTemplate(value, false, extensions, compiler), false);",
+      "lineHint": 1023,
+      "kind": "equivalent",
+      "reason": "the walk's top-level hashIsSyntax (second literal; parseTemplate's first literal is killed) only reaches a top-level select branch or a tag's children: a tag's direct children were already compiled by the outer parse, and the only template where the flag would change a select branch's outcome ('#{...}') is rejected by the outer brace scanner first (pre-existing quirk, P2)."
     }
   ]
 }

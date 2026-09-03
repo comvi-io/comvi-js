@@ -40,6 +40,7 @@ import {
   type IcuSyntaxError,
 } from "./translate/compile-simple";
 import { parseTemplate } from "./translate/parser";
+import { TK_PLURAL, TK_SELECT, TK_TAG, type ParsedToken } from "./translate/cache";
 import {
   effectiveExtBits,
   effectiveExtensions,
@@ -997,9 +998,29 @@ if (IS_DEV) {
     // `@comvi/core/tags` really does claim `<`, and preflighting without that
     // knowledge would warn about markup that renders fine.
     const extensions = effectiveExtensions(this._tagInterpolation?.extensions);
+    // Branch text is stored verbatim by the ICU compiler and only compiled at
+    // render, so the walk descends into every plural/select sub-message (and
+    // through tag children) — a broken argument one level down must still fail
+    // at ingestion, not at first `t()` inside a component.
+    const walk = (tokens: ParsedToken[], hashIsSyntax: boolean): void => {
+      for (const token of tokens) {
+        const kind = token[0];
+        if (kind === TK_PLURAL || kind === TK_SELECT) {
+          const choices = token[3];
+          if (choices) {
+            const nestedHash = kind === TK_PLURAL || hashIsSyntax;
+            for (const branch in choices) {
+              walk(parseTemplate(choices[branch], nestedHash, extensions, compiler), nestedHash);
+            }
+          }
+        } else if (kind === TK_TAG) {
+          walk(token[2], hashIsSyntax);
+        }
+      }
+    };
     for (const key in catalog) {
       const value = catalog[key];
-      if (typeof value === "string") parseTemplate(value, false, extensions, compiler);
+      if (typeof value === "string") walk(parseTemplate(value, false, extensions, compiler), false);
     }
   };
 }

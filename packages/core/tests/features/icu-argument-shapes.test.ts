@@ -97,3 +97,92 @@ describe("ICU argument name and choice-list parsing", () => {
     );
   });
 });
+
+describe("arguments nested inside a plural or select branch", () => {
+  // The preflight must descend into branch text: a broken argument one level
+  // down is still "where the catalog was added", not "first render".
+  it.each([
+    [
+      "an unsupported type inside a plural branch",
+      "{n, plural, other {{price, number}}}",
+      "number",
+    ],
+    [
+      "a malformed nested plural inside a plural branch",
+      "{n, plural, other {{m, plural, one {a} other oops}}}",
+      "plural",
+    ],
+    ["an unsupported type inside a select branch", "{g, select, other {{d, date}}}", "date"],
+    [
+      "an unsupported type two levels down",
+      "{n, plural, other {{g, select, other {{price, number}}}}}",
+      "number",
+    ],
+  ])(
+    "%s throws E_ICU_SYNTAX at ingestion via addTranslations",
+    (_label, template, argumentType) => {
+      expect(() => ingest(template)).toThrow(
+        expect.objectContaining({ code: "E_ICU_SYNTAX", argumentType }),
+      );
+    },
+  );
+
+  it("an unsupported type inside a plural branch throws E_ICU_SYNTAX at construction via translation:", () => {
+    expect(
+      () =>
+        new I18n({
+          locale: "en",
+          translation: { en: { k: "{n, plural, other {{price, number}}}" } },
+        }),
+    ).toThrow(expect.objectContaining({ code: "E_ICU_SYNTAX", argumentType: "number" }));
+  });
+
+  it("a well-formed nested plural ingests and renders both counts", () => {
+    expect(
+      render("{n, plural, other {{m, plural, one {# thing} other {# things}} in #}}", {
+        n: 3,
+        m: 1,
+      }),
+    ).toBe("1 thing in 3");
+  });
+});
+
+describe("preflight scope: where `#` is syntax and where tags nest", () => {
+  // A tag's direct children are compiled by the tag extension during the outer
+  // parse; a plural INSIDE the tag stores its branches verbatim, so only the
+  // walk descending through the tag reaches the broken argument.
+  it.each([
+    ["directly", "<b>{price, number}</b>"],
+    ["inside a plural branch", "<b>{n, plural, other {{price, number}}}</b>"],
+  ])(
+    "an unsupported type %s inside a tag's children throws E_ICU_SYNTAX at ingestion",
+    (_label, template) => {
+      expect(() => ingest(template)).toThrow(
+        expect.objectContaining({ code: "E_ICU_SYNTAX", argumentType: "number" }),
+      );
+    },
+  );
+
+  // Outside a plural, `'#` is a literal apostrophe followed by a literal hash,
+  // so the argument after it is real and must be preflighted.
+  // (A top-level SELECT branch would be the other place `'#` stays literal, but
+  // `'#{…}'` inside one trips the outer brace scanner first — pre-existing, and
+  // the preflight then never sees the branch — so the top level is the probe.)
+  it("at the top level, '#…' does not quote — the argument inside throws at ingestion", () => {
+    expect(() => ingest("'#{price, number}'")).toThrow(
+      expect.objectContaining({ code: "E_ICU_SYNTAX", argumentType: "number" }),
+    );
+  });
+
+  // Inside a plural (directly or through a nested select), `'#` opens a quote,
+  // so the same characters are literal text and nothing is compiled.
+  it.each([
+    ["directly inside a plural branch", "{n, plural, other {'#{price, number}'}}"],
+    [
+      "inside a select nested in a plural branch",
+      "{n, plural, other {{g, select, other {'#{price, number}'}}}}",
+    ],
+  ])("%s, '#…' quotes — the text ingests", (_label, template) => {
+    expect(() => ingest(template)).not.toThrow();
+  });
+});
