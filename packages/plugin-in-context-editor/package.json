@@ -31,18 +31,24 @@
   "module": "./dist/index.es.js",
   "types": "./dist/index.d.ts",
   "engines": {
-    "node": ">=18"
+    "node": ">=20"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "exports": {
     ".": {
-      "production": {
-        "types": "./dist/production.d.ts",
-        "default": "./dist/production.es.js"
+      "types": {
+        "production": "./dist/production.d.ts",
+        "default": "./dist/index.d.ts"
       },
-      "types": "./dist/index.d.ts",
+      "production": "./dist/production.es.js",
       "default": "./dist/index.es.js"
     },
-    "./standalone": "./dist/standalone.iife.js"
+    "./standalone": {
+      "types": "./dist/standalone.d.ts",
+      "default": "./dist/standalone.iife.js"
+    }
   },
   "sideEffects": [
     "./dist/standalone.iife.js"

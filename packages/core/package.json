@@ -81,7 +81,10 @@
     }
   },
   "engines": {
-    "node": ">=18"
+    "node": ">=20"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "sideEffects": [
     "./dist/comvi-core-tags.js",

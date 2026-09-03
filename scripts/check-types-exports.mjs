@@ -59,14 +59,25 @@ const TRIVIAL_DTS_BYTES = 16;
 
 // Gather every declaration file a consumer can resolve: the root `types`/`typings`
 // plus every `types` condition anywhere in the `exports` map.
+//
+// A `types` condition may hold a NESTED condition object rather than a path —
+// `"types": { "production": "./dist/production.d.ts", "default": "./dist/index.d.ts" }`
+// is how a package ships different declarations per runtime condition while still
+// putting `types` first. Every branch of such an object is resolvable by some
+// consumer, so all of them are collected; walking past a `types` key would silently
+// drop them from the empty-declaration guard below.
 function collectTypesEntries(manifest) {
   const entries = new Set();
   if (typeof manifest.types === "string") entries.add(manifest.types);
   if (typeof manifest.typings === "string") entries.add(manifest.typings);
+  const addAllPaths = (node) => {
+    if (typeof node === "string") entries.add(node);
+    else if (node && typeof node === "object") Object.values(node).forEach(addAllPaths);
+  };
   const walk = (node) => {
     if (!node || typeof node !== "object") return;
     for (const [key, val] of Object.entries(node)) {
-      if (key === "types" && typeof val === "string") entries.add(val);
+      if (key === "types") addAllPaths(val);
       else walk(val);
     }
   };
