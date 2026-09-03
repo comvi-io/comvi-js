@@ -1,205 +1,235 @@
-# Contributing to Comvi
+# Contributing to Comvi i18n
 
-We love your input! We want to make contributing to Comvi as easy and transparent as possible, whether it's:
+Thanks for wanting to help. This document is the short version of what CI checks and why, so
+your first pull request passes the gate instead of discovering it one red job at a time.
 
-- Reporting a bug
-- Discussing the current state of the code
-- Submitting a fix
-- Proposing new features
-- Becoming a maintainer
+Contributions of every size are welcome: bug reports, reproductions, docs fixes, new tests, and
+code. By contributing you agree that your work is licensed under the repository's
+[MIT License](LICENSE).
 
-## Development Process
+## What this repository is
 
-We use GitHub to host code, to track issues and feature requests, as well as accept pull requests.
+A pnpm 9 + Turborepo monorepo holding a framework-agnostic i18n runtime and its bindings.
 
-1. Fork the repo and create your branch from `main`
-2. If you've added code that should be tested, add tests
-3. If you've changed APIs, update the documentation
-4. Ensure the test suite passes
-5. Make sure your code lints
-6. Issue that pull request!
+```
+packages/core                      framework-agnostic runtime; everything else depends on it
+packages/{vue,react,solid,svelte,next,nuxt}   framework bindings; kept in behavioural parity
+packages/plugin-fetch-loader       loads translations from the Comvi CDN/API
+packages/plugin-locale-detector    browser locale detection
+packages/plugin-in-context-editor  visual in-page translation editor
+packages/{cli,vite-plugin,locale-routing}     tooling packages
+apps/chrome-extension              in-context editor extension (own `extension:*` scripts)
+test-apps/*                        one integration app per framework; used by tests, not published
+tooling/, scripts/                 repo checks: package contracts, publint, size budgets, release
+```
 
-## Pull Request Process
+There is **no `docs/` folder**. User-facing documentation lives at
+<https://comvi.io/docs/i18n/> and in each package's `README.md`. If your change alters public
+behaviour, update the relevant package README in the same pull request.
 
-1. Update the README.md with details of changes to the interface, if applicable
-2. Update the docs/ folder with any new documentation
-3. The PR will be merged once you have the sign-off of at least one other developer
+## Getting started
 
-## Any contributions you make will be under the MIT Software License
-
-In short, when you submit code changes, your submissions are understood to be under the same [MIT License](http://choosealicense.com/licenses/mit/) that covers the project. Feel free to contact the maintainers if that's a concern.
-
-## Report bugs using GitHub's [issue tracker]
-
-We use GitHub issues to track public bugs. Report a bug by [opening a new issue](); it's that easy!
-
-## Write bug reports with detail, background, and sample code
-
-**Great Bug Reports** tend to have:
-
-- A quick summary and/or background
-- Steps to reproduce
-  - Be specific!
-  - Give sample code if you can
-- What you expected would happen
-- What actually happens
-- Notes (possibly including why you think this might be happening, or stuff you tried that didn't work)
-
-## Use a Consistent Coding Style
-
-- Use TypeScript for all new code
-- 2 spaces for indentation rather than tabs
-- You can try running `pnpm lint` for style unification
-
-## License
-
-By contributing, you agree that your contributions will be licensed under its MIT License.
-
-## Development Setup
-
-### Prerequisites
-
-- Node.js (v22 or higher)
-- pnpm (v9 or higher)
-- Git
-
-### Getting Started
-
-1. Fork and clone the repository:
-
-   ```bash
-   git clone https://github.com/your-username/comvi-js.git
-   cd comvi-js
-   ```
-
-2. Install dependencies:
-
-   ```bash
-   pnpm install
-   ```
-
-3. Create a new branch for your feature:
-   ```bash
-   git checkout -b feature/amazing-feature
-   ```
-
-### Development Commands
+Prerequisites: Node.js 22 or newer, pnpm 9 or newer, Git.
 
 ```bash
-# Install dependencies
+git clone https://github.com/comvi-io/comvi-js.git
+cd comvi-js
 pnpm install
-
-# Build all packages
-pnpm build
-
-# Run all tests
-pnpm test
-
-# Run linting
-pnpm lint
+pnpm build            # packages only, dependency-ordered through turbo
+pnpm test             # vitest via turbo; depends on build
 ```
 
-### Development Modes
-
-Comvi i18n has two development modes optimized for different workflows:
+Day-to-day development:
 
 ```bash
-# Full development mode - packages + test apps
-pnpm dev
-
-# Library-only mode - only library packages (faster, less resource usage)
-pnpm dev:lib
+pnpm dev              # packages + test apps
+pnpm dev:lib          # packages only — faster, less memory
 ```
 
-**How it works:**
+Most packages are consumed through source imports, so edits are reflected immediately.
+`@comvi/plugin-in-context-editor` runs in watch mode and rebuilds on change. `Ctrl+C` stops dev
+mode cleanly.
 
-- Most packages use **source imports** for instant HMR - changes to source files are reflected immediately
-- Some packages use **watch mode** (rebuild on change):
-  - `@comvi/plugin-in-context-editor` - Vue plugin with bundled CSS
-
-**Stopping dev mode:** Press `Ctrl+C` - the process will stop cleanly without errors.
-
-### Package-specific Commands
+Scope any turbo task with a filter:
 
 ```bash
-# Build a specific package
-pnpm --filter @comvi/core build
-pnpm --filter @comvi/vue build
-
-# Test a specific package
 pnpm --filter @comvi/core test
-pnpm --filter @comvi/vue test
-
-# Run tests in CI mode (non-watch)
-pnpm --filter @comvi/core test run
+pnpm --filter @comvi/vue build
+turbo run build --filter='./packages/*'
 ```
 
-### Project Structure
+## The gates, in the order CI runs them
 
-```
-comvi/
-├── packages/
-│   ├── core/                      # Framework-agnostic core
-│   ├── vue/                       # Vue 3 bindings
-│   ├── react/                     # React 18+ bindings
-│   ├── plugin-fetch-loader/       # HTTP translation loader
-│   ├── plugin-locale-detector/    # Browser locale detection
-│   ├── plugin-in-context-editor/  # Visual translation editor
-├── tooling/
-│   ├── vite-config/               # Shared Vite build configuration
-│   └── test-utils/                # Shared testing utilities
-├── test-apps/
-│   ├── vue/                       # Vue test application
-│   └── react/                     # React test application
-└── docs/                          # Documentation
-```
+`.github/workflows/ci.yml` is four jobs, and that is the entire automated gate set. Nothing
+outside this list is checked automatically.
 
-## Testing
+| Job         | What it runs                                                                                                                                            |
+| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `quality`   | changeset guard (pull requests only), `pnpm format:check`, `pnpm lint`, `pnpm typecheck`, `node scripts/audit-published.mjs`, `pnpm test:release-tools` |
+| `tests`     | `pnpm test:commit`                                                                                                                                      |
+| `build`     | `pnpm build`, then `pnpm audit:package-contracts`, `pnpm check:publint`, `pnpm check:types-exports`, `pnpm size`, `pnpm bundler-matrix`                 |
+| `extension` | `pnpm extension:build`, the built-artifact test, a chromium install, `pnpm extension:gate-e`, diagnostics upload                                        |
 
-We use Vitest for testing. Write tests for any new features or bug fixes.
+Everything that reads `dist/` lives in the single `build` job, after the build. Splitting those
+steps across jobs is what previously let them run against a stale or missing `dist/`.
 
-```typescript
-// Example test
-import { describe, it, expect } from "vitest";
-import { createI18n } from "../src";
+Before pushing, `pnpm test:commit` reproduces the `tests` job locally. `pnpm test:pr` adds the
+build.
 
-describe("createI18n", () => {
-  it("should create an i18n instance", () => {
-    const i18n = createI18n({
-      locale: "en",
-      translation: {
-        en: { hello: "Hello" },
-      },
-    });
-    expect(i18n.t("hello")).toBe("Hello");
-  });
-});
+### 1. Changesets are required, and CI enforces it
+
+Any change touching `packages/*/src/**` or a package's own `package.json` needs a
+`.changeset/*.md` entry in the same pull request. The guard greps the diff, and a pull request
+without one fails before anything else runs.
+
+```bash
+pnpm changeset        # pick packages, pick a bump, write the summary
 ```
 
-## Documentation
+Tests, docs and config under `packages/` do not ship, so they do not need one.
 
-- Update relevant documentation for any changes
-- Add JSDoc comments for new functions and classes
-- Include examples for new features
-- Update the API reference if needed
-- For package release flow, see [RELEASING.md](RELEASING.md)
+Write the summary for a user reading the changelog, not for a reviewer reading the diff: say
+what changed in behaviour and what a consumer has to do about it. Twelve of the thirteen
+published packages are in a `fixed` group (`.changeset/config.json`), so any bump moves them all
+to the same version.
 
-## Code Review Process
+### 2. Formatting, linting, types
 
-1. Create a pull request
-2. Ensure CI checks pass
-3. Get at least one review from a maintainer
-4. Address any feedback
-5. Merge once approved
+```bash
+pnpm format:check     # prettier, CI-equivalent
+pnpm format           # write the fixes
+pnpm lint             # eslint via turbo, --max-warnings=0
+pnpm lint:fix
+pnpm typecheck        # packages + apps + test-apps
+```
 
-## Questions?
+Prettier and ESLint also run through husky and lint-staged on commit.
 
-Feel free to open an issue for any questions or concerns. We're happy to help!
+### 3. Size budgets
 
-## Recognition
+`pnpm size` measures 17 gated bundle rows (`scripts/size-budgets.json`) by bundling each entry
+through its **published** exports map with esbuild, minifying, and gzipping. It needs a build
+first.
 
-Contributors who make significant improvements will be added to the project's contributors list.
+```bash
+pnpm build && pnpm size
+```
 
-## References
+A green row prints `+ name: 5.00 KB (5119 B) min+gz <= budget …`. A red row prints the overage
+and exits non-zero. Read it as a question, not a verdict: the budget is the last measured
+baseline plus 5 %, so red means your change added weight that nobody has justified yet. Shrink
+the change, move the cost behind an opt-in import, or re-baseline deliberately. The rules for
+re-baselining are in `scripts/size-budgets.md`; do not raise a budget in the same commit that
+grew it without saying why in the changeset.
 
-This document was adapted from the open-source contribution guidelines for [Facebook's Draft](https://github.com/facebook/draft-js/blob/a9316a723f9e918afde44dea68b5f9f39b7d9b00/CONTRIBUTING.md).
+`packages/core` is size-critical. Avoid new dependencies and dead weight there.
+
+### 4. Bundler matrix
+
+```bash
+pnpm build && pnpm bundler-matrix
+```
+
+Packs real tarballs, installs them into a fixture app, and bundles that app with **webpack and
+vite, in development and production**. It proves the export conditions work as shipped: that the
+`development` condition really reaches the dev build, that the editor's `production` condition
+really drops the editor runtime from the graph, and that no entry point resolves to nothing.
+Any change to a package's entry points, `exports` map, or `sideEffects` needs this run.
+
+### 5. Package contracts
+
+```bash
+pnpm build && pnpm audit:package-contracts && pnpm check:publint && pnpm check:types-exports
+```
+
+These check that every `exports`/`main`/`module`/`types` target is actually packed, that publint
+is happy with the manifest, and that every declared types entry resolves and is not an empty
+stub. Do not hand-edit a `package.json` `exports` map without running all three.
+
+## Tests
+
+Vitest everywhere. Every test in this repository is expected to meet the following standards.
+
+1. **Structure.** Arrange, one act, assert, blank-line separated. One scenario per test.
+   Behaviour through the public contract, never privates, internal call order, or an `as any`
+   reach. Minimal realistic data. Expected values are literals, never re-derived with the code
+   under test.
+2. **Coverage.** Happy path, plus edge cases (empty, zero, boundaries), plus the error path.
+3. **Stability.** Fully independent: every global restored. `restoreMocks`, `unstubEnvs` and
+   `unstubGlobals` are on, but spies on inherited members and `beforeAll` stubs are not covered
+   by them, so restore those yourself. Deterministic: no `Date.now`, `Math.random`, or ambient
+   timezone in an assertion; pass an explicit locale and `timeZone`. No `sleep` or `delay`; use
+   fake timers, deferreds, `vi.waitFor`, or the package's own flush helper. E2E selectors by id,
+   role, or `data-testid`.
+4. **Debuggability and speed.** Name a test `<subject> <condition> → <expected>`. Use precise
+   matchers (`toBe`, `toEqual`, `toThrow(objectContaining({ code }))`), never `toBeTruthy` for a
+   real claim, never try/catch-then-expect. Loop assertions must name the failing row, so use
+   `it.each`. Fast enough to run before every commit.
+
+**A real defect found while writing tests is reported as a bug to fix, loudly, at the moment it
+is found.** Pinning wrong behaviour "as is" is not acceptable as a silent outcome. If a pass is
+deliberately source-frozen, the pinned test carries an explicit BUG marker and the follow-up fix
+flips it to the correct behaviour with a changeset.
+
+Changing `packages/core` usually means mirroring the behaviour and its tests into every binding.
+Check all of `packages/{vue,react,solid,svelte,next,nuxt}` before calling core work done. SSR
+matters too: `next`, `nuxt` and server-rendered Vue paths must not touch browser globals at
+import time.
+
+### Mutation testing
+
+Not a CI gate, but the tool that tells you whether a test suite makes the claims it appears to.
+
+```bash
+pnpm mutation packages/core     # Stryker; report at packages/core/.stryker/report.html
+```
+
+A surviving mutant is a claim your tests do not make. Kill it with a behaviour test. A mutant
+that is genuinely equivalent at the behaviour level, or unreachable in the dev test build, is
+recorded in `scripts/mutation/accepted.json` with the file, the mutator, the mutated line's
+text, a reason, and `kind: equivalent | gap:prod-build` — never as a comment in `src/`. The
+runner prints the adjusted score, the real survivors, and any accepted entry that has gone
+stale.
+
+## Verification cheat-sheet
+
+| You changed                              | Run at least                                                                                   |
+| ---------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| `packages/core`                          | `pnpm --filter @comvi/core test`, the affected bindings' tests, `pnpm build && pnpm size`      |
+| One binding                              | that package's tests, and its `test-apps/*` app builds                                         |
+| A plugin                                 | that plugin's tests                                                                            |
+| A `package.json` `exports` map           | `pnpm build && pnpm audit:package-contracts && pnpm check:publint && pnpm check:types-exports` |
+| Package entry points or `sideEffects`    | `pnpm build && pnpm bundler-matrix`                                                            |
+| Release or codemod scripts in `scripts/` | `pnpm test:release-tools`                                                                      |
+| The Chrome extension                     | `pnpm extension:test`, and `pnpm extension:gate-e` for E2E                                     |
+
+`pnpm perf` prints a core runtime performance table. It is a manual tool, not a gate; nothing in
+CI runs it.
+
+## Pull requests
+
+1. Fork, then branch from `main`.
+2. Make the change, with tests.
+3. Add a changeset if you touched `packages/*/src/**` or a package's `package.json`.
+4. Update the affected package README if public behaviour changed.
+5. Run `pnpm test:commit`, plus whatever the cheat-sheet above adds for your change.
+6. Open the pull request. CI runs the four jobs; a maintainer reviews.
+
+Use TypeScript for new code. Formatting is Prettier's business, not yours.
+
+## Reporting bugs
+
+Open an issue at <https://github.com/comvi-io/comvi-js/issues>. A good report has a summary,
+exact reproduction steps or a minimal repository, the expected behaviour, the actual behaviour,
+and the versions of the Comvi packages, the framework, and Node.
+
+Security issues should not go in a public issue. See `SECURITY-AUDIT.md` for the audit trail and
+contact the maintainers privately at <hello@comvi.io>.
+
+## A note on `.omc/` and `.omp/`
+
+Both directories are agent-orchestration artifacts: plans, handoff notes and review records
+produced while the maintainers develop the library with AI coding agents. They are working
+process, not project documentation, and are untracked and gitignored. If you see them in your
+checkout after running tooling, ignore them; nothing in the build, the tests or the release path
+reads from them.
