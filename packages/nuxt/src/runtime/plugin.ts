@@ -122,6 +122,7 @@ export default defineNuxtPlugin({
     try {
       await runComviSetup({
         i18n,
+        core: i18n.core,
         nuxtApp,
         runtime: import.meta.server ? "server" : "client",
         runtimeConfig: config,

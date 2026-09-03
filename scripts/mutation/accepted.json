@@ -7842,6 +7842,24 @@
       "kind": "tool-limitation",
       "reason": "runner artifact, not an equivalent mutant — the claim IS pinned. Hand-applying this mutant turns 1 of this package's tests RED (the \"discards a response whose body arrives after cleanup\" claim in tests/cdn-mode-loading.test.ts). Stryker still reports it NoCoverage because @stryker-mutator/vitest-runner drives one long-lived vitest instance with perTest coverage analysis, and these suites drive fake timers across await boundaries: the mutant executes on a continuation the runner no longer attributes to the test that is running, so the killing tests are never in the mutant's test set. No additional test can change this.",
       "round": 14
+    },
+    {
+      "package": "packages/vue",
+      "file": "src/components/T.ts",
+      "mutators": ["ConditionalExpression"],
+      "snippet": "Object.keys(attrs).length === 0 ? params : ({ ...params, ...attrs } as TranslationParams);",
+      "lineHint": 186,
+      "kind": "equivalent",
+      "reason": "the guard only decides whether to ALLOCATE. Forced to the merge branch, `{ ...params }` with no attrs has the same entries as `params`, and `prepareTranslation` copies whatever it is handed into its own transport object — so no interpolation input and no rendered output can differ. Verified by applying the mutant by hand: 262/262 vue tests still pass. (The `-> true` direction, which would drop the attrs, is killed.)"
+    },
+    {
+      "package": "packages/solid",
+      "file": "src/T.tsx",
+      "mutators": ["ConditionalExpression", "EqualityOperator"],
+      "snippet": "const hasDirectParams = Object.keys(directParams).length > 0;",
+      "lineHint": 198,
+      "kind": "equivalent",
+      "reason": "both surviving directions force the merge branch, which only decides whether to ALLOCATE. With no direct props `{ ...local.params }` has the same entries as `local.params` (and `{}` where it was undefined, which `hasParams` reads as empty just the same), and `prepareTranslation` copies whatever it is handed into its own transport — so no interpolation input and no rendered output can differ. Verified by applying both mutants by hand: 152/152 solid tests still pass each time. (The `-> false` direction, which would drop the direct props, is killed.)"
     }
   ]
 }

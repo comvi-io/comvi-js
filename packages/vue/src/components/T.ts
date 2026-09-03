@@ -60,6 +60,9 @@ type ComponentsMap = Record<string, ComponentHandler>;
  * ```vue
  * <T i18nKey="welcome" :params="{ name: 'John' }" ns="forms" locale="fr" />
  *
+ * <!-- Params may also be written as plain attributes. -->
+ * <T i18nKey="cart.items" :count="2" name="John" />
+ *
  * <T i18nKey="welcome_link">
  *   <template #link="{ children }">
  *     <a href="/help">{{ children }}</a>
@@ -71,8 +74,13 @@ type ComponentsMap = Record<string, ComponentHandler>;
  * <T i18nKey="maybe.missing">Shown when the key has no translation</T>
  * ```
  */
-export const T = /*@__PURE__*/ defineComponent({
+const TComponent = /*@__PURE__*/ defineComponent({
   name: "T",
+
+  // Anything that is not a declared prop is an interpolation param, so no
+  // attribute may fall through to the rendered markup.
+  inheritAttrs: false,
+
   props: {
     i18nKey: {
       type: String,
@@ -126,7 +134,7 @@ export const T = /*@__PURE__*/ defineComponent({
     },
   },
 
-  setup(props, { slots }) {
+  setup(props, { slots, attrs }) {
     const i18n = inject(I18N_INJECTION_KEY);
 
     if (!i18n) {
@@ -168,9 +176,18 @@ export const T = /*@__PURE__*/ defineComponent({
         hasHandlers = true;
       }
 
+      // Every undeclared attribute is an interpolation param, matching the
+      // react wrapper: `<T i18nKey="cart" :count="2" />` is `params: { count: 2 }`.
+      // A direct prop wins a name collision with `params`, again as in react.
+      // Declared props (`ns`, `locale`, `fallback`, `raw`, `components`,
+      // `params`, `i18nKey`) never reach `attrs`, so they cannot leak in here.
+      const params = props.params as TranslationParams;
+      const allParams =
+        Object.keys(attrs).length === 0 ? params : ({ ...params, ...attrs } as TranslationParams);
+
       const prepared = prepareTranslation(source, {
         i18nKey: props.i18nKey,
-        params: props.params as TranslationParams,
+        params: allParams,
         ns: props.ns,
         locale: props.locale,
         fallback: props.fallback,
@@ -242,3 +259,14 @@ export const T = /*@__PURE__*/ defineComponent({
     };
   },
 });
+
+/**
+ * `<T>` with the direct-param props opened up: any attribute that is not one
+ * of the declared props is an interpolation param at runtime, so the type has
+ * to accept it. Same widening as the react wrapper's `TProps`.
+ */
+export const T = TComponent as typeof TComponent & {
+  new (...args: ConstructorParameters<typeof TComponent>): InstanceType<typeof TComponent> & {
+    $props: InstanceType<typeof TComponent>["$props"] & Record<string, unknown>;
+  };
+};

@@ -36,7 +36,7 @@ export type ComponentMapping =
 
 export type ComponentMap = Record<string, ComponentMapping>;
 
-export interface TProps {
+interface TBaseProps {
   i18nKey: keyof TranslationKeys | PermissiveKey;
   params?: TranslationParams;
   ns?: string;
@@ -50,3 +50,10 @@ export interface TProps {
   /** Rendered when the key is missing and no `fallback` prop was given. */
   children?: Snippet;
 }
+
+/**
+ * Every prop that is not declared above is an interpolation param
+ * (`<T i18nKey="cart" count={2} />`), so the type has to accept a key it never
+ * declared — the same widening `@comvi/react`'s `TProps` has.
+ */
+export type TProps = TBaseProps & Record<string, unknown>;

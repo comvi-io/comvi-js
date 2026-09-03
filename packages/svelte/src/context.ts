@@ -48,6 +48,19 @@ export interface SetI18nContextOptions {
    * double-init.
    */
   autoInit?: boolean;
+
+  /**
+   * Called when the auto-init above rejects — the per-app hook react's and
+   * solid's providers expose as a provider prop. Nothing else can observe that
+   * rejection: the init runs in a microtask this function does not return.
+   *
+   * The host's own `onError` (the `createI18n({ onError })` option) still
+   * reports the failure FIRST, with `{ source: "init" }`; this handler is for
+   * the app that wants to react in the component tree, not to replace it.
+   *
+   * Without a handler the rejection stays swallowed, exactly as before.
+   */
+  onError?: (error: Error) => void;
 }
 
 /**
@@ -67,7 +80,9 @@ export function setI18nContext(i18n: AnyI18nHost, options?: SetI18nContextOption
   if ((options?.autoInit ?? true) && !i18n.isInitialized && !i18n.isInitializing) {
     void Promise.resolve().then(() => {
       if (!i18n.isInitialized && !i18n.isInitializing) {
-        return i18n.init().catch(() => {});
+        return i18n.init().catch((error: unknown) => {
+          options?.onError?.(error as Error);
+        });
       }
     });
   }

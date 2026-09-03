@@ -16,6 +16,8 @@ function createI18nStub(initialLocale = "en") {
   const listeners = new Map<string, Array<(payload: unknown) => void>>();
 
   const i18n: any = {
+    // The wrapper's own host, reachable as `VueI18n.core`.
+    core: { id: "core-host" },
     locale: ref(initialLocale),
     translationCache: computed(() => new Map()),
     isLoading: ref(false),
@@ -153,6 +155,16 @@ describe("runtime plugin", () => {
         i18n,
       },
     });
+  });
+
+  it("hands the comvi.setup hook the core host as `core`", async () => {
+    const i18n = createI18nStub("en");
+    createComviI18n.mockReturnValue(i18n);
+
+    const plugin = await importPlugin();
+    await plugin.setup(createNuxtAppStub());
+
+    expect(runComviSetup).toHaveBeenCalledWith(expect.objectContaining({ core: i18n.core }));
   });
 
   it("passes in-context editor key mappings from SSR payload before init", async () => {

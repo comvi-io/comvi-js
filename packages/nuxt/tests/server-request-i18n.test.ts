@@ -208,6 +208,15 @@ describe("getRequestI18n", () => {
       );
     });
 
+    it("hands the comvi.setup hook the request host as `core`", async () => {
+      const host = createHost("en");
+      createComviCore.mockReturnValue(host);
+
+      await getRequestI18n(createEvent(), "en");
+
+      expect(runComviSetup).toHaveBeenCalledWith(expect.objectContaining({ core: host }));
+    });
+
     it("leaves a host that already reports the requested locale untouched", async () => {
       const { host, writes } = createHostWithLocaleWrites("de");
       createComviCore.mockReturnValue(host);

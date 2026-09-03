@@ -68,6 +68,15 @@ describe("host vocabulary after the single-entry convergence", () => {
     >();
   });
 
+  it("the setup context carries the composed host as `core`, needing no narrowing", () => {
+    // `i18n` is a union (VueI18n in the app plugin, the host itself in a
+    // server utility), so every capability call used to need `'core' in i18n`
+    // first. `core` is always the host.
+    expectTypeOf<Parameters<NuxtI18nSetup<I18n & I18nLoaderApi>>[0]["core"]>().toEqualTypeOf<
+      I18n & I18nLoaderApi
+    >();
+  });
+
   it("nuxt's resolved options are what a factory is handed", () => {
     expectTypeOf<NuxtHostFactoryOptions>().toMatchTypeOf<{ locale: string }>();
     expectTypeOf<NuxtHostFactoryOptions["defaultNs"]>().toEqualTypeOf<string | undefined>();

@@ -357,6 +357,16 @@ export interface NuxtI18nSetupContext<C extends WrapperI18nHost = I18n> {
   i18n: VueI18n<{}, C> | C;
 
   /**
+   * The host itself, on both runtimes — `i18n.core` in the app plugin, `i18n`
+   * in a server utility.
+   *
+   * `i18n` above is a UNION, so reaching a capability through it costs a
+   * `'core' in i18n` narrowing in every hook. This is the same object, already
+   * narrowed.
+   */
+  core: C;
+
+  /**
    * Runtime where setup is executed.
    */
   runtime: "client" | "server";
@@ -389,8 +399,8 @@ export interface NuxtI18nSetupContext<C extends WrapperI18nHost = I18n> {
  * // comvi.setup.ts
  * import type { I18n, I18nLoaderApi } from "@comvi/core";
  *
- * export default (({ i18n }) => {
- *   i18n.core.registerLoader(myLoader);
+ * export default (({ core }) => {
+ *   core.registerLoader(myLoader);
  * }) satisfies NuxtI18nSetup<I18n & I18nLoaderApi>;
  * ```
  */

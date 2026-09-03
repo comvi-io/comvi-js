@@ -59,6 +59,8 @@ export async function getRequestI18n(event: H3Event, locale: string): Promise<Nu
 
       await runComviSetup({
         i18n,
+        // The server utility's `i18n` IS the host.
+        core: i18n,
         event,
         runtime: "server",
         runtimeConfig: config,
