@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { I18n } from "../helpers/composedHost";
 import type { TranslationResult } from "../../src";
 
@@ -29,12 +29,41 @@ describe("arguments the ICU compiler does not treat as plural or select", () => 
     );
   });
 
-  it("names the unsupported type and the two ways out in the thrown message", () => {
-    expect(() => ingest("{value, number, integer}")).toThrow(
-      "[i18n] ICU argument type `number` is not supported; quote the braces ('{'…'}') or " +
-        "format the value in code and pass it as a plain {param}",
+  it.each([["{value, number, integer}"], ["{n, plural}"]])(
+    "quotes %s and names the three supported types in the thrown message",
+    (template) => {
+      expect(() => ingest(template)).toThrow(
+        `[i18n] ICU argument \`${template}\` is not supported: this compiler implements ` +
+          "`plural`, `selectordinal` and `select`, each with a choice list like `other {…}`. " +
+          "Quote the braces ('{'…'}') or format the value in code and pass it as a plain {param}",
+      );
+    },
+  );
+
+  it("throws E_ICU_SYNTAX for a choice list whose first selector has a quoted brace", () => {
+    // `'}'` hides the brace from the sub-message scanner but not from the
+    // selector scanner, so the list bails out on the very first selector — the
+    // one shape where nothing later in the list can bail out instead.
+    expect(() => ingest("{n, plural, a '}' {x}}")).toThrow(
+      expect.objectContaining({ code: "E_ICU_SYNTAX", argumentType: "plural" }),
     );
   });
+
+  // `argOpensHashScope` stops at EITHER brace in the parameter name, so `#` is
+  // not syntax inside these arguments; the apostrophe before `}` then opens a
+  // quote that never closes and the argument never terminates. One case per
+  // brace, because a name can hold an unmatched one inside quotes.
+  it.each([["{a{x}, plural, other {'#'}}"], ["{'{'x, plural, other {'#'}}"]])(
+    "does not open a hash scope for %s, whose parameter name holds a brace",
+    (template) => {
+      const i18n = new I18n({ locale: "en", translation: { en: { k: template } } });
+      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+      expect(i18n.t("k", { a: 1 } as never)).toBe(template);
+
+      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("Unbalanced braces"));
+    },
+  );
 });
 
 describe("ICU argument name and choice-list parsing", () => {

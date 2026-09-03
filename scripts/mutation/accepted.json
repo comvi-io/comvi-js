@@ -202,37 +202,10 @@
       "package": "packages/core",
       "file": "src/core/translate/compile-icu.ts",
       "mutators": ["StringLiteral"],
-      "snippet": "if (str.indexOf(\"#\") === -1) return str;",
-      "lineHint": 60,
-      "kind": "equivalent",
-      "reason": "indexOf(\"\") is 0, so the guard is skipped and the scan below returns the very same string."
-    },
-    {
-      "package": "packages/core",
-      "file": "src/core/translate/compile-icu.ts",
-      "mutators": ["UnaryOperator"],
-      "snippet": "i = end === -1 ? len : end;",
-      "lineHint": 76,
-      "kind": "equivalent",
-      "reason": "findMatchingBraceEnd returns either -1 or an index past a closing brace (>= 2), so comparing it with +1 is never true."
-    },
-    {
-      "package": "packages/core",
-      "file": "src/core/translate/compile-icu.ts",
-      "mutators": ["StringLiteral"],
       "snippet": "choicesStr.indexOf(\"=\") !== -1 ? 1 : 0,",
       "lineHint": 177,
       "kind": "equivalent",
       "reason": "indexOf(\"\") is 0, so hasExactSelectors stays set and the \"=N\" lookup simply misses, leaving the plural-category path unchanged."
-    },
-    {
-      "package": "packages/core",
-      "file": "src/core/translate/compile-icu.ts",
-      "mutators": ["LogicalOperator"],
-      "snippet": "const choices = token[3] ?? parsePluralChoices(choicesStr);",
-      "lineHint": 197,
-      "kind": "equivalent",
-      "reason": "token[3] is the map parsePluralChoices already built from this very choicesStr, so re-parsing yields an equal map."
     },
     {
       "package": "packages/core",
@@ -242,15 +215,6 @@
       "lineHint": 207,
       "kind": "equivalent",
       "reason": "[prod-profile 2026-09-02] surviving variant equivalent across BOTH build conditions (warn-only body, dev-only preflight, or value unobservable); the branch-off variants are killed by the dev/prod project pair. Prior reason: production-only arm — this build defines __DEV__ as true, so the dev message above is the one that runs."
-    },
-    {
-      "package": "packages/core",
-      "file": "src/core/translate/compile-icu.ts",
-      "mutators": ["LogicalOperator"],
-      "snippet": "const choices = token[3] ?? parsePluralChoices(token[2], hashIsSyntax);",
-      "lineHint": 246,
-      "kind": "equivalent",
-      "reason": "token[3] is the map parsePluralChoices already built from token[2], and templateCacheKey (core/translate.ts) includes hashIsSyntax, so a cached SelectToken was parsed under exactly the value processSelect is handed — the re-parse yields an equal map."
     },
     {
       "package": "packages/core",
@@ -625,10 +589,10 @@
       "package": "packages/core",
       "file": "src/core/translate.ts",
       "mutators": ["ConditionalExpression"],
-      "snippet": "(tokens.length === 0 || (tokens.length === 1 && tokens[0][1] === template));",
-      "lineHint": 146,
+      "snippet": "(tokens.length === 0 || (tokens.length === 1 && (tokens[0] as TextToken)[1] === template));",
+      "lineHint": 159,
       "kind": "equivalent",
-      "reason": "Both operands are unreachable as mutated. `tokens.length === 0` is only true for the empty segment, and an empty token list renders \"\" through the token path exactly as the isStatic return does. `tokens.length === 1 -> true` only bites on a parse of two or more tokens whose FIRST payload equals the whole template, which no parse produces: in a multi-token parse the first payload is a strict prefix.",
+      "reason": "Both operands are unreachable as mutated. `tokens.length === 0` is only true for the empty segment, and an empty token list renders \"\" through the token path exactly as the isStatic return does. `tokens.length === 1 -> true` only bites on a parse of two or more tokens whose FIRST payload equals the whole template, which no parse produces: in a multi-token parse the first payload is a strict prefix. The cast is type-only: `flags === TF_STATIC` with one token means that token is TK_TEXT, because every other kind sets a flag or hasDynamic in the loop above.",
       "round": 2
     },
     {
@@ -936,7 +900,7 @@
       "file": "src/core/translate/parser.ts",
       "mutators": ["ConditionalExpression", "EqualityOperator"],
       "snippet": "if (i > lastIndex) tokens.push([TK_TEXT, template.slice(lastIndex, i)]);",
-      "lineHint": 169,
+      "lineHint": 179,
       "kind": "equivalent",
       "reason": "In the `''` branch these push an EMPTY text token when the escape starts a segment (`\"''x\"`: i === lastIndex === 0). The branch always pushes `[TK_TEXT, \"'\"]` on the very next line and appendString merges an empty string into it, so the parts list, the joined string and the VNode child arrays are identical; the token count cannot make a template static either, since a `''` template renders differently from its source.",
       "round": 2
@@ -1534,16 +1498,6 @@
     {
       "package": "packages/core",
       "file": "src/core/translate/compile-icu.ts",
-      "mutators": ["EqualityOperator"],
-      "snippet": "while (i < len) {",
-      "lineHint": 34,
-      "kind": "equivalent",
-      "reason": "isPluralArgStart is only ever called with len === str.length (extractToken, findMatchingBraceEnd and replaceTopLevelHash all thread the full string length through, and MessageCompiler.argOpensHashScope reaches no other caller), so the extra pass reads charCodeAt(len) === NaN, which is neither COMMA nor a brace; i then leaves the loop at len + 1 and the line-40 guard returns false exactly as before.",
-      "round": 2
-    },
-    {
-      "package": "packages/core",
-      "file": "src/core/translate/compile-icu.ts",
       "mutators": ["ConditionalExpression", "EqualityOperator"],
       "snippet": "if (i >= len) return false;",
       "lineHint": 40,
@@ -1559,56 +1513,6 @@
       "lineHint": 42,
       "kind": "equivalent",
       "reason": "reading one index past the end yields NaN and NaN <= SPACE is false, so the whitespace skip stops on exactly the same index whether the bound is checked or not.",
-      "round": 2
-    },
-    {
-      "package": "packages/core",
-      "file": "src/core/translate/compile-icu.ts",
-      "mutators": ["EqualityOperator"],
-      "snippet": "while (i < len) {",
-      "lineHint": 44,
-      "kind": "equivalent",
-      "reason": "charCodeAt(len) is NaN, which matches none of the four break codes, so the loop exits one index later and str.slice(typeStart, len + 1) clamps to the same type string.",
-      "round": 2
-    },
-    {
-      "package": "packages/core",
-      "file": "src/core/translate/compile-icu.ts",
-      "mutators": ["ConditionalExpression"],
-      "snippet": "if (str.indexOf(\"#\") === -1) return str;",
-      "lineHint": 59,
-      "kind": "equivalent",
-      "reason": "skipping the fast path runs the scan over a #-free string, where `out` is only ever appended in the HASH branch — so out + str.slice(segStart) rebuilds the identical string.",
-      "round": 2
-    },
-    {
-      "package": "packages/core",
-      "file": "src/core/translate/compile-icu.ts",
-      "mutators": ["EqualityOperator"],
-      "snippet": "while (i < len) {",
-      "lineHint": 66,
-      "kind": "equivalent",
-      "reason": "charCodeAt(len) is NaN and matches neither APOSTROPHE, OPEN_BRACE nor HASH, so the extra pass appends nothing and the same out + str.slice(segStart) is returned.",
-      "round": 2
-    },
-    {
-      "package": "packages/core",
-      "file": "src/core/translate/compile-icu.ts",
-      "mutators": ["ConditionalExpression"],
-      "snippet": "i = end === -1 ? len : end;",
-      "lineHint": 74,
-      "kind": "equivalent",
-      "reason": "`end` is never -1 here: replaceTopLevelHash only runs on a plural BRANCH value, which parsePluralChoices sliced out of an already brace-balanced span under the same hashIsSyntax = true, so findMatchingBraceEnd always finds the nested argument's closing brace.",
-      "round": 2
-    },
-    {
-      "package": "packages/core",
-      "file": "src/core/translate/compile-icu.ts",
-      "mutators": ["EqualityOperator"],
-      "snippet": "while (i < len) {",
-      "lineHint": 95,
-      "kind": "equivalent",
-      "reason": "at i === len the inner whitespace skip is a no-op and the `i >= len` guard on the next line breaks immediately, so the extra pass adds no choice.",
       "round": 2
     },
     {
@@ -1634,31 +1538,11 @@
     {
       "package": "packages/core",
       "file": "src/core/translate/compile-icu.ts",
-      "mutators": ["EqualityOperator"],
-      "snippet": "while (i < len) {",
-      "lineHint": 100,
-      "kind": "equivalent",
-      "reason": "NaN is neither <= SPACE nor OPEN_BRACE, so the key slice clamps to the same text and the loop still ends at the line-108 guard.",
-      "round": 2
-    },
-    {
-      "package": "packages/core",
-      "file": "src/core/translate/compile-icu.ts",
       "mutators": ["ConditionalExpression", "EqualityOperator"],
       "snippet": "while (i < len && choicesStr.charCodeAt(i) <= SPACE) i++;",
       "lineHint": 107,
       "kind": "equivalent",
       "reason": "same NaN argument as line 96 — the whitespace skip stops on the same index.",
-      "round": 2
-    },
-    {
-      "package": "packages/core",
-      "file": "src/core/translate/compile-icu.ts",
-      "mutators": ["ConditionalExpression", "EqualityOperator"],
-      "snippet": "if (i >= len || choicesStr.charCodeAt(i) !== OPEN_BRACE) {",
-      "lineHint": 108,
-      "kind": "equivalent",
-      "reason": "dropping the guard (whole condition or either operand) hands findMatchingBraceEnd a start position with no balanced `}` left: choicesStr is sliced out of an already brace-balanced {…} span and quoted sections are skipped identically, so it returns -1 and line 120 ends the loop with the same choices map.",
       "round": 2
     },
     {
@@ -1685,16 +1569,6 @@
       "package": "packages/core",
       "file": "src/core/translate/compile-icu.ts",
       "mutators": ["ConditionalExpression"],
-      "snippet": "if (firstComma !== -1 && secondComma !== -1) {",
-      "lineHint": 162,
-      "kind": "equivalent",
-      "reason": "secondComma is only ever assigned in the `else` of `firstComma === -1`, so secondComma !== -1 already implies this operand; the whole-condition and second-operand mutants on the line are killed.",
-      "round": 2
-    },
-    {
-      "package": "packages/core",
-      "file": "src/core/translate/compile-icu.ts",
-      "mutators": ["ConditionalExpression"],
       "snippet": "choicesStr.indexOf(\"=\") !== -1 ? 1 : 0,",
       "lineHint": 172,
       "kind": "equivalent",
@@ -1706,7 +1580,7 @@
       "file": "src/core/translate/compile-icu.ts",
       "mutators": ["MethodExpression"],
       "snippet": "const choicesStr = content.slice(secondComma + 1).trim();",
-      "lineHint": 177,
+      "lineHint": 207,
       "kind": "equivalent",
       "reason": "this is the SELECT arm: the untrimmed string only reaches parsePluralChoices, which skips leading whitespace itself, and token[2] is never read back because processSelect always finds token[3] populated (translate.ts is the only other token consumer and it reads token[0] alone).",
       "round": 2
@@ -1806,7 +1680,7 @@
       "file": "src/core/translate.ts",
       "mutators": ["BooleanLiteral"],
       "snippet": "hasDynamic = true;",
-      "lineHint": 126,
+      "lineHint": 142,
       "kind": "equivalent",
       "reason": "`hasDynamic` is read once, in `hasDynamic && flags === TF_STATIC`. The line above this one has already done `flags |= TF_HAS_PLURAL` (2), so `flags === TF_STATIC` (0) is false for the rest of the pass whatever this assignment says; the assignment is dead in the plural branch.",
       "round": 3
@@ -7795,6 +7669,86 @@
       "lineHint": 9,
       "kind": "gap:prod-build",
       "reason": "the \"../package.json\" candidate (dist layout) -> \"\": from src, candidate 2 still resolves the real manifest, so the mutation view cannot observe the loss; only the built CLI walks candidate 1, and tests/dist/cli-entry.dist.test.ts pins --version in the full view (hand-applied id 2088: COMVI_MUTATION suite green 462/462; the src-layout sibling literal IS killed)"
+    },
+    {
+      "package": "packages/core",
+      "file": "src/core/translate.ts",
+      "mutators": ["BooleanLiteral"],
+      "snippet": "hasDynamic = true;",
+      "lineHint": 139,
+      "kind": "equivalent",
+      "reason": "Same dead assignment as the plural, select and tag branches: the preceding `flags |= TF_HAS_HASH` (16) already makes `flags === TF_STATIC` false, and that comparison is the only reader of hasDynamic. The assignment stays because it is what kills the AssignmentOperator mutant on the line above (`|=` -> `&=` zeroes flags, and then only hasDynamic forces the TF_SIMPLE_PARAMS promotion that drops the `#`).",
+      "round": 6
+    },
+    {
+      "package": "packages/core",
+      "file": "src/core/translate.ts",
+      "mutators": ["ConditionalExpression"],
+      "snippet": "} else if (kind === TK_HASH) {",
+      "lineHint": 133,
+      "kind": "equivalent",
+      "reason": "Falling through to the `kind !== TK_TEXT` arm sets TF_HAS_TAGS instead of TF_HAS_HASH. Both make `flags === TF_SIMPLE_PARAMS` false, which is the only place any flag is read today, so the render is identical. The distinct flag exists so a future reader of TF_HAS_TAGS is not told a `#` is a tag.",
+      "round": 6
+    },
+    {
+      "package": "packages/core",
+      "file": "src/core/translate/parser.ts",
+      "mutators": ["ConditionalExpression", "EqualityOperator"],
+      "snippet": "if (i > lastIndex) tokens.push([TK_TEXT, template.slice(lastIndex, i)]);",
+      "lineHint": 208,
+      "kind": "equivalent",
+      "reason": "Same empty-token push as the two quoting branches, in the TK_HASH branch: a `#` that starts a segment has i === lastIndex (`\"# of {total}\"`). The extra `[TK_TEXT, \"\"]` changes nothing — appendString merges an empty string into the neighbouring part, and the token can never make the list single or static because the TK_HASH token follows it on the very next line.",
+      "round": 6
+    },
+    {
+      "package": "packages/core",
+      "file": "src/core/loader.ts",
+      "mutators": ["ConditionalExpression"],
+      "snippet": "if (IS_DEV) warn(reloadNoActiveNsMessage(defaultNs));",
+      "lineHint": 281,
+      "kind": "equivalent",
+      "reason": "`warn` (src/logger.ts) is itself gated on __DEV__, so forcing the guard changes no observable behaviour in either build — tests/prod/loader-reload-fallback.test.ts pins that production writes nothing to the console. The guard is there so the production bundle drops the reloadNoActiveNsMessage call and its string.",
+      "round": 6
+    },
+    {
+      "package": "packages/core",
+      "file": "src/core/translate/compile-icu.ts",
+      "mutators": ["EqualityOperator"],
+      "snippet": "while (i < len) {",
+      "lineHint": 34,
+      "kind": "equivalent",
+      "reason": "isPluralArgStart is only ever called with len === str.length (extractToken and findMatchingBraceEnd both thread the full string length through, and MessageCompiler.argOpensHashScope reaches no other caller), so the extra pass reads charCodeAt(len) === NaN, which is neither COMMA nor a brace; i then leaves the loop at len + 1 and the line-40 guard returns false exactly as before.",
+      "round": 2
+    },
+    {
+      "package": "packages/core",
+      "file": "src/core/translate/compile-icu.ts",
+      "mutators": ["EqualityOperator"],
+      "snippet": "while (i < len) {",
+      "lineHint": 44,
+      "kind": "equivalent",
+      "reason": "charCodeAt(len) is NaN, which matches none of the four break codes, so the loop exits one index later and str.slice(typeStart, len + 1) clamps to the same type string.",
+      "round": 2
+    },
+    {
+      "package": "packages/core",
+      "file": "src/core/translate/compile-icu.ts",
+      "mutators": ["EqualityOperator"],
+      "snippet": "while (i < len) {",
+      "lineHint": 81,
+      "kind": "equivalent",
+      "reason": "at i === len the inner whitespace skip is a no-op and the `i >= len` guard on the next line breaks immediately, so the extra pass adds no choice.",
+      "round": 2
+    },
+    {
+      "package": "packages/core",
+      "file": "src/core/translate/compile-icu.ts",
+      "mutators": ["EqualityOperator"],
+      "snippet": "while (i < len) {",
+      "lineHint": 86,
+      "kind": "equivalent",
+      "reason": "NaN is neither <= SPACE nor OPEN_BRACE, so the key slice clamps to the same text and the loop still ends at the line-108 guard.",
+      "round": 2
     }
   ]
 }

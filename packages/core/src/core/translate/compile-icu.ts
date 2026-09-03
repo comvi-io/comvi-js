@@ -23,7 +23,6 @@ const OPEN_BRACE = 123;
 const CLOSE_BRACE = 125;
 const COMMA = 44;
 const SPACE = 32;
-const HASH = 35;
 
 /**
  * Detects whether the `{` at braceIndex starts a plural/selectordinal
@@ -51,38 +50,16 @@ export function isPluralArgStart(str: string, braceIndex: number, len: number): 
   return type === "plural" || type === "selectordinal";
 }
 /**
- * Replaces `#` octothorpes bound to the current plural with `replacement`.
- * Per ICU MessageFormat, only a nested plural/selectordinal rebinds `#`, so
- * those blocks are skipped wholesale while other nested arguments (select,
- * params) stay transparent. Quoted `'…'` literals are never touched.
+ * Replaces every `#` in a plural sub-message with the count.
+ *
+ * Reached only from the TEXT-ONLY fast path in `processPlural`: a branch that
+ * gets here holds no `{`, `<` or `'`, so there is no nested plural whose `#`
+ * must be skipped and no quoted `'#'` to protect. Any branch that holds one of
+ * those characters is re-parsed instead, and its `#` becomes a `TK_HASH` token
+ * the renderer resolves against `ctx.hash`.
  */
 export function replaceTopLevelHash(str: string, replacement: string): string {
-  if (str.indexOf("#") === -1) return str;
-
-  const len = str.length;
-  let out = "";
-  let segStart = 0;
-  let i = 0;
-
-  while (i < len) {
-    const code = str.charCodeAt(i);
-    if (code === APOSTROPHE) {
-      i = advancePastApostrophe(str, i, len, true);
-      continue;
-    }
-    if (code === OPEN_BRACE && isPluralArgStart(str, i, len)) {
-      const end = findMatchingBraceEnd(str, i + 1, len, true, isPluralArgStart);
-      i = end === -1 ? len : end;
-      continue;
-    }
-    if (code === HASH) {
-      out += str.slice(segStart, i) + replacement;
-      segStart = i + 1;
-    }
-    i++;
-  }
-
-  return out + str.slice(segStart);
+  return str.split("#").join(replacement);
 }
 
 /**
@@ -95,7 +72,7 @@ export function replaceTopLevelHash(str: string, replacement: string): string {
  */
 export function parsePluralChoices(
   choicesStr: string,
-  hashIsSyntax = true,
+  hashIsSyntax: boolean,
 ): Record<string, string> | null {
   const choices = Object.create(null) as Record<string, string>;
   const len = choicesStr.length;
@@ -114,9 +91,9 @@ export function parsePluralChoices(
     const key = choicesStr.slice(keyStart, i);
 
     while (i < len && choicesStr.charCodeAt(i) <= SPACE) i++;
-    if (i >= len || choicesStr.charCodeAt(i) !== OPEN_BRACE) {
-      return null;
-    }
+    // Past the end `charCodeAt` is NaN, so this also covers a trailing selector
+    // with no sub-message at all.
+    if (choicesStr.charCodeAt(i) !== OPEN_BRACE) return null;
 
     const valueStart = i + 1;
     const endIndex = findMatchingBraceEnd(
@@ -143,17 +120,22 @@ export function parsePluralChoices(
  * literally and records the type for the host's one best-effort report.
  *
  * `malformedChoices` carries the offending choice list, and is `undefined`
- * when the argument type itself is the problem. It selects the message only;
- * both messages are development-only text and fold out of production.
+ * when the argument itself is the problem — an unknown type, or a known one
+ * with no choice list at all. It selects the message only; both messages are
+ * development-only text and fold out of production.
  */
-function failIcuArg(argumentType: string, malformedChoices: string | undefined): undefined {
+function failIcuArg(
+  argumentType: string,
+  content: string,
+  malformedChoices: string | undefined,
+): undefined {
   if (!IS_DEV) {
     setIcuHit(argumentType);
     return undefined;
   }
   const error = new Error(
     malformedChoices === undefined
-      ? `[i18n] ICU argument type \`${argumentType}\` is not supported; quote the braces ('{'…'}') or format the value in code and pass it as a plain {param}`
+      ? `[i18n] ICU argument \`{${content}}\` is not supported: this compiler implements \`plural\`, \`selectordinal\` and \`select\`, each with a choice list like \`other {…}\`. Quote the braces ('{'…'}') or format the value in code and pass it as a plain {param}`
       : `[i18n] The \`${argumentType}\` choice list \`${malformedChoices}\` is malformed; every selector needs a braced sub-message, as in \`other {…}\``,
   ) as IcuSyntaxError;
   error.code = "E_ICU_SYNTAX";
@@ -208,11 +190,15 @@ function makeIcuArgToken(
   ).trim();
   const isPlural = typeStr === "plural" || typeStr === "selectordinal";
 
-  if (secondComma !== -1 && (isPlural || typeStr === "select")) {
-    const choicesStr = content.slice(secondComma + 1).trim();
-    const choices = parsePluralChoices(choicesStr, isPlural || hashIsSyntax);
-    if (choices === null) return failIcuArg(typeStr, choicesStr);
+  if (secondComma !== -1) {
+    // `#` is syntax in a plural's sub-messages by definition; in a select's it
+    // is syntax only when the select is itself inside one. The two arms pass
+    // their own answer rather than sharing one expression, so neither can
+    // borrow the other's.
     if (isPlural) {
+      const choicesStr = content.slice(secondComma + 1).trim();
+      const choices = parsePluralChoices(choicesStr, true);
+      if (choices === null) return failIcuArg(typeStr, content, choicesStr);
       return [
         TK_PLURAL,
         paramName,
@@ -222,10 +208,15 @@ function makeIcuArgToken(
         typeStr === "selectordinal" ? 1 : 0,
       ];
     }
-    return [TK_SELECT, paramName, choicesStr, choices];
+    if (typeStr === "select") {
+      const choicesStr = content.slice(secondComma + 1).trim();
+      const choices = parsePluralChoices(choicesStr, hashIsSyntax);
+      if (choices === null) return failIcuArg(typeStr, content, choicesStr);
+      return [TK_SELECT, paramName, choicesStr, choices];
+    }
   }
 
-  return failIcuArg(typeStr, undefined);
+  return failIcuArg(typeStr, content, undefined);
 }
 
 function processPlural(
@@ -236,7 +227,7 @@ function processPlural(
   const choicesStr = token[2];
   // `?? {}` covers a token built by an injected compiler that reuses this
   // processor: `makeIcuArgToken` never emits a token for a list it could not parse.
-  const choices = token[3] ?? parsePluralChoices(choicesStr) ?? {};
+  const choices = token[3] ?? parsePluralChoices(choicesStr, true) ?? {};
   const hasExactSelectors = token[4] === 1;
   const isOrdinal = token[5] === 1;
 
