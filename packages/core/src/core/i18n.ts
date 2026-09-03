@@ -472,6 +472,16 @@ export class I18n<D extends DefaultTranslationParams = {}>
   /**
    * Clear translations from the cache. An omitted `locale` clears every locale,
    * an omitted `namespace` every namespace.
+   *
+   * This clears CONTENT, not intent: a scopeless `clearTranslations()` leaves
+   * the ACTIVE namespace set alone, so `reloadTranslations()` and a following
+   * locale switch still know what to fetch — the editor-save and
+   * webhook-refresh flow is exactly "drop everything, fetch it again".
+   *
+   * Naming a namespace with no locale (`clearTranslations(undefined, ns)`)
+   * additionally DEACTIVATES it; that is the only public way to stop serving a
+   * namespace today. The default namespace is always reloadable, so
+   * `clearTranslations(undefined, defaultNs)` does not stick across a reload.
    */
   clearTranslations(locale?: string, namespace?: string): void {
     // Cancel in-flight loads for the cleared scope so they don't repopulate it.
@@ -489,8 +499,6 @@ export class I18n<D extends DefaultTranslationParams = {}>
 
     if (!locale && namespace) {
       this._activeNamespaces.delete(namespace);
-    } else if (!locale && !namespace) {
-      this._activeNamespaces.clear();
     }
 
     this._emit("translationsCleared", { locale, namespace });

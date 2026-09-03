@@ -27,6 +27,7 @@ import type {
 import { I18n as I18nBase, type I18nInternal } from "./i18n";
 import { normalizeTranslationObject } from "../utils";
 import { warnLateCompose } from "../utils/lateCompose";
+import { warn } from "../logger";
 
 declare const __DEV__: boolean | undefined;
 const IS_DEV = typeof __DEV__ !== "undefined" && __DEV__;
@@ -47,6 +48,18 @@ const ERR_NO_LOADER_REGISTERED = IS_DEV
 const ERR_FAILED_RELOAD_TRANSLATIONS = IS_DEV
   ? "[i18n] Failed to reload translations"
   : "E_FAILED_RELOAD_TRANSLATIONS";
+/**
+ * A reload with nothing active still has a default namespace, and refetching it
+ * is what the caller meant. Dev-only text; production drops the string and the
+ * `warn` call with it.
+ */
+function reloadNoActiveNsMessage(defaultNs: string): string {
+  return (
+    `[i18n] reloadTranslations(): no namespace is active, reloading the default namespace "${defaultNs}". ` +
+    "clearTranslations(undefined, ns) deactivates a namespace; a scopeless clearTranslations() does not."
+  );
+}
+
 const ERR_REGISTER_LOADER_ARG = IS_DEV
   ? "[i18n] registerLoader(): argument must be a loader function. For a static import map use .with(loader(map)), or wrap it with createImportMapLoader(map, () => i18n.getDefaultNamespace()) — both from @comvi/core/loader."
   : "E_REGISTER_LOADER_ARG";
@@ -262,6 +275,11 @@ export class I18nWithLoader<D extends DefaultTranslationParams = {}> extends I18
 
     const localesToReload = locale ? [locale] : [this._locale, ...this._fallbackLocales];
     const namespacesToReload = namespace ? [namespace] : [...this._activeNamespaces];
+    if (namespacesToReload.length === 0) {
+      const defaultNs = (this as unknown as I18nInternal)._cachedDefaultNs;
+      namespacesToReload.push(defaultNs);
+      if (IS_DEV) warn(reloadNoActiveNsMessage(defaultNs));
+    }
 
     for (const loc of localesToReload) {
       for (const ns of namespacesToReload) {

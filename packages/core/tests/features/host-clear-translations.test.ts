@@ -61,13 +61,20 @@ describe("clearTranslations(undefined, namespace)", () => {
 });
 
 describe("clearTranslations() with no scope", () => {
-  it("empties every locale and every active namespace", () => {
+  it("empties every locale", () => {
     const i18n = twoLocalesTwoNamespaces();
 
     i18n.clearTranslations();
 
     expect(i18n.getLoadedLocales()).toEqual([]);
-    expect(i18n.getActiveNamespaces()).toEqual([]);
+  });
+
+  it("keeps every namespace active, so a reload knows what to refetch", () => {
+    const i18n = twoLocalesTwoNamespaces();
+
+    i18n.clearTranslations();
+
+    expect(i18n.getActiveNamespaces()).toEqual(["nav", "footer"]);
   });
 
   it("bumps the cache revision exactly once, whatever the number of locales", () => {
