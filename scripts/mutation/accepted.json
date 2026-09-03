@@ -1818,16 +1818,6 @@
     {
       "package": "packages/plugin-fetch-loader",
       "file": "src/cache.ts",
-      "mutators": ["LogicalOperator", "OptionalChaining", "StringLiteral"],
-      "snippet": "`Failed to fetch project info: ${lastNotFound?.status ?? 404} ${lastNotFound?.statusText ?? \"Not Found\"}`,",
-      "lineHint": 165,
-      "kind": "equivalent",
-      "reason": "this throw is only reachable after every URL answered 404, so `lastNotFound` is always assigned and its status is always 404: `?? 404` and `&& 404` both yield 404, and the optional chains can never short-circuit. `statusText` is always a string on a Response, so the `?? \"Not Found\"` default is unreachable — an empty statusText renders as empty (pinned by the \"Nope\" status-text test).",
-      "round": 4
-    },
-    {
-      "package": "packages/plugin-fetch-loader",
-      "file": "src/cache.ts",
       "mutators": ["ArithmeticOperator"],
       "snippet": "projectInfoCacheGenerations.set(cacheKey, (projectInfoCacheGenerations.get(cacheKey) ?? 0) + 1);",
       "lineHint": 177,
@@ -7749,6 +7739,109 @@
       "lineHint": 1023,
       "kind": "equivalent",
       "reason": "the walk's top-level hashIsSyntax (second literal; parseTemplate's first literal is killed) only reaches a top-level select branch or a tag's children: a tag's direct children were already compiled by the outer parse, and the only template where the flag would change a select branch's outcome ('#{...}') is rejected by the outer brace scanner first (pre-existing quirk, P2)."
+    },
+    {
+      "package": "packages/plugin-fetch-loader",
+      "file": "src/cache.ts",
+      "mutators": ["StringLiteral"],
+      "snippet": "let lastNotFound = \"Not Found\";",
+      "lineHint": 144,
+      "kind": "equivalent",
+      "reason": "the initial value is always overwritten before it is read: the throw below is reachable only after BOTH URLs answered 404, and each 404 assigns lastNotFound from the response's statusText (hand-applied: 204/204 green)"
+    },
+    {
+      "package": "packages/plugin-fetch-loader",
+      "file": "src/http.ts",
+      "mutators": ["StringLiteral"],
+      "snippet": "const fail = () => reject(named(\"AbortError\", \"The operation was aborted.\"));",
+      "lineHint": 118,
+      "kind": "equivalent",
+      "reason": "the message never reaches a caller: controller.abort() is only ever called by the timer or by abortFromExternal, so the outer catch always rewrites this rejection as either the timeout error or RequestAbortedError (hand-applied: 204/204 green)"
+    },
+    {
+      "package": "packages/plugin-fetch-loader",
+      "file": "src/http.ts",
+      "mutators": ["ObjectLiteral", "BooleanLiteral"],
+      "snippet": "else signal.addEventListener(\"abort\", fail, { once: true });",
+      "lineHint": 120,
+      "kind": "equivalent",
+      "reason": "an AbortSignal fires 'abort' at most once, so { once: true } only releases the listener a moment earlier — dropping it or setting it false changes nothing observable (hand-applied both: 204/204 green)"
+    },
+    {
+      "package": "packages/plugin-fetch-loader",
+      "file": "src/retry.ts",
+      "mutators": ["StringLiteral"],
+      "snippet": "signal?.removeEventListener(\"abort\", onAbort);",
+      "lineHint": 83,
+      "kind": "equivalent",
+      "reason": "removing the wrong event name only leaves the listener attached to a signal the finished request no longer uses; onAbort on an already-settled promise is a no-op (hand-applied: 204/204 green)"
+    },
+    {
+      "package": "packages/plugin-fetch-loader",
+      "file": "src/retry.ts",
+      "mutators": ["ObjectLiteral", "BooleanLiteral"],
+      "snippet": "signal?.addEventListener(\"abort\", onAbort, { once: true });",
+      "lineHint": 86,
+      "kind": "equivalent",
+      "reason": "an AbortSignal fires 'abort' at most once, so { once: true } only releases the listener a moment earlier (hand-applied both: 204/204 green)"
+    },
+    {
+      "package": "packages/plugin-fetch-loader",
+      "file": "src/loader.ts",
+      "mutators": ["ConditionalExpression"],
+      "snippet": "if (signal.aborted || stopped) throw new RequestAbortedError(\"API translations\");",
+      "lineHint": 169,
+      "kind": "equivalent",
+      "reason": "unreachable since E1: fetchJsonWithTimeout races the body read against the signal, so a request cancelled at any point rejects there and never reaches this post-success guard. The guard stays for the window between the helper resolving and this line. The LogicalOperator sibling on this line was already accepted (hand-applied: 204/204 green)"
+    },
+    {
+      "package": "packages/plugin-fetch-loader",
+      "file": "src/loader.ts",
+      "mutators": ["ConditionalExpression"],
+      "snippet": "if (signal.aborted || stopped) throw new RequestAbortedError(url);",
+      "lineHint": 288,
+      "kind": "equivalent",
+      "reason": "unreachable since E1, for the same reason as the API-mode guard at :169 — the CDN request now rejects inside fetchJsonWithTimeout when the signal fires. The LogicalOperator sibling on this line was already accepted (hand-applied: 204/204 green)"
+    },
+    {
+      "package": "packages/plugin-fetch-loader",
+      "file": "src/loader.ts",
+      "mutators": ["ConditionalExpression"],
+      "snippet": "if (signal.aborted || stopped || isAborted(error)) {",
+      "lineHint": 174,
+      "kind": "tool-limitation",
+      "reason": "runner artifact, not an equivalent mutant — the claim IS pinned. Hand-applying this mutant turns 2 of this package's tests RED (the two \"after cleanup\" cases in tests/api-mode-loading.test.ts, which then reach the fallback). Stryker still reports it Survived because @stryker-mutator/vitest-runner drives one long-lived vitest instance with perTest coverage analysis, and these suites drive fake timers across await boundaries: the mutant executes on a continuation the runner no longer attributes to the test that is running, so the killing tests are never in the mutant's test set. No additional test can change this.",
+      "round": 14
+    },
+    {
+      "package": "packages/plugin-fetch-loader",
+      "file": "src/loader.ts",
+      "mutators": ["ConditionalExpression"],
+      "snippet": "if (signal.aborted || stopped || isAborted(error)) {",
+      "lineHint": 292,
+      "kind": "tool-limitation",
+      "reason": "runner artifact, not an equivalent mutant — the claim IS pinned. Hand-applying this mutant turns 2 of this package's tests RED (the two \"after cleanup\" cases in tests/cdn-mode-loading.test.ts, which then reach the fallback). Stryker still reports it Survived because @stryker-mutator/vitest-runner drives one long-lived vitest instance with perTest coverage analysis, and these suites drive fake timers across await boundaries: the mutant executes on a continuation the runner no longer attributes to the test that is running, so the killing tests are never in the mutant's test set. No additional test can change this.",
+      "round": 14
+    },
+    {
+      "package": "packages/plugin-fetch-loader",
+      "file": "src/retry.ts",
+      "mutators": ["ConditionalExpression"],
+      "snippet": "if (status !== undefined && status !== 429 && status < 500) return undefined;",
+      "lineHint": 59,
+      "kind": "tool-limitation",
+      "reason": "runner artifact, not an equivalent mutant — the claim IS pinned. Hand-applying this mutant turns 14 of this package's tests RED (every retrying case in tests/retry.test.ts, since nothing is retried any more). Stryker still reports it Survived because @stryker-mutator/vitest-runner drives one long-lived vitest instance with perTest coverage analysis, and these suites drive fake timers across await boundaries: the mutant executes on a continuation the runner no longer attributes to the test that is running, so the killing tests are never in the mutant's test set. No additional test can change this.",
+      "round": 14
+    },
+    {
+      "package": "packages/plugin-fetch-loader",
+      "file": "src/loader.ts",
+      "mutators": ["CallExpression"],
+      "snippet": "if (signal.aborted || stopped) throw new RequestAbortedError(url);",
+      "lineHint": 288,
+      "kind": "tool-limitation",
+      "reason": "runner artifact, not an equivalent mutant — the claim IS pinned. Hand-applying this mutant turns 1 of this package's tests RED (the \"discards a response whose body arrives after cleanup\" claim in tests/cdn-mode-loading.test.ts). Stryker still reports it NoCoverage because @stryker-mutator/vitest-runner drives one long-lived vitest instance with perTest coverage analysis, and these suites drive fake timers across await boundaries: the mutant executes on a continuation the runner no longer attributes to the test that is running, so the killing tests are never in the mutant's test set. No additional test can change this.",
+      "round": 14
     }
   ]
 }

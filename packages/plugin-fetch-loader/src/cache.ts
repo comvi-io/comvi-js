@@ -2,14 +2,14 @@ import type { ExportApiResponse, TranslationStore } from "./types";
 import type { ProjectInfo } from "./options";
 import { API_BASE_URL } from "./options";
 import type { FetchRequestOptions } from "./http";
+import { httpFailure, withRetry } from "./retry";
 import {
   RequestAbortedError,
   buildApiExportUrl,
   buildApiTranslationsUrl,
   buildAuthHeaders,
   buildLegacyApiExportUrl,
-  fetchWithTimeout,
-  parseJsonResponse,
+  fetchJsonWithTimeout,
   stripSlash,
   transformApiResponse,
 } from "./http";
@@ -128,6 +128,10 @@ export async function fetchProjectInfo(
       }
     });
   pendingProjectInfoCache.set(cacheKey, entry);
+  // A caller whose signal is ALREADY aborted by the time it joins never attaches
+  // to this shared promise, so its rejection would surface as an unhandled one
+  // in the host's console. Every real joiner has its own handler.
+  void entry.promise.catch(() => {});
   return joinPendingProjectInfo(entry, requestOptions?.signal, `${baseUrl}/v1/project`);
 }
 
@@ -139,31 +143,42 @@ async function fetchProjectInfoFromApi(
   requestOptions?: FetchRequestOptions,
 ): Promise<ProjectInfo> {
   const urls = [`${baseUrl}/v1/project`, `${baseUrl}/api/v1/api/project`];
-  let lastNotFound: Response | undefined;
 
-  for (const url of urls) {
-    const response = await fetchWithTimeout(
-      url,
-      { headers: buildAuthHeaders(apiKey), ...requestOptions },
-      timeoutMs,
-      fetchFn,
-    );
+  const attempt = async (): Promise<ProjectInfo> => {
+    let lastNotFound = "Not Found";
 
-    if (response.ok) {
-      return parseJsonResponse<ProjectInfo>(response, url);
+    for (const url of urls) {
+      const result = await fetchJsonWithTimeout<ProjectInfo>(
+        url,
+        { headers: buildAuthHeaders(apiKey), ...requestOptions },
+        timeoutMs,
+        fetchFn,
+      );
+
+      if (result.ok) {
+        return result.data;
+      }
+
+      if (result.status === 404) {
+        lastNotFound = result.statusText;
+        continue;
+      }
+
+      throw httpFailure(
+        `Failed to fetch project info: ${result.status} ${result.statusText}`,
+        result.status,
+        result.retryAfter,
+      );
     }
 
-    if (response.status === 404) {
-      lastNotFound = response;
-      continue;
-    }
+    // Both spellings answered 404: the deployment has no project endpoint, and
+    // asking again will not change that.
+    throw httpFailure(`Failed to fetch project info: 404 ${lastNotFound}`, 404, null);
+  };
 
-    throw new Error(`Failed to fetch project info: ${response.status} ${response.statusText}`);
-  }
-
-  throw new Error(
-    `Failed to fetch project info: ${lastNotFound?.status ?? 404} ${lastNotFound?.statusText ?? "Not Found"}`,
-  );
+  return requestOptions?.retry === false
+    ? attempt()
+    : withRetry(attempt, urls[0], requestOptions?.signal);
 }
 
 /**
@@ -205,44 +220,43 @@ export async function fetchApiTranslations(
   const requestedNamespaces = [...new Set(namespaces)];
   const headers = buildAuthHeaders(apiKey);
   const url = buildApiTranslationsUrl(locale, requestedNamespaces, apiBaseUrl);
-  const response = await fetchWithTimeout(url, { headers, ...requestOptions }, timeoutMs, fetchFn);
-
-  if (response.ok) {
-    return transformApiResponse(await parseJsonResponse<ExportApiResponse>(response, url));
-  }
-
-  if (response.status !== 404) {
-    throw new Error(`API error: ${response.status} ${response.statusText}`);
-  }
-
-  const projectId = (
-    await fetchProjectInfo(apiKey, apiBaseUrl, timeoutMs, fetchFn, cacheScope, requestOptions)
-  ).id;
-  const exportUrl = buildApiExportUrl(projectId, locale, requestedNamespaces, apiBaseUrl);
-  let responseUrl = exportUrl;
-  let exportResponse = await fetchWithTimeout(
-    exportUrl,
+  const result = await fetchJsonWithTimeout<ExportApiResponse>(
+    url,
     { headers, ...requestOptions },
     timeoutMs,
     fetchFn,
   );
 
-  if (!exportResponse.ok && exportResponse.status === 404) {
-    const legacyUrl = buildLegacyApiExportUrl(projectId, locale, requestedNamespaces, apiBaseUrl);
-    responseUrl = legacyUrl;
-    exportResponse = await fetchWithTimeout(
-      legacyUrl,
+  if (result.ok) {
+    return transformApiResponse(result.data);
+  }
+
+  if (result.status !== 404) {
+    throw new Error(`API error: ${result.status} ${result.statusText}`);
+  }
+
+  const projectId = (
+    await fetchProjectInfo(apiKey, apiBaseUrl, timeoutMs, fetchFn, cacheScope, requestOptions)
+  ).id;
+  let exportResult = await fetchJsonWithTimeout<ExportApiResponse>(
+    buildApiExportUrl(projectId, locale, requestedNamespaces, apiBaseUrl),
+    { headers, ...requestOptions },
+    timeoutMs,
+    fetchFn,
+  );
+
+  if (!exportResult.ok && exportResult.status === 404) {
+    exportResult = await fetchJsonWithTimeout<ExportApiResponse>(
+      buildLegacyApiExportUrl(projectId, locale, requestedNamespaces, apiBaseUrl),
       { headers, ...requestOptions },
       timeoutMs,
       fetchFn,
     );
   }
 
-  if (!exportResponse.ok) {
-    throw new Error(`API error: ${exportResponse.status} ${exportResponse.statusText}`);
+  if (!exportResult.ok) {
+    throw new Error(`API error: ${exportResult.status} ${exportResult.statusText}`);
   }
 
-  return transformApiResponse(
-    await parseJsonResponse<ExportApiResponse>(exportResponse, responseUrl),
-  );
+  return transformApiResponse(exportResult.data);
 }

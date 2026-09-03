@@ -213,6 +213,18 @@
         "measuredAt": "2026-08-29"
       },
       "note": "Gated Nuxt client floor: the runtime client entry only — the anchor the Nuxt ceiling row is read against."
+    },
+    {
+      "name": "plugin-fetch-loader-cdn",
+      "entry": ["@comvi/core", "@comvi/core/icu", "@comvi/plugin-fetch-loader"],
+      "fixture": "plugin-fetch-loader-cdn.ts",
+      "gzipBudgetBytes": 11172,
+      "baseline": {
+        "minBytes": 29519,
+        "gzipBytes": 10640,
+        "measuredAt": "2026-09-03"
+      },
+      "note": "Gated platform CDN path: base host + ICU + the fetch loader, composed as the fetch-loader README quickstart."
     }
   ]
 }

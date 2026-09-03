@@ -1,5 +1,5 @@
 /**
- * How `fetchWithTimeout` classifies a failure: only its own timer produces a
+ * How `fetchJsonWithTimeout` classifies a failure: only its own timer produces a
  * timeout, only the caller's signal produces a cancellation, and anything else
  * reaches the caller untouched.
  */
@@ -62,7 +62,9 @@ describe("request timer", () => {
     const failure = deferred<Response>();
     const fetchFn = asFetch(vi.fn(() => failure.promise));
 
-    const request = fetchProjectInfo("key", BASE, 50, fetchFn);
+    // `retry: false`: a transport failure IS retryable, and this test is about
+    // how the first failure is classified, not how many times it is repeated.
+    const request = fetchProjectInfo("key", BASE, 50, fetchFn, undefined, { retry: false });
     const rejection = expect(request).rejects.toThrow("upstream exploded");
     await vi.advanceTimersByTimeAsync(51);
     failure.reject(new Error("upstream exploded"));

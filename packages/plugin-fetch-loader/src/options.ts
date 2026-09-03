@@ -107,6 +107,20 @@ export interface FetchLoaderOptions {
   timeout?: number;
 
   /**
+   * Retry the project-info request after a 429, a 5xx or a transport failure —
+   * twice at most. The waits between attempts never add more than five seconds;
+   * each attempt still runs under its own `timeout`. A timeout is never
+   * retried, so a stalled server still fails as fast as `timeout` says.
+   *
+   * Only the project-info request is retried. The CDN namespace load and the
+   * API translations request are not: core's fallback-locale loop already sits
+   * behind them, and retrying there would multiply what `setLocaleAsync` costs
+   * on a flapping CDN.
+   * @default true
+   */
+  retry?: boolean;
+
+  /**
    * Whether to load translations during init()
    * @default true
    *
