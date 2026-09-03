@@ -92,9 +92,22 @@
     {@const pending = pendingByTag[node.tag]}
     {#if pending !== undefined}
       {@const Handler = pending.handler as Component<Record<string, unknown>>}
-      <Handler {...(pending.props ?? {})}>
-        {@render renderList(node.children)}
-      </Handler>
+      <!--
+        A handler that throws degrades to the translation's own children rather
+        than taking the tree down with it — the same contract React's <T>
+        carries. Needs svelte >= 5.3 for <svelte:boundary>.
+      -->
+      <svelte:boundary
+        onerror={(error) =>
+          i18n.reportError(error as Error, { source: 'translation', tagName: pending.name })}
+      >
+        <Handler {...(pending.props ?? {})}>
+          {@render renderList(node.children)}
+        </Handler>
+        {#snippet failed()}
+          {@render renderList(node.children)}
+        {/snippet}
+      </svelte:boundary>
     {:else if node.children.length === 0}
       <svelte:element this={node.tag} {...elementProps(node.props)} />
     {:else}
