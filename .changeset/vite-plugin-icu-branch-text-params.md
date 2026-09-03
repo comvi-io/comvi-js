@@ -20,9 +20,13 @@ bodies of an ICU argument became parameters of their own:
 "greeting": { "gender": string };
 ```
 
-The same happened to any plural whose branches are words rather than `#…`
-(`{count, plural, one {item} other {items}}` produced `item` and `items`), and
-to an argument type the extractor does not recognise.
+The same happened to any plural whose branches are words rather than `#…`:
+`{count, plural, one {item} other {items}}` produced `item` and `items`.
+
+Only branch text changes. An argument whose type the extractor does not
+recognise, such as `{x, wobble, other {a}}`, still contributes no parameter of
+its own — as before — and now no longer contributes the `a` from its branch
+either.
 
 Placeholders that really are nested inside a branch are still found:
 `{count, plural, other {# of {total}}}` keeps both `count` and `total`.
