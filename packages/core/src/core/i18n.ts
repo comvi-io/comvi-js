@@ -31,6 +31,7 @@ import {
   assertPreservesDefaultParamKeys,
 } from "../utils/defaultParams";
 import { translationResultToString } from "../utils/translationResultToString";
+import { claimCoreInstance } from "./duplicateGuard";
 import { TranslationCache } from "./TranslationCache";
 import { isStaticTemplate, translate, translateTemplate } from "./translate";
 import {
@@ -51,6 +52,7 @@ import {
 } from "./translate/syntax";
 
 declare const __DEV__: boolean | undefined;
+declare const __VERSION__: string | undefined;
 const IS_DEV = typeof __DEV__ !== "undefined" && __DEV__;
 
 const ERR_LOCALE_NOT_SET = IS_DEV ? "@comvi/core: Locale is not set" : "E_LOCALE_NOT_SET";
@@ -60,6 +62,10 @@ const ERR_TRANSLATION_NOT_OBJECT = IS_DEV
 const ERR_INSTANCE_DESTROYED = IS_DEV
   ? "[i18n] Cannot call init() after destroy(). Create a new i18n instance."
   : "E_INSTANCE_DESTROYED";
+
+// Two copies of core share none of the module-scoped state below. DEV-only:
+// production drops the call, then the import, then the module itself.
+if (IS_DEV) claimCoreInstance(typeof __VERSION__ !== "undefined" ? __VERSION__ : "");
 
 /**
  * A bare host stores catalogs verbatim, so a nested object or a non-string leaf

@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { buildApiExportUrl, buildApiTranslationsUrl } from "../src/index";
+import { buildLegacyApiExportUrl } from "../src/http";
 
 const API = "https://api.example.com";
 
@@ -39,6 +40,26 @@ describe("API base URL normalisation", () => {
   it("drops a single trailing slash from the export base URL", () => {
     expect(buildApiExportUrl(42, "en", ["default"], "https://api.example.com/")).toBe(
       "https://api.example.com/v1/projects/42/export?locales=en&namespaces=default",
+    );
+  });
+});
+
+describe("buildLegacyApiExportUrl()", () => {
+  it("puts the project, the locale and the namespaces in the legacy export URL", () => {
+    expect(buildLegacyApiExportUrl(42, "en", ["default", "dashboard"], API)).toBe(
+      "https://api.example.com/api/v1/api/projects/42/export?locales=en&namespaces=default%2Cdashboard",
+    );
+  });
+
+  it("rejects a traversal locale and names the locale in the error", () => {
+    expect(() => buildLegacyApiExportUrl(42, "../hack", ["default"], API)).toThrow(
+      '[FetchLoader] Invalid locale: "../hack"',
+    );
+  });
+
+  it("rejects a traversal namespace and names the namespace in the error", () => {
+    expect(() => buildLegacyApiExportUrl(42, "en", ["default", "../hack"], API)).toThrow(
+      '[FetchLoader] Invalid namespace: "../hack"',
     );
   });
 });

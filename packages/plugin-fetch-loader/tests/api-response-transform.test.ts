@@ -38,3 +38,29 @@ describe("transformApiResponse()", () => {
     );
   });
 });
+
+describe("transformApiResponse() inner shapes", () => {
+  it.each([
+    ["a string where a namespace's locale map belongs", "ab"],
+    ["null where a namespace's locale map belongs", null],
+    ["an array where a namespace's locale map belongs", []],
+  ])("rejects %s", (_case, locales) => {
+    const response = { locales: ["en"], namespaces: { default: locales } };
+
+    expect(() => transformApiResponse(response as unknown as ExportApiResponse)).toThrow(
+      '[FetchLoader] Invalid API response: "namespaces.default" must be an object',
+    );
+  });
+
+  it.each([
+    ["a string where a locale's catalog belongs", "Hello"],
+    ["null where a locale's catalog belongs", null],
+    ["an array where a locale's catalog belongs", []],
+  ])("rejects %s", (_case, catalog) => {
+    const response = { locales: ["en"], namespaces: { default: { en: catalog } } };
+
+    expect(() => transformApiResponse(response as unknown as ExportApiResponse)).toThrow(
+      '[FetchLoader] Invalid API response: "namespaces.default.en" must be an object',
+    );
+  });
+});

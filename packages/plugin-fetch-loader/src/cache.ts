@@ -10,6 +10,7 @@ import {
   buildAuthHeaders,
   buildLegacyApiExportUrl,
   fetchJsonWithTimeout,
+  isSafeId,
   stripSlash,
   transformApiResponse,
 } from "./http";
@@ -135,6 +136,24 @@ export async function fetchProjectInfo(
   return joinPendingProjectInfo(entry, requestOptions?.signal, `${baseUrl}/v1/project`);
 }
 
+/**
+ * The project id is interpolated into the export URL path, so a 200 that is not
+ * a project is refused here rather than turned into a malformed request. It is
+ * reported as a non-retryable failure: asking the same endpoint again cannot
+ * change what it answered.
+ */
+function assertProjectInfo(data: ProjectInfo, url: string): ProjectInfo {
+  const id = (data as ProjectInfo | undefined)?.id;
+  if ((typeof id !== "number" && typeof id !== "string") || !isSafeId(String(id))) {
+    throw httpFailure(
+      `[FetchLoader] Invalid API response from ${url}: "id" must be a number or a path-safe string`,
+      200,
+      null,
+    );
+  }
+  return data;
+}
+
 async function fetchProjectInfoFromApi(
   apiKey: string,
   baseUrl: string,
@@ -156,7 +175,7 @@ async function fetchProjectInfoFromApi(
       );
 
       if (result.ok) {
-        return result.data;
+        return assertProjectInfo(result.data, url);
       }
 
       if (result.status === 404) {

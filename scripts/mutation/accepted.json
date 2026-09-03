@@ -1908,16 +1908,6 @@
     {
       "package": "packages/plugin-fetch-loader",
       "file": "src/loader.ts",
-      "mutators": ["ArrowFunction"],
-      "snippet": "release: () => inflight.delete(controller),",
-      "lineHint": 123,
-      "kind": "equivalent",
-      "reason": "`inflight` is only iterated by abortAll(); leaving a settled request's controller in the set means aborting a controller whose request has already finished, which is a no-op. The mutant is a memory leak, not a behaviour change.",
-      "round": 4
-    },
-    {
-      "package": "packages/plugin-fetch-loader",
-      "file": "src/loader.ts",
       "mutators": ["CallExpression"],
       "snippet": "inflight.clear();",
       "lineHint": 129,
@@ -7860,6 +7850,133 @@
       "lineHint": 198,
       "kind": "equivalent",
       "reason": "both surviving directions force the merge branch, which only decides whether to ALLOCATE. With no direct props `{ ...local.params }` has the same entries as `local.params` (and `{}` where it was undefined, which `hasParams` reads as empty just the same), and `prepareTranslation` copies whatever it is handed into its own transport — so no interpolation input and no rendered output can differ. Verified by applying both mutants by hand: 152/152 solid tests still pass each time. (The `-> false` direction, which would drop the direct props, is killed.)"
+    },
+    {
+      "package": "packages/plugin-fetch-loader",
+      "file": "src/loader.ts",
+      "mutators": ["ArrowFunction"],
+      "snippet": "release: () => inflight.delete(request),",
+      "lineHint": 130,
+      "kind": "equivalent",
+      "reason": "`inflight` is only walked to abort what is still running — by abortAll() and by the translationsCleared listener. Leaving a settled request in the set means aborting a controller whose request has already finished, which is a no-op. The mutant is a memory leak, not a behaviour change.",
+      "round": 4
+    },
+    {
+      "package": "packages/vite-plugin",
+      "file": "src/extract.ts",
+      "mutators": ["EqualityOperator"],
+      "snippet": "for (let i = open; i < value.length; i++) {",
+      "lineHint": 114,
+      "kind": "equivalent",
+      "reason": "one extra iteration past the end. `value[value.length]` is `undefined`, which matches neither the `\"{\"` nor the `\"}\"` arm, so `depth` is untouched and the same result is returned."
+    },
+    {
+      "package": "packages/vite-plugin",
+      "file": "src/extract.ts",
+      "mutators": ["EqualityOperator"],
+      "snippet": "for (let i = 0; i < value.length; i++) {",
+      "lineHint": 135,
+      "kind": "equivalent",
+      "reason": "same extra iteration in the message scan: `value[value.length]` is `undefined`, so the `!== \"{\"` guard skips it and no group is opened."
+    },
+    {
+      "package": "packages/vite-plugin",
+      "file": "src/extract.ts",
+      "mutators": ["StringLiteral"],
+      "snippet": "const content = await fs.readFile(file.filePath, \"utf-8\");",
+      "lineHint": 237,
+      "kind": "equivalent",
+      "reason": "with `\"\"` node ignores the encoding and resolves a Buffer; the only consumer is `JSON.parse`, which coerces it with `toString()` — a UTF-8 decode. Probed on node 22 with ASCII and non-ASCII catalogs: identical parse result."
+    },
+    {
+      "package": "packages/vite-plugin",
+      "file": "src/extract.ts",
+      "mutators": ["StringLiteral"],
+      "snippet": "const content = await fs.readFile(filePath, \"utf-8\");",
+      "lineHint": 256,
+      "kind": "equivalent",
+      "reason": "the fallback loop's copy of the same read; see the entry for the template loop above."
+    },
+    {
+      "package": "packages/vite-plugin",
+      "file": "src/index.ts",
+      "mutators": ["BooleanLiteral"],
+      "snippet": "let isBuildCommand = false;",
+      "lineHint": 77,
+      "kind": "equivalent",
+      "reason": "vite runs `configResolved` before `buildStart`, and it assigns `isBuildCommand = config.command === \"build\"` unconditionally, so the initializer is never read. Only a `buildStart` called without `configResolved` — outside the plugin contract, with `resolvedTranslationsPath` still undefined — could observe it."
+    },
+    {
+      "package": "packages/vite-plugin",
+      "file": "src/index.ts",
+      "mutators": ["StringLiteral"],
+      "snippet": "let lastContent = \"\";",
+      "lineHint": 78,
+      "kind": "equivalent",
+      "reason": "the seed is only ever compared against generated content, and every generated file starts with the `DO NOT EDIT` header, so no seed can equal the first result. The unchanged-write skip behaves identically for any seed value."
+    },
+    {
+      "package": "packages/vite-plugin",
+      "file": "src/index.ts",
+      "mutators": ["StringLiteral"],
+      "snippet": "await fs.writeFile(resolvedOutputPath, content, \"utf-8\");",
+      "lineHint": 100,
+      "kind": "equivalent",
+      "reason": "node writes a string as UTF-8 whether the encoding argument is `\"utf-8\"` or `\"\"`; probed on node 22, the file round-trips byte-identically for ASCII and non-ASCII content."
+    },
+    {
+      "package": "packages/vite-plugin",
+      "file": "src/index.ts",
+      "mutators": ["ObjectLiteral"],
+      "snippet": "void scheduleGenerate({ throwOnError: false });",
+      "lineHint": 139,
+      "kind": "equivalent",
+      "reason": "`{}` leaves `throwOnError` undefined; `pendingThrowOnError ||= undefined` keeps the flag falsy and `if (options.throwOnError)` reads `undefined` and `false` the same way. The `false -> true` mutant on this same line IS killed, by the watcher-failure test that asserts no rejection is left behind."
+    },
+    {
+      "package": "packages/vite-plugin",
+      "file": "src/scheduler.ts",
+      "mutators": ["BooleanLiteral"],
+      "snippet": "let rerunRequested = false;",
+      "lineHint": 14,
+      "kind": "equivalent",
+      "reason": "the run loop assigns `rerunRequested = false` before every `runGeneration`, and `while (rerunRequested)` is only reached afterwards, so the initializer can never be read. Hand-applied: the whole package stays green."
+    },
+    {
+      "package": "packages/plugin-fetch-loader",
+      "file": "src/loader.ts",
+      "mutators": ["CallExpression"],
+      "snippet": "inflight.delete(request);",
+      "lineHint": 156,
+      "kind": "equivalent",
+      "reason": "the request's controller has just been aborted; leaving it in the set only means a later abortAll() or clear aborts an already-aborted controller, which is a no-op. Memory, not behaviour — the same argument as the `inflight.clear()` entry above."
+    },
+    {
+      "package": "packages/plugin-fetch-loader",
+      "file": "src/loader.ts",
+      "mutators": ["CallExpression"],
+      "snippet": "unfollow();",
+      "lineHint": 291,
+      "kind": "equivalent",
+      "reason": "dropping the unsubscribe leaks a listener, not behaviour: cleanup runs abortAll() first, which sets `stopped` and empties `inflight`, so a later translationsCleared walks an empty set and aborts nothing. Nothing public exposes a host's listener count, so no test can see the difference."
+    },
+    {
+      "package": "packages/plugin-fetch-loader",
+      "file": "src/loader.ts",
+      "mutators": ["CallExpression"],
+      "snippet": "unfollow();",
+      "lineHint": 372,
+      "kind": "equivalent",
+      "reason": "the CDN branch's copy of the same cleanup; see the API branch entry above."
+    },
+    {
+      "package": "packages/core",
+      "file": "src/core/i18n.ts",
+      "mutators": ["StringLiteral"],
+      "snippet": "if (IS_DEV) claimCoreInstance(typeof __VERSION__ !== \"undefined\" ? __VERSION__ : \"\");",
+      "lineHint": 68,
+      "kind": "equivalent",
+      "reason": "the `\"\"` fallback is unreachable in this build, exactly like the `const VERSION` entry for src/core/devtools.ts: vitest defines `__VERSION__` from package.json, so the arm that covers a consumer bundling the source without the define is never taken. The wiring test pins the other arm — it asserts the slot holds package.json's version after importing the host, and passing `\"\"` there instead turns it red."
     }
   ]
 }
