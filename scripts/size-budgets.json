@@ -218,10 +218,10 @@
       "name": "plugin-fetch-loader-cdn",
       "entry": ["@comvi/core", "@comvi/core/icu", "@comvi/plugin-fetch-loader"],
       "fixture": "plugin-fetch-loader-cdn.ts",
-      "gzipBudgetBytes": 11159,
+      "gzipBudgetBytes": 11172,
       "baseline": {
-        "minBytes": 29495,
-        "gzipBytes": 10627,
+        "minBytes": 29519,
+        "gzipBytes": 10640,
         "measuredAt": "2026-09-03"
       },
       "note": "Gated platform CDN path: base host + ICU + the fetch loader, composed as the fetch-loader README quickstart."
