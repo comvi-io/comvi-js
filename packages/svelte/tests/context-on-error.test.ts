@@ -70,6 +70,33 @@ describe("setI18nContext onError", () => {
     expect(target.querySelector('[data-testid="mounted"]')).not.toBeNull();
   });
 
+  it("auto-init rejects and no options were passed → nothing escapes the binding", async () => {
+    const fake = new FakeI18n({ language: "en" });
+    fake.initError = new Error("init failed");
+    const escaped: unknown[] = [];
+    const onUnhandled = (reason: unknown) => {
+      escaped.push(reason);
+    };
+    process.on("unhandledRejection", onUnhandled);
+
+    try {
+      component = mount(ContextOnErrorHarness, {
+        target,
+        props: { i18n: fake.asI18n(), omitOptions: true },
+      });
+
+      await vi.waitFor(() => {
+        expect(fake.init).toHaveBeenCalledTimes(1);
+      });
+      // An unhandled rejection is reported a MACROTASK after the microtask
+      // chain settles, so the assertion needs one turn of the task queue.
+      await new Promise<void>((resolve) => setImmediate(resolve));
+      expect(escaped).toEqual([]);
+    } finally {
+      process.off("unhandledRejection", onUnhandled);
+    }
+  });
+
   it("core reports the failure before onError runs", async () => {
     const reported: string[] = [];
     const i18n = createI18n({
