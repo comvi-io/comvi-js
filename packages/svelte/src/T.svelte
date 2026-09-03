@@ -11,6 +11,8 @@
   import { createLocaleStore, createCacheRevisionStore } from './stores.js';
   import type { TProps } from './types';
 
+  // Every prop that is not declared here is an interpolation param, matching
+  // the react wrapper: `<T i18nKey="cart" count={2} />` is `params: { count: 2 }`.
   let {
     i18nKey,
     params = {},
@@ -20,6 +22,7 @@
     raw = undefined,
     components = undefined,
     children = undefined,
+    ...directParams
   }: TProps = $props();
 
   const i18n = getI18nContext();
@@ -37,9 +40,14 @@
       void $languageStore;
     }
 
+    // The spread is what SUBSCRIBES to each direct param, so it happens inside
+    // the derived. A direct prop wins a name collision with `params`, as in react.
+    const allParams =
+      Object.keys(directParams).length === 0 ? params : { ...params, ...directParams };
+
     return prepareTranslation(i18n, {
       i18nKey: i18nKey as string,
-      params,
+      params: allParams,
       ns,
       locale,
       fallback,
