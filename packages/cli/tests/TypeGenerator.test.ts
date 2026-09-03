@@ -72,8 +72,8 @@ describe("TypeGenerator", () => {
       await gen.generate();
 
       const written = mockFileSystem.getFile("types/i18n.d.ts");
-      expect(written).toContain("name: string");
-      expect(written).not.toContain("name?: string");
+      expect(written).toContain('"name": string');
+      expect(written).not.toContain('"name"?: string');
     });
 
     it("should apply strictParams=false when explicitly provided", async () => {
@@ -92,7 +92,7 @@ describe("TypeGenerator", () => {
 
       await gen.generate();
 
-      expect(mockFileSystem.getFile("types/i18n.d.ts")).toContain("name?: string");
+      expect(mockFileSystem.getFile("types/i18n.d.ts")).toContain('"name"?: string');
     });
   });
 
@@ -156,8 +156,8 @@ describe("TypeGenerator", () => {
 
       const written = mockFileSystem.getFile("src/types/i18n.d.ts");
       expect(written).toContain("interface TranslationKeys");
-      expect(written).toContain("'common:welcome': never;");
-      expect(written).toContain("'common:greeting': { name: string };");
+      expect(written).toContain('"common:welcome": never;');
+      expect(written).toContain('"common:greeting": { "name": string };');
     });
 
     it("should report start, fetching, generating and success in order", async () => {
@@ -196,9 +196,9 @@ describe("TypeGenerator", () => {
 
       expect(result.success).toBe(true);
       const written = mockFileSystem.getFile("src/types/i18n.d.ts");
-      expect(written).toContain("'welcome': never;");
-      expect(written).toContain("'greeting': { name: string };");
-      expect(written).not.toContain("'common:welcome': never;");
+      expect(written).toContain('"welcome": never;');
+      expect(written).toContain('"greeting": { "name": string };');
+      expect(written).not.toContain('"common:welcome": never;');
     });
 
     it("should create output directory if it doesn't exist", async () => {
@@ -281,8 +281,8 @@ describe("TypeGenerator", () => {
       expect(result.success).toBe(true);
       expect(result.keysGenerated).toBe(2);
       const written = mockFileSystem.getFile("src/types/i18n.d.ts");
-      expect(written).toContain("'common:welcome': never;");
-      expect(written).toContain("'dashboard:title': never;");
+      expect(written).toContain('"common:welcome": never;');
+      expect(written).toContain('"dashboard:title": never;');
     });
 
     it("should handle generation with complex parameter types", async () => {
@@ -299,8 +299,8 @@ describe("TypeGenerator", () => {
       expect(result.keysGenerated).toBe(2);
 
       const written = mockFileSystem.getFile("src/types/i18n.d.ts");
-      expect(written).toContain("name: string");
-      expect(written).toContain("count: number");
+      expect(written).toContain('"name": string');
+      expect(written).toContain('"count": number');
     });
 
     it("should measure the elapsed time when the fetch fails", async () => {
@@ -361,7 +361,7 @@ describe("TypeGenerator", () => {
         [
           "declare module '@comvi/core' {",
           "  interface TranslationKeys {",
-          "    'common:welcome': never;",
+          '    "common:welcome": never;',
           "  }",
           "}",
         ].join("\n"),
@@ -373,6 +373,29 @@ describe("TypeGenerator", () => {
         upToDate: false,
         keysGenerated: 2,
         currentKeys: 1,
+        filePath: "src/types/i18n.d.ts",
+      });
+    });
+
+    it("counts the keys of a file left by an older, single-quoting CLI", async () => {
+      await mockFileSystem.writeFile(
+        "src/types/i18n.d.ts",
+        [
+          "declare module '@comvi/core' {",
+          "  interface TranslationKeys {",
+          "    'common:welcome': never;",
+          "    'common:greeting': { name: string };",
+          "  }",
+          "}",
+        ].join("\n"),
+      );
+
+      const result = await generator.check();
+
+      expect(result).toEqual({
+        upToDate: false,
+        keysGenerated: 2,
+        currentKeys: 2,
         filePath: "src/types/i18n.d.ts",
       });
     });
@@ -481,8 +504,8 @@ describe("TypeGenerator", () => {
       expect(result.keysGenerated).toBe(2);
 
       const written = mockFileSystem.getFile("src/types/i18n.d.ts");
-      expect(written).toContain("'custom:key1': never;");
-      expect(written).toContain("id: number");
+      expect(written).toContain('"custom:key1": never;');
+      expect(written).toContain('"id": number');
     });
 
     it("should reuse the resolved default namespace for subsequent schema updates", async () => {

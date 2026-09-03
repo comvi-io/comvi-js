@@ -2,6 +2,9 @@
 
 import type { ProjectSchema, SchemaParam } from "./extract";
 
+/** The only param types the emitted declarations can express. */
+const SUPPORTED_PARAM_TYPES = new Set(["string", "number"]);
+
 export interface EmitOptions {
   /** Make params required (true) or optional (false). @default true */
   strictParams?: boolean;
@@ -33,7 +36,7 @@ export function emitDeclarations(schema: ProjectSchema, options: EmitOptions = {
         : fullKey;
       return [displayKey, keySchema.params] as const;
     })
-    .sort(([a], [b]) => a.localeCompare(b));
+    .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
 
   for (const [key, params] of entries) {
     lines.push(formatKeyType(key, params, "    ", strictParams));
@@ -54,14 +57,32 @@ function formatKeyType(
   indent: string,
   strictParams: boolean,
 ): string {
+  // Property names go through JSON.stringify: a key or param name is free text
+  // from the project, and an apostrophe in it used to close the quote and emit
+  // a file TypeScript could not parse.
   if (params.length === 0) {
-    return `${indent}'${key}': never;`;
+    return `${indent}${JSON.stringify(key)}: never;`;
   }
 
   const paramTypes = params.map((p) => {
+    assertSupportedParamType(key, p);
     const optional = strictParams ? "" : "?";
-    return `${p.name}${optional}: ${p.type}`;
+    return `${JSON.stringify(p.name)}${optional}: ${p.type}`;
   });
 
-  return `${indent}'${key}': { ${paramTypes.join("; ")} };`;
+  return `${indent}${JSON.stringify(key)}: { ${paramTypes.join("; ")} };`;
+}
+
+/**
+ * A param type outside the schema contract would be pasted verbatim into the
+ * declarations. Refuse it instead of emitting a file the user has to debug.
+ */
+function assertSupportedParamType(key: string, param: SchemaParam): void {
+  if (SUPPORTED_PARAM_TYPES.has(param.type)) {
+    return;
+  }
+
+  throw new Error(
+    `Unsupported param type for translation key '${key}': param '${param.name}' has type '${param.type}'. Only 'string' and 'number' are supported.`,
+  );
 }

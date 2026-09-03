@@ -1,6 +1,10 @@
 /** Schema keys arrive as `"namespace:key"`, e.g. `"common:greeting"`. */
 
 import type { ProjectSchema, SchemaParam } from "../types";
+import { ErrorCodes, TypegenError } from "../utils/errors";
+
+/** The only param types the emitted declarations can express. */
+const SUPPORTED_PARAM_TYPES = new Set(["string", "number"]);
 
 export interface TypeEmitterOptions {
   /**
@@ -63,16 +67,20 @@ export class TypeEmitter {
     indent: string,
     strictParams: boolean,
   ): string {
+    // Property names go through JSON.stringify: a key or param name is free text
+    // from the project, and an apostrophe in it used to close the quote and emit
+    // a file TypeScript could not parse.
     if (params.length === 0) {
-      return `${indent}'${key}': never;`;
+      return `${indent}${JSON.stringify(key)}: never;`;
     }
 
     const paramTypes = params.map((param) => {
+      assertSupportedParamType(key, param);
       const optional = strictParams ? "" : "?";
-      return `${param.name}${optional}: ${param.type}`;
+      return `${JSON.stringify(param.name)}${optional}: ${param.type}`;
     });
 
-    return `${indent}'${key}': { ${paramTypes.join("; ")} };`;
+    return `${indent}${JSON.stringify(key)}: { ${paramTypes.join("; ")} };`;
   }
 
   /**
@@ -106,4 +114,19 @@ export class TypeEmitter {
 
     return result;
   }
+}
+
+/**
+ * A param type outside the schema contract would be pasted verbatim into the
+ * declarations. Refuse it instead of emitting a file the user has to debug.
+ */
+function assertSupportedParamType(key: string, param: SchemaParam): void {
+  if (SUPPORTED_PARAM_TYPES.has(param.type)) {
+    return;
+  }
+
+  throw new TypegenError(
+    `Unsupported param type for translation key '${key}': param '${param.name}' has type '${param.type}'. Only 'string' and 'number' are supported.`,
+    ErrorCodes.VALIDATION_FAILED,
+  );
 }

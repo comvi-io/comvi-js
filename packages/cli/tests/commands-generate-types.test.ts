@@ -93,8 +93,8 @@ describe("comvi generate-types", () => {
 
     const written = await nodeFs.readFile(outputPath, "utf-8");
     expect(written).toContain("declare module '@comvi/core'");
-    expect(written).toContain("'common:welcome': never;");
-    expect(written).toContain("'common:greeting': { name: string };");
+    expect(written).toContain('"common:welcome": never;');
+    expect(written).toContain('"common:greeting": { "name": string };');
   });
 
   it("reports the number of keys and the file it wrote", async () => {
@@ -345,7 +345,7 @@ describe("comvi generate-types", () => {
       stream.onmessage?.({ data: JSON.stringify(updated) } as MessageEvent);
 
       await vi.waitFor(async () => {
-        expect(await nodeFs.readFile(outputPath, "utf-8")).toContain("'common:farewell': never;");
+        expect(await nodeFs.readFile(outputPath, "utf-8")).toContain('"common:farewell": never;');
       });
     });
 

@@ -63,9 +63,11 @@ describe("TypeGenerator over the real TypeEmitter and an in-memory filesystem", 
 
     const content = await fs.readFile("src/types/i18n.d.ts");
     expect(content).toContain("declare module '@comvi/core'");
-    expect(content).toContain("'common:app.title': never;");
-    expect(content).toContain("'common:cart.items': { count: number };");
-    expect(content).toContain("'common:user.greeting': { firstName: string; lastName: string };");
+    expect(content).toContain('"common:app.title": never;');
+    expect(content).toContain('"common:cart.items": { "count": number };');
+    expect(content).toContain(
+      '"common:user.greeting": { "firstName": string; "lastName": string };',
+    );
 
     expect(reporter.reports.map((r) => r.type)).toEqual([
       "start",
@@ -87,10 +89,10 @@ describe("TypeGenerator over the real TypeEmitter and an in-memory filesystem", 
         },
       } satisfies ProjectSchema,
       expected: [
-        "'auth:login': never;",
-        "'auth:logout': never;",
-        "'common:goodbye': never;",
-        "'common:hello': never;",
+        '"auth:login": never;',
+        '"auth:logout": never;',
+        '"common:goodbye": never;',
+        '"common:hello": never;',
       ],
     },
     {
@@ -108,9 +110,9 @@ describe("TypeGenerator over the real TypeEmitter and an in-memory filesystem", 
         },
       } satisfies ProjectSchema,
       expected: [
-        "'auth:login.error': { email: string };",
-        "'shop:cart.total': { total: number; itemCount: number };",
-        "'shop:product.price': { price: number };",
+        '"auth:login.error": { "email": string };',
+        '"shop:cart.total": { "total": number; "itemCount": number };',
+        '"shop:product.price": { "price": number };',
       ],
     },
   ])("emits every key of a $shape schema, and nothing else", async ({ schema, expected }) => {
@@ -122,7 +124,7 @@ describe("TypeGenerator over the real TypeEmitter and an in-memory filesystem", 
     expect(result.keysGenerated).toBe(expected.length);
 
     const content = await fs.readFile("src/types/i18n.d.ts");
-    const keyLines = (content.match(/^ {4}'.*$/gm) ?? []).map((line) => line.trim());
+    const keyLines = (content.match(/^ {4}\S.*$/gm) ?? []).map((line) => line.trim());
     expect(keyLines).toEqual(expected);
   });
 
@@ -154,8 +156,8 @@ describe("TypeGenerator over the real TypeEmitter and an in-memory filesystem", 
     expect(result.keysGenerated).toBe(1000);
 
     const content = await fs.readFile("src/types/i18n.d.ts");
-    expect(content.match(/^ {4}'large:key\d+':/gm)).toHaveLength(1000);
-    expect(content).toContain("'large:key0': { param0: string };");
-    expect(content).toContain("'large:key999': { param999: string };");
+    expect(content.match(/^ {4}"large:key\d+":/gm)).toHaveLength(1000);
+    expect(content).toContain('"large:key0": { "param0": string };');
+    expect(content).toContain('"large:key999": { "param999": string };');
   });
 });

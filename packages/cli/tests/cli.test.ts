@@ -147,7 +147,7 @@ describe("TypeGenerator.generate() over a mocked fetch", () => {
     const result = await makeGenerator({ strictParams: false }).generate();
 
     expect(result.success).toBe(true);
-    expect(mockFileSystem.getFile("src/types/i18n.d.ts")).toContain("name?: string");
+    expect(mockFileSystem.getFile("src/types/i18n.d.ts")).toContain('"name"?: string');
   });
 
   it("should handle network errors gracefully with failure result", async () => {
@@ -189,7 +189,7 @@ describe("TypeGenerator.generate() over a mocked fetch", () => {
     expect(result.keysGenerated).toBe(3);
 
     const written = mockFileSystem.getFile("src/types/i18n.d.ts");
-    expect(written).toContain("'common:new_key'");
-    expect(written).toContain("count: number");
+    expect(written).toContain('"common:new_key"');
+    expect(written).toContain('"count": number');
   });
 });

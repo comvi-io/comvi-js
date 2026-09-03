@@ -121,7 +121,7 @@ describe("comviTypes plugin", () => {
 
       const written = await fs.readFile(outputPath(root), "utf-8");
       expect(written).toContain("declare module '@comvi/core' {");
-      expect(written).toContain("'greeting': { name: string };");
+      expect(written).toContain('"greeting": { "name": string };');
     });
 
     it("passes defaultNs and strictParams through to the emitted declarations", async () => {
@@ -144,8 +144,8 @@ describe("comviTypes plugin", () => {
 
       const written = await fs.readFile(outputPath(root), "utf-8");
       // root en.json lands in defaultNs "common" and loses the prefix; admin keeps it
-      expect(written).toContain("'greeting': { name?: string };");
-      expect(written).toContain("'admin:dashboard': never;");
+      expect(written).toContain('"greeting": { "name"?: string };');
+      expect(written).toContain('"admin:dashboard": never;');
     });
 
     it("skips the write when the generated content is unchanged", async () => {
@@ -174,7 +174,7 @@ describe("comviTypes plugin", () => {
       await buildStart(plugin);
 
       const written = await fs.readFile(outputPath(root), "utf-8");
-      expect(written).toContain("'farewell': never;");
+      expect(written).toContain('"farewell": never;');
     });
 
     it("should fail vite build when type generation fails", async () => {
@@ -245,7 +245,7 @@ describe("comviTypes plugin", () => {
       handlers.get("change")!(path.join(root, "locales", "en.json"));
       await written;
 
-      expect(await fs.readFile(outputPath(root), "utf-8")).toContain("'greeting': never;");
+      expect(await fs.readFile(outputPath(root), "utf-8")).toContain('"greeting": never;');
     });
 
     it.each([
