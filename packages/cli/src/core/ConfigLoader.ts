@@ -5,9 +5,6 @@ import type { ComviConfig, GeneratorOptions } from "../types";
 import { TypegenError, ErrorCodes } from "../utils/errors";
 import { atomicWriteFile } from "../utils/atomicWrite";
 
-/** The same project-root marker `EnvLoader` bounds its `.env` walk with. */
-const PROJECT_ROOT_MARKER = "package.json";
-
 async function fileExists(path: string): Promise<boolean> {
   try {
     await fs.access(path);
@@ -39,7 +36,11 @@ export class ConfigLoader {
       const configPath = resolve(dir, this.CONFIG_FILENAME);
       if (await fileExists(configPath)) return configPath;
 
-      if (await fileExists(resolve(dir, PROJECT_ROOT_MARKER))) return null;
+      // `package.json` is the same project-root marker `EnvLoader` bounds its
+      // `.env` walk with. Inline, not a module constant: a module-level
+      // initializer is evaluated once, before a mutation run can switch it, so
+      // `pnpm mutation` cannot see the claim this line makes.
+      if (await fileExists(resolve(dir, "package.json"))) return null;
 
       const parent = dirname(dir);
       if (parent === dir) return null; // filesystem root

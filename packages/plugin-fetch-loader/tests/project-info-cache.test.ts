@@ -122,6 +122,7 @@ describe("clearProjectInfoCache()", () => {
 
 describe("fetchProjectInfo() response validation", () => {
   it.each([
+    ["a null body", null],
     ["a body with no id at all", {}],
     ["a null id", { id: null }],
     ["an object id", { id: { value: 1 } }],

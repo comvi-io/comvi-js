@@ -1909,10 +1909,10 @@
       "package": "packages/plugin-fetch-loader",
       "file": "src/loader.ts",
       "mutators": ["ArrowFunction"],
-      "snippet": "release: () => inflight.delete(controller),",
-      "lineHint": 123,
+      "snippet": "release: () => inflight.delete(request),",
+      "lineHint": 130,
       "kind": "equivalent",
-      "reason": "`inflight` is only iterated by abortAll(); leaving a settled request's controller in the set means aborting a controller whose request has already finished, which is a no-op. The mutant is a memory leak, not a behaviour change.",
+      "reason": "`inflight` is only walked to abort what is still running — by abortAll() and by the translationsCleared listener. Leaving a settled request in the set means aborting a controller whose request has already finished, which is a no-op. The mutant is a memory leak, not a behaviour change.",
       "round": 4
     },
     {
@@ -7923,6 +7923,42 @@
       "lineHint": 14,
       "kind": "equivalent",
       "reason": "the run loop assigns `rerunRequested = false` before every `runGeneration`, and `while (rerunRequested)` is only reached afterwards, so the initializer can never be read. Hand-applied: the whole package stays green."
+    },
+    {
+      "package": "packages/plugin-fetch-loader",
+      "file": "src/loader.ts",
+      "mutators": ["CallExpression"],
+      "snippet": "inflight.delete(request);",
+      "lineHint": 156,
+      "kind": "equivalent",
+      "reason": "the request's controller has just been aborted; leaving it in the set only means a later abortAll() or clear aborts an already-aborted controller, which is a no-op. Memory, not behaviour — the same argument as the `inflight.clear()` entry above."
+    },
+    {
+      "package": "packages/plugin-fetch-loader",
+      "file": "src/loader.ts",
+      "mutators": ["CallExpression"],
+      "snippet": "unfollow();",
+      "lineHint": 291,
+      "kind": "equivalent",
+      "reason": "dropping the unsubscribe leaks a listener, not behaviour: cleanup runs abortAll() first, which sets `stopped` and empties `inflight`, so a later translationsCleared walks an empty set and aborts nothing. Nothing public exposes a host's listener count, so no test can see the difference."
+    },
+    {
+      "package": "packages/plugin-fetch-loader",
+      "file": "src/loader.ts",
+      "mutators": ["CallExpression"],
+      "snippet": "unfollow();",
+      "lineHint": 372,
+      "kind": "equivalent",
+      "reason": "the CDN branch's copy of the same cleanup; see the API branch entry above."
+    },
+    {
+      "package": "packages/core",
+      "file": "src/core/i18n.ts",
+      "mutators": ["ConditionalExpression", "StringLiteral"],
+      "snippet": "const version = typeof __VERSION__ !== \"undefined\" ? __VERSION__ : \"\";",
+      "lineHint": 87,
+      "kind": "equivalent",
+      "reason": "the same shape, and the same argument, as the `const VERSION` entry for src/core/devtools.ts: vitest defines `__VERSION__` from package.json, so the `\"\"` fallback (for a consumer bundling the source without the define) is never taken, and forcing the guard true or widening the `typeof` comparison leaves the same value. Hand-applied all three: the duplicate-core suites stay green."
     }
   ]
 }
