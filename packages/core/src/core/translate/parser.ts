@@ -60,19 +60,18 @@ const TAGS_EXTENSION_ID = "comvi:tags";
  */
 function refusedForAttributes(str: string, index: number, len: number): boolean {
   let i = index + 1;
-  while (i < len) {
+  for (; i < len; i++) {
     const c = str.charCodeAt(i);
     const isNameChar =
       (c >= 65 && c <= 90) || (c >= 97 && c <= 122) || (c >= 48 && c <= 57) || c === 45 || c === 95;
     if (!isNameChar) break;
-    i++;
   }
   while (i < len && str.charCodeAt(i) <= 32) i++;
   if (i >= len) return false;
   const code = str.charCodeAt(i);
-  if (code === 62) return false; // >
-  if (code === 47) return i + 1 >= len || str.charCodeAt(i + 1) !== 62; // / not followed by >
-  return true;
+  // `>` closes the tag and `/` opens `/>`; anything else in that position is
+  // what `parseTag` refused, and in practice that is an attribute.
+  return code !== 62 && code !== 47;
 }
 
 function warnUnclaimedTag(

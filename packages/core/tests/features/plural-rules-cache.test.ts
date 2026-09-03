@@ -37,6 +37,16 @@ describe("getPluralRules()", () => {
   });
 });
 
+describe("getPluralRules() cache retention", () => {
+  it("keeps an earlier locale cached when a different locale is added", () => {
+    const first = getPluralRules("en-x-h1d");
+
+    getPluralRules("en-x-h1e");
+
+    expect(getPluralRules("en-x-h1d")).toBe(first);
+  });
+});
+
 // Kept last in the file: it overflows the shared module-level cache on purpose,
 // so anything cached by the tests above is gone once it has run.
 describe("getPluralRules() cache bound", () => {

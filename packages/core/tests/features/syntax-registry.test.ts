@@ -36,210 +36,232 @@ afterEach(() => {
   _resetSyntaxExtensions();
 });
 
-describe("getCompilerId()", () => {
-  it("hands each injected compiler an id that collides with no other compiler", () => {
-    const [first, second, third] = [inertCompiler(), inertCompiler(), inertCompiler()];
-
-    const ids = [getCompilerId(first), getCompilerId(second), getCompilerId(third)];
-
-    expect(new Set([...ids, getCompilerId(icuCompiler)]).size).toBe(4);
-  });
-});
-
-describe("registerSyntaxExtension()", () => {
-  it("keeps every extension with a distinct id", () => {
-    registerSyntaxExtension(inertExtension("first", 4));
-    registerSyntaxExtension(inertExtension("second", 8));
-
-    expect(getAmbientExtensions().map((ext) => ext.id)).toEqual(["first", "second"]);
-    expect(effectiveExtBits()).toBe(12);
-  });
-
-  it("warns when a second extension claims a cacheBit already in use", () => {
+// ORDERED PAIR, AND FIRST IN THE FILE. The compiler-id counter is module-global
+// and never resets, so these two walk it from its initial 3 to the last id the
+// cache key holds and then past. Anything that hands out a compiler id above
+// them shifts the edge and breaks both, so they lead. Reaching the edge is the
+// point, so `vi.resetModules()` is deliberately NOT used: a fresh module
+// registry would re-run this module's top level inside a test and turn its
+// load-time constants into mutants no test can reach.
+describe("getCompilerId() at the edge of the cache key's 16-bit compiler field", () => {
+  it("stays silent for the last id the field still holds", () => {
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-    registerSyntaxExtension(inertExtension("first", 4));
 
-    registerSyntaxExtension(inertExtension("second", 4));
-
-    expect(warnSpy).toHaveBeenCalledWith(
-      expect.stringContaining('"first" and "second" share cacheBit 4'),
-    );
-  });
-
-  it("stays silent when the cacheBits differ", () => {
-    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-    registerSyntaxExtension(inertExtension("first", 4));
-
-    registerSyntaxExtension(inertExtension("second", 8));
+    // Ids start at 3, so 65533 compilers take the last one to exactly 65535.
+    for (let i = 0; i < 65533; i++) getCompilerId(inertCompiler());
 
     expect(warnSpy).not.toHaveBeenCalled();
   });
 
-  it("warns when a cacheBit is too wide for the 15-bit field in the cache key", () => {
+  it("warns exactly once however many ids run past the field", () => {
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 
-    registerSyntaxExtension(inertExtension("too-wide", 0x8000));
+    getCompilerId(inertCompiler());
+    getCompilerId(inertCompiler());
 
+    expect(warnSpy).toHaveBeenCalledTimes(1);
     expect(warnSpy).toHaveBeenCalledWith(
-      expect.stringContaining('"too-wide" declares cacheBit 32768'),
+      "[i18n] More than 65535 message compilers have been created in this process; the " +
+        "template cache key holds the compiler id in 16 bits, so ids now wrap and two " +
+        "compilers can be served each other's parsed tokens. Reuse one compiler instance " +
+        "instead of constructing one per request.",
     );
   });
 
-  it("stays silent for the widest cacheBit the cache key can still carry", () => {
-    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+  describe("getCompilerId()", () => {
+    it("hands each injected compiler an id that collides with no other compiler", () => {
+      const [first, second, third] = [inertCompiler(), inertCompiler(), inertCompiler()];
 
-    registerSyntaxExtension(inertExtension("widest", 0x4000));
+      const ids = [getCompilerId(first), getCompilerId(second), getCompilerId(third)];
 
-    expect(warnSpy).not.toHaveBeenCalled();
+      expect(new Set([...ids, getCompilerId(icuCompiler)]).size).toBe(4);
+    });
   });
 
-  it("publishes a new snapshot per registration instead of mutating the last one", () => {
-    registerSyntaxExtension(inertExtension("first", 4));
-    const snapshot = getAmbientExtensions();
+  describe("registerSyntaxExtension()", () => {
+    it("keeps every extension with a distinct id", () => {
+      registerSyntaxExtension(inertExtension("first", 4));
+      registerSyntaxExtension(inertExtension("second", 8));
 
-    registerSyntaxExtension(inertExtension("second", 8));
+      expect(getAmbientExtensions().map((ext) => ext.id)).toEqual(["first", "second"]);
+      expect(effectiveExtBits()).toBe(12);
+    });
 
-    expect(snapshot).toHaveLength(1);
-    expect(getAmbientExtensions()).toHaveLength(2);
-  });
-});
+    it("warns when a second extension claims a cacheBit already in use", () => {
+      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+      registerSyntaxExtension(inertExtension("first", 4));
 
-describe("the disposer returned by registerSyntaxExtension()", () => {
-  it("removes only its own registration", () => {
-    registerSyntaxExtension(inertExtension("first", 4));
-    const disposeSecond = registerSyntaxExtension(inertExtension("second", 8));
+      registerSyntaxExtension(inertExtension("second", 4));
 
-    disposeSecond();
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('"first" and "second" share cacheBit 4'),
+      );
+    });
 
-    expect(getAmbientExtensions().map((ext) => ext.id)).toEqual(["first"]);
-    expect(effectiveExtBits()).toBe(4);
-  });
+    it("stays silent when the cacheBits differ", () => {
+      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+      registerSyntaxExtension(inertExtension("first", 4));
 
-  it("does not remove a later re-registration of the same extension", () => {
-    const ext = inertExtension("first", 4);
-    const dispose = registerSyntaxExtension(ext);
-    dispose();
-    registerSyntaxExtension(ext);
+      registerSyntaxExtension(inertExtension("second", 8));
 
-    dispose();
+      expect(warnSpy).not.toHaveBeenCalled();
+    });
 
-    expect(getAmbientExtensions()).toHaveLength(1);
-  });
+    it("warns when a cacheBit is too wide for the 15-bit field in the cache key", () => {
+      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 
-  it("is a no-op once _resetSyntaxExtensions() has already cleared the registry", () => {
-    const dispose = registerSyntaxExtension(inertExtension("first", 4));
-    _resetSyntaxExtensions();
+      registerSyntaxExtension(inertExtension("too-wide", 0x8000));
 
-    expect(() => dispose()).not.toThrow();
-    expect(getAmbientExtensions()).toEqual([]);
-  });
-});
+      expect(warnSpy).toHaveBeenCalledWith(
+        '[i18n] Syntax extension "too-wide" declares cacheBit 32768; the template cache key ' +
+          "carries the extension set in 15 bits, so the highest usable value is 16384. This bit " +
+          "is dropped from the key and parses made with this extension will share cache entries " +
+          "with parses made without it.",
+      );
+    });
 
-describe("effectiveExtensions() / effectiveExtBits()", () => {
-  it.each([
-    ["no argument", undefined],
-    ["an empty array", [] as SyntaxExtension[]],
-  ])("returns the ambient snapshot itself for %s", (_label, perCall) => {
-    registerSyntaxExtension(inertExtension("ambient", 4));
+    it("stays silent for the widest cacheBit the cache key can still carry", () => {
+      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 
-    expect(effectiveExtensions(perCall)).toBe(getAmbientExtensions());
-  });
+      registerSyntaxExtension(inertExtension("widest", 0x4000));
 
-  it("reports the ambient bits for an empty per-call array", () => {
-    registerSyntaxExtension(inertExtension("ambient", 4));
+      expect(warnSpy).not.toHaveBeenCalled();
+    });
 
-    expect(effectiveExtBits([])).toBe(4);
-  });
+    it("publishes a new snapshot per registration instead of mutating the last one", () => {
+      registerSyntaxExtension(inertExtension("first", 4));
+      const snapshot = getAmbientExtensions();
 
-  it("unions a per-call extension after the ambient ones", () => {
-    registerSyntaxExtension(inertExtension("ambient", 4));
-    const perCall = [inertExtension("perCall", 8)];
+      registerSyntaxExtension(inertExtension("second", 8));
 
-    expect(effectiveExtensions(perCall).map((ext) => ext.id)).toEqual(["ambient", "perCall"]);
-    expect(effectiveExtBits(perCall)).toBe(12);
+      expect(snapshot).toHaveLength(1);
+      expect(getAmbientExtensions()).toHaveLength(2);
+    });
   });
 
-  it("ignores a per-call extension whose id is already registered ambiently", () => {
-    const ext = inertExtension("shared", 4);
-    registerSyntaxExtension(ext);
+  describe("the disposer returned by registerSyntaxExtension()", () => {
+    it("removes only its own registration", () => {
+      registerSyntaxExtension(inertExtension("first", 4));
+      const disposeSecond = registerSyntaxExtension(inertExtension("second", 8));
 
-    expect(effectiveExtensions([ext])).toHaveLength(1);
-    expect(effectiveExtBits([ext])).toBe(4);
+      disposeSecond();
+
+      expect(getAmbientExtensions().map((ext) => ext.id)).toEqual(["first"]);
+      expect(effectiveExtBits()).toBe(4);
+    });
+
+    it("does not remove a later re-registration of the same extension", () => {
+      const ext = inertExtension("first", 4);
+      const dispose = registerSyntaxExtension(ext);
+      dispose();
+      registerSyntaxExtension(ext);
+
+      dispose();
+
+      expect(getAmbientExtensions()).toHaveLength(1);
+    });
+
+    it("is a no-op once _resetSyntaxExtensions() has already cleared the registry", () => {
+      const dispose = registerSyntaxExtension(inertExtension("first", 4));
+      _resetSyntaxExtensions();
+
+      expect(() => dispose()).not.toThrow();
+      expect(getAmbientExtensions()).toEqual([]);
+    });
   });
 
-  it("returns the identical union array for a repeated stable per-call array", () => {
-    registerSyntaxExtension(inertExtension("ambient", 4));
-    const perCall = [inertExtension("perCall", 8)];
+  describe("effectiveExtensions() / effectiveExtBits()", () => {
+    it.each([
+      ["no argument", undefined],
+      ["an empty array", [] as SyntaxExtension[]],
+    ])("returns the ambient snapshot itself for %s", (_label, perCall) => {
+      registerSyntaxExtension(inertExtension("ambient", 4));
 
-    expect(effectiveExtensions(perCall)).toBe(effectiveExtensions(perCall));
+      expect(effectiveExtensions(perCall)).toBe(getAmbientExtensions());
+    });
+
+    it("reports the ambient bits for an empty per-call array", () => {
+      registerSyntaxExtension(inertExtension("ambient", 4));
+
+      expect(effectiveExtBits([])).toBe(4);
+    });
+
+    it("unions a per-call extension after the ambient ones", () => {
+      registerSyntaxExtension(inertExtension("ambient", 4));
+      const perCall = [inertExtension("perCall", 8)];
+
+      expect(effectiveExtensions(perCall).map((ext) => ext.id)).toEqual(["ambient", "perCall"]);
+      expect(effectiveExtBits(perCall)).toBe(12);
+    });
+
+    it("ignores a per-call extension whose id is already registered ambiently", () => {
+      const ext = inertExtension("shared", 4);
+      registerSyntaxExtension(ext);
+
+      expect(effectiveExtensions([ext])).toHaveLength(1);
+      expect(effectiveExtBits([ext])).toBe(4);
+    });
+
+    it("returns the identical union array for a repeated stable per-call array", () => {
+      registerSyntaxExtension(inertExtension("ambient", 4));
+      const perCall = [inertExtension("perCall", 8)];
+
+      expect(effectiveExtensions(perCall)).toBe(effectiveExtensions(perCall));
+    });
+
+    it("recomputes the union of a stable per-call array after the ambient set changes", () => {
+      const dispose = registerSyntaxExtension(inertExtension("ambient", 4));
+      const perCall = [inertExtension("perCall", 8)];
+      expect(effectiveExtBits(perCall)).toBe(12);
+
+      dispose();
+
+      expect(effectiveExtBits(perCall)).toBe(8);
+      expect(effectiveExtensions(perCall).map((ext) => ext.id)).toEqual(["perCall"]);
+    });
   });
 
-  it("recomputes the union of a stable per-call array after the ambient set changes", () => {
-    const dispose = registerSyntaxExtension(inertExtension("ambient", 4));
-    const perCall = [inertExtension("perCall", 8)];
-    expect(effectiveExtBits(perCall)).toBe(12);
+  describe("mergeTagInterpolation()", () => {
+    const baseExt = inertExtension("base", 4);
+    const perCallExt = inertExtension("perCall", 8);
 
-    dispose();
+    it("returns the instance options unchanged when there are no per-call options", () => {
+      const base = { strict: true as const };
 
-    expect(effectiveExtBits(perCall)).toBe(8);
-    expect(effectiveExtensions(perCall).map((ext) => ext.id)).toEqual(["perCall"]);
-  });
-});
+      expect(mergeTagInterpolation(base, undefined)).toBe(base);
+    });
 
-describe("mergeTagInterpolation()", () => {
-  const baseExt = inertExtension("base", 4);
-  const perCallExt = inertExtension("perCall", 8);
+    it("returns the per-call options unchanged when there are no instance options", () => {
+      const perCall = { strict: true as const };
 
-  it("returns the instance options unchanged when there are no per-call options", () => {
-    const base = { strict: true as const };
+      expect(mergeTagInterpolation(undefined, perCall)).toBe(perCall);
+    });
 
-    expect(mergeTagInterpolation(base, undefined)).toBe(base);
-  });
+    it("lets a per-call field override the instance field and keeps the others", () => {
+      const merged = mergeTagInterpolation(
+        { strict: true, basicHtmlTags: ["b"] },
+        { strict: "warn" },
+      );
 
-  it("returns the per-call options unchanged when there are no instance options", () => {
-    const perCall = { strict: true as const };
+      expect(merged).toEqual({ strict: "warn", basicHtmlTags: ["b"] });
+    });
 
-    expect(mergeTagInterpolation(undefined, perCall)).toBe(perCall);
-  });
+    it("unions extensions instance-first rather than letting the per-call side replace them", () => {
+      const merged = mergeTagInterpolation({ extensions: [baseExt] }, { extensions: [perCallExt] });
 
-  it("lets a per-call field override the instance field and keeps the others", () => {
-    const merged = mergeTagInterpolation(
-      { strict: true, basicHtmlTags: ["b"] },
-      { strict: "warn" },
-    );
+      expect(merged?.extensions).toEqual([baseExt, perCallExt]);
+    });
 
-    expect(merged).toEqual({ strict: "warn", basicHtmlTags: ["b"] });
-  });
+    it("keeps the instance extensions when the per-call side declares none", () => {
+      const merged = mergeTagInterpolation({ extensions: [baseExt] }, { strict: true });
 
-  it("unions extensions instance-first rather than letting the per-call side replace them", () => {
-    const merged = mergeTagInterpolation({ extensions: [baseExt] }, { extensions: [perCallExt] });
+      expect(merged?.extensions).toEqual([baseExt]);
+    });
 
-    expect(merged?.extensions).toEqual([baseExt, perCallExt]);
-  });
+    it("keeps the per-call extensions when the instance declares none", () => {
+      const merged = mergeTagInterpolation({ strict: true }, { extensions: [perCallExt] });
 
-  it("keeps the instance extensions when the per-call side declares none", () => {
-    const merged = mergeTagInterpolation({ extensions: [baseExt] }, { strict: true });
-
-    expect(merged?.extensions).toEqual([baseExt]);
-  });
-
-  it("keeps the per-call extensions when the instance declares none", () => {
-    const merged = mergeTagInterpolation({ strict: true }, { extensions: [perCallExt] });
-
-    expect(merged?.extensions).toEqual([perCallExt]);
-  });
-});
-
-describe("getCompilerId() past the cache key's 16-bit compiler field", () => {
-  it("warns once when the assigned id no longer fits the cache key", async () => {
-    // The counter is module-global and never resets, so this test needs its own
-    // copy of the module rather than the one the rest of the file shares.
-    vi.resetModules();
-    const syntax = await import("../../src/core/translate/syntax");
-    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-
-    for (let i = 0; i < 65535; i++) syntax.getCompilerId(inertCompiler());
-
-    expect(warnSpy.mock.calls.filter((call) => String(call[0]).includes("65535"))).toHaveLength(1);
+      expect(merged?.extensions).toEqual([perCallExt]);
+    });
   });
 });

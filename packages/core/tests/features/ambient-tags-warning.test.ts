@@ -184,14 +184,50 @@ describe("a tag the extension recognises but refuses — the development warning
 
     const warnings = tagWarnings();
     expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toBe(
+      `[i18n] Tag syntax in "${ATTR_TEMPLATE}" is rendering as literal text: no tag extension ` +
+        `claims "<". Render it with your framework's <T> component, or import ` +
+        `"@comvi/core/tags" to register tag syntax for the string API.`,
+    );
+  });
+
+  it("keeps the plain-tag advice when an extension other than tags is registered", () => {
+    // Only the built-in tag extension implies "the tag was recognised and
+    // refused"; an unrelated extension leaving `<` alone means what it always
+    // meant, so the message must not change.
+    registerSyntaxExtension({
+      id: "comvi:not-tags",
+      cacheBit: 2,
+      parseHook: () => undefined,
+      processHook: () => undefined,
+    });
+    const i18n = createI18n({ locale: "en", translation: { en: { link: ATTR_TEMPLATE } } });
+
+    i18n.t("link" as never);
+
+    const warnings = tagWarnings();
+    expect(warnings).toHaveLength(1);
     expect(warnings[0]).toContain("@comvi/core/tags");
   });
 
-  it("keeps the plain-tag advice when the refused tag carries no attributes", () => {
+  // Every row is a tag `parseTag` refuses for a reason that is NOT an attribute,
+  // so the message must stay the generic one. Together they pin each character
+  // class the attribute probe walks past: the tag-name alphabet, the whitespace
+  // before `>`, a `/`, and the end of the template.
+  it.each([
+    ["a lowercase name", "lower", "an <b>unclosed tag"],
+    ["an uppercase name", "upper", "an <B>unclosed tag"],
+    ["a name with a digit", "digit", "an <b1>unclosed tag"],
+    ["a name with a hyphen", "hyphen", "an <b-x>unclosed tag"],
+    ["a name with an underscore", "underscore", "an <b_x>unclosed tag"],
+    ["whitespace before the >", "spaced", "an <b >unclosed tag"],
+    ["a slash that opens no self-closing tag", "slash", "an <b/x tail"],
+    ["a tag name that ends the template", "eot", "tail <b"],
+  ])("keeps the plain-tag advice for %s", (_label, key, template) => {
     registerSyntaxExtension(tagSyntaxExtension);
-    const i18n = createI18n({ locale: "en", translation: { en: { open: "an <b>unclosed tag" } } });
+    const i18n = createI18n({ locale: "en", translation: { en: { [key]: template } } });
 
-    i18n.t("open" as never);
+    i18n.t(key as never);
 
     const warnings = tagWarnings();
     expect(warnings).toHaveLength(1);
