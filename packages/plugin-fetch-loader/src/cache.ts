@@ -128,6 +128,10 @@ export async function fetchProjectInfo(
       }
     });
   pendingProjectInfoCache.set(cacheKey, entry);
+  // A caller whose signal is ALREADY aborted by the time it joins never attaches
+  // to this shared promise, so its rejection would surface as an unhandled one
+  // in the host's console. Every real joiner has its own handler.
+  void entry.promise.catch(() => {});
   return joinPendingProjectInfo(entry, requestOptions?.signal, `${baseUrl}/v1/project`);
 }
 

@@ -116,3 +116,66 @@ describe("a response body that never arrives", () => {
     await rejection;
   });
 });
+
+describe("a response body that fails while it is read", () => {
+  it("passes a transport's own AbortError through instead of calling it invalid JSON", async () => {
+    const fetchFn = asFetch(
+      vi.fn(() =>
+        Promise.resolve({
+          ok: true,
+          status: 200,
+          statusText: "OK",
+          headers: new Headers(),
+          json: () => Promise.reject(new DOMException("The operation was aborted.", "AbortError")),
+        } as unknown as Response),
+      ),
+    );
+
+    await expect(
+      fetchProjectInfo("key", BASE, 5000, fetchFn, undefined, { retry: false }),
+    ).rejects.toThrow("The operation was aborted.");
+  });
+
+  it("reports an unparseable body as invalid JSON", async () => {
+    const fetchFn = asFetch(
+      vi.fn(() =>
+        Promise.resolve({
+          ok: true,
+          status: 200,
+          statusText: "OK",
+          headers: new Headers(),
+          json: () => Promise.reject(new SyntaxError("Unexpected token")),
+        } as unknown as Response),
+      ),
+    );
+
+    await expect(
+      fetchProjectInfo("key", BASE, 5000, fetchFn, undefined, { retry: false }),
+    ).rejects.toThrow(`[FetchLoader] Invalid JSON response from ${BASE}/v1/project`);
+  });
+
+  it("gives up at once when the caller aborted before the body could be read", async () => {
+    const caller = new AbortController();
+    const url = `${BASE}/v1/translations?locales=en&namespaces=default`;
+    const fetchFn = asFetch(
+      vi.fn(() =>
+        Promise.resolve({
+          ok: true,
+          status: 200,
+          statusText: "OK",
+          headers: new Headers(),
+          json: () => {
+            caller.abort();
+            return new Promise<never>(() => {});
+          },
+        } as unknown as Response),
+      ),
+    );
+
+    await expect(
+      fetchApiTranslations("key", "en", ["default"], BASE, 5000, fetchFn, undefined, {
+        signal: caller.signal,
+      }),
+    ).rejects.toThrow(`[FetchLoader] Request aborted: ${url}`);
+  });
+});

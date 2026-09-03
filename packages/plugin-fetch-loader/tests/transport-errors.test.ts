@@ -1,5 +1,5 @@
 /**
- * How `fetchWithTimeout` classifies a failure: only its own timer produces a
+ * How `fetchJsonWithTimeout` classifies a failure: only its own timer produces a
  * timeout, only the caller's signal produces a cancellation, and anything else
  * reaches the caller untouched.
  */
