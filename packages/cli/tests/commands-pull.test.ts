@@ -236,10 +236,11 @@ describe("comvi pull", () => {
     });
   });
 
-  it("--dry-run with --empty-dir keeps the existing files in place", async () => {
+  it("--dry-run with --empty-dir lists the files it would remove and keeps them", async () => {
     const configPath = await writeConfig({ translationsPath: localesDir });
-    await fs.mkdir(localesDir, { recursive: true });
-    await fs.writeFile(join(localesDir, "stale.json"), "{}", "utf-8");
+    await fs.mkdir(join(localesDir, "admin"), { recursive: true });
+    await fs.writeFile(join(localesDir, "fr.json"), "{}", "utf-8");
+    await fs.writeFile(join(localesDir, "admin", "fr.json"), "{}", "utf-8");
     http = stubFetch({
       ...DEFAULT_NAMESPACE_ROUTES,
       [PATHS.translations]: {
@@ -250,8 +251,65 @@ describe("comvi pull", () => {
     const exitCode = await runPull(["-c", configPath, "--empty-dir", "--dry-run"]);
 
     expect(exitCode).toBe(0);
-    expect(output.log).toContain("🗑️  [dry-run] Would clear translations directory");
-    expect(await fs.readFile(join(localesDir, "stale.json"), "utf-8")).toBe("{}");
+    expect(output.log).toContain("\n🗑️  [dry-run] Would remove 2 files:");
+    expect(output.log).toContain(`  ${join(localesDir, "admin", "fr.json")}`);
+    expect(output.log).toContain(`  ${join(localesDir, "fr.json")}`);
+    expect(await fs.readFile(join(localesDir, "fr.json"), "utf-8")).toBe("{}");
+    expect(await fs.readFile(join(localesDir, "admin", "fr.json"), "utf-8")).toBe("{}");
+  });
+
+  it("--empty-dir leaves the directory untouched when the fetch fails", async () => {
+    const configPath = await writeConfig({ translationsPath: localesDir });
+    await fs.mkdir(localesDir, { recursive: true });
+    await fs.writeFile(join(localesDir, "fr.json"), "{}", "utf-8");
+    http = stubFetch({
+      ...DEFAULT_NAMESPACE_ROUTES,
+      [PATHS.translations]: { status: 500, statusText: "Internal Server Error", body: {} },
+    });
+
+    const exitCode = await runPull(["-c", configPath, "--empty-dir"]);
+
+    expect(exitCode).toBe(1);
+    expect(await fs.readFile(join(localesDir, "fr.json"), "utf-8")).toBe("{}");
+  });
+
+  it("--empty-dir leaves the directory untouched when the server omits a requested namespace", async () => {
+    const configPath = await writeConfig({ translationsPath: localesDir });
+    await fs.mkdir(localesDir, { recursive: true });
+    await fs.writeFile(join(localesDir, "fr.json"), "{}", "utf-8");
+    http = stubFetch({
+      ...DEFAULT_NAMESPACE_ROUTES,
+      [PATHS.translations]: {
+        body: { locales: ["en"], namespaces: { common: { en: { greeting: "Hello" } } } },
+      },
+    });
+
+    const exitCode = await runPull(["-c", configPath, "--empty-dir", "-n", "common,typo"]);
+
+    expect(exitCode).toBe(4);
+    expect(await fs.readFile(join(localesDir, "fr.json"), "utf-8")).toBe("{}");
+  });
+
+  it("--ns common --empty-dir clears only the namespaces it pulls", async () => {
+    const configPath = await writeConfig({ translationsPath: localesDir });
+    await fs.mkdir(join(localesDir, "admin"), { recursive: true });
+    await fs.writeFile(join(localesDir, "fr.json"), "{}", "utf-8");
+    await fs.writeFile(join(localesDir, "admin", "fr.json"), "{}", "utf-8");
+    http = stubFetch({
+      ...DEFAULT_NAMESPACE_ROUTES,
+      [PATHS.translations]: {
+        body: { locales: ["en"], namespaces: { common: { en: { greeting: "Hello" } } } },
+      },
+    });
+
+    const exitCode = await runPull(["-c", configPath, "--empty-dir", "-n", "common"]);
+
+    expect(exitCode).toBe(0);
+    await expect(fs.access(join(localesDir, "fr.json"))).rejects.toMatchObject({ code: "ENOENT" });
+    expect(await fs.readFile(join(localesDir, "admin", "fr.json"), "utf-8")).toBe("{}");
+    expect(JSON.parse(await fs.readFile(join(localesDir, "en.json"), "utf-8"))).toEqual({
+      greeting: "Hello",
+    });
   });
 
   it("exits 4 when the server does not return a requested namespace", async () => {
