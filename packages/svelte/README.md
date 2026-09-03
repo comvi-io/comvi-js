@@ -122,6 +122,17 @@ host itself (`autoInit`, on by default). The first paint therefore happens while
 the catalog is still in flight — gate it on the `$isLoading` store from
 `useI18n()`.
 
+That init runs in a microtask, so nothing in the component can await it. To see
+a failure, pass `onError`:
+
+```svelte
+setI18nContext(i18n, { onError: (error) => reportToSentry(error) });
+```
+
+The host's own `onError` (the `createI18n({ onError })` option) still reports
+the failure first; this one is the per-app hook, matching the `onError` prop on
+the react and solid providers.
+
 The distribution id in `cdnUrl` comes from the Comvi platform: open your project
 and read it off the **Distributions** page.
 
