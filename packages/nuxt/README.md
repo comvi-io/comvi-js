@@ -202,6 +202,16 @@ export default (({ i18n }) => {
 }) satisfies NuxtI18nSetup<I18n & I18nLoaderApi>;
 ```
 
+The context also hands you the host directly as `core`, which is `i18n.core` in
+the app plugin and `i18n` itself in a server utility — the same object, without
+the `'core' in i18n` narrowing the union otherwise needs:
+
+```ts
+export default (({ core }) => {
+  core.registerLoader(myLoader);
+}) satisfies NuxtI18nSetup<I18n & I18nLoaderApi>;
+```
+
 `NuxtI18nSetupContext<C>` / `NuxtI18nSetup<C>` are generic in the host type and
 default to core's `I18n`, so a hook on the module's own host needs no
 annotation. Migrating from 0.4.x:
