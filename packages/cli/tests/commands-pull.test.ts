@@ -117,6 +117,10 @@ describe("comvi pull", () => {
     expect(output.log).toContain("  Locales: en");
     expect(output.log).toContain("  Namespaces: common, admin");
     expect(output.log).toContain("  Files written: 2");
+    expect(output.stdout).toContain("Loading configuration");
+    expect(output.stdout).toContain("Fetching translations from TMS");
+    expect(output.stdout).toContain("Writing translation files");
+    expect(output.log).toContain("\n✓ Pull complete!");
   });
 
   it("sends --locale and --ns as query filters on the translations request", async () => {
@@ -142,21 +146,28 @@ describe("comvi pull", () => {
   it("announces the locales and namespaces it took from .comvirc.json", async () => {
     const configPath = await writeConfig({
       translationsPath: localesDir,
-      locales: ["en"],
-      namespaces: ["common"],
+      locales: ["en", "uk"],
+      namespaces: ["common", "admin"],
     });
     http = stubFetch({
       ...DEFAULT_NAMESPACE_ROUTES,
       [PATHS.translations]: {
-        body: { locales: ["en"], namespaces: { common: { en: { greeting: "Hello" } } } },
+        body: {
+          locales: ["en", "uk"],
+          namespaces: {
+            common: { en: { greeting: "Hello" }, uk: { greeting: "Привіт" } },
+            admin: { en: { title: "Admin" }, uk: { title: "Адмін" } },
+          },
+        },
       },
     });
 
     const exitCode = await runPull(["-c", configPath]);
 
     expect(exitCode).toBe(0);
-    expect(output.log).toContain("📄 Using locales from .comvirc.json: en");
-    expect(output.log).toContain("📄 Using namespaces from .comvirc.json: common");
+    expect(output.log).toContain("📄 Using locales from .comvirc.json: en, uk");
+    expect(output.log).toContain("📄 Using namespaces from .comvirc.json: common, admin");
+    expect(output.log).toContain("  Locales: en, uk");
   });
 
   it("lets --locale replace the locales configured in .comvirc.json", async () => {
@@ -332,5 +343,62 @@ describe("comvi pull", () => {
     expect(JSON.parse(await fs.readFile(join(localesDir, "en", "common.json"), "utf-8"))).toEqual({
       greeting: "Hello",
     });
+  });
+  it("documents every option in its --help output", () => {
+    const command = createPullCommand();
+
+    const help = command.helpInformation().replace(/\n\s+/g, " ");
+
+    expect(command.name()).toBe("pull");
+    for (const fragment of [
+      "Download translations from TMS to local files",
+      "-c, --config <path>",
+      "Path to .comvirc.json file",
+      "-l, --locale <locales>",
+      "Filter by locales (comma-separated)",
+      "-n, --ns <namespaces>",
+      "Filter by namespaces (comma-separated)",
+      "-p, --path <path>",
+      "Override translations output path",
+      "--empty-dir",
+      "Clear directory before pull",
+      "--dry-run",
+      "Show what would be written without touching files",
+    ]) {
+      expect(help).toContain(fragment);
+    }
+  });
+
+  it("uses the documented defaults when the config omits apiBaseUrl and translationsPath", async () => {
+    const configPath = await writeConfig({ apiBaseUrl: undefined });
+    http = stubFetch({
+      ...DEFAULT_NAMESPACE_ROUTES,
+      [PATHS.translations]: {
+        body: { locales: ["en"], namespaces: { common: { en: { greeting: "Hello" } } } },
+      },
+    });
+
+    const exitCode = await runPull(["-c", configPath]);
+
+    expect(exitCode).toBe(0);
+    expect(http.urlFor(PATHS.translations)).toBe("https://api.comvi.io/v1/translations");
+    expect(JSON.parse(await fs.readFile(join(root, "src", "locales", "en.json"), "utf-8"))).toEqual(
+      { greeting: "Hello" },
+    );
+  });
+
+  it("exits 4 when the server does not return a requested locale", async () => {
+    const configPath = await writeConfig({ translationsPath: localesDir });
+    http = stubFetch({
+      [PATHS.translations]: {
+        body: { locales: ["en"], namespaces: { common: { en: { greeting: "Hello" } } } },
+      },
+    });
+
+    const exitCode = await runPull(["-c", configPath, "-l", "en,de"]);
+
+    expect(exitCode).toBe(4);
+    expect(output.error[0]).toBe("✗ Pull failed: Unknown locales: de. Available in project: en.");
+    await expect(fs.access(localesDir)).rejects.toMatchObject({ code: "ENOENT" });
   });
 });

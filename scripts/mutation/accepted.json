@@ -7462,6 +7462,114 @@
       "lineHint": 130,
       "kind": "equivalent",
       "reason": "same $-after-.* redundancy in multiline mode — replacement span identical with or without the anchor; the StringLiteral sibling at this line was NOT equivalent and is killed (hand-applied: 339/339 green)"
+    },
+    {
+      "package": "packages/cli",
+      "file": "src/commands/push.ts",
+      "mutators": ["ConditionalExpression", "BlockStatement"],
+      "snippet": "if (!config.apiKey) {",
+      "lineHint": 30,
+      "kind": "equivalent",
+      "reason": "unreachable apiKey guard: ConfigLoader.load() throws CONFIG_INVALID before returning when apiKey is missing/blank (matches the src comment; hand-applied both: COMVI_MUTATION suite green)"
+    },
+    {
+      "package": "packages/cli",
+      "file": "src/commands/push.ts",
+      "mutators": ["StringLiteral"],
+      "snippet": "throw new Error(\"API key is required. Set COMVI_API_KEY environment variable.\");",
+      "lineHint": 31,
+      "kind": "equivalent",
+      "reason": "message inside the unreachable apiKey guard (nocov; hand-applied: suite green)"
+    },
+    {
+      "package": "packages/cli",
+      "file": "src/commands/pull.ts",
+      "mutators": ["ConditionalExpression", "BlockStatement"],
+      "snippet": "if (!config.apiKey) {",
+      "lineHint": 25,
+      "kind": "equivalent",
+      "reason": "unreachable apiKey guard: ConfigLoader.load() throws CONFIG_INVALID first (hand-applied both: suite green)"
+    },
+    {
+      "package": "packages/cli",
+      "file": "src/commands/pull.ts",
+      "mutators": ["StringLiteral"],
+      "snippet": "throw new Error(\"API key is required. Set COMVI_API_KEY environment variable.\");",
+      "lineHint": 26,
+      "kind": "equivalent",
+      "reason": "message inside the unreachable apiKey guard (nocov; hand-applied: suite green)"
+    },
+    {
+      "package": "packages/cli",
+      "file": "src/commands/push.ts",
+      "mutators": ["ConditionalExpression", "StringLiteral"],
+      "snippet": "forceMode === \"ask\" ? \"override\" : (forceMode as ApiPushForceMode);",
+      "lineHint": 110,
+      "kind": "equivalent",
+      "reason": "dead initializer for the ask case: the if (forceMode === \"ask\") block below always reassigns apiForceMode from the prompt before any use; identity for non-ask (hand-applied all three variants: suite green)"
+    },
+    {
+      "package": "packages/cli",
+      "file": "src/commands/push.ts",
+      "mutators": ["ConditionalExpression"],
+      "snippet": "if (error instanceof Error) {",
+      "lineHint": 144,
+      "kind": "equivalent",
+      "reason": "every reachable error is an Error: ApiClient wraps non-TypegenError failures via wrapError; ConfigLoader/TranslationSync throw Error subclasses (hand-applied: suite green)"
+    },
+    {
+      "package": "packages/cli",
+      "file": "src/commands/pull.ts",
+      "mutators": ["ConditionalExpression"],
+      "snippet": "if (error instanceof Error) {",
+      "lineHint": 95,
+      "kind": "equivalent",
+      "reason": "same instanceof-Error guard as push.ts:144 — no non-Error can reach the command catch (hand-applied: suite green)"
+    },
+    {
+      "package": "packages/cli",
+      "file": "src/commands/init.ts",
+      "mutators": ["ConditionalExpression"],
+      "snippet": "if (error instanceof Error) {",
+      "lineHint": 89,
+      "kind": "equivalent",
+      "reason": "inner catch sees only new ApiClient / validateApiKey failures — always TypegenError, i.e. Error (hand-applied: suite green)"
+    },
+    {
+      "package": "packages/cli",
+      "file": "src/commands/init.ts",
+      "mutators": ["ConditionalExpression"],
+      "snippet": "if (error instanceof Error) {",
+      "lineHint": 132,
+      "kind": "equivalent",
+      "reason": "outer catch reachable only via ConfigLoader.create, which wraps every failure into TypegenError (hand-applied: suite green)"
+    },
+    {
+      "package": "packages/cli",
+      "file": "src/commands/init.ts",
+      "mutators": ["BlockStatement"],
+      "snippet": "} catch {",
+      "lineHint": 13,
+      "kind": "equivalent",
+      "reason": "emptying fileExists' catch resolves undefined instead of false — indistinguishable in its only boolean use (hand-applied: suite green)"
+    },
+    {
+      "package": "packages/cli",
+      "file": "src/commands/init.ts",
+      "mutators": ["BlockStatement"],
+      "snippet": "} catch {",
+      "lineHint": 22,
+      "kind": "equivalent",
+      "reason": "same for isValidUrl: undefined vs false indistinguishable in its only boolean use (hand-applied: suite green)"
+    },
+    {
+      "package": "packages/cli",
+      "file": "src/commands/init.ts",
+      "mutators": ["StringLiteral"],
+      "snippet": "apiBaseUrl: config.apiBaseUrl || \"https://api.comvi.io\",",
+      "lineHint": 84,
+      "kind": "equivalent",
+      "reason": "right operand unreachable (nocov): options.apiUrl has a commander default and passed isValidUrl — always truthy (hand-applied: suite green)"
     }
   ]
 }

@@ -68,6 +68,9 @@ describe("comvi init", () => {
     await createInitCommand().parseAsync(["--api-key", "flag-key"], { from: "user" });
 
     expect(output.stderr).toContain("--api-key is visible to other local users");
+    expect(output.stderr).toContain("Prefer the COMVI_API_KEY environment variable");
+    expect(output.stdout).toContain("API key stored in config file");
+    expect(output.stdout).not.toContain("Using API key from COMVI_API_KEY");
   });
 
   it("keeps the key out of .comvirc.json when it comes from COMVI_API_KEY", async () => {
@@ -84,12 +87,17 @@ describe("comvi init", () => {
     await createInitCommand().parseAsync([], { from: "user" });
 
     expect(output.stdout).toContain("✓ Using API key from COMVI_API_KEY environment variable");
+    expect(output.stderr).not.toContain("--api-key is visible");
   });
 
   it("prints how to supply a key when none is configured", async () => {
     await createInitCommand().parseAsync([], { from: "user" });
 
     expect(output.stdout).toContain("⚠  API key not found. Set COMVI_API_KEY environment variable");
+    expect(output.stdout).toContain("✓ Created configuration file:");
+    expect(output.log).toContain("   export COMVI_API_KEY=your_api_key_here");
+    expect(output.log).toContain("\n   Or add to .env file:");
+    expect(output.log).toContain("   COMVI_API_KEY=your_api_key_here");
   });
 
   it("numbers the next steps without a gap when a key is configured", async () => {
@@ -102,6 +110,9 @@ describe("comvi init", () => {
       "2. Run 'comvi pull' to download translations",
       "3. Run 'comvi push' to upload translations",
     ]);
+    expect(output.stdout).toContain("Next steps:");
+    expect(output.stdout).toContain("(or 'comvi generate-types --watch' for real-time updates)");
+    expect(output.stdout).not.toContain("(undefined)");
   });
 
   it("numbers the next steps without a gap when no key is configured", async () => {
@@ -119,12 +130,15 @@ describe("comvi init", () => {
     await createInitCommand().parseAsync([], { from: "user" });
 
     expect(http.paths()).toEqual([]);
+    expect(output.stdout).not.toContain("Validating API key");
+    expect(output.error).toEqual([]);
   });
 
   it("names the project the key belongs to once validation succeeds", async () => {
     await createInitCommand().parseAsync(["--api-key", "flag-key"], { from: "user" });
 
     expect(output.stdout).toContain("✓ API key valid for project: Acme Web");
+    expect(output.stdout).toContain("🔄 Validating API key...");
   });
 
   it("still writes the config when the key is rejected by the API", async () => {
@@ -212,6 +226,9 @@ describe("comvi init", () => {
       });
 
       expect(await nodeFs.readFile(join(cwd, ".comvirc.json"), "utf-8")).toBe(existing);
+      expect(output.stderr).toContain(
+        `✗ Configuration already exists: ${join(cwd, ".comvirc.json")}`,
+      );
       expect(output.stderr).toContain("--force");
       expect(output.stderr).toContain("left untouched");
     });
@@ -242,5 +259,43 @@ describe("comvi init", () => {
       exitCode: 1,
     });
     expect(output.stderr).toContain("✗ Failed to initialize: Failed to create config file");
+  });
+  it("documents every option and default in its --help output", () => {
+    const command = createInitCommand();
+
+    const help = command.helpInformation().replace(/\n\s+/g, " ");
+
+    expect(command.name()).toBe("init");
+    for (const fragment of [
+      "Initialize a new .comvirc.json configuration file",
+      "-k, --api-key <key>",
+      "API key for TMS (prefer COMVI_API_KEY env var)",
+      "-u, --api-url <url>",
+      "API base URL",
+      '(default: "https://api.comvi.io")',
+      "-o, --output <path>",
+      "Output path for generated types",
+      '(default: "src/types/i18n.d.ts")',
+      "--no-strict-params",
+      "Make all params optional",
+      "--translations-path <path>",
+      "Local translations folder",
+      '(default: "./src/locales")',
+      "--file-template <template>",
+      "File template pattern",
+      "--force",
+      "Overwrite an existing .comvirc.json",
+    ]) {
+      expect(help).toContain(fragment);
+    }
+  });
+
+  it("validates the key against the --api-url host", async () => {
+    await createInitCommand().parseAsync(
+      ["--api-key", "flag-key", "--api-url", "https://tms.example.com"],
+      { from: "user" },
+    );
+
+    expect(http.urlFor(PROJECT_PATH)).toBe("https://tms.example.com/v1/project");
   });
 });

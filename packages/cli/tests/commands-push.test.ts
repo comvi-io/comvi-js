@@ -173,6 +173,11 @@ describe("comvi push", () => {
     });
     expect(output.log).toContain("  Created: 1 keys");
     expect(output.log).toContain("  Updated: 1 translations");
+    expect(output.stdout).toContain("Loading configuration");
+    expect(output.stdout).toContain("Reading local translation files");
+    expect(output.stdout).toContain("Pushing translations to TMS");
+    expect(output.log).toContain("\n✓ Push complete!");
+    expect(output.log.filter((line) => line.startsWith("  Skipped:"))).toEqual([]);
   });
 
   it("does not fetch remote translations in override mode", async () => {
@@ -203,6 +208,10 @@ describe("comvi push", () => {
     expect(output.log).toContain("  📝 Updated: 1 translations");
     expect(output.log).toContain("  ⚠️  Conflicts: 1 keys");
     expect(output.log).toContain("\n  Run with --force-mode override to overwrite remote values.");
+    expect(output.log).toContain(
+      "  Run with --force-mode keep to upload only non-conflicting values.",
+    );
+    expect(output.log).toContain("\n📦 Push preview (dry run):");
     expect(http.paths()).not.toContain(PATHS.importCommit);
   });
 
@@ -325,6 +334,7 @@ describe("comvi push", () => {
       "Found 1 conflicting translations. Choose: [o]verride, [k]eep, [a]bort: ",
     );
     expect(close).toHaveBeenCalledTimes(1);
+    expect(createInterface).toHaveBeenCalledWith({ input: process.stdin, output: process.stdout });
     expect(commitBody().options).toMatchObject({ conflictResolution: "keep_local" });
   });
 
@@ -473,5 +483,207 @@ describe("comvi push", () => {
     expect(exitCode).toBe(0);
     expect(output.log).toContain("📄 Using namespaces from .comvirc.json: admin");
     expect(commitBody().namespaces).toEqual({ admin: { en: { title: "Admin" } } });
+  });
+  it("documents every option in its --help output", () => {
+    const command = createPushCommand();
+
+    const help = command.helpInformation().replace(/\n\s+/g, " ");
+
+    expect(command.name()).toBe("push");
+    for (const fragment of [
+      "Upload local translations to TMS",
+      "-c, --config <path>",
+      "Path to .comvirc.json file",
+      "-l, --locale <locales>",
+      "Filter by locales (comma-separated)",
+      "-n, --ns <namespaces>",
+      "Filter by namespaces (comma-separated)",
+      "-p, --path <path>",
+      "Override translations source path",
+      "--dry-run",
+      "Preview changes without applying",
+      "--force-mode <mode>",
+      "Conflict resolution: override, keep, ask, abort (default: ask)",
+    ]) {
+      expect(help).toContain(fragment);
+    }
+  });
+
+  it("joins multi-value config filters with commas in the announcements", async () => {
+    const configPath = await writeConfig({
+      translationsPath: localesDir,
+      locales: ["en", "uk"],
+      namespaces: ["common", "admin"],
+    });
+    await writeTranslationFile("en.json", { greeting: "Hello" });
+    await writeTranslationFile("uk.json", { greeting: "Привіт" });
+    http = stubFetch({ ...DEFAULT_NAMESPACE_ROUTES, [PATHS.importCommit]: COMMIT_OK });
+
+    const exitCode = await runPush(["-c", configPath, "--force-mode", "override"]);
+
+    expect(exitCode).toBe(0);
+    expect(output.log).toContain("📄 Using locales from .comvirc.json: en, uk");
+    expect(output.log).toContain("📄 Using namespaces from .comvirc.json: common, admin");
+  });
+
+  it("falls back to the documented API base URL when the config sets none", async () => {
+    const configPath = await writeConfig({ translationsPath: localesDir, apiBaseUrl: undefined });
+    await writeTranslationFile("en.json", { greeting: "Hello" });
+    http = stubFetch({ ...DEFAULT_NAMESPACE_ROUTES, [PATHS.importCommit]: COMMIT_OK });
+
+    const exitCode = await runPush(["-c", configPath, "--force-mode", "override"]);
+
+    expect(exitCode).toBe(0);
+    expect(http.urlFor(PATHS.importCommit)).toBe(`https://api.comvi.io${PATHS.importCommit}`);
+  });
+
+  it("reads from ./src/locales when neither --path nor the config names a source", async () => {
+    root = await fs.realpath(root);
+    vi.spyOn(process, "cwd").mockReturnValue(root);
+    const configPath = await writeConfig({});
+    const defaultDir = join(root, "src", "locales");
+    await fs.mkdir(defaultDir, { recursive: true });
+    await fs.writeFile(join(defaultDir, "en.json"), JSON.stringify({ greeting: "Hello" }), "utf-8");
+    http = stubFetch({ ...DEFAULT_NAMESPACE_ROUTES, [PATHS.importCommit]: COMMIT_OK });
+
+    const exitCode = await runPush(["-c", configPath, "--force-mode", "override"]);
+
+    expect(exitCode).toBe(0);
+    expect(commitBody().namespaces).toEqual({ common: { en: { greeting: "Hello" } } });
+  });
+
+  it("--dry-run diffs against the remote values matching the filters", async () => {
+    const configPath = await writeConfig({ translationsPath: localesDir });
+    await writeTranslationFile("en.json", { greeting: "Hello" });
+    http = stubFetch({
+      ...DEFAULT_NAMESPACE_ROUTES,
+      [PATHS.translations]: {
+        body: { locales: ["en"], namespaces: { common: { en: { greeting: "Hello" } } } },
+      },
+    });
+
+    const exitCode = await runPush(["-c", configPath, "--dry-run", "-l", "en", "-n", "common"]);
+
+    expect(exitCode).toBe(0);
+    expect(http.urlFor(PATHS.translations)).toBe(
+      `${API_BASE_URL}/v1/translations?locales=en&namespaces=common`,
+    );
+  });
+
+  it("ask mode diffs against the remote values matching the filters", async () => {
+    const configPath = await writeConfig({ translationsPath: localesDir });
+    await writeTranslationFile("en.json", { greeting: "Hello" });
+    http = stubFetch({
+      ...DEFAULT_NAMESPACE_ROUTES,
+      [PATHS.translations]: {
+        body: { locales: ["en"], namespaces: { common: { en: { greeting: "Hello" } } } },
+      },
+      [PATHS.importCommit]: COMMIT_OK,
+    });
+
+    const exitCode = await runPush([
+      "-c",
+      configPath,
+      "--force-mode",
+      "ask",
+      "-l",
+      "en",
+      "-n",
+      "common",
+    ]);
+
+    expect(exitCode).toBe(0);
+    expect(http.urlFor(PATHS.translations)).toBe(
+      `${API_BASE_URL}/v1/translations?locales=en&namespaces=common`,
+    );
+  });
+
+  it("--force-mode abort pushes with fail-on-conflict resolution when nothing conflicts", async () => {
+    const configPath = await writeConfig({ translationsPath: localesDir });
+    await writeTranslationFile("en.json", { greeting: "Hello" });
+    http = stubFetch({
+      ...DEFAULT_NAMESPACE_ROUTES,
+      [PATHS.translations]: {
+        body: { locales: ["en"], namespaces: { common: { en: { greeting: "Hello" } } } },
+      },
+      [PATHS.importCommit]: COMMIT_OK,
+    });
+
+    const exitCode = await runPush(["-c", configPath, "--force-mode", "abort"]);
+
+    expect(exitCode).toBe(0);
+    expect(output.stderr).not.toContain("Invalid force-mode");
+    expect(commitBody().options).toMatchObject({ conflictResolution: "fail" });
+  });
+
+  it("ask mode accepts the full word 'override'", async () => {
+    const configPath = await writeConfig({ translationsPath: localesDir });
+    await writeTranslationFile("en.json", { greeting: "Hello" });
+    http = stubFetch({
+      ...DEFAULT_NAMESPACE_ROUTES,
+      [PATHS.translations]: {
+        body: { locales: ["en"], namespaces: { common: { en: { greeting: "Hola" } } } },
+      },
+      [PATHS.importCommit]: COMMIT_OK,
+    });
+    setStdinTTY(true);
+    scriptPrompt(["override"]);
+
+    const exitCode = await runPush(["-c", configPath, "--force-mode", "ask"]);
+
+    expect(exitCode).toBe(0);
+    expect(commitBody().options).toMatchObject({ conflictResolution: "keep_local" });
+  });
+
+  it("ask mode accepts the full word 'abort'", async () => {
+    const configPath = await writeConfig({ translationsPath: localesDir });
+    await writeTranslationFile("en.json", { greeting: "Hello" });
+    http = stubFetch({
+      ...DEFAULT_NAMESPACE_ROUTES,
+      [PATHS.translations]: {
+        body: { locales: ["en"], namespaces: { common: { en: { greeting: "Hola" } } } },
+      },
+    });
+    setStdinTTY(true);
+    scriptPrompt(["abort"]);
+
+    const exitCode = await runPush(["-c", configPath, "--force-mode", "ask"]);
+
+    expect(exitCode).toBe(1);
+    expect(output.error[0]).toBe(
+      "✗ Push failed: Conflict detected for 1 translations. Use --force-mode override or keep.",
+    );
+    expect(http.paths()).not.toContain(PATHS.importCommit);
+  });
+
+  it("ask mode trims and lowercases the answer before matching it", async () => {
+    const configPath = await writeConfig({ translationsPath: localesDir });
+    await writeTranslationFile("en.json", { greeting: "Hello" });
+    http = stubFetch({
+      ...DEFAULT_NAMESPACE_ROUTES,
+      [PATHS.translations]: {
+        body: { locales: ["en"], namespaces: { common: { en: { greeting: "Hola" } } } },
+      },
+      [PATHS.importCommit]: COMMIT_OK,
+    });
+    setStdinTTY(true);
+    const { question } = scriptPrompt([" O "]);
+
+    const exitCode = await runPush(["-c", configPath, "--force-mode", "ask"]);
+
+    expect(exitCode).toBe(0);
+    expect(question).toHaveBeenCalledTimes(1);
+    expect(commitBody().options).toMatchObject({ conflictResolution: "keep_local" });
+  });
+
+  it("exits 4 without calling the API when .comvirc.json is invalid", async () => {
+    const configPath = await writeConfig({ translationsPath: localesDir, locales: [] });
+    http = stubFetch({});
+
+    const exitCode = await runPush(["-c", configPath]);
+
+    expect(exitCode).toBe(4);
+    expect(output.error[0]).toContain('"locales" is an empty list');
+    expect(http.requests).toEqual([]);
   });
 });
