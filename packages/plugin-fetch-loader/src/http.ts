@@ -9,6 +9,11 @@ export interface ExtendedFetchOptions extends RequestInit {
 export interface FetchRequestOptions {
   signal?: AbortSignal;
   next?: ExtendedFetchOptions["next"];
+  /**
+   * Set `false` to make the project-info request fail on its first refusal.
+   * Read only there; `fetch` ignores it wherever these options reach an init.
+   */
+  retry?: boolean;
 }
 
 export function buildCacheOptions(

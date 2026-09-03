@@ -89,6 +89,7 @@ export const FetchLoader: I18nPluginFactory<FetchLoaderOptions> = (options): I18
     onLoadError,
     onLoadSuccess,
     timeout = 10000,
+    retry,
     loadOnInit = true,
     cdnLayout,
     cache,
@@ -162,7 +163,7 @@ export const FetchLoader: I18nPluginFactory<FetchLoaderOptions> = (options): I18
               timeout,
               undefined,
               undefined,
-              { signal, ...cacheOpts },
+              { signal, retry, ...cacheOpts },
             ))
               store.set(k, v);
             if (signal.aborted || stopped) throw new RequestAbortedError("API translations");

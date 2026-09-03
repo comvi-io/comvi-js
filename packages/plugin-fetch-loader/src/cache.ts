@@ -2,6 +2,7 @@ import type { ExportApiResponse, TranslationStore } from "./types";
 import type { ProjectInfo } from "./options";
 import { API_BASE_URL } from "./options";
 import type { FetchRequestOptions } from "./http";
+import { httpFailure, withRetry } from "./retry";
 import {
   RequestAbortedError,
   buildApiExportUrl,
@@ -138,29 +139,42 @@ async function fetchProjectInfoFromApi(
   requestOptions?: FetchRequestOptions,
 ): Promise<ProjectInfo> {
   const urls = [`${baseUrl}/v1/project`, `${baseUrl}/api/v1/api/project`];
-  let lastNotFound = "Not Found";
 
-  for (const url of urls) {
-    const result = await fetchJsonWithTimeout<ProjectInfo>(
-      url,
-      { headers: buildAuthHeaders(apiKey), ...requestOptions },
-      timeoutMs,
-      fetchFn,
-    );
+  const attempt = async (): Promise<ProjectInfo> => {
+    let lastNotFound = "Not Found";
 
-    if (result.ok) {
-      return result.data;
+    for (const url of urls) {
+      const result = await fetchJsonWithTimeout<ProjectInfo>(
+        url,
+        { headers: buildAuthHeaders(apiKey), ...requestOptions },
+        timeoutMs,
+        fetchFn,
+      );
+
+      if (result.ok) {
+        return result.data;
+      }
+
+      if (result.status === 404) {
+        lastNotFound = result.statusText;
+        continue;
+      }
+
+      throw httpFailure(
+        `Failed to fetch project info: ${result.status} ${result.statusText}`,
+        result.status,
+        result.retryAfter,
+      );
     }
 
-    if (result.status === 404) {
-      lastNotFound = result.statusText;
-      continue;
-    }
+    // Both spellings answered 404: the deployment has no project endpoint, and
+    // asking again will not change that.
+    throw httpFailure(`Failed to fetch project info: 404 ${lastNotFound}`, 404, null);
+  };
 
-    throw new Error(`Failed to fetch project info: ${result.status} ${result.statusText}`);
-  }
-
-  throw new Error(`Failed to fetch project info: 404 ${lastNotFound}`);
+  return requestOptions?.retry === false
+    ? attempt()
+    : withRetry(attempt, urls[0], requestOptions?.signal);
 }
 
 /**

@@ -6,7 +6,7 @@ the rule behind them.
 
 ## What the gate measures
 
-Each of the 15 rows bundles one fixture from `scripts/size-fixtures/` with esbuild — `bundle`,
+Each of the 16 rows bundles one fixture from `scripts/size-fixtures/` with esbuild — `bundle`,
 `minify`, `format: esm`, `platform: browser`, `target: es2020`, `__DEV__=false`,
 `process.env.NODE_ENV="production"` — and gzips the result at level 9. The reported figure is
 **min+gz bytes**.

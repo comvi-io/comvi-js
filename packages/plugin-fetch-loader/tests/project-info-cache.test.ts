@@ -50,9 +50,11 @@ describe("fetchProjectInfo() cache lifetime", () => {
     );
     const succeeding = recordingTransport(() => jsonResponse({ id: 7 }));
 
-    await expect(fetchProjectInfo("key", BASE, 5000, failing.fetchFn)).rejects.toThrow(
-      "Failed to fetch project info: 500 Server Error",
-    );
+    // `retry: false` keeps this about the cache: the bounded retry on a 5xx is
+    // tests/retry.test.ts's subject, and its backoff would run in real time here.
+    await expect(
+      fetchProjectInfo("key", BASE, 5000, failing.fetchFn, undefined, { retry: false }),
+    ).rejects.toThrow("Failed to fetch project info: 500 Server Error");
 
     await expect(fetchProjectInfo("key", BASE, 5000, succeeding.fetchFn)).resolves.toMatchObject({
       id: 7,
@@ -66,9 +68,9 @@ describe("fetchProjectInfo() endpoint fallback", () => {
       () => new Response(null, { status: 500, statusText: "Server Error" }),
     );
 
-    await expect(fetchProjectInfo("key", BASE, 5000, fetchFn)).rejects.toThrow(
-      "Failed to fetch project info: 500 Server Error",
-    );
+    await expect(
+      fetchProjectInfo("key", BASE, 5000, fetchFn, undefined, { retry: false }),
+    ).rejects.toThrow("Failed to fetch project info: 500 Server Error");
 
     expect(calls.map((call) => call.url)).toEqual([`${BASE}/v1/project`]);
   });

@@ -107,6 +107,14 @@ export interface FetchLoaderOptions {
   timeout?: number;
 
   /**
+   * Retry the project-info request after a 429, a 5xx or a transport failure —
+   * twice at most, and never adding more than five seconds in total. A timeout
+   * is never retried, so a stalled server still fails as fast as `timeout` says.
+   * @default true
+   */
+  retry?: boolean;
+
+  /**
    * Whether to load translations during init()
    * @default true
    *
