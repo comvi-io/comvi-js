@@ -18,6 +18,7 @@
  */
 import { describe, it, expect, vi } from "vitest";
 import { createI18n } from "../../src";
+import { icuCompiler } from "../../src/core/translate/compile-icu";
 import type { I18n } from "../../src";
 import type { ErrorReportContext } from "../../src/types";
 
@@ -204,5 +205,58 @@ describe("hit accounting", () => {
     expect(b.i18n.t("plain")).toBe("Just text");
     expect(b.reports).toEqual([]);
     expect(a.reports).toHaveLength(1);
+  });
+});
+
+/**
+ * The same fail-soft on the ICU compiler: an argument type it does not
+ * implement, or a choice list it cannot parse, renders literally and reports
+ * instead of quietly resolving to a missing parameter or an empty string.
+ */
+describe("an argument the ICU compiler cannot compile", () => {
+  function icuHost(translation: Record<string, Record<string, string>>) {
+    const reports: Array<{ error: Error; context?: ErrorReportContext }> = [];
+    const i18n = createI18n({
+      locale: "en",
+      exposeGlobal: false,
+      compiler: icuCompiler,
+      translation,
+      onError: (error, context) => void reports.push({ error, context }),
+    });
+    return { i18n, reports };
+  }
+
+  it("renders an unsupported argument type verbatim instead of throwing", () => {
+    const template = "{value, number}";
+    const { i18n } = icuHost({ en: { price: template } });
+
+    expect(i18n.t("price", { value: 5 })).toBe(template);
+  });
+
+  it("reports E_ICU_SYNTAX with the unsupported type and the host's telemetry", () => {
+    const { i18n, reports } = icuHost({ en: { price: "{value, number, integer}" } });
+
+    i18n.t("price", { value: 5 });
+
+    expect(reports).toHaveLength(1);
+    const { error, context } = reports[0]!;
+    expect((error as { code?: unknown }).code).toBe("E_ICU_SYNTAX");
+    expect((error as { argumentType?: unknown }).argumentType).toBe("number");
+    expect(context).toEqual({
+      source: "compile",
+      key: "price",
+      namespace: "default",
+      locale: "en",
+    });
+  });
+
+  it("renders a malformed plural choice list verbatim and reports it", () => {
+    const template = "{n, plural, '{one'}";
+    const { i18n, reports } = icuHost({ en: { broken: template } });
+
+    expect(i18n.t("broken", { n: 1 })).toBe(template);
+
+    expect(reports).toHaveLength(1);
+    expect((reports[0]!.error as { argumentType?: unknown }).argumentType).toBe("plural");
   });
 });

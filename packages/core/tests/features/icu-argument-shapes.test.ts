@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import { I18n } from "../helpers/composedHost";
 import type { TranslationResult } from "../../src";
 
@@ -8,41 +8,33 @@ function render(template: string, params: Record<string, unknown>): string | Tra
   return i18n.t("k", params as never);
 }
 
+/** Ingestion alone: development preflights every catalog string it is handed. */
+function ingest(template: string): void {
+  const i18n = new I18n({ locale: "en" });
+  i18n.addTranslations({ en: { k: template } });
+}
+
 describe("arguments the ICU compiler does not treat as plural or select", () => {
   it("resolves a parameter whose name ends in a type name", () => {
     expect(render("{plurals}", { plurals: 3 })).toBe("3");
   });
 
   it.each([
-    [
-      "a two-part argument with no known type",
-      "{x, plurals}",
-      { x: 1 },
-      '[i18n] Missing parameter "x, plurals" for template "{x, plurals}"',
-    ],
-    [
-      "an argument type this package does not ship",
-      "{value, number, integer}",
-      { value: 5 },
-      '[i18n] Missing parameter "value, number, integer" for template "{value, number, integer}"',
-    ],
-    [
-      "a plural with no choice list",
-      "{n, plural}",
-      { n: 1 },
-      '[i18n] Missing parameter "n, plural" for template "{n, plural}"',
-    ],
-  ])(
-    "%s renders verbatim and warns which parameter is missing",
-    (_label, template, params, warning) => {
-      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    ["an argument type this package does not ship", "{value, number, integer}", "number"],
+    ["a two-part argument with no known type", "{x, plurals}", "plurals"],
+    ["a plural with no choice list", "{n, plural}", "plural"],
+  ])("%s throws E_ICU_SYNTAX at ingestion", (_label, template, argumentType) => {
+    expect(() => ingest(template)).toThrow(
+      expect.objectContaining({ code: "E_ICU_SYNTAX", argumentType }),
+    );
+  });
 
-      const rendered = render(template, params);
-
-      expect(rendered).toBe(template);
-      expect(warnSpy).toHaveBeenCalledWith(warning);
-    },
-  );
+  it("names the unsupported type and the two ways out in the thrown message", () => {
+    expect(() => ingest("{value, number, integer}")).toThrow(
+      "[i18n] ICU argument type `number` is not supported; quote the braces ('{'…'}') or " +
+        "format the value in code and pass it as a plain {param}",
+    );
+  });
 });
 
 describe("ICU argument name and choice-list parsing", () => {
@@ -70,13 +62,9 @@ describe("ICU argument name and choice-list parsing", () => {
     expect(render("{n, plural, x= {a} =3 {three} other {o}}", { n: 3 })).toBe("three");
   });
 
-  it.each([
-    [1, "one"],
-    [5, ""],
-  ])(
-    "stops at a selector with no braced value, keeping the choices before it (count %i)",
-    (count, expected) => {
-      expect(render("{count, plural, one {one} other oops}", { count })).toBe(expected);
-    },
-  );
+  it("throws E_ICU_SYNTAX for a selector with no braced value", () => {
+    expect(() => ingest("{count, plural, one {one} other oops}")).toThrow(
+      expect.objectContaining({ code: "E_ICU_SYNTAX", argumentType: "plural" }),
+    );
+  });
 });

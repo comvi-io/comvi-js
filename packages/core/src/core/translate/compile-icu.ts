@@ -10,6 +10,7 @@ import {
   type SelectToken,
 } from "./cache";
 import { advancePastApostrophe, findMatchingBraceEnd } from "./parser";
+import { setIcuHit, type IcuSyntaxError } from "./compile-simple";
 import type { MessageCompiler, TranslateCtx } from "./syntax";
 import { translateSegment } from "../translate";
 
@@ -84,10 +85,18 @@ export function replaceTopLevelHash(str: string, replacement: string): string {
   return out + str.slice(segStart);
 }
 
+/**
+ * Parse `one {…} other {…}` into a selector→sub-message map.
+ *
+ * Returns `null` when the list is malformed — a selector with no braced
+ * sub-message, or a sub-message whose brace never closes. Both used to yield
+ * the choices parsed so far, which rendered a wrong branch or an empty string;
+ * the caller now fails the argument loud instead.
+ */
 export function parsePluralChoices(
   choicesStr: string,
   hashIsSyntax = true,
-): Record<string, string> {
+): Record<string, string> | null {
   const choices = Object.create(null) as Record<string, string>;
   const len = choicesStr.length;
   let i = 0;
@@ -106,7 +115,7 @@ export function parsePluralChoices(
 
     while (i < len && choicesStr.charCodeAt(i) <= SPACE) i++;
     if (i >= len || choicesStr.charCodeAt(i) !== OPEN_BRACE) {
-      break;
+      return null;
     }
 
     const valueStart = i + 1;
@@ -117,7 +126,7 @@ export function parsePluralChoices(
       hashIsSyntax,
       isPluralArgStart,
     );
-    if (endIndex === -1) break;
+    if (endIndex === -1) return null;
 
     choices[key] = choicesStr.slice(valueStart, endIndex - 1);
     i = endIndex;
@@ -127,14 +136,44 @@ export function parsePluralChoices(
 }
 
 /**
+ * An argument this compiler cannot compile, handled exactly as ICU syntax on
+ * the simple compiler: development throws `E_ICU_SYNTAX` (at the ingestion
+ * preflight, or at the first render of a template that never passed through a
+ * catalog), production returns `undefined` so the braced segment renders
+ * literally and records the type for the host's one best-effort report.
+ *
+ * `malformedChoices` carries the offending choice list, and is `undefined`
+ * when the argument type itself is the problem. It selects the message only;
+ * both messages are development-only text and fold out of production.
+ */
+function failIcuArg(argumentType: string, malformedChoices: string | undefined): undefined {
+  if (!IS_DEV) {
+    setIcuHit(argumentType);
+    return undefined;
+  }
+  const error = new Error(
+    malformedChoices === undefined
+      ? `[i18n] ICU argument type \`${argumentType}\` is not supported; quote the braces ('{'…'}') or format the value in code and pass it as a plain {param}`
+      : `[i18n] The \`${argumentType}\` choice list \`${malformedChoices}\` is malformed; every selector needs a braced sub-message, as in \`other {…}\``,
+  ) as IcuSyntaxError;
+  error.code = "E_ICU_SYNTAX";
+  error.argumentType = argumentType;
+  throw error;
+}
+
+/**
  * Build a token from `{...}` content: `{name}` params plus the ICU
  * `plural` / `selectordinal` / `select` argument types. Choices are parsed
  * eagerly so rendering never re-parses them.
+ *
+ * A comma at depth 0 makes the argument TYPED, and only the three types above
+ * are implemented — `{price, number}` and friends fail through `failIcuArg`
+ * rather than resolving to a parameter literally named `price, number`.
  */
 function makeIcuArgToken(
   content: string,
   hashIsSyntax: boolean,
-): ParamToken | PluralToken | SelectToken {
+): ParamToken | PluralToken | SelectToken | undefined {
   let firstComma = -1;
   let secondComma = -1;
   let depth = 0;
@@ -159,27 +198,34 @@ function makeIcuArgToken(
     }
   }
 
-  if (firstComma !== -1 && secondComma !== -1) {
-    const paramName = content.slice(0, firstComma).trim();
-    const typeStr = content.slice(firstComma + 1, secondComma).trim();
-    if (typeStr === "plural" || typeStr === "selectordinal") {
-      const choicesStr = content.slice(secondComma + 1).trim();
+  if (firstComma === -1) return [TK_PARAM, content.trim()];
+
+  const paramName = content.slice(0, firstComma).trim();
+  // A one-comma argument (`{n, plural}`) has a type but no choice list; the
+  // type still names it in the failure.
+  const typeStr = (
+    secondComma === -1 ? content.slice(firstComma + 1) : content.slice(firstComma + 1, secondComma)
+  ).trim();
+  const isPlural = typeStr === "plural" || typeStr === "selectordinal";
+
+  if (secondComma !== -1 && (isPlural || typeStr === "select")) {
+    const choicesStr = content.slice(secondComma + 1).trim();
+    const choices = parsePluralChoices(choicesStr, isPlural || hashIsSyntax);
+    if (choices === null) return failIcuArg(typeStr, choicesStr);
+    if (isPlural) {
       return [
         TK_PLURAL,
         paramName,
         choicesStr,
-        parsePluralChoices(choicesStr),
+        choices,
         choicesStr.indexOf("=") !== -1 ? 1 : 0,
         typeStr === "selectordinal" ? 1 : 0,
       ];
     }
-    if (typeStr === "select") {
-      const choicesStr = content.slice(secondComma + 1).trim();
-      return [TK_SELECT, paramName, choicesStr, parsePluralChoices(choicesStr, hashIsSyntax)];
-    }
+    return [TK_SELECT, paramName, choicesStr, choices];
   }
 
-  return [TK_PARAM, content.trim()];
+  return failIcuArg(typeStr, undefined);
 }
 
 function processPlural(
@@ -188,7 +234,9 @@ function processPlural(
 ): string | Array<string | VirtualNode> {
   const param = token[1];
   const choicesStr = token[2];
-  const choices = token[3] ?? parsePluralChoices(choicesStr);
+  // `?? {}` covers a token built by an injected compiler that reuses this
+  // processor: `makeIcuArgToken` never emits a token for a list it could not parse.
+  const choices = token[3] ?? parsePluralChoices(choicesStr) ?? {};
   const hasExactSelectors = token[4] === 1;
   const isOrdinal = token[5] === 1;
 
@@ -235,7 +283,7 @@ function processSelect(
   hashIsSyntax: boolean,
 ): string | Array<string | VirtualNode> {
   const param = token[1];
-  const choices = token[3] ?? parsePluralChoices(token[2], hashIsSyntax);
+  const choices = token[3] ?? parsePluralChoices(token[2], hashIsSyntax) ?? {};
   const value = String(ctx.params[param] ?? "");
 
   const selected = choices[value] ?? choices.other ?? "";
@@ -255,6 +303,7 @@ function processSelect(
  */
 export const icuCompiler: MessageCompiler = {
   cid: 2,
+  preflight: true,
   makeArgToken: makeIcuArgToken,
   argOpensHashScope: isPluralArgStart,
   processArgToken(token, ctx, hashIsSyntax) {

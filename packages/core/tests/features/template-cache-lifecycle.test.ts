@@ -190,25 +190,26 @@ describe("context-sensitive cache keys", () => {
     expect(i18n.t("plural" as never, { count: 2 } as never)).toBe("#");
   });
 
-  it("keeps plural-choice caches separate when source text starts with the context marker", () => {
+  // Same source, two hash contexts: with `#` as syntax the `'#}'` span is
+  // quoted and both choices parse; without it the quote is literal text, the
+  // first sub-message ends early and the leftovers are a malformed list.
+  it("keeps plural-choice parses separate when source text starts with the context marker", () => {
     const source = "other {'#}'} another {x}";
 
     const unmarkedChoices = parsePluralChoices(source, false);
     const markedChoices = parsePluralChoices(`\u0001${source}`, true);
 
     expect(markedChoices).toEqual({ other: "'#}'", another: "x" });
-    expect(unmarkedChoices).toEqual({ other: "'#" });
-    expect(markedChoices).not.toEqual(unmarkedChoices);
+    expect(unmarkedChoices).toBeNull();
   });
 
-  it("keeps plural-choice caches separate in the reverse insertion order", () => {
+  it("keeps plural-choice parses separate in the reverse insertion order", () => {
     const source = "other {'#}'} another {x}";
 
     const markedChoices = parsePluralChoices(`\u0001${source}`, true);
     const unmarkedChoices = parsePluralChoices(source, false);
 
     expect(markedChoices).toEqual({ other: "'#}'", another: "x" });
-    expect(unmarkedChoices).toEqual({ other: "'#" });
-    expect(unmarkedChoices).not.toEqual(markedChoices);
+    expect(unmarkedChoices).toBeNull();
   });
 });
