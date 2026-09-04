@@ -17,7 +17,7 @@ const CHECK_BLOCKING_CODES: readonly string[] = [
 
 const CHECK_DESCRIPTION =
   "CI mode: verify the generated types are up to date " +
-  "(exit 1 = outdated, 2 = check could not run, 4 = invalid config)";
+  "(exit 1 = outdated, 2 = check could not run, 4 = invalid config or a schema that cannot be emitted)";
 
 /**
  * `typegen` is the canonical name in the docs and `generate-types` is its

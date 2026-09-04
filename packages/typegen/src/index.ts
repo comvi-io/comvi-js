@@ -42,8 +42,13 @@ export interface EmitOptions {
 /** Used when the caller names no tool of its own. */
 const DEFAULT_GENERATED_BY = "DO NOT EDIT — this file is generated from your translation schema";
 
-/** The header line `@comvi/cli` 0.4 wrote under its own; no longer emitted. */
-const TIMESTAMP_MARKER = "Generated at:";
+/**
+ * How the header line `@comvi/cli` 0.4 wrote under its own begins, once the
+ * comment indent is trimmed. Anchored rather than searched: a translation key
+ * may contain this text, and dropping its declaration line would hide drift in
+ * that key from every comparison.
+ */
+const TIMESTAMP_LINE_PREFIX = "* Generated at:";
 
 export function emitDeclarations(schema: ProjectSchema, options: EmitOptions = {}): string {
   const {
@@ -111,14 +116,14 @@ export function countKeyLines(content: string): number {
 
 /**
  * Drops what a regeneration is allowed to change, so `--check` compares only the
- * declarations. The WHOLE `Generated at:` line goes, not just its tail: a file
- * written by 0.4 carries that line and 0.5 output does not, and leaving the
+ * declarations. The WHOLE `Generated at:` header line goes, not just its tail: a
+ * file written by 0.4 carries that line and 0.5 output does not, and leaving the
  * emptied line behind would report every existing repo as stale on upgrade.
  */
 export function normalizeGenerated(content: string): string {
   return content
     .split("\n")
-    .filter((line) => !line.includes(TIMESTAMP_MARKER))
+    .filter((line) => !line.trimStart().startsWith(TIMESTAMP_LINE_PREFIX))
     .join("\n")
     .trim();
 }

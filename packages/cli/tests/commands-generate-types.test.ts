@@ -284,7 +284,7 @@ describe("comvi generate-types", () => {
 
       expect(checkOption?.description).toContain("CI mode");
       expect(checkOption?.description).toContain(
-        "exit 1 = outdated, 2 = check could not run, 4 = invalid config",
+        "exit 1 = outdated, 2 = check could not run, 4 = invalid config or a schema that cannot be emitted",
       );
     });
 

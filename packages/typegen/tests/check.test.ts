@@ -76,6 +76,19 @@ describe("normalizeGenerated", () => {
     expect(normalizeGenerated(`${current}\n\n  `)).toBe(normalizeGenerated(current));
   });
 
+  it("keeps a declaration line whose own key contains the timestamp text", () => {
+    // Only the header comment is dropped. Matching the marker anywhere on a
+    // line would erase a real key from both sides of the comparison, hiding
+    // drift in it forever.
+    const noon: ProjectSchema = { keys: { "admin:Generated at: noon": { params: [] } } };
+    const dusk: ProjectSchema = { keys: { "admin:Generated at: dusk": { params: [] } } };
+
+    expect(normalizeGenerated(emitDeclarations(noon))).toContain("admin:Generated at: noon");
+    expect(normalizeGenerated(emitDeclarations(noon))).not.toBe(
+      normalizeGenerated(emitDeclarations(dusk)),
+    );
+  });
+
   it("keeps two files apart when a real declaration line differs", () => {
     const other: ProjectSchema = { keys: { "common:welcome": { params: [] } } };
 
