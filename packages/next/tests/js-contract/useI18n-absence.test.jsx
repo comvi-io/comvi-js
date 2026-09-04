@@ -113,6 +113,8 @@ describe(`capability acquisition through @comvi/next/client (${__COMVI_CORE_BUIL
       "addActiveNamespaces",
       "onLoadError",
       "reloadTranslations",
+      "removeActiveNamespace",
+      "removeActiveNamespaces",
     ]);
     expect(Object.keys(plugins)).toEqual(["onMissingKey"]);
   });

@@ -86,6 +86,8 @@ describe(`capability acquisition (${__COMVI_CORE_BUILD__} core build)`, () => {
       "addActiveNamespaces",
       "onLoadError",
       "reloadTranslations",
+      "removeActiveNamespace",
+      "removeActiveNamespaces",
     ]);
 
     await bag.addActiveNamespace("dashboard");

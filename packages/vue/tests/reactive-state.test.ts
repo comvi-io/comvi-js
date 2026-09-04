@@ -380,6 +380,28 @@ describe("Reactive State Transitions", () => {
       expect(i18n.activeNamespaces.value).toContain("admin");
     });
 
+    it("should update activeNamespaces after removeActiveNamespace", async () => {
+      const loader = vi.fn(async () => ({ title: "Admin" }));
+
+      const i18n = createLoaderI18n({
+        locale: "en",
+        defaultNs: "common",
+      });
+
+      i18n.core.registerLoader(loader);
+
+      await i18n.init();
+      await i18n.core.addActiveNamespace("admin");
+      await nextTick();
+
+      expect(i18n.activeNamespaces.value).toContain("admin");
+
+      i18n.core.removeActiveNamespace("admin");
+      await nextTick();
+
+      expect(i18n.activeNamespaces.value).not.toContain("admin");
+    });
+
     it("should include defaultNs in activeNamespaces from the start", async () => {
       const i18n = createI18n({
         locale: "en",
