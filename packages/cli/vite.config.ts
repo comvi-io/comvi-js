@@ -23,6 +23,7 @@ export default defineConfig({
     },
     rolldownOptions: {
       external: [
+        "@comvi/typegen",
         "commander",
         "eventsource",
         "fs",

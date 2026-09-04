@@ -1,5 +1,6 @@
+import { countKeyLines, normalizeGenerated } from "@comvi/typegen";
 import { ApiClient } from "./ApiClient";
-import { TypeEmitter } from "./TypeEmitter";
+import { emitCliDeclarations } from "./TypeEmitter";
 import { FileSystemWriter } from "./FileSystemWriter";
 import { ConsoleReporter, type GenerationReporter } from "./GenerationReporter";
 import type { GeneratorOptions, GenerationResult, ProjectSchema, CheckResult } from "../types";
@@ -8,7 +9,6 @@ import { createLogger, type Logger } from "../utils/logger";
 
 export class TypeGenerator {
   private apiClient: ApiClient;
-  private typeEmitter: TypeEmitter;
   private writer: FileSystemWriter;
   private reporter: GenerationReporter;
   private options: GeneratorOptions;
@@ -35,8 +35,6 @@ export class TypeGenerator {
       apiKey: this.options.apiKey,
       apiBaseUrl: this.options.apiBaseUrl,
     });
-
-    this.typeEmitter = new TypeEmitter();
 
     this.writer = dependencies?.writer ?? new FileSystemWriter();
 
@@ -103,7 +101,7 @@ export class TypeGenerator {
       ]);
       const keyCount = Object.keys(schema.keys).length;
 
-      const expectedTypes = this.typeEmitter.generate(schema, {
+      const expectedTypes = emitCliDeclarations(schema, {
         strictParams: this.options.strictParams,
         defaultNsName,
       });
@@ -113,11 +111,7 @@ export class TypeGenerator {
 
       try {
         currentTypes = await this.writer.read(this.options.outputPath);
-        // Count keys in current file (simple heuristic: count lines with type
-        // definitions). Both quote styles count: this CLI emits JSON-quoted keys,
-        // and a file left by an older CLI is single-quoted.
-        const keyMatches = currentTypes.match(/^\s+(?:'[^']*'|"(?:[^"\\]|\\.)*"):.*$/gm);
-        currentKeyCount = keyMatches?.length ?? 0;
+        currentKeyCount = countKeyLines(currentTypes);
       } catch {
         // File doesn't exist
         return {
@@ -128,10 +122,10 @@ export class TypeGenerator {
         };
       }
 
-      const normalizeContent = (content: string) =>
-        content.replace(/Generated at:.*$/gm, "").trim();
-
-      const upToDate = normalizeContent(currentTypes) === normalizeContent(expectedTypes);
+      // A file written by @comvi/cli 0.4 carries a `Generated at:` line that
+      // this CLI no longer emits; normalizing drops it from both sides, so an
+      // upgrade does not report every existing repo as stale.
+      const upToDate = normalizeGenerated(currentTypes) === normalizeGenerated(expectedTypes);
 
       return {
         upToDate,
@@ -158,7 +152,7 @@ export class TypeGenerator {
       const resolvedDefaultNsName = defaultNsName ?? (await this.getDefaultNamespaceName());
 
       this.reporter.reportGenerating();
-      const typeDeclarations = this.typeEmitter.generate(schema, {
+      const typeDeclarations = emitCliDeclarations(schema, {
         strictParams: this.options.strictParams,
         defaultNsName: resolvedDefaultNsName,
       });

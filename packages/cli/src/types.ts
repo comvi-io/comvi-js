@@ -4,20 +4,12 @@
  * SSE streams the full schema on every update.
  */
 
-/** `number` is the type carried by plural counts. */
-export interface SchemaParam {
-  name: string;
-  type: "string" | "number";
-}
-
-export interface KeySchema {
-  params: SchemaParam[];
-}
-
-/** Keys are in `"namespace:key"` format, e.g. `"common:greeting"`. */
-export interface ProjectSchema {
-  keys: Record<string, KeySchema>;
-}
+/**
+ * The schema shape is owned by `@comvi/typegen`, the emitter this CLI and
+ * `@comvi/vite-plugin` share. Re-exported so the published `@comvi/cli` type
+ * names stay where consumers import them from.
+ */
+export type { SchemaParam, KeySchema, ProjectSchema } from "@comvi/typegen";
 
 /** `{ lang: { namespace: { key: value } } }`. */
 export type TranslationData = Record<string, Record<string, Record<string, string>>>;
