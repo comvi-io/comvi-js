@@ -7283,24 +7283,6 @@
     },
     {
       "package": "packages/cli",
-      "file": "src/core/TypeGenerator.ts",
-      "mutators": ["Regex"],
-      "snippet": "const keyMatches = currentTypes.match(/^\\s+(?:'[^']*'|\"(?:[^\"\\\\]|\\\\.)*\"):.*$/gm);",
-      "lineHint": 119,
-      "kind": "equivalent",
-      "reason": "dropping the trailing $ is a no-op: `.` never matches newline, so `.*` already stops at end-of-line; the ^-drop sibling at this line IS killed by a test (hand-applied: suite green)"
-    },
-    {
-      "package": "packages/cli",
-      "file": "src/core/TypeGenerator.ts",
-      "mutators": ["Regex"],
-      "snippet": "content.replace(/Generated at:.*$/gm, \"\").trim();",
-      "lineHint": 130,
-      "kind": "equivalent",
-      "reason": "same $-after-.* redundancy in multiline mode — replacement span identical with or without the anchor; the StringLiteral sibling at this line was NOT equivalent and is killed (hand-applied: 339/339 green)"
-    },
-    {
-      "package": "packages/cli",
       "file": "src/commands/push.ts",
       "mutators": ["ConditionalExpression", "BlockStatement"],
       "snippet": "if (!config.apiKey) {",
@@ -8004,6 +7986,15 @@
       "lineHint": 170,
       "kind": "gap:prod-build",
       "reason": "`if (IS_DEV)` → `if (true)`: IS_DEV is a build-time literal that is `true` in the dev test build, so the mutant is the same program there; only the production fold (which drops the call and the warning string — verified by grepping dist) can tell them apart."
+    },
+    {
+      "package": "packages/typegen",
+      "file": "src/index.ts",
+      "mutators": ["Regex"],
+      "snippet": "return content.match(/^\\s+(?:'[^']*'|\"(?:[^\"\\\\]|\\\\.)*\"):.*$/gm)?.length ?? 0;",
+      "lineHint": 109,
+      "kind": "equivalent",
+      "reason": "dropping the trailing $ is a no-op: `.` never matches a newline, so `.*` already stops at end-of-line and the match span is identical. Moved verbatim from packages/cli (TypeGenerator.ts:119) with the code. The ^-drop and the [^']* quantifier siblings on this line ARE killed, by the column-zero test and the multi-character single-quoted key (hand-applied: suite green)."
     }
   ]
 }

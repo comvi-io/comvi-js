@@ -27,7 +27,12 @@ describe("countKeyLines", () => {
   });
 
   it("counts the single-quoted key lines an older generator left behind", () => {
-    const legacy = ["  interface TranslationKeys {", "    'a': never;", "    'b': never;", "  }"];
+    const legacy = [
+      "  interface TranslationKeys {",
+      "    'common:hello': never;",
+      "    'a': never;",
+      "  }",
+    ];
 
     expect(countKeyLines(legacy.join("\n"))).toBe(2);
   });
