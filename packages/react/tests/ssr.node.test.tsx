@@ -156,3 +156,31 @@ describe("@comvi/react SSR — useI18n().hasTranslation follows the provider loc
     expect(html).toContain("has:false");
   });
 });
+
+/**
+ * Regression guard for the client-only tag boundary added in `T.tsx`: React
+ * error boundaries do not run during `renderToString`, so a component or
+ * element tag handler that throws still tears the SERVER render down. The
+ * client boundary must not create the impression that server renders degrade.
+ */
+describe("@comvi/react SSR — a throwing tag handler is NOT contained on the server", () => {
+  it("renderToString rethrows the handler's error instead of rendering the children", () => {
+    const i18n = createI18n({
+      locale: "en",
+      translation: { en: { msg: "Click <link>here</link>" } },
+      exposeGlobal: false,
+    });
+    const Exploding = (): React.ReactElement => {
+      throw new Error("handler exploded");
+    };
+
+    const renderServerSide = () =>
+      renderToString(
+        <I18nProvider i18n={i18n} autoInit={false}>
+          <T i18nKey={"msg" as never} components={{ link: <Exploding /> }} />
+        </I18nProvider>,
+      );
+
+    expect(renderServerSide).toThrow(new Error("handler exploded"));
+  });
+});

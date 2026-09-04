@@ -63,6 +63,40 @@ type ComponentHandler = ComponentTarget | ComponentConfig;
 
 type ComponentsMap = Record<string, ComponentHandler>;
 
+interface TagBoundaryProps {
+  tagName: string;
+  onTagError: (error: unknown, tagName: string) => void;
+  /** The tag's converted children, rendered in the failed handler's place. */
+  fallback: React.ReactNode;
+  children: React.ReactNode;
+}
+
+/**
+ * A component or element handler is `React.createElement`'d, so it renders
+ * AFTER `<T>` has returned and a throw inside it escapes the synchronous
+ * try/catch that covers function handlers. React has no hook-based boundary,
+ * so this class gives those handlers the same degradation: report the error
+ * with the tag name as written, then render the tag's children instead.
+ *
+ * Client-side only, by React's design: `renderToString` has no boundaries, so
+ * a server render still throws (the same as the Svelte binding).
+ */
+class TagBoundary extends React.Component<TagBoundaryProps, { failed: boolean }> {
+  public state = { failed: false };
+
+  public static getDerivedStateFromError() {
+    return { failed: true };
+  }
+
+  public componentDidCatch(error: unknown) {
+    this.props.onTagError(error, this.props.tagName);
+  }
+
+  public render() {
+    return this.state.failed ? this.props.fallback : this.props.children;
+  }
+}
+
 interface TBaseProps {
   ns?: string;
 
@@ -168,6 +202,9 @@ const TComponent = function T({
 
   const keyString = String(i18nKey);
 
+  const reportTagError = (error: unknown, tagName: string) =>
+    reportError(error, { source: "translation", tagName });
+
   // Direct props take precedence over same-named `params` entries.
   const allParams = { ...params, ...cleanRestProps } as TranslationParams;
 
@@ -233,7 +270,15 @@ const TComponent = function T({
     if (React.isValidElement(handler)) {
       const baseProps = handler.props as Record<string, unknown>;
       const mergedProps = pending.props ? { ...baseProps, ...pending.props } : baseProps;
-      return React.createElement(handler.type, mergedProps, ...convertedChildren);
+      return (
+        <TagBoundary
+          tagName={pending.name}
+          onTagError={reportTagError}
+          fallback={convertedChildren}
+        >
+          {React.createElement(handler.type, mergedProps, ...convertedChildren)}
+        </TagBoundary>
+      );
     }
 
     if (typeof handler === "function") {
@@ -277,7 +322,7 @@ const TComponent = function T({
         const result = resolvePending(pending, convertedChildren);
         return <React.Fragment key={reactKey}>{result}</React.Fragment>;
       } catch (error) {
-        reportError(error, { source: "translation", tagName: pending.name });
+        reportTagError(error, pending.name);
         return <React.Fragment key={`${keyString}-${index}`}>{convertedChildren}</React.Fragment>;
       }
     }
