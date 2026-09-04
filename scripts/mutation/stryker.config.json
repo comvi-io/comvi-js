@@ -6,6 +6,7 @@
     "src/**/*.tsx",
     "!src/**/*.d.ts",
     "!src/**/__tests__/**",
+    "!src/**/__fixtures__/**",
     "!src/**/*.test.ts"
   ],
   "reporters": ["clear-text", "html", "json"],
