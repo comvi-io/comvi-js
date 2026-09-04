@@ -169,7 +169,8 @@ rather than being handed out by `useI18n()`. Both are auto-imported, like
 ```vue
 <script setup lang="ts">
 const { t } = useI18n("admin");
-const { addActiveNamespace, reloadTranslations, onLoadError } = useI18nLoader();
+const { addActiveNamespace, removeActiveNamespace, reloadTranslations, onLoadError } =
+  useI18nLoader();
 const { onMissingKey } = useI18nPlugins();
 </script>
 ```

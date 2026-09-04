@@ -74,6 +74,8 @@ describe(`capability acquisition (${__COMVI_CORE_BUILD__} core build)`, () => {
       "addActiveNamespaces",
       "onLoadError",
       "reloadTranslations",
+      "removeActiveNamespace",
+      "removeActiveNamespaces",
     ]);
   });
 
@@ -90,6 +92,29 @@ describe(`capability acquisition (${__COMVI_CORE_BUILD__} core build)`, () => {
     await result.current.addActiveNamespace("dashboard");
 
     expect(loaded).toEqual(["en:dashboard"]);
+  });
+
+  it("deactivates a namespace through the bag's removeActiveNamespace", async () => {
+    const host = attachLoader(baseHost());
+    host.registerLoader(async () => ({ extra: "loaded" }));
+    const { result } = renderHook(() => useI18nLoader(), { wrapper: wrapperFor(host) });
+    await result.current.addActiveNamespace("dashboard");
+
+    result.current.removeActiveNamespace("dashboard");
+
+    expect(host.getActiveNamespaces()).not.toContain("dashboard");
+  });
+
+  it("deactivates several namespaces through the bag's removeActiveNamespaces", async () => {
+    const host = attachLoader(baseHost());
+    host.registerLoader(async () => ({ extra: "loaded" }));
+    const { result } = renderHook(() => useI18nLoader(), { wrapper: wrapperFor(host) });
+    await result.current.addActiveNamespaces(["dashboard", "billing"]);
+
+    result.current.removeActiveNamespaces(["dashboard", "billing"]);
+
+    expect(host.getActiveNamespaces()).not.toContain("dashboard");
+    expect(host.getActiveNamespaces()).not.toContain("billing");
   });
 
   it("delivers load failures to onLoadError until its unsubscribe is called", async () => {

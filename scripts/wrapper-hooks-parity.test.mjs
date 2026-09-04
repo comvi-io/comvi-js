@@ -134,6 +134,8 @@ test("the shared block defines the whole acquisition, not a fragment of it", () 
     "const pluginBags = new WeakMap<AnyHost, UseI18nPluginsReturn>();",
     "function acquireLoader(host: AnyHost): UseI18nLoaderReturn {",
     "function acquirePlugins(host: AnyHost): UseI18nPluginsReturn {",
+    "removeActiveNamespace: host.removeActiveNamespace.bind(host),",
+    "removeActiveNamespaces: host.removeActiveNamespaces.bind(host),",
     'if (!hasLoaderApi(host)) throw missingCapability("loader");',
     'if (!hasPluginHostApi(host)) throw missingCapability("plugins");',
     "onMissingKey: host.onMissingKey.bind(host),",

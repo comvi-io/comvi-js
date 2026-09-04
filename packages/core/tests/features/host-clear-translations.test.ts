@@ -51,12 +51,12 @@ describe("clearTranslations(undefined, namespace)", () => {
     expect(i18n.hasLocale("en", "footer")).toBe(true);
   });
 
-  it("deactivates the cleared namespace", () => {
+  it("keeps the cleared namespace active — deactivation is removeActiveNamespace()", () => {
     const i18n = twoLocalesTwoNamespaces();
 
     i18n.clearTranslations(undefined, "nav");
 
-    expect(i18n.getActiveNamespaces()).toEqual(["footer"]);
+    expect(i18n.getActiveNamespaces()).toEqual(["nav", "footer"]);
   });
 });
 

@@ -61,7 +61,12 @@ export type I18nEventData = {
   missingKey: { key: string; locale: string; namespace: string };
   loadError: { locale: string; namespace: string; error: Error };
   configChanged: {
-    source: "fallbackLocale" | "translationsAdded" | "namespaceActivated" | "defaultParams";
+    source:
+      | "fallbackLocale"
+      | "translationsAdded"
+      | "namespaceActivated"
+      | "namespaceDeactivated"
+      | "defaultParams";
   };
 };
 
@@ -626,7 +631,12 @@ export interface I18nCoreInstance<D extends DefaultTranslationParams = {}> {
 
   getTranslations: (locale?: string, namespace?: string) => FlattenedTranslations;
 
-  /** An omitted `locale` or `namespace` clears all of them. */
+  /**
+   * Clear CONTENT. An omitted `locale` or `namespace` clears all of them.
+   *
+   * No form of this call changes which namespaces are ACTIVE — deactivation is
+   * `removeActiveNamespace()` on the loader capability.
+   */
   clearTranslations: (locale?: string, namespace?: string) => void;
 
   /**
@@ -752,6 +762,19 @@ export interface I18nLoaderApi {
 
   /** Activate several namespaces and load them for the current locale. */
   addActiveNamespaces: (namespaces: string[]) => Promise<void>;
+
+  /**
+   * Deactivate a namespace: a reload and a locale switch stop fetching it, and
+   * whatever load is in flight for it is cancelled.
+   *
+   * Synchronous, and the mirror image of `addActiveNamespace` — it is INTENT
+   * only. The catalog already in the cache stays there and keeps resolving;
+   * `clearTranslations(undefined, namespace)` is what drops the content.
+   */
+  removeActiveNamespace: (namespace: string) => void;
+
+  /** Deactivate several namespaces and cancel their in-flight loads. */
+  removeActiveNamespaces: (namespaces: string[]) => void;
 
   /**
    * Subscribe to load failures. Lives here because only the loader capability

@@ -232,6 +232,8 @@ describe("published createNextI18n — the result surface", () => {
       "reloadTranslations",
       "addActiveNamespace",
       "addActiveNamespaces",
+      "removeActiveNamespace",
+      "removeActiveNamespaces",
       "onLoadError",
     ] as const) {
       expect(typeof (host as unknown as Record<string, unknown>)[member], member).toBe("function");

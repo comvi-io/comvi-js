@@ -1,12 +1,11 @@
 /**
- * `clearTranslations()` clears CONTENT, not intent.
+ * `clearTranslations()` clears CONTENT, not intent — in EVERY form.
  *
  * The editor-save and webhook-refresh flow is "drop everything, fetch it
- * again": a full clear followed by `reloadTranslations()` or a locale switch.
- * That only works if the host still knows which namespaces it was serving, so
- * a scopeless clear leaves `_activeNamespaces` alone. Naming a namespace
- * (`clearTranslations(undefined, ns)`) is still the one way to deactivate one,
- * and the default namespace is always reloadable.
+ * again": a clear followed by `reloadTranslations()` or a locale switch. That
+ * only works if the host still knows which namespaces it was serving, so no
+ * form of the clear touches `_activeNamespaces`. Deactivation is
+ * `removeActiveNamespace()`, and the default namespace is always reloadable.
  */
 import { describe, it, expect, vi } from "vitest";
 import { createI18n } from "../../src";
@@ -77,7 +76,7 @@ describe("clearTranslations() then setLocaleAsync()", () => {
 });
 
 describe("clearTranslations(undefined, namespace) then reloadTranslations()", () => {
-  it("does not refetch the namespace that was named", async () => {
+  it("refetches the namespace that was named, because a clear drops content only", async () => {
     const { i18n, loads } = recordingHost();
     await i18n.addActiveNamespaces(["nav", "admin"]);
     loads.length = 0;
@@ -85,7 +84,7 @@ describe("clearTranslations(undefined, namespace) then reloadTranslations()", ()
     i18n.clearTranslations(undefined, "admin");
     await i18n.reloadTranslations();
 
-    expect(loads).toEqual(["en:nav"]);
+    expect(loads).toEqual(["en:nav", "en:admin"]);
   });
 });
 
@@ -96,7 +95,7 @@ describe("reloadTranslations() with no active namespace left", () => {
     await i18n.addActiveNamespace("default");
     loads.length = 0;
 
-    i18n.clearTranslations(undefined, "default");
+    i18n.removeActiveNamespace("default");
     await i18n.reloadTranslations();
 
     expect(loads).toEqual(["en:default"]);
@@ -107,11 +106,11 @@ describe("reloadTranslations() with no active namespace left", () => {
     const { i18n } = recordingHost();
     await i18n.addActiveNamespace("default");
 
-    i18n.clearTranslations(undefined, "default");
+    i18n.removeActiveNamespace("default");
     await i18n.reloadTranslations();
 
     expect(warnSpy).toHaveBeenCalledWith(
-      '[i18n] reloadTranslations(): no namespace is active, reloading the default namespace "default". clearTranslations(undefined, ns) deactivates a namespace; a scopeless clearTranslations() does not.',
+      '[i18n] reloadTranslations(): no namespace is active, reloading the default namespace "default". removeActiveNamespace(ns) deactivates a namespace; clearTranslations() never does.',
     );
   });
 });

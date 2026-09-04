@@ -238,25 +238,27 @@ a host that was already composed — installs nothing and shadows nothing.
 Everything below is a **compile error** on the base host until you compose the subpath in —
 a missing capability is caught by TypeScript, never discovered in production.
 
-| Capability            | Subpath                               | Members                                                                                                         |
-| --------------------- | ------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
-| Async loading         | `@comvi/core/loader` (`loader()`)     | `registerLoader`, `getLoader`, `reloadTranslations`, `addActiveNamespace`, `addActiveNamespaces`, `onLoadError` |
-| Import-map loading    | `@comvi/core/loader`                  | `createImportMapLoader`, and `loader(map)` to attach + register in one call                                     |
-| Nested catalogs       | `@comvi/core/loader`                  | automatic once the loader is composed, or the pure `flattenCatalog(nested)` — see below                         |
-| Plugin host           | `@comvi/core/plugins` (`plugins()`)   | `use`, `setPluginData`, `getPluginData`                                                                         |
-| Locale detection      | `@comvi/core/plugins`                 | `registerLocaleDetector`, `getLanguageDetector`                                                                 |
-| Missing-key callbacks | `@comvi/core/plugins`                 | `onMissingKey`                                                                                                  |
-| Post-processors       | `@comvi/core/plugins`                 | `registerPostProcessor`                                                                                         |
-| Devtools discovery    | `@comvi/core/devtools` (`devtools()`) | `instanceId`, the `window.__COMVI__` queue protocol, removal on `destroy()`                                     |
-| ICU plural/select     | `@comvi/core/icu`                     | `createI18n({ …, compiler: icuCompiler })`, or `.with(icu())` before any catalog                                |
-| Rich-text components  | `@comvi/core/rich-text`               | pure `prepareTranslation` / VirtualNode toolbox; tag syntax is passed per call and never registered ambiently   |
-| String-API tags       | `@comvi/core/tags`                    | ambient registration plus the same rich-text toolbox — also `&lt;` / `&gt;` / `&amp;` and the `\<` escape       |
+| Capability            | Subpath                               | Members                                                                                                                 |
+| --------------------- | ------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| Async loading         | `@comvi/core/loader` (`loader()`)     | `registerLoader`, `getLoader`, `reloadTranslations`, `addActiveNamespace(s)`, `removeActiveNamespace(s)`, `onLoadError` |
+| Import-map loading    | `@comvi/core/loader`                  | `createImportMapLoader`, and `loader(map)` to attach + register in one call                                             |
+| Nested catalogs       | `@comvi/core/loader`                  | automatic once the loader is composed, or the pure `flattenCatalog(nested)` — see below                                 |
+| Plugin host           | `@comvi/core/plugins` (`plugins()`)   | `use`, `setPluginData`, `getPluginData`                                                                                 |
+| Locale detection      | `@comvi/core/plugins`                 | `registerLocaleDetector`, `getLanguageDetector`                                                                         |
+| Missing-key callbacks | `@comvi/core/plugins`                 | `onMissingKey`                                                                                                          |
+| Post-processors       | `@comvi/core/plugins`                 | `registerPostProcessor`                                                                                                 |
+| Devtools discovery    | `@comvi/core/devtools` (`devtools()`) | `instanceId`, the `window.__COMVI__` queue protocol, removal on `destroy()`                                             |
+| ICU plural/select     | `@comvi/core/icu`                     | `createI18n({ …, compiler: icuCompiler })`, or `.with(icu())` before any catalog                                        |
+| Rich-text components  | `@comvi/core/rich-text`               | pure `prepareTranslation` / VirtualNode toolbox; tag syntax is passed per call and never registered ambiently           |
+| String-API tags       | `@comvi/core/tags`                    | ambient registration plus the same rich-text toolbox — also `&lt;` / `&gt;` / `&amp;` and the `\<` escape               |
 
 Four placements are worth calling out because they are not where you might guess:
 
-- **`addActiveNamespace` / `addActiveNamespaces` live on `/loader`.** Activating a
+- **`addActiveNamespace(s)` / `removeActiveNamespace(s)` live on `/loader`.** Activating a
   namespace only means anything when something loads namespaces. The base host activates
   implicitly instead: `addTranslations` self-activates the namespaces it carries.
+  `removeActiveNamespace(ns)` is the deactivation — `clearTranslations()` drops CONTENT in
+  every form and never changes which namespaces are active.
 - **`onLoadError` lives on `/loader`.** Only the loader capability can emit `loadError`,
   so subscribing to it without a loader would be a no-op by construction.
 - **Nested-catalog flattening lives on `/loader`.** A loader hands back raw JSON, so

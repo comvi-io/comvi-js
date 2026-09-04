@@ -111,6 +111,14 @@ export class FakeI18n {
     }
   });
 
+  public readonly removeActiveNamespace = vi.fn((namespace: string): void => {
+    this.core.removeActiveNamespace(namespace);
+  });
+
+  public readonly removeActiveNamespaces = vi.fn((namespaces: string[]): void => {
+    this.core.removeActiveNamespaces(namespaces);
+  });
+
   public readonly registerLoader = vi.fn((loader: LoaderFn): void => {
     this.loader = loader;
   });

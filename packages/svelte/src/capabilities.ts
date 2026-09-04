@@ -33,7 +33,8 @@ import { getI18nContext } from "./context.js";
 
 /**
  * The `@comvi/core/loader` surface a component may drive: the three members
- * that left `useI18n()` plus their sibling `addActiveNamespaces`.
+ * that left `useI18n()`, plus their activation siblings — `addActiveNamespaces`
+ * and the `removeActiveNamespace(s)` pair that deactivates.
  *
  * Registration-time APIs (`registerLoader`, `getLoader`) are deliberately
  * absent — wiring belongs where the instance is constructed, not in a
@@ -44,6 +45,10 @@ export interface UseI18nLoaderReturn {
   addActiveNamespace: I18nLoaderApi["addActiveNamespace"];
   /** Activate several namespaces and load them for the current locale. */
   addActiveNamespaces: I18nLoaderApi["addActiveNamespaces"];
+  /** Deactivate a namespace and cancel its pending loads; content is untouched. */
+  removeActiveNamespace: I18nLoaderApi["removeActiveNamespace"];
+  /** Deactivate several namespaces and cancel their pending loads. */
+  removeActiveNamespaces: I18nLoaderApi["removeActiveNamespaces"];
   /** Force reload translations from the registered loader. */
   reloadTranslations: I18nLoaderApi["reloadTranslations"];
   /** Subscribe to load failures. Returns an unsubscribe function. */
@@ -85,6 +90,8 @@ function acquireLoader(host: AnyHost): UseI18nLoaderReturn {
   const bag: UseI18nLoaderReturn = {
     addActiveNamespace: host.addActiveNamespace.bind(host),
     addActiveNamespaces: host.addActiveNamespaces.bind(host),
+    removeActiveNamespace: host.removeActiveNamespace.bind(host),
+    removeActiveNamespaces: host.removeActiveNamespaces.bind(host),
     reloadTranslations: host.reloadTranslations.bind(host),
     onLoadError: host.onLoadError.bind(host),
   };

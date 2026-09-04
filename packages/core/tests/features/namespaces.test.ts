@@ -110,7 +110,7 @@ describe("clearTranslations() namespace scoping", () => {
     expect(i18n.hasTranslation("key", "en", "temp")).toBe(false);
   });
 
-  it("clearTranslations(ns) drops the namespace from active tracking, so a later locale switch does not reload it (sequence)", async () => {
+  it("clearTranslations(ns) drops the content but keeps the namespace active, so a later locale switch reloads it (sequence)", async () => {
     const i18n = makeI18n();
     const loaderCalls: string[] = [];
     i18n.registerLoader(async (lang, ns) => {
@@ -127,11 +127,11 @@ describe("clearTranslations() namespace scoping", () => {
     i18n.clearTranslations(undefined, "admin");
 
     expect(i18n.t("key", { ns: "admin" })).toBe("key");
-    expect(i18n.getActiveNamespaces()).not.toContain("admin");
+    expect(i18n.getActiveNamespaces()).toContain("admin");
 
     await i18n.setLocaleAsync("fr");
 
-    expect(loaderCalls).toEqual(["en:admin"]);
+    expect(loaderCalls).toEqual(["en:admin", "fr:admin"]);
   });
 });
 

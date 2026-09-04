@@ -56,7 +56,7 @@ const ERR_FAILED_RELOAD_TRANSLATIONS = IS_DEV
 function reloadNoActiveNsMessage(defaultNs: string): string {
   return (
     `[i18n] reloadTranslations(): no namespace is active, reloading the default namespace "${defaultNs}". ` +
-    "clearTranslations(undefined, ns) deactivates a namespace; a scopeless clearTranslations() does not."
+    "removeActiveNamespace(ns) deactivates a namespace; clearTranslations() never does."
   );
 }
 
@@ -245,6 +245,39 @@ export class I18nWithLoader<D extends DefaultTranslationParams = {}> extends I18
       this._setLoadingState(false);
     }
     this._emit("configChanged", { source: "namespaceActivated" });
+  }
+
+  /**
+   * Deactivate a namespace and cancel its pending loads.
+   *
+   * The mirror image of {@link addActiveNamespace}, and INTENT only: a reload
+   * and a locale switch stop fetching the namespace, while the catalog already
+   * in the cache stays there and keeps resolving. Dropping the content is
+   * `clearTranslations(undefined, namespace)`, which never deactivates.
+   *
+   * Two ways a namespace comes BACK, and only one of them re-activates it:
+   * `addTranslations()` self-activates every namespace it carries, so a merge
+   * undoes this call. A loader refetch does NOT — `reloadTranslations()` on a
+   * host with nothing active refetches the DEFAULT namespace's content (see
+   * that method), but writes it straight to the cache, so the namespace stays
+   * deactivated.
+   *
+   * Synchronous — nothing is fetched, so there is nothing to await.
+   */
+  public removeActiveNamespace(namespace: string): void {
+    this.removeActiveNamespaces([namespace]);
+  }
+
+  public removeActiveNamespaces(namespaces: string[]): void {
+    for (const ns of namespaces) {
+      this._activeNamespaces.delete(ns);
+      // Otherwise a load that started while the namespace was active would
+      // still write its catalog in after the deactivation.
+      this._cancelNs(undefined, ns);
+    }
+    // The same event activation emits: `getActiveNamespaces()` consumers (the
+    // React snapshot string, Vue's `activeNamespaces` computed) re-read on it.
+    this._emit("configChanged", { source: "namespaceDeactivated" });
   }
 
   /**

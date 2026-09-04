@@ -147,7 +147,8 @@ rather than being handed out by `useI18n()`:
   import { useI18n, useI18nLoader, useI18nPlugins } from "@comvi/svelte";
 
   const { t } = useI18n("admin");
-  const { addActiveNamespace, reloadTranslations, onLoadError } = useI18nLoader();
+  const { addActiveNamespace, removeActiveNamespace, reloadTranslations, onLoadError } =
+    useI18nLoader();
   const { onMissingKey } = useI18nPlugins();
 </script>
 ```

@@ -54,6 +54,8 @@ export const LOADER_MEMBERS = [
   "reloadTranslations",
   "addActiveNamespace",
   "addActiveNamespaces",
+  "removeActiveNamespace",
+  "removeActiveNamespaces",
   "onLoadError",
 ] as const satisfies readonly (keyof I18nLoaderApi)[];
 

@@ -139,6 +139,10 @@ slim.reloadTranslations();
 slim.addActiveNamespace("common");
 // @ts-expect-error — addActiveNamespaces lives in @comvi/core/loader
 slim.addActiveNamespaces(["common"]);
+// @ts-expect-error — removeActiveNamespace lives in @comvi/core/loader
+slim.removeActiveNamespace("common");
+// @ts-expect-error — removeActiveNamespaces lives in @comvi/core/loader
+slim.removeActiveNamespaces(["common"]);
 // @ts-expect-error — onLoadError lives in @comvi/core/loader
 slim.onLoadError(() => {});
 
@@ -150,6 +154,8 @@ const registered: LoaderFn | undefined = withLoader.getLoader();
 void registered;
 void withLoader.reloadTranslations("en", "default");
 void withLoader.addActiveNamespaces(["common"]);
+withLoader.removeActiveNamespace("common");
+withLoader.removeActiveNamespaces(["common"]);
 withLoader.onLoadError(() => {});
 // the base surface survives the widening
 withLoader.t("count", { count: 1 });
@@ -234,6 +240,7 @@ void failure;
 if (hasLoaderApi(slimHost)) {
   void slimHost.reloadTranslations();
   void slimHost.addActiveNamespaces(["common"]);
+  slimHost.removeActiveNamespaces(["common"]);
 }
 if (hasPluginHostApi(slimHost)) {
   slimHost.registerPostProcessor((result) => result);

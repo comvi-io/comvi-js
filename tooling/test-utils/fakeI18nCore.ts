@@ -216,6 +216,15 @@ export class FakeI18nCore {
     this.emit("loadingStateChanged", { isLoading: false, isInitializing: this._isInitializing });
   }
 
+  removeActiveNamespace(namespace: string): void {
+    this.removeActiveNamespaces([namespace]);
+  }
+
+  removeActiveNamespaces(namespaces: string[]): void {
+    for (const namespace of namespaces) this.activeNamespaces.delete(namespace);
+    this.emit("configChanged", { source: "namespaceDeactivated" });
+  }
+
   async reloadTranslations(_language?: string, _namespace?: string): Promise<void> {
     return Promise.resolve();
   }

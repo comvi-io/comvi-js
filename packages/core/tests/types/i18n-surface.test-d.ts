@@ -71,6 +71,8 @@ export type _LoaderApiKeys = Expect<
     | "reloadTranslations"
     | "addActiveNamespace"
     | "addActiveNamespaces"
+    | "removeActiveNamespace"
+    | "removeActiveNamespaces"
     | "onLoadError"
   >
 >;
