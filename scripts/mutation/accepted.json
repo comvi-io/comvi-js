@@ -4419,16 +4419,6 @@
     },
     {
       "package": "packages/plugin-in-context-editor",
-      "file": "src/Core.ts",
-      "mutators": ["ConditionalExpression"],
-      "snippet": "if (!this.stopped) console.error(\"[comvi] Failed to load editor UI:\", error);",
-      "lineHint": 120,
-      "kind": "equivalent",
-      "reason": "equivalent — only the `true` variant survives (L120 and its L129 single-key twin). Inside those `.catch` handlers `this.stopped` is always false: a stopped Core returns from the preceding `.then` before touching the UI, so nothing can throw into the catch while stopped. The `false`, BooleanLiteral and StringLiteral variants are killed by `reports a key-selector failure without leaking an unhandled rejection`. Hand-applied: full suite 723/723 green.",
-      "round": 5
-    },
-    {
-      "package": "packages/plugin-in-context-editor",
       "file": "src/TranslationScanner.ts",
       "mutators": ["ConditionalExpression"],
       "snippet": "attributeNode !== null && containsInvisibleCharacters(attributeNode.value),",
@@ -8015,6 +8005,51 @@
       "lineHint": 109,
       "kind": "equivalent",
       "reason": "dropping the trailing $ is a no-op: `.` never matches a newline, so `.*` already stops at end-of-line and the match span is identical. Moved verbatim from packages/cli (TypeGenerator.ts:119) with the code. The ^-drop and the [^']* quantifier siblings on this line ARE killed, by the column-zero test and the multi-character single-quoted key (hand-applied: suite green)."
+    },
+    {
+      "package": "packages/plugin-in-context-editor",
+      "file": "src/utils/validation.ts",
+      "mutators": ["StringLiteral"],
+      "snippet": "const sourceVariables = extractVariables(sourceForms[0] || \"\");",
+      "lineHint": 36,
+      "kind": "equivalent",
+      "reason": "The `\"\"` fallback -> `\"Stryker was here!\"`. That value is read only by `extractVariables`, which returns the placeholders a string contains; the seed carries no `{…}`, `%…%` and no `<n>`, so both spellings produce the empty set and nothing downstream can tell them apart. CHECKED: hand-applied, 58 files / 1377 tests green, restored byte-identically."
+    },
+    {
+      "package": "packages/plugin-in-context-editor",
+      "file": "src/utils/validation.ts",
+      "mutators": ["ConditionalExpression"],
+      "snippet": "if (match[1]) {",
+      "lineHint": 79,
+      "kind": "equivalent",
+      "reason": "`if (true)`. The capture group of every pattern is `[^{}]+`, `[^%]+` or `\\d+`, each of which needs at least one character, so a successful match always has a non-empty group 1 and the guard is never false. It survives as a TypeScript narrowing device — `match[1]` is typed `string | undefined`, and deleting the guard would trade it for a non-null assertion. CHECKED: hand-applied, 58 files / 1377 tests green, restored byte-identically."
+    },
+    {
+      "package": "packages/plugin-in-context-editor",
+      "file": "src/utils/validation.ts",
+      "mutators": ["EqualityOperator"],
+      "snippet": "for (let i = 0; i < a.length; i++) {",
+      "lineHint": 90,
+      "kind": "equivalent",
+      "reason": "`i <= a.length`. The line above returns early unless the two arrays are the same length, so the extra iteration compares `a[a.length]` with `b[a.length]` — `undefined !== undefined` is false — and the loop then exits with the same verdict. CHECKED: hand-applied, 58 files / 1377 tests green, restored byte-identically."
+    },
+    {
+      "package": "packages/plugin-in-context-editor",
+      "file": "src/utils/icuParser.ts",
+      "mutators": ["EqualityOperator"],
+      "snippet": "while (i < remaining.length && depth > 0) {",
+      "lineHint": 130,
+      "kind": "equivalent",
+      "reason": "`i <= remaining.length`. A balanced arm exits on `depth === 0` long before `i` reaches the end, so the mutant only bites on an unbalanced one — and there `remaining[remaining.length]` is undefined, neither brace branch fires, and `i` ends at `length + 1`. Both `remaining.slice(0, i)` and `remaining.slice(i)` clamp, so the arm text and the leftover are identical to the `i === length` case the original stops at. This is the line the earlier campaign flagged as a `parseICUSelect` off-by-one; the defect itself was fixed (the `depth === 0 ? i - 1 : i` branch and its comment), and what is left is the loop bound, which is equivalent. CHECKED: hand-applied, 58 files / 1377 tests green, restored byte-identically."
+    },
+    {
+      "package": "packages/plugin-in-context-editor",
+      "file": "src/composables/usePluralRules.ts",
+      "mutators": ["StringLiteral"],
+      "snippet": "const CATEGORY_ORDER = [\"zero\", \"one\", \"two\", \"few\", \"many\", \"other\"];",
+      "lineHint": 134,
+      "kind": "equivalent",
+      "reason": "The FIRST literal only, `\"zero\"` -> `\"\"` (the other five are killed). CATEGORY_ORDER has one reader, `Object.keys(categorized).sort((a, b) => CATEGORY_ORDER.indexOf(a) - CATEGORY_ORDER.indexOf(b))`. Dropping \"zero\" from the list makes `indexOf(\"zero\")` return -1 instead of 0, and -1 sorts it ahead of every other category exactly as 0 did; `Intl.PluralRules.select()` can only return the six CLDR categories, so nothing else ever ties with it at -1. CHECKED: hand-applied, 58 files / 1377 tests green; a sweep of 75 locales ran both comparators over each locale's category set and produced identical orderings."
     }
   ]
 }
