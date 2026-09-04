@@ -17,11 +17,15 @@ translator through one named widening that binds the request locale into every c
 cannot determine its locale — no `setRequestLocale()`, no middleware header — now throws without
 having triggered the one-time `init()`, whose default-namespace load runs at the instance's own
 configured locale. Previously such a request initialized the instance as a side effect of failing.
+One consequence worth knowing: when both would have failed, the locale error now wins. A request
+with no locale against an instance whose `init()` throws reports `[comvi/next] Locale not set.`
+rather than the initialization failure.
 
-Exactly two writes still travel from a request to the shared instance, both unchanged and both
+Two writes still travel from a request to the shared instance, both unchanged and both
 deliberate: the server render's `addTranslations()`, which is additive and keyed by
 `locale:namespace`, and `init()`'s one-time default-namespace load at the instance's own locale.
-The package's tests now pin that those are the only two.
+The package's tests now pin that no request writes the shared instance's locale or its active
+namespaces.
 
 No API change. `createNextI18n()`, `setI18n()`, `createNextI18nFromHost()`, `loadTranslations()`,
 `setRequestLocale()` and `<I18nProvider>` all work exactly as before.

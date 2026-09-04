@@ -134,6 +134,16 @@ describe("getI18n resolves every lookup against the request locale", () => {
     expect(loader).not.toHaveBeenCalled();
     expect(i18n.isInitialized).toBe(false);
   });
+
+  it("a locale-less request against a failing init() → the locale error wins", async () => {
+    const { i18n } = createHost();
+    vi.spyOn(i18n, "init").mockRejectedValue(new Error("init exploded"));
+    getLocaleMock.mockRejectedValue(new Error("no locale"));
+
+    // Both would fail; the request is rejected on its own terms, and the
+    // instance-wide failure never enters the picture.
+    await expect(getI18n()).rejects.toThrow("[comvi/next] Locale not set.");
+  });
 });
 
 describe("the two request→global writes the shared host still accepts", () => {
@@ -154,6 +164,25 @@ describe("the two request→global writes the shared host still accepts", () => 
       ["fr", "common"],
     ]);
     expect(i18n.locale).toBe("en");
+  });
+
+  it("a request at a namespace the host never activated leaves the active set alone", async () => {
+    const { i18n, loader } = createHost();
+    await getI18n({ locale: "fr" });
+    const namespacesBefore = i18n.getActiveNamespaces();
+
+    await getI18n({ locale: "fr", ns: "admin" });
+
+    // "admin" is loaded for this request and cached, but a namespace the host
+    // treats as ACTIVE is one it reloads on every locale switch, for every
+    // other request too. Only the app's own configuration may add one.
+    expect(namespacesBefore).toEqual(["common"]);
+    expect(i18n.getActiveNamespaces()).toEqual(namespacesBefore);
+    expect(loader.mock.calls).toEqual([
+      ["en", "common"],
+      ["fr", "common"],
+      ["fr", "admin"],
+    ]);
   });
 
   it("a namespace another request already loaded is reused, never reloaded", async () => {
