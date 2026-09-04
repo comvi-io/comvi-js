@@ -5394,6 +5394,15 @@
     {
       "package": "packages/react",
       "file": "src/T.tsx",
+      "mutators": ["ObjectLiteral"],
+      "snippet": "public state = { failed: false };",
+      "lineHint": 85,
+      "kind": "equivalent",
+      "reason": "TagBoundary's initial state; emptying it leaves `this.state.failed` undefined, which is falsy in exactly the place `false` was, and getDerivedStateFromError still supplies { failed: true } on a catch. Telling the two apart needs a read of the instance's own state, which a behaviour test may not do. Hand-applied as `public state = {} as { failed: boolean }`: 249/249 green, the same total as the unmutated run."
+    },
+    {
+      "package": "packages/react",
+      "file": "src/T.tsx",
       "mutators": ["ConditionalExpression"],
       "snippet": "return childResult == null ? [] : [childResult as React.ReactNode];",
       "lineHint": 180,
