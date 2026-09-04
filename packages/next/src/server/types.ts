@@ -42,3 +42,20 @@ export interface ServerI18n {
 export interface RequestStore {
   locale: string | undefined;
 }
+
+/**
+ * The per-request half of a `getI18n()` call — everything a lookup needs that
+ * the process-wide host must not supply.
+ *
+ * `getI18n` resolves both fields once and closes over them; `t` and
+ * `hasTranslation` read nothing else request-shaped. Naming the shape keeps the
+ * split visible: the shared host contributes catalog and loader only.
+ *
+ * @internal
+ */
+export interface RequestView {
+  /** The locale resolved for THIS request, passed explicitly into every lookup. */
+  locale: string;
+  /** The namespace bound into `t()` when the caller names none. */
+  defaultNs: string;
+}

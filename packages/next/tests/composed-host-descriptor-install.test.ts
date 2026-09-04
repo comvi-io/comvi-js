@@ -1,5 +1,12 @@
 import { describe, it, expect, vi } from "vitest";
 
+// `vi.mock` is hoisted above this import, so the static import below already
+// sees the prototype-installed `attachLoader`. A dynamic `import()` in the
+// test body would buy nothing and cost a module evaluation per test — long
+// enough to trip the 5s timeout under turbo's default concurrency, and the
+// shape that contaminates static mutants during a mutation run.
+import { createNextI18n } from "../src/createNextI18n";
+
 /**
  * The builder must install its `registerLoader` overload with a DESCRIPTOR,
  * not with a plain assignment.
@@ -44,8 +51,7 @@ vi.mock("@comvi/core/loader", async (importOriginal) => {
 const ROUTING = { locales: ["en", "de"], defaultLocale: "en" } as const;
 
 describe("createNextI18n composed host — descriptor install, not assignment (B7)", () => {
-  it("keeps registerLoader non-enumerable even when the capability lives on a prototype", async () => {
-    const { createNextI18n } = await import("../src/createNextI18n");
+  it("keeps registerLoader non-enumerable even when the capability lives on a prototype", () => {
     const { i18n } = createNextI18n({ ...ROUTING });
 
     // Precondition: the mock really did move the capability off the instance,
@@ -70,7 +76,6 @@ describe("createNextI18n composed host — descriptor install, not assignment (B
   });
 
   it("still serves the import-map overload through the prototype-installed base", async () => {
-    const { createNextI18n } = await import("../src/createNextI18n");
     const { i18n } = createNextI18n({ ...ROUTING });
 
     i18n.registerLoader({ en: () => Promise.resolve({ default: { k: "EN" } }) });
