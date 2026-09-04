@@ -416,15 +416,15 @@ const i18n = createI18n({ locale: "en" }).with(loader({ uk: () => import("./uk.j
 
 The three first-party plugin packages ship a lowercase **installer** beside the
 uppercase factory. The installer composes the capabilities that plugin needs —
-`fetchLoader` attaches `/loader`, then `/plugins` — and registers it, in one
+`cdnLoader` attaches `/loader`, then `/plugins` — and registers it, in one
 call:
 
 ```tsx
 import { createI18n } from "@comvi/react";
-import { fetchLoader } from "@comvi/plugin-fetch-loader";
+import { cdnLoader } from "@comvi/plugin-fetch-loader/cdn";
 
 const i18n = createI18n({ locale: "en", defaultNs: "common" }).with(
-  fetchLoader({ cdnUrl: "https://cdn.comvi.io/your-distribution-id" }),
+  cdnLoader({ cdnUrl: "https://cdn.comvi.io/your-distribution-id" }),
 );
 ```
 
@@ -436,15 +436,15 @@ composed before `init()` is attached by then.
 
 ```tsx
 import { createI18n, loader, plugins } from "@comvi/react";
-import { FetchLoader } from "@comvi/plugin-fetch-loader";
+import { CdnLoader } from "@comvi/plugin-fetch-loader/cdn";
 
 const i18n = createI18n({ locale: "en", defaultNs: "common" }).with(loader()).with(plugins());
 
-i18n.use(FetchLoader({ cdnUrl: "https://cdn.comvi.io/your-distribution-id" }));
+i18n.use(CdnLoader({ cdnUrl: "https://cdn.comvi.io/your-distribution-id" }));
 ```
 
 Swapping the two slots is a type error and loud at runtime:
-`.use(fetchLoader(…))` throws at `init()` before any capability is attached.
+`.use(cdnLoader(…))` throws at `init()` before any capability is attached.
 
 ### Devtools — `devtools()`
 
@@ -647,21 +647,20 @@ t("typo", { name: "Alice" });
 
 ## Loading translations from the Comvi platform
 
-Pair with `@comvi/plugin-fetch-loader` to load translations from a CDN or API. No redeploy needed to ship a translation:
+Pair with `@comvi/plugin-fetch-loader` to load translations from the platform, with no redeploy needed to ship a translation. `cdnLoader` from `@comvi/plugin-fetch-loader/cdn` reads a public distribution; swap it for `fetchLoader` from the package root, and pass `apiKey` as a host option, when the app also reads the authenticated API:
 
 ```tsx
 // main.tsx
 import { createRoot } from "react-dom/client";
 import { createI18n, I18nProvider } from "@comvi/react";
-import { fetchLoader } from "@comvi/plugin-fetch-loader";
+import { cdnLoader } from "@comvi/plugin-fetch-loader/cdn";
 import App from "./App";
 
-// CDN for production, API for dev/staging
 const i18n = createI18n({
   locale: "en",
   defaultNs: "common",
 }).with(
-  fetchLoader({
+  cdnLoader({
     cdnUrl: "https://cdn.comvi.io/your-distribution-id",
   }),
 );

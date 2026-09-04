@@ -41,3 +41,20 @@ const core = createCore({
 export const i18n = createI18nFromCore(core);
 
 export default i18n;
+
+// The API-mode variant, kept runnable by hand: swap the block above for this
+// one and set VITE_COMVI_API_KEY to exercise the authenticated request path,
+// which nothing else in this repo runs against a live server.
+//
+// import { fetchLoader } from "@comvi/plugin-fetch-loader";
+//
+// const core = createCore({
+//   locale: "en",
+//   fallbackLocale: "en",
+//   tagInterpolation: { basicHtmlTags: ["strong", "em", "br", "a"] },
+//   // The API key is a HOST option, not a `fetchLoader` option: the loader
+//   // reads `i18n.apiKey` and then talks to the API instead of the CDN.
+//   apiKey: import.meta.env.VITE_COMVI_API_KEY,
+// })
+//   .with(icu())
+//   .with(fetchLoader({ cdnUrl: "https://cdn.comvi.io/8d4beabdb0aa42008e15aa4e91a971bd/" }));

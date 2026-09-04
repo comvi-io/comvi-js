@@ -87,16 +87,16 @@ and read it off the **Distributions** page.
 `@comvi/core` is the BASE host: async loading and the plugin host are imports
 you add, not things every app pays for. Each entry point exports one name for
 each way of adding them — `cdnLoader` / `CdnLoader` on `/cdn`, `fetchLoader` /
-`FetchLoader` at the root. The table below uses the root pair; `/cdn` behaves
-identically.
+`FetchLoader` at the root. The table below uses the `/cdn` pair; the root pair
+behaves identically.
 
-|                   | `.with(fetchLoader(options))`                          | `.use(FetchLoader(options))`                                                     |
-| ----------------- | ------------------------------------------------------ | -------------------------------------------------------------------------------- |
-| what it is        | the **installer** — lowercase                          | the **plugin factory** — uppercase                                               |
-| the host it needs | any host, including a bare `createI18n(…)`             | one that already has `@comvi/core/loader` **and** `@comvi/core/plugins`          |
-| what it composes  | both capabilities, idempotently, loader first          | nothing — it only registers                                                      |
-| lifecycle         | the host's own: it ends in `use(FetchLoader(options))` | the host's own                                                                   |
-| reach for it when | you are setting up the host                            | you already compose capabilities explicitly, or you register plugins from a list |
+|                   | `.with(cdnLoader(options))`                          | `.use(CdnLoader(options))`                                                       |
+| ----------------- | ---------------------------------------------------- | -------------------------------------------------------------------------------- |
+| what it is        | the **installer** — lowercase                        | the **plugin factory** — uppercase                                               |
+| the host it needs | any host, including a bare `createI18n(…)`           | one that already has `@comvi/core/loader` **and** `@comvi/core/plugins`          |
+| what it composes  | both capabilities, idempotently, loader first        | nothing — it only registers                                                      |
+| lifecycle         | the host's own: it ends in `use(CdnLoader(options))` | the host's own                                                                   |
+| reach for it when | you are setting up the host                          | you already compose capabilities explicitly, or you register plugins from a list |
 
 Both end in the same place. The installer is the one-call form of this:
 
@@ -104,21 +104,21 @@ Both end in the same place. The installer is the one-call form of this:
 import { createI18n } from "@comvi/core";
 import { attachLoader } from "@comvi/core/loader";
 import { attachPlugins } from "@comvi/core/plugins";
-import { FetchLoader } from "@comvi/plugin-fetch-loader";
+import { CdnLoader } from "@comvi/plugin-fetch-loader/cdn";
 
 const i18n = createI18n({ locale: "en" }).with(attachLoader).with(attachPlugins);
-i18n.use(FetchLoader({ cdnUrl: "https://cdn.comvi.io/your-distribution-id" }));
+i18n.use(CdnLoader({ cdnUrl: "https://cdn.comvi.io/your-distribution-id" }));
 ```
 
 **Swapping the two is a type error, and it is loud at runtime too.** Nothing is
 branded — an installer and a plugin are both "a function of the host" — so each
 slot rejects the other explicitly instead of half-working:
 
-- `.use(fetchLoader(…))` fails at `init()`, on the installer's first
+- `.use(cdnLoader(…))` fails at `init()`, on the installer's first
   ensure-step, **before** the loader or plugin capability is attached and
-  before a second plugin reaches the queue. The message names `fetchLoader`
+  before a second plugin reaches the queue. The message names `cdnLoader`
   and the `.with` form.
-- `.with(FetchLoader(…))` calls the plugin against a host that has none of the
+- `.with(CdnLoader(…))` calls the plugin against a host that has none of the
   capabilities it needs, so the invocation is rejected. `.with` is a pipe and
   nothing more: it never inspects, orders or brands what you hand it.
 

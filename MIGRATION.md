@@ -43,7 +43,7 @@ const i18n = createI18n({ locale: "en", translation, compiler: icuCompiler });
 
 // REMOTE catalogs — the installer, ahead of the first catalog.
 import { icu } from "@comvi/core/icu";
-const i18n = createI18n({ locale: "en" }).with(icu()).with(fetchLoader({ … }));
+const i18n = createI18n({ locale: "en" }).with(icu()).with(cdnLoader({ … }));
 ```
 
 `.with(icu())` is **pre-ingestion only**. The compiler locks irreversibly at the
@@ -367,9 +367,9 @@ that plugin needs and then registers it — one call instead of three:
 
 ```ts
 import { createI18n } from "@comvi/core";
-import { fetchLoader } from "@comvi/plugin-fetch-loader";
+import { cdnLoader } from "@comvi/plugin-fetch-loader/cdn";
 
-const i18n = createI18n({ locale: "en" }).with(fetchLoader({ cdnUrl }));
+const i18n = createI18n({ locale: "en" }).with(cdnLoader({ cdnUrl }));
 await i18n.init();
 ```
 

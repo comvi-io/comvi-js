@@ -298,15 +298,15 @@ i18n.core.with(loader({ uk: () => import("./uk.json") }));
 
 The three first-party plugin packages ship a lowercase **installer** beside the
 uppercase factory. The installer composes the capabilities that plugin needs —
-`fetchLoader` attaches `/loader`, then `/plugins` — and registers it, in one
+`cdnLoader` attaches `/loader`, then `/plugins` — and registers it, in one
 call. It runs on the HOST, so build with `createCore` and wrap afterwards:
 
 ```ts
 import { createCore, createI18nFromCore } from "@comvi/vue";
-import { fetchLoader } from "@comvi/plugin-fetch-loader";
+import { cdnLoader } from "@comvi/plugin-fetch-loader/cdn";
 
 const core = createCore({ locale: "en", defaultNs: "common" }).with(
-  fetchLoader({ cdnUrl: "https://cdn.comvi.io/your-distribution-id" }),
+  cdnLoader({ cdnUrl: "https://cdn.comvi.io/your-distribution-id" }),
 );
 
 const i18n = createI18nFromCore(core);
@@ -321,17 +321,17 @@ happens on the host, either before wrapping or as `i18n.core.use(…)` afterward
 
 ```ts
 import { createCore, createI18nFromCore, loader, plugins } from "@comvi/vue";
-import { FetchLoader } from "@comvi/plugin-fetch-loader";
+import { CdnLoader } from "@comvi/plugin-fetch-loader/cdn";
 
 const core = createCore({ locale: "en", defaultNs: "common" }).with(loader()).with(plugins());
 
-core.use(FetchLoader({ cdnUrl: "https://cdn.comvi.io/your-distribution-id" }));
+core.use(CdnLoader({ cdnUrl: "https://cdn.comvi.io/your-distribution-id" }));
 
 const i18n = createI18nFromCore(core);
 ```
 
 Swapping the two slots is a type error and loud at runtime:
-`.use(fetchLoader(…))` throws at `init()` before any capability is attached.
+`.use(cdnLoader(…))` throws at `init()` before any capability is attached.
 
 ### Devtools — `devtools()`
 
@@ -530,24 +530,23 @@ t("typo", { name: "Alice" });
 
 ## Loading translations from the Comvi platform
 
-Pair with `@comvi/plugin-fetch-loader` to load translations from a CDN or API. No redeploy needed to ship a translation:
+Pair with `@comvi/plugin-fetch-loader` to load translations from the platform, with no redeploy needed to ship a translation. `cdnLoader` from `@comvi/plugin-fetch-loader/cdn` reads a public distribution; swap it for `fetchLoader` from the package root, and pass `apiKey` as a host option, when the app also reads the authenticated API:
 
 ```ts
 // main.ts
 import { createApp } from "vue";
 import { createCore, createI18nFromCore } from "@comvi/vue";
-import { fetchLoader } from "@comvi/plugin-fetch-loader";
+import { cdnLoader } from "@comvi/plugin-fetch-loader/cdn";
 import App from "./App.vue";
 
 // One installer composes the loader capability, then the plugin host, then
 // registers the plugin — the order a loader-registering plugin needs. It runs
 // on the HOST, because `VueI18n` does not proxy `use`.
-// CDN for production, API for dev/staging.
 const core = createCore({
   locale: "en",
   defaultNs: "common",
 }).with(
-  fetchLoader({
+  cdnLoader({
     cdnUrl: "https://cdn.comvi.io/your-distribution-id",
   }),
 );
