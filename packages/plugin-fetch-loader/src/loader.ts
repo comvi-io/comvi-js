@@ -1,58 +1,20 @@
 import type { I18nPlugin, I18nPluginFactory, TranslationValue } from "@comvi/core";
 import type { TranslationStore } from "./types";
-import type { FallbackImport, FallbackMap, FetchLoaderOptions } from "./options";
-import { FETCH_LOADER_PLUGIN_KEY } from "./options";
+import type { FetchLoaderOptions } from "./options";
+import { FETCH_LOADER_PLUGIN_KEY } from "./plugin-key";
 import {
+  ERROR_PREFIX,
   RequestAbortedError,
   buildCacheOptions,
-  buildCdnUrl,
-  fetchJsonWithTimeout,
   isAborted,
   toError,
-} from "./http";
+} from "./http-core";
+import { tryFallback } from "./fallback";
+import { trackInflight } from "./inflight";
+import { createCdnLoad, loadInitialFromCdn } from "./cdn-load";
 import { fetchApiTranslations } from "./cache";
 
-/**
- * Resolution order:
- * 1. Exact key "locale:namespace"
- * 2. Shorthand "locale" (only if ns === defaultNs)
- */
-export function resolveFallback(
-  fallback: FallbackMap | undefined,
-  locale: string,
-  ns: string,
-  defaultNs: string,
-): FallbackImport | undefined {
-  if (!fallback) return undefined;
-  return fallback[`${locale}:${ns}`] || (ns === defaultNs ? fallback[locale] : undefined);
-}
-
-interface FallbackLoadResult {
-  attempted: boolean;
-  data?: Record<string, TranslationValue>;
-  error?: Error;
-}
-
-async function tryFallback(
-  fallback: FallbackMap | undefined,
-  locale: string,
-  ns: string,
-  defaultNs: string,
-  onSuccess?: (locale: string, ns: string) => void,
-  onError?: (locale: string, ns: string, err: Error) => void,
-): Promise<FallbackLoadResult> {
-  const importFn = resolveFallback(fallback, locale, ns, defaultNs);
-  if (!importFn) return { attempted: false };
-  try {
-    const mod = await importFn();
-    onSuccess?.(locale, ns);
-    return { attempted: true, data: mod.default };
-  } catch (e) {
-    const error = toError(e);
-    onError?.(locale, ns, error);
-    return { attempted: true, error };
-  }
-}
+export { resolveFallback } from "./fallback";
 
 /**
  * Loads translations from Comvi's backend API in development mode and from the
@@ -79,15 +41,13 @@ async function tryFallback(
  * ```
  */
 export const FetchLoader: I18nPluginFactory<FetchLoaderOptions> = (options): I18nPlugin => {
-  if (!options?.cdnUrl) throw new Error("[FetchLoader] cdnUrl is required");
+  if (!options?.cdnUrl) throw new Error(`${ERROR_PREFIX} cdnUrl is required`);
 
   const {
     cdnUrl,
     baseUrl,
     apiBaseUrl: legacyApiBaseUrl,
     fallback,
-    onLoadError,
-    onLoadSuccess,
     timeout = 10000,
     retry,
     loadOnInit = true,
@@ -112,60 +72,8 @@ export const FetchLoader: I18nPluginFactory<FetchLoaderOptions> = (options): I18
     // for later plugins such as the in-context editor.
     const shouldLoadImmediately = loadOnInit && !i18n.isInitializing;
 
-    // Every in-flight request, with the scope it is loading, so a clear can
-    // release exactly the ones core has already stopped waiting for.
-    const inflight = new Set<{
-      controller: AbortController;
-      locale: string;
-      namespaces: string[];
-    }>();
-    let stopped = false;
-    const trackRequest = (locale: string, namespaces: string[]) => {
-      const controller = new AbortController();
-      if (stopped) controller.abort();
-      const request = { controller, locale, namespaces };
-      inflight.add(request);
-      return {
-        signal: controller.signal,
-        release: () => inflight.delete(request),
-      };
-    };
-    const abortAll = () => {
-      stopped = true;
-      for (const { controller } of inflight) controller.abort();
-      inflight.clear();
-    };
-
-    /**
-     * `clearTranslations()` drops the matching pending loads inside core and
-     * only then announces the clear, so by the time this runs their results
-     * would be discarded anyway. Aborting releases the socket instead of
-     * letting an answer nobody will read finish arriving — and because core is
-     * no longer waiting on them, the abort surfaces no `loadError`.
-     *
-     * A request is only abandoned when the clear covers ALL of it. In API mode
-     * one request carries every active namespace, while `clearTranslations`
-     * cancels the ONE namespace it names: aborting that shared request would
-     * fail the namespaces core is still waiting for. An omitted locale or
-     * namespace means "every one", exactly as it does on `clearTranslations`.
-     */
-    const unfollow = i18n.on("translationsCleared", ({ locale, namespace }) => {
-      for (const request of inflight) {
-        if (
-          (locale === undefined || request.locale === locale) &&
-          (namespace === undefined || request.namespaces.every((ns) => ns === namespace))
-        ) {
-          request.controller.abort();
-          inflight.delete(request);
-        }
-      }
-    });
-    const reportSuccess = (locale: string, namespace: string) => {
-      if (!stopped) onLoadSuccess?.(locale, namespace);
-    };
-    const reportError = (locale: string, namespace: string, error: Error) => {
-      if (!stopped) onLoadError?.(locale, namespace, error);
-    };
+    const requests = trackInflight(i18n, options);
+    const { track: trackRequest, isStopped, reportSuccess, reportError } = requests;
 
     if (apiKey) {
       const pending = new Map<
@@ -198,12 +106,12 @@ export const FetchLoader: I18nPluginFactory<FetchLoaderOptions> = (options): I18
               { signal, retry, ...cacheOpts },
             ))
               store.set(k, v);
-            if (signal.aborted || stopped) throw new RequestAbortedError("API translations");
+            if (signal.aborted || isStopped()) throw new RequestAbortedError("API translations");
             for (const ns of requestedNamespaces) {
               if (store.has(`${locale}:${ns}`)) reportSuccess(locale, ns);
             }
           } catch (error) {
-            if (signal.aborted || stopped || isAborted(error)) {
+            if (signal.aborted || isStopped() || isAborted(error)) {
               throw new RequestAbortedError("API translations");
             }
             const err = toError(error);
@@ -218,7 +126,7 @@ export const FetchLoader: I18nPluginFactory<FetchLoaderOptions> = (options): I18
                   reportSuccess,
                   reportError,
                 );
-                if (signal.aborted || stopped) {
+                if (signal.aborted || isStopped()) {
                   throw new RequestAbortedError("API translation fallback");
                 }
                 if (fallbackResult.attempted) attemptedFallbacks.add(ck);
@@ -260,13 +168,13 @@ export const FetchLoader: I18nPluginFactory<FetchLoaderOptions> = (options): I18
             defaultNs,
             reportSuccess,
           );
-          if (stopped) throw new RequestAbortedError("API translation fallback");
+          if (isStopped()) throw new RequestAbortedError("API translation fallback");
           if (fallbackResult.data) {
             return fallbackResult.data;
           }
         }
 
-        const error = new Error(`[FetchLoader] No translations found for ${ck}`);
+        const error = new Error(`${ERROR_PREFIX} No translations found for ${ck}`);
         reportError(locale, namespace, error);
         throw error;
       });
@@ -291,90 +199,24 @@ export const FetchLoader: I18nPluginFactory<FetchLoaderOptions> = (options): I18
       }
 
       return () => {
-        unfollow();
-        abortAll();
+        requests.stop();
         pending.clear();
       };
     } else {
-      const loading = new Map<string, Promise<Record<string, TranslationValue>>>();
+      const cdn = createCdnLoad(
+        { cdnUrl, defaultNs, timeout, cdnLayout, fallback, cache },
+        requests,
+      );
 
-      const loaderFn = async (
-        locale: string,
-        namespace: string,
-      ): Promise<Record<string, TranslationValue>> => {
-        const ck = `${locale}:${namespace}`;
-        const existing = loading.get(ck);
-        if (existing) return existing;
-
-        const promise = (async () => {
-          const { signal, release } = trackRequest(locale, [namespace]);
-          const url = buildCdnUrl(cdnUrl, locale, namespace, defaultNs, cdnLayout);
-          try {
-            const result = await fetchJsonWithTimeout<Record<string, TranslationValue>>(
-              url,
-              { headers: { Accept: "application/json" }, signal, ...cacheOpts },
-              timeout,
-            );
-            if (!result.ok) throw new Error(`HTTP ${result.status}: ${result.statusText}`);
-
-            const data = result.data;
-            if (signal.aborted || stopped) throw new RequestAbortedError(url);
-            reportSuccess(locale, namespace);
-            return data;
-          } catch (error) {
-            if (signal.aborted || stopped || isAborted(error)) {
-              throw new RequestAbortedError(url);
-            }
-            const err = toError(error);
-            const fallbackResult = await tryFallback(
-              fallback,
-              locale,
-              namespace,
-              defaultNs,
-              reportSuccess,
-              reportError,
-            );
-            if (signal.aborted || stopped) throw new RequestAbortedError(url);
-            if (fallbackResult.data) {
-              return fallbackResult.data;
-            }
-            if (fallbackResult.attempted) {
-              throw fallbackResult.error ?? err;
-            }
-            reportError(locale, namespace, err);
-            throw err;
-          } finally {
-            release();
-            loading.delete(ck);
-          }
-        })();
-
-        loading.set(ck, promise);
-        return promise;
-      };
-
-      i18n.registerLoader(loaderFn);
+      i18n.registerLoader(cdn.load);
 
       if (shouldLoadImmediately) {
-        const loc = i18n.locale;
-        const active = i18n.getActiveNamespaces();
-        const nss = active.length > 0 ? active : [defaultNs];
-        try {
-          await Promise.all(
-            nss.map(async (ns) => {
-              const data = await loaderFn(loc, ns);
-              i18n.addTranslations({ [`${loc}:${ns}`]: data });
-            }),
-          );
-        } catch {
-          // Errors already reported via onLoadError
-        }
+        await loadInitialFromCdn(i18n, defaultNs, cdn.load);
       }
 
       return () => {
-        unfollow();
-        abortAll();
-        loading.clear();
+        requests.stop();
+        cdn.clear();
       };
     }
   };

@@ -1,4 +1,5 @@
 import type { TranslationValue } from "@comvi/core";
+import { FETCH_LOADER_PLUGIN_KEY } from "./plugin-key";
 
 export type FallbackImport = () => Promise<{ default: Record<string, TranslationValue> }>;
 
@@ -172,11 +173,7 @@ export interface FetchLoaderOptions {
   };
 }
 
-/**
- * Key used to store FetchLoader config on i18n instance
- * @internal
- */
-export const FETCH_LOADER_PLUGIN_KEY = "fetchLoader";
+export { FETCH_LOADER_PLUGIN_KEY } from "./plugin-key";
 
 /**
  * Get FetchLoader configuration from i18n instance.

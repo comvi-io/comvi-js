@@ -1,130 +1,28 @@
-import type { ExportApiResponse, TranslationStore } from "./types";
-import type { CdnLayoutOptions, FetchLoaderOptions } from "./options";
-import { API_BASE_URL } from "./options";
-
-export interface ExtendedFetchOptions extends RequestInit {
-  next?: { revalidate?: number | false; tags?: string[] };
-}
-
-export interface FetchRequestOptions {
-  signal?: AbortSignal;
-  next?: ExtendedFetchOptions["next"];
-  /**
-   * Set `false` to make the project-info request fail on its first refusal.
-   * Read only there; `fetch` ignores it wherever these options reach an init.
-   */
-  retry?: boolean;
-}
-
-export function buildCacheOptions(
-  cache?: FetchLoaderOptions["cache"],
-): Pick<ExtendedFetchOptions, "next"> {
-  if (!cache) return {};
-  const next: ExtendedFetchOptions["next"] = {};
-  if (cache.revalidate !== undefined) next.revalidate = cache.revalidate;
-  if (cache.tags?.length) next.tags = cache.tags;
-  return Object.keys(next).length ? { next } : {};
-}
-
-export class RequestAbortedError extends Error {
-  constructor(url: string) {
-    super(`[FetchLoader] Request aborted: ${url}`);
-    this.name = "AbortError";
-  }
-}
-
-export const isAborted = (error: unknown): boolean =>
-  error instanceof Error && error.name === "AbortError";
-
-/** An Error the retry policy can tell apart from a transport failure. */
-const named = (name: string, message: string): Error => {
-  const error = new Error(message);
-  error.name = name;
-  return error;
-};
-
-export const isTimeout = (error: unknown): boolean =>
-  error instanceof Error && error.name === "TimeoutError";
-
-/** What a JSON request came back with: the parsed body, or why it was refused. */
-export type JsonResult<T> =
-  | { ok: true; data: T }
-  | { ok: false; status: number; statusText: string; retryAfter: string | null };
-
 /**
- * Fetch and parse JSON under ONE timeout, with external cancellation and SSR
- * cache support.
+ * The API request path's URL builders and response transform, on top of the
+ * shared transport primitives in `http-core.ts`.
  *
- * The controller stays armed until the body has been read, so a server that
- * sends headers and then stalls fails the same way a stalled connection does.
- * The body read is raced against the signal because a transport is free to hand
- * back a body promise that ignores it.
+ * Those primitives are re-exported here so every existing `from "./http"`
+ * import — this package's own modules and `@comvi/next` / `@comvi/nuxt` through
+ * the root entry — keeps resolving to one name.
  */
-export async function fetchJsonWithTimeout<T>(
-  url: string,
-  options: ExtendedFetchOptions,
-  timeoutMs: number,
-  fetchFn: typeof fetch = fetch,
-): Promise<JsonResult<T>> {
-  const controller = new AbortController();
-  const externalSignal = options.signal;
-  const abortFromExternal = () => controller.abort(externalSignal?.reason);
-  if (externalSignal?.aborted) {
-    abortFromExternal();
-  } else {
-    externalSignal?.addEventListener("abort", abortFromExternal, { once: true });
-  }
-  let timedOut = false;
-  const id = setTimeout(() => {
-    timedOut = true;
-    controller.abort();
-  }, timeoutMs);
-  try {
-    const response = await fetchFn(url, { ...options, signal: controller.signal } as RequestInit);
-    if (!response.ok) {
-      return {
-        ok: false,
-        status: response.status,
-        statusText: response.statusText,
-        // `fetchFn` is a public seam: a hand-written transport may answer with a
-        // bare `{ ok, status, statusText }` object and no headers at all.
-        retryAfter: response.headers?.get?.("Retry-After") ?? null,
-      };
-    }
-    return { ok: true, data: await raceAbort(parseJson<T>(response, url), controller.signal) };
-  } catch (e) {
-    if (timedOut && e instanceof Error && e.name === "AbortError")
-      throw named("TimeoutError", `Request timeout after ${timeoutMs}ms`);
-    if (externalSignal?.aborted) throw new RequestAbortedError(url);
-    throw e;
-  } finally {
-    clearTimeout(id);
-    externalSignal?.removeEventListener("abort", abortFromExternal);
-  }
-}
+import type { ExportApiResponse, TranslationStore } from "./types";
+import { API_BASE_URL } from "./options";
+import { ERROR_PREFIX, stripSlash, validateId } from "./http-core";
 
-async function parseJson<T>(response: Response, url: string): Promise<T> {
-  try {
-    return (await response.json()) as T;
-  } catch (error) {
-    if (isAborted(error)) throw error;
-    throw new Error(`[FetchLoader] Invalid JSON response from ${url}`);
-  }
-}
-
-/** Loses to `signal`, so a body read that ignores it cannot outlive the timeout. */
-function raceAbort<T>(work: Promise<T>, signal: AbortSignal): Promise<T> {
-  return Promise.race([
-    work,
-    new Promise<never>((_, reject) => {
-      const fail = () => reject(named("AbortError", "The operation was aborted."));
-      if (signal.aborted) fail();
-      else signal.addEventListener("abort", fail, { once: true });
-    }),
-  ]);
-}
-
-export const stripSlash = (url: string) => url.replace(/\/$/, "");
+export type { ExtendedFetchOptions, FetchRequestOptions, JsonResult } from "./http-core";
+export {
+  ERROR_PREFIX,
+  RequestAbortedError,
+  buildCacheOptions,
+  fetchJsonWithTimeout,
+  isAborted,
+  isSafeId,
+  isTimeout,
+  stripSlash,
+  toError,
+} from "./http-core";
+export { buildCdnUrl } from "./cdn-url";
 
 /**
  * Build request headers. When apiKey is empty (proxy/transport mode, where
@@ -135,22 +33,6 @@ export function buildAuthHeaders(apiKey: string): Record<string, string> {
   const headers: Record<string, string> = { Accept: "application/json" };
   if (apiKey) headers.Authorization = `Bearer ${apiKey}`;
   return headers;
-}
-
-export const toError = (e: unknown): Error => (e instanceof Error ? e : new Error(String(e)));
-
-/** Validate locale/namespace identifiers to prevent malformed URLs */
-const VALID_ID = /^[\w\-@.]+$/;
-
-/** True when `value` is safe to interpolate as a single URL path segment. */
-export const isSafeId = (value: string): boolean =>
-  !!value && value !== "." && value !== ".." && VALID_ID.test(value);
-
-function validateId(value: string, label: string): void {
-  if (!isSafeId(value))
-    throw new Error(
-      `[FetchLoader] Invalid ${label}: "${value}". Only alphanumeric, underscore, hyphen, dot, and @ characters are allowed; dot-only path segments are rejected.`,
-    );
 }
 
 /** Build API export URL for dev mode */
@@ -197,28 +79,6 @@ export function buildLegacyApiExportUrl(
   return `${stripSlash(customApiBaseUrl || API_BASE_URL)}/api/v1/api/projects/${projectId}/export?${params.toString()}`;
 }
 
-/**
- * Build CDN URL for production mode
- * - Root namespace: {cdnUrl}/{locale}.json
- * - Other namespaces: {cdnUrl}/{ns}/{locale}.json
- */
-export function buildCdnUrl(
-  cdnUrl: string,
-  locale: string,
-  namespace: string,
-  defaultNs: string,
-  layout: CdnLayoutOptions = {},
-): string {
-  validateId(locale, "locale");
-  validateId(namespace, "namespace");
-  const rootNamespace = layout.rootNamespace === undefined ? defaultNs : layout.rootNamespace;
-  if (rootNamespace !== false) validateId(rootNamespace, "CDN root namespace");
-  const base = stripSlash(cdnUrl);
-  return rootNamespace !== false && namespace === rootNamespace
-    ? `${base}/${locale}.json`
-    : `${base}/${namespace}/${locale}.json`;
-}
-
 /** Transform API response to internal cache format */
 export function transformApiResponse(response: ExportApiResponse): TranslationStore {
   const namespaces = (response as ExportApiResponse | undefined)?.namespaces;
@@ -238,5 +98,5 @@ export function transformApiResponse(response: ExportApiResponse): TranslationSt
 
 function assertObject(value: unknown, path: string): asserts value is Record<string, never> {
   if (!value || typeof value !== "object" || Array.isArray(value))
-    throw new Error(`[FetchLoader] Invalid API response: "${path}" must be an object`);
+    throw new Error(`${ERROR_PREFIX} Invalid API response: "${path}" must be an object`);
 }

@@ -2,7 +2,8 @@ import { describe, it, expect } from "vitest";
 import { transformApiResponse } from "../src/index";
 import type { ExportApiResponse } from "../src/index";
 
-const INVALID_SHAPE = '[FetchLoader] Invalid API response: "namespaces" must be an object';
+const INVALID_SHAPE =
+  '[@comvi/plugin-fetch-loader] Invalid API response: "namespaces" must be an object';
 
 describe("transformApiResponse()", () => {
   it("keys every namespace/locale pair as locale:namespace", () => {
@@ -48,7 +49,7 @@ describe("transformApiResponse() inner shapes", () => {
     const response = { locales: ["en"], namespaces: { default: locales } };
 
     expect(() => transformApiResponse(response as unknown as ExportApiResponse)).toThrow(
-      '[FetchLoader] Invalid API response: "namespaces.default" must be an object',
+      '[@comvi/plugin-fetch-loader] Invalid API response: "namespaces.default" must be an object',
     );
   });
 
@@ -60,7 +61,7 @@ describe("transformApiResponse() inner shapes", () => {
     const response = { locales: ["en"], namespaces: { default: { en: catalog } } };
 
     expect(() => transformApiResponse(response as unknown as ExportApiResponse)).toThrow(
-      '[FetchLoader] Invalid API response: "namespaces.default.en" must be an object',
+      '[@comvi/plugin-fetch-loader] Invalid API response: "namespaces.default.en" must be an object',
     );
   });
 });

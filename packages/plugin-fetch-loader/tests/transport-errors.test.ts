@@ -47,7 +47,7 @@ describe("request failure classification", () => {
     caller.abort();
 
     await expect(request).rejects.toThrow(
-      `[FetchLoader] Request aborted: ${BASE}/v1/translations?locales=en&namespaces=default`,
+      `[@comvi/plugin-fetch-loader] Request aborted: ${BASE}/v1/translations?locales=en&namespaces=default`,
     );
   });
 });

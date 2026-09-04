@@ -251,14 +251,14 @@ warning because your factory already chose a compiler.
 Each capability is one import and one `.with(...)`. `.with(installer)` is
 core's composition pipe — `i18n.with(f)` is `f(i18n)`, nothing more.
 
-| you want                                                   | you add                                                                                                                                          |
-| ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| ICU plurals / select / selectordinal                       | `compiler: icuCompiler` from `@comvi/core/icu`, in the options object                                                                            |
-| SSR + async translation loading                            | `.with(loader(importMap))` from `@comvi/core/loader`                                                                                             |
-| plugins, locale detectors, missing-key hooks               | `.with(plugins())` from `@comvi/core/plugins`                                                                                                    |
-| browser-extension discovery                                | `.with(devtools())` from `@comvi/core/devtools`                                                                                                  |
-| `<tag>` syntax in plain string-API `t()`                   | `import "@comvi/core/tags"` once, anywhere in the app                                                                                            |
-| a first-party plugin — CDN loader, locale detector, editor | `.with(fetchLoader({ … }))` / `.with(localeDetector())` / `.with(inContextEditor())`; each installer composes the capabilities that plugin needs |
+| you want                                                   | you add                                                                                                                                        |
+| ---------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| ICU plurals / select / selectordinal                       | `compiler: icuCompiler` from `@comvi/core/icu`, in the options object                                                                          |
+| SSR + async translation loading                            | `.with(loader(importMap))` from `@comvi/core/loader`                                                                                           |
+| plugins, locale detectors, missing-key hooks               | `.with(plugins())` from `@comvi/core/plugins`                                                                                                  |
+| browser-extension discovery                                | `.with(devtools())` from `@comvi/core/devtools`                                                                                                |
+| `<tag>` syntax in plain string-API `t()`                   | `import "@comvi/core/tags"` once, anywhere in the app                                                                                          |
+| a first-party plugin — CDN loader, locale detector, editor | `.with(cdnLoader({ … }))` / `.with(localeDetector())` / `.with(inContextEditor())`; each installer composes the capabilities that plugin needs |
 
 ```ts
 // comvi.host.ts — everything at once

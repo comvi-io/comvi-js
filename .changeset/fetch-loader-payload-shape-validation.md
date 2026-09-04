@@ -12,7 +12,7 @@ back as a string, a number or `null`. Both now throw the existing invalid
 response error, naming the exact path:
 
 ```
-[FetchLoader] Invalid API response: "namespaces.default.en" must be an object
+[@comvi/plugin-fetch-loader] Invalid API response: "namespaces.default.en" must be an object
 ```
 
 The project lookup is checked too. Its `id` is interpolated into the export URL
@@ -21,7 +21,7 @@ string carrying path segments such as `../..` — is refused rather than turned
 into a malformed request:
 
 ```
-[FetchLoader] Invalid API response from https://api.comvi.io/v1/project: "id" must be a number or a path-safe string
+[@comvi/plugin-fetch-loader] Invalid API response from https://api.comvi.io/v1/project: "id" must be a number or a path-safe string
 ```
 
 That refusal is not retried: asking the same endpoint again cannot change what

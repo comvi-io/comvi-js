@@ -6,29 +6,32 @@
 // tags in the plain `t()` string API names that side effect itself.
 import "@comvi/core/tags";
 import { createCore, createI18nFromCore, icu } from "@comvi/vue";
-import { fetchLoader } from "@comvi/plugin-fetch-loader";
+import { cdnLoader } from "@comvi/plugin-fetch-loader/cdn";
 
 // Installers run on the HOST, so compose FIRST and wrap afterwards:
 // `createI18nFromCore` preserves the host's exact type, so `i18n.core.use(…)`
 // stays typed.
 //
-// `icu()` comes before `fetchLoader(…)` because it has to be composed before
+// `icu()` comes before `cdnLoader(…)` because it has to be composed before
 // the first catalog reaches the host — the library's only ordering rule. The
 // loader's own capabilities (`/loader`, `/plugins`) are composed by the
 // installer itself.
+//
+// `cdnLoader` comes from `@comvi/plugin-fetch-loader/cdn`, the CDN-only entry:
+// this app reads a public distribution and never the authenticated API, so it
+// has no reason to bundle the API request path. An app that does talk to the
+// API composes `fetchLoader` from the package root and passes `apiKey` as a
+// HOST option instead.
 const core = createCore({
   locale: "en",
   fallbackLocale: "en",
   tagInterpolation: {
     basicHtmlTags: ["strong", "em", "br", "a"],
   },
-  // The API key is a HOST option, not a `fetchLoader` option: the loader reads
-  // `i18n.apiKey` when it talks to the API instead of the CDN.
-  apiKey: import.meta.env.VITE_COMVI_API_KEY,
 })
   .with(icu())
   .with(
-    fetchLoader({
+    cdnLoader({
       // The distribution id comes from the Comvi platform: open your project
       // and read it off the Distributions page.
       cdnUrl: "https://cdn.comvi.io/8d4beabdb0aa42008e15aa4e91a971bd/",
@@ -38,3 +41,20 @@ const core = createCore({
 export const i18n = createI18nFromCore(core);
 
 export default i18n;
+
+// The API-mode variant, kept runnable by hand: swap the block above for this
+// one and set VITE_COMVI_API_KEY to exercise the authenticated request path,
+// which nothing else in this repo runs against a live server.
+//
+// import { fetchLoader } from "@comvi/plugin-fetch-loader";
+//
+// const core = createCore({
+//   locale: "en",
+//   fallbackLocale: "en",
+//   tagInterpolation: { basicHtmlTags: ["strong", "em", "br", "a"] },
+//   // The API key is a HOST option, not a `fetchLoader` option: the loader
+//   // reads `i18n.apiKey` and then talks to the API instead of the CDN.
+//   apiKey: import.meta.env.VITE_COMVI_API_KEY,
+// })
+//   .with(icu())
+//   .with(fetchLoader({ cdnUrl: "https://cdn.comvi.io/8d4beabdb0aa42008e15aa4e91a971bd/" }));

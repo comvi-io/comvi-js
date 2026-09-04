@@ -250,8 +250,13 @@ export function createLibraryBuildOptions(options: LibraryBuildOptions): BuildOp
 }
 
 export interface PluginBuildOptions {
-  /** Plugin entry point */
-  entry: string;
+  /**
+   * Plugin entry point, or a `{ name: path }` map for a package that publishes
+   * subpaths. A map REQUIRES a `fileNames.es` pattern containing `[name]` —
+   * `createPluginBuildOptions` throws otherwise, because a fixed name would
+   * emit every entry to the same file. A single string keeps the fixed default.
+   */
+  entry: string | Record<string, string>;
   /** Plugin name (for UMD builds) */
   name?: string;
   /** Output file name for the ESM build: { es: 'index.js' }. `cjs` is accepted but ignored (ESM-only). */
@@ -283,6 +288,15 @@ export function createPluginBuildOptions(options: PluginBuildOptions): BuildOpti
     fileNames = { es: "index.js" },
     external = ["@comvi/core"],
   } = options;
+
+  // A fixed file name emits EVERY entry of a map to that one path — last write
+  // wins, no error, and the package's subpath exports resolve to whatever was
+  // left behind. Nothing downstream can notice, so it is rejected here.
+  if (typeof entry !== "string" && !fileNames.es.includes("[name]")) {
+    throw new Error(
+      `@comvi/vite-config: an entry map needs a "[name]" placeholder in fileNames.es; got "${fileNames.es}", which every entry would be emitted to.`,
+    );
+  }
 
   return {
     emptyOutDir: !isWatchMode,

@@ -111,7 +111,7 @@ See **[MIGRATION.md](../../MIGRATION.md)** for the per-feature table, the
 codemod, and the one rule that has a timing constraint:
 
 - **inline catalogs** — `createI18n({ translation, compiler: icuCompiler })`;
-- **remote catalogs** — `createI18n({ locale }).with(icu()).with(fetchLoader({ … }))`,
+- **remote catalogs** — `createI18n({ locale }).with(icu()).with(cdnLoader({ … }))`,
   BEFORE anything is ingested. The compiler locks irreversibly at the first
   catalog (constructor, `addTranslations`, or a loader merge) and a later
   `icu()` throws `E_COMPILER_LOCKED` before mutating anything.
@@ -229,7 +229,7 @@ a host that was already composed — installs nothing and shadows nothing.
 > ingests nothing, so it does not count.
 >
 > Published plugin packages ship a lowercase **installer** that does the ordering
-> for you: `.with(fetchLoader({ … }))` composes `/loader`, then `/plugins`, then
+> for you: `.with(cdnLoader({ … }))` composes `/loader`, then `/plugins`, then
 > registers the plugin — one call. The uppercase factory is unchanged; reach for
 > it when you compose capabilities yourself or register plugins from a list.
 
@@ -476,7 +476,7 @@ composed yourself.
 
 ```ts
 import { createI18n } from "@comvi/core";
-import { fetchLoader } from "@comvi/plugin-fetch-loader";
+import { cdnLoader } from "@comvi/plugin-fetch-loader/cdn";
 import { localeDetector } from "@comvi/plugin-locale-detector";
 
 const i18n = createI18n({ locale: "en", fallbackLocale: "en" })
@@ -487,7 +487,7 @@ const i18n = createI18n({ locale: "en", fallbackLocale: "en" })
     }),
   )
   .with(
-    fetchLoader({
+    cdnLoader({
       cdnUrl: "https://cdn.comvi.io/your-distribution-id",
     }),
   );
@@ -505,16 +505,16 @@ compose capabilities yourself or register plugins from a list:
 import { createI18n } from "@comvi/core";
 import { loader } from "@comvi/core/loader";
 import { plugins } from "@comvi/core/plugins";
-import { FetchLoader } from "@comvi/plugin-fetch-loader";
+import { CdnLoader } from "@comvi/plugin-fetch-loader/cdn";
 
 const i18n = createI18n({ locale: "en", fallbackLocale: "en" }).with(loader()).with(plugins());
 
-i18n.use(FetchLoader({ cdnUrl: "https://cdn.comvi.io/your-distribution-id" }));
+i18n.use(CdnLoader({ cdnUrl: "https://cdn.comvi.io/your-distribution-id" }));
 ```
 
 Swapping the two slots is a type error, and loud at runtime as well:
-`.use(fetchLoader(…))` throws at `init()` on the installer's first ensure-step,
-before any capability is attached, and `.with(FetchLoader(…))` invokes a plugin
+`.use(cdnLoader(…))` throws at `init()` on the installer's first ensure-step,
+before any capability is attached, and `.with(CdnLoader(…))` invokes a plugin
 against a host that has none of the capabilities it needs, which is rejected.
 `.with` is a pipe and nothing more — it never inspects, orders or brands what
 you hand it, so each slot has to reject the other explicitly.

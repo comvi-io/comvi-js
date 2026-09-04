@@ -4,6 +4,7 @@ import { API_BASE_URL } from "./options";
 import type { FetchRequestOptions } from "./http";
 import { httpFailure, withRetry } from "./retry";
 import {
+  ERROR_PREFIX,
   RequestAbortedError,
   buildApiExportUrl,
   buildApiTranslationsUrl,
@@ -146,7 +147,7 @@ function assertProjectInfo(data: ProjectInfo, url: string): ProjectInfo {
   const id = (data as ProjectInfo | undefined)?.id;
   if ((typeof id !== "number" && typeof id !== "string") || !isSafeId(String(id))) {
     throw httpFailure(
-      `[FetchLoader] Invalid API response from ${url}: "id" must be a number or a path-safe string`,
+      `${ERROR_PREFIX} Invalid API response from ${url}: "id" must be a number or a path-safe string`,
       200,
       null,
     );

@@ -6,7 +6,7 @@ the rule behind them.
 
 ## What the gate measures
 
-Each of the 17 rows bundles one fixture from `scripts/size-fixtures/` with esbuild — `bundle`,
+Each of the 18 rows bundles one fixture from `scripts/size-fixtures/` with esbuild — `bundle`,
 `minify`, `format: esm`, `platform: browser`, `target: es2020`, `__DEV__=false`,
 `process.env.NODE_ENV="production"` — and gzips the result at level 9. The reported figure is
 **min+gz bytes**.
@@ -52,8 +52,14 @@ the bytes first, then decide whether they ship.
 
 `core-base`, `core-base-icu`, `core-full-composite`; per framework
 `fw-{react,solid,svelte,vue}-{default,full-composite}`; `fw-next-client-default`,
-`fw-next-server-default-loader`, `fw-nuxt-client-default`, `fw-nuxt-full-composite`.
+`fw-next-server-default-loader`, `fw-nuxt-client-default`, `fw-nuxt-full-composite`; the platform
+path `plugin-fetch-loader-cdn`, `plugin-fetch-loader-cdn-lite`, `platform-path-react`.
 
 Each framework pair is a floor (one specifier, base host) and a ceiling (every capability composed
 through that same specifier). The pair is the measurement — adding or removing one half turns the
 other from a delta into a bare number, so change them together.
+
+`plugin-fetch-loader-cdn` and `plugin-fetch-loader-cdn-lite` are a pair for the same reason: the
+same composition through the package root and through `@comvi/plugin-fetch-loader/cdn`. What
+separates them is the API request path the root entry reaches at runtime, so the two numbers are
+only meaningful side by side.

@@ -19,13 +19,13 @@ describe("buildApiTranslationsUrl()", () => {
 
   it("rejects a traversal locale and names the locale in the error", () => {
     expect(() => buildApiTranslationsUrl("../hack", ["default"], API)).toThrow(
-      '[FetchLoader] Invalid locale: "../hack"',
+      '[@comvi/plugin-fetch-loader] Invalid locale: "../hack"',
     );
   });
 
   it("rejects a traversal namespace and names the namespace in the error", () => {
     expect(() => buildApiTranslationsUrl("en", ["default", "../hack"], API)).toThrow(
-      '[FetchLoader] Invalid namespace: "../hack"',
+      '[@comvi/plugin-fetch-loader] Invalid namespace: "../hack"',
     );
   });
 });
@@ -53,13 +53,13 @@ describe("buildLegacyApiExportUrl()", () => {
 
   it("rejects a traversal locale and names the locale in the error", () => {
     expect(() => buildLegacyApiExportUrl(42, "../hack", ["default"], API)).toThrow(
-      '[FetchLoader] Invalid locale: "../hack"',
+      '[@comvi/plugin-fetch-loader] Invalid locale: "../hack"',
     );
   });
 
   it("rejects a traversal namespace and names the namespace in the error", () => {
     expect(() => buildLegacyApiExportUrl(42, "en", ["default", "../hack"], API)).toThrow(
-      '[FetchLoader] Invalid namespace: "../hack"',
+      '[@comvi/plugin-fetch-loader] Invalid namespace: "../hack"',
     );
   });
 });

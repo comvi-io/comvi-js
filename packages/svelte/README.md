@@ -98,14 +98,14 @@ Translations served by the Comvi platform, fetched at runtime instead of bundled
 <!-- src/routes/+layout.svelte (or App.svelte) -->
 <script lang="ts">
   import { createI18n, icu, setI18nContext } from "@comvi/svelte";
-  import { fetchLoader } from "@comvi/plugin-fetch-loader";
+  import { cdnLoader } from "@comvi/plugin-fetch-loader/cdn";
   import type { Snippet } from "svelte";
 
   const { children }: { children: Snippet } = $props();
 
   const i18n = createI18n({ locale: "en", fallbackLocale: "en" })
     .with(icu())
-    .with(fetchLoader({ cdnUrl: "https://cdn.comvi.io/your-distribution-id" }));
+    .with(cdnLoader({ cdnUrl: "https://cdn.comvi.io/your-distribution-id" }));
 
   setI18nContext(i18n);
 </script>
@@ -294,16 +294,16 @@ invalid by construction: pass `compiler: icuCompiler` there instead.
 
 The three first-party plugin packages ship a lowercase **installer** beside the
 uppercase factory. The installer composes the capabilities that plugin needs —
-`fetchLoader` attaches `/loader`, then `/plugins` — and registers it, in one
+`cdnLoader` attaches `/loader`, then `/plugins` — and registers it, in one
 call:
 
 ```svelte
 <script lang="ts">
   import { createI18n, setI18nContext } from "@comvi/svelte";
-  import { fetchLoader } from "@comvi/plugin-fetch-loader";
+  import { cdnLoader } from "@comvi/plugin-fetch-loader/cdn";
 
   const i18n = createI18n({ locale: "en", defaultNs: "common" }).with(
-    fetchLoader({ cdnUrl: "https://cdn.comvi.io/your-distribution-id" }),
+    cdnLoader({ cdnUrl: "https://cdn.comvi.io/your-distribution-id" }),
   );
 
   setI18nContext(i18n);
@@ -319,19 +319,19 @@ composed before `init()` is attached by then.
 ```svelte
 <script lang="ts">
   import { createI18n, loader, plugins, setI18nContext } from "@comvi/svelte";
-  import { FetchLoader } from "@comvi/plugin-fetch-loader";
+  import { CdnLoader } from "@comvi/plugin-fetch-loader/cdn";
 
   const i18n = createI18n({ locale: "en", defaultNs: "common" })
     .with(loader())
     .with(plugins());
 
-  i18n.use(FetchLoader({ cdnUrl: "https://cdn.comvi.io/your-distribution-id" }));
+  i18n.use(CdnLoader({ cdnUrl: "https://cdn.comvi.io/your-distribution-id" }));
   setI18nContext(i18n);
 </script>
 ```
 
 Swapping the two slots is a type error and loud at runtime:
-`.use(fetchLoader(…))` throws at `init()` before any capability is attached.
+`.use(cdnLoader(…))` throws at `init()` before any capability is attached.
 
 ### Devtools — `devtools()`
 
@@ -547,22 +547,21 @@ Auto-generate these types from the Comvi platform via `@comvi/cli` or from local
 
 ## Loading translations from the Comvi platform
 
-Pair with `@comvi/plugin-fetch-loader` to load translations from a CDN or API. No redeploy needed to ship a translation:
+Pair with `@comvi/plugin-fetch-loader` to load translations from the platform, with no redeploy needed to ship a translation. `cdnLoader` from `@comvi/plugin-fetch-loader/cdn` reads a public distribution; swap it for `fetchLoader` from the package root, and pass `apiKey` as a host option, when the app also reads the authenticated API:
 
 ```svelte
 <!-- src/routes/+layout.svelte -->
 <script lang="ts">
   import { createI18n, setI18nContext } from "@comvi/svelte";
-  import { fetchLoader } from "@comvi/plugin-fetch-loader";
+  import { cdnLoader } from "@comvi/plugin-fetch-loader/cdn";
   import type { Snippet } from "svelte";
 
   const { children }: { children: Snippet } = $props();
 
   // The installer composes the loader capability, then the plugin host, then
   // registers the plugin — the order a loader-registering plugin needs.
-  // CDN for production, API for dev/staging.
   const i18n = createI18n({ locale: "en" }).with(
-    fetchLoader({
+    cdnLoader({
       cdnUrl: "https://cdn.comvi.io/your-distribution-id",
     }),
   );

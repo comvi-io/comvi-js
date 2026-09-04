@@ -40,6 +40,10 @@
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
+    },
+    "./cdn": {
+      "types": "./dist/cdn.d.ts",
+      "default": "./dist/cdn.js"
     }
   },
   "sideEffects": false,
