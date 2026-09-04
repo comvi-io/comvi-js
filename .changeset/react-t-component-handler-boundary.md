@@ -14,4 +14,7 @@ reported through `i18n.reportError(error, { source: "translation", tagName })`, 
 handler still sees it. A working handler is untouched.
 
 This is a client-side guard, by React's design: error boundaries do not run during
-`renderToString`, so a handler that throws during a server render still fails that render.
+`renderToString`, so a handler that throws during a server render still fails that render. And once
+a tag has degraded it keeps showing its children for as long as that `<T>` stays mounted, even if a
+later render supplies a handler that would work — re-trying the handler on every render is what the
+guard exists to avoid.

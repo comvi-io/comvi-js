@@ -80,6 +80,12 @@ interface TagBoundaryProps {
  *
  * Client-side only, by React's design: `renderToString` has no boundaries, so
  * a server render still throws (the same as the Svelte binding).
+ *
+ * Once it has caught, a boundary stays failed for the life of that `<T>`
+ * position: a later render whose handler would work keeps showing the tag's
+ * children until the surrounding tree remounts. `<svelte:boundary>` behaves the
+ * same, and resetting on handler identity would re-throw on every render for a
+ * handler that is permanently broken.
  */
 class TagBoundary extends React.Component<TagBoundaryProps, { failed: boolean }> {
   public state = { failed: false };

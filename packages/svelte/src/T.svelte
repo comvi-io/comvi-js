@@ -103,10 +103,11 @@
       <!--
         A handler that throws degrades to the translation's own children rather
         than taking the tree down with it — the same degradation the React
-        binding gives every handler form (react/src/T.tsx catches a function
-        handler synchronously and wraps a component or element handler in its
-        own TagBoundary). Both bindings contain a client render only: neither a
-        <svelte:boundary> nor a React boundary runs during SSR.
+        binding gives every handler form (react/src/T.tsx catches the handler
+        CALL synchronously and wraps every element it renders in its own
+        TagBoundary). Both bindings contain a client render only: neither a
+        <svelte:boundary> nor a React boundary runs during SSR. Both also stay
+        failed once they have caught, until the surrounding tree remounts.
         Needs svelte >= 5.3 for <svelte:boundary>.
       -->
       <svelte:boundary
