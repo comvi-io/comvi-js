@@ -13,11 +13,9 @@ loading anything — leaving an app that looked cleared and stayed cleared.
 
 A scopeless clear now drops content and keeps intent, so both calls work again. What changed:
 
-- `clearTranslations()` leaves `getActiveNamespaces()` untouched. Naming a namespace,
-  `clearTranslations(undefined, "admin")`, still deactivates it — that is unchanged, and it remains
-  the way to stop serving a namespace.
+- `clearTranslations()` leaves `getActiveNamespaces()` untouched.
 - `reloadTranslations()` on a host with no active namespace left reloads the default namespace and
   says so in a development warning, rather than resolving as a no-op.
 
-If you relied on a scopeless `clearTranslations()` to deactivate namespaces, clear them by name
-instead.
+If you relied on a scopeless `clearTranslations()` to deactivate namespaces, call
+`removeActiveNamespace(ns)` instead — no form of the clear deactivates any more.

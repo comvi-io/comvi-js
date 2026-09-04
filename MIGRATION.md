@@ -16,17 +16,18 @@ policy:
 The 0.4 root was batteries-included. The converged root is the base host: text +
 `{param}` interpolation, the cache, events, default params and `.with()`.
 
-| 0.4 root behaviour                           | converged root                        | migration                                                |
-| -------------------------------------------- | ------------------------------------- | -------------------------------------------------------- |
-| ICU plurals / select                         | dev throws, prod renders it literally | `compiler: icuCompiler`, or `.with(icu())` pre-ingestion |
-| `.use(plugin)`                               | absent — TS error + `TypeError`       | `.with(plugins()).use(p)`, or a lowercase installer      |
-| loader (`registerLoader`, …)                 | absent — the loud capability error    | `.with(loader())`, or `fetchLoader(opts)`                |
-| discovery (`instanceId`, `window.__COMVI__`) | absent — invisible to the extension   | `.with(devtools())`, or `inContextEditor()`              |
-| nested catalogs                              | stored verbatim, dev warning          | `flattenCatalog(…)`, or compose `loader()`               |
-| string-API tags (`"<b>hi</b>"`)              | literal text, dev warning             | `<T>`, or `import "@comvi/core/tags"`                    |
-| a plugin returning a value                   | throws at `init()`                    | return nothing, or a cleanup function                    |
-| `new I18n(options)`                          | unchanged, one argument               | —                                                        |
-| `createNextI18n`, the CDN global             | unchanged, still batteries-included   | —                                                        |
+| 0.4 root behaviour                                  | converged root                        | migration                                                |
+| --------------------------------------------------- | ------------------------------------- | -------------------------------------------------------- |
+| ICU plurals / select                                | dev throws, prod renders it literally | `compiler: icuCompiler`, or `.with(icu())` pre-ingestion |
+| `.use(plugin)`                                      | absent — TS error + `TypeError`       | `.with(plugins()).use(p)`, or a lowercase installer      |
+| loader (`registerLoader`, …)                        | absent — the loud capability error    | `.with(loader())`, or `fetchLoader(opts)`                |
+| discovery (`instanceId`, `window.__COMVI__`)        | absent — invisible to the extension   | `.with(devtools())`, or `inContextEditor()`              |
+| nested catalogs                                     | stored verbatim, dev warning          | `flattenCatalog(…)`, or compose `loader()`               |
+| string-API tags (`"<b>hi</b>"`)                     | literal text, dev warning             | `<T>`, or `import "@comvi/core/tags"`                    |
+| a plugin returning a value                          | throws at `init()`                    | return nothing, or a cleanup function                    |
+| `clearTranslations(undefined, ns)` deactivated `ns` | clears CONTENT only, in every form    | `removeActiveNamespace(ns)` from `.with(loader())`       |
+| `new I18n(options)`                                 | unchanged, one argument               | —                                                        |
+| `createNextI18n`, the CDN global                    | unchanged, still batteries-included   | —                                                        |
 
 Also new on every host: a missing interpolation parameter renders as the literal
 placeholder — `t("greet")` on `"Hello, {name}!"` now gives `"Hello, {name}!"`,
@@ -574,15 +575,15 @@ exactly what the app pays for.
 Thrown at the `useI18nLoader()` / `useI18nPlugins()` call, in both build
 conditions, never silently.
 
-| symptom                                                                       | fix                                              |
-| ----------------------------------------------------------------------------- | ------------------------------------------------ |
-| `addActiveNamespace` / `reloadTranslations` / `onLoadError` is not a function | `useI18nLoader()`                                |
-| `onMissingKey is not a function`                                              | `useI18nPlugins()`                               |
-| vue: `i18n.registerLoader` / `i18n.use` is not a function                     | `i18n.core.*`                                    |
-| vue: `i18n.core.reloadTranslations` will not type-check                       | host-typed by design — use `useI18nLoader()`     |
-| `E_INSTALLER_NESTED_USE`                                                      | you wrote `.use(installer(…))`; write `.with(…)` |
-| `E_PLUGIN_INIT_RETURN`                                                        | a plugin returned a value — use a statement body |
-| `E_COMPILER_LOCKED`                                                           | `icu()` after a catalog — §0.1                   |
+| symptom                                                                                                 | fix                                              |
+| ------------------------------------------------------------------------------------------------------- | ------------------------------------------------ |
+| `addActiveNamespace` / `removeActiveNamespace` / `reloadTranslations` / `onLoadError` is not a function | `useI18nLoader()`                                |
+| `onMissingKey is not a function`                                                                        | `useI18nPlugins()`                               |
+| vue: `i18n.registerLoader` / `i18n.use` is not a function                                               | `i18n.core.*`                                    |
+| vue: `i18n.core.reloadTranslations` will not type-check                                                 | host-typed by design — use `useI18nLoader()`     |
+| `E_INSTALLER_NESTED_USE`                                                                                | you wrote `.use(installer(…))`; write `.with(…)` |
+| `E_PLUGIN_INIT_RETURN`                                                                                  | a plugin returned a value — use a statement body |
+| `E_COMPILER_LOCKED`                                                                                     | `icu()` after a catalog — §0.1                   |
 
 Two more `E_ICU_SYNTAX` messages come from the ICU compiler itself, thrown at
 ingestion in development and reported (with the segment rendered literally) in
@@ -603,7 +604,17 @@ Give every selector the message names a braced sub-message of its own. The
 plural `offset:` form lands here too, not above: `offset:N` parses as a selector
 with no braced sub-message.
 
-One more silent change worth naming: **escapes travel with the grammar they
+One silent change with no error text at all: **`clearTranslations()` clears
+content, never intent.** In 0.4 and through the 0.5 pre-releases,
+`clearTranslations(undefined, ns)` also DEACTIVATED the namespace — it was the
+only way to stop serving one. It no longer does, so a reload or a locale switch
+refetches a namespace you cleared by name. The deactivation moved to
+`removeActiveNamespace(ns)` / `removeActiveNamespaces(ns[])` on the loader
+capability, which also cancels the namespace's in-flight loads and leaves its
+cached catalogs alone. Where you relied on the scoped clear to stop loading a
+namespace, call `removeActiveNamespace(ns)`; where you wanted both, call both.
+
+Another silent change worth naming: **escapes travel with the grammar they
 escape.** `&lt;`, `&gt;`, `&amp;` and `\<` exist to write a literal angle bracket
 inside a message that IS tag syntax, so on a host with no tag extension they are
 ordinary characters and stay in the output. Any tag extension brings them back —
