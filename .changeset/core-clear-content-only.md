@@ -25,8 +25,16 @@ gone.
 
 `removeActiveNamespace(namespace)` and `removeActiveNamespaces(namespaces)` ship on
 `@comvi/core/loader` beside `addActiveNamespace(s)`. They drop the namespace from
-`getActiveNamespaces()`, so neither `reloadTranslations()` nor a locale switch fetches it again,
-and they cancel whatever load is in flight for it so a late response cannot repopulate the cache.
+`getActiveNamespaces()`, so a locale switch never fetches it again and `reloadTranslations()`
+fetches only what is still active, and they cancel whatever load is in flight for it so a late
+response cannot repopulate the cache.
+
+One exception, worth knowing before you rely on the absolute version: `reloadTranslations()` with
+NOTHING active left falls back to the DEFAULT namespace. So if the namespace you removed was the
+last active one AND it was the default namespace, a reload brings its content back — while
+`getActiveNamespaces()` stays empty. Remove the last active namespace when it is not the default
+and the reload fetches the default namespace instead, never the one you removed. A locale switch
+has no such fallback and fetches nothing at all.
 They are synchronous — nothing is fetched — and they leave the catalogs already in the cache
 alone, so the namespace keeps resolving until you clear it. Both emit `configChanged` with the
 new `namespaceDeactivated` source, which is what makes a binding reading `getActiveNamespaces()`

@@ -620,6 +620,12 @@ capability, which also cancels the namespace's in-flight loads and leaves its
 cached catalogs alone. Where you relied on the scoped clear to stop loading a
 namespace, call `removeActiveNamespace(ns)`; where you wanted both, call both.
 
+Deactivation has one exception worth knowing: `reloadTranslations()` with
+nothing active left falls back to the default namespace. Remove the LAST active
+namespace and the next reload fetches the default one — so if the namespace you
+removed was itself the default, its content comes back while
+`getActiveNamespaces()` stays empty. A locale switch has no such fallback.
+
 Another silent change worth naming: **escapes travel with the grammar they
 escape.** `&lt;`, `&gt;`, `&amp;` and `\<` exist to write a literal angle bracket
 inside a message that IS tag syntax, so on a host with no tag extension they are
