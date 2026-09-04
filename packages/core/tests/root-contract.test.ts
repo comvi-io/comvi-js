@@ -73,6 +73,8 @@ const CAPABILITY_PROTOTYPE_METHODS = [
   "reloadTranslations",
   "addActiveNamespace",
   "addActiveNamespaces",
+  "removeActiveNamespace",
+  "removeActiveNamespaces",
   "onLoadError",
   "use",
   "registerLocaleDetector",
