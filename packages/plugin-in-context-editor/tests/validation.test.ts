@@ -144,4 +144,26 @@ describe("validateTranslations — placeholder warnings", () => {
 
     expect(result.warnings).toEqual([]);
   });
+
+  it("double-brace placeholders name the variable inside them → no brace-prefixed phantom is reported", () => {
+    const result = validateTranslations([lang], {
+      de: { one: "Hallo {{name}}", other: "Hallo {{nom}}" },
+    });
+
+    expect(result.warnings).toEqual([
+      {
+        languageId: "de",
+        pluralForm: "other",
+        message: "Placeholders differ from the first form; missing: name; unexpected: nom",
+      },
+    ]);
+  });
+
+  it("a double-brace and a single-brace spelling of one variable are the same placeholder → no warning", () => {
+    const result = validateTranslations([lang], {
+      de: { one: "Hallo {{name}}", other: "Hallo {name}" },
+    });
+
+    expect(result.warnings).toEqual([]);
+  });
 });

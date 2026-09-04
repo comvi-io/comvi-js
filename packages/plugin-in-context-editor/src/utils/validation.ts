@@ -60,11 +60,12 @@ export function validateTranslations(
   };
 }
 
-/** Matches `{{variable}}`, `{variable}` and `%variable%`. */
+/** Matches `{variable}`, `{{variable}}`, `%variable%` and `<0>`. */
 function extractVariables(text: string): string[] {
   const patterns = [
-    /\{\{([^}]+)\}\}/g, // {{variable}}
-    /\{([^}]+)\}/g, // {variable}
+    // Braces are excluded from the name, so `{{variable}}` yields `variable`
+    // through this one pattern instead of an extra `{variable` phantom.
+    /\{([^{}]+)\}/g, // {variable} and the inner {variable} of {{variable}}
     /%([^%]+)%/g, // %variable%
     /<(\d+)>/g, // <0>, <1> for react-i18next trans component
   ];
