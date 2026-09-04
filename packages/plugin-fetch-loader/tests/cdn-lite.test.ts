@@ -69,12 +69,14 @@ describe("cdnLoader() installer", () => {
 
 describe("CdnLoader() options guard", () => {
   it("reports a missing cdnUrl when the options object carries none", () => {
-    expect(() => CdnLoader({} as CdnLoaderOptions)).toThrow("[FetchLoader] cdnUrl is required");
+    expect(() => CdnLoader({} as CdnLoaderOptions)).toThrow(
+      "[@comvi/plugin-fetch-loader] cdnUrl is required",
+    );
   });
 
   it("reports a missing cdnUrl when no options are passed at all", () => {
     expect(() => CdnLoader(undefined as unknown as CdnLoaderOptions)).toThrow(
-      "[FetchLoader] cdnUrl is required",
+      "[@comvi/plugin-fetch-loader] cdnUrl is required",
     );
   });
 });
@@ -230,6 +232,36 @@ describe("CdnLoader() when the CDN refuses", () => {
       "default",
       expect.objectContaining({ message: "HTTP 503: Service Unavailable" }),
     );
+  });
+});
+
+describe("CdnLoader() SSR cache options", () => {
+  it("passes revalidate and tags to the CDN request as the framework fetch options", async () => {
+    const i18n = new I18n({ locale: "en", devMode: false });
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+    mockCdnSuccessResponse("en", "default", { greeting: "Hello" });
+
+    await CdnLoader({
+      cdnUrl: TEST_CDN_URL,
+      cache: { revalidate: 3600, tags: ["i18n"] },
+    })(i18n);
+
+    const call = fetchSpy.mock.calls.find(([input]) => String(input).endsWith("/en.json"));
+    expect((call?.[1] as { next?: unknown } | undefined)?.next).toEqual({
+      revalidate: 3600,
+      tags: ["i18n"],
+    });
+  });
+
+  it("sends no framework fetch options when no cache option is given", async () => {
+    const i18n = new I18n({ locale: "en", devMode: false });
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+    mockCdnSuccessResponse("en", "default", { greeting: "Hello" });
+
+    await CdnLoader({ cdnUrl: TEST_CDN_URL })(i18n);
+
+    const call = fetchSpy.mock.calls.find(([input]) => String(input).endsWith("/en.json"));
+    expect((call?.[1] as { next?: unknown } | undefined)?.next).toBeUndefined();
   });
 });
 

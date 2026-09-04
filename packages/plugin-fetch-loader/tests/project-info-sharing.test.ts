@@ -9,7 +9,7 @@ import { fetchProjectInfo } from "../src/index";
 import { pendingTransport } from "./helpers/transport";
 
 const BASE = "https://api.example.com";
-const ABORT_MESSAGE = `[FetchLoader] Request aborted: ${BASE}/v1/project`;
+const ABORT_MESSAGE = `[@comvi/plugin-fetch-loader] Request aborted: ${BASE}/v1/project`;
 
 const abortedSignal = () => {
   const controller = new AbortController();

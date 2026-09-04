@@ -21,11 +21,15 @@ import {
 describe("FetchLoader Plugin", () => {
   describe("Configuration validation", () => {
     it("should throw error if cdnUrl is not provided", () => {
-      expect(() => FetchLoader({} as any)).toThrow("[FetchLoader] cdnUrl is required");
+      expect(() => FetchLoader({} as any)).toThrow(
+        "[@comvi/plugin-fetch-loader] cdnUrl is required",
+      );
     });
 
     it("should throw error if options are undefined", () => {
-      expect(() => FetchLoader(undefined as any)).toThrow("[FetchLoader] cdnUrl is required");
+      expect(() => FetchLoader(undefined as any)).toThrow(
+        "[@comvi/plugin-fetch-loader] cdnUrl is required",
+      );
     });
 
     it("should accept minimal valid configuration", async () => {
@@ -91,25 +95,25 @@ describe("FetchLoader Plugin", () => {
   describe("Input validation", () => {
     it("should reject locale with path traversal characters", () => {
       expect(() => buildCdnUrl(TEST_CDN_URL, "../etc", "default", "default")).toThrow(
-        '[FetchLoader] Invalid locale: "../etc"',
+        '[@comvi/plugin-fetch-loader] Invalid locale: "../etc"',
       );
     });
 
     it("should reject namespace with path traversal characters", () => {
       expect(() => buildCdnUrl(TEST_CDN_URL, "en", "../../secret", "default")).toThrow(
-        '[FetchLoader] Invalid namespace: "../../secret"',
+        '[@comvi/plugin-fetch-loader] Invalid namespace: "../../secret"',
       );
     });
 
     it.each([".", ".."])('should reject the locale dot-segment "%s"', (locale) => {
       expect(() => buildCdnUrl(TEST_CDN_URL, locale, "default", "default")).toThrow(
-        `[FetchLoader] Invalid locale: "${locale}"`,
+        `[@comvi/plugin-fetch-loader] Invalid locale: "${locale}"`,
       );
     });
 
     it.each([".", ".."])('should reject the namespace dot-segment "%s"', (namespace) => {
       expect(() => buildCdnUrl(TEST_CDN_URL, "en", namespace, "default")).toThrow(
-        `[FetchLoader] Invalid namespace: "${namespace}"`,
+        `[@comvi/plugin-fetch-loader] Invalid namespace: "${namespace}"`,
       );
     });
 
@@ -118,19 +122,19 @@ describe("FetchLoader Plugin", () => {
       (rootNamespace) => {
         expect(() =>
           buildCdnUrl(TEST_CDN_URL, "en", "default", "default", { rootNamespace }),
-        ).toThrow(`[FetchLoader] Invalid CDN root namespace: "${rootNamespace}"`);
+        ).toThrow(`[@comvi/plugin-fetch-loader] Invalid CDN root namespace: "${rootNamespace}"`);
       },
     );
 
     it("should reject empty locale", () => {
       expect(() => buildCdnUrl(TEST_CDN_URL, "", "default", "default")).toThrow(
-        "[FetchLoader] Invalid locale",
+        "[@comvi/plugin-fetch-loader] Invalid locale",
       );
     });
 
     it("should reject locale with spaces", () => {
       expect(() => buildCdnUrl(TEST_CDN_URL, "en US", "default", "default")).toThrow(
-        "[FetchLoader] Invalid locale",
+        "[@comvi/plugin-fetch-loader] Invalid locale",
       );
     });
 
@@ -156,13 +160,13 @@ describe("FetchLoader Plugin", () => {
 
     it("should validate locale in buildApiExportUrl", () => {
       expect(() => buildApiExportUrl(1, "../hack", ["default"])).toThrow(
-        "[FetchLoader] Invalid locale",
+        "[@comvi/plugin-fetch-loader] Invalid locale",
       );
     });
 
     it("should validate namespaces in buildApiExportUrl", () => {
       expect(() => buildApiExportUrl(1, "en", ["valid", "../hack"])).toThrow(
-        "[FetchLoader] Invalid namespace",
+        "[@comvi/plugin-fetch-loader] Invalid namespace",
       );
     });
 
@@ -890,7 +894,7 @@ describe("FetchLoader Plugin", () => {
 
       const loaderFn = i18n.getLoader()!;
       await expect(loaderFn("en", "missing")).rejects.toThrow(
-        "[FetchLoader] No translations found for en:missing",
+        "[@comvi/plugin-fetch-loader] No translations found for en:missing",
       );
 
       expect(onLoadError).toHaveBeenCalledExactlyOnceWith(

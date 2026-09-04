@@ -9,8 +9,8 @@ New entry point `@comvi/plugin-fetch-loader/cdn`: `cdnLoader(options)` and
 host's `apiKey`, so an app that only ever reads a public distribution still
 bundles the whole API request path — the project-info cache, the legacy export
 chain and the retry policy. The new entry does not contain that path at all.
-Composed on the base host with ICU, it measures **9106 B min+gz against 11060 B**
-for the same composition through the package root: **1954 B smaller**.
+Composed on the base host with ICU, it measures **9138 B min+gz against 11094 B**
+for the same composition through the package root: **1956 B smaller**.
 
 Everything the CDN mode does, it still does: one request per `locale:namespace`
 with concurrent callers deduplicated, a timeout that covers the response body,
@@ -31,7 +31,8 @@ const i18n = createI18n({ locale: "en" }).with(
 is a compile error rather than a setting that quietly does nothing.
 
 `fetchLoader()` and `FetchLoader()` behave exactly as before — keep them wherever
-the host carries an `apiKey`. They are 199 B larger, because the CDN request
-path is now ONE shared implementation both entries run rather than two copies
-that could drift. The docs show `cdnLoader` in the CDN quickstarts and present
-`fetchLoader` as the CDN + API entry.
+the host carries an `apiKey`. They are 233 B larger: 199 B because the CDN
+request path is now ONE shared implementation both entries run rather than two
+copies that could drift, and 34 B for the longer error prefix below. The docs
+show `cdnLoader` in the CDN quickstarts and present `fetchLoader` as the
+CDN + API entry.

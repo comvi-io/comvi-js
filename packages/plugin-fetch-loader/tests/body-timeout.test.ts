@@ -151,7 +151,7 @@ describe("a response body that fails while it is read", () => {
 
     await expect(
       fetchProjectInfo("key", BASE, 5000, fetchFn, undefined, { retry: false }),
-    ).rejects.toThrow(`[FetchLoader] Invalid JSON response from ${BASE}/v1/project`);
+    ).rejects.toThrow(`[@comvi/plugin-fetch-loader] Invalid JSON response from ${BASE}/v1/project`);
   });
 
   it("gives up at once when the caller aborted before the body could be read", async () => {
@@ -176,7 +176,7 @@ describe("a response body that fails while it is read", () => {
       fetchApiTranslations("key", "en", ["default"], BASE, 5000, fetchFn, undefined, {
         signal: caller.signal,
       }),
-    ).rejects.toThrow(`[FetchLoader] Request aborted: ${url}`);
+    ).rejects.toThrow(`[@comvi/plugin-fetch-loader] Request aborted: ${url}`);
   });
 });
 

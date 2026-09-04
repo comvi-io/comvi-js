@@ -10,7 +10,7 @@ import { deferred } from "./helpers/deferred";
 import { stubFetchWithDeferredBody } from "./helpers/transport";
 import { server, mockCdnErrorResponse, mockCdnSuccessResponse, TEST_CDN_URL } from "./setup";
 
-const CDN_ABORTED = `[FetchLoader] Request aborted: ${TEST_CDN_URL}/en.json`;
+const CDN_ABORTED = `[@comvi/plugin-fetch-loader] Request aborted: ${TEST_CDN_URL}/en.json`;
 
 describe("FetchLoader() in CDN mode", () => {
   it("loads the initial namespace when loadOnInit is left at its default", async () => {

@@ -3,6 +3,7 @@ import type { CdnLoaderOptions } from "./options";
 import { FETCH_LOADER_PLUGIN_KEY } from "../plugin-key";
 import { createCdnLoad, loadInitialFromCdn } from "../cdn-load";
 import { trackInflight } from "../inflight";
+import { ERROR_PREFIX } from "../http-core";
 
 /**
  * Loads translations from a CDN — and only from a CDN.
@@ -32,7 +33,7 @@ import { trackInflight } from "../inflight";
  * ```
  */
 export const CdnLoader: I18nPluginFactory<CdnLoaderOptions> = (options): I18nPlugin => {
-  if (!options?.cdnUrl) throw new Error("[FetchLoader] cdnUrl is required");
+  if (!options?.cdnUrl) throw new Error(`${ERROR_PREFIX} cdnUrl is required`);
 
   const { cdnUrl, fallback, timeout = 10000, loadOnInit = true, cdnLayout, cache } = options;
 

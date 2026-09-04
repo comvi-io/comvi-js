@@ -8,10 +8,11 @@
  */
 import type { ExportApiResponse, TranslationStore } from "./types";
 import { API_BASE_URL } from "./options";
-import { stripSlash, validateId } from "./http-core";
+import { ERROR_PREFIX, stripSlash, validateId } from "./http-core";
 
 export type { ExtendedFetchOptions, FetchRequestOptions, JsonResult } from "./http-core";
 export {
+  ERROR_PREFIX,
   RequestAbortedError,
   buildCacheOptions,
   fetchJsonWithTimeout,
@@ -97,5 +98,5 @@ export function transformApiResponse(response: ExportApiResponse): TranslationSt
 
 function assertObject(value: unknown, path: string): asserts value is Record<string, never> {
   if (!value || typeof value !== "object" || Array.isArray(value))
-    throw new Error(`[FetchLoader] Invalid API response: "${path}" must be an object`);
+    throw new Error(`${ERROR_PREFIX} Invalid API response: "${path}" must be an object`);
 }

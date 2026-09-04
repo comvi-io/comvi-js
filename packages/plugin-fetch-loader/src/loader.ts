@@ -2,7 +2,13 @@ import type { I18nPlugin, I18nPluginFactory, TranslationValue } from "@comvi/cor
 import type { TranslationStore } from "./types";
 import type { FetchLoaderOptions } from "./options";
 import { FETCH_LOADER_PLUGIN_KEY } from "./plugin-key";
-import { RequestAbortedError, buildCacheOptions, isAborted, toError } from "./http-core";
+import {
+  ERROR_PREFIX,
+  RequestAbortedError,
+  buildCacheOptions,
+  isAborted,
+  toError,
+} from "./http-core";
 import { tryFallback } from "./fallback";
 import { trackInflight } from "./inflight";
 import { createCdnLoad, loadInitialFromCdn } from "./cdn-load";
@@ -35,7 +41,7 @@ export { resolveFallback } from "./fallback";
  * ```
  */
 export const FetchLoader: I18nPluginFactory<FetchLoaderOptions> = (options): I18nPlugin => {
-  if (!options?.cdnUrl) throw new Error("[FetchLoader] cdnUrl is required");
+  if (!options?.cdnUrl) throw new Error(`${ERROR_PREFIX} cdnUrl is required`);
 
   const {
     cdnUrl,
@@ -168,7 +174,7 @@ export const FetchLoader: I18nPluginFactory<FetchLoaderOptions> = (options): I18
           }
         }
 
-        const error = new Error(`[FetchLoader] No translations found for ${ck}`);
+        const error = new Error(`${ERROR_PREFIX} No translations found for ${ck}`);
         reportError(locale, namespace, error);
         throw error;
       });

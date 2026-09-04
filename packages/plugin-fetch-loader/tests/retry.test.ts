@@ -129,7 +129,7 @@ describe("retrying the project-info request", () => {
     await vi.advanceTimersByTimeAsync(1);
     caller.abort();
     const rejection = expect(request).rejects.toThrow(
-      `[FetchLoader] Request aborted: ${PROJECT_URL}`,
+      `[@comvi/plugin-fetch-loader] Request aborted: ${PROJECT_URL}`,
     );
     await vi.advanceTimersByTimeAsync(5000);
 
@@ -289,7 +289,7 @@ describe("retrying the project-info request", () => {
       signal: caller.signal,
     });
     const rejection = expect(request).rejects.toThrow(
-      `[FetchLoader] Request aborted: ${PROJECT_URL}`,
+      `[@comvi/plugin-fetch-loader] Request aborted: ${PROJECT_URL}`,
     );
     await vi.advanceTimersByTimeAsync(5000);
 
@@ -305,7 +305,9 @@ describe("retrying the project-info request", () => {
     const request = fetchProjectInfo("key", BASE, 5000, fetchFn, undefined, {
       signal: caller.signal,
     });
-    const rejection = expect(request).rejects.toThrow("[FetchLoader] Request aborted");
+    const rejection = expect(request).rejects.toThrow(
+      "[@comvi/plugin-fetch-loader] Request aborted",
+    );
     await vi.advanceTimersByTimeAsync(1);
     caller.abort();
 
@@ -321,7 +323,7 @@ describe("retrying the project-info request", () => {
     const first = fetchProjectInfo("key", BASE, 5000, aborted.fetchFn, undefined, {
       signal: caller.signal,
     });
-    const rejection = expect(first).rejects.toThrow("[FetchLoader] Request aborted");
+    const rejection = expect(first).rejects.toThrow("[@comvi/plugin-fetch-loader] Request aborted");
     await vi.advanceTimersByTimeAsync(1);
     caller.abort();
     await rejection;
@@ -349,7 +351,7 @@ describe("retrying the project-info request", () => {
     const first = fetchProjectInfo("key", BASE, 5000, abortingTransport, undefined, {
       signal: caller.signal,
     });
-    const rejection = expect(first).rejects.toThrow("[FetchLoader] Request aborted");
+    const rejection = expect(first).rejects.toThrow("[@comvi/plugin-fetch-loader] Request aborted");
     await vi.advanceTimersByTimeAsync(5000);
     await rejection;
     const recovering = transportThatRecovers(() => failure(503, "Unavailable"));

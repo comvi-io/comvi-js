@@ -54,6 +54,10 @@ export interface InflightRequests {
  * `clearTranslations`.
  */
 export function trackInflight(i18n: ClearedScopeHost, callbacks: LoadCallbacks): InflightRequests {
+  // Read once, at install time, exactly as the plugin factories destructure the
+  // rest of their options: an options object mutated after install must not
+  // change where reports go.
+  const { onLoadSuccess, onLoadError } = callbacks;
   const inflight = new Set<InflightRequest>();
   let stopped = false;
 
@@ -82,10 +86,10 @@ export function trackInflight(i18n: ClearedScopeHost, callbacks: LoadCallbacks):
     },
     isStopped: () => stopped,
     reportSuccess: (locale, namespace) => {
-      if (!stopped) callbacks.onLoadSuccess?.(locale, namespace);
+      if (!stopped) onLoadSuccess?.(locale, namespace);
     },
     reportError: (locale, namespace, error) => {
-      if (!stopped) callbacks.onLoadError?.(locale, namespace, error);
+      if (!stopped) onLoadError?.(locale, namespace, error);
     },
     stop: () => {
       unfollow();

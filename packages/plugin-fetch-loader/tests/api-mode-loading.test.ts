@@ -18,7 +18,7 @@ import {
   TEST_CDN_URL,
 } from "./setup";
 
-const FALLBACK_ABORTED = "[FetchLoader] Request aborted: API translation fallback";
+const FALLBACK_ABORTED = "[@comvi/plugin-fetch-loader] Request aborted: API translation fallback";
 
 const devHost = () => new I18n({ locale: "en", apiKey: TEST_API_KEY, devMode: true });
 
@@ -123,12 +123,14 @@ describe("FetchLoader() in API mode fallbacks", () => {
     })(i18n);
 
     await expect(i18n.getLoader()!("en", "missing")).rejects.toThrow(
-      "[FetchLoader] No translations found for en:missing",
+      "[@comvi/plugin-fetch-loader] No translations found for en:missing",
     );
     expect(onLoadError).toHaveBeenCalledExactlyOnceWith(
       "en",
       "missing",
-      expect.objectContaining({ message: "[FetchLoader] No translations found for en:missing" }),
+      expect.objectContaining({
+        message: "[@comvi/plugin-fetch-loader] No translations found for en:missing",
+      }),
     );
   });
 
@@ -142,7 +144,7 @@ describe("FetchLoader() in API mode fallbacks", () => {
     );
 
     await expect(i18n.getLoader()!("en", "default")).rejects.toThrow(
-      "[FetchLoader] No translations found for en:default",
+      "[@comvi/plugin-fetch-loader] No translations found for en:default",
     );
     expect(fallback).toHaveBeenCalledOnce();
   });
@@ -158,7 +160,7 @@ describe("FetchLoader() in API mode fallbacks", () => {
     );
 
     await expect(i18n.getLoader()!("en", "default")).rejects.toThrow(
-      "[FetchLoader] No translations found for en:default",
+      "[@comvi/plugin-fetch-loader] No translations found for en:default",
     );
     expect(fallback).toHaveBeenCalledOnce();
   });
@@ -180,7 +182,9 @@ describe("FetchLoader() in API mode after cleanup", () => {
     (cleanup as () => void)();
     response.resolve(createMockApiResponse(["en"], ["default"]));
 
-    await expect(pending).rejects.toThrow("[FetchLoader] Request aborted: API translations");
+    await expect(pending).rejects.toThrow(
+      "[@comvi/plugin-fetch-loader] Request aborted: API translations",
+    );
     expect(onLoadSuccess).not.toHaveBeenCalled();
   });
 
@@ -199,7 +203,9 @@ describe("FetchLoader() in API mode after cleanup", () => {
     (cleanup as () => void)();
     response.reject(new SyntaxError("Unexpected token"));
 
-    await expect(pending).rejects.toThrow("[FetchLoader] Request aborted: API translations");
+    await expect(pending).rejects.toThrow(
+      "[@comvi/plugin-fetch-loader] Request aborted: API translations",
+    );
     expect(fallback).not.toHaveBeenCalled();
   });
 

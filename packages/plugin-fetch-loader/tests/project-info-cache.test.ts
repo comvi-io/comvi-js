@@ -131,7 +131,7 @@ describe("fetchProjectInfo() response validation", () => {
     const { fetchFn, calls } = recordingTransport(() => jsonResponse(body));
 
     await expect(fetchProjectInfo("key", BASE, 5000, fetchFn)).rejects.toThrow(
-      '[FetchLoader] Invalid API response from https://api.example.com/v1/project: "id" must be a number or a path-safe string',
+      '[@comvi/plugin-fetch-loader] Invalid API response from https://api.example.com/v1/project: "id" must be a number or a path-safe string',
     );
     expect(calls).toHaveLength(1);
   });

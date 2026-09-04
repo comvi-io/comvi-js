@@ -35,9 +35,16 @@ export function buildCacheOptions(
   return Object.keys(next).length ? { next } : {};
 }
 
+/**
+ * Every error this package throws names the PACKAGE, not an export.
+ * `[FetchLoader]` used to prefix them all, which reads as a bug report about a
+ * symbol a `@comvi/plugin-fetch-loader/cdn` user never imported.
+ */
+export const ERROR_PREFIX = "[@comvi/plugin-fetch-loader]";
+
 export class RequestAbortedError extends Error {
   constructor(url: string) {
-    super(`[FetchLoader] Request aborted: ${url}`);
+    super(`${ERROR_PREFIX} Request aborted: ${url}`);
     this.name = "AbortError";
   }
 }
@@ -117,7 +124,7 @@ async function parseJson<T>(response: Response, url: string): Promise<T> {
     return (await response.json()) as T;
   } catch (error) {
     if (isAborted(error)) throw error;
-    throw new Error(`[FetchLoader] Invalid JSON response from ${url}`);
+    throw new Error(`${ERROR_PREFIX} Invalid JSON response from ${url}`);
   }
 }
 
@@ -147,6 +154,6 @@ export const isSafeId = (value: string): boolean =>
 export function validateId(value: string, label: string): void {
   if (!isSafeId(value))
     throw new Error(
-      `[FetchLoader] Invalid ${label}: "${value}". Only alphanumeric, underscore, hyphen, dot, and @ characters are allowed; dot-only path segments are rejected.`,
+      `${ERROR_PREFIX} Invalid ${label}: "${value}". Only alphanumeric, underscore, hyphen, dot, and @ characters are allowed; dot-only path segments are rejected.`,
     );
 }
