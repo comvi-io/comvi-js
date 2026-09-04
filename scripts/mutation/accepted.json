@@ -1847,72 +1847,72 @@
     },
     {
       "package": "packages/plugin-fetch-loader",
-      "file": "src/http.ts",
+      "file": "src/http-core.ts",
       "mutators": ["OptionalChaining"],
       "snippet": "const abortFromExternal = () => controller.abort(externalSignal?.reason);",
-      "lineHint": 43,
+      "lineHint": 80,
       "kind": "equivalent",
-      "reason": "abortFromExternal is only ever invoked from the `externalSignal?.aborted` branch or from a listener registered on externalSignal, so it never runs with externalSignal undefined.",
+      "reason": "abortFromExternal is only ever invoked from the `externalSignal?.aborted` branch or from a listener registered on externalSignal, so it never runs with externalSignal undefined.  (moved with the code from src/http.ts / src/loader.ts into the shared request-path modules in lot L3; the claim is unchanged)",
       "round": 4
     },
     {
       "package": "packages/plugin-fetch-loader",
-      "file": "src/http.ts",
+      "file": "src/http-core.ts",
       "mutators": ["ObjectLiteral", "BooleanLiteral"],
       "snippet": "externalSignal?.addEventListener(\"abort\", abortFromExternal, { once: true });",
-      "lineHint": 47,
+      "lineHint": 84,
       "kind": "equivalent",
-      "reason": "`{ once: true }` is redundant on an AbortSignal (abort fires at most once) and the finally block removes the listener regardless.",
+      "reason": "`{ once: true }` is redundant on an AbortSignal (abort fires at most once) and the finally block removes the listener regardless.  (moved with the code from src/http.ts / src/loader.ts into the shared request-path modules in lot L3; the claim is unchanged)",
       "round": 4
     },
     {
       "package": "packages/plugin-fetch-loader",
-      "file": "src/http.ts",
+      "file": "src/http-core.ts",
       "mutators": ["StringLiteral"],
       "snippet": "externalSignal?.removeEventListener(\"abort\", abortFromExternal);",
-      "lineHint": 64,
+      "lineHint": 111,
       "kind": "equivalent",
-      "reason": "removing the wrong event name leaks the listener; it cannot change behaviour, because the handler only aborts a controller whose request has already settled.",
+      "reason": "removing the wrong event name leaks the listener; it cannot change behaviour, because the handler only aborts a controller whose request has already settled.  (moved with the code from src/http.ts / src/loader.ts into the shared request-path modules in lot L3; the claim is unchanged)",
       "round": 4
     },
     {
       "package": "packages/plugin-fetch-loader",
-      "file": "src/http.ts",
+      "file": "src/cdn-url.ts",
       "mutators": ["ConditionalExpression", "BooleanLiteral"],
       "snippet": "return rootNamespace !== false && namespace === rootNamespace",
-      "lineHint": 160,
+      "lineHint": 21,
       "kind": "equivalent",
-      "reason": "`namespace` is a validated non-empty string, so `namespace === rootNamespace` is false whenever rootNamespace is `false`. Both mutants only relax a check the second conjunct already enforces, and the folder path is taken either way.",
+      "reason": "`namespace` is a validated non-empty string, so `namespace === rootNamespace` is false whenever rootNamespace is `false`. Both mutants only relax a check the second conjunct already enforces, and the folder path is taken either way.  (moved with the code from src/http.ts / src/loader.ts into the shared request-path modules in lot L3; the claim is unchanged)",
       "round": 4
     },
     {
       "package": "packages/plugin-fetch-loader",
-      "file": "src/loader.ts",
+      "file": "src/fallback.ts",
       "mutators": ["ObjectLiteral"],
       "snippet": "if (!importFn) return { attempted: false };",
-      "lineHint": 46,
+      "lineHint": 35,
       "kind": "equivalent",
-      "reason": "`{}` gives `attempted: undefined`, and every reader tests it for truthiness (`if (fallbackResult.attempted)` / `!fallbackResult.attempted`), where undefined and false are indistinguishable.",
+      "reason": "`{}` gives `attempted: undefined`, and every reader tests it for truthiness (`if (fallbackResult.attempted)` / `!fallbackResult.attempted`), where undefined and false are indistinguishable.  (moved with the code from src/http.ts / src/loader.ts into the shared request-path modules in lot L3; the claim is unchanged)",
       "round": 4
     },
     {
       "package": "packages/plugin-fetch-loader",
-      "file": "src/loader.ts",
+      "file": "src/fallback.ts",
       "mutators": ["OptionalChaining"],
       "snippet": "onSuccess?.(locale, ns);",
-      "lineHint": 49,
+      "lineHint": 38,
       "kind": "equivalent",
-      "reason": "both call sites of tryFallback pass reportSuccess for onSuccess, so it is never undefined. (The onError parameter IS optional at the missing-namespace call site, which is why the matching mutant there is killed.)",
+      "reason": "both call sites of tryFallback pass reportSuccess for onSuccess, so it is never undefined. (The onError parameter IS optional at the missing-namespace call site, which is why the matching mutant there is killed.)  (moved with the code from src/http.ts / src/loader.ts into the shared request-path modules in lot L3; the claim is unchanged)",
       "round": 4
     },
     {
       "package": "packages/plugin-fetch-loader",
-      "file": "src/loader.ts",
+      "file": "src/inflight.ts",
       "mutators": ["CallExpression"],
       "snippet": "inflight.clear();",
-      "lineHint": 129,
+      "lineHint": 94,
       "kind": "equivalent",
-      "reason": "the set has just been walked and every controller aborted; clearing it only releases memory.",
+      "reason": "the set has just been walked and every controller aborted; clearing it only releases memory.  (moved with the code from src/http.ts / src/loader.ts into the shared request-path modules in lot L3; the claim is unchanged)",
       "round": 4
     },
     {
@@ -1929,8 +1929,8 @@
       "package": "packages/plugin-fetch-loader",
       "file": "src/loader.ts",
       "mutators": ["LogicalOperator", "StringLiteral"],
-      "snippet": "if (signal.aborted || stopped) throw new RequestAbortedError(\"API translations\");",
-      "lineHint": 169,
+      "snippet": "if (signal.aborted || isStopped()) throw new RequestAbortedError(\"API translations\");",
+      "lineHint": 103,
       "kind": "equivalent",
       "reason": "the message literal never surfaces: this throw is caught two lines below, where the abort branch rethrows a RequestAbortedError with the identical \"API translations\" text (that literal IS killed). The || -> && mutant is equivalent because `stopped` and `signal.aborted` are set together for every tracked request: abortAll() sets `stopped` and aborts every controller in `inflight`, and trackRequest() aborts a controller created after `stopped`.",
       "round": 4
@@ -1939,8 +1939,8 @@
       "package": "packages/plugin-fetch-loader",
       "file": "src/loader.ts",
       "mutators": ["LogicalOperator"],
-      "snippet": "if (signal.aborted || stopped || isAborted(error)) {",
-      "lineHint": 174,
+      "snippet": "if (signal.aborted || isStopped() || isAborted(error)) {",
+      "lineHint": 108,
       "kind": "equivalent",
       "reason": "same equality of `stopped` and `signal.aborted` as above; and with `isAborted(error)` still ORed in, the mutant differs only where the original was already true.",
       "round": 4
@@ -1959,8 +1959,8 @@
       "package": "packages/plugin-fetch-loader",
       "file": "src/loader.ts",
       "mutators": ["LogicalOperator"],
-      "snippet": "if (signal.aborted || stopped) {",
-      "lineHint": 189,
+      "snippet": "if (signal.aborted || isStopped()) {",
+      "lineHint": 123,
       "kind": "equivalent",
       "reason": "`stopped` and `signal.aborted` are set together for every tracked request; see the entry for `if (signal.aborted || stopped) throw new RequestAbortedError(\"API translations\");`.",
       "round": 4
@@ -2007,52 +2007,52 @@
     },
     {
       "package": "packages/plugin-fetch-loader",
-      "file": "src/loader.ts",
+      "file": "src/cdn-load.ts",
       "mutators": ["LogicalOperator"],
-      "snippet": "if (signal.aborted || stopped) throw new RequestAbortedError(url);",
-      "lineHint": 288,
+      "snippet": "if (signal.aborted || isStopped()) throw new RequestAbortedError(url);",
+      "lineHint": 74,
       "kind": "equivalent",
-      "reason": "`stopped` and `signal.aborted` are set together for every tracked request; see the API-mode entry.",
+      "reason": "`stopped` and `signal.aborted` are set together for every tracked request; see the API-mode entry.  (moved with the code from src/http.ts / src/loader.ts into the shared request-path modules in lot L3; the claim is unchanged)",
       "round": 4
     },
     {
       "package": "packages/plugin-fetch-loader",
-      "file": "src/loader.ts",
+      "file": "src/cdn-load.ts",
       "mutators": ["LogicalOperator"],
-      "snippet": "if (signal.aborted || stopped || isAborted(error)) {",
-      "lineHint": 292,
+      "snippet": "if (signal.aborted || isStopped() || isAborted(error)) {",
+      "lineHint": 78,
       "kind": "equivalent",
-      "reason": "same equality of `stopped` and `signal.aborted`; `isAborted(error)` is still ORed in, so the mutant differs only where the original was already true.",
+      "reason": "same equality of `stopped` and `signal.aborted`; `isAborted(error)` is still ORed in, so the mutant differs only where the original was already true.  (moved with the code from src/http.ts / src/loader.ts into the shared request-path modules in lot L3; the claim is unchanged)",
       "round": 4
     },
     {
       "package": "packages/plugin-fetch-loader",
-      "file": "src/loader.ts",
+      "file": "src/cdn-load.ts",
       "mutators": ["LogicalOperator"],
-      "snippet": "if (signal.aborted || stopped) throw new RequestAbortedError(url);",
-      "lineHint": 304,
+      "snippet": "if (signal.aborted || isStopped()) throw new RequestAbortedError(url);",
+      "lineHint": 90,
       "kind": "equivalent",
-      "reason": "`stopped` and `signal.aborted` are set together for every tracked request; see the API-mode entry.",
+      "reason": "`stopped` and `signal.aborted` are set together for every tracked request; see the API-mode entry.  (moved with the code from src/http.ts / src/loader.ts into the shared request-path modules in lot L3; the claim is unchanged)",
       "round": 4
     },
     {
       "package": "packages/plugin-fetch-loader",
-      "file": "src/loader.ts",
+      "file": "src/cdn-load.ts",
       "mutators": ["CallExpression"],
       "snippet": "release();",
-      "lineHint": 314,
+      "lineHint": 100,
       "kind": "equivalent",
-      "reason": "leaving the controller in `inflight` is a leak; abortAll() would abort a controller whose request already settled.",
+      "reason": "leaving the controller in `inflight` is a leak; abortAll() would abort a controller whose request already settled.  (moved with the code from src/http.ts / src/loader.ts into the shared request-path modules in lot L3; the claim is unchanged)",
       "round": 4
     },
     {
       "package": "packages/plugin-fetch-loader",
-      "file": "src/loader.ts",
-      "mutators": ["CallExpression"],
-      "snippet": "loading.clear();",
-      "lineHint": 343,
+      "file": "src/cdn-load.ts",
+      "mutators": ["ArrowFunction"],
+      "snippet": "return { load, clear: () => loading.clear() };",
+      "lineHint": 109,
       "kind": "equivalent",
-      "reason": "every entry of `loading` deletes itself in its own finally block, so the clear only releases memory.",
+      "reason": "every entry of `loading` deletes itself in its own finally block, so the clear only releases memory. (moved into src/cdn-load.ts in lot L3, where the clear is the returned arrow rather than a bare statement; same claim.)",
       "round": 4
     },
     {
@@ -7741,21 +7741,21 @@
     },
     {
       "package": "packages/plugin-fetch-loader",
-      "file": "src/http.ts",
+      "file": "src/http-core.ts",
       "mutators": ["StringLiteral"],
       "snippet": "const fail = () => reject(named(\"AbortError\", \"The operation was aborted.\"));",
-      "lineHint": 118,
+      "lineHint": 129,
       "kind": "equivalent",
-      "reason": "the message never reaches a caller: controller.abort() is only ever called by the timer or by abortFromExternal, so the outer catch always rewrites this rejection as either the timeout error or RequestAbortedError (hand-applied: 204/204 green)"
+      "reason": "the message never reaches a caller: controller.abort() is only ever called by the timer or by abortFromExternal, so the outer catch always rewrites this rejection as either the timeout error or RequestAbortedError (hand-applied: 204/204 green)  (moved with the code from src/http.ts / src/loader.ts into the shared request-path modules in lot L3; the claim is unchanged)"
     },
     {
       "package": "packages/plugin-fetch-loader",
-      "file": "src/http.ts",
+      "file": "src/http-core.ts",
       "mutators": ["ObjectLiteral", "BooleanLiteral"],
       "snippet": "else signal.addEventListener(\"abort\", fail, { once: true });",
-      "lineHint": 120,
+      "lineHint": 131,
       "kind": "equivalent",
-      "reason": "an AbortSignal fires 'abort' at most once, so { once: true } only releases the listener a moment earlier — dropping it or setting it false changes nothing observable (hand-applied both: 204/204 green)"
+      "reason": "an AbortSignal fires 'abort' at most once, so { once: true } only releases the listener a moment earlier — dropping it or setting it false changes nothing observable (hand-applied both: 204/204 green)  (moved with the code from src/http.ts / src/loader.ts into the shared request-path modules in lot L3; the claim is unchanged)"
     },
     {
       "package": "packages/plugin-fetch-loader",
@@ -7779,38 +7779,38 @@
       "package": "packages/plugin-fetch-loader",
       "file": "src/loader.ts",
       "mutators": ["ConditionalExpression"],
-      "snippet": "if (signal.aborted || stopped) throw new RequestAbortedError(\"API translations\");",
-      "lineHint": 169,
+      "snippet": "if (signal.aborted || isStopped()) throw new RequestAbortedError(\"API translations\");",
+      "lineHint": 103,
       "kind": "equivalent",
       "reason": "unreachable since E1: fetchJsonWithTimeout races the body read against the signal, so a request cancelled at any point rejects there and never reaches this post-success guard. The guard stays for the window between the helper resolving and this line. The LogicalOperator sibling on this line was already accepted (hand-applied: 204/204 green)"
     },
     {
       "package": "packages/plugin-fetch-loader",
-      "file": "src/loader.ts",
+      "file": "src/cdn-load.ts",
       "mutators": ["ConditionalExpression"],
-      "snippet": "if (signal.aborted || stopped) throw new RequestAbortedError(url);",
-      "lineHint": 288,
+      "snippet": "if (signal.aborted || isStopped()) throw new RequestAbortedError(url);",
+      "lineHint": 74,
       "kind": "equivalent",
-      "reason": "unreachable since E1, for the same reason as the API-mode guard at :169 — the CDN request now rejects inside fetchJsonWithTimeout when the signal fires. The LogicalOperator sibling on this line was already accepted (hand-applied: 204/204 green)"
+      "reason": "unreachable since E1, for the same reason as the API-mode guard at :169 — the CDN request now rejects inside fetchJsonWithTimeout when the signal fires. The LogicalOperator sibling on this line was already accepted (hand-applied: 204/204 green)  (moved with the code from src/http.ts / src/loader.ts into the shared request-path modules in lot L3; the claim is unchanged)"
     },
     {
       "package": "packages/plugin-fetch-loader",
       "file": "src/loader.ts",
       "mutators": ["ConditionalExpression"],
-      "snippet": "if (signal.aborted || stopped || isAborted(error)) {",
-      "lineHint": 174,
+      "snippet": "if (signal.aborted || isStopped() || isAborted(error)) {",
+      "lineHint": 108,
       "kind": "tool-limitation",
       "reason": "runner artifact, not an equivalent mutant — the claim IS pinned. Hand-applying this mutant turns 2 of this package's tests RED (the two \"after cleanup\" cases in tests/api-mode-loading.test.ts, which then reach the fallback). Stryker still reports it Survived because @stryker-mutator/vitest-runner drives one long-lived vitest instance with perTest coverage analysis, and these suites drive fake timers across await boundaries: the mutant executes on a continuation the runner no longer attributes to the test that is running, so the killing tests are never in the mutant's test set. No additional test can change this.",
       "round": 14
     },
     {
       "package": "packages/plugin-fetch-loader",
-      "file": "src/loader.ts",
+      "file": "src/cdn-load.ts",
       "mutators": ["ConditionalExpression"],
-      "snippet": "if (signal.aborted || stopped || isAborted(error)) {",
-      "lineHint": 292,
+      "snippet": "if (signal.aborted || isStopped() || isAborted(error)) {",
+      "lineHint": 78,
       "kind": "tool-limitation",
-      "reason": "runner artifact, not an equivalent mutant — the claim IS pinned. Hand-applying this mutant turns 2 of this package's tests RED (the two \"after cleanup\" cases in tests/cdn-mode-loading.test.ts, which then reach the fallback). Stryker still reports it Survived because @stryker-mutator/vitest-runner drives one long-lived vitest instance with perTest coverage analysis, and these suites drive fake timers across await boundaries: the mutant executes on a continuation the runner no longer attributes to the test that is running, so the killing tests are never in the mutant's test set. No additional test can change this.",
+      "reason": "runner artifact, not an equivalent mutant — the claim IS pinned. Hand-applying this mutant turns 2 of this package's tests RED (the two \"after cleanup\" cases in tests/cdn-mode-loading.test.ts, which then reach the fallback). Stryker still reports it Survived because @stryker-mutator/vitest-runner drives one long-lived vitest instance with perTest coverage analysis, and these suites drive fake timers across await boundaries: the mutant executes on a continuation the runner no longer attributes to the test that is running, so the killing tests are never in the mutant's test set. No additional test can change this.  (moved with the code from src/http.ts / src/loader.ts into the shared request-path modules in lot L3; the claim is unchanged)",
       "round": 14
     },
     {
@@ -7825,12 +7825,12 @@
     },
     {
       "package": "packages/plugin-fetch-loader",
-      "file": "src/loader.ts",
+      "file": "src/cdn-load.ts",
       "mutators": ["CallExpression"],
-      "snippet": "if (signal.aborted || stopped) throw new RequestAbortedError(url);",
-      "lineHint": 288,
+      "snippet": "if (signal.aborted || isStopped()) throw new RequestAbortedError(url);",
+      "lineHint": 74,
       "kind": "tool-limitation",
-      "reason": "runner artifact, not an equivalent mutant — the claim IS pinned. Hand-applying this mutant turns 1 of this package's tests RED (the \"discards a response whose body arrives after cleanup\" claim in tests/cdn-mode-loading.test.ts). Stryker still reports it NoCoverage because @stryker-mutator/vitest-runner drives one long-lived vitest instance with perTest coverage analysis, and these suites drive fake timers across await boundaries: the mutant executes on a continuation the runner no longer attributes to the test that is running, so the killing tests are never in the mutant's test set. No additional test can change this.",
+      "reason": "runner artifact, not an equivalent mutant — the claim IS pinned. Hand-applying this mutant turns 1 of this package's tests RED (the \"discards a response whose body arrives after cleanup\" claim in tests/cdn-mode-loading.test.ts). Stryker still reports it NoCoverage because @stryker-mutator/vitest-runner drives one long-lived vitest instance with perTest coverage analysis, and these suites drive fake timers across await boundaries: the mutant executes on a continuation the runner no longer attributes to the test that is running, so the killing tests are never in the mutant's test set. No additional test can change this.  (moved with the code from src/http.ts / src/loader.ts into the shared request-path modules in lot L3; the claim is unchanged)",
       "round": 14
     },
     {
@@ -7853,12 +7853,12 @@
     },
     {
       "package": "packages/plugin-fetch-loader",
-      "file": "src/loader.ts",
+      "file": "src/inflight.ts",
       "mutators": ["ArrowFunction"],
       "snippet": "release: () => inflight.delete(request),",
-      "lineHint": 130,
+      "lineHint": 80,
       "kind": "equivalent",
-      "reason": "`inflight` is only walked to abort what is still running — by abortAll() and by the translationsCleared listener. Leaving a settled request in the set means aborting a controller whose request has already finished, which is a no-op. The mutant is a memory leak, not a behaviour change.",
+      "reason": "`inflight` is only walked to abort what is still running — by abortAll() and by the translationsCleared listener. Leaving a settled request in the set means aborting a controller whose request has already finished, which is a no-op. The mutant is a memory leak, not a behaviour change.  (moved with the code from src/http.ts / src/loader.ts into the shared request-path modules in lot L3; the claim is unchanged)",
       "round": 4
     },
     {
@@ -7944,30 +7944,21 @@
     },
     {
       "package": "packages/plugin-fetch-loader",
-      "file": "src/loader.ts",
+      "file": "src/inflight.ts",
       "mutators": ["CallExpression"],
       "snippet": "inflight.delete(request);",
-      "lineHint": 156,
+      "lineHint": 67,
       "kind": "equivalent",
-      "reason": "the request's controller has just been aborted; leaving it in the set only means a later abortAll() or clear aborts an already-aborted controller, which is a no-op. Memory, not behaviour — the same argument as the `inflight.clear()` entry above."
+      "reason": "the request's controller has just been aborted; leaving it in the set only means a later abortAll() or clear aborts an already-aborted controller, which is a no-op. Memory, not behaviour — the same argument as the `inflight.clear()` entry above.  (moved with the code from src/http.ts / src/loader.ts into the shared request-path modules in lot L3; the claim is unchanged)"
     },
     {
       "package": "packages/plugin-fetch-loader",
-      "file": "src/loader.ts",
+      "file": "src/inflight.ts",
       "mutators": ["CallExpression"],
       "snippet": "unfollow();",
-      "lineHint": 291,
+      "lineHint": 91,
       "kind": "equivalent",
-      "reason": "dropping the unsubscribe leaks a listener, not behaviour: cleanup runs abortAll() first, which sets `stopped` and empties `inflight`, so a later translationsCleared walks an empty set and aborts nothing. Nothing public exposes a host's listener count, so no test can see the difference."
-    },
-    {
-      "package": "packages/plugin-fetch-loader",
-      "file": "src/loader.ts",
-      "mutators": ["CallExpression"],
-      "snippet": "unfollow();",
-      "lineHint": 372,
-      "kind": "equivalent",
-      "reason": "the CDN branch's copy of the same cleanup; see the API branch entry above."
+      "reason": "dropping the unsubscribe leaks a listener, not behaviour: cleanup runs abortAll() first, which sets `stopped` and empties `inflight`, so a later translationsCleared walks an empty set and aborts nothing. Nothing public exposes a host's listener count, so no test can see the difference.  (moved with the code from src/http.ts / src/loader.ts into the shared request-path modules in lot L3; the claim is unchanged)"
     },
     {
       "package": "packages/core",
@@ -8004,6 +7995,26 @@
       "lineHint": 170,
       "kind": "gap:prod-build",
       "reason": "`if (IS_DEV)` → `if (true)`: IS_DEV is a build-time literal that is `true` in the dev test build, so the mutant is the same program there; only the production fold (which drops the call and the warning string — verified by grepping dist) can tell them apart."
+    },
+    {
+      "package": "packages/plugin-fetch-loader",
+      "file": "src/loader.ts",
+      "mutators": ["CallExpression"],
+      "snippet": "cdn.clear();",
+      "lineHint": 213,
+      "kind": "equivalent",
+      "reason": "every entry of the CDN dedup map deletes itself in its own finally block, and `requests.stop()` on the line above has already aborted every in-flight request, so by the time this runs the map is empty; the call only releases memory.",
+      "round": 5
+    },
+    {
+      "package": "packages/plugin-fetch-loader",
+      "file": "src/cdn/loader.ts",
+      "mutators": ["CallExpression"],
+      "snippet": "cdn.clear();",
+      "lineHint": 57,
+      "kind": "equivalent",
+      "reason": "every entry of the CDN dedup map deletes itself in its own finally block, and `requests.stop()` on the line above has already aborted every in-flight request, so by the time this runs the map is empty; the call only releases memory.",
+      "round": 5
     }
   ]
 }

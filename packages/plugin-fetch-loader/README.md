@@ -31,7 +31,7 @@ publishes two entry points, one per delivery mode.
 switches to the API when the host carries an `apiKey`. That choice is made at
 runtime, so the API request path is in the bundle either way. `cdnLoader()` from
 `@comvi/plugin-fetch-loader/cdn` is the CDN half on its own — same CDN
-behaviour, about **1.8 kB min+gz smaller**, and an `apiKey` on the host changes
+behaviour, about **1.9 kB min+gz smaller**, and an `apiKey` on the host changes
 nothing. Reach for the root entry only when the app actually talks to the API.
 
 ## About Comvi i18n

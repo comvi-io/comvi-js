@@ -9,8 +9,10 @@
  */
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { http, HttpResponse } from "msw";
-import { createI18n } from "@comvi/core";
-import { CdnLoader, cdnLoader } from "../src/cdn/index";
+import { createI18n, hasLoaderApi } from "@comvi/core";
+import type { I18nPlugin } from "@comvi/core";
+import { plugins } from "@comvi/core/plugins";
+import { CdnLoader, cdnLoader, type CdnLoaderOptions } from "../src/cdn/index";
 import { FETCH_LOADER_PLUGIN_KEY } from "../src/index";
 import { I18n } from "./helpers/composedHost";
 import { asFetch } from "./helpers/transport";
@@ -54,9 +56,68 @@ describe("cdnLoader() installer", () => {
   it("reports a missing cdnUrl at COMPOSITION time, not at init", () => {
     expect(() => base().with(cdnLoader({ cdnUrl: "" }))).toThrow(/cdnUrl is required/);
   });
+
+  it("fails at init through .use(), before either capability is attached", async () => {
+    const i18n = base().with(plugins());
+    i18n.use(cdnLoader({ cdnUrl: TEST_CDN_URL }) as unknown as I18nPlugin);
+
+    await expect(i18n.init()).rejects.toThrow(/cdnLoader\(\) is a \.with\(…\) installer/);
+
+    expect(hasLoaderApi(i18n)).toBe(false);
+  });
+});
+
+describe("CdnLoader() options guard", () => {
+  it("reports a missing cdnUrl when the options object carries none", () => {
+    expect(() => CdnLoader({} as CdnLoaderOptions)).toThrow("[FetchLoader] cdnUrl is required");
+  });
+
+  it("reports a missing cdnUrl when no options are passed at all", () => {
+    expect(() => CdnLoader(undefined as unknown as CdnLoaderOptions)).toThrow(
+      "[FetchLoader] cdnUrl is required",
+    );
+  });
 });
 
 describe("CdnLoader() plugin", () => {
+  it("loads the initial namespace when loadOnInit is left at its default", async () => {
+    const i18n = new I18n({ locale: "en", devMode: false });
+    mockCdnSuccessResponse("en", "default", { greeting: "Hello" });
+
+    await CdnLoader({ cdnUrl: TEST_CDN_URL })(i18n);
+
+    expect(i18n.t("greeting")).toBe("Hello");
+  });
+
+  it("makes no request at install time when loadOnInit is false", async () => {
+    const i18n = new I18n({ locale: "en", devMode: false });
+    let requests = 0;
+    server.use(
+      http.get(`${TEST_CDN_URL}/en.json`, () => {
+        requests++;
+        return HttpResponse.json({ greeting: "Hello" });
+      }),
+    );
+
+    await CdnLoader({ cdnUrl: TEST_CDN_URL, loadOnInit: false })(i18n);
+
+    expect(requests).toBe(0);
+  });
+
+  it("loads the namespaces already active on the host rather than the default one", async () => {
+    const i18n = new I18n({ locale: "en", devMode: false });
+    i18n.addTranslations({ "fr:dashboard": { title: "Tableau" } });
+    server.use(
+      http.get(`${TEST_CDN_URL}/dashboard/en.json`, () =>
+        HttpResponse.json({ title: "Dashboard" }),
+      ),
+    );
+
+    await CdnLoader({ cdnUrl: TEST_CDN_URL, loadOnInit: true })(i18n);
+
+    expect(i18n.t("title", { ns: "dashboard" })).toBe("Dashboard");
+  });
+
   it("loads a non-default namespace from its own CDN folder", async () => {
     const i18n = new I18n({ locale: "en", devMode: false });
     server.use(
