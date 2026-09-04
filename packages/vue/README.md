@@ -97,12 +97,12 @@ result with `createI18nFromCore`:
 // main.ts
 import { createApp } from "vue";
 import { createCore, createI18nFromCore, icu } from "@comvi/vue";
-import { fetchLoader } from "@comvi/plugin-fetch-loader";
+import { cdnLoader } from "@comvi/plugin-fetch-loader/cdn";
 import App from "./App.vue";
 
 const core = createCore({ locale: "en", fallbackLocale: "en" })
   .with(icu())
-  .with(fetchLoader({ cdnUrl: "https://cdn.comvi.io/your-distribution-id" }));
+  .with(cdnLoader({ cdnUrl: "https://cdn.comvi.io/your-distribution-id" }));
 
 const i18n = createI18nFromCore(core);
 

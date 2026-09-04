@@ -98,14 +98,14 @@ Translations served by the Comvi platform, fetched at runtime instead of bundled
 <!-- src/routes/+layout.svelte (or App.svelte) -->
 <script lang="ts">
   import { createI18n, icu, setI18nContext } from "@comvi/svelte";
-  import { fetchLoader } from "@comvi/plugin-fetch-loader";
+  import { cdnLoader } from "@comvi/plugin-fetch-loader/cdn";
   import type { Snippet } from "svelte";
 
   const { children }: { children: Snippet } = $props();
 
   const i18n = createI18n({ locale: "en", fallbackLocale: "en" })
     .with(icu())
-    .with(fetchLoader({ cdnUrl: "https://cdn.comvi.io/your-distribution-id" }));
+    .with(cdnLoader({ cdnUrl: "https://cdn.comvi.io/your-distribution-id" }));
 
   setI18nContext(i18n);
 </script>

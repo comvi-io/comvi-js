@@ -17,14 +17,22 @@
 
 ---
 
-`FetchLoader` registers a translation loader that fetches JSON over HTTP.
+This package registers a translation loader that fetches JSON over HTTP. It
+publishes two entry points, one per delivery mode.
 
 ### CDN mode vs API mode
 
-| Mode    | Use case                                                                                                                                         |
-| ------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **CDN** | Static, public translations served from `https://cdn.comvi.io/<distribution-id>`. Fast, cached at the edge. Best for production.                 |
-| **API** | Authenticated requests to Comvi API. Supports draft translations, private projects, and SSR fetch caching. Use for staging / auth-gated content. |
+| Mode    | Entry point                                    | Use case                                                                                                                                         |
+| ------- | ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **CDN** | `@comvi/plugin-fetch-loader/cdn`               | Static, public translations served from `https://cdn.comvi.io/<distribution-id>`. Fast, cached at the edge. Best for production.                 |
+| **API** | `@comvi/plugin-fetch-loader` (CDN **and** API) | Authenticated requests to Comvi API. Supports draft translations, private projects, and SSR fetch caching. Use for staging / auth-gated content. |
+
+`fetchLoader()` from the package root serves both: it reads the CDN, and it
+switches to the API when the host carries an `apiKey`. That choice is made at
+runtime, so the API request path is in the bundle either way. `cdnLoader()` from
+`@comvi/plugin-fetch-loader/cdn` is the CDN half on its own — same CDN
+behaviour, about **1.8 kB min+gz smaller**, and an `apiKey` on the host changes
+nothing. Reach for the root entry only when the app actually talks to the API.
 
 ## About Comvi i18n
 
@@ -57,11 +65,11 @@ npm install @comvi/plugin-fetch-loader
 ```ts
 import { createI18n } from "@comvi/core";
 import { icu } from "@comvi/core/icu";
-import { fetchLoader } from "@comvi/plugin-fetch-loader";
+import { cdnLoader } from "@comvi/plugin-fetch-loader/cdn";
 
 const i18n = createI18n({ locale: "en" })
   .with(icu())
-  .with(fetchLoader({ cdnUrl: "https://cdn.comvi.io/your-distribution-id" }));
+  .with(cdnLoader({ cdnUrl: "https://cdn.comvi.io/your-distribution-id" }));
 
 await i18n.init();
 ```
@@ -77,8 +85,10 @@ and read it off the **Distributions** page.
 ## Two ways in
 
 `@comvi/core` is the BASE host: async loading and the plugin host are imports
-you add, not things every app pays for. This package exports one name for each
-way of adding them.
+you add, not things every app pays for. Each entry point exports one name for
+each way of adding them — `cdnLoader` / `CdnLoader` on `/cdn`, `fetchLoader` /
+`FetchLoader` at the root. The table below uses the root pair; `/cdn` behaves
+identically.
 
 |                   | `.with(fetchLoader(options))`                          | `.use(FetchLoader(options))`                                                     |
 | ----------------- | ------------------------------------------------------ | -------------------------------------------------------------------------------- |
@@ -114,7 +124,7 @@ slot rejects the other explicitly instead of half-working:
 
 ## CDN namespace layout
 
-By default, `FetchLoader` keeps its existing URL convention: the i18n instance's
+By default, both loaders keep the same URL convention: the i18n instance's
 `defaultNs` loads from `{cdnUrl}/{locale}.json`, and every other namespace loads
 from `{cdnUrl}/{namespace}/{locale}.json`.
 
@@ -127,7 +137,7 @@ const i18n = createI18n({
   defaultNs: "storefront",
   ns: ["storefront", "default"],
 }).with(
-  fetchLoader({
+  cdnLoader({
     cdnUrl: "https://cdn.comvi.io/your-distribution-id",
     cdnLayout: { rootNamespace: "default" },
   }),
@@ -139,11 +149,11 @@ For a custom CDN where every namespace has its own folder, use
 `cdnLayout: { rootNamespace: false }`.
 
 `cdnLayout` affects CDN mode only. When `createI18n({ apiKey })` enables API
-mode, namespaces are sent explicitly in the API request.
+mode on the root entry, namespaces are sent explicitly in the API request.
 
 ## API mode
 
-Pass an `apiKey` on `createI18n` to switch to authenticated API mode — used for staging, draft translations, or auth-gated content:
+API mode lives on the root entry. Pass an `apiKey` on `createI18n` and use `fetchLoader` — the loader talks to the platform API instead of the public CDN, which is what staging, draft translations and auth-gated content need:
 
 ```ts
 import { createI18n } from "@comvi/core";
@@ -172,10 +182,10 @@ Same setup, framework-idiomatic integration. The plugin lives on the underlying 
 
 ```tsx
 import { createI18n, I18nProvider } from "@comvi/react";
-import { fetchLoader } from "@comvi/plugin-fetch-loader";
+import { cdnLoader } from "@comvi/plugin-fetch-loader/cdn";
 
 const i18n = createI18n({ locale: "en" }).with(
-  fetchLoader({ cdnUrl: "https://cdn.comvi.io/your-distribution-id" }),
+  cdnLoader({ cdnUrl: "https://cdn.comvi.io/your-distribution-id" }),
 );
 
 <I18nProvider i18n={i18n}>{/* ... */}</I18nProvider>;
@@ -186,12 +196,12 @@ const i18n = createI18n({ locale: "en" }).with(
 ```ts
 import { createApp } from "vue";
 import { createI18n } from "@comvi/vue";
-import { fetchLoader } from "@comvi/plugin-fetch-loader";
+import { cdnLoader } from "@comvi/plugin-fetch-loader/cdn";
 
 // `VueI18n` wraps a core host and exposes it as `readonly core`, which is
 // where installers and plugins go.
 const i18n = createI18n({ locale: "en" });
-i18n.core.with(fetchLoader({ cdnUrl: "https://cdn.comvi.io/your-distribution-id" }));
+i18n.core.with(cdnLoader({ cdnUrl: "https://cdn.comvi.io/your-distribution-id" }));
 
 createApp(App).use(i18n).mount("#app");
 ```

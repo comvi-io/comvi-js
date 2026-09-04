@@ -106,12 +106,12 @@ Translations served by the Comvi platform, fetched at runtime instead of bundled
 // main.tsx
 import { createRoot } from "react-dom/client";
 import { createI18n, icu, I18nProvider } from "@comvi/react";
-import { fetchLoader } from "@comvi/plugin-fetch-loader";
+import { cdnLoader } from "@comvi/plugin-fetch-loader/cdn";
 import App from "./App";
 
 const i18n = createI18n({ locale: "en", fallbackLocale: "en" })
   .with(icu())
-  .with(fetchLoader({ cdnUrl: "https://cdn.comvi.io/your-distribution-id" }));
+  .with(cdnLoader({ cdnUrl: "https://cdn.comvi.io/your-distribution-id" }));
 
 createRoot(document.getElementById("root")!).render(
   <I18nProvider i18n={i18n}>

@@ -376,8 +376,14 @@ await i18n.init();
 | package                           | `.with(lowercase)`          | `.use(Uppercase)` — unchanged     |
 | --------------------------------- | --------------------------- | --------------------------------- |
 | `@comvi/plugin-fetch-loader`      | `fetchLoader(options)`      | `FetchLoader(options)`            |
+| `@comvi/plugin-fetch-loader/cdn`  | `cdnLoader(options)`        | `CdnLoader(options)`              |
 | `@comvi/plugin-locale-detector`   | `localeDetector(options?)`  | `LocaleDetector(options?)`        |
 | `@comvi/plugin-in-context-editor` | `inContextEditor(options?)` | `InContextEditorPlugin(options?)` |
+
+New in 0.5.0: `@comvi/plugin-fetch-loader/cdn` is the CDN request path on its
+own. `fetchLoader` picks between the CDN and the API at runtime, so it carries
+both; an app that only reads a public distribution swaps it for `cdnLoader` and
+drops about 1.8 kB min+gz. Keep `fetchLoader` wherever the host has an `apiKey`.
 
 Each composes, idempotently, what its plugin needs: `fetchLoader` →
 `@comvi/core/loader` and `@comvi/core/plugins`; `localeDetector` →

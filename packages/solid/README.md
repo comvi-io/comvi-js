@@ -103,12 +103,12 @@ Translations served by the Comvi platform, fetched at runtime instead of bundled
 // index.tsx
 import { render } from "solid-js/web";
 import { createI18n, icu, I18nProvider } from "@comvi/solid";
-import { fetchLoader } from "@comvi/plugin-fetch-loader";
+import { cdnLoader } from "@comvi/plugin-fetch-loader/cdn";
 import App from "./App";
 
 const i18n = createI18n({ locale: "en", fallbackLocale: "en" })
   .with(icu())
-  .with(fetchLoader({ cdnUrl: "https://cdn.comvi.io/your-distribution-id" }));
+  .with(cdnLoader({ cdnUrl: "https://cdn.comvi.io/your-distribution-id" }));
 
 render(
   () => (
