@@ -224,7 +224,7 @@
         "gzipBytes": 11060,
         "measuredAt": "2026-09-04"
       },
-      "note": "Gated platform CDN path: base host + ICU + `fetchLoader`, composed as the fetch-loader README quickstart. +199 B over the 03.09 sweep: lot L3 made the CDN request path ONE shared implementation both entries run, and the indirection costs that much on this row."
+      "note": "Gated platform CDN path: base host + ICU + `fetchLoader`, composed as the fetch-loader README quickstart. +199 B over the measurement at `831e739` (10861 B); the recorded 03.09 baseline (10640 B) was already 221 B stale before this lot. The bytes are lot L3 making the CDN request path ONE shared implementation both entries run."
     },
     {
       "name": "plugin-fetch-loader-cdn-lite",
