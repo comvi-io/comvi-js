@@ -29,26 +29,27 @@ export function validateTranslations(
       }
     }
 
+    // The first form carried by this language is the reference. When the language has no
+    // forms at all the reference is empty, and so is every form compared against it, so the
+    // loop below cannot warn about anything — it needs no guard of its own.
     const sourceForms = Object.values(langTranslations);
-    if (sourceForms.length > 0) {
-      const sourceVariables = extractVariables(sourceForms[0] || "");
+    const sourceVariables = extractVariables(sourceForms[0] || "");
 
-      for (const form of language.pluralForms) {
-        const formValue = langTranslations[form] || "";
-        const formVariables = extractVariables(formValue);
+    for (const form of language.pluralForms) {
+      const formValue = langTranslations[form] || "";
+      const formVariables = extractVariables(formValue);
 
-        if (formValue && !arraysEqual(sourceVariables, formVariables)) {
-          const missing = sourceVariables.filter((v) => !formVariables.includes(v));
-          const extra = formVariables.filter((v) => !sourceVariables.includes(v));
-          warnings.push({
-            languageId: language.code,
-            pluralForm: form,
-            message:
-              `Placeholders differ from the first form` +
-              (missing.length ? `; missing: ${missing.join(", ")}` : "") +
-              (extra.length ? `; unexpected: ${extra.join(", ")}` : ""),
-          });
-        }
+      if (formValue && !arraysEqual(sourceVariables, formVariables)) {
+        const missing = sourceVariables.filter((v) => !formVariables.includes(v));
+        const extra = formVariables.filter((v) => !sourceVariables.includes(v));
+        warnings.push({
+          languageId: language.code,
+          pluralForm: form,
+          message:
+            `Placeholders differ from the first form` +
+            (missing.length ? `; missing: ${missing.join(", ")}` : "") +
+            (extra.length ? `; unexpected: ${extra.join(", ")}` : ""),
+        });
       }
     }
   }
