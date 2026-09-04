@@ -72,10 +72,10 @@ interface TagBoundaryProps {
 }
 
 /**
- * A component or element handler is `React.createElement`'d, so it renders
- * AFTER `<T>` has returned and a throw inside it escapes the synchronous
- * try/catch that covers function handlers. React has no hook-based boundary,
- * so this class gives those handlers the same degradation: report the error
+ * Every tag handler ends up as an element React renders AFTER `<T>` has
+ * returned, so a throw inside it escapes the synchronous try/catch around
+ * `resolvePending` — that catch only sees the handler CALL. React has no
+ * hook-based boundary, so this class covers the render half: report the error
  * with the tag name as written, then render the tag's children instead.
  *
  * Client-side only, by React's design: `renderToString` has no boundaries, so
@@ -267,18 +267,20 @@ const TComponent = function T({
   ): React.ReactNode => {
     const handler = pending.handler;
 
+    // Anything React renders LATER — an element built from a handler, or the
+    // element a handler function returned — throws outside this function, so
+    // it needs the boundary. The handler CALL below stays inside the caller's
+    // try/catch, which a boundary cannot see.
+    const guarded = (element: React.ReactNode) => (
+      <TagBoundary tagName={pending.name} onTagError={reportTagError} fallback={convertedChildren}>
+        {element}
+      </TagBoundary>
+    );
+
     if (React.isValidElement(handler)) {
       const baseProps = handler.props as Record<string, unknown>;
       const mergedProps = pending.props ? { ...baseProps, ...pending.props } : baseProps;
-      return (
-        <TagBoundary
-          tagName={pending.name}
-          onTagError={reportTagError}
-          fallback={convertedChildren}
-        >
-          {React.createElement(handler.type, mergedProps, ...convertedChildren)}
-        </TagBoundary>
-      );
+      return guarded(React.createElement(handler.type, mergedProps, ...convertedChildren));
     }
 
     if (typeof handler === "function") {
@@ -289,7 +291,7 @@ const TComponent = function T({
       if (!React.isValidElement(result)) {
         throw new Error(`Tag handler for "${pending.name}" must return a React element`);
       }
-      return result;
+      return guarded(result);
     }
 
     // Non-invokable opaque handler — degrade to the tag's children.

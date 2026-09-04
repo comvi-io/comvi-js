@@ -23,7 +23,7 @@ declare module "@comvi/core" {
 }
 
 /** A component handler that fails while React renders it, not while `<T>` runs. */
-const Exploding = (): React.ReactElement => {
+const Exploding = (_props: { children?: React.ReactNode }): React.ReactElement => {
   throw new Error("handler exploded");
 };
 
@@ -99,8 +99,8 @@ describe("<T /> component and element tag handlers that throw while rendering", 
     expect(onError).not.toHaveBeenCalled();
   });
 
-  // Regression guard: the pre-existing FUNCTION-handler path keeps its own
-  // synchronous try/catch and must not be wrapped a second time.
+  // Regression guard: the FUNCTION-handler path keeps its own synchronous
+  // try/catch for the CALL, which the boundary cannot see.
   it("still degrades a function handler that throws when invoked → 'Click here'", async () => {
     const onError = vi.fn();
 
@@ -113,6 +113,31 @@ describe("<T /> component and element tag handlers that throw while rendering", 
     expect(container.textContent).toBe("Click here");
     expect(onError).toHaveBeenCalledWith(
       new Error("invocation exploded"),
+      expect.objectContaining({ source: "translation", tagName: "link" }),
+    );
+  });
+
+  it("degrades a function handler whose returned element throws → 'Click here'", async () => {
+    silenceReactErrorLog();
+    const onError = vi.fn();
+
+    const { container } = await renderMessage(onError, {
+      link: ({ children }: { children: React.ReactNode }) => <Exploding>{children}</Exploding>,
+    });
+
+    expect(container.textContent).toBe("Click here");
+  });
+
+  it("reports a function handler's throwing returned element → tagName 'link'", async () => {
+    silenceReactErrorLog();
+    const onError = vi.fn();
+
+    await renderMessage(onError, {
+      link: ({ children }: { children: React.ReactNode }) => <Exploding>{children}</Exploding>,
+    });
+
+    expect(onError).toHaveBeenCalledWith(
+      new Error("handler exploded"),
       expect.objectContaining({ source: "translation", tagName: "link" }),
     );
   });
