@@ -250,8 +250,12 @@ export function createLibraryBuildOptions(options: LibraryBuildOptions): BuildOp
 }
 
 export interface PluginBuildOptions {
-  /** Plugin entry point */
-  entry: string;
+  /**
+   * Plugin entry point, or a `{ name: path }` map for a package that publishes
+   * subpaths. A map needs a `fileNames.es` pattern that names each entry
+   * (`"[name].js"`); a single string keeps the fixed default.
+   */
+  entry: string | Record<string, string>;
   /** Plugin name (for UMD builds) */
   name?: string;
   /** Output file name for the ESM build: { es: 'index.js' }. `cjs` is accepted but ignored (ESM-only). */
