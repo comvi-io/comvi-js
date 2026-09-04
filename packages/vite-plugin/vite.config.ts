@@ -12,6 +12,6 @@ export default defineConfig({
   build: createPluginBuildOptions({
     entry: resolve(__dirname, "src/index.ts"),
     name: "ComviVitePlugin",
-    external: ["vite", "node:fs", "node:fs/promises", "node:path"],
+    external: ["@comvi/typegen", "vite", "node:fs", "node:fs/promises", "node:path"],
   }),
 });

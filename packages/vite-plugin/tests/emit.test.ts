@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import ts from "typescript";
-import { emitDeclarations } from "../src/emit";
+import { emitDeclarations as emitShared } from "@comvi/typegen";
+import { emitDeclarations, GENERATED_BY } from "../src/emit";
 import type { ProjectSchema } from "../src/extract";
 
 /** Syntax errors in the emitted declarations, as TypeScript reports them. */
@@ -192,6 +193,35 @@ describe("emitDeclarations", () => {
     const result = emitDeclarations(schema);
 
     expect(keyLinesOf(result)).toEqual(['"admin:greeting": { "name": string; "count": number };']);
+  });
+
+  it("delegates to @comvi/typegen, supplying only this plugin's header line", () => {
+    const schema: ProjectSchema = {
+      keys: { "admin:dashboard": { params: [{ name: "count", type: "number" }] } },
+    };
+
+    expect(emitDeclarations(schema, { defaultNs: "admin", strictParams: false })).toBe(
+      emitShared(schema, {
+        defaultNs: "admin",
+        strictParams: false,
+        generatedBy: GENERATED_BY,
+      }),
+    );
+  });
+
+  it("refuses two keys that collide once the default namespace is stripped", () => {
+    // The plugin used to keep whichever key came last, so a key vanished from
+    // the declarations and the project found out at the call site.
+    const schema: ProjectSchema = {
+      keys: {
+        "default:title": { params: [] },
+        title: { params: [{ name: "name", type: "string" }] },
+      },
+    };
+
+    expect(() => emitDeclarations(schema)).toThrow(
+      "Translation key collision after stripping default namespace 'default'",
+    );
   });
 
   it("should order keys by code unit, not by locale", () => {

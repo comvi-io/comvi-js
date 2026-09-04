@@ -694,6 +694,10 @@ importers:
         version: 4.1.2(@types/node@22.19.7)(@vitest/ui@4.1.2)(happy-dom@20.8.9)(msw@2.12.14(@types/node@22.19.7)(typescript@6.0.2))(vite@8.0.11(@types/node@22.19.7)(esbuild@0.28.0)(jiti@2.7.0)(terser@5.46.1)(yaml@2.8.3))
 
   packages/vite-plugin:
+    dependencies:
+      '@comvi/typegen':
+        specifier: workspace:*
+        version: link:../typegen
     devDependencies:
       '@comvi/vite-config':
         specifier: workspace:*
