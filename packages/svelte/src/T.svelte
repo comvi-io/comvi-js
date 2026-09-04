@@ -103,10 +103,11 @@
       <!--
         A handler that throws degrades to the translation's own children rather
         than taking the tree down with it — the same degradation the React
-        binding gives FUNCTION handlers (react/src/T.tsx wraps `resolvePending`,
-        which only invokes those; an element or component handler is
-        createElement'd and a throw during its render still escapes <T> there).
-        A boundary is broader, so this covers every handler form.
+        binding gives every handler form (react/src/T.tsx catches the handler
+        CALL synchronously and wraps every element it renders in its own
+        TagBoundary). Both bindings contain a client render only: neither a
+        <svelte:boundary> nor a React boundary runs during SSR. Both also stay
+        failed once they have caught, until the surrounding tree remounts.
         Needs svelte >= 5.3 for <svelte:boundary>.
       -->
       <svelte:boundary
