@@ -764,8 +764,11 @@ export interface I18nLoaderApi {
   addActiveNamespaces: (namespaces: string[]) => Promise<void>;
 
   /**
-   * Deactivate a namespace: a reload and a locale switch stop fetching it, and
-   * whatever load is in flight for it is cancelled.
+   * Deactivate a namespace: a locale switch stops fetching it, a reload fetches
+   * only what is still active, and whatever load is in flight for it is
+   * cancelled. The one exception is a reload with NOTHING active left, which
+   * falls back to the default namespace — see `removeActiveNamespace` on
+   * `@comvi/core/loader`.
    *
    * Synchronous, and the mirror image of `addActiveNamespace` — it is INTENT
    * only. The catalog already in the cache stays there and keeps resolving;

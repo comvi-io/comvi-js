@@ -138,6 +138,18 @@ describe("removeActiveNamespace() and the default-namespace round trip", () => {
     expect(i18n.getActiveNamespaces()).toEqual([]);
   });
 
+  it("does not come back when the removed last namespace was NOT the default one", async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    const { i18n, loads } = recordingHost();
+    await i18n.addActiveNamespace("admin");
+    loads.length = 0;
+
+    i18n.removeActiveNamespace("admin");
+    await i18n.reloadTranslations();
+
+    expect(loads).toEqual(["en:default"]);
+  });
+
   it("comes back ACTIVE when addTranslations() carries it, because a merge self-activates", async () => {
     const { i18n } = recordingHost();
     await i18n.addActiveNamespace("admin");
