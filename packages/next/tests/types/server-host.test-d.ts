@@ -13,6 +13,7 @@ import type {
 import { createI18n } from "@comvi/core";
 import { attachLoader, loader } from "@comvi/core/loader";
 import type { CreateNextI18nResult } from "../../src/createNextI18n";
+import type { ServerI18nHost, ServerTranslatingHost } from "../../src/server/hostTypes";
 
 type Equal<X, Y> =
   (<T>() => T extends X ? 1 : 2) extends <T>() => T extends Y ? 1 : 2 ? true : false;
@@ -152,3 +153,46 @@ createNextI18nFromHost(
   () => serverEntry.createI18n({ locale: "en" }).with(serverEntry.plugins()),
   ROUTING,
 );
+
+// ─── The server request contract ────────────────────────────────────────────
+//
+// `ServerI18nHost` is the internal instance type the request pipeline reads.
+// It carries the CATALOG and the LOADER and nothing else: `t`/`tRaw` are
+// deliberately absent, so a server helper cannot translate without naming a
+// locale — such a lookup would resolve against the host's process-wide
+// `_locale` and leak one request's locale into another request's tree.
+
+export type _ServerHostCannotTranslate = Expect<
+  Equal<Extract<keyof ServerI18nHost, "t" | "tRaw">, never>
+>;
+
+// The positive control: everything the pipeline DOES read is still on it, so
+// the probe above cannot pass by the type having decayed to `never`.
+export type _ServerHostMembers = Expect<
+  Equal<
+    keyof ServerI18nHost,
+    | "isInitialized"
+    | "init"
+    | "getDefaultNamespace"
+    | "hasLocale"
+    | "hasTranslation"
+    | "getTranslations"
+    | "getLoader"
+    | "reloadTranslations"
+  >
+>;
+
+// A host missing one of those members is not a `ServerI18nHost`.
+export type _MissingGetTranslationsRejected = Expect<
+  Equal<Omit<ServerI18nHost, "getTranslations"> extends ServerI18nHost ? true : false, false>
+>;
+
+// `getI18n` is the single sanctioned crossing, and it names the widening.
+export type _TranslatingHostAddsExactlyTheTranslator = Expect<
+  Equal<Exclude<keyof ServerTranslatingHost, keyof ServerI18nHost>, "t" | "tRaw">
+>;
+
+// Every published host still satisfies the narrowed contract structurally.
+export type _ComposedHostSatisfiesServerHost = Expect<
+  Equal<typeof composedHost extends ServerI18nHost ? true : false, true>
+>;
