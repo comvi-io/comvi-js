@@ -7,7 +7,7 @@
  * it emits the same `configChanged` event activation does so that a binding
  * reading `getActiveNamespaces()` re-renders.
  */
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { createI18n } from "../../src";
 import { attachLoader } from "../../src/loader";
 import { createDeferred } from "../helpers/deferred";
@@ -122,6 +122,30 @@ describe("removeActiveNamespace()", () => {
     i18n.removeActiveNamespace("unknown");
 
     expect(i18n.getActiveNamespaces()).toEqual(["nav", "admin"]);
+  });
+});
+
+describe("removeActiveNamespace() and the default-namespace round trip", () => {
+  it("gets its content back from the A4 fallback reload but stays deactivated", async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    const { i18n } = recordingHost();
+    await i18n.addActiveNamespace("default");
+
+    i18n.removeActiveNamespace("default");
+    await i18n.reloadTranslations();
+
+    expect(i18n.t("key")).toBe("en/default");
+    expect(i18n.getActiveNamespaces()).toEqual([]);
+  });
+
+  it("comes back ACTIVE when addTranslations() carries it, because a merge self-activates", async () => {
+    const { i18n } = recordingHost();
+    await i18n.addActiveNamespace("admin");
+
+    i18n.removeActiveNamespace("admin");
+    i18n.addTranslations({ "en:admin": { key: "merged" } });
+
+    expect(i18n.getActiveNamespaces()).toEqual(["admin"]);
   });
 });
 

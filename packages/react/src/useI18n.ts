@@ -102,9 +102,10 @@ function translationResultToString(result: TranslationResult): string {
 type Host = WrapperI18nHost;
 
 /**
- * `addActiveNamespace`, `reloadTranslations`, `onLoadError` and `onMissingKey`
- * are NOT here: they belong to capabilities a base host does not have, so
- * binding them eagerly would crash at bind time. `useI18nLoader()` /
+ * No loader or plugin-host member is here — `addActiveNamespace(s)`,
+ * `removeActiveNamespace(s)`, `reloadTranslations`, `onLoadError` and
+ * `onMissingKey` among them. They belong to capabilities a base host does not
+ * have, so binding them eagerly would crash at bind time. `useI18nLoader()` /
  * `useI18nPlugins()` acquire them instead.
  *
  * `hasTranslation` is not here either: a raw bind resolves against the mutable

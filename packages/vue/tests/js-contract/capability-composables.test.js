@@ -103,6 +103,18 @@ describe(`capability acquisition (${__COMVI_CORE_BUILD__} core build)`, () => {
     expect(host.getActiveNamespaces()).not.toContain("dashboard");
   });
 
+  it("deactivates several namespaces through the bag's removeActiveNamespaces", async () => {
+    const host = attachLoader(baseHost());
+    host.registerLoader(async () => ({ extra: "loaded" }));
+    const { bag } = acquire(createI18nFromCore(host), useI18nLoader);
+    await bag.addActiveNamespaces(["dashboard", "billing"]);
+
+    bag.removeActiveNamespaces(["dashboard", "billing"]);
+
+    expect(host.getActiveNamespaces()).not.toContain("dashboard");
+    expect(host.getActiveNamespaces()).not.toContain("billing");
+  });
+
   it("returns a working plugins bag on base + attachPlugins", () => {
     const host = attachPlugins(baseHost());
     const { bag } = acquire(createI18nFromCore(host), useI18nPlugins);

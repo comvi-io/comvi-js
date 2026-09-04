@@ -491,7 +491,8 @@ export class I18n<D extends DefaultTranslationParams = {}>
    *
    * Deactivating a namespace is `removeActiveNamespace(ns)` on the loader
    * capability (`@comvi/core/loader`). The default namespace is always
-   * reloadable, so deactivating it does not stick across a reload.
+   * reloadable — a reload with nothing active refetches its CONTENT — but the
+   * reload does not re-activate it; only `addTranslations()` does that.
    */
   clearTranslations(locale?: string, namespace?: string): void {
     // Cancel in-flight loads for the cleared scope so they don't repopulate it.

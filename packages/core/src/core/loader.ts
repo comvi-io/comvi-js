@@ -255,6 +255,13 @@ export class I18nWithLoader<D extends DefaultTranslationParams = {}> extends I18
    * in the cache stays there and keeps resolving. Dropping the content is
    * `clearTranslations(undefined, namespace)`, which never deactivates.
    *
+   * Two ways a namespace comes BACK, and only one of them re-activates it:
+   * `addTranslations()` self-activates every namespace it carries, so a merge
+   * undoes this call. A loader refetch does NOT — `reloadTranslations()` on a
+   * host with nothing active refetches the DEFAULT namespace's content (see
+   * that method), but writes it straight to the cache, so the namespace stays
+   * deactivated.
+   *
    * Synchronous — nothing is fetched, so there is nothing to await.
    */
   public removeActiveNamespace(namespace: string): void {
