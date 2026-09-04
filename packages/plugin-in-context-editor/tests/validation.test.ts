@@ -166,4 +166,84 @@ describe("validateTranslations — placeholder warnings", () => {
 
     expect(result.warnings).toEqual([]);
   });
+
+  it("a form dropping two of the first form's placeholders → the warning lists both missing names", () => {
+    const result = validateTranslations([lang], {
+      de: { one: "Hallo {anrede} {name} {tag}", other: "Hallo {tag}" },
+    });
+
+    expect(result.warnings).toEqual([
+      {
+        languageId: "de",
+        pluralForm: "other",
+        message: "Placeholders differ from the first form; missing: anrede, name",
+      },
+    ]);
+  });
+
+  it("a form adding two placeholders on top of the first form's → the warning lists only the unexpected ones", () => {
+    const result = validateTranslations([lang], {
+      de: { one: "Hallo {anrede}", other: "Hallo {anrede} {name} {tag}" },
+    });
+
+    expect(result.warnings).toEqual([
+      {
+        languageId: "de",
+        pluralForm: "other",
+        message: "Placeholders differ from the first form; unexpected: name, tag",
+      },
+    ]);
+  });
+
+  it("the same placeholders written in a different order → no warning", () => {
+    const result = validateTranslations([lang], {
+      de: { one: "Hallo {name} {tag}", other: "{tag}, hallo {name}" },
+    });
+
+    expect(result.warnings).toEqual([]);
+  });
+
+  it("a placeholder padded with spaces names the same variable → no warning", () => {
+    const result = validateTranslations([lang], {
+      de: { one: "Hallo { name }", other: "Hallo {name}" },
+    });
+
+    expect(result.warnings).toEqual([]);
+  });
+
+  it("a plural form the language has not translated at all → no warning, only translated forms are compared", () => {
+    const result = validateTranslations([lang], {
+      de: { one: "Hallo {name}" },
+    });
+
+    expect(result.warnings).toEqual([]);
+  });
+
+  it("percent placeholders are compared by name → the warning lists the missing one", () => {
+    const result = validateTranslations([lang], {
+      de: { one: "Hallo %anrede% %name%", other: "Hallo %name%" },
+    });
+
+    expect(result.warnings).toEqual([
+      {
+        languageId: "de",
+        pluralForm: "other",
+        message: "Placeholders differ from the first form; missing: anrede",
+      },
+    ]);
+  });
+
+  it("an indexed <n> tag placeholder is compared by its whole index → the warning names the missing <10>", () => {
+    const result = validateTranslations([lang], {
+      de: { one: "Hallo <0> und <10>", other: "Hallo <0>" },
+    });
+
+    expect(result.warnings).toEqual([
+      {
+        languageId: "de",
+        pluralForm: "other",
+        message: "Placeholders differ from the first form; missing: 10",
+      },
+    ]);
+  });
 });
