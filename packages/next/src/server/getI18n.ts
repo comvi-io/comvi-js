@@ -3,9 +3,11 @@ import type { TranslationParams, TranslationResult } from "@comvi/core";
 import { getI18nInstance } from "./cache";
 import { ensureInitialized } from "./ensureInitialized";
 import { getLocale } from "./getLocale";
+import type { ServerTranslatingHost } from "./hostTypes";
 import { loadTranslations } from "./loadTranslations";
 import type {
   GetI18nOptions,
+  RequestView,
   ServerI18n,
   TranslationFunction,
   HasTranslationOptions,
@@ -52,9 +54,12 @@ import type {
  */
 export async function getI18n(options?: GetI18nOptions): Promise<ServerI18n> {
   const i18n = getI18nInstance();
-  await ensureInitialized(i18n);
 
-  let locale = options?.locale;
+  // The request view (`RequestView`) is resolved FIRST, before anything global
+  // runs: `init()` loads the default namespace at the host's own, static locale
+  // (`_nsAddActiveNamespaces`), so a request that cannot say which locale it is
+  // must not be what triggers it.
+  let locale: RequestView["locale"] | undefined = options?.locale;
   if (!locale) {
     try {
       locale = await getLocale();
@@ -68,14 +73,20 @@ export async function getI18n(options?: GetI18nOptions): Promise<ServerI18n> {
     }
   }
 
-  const defaultNs = options?.ns ?? i18n.getDefaultNamespace();
+  await ensureInitialized(i18n);
+
+  const defaultNs: RequestView["defaultNs"] = options?.ns ?? i18n.getDefaultNamespace();
 
   // A page can render before its layout completes, so the namespace may not be in yet.
   if (!i18n.hasLocale(locale, defaultNs)) {
     await loadTranslations(locale, { namespaces: [defaultNs] });
   }
 
-  const translate = createBoundTranslation(i18n, defaultNs) as (
+  // The one place allowed to reach the host's translator: the shared host
+  // contributes catalog and loader only, and `ServerI18nHost` has no `t`/`tRaw`
+  // so no other server helper can translate. Every call below names the request
+  // locale explicitly.
+  const translate = createBoundTranslation(i18n as ServerTranslatingHost, defaultNs) as (
     key: string,
     params?: TranslationParams,
   ) => TranslationResult;
