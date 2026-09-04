@@ -7842,6 +7842,33 @@
       "kind": "tool-limitation",
       "reason": "runner artifact, not an equivalent mutant — the claim IS pinned. Hand-applying this mutant turns 1 of this package's tests RED (the \"discards a response whose body arrives after cleanup\" claim in tests/cdn-mode-loading.test.ts). Stryker still reports it NoCoverage because @stryker-mutator/vitest-runner drives one long-lived vitest instance with perTest coverage analysis, and these suites drive fake timers across await boundaries: the mutant executes on a continuation the runner no longer attributes to the test that is running, so the killing tests are never in the mutant's test set. No additional test can change this.",
       "round": 14
+    },
+    {
+      "package": "packages/core",
+      "file": "src/core/translate/parser.ts",
+      "mutators": ["EqualityOperator"],
+      "snippet": "for (; i < len; i++) {",
+      "lineHint": 67,
+      "kind": "equivalent",
+      "reason": "deliberate redundant bound: `charCodeAt` past the end of the string returns NaN, which fails every comparison in both scans, so the loop terminates at the end of the input with or without the `i < len` test and `i` lands on the same index either way. The bound is kept on purpose — a scan that can only stop on NaN becomes an infinite loop the moment its predicate is wrong, and this runs inside `t()`. Verified by hand: both variants leave the core suite green at 1243/1243."
+    },
+    {
+      "package": "packages/core",
+      "file": "src/core/translate/parser.ts",
+      "mutators": ["ConditionalExpression", "EqualityOperator"],
+      "snippet": "while (i < len && str.charCodeAt(i) <= 32) i++;",
+      "lineHint": 73,
+      "kind": "equivalent",
+      "reason": "deliberate redundant bound: `charCodeAt` past the end of the string returns NaN, which fails every comparison in both scans, so the loop terminates at the end of the input with or without the `i < len` test and `i` lands on the same index either way. The bound is kept on purpose — a scan that can only stop on NaN becomes an infinite loop the moment its predicate is wrong, and this runs inside `t()`. Verified by hand: both variants leave the core suite green at 1243/1243. The `ConditionalExpression -> true` variant replaces the `i < len` operand only, so the `charCodeAt(i) <= 32` half still ends the loop."
+    },
+    {
+      "package": "packages/core",
+      "file": "src/core/translate/syntax.ts",
+      "mutators": ["ConditionalExpression"],
+      "snippet": "if (IS_DEV) _warnOnCompilerIdOverflow(id);",
+      "lineHint": 170,
+      "kind": "gap:prod-build",
+      "reason": "`if (IS_DEV)` → `if (true)`: IS_DEV is a build-time literal that is `true` in the dev test build, so the mutant is the same program there; only the production fold (which drops the call and the warning string — verified by grepping dist) can tell them apart."
     }
   ]
 }

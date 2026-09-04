@@ -60,6 +60,10 @@ const TAGS_EXTENSION_ID = "comvi:tags";
  */
 function refusedForAttributes(str: string, index: number, len: number): boolean {
   let i = index + 1;
+  // Both scans also stop on their own — `charCodeAt` past the end is NaN, which
+  // fails every comparison below — but the `i < len` bounds stay: a scan that
+  // can only terminate on NaN becomes an infinite loop the moment its predicate
+  // is wrong, and this runs inside `t()`.
   for (; i < len; i++) {
     const c = str.charCodeAt(i);
     const isNameChar =

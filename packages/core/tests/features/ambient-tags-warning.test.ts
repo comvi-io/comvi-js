@@ -223,6 +223,15 @@ describe("a tag the extension recognises but refuses — the development warning
     ["whitespace before the >", "spaced", "an <b >unclosed tag"],
     ["a slash that opens no self-closing tag", "slash", "an <b/x tail"],
     ["a tag name that ends the template", "eot", "tail <b"],
+    // One row per inclusive edge of the three ranges the name scan accepts:
+    // A-Z, a-z and 0-9. Narrowing any edge by one leaves that character outside
+    // the name, which ends the scan early and reports it as an attribute.
+    ["A, the first uppercase name char", "edgeA", "an <bA>unclosed tag"],
+    ["Z, the last uppercase name char", "edgeZ", "an <bZ>unclosed tag"],
+    ["a, the first lowercase name char", "edgea", "an <ba>unclosed tag"],
+    ["z, the last lowercase name char", "edgez", "an <bz>unclosed tag"],
+    ["0, the first digit name char", "edge0", "an <b0>unclosed tag"],
+    ["9, the last digit name char", "edge9", "an <b9>unclosed tag"],
   ])("keeps the plain-tag advice for %s", (_label, key, template) => {
     registerSyntaxExtension(tagSyntaxExtension);
     const i18n = createI18n({ locale: "en", translation: { en: { [key]: template } } });
@@ -232,5 +241,29 @@ describe("a tag the extension recognises but refuses — the development warning
     const warnings = tagWarnings();
     expect(warnings).toHaveLength(1);
     expect(warnings[0]).toContain("@comvi/core/tags");
+  });
+
+  // The other side of the same three ranges: one character below A, above Z,
+  // below a, above z, below 0 and above 9. Each must END the tag name, so what
+  // follows is read as an attribute. Widening an edge by one would swallow the
+  // character into the name and change the message.
+  it.each([
+    ["@, one below A", "outAtSign", "an <b@x>unclosed tag"],
+    ["[, one above Z", "outBracket", "an <b[x>unclosed tag"],
+    ["`, one below a", "outBacktick", "an <b`x>unclosed tag"],
+    ["{, one above z", "outBrace", "an <b{x>unclosed tag"],
+    // `.` rather than `/`, the literal character below `0`: `/` is the
+    // self-closing marker and is deliberately NOT read as an attribute.
+    [". , below the digits", "outDot", "an <b.x>unclosed tag"],
+    [":, one above 9", "outColon", "an <b:x>unclosed tag"],
+  ])("reports an attribute for a name ended by %s", (_label, key, template) => {
+    registerSyntaxExtension(tagSyntaxExtension);
+    const i18n = createI18n({ locale: "en", translation: { en: { [key]: template } } });
+
+    i18n.t(key as never);
+
+    const warnings = tagWarnings();
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toContain("attributes are not supported in tag syntax");
   });
 });
