@@ -15,8 +15,8 @@ Two guards, both development only:
   bit does not survive the key and the extension's parses would collide with parses made without
   it. `SyntaxExtension.cacheBit` now documents the 15-bit budget and that `0x4000` is the highest
   usable value.
-- Creating more than 65535 message compilers in one process is warned about once, since compiler
-  ids wrap at that point. This is reachable by constructing a compiler per request on a
+- Creating more than 65535 message compilers in one process is warned about — on every compiler
+  created past that point, since each one's id wraps. This is reachable by constructing a compiler per request on a
   long-running server; reuse one instance instead.
 
 The production bundle is byte-identical.

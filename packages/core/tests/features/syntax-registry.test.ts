@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { clearTemplateCache } from "../../src/core/translate";
 import { icuCompiler } from "../../src/core/translate/compile-icu";
 import {
+  _resetCompilerIds,
   _resetSyntaxExtensions,
   effectiveExtBits,
   effectiveExtensions,
@@ -66,6 +67,10 @@ describe("_warnOnCompilerIdOverflow()", () => {
 });
 
 describe("getCompilerId() past the cache key's 16-bit compiler field", () => {
+  // The walk leaves the module counter past the field; put it back so later
+  // tests in this file do not inherit a warning on every getCompilerId().
+  afterEach(() => _resetCompilerIds());
+
   it("warns once the ids it hands out run past the field", () => {
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 

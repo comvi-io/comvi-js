@@ -239,6 +239,11 @@ export function registerSyntaxExtension(ext: SyntaxExtension): () => void {
  * Remove every ambient registration.
  * @internal Test teardown / SSR multi-tenant escape hatch only.
  */
+/** @internal Test seam: put the injected-compiler id counter back to its start. */
+export function _resetCompilerIds(): void {
+  nextCompilerId = 3;
+}
+
 export function _resetSyntaxExtensions(): void {
   ambient.length = 0;
   rebuildAmbient();
