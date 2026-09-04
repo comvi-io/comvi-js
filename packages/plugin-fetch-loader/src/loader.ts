@@ -1,58 +1,19 @@
 import type { I18nPlugin, I18nPluginFactory, TranslationValue } from "@comvi/core";
 import type { TranslationStore } from "./types";
-import type { FallbackImport, FallbackMap, FetchLoaderOptions } from "./options";
-import { FETCH_LOADER_PLUGIN_KEY } from "./options";
+import type { FetchLoaderOptions } from "./options";
+import { FETCH_LOADER_PLUGIN_KEY } from "./plugin-key";
 import {
   RequestAbortedError,
   buildCacheOptions,
-  buildCdnUrl,
   fetchJsonWithTimeout,
   isAborted,
   toError,
-} from "./http";
+} from "./http-core";
+import { buildCdnUrl } from "./cdn-url";
+import { tryFallback } from "./fallback";
 import { fetchApiTranslations } from "./cache";
 
-/**
- * Resolution order:
- * 1. Exact key "locale:namespace"
- * 2. Shorthand "locale" (only if ns === defaultNs)
- */
-export function resolveFallback(
-  fallback: FallbackMap | undefined,
-  locale: string,
-  ns: string,
-  defaultNs: string,
-): FallbackImport | undefined {
-  if (!fallback) return undefined;
-  return fallback[`${locale}:${ns}`] || (ns === defaultNs ? fallback[locale] : undefined);
-}
-
-interface FallbackLoadResult {
-  attempted: boolean;
-  data?: Record<string, TranslationValue>;
-  error?: Error;
-}
-
-async function tryFallback(
-  fallback: FallbackMap | undefined,
-  locale: string,
-  ns: string,
-  defaultNs: string,
-  onSuccess?: (locale: string, ns: string) => void,
-  onError?: (locale: string, ns: string, err: Error) => void,
-): Promise<FallbackLoadResult> {
-  const importFn = resolveFallback(fallback, locale, ns, defaultNs);
-  if (!importFn) return { attempted: false };
-  try {
-    const mod = await importFn();
-    onSuccess?.(locale, ns);
-    return { attempted: true, data: mod.default };
-  } catch (e) {
-    const error = toError(e);
-    onError?.(locale, ns, error);
-    return { attempted: true, error };
-  }
-}
+export { resolveFallback } from "./fallback";
 
 /**
  * Loads translations from Comvi's backend API in development mode and from the
