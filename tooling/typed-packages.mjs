@@ -12,6 +12,7 @@ export const TYPED_PACKAGES = [
   "solid",
   "next",
   "cli",
+  "typegen",
   "vite-plugin",
   "plugin-fetch-loader",
   "plugin-locale-detector",
