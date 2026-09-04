@@ -94,6 +94,17 @@ describe(`capability acquisition (${__COMVI_CORE_BUILD__} core build)`, () => {
     expect(loaded).toEqual(["en:dashboard"]);
   });
 
+  it("deactivates a namespace through the bag's removeActiveNamespace", async () => {
+    const host = attachLoader(baseHost());
+    host.registerLoader(async () => ({ extra: "loaded" }));
+    const { result } = renderHook(() => useI18nLoader(), { wrapper: wrapperFor(host) });
+    await result.current.addActiveNamespace("dashboard");
+
+    result.current.removeActiveNamespace("dashboard");
+
+    expect(host.getActiveNamespaces()).not.toContain("dashboard");
+  });
+
   it("delivers load failures to onLoadError until its unsubscribe is called", async () => {
     const host = attachLoader(baseHost());
     host.registerLoader(async () => {
