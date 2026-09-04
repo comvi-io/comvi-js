@@ -3,18 +3,14 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 
-export interface SchemaParam {
-  name: string;
-  type: "string" | "number";
-}
+/**
+ * The schema shape is owned by `@comvi/typegen`, the emitter this plugin and
+ * `@comvi/cli` share. Re-exported so the plugin's public type names stay where
+ * consumers import them from.
+ */
+import type { KeySchema, ProjectSchema, SchemaParam } from "@comvi/typegen";
 
-export interface KeySchema {
-  params: SchemaParam[];
-}
-
-export interface ProjectSchema {
-  keys: Record<string, KeySchema>;
-}
+export type { KeySchema, ProjectSchema, SchemaParam };
 
 interface TranslationFile {
   language: string;

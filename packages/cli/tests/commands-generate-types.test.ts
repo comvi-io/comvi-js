@@ -255,7 +255,11 @@ describe("comvi generate-types", () => {
       expect(output.stderr).toContain("Run 'comvi typegen' to update.");
     });
 
-    it("exits 1 via the generic error path when generation itself fails", async () => {
+    it("exits 4, not 1, when the schema itself is unemittable", async () => {
+      // A schema the emitter refuses is a validation failure, not a verdict:
+      // exit 1 under --check means "types are outdated", and CI could not tell
+      // the two apart. Its sibling refusal (an unsupported param type) has
+      // always exited 4.
       stubFetch({
         ...SCHEMA_ROUTES,
         [PATHS.schema]: {
@@ -265,7 +269,7 @@ describe("comvi generate-types", () => {
 
       await expect(
         createGenerateTypesCommand().parseAsync(["-c", configPath, "--check"], { from: "user" }),
-      ).rejects.toMatchObject({ exitCode: 1 });
+      ).rejects.toMatchObject({ exitCode: 4 });
 
       expect(output.stderr).toContain("✗ Error: Translation key collision");
       expect(output.stderr).not.toContain("Check could not run");
@@ -280,7 +284,7 @@ describe("comvi generate-types", () => {
 
       expect(checkOption?.description).toContain("CI mode");
       expect(checkOption?.description).toContain(
-        "exit 1 = outdated, 2 = check could not run, 4 = invalid config",
+        "exit 1 = outdated, 2 = check could not run, 4 = invalid config or a schema that cannot be emitted",
       );
     });
 

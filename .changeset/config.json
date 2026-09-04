@@ -14,6 +14,7 @@
       "@comvi/react",
       "@comvi/solid",
       "@comvi/svelte",
+      "@comvi/typegen",
       "@comvi/vite-plugin",
       "@comvi/vue"
     ]

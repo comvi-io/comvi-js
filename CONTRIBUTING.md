@@ -18,6 +18,7 @@ packages/plugin-fetch-loader       loads translations from the Comvi CDN/API
 packages/plugin-locale-detector    browser locale detection
 packages/plugin-in-context-editor  visual in-page translation editor
 packages/locale-routing            framework-neutral locale routing primitives (runtime library)
+packages/typegen                   the declaration emitter cli and vite-plugin share
 packages/{cli,vite-plugin}         tooling packages
 apps/chrome-extension              in-context editor extension (own `extension:*` scripts)
 test-apps/*                        one integration app per framework; used by tests, not published

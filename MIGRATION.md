@@ -630,5 +630,20 @@ still work everywhere.
 
 ---
 
+## 9. Tooling: one emitter behind `@comvi/cli` and `@comvi/vite-plugin`
+
+Both tools now generate declarations through the new `@comvi/typegen` package,
+so a project that runs the CLI in CI and the Vite plugin in dev cannot see the
+two disagree. Nothing to change in a project: generated files keep their shape,
+`comvi typegen --check` still accepts a file 0.4 wrote, and the file no longer
+carries a `Generated at:` line, so regenerating an unchanged schema stops
+producing a diff.
+
+`@comvi/cli`'s `TypeEmitter` class is **deprecated**: it still ships and behaves
+identically, but call `emitDeclarations(schema, { defaultNs })` from
+`@comvi/typegen` where you used `new TypeEmitter().generate(schema, { defaultNsName })`.
+
+---
+
 Engineers who want the long form — measured byte tables, fixture and gate names,
 and the reasoning behind each decision — will find it in this file's git history.

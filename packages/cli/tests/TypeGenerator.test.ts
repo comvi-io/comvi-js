@@ -344,13 +344,14 @@ describe("TypeGenerator", () => {
       });
     });
 
-    it("ignores the Generated at: line when comparing", async () => {
+    it("reports a file written by @comvi/cli 0.4 as up to date", async () => {
+      // 0.4 stamped a `Generated at:` line under the tool header and 0.5 emits
+      // none. Without normalizing the WHOLE line away, every repo would look
+      // stale the first time it ran the new CLI.
       await generator.generate();
-      const current = mockFileSystem.getFile("src/types/i18n.d.ts")!;
-      await mockFileSystem.writeFile(
-        "src/types/i18n.d.ts",
-        current.replace(/Generated at: .*/, "Generated at: 1999-01-01T00:00:00.000Z"),
-      );
+      const lines = mockFileSystem.getFile("src/types/i18n.d.ts")!.split("\n");
+      lines.splice(3, 0, " * Generated at: 1999-01-01T00:00:00.000Z");
+      await mockFileSystem.writeFile("src/types/i18n.d.ts", lines.join("\n"));
 
       await expect(generator.check()).resolves.toMatchObject({ upToDate: true });
     });
@@ -468,15 +469,16 @@ describe("TypeGenerator", () => {
       await expect(generator.check()).resolves.toMatchObject({ upToDate: true });
     });
 
-    it("treats a file that dropped the generated-at text as up to date", async () => {
+    it("reports drift for a header line that is not the timestamp", async () => {
+      // Normalization drops the `Generated at:` line and nothing else. A header
+      // edited to anything else is a real difference, and regenerating restores
+      // it — quieter than teaching the comparison to ignore arbitrary comments.
       await generator.generate();
-      const current = mockFileSystem.getFile("src/types/i18n.d.ts")!;
-      await mockFileSystem.writeFile(
-        "src/types/i18n.d.ts",
-        current.replace(/ \* Generated at:.*/, " * "),
-      );
+      const lines = mockFileSystem.getFile("src/types/i18n.d.ts")!.split("\n");
+      lines.splice(3, 0, " * hand-edited note");
+      await mockFileSystem.writeFile("src/types/i18n.d.ts", lines.join("\n"));
 
-      await expect(generator.check()).resolves.toMatchObject({ upToDate: true });
+      await expect(generator.check()).resolves.toMatchObject({ upToDate: false });
     });
 
     it("only counts whole lines shaped like key declarations", async () => {
