@@ -71,6 +71,14 @@ describe("getCompilerId() past the cache key's 16-bit compiler field", () => {
   // tests in this file do not inherit a warning on every getCompilerId().
   afterEach(() => _resetCompilerIds());
 
+  it("_resetCompilerIds() hands the next injected compiler the first free id again", () => {
+    for (let i = 0; i < 5; i++) getCompilerId(inertCompiler());
+
+    _resetCompilerIds();
+
+    expect(getCompilerId(inertCompiler())).toBe(3);
+  });
+
   it("warns once the ids it hands out run past the field", () => {
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 
