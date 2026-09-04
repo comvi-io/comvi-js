@@ -36,3 +36,30 @@ describe("getPluralRules()", () => {
     expect(getPluralRules("also not a locale")).toBe(first);
   });
 });
+
+describe("getPluralRules() cache retention", () => {
+  it("keeps an earlier locale cached when a different locale is added", () => {
+    const first = getPluralRules("en-x-h1d");
+
+    getPluralRules("en-x-h1e");
+
+    expect(getPluralRules("en-x-h1d")).toBe(first);
+  });
+});
+
+// Kept last in the file: it overflows the shared module-level cache on purpose,
+// so anything cached by the tests above is gone once it has run.
+describe("getPluralRules() cache bound", () => {
+  it("evicts the oldest locale once a 1001st distinct locale is cached", () => {
+    const oldest = getPluralRules("en-x-h1a");
+    for (let i = 0; i < 1000; i++) getPluralRules(`en-x-h1b${i}`);
+
+    expect(getPluralRules("en-x-h1a")).not.toBe(oldest);
+  });
+
+  it("keeps the most recent locale cached after the overflow", () => {
+    const newest = getPluralRules("en-x-h1c");
+
+    expect(getPluralRules("en-x-h1c")).toBe(newest);
+  });
+});

@@ -7977,6 +7977,33 @@
       "lineHint": 68,
       "kind": "equivalent",
       "reason": "the `\"\"` fallback is unreachable in this build, exactly like the `const VERSION` entry for src/core/devtools.ts: vitest defines `__VERSION__` from package.json, so the arm that covers a consumer bundling the source without the define is never taken. The wiring test pins the other arm — it asserts the slot holds package.json's version after importing the host, and passing `\"\"` there instead turns it red."
+    },
+    {
+      "package": "packages/core",
+      "file": "src/core/translate/parser.ts",
+      "mutators": ["EqualityOperator"],
+      "snippet": "for (; i < len; i++) {",
+      "lineHint": 67,
+      "kind": "equivalent",
+      "reason": "deliberate redundant bound: `charCodeAt` past the end of the string returns NaN, which fails every comparison in both scans, so the loop terminates at the end of the input with or without the `i < len` test and `i` lands on the same index either way. The bound is kept on purpose — a scan that can only stop on NaN becomes an infinite loop the moment its predicate is wrong, and this runs inside `t()`. Verified by hand: both variants leave the core suite green at 1243/1243."
+    },
+    {
+      "package": "packages/core",
+      "file": "src/core/translate/parser.ts",
+      "mutators": ["ConditionalExpression", "EqualityOperator"],
+      "snippet": "while (i < len && str.charCodeAt(i) <= 32) i++;",
+      "lineHint": 73,
+      "kind": "equivalent",
+      "reason": "deliberate redundant bound: `charCodeAt` past the end of the string returns NaN, which fails every comparison in both scans, so the loop terminates at the end of the input with or without the `i < len` test and `i` lands on the same index either way. The bound is kept on purpose — a scan that can only stop on NaN becomes an infinite loop the moment its predicate is wrong, and this runs inside `t()`. Verified by hand: both variants leave the core suite green at 1243/1243. The `ConditionalExpression -> true` variant replaces the `i < len` operand only, so the `charCodeAt(i) <= 32` half still ends the loop."
+    },
+    {
+      "package": "packages/core",
+      "file": "src/core/translate/syntax.ts",
+      "mutators": ["ConditionalExpression"],
+      "snippet": "if (IS_DEV) _warnOnCompilerIdOverflow(id);",
+      "lineHint": 170,
+      "kind": "gap:prod-build",
+      "reason": "`if (IS_DEV)` → `if (true)`: IS_DEV is a build-time literal that is `true` in the dev test build, so the mutant is the same program there; only the production fold (which drops the call and the warning string — verified by grepping dist) can tell them apart."
     }
   ]
 }

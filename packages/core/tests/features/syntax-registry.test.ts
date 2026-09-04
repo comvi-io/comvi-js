@@ -7,6 +7,7 @@ import {
   effectiveExtensions,
   getAmbientExtensions,
   getCompilerId,
+  _warnOnCompilerIdOverflow,
   mergeTagInterpolation,
   registerSyntaxExtension,
   type MessageCompiler,
@@ -34,6 +35,46 @@ beforeEach(() => {
 
 afterEach(() => {
   _resetSyntaxExtensions();
+});
+
+describe("_warnOnCompilerIdOverflow()", () => {
+  // The compiler id occupies one UTF-16 code unit of the template cache key, so
+  // 65535 is the last value that survives it. Unit-tested at the edge rather
+  // than by driving `getCompilerId` there: the counter is module-global, so a
+  // test that walks it to the edge would force every other test in this file
+  // into a fixed order — including under Stryker, which runs subsets of them.
+  it("stays silent for the last id the field still holds", () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    _warnOnCompilerIdOverflow(65535);
+
+    expect(warnSpy).not.toHaveBeenCalled();
+  });
+
+  it("warns for the first id past the field", () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    _warnOnCompilerIdOverflow(65536);
+
+    expect(warnSpy).toHaveBeenCalledWith(
+      "[i18n] More than 65535 message compilers have been created in this process; the " +
+        "template cache key holds the compiler id in 16 bits, so ids now wrap and two " +
+        "compilers can be served each other's parsed tokens. Reuse one compiler instance " +
+        "instead of constructing one per request.",
+    );
+  });
+});
+
+describe("getCompilerId() past the cache key's 16-bit compiler field", () => {
+  it("warns once the ids it hands out run past the field", () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    // From any starting point the field can still hold, 65536 more compilers
+    // must cross the edge, so this assumes nothing about the counter's value.
+    for (let i = 0; i < 65536; i++) getCompilerId(inertCompiler());
+
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("More than 65535"));
+  });
 });
 
 describe("getCompilerId()", () => {
@@ -71,6 +112,27 @@ describe("registerSyntaxExtension()", () => {
     registerSyntaxExtension(inertExtension("first", 4));
 
     registerSyntaxExtension(inertExtension("second", 8));
+
+    expect(warnSpy).not.toHaveBeenCalled();
+  });
+
+  it("warns when a cacheBit is too wide for the 15-bit field in the cache key", () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    registerSyntaxExtension(inertExtension("too-wide", 0x8000));
+
+    expect(warnSpy).toHaveBeenCalledWith(
+      '[i18n] Syntax extension "too-wide" declares cacheBit 32768; the template cache key ' +
+        "carries the extension set in 15 bits, so the highest usable value is 16384. This bit " +
+        "is dropped from the key and parses made with this extension will share cache entries " +
+        "with parses made without it.",
+    );
+  });
+
+  it("stays silent for the widest cacheBit the cache key can still carry", () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    registerSyntaxExtension(inertExtension("widest", 0x4000));
 
     expect(warnSpy).not.toHaveBeenCalled();
   });

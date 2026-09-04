@@ -24,7 +24,7 @@ import type {
   LoaderFn,
   LoaderResult,
 } from "../types";
-import { DEFAULT_NS, COMVI_REPORTED } from "../constants";
+import { DEFAULT_NS } from "../constants";
 import { warn } from "../logger";
 import {
   assertInterpolationDefaults,
@@ -221,6 +221,10 @@ export class I18n<D extends DefaultTranslationParams = {}>
     namespace: string;
   }) => TranslationResult | void;
   private _onError?: (error: Error, context?: ErrorReportContext) => void;
+  /** Errors this host already reported. Per instance, so a shared or rethrown
+   * error still reaches every other host, and the caller's object is not
+   * mutated. */
+  private _reported = new WeakSet<Error>();
 
   /**
    * @param compiler Defaults to `options.compiler`, then to the simple
@@ -860,14 +864,13 @@ export class I18n<D extends DefaultTranslationParams = {}>
 
   /**
    * Report to the configured `onError` handler, or `warn()` in dev when there
-   * is none. Marks the error with `COMVI_REPORTED` so a rethrow cannot report
-   * it twice.
+   * is none. Remembers the error on THIS instance so a rethrow cannot report it
+   * twice to the same host; another host still sees it.
    */
   public reportError(error: unknown, context?: ErrorReportContext): void {
     const err = error instanceof Error ? error : new Error(String(error));
-    const e = err as Error & { [key: symbol]: boolean };
-    if (e[COMVI_REPORTED]) return;
-    e[COMVI_REPORTED] = true;
+    if (this._reported.has(err)) return;
+    this._reported.add(err);
 
     if (this._onError) {
       try {

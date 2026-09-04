@@ -50,15 +50,57 @@ export function _resetTagWarnings(): void {
   warnedTagTemplates?.clear();
 }
 
-function warnUnclaimedTag(template: string, index: number, len: number): void {
+/** `id` of the built-in tag extension (`@comvi/core/tags`). DEV diagnostics only. */
+const TAGS_EXTENSION_ID = "comvi:tags";
+
+/**
+ * True when `<` opens something the tag extension WOULD recognise but refuses
+ * because it carries attributes — mirrors `tags.ts#parseTag`, which accepts
+ * only `>` or `/>` after the tag name.
+ */
+function refusedForAttributes(str: string, index: number, len: number): boolean {
+  let i = index + 1;
+  // Both scans also stop on their own — `charCodeAt` past the end is NaN, which
+  // fails every comparison below — but the `i < len` bounds stay: a scan that
+  // can only terminate on NaN becomes an infinite loop the moment its predicate
+  // is wrong, and this runs inside `t()`.
+  for (; i < len; i++) {
+    const c = str.charCodeAt(i);
+    const isNameChar =
+      (c >= 65 && c <= 90) || (c >= 97 && c <= 122) || (c >= 48 && c <= 57) || c === 45 || c === 95;
+    if (!isNameChar) break;
+  }
+  while (i < len && str.charCodeAt(i) <= 32) i++;
+  if (i >= len) return false;
+  const code = str.charCodeAt(i);
+  // `>` closes the tag and `/` opens `/>`; anything else in that position is
+  // what `parseTag` refused, and in practice that is an attribute.
+  return code !== 62 && code !== 47;
+}
+
+function warnUnclaimedTag(
+  template: string,
+  index: number,
+  len: number,
+  extensions: readonly SyntaxExtension[],
+): void {
   const next = index + 1 < len ? template.charCodeAt(index + 1) : 0;
   const isLetter = (next >= 65 && next <= 90) || (next >= 97 && next <= 122);
   if (!isLetter || warnedTagTemplates === undefined || warnedTagTemplates.has(template)) return;
   warnedTagTemplates.add(template);
+
+  // Telling an app that already imported "@comvi/core/tags" to import it is the
+  // one message guaranteed not to help; when the extension IS present, the only
+  // reason it left a tag-like `<` unclaimed is an unsupported attribute.
+  const hasTags = extensions.some((e) => e.id === TAGS_EXTENSION_ID);
   warn(
-    `[i18n] Tag syntax in "${template}" is rendering as literal text: no tag ` +
-      `extension claims "<". Render it with your framework's <T> component, or ` +
-      `import "@comvi/core/tags" to register tag syntax for the string API.`,
+    `[i18n] Tag syntax in "${template}" is rendering as literal text: ` +
+      (hasTags && refusedForAttributes(template, index, len)
+        ? `attributes are not supported in tag syntax; pass them via the ` +
+          `\`components\` config (\`{ tag: "a", props: { href } }\`).`
+        : `no tag extension claims "<". Render it with your framework's <T> ` +
+          `component, or import "@comvi/core/tags" to register tag syntax for ` +
+          `the string API.`),
   );
 }
 
@@ -197,7 +239,7 @@ export function parseTemplate(
       } else {
         // No extension claims the position — the character is literal text.
         // A real tags extension never reaches here: it claimed the `<`.
-        if (IS_DEV && code === LESS_THAN) warnUnclaimedTag(template, i, len);
+        if (IS_DEV && code === LESS_THAN) warnUnclaimedTag(template, i, len, extensions);
         i++;
       }
     } else if (code === HASH && hashIsSyntax && !isQuoted) {

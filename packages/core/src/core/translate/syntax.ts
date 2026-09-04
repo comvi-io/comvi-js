@@ -101,6 +101,11 @@ export interface SyntaxExtension {
   /**
    * Single bit contributed to the template-cache key's extension bitfield.
    * Must be a power of two and unique across concurrently used extensions.
+   *
+   * The field is 15 bits wide — the key packs the extension set alongside the
+   * `#`-is-syntax flag into one UTF-16 code unit — so the highest usable value
+   * is `0x4000`. A wider bit is dropped by the key, which would make the parse
+   * share cache entries with one made without this extension; dev warns.
    */
   cacheBit: number;
   /**
@@ -130,6 +135,28 @@ export interface SyntaxExtension {
 const injectedCompilerIds = new WeakMap<MessageCompiler, number>();
 let nextCompilerId = 3;
 
+/** The cache key spends one code unit on the compiler id; past this it wraps. */
+const MAX_COMPILER_ID = 0xffff;
+/** The other code unit holds the hash flag in bit 0, leaving 15 bits of extensions. */
+const MAX_CACHE_BIT = 0x4000;
+
+/**
+ * DEV-only: warn when a compiler id no longer fits the cache key's 16-bit
+ * field. A named function, not an inline block, so the edge can be unit-tested
+ * at 65535/65536 instead of by constructing 65 536 compilers — and stateless,
+ * so no test depends on running before or after another.
+ * @internal
+ */
+export function _warnOnCompilerIdOverflow(id: number): void {
+  if (id <= MAX_COMPILER_ID) return;
+  warn(
+    `[i18n] More than 65535 message compilers have been created in this process; ` +
+      `the template cache key holds the compiler id in 16 bits, so ids now wrap and ` +
+      `two compilers can be served each other's parsed tokens. Reuse one compiler ` +
+      `instance instead of constructing one per request.`,
+  );
+}
+
 /**
  * Resolve the small-integer identity of a compiler: pre-assigned `cid` for
  * the built-ins, WeakMap-backed auto-increment (starting at 3) for injected
@@ -140,6 +167,7 @@ export function getCompilerId(compiler: MessageCompiler): number {
   let id = injectedCompilerIds.get(compiler);
   if (id === undefined) {
     id = nextCompilerId++;
+    if (IS_DEV) _warnOnCompilerIdOverflow(id);
     injectedCompilerIds.set(compiler, id);
   }
   return id;
@@ -171,6 +199,14 @@ function rebuildAmbient(): void {
  * Idempotent by `id`. Returns a disposer that removes the registration.
  */
 export function registerSyntaxExtension(ext: SyntaxExtension): () => void {
+  if (IS_DEV && ext.cacheBit > MAX_CACHE_BIT) {
+    warn(
+      `[i18n] Syntax extension "${ext.id}" declares cacheBit ${ext.cacheBit}; the template ` +
+        `cache key carries the extension set in 15 bits, so the highest usable value is ` +
+        `${MAX_CACHE_BIT}. This bit is dropped from the key and parses made with this ` +
+        `extension will share cache entries with parses made without it.`,
+    );
+  }
   let present = false;
   for (let i = 0; i < ambient.length; i++) {
     if (ambient[i].id === ext.id) {

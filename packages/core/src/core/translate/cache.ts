@@ -69,10 +69,17 @@ export function getPluralRules(locale: string, ordinal: boolean = false): Intl.P
       // An invalid locale falls back to the runtime default.
       rules = new Intl.PluralRules(undefined, opts);
     }
+    // Bounded like the Intl caches in `format.ts` and the template cache:
+    // `locale` can come from `params.locale`, i.e. from an SSR request header.
+    if (pluralRulesCache.size >= PLURAL_RULES_CACHE_MAX) {
+      pluralRulesCache.delete(pluralRulesCache.keys().next().value!);
+    }
     pluralRulesCache.set(cacheKey, rules);
   }
 
   return rules;
 }
 
+// Eviction is insertion-order, which works because JS Map iteration is.
+const PLURAL_RULES_CACHE_MAX = 1000;
 const pluralRulesCache = new Map<string, Intl.PluralRules>();
