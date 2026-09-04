@@ -195,6 +195,12 @@ recorded in `scripts/mutation/accepted.json` — never as a comment in `src/`. A
 produces an entry that matches nothing and the runner reports it as stale. The runner prints the
 adjusted score, the real survivors, and any accepted entry that has gone stale.
 
+`src/**/__fixtures__/**` is excluded from `mutate` alongside `__tests__` and `*.test.ts`: a
+fixture is the oracle a test checks against, not logic under test, so mutating it only asks
+whether the tests notice their own expected value changing. Keep fixtures to plain data. A
+fixture that grows a builder function is real logic hiding in an unmeasured directory — move it
+into `src/` proper, or into the test tree where it is exercised directly.
+
 ## Verification cheat-sheet
 
 | You changed                              | Run at least                                                                                   |

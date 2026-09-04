@@ -19,4 +19,8 @@ Two visible consequences, both fixed:
   `missing: name, {name; unexpected: nom, {nom`. It now names `name` and `nom` once each.
 
 The single-brace pattern excludes braces from the variable name, which makes it match the inner
-`{name}` of `{{name}}` on its own, so the separate double-brace pattern is gone.
+`{name}` of `{{name}}` on its own, so the separate double-brace pattern is gone. Text that is not
+a placeholder at all yields different junk names than before — `{a{b}c}` gives `b` rather than
+`a{b`, and an ICU plural string gives its branch bodies rather than one run-on name — which
+changes nothing that matters, because the warning only compares one plural form's names against
+another's.
