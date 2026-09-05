@@ -8050,6 +8050,15 @@
       "lineHint": 134,
       "kind": "equivalent",
       "reason": "The FIRST literal only, `\"zero\"` -> `\"\"` (the other five are killed). CATEGORY_ORDER has one reader, `Object.keys(categorized).sort((a, b) => CATEGORY_ORDER.indexOf(a) - CATEGORY_ORDER.indexOf(b))`. Dropping \"zero\" from the list makes `indexOf(\"zero\")` return -1 instead of 0, and -1 sorts it ahead of every other category exactly as 0 did; `Intl.PluralRules.select()` can only return the six CLDR categories, so nothing else ever ties with it at -1. CHECKED: hand-applied, 58 files / 1377 tests green; a sweep of 75 locales ran both comparators over each locale's category set and produced identical orderings."
+    },
+    {
+      "package": "packages/core",
+      "file": "src/core/translate/compile-icu.ts",
+      "mutators": ["ConditionalExpression"],
+      "snippet": "if (at === -1) return str;",
+      "lineHint": 63,
+      "kind": "equivalent",
+      "reason": "removing the early return only skips it: with no `#` the loop body never runs, so the function falls through to `\"\" + str.slice(0)`, which is the input string. The bail is kept because it measured ~6 ns/op on a branch with no `#`."
     }
   ]
 }

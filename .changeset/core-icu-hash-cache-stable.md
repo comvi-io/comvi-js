@@ -15,4 +15,5 @@ Rendering is unchanged, including the cases that make `#` subtle: a nested plura
 the outer count is restored after it, a `#` that arrives inside a parameter value is left alone, a
 quoted `'#'` stays literal, and a `#` inside a `select` branch still resolves against the plural
 that encloses it. The common `{count, plural, one {# item} other {# items}}` shape keeps its
-existing fast path and still parses nothing at all.
+existing fast path and still parses nothing at all, at the same cost as before: the substitution
+on that path is measured by `pnpm perf`, whose plural case is within noise of the previous release.

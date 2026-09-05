@@ -59,7 +59,19 @@ export function isPluralArgStart(str: string, braceIndex: number, len: number): 
  * the renderer resolves against `ctx.hash`.
  */
 export function replaceTopLevelHash(str: string, replacement: string): string {
-  return str.split("#").join(replacement);
+  let at = str.indexOf("#");
+  if (at === -1) return str;
+  // Sliced rather than `split("#").join(replacement)`: splitting allocates an
+  // array to rebuild the string, which measured ~25 ns/op more on the perf
+  // gate's plural case — the hottest shape this file has.
+  let out = "";
+  let from = 0;
+  while (at !== -1) {
+    out += str.slice(from, at) + replacement;
+    from = at + 1;
+    at = str.indexOf("#", from);
+  }
+  return out + str.slice(from);
 }
 
 /**

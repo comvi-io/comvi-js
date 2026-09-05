@@ -65,6 +65,22 @@ describe("# inside a plural branch that is not re-parsed", () => {
     expect(render("{n, plural, one {# item} other {# items}}", { n: 4 })).toBe("4 items");
   });
 
+  it("resolves every # when a text-only branch holds more than one", () => {
+    // The fast path special-cases the single-`#` shape; two of them take the
+    // general substitution, and both must resolve to the same count.
+    expect(render("{n, plural, other {# of # items}}", { n: 4 })).toBe("4 of 4 items");
+  });
+
+  it("resolves a # that is not the branch's first character", () => {
+    // Guards the early bail in `replaceTopLevelHash`: it must compare the found
+    // index against -1, not against a position a `#` can really occupy.
+    expect(render("{n, plural, other {\u2248# items}}", { n: 4 })).toBe("\u22484 items");
+  });
+
+  it("leaves a text-only branch with no # untouched", () => {
+    expect(render("{n, plural, one {one item} other {many items}}", { n: 4 })).toBe("many items");
+  });
+
   it("stays literal at the top level, where # is not syntax", () => {
     expect(render("issue #{n}", { n: 4 })).toBe("issue #4");
   });
