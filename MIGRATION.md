@@ -40,11 +40,21 @@ not `"Hello, !"`, plus one dev warning per (template, parameter). An explicit
 // INLINE catalogs — the constructor ingests them, so choose the compiler here.
 import { createI18n } from "@comvi/core";
 import { icuCompiler } from "@comvi/core/icu";
-const i18n = createI18n({ locale: "en", translation, compiler: icuCompiler });
 
+const translation = { en: { items: "{count, plural, one {# item} other {# items}}" } };
+
+const i18n = createI18n({ locale: "en", translation, compiler: icuCompiler });
+```
+
+```ts
 // REMOTE catalogs — the installer, ahead of the first catalog.
+import { createI18n } from "@comvi/core";
 import { icu } from "@comvi/core/icu";
-const i18n = createI18n({ locale: "en" }).with(icu()).with(cdnLoader({ … }));
+import { cdnLoader } from "@comvi/plugin-fetch-loader/cdn";
+
+const i18n = createI18n({ locale: "en" })
+  .with(icu())
+  .with(cdnLoader({ cdnUrl: "https://cdn.comvi.io/your-distribution-id" }));
 ```
 
 `.with(icu())` is **pre-ingestion only**. The compiler locks irreversibly at the
@@ -105,11 +115,13 @@ Locale, namespace, key and catalog source are yours; the host passes what it doe
 know through the report context:
 
 ```ts
+import { createI18n } from "@comvi/core";
+
 const i18n = createI18n({
   locale: "en",
   onError(error, context) {
     // context: { source: "compile", key, namespace, locale }
-    if ((error as { code?: string }).code === "E_ICU_SYNTAX") report(error, context);
+    if ((error as { code?: string }).code === "E_ICU_SYNTAX") console.error(error, context);
   },
 });
 ```
@@ -271,7 +283,13 @@ works. `loader()`, `plugins()` and `devtools()` are the _configured_ installers:
 `instanceId` / `exposeGlobal`, `plugins()` takes no options yet.
 
 ```ts
+import { createI18n } from "@comvi/core";
+import { attachLoader, loader, type LoaderFn } from "@comvi/core/loader";
+
 const i18n = createI18n({ locale: "en" }).with(loader({ uk: () => import("./uk.json") }));
+
+const myLoader: LoaderFn = async (locale, namespace) =>
+  (await fetch(`/i18n/${locale}/${namespace}.json`)).json();
 
 // still supported — the low-level API the installers delegate to
 const i18n2 = attachLoader(createI18n({ locale: "en" }));
@@ -324,7 +342,7 @@ the first catalog. Compose neither capability and `useI18nLoader()` /
 
 ### `@comvi/vue`
 
-```diff
+```diff check=skip:proxy-relocation
 -const i18n = createI18n({ locale: "en" }).use(FetchLoader({ … }));
 +const i18n = createI18n({ locale: "en" });
 +i18n.core.use(FetchLoader({ … }));
@@ -370,7 +388,9 @@ that plugin needs and then registers it — one call instead of three:
 import { createI18n } from "@comvi/core";
 import { cdnLoader } from "@comvi/plugin-fetch-loader/cdn";
 
-const i18n = createI18n({ locale: "en" }).with(cdnLoader({ cdnUrl }));
+const i18n = createI18n({
+  locale: "en",
+}).with(cdnLoader({ cdnUrl: "https://cdn.comvi.io/your-distribution-id" }));
 await i18n.init();
 ```
 
@@ -517,7 +537,12 @@ automatically.
 
 ```ts
 // nuxt.config.ts
-comvi: { locales: ["en", "de"], defaultLocale: "en", hostModule: "./comvi.host.ts" }
+import { defineNuxtConfig } from "nuxt/config";
+
+export default defineNuxtConfig({
+  modules: ["@comvi/nuxt"],
+  comvi: { locales: ["en", "de"], defaultLocale: "en", hostModule: "./comvi.host.ts" },
+});
 ```
 
 ```ts
