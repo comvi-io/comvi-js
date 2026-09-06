@@ -361,7 +361,7 @@ built bundle, and asserts the other three out.
 syntax ambiently. `<T>` uses the pure `@comvi/core/rich-text` seam in its own
 dist chunk and does not change string-API tag behavior.
 
-### String-API tags render literally — the one residual
+### String-API tags render literally
 
 `t("Click <b>here</b>")` hands back that markup as text on the base host: tag
 syntax is a grammar the host has to be taught, and no entry teaches it
@@ -415,7 +415,7 @@ const privacy = <T i18nKey="privacy" components={{ policy: "a" }} />;
 // Renders: <a>Read our policy</a>
 ```
 
-## ICU MessageFormat — locale-correct grammar, not just singular/plural
+## ICU MessageFormat
 
 `count === 1 ? "item" : "items"` works in English. It silently ships broken grammar in Polish, Ukrainian, Arabic, Welsh, and 30+ other locales, which have 3, 4, sometimes 6 distinct plural categories that a binary if/else can't express. [ICU MessageFormat](https://unicode-org.github.io/icu/userguide/format_parse/messages/) is the standard syntax for handling them, and it is the syntax Crowdin, Lokalise, Phrase, and every major TMS already speak. Comvi i18n parses it via native [`Intl.PluralRules`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Intl/PluralRules), so every CLDR plural category is correct by default.
 

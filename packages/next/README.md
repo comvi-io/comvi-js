@@ -481,7 +481,7 @@ export function Help() {
 
 See the [React README](../react) for the full Rich Text section with tag interpolation examples and validation options.
 
-## ICU MessageFormat — locale-correct grammar, not just singular/plural
+## ICU MessageFormat
 
 ICU MessageFormat handles plurals, ordinals, and select with locale-correct grammar via `Intl.PluralRules`. Comvi i18n inherits the full ICU runtime from the underlying binding.
 
@@ -494,7 +494,7 @@ function Stats() {
 }
 ```
 
-See the [@comvi/react ICU section](../react#icu-messageformat--locale-correct-grammar-not-just-singularplural) for the full multilingual examples, ordinals, and select.
+See the [@comvi/react ICU section](../react#icu-messageformat) for the full multilingual examples, ordinals, and select.
 
 ## Type-safe translation keys
 

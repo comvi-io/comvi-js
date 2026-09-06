@@ -159,7 +159,7 @@ Each binding re-exports the capability toolkit it needs, so an app names one
 package and nothing else; the per-binding recipes and measured weights live in
 that package's README.
 
-### The CDN global is the one deliberate exception
+### The CDN global build
 
 `unpkg`/`jsdelivr` serve a fully composed bundle built from its own entry. A
 `<script src>` consumer has no import graph to extend, so the global keeps ICU,
@@ -382,7 +382,7 @@ Measured min+gz through the published exports map, from the landed run
 `@comvi/core/devtools` shows up in a graph only when you compose it; the last row
 composes all five capabilities plus a tag extension, the same set a 0.4 composed root had.
 
-## ICU MessageFormat — locale-correct grammar, not just singular/plural
+## ICU MessageFormat
 
 `count === 1 ? "item" : "items"` works in English. It silently ships broken grammar in Polish, Ukrainian, Arabic, Welsh, and 30+ other locales, which have 3, 4, sometimes 6 distinct plural categories that a binary if/else can't express. [ICU MessageFormat](https://unicode-org.github.io/icu/userguide/format_parse/messages/) is the standard syntax for handling them, and it is the syntax Crowdin, Lokalise, Phrase, and every major TMS already speak. Comvi i18n parses it via native [`Intl.PluralRules`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Intl/PluralRules), so every CLDR plural category is correct by default.
 

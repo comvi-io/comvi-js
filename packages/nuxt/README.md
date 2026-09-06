@@ -337,7 +337,7 @@ The `<T>` component is inherited from [`@comvi/vue`](../vue). Embed components i
 
 See the [Vue README](../vue) for the full Rich Text section with slot patterns and validation options.
 
-## ICU MessageFormat — locale-correct grammar, not just singular/plural
+## ICU MessageFormat
 
 ICU MessageFormat handles plurals, ordinals and select with locale-correct
 grammar via `Intl.PluralRules`. It is a capability: add `compiler: icuCompiler`
@@ -389,7 +389,7 @@ is reported through `onError` (or `console.error`) on the compilation that hit
 it, rather than rendering plausibly-wrong text a reviewer would never catch. Quoted literals such as
 `'{name, other}'` stay valid text.
 
-See the [@comvi/vue ICU section](../vue#icu-messageformat--locale-correct-grammar-not-just-singularplural)
+See the [@comvi/vue ICU section](../vue#icu-messageformat)
 for the full multilingual examples, ordinals and select.
 
 ## Type-safe translation keys
