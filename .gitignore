@@ -56,6 +56,14 @@ test-apps/**/*.js.map
 # Svelte
 .svelte-kit
 .svelte-types
+# ...except the docs gate's stand-in for SvelteKit's generated `./$types`, which
+# is a checked-in fixture and not build output. Git will not descend into an
+# excluded directory, so the directory has to be re-included before the file can
+# be. Without both lines the fixture is silently absent from every commit, and a
+# pristine checkout throws ENOENT in sfc-check.mjs on the first page with
+# `src/routes` — which is `ssr.mdx` and `svelte.mdx`.
+!scripts/docs-snippets/fixtures/.svelte-kit
+!scripts/docs-snippets/fixtures/.svelte-kit/**
 
 # oh-my-claudecode
 .omc
@@ -81,3 +89,7 @@ smithers.db-wal
 
 # perf reference builds (scripts/perf.mjs --compare-ref)
 .perf-ref/
+
+# tarballs from `pnpm pack:release` (scripts/docs-snippets/link-sdk.mjs packs all
+# fourteen so the docs gate can install them; they are build output, not source)
+packages/*/*.tgz

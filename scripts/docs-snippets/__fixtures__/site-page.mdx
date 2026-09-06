@@ -1,0 +1,74 @@
+---
+title: 'Loading translations'
+description: 'How catalogs reach the host.'
+verified: '@comvi/react@0.5.0'
+---
+
+import { Tabs, TabItem, Steps } from '@astrojs/starlight/components';
+
+`registerLoader()` is a method on the core `I18n` instance, so any host has it.
+
+<Tabs>
+  <TabItem label="Vue">
+  ```vue title="src/App.vue"
+  <script setup>
+  import { useI18n } from '@comvi/vue';
+  const { t } = useI18n();
+  </script>
+
+  <template>{{ t('hello') }}</template>
+  ```
+  </TabItem>
+  <TabItem label="Svelte">
+  ```svelte title="src/App.svelte" check=js
+  <script>
+    import { useI18n } from '@comvi/svelte';
+  </script>
+  ```
+  </TabItem>
+  <TabItem label="Next.js">
+```tsx title="src/App.tsx"
+export function App() {
+  return null;
+}
+````
+  </TabItem>
+</Tabs>
+
+<Steps>
+
+1. **Compose the host**
+
+     ```ts title="src/i18n.ts"
+     import { createI18n } from '@comvi/react';
+     import { loader } from '@comvi/core/loader';
+
+     export const i18n = createI18n({ locale: 'en' }).with(loader());
+     ```
+
+2. **Register a catalog**
+
+     ```ts title="src/i18n.ts"
+     i18n.registerLoader({ uk: () => import('./locales/uk.json') });
+     ```
+
+3. **A second host, composed nowhere**
+
+     ```ts title="src/other.ts"
+     other.registerLoader({ uk: () => import('./locales/uk.json') });
+     ```
+
+</Steps>
+
+```ts check=skip:competitor-example
+import i18next from 'i18next';
+i18next.init({ lng: 'en' });
+```
+
+```ts
+import { createI18n } from 'https://esm.sh/@comvi/core';
+```
+
+```json title="locales/en.json"
+{ "cart.items": "{count, plural, one {# item} other {# items}}" }
+```
