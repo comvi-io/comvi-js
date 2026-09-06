@@ -10,7 +10,19 @@ import {
   sfcCheckDocuments,
   toolSearchRoots,
 } from "./sfc-check.mjs";
-import { writeStubSdk } from "./__fixtures__/stub-sdk.mjs";
+import { fileURLToPath } from "node:url";
+import { writeSfcProbeSdk, writeStubSdk } from "./__fixtures__/stub-sdk.mjs";
+
+const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
+
+/** A page the way the site writes them, with the body already indented for tabs. */
+function page(body) {
+  return new Map([["docs/i18n/page.mdx", `---\ntitle: 'Page'\n---\n\n${body}\n`]]);
+}
+
+function probeRoot() {
+  return writeSfcProbeSdk(fs.mkdtempSync(path.join(os.tmpdir(), "comvi-sfc-probe-")), REPO_ROOT);
+}
 
 const CWD = "/tmp/page";
 
@@ -123,4 +135,138 @@ test("vue-tsc resolves from the repo even though it is not a root devDependency"
 
 test("a package that does not exist resolves to null rather than throwing", () => {
   assert.equal(resolveTool("definitely-not-installed-xyz", toolSearchRoots(process.cwd())), null);
+});
+
+// ---------------------------------------------------------------------------
+// One program per project, not per page. The bug these two cover shipped: a
+// single tsconfig including every project put them all in ONE vue-tsc program.
+// ---------------------------------------------------------------------------
+
+const AUGMENTED_AND_PLAIN = [
+  "<Tabs>",
+  "  <TabItem label='Augmented'>",
+  "  ```ts title='src/keys.d.ts'",
+  "  import '@docs-probe/api';",
+  "  declare module '@docs-probe/api' {",
+  "    interface Registry { 'known': true }",
+  "  }",
+  "  ```",
+  "",
+  "  ```vue title='src/A.vue'",
+  '  <script setup lang="ts">',
+  "  import { t } from '@docs-probe/api';",
+  "  import './keys';",
+  "  const a = t('known');",
+  "  </script>",
+  "  <template><i>{{ a }}</i></template>",
+  "  ```",
+  "  </TabItem>",
+  "  <TabItem label='Plain'>",
+  "  ```vue title='src/B.vue'",
+  '  <script setup lang="ts">',
+  "  import { t } from '@docs-probe/api';",
+  "  const b = t('anything at all');",
+  "  </script>",
+  "  <template><i>{{ b }}</i></template>",
+  "  ```",
+  "  </TabItem>",
+  "</Tabs>",
+].join("\n");
+
+test("a tab that augments a shared module does not narrow the SFC in the next tab", () => {
+  // Reproduced before the fix as
+  // `TS2345 Argument of type '"anything at all"' is not assignable to parameter
+  // of type '"known"'` on the Plain tab, which augmented nothing. That is
+  // §6.1.2's corpus poisoning at page scale, and the memory driver already
+  // refuses it by building one program per project.
+  const dir = probeRoot();
+
+  const result = sfcCheckDocuments({ sources: page(AUGMENTED_AND_PLAIN), sdkRoot: dir });
+
+  assert.deepEqual(result.findings, []);
+  assert.equal(result.stats[0].sfcProjects, 2);
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test("the augmentation still applies inside the tab that wrote it", () => {
+  // The negative half: isolation must not mean the augmentation never ran.
+  const body = AUGMENTED_AND_PLAIN.replace("const a = t('known');", "const a = t('not declared');");
+  const dir = probeRoot();
+
+  const result = sfcCheckDocuments({ sources: page(body), sdkRoot: dir });
+
+  assert.equal(result.findings.length, 1);
+  assert.match(result.findings[0].message, /TS2345/);
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test("each tab's $lib alias points into its own project", () => {
+  // `Object.fromEntries` over every project emitted `@/*`, `~/*` and `$lib/*`
+  // once per project and kept the LAST, so every alias import in every tab
+  // resolved into the final tab's directory.
+  const body = [
+    "<Tabs>",
+    "  <TabItem label='First'>",
+    "  ```ts title='src/lib/i18n.ts'",
+    "  export const flavour = 'first' as const;",
+    "  ```",
+    "",
+    "  ```vue title='src/A.vue'",
+    '  <script setup lang="ts">',
+    "  import { flavour } from '$lib/i18n';",
+    "  const it: 'first' = flavour;",
+    "  </script>",
+    "  <template><i>{{ it }}</i></template>",
+    "  ```",
+    "  </TabItem>",
+    "  <TabItem label='Second'>",
+    "  ```ts title='src/lib/i18n.ts'",
+    "  export const flavour = 'second' as const;",
+    "  ```",
+    "",
+    "  ```vue title='src/B.vue'",
+    '  <script setup lang="ts">',
+    "  import { flavour } from '$lib/i18n';",
+    "  const it: 'second' = flavour;",
+    "  </script>",
+    "  <template><i>{{ it }}</i></template>",
+    "  ```",
+    "  </TabItem>",
+    "</Tabs>",
+  ].join("\n");
+  const dir = probeRoot();
+
+  const result = sfcCheckDocuments({ sources: page(body), sdkRoot: dir });
+
+  assert.deepEqual(result.findings, []);
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test("an alias pointing at the wrong tab's file is still caught", () => {
+  // The control: if the alias resolved to nothing at all, the test above would
+  // pass for the wrong reason.
+  const body = [
+    "<Tabs>",
+    "  <TabItem label='Only'>",
+    "  ```ts title='src/lib/i18n.ts'",
+    "  export const flavour = 'first' as const;",
+    "  ```",
+    "",
+    "  ```vue title='src/A.vue'",
+    '  <script setup lang="ts">',
+    "  import { flavour } from '$lib/i18n';",
+    "  const it: 'second' = flavour;",
+    "  </script>",
+    "  <template><i>{{ it }}</i></template>",
+    "  ```",
+    "  </TabItem>",
+    "</Tabs>",
+  ].join("\n");
+  const dir = probeRoot();
+
+  const result = sfcCheckDocuments({ sources: page(body), sdkRoot: dir });
+
+  assert.equal(result.findings.length, 1);
+  assert.match(result.findings[0].message, /TS2322/);
+  fs.rmSync(dir, { recursive: true, force: true });
 });

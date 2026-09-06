@@ -92,7 +92,7 @@ function copyFixtures(from, to) {
 }
 
 /**
- * The tsconfig the SFC checkers read.
+ * The tsconfig the SFC checkers read — ONE PER PROJECT.
  *
  * Deliberately the same shape as `compilerOptions()` in the memory driver —
  * `strict`, `jsx: react-jsx`, `bundler`, the three path aliases — because a
@@ -101,8 +101,23 @@ function copyFixtures(from, to) {
  * repeated here: it is a resolution question, and the answer for a `.vue` file
  * is the same as for the `.ts` file that imports it, which the memory driver
  * already asked.
+ *
+ * Per project, not per page, and that is the whole correctness argument. A
+ * single tsconfig including every project on the page puts them all in ONE
+ * vue-tsc program, so a `declare module '@comvi/core'` in the React tab narrows
+ * `t()` in the Vue tab's SFC — reproduced as
+ * `TS2345 '"anything"' is not assignable to parameter of type 'null'` on a tab
+ * that augmented nothing. That is the corpus-poisoning of §6.1.2 at page scale,
+ * and the memory driver already refuses it by building one `ts.Program` per
+ * project; the SFC half has to refuse it the same way or the two halves
+ * disagree about what a tab is.
+ *
+ * The alias map is per project for the same reason, one level down:
+ * `Object.fromEntries` over every project emitted `@/*` once per project and
+ * kept the LAST, so `@/i18n` in the first tab resolved into the final tab's
+ * directory. A path map with one owner cannot have a last one.
  */
-function tsconfigFor(projectDirs) {
+function tsconfigFor() {
   return {
     compilerOptions: {
       strict: true,
@@ -118,16 +133,17 @@ function tsconfigFor(projectDirs) {
       checkJs: false,
       noEmit: true,
       skipLibCheck: true,
-      types: [],
-      paths: Object.fromEntries(
-        projectDirs.flatMap((dir) => [
-          [`@/*`, [`./${dir}/src/*`, `./${dir}/*`]],
-          [`~/*`, [`./${dir}/src/*`, `./${dir}/*`]],
-          [`$lib/*`, [`./${dir}/src/lib/*`]],
-        ]),
-      ),
+      // Matches the memory driver: `@types/node` for the fences that import
+      // `node:fs/promises`, and nothing else automatic.
+      types: ["node"],
+      paths: {
+        "@/*": ["./src/*", "./*"],
+        "~/*": ["./src/*", "./*"],
+        "$lib/*": ["./src/lib/*"],
+        $lib: ["./src/lib/index.ts", "./src/lib/i18n.ts"],
+      },
     },
-    include: projectDirs.map((dir) => `${dir}/**/*`),
+    include: ["**/*"],
   };
 }
 
@@ -165,6 +181,10 @@ function writeSyntheticCatalogs(dir, project) {
  */
 function materialize(pageDir, projects, sdkRoot) {
   fs.mkdirSync(pageDir, { recursive: true });
+  // One symlink per page, not per project: resolution walks up from
+  // `<page>/<project>/src/App.vue`, finds no `node_modules` in the project, and
+  // reaches this one — so every project on the page resolves `@comvi/*`, `vue`
+  // and `svelte` through the SDK root, while still compiling apart.
   const modules = path.join(pageDir, "node_modules");
   if (!fs.existsSync(modules)) {
     fs.symlinkSync(path.join(sdkRoot, "node_modules"), modules, "junction");
@@ -175,7 +195,8 @@ function materialize(pageDir, projects, sdkRoot) {
   const dirs = [];
   for (const project of projects) {
     const dir = path.join(pageDir, project.id);
-    dirs.push(project.id);
+    fs.mkdirSync(dir, { recursive: true });
+    dirs.push({ id: project.id, dir, project });
     for (const file of project.files.values()) {
       const target = path.join(dir, file.rel);
       fs.mkdirSync(path.dirname(target), { recursive: true });
@@ -184,10 +205,9 @@ function materialize(pageDir, projects, sdkRoot) {
     }
     copyFixtures(FIXTURE_ROOT, dir);
     // SvelteKit's `./$types` is reached through `rootDirs` in a real project;
-    // here the stub is simply dropped beside the routes that import it. Copying
-    // beats `rootDirs` because a page's projects share one tsconfig, and a
-    // `rootDirs` entry per project would let one tab's routes resolve another
-    // tab's — the exact pooling this lot spent a review closing.
+    // here the stub is dropped beside the routes that import it. Copying stays
+    // the choice even now that each project has its own tsconfig: a relative
+    // neighbour needs no `rootDirs` bookkeeping to go wrong in.
     const routes = path.join(dir, "src", "routes");
     if (fs.existsSync(routes)) {
       fs.copyFileSync(
@@ -196,9 +216,9 @@ function materialize(pageDir, projects, sdkRoot) {
       );
     }
     writeSyntheticCatalogs(dir, project);
+    fs.writeFileSync(path.join(dir, "tsconfig.json"), JSON.stringify(tsconfigFor(), null, 2));
   }
-  fs.writeFileSync(path.join(pageDir, "tsconfig.json"), JSON.stringify(tsconfigFor(dirs), null, 2));
-  return written;
+  return { written, dirs };
 }
 
 /**
@@ -309,7 +329,7 @@ export function sfcCheckDocuments({
     for (const page of pages) {
       const slug = page.file.replace(/[^A-Za-z0-9]+/g, "_");
       const pageDir = path.join(base, slug);
-      const written = materialize(pageDir, page.projects, sdkRoot);
+      const { written, dirs } = materialize(pageDir, page.projects, sdkRoot);
       const stat = {
         file: page.file,
         sfcProjects: page.projects.length,
@@ -320,26 +340,31 @@ export function sfcCheckDocuments({
       };
       stats.push(stat);
 
+      // One invocation per project, because one program per project is the
+      // isolation this gate is built on. The cost is process startup, and the
+      // alternative — one program for the page — is the bug B2 named.
       const raw = [];
-      if (vueTsc && page.projects.some((project) => project.hasVue)) {
-        raw.push(
-          ...parseVueTscOutput(
-            run(vueTsc, ["--noEmit", "--pretty", "false", "-p", "tsconfig.json"], pageDir),
-            pageDir,
-          ),
-        );
-      }
-      if (svelteCheck && page.projects.some((project) => project.hasSvelte)) {
-        raw.push(
-          ...parseSvelteCheckOutput(
-            run(
-              svelteCheck,
-              ["--workspace", pageDir, "--output", "machine", "--threshold", "error"],
-              pageDir,
+      for (const { dir, project } of dirs) {
+        if (vueTsc && project.hasVue) {
+          raw.push(
+            ...parseVueTscOutput(
+              run(vueTsc, ["--noEmit", "--pretty", "false", "-p", "tsconfig.json"], dir),
+              dir,
             ),
-            pageDir,
-          ),
-        );
+          );
+        }
+        if (svelteCheck && project.hasSvelte) {
+          raw.push(
+            ...parseSvelteCheckOutput(
+              run(
+                svelteCheck,
+                ["--workspace", dir, "--output", "machine", "--threshold", "error"],
+                dir,
+              ),
+              dir,
+            ),
+          );
+        }
       }
 
       for (const diagnostic of raw) {

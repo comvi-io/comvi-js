@@ -29,13 +29,18 @@ declare module "server-only";
 declare module "client-only";
 
 /**
- * The environment globals a real app has and a docs project otherwise lacks:
- * `types: []` in the compiler options drops `@types/node` and `vite/client`
- * from the automatic global scope, so `process.env.X` (TS2591) and
- * `import.meta.env.DEV` (TS2339) failed on every fence that reads an env var
- * — six across the READMEs and D3 before this existed. Shaped like what
- * `vite/client` and `@types/node` give the reader; unlike an augmented
- * `TranslationKeys`, nothing here can change how another fence typechecks.
+ * `import.meta.env`, the way `vite/client` shapes it.
+ *
+ * The compiler options exclude every automatic types package except
+ * `@types/node`, so `import.meta.env.DEV` has no declaration anywhere and every
+ * fence reading it failed with TS2339. This is the vite/client shape, and it is
+ * safe in a way an augmented `TranslationKeys` is not: nothing here can change
+ * how another fence typechecks.
+ *
+ * `process` is NOT declared here. It was, and it had to go: `types: ["node"]`
+ * brings @types/node's own `process` into the program, and two declarations of
+ * one global name are TS2451 on every page. Node's globals come from Node's
+ * types or not at all.
  */
 interface ImportMetaEnv {
   readonly DEV: boolean;
@@ -46,4 +51,3 @@ interface ImportMetaEnv {
 interface ImportMeta {
   readonly env: ImportMetaEnv;
 }
-declare const process: { env: Record<string, string | undefined> };

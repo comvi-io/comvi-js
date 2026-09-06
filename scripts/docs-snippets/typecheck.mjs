@@ -100,7 +100,7 @@ export function loadTypeScript() {
  * compiles with `strict` off is a docs example that fails in the project of
  * every reader who followed the framework's own scaffold.
  */
-export function compilerOptions(ts, { mode, root }) {
+export function compilerOptions(ts, { mode, root, nodeTypes = false }) {
   const shared = {
     strict: true,
     jsx: ts.JsxEmit.ReactJSX,
@@ -116,11 +116,22 @@ export function compilerOptions(ts, { mode, root }) {
     // a docs gate that fails because `@types/react` disagrees with `solid-js`
     // reports nothing about the docs.
     skipLibCheck: true,
-    // `types: []` suppresses only the AUTOMATIC global inclusion of every
-    // @types package under the SDK root — an explicit `import 'node:fs'` still
-    // resolves through @types/node. Without it, the union of react, vue, solid
-    // and svelte globals lands in one program and they contradict each other.
-    types: [],
+    // Everything automatic is suppressed except `@types/node`, and the exception
+    // is not optional. `types: []` keeps @types/node's ambient
+    // `declare module "fs/promises"` out of the program entirely, so
+    // `import { writeFile } from "node:fs/promises"` failed with TS2591 even
+    // though the package was installed under the SDK root — an explicit import
+    // does NOT reach a types package the `types` list excludes, which is the
+    // opposite of what the old comment here claimed. Everything else stays out:
+    // the union of react, vue, solid and svelte globals in one program
+    // contradicts itself.
+    //
+    // `node` is listed only when `@types/node` is actually installed under the
+    // SDK root, because naming a types package that is not there is TS2688 on
+    // every page. `createTypecheckContext` records which way it went and the
+    // report says so, so a run without Node globals is a fact on the record
+    // rather than a silent difference in what got checked.
+    types: nodeTypes ? ["node"] : [],
     // No `baseUrl`: TypeScript 6 reports it as deprecated (TS5101) and 7 removes
     // it. `pathsBasePath` is what a real tsconfig gets from its own location and
     // is what `paths` is resolved against — set it and every alias below is
@@ -171,13 +182,13 @@ function normalize(p) {
  * Precedence in that order is what makes "the page defines what it shows and
  * inherits the rest" true rather than aspirational.
  */
-export function createHostFactory(ts, { sdkRoot, mode }) {
+export function createHostFactory(ts, { sdkRoot, mode, nodeTypes = false }) {
   // Only for the real host's newline and case-sensitivity settings. The options
   // a PROGRAM sees are built per project below, because `paths` and `rootDirs`
   // are resolved against the project's own directory and a single set anchored
   // at the SDK root pointed every alias one tree too high — `@/i18n/config`,
   // `$lib/i18n` and `~/lib/i18n` all failed with TS2307 while looking configured.
-  const options = compilerOptions(ts, { mode, root: sdkRoot });
+  const options = compilerOptions(ts, { mode, root: sdkRoot, nodeTypes });
   const realHost = ts.createCompilerHost(options, true);
   // Keyed by mode: the SAME `.d.ts` gets a different `impliedNodeFormat` under
   // node16 than under bundler, and a source file cached across the two carries
@@ -197,7 +208,7 @@ export function createHostFactory(ts, { sdkRoot, mode }) {
 
   return function createHost(project) {
     const root = normalize(path.join(vfsRoot, project.pageSlug, project.id));
-    const projectOptions = compilerOptions(ts, { mode, root });
+    const projectOptions = compilerOptions(ts, { mode, root, nodeTypes });
     const own = new Map();
     for (const file of project.files.values()) own.set(normalize(path.join(root, file.rel)), file);
 
@@ -404,6 +415,40 @@ function checkProject(ts, createHost, project, pageFile) {
   return out;
 }
 
+/**
+ * Names a fence declares at its top level, or binds with an import.
+ *
+ * Used only to LABEL findings, never to suppress one. Half the type errors in
+ * the corpus are `TS2304 Cannot find name 'i18n'`, and the two populations
+ * behind that one code want opposite fixes: a fence that continues the fence
+ * above it needs a `check=group=` or an import, while a fence that names
+ * something nobody ever declared is simply wrong. A report that cannot tell
+ * them apart hands D3-D5 one undifferentiated pile of 490.
+ */
+function declaredNames(code) {
+  const names = new Set();
+  for (const match of code.matchAll(/\b(?:const|let|var|function|class)\s+([A-Za-z_$][\w$]*)/g)) {
+    names.add(match[1]);
+  }
+  for (const match of code.matchAll(/import\s+(?:type\s+)?\{([^}]*)\}/g)) {
+    for (const part of match[1].split(",")) {
+      const name = part
+        .trim()
+        .split(/\s+as\s+/)
+        .pop()
+        ?.trim();
+      if (name) names.add(name);
+    }
+  }
+  for (const match of code.matchAll(/import\s+(?:type\s+)?([A-Za-z_$][\w$]*)\s*(?:,|from)/g)) {
+    names.add(match[1]);
+  }
+  return names;
+}
+
+/** The identifier a "cannot find name" diagnostic is about, when it names one. */
+const MISSING_NAME = /^Cannot find name '([^']+)'/;
+
 /** A diagnostic's identity for the bundler-vs-node16 comparison. */
 function diagnosticKey(diagnostic) {
   return `${diagnostic.line}:${diagnostic.col}:${diagnostic.code}`;
@@ -490,6 +535,17 @@ export function typecheckDocument({ file, source, context }) {
   const { projects, skips } = buildProjects(fences, skipCategory);
   const pageSlug = file.replace(/[^A-Za-z0-9]+/g, "_");
 
+  // Everything the page declares, in fence order, so a "cannot find name" can be
+  // labelled by whether the name exists earlier on the page.
+  const declaredBefore = [];
+  for (const project of projects) {
+    for (const virtual of project.files.values()) {
+      declaredBefore.push({ line: virtual.fence.line, names: declaredNames(virtual.content) });
+    }
+  }
+  const declaredEarlier = (name, line) =>
+    declaredBefore.some((entry) => entry.line < line && entry.names.has(name));
+
   const findings = [];
   const stats = {
     file,
@@ -523,11 +579,16 @@ export function typecheckDocument({ file, source, context }) {
     const resolved = applyExpectError([...bundler], [project]);
     findings.push(...resolved.findings.map((f) => ({ ...f, file: f.file ?? file })));
     for (const diagnostic of resolved.kept) {
+      const missing = diagnostic.message.match(MISSING_NAME)?.[1];
       findings.push({
         file: diagnostic.file,
         line: diagnostic.line,
         col: diagnostic.col,
         rule: "typecheck/error",
+        cause:
+          missing && declaredEarlier(missing, diagnostic.line)
+            ? "continues-an-earlier-fence"
+            : undefined,
         message: `TS${diagnostic.code}: ${diagnostic.message}`,
         migration: null,
       });
@@ -568,12 +629,14 @@ export function createTypecheckContext({ sdkRoot, ts = loadTypeScript() }) {
         "(scripts/docs-snippets/link-sdk.mjs prints one built from the workspace).",
     );
   }
+  const nodeTypes = fs.existsSync(path.join(resolved, "node_modules", "@types", "node"));
   return {
     ts,
     sdkRoot: resolved,
+    nodeTypes,
     hosts: {
-      bundler: createHostFactory(ts, { sdkRoot: resolved, mode: "bundler" }),
-      node16: createHostFactory(ts, { sdkRoot: resolved, mode: "node16" }),
+      bundler: createHostFactory(ts, { sdkRoot: resolved, mode: "bundler", nodeTypes }),
+      node16: createHostFactory(ts, { sdkRoot: resolved, mode: "node16", nodeTypes }),
     },
   };
 }

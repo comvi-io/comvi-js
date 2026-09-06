@@ -24,31 +24,56 @@
  *     `package.json`, and no lockfile in this repo is read or written.
  *
  * The post-install assertion is the part that must not be skipped. "It
- * installed" is not "it installed what you meant": the version in
- * `node_modules/@comvi/core/package.json` must equal the workspace's, and
- * `loader` must resolve out of `@comvi/core/loader` — a symbol that exists only
- * in 0.5. Both, or the run fails loudly. A gate whose SDK silently fell back to
- * the registry is the failure this whole lot is about.
+ * installed" is not "it installed what you meant", and the three probes answer
+ * three different lies:
+ *
+ *   - **Provenance.** Every `@comvi/*` resolution in the temp lockfile must be
+ *     a `file:` reference. This is the probe that can actually fail on the
+ *     failure mode that matters: comparing the installed version against the
+ *     workspace version proves nothing while the registry carries the same
+ *     version — 0.4.0 exists in both places today — so a silent fallback would
+ *     pass a version check and fail nothing. It also covers all fourteen
+ *     packages rather than core alone.
+ *   - **Identity.** `node_modules/@comvi/core/package.json` must still carry
+ *     the workspace's version, which catches a stale tarball from an earlier
+ *     version left in a package directory.
+ *   - **Shape.** `loader` must resolve THROUGH THE SPECIFIER
+ *     `@comvi/core/loader`, never through a `dist/` path, because resolving the
+ *     specifier is what exercises the published `exports` map — the thing a
+ *     reader's bundler uses and the thing this gate exists to check. `loader`
+ *     is 0.5-only besides: in 0.4 the capability was a method on the host.
  */
 
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
-import { fileURLToPath } from "node:url";
+import { createRequire } from "node:module";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 export const REPO_ROOT = path.resolve(HERE, "..", "..");
 
 /**
- * Framework packages installed alongside, so `--sdk-root` also answers `react`,
- * `vue`, `svelte` and their types.
+ * The environment installed alongside the packages, so `--sdk-root` answers
+ * more than `@comvi/*`.
  *
- * Without them the docs' `.tsx` fences fail on `import { useState } from
- * 'react'` — a finding about the checking environment wearing the costume of a
- * finding about the docs. Versions are read from the workspace's own
- * devDependencies rather than written here, so the gate checks against what the
- * packages are built and tested against.
+ * Two groups, both there for the same reason: a fence must be judged on the
+ * Comvi API it demonstrates, never on the scaffolding around it.
+ *
+ *   - Framework runtimes and their types. Without them every `.tsx` fence fails
+ *     on `import { useState } from 'react'` — a finding about the checking
+ *     environment wearing the costume of a finding about the docs.
+ *   - Test runners. `guides/testing.mdx` is the one page whose SUBJECT is the
+ *     harness: 15 of its 28 type errors were "cannot find module 'vitest'" and
+ *     "cannot find name 'test'". `@playwright/test` is deliberately absent —
+ *     those fences are end-to-end code with no Comvi API in them and belong
+ *     under `check=skip:e2e-harness`, not in this install.
+ *
+ * Versions are read from the workspace's own manifests rather than written
+ * here, so the gate checks against what the packages are built and tested
+ * against. A name the workspace does not pin falls back to `latest`, which is
+ * the honest answer for a package the repo has no opinion about.
  */
 export const FRAMEWORK_DEPS = [
   "react",
@@ -60,6 +85,10 @@ export const FRAMEWORK_DEPS = [
   "solid-js",
   "next",
   "@types/node",
+  "vitest",
+  "@testing-library/react",
+  "@testing-library/svelte",
+  "@vue/test-utils",
 ];
 
 function run(command, args, options = {}) {
@@ -170,9 +199,50 @@ export function frameworkVersions(root = REPO_ROOT) {
  * resolve from a registry copy of a future release. Together they say "this is
  * the code in this working tree".
  */
+/**
+ * Every place the lockfile names a RESOLVED `@comvi/*` package, as
+ * `{ name, reference }`.
+ *
+ * Two shapes in lockfile v9: the `packages:` / `snapshots:` keys
+ * (`'@comvi/core@file:…'`) and the `version:` line under each importer
+ * dependency. The `overrides:` block is deliberately not read — it records what
+ * was ASKED for, and the question here is what arrived.
+ */
+export function comviResolutions(lockfile) {
+  const out = [];
+  for (const match of lockfile.matchAll(/^\s*'?(@comvi\/[A-Za-z0-9._-]+)@(.+?)'?:\s*$/gm)) {
+    out.push({ name: match[1], reference: match[2] });
+  }
+  for (const match of lockfile.matchAll(
+    /^\s*'?(@comvi\/[A-Za-z0-9._-]+)'?:\n\s*specifier:[^\n]*\n\s*version:\s*(.+)$/gm,
+  )) {
+    out.push({ name: match[1], reference: match[2].trim() });
+  }
+  return out;
+}
+
+/** Resolutions that did not come from a local tarball. */
+export function registryResolutions(lockfile) {
+  return comviResolutions(lockfile).filter((entry) => !/^(file:|link:)/.test(entry.reference));
+}
+
 export async function assertInstall(dir, packages) {
   const core = packages.find((pkg) => pkg.name === "@comvi/core");
   if (!core) throw new Error("@comvi/core is not among the workspace packages");
+
+  const lockPath = path.join(dir, "pnpm-lock.yaml");
+  if (!fs.existsSync(lockPath)) {
+    throw new Error(`no pnpm-lock.yaml in ${dir} — the install did not run, or pnpm wrote none`);
+  }
+  const strays = registryResolutions(fs.readFileSync(lockPath, "utf8"));
+  if (strays.length > 0) {
+    throw new Error(
+      `${strays.length} @comvi resolution(s) came from the registry, not from a local tarball: ` +
+        `${strays.map((stray) => `${stray.name}@${stray.reference}`).join(", ")}. ` +
+        "`pnpm pack` rewrites `workspace:*` to a concrete version, so a package whose override " +
+        "did not apply pulls the PUBLISHED dependency and the gate goes green against it.",
+    );
+  }
 
   const installed = path.join(dir, "node_modules", "@comvi", "core", "package.json");
   if (!fs.existsSync(installed)) {
@@ -182,30 +252,85 @@ export async function assertInstall(dir, packages) {
   if (version !== core.version) {
     throw new Error(
       `installed @comvi/core is ${version}, the workspace is ${core.version} — ` +
-        "the install resolved to the registry, not to the local tarball. " +
-        "Checking the docs against it would report this tree's version while compiling last release's code.",
+        "a stale tarball, or an override that did not apply.",
     );
   }
 
-  // `loader` exists only in 0.5: in 0.4 the capability lived on the host as
-  // `registerLoader`. Resolving it proves the tarball carries the new code and
-  // that `exports` publishes the subpath — the two things a version string
-  // cannot say.
-  const loaderModule = await import(
-    path.join(dir, "node_modules", "@comvi", "core", "dist", "loader.js")
-  ).catch(async () => {
-    const url = await import("node:module").then(({ createRequire }) =>
-      createRequire(path.join(dir, "package.json")).resolve("@comvi/core/loader"),
+  let entry;
+  try {
+    entry = createRequire(path.join(dir, "package.json")).resolve("@comvi/core/loader");
+  } catch (error) {
+    throw new Error(
+      "`@comvi/core/loader` does not resolve from the install — the published `exports` map " +
+        `lost the subpath: ${error.message}`,
     );
-    return import(url);
-  });
+  }
+  const loaderModule = await import(pathToFileURL(entry).href);
   if (typeof loaderModule.loader !== "function") {
     throw new Error(
       "`loader` does not resolve from @comvi/core/loader in the installed package — " +
-        "this is a 0.4 build, or the exports map lost the subpath.",
+        "this is a 0.4 build, where the capability was a method on the host.",
     );
   }
-  return { version, symbols: Object.keys(loaderModule).sort() };
+  return { version, entry, symbols: Object.keys(loaderModule).sort() };
+}
+
+/**
+ * Delete every `packages/<pkg>/*.tgz` before packing.
+ *
+ * `pnpm pack` names the file for the version, so a tarball from a previous
+ * version survives a re-pack and can be found again once the version moves on.
+ * Removing them first means the only tarballs on disk are this run's.
+ */
+export function cleanTarballs(root = REPO_ROOT) {
+  const removed = [];
+  for (const pkg of workspacePackages(root)) {
+    for (const entry of fs.readdirSync(pkg.dir)) {
+      if (!entry.endsWith(".tgz")) continue;
+      const abs = path.join(pkg.dir, entry);
+      fs.rmSync(abs);
+      removed.push(abs);
+    }
+  }
+  return removed;
+}
+
+/** The newest mtime under `dir`, or `null` when it does not exist. */
+function newestMtime(dir) {
+  if (!fs.existsSync(dir)) return null;
+  let newest = 0;
+  const walk = (current) => {
+    for (const entry of fs.readdirSync(current, { withFileTypes: true })) {
+      const abs = path.join(current, entry.name);
+      if (entry.isDirectory()) walk(abs);
+      else newest = Math.max(newest, fs.statSync(abs).mtimeMs);
+    }
+  };
+  walk(dir);
+  return newest;
+}
+
+/**
+ * Refuse a `--no-pack` run whose tarballs are older than the code inside them.
+ *
+ * `--no-pack` exists to save two minutes on a re-run. It also silently checks
+ * the docs against whatever was packed last time, which after any edit to a
+ * package is the previous build. The flag stays; the silence does not.
+ */
+export function assertTarballsFresh(packages) {
+  const stale = [];
+  for (const pkg of packages) {
+    const tarball = tarballFor(pkg);
+    const built = newestMtime(path.join(pkg.dir, "dist"));
+    if (built === null) continue;
+    if (fs.statSync(tarball).mtimeMs < built) stale.push(pkg.name);
+  }
+  if (stale.length > 0) {
+    throw new Error(
+      `--no-pack, but the tarball is older than the build for: ${stale.join(", ")}. ` +
+        "Re-run without --no-pack, or the gate checks the docs against the previous build.",
+    );
+  }
 }
 
 export async function linkSdk({ root = REPO_ROOT, dir = null, build = true, pack = true } = {}) {
@@ -213,9 +338,13 @@ export async function linkSdk({ root = REPO_ROOT, dir = null, build = true, pack
   fs.mkdirSync(target, { recursive: true });
 
   if (build) run("pnpm", ["build"], { cwd: root });
-  if (pack) run("pnpm", ["pack:release"], { cwd: root });
+  if (pack) {
+    cleanTarballs(root);
+    run("pnpm", ["pack:release"], { cwd: root });
+  }
 
   const packages = workspacePackages(root);
+  if (!pack) assertTarballsFresh(packages);
   const manifest = installManifest(packages, frameworkVersions(root));
   fs.writeFileSync(path.join(target, "package.json"), `${JSON.stringify(manifest, null, 2)}\n`);
   // `.npmrc`, not flags: `--ignore-workspace` keeps pnpm from walking up into
@@ -245,8 +374,9 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
       pack: !argv.includes("--no-pack"),
     });
     console.error(
-      `link-sdk: ${result.packages.length} packages, @comvi/core@${result.proof.version} verified, ` +
-        `\`loader\` resolves from @comvi/core/loader.`,
+      `link-sdk: ${result.packages.length} packages, every @comvi resolution is a local tarball, ` +
+        `@comvi/core@${result.proof.version} verified, \`loader\` resolves through ` +
+        `@comvi/core/loader (${result.proof.entry}).`,
     );
     console.error("link-sdk: pass this to the gate as --sdk-root:");
     console.log(result.dir);

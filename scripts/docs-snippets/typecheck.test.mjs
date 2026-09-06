@@ -7,7 +7,10 @@ import { buildProjects, mapPosition, titleToPath } from "./project.mjs";
 import { createTypecheckContext, typecheckDocument } from "./typecheck.mjs";
 import { extractFences } from "./extract.mjs";
 import { lintDocument } from "./lint.mjs";
+import { fileURLToPath } from "node:url";
 import { writeStubSdk } from "./__fixtures__/stub-sdk.mjs";
+
+const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 
 let sdkRoot;
 let context;
@@ -106,7 +109,12 @@ test("the same augmentation DOES narrow t() inside its own page", () => {
   );
 
   assert.equal(errors(result).length, 1);
-  assert.match(errors(result)[0].message, /TS2345/);
+  assert.equal(errors(result)[0].line, 17);
+  // The stub reports TS2345 on the argument; the real `@comvi/core` overloads
+  // `t()` and reports TS2769 for the same mistake. Which one arrives depends on
+  // the SDK under `--sdk-root`, and the behaviour under test is that the
+  // narrowing HAPPENED on this page, at this fence.
+  assert.match(errors(result)[0].message, /TS(2345|2769)/);
 });
 
 // ---------------------------------------------------------------------------
@@ -557,4 +565,114 @@ test("a url-import skip in a non-TypeScript fence is counted, so both halves rep
 
   assert.deepEqual(typed.stats.skips, { "url-import": 1 });
   assert.deepEqual(typed.stats.skips, linted.stats.skips);
+});
+
+// ---------------------------------------------------------------------------
+// Node globals. `types: []` excluded @types/node entirely, so an explicit
+// `import "node:fs/promises"` failed with TS2591 even though the package was
+// installed under the SDK root.
+// ---------------------------------------------------------------------------
+
+test("a node: import resolves when @types/node is installed under the sdk root", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "comvi-docs-node-"));
+  writeStubSdk(dir);
+  fs.mkdirSync(path.join(dir, "node_modules", "@types", "node"), { recursive: true });
+  fs.writeFileSync(
+    path.join(dir, "node_modules", "@types", "node", "package.json"),
+    JSON.stringify({ name: "@types/node", version: "22.0.0", types: "index.d.ts" }),
+  );
+  fs.writeFileSync(
+    path.join(dir, "node_modules", "@types", "node", "index.d.ts"),
+    'declare module "fs/promises" { export function writeFile(p: string, d: string): Promise<void>; }\n' +
+      'declare module "node:fs/promises" { export * from "fs/promises"; }\n',
+  );
+  const local = createTypecheckContext({ sdkRoot: dir });
+  const body = [
+    "```ts",
+    "import { writeFile } from 'node:fs/promises';",
+    "export const save = (p: string) => writeFile(p, 'x');",
+    "```",
+  ].join("\n");
+
+  assert.equal(local.nodeTypes, true);
+  assert.deepEqual(
+    errors(
+      typecheckDocument({ file: "docs/i18n/page.mdx", source: page(body).source, context: local }),
+    ),
+    [],
+  );
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test("a node: module that does not exist still fails", () => {
+  // The negative half: `types: ["node"]` must not make every `node:` specifier
+  // resolve to something.
+  const body = ["```ts", "import { nope } from 'node:nope';", "export const x = nope;", "```"].join(
+    "\n",
+  );
+
+  const found = errors(check(body));
+  assert.equal(found.length, 1);
+  assert.match(found[0].message, /TS2307/);
+});
+
+test("an sdk root with no @types/node reports it rather than failing every page", () => {
+  // Naming a types package that is not installed is TS2688 on every page. The
+  // context records which way it went so the report can say so.
+  assert.equal(context.nodeTypes, false);
+  assert.deepEqual(errors(check(["```ts", "export const a = 1;", "```"].join("\n"))), []);
+});
+
+test("a browser-flavoured fence still typechecks with the node globals present", () => {
+  // @types/node redeclares setTimeout, clearTimeout and fetch. A corpus that is
+  // mostly browser code must not start failing because the Node types arrived —
+  // `setTimeout` returning `NodeJS.Timeout` instead of `number` is the classic
+  // way that goes wrong. Run against the repo, which is the only root here with
+  // a real @types/node.
+  const real = createTypecheckContext({ sdkRoot: REPO_ROOT });
+  const body = [
+    "```ts",
+    "export function schedule() {",
+    "  const id = setTimeout(() => {}, 100);",
+    "  clearTimeout(id);",
+    "  void fetch('https://example.com').then((r) => r.text());",
+    "  return document.title + String(id);",
+    "}",
+    "```",
+  ].join("\n");
+
+  assert.equal(real.nodeTypes, true);
+  assert.deepEqual(
+    errors(
+      typecheckDocument({ file: "docs/i18n/page.mdx", source: page(body).source, context: real }),
+    ),
+    [],
+  );
+});
+
+test("a TS2304 whose name an earlier fence declares is labelled as continuing it", () => {
+  // Half the corpus's type errors are this one code, and the two populations
+  // behind it want opposite fixes.
+  const body = [
+    "```ts",
+    "import { createI18n } from '@comvi/core';",
+    "export const i18n = createI18n({ locale: 'en' });",
+    "```",
+    "",
+    "```ts",
+    "i18n.t('hello');",
+    "```",
+  ].join("\n");
+
+  const found = errors(check(body));
+  assert.equal(found.length, 1);
+  assert.equal(found[0].cause, "continues-an-earlier-fence");
+});
+
+test("a TS2304 nobody declares anywhere carries no such label", () => {
+  const body = ["```ts", "notDeclaredAnywhere.t('hello');", "```"].join("\n");
+
+  const found = errors(check(body));
+  assert.equal(found.length, 1);
+  assert.equal(found[0].cause, undefined);
 });

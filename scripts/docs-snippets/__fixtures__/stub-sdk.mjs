@@ -90,3 +90,55 @@ export function writeStubSdk(dir) {
   );
   return dir;
 }
+
+/**
+ * A root the SFC checkers can actually run against.
+ *
+ * vue-tsc and svelte-check need the real `vue` / `svelte` compilers, which no
+ * stub can fake, so this borrows them from the repo by symlink and adds ONE
+ * package of its own: `@docs-probe/api`, whose `Registry` interface has the
+ * same `keyof … extends never` shape core's `TranslationKeys` does.
+ *
+ * A bare specifier is the point. Two projects on a page resolve
+ * `@docs-probe/api` to the SAME file, which is why a `declare module` in one
+ * tab reaches the other when they share a program — and why a relative module
+ * would not reproduce the bug at all. Nothing here depends on `packages/*`
+ * having been built, so it works in `test:release-tools`, which runs before the
+ * build.
+ */
+export function writeSfcProbeSdk(dir, repoRoot) {
+  const modules = path.join(dir, "node_modules");
+  fs.mkdirSync(modules, { recursive: true });
+  for (const name of ["vue", "@vue", "svelte", "typescript", "@types"]) {
+    const from = path.join(repoRoot, "node_modules", name);
+    if (!fs.existsSync(from)) continue;
+    fs.symlinkSync(fs.realpathSync(from), path.join(modules, name), "junction");
+  }
+
+  const api = path.join(modules, "@docs-probe", "api");
+  fs.mkdirSync(api, { recursive: true });
+  fs.writeFileSync(
+    path.join(api, "package.json"),
+    JSON.stringify({
+      name: "@docs-probe/api",
+      version: "1.0.0",
+      type: "module",
+      exports: { ".": { types: "./index.d.ts", default: "./index.js" } },
+    }),
+  );
+  fs.writeFileSync(
+    path.join(api, "index.d.ts"),
+    [
+      "export interface Registry {}",
+      "type Permissive = keyof Registry extends never ? string : never;",
+      "export declare function t(key: keyof Registry | Permissive): string;",
+      "",
+    ].join("\n"),
+  );
+  fs.writeFileSync(path.join(api, "index.js"), "export {};\n");
+  fs.writeFileSync(
+    path.join(dir, "package.json"),
+    JSON.stringify({ name: "sfc-probe-root", private: true, type: "module" }, null, 2),
+  );
+  return dir;
+}

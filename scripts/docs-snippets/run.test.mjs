@@ -358,3 +358,95 @@ test("the runner exits 0 when only advisories remain", () => {
   assert.equal(result.status, 0);
   fs.rmSync(dir, { recursive: true, force: true });
 });
+
+test("parseArgs: a flag where a value belongs is refused, not swallowed", () => {
+  // `--sdk-root --json` used to take `--json` as the directory and fail much
+  // later, deep in the type driver, with a message about node_modules.
+  assert.throws(
+    () => parseArgs(["--readmes", "--typecheck", "--sdk-root", "--json"]),
+    /--sdk-root needs a value, but got the flag "--json"/,
+  );
+});
+
+test("parseArgs: a trailing flag with no value at all is refused", () => {
+  assert.throws(() => parseArgs(["--content"]), /--content needs a value/);
+});
+
+test("formatReport: tsc programs and SFC programs are counted apart", () => {
+  // A project holding both a `.ts` and a `.vue` fence is compiled twice — once
+  // in memory, once by vue-tsc — and adding the two read as 272 projects on a
+  // site that has 213.
+  const report = formatReport({
+    files: ["docs/i18n/page.mdx"],
+    stats: [],
+    findings: [],
+    typeStats: [{ projects: 3, files: 9, checkedFences: 5, node16Only: 0, skips: {} }],
+    sfcStats: [{ sfcProjects: 2, sfc: { vue: 1, svelte: 1 } }],
+  });
+
+  assert.match(report, /3 tsc programs over 9 virtual files \(5 ts\/tsx fences\)/);
+  assert.match(report, /2 SFC programs \(1 vue, 1 svelte\)/);
+  assert.doesNotMatch(report, /5 tsc programs/);
+});
+
+test("formatReport: agreeing skip budgets are printed once, as agreement", () => {
+  const report = formatReport({
+    files: ["docs/i18n/page.mdx"],
+    findings: [],
+    stats: [
+      { file: "docs/i18n/page.mdx", fences: 2, linted: 1, skips: { "url-import": 1 }, classes: [] },
+    ],
+    typeStats: [
+      { projects: 1, files: 1, checkedFences: 1, node16Only: 0, skips: { "url-import": 1 } },
+    ],
+    sfcStats: [],
+  });
+
+  assert.match(report, /skip budget: lint and typecheck agree \(url-import: 1\)/);
+});
+
+test("formatReport: disagreeing skip budgets are called out, not averaged", () => {
+  // The budget is computed on both sides and was only ever printed on one. Two
+  // passes reading different fences is a fact a reader has to be told.
+  const report = formatReport({
+    files: ["docs/i18n/page.mdx"],
+    findings: [],
+    stats: [
+      { file: "docs/i18n/page.mdx", fences: 2, linted: 1, skips: { "url-import": 1 }, classes: [] },
+    ],
+    typeStats: [{ projects: 1, files: 1, checkedFences: 1, node16Only: 0, skips: {} }],
+    sfcStats: [],
+  });
+
+  assert.match(report, /SKIP BUDGETS DISAGREE/);
+  assert.match(report, /One pass is reading fences the other is not/);
+});
+
+test("formatReport: the TS2304 pile is split by whether an earlier fence declares the name", () => {
+  const report = formatReport({
+    files: ["docs/i18n/page.mdx"],
+    stats: [],
+    typeStats: [{ projects: 1, files: 2, checkedFences: 2, node16Only: 0, skips: {} }],
+    sfcStats: [],
+    findings: [
+      {
+        file: "docs/i18n/page.mdx",
+        line: 9,
+        col: 1,
+        rule: "typecheck/error",
+        cause: "continues-an-earlier-fence",
+        message: "TS2304: Cannot find name 'i18n'.",
+      },
+      {
+        file: "docs/i18n/page.mdx",
+        line: 14,
+        col: 1,
+        rule: "typecheck/error",
+        message: "TS2304: Cannot find name 'nobodyDeclaredThis'.",
+      },
+    ],
+  });
+
+  assert.match(report, /codes: TS2304×2/);
+  assert.match(report, /of these, 1 name something an earlier fence on the same page declares/);
+});

@@ -46,23 +46,29 @@ export function parseArgs(argv) {
     sdkRoot: null,
     sfc: true,
   };
+  // A flag's value must not itself look like a flag. `--sdk-root --json` used to
+  // swallow `--json` as the directory and then fail much later, deep inside the
+  // type driver, with a message about node_modules.
+  const value = (flag, index) => {
+    const next = argv[index];
+    if (next === undefined) throw new Error(`${flag} needs a value`);
+    if (next.startsWith("--")) throw new Error(`${flag} needs a value, but got the flag "${next}"`);
+    return next;
+  };
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
     if (arg === "--readmes") options.readmes = true;
-    else if (arg === "--content") options.content = argv[++index] ?? null;
-    else if (arg === "--sdk-version") options.sdkVersion = argv[++index] ?? null;
-    else if (arg === "--root") options.root = argv[++index] ?? process.cwd();
+    else if (arg === "--content") options.content = value(arg, ++index);
+    else if (arg === "--sdk-version") options.sdkVersion = value(arg, ++index);
+    else if (arg === "--root") options.root = value(arg, ++index);
     else if (arg === "--typecheck") options.typecheck = true;
-    else if (arg === "--sdk-root") options.sdkRoot = argv[++index] ?? null;
+    else if (arg === "--sdk-root") options.sdkRoot = value(arg, ++index);
     else if (arg === "--no-sfc") options.sfc = false;
     else if (arg === "--json") options.json = true;
     else throw new Error(`unknown argument "${arg}"`);
   }
   if (!options.readmes && !options.content) {
     throw new Error("nothing to check: pass --readmes or --content <dir>");
-  }
-  if (options.content === null && argv.includes("--content")) {
-    throw new Error("--content needs a directory");
   }
   if (options.typecheck && !options.sdkRoot) {
     throw new Error(
@@ -255,27 +261,86 @@ export function formatReport({ files, findings, stats, typeStats = [], sfcStats 
   }
 
   if (typeStats.length > 0 || sfcStats.length > 0) {
-    let programs = 0;
+    let tsPrograms = 0;
+    let sfcPrograms = 0;
     let checked = 0;
     let virtual = 0;
     let node16 = 0;
     const sfc = { vue: 0, svelte: 0 };
+    const typeSkips = new Map();
     for (const stat of typeStats) {
-      programs += stat.projects ?? 0;
+      tsPrograms += stat.projects ?? 0;
       checked += stat.checkedFences ?? 0;
       virtual += stat.files ?? 0;
       node16 += stat.node16Only ?? 0;
+      for (const [category, count] of Object.entries(stat.skips ?? {})) {
+        typeSkips.set(category, (typeSkips.get(category) ?? 0) + count);
+      }
     }
     for (const stat of sfcStats) {
-      programs += stat.sfcProjects ?? 0;
+      sfcPrograms += stat.sfcProjects ?? 0;
       sfc.vue += stat.sfc?.vue ?? 0;
       sfc.svelte += stat.sfc?.svelte ?? 0;
     }
     lines.push("");
+    // Two program counts, never one sum. A project holding both a `.ts` and a
+    // `.vue` fence is compiled twice — once in memory, once by vue-tsc — and
+    // adding the two made the site read as 272 projects when it has 213.
     lines.push(
-      `typecheck: ${programs} virtual projects, ${virtual} virtual files, ` +
-        `${checked} ts/tsx fences, ${sfc.vue} vue, ${sfc.svelte} svelte.`,
+      `typecheck: ${tsPrograms} tsc programs over ${virtual} virtual files ` +
+        `(${checked} ts/tsx fences), ${sfcPrograms} SFC programs ` +
+        `(${sfc.vue} vue, ${sfc.svelte} svelte).`,
     );
+
+    // The skip budget is computed on both sides and was only ever printed on
+    // one. Printing both, and saying so when they differ, is what makes the
+    // budget auditable rather than decorative.
+    if (typeSkips.size > 0 || skips.size > 0) {
+      const same =
+        typeSkips.size === skips.size &&
+        [...skips].every(([category, count]) => typeSkips.get(category) === count);
+      lines.push(
+        same
+          ? `  skip budget: lint and typecheck agree (${[...typeSkips]
+              .sort()
+              .map(([category, count]) => `${category}: ${count}`)
+              .join(", ")}).`
+          : `  SKIP BUDGETS DISAGREE — lint ${JSON.stringify(
+              Object.fromEntries([...skips].sort()),
+            )}, typecheck ${JSON.stringify(Object.fromEntries([...typeSkips].sort()))}. ` +
+              "One pass is reading fences the other is not.",
+      );
+    }
+
+    const typeErrors = errors.filter((finding) => finding.rule.startsWith("typecheck/"));
+    if (typeErrors.length > 0) {
+      const codes = new Map();
+      for (const finding of typeErrors) {
+        const code = finding.message.match(/^TS(\d+)/)?.[1] ?? "(no code)";
+        codes.set(code, (codes.get(code) ?? 0) + 1);
+      }
+      lines.push(
+        `  codes: ${[...codes]
+          .sort((a, b) => b[1] - a[1])
+          .slice(0, 12)
+          .map(([code, count]) => `${code === "(no code)" ? code : `TS${code}`}×${count}`)
+          .join(", ")}`,
+      );
+      // The single largest class in the corpus, split by the only distinction
+      // that changes the fix: a fence that continues the fence above it wants a
+      // `check=group=` or an import; a fence naming something nobody declared is
+      // simply wrong.
+      const continued = typeErrors.filter(
+        (finding) => finding.cause === "continues-an-earlier-fence",
+      ).length;
+      if (continued > 0) {
+        lines.push(
+          `    of these, ${continued} name something an earlier fence on the same page declares ` +
+            "(add check=group= or an import); the rest name something nobody declares.",
+        );
+      }
+    }
+
     if (advisories.length > 0) {
       const byAdvisory = new Map();
       for (const finding of advisories) {
