@@ -91,6 +91,8 @@ src/locales/
 The plugin writes to `src/types/i18n.d.ts`:
 
 ```typescript
+import "@comvi/core"; // resolves the module before augmenting it
+
 declare module "@comvi/core" {
   interface TranslationKeys {
     welcome: { name: string };
@@ -119,7 +121,10 @@ t("NOT_FOUND", { ns: "errors" });
 
 **What TypeScript catches:**
 
-```ts
+```ts check=expect-error
+import { useI18n } from "@comvi/react";
+const { t } = useI18n();
+
 // ✗ Expected 2 arguments, but got 1
 t("welcome");
 
