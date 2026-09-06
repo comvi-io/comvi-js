@@ -190,6 +190,41 @@ function kb(bytes) {
   return `${(bytes / 1024).toFixed(1)} kB`;
 }
 
+/**
+ * The provenance claim, or an admission that there is none.
+ *
+ * "every @comvi resolution is a local tarball" is the strongest sentence this
+ * script prints, and it used to print unconditionally — above a table of five
+ * failures, in a run where `assertLocalResolutions` had never executed because
+ * every install died first. A claim that survives its own evidence being absent
+ * is worse than no claim, because it reads as evidence. So it is stated only
+ * when every example reached the assertion AND passed everything after it.
+ *
+ * `packed` vs `reused` for the same reason: under `--no-pack` nothing was
+ * packed this run, and saying otherwise misdescribes where the bytes came from.
+ */
+export function provenanceLine(results, packages, options) {
+  const unchecked = results.filter((result) => !result.provenanceChecked);
+  const origin = options.pack ? "packed" : "reused (--no-pack)";
+  if (unchecked.length > 0) {
+    return (
+      `provenance NOT established: ${unchecked.map((result) => result.name).join(", ")} ` +
+      "never reached the lockfile assertion, so nothing here says where their " +
+      "@comvi packages came from."
+    );
+  }
+  if (!results.every((result) => result.ok)) {
+    return (
+      `${packages.length} packages ${origin} from ${REPO_ROOT}; every @comvi resolution in ` +
+      `all ${results.length} installs is a local tarball — but see the failures below.`
+    );
+  }
+  return (
+    `${packages.length} packages ${origin} from ${REPO_ROOT}; ` +
+    `every @comvi resolution in all ${results.length} installs is a local tarball.`
+  );
+}
+
 export function renderReport(results) {
   const rows = results.map((result) => [
     result.name,
@@ -214,7 +249,13 @@ export function renderReport(results) {
 
 async function verifyExample(example, packages, options) {
   const target = fs.mkdtempSync(path.join(os.tmpdir(), `comvi-example-${example.name}-`));
-  const result = { name: example.name, dir: target, ok: false, steps: [] };
+  const result = {
+    name: example.name,
+    dir: target,
+    ok: false,
+    provenanceChecked: false,
+    steps: [],
+  };
   try {
     copyTree(example.dir, target);
 
@@ -227,9 +268,29 @@ async function verifyExample(example, packages, options) {
     // `.npmrc`, not flags: `ignore-workspace` keeps pnpm from walking up into
     // this repo's `pnpm-workspace.yaml`, and `node-linker=hoisted` gives the
     // temp tree the flat `node_modules` a Vite app expects.
+    //
+    // The two peer settings are the ones that decide what this gate can SEE. A
+    // reader opening the example in StackBlitz gets `npm install`, which errors
+    // on a peer nothing satisfies; pnpm's defaults do the opposite — it
+    // auto-installs the missing peer FROM THE REGISTRY and says nothing. That
+    // default is how `@comvi/plugin-locale-detector`'s undeclared
+    // `@comvi/core` peer first slipped through here, caught only by the
+    // provenance assertion below. So: no auto-install, and strict.
+    //
+    // RELEASE CAPTAIN: re-run this gate AFTER the version bump. Today the
+    // detector's peer range is `^0.4.0` and the tarballs are 0.4.0, so the peer
+    // is satisfied by construction. The bump is the moment that range and the
+    // examples' `^0.5.0` meet for the first time, and it is the only moment
+    // this check can fail.
     fs.writeFileSync(
       path.join(target, ".npmrc"),
-      "ignore-workspace=true\nnode-linker=hoisted\nstrict-peer-dependencies=false\n",
+      [
+        "ignore-workspace=true",
+        "node-linker=hoisted",
+        "auto-install-peers=false",
+        "strict-peer-dependencies=true",
+        "",
+      ].join("\n"),
     );
 
     for (const [step, argv] of [
@@ -248,6 +309,9 @@ async function verifyExample(example, packages, options) {
           fs.readFileSync(path.join(target, "pnpm-lock.yaml"), "utf8"),
           declaredComviDeps(manifest),
         );
+        // Recorded, not inferred: the provenance summary at the end may only
+        // be printed for examples that really reached this line.
+        result.provenanceChecked = true;
       }
     }
 
@@ -318,10 +382,7 @@ async function main(argv) {
       ),
     );
   } else {
-    console.log(
-      `\n${packages.length} packages packed from ${REPO_ROOT}; ` +
-        "every @comvi resolution is a local tarball.\n",
-    );
+    console.log(`\n${provenanceLine(results, packages, options)}\n`);
     console.log(renderReport(results));
   }
   return results.every((result) => result.ok) ? 0 : 1;
