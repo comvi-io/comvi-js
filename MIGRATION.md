@@ -552,10 +552,10 @@ file, and in-repo suites use the `@internal` `_resetServerI18n()` from
 `useServer`, `useClientLazy` and `useServerLazy` are deprecated delegates; pass
 `{ runtime, environment, lazy }` to `use()` instead.
 
-**Locale routing** moved onto the shared `@comvi/locale-routing` package — an
-internal package pulled in transitively by `@comvi/next` and `@comvi/nuxt`, which
-you neither install nor import directly. Two URL behaviours changed with the
-move: a trailing slash survives locale-prefix stripping
+**Locale routing** moved onto the shared `@comvi/locale-routing` package. It is
+published, but it is a dependency of `@comvi/next` and `@comvi/nuxt` rather than
+something you add: nothing in an app installs or imports it directly. Two URL
+behaviours changed with the move: a trailing slash survives locale-prefix stripping
 (`/de/about/` → `/about/`, and the middleware no longer redirects to normalize
 it), and interior duplicate slashes are no longer collapsed (`/de//x` → `//x`).
 Prefix modes, the pathnames slug map and root-path handling are unchanged.
