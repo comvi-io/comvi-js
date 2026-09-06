@@ -38,16 +38,17 @@ import { TYPED_PACKAGES } from "../tooling/typed-packages.mjs";
 const rootDir = path.resolve(fileURLToPath(import.meta.url), "..", "..");
 const packagesDir = path.join(rootDir, "packages");
 
-// The packages are ESM-only and target bundler resolution (node16/nodenext is NOT a
-// target). Under `bundler`, the only meaningful resolution failures are an entry that
-// does not resolve at all (`NoResolution`) or an internal relative specifier that does
-// not resolve (`InternalResolutionError`). `FalseCJS`/`FalseESM` are node16-scoped and
-// never fire under bundler, so they are not gated. The PRIMARY post-migration gates are
-// the empty-types content check (below) + publint; attw@bundler is cheap insurance
-// against an unresolvable/extensionless declaration regression.
+// The packages are ESM-only. Under `bundler`, the only meaningful resolution failures
+// are an entry that does not resolve at all (`NoResolution`) or an internal relative
+// specifier that does not resolve (`InternalResolutionError`). `FalseCJS`/`FalseESM`
+// are node16-scoped and never fire under bundler, so they are not gated.
 const GATING_PROBLEM_KINDS = new Set(["InternalResolutionError", "NoResolution"]);
 
-// We only evaluate the modern bundler resolution mode.
+// attw is only asked about the bundler resolution mode. node16 is covered by the
+// hand-rolled probe below, NOT by attw: attw walks entry points, but it does not
+// report an `InternalResolutionError` for an extensionless relative specifier inside
+// a `.d.ts` under `node16-esm`, which is precisely the defect that shipped
+// `@comvi/plugin-fetch-loader/cdn` with zero exported members.
 const GATING_RESOLUTION_KINDS = new Set(["bundler"]);
 
 // EMPTY-TYPES GUARD: attw passes any declaration file that *resolves*, even an
@@ -56,6 +57,9 @@ const GATING_RESOLUTION_KINDS = new Set(["bundler"]);
 // each declared types entry has real content. Anything at/below this byte count, or
 // whose code (comments/whitespace stripped) is only `export {}`, is treated as empty.
 const TRIVIAL_DTS_BYTES = 16;
+
+// One broken barrel can strand hundreds of specifiers; print enough to act on.
+const NODE16_REPORT_LIMIT = 10;
 
 // Gather every declaration file a consumer can resolve: the root `types`/`typings`
 // plus every `types` condition anywhere in the `exports` map.
@@ -94,6 +98,106 @@ function declarationIsEmpty(text) {
     .replace(/(?<!\/)\/\/(?!\/)[^\n]*/g, "")
     .replace(/\s+/g, "");
   return stripped === "" || stripped === "export{}" || stripped === "export{};";
+}
+
+// ---------------------------------------------------------------------------
+// NODE16 RESOLUTION PROBE
+// ---------------------------------------------------------------------------
+// attw@bundler passes an extensionless relative specifier, because bundler
+// resolution substitutes extensions. node16/nodenext does NOT: there is no
+// extension substitution and no directory-index lookup, so `export * from
+// './cdn/index'` inside a shipped `.d.ts` resolves to nothing. The damage has two
+// shapes and only one of them is loud:
+//
+//   * `export * from <unresolved>` — the star contributes NO names, so the entry
+//     point ends up with zero exported members and every consumer import fails
+//     with `TS2305: ... has no exported member`. This shipped in the lite CDN
+//     loader (`@comvi/plugin-fetch-loader/cdn`).
+//   * `export { X } from <unresolved>` — X stays declared but binds to an
+//     unresolved module, so it silently becomes `any`. Under the `skipLibCheck:
+//     true` nearly every app sets, the consumer gets NO diagnostic: the package
+//     looks typed and type-checks nothing.
+//
+// So the probe walks the published declaration graph from every `types` entry and
+// applies node16's ESM rules by hand. Both shapes are gated; the star shape is
+// labelled separately because it is the consumer-visible one.
+const DECLARATION_SUFFIXES = [".d.ts", ".d.mts", ".d.cts"];
+
+// node16 maps a JS specifier back onto its declaration file: `./x.js` → `x.d.ts`.
+const DECLARATION_FOR_JS_EXT = { ".js": ".d.ts", ".mjs": ".d.mts", ".cjs": ".d.cts" };
+
+// `export * from '…'` / `export type * from '…'` / `export * as ns from '…'`.
+const STAR_REEXPORT =
+  /\bexport\s+(?:type\s+)?\*\s+(?:as\s+[A-Za-z_$][\w$]*\s+)?from\s*(['"])([^'"]+)\1/g;
+const ANY_SPECIFIER = /(?:\bfrom\s*|\bimport\s*\(\s*|\bimport\s+)(['"])([^'"]+)\1/g;
+
+// Blank out comments (preserving length) so a `from './x'` inside JSDoc is never
+// mistaken for a real specifier.
+function blankComments(text) {
+  const blank = (match) => match.replace(/[^\n]/g, " ");
+  return text.replace(/\/\*[\s\S]*?\*\//g, blank).replace(/(?<!\/)\/\/(?!\/)[^\n]*/g, blank);
+}
+
+// Relative specifiers in one declaration file, each tagged `star` or `named`.
+function relativeSpecifiers(text) {
+  const scannable = blankComments(text);
+  const stars = new Set([...scannable.matchAll(STAR_REEXPORT)].map((m) => m[2]));
+  const found = new Map();
+  for (const match of scannable.matchAll(ANY_SPECIFIER)) {
+    const specifier = match[2];
+    if (!specifier.startsWith(".")) continue;
+    if (!found.has(specifier)) found.set(specifier, stars.has(specifier) ? "star" : "named");
+  }
+  return [...found].map(([specifier, kind]) => ({ specifier, kind }));
+}
+
+// POSIX-join a tarball-map key with a relative specifier.
+function joinKey(fromKey, specifier) {
+  const segments = fromKey.split("/").slice(0, -1);
+  for (const part of specifier.split("/")) {
+    if (part === "" || part === ".") continue;
+    if (part === "..") segments.pop();
+    else segments.push(part);
+  }
+  return segments.join("/");
+}
+
+// Resolve exactly as node16/nodenext ESM does: the specifier must name a FILE,
+// with its extension. No substitution, no `/index` fallback.
+function resolveNode16(files, fromKey, specifier) {
+  const target = joinKey(fromKey, specifier);
+  if (DECLARATION_SUFFIXES.some((suffix) => target.endsWith(suffix))) {
+    return target in files ? target : null;
+  }
+  const ext = Object.keys(DECLARATION_FOR_JS_EXT).find((e) => target.endsWith(e));
+  if (ext === undefined) return null; // extensionless — unresolvable under node16
+  const declaration = target.slice(0, -ext.length) + DECLARATION_FOR_JS_EXT[ext];
+  return declaration in files ? declaration : null;
+}
+
+// Walk the published declaration graph from every `types` entry; return every
+// relative specifier that node16 cannot resolve.
+function probeNode16(files, packageName, typesEntries) {
+  const prefix = `/node_modules/${packageName}/`;
+  const queue = typesEntries.map((rel) => prefix + rel.replace(/^\.\//, ""));
+  const seen = new Set();
+  const unresolved = [];
+
+  while (queue.length > 0) {
+    const key = queue.pop();
+    if (seen.has(key) || !(key in files)) continue;
+    seen.add(key);
+    const text = Buffer.from(files[key]).toString("utf8");
+    for (const { specifier, kind } of relativeSpecifiers(text)) {
+      const resolved = resolveNode16(files, key, specifier);
+      if (resolved === null) {
+        unresolved.push({ file: key.slice(prefix.length), specifier, kind });
+      } else {
+        queue.push(resolved);
+      }
+    }
+  }
+  return unresolved;
 }
 
 // `pnpm pack` the package into a temp dir and return the tarball's absolute path.
@@ -195,8 +299,9 @@ async function checkOne(pkg) {
 
     // EMPTY-TYPES GUARD: every declared types entry must have real content. Catches the
     // `export {}` stub class that attw resolves but that leaves all symbols as `any`.
+    const typesEntries = collectTypesEntries(manifest);
     const emptyTypes = [];
-    for (const rel of collectTypesEntries(manifest)) {
+    for (const rel of typesEntries) {
       const key = `/node_modules/${packageName}/${rel.replace(/^\.\//, "")}`;
       const bytes = files[key];
       if (bytes === undefined) {
@@ -220,7 +325,9 @@ async function checkOne(pkg) {
       return true;
     });
 
-    return { name: packageName, fileCount, problems, emptyTypes };
+    const node16 = probeNode16(files, packageName, typesEntries);
+
+    return { name: packageName, fileCount, problems, emptyTypes, node16 };
   } finally {
     rmSync(tmp, { recursive: true, force: true });
   }
@@ -232,12 +339,13 @@ const targets = requested.length > 0 ? requested : TYPED_PACKAGES;
 let failed = false;
 for (const pkg of targets) {
   try {
-    const { name, fileCount, problems, emptyTypes } = await checkOne(pkg);
-    if (problems.length === 0 && emptyTypes.length === 0) {
+    const { name, fileCount, problems, emptyTypes, node16 } = await checkOne(pkg);
+    if (problems.length === 0 && emptyTypes.length === 0 && node16.length === 0) {
       console.log(`PASS ${name}: 0 gating problems (${fileCount} files extracted)`);
     } else {
       failed = true;
-      console.error(`FAIL ${name}: ${problems.length + emptyTypes.length} gating problem(s):`);
+      const total = problems.length + emptyTypes.length + node16.length;
+      console.error(`FAIL ${name}: ${total} gating problem(s):`);
       for (const p of problems) {
         const where = p.resolutionKind ?? p.resolutionOption ?? "";
         // FilePairProblem (FalseCJS/FalseESM) carries types/implementation file names;
@@ -252,6 +360,22 @@ for (const pkg of targets) {
       }
       for (const e of emptyTypes) {
         console.error(`  - EmptyTypes ${e.entry}: ${e.reason}`);
+      }
+      // Star re-exports first: those are the ones a consumer sees as TS2305.
+      const ordered = [...node16].sort((a, b) =>
+        a.kind === b.kind ? 0 : a.kind === "star" ? -1 : 1,
+      );
+      for (const u of ordered.slice(0, NODE16_REPORT_LIMIT)) {
+        const effect =
+          u.kind === "star"
+            ? "export * contributes NO names → TS2305 in the consumer"
+            : "named re-export silently degrades to any";
+        console.error(`  - Node16Unresolved [node16-esm] ${u.file} → '${u.specifier}' (${effect})`);
+      }
+      if (ordered.length > NODE16_REPORT_LIMIT) {
+        console.error(
+          `  - ... and ${ordered.length - NODE16_REPORT_LIMIT} more unresolved specifier(s)`,
+        );
       }
     }
   } catch (err) {
