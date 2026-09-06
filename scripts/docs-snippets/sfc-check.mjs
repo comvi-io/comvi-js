@@ -258,7 +258,17 @@ function run(command, args, cwd) {
  * @param {{ sources: Map<string, string>, sdkRoot: string, keep?: boolean }} input
  * @returns {{ findings: Array<object>, stats: Array<object> }}
  */
-export function sfcCheckDocuments({ sources, sdkRoot, keep = false, tmpBase = null }) {
+export function sfcCheckDocuments({
+  sources,
+  sdkRoot,
+  keep = false,
+  tmpBase = null,
+  // Injectable so a test can OBSERVE the missing-tool path. Resolution reaches
+  // the real filesystem, and a repo that has vue-tsc installed can never see the
+  // branch that fires when it does not — which is precisely the branch whose
+  // failure mode is a silent green run.
+  tools = null,
+}) {
   const findings = [];
   const stats = [];
 
@@ -272,8 +282,8 @@ export function sfcCheckDocuments({ sources, sdkRoot, keep = false, tmpBase = nu
   if (pages.length === 0) return { findings, stats };
 
   const roots = toolSearchRoots(sdkRoot);
-  const vueTsc = resolveTool("vue-tsc", roots);
-  const svelteCheck = resolveTool("svelte-check", roots);
+  const vueTsc = tools ? (tools.vueTsc ?? null) : resolveTool("vue-tsc", roots);
+  const svelteCheck = tools ? (tools.svelteCheck ?? null) : resolveTool("svelte-check", roots);
 
   const missing = [];
   if (!vueTsc && pages.some((p) => p.projects.some((x) => x.hasVue))) missing.push("vue-tsc");
@@ -337,6 +347,12 @@ export function sfcCheckDocuments({ sources, sdkRoot, keep = false, tmpBase = nu
         // A diagnostic in a fixture, a shim or a package's own `.d.ts` is not
         // the page's to fix.
         if (!virtual) continue;
+        // The `.ts` files of the project are written out so the SFCs can import
+        // them, and vue-tsc / svelte-check type-check them too. Reporting those
+        // would print every `.ts` finding twice — once from the memory driver
+        // and once from here — under two different rule names, and a reader
+        // counting the failures would count double.
+        if (virtual.lang !== "vue" && virtual.lang !== "svelte") continue;
         const at = mapPosition(virtual, diagnostic.line - 1, diagnostic.col - 1);
         if (virtual.fence.check.expectError) continue;
         findings.push({

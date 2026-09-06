@@ -18,3 +18,12 @@ declare module "*.svelte" {
 }
 
 declare module "*.css";
+
+/**
+ * `server-only` is a real npm package in a Next app and a marker, not an API —
+ * it exists to make a build fail when a module reaches the client. Three README
+ * fences import it. Declaring it here models the reader's project without
+ * putting a dependency in the gate's own install.
+ */
+declare module "server-only";
+declare module "client-only";

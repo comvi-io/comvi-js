@@ -195,6 +195,7 @@ export function buildProjects(fences, skipCategory = () => null) {
       rel,
       content,
       appended,
+      prelude: 0,
       lines,
       fence,
       lang: fence.lang,
@@ -205,7 +206,37 @@ export function buildProjects(fences, skipCategory = () => null) {
     if (fence.lang === "svelte") project.hasSvelte = true;
   }
 
-  return { projects: projects.filter((p) => p.files.size > 0), skips };
+  const kept = projects.filter((p) => p.files.size > 0);
+  for (const project of kept) applyJsxRuntime(project);
+  return { projects: kept, skips };
+}
+
+/** Specifiers that mean the project's JSX is Solid's, not React's. */
+const SOLID_IMPORT = /from\s+["'](?:solid-js|@solidjs\/[^"']+|@comvi\/solid)["']/;
+
+/**
+ * Give a Solid project Solid's JSX factory.
+ *
+ * `jsx: react-jsx` is one setting for the whole run, and under it every Solid
+ * fence fails: `'I18nProvider' cannot be used as a JSX component`,
+ * `Type 'Element' is not assignable to type 'ReactNode'` — 34 findings on
+ * `packages/solid/README.md` alone, none of them about the docs. TypeScript
+ * takes a per-file override through the `@jsxImportSource` pragma, so the
+ * project that imports Solid gets the pragma prepended to its JSX files.
+ *
+ * The prepended line is COUNTED (`prelude`), and `mapPosition` subtracts it, so
+ * a diagnostic on the first line of the fence still reports the first line of
+ * the fence. A prelude nobody subtracts is how a gate reports every finding one
+ * line above where a reader will look for it.
+ */
+function applyJsxRuntime(project) {
+  const solid = [...project.files.values()].some((file) => SOLID_IMPORT.test(file.content));
+  if (!solid) return;
+  for (const file of project.files.values()) {
+    if (!/\.[jt]sx$/.test(file.rel)) continue;
+    file.content = `/** @jsxImportSource solid-js */\n${file.content}`;
+    file.prelude += 1;
+  }
 }
 
 /**
@@ -219,7 +250,7 @@ export function buildProjects(fences, skipCategory = () => null) {
  * they belong to the fence as a whole, so they land on its opening line.
  */
 export function mapPosition(file, line, character) {
-  const entry = file.lines[line];
+  const entry = file.lines[line - (file.prelude ?? 0)];
   if (!entry) {
     return { line: file.fence.line, col: file.fence.col };
   }

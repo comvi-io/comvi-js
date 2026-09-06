@@ -122,18 +122,23 @@ export function compilerOptions(ts, { mode, root }) {
     // and svelte globals lands in one program and they contradict each other.
     types: [],
     // No `baseUrl`: TypeScript 6 reports it as deprecated (TS5101) and 7 removes
-    // it. The `paths` targets are absolute instead, which is what `baseUrl`
-    // would have made them anyway.
+    // it. `pathsBasePath` is what a real tsconfig gets from its own location and
+    // is what `paths` is resolved against — set it and every alias below is
+    // relative to the project root, exactly as it would be in a tsconfig sitting
+    // there. Without it, `paths` is inert: absolute targets and relative targets
+    // alike resolve to nothing, and all four aliases the corpus uses fail with
+    // TS2307 while looking configured.
+    pathsBasePath: root,
     rootDirs: [path.join(root, "src", "routes"), path.join(root, ".svelte-kit/types/src/routes")],
     paths: {
       // Vite's `@`, Nuxt's `~`, SvelteKit's `$lib` — the three alias shapes the
       // corpus uses. Each falls back to the project root because Nuxt resolves
       // `~/lib/x` from the root while a Vite scaffold resolves `@/lib/x` from
       // `src/`, and a docs project has to be both.
-      "@/*": [`${root}/src/*`, `${root}/*`],
-      "~/*": [`${root}/src/*`, `${root}/*`],
-      "$lib/*": [`${root}/src/lib/*`],
-      $lib: [`${root}/src/lib/index.ts`, `${root}/src/lib/i18n.ts`],
+      "@/*": ["./src/*", "./*"],
+      "~/*": ["./src/*", "./*"],
+      "$lib/*": ["./src/lib/*"],
+      $lib: ["./src/lib/index.ts", "./src/lib/i18n.ts"],
     },
   };
 
@@ -167,6 +172,11 @@ function normalize(p) {
  * inherits the rest" true rather than aspirational.
  */
 export function createHostFactory(ts, { sdkRoot, mode }) {
+  // Only for the real host's newline and case-sensitivity settings. The options
+  // a PROGRAM sees are built per project below, because `paths` and `rootDirs`
+  // are resolved against the project's own directory and a single set anchored
+  // at the SDK root pointed every alias one tree too high — `@/i18n/config`,
+  // `$lib/i18n` and `~/lib/i18n` all failed with TS2307 while looking configured.
   const options = compilerOptions(ts, { mode, root: sdkRoot });
   const realHost = ts.createCompilerHost(options, true);
   // Keyed by mode: the SAME `.d.ts` gets a different `impliedNodeFormat` under
@@ -187,6 +197,7 @@ export function createHostFactory(ts, { sdkRoot, mode }) {
 
   return function createHost(project) {
     const root = normalize(path.join(vfsRoot, project.pageSlug, project.id));
+    const projectOptions = compilerOptions(ts, { mode, root });
     const own = new Map();
     for (const file of project.files.values()) own.set(normalize(path.join(root, file.rel)), file);
 
@@ -327,7 +338,7 @@ export function createHostFactory(ts, { sdkRoot, mode }) {
     // its own code. vue-tsc sees the real component (sfc-check.mjs).
     rootNames.push(`${root}/src/shims.d.ts`);
 
-    return { host, options, root, own, rootNames };
+    return { host, options: projectOptions, root, own, rootNames };
   };
 }
 

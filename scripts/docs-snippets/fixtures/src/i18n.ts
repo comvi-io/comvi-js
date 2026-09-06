@@ -17,7 +17,7 @@ export const defaultLocale = "en";
 export const i18n = createI18n({
   locale: defaultLocale,
   fallbackLocale: defaultLocale,
-  messages: { en: {} },
+  translation: { en: {} },
 })
   .with(icu())
   .with(
@@ -35,7 +35,7 @@ export type AppI18n = typeof i18n;
 export const routing = { locales, defaultLocale } as const;
 
 export async function loadTranslations(locale: string): Promise<AppI18n> {
-  await i18n.loadTranslations(locale);
+  await i18n.reloadTranslations(locale);
   return i18n;
 }
 
