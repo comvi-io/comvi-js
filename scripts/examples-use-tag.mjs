@@ -45,8 +45,44 @@ export function retag(manifest, specifier) {
   return { manifest: next, changes };
 }
 
+const USAGE = "usage: node scripts/examples-use-tag.mjs <dist-tag|range> | --print";
+
+/**
+ * A dist-tag or a semver range, and nothing else.
+ *
+ * This script writes whatever it is handed into five manifests, so an
+ * unvalidated argument is an arbitrary-value write: a stray flag
+ * (`--print` misspelled), a shell-mangled range, or a `file:` /
+ * `git+ssh://` specifier that would make the examples install from somewhere
+ * other than npm — the one thing they exist to prove they do not do.
+ *
+ * The first character is its own class for one reason only: `-` must not start
+ * the string, because `-anything` is a flag the caller thought they were
+ * passing rather than a version. It still has to admit the range operators, or
+ * the pattern would reject `^0.5.0` — the exact argument the README documents
+ * for coming back off a dist-tag, and the half of the round trip that makes
+ * this script reversible.
+ */
+export function isValidSpecifier(value) {
+  return typeof value === "string" && /^[a-z0-9^~<>=*][a-z0-9.^~<>=* -]*$/i.test(value);
+}
+
 function main(argv) {
-  if (argv.includes("--print") || argv.length === 0) {
+  if (argv.length === 0) {
+    console.error(USAGE);
+    return 2;
+  }
+
+  if (argv.includes("--print")) {
+    // Silently ignoring the rest would answer a question nobody asked:
+    // `--print next` reads as "print, then set", and half of that happening is
+    // worse than an error.
+    if (argv.length > 1) {
+      console.error(
+        `--print takes no other argument (got: ${argv.filter((arg) => arg !== "--print").join(" ")}).\n${USAGE}`,
+      );
+      return 2;
+    }
     for (const file of manifests()) {
       const manifest = JSON.parse(fs.readFileSync(file, "utf8"));
       const ranges = Object.entries({ ...manifest.dependencies, ...manifest.devDependencies })
@@ -54,14 +90,24 @@ function main(argv) {
         .map(([name, range]) => `${name}@${range}`);
       console.log(`${path.relative(REPO_ROOT, path.dirname(file))}: ${ranges.join(", ")}`);
     }
-    if (argv.length === 0) {
-      console.error("\nusage: node scripts/examples-use-tag.mjs <dist-tag|range> | --print");
-      return 2;
-    }
     return 0;
   }
 
+  if (argv.length > 1) {
+    console.error(`expected one specifier, got ${argv.length}: ${argv.join(" ")}\n${USAGE}`);
+    return 2;
+  }
+
   const specifier = argv[0];
+  if (!isValidSpecifier(specifier)) {
+    console.error(
+      `refusing to write ${JSON.stringify(specifier)} into five manifests: it is neither a ` +
+        "dist-tag nor a semver range. Expected /^[a-z0-9][a-z0-9.^~<>=* -]*$/i — a leading `-` " +
+        `is a flag, and a \`file:\` or git specifier would stop the examples installing from npm.\n${USAGE}`,
+    );
+    return 2;
+  }
+
   let total = 0;
   for (const file of manifests()) {
     const manifest = JSON.parse(fs.readFileSync(file, "utf8"));
