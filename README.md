@@ -310,9 +310,20 @@ formatRelativeTime(i18n, -2, "hour"); // "2 hours ago" · "vor 2 Stunden"
 getTextDirection(i18n.locale); // "ltr" | "rtl" — handles script subtags (ku-Arab → rtl, ks-Deva → ltr)
 ```
 
-Every framework binding hands you the same four already bound to the
-render-time locale, plus `dir`, off `useI18n()` — so a component reformats
-when the locale changes without doing anything.
+Every framework binding hands the same four back off `useI18n()`, together with
+`dir` — but how _reactive_ they are differs, and the difference is in the
+bindings, not in core:
+
+| binding | formatters re-render on a locale change                                                                                                           | `dir`                        |
+| ------- | ------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------- |
+| React   | **yes** — bound to the tracked locale and passed explicitly (`react/src/useI18n.ts:273-277`, `useFormatters.ts:31-34`)                            | reactive                     |
+| Vue     | **yes** — they default to the reactive `locale` ref (`vue/src/VueI18n.ts:186-193`)                                                                | reactive (`ComputedRef`)     |
+| Svelte  | **no** — "plain functions, not stores" (`svelte/src/useI18n.ts:198`); they read `i18n.locale` once per call unless you pass a locale (`:287-292`) | reactive (a `derived` store) |
+| Solid   | **no** — they call core with the host and read no signal (`solid/src/useI18n.ts:249-252`); contrast `dir`, which does (`:253`)                    | reactive                     |
+
+In Svelte and Solid, put the formatter call where the locale is already tracked
+(a `$:`/`$derived`, a `createMemo`, or the template) or pass the locale
+yourself.
 
 ## Packages
 
