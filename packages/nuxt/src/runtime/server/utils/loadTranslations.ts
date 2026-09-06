@@ -31,13 +31,16 @@ const NO_LOADER_CAPABILITY_MESSAGE =
 // not one of them: the plugin host is a SEPARATE composition, absent on the
 // generated default host, so the old message sent a reader to a member that is
 // usually not there. `comvi.setup`'s context destructures `core` because
-// `context.i18n` is a union of `VueI18n` and the bare host.
+// `context.i18n` is a union of `VueI18n` and the bare host. BOTH attach-only
+// compositions are named: `loader()` without a map delegates to `attachLoader`
+// and registers nothing (core's `loader` installer), so a reader who composed
+// it lands here too.
 const NO_LOADER_REGISTERED_MESSAGE =
   "[@comvi/nuxt] This i18n host has a loader capability but no loader registered, so SSR " +
   "loaded nothing. Pass the import map where you compose it — " +
   "createI18n(options).with(loader(map)) in your `hostModule` factory — or, on a host " +
-  "composed with .with(attachLoader), register a LoaderFn from comvi.setup: " +
-  "(({ core }) => { core.registerLoader(fn); }).";
+  "composed with .with(attachLoader) or a bare .with(loader()), register a LoaderFn from " +
+  "comvi.setup: (({ core }) => { core.registerLoader(fn); }).";
 
 const toPlainObject = (
   value: Record<string, TranslationValue>,

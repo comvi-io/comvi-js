@@ -21,7 +21,7 @@ export interface GetPathnameOptions {
  * ```vue
  * <!-- components/AlternateLinks.vue -->
  * <script setup lang="ts">
- * // `href` is the UNPREFIXED path; getPathname adds the locale prefix.
+ * // Pass the UNPREFIXED path; each returned `path` carries its locale prefix.
  * const { getAllLocalizedPaths } = useRouteConfig()
  *
  * const alternates = getAllLocalizedPaths('/about').map(({ locale, path }) => ({

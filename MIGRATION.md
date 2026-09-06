@@ -9,6 +9,17 @@ published API** riding the pre-1.0 minor-bump policy:
 1. Every framework binding runs on that host, which moved four loader/plugin
    members out of `useI18n()` (§1 onwards). Mechanical, and mostly codemodded.
 
+The upgrade itself, in order:
+
+1. Update every `@comvi/*` package you depend on to `0.5.0`.
+2. Run the codemod (§3). It rewrites the hook destructures and the host
+   construction, and prints `path:line:column` for everything it refuses to
+   guess at.
+3. Compose back the capabilities your app used — §0's table has one row per
+   thing the 0.4 root did for free.
+4. Work through what the codemod reported, then through the errors in §8 that
+   your first run surfaces.
+
 ---
 
 ## 0. The root entry changed semantics
@@ -136,7 +147,9 @@ const i18n = createI18n({
   retroactively** — a property of the bundle, not of one host, so every instance
   in the graph including already-built ones starts parsing tags, with no
   per-instance opt-out. SSR apps must import it in the **server** graph too, or a
-  string renders literally on the server and with markup on the client.
+  string renders literally on the server and with markup on the client. `<T>`
+  needs none of this: it takes the pure `@comvi/core/rich-text` seam, which
+  passes the tag grammar per call and registers nothing.
 - **Discovery is opt-in.** An app on the base host is invisible to the browser
   extension until it composes `devtools()` or the in-context-editor installer.
   The extension must be **0.5.0 or newer**: `window.__COMVI__` is protocol v2 (a
@@ -654,8 +667,9 @@ composition rules. This is the whole list your first run can produce:
 | `E_COMPILER_LOCKED`                                                                                     | `icu()` after a catalog — §0.1                   |
 
 Those `E_*` names are the **production** messages; a development build throws
-prose instead, and only `E_COMPILER_LOCKED` carries a `code` own-property to
-branch on.
+prose instead. Of the errors in this table, only `E_COMPILER_LOCKED` carries a
+`code` own-property to branch on; `E_ICU_SYNTAX` — thrown in development as an
+`IcuSyntaxError` and reported in production — is the other branchable one.
 
 Two more `E_ICU_SYNTAX` messages come from the ICU compiler itself, thrown at
 ingestion in development and reported (with the segment rendered literally) in
