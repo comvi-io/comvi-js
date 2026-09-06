@@ -16,27 +16,27 @@
 
 ---
 
-`@comvi/vite-plugin` watches your translation JSON files in dev and emits a `TranslationKeys` declaration that types every `t()` call in your project. No TMS, no API key — point it at a folder and you get autocomplete + parameter validation.
+`@comvi/vite-plugin` watches your translation JSON files in dev and emits a `TranslationKeys` declaration that types every `t()` call in your project. No TMS and no API key: point it at a folder and you get autocomplete and parameter validation.
 
 **Use `@comvi/vite-plugin`** if your translations live as local JSON files and you want autocomplete in your editor.
 **Use `@comvi/cli`** if your translations live in the Comvi TMS and you want to sync them to your repo or generate types from the live schema.
 
 ## About Comvi i18n
 
-Comvi i18n is a modern, framework-agnostic internationalization library — ICU MessageFormat, rich-text component embedding, and locale-aware `Intl` formatters in **~5 kB minified + gzipped for the base host, ~8.5 kB with every capability composed (as bundled by your app)** with **zero runtime dependencies** and **no `eval`** (CSP-safe for Chrome extensions, Cloudflare Workers, and locked-down enterprise apps).
+Comvi i18n is a framework-agnostic internationalization library. You get ICU MessageFormat, rich-text component embedding, and locale-aware `Intl` formatters in **~5 kB minified + gzipped for the base host, ~8.5 kB with every capability composed (as bundled by your app)**, with **zero runtime dependencies** and **no `eval`** (CSP-safe for Chrome extensions, Cloudflare Workers, and locked-down enterprise apps).
 
 - **Same API** across [Vue](https://www.npmjs.com/package/@comvi/vue), [React](https://www.npmjs.com/package/@comvi/react), [SolidJS](https://www.npmjs.com/package/@comvi/solid), [Svelte](https://www.npmjs.com/package/@comvi/svelte), [Next.js](https://www.npmjs.com/package/@comvi/next), and [Nuxt](https://www.npmjs.com/package/@comvi/nuxt).
-- **ICU `plural`, `selectordinal` & `select`** — locale-correct plurals, ordinals, and gender via `Intl.PluralRules`. Recognized by every major TMS. One explicit import: `compiler: icuCompiler` from `@comvi/core/icu`. The `number` / `date` / `time` argument types and the plural `offset:` form are not implemented and are not planned — each one is an `E_ICU_SYNTAX` failure, never a wrong render.
-- **Type-safe translation keys** via TypeScript declaration merging — autocomplete and parameter validation everywhere.
-- **Pluggable** — translation loading, locale detection, and in-context editing are opt-in plugins.
+- **ICU `plural`, `selectordinal` & `select`:** locale-correct plurals, ordinals, and gender via `Intl.PluralRules`. Recognized by every major TMS. One explicit import: `compiler: icuCompiler` from `@comvi/core/icu`. The `number` / `date` / `time` argument types and the plural `offset:` form are not implemented and are not planned. Each one fails with `E_ICU_SYNTAX` instead of rendering something wrong.
+- **Type-safe translation keys** via TypeScript declaration merging, for autocomplete and parameter validation everywhere.
+- **Pluggable:** translation loading, locale detection, and in-context editing are opt-in plugins.
 
 See the [main repo](https://github.com/comvi-io/comvi-js) for the full library overview, runnable demos, and the framework binding matrix.
 
 ## Why @comvi/vite-plugin?
 
-- **Autocomplete and parameter validation.** Generated from your local JSON at dev time — every translation key is strictly typed.
+- **Autocomplete and parameter validation.** Generated from your local JSON at dev time, so every translation key is strictly typed.
 - **Zero runtime cost.** Types only, no plugin code in your bundle. Regenerates on save during `vite dev`.
-- **No external dependencies.** Works fully offline — point at a folder of JSON and go.
+- **No external dependencies.** Works offline. Point it at a folder of JSON and go.
 
 ## Install
 
@@ -111,9 +111,9 @@ declare module "@comvi/core" {
 export {};
 ```
 
-The header line is the plugin's own (`vite-plugin/src/emit.ts:23`); the emitter
-quotes with single quotes (`typegen/src/index.ts:62-71,99-103`), while this
-block is Prettier-formatted like the rest of the README.
+The header line comes from the plugin (`vite-plugin/src/emit.ts:23`). The
+emitter writes single quotes (`typegen/src/index.ts:62-71,99-103`); the block
+above is Prettier-formatted like the rest of the README.
 
 Every `t()` call across your project is now strictly typed:
 
