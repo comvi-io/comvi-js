@@ -190,6 +190,23 @@ test("provenanceLine makes no claim when an example never reached the assertion"
   assert.doesNotMatch(line, /every @comvi resolution in all/);
 });
 
+test("provenanceLine keeps the provenance claim but flags a later failure", () => {
+  // The middle branch: every install reached the assertion and passed, so the
+  // claim about where the packages came from IS established — and then a build
+  // or typecheck failed. Both facts are true at once, and the line has to carry
+  // both rather than picking whichever it saw last.
+  const results = [
+    { name: "react", ok: true, provenanceChecked: true },
+    { name: "vue", ok: false, provenanceChecked: true },
+  ];
+
+  const line = provenanceLine(results, [{ name: "@comvi/core" }], { pack: true });
+
+  assert.match(line, /every @comvi resolution in all 2 installs is a local tarball/);
+  assert.match(line, /but see the failures below/);
+  assert.doesNotMatch(line, /provenance NOT established/);
+});
+
 test("provenanceLine says reused, not packed, under --no-pack", () => {
   const results = [{ name: "vue", ok: true, provenanceChecked: true }];
 

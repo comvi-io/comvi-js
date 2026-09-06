@@ -62,9 +62,15 @@ const USAGE = "usage: node scripts/examples-use-tag.mjs <dist-tag|range> | --pri
  * the pattern would reject `^0.5.0` — the exact argument the README documents
  * for coming back off a dist-tag, and the half of the round trip that makes
  * this script reversible.
+ *
+ * Named, not inlined, because the rejection message quotes it: a hand-copied
+ * pattern in the error text drifted from the real one the first time this was
+ * edited, and told the caller `^0.5.0` was invalid while the code accepted it.
  */
+export const SPECIFIER_RE = /^[a-z0-9^~<>=*][a-z0-9.^~<>=* -]*$/i;
+
 export function isValidSpecifier(value) {
-  return typeof value === "string" && /^[a-z0-9^~<>=*][a-z0-9.^~<>=* -]*$/i.test(value);
+  return typeof value === "string" && SPECIFIER_RE.test(value);
 }
 
 function main(argv) {
@@ -102,8 +108,9 @@ function main(argv) {
   if (!isValidSpecifier(specifier)) {
     console.error(
       `refusing to write ${JSON.stringify(specifier)} into five manifests: it is neither a ` +
-        "dist-tag nor a semver range. Expected /^[a-z0-9][a-z0-9.^~<>=* -]*$/i — a leading `-` " +
-        `is a flag, and a \`file:\` or git specifier would stop the examples installing from npm.\n${USAGE}`,
+        `dist-tag nor a semver range. Expected ${SPECIFIER_RE} — e.g. \`next\` or \`^0.5.0\`. ` +
+        `A leading \`-\` is a flag, and a \`file:\` or git specifier would stop the examples ` +
+        `installing from npm.\n${USAGE}`,
     );
     return 2;
   }

@@ -185,11 +185,12 @@ says every `@comvi` resolution came from a local `file:` tarball.
 **What this gate does not prove.** An override bypasses the range it replaces,
 so a green run says the 0.5 _source_ compiles under these manifests — never that
 `^0.5.0` is satisfiable. Only publishing settles that. The install is run with
-`auto-install-peers=false` and `strict-peer-dependencies=true` so that peers are
-at least visible (StackBlitz runs `npm install`, which errors on an unsatisfied
-peer, while pnpm's defaults would quietly fetch one from the registry — that is
-how `@comvi/plugin-locale-detector`'s `@comvi/core` peer first slipped through).
-Re-run the gate after the version bump: that is the moment the detector's peer
-range and the examples' `^0.5.0` meet for the first time.
+`auto-install-peers=false` and `strict-peer-dependencies=true`, which makes an
+unmet peer _range_ fail the install the way `npm install` would rather than being
+quietly auto-installed. It does not make a **missing** `@comvi` peer visible —
+the override satisfies that one — which is why the undeclared `@comvi/core` peer
+was caught by the provenance assertion instead. Re-run the gate after the
+version bump: that is the moment the detector's peer range and the examples'
+`^0.5.0` meet for the first time.
 
 No lockfile in this repository is read or written by any of this.

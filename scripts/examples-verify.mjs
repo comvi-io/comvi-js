@@ -269,19 +269,24 @@ async function verifyExample(example, packages, options) {
     // this repo's `pnpm-workspace.yaml`, and `node-linker=hoisted` gives the
     // temp tree the flat `node_modules` a Vite app expects.
     //
-    // The two peer settings are the ones that decide what this gate can SEE. A
-    // reader opening the example in StackBlitz gets `npm install`, which errors
-    // on a peer nothing satisfies; pnpm's defaults do the opposite — it
-    // auto-installs the missing peer FROM THE REGISTRY and says nothing. That
-    // default is how `@comvi/plugin-locale-detector`'s undeclared
-    // `@comvi/core` peer first slipped through here, caught only by the
-    // provenance assertion below. So: no auto-install, and strict.
+    // The two peer settings decide what this gate can see about PEERS, and it
+    // is narrower than it looks. With `pnpm.overrides` in place an example that
+    // fails to declare `@comvi/core` still installs: the override satisfies the
+    // peer, so these settings do NOT catch a missing @comvi peer here — the
+    // provenance assertion below is what caught that one, by reporting the
+    // registry copy it had been resolved from.
+    //
+    // What they do catch is an UNSATISFIABLE peer RANGE: repack the detector
+    // with `peerDependencies: { "@comvi/core": "^9.0.0" }` and the install dies
+    // with ERR_PNPM_PEER_DEP_ISSUES instead of shrugging. That is the failure a
+    // reader would hit, because StackBlitz runs `npm install`, which errors on
+    // an unmet peer where pnpm's defaults quietly auto-install one.
     //
     // RELEASE CAPTAIN: re-run this gate AFTER the version bump. Today the
-    // detector's peer range is `^0.4.0` and the tarballs are 0.4.0, so the peer
-    // is satisfied by construction. The bump is the moment that range and the
-    // examples' `^0.5.0` meet for the first time, and it is the only moment
-    // this check can fail.
+    // detector's peer range is `^0.4.0` and the tarballs are 0.4.0, so it is
+    // satisfied by construction. The bump is the moment that range and the
+    // examples' `^0.5.0` meet for the first time, and the only moment this
+    // check can fail.
     fs.writeFileSync(
       path.join(target, ".npmrc"),
       [
