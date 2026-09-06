@@ -177,7 +177,7 @@ createRoot(document.getElementById("root")!).render(
 
 Alternatively, use a third-party Error Boundary library like [react-error-boundary](https://github.com/bvaughn/react-error-boundary).
 
-## Selector hooks (new in v0.3)
+## Selector hooks
 
 For components that only need a slice of the i18n state, use these selector hooks to skip unnecessary re-renders.
 
@@ -267,7 +267,7 @@ function MyComponent() {
 
 **Identity note:** In v0.3, `t` and `tRaw` identity changes on locale flip (intentional — the function now closes over the current locale). If you depend on their identity in `useEffect` dependencies, the effect will re-run when locale changes. For most code this is correct; if your effect should only run once, depend on the actual trigger instead.
 
-**Deprecation note:** `useI18nContext()` was the v0.2 hook for the same purpose. It still works through v0.3 but will be removed in v0.4 — use `useI18n()` instead.
+**Deprecation note:** `useI18nContext()` was the v0.2 hook for the same purpose. It is still exported in 0.5 (`react/src/index.ts:16`) and still works; `src` marks it `@deprecated ... Scheduled for removal in the next major` (`react/src/I18nProvider.tsx:236-239`). Use `useI18n()`, or the per-axis `useLocale()` / `useIsLoading()`, instead — it re-renders on every reactive axis.
 
 ## Capability hooks: `useI18nLoader()` / `useI18nPlugins()`
 
@@ -618,7 +618,7 @@ Switching locale via `setLocale()` triggers re-renders through `useSyncExternalS
 
 Declaration merging on `TranslationKeys` provides autocomplete and parameter validation per key. Generated automatically via `@comvi/cli` (TMS) or `@comvi/vite-plugin` (local JSON).
 
-```typescript
+```typescript check=group=typed-keys
 // src/types/i18n.d.ts
 import "@comvi/core"; // resolves the module before augmenting it
 
@@ -637,7 +637,7 @@ declare module "@comvi/core" {
 }
 ```
 
-```tsx
+```tsx check=group=typed-keys
 import { useI18n } from "@comvi/react";
 
 function Welcome() {
@@ -658,20 +658,26 @@ function Welcome() {
 
 **What TypeScript catches:**
 
-```ts check=expect-error
+```ts check=group=typed-keys check=expect-error=TS2345
 import { useI18n } from "@comvi/react";
 const { t } = useI18n();
 
-// ✗ Expected 2 arguments, but got 1
+// ✗ TS2345 — Argument of type '"welcome"' is not assignable to parameter of type
+//   'never'. `welcome` declares a required param, so the key-only overload is out.
 t("welcome");
+```
 
-// ✗ Property 'name' is missing in type '{ age: number }'
+```ts check=group=typed-keys check=expect-error=TS2769
+import { useI18n } from "@comvi/react";
+const { t } = useI18n();
+
+// ✗ TS2769 (no overload matches) — Property 'name' is missing in type '{ age: number }'
 t("welcome", { age: 5 });
 
-// ✗ Type 'number' is not assignable to type 'string'
+// ✗ TS2769 (no overload matches) — Type 'number' is not assignable to type 'string'
 t("welcome", { name: 42 });
 
-// ✗ Argument of type '"typo"' is not assignable to parameter
+// ✗ TS2769 (no overload matches) — '"typo"' is not a declared key
 t("typo", { name: "Alice" });
 ```
 
