@@ -154,7 +154,7 @@ development **and** production, never a silent no-op:
 the class; the host it wraps is public as `readonly core`, so registration
 happens there:
 
-```diff
+```diff check=skip:proxy-relocation
 -i18n.registerLoader(myLoader);
 -i18n.use(FetchLoader({ … }));
 +i18n.core.registerLoader(myLoader);

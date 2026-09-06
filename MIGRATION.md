@@ -324,7 +324,7 @@ the first catalog. Compose neither capability and `useI18nLoader()` /
 
 ### `@comvi/vue`
 
-```diff
+```diff check=skip:proxy-relocation
 -const i18n = createI18n({ locale: "en" }).use(FetchLoader({ … }));
 +const i18n = createI18n({ locale: "en" });
 +i18n.core.use(FetchLoader({ … }));

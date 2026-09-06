@@ -173,6 +173,85 @@ test("parseMeta on an unknown check key → one error naming the vocabulary", ()
   assert.match(parsed.errors[0], /unknown check "continues"/);
 });
 
+test("a line-range meta glued to the language (```ts{2}) → lang ts, meta {2}", () => {
+  // Expressive Code writes its highlight range with no separating space. Ending
+  // the language at whitespace alone yields the language "ts{2}", which is in no
+  // language set, so the fence drops silently out of every rule.
+  const source = ["```ts{2}", "const a = 1;", "const b = 2;", "```"].join("\n");
+
+  const { fences } = extractFences(source, "page.mdx");
+
+  assert.equal(fences[0].lang, "ts");
+  assert.equal(fences[0].meta, "{2}");
+});
+
+test("a glued range beside a title (```tsx{1-3} title=…) → both survive", () => {
+  const source = ['```tsx{1-3} title="src/App.tsx"', "const a = 1;", "```"].join("\n");
+
+  const { fences } = extractFences(source, "page.mdx");
+
+  assert.equal(fences[0].lang, "tsx");
+  assert.equal(fences[0].title, "src/App.tsx");
+});
+
+test("fences in different <TabItem>s → different container ids", () => {
+  // The container is what keeps a bare `title=` tab-local: two tabs writing
+  // `src/i18n.ts` are two apps, not one file in two halves.
+  const source = [
+    "<Tabs>",
+    '  <TabItem label="React">',
+    '  ```ts title="src/i18n.ts"',
+    "  const a = 1;",
+    "  ```",
+    "  </TabItem>",
+    '  <TabItem label="Vue">',
+    '  ```ts title="src/i18n.ts"',
+    "  const b = 2;",
+    "  ```",
+    "  </TabItem>",
+    "</Tabs>",
+  ].join("\n");
+
+  const { fences } = extractFences(source, "page.mdx");
+
+  assert.notEqual(fences[0].container, fences[1].container);
+});
+
+test("two fences inside one <TabItem> → the same container id", () => {
+  const source = [
+    "<Tabs>",
+    '  <TabItem label="React">',
+    '  ```ts title="src/i18n.ts"',
+    "  const a = 1;",
+    "  ```",
+    '  ```ts title="src/i18n.ts"',
+    "  const b = 2;",
+    "  ```",
+    "  </TabItem>",
+    "</Tabs>",
+  ].join("\n");
+
+  const { fences } = extractFences(source, "page.mdx");
+
+  assert.equal(fences[0].container, fences[1].container);
+});
+
+test("a <TabItem> written inside a fence → not a container boundary", () => {
+  const source = [
+    "```mdx",
+    '<TabItem label="React">',
+    "</TabItem>",
+    "```",
+    "```ts",
+    "const a = 1;",
+    "```",
+  ].join("\n");
+
+  const { fences } = extractFences(source, "page.mdx");
+
+  assert.equal(fences[0].container, fences[1].container);
+});
+
 test("parseMeta on Expressive Code meta it does not own → ignored, not an error", () => {
   const parsed = parseMeta('title="src/i18n.ts" {1-3} ins={4} frame="none"');
 

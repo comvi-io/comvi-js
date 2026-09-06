@@ -15,11 +15,20 @@
  *
  * Scope rule that matters: a capability is acquired PER CHAIN, not per page.
  * MIGRATION.md §3 makes the chain the unit for the codemod, and the same unit is
- * used here — the fence, plus any fence sharing its `title=` (§6.2 of the
- * docs-0.5 plan: `title=` is a virtual file name, so two tabs writing
- * `src/i18n.ts` are one file) or its explicit `check=group=<id>`. A page-wide
- * scope would clear `ssr.mdx`'s `defineComviSetup` snippet because an unrelated
- * `createNextI18n(` sits 180 lines above it.
+ * used here. A page-wide scope would clear `ssr.mdx`'s `defineComviSetup`
+ * snippet because an unrelated `createNextI18n(` sits 180 lines above it.
+ *
+ * The chain is: the fence itself; every fence carrying the same explicit
+ * `check=group=<id>`; and, for a bare `title=`, only fences with that title in
+ * the SAME `<TabItem>` body. A bare title alone is not a chain — `quick-start.mdx`
+ * writes `src/i18n.ts` eight times, once per framework tab, and pooling them let
+ * the React tab's `.with(loader())` vouch for the Vue tab's `registerLoader`.
+ * `title=` is a virtual file name (docs-0.5 plan §6.2); a virtual file name is
+ * only unique inside one virtual project, and the tab is that project.
+ *
+ * Acquisition evidence is read from code with comments and string literals
+ * stripped, because `// Wrong: you must write .with(loader()) first` is a
+ * sentence about the fix, not the fix.
  */
 
 import path from "node:path";
@@ -76,6 +85,11 @@ const LOADER_TOKENS = [
   /\bcreateNextI18n\s*\(/,
   /\bNextComposedI18n\b/,
   /\bNextServerLoaderHost\b/,
+  // MIGRATION.md §7: a nuxt hook annotated with the host its factory returns
+  // (`NuxtI18nSetup<I18n & I18nLoaderApi>`) fails at type-check rather than at
+  // request time, so the annotation IS the proof the host composed the loader.
+  /\bI18nLoaderApi\b/,
+  /\bNuxtServerLoaderHost\b/,
 ];
 
 /** Tokens proving the chain already has the plugin capability. */
@@ -133,7 +147,11 @@ export function classify(file) {
   const classes = new Set();
 
   if (base === "README" || base === "MIGRATION") {
-    const pkg = posix.match(/packages\/([^/]+)\/README\.md$/)?.[1];
+    // Both layouts name the same package: `packages/cli/README.md` in this repo,
+    // `node_modules/@comvi/cli/README.md` once www checks the published copies.
+    // Matching only the first made every non-framework package's INSTALLED
+    // README owe a `.with(` its own source is rightly not asked for.
+    const pkg = posix.match(/(?:packages|@comvi)\/([^/]+)\/README\.md$/)?.[1];
     if (base === "MIGRATION" || pkg === undefined || FRAMEWORK_PACKAGES.has(pkg)) {
       classes.add("framework");
     }
@@ -166,11 +184,97 @@ function codeLines(fence) {
   return fence.lines.filter((line) => !line.text.startsWith("-"));
 }
 
-/** The group key a fence shares with the fences it composes with. */
+/**
+ * The group key a fence shares with the fences it composes with.
+ *
+ * `check=group=<id>` is explicit and pools document-wide — that is what it is
+ * for. A bare `title=` pools only within one `<TabItem>` body, because the same
+ * virtual file name in two tabs is two different apps.
+ */
 function groupKey(fence, index) {
   if (fence.check.group) return `group:${fence.check.group}`;
-  if (fence.title) return `title:${fence.title}`;
+  if (fence.title) return `title:${fence.container ?? 0}:${fence.title}`;
   return `fence:${index}`;
+}
+
+/**
+ * Code with line comments, block comments and HTML comments removed, and — when
+ * `strings` is set — string literals emptied too.
+ *
+ * Acquisition evidence has to be evidence. A page that writes
+ * `// don't forget .with(loader())` above a bare `registerLoader` is describing
+ * the bug, and reading the comment as the fix silences the one rule that would
+ * have caught it. Strings go the same way for the chain check, where a token
+ * quoted in a message is not a call. They are KEPT for the REQUIRED probes,
+ * because there the evidence is often a specifier — `@comvi/core/icu` only ever
+ * appears inside quotes. Template literals keep their `${…}` substitutions
+ * either way: those are real code.
+ */
+function stripNonCode(code, { strings }) {
+  let out = "";
+  let index = 0;
+  while (index < code.length) {
+    const two = code.slice(index, index + 2);
+    if (two === "//") {
+      const end = code.indexOf("\n", index);
+      index = end === -1 ? code.length : end;
+      continue;
+    }
+    if (two === "/*") {
+      const end = code.indexOf("*/", index + 2);
+      index = end === -1 ? code.length : end + 2;
+      continue;
+    }
+    if (code.startsWith("<!--", index)) {
+      const end = code.indexOf("-->", index + 4);
+      index = end === -1 ? code.length : end + 3;
+      continue;
+    }
+    const char = code[index];
+    if (strings && (char === '"' || char === "'" || char === "`")) {
+      index += 1;
+      let depth = 0;
+      while (index < code.length) {
+        const inner = code[index];
+        if (inner === "\\") {
+          index += 2;
+          continue;
+        }
+        if (char === "`" && code.startsWith("${", index)) {
+          depth += 1;
+          out += "${";
+          index += 2;
+          continue;
+        }
+        if (char === "`" && depth > 0 && inner === "}") {
+          depth -= 1;
+          out += "}";
+          index += 1;
+          continue;
+        }
+        if (depth === 0 && inner === char) {
+          index += 1;
+          break;
+        }
+        if (depth > 0) out += inner;
+        index += 1;
+      }
+      continue;
+    }
+    out += char;
+    index += 1;
+  }
+  return out;
+}
+
+/** Comments and string literals removed — the form the chain check reads. */
+export function stripCommentsAndStrings(code) {
+  return stripNonCode(code, { strings: true });
+}
+
+/** Comments removed, strings kept — the form the REQUIRED probes read. */
+export function stripComments(code) {
+  return stripNonCode(code, { strings: false });
 }
 
 /** Why a fence is skipped, or `null` when it is linted. */
@@ -201,19 +305,21 @@ const BANNED_RULES = [
     capability: "loader",
     find(text) {
       const matches = [];
+      // `.core` is where the call MOVED (MIGRATION.md §2, §7), not proof the
+      // host can serve it: `createI18n` from `@comvi/vue` wraps a BASE core
+      // (packages/vue/src/createI18n.ts), so `i18n.core.registerLoader(fn)` on
+      // an uncomposed wrapper throws exactly like the 0.4 call it replaced.
+      // The receiver is therefore not exempt — only the chain can clear it.
       for (const match of text.matchAll(
         /([A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)*)\.registerLoader\s*\(/g,
       )) {
-        // `i18n.core.registerLoader(…)` and `core.registerLoader(…)` are the
-        // documented vue/nuxt form (MIGRATION.md §2, §7) — the host, one level down.
-        if (/(?:^|\.)core$/.test(match[1])) continue;
         matches.push({ index: match.index, text: match[0] });
       }
       return matches;
     },
     message:
       "registerLoader() is not on the 0.5.0 base host. Compose the capability in the same chain — " +
-      ".with(loader(map)) or .with(attachLoader) — or use i18n.core.* on a VueI18n wrapper.",
+      ".with(loader(map)) or .with(attachLoader), or createCore(…).with(loader()) under a VueI18n.",
   },
   {
     id: "banned/plugin-use-without-plugins",
@@ -222,11 +328,11 @@ const BANNED_RULES = [
     capability: "plugins",
     find(text) {
       const matches = [];
+      // `i18n.core.use(…)` is where the call moved (MIGRATION.md §2, §4), and
+      // the host it moved to is still the base one unless something composed
+      // `plugins()`. Same reasoning as registerLoader: no receiver exemption.
       const re = /([A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)*)?\.use\s*\(\s*[A-Z][\w$]*\s*[(,)]/g;
       for (const match of text.matchAll(re)) {
-        // `i18n.core.use(…)` is the documented vue/nuxt form (MIGRATION.md §2,
-        // §4): the pipe goes on the host, one level down from the wrapper.
-        if (match[1] && /(?:^|\.)core$/.test(match[1])) continue;
         matches.push({ index: match.index, text: match[0] });
       }
       return matches;
@@ -290,7 +396,9 @@ const BANNED_RULES = [
       if (!/\bcreateI18n\s*\(|\bnew I18n\s*\(|\bcreateCore\s*\(/.test(text)) return [];
       if (/\bdevtools\s*\(/.test(text)) return [];
       const matches = [];
-      for (const match of text.matchAll(/(?:^|[^\w.$])(exposeGlobal|instanceId)\s*:/g)) {
+      // Lookbehind rather than a consumed leading character: consuming it put
+      // the reported column one to the left of the symbol.
+      for (const match of text.matchAll(/(?<![\w.$])(exposeGlobal|instanceId)\s*:/g)) {
         matches.push({ index: match.index, text: match[1] });
       }
       return matches;
@@ -393,12 +501,18 @@ export function lintDocument({ file, source, sdkVersion }) {
     });
   }
 
-  // Chain scope: every fence sharing a group key pools its acquisition tokens.
+  // Chain scope: every fence sharing a group key pools its acquisition tokens,
+  // read from code with comments and string literals stripped.
   const chainText = new Map();
   fences.forEach((fence, index) => {
     if (!CODE_LANGS.has(fence.lang)) return;
     const key = groupKey(fence, index);
-    chainText.set(key, (chainText.get(key) ?? "") + "\n" + fence.code);
+    const code = stripCommentsAndStrings(
+      codeLines(fence)
+        .map((line) => line.text)
+        .join("\n"),
+    );
+    chainText.set(key, (chainText.get(key) ?? "") + "\n" + code);
   });
 
   fences.forEach((fence, index) => {
@@ -444,7 +558,7 @@ export function lintDocument({ file, source, sdkVersion }) {
 
     const lines = codeLines(fence);
     const text = lines.map((line) => line.text).join("\n");
-    const chain = chainText.get(groupKey(fence, index)) ?? text;
+    const chain = chainText.get(groupKey(fence, index)) ?? stripCommentsAndStrings(text);
 
     for (const rule of BANNED_RULES) {
       if (rule.scope === "chain") {
@@ -483,22 +597,50 @@ export function lintDocument({ file, source, sdkVersion }) {
   }
 
   // REQUIRED — what the page must say, which no type-checker can ever notice.
+  // Read from the LINTED FENCES, never from `source`: a `.with(` in a prose
+  // sentence, a comparison table or a `check=skip` competitor block is not code
+  // the reader can run, and one migrated tab must not green a page of 0.4 tabs.
   // Catalogs are usually JSON, so the ICU probe reads every fence that can hold
   // a message, not just the ones written in TypeScript.
   const catalogFences = fences.filter(
     (fence) =>
       (CODE_LANGS.has(fence.lang) || CATALOG_LANGS.has(fence.lang)) && skipCategory(fence) === null,
   );
+  const lintedCode = fences
+    .filter((fence) => CODE_LANGS.has(fence.lang) && skipCategory(fence) === null)
+    .map((fence) =>
+      stripComments(
+        codeLines(fence)
+          .map((line) => line.text)
+          .join("\n"),
+      ),
+    )
+    .join("\n");
 
-  if (classes.has("framework") && !/\.with\s*\(/.test(source)) {
+  // The ICU requirement asks whether the PAGE warns its reader that the default
+  // compiler will not render the argument it just showed — a page-level claim
+  // with one answer per host, so a prose sentence is evidence and `.with(` is
+  // not the point. What must never count is a `check=skip` fence: a competitor
+  // block quoting `icuCompiler` would otherwise vouch for the whole page.
+  const skippedLines = new Set();
+  for (const fence of fences) {
+    if (skipCategory(fence) === null) continue;
+    for (let line = fence.line; line <= fence.endLine; line += 1) skippedLines.add(line);
+  }
+  const icuEvidence = source
+    .split("\n")
+    .filter((_, index) => !skippedLines.has(index + 1))
+    .join("\n");
+
+  if (classes.has("framework") && !/\.with\s*\(/.test(lintedCode)) {
     findings.push({
       file,
       line: 1,
       col: 1,
       rule: "required/with-composition",
       message:
-        "a framework page or quick-start that never writes `.with(` documents the 0.4 " +
-        "batteries-included host. Show how the page's capability is composed.",
+        "a framework page or quick-start whose code never writes `.with(` documents the 0.4 " +
+        "batteries-included host. Show how the page's capability is composed, in a fence.",
       migration: "MIGRATION.md §4 `.with(installer)` — composing a capability",
     });
   }
@@ -506,7 +648,7 @@ export function lintDocument({ file, source, sdkVersion }) {
   const icuHit = catalogFences
     .flatMap((fence) => codeLines(fence))
     .find((line) => ICU_SYNTAX.test(line.text));
-  if (icuHit && !hasAny(ICU_TOKENS, source)) {
+  if (icuHit && !hasAny(ICU_TOKENS, icuEvidence)) {
     const hit = icuHit;
     findings.push({
       file,
@@ -559,7 +701,9 @@ export function lintDocument({ file, source, sdkVersion }) {
       // `registerLoader` in a sentence and a table without ever calling it, and
       // whoever rewrites those pages still has to read them.
       registerLoaderMentions: [...source.matchAll(/\bregisterLoader\b/g)].length,
-      hasWith: /\.with\s*\(/.test(source),
+      // Same definition the requirement uses: `.with(` in a table or a sentence
+      // is not code a reader can run.
+      hasWith: /\.with\s*\(/.test(lintedCode),
     },
   };
 }

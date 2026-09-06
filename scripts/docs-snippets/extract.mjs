@@ -155,6 +155,12 @@ export function extractFences(source, file = "<source>") {
   const errors = [];
 
   let open = null;
+  // Which `<TabItem>` body a fence sits in. Two tabs of one `<Tabs>` are two
+  // DIFFERENT files of two different apps that happen to share a virtual name —
+  // `quick-start.mdx` has eight fences titled `src/i18n.ts`, one per framework —
+  // so anything scoped by `title=` has to be scoped by this as well, or the
+  // React tab's composition vouches for the Vue tab's code.
+  let container = 0;
 
   for (let index = 0; index < lines.length; index += 1) {
     const raw = lines[index];
@@ -174,7 +180,10 @@ export function extractFences(source, file = "<source>") {
     }
 
     const opening = raw.match(/^(\s*)(`{3,}|~{3,})(.*)$/);
-    if (!opening) continue;
+    if (!opening) {
+      if (/<\/?TabItem\b/.test(raw)) container += 1;
+      continue;
+    }
 
     const [, indentText, fence, info] = opening;
     // CommonMark 4.5: a backtick info string may not itself contain a backtick,
@@ -182,9 +191,13 @@ export function extractFences(source, file = "<source>") {
     if (fence[0] === "`" && info.includes("`")) continue;
 
     const infoTrimmed = info.trim();
-    const spaceIndex = infoTrimmed.search(/\s/);
-    const rawLang = spaceIndex === -1 ? infoTrimmed : infoTrimmed.slice(0, spaceIndex);
-    const meta = spaceIndex === -1 ? "" : infoTrimmed.slice(spaceIndex + 1).trim();
+    // Expressive Code glues its line-range meta straight onto the language
+    // (```ts{2}, ```tsx{1-3}), so the language ends at the first whitespace OR
+    // the first brace — splitting on whitespace alone yields the language "ts{2}",
+    // which matches no rule and silently drops the fence out of every check.
+    const langEnd = infoTrimmed.search(/[\s{]/);
+    const rawLang = langEnd === -1 ? infoTrimmed : infoTrimmed.slice(0, langEnd);
+    const meta = langEnd === -1 ? "" : infoTrimmed.slice(langEnd).trim();
     const parsed = parseMeta(meta);
 
     for (const message of parsed.errors) {
@@ -195,6 +208,7 @@ export function extractFences(source, file = "<source>") {
       file,
       line: lineNumber,
       col: indentText.length + 1,
+      container,
       indent: indentText.length,
       fenceChar: fence[0],
       fenceLength: fence.length,
@@ -227,6 +241,7 @@ function finishFence(open, endLine) {
     line: open.line,
     col: open.col,
     endLine,
+    container: open.container,
     indent: open.indent,
     fenceChar: open.fenceChar,
     fenceLength: open.fenceLength,

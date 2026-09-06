@@ -183,7 +183,7 @@ silently doing nothing.
 `comvi.setup` hooks receive a `VueI18n`, which dropped its eight capability
 proxies — move those calls to `i18n.core.*`:
 
-```diff
+```diff check=skip:proxy-relocation
 -export default ({ i18n }) => { i18n.registerLoader(myLoader); };
 +export default ({ i18n }) => { i18n.core.registerLoader(myLoader); };
 ```
