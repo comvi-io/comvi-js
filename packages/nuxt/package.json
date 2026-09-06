@@ -53,7 +53,7 @@
   "sideEffects": false,
   "scripts": {
     "dev": "nuxt-module-build build --stub && nuxt-module-build prepare",
-    "build": "nuxt-module-build build && tsc -p tsconfig.runtime.json",
+    "build": "nuxt-module-build build && tsc -p tsconfig.runtime.json && node ../../tooling/qualify-dts-specifiers.mjs dist",
     "typecheck": "tsc -p tsconfig.typecheck.json && tsc --noEmit -p tsconfig.tests.json",
     "test": "vitest run && pnpm test:types",
     "test:types": "vitest --typecheck.only --run --typecheck.include='tests/**/*.test-d.ts' --typecheck.tsconfig=tsconfig.test-types.json",

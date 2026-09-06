@@ -27,13 +27,27 @@
 //
 // The rewrite is FILESYSTEM-VERIFIED, never textual guesswork: a specifier is
 // only rewritten to a path that actually exists in the emitted output, and an
-// unresolvable specifier is a hard failure rather than a silent pass-through.
+// unresolvable specifier fails the build rather than passing through silently.
+//
+// LIMITS — all of them covered by `pnpm check:types-exports`, which is the gate:
+//   * A specifier that ALREADY carries a JS extension is left alone without
+//     checking that anything backs it. A dangling `./ghost.js` therefore passes
+//     this tool silently; the gate is what fails on it.
+//   * `pnpm dev` (`vite build --watch`) does not run this step, so a watch-mode
+//     `dist/` holds un-qualified declarations. That is fine for the workspace
+//     (everything in it resolves with `bundler`) and never reaches a tarball,
+//     because `build` is what publishing and every dist-reading gate run.
+//   * Arbitrary-extension specifiers (`./T.svelte`) are left alone: they are
+//     resolved by the framework's own toolchain, not by extension substitution.
 //
 // Usage:
 //   node tooling/qualify-dts-specifiers.mjs dist [more-dirs...]
 import { readFileSync, writeFileSync, readdirSync, statSync, existsSync } from "node:fs";
 import path from "node:path";
 import process from "node:process";
+import { fileURLToPath } from "node:url";
+
+import { moduleSpecifiers } from "./dts-specifier-scan.mjs";
 
 const DECLARATION_SUFFIXES = [".d.ts", ".d.mts", ".d.cts"];
 
@@ -43,7 +57,7 @@ const JS_EXTENSION_FOR = { ".d.ts": ".js", ".d.mts": ".mjs", ".d.cts": ".cjs" };
 
 // Specifiers that already carry one of these are left alone — they either
 // already resolve (`./x.js`) or are not ours to rewrite (`./T.svelte`, a JSON
-// import, a bare package name).
+// import).
 const ALREADY_QUALIFIED = /\.(js|mjs|cjs|json|svelte|vue|css)$/;
 
 function declarationFiles(dir) {
@@ -59,24 +73,17 @@ function declarationFiles(dir) {
   return found;
 }
 
-// Strip comments so a `from './x'` inside JSDoc is never mistaken for a real
-// specifier. Positions are preserved (comments become same-length blanks) so the
-// stripped copy can be used to locate specifiers in the ORIGINAL text.
-function blankComments(text) {
-  const blank = (match) => match.replace(/[^\n]/g, " ");
-  return text.replace(/\/\*[\s\S]*?\*\//g, blank).replace(/(?<!\/)\/\/(?!\/)[^\n]*/g, blank);
-}
-
-const SPECIFIER = /(\bfrom\s*|\bimport\s*\(\s*|\bimport\s+)(['"])([^'"]+)\2/g;
-
 /**
  * Resolve `specifier` as node16/nodenext would from `fromFile`, and return the
  * qualified specifier to write in its place — or `null` when nothing on disk
  * backs it.
+ *
+ * A concrete file wins over a directory index: given both `x.d.ts` and
+ * `x/index.d.ts`, node16 would resolve `./x.js` to `x.d.ts`, so that is what the
+ * specifier becomes.
  */
 function qualify(fromFile, specifier) {
-  const fromDir = path.dirname(fromFile);
-  const target = path.resolve(fromDir, specifier);
+  const target = path.resolve(path.dirname(fromFile), specifier);
   for (const suffix of DECLARATION_SUFFIXES) {
     if (existsSync(target + suffix)) return specifier + JS_EXTENSION_FOR[suffix];
   }
@@ -91,12 +98,11 @@ function qualify(fromFile, specifier) {
 /** Rewrite one declaration file in place. Returns { rewrites, unresolved }. */
 export function qualifyDeclarationFile(file) {
   const original = readFileSync(file, "utf8");
-  const scannable = blankComments(original);
   const edits = [];
   const unresolved = [];
 
-  for (const match of scannable.matchAll(SPECIFIER)) {
-    const specifier = match[3];
+  for (const found of moduleSpecifiers(original)) {
+    const { specifier } = found;
     if (!specifier.startsWith(".")) continue;
     if (ALREADY_QUALIFIED.test(specifier)) continue;
     if (DECLARATION_SUFFIXES.some((suffix) => specifier.endsWith(suffix))) continue;
@@ -106,9 +112,7 @@ export function qualifyDeclarationFile(file) {
       unresolved.push(specifier);
       continue;
     }
-    // The quoted specifier sits after the prefix group inside the match.
-    const start = match.index + match[1].length + 1;
-    edits.push({ start, end: start + specifier.length, qualified });
+    edits.push({ start: found.valueStart, end: found.valueEnd, qualified });
   }
 
   if (edits.length > 0) {
@@ -136,8 +140,7 @@ export function qualifyDeclarationDir(dir) {
   return { rewrites, unresolved };
 }
 
-const invokedDirectly = process.argv[1] && import.meta.url.endsWith(path.basename(process.argv[1]));
-if (invokedDirectly) {
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const dirs = process.argv.slice(2);
   if (dirs.length === 0) {
     console.error("usage: qualify-dts-specifiers.mjs <dist-dir> [more-dirs...]");

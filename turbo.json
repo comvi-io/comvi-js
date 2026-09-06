@@ -1,14 +1,20 @@
 {
   "$schema": "https://turbo.build/schema.json",
-  // Every package's `build` ends in tooling/qualify-dts-specifiers.mjs, which lives
-  // outside any package and so is invisible to turbo's default per-package hash. Without
-  // this, changing the qualifier would restore an un-qualified `dist/` straight from
-  // cache and the types gate would pass on stale output.
-  "globalDependencies": ["tooling/qualify-dts-specifiers.mjs"],
   "tasks": {
     "build": {
       "outputs": ["dist/**"],
-      "dependsOn": ["^build"]
+      "dependsOn": ["^build"],
+      // Every package's `build` ends in tooling/qualify-dts-specifiers.mjs, which lives
+      // outside any package and so is invisible to turbo's default per-package hash.
+      // Without naming it, editing the qualifier would restore an un-qualified `dist/`
+      // straight from cache and the types gate would pass on stale output.
+      // `$TURBO_DEFAULT$` keeps the normal per-package inputs — dropping it would
+      // reduce every build's hash to these two files.
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/tooling/qualify-dts-specifiers.mjs",
+        "$TURBO_ROOT$/tooling/dts-specifier-scan.mjs"
+      ]
     },
     "@test-apps/next#build": {
       "outputs": [".next/**"],
