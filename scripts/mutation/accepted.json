@@ -7706,10 +7706,10 @@
       "package": "packages/core",
       "file": "src/core/i18n.ts",
       "mutators": ["BooleanLiteral"],
-      "snippet": "if (typeof value === \"string\") walk(parseTemplate(value, false, extensions, compiler), false);",
-      "lineHint": 1023,
+      "snippet": "walk(tokens, false);",
+      "lineHint": 1040,
       "kind": "equivalent",
-      "reason": "the walk's top-level hashIsSyntax (second literal; parseTemplate's first literal is killed) only reaches a top-level select branch or a tag's children: a tag's direct children were already compiled by the outer parse, and the only template where the flag would change a select branch's outcome ('#{...}') is rejected by the outer brace scanner first (pre-existing quirk, P2)."
+      "reason": "the walk's top-level hashIsSyntax only reaches a top-level select branch or a tag's children: a tag's direct children were already compiled by the outer parse, and the only template where the flag would change a select branch's outcome ('#{...}') is rejected by the outer brace scanner first (pre-existing quirk, P2). The parse call it used to share a line with now sits on its own line so this entry cannot mask that call's two literals, both of which are killed."
     },
     {
       "package": "packages/plugin-fetch-loader",

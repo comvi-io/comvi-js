@@ -992,6 +992,13 @@ export class I18n<D extends DefaultTranslationParams = {}>
 // It runs for whichever compiler opted in (`preflight`), which is both shipped
 // ones. A user-supplied compiler is excluded by default: its `makeArgToken` is
 // third-party code, and a throw from it would reject the whole catalog.
+//
+// The preflight raises the compiler's ICU diagnostics and NOTHING else — it
+// passes `silenceUnclaimedTagWarning` on every parse. Whether a `<b>` in the
+// catalog is a mistake depends on how the string is rendered, which ingestion
+// cannot know: an app whose `<T>` supplies the tag grammar per call renders it
+// correctly with no extension on the host. Only the render path knows, and it
+// warns there.
 if (IS_DEV) {
   (I18n.prototype as unknown as I18nInternal)._preflightSimpleCatalog = function (
     this: I18nInternal,
@@ -1000,8 +1007,8 @@ if (IS_DEV) {
     const compiler = this._compiler;
     if (compiler.preflight !== true) return;
     // The EFFECTIVE extension set, not an empty one: a host whose app imported
-    // `@comvi/core/tags` really does claim `<`, and preflighting without that
-    // knowledge would warn about markup that renders fine.
+    // `@comvi/core/tags` really does claim `<`, and only then does the parse
+    // descend into tag children — where a broken argument still has to be found.
     const extensions = effectiveExtensions(this._tagInterpolation?.extensions);
     // Branch text is stored verbatim by the ICU compiler and only compiled at
     // render, so the walk descends into every plural/select sub-message (and
@@ -1015,7 +1022,10 @@ if (IS_DEV) {
           if (choices) {
             const nestedHash = kind === TK_PLURAL || hashIsSyntax;
             for (const branch in choices) {
-              walk(parseTemplate(choices[branch], nestedHash, extensions, compiler), nestedHash);
+              walk(
+                parseTemplate(choices[branch], nestedHash, extensions, compiler, true),
+                nestedHash,
+              );
             }
           }
         } else if (kind === TK_TAG) {
@@ -1025,7 +1035,10 @@ if (IS_DEV) {
     };
     for (const key in catalog) {
       const value = catalog[key];
-      if (typeof value === "string") walk(parseTemplate(value, false, extensions, compiler), false);
+      if (typeof value === "string") {
+        const tokens = parseTemplate(value, false, extensions, compiler, true);
+        walk(tokens, false);
+      }
     }
   };
 }
