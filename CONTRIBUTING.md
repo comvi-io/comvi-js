@@ -176,21 +176,34 @@ the branch point of the cycle that introduced the entries instead.
 
 ### 7. The StackBlitz examples build, against locally packed 0.5
 
-`examples/*` are five one-page Vite apps that depend on the **published** names at `^0.5.0` and
-are deliberately outside `pnpm-workspace.yaml` — a `workspace:*` example cannot be opened in a
-WebContainer, which is exactly why `test-apps/*` cannot double as demos. The cost of that is a
-hole: `pnpm install` at the root ignores them and turbo never sees them, so before 0.5.0 is on
-npm nothing would ever compile them.
+`examples/*` are seven one-page apps — five Vite, plus `next` and `nuxt` — that depend on the
+**published** names at `^0.5.0` and are deliberately outside `pnpm-workspace.yaml`. A
+`workspace:*` example cannot be opened in a WebContainer, which is exactly why `test-apps/*`
+cannot double as demos. The cost of that is a hole: `pnpm install` at the root ignores them and
+turbo never sees them, so before 0.5.0 is on npm nothing would ever compile them.
 
 ```bash
-pnpm examples:verify                  # all five: install, build, typecheck
-pnpm examples:verify --only react     # one
+pnpm examples:verify                  # all seven: install, build, typecheck, size probe
+pnpm examples:verify --only next      # one
 ```
 
 It packs all fourteen packages and pins every `@comvi/*` — direct and transitive — to a local
 tarball through `pnpm.overrides`, then runs `pnpm install`, `pnpm build` and each example's own
 typecheck in a temp directory outside every workspace. The committed `^0.5.0` ranges are not
 rewritten, and no lockfile in this repository is read or written.
+
+Each example is classified by the CLI its own `build` script runs — `vite`, `next` or `nuxt` —
+and that KIND picks the size probe, because the three build tools do not put the entry chunk in
+the same place and neither SSR framework's first load is one file at all. `vite`: the chunk
+`dist/index.html` names. `next`: the route's list in `.next/app-build-manifest.json`, page plus
+enclosing layouts. `nuxt`: the `isEntry` chunk **and** the route chunk from the Vite client
+manifest, each closed over its static `imports` — those are `modulepreload` links the browser
+cannot skip, and measuring the entry alone under-reported the Nuxt example by half. The report's
+two counts differ on purpose: `first-load files` is what the route needs before it renders,
+`js chunks` is every client `.js` the build wrote, and the gap between them is the lazy split.
+A build output no probe can read is an error rather than a blank cell — a missing size must
+never read as a small one — so an eighth example on a fourth framework needs a kind and a probe
+of its own.
 
 **Required before a release, and again after the version bump.** An override bypasses the range
 it replaces, so a green run proves the source compiles, never that `^0.5.0` resolves; and the

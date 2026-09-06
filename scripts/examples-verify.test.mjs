@@ -3,19 +3,27 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import zlib from "node:zlib";
 
 import {
   assertLocalResolutions,
   declaredComviDeps,
   entryChunk,
+  exampleKind,
+  measureFiles,
+  nextFirstLoad,
+  nextPageRoute,
+  nuxtEntryKey,
+  nuxtPageRoute,
   parseArgs,
   provenanceLine,
+  staticImportClosure,
   withOverrides,
 } from "./examples-verify.mjs";
 
 /**
  * The pure helpers only. The install/build path is not tested here: it packs
- * fourteen tarballs and runs five real installs, and a test that fakes those
+ * fourteen tarballs and runs seven real installs, and a test that fakes those
  * would assert the fake. `pnpm examples:verify` is that path's own gate
  * (CONTRIBUTING gate 7).
  */
@@ -214,4 +222,251 @@ test("provenanceLine says reused, not packed, under --no-pack", () => {
 
   assert.match(line, /reused \(--no-pack\)/);
   assert.doesNotMatch(line, /packed/);
+});
+
+test("exampleKind reads the build script, not the directory name", () => {
+  assert.equal(exampleKind({ scripts: { build: "vite build" } }), "vite");
+  assert.equal(exampleKind({ scripts: { build: "next build" } }), "next");
+  assert.equal(exampleKind({ scripts: { build: "nuxt build" } }), "nuxt");
+});
+
+test("exampleKind sees the CLI behind a flag or a chained command", () => {
+  assert.equal(exampleKind({ scripts: { build: "vite build --mode production" } }), "vite");
+  assert.equal(exampleKind({ scripts: { build: "nuxt generate" } }), "nuxt");
+  assert.equal(exampleKind({ scripts: { build: "rm -rf .next && next build" } }), "next");
+});
+
+test("exampleKind does not mistake `next` for `nuxt`", () => {
+  // Four letters apart, and picking the wrong one sends the probe looking for
+  // `.output/public/_nuxt` in a Next app and reporting "no such directory" as
+  // if the build had failed.
+  assert.equal(exampleKind({ scripts: { build: "next build" } }), "next");
+  assert.notEqual(exampleKind({ scripts: { build: "nuxt build" } }), "next");
+});
+
+test("exampleKind refuses a build script it cannot measure", () => {
+  // Silence here would mean a new example is verified with the WRONG size
+  // probe, or with none — the report would still print a row.
+  assert.throws(() => exampleKind({ scripts: { build: "astro build" } }, "examples/astro"), {
+    message: /examples\/astro.*astro build.*vite, next and nuxt/s,
+  });
+});
+
+test("exampleKind refuses a manifest with no build script at all", () => {
+  assert.throws(() => exampleKind({ scripts: {} }, "examples/broken"), {
+    message: /examples\/broken.*no build script/s,
+  });
+});
+
+test("nextPageRoute picks the app's own page and ignores Next's built-in ones", () => {
+  const manifest = {
+    pages: {
+      "/_not-found/page": ["a.js"],
+      "/[locale]/layout": ["b.js"],
+      "/[locale]/page": ["c.js"],
+    },
+  };
+
+  assert.equal(nextPageRoute(manifest), "/[locale]/page");
+});
+
+test("nextPageRoute refuses to guess when an app has more than one page", () => {
+  const manifest = { pages: { "/[locale]/page": ["a.js"], "/[locale]/about/page": ["b.js"] } };
+
+  assert.throws(() => nextPageRoute(manifest), { message: /exactly one page route.*found 2/s });
+});
+
+test("nextPageRoute fails closed on a manifest shape it cannot read", () => {
+  // A Next version that renames the file or reshapes it would otherwise yield
+  // zero routes, and "no page found" must not read as "nothing to measure".
+  assert.throws(() => nextPageRoute({ notPages: {} }), { message: /no `pages` object/ });
+});
+
+test("nextFirstLoad unions the page's chunks with every enclosing layout's", () => {
+  // What Next's own build summary calls "First Load JS": the browser walks
+  // layout then page, so both lists are downloaded before the route renders.
+  const manifest = {
+    pages: {
+      "/layout": ["webpack.js", "main-app.js"],
+      "/[locale]/layout": ["webpack.js", "shared.js", "layout.js"],
+      "/[locale]/page": ["webpack.js", "shared.js", "page.js"],
+      "/_not-found/page": ["not-found.js"],
+    },
+  };
+
+  assert.deepEqual(nextFirstLoad(manifest, "/[locale]/page"), [
+    "webpack.js",
+    "shared.js",
+    "page.js",
+    "main-app.js",
+    "layout.js",
+  ]);
+});
+
+test("nextFirstLoad leaves out a layout from a sibling branch", () => {
+  const manifest = {
+    pages: {
+      "/[locale]/layout": ["locale-layout.js"],
+      "/admin/layout": ["admin-layout.js"],
+      "/[locale]/page": ["page.js"],
+    },
+  };
+
+  assert.deepEqual(nextFirstLoad(manifest, "/[locale]/page"), ["page.js", "locale-layout.js"]);
+});
+
+test("nextFirstLoad throws when the route it was handed is not in the manifest", () => {
+  assert.throws(() => nextFirstLoad({ pages: { "/[locale]/page": ["a.js"] } }, "/other/page"), {
+    message: /no entry for \/other\/page/,
+  });
+});
+
+test("nuxtEntryKey picks the isEntry chunk, not the biggest or the first", () => {
+  // The locale catalogs are dynamic imports of the entry, and one of them being
+  // listed first in the manifest must not make it the thing being measured. The
+  // KEY is what comes back, not the file: the import graph is keyed by source.
+  const manifest = {
+    "locales/uk.json": { file: "uk-BRI4vdSi.js", isDynamicEntry: true },
+    "../node_modules/nuxt/dist/app/entry.js": {
+      file: "YERnk0my.js",
+      name: "entry",
+      isEntry: true,
+    },
+    "_shared.js": { file: "BOrKvaDh.js" },
+  };
+
+  assert.equal(nuxtEntryKey(manifest), "../node_modules/nuxt/dist/app/entry.js");
+});
+
+test("nuxtEntryKey fails closed when the manifest names no entry", () => {
+  assert.throws(() => nuxtEntryKey({ "a.js": { file: "a-1.js" } }), {
+    message: /no chunk marked `isEntry`/,
+  });
+});
+
+test("nuxtEntryKey refuses to choose between two entries", () => {
+  assert.throws(
+    () => nuxtEntryKey({ a: { file: "a.js", isEntry: true }, b: { file: "b.js", isEntry: true } }),
+    { message: /2 chunks marked `isEntry`/ },
+  );
+});
+
+test("nuxtPageRoute picks the app's page, not a dependency's", () => {
+  // Nuxt's own error components are under `node_modules` but not under
+  // `pages/`; a LAYER is both. A layer shipping `pages/index.vue` is ordinary —
+  // that is what layers are for — and without the node_modules guard it makes
+  // this manifest ambiguous and the probe throws on a build that is fine.
+  const manifest = {
+    "../node_modules/nuxt/dist/app/components/error-404.vue": { file: "a.js" },
+    "../node_modules/nuxt/dist/app/entry.js": { file: "b.js", isEntry: true },
+    "../node_modules/some-layer/pages/index.vue": { file: "c.js" },
+    "pages/index.vue": { file: "d.js" },
+    "locales/en.json": { file: "e.js" },
+  };
+
+  assert.equal(nuxtPageRoute(manifest), "pages/index.vue");
+});
+
+test("nuxtPageRoute refuses to guess when an app has more than one page", () => {
+  const manifest = {
+    "pages/index.vue": { file: "a.js" },
+    "pages/about.vue": { file: "b.js" },
+  };
+
+  assert.throws(() => nuxtPageRoute(manifest), { message: /exactly one page chunk.*found 2/s });
+});
+
+test("nuxtPageRoute fails closed on a manifest shape it cannot read", () => {
+  assert.throws(() => nuxtPageRoute("not a manifest"), { message: /is not an object/ });
+});
+
+test("staticImportClosure follows imports transitively, because the browser must", () => {
+  // Vite's `imports` are STATIC: the entry cannot execute until every one of
+  // them has arrived, and Nuxt marks them `preload`. Measuring the entry alone
+  // reports a third of what the page actually costs.
+  const manifest = {
+    entry: { file: "entry.js", imports: ["_a"] },
+    _a: { file: "a.js", imports: ["_b"] },
+    _b: { file: "b.js", imports: [] },
+  };
+
+  assert.deepEqual(staticImportClosure(manifest, ["entry"]), ["entry.js", "a.js", "b.js"]);
+});
+
+test("staticImportClosure counts a chunk shared by two roots once", () => {
+  // The page chunk and the entry both statically import the shared vendor
+  // chunk; the browser downloads it once and so must the number.
+  const manifest = {
+    entry: { file: "entry.js", imports: ["_shared"] },
+    "pages/index.vue": { file: "page.js", imports: ["_shared", "entry"] },
+    _shared: { file: "shared.js", imports: [] },
+  };
+
+  // Breadth first, so the roots come out in the order they were asked for and
+  // the shared chunk lands once, after both.
+  assert.deepEqual(staticImportClosure(manifest, ["entry", "pages/index.vue"]), [
+    "entry.js",
+    "page.js",
+    "shared.js",
+  ]);
+});
+
+test("staticImportClosure terminates on a cycle instead of exhausting the stack", () => {
+  // Nuxt's real manifest has one: `pages/index.vue` imports the entry, and the
+  // error components import it back.
+  const manifest = {
+    entry: { file: "entry.js", imports: ["_a"] },
+    _a: { file: "a.js", imports: ["entry"] },
+  };
+
+  assert.deepEqual(staticImportClosure(manifest, ["entry"]), ["entry.js", "a.js"]);
+});
+
+test("staticImportClosure ignores dynamicImports, which are the lazy half", () => {
+  // The three locale catalogs are `dynamicImports` of the entry. Counting them
+  // as first load would erase the very split the demo exists to show.
+  const manifest = {
+    entry: { file: "entry.js", imports: [], dynamicImports: ["locales/uk.json"] },
+    "locales/uk.json": { file: "uk.js" },
+  };
+
+  assert.deepEqual(staticImportClosure(manifest, ["entry"]), ["entry.js"]);
+});
+
+test("staticImportClosure throws on an import the manifest does not describe", () => {
+  assert.throws(
+    () => staticImportClosure({ entry: { file: "e.js", imports: ["_gone"] } }, ["entry"]),
+    {
+      message: /no chunk "_gone"/,
+    },
+  );
+});
+
+test("measureFiles sums gzip per file, not over the concatenation", () => {
+  // Each chunk is its own HTTP response with its own compression window.
+  // Gzipping them together reports a number no browser ever sees — and the two
+  // differ most for exactly the case here: several similar JS chunks.
+  const dir = tempDir("comvi-verify-measure-");
+  const one = path.join(dir, "one.js");
+  const two = path.join(dir, "two.js");
+  const body = "export const value = 'the same repeated body';".repeat(200);
+  fs.writeFileSync(one, body);
+  fs.writeFileSync(two, body);
+
+  const measured = measureFiles([one, two]);
+
+  assert.equal(measured.min, body.length * 2);
+  assert.equal(measured.gzip, 2 * zlib.gzipSync(Buffer.from(body), { level: 9 }).length);
+  assert.ok(measured.gzip > zlib.gzipSync(Buffer.from(body + body), { level: 9 }).length);
+});
+
+test("measureFiles labels a single file by its basename and a set by its count", () => {
+  const dir = tempDir("comvi-verify-label-");
+  const one = path.join(dir, "index-aaa.js");
+  const two = path.join(dir, "vendor-bbb.js");
+  fs.writeFileSync(one, "x");
+  fs.writeFileSync(two, "y");
+
+  assert.equal(measureFiles([one]).file, "index-aaa.js");
+  assert.equal(measureFiles([one, two]).file, "2 chunks");
 });
