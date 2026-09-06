@@ -27,19 +27,19 @@ Designed for Next.js 14+ / 15+ with React 18+ / 19+.
 
 ## Why Comvi i18n?
 
-Comvi i18n is a modern, framework-agnostic internationalization library built on three principles: type-safe translations, real ICU MessageFormat, and zero compromises on bundle size or security.
+Comvi i18n is a framework-agnostic internationalization library with type-safe translations, real ICU MessageFormat, and a small bundle that stays safe under a strict CSP.
 
-- **Rich text without XSS.** Embed components inside translation strings (`Click <link>here</link>`) — translators see clean markup, you decide what each tag renders to. No raw HTML, no unsafe DOM injection, no splitting a sentence across template fragments.
-- **ICU `plural`, `selectordinal` & `select`.** Locale-correct grammar via `Intl.PluralRules` — Polish, Ukrainian, Arabic, Welsh, and the rest. Same syntax every major TMS (Crowdin, Lokalise, Phrase) already speaks. The `number` / `date` / `time` argument types and the plural `offset:` form are not implemented and are not planned — each one is an `E_ICU_SYNTAX` failure, never a wrong render.
+- **Rich text without XSS.** Embed components inside translation strings (`Click <link>here</link>`). Translators see clean markup, and you decide what each tag renders to. No raw HTML, no unsafe DOM injection, and no splitting a sentence across template fragments.
+- **ICU `plural`, `selectordinal` & `select`.** Locale-correct grammar via `Intl.PluralRules`, including Polish, Ukrainian, Arabic, Welsh and the rest. It is the same syntax every major TMS (Crowdin, Lokalise, Phrase) already speaks. The `number` / `date` / `time` argument types and the plural `offset:` form are not implemented and are not planned. Each one fails with `E_ICU_SYNTAX` instead of rendering something wrong.
 - **Locale-aware formatters built in.** `formatNumber`, `formatDate`, `formatCurrency`, and `formatRelativeTime` follow the active locale via native `Intl`, with reactive updates in every framework binding.
-- **~7.1 kB minified + gzipped for a default client graph, ~7.2 kB for the server graph (measured, `next` and `react` externalized), zero runtime dependencies.** That is the base host plus the bindings; ICU, async loading, the plugin host and devtools discovery cost only where you compose them. No `eval` or `new Function` anywhere — runs under a strict CSP without `unsafe-eval`. Safe for Chrome extensions, Cloudflare Workers, and locked-down enterprise apps.
-- **Pluggable, not monolithic.** Translation loading (CDN/API), locale detection, and in-context editing are opt-in plugins via `@comvi/plugin-fetch-loader`, `@comvi/plugin-locale-detector`, and `@comvi/plugin-in-context-editor` — one lowercase `.with(installer)` each. You only ship what you use.
-- **Same API across 6 frameworks.** `useI18n()` and `<T>` look the same in [Vue](https://www.npmjs.com/package/@comvi/vue), [React](https://www.npmjs.com/package/@comvi/react), [SolidJS](https://www.npmjs.com/package/@comvi/solid), [Svelte](https://www.npmjs.com/package/@comvi/svelte), [Next.js](https://www.npmjs.com/package/@comvi/next), and [Nuxt](https://www.npmjs.com/package/@comvi/nuxt) — switch frameworks without relearning your i18n layer.
-- **First-class SSR.** `@comvi/next` and `@comvi/nuxt` ship server-side translation loading, locale-routed layouts, and middleware for redirect-on-detect — no flash of untranslated content.
+- **~7.1 kB minified + gzipped for a default client graph, ~7.2 kB for the server graph (measured, `next` and `react` externalized), zero runtime dependencies.** That is the base host plus the bindings; ICU, async loading, the plugin host and devtools discovery cost only where you compose them. No `eval` or `new Function` anywhere, so it runs under a strict CSP without `unsafe-eval`. Safe for Chrome extensions, Cloudflare Workers, and locked-down enterprise apps.
+- **Pluggable.** Translation loading (CDN/API), locale detection, and in-context editing are opt-in plugins via `@comvi/plugin-fetch-loader`, `@comvi/plugin-locale-detector`, and `@comvi/plugin-in-context-editor`, one lowercase `.with(installer)` each. You only ship what you use.
+- **Same API across 6 frameworks.** `useI18n()` and `<T>` look the same in [Vue](https://www.npmjs.com/package/@comvi/vue), [React](https://www.npmjs.com/package/@comvi/react), [SolidJS](https://www.npmjs.com/package/@comvi/solid), [Svelte](https://www.npmjs.com/package/@comvi/svelte), [Next.js](https://www.npmjs.com/package/@comvi/next), and [Nuxt](https://www.npmjs.com/package/@comvi/nuxt), so switching frameworks doesn't mean relearning your i18n layer.
+- **SSR support.** `@comvi/next` and `@comvi/nuxt` ship server-side translation loading, locale-routed layouts, and middleware for redirect-on-detect, so there is no flash of untranslated content.
 
 ## Why @comvi/next?
 
-- **No client-side translation flash.** `loadTranslations()` loads translations server-side for Server Components — users see complete content on first load, no suspense waterfall for i18n.
+- **No client-side translation flash.** `loadTranslations()` loads translations server-side for Server Components, so users see complete content on first load, with no suspense waterfall for i18n.
 - **Built-in `[locale]` segment routing.** `createNextI18n()` creates routing config for your `[locale]/layout.tsx` setup and pairs it with `createMiddleware()` for automatic locale detection and redirect-on-first-visit.
 - **Server-side cache friendly.** Use `loadTranslations()` in Server Components; Next.js can dedupe underlying `fetch()` calls within a request, while the core loader deduplicates concurrent locale/namespace loads.
 
@@ -120,13 +120,13 @@ The full setup also includes a `[locale]/layout.tsx` that imports the server reg
 
 ## Rendering behaviour
 
-**Routing components now use `useLocale()`** — `<Link>`, `usePathname()`, and `useLocalizedRouter()` internally switched to the `useLocale()` hook in v0.3 and still use it. No behavior change for consumers; routing continues to work identically. Under the hood, this means locale-aware routing skips re-renders on namespace loads and loading-state changes (measurement-confirmed P1 performance improvement).
+**Routing components now use `useLocale()`.** `<Link>`, `usePathname()`, and `useLocalizedRouter()` internally switched to the `useLocale()` hook in v0.3 and still use it. Nothing changes for consumers; routing works identically. Internally it means locale-aware routing skips re-renders on namespace loads and loading-state changes (a measured P1 performance improvement).
 
-**Render-time mutation removed** — The internal `i18n.locale` assignment and `i18n.addTranslations()` calls that used to happen in `<I18nProvider>`'s render body have been moved into a `useState` initializer. The server render never writes the shared host's locale; the client applies it before its first commit. No API change — `<I18nProvider>` props work identically, and the request locale still reaches every hook and `<T>` through the provider.
+**Render-time mutation removed.** The internal `i18n.locale` assignment and `i18n.addTranslations()` calls that used to happen in `<I18nProvider>`'s render body have moved into a `useState` initializer. The server render never writes the shared host's locale; the client applies it before its first commit. The API did not change: `<I18nProvider>` props work identically, and the request locale still reaches every hook and `<T>` through the provider.
 
-**The server request contract** — Your i18n instance lives at module scope and is shared by every concurrent request in a server process. It contributes the translation **catalog** and the **loader**; the locale belongs to the request. Every lookup `getI18n()` hands you names the request locale explicitly, so two concurrent renders at different locales cannot race, and the internal server host type carries no `t` — a server helper that tried to translate without a locale would not compile. A request that cannot determine its locale throws before it triggers the host's one-time initialization.
+**The server request contract.** Your i18n instance lives at module scope and is shared by every concurrent request in a server process. It contributes the translation **catalog** and the **loader**; the locale belongs to the request. Every lookup `getI18n()` hands you names the request locale explicitly, so two concurrent renders at different locales cannot race, and the internal server host type carries no `t`, so a server helper that tried to translate without a locale would not compile. A request that cannot determine its locale throws before it triggers the host's one-time initialization.
 
-Two writes still travel from a request to the shared instance, both deliberate, and the package's tests pin that no request writes the instance's locale or its active namespaces. `addTranslations()` runs on the server: it is additive and keyed by `locale:namespace`, so a concurrent request can only write what the other would have loaded anyway (a first add for a given key does emit `namespaceLoaded`). And `init()` loads the default namespace once, at the instance's own configured locale, never at a request's. Validation of `routing.locales` also still runs on the server, so a bad `[locale]` segment reaches your `onError` in the server logs.
+Two writes still travel from a request to the shared instance, and the package's tests pin that no request writes the instance's locale or its active namespaces. `addTranslations()` runs on the server: it is additive and keyed by `locale:namespace`, so a concurrent request can only write what the other would have loaded anyway (a first add for a given key does emit `namespaceLoaded`). And `init()` loads the default namespace once, at the instance's own configured locale, never at a request's. Validation of `routing.locales` also still runs on the server, so a bad `[locale]` segment reaches your `onError` in the server logs.
 
 ## Error Boundaries
 
@@ -255,14 +255,14 @@ There is no next-specific hook API. Migrating from 0.4.x:
 
 ## Two hosts, one package: the composed root and the base constructor
 
-`@comvi/next` publishes THREE ways to get an i18n host, and the difference is
-worth ten seconds before you pick:
+`@comvi/next` publishes THREE ways to get an i18n host. Read the differences
+before you pick:
 
-| you call                                         | from                 | what you get                                                         |
-| ------------------------------------------------ | -------------------- | -------------------------------------------------------------------- |
-| `createNextI18n(options)`                        | `@comvi/next`        | the COMPOSED host + routing + `.use*`, exactly as 0.4.x published it |
-| `createI18n(options)`                            | `@comvi/next/client` | the BASE host — capabilities are things you compose, on the client   |
-| `createI18n(options)` + `createNextI18nFromHost` | `@comvi/next/server` | the BASE host you compose yourself, handed to the SSR factory        |
+| you call                                         | from                 | what you get                                                      |
+| ------------------------------------------------ | -------------------- | ----------------------------------------------------------------- |
+| `createNextI18n(options)`                        | `@comvi/next`        | the COMPOSED host + routing + `.use*`, as 0.4.x published it      |
+| `createI18n(options)`                            | `@comvi/next/client` | the BASE host; capabilities are things you compose, on the client |
+| `createI18n(options)` + `createNextI18nFromHost` | `@comvi/next/server` | the BASE host you compose yourself, handed to the SSR factory     |
 
 The two entries expose the SAME `createI18n`: the client/server split is a
 runtime split (which helpers are reachable), never a host-tier split. There is
@@ -271,20 +271,20 @@ one direct-host constructor name in this package, on both entries.
 ### `createNextI18n` — the composed root
 
 Since core converged to a single BASE entry, `createNextI18n` no longer inherits
-a composed core: it **composes one explicitly**, inside this package, so its
-published behaviour is preserved exactly — ICU, ambient tag syntax, the loader
-(with BOTH `registerLoader` overloads, a loader function and a static import
-map), the plugin host, nested constructor catalogs, default params and devtools
-discovery, in that order.
+a composed core. It **composes one explicitly**, inside this package, so its
+published behaviour is preserved: ICU, ambient tag syntax, the loader (with
+BOTH `registerLoader` overloads, a loader function and a static import map), the
+plugin host, nested constructor catalogs, default params and devtools discovery,
+in that order.
 
-It is therefore one of exactly two hosts in the repo that carry ICU whether or
-not the app asked for it — the other is the CDN global build. Both are
-deliberate: this factory preserves published 0.4 behaviour and the CDN global
-has no composition step a page could write. `createI18n` on
+It is therefore one of the two hosts in the repo that carry ICU whether or not
+the app asked for it; the other is the CDN global build. This factory preserves
+published 0.4 behaviour, and the CDN global has no composition step a page could
+write. `createI18n` on
 `@comvi/next/client` and `@comvi/next/server` is the base host and carries
 nothing you did not compose.
 
-The host type is published as `NextComposedI18n<D>`, which is exactly
+The host type is published as `NextComposedI18n<D>`, which is
 `CreateNextI18nResult<D>["i18n"]`:
 
 ```ts
@@ -320,7 +320,7 @@ Staying on the 0.4 semantics with no composition work at all is one line:
 
 If your tree was built against 0.5 development, the second constructor name that
 briefly sat beside `createI18n` on these two entries for the bare host is
-deleted. It never published, so there is no deprecation debt — run
+deleted. It never published, so there is no deprecation debt. Run
 `pnpm codemod:framework-slim "src/**/*.{ts,tsx,js,jsx}"`, which renames it, and
 see the [0.5.0 migration guide](https://github.com/comvi-io/comvi-js/blob/main/MIGRATION.md)
 for the rename table.
@@ -352,8 +352,8 @@ const host = createI18n({ locale: "en" })
 ```
 
 `.with(icu())` is **pre-ingestion only**. The compiler locks the moment any
-catalog reaches the host — a constructor `translation`, an `addTranslations`
-call, or a loader merge — and a later `icu()` throws with own
+catalog reaches the host: a constructor `translation`, an `addTranslations`
+call, or a loader merge. A later `icu()` throws with own
 `code === "E_COMPILER_LOCKED"` before mutating anything. So
 `createI18n({ translation }).with(icu())` is invalid by construction: pass
 `compiler: icuCompiler` there instead. `CompilerLockedError` is exported for
@@ -366,7 +366,7 @@ one there: nothing is ingested at construction, and the catalog arrives through
 ## Composed server hosts: `createNextI18nFromHost`
 
 When you want the server to pay only for what it uses, build the host yourself
-and hand it to the companion factory — exported from **`@comvi/next/server`** and
+and hand it to the companion factory, exported from **`@comvi/next/server`** and
 nowhere else:
 
 ```ts
@@ -383,23 +383,23 @@ export const { i18n, routing } = createNextI18nFromHost(
 );
 ```
 
-`.with(installer)` is core's composition pipe — `host.with(f)` is `f(host)` —
-and `loader(map)` attaches the capability **and** registers the map. For a
+`.with(installer)` is core's composition pipe: `host.with(f)` is `f(host)`.
+`loader(map)` attaches the capability **and** registers the map. For a
 plain `LoaderFn`, compose `.with(attachLoader)` and call `registerLoader(fn)`
 yourself; that keeps the import-map adapter out of the server bundle (it is
 +111 B min+gz on this graph), which is the form the size fixture measures.
 
-The server **always** needs the loader — `NextServerHost = WrapperI18nHost & I18nLoaderApi`
-— while ICU and tag interpolation enter the graph only if your factory composes
+The server **always** needs the loader (`NextServerHost = WrapperI18nHost & I18nLoaderApi`),
+while ICU and tag interpolation enter the graph only if your factory composes
 them. Options are routing-only; locale, namespaces, translations, tags, plugins
 and the API key belong to the host factory and do not exist on the options type.
-The result is exactly `{ i18n, routing }`, with no `.use*` methods and your host
-type preserved.
+The result is `{ i18n, routing }`, with no `.use*` methods and your host type
+preserved.
 
 `host()` is not called when the factory returns. The first `result.i18n` access
 **or** the first server helper that needs the instance (`getI18n()`,
-`loadTranslations()`) resolves it — two entry points into one cell, no required
-initialization order, exactly one call.
+`loadTranslations()`) resolves it. Two entry points reach one cell, there is no
+required initialization order, and `host()` runs once.
 
 **Configure the server i18n once per process.** A second `setI18n(other)` used
 to overwrite the first silently; it now throws, in development and production,
@@ -415,9 +415,9 @@ serialized. Whole-app comvi graph, min+gz, `next` and `react` externalized
 | client, base host hydrated                               | **7120** | `fw-next-client-default`        |
 
 A fully composed 0.4-style client (ICU + loader + plugins + devtools + `<T>`)
-is the migration CEILING, not a parity claim: 0.4 also registered string-API tag
-syntax ambiently, and that is now an explicit `@comvi/core/tags` import which
-neither next entry re-exports.
+is the migration CEILING rather than a parity claim. 0.4 also registered
+string-API tag syntax ambiently, and that is now an explicit `@comvi/core/tags`
+import which neither next entry re-exports.
 
 ## One package: both `@comvi/next` entries
 
@@ -425,21 +425,21 @@ neither next entry re-exports.
 constructor and the identical nine-name capability toolkit, so a next app never
 names `@comvi/core`:
 
-| export                                     | what it is                                                      |
-| ------------------------------------------ | --------------------------------------------------------------- |
-| `createI18n`                               | core's base host constructor — the same binding on both entries |
-| `icu`, `icuCompiler`                       | the two ICU shapes, from core's pure `/icu` subpath             |
-| `loader`, `attachLoader`, `flattenCatalog` | from core's pure `/loader` subpath                              |
-| `plugins`, `attachPlugins`                 | from core's pure `/plugins` subpath                             |
-| `devtools`, `attachDevtools`               | from core's pure `/devtools` subpath                            |
+| export                                     | what it is                                                     |
+| ------------------------------------------ | -------------------------------------------------------------- |
+| `createI18n`                               | core's base host constructor, the same binding on both entries |
+| `icu`, `icuCompiler`                       | the two ICU shapes, from core's pure `/icu` subpath            |
+| `loader`, `attachLoader`, `flattenCatalog` | from core's pure `/loader` subpath                             |
+| `plugins`, `attachPlugins`                 | from core's pure `/plugins` subpath                            |
+| `devtools`, `attachDevtools`               | from core's pure `/devtools` subpath                           |
 
 `CompilerLockedError` and `DevtoolsOptions` come with them as types. The server
 entry carries the toolkit because `NextServerHost = WrapperI18nHost & I18nLoaderApi`
-makes the loader **mandatory** for SSR — the one host an app cannot avoid
+makes the loader **mandatory** for SSR. The one host an app cannot avoid
 composing should not require a second package to compose.
 
 These are **named** re-exports of core's own bindings, from core's pure
-subpaths only — never through `@comvi/react`, because webpack development
+subpaths only, never through `@comvi/react`, because webpack development
 reconnects a single `export … from` across one `sideEffects: false` package but
 not a two-package chain. The ones you do not call are pruned: the
 `next-client-default`, `next-client-icu` and `next-server-on-default` matrix
@@ -483,7 +483,7 @@ See the [React README](../react) for the full Rich Text section with tag interpo
 
 ## ICU MessageFormat — locale-correct grammar, not just singular/plural
 
-ICU MessageFormat handles plurals, ordinals, and select with locale-correct grammar via `Intl.PluralRules` — Comvi i18n inherits the full ICU runtime from the underlying binding.
+ICU MessageFormat handles plurals, ordinals, and select with locale-correct grammar via `Intl.PluralRules`. Comvi i18n inherits the full ICU runtime from the underlying binding.
 
 ```tsx
 import { useI18n } from "@comvi/next/client";
