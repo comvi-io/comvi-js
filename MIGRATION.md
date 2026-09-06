@@ -535,7 +535,7 @@ automatically.
 
 **`hostModule`** is the composition escape, and the path for everything else:
 
-```ts
+```ts check=group=nuxt
 // nuxt.config.ts
 import { defineNuxtConfig } from "nuxt/config";
 
@@ -545,7 +545,7 @@ export default defineNuxtConfig({
 });
 ```
 
-```ts
+```ts check=group=nuxt
 // comvi.host.ts — default-export a factory returning a FRESH host per call
 import { createI18n } from "@comvi/core";
 import { icuCompiler } from "@comvi/core/icu";
