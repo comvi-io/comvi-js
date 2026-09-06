@@ -65,12 +65,12 @@ turbo run build --filter='./packages/*'
 `.github/workflows/ci.yml` is four jobs, and that is the entire automated gate set. Nothing
 outside this list is checked automatically.
 
-| Job         | What it runs                                                                                                                                            |
-| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `quality`   | changeset guard (pull requests only), `pnpm format:check`, `pnpm lint`, `pnpm typecheck`, `node scripts/audit-published.mjs`, `pnpm test:release-tools` |
-| `tests`     | `pnpm test:commit`                                                                                                                                      |
-| `build`     | `pnpm build`, then `pnpm audit:package-contracts`, `pnpm check:publint`, `pnpm check:types-exports`, `pnpm size`, `pnpm bundler-matrix`                 |
-| `extension` | `pnpm extension:build`, the built-artifact test, a chromium install, Gate E (`pnpm --filter @comvi/chrome-extension test:e2e`), diagnostics upload      |
+| Job         | What it runs                                                                                                                                                                                                                     |
+| ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `quality`   | changeset guard (pull requests only), `pnpm format:check`, `pnpm lint`, `pnpm typecheck`, `node scripts/audit-published.mjs`, `pnpm test:release-tools`, `pnpm check:snippets`, `node scripts/examples-sync-locales.mjs --check` |
+| `tests`     | `pnpm test:commit`                                                                                                                                                                                                               |
+| `build`     | `pnpm build`, then `pnpm audit:package-contracts`, `pnpm check:publint`, `pnpm check:types-exports`, `pnpm size`, `pnpm bundler-matrix`                                                                                          |
+| `extension` | `pnpm extension:build`, the built-artifact test, a chromium install, Gate E (`pnpm --filter @comvi/chrome-extension test:e2e`), diagnostics upload                                                                               |
 
 Everything that reads `dist/` lives in the single `build` job, after the build. Splitting those
 steps across jobs is what previously let them run against a stale or missing `dist/`.
@@ -174,6 +174,38 @@ Exit 3 means the reference cannot be compared — its build predates an entry po
 loads (`@comvi/core@0.4.1` is a single-entry monolith, so it has no `comvi-core-icu.js`). Compare
 the branch point of the cycle that introduced the entries instead.
 
+### 7. The StackBlitz examples build, against locally packed 0.5
+
+`examples/*` are five one-page Vite apps that depend on the **published** names at `^0.5.0` and
+are deliberately outside `pnpm-workspace.yaml` — a `workspace:*` example cannot be opened in a
+WebContainer, which is exactly why `test-apps/*` cannot double as demos. The cost of that is a
+hole: `pnpm install` at the root ignores them and turbo never sees them, so before 0.5.0 is on
+npm nothing would ever compile them.
+
+```bash
+pnpm examples:verify                  # all five: install, build, typecheck
+pnpm examples:verify --only react     # one
+```
+
+It packs all fourteen packages and pins every `@comvi/*` — direct and transitive — to a local
+tarball through `pnpm.overrides`, then runs `pnpm install`, `pnpm build` and each example's own
+typecheck in a temp directory outside every workspace. The committed `^0.5.0` ranges are not
+rewritten, and no lockfile in this repository is read or written.
+
+**Required before a release, and again after the version bump.** An override bypasses the range
+it replaces, so a green run proves the source compiles, never that `^0.5.0` resolves; and the
+bump is the first moment `@comvi/plugin-locale-detector`'s `@comvi/core` peer range and the
+examples' ranges meet. The examples install with `auto-install-peers=false` so an unsatisfied
+peer is an error here, the way it is for a reader running `npm install`.
+
+Run it from a short checkout path. The temp install references each tarball by absolute path, and
+pnpm's store index encodes that path in a filename, so a deep worktree can reach `ENAMETOOLONG`
+during install.
+
+`node scripts/examples-sync-locales.mjs --check` is the instant half and does run in CI: it fails
+if any example's `src/locales/*.json` has drifted from the shared `examples/locales/`, in either
+direction.
+
 ## Tests
 
 Vitest everywhere. Every test in this repository is expected to meet the following standards.
@@ -238,10 +270,14 @@ into `src/` proper, or into the test tree where it is exercised directly.
 | Package entry points or `sideEffects`    | `pnpm build && pnpm bundler-matrix`                                                                                                                              |
 | Release or codemod scripts in `scripts/` | `pnpm test:release-tools`                                                                                                                                        |
 | The Chrome extension                     | `pnpm extension:test`, and `pnpm extension:gate-e` for E2E                                                                                                       |
+| `examples/*` or its scripts              | `node scripts/examples-sync-locales.mjs --check` (also in CI), and `pnpm examples:verify` — see gate 7                                                           |
 
 Nothing in CI runs `node scripts/perf.mjs --compare-ref <ref>` (see gate 6). Run it yourself for a
 change to core's hot path — `t()`, the template cache, the parser, a compiler — and always before
 a release.
+
+Nothing in CI runs `pnpm examples:verify` either (see gate 7). It is required before a release,
+and required again immediately **after** the version bump.
 
 ## Pull requests
 

@@ -103,6 +103,15 @@ jobs:
       - name: Docs snippet gate (READMEs)
         run: pnpm check:snippets
 
+      # The instant half of the examples gate: every example's src/locales must
+      # match the shared examples/locales, in both directions. StackBlitz opens
+      # ONE directory out of the tree, so the catalogs have to be real copies
+      # and copies drift. `pnpm examples:verify` — the build half — is a manual
+      # release gate (CONTRIBUTING gate 7); it packs fourteen tarballs and runs
+      # five installs, which does not belong in this job.
+      - name: Examples locale sync
+        run: node scripts/examples-sync-locales.mjs --check
+
   tests:
     name: Package tests
     runs-on: ubuntu-latest
