@@ -1,0 +1,22 @@
+{
+  "app": {
+    "title": "Comvi Live-Beispiel",
+    "language": "Sprache",
+    "loading": "Wird geladen…"
+  },
+  "greeting": {
+    "hello": "Hallo, {name}! Schön, dich wiederzusehen."
+  },
+  "cart": {
+    "items": "{count, plural, =0 {Ihr Warenkorb ist leer} one {# Artikel im Warenkorb} other {# Artikel im Warenkorb}}"
+  },
+  "docs": {
+    "read_more": "Lies die <link>Comvi-Dokumentation</link>, um weiterzukommen."
+  },
+  "stats": {
+    "summary": "{views} Downloads, zuletzt aktualisiert am {date}."
+  },
+  "loader": {
+    "fetched": "Bisher geladene Kataloge: {locales}"
+  }
+}
