@@ -162,15 +162,21 @@ export function buildProjects(fences, skipCategory = () => null) {
   };
 
   for (const fence of fences) {
-    const isCode = TS_LANGS.has(fence.lang) || SFC_LANGS.has(fence.lang);
-    const isData = DATA_LANGS.has(fence.lang);
-    if (!isCode && !isData) continue;
-
+    // Skips are counted BEFORE the language filter, so the categories here match
+    // the ones `lint.mjs` reports for the same document. `vanilla.mdx:23` is an
+    // `html` fence whose `<script type="module">` imports over https: lint counts
+    // it as a url-import skip, and a driver that filtered by language first
+    // would print a skip budget one short of lint's for the same page, in the
+    // same report.
     const category = skipCategory(fence);
     if (category !== null) {
       skips[category] = (skips[category] ?? 0) + 1;
       continue;
     }
+
+    const isCode = TS_LANGS.has(fence.lang) || SFC_LANGS.has(fence.lang);
+    const isData = DATA_LANGS.has(fence.lang);
+    if (!isCode && !isData) continue;
 
     const titled = titleToPath(fence.title);
     // A catalog with no name is not a file anybody imports; it is an

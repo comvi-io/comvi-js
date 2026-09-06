@@ -537,3 +537,24 @@ test("a React project gets no pragma", () => {
   assert.doesNotMatch(file.content, /jsxImportSource/);
   assert.equal(file.prelude, 0);
 });
+
+test("a url-import skip in a non-TypeScript fence is counted, so both halves report the same budget", () => {
+  // `vanilla.mdx:23` is an `html` fence whose `<script type="module">` imports
+  // over https. Filtering by language before counting skips made the type pass
+  // print a budget one short of the lint pass's, in the same report, for the
+  // same page.
+  const body = [
+    "```html",
+    '<script type="module">',
+    "  import { createI18n } from 'https://esm.sh/@comvi/core';",
+    "</script>",
+    "```",
+  ].join("\n");
+  const { file, source } = page(body);
+
+  const typed = typecheckDocument({ file, source, context });
+  const linted = lintDocument({ file, source });
+
+  assert.deepEqual(typed.stats.skips, { "url-import": 1 });
+  assert.deepEqual(typed.stats.skips, linted.stats.skips);
+});
