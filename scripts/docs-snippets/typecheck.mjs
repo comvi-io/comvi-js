@@ -474,6 +474,18 @@ function declaredNames(code) {
 /** The identifier a "cannot find name" diagnostic is about, when it names one. */
 const MISSING_NAME = /^Cannot find name '([^']+)'/;
 
+/**
+ * A list of rivals, short enough to read on one line.
+ *
+ * `ssr.mdx` names eleven; a finding whose message is a comma-separated
+ * inventory is a finding people skim past. Four is enough to identify the
+ * clash, and the count says how much more there is.
+ */
+export function summarize(items, limit = 4) {
+  if (items.length <= limit) return items.join(", ");
+  return `${items.slice(0, limit).join(", ")} and ${items.length - limit} more`;
+}
+
 /** A diagnostic's identity for the bundler-vs-node16 comparison. */
 function diagnosticKey(diagnostic) {
   return `${diagnostic.line}:${diagnostic.col}:${diagnostic.code}`;
@@ -610,7 +622,7 @@ export function typecheckDocument({ file, source, context }) {
         col: first.fence.col,
         rule: "typecheck/nuxt-scope-ambiguous",
         message:
-          `this compilation unit holds @comvi/nuxt fences alongside ${project.nuxtRivals.join(", ")}, ` +
+          `this compilation unit holds @comvi/nuxt fences alongside ${summarize(project.nuxtRivals)}, ` +
           "so Nuxt's auto-imported composables (useI18n, useLocalePath, …) are withheld: as globals " +
           "they would reach the other framework's fences, which do not auto-import them. " +
           "Put the Nuxt fences in their own check=group=<id>.",

@@ -317,29 +317,46 @@ test("an SFC expect-error fence that compiles clean is reported once, by this pa
   fs.rmSync(dir, { recursive: true, force: true });
 });
 
-test("the SFC tsconfig names @types/node only when it is installed", () => {
+/** Run one SFC page and return the tsconfig written for its first project. */
+function writtenTsconfig(sdkRoot, body) {
+  const kept = fs.mkdtempSync(path.join(os.tmpdir(), "comvi-sfc-cfg-"));
+  sfcCheckDocuments({ sources: page(body), sdkRoot, tmpBase: kept });
+  const config = JSON.parse(
+    fs.readFileSync(path.join(kept, "docs_i18n_page_mdx", "p0", "tsconfig.json"), "utf8"),
+  );
+  fs.rmSync(kept, { recursive: true, force: true });
+  return config;
+}
+
+const PLAIN_SFC = [
+  "```vue title='src/A.vue'",
+  '<script setup lang="ts">',
+  "const a = 1;",
+  "</script>",
+  "<template><i>{{ a }}</i></template>",
+  "```",
+].join("\n");
+
+test("the SFC tsconfig names @types/node when the sdk root has it", () => {
+  // The probe root borrows the repo's `@types`, so this is the branch a real
+  // run takes — and it is the branch that lets a `.vue` fence import
+  // `node:fs/promises` the way the memory driver already allows.
+  const dir = probeRoot();
+  assert.ok(fs.existsSync(path.join(dir, "node_modules", "@types", "node")));
+
+  assert.deepEqual(writtenTsconfig(dir, PLAIN_SFC).compilerOptions.types, ["node"]);
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test("and omits it when the sdk root does not", () => {
   // Hardcoding `["node"]` gave every SFC project TS2688 on a root without Node
   // types — a diagnostic with no file, which `parseVueTscOutput` drops, so the
   // projects came back clean and the fences were never checked at all.
-  const dir = probeRoot();
-  const body = [
-    "```vue title='src/A.vue'",
-    '<script setup lang="ts">',
-    "const a = 1;",
-    "</script>",
-    "<template><i>{{ a }}</i></template>",
-    "```",
-  ].join("\n");
-  const kept = fs.mkdtempSync(path.join(os.tmpdir(), "comvi-sfc-cfg-"));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "comvi-sfc-nonode-"));
+  writeSfcProbeSdk(dir, REPO_ROOT);
+  fs.rmSync(path.join(dir, "node_modules", "@types"), { recursive: true, force: true });
 
-  sfcCheckDocuments({ sources: page(body), sdkRoot: dir, tmpBase: kept });
-
-  const written = JSON.parse(
-    fs.readFileSync(path.join(kept, "docs_i18n_page_mdx", "p0", "tsconfig.json"), "utf8"),
-  );
-  const hasNode = fs.existsSync(path.join(dir, "node_modules", "@types", "node"));
-  assert.deepEqual(written.compilerOptions.types, hasNode ? ["node"] : []);
-  fs.rmSync(kept, { recursive: true, force: true });
+  assert.deepEqual(writtenTsconfig(dir, PLAIN_SFC).compilerOptions.types, []);
   fs.rmSync(dir, { recursive: true, force: true });
 });
 

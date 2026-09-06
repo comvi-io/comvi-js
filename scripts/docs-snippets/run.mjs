@@ -13,6 +13,18 @@
  *                        after publication (owner's decision §5.3: both surfaces,
  *                        identically, or the copies drift again — as they have).
  *
+ *                        <dir> is a GATE BOUNDARY, not a convenience: it decides
+ *                        which pages are held to these rules. `docs/docs/i18n`
+ *                        and `docs/docs/api` are different corpora with different
+ *                        owners — the platform's REST-API pages carry no
+ *                        `@comvi/*` version stamp and report 16
+ *                        `required/version-stamp` findings that mean nothing
+ *                        there — and two people pointing this at two roots get
+ *                        two baselines that look like a regression in each
+ *                        other. So CI must PIN it. For the i18n gate that is
+ *                        `src/content/docs/docs/i18n`, and the js-sdk and www
+ *                        runners pin the same path.
+ *
  * `--typecheck --sdk-root <dir>` adds the type-check pass (lot D2b) on top of the
  * symbol lint. `<dir>` is any directory whose `node_modules` holds `@comvi/*` and
  * the framework types — the workspace root here, whatever

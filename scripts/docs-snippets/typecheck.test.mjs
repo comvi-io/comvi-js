@@ -4,7 +4,12 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { buildProjects, mapPosition, titleToPath } from "./project.mjs";
-import { EXPECT_ERROR_MISSING, createHostFactory, loadTypeScript } from "./typecheck.mjs";
+import {
+  EXPECT_ERROR_MISSING,
+  createHostFactory,
+  loadTypeScript,
+  summarize,
+} from "./typecheck.mjs";
 import { createTypecheckContext, typecheckDocument } from "./typecheck.mjs";
 import { extractFences } from "./extract.mjs";
 import { lintDocument } from "./lint.mjs";
@@ -1028,4 +1033,12 @@ test("both identical fences are compiled, and each reports at its own line", () 
     found.map((finding) => finding.line),
     [6, 10],
   );
+});
+
+test("a long rival list is capped so the finding stays readable", () => {
+  // `ssr.mdx` names eleven. A finding whose message is a comma-separated
+  // inventory is a finding people skim past.
+  assert.equal(summarize(["a", "b"]), "a, b");
+  assert.equal(summarize(["a", "b", "c", "d"]), "a, b, c, d");
+  assert.equal(summarize(["a", "b", "c", "d", "e", "f"]), "a, b, c, d and 2 more");
 });

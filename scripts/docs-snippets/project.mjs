@@ -236,6 +236,14 @@ const NUXT_IMPORT = /(?:from|import)\s*\(?\s*["']@comvi\/nuxt(?:\/[^"']*)?["']/;
  *
  * `@comvi/vue` is deliberately absent: Nuxt IS Vue, the module re-exports the
  * Vue-side types, and `api/nuxt.mdx` imports both on purpose.
+ *
+ * A `@comvi/core`-only fence is knowingly not a rival either. A vanilla `.ts`
+ * example sitting beside a Nuxt one WOULD gain `useI18n()` as a global it does
+ * not have — but core is the package every binding sits on, so treating it as a
+ * rival would make almost every Nuxt project ambiguous and the rule useless.
+ * The trade is deliberate and its cost is bounded: no project in either corpus
+ * pairs a core-only fence with a Nuxt one today. If one appears, the fix is a
+ * `check=group=` on the Nuxt fences, which is what the finding already asks for.
  */
 const RIVAL_BINDING =
   /(?:from|import)\s*\(?\s*["']@comvi\/(next|react|svelte|solid)(?:\/[^"']*)?["']/;
@@ -275,7 +283,7 @@ function nuxtScope(project) {
   return { nuxt, rivals: [...rivals].sort() };
 }
 
-/** Specifiers that mean the project's JSX is Solid's, not React's. */ /** Specifiers that mean the project's JSX is Solid's, not React's. */
+/** Specifiers that mean the project's JSX is Solid's, not React's. */
 const SOLID_IMPORT = /from\s+["'](?:solid-js|@solidjs\/[^"']+|@comvi\/solid)["']/;
 
 /**
