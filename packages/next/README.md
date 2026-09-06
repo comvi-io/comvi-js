@@ -83,7 +83,7 @@ import { i18n } from "./config";
 setI18n(i18n);
 ```
 
-```tsx
+```tsx title="src/i18n/ComviProvider.tsx"
 // src/i18n/ComviProvider.tsx
 "use client";
 
@@ -132,9 +132,13 @@ Two writes still travel from a request to the shared instance, both deliberate, 
 
 Wrap the client provider in an Error Boundary to handle initialization failures:
 
-```tsx
+```tsx title="src/i18n/ComviProvider.tsx"
+// src/i18n/ComviProvider.tsx
+"use client";
+
 import React from "react";
-import { I18nProvider } from "@comvi/next/client";
+import { I18nProvider, type MessagesMap } from "@comvi/next/client";
+import { i18n, routing } from "./config";
 
 class I18nErrorBoundary extends React.Component<
   { children: React.ReactNode },
@@ -332,8 +336,12 @@ depends on **where the catalog comes from**. Both are exported from both
 // same call.
 import { createI18n, icuCompiler } from "@comvi/next/client";
 
-const i18n = createI18n({ locale: "en", compiler: icuCompiler, translation });
+const translation = { en: { items: "{count, plural, one {# item} other {# items}}" } };
 
+const i18n = createI18n({ locale: "en", compiler: icuCompiler, translation });
+```
+
+```tsx
 // LATER — a hydrated client catalog, or anything an SSR loader fetches:
 // install BEFORE the first catalog reaches the host.
 import { createI18n, icu, loader } from "@comvi/next/server";
@@ -494,10 +502,14 @@ Extend the `TranslationKeys` interface via declaration merging for autocomplete 
 
 ```typescript
 // src/types/i18n.d.ts
+import "@comvi/core"; // resolves the module before augmenting it
+
 declare module "@comvi/core" {
   interface TranslationKeys {
     welcome: { name: string };
     greeting: never;
+    help: never;
+    items: { count: number };
     "errors:NOT_FOUND": never;
   }
 }
@@ -518,7 +530,10 @@ export function Welcome() {
 
 **What TypeScript catches:**
 
-```ts
+```ts check=expect-error
+import { useI18n } from "@comvi/next/client";
+const { t } = useI18n();
+
 // ✗ Expected 2 arguments, but got 1
 t("welcome");
 
