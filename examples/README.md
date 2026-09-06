@@ -212,9 +212,9 @@ Two things about it are easy to get wrong, and both are visible in the app.
 `comvi.cdnUrl` and `comvi.apiBaseUrl` **load nothing** in 0.5: they are copied
 into public runtime config and read by no code in the module. SSR loading is the
 loader capability above, and this example sets neither. The module also never
-touches `<html>`: `src/app.vue` calls `useLocaleHead({ addLang: true, addDir:
-true })`, without which the page renders correctly and ships neither `lang` nor
-`dir`. None of the three locale objects declares a `dir`, because the composable
+touches `<html>`: `src/app.vue` calls
+`useLocaleHead({ addLang: true, addDir: true })`, without which the page renders
+correctly and ships neither `lang` nor `dir`. None of the three locale objects declares a `dir`, because the composable
 derives it from the locale, so an RTL language added to `nuxt.config.ts` would
 get `dir="rtl"` with no further change. Declaring `dir` overrides that; it is not
 what enables it.
