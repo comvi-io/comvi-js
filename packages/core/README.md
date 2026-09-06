@@ -179,7 +179,7 @@ construction expression instead of a wrapper around it.
 import { createI18n } from "@comvi/core";
 import { loader } from "@comvi/core/loader";
 import { plugins } from "@comvi/core/plugins";
-import { CdnLoader } from "@comvi/plugin-fetch-loader/cdn";
+import { LocaleDetector } from "@comvi/plugin-locale-detector";
 
 const i18n = createI18n({
   locale: "en",
@@ -189,7 +189,7 @@ const i18n = createI18n({
   .with(loader({ uk: () => import("./uk.json") }))
   .with(plugins());
 
-i18n.use(CdnLoader({ cdnUrl: "https://cdn.comvi.io/your-distribution-id" }));
+i18n.use(LocaleDetector({ supportedLocales: ["en", "uk"] }));
 
 await i18n.init();
 i18n.t("greeting", { name: "Alice" }); // "Hello, Alice!"
@@ -481,8 +481,20 @@ formatRelativeTime(i18n, -2, "hour"); // "vor 2 Stunden"
 getTextDirection(i18n.locale); // "ltr" | "rtl" — handles script subtags (ku-Arab → rtl, ks-Deva → ltr)
 ```
 
-Every framework binding wraps the same four and hands them to you already bound
-to the render locale, together with `dir`.
+Every framework binding hands the same four back off `useI18n()`, together with
+`dir` — but how _reactive_ they are differs, and the difference is in the
+bindings, not in core:
+
+| binding | formatters re-render on a locale change                                                                                                           | `dir`                        |
+| ------- | ------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------- |
+| React   | **yes** — bound to the tracked locale and passed explicitly (`react/src/useI18n.ts:273-277`, `useFormatters.ts:31-34`)                            | reactive                     |
+| Vue     | **yes** — they default to the reactive `locale` ref (`vue/src/VueI18n.ts:186-193`)                                                                | reactive (`ComputedRef`)     |
+| Svelte  | **no** — "plain functions, not stores" (`svelte/src/useI18n.ts:198`); they read `i18n.locale` once per call unless you pass a locale (`:287-292`) | reactive (a `derived` store) |
+| Solid   | **no** — they call core with the host and read no signal (`solid/src/useI18n.ts:249-252`); contrast `dir`, which does (`:253`)                    | reactive                     |
+
+In Svelte and Solid, put the formatter call where the locale is already tracked
+(a `$:`/`$derived`, a `createMemo`, or the template) or pass the locale
+yourself.
 
 ## Type-safe translation keys
 
@@ -495,7 +507,7 @@ import "@comvi/core"; // resolves the module before augmenting it
 declare module "@comvi/core" {
   interface TranslationKeys {
     welcome: { name: string };
-    greeting: never;
+    hello: never;
     "errors:NOT_FOUND": never;
   }
 }
@@ -510,7 +522,7 @@ const i18n = createI18n({ locale: "en" });
 i18n.t("welcome", { name: "Alice" });
 
 // ✓ No params needed
-i18n.t("greeting");
+i18n.t("hello");
 
 // ✓ Namespaced keys use the ns option
 i18n.t("NOT_FOUND", { ns: "errors" });
@@ -518,21 +530,28 @@ i18n.t("NOT_FOUND", { ns: "errors" });
 
 **What TypeScript catches:**
 
-```ts check=group=typed-keys check=expect-error
+```ts check=group=typed-keys check=expect-error=TS2345
 import { createI18n } from "@comvi/core";
 
 const i18n = createI18n({ locale: "en" });
 
-// ✗ Expected 2 arguments, but got 1
+// ✗ TS2345 — Argument of type '"welcome"' is not assignable to parameter of type
+//   'never'. `welcome` declares a required param, so the key-only overload is out.
 i18n.t("welcome");
+```
 
-// ✗ Property 'name' is missing in type '{ age: number }'
+```ts check=group=typed-keys check=expect-error=TS2769
+import { createI18n } from "@comvi/core";
+
+const i18n = createI18n({ locale: "en" });
+
+// ✗ TS2769 (no overload matches) — Property 'name' is missing in type '{ age: number }'
 i18n.t("welcome", { age: 5 });
 
-// ✗ Type 'number' is not assignable to type 'string'
+// ✗ TS2769 (no overload matches) — Type 'number' is not assignable to type 'string'
 i18n.t("welcome", { name: 42 });
 
-// ✗ Argument of type '"typo"' is not assignable to parameter
+// ✗ TS2769 (no overload matches) — '"typo"' is not a declared key
 i18n.t("typo", { name: "Alice" });
 ```
 
