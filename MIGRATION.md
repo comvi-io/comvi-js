@@ -1,8 +1,8 @@
 # Migrating to comvi 0.5.0 — one entry per package
 
-Upgrading from **0.4.x** (0.5.x was never published). Two things changed, and the
-first is a **breaking change to published API** riding the pre-1.0 minor-bump
-policy:
+You are upgrading from **0.4.x** — 0.5.x was never published, so 0.4 is the
+version you are on. Two things changed, and the first is a **breaking change to
+published API** riding the pre-1.0 minor-bump policy:
 
 0. **`@comvi/core` is now ONE entry — the base host.** Capability is an import
    you add, never an entry you switch. §0 is the whole story.
@@ -13,8 +13,11 @@ policy:
 
 ## 0. The root entry changed semantics
 
-The 0.4 root was batteries-included. The converged root is the base host: text +
-`{param}` interpolation, the cache, events, default params and `.with()`.
+The 0.4 root was batteries-included. The converged root is the **base host**:
+text with `{param}` interpolation, the cache, events, default params and
+`.with()`. Everything in the left column below used to be there whether you used
+it or not; in 0.5 each is absent until composed, and absent means _its module
+never entered your bundle_.
 
 | 0.4 root behaviour                                  | converged root                        | migration                                                |
 | --------------------------------------------------- | ------------------------------------- | -------------------------------------------------------- |
@@ -170,7 +173,7 @@ with a message naming the fix.
 | vue `i18n.registerLoader(…)`, `.use(…)`, six more    | `i18n.core.*` — `VueI18n` exposes its host as `readonly core`            |
 | vue `new VueI18n(options)`                           | `createI18n(options)`; the constructor takes `(core, vueOptions)`        |
 | svelte/solid `getI18nContext().reloadTranslations()` | `useI18nLoader()` in a component, or hold your own host                  |
-| nuxt `comvi.setup` calling a dropped `VueI18n` proxy | `i18n.core.*`                                                            |
+| nuxt `comvi.setup` calling a dropped `VueI18n` proxy | `context.core.*`                                                         |
 | next: a second `setI18n(other)`                      | one configuration source per process — §6                                |
 
 `useI18nLoader()` and `useI18nPlugins()` ship from every binding
@@ -181,9 +184,27 @@ they return is referentially stable per host instance.
 
 ## 3. The codemod
 
+The codemod is a **repo-internal script**, not a published package: there is no
+`npx comvi-codemod`, and `pnpm codemod:framework-slim` only exists inside the
+`js-sdk` checkout. It scans `process.cwd()`, so where you run it decides what it
+rewrites — run it from the js-sdk root and it rewrites js-sdk's own sources.
+
+Clone the SDK at the 0.5 tag, install its dependencies once (the script imports
+`@ast-grep/napi`), then invoke it **by absolute path from your app's root**:
+
+```bash
+# once, anywhere outside your app
+git clone https://github.com/comvi-io/comvi-js.git --branch v0.5.0 --depth 1 /tmp/comvi-js
+cd /tmp/comvi-js && pnpm install
+
+# then, from YOUR app's root — this directory is the scan root
+cd ~/projects/my-app
+node /tmp/comvi-js/scripts/codemods/framework-slim/run.mjs \
+  "src/**/*.{ts,tsx,js,jsx,vue,svelte}" [--report report.json]
 ```
-pnpm codemod:framework-slim "src/**/*.{ts,tsx,js,jsx,vue,svelte}" [--report report.json]
-```
+
+The glob is resolved against the current directory, so `src/**/*` means _your_
+`src`. Commit before you run it: it rewrites files in place.
 
 Exit `0` = clean or fully transformed, `2` = rewrites applied **and** manual
 items remain, `1` = error. One command covers both halves of 0.5.0.
@@ -300,7 +321,10 @@ Composing a capability a host already has is a no-op — nothing is installed an
 registered state is kept. Pick by what you have: `loader` names the import-map
 adapter statically, so referencing it pulls that adapter in whether or not you
 pass a map. With a map, use `loader(map)`; with a plain `LoaderFn`, use
-`.with(attachLoader)` and register it yourself.
+`.with(attachLoader)` and register it yourself — **`registerLoader` takes a
+function**, not a map, on every host but the two batteries-included ones
+(`createNextI18n`'s composed host and the CDN global), whose `registerLoader`
+carries a second overload for an import map.
 
 ### `@comvi/react`, `@comvi/solid`, `@comvi/svelte`
 
@@ -332,10 +356,13 @@ the first catalog. Compose neither capability and `useI18nLoader()` /
   capability action is an imperative operation, not a reactive value.
 - **svelte** — they are **context readers**: callable during component
   initialisation only, returning plain bound functions; do not `$`-prefix a
-  member. `<T>` now renders structurally, so `allowedTags` is **removed**
-  (passing it is a type error), `components` accepts Svelte components, and the
-  old implicit attribute rewriting (`rel="noopener noreferrer"`, forced `alt=""`,
-  stripped `on*`) is gone — set those in your mapping props.
+  member. `<T>` now renders structurally, so `allowedTags` is **gone** — but note
+  that it is not a type error: `TProps` widens to accept any undeclared prop as
+  an interpolation param, so `allowedTags` still compiles and is then spread into
+  `params` and silently ignored. Delete it by hand; the compiler will not find it
+  for you. `components` accepts Svelte components, and the old implicit attribute
+  rewriting (`rel="noopener noreferrer"`, forced `alt=""`, stripped `on*`) is
+  gone — set those in your mapping props.
   `createLanguageStore` is removed; use `createLocaleStore`. `dist/*.js` now
   emits fully specified specifiers, so strict-ESM resolvers can import the
   package at all.
@@ -512,8 +539,10 @@ file, and in-repo suites use the `@internal` `_resetServerI18n()` from
 `useServer`, `useClientLazy` and `useServerLazy` are deprecated delegates; pass
 `{ runtime, environment, lazy }` to `use()` instead.
 
-**Locale routing** moved onto the shared `@comvi/locale-routing` package, with
-two URL behaviour changes: a trailing slash survives locale-prefix stripping
+**Locale routing** moved onto the shared `@comvi/locale-routing` package — an
+internal package pulled in transitively by `@comvi/next` and `@comvi/nuxt`, which
+you neither install nor import directly. Two URL behaviours changed with the
+move: a trailing slash survives locale-prefix stripping
 (`/de/about/` → `/about/`, and the middleware no longer redirects to normalize
 it), and interior duplicate slashes are no longer collapsed (`/de//x` → `//x`).
 Prefix modes, the pathnames slug map and root-path handling are unchanged.
@@ -564,7 +593,7 @@ export default ((options) =>
 Drop the lines you do not need — that is the point. Their order is free (§0.1),
 and this factory is catalog-bearing, so it takes `compiler: icuCompiler` rather
 than the `icu()` installer. The rest of the map: SSR / async loading →
-`.with(loader(map))`; `comvi.setup` calling `i18n.core.use(...)` →
+`.with(loader(map))`; `comvi.setup` calling `core.use(...)` →
 `.with(plugins())`; browser-extension visibility → `.with(devtools())`; `<tag>`
 in plain `t()` → one `import "@comvi/core/tags"`; nested inline catalogs →
 `flattenCatalog`, or `.with(loader())`, which flattens on ingestion.
@@ -582,11 +611,15 @@ rather than trusting an annotation: on a host with no loader, `loadTranslations`
 warns once naming `hostModule` and returns whatever the catalog already holds,
 and `useTranslation` translates without touching a member that is not there.
 
-`comvi.setup` hooks receive a `VueI18n`, so their proxy calls move to
-`i18n.core.*`. `NuxtI18nSetupContext<C>` / `NuxtI18nSetup<C>` are generic in the
-host and default to core's `I18n` — annotate the hook with the host your factory
-returns (`NuxtI18nSetup<I18n & I18nLoaderApi>`) and a call the host cannot serve
-fails at type-check instead of at request time.
+A `comvi.setup` hook used to call the capability **on the `VueI18n` proxy**
+(`i18n.reloadTranslations()`). Those eight proxies are gone, so call the host
+instead: **`context.core`**, which is the one member you can call the same way in
+the client plugin and in a server utility — `context.i18n` is the union
+`VueI18n<{}, C> | C`, so reaching a capability through it costs a `"core" in
+i18n` narrowing in every hook. `NuxtI18nSetupContext<C>` / `NuxtI18nSetup<C>` are
+generic in the host and default to core's `I18n` — annotate the hook with the
+host your factory returns (`satisfies NuxtI18nSetup<I18n & I18nLoaderApi>`) and a
+call the host cannot serve fails at type-check instead of at request time.
 
 Nuxt's rendering layer is `@comvi/vue`, so vue's `<T>` change rides through:
 rendering rich text no longer switches string-API tag parsing on behind your
@@ -606,6 +639,10 @@ exactly what the app pays for.
 Thrown at the `useI18nLoader()` / `useI18nPlugins()` call, in both build
 conditions, never silently.
 
+Beside those, 0.5 has a family of "is not a function" failures that all mean the
+same thing — a capability was never composed — plus three named errors from the
+composition rules. This is the whole list your first run can produce:
+
 | symptom                                                                                                 | fix                                              |
 | ------------------------------------------------------------------------------------------------------- | ------------------------------------------------ |
 | `addActiveNamespace` / `removeActiveNamespace` / `reloadTranslations` / `onLoadError` is not a function | `useI18nLoader()`                                |
@@ -615,6 +652,10 @@ conditions, never silently.
 | `E_INSTALLER_NESTED_USE`                                                                                | you wrote `.use(installer(…))`; write `.with(…)` |
 | `E_PLUGIN_INIT_RETURN`                                                                                  | a plugin returned a value — use a statement body |
 | `E_COMPILER_LOCKED`                                                                                     | `icu()` after a catalog — §0.1                   |
+
+Those `E_*` names are the **production** messages; a development build throws
+prose instead, and only `E_COMPILER_LOCKED` carries a `code` own-property to
+branch on.
 
 Two more `E_ICU_SYNTAX` messages come from the ICU compiler itself, thrown at
 ingestion in development and reported (with the segment rendered literally) in
@@ -657,7 +698,7 @@ inside a message that IS tag syntax, so on a host with no tag extension they are
 ordinary characters and stay in the output. Any tag extension brings them back —
 `import "@comvi/core/tags"`, or `tagInterpolation.extensions` per call. **ICU
 apostrophe quoting is unaffected**: `'{literal}'` and `''` are core grammar and
-still work everywhere.
+still work everywhere, on both compilers.
 
 ---
 
@@ -666,9 +707,15 @@ still work everywhere.
 Both tools now generate declarations through the new `@comvi/typegen` package,
 so a project that runs the CLI in CI and the Vite plugin in dev cannot see the
 two disagree. Nothing to change in a project: generated files keep their shape,
-`comvi typegen --check` still accepts a file 0.4 wrote, and the file no longer
-carries a `Generated at:` line, so regenerating an unchanged schema stops
-producing a diff.
+and the file no longer carries a `Generated at:` line, so regenerating an
+unchanged schema stops producing a diff.
+
+One thing to do once, though: 0.5 quotes keys and parameter names with
+`JSON.stringify` where 0.4 emitted single quotes and bare names. `--check` drops
+the vanished header line before comparing but not the quoting, so the first
+`comvi typegen --check` after the upgrade reports the file **outdated** (exit 1)
+in every repository. Run `comvi typegen` and commit the re-quoted file in the
+upgrade commit.
 
 `@comvi/cli`'s `TypeEmitter` class is **deprecated**: it still ships and behaves
 identically, but call `emitDeclarations(schema, { defaultNs })` from

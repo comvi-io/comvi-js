@@ -11,6 +11,18 @@ vi.mock("#build/comvi.setup", () => ({
   runComviSetup,
 }));
 
+// The host HAS the loader capability here, so the fix is the registration, not
+// the composition — and the message names only shapes the docs teach: the import
+// map goes where the capability is composed, and a bare LoaderFn is registered
+// from `comvi.setup`, whose context destructures `core`. `.use(...)` is NOT one
+// of them: the generated default host has no plugin capability.
+const NO_LOADER_REGISTERED_MESSAGE =
+  "[@comvi/nuxt] This i18n host has a loader capability but no loader registered, so SSR " +
+  "loaded nothing. Pass the import map where you compose it — " +
+  "createI18n(options).with(loader(map)) in your `hostModule` factory — or, on a host " +
+  "composed with .with(attachLoader), register a LoaderFn from comvi.setup: " +
+  "(({ core }) => { core.registerLoader(fn); }).";
+
 function createEvent(runtimeConfigOverrides: Partial<any> = {}) {
   return {
     context: {
@@ -190,9 +202,7 @@ describe("loadTranslations", () => {
     const result = await loadTranslations(createEvent(), "en");
 
     expect(result).toEqual({});
-    expect(warnSpy).toHaveBeenCalledWith(
-      "[@comvi/nuxt] No loader configured. Register one in comvi.setup via i18n.core.registerLoader(...) or i18n.core.use(...).",
-    );
+    expect(warnSpy).toHaveBeenCalledWith(NO_LOADER_REGISTERED_MESSAGE);
   });
 
   it("warns about missing loader only once per request i18n instance", async () => {
@@ -207,9 +217,7 @@ describe("loadTranslations", () => {
     await loadTranslations(event, "en");
 
     const noLoaderWarnings = warnSpy.mock.calls.filter(
-      ([message]) =>
-        String(message) ===
-        "[@comvi/nuxt] No loader configured. Register one in comvi.setup via i18n.core.registerLoader(...) or i18n.core.use(...).",
+      ([message]) => String(message) === NO_LOADER_REGISTERED_MESSAGE,
     );
     expect(noLoaderWarnings).toHaveLength(1);
   });
