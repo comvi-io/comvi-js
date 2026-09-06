@@ -36,9 +36,10 @@ export interface LocaleHeadOptions {
   /**
    * Add dir attribute to html.
    *
-   * The value is the locale object's own `dir` when it declares one, and the
-   * locale's text direction otherwise — so `locales: ["en", "ar"]`, with no
-   * locale objects at all, still ships `<html dir="rtl">` on Arabic.
+   * The value is the locale object's own `dir` when it declares one, and
+   * otherwise the text direction of the same tag `lang` uses (`iso`, or the
+   * locale code) — so `locales: ["en", "ar"]`, with no locale objects at all,
+   * still ships `<html dir="rtl">` on Arabic.
    *
    * @default true
    */
@@ -107,9 +108,16 @@ export function useLocaleHead(options: LocaleHeadOptions = {}) {
 
     const head: Record<string, unknown> = {};
 
+    // The tag that names this locale to the outside world: `iso` when the
+    // locale object carries one, the key otherwise. `lang` and `dir` are two
+    // statements about the SAME locale, so they are derived from the same
+    // string — a locale keyed `foo` with `iso: "ar"` must not ship
+    // `lang="ar" dir="ltr"`.
+    const languageTag = localeObj?.iso || currentLocale;
+
     const htmlAttrs: Record<string, string> = {};
     if (addLang) {
-      htmlAttrs.lang = localeObj?.iso || currentLocale;
+      htmlAttrs.lang = languageTag;
     }
     if (addDir) {
       // A DECLARED direction wins: an author who wrote `dir` meant it, even
@@ -118,7 +126,7 @@ export function useLocaleHead(options: LocaleHeadOptions = {}) {
       // documented as defaulting to "ltr" and `addDir` as on by default, and
       // omitting it honoured neither: an app configured the way the docs open
       // (`locales: ["en", "de"]`) shipped <html> with no direction at all.
-      htmlAttrs.dir = localeObj?.dir ?? getTextDirection(currentLocale);
+      htmlAttrs.dir = localeObj?.dir ?? getTextDirection(languageTag);
     }
     if (Object.keys(htmlAttrs).length > 0) {
       head.htmlAttrs = htmlAttrs;

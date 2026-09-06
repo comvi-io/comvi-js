@@ -477,7 +477,11 @@ describe("useLocaleHead", () => {
     mockRuntimeConfig.public.comvi.locales = ["en", "fr"];
     useState<string>("i18n-locale", () => "fr");
 
-    const headConfig = useLocaleHead({ addAlternateLinks: false, addDir: false });
+    const headConfig = useLocaleHead({
+      addAlternateLinks: false,
+      addCanonical: false,
+      addDir: false,
+    });
     const head = headConfig.value as Record<string, unknown>;
 
     expect(head.htmlAttrs).toStrictEqual({ lang: "fr" });
@@ -508,6 +512,23 @@ describe("useLocaleHead", () => {
     expect(head.htmlAttrs).toStrictEqual({ lang: "fr", dir: "ltr" });
   });
 
+  it("derives dir from the same tag as lang, so an opaque code follows its iso", () => {
+    // `lang` is `iso || code`. A locale keyed by something that is not a
+    // language tag — a brand, a variant name, a CMS id — carries its real tag
+    // in `iso`, and reading `dir` off the key instead would ship
+    // <html lang="ar" dir="ltr">: the two attributes disagreeing about the same
+    // locale.
+    setMockRoute({ path: "/foo/about", fullPath: "/foo/about" });
+    mockRuntimeConfig.public.comvi.locales = ["en", "foo"];
+    mockRuntimeConfig.public.comvi.localeObjects.foo = { code: "foo", name: "Arabic", iso: "ar" };
+    useState<string>("i18n-locale", () => "foo");
+
+    const headConfig = useLocaleHead({ addAlternateLinks: false, addCanonical: false });
+    const head = headConfig.value as Record<string, unknown>;
+
+    expect(head.htmlAttrs).toStrictEqual({ lang: "ar", dir: "rtl" });
+  });
+
   it("writes dir=rtl for an rtl language that declares no direction", () => {
     // The whole point of a default: the one locale where getting it wrong is
     // visible must not need the author to have remembered.
@@ -521,9 +542,12 @@ describe("useLocaleHead", () => {
     expect(head.htmlAttrs).toStrictEqual({ lang: "ar", dir: "rtl" });
   });
 
-  it("keeps a declared dir that disagrees with the language's own direction", () => {
-    // The fallback is a default, not an override: an author who wrote `dir`
-    // meant it.
+  it("keeps a declared dir rather than overwriting it with the derived one", () => {
+    // A regression guard on the branch order, not evidence that the fallback
+    // works — it passed before the fallback existed, because the old code also
+    // emitted a declared `dir`. What it pins is that adding the default did not
+    // start ignoring what the author wrote: the fallback is a default, not an
+    // override.
     setMockRoute({ path: "/ar/about", fullPath: "/ar/about" });
     mockRuntimeConfig.public.comvi.locales = ["en", "ar"];
     mockRuntimeConfig.public.comvi.localeObjects.ar = { code: "ar", name: "Arabic", dir: "ltr" };

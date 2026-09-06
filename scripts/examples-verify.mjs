@@ -213,11 +213,23 @@ export function measureFiles(files) {
   };
 }
 
-/** Every `.js` Vite emitted, so the report can say the lazy split really happened. */
-function chunkCount(distDir) {
-  const assets = path.join(distDir, "assets");
-  if (!fs.existsSync(assets)) return 0;
-  return fs.readdirSync(assets).filter((entry) => entry.endsWith(".js")).length;
+/**
+ * Every `.js` under `dir`, at any depth — the client bundle, chunk by chunk.
+ *
+ * One definition for all three kinds, and recursive for all three: Vite's own
+ * output is flat under `dist/assets`, but Next nests its chunks under
+ * `.next/static/chunks/app/...`, and a `js chunks` column that meant "the top
+ * level of one directory" for some rows and "everything" for others would put
+ * two different measurements under one heading.
+ */
+function countJs(dir) {
+  if (!fs.existsSync(dir)) return 0;
+  let total = 0;
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    if (entry.isDirectory()) total += countJs(path.join(dir, entry.name));
+    else if (entry.name.endsWith(".js")) total += 1;
+  }
+  return total;
 }
 
 /**
@@ -402,17 +414,6 @@ export function staticImportClosure(manifest, roots) {
   return files;
 }
 
-/** Every `.js` under `dir`, at any depth — the client bundle, chunk by chunk. */
-function countJs(dir) {
-  if (!fs.existsSync(dir)) return 0;
-  let total = 0;
-  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-    if (entry.isDirectory()) total += countJs(path.join(dir, entry.name));
-    else if (entry.name.endsWith(".js")) total += 1;
-  }
-  return total;
-}
-
 /**
  * The probes, one per kind. Each returns the files that make up "first load"
  * plus the total number of client `.js` chunks the build emitted, and each
@@ -426,7 +427,7 @@ function countJs(dir) {
  */
 async function viteProbe(dir) {
   const dist = path.join(dir, "dist");
-  return { files: [entryChunk(dist)], chunks: chunkCount(dist) };
+  return { files: [entryChunk(dist)], chunks: countJs(dist) };
 }
 
 async function nextProbe(dir) {
@@ -498,8 +499,8 @@ export const FIRST_LOAD_LEGEND = [
   "         figure is computed its way);",
   "  nuxt — the isEntry chunk and the route chunk, each closed over its static `imports`,",
   "         in .output/public/_nuxt.",
-  "js chunks = every .js the build wrote for the client, lazy ones included; the gap between",
-  "  the two columns is the lazy split (three locale catalogs per example).",
+  "js chunks = every .js the build wrote for the client; the gap between the two columns is",
+  "  everything not needed to render the route, which includes the three lazy locale catalogs.",
 ].join("\n");
 
 function kb(bytes) {

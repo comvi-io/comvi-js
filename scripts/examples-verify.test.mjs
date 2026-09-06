@@ -351,12 +351,17 @@ test("nuxtEntryKey refuses to choose between two entries", () => {
   );
 });
 
-test("nuxtPageRoute picks the app's page and ignores Nuxt's built-in error components", () => {
+test("nuxtPageRoute picks the app's page, not a dependency's", () => {
+  // Nuxt's own error components are under `node_modules` but not under
+  // `pages/`; a LAYER is both. A layer shipping `pages/index.vue` is ordinary —
+  // that is what layers are for — and without the node_modules guard it makes
+  // this manifest ambiguous and the probe throws on a build that is fine.
   const manifest = {
     "../node_modules/nuxt/dist/app/components/error-404.vue": { file: "a.js" },
     "../node_modules/nuxt/dist/app/entry.js": { file: "b.js", isEntry: true },
-    "pages/index.vue": { file: "c.js" },
-    "locales/en.json": { file: "d.js" },
+    "../node_modules/some-layer/pages/index.vue": { file: "c.js" },
+    "pages/index.vue": { file: "d.js" },
+    "locales/en.json": { file: "e.js" },
   };
 
   assert.equal(nuxtPageRoute(manifest), "pages/index.vue");
