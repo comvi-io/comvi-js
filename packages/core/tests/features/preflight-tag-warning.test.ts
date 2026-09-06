@@ -21,6 +21,7 @@ import { createI18n } from "../../src";
 // registry that still claims no `<`, which is what makes the branch walk
 // observable.
 import { I18n as IcuI18n } from "../../src/core/full";
+import { loader } from "../../src/loader";
 import { prepareTranslation } from "../../src/rich-text";
 import { _resetSyntaxExtensions, registerSyntaxExtension } from "../../src/core/translate/syntax";
 import { tagSyntaxExtension } from "../../src/core/translate/tags";
@@ -63,6 +64,20 @@ describe("catalog ingestion — the dev preflight", () => {
     expect(tagWarnings()).toEqual([]);
   });
 
+  it("stays silent for tag markup a loader merges in", async () => {
+    // The loader preflights its own normalized copy BEFORE the merge — a second
+    // ingestion seam, which `addTranslations` above cannot speak for.
+    const i18n = createI18n({ locale: "en", exposeGlobal: false }).with(loader());
+    i18n.registerLoader(async () => ({ greet: GREET }));
+
+    await i18n.init();
+
+    // `hasTranslation`, not `t()`: proof the catalog really arrived, without
+    // running the render path that legitimately warns.
+    expect(i18n.hasTranslation("greet")).toBe(true);
+    expect(tagWarnings()).toEqual([]);
+  });
+
   it("stays silent for tag markup inside an ICU plural branch", () => {
     // Branch text is stored verbatim and parsed by the preflight's own walk, a
     // second parse the top-level call cannot speak for.
@@ -85,9 +100,12 @@ describe("rendering an ingested tag template — the dev warning", () => {
     // path's, which is the whole distinction under test.
     warnSpy.mockClear();
 
-    const rendered = i18n.t("greet" as never, { name: "Ada" } as never);
+    i18n.t("greet" as never, { name: "Ada" } as never);
+    const rendered = i18n.t("greet" as never, { name: "Grace" } as never);
 
-    expect(rendered).toBe("Hi <b>Ada</b>");
+    expect(rendered).toBe("Hi <b>Grace</b>");
+    // Twice rendered, once warned: the per-template dedupe is the reason an
+    // ingestion-time warning was able to pre-empt this one at all.
     expect(tagWarnings()).toEqual([NO_EXTENSION_WARNING]);
   });
 
@@ -100,6 +118,7 @@ describe("rendering an ingested tag template — the dev warning", () => {
     });
     warnSpy.mockClear();
 
+    i18n.t("docs" as never);
     const rendered = i18n.t("docs" as never);
 
     expect(rendered).toBe(ATTR_TEMPLATE);
@@ -118,6 +137,7 @@ describe("rendering an ingested tag template — the dev warning", () => {
     });
     warnSpy.mockClear();
 
+    i18n.t("items" as never, { n: 1 } as never);
     const rendered = i18n.t("items" as never, { n: 1 } as never);
 
     expect(rendered).toBe("<b>1</b> item");

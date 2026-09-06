@@ -2,7 +2,8 @@
 "@comvi/core": patch
 ---
 
-The development catalog preflight no longer warns about tag syntax it finds in a translation.
+The development catalog preflight no longer warns about tag syntax on a host that has not
+registered a tag extension.
 
 Adding a catalog with `"Hi <b>{name}</b>"` in it used to print
 `[i18n] Tag syntax in "…" is rendering as literal text: no tag extension claims "<". Render it
