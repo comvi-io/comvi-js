@@ -19,28 +19,28 @@
 
 `@comvi/vue` wraps [`@comvi/core`](../core) for Vue 3. `app.use(i18n)` installs `$t` and `$i18n` global properties; `useI18n()` returns reactive refs that integrate with Vue's reactivity system.
 
-Same `t()` and `<T>` API as the [React](../react), [SolidJS](../solid), and [Svelte](../svelte) bindings — switch frameworks without relearning your i18n layer.
+Same `t()` and `<T>` API as the [React](../react), [SolidJS](../solid), and [Svelte](../svelte) bindings, so switching frameworks doesn't mean relearning your i18n layer.
 
-For Nuxt 3, use [`@comvi/nuxt`](../nuxt) — it adds SSR, locale routing, and auto-imports on top of this package.
+For Nuxt 3, use [`@comvi/nuxt`](../nuxt), which adds SSR, locale routing, and auto-imports on top of this package.
 
 📖 **Documentation:** https://comvi.io/docs/i18n/vue/
 
 ## Why Comvi i18n?
 
-Comvi i18n is a modern, framework-agnostic internationalization library built on three principles: type-safe translations, real ICU MessageFormat, and zero compromises on bundle size or security.
+Comvi i18n is a framework-agnostic internationalization library with type-safe translations, real ICU MessageFormat, and a small bundle that stays safe under a strict CSP.
 
-- **Rich text without XSS.** Embed components inside translation strings (`Click <link>here</link>`) — translators see clean markup, you decide what each tag renders to. No raw HTML, no unsafe DOM injection, no splitting a sentence across template fragments.
-- **ICU `plural`, `selectordinal` & `select`.** Locale-correct grammar via `Intl.PluralRules` — Polish, Ukrainian, Arabic, Welsh, and the rest. Same syntax every major TMS (Crowdin, Lokalise, Phrase) already speaks. The `number` / `date` / `time` argument types and the plural `offset:` form are not implemented and are not planned — each one is an `E_ICU_SYNTAX` failure, never a wrong render.
+- **Rich text without XSS.** Embed components inside translation strings (`Click <link>here</link>`). Translators see clean markup, and you decide what each tag renders to. No raw HTML, no unsafe DOM injection, and no splitting a sentence across template fragments.
+- **ICU `plural`, `selectordinal` & `select`.** Locale-correct grammar via `Intl.PluralRules`, including Polish, Ukrainian, Arabic, Welsh and the rest. It is the same syntax every major TMS (Crowdin, Lokalise, Phrase) already speaks. The `number` / `date` / `time` argument types and the plural `offset:` form are not implemented and are not planned. Each one fails with `E_ICU_SYNTAX` instead of rendering something wrong.
 - **Locale-aware formatters built in.** `formatNumber`, `formatDate`, `formatCurrency`, and `formatRelativeTime` follow the active locale via native `Intl`, with reactive updates in every framework binding.
-- **~7.0 kB minified + gzipped for a default app graph (measured, `vue` externalized), zero runtime dependencies.** That is the base host plus the vue bindings and the `VueI18n` preset; ICU, async loading, the plugin host and devtools discovery cost only where you compose them. No `eval` or `new Function` anywhere — runs under a strict CSP without `unsafe-eval`. Safe for Chrome extensions, Cloudflare Workers, and locked-down enterprise apps.
-- **Pluggable, not monolithic.** Translation loading (CDN/API), locale detection, and in-context editing are opt-in plugins via `@comvi/plugin-fetch-loader`, `@comvi/plugin-locale-detector`, and `@comvi/plugin-in-context-editor` — one lowercase `.with(installer)` each. You only ship what you use.
-- **Same API across 6 frameworks.** `useI18n()` and `<T>` look the same in [Vue](https://www.npmjs.com/package/@comvi/vue), [React](https://www.npmjs.com/package/@comvi/react), [SolidJS](https://www.npmjs.com/package/@comvi/solid), [Svelte](https://www.npmjs.com/package/@comvi/svelte), [Next.js](https://www.npmjs.com/package/@comvi/next), and [Nuxt](https://www.npmjs.com/package/@comvi/nuxt) — switch frameworks without relearning your i18n layer.
+- **~7.0 kB minified + gzipped for a default app graph (measured, `vue` externalized), zero runtime dependencies.** That is the base host plus the vue bindings and the `VueI18n` preset; ICU, async loading, the plugin host and devtools discovery cost only where you compose them. No `eval` or `new Function` anywhere, so it runs under a strict CSP without `unsafe-eval`. Safe for Chrome extensions, Cloudflare Workers, and locked-down enterprise apps.
+- **Pluggable.** Translation loading (CDN/API), locale detection, and in-context editing are opt-in plugins via `@comvi/plugin-fetch-loader`, `@comvi/plugin-locale-detector`, and `@comvi/plugin-in-context-editor`, one lowercase `.with(installer)` each. You only ship what you use.
+- **Same API across 6 frameworks.** `useI18n()` and `<T>` look the same in [Vue](https://www.npmjs.com/package/@comvi/vue), [React](https://www.npmjs.com/package/@comvi/react), [SolidJS](https://www.npmjs.com/package/@comvi/solid), [Svelte](https://www.npmjs.com/package/@comvi/svelte), [Next.js](https://www.npmjs.com/package/@comvi/next), and [Nuxt](https://www.npmjs.com/package/@comvi/nuxt), so switching frameworks doesn't mean relearning your i18n layer.
 
 ## Why @comvi/vue?
 
-- **Reactivity first.** `useI18n()` returns Vue refs and computed properties — changes to language or translations trigger precise re-renders without manual store subscriptions.
+- **Reactivity first.** `useI18n()` returns Vue refs and computed properties, so a change to the language or the translations triggers precise re-renders without manual store subscriptions.
 - **Template-native API.** `<T>` component uses named slots for tag interpolation; `$t` template helper and `$i18n` global property eliminate boilerplate in Options API code.
-- **Single plugin, both APIs.** One `app.use(i18n)` install works seamlessly with Composition API, Options API, and component templates.
+- **Single plugin, both APIs.** One `app.use(i18n)` install covers the Composition API, the Options API, and component templates.
 
 ## Install
 
@@ -109,22 +109,22 @@ const i18n = createI18nFromCore(core);
 createApp(App).use(i18n).mount("#app");
 ```
 
-`icu()` must be composed before the first catalog reaches the host, which is why
-it comes ahead of the loader. That is the library's only ordering rule; drop
+`icu()` must be composed before the first catalog reaches the host, so it comes
+ahead of the loader. That is the library's only ordering rule; drop
 `icu()` if the project uses no plural/select.
 
 There is no `i18n.init()` call here because `app.use(i18n)` initializes the host
-itself. The first paint therefore happens while the catalog is still in flight —
-gate it on the `isLoading` ref from `useI18n()`.
+itself. The first paint therefore happens while the catalog is still in flight,
+so gate it on the `isLoading` ref from `useI18n()`.
 
 The distribution id in `cdnUrl` comes from the Comvi platform: open your project
 and read it off the **Distributions** page.
 
 ## Capability composables: `useI18nLoader()` / `useI18nPlugins()`
 
-Async loading and the plugin host are `@comvi/core` **capabilities**, not part
-of the translation core. Since 0.5.0 their members are acquired explicitly
-rather than being handed out by `useI18n()`:
+Async loading and the plugin host are `@comvi/core` **capabilities** rather than
+part of the translation core. Since 0.5.0 you acquire their members explicitly
+instead of getting them from `useI18n()`:
 
 ```vue
 <script setup lang="ts">
@@ -137,11 +137,11 @@ const { onMissingKey } = useI18nPlugins();
 </script>
 ```
 
-Neither takes parameters — the namespace argument stays on `useI18n(ns)`. The
+Neither takes parameters; the namespace argument stays on `useI18n(ns)`. The
 bag is referentially stable per host instance (keyed on the core, so two
 `VueI18n` wrappers over one host share it).
 
-On a host that lacks the capability the acquisition call throws — in
+On a host that lacks the capability the acquisition call throws, in
 development **and** production, never a silent no-op:
 
 ```
@@ -161,9 +161,9 @@ happens there:
 +i18n.core.use(FetchLoader({ … }));
 ```
 
-Note that `i18n.core.use(…)` returns the host, not the wrapper, so it no longer
-chains off the `createI18n(…)` call. Nothing on `VueI18n` is typed present and
-then throws "missing capability" — that is why `use` left with the rest.
+`i18n.core.use(…)` returns the host, not the wrapper, so it no longer chains off
+the `createI18n(…)` call. Nothing on `VueI18n` is typed present and then throws
+"missing capability", so `use` left with the rest.
 
 Migrating from 0.4.x: `pnpm codemod:framework-slim "src/**/*.{ts,vue}"` (it
 rewrites the destructures and _reports_ the proxy call sites, whose receiver
@@ -172,16 +172,16 @@ type is textually undecidable), or the
 
 ## Supported hosts and what they cost
 
-`createI18n(options)` keeps its 0.4 signature and still builds the host for you
-— a `@comvi/core` base host, so ICU, tag syntax, async loading, the plugin host
-and devtools discovery are each something you compose, never something the
-wrapper carries by default. `createCore(options)` is core's own constructor
+`createI18n(options)` keeps its 0.4 signature and still builds the host for you,
+a `@comvi/core` base host. ICU, tag syntax, async loading, the plugin host and
+devtools discovery are each something you compose, and the wrapper carries none
+of them by default. `createCore(options)` is core's own constructor
 when you want to build that host yourself, and
 `createI18nFromCore(core, options?)` wraps whatever you built, preserving its
 exact type as `i18n.core`. All three ship from the one entry.
 
 **To compose capabilities, use `createCore(options).with(…)` and then
-`createI18nFromCore(core)` — not `createI18n(options).core.with(…)`.**
+`createI18nFromCore(core)`, not `createI18n(options).core.with(…)`.**
 `createI18n` returns `VueI18n<D, I18n<D>>`, so `.core` is typed as the BASE
 `I18n<D>` and the wrapper does not re-type it: composing through `.core.with(…)`
 attaches the capability at runtime, but `i18n.core` keeps the base type and
@@ -197,38 +197,38 @@ Whole-app comvi graph, min+gz, `vue` externalized (`pnpm size`, rows in
 | full explicit composition + `<T>` | `fw-vue-full-composite` | **11527 B** |
 
 `<T>` adds the pure `@comvi/core/rich-text` path. It no longer registers
-ambient string-API tags — the seam changed in this release — so its graph
-excludes the tag-registration pair, exactly like the rows that never render it.
+ambient string-API tags, because that changed in this release, so its graph
+excludes the tag-registration pair just as the rows that never render it do.
 
 ## One package, one entry
 
 `@comvi/vue` is the whole toolkit: all three constructors, the base `I18n`
 class, the vue bindings, and core's capability installers as **named**
-re-exports. One entry, one build pass, one injection key — a vue app names one
+re-exports. One entry, one build pass, one injection key. A vue app names one
 package and nothing else, and no sibling entry exists whose `app.use(i18n)`
 could be invisible to this one's `useI18n()`. Migrating a 0.4 app is
 `pnpm codemod:framework-slim "src/**/*.{ts,vue}"`; the breaks are written up in
 the [0.5.0 migration guide](https://github.com/comvi-io/comvi-js/blob/main/MIGRATION.md).
 
-| export                                          | what it is                                         |
-| ----------------------------------------------- | -------------------------------------------------- |
-| `createI18n`                                    | the one-call preset — a `VueI18n` over a base host |
-| `createCore`                                    | core's own constructor, for the composed path      |
-| `createI18nFromCore`                            | wraps a host you built, preserving its exact type  |
-| `I18n`                                          | the base class `createCore` instantiates           |
-| `icuCompiler`, `icu`                            | from `@comvi/core/icu` — compiler and installer    |
-| `loader`, `attachLoader`, `flattenCatalog`      | from `@comvi/core/loader`                          |
-| `plugins`, `attachPlugins`                      | from `@comvi/core/plugins`                         |
-| `devtools`, `attachDevtools`                    | from `@comvi/core/devtools`                        |
-| `VueI18n`, the composables, `T`, the inject key | the vue bindings                                   |
+| export                                          | what it is                                        |
+| ----------------------------------------------- | ------------------------------------------------- |
+| `createI18n`                                    | the one-call preset: a `VueI18n` over a base host |
+| `createCore`                                    | core's own constructor, for the composed path     |
+| `createI18nFromCore`                            | wraps a host you built, preserving its exact type |
+| `I18n`                                          | the base class `createCore` instantiates          |
+| `icuCompiler`, `icu`                            | from `@comvi/core/icu`: compiler and installer    |
+| `loader`, `attachLoader`, `flattenCatalog`      | from `@comvi/core/loader`                         |
+| `plugins`, `attachPlugins`                      | from `@comvi/core/plugins`                        |
+| `devtools`, `attachDevtools`                    | from `@comvi/core/devtools`                       |
+| `VueI18n`, the composables, `T`, the inject key | the vue bindings                                  |
 
 `createI18n` is vue's own function, not a rename: there is a `VueI18n` to
 construct, and `ssrLocale` has to reach the host before the reactive ref is
 seeded so the ref and `core.locale` cannot disagree for a render. That is also
 why the composition pipe lives one level down.
 
-`.with(installer)` is core's composition pipe — `host.with(f)` is `f(host)` —
-and on vue it goes on the **host**: `i18n.core` for a preset instance, or the
+`.with(installer)` is core's composition pipe: `host.with(f)` is `f(host)`. On
+vue it goes on the **host**: `i18n.core` for a preset instance, or the
 value `createCore` handed you. `loader(map)` attaches the capability **and**
 registers the map; for a plain `LoaderFn`, compose `.with(attachLoader)` and
 call `registerLoader(fn)` yourself (it keeps the import-map adapter out of your
@@ -269,7 +269,7 @@ const i18n = createI18n({
 ### Remote catalogs with ICU — `.with(icu())` before ingestion
 
 When the catalog arrives from a loader there is nothing to compile at
-construction time, so install the compiler first — on the host, which means
+construction time, so install the compiler first, on the host. That means
 building it with `createCore` and wrapping the result:
 
 ```ts
@@ -282,8 +282,8 @@ const i18n = createI18nFromCore(core, { ssrLocale: "en" }); // i18n.core is exac
 ```
 
 `.with(icu())` is **pre-ingestion only**. The compiler locks the moment any
-catalog reaches the host — a constructor `translation`, an `addTranslations`
-call, or a loader merge — and a later `icu()` throws with own
+catalog reaches the host: a constructor `translation`, an `addTranslations`
+call, or a loader merge. A later `icu()` throws with own
 `code === "E_COMPILER_LOCKED"`. So `createI18n({ translation }).core.with(icu())`
 is invalid by construction: pass `compiler: icuCompiler` there instead.
 
@@ -300,8 +300,8 @@ i18n.core.with(loader({ uk: () => import("./uk.json") }));
 ### Plugins — one `.with(installer)`
 
 The three first-party plugin packages ship a lowercase **installer** beside the
-uppercase factory. The installer composes the capabilities that plugin needs —
-`cdnLoader` attaches `/loader`, then `/plugins` — and registers it, in one
+uppercase factory. The installer composes the capabilities that plugin needs
+(`cdnLoader` attaches `/loader`, then `/plugins`) and registers it, in one
 call. It runs on the HOST, so build with `createCore` and wrap afterwards:
 
 ```ts
@@ -317,9 +317,9 @@ const i18n = createI18nFromCore(core);
 
 The explicit form is that composition spelled out, and it is what you want when
 you register plugins from a list. Compose `loader()` as well when a plugin
-registers one — the order of `loader()`, `plugins()` and `devtools()` among
+registers one. The order of `loader()`, `plugins()` and `devtools()` among
 themselves is free, because plugins run at `init()` and every capability
-composed before `init()` is attached by then. `VueI18n` does not proxy `use` — registration
+composed before `init()` is attached by then. `VueI18n` does not proxy `use`, so registration
 happens on the host, either before wrapping or as `i18n.core.use(…)` afterwards.
 
 ```ts
@@ -356,7 +356,7 @@ formats a real plural from the built bundle and asserts the other three out, and
 `vue-composed` composes `createCore(...).with(loader(map))` through
 `createI18nFromCore` and asserts the three it does not call out.
 
-`@comvi/core/tags` is deliberately not re-exported: importing it registers tag
+`@comvi/core/tags` is not re-exported, because importing it registers tag
 syntax ambiently. `<T>` uses the pure `@comvi/core/rich-text` seam in its own
 dist chunk and does not change string-API tag behavior.
 
@@ -368,7 +368,7 @@ ambiently. Development warns the first time; production stays literal and never
 throws, because a literal `<b>` is visibly broken in review while a wrong plural
 is not. Two ways out:
 
-- render `<T>` — it passes the tag extension per call and needs no ambient
+- render `<T>`, which passes the tag extension per call and needs no ambient
   registration at all (see [Rich text with `<T>`](#rich-text-with-t));
 - `import "@comvi/core/tags";` once at your entry, if you want tag
   interpolation through `t()` itself. That import is the side effect
@@ -403,7 +403,7 @@ Alternatively, use the `components` prop for programmatic tag handling. Pass `ta
 
 ## ICU MessageFormat — locale-correct grammar, not just singular/plural
 
-`count === 1 ? "item" : "items"` works in English. It silently ships broken grammar in Polish, Ukrainian, Arabic, Welsh, and 30+ other locales — those languages have 3, 4, sometimes 6 distinct plural categories that a binary if/else can't express. [ICU MessageFormat](https://unicode-org.github.io/icu/userguide/format_parse/messages/) is the standard syntax for handling them — the same syntax Crowdin, Lokalise, Phrase, and every major TMS already speak. Comvi i18n parses it via native [`Intl.PluralRules`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Intl/PluralRules), so every CLDR plural category is correct by default.
+`count === 1 ? "item" : "items"` works in English. It silently ships broken grammar in Polish, Ukrainian, Arabic, Welsh, and 30+ other locales, which have 3, 4, sometimes 6 distinct plural categories that a binary if/else can't express. [ICU MessageFormat](https://unicode-org.github.io/icu/userguide/format_parse/messages/) is the standard syntax for handling them, and it is the syntax Crowdin, Lokalise, Phrase, and every major TMS already speak. Comvi i18n parses it via native [`Intl.PluralRules`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Intl/PluralRules), so every CLDR plural category is correct by default.
 
 ### Plurals across languages
 
@@ -432,7 +432,7 @@ t("messages", { count: 22 }); // uk: "22 повідомлення"  ← the "few
 </script>
 ```
 
-A naive English-style `count === 1 ? singular : plural` picks one Ukrainian form and ships it for every count — grammatically wrong for half your traffic.
+A naive English-style `count === 1 ? singular : plural` picks one Ukrainian form and ships it for every count, which is grammatically wrong for half your traffic.
 
 ### Ordinals (1st, 2nd, 3rd…)
 
@@ -472,7 +472,7 @@ t("salutation", { gender: "other" }); // "Welcome"
 
 ### Locale-aware Intl formatters
 
-Numbers, dates, currency, and relative time follow the active locale via native `Intl` — reactive in your framework binding:
+Numbers, dates, currency, and relative time follow the active locale via native `Intl`, and are reactive in your framework binding:
 
 ```vue
 <script setup lang="ts">
@@ -601,8 +601,8 @@ See [`@comvi/plugin-fetch-loader`](https://github.com/comvi-io/comvi-js/tree/mai
 
 **Build one instance per request.** A module-scope `createI18n(...)` is a
 singleton shared by every concurrent request, and its locale is mutable: one
-visitor switching to `uk` moves the locale — and the reactive `locale` ref —
-under everyone else's render. Construct the instance inside the request
+visitor switching to `uk` moves the locale, and the reactive `locale` ref, under
+everyone else's render. Construct the instance inside the request
 handler, next to the app.
 
 **Pass the request locale as `ssrLocale`**, not as `locale`: it reaches the
@@ -636,9 +636,9 @@ export async function render(localeFromRequest: string) {
 }
 ```
 
-For Nuxt, use [`@comvi/nuxt`](https://www.npmjs.com/package/@comvi/nuxt) — it
-does all of the above per request, and adds locale routing, payload transfer
-and auto-imports.
+For Nuxt, use [`@comvi/nuxt`](https://www.npmjs.com/package/@comvi/nuxt), which
+does all of this per request and adds locale routing, payload transfer and
+auto-imports.
 
 ## License
 
