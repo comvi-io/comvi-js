@@ -26,8 +26,21 @@ const noLoaderWarnings = new WeakSet<NuxtServerHost>();
 // file, so the capability probe below picks the message.
 const NO_LOADER_CAPABILITY_MESSAGE =
   '[@comvi/nuxt] This i18n host has no loader capability, so SSR loaded nothing. The generated default host is core\'s base host — compose the loader in a `hostModule` factory: createI18n(options).with(loader(map)) from "@comvi/core" + "@comvi/core/loader", and set `comvi.hostModule` in nuxt.config.';
+// The host HAS the loader capability here, so the fix is the REGISTRATION, not
+// the composition — and it may only name shapes the docs teach. `.use(...)` was
+// not one of them: the plugin host is a SEPARATE composition, absent on the
+// generated default host, so the old message sent a reader to a member that is
+// usually not there. `comvi.setup`'s context destructures `core` because
+// `context.i18n` is a union of `VueI18n` and the bare host. BOTH attach-only
+// compositions are named: `loader()` without a map delegates to `attachLoader`
+// and registers nothing (core's `loader` installer), so a reader who composed
+// it lands here too.
 const NO_LOADER_REGISTERED_MESSAGE =
-  "[@comvi/nuxt] No loader configured. Register one in comvi.setup via i18n.core.registerLoader(...) or i18n.core.use(...).";
+  "[@comvi/nuxt] This i18n host has a loader capability but no loader registered, so SSR " +
+  "loaded nothing. Pass the import map where you compose it — " +
+  "createI18n(options).with(loader(map)) in your `hostModule` factory — or, on a host " +
+  "composed with .with(attachLoader) or a bare .with(loader()), register a LoaderFn from " +
+  "comvi.setup: (({ core }) => { core.registerLoader(fn); }).";
 
 const toPlainObject = (
   value: Record<string, TranslationValue>,

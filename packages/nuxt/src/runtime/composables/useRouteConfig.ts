@@ -8,27 +8,28 @@ export interface GetPathnameOptions {
 }
 
 /**
- * Get routing configuration and helpers — for sitemap generation and other
- * routing utilities.
+ * Get routing configuration and helpers — for alternate-link lists, language
+ * switchers and other routing utilities.
+ *
+ * APP-SIDE ONLY. The module auto-imports this through `addImports`, which
+ * populates `#imports` for the Nuxt app, not the Nitro server — and it reads
+ * `useRuntimeConfig()` from `#app` with no event, so a Nitro route calling it
+ * fails at request time. In a server route read the same values off the event:
+ * `useRuntimeConfig(event).public.comvi`.
  *
  * @example
- * ```typescript
- * // server/routes/sitemap.xml.ts
- * import { useRouteConfig } from '#imports'
+ * ```vue
+ * <!-- components/AlternateLinks.vue -->
+ * <script setup lang="ts">
+ * // Pass the UNPREFIXED path; each returned `path` carries its locale prefix.
+ * const { getAllLocalizedPaths } = useRouteConfig()
  *
- * export default defineEventHandler(() => {
- *   const { locales, defaultLocale, getPathname } = useRouteConfig()
- *
- *   const pages = ['/', '/about', '/contact']
- *   const urls = pages.flatMap((page) =>
- *     locales.map((locale) => ({
- *       loc: `https://example.com${getPathname({ locale, href: page })}`,
- *       // ...
- *     }))
- *   )
- * })
+ * const alternates = getAllLocalizedPaths('/about').map(({ locale, path }) => ({
+ *   locale,
+ *   href: `https://example.com${path}`,
+ * }))
+ * </script>
  * ```
- *
  */
 export function useRouteConfig() {
   const config = useRuntimeConfig();
