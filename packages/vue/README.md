@@ -505,7 +505,7 @@ Switching locale via `setLocale()` re-renders all formatters automatically throu
 
 Declaration merging on `TranslationKeys` provides autocomplete and parameter validation per key. Generated automatically via `@comvi/cli` (TMS) or `@comvi/vite-plugin` (local JSON).
 
-```typescript
+```typescript check=group=typed-keys
 // src/types/i18n.d.ts
 import "@comvi/core"; // resolves the module before augmenting it
 
@@ -523,7 +523,7 @@ declare module "@comvi/core" {
 }
 ```
 
-```vue
+```vue check=group=typed-keys
 <script setup lang="ts">
 import { useI18n } from "@comvi/vue";
 
@@ -542,21 +542,28 @@ t("NOT_FOUND", { ns: "errors" });
 
 **What TypeScript catches:**
 
-```ts check=expect-error
+```ts check=group=typed-keys check=expect-error=TS2345
 import { useI18n } from "@comvi/vue";
 
 const { t } = useI18n();
 
-// ✗ Expected 2 arguments, but got 1
+// ✗ TS2345 — Argument of type '"welcome"' is not assignable to parameter of type
+//   'never'. `welcome` declares a required param, so the key-only overload is out.
 t("welcome");
+```
 
-// ✗ Property 'name' is missing in type '{ age: number }'
+```ts check=group=typed-keys check=expect-error=TS2769
+import { useI18n } from "@comvi/vue";
+
+const { t } = useI18n();
+
+// ✗ TS2769 (no overload matches) — Property 'name' is missing in type '{ age: number }'
 t("welcome", { age: 5 });
 
-// ✗ Type 'number' is not assignable to type 'string'
+// ✗ TS2769 (no overload matches) — Type 'number' is not assignable to type 'string'
 t("welcome", { name: 42 });
 
-// ✗ Argument of type '"typo"' is not assignable to parameter
+// ✗ TS2769 (no overload matches) — '"typo"' is not a declared key
 t("typo", { name: "Alice" });
 ```
 
