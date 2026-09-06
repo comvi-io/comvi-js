@@ -109,7 +109,7 @@ Prettier and ESLint also run through husky and lint-staged on commit.
 
 ### 3. Size budgets
 
-`pnpm size` measures 17 gated bundle rows (`scripts/size-budgets.json`) by bundling each entry
+`pnpm size` measures 18 gated bundle rows (`scripts/size-budgets.json`) by bundling each entry
 through its **published** exports map with esbuild, minifying, and gzipping. It needs a build
 first.
 
@@ -147,6 +147,32 @@ pnpm build && pnpm audit:package-contracts && pnpm check:publint && pnpm check:t
 These check that every `exports`/`main`/`module`/`types` target is actually packed, that publint
 is happy with the manifest, and that every declared types entry resolves and is not an empty
 stub. Do not hand-edit a `package.json` `exports` map without running all three.
+
+### 6. Runtime perf, against the last release
+
+`pnpm perf` on its own prints a table for one build, which says nothing on its own — the numbers
+are machine-local. The gate is the A/B form, and it is **required before a release**:
+
+```bash
+pnpm build
+node scripts/perf.mjs --compare-ref v0.4.1        # or the tag/SHA you are releasing against
+```
+
+It builds the reference into a reusable worktree under `.perf-ref/`, then measures both sides
+interleaved — every case on the reference, then on your build, each in its own process, three
+repetitions, keeping the minimum per side. It exits non-zero when any of the five cases
+(construction, `t()` static, `t()` with a param, an ICU plural, a rich-text prepare) regresses by
+more than 5 %.
+
+Read a Δ against the harness's own noise first. A run of the reference against **itself**
+(`--compare <ref-dist> <ref-dist>`) is ±2–4 % on the sub-µs cases on a typical laptop, so a 3 %
+difference is not a finding and a 13 % one is. Nothing in CI runs this, which is exactly why it
+belongs on the release checklist: the 0.5.0 branch reached its release candidate with every other
+gate green and a 12.9 % ICU-plural regression that only this comparison could see.
+
+Exit 3 means the reference cannot be compared — its build predates an entry point the protocol
+loads (`@comvi/core@0.4.1` is a single-entry monolith, so it has no `comvi-core-icu.js`). Compare
+the branch point of the cycle that introduced the entries instead.
 
 ## Tests
 
@@ -203,18 +229,19 @@ into `src/` proper, or into the test tree where it is exercised directly.
 
 ## Verification cheat-sheet
 
-| You changed                              | Run at least                                                                                   |
-| ---------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| `packages/core`                          | `pnpm --filter @comvi/core test`, the affected bindings' tests, `pnpm build && pnpm size`      |
-| One binding                              | that package's tests, and its `test-apps/*` app builds                                         |
-| A plugin                                 | that plugin's tests                                                                            |
-| A `package.json` `exports` map           | `pnpm build && pnpm audit:package-contracts && pnpm check:publint && pnpm check:types-exports` |
-| Package entry points or `sideEffects`    | `pnpm build && pnpm bundler-matrix`                                                            |
-| Release or codemod scripts in `scripts/` | `pnpm test:release-tools`                                                                      |
-| The Chrome extension                     | `pnpm extension:test`, and `pnpm extension:gate-e` for E2E                                     |
+| You changed                              | Run at least                                                                                                                                                     |
+| ---------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `packages/core`                          | `pnpm --filter @comvi/core test`, the affected bindings' tests, `pnpm build && pnpm size`; add `node scripts/perf.mjs --compare-ref <ref>` for a hot-path change |
+| One binding                              | that package's tests, and its `test-apps/*` app builds                                                                                                           |
+| A plugin                                 | that plugin's tests                                                                                                                                              |
+| A `package.json` `exports` map           | `pnpm build && pnpm audit:package-contracts && pnpm check:publint && pnpm check:types-exports`                                                                   |
+| Package entry points or `sideEffects`    | `pnpm build && pnpm bundler-matrix`                                                                                                                              |
+| Release or codemod scripts in `scripts/` | `pnpm test:release-tools`                                                                                                                                        |
+| The Chrome extension                     | `pnpm extension:test`, and `pnpm extension:gate-e` for E2E                                                                                                       |
 
-`pnpm perf` prints a core runtime performance table. It is a manual tool, not a gate; nothing in
-CI runs it.
+Nothing in CI runs `node scripts/perf.mjs --compare-ref <ref>` (see gate 6). Run it yourself for a
+change to core's hot path — `t()`, the template cache, the parser, a compiler — and always before
+a release.
 
 ## Pull requests
 

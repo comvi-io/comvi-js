@@ -21,6 +21,12 @@ import { spawnSync } from "node:child_process";
  *     does not — so CI can distinguish an incomparable reference build from a
  *     passing comparison.
  *
+ *   node scripts/perf.mjs --compare-ref <gitRef> [--threshold <pct>] [--repetitions <n>] [--refresh]
+ *     The release form: builds `<gitRef>` into a reusable worktree under
+ *     `.perf-ref/` and compares this checkout's core against it. Exits 3 when
+ *     the reference predates an entry the protocol loads (compare an older ref
+ *     instead — a build that cannot expose the entries is not a regression).
+ *
  *   node scripts/perf.mjs --compare <distRootA> <distRootB> [--threshold <pct>] [--repetitions <n>]
  *     Interleaved A/B: for each repetition it measures A then B for every case,
  *     three times, and keeps the MIN per side (the least-disturbed run — a
@@ -138,6 +144,68 @@ export async function measureDist(distRoot, runs = SINGLE_MODE_RUNS) {
   });
 }
 
+/** Worktrees built by `--compare-ref` live here; `.gitignore`d and reusable. */
+const REF_ROOT = path.join(REPO_ROOT, ".perf-ref");
+
+function git(args, cwd = REPO_ROOT) {
+  const result = spawnSync("git", args, { cwd, encoding: "utf8" });
+  if (result.status !== 0) {
+    throw new Error(`git ${args.join(" ")} failed:\n${result.stderr || result.stdout}`);
+  }
+  return result.stdout.trim();
+}
+
+function run(command, args, cwd) {
+  const result = spawnSync(command, args, { cwd, stdio: "inherit" });
+  if (result.status !== 0) {
+    throw new Error(`${command} ${args.join(" ")} failed in ${cwd} (exit ${result.status})`);
+  }
+}
+
+/**
+ * Builds `ref` into a reusable worktree and returns its core dist root.
+ *
+ * The install passes `--store-dir` explicitly: the pnpm store lives INSIDE the
+ * repo (`.pnpm-store`), so a worktree resolves its own empty one and
+ * redownloads the whole dependency set instead of reusing what is already
+ * there. It is also filtered to core's own graph — the protocol measures
+ * nothing else, and the whole workspace's `node_modules` is 1.3 GB against
+ * 359 MB for this, per reference kept on disk.
+ */
+export function buildReference(ref, { refresh = false } = {}) {
+  const sha = git(["rev-parse", `${ref}^{commit}`]);
+  const dir = path.join(REF_ROOT, sha.slice(0, 12));
+  const dist = path.join(dir, "packages", "core", "dist");
+
+  if (refresh) fs.rmSync(dir, { recursive: true, force: true });
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(REF_ROOT, { recursive: true });
+    console.log(
+      `preparing reference ${ref} (${sha.slice(0, 12)}) in ${path.relative(REPO_ROOT, dir)}`,
+    );
+    git(["worktree", "add", "--detach", dir, sha]);
+  }
+  if (!fs.existsSync(path.join(dir, "node_modules"))) {
+    run(
+      "pnpm",
+      [
+        "install",
+        "--frozen-lockfile",
+        "--prefer-offline",
+        "--filter",
+        "@comvi/core...",
+        "--store-dir",
+        path.join(REPO_ROOT, ".pnpm-store"),
+      ],
+      dir,
+    );
+  }
+  if (!fs.existsSync(dist) || refresh) {
+    run("pnpm", ["--filter", "@comvi/core", "build"], dir);
+  }
+  return dist;
+}
+
 /**
  * One case, one dist, in a FRESH child process — so a compare run never holds
  * two builds of core in one isolate. Returns µs/op.
@@ -227,6 +295,35 @@ function readThreshold(argv) {
   return value;
 }
 
+/** Shared tail of `--compare` and `--compare-ref`: measure, render, gate. */
+function runCompare(distRootA, distRootB, argv) {
+  const thresholdPct = readThreshold(argv);
+  const repetitions = readRepetitions(argv);
+  const results = compareDists(distRootA, distRootB, repetitions);
+  console.log(`A (reference) = ${path.resolve(distRootA)}`);
+  console.log(`B (candidate) = ${path.resolve(distRootB)}`);
+  console.log(`interleaved, min of ${repetitions} per side, threshold ${thresholdPct}% on Δ\n`);
+  console.log(renderCompare(results, thresholdPct));
+  console.log(
+    `\n${JSON.stringify(
+      Object.fromEntries(
+        results.map((result) => [result.name, Number(result.deltaPct.toFixed(3))]),
+      ),
+    )}`,
+  );
+  const failed = regressions(results, thresholdPct);
+  if (failed.length > 0) {
+    console.error(
+      `\nPerf gate failed: ${failed
+        .map((result) => `${result.name} +${result.deltaPct.toFixed(2)}%`)
+        .join(", ")} (threshold ${thresholdPct}%)`,
+    );
+    return 1;
+  }
+  console.log(`\nPerf gate passed: no case regressed more than ${thresholdPct}%.`);
+  return 0;
+}
+
 async function main(argv) {
   // Internal worker: one case, one dist, one number on stdout.
   const worker = argv.indexOf("--measure-one");
@@ -259,6 +356,37 @@ async function main(argv) {
     return 0;
   }
 
+  // `--compare-ref <gitRef>`: the release form. It prepares the reference build
+  // itself, so the gate is one command rather than a worktree recipe nobody runs.
+  const compareRef = argv.indexOf("--compare-ref");
+  if (compareRef !== -1) {
+    const ref = argv[compareRef + 1];
+    if (!ref || ref.startsWith("--")) {
+      console.error(
+        "usage: node scripts/perf.mjs --compare-ref <gitRef> [--threshold <pct>] [--repetitions <n>] [--refresh]",
+      );
+      return 2;
+    }
+    const referenceDist = buildReference(ref, { refresh: argv.includes("--refresh") });
+    const missingReference = missingEntries(referenceDist);
+    if (missingReference.length > 0) {
+      console.error(
+        `${ref} cannot be compared: its core build is missing ${missingReference.join(", ")}.\n` +
+          "Those entry points did not exist yet at that ref, so there is nothing to read a Δ " +
+          "against — compare the branch point of the cycle that introduced them instead.",
+      );
+      return 3;
+    }
+    const missingHead = missingEntries(DEFAULT_DIST);
+    if (missingHead.length > 0) {
+      console.error(
+        `this checkout is missing ${missingHead.join(", ")} — run \`pnpm build\` first`,
+      );
+      return 2;
+    }
+    return runCompare(referenceDist, DEFAULT_DIST, argv);
+  }
+
   const compare = argv.indexOf("--compare");
   if (compare !== -1) {
     const [distRootA, distRootB] = [argv[compare + 1], argv[compare + 2]];
@@ -268,31 +396,7 @@ async function main(argv) {
       );
       return 2;
     }
-    const thresholdPct = readThreshold(argv);
-    const repetitions = readRepetitions(argv);
-    const results = compareDists(distRootA, distRootB, repetitions);
-    console.log(`A (reference) = ${path.resolve(distRootA)}`);
-    console.log(`B (candidate) = ${path.resolve(distRootB)}`);
-    console.log(`interleaved, min of ${repetitions} per side, threshold ${thresholdPct}% on Δ\n`);
-    console.log(renderCompare(results, thresholdPct));
-    console.log(
-      `\n${JSON.stringify(
-        Object.fromEntries(
-          results.map((result) => [result.name, Number(result.deltaPct.toFixed(3))]),
-        ),
-      )}`,
-    );
-    const failed = regressions(results, thresholdPct);
-    if (failed.length > 0) {
-      console.error(
-        `\nPerf gate failed: ${failed
-          .map((result) => `${result.name} +${result.deltaPct.toFixed(2)}%`)
-          .join(", ")} (threshold ${thresholdPct}%)`,
-      );
-      return 1;
-    }
-    console.log(`\nPerf gate passed: no case regressed more than ${thresholdPct}%.`);
-    return 0;
+    return runCompare(distRootA, distRootB, argv);
   }
 
   const distRoot = argv.find((arg) => !arg.startsWith("--")) ?? DEFAULT_DIST;
