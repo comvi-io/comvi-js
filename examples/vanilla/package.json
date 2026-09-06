@@ -1,0 +1,20 @@
+{
+  "name": "comvi-example-vanilla",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "typecheck": "tsc --noEmit",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@comvi/core": "^0.5.0",
+    "@comvi/plugin-locale-detector": "^0.5.0"
+  },
+  "devDependencies": {
+    "typescript": "~6.0.2",
+    "vite": "^8.0.3"
+  }
+}
