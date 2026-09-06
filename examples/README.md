@@ -290,7 +290,7 @@ committed `^0.5.0` ranges are never rewritten: an override redirects resolution
 without touching the declaration, so the manifest that ships to StackBlitz is
 the manifest that was verified.
 
-The one thing that is **not** the same for all seven is the size probe. Each
+The size probe is **not** the same for all seven. Each
 example is classified by the CLI its own `build` script runs (`vite`, `next` or
 `nuxt`), and "first load" is assembled differently per kind, because the three
 build tools do not put the entry chunk in the same place, and neither SSR
