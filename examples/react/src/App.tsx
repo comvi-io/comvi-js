@@ -83,7 +83,11 @@ export function App() {
         </p>
       </section>
 
-      {/* 6 — proof the loader is lazy: only the locales you visited are here */}
+      {/* 6 — proof the loader is lazy: only the locales you visited are here.
+          `getLoadedLocales()` is a plain call, with no `cacheRevision` read
+          beside it as solid and svelte need: `useI18n()` has already subscribed
+          this component to the revision store, so a catalog landing re-renders
+          it and this line is re-read. */}
       <section>
         <h2>lazy loading</h2>
         <p>

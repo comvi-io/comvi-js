@@ -6,6 +6,7 @@ const RELEASED = new Date("2026-09-01T00:00:00Z");
 const root = document.getElementById("app")!;
 
 let count = 2;
+let isLoading = false;
 
 /**
  * The framework-agnostic half of rich text: `tRaw()` returns virtual nodes, and
@@ -30,7 +31,19 @@ function toDom(result: TranslationResult): Node[] {
   });
 }
 
-function section(heading: string, ...body: Array<Node | string>): HTMLElement {
+/** A prose row: a heading and a paragraph, as in the four framework examples. */
+function section(heading: string, body: Node | string): HTMLElement {
+  const el = document.createElement("section");
+  const h2 = document.createElement("h2");
+  h2.textContent = heading;
+  const p = document.createElement("p");
+  p.append(body);
+  el.append(h2, p);
+  return el;
+}
+
+/** The two rows that hold controls, which the shared stylesheet lays out flat. */
+function controlSection(heading: string, ...body: Array<Node | string>): HTMLElement {
   const el = document.createElement("section");
   const h2 = document.createElement("h2");
   h2.textContent = heading;
@@ -47,8 +60,16 @@ function localeButton(code: string): HTMLButtonElement {
   button.setAttribute("aria-pressed", String(i18n.locale === code));
   // `setLocaleAsync` resolves once the catalog for the new locale has landed,
   // so there is no frame where the UI shows the old text under the new locale.
+  // The gap before it resolves is a real fetch, and the other four examples
+  // render `isLoading` through it — this is the hand-rolled equivalent, set
+  // before the promise and cleared when it settles.
   button.onclick = () => {
-    void i18n.setLocaleAsync(code).then(render);
+    isLoading = true;
+    render();
+    void i18n.setLocaleAsync(code).finally(() => {
+      isLoading = false;
+      render();
+    });
   };
   return button;
 }
@@ -94,14 +115,21 @@ function render(): void {
     locales: i18n.getLoadedLocales().join(", "),
   });
 
+  const switcher: Array<Node | string> = locales.map(localeButton);
+  if (isLoading) {
+    const loading = document.createElement("code");
+    loading.textContent = i18n.t("app.loading");
+    switcher.push(loading);
+  }
+
   root.replaceChildren(
     title,
     // 1 — locale switcher
-    section(i18n.t("app.language"), ...locales.map(localeButton)),
+    controlSection(i18n.t("app.language"), ...switcher),
     // 2 — a string with a parameter
     section("interpolation", i18n.t("greeting.hello", { name: "Ada" })),
     // 3 — an ICU plural, live on a counter
-    section(
+    controlSection(
       "plural",
       counterButton("−", -1),
       counterButton("+", 1),
