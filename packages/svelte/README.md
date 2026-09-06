@@ -522,7 +522,7 @@ With translation: `"items": "{count, plural, one {# item} other {# items}}"` and
 
 Declare translation keys once to type the core API and framework bindings. In Svelte, `tRaw` keeps the typed overloads from core; `$t` is the string convenience store and accepts string keys.
 
-```typescript
+```typescript check=group=typed-keys
 // src/types/i18n.d.ts
 import "@comvi/core"; // resolves the module before augmenting it
 
@@ -541,7 +541,7 @@ declare module "@comvi/core" {
 }
 ```
 
-```svelte
+```svelte check=group=typed-keys
 <script lang="ts">
   import { useI18n } from "@comvi/svelte";
   const { tRaw } = useI18n();
@@ -555,21 +555,29 @@ declare module "@comvi/core" {
 
 **What TypeScript catches:**
 
-```svelte check=expect-error
+```svelte check=group=typed-keys check=expect-error
 <script lang="ts">
   import { useI18n } from "@comvi/svelte";
   const { tRaw } = useI18n();
 
-  // ✗ Expected 2 arguments, but got 1
+  // ✗ TS2345 — Argument of type '"welcome"' is not assignable to parameter of type
+  //   'never'. `welcome` declares a required param, so the key-only overload is out.
   $tRaw("welcome");
+</script>
+```
 
-  // ✗ Property 'name' is missing in type '{ age: number }'
+```svelte check=group=typed-keys check=expect-error
+<script lang="ts">
+  import { useI18n } from "@comvi/svelte";
+  const { tRaw } = useI18n();
+
+  // ✗ TS2769 (no overload matches) — Property 'name' is missing in type '{ age: number }'
   $tRaw("welcome", { age: 5 });
 
-  // ✗ Type 'number' is not assignable to type 'string'
+  // ✗ TS2769 (no overload matches) — Type 'number' is not assignable to type 'string'
   $tRaw("welcome", { name: 42 });
 
-  // ✗ Argument of type '"typo"' is not assignable to parameter
+  // ✗ TS2769 (no overload matches) — '"typo"' is not a declared key
   $tRaw("typo", { name: "Alice" });
 </script>
 ```
