@@ -132,6 +132,9 @@ If the namespace stored at the CDN root differs from the namespace your app uses
 as `defaultNs`, configure that storage identity explicitly:
 
 ```ts
+import { createI18n } from "@comvi/core";
+import { cdnLoader } from "@comvi/plugin-fetch-loader/cdn";
+
 const i18n = createI18n({
   locale: "en",
   defaultNs: "storefront",
@@ -188,7 +191,7 @@ const i18n = createI18n({ locale: "en" }).with(
   cdnLoader({ cdnUrl: "https://cdn.comvi.io/your-distribution-id" }),
 );
 
-<I18nProvider i18n={i18n}>{/* ... */}</I18nProvider>;
+<I18nProvider i18n={i18n}>…</I18nProvider>;
 ```
 
 **Vue**
@@ -197,6 +200,7 @@ const i18n = createI18n({ locale: "en" }).with(
 import { createApp } from "vue";
 import { createI18n } from "@comvi/vue";
 import { cdnLoader } from "@comvi/plugin-fetch-loader/cdn";
+import App from "./App.vue";
 
 // `VueI18n` wraps a core host and exposes it as `readonly core`, which is
 // where installers and plugins go.
