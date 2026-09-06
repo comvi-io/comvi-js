@@ -348,6 +348,10 @@ export function createHostFactory(ts, { sdkRoot, mode, nodeTypes = false }) {
     // ambient `declare module "*.vue"` it fails on the boundary rather than on
     // its own code. vue-tsc sees the real component (sfc-check.mjs).
     rootNames.push(`${root}/src/shims.d.ts`);
+    // Nuxt's auto-imports are globals only where Nuxt is. Making them a root of
+    // every project would compile a React fence that calls `useI18n()` with no
+    // import — code the reader's build rejects.
+    if (project.isNuxt) rootNames.push(`${root}/src/nuxt-shims.d.ts`);
 
     return { host, options: projectOptions, root, own, rootNames };
   };
@@ -478,9 +482,16 @@ export function applyExpectError(diagnostics, projects) {
     byFence.set(diagnostic.fence, list);
   }
 
+  // Only fences this pass actually compiles can be held to `expect-error` here.
+  // A `vue` or `svelte` fence contributes no TypeScript diagnostics to a program
+  // that cannot parse it, so counting it made every SFC `check=expect-error`
+  // report `expect-error-missing` — an assertion that could never pass, on a
+  // fence `sfc-check.mjs` was already checking correctly. The SFC assertion
+  // lives there, once.
   const expectant = new Set();
   for (const project of projects) {
     for (const file of project.files.values()) {
+      if (!TS_LANGS.has(file.lang)) continue;
       if (file.fence.check.expectError) expectant.add(file.fence);
     }
   }

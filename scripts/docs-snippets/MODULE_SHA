@@ -1,3 +1,3 @@
 # Parity marker for scripts/docs-snippets — see module-sha.mjs.
 # Regenerate with: node scripts/docs-snippets/module-sha.mjs --write
-SNIPPETS_MODULE_SHA=ad37ad4bdb61ffdf4ff52f05ceab0fa53a9ffe6d4ef4b4d7c7056b2b8acd1ec0
+SNIPPETS_MODULE_SHA=11c5393ac04ceb17da1ecc80c596b9f18f2801b223272fb1b41236ef4bf630da

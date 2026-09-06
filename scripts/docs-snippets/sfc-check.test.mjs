@@ -270,3 +270,48 @@ test("an alias pointing at the wrong tab's file is still caught", () => {
   assert.match(result.findings[0].message, /TS2322/);
   fs.rmSync(dir, { recursive: true, force: true });
 });
+
+// ---------------------------------------------------------------------------
+// check=expect-error on an SFC fence. This is where the assertion lives, and it
+// has to be evaluated here exactly once.
+// ---------------------------------------------------------------------------
+
+test("an SFC expect-error fence whose error is real reports nothing", () => {
+  const body = [
+    "```vue check=expect-error",
+    '<script setup lang="ts">',
+    "import { t } from '@docs-probe/api';",
+    "const n: number = t('anything');",
+    "</script>",
+    "<template><i>{{ n }}</i></template>",
+    "```",
+  ].join("\n");
+  const dir = probeRoot();
+
+  const result = sfcCheckDocuments({ sources: page(body), sdkRoot: dir });
+
+  assert.deepEqual(result.findings, []);
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test("an SFC expect-error fence that compiles clean is reported once, by this pass", () => {
+  const body = [
+    "```vue check=expect-error",
+    '<script setup lang="ts">',
+    "import { t } from '@docs-probe/api';",
+    "const n: string = t('anything');",
+    "</script>",
+    "<template><i>{{ n }}</i></template>",
+    "```",
+  ].join("\n");
+  const dir = probeRoot();
+
+  const result = sfcCheckDocuments({ sources: page(body), sdkRoot: dir });
+
+  assert.deepEqual(
+    result.findings.map((finding) => finding.rule),
+    ["typecheck/expect-error-missing"],
+  );
+  assert.equal(result.findings[0].line, 5);
+  fs.rmSync(dir, { recursive: true, force: true });
+});

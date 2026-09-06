@@ -76,15 +76,23 @@ export function resolveTool(name, roots) {
   return null;
 }
 
-/** Copy the fixture tree into a project directory, never over a page's own file. */
-function copyFixtures(from, to) {
+/**
+ * Copy the fixture tree into a project directory, never over a page's own file.
+ *
+ * `skip` holds the fixtures this project must NOT have. The tsconfig written
+ * beside them includes everything in the directory, so a copied file is a root
+ * — and `nuxt-shims.d.ts` in a React project would hand it `useI18n()` as a
+ * global that the reader's build does not have.
+ */
+function copyFixtures(from, to, skip = new Set()) {
   for (const entry of fs.readdirSync(from, { withFileTypes: true })) {
     if (entry.name === "README.md") continue;
+    if (skip.has(entry.name)) continue;
     const source = path.join(from, entry.name);
     const target = path.join(to, entry.name);
     if (entry.isDirectory()) {
       fs.mkdirSync(target, { recursive: true });
-      copyFixtures(source, target);
+      copyFixtures(source, target, skip);
     } else if (!fs.existsSync(target)) {
       fs.copyFileSync(source, target);
     }
@@ -203,7 +211,7 @@ function materialize(pageDir, projects, sdkRoot) {
       fs.writeFileSync(target, file.content);
       written.set(path.resolve(target), file);
     }
-    copyFixtures(FIXTURE_ROOT, dir);
+    copyFixtures(FIXTURE_ROOT, dir, project.isNuxt ? new Set() : new Set(["nuxt-shims.d.ts"]));
     // SvelteKit's `./$types` is reached through `rootDirs` in a real project;
     // here the stub is dropped beside the routes that import it. Copying stays
     // the choice even now that each project has its own tsconfig: a relative

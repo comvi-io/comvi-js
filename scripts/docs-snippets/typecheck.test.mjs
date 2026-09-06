@@ -4,6 +4,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { buildProjects, mapPosition, titleToPath } from "./project.mjs";
+import { createHostFactory, loadTypeScript } from "./typecheck.mjs";
 import { createTypecheckContext, typecheckDocument } from "./typecheck.mjs";
 import { extractFences } from "./extract.mjs";
 import { lintDocument } from "./lint.mjs";
@@ -675,4 +676,214 @@ test("a TS2304 nobody declares anywhere carries no such label", () => {
   const found = errors(check(body));
   assert.equal(found.length, 1);
   assert.equal(found[0].cause, undefined);
+});
+
+// ---------------------------------------------------------------------------
+// expect-error on an SFC fence. The TS pass compiles no SFC, so holding one to
+// an assertion it cannot evaluate made every such fence permanently red.
+// ---------------------------------------------------------------------------
+
+test("the TS pass does not claim an SFC expect-error fence compiled clean", () => {
+  // It contributes zero diagnostics to a program that cannot parse it. Counting
+  // it produced `expect-error-missing` on a fence sfc-check.mjs was already
+  // checking correctly — an assertion with no way to pass.
+  //
+  // The TS fence beside it is what makes this reproduce: a project with no TS
+  // fence at all is skipped before the assertion runs, so the bug only ever
+  // showed on the shape the corpus actually has — an SFC anti-pattern fence in a
+  // tab that also sets the host up (`packages/nuxt/README.md:433`,
+  // `packages/svelte/README.md:558`).
+  const body = [
+    "```ts title='src/i18n.ts'",
+    "export const i18n = { t: (k: string) => k };",
+    "```",
+    "",
+    "```vue check=expect-error",
+    '<script setup lang="ts">',
+    "const n: number = 'not a number';",
+    "</script>",
+    "```",
+  ].join("\n");
+
+  assert.deepEqual(errors(check(body)), []);
+});
+
+test("the TS pass still claims a ts expect-error fence that compiled clean", () => {
+  // The negative half: narrowing the rule to TS fences must not switch it off.
+  const body = ["```ts check=expect-error", "export const n: number = 1;", "```"].join("\n");
+
+  assert.deepEqual(
+    errors(check(body)).map((finding) => finding.rule),
+    ["typecheck/expect-error-missing"],
+  );
+});
+
+// ---------------------------------------------------------------------------
+// Nuxt auto-imports: globals where Nuxt is, and nowhere else.
+// ---------------------------------------------------------------------------
+
+test("a project importing @comvi/nuxt is a Nuxt project", () => {
+  const source = [
+    "```ts",
+    "import { defineComviSetup } from '@comvi/nuxt/setup';",
+    "export default defineComviSetup(() => {});",
+    "```",
+  ].join("\n");
+  const { projects } = buildProjects(extractFences(source, "p.mdx").fences);
+
+  assert.equal(projects[0].isNuxt, true);
+});
+
+test("a project carrying a nuxt.config.ts is a Nuxt project even with no import", () => {
+  const source = [
+    "```ts title='nuxt.config.ts'",
+    "export default defineNuxtConfig({ modules: ['@comvi/nuxt'] });",
+    "```",
+  ].join("\n");
+  const { projects } = buildProjects(extractFences(source, "p.mdx").fences);
+
+  assert.equal(projects[0].isNuxt, true);
+});
+
+test("a React project in a neighbouring tab is not", () => {
+  // `ssr.mdx` puts a Nuxt tab beside a Next one. A React fence that silently
+  // gained `useI18n()` as a global would compile where a reader's would not.
+  const source = [
+    "<TabItem label='Nuxt'>",
+    "```ts",
+    "import { defineComviSetup } from '@comvi/nuxt/setup';",
+    "export default defineComviSetup(() => {});",
+    "```",
+    "</TabItem>",
+    "<TabItem label='React'>",
+    "```tsx",
+    "import { useI18n } from '@comvi/react';",
+    "export const App = () => <p>{useI18n().t('hello')}</p>;",
+    "```",
+    "</TabItem>",
+  ].join("\n");
+  const { projects } = buildProjects(extractFences(source, "p.mdx").fences);
+
+  assert.deepEqual(
+    projects.map((project) => project.isNuxt),
+    [true, false],
+  );
+});
+
+test("only a Nuxt project gets the auto-import shim as a compilation root", () => {
+  const ts = loadTypeScript();
+  const make = createHostFactory(ts, { sdkRoot, mode: "bundler" });
+  const file = {
+    rel: "src/a.ts",
+    lang: "ts",
+    content: "export const a = 1;\n",
+    lines: [],
+    fence: { line: 1, col: 1, check: {} },
+  };
+
+  const nuxt = make({
+    id: "p0",
+    pageSlug: "x",
+    isNuxt: true,
+    files: new Map([["src/a.ts", file]]),
+  });
+  const plain = make({
+    id: "p1",
+    pageSlug: "x",
+    isNuxt: false,
+    files: new Map([["src/a.ts", file]]),
+  });
+
+  assert.ok(nuxt.rootNames.some((name) => name.endsWith("/src/nuxt-shims.d.ts")));
+  assert.ok(!plain.rootNames.some((name) => name.endsWith("/src/nuxt-shims.d.ts")));
+  // The SFC shims stay a root of both.
+  assert.ok(plain.rootNames.some((name) => name.endsWith("/src/shims.d.ts")));
+});
+
+test("the shim declares exactly the composables the Nuxt module auto-imports", () => {
+  // The module's `addImports` list is the source of truth, and a composable
+  // added there without a line here is a fence that fails on the one symbol the
+  // page is about.
+  const module = fs.readFileSync(path.join(REPO_ROOT, "packages/nuxt/src/module.ts"), "utf8");
+  const block = module.slice(module.indexOf("addImports(["));
+  const registered = [...block.slice(0, block.indexOf("]);")).matchAll(/name:\s*"([^"]+)"/g)].map(
+    (match) => match[1],
+  );
+  const shim = fs.readFileSync(
+    path.join(REPO_ROOT, "scripts/docs-snippets/fixtures/src/nuxt-shims.d.ts"),
+    "utf8",
+  );
+
+  assert.ok(
+    registered.length >= 8,
+    `expected the module to register composables, got ${registered}`,
+  );
+  for (const name of registered) {
+    assert.match(shim, new RegExp(`\\bconst ${name}:`), `nuxt-shims.d.ts is missing ${name}`);
+  }
+});
+
+// ---------------------------------------------------------------------------
+// A repeated `title=` with no `check=group=`. Map.set would overwrite; the
+// second fence must get a project of its own instead of vanishing.
+// ---------------------------------------------------------------------------
+
+test("two ungrouped fences sharing a title on a tab-less page both survive", () => {
+  const source = [
+    "```ts title='src/i18n.ts'",
+    "export const flavour = 'before' as const;",
+    "```",
+    "",
+    "```ts title='src/i18n.ts'",
+    "export const flavour = 'after' as const;",
+    "```",
+  ].join("\n");
+  const { projects } = buildProjects(extractFences(source, "p.mdx").fences);
+
+  assert.equal(projects.length, 2);
+  assert.deepEqual(
+    projects.map((project) => [...project.files.values()][0].fence.line),
+    [1, 5],
+  );
+  assert.match([...projects[1].files.values()][0].content, /'after'/);
+});
+
+test("two ungrouped fences sharing a title inside one <TabItem> both survive", () => {
+  const source = [
+    "<TabItem label='Vue'>",
+    "```ts title='src/i18n.ts'",
+    "export const flavour = 'before' as const;",
+    "```",
+    "",
+    "```ts title='src/i18n.ts'",
+    "export const flavour = 'after' as const;",
+    "```",
+    "</TabItem>",
+  ].join("\n");
+  const { projects } = buildProjects(extractFences(source, "p.mdx").fences);
+
+  assert.equal(projects.length, 2);
+  assert.match([...projects[0].files.values()][0].content, /'before'/);
+  assert.match([...projects[1].files.values()][0].content, /'after'/);
+});
+
+test("both halves of a repeated title are compiled, not just the last", () => {
+  // The failure this guards is silent: a dropped fence is a fence the gate
+  // reports zero findings for.
+  const body = [
+    "```ts title='src/i18n.ts'",
+    "export const bad: number = 'first';",
+    "```",
+    "",
+    "```ts title='src/i18n.ts'",
+    "export const bad: number = 'second';",
+    "```",
+  ].join("\n");
+
+  const found = errors(check(body));
+  assert.equal(found.length, 2);
+  assert.deepEqual(
+    found.map((finding) => finding.line),
+    [6, 10],
+  );
 });

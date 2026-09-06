@@ -213,8 +213,30 @@ export function buildProjects(fences, skipCategory = () => null) {
   }
 
   const kept = projects.filter((p) => p.files.size > 0);
-  for (const project of kept) applyJsxRuntime(project);
+  for (const project of kept) {
+    applyJsxRuntime(project);
+    project.isNuxt = isNuxtProject(project);
+  }
   return { projects: kept, skips };
+}
+
+/** A project is Nuxt's when it imports the module or configures it. */
+const NUXT_IMPORT = /(?:from|import)\s*\(?\s*["']@comvi\/nuxt(?:\/[^"']*)?["']/;
+
+/**
+ * Does this project run inside Nuxt?
+ *
+ * The question decides whether Nuxt's auto-imported composables are in scope,
+ * and it has to be answered per project rather than per page: `ssr.mdx` puts a
+ * Nuxt tab beside a Next tab, and a React fence that silently gained
+ * `useI18n()` as a global would compile where a reader's would not.
+ */
+function isNuxtProject(project) {
+  for (const file of project.files.values()) {
+    if (file.rel === "nuxt.config.ts" || file.rel.endsWith("/nuxt.config.ts")) return true;
+    if (NUXT_IMPORT.test(file.content)) return true;
+  }
+  return false;
 }
 
 /** Specifiers that mean the project's JSX is Solid's, not React's. */
