@@ -538,10 +538,16 @@ renders.
 ```
 
 ```ts
-t("messages", { count: 0 }); // ar: "لا توجد رسائل"      (zero form)
-t("messages", { count: 1 }); // en: "1 message"            uk: "1 повідомлення"
-t("messages", { count: 5 }); // en: "5 messages"           uk: "5 повідомлень"          ar: "5 رسائل"
-t("messages", { count: 22 }); // uk: "22 повідомлення"  ← the "few" form, NOT the "many" form
+import { useI18n } from "@comvi/react";
+
+function Inbox() {
+  const { t } = useI18n();
+
+  t("messages", { count: 0 }); // ar: "لا توجد رسائل"      (zero form)
+  t("messages", { count: 1 }); // en: "1 message"            uk: "1 повідомлення"
+  t("messages", { count: 5 }); // en: "5 messages"           uk: "5 повідомлень"          ar: "5 رسائل"
+  t("messages", { count: 22 }); // uk: "22 повідомлення"  ← the "few" form, NOT the "many" form
+}
 ```
 
 A naive English-style `count === 1 ? singular : plural` picks one Ukrainian form and ships it for every count — grammatically wrong for half your traffic.
@@ -553,21 +559,33 @@ A naive English-style `count === 1 ? singular : plural` picks one Ukrainian form
 ```
 
 ```ts
-t("rank", { place: 1 }); // "1st"
-t("rank", { place: 22 }); // "22nd"
-t("rank", { place: 113 }); // "113th"
+import { useI18n } from "@comvi/react";
+
+function Leaderboard() {
+  const { t } = useI18n();
+
+  t("rank", { place: 1 }); // "1st"
+  t("rank", { place: 22 }); // "22nd"
+  t("rank", { place: 113 }); // "113th"
+}
 ```
 
 ### Select (gender, role, status)
 
 ```json
-{ "greeting": "{gender, select, female {Welcome, madam} male {Welcome, sir} other {Welcome}}" }
+{ "salutation": "{gender, select, female {Welcome, madam} male {Welcome, sir} other {Welcome}}" }
 ```
 
 ```ts
-t("greeting", { gender: "female" }); // "Welcome, madam"
-t("greeting", { gender: "male" }); // "Welcome, sir"
-t("greeting", { gender: "other" }); // "Welcome"
+import { useI18n } from "@comvi/react";
+
+function Greeter() {
+  const { t } = useI18n();
+
+  t("salutation", { gender: "female" }); // "Welcome, madam"
+  t("salutation", { gender: "male" }); // "Welcome, sir"
+  t("salutation", { gender: "other" }); // "Welcome"
+}
 ```
 
 ### Locale-aware Intl formatters
@@ -602,10 +620,18 @@ Declaration merging on `TranslationKeys` provides autocomplete and parameter val
 
 ```typescript
 // src/types/i18n.d.ts
+import "@comvi/core"; // resolves the module before augmenting it
+
 declare module "@comvi/core" {
   interface TranslationKeys {
+    hello: never;
     welcome: { name: string };
-    greeting: never;
+    greeting: { name: string };
+    salutation: { gender: string };
+    help: never;
+    items: { count: number };
+    messages: { count: number };
+    rank: { place: number };
     "errors:NOT_FOUND": never;
   }
 }
@@ -621,7 +647,7 @@ function Welcome() {
   const msg = t("welcome", { name: "Alice" });
 
   // ✓ No params needed
-  const greeting = t("greeting");
+  const hello = t("hello");
 
   // ✓ Namespaced keys use the ns option
   const notFound = t("NOT_FOUND", { ns: "errors" });
@@ -632,7 +658,10 @@ function Welcome() {
 
 **What TypeScript catches:**
 
-```ts
+```ts check=expect-error
+import { useI18n } from "@comvi/react";
+const { t } = useI18n();
+
 // ✗ Expected 2 arguments, but got 1
 t("welcome");
 
