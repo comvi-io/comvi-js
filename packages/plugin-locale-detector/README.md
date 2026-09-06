@@ -131,7 +131,7 @@ const i18n = createI18n({ locale: "en", fallbackLocale: "en" }).with(
   }),
 );
 
-<I18nProvider i18n={i18n}>{/* ... */}</I18nProvider>;
+<I18nProvider i18n={i18n}>…</I18nProvider>;
 ```
 
 Same setup works in Solid and Svelte. Vue's `createI18n` returns a `VueI18n`

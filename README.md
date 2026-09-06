@@ -38,7 +38,7 @@
 
 - **Rich text without XSS.** Embed components into translations (`Click <link>here</link>`) without raw HTML strings or unsafe DOM injection.
 - **Same API across six frameworks.** `useI18n()` and the `<T>` component look the same in Vue, React, SolidJS, Svelte, Next.js, and Nuxt. All bindings ship together with the core — same version, same release cycle.
-- **ICU `plural`, `selectordinal` & `select`.** Locale-correct grammar for every language `Intl.PluralRules` supports, reached through one explicit import — `compiler: icuCompiler` from `@comvi/core/icu`. The `number` / `date` / `time` argument types and the plural `offset:` form are not implemented and are not planned — each one is an `E_ICU_SYNTAX` failure, never a wrong render. Numbers, dates, currency, and relative time are formatted via native `Intl` methods on the `i18n` instance.
+- **ICU `plural`, `selectordinal` & `select`.** Locale-correct grammar for every language `Intl.PluralRules` supports, reached through one explicit import — `compiler: icuCompiler` from `@comvi/core/icu`. The `number` / `date` / `time` argument types and the plural `offset:` form are not implemented and are not planned — each one is an `E_ICU_SYNTAX` failure, never a wrong render. Numbers, dates, currency, and relative time are formatted via native `Intl` by `formatNumber(i18n, …)` and friends — free functions on core, already bound to the render locale in every framework binding.
 - **~5 kB base host, ~8.5 kB fully composed (min+gz, as bundled by your app), zero dependencies.** On the platform CDN path — `cdnLoader` plus ICU — a whole app graph is ≈ 8.9 kB with `@comvi/core` and ≈ 10.5 kB with `@comvi/react`; `fetchLoader`, which carries the authenticated API path as well, is ≈ 10.8 kB on core. Every capability is an import you add, so an app carries only what it composes. No `eval` or `new Function` in any runtime package — works under a strict CSP without `unsafe-eval`.
 - **Pluggable loading & detection.** Translations come from inline objects, local JSON, or a CDN/API loader plugin — one `.with(cdnLoader({ … }))`, or `.with(fetchLoader({ … }))` when the app also reads the authenticated API. Locale detection (query, cookie, storage, `navigator`) is a separate plugin you opt into.
 - **Server-side rendering for Next.js & Nuxt.** `@comvi/next` ships an App Router `loadTranslations()` for server components, locale-routed layouts under `[locale]`, and a `createMiddleware()` for redirect-on-detect. `@comvi/nuxt` is a Nuxt 3 / 4 module with locale composables, middleware, and `<NuxtLinkLocale>`.
@@ -252,10 +252,25 @@ literal; for the plural `offset:` form, drop `offset:` and write the branches
 out.
 
 ```ts
-t("messages", { count: 1 }); // "You have 1 message"
-t("messages", { count: 5 }); // "You have 5 messages"
-t("rank", { place: 3 }); // "You finished 3rd"
-t("greeting", { gender: "female" }); // "Welcome, madam"
+import { createI18n } from "@comvi/core";
+import { icuCompiler } from "@comvi/core/icu";
+
+const i18n = createI18n({
+  locale: "en",
+  compiler: icuCompiler,
+  translation: {
+    en: {
+      messages: "{count, plural, one {You have # message} other {You have # messages}}",
+      rank: "You finished {place, selectordinal, one {#st} two {#nd} few {#rd} other {#th}}",
+      salutation: "{gender, select, female {Welcome, madam} male {Welcome, sir} other {Welcome}}",
+    },
+  },
+});
+
+i18n.t("messages", { count: 1 }); // "You have 1 message"
+i18n.t("messages", { count: 5 }); // "You have 5 messages"
+i18n.t("rank", { place: 3 }); // "You finished 3rd"
+i18n.t("salutation", { gender: "female" }); // "Welcome, madam"
 ```
 
 ICU is a composed capability, not a default. Name it once where you build the
@@ -271,17 +286,44 @@ best-effort, per process, never on cached renders.
 
 Numbers, dates, currency, and relative time — automatically follow the active locale via native `Intl`:
 
-```ts
-i18n.formatNumber(1234.5); // "1,234.5" · "1.234,5" · "1 234,5"
-i18n.formatNumber(0.75, { style: "percent" }); // "75%"
-i18n.formatDate(new Date(), { dateStyle: "long" }); // "January 15, 2025" · "15. Januar 2025"
-i18n.formatCurrency(99.99, "USD"); // "$99.99" · "99,99 $"
-i18n.formatRelativeTime(-2, "hour"); // "2 hours ago" · "vor 2 Stunden"
+On a core host they are free functions that take the host as their first
+argument — nothing is bolted onto the instance:
 
-i18n.dir; // "ltr" | "rtl" — handles script subtags (ku-Arab → rtl, ks-Deva → ltr)
+```ts
+import {
+  createI18n,
+  formatCurrency,
+  formatDate,
+  formatNumber,
+  formatRelativeTime,
+  getTextDirection,
+} from "@comvi/core";
+
+const i18n = createI18n({ locale: "en" });
+
+formatNumber(i18n, 1234.5); // "1,234.5" · "1.234,5" · "1 234,5"
+formatNumber(i18n, 0.75, { style: "percent" }); // "75%"
+formatDate(i18n, new Date(), { dateStyle: "long" }); // "January 15, 2025" · "15. Januar 2025"
+formatCurrency(i18n, 99.99, "USD"); // "$99.99" · "99,99 $"
+formatRelativeTime(i18n, -2, "hour"); // "2 hours ago" · "vor 2 Stunden"
+
+getTextDirection(i18n.locale); // "ltr" | "rtl" — handles script subtags (ku-Arab → rtl, ks-Deva → ltr)
 ```
 
-Reactive in every framework binding via `useI18n()`.
+Every framework binding hands the same four back off `useI18n()`, together with
+`dir` — but how _reactive_ they are differs, and the difference is in the
+bindings, not in core:
+
+| binding | formatters re-render on a locale change                                                                                                           | `dir`                        |
+| ------- | ------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------- |
+| React   | **yes** — bound to the tracked locale and passed explicitly (`react/src/useI18n.ts:273-277`, `useFormatters.ts:31-34`)                            | reactive                     |
+| Vue     | **yes** — they default to the reactive `locale` ref (`vue/src/VueI18n.ts:186-193`)                                                                | reactive (`ComputedRef`)     |
+| Svelte  | **no** — "plain functions, not stores" (`svelte/src/useI18n.ts:198`); they read `i18n.locale` once per call unless you pass a locale (`:287-292`) | reactive (a `derived` store) |
+| Solid   | **no** — they call core with the host and read no signal (`solid/src/useI18n.ts:249-252`); contrast `dir`, which does (`:253`)                    | reactive                     |
+
+In Svelte and Solid, put the formatter call where the locale is already tracked
+(a `$:`/`$derived`, a `createMemo`, or the template) or pass the locale
+yourself.
 
 ## Packages
 

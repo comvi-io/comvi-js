@@ -125,8 +125,12 @@ the catalog is still in flight — gate it on the `$isLoading` store from
 That init runs in a microtask, so nothing in the component can await it. To see
 a failure, pass `onError`:
 
-```svelte
-setI18nContext(i18n, { onError: (error) => reportToSentry(error) });
+```ts
+import { createI18n, setI18nContext } from "@comvi/svelte";
+
+const i18n = createI18n({ locale: "en" });
+
+setI18nContext(i18n, { onError: (error) => console.error("[i18n]", error) });
 ```
 
 The host's own `onError` (the `createI18n({ onError })` option) still reports
@@ -437,11 +441,16 @@ names come from `@comvi/svelte` — see
 }
 ```
 
-```ts
-t("messages", { count: 0 }); // ar: "لا توجد رسائل"      (zero form)
-t("messages", { count: 1 }); // en: "1 message"            uk: "1 повідомлення"
-t("messages", { count: 5 }); // en: "5 messages"           uk: "5 повідомлень"          ar: "5 رسائل"
-t("messages", { count: 22 }); // uk: "22 повідомлення"  ← the "few" form, NOT the "many" form
+```svelte
+<script lang="ts">
+  import { useI18n } from "@comvi/svelte";
+  const { t } = useI18n();
+
+  $t("messages", { count: 0 }); // ar: "لا توجد رسائل"      (zero form)
+  $t("messages", { count: 1 }); // en: "1 message"            uk: "1 повідомлення"
+  $t("messages", { count: 5 }); // en: "5 messages"           uk: "5 повідомлень"          ar: "5 رسائل"
+  $t("messages", { count: 22 }); // uk: "22 повідомлення"  ← the "few" form, NOT the "many" form
+</script>
 ```
 
 A naive English-style `count === 1 ? singular : plural` picks one Ukrainian form and ships it for every count — grammatically wrong for half your traffic.
@@ -452,22 +461,32 @@ A naive English-style `count === 1 ? singular : plural` picks one Ukrainian form
 { "rank": "{place, selectordinal, one {#st} two {#nd} few {#rd} other {#th}}" }
 ```
 
-```ts
-t("rank", { place: 1 }); // "1st"
-t("rank", { place: 22 }); // "22nd"
-t("rank", { place: 113 }); // "113th"
+```svelte
+<script lang="ts">
+  import { useI18n } from "@comvi/svelte";
+  const { t } = useI18n();
+
+  $t("rank", { place: 1 }); // "1st"
+  $t("rank", { place: 22 }); // "22nd"
+  $t("rank", { place: 113 }); // "113th"
+</script>
 ```
 
 ### Select (gender, role, status)
 
 ```json
-{ "greeting": "{gender, select, female {Welcome, madam} male {Welcome, sir} other {Welcome}}" }
+{ "salutation": "{gender, select, female {Welcome, madam} male {Welcome, sir} other {Welcome}}" }
 ```
 
-```ts
-t("greeting", { gender: "female" }); // "Welcome, madam"
-t("greeting", { gender: "male" }); // "Welcome, sir"
-t("greeting", { gender: "other" }); // "Welcome"
+```svelte
+<script lang="ts">
+  import { useI18n } from "@comvi/svelte";
+  const { t } = useI18n();
+
+  $t("salutation", { gender: "female" }); // "Welcome, madam"
+  $t("salutation", { gender: "male" }); // "Welcome, sir"
+  $t("salutation", { gender: "other" }); // "Welcome"
+</script>
 ```
 
 ### Locale-aware Intl formatters
@@ -503,19 +522,26 @@ With translation: `"items": "{count, plural, one {# item} other {# items}}"` and
 
 Declare translation keys once to type the core API and framework bindings. In Svelte, `tRaw` keeps the typed overloads from core; `$t` is the string convenience store and accepts string keys.
 
-```typescript
+```typescript check=group=typed-keys
 // src/types/i18n.d.ts
+import "@comvi/core"; // resolves the module before augmenting it
+
 declare module "@comvi/core" {
   interface TranslationKeys {
     welcome: { name: string }; // name param required
-    greeting: never; // no params
+    greeting: { name: string };
+    salutation: { gender: string };
+    help: never;
+    legal: never;
     items: { count: number };
-    "errors:NOT_FOUND": never;
+    messages: { count: number };
+    rank: { place: number };
+    "errors:NOT_FOUND": never; // no params
   }
 }
 ```
 
-```svelte
+```svelte check=group=typed-keys
 <script lang="ts">
   import { useI18n } from "@comvi/svelte";
   const { tRaw } = useI18n();
@@ -529,18 +555,31 @@ declare module "@comvi/core" {
 
 **What TypeScript catches:**
 
-```ts
-// ✗ Expected 2 arguments, but got 1
-$tRaw("welcome");
+```svelte check=group=typed-keys check=expect-error
+<script lang="ts">
+  import { useI18n } from "@comvi/svelte";
+  const { tRaw } = useI18n();
 
-// ✗ Property 'name' is missing in type '{ age: number }'
-$tRaw("welcome", { age: 5 });
+  // ✗ TS2345 — Argument of type '"welcome"' is not assignable to parameter of type
+  //   'never'. `welcome` declares a required param, so the key-only overload is out.
+  $tRaw("welcome");
+</script>
+```
 
-// ✗ Type 'number' is not assignable to type 'string'
-$tRaw("welcome", { name: 42 });
+```svelte check=group=typed-keys check=expect-error
+<script lang="ts">
+  import { useI18n } from "@comvi/svelte";
+  const { tRaw } = useI18n();
 
-// ✗ Argument of type '"typo"' is not assignable to parameter
-$tRaw("typo", { name: "Alice" });
+  // ✗ TS2769 (no overload matches) — Property 'name' is missing in type '{ age: number }'
+  $tRaw("welcome", { age: 5 });
+
+  // ✗ TS2769 (no overload matches) — Type 'number' is not assignable to type 'string'
+  $tRaw("welcome", { name: 42 });
+
+  // ✗ TS2769 (no overload matches) — '"typo"' is not a declared key
+  $tRaw("typo", { name: "Alice" });
+</script>
 ```
 
 Auto-generate these types from the Comvi platform via `@comvi/cli` or from local JSON with `@comvi/vite-plugin`.
@@ -580,7 +619,7 @@ For server-side rendering, create a **per-request** i18n instance — never shar
 
 Load the translations (which are serializable) in a `load` function, then construct the per-request instance in `+layout.svelte` from that data. A `load` function's return value crosses the server→client boundary and is serialized with `devalue`, so it must **not** return the i18n instance itself — a class instance can't be serialized and SvelteKit will throw. Return plain data and build the instance in the component, which runs once per request on the server and once on the client.
 
-```ts
+```ts title="src/routes/+layout.ts"
 // src/routes/+layout.ts
 import type { LayoutLoad } from "./$types";
 
@@ -598,10 +637,11 @@ export const load: LayoutLoad = async ({ fetch }) => {
 <!-- src/routes/+layout.svelte -->
 <script lang="ts">
   import { createI18n, setI18nContext } from "@comvi/svelte";
+  import type { TranslationValue } from "@comvi/core";
   import type { Snippet } from "svelte";
 
   let { data, children }: {
-    data: { locale: string; messages: Record<string, unknown> };
+    data: { locale: string; messages: Record<string, TranslationValue> };
     children: Snippet;
   } = $props();
 

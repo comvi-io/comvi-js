@@ -179,6 +179,7 @@ construction expression instead of a wrapper around it.
 import { createI18n } from "@comvi/core";
 import { loader } from "@comvi/core/loader";
 import { plugins } from "@comvi/core/plugins";
+import { LocaleDetector } from "@comvi/plugin-locale-detector";
 
 const i18n = createI18n({
   locale: "en",
@@ -188,7 +189,7 @@ const i18n = createI18n({
   .with(loader({ uk: () => import("./uk.json") }))
   .with(plugins());
 
-i18n.use(SomePlugin());
+i18n.use(LocaleDetector({ supportedLocales: ["en", "uk"] }));
 
 await i18n.init();
 i18n.t("greeting", { name: "Alice" }); // "Hello, Alice!"
@@ -199,6 +200,9 @@ installers already — `.with(attachLoader)` works, and it is what you want for 
 host you will hand a plain `LoaderFn`:
 
 ```ts
+import { createI18n } from "@comvi/core";
+import { attachLoader } from "@comvi/core/loader";
+
 const i18n = createI18n({ locale: "en" }).with(attachLoader);
 i18n.registerLoader(async (locale, ns) => (await fetch(`/i18n/${locale}/${ns}.json`)).json());
 ```
@@ -293,6 +297,13 @@ only where `<` is syntax. With no tag extension there is nothing to escape from,
 are ordinary characters and `t()` returns them verbatim.
 
 ```ts
+import { createI18n } from "@comvi/core";
+
+const i18n = createI18n({
+  locale: "en",
+  translation: { en: { legal: "a &lt;b&gt; &amp; c" } },
+});
+
 i18n.t("legal"); // "a &lt;b&gt; &amp; c"  — with a tag extension: "a <b> & c"
 ```
 
@@ -308,8 +319,15 @@ graph: `t()` always returns a string (parts are coerced), `tRaw()` preserves
 them as a parts array.
 
 ```ts
-i18n.t("greeting", { who: someVNode }); // string — coerced
-i18n.tRaw("greeting", { who: someVNode }); // ["Hi, ", someVNode, "!"]
+import { createI18n } from "@comvi/core";
+import type { VirtualNode } from "@comvi/core";
+
+const i18n = createI18n({ locale: "en", translation: { en: { hi: "Hi, {who}!" } } });
+
+const someVNode: VirtualNode = { type: "text", text: "Alice" };
+
+i18n.t("hi", { who: someVNode }); // string — coerced
+i18n.tRaw("hi", { who: someVNode }); // ["Hi, ", someVNode, "!"]
 ```
 
 ### The base host wants flat catalogs
@@ -319,6 +337,10 @@ constructor) takes catalogs keyed by locale or `"locale:namespace"`, whose value
 **flat** — dot-notation keys, string values:
 
 ```ts
+import { createI18n } from "@comvi/core";
+
+const i18n = createI18n({ locale: "en" });
+
 i18n.addTranslations({
   en: { "nav.home": "Home" },
   "en:admin": { "nav.home": "Admin home" },
@@ -330,7 +352,10 @@ where raw JSON arrives. So nested input works on any host with the loader compos
 on a base host it needs one call, and development says so:
 
 ```ts
+import { createI18n } from "@comvi/core";
 import { flattenCatalog } from "@comvi/core/loader";
+
+const i18n = createI18n({ locale: "en" });
 
 i18n.addTranslations({ en: flattenCatalog({ nav: { home: "Home" } }) }); // -> "nav.home"
 ```
@@ -364,7 +389,7 @@ composes all five capabilities plus a tag extension, which is what a 0.4 compose
 
 ### Plurals across languages
 
-```json
+```json title="src/locales/messages.json"
 {
   "en": { "messages": "{count, plural, one {# message} other {# messages}}" },
   "uk": {
@@ -377,6 +402,12 @@ composes all five capabilities plus a tag extension, which is what a 0.4 compose
 ```
 
 ```ts
+import { createI18n } from "@comvi/core";
+import { icuCompiler } from "@comvi/core/icu";
+import translation from "./locales/messages.json";
+
+const i18n = createI18n({ locale: "en", compiler: icuCompiler, translation });
+
 i18n.t("messages", { count: 0 }); // ar: "لا توجد رسائل"      (zero form)
 i18n.t("messages", { count: 1 }); // en: "1 message"            uk: "1 повідомлення"
 i18n.t("messages", { count: 5 }); // en: "5 messages"           uk: "5 повідомлень"          ar: "5 رسائل"
@@ -387,11 +418,17 @@ A naive English-style `count === 1 ? singular : plural` picks one Ukrainian form
 
 ### Ordinals (1st, 2nd, 3rd…)
 
-```json
+```json title="src/locales/rank.json"
 { "rank": "{place, selectordinal, one {#st} two {#nd} few {#rd} other {#th}}" }
 ```
 
 ```ts
+import { createI18n } from "@comvi/core";
+import { icuCompiler } from "@comvi/core/icu";
+import en from "./locales/rank.json";
+
+const i18n = createI18n({ locale: "en", compiler: icuCompiler, translation: { en } });
+
 i18n.t("rank", { place: 1 }); // "1st"
 i18n.t("rank", { place: 22 }); // "22nd"
 i18n.t("rank", { place: 113 }); // "113th"
@@ -399,52 +436,93 @@ i18n.t("rank", { place: 113 }); // "113th"
 
 ### Select (gender, role, status)
 
-```json
-{ "greeting": "{gender, select, female {Welcome, madam} male {Welcome, sir} other {Welcome}}" }
+```json title="src/locales/salutation.json"
+{ "salutation": "{gender, select, female {Welcome, madam} male {Welcome, sir} other {Welcome}}" }
 ```
 
 ```ts
-i18n.t("greeting", { gender: "female" }); // "Welcome, madam"
-i18n.t("greeting", { gender: "male" }); // "Welcome, sir"
-i18n.t("greeting", { gender: "other" }); // "Welcome"
+import { createI18n } from "@comvi/core";
+import { icuCompiler } from "@comvi/core/icu";
+import en from "./locales/salutation.json";
+
+const i18n = createI18n({ locale: "en", compiler: icuCompiler, translation: { en } });
+
+i18n.t("salutation", { gender: "female" }); // "Welcome, madam"
+i18n.t("salutation", { gender: "male" }); // "Welcome, sir"
+i18n.t("salutation", { gender: "other" }); // "Welcome"
 ```
 
 ### Locale-aware Intl formatters
 
 Numbers, dates, currency, and relative time follow the active locale via native `Intl`:
 
+They are free functions that take the host, not members of it — nothing is
+bolted onto the instance, so a graph that never formats never pays for it:
+
 ```ts
-await i18n.setLocale("de");
+import {
+  createI18n,
+  formatCurrency,
+  formatDate,
+  formatNumber,
+  formatRelativeTime,
+  getTextDirection,
+} from "@comvi/core";
 
-i18n.formatNumber(1234.5); // "1.234,5"
-i18n.formatCurrency(99.99, "USD"); // "99,99 $"
-i18n.formatDate(new Date(), { dateStyle: "long" }); // "15. Januar 2025"
-i18n.formatRelativeTime(-2, "hour"); // "vor 2 Stunden"
+const i18n = createI18n({ locale: "en" });
 
-i18n.dir; // "ltr" | "rtl" — handles script subtags (ku-Arab → rtl, ks-Deva → ltr)
+await i18n.setLocaleAsync("de"); // or the synchronous setter: i18n.locale = "de"
+
+formatNumber(i18n, 1234.5); // "1.234,5"
+formatCurrency(i18n, 99.99, "USD"); // "99,99 $"
+formatDate(i18n, new Date(), { dateStyle: "long" }); // "15. Januar 2025"
+formatRelativeTime(i18n, -2, "hour"); // "vor 2 Stunden"
+
+getTextDirection(i18n.locale); // "ltr" | "rtl" — handles script subtags (ku-Arab → rtl, ks-Deva → ltr)
 ```
+
+Every framework binding hands the same four back off `useI18n()`, together with
+`dir` — but how _reactive_ they are differs, and the difference is in the
+bindings, not in core:
+
+| binding | formatters re-render on a locale change                                                                                                           | `dir`                        |
+| ------- | ------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------- |
+| React   | **yes** — bound to the tracked locale and passed explicitly (`react/src/useI18n.ts:273-277`, `useFormatters.ts:31-34`)                            | reactive                     |
+| Vue     | **yes** — they default to the reactive `locale` ref (`vue/src/VueI18n.ts:186-193`)                                                                | reactive (`ComputedRef`)     |
+| Svelte  | **no** — "plain functions, not stores" (`svelte/src/useI18n.ts:198`); they read `i18n.locale` once per call unless you pass a locale (`:287-292`) | reactive (a `derived` store) |
+| Solid   | **no** — they call core with the host and read no signal (`solid/src/useI18n.ts:249-252`); contrast `dir`, which does (`:253`)                    | reactive                     |
+
+In Svelte and Solid, put the formatter call where the locale is already tracked
+(a `$:`/`$derived`, a `createMemo`, or the template) or pass the locale
+yourself.
 
 ## Type-safe translation keys
 
 Declaration merging on `TranslationKeys` provides autocomplete and parameter validation per key. Generated automatically via [`@comvi/cli`](../cli) (TMS) or [`@comvi/vite-plugin`](../vite-plugin) (local JSON).
 
-```typescript
+```typescript check=group=typed-keys
 // src/types/i18n.d.ts
+import "@comvi/core"; // resolves the module before augmenting it
+
 declare module "@comvi/core" {
   interface TranslationKeys {
     welcome: { name: string };
-    greeting: never;
+    hello: never;
     "errors:NOT_FOUND": never;
   }
 }
 ```
 
-```ts
+```ts check=group=typed-keys
+import { createI18n } from "@comvi/core";
+
+const i18n = createI18n({ locale: "en" });
+
 // ✓ Compiles — params shape matches the declaration
 i18n.t("welcome", { name: "Alice" });
 
 // ✓ No params needed
-i18n.t("greeting");
+i18n.t("hello");
 
 // ✓ Namespaced keys use the ns option
 i18n.t("NOT_FOUND", { ns: "errors" });
@@ -452,17 +530,28 @@ i18n.t("NOT_FOUND", { ns: "errors" });
 
 **What TypeScript catches:**
 
-```ts
-// ✗ Expected 2 arguments, but got 1
-i18n.t("welcome");
+```ts check=group=typed-keys check=expect-error=TS2345
+import { createI18n } from "@comvi/core";
 
-// ✗ Property 'name' is missing in type '{ age: number }'
+const i18n = createI18n({ locale: "en" });
+
+// ✗ TS2345 — Argument of type '"welcome"' is not assignable to parameter of type
+//   'never'. `welcome` declares a required param, so the key-only overload is out.
+i18n.t("welcome");
+```
+
+```ts check=group=typed-keys check=expect-error=TS2769
+import { createI18n } from "@comvi/core";
+
+const i18n = createI18n({ locale: "en" });
+
+// ✗ TS2769 (no overload matches) — Property 'name' is missing in type '{ age: number }'
 i18n.t("welcome", { age: 5 });
 
-// ✗ Type 'number' is not assignable to type 'string'
+// ✗ TS2769 (no overload matches) — Type 'number' is not assignable to type 'string'
 i18n.t("welcome", { name: 42 });
 
-// ✗ Argument of type '"typo"' is not assignable to parameter
+// ✗ TS2769 (no overload matches) — '"typo"' is not a declared key
 i18n.t("typo", { name: "Alice" });
 ```
 

@@ -54,7 +54,7 @@ Upgrading from v0.2.x? See the [CHANGELOG](./CHANGELOG.md).
 
 ## Quick start
 
-```ts
+```ts title="src/i18n/config.ts"
 // src/i18n/config.ts
 import { createNextI18n } from "@comvi/next";
 
@@ -74,7 +74,7 @@ nextI18n.i18n.registerLoader({
 export const { i18n, routing } = nextI18n;
 ```
 
-```ts
+```ts title="src/i18n/server.ts"
 // src/i18n/server.ts
 import "server-only";
 import { setI18n } from "@comvi/next/server";
@@ -83,7 +83,7 @@ import { i18n } from "./config";
 setI18n(i18n);
 ```
 
-```tsx
+```tsx title="src/i18n/ComviProvider.tsx"
 // src/i18n/ComviProvider.tsx
 "use client";
 
@@ -107,7 +107,7 @@ export function ComviProvider({
 }
 ```
 
-```ts
+```ts title="src/middleware.ts"
 // src/middleware.ts
 import { createMiddleware } from "@comvi/next/middleware";
 import { routing } from "./i18n/config";
@@ -118,9 +118,9 @@ export const config = { matcher: ["/((?!api|_next|.*\\..*).*)"] };
 
 The full setup also includes a `[locale]/layout.tsx` that imports the server registration once, calls `loadTranslations(locale)`, and renders the client wrapper above. See the [documentation](https://comvi.io/docs/i18n/next/) for locale-aware `<Link>`, `useLocalizedRouter`, server/client subpath imports, and the lazy-plugin API.
 
-## Optimizations in v0.3
+## Rendering behaviour
 
-**Routing components now use `useLocale()`** — `<Link>`, `usePathname()`, and `useLocalizedRouter()` internally switched to the new `useLocale()` hook in v0.3. No behavior change for consumers; routing continues to work identically. Under the hood, this means locale-aware routing skips re-renders on namespace loads and loading-state changes (measurement-confirmed P1 performance improvement).
+**Routing components now use `useLocale()`** — `<Link>`, `usePathname()`, and `useLocalizedRouter()` internally switched to the `useLocale()` hook in v0.3 and still use it. No behavior change for consumers; routing continues to work identically. Under the hood, this means locale-aware routing skips re-renders on namespace loads and loading-state changes (measurement-confirmed P1 performance improvement).
 
 **Render-time mutation removed** — The internal `i18n.locale` assignment and `i18n.addTranslations()` calls that used to happen in `<I18nProvider>`'s render body have been moved into a `useState` initializer. The server render never writes the shared host's locale; the client applies it before its first commit. No API change — `<I18nProvider>` props work identically, and the request locale still reaches every hook and `<T>` through the provider.
 
@@ -132,9 +132,13 @@ Two writes still travel from a request to the shared instance, both deliberate, 
 
 Wrap the client provider in an Error Boundary to handle initialization failures:
 
-```tsx
+```tsx title="src/i18n/ComviProvider.tsx"
+// src/i18n/ComviProvider.tsx
+"use client";
+
 import React from "react";
-import { I18nProvider } from "@comvi/next/client";
+import { I18nProvider, type MessagesMap } from "@comvi/next/client";
+import { i18n, routing } from "./config";
 
 class I18nErrorBoundary extends React.Component<
   { children: React.ReactNode },
@@ -332,8 +336,12 @@ depends on **where the catalog comes from**. Both are exported from both
 // same call.
 import { createI18n, icuCompiler } from "@comvi/next/client";
 
-const i18n = createI18n({ locale: "en", compiler: icuCompiler, translation });
+const translation = { en: { items: "{count, plural, one {# item} other {# items}}" } };
 
+const i18n = createI18n({ locale: "en", compiler: icuCompiler, translation });
+```
+
+```tsx
 // LATER — a hydrated client catalog, or anything an SSR loader fetches:
 // install BEFORE the first catalog reaches the host.
 import { createI18n, icu, loader } from "@comvi/next/server";
@@ -492,18 +500,22 @@ See the [@comvi/react ICU section](../react#icu-messageformat--locale-correct-gr
 
 Extend the `TranslationKeys` interface via declaration merging for autocomplete and parameter validation. Type definitions can be generated automatically from the Comvi Platform via `@comvi/cli` or from local JSON files via `@comvi/vite-plugin`.
 
-```typescript
+```typescript check=group=typed-keys
 // src/types/i18n.d.ts
+import "@comvi/core"; // resolves the module before augmenting it
+
 declare module "@comvi/core" {
   interface TranslationKeys {
     welcome: { name: string };
     greeting: never;
+    help: never;
+    items: { count: number };
     "errors:NOT_FOUND": never;
   }
 }
 ```
 
-```tsx
+```tsx check=group=typed-keys
 import { useI18n } from "@comvi/next/client";
 
 export function Welcome() {
@@ -518,17 +530,26 @@ export function Welcome() {
 
 **What TypeScript catches:**
 
-```ts
-// ✗ Expected 2 arguments, but got 1
-t("welcome");
+```ts check=group=typed-keys check=expect-error=TS2345
+import { useI18n } from "@comvi/next/client";
+const { t } = useI18n();
 
-// ✗ Property 'name' is missing in type '{ age: number }'
+// ✗ TS2345 — Argument of type '"welcome"' is not assignable to parameter of type
+//   'never'. `welcome` declares a required param, so the key-only overload is out.
+t("welcome");
+```
+
+```ts check=group=typed-keys check=expect-error=TS2769
+import { useI18n } from "@comvi/next/client";
+const { t } = useI18n();
+
+// ✗ TS2769 (no overload matches) — Property 'name' is missing in type '{ age: number }'
 t("welcome", { age: 5 });
 
-// ✗ Type 'number' is not assignable to type 'string'
+// ✗ TS2769 (no overload matches) — Type 'number' is not assignable to type 'string'
 t("welcome", { name: 42 });
 
-// ✗ Argument of type '"typo"' is not assignable to parameter
+// ✗ TS2769 (no overload matches) — '"typo"' is not a declared key
 t("typo", { name: "Alice" });
 ```
 
