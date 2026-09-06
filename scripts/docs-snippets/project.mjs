@@ -15,8 +15,10 @@
  *   - `check=group=<id>` is explicit and pools document-wide, across tabs;
  *   - otherwise a `<TabItem>` body is one project, because two tabs are two apps;
  *   - and a repeated file name inside one project starts the next project, since
- *     a page that shows `src/i18n.ts` before and after a change is showing two
- *     apps too, and neither should be silently overwritten by the other.
+ *     a page that shows `src/i18n.ts` twice is showing two apps too, and neither
+ *     should be silently overwritten by the other — including when the two are
+ *     byte-identical, because the survivor carries only the second fence's line
+ *     numbers and the first becomes unreportable.
  *
  * A project is a directory layout, not yet a compilation: `typecheck.mjs` gives
  * it a compiler and `sfc-check.mjs` gives it a disk.
@@ -194,8 +196,12 @@ export function buildProjects(fences, skipCategory = () => null) {
 
     const key = projectKey(fence);
     let project = current.get(key);
-    const existing = project?.files.get(rel);
-    if (!project || (existing && existing.content !== content)) project = start(key);
+    // Any repeat of a file name starts the next project, not only a repeat whose
+    // content differs. Two byte-identical fences under one heading collapsed
+    // into a single file mapped to the SECOND of them, so the first fence's
+    // lines were in no project at all and a diagnostic could never be reported
+    // against them — silently, which is the worst way for a gate to be wrong.
+    if (!project || project.files.has(rel)) project = start(key);
 
     project.files.set(rel, {
       rel,
@@ -215,31 +221,61 @@ export function buildProjects(fences, skipCategory = () => null) {
   const kept = projects.filter((p) => p.files.size > 0);
   for (const project of kept) {
     applyJsxRuntime(project);
-    project.isNuxt = isNuxtProject(project);
+    const scope = nuxtScope(project);
+    project.isNuxt = scope.nuxt && scope.rivals.length === 0;
+    project.nuxtRivals = scope.nuxt && scope.rivals.length > 0 ? scope.rivals : null;
   }
   return { projects: kept, skips };
 }
 
-/** A project is Nuxt's when it imports the module or configures it. */
+/** The module, or the config file that registers it. */
 const NUXT_IMPORT = /(?:from|import)\s*\(?\s*["']@comvi\/nuxt(?:\/[^"']*)?["']/;
 
 /**
- * Does this project run inside Nuxt?
+ * Bindings that contradict Nuxt in one compilation unit.
  *
- * The question decides whether Nuxt's auto-imported composables are in scope,
- * and it has to be answered per project rather than per page: `ssr.mdx` puts a
- * Nuxt tab beside a Next tab, and a React fence that silently gained
- * `useI18n()` as a global would compile where a reader's would not.
+ * `@comvi/vue` is deliberately absent: Nuxt IS Vue, the module re-exports the
+ * Vue-side types, and `api/nuxt.mdx` imports both on purpose.
  */
-function isNuxtProject(project) {
+const RIVAL_BINDING =
+  /(?:from|import)\s*\(?\s*["']@comvi\/(next|react|svelte|solid)(?:\/[^"']*)?["']/;
+
+/**
+ * Whether Nuxt's auto-imported composables are in scope for this project, and
+ * what makes the answer ambiguous when it is.
+ *
+ * A `declare global` is per PROGRAM, so the question can only be asked of a
+ * whole compilation unit — and a compilation unit is not always a tab. A page
+ * with no `<Tabs>` is ONE project: `ssr.mdx` puts Next, Nuxt, SvelteKit and
+ * Solid fences under four `##` headings and they all land in `tab:0`. Asking
+ * "does this project contain any Nuxt fence" there answered yes and handed
+ * `useI18n()` to fourteen fences whose frameworks do not auto-import it, so
+ * they compiled while a reader's build would not.
+ *
+ * So the answer is yes only when Nuxt is the project's ONLY framework. When it
+ * is not, the shim is withheld and the ambiguity is reported: the author knows
+ * the sections apart and `check=group=` is how they say so.
+ *
+ * A `.tsx`/`.jsx` file counts as a rival on its own. A Nuxt app has no JSX, and
+ * a bare `useI18n()` in a `.tsx` under a `## Next.js` heading names no package
+ * at all — which is exactly the shape that has to be caught.
+ */
+function nuxtScope(project) {
+  let nuxt = false;
+  const rivals = new Set();
   for (const file of project.files.values()) {
-    if (file.rel === "nuxt.config.ts" || file.rel.endsWith("/nuxt.config.ts")) return true;
-    if (NUXT_IMPORT.test(file.content)) return true;
+    if (file.rel === "nuxt.config.ts" || file.rel.endsWith("/nuxt.config.ts")) nuxt = true;
+    if (NUXT_IMPORT.test(file.content)) nuxt = true;
+
+    const rival = file.content.match(RIVAL_BINDING);
+    if (rival) rivals.add(`@comvi/${rival[1]}`);
+    if (/\.[jt]sx$/.test(file.rel)) rivals.add(`a JSX file (${file.rel})`);
+    if (file.lang === "svelte") rivals.add("a .svelte component");
   }
-  return false;
+  return { nuxt, rivals: [...rivals].sort() };
 }
 
-/** Specifiers that mean the project's JSX is Solid's, not React's. */
+/** Specifiers that mean the project's JSX is Solid's, not React's. */ /** Specifiers that mean the project's JSX is Solid's, not React's. */
 const SOLID_IMPORT = /from\s+["'](?:solid-js|@solidjs\/[^"']+|@comvi\/solid)["']/;
 
 /**

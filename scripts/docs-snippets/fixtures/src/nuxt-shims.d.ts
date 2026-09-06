@@ -36,6 +36,17 @@ declare global {
   const useRouteConfig: typeof import("@comvi/nuxt/runtime/composables/useRouteConfig.js").useRouteConfig;
   const useSwitchLocalePath: typeof import("@comvi/nuxt/runtime/composables/useSwitchLocalePath.js").useSwitchLocalePath;
 
+  /**
+   * The SERVER utilities, registered by `addServerImportsDir` rather than
+   * `addImports` — a whole directory rather than a list, so every export of
+   * `runtime/server/utils/` is a global in a Nitro handler. Same status as the
+   * composables above and the same reason for being here.
+   */
+  const useTranslation: typeof import("@comvi/nuxt/runtime/server/utils/useTranslation.js").useTranslation;
+  const loadTranslations: typeof import("@comvi/nuxt/runtime/server/utils/loadTranslations.js").loadTranslations;
+  const getRequestI18n: typeof import("@comvi/nuxt/runtime/server/utils/request-i18n.js").getRequestI18n;
+  const getServerRuntimeConfig: typeof import("@comvi/nuxt/runtime/server/utils/runtime-config.js").getServerRuntimeConfig;
+
   /** Nuxt's own auto-imports, the handful the corpus's Nuxt fences reach for. */
   const defineNuxtConfig: typeof import("nuxt/config").defineNuxtConfig;
   const useRuntimeConfig: typeof import("nuxt/app").useRuntimeConfig;

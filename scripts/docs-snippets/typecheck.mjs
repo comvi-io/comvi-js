@@ -88,6 +88,19 @@ export const SYNTHETIC_PACKAGE_JSON = JSON.stringify(
   2,
 );
 
+/**
+ * Is `@types/node` installed under this SDK root?
+ *
+ * Both halves of the gate ask, and both must get the same answer: naming a
+ * types package that is not there is TS2688 on every project, and the SFC half
+ * hardcoding `["node"]` while the memory half conditioned on it meant an SDK
+ * root without Node types produced a wall of configuration errors from one half
+ * and none from the other.
+ */
+export function hasNodeTypes(sdkRoot) {
+  return fs.existsSync(path.join(sdkRoot, "node_modules", "@types", "node"));
+}
+
 /** `typescript` from the repo the module sits in — js-sdk here, www in the copy. */
 export function loadTypeScript() {
   return createRequire(import.meta.url)("typescript");
@@ -357,6 +370,14 @@ export function createHostFactory(ts, { sdkRoot, mode, nodeTypes = false }) {
   };
 }
 
+/**
+ * The one wording for a promised failure that did not happen. Shared with
+ * `sfc-check.mjs`: the same rule reported in two voices reads as two rules.
+ */
+export const EXPECT_ERROR_MISSING =
+  "check=expect-error says this fence must not compile, and it compiles clean. " +
+  "The API it demonstrates as wrong has become valid, or the fence lost the part that broke it.";
+
 /** `error TS2345` → `2345`; used to match `check=expect-error=TS2345`. */
 function parseExpectedCode(raw) {
   if (!raw) return null;
@@ -524,9 +545,7 @@ export function applyExpectError(diagnostics, projects) {
       line: fence.line,
       col: fence.col,
       rule: "typecheck/expect-error-missing",
-      message:
-        "check=expect-error says this fence must not compile, and it compiles clean. " +
-        "The API it demonstrates as wrong has become valid, or the fence lost the part that broke it.",
+      message: EXPECT_ERROR_MISSING,
       migration: null,
     });
   }
@@ -578,6 +597,27 @@ export function typecheckDocument({ file, source, context }) {
       // fence twice in one summary.
       if (TS_LANGS.has(f.lang)) stats.checkedFences += 1;
     }
+    // A compilation unit that mixes Nuxt with another framework cannot have
+    // Nuxt's auto-imports as globals — they would reach the other framework's
+    // fences too — and it cannot go without them either, or the Nuxt fences
+    // fail on the one symbol their section is about. Neither is right, so say
+    // so instead of picking one silently.
+    if (project.nuxtRivals) {
+      const first = [...project.files.values()][0];
+      findings.push({
+        file,
+        line: first.fence.line,
+        col: first.fence.col,
+        rule: "typecheck/nuxt-scope-ambiguous",
+        message:
+          `this compilation unit holds @comvi/nuxt fences alongside ${project.nuxtRivals.join(", ")}, ` +
+          "so Nuxt's auto-imported composables (useI18n, useLocalePath, …) are withheld: as globals " +
+          "they would reach the other framework's fences, which do not auto-import them. " +
+          "Put the Nuxt fences in their own check=group=<id>.",
+        migration: null,
+      });
+    }
+
     if (!project.hasTs) continue;
     stats.projects += 1;
 
@@ -640,7 +680,7 @@ export function createTypecheckContext({ sdkRoot, ts = loadTypeScript() }) {
         "(scripts/docs-snippets/link-sdk.mjs prints one built from the workspace).",
     );
   }
-  const nodeTypes = fs.existsSync(path.join(resolved, "node_modules", "@types", "node"));
+  const nodeTypes = hasNodeTypes(resolved);
   return {
     ts,
     sdkRoot: resolved,

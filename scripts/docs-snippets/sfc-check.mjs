@@ -32,7 +32,13 @@ import { fileURLToPath } from "node:url";
 import { extractFences } from "./extract.mjs";
 import { skipCategory } from "./lint.mjs";
 import { buildProjects, mapPosition } from "./project.mjs";
-import { FIXTURE_ROOT, SYNTHETIC_CATALOG, SYNTHETIC_PACKAGE_JSON } from "./typecheck.mjs";
+import {
+  EXPECT_ERROR_MISSING,
+  FIXTURE_ROOT,
+  SYNTHETIC_CATALOG,
+  SYNTHETIC_PACKAGE_JSON,
+  hasNodeTypes,
+} from "./typecheck.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 
@@ -125,7 +131,7 @@ function copyFixtures(from, to, skip = new Set()) {
  * kept the LAST, so `@/i18n` in the first tab resolved into the final tab's
  * directory. A path map with one owner cannot have a last one.
  */
-function tsconfigFor() {
+function tsconfigFor(nodeTypes) {
   return {
     compilerOptions: {
       strict: true,
@@ -141,9 +147,12 @@ function tsconfigFor() {
       checkJs: false,
       noEmit: true,
       skipLibCheck: true,
-      // Matches the memory driver: `@types/node` for the fences that import
-      // `node:fs/promises`, and nothing else automatic.
-      types: ["node"],
+      // Matches the memory driver exactly, condition included: `@types/node`
+      // for the fences that import `node:fs/promises`, and only when it is
+      // installed under the SDK root. Hardcoding it gave every SFC project
+      // TS2688 on a root without Node types — a diagnostic with no file, which
+      // `parseVueTscOutput` drops, so the projects simply came back clean.
+      types: nodeTypes ? ["node"] : [],
       paths: {
         "@/*": ["./src/*", "./*"],
         "~/*": ["./src/*", "./*"],
@@ -187,7 +196,7 @@ function writeSyntheticCatalogs(dir, project) {
  *
  * @returns a map from the written absolute path to the virtual file that made it
  */
-function materialize(pageDir, projects, sdkRoot) {
+function materialize(pageDir, projects, sdkRoot, nodeTypes) {
   fs.mkdirSync(pageDir, { recursive: true });
   // One symlink per page, not per project: resolution walks up from
   // `<page>/<project>/src/App.vue`, finds no `node_modules` in the project, and
@@ -224,7 +233,10 @@ function materialize(pageDir, projects, sdkRoot) {
       );
     }
     writeSyntheticCatalogs(dir, project);
-    fs.writeFileSync(path.join(dir, "tsconfig.json"), JSON.stringify(tsconfigFor(), null, 2));
+    fs.writeFileSync(
+      path.join(dir, "tsconfig.json"),
+      JSON.stringify(tsconfigFor(nodeTypes), null, 2),
+    );
   }
   return { written, dirs };
 }
@@ -332,12 +344,13 @@ export function sfcCheckDocuments({
     });
   }
 
+  const nodeTypes = hasNodeTypes(sdkRoot);
   const base = tmpBase ?? fs.mkdtempSync(path.join(os.tmpdir(), "comvi-docs-sfc-"));
   try {
     for (const page of pages) {
       const slug = page.file.replace(/[^A-Za-z0-9]+/g, "_");
       const pageDir = path.join(base, slug);
-      const { written, dirs } = materialize(pageDir, page.projects, sdkRoot);
+      const { written, dirs } = materialize(pageDir, page.projects, sdkRoot, nodeTypes);
       const stat = {
         file: page.file,
         sfcProjects: page.projects.length,
@@ -401,19 +414,24 @@ export function sfcCheckDocuments({
       }
 
       // `check=expect-error` on an SFC fence: the promised failure must happen.
-      const reported = new Set(raw.map((d) => path.resolve(d.file)));
-      for (const [target, virtual] of written) {
-        if (!virtual.fence.check.expectError) continue;
-        if (virtual.lang !== "vue" && virtual.lang !== "svelte") continue;
-        if (reported.has(target)) continue;
-        findings.push({
-          file: page.file,
-          line: virtual.fence.line,
-          col: virtual.fence.col,
-          rule: "typecheck/expect-error-missing",
-          message: "check=expect-error says this fence must not compile, and it compiles clean.",
-          migration: null,
-        });
+      // Only asked when the checker actually ran — with one missing, `raw` is
+      // empty because nothing compiled, and reporting "it compiles clean" about
+      // a fence nobody compiled stacks a second false finding on a real one.
+      if (missing.length === 0) {
+        const reported = new Set(raw.map((d) => path.resolve(d.file)));
+        for (const [target, virtual] of written) {
+          if (!virtual.fence.check.expectError) continue;
+          if (virtual.lang !== "vue" && virtual.lang !== "svelte") continue;
+          if (reported.has(target)) continue;
+          findings.push({
+            file: page.file,
+            line: virtual.fence.line,
+            col: virtual.fence.col,
+            rule: "typecheck/expect-error-missing",
+            message: EXPECT_ERROR_MISSING,
+            migration: null,
+          });
+        }
       }
     }
   } finally {

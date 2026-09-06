@@ -75,7 +75,7 @@ export const REPO_ROOT = path.resolve(HERE, "..", "..");
  * against. A name the workspace does not pin falls back to `latest`, which is
  * the honest answer for a package the repo has no opinion about.
  */
-export const FRAMEWORK_DEPS = [
+export const WORKSPACE_DEPS = [
   "react",
   "react-dom",
   "@types/react",
@@ -87,15 +87,33 @@ export const FRAMEWORK_DEPS = [
   // `nuxt` arrives anyway as an auto-installed peer of `@comvi/nuxt`, but the
   // peer range is `^3.0.0 || ^4.0.0` and pnpm resolved it to 4.5.2 while the
   // package is developed and tested against the `^3.21.4` its devDependencies
-  // pin. Naming it here pins it to the workspace's version, so the Nuxt
-  // auto-import shim is typed by the Nuxt the package is built against.
+  // pin. Naming it here pins it to the workspace's version.
   "nuxt",
   "@types/node",
   "vitest",
   "@testing-library/react",
-  "@testing-library/svelte",
   "@vue/test-utils",
 ];
+
+/**
+ * Packages the gate needs that the workspace has no reason to depend on.
+ *
+ * Every entry carries a literal version and a reason. The alternative was a
+ * phantom devDependency added to a js-sdk package that never imports it, which
+ * is a worse lie than the one it fixes: the workspace would claim to use
+ * something it does not, and the next person to prune unused dependencies would
+ * remove it and break the gate from a distance.
+ */
+export const EXPLICIT_DEPS = {
+  // `svelte.mdx` has one testing fence. No js-sdk package renders Svelte
+  // components in its own tests — `packages/svelte` tests the store surface —
+  // so there is nothing in the workspace to read a version from. 5.4.2 is what
+  // a temp install resolved; bump it deliberately.
+  "@testing-library/svelte": "^5.4.2",
+};
+
+/** Every name installed alongside `@comvi/*`, whichever way its version is decided. */
+export const FRAMEWORK_DEPS = [...WORKSPACE_DEPS, ...Object.keys(EXPLICIT_DEPS)];
 
 function run(command, args, options = {}) {
   const result = spawnSync(command, args, {
@@ -183,7 +201,7 @@ export function frameworkVersions(root = REPO_ROOT) {
     const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
     const pools = [manifest.dependencies, manifest.devDependencies, manifest.peerDependencies];
     for (const pool of pools) {
-      for (const name of FRAMEWORK_DEPS) {
+      for (const name of WORKSPACE_DEPS) {
         if (seen[name] || !pool?.[name]) continue;
         const range = pool[name];
         // A peer range like `>=18` is a compatibility statement, not a version
@@ -193,8 +211,21 @@ export function frameworkVersions(root = REPO_ROOT) {
       }
     }
   }
-  for (const name of FRAMEWORK_DEPS) if (!seen[name]) seen[name] = "latest";
-  return seen;
+  const unpinned = WORKSPACE_DEPS.filter((name) => !seen[name]);
+  if (unpinned.length > 0) {
+    // `latest` was the old fallback, and it makes the gate check the docs
+    // against whatever npm published this morning: a run that fails tomorrow
+    // for a reason nobody changed. If the workspace has no opinion about a
+    // package the gate installs, that is a gap in the workspace, not a default
+    // for this script to invent.
+    throw new Error(
+      `no version pinned anywhere in the workspace for: ${unpinned.join(", ")}. ` +
+        "Add it to the devDependencies of the package that needs it, or — if no package has a " +
+        "reason to depend on it — put it in EXPLICIT_DEPS with a literal version and a reason. " +
+        "The gate installs what the workspace is built against, never `latest`.",
+    );
+  }
+  return { ...seen, ...EXPLICIT_DEPS };
 }
 
 /**
@@ -240,7 +271,23 @@ export async function assertInstall(dir, packages) {
   if (!fs.existsSync(lockPath)) {
     throw new Error(`no pnpm-lock.yaml in ${dir} — the install did not run, or pnpm wrote none`);
   }
-  const strays = registryResolutions(fs.readFileSync(lockPath, "utf8"));
+  const lock = fs.readFileSync(lockPath, "utf8");
+  // Fail CLOSED. `comviResolutions` is a set of regexes over one lockfile
+  // format, and a lockfile it cannot read yields zero entries — which the stray
+  // filter below then reports as zero strays, i.e. green. A provenance check
+  // that passes because it understood nothing is worse than none, because it
+  // reads as evidence. Every package must be accounted for at least once.
+  const seen = new Set(comviResolutions(lock).map((entry) => entry.name));
+  const unaccounted = packages.filter((pkg) => !seen.has(pkg.name));
+  if (unaccounted.length > 0) {
+    throw new Error(
+      `the lockfile in ${dir} names no resolution for ${unaccounted.map((pkg) => pkg.name).join(", ")} ` +
+        `(${seen.size} of ${packages.length} packages parsed). Either the install did not happen, or ` +
+        "this is a lockfile format `comviResolutions` cannot read — in which case provenance was " +
+        "never checked and must not be reported as clean.",
+    );
+  }
+  const strays = registryResolutions(lock);
   if (strays.length > 0) {
     throw new Error(
       `${strays.length} @comvi resolution(s) came from the registry, not from a local tarball: ` +

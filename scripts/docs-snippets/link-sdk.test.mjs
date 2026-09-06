@@ -6,6 +6,9 @@ import path from "node:path";
 import {
   FRAMEWORK_DEPS,
   assertInstall,
+  EXPLICIT_DEPS,
+  WORKSPACE_DEPS,
+  frameworkVersions,
   assertTarballsFresh,
   cleanTarballs,
   installManifest,
@@ -261,4 +264,67 @@ test("the test runners are installed alongside, so guides/testing.mdx is judged 
     assert.ok(FRAMEWORK_DEPS.includes(name), name);
   }
   assert.ok(!FRAMEWORK_DEPS.includes("@playwright/test"));
+});
+
+test("a lockfile the parser cannot read fails CLOSED, not open", () => {
+  // v6 shape: no `packages:` keys of the `name@ref` form and no `specifier:`
+  // line. `comviResolutions` yields nothing, the stray filter finds no strays,
+  // and the install reads as verified — provenance reported clean by a check
+  // that understood none of it.
+  const v6 = [
+    "lockfileVersion: 6.0",
+    "",
+    "dependencies:",
+    "  '@comvi/core':",
+    "    version: 0.5.0",
+    "",
+  ].join("\n");
+  const dir = installedCore(scratch(), { lock: v6 });
+
+  return assert.rejects(
+    () => assertInstall(dir, [{ name: "@comvi/core", version: "0.5.0", dir: "" }]),
+    /names no resolution for @comvi\/core .*must not be reported as clean/s,
+  );
+});
+
+test("a lockfile missing one of several packages fails too", () => {
+  const dir = installedCore(scratch());
+
+  return assert.rejects(
+    () =>
+      assertInstall(dir, [
+        { name: "@comvi/core", version: "0.5.0", dir: "" },
+        { name: "@comvi/react", version: "0.5.0", dir: "" },
+      ]),
+    /names no resolution for @comvi\/react/,
+  );
+});
+
+test("an unpinned workspace dependency is an error, never `latest`", () => {
+  // `latest` makes the gate check the docs against whatever npm published this
+  // morning: a run that fails tomorrow for a reason nobody changed.
+  const dir = fakeWorkspace(scratch());
+
+  assert.throws(() => frameworkVersions(dir), /no version pinned anywhere in the workspace/);
+});
+
+test("an explicit dependency carries its own literal version and needs no workspace pin", () => {
+  // Nothing in js-sdk renders Svelte components in a test, so there is no
+  // devDependency to read `@testing-library/svelte` from — and adding a phantom
+  // one to a package that never imports it would be a worse lie, removed by the
+  // next person who prunes unused dependencies.
+  assert.match(EXPLICIT_DEPS["@testing-library/svelte"], /^\^?\d/);
+  for (const name of Object.keys(EXPLICIT_DEPS)) {
+    assert.ok(!WORKSPACE_DEPS.includes(name), `${name} is in both sets`);
+    assert.ok(FRAMEWORK_DEPS.includes(name));
+  }
+  assert.equal(
+    frameworkVersions()["@testing-library/svelte"],
+    EXPLICIT_DEPS["@testing-library/svelte"],
+  );
+});
+
+test("every name the gate installs is pinned by this workspace", () => {
+  // The guard above is only worth having if the real workspace satisfies it.
+  assert.doesNotThrow(() => frameworkVersions());
 });

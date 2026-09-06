@@ -12,6 +12,7 @@ import {
 } from "./sfc-check.mjs";
 import { fileURLToPath } from "node:url";
 import { writeSfcProbeSdk, writeStubSdk } from "./__fixtures__/stub-sdk.mjs";
+import { EXPECT_ERROR_MISSING } from "./typecheck.mjs";
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 
@@ -313,5 +314,74 @@ test("an SFC expect-error fence that compiles clean is reported once, by this pa
     ["typecheck/expect-error-missing"],
   );
   assert.equal(result.findings[0].line, 5);
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test("the SFC tsconfig names @types/node only when it is installed", () => {
+  // Hardcoding `["node"]` gave every SFC project TS2688 on a root without Node
+  // types — a diagnostic with no file, which `parseVueTscOutput` drops, so the
+  // projects came back clean and the fences were never checked at all.
+  const dir = probeRoot();
+  const body = [
+    "```vue title='src/A.vue'",
+    '<script setup lang="ts">',
+    "const a = 1;",
+    "</script>",
+    "<template><i>{{ a }}</i></template>",
+    "```",
+  ].join("\n");
+  const kept = fs.mkdtempSync(path.join(os.tmpdir(), "comvi-sfc-cfg-"));
+
+  sfcCheckDocuments({ sources: page(body), sdkRoot: dir, tmpBase: kept });
+
+  const written = JSON.parse(
+    fs.readFileSync(path.join(kept, "docs_i18n_page_mdx", "p0", "tsconfig.json"), "utf8"),
+  );
+  const hasNode = fs.existsSync(path.join(dir, "node_modules", "@types", "node"));
+  assert.deepEqual(written.compilerOptions.types, hasNode ? ["node"] : []);
+  fs.rmSync(kept, { recursive: true, force: true });
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test("a missing checker does not also claim its expect-error fences compiled clean", () => {
+  // `raw` is empty because nothing ran. Reporting "it compiles clean" about a
+  // fence nobody compiled stacks a second false finding on a real one.
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "comvi-sfc-missing-"));
+  writeStubSdk(dir);
+  const body = [
+    "```vue check=expect-error",
+    '<script setup lang="ts">',
+    "const n: number = 'no';",
+    "</script>",
+    "```",
+  ].join("\n");
+
+  const result = sfcCheckDocuments({ sources: page(body), sdkRoot: dir, tools: {} });
+
+  assert.deepEqual(
+    result.findings.map((finding) => finding.rule),
+    ["typecheck/sfc-tool-missing"],
+  );
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test("both passes report a missing expect-error in the same words", () => {
+  // The same rule reported in two voices reads as two rules. Asserted on what
+  // the passes EMIT rather than on their source text, so a refactor that keeps
+  // the behaviour keeps the test.
+  const body = [
+    "```vue check=expect-error",
+    '<script setup lang="ts">',
+    "import { t } from '@docs-probe/api';",
+    "const n: string = t('anything');",
+    "</script>",
+    "<template><i>{{ n }}</i></template>",
+    "```",
+  ].join("\n");
+  const dir = probeRoot();
+
+  const sfc = sfcCheckDocuments({ sources: page(body), sdkRoot: dir });
+
+  assert.equal(sfc.findings[0].message, EXPECT_ERROR_MISSING);
   fs.rmSync(dir, { recursive: true, force: true });
 });

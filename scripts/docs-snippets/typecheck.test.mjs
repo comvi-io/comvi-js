@@ -4,7 +4,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { buildProjects, mapPosition, titleToPath } from "./project.mjs";
-import { createHostFactory, loadTypeScript } from "./typecheck.mjs";
+import { EXPECT_ERROR_MISSING, createHostFactory, loadTypeScript } from "./typecheck.mjs";
 import { createTypecheckContext, typecheckDocument } from "./typecheck.mjs";
 import { extractFences } from "./extract.mjs";
 import { lintDocument } from "./lint.mjs";
@@ -213,6 +213,8 @@ test("expect-error on a fence that compiles → a finding on the fence", () => {
   assert.equal(found.length, 1);
   assert.equal(found[0].rule, "typecheck/expect-error-missing");
   assert.equal(at(found[0]), "5:1");
+  // Same words as the SFC pass, which reports the same rule for the same reason.
+  assert.equal(found[0].message, EXPECT_ERROR_MISSING);
 });
 
 test("expect-error=TS2322 matching the reported code → clean", () => {
@@ -492,19 +494,38 @@ test("a repeated file name inside one tab starts the next project", () => {
   assert.equal(projects.length, 2);
 });
 
-test("the same file name with the same content stays in one project", () => {
+test("a file name repeated with DIFFERENT content also splits", () => {
+  // The half of the rule that was always there. Kept as its own case so the
+  // split is pinned from both sides: identical content splits (below), and
+  // differing content must not stop splitting.
   const source = [
     "```ts title='src/i18n.ts'",
     "export const v = 1;",
     "```",
     "```ts title='src/i18n.ts'",
+    "export const v = 2;",
+    "```",
+  ].join("\n");
+  const { fences } = extractFences(source, "p.mdx");
+  const { projects } = buildProjects(fences);
+
+  assert.equal(projects.length, 2);
+});
+
+test("distinct file names stay in one project, which is what makes a group a project", () => {
+  const source = [
+    "```ts title='src/i18n.ts'",
     "export const v = 1;",
+    "```",
+    "```ts title='src/app.ts'",
+    "export const w = 2;",
     "```",
   ].join("\n");
   const { fences } = extractFences(source, "p.mdx");
   const { projects } = buildProjects(fences);
 
   assert.equal(projects.length, 1);
+  assert.equal(projects[0].files.size, 2);
 });
 
 test("mapPosition subtracts an injected prelude so a pragma does not shift the report", () => {
@@ -800,27 +821,108 @@ test("only a Nuxt project gets the auto-import shim as a compilation root", () =
   assert.ok(plain.rootNames.some((name) => name.endsWith("/src/shims.d.ts")));
 });
 
-test("the shim declares exactly the composables the Nuxt module auto-imports", () => {
-  // The module's `addImports` list is the source of truth, and a composable
-  // added there without a line here is a fence that fails on the one symbol the
-  // page is about.
+test("the shim declares exactly the Nuxt globals the module registers — both ways", () => {
+  // Bidirectional on purpose. A composable registered without a line here is a
+  // fence that fails on the one symbol its page is about; a line here for a
+  // composable the module no longer registers is a global the reader does not
+  // have, and a fence that compiles only inside this gate. Reading only the
+  // first `addImports([` block missed the server utilities entirely, which is
+  // how `check=skip:nuxt-server-auto-imports` survived.
   const module = fs.readFileSync(path.join(REPO_ROOT, "packages/nuxt/src/module.ts"), "utf8");
-  const block = module.slice(module.indexOf("addImports(["));
-  const registered = [...block.slice(0, block.indexOf("]);")).matchAll(/name:\s*"([^"]+)"/g)].map(
-    (match) => match[1],
-  );
+  const registered = new Set();
+  for (const block of module.matchAll(/addImports\(\[([\s\S]*?)\]\)/g)) {
+    for (const entry of block[1].matchAll(/name:\s*"([^"]+)"/g)) registered.add(entry[1]);
+  }
+  // `addServerImportsDir` registers a DIRECTORY: every export of every file in
+  // it is a global, so the directory listing is the list.
+  const serverDir = module.match(/addServerImportsDir\(resolve\("\.\/([^"]+)"\)\)/)?.[1];
+  assert.ok(serverDir, "the module no longer calls addServerImportsDir");
+  const serverPath = path.join(REPO_ROOT, "packages/nuxt/src", serverDir);
+  for (const entry of fs.readdirSync(serverPath)) {
+    if (!entry.endsWith(".ts") || entry.endsWith(".d.ts")) continue;
+    const source = fs.readFileSync(path.join(serverPath, entry), "utf8");
+    for (const fn of source.matchAll(/^export\s+(?:async\s+)?function\s+([A-Za-z0-9_]+)/gm)) {
+      registered.add(fn[1]);
+    }
+  }
+
   const shim = fs.readFileSync(
     path.join(REPO_ROOT, "scripts/docs-snippets/fixtures/src/nuxt-shims.d.ts"),
     "utf8",
   );
-
-  assert.ok(
-    registered.length >= 8,
-    `expected the module to register composables, got ${registered}`,
+  const declared = new Set(
+    [...shim.matchAll(/const ([A-Za-z0-9_]+): typeof import\("@comvi\/nuxt[^"]*"\)/g)].map(
+      (match) => match[1],
+    ),
   );
-  for (const name of registered) {
-    assert.match(shim, new RegExp(`\\bconst ${name}:`), `nuxt-shims.d.ts is missing ${name}`);
-  }
+
+  assert.ok(registered.size >= 12, `expected composables and server utils, got ${[...registered]}`);
+  assert.deepEqual(
+    [...registered].filter((name) => !declared.has(name)).sort(),
+    [],
+    "the Nuxt module registers a global the shim does not declare",
+  );
+  assert.deepEqual(
+    [...declared].filter((name) => !registered.has(name)).sort(),
+    [],
+    "the shim declares a global the Nuxt module no longer registers",
+  );
+});
+
+test("Nuxt globals are withheld when the unit also holds another framework", () => {
+  // A page with no `<Tabs>` is ONE project: `ssr.mdx` puts Next, Nuxt,
+  // SvelteKit and Solid fences under four `##` headings and they all land in
+  // `tab:0`. A `declare global` is per program, so handing it to that unit gave
+  // `useI18n()` to fourteen fences whose frameworks do not auto-import it.
+  const source = [
+    "```ts title='nuxt.config.ts'",
+    "import type {} from '@comvi/nuxt';",
+    "export default { modules: ['@comvi/nuxt'] };",
+    "```",
+    "",
+    "```tsx title='src/Counter.tsx'",
+    "export const Counter = () => <p>{String(1)}</p>;",
+    "```",
+  ].join("\n");
+  const { projects } = buildProjects(extractFences(source, "p.mdx").fences);
+
+  assert.equal(projects[0].isNuxt, false);
+  assert.deepEqual(projects[0].nuxtRivals, ["a JSX file (src/Counter.tsx)"]);
+});
+
+test("a mixed unit reports the ambiguity rather than guessing", () => {
+  const body = [
+    "```ts title='nuxt.config.ts'",
+    "import type {} from '@comvi/nuxt';",
+    "export default { modules: ['@comvi/nuxt'] };",
+    "```",
+    "",
+    "```tsx title='src/Counter.tsx'",
+    "export const Counter = () => <p>{useI18n().t('hello')}</p>;",
+    "```",
+  ].join("\n");
+
+  const found = errors(check(body));
+  assert.equal(found[0].rule, "typecheck/nuxt-scope-ambiguous");
+  assert.match(found[0].message, /check=group=/);
+  // And the fence that borrowed the global it does not have now fails.
+  assert.ok(found.some((finding) => /Cannot find name 'useI18n'/.test(finding.message)));
+});
+
+test("@comvi/vue does not count as a rival, because Nuxt is Vue", () => {
+  // `api/nuxt.mdx` imports both on purpose: the module re-exports the Vue-side
+  // types.
+  const source = [
+    "```ts title='src/i18n.ts'",
+    "import type { VueI18n } from '@comvi/vue';",
+    "import type {} from '@comvi/nuxt';",
+    "export type H = VueI18n;",
+    "```",
+  ].join("\n");
+  const { projects } = buildProjects(extractFences(source, "p.mdx").fences);
+
+  assert.equal(projects[0].isNuxt, true);
+  assert.equal(projects[0].nuxtRivals, null);
 });
 
 // ---------------------------------------------------------------------------
@@ -882,6 +984,46 @@ test("both halves of a repeated title are compiled, not just the last", () => {
 
   const found = errors(check(body));
   assert.equal(found.length, 2);
+  assert.deepEqual(
+    found.map((finding) => finding.line),
+    [6, 10],
+  );
+});
+
+test("two byte-identical fences sharing a title are two projects, not one", () => {
+  // Splitting only on differing content collapsed them into a single file
+  // mapped to the SECOND fence, so the first fence's lines belonged to no
+  // project and nothing could ever be reported against them.
+  const source = [
+    "```ts title='src/i18n.ts'",
+    "export const v = 1;",
+    "```",
+    "",
+    "```ts title='src/i18n.ts'",
+    "export const v = 1;",
+    "```",
+  ].join("\n");
+  const { projects } = buildProjects(extractFences(source, "p.mdx").fences);
+
+  assert.equal(projects.length, 2);
+  assert.deepEqual(
+    projects.map((project) => [...project.files.values()][0].fence.line),
+    [1, 5],
+  );
+});
+
+test("both identical fences are compiled, and each reports at its own line", () => {
+  const body = [
+    "```ts title='src/i18n.ts'",
+    "export const bad: number = 'no';",
+    "```",
+    "",
+    "```ts title='src/i18n.ts'",
+    "export const bad: number = 'no';",
+    "```",
+  ].join("\n");
+
+  const found = errors(check(body));
   assert.deepEqual(
     found.map((finding) => finding.line),
     [6, 10],
