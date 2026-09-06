@@ -2,6 +2,8 @@ import type { VirtualNode } from "../../virtualNode";
 import { warn } from "../../logger";
 import {
   getPluralRules,
+  hashValue,
+  setHashValue,
   TK_PARAM,
   TK_PLURAL,
   TK_SELECT,
@@ -56,7 +58,7 @@ export function isPluralArgStart(str: string, braceIndex: number, len: number): 
  * gets here holds no `{`, `<` or `'`, so there is no nested plural whose `#`
  * must be skipped and no quoted `'#'` to protect. Any branch that holds one of
  * those characters is re-parsed instead, and its `#` becomes a `TK_HASH` token
- * the renderer resolves against `ctx.hash`.
+ * the renderer resolves against `hashValue`.
  */
 export function replaceTopLevelHash(str: string, replacement: string): string {
   let at = str.indexOf("#");
@@ -275,13 +277,12 @@ function processPlural(
   ) {
     // The branch goes to the parser UNCHANGED, so its cache entry is shared by
     // every count; `#` arrives as a token the renderer resolves against
-    // `ctx.hash`. `translateSegment` reuses this ctx, so the previous count is
-    // restored — an inner plural must not clobber the count an outer `#` after
-    // it still resolves against.
-    const prev = ctx.hash;
-    ctx.hash = replacement;
+    // `hashValue`. The previous count is restored afterwards — an inner plural
+    // must not clobber the count an outer `#` after it still resolves against.
+    const prev = hashValue;
+    setHashValue(replacement);
     const result = translateSegment(selected, ctx, true);
-    ctx.hash = prev;
+    setHashValue(prev);
     return result;
   }
 
@@ -304,7 +305,7 @@ function processSelect(
 
   // A chosen branch may itself contain ICU params, tags or quoting — and,
   // inside a plural sub-message, a `#` that belongs to the enclosing plural.
-  // A select never rebinds `#`, so `ctx.hash` carries straight through.
+  // A select never rebinds `#`, so `hashValue` carries straight through.
   if (
     selected.includes("{") ||
     selected.includes("<") ||

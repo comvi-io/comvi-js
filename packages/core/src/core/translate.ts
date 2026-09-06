@@ -3,6 +3,7 @@ import type { VirtualNode } from "../virtualNode";
 import { warn } from "../logger";
 import { isPrimitive, isVNodeLoose } from "./translate/params";
 import {
+  hashValue,
   TK_HASH,
   TK_PARAM,
   TK_PLURAL,
@@ -234,7 +235,6 @@ function makeCtx(
     extBits: effectiveExtBits(perCall),
     missingParam,
     pluralRules: undefined,
-    hash: undefined,
   };
 }
 
@@ -486,8 +486,8 @@ export function processTokens(
 
     if (kind === TK_HASH) {
       // Only the parser produces this token, and only under `hashIsSyntax`,
-      // which only `processPlural` turns on — after setting `ctx.hash`.
-      appendString(parts, ctx.hash!);
+      // which only `processPlural` turns on — after setting `hashValue`.
+      appendString(parts, hashValue!);
       continue;
     }
 

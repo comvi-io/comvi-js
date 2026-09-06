@@ -82,13 +82,6 @@ export interface TranslateCtx {
   missingParam: MissingParamMode;
   /** Lazily memoized cardinal plural rules for `locale` (ICU compiler only). */
   pluralRules?: Intl.PluralRules;
-  /**
-   * The count a `#` resolves to: set by `processPlural` around a branch it
-   * re-parses, and restored afterwards so a nested plural cannot clobber the
-   * count an outer `#` still needs. Initialised in `makeCtx` — adding it later
-   * would transition the hidden class of the object on the hot path.
-   */
-  hash?: string;
 }
 
 /**

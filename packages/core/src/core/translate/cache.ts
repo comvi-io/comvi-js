@@ -52,10 +52,29 @@ export type TagToken = [typeof TK_TAG, string, ParsedToken[], 0 | 1];
 
 /**
  * ICU `#`, bound to the count of the plural sub-message it sits in: [HASH].
- * Nullary — the count comes from `ctx.hash` at render time, so one parse of a
+ * Nullary — the count comes from `hashValue` at render time, so one parse of a
  * branch serves every count instead of one cache entry per distinct count.
  */
 export type HashToken = [typeof TK_HASH];
+
+/**
+ * The count a `#` resolves to, for the branch being rendered right now.
+ *
+ * Module state rather than a `TranslateCtx` field: the ctx is allocated on
+ * every non-static `t()`, and an eleventh property measured ~4 % on the
+ * `t()`-with-a-param case of `pnpm perf` — the hottest call in the library —
+ * while a `#` is only ever read inside a plural. `processPlural` saves the
+ * previous value and restores it after the branch, so a nested plural cannot
+ * clobber the count an outer `#` still needs; renders are synchronous, so
+ * there is no second reader between the two. A value left behind by a handler
+ * that threw mid-render is unreadable: `#` only becomes a token under
+ * `hashIsSyntax`, which only `processPlural` turns on, after setting it.
+ */
+export let hashValue: string | undefined;
+
+export function setHashValue(next: string | undefined): void {
+  hashValue = next;
+}
 
 export function getPluralRules(locale: string, ordinal: boolean = false): Intl.PluralRules {
   const cacheKey = ordinal ? locale + ":o" : locale;
