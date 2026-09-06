@@ -21,12 +21,12 @@
 
 ## About Comvi i18n
 
-Comvi i18n is a modern, framework-agnostic internationalization library — ICU MessageFormat, rich-text component embedding, and locale-aware `Intl` formatters in **~5 kB minified + gzipped for the base host, ~8.5 kB with every capability composed (as bundled by your app)** with **zero runtime dependencies** and **no `eval`** (CSP-safe for Chrome extensions, Cloudflare Workers, and locked-down enterprise apps).
+Comvi i18n is a framework-agnostic internationalization library. You get ICU MessageFormat, rich-text component embedding, and locale-aware `Intl` formatters in **~5 kB minified + gzipped for the base host, ~8.5 kB with every capability composed (as bundled by your app)**, with **zero runtime dependencies** and **no `eval`** (CSP-safe for Chrome extensions, Cloudflare Workers, and locked-down enterprise apps).
 
 - **Same API** across [Vue](https://www.npmjs.com/package/@comvi/vue), [React](https://www.npmjs.com/package/@comvi/react), [SolidJS](https://www.npmjs.com/package/@comvi/solid), [Svelte](https://www.npmjs.com/package/@comvi/svelte), [Next.js](https://www.npmjs.com/package/@comvi/next), and [Nuxt](https://www.npmjs.com/package/@comvi/nuxt).
-- **ICU `plural`, `selectordinal` & `select`** — locale-correct plurals, ordinals, and gender via `Intl.PluralRules`. Recognized by every major TMS. One explicit import: `compiler: icuCompiler` from `@comvi/core/icu`. The `number` / `date` / `time` argument types and the plural `offset:` form are not implemented and are not planned — each one is an `E_ICU_SYNTAX` failure, never a wrong render.
-- **Type-safe translation keys** via TypeScript declaration merging — autocomplete and parameter validation everywhere.
-- **Pluggable** — translation loading, locale detection, and in-context editing are opt-in plugins.
+- **ICU `plural`, `selectordinal` & `select`:** locale-correct plurals, ordinals, and gender via `Intl.PluralRules`. Recognized by every major TMS. One explicit import: `compiler: icuCompiler` from `@comvi/core/icu`. The `number` / `date` / `time` argument types and the plural `offset:` form are not implemented and are not planned. Each one fails with `E_ICU_SYNTAX` instead of rendering something wrong.
+- **Type-safe translation keys** via TypeScript declaration merging, for autocomplete and parameter validation everywhere.
+- **Pluggable:** translation loading, locale detection, and in-context editing are opt-in plugins.
 
 See the [main repo](https://github.com/comvi-io/comvi-js) for the full library overview, runnable demos, and the framework binding matrix.
 
@@ -66,17 +66,17 @@ await i18n.init();
 
 ## Two ways in
 
-`@comvi/core` is the BASE host: the plugin host is an import you add, not
-something every app pays for. This package exports one name for each way of
-adding it.
+`@comvi/core` is the BASE host. The plugin host is an import you add, so an app
+that registers no plugins never pays for it. This package exports one name for
+each way of adding it.
 
-|                   | `.with(localeDetector(options))`                                                                      | `.use(LocaleDetector(options))`                                                  |
-| ----------------- | ----------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
-| what it is        | the **installer** — lowercase                                                                         | the **plugin factory** — uppercase                                               |
-| the host it needs | any host, including a bare `createI18n(…)`                                                            | one that already has `@comvi/core/plugins`                                       |
-| what it composes  | the plugin host, idempotently. No loader — the detector hands core a locale, it never loads a catalog | nothing — it only registers                                                      |
-| lifecycle         | the host's own: it ends in `use(LocaleDetector(options))`                                             | the host's own                                                                   |
-| reach for it when | you are setting up the host                                                                           | you already compose capabilities explicitly, or you register plugins from a list |
+|                   | `.with(localeDetector(options))`                                                                     | `.use(LocaleDetector(options))`                                                  |
+| ----------------- | ---------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| what it is        | the **installer**, lowercase                                                                         | the **plugin factory**, uppercase                                                |
+| the host it needs | any host, including a bare `createI18n(…)`                                                           | one that already has `@comvi/core/plugins`                                       |
+| what it composes  | the plugin host, idempotently. No loader: the detector hands core a locale and never loads a catalog | nothing; it only registers                                                       |
+| lifecycle         | the host's own: it ends in `use(LocaleDetector(options))`                                            | the host's own                                                                   |
+| use it when       | you are setting up the host                                                                          | you already compose capabilities explicitly, or you register plugins from a list |
 
 Both end in the same place. The installer is the one-call form of this:
 
@@ -89,8 +89,8 @@ const i18n = createI18n({ locale: "en" }).with(attachPlugins);
 i18n.use(LocaleDetector({ supportedLocales: ["en", "uk", "de"] }));
 ```
 
-**Swapping the two is a type error, and it is loud at runtime too.** Nothing is
-branded — an installer and a plugin are both "a function of the host" — so each
+**Swapping the two is a type error, and it fails loudly at runtime too.** Nothing
+is branded: an installer and a plugin are both "a function of the host". So each
 slot rejects the other explicitly instead of half-working:
 
 - `.use(localeDetector(…))` fails at `init()`, on the installer's first
@@ -103,7 +103,7 @@ slot rejects the other explicitly instead of half-working:
 
 ## How detection works
 
-On initialization, the detector checks the first entry in `caches` as the saved user preference by default. If no cached value exists, it walks `order` from first to last and returns the first non-empty match. Set `cacheFirst: false` to skip that preliminary cache read and make `order` the complete priority list. Concrete walk-through with the Quick start config above:
+On initialization, the detector checks the first entry in `caches` as the saved user preference by default. If no cached value exists, it walks `order` from first to last and returns the first non-empty match. Set `cacheFirst: false` to skip that preliminary cache read and make `order` the complete priority list. Here is the walk-through with the Quick start config above:
 
 | Step | Source         | Looks at                 | Match?        |
 | ---- | -------------- | ------------------------ | ------------- |
@@ -112,7 +112,7 @@ On initialization, the detector checks the first entry in `caches` as the saved 
 | 3    | `cookie`       | `i18n_lang` cookie       | (skipped)     |
 | 4    | `navigator`    | `navigator.languages[0]` | (skipped)     |
 
-Once a locale is chosen — by detection or by an explicit `setLocale()` call — it's written to every entry in `caches`. Because the first cache entry is read before `order` by default, put your preferred saved-locale source first. Use `cacheFirst: false` when query string or navigator detection should be able to override it; cache writes remain enabled, and cache sources are still read when included in `order`.
+Once a locale is chosen, by detection or by an explicit `setLocale()` call, it is written to every entry in `caches`. Because the first cache entry is read before `order` by default, put your preferred saved-locale source first. Use `cacheFirst: false` when query string or navigator detection should be able to override it; cache writes remain enabled, and cache sources are still read when included in `order`.
 
 BCP 47 lookup means `de-DE` matches `de` if `supportedLocales: ["en", "de"]`, and `zh-Hant-TW` falls back to `zh-Hant` then `zh`. Unsupported detected locales resolve to `fallbackLocale` (defaulting to the configured i18n locale) and are not cached.
 
@@ -138,7 +138,7 @@ Same setup works in Solid and Svelte. Vue's `createI18n` returns a `VueI18n`
 wrapper rather than a core host, so install onto the host it exposes:
 `i18n.core.with(localeDetector({ … }))`. For Next.js and Nuxt, prefer the
 framework's middleware (`@comvi/next`'s `createMiddleware()` or `@comvi/nuxt`'s
-`detectBrowserLanguage` config) — they detect on the server before the page
+`detectBrowserLanguage` config), which detect on the server before the page
 renders.
 
 For all detection sources, cookie/storage key options, BCP 47 normalization rules, and the full options reference, see the [documentation](https://comvi.io/docs/i18n/plugins/locale-detector/).
