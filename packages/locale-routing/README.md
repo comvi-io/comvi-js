@@ -22,8 +22,12 @@
 > runtime. It is an internal seam: its exports carry no compatibility promise
 > and can change in any release.
 >
-> The public routing API is `@comvi/next/routing` for Next.js, and the Nuxt
-> module's own composables for Nuxt. Reach for those.
+> The public routing API for Next.js is three subpaths of `@comvi/next`:
+> `@comvi/next/routing` (`defineRouting`, `hasLocale`, `createGetPathname`),
+> `@comvi/next/navigation` (`Link`, `usePathname`, `useLocalizedRouter`) and
+> `@comvi/next/middleware` (`createMiddleware`). For Nuxt it is the module's own
+> auto-imported composables — `useLocalePath`, `useLocaleRoute`,
+> `useSwitchLocalePath`, `<NuxtLinkLocale>`. Reach for those.
 
 ## Install
 
