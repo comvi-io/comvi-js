@@ -19,9 +19,9 @@
 
 `@comvi/react` wraps [`@comvi/core`](../core) for React. `<I18nProvider>` mounts an instance and auto-initializes it; `useI18n()` reads from it via `useSyncExternalStore`, so re-renders are precise and concurrent-mode safe. Requires React 18+.
 
-Same `t()` and `<T>` API as the [Vue](../vue), [SolidJS](../solid), and [Svelte](../svelte) bindings — switch frameworks without relearning your i18n layer.
+Same `t()` and `<T>` API as the [Vue](../vue), [SolidJS](../solid), and [Svelte](../svelte) bindings, so switching frameworks doesn't mean relearning your i18n layer.
 
-For Next.js App Router, use [`@comvi/next`](../next) — it adds SSR, middleware, and locale routing on top of this package.
+For Next.js App Router, use [`@comvi/next`](../next), which adds SSR, middleware, and locale routing on top of this package.
 
 📖 **Documentation:** https://comvi.io/docs/i18n/react/
 
@@ -29,20 +29,20 @@ For Next.js App Router, use [`@comvi/next`](../next) — it adds SSR, middleware
 
 ## Why Comvi i18n?
 
-Comvi i18n is a modern, framework-agnostic internationalization library built on three principles: type-safe translations, real ICU MessageFormat, and zero compromises on bundle size or security.
+Comvi i18n is a framework-agnostic internationalization library with type-safe translations, real ICU MessageFormat, and a small bundle that stays safe under a strict CSP.
 
-- **Rich text without XSS.** Embed components inside translation strings (`Click <link>here</link>`) — translators see clean markup, you decide what each tag renders to. No raw HTML, no unsafe DOM injection, no splitting a sentence across template fragments.
-- **ICU `plural`, `selectordinal` & `select`.** Locale-correct grammar via `Intl.PluralRules` — Polish, Ukrainian, Arabic, Welsh, and the rest. Same syntax every major TMS (Crowdin, Lokalise, Phrase) already speaks. The `number` / `date` / `time` argument types and the plural `offset:` form are not implemented and are not planned — each one is an `E_ICU_SYNTAX` failure, never a wrong render.
+- **Rich text without XSS.** Embed components inside translation strings (`Click <link>here</link>`). Translators see clean markup, and you decide what each tag renders to. No raw HTML, no unsafe DOM injection, and no splitting a sentence across template fragments.
+- **ICU `plural`, `selectordinal` & `select`.** Locale-correct grammar via `Intl.PluralRules`, including Polish, Ukrainian, Arabic, Welsh and the rest. It is the same syntax every major TMS (Crowdin, Lokalise, Phrase) already speaks. The `number` / `date` / `time` argument types and the plural `offset:` form are not implemented and are not planned. Each one fails with `E_ICU_SYNTAX` instead of rendering something wrong.
 - **Locale-aware formatters built in.** `formatNumber`, `formatDate`, `formatCurrency`, and `formatRelativeTime` follow the active locale via native `Intl`, with reactive updates in every framework binding.
-- **~6.6 kB minified + gzipped for a default app graph (measured, `react` externalized), zero runtime dependencies.** That is the base host plus the react bindings; ICU, async loading, the plugin host and devtools discovery cost only where you compose them. No `eval` or `new Function` anywhere — runs under a strict CSP without `unsafe-eval`. Safe for Chrome extensions, Cloudflare Workers, and locked-down enterprise apps.
-- **Pluggable, not monolithic.** Translation loading (CDN/API), locale detection, and in-context editing are opt-in plugins via `@comvi/plugin-fetch-loader`, `@comvi/plugin-locale-detector`, and `@comvi/plugin-in-context-editor` — one lowercase `.with(installer)` each. You only ship what you use.
-- **Same API across 6 frameworks.** `useI18n()` and `<T>` look the same in [Vue](https://www.npmjs.com/package/@comvi/vue), [React](https://www.npmjs.com/package/@comvi/react), [SolidJS](https://www.npmjs.com/package/@comvi/solid), [Svelte](https://www.npmjs.com/package/@comvi/svelte), [Next.js](https://www.npmjs.com/package/@comvi/next), and [Nuxt](https://www.npmjs.com/package/@comvi/nuxt) — switch frameworks without relearning your i18n layer.
+- **~6.6 kB minified + gzipped for a default app graph (measured, `react` externalized), zero runtime dependencies.** That is the base host plus the react bindings; ICU, async loading, the plugin host and devtools discovery cost only where you compose them. No `eval` or `new Function` anywhere, so it runs under a strict CSP without `unsafe-eval`. Safe for Chrome extensions, Cloudflare Workers, and locked-down enterprise apps.
+- **Pluggable.** Translation loading (CDN/API), locale detection, and in-context editing are opt-in plugins via `@comvi/plugin-fetch-loader`, `@comvi/plugin-locale-detector`, and `@comvi/plugin-in-context-editor`, one lowercase `.with(installer)` each. You only ship what you use.
+- **Same API across 6 frameworks.** `useI18n()` and `<T>` look the same in [Vue](https://www.npmjs.com/package/@comvi/vue), [React](https://www.npmjs.com/package/@comvi/react), [SolidJS](https://www.npmjs.com/package/@comvi/solid), [Svelte](https://www.npmjs.com/package/@comvi/svelte), [Next.js](https://www.npmjs.com/package/@comvi/next), and [Nuxt](https://www.npmjs.com/package/@comvi/nuxt), so switching frameworks doesn't mean relearning your i18n layer.
 
 ## Why @comvi/react?
 
-- **Concurrent rendering safe.** Built on native `useSyncExternalStore` — no tearing, safe with Suspense, Time Slicing, and Transitions.
+- **Concurrent rendering safe.** Built on native `useSyncExternalStore`, so there is no tearing, and it is safe with Suspense, Time Slicing, and Transitions.
 - **Efficient re-renders.** Selector hooks (`useLocale()`, `useIsLoading()`) let you skip updates on axes you don't need.
-- **Provider auto-init.** Wrap your app in `<I18nProvider>` and it handles initialization automatically — no manual `i18n.init()` calls.
+- **Provider auto-init.** Wrap your app in `<I18nProvider>` and it handles initialization for you, with no manual `i18n.init()` calls.
 
 ## Install
 
@@ -120,13 +120,13 @@ createRoot(document.getElementById("root")!).render(
 );
 ```
 
-`icu()` must be composed before the first catalog reaches the host, which is why
-it comes ahead of the loader. That is the library's only ordering rule; drop
+`icu()` must be composed before the first catalog reaches the host, so it comes
+ahead of the loader. That is the library's only ordering rule; drop
 `icu()` if the project uses no plural/select.
 
 There is no `i18n.init()` call here because `<I18nProvider>` initializes the
 host itself (`autoInit`, on by default). The first paint therefore happens while
-the catalog is still in flight — gate it on `useIsLoading()` from
+the catalog is still in flight, so gate it on `useIsLoading()` from
 `@comvi/react`.
 
 The distribution id in `cdnUrl` comes from the Comvi platform: open your project
@@ -194,7 +194,7 @@ function FlagIcon() {
 }
 ```
 
-This hook skips re-renders on namespace loads and loading-state changes — only locale changes trigger updates.
+This hook skips re-renders on namespace loads and loading-state changes. Only a locale change triggers an update.
 
 ### `useIsLoading()` — loading state only
 
@@ -229,7 +229,7 @@ function LangSwitcher() {
 }
 ```
 
-Returns `{ isPending, setLocale }` — `isPending` is `true` while the transition resolves.
+Returns `{ isPending, setLocale }`, where `isPending` is `true` while the transition resolves.
 
 ### `useFormatters()` — locale-aware Intl formatters
 
@@ -248,7 +248,7 @@ Provides `formatNumber`, `formatDate`, `formatCurrency`, and `formatRelativeTime
 
 ## Using `useI18n()`
 
-`useI18n()` returns the translation bag every host can serve: `{ i18n, locale, translationCache, isLoading, isInitializing, setLocale, t, tRaw, ... }`. It does **not** carry the loader/plugin members — see [Capability hooks](#capability-hooks-usei18nloader--usei18nplugins) below.
+`useI18n()` returns the translation bag every host can serve: `{ i18n, locale, translationCache, isLoading, isInitializing, setLocale, t, tRaw, ... }`. It does **not** carry the loader/plugin members; see [Capability hooks](#capability-hooks-usei18nloader--usei18nplugins) below.
 
 ```tsx
 import { useI18n } from "@comvi/react";
@@ -265,15 +265,15 @@ function MyComponent() {
 }
 ```
 
-**Identity note:** In v0.3, `t` and `tRaw` identity changes on locale flip (intentional — the function now closes over the current locale). If you depend on their identity in `useEffect` dependencies, the effect will re-run when locale changes. For most code this is correct; if your effect should only run once, depend on the actual trigger instead.
+**Identity note:** In v0.3, `t` and `tRaw` identity changes on locale flip, because the function now closes over the current locale. If you depend on their identity in `useEffect` dependencies, the effect will re-run when locale changes. For most code this is correct; if your effect should only run once, depend on the underlying trigger instead.
 
-**Deprecation note:** `useI18nContext()` was the v0.2 hook for the same purpose. It is still exported in 0.5 (`react/src/index.ts:16`) and still works; `src` marks it `@deprecated ... Scheduled for removal in the next major` (`react/src/I18nProvider.tsx:236-239`). Use `useI18n()`, or the per-axis `useLocale()` / `useIsLoading()`, instead — it re-renders on every reactive axis.
+**Deprecation note:** `useI18nContext()` was the v0.2 hook for the same purpose. It is still exported in 0.5 (`react/src/index.ts:16`) and still works; `src` marks it `@deprecated ... Scheduled for removal in the next major` (`react/src/I18nProvider.tsx:236-239`). It re-renders on every reactive axis, so prefer `useI18n()` or the per-axis `useLocale()` / `useIsLoading()`.
 
 ## Capability hooks: `useI18nLoader()` / `useI18nPlugins()`
 
-Async loading and the plugin host are `@comvi/core` **capabilities**, not part
-of the translation core. Since 0.5.0 their members are acquired explicitly
-rather than being handed out by `useI18n()`:
+Async loading and the plugin host are `@comvi/core` **capabilities** rather than
+part of the translation core. Since 0.5.0 you acquire their members explicitly
+instead of getting them from `useI18n()`:
 
 ```tsx
 import { useI18n, useI18nLoader, useI18nPlugins } from "@comvi/react";
@@ -287,12 +287,12 @@ function Namespaces() {
 }
 ```
 
-Neither takes parameters — the namespace argument stays on `useI18n(ns)`. The
+Neither takes parameters; the namespace argument stays on `useI18n(ns)`. The
 bag they return is referentially stable per host instance: two components under
 one `<I18nProvider>` receive the same function references, and they survive
 re-renders.
 
-On a host that lacks the capability the acquisition call throws — in
+On a host that lacks the capability the acquisition call throws, in
 development **and** production, never a silent no-op:
 
 ```
@@ -304,11 +304,11 @@ or the [0.5.0 migration guide](https://github.com/comvi-io/comvi-js/blob/main/MI
 
 ## Supported hosts and what they cost
 
-`<I18nProvider i18n={…}>` accepts any `WrapperI18nHost` — `createI18n` from
+`<I18nProvider i18n={…}>` accepts any `WrapperI18nHost`: `createI18n` from
 `@comvi/react` (core's own base-host constructor, re-exported by name), with or
 without `.with(loader())` / `.with(plugins())` composed on. The base host is the
-cheap one: ICU, tag syntax, async loading, the plugin host and devtools
-discovery are each something you compose, never something you carry by default.
+cheap one. ICU, tag syntax, async loading, the plugin host and devtools
+discovery are each something you compose, and you carry none of them by default.
 
 Whole-app comvi graph, min+gz, `react` externalized (`node scripts/size-check.mjs`):
 
@@ -330,25 +330,25 @@ its graph still excludes the tag-registration pair and unused capabilities.
 
 `@comvi/react` is the whole toolkit: core's base host constructor and class, the
 react bindings, and core's capability installers as **named** re-exports. One
-entry, one build pass, one React context — a react app names one package and
+entry, one build pass, one React context. A react app names one package and
 nothing else, and no sibling entry exists whose `<I18nProvider>` could be
 invisible to this one's `useI18n()`.
 
-| export                                     | what it is                                      |
-| ------------------------------------------ | ----------------------------------------------- |
-| `createI18n`, `I18n`                       | core's base host — constructor and class        |
-| `icuCompiler`, `icu`                       | from `@comvi/core/icu` — compiler and installer |
-| `loader`, `attachLoader`, `flattenCatalog` | from `@comvi/core/loader`                       |
-| `plugins`, `attachPlugins`                 | from `@comvi/core/plugins`                      |
-| `devtools`, `attachDevtools`               | from `@comvi/core/devtools`                     |
-| every hook, `I18nProvider`, `T`, the types | the react bindings                              |
+| export                                     | what it is                                     |
+| ------------------------------------------ | ---------------------------------------------- |
+| `createI18n`, `I18n`                       | core's base host: constructor and class        |
+| `icuCompiler`, `icu`                       | from `@comvi/core/icu`: compiler and installer |
+| `loader`, `attachLoader`, `flattenCatalog` | from `@comvi/core/loader`                      |
+| `plugins`, `attachPlugins`                 | from `@comvi/core/plugins`                     |
+| `devtools`, `attachDevtools`               | from `@comvi/core/devtools`                    |
+| every hook, `I18nProvider`, `T`, the types | the react bindings                             |
 
-`I18n` is the class `createI18n` instantiates — core's base one, not a react
-subclass. Reach for it to type a host you compose yourself, or to call
-`new I18n(options)` directly; the factory is the recommended form and takes the
+`I18n` is the class `createI18n` instantiates: core's base one, not a react
+subclass. Use it to type a host you compose yourself, or to call
+`new I18n(options)` directly. The factory is the recommended form and takes the
 same single options object.
 
-`.with(installer)` is core's composition pipe — `i18n.with(f)` is `f(i18n)`.
+`.with(installer)` is core's composition pipe: `i18n.with(f)` is `f(i18n)`.
 `loader(map)` attaches the capability **and** registers the map; for a plain
 `LoaderFn`, compose `.with(attachLoader)` and call `registerLoader(fn)`
 yourself (it keeps the import-map adapter out of your bundle).
@@ -399,8 +399,8 @@ const i18n = createI18n({ locale: "en" })
 ```
 
 `.with(icu())` is **pre-ingestion only**. The compiler locks the moment any
-catalog reaches the host — a constructor `translation`, an `addTranslations`
-call, or a loader merge — and a later `icu()` throws with own
+catalog reaches the host: a constructor `translation`, an `addTranslations`
+call, or a loader merge. A later `icu()` throws with own
 `code === "E_COMPILER_LOCKED"`. So `createI18n({ translation }).with(icu())` is
 invalid by construction: pass `compiler: icuCompiler` there instead.
 
@@ -416,8 +416,8 @@ const i18n = createI18n({ locale: "en" }).with(loader({ uk: () => import("./uk.j
 ### Plugins — one `.with(installer)`
 
 The three first-party plugin packages ship a lowercase **installer** beside the
-uppercase factory. The installer composes the capabilities that plugin needs —
-`cdnLoader` attaches `/loader`, then `/plugins` — and registers it, in one
+uppercase factory. The installer composes the capabilities that plugin needs
+(`cdnLoader` attaches `/loader`, then `/plugins`) and registers it, in one
 call:
 
 ```tsx
@@ -429,9 +429,9 @@ const i18n = createI18n({ locale: "en", defaultNs: "common" }).with(
 );
 ```
 
-The explicit form is that composition spelled out, and it is what you want when
-you register plugins from a list. Compose `loader()` as well when a plugin
-registers one — the order of `loader()`, `plugins()` and `devtools()` among
+The explicit form is that same composition spelled out, and it is what you want
+when you register plugins from a list. Compose `loader()` as well when a plugin
+registers one. The order of `loader()`, `plugins()` and `devtools()` among
 themselves is free, because plugins run at `init()` and every capability
 composed before `init()` is attached by then.
 
@@ -461,23 +461,23 @@ const i18n = createI18n({ locale: "en" }).with(devtools({ instanceId: "storefron
 These are **named** re-exports of core's own bindings, so the ones you do not
 call are pruned. Two bundler-matrix cases hold that line, on webpack and vite,
 in development and production: `react-default` calls no capability and asserts
-all four subpath entries — icu, loader, plugins, devtools — out of the module
+all four subpath entries (icu, loader, plugins, devtools) out of the module
 graph, while `react-icu` calls `icuCompiler`, formats a real plural from the
 built bundle, and asserts the other three out.
 
-`@comvi/core/tags` is deliberately not re-exported: importing it registers tag
-syntax ambiently. `<T>` uses the pure `@comvi/core/rich-text` seam in its own
-dist chunk and does not change string-API tag behavior.
+`@comvi/core/tags` is not re-exported, because importing it registers tag syntax
+ambiently. `<T>` uses the pure `@comvi/core/rich-text` entry in its own dist
+chunk and does not change string-API tag behavior.
 
 ### String-API tags render literally — the one residual
 
-`t("Click <b>here</b>")` hands back that markup as text on the base host: tag
+`t("Click <b>here</b>")` hands back that markup as text on the base host. Tag
 syntax is a grammar the host has to be taught, and no entry teaches it
-ambiently. Development warns the first time; production stays literal and never
-throws, because a literal `<b>` is visibly broken in review while a wrong plural
-is not. Two ways out:
+ambiently. Development warns the first time. Production stays literal and never
+throws: a literal `<b>` is visibly broken in review, where a wrong plural is
+not. Two ways out:
 
-- render `<T>` — it passes the tag extension per call and needs no ambient
+- render `<T>`, which passes the tag extension per call and needs no ambient
   registration at all (see [Rich text with `<T>`](#rich-text-with-t));
 - `import "@comvi/core/tags";` once at your entry, if you want tag
   interpolation through `t()` itself. That import is the side effect
@@ -511,17 +511,17 @@ The `link` and `bold` elements are cloned with children injected automatically. 
 
 ## ICU MessageFormat — locale-correct grammar, not just singular/plural
 
-`count === 1 ? "item" : "items"` works in English. It silently ships broken grammar in Polish, Ukrainian, Arabic, Welsh, and 30+ other locales — those languages have 3, 4, sometimes 6 distinct plural categories that a binary if/else can't express. [ICU MessageFormat](https://unicode-org.github.io/icu/userguide/format_parse/messages/) is the standard syntax for handling them — the same syntax Crowdin, Lokalise, Phrase, and every major TMS already speak. Comvi i18n parses it via native [`Intl.PluralRules`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Intl/PluralRules), so every CLDR plural category is correct by default.
+`count === 1 ? "item" : "items"` works in English. It silently ships broken grammar in Polish, Ukrainian, Arabic, Welsh, and 30+ other locales, which have 3, 4, sometimes 6 distinct plural categories that a binary if/else can't express. [ICU MessageFormat](https://unicode-org.github.io/icu/userguide/format_parse/messages/) is the standard syntax for handling them, and it is the syntax Crowdin, Lokalise, Phrase, and every major TMS already speak. Comvi i18n parses it via native [`Intl.PluralRules`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Intl/PluralRules), so every CLDR plural category is correct by default.
 
 ICU is opt-in on the base host: pass `compiler: icuCompiler` for the inline
 catalogs below, or `.with(icu())` before the first remote catalog reaches the
-host. Both names are re-exported from `@comvi/react` — see
+host. Both names are re-exported from `@comvi/react`; see
 [One package, one entry](#one-package-one-entry). Without a compiler the default
 one never renders these templates as grammar: development throws
 `E_ICU_SYNTAX` at ingestion, and production renders the braced segment
 literally and reports `E_ICU_SYNTAX` through `onError` (or `console.error`) on
-the compilation that hit it — best-effort, per process, never on cached
-renders.
+the compilation that hit it. That report is best-effort, once per process, and
+never fires on cached renders.
 
 ### Plurals across languages
 
@@ -550,7 +550,7 @@ function Inbox() {
 }
 ```
 
-A naive English-style `count === 1 ? singular : plural` picks one Ukrainian form and ships it for every count — grammatically wrong for half your traffic.
+A naive English-style `count === 1 ? singular : plural` picks one Ukrainian form and ships it for every count, which is grammatically wrong for half your traffic.
 
 ### Ordinals (1st, 2nd, 3rd…)
 
@@ -590,7 +590,7 @@ function Greeter() {
 
 ### Locale-aware Intl formatters
 
-Numbers, dates, currency, and relative time follow the active locale via native `Intl` — reactive in your framework binding:
+Numbers, dates, currency, and relative time follow the active locale via native `Intl`, and are reactive in your framework binding:
 
 ```tsx
 import { useI18n } from "@comvi/react";
@@ -612,7 +612,7 @@ function Stats() {
 }
 ```
 
-Switching locale via `setLocale()` triggers re-renders through `useSyncExternalStore` — formatters always reflect the current language.
+Switching locale via `setLocale()` triggers re-renders through `useSyncExternalStore`, so formatters always reflect the current language.
 
 ## Type-safe translation keys
 
