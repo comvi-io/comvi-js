@@ -137,6 +137,8 @@ and read it off the **Distributions** page.
 `t()` and `tRaw()` read the locale and cache signals **at call time**, so they only stay reactive when invoked inside a tracking scope (JSX, `createMemo`, or `createEffect`). Reading the value once into a plain variable captures it forever:
 
 ```tsx
+import { useI18n } from "@comvi/solid";
+
 // ✗ WRONG — frozen. `greeting` is computed once and never updates on locale change.
 function Greeting() {
   const { t } = useI18n();
@@ -146,6 +148,8 @@ function Greeting() {
 ```
 
 ```tsx
+import { useI18n } from "@comvi/solid";
+
 // ✓ RIGHT — call t() inline so it re-runs when the locale or translations change.
 function Greeting() {
   const { t } = useI18n();
@@ -405,7 +409,9 @@ function Help() {
 You can also map to plain HTML tags:
 
 ```tsx
-<T i18nKey="privacy" components={{ policy: "a" }} />
+import { T } from "@comvi/solid";
+
+const privacy = <T i18nKey="privacy" components={{ policy: "a" }} />;
 // Renders: <a>Read our policy</a>
 ```
 
@@ -437,11 +443,17 @@ renders.
 }
 ```
 
-```ts
-t("messages", { count: 0 }); // ar: "لا توجد رسائل"      (zero form)
-t("messages", { count: 1 }); // en: "1 message"            uk: "1 повідомлення"
-t("messages", { count: 5 }); // en: "5 messages"           uk: "5 повідомлень"          ar: "5 رسائل"
-t("messages", { count: 22 }); // uk: "22 повідомлення"  ← the "few" form, NOT the "many" form
+```tsx
+import { useI18n } from "@comvi/solid";
+
+function Inbox() {
+  const { t } = useI18n();
+
+  t("messages", { count: 0 }); // ar: "لا توجد رسائل"      (zero form)
+  t("messages", { count: 1 }); // en: "1 message"            uk: "1 повідомлення"
+  t("messages", { count: 5 }); // en: "5 messages"           uk: "5 повідомлень"          ar: "5 رسائل"
+  t("messages", { count: 22 }); // uk: "22 повідомлення"  ← the "few" form, NOT the "many" form
+}
 ```
 
 A naive English-style `count === 1 ? singular : plural` picks one Ukrainian form and ships it for every count — grammatically wrong for half your traffic.
@@ -452,22 +464,34 @@ A naive English-style `count === 1 ? singular : plural` picks one Ukrainian form
 { "rank": "{place, selectordinal, one {#st} two {#nd} few {#rd} other {#th}}" }
 ```
 
-```ts
-t("rank", { place: 1 }); // "1st"
-t("rank", { place: 22 }); // "22nd"
-t("rank", { place: 113 }); // "113th"
+```tsx
+import { useI18n } from "@comvi/solid";
+
+function Leaderboard() {
+  const { t } = useI18n();
+
+  t("rank", { place: 1 }); // "1st"
+  t("rank", { place: 22 }); // "22nd"
+  t("rank", { place: 113 }); // "113th"
+}
 ```
 
 ### Select (gender, role, status)
 
 ```json
-{ "greeting": "{gender, select, female {Welcome, madam} male {Welcome, sir} other {Welcome}}" }
+{ "salutation": "{gender, select, female {Welcome, madam} male {Welcome, sir} other {Welcome}}" }
 ```
 
-```ts
-t("greeting", { gender: "female" }); // "Welcome, madam"
-t("greeting", { gender: "male" }); // "Welcome, sir"
-t("greeting", { gender: "other" }); // "Welcome"
+```tsx
+import { useI18n } from "@comvi/solid";
+
+function Greeter() {
+  const { t } = useI18n();
+
+  t("salutation", { gender: "female" }); // "Welcome, madam"
+  t("salutation", { gender: "male" }); // "Welcome, sir"
+  t("salutation", { gender: "other" }); // "Welcome"
+}
 ```
 
 ### Locale-aware Intl formatters
@@ -505,12 +529,19 @@ Declare translation keys once, get autocomplete and parameter validation everywh
 
 ```typescript
 // src/types/i18n.d.ts
+import "@comvi/core"; // resolves the module before augmenting it
+
 declare module "@comvi/core" {
   interface TranslationKeys {
     welcome: { name: string }; // name param required
-    greeting: never; // no params
+    greeting: { name: string };
+    salutation: { gender: string };
+    help: never;
+    privacy: never;
     items: { count: number };
-    "errors:NOT_FOUND": never;
+    messages: { count: number };
+    rank: { place: number };
+    "errors:NOT_FOUND": never; // no params
   }
 }
 ```
@@ -528,7 +559,10 @@ function App() {
 
 **What TypeScript catches:**
 
-```ts
+```ts check=expect-error
+import { useI18n } from "@comvi/solid";
+const { t } = useI18n();
+
 // ✗ Expected 2 arguments, but got 1
 t("welcome");
 
@@ -562,7 +596,7 @@ const i18n = createI18n({
 );
 
 export default function App() {
-  return <I18nProvider i18n={i18n}>{/* ... */}</I18nProvider>;
+  return <I18nProvider i18n={i18n}>…</I18nProvider>;
 }
 ```
 
