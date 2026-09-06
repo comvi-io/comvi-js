@@ -7,7 +7,8 @@ published API** riding the pre-1.0 minor-bump policy:
 0. **`@comvi/core` is now ONE entry, the base host.** A capability is an import
    you add, never an entry you switch. §0 covers it in full.
 1. Every framework binding runs on that host, which moved four loader/plugin
-   members out of `useI18n()`. That part is mechanical, and mostly codemodded.
+   members out of `useI18n()` (§1 onwards). That part is mechanical, and mostly
+   codemodded.
 
 The upgrade itself, in order:
 
@@ -98,16 +99,18 @@ In **0.4** an ICU template on the root rendered as a plural. In **0.5**, under
 the default compiler, it never does: **development throws at ingestion** and
 **production renders the braced segment literally**, reporting `E_ICU_SYNTAX`
 through `onError` (or `console.error` when no handler is configured). The two
-builds differ here by design.
+builds differ here.
 
 The development throw lands where the template is compiled, so a catalog string
 throws where it entered, and one that never passes through ingestion (a per-call
-`params.fallback`) throws at its first compile. The production report fires on
-the compilation that hit it, so a cached render never re-reports.
+`params.fallback`) throws at its first compile. The production report is
+best-effort: it fires on the compilation that hit it, at most one per `t()`
+call, so a cached render never re-reports and a compile made outside the host is
+dropped.
 
-Two cases fail the same way even **with** the ICU compiler named, and neither is
-on the roadmap. The first is an argument whose type is not `plural`,
-`selectordinal` or `select` (`{price, number}`, `{d, date}`, `{t, time}`):
+Two cases fail the same way even **with** the ICU compiler named. The first is
+an argument whose type is not `plural`, `selectordinal` or `select`
+(`{price, number}`, `{d, date}`, `{t, time}`), which is not on the roadmap:
 
 ```
 [i18n] ICU argument `{price, number}` is not supported: this compiler implements `plural`, `selectordinal` and `select`, each with a choice list like `other {…}`. Quote the braces ('{'…'}') or format the value in code and pass it as a plain {param}
@@ -116,7 +119,7 @@ on the roadmap. The first is an argument whose type is not `plural`,
 Format the value in code and pass the result as a plain `{param}`, or quote the
 braces to keep the text literal. The second is a choice list whose selectors are
 missing their braced sub-messages, which is where the plural `offset:` form
-lands too:
+lands too (not implemented either):
 
 ```
 [i18n] The `plural` choice list `one {# item} other` is malformed; every selector needs a braced sub-message, as in `other {…}`
@@ -129,8 +132,8 @@ reported.
 `E_ICU_SYNTAX` carries `code` and `argumentType` and nothing else. The
 `argumentType` names the argument type the message used: `"plural"`, `"select"`
 or `"selectordinal"`, or the parsed token such as `"number"` / `"date"` /
-`"other"` for a type this compiler does not implement. Locale, namespace, key and catalog
-source reach your handler through the report context:
+`"other"` for a type this compiler does not implement. Locale, namespace, key
+and catalog source reach your handler through the report context:
 
 ```ts
 import { createI18n } from "@comvi/core";
@@ -250,9 +253,9 @@ import statement. For the **single entry** it migrates host construction:
 | `.with(icu())` after a loader in one chain                     | `icu()` hoisted ahead of the first catalog |
 
 That last row is cosmetic rather than a rule: `.with(loader(map)).with(icu())`
-already works, because composing a loader ingests nothing. A **chain** is the
-unit, meaning `createI18n(…)` plus the `.use` / `.with` calls chained onto it, so
-nothing outside one is guessed at. Imports are maintained in the same pass,
+already works, because composing a loader ingests nothing (§0.1). A **chain** is
+the unit, meaning `createI18n(…)` plus the `.use` / `.with` calls chained onto
+it, so nothing outside one is guessed at. Imports are maintained in the same pass,
 `new I18n(options)` migrates like `createI18n(options)`, comments and CRLF
 endings survive, and a second run is a byte-identical no-op.
 
@@ -301,9 +304,9 @@ re-exported **by name** on each entry (`icu`, `icuCompiler`, `loader`,
 `attachDevtools`), plus the base `I18n` class and the core type vocabulary, so
 the remote-catalog ICU recipe is reachable from the one import an app already
 has, and the bindings you never call are pruned by your bundler. `@comvi/nuxt` is
-the one exception and re-exports nothing. `createI18n` IS core's own constructor
-everywhere but `@comvi/vue`, whose `createI18n` builds the `VueI18n` preset
-around it.
+the one exception and re-exports nothing (§7). `createI18n` IS core's own
+constructor everywhere but `@comvi/vue`, whose `createI18n` builds the `VueI18n`
+preset around it.
 
 **Every 0.4.x import path still resolves.** What changed is the HOST those
 entries construct, not the specifier you write. And since each package publishes
@@ -411,8 +414,8 @@ construction paths keep distinct names and ship from the one entry.
 `createI18n(options)` keeps its 0.4.x signature, `ssrLocale` and `compiler`
 included; `createCore` is core's own constructor; and `createI18nFromCore` takes
 a host you built yourself. **The pipe goes on the host, one level down**: on
-`i18n.core`, or on the value `createCore` handed you. Take that route when the
-capability has to be in place ahead of the first catalog.
+`i18n.core`, or on the value `createCore` handed you. Reach through `i18n.core`
+when the capability has to be in place ahead of the first catalog.
 
 ```ts
 import { createCore, createI18nFromCore, icu, loader } from "@comvi/vue";
@@ -468,13 +471,13 @@ The uppercase factories are unchanged, and the explicit recipe still works. Use
 it when you compose capabilities yourself or register plugins from a list:
 `createI18n({ … }).with(loader()).with(plugins())`, then
 `i18n.use(FetchLoader({ … }))`. Compose `loader()` as well when a plugin
-registers one; their relative order does not matter.
+registers one; their relative order does not matter (§0.1).
 
 No lifecycle is duplicated: an installer's last act is `use`, so `required`,
 `timeout`, `onError`, cleanup registration and LIFO destroy keep running inside
-the plugin host. Two timing details. `fetchLoader` builds its plugin while it
-composes, so a missing `cdnUrl` throws at COMPOSITION rather than at `init()`.
-And `inContextEditor` returns the host type UNCHANGED, because under its
+the plugin host. `fetchLoader` builds its plugin while it composes, so a missing
+`cdnUrl` throws at COMPOSITION rather than at `init()`. `inContextEditor` returns
+the host type UNCHANGED, because under its
 package's `production` export condition it is `(host) => host`. Compose
 `.with(plugins())` when you want `use` yourself.
 
@@ -490,11 +493,12 @@ name)` is exported from `@comvi/core/plugins` for third-party installers.
 **A plugin may only return nothing or a cleanup function.** That is a real break
 for plugin authors, independent of installers. In 0.4, `init()` ignored any
 non-function return; in 0.5 it throws on any non-`undefined` one, matching the
-published `I18nPlugin` type. The usual cause is an expression-bodied arrow:
-`i18n.use(() => (ready = true))` returns `true`; write
-`i18n.use(() => { ready = true; })`. It is also why `.use(inContextEditor())`
-under `production` is caught: the identity no-op has no ensure-step to stop on,
-so it returns the host and `init()` rejects that result.
+published `I18nPlugin` type. The cause is one of two, and the development message
+names both. An expression-bodied arrow: `i18n.use(() => (ready = true))` returns
+`true`; write `i18n.use(() => { ready = true; })`. Or a lowercase installer
+handed to `.use()`, the case that catches `.use(inContextEditor())` under
+`production`: the identity no-op has no ensure-step to stop on, so it returns the
+host and `init()` rejects that result.
 
 `@comvi/plugin-fetch-loader` also takes an explicit **`baseUrl`** option
 (precedence: `baseUrl` > legacy `apiBaseUrl` > build-time env overrides > the new
@@ -515,8 +519,8 @@ that calls it needs no migration at all; its host type is now published as
 runtime entries: `createI18n` on `@comvi/next/client` and `@comvi/next/server` is
 the base host, row for row as §0 describes, and every installer that table names
 is re-exported from both entries. The second constructor name that briefly stood
-beside it during 0.5 development for the bare host is deleted; the codemod does
-the rename.
+beside it during 0.5 development for the bare host is deleted; §3's rename table
+has it, and the codemod does the rename.
 
 A client host is hydrated rather than loaded: nothing is ingested at
 construction, and the catalog arrives through `<I18nProvider messages>`. So an
@@ -580,8 +584,8 @@ unchanged.
 `useI18n()`, `useI18nLoader()`, `useI18nPlugins()`, `<T>` and `<NuxtLinkLocale>`
 are still auto-imported, so no import in your app moves. What moved is what the
 module hands them: with `hostModule` unset it builds text + `{param}`
-interpolation, the cache, events and default params, and nothing else. There are
-two ways out, and they answer different questions.
+interpolation, the cache, events and default params, and nothing else. Two
+escapes answer different questions.
 
 **`comvi.icu: true`** is a module option (default `false`) that makes the
 generated host use `icuCompiler`. It exists because that host gives you nowhere
@@ -617,7 +621,7 @@ export default ((options) =>
     .with(devtools())) satisfies NuxtHostFactory;
 ```
 
-Drop the lines you do not need. Their order is free, and this factory is
+Drop the lines you do not need. Their order is free (§0.1), and this factory is
 catalog-bearing, so it takes `compiler: icuCompiler` rather than the `icu()`
 installer. The rest of the map: SSR / async loading → `.with(loader(map))`;
 `comvi.setup` calling `core.use(...)` → `.with(plugins())`; browser-extension
@@ -642,10 +646,11 @@ A `comvi.setup` hook used to call the capability **on the `VueI18n` proxy**
 (`i18n.reloadTranslations()`). Those eight proxies are gone, so call the host
 instead: **`context.core`**, which is the one member you can call the same way in
 the client plugin and in a server utility. `context.i18n` is a union of `VueI18n`
-and the bare host. `NuxtI18nSetupContext<C>` / `NuxtI18nSetup<C>` are generic in
-the host and default to core's `I18n`, so annotate the hook with the host your
-factory returns (`satisfies NuxtI18nSetup<I18n & I18nLoaderApi>`) and a call the
-host cannot serve fails at type-check instead of at request time.
+and the bare host (`VueI18n<{}, C> | C`). `NuxtI18nSetupContext<C>` /
+`NuxtI18nSetup<C>` are generic in the host and default to core's `I18n`, so
+annotate the hook with the host your factory returns
+(`satisfies NuxtI18nSetup<I18n & I18nLoaderApi>`) and a call the host cannot
+serve fails at type-check instead of at request time.
 
 Nuxt's rendering layer is `@comvi/vue`, so vue's `<T>` change carries through:
 rendering rich text no longer switches string-API tag parsing on behind your
@@ -655,8 +660,8 @@ tells you what the app pays for.
 
 ## 8. Errors you may now see
 
-The two acquisition calls throw at the call site, in both build conditions, never
-silently:
+`useI18nLoader()` and `useI18nPlugins()` throw at the call site, in both build
+conditions, never silently:
 
 ```
 // development
@@ -680,14 +685,15 @@ composition rules. This is the whole list your first run can produce:
 | `E_COMPILER_LOCKED`                                                                                     | `icu()` after a catalog — §0.1                   |
 
 Those `E_*` names are the **production** messages; a development build throws a
-longer message instead, and of the errors in this table only `E_COMPILER_LOCKED`
+longer message instead. Of the errors in this table, only `E_COMPILER_LOCKED`
 carries a `code` own-property to branch on. It is not the only branchable code in
-0.5. `E_ICU_SYNTAX` is thrown in development as an `IcuSyntaxError` carrying both
+0.5: `E_ICU_SYNTAX` is thrown in development as an `IcuSyntaxError` carrying both
 `code` and `argumentType`, and reported through `onError` with the same fields in
 production.
 
-Two more come from the ICU compiler itself, thrown at ingestion in development
-and reported in production with the segment rendered literally:
+Two more `E_ICU_SYNTAX` messages come from the ICU compiler itself, thrown at
+ingestion in development and reported in production with the segment rendered
+literally:
 
 ```
 [i18n] ICU argument `{price, number}` is not supported: this compiler implements `plural`, `selectordinal` and `select`, each with a choice list like `other {…}`. Quote the braces ('{'…'}') or format the value in code and pass it as a plain {param}
@@ -704,7 +710,7 @@ Give every selector a braced sub-message of its own. The plural `offset:` form
 lands here too, not above: `offset:N` parses as a selector with no braced
 sub-message.
 
-Two changes have no error text at all, and both fail silently.
+Two changes are silent: neither produces an error.
 
 **`clearTranslations()` clears content, never intent.** In 0.4 and through the
 0.5 pre-releases, `clearTranslations(undefined, ns)` also DEACTIVATED the
