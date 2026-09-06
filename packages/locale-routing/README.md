@@ -19,15 +19,15 @@
 > **Not for direct use.** This package is published only because
 > [`@comvi/next`](https://www.npmjs.com/package/@comvi/next) and
 > [`@comvi/nuxt`](https://www.npmjs.com/package/@comvi/nuxt) depend on it at
-> runtime. It is an internal seam: its exports carry no compatibility promise
-> and can change in any release.
+> runtime. Its exports are internal: they carry no compatibility promise and
+> can change in any release.
 >
 > The public routing API for Next.js is three subpaths of `@comvi/next`:
 > `@comvi/next/routing` (`defineRouting`, `hasLocale`, `createGetPathname`),
 > `@comvi/next/navigation` (`Link`, `usePathname`, `useLocalizedRouter`) and
 > `@comvi/next/middleware` (`createMiddleware`). For Nuxt it is the module's own
-> auto-imported composables — `useLocalePath`, `useLocaleRoute`,
-> `useSwitchLocalePath`, `<NuxtLinkLocale>`. Reach for those.
+> auto-imported composables: `useLocalePath`, `useLocaleRoute`,
+> `useSwitchLocalePath`, `<NuxtLinkLocale>`. Use those.
 
 ## Install
 

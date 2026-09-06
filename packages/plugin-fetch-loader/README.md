@@ -30,26 +30,26 @@ publishes two entry points, one per delivery mode.
 `fetchLoader()` from the package root serves both: it reads the CDN, and it
 switches to the API when the host carries an `apiKey`. That choice is made at
 runtime, so the API request path is in the bundle either way. `cdnLoader()` from
-`@comvi/plugin-fetch-loader/cdn` is the CDN half on its own — same CDN
+`@comvi/plugin-fetch-loader/cdn` is the CDN half on its own: same CDN
 behaviour, about **1.9 kB min+gz smaller**, and an `apiKey` on the host changes
-nothing. Reach for the root entry only when the app actually talks to the API.
+nothing. Use the root entry only when the app talks to the API.
 
 ## About Comvi i18n
 
-Comvi i18n is a modern, framework-agnostic internationalization library — ICU MessageFormat, rich-text component embedding, and locale-aware `Intl` formatters in **~5 kB minified + gzipped for the base host, ~8.5 kB with every capability composed (as bundled by your app)** with **zero runtime dependencies** and **no `eval`** (CSP-safe for Chrome extensions, Cloudflare Workers, and locked-down enterprise apps).
+Comvi i18n is a framework-agnostic internationalization library. You get ICU MessageFormat, rich-text component embedding, and locale-aware `Intl` formatters in **~5 kB minified + gzipped for the base host, ~8.5 kB with every capability composed (as bundled by your app)**, with **zero runtime dependencies** and **no `eval`** (CSP-safe for Chrome extensions, Cloudflare Workers, and locked-down enterprise apps).
 
 - **Same API** across [Vue](https://www.npmjs.com/package/@comvi/vue), [React](https://www.npmjs.com/package/@comvi/react), [SolidJS](https://www.npmjs.com/package/@comvi/solid), [Svelte](https://www.npmjs.com/package/@comvi/svelte), [Next.js](https://www.npmjs.com/package/@comvi/next), and [Nuxt](https://www.npmjs.com/package/@comvi/nuxt).
-- **ICU `plural`, `selectordinal` & `select`** — locale-correct plurals, ordinals, and gender via `Intl.PluralRules`. Recognized by every major TMS. One explicit import: `compiler: icuCompiler` from `@comvi/core/icu`. The `number` / `date` / `time` argument types and the plural `offset:` form are not implemented and are not planned — each one is an `E_ICU_SYNTAX` failure, never a wrong render.
-- **Type-safe translation keys** via TypeScript declaration merging — autocomplete and parameter validation everywhere.
-- **Pluggable** — translation loading, locale detection, and in-context editing are opt-in plugins.
+- **ICU `plural`, `selectordinal` & `select`:** locale-correct plurals, ordinals, and gender via `Intl.PluralRules`. Recognized by every major TMS. One explicit import: `compiler: icuCompiler` from `@comvi/core/icu`. The `number` / `date` / `time` argument types and the plural `offset:` form are not implemented and are not planned. Each one fails with `E_ICU_SYNTAX` instead of rendering something wrong.
+- **Type-safe translation keys** via TypeScript declaration merging, for autocomplete and parameter validation everywhere.
+- **Pluggable:** translation loading, locale detection, and in-context editing are opt-in plugins.
 
 See the [main repo](https://github.com/comvi-io/comvi-js) for the full library overview, runnable demos, and the framework binding matrix.
 
 ### Why @comvi/plugin-fetch-loader?
 
 - **Request deduplication.** Concurrent requests for the same locale/namespace are merged into a single fetch.
-- **Automatic reload on locale change.** Translations re-fetch whenever the active locale changes — no manual cache invalidation.
-- **Namespace-on-demand loading.** Fetch only the translation files your app actually uses.
+- **Automatic reload on locale change.** Translations re-fetch whenever the active locale changes, with no manual cache invalidation.
+- **Namespace-on-demand loading.** Fetch only the translation files your app uses.
 
 📖 **Documentation:** https://comvi.io/docs/i18n/plugins/fetch-loader/
 
@@ -74,9 +74,9 @@ const i18n = createI18n({ locale: "en" })
 await i18n.init();
 ```
 
-Compose `icu()` before the first catalog arrives, which is why it comes before
-the loader; drop it only if the project uses no plural/select. That is the
-library's only ordering rule — see
+Compose `icu()` before the first catalog arrives, so it goes ahead of the
+loader; drop it only if the project uses no plural/select. That is the
+library's only ordering rule. See
 [MIGRATION.md §0.1](../../MIGRATION.md#01-the-compiler-has-a-timing-rule).
 
 The distribution id in `cdnUrl` comes from the Comvi platform: open your project
@@ -84,19 +84,19 @@ and read it off the **Distributions** page.
 
 ## Two ways in
 
-`@comvi/core` is the BASE host: async loading and the plugin host are imports
-you add, not things every app pays for. Each entry point exports one name for
-each way of adding them — `cdnLoader` / `CdnLoader` on `/cdn`, `fetchLoader` /
-`FetchLoader` at the root. The table below uses the `/cdn` pair; the root pair
-behaves identically.
+`@comvi/core` is the BASE host. Async loading and the plugin host are imports
+you add, so an app that uses neither never pays for them. Each entry point
+exports one name for each way of adding them: `cdnLoader` / `CdnLoader` on
+`/cdn`, `fetchLoader` / `FetchLoader` at the root. The table below uses the
+`/cdn` pair; the root pair behaves identically.
 
 |                   | `.with(cdnLoader(options))`                          | `.use(CdnLoader(options))`                                                       |
 | ----------------- | ---------------------------------------------------- | -------------------------------------------------------------------------------- |
-| what it is        | the **installer** — lowercase                        | the **plugin factory** — uppercase                                               |
+| what it is        | the **installer**, lowercase                         | the **plugin factory**, uppercase                                                |
 | the host it needs | any host, including a bare `createI18n(…)`           | one that already has `@comvi/core/loader` **and** `@comvi/core/plugins`          |
-| what it composes  | both capabilities, idempotently, loader first        | nothing — it only registers                                                      |
+| what it composes  | both capabilities, idempotently, loader first        | nothing; it only registers                                                       |
 | lifecycle         | the host's own: it ends in `use(CdnLoader(options))` | the host's own                                                                   |
-| reach for it when | you are setting up the host                          | you already compose capabilities explicitly, or you register plugins from a list |
+| use it when       | you are setting up the host                          | you already compose capabilities explicitly, or you register plugins from a list |
 
 Both end in the same place. The installer is the one-call form of this:
 
@@ -110,8 +110,8 @@ const i18n = createI18n({ locale: "en" }).with(attachLoader).with(attachPlugins)
 i18n.use(CdnLoader({ cdnUrl: "https://cdn.comvi.io/your-distribution-id" }));
 ```
 
-**Swapping the two is a type error, and it is loud at runtime too.** Nothing is
-branded — an installer and a plugin are both "a function of the host" — so each
+**Swapping the two is a type error, and it fails loudly at runtime too.** Nothing
+is branded: an installer and a plugin are both "a function of the host". So each
 slot rejects the other explicitly instead of half-working:
 
 - `.use(cdnLoader(…))` fails at `init()`, on the installer's first
@@ -156,7 +156,7 @@ mode on the root entry, namespaces are sent explicitly in the API request.
 
 ## API mode
 
-API mode lives on the root entry. Pass an `apiKey` on `createI18n` and use `fetchLoader` — the loader talks to the platform API instead of the public CDN, which is what staging, draft translations and auth-gated content need:
+API mode lives on the root entry. Pass an `apiKey` on `createI18n` and use `fetchLoader`. The loader then talks to the platform API instead of the public CDN. Staging, draft translations and auth-gated content need that:
 
 ```ts
 import { createI18n } from "@comvi/core";
@@ -179,7 +179,7 @@ API mode requests run with `Authorization: Bearer <apiKey>` and hit the platform
 
 ## Pair with your framework
 
-Same setup, framework-idiomatic integration. The plugin lives on the underlying `@comvi/core` instance, so it works identically across every binding:
+The setup is the same in every binding. The plugin lives on the underlying `@comvi/core` instance, so it works identically:
 
 **React**
 
@@ -210,7 +210,7 @@ i18n.core.with(cdnLoader({ cdnUrl: "https://cdn.comvi.io/your-distribution-id" }
 createApp(App).use(i18n).mount("#app");
 ```
 
-**Next.js / Nuxt** — pair with `loadTranslations()` for SSR. See the [`@comvi/next`](../next) and [`@comvi/nuxt`](../nuxt) READMEs.
+**Next.js / Nuxt:** pair with `loadTranslations()` for SSR. See the [`@comvi/next`](../next) and [`@comvi/nuxt`](../nuxt) READMEs.
 
 For SSR fetch-cache integration, offline fallbacks, lazy namespace loading, the full options reference, and the lower-level helpers exported for `@comvi/next` / `@comvi/nuxt`, see the [documentation](https://comvi.io/docs/i18n/plugins/fetch-loader/).
 

@@ -37,15 +37,15 @@
 ## Why Comvi?
 
 - **Rich text without XSS.** Embed components into translations (`Click <link>here</link>`) without raw HTML strings or unsafe DOM injection.
-- **Same API across six frameworks.** `useI18n()` and the `<T>` component look the same in Vue, React, SolidJS, Svelte, Next.js, and Nuxt. All bindings ship together with the core — same version, same release cycle.
-- **ICU `plural`, `selectordinal` & `select`.** Locale-correct grammar for every language `Intl.PluralRules` supports, reached through one explicit import — `compiler: icuCompiler` from `@comvi/core/icu`. The `number` / `date` / `time` argument types and the plural `offset:` form are not implemented and are not planned — each one is an `E_ICU_SYNTAX` failure, never a wrong render. Numbers, dates, currency, and relative time are formatted via native `Intl` by `formatNumber(i18n, …)` and friends — free functions on core, already bound to the render locale in every framework binding.
-- **~5 kB base host, ~8.5 kB fully composed (min+gz, as bundled by your app), zero dependencies.** On the platform CDN path — `cdnLoader` plus ICU — a whole app graph is ≈ 8.9 kB with `@comvi/core` and ≈ 10.5 kB with `@comvi/react`; `fetchLoader`, which carries the authenticated API path as well, is ≈ 10.8 kB on core. Every capability is an import you add, so an app carries only what it composes. No `eval` or `new Function` in any runtime package — works under a strict CSP without `unsafe-eval`.
-- **Pluggable loading & detection.** Translations come from inline objects, local JSON, or a CDN/API loader plugin — one `.with(cdnLoader({ … }))`, or `.with(fetchLoader({ … }))` when the app also reads the authenticated API. Locale detection (query, cookie, storage, `navigator`) is a separate plugin you opt into.
+- **Same API across six frameworks.** `useI18n()` and the `<T>` component look the same in Vue, React, SolidJS, Svelte, Next.js, and Nuxt. All bindings ship together with the core, on one version and one release cycle.
+- **ICU `plural`, `selectordinal` & `select`.** Locale-correct grammar for every language `Intl.PluralRules` supports, reached through one explicit import: `compiler: icuCompiler` from `@comvi/core/icu`. The `number` / `date` / `time` argument types and the plural `offset:` form are not implemented and are not planned. Each one fails with `E_ICU_SYNTAX` instead of rendering something wrong. Numbers, dates, currency, and relative time are formatted via native `Intl` by `formatNumber(i18n, …)` and friends, which are free functions on core, already bound to the render locale in every framework binding.
+- **~5 kB base host, ~8.5 kB fully composed (min+gz, as bundled by your app), zero dependencies.** On the platform CDN path (`cdnLoader` plus ICU) a whole app graph is ≈ 8.9 kB with `@comvi/core` and ≈ 10.5 kB with `@comvi/react`; `fetchLoader`, which carries the authenticated API path as well, is ≈ 10.8 kB on core. Every capability is an import you add, so an app carries only what it composes. No `eval` or `new Function` in any runtime package, so it works under a strict CSP without `unsafe-eval`.
+- **Pluggable loading & detection.** Translations come from inline objects, local JSON, or a CDN/API loader plugin: one `.with(cdnLoader({ … }))`, or `.with(fetchLoader({ … }))` when the app also reads the authenticated API. Locale detection (query, cookie, storage, `navigator`) is a separate plugin you opt into.
 - **Server-side rendering for Next.js & Nuxt.** `@comvi/next` ships an App Router `loadTranslations()` for server components, locale-routed layouts under `[locale]`, and a `createMiddleware()` for redirect-on-detect. `@comvi/nuxt` is a Nuxt 3 / 4 module with locale composables, middleware, and `<NuxtLinkLocale>`.
 
 ## Install
 
-Pick one — framework packages bundle `@comvi/core`, so a single install is enough:
+Pick one. Framework packages bundle `@comvi/core`, so a single install is enough:
 
 ```bash
 npm install @comvi/core      # Vanilla / Node
@@ -66,7 +66,7 @@ npm install @comvi/react @comvi/plugin-fetch-loader # platform CDN path
 
 ## Quick start
 
-Translations from the Comvi platform CDN — the recipe most apps want:
+Translations from the Comvi platform CDN, which is the recipe most apps want:
 
 ```ts
 import { createI18n } from "@comvi/core";
@@ -83,9 +83,9 @@ i18n.t("greeting", { name: "Alice" }); // "Hello, Alice!"
 i18n.t("items", { count: 5 }); // "5 items"
 ```
 
-Drop `icu()` if you use no plural/select — plain `{param}` interpolation needs no
-import. It has to be composed before the first catalog reaches the host, which is
-why it comes ahead of the loader here.
+Drop `icu()` if you use no plural/select; plain `{param}` interpolation needs no
+import. It has to be composed before the first catalog reaches the host, so it
+comes ahead of the loader here.
 
 The distribution id in `cdnUrl` comes from the Comvi platform: open your project
 and read it off the **Distributions** page.
@@ -122,8 +122,8 @@ Without `compiler: icuCompiler` the default compiler never renders
 `{count, plural, …}` as a plural: development throws `E_ICU_SYNTAX` at
 ingestion, and production renders the braced segment literally and reports
 `E_ICU_SYNTAX` through `onError` (or `console.error`) on the compilation that
-hit it — best-effort, per process, never on cached renders. Plain `{param}`
-interpolation needs no import.
+hit it. That report is best-effort, per process, and never fires on cached
+renders. Plain `{param}` interpolation needs no import.
 
 For framework-specific setup, see the docs:
 [React](https://comvi.io/docs/i18n/react/) ·
@@ -134,18 +134,18 @@ For framework-specific setup, see the docs:
 [Svelte](https://comvi.io/docs/i18n/svelte/) ·
 [Vanilla](https://comvi.io/docs/i18n/vanilla/)
 
-Wondering how Comvi stacks up? Honest comparisons: [vs i18next](https://comvi.io/compare/i18next/) · [vs next-intl](https://comvi.io/compare/next-intl/) · [vs nuxt-i18n](https://comvi.io/compare/nuxt-i18n/) · [vs Lokalise](https://comvi.io/compare/lokalise/)
+Wondering how Comvi stacks up? Comparisons: [vs i18next](https://comvi.io/compare/i18next/) · [vs next-intl](https://comvi.io/compare/next-intl/) · [vs nuxt-i18n](https://comvi.io/compare/nuxt-i18n/) · [vs Lokalise](https://comvi.io/compare/lokalise/)
 
-Or jump straight into runnable code in [`test-apps/`](test-apps/) — one demo app per framework.
+Or jump straight into runnable code in [`test-apps/`](test-apps/), one demo app per framework.
 
 ## One entry per package
 
 Every package publishes ONE host entry. A capability is an import you add to
-that entry, never a second entry you switch to — so a bundle carries a
-capability because you composed it, and for no other reason.
+that entry, not a second entry you switch to. A bundle carries a capability
+because you composed it, and for no other reason.
 
 Compose before `init()`; a later `.with()` / `.use()` warns in development and
-does nothing. `icu()` is stricter still — it has to come before the first
+does nothing. `icu()` is stricter still: it has to come before the first
 catalog reaches the host, which is the library's only ordering rule.
 
 | package         | the entry you import                       | host constructor                                   | notes                                                                                             |
@@ -159,26 +159,26 @@ catalog reaches the host, which is the library's only ordering rule.
 | `@comvi/nuxt`   | auto-imported                              | the module's generated host, or `hostModule`       | the default generated host is the base host; `hostModule` is the composition escape               |
 
 Capabilities are core's pure subpaths, re-exported **by name** from every
-framework entry except `@comvi/nuxt` — so the ones you never call are pruned by
-your bundler, which the repo's bundler matrix asserts from the emitted module
+framework entry except `@comvi/nuxt`, so the ones you never call are pruned by
+your bundler. The repo's bundler matrix asserts that from the emitted module
 graph in webpack and vite, development and production. (`@comvi/nuxt` is the
-deliberate exception: app code imports nothing, so the toolkit is not
-re-exported. Composition happens in one `hostModule` file that names
-`@comvi/core` and its subpaths directly.)
+exception: app code imports nothing, so the toolkit is not re-exported.
+Composition happens in one `hostModule` file that names `@comvi/core` and its
+subpaths directly.)
 
 | you want                                                       | you add                                                                          |
 | -------------------------------------------------------------- | -------------------------------------------------------------------------------- |
 | ICU `plural` / `select` / `selectordinal`                      | `compiler: icuCompiler` in the options, or `.with(icu())` **before** any catalog |
 | async / remote loading, nested-catalog flattening              | `.with(loader(importMap))`, `.with(attachLoader)`, or the pure `flattenCatalog`  |
-| the plugin host — `use`, post-processors, missing-key hooks    | `.with(plugins())`                                                               |
+| the plugin host: `use`, post-processors, missing-key hooks     | `.with(plugins())`                                                               |
 | browser-extension discovery (`instanceId`, `window.__COMVI__`) | `.with(devtools())`                                                              |
 | `<tag>` markup inside plain string-API `t()`                   | `import "@comvi/core/tags"` once, anywhere in the app                            |
-| rich text through `<T>`                                        | nothing — `<T>` uses the pure `@comvi/core/rich-text` seam and registers nothing |
+| rich text through `<T>`                                        | nothing; `<T>` uses the pure `@comvi/core/rich-text` path and registers nothing  |
 
-Two hosts are the exception to "a capability because you composed it", and both
-are deliberate: `createNextI18n` on `@comvi/next` (the composed 0.4 host, kept
-byte-for-byte behaviour-compatible) and the CDN global build always carry ICU,
-whether or not the app asks. Neither is the base host, and neither is what
+Two hosts are the exception to "a capability because you composed it":
+`createNextI18n` on `@comvi/next` (the composed 0.4 host, kept
+behaviour-compatible) and the CDN global build always carry ICU, whether or not
+the app asks. Neither is the base host, and neither is what
 `createI18n` returns on any entry.
 
 First-party plugins ship a lowercase **installer** beside the uppercase factory,
@@ -188,7 +188,7 @@ and the installer composes whatever capabilities that plugin needs:
 
 ## Rich text without XSS
 
-The hero feature. Embed components inside translation strings without raw HTML, without unsafe DOM injection, without splitting a sentence across multiple template fragments. Translators see clean markup; you control the rendering.
+Embed components inside translation strings without raw HTML, without unsafe DOM injection, and without splitting a sentence across multiple template fragments. Translators see clean markup, and you control the rendering.
 
 ```json
 { "help": "Click <link>here</link> for support, or <bold>read the docs</bold>." }
@@ -227,15 +227,15 @@ import { T } from "@comvi/vue";
 </template>
 ```
 
-SolidJS and Svelte expose the same tag-interpolation concept with framework-specific component map shapes. Pass `tagInterpolation: { strict: "warn" }` to `createI18n` to surface translations referencing tags you forgot to handle — before they ship.
+SolidJS and Svelte expose the same tag-interpolation concept with framework-specific component map shapes. Pass `tagInterpolation: { strict: "warn" }` to `createI18n` to catch translations referencing tags you forgot to handle, before they ship.
 
-`<T>` is self-contained: it renders through the pure `@comvi/core/rich-text` seam, which takes the tag grammar per call and registers nothing. Rendering it never changes what a plain `t()` does with `<b>` markup. Making `t("Click <b>here</b>")` itself parse tags is the separate, ambient opt-in — `import "@comvi/core/tags"` once.
+`<T>` is self-contained: it renders through the pure `@comvi/core/rich-text` path, which takes the tag grammar per call and registers nothing. Rendering it never changes what a plain `t()` does with `<b>` markup. Making `t("Click <b>here</b>")` itself parse tags is a separate, ambient opt-in: `import "@comvi/core/tags"` once.
 
-That import registers the tag grammar **process-wide and retroactively**: it is a property of the bundle, not of one host, so every instance in the graph — including ones built before the import was evaluated — starts parsing `<tag>` markup the moment the module runs. There is no per-instance opt-out. An SSR app must therefore import it in the **server** graph too, or the same string renders literally on the server and with markup on the client.
+That import registers the tag grammar **process-wide and retroactively**: it is a property of the bundle, not of one host, so every instance in the graph, including ones built before the import was evaluated, starts parsing `<tag>` markup the moment the module runs. There is no per-instance opt-out. An SSR app must therefore import it in the **server** graph too, or the same string renders literally on the server and with markup on the client.
 
 ## ICU plurals, ordinals & select
 
-Comvi uses [ICU MessageFormat](https://unicode-org.github.io/icu/userguide/format_parse/messages/) — the industry-standard syntax for localized strings, recognized by every major translation management platform (Crowdin, Lokalise, Phrase, and more). Locale-correct for every language `Intl.PluralRules` supports — Polish, Ukrainian, Arabic, Welsh, and the rest:
+Comvi uses [ICU MessageFormat](https://unicode-org.github.io/icu/userguide/format_parse/messages/), the industry-standard syntax for localized strings, recognized by every major translation management platform (Crowdin, Lokalise, Phrase, and more). It is locale-correct for every language `Intl.PluralRules` supports, including Polish, Ukrainian, Arabic and Welsh:
 
 ```
 {count, plural, one {You have # message} other {You have # messages}}
@@ -245,9 +245,9 @@ Comvi uses [ICU MessageFormat](https://unicode-org.github.io/icu/userguide/forma
 
 Those three argument types are the whole of what the compiler implements. The
 `number`, `date` and `time` argument types are not supported and are not on the
-roadmap, and neither is the plural `offset:` form. Each one is an
-`E_ICU_SYNTAX` failure rather than a wrong render: format the value in code and
-pass it as a plain `{param}`, or quote the braces (`'{'…'}'`) to keep the text
+roadmap, and neither is the plural `offset:` form. Each one fails with
+`E_ICU_SYNTAX` instead of rendering something wrong: format the value in code
+and pass it as a plain `{param}`, or quote the braces (`'{'…'}'`) to keep the text
 literal; for the plural `offset:` form, drop `offset:` and write the branches
 out.
 
@@ -273,21 +273,22 @@ i18n.t("rank", { place: 3 }); // "You finished 3rd"
 i18n.t("salutation", { gender: "female" }); // "Welcome, madam"
 ```
 
-ICU is a composed capability, not a default. Name it once where you build the
-host — `compiler: icuCompiler` for inline catalogs, `.with(icu())` before the
-first remote catalog is ingested — and the whole grammar above is live. Leave it
-out and the failure is loud in every build condition, never silent and never a
-plausible wrong answer: development throws `E_ICU_SYNTAX` at ingestion, and
-production renders the braced segment literally and reports `E_ICU_SYNTAX`
-through `onError` (or `console.error`) on the compilation that hit it —
-best-effort, per process, never on cached renders.
+ICU is a composed capability rather than a default. Name it once where you build
+the host, with `compiler: icuCompiler` for inline catalogs or `.with(icu())`
+before the first remote catalog is ingested, and the whole grammar above is
+live. Leave it out and the failure is loud in every build condition, never
+silent and never a plausible wrong answer: development throws `E_ICU_SYNTAX` at
+ingestion, and production renders the braced segment literally and reports
+`E_ICU_SYNTAX` through `onError` (or `console.error`) on the compilation that
+hit it. That report is best-effort, per process, and never fires on cached
+renders.
 
 ## Locale-aware formatting
 
-Numbers, dates, currency, and relative time — automatically follow the active locale via native `Intl`:
+Numbers, dates, currency, and relative time automatically follow the active locale via native `Intl`:
 
 On a core host they are free functions that take the host as their first
-argument — nothing is bolted onto the instance:
+argument. Nothing is bolted onto the instance:
 
 ```ts
 import {
@@ -311,15 +312,15 @@ getTextDirection(i18n.locale); // "ltr" | "rtl" — handles script subtags (ku-A
 ```
 
 Every framework binding hands the same four back off `useI18n()`, together with
-`dir` — but how _reactive_ they are differs, and the difference is in the
-bindings, not in core:
+`dir`. How _reactive_ they are differs between the bindings; core behaves the
+same under all of them:
 
-| binding | formatters re-render on a locale change                                                                                                           | `dir`                        |
-| ------- | ------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------- |
-| React   | **yes** — bound to the tracked locale and passed explicitly (`react/src/useI18n.ts:273-277`, `useFormatters.ts:31-34`)                            | reactive                     |
-| Vue     | **yes** — they default to the reactive `locale` ref (`vue/src/VueI18n.ts:186-193`)                                                                | reactive (`ComputedRef`)     |
-| Svelte  | **no** — "plain functions, not stores" (`svelte/src/useI18n.ts:198`); they read `i18n.locale` once per call unless you pass a locale (`:287-292`) | reactive (a `derived` store) |
-| Solid   | **no** — they call core with the host and read no signal (`solid/src/useI18n.ts:249-252`); contrast `dir`, which does (`:253`)                    | reactive                     |
+| binding | formatters re-render on a locale change                                                                                                                 | `dir`                        |
+| ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------- |
+| React   | **yes**, bound to the tracked locale and passed explicitly (`react/src/useI18n.ts:273-277`, `useFormatters.ts:31-34`)                                   | reactive                     |
+| Vue     | **yes**, they default to the reactive `locale` ref (`vue/src/VueI18n.ts:186-193`)                                                                       | reactive (`ComputedRef`)     |
+| Svelte  | **no**. They are "plain functions, not stores" (`svelte/src/useI18n.ts:198`) and read `i18n.locale` once per call unless you pass a locale (`:287-292`) | reactive (a `derived` store) |
+| Solid   | **no**. They call core with the host and read no signal (`solid/src/useI18n.ts:249-252`), while `dir` does (`:253`)                                     | reactive                     |
 
 In Svelte and Solid, put the formatter call where the locale is already tracked
 (a `$:`/`$derived`, a `createMemo`, or the template) or pass the locale
@@ -342,10 +343,10 @@ yourself.
 **Upgrading from 0.4.x?** Every package now has exactly ONE entry, and
 `@comvi/core` is the base host: ICU, async loading, the plugin host and
 extension discovery are imports you add, not an entry you switch. That is a
-deliberate breaking change on a 0.x minor — ICU syntax on the default compiler
-throws instead of rendering wrong text — and it also moved four loader/plugin
-members out of `useI18n()`. The migration is mechanical and mostly codemodded —
-see **[MIGRATION.md](MIGRATION.md)**.
+breaking change on a 0.x minor. ICU syntax on the default compiler throws
+instead of rendering wrong text, and four loader/plugin members moved out of
+`useI18n()`. The migration is mechanical and mostly codemodded; see
+**[MIGRATION.md](MIGRATION.md)**.
 
 ### Plugins
 
@@ -356,7 +357,7 @@ see **[MIGRATION.md](MIGRATION.md)**.
 
 ### Platform plugins
 
-These plugins require the [Comvi Platform](https://comvi.io) — they don't work standalone.
+These plugins require the [Comvi Platform](https://comvi.io) and don't work standalone.
 
 | Package                                                                | Description                                               |
 | ---------------------------------------------------------------------- | --------------------------------------------------------- |
@@ -371,14 +372,14 @@ These plugins require the [Comvi Platform](https://comvi.io) — they don't work
 
 ## Comvi Platform
 
-Comvi i18n is the open-source library — fully usable on its own. [**Comvi**](https://comvi.io) is the optional translation management platform that pairs with it:
+Comvi i18n is the open-source library, and it is usable on its own. [**Comvi**](https://comvi.io) is the optional translation management platform that pairs with it:
 
 - **Collaborative dashboard** for translators, designers, and developers
-- **CDN delivery** via [`@comvi/plugin-fetch-loader`](packages/plugin-fetch-loader) — ship a translation without a redeploy
+- **CDN delivery** via [`@comvi/plugin-fetch-loader`](packages/plugin-fetch-loader), so you can ship a translation without a redeploy
 - **Auto-generated types** straight from the platform via [`@comvi/cli`](packages/cli)
 - **In-context editing** in your live app via [`@comvi/plugin-in-context-editor`](packages/plugin-in-context-editor)
 
-Adopt the platform when you're ready — the library never depends on it.
+Adopt the platform when you're ready. The library never depends on it.
 
 ## Repository
 

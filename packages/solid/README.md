@@ -17,26 +17,26 @@
 
 ---
 
-`@comvi/solid` wraps [`@comvi/core`](../core) for SolidJS. `<I18nProvider>` mounts an instance; `useI18n()` returns reactive signals that integrate with Solid's fine-grained reactivity. Signals are functions — call `locale()` to read the value.
+`@comvi/solid` wraps [`@comvi/core`](../core) for SolidJS. `<I18nProvider>` mounts an instance; `useI18n()` returns reactive signals that integrate with Solid's fine-grained reactivity. Signals are functions, so call `locale()` to read the value.
 
-Same `t()` and `<T>` API as the [Vue](../vue), [React](../react), and [Svelte](../svelte) bindings — switch frameworks without relearning your i18n layer.
+Same `t()` and `<T>` API as the [Vue](../vue), [React](../react), and [Svelte](../svelte) bindings, so switching frameworks doesn't mean relearning your i18n layer.
 
 📖 **Documentation:** https://comvi.io/docs/i18n/solid/
 
 ## Why Comvi i18n?
 
-Comvi i18n is a modern, framework-agnostic internationalization library built on three principles: type-safe translations, real ICU MessageFormat, and zero compromises on bundle size or security.
+Comvi i18n is a framework-agnostic internationalization library with type-safe translations, real ICU MessageFormat, and a small bundle.
 
-- **Rich text without XSS.** Embed components inside translation strings (`Click <link>here</link>`) — translators see clean markup, you decide what each tag renders to. No raw HTML, no unsafe DOM injection, no splitting a sentence across template fragments.
-- **ICU `plural`, `selectordinal` & `select`.** Locale-correct grammar via `Intl.PluralRules` — Polish, Ukrainian, Arabic, Welsh, and the rest. Same syntax every major TMS (Crowdin, Lokalise, Phrase) already speaks. The `number` / `date` / `time` argument types and the plural `offset:` form are not implemented and are not planned — each one is an `E_ICU_SYNTAX` failure, never a wrong render.
+- **Rich text without XSS.** Embed components inside translation strings (`Click <link>here</link>`). Translators see clean markup, and you decide what each tag renders to. No raw HTML, no unsafe DOM injection, and no splitting a sentence across template fragments.
+- **ICU `plural`, `selectordinal` & `select`.** Locale-correct grammar via `Intl.PluralRules`, including Polish, Ukrainian, Arabic, Welsh and the rest. It is the same syntax every major TMS (Crowdin, Lokalise, Phrase) already speaks. The `number` / `date` / `time` argument types and the plural `offset:` form are not implemented and are not planned. Each one fails with `E_ICU_SYNTAX` instead of rendering something wrong.
 - **Locale-aware formatters built in.** `formatNumber`, `formatDate`, `formatCurrency`, and `formatRelativeTime` follow the active locale via native `Intl`, with reactive updates in every framework binding.
-- **~6.3 kB minified + gzipped for a default app graph (measured, `solid-js` externalized), zero runtime dependencies.** That is the base host plus the solid bindings; ICU, async loading, the plugin host and devtools discovery cost only where you compose them. No `eval` or `new Function` anywhere — runs under a strict CSP without `unsafe-eval`. Safe for Chrome extensions, Cloudflare Workers, and locked-down enterprise apps.
-- **Pluggable, not monolithic.** Translation loading (CDN/API), locale detection, and in-context editing are opt-in plugins via `@comvi/plugin-fetch-loader`, `@comvi/plugin-locale-detector`, and `@comvi/plugin-in-context-editor` — one lowercase `.with(installer)` each. You only ship what you use.
-- **Same API across 6 frameworks.** `useI18n()` and `<T>` look the same in [Vue](https://www.npmjs.com/package/@comvi/vue), [React](https://www.npmjs.com/package/@comvi/react), [SolidJS](https://www.npmjs.com/package/@comvi/solid), [Svelte](https://www.npmjs.com/package/@comvi/svelte), [Next.js](https://www.npmjs.com/package/@comvi/next), and [Nuxt](https://www.npmjs.com/package/@comvi/nuxt) — switch frameworks without relearning your i18n layer.
+- **~6.3 kB minified + gzipped for a default app graph (measured, `solid-js` externalized), zero runtime dependencies.** That is the base host plus the solid bindings; ICU, async loading, the plugin host and devtools discovery cost only where you compose them. No `eval` or `new Function` anywhere, so it runs under a strict CSP without `unsafe-eval`. Safe for Chrome extensions, Cloudflare Workers, and locked-down enterprise apps.
+- **Pluggable.** Translation loading (CDN/API), locale detection, and in-context editing are opt-in plugins via `@comvi/plugin-fetch-loader`, `@comvi/plugin-locale-detector`, and `@comvi/plugin-in-context-editor`, one lowercase `.with(installer)` each. You only ship what you use.
+- **Same API across 6 frameworks.** `useI18n()` and `<T>` look the same in [Vue](https://www.npmjs.com/package/@comvi/vue), [React](https://www.npmjs.com/package/@comvi/react), [SolidJS](https://www.npmjs.com/package/@comvi/solid), [Svelte](https://www.npmjs.com/package/@comvi/svelte), [Next.js](https://www.npmjs.com/package/@comvi/next), and [Nuxt](https://www.npmjs.com/package/@comvi/nuxt), so switching frameworks doesn't mean relearning your i18n layer.
 
 ## Why @comvi/solid?
 
-- **Fine-grained reactivity.** `useI18n()` returns signals and reactive primitives — only components that read a specific value re-run, no prop drilling.
+- **Fine-grained reactivity.** `useI18n()` returns signals and reactive primitives, so only components that read a specific value re-run. No prop drilling.
 - **Function-based `<T>` component.** Avoids Solid's conditional branch caching pitfalls by using functions for tag rendering instead of components.
 - **Direct signal access.** Export utility functions like `createLocaleSignal()` and `createLoadingSignal()` for advanced patterns that need lower-level reactivity primitives.
 
@@ -120,13 +120,13 @@ render(
 );
 ```
 
-`icu()` must be composed before the first catalog reaches the host, which is why
-it comes ahead of the loader. That is the library's only ordering rule; drop
+`icu()` must be composed before the first catalog reaches the host, so it comes
+ahead of the loader. That is the library's only ordering rule; drop
 `icu()` if the project uses no plural/select.
 
 There is no `i18n.init()` call here because `<I18nProvider>` initializes the
 host itself (`autoInit`, on by default). The first paint therefore happens while
-the catalog is still in flight — gate it on the `isLoading()` signal from
+the catalog is still in flight, so gate it on the `isLoading()` signal from
 `useI18n()`.
 
 The distribution id in `cdnUrl` comes from the Comvi platform: open your project
@@ -157,13 +157,13 @@ function Greeting() {
 }
 ```
 
-If you need a derived value, wrap it in a memo: `const greeting = createMemo(() => t("greeting", { name: "Alice" }))`, then read `greeting()`. (Coming from React/Vue, where `const g = t(...)` works because the whole component re-renders — Solid does not re-render, so the call must stay in a tracked position.)
+If you need a derived value, wrap it in a memo: `const greeting = createMemo(() => t("greeting", { name: "Alice" }))`, then read `greeting()`. (Coming from React/Vue, where `const g = t(...)` works because the whole component re-renders: Solid does not re-render, so the call must stay in a tracked position.)
 
 ## Capability APIs: `useI18nLoader()` / `useI18nPlugins()`
 
-Async loading and the plugin host are `@comvi/core` **capabilities**, not part
-of the translation core. Since 0.5.0 their members are acquired explicitly
-rather than being handed out by `useI18n()`:
+Async loading and the plugin host are `@comvi/core` **capabilities** rather than
+part of the translation core. Since 0.5.0 you acquire their members explicitly
+instead of getting them from `useI18n()`:
 
 ```tsx
 import { useI18n, useI18nLoader, useI18nPlugins } from "@comvi/solid";
@@ -177,13 +177,13 @@ function Namespaces() {
 }
 ```
 
-They are plain accessors under the provider — **not signals**. A capability
+They are plain accessors under the provider, **not signals**. A capability
 action is an imperative operation, not a reactive value. Neither takes
 parameters; the namespace argument stays on `useI18n(ns)`. The bag is
 referentially stable per host instance, so two components under one
 `<I18nProvider>` receive the same function references.
 
-On a host that lacks the capability the acquisition call throws — in
+On a host that lacks the capability the acquisition call throws, in
 development **and** production, never a silent no-op:
 
 ```
@@ -196,11 +196,11 @@ or the [0.5.0 migration guide](https://github.com/comvi-io/comvi-js/blob/main/MI
 ## Supported hosts and what they cost
 
 `<I18nProvider i18n={…}>`, `useI18nContext()` and all six reactive primitives
-accept any `WrapperI18nHost` — `createI18n` from `@comvi/solid` (core's own
+accept any `WrapperI18nHost`: `createI18n` from `@comvi/solid` (core's own
 base-host constructor, re-exported by name), with or without `.with(loader())` /
-`.with(plugins())` composed on. The base host is the cheap one: ICU, tag syntax,
+`.with(plugins())` composed on. The base host is the cheap one. ICU, tag syntax,
 async loading, the plugin host and devtools discovery are each something you
-compose, never something you carry by default.
+compose, and you carry none of them by default.
 
 Whole-app comvi graph, min+gz, `solid-js` externalized (`node scripts/size-check.mjs`):
 
@@ -222,25 +222,25 @@ and its graph still excludes the tag-registration pair and unused capabilities.
 
 `@comvi/solid` is the whole toolkit: core's base host constructor and class, the
 solid bindings, and core's capability installers as **named** re-exports. One
-entry, one build pass, one solid context — a solid app names one package and
+entry, one build pass, one solid context. A solid app names one package and
 nothing else, and no sibling entry exists whose `<I18nProvider>` could be
 invisible to this one's `useI18n()`.
 
-| export                                          | what it is                                      |
-| ----------------------------------------------- | ----------------------------------------------- |
-| `createI18n`, `I18n`                            | core's base host — constructor and class        |
-| `icuCompiler`, `icu`                            | from `@comvi/core/icu` — compiler and installer |
-| `loader`, `attachLoader`, `flattenCatalog`      | from `@comvi/core/loader`                       |
-| `plugins`, `attachPlugins`                      | from `@comvi/core/plugins`                      |
-| `devtools`, `attachDevtools`                    | from `@comvi/core/devtools`                     |
-| every primitive, `I18nProvider`, `T`, the types | the solid bindings                              |
+| export                                          | what it is                                     |
+| ----------------------------------------------- | ---------------------------------------------- |
+| `createI18n`, `I18n`                            | core's base host: constructor and class        |
+| `icuCompiler`, `icu`                            | from `@comvi/core/icu`: compiler and installer |
+| `loader`, `attachLoader`, `flattenCatalog`      | from `@comvi/core/loader`                      |
+| `plugins`, `attachPlugins`                      | from `@comvi/core/plugins`                     |
+| `devtools`, `attachDevtools`                    | from `@comvi/core/devtools`                    |
+| every primitive, `I18nProvider`, `T`, the types | the solid bindings                             |
 
-`I18n` is the class `createI18n` instantiates — core's base one, not a solid
+`I18n` is the class `createI18n` instantiates: core's base one, not a solid
 subclass. Reach for it to type a host you compose yourself, or to call
 `new I18n(options)` directly; the factory is the recommended form and takes the
 same single options object.
 
-`.with(installer)` is core's composition pipe — `i18n.with(f)` is `f(i18n)`.
+`.with(installer)` is core's composition pipe: `i18n.with(f)` is `f(i18n)`.
 `loader(map)` attaches the capability **and** registers the map; for a plain
 `LoaderFn`, compose `.with(attachLoader)` and call `registerLoader(fn)`
 yourself (it keeps the import-map adapter out of your bundle).
@@ -291,8 +291,8 @@ const i18n = createI18n({ locale: "en" })
 ```
 
 `.with(icu())` is **pre-ingestion only**. The compiler locks the moment any
-catalog reaches the host — a constructor `translation`, an `addTranslations`
-call, or a loader merge — and a later `icu()` throws with own
+catalog reaches the host: a constructor `translation`, an `addTranslations`
+call, or a loader merge. A later `icu()` throws with own
 `code === "E_COMPILER_LOCKED"`. So `createI18n({ translation }).with(icu())` is
 invalid by construction: pass `compiler: icuCompiler` there instead.
 
@@ -308,8 +308,8 @@ const i18n = createI18n({ locale: "en" }).with(loader({ uk: () => import("./uk.j
 ### Plugins — one `.with(installer)`
 
 The three first-party plugin packages ship a lowercase **installer** beside the
-uppercase factory. The installer composes the capabilities that plugin needs —
-`cdnLoader` attaches `/loader`, then `/plugins` — and registers it, in one
+uppercase factory. The installer composes the capabilities that plugin needs
+(`cdnLoader` attaches `/loader`, then `/plugins`) and registers it, in one
 call:
 
 ```tsx
@@ -323,7 +323,7 @@ const i18n = createI18n({ locale: "en", defaultNs: "common" }).with(
 
 The explicit form is that composition spelled out, and it is what you want when
 you register plugins from a list. Compose `loader()` as well when a plugin
-registers one — the order of `loader()`, `plugins()` and `devtools()` among
+registers one. The order of `loader()`, `plugins()` and `devtools()` among
 themselves is free, because plugins run at `init()` and every capability
 composed before `init()` is attached by then.
 
@@ -353,15 +353,15 @@ const i18n = createI18n({ locale: "en" }).with(devtools({ instanceId: "storefron
 These are **named** re-exports of core's own bindings, so the ones you do not
 call are pruned. Two bundler-matrix cases hold that line, on webpack and vite,
 in development and production: `solid-default` calls no capability and asserts
-all four subpath entries — icu, loader, plugins, devtools — out of the module
+all four subpath entries (icu, loader, plugins, devtools) out of the module
 graph, while `solid-icu` calls `icuCompiler`, formats a real plural from the
 built bundle, and asserts the other three out.
 
-`@comvi/core/tags` is deliberately not re-exported: importing it registers tag
-syntax ambiently. `<T>` uses the pure `@comvi/core/rich-text` seam in its own
+`@comvi/core/tags` is not re-exported, because importing it registers tag
+syntax ambiently. `<T>` uses the pure `@comvi/core/rich-text` path in its own
 dist chunk and does not change string-API tag behavior.
 
-### String-API tags render literally — the one residual
+### String-API tags render literally
 
 `t("Click <b>here</b>")` hands back that markup as text on the base host: tag
 syntax is a grammar the host has to be taught, and no entry teaches it
@@ -369,7 +369,7 @@ ambiently. Development warns the first time; production stays literal and never
 throws, because a literal `<b>` is visibly broken in review while a wrong plural
 is not. Two ways out:
 
-- render `<T>` — it passes the tag extension per call and needs no ambient
+- render `<T>`, which passes the tag extension per call and needs no ambient
   registration at all (see [Rich text with `<T>`](#rich-text-with-t));
 - `import "@comvi/core/tags";` once at your entry, if you want tag
   interpolation through `t()` itself. That import is the side effect
@@ -377,7 +377,7 @@ is not. Two ways out:
 
 ## Rich text with `<T>`
 
-Tag interpolation lets translators write readable markup like `"Click <link>here</link> for help"` without raw HTML or XSS risk. You decide what each tag renders to — a function that receives the tag's content as children JSX:
+Tag interpolation lets translators write readable markup like `"Click <link>here</link> for help"` without raw HTML or XSS risk. You decide what each tag renders to: a function that receives the tag's content as children JSX:
 
 ```json
 {
@@ -415,19 +415,19 @@ const privacy = <T i18nKey="privacy" components={{ policy: "a" }} />;
 // Renders: <a>Read our policy</a>
 ```
 
-## ICU MessageFormat — locale-correct grammar, not just singular/plural
+## ICU MessageFormat
 
-`count === 1 ? "item" : "items"` works in English. It silently ships broken grammar in Polish, Ukrainian, Arabic, Welsh, and 30+ other locales — those languages have 3, 4, sometimes 6 distinct plural categories that a binary if/else can't express. [ICU MessageFormat](https://unicode-org.github.io/icu/userguide/format_parse/messages/) is the standard syntax for handling them — the same syntax Crowdin, Lokalise, Phrase, and every major TMS already speak. Comvi i18n parses it via native [`Intl.PluralRules`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Intl/PluralRules), so every CLDR plural category is correct by default.
+`count === 1 ? "item" : "items"` works in English. It silently ships broken grammar in Polish, Ukrainian, Arabic, Welsh, and 30+ other locales, which have 3, 4, sometimes 6 distinct plural categories that a binary if/else can't express. [ICU MessageFormat](https://unicode-org.github.io/icu/userguide/format_parse/messages/) is the standard syntax for handling them, and it is the syntax Crowdin, Lokalise, Phrase, and every major TMS already speak. Comvi i18n parses it via native [`Intl.PluralRules`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Intl/PluralRules), so every CLDR plural category is correct by default.
 
 ICU is opt-in on the base host: pass `compiler: icuCompiler` for the inline
 catalogs below, or `.with(icu())` before the first remote catalog reaches the
-host. Both names are re-exported from `@comvi/solid` — see
+host. Both names are re-exported from `@comvi/solid`; see
 [One package, one entry](#one-package-one-entry). Without a compiler the default
 one never renders these templates as grammar: development throws
 `E_ICU_SYNTAX` at ingestion, and production renders the braced segment
 literally and reports `E_ICU_SYNTAX` through `onError` (or `console.error`) on
-the compilation that hit it — best-effort, per process, never on cached
-renders.
+the compilation that hit it. That report is best-effort, per process, and never
+fires on cached renders.
 
 ### Plurals across languages
 
@@ -456,7 +456,7 @@ function Inbox() {
 }
 ```
 
-A naive English-style `count === 1 ? singular : plural` picks one Ukrainian form and ships it for every count — grammatically wrong for half your traffic.
+A naive English-style `count === 1 ? singular : plural` picks one Ukrainian form and ships it for every count, which is grammatically wrong for half your traffic.
 
 ### Ordinals (1st, 2nd, 3rd…)
 
@@ -496,7 +496,7 @@ function Greeter() {
 
 ### Locale-aware Intl formatters
 
-Numbers, dates, currency, and relative time follow the active locale via native `Intl` — reactive in your framework binding:
+Numbers, dates, currency, and relative time follow the active locale via native `Intl`, and are reactive in your framework binding:
 
 ```tsx
 import { createSignal } from "solid-js";
@@ -612,7 +612,7 @@ See [`@comvi/plugin-fetch-loader`](https://github.com/comvi-io/comvi-js/tree/mai
 
 `@comvi/solid` is **client-side rendering (CSR) only** today. `<I18nProvider>` auto-initializes the instance from a `createEffect`, which does not run during Solid's server render (`renderToString`), so translations are not initialized on the server. The reactive primitives populate on the client once the component mounts.
 
-If you render with SolidStart or another SSR setup, initialize and load translations on the client and gate UI on `isInitialized()` / `isLoading()` from `useI18n()` to avoid a flash of untranslated keys. First-class SSR/SSG (server-side translation resolution and hydration) is not yet supported — track progress in the [issues](https://github.com/comvi-io/comvi-js/issues).
+If you render with SolidStart or another SSR setup, initialize and load translations on the client and gate UI on `isInitialized()` / `isLoading()` from `useI18n()` to avoid a flash of untranslated keys. Server-side translation resolution and hydration are not yet supported. Track progress in the [issues](https://github.com/comvi-io/comvi-js/issues).
 
 ## License
 

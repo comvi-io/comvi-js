@@ -16,7 +16,7 @@
 
 ---
 
-`@comvi/cli` connects your codebase to the [Comvi Translation Management System](https://comvi.io). It generates a strict `TranslationKeys` interface from your TMS schema and syncs translation files between local JSON and the TMS — with optional SSE-based watch mode for live regeneration.
+`@comvi/cli` connects your codebase to the [Comvi Translation Management System](https://comvi.io). It generates a strict `TranslationKeys` interface from your TMS schema and syncs translation files between local JSON and the TMS, with an optional SSE-based watch mode for live regeneration.
 
 **Use `@comvi/cli`** if your translations live in the Comvi TMS and you want to sync them to your repo or generate types from the live schema.
 **Use `@comvi/vite-plugin`** if your translations live as local JSON files and you want autocomplete in your editor.
@@ -25,18 +25,18 @@
 
 ## About Comvi i18n
 
-Comvi i18n is a modern, framework-agnostic internationalization library — ICU MessageFormat, rich-text component embedding, and locale-aware `Intl` formatters in **~5 kB minified + gzipped for the base host, ~8.5 kB with every capability composed (as bundled by your app)** and **no `eval`** (CSP-safe for Chrome extensions, Cloudflare Workers, and locked-down enterprise apps). `@comvi/core` has zero runtime dependencies; the CLI itself depends on `commander` and `eventsource`.
+Comvi i18n is a framework-agnostic internationalization library. You get ICU MessageFormat, rich-text component embedding, and locale-aware `Intl` formatters in **~5 kB minified + gzipped for the base host, ~8.5 kB with every capability composed (as bundled by your app)**, with **no `eval`** (CSP-safe for Chrome extensions, Cloudflare Workers, and locked-down enterprise apps). `@comvi/core` has zero runtime dependencies; the CLI itself depends on `commander` and `eventsource`.
 
 - **Same API** across [Vue](https://www.npmjs.com/package/@comvi/vue), [React](https://www.npmjs.com/package/@comvi/react), [SolidJS](https://www.npmjs.com/package/@comvi/solid), [Svelte](https://www.npmjs.com/package/@comvi/svelte), [Next.js](https://www.npmjs.com/package/@comvi/next), and [Nuxt](https://www.npmjs.com/package/@comvi/nuxt).
-- **ICU `plural`, `selectordinal` & `select`** — locale-correct plurals, ordinals, and gender via `Intl.PluralRules`. Recognized by every major TMS. One explicit import: `compiler: icuCompiler` from `@comvi/core/icu`. The `number` / `date` / `time` argument types and the plural `offset:` form are not implemented and are not planned — each one is an `E_ICU_SYNTAX` failure, never a wrong render.
-- **Type-safe translation keys** via TypeScript declaration merging — autocomplete and parameter validation everywhere.
-- **Pluggable** — translation loading, locale detection, and in-context editing are opt-in plugins.
+- **ICU `plural`, `selectordinal` & `select`:** locale-correct plurals, ordinals, and gender via `Intl.PluralRules`. Recognized by every major TMS. One explicit import: `compiler: icuCompiler` from `@comvi/core/icu`. The `number` / `date` / `time` argument types and the plural `offset:` form are not implemented and are not planned. Each one fails with `E_ICU_SYNTAX` instead of rendering something wrong.
+- **Type-safe translation keys** via TypeScript declaration merging, for autocomplete and parameter validation everywhere.
+- **Pluggable:** translation loading, locale detection, and in-context editing are opt-in plugins.
 
 See the [main repo](https://github.com/comvi-io/comvi-js) for the full library overview, runnable demos, and the framework binding matrix.
 
 ## Why @comvi/cli?
 
-- **Type generation from the live TMS schema.** No manual `i18n.d.ts` upkeep — types stay in sync with your platform.
+- **Type generation from the live TMS schema.** No manual `i18n.d.ts` upkeep: types stay in sync with your platform.
 - **Pull & push translations.** Download from the TMS to local JSON, or upload changes back without leaving your terminal.
 - **Watch mode with SSE.** Use `--watch` to live-regenerate types as translators ship changes to the platform.
 
@@ -58,9 +58,9 @@ npx comvi pull                    # download translations from the TMS
 npx comvi push                    # upload local translations to the TMS
 ```
 
-**Recommended:** keep the API key in the `COMVI_API_KEY` environment variable. Storing `apiKey` in `.comvirc.json` works but is discouraged — env vars take precedence and won't end up in version control by accident.
+**Recommended:** keep the API key in the `COMVI_API_KEY` environment variable. Storing `apiKey` in `.comvirc.json` works but is discouraged. Env vars take precedence and won't end up in version control by accident.
 
-The CLI auto-loads the nearest `.env` by walking up from your current working directory (bounded by the project root) before each command — drop `COMVI_API_KEY=...` in `.env` and it just works, no `dotenv-cli` wrapper needed. Real env vars always win over the file (CI-safe). Use `--no-dotenv` (or `COMVI_NO_ENV=1`) to opt out, or `--dotenv <path>` to point at a specific file.
+The CLI auto-loads the nearest `.env` by walking up from your current working directory (bounded by the project root) before each command. Drop `COMVI_API_KEY=...` in `.env` and no `dotenv-cli` wrapper is needed. Real env vars always win over the file (CI-safe). Use `--no-dotenv` (or `COMVI_NO_ENV=1`) to opt out, or `--dotenv <path>` to point at a specific file.
 
 ### Filter what you pull/push
 
@@ -103,8 +103,8 @@ declare module "@comvi/core" {
 export {};
 ```
 
-Written to `src/types/i18n.d.ts` by default. The emitter quotes with single
-quotes (`typegen/src/index.ts:62-71,99-103`); this block is Prettier-formatted
+Written to `src/types/i18n.d.ts` by default. The emitter writes single quotes
+(`typegen/src/index.ts:62-71,99-103`); the block above is Prettier-formatted
 like the rest of the README.
 
 Every `t()` call across your project is now strictly typed against the live TMS schema:
@@ -150,7 +150,7 @@ t("typo", { name: "Alice" });
 
 ### Live regeneration with `--watch`
 
-Run `npx comvi generate-types --watch` once at the start of your dev session. The CLI opens a Server-Sent Events connection to the TMS — when a translator adds, renames, or removes a key, your local `.d.ts` regenerates within seconds and your editor's autocomplete updates without a restart.
+Run `npx comvi generate-types --watch` once at the start of your dev session. The CLI opens a Server-Sent Events connection to the TMS. When a translator adds, renames, or removes a key, your local `.d.ts` regenerates within seconds and your editor's autocomplete updates without a restart.
 
 ### Workflow: pull/push for translations
 
