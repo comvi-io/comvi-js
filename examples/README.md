@@ -214,11 +214,11 @@ Two things about it are easy to get wrong and are both visible in the app.
 into public runtime config and read by no code in the module — so SSR loading is
 the loader capability above, and this example sets neither. And the module never
 touches `<html>`: `src/app.vue` calls `useLocaleHead({ addLang: true, addDir:
-true })`, without which the page renders correctly and ships no `lang`
-attribute at all. `dir` needs one more thing — `useLocaleHead` writes it only
-for a locale that **declares** one, so all three locale objects in
-`nuxt.config.ts` say `dir: "ltr"`. An RTL language would say `"rtl"` there and
-nothing else in the app would change.
+true })`, without which the page renders correctly and ships neither `lang` nor
+`dir`. None of the three locale objects declares a `dir` — the composable
+derives it from the locale — so an RTL language added to `nuxt.config.ts` would
+get `dir="rtl"` with no further change; declaring `dir` is for overriding that,
+not for enabling it.
 
 **What the two SSR examples deliberately leave out.** Neither declares
 `@comvi/plugin-locale-detector`, which the other five all use. In both

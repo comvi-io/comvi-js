@@ -13,14 +13,14 @@ export default defineNuxtConfig({
 
   comvi: {
     defaultLocale: "en",
-    // `dir` is not decoration: `useLocaleHead({ addDir: true })` writes
-    // <html dir> only for a locale that DECLARES one, so leaving it off these
-    // three would ship a page with no direction at all. An RTL language would
-    // say `dir: "rtl"` here and nothing else in the app would change.
+    // No `dir` on any of them: `useLocaleHead({ addDir: true })` derives the
+    // direction from the locale itself, so <html dir="ltr"> is written here and
+    // an Arabic locale added to this list would get "rtl" with no further
+    // change. Declaring `dir` is for overriding that, not for enabling it.
     locales: [
-      { code: "en", name: "English", dir: "ltr" },
-      { code: "uk", name: "Українська", dir: "ltr" },
-      { code: "de", name: "Deutsch", dir: "ltr" },
+      { code: "en", name: "English" },
+      { code: "uk", name: "Українська" },
+      { code: "de", name: "Deutsch" },
     ],
     // `always`: every URL carries its locale, so /en, /uk and /de are three real
     // addresses. The module clones `src/pages` into locale-prefixed routes and

@@ -17,6 +17,11 @@ const RELEASED = new Date("2026-09-01T00:00:00Z");
 
 async function select(code: string) {
   if (code === locale.value) return;
+  // `setLocale` first so the switch is instant — it loads the catalog and
+  // advances the locale state the page is already bound to, rather than waiting
+  // for the navigation to land. The route middleware would set the same locale
+  // from the new URL anyway, so this is about the moment of the change, not
+  // about correctness.
   await setLocale(code);
   await navigateTo(switchLocalePath(code));
 }

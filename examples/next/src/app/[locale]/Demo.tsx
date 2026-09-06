@@ -40,7 +40,7 @@ export function Demo() {
               key={code}
               aria-pressed={locale === code}
               onClick={() => {
-                router.push(pathname || "/", code);
+                router.push(pathname, code);
               }}
             >
               {code}
