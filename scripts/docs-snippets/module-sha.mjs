@@ -20,8 +20,16 @@
  *     the diff.
  *
  * Updating the copy is therefore deliberate: change the module here, run
- * `node scripts/docs-snippets/module-sha.mjs --write`, copy the four hashed
- * files across, and paste the printed sha into www's parity spec.
+ * `node scripts/docs-snippets/module-sha.mjs --write`, copy the hashed files
+ * and the `fixtures/` tree across, and paste the printed sha into www's parity
+ * spec.
+ *
+ * `fixtures/` is hashed as a TREE, file by file in sorted order, because it is
+ * as much of the gate as the code is: the same page compiles differently
+ * against a different `src/i18n.ts`, and a copy that took the code without the
+ * fixtures would produce a different verdict while reporting a matching module.
+ * `link-sdk.mjs` is deliberately NOT hashed — www installs `@comvi/*` from npm
+ * and has no workspace to pack.
  */
 
 import { createHash } from "node:crypto";
@@ -30,9 +38,31 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 /** Hashed in this order; the marker file itself is not part of the hash. */
-export const MODULE_FILES = ["extract.mjs", "lint.mjs", "run.mjs", "module-sha.mjs"];
+export const MODULE_FILES = [
+  "extract.mjs",
+  "lint.mjs",
+  "project.mjs",
+  "typecheck.mjs",
+  "sfc-check.mjs",
+  "run.mjs",
+  "module-sha.mjs",
+];
+
+/** Hashed as a tree, after the files above. */
+export const MODULE_DIRS = ["fixtures"];
 
 export const MARKER_FILE = "MODULE_SHA";
+
+/** Every file under `dir`, as POSIX paths relative to it, sorted. */
+function walk(dir, prefix = "") {
+  const out = [];
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const rel = prefix ? `${prefix}/${entry.name}` : entry.name;
+    if (entry.isDirectory()) out.push(...walk(path.join(dir, entry.name), rel));
+    else out.push(rel);
+  }
+  return out.sort();
+}
 
 export function computeModuleSha(dir) {
   const hash = createHash("sha256");
@@ -41,6 +71,16 @@ export function computeModuleSha(dir) {
     hash.update("\0");
     hash.update(fs.readFileSync(path.join(dir, name)));
     hash.update("\0");
+  }
+  for (const treeName of MODULE_DIRS) {
+    const treeDir = path.join(dir, treeName);
+    if (!fs.existsSync(treeDir)) continue;
+    for (const rel of walk(treeDir)) {
+      hash.update(`${treeName}/${rel}`);
+      hash.update("\0");
+      hash.update(fs.readFileSync(path.join(treeDir, rel)));
+      hash.update("\0");
+    }
   }
   return hash.digest("hex");
 }

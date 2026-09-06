@@ -96,7 +96,38 @@ test("parseArgs with neither --readmes nor --content → refuses instead of chec
 });
 
 test("parseArgs with an unknown flag → refuses, naming the flag", () => {
-  assert.throws(() => parseArgs(["--readmes", "--typecheck"]), /unknown argument "--typecheck"/);
+  assert.throws(
+    () => parseArgs(["--readmes", "--strict-mode"]),
+    /unknown argument "--strict-mode"/,
+  );
+});
+
+test("parseArgs: --typecheck without --sdk-root → refuses, and says where to get one", () => {
+  // Silently type-checking against nothing is the failure this whole lot exists
+  // to stop: it would report "no findings" over an SDK that was never there.
+  assert.throws(() => parseArgs(["--readmes", "--typecheck"]), /--typecheck needs --sdk-root/);
+});
+
+test("parseArgs: --sdk-root without --typecheck → refuses rather than ignoring it", () => {
+  assert.throws(
+    () => parseArgs(["--readmes", "--sdk-root", "/tmp/x"]),
+    /--sdk-root does nothing without --typecheck/,
+  );
+});
+
+test("parseArgs: --typecheck --sdk-root together → both recorded", () => {
+  const options = parseArgs(["--readmes", "--typecheck", "--sdk-root", "/tmp/sdk"]);
+
+  assert.equal(options.typecheck, true);
+  assert.equal(options.sdkRoot, "/tmp/sdk");
+  assert.equal(options.sfc, true);
+});
+
+test("parseArgs: without --typecheck the D2a shape is unchanged", () => {
+  const options = parseArgs(["--readmes"]);
+
+  assert.equal(options.typecheck, false);
+  assert.equal(options.sdkRoot, null);
 });
 
 test("parseArgs with both runners and a version → both surfaces in one run", () => {
@@ -262,4 +293,68 @@ test("the CLI with --json → machine output, and still exit 1 on findings", (t)
 
 test("the recorded parity marker → matches the module in this repo", () => {
   assert.equal(readMarker(HERE), computeModuleSha(HERE));
+});
+
+test("formatReport: an advisory finding is reported apart and does not make the run FAIL", () => {
+  // `typecheck/node16-only` describes the reader's tsconfig, not the snippet. A
+  // reader who cannot tell it from a broken example fixes the wrong thing, and a
+  // gate that fails on it fails on every extensionless relative import in the
+  // corpus — which is all of them.
+  const report = formatReport({
+    files: ["docs/i18n/page.mdx"],
+    stats: [],
+    typeStats: [{ projects: 1, files: 1, checkedFences: 1, node16Only: 1 }],
+    findings: [
+      {
+        file: "docs/i18n/page.mdx",
+        line: 7,
+        col: 1,
+        rule: "typecheck/node16-only",
+        advisory: true,
+        message: "TS2834 under moduleResolution=node16 only: needs an extension",
+      },
+    ],
+  });
+
+  assert.match(report, /advisory, not counted against the gate: 1/);
+  assert.match(report, /TS2834×1/);
+  assert.match(report, /OK — no findings\. \(1 advisory\)/);
+});
+
+test("formatReport: a non-advisory typecheck finding still fails the run", () => {
+  const report = formatReport({
+    files: ["docs/i18n/page.mdx"],
+    stats: [],
+    typeStats: [{ projects: 1, files: 1, checkedFences: 1, node16Only: 0 }],
+    findings: [
+      {
+        file: "docs/i18n/page.mdx",
+        line: 7,
+        col: 14,
+        rule: "typecheck/error",
+        message: "TS2322: Type 'string' is not assignable to type 'number'.",
+      },
+    ],
+  });
+
+  assert.match(report, /docs\/i18n\/page\.mdx:7:14 {2}typecheck\/error/);
+  assert.match(report, /FAIL — 1 finding in 1 document/);
+});
+
+test("the runner exits 0 when only advisories remain", () => {
+  // The exit code is the gate. Asserting it on the process, not on a function,
+  // because that is what CI reads.
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "comvi-run-advisory-"));
+  fs.mkdirSync(path.join(dir, "docs"), { recursive: true });
+  fs.writeFileSync(
+    path.join(dir, "docs", "page.mdx"),
+    "---\ntitle: p\n---\n\n```ts\nexport const a = 1;\n```\n",
+  );
+
+  const result = spawnSync(process.execPath, [RUN, "--content", "docs", "--root", dir], {
+    encoding: "utf8",
+  });
+
+  assert.equal(result.status, 0);
+  fs.rmSync(dir, { recursive: true, force: true });
 });

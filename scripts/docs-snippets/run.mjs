@@ -13,13 +13,25 @@
  *                        after publication (owner's decision §5.3: both surfaces,
  *                        identically, or the copies drift again — as they have).
  *
- * Exit 1 on any finding. `--json` prints the machine form for a CI annotation.
+ * `--typecheck --sdk-root <dir>` adds the type-check pass (lot D2b) on top of the
+ * symbol lint. `<dir>` is any directory whose `node_modules` holds `@comvi/*` and
+ * the framework types — the workspace root here, whatever
+ * `scripts/docs-snippets/link-sdk.mjs` prints for a pre-publication run, or the
+ * www app for a run against the published packages. Without `--typecheck`
+ * nothing about the D2a behaviour changes, including the exit code.
+ *
+ * Exit 1 on any finding except the advisory ones (`typecheck/node16-only`),
+ * which are counted and printed but do not fail a run: they describe the
+ * reader's tsconfig, not the snippet. `--json` prints the machine form for a CI
+ * annotation.
  */
 
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { lintDocument } from "./lint.mjs";
+import { createTypecheckContext, typecheckDocument } from "./typecheck.mjs";
+import { sfcCheckDocuments } from "./sfc-check.mjs";
 
 const DOC_EXTENSIONS = new Set([".md", ".mdx"]);
 
@@ -30,6 +42,9 @@ export function parseArgs(argv) {
     sdkVersion: null,
     json: false,
     root: process.cwd(),
+    typecheck: false,
+    sdkRoot: null,
+    sfc: true,
   };
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
@@ -37,6 +52,9 @@ export function parseArgs(argv) {
     else if (arg === "--content") options.content = argv[++index] ?? null;
     else if (arg === "--sdk-version") options.sdkVersion = argv[++index] ?? null;
     else if (arg === "--root") options.root = argv[++index] ?? process.cwd();
+    else if (arg === "--typecheck") options.typecheck = true;
+    else if (arg === "--sdk-root") options.sdkRoot = argv[++index] ?? null;
+    else if (arg === "--no-sfc") options.sfc = false;
     else if (arg === "--json") options.json = true;
     else throw new Error(`unknown argument "${arg}"`);
   }
@@ -45,6 +63,15 @@ export function parseArgs(argv) {
   }
   if (options.content === null && argv.includes("--content")) {
     throw new Error("--content needs a directory");
+  }
+  if (options.typecheck && !options.sdkRoot) {
+    throw new Error(
+      "--typecheck needs --sdk-root <dir>: a directory whose node_modules holds @comvi/* " +
+        "and the framework types. `node scripts/docs-snippets/link-sdk.mjs` prints one.",
+    );
+  }
+  if (options.sdkRoot && !options.typecheck) {
+    throw new Error("--sdk-root does nothing without --typecheck");
   }
   return options;
 }
@@ -107,16 +134,39 @@ export function runGate(options) {
 
   const findings = [];
   const stats = [];
+  const typeStats = [];
+  const sfcStats = [];
+  // One context for the whole run: the lib files and every `.d.ts` under the SDK
+  // root are parsed once and reused by every page's program. Per-page contexts
+  // would re-parse `@types/react` forty times.
+  const context = options.typecheck ? createTypecheckContext({ sdkRoot: options.sdkRoot }) : null;
+
+  const sources = new Map();
   for (const file of files) {
     const source = fs.readFileSync(file, "utf8");
     const relative = path.relative(options.root, file) || file;
+    sources.set(relative, source);
     const result = lintDocument({ file: relative, source, sdkVersion: options.sdkVersion });
     findings.push(...result.findings);
     stats.push(result.stats);
+
+    if (context) {
+      const typed = typecheckDocument({ file: relative, source, context });
+      findings.push(...typed.findings);
+      typeStats.push(typed.stats);
+    }
+  }
+
+  // SFC fences go last and in one batch: vue-tsc and svelte-check are separate
+  // processes, and the cost is per invocation, not per file.
+  if (context && options.sfc) {
+    const sfc = sfcCheckDocuments({ sources, sdkRoot: context.sdkRoot });
+    findings.push(...sfc.findings);
+    sfcStats.push(...sfc.stats);
   }
 
   findings.sort((a, b) => a.file.localeCompare(b.file) || a.line - b.line || a.col - b.col);
-  return { files, findings, stats };
+  return { files, findings, stats, typeStats, sfcStats };
 }
 
 function plural(count, noun) {
@@ -124,10 +174,15 @@ function plural(count, noun) {
 }
 
 /** Group findings by file, then render `file:line:col rule` lines under each. */
-export function formatReport({ files, findings, stats }) {
+export function formatReport({ files, findings, stats, typeStats = [], sfcStats = [] }) {
   const lines = [];
+  // Advisories are printed apart from failures, never mixed in: a
+  // `typecheck/node16-only` line describes the reader's tsconfig, and a reader
+  // who cannot tell it from a broken snippet ends up fixing the wrong thing.
+  const errors = findings.filter((finding) => !finding.advisory);
+  const advisories = findings.filter((finding) => finding.advisory);
   const byFile = new Map();
-  for (const finding of findings) {
+  for (const finding of errors) {
     if (!byFile.has(finding.file)) byFile.set(finding.file, []);
     byFile.get(finding.file).push(finding);
   }
@@ -142,7 +197,7 @@ export function formatReport({ files, findings, stats }) {
   }
 
   const byRule = new Map();
-  for (const finding of findings) byRule.set(finding.rule, (byRule.get(finding.rule) ?? 0) + 1);
+  for (const finding of errors) byRule.set(finding.rule, (byRule.get(finding.rule) ?? 0) + 1);
   const skips = new Map();
   let fenceCount = 0;
   let lintedCount = 0;
@@ -199,11 +254,61 @@ export function formatReport({ files, findings, stats }) {
     for (const stat of missingWith) lines.push(`    ${stat.file}`);
   }
 
+  if (typeStats.length > 0 || sfcStats.length > 0) {
+    let programs = 0;
+    let checked = 0;
+    let virtual = 0;
+    let node16 = 0;
+    const sfc = { vue: 0, svelte: 0 };
+    for (const stat of typeStats) {
+      programs += stat.projects ?? 0;
+      checked += stat.checkedFences ?? 0;
+      virtual += stat.files ?? 0;
+      node16 += stat.node16Only ?? 0;
+    }
+    for (const stat of sfcStats) {
+      programs += stat.sfcProjects ?? 0;
+      sfc.vue += stat.sfc?.vue ?? 0;
+      sfc.svelte += stat.sfc?.svelte ?? 0;
+    }
+    lines.push("");
+    lines.push(
+      `typecheck: ${programs} virtual projects, ${virtual} virtual files, ` +
+        `${checked} ts/tsx fences, ${sfc.vue} vue, ${sfc.svelte} svelte.`,
+    );
+    if (advisories.length > 0) {
+      const byAdvisory = new Map();
+      for (const finding of advisories) {
+        byAdvisory.set(finding.rule, (byAdvisory.get(finding.rule) ?? 0) + 1);
+      }
+      lines.push(`  advisory, not counted against the gate: ${advisories.length}`);
+      for (const [rule, count] of [...byAdvisory].sort()) lines.push(`    ${rule}: ${count}`);
+      // The whole point of running node16 as well as bundler. Printing the
+      // codes rather than the lines keeps the advisory block short enough that
+      // people read it.
+      const codes = new Map();
+      for (const finding of advisories) {
+        const code = finding.message.match(/^TS(\d+)/)?.[1];
+        if (code) codes.set(code, (codes.get(code) ?? 0) + 1);
+      }
+      if (codes.size > 0) {
+        lines.push(
+          `    codes: ${[...codes]
+            .sort((a, b) => b[1] - a[1])
+            .map(([code, count]) => `TS${code}×${count}`)
+            .join(", ")}`,
+        );
+      }
+    } else if (node16 === 0) {
+      lines.push("  bundler and node16 agree on every fence.");
+    }
+  }
+
   lines.push("");
   lines.push(
-    findings.length === 0
-      ? "docs-snippets: OK — no findings."
-      : `docs-snippets: FAIL — ${plural(findings.length, "finding")} in ${plural(byFile.size, "document")}.`,
+    errors.length === 0
+      ? `docs-snippets: OK — no findings.${advisories.length > 0 ? ` (${advisories.length} advisory)` : ""}`
+      : `docs-snippets: FAIL — ${plural(errors.length, "finding")} in ${plural(byFile.size, "document")}.`,
   );
   return lines.join("\n");
 }
@@ -215,13 +320,25 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   } catch (error) {
     console.error(`docs-snippets: ${error.message}`);
     console.error(
-      "usage: node scripts/docs-snippets/run.mjs (--readmes | --content <dir>) [--sdk-version <v>] [--json]",
+      "usage: node scripts/docs-snippets/run.mjs (--readmes | --content <dir>) " +
+        "[--sdk-version <v>] [--typecheck --sdk-root <dir>] [--no-sfc] [--json]",
     );
     process.exit(2);
   }
   const result = runGate(options);
   if (options.json)
-    console.log(JSON.stringify({ findings: result.findings, stats: result.stats }, null, 2));
+    console.log(
+      JSON.stringify(
+        {
+          findings: result.findings,
+          stats: result.stats,
+          typeStats: result.typeStats,
+          sfcStats: result.sfcStats,
+        },
+        null,
+        2,
+      ),
+    );
   else console.log(formatReport(result));
-  process.exit(result.findings.length === 0 ? 0 : 1);
+  process.exit(result.findings.some((finding) => !finding.advisory) ? 1 : 0);
 }
