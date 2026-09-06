@@ -56,8 +56,11 @@ The same scenario everywhere, in the same order down the page:
    is fetched the first time you select it. The last line lists the catalogs
    fetched so far; it starts with one entry and grows as you switch.
 
-The whole setup is one file per example. Here is `examples/react/src/i18n.ts`,
-which the other four differ from only in the import specifier:
+The whole setup is one file per example, and the composition is the same
+everywhere: ICU through the constructor's `compiler`, then `.with(loader({…}))`,
+then `.with(plugins())`, then `.use(LocaleDetector(…))`. Here is
+`examples/react/src/i18n.ts`, which `solid` and `svelte` match line for line
+apart from the import specifier:
 
 ```ts title="src/i18n.ts"
 import { createI18n, icuCompiler, loader, plugins } from "@comvi/react";
@@ -78,6 +81,49 @@ export const i18n = createI18n({
   .with(plugins())
   .use(LocaleDetector({ supportedLocales: ["en", "uk", "de"], fallbackLocale: "en" }));
 ```
+
+Two of the five depart from that file, and both departures are the binding
+telling you something true about itself:
+
+**Vue** — installers run on the HOST, and `createI18n` from `@comvi/vue` is not
+a rename of core's: it constructs a core for you and wraps it in a `VueI18n`
+reactivity layer. So compose first and wrap afterwards. Piping onto the wrapper
+instead — `createI18n(options).core.with(loader())` — does attach the capability
+at runtime, but `createI18n` returns `VueI18n<D, I18n<D>>` and the wrapper never
+re-types `.core`, so every later `i18n.core.registerLoader(…)` is a compile
+error. `createI18nFromCore` preserves the composed host's exact type, which is
+the whole reason this file is shaped differently (`packages/vue/README.md`,
+"Supported hosts and what they cost").
+
+```ts title="src/i18n.ts"
+import { createCore, createI18nFromCore, icuCompiler, loader, plugins } from "@comvi/vue";
+import { LocaleDetector } from "@comvi/plugin-locale-detector";
+
+const core = createCore({
+  locale: "en",
+  fallbackLocale: "en",
+  compiler: icuCompiler,
+})
+  .with(
+    loader({
+      en: () => import("./locales/en.json"),
+      uk: () => import("./locales/uk.json"),
+      de: () => import("./locales/de.json"),
+    }),
+  )
+  .with(plugins())
+  .use(LocaleDetector({ supportedLocales: ["en", "uk", "de"], fallbackLocale: "en" }));
+
+export const i18n = createI18nFromCore(core);
+```
+
+**Vanilla** — there is no binding to re-export the toolkit, so every capability
+arrives by its own subpath: `@comvi/core/icu`, `@comvi/core/loader`,
+`@comvi/core/plugins`. It also side-effect-imports `@comvi/core/tags`, which the
+other four must not: that import registers tag syntax _ambiently_, so plain
+`t()` starts parsing `<tag>…</tag>` everywhere. The framework examples get tags
+through `<T>`, which passes the grammar per call and leaves `t()` alone; without
+a `<T>`, the vanilla example has to opt in by name.
 
 Three details are worth reading in the source rather than taking on trust:
 
@@ -135,5 +181,15 @@ so a locally packed `@comvi/react` asks the **registry** for `@comvi/core` —
 install that one tarball and the example builds green against the previous
 release. After the install the script refuses to continue unless the lockfile
 says every `@comvi` resolution came from a local `file:` tarball.
+
+**What this gate does not prove.** An override bypasses the range it replaces,
+so a green run says the 0.5 _source_ compiles under these manifests — never that
+`^0.5.0` is satisfiable. Only publishing settles that. The install is run with
+`auto-install-peers=false` and `strict-peer-dependencies=true` so that peers are
+at least visible (StackBlitz runs `npm install`, which errors on an unsatisfied
+peer, while pnpm's defaults would quietly fetch one from the registry — that is
+how `@comvi/plugin-locale-detector`'s `@comvi/core` peer first slipped through).
+Re-run the gate after the version bump: that is the moment the detector's peer
+range and the examples' `^0.5.0` meet for the first time.
 
 No lockfile in this repository is read or written by any of this.
