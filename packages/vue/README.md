@@ -154,7 +154,7 @@ development **and** production, never a silent no-op:
 the class; the host it wraps is public as `readonly core`, so registration
 happens there:
 
-```diff
+```diff check=skip:proxy-relocation
 -i18n.registerLoader(myLoader);
 -i18n.use(FetchLoader({ … }));
 +i18n.core.registerLoader(myLoader);
@@ -237,7 +237,9 @@ bundle).
 ### Default — text and `{param}` interpolation
 
 ```ts
+import { createApp } from "vue";
 import { createI18n } from "@comvi/vue";
+import App from "./App.vue";
 
 const i18n = createI18n({
   locale: "en",
@@ -417,11 +419,17 @@ Alternatively, use the `components` prop for programmatic tag handling. Pass `ta
 }
 ```
 
-```ts
+```vue
+<script setup lang="ts">
+import { useI18n } from "@comvi/vue";
+
+const { t } = useI18n();
+
 t("messages", { count: 0 }); // ar: "لا توجد رسائل"      (zero form)
 t("messages", { count: 1 }); // en: "1 message"            uk: "1 повідомлення"
 t("messages", { count: 5 }); // en: "5 messages"           uk: "5 повідомлень"          ar: "5 رسائل"
 t("messages", { count: 22 }); // uk: "22 повідомлення"  ← the "few" form, NOT the "many" form
+</script>
 ```
 
 A naive English-style `count === 1 ? singular : plural` picks one Ukrainian form and ships it for every count — grammatically wrong for half your traffic.
@@ -432,22 +440,34 @@ A naive English-style `count === 1 ? singular : plural` picks one Ukrainian form
 { "rank": "{place, selectordinal, one {#st} two {#nd} few {#rd} other {#th}}" }
 ```
 
-```ts
+```vue
+<script setup lang="ts">
+import { useI18n } from "@comvi/vue";
+
+const { t } = useI18n();
+
 t("rank", { place: 1 }); // "1st"
 t("rank", { place: 22 }); // "22nd"
 t("rank", { place: 113 }); // "113th"
+</script>
 ```
 
 ### Select (gender, role, status)
 
 ```json
-{ "greeting": "{gender, select, female {Welcome, madam} male {Welcome, sir} other {Welcome}}" }
+{ "salutation": "{gender, select, female {Welcome, madam} male {Welcome, sir} other {Welcome}}" }
 ```
 
-```ts
-t("greeting", { gender: "female" }); // "Welcome, madam"
-t("greeting", { gender: "male" }); // "Welcome, sir"
-t("greeting", { gender: "other" }); // "Welcome"
+```vue
+<script setup lang="ts">
+import { useI18n } from "@comvi/vue";
+
+const { t } = useI18n();
+
+t("salutation", { gender: "female" }); // "Welcome, madam"
+t("salutation", { gender: "male" }); // "Welcome, sir"
+t("salutation", { gender: "other" }); // "Welcome"
+</script>
 ```
 
 ### Locale-aware Intl formatters
@@ -487,10 +507,17 @@ Declaration merging on `TranslationKeys` provides autocomplete and parameter val
 
 ```typescript
 // src/types/i18n.d.ts
+import "@comvi/core"; // resolves the module before augmenting it
+
 declare module "@comvi/core" {
   interface TranslationKeys {
     welcome: { name: string };
-    greeting: never;
+    greeting: { name: string };
+    salutation: { gender: string };
+    hello: never;
+    items: { count: number };
+    messages: { count: number };
+    rank: { place: number };
     "errors:NOT_FOUND": never;
   }
 }
@@ -506,7 +533,7 @@ const { t } = useI18n();
 t("welcome", { name: "Alice" });
 
 // ✓ No params needed
-t("greeting");
+t("hello");
 
 // ✓ Namespaced keys use the ns option
 t("NOT_FOUND", { ns: "errors" });
@@ -515,7 +542,11 @@ t("NOT_FOUND", { ns: "errors" });
 
 **What TypeScript catches:**
 
-```ts
+```ts check=expect-error
+import { useI18n } from "@comvi/vue";
+
+const { t } = useI18n();
+
 // ✗ Expected 2 arguments, but got 1
 t("welcome");
 
