@@ -51,6 +51,8 @@ npm install @comvi/nuxt
 
 ```ts
 // nuxt.config.ts
+import { defineNuxtConfig } from "nuxt/config";
+
 export default defineNuxtConfig({
   modules: ["@comvi/nuxt"],
   comvi: {
@@ -136,6 +138,8 @@ The Nuxt module creates locale-prefixed routes from your existing pages automati
 
 ```ts
 // nuxt.config.ts
+import { defineNuxtConfig } from "nuxt/config";
+
 export default defineNuxtConfig({
   modules: ["@comvi/nuxt"],
   comvi: {
@@ -180,12 +184,16 @@ development and production alike when the host has none — so a component that
 asks for something the app never composed fails loudly at the seam instead of
 silently doing nothing.
 
-`comvi.setup` hooks receive a `VueI18n`, which dropped its eight capability
-proxies — move those calls to `i18n.core.*`:
+`comvi.setup` hooks no longer reach a capability through `i18n`. The context's
+`i18n` is the union `VueI18n<{}, C> | C` — the wrapper in the app plugin, the
+host itself in a server utility (`nuxt/src/types.ts:351-360`) — and `VueI18n`
+dropped its eight capability proxies, so `i18n.core.*` neither compiles without
+a `'core' in i18n` narrowing nor exists on the server arm. The context hands you
+the host directly as `core`, the same object on both runtimes:
 
-```diff
+```diff check=skip:proxy-relocation
 -export default ({ i18n }) => { i18n.registerLoader(myLoader); };
-+export default ({ i18n }) => { i18n.core.registerLoader(myLoader); };
++export default ({ core }) => { core.registerLoader(myLoader); };
 ```
 
 That call needs a host that composed the loader, which is a `comvi.host.ts`
@@ -195,27 +203,21 @@ TypeScript tells you before the app runs:
 ```ts
 // comvi.setup.ts
 import type { I18n } from "@comvi/core";
-import type { I18nLoaderApi } from "@comvi/core/loader";
+import type { I18nLoaderApi, LoaderFn } from "@comvi/core/loader";
 import type { NuxtI18nSetup } from "@comvi/nuxt";
 
-export default (({ i18n }) => {
-  i18n.core.registerLoader(myLoader);
-}) satisfies NuxtI18nSetup<I18n & I18nLoaderApi>;
-```
+const myLoader: LoaderFn = async (locale, namespace) =>
+  (await fetch(`/i18n/${locale}/${namespace}.json`)).json();
 
-The context also hands you the host directly as `core`, which is `i18n.core` in
-the app plugin and `i18n` itself in a server utility — the same object, without
-the `'core' in i18n` narrowing the union otherwise needs:
-
-```ts
 export default (({ core }) => {
   core.registerLoader(myLoader);
 }) satisfies NuxtI18nSetup<I18n & I18nLoaderApi>;
 ```
 
 `NuxtI18nSetupContext<C>` / `NuxtI18nSetup<C>` are generic in the host type and
-default to core's `I18n`, so a hook on the module's own host needs no
-annotation. Migrating from 0.4.x:
+default to core's base `I18n`, "so capability calls do not compile by accident"
+(`nuxt/src/types.ts:393-394`) — a hook on the module's own host needs no
+annotation, and one on a composed host must name it. Migrating from 0.4.x:
 `pnpm codemod:framework-slim "app/**/*.{ts,vue}"`, or the
 [0.5.0 migration guide](https://github.com/comvi-io/comvi-js/blob/main/MIGRATION.md).
 
@@ -230,7 +232,12 @@ every bundle.
 
 ```ts
 // nuxt.config.ts
-comvi: { locales: ["en", "de"], defaultLocale: "en", hostModule: "./comvi.host.ts" }
+import { defineNuxtConfig } from "nuxt/config";
+
+export default defineNuxtConfig({
+  modules: ["@comvi/nuxt"],
+  comvi: { locales: ["en", "de"], defaultLocale: "en", hostModule: "./comvi.host.ts" },
+});
 ```
 
 The factory is handed nuxt's **resolved options** — `locale` (the render locale
@@ -353,7 +360,13 @@ one capability with a module option, because `compiler` is a constructor
 argument no `.with(...)` can add afterwards:
 
 ```ts
-comvi: { locales: ["en", "uk"], defaultLocale: "en", icu: true }
+// nuxt.config.ts
+import { defineNuxtConfig } from "nuxt/config";
+
+export default defineNuxtConfig({
+  modules: ["@comvi/nuxt"],
+  comvi: { locales: ["en", "uk"], defaultLocale: "en", icu: true },
+});
 ```
 
 `icu` defaults to `false` and the choice is made in codegen, so leaving it off
@@ -387,10 +400,14 @@ Extend the `TranslationKeys` interface via declaration merging for autocomplete 
 
 ```typescript
 // src/types/i18n.d.ts
+import "@comvi/core"; // resolves the module before augmenting it
+
 declare module "@comvi/core" {
   interface TranslationKeys {
     welcome: { name: string };
-    greeting: never;
+    greeting: { name: string };
+    hello: never;
+    items: { count: number };
     "errors:NOT_FOUND": never;
   }
 }
@@ -404,7 +421,7 @@ const { t } = useI18n();
 const msg = t("welcome", { name: "Alice" });
 
 // ✓ No params needed
-const greeting = t("greeting");
+const hello = t("hello");
 
 // ✓ Namespaced keys use the ns option
 const notFound = t("NOT_FOUND", { ns: "errors" });
@@ -413,7 +430,10 @@ const notFound = t("NOT_FOUND", { ns: "errors" });
 
 **What TypeScript catches:**
 
-```ts
+```vue check=expect-error
+<script setup lang="ts">
+const { t } = useI18n(); // auto-imported
+
 // ✗ Expected 2 arguments, but got 1
 t("welcome");
 
@@ -425,6 +445,7 @@ t("welcome", { name: 42 });
 
 // ✗ Argument of type '"typo"' is not assignable to parameter
 t("typo", { name: "Alice" });
+</script>
 ```
 
 For CDN-delivered translations and visual in-context editing, pair with the [Comvi Platform](https://comvi.io) via [`@comvi/plugin-fetch-loader`](../plugin-fetch-loader) and [`@comvi/plugin-in-context-editor`](../plugin-in-context-editor).
