@@ -16,25 +16,25 @@
 
 ---
 
-`@comvi/typegen` turns a translation schema into the `TranslationKeys` declaration that types every `t()` call in a project. It is the one copy of that format: `@comvi/cli` generates from the Comvi TMS schema, `@comvi/vite-plugin` generates from local JSON files, and both call this package, so a project that runs the CLI in CI and the plugin in dev cannot see the two disagree.
+`@comvi/typegen` turns a translation schema into the `TranslationKeys` declaration that types every `t()` call in a project. It holds the only copy of that output format. `@comvi/cli` generates from the Comvi TMS schema and `@comvi/vite-plugin` generates from local JSON files, but both call this package, so a project that runs the CLI in CI and the plugin in dev never sees the two disagree.
 
-**You probably want a tool, not this package.** Reach for [`@comvi/cli`](https://www.npmjs.com/package/@comvi/cli) or [`@comvi/vite-plugin`](https://www.npmjs.com/package/@comvi/vite-plugin) instead. Install this one only to build your own generator — a schema from a source neither tool reads, or a check step of your own shape.
+**You probably want a tool, not this package.** Reach for [`@comvi/cli`](https://www.npmjs.com/package/@comvi/cli) or [`@comvi/vite-plugin`](https://www.npmjs.com/package/@comvi/vite-plugin) instead. Install this one only if you are writing your own generator: a schema from a source neither tool reads, or your own check step.
 
 ## About Comvi i18n
 
-Comvi i18n is a modern, framework-agnostic internationalization library — ICU MessageFormat, rich-text component embedding, and locale-aware `Intl` formatters in **~5 kB minified + gzipped for the base host, ~8.5 kB with every capability composed (as bundled by your app)** with **zero runtime dependencies** and **no `eval`** (CSP-safe for Chrome extensions, Cloudflare Workers, and locked-down enterprise apps).
+Comvi i18n is a framework-agnostic internationalization library. You get ICU MessageFormat, rich-text component embedding, and locale-aware `Intl` formatters in **~5 kB minified + gzipped for the base host, ~8.5 kB with every capability composed (as bundled by your app)**, with **zero runtime dependencies** and **no `eval`** (CSP-safe for Chrome extensions, Cloudflare Workers, and locked-down enterprise apps).
 
 - **Same API** across [Vue](https://www.npmjs.com/package/@comvi/vue), [React](https://www.npmjs.com/package/@comvi/react), [SolidJS](https://www.npmjs.com/package/@comvi/solid), [Svelte](https://www.npmjs.com/package/@comvi/svelte), [Next.js](https://www.npmjs.com/package/@comvi/next), and [Nuxt](https://www.npmjs.com/package/@comvi/nuxt).
-- **ICU `plural`, `selectordinal` & `select`** — locale-correct plurals, ordinals, and gender via `Intl.PluralRules`. Recognized by every major TMS. One explicit import: `compiler: icuCompiler` from `@comvi/core/icu`. The `number` / `date` / `time` argument types and the plural `offset:` form are not implemented and are not planned — each one is an `E_ICU_SYNTAX` failure, never a wrong render.
-- **Type-safe translation keys** via TypeScript declaration merging — autocomplete and parameter validation everywhere.
-- **Pluggable** — translation loading, locale detection, and in-context editing are opt-in plugins.
+- **ICU `plural`, `selectordinal` & `select`:** locale-correct plurals, ordinals, and gender via `Intl.PluralRules`. Recognized by every major TMS. One explicit import: `compiler: icuCompiler` from `@comvi/core/icu`. The `number` / `date` / `time` argument types and the plural `offset:` form are not implemented and are not planned. Each one fails with `E_ICU_SYNTAX` instead of rendering something wrong.
+- **Type-safe translation keys** via TypeScript declaration merging, for autocomplete and parameter validation everywhere.
+- **Pluggable:** translation loading, locale detection, and in-context editing are opt-in plugins.
 
 See the [main repo](https://github.com/comvi-io/comvi-js) for the full library overview, runnable demos, and the framework binding matrix.
 
 ### Why @comvi/typegen?
 
 - **One format, two tools.** The CLI and the Vite plugin emit byte-identical declarations, so switching between them never rewrites the file.
-- **Nothing but strings.** No dependencies and no `node:` imports — you read the schema and write the file, this package only formats.
+- **Nothing but strings.** No dependencies and no `node:` imports. You read the schema and write the file; this package only formats.
 - **Stable output.** No timestamp is stamped, so regenerating an unchanged schema produces the same bytes and leaves your working tree clean.
 
 ## Install
@@ -94,7 +94,7 @@ Returns the whole declaration file as a string. Keys are emitted in code-unit or
 | -------------- | ------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
 | `strictParams` | `true`                                                              | `false` makes every param optional (`"name"?: string`)                              |
 | `defaultNs`    | `"default"`                                                         | keys in this namespace lose their prefix, so `default:greeting` types as `greeting` |
-| `generatedBy`  | `DO NOT EDIT — this file is generated from your translation schema` | header line 3, verbatim — how each tool signs its own output                        |
+| `generatedBy`  | `DO NOT EDIT — this file is generated from your translation schema` | header line 3, verbatim; how each tool signs its own output                         |
 
 It throws for a schema it cannot express: a param whose `type` is neither `"string"` nor `"number"`, and two keys that collide once `defaultNs` is stripped (`default:title` and `title`). Both would otherwise produce a file the project has to debug at the call site.
 
@@ -104,7 +104,7 @@ Counts the declaration lines already in a generated file. Both quote styles coun
 
 ### `normalizeGenerated(content)`
 
-Drops what a regeneration is allowed to change — today, only the `Generated at:` header line that `@comvi/cli` 0.4 stamped — and trims. Compare two normalized strings to decide whether a file on disk is up to date; a file written by 0.4 still compares equal to current output.
+Drops what a regeneration is allowed to change (today, only the `Generated at:` header line that `@comvi/cli` 0.4 stamped) and trims. Compare two normalized strings to decide whether a file on disk is up to date; a file written by 0.4 still compares equal to current output.
 
 ```ts
 import { readFile } from "node:fs/promises";
@@ -137,7 +137,7 @@ interface ProjectSchema {
 }
 ```
 
-Keys are flat and namespaced with a colon — `"common:greeting"`. Param order is declaration order and is preserved in the emitted type.
+Keys are flat and namespaced with a colon, as in `"common:greeting"`. Param order is declaration order and is preserved in the emitted type.
 
 ## License
 
