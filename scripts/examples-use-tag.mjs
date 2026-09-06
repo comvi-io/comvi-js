@@ -50,7 +50,7 @@ const USAGE = "usage: node scripts/examples-use-tag.mjs <dist-tag|range> | --pri
 /**
  * A dist-tag or a semver range, and nothing else.
  *
- * This script writes whatever it is handed into five manifests, so an
+ * This script writes whatever it is handed into every example's manifest, so an
  * unvalidated argument is an arbitrary-value write: a stray flag
  * (`--print` misspelled), a shell-mangled range, or a `file:` /
  * `git+ssh://` specifier that would make the examples install from somewhere
@@ -107,7 +107,7 @@ function main(argv) {
   const specifier = argv[0];
   if (!isValidSpecifier(specifier)) {
     console.error(
-      `refusing to write ${JSON.stringify(specifier)} into five manifests: it is neither a ` +
+      `refusing to write ${JSON.stringify(specifier)} into every example manifest: it is neither a ` +
         `dist-tag nor a semver range. Expected ${SPECIFIER_RE} — e.g. \`next\` or \`^0.5.0\`. ` +
         `A leading \`-\` is a flag, and a \`file:\` or git specifier would stop the examples ` +
         `installing from npm.\n${USAGE}`,

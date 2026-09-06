@@ -38,9 +38,13 @@ import {
  * lockfile in this repo is read or written):
  *
  *   1. `pnpm install` with the overrides, then the provenance assertion.
- *   2. `pnpm build` — the real Vite build, which is what a reader gets.
- *   3. the example's own `typecheck` script — `tsc`, `vue-tsc` or
- *      `svelte-check`, whichever the framework needs.
+ *   2. `pnpm build` — the real build a reader gets: `vite build`,
+ *      `next build` or `nuxt build`, whichever the example's own script says.
+ *   3. the example's own `typecheck` script — `tsc`, `vue-tsc`,
+ *      `svelte-check` or `nuxt typecheck`, whichever the framework needs.
+ *   4. a size probe, chosen by KIND: the three build tools put "the entry
+ *      chunk" in three different places, and Next's first load is not one
+ *      file at all.
  *
  * The manifest's `^0.5.0` ranges are left EXACTLY as committed. An override
  * replaces the specifier without touching the declaration, so the file that
@@ -59,7 +63,19 @@ const SCRIPT_DIR = path.dirname(url.fileURLToPath(import.meta.url));
 const EXAMPLES_DIR = path.join(REPO_ROOT, "examples");
 
 /** Directory entries that are never copied into the temp build. */
-const SKIP_ENTRIES = new Set(["node_modules", "dist", ".turbo", "pnpm-lock.yaml", ".vite"]);
+const SKIP_ENTRIES = new Set([
+  "node_modules",
+  "dist",
+  ".turbo",
+  "pnpm-lock.yaml",
+  ".vite",
+  // A local `pnpm build` in an example leaves these behind, and copying one in
+  // would let a probe measure the PREVIOUS build when this run's died.
+  ".next",
+  ".nuxt",
+  ".output",
+  ".data",
+]);
 
 /** Every `examples/<name>` holding a package.json, in report order. */
 export function exampleDirs(root = EXAMPLES_DIR) {
@@ -171,11 +187,29 @@ export function entryChunk(distDir) {
 }
 
 export function measure(file) {
-  const bytes = fs.readFileSync(file);
+  return measureFiles([file]);
+}
+
+/**
+ * The bytes of one or more files, as a reader downloads them.
+ *
+ * Gzip is summed PER FILE rather than taken over the concatenation, because
+ * that is what the transfer costs: each chunk is its own HTTP response with its
+ * own compression window, and gzipping them together would report a number no
+ * browser ever sees.
+ */
+export function measureFiles(files) {
+  let min = 0;
+  let gzip = 0;
+  for (const file of files) {
+    const bytes = fs.readFileSync(file);
+    min += bytes.length;
+    gzip += zlib.gzipSync(bytes, { level: 9 }).length;
+  }
   return {
-    file: path.basename(file),
-    min: bytes.length,
-    gzip: zlib.gzipSync(bytes, { level: 9 }).length,
+    file: files.length === 1 ? path.basename(files[0]) : `${files.length} chunks`,
+    min,
+    gzip,
   };
 }
 
@@ -185,6 +219,180 @@ function chunkCount(distDir) {
   if (!fs.existsSync(assets)) return 0;
   return fs.readdirSync(assets).filter((entry) => entry.endsWith(".js")).length;
 }
+
+/**
+ * Which build tool an example runs, and therefore where its bytes end up.
+ *
+ * Read off the example's OWN `build` script, not a table keyed by directory
+ * name: the script is what actually executes, so `examples/next` renamed to
+ * `examples/app-router` still measures as a Next app, and a manifest whose
+ * build was quietly switched cannot go on being measured as the old kind.
+ */
+const BUILD_CLIS = [
+  ["next", /(^|[\s&|;])next\s+build\b/],
+  ["nuxt", /(^|[\s&|;])(nuxt|nuxi)\s+(build|generate)\b/],
+  ["vite", /(^|[\s&|;])vite\s+build\b/],
+];
+
+export function exampleKind(manifest, name = "an example") {
+  const build = manifest?.scripts?.build;
+  if (typeof build !== "string" || build.trim() === "") {
+    throw new Error(
+      `${name} declares no build script, so there is nothing to run and nothing to measure.`,
+    );
+  }
+  for (const [kind, pattern] of BUILD_CLIS) {
+    if (pattern.test(build)) return kind;
+  }
+  throw new Error(
+    `${name}: cannot tell what \`${build}\` builds. examples-verify knows vite, next and nuxt; ` +
+      'a new framework needs a kind of its own here AND a size probe, because "the entry ' +
+      'chunk" is in a different place — and a different SHAPE — for each of them.',
+  );
+}
+
+/**
+ * The app's own page entry in Next's `app-build-manifest.json`.
+ *
+ * Next records one chunk list per App Router entry: every layout, every page,
+ * and its own built-in `/_not-found`. A one-page example has exactly one page
+ * of its own, so anything else is a question this cannot answer — it refuses
+ * rather than reporting whichever key happened to come first.
+ */
+export function nextPageRoute(manifest) {
+  const pages = manifest?.pages;
+  if (!pages || typeof pages !== "object") {
+    throw new Error(
+      "Next's app-build-manifest.json has no `pages` object. Either the build did not run or " +
+        "this Next version reshaped the manifest — in which case nothing was measured, and a " +
+        "size of zero must not read as a small bundle.",
+    );
+  }
+  const routes = Object.keys(pages).filter((key) => key.endsWith("/page") && !key.startsWith("/_"));
+  if (routes.length !== 1) {
+    throw new Error(
+      `expected exactly one page route in app-build-manifest.json, found ${routes.length}` +
+        `${routes.length > 0 ? `: ${routes.join(", ")}` : ""}. "First load" is a property of ONE ` +
+        "route, so an example that grew a second page has to say which one the table reports.",
+    );
+  }
+  return routes[0];
+}
+
+/**
+ * Every JS file the browser must have before Next can render `route` — the
+ * number the build summary prints as "First Load JS".
+ *
+ * A page is rendered inside its layouts, so the browser downloads the layout
+ * chunks and the page chunks; the manifest lists them separately and they
+ * overlap heavily, hence the dedupe. A layout on a SIBLING branch is not on the
+ * path to this route and is deliberately left out.
+ */
+export function nextFirstLoad(manifest, route) {
+  const pages = manifest?.pages ?? {};
+  const entry = pages[route];
+  if (!entry) {
+    throw new Error(
+      `app-build-manifest.json has no entry for ${route} (it names: ${Object.keys(pages).join(", ") || "nothing"}).`,
+    );
+  }
+  const files = new Set(entry);
+  const scope = route.slice(0, -"/page".length);
+  for (const [key, list] of Object.entries(pages)) {
+    if (!key.endsWith("/layout")) continue;
+    const layoutScope = key.slice(0, -"/layout".length);
+    if (scope === layoutScope || scope.startsWith(`${layoutScope}/`)) {
+      for (const file of list) files.add(file);
+    }
+  }
+  return [...files];
+}
+
+/**
+ * The client entry chunk Nuxt's Vite manifest marks, by the same rule as the
+ * Vite probe: named by the build, never picked by size. The locale catalogs are
+ * `dynamicImports` of this entry, which is exactly the split the demo claims.
+ */
+export function nuxtEntryFile(manifest) {
+  const entries = Object.values(manifest ?? {}).filter((entry) => entry?.isEntry);
+  if (entries.length === 0) {
+    throw new Error(
+      "Nuxt's client manifest has no chunk marked `isEntry`, so nothing here says what the " +
+        "browser loads first and nothing was measured.",
+    );
+  }
+  if (entries.length > 1) {
+    throw new Error(
+      `Nuxt's client manifest has ${entries.length} chunks marked \`isEntry\` ` +
+        `(${entries.map((entry) => entry.file).join(", ")}). "The entry" is one file; pick ` +
+        "deliberately rather than letting object order decide.",
+    );
+  }
+  return entries[0].file;
+}
+
+/**
+ * The probes, one per kind. Each returns the files that make up "first load"
+ * plus a chunk count, and each fails loudly rather than returning nothing: a
+ * missing size must not be reportable as a small one.
+ */
+async function viteProbe(dir) {
+  const dist = path.join(dir, "dist");
+  return { files: [entryChunk(dist)], chunks: chunkCount(dist) };
+}
+
+async function nextProbe(dir) {
+  const manifestPath = path.join(dir, ".next", "app-build-manifest.json");
+  if (!fs.existsSync(manifestPath)) {
+    throw new Error(`no .next/app-build-manifest.json — \`next build\` produced no app build.`);
+  }
+  const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
+  const files = nextFirstLoad(manifest, nextPageRoute(manifest));
+  return { files: files.map((file) => path.join(dir, ".next", file)), chunks: files.length };
+}
+
+async function nuxtProbe(dir) {
+  // The Vite client manifest, which is what Nitro itself reads to decide the
+  // `#entry` import map it writes into every rendered page. It is a JS module
+  // rather than JSON, so it is imported, not parsed.
+  const manifestPath = path.join(dir, ".nuxt", "dist", "server", "client.manifest.mjs");
+  if (!fs.existsSync(manifestPath)) {
+    throw new Error(
+      "no .nuxt/dist/server/client.manifest.mjs — the Nuxt build wrote no client manifest, so " +
+        "there is nothing that names the entry chunk.",
+    );
+  }
+  const manifest = (await import(url.pathToFileURL(manifestPath).href)).default;
+  const assets = path.join(dir, ".output", "public", "_nuxt");
+  const entry = path.join(assets, nuxtEntryFile(manifest));
+  if (!fs.existsSync(entry)) {
+    throw new Error(`the client manifest names ${entry}, which the build did not write.`);
+  }
+  const chunks = fs.readdirSync(assets).filter((file) => file.endsWith(".js")).length;
+  return { files: [entry], chunks };
+}
+
+/**
+ * Per kind: how it is built, and how it is measured.
+ *
+ * The build ARGV is `pnpm run build` for all three on purpose — the example's
+ * own script is the contract a reader executes, and a table that ran something
+ * else would be verifying a command nobody types. What genuinely differs is the
+ * environment (neither SSR framework may phone home from a gate) and the probe,
+ * because "the entry chunk" lives somewhere different in each of the three
+ * build outputs and, for Next, is not one file at all.
+ */
+export const KINDS = {
+  vite: { build: ["run", "build"], env: {}, probe: viteProbe },
+  next: { build: ["run", "build"], env: { NEXT_TELEMETRY_DISABLED: "1" }, probe: nextProbe },
+  nuxt: { build: ["run", "build"], env: { NUXT_TELEMETRY_DISABLED: "1" }, probe: nuxtProbe },
+};
+
+/** What the "first load" columns mean, which is not the same thing per kind. */
+export const FIRST_LOAD_LEGEND =
+  "first load: vite — the entry chunk dist/index.html names; next — the route's chunk list " +
+  "from .next/app-build-manifest.json (page + enclosing layouts), the build summary's " +
+  '"First Load JS"; nuxt — the isEntry chunk of the client manifest, in .output/public/_nuxt.';
 
 function kb(bytes) {
   return `${(bytes / 1024).toFixed(1)} kB`;
@@ -228,12 +436,13 @@ export function provenanceLine(results, packages, options) {
 export function renderReport(results) {
   const rows = results.map((result) => [
     result.name,
+    result.kind ?? "—",
     result.ok ? "ok" : "FAIL",
     result.chunk ? kb(result.chunk.min) : "—",
     result.chunk ? kb(result.chunk.gzip) : "—",
     result.chunks ? String(result.chunks) : "—",
   ]);
-  const header = ["example", "result", "entry min", "entry gz", "js chunks"];
+  const header = ["example", "kind", "result", "first load min", "first load gz", "js chunks"];
   const widths = header.map((cell, index) =>
     Math.max(cell.length, ...rows.map((row) => row[index].length)),
   );
@@ -261,6 +470,10 @@ async function verifyExample(example, packages, options) {
 
     const manifestPath = path.join(target, "package.json");
     const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
+    // Decided BEFORE anything runs: an example whose build this script cannot
+    // measure must fail here, not build green and then get a "—" in the table.
+    const kind = exampleKind(manifest, `examples/${example.name}`);
+    result.kind = kind;
     fs.writeFileSync(
       manifestPath,
       `${JSON.stringify(withOverrides(manifest, packages), null, 2)}\n`,
@@ -300,10 +513,16 @@ async function verifyExample(example, packages, options) {
 
     for (const [step, argv] of [
       ["install", ["install", "--no-frozen-lockfile", "--ignore-workspace"]],
-      ["build", ["run", "build"]],
+      ["build", KINDS[kind].build],
       ["typecheck", ["run", "typecheck"]],
     ]) {
-      const { status, output } = run("pnpm", argv, { cwd: target, quiet: true });
+      const { status, output } = run("pnpm", argv, {
+        cwd: target,
+        quiet: true,
+        // `CI` is not set here on a laptop, and Next and Nuxt both take that as
+        // permission to print an interactive telemetry notice on first run.
+        env: { ...process.env, CI: "1", ...KINDS[kind].env },
+      });
       result.steps.push({ step, status, output });
       if (status !== 0) {
         console.error(`\n${example.name}: \`pnpm ${argv.join(" ")}\` exited ${status}\n${output}`);
@@ -320,9 +539,9 @@ async function verifyExample(example, packages, options) {
       }
     }
 
-    const dist = path.join(target, "dist");
-    result.chunk = measure(entryChunk(dist));
-    result.chunks = chunkCount(dist);
+    const { files, chunks } = await KINDS[kind].probe(target);
+    result.chunk = measureFiles(files);
+    result.chunks = chunks;
     result.ok = true;
     return result;
   } catch (error) {
@@ -381,7 +600,7 @@ async function main(argv) {
   if (options.json) {
     console.log(
       JSON.stringify(
-        results.map(({ name, ok, chunk, chunks }) => ({ name, ok, chunk, chunks })),
+        results.map(({ name, kind, ok, chunk, chunks }) => ({ name, kind, ok, chunk, chunks })),
         null,
         2,
       ),
@@ -389,6 +608,7 @@ async function main(argv) {
   } else {
     console.log(`\n${provenanceLine(results, packages, options)}\n`);
     console.log(renderReport(results));
+    console.log(`\n${FIRST_LOAD_LEGEND}`);
   }
   return results.every((result) => result.ok) ? 0 : 1;
 }

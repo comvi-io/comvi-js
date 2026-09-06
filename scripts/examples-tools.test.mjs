@@ -59,7 +59,7 @@ test("isValidSpecifier rejects anything starting with a dash", () => {
 
 test("isValidSpecifier rejects specifiers that would install from outside npm", () => {
   // The examples exist to prove they install from the registry; a `file:` or
-  // git specifier written into all five manifests destroys exactly that.
+  // git specifier written into every example manifest destroys exactly that.
   assert.equal(isValidSpecifier("file:../evil"), false);
   assert.equal(isValidSpecifier("git+ssh://x/y"), false);
 });
