@@ -477,20 +477,62 @@ describe("useLocaleHead", () => {
     mockRuntimeConfig.public.comvi.locales = ["en", "fr"];
     useState<string>("i18n-locale", () => "fr");
 
-    const headConfig = useLocaleHead({ addAlternateLinks: false, addCanonical: false });
+    const headConfig = useLocaleHead({ addAlternateLinks: false, addDir: false });
     const head = headConfig.value as Record<string, unknown>;
 
     expect(head.htmlAttrs).toStrictEqual({ lang: "fr" });
   });
 
-  it("omits the dir attribute for a locale that declares no direction", () => {
+  it("writes dir from the locale's own direction when its locale object declares none", () => {
+    // `dir` is documented as defaulting to "ltr", and `addDir` as on by
+    // default. Omitting the attribute honoured neither: an app that configured
+    // `locales: ["en", "de"]` — the shape the docs open with — shipped <html>
+    // with no direction at all.
     setMockRoute({ path: "/about", fullPath: "/about" });
     useState<string>("i18n-locale", () => "en");
 
     const headConfig = useLocaleHead({ addAlternateLinks: false, addCanonical: false });
     const head = headConfig.value as Record<string, unknown>;
 
-    expect(head.htmlAttrs).toStrictEqual({ lang: "en" });
+    expect(head.htmlAttrs).toStrictEqual({ lang: "en", dir: "ltr" });
+  });
+
+  it("writes dir for a locale configured as a plain string, with no locale object at all", () => {
+    setMockRoute({ path: "/fr/about", fullPath: "/fr/about" });
+    mockRuntimeConfig.public.comvi.locales = ["en", "fr"];
+    useState<string>("i18n-locale", () => "fr");
+
+    const headConfig = useLocaleHead({ addAlternateLinks: false, addCanonical: false });
+    const head = headConfig.value as Record<string, unknown>;
+
+    expect(head.htmlAttrs).toStrictEqual({ lang: "fr", dir: "ltr" });
+  });
+
+  it("writes dir=rtl for an rtl language that declares no direction", () => {
+    // The whole point of a default: the one locale where getting it wrong is
+    // visible must not need the author to have remembered.
+    setMockRoute({ path: "/ar/about", fullPath: "/ar/about" });
+    mockRuntimeConfig.public.comvi.locales = ["en", "ar"];
+    useState<string>("i18n-locale", () => "ar");
+
+    const headConfig = useLocaleHead({ addAlternateLinks: false, addCanonical: false });
+    const head = headConfig.value as Record<string, unknown>;
+
+    expect(head.htmlAttrs).toStrictEqual({ lang: "ar", dir: "rtl" });
+  });
+
+  it("keeps a declared dir that disagrees with the language's own direction", () => {
+    // The fallback is a default, not an override: an author who wrote `dir`
+    // meant it.
+    setMockRoute({ path: "/ar/about", fullPath: "/ar/about" });
+    mockRuntimeConfig.public.comvi.locales = ["en", "ar"];
+    mockRuntimeConfig.public.comvi.localeObjects.ar = { code: "ar", name: "Arabic", dir: "ltr" };
+    useState<string>("i18n-locale", () => "ar");
+
+    const headConfig = useLocaleHead({ addAlternateLinks: false, addCanonical: false });
+    const head = headConfig.value as Record<string, unknown>;
+
+    expect(head.htmlAttrs).toStrictEqual({ lang: "ar", dir: "ltr" });
   });
 
   it("omits the dir attribute of an rtl locale when addDir is disabled", () => {
@@ -557,7 +599,7 @@ describe("useLocaleHead", () => {
     const head = headConfig.value as Record<string, unknown>;
 
     expect(head.link).toBeUndefined();
-    expect(head.htmlAttrs).toStrictEqual({ lang: "de" });
+    expect(head.htmlAttrs).toStrictEqual({ lang: "de", dir: "ltr" });
   });
 
   it("registers the head configuration with Nuxt", () => {

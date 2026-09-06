@@ -1,4 +1,8 @@
 import { useHead, useRuntimeConfig, useRoute, useRequestURL } from "#app";
+// A pure function of the locale string — no host, no capability, no state. The
+// runtime already imports values from `@comvi/core`'s root (useI18n.ts), so
+// this adds no package edge and nothing that could pull the base host in.
+import { getTextDirection } from "@comvi/core";
 import { useLocaleState } from "../utils/locale-state";
 import type { ComputedRef } from "vue";
 import { computed } from "vue";
@@ -30,7 +34,12 @@ export interface LocaleHeadOptions {
   addCanonical?: boolean;
 
   /**
-   * Add dir attribute to html
+   * Add dir attribute to html.
+   *
+   * The value is the locale object's own `dir` when it declares one, and the
+   * locale's text direction otherwise — so `locales: ["en", "ar"]`, with no
+   * locale objects at all, still ships `<html dir="rtl">` on Arabic.
+   *
    * @default true
    */
   addDir?: boolean;
@@ -102,8 +111,14 @@ export function useLocaleHead(options: LocaleHeadOptions = {}) {
     if (addLang) {
       htmlAttrs.lang = localeObj?.iso || currentLocale;
     }
-    if (addDir && localeObj?.dir) {
-      htmlAttrs.dir = localeObj.dir;
+    if (addDir) {
+      // A DECLARED direction wins: an author who wrote `dir` meant it, even
+      // when it disagrees with the language. Otherwise fall back to the
+      // locale's own direction rather than omitting the attribute — `dir` is
+      // documented as defaulting to "ltr" and `addDir` as on by default, and
+      // omitting it honoured neither: an app configured the way the docs open
+      // (`locales: ["en", "de"]`) shipped <html> with no direction at all.
+      htmlAttrs.dir = localeObj?.dir ?? getTextDirection(currentLocale);
     }
     if (Object.keys(htmlAttrs).length > 0) {
       head.htmlAttrs = htmlAttrs;
