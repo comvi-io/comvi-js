@@ -434,16 +434,23 @@ const notFound = t("NOT_FOUND", { ns: "errors" });
 <script setup lang="ts">
 const { t } = useI18n(); // auto-imported
 
-// ✗ Expected 2 arguments, but got 1
+// ✗ TS2345 — Argument of type '"welcome"' is not assignable to parameter of type
+//   'never'. `welcome` declares a required param, so the key-only overload is out.
 t("welcome");
+</script>
+```
 
-// ✗ Property 'name' is missing in type '{ age: number }'
+```vue check=expect-error
+<script setup lang="ts">
+const { t } = useI18n(); // auto-imported
+
+// ✗ TS2769 (no overload matches) — Property 'name' is missing in type '{ age: number }'
 t("welcome", { age: 5 });
 
-// ✗ Type 'number' is not assignable to type 'string'
+// ✗ TS2769 (no overload matches) — Type 'number' is not assignable to type 'string'
 t("welcome", { name: 42 });
 
-// ✗ Argument of type '"typo"' is not assignable to parameter
+// ✗ TS2769 (no overload matches) — '"typo"' is not a declared key
 t("typo", { name: "Alice" });
 </script>
 ```
