@@ -27,3 +27,23 @@ declare module "*.css";
  */
 declare module "server-only";
 declare module "client-only";
+
+/**
+ * The environment globals a real app has and a docs project otherwise lacks:
+ * `types: []` in the compiler options drops `@types/node` and `vite/client`
+ * from the automatic global scope, so `process.env.X` (TS2591) and
+ * `import.meta.env.DEV` (TS2339) failed on every fence that reads an env var
+ * — six across the READMEs and D3 before this existed. Shaped like what
+ * `vite/client` and `@types/node` give the reader; unlike an augmented
+ * `TranslationKeys`, nothing here can change how another fence typechecks.
+ */
+interface ImportMetaEnv {
+  readonly DEV: boolean;
+  readonly PROD: boolean;
+  readonly MODE: string;
+  readonly [key: string]: any;
+}
+interface ImportMeta {
+  readonly env: ImportMetaEnv;
+}
+declare const process: { env: Record<string, string | undefined> };
