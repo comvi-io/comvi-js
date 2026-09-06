@@ -326,7 +326,10 @@ async function checkOne(pkg) {
       if (!GATING_PROBLEM_KINDS.has(p.kind)) return false;
       // A `./T.svelte` specifier is resolved by the Svelte toolchain, not by tsc's
       // extension substitution — attw flags it, node16 `tsc` does not. See the
-      // constant's comment.
+      // constant's comment. This sits BEFORE the mode filter, so it suppresses the
+      // specifier under `bundler` as well as `node16`. That is deliberate and costs
+      // nothing: bundler resolution has never reported it, so there is no verdict to
+      // lose, and one rule beats two that could disagree.
       if (p.moduleSpecifier && ARBITRARY_EXTENSION_SPECIFIER.test(p.moduleSpecifier)) return false;
       // Entry-level problems carry `resolutionKind`; InternalResolutionError carries
       // `resolutionOption`. Both must allow node16 or the whole node16 report is lost.

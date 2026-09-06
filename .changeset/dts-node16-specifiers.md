@@ -38,7 +38,11 @@ against the real signatures needs no change.
 
 Bundler-resolution consumers (Vite, and Next.js projects on the `bundler` default) were
 never affected — their types were correct throughout. Consumers on `node16`/`nodenext` get
-real types for the first time.
+real types for the first time, with one exception outside our control: `@comvi/next`'s
+middleware and routing declarations import `next/server` and `next/link`, and `next@15.5.9`
+ships no `exports` field, so those subpaths still do not resolve under `node16` (3 ×
+TS2307 raised inside `@comvi/next`'s own declarations). Next.js projects on the `bundler`
+resolution its own tooling sets are unaffected.
 
 `pnpm check:types-exports` now gates attw's `node16` resolution mode in addition to
 `bundler`. attw detects this defect perfectly well — 10 × `InternalResolutionError` on

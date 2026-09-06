@@ -218,6 +218,54 @@ test("string literal containing /* → the specifiers after it are still rewritt
   rmSync(dist, { recursive: true, force: true });
 });
 
+// REGRESSION: indices are UTF-16 code units, not code points. Iterating the text with
+// spread made the character array one entry shorter per astral character, desyncing
+// every later index; a single emoji anywhere above a specifier returned ZERO specifiers
+// for the whole file, so the rewriter and the gate went blind together and both passed.
+test("astral character in a JSDoc comment → the specifier below is still rewritten", () => {
+  const dist = makeDist({
+    "index.d.ts": "/** ships 🚀 fast */\nexport { a } from './x';\n",
+    "x.d.ts": "export declare const a: number;\n",
+  });
+
+  const result = qualifyDeclarationDir(dist);
+
+  assert.equal(result.rewrites, 1);
+  assert.equal(
+    readFileSync(path.join(dist, "index.d.ts"), "utf8"),
+    "/** ships 🚀 fast */\nexport { a } from './x.js';\n",
+  );
+  rmSync(dist, { recursive: true, force: true });
+});
+
+test("astral character in a string literal → the specifier below is still rewritten", () => {
+  const dist = makeDist({
+    "index.d.ts": "export declare const E: '🚀';\nexport { a } from './x';\n",
+    "x.d.ts": "export declare const a: number;\n",
+  });
+
+  const result = qualifyDeclarationDir(dist);
+
+  assert.equal(result.rewrites, 1);
+  assert.equal(
+    readFileSync(path.join(dist, "index.d.ts"), "utf8"),
+    "export declare const E: '🚀';\nexport { a } from './x.js';\n",
+  );
+  rmSync(dist, { recursive: true, force: true });
+});
+
+test("astral character above an unbacked specifier → still reported unresolved", () => {
+  const dist = makeDist({ "index.d.ts": "/** 🚀 */\nexport { a } from './missing';\n" });
+
+  const result = qualifyDeclarationDir(dist);
+
+  assert.deepEqual(
+    result.unresolved.map((u) => u.specifier),
+    ["./missing"],
+  );
+  rmSync(dist, { recursive: true, force: true });
+});
+
 test("dynamic import() type specifier → rewritten to the .js form", () => {
   const dist = makeDist({
     "index.d.ts": "export type Loader = typeof import('./installer');\n",

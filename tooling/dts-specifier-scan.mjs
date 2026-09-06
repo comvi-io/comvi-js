@@ -35,7 +35,14 @@ const STAR_REEXPORT_POSITION = /\bexport\s+(?:type\s+)?\*\s+(?:as\s+[A-Za-z_$][\
  */
 function scan(text) {
   const length = text.length;
-  const chars = [...text];
+  // `split("")` — NOT `[...text]`. The spread iterates CODE POINTS, so one astral
+  // character (an emoji in a JSDoc block, say) makes the array one entry shorter than
+  // `text.length` and every index past it refers to the wrong character. The blanking
+  // then lands off by one, `code.slice(0, token.start)` no longer ends at the import
+  // keyword, and the scanner returns ZERO specifiers for the whole file — blinding the
+  // rewriter and the gate together, silently and green. Every index here is a UTF-16
+  // code unit, matching `text.length`, `slice` and the token bounds handed to callers.
+  const chars = text.split("");
   const tokens = [];
   let i = 0;
 
