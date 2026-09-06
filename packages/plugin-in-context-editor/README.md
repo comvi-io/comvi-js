@@ -80,11 +80,12 @@ exports one name for each way of adding them.
 | lifecycle          | the host's own: it ends in `use(InContextEditorPlugin(options))`                                                            | the host's own                             |
 | under `production` | `(host) => host`. No discovery, no capability, no plugin, no editor bytes                                                   | a plugin that does nothing                 |
 
-Discovery comes first. The editor is driven from outside the page, so an
-editor-enabled host announces itself on the `window.__COMVI__` queue without a
-second `.with(devtools())`. If you want `use` yourself, compose
-`.with(plugins())`. The installer does not promise it, because under
-`production` that member would be typed present and absent at the same time.
+Discovery comes first. The editor is the one capability that is driven from
+outside the page, so an editor-enabled host announces itself on the
+`window.__COMVI__` queue without a second `.with(devtools())`. If you want `use`
+yourself, compose `.with(plugins())`. The installer does not promise it, because
+under `production` that member would be typed present and absent at the same
+time.
 
 **Swapping the two is a type error, and it fails loudly at runtime too.** Nothing
 is branded: an installer and a plugin are both "a function of the host". So each

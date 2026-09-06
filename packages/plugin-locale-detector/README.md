@@ -103,7 +103,7 @@ slot rejects the other explicitly instead of half-working:
 
 ## How detection works
 
-On initialization, the detector checks the first entry in `caches` as the saved user preference by default. If no cached value exists, it walks `order` from first to last and returns the first non-empty match. Set `cacheFirst: false` to skip that preliminary cache read and make `order` the complete priority list. Here is the walk-through with the Quick start config above:
+On initialization, the detector checks the first entry in `caches` as the saved user preference by default. If no cached value exists, it walks `order` from first to last and returns the first non-empty match. Set `cacheFirst: false` to skip that preliminary cache read and make `order` the complete priority list.
 
 | Step | Source         | Looks at                 | Match?        |
 | ---- | -------------- | ------------------------ | ------------- |
@@ -112,7 +112,7 @@ On initialization, the detector checks the first entry in `caches` as the saved 
 | 3    | `cookie`       | `i18n_lang` cookie       | (skipped)     |
 | 4    | `navigator`    | `navigator.languages[0]` | (skipped)     |
 
-Once a locale is chosen, by detection or by an explicit `setLocale()` call, it is written to every entry in `caches`. Because the first cache entry is read before `order` by default, put your preferred saved-locale source first. Use `cacheFirst: false` when query string or navigator detection should be able to override it; cache writes remain enabled, and cache sources are still read when included in `order`.
+Once a locale is chosen (by detection or by an explicit `setLocale()` call) it is written to every entry in `caches`. Because the first cache entry is read before `order` by default, put your preferred saved-locale source first. Use `cacheFirst: false` when query string or navigator detection should be able to override it; cache writes remain enabled, and cache sources are still read when included in `order`.
 
 BCP 47 lookup means `de-DE` matches `de` if `supportedLocales: ["en", "de"]`, and `zh-Hant-TW` falls back to `zh-Hant` then `zh`. Unsupported detected locales resolve to `fallbackLocale` (defaulting to the configured i18n locale) and are not cached.
 

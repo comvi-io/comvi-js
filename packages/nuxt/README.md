@@ -24,7 +24,7 @@
 
 ## Why Comvi i18n?
 
-Comvi i18n is a framework-agnostic internationalization library with type-safe translations, real ICU MessageFormat, and a small bundle that stays safe under a strict CSP.
+Comvi i18n is a framework-agnostic internationalization library with type-safe translations, real ICU MessageFormat, and a small bundle.
 
 - **Rich text without XSS.** Embed components inside translation strings (`Click <link>here</link>`). Translators see clean markup, and you decide what each tag renders to. No raw HTML, no unsafe DOM injection, and no splitting a sentence across template fragments.
 - **ICU `plural`, `selectordinal` & `select`.** Locale-correct grammar via `Intl.PluralRules`, including Polish, Ukrainian, Arabic, Welsh and the rest. It is the same syntax every major TMS (Crowdin, Lokalise, Phrase) already speaks. The `number` / `date` / `time` argument types and the plural `offset:` form are not implemented and are not planned. Each one fails with `E_ICU_SYNTAX` instead of rendering something wrong.
@@ -226,8 +226,8 @@ annotation, and one on a composed host must name it. Migrating from 0.4.x:
 `hostModule` points at a module whose default export builds the host. It is a
 module **path**, not a function, and the branch is taken at **build time**: the
 module generates `#build/comvi.host`, and with `hostModule` set neither the
-runtime plugin nor the server utilities go through nuxt's own construction
-path. A runtime `if` could not deliver that, because it would keep both paths alive in
+runtime plugin nor the server utilities go through nuxt's own construction path.
+A runtime `if` could not deliver that, because it would keep both paths alive in
 every bundle.
 
 ```ts
@@ -283,18 +283,19 @@ export default ((options) =>
     .with(devtools())) satisfies NuxtHostFactory;
 ```
 
-Order matters in one way, and it is not the order above: `.with(icu())` must run
-before the first catalog reaches the host (constructor `translation`,
+Order matters in exactly one way, and it is not the order above: `.with(icu())`
+must run before the first catalog reaches the host (constructor `translation`,
 `addTranslations`, or a loader merge). The order of `loader()`, `plugins()` and
 `devtools()` among themselves is free, because every capability composed before
-`init()` is attached by the time plugins run.
-`loader(map)` attaches the loader capability **and** registers the map; for a
-plain `LoaderFn`, use `.with(attachLoader)` and call `registerLoader(fn)`.
+`init()` is attached by the time plugins run. `loader(map)` attaches the loader
+capability **and** registers the map; for a plain `LoaderFn`, use
+`.with(attachLoader)` and call `registerLoader(fn)`.
 
 So `comvi.host.ts` is the one file in a nuxt app that names comvi packages at
 all. `useI18n()`, `useI18nLoader()`, `useI18nPlugins()`, `<T>` and
 `<NuxtLinkLocale>` are auto-imported, so app code names none. The composition
-root is a single readable file, and reading it tells you what your app pays for.
+root is a single readable file, and reading it tells you exactly what your app
+pays for.
 
 ### What a nuxt app pays
 
@@ -370,8 +371,8 @@ export default defineNuxtConfig({
 
 `icu` defaults to `false` and the choice is made in codegen, so leaving it off
 emits a `#build/comvi.host` that never mentions `@comvi/core/icu`: 0 B rather
-than a disabled feature. It is ignored (with a build-time warning) when `hostModule`
-is set, since your factory already passes its own `compiler`.
+than a disabled feature. It is ignored (with a build-time warning) when
+`hostModule` is set, since your factory already passes its own `compiler`.
 
 ```vue
 <script setup lang="ts">
@@ -386,8 +387,8 @@ message like `{count, plural, one {# item} other {# items}}` on the default
 compiler throws `E_ICU_SYNTAX` at ingestion in development. In production the
 braced segment renders literally and `E_ICU_SYNTAX`, naming the argument type,
 is reported through `onError` (or `console.error`) on the compilation that hit
-it, rather than rendering plausibly-wrong text a reviewer would never catch. Quoted literals such as
-`'{name, other}'` stay valid text.
+it, rather than rendering plausibly-wrong text a reviewer would never catch.
+Quoted literals such as `'{name, other}'` stay valid text.
 
 See the [@comvi/vue ICU section](../vue#icu-messageformat)
 for the full multilingual examples, ordinals and select.

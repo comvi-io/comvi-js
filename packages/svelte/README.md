@@ -25,7 +25,7 @@ Same `t()` and `<T>` API as the [Vue](../vue), [React](../react), and [SolidJS](
 
 ## Why Comvi i18n?
 
-Comvi i18n is a framework-agnostic internationalization library with type-safe translations, real ICU MessageFormat, and a small bundle that stays safe under a strict CSP.
+Comvi i18n is a framework-agnostic internationalization library with type-safe translations, real ICU MessageFormat, and a small bundle.
 
 - **Rich text without XSS.** Embed components inside translation strings (`Click <link>here</link>`). Translators see clean markup, and you decide what each tag renders to. No raw HTML, no unsafe DOM injection, and no splitting a sentence across template fragments.
 - **ICU `plural`, `selectordinal` & `select`.** Locale-correct grammar via `Intl.PluralRules`, including Polish, Ukrainian, Arabic, Welsh and the rest. It is the same syntax every major TMS (Crowdin, Lokalise, Phrase) already speaks. The `number` / `date` / `time` argument types and the plural `offset:` form are not implemented and are not planned. Each one fails with `E_ICU_SYNTAX` instead of rendering something wrong.
@@ -160,8 +160,9 @@ instead of getting them from `useI18n()`:
 They are **context readers, not stores**: like `useI18n()` they call
 `getI18nContext()`, so they are callable during component initialisation only,
 and what they return is a plain object of bound functions. Do not `$`-prefix a
-member. They differ from `createLocaleStore()` and friends because a capability action
-is an imperative operation rather than a value that changes over time. Neither takes parameters; the namespace argument stays on `useI18n(ns)`.
+member. They differ from `createLocaleStore()` and friends because a capability
+action is an imperative operation rather than a value that changes over time.
+Neither takes parameters; the namespace argument stays on `useI18n(ns)`.
 
 On a host that lacks the capability the acquisition call throws, in
 development **and** production, never a silent no-op:
@@ -357,7 +358,7 @@ graph, while `svelte-icu` calls `icuCompiler`, formats a real plural from the
 built bundle, and asserts the other three out.
 
 `@comvi/core/tags` is not re-exported, because importing it registers tag
-syntax ambiently. `<T>` uses the pure `@comvi/core/rich-text` seam and does not
+syntax ambiently. `<T>` uses the pure `@comvi/core/rich-text` path and does not
 change string-API tag behavior. Unlike react, solid and vue, `svelte-package`
 preserves modules, so `dist/T.svelte` is its own module: an app that never
 renders `<T>` drops the whole rich-text path, and the one context key
@@ -419,12 +420,11 @@ The `<T>` component renders the translation structurally: real DOM nodes built f
 and `{param}` interpolation; a template with ICU syntax never renders as
 plausible-but-wrong text. Development throws `E_ICU_SYNTAX` at ingestion, and
 production renders the braced segment literally and reports `E_ICU_SYNTAX`
-through `onError` (or `console.error`) on the compilation that hit it. Every catalog below therefore
-needs the ICU compiler on the host: `createI18n({ compiler: icuCompiler, … })`
-for inline catalogs, `.with(icu())` before the first remote catalog reaches the
-host for remote ones. Both
-names come from `@comvi/svelte`; see
-[One package, one entry](#one-package-one-entry).
+through `onError` (or `console.error`) on the compilation that hit it. Every
+catalog below therefore needs the ICU compiler on the host:
+`createI18n({ compiler: icuCompiler, … })` for inline catalogs, `.with(icu())`
+before the first remote catalog reaches the host for remote ones. Both names
+come from `@comvi/svelte`; see [One package, one entry](#one-package-one-entry).
 
 ### Plurals across languages
 

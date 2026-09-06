@@ -27,7 +27,7 @@ Designed for Next.js 14+ / 15+ with React 18+ / 19+.
 
 ## Why Comvi i18n?
 
-Comvi i18n is a framework-agnostic internationalization library with type-safe translations, real ICU MessageFormat, and a small bundle that stays safe under a strict CSP.
+Comvi i18n is a framework-agnostic internationalization library with type-safe translations, real ICU MessageFormat, and a small bundle.
 
 - **Rich text without XSS.** Embed components inside translation strings (`Click <link>here</link>`). Translators see clean markup, and you decide what each tag renders to. No raw HTML, no unsafe DOM injection, and no splitting a sentence across template fragments.
 - **ICU `plural`, `selectordinal` & `select`.** Locale-correct grammar via `Intl.PluralRules`, including Polish, Ukrainian, Arabic, Welsh and the rest. It is the same syntax every major TMS (Crowdin, Lokalise, Phrase) already speaks. The `number` / `date` / `time` argument types and the plural `offset:` form are not implemented and are not planned. Each one fails with `E_ICU_SYNTAX` instead of rendering something wrong.
@@ -258,11 +258,11 @@ There is no next-specific hook API. Migrating from 0.4.x:
 `@comvi/next` publishes THREE ways to get an i18n host. Read the differences
 before you pick:
 
-| you call                                         | from                 | what you get                                                      |
-| ------------------------------------------------ | -------------------- | ----------------------------------------------------------------- |
-| `createNextI18n(options)`                        | `@comvi/next`        | the COMPOSED host + routing + `.use*`, as 0.4.x published it      |
-| `createI18n(options)`                            | `@comvi/next/client` | the BASE host; capabilities are things you compose, on the client |
-| `createI18n(options)` + `createNextI18nFromHost` | `@comvi/next/server` | the BASE host you compose yourself, handed to the SSR factory     |
+| you call                                         | from                 | what you get                                                         |
+| ------------------------------------------------ | -------------------- | -------------------------------------------------------------------- |
+| `createNextI18n(options)`                        | `@comvi/next`        | the COMPOSED host + routing + `.use*`, exactly as 0.4.x published it |
+| `createI18n(options)`                            | `@comvi/next/client` | the BASE host; capabilities are things you compose, on the client    |
+| `createI18n(options)` + `createNextI18nFromHost` | `@comvi/next/server` | the BASE host you compose yourself, handed to the SSR factory        |
 
 The two entries expose the SAME `createI18n`: the client/server split is a
 runtime split (which helpers are reachable), never a host-tier split. There is
@@ -272,19 +272,19 @@ one direct-host constructor name in this package, on both entries.
 
 Since core converged to a single BASE entry, `createNextI18n` no longer inherits
 a composed core. It **composes one explicitly**, inside this package, so its
-published behaviour is preserved: ICU, ambient tag syntax, the loader (with
-BOTH `registerLoader` overloads, a loader function and a static import map), the
-plugin host, nested constructor catalogs, default params and devtools discovery,
-in that order.
+published behaviour is preserved exactly: ICU, ambient tag syntax, the loader
+(with BOTH `registerLoader` overloads, a loader function and a static import
+map), the plugin host, nested constructor catalogs, default params and devtools
+discovery, in that order.
 
-It is therefore one of the two hosts in the repo that carry ICU whether or not
+It is therefore one of exactly two hosts in the repo that carry ICU whether or not
 the app asked for it; the other is the CDN global build. This factory preserves
 published 0.4 behaviour, and the CDN global has no composition step a page could
 write. `createI18n` on
 `@comvi/next/client` and `@comvi/next/server` is the base host and carries
 nothing you did not compose.
 
-The host type is published as `NextComposedI18n<D>`, which is
+The host type is published as `NextComposedI18n<D>`, which is exactly
 `CreateNextI18nResult<D>["i18n"]`:
 
 ```ts
@@ -389,17 +389,18 @@ plain `LoaderFn`, compose `.with(attachLoader)` and call `registerLoader(fn)`
 yourself; that keeps the import-map adapter out of the server bundle (it is
 +111 B min+gz on this graph), which is the form the size fixture measures.
 
-The server **always** needs the loader (`NextServerHost = WrapperI18nHost & I18nLoaderApi`),
-while ICU and tag interpolation enter the graph only if your factory composes
-them. Options are routing-only; locale, namespaces, translations, tags, plugins
-and the API key belong to the host factory and do not exist on the options type.
-The result is `{ i18n, routing }`, with no `.use*` methods and your host type
+The server **always** needs the loader
+(`NextServerHost = WrapperI18nHost & I18nLoaderApi`), while ICU and tag
+interpolation enter the graph only if your factory composes them. Options are
+routing-only; locale, namespaces, translations, tags, plugins and the API key
+belong to the host factory and do not exist on the options type. The result is
+exactly `{ i18n, routing }`, with no `.use*` methods and your host type
 preserved.
 
 `host()` is not called when the factory returns. The first `result.i18n` access
 **or** the first server helper that needs the instance (`getI18n()`,
 `loadTranslations()`) resolves it. Two entry points reach one cell, there is no
-required initialization order, and `host()` runs once.
+required initialization order, and `host()` is called exactly once.
 
 **Configure the server i18n once per process.** A second `setI18n(other)` used
 to overwrite the first silently; it now throws, in development and production,

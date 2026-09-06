@@ -27,7 +27,7 @@ For Nuxt 3, use [`@comvi/nuxt`](../nuxt), which adds SSR, locale routing, and au
 
 ## Why Comvi i18n?
 
-Comvi i18n is a framework-agnostic internationalization library with type-safe translations, real ICU MessageFormat, and a small bundle that stays safe under a strict CSP.
+Comvi i18n is a framework-agnostic internationalization library with type-safe translations, real ICU MessageFormat, and a small bundle.
 
 - **Rich text without XSS.** Embed components inside translation strings (`Click <link>here</link>`). Translators see clean markup, and you decide what each tag renders to. No raw HTML, no unsafe DOM injection, and no splitting a sentence across template fragments.
 - **ICU `plural`, `selectordinal` & `select`.** Locale-correct grammar via `Intl.PluralRules`, including Polish, Ukrainian, Arabic, Welsh and the rest. It is the same syntax every major TMS (Crowdin, Lokalise, Phrase) already speaks. The `number` / `date` / `time` argument types and the plural `offset:` form are not implemented and are not planned. Each one fails with `E_ICU_SYNTAX` instead of rendering something wrong.
@@ -196,9 +196,9 @@ Whole-app comvi graph, min+gz, `vue` externalized (`pnpm size`, rows in
 | base host, one call, no `<T>`     | `fw-vue-default`        | **7029 B**  |
 | full explicit composition + `<T>` | `fw-vue-full-composite` | **11527 B** |
 
-`<T>` adds the pure `@comvi/core/rich-text` path. It no longer registers
-ambient string-API tags, because that changed in this release, so its graph
-excludes the tag-registration pair just as the rows that never render it do.
+`<T>` adds the pure `@comvi/core/rich-text` path. It moved to that path in this
+release and no longer registers ambient string-API tags, so its graph excludes
+the tag-registration pair just as the rows that never render it do.
 
 ## One package, one entry
 
@@ -319,8 +319,9 @@ The explicit form is that composition spelled out, and it is what you want when
 you register plugins from a list. Compose `loader()` as well when a plugin
 registers one. The order of `loader()`, `plugins()` and `devtools()` among
 themselves is free, because plugins run at `init()` and every capability
-composed before `init()` is attached by then. `VueI18n` does not proxy `use`, so registration
-happens on the host, either before wrapping or as `i18n.core.use(…)` afterwards.
+composed before `init()` is attached by then. `VueI18n` does not proxy `use`, so
+registration happens on the host, either before wrapping or as
+`i18n.core.use(…)` afterwards.
 
 ```ts
 import { createCore, createI18nFromCore, loader, plugins } from "@comvi/vue";
@@ -357,7 +358,7 @@ formats a real plural from the built bundle and asserts the other three out, and
 `createI18nFromCore` and asserts the three it does not call out.
 
 `@comvi/core/tags` is not re-exported, because importing it registers tag
-syntax ambiently. `<T>` uses the pure `@comvi/core/rich-text` seam in its own
+syntax ambiently. `<T>` uses the pure `@comvi/core/rich-text` path in its own
 dist chunk and does not change string-API tag behavior.
 
 ### String-API tags render literally
@@ -601,7 +602,7 @@ See [`@comvi/plugin-fetch-loader`](https://github.com/comvi-io/comvi-js/tree/mai
 
 **Build one instance per request.** A module-scope `createI18n(...)` is a
 singleton shared by every concurrent request, and its locale is mutable: one
-visitor switching to `uk` moves the locale, and the reactive `locale` ref, under
+visitor switching to `uk` moves the locale (and the reactive `locale` ref) under
 everyone else's render. Construct the instance inside the request
 handler, next to the app.
 

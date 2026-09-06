@@ -8,7 +8,7 @@
 <h1 align="center">Modern i18n for JavaScript & TypeScript</h1>
 
 <p align="center">
-  One framework-agnostic core. ICU MessageFormat and rich text without XSS,<br/>
+  One framework-agnostic core. ICU MessageFormat and rich text without XSS —<br/>
   for <b>Vue</b>, <b>React</b>, <b>SolidJS</b>, <b>Svelte</b>, <b>Next.js</b>, and <b>Nuxt</b>.
 </p>
 
@@ -122,7 +122,7 @@ Without `compiler: icuCompiler` the default compiler never renders
 `{count, plural, …}` as a plural: development throws `E_ICU_SYNTAX` at
 ingestion, and production renders the braced segment literally and reports
 `E_ICU_SYNTAX` through `onError` (or `console.error`) on the compilation that
-hit it. That report is best-effort, once per process, and never fires on cached
+hit it. That report is best-effort, per process, and never fires on cached
 renders. Plain `{param}` interpolation needs no import.
 
 For framework-specific setup, see the docs:
@@ -162,8 +162,9 @@ Capabilities are core's pure subpaths, re-exported **by name** from every
 framework entry except `@comvi/nuxt`, so the ones you never call are pruned by
 your bundler. The repo's bundler matrix asserts that from the emitted module
 graph in webpack and vite, development and production. (`@comvi/nuxt` is the
-exception: app code imports nothing, so the toolkit is not re-exported. Composition happens in one `hostModule` file that names
-`@comvi/core` and its subpaths directly.)
+exception: app code imports nothing, so the toolkit is not re-exported.
+Composition happens in one `hostModule` file that names `@comvi/core` and its
+subpaths directly.)
 
 | you want                                                       | you add                                                                          |
 | -------------------------------------------------------------- | -------------------------------------------------------------------------------- |
@@ -279,7 +280,7 @@ live. Leave it out and the failure is loud in every build condition, never
 silent and never a plausible wrong answer: development throws `E_ICU_SYNTAX` at
 ingestion, and production renders the braced segment literally and reports
 `E_ICU_SYNTAX` through `onError` (or `console.error`) on the compilation that
-hit it. That report is best-effort, once per process, and never fires on cached
+hit it. That report is best-effort, per process, and never fires on cached
 renders.
 
 ## Locale-aware formatting
@@ -339,12 +340,13 @@ yourself.
 | [`@comvi/next`](packages/next)     | Next.js App Router: SSR, middleware, locale routing   | [→](https://comvi.io/docs/i18n/next/)    |
 | [`@comvi/nuxt`](packages/nuxt)     | Nuxt 3 / 4 module: auto-imports, SSR, locale routing  | [→](https://comvi.io/docs/i18n/nuxt/)    |
 
-**Upgrading from 0.4.x?** Every package now has ONE entry, and `@comvi/core` is
-the base host: ICU, async loading, the plugin host and extension discovery are
-imports you add, not an entry you switch. That is a breaking change on a 0.x
-minor. ICU syntax on the default compiler throws instead of rendering wrong
-text, and four loader/plugin members moved out of `useI18n()`. The migration is
-mechanical and mostly codemodded; see **[MIGRATION.md](MIGRATION.md)**.
+**Upgrading from 0.4.x?** Every package now has exactly ONE entry, and
+`@comvi/core` is the base host: ICU, async loading, the plugin host and
+extension discovery are imports you add, not an entry you switch. That is a
+breaking change on a 0.x minor. ICU syntax on the default compiler throws
+instead of rendering wrong text, and four loader/plugin members moved out of
+`useI18n()`. The migration is mechanical and mostly codemodded; see
+**[MIGRATION.md](MIGRATION.md)**.
 
 ### Plugins
 

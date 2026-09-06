@@ -16,7 +16,7 @@
 
 ---
 
-`@comvi/typegen` turns a translation schema into the `TranslationKeys` declaration that types every `t()` call in a project. It holds the only copy of that output format. `@comvi/cli` generates from the Comvi TMS schema and `@comvi/vite-plugin` generates from local JSON files, but both call this package, so a project that runs the CLI in CI and the plugin in dev never sees the two disagree.
+`@comvi/typegen` turns a translation schema into the `TranslationKeys` declaration that types every `t()` call in a project. It is the one copy of that format. `@comvi/cli` generates from the Comvi TMS schema and `@comvi/vite-plugin` generates from local JSON files, but both call this package, so a project that runs the CLI in CI and the plugin in dev cannot see the two disagree.
 
 **You probably want a tool, not this package.** Reach for [`@comvi/cli`](https://www.npmjs.com/package/@comvi/cli) or [`@comvi/vite-plugin`](https://www.npmjs.com/package/@comvi/vite-plugin) instead. Install this one only if you are writing your own generator: a schema from a source neither tool reads, or your own check step.
 

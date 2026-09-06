@@ -29,7 +29,7 @@ For Next.js App Router, use [`@comvi/next`](../next), which adds SSR, middleware
 
 ## Why Comvi i18n?
 
-Comvi i18n is a framework-agnostic internationalization library with type-safe translations, real ICU MessageFormat, and a small bundle that stays safe under a strict CSP.
+Comvi i18n is a framework-agnostic internationalization library with type-safe translations, real ICU MessageFormat, and a small bundle.
 
 - **Rich text without XSS.** Embed components inside translation strings (`Click <link>here</link>`). Translators see clean markup, and you decide what each tag renders to. No raw HTML, no unsafe DOM injection, and no splitting a sentence across template fragments.
 - **ICU `plural`, `selectordinal` & `select`.** Locale-correct grammar via `Intl.PluralRules`, including Polish, Ukrainian, Arabic, Welsh and the rest. It is the same syntax every major TMS (Crowdin, Lokalise, Phrase) already speaks. The `number` / `date` / `time` argument types and the plural `offset:` form are not implemented and are not planned. Each one fails with `E_ICU_SYNTAX` instead of rendering something wrong.
@@ -474,7 +474,7 @@ chunk and does not change string-API tag behavior.
 `t("Click <b>here</b>")` hands back that markup as text on the base host. Tag
 syntax is a grammar the host has to be taught, and no entry teaches it
 ambiently. Development warns the first time. Production stays literal and never
-throws: a literal `<b>` is visibly broken in review, where a wrong plural is
+throws: a literal `<b>` is visibly broken in review, whereas a wrong plural is
 not. Two ways out:
 
 - render `<T>`, which passes the tag extension per call and needs no ambient
@@ -520,8 +520,8 @@ host. Both names are re-exported from `@comvi/react`; see
 one never renders these templates as grammar: development throws
 `E_ICU_SYNTAX` at ingestion, and production renders the braced segment
 literally and reports `E_ICU_SYNTAX` through `onError` (or `console.error`) on
-the compilation that hit it. That report is best-effort, once per process, and
-never fires on cached renders.
+the compilation that hit it. That report is best-effort, per process, and never
+fires on cached renders.
 
 ### Plurals across languages
 

@@ -35,9 +35,10 @@ The docs site puts an "Open in StackBlitz" button on that URL for each
 framework page.
 
 **These examples install from npm.** They depend on the published names
-(`"@comvi/react": "^0.5.0"`), never on `workspace:*`. A workspace protocol
-range is what makes `test-apps/*` unopenable in a WebContainer. So a StackBlitz
-link works once the version it asks for is published. During a release candidate, point the branch at the `next` tag:
+(`"@comvi/react": "^0.5.0"`), never on `workspace:*`. A workspace protocol range
+is what makes `test-apps/*` unopenable in a WebContainer. So a StackBlitz link
+works once the version it asks for is published. During a release candidate,
+point the branch at the `next` tag:
 
 ```bash
 pnpm examples:use-tag next      # "@comvi/react": "next"
@@ -160,7 +161,7 @@ runs `setI18n(i18n)` before any Server Component asks for a translation;
 a class instance across the hydration boundary, so the host is imported on the
 client side and the server hands over only a locale and a catalog; the layout
 calls `setRequestLocale(locale)` and `loadTranslations(locale)` and passes both
-to that provider; and the page reads `getI18n()`, which is `t` and
+to that provider; and the page reads `getI18n()`, which is exactly `t` and
 `hasTranslation` bound once to this request.
 
 `<T>` is in `Demo.tsx` and the six rows are a client component, five of them
@@ -193,8 +194,8 @@ export default ((options) =>
   )) satisfies NuxtHostFactory<I18n & I18nLoaderApi>;
 ```
 
-It is a **factory** rather than a host: it runs once for the client plugin and once per
-server request, and it receives Nuxt's resolved `comvi` options, so
+It is a **factory** rather than a host: it runs once for the client plugin and
+once per server request, and it receives Nuxt's resolved `comvi` options, so
 `nuxt.config.ts` stays in charge of configuration while this file stays in
 charge of capabilities. That is also why `@comvi/core` is a direct dependency
 here: the installers come from its subpaths, and a transitive dependency is not
@@ -258,8 +259,8 @@ Three details are worth reading in the source:
 `examples/locales/{en,uk,de}.json` is the single source. StackBlitz opens one
 directory out of the tree, so an example can only import files that live inside
 its own folder, so the catalogs are **copied** into
-`examples/<framework>/src/locales/` rather than symlinked. That path is why the Next
-example keeps its App Router under `src/app` and the Nuxt one sets
+`examples/<framework>/src/locales/` rather than symlinked. That path is why the
+Next example keeps its App Router under `src/app` and the Nuxt one sets
 `srcDir: "src/"`: the copy target is the same for all seven, and the script
 discovers them by looking for a `package.json`, so a new example needs no entry
 anywhere. Edit the shared copy, then:
@@ -329,10 +330,10 @@ says every `@comvi` resolution came from a local `file:` tarball.
 so a green run says the 0.5 _source_ compiles under these manifests, not that
 `^0.5.0` is satisfiable. Only publishing settles that. The install is run with
 `auto-install-peers=false` and `strict-peer-dependencies=true`, which makes an
-unmet peer _range_ fail the install the way `npm install` would rather than being
-quietly auto-installed. It does not make a **missing** `@comvi` peer visible, because the override
-satisfies that one. The undeclared `@comvi/core` peer was caught by the
-provenance assertion instead. Re-run the gate after the
+unmet peer _range_ fail the install the way `npm install` would rather than
+being quietly auto-installed. It does not make a **missing** `@comvi` peer
+visible, because the override satisfies that one. The undeclared `@comvi/core`
+peer was caught by the provenance assertion instead. Re-run the gate after the
 version bump: that is the moment the detector's peer range and the examples'
 `^0.5.0` meet for the first time.
 

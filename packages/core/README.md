@@ -125,12 +125,12 @@ for it. A plural that silently renders as something plausible reads fine in
 review and wrong to a user. A literal `{count, plural, …}` on the page is
 visibly broken and takes nothing down with it.
 
-The error carries two fields: a stable `code` and an `argumentType` (`"plural"`,
-`"select"`, `"selectordinal"`, or the parsed token such as `"number"` / `"date"` /
-`"other"`, for which the message explicitly does NOT claim shipped ICU support).
-Catalog source stays **application-supplied telemetry**: add it at your own
-boundary. What the host itself knows goes into the report context:
-`{ source: "compile", key, namespace, locale }`.
+The error has only two own fields: a stable `code` and an `argumentType`
+(`"plural"`, `"select"`, `"selectordinal"`, or the parsed token such as
+`"number"` / `"date"` / `"other"`, for which the message explicitly does NOT
+claim shipped ICU support). Catalog source stays **application-supplied
+telemetry**: add it at your own boundary. What the host itself knows goes into
+the report context: `{ source: "compile", key, namespace, locale }`.
 
 Development is EAGER: ingesting a catalog walks its string leaves, so a bad
 template throws where it entered, before a single render. The throw always
@@ -138,8 +138,8 @@ lands where the template is COMPILED, so a template that never passes through
 ingestion, such as a per-call `params.fallback`, throws at its first compile
 instead. Production is LAZY: on the compilation that hits ICU syntax the segment
 renders literally and `E_ICU_SYNTAX` is reported through `onError`, or through
-`console.error` when no handler is configured. That report is best-effort, once
-per process, and never fires on cached renders (the parsed template IS cached,
+`console.error` when no handler is configured. That report is best-effort, per
+process, and never fires on cached renders (the parsed template IS cached,
 so a hot key costs one report, not one per render). The dev walk costs the
 production bundle **0 B**: it sits behind the `__DEV__` guard, and a dist test
 asserts the identifier occurs in no production artifact.
@@ -147,13 +147,12 @@ asserts the identifier occurs in no production artifact.
 ### Framework bindings
 
 `@comvi/{react,solid,svelte,vue,next,nuxt}` demand `WrapperI18nHost`, which is
-`I18nCoreInstance & I18nCoreExtraApi` and is what a base host implements. So the
-same component code runs on a base host or on any composition of it. Loader and
-plugin members are not part of `useI18n()`; you acquire them through
-`useI18nLoader()` / `useI18nPlugins()`, which
-throw a named error (in development **and** production) on a host that lacks the
-capability rather than being typed present and failing at an arbitrary call site
-later.
+`I18nCoreInstance & I18nCoreExtraApi` and is exactly what a base host
+implements. So the same component code runs on a base host or on any composition
+of it. Loader and plugin members are not part of `useI18n()`; you acquire them
+through `useI18nLoader()` / `useI18nPlugins()`, which throw a named error (in
+development **and** production) on a host that lacks the capability rather than
+being typed present and failing at an arbitrary call site later.
 
 Each binding re-exports the capability toolkit it needs, so an app names one
 package and nothing else; the per-binding recipes and measured weights live in
@@ -213,23 +212,24 @@ or not you pass a map, while `attachLoader` costs 2 B over calling it directly.
 
 Every install is idempotent, and installs land as **non-enumerable own
 properties** with ordinary method descriptors, so `Object.keys(i18n)`, spread
-copies and `JSON.stringify` see what they saw before. Composing a capability a
-host already has (a second `.with(loader())`, or any `.with(…)` on a host that
-was already composed) installs nothing and shadows nothing.
+copies and `JSON.stringify` see exactly what they saw before. Composing a
+capability a host already has (a second `.with(loader())`, or any `.with(…)` on
+a host that was already composed) installs nothing and shadows nothing.
 
 > **Compose the loader alongside the plugin host. Order between them is free.**
 > Plugins run during `init()`, and a loader-registering plugin (for example
-> [`@comvi/plugin-fetch-loader`](../plugin-fetch-loader)) calls `registerLoader` on the
-> instance. If the loader capability was never composed at all, that call is a
-> `TypeError` at `init()` time, not a compile error. Composing both is what fixes it,
-> and either chain does it: `createI18n({ … }).with(loader()).with(plugins())` and
-> `createI18n({ … }).with(plugins()).with(loader())` are equivalent, because every
-> capability composed before `init()` is attached by the time plugins run.
+> [`@comvi/plugin-fetch-loader`](../plugin-fetch-loader)) calls `registerLoader`
+> on the instance. If the loader capability was never composed at all, that call
+> is a `TypeError` at `init()` time, not a compile error. Composing both is what
+> fixes it, and either chain does it:
+> `createI18n({ … }).with(loader()).with(plugins())` and
+> `createI18n({ … }).with(plugins()).with(loader())` are equivalent, because
+> every capability composed before `init()` is attached by the time plugins run.
 >
-> The library has one ordering rule, and it is about ICU: `.with(icu())` must run
-> before the first catalog reaches the host, whether that is a constructor
-> `translation`, an `addTranslations` call, or a loader merge. Composing a loader
-> ingests nothing, so it does not count.
+> The library has exactly one ordering rule, and it is about ICU: `.with(icu())`
+> must run before the first catalog reaches the host, whether that is a
+> constructor `translation`, an `addTranslations` call, or a loader merge.
+> Composing a loader ingests nothing, so it does not count.
 >
 > Published plugin packages ship a lowercase **installer** that does the ordering
 > for you: `.with(cdnLoader({ … }))` composes `/loader`, then `/plugins`, then
@@ -266,7 +266,7 @@ Four placements are not where you might guess:
   so subscribing to it without a loader would be a no-op by construction.
 - **Nested-catalog flattening lives on `/loader`.** A loader hands back raw JSON, so
   turning `{ nav: { home } }` into `"nav.home"` is part of that job. A bare host stores
-  catalogs as given; see “The base host wants flat catalogs” below.
+  catalogs exactly as given; see “The base host wants flat catalogs” below.
 - **Discovery lives on `/devtools`.** `instanceId` and the `window.__COMVI__` handshake
   exist for browser extensions; an app that ships no extension integration should not
   carry a `window` protocol. `.with(devtools({ instanceId, exposeGlobal }))` takes
@@ -309,13 +309,14 @@ i18n.t("legal"); // "a &lt;b&gt; &amp; c"  — with a tag extension: "a <b> & c"
 ICU apostrophe quoting is **not** part of that: `'{literal}'` and `''` are core grammar and
 work on every graph, the bare base host included.
 
-Tag parsing comes back the moment a tag extension is in the graph: `import "@comvi/core/tags"`
-for ambient registration, or `tagInterpolation.extensions` per call. Until then,
-development warns once per template that the markup is rendering literally.
+Tag parsing comes back the moment a tag extension is in the graph:
+`import "@comvi/core/tags"` for ambient registration, or
+`tagInterpolation.extensions` per call. Until then, development warns once per
+template that the markup is rendering literally.
 
-Non-primitive **parameter values** are a separate axis and behave identically on every
-graph: `t()` always returns a string (parts are coerced), `tRaw()` preserves
-them as a parts array.
+Non-primitive **parameter values** are a separate axis and behave identically on
+every graph: `t()` always returns a string (parts are coerced), `tRaw()`
+preserves them as a parts array.
 
 ```ts
 import { createI18n } from "@comvi/core";
@@ -332,8 +333,8 @@ i18n.tRaw("hi", { who: someVNode }); // ["Hi, ", someVNode, "!"]
 ### The base host wants flat catalogs
 
 A bare host stores what you hand it. `addTranslations` (and `translation` in the
-constructor) takes catalogs keyed by locale or `"locale:namespace"`, whose values are
-**flat**: dot-notation keys and string values:
+constructor) takes catalogs keyed by locale or `"locale:namespace"`, whose
+values are **flat**: dot-notation keys and string values:
 
 ```ts
 import { createI18n } from "@comvi/core";
@@ -609,9 +610,10 @@ hand it, so each slot has to reject the other explicitly.
 
 Plugins run sequentially during `.init()`, with timeout protection (10s default)
 and error recovery for non-required plugins. A plugin may return **nothing or a
-cleanup function**, which is called on `.destroy()` in LIFO order. Any other return value
-throws at `init()`: write a statement body (`() => { ready = true; }`), never an
-expression-bodied arrow (`() => (ready = true)`, which returns `true`).
+cleanup function**, which is called on `.destroy()` in LIFO order. Any other
+return value throws at `init()`: write a statement body
+(`() => { ready = true; }`), never an expression-bodied arrow
+(`() => (ready = true)`, which returns `true`).
 
 For the full API, including namespaces, fallback chains, missing-key handling, RTL detection, lifecycle events, and writing your own plugins, see the [documentation](https://comvi.io/docs/i18n/vanilla/).
 

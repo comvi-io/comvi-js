@@ -25,7 +25,7 @@ Same `t()` and `<T>` API as the [Vue](../vue), [React](../react), and [Svelte](.
 
 ## Why Comvi i18n?
 
-Comvi i18n is a framework-agnostic internationalization library with type-safe translations, real ICU MessageFormat, and a small bundle that stays safe under a strict CSP.
+Comvi i18n is a framework-agnostic internationalization library with type-safe translations, real ICU MessageFormat, and a small bundle.
 
 - **Rich text without XSS.** Embed components inside translation strings (`Click <link>here</link>`). Translators see clean markup, and you decide what each tag renders to. No raw HTML, no unsafe DOM injection, and no splitting a sentence across template fragments.
 - **ICU `plural`, `selectordinal` & `select`.** Locale-correct grammar via `Intl.PluralRules`, including Polish, Ukrainian, Arabic, Welsh and the rest. It is the same syntax every major TMS (Crowdin, Lokalise, Phrase) already speaks. The `number` / `date` / `time` argument types and the plural `offset:` form are not implemented and are not planned. Each one fails with `E_ICU_SYNTAX` instead of rendering something wrong.
@@ -358,7 +358,7 @@ graph, while `solid-icu` calls `icuCompiler`, formats a real plural from the
 built bundle, and asserts the other three out.
 
 `@comvi/core/tags` is not re-exported, because importing it registers tag
-syntax ambiently. `<T>` uses the pure `@comvi/core/rich-text` seam in its own
+syntax ambiently. `<T>` uses the pure `@comvi/core/rich-text` path in its own
 dist chunk and does not change string-API tag behavior.
 
 ### String-API tags render literally
@@ -377,7 +377,7 @@ is not. Two ways out:
 
 ## Rich text with `<T>`
 
-Tag interpolation lets translators write readable markup like `"Click <link>here</link> for help"` without raw HTML or XSS risk. You decide what each tag renders to: a function that receives the tag's content as children JSX.
+Tag interpolation lets translators write readable markup like `"Click <link>here</link> for help"` without raw HTML or XSS risk. You decide what each tag renders to: a function that receives the tag's content as children JSX:
 
 ```json
 {
@@ -426,8 +426,8 @@ host. Both names are re-exported from `@comvi/solid`; see
 one never renders these templates as grammar: development throws
 `E_ICU_SYNTAX` at ingestion, and production renders the braced segment
 literally and reports `E_ICU_SYNTAX` through `onError` (or `console.error`) on
-the compilation that hit it. That report is best-effort, once per process, and
-never fires on cached renders.
+the compilation that hit it. That report is best-effort, per process, and never
+fires on cached renders.
 
 ### Plurals across languages
 
