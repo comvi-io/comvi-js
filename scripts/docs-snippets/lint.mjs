@@ -88,8 +88,16 @@ const LOADER_TOKENS = [
   // MIGRATION.md §7: a nuxt hook annotated with the host its factory returns
   // (`NuxtI18nSetup<I18n & I18nLoaderApi>`) fails at type-check rather than at
   // request time, so the annotation IS the proof the host composed the loader.
-  /\bI18nLoaderApi\b/,
-  /\bNuxtServerLoaderHost\b/,
+  //
+  // Positional, not bare: the proof is the host type being an INTERSECTION that
+  // includes the loader API, and every real use writes it that way (nuxt README
+  // 203/213, next README 384/429). A bare name also appears where it proves the
+  // opposite — `import type { I18nLoaderApi }` and
+  // `Omit<I18nLoaderApi, "registerLoader">` name the API in order to talk about
+  // a host that does NOT have it, and would have vouched for the very
+  // `registerLoader` call the rule exists to catch.
+  /&\s*I18nLoaderApi\b/,
+  /[&:<]\s*NuxtServerLoaderHost\b/,
 ];
 
 /** Tokens proving the chain already has the plugin capability. */
@@ -231,34 +239,58 @@ function stripNonCode(code, { strings }) {
       continue;
     }
     const char = code[index];
-    if (strings && (char === '"' || char === "'" || char === "`")) {
+    if (char === '"' || char === "'" || char === "`") {
+      // A quoted run is CONSUMED in both modes, and only the disposal differs.
+      // Without this, `strings: false` walked into the literal character by
+      // character and the `//` in
+      // `createI18n({ baseUrl: "https://cdn.comvi.io/x" }).with(loader())`
+      // read as a line comment, swallowing the `.with(loader())` behind it and
+      // reporting a page that composes correctly as one that never composes.
+      const start = index;
       index += 1;
       let depth = 0;
+      let kept = "";
+      let closed = false;
       while (index < code.length) {
         const inner = code[index];
+        // `'` and `"` do not span lines in JavaScript, so a run that reaches a
+        // newline unclosed was never a string: `<p>don't</p>` is prose, and
+        // consuming from it to the next apostrophe in the file would delete
+        // real code between them.
+        if (inner === "\n" && char !== "`") break;
         if (inner === "\\") {
           index += 2;
           continue;
         }
         if (char === "`" && code.startsWith("${", index)) {
           depth += 1;
-          out += "${";
+          kept += "${";
           index += 2;
           continue;
         }
         if (char === "`" && depth > 0 && inner === "}") {
           depth -= 1;
-          out += "}";
+          kept += "}";
           index += 1;
           continue;
         }
         if (depth === 0 && inner === char) {
           index += 1;
+          closed = true;
           break;
         }
-        if (depth > 0) out += inner;
+        if (depth > 0) kept += inner;
         index += 1;
       }
+      if (!closed) {
+        index = start + 1;
+        out += char;
+        continue;
+      }
+      // Template substitutions are code in both modes; the quoted text itself
+      // is evidence only when strings are kept (`@comvi/core/icu` lives in
+      // quotes and nowhere else).
+      out += strings ? kept : code.slice(start, index);
       continue;
     }
     out += char;
@@ -506,6 +538,12 @@ export function lintDocument({ file, source, sdkVersion }) {
   const chainText = new Map();
   fences.forEach((fence, index) => {
     if (!CODE_LANGS.has(fence.lang)) return;
+    // A skipped fence contributes no evidence, only noise: a
+    // `check=skip:historical` 0.3 example or a quoted competitor block sharing a
+    // `title=` with its linted sibling would otherwise hand that sibling a
+    // `.with(loader())` nobody in 0.5 wrote. Same exclusion the ICU probe makes
+    // below, for the same reason.
+    if (skipCategory(fence) !== null) return;
     const key = groupKey(fence, index);
     const code = stripCommentsAndStrings(
       codeLines(fence)
@@ -620,16 +658,25 @@ export function lintDocument({ file, source, sdkVersion }) {
   // The ICU requirement asks whether the PAGE warns its reader that the default
   // compiler will not render the argument it just showed — a page-level claim
   // with one answer per host, so a prose sentence is evidence and `.with(` is
-  // not the point. What must never count is a `check=skip` fence: a competitor
-  // block quoting `icuCompiler` would otherwise vouch for the whole page.
+  // not the point. Two things must never count: a `check=skip` fence, because a
+  // competitor block quoting `icuCompiler` would vouch for the whole page; and
+  // the frontmatter, where `description: "… icuCompiler …"` is metadata about
+  // the page rather than a warning inside it.
+  //
+  // The limit of the rule, stated so nobody mistakes it for more: this is a
+  // PRESENCE probe, not a semantic one. A page that writes "we do NOT use
+  // `icuCompiler` here" satisfies it. That is deliberate — the alternative is
+  // parsing English — and the rule's job is to catch the page that never raises
+  // the compiler question at all, which is the shape the 0.4 corpus actually has.
   const skippedLines = new Set();
   for (const fence of fences) {
     if (skipCategory(fence) === null) continue;
     for (let line = fence.line; line <= fence.endLine; line += 1) skippedLines.add(line);
   }
+  const frontmatterLines = source.match(/^---\r?\n[\s\S]*?\r?\n---/)?.[0].split("\n").length ?? 0;
   const icuEvidence = source
     .split("\n")
-    .filter((_, index) => !skippedLines.has(index + 1))
+    .filter((_, index) => index >= frontmatterLines && !skippedLines.has(index + 1))
     .join("\n");
 
   if (classes.has("framework") && !/\.with\s*\(/.test(lintedCode)) {

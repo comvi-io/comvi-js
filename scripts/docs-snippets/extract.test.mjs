@@ -320,3 +320,43 @@ test("the site-forms fixture → the two src/i18n.ts fences share one title", ()
 
   assert.equal(fences.filter((fence) => fence.title === "src/i18n.ts").length, 2);
 });
+
+test("a <TabItem> named inside a comment is not a tab boundary", () => {
+  const source = [
+    "<Tabs>",
+    "<TabItem label='React'>",
+    "```ts title='src/i18n.ts'",
+    "export const i18n = createI18n({ locale: 'en' }).with(loader());",
+    "```",
+    "{/* the <TabItem> above owns this file */}",
+    "```ts title='src/App.tsx'",
+    "import { i18n } from './i18n';",
+    "```",
+    "</TabItem>",
+    "</Tabs>",
+  ].join("\n");
+
+  const { fences } = extractFences(source, "page.mdx");
+
+  assert.equal(fences.length, 2);
+  assert.equal(fences[0].container, fences[1].container);
+});
+
+test("a real </TabItem> still ends the container", () => {
+  const source = [
+    "<TabItem label='React'>",
+    "```ts",
+    "const a = 1;",
+    "```",
+    "</TabItem>",
+    "<TabItem label='Vue'>",
+    "```ts",
+    "const b = 2;",
+    "```",
+    "</TabItem>",
+  ].join("\n");
+
+  const { fences } = extractFences(source, "page.mdx");
+
+  assert.notEqual(fences[0].container, fences[1].container);
+});

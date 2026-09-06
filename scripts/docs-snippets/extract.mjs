@@ -181,7 +181,12 @@ export function extractFences(source, file = "<source>") {
 
     const opening = raw.match(/^(\s*)(`{3,}|~{3,})(.*)$/);
     if (!opening) {
-      if (/<\/?TabItem\b/.test(raw)) container += 1;
+      // A `<TabItem>` inside a comment is a sentence ABOUT tabs, not a tab
+      // boundary. Counting it splits one real tab in two, and the halves stop
+      // vouching for each other: the fence that composes the host lands in one
+      // half and the fence that uses it in the other, which reports a page that
+      // is correct as one that is not.
+      if (/<\/?TabItem\b/.test(raw) && !/^\s*(?:<!--|\{\/\*)/.test(raw)) container += 1;
       continue;
     }
 

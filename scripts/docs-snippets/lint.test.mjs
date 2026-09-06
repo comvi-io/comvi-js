@@ -844,3 +844,130 @@ test("the site-forms fixture → call sites and mentions counted apart", () => {
   assert.equal(result.stats.registerLoaderCalls, 2);
   assert.equal(result.stats.registerLoaderMentions, 3);
 });
+
+// ---------------------------------------------------------------------------
+// Holes the delta review found: evidence that is only evidence in position.
+// ---------------------------------------------------------------------------
+
+test("I18nLoaderApi named in an import, not intersected → does NOT vouch for registerLoader", () => {
+  // The bare name appears where it proves the OPPOSITE of composition: a page
+  // imports the type in order to talk about the API a base host lacks. Only the
+  // intersection `I18n & I18nLoaderApi` says a host HAS it.
+  const body = [
+    "```ts",
+    "import type { I18nLoaderApi } from '@comvi/core/loader';",
+    "const i18n = createI18n({ locale: 'en' });",
+    "i18n.registerLoader({ uk: () => import('./uk.json') });",
+    "```",
+  ].join("\n");
+
+  assert.deepEqual(rulesOf(body), ["banned/register-loader-on-instance"]);
+});
+
+test("Omit<I18nLoaderApi, …> describing a host without the loader → still banned", () => {
+  const body = [
+    "```ts",
+    "type BaseHost = Omit<I18nLoaderApi, 'registerLoader'>;",
+    "const i18n = createI18n({ locale: 'en' });",
+    "i18n.registerLoader({ uk: () => import('./uk.json') });",
+    "```",
+  ].join("\n");
+
+  assert.deepEqual(rulesOf(body), ["banned/register-loader-on-instance"]);
+});
+
+test("NuxtServerLoaderHost in a type-argument position → vouches", () => {
+  const body = [
+    "```ts",
+    "export default defineComviSetup((core: NuxtServerLoaderHost) => {",
+    "  core.registerLoader(myLoader);",
+    "});",
+    "```",
+  ].join("\n");
+
+  assert.deepEqual(rulesOf(body), []);
+});
+
+test("a check=skip fence sharing a group does NOT clear its linted sibling", () => {
+  // A historical 0.3 example kept for reference composes nothing a 0.5 reader
+  // can copy; letting it pool into the chain hands the live fence a
+  // `.with(loader())` that appears nowhere in the 0.5 code on the page.
+  const body = [
+    "```ts check=group=app check=skip:historical",
+    "const i18n = createI18n({ locale: 'en' }).with(loader());",
+    "```",
+    "",
+    "```ts check=group=app",
+    "i18n.registerLoader({ uk: () => import('./uk.json') });",
+    "```",
+  ].join("\n");
+
+  assert.deepEqual(rulesOf(body), ["banned/register-loader-on-instance"]);
+});
+
+test("a linted fence in the same group still clears its sibling", () => {
+  const body = [
+    "```ts check=group=app",
+    "const i18n = createI18n({ locale: 'en' }).with(loader());",
+    "```",
+    "",
+    "```ts check=group=app",
+    "i18n.registerLoader({ uk: () => import('./uk.json') });",
+    "```",
+  ].join("\n");
+
+  assert.deepEqual(rulesOf(body), []);
+});
+
+test("a URL inside a string does not eat the rest of the line", () => {
+  // `https://…` carries a `//`. Reading it as a line comment swallowed the
+  // `.with(loader())` that follows it on the same line and reported a framework
+  // page that composes correctly as one that never composes.
+  const body = [
+    "```ts",
+    "import { createI18n } from '@comvi/core';",
+    "const i18n = createI18n({ locale: 'en', baseUrl: \"https://cdn.comvi.io/x\" }).with(loader());",
+    "```",
+  ].join("\n");
+
+  assert.deepEqual(rulesOf(body, { file: "docs/i18n/react.mdx" }), []);
+});
+
+test("stripComments keeps a quoted URL verbatim and still drops real comments", () => {
+  const kept = stripComments('const url = "https://cdn.comvi.io/x"; // gone\nnext();');
+
+  assert.match(kept, /https:\/\/cdn\.comvi\.io\/x/);
+  assert.doesNotMatch(kept, /gone/);
+  assert.match(kept, /next\(\)/);
+});
+
+test("an apostrophe in JSX prose is not a string, so nothing after it is eaten", () => {
+  const kept = stripCommentsAndStrings("<p>don't</p>\nconst i18n = base.with(loader());");
+
+  assert.match(kept, /\.with\(loader\(\)\)/);
+});
+
+test("an ICU compiler named only in the frontmatter does not vouch for the page", () => {
+  const body = [
+    "```json",
+    '{ "cart": "{count, plural, one {# item} other {# items}}" }',
+    "```",
+  ].join("\n");
+
+  assert.deepEqual(
+    rulesOf(body, { frontmatter: "title: 'Page'\ndescription: 'About icuCompiler'" }),
+    ["required/icu-compiler"],
+  );
+});
+
+test("an ICU compiler named in the body does vouch for the page", () => {
+  const body = [
+    "Use `icuCompiler` from `@comvi/core/icu` for these catalogs.",
+    "",
+    "```json",
+    '{ "cart": "{count, plural, one {# item} other {# items}}" }',
+    "```",
+  ].join("\n");
+
+  assert.deepEqual(rulesOf(body), []);
+});
