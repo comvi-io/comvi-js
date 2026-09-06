@@ -1,0 +1,265 @@
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { spawnSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
+import {
+  collectDocs,
+  collectInstalledReadmes,
+  collectReadmes,
+  formatReport,
+  parseArgs,
+  runGate,
+} from "./run.mjs";
+import { computeModuleSha, readMarker } from "./module-sha.mjs";
+
+const HERE = path.dirname(fileURLToPath(import.meta.url));
+const RUN = path.join(HERE, "run.mjs");
+const REPO = path.resolve(HERE, "..", "..");
+
+function write(file, body) {
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(file, body);
+}
+
+/**
+ * A miniature of both surfaces at once: a package README that composes its
+ * capability properly, a content page that does not, and one competitor fence so
+ * the skip budget has something to count.
+ */
+function makeFixtureRoot(t) {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "docs-snippets-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+
+  write(
+    path.join(root, "packages/react/README.md"),
+    [
+      "# @comvi/react",
+      "",
+      "```tsx",
+      "const i18n = createI18n({ locale: 'en' }).with(loader());",
+      "```",
+      "",
+    ].join("\n"),
+  );
+  write(path.join(root, "packages/cli/README.md"), "# @comvi/cli\n\nNo code here.\n");
+  write(
+    path.join(root, "MIGRATION.md"),
+    "# Migrating\n\n```ts\nconst i18n = createI18n({ locale: 'en' }).with(loader());\n```\n",
+  );
+  write(
+    path.join(root, "README.md"),
+    "# comvi\n\n```ts\nconst i18n = createI18n({ locale: 'en' }).with(loader());\n```\n",
+  );
+
+  write(
+    path.join(root, "content/react.mdx"),
+    [
+      "---",
+      "title: 'React'",
+      "---",
+      "",
+      "```tsx",
+      "i18n.registerLoader(myLoader);",
+      "```",
+      "",
+    ].join("\n"),
+  );
+  write(
+    path.join(root, "content/nested/guides/migrate.mdx"),
+    [
+      "---",
+      "title: 'Migrate'",
+      "---",
+      "",
+      "```ts",
+      "import i18next from 'i18next';",
+      "```",
+      "",
+    ].join("\n"),
+  );
+  write(
+    path.join(root, "content/node_modules/ignored/skip.md"),
+    "```ts\ni18n.registerLoader(x);\n```\n",
+  );
+  write(
+    path.join(root, "node_modules/@comvi/core/README.md"),
+    "# @comvi/core\n\n```ts\ni18n.registerLoader(myLoader);\n```\n",
+  );
+  return root;
+}
+
+test("parseArgs with neither --readmes nor --content → refuses instead of checking nothing", () => {
+  assert.throws(() => parseArgs([]), /nothing to check/);
+});
+
+test("parseArgs with an unknown flag → refuses, naming the flag", () => {
+  assert.throws(() => parseArgs(["--readmes", "--typecheck"]), /unknown argument "--typecheck"/);
+});
+
+test("parseArgs with both runners and a version → both surfaces in one run", () => {
+  const options = parseArgs([
+    "--readmes",
+    "--content",
+    "src/content",
+    "--sdk-version",
+    "0.5.0",
+    "--json",
+  ]);
+
+  assert.equal(options.readmes, true);
+  assert.equal(options.content, "src/content");
+  assert.equal(options.sdkVersion, "0.5.0");
+  assert.equal(options.json, true);
+});
+
+test("collectReadmes → every package README, then MIGRATION.md, then the root README", (t) => {
+  const root = makeFixtureRoot(t);
+
+  const files = collectReadmes(root).map((file) => path.relative(root, file));
+
+  assert.deepEqual(files, [
+    "packages/cli/README.md",
+    "packages/react/README.md",
+    "MIGRATION.md",
+    "README.md",
+  ]);
+});
+
+test("collectDocs → .md and .mdx below the directory, node_modules excluded", (t) => {
+  const root = makeFixtureRoot(t);
+
+  const files = collectDocs(path.join(root, "content")).map((file) => path.relative(root, file));
+
+  assert.deepEqual(files, ["content/nested/guides/migrate.mdx", "content/react.mdx"]);
+});
+
+test("collectInstalledReadmes → the README of each installed @comvi package", (t) => {
+  const root = makeFixtureRoot(t);
+
+  const files = collectInstalledReadmes(root).map((file) => path.relative(root, file));
+
+  assert.deepEqual(files, ["node_modules/@comvi/core/README.md"]);
+});
+
+test("collectInstalledReadmes where nothing is installed → empty, not an error", (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "docs-snippets-empty-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+
+  assert.deepEqual(collectInstalledReadmes(root), []);
+});
+
+test("the readmes runner over composed READMEs → no findings", (t) => {
+  const root = makeFixtureRoot(t);
+
+  const result = runGate({ readmes: true, content: null, sdkVersion: "0.5.0", root });
+
+  assert.deepEqual(result.findings, []);
+});
+
+test("the content runner → flags the page AND the installed README, each at its source line", (t) => {
+  // Owner's decision §5.3: the site and the published READMEs are one surface or
+  // they drift again, so `--content` checks both under the same rules.
+  const root = makeFixtureRoot(t);
+
+  const result = runGate({ readmes: false, content: "content", sdkVersion: "0.5.0", root });
+
+  const registerLoader = result.findings.filter(
+    (f) => f.rule === "banned/register-loader-on-instance",
+  );
+  assert.deepEqual(
+    registerLoader.map((f) => `${f.file}:${f.line}:${f.col}`),
+    ["content/react.mdx:6:1", "node_modules/@comvi/core/README.md:4:1"],
+  );
+});
+
+test("the content runner → findings sorted by file, then line, then column", (t) => {
+  const root = makeFixtureRoot(t);
+
+  const { findings } = runGate({ readmes: false, content: "content", sdkVersion: "0.5.0", root });
+
+  const keys = findings.map(
+    (f) => `${f.file}:${String(f.line).padStart(4, "0")}:${String(f.col).padStart(4, "0")}`,
+  );
+  assert.deepEqual(keys, [...keys].sort());
+});
+
+test("formatReport on a clean run → the OK line and the document count", (t) => {
+  const root = makeFixtureRoot(t);
+
+  const report = formatReport(runGate({ readmes: true, content: null, sdkVersion: "0.5.0", root }));
+
+  assert.match(report, /docs-snippets: 4 documents, 3 fences, 3 linted\./);
+  assert.match(report, /docs-snippets: OK — no findings\./);
+});
+
+test("formatReport on a failing run → file:line:col, the rule, and the skip budget", (t) => {
+  const root = makeFixtureRoot(t);
+
+  const report = formatReport(
+    runGate({ readmes: false, content: "content", sdkVersion: "0.5.0", root }),
+  );
+
+  assert.match(report, /content\/react\.mdx:6:1 {2}banned\/register-loader-on-instance/);
+  assert.match(report, /foreign-import: 1/);
+  assert.match(report, /docs-snippets: FAIL — 4 findings in 2 documents\./);
+});
+
+test("formatReport → the divergence baseline, page by page", (t) => {
+  const root = makeFixtureRoot(t);
+
+  const report = formatReport(
+    runGate({ readmes: false, content: "content", sdkVersion: "0.5.0", root }),
+  );
+
+  assert.match(report, /pages mentioning registerLoader at all: 2/);
+  assert.match(report, /of those, pages with a banned registerLoader call: 2/);
+  assert.match(
+    report,
+    /framework pages missing \.with\(: 2\n {4}content\/react\.mdx\n {4}node_modules\/@comvi\/core\/README\.md/,
+  );
+});
+
+test("the CLI on the js-sdk npm surface → exit 0", () => {
+  const result = spawnSync(process.execPath, [RUN, "--readmes"], { cwd: REPO, encoding: "utf8" });
+
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  assert.match(result.stdout, /docs-snippets: OK — no findings\./);
+});
+
+test("the CLI on a surface with findings → exit 1", (t) => {
+  const root = makeFixtureRoot(t);
+
+  const result = spawnSync(process.execPath, [RUN, "--content", "content"], {
+    cwd: root,
+    encoding: "utf8",
+  });
+
+  assert.equal(result.status, 1);
+  assert.match(result.stdout, /docs-snippets: FAIL/);
+});
+
+test("the CLI with no runner selected → exit 2 and the usage line", () => {
+  const result = spawnSync(process.execPath, [RUN], { cwd: REPO, encoding: "utf8" });
+
+  assert.equal(result.status, 2);
+  assert.match(result.stderr, /usage: node scripts\/docs-snippets\/run\.mjs/);
+});
+
+test("the CLI with --json → machine output, and still exit 1 on findings", (t) => {
+  const root = makeFixtureRoot(t);
+
+  const result = spawnSync(process.execPath, [RUN, "--content", "content", "--json"], {
+    cwd: root,
+    encoding: "utf8",
+  });
+
+  assert.equal(result.status, 1);
+  assert.equal(JSON.parse(result.stdout).findings.length, 4);
+});
+
+test("the recorded parity marker → matches the module in this repo", () => {
+  assert.equal(readMarker(HERE), computeModuleSha(HERE));
+});

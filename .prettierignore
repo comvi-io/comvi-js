@@ -18,3 +18,8 @@ scripts/bundler-matrix/app/out
 # them is a deliberately unterminated <script> block (the extraction-failure
 # report shape), which prettier cannot parse.
 scripts/codemods/*/__fixtures__
+
+# Fixture built from the real shapes on the docs site — indented fences inside
+# <Tabs>/<Steps> and a 4-backtick close that prettier would normalise away, which
+# is exactly what scripts/docs-snippets/extract.test.mjs asserts about.
+scripts/docs-snippets/__fixtures__

@@ -97,6 +97,12 @@ jobs:
       - name: Release tooling tests
         run: pnpm test:release-tools
 
+      # Symbol-lint over the npm documentation surface: packages/*/README.md,
+      # MIGRATION.md and the root README. Catches 0.4 API that 0.5.0 removed and
+      # 0.5 API a page never mentions — neither of which a typecheck can see.
+      - name: Docs snippet gate (READMEs)
+        run: pnpm check:snippets
+
   tests:
     name: Package tests
     runs-on: ubuntu-latest
