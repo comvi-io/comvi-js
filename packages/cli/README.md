@@ -52,7 +52,7 @@ npm install -D @comvi/cli
 export COMVI_API_KEY=cmv_xxxxxxxxxxxxxxxx
 
 npx comvi init                    # creates .comvirc.json
-npx comvi generate-types          # generate TranslationKeys.d.ts from the TMS
+npx comvi generate-types          # write src/types/i18n.d.ts from the TMS
 npx comvi generate-types --watch  # live-regenerate via SSE
 npx comvi pull                    # download translations from the TMS
 npx comvi push                    # upload local translations to the TMS
@@ -83,6 +83,8 @@ Run `npx comvi generate-types` and the CLI writes a `TranslationKeys` declaratio
 
 ```typescript
 // src/types/i18n.d.ts — generated, do not edit
+import "@comvi/core"; // resolves the module before augmenting it
+
 declare module "@comvi/core" {
   interface TranslationKeys {
     welcome: { name: string };
@@ -112,7 +114,10 @@ t("INVALID_INPUT", { ns: "errors", field: "email" });
 
 **What TypeScript catches:**
 
-```ts
+```ts check=expect-error
+import { useI18n } from "@comvi/react";
+const { t } = useI18n();
+
 // ✗ Expected 2 arguments, but got 1
 t("welcome");
 
