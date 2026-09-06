@@ -23,7 +23,7 @@
     "test:pr": "pnpm test:commit && pnpm build",
     "test:nightly": "pnpm test:coverage",
     "test:release": "pnpm test:release-tools && pnpm test:pr && pnpm audit:package-contracts && pnpm check:publint && pnpm check:types-exports",
-    "test:release-tools": "node --test tooling/qualify-dts-specifiers.test.mjs scripts/root-changelog.test.mjs scripts/rc-version.test.mjs scripts/sync-peer-ranges.test.mjs scripts/version-release.test.mjs && node --test scripts/wrapper-hooks-parity.test.mjs && node --test \"scripts/docs-snippets/*.test.mjs\" && pnpm test:codemod-tools",
+    "test:release-tools": "node --test tooling/qualify-dts-specifiers.test.mjs scripts/root-changelog.test.mjs scripts/rc-version.test.mjs scripts/sync-peer-ranges.test.mjs scripts/version-release.test.mjs scripts/examples-verify.test.mjs && node --test scripts/wrapper-hooks-parity.test.mjs && node --test \"scripts/docs-snippets/*.test.mjs\" && pnpm test:codemod-tools",
     "size": "node scripts/size-check.mjs",
     "check:snippets": "node scripts/docs-snippets/run.mjs --readmes",
     "check:snippets:content": "node scripts/docs-snippets/run.mjs --content src/content/docs/docs/i18n --root \"${WWW_ROOT:?set WWW_ROOT to the www app directory}\"",
