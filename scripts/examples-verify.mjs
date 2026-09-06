@@ -309,12 +309,15 @@ export function nextFirstLoad(manifest, route) {
 }
 
 /**
- * The client entry chunk Nuxt's Vite manifest marks, by the same rule as the
- * Vite probe: named by the build, never picked by size. The locale catalogs are
- * `dynamicImports` of this entry, which is exactly the split the demo claims.
+ * The client entry in Nuxt's Vite manifest, by the same rule as the Vite probe:
+ * named by the build, never picked by size.
+ *
+ * The KEY comes back rather than the file, because the import graph is keyed by
+ * source: `chunk.imports` holds manifest keys, and the closure below has to
+ * walk them.
  */
-export function nuxtEntryFile(manifest) {
-  const entries = Object.values(manifest ?? {}).filter((entry) => entry?.isEntry);
+export function nuxtEntryKey(manifest) {
+  const entries = Object.entries(manifest ?? {}).filter(([, chunk]) => chunk?.isEntry);
   if (entries.length === 0) {
     throw new Error(
       "Nuxt's client manifest has no chunk marked `isEntry`, so nothing here says what the " +
@@ -324,17 +327,102 @@ export function nuxtEntryFile(manifest) {
   if (entries.length > 1) {
     throw new Error(
       `Nuxt's client manifest has ${entries.length} chunks marked \`isEntry\` ` +
-        `(${entries.map((entry) => entry.file).join(", ")}). "The entry" is one file; pick ` +
+        `(${entries.map(([, chunk]) => chunk.file).join(", ")}). "The entry" is one chunk; pick ` +
         "deliberately rather than letting object order decide.",
     );
   }
-  return entries[0].file;
+  return entries[0][0];
+}
+
+/**
+ * The app's own page chunk in Nuxt's client manifest.
+ *
+ * Nuxt compiles every route component into its own dynamic chunk, keyed by its
+ * source path under `pages/`, alongside its built-in `error-404.vue` and
+ * `error-500.vue` (which live under `node_modules/nuxt/...` and are therefore
+ * not matched). A one-page example has exactly one, so anything else is a
+ * question this cannot answer.
+ */
+export function nuxtPageRoute(manifest) {
+  if (!manifest || typeof manifest !== "object") {
+    throw new Error(
+      "Nuxt's client manifest is not an object. Either the build did not run or this Nuxt " +
+        "version reshaped it — in which case nothing was measured, and a size of zero must " +
+        "not read as a small bundle.",
+    );
+  }
+  const routes = Object.keys(manifest).filter(
+    (key) => /(^|\/)pages\/.+\.vue$/.test(key) && !key.includes("node_modules"),
+  );
+  if (routes.length !== 1) {
+    throw new Error(
+      `expected exactly one page chunk in Nuxt's client manifest, found ${routes.length}` +
+        `${routes.length > 0 ? `: ${routes.join(", ")}` : ""}. "First load" is a property of ONE ` +
+        "route, so an example that grew a second page has to say which one the table reports.",
+    );
+  }
+  return routes[0];
+}
+
+/**
+ * Every file reachable from `roots` through STATIC imports.
+ *
+ * Vite's `imports` are the ones the chunk cannot execute without — Nuxt emits
+ * them as `<link rel="modulepreload">` and the browser has them before the
+ * entry runs — so measuring the entry alone reports a fraction of what the page
+ * costs. `dynamicImports` are deliberately NOT followed: the three locale
+ * catalogs are dynamic imports of the entry, and counting them would erase the
+ * lazy split the examples exist to demonstrate.
+ *
+ * Cycle-safe because the real manifest has cycles: `pages/index.vue` imports
+ * the entry, and Nuxt's error components import it back.
+ */
+export function staticImportClosure(manifest, roots) {
+  const files = [];
+  const seenFiles = new Set();
+  const seenKeys = new Set();
+  const queue = [...roots];
+  for (let index = 0; index < queue.length; index += 1) {
+    const key = queue[index];
+    if (seenKeys.has(key)) continue;
+    seenKeys.add(key);
+    const chunk = manifest?.[key];
+    if (!chunk) {
+      throw new Error(
+        `Nuxt's client manifest has no chunk "${key}", so the import graph cannot be closed ` +
+          "and the size below the entry is unknown.",
+      );
+    }
+    if (chunk.file && !seenFiles.has(chunk.file)) {
+      seenFiles.add(chunk.file);
+      files.push(chunk.file);
+    }
+    for (const next of chunk.imports ?? []) queue.push(next);
+  }
+  return files;
+}
+
+/** Every `.js` under `dir`, at any depth — the client bundle, chunk by chunk. */
+function countJs(dir) {
+  if (!fs.existsSync(dir)) return 0;
+  let total = 0;
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    if (entry.isDirectory()) total += countJs(path.join(dir, entry.name));
+    else if (entry.name.endsWith(".js")) total += 1;
+  }
+  return total;
 }
 
 /**
  * The probes, one per kind. Each returns the files that make up "first load"
- * plus a chunk count, and each fails loudly rather than returning nothing: a
- * missing size must not be reportable as a small one.
+ * plus the total number of client `.js` chunks the build emitted, and each
+ * fails loudly rather than returning nothing: a missing size must not be
+ * reportable as a small one.
+ *
+ * The two numbers answer different questions on purpose. `files` is what the
+ * browser must have before the route renders; `chunks` is everything the build
+ * wrote, which is where the lazily-loaded locale catalogs show up — the split
+ * the examples exist to demonstrate is only visible in the gap between them.
  */
 async function viteProbe(dir) {
   const dist = path.join(dir, "dist");
@@ -348,13 +436,19 @@ async function nextProbe(dir) {
   }
   const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
   const files = nextFirstLoad(manifest, nextPageRoute(manifest));
-  return { files: files.map((file) => path.join(dir, ".next", file)), chunks: files.length };
+  return {
+    files: files.map((file) => path.join(dir, ".next", file)),
+    // Everything served from /_next/static, which is where the three lazy
+    // catalog chunks live; they are in no route's first-load list, so counting
+    // only those would report the split as absent.
+    chunks: countJs(path.join(dir, ".next", "static")),
+  };
 }
 
 async function nuxtProbe(dir) {
   // The Vite client manifest, which is what Nitro itself reads to decide the
-  // `#entry` import map it writes into every rendered page. It is a JS module
-  // rather than JSON, so it is imported, not parsed.
+  // `#entry` import map and the modulepreload links it writes into every
+  // rendered page. It is a JS module rather than JSON, so it is imported.
   const manifestPath = path.join(dir, ".nuxt", "dist", "server", "client.manifest.mjs");
   if (!fs.existsSync(manifestPath)) {
     throw new Error(
@@ -364,12 +458,19 @@ async function nuxtProbe(dir) {
   }
   const manifest = (await import(url.pathToFileURL(manifestPath).href)).default;
   const assets = path.join(dir, ".output", "public", "_nuxt");
-  const entry = path.join(assets, nuxtEntryFile(manifest));
-  if (!fs.existsSync(entry)) {
-    throw new Error(`the client manifest names ${entry}, which the build did not write.`);
+  // The entry AND the route's own chunk, each closed over its static imports:
+  // Nuxt preloads both, and neither runs until every `imports` entry has landed.
+  const files = staticImportClosure(manifest, [nuxtEntryKey(manifest), nuxtPageRoute(manifest)]);
+  const missing = files.filter((file) => !fs.existsSync(path.join(assets, file)));
+  if (missing.length > 0) {
+    throw new Error(
+      `the client manifest names ${missing.join(", ")}, which the build did not write to ${assets}.`,
+    );
   }
-  const chunks = fs.readdirSync(assets).filter((file) => file.endsWith(".js")).length;
-  return { files: [entry], chunks };
+  return {
+    files: files.map((file) => path.join(assets, file)),
+    chunks: countJs(assets),
+  };
 }
 
 /**
@@ -389,10 +490,17 @@ export const KINDS = {
 };
 
 /** What the "first load" columns mean, which is not the same thing per kind. */
-export const FIRST_LOAD_LEGEND =
-  "first load: vite — the entry chunk dist/index.html names; next — the route's chunk list " +
-  "from .next/app-build-manifest.json (page + enclosing layouts), the build summary's " +
-  '"First Load JS"; nuxt — the isEntry chunk of the client manifest, in .output/public/_nuxt.';
+export const FIRST_LOAD_LEGEND = [
+  "first load = what the browser must have before the route renders:",
+  "  vite — the entry chunk dist/index.html names;",
+  "  next — the route's chunk list from .next/app-build-manifest.json (page + enclosing",
+  "         layouts), \u2248 the build summary's \"First Load JS\" (level-9 gzip here, Next's own",
+  "         figure is computed its way);",
+  "  nuxt — the isEntry chunk and the route chunk, each closed over its static `imports`,",
+  "         in .output/public/_nuxt.",
+  "js chunks = every .js the build wrote for the client, lazy ones included; the gap between",
+  "  the two columns is the lazy split (three locale catalogs per example).",
+].join("\n");
 
 function kb(bytes) {
   return `${(bytes / 1024).toFixed(1)} kB`;
@@ -440,9 +548,18 @@ export function renderReport(results) {
     result.ok ? "ok" : "FAIL",
     result.chunk ? kb(result.chunk.min) : "—",
     result.chunk ? kb(result.chunk.gzip) : "—",
+    result.files ? String(result.files) : "—",
     result.chunks ? String(result.chunks) : "—",
   ]);
-  const header = ["example", "kind", "result", "first load min", "first load gz", "js chunks"];
+  const header = [
+    "example",
+    "kind",
+    "result",
+    "first load min",
+    "first load gz",
+    "first-load files",
+    "js chunks",
+  ];
   const widths = header.map((cell, index) =>
     Math.max(cell.length, ...rows.map((row) => row[index].length)),
   );
@@ -541,6 +658,7 @@ async function verifyExample(example, packages, options) {
 
     const { files, chunks } = await KINDS[kind].probe(target);
     result.chunk = measureFiles(files);
+    result.files = files.length;
     result.chunks = chunks;
     result.ok = true;
     return result;
@@ -600,7 +718,14 @@ async function main(argv) {
   if (options.json) {
     console.log(
       JSON.stringify(
-        results.map(({ name, kind, ok, chunk, chunks }) => ({ name, kind, ok, chunk, chunks })),
+        results.map(({ name, kind, ok, chunk, files, chunks }) => ({
+          name,
+          kind,
+          ok,
+          chunk,
+          files,
+          chunks,
+        })),
         null,
         2,
       ),

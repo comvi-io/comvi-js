@@ -3,17 +3,21 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import zlib from "node:zlib";
 
 import {
   assertLocalResolutions,
   declaredComviDeps,
   entryChunk,
   exampleKind,
+  measureFiles,
   nextFirstLoad,
   nextPageRoute,
-  nuxtEntryFile,
+  nuxtEntryKey,
+  nuxtPageRoute,
   parseArgs,
   provenanceLine,
+  staticImportClosure,
   withOverrides,
 } from "./examples-verify.mjs";
 
@@ -317,11 +321,12 @@ test("nextFirstLoad throws when the route it was handed is not in the manifest",
   });
 });
 
-test("nuxtEntryFile picks the isEntry chunk, not the biggest or the first", () => {
+test("nuxtEntryKey picks the isEntry chunk, not the biggest or the first", () => {
   // The locale catalogs are dynamic imports of the entry, and one of them being
-  // listed first in the manifest must not make it the thing being measured.
+  // listed first in the manifest must not make it the thing being measured. The
+  // KEY is what comes back, not the file: the import graph is keyed by source.
   const manifest = {
-    "locales/uk.json": { file: "uk-BRI4vdSi.js", src: "locales/uk.json" },
+    "locales/uk.json": { file: "uk-BRI4vdSi.js", isDynamicEntry: true },
     "../node_modules/nuxt/dist/app/entry.js": {
       file: "YERnk0my.js",
       name: "entry",
@@ -330,28 +335,133 @@ test("nuxtEntryFile picks the isEntry chunk, not the biggest or the first", () =
     "_shared.js": { file: "BOrKvaDh.js" },
   };
 
-  assert.equal(nuxtEntryFile(manifest), "YERnk0my.js");
+  assert.equal(nuxtEntryKey(manifest), "../node_modules/nuxt/dist/app/entry.js");
 });
 
-test("nuxtEntryFile fails closed when the manifest names no entry", () => {
-  assert.throws(() => nuxtEntryFile({ "a.js": { file: "a-1.js" } }), {
+test("nuxtEntryKey fails closed when the manifest names no entry", () => {
+  assert.throws(() => nuxtEntryKey({ "a.js": { file: "a-1.js" } }), {
     message: /no chunk marked `isEntry`/,
   });
 });
 
-test("nuxtEntryFile refuses to choose between two entries", () => {
+test("nuxtEntryKey refuses to choose between two entries", () => {
   assert.throws(
-    () => nuxtEntryFile({ a: { file: "a.js", isEntry: true }, b: { file: "b.js", isEntry: true } }),
+    () => nuxtEntryKey({ a: { file: "a.js", isEntry: true }, b: { file: "b.js", isEntry: true } }),
     { message: /2 chunks marked `isEntry`/ },
   );
 });
 
-test("parseArgs still collects --only for the two SSR examples", () => {
-  assert.deepEqual(parseArgs(["--only", "next", "--only", "nuxt", "--json"]), {
-    only: ["next", "nuxt"],
-    build: true,
-    pack: true,
-    keep: false,
-    json: true,
-  });
+test("nuxtPageRoute picks the app's page and ignores Nuxt's built-in error components", () => {
+  const manifest = {
+    "../node_modules/nuxt/dist/app/components/error-404.vue": { file: "a.js" },
+    "../node_modules/nuxt/dist/app/entry.js": { file: "b.js", isEntry: true },
+    "pages/index.vue": { file: "c.js" },
+    "locales/en.json": { file: "d.js" },
+  };
+
+  assert.equal(nuxtPageRoute(manifest), "pages/index.vue");
+});
+
+test("nuxtPageRoute refuses to guess when an app has more than one page", () => {
+  const manifest = {
+    "pages/index.vue": { file: "a.js" },
+    "pages/about.vue": { file: "b.js" },
+  };
+
+  assert.throws(() => nuxtPageRoute(manifest), { message: /exactly one page chunk.*found 2/s });
+});
+
+test("nuxtPageRoute fails closed on a manifest shape it cannot read", () => {
+  assert.throws(() => nuxtPageRoute("not a manifest"), { message: /is not an object/ });
+});
+
+test("staticImportClosure follows imports transitively, because the browser must", () => {
+  // Vite's `imports` are STATIC: the entry cannot execute until every one of
+  // them has arrived, and Nuxt marks them `preload`. Measuring the entry alone
+  // reports a third of what the page actually costs.
+  const manifest = {
+    entry: { file: "entry.js", imports: ["_a"] },
+    _a: { file: "a.js", imports: ["_b"] },
+    _b: { file: "b.js", imports: [] },
+  };
+
+  assert.deepEqual(staticImportClosure(manifest, ["entry"]), ["entry.js", "a.js", "b.js"]);
+});
+
+test("staticImportClosure counts a chunk shared by two roots once", () => {
+  // The page chunk and the entry both statically import the shared vendor
+  // chunk; the browser downloads it once and so must the number.
+  const manifest = {
+    entry: { file: "entry.js", imports: ["_shared"] },
+    "pages/index.vue": { file: "page.js", imports: ["_shared", "entry"] },
+    _shared: { file: "shared.js", imports: [] },
+  };
+
+  // Breadth first, so the roots come out in the order they were asked for and
+  // the shared chunk lands once, after both.
+  assert.deepEqual(staticImportClosure(manifest, ["entry", "pages/index.vue"]), [
+    "entry.js",
+    "page.js",
+    "shared.js",
+  ]);
+});
+
+test("staticImportClosure terminates on a cycle instead of exhausting the stack", () => {
+  // Nuxt's real manifest has one: `pages/index.vue` imports the entry, and the
+  // error components import it back.
+  const manifest = {
+    entry: { file: "entry.js", imports: ["_a"] },
+    _a: { file: "a.js", imports: ["entry"] },
+  };
+
+  assert.deepEqual(staticImportClosure(manifest, ["entry"]), ["entry.js", "a.js"]);
+});
+
+test("staticImportClosure ignores dynamicImports, which are the lazy half", () => {
+  // The three locale catalogs are `dynamicImports` of the entry. Counting them
+  // as first load would erase the very split the demo exists to show.
+  const manifest = {
+    entry: { file: "entry.js", imports: [], dynamicImports: ["locales/uk.json"] },
+    "locales/uk.json": { file: "uk.js" },
+  };
+
+  assert.deepEqual(staticImportClosure(manifest, ["entry"]), ["entry.js"]);
+});
+
+test("staticImportClosure throws on an import the manifest does not describe", () => {
+  assert.throws(
+    () => staticImportClosure({ entry: { file: "e.js", imports: ["_gone"] } }, ["entry"]),
+    {
+      message: /no chunk "_gone"/,
+    },
+  );
+});
+
+test("measureFiles sums gzip per file, not over the concatenation", () => {
+  // Each chunk is its own HTTP response with its own compression window.
+  // Gzipping them together reports a number no browser ever sees — and the two
+  // differ most for exactly the case here: several similar JS chunks.
+  const dir = tempDir("comvi-verify-measure-");
+  const one = path.join(dir, "one.js");
+  const two = path.join(dir, "two.js");
+  const body = "export const value = 'the same repeated body';".repeat(200);
+  fs.writeFileSync(one, body);
+  fs.writeFileSync(two, body);
+
+  const measured = measureFiles([one, two]);
+
+  assert.equal(measured.min, body.length * 2);
+  assert.equal(measured.gzip, 2 * zlib.gzipSync(Buffer.from(body), { level: 9 }).length);
+  assert.ok(measured.gzip > zlib.gzipSync(Buffer.from(body + body), { level: 9 }).length);
+});
+
+test("measureFiles labels a single file by its basename and a set by its count", () => {
+  const dir = tempDir("comvi-verify-label-");
+  const one = path.join(dir, "index-aaa.js");
+  const two = path.join(dir, "vendor-bbb.js");
+  fs.writeFileSync(one, "x");
+  fs.writeFileSync(two, "y");
+
+  assert.equal(measureFiles([one]).file, "index-aaa.js");
+  assert.equal(measureFiles([one, two]).file, "2 chunks");
 });

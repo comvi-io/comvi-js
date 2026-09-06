@@ -194,11 +194,16 @@ rewritten, and no lockfile in this repository is read or written.
 
 Each example is classified by the CLI its own `build` script runs — `vite`, `next` or `nuxt` —
 and that KIND picks the size probe, because the three build tools do not put the entry chunk in
-the same place and Next's first load is not one file at all (`vite`: the chunk `dist/index.html`
-names; `next`: the route's list in `.next/app-build-manifest.json`, page plus enclosing layouts;
-`nuxt`: the `isEntry` chunk of the client manifest under `.output/public/_nuxt`). A build output
-no probe can read is an error rather than a blank cell — a missing size must never read as a
-small one — so an eighth example on a fourth framework needs a kind and a probe of its own.
+the same place and neither SSR framework's first load is one file at all. `vite`: the chunk
+`dist/index.html` names. `next`: the route's list in `.next/app-build-manifest.json`, page plus
+enclosing layouts. `nuxt`: the `isEntry` chunk **and** the route chunk from the Vite client
+manifest, each closed over its static `imports` — those are `modulepreload` links the browser
+cannot skip, and measuring the entry alone under-reported the Nuxt example by half. The report's
+two counts differ on purpose: `first-load files` is what the route needs before it renders,
+`js chunks` is every client `.js` the build wrote, and the gap between them is the lazy split.
+A build output no probe can read is an error rather than a blank cell — a missing size must
+never read as a small one — so an eighth example on a fourth framework needs a kind and a probe
+of its own.
 
 **Required before a release, and again after the version bump.** An override bypasses the range
 it replaces, so a green run proves the source compiles, never that `^0.5.0` resolves; and the

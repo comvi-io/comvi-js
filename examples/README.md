@@ -202,6 +202,13 @@ charge of capabilities. That is also why `@comvi/core` is a direct dependency
 here — the installers come from its subpaths, and a transitive dependency is not
 resolvable under pnpm's default layout.
 
+The example asks for `nuxt: ^4.5.2` rather than 3.x, and that is not a comvi
+constraint — `@comvi/nuxt` supports `^3.0.0 || ^4.0.0`. It is Nuxt 3's own peer
+graph: `nuxt@3.21.11` ships `@nuxt/cli@3.37.0`, which declares a peer of
+`@nuxt/schema@^4.4.6` that nuxt itself cannot satisfy, so the install dies with
+`ERR_PNPM_PEER_DEP_ISSUES` under the `strict-peer-dependencies=true` that gate 7
+runs with — and that a reader's `npm install` enforces too.
+
 Two things about it are easy to get wrong and are both visible in the app.
 `comvi.cdnUrl` and `comvi.apiBaseUrl` **load nothing** in 0.5 — they are copied
 into public runtime config and read by no code in the module — so SSR loading is
@@ -288,18 +295,29 @@ the manifest that was verified.
 
 The one thing that is **not** the same for all seven is the size probe. Each
 example is classified by the CLI its own `build` script runs — `vite`, `next` or
-`nuxt` — and the report's "first load" columns mean something slightly different
-per kind, because the three build tools do not put the entry chunk in the same
-place and Next's first load is not one file at all:
+`nuxt` — and "first load" is assembled differently per kind, because the three
+build tools do not put the entry chunk in the same place and neither SSR
+framework's first load is one file at all:
 
-| kind   | what is measured                                                                                                               |
-| ------ | ------------------------------------------------------------------------------------------------------------------------------ |
-| `vite` | the entry chunk `dist/index.html` names                                                                                        |
-| `next` | the route's chunk list from `.next/app-build-manifest.json`, page plus enclosing layouts — the build summary's "First Load JS" |
-| `nuxt` | the `isEntry` chunk of the Vite client manifest, in `.output/public/_nuxt`                                                     |
+| kind   | what "first load" is                                                                                                                              |
+| ------ | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `vite` | the entry chunk `dist/index.html` names                                                                                                           |
+| `next` | the route's chunk list from `.next/app-build-manifest.json` — page plus enclosing layouts — which is ≈ the build summary's "First Load JS"        |
+| `nuxt` | the `isEntry` chunk **and** the route's own chunk from the Vite client manifest, each closed over its static `imports`, in `.output/public/_nuxt` |
 
-In all three the entry is **named by the build**, never picked by size: the lazy
-locale catalogs are separate chunks by design, and a "largest file" rule would
+That closure is the point for Nuxt: `imports` are the chunks Vite emits as
+`modulepreload` links, and the entry cannot execute until they have all landed —
+measuring `entry.js` alone reported 41.8 kB gz for a page that really costs
+88.3.
+
+The table carries two counts, and the gap between them is the lazy split:
+**first-load files** is what the browser needs before the route renders, **js
+chunks** is every `.js` the build wrote for the client. The three locale
+catalogs are in the second and in no route's first load — in the Next example
+they are the three sub-kilobyte chunks under `.next/static/chunks`.
+
+In all three kinds the entry is **named by the build**, never picked by size:
+the lazy catalogs are separate chunks by design, and a "largest file" rule would
 keep working right up until the split regressed. A build output none of the
 three probes can read is an error, not a blank cell — a missing size must never
 read as a small one. Adding an eighth example on a fourth framework therefore
