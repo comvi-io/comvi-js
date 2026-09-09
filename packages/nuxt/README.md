@@ -242,11 +242,17 @@ export default defineNuxtConfig({
 
 The factory is handed nuxt's **resolved options**: `locale` (the render locale
 on the client, the request locale on the server), `fallbackLocale`, `defaultNs`,
-`defaultParams`, `tagInterpolation` from `basicHtmlTags`, `devMode` and
-`apiKey`. Spreading them keeps `nuxt.config` in charge of configuration while
-you stay in charge of capabilities. It is called once per constructed
-instance (the client plugin, and each per-request server instance), so it must
-return a FRESH host every call.
+`defaultParams`, `devMode` and `apiKey`. Spreading them keeps `nuxt.config` in
+charge of configuration while you stay in charge of capabilities. It is called
+once per constructed instance (the app plugin, and each per-request server
+instance), so it must return a FRESH host every call.
+
+The app plugin runs in both bundles and adds two more options,
+`tagInterpolation` from `basicHtmlTags` and `ssrLocale`, so a server render and
+the hydrated client agree. The request-scoped Nitro host omits both: a
+`useTranslation()` or `loadTranslations()` call in `server/**` resolves the same
+string without them. Set them inside the factory when a server route needs them
+too.
 
 ICU is the one exception to "compose it here": `compiler` is a constructor
 argument rather than something `.with()` can pipe on, so an app with no

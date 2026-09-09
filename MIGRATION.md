@@ -52,8 +52,11 @@ A **missing interpolation parameter now renders as the literal placeholder.** In
 ### 0.1 The compiler has a timing rule
 
 If your 0.4 catalogs contain ICU (`{count, plural, …}`, `{gender, select, …}`),
-the root no longer compiles them for you. Name the compiler, and _where_ you
-name it depends on when the catalog reaches the host.
+the root no longer compiles them for you. Name the compiler. The timing rule
+belongs to the installer alone: `compiler: icuCompiler` on the constructor is a
+plain field held for the instance's life, so it covers a catalog that arrives
+later just as well as an inline one, while `.with(icu())` has to run before the
+first catalog reaches the host.
 
 ```ts
 // INLINE catalogs — the constructor ingests them, so choose the compiler here.
@@ -190,16 +193,16 @@ naming the fix.
 
 ## 2. The migration table
 
-| 0.4.x                                                | 0.5.0                                                                    |
-| ---------------------------------------------------- | ------------------------------------------------------------------------ |
-| `const { reloadTranslations, … } = useI18n()`        | `const { reloadTranslations, addActiveNamespaces, … } = useI18nLoader()` |
-| `const { onMissingKey } = useI18n()`                 | `const { onMissingKey } = useI18nPlugins()`                              |
-| `useI18n("ns")` for a capability member              | `useI18n("ns")` keeps `t`; the capability APIs take no argument          |
-| vue `i18n.registerLoader(…)`, `.use(…)`, six more    | `i18n.core.*`; `VueI18n` exposes its host as `readonly core`             |
-| vue `new VueI18n(options)`                           | `createI18n(options)`; the constructor takes `(core, vueOptions)`        |
-| svelte/solid `getI18nContext().reloadTranslations()` | `useI18nLoader()` in a component, or hold your own host                  |
-| nuxt `comvi.setup` calling a dropped `VueI18n` proxy | `context.core.*`                                                         |
-| next: a second `setI18n(other)`                      | one configuration source per process; see §6                             |
+| 0.4.x                                                | 0.5.0                                                                                                                            |
+| ---------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| `const { reloadTranslations, … } = useI18n()`        | `const { reloadTranslations, addActiveNamespaces, … } = useI18nLoader()`                                                         |
+| `const { onMissingKey } = useI18n()`                 | `const { onMissingKey } = useI18nPlugins()`                                                                                      |
+| `useI18n("ns")` for a capability member              | `useI18n("ns")` keeps `t`; the capability APIs take no argument                                                                  |
+| vue `i18n.registerLoader(…)`, `.use(…)`, six more    | `i18n.core.*` once the capability is composed on that host: `.with(loader())` for `registerLoader`, `.with(plugins())` for `use` |
+| vue `new VueI18n(options)`                           | `createI18n(options)`; the constructor takes `(core, vueOptions)`                                                                |
+| svelte/solid `getI18nContext().reloadTranslations()` | `useI18nLoader()` in a component, or hold your own host                                                                          |
+| nuxt `comvi.setup` calling a dropped `VueI18n` proxy | `context.core.*`                                                                                                                 |
+| next: a second `setI18n(other)`                      | one configuration source per process; see §6                                                                                     |
 
 `useI18nLoader()` and `useI18nPlugins()` ship from every binding
 (`@comvi/react`, `@comvi/solid`, `@comvi/svelte`, `@comvi/vue`,
@@ -309,10 +312,12 @@ constructor everywhere but `@comvi/vue`, whose `createI18n` builds the `VueI18n`
 preset around it.
 
 **Every 0.4.x import path still resolves.** What changed is the HOST those
-entries construct, not the specifier you write. And since each package publishes
-one entry, the old entry-mixing hazard is gone: no import path can put a second
-copy of a binding in your graph, so a provider and a hook in one app always see
-each other.
+entries construct, not the specifier you write. And since no package publishes a
+second copy of a binding, the old entry-mixing hazard is gone: `@comvi/react`,
+`@comvi/solid`, `@comvi/svelte` and `@comvi/vue` ship theirs from one entry each,
+`@comvi/next` splits its two runtime entries by runtime rather than by tier, and
+`@comvi/nuxt` auto-imports. No import path can put a second copy of a binding in
+your graph, so a provider and a hook in one app always see each other.
 
 `@comvi/core/tags` is **not** re-exported by any binding: importing it registers
 tag syntax ambiently, a side effect no framework entry should hand you by
@@ -397,16 +402,20 @@ the first catalog. Compose neither capability and `useI18nLoader()` /
 
 ```diff check=skip:proxy-relocation
 -const i18n = createI18n({ locale: "en" }).use(FetchLoader({ … }));
-+const i18n = createI18n({ locale: "en" });
-+i18n.core.use(FetchLoader({ … }));
++const core = createCore({ locale: "en" }).with(fetchLoader({ … }));
++const i18n = createI18nFromCore(core);
 ```
 
 `VueI18n` is now `VueI18n<D, C extends WrapperI18nHost<D> = I18n<D>>` around an
 injected host it exposes as `readonly core: C`, and its eight capability proxies
 are gone: `addActiveNamespace`, `reloadTranslations`, `registerLoader`,
 `registerLocaleDetector`, `registerPostProcessor`, `onMissingKey`, `onLoadError`
-and `use`. `i18n.core.use(...)` returns the **host**, so it no longer chains off
-the factory call.
+and `use`. `use` did **not** move to `i18n.core`. It belongs to
+`@comvi/core/plugins`, so it is on a host only after `.with(plugins())`, and the
+base host `createI18n` builds has no `use` at all: `i18n.core.use(…)` is a type
+error and a `TypeError` at runtime. Compose the capability on the host, then
+call it there. The lowercase installer is the shorter road, because it composes
+what the plugin needs itself.
 
 Vue's preset is a real function: there is a `VueI18n` to construct, and
 `ssrLocale` has to reach the host before the reactive ref is seeded. So all three
@@ -524,10 +533,11 @@ has it, and the codemod does the rename.
 
 A client host is hydrated rather than loaded: nothing is ingested at
 construction, and the catalog arrives through `<I18nProvider messages>`. So an
-inline catalog takes `compiler: icuCompiler` in the same call, while a catalog
-that arrives LATER (hydrated, or fetched by an SSR loader) takes the installer
-ahead of it: `createI18n({ locale }).with(icu()).with(loader(map))`. Both `icu`
-and `icuCompiler` ship from both entries, and `CompilerLockedError` types the
+inline catalog takes `compiler: icuCompiler` in the same call, and so does a
+catalog that arrives LATER, hydrated or fetched by an SSR loader. The installer
+is the alternative for that later catalog, and it goes ahead of it:
+`createI18n({ locale }).with(icu()).with(loader(map))`. Both `icu` and
+`icuCompiler` ship from both entries, and `CompilerLockedError` types the
 failure.
 
 The server gains a compose-it-yourself companion, exported from
@@ -562,8 +572,10 @@ both sources:
 Its public signature is unchanged and a repeat call with the **same** instance
 stays a no-op (setup modules commonly re-run). Test suites that re-configured
 between cases need a fresh cell: vitest and jest isolate module state per test
-file, and in-repo suites use the `@internal` `_resetServerI18n()` from
-`@comvi/next/dist/server/cache`.
+file, which is normally enough. `_resetServerI18n()` is `@internal` and reachable
+only from the package's own source, `../src/server/cache`. `@comvi/next`
+publishes six `exports` keys and no wildcard, so an installed copy cannot import
+it under any specifier.
 
 **Plugin registration on `createNextI18n` is one method now.** `useClient`,
 `useServer`, `useClientLazy` and `useServerLazy` are deprecated delegates; pass
@@ -631,9 +643,16 @@ visibility → `.with(devtools())`; `<tag>` in plain `t()` → one
 
 **The factory receives nuxt's resolved options**: `locale` (the render locale on
 the client, the request locale on the server), `fallbackLocale`, `defaultNs`,
-`defaultParams`, `tagInterpolation` from `basicHtmlTags`, `devMode` and `apiKey`.
-A composed host therefore honours the same `nuxt.config` an uncomposed one does.
-A 0.5.0-development factory that takes no argument keeps working.
+`defaultParams`, `devMode` and `apiKey`. A composed host therefore honours the
+same `nuxt.config` an uncomposed one does. A 0.5.0-development factory that takes
+no argument keeps working.
+
+Two options reach only one of the two calls. The app plugin runs in both bundles
+and adds `tagInterpolation` from `basicHtmlTags` plus `ssrLocale`, so a server
+render and the hydrated client agree. The request-scoped Nitro host omits both,
+so a `useTranslation()` or `loadTranslations()` call in `server/**` resolves the
+same string without them. Set them inside the factory when a server route needs
+them too.
 
 **`NuxtServerHost` is the base host now**, not the loader-carrying host it named
 before; `NuxtServerLoaderHost` is the composed one, and it is what SSR
@@ -674,15 +693,15 @@ Beside those, 0.5 has a family of "is not a function" failures that all mean one
 thing, that a capability was never composed, plus three named errors from the
 composition rules. This is the whole list your first run can produce:
 
-| symptom                                                                                                 | fix                                              |
-| ------------------------------------------------------------------------------------------------------- | ------------------------------------------------ |
-| `addActiveNamespace` / `removeActiveNamespace` / `reloadTranslations` / `onLoadError` is not a function | `useI18nLoader()`                                |
-| `onMissingKey is not a function`                                                                        | `useI18nPlugins()`                               |
-| vue: `i18n.registerLoader` / `i18n.use` is not a function                                               | `i18n.core.*`                                    |
-| vue: `i18n.core.reloadTranslations` will not type-check                                                 | host-typed by design — use `useI18nLoader()`     |
-| `E_INSTALLER_NESTED_USE`                                                                                | you wrote `.use(installer(…))`; write `.with(…)` |
-| `E_PLUGIN_INIT_RETURN`                                                                                  | a plugin returned a value — use a statement body |
-| `E_COMPILER_LOCKED`                                                                                     | `icu()` after a catalog — §0.1                   |
+| symptom                                                                                                 | fix                                                                                                                  |
+| ------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `addActiveNamespace` / `removeActiveNamespace` / `reloadTranslations` / `onLoadError` is not a function | `useI18nLoader()`                                                                                                    |
+| `onMissingKey is not a function`                                                                        | `useI18nPlugins()`                                                                                                   |
+| vue: `i18n.registerLoader` / `i18n.use` is not a function                                               | compose the capability on the host (`createCore(…).with(loader())`, `.with(plugins())`), then call it on `i18n.core` |
+| vue: `i18n.core.reloadTranslations` will not type-check                                                 | host-typed by design — use `useI18nLoader()`                                                                         |
+| `E_INSTALLER_NESTED_USE`                                                                                | you wrote `.use(installer(…))`; write `.with(…)`                                                                     |
+| `E_PLUGIN_INIT_RETURN`                                                                                  | a plugin returned a value — use a statement body                                                                     |
+| `E_COMPILER_LOCKED`                                                                                     | `icu()` after a catalog — §0.1                                                                                       |
 
 Those `E_*` names are the **production** messages; a development build throws a
 longer message instead. Of the errors in this table, only `E_COMPILER_LOCKED`
