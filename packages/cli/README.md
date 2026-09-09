@@ -174,7 +174,7 @@ src/locales/
 
 Set `"fileTemplate": "{languageTag}/{namespace}.json"` in `.comvirc.json` for the locale-folder layout; any non-default template also turns the root special case off.
 
-`pull` writes flat files with dotted keys, and `push` accepts either shape: nested objects are flattened to dotted keys on push, so `{"nav": {"home": "Home"}}` uploads as `nav.home`. Every leaf must be a string; a number, boolean, null or array fails the push with exit code 4 and names the file and key.
+`pull` writes flat files with dotted keys, and `push` accepts either shape: nested objects are flattened to dotted keys on push, so `{"nav": {"home": "Home"}}` uploads as `nav.home`. Every leaf must be a string; a number, boolean, null or array fails the push with exit code 4 and names the file and key, and so does a key that appears both flat and nested. `push` does not convert i18next plural suffixes (`_one`, `_other`) to ICU; use the dashboard import for i18next catalogs.
 
 ## License
 

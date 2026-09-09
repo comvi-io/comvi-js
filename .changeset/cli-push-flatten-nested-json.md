@@ -1,5 +1,5 @@
 ---
-"@comvi/cli": patch
+"@comvi/cli": minor
 ---
 
 `comvi push` now flattens nested JSON to dotted keys instead of uploading `[object Object]`.
@@ -13,3 +13,6 @@ upload identically and an already-flat file passes through key for key. `--dry-r
 conflict diff read the same flattened keys. A non-string leaf (number, boolean, null, array)
 is no longer silently coerced: the push fails with exit code 4 and names the file and the
 dotted key.
+
+A key that appears both flat and through nesting (`"a.b"` next to `{"a": {"b": …}}`) is also
+an error rather than a silent last-writer-wins.

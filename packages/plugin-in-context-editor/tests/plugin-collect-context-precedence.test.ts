@@ -73,6 +73,18 @@ describe("composed plugin path: host collectContext beats the plugin option", ()
     cleanup?.();
   });
 
+  it("does not start the collector when the host opted in and the plugin opts out", async () => {
+    const cleanup = await install(makeHost(true), { collectContext: false });
+    expect(handshakeSpy).not.toHaveBeenCalled();
+    cleanup();
+  });
+
+  it("starts the collector when the host opted in and the plugin option is unset", async () => {
+    const cleanup = await install(makeHost(true));
+    expect(handshakeSpy).toHaveBeenCalled();
+    cleanup();
+  });
+
   it("starts the collector when neither the host nor the plugin opts out", async () => {
     const cleanup = await install(makeHost());
 

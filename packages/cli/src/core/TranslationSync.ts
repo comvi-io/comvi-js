@@ -492,13 +492,21 @@ function flattenTranslationFile(
   catalog: Record<string, unknown>,
   filePath: string,
 ): Record<string, string> {
-  const result: Record<string, string> = {};
+  // Null prototype so a key literally named `__proto__` lands as data instead
+  // of hitting Object.prototype's setter and vanishing.
+  const result: Record<string, string> = Object.create(null) as Record<string, string>;
 
   const visit = (node: Record<string, unknown>, prefix: string): void => {
     for (const [key, value] of Object.entries(node)) {
       const fullKey = prefix ? `${prefix}.${key}` : key;
 
       if (typeof value === "string") {
+        if (fullKey in result) {
+          throw new TypegenError(
+            `Duplicate translation key in ${filePath}: "${fullKey}" is defined both as a flat key and through nesting`,
+            ErrorCodes.CONFIG_INVALID,
+          );
+        }
         result[fullKey] = value;
       } else if (isPlainObject(value)) {
         visit(value, fullKey);

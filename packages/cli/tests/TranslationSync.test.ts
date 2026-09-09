@@ -758,6 +758,35 @@ describe("TranslationSync", () => {
       });
     });
 
+    it("keeps a key literally named __proto__ as data", async () => {
+      const dir = await makeTempDir("comvi-cli-sync");
+      await fs.mkdir(join(dir, "en"), { recursive: true });
+      await fs.writeFile(join(dir, "en", "common.json"), '{"__proto__":"proto","ok":"yes"}');
+      const sync = makeSync(dir);
+
+      const result = await sync.readTranslations();
+
+      expect(Object.entries(result.translations.en.common)).toEqual([
+        ["__proto__", "proto"],
+        ["ok", "yes"],
+      ]);
+    });
+
+    it("rejects a key defined both flat and through nesting", async () => {
+      const dir = await makeTempDir("comvi-cli-sync");
+      const file = join(dir, "en", "common.json");
+      await fs.mkdir(join(dir, "en"), { recursive: true });
+      await fs.writeFile(file, JSON.stringify({ "a.b": "flat", a: { b: "nested" } }));
+      const sync = makeSync(dir);
+
+      const error = await rejectionOf(sync.readTranslations());
+
+      expect(error).toBeInstanceOf(TypegenError);
+      expect((error as TypegenError).code).toBe(ErrorCodes.CONFIG_INVALID);
+      expect((error as TypegenError).message).toContain(file);
+      expect((error as TypegenError).message).toContain('"a.b"');
+    });
+
     it("rejects a non-string leaf, naming the file and the dotted key", async () => {
       const dir = await makeTempDir("comvi-cli-sync");
       const file = join(dir, "en", "common.json");
