@@ -698,4 +698,139 @@ describe("TranslationSync", () => {
     expect((error as TypegenError).code).toBe(ErrorCodes.FS_MKDIR_FAILED);
     expect((error as TypegenError).message).toContain("Failed to create directory");
   });
+  /**
+   * `push` forwards whatever `readTranslations` returns straight to the API,
+   * and the API stringifies every value it is handed. A nested catalog used to
+   * arrive there as objects and upload as the literal "[object Object]", so
+   * the flattening has to happen here, before anything leaves the CLI.
+   */
+  describe("readTranslations flattens nested catalogs", () => {
+    it("flattens nested objects to dotted keys", async () => {
+      const dir = await makeTempDir("comvi-cli-sync");
+      await fs.mkdir(join(dir, "en"), { recursive: true });
+      await fs.writeFile(
+        join(dir, "en", "common.json"),
+        JSON.stringify({ nav: { home: "Home", user: { profile: "Profile" } } }),
+      );
+      const sync = makeSync(dir);
+
+      const result = await sync.readTranslations();
+
+      expect(result.translations).toEqual({
+        en: {
+          common: {
+            "nav.home": "Home",
+            "nav.user.profile": "Profile",
+          },
+        },
+      });
+    });
+
+    it("keeps already-flat files unchanged", async () => {
+      const dir = await makeTempDir("comvi-cli-sync");
+      await fs.mkdir(join(dir, "en"), { recursive: true });
+      await fs.writeFile(
+        join(dir, "en", "common.json"),
+        JSON.stringify({ "nav.home": "Home", hello: "Hello" }),
+      );
+      const sync = makeSync(dir);
+
+      const result = await sync.readTranslations();
+
+      expect(result.translations).toEqual({
+        en: { common: { "nav.home": "Home", hello: "Hello" } },
+      });
+    });
+
+    it("flattens a file that mixes flat and nested keys", async () => {
+      const dir = await makeTempDir("comvi-cli-sync");
+      await fs.mkdir(join(dir, "en"), { recursive: true });
+      await fs.writeFile(
+        join(dir, "en", "common.json"),
+        JSON.stringify({ hello: "Hello", nav: { home: "Home" } }),
+      );
+      const sync = makeSync(dir);
+
+      const result = await sync.readTranslations();
+
+      expect(result.translations).toEqual({
+        en: { common: { hello: "Hello", "nav.home": "Home" } },
+      });
+    });
+
+    it("rejects a non-string leaf, naming the file and the dotted key", async () => {
+      const dir = await makeTempDir("comvi-cli-sync");
+      const file = join(dir, "en", "common.json");
+      await fs.mkdir(join(dir, "en"), { recursive: true });
+      await fs.writeFile(file, JSON.stringify({ nav: { items: 3 } }));
+      const sync = makeSync(dir);
+
+      const error = await rejectionOf(sync.readTranslations());
+
+      expect(error).toBeInstanceOf(TypegenError);
+      expect((error as TypegenError).code).toBe(ErrorCodes.CONFIG_INVALID);
+      expect((error as TypegenError).message).toContain(file);
+      expect((error as TypegenError).message).toContain('key "nav.items"');
+      expect((error as TypegenError).message).toContain("a number");
+    });
+
+    it("rejects an array leaf rather than stringifying it", async () => {
+      const dir = await makeTempDir("comvi-cli-sync");
+      const file = join(dir, "en", "common.json");
+      await fs.mkdir(join(dir, "en"), { recursive: true });
+      await fs.writeFile(file, JSON.stringify({ list: ["a", "b"] }));
+      const sync = makeSync(dir);
+
+      const error = await rejectionOf(sync.readTranslations());
+
+      expect((error as TypegenError).code).toBe(ErrorCodes.CONFIG_INVALID);
+      expect((error as TypegenError).message).toContain('key "list"');
+      expect((error as TypegenError).message).toContain("an array");
+    });
+
+    it('rejects a null leaf rather than uploading the string "null"', async () => {
+      const dir = await makeTempDir("comvi-cli-sync");
+      const file = join(dir, "en", "common.json");
+      await fs.mkdir(join(dir, "en"), { recursive: true });
+      await fs.writeFile(file, JSON.stringify({ missing: null }));
+      const sync = makeSync(dir);
+
+      const error = await rejectionOf(sync.readTranslations());
+
+      expect((error as TypegenError).code).toBe(ErrorCodes.CONFIG_INVALID);
+      expect((error as TypegenError).message).toContain('key "missing"');
+      expect((error as TypegenError).message).toContain("null");
+    });
+
+    it("rejects a file whose top level is not an object", async () => {
+      const dir = await makeTempDir("comvi-cli-sync");
+      const file = join(dir, "en", "common.json");
+      await fs.mkdir(join(dir, "en"), { recursive: true });
+      await fs.writeFile(file, JSON.stringify(["Hello"]));
+      const sync = makeSync(dir);
+
+      const error = await rejectionOf(sync.readTranslations());
+
+      expect((error as TypegenError).code).toBe(ErrorCodes.CONFIG_INVALID);
+      expect((error as TypegenError).message).toContain("expected a JSON object of translations");
+      expect((error as TypegenError).message).toContain(file);
+    });
+
+    it("hands the dry-run diff flattened keys", async () => {
+      const dir = await makeTempDir("comvi-cli-sync");
+      await fs.mkdir(join(dir, "en"), { recursive: true });
+      await fs.writeFile(
+        join(dir, "en", "common.json"),
+        JSON.stringify({ nav: { home: "Home", away: "Away" } }),
+      );
+      const sync = makeSync(dir);
+
+      const local = await sync.readTranslations();
+      const diff = sync.compareTranslations(local.translations, {
+        en: { common: { "nav.home": "Accueil" } },
+      });
+
+      expect(diff).toEqual({ created: 1, updated: 1, conflicts: 1, deleted: 0 });
+    });
+  });
 });

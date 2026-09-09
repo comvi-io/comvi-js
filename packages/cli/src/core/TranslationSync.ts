@@ -134,7 +134,16 @@ export class TranslationSync {
 
       try {
         const content = await fs.readFile(filePath, "utf-8");
-        const translations = JSON.parse(content) as Record<string, string>;
+        const parsed: unknown = JSON.parse(content);
+
+        if (!isPlainObject(parsed)) {
+          throw new TypegenError(
+            `Invalid translation file ${filePath}: expected a JSON object of translations, got ${describeValue(parsed)}`,
+            ErrorCodes.CONFIG_INVALID,
+          );
+        }
+
+        const translations = flattenTranslationFile(parsed, filePath);
 
         if (!result[locale]) {
           result[locale] = {};
@@ -449,4 +458,60 @@ function parseDefaultNamespaceFile(relativePath: string, format: "json"): string
 /** An empty scope clears everything; any filter narrows it. */
 function isScopedClear(scope?: ClearScope): scope is ClearScope {
   return Boolean(scope?.locales?.length || scope?.namespaces?.length);
+}
+
+/**
+ * Only a `{}`-shaped value counts as nesting. Arrays and class instances are
+ * leaves, and since they are not strings the flattener rejects them.
+ */
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return false;
+  }
+  const proto = Object.getPrototypeOf(value) as object | null;
+  return proto === Object.prototype || proto === null;
+}
+
+function describeValue(value: unknown): string {
+  if (value === null) return "null";
+  if (Array.isArray(value)) return "an array";
+  return `a ${typeof value}`;
+}
+
+/**
+ * Flatten a parsed translation file to the dotted keys the API stores, so
+ * `{"nav": {"home": "Home"}}` uploads as `"nav.home"`. `pull` writes the flat
+ * form, so an already-flat file passes through key for key.
+ *
+ * Non-string leaves are a hard error rather than a coercion: the API
+ * stringifies whatever it is handed, so a number, boolean, null or array
+ * would previously have been uploaded as its `String()` form (a nested object
+ * as the literal `[object Object]`) with nothing to show for it.
+ */
+function flattenTranslationFile(
+  catalog: Record<string, unknown>,
+  filePath: string,
+): Record<string, string> {
+  const result: Record<string, string> = {};
+
+  const visit = (node: Record<string, unknown>, prefix: string): void => {
+    for (const [key, value] of Object.entries(node)) {
+      const fullKey = prefix ? `${prefix}.${key}` : key;
+
+      if (typeof value === "string") {
+        result[fullKey] = value;
+      } else if (isPlainObject(value)) {
+        visit(value, fullKey);
+      } else {
+        throw new TypegenError(
+          `Invalid translation value in ${filePath}: key "${fullKey}" is ${describeValue(value)}, ` +
+            `expected a string or a nested object of strings`,
+          ErrorCodes.CONFIG_INVALID,
+        );
+      }
+    }
+  };
+
+  visit(catalog, "");
+  return result;
 }
