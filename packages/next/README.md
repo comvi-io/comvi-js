@@ -327,9 +327,10 @@ for the rename table.
 
 ### ICU has two shapes, and the wrong one throws
 
-`icuCompiler` is a compiler and `icu()` is an installer, so which one you need
-depends on **where the catalog comes from**. Both are exported from both
-`@comvi/next` entries:
+`icuCompiler` is a compiler and `icu()` is an installer. The constructor option
+is a field held for the instance's life, so it covers **any** catalog, inline or
+hydrated later; the installer is the one with the ordering rule. Both are
+exported from both `@comvi/next` entries:
 
 ```tsx
 // INLINE — the constructor ingests the catalog, so choose the compiler in the

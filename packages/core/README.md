@@ -116,6 +116,11 @@ codemod, and the one rule that has a timing constraint:
   catalog (constructor, `addTranslations`, or a loader merge) and a later
   `icu()` throws `E_COMPILER_LOCKED` before mutating anything.
 
+The timing rule is the installer's, not the compiler's. `compiler: icuCompiler`
+is a constructor field held for the instance's life, so it also covers a catalog
+that arrives later, as the composition example above does. Reach for `.with(icu())`
+when the host was constructed somewhere you do not control.
+
 ### ICU syntax on the default compiler is never silent
 
 `{count, plural, …}` on the default compiler is never rendered as a plural, and
@@ -146,10 +151,14 @@ asserts the identifier occurs in no production artifact.
 
 ### Framework bindings
 
-`@comvi/{react,solid,svelte,vue,next,nuxt}` demand `WrapperI18nHost`, which is
-`I18nCoreInstance & I18nCoreExtraApi` and is exactly what a base host
+`@comvi/{react,solid,svelte,vue,next,nuxt}` are typed against `WrapperI18nHost`,
+which is `I18nCoreInstance & I18nCoreExtraApi` and is exactly what a base host
 implements. So the same component code runs on a base host or on any composition
-of it. Loader and plugin members are not part of `useI18n()`; you acquire them
+of it. The provider and context entry points accept slightly more than that
+name: `WrapperI18nHost<D>` is invariant in `D`, so react, solid and svelte widen
+`setDefaultParams` and `init` on the parameter type, and a host built with
+`defaultParams` is accepted rather than rejected. Loader and plugin members are
+not part of `useI18n()`; you acquire them
 through `useI18nLoader()` / `useI18nPlugins()`, which throw a named error (in
 development **and** production) on a host that lacks the capability rather than
 being typed present and failing at an arbitrary call site later.
@@ -601,12 +610,13 @@ const i18n = createI18n({ locale: "en", fallbackLocale: "en" }).with(loader()).w
 i18n.use(CdnLoader({ cdnUrl: "https://cdn.comvi.io/your-distribution-id" }));
 ```
 
-Swapping the two slots is a type error, and loud at runtime as well:
+Swapping the two slots is a type error, and only one half is caught at runtime:
 `.use(cdnLoader(…))` throws at `init()` on the installer's first ensure-step,
-before any capability is attached, and `.with(CdnLoader(…))` invokes a plugin
-against a host that has none of the capabilities it needs, which is rejected.
+before any capability is attached. `.with(CdnLoader(…))` is not rejected at all.
 `.with` is a pipe and nothing more: it never inspects, orders or brands what you
-hand it, so each slot has to reject the other explicitly.
+hand it, so the plugin runs immediately, outside `init()`'s drain loop. On a
+host that already composed both capabilities it appears to work, while its
+cleanup is discarded and `required`, `timeout` and `onError` never apply.
 
 Plugins run sequentially during `.init()`, with timeout protection (10s default)
 and error recovery for non-required plugins. A plugin may return **nothing or a

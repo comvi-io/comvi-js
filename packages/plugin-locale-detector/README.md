@@ -89,17 +89,23 @@ const i18n = createI18n({ locale: "en" }).with(attachPlugins);
 i18n.use(LocaleDetector({ supportedLocales: ["en", "uk", "de"] }));
 ```
 
-**Swapping the two is a type error, and it fails loudly at runtime too.** Nothing
-is branded: an installer and a plugin are both "a function of the host". So each
-slot rejects the other explicitly instead of half-working:
+**Swapping the two is a type error. Only one of the two is caught at runtime.**
+Nothing is branded: an installer and a plugin are both "a function of the host",
+and `.with` is a pipe and nothing more, so it never inspects, orders or brands
+what you hand it.
 
 - `.use(localeDetector(…))` fails at `init()`, on the installer's first
   ensure-step, **before** the plugin host is attached and before a second
   plugin reaches the queue. The message names `localeDetector` and the `.with`
   form.
-- `.with(LocaleDetector(…))` calls the plugin against a host that has no
-  `registerLocaleDetector`, so the invocation is rejected. `.with` is a pipe and
-  nothing more: it never inspects, orders or brands what you hand it.
+- `.with(LocaleDetector(…))` is **not** rejected. The plugin runs straight away,
+  outside `init()`'s drain loop. On a bare host it dies on
+  `registerLocaleDetector`, and because this plugin is synchronous that lands as
+  a `TypeError` at the call site. On a host that already composed
+  `@comvi/core/plugins` every member it touches exists, so it appears to work
+  while its cleanup is discarded: `destroy()` leaves the `localeChanged`
+  listener subscribed, `.with` hands you that cleanup function instead of the
+  host, and `required`, `timeout` and `onError` never apply.
 
 ## How detection works
 

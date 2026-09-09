@@ -152,18 +152,22 @@ development **and** production, never a silent no-op:
 `reloadTranslations`, `registerLoader`, `registerLocaleDetector`,
 `registerPostProcessor`, `onMissingKey`, `onLoadError` and `use` are gone from
 the class; the host it wraps is public as `readonly core`, so registration
-happens there:
+happens on the host instead:
 
 ```diff check=skip:proxy-relocation
 -i18n.registerLoader(myLoader);
 -i18n.use(FetchLoader({ … }));
-+i18n.core.registerLoader(myLoader);
-+i18n.core.use(FetchLoader({ … }));
++const core = createCore({ locale: "en" }).with(loader()).with(plugins());
++core.registerLoader(myLoader);
++core.use(FetchLoader({ … }));
++const i18n = createI18nFromCore(core);
 ```
 
-`i18n.core.use(…)` returns the host, not the wrapper, so it no longer chains off
-the `createI18n(…)` call. Nothing on `VueI18n` is typed present and then throws
-"missing capability", so `use` left with the rest.
+Both members are capabilities, so they exist on the host only once that host has
+composed them. `registerLoader` comes with `@comvi/core/loader` and `use` with
+`@comvi/core/plugins`; on the base host `createI18n` builds, `i18n.core.use(…)`
+is a type error and a `TypeError` at runtime. Nothing on `VueI18n` is typed
+present and then throws "missing capability", so `use` left with the rest.
 
 Migrating from 0.4.x: `pnpm codemod:framework-slim "src/**/*.{ts,vue}"` (it
 rewrites the destructures and _reports_ the proxy call sites, whose receiver

@@ -110,17 +110,22 @@ const i18n = createI18n({ locale: "en" }).with(attachLoader).with(attachPlugins)
 i18n.use(CdnLoader({ cdnUrl: "https://cdn.comvi.io/your-distribution-id" }));
 ```
 
-**Swapping the two is a type error, and it fails loudly at runtime too.** Nothing
-is branded: an installer and a plugin are both "a function of the host". So each
-slot rejects the other explicitly instead of half-working:
+**Swapping the two is a type error. Only one of the two is caught at runtime.**
+Nothing is branded: an installer and a plugin are both "a function of the host",
+and `.with` is a pipe and nothing more, so it never inspects, orders or brands
+what you hand it.
 
 - `.use(cdnLoader(…))` fails at `init()`, on the installer's first
   ensure-step, **before** the loader or plugin capability is attached and
   before a second plugin reaches the queue. The message names `cdnLoader`
   and the `.with` form.
-- `.with(CdnLoader(…))` calls the plugin against a host that has none of the
-  capabilities it needs, so the invocation is rejected. `.with` is a pipe and
-  nothing more: it never inspects, orders or brands what you hand it.
+- `.with(CdnLoader(…))` is **not** rejected. The plugin runs straight away,
+  outside `init()`'s drain loop. This plugin is async, so on a bare host the
+  missing `setPluginData` surfaces as a rejected promise rather than a throw at
+  the call site. On a host that already composed both capabilities it appears to
+  work while its cleanup is discarded: `destroy()` never stops the in-flight
+  tracker, `.with` hands you that cleanup function instead of the host, and
+  `required`, `timeout` and `onError` never apply.
 
 ## CDN namespace layout
 
