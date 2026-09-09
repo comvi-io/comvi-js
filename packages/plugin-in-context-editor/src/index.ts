@@ -188,13 +188,19 @@ export const InContextEditorPlugin: I18nPluginFactory<EditorOptions> = (options)
       };
     }
 
+    // Context collection is ON by default. The site's `createI18n` option is
+    // the single developer-level opt-out and always wins: `collectContext:
+    // false` on the host cannot be re-enabled by the plugin option. Otherwise
+    // the plugin option decides, and leaving it unset keeps Core's default.
+    const collectContext = i18n.collectContext === false ? false : options?.collectContext;
+
     const core = new Core(
       {
         targetElement: options?.targetElement || document.body,
         tagAttributes: options?.tagAttributes,
         debug: options?.debug,
         highlightStyle: options?.highlightStyle,
-        collectContext: options?.collectContext,
+        collectContext,
         screenGroupResolver: options?.screenGroupResolver,
       },
       i18n,
