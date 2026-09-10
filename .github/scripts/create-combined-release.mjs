@@ -38,14 +38,35 @@ const sorted = [...published].sort((a, b) => {
   return a.name.localeCompare(b.name);
 });
 
-const version = sorted[0].version;
-const tag = `v${version}`;
-const allSameVersion = sorted.every((p) => p.version === version);
+// The tag comes from the release train: the `fixed` group of
+// .changeset/config.json, whose members always share one version. Anything
+// published outside that group is versioned independently (today
+// @comvi/locale-routing; scripts/root-changelog.mjs calls the same set
+// INDEPENDENT_PACKAGES and filters it out of coordinatedVersion()). The config
+// is the single place that decision is recorded, so read it instead of keeping
+// a second hard-coded list here. Independent packages keep their own version in
+// the release notes, in manifest.json and in the archive.
+const changesetConfig = JSON.parse(readFileSync(".changeset/config.json", "utf8"));
+const fixedGroup = new Set((changesetConfig.fixed ?? []).flat());
+const trainPackages = sorted.filter((p) => fixedGroup.has(p.name));
+const independentPackages = sorted.filter((p) => !fixedGroup.has(p.name));
 
-if (!allSameVersion) {
+if (trainPackages.length === 0) {
   console.error(
-    `Refusing to create ${tag}: all published packages must share one version.\n` +
+    "Refusing to create a release: no published package belongs to the `fixed` group in " +
+      ".changeset/config.json, so there is no release-train version to tag.\n" +
       sorted.map((p) => `- ${p.name}@${p.version}`).join("\n"),
+  );
+  process.exit(1);
+}
+
+const version = trainPackages[0].version;
+const tag = `v${version}`;
+
+if (!trainPackages.every((p) => p.version === version)) {
+  console.error(
+    `Refusing to create ${tag}: published packages in the \`fixed\` group must share one version.\n` +
+      trainPackages.map((p) => `- ${p.name}@${p.version}`).join("\n"),
   );
   process.exit(1);
 }
@@ -118,7 +139,9 @@ function createReleaseArchive() {
         `# Comvi ${version}`,
         "",
         "This archive contains the npm tarballs for the coordinated Comvi release.",
-        "All included `@comvi/*` packages are published from the same commit and share the same version.",
+        "All included `@comvi/*` packages are published from the same commit. The release train shares",
+        `version \`${version}\`; independently versioned packages keep their own version. Every package's`,
+        "own version is recorded in `manifest.json`.",
         "",
         "Use `manifest.json` for package metadata and `SHA256SUMS` for integrity checks.",
         "",
@@ -147,7 +170,12 @@ function extractVersionSection(changelog, v) {
 }
 
 let body = "";
-body += `Released \`${version}\` across all publishable \`@comvi/*\` packages.\n\n`;
+body += `Released \`${version}\` across the coordinated \`@comvi/*\` release train.\n\n`;
+if (independentPackages.length > 0) {
+  body += `Independently versioned in this release: ${independentPackages
+    .map((p) => `\`${p.name}@${p.version}\``)
+    .join(", ")}.\n\n`;
+}
 body += `The GitHub Release asset \`comvi-v${version}.tar.gz\` is the single archive for this release. It contains the packed npm tarballs plus \`manifest.json\` and \`SHA256SUMS\`.\n\n`;
 
 for (const pkg of sorted) {

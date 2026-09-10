@@ -175,6 +175,12 @@ jobs:
       - name: Build
         run: pnpm build
 
+      # The built dist must inline the manifest version (core's devtools
+      # discovery and duplicate-copy guard key on it). Same gate the release
+      # workflow runs after its build.
+      - name: Inlined version gate
+        run: pnpm check:inlined-version
+
       # Verifies every publishable package's exports/main/types/bin targets are
       # present in `npm pack` output.
       - name: Package contracts

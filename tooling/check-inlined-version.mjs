@@ -1,0 +1,135 @@
+/**
+ * Gate: the version inlined into a package's built artifacts must equal the
+ * version in its manifest.
+ *
+ * `packages/core` inlines its own version at build time
+ * (`define: { __VERSION__: JSON.stringify(pkg.version) }` in vite.config.ts,
+ * vite.config.dev.ts and vite.config.umd.ts). The build reads package.json, so
+ * any step that rewrites the manifest AFTER the build (the RC rehearsal's
+ * scripts/rc-version.mjs, a hand-edited version) leaves `dist` reporting the
+ * previous version while npm receives the new one. Nothing else notices: the
+ * inlined value only surfaces at runtime, through the devtools discovery
+ * envelope (`{v, i}`) and the duplicate-copy guard, which is KEYED on the
+ * version string and therefore goes silently blind when two different copies
+ * both claim the same stale version.
+ *
+ * Which packages are checked is discovered, not hard-coded: every
+ * `packages/<name>/vite.config*.{ts,mts,js,mjs}` that mentions `__VERSION__`
+ * marks its package as version-inlining, so a second package that starts
+ * inlining is covered without touching this file.
+ *
+ * The check is deliberately strict: every semver string literal in the built
+ * output must be the manifest version. In today's `packages/core/dist` the only
+ * such literals are the inlined copies themselves, so a stale build is caught
+ * in both directions (missing new version, or a leftover old one). If a package
+ * ever ships an unrelated semver literal in `dist`, this gate is where to
+ * record it.
+ *
+ * Usage: `node tooling/check-inlined-version.mjs` from the repo root.
+ */
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+const BUILT_EXTENSIONS = new Set([".js", ".mjs", ".cjs"]);
+const VITE_CONFIG = /^vite\.config.*\.(ts|mts|js|mjs)$/;
+const SEMVER_LITERAL = /["'](\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?)["']/g;
+
+/** Package directories whose vite config inlines `__VERSION__`. */
+export function packagesInliningVersion(root) {
+  const packagesDir = path.join(root, "packages");
+  if (!fs.existsSync(packagesDir)) return [];
+  const found = [];
+  for (const entry of fs.readdirSync(packagesDir).sort()) {
+    const dir = path.join(packagesDir, entry);
+    const manifestPath = path.join(dir, "package.json");
+    if (!fs.existsSync(manifestPath) || !fs.statSync(dir).isDirectory()) continue;
+    const configs = fs
+      .readdirSync(dir)
+      .filter((file) => VITE_CONFIG.test(file))
+      .filter((file) => fs.readFileSync(path.join(dir, file), "utf8").includes("__VERSION__"));
+    if (configs.length === 0) continue;
+    const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
+    found.push({ dir, name: manifest.name, version: manifest.version, configs: configs.sort() });
+  }
+  return found;
+}
+
+function builtFiles(distDir) {
+  const files = [];
+  for (const entry of fs.readdirSync(distDir, { withFileTypes: true })) {
+    const full = path.join(distDir, entry.name);
+    if (entry.isDirectory()) files.push(...builtFiles(full));
+    else if (BUILT_EXTENSIONS.has(path.extname(entry.name))) files.push(full);
+  }
+  return files.sort();
+}
+
+/** Every semver string literal in a built file, in source order. */
+export function collectVersionLiterals(source) {
+  return [...source.matchAll(SEMVER_LITERAL)].map((match) => match[1]);
+}
+
+export function checkPackage(pkg) {
+  const problems = [];
+  const distDir = path.join(pkg.dir, "dist");
+  if (!fs.existsSync(distDir)) {
+    return {
+      ...pkg,
+      matched: 0,
+      problems: [`${pkg.name}: no dist/ to check — run the build before this gate`],
+    };
+  }
+
+  let matched = 0;
+  for (const file of builtFiles(distDir)) {
+    const literals = collectVersionLiterals(fs.readFileSync(file, "utf8"));
+    for (const literal of literals) {
+      if (literal === pkg.version) matched += 1;
+      else
+        problems.push(
+          `${pkg.name}: ${path.relative(pkg.dir, file)} inlines version "${literal}" but the ` +
+            `manifest says ${pkg.version} — the build ran against a different manifest ` +
+            `(rebuild after any version rewrite)`,
+        );
+    }
+  }
+
+  if (matched === 0) {
+    problems.push(
+      `${pkg.name}: no built file inlines the manifest version ${pkg.version} — ` +
+        `${pkg.configs.join(", ")} define __VERSION__, so dist/ is stale or was built from a ` +
+        `different manifest`,
+    );
+  }
+
+  return { ...pkg, matched, problems };
+}
+
+export function checkInlinedVersions({ root, log = console.log } = {}) {
+  const packages = packagesInliningVersion(root);
+  if (packages.length === 0) {
+    return {
+      packages,
+      problems: ["no package inlines __VERSION__ — this gate has nothing to check"],
+    };
+  }
+  const results = packages.map((pkg) => checkPackage(pkg));
+  const problems = results.flatMap((result) => result.problems);
+  for (const result of results) {
+    if (result.problems.length === 0)
+      log(
+        `check-inlined-version: ${result.name} dist inlines ${result.version} ` +
+          `(${result.matched} occurrence${result.matched === 1 ? "" : "s"})`,
+      );
+  }
+  return { packages: results, problems };
+}
+
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+  const { problems } = checkInlinedVersions({ root: process.cwd() });
+  if (problems.length > 0) {
+    for (const problem of problems) console.error(`check-inlined-version: ${problem}`);
+    process.exit(1);
+  }
+}

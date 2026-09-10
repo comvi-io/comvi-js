@@ -58,9 +58,13 @@ jobs:
       - name: Ensure npm 11.5.1+ for OIDC trusted publishing
         run: npm install -g npm@11.11.0
 
-      - name: Build
-        run: pnpm build
-
+      # The rewrite runs BEFORE the build: @comvi/core inlines its own version
+      # into dist (vite `define: __VERSION__`), and nothing between the rewrite
+      # and `pnpm publish` rebuilds — no package has a prepack/prepublishOnly
+      # script. Building first published an rc tarball whose runtime reported
+      # the previous GA version, which also blinded the version-keyed
+      # duplicate-copy guard.
+      #
       # The input reaches the shell through the environment, never through
       # `${{ }}` inside the `run:` body: interpolation happens before the shell
       # parses the line, so a `$(…)` in the input would execute even inside
@@ -70,6 +74,12 @@ jobs:
         env:
           RC: ${{ inputs.rc }}
         run: node scripts/rc-version.mjs --rc "$RC"
+
+      - name: Build
+        run: pnpm build
+
+      - name: Verify built artifacts inline the manifest version
+        run: node tooling/check-inlined-version.mjs
 
       - name: Publish rc under dist-tag next
         run: pnpm -r --filter './packages/*' publish --tag next --access public --no-git-checks
@@ -107,6 +117,12 @@ jobs:
 
       - name: Build
         run: pnpm build
+
+      # Cheap insurance on the publishing run: the checkout is already
+      # versioned there, so dist must inline the version npm is about to
+      # receive. On the versioning run it simply confirms the pre-bump build.
+      - name: Verify built artifacts inline the manifest version
+        run: node tooling/check-inlined-version.mjs
 
       - name: Create Release PR or Publish
         id: changesets
