@@ -67,13 +67,33 @@ let anonCounter = 0;
 // runtime-narrowed before use.
 const comviWindow = window as Window & { __COMVI__?: unknown };
 
+/**
+ * The marker alone is NOT enough: it is forgeable, and a page that pollutes
+ * `Object.prototype.__comviEditorHook` marks every object. Adopt only a global
+ * that also carries the members every read below needs — the same check core
+ * makes before pushing (`core/devtools.ts`: `push` AND `remove`), plus the
+ * `instances` map the status probe reads. A marked-but-non-conforming global is
+ * a truthy non-conforming global: left untouched, never adopted, never read.
+ */
 function isComviHook(g: unknown): g is ComviHookLike {
-  return !!g && typeof g === "object" && "__comviEditorHook" in g && g.__comviEditorHook === true;
+  if (!g || typeof g !== "object") {
+    return false;
+  }
+  const h = g as Partial<ComviHookLike>;
+  return (
+    h.__comviEditorHook === true &&
+    h.instances instanceof Map &&
+    typeof h.push === "function" &&
+    typeof h.remove === "function"
+  );
 }
 
 /**
  * Accept either shape a queue slot may hold: a `{v, i}` envelope (new core)
- * or a bare legacy instance drained from a pre-existing array.
+ * or a bare legacy instance drained from a pre-existing array. `i` is read as
+ * an OWN property: `in` walks the prototype chain, so a page with a polluted
+ * `Object.prototype.i` would otherwise have every bare instance read as an
+ * envelope and its own object tracked as the i18n instance.
  */
 function toInstance(
   entry: ComviQueueEntry | I18nLike,
@@ -81,13 +101,17 @@ function toInstance(
   if (!entry || typeof entry !== "object") {
     return null;
   }
-  if ("i" in entry) {
-    if (!entry.i || typeof entry.i !== "object") {
+  if (Object.prototype.hasOwnProperty.call(entry, "i")) {
+    const envelope = entry as ComviQueueEntry;
+    if (!envelope.i || typeof envelope.i !== "object") {
       return null;
     }
-    return { instance: entry.i, version: typeof entry.v === "string" ? entry.v : undefined };
+    return {
+      instance: envelope.i,
+      version: typeof envelope.v === "string" ? envelope.v : undefined,
+    };
   }
-  return { instance: entry };
+  return { instance: entry as I18nLike };
 }
 
 function createComviHook(): ComviHookLike {
@@ -104,8 +128,21 @@ function createComviHook(): ComviHookLike {
     if (!instance || typeof instance !== "object") {
       return;
     }
-    const resolvedId =
+    let resolvedId =
       id ?? idsByInstance.get(instance) ?? instance.instanceId ?? `comvi-anon-${++anonCounter}`;
+    // Two copies of core on one page both mint `comvi-1`. Keying on the id
+    // alone would drop the first instance from discovery the moment the second
+    // announced itself, so a colliding id is DEDUPED rather than overwritten:
+    // both instances stay discoverable and editable.
+    const collided = instances.has(resolvedId) && instances.get(resolvedId) !== instance;
+    while (instances.has(resolvedId) && instances.get(resolvedId) !== instance) {
+      resolvedId = `${resolvedId}#${++anonCounter}`;
+    }
+    if (collided) {
+      console.warn(
+        `[ComviExtension] Two i18n instances announced the same instanceId; tracking the second as "${resolvedId}". Two copies of @comvi/core on one page is the usual cause.`,
+      );
+    }
     const prevId = idsByInstance.get(instance);
     if (prevId !== undefined && prevId !== resolvedId) {
       instances.delete(prevId);
@@ -122,8 +159,14 @@ function createComviHook(): ComviHookLike {
       return;
     }
     const id = idsByInstance.get(instance);
-    if (id !== undefined) {
-      idsByInstance.delete(instance);
+    if (id === undefined) {
+      return;
+    }
+    idsByInstance.delete(instance);
+    // Identity guard: only drop the slot while it still holds THIS instance.
+    // Without it, a destroyed instance whose id was taken over by another live
+    // one evicts that live one from discovery.
+    if (instances.get(id) === instance) {
       instances.delete(id);
     }
   };
@@ -168,19 +211,24 @@ function createComviHook(): ComviHookLike {
 function adoptComviGlobal(): ComviHookLike | null {
   try {
     const existing: unknown = comviWindow.__COMVI__;
-    if (isComviHook(existing)) {
-      return existing;
+    // `Array.isArray` is probed BEFORE the marker, matching core's probe order:
+    // a page that pollutes `Object.prototype.__comviEditorHook` must not be
+    // able to make a legitimate raw queue array look like an installed hook.
+    if (Array.isArray(existing)) {
+      // An array-masquerading hook (ours, or the in-context editor's) is
+      // already the drained-and-swapped global: reuse it, never swap twice.
+      if (isComviHook(existing)) {
+        return existing;
+      }
+      const snapshot = existing as Array<ComviQueueEntry | I18nLike>;
+      const hook = createComviHook();
+      comviWindow.__COMVI__ = hook;
+      for (const raw of snapshot) {
+        hook.push(raw);
+      }
+      return hook;
     }
-    if (!Array.isArray(existing)) {
-      return null;
-    }
-    const snapshot = existing as Array<ComviQueueEntry | I18nLike>;
-    const hook = createComviHook();
-    comviWindow.__COMVI__ = hook;
-    for (const raw of snapshot) {
-      hook.push(raw);
-    }
-    return hook;
+    return isComviHook(existing) ? existing : null;
   } catch {
     // Discovery must never break the page.
     return null;
@@ -193,13 +241,40 @@ const DETECTOR_FLAG = "__comviExtensionDetectorInstalled";
 // page load.
 if (!(window as any)[DETECTOR_FLAG]) {
   (window as any)[DETECTOR_FLAG] = true;
-  installDetector();
+  try {
+    installDetector();
+  } catch (error) {
+    // The flag is a re-injection guard, not a receipt. If installation could
+    // not finish, clear it so the popup's next chrome.scripting injection
+    // retries instead of being a permanent no-op for this page load.
+    (window as any)[DETECTOR_FLAG] = false;
+    throw error;
+  }
 }
 
 function installDetector() {
   let detectionComplete = false;
 
+  /**
+   * Never throws: every read below touches page-controlled objects, and a
+   * getter that throws must not be able to silence the detector — the bridge
+   * and the popup get "nothing detected" rather than no answer at all.
+   */
   function getComviStatus(): ComviStatus {
+    try {
+      return readComviStatus();
+    } catch {
+      return {
+        detected: false,
+        version: null,
+        instanceCount: 0,
+        editorActive: false,
+        editorLoaded: false,
+      };
+    }
+  }
+
+  function readComviStatus(): ComviStatus {
     // Lazily adopt a raw v2 queue array whenever status is read: new core
     // may install the queue at any point after document_start.
     const hook = adoptComviGlobal();

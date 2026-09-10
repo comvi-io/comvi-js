@@ -200,6 +200,34 @@ describe.each(Object.keys(SURFACES))(
       expect(win.__COMVI__).toBe(42);
     });
 
+    it("splices the raw queue by identity even when the page extended Array.prototype", async () => {
+      // `Array.prototype.remove` is a well-known legacy prototype extension.
+      // Consulting `g.remove` before `Array.isArray` would hand our entry
+      // OBJECT to a polyfill expecting an index: `splice(<object>, 1)` coerces
+      // to 0 and drops SOMEONE ELSE's live entry, and the try/catch cannot see
+      // it because the wrong thing succeeded.
+      Object.defineProperty(Array.prototype, "remove", {
+        configurable: true,
+        writable: true,
+        value(this: unknown[], index: number) {
+          this.splice(index, 1);
+        },
+      });
+      try {
+        const first = makeExposed("gd-proto-keep");
+        const second = makeExposed("gd-proto-drop");
+        const queue = win.__COMVI__ as ComviQueueEntry[];
+        expect(queue).toHaveLength(2);
+
+        await second.destroy();
+
+        expect(queue).toHaveLength(1);
+        expect(queue[0]!.i).toBe(first);
+      } finally {
+        delete (Array.prototype as unknown as Record<string, unknown>).remove;
+      }
+    });
+
     it("survives a throwing hook on both construction and destroy", () => {
       win.__COMVI__ = {
         push: () => {
@@ -303,5 +331,115 @@ describe("attachDevtools install surface", () => {
 
     await i18n.destroy();
     expect(win.__COMVI__).toEqual([]);
+  });
+});
+
+/**
+ * Two copies of core on one page: a CDN global plus a bundled npm copy, or a
+ * binding pinned to a different patch (`core/duplicateGuard.ts` warns about
+ * exactly this). Each copy carries its OWN module-scoped id counter, so both
+ * would name their first instance `comvi-1`, and a consumer keyed on the id —
+ * both shipped ones are — would only ever see one of the two.
+ *
+ * Loading the module graph twice through `vi.resetModules()` IS that shape:
+ * two independent copies of the same source, each with its own counter, just
+ * as two bundles on a page are.
+ */
+describe("two independently loaded copies of core on one page", () => {
+  interface CoreCopy {
+    createI18n: typeof createI18n;
+    attachDevtools: typeof attachDevtools;
+  }
+
+  async function loadCore(): Promise<CoreCopy> {
+    vi.resetModules();
+    const [entry, devtools] = await Promise.all([
+      import("../../src"),
+      import("../../src/devtools"),
+    ]);
+    return { createI18n: entry.createI18n, attachDevtools: devtools.attachDevtools };
+  }
+
+  /**
+   * A consumer hook of the shape both shipped consumers install: an
+   * array-masquerading carrier keyed on `instanceId`, with identity-safe
+   * removal.
+   */
+  function installConsumerHook(): Map<string, unknown> {
+    const instances = new Map<string, unknown>();
+    win.__COMVI__ = Object.assign([] as unknown[], {
+      __comviEditorHook: true as const,
+      instances,
+      push(entry: ComviQueueEntry) {
+        instances.set(entry.i.instanceId!, entry.i);
+      },
+      remove(entry: ComviQueueEntry) {
+        const id = entry.i.instanceId!;
+        if (instances.get(id) === entry.i) instances.delete(id);
+      },
+    });
+    return instances;
+  }
+
+  beforeEach(() => {
+    delete win.__COMVI__;
+  });
+
+  afterEach(() => {
+    delete win.__COMVI__;
+  });
+
+  it("does not mint an id the consumer's hook already tracks", async () => {
+    const instances = installConsumerHook();
+
+    const copyA = await loadCore();
+    const a = copyA.attachDevtools(copyA.createI18n({ locale: "en" }));
+    const copyB = await loadCore();
+    const b = copyB.attachDevtools(copyB.createI18n({ locale: "en" }));
+
+    expect(a.instanceId).toBe("comvi-1");
+    expect(b.instanceId).toMatch(/^comvi-\d+$/);
+    expect(b.instanceId).not.toBe(a.instanceId);
+    expect(instances.size).toBe(2);
+    expect(instances.get(a.instanceId!)).toBe(a);
+    expect(instances.get(b.instanceId!)).toBe(b);
+  });
+
+  it("leaves the other copy's instance discoverable when one is destroyed", async () => {
+    const instances = installConsumerHook();
+    const copyA = await loadCore();
+    const a = copyA.attachDevtools(copyA.createI18n({ locale: "en" }));
+    const copyB = await loadCore();
+    const b = copyB.attachDevtools(copyB.createI18n({ locale: "en" }));
+
+    await a.destroy();
+
+    expect(instances.size).toBe(1);
+    expect(instances.get(b.instanceId!)).toBe(b);
+  });
+
+  it("still mints a fresh id when the global is a raw queue with no id set to read", async () => {
+    win.__COMVI__ = [] as ComviQueueEntry[];
+
+    const copyA = await loadCore();
+    const a = copyA.attachDevtools(copyA.createI18n({ locale: "en" }));
+
+    expect(a.instanceId).toBe("comvi-1");
+    expect((win.__COMVI__ as ComviQueueEntry[])[0]!.i).toBe(a);
+  });
+
+  it("mints an id without throwing when reading the global throws", async () => {
+    Object.defineProperty(win, "__COMVI__", {
+      configurable: true,
+      get() {
+        throw new Error("hostile global");
+      },
+    });
+
+    const copyA = await loadCore();
+    const a = copyA.attachDevtools(copyA.createI18n({ locale: "en" }));
+
+    expect(a.instanceId).toBe("comvi-1");
+    delete (win as { __COMVI__?: unknown }).__COMVI__;
   });
 });

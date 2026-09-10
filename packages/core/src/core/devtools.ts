@@ -36,6 +36,32 @@ interface LegacyComviRegistry {
   unregister?(id: string): void;
 }
 
+/**
+ * Default id: `comvi-<n>` from a MODULE-scoped counter, so two copies of core
+ * on one page (a CDN global plus a bundled npm copy) would both mint `comvi-1`.
+ * A consumer keyed on the id then loses one of the two instances, so the
+ * counter skips any id a consumer's hook already tracks. Only a hook exposes a
+ * live id set; against a raw queue array (no consumer yet) the collision is the
+ * consumer's to dedupe on drain, which both shipped hooks now do.
+ */
+function mintInstanceId(): string {
+  let live: unknown;
+  try {
+    live =
+      typeof window === "undefined"
+        ? undefined
+        : (window.__COMVI__ as { instances?: unknown })?.instances;
+  } catch {
+    /* a hostile global must not break construction */
+  }
+  const taken = live instanceof Map ? live : undefined;
+  let id: string;
+  do {
+    id = `comvi-${++instanceCounter}`;
+  } while (taken?.has(id));
+  return id;
+}
+
 /** Discovery options; the same two fields the composite reads off `I18nOptions`. */
 export interface DevtoolsOptions {
   /** Stable id for this instance. Auto-generated (`comvi-<n>`) when omitted. */
@@ -62,7 +88,7 @@ export class I18nWithDevtools<D extends DefaultTranslationParams = {}> extends I
     if (!(exposeGlobal ?? typeof window !== "undefined")) return;
 
     const self = this as unknown as I18nInternal;
-    self.instanceId = instanceId || `comvi-${++instanceCounter}`;
+    self.instanceId = instanceId || mintInstanceId();
     if (typeof window === "undefined") return;
 
     // Mixed-version-safe discovery (protocol v2). Pages may run two core
@@ -100,8 +126,13 @@ export class I18nWithDevtools<D extends DefaultTranslationParams = {}> extends I
 
   /**
    * @internal `_disposeDevtools` hook — identity-based removal from the global
-   * `__COMVI__` queue, probed in the same order as exposure:
-   * hook/masquerading-array remove → raw array splice → legacy unregister.
+   * `__COMVI__` queue, probed in the same order as exposure: array (raw queue
+   * splice, or a masquerading hook's OWN remove) → hook remove → legacy
+   * unregister. `Array.isArray` FIRST is what keeps a page-defined
+   * `Array.prototype.remove` polyfill out of the raw-queue path: consulting
+   * `g.remove` first would hand our entry OBJECT to a polyfill expecting an
+   * index, which coerces to 0 and splices someone else's live entry, and the
+   * try/catch below cannot see it because the wrong thing succeeded.
    * Runs at the very top of `destroy()`.
    */
   protected _disposeDevtools(): void {
@@ -109,11 +140,20 @@ export class I18nWithDevtools<D extends DefaultTranslationParams = {}> extends I
     try {
       const g = window.__COMVI__ as unknown;
       const entry = this._globalEntry;
-      if (g && typeof (g as ComviHook).remove === "function") {
+      if (Array.isArray(g)) {
+        // A masquerading consumer hook's OWN remove shadows Array.prototype,
+        // so it still gets the identity-based call it published.
+        if (
+          Object.prototype.hasOwnProperty.call(g, "remove") &&
+          typeof (g as unknown as ComviHook).remove === "function"
+        ) {
+          if (entry) (g as unknown as ComviHook).remove(entry);
+        } else {
+          const idx = entry ? g.indexOf(entry) : -1;
+          if (idx !== -1) g.splice(idx, 1);
+        }
+      } else if (g && typeof (g as ComviHook).remove === "function") {
         if (entry) (g as ComviHook).remove(entry);
-      } else if (Array.isArray(g)) {
-        const idx = entry ? g.indexOf(entry) : -1;
-        if (idx !== -1) g.splice(idx, 1);
       } else if (g && typeof (g as LegacyComviRegistry).unregister === "function") {
         (g as LegacyComviRegistry).unregister!(this.instanceId);
       }
