@@ -450,8 +450,9 @@ a **default-slot fallback**: a key with no translation and no `fallback` prop
 renders the default slot instead of the key.
 
 **Nine named value exports dropped.** `@comvi/vue` used to re-export core with
-`export * from "@comvi/core"`, so every value on core's root entry was also a
-named export of `@comvi/vue`. The entry now re-exports core's values **by
+`export * from "@comvi/core"`, so every value on core's root entry, except
+`createI18n` (vue shadowed it with its own), was also a named export of
+`@comvi/vue`. The entry now re-exports core's values **by
 name** and its types with `export type *`, because a star re-export of values
 is a name set webpack can only resolve by keeping the source module alive
 (§0.3's bundle notes). The types are unaffected —

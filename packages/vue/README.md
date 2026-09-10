@@ -233,7 +233,8 @@ why the composition pipe lives one level down.
 
 **Named, which is the point — and it costs nine 0.4.x names.** The table above
 is the whole value surface. 0.4.x carried `export * from "@comvi/core"`, so
-every value on core's root entry was also a named export here; a star
+every value on core's root entry, except `createI18n` (vue shadowed it with its
+own), was also a named export here; a star
 re-export of values is a name set webpack can only resolve by keeping the
 source module alive, which is how this file once pinned core's whole root entry
 into a dev bundle. Types are unchanged (`export type *` is erased before any
