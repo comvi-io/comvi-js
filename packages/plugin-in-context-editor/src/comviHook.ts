@@ -61,9 +61,30 @@ interface LegacyRegistryLike {
 }
 
 let anonCounter = 0;
+let dedupeCounter = 0;
 
+/**
+ * The marker alone is NOT enough: it is forgeable, and a page that pollutes
+ * `Object.prototype.__comviEditorHook` marks every object. Adopt only a global
+ * that also carries every member this package then USES on it — `push` and
+ * `remove` (the same pair core requires before pushing, `core/devtools.ts`),
+ * the `instances` map the status probe reads, and `get`, which
+ * `standalone.activate()` calls to resolve the instance to edit. A
+ * marked-but-non-conforming global is a truthy non-conforming global: never
+ * clobbered, never adopted.
+ */
 function isEditorHook(g: unknown): g is ComviHookApi {
-  return !!g && typeof g === "object" && "__comviEditorHook" in g && g.__comviEditorHook === true;
+  if (!g || typeof g !== "object") {
+    return false;
+  }
+  const h = g as Partial<ComviHookApi>;
+  return (
+    h.__comviEditorHook === true &&
+    h.instances instanceof Map &&
+    typeof h.push === "function" &&
+    typeof h.remove === "function" &&
+    typeof h.get === "function"
+  );
 }
 
 function isLegacyRegistry(g: unknown): g is LegacyRegistryLike {
@@ -85,18 +106,36 @@ function toInstance(
   if (!entry || typeof entry !== "object") {
     return null;
   }
-  if ("i" in entry) {
-    if (!entry.i || typeof entry.i !== "object") {
+  // `i` is read as an OWN property: `in` walks the prototype chain, so a page
+  // with a polluted `Object.prototype.i` would otherwise have every bare
+  // instance read as an envelope and its own object tracked as the instance.
+  if (Object.prototype.hasOwnProperty.call(entry, "i")) {
+    const envelope = entry as ComviQueueEntry;
+    if (!envelope.i || typeof envelope.i !== "object") {
       return null;
     }
-    return { instance: entry.i, version: typeof entry.v === "string" ? entry.v : undefined };
+    return {
+      instance: envelope.i,
+      version: typeof envelope.v === "string" ? envelope.v : undefined,
+    };
   }
-  return { instance: entry };
+  return { instance: entry as QueueI18n };
 }
 
 function createHook(): ComviHookApi {
   const instances = new Map<string, I18n>();
   const idsByInstance = new Map<QueueI18n, string>();
+  // Ids an old core CLAIMED through `register(id, instance)`, kept apart from
+  // the live map: when the claim collided it was tracked under a deduped key,
+  // and `unregister(id)` must still reach the instance that asked for the id
+  // rather than whichever instance happens to hold it now.
+  const claimedIds = new Map<string, QueueI18n>();
+
+  const forgetClaims = (instance: QueueI18n): void => {
+    claimedIds.forEach((held, claimed) => {
+      if (held === instance) claimedIds.delete(claimed);
+    });
+  };
 
   // Array-masquerading carrier: `Array.isArray(hook)` stays true, but the
   // OWN `push`/`remove` properties assigned below shadow Array.prototype, so
@@ -110,8 +149,27 @@ function createHook(): ComviHookApi {
     if (!instance || typeof instance !== "object") {
       return;
     }
-    const resolvedId =
+    let resolvedId =
       id ?? idsByInstance.get(instance) ?? instance.instanceId ?? `comvi-anon-${++anonCounter}`;
+    if (id !== undefined) {
+      // One instance holds at most one claimed id: a re-register moves it.
+      forgetClaims(instance);
+      claimedIds.set(id, instance);
+    }
+    // Two copies of core on one page both mint `comvi-1`. Keying on the id
+    // alone would drop the first instance from discovery the moment the second
+    // announced itself, so a colliding id is DEDUPED rather than overwritten:
+    // both instances stay discoverable. The suffix is always appended to the
+    // ORIGINAL id, never to an already-suffixed one.
+    if (instances.has(resolvedId) && instances.get(resolvedId) !== instance) {
+      const claimed = resolvedId;
+      do {
+        resolvedId = `${claimed}#${++dedupeCounter}`;
+      } while (instances.has(resolvedId) && instances.get(resolvedId) !== instance);
+      console.warn(
+        `[ComviInContextEditor] Two i18n instances announced the same instanceId "${claimed}"; tracking the second as "${resolvedId}". Two copies of @comvi/core on one page is the usual cause.`,
+      );
+    }
     const prevId = idsByInstance.get(instance);
     if (prevId !== undefined && prevId !== resolvedId) {
       instances.delete(prevId);
@@ -129,10 +187,36 @@ function createHook(): ComviHookApi {
       return;
     }
     const id = idsByInstance.get(instance);
-    if (id !== undefined) {
-      idsByInstance.delete(instance);
+    if (id === undefined) {
+      return;
+    }
+    idsByInstance.delete(instance);
+    forgetClaims(instance);
+    // Identity guard: only drop the slot while it still holds THIS instance.
+    // Without it, a destroyed instance whose id was taken over by another live
+    // one evicts that live one from discovery.
+    if (instances.get(id) === instance) {
       instances.delete(id);
     }
+  };
+
+  /**
+   * The instance a deduped id now lives under, when that is unambiguous: an
+   * `instanceId` is public (an app reads it, `activate({ instanceId })` passes
+   * it), so an instance tracked as `<id>#<n>` must still be addressable by the
+   * id it announced once nothing holds the exact key. Two candidates mean the
+   * caller has to name the deduped key itself.
+   */
+  const resolveDeduped = (id: string): I18n | undefined => {
+    const prefix = `${id}#`;
+    let found: I18n | undefined;
+    for (const [key, instance] of instances) {
+      if (key.startsWith(prefix)) {
+        if (found) return undefined;
+        found = instance;
+      }
+    }
+    return found;
   };
 
   Object.assign(hook, {
@@ -152,11 +236,11 @@ function createHook(): ComviHookApi {
       track(instance, undefined, id);
     },
     unregister(id: string): void {
-      untrack(instances.get(id));
+      untrack(claimedIds.get(id) ?? instances.get(id));
     },
     get(id?: string): I18n | undefined {
       if (id) {
-        return instances.get(id);
+        return instances.get(id) ?? resolveDeduped(id);
       }
       return instances.values().next().value;
     },
@@ -203,19 +287,30 @@ export function ensureComviHook(): ComviHookApi | null {
     return null;
   }
   const existing: unknown = window.__COMVI__;
-  if (isEditorHook(existing)) {
-    return existing;
-  }
-
-  const hook = createHook();
+  // `Array.isArray` is probed BEFORE the marker, matching core's probe order:
+  // a page that pollutes `Object.prototype.__comviEditorHook` must not be able
+  // to make a legitimate raw queue array look like an installed hook.
   if (Array.isArray(existing)) {
+    // An array-masquerading hook (ours, or the extension detector's) already
+    // drained and swapped the global: reuse it, never swap twice.
+    if (isEditorHook(existing)) {
+      return existing;
+    }
+    const hook = createHook();
     // Swap FIRST so instances constructed mid-boot push into the hook, then
     // drain the snapshot ({v, i} envelopes AND bare legacy instances).
     window.__COMVI__ = hook;
     for (const raw of existing as Array<ComviQueueEntry | QueueI18n>) {
       hook.push(raw);
     }
-  } else if (isLegacyRegistry(existing)) {
+    return hook;
+  }
+  if (isEditorHook(existing)) {
+    return existing;
+  }
+
+  const hook = createHook();
+  if (isLegacyRegistry(existing)) {
     window.__COMVI__ = hook;
     drainLegacyRegistry(existing, hook);
   } else if (!existing) {
@@ -233,7 +328,15 @@ export interface ComviGlobalStatus {
   instanceCount: number;
 }
 
-/** Passive status probe — never installs or mutates the global. */
+/**
+ * Passive status probe — never installs or mutates the global.
+ *
+ * The hook branch comes first here (unlike the adoption path above) because an
+ * installed hook IS an array: reading it as a raw queue would report `length`,
+ * which the masquerade keeps at 0 forever. That is safe against a polluted
+ * `Object.prototype.__comviEditorHook` because `isEditorHook` also requires
+ * the `instances` map and the two methods, which a raw queue array lacks.
+ */
 export function readComviGlobalStatus(): ComviGlobalStatus {
   const g: unknown = typeof window === "undefined" ? undefined : window.__COMVI__;
   if (isEditorHook(g)) {

@@ -433,3 +433,228 @@ describe("readComviGlobalStatus()", () => {
     });
   });
 });
+
+/**
+ * The `__comviEditorHook` marker is page-writable data, and a page that
+ * pollutes `Object.prototype` marks every object on the page. Adoption must
+ * therefore validate the members it is about to read (the same check core
+ * makes before pushing: `push` AND `remove`), and probe `Array.isArray`
+ * BEFORE the marker so a polluted prototype cannot turn a legitimate raw
+ * queue array into a "hook" whose members do not exist.
+ */
+describe("ensureComviHook() adoption guards", () => {
+  const NOTHING_DETECTED = { comviDetected: false, comviVersion: null, instanceCount: 0 };
+
+  afterEach(() => {
+    delete (Object.prototype as Record<string, unknown>).__comviEditorHook;
+    delete (Object.prototype as Record<string, unknown>).i;
+  });
+
+  /** Pollute Object.prototype the way a legacy shim or a gadget page does. */
+  function pollutePrototype(key: string, value: unknown): void {
+    Object.defineProperty(Object.prototype, key, { configurable: true, writable: true, value });
+  }
+
+  const noop = (): void => undefined;
+
+  it.each<{ label: string; value: unknown }>([
+    { label: "carries the marker and nothing else", value: { __comviEditorHook: true } },
+    {
+      label: "carries the marker with no instances map",
+      value: { __comviEditorHook: true, push: noop, remove: noop },
+    },
+    {
+      label: "carries the marker with an instances array",
+      value: { __comviEditorHook: true, instances: [], push: noop, remove: noop },
+    },
+  ])("refuses a global that $label", ({ value }) => {
+    globals().__COMVI__ = value;
+
+    expect(() => ensureComviHook()).not.toThrow();
+    expect(ensureComviHook()).toBeNull();
+    expect(globals().__COMVI__).toBe(value);
+    expect(readComviGlobalStatus()).toEqual(NOTHING_DETECTED);
+  });
+
+  it("treats a marker-carrying v1 registry with a broken remove as the registry it looks like", () => {
+    // Not a conforming hook (remove is not callable), but it still duck-types
+    // as a v1 legacy registry, so it reaches the designed legacy drain rather
+    // than being read as a hook whose members do not work.
+    const legacy = {
+      __comviEditorHook: true,
+      instances: new Map([["primary", fake("primary")]]),
+      push: () => undefined,
+      remove: "nope",
+    };
+
+    const hook = install(legacy);
+
+    expect(hook).not.toBe(legacy);
+    expect([...hook.instances.keys()]).toEqual(["primary"]);
+  });
+
+  it("refuses a marker-carrying object with no get to resolve instances with", () => {
+    // `standalone.activate()` resolves the instance to edit through `get`, so a
+    // global without it is not a hook this package can adopt. It still duck-types
+    // as a v1 registry, so it is drained into a fresh hook rather than trusted.
+    const forged = {
+      __comviEditorHook: true,
+      instances: new Map([["primary", fake("primary")]]),
+      push: noop,
+      remove: noop,
+    };
+
+    const hook = install(forged);
+
+    expect(hook).not.toBe(forged);
+    expect([...hook.instances.keys()]).toEqual(["primary"]);
+  });
+
+  it("refuses a marker-carrying function", () => {
+    const forged = Object.assign(() => undefined, { __comviEditorHook: true });
+    globals().__COMVI__ = forged;
+
+    expect(ensureComviHook()).toBeNull();
+    expect(globals().__COMVI__).toBe(forged);
+    expect(readComviGlobalStatus()).toEqual(NOTHING_DETECTED);
+  });
+
+  it("still drains a raw queue array when Object.prototype carries the marker", () => {
+    pollutePrototype("__comviEditorHook", true);
+
+    const hook = install([{ v: "1.4.0", i: fake("alpha") }]);
+
+    expect(globals().__COMVI__).toBe(hook);
+    expect([...hook.instances.keys()]).toEqual(["alpha"]);
+    expect(readComviGlobalStatus()).toEqual({
+      comviDetected: true,
+      comviVersion: "1.4.0",
+      instanceCount: 1,
+    });
+  });
+
+  it("does not read a bare instance as an envelope when Object.prototype carries i", () => {
+    const attacker = fake("attacker");
+    pollutePrototype("i", attacker);
+    const hook = install();
+
+    hook.push(slot(fake("real")));
+
+    expect([...hook.instances.keys()]).toEqual(["real"]);
+    expect([...hook.instances.values()]).not.toContain(attacker);
+  });
+});
+
+/**
+ * Two copies of @comvi/core on one page (a CDN global plus a bundled npm copy)
+ * both mint `comvi-1`. Neither instance may disappear from discovery because
+ * of it, and removing one may never evict the other.
+ */
+describe("ensureComviHook() colliding instance ids", () => {
+  it("keeps both instances discoverable when two cores announce the same id", () => {
+    const hook = install();
+    const first = fake("comvi-1");
+    const second = fake("comvi-1");
+
+    hook.push(slot({ v: "1.4.0", i: first }));
+    hook.push(slot({ v: "1.4.0", i: second }));
+
+    expect(hook.instances.size).toBe(2);
+    expect(hook.get("comvi-1")).toBe(first);
+    expect([...hook.instances.values()]).toContain(second);
+  });
+
+  it("leaves the live instance tracked when the one that shared its id is removed", () => {
+    const hook = install();
+    const first = fake("comvi-1");
+    const second = fake("comvi-1");
+    hook.push(slot({ v: "1.4.0", i: first }));
+    hook.push(slot({ v: "1.4.0", i: second }));
+
+    hook.remove(slot({ v: "1.4.0", i: first }));
+
+    expect([...hook.instances.values()]).toEqual([second]);
+  });
+
+  it("unregisters only the instance the colliding id still holds", () => {
+    const hook = install();
+    const first = fake("comvi-1");
+    const second = fake("comvi-1");
+    hook.push(slot({ v: "1.4.0", i: first }));
+    hook.push(slot({ v: "1.4.0", i: second }));
+
+    hook.unregister("comvi-1");
+
+    expect([...hook.instances.values()]).toEqual([second]);
+  });
+
+  it("unregisters the instance that claimed the id, not the one now holding it", () => {
+    const hook = install();
+    const newCore = fake("comvi-1");
+    const oldCore = fake();
+    hook.push(slot({ v: "1.4.0", i: newCore }));
+    hook.register("comvi-1", slot(oldCore) as never);
+
+    hook.unregister("comvi-1");
+
+    expect([...hook.instances.values()]).toEqual([newCore]);
+    expect(hook.get("comvi-1")).toBe(newCore);
+  });
+
+  it("suffixes the announced id once, however many instances collide", () => {
+    const hook = install();
+
+    hook.push(slot({ v: "1.4.0", i: fake("comvi-1") }));
+    hook.push(slot({ v: "1.4.0", i: fake("comvi-1") }));
+    hook.push(slot({ v: "1.4.0", i: fake("comvi-1") }));
+
+    const keys = [...hook.instances.keys()];
+    expect(keys[0]).toBe("comvi-1");
+    expect(keys.slice(1)).toEqual([
+      expect.stringMatching(/^comvi-1#\d+$/),
+      expect.stringMatching(/^comvi-1#\d+$/),
+    ]);
+    expect(new Set(keys).size).toBe(3);
+  });
+
+  it("answers a deduped instance's announced id once nothing holds the exact key", () => {
+    const hook = install();
+    const first = fake("comvi-1");
+    const second = fake("comvi-1");
+    hook.push(slot({ v: "1.4.0", i: first }));
+    hook.push(slot({ v: "1.4.0", i: second }));
+
+    hook.remove(slot({ v: "1.4.0", i: first }));
+
+    expect(hook.get("comvi-1")).toBe(second);
+  });
+
+  it("refuses to guess when two deduped instances share the announced id", () => {
+    const hook = install();
+    const first = fake("comvi-1");
+    hook.push(slot({ v: "1.4.0", i: first }));
+    hook.push(slot({ v: "1.4.0", i: fake("comvi-1") }));
+    hook.push(slot({ v: "1.4.0", i: fake("comvi-1") }));
+
+    hook.remove(slot({ v: "1.4.0", i: first }));
+
+    expect(hook.get("comvi-1")).toBeUndefined();
+    expect(hook.instances.size).toBe(2);
+  });
+
+  it("keeps both instances when an old core registers an id another instance holds", () => {
+    const hook = install();
+    const held = fake("comvi-1");
+    const late = fake();
+    hook.push(slot({ v: "1.4.0", i: held }));
+
+    hook.register("comvi-1", slot(late) as never);
+
+    expect(hook.instances.size).toBe(2);
+    expect(hook.get("comvi-1")).toBe(held);
+
+    hook.remove(slot({ v: "1.4.0", i: held }));
+
+    expect([...hook.instances.values()]).toEqual([late]);
+  });
+});

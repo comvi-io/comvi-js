@@ -167,7 +167,10 @@ _bundle_ rather than of one call:
   extension until it composes `devtools()` or the in-context-editor installer.
   The extension must be **0.5.0 or newer**: `window.__COMVI__` is protocol v2 (a
   queue the consumer drains and hooks), and an old extension with new core is
-  the one unsupported pairing.
+  the one unsupported pairing. The 0.4 `COMVI_READY` event is **gone**: core
+  dispatches it nowhere in 0.5, so anything still listening for it (a custom
+  devtools panel, a page script waiting for i18n) must read the
+  `window.__COMVI__` queue instead.
 - **Reflective consumers**: `instanceId` is absent unless discovery is installed,
   and the loader/plugin members are no longer on the prototype chain.
   `@comvi/core` is also compiled with `useDefineForClassFields: false`, so a

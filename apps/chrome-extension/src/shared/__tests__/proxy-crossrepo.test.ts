@@ -21,6 +21,32 @@ describe("machine-readable proxy contract", () => {
   });
 });
 
+describe("machine-readable discovery contract", () => {
+  const { pageToExtension } = proxyContract.discovery;
+
+  /**
+   * The adoption marker and the members a consumer must validate before
+   * trusting it are cross-package literals: both shipped consumers (this
+   * package's MAIN-world detector and `@comvi/plugin-in-context-editor`'s
+   * `ensureComviHook`) key adoption on them, and core's own probe requires
+   * `push` AND `remove` before pushing. The behavioural half is pinned in
+   * `src/content/__tests__/detector-hook.test.ts`.
+   */
+  it("names the marker both consumers key adoption on", () => {
+    expect(pageToExtension.marker).toBe("__comviEditorHook");
+    expect(pageToExtension.hookShape).toContain("__comviEditorHook: true");
+  });
+
+  it("names the members a consumer must validate before adopting a marked global", () => {
+    expect(pageToExtension.requiredMembers).toEqual(["push", "remove", "instances", "get"]);
+  });
+
+  it("states that the marker alone is not proof of a hook", () => {
+    expect(pageToExtension.markerRule).toContain("requiredMembers");
+    expect(pageToExtension.markerRule).toContain("Array.isArray");
+  });
+});
+
 describe("SDK telemetry wire fixture", () => {
   it("matches the SDK-generated canonical fixture", () => {
     const sdkFixtureUrl = new URL(

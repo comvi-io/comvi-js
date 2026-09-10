@@ -25,7 +25,17 @@ declare const __VERSION__: string | undefined;
 
 const VERSION = typeof __VERSION__ !== "undefined" ? __VERSION__ : "0.1.0";
 
-let instanceCounter = 0;
+// The default-id sequence, in a slot every copy of core on the page shares —
+// the same cross-copy channel `duplicateGuard.ts` claims for the version. A
+// module-scoped counter belongs to ONE copy, so a CDN global plus a bundled npm
+// copy (or a binding pinned to another patch) would both mint `comvi-1`, and a
+// consumer keyed on the id — both shipped ones are — would only ever see one of
+// the two. Nothing about minting reads the page's `__COMVI__`: an id is chosen
+// before the protocol is probed, and a hostile hook must not be able to throw
+// out of, or spin, construction.
+const COUNTER_KEY = Symbol.for("comvi.core.instanceCounter");
+
+let fallbackCounter = 0;
 
 /**
  * v1 legacy registry shape (`register` WITHOUT `remove`) — mixed-version
@@ -34,6 +44,24 @@ let instanceCounter = 0;
 interface LegacyComviRegistry {
   register(id: string, instance: I18nBase): void;
   unregister?(id: string): void;
+}
+
+/** The next `comvi-<n>`, counted once per page rather than once per copy. */
+function mintInstanceId(): string {
+  let n = ++fallbackCounter;
+  try {
+    const slot = globalThis as unknown as Record<symbol, unknown>;
+    const previous = slot[COUNTER_KEY];
+    // A page may have put anything in the slot; only a non-negative number
+    // continues the sequence (NaN fails the comparison and restarts it).
+    const next = (typeof previous === "number" && previous >= 0 ? previous : 0) + 1;
+    slot[COUNTER_KEY] = next;
+    n = next;
+  } catch {
+    // An unwritable or throwing slot must not break construction; the
+    // per-copy count stands in.
+  }
+  return `comvi-${n}`;
 }
 
 /** Discovery options; the same two fields the composite reads off `I18nOptions`. */
@@ -62,7 +90,7 @@ export class I18nWithDevtools<D extends DefaultTranslationParams = {}> extends I
     if (!(exposeGlobal ?? typeof window !== "undefined")) return;
 
     const self = this as unknown as I18nInternal;
-    self.instanceId = instanceId || `comvi-${++instanceCounter}`;
+    self.instanceId = instanceId || mintInstanceId();
     if (typeof window === "undefined") return;
 
     // Mixed-version-safe discovery (protocol v2). Pages may run two core
@@ -100,8 +128,13 @@ export class I18nWithDevtools<D extends DefaultTranslationParams = {}> extends I
 
   /**
    * @internal `_disposeDevtools` hook — identity-based removal from the global
-   * `__COMVI__` queue, probed in the same order as exposure:
-   * hook/masquerading-array remove → raw array splice → legacy unregister.
+   * `__COMVI__` queue, probed in the same order as exposure: array (raw queue
+   * splice, or a masquerading hook's OWN remove) → hook remove → legacy
+   * unregister. `Array.isArray` FIRST is what keeps a page-defined
+   * `Array.prototype.remove` polyfill out of the raw-queue path: consulting
+   * `g.remove` first would hand our entry OBJECT to a polyfill expecting an
+   * index, which coerces to 0 and splices someone else's live entry, and the
+   * try/catch below cannot see it because the wrong thing succeeded.
    * Runs at the very top of `destroy()`.
    */
   protected _disposeDevtools(): void {
@@ -109,11 +142,20 @@ export class I18nWithDevtools<D extends DefaultTranslationParams = {}> extends I
     try {
       const g = window.__COMVI__ as unknown;
       const entry = this._globalEntry;
-      if (g && typeof (g as ComviHook).remove === "function") {
+      if (Array.isArray(g)) {
+        // A masquerading consumer hook's OWN remove shadows Array.prototype,
+        // so it still gets the identity-based call it published.
+        if (
+          Object.prototype.hasOwnProperty.call(g, "remove") &&
+          typeof (g as unknown as ComviHook).remove === "function"
+        ) {
+          if (entry) (g as unknown as ComviHook).remove(entry);
+        } else {
+          const idx = entry ? g.indexOf(entry) : -1;
+          if (idx !== -1) g.splice(idx, 1);
+        }
+      } else if (g && typeof (g as ComviHook).remove === "function") {
         if (entry) (g as ComviHook).remove(entry);
-      } else if (Array.isArray(g)) {
-        const idx = entry ? g.indexOf(entry) : -1;
-        if (idx !== -1) g.splice(idx, 1);
       } else if (g && typeof (g as LegacyComviRegistry).unregister === "function") {
         (g as LegacyComviRegistry).unregister!(this.instanceId);
       }
