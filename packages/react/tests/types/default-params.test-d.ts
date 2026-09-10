@@ -7,6 +7,9 @@
  */
 import type { UseI18nReturn } from "../../src/index";
 
+// NOTE: this augmentation closes `TranslationKeys` for the whole test-types
+// program (all tests/types/*.test-d.ts compile together), as svelte's
+// t-direct-props.test-d.ts documents for its own program.
 declare module "@comvi/core" {
   interface TranslationKeys {
     review: { formality: "formal" | "informal" };

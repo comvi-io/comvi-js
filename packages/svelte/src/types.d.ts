@@ -2,6 +2,13 @@ import type { Component, Snippet } from "svelte";
 import type { TranslationKeys, PermissiveKey, TranslationParams } from "@comvi/core";
 
 /**
+ * A config entry's target. Looser than the bare-handler form on purpose: the
+ * entry's own `props` supply whatever else the component needs, so a component
+ * with required props belongs here rather than in the handler union below.
+ */
+export type ComponentTarget = string | Component<any>;
+
+/**
  * Tag-name → handler for `<T>`'s tag interpolation: an HTML tag name, a Svelte
  * component, or a config with props — the same shape as the other wrappers.
  *
@@ -24,13 +31,6 @@ import type { TranslationKeys, PermissiveKey, TranslationParams } from "@comvi/c
  * <T i18nKey="rich_text.message" {components} />
  * ```
  */
-/**
- * A config entry's target. Looser than the bare-handler form on purpose: the
- * entry's own `props` supply whatever else the component needs, so a component
- * with required props belongs here rather than in the handler union below.
- */
-export type ComponentTarget = string | Component<any>;
-
 export type ComponentMapping =
   | string // HTML tag name: "strong", "em", etc.
   | Component<any> // Svelte component — receives content as `children` snippet

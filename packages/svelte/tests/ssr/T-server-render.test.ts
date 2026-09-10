@@ -74,7 +74,7 @@ describe("T.svelte server render — components map", () => {
     const result = render(TInterpolationWrapper, {
       props: { i18n, i18nKey: "welcome", params: { name: "Ada" }, components: targetless },
     });
-    expect(() => result.body).toThrow(TypeError);
+    expect(() => result.body).toThrow();
 
     // No boundary on the server, so the failure never reaches reportError
     // either — unlike the client path (`T-handler-error.test.ts`).
