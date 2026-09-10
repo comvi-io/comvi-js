@@ -122,11 +122,29 @@ export interface FetchLoaderOptions {
   retry?: boolean;
 
   /**
-   * Whether to load translations during init()
-   * @default true
+   * Whether the plugin loads translations ITSELF at install time.
+   *
+   * It is NOT an opt-out of the initial network request, in either direction.
+   * `init()` loads the initial namespaces through the registered loader on its
+   * own, after every plugin has registered, and this flag has no say in that:
+   * `.with(fetchLoader({ loadOnInit: false }))` followed by `await init()`
+   * still issues exactly the request `loadOnInit: true` does. Nor does
+   * `loadOnInit: true` add one — the plugin body runs inside `init()` on both
+   * supported entry points (`.with(fetchLoader(…))` and `.use(FetchLoader(…))`),
+   * where `i18n.isInitializing` is already true, so the install-time load below
+   * is skipped and `init()`'s own load is the only one.
+   *
+   * The flag therefore only matters when the plugin factory is invoked outside
+   * `init()` — calling `FetchLoader(options)(i18n)` by hand.
+   *
+   * To start with NO network request, tell core not to load an initial
+   * namespace: `createI18n({ locale, ns: [] })`. `addActiveNamespace(ns)` (or a
+   * locale change) then loads on demand.
    *
    * Note: Language changes are automatically handled by the core.
    * The registered loader will be called automatically when locale changes.
+   *
+   * @default true
    */
   loadOnInit?: boolean;
 

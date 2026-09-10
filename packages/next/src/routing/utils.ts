@@ -21,27 +21,52 @@ const normalizePath = (path: string): string => {
   return path.startsWith("/") ? path : `/${path}`;
 };
 
+/**
+ * Split a path into the key the `pathnames` map is compared against and the
+ * trailing slash to re-attach afterwards.
+ *
+ * `@comvi/locale-routing` preserves trailing slashes and never rewrites
+ * interior bytes, so `/de/about/` strips to `/about/` and `/en//about` to
+ * `//about`. Comparing those raw against the map means every cosmetic-slash
+ * variant of a URL misses its slug and loses the internal rewrite. The
+ * comparison therefore runs on the collapsed, slash-trimmed form while the
+ * RESULT keeps the trailing slash the input had.
+ */
+const splitTrailingSlash = (path: string): { key: string; trailingSlash: string } => {
+  const collapsed = path.includes("//") ? path.replace(/\/{2,}/g, "/") : path;
+  return collapsed.length > 1 && collapsed.endsWith("/")
+    ? { key: collapsed.slice(0, -1), trailingSlash: "/" }
+    : { key: collapsed, trailingSlash: "" };
+};
+
 const getCanonicalPathMatch = (
   pathname: string,
   routing: Required<RoutingConfig>,
   preferredLocale?: string,
 ): string | undefined => {
-  const normalizedPath = normalizePath(pathname);
+  const { key, trailingSlash } = splitTrailingSlash(normalizePath(pathname));
   const localesToTry = preferredLocale
     ? [preferredLocale, ...routing.locales.filter((locale) => locale !== preferredLocale)]
     : [...routing.locales];
+  // The root canonical path is already `/`; appending the slash would make `//`.
+  const withTrailingSlash = (canonical: string): string =>
+    canonical === "/" ? canonical : `${canonical}${trailingSlash}`;
 
+  // Both sides of every comparison go through the same slash-trimmed form:
+  // a `pathnames` key or value that itself ends in `/` must still match its
+  // trimmed input, and the trimmed canonical is what the trailing slash is
+  // re-appended to (so a `/about/` key never yields `/about//`).
   for (const [canonicalPath, localizedByLocale] of Object.entries(routing.pathnames)) {
-    const normalizedCanonicalPath = normalizePath(canonicalPath);
+    const { key: canonicalKey } = splitTrailingSlash(normalizePath(canonicalPath));
 
-    if (normalizedPath === normalizedCanonicalPath) {
-      return normalizedCanonicalPath;
+    if (key === canonicalKey) {
+      return withTrailingSlash(canonicalKey);
     }
 
     for (const locale of localesToTry) {
       const localizedPath = localizedByLocale[locale];
-      if (localizedPath && normalizePath(localizedPath) === normalizedPath) {
-        return normalizedCanonicalPath;
+      if (localizedPath && splitTrailingSlash(normalizePath(localizedPath)).key === key) {
+        return withTrailingSlash(canonicalKey);
       }
     }
   }
@@ -66,7 +91,11 @@ export const localizePathname = (
   routing: Required<RoutingConfig>,
 ): string => {
   const { pathname: path, suffix } = splitPathAndSuffix(pathname);
-  const basePath = stripLocalePrefix(path, routing.locales);
+  // A leading run of slashes left after the prefix is stripped (`/en//evil.com`
+  // on the default locale under `as-needed`, or any locale under `never`)
+  // would come back as a protocol-relative `//evil.com`. Collapse the leading
+  // run only; interior doubled slashes stay as the input wrote them.
+  const basePath = stripLocalePrefix(path, routing.locales).replace(/^\/{2,}/, "/");
   const canonicalPath = getCanonicalPathname(basePath, routing, locale);
   let getPathname = getPathnameCache.get(routing);
   if (!getPathname) {
@@ -100,6 +129,12 @@ export const localizeUrlObject = (
     return href;
   }
   const pathname = typeof href.pathname === "string" ? href.pathname : "/";
+  // The same guard `localizeHref` applies. A `//host/path` pathname is a
+  // protocol-relative URL, not a path to prefix: without this it came back
+  // with a doubled locale prefix (`//de/about` -> `/de//de/about`).
+  if (isExternalHref(pathname)) {
+    return href;
+  }
   if (!routing) {
     const normalized = normalizePath(pathname);
     return {

@@ -26,7 +26,10 @@ export interface BuildLocalizedPathOptions {
   localePrefix: LocalePrefixMode;
   /**
    * Optional canonical-path → per-locale slug map. Looked up by the exact
-   * `path` argument BEFORE normalization or prefixing.
+   * `path` argument first; if that misses, by the same path with duplicate
+   * slashes collapsed and a single trailing slash split off, so `"/about/"`
+   * and `"//about"` still find `"/about"`'s slug. A leading slash is never
+   * added for the lookup (`"about"` is not `"/about"`).
    */
   pathnames?: PathnamesMap;
 }
@@ -139,6 +142,43 @@ export function setQueryParamInSuffix(suffix: string, key: string, value: string
 }
 
 /**
+ * Look up one path in the `pathnames` map.
+ *
+ * The exact key wins. Failing that, the same path with duplicate slashes
+ * collapsed and a single trailing slash split off is tried, and the trailing
+ * slash is re-appended to whatever the map returned: a cosmetic-slash variant
+ * of a URL (`"/about/"`, `"//about"`) must not silently bypass the slug map,
+ * while the trailing slash this package promises to preserve survives the
+ * round trip. The lookup key never gains a LEADING slash — `"about"` is not
+ * `"/about"`, which is next's pinned behaviour.
+ */
+const slashKey = (path: string): { key: string; hasTrailingSlash: boolean } => {
+  const collapsed = path.includes("//") ? path.replace(/\/{2,}/g, "/") : path;
+  const hasTrailingSlash = collapsed.length > 1 && collapsed.endsWith("/");
+  return { key: hasTrailingSlash ? collapsed.slice(0, -1) : collapsed, hasTrailingSlash };
+};
+
+function lookupPathname(path: string, locale: string, pathnames: PathnamesMap): string | undefined {
+  const exact = pathnames[path]?.[locale];
+  if (exact !== undefined) return exact;
+
+  const { key, hasTrailingSlash } = slashKey(path);
+  // The map's own keys go through the same trimming, so a key written as
+  // `"/about/"` still matches `/about` and `//about`.
+  let mapped: string | undefined = pathnames[key]?.[locale];
+  if (mapped === undefined) {
+    for (const [mapKey, byLocale] of Object.entries(pathnames)) {
+      if (mapKey !== path && slashKey(mapKey).key === key) {
+        mapped = byLocale[locale];
+        if (mapped !== undefined) break;
+      }
+    }
+  }
+  if (mapped === undefined) return undefined;
+  return hasTrailingSlash && !mapped.endsWith("/") ? `${mapped}/` : mapped;
+}
+
+/**
  * Build a localized path: optional pathnames-map slug lookup, leading-slash
  * normalization, then locale prefixing per {@link LocalePrefixMode}.
  *
@@ -154,7 +194,7 @@ export function buildLocalizedPath(
 ): string {
   const { defaultLocale, localePrefix, pathnames } = options;
 
-  const mapped = pathnames?.[path]?.[locale] ?? path;
+  const mapped = (pathnames && lookupPathname(path, locale, pathnames)) ?? path;
   const normalizedPath = mapped === "" || mapped.startsWith("/") ? mapped || "/" : `/${mapped}`;
 
   const needsPrefix =

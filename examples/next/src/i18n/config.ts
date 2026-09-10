@@ -1,6 +1,7 @@
 import { createNextI18n } from "@comvi/next";
+import { routing } from "./routing";
 
-export const locales = ["en", "uk", "de"] as const;
+export { locales, routing } from "./routing";
 
 /**
  * The composed root. `createNextI18n` is the batteries-included preset: it
@@ -9,16 +10,12 @@ export const locales = ["en", "uk", "de"] as const;
  * name each one by hand because their host is core's bare base host — the
  * difference is the preset, not the framework.
  *
- * It returns the host AND the routing config from one call, so the URL rules
- * and the runtime cannot drift apart.
+ * The URL rules come from `./routing` and are spread straight in, so the
+ * middleware and the runtime cannot drift apart while `middleware.ts` keeps
+ * importing the core-free file (see the comment there).
  */
 export const nextI18n = createNextI18n({
-  locales: [...locales],
-  defaultLocale: "en",
-  // `always`: every URL carries its locale, so /en, /uk and /de are three real
-  // addresses you can link, bookmark and curl. `as-needed` (the default) would
-  // serve the default locale from an unprefixed /.
-  localePrefix: "always",
+  ...routing,
   fallbackLocale: "en",
 });
 
@@ -32,4 +29,4 @@ nextI18n.i18n.registerLoader({
   de: () => import("../locales/de.json"),
 });
 
-export const { i18n, routing } = nextI18n;
+export const { i18n } = nextI18n;

@@ -103,9 +103,13 @@ what you hand it.
   `registerLocaleDetector`, and because this plugin is synchronous that lands as
   a `TypeError` at the call site. On a host that already composed
   `@comvi/core/plugins` every member it touches exists, so it appears to work
-  while its cleanup is discarded: `destroy()` leaves the `localeChanged`
-  listener subscribed, `.with` hands you that cleanup function instead of the
-  host, and `required`, `timeout` and `onError` never apply.
+  while its cleanup is discarded: `.with` hands you that cleanup function
+  instead of the host, nothing on the host unsubscribes the `localeChanged`
+  listener, and `required`, `timeout` and `onError` never apply. The listener
+  is not leaked past teardown — `destroy()` clears every listener on the host
+  wholesale, registered cleanup or not — but the detector cannot be disposed on
+  its own, so the only way to stop it short of destroying the host is to call
+  the cleanup function `.with` handed you.
 
 ## How detection works
 

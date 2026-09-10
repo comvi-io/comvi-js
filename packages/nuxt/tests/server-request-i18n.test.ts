@@ -1,5 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { H3Event } from "h3";
+import { createI18n } from "@comvi/core";
+import { prepareTranslation } from "@comvi/core/rich-text";
+import type { PrepareTranslationSource } from "@comvi/core/rich-text";
 import { getRequestI18n } from "../src/runtime/server/utils/request-i18n";
 import { createComviCore, resetComviHostMock } from "./mocks/comvi-host";
 import { resetComviSetupMock, runComviSetup } from "./mocks/comvi-setup";
@@ -114,7 +117,42 @@ describe("getRequestI18n", () => {
         defaultNs: "common",
         devMode: false,
         apiKey: "secret",
+        tagInterpolation: undefined,
       });
+    });
+
+    it("forwards tagInterpolation from basicHtmlTags, exactly as the app plugin does", async () => {
+      createComviCore.mockReturnValue(createHost());
+
+      await getRequestI18n(createEvent({ basicHtmlTags: ["b", "i"] }, { apiKey: "secret" }), "de");
+
+      expect(createComviCore).toHaveBeenCalledWith({
+        locale: "de",
+        fallbackLocale: "en",
+        defaultNs: "common",
+        devMode: false,
+        apiKey: "secret",
+        tagInterpolation: { basicHtmlTags: ["b", "i"] },
+      });
+    });
+
+    it("keeps a whitelisted element in rich text rendered off the request host", async () => {
+      createComviCore.mockImplementation((options: Record<string, unknown>) =>
+        createI18n({
+          ...options,
+          translation: { "en:common": { hi: "Hello <b>world</b>" } },
+        } as unknown as Parameters<typeof createI18n>[0]),
+      );
+
+      const host = await getRequestI18n(createEvent({ basicHtmlTags: ["b"] }), "en");
+      const prepared = prepareTranslation(host as unknown as PrepareTranslationSource, {
+        i18nKey: "hi",
+      });
+
+      expect(prepared.content).toEqual([
+        "Hello ",
+        expect.objectContaining({ type: "element", tag: "b", children: ["world"] }),
+      ]);
     });
 
     it("prefers the configured fallbackLocale over defaultLocale and the request locale", async () => {

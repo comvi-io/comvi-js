@@ -467,6 +467,82 @@ describe("middleware localized pathname mappings", () => {
     expect(response.headers.get("x-middleware-rewrite")).toBe("https://example.com/de/about");
     expect(response.headers.get("x-comvi-locale")).toBe("de");
   });
+
+  /**
+   * Next's own normalization redirects these before middleware runs in the
+   * default configuration, so the whole class is masked there; it stops being
+   * masked under `trailingSlash: true` or `skipTrailingSlashRedirect: true`,
+   * and then the middleware's answer is terminal. It used to serve every
+   * trailing-slash URL at the PUBLIC slug with no rewrite (a 404 in a
+   * `pathnames` app) and to prefix a `//` path twice.
+   */
+  describe("cosmetic slashes", () => {
+    it("rewrites a trailing-slash localized slug to the internal route, slash kept", () => {
+      const response = middleware(new NextRequest("https://example.com/de/ueber-uns/"));
+
+      // 0.4.1 redirected to `/de/ueber-uns` instead, collapsing the slash;
+      // 0.5 preserves it and leaves the slash policy to Next's own config.
+      expect(response.headers.get("x-middleware-rewrite")).toBe("https://example.com/de/about/");
+      expect(response.headers.get("location")).toBeNull();
+      expect(response.headers.get("x-comvi-locale")).toBe("de");
+    });
+
+    it("redirects a trailing-slash canonical route to the localized public slug", () => {
+      const response = middleware(new NextRequest("https://example.com/de/about/"));
+
+      expect(response.headers.get("location")).toBe("https://example.com/de/ueber-uns/");
+    });
+
+    it("does not redirect the localized root to itself", () => {
+      // `/de/`'s public path is `/de`, but `nextUrl.clone()` re-serializes it
+      // with the request's trailing slash, so a literal comparison produced a
+      // 307 to the same URL — an infinite redirect.
+      const response = middleware(new NextRequest("https://example.com/de/"));
+
+      expect(response.headers.get("location")).toBeNull();
+      expect(response.headers.get("x-comvi-locale")).toBe("de");
+    });
+
+    it("terminates when a pathnames key ends in a slash", () => {
+      const slashKey = createMiddleware({
+        locales: ["en", "de"],
+        defaultLocale: "en",
+        localePrefix: "always",
+        pathnames: { "/about/": { en: "/about", de: "/ueber-uns" } },
+      });
+      // Before: 307 to /de/about// and then to itself, forever.
+      const first = slashKey(new NextRequest("https://example.com/de/about/"));
+      // nextUrl.clone() re-serializes with the request's trailing slash.
+      expect(first.headers.get("location")).toBe("https://example.com/de/ueber-uns/");
+      const second = slashKey(new NextRequest("https://example.com/de/ueber-uns"));
+      expect(second.headers.get("location")).toBeNull();
+      expect(second.headers.get("x-middleware-rewrite")).toBe("https://example.com/de/about");
+      const third = slashKey(new NextRequest("https://example.com/de/ueber-uns/"));
+      expect(third.headers.get("location")).toBeNull();
+      expect(third.headers.get("x-middleware-rewrite")).toBe("https://example.com/de/about/");
+    });
+
+    it("keeps the reverse mapping when a pathnames value ends in a slash", () => {
+      const slashValue = createMiddleware({
+        locales: ["en", "de"],
+        defaultLocale: "en",
+        localePrefix: "always",
+        pathnames: { "/about": { en: "/about/", de: "/ueber-uns/" } },
+      });
+      const response = slashValue(new NextRequest("https://example.com/de/ueber-uns/"));
+      expect(response.headers.get("location")).toBeNull();
+      expect(response.headers.get("x-middleware-rewrite")).toBe("https://example.com/de/about/");
+    });
+
+    it("collapses duplicate slashes instead of prefixing the locale twice", () => {
+      expect(
+        middleware(new NextRequest("https://example.com//de/about")).headers.get("location"),
+      ).toBe("https://example.com/de/ueber-uns");
+      expect(
+        middleware(new NextRequest("https://example.com/de//about")).headers.get("location"),
+      ).toBe("https://example.com/de/ueber-uns");
+    });
+  });
 });
 
 describe("middleware matcher preset", () => {

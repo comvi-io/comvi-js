@@ -138,6 +138,28 @@ describe("usePathname", () => {
 
     expect(result.current).toBe("/ensemble");
   });
+
+  // A trailing slash used to bypass the pathnames map entirely, so this
+  // returned the PUBLIC slug (`/ueber-uns/`) instead of the canonical route.
+  it("maps a trailing-slash localized slug back to its canonical route, slash kept", () => {
+    const { result } = renderUnderProvider(() => usePathname(), {
+      pathname: "/de/ueber-uns/",
+      routing: ROUTING,
+      locale: "de",
+    });
+
+    expect(result.current).toBe("/about/");
+  });
+
+  it("maps a slug reached through a duplicated slash back to its canonical route", () => {
+    const { result } = renderUnderProvider(() => usePathname(), {
+      pathname: "/de//ueber-uns",
+      routing: ROUTING,
+      locale: "de",
+    });
+
+    expect(result.current).toBe("/about");
+  });
 });
 
 describe("useLocalizedRouter", () => {

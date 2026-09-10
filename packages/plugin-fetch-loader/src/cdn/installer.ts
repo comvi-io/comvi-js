@@ -16,9 +16,11 @@ export type CdnLoaderInstaller = <T extends I18n<any>>(
  * const i18n = createI18n({ locale: "en" }).with(cdnLoader({ cdnUrl }));
  * ```
  *
- * The same composition `fetchLoader` performs — `@comvi/core/loader` and
- * `@comvi/core/plugins`, both idempotent, then `use` — around
- * `CdnLoader(options)` instead of `FetchLoader(options)`. Reach for
+ * The same composition `fetchLoader` performs — `@comvi/core/plugins` and
+ * `@comvi/core/loader`, both idempotent, then `use`, with `attachPlugins`
+ * first so a late compose reports the plugin queue rather than the loader's
+ * unreachable recovery advice — around `CdnLoader(options)` instead of
+ * `FetchLoader(options)`. Reach for
  * `fetchLoader` from the package root when the app also talks to the Comvi API
  * (`createI18n({ apiKey })`); this entry has no API request path at all.
  *
@@ -32,7 +34,7 @@ export type CdnLoaderInstaller = <T extends I18n<any>>(
  */
 export function cdnLoader(options: CdnLoaderOptions): CdnLoaderInstaller {
   return (i18n) => {
-    const host = attachPlugins(attachLoader(ensureInstallable(i18n, "cdnLoader")));
+    const host = attachLoader(attachPlugins(ensureInstallable(i18n, "cdnLoader")));
     host.use(CdnLoader(options));
     return host;
   };

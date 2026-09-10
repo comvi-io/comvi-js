@@ -176,6 +176,111 @@ describe("routing helpers", () => {
     });
   });
 
+  /**
+   * `stripLocalePrefix` preserves trailing slashes and never rewrites interior
+   * bytes, so `/en/about/` strips to `/about/` and `/en//about` to `//about`.
+   * Both used to miss the `pathnames` map entirely: the slug was silently
+   * bypassed and, for a leading `//`, the locale prefix was applied twice.
+   * The map lookup is slash-insensitive now; the OUTPUT still carries the
+   * trailing slash the input had (which is where 0.4.1 differs — it dropped
+   * the slash whenever a locale prefix happened to be stripped).
+   */
+  describe("cosmetic slashes do not bypass the pathnames map", () => {
+    const NO_PATHNAMES = defineRouting({
+      locales: ["en", "de"],
+      defaultLocale: "en",
+      localePrefix: "as-needed",
+    });
+
+    it("maps a trailing-slash path to the localized slug and keeps the slash", () => {
+      expect(localizeHref("/en/about/", "de", ROUTING_DE_ONLY)).toBe("/de/ueber-uns/");
+      expect(localizeHref("/about/", "de", ROUTING_DE_ONLY)).toBe("/de/ueber-uns/");
+      expect(localizeHref("/de/ueber-uns/", "de", ROUTING_DE_ONLY)).toBe("/de/ueber-uns/");
+      expect(localizeHref("/en/about/?x=1#top", "de", ROUTING_DE_ONLY)).toBe(
+        "/de/ueber-uns/?x=1#top",
+      );
+    });
+
+    it("maps a path with a duplicated interior slash to the localized slug", () => {
+      expect(localizeHref("/en//about", "de", ROUTING_DE_ONLY)).toBe("/de/ueber-uns");
+    });
+
+    it("resolves a slash variant back to its canonical route key", () => {
+      // What usePathname() returns for /de/ueber-uns/ and /de/about/.
+      expect(getCanonicalPathname("/ueber-uns/", ROUTING_DE_ONLY, "de")).toBe("/about/");
+      expect(getCanonicalPathname("/about/", ROUTING_DE_ONLY, "de")).toBe("/about/");
+      expect(getCanonicalPathname("//about", ROUTING_DE_ONLY, "en")).toBe("/about");
+    });
+
+    it("localizes a UrlObject slash variant through the map", () => {
+      expect(localizeUrlObject({ pathname: "/en/about/" }, "de", ROUTING_DE_ONLY)).toEqual({
+        pathname: "/de/ueber-uns/",
+      });
+    });
+
+    it("leaves a protocol-relative UrlObject pathname alone instead of prefixing it twice", () => {
+      expect(localizeUrlObject({ pathname: "//de/about" }, "de", ROUTING_DE_ONLY)).toEqual({
+        pathname: "//de/about",
+      });
+      // …matching `localizeHref`, which has always treated `//` as external.
+      expect(localizeHref("//de/about", "de", ROUTING_DE_ONLY)).toBe("//de/about");
+    });
+
+    it("matches a pathnames key or value that itself ends in a slash", () => {
+      // Under `trailingSlash: true` people write the map entries WITH the
+      // slash. Comparing a trimmed input against an untrimmed key or value
+      // missed both directions: the key form self-redirected forever, the
+      // value form lost its reverse mapping (a 404).
+      const KEY_WITH_SLASH = defineRouting({
+        locales: ["en", "de"],
+        defaultLocale: "en",
+        localePrefix: "always",
+        pathnames: { "/about/": { en: "/about", de: "/ueber-uns" } },
+      });
+      expect(getCanonicalPathname("/about/", KEY_WITH_SLASH, "de")).toBe("/about/");
+      expect(getCanonicalPathname("/about", KEY_WITH_SLASH, "de")).toBe("/about");
+      expect(getCanonicalPathname("/ueber-uns/", KEY_WITH_SLASH, "de")).toBe("/about/");
+      // The exact key wins and its value is returned verbatim (no slash added).
+      expect(localizeHref("/de/about/", "de", KEY_WITH_SLASH)).toBe("/de/ueber-uns");
+      expect(localizeHref("/de/about", "de", KEY_WITH_SLASH)).toBe("/de/ueber-uns");
+
+      const VALUE_WITH_SLASH = defineRouting({
+        locales: ["en", "de"],
+        defaultLocale: "en",
+        localePrefix: "always",
+        pathnames: { "/about": { en: "/about/", de: "/ueber-uns/" } },
+      });
+      expect(getCanonicalPathname("/ueber-uns/", VALUE_WITH_SLASH, "de")).toBe("/about/");
+      expect(getCanonicalPathname("/ueber-uns", VALUE_WITH_SLASH, "de")).toBe("/about");
+    });
+
+    it("never turns a same-origin path into a protocol-relative href", () => {
+      // `/en//evil.com` strips to `//evil.com` on the default locale, and
+      // `new URL("//evil.com", origin)` is another origin.
+      expect(localizeHref("/en//evil.com", "en", NO_PATHNAMES)).toBe("/evil.com");
+      expect(localizeHref("//evil.com", "en", NO_PATHNAMES)).toBe("//evil.com"); // external, untouched
+      const NEVER = defineRouting({
+        locales: ["en", "de"],
+        defaultLocale: "en",
+        localePrefix: "never",
+      });
+      expect(localizeHref("/de//evil.com", "de", NEVER)).toBe("/evil.com");
+      expect(localizeUrlObject({ pathname: "/en//evil.com" }, "en", NO_PATHNAMES)).toEqual({
+        pathname: "/evil.com",
+      });
+    });
+
+    it("keeps the trailing slash when no pathnames map is configured", () => {
+      // Nothing to look up, so only the slash rules apply: the trailing slash
+      // survives, and a run of slashes left at the START after the locale
+      // prefix is stripped collapses to one (the same run that would make
+      // `/en//evil.com` protocol-relative). 0.4.1 collapsed everything.
+      expect(localizeHref("/en/about/", "de", NO_PATHNAMES)).toBe("/de/about/");
+      expect(localizeHref("/en//about", "de", NO_PATHNAMES)).toBe("/de/about");
+      expect(getCanonicalPathname("/about/", NO_PATHNAMES, "de")).toBe("/about/");
+    });
+  });
+
   it("recognizes configured locales and rejects the rest", () => {
     expect(hasLocale(["en", "de"], "de")).toBe(true);
     expect(hasLocale(["en", "de"], "fr")).toBe(false);
