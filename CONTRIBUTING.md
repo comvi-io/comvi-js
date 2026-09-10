@@ -292,6 +292,9 @@ a release.
 Nothing in CI runs `pnpm examples:verify` either (see gate 7). It is required before a release,
 and required again immediately **after** the version bump.
 
+`pnpm test:release-tools` also covers the release gates outside `scripts/`: `.github/scripts/` and
+the checks in `tooling/`. Cutting a release itself is [RELEASING.md](./RELEASING.md).
+
 ## Pull requests
 
 1. Fork, then branch from `main`.
