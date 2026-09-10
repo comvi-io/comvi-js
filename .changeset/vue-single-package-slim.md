@@ -44,5 +44,12 @@ ambiently, and `<T>` uses the pure `@comvi/core/rich-text` seam instead.
 
 **One entry, one injection key.** The package publishes exactly one entry, so there is one
 build pass and one `Symbol("i18n")`: a plugin installed with `app.use(i18n)` and a
-`useI18n()` in the same app always see each other. Nothing else is removed and no 0.4.x
-import path changes.
+`useI18n()` in the same app always see each other. No 0.4.x import specifier changes.
+
+**Nine 0.4.x named VALUE exports go, though.** Replacing `export * from "@comvi/core"` with
+named re-exports plus `export type *` drops `TranslationCache`, `createBoundTranslation`,
+`translationResultToString`, `formatNumber`, `formatDate`, `formatCurrency`,
+`formatRelativeTime`, `getTextDirection` and `createElement` from this entry's value surface.
+Types are unaffected. `useI18n()` returns the four formatters and `dir` already bound to the
+locale, and all nine are still exported by `@comvi/core`, so each is a one-line import move;
+the mapping is tabled in MIGRATION.md §4 and the package README.
