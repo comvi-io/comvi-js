@@ -596,6 +596,18 @@ export function planSingleEntry(root, text) {
   manual.push(...detectUnprovenHostConstructions(root));
 
   const hosts = hostBindings(root);
+  // A host name the module ALSO declares locally — a parameter, a local
+  // `const`, a catch binding — is not this API at the shadowed call site, and
+  // the text does not say which sites the shadow covers. So the name is
+  // refused for the whole module (the same bound `planHostRename` uses) and
+  // every construction through it is reported at its own line.
+  const shadowedHosts = new Map();
+  for (const name of [...hosts.keys()]) {
+    const shadow = localDeclarations(root, name)[0];
+    if (shadow === undefined) continue;
+    shadowedHosts.set(name, shadow);
+    hosts.delete(name);
+  }
   manual.push(...detectStoredHostUse(root, hosts));
 
   const constructions = [
@@ -603,7 +615,19 @@ export function planSingleEntry(root, text) {
     ...root.findAll({ rule: { kind: "new_expression" } }),
   ];
   for (const call of constructions) {
-    const hostModule = hosts.get(constructedName(call) ?? "");
+    const hostName = constructedName(call) ?? "";
+    if (shadowedHosts.has(hostName)) {
+      manual.push({
+        offset: startOf(call),
+        shape: "shadowed-host-binding",
+        detail:
+          `\`${hostName}\` is imported from a Comvi host entry AND declared locally in this ` +
+          `module, so this construction may not be the imported one — it is left untouched; ` +
+          `rename the local binding and re-run`,
+      });
+      continue;
+    }
+    const hostModule = hosts.get(hostName);
     if (hostModule === undefined) continue;
 
     const chain = planChain(root, text, call, hostModule);

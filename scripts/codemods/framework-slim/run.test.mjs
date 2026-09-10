@@ -41,6 +41,16 @@ const REQUIRED_CASES = [
   "t5-repeated",
   "sfc-vue",
   "sfc-svelte",
+  // the shapes round-2 review found silently corrupting or silently missing.
+  "hook-nospace-keyword", // N1: `const{…}=useI18n()` has no whitespace to scan for
+  "sfc-vue-compact", // N1 inside a non-prettier `<script setup>`
+  "hook-block-scoped", // N2: the merge unit is the block, not the function
+  "hook-export-split", // N3: a T3 split keeps `export` on both halves
+  "hook-quoted-key", // P2-1: a quoted static key migrates like the bare one
+  "report-shadowed-host", // P1-2: a shadowed host binding is never rewritten
+  "report-shadowed-hook", // P1-2: a shadowed `useI18n` is never rewritten
+  "report-annotated-destructure", // N4: an annotation cannot be split
+  "report-comment-destructure", // N4: an in-pattern comment cannot be split
   "report-collision",
   "report-stored-result",
   "report-rest-spread",
@@ -126,9 +136,14 @@ test("CRLF sources come back with CRLF", () => {
       "ctor-icu-compiler",
       "ctor-nested-catalog",
       "ctor-type-only-import",
+      "hook-block-scoped",
+      "hook-export-split",
+      "hook-nospace-keyword",
+      "hook-quoted-key",
       "prologue-shebang",
       "sfc-svelte",
       "sfc-vue",
+      "sfc-vue-compact",
       "slim-factory-rename",
       "slim-specifier",
       "t1-pure-loader",
@@ -158,6 +173,50 @@ test("the migration table is the single source of truth", () => {
     HOOKS.map(({ capability }) => capability),
     ["loader", "plugins"],
   );
+});
+
+/**
+ * The merge unit is a BLOCK, and sibling `switch` cases are NOT separate
+ * blocks: they share one scope, so a per-case capability call would emit the
+ * same `const` twice in it. They keep merging, and a braced case is a block of
+ * its own.
+ */
+test("sibling switch cases merge; a braced case gets its own call", () => {
+  const source = `import { useI18n } from "@comvi/react";
+
+export function Bare(kind: number) {
+  switch (kind) {
+    case 1:
+      const { addActiveNamespace } = useI18n();
+      addActiveNamespace("a");
+      break;
+    case 2:
+      const { onLoadError } = useI18n();
+      onLoadError(() => {});
+      break;
+  }
+}
+
+export function Braced(kind: number) {
+  switch (kind) {
+    case 1: {
+      const { reloadTranslations } = useI18n();
+      reloadTranslations();
+      break;
+    }
+  }
+}
+`;
+
+  const result = transformSource(source, "switch.ts");
+
+  assert.equal(
+    (result.text.match(/= useI18nLoader\(\)/g) ?? []).length,
+    2,
+    "one call for the shared switch scope, one for the braced case",
+  );
+  assert.match(result.text, /const \{ addActiveNamespace, onLoadError \} = useI18nLoader\(\);/);
+  assert.match(result.text, /const \{ reloadTranslations \} = useI18nLoader\(\);/);
 });
 
 test("installer imports refuse every local-binding collision shape", () => {
@@ -457,6 +516,124 @@ createSlimI18n({ locale: "en" });
   }
 });
 
+/**
+ * P1-2, every shape the round-2 review found: a name that is BOTH imported
+ * from a Comvi entry and declared locally is refused for the whole module and
+ * reported. The `localDeclarations()` guard existed for the host RENAME only,
+ * so these call-site families rewrote against the wrong binding and exited 0.
+ */
+test("a shadowed host or hook binding is refused at every call-site family", async (t) => {
+  const cases = [
+    {
+      name: "createI18n shadowed by a function parameter, with chain-eligible options",
+      source: `import { createI18n } from "@comvi/core";
+
+export function wrapper(createI18n) {
+  return createI18n({ exposeGlobal: true });
+}
+
+export const real = createI18n({ locale: "en" });
+`,
+      shape: "shadowed-host-binding",
+    },
+    {
+      name: "createI18n shadowed by a local const inside a function",
+      source: `import { createI18n } from "@comvi/core";
+
+export function make() {
+  const createI18n = (options) => options;
+  return createI18n({ exposeGlobal: true });
+}
+`,
+      shape: "shadowed-host-binding",
+    },
+    {
+      name: "createI18n shadowed by a TYPED parameter",
+      source: `import { createI18n } from "@comvi/core";
+
+export function make(createI18n: (options: unknown) => unknown) {
+  return createI18n({ instanceId: "app" });
+}
+`,
+      shape: "shadowed-host-binding",
+    },
+    {
+      name: "new I18n(param) on a shadowed class binding",
+      source: `import { I18n } from "@comvi/core";
+
+export function make(I18n) {
+  return new I18n({ instanceId: "app" });
+}
+`,
+      shape: "shadowed-host-binding",
+    },
+    {
+      name: ".use(FetchLoader(o)) on a shadowed host",
+      source: `import { createI18n } from "@comvi/react";
+import { FetchLoader } from "@comvi/plugin-fetch-loader";
+
+export function make(createI18n) {
+  return createI18n({ locale: "en" }).use(FetchLoader({ cdnUrl: "/x" }));
+}
+`,
+      shape: "shadowed-host-binding",
+    },
+    {
+      name: "createSlimI18n shadowed WITH chain-eligible options",
+      source: `import { createSlimI18n } from "@comvi/next/client";
+
+export function preview(createSlimI18n) {
+  return createSlimI18n({ locale: "de", exposeGlobal: true });
+}
+`,
+      shape: "shadowed-host-binding",
+    },
+    {
+      name: "useI18n shadowed by a function parameter",
+      source: `import { useI18n } from "@comvi/react";
+
+export function render(useI18n) {
+  const { reloadTranslations } = useI18n();
+  return reloadTranslations;
+}
+`,
+      shape: "shadowed-hook-source",
+    },
+    {
+      name: "useI18n shadowed by a catch parameter",
+      source: `import { useI18n } from "@comvi/react";
+
+export function render() {
+  try {
+    return null;
+  } catch (useI18n) {
+    const { reloadTranslations } = useI18n();
+    return reloadTranslations;
+  }
+}
+`,
+      shape: "shadowed-hook-source",
+    },
+  ];
+
+  for (const { name, source, shape } of cases) {
+    await t.test(name, () => {
+      const result = transformSource(source, "shadowed.ts");
+
+      assert.equal(result.text, source, "a shadowed binding must come back byte-identical");
+      assert.equal(result.rewrites, 0);
+      assert.ok(
+        result.manual.some((item) => item.shape === shape),
+        `expected a ${shape} action, got ${JSON.stringify(result.manual)}`,
+      );
+      for (const item of result.manual) {
+        assert.ok(Number.isInteger(item.line) && item.line > 0, "every action names a line");
+        assert.ok(Number.isInteger(item.column) && item.column > 0, "every action names a column");
+      }
+    });
+  }
+});
+
 test("transformed TypeScript goldens compile", (t) => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "comvi-codemod-tsc-"));
   t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
@@ -474,6 +651,10 @@ test("transformed TypeScript goldens compile", (t) => {
       "ctor-icu-compiler",
       "ctor-nested-catalog",
       "ctor-type-only-import",
+      "hook-block-scoped",
+      "hook-export-split",
+      "hook-nospace-keyword",
+      "hook-quoted-key",
       "slim-factory-rename",
       "slim-specifier",
       "t1-pure-loader",
@@ -717,6 +898,35 @@ test("the report is sorted by path:line", (t) => {
   const keys = report.manual.map((item) => `${item.path}:${String(item.line).padStart(4, "0")}`);
   assert.deepEqual(keys, [...keys].sort());
   assert.ok(report.manual[0].path.endsWith("a.tsx"));
+});
+
+/**
+ * The all-clear is a claim about the tree, and a tree with manual actions in it
+ * is not clear. Printing both — "nothing to migrate" beside a MANUAL list — is
+ * how a silent miss reads as a finished migration.
+ */
+test('a tree with manual actions never prints "nothing to migrate"', (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "comvi-codemod-allclear-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  fs.copyFileSync(path.join(FIXTURES, "report-shadowed-host.input.ts"), path.join(dir, "i18n.ts"));
+  fs.copyFileSync(path.join(FIXTURES, "report-computed.input.tsx"), path.join(dir, "computed.tsx"));
+
+  const reported = run(["*.ts", "*.tsx"], dir);
+
+  assert.equal(reported.status, 2, reported.stderr);
+  assert.match(reported.stdout, /MANUAL .*shadowed-host-binding/);
+  assert.match(reported.stdout, /MANUAL .*computed key/);
+  assert.doesNotMatch(reported.stdout, /nothing to migrate/);
+  assert.match(reported.stdout, /0 rewritten/);
+
+  const clean = fs.mkdtempSync(path.join(os.tmpdir(), "comvi-codemod-clean-"));
+  t.after(() => fs.rmSync(clean, { recursive: true, force: true }));
+  fs.writeFileSync(path.join(clean, "ok.ts"), "export const answer = 42;\n");
+
+  const nothing = run(["*.ts"], clean);
+
+  assert.equal(nothing.status, 0, nothing.stderr);
+  assert.match(nothing.stdout, /nothing to migrate/);
 });
 
 function run(args, cwd) {

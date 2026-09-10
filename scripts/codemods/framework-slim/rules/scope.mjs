@@ -27,3 +27,33 @@ export function scopeOf(node) {
 export function scopeId(node) {
   return scopeOf(node).range().start.index;
 }
+
+/**
+ * The narrower unit the destructure MERGE reasons in: the nearest enclosing
+ * BLOCK.
+ *
+ * A `let`/`const` binding lives in its block, not in its function, so merging
+ * two `useI18n()` destructures per function hoists a binding out of the `if`
+ * that declared it and every reference outside that block becomes a
+ * ReferenceError. Only a per-block merge is sound, so T5 collapses repeated
+ * destructures within one block and leaves a sibling block its own capability
+ * call.
+ *
+ * A `switch` case is deliberately NOT a unit: sibling cases share ONE block
+ * scope, so giving each its own capability call would emit the same `const`
+ * twice in that scope. They keep merging, exactly as before.
+ */
+const BLOCK_KINDS = new Set(["statement_block", "class_static_block", "program"]);
+
+/** Nearest enclosing statement block, or the program root. */
+export function blockOf(node) {
+  for (const ancestor of node.ancestors()) {
+    if (BLOCK_KINDS.has(ancestor.kind())) return ancestor;
+  }
+  return node.getRoot().root();
+}
+
+/** Stable identity for a block node — its start offset. */
+export function blockId(node) {
+  return blockOf(node).range().start.index;
+}

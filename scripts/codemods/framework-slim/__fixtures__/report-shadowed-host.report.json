@@ -1,0 +1,32 @@
+[
+  {
+    "line": 8,
+    "column": 10,
+    "shape": "shadowed-host-binding",
+    "detail": "`createI18n` is imported from a Comvi host entry AND declared locally in this module, so this construction may not be the imported one — it is left untouched; rename the local binding and re-run"
+  },
+  {
+    "line": 12,
+    "column": 10,
+    "shape": "shadowed-host-binding",
+    "detail": "`createI18n` is imported from a Comvi host entry AND declared locally in this module, so this construction may not be the imported one — it is left untouched; rename the local binding and re-run"
+  },
+  {
+    "line": 17,
+    "column": 10,
+    "shape": "shadowed-host-binding",
+    "detail": "`createI18n` is imported from a Comvi host entry AND declared locally in this module, so this construction may not be the imported one — it is left untouched; rename the local binding and re-run"
+  },
+  {
+    "line": 21,
+    "column": 10,
+    "shape": "shadowed-host-binding",
+    "detail": "`I18n` is imported from a Comvi host entry AND declared locally in this module, so this construction may not be the imported one — it is left untouched; rename the local binding and re-run"
+  },
+  {
+    "line": 25,
+    "column": 10,
+    "shape": "shadowed-host-binding",
+    "detail": "`createI18n` is imported from a Comvi host entry AND declared locally in this module, so this construction may not be the imported one — it is left untouched; rename the local binding and re-run"
+  }
+]

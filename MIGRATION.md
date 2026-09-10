@@ -238,10 +238,14 @@ Exit `0` means nothing is left for you to do, `2` means **manual items remain**
 (whether or not any rewrite landed), and `1` is an error. One command covers both
 halves of 0.5.0.
 
-For the **hooks** it rewrites pure, mixed, aliased and repeated destructures,
-drops the now-illegal namespace argument from the capability call, merges into a
-capability destructure already present in the same function, and maintains the
-import statement. For the **single entry** it migrates host construction:
+For the **hooks** it rewrites pure, mixed, aliased and repeated destructures
+(quoted static keys, `{ "reloadTranslations": reload }`, included), drops the
+now-illegal namespace argument from the capability call, merges into a capability
+destructure already present in the same **block**, and maintains the import
+statement. The merge unit is the block and not the function on purpose: a
+`const` declared inside an `if` is not visible after it, so merging across
+blocks would move a binding out of the block that declared it. For the **single
+entry** it migrates host construction:
 
 | shape                                                          | becomes                                    |
 | -------------------------------------------------------------- | ------------------------------------------ |
@@ -259,8 +263,18 @@ That last row is cosmetic rather than a rule: `.with(loader(map)).with(icu())`
 already works, because composing a loader ingests nothing (§0.1). A **chain** is
 the unit, meaning `createI18n(…)` plus the `.use` / `.with` calls chained onto
 it, so nothing outside one is guessed at. Imports are maintained in the same pass,
-`new I18n(options)` migrates like `createI18n(options)`, comments and CRLF
-endings survive, and a second run is a byte-identical no-op.
+`new I18n(options)` migrates like `createI18n(options)`, CRLF endings survive, and
+a second run is a byte-identical no-op.
+
+**Comments survive because the host rules never re-print.** Every single-entry
+edit is a splice of your own characters, so comments, formatting, directive
+prologues and shebangs come through untouched. The destructure SPLIT is the one
+rule that re-emits a statement, and there nothing can say which half a comment
+between two members belongs to, so a destructure with a comment inside its
+braces is reported instead of rewritten. Same for an annotated pattern
+(`const { t, reloadTranslations }: Bag = useI18n()`): the annotation describes
+one shape and the split produces two, so it is reported. An `export const {…} =
+useI18n()` split does migrate, and keeps `export` on both halves.
 
 **It never rewrites silently.** These are reported (`path:line:column`, as a list
 and as JSON) and left alone:
@@ -268,6 +282,13 @@ and as JSON) and left alone:
 - rest spreads, computed member access
 - a hook result stored in a variable, or crossing a function boundary
 - a local name that would collide with a hook or installer it wants to introduce
+- a `useI18n` / `createI18n` / `I18n` / `createSlimI18n` name that is BOTH
+  imported from Comvi and declared locally somewhere in the module (a parameter,
+  a local `const`, a `catch` binding). A call there may resolve to either
+  binding, so the whole module's calls through that name are left alone and
+  every one of them is listed
+- a comment inside a destructure's braces, or a type annotation on its pattern:
+  the split re-emits the statement and cannot divide either between the halves
 - `useI18n` / `createI18n` from a relative path or a nuxt auto-import
   (`manual-import`); it will not guess where the capability API lives
 - `.vue` / `.svelte` script blocks that fail extraction

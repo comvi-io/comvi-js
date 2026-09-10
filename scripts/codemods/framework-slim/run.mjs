@@ -40,7 +40,7 @@ import {
   positionAt,
 } from "./rules/script-blocks.mjs";
 import { planSingleEntry } from "./rules/single-entry.mjs";
-import { namedImports } from "./rules/imports.mjs";
+import { localDeclarations, namedImports } from "./rules/imports.mjs";
 
 const REPO_ROOT = path.resolve(path.dirname(url.fileURLToPath(import.meta.url)), "../../..");
 
@@ -210,7 +210,20 @@ export function transformBody(body, lang, { vueProxies = false } = {}) {
     const [sourceImport] = supported;
     const plan = planDestructures(root, body, sourceImport.local);
     manual.push(...plan.manual, ...detectEscapedHookResults(root, sourceImport.local));
-    if (plan.edits.length > 0) {
+    // The SOURCE hook was never checked for a shadow, only the hooks the
+    // codemod introduces: a `function render(useI18n)` parameter made every
+    // `useI18n()` in that function read from the module import instead. Like
+    // every other collision it only matters once there IS something to
+    // rewrite, and it refuses the whole module because the text cannot say
+    // which call sites the shadow covers.
+    const sourceShadow = localDeclarations(root, sourceImport.local)[0];
+    if (plan.edits.length > 0 && sourceShadow !== undefined) {
+      manual.push({
+        offset: sourceShadow.range().start.index,
+        shape: "shadowed-hook-source",
+        detail: `\`${sourceImport.local}\` is imported from ${sourceImport.source} AND declared locally in this module — every \`${sourceImport.local}()\` destructure here is left alone; rename the local binding and re-run`,
+      });
+    } else if (plan.edits.length > 0) {
       // A shadowing local only matters once there IS something to rewrite —
       // the module that defines a capability hook is not a migration target.
       const collisions = detectHookNameCollisions(root);
