@@ -495,7 +495,12 @@ describe("FetchLoader Plugin", () => {
     });
 
     describe("loadOnInit", () => {
-      it("should not load translations when loadOnInit is false", async () => {
+      // Manual invocation is the ONLY path `loadOnInit` reaches: through
+      // `.with(fetchLoader(…))` or `.use(FetchLoader(…))` the plugin body runs
+      // inside `init()`, where the install-time load is skipped either way and
+      // `init()` loads the initial namespaces itself. See
+      // `tests/installer.test.ts` and the option's JSDoc.
+      it("skips its own install-time load when loadOnInit is false and the plugin is invoked by hand", async () => {
         const i18n = new I18n({ locale: "en", devMode: false });
 
         mockCdnSuccessResponse("en", "default", { key: "value" });

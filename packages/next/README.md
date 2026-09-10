@@ -107,14 +107,35 @@ export function ComviProvider({
 }
 ```
 
+```ts title="src/i18n/routing.ts"
+// src/i18n/routing.ts — the URL rules, and nothing else.
+import { defineRouting } from "@comvi/next/routing";
+
+export const routing = defineRouting({
+  locales: ["en", "de"],
+  defaultLocale: "en",
+});
+```
+
 ```ts title="src/middleware.ts"
 // src/middleware.ts
 import { createMiddleware } from "@comvi/next/middleware";
-import { routing } from "./i18n/config";
+import { routing } from "./i18n/routing";
 
 export default createMiddleware(routing);
 export const config = { matcher: ["/((?!api|_next|.*\\..*).*)"] };
 ```
+
+**Import the routing object from a core-free module, not from the module that
+builds the host.** `middleware.ts` runs in the Edge runtime, and an Edge isolate
+ships and EXECUTES every module its entry reaches on each cold start. A
+`middleware.ts` that does `import { routing } from "./i18n/config"` therefore
+pulls core, ICU, the loader, the plugin host, devtools and the tag grammar into
+middleware — and runs `createNextI18n()` and `registerLoader()` there — for one
+plain object: 30.3 KB across 25 modules, against 3.8 KB across 7 with the
+`defineRouting` file above (esbuild, minified, Next's externals). Spread the
+same object into `createNextI18n({ ...routing, … })` in `src/i18n/config.ts` so
+there is still exactly one source of truth for the URL rules.
 
 The full setup also includes a `[locale]/layout.tsx` that imports the server registration once, calls `loadTranslations(locale)`, and renders the client wrapper above. See the [documentation](https://comvi.io/docs/i18n/next/) for locale-aware `<Link>`, `useLocalizedRouter`, server/client subpath imports, and the lazy-plugin API.
 
@@ -221,7 +242,9 @@ Create a `[locale]` dynamic segment in your app directory, and use `createMiddle
 ```tsx
 // middleware.ts
 import { createMiddleware } from "@comvi/next/middleware";
-import { routing } from "@/i18n/config";
+// A `defineRouting` module, not the one that calls `createNextI18n` — see the
+// Edge-bundle note in Quick start.
+import { routing } from "@/i18n/routing";
 
 export default createMiddleware(routing);
 export const config = { matcher: ["/((?!api|_next|.*\\..*).*)"] };

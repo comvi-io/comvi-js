@@ -62,7 +62,16 @@ export function createMiddleware(config: MiddlewareConfig) {
   const getPathname = createGetPathname(routing);
 
   return function middleware(request: NextRequest): NextResponse {
-    const { pathname } = request.nextUrl;
+    // Duplicate slashes are not a route: `//de/about` is the same request as
+    // `/de/about` to every router. `stripLocalePrefix` refuses to strip a
+    // prefix that is not at the very start of the path (deliberately — it
+    // never rewrites interior bytes), so without collapsing them here the
+    // locale prefix stayed in the canonical path and a second one was applied
+    // on the way out: `//de/about` redirected to `/de//de/about`. Next's own
+    // normalization catches these before middleware in the default config;
+    // this keeps the answer right when `skipTrailingSlashRedirect` is on.
+    const rawPathname = request.nextUrl.pathname;
+    const pathname = rawPathname.includes("//") ? rawPathname.replace(/\/{2,}/g, "/") : rawPathname;
 
     if (shouldSkipPath(pathname)) {
       return NextResponse.next();
@@ -114,14 +123,19 @@ export function createMiddleware(config: MiddlewareConfig) {
     const publicPathname = getPathname({ locale, href: canonicalPathname });
     let response: NextResponse;
 
-    if (pathname !== publicPathname) {
+    // Both comparisons ignore a single trailing slash. Whether a URL keeps one
+    // is Next's `trailingSlash` decision, not ours, and comparing literally
+    // made `/de/` redirect to ITSELF forever: the public path is `/de`, but
+    // `nextUrl.clone()` re-serializes it with the slash the request carried,
+    // so the two strings never converged.
+    if (withoutTrailingSlash(pathname) !== withoutTrailingSlash(publicPathname)) {
       const url = request.nextUrl.clone();
       url.pathname = publicPathname;
       response = NextResponse.redirect(url);
     } else {
       const internalPathname = getInternalPathname(locale, canonicalPathname);
       const middlewareInit = { request: { headers: requestHeaders } };
-      if (pathname === internalPathname) {
+      if (withoutTrailingSlash(pathname) === withoutTrailingSlash(internalPathname)) {
         response = NextResponse.next(middlewareInit);
       } else {
         const url = request.nextUrl.clone();
@@ -242,6 +256,11 @@ function defaultResolveAcceptLanguage(
   }
 
   return undefined;
+}
+
+/** Drop a single trailing slash; the root path keeps its only slash. */
+function withoutTrailingSlash(pathname: string): string {
+  return pathname.length > 1 && pathname.endsWith("/") ? pathname.slice(0, -1) : pathname;
 }
 
 function getInternalPathname(locale: string, canonicalPathname: string): string {

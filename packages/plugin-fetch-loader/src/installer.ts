@@ -16,12 +16,21 @@ export type FetchLoaderInstaller = <T extends I18n<any>>(
  * const i18n = createI18n({ locale: "en" }).with(fetchLoader({ cdnUrl }));
  * ```
  *
- * Composes `@comvi/core/loader` and `@comvi/core/plugins` — the order between
- * them does not matter, because the plugin calls `registerLoader` at `init()`,
- * by which point both are attached — and then registers
+ * Composes `@comvi/core/plugins` and `@comvi/core/loader` and then registers
  * `FetchLoader(options)` through the host's `use`. Both attaches are
  * idempotent, so composing onto a host that already has either capability
  * installs nothing and keeps everything already registered.
+ *
+ * The attach order does not change the resulting host — the plugin calls
+ * `registerLoader` at `init()`, by which point both are attached, and a later
+ * `attachLoader` overwrites `attachPlugins`' dev loader shims cleanly. It does
+ * decide the DIAGNOSTIC on a late compose: the late-compose warning fires once
+ * per host, and only the plugin capability's message is true here. A late
+ * `.with(fetchLoader(…))` never runs the plugin, so no loader is ever
+ * registered and the loader message's recovery advice — `reloadTranslations()`
+ * (which throws `E_NO_LOADER_REGISTERED`) or `addActiveNamespace()` (which
+ * fetches nothing) — cannot work. `attachPlugins` therefore runs FIRST so its
+ * message claims the slot.
  *
  * `required`, `timeout`, `onError`, cleanup registration and LIFO destroy are
  * not re-implemented here; they keep running inside `I18nPluginHost`, because
@@ -37,7 +46,7 @@ export type FetchLoaderInstaller = <T extends I18n<any>>(
  */
 export function fetchLoader(options: FetchLoaderOptions): FetchLoaderInstaller {
   return (i18n) => {
-    const host = attachPlugins(attachLoader(ensureInstallable(i18n, "fetchLoader")));
+    const host = attachLoader(attachPlugins(ensureInstallable(i18n, "fetchLoader")));
     host.use(FetchLoader(options));
     return host;
   };

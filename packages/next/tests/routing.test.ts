@@ -176,6 +176,65 @@ describe("routing helpers", () => {
     });
   });
 
+  /**
+   * `stripLocalePrefix` preserves trailing slashes and never rewrites interior
+   * bytes, so `/en/about/` strips to `/about/` and `/en//about` to `//about`.
+   * Both used to miss the `pathnames` map entirely: the slug was silently
+   * bypassed and, for a leading `//`, the locale prefix was applied twice.
+   * The map lookup is slash-insensitive now; the OUTPUT still carries the
+   * trailing slash the input had (which is where 0.4.1 differs — it dropped
+   * the slash whenever a locale prefix happened to be stripped).
+   */
+  describe("cosmetic slashes do not bypass the pathnames map", () => {
+    const NO_PATHNAMES = defineRouting({
+      locales: ["en", "de"],
+      defaultLocale: "en",
+      localePrefix: "as-needed",
+    });
+
+    it("maps a trailing-slash path to the localized slug and keeps the slash", () => {
+      expect(localizeHref("/en/about/", "de", ROUTING_DE_ONLY)).toBe("/de/ueber-uns/");
+      expect(localizeHref("/about/", "de", ROUTING_DE_ONLY)).toBe("/de/ueber-uns/");
+      expect(localizeHref("/de/ueber-uns/", "de", ROUTING_DE_ONLY)).toBe("/de/ueber-uns/");
+      expect(localizeHref("/en/about/?x=1#top", "de", ROUTING_DE_ONLY)).toBe(
+        "/de/ueber-uns/?x=1#top",
+      );
+    });
+
+    it("maps a path with a duplicated interior slash to the localized slug", () => {
+      expect(localizeHref("/en//about", "de", ROUTING_DE_ONLY)).toBe("/de/ueber-uns");
+    });
+
+    it("resolves a slash variant back to its canonical route key", () => {
+      // What usePathname() returns for /de/ueber-uns/ and /de/about/.
+      expect(getCanonicalPathname("/ueber-uns/", ROUTING_DE_ONLY, "de")).toBe("/about/");
+      expect(getCanonicalPathname("/about/", ROUTING_DE_ONLY, "de")).toBe("/about/");
+      expect(getCanonicalPathname("//about", ROUTING_DE_ONLY, "en")).toBe("/about");
+    });
+
+    it("localizes a UrlObject slash variant through the map", () => {
+      expect(localizeUrlObject({ pathname: "/en/about/" }, "de", ROUTING_DE_ONLY)).toEqual({
+        pathname: "/de/ueber-uns/",
+      });
+    });
+
+    it("leaves a protocol-relative UrlObject pathname alone instead of prefixing it twice", () => {
+      expect(localizeUrlObject({ pathname: "//de/about" }, "de", ROUTING_DE_ONLY)).toEqual({
+        pathname: "//de/about",
+      });
+      // …matching `localizeHref`, which has always treated `//` as external.
+      expect(localizeHref("//de/about", "de", ROUTING_DE_ONLY)).toBe("//de/about");
+    });
+
+    it("keeps the slashes byte-for-byte when no pathnames map is configured", () => {
+      // Nothing to look up, so the documented "interior bytes are never
+      // rewritten" rule is all that applies. 0.4.1 collapsed both.
+      expect(localizeHref("/en/about/", "de", NO_PATHNAMES)).toBe("/de/about/");
+      expect(localizeHref("/en//about", "de", NO_PATHNAMES)).toBe("/de//about");
+      expect(getCanonicalPathname("/about/", NO_PATHNAMES, "de")).toBe("/about/");
+    });
+  });
+
   it("recognizes configured locales and rejects the rest", () => {
     expect(hasLocale(["en", "de"], "de")).toBe(true);
     expect(hasLocale(["en", "de"], "fr")).toBe(false);

@@ -90,6 +90,48 @@ describe("@comvi/next/middleware stays an Edge-safe entry", () => {
     expect(externals.filter((specifier) => NODE_BUILTIN.test(specifier))).toEqual([]);
   });
 
+  /**
+   * The entry split only protects an app that imports its routing object from a
+   * core-free module. The README's `src/i18n/routing.ts` recipe does; a
+   * `middleware.ts` that reaches for the module which calls `createNextI18n`
+   * defeats it, and the entry-only assertions above would not notice.
+   */
+  it("stays core-free through the documented `defineRouting` wiring", async () => {
+    const { modules } = await graphOf({
+      stdin: {
+        contents: [
+          'import { createMiddleware } from "./src/middleware";',
+          'import { defineRouting } from "./src/routing";',
+          'const routing = defineRouting({ locales: ["en", "de"], defaultLocale: "en" });',
+          "export default createMiddleware(routing);",
+        ].join("\n"),
+        resolveDir: packageRoot,
+        loader: "ts",
+      },
+    });
+
+    expect(modules.filter((m) => m.includes("comvi-core"))).toEqual([]);
+    expect(modules).not.toContain("src/createNextI18n.ts");
+  });
+
+  it("control: the same probe reports core when routing comes from the package root", async () => {
+    const { modules } = await graphOf({
+      stdin: {
+        contents: [
+          'import { createMiddleware } from "./src/middleware";',
+          'import { createNextI18n } from "./src/index";',
+          'const { routing } = createNextI18n({ locales: ["en", "de"], defaultLocale: "en" });',
+          "export default createMiddleware(routing);",
+        ].join("\n"),
+        resolveDir: packageRoot,
+        loader: "ts",
+      },
+    });
+
+    expect(modules).toContain("src/createNextI18n.ts");
+    expect(modules.filter((m) => m.includes("comvi-core")).length).toBeGreaterThan(0);
+  });
+
   it("control: the same probe reports src/server modules for the server entry", async () => {
     const { modules } = await graphOf({ entryPoints: ["src/server.ts"] });
 

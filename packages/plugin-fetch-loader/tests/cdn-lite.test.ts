@@ -65,6 +65,23 @@ describe("cdnLoader() installer", () => {
 
     expect(hasLoaderApi(i18n)).toBe(false);
   });
+
+  /** Same once-per-host warning slot as `fetchLoader`; see tests/installer.test.ts. */
+  it("warns with the plugin-queue message on a late compose", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const i18n = base();
+    await i18n.init();
+
+    const late = i18n.with(cdnLoader({ cdnUrl: TEST_CDN_URL }));
+    const messages = warn.mock.calls.map((call) => String(call[0]));
+
+    expect(messages).toHaveLength(1);
+    expect(messages[0]).toContain(".with(plugins()) ran after init()");
+    expect(messages[0]).not.toContain("reloadTranslations()");
+    expect(late.getLoader()).toBeUndefined();
+
+    await late.destroy();
+  });
 });
 
 describe("CdnLoader() options guard", () => {

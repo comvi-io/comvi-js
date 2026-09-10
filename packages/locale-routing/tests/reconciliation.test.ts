@@ -180,9 +180,53 @@ describe("buildLocalizedPath (nuxt buildLocalizedPath ∪ next createGetPathname
       expect(buildLocalizedPath("/contact", "de", { ...base, pathnames })).toBe("/de/contact");
     });
 
-    it("looks up by the exact given path (next-pinned: no normalization before lookup)", () => {
+    it("looks up by the exact given path (next-pinned: no LEADING-slash normalization)", () => {
       // "about" (no leading slash) is not a key in the map -> falls through, then normalized
       expect(buildLocalizedPath("about", "de", { ...base, pathnames })).toBe("/de/about");
+    });
+
+    /**
+     * A cosmetic slash must not silently bypass the slug map: `stripLocalePrefix`
+     * hands its caller `/about/` for `/de/about/` and `//about` for `/en//about`,
+     * and looking those up literally lost the mapping (and, for `//`, applied
+     * the locale prefix twice downstream). The trailing slash the input carried
+     * still survives onto the mapped slug.
+     */
+    it("finds the slug for a trailing-slash path and keeps the slash", () => {
+      expect(buildLocalizedPath("/about/", "de", { ...base, pathnames })).toBe("/de/ueber-uns/");
+      expect(buildLocalizedPath("/about/", "uk", { ...base, pathnames })).toBe("/uk/pro-nas/");
+      expect(
+        buildLocalizedPath("/about/", "en", {
+          defaultLocale: "en",
+          localePrefix: "as-needed",
+          pathnames,
+        }),
+      ).toBe("/about/");
+    });
+
+    it("finds the slug for a path with duplicated slashes", () => {
+      expect(buildLocalizedPath("//about", "de", { ...base, pathnames })).toBe("/de/ueber-uns");
+      expect(buildLocalizedPath("//about//", "de", { ...base, pathnames })).toBe("/de/ueber-uns/");
+    });
+
+    it("prefers an exact key over its slash-normalized form", () => {
+      expect(
+        buildLocalizedPath("/about/", "de", {
+          ...base,
+          pathnames: { "/about/": { de: "/exact" }, "/about": { de: "/ueber-uns" } },
+        }),
+      ).toBe("/de/exact");
+    });
+
+    it("leaves the slashes alone when the normalized key is absent from the map too", () => {
+      expect(buildLocalizedPath("/contact/", "de", { ...base, pathnames })).toBe("/de/contact/");
+      expect(buildLocalizedPath("//contact", "de", { ...base, pathnames })).toBe("/de//contact");
+    });
+
+    it("does not double the slash when a mapped slug already ends in one", () => {
+      expect(
+        buildLocalizedPath("/about/", "de", { ...base, pathnames: { "/about": { de: "/x/" } } }),
+      ).toBe("/de/x/");
     });
   });
 

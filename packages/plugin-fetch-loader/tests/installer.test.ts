@@ -1,10 +1,11 @@
 import { describe, it, expect, vi } from "vitest";
+import { http, HttpResponse } from "msw";
 import { createI18n, hasLoaderApi } from "@comvi/core";
 import { loader } from "@comvi/core/loader";
 import { plugins } from "@comvi/core/plugins";
 import type { I18nPlugin } from "@comvi/core";
 import { FETCH_LOADER_PLUGIN_KEY, FetchLoader, fetchLoader } from "../src/index";
-import { mockCdnSuccessResponse, TEST_CDN_URL } from "./setup";
+import { buildTestCdnUrl, mockCdnSuccessResponse, server, TEST_CDN_URL } from "./setup";
 
 /**
  * `fetchLoader(options)` is the one-call form of the recipe the composed-host
@@ -78,6 +79,56 @@ describe("fetchLoader() installer", () => {
     expect(() => base().with(fetchLoader({ cdnUrl: "" }))).toThrow(/cdnUrl is required/);
   });
 
+  /**
+   * `loadOnInit` gates the plugin's OWN install-time load, and the plugin body
+   * runs inside `init()` where that load is always skipped. `init()` then loads
+   * the initial namespaces through the registered loader on its own, so
+   * `loadOnInit: false` suppresses nothing on this path. Pinned so the next
+   * attempt to make the flag mean "no request during init()" is visible;
+   * `options.ts` documents `ns: []` as the actual opt-out (pinned below).
+   */
+  it("still issues the initial request when loadOnInit is false, because init() owns that load", async () => {
+    let requests = 0;
+    server.use(
+      http.get(buildTestCdnUrl("en", "default"), () => {
+        requests += 1;
+        return HttpResponse.json({ greeting: "Hello" });
+      }),
+    );
+
+    const i18n = base().with(fetchLoader({ cdnUrl: TEST_CDN_URL, loadOnInit: false }));
+    await i18n.init();
+
+    expect(requests).toBe(1);
+    expect(i18n.t("greeting")).toBe("Hello");
+
+    await i18n.destroy();
+  });
+
+  it("makes no request at all when core is told to load no initial namespace", async () => {
+    let requests = 0;
+    server.use(
+      http.get(buildTestCdnUrl("en", "default"), () => {
+        requests += 1;
+        return HttpResponse.json({ greeting: "Hello" });
+      }),
+    );
+
+    const i18n = createI18n({ locale: "en", exposeGlobal: false, devMode: false, ns: [] }).with(
+      fetchLoader({ cdnUrl: TEST_CDN_URL }),
+    );
+    await i18n.init();
+
+    expect(requests).toBe(0);
+
+    // …and the loader is registered, so a namespace loads on demand.
+    await i18n.addActiveNamespace("default");
+    expect(requests).toBe(1);
+    expect(i18n.t("greeting")).toBe("Hello");
+
+    await i18n.destroy();
+  });
+
   it("keeps the plugin's cleanup on the host's LIFO teardown", async () => {
     mockCdnSuccessResponse("en", "default", { greeting: "Hello" });
     const order: string[] = [];
@@ -126,6 +177,35 @@ describe("fetchLoader() wrong use", () => {
 
     expect((i18n as unknown as Record<string, unknown>).registerLoader).toBeUndefined();
     expect((i18n as unknown as Record<string, unknown>).use).toBeUndefined();
+  });
+
+  /**
+   * A late `.with(fetchLoader(…))` registers nothing, so the loader
+   * capability's recovery advice ("call reloadTranslations() or
+   * addActiveNamespace()") cannot work: the plugin that would have called
+   * `registerLoader` never runs. The late-compose warning is once per host, so
+   * the plugin capability's message — the accurate one — has to claim the slot.
+   */
+  it("warns with the plugin-queue message, not the loader's impossible recovery advice", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const i18n = base();
+    await i18n.init();
+
+    const late = i18n.with(fetchLoader(OPTIONS));
+    const messages = warn.mock.calls.map((call) => String(call[0]));
+
+    expect(messages).toHaveLength(1);
+    expect(messages[0]).toContain(".with(plugins()) ran after init()");
+    expect(messages[0]).toContain("a plugin queued now will never run");
+    expect(messages[0]).not.toContain("reloadTranslations()");
+
+    // Why the loader message would have been wrong: no loader was registered,
+    // so neither advertised recovery does anything.
+    expect(late.getLoader()).toBeUndefined();
+    await expect(late.reloadTranslations()).rejects.toThrow(/No loader registered/);
+    await expect(late.addActiveNamespace("other")).resolves.toBeUndefined();
+
+    await late.destroy();
   });
 
   it("still installs normally after a rejected .use() attempt", async () => {
