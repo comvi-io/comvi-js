@@ -60,6 +60,8 @@ npx comvi push                    # upload local translations to the TMS
 
 **Recommended:** keep the API key in the `COMVI_API_KEY` environment variable. Storing `apiKey` in `.comvirc.json` works but is discouraged. Env vars take precedence and won't end up in version control by accident.
 
+`.comvirc.json` is looked up by walking up from your current working directory and stopping at the first directory that has a `package.json`, so a stray config above your project is never adopted. In a monorepo that bound is the **package** you run from, not the repo root: a command run in `apps/web` does not inherit `.comvirc.json` at the workspace root. Either give the package its own `.comvirc.json`, or point at the shared one with `--config ../../.comvirc.json`.
+
 The CLI auto-loads the nearest `.env` by walking up from your current working directory (bounded by the project root) before each command. Drop `COMVI_API_KEY=...` in `.env` and no `dotenv-cli` wrapper is needed. Real env vars always win over the file (CI-safe). Use `--no-dotenv` (or `COMVI_NO_ENV=1`) to opt out, or `--dotenv <path>` to point at a specific file.
 
 ### Filter what you pull/push

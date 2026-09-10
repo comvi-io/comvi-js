@@ -76,10 +76,54 @@ export function importedBinding(root, name) {
 }
 
 /**
+ * Parameter lists that declare NOTHING at runtime: a parameter name inside a
+ * type is documentation, erased by TypeScript, and it shadows no value.
+ *
+ * Allowlisted rather than denylisted on purpose — an unrecognised parameter
+ * owner counts as a real binding, which is a refusal, which is the safe
+ * direction.
+ */
+const TYPE_PARAMETER_OWNERS = new Set([
+  "function_type",
+  "constructor_type",
+  "function_signature",
+  "method_signature",
+  "construct_signature",
+  "call_signature",
+  "abstract_method_signature",
+  "index_signature",
+]);
+
+const PARAMETER_KINDS = new Set(["required_parameter", "optional_parameter", "formal_parameters"]);
+
+/**
+ * Whether this identifier is a parameter name in TYPE position:
+ * `type Injected = (useI18n: () => unknown) => void`, an interface method, or a
+ * `declare function` / overload signature. Those bind no value, so treating one
+ * as a shadow refuses a whole module over a type alias.
+ */
+function isTypeOnlyParameter(node, parentKind) {
+  if (!PARAMETER_KINDS.has(parentKind)) return false;
+  for (const ancestor of node.ancestors()) {
+    if (ancestor.kind() !== "formal_parameters") continue;
+    const owner = ancestor.parent();
+    if (owner === null) return false;
+    if (TYPE_PARAMETER_OWNERS.has(owner.kind())) return true;
+    // A function with no body is a declaration, not an implementation, so its
+    // parameters bind nothing either.
+    return owner.field("body") === null;
+  }
+  return false;
+}
+
+/**
  * Non-import declarations of `name` in the file: a local `function plugins()`,
  * `const { plugins } = …`, parameter, default import, or namespace import
  * shadows any import the codemod would add. Missing one produces invalid
  * duplicate bindings, so uncertain declaration shapes are refusals.
+ *
+ * Parameter names in TYPE position are not declarations: see
+ * `isTypeOnlyParameter`.
  */
 export function localDeclarations(root, name) {
   const found = root.findAll({
@@ -91,6 +135,7 @@ export function localDeclarations(root, name) {
     const kind = parent.kind();
     const value = parent.field("value");
     const left = parent.field("left");
+    if (isTypeOnlyParameter(node, kind)) continue;
     const declares =
       (DECLARATION_KINDS.has(kind) && parent.field("name")?.text() === name) ||
       kind === "required_parameter" ||
