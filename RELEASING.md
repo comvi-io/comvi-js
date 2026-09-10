@@ -17,7 +17,7 @@ and keeps its own version in the tags, notes and archive.
       the run half-publishes: the failure happens inside `changeset publish`, after some of the other
       packages are already live. This step is manual and is not automated by anything in this repo.
 - [ ] `pnpm test:release` locally (it is not a single CI job; its constituents are split across the
-      `quality`, `tests` and `package-contracts` jobs).
+      `quality`, `tests` and `build` jobs).
 - [ ] `pnpm size`, `pnpm bundler-matrix` (add `--from-registry next` to measure the published RC
       instead of the local `dist`), and `node scripts/perf.mjs --compare-ref <last release ref>`.
 - [ ] Read the pending changesets. Note that **`changeset status` reports a version the cut will not
@@ -54,15 +54,24 @@ under the `next` dist-tag. Dispatch it from a green ref: the job runs no tests o
       it afterwards, so `npm i @comvi/core@next` keeps resolving to the RC after GA ships. For every
       package the rehearsal published, either remove the tag or point it at the GA version:
 
-      ```sh
-      # inspect first
-      npm dist-tag ls @comvi/core
-      # then, per package
-      npm dist-tag rm @comvi/<pkg> next
-      ```
+  ```sh
+  # inspect first
+  npm dist-tag ls @comvi/core
+  # then, per package
+  npm dist-tag rm @comvi/<pkg> next
+  ```
 
       The 14 published names are `cli`, `core`, `locale-routing`, `next`, `nuxt`,
       `plugin-fetch-loader`, `plugin-in-context-editor`, `plugin-locale-detector`, `react`, `solid`,
       `svelte`, `typegen`, `vite-plugin`, `vue`.
 
 - [ ] Re-snapshot the test manifest, and keep the post-release observation window.
+
+## Known release-tooling gaps (recorded, not fixed)
+
+- A `@comvi/locale-routing`-only release still bumps all 13 fixed-group packages through
+  `updateInternalDependencies: patch` (via `@comvi/next` and `@comvi/nuxt`), so every future
+  locale-routing patch republishes the whole train with empty changelog sections. Decide before GA
+  whether locale-routing joins the fixed group or the dependency range becomes a peer range.
+- The `rc` job publishes after a build only (no tests, no package-contract or size gate) and inherits
+  the workflow-level `contents: write` it does not need.

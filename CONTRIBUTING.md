@@ -69,7 +69,7 @@ outside this list is checked automatically.
 | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `quality`   | changeset guard (pull requests only), `pnpm format:check`, `pnpm lint`, `pnpm typecheck`, `node scripts/audit-published.mjs`, `pnpm test:release-tools`, `pnpm check:snippets`, `node scripts/examples-sync-locales.mjs --check` |
 | `tests`     | `pnpm test:commit`                                                                                                                                                                                                               |
-| `build`     | `pnpm build`, then `pnpm audit:package-contracts`, `pnpm check:publint`, `pnpm check:types-exports`, `pnpm size`, `pnpm bundler-matrix`                                                                                          |
+| `build`     | `pnpm build`, then `pnpm check:inlined-version`, `pnpm audit:package-contracts`, `pnpm check:publint`, `pnpm check:types-exports`, `pnpm size`, `pnpm bundler-matrix`                                                            |
 | `extension` | `pnpm extension:build`, the built-artifact test, a chromium install, Gate E (`pnpm --filter @comvi/chrome-extension test:e2e`), diagnostics upload                                                                               |
 
 Everything that reads `dist/` lives in the single `build` job, after the build. Splitting those
