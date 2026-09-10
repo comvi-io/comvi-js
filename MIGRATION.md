@@ -353,8 +353,12 @@ the one exception and re-exports nothing (§7). `createI18n` IS core's own
 constructor everywhere but `@comvi/vue`, whose `createI18n` builds the `VueI18n`
 preset around it.
 
-**Every 0.4.x import path still resolves.** What changed is the HOST those
-entries construct, not the specifier you write. And since no package publishes a
+**Every 0.4.x import path still resolves** — the SPECIFIER, that is. What
+changed is the HOST those entries construct, not the module you name. The one
+place a 0.4.x _named import_ can stop resolving is `@comvi/vue`, which used to
+carry `export * from "@comvi/core"` and now re-exports core's values by name;
+the nine names that dropped out, and where each one moved, are tabled in the
+`@comvi/vue` subsection below. And since no package publishes a
 second copy of a binding, the old entry-mixing hazard is gone: `@comvi/react`,
 `@comvi/solid`, `@comvi/svelte` and `@comvi/vue` ship theirs from one entry each,
 `@comvi/next` splits its two runtime entries by runtime rather than by tier, and
@@ -438,7 +442,11 @@ the first catalog. Compose neither capability and `useI18nLoader()` /
   attribute rewriting (`rel="noopener noreferrer"`, forced `alt=""`, stripped
   `on*`) is gone; set those in your mapping props. `createLanguageStore` is
   removed; use `createLocaleStore`. `dist/*.js` now emits fully specified
-  specifiers, so strict-ESM resolvers can import the package at all.
+  specifiers, so strict-ESM resolvers can import the package at all. The
+  **peer range narrows from `svelte: ^5.0.0` to `^5.3.0`** — `<T>` wraps each
+  tag handler in `<svelte:boundary>`, added in Svelte 5.3, so 5.0–5.2 gets a
+  peer warning at install and a compile error after it (changeset
+  `svelte-t-handler-error-path`); every 5.x from 5.3 on satisfies it.
 
 ### `@comvi/vue`
 
@@ -482,6 +490,31 @@ The one-call preset ingests its `translation` immediately, so
 construction. Pass `compiler: icuCompiler` there instead. Vue's `<T>` also gained
 a **default-slot fallback**: a key with no translation and no `fallback` prop
 renders the default slot instead of the key.
+
+**Nine named value exports dropped.** `@comvi/vue` used to re-export core with
+`export * from "@comvi/core"`, so every value on core's root entry, except
+`createI18n` (vue shadowed it with its own), was also a named export of
+`@comvi/vue`. The entry now re-exports core's values **by
+name** and its types with `export type *`, because a star re-export of values
+is a name set webpack can only resolve by keeping the source module alive
+(§0.3's bundle notes). The types are unaffected —
+`import type { TranslationCache } from "@comvi/vue"` still resolves — but these
+nine **values** no longer do, and the failure is a bundler or ESM "no such
+export" at build time, not a runtime `undefined`:
+
+| 0.4.x `import { … } from "@comvi/vue"`                                 | 0.5.0                                                                                      |
+| ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| `formatNumber`, `formatDate`, `formatCurrency`, `formatRelativeTime`   | `useI18n()` returns all four, already bound to the reactive locale; unbound, `@comvi/core` |
+| `getTextDirection`                                                     | `useI18n().dir` for the current locale; the helper itself, `@comvi/core`                   |
+| `TranslationCache`                                                     | `useI18n().translationCache` for the read-only snapshot; the class, `@comvi/core`          |
+| `createBoundTranslation`, `translationResultToString`, `createElement` | `@comvi/core`                                                                              |
+
+Every one of the nine is still exported by `@comvi/core`, which `@comvi/vue`
+depends on, so the fix is a one-line import move and nothing was actually
+removed from the library. Prefer the `useI18n()` members where the table offers
+them: those track the locale, where the bare helpers take it as an argument.
+`@comvi/react`, `@comvi/solid` and `@comvi/svelte` are not affected — they
+already used `export type *` in 0.4.x, so their value surface only grew.
 
 ## 5. Plugins
 

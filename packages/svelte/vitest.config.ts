@@ -62,9 +62,28 @@ export default defineConfig({
           unstubEnvs: true,
           unstubGlobals: true,
           include: ["tests/**/*.test.ts"],
+          // tests/ssr needs server-compiled components — see the `ssr` project.
           // exports-smoke rebuilds dist in beforeAll and asserts on the artefact —
           // meaningless (and ruinously slow) against mutated src under Stryker.
-          exclude: process.env.COMVI_MUTATION ? ["tests/exports-smoke.test.ts"] : [],
+          exclude: process.env.COMVI_MUTATION
+            ? ["tests/ssr/**", "tests/exports-smoke.test.ts"]
+            : ["tests/ssr/**"],
+        },
+      },
+      {
+        // `svelte/server` render() needs SERVER-compiled components, which the
+        // `unit` project cannot produce: its `resolve.conditions: ["browser"]`
+        // compiles .svelte files for the client and reading `result.body` then
+        // fails on the absent browser reactive machinery. Node environment, so
+        // vitest transforms in ssr mode.
+        ...shared,
+        resolve: { conditions: ["svelte", "node"] },
+        test: {
+          name: "ssr",
+          environment: "node",
+          globals: true,
+          restoreMocks: true,
+          include: ["tests/ssr/**/*.test.ts"],
         },
       },
       {

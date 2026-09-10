@@ -231,6 +231,28 @@ construct, and `ssrLocale` has to reach the host before the reactive ref is
 seeded so the ref and `core.locale` cannot disagree for a render. That is also
 why the composition pipe lives one level down.
 
+**Named, which is the point — and it costs nine 0.4.x names.** The table above
+is the whole value surface. 0.4.x carried `export * from "@comvi/core"`, so
+every value on core's root entry, except `createI18n` (vue shadowed it with its
+own), was also a named export here; a star
+re-export of values is a name set webpack can only resolve by keeping the
+source module alive, which is how this file once pinned core's whole root entry
+into a dev bundle. Types are unchanged (`export type *` is erased before any
+bundler sees it), so `import type { TranslationCache } from "@comvi/vue"` still
+resolves. These nine **values** do not:
+
+| 0.4.x `import { … } from "@comvi/vue"`                                 | 0.5.0                                                                    |
+| ---------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| `formatNumber`, `formatDate`, `formatCurrency`, `formatRelativeTime`   | `useI18n()` returns all four bound to the locale; unbound, `@comvi/core` |
+| `getTextDirection`                                                     | `useI18n().dir`; the helper itself, `@comvi/core`                        |
+| `TranslationCache`                                                     | `useI18n().translationCache` for the snapshot; the class, `@comvi/core`  |
+| `createBoundTranslation`, `translationResultToString`, `createElement` | `@comvi/core`                                                            |
+
+All nine are still exported by `@comvi/core`, a dependency of this package, so
+the fix is an import move. Prefer the `useI18n()` members where the table
+offers them: they track the locale, where the bare helpers take it as an
+argument.
+
 `.with(installer)` is core's composition pipe: `host.with(f)` is `f(host)`. On
 vue it goes on the **host**: `i18n.core` for a preset instance, or the
 value `createCore` handed you. `loader(map)` attaches the capability **and**

@@ -2,6 +2,13 @@ import type { Component, Snippet } from "svelte";
 import type { TranslationKeys, PermissiveKey, TranslationParams } from "@comvi/core";
 
 /**
+ * A config entry's target. Looser than the bare-handler form on purpose: the
+ * entry's own `props` supply whatever else the component needs, so a component
+ * with required props belongs here rather than in the handler union below.
+ */
+export type ComponentTarget = string | Component<any>;
+
+/**
  * Tag-name → handler for `<T>`'s tag interpolation: an HTML tag name, a Svelte
  * component, or a config with props — the same shape as the other wrappers.
  *
@@ -27,12 +34,27 @@ import type { TranslationKeys, PermissiveKey, TranslationParams } from "@comvi/c
 export type ComponentMapping =
   | string // HTML tag name: "strong", "em", etc.
   | Component<any> // Svelte component — receives content as `children` snippet
-  | {
-      tag?: string | Component<any>;
-      /** Alias for `tag`, matching vue's config form. */
-      component?: string | Component<any>;
-      props?: Record<string, unknown>;
-    };
+  /**
+   * The `{ tag | component, props }` config form. `tag` (solid/svelte
+   * convention) and `component` (vue convention) are aliases —
+   * `prepareTranslation` reads `handler.tag ?? handler.component`. Requiring
+   * ONE of the two spellings keeps the guarantee core's all-optional shape
+   * gives up, since an entry with neither is not a config at all —
+   * `isTagComponentConfig` rejects it and the object is passed on as an opaque
+   * handler, which drops the entry's `props` and takes the SSR render down.
+   */
+  | ({
+      /**
+       * `any`, not core's `Record<string, unknown>`: an INTERFACE-typed props
+       * object is not assignable to `Record<string, unknown>` (only
+       * type-literal objects are), so core's stricter value type would reject
+       * props a caller legitimately holds. Matches the other three wrappers.
+       */
+      props?: Record<string, any>;
+    } & (
+      | { tag: ComponentTarget; component?: ComponentTarget }
+      | { component: ComponentTarget; tag?: ComponentTarget }
+    ));
 
 export type ComponentMap = Record<string, ComponentMapping>;
 

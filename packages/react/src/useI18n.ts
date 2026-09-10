@@ -99,7 +99,12 @@ function translationResultToString(result: TranslationResult): string {
   return text;
 }
 
-type Host = WrapperI18nHost;
+/**
+ * Generic in `D`, like the other three wrappers: a non-generic alias collapses
+ * `D` to `{}` for every member reached through it, which silently un-typed
+ * `setDefaultParams` (see `tests/types/default-params.test-d.ts`).
+ */
+type Host<D extends DefaultTranslationParams = {}> = WrapperI18nHost<D>;
 
 /**
  * No loader or plugin-host member is here — `addActiveNamespace(s)`,
@@ -150,7 +155,7 @@ export interface UseI18nReturn<D extends DefaultTranslationParams = {}> {
   /** Current interpolation defaults for this render (shallow snapshot). */
   defaultParams: DefaultParamsSnapshot<D>;
   /** Replace instance-level interpolation defaults. */
-  setDefaultParams: Host["setDefaultParams"];
+  setDefaultParams: Host<D>["setDefaultParams"];
   clearTranslations: (locale?: string, namespace?: string) => void;
 
   hasLocale: (locale: string, namespace?: string) => boolean;

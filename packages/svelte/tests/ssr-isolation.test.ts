@@ -5,13 +5,14 @@
  * hydration warnings, and a deliberately mismatched `hydrate()` DOES emit one
  * (the negative control that keeps the check honest).
  *
- * HARNESS LIMITATION: the vitest config sets resolve.conditions ["browser"],
- * so .svelte files compile as browser components, and `svelte/server`
- * render() needs server-compiled ones. render() does not throw synchronously,
- * but reading `result.body` errors because the browser reactive machinery
- * (parent_effect) is absent in the SSR renderer. Real server-render coverage
- * needs a separate vitest project with ssr.resolve.conditions
- * ["svelte", "node"]; the cross-bleed assertions are the primary gate here.
+ * HARNESS LIMITATION: this file runs under the `unit` project, whose
+ * resolve.conditions are ["browser"], so .svelte files compile as browser
+ * components and `svelte/server` render() needs server-compiled ones.
+ * render() does not throw synchronously, but reading `result.body` errors
+ * because the browser reactive machinery (parent_effect) is absent in the SSR
+ * renderer. Real server-render coverage lives in the `ssr` project
+ * (`tests/ssr/**`, conditions ["svelte", "node"]); the cross-bleed assertions
+ * are the primary gate here.
  */
 import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
 import type { MockInstance } from "vitest";
