@@ -52,17 +52,21 @@ const getCanonicalPathMatch = (
   const withTrailingSlash = (canonical: string): string =>
     canonical === "/" ? canonical : `${canonical}${trailingSlash}`;
 
+  // Both sides of every comparison go through the same slash-trimmed form:
+  // a `pathnames` key or value that itself ends in `/` must still match its
+  // trimmed input, and the trimmed canonical is what the trailing slash is
+  // re-appended to (so a `/about/` key never yields `/about//`).
   for (const [canonicalPath, localizedByLocale] of Object.entries(routing.pathnames)) {
-    const normalizedCanonicalPath = normalizePath(canonicalPath);
+    const { key: canonicalKey } = splitTrailingSlash(normalizePath(canonicalPath));
 
-    if (key === normalizedCanonicalPath) {
-      return withTrailingSlash(normalizedCanonicalPath);
+    if (key === canonicalKey) {
+      return withTrailingSlash(canonicalKey);
     }
 
     for (const locale of localesToTry) {
       const localizedPath = localizedByLocale[locale];
-      if (localizedPath && normalizePath(localizedPath) === key) {
-        return withTrailingSlash(normalizedCanonicalPath);
+      if (localizedPath && splitTrailingSlash(normalizePath(localizedPath)).key === key) {
+        return withTrailingSlash(canonicalKey);
       }
     }
   }
@@ -87,7 +91,11 @@ export const localizePathname = (
   routing: Required<RoutingConfig>,
 ): string => {
   const { pathname: path, suffix } = splitPathAndSuffix(pathname);
-  const basePath = stripLocalePrefix(path, routing.locales);
+  // A leading run of slashes left after the prefix is stripped (`/en//evil.com`
+  // on the default locale under `as-needed`, or any locale under `never`)
+  // would come back as a protocol-relative `//evil.com`. Collapse the leading
+  // run only; interior doubled slashes stay as the input wrote them.
+  const basePath = stripLocalePrefix(path, routing.locales).replace(/^\/{2,}/, "/");
   const canonicalPath = getCanonicalPathname(basePath, routing, locale);
   let getPathname = getPathnameCache.get(routing);
   if (!getPathname) {

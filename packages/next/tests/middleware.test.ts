@@ -503,6 +503,37 @@ describe("middleware localized pathname mappings", () => {
       expect(response.headers.get("x-comvi-locale")).toBe("de");
     });
 
+    it("terminates when a pathnames key ends in a slash", () => {
+      const slashKey = createMiddleware({
+        locales: ["en", "de"],
+        defaultLocale: "en",
+        localePrefix: "always",
+        pathnames: { "/about/": { en: "/about", de: "/ueber-uns" } },
+      });
+      // Before: 307 to /de/about// and then to itself, forever.
+      const first = slashKey(new NextRequest("https://example.com/de/about/"));
+      // nextUrl.clone() re-serializes with the request's trailing slash.
+      expect(first.headers.get("location")).toBe("https://example.com/de/ueber-uns/");
+      const second = slashKey(new NextRequest("https://example.com/de/ueber-uns"));
+      expect(second.headers.get("location")).toBeNull();
+      expect(second.headers.get("x-middleware-rewrite")).toBe("https://example.com/de/about");
+      const third = slashKey(new NextRequest("https://example.com/de/ueber-uns/"));
+      expect(third.headers.get("location")).toBeNull();
+      expect(third.headers.get("x-middleware-rewrite")).toBe("https://example.com/de/about/");
+    });
+
+    it("keeps the reverse mapping when a pathnames value ends in a slash", () => {
+      const slashValue = createMiddleware({
+        locales: ["en", "de"],
+        defaultLocale: "en",
+        localePrefix: "always",
+        pathnames: { "/about": { en: "/about/", de: "/ueber-uns/" } },
+      });
+      const response = slashValue(new NextRequest("https://example.com/de/ueber-uns/"));
+      expect(response.headers.get("location")).toBeNull();
+      expect(response.headers.get("x-middleware-rewrite")).toBe("https://example.com/de/about/");
+    });
+
     it("collapses duplicate slashes instead of prefixing the locale twice", () => {
       expect(
         middleware(new NextRequest("https://example.com//de/about")).headers.get("location"),

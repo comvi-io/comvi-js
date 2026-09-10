@@ -152,16 +152,28 @@ export function setQueryParamInSuffix(suffix: string, key: string, value: string
  * round trip. The lookup key never gains a LEADING slash — `"about"` is not
  * `"/about"`, which is next's pinned behaviour.
  */
+const slashKey = (path: string): { key: string; hasTrailingSlash: boolean } => {
+  const collapsed = path.includes("//") ? path.replace(/\/{2,}/g, "/") : path;
+  const hasTrailingSlash = collapsed.length > 1 && collapsed.endsWith("/");
+  return { key: hasTrailingSlash ? collapsed.slice(0, -1) : collapsed, hasTrailingSlash };
+};
+
 function lookupPathname(path: string, locale: string, pathnames: PathnamesMap): string | undefined {
   const exact = pathnames[path]?.[locale];
   if (exact !== undefined) return exact;
 
-  const collapsed = path.includes("//") ? path.replace(/\/{2,}/g, "/") : path;
-  const hasTrailingSlash = collapsed.length > 1 && collapsed.endsWith("/");
-  const key = hasTrailingSlash ? collapsed.slice(0, -1) : collapsed;
-  if (key === path) return undefined;
-
-  const mapped = pathnames[key]?.[locale];
+  const { key, hasTrailingSlash } = slashKey(path);
+  // The map's own keys go through the same trimming, so a key written as
+  // `"/about/"` still matches `/about` and `//about`.
+  let mapped: string | undefined = pathnames[key]?.[locale];
+  if (mapped === undefined) {
+    for (const [mapKey, byLocale] of Object.entries(pathnames)) {
+      if (mapKey !== path && slashKey(mapKey).key === key) {
+        mapped = byLocale[locale];
+        if (mapped !== undefined) break;
+      }
+    }
+  }
   if (mapped === undefined) return undefined;
   return hasTrailingSlash && !mapped.endsWith("/") ? `${mapped}/` : mapped;
 }

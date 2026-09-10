@@ -223,6 +223,14 @@ describe("buildLocalizedPath (nuxt buildLocalizedPath ∪ next createGetPathname
       expect(buildLocalizedPath("//contact", "de", { ...base, pathnames })).toBe("/de//contact");
     });
 
+    it("matches a map key that itself ends in a slash", () => {
+      const pathnames = { "/about/": { de: "/ueber-uns" } };
+      expect(buildLocalizedPath("/about", "de", { ...base, pathnames })).toBe("/de/ueber-uns");
+      expect(buildLocalizedPath("//about", "de", { ...base, pathnames })).toBe("/de/ueber-uns");
+      // The exact key wins and returns its value verbatim.
+      expect(buildLocalizedPath("/about/", "de", { ...base, pathnames })).toBe("/de/ueber-uns");
+    });
+
     it("does not double the slash when a mapped slug already ends in one", () => {
       expect(
         buildLocalizedPath("/about/", "de", { ...base, pathnames: { "/about": { de: "/x/" } } }),
