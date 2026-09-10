@@ -38,7 +38,7 @@ describe("machine-readable discovery contract", () => {
   });
 
   it("names the members a consumer must validate before adopting a marked global", () => {
-    expect(pageToExtension.requiredMembers).toEqual(["push", "remove", "instances"]);
+    expect(pageToExtension.requiredMembers).toEqual(["push", "remove", "instances", "get"]);
   });
 
   it("states that the marker alone is not proof of a hook", () => {

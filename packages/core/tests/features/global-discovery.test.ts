@@ -337,15 +337,18 @@ describe("attachDevtools install surface", () => {
 /**
  * Two copies of core on one page: a CDN global plus a bundled npm copy, or a
  * binding pinned to a different patch (`core/duplicateGuard.ts` warns about
- * exactly this). Each copy carries its OWN module-scoped id counter, so both
- * would name their first instance `comvi-1`, and a consumer keyed on the id —
- * both shipped ones are — would only ever see one of the two.
+ * exactly this). A MODULE-scoped id counter belongs to one copy, so both would
+ * name their first instance `comvi-1`, and a consumer keyed on the id — both
+ * shipped ones are — would only ever see one of the two. The counter therefore
+ * lives in a `Symbol.for` slot on `globalThis`, the same cross-copy channel
+ * `duplicateGuard.ts` uses, and is never derived from the page's `__COMVI__`.
  *
  * Loading the module graph twice through `vi.resetModules()` IS that shape:
- * two independent copies of the same source, each with its own counter, just
- * as two bundles on a page are.
+ * two independent copies of the same source, just as two bundles on a page are.
  */
 describe("two independently loaded copies of core on one page", () => {
+  const COUNTER_KEY = Symbol.for("comvi.core.instanceCounter");
+
   interface CoreCopy {
     createI18n: typeof createI18n;
     attachDevtools: typeof attachDevtools;
@@ -383,13 +386,31 @@ describe("two independently loaded copies of core on one page", () => {
 
   beforeEach(() => {
     delete win.__COMVI__;
+    // The counter outlives a module copy by design; reset the shared slot so
+    // the minted ids are deterministic inside this suite.
+    delete (globalThis as unknown as Record<symbol, unknown>)[COUNTER_KEY];
   });
 
   afterEach(() => {
     delete win.__COMVI__;
+    delete (globalThis as unknown as Record<symbol, unknown>)[COUNTER_KEY];
   });
 
-  it("does not mint an id the consumer's hook already tracks", async () => {
+  it("mints distinct ids for two copies with no consumer on the page at all", async () => {
+    const copyA = await loadCore();
+    const a = copyA.attachDevtools(copyA.createI18n({ locale: "en" }));
+    const copyB = await loadCore();
+    const b = copyB.attachDevtools(copyB.createI18n({ locale: "en" }));
+
+    // The raw queue array carries no id set to consult, so the shared counter
+    // is the only thing that can keep these apart.
+    expect(a.instanceId).toBe("comvi-1");
+    expect(b.instanceId).toBe("comvi-2");
+    const queue = win.__COMVI__ as ComviQueueEntry[];
+    expect(queue.map((entry) => entry.i)).toEqual([a, b]);
+  });
+
+  it("mints distinct ids for two copies announcing into a consumer's hook", async () => {
     const instances = installConsumerHook();
 
     const copyA = await loadCore();
@@ -398,8 +419,7 @@ describe("two independently loaded copies of core on one page", () => {
     const b = copyB.attachDevtools(copyB.createI18n({ locale: "en" }));
 
     expect(a.instanceId).toBe("comvi-1");
-    expect(b.instanceId).toMatch(/^comvi-\d+$/);
-    expect(b.instanceId).not.toBe(a.instanceId);
+    expect(b.instanceId).toBe("comvi-2");
     expect(instances.size).toBe(2);
     expect(instances.get(a.instanceId!)).toBe(a);
     expect(instances.get(b.instanceId!)).toBe(b);
@@ -418,14 +438,76 @@ describe("two independently loaded copies of core on one page", () => {
     expect(instances.get(b.instanceId!)).toBe(b);
   });
 
-  it("still mints a fresh id when the global is a raw queue with no id set to read", async () => {
-    win.__COMVI__ = [] as ComviQueueEntry[];
+  it("continues the sequence a copy loaded earlier had already reached", async () => {
+    const copyA = await loadCore();
+    copyA.attachDevtools(copyA.createI18n({ locale: "en" }));
+    copyA.attachDevtools(copyA.createI18n({ locale: "en" }));
+
+    const copyB = await loadCore();
+    const b = copyB.attachDevtools(copyB.createI18n({ locale: "en" }));
+
+    expect(b.instanceId).toBe("comvi-3");
+  });
+
+  it("ignores a counter slot a page filled with something that is not a number", async () => {
+    (globalThis as unknown as Record<symbol, unknown>)[COUNTER_KEY] = "not-a-number";
 
     const copyA = await loadCore();
     const a = copyA.attachDevtools(copyA.createI18n({ locale: "en" }));
 
     expect(a.instanceId).toBe("comvi-1");
-    expect((win.__COMVI__ as ComviQueueEntry[])[0]!.i).toBe(a);
+  });
+
+  /**
+   * Construction must not read the page's hook to mint an id. A `Map` whose
+   * own `has` throws is the cheap proof: it would have thrown out of
+   * `createI18n()` while the id was being chosen.
+   */
+  it("mints an id without consulting a hostile instances map on the hook", async () => {
+    const instances = new Map<string, unknown>();
+    Object.defineProperty(instances, "has", {
+      configurable: true,
+      value() {
+        throw new Error("hostile instances map");
+      },
+    });
+    const pushed: ComviQueueEntry[] = [];
+    win.__COMVI__ = Object.assign([] as unknown[], {
+      __comviEditorHook: true as const,
+      instances,
+      push(entry: ComviQueueEntry) {
+        pushed.push(entry);
+      },
+      remove() {},
+    });
+
+    const copyA = await loadCore();
+    const a = copyA.attachDevtools(copyA.createI18n({ locale: "en" }));
+
+    expect(a.instanceId).toBe("comvi-1");
+    expect(pushed.map((entry) => entry.i)).toEqual([a]);
+  });
+
+  /**
+   * The same hazard from the other side: an `instances` map that answers `has`
+   * with `true` for every candidate. A minting loop that consulted it would
+   * never terminate, so this test can only pass while construction does not
+   * ask the page anything.
+   */
+  it("mints an id when the hook's instances map claims to hold every id", async () => {
+    const instances = new Map<string, unknown>();
+    Object.defineProperty(instances, "has", { configurable: true, value: () => true });
+    win.__COMVI__ = Object.assign([] as unknown[], {
+      __comviEditorHook: true as const,
+      instances,
+      push() {},
+      remove() {},
+    });
+
+    const copyA = await loadCore();
+    const a = copyA.attachDevtools(copyA.createI18n({ locale: "en" }));
+
+    expect(a.instanceId).toBe("comvi-1");
   });
 
   it("mints an id without throwing when reading the global throws", async () => {

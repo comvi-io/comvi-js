@@ -62,6 +62,7 @@ interface ComviHookLike {
 }
 
 let anonCounter = 0;
+let dedupeCounter = 0;
 
 // The MAIN-world global slot is untyped in this package; every read of it is
 // runtime-narrowed before use.
@@ -70,10 +71,12 @@ const comviWindow = window as Window & { __COMVI__?: unknown };
 /**
  * The marker alone is NOT enough: it is forgeable, and a page that pollutes
  * `Object.prototype.__comviEditorHook` marks every object. Adopt only a global
- * that also carries the members every read below needs — the same check core
- * makes before pushing (`core/devtools.ts`: `push` AND `remove`), plus the
- * `instances` map the status probe reads. A marked-but-non-conforming global is
- * a truthy non-conforming global: left untouched, never adopted, never read.
+ * that also carries every member a consumer of this protocol then USES on it —
+ * the `push`/`remove` pair core requires before pushing (`core/devtools.ts`),
+ * the `instances` map the status probe reads, and `get`, which the editor
+ * runtime calls to resolve the instance to edit. A marked-but-non-conforming
+ * global is a truthy non-conforming global: left untouched, never adopted,
+ * never read.
  */
 function isComviHook(g: unknown): g is ComviHookLike {
   if (!g || typeof g !== "object") {
@@ -84,7 +87,8 @@ function isComviHook(g: unknown): g is ComviHookLike {
     h.__comviEditorHook === true &&
     h.instances instanceof Map &&
     typeof h.push === "function" &&
-    typeof h.remove === "function"
+    typeof h.remove === "function" &&
+    typeof h.get === "function"
   );
 }
 
@@ -117,6 +121,17 @@ function toInstance(
 function createComviHook(): ComviHookLike {
   const instances = new Map<string, I18nLike>();
   const idsByInstance = new Map<I18nLike, string>();
+  // Ids an old core CLAIMED through `register(id, instance)`, kept apart from
+  // the live map: when the claim collided it was tracked under a deduped key,
+  // and `unregister(id)` must still reach the instance that asked for the id
+  // rather than whichever instance happens to hold it now.
+  const claimedIds = new Map<string, I18nLike>();
+
+  const forgetClaims = (instance: I18nLike): void => {
+    claimedIds.forEach((held, claimed) => {
+      if (held === instance) claimedIds.delete(claimed);
+    });
+  };
 
   // Array-masquerading carrier: `Array.isArray(hook)` stays true, but the
   // OWN push/remove assigned below shadow Array.prototype, so new core's
@@ -130,17 +145,23 @@ function createComviHook(): ComviHookLike {
     }
     let resolvedId =
       id ?? idsByInstance.get(instance) ?? instance.instanceId ?? `comvi-anon-${++anonCounter}`;
+    if (id !== undefined) {
+      // One instance holds at most one claimed id: a re-register moves it.
+      forgetClaims(instance);
+      claimedIds.set(id, instance);
+    }
     // Two copies of core on one page both mint `comvi-1`. Keying on the id
     // alone would drop the first instance from discovery the moment the second
     // announced itself, so a colliding id is DEDUPED rather than overwritten:
-    // both instances stay discoverable and editable.
-    const collided = instances.has(resolvedId) && instances.get(resolvedId) !== instance;
-    while (instances.has(resolvedId) && instances.get(resolvedId) !== instance) {
-      resolvedId = `${resolvedId}#${++anonCounter}`;
-    }
-    if (collided) {
+    // both instances stay discoverable. The suffix is always appended to the
+    // ORIGINAL id, never to an already-suffixed one.
+    if (instances.has(resolvedId) && instances.get(resolvedId) !== instance) {
+      const claimed = resolvedId;
+      do {
+        resolvedId = `${claimed}#${++dedupeCounter}`;
+      } while (instances.has(resolvedId) && instances.get(resolvedId) !== instance);
       console.warn(
-        `[ComviExtension] Two i18n instances announced the same instanceId; tracking the second as "${resolvedId}". Two copies of @comvi/core on one page is the usual cause.`,
+        `[ComviExtension] Two i18n instances announced the same instanceId "${claimed}"; tracking the second as "${resolvedId}". Two copies of @comvi/core on one page is the usual cause.`,
       );
     }
     const prevId = idsByInstance.get(instance);
@@ -163,12 +184,32 @@ function createComviHook(): ComviHookLike {
       return;
     }
     idsByInstance.delete(instance);
+    forgetClaims(instance);
     // Identity guard: only drop the slot while it still holds THIS instance.
     // Without it, a destroyed instance whose id was taken over by another live
     // one evicts that live one from discovery.
     if (instances.get(id) === instance) {
       instances.delete(id);
     }
+  };
+
+  /**
+   * The instance a deduped id now lives under, when that is unambiguous: an
+   * `instanceId` is public (the popup shows it, the editor is activated with
+   * it), so an instance tracked as `<id>#<n>` must still be addressable by the
+   * id it announced once nothing holds the exact key. Two candidates mean the
+   * caller has to name the deduped key itself.
+   */
+  const resolveDeduped = (id: string): I18nLike | undefined => {
+    const prefix = `${id}#`;
+    let found: I18nLike | undefined;
+    for (const [key, instance] of instances) {
+      if (key.startsWith(prefix)) {
+        if (found) return undefined;
+        found = instance;
+      }
+    }
+    return found;
   };
 
   Object.assign(hook, {
@@ -188,11 +229,11 @@ function createComviHook(): ComviHookLike {
       track(instance, undefined, id);
     },
     unregister(id: string): void {
-      untrack(instances.get(id));
+      untrack(claimedIds.get(id) ?? instances.get(id));
     },
     get(id?: string): I18nLike | undefined {
       if (id) {
-        return instances.get(id);
+        return instances.get(id) ?? resolveDeduped(id);
       }
       return instances.values().next().value;
     },
@@ -293,7 +334,12 @@ function installDetector() {
     }
 
     // v1 path: legacy registry objects are duck-typed, and truthy
-    // non-conforming globals are reported but never touched.
+    // non-conforming globals are reported but never touched. A global we
+    // refused to adopt lands HERE, not on `not-found`: it is reported the way
+    // any other truthy foreign value is (`detected: true` with whatever
+    // `instances.size` it happens to expose, usually 0), and activation then
+    // answers with a failure. `not-found` is for an empty slot, or for reads
+    // that throw, which `getComviStatus` turns into nothing-detected.
     const comvi = (window as any).__COMVI__;
     return {
       detected: !!comvi,

@@ -301,6 +301,60 @@ describe("MAIN-world detector hook: colliding instance ids", () => {
     expect([...hook().instances.values()]).toEqual([second]);
   });
 
+  it("unregisters the instance that claimed the id, not the one now holding it", async () => {
+    const newCore = { instanceId: "comvi-1" };
+    const oldCore = {};
+    await injectDetector([]);
+    hook().push({ v: "2.0.0", i: newCore });
+    hook().register("comvi-1", oldCore);
+
+    hook().unregister("comvi-1");
+
+    expect([...hook().instances.values()]).toEqual([newCore]);
+    expect(hook().get("comvi-1")).toBe(newCore);
+  });
+
+  it("suffixes the announced id once, however many instances collide", async () => {
+    await injectDetector([]);
+
+    hook().push({ v: "2.0.0", i: { instanceId: "comvi-1" } });
+    hook().push({ v: "2.0.0", i: { instanceId: "comvi-1" } });
+    hook().push({ v: "2.0.0", i: { instanceId: "comvi-1" } });
+
+    const keys = [...hook().instances.keys()];
+    expect(keys[0]).toBe("comvi-1");
+    expect(keys.slice(1)).toEqual([
+      expect.stringMatching(/^comvi-1#\d+$/),
+      expect.stringMatching(/^comvi-1#\d+$/),
+    ]);
+    expect(new Set(keys).size).toBe(3);
+  });
+
+  it("answers a deduped instance's announced id once nothing holds the exact key", async () => {
+    const first = { instanceId: "comvi-1" };
+    const second = { instanceId: "comvi-1" };
+    await injectDetector([]);
+    hook().push({ v: "2.0.0", i: first });
+    hook().push({ v: "2.0.0", i: second });
+
+    hook().remove({ v: "2.0.0", i: first });
+
+    expect(hook().get("comvi-1")).toBe(second);
+  });
+
+  it("refuses to guess when two deduped instances share the announced id", async () => {
+    const first = { instanceId: "comvi-1" };
+    await injectDetector([]);
+    hook().push({ v: "2.0.0", i: first });
+    hook().push({ v: "2.0.0", i: { instanceId: "comvi-1" } });
+    hook().push({ v: "2.0.0", i: { instanceId: "comvi-1" } });
+
+    hook().remove({ v: "2.0.0", i: first });
+
+    expect(hook().get("comvi-1")).toBeUndefined();
+    expect(hook().instances.size).toBe(2);
+  });
+
   it("keeps both instances when a v1 core registers an id another instance holds", async () => {
     const held = { instanceId: "comvi-1" };
     const late = {};
@@ -385,6 +439,7 @@ describe("MAIN-world detector adoption guards", () => {
     expect(installed.__comviEditorHook).toBe(true);
     expect(typeof installed.push).toBe("function");
     expect(typeof installed.remove).toBe("function");
+    expect(typeof installed.get).toBe("function");
     expect(installed.instances).toBeInstanceOf(Map);
   });
 
@@ -406,6 +461,35 @@ describe("MAIN-world detector adoption guards", () => {
 
     expect(page.__COMVI__).toBe(forged);
     expect(status()).toMatchObject({ detected: true, instanceCount: 0 });
+  });
+
+  it("does not adopt a marker-carrying object with no get to resolve instances with", async () => {
+    // `push`, `remove` and an `instances` Map, but the editor runtime resolves
+    // the instance to edit through `get` — adopting this would hand it a hook
+    // whose one remaining member does not exist.
+    const forged = {
+      __comviEditorHook: true,
+      instances: new Map(),
+      push: () => {},
+      remove: () => {},
+    };
+    page.__COMVI__ = forged;
+    const detected = recordEvents(page, "comvi-extension:detected");
+
+    await injectDetector();
+
+    expect(page.__COMVI__).toBe(forged);
+    // Duck-typed as a v1 registry (it carries an instances Map), which is the
+    // designed fallback for a global we will not adopt.
+    expect(detected).toEqual([
+      {
+        detected: true,
+        version: null,
+        instanceCount: 0,
+        editorActive: false,
+        editorLoaded: false,
+      },
+    ]);
   });
 
   it("does not adopt a marker-carrying function", async () => {

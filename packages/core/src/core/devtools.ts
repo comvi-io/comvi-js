@@ -25,7 +25,17 @@ declare const __VERSION__: string | undefined;
 
 const VERSION = typeof __VERSION__ !== "undefined" ? __VERSION__ : "0.1.0";
 
-let instanceCounter = 0;
+// The default-id sequence, in a slot every copy of core on the page shares —
+// the same cross-copy channel `duplicateGuard.ts` claims for the version. A
+// module-scoped counter belongs to ONE copy, so a CDN global plus a bundled npm
+// copy (or a binding pinned to another patch) would both mint `comvi-1`, and a
+// consumer keyed on the id — both shipped ones are — would only ever see one of
+// the two. Nothing about minting reads the page's `__COMVI__`: an id is chosen
+// before the protocol is probed, and a hostile hook must not be able to throw
+// out of, or spin, construction.
+const COUNTER_KEY = Symbol.for("comvi.core.instanceCounter");
+
+let fallbackCounter = 0;
 
 /**
  * v1 legacy registry shape (`register` WITHOUT `remove`) — mixed-version
@@ -36,30 +46,22 @@ interface LegacyComviRegistry {
   unregister?(id: string): void;
 }
 
-/**
- * Default id: `comvi-<n>` from a MODULE-scoped counter, so two copies of core
- * on one page (a CDN global plus a bundled npm copy) would both mint `comvi-1`.
- * A consumer keyed on the id then loses one of the two instances, so the
- * counter skips any id a consumer's hook already tracks. Only a hook exposes a
- * live id set; against a raw queue array (no consumer yet) the collision is the
- * consumer's to dedupe on drain, which both shipped hooks now do.
- */
+/** The next `comvi-<n>`, counted once per page rather than once per copy. */
 function mintInstanceId(): string {
-  let live: unknown;
+  let n = ++fallbackCounter;
   try {
-    live =
-      typeof window === "undefined"
-        ? undefined
-        : (window.__COMVI__ as { instances?: unknown })?.instances;
+    const slot = globalThis as unknown as Record<symbol, unknown>;
+    const previous = slot[COUNTER_KEY];
+    // A page may have put anything in the slot; only a non-negative number
+    // continues the sequence (NaN fails the comparison and restarts it).
+    const next = (typeof previous === "number" && previous >= 0 ? previous : 0) + 1;
+    slot[COUNTER_KEY] = next;
+    n = next;
   } catch {
-    /* a hostile global must not break construction */
+    // An unwritable or throwing slot must not break construction; the
+    // per-copy count stands in.
   }
-  const taken = live instanceof Map ? live : undefined;
-  let id: string;
-  do {
-    id = `comvi-${++instanceCounter}`;
-  } while (taken?.has(id));
-  return id;
+  return `comvi-${n}`;
 }
 
 /** Discovery options; the same two fields the composite reads off `I18nOptions`. */

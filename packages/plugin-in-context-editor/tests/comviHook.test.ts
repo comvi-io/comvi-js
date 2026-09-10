@@ -493,6 +493,23 @@ describe("ensureComviHook() adoption guards", () => {
     expect([...hook.instances.keys()]).toEqual(["primary"]);
   });
 
+  it("refuses a marker-carrying object with no get to resolve instances with", () => {
+    // `standalone.activate()` resolves the instance to edit through `get`, so a
+    // global without it is not a hook this package can adopt. It still duck-types
+    // as a v1 registry, so it is drained into a fresh hook rather than trusted.
+    const forged = {
+      __comviEditorHook: true,
+      instances: new Map([["primary", fake("primary")]]),
+      push: noop,
+      remove: noop,
+    };
+
+    const hook = install(forged);
+
+    expect(hook).not.toBe(forged);
+    expect([...hook.instances.keys()]).toEqual(["primary"]);
+  });
+
   it("refuses a marker-carrying function", () => {
     const forged = Object.assign(() => undefined, { __comviEditorHook: true });
     globals().__COMVI__ = forged;
@@ -569,6 +586,60 @@ describe("ensureComviHook() colliding instance ids", () => {
     hook.unregister("comvi-1");
 
     expect([...hook.instances.values()]).toEqual([second]);
+  });
+
+  it("unregisters the instance that claimed the id, not the one now holding it", () => {
+    const hook = install();
+    const newCore = fake("comvi-1");
+    const oldCore = fake();
+    hook.push(slot({ v: "1.4.0", i: newCore }));
+    hook.register("comvi-1", slot(oldCore) as never);
+
+    hook.unregister("comvi-1");
+
+    expect([...hook.instances.values()]).toEqual([newCore]);
+    expect(hook.get("comvi-1")).toBe(newCore);
+  });
+
+  it("suffixes the announced id once, however many instances collide", () => {
+    const hook = install();
+
+    hook.push(slot({ v: "1.4.0", i: fake("comvi-1") }));
+    hook.push(slot({ v: "1.4.0", i: fake("comvi-1") }));
+    hook.push(slot({ v: "1.4.0", i: fake("comvi-1") }));
+
+    const keys = [...hook.instances.keys()];
+    expect(keys[0]).toBe("comvi-1");
+    expect(keys.slice(1)).toEqual([
+      expect.stringMatching(/^comvi-1#\d+$/),
+      expect.stringMatching(/^comvi-1#\d+$/),
+    ]);
+    expect(new Set(keys).size).toBe(3);
+  });
+
+  it("answers a deduped instance's announced id once nothing holds the exact key", () => {
+    const hook = install();
+    const first = fake("comvi-1");
+    const second = fake("comvi-1");
+    hook.push(slot({ v: "1.4.0", i: first }));
+    hook.push(slot({ v: "1.4.0", i: second }));
+
+    hook.remove(slot({ v: "1.4.0", i: first }));
+
+    expect(hook.get("comvi-1")).toBe(second);
+  });
+
+  it("refuses to guess when two deduped instances share the announced id", () => {
+    const hook = install();
+    const first = fake("comvi-1");
+    hook.push(slot({ v: "1.4.0", i: first }));
+    hook.push(slot({ v: "1.4.0", i: fake("comvi-1") }));
+    hook.push(slot({ v: "1.4.0", i: fake("comvi-1") }));
+
+    hook.remove(slot({ v: "1.4.0", i: first }));
+
+    expect(hook.get("comvi-1")).toBeUndefined();
+    expect(hook.instances.size).toBe(2);
   });
 
   it("keeps both instances when an old core registers an id another instance holds", () => {

@@ -61,14 +61,17 @@ interface LegacyRegistryLike {
 }
 
 let anonCounter = 0;
+let dedupeCounter = 0;
 
 /**
  * The marker alone is NOT enough: it is forgeable, and a page that pollutes
  * `Object.prototype.__comviEditorHook` marks every object. Adopt only a global
- * that also carries the members every read needs — the same check core makes
- * before pushing (`core/devtools.ts`: `push` AND `remove`), plus the
- * `instances` map the status probe reads. A marked-but-non-conforming global
- * is a truthy non-conforming global: never clobbered, never adopted.
+ * that also carries every member this package then USES on it — `push` and
+ * `remove` (the same pair core requires before pushing, `core/devtools.ts`),
+ * the `instances` map the status probe reads, and `get`, which
+ * `standalone.activate()` calls to resolve the instance to edit. A
+ * marked-but-non-conforming global is a truthy non-conforming global: never
+ * clobbered, never adopted.
  */
 function isEditorHook(g: unknown): g is ComviHookApi {
   if (!g || typeof g !== "object") {
@@ -79,7 +82,8 @@ function isEditorHook(g: unknown): g is ComviHookApi {
     h.__comviEditorHook === true &&
     h.instances instanceof Map &&
     typeof h.push === "function" &&
-    typeof h.remove === "function"
+    typeof h.remove === "function" &&
+    typeof h.get === "function"
   );
 }
 
@@ -121,6 +125,17 @@ function toInstance(
 function createHook(): ComviHookApi {
   const instances = new Map<string, I18n>();
   const idsByInstance = new Map<QueueI18n, string>();
+  // Ids an old core CLAIMED through `register(id, instance)`, kept apart from
+  // the live map: when the claim collided it was tracked under a deduped key,
+  // and `unregister(id)` must still reach the instance that asked for the id
+  // rather than whichever instance happens to hold it now.
+  const claimedIds = new Map<string, QueueI18n>();
+
+  const forgetClaims = (instance: QueueI18n): void => {
+    claimedIds.forEach((held, claimed) => {
+      if (held === instance) claimedIds.delete(claimed);
+    });
+  };
 
   // Array-masquerading carrier: `Array.isArray(hook)` stays true, but the
   // OWN `push`/`remove` properties assigned below shadow Array.prototype, so
@@ -136,17 +151,23 @@ function createHook(): ComviHookApi {
     }
     let resolvedId =
       id ?? idsByInstance.get(instance) ?? instance.instanceId ?? `comvi-anon-${++anonCounter}`;
+    if (id !== undefined) {
+      // One instance holds at most one claimed id: a re-register moves it.
+      forgetClaims(instance);
+      claimedIds.set(id, instance);
+    }
     // Two copies of core on one page both mint `comvi-1`. Keying on the id
     // alone would drop the first instance from discovery the moment the second
     // announced itself, so a colliding id is DEDUPED rather than overwritten:
-    // both instances stay discoverable and editable.
-    const collided = instances.has(resolvedId) && instances.get(resolvedId) !== instance;
-    while (instances.has(resolvedId) && instances.get(resolvedId) !== instance) {
-      resolvedId = `${resolvedId}#${++anonCounter}`;
-    }
-    if (collided) {
+    // both instances stay discoverable. The suffix is always appended to the
+    // ORIGINAL id, never to an already-suffixed one.
+    if (instances.has(resolvedId) && instances.get(resolvedId) !== instance) {
+      const claimed = resolvedId;
+      do {
+        resolvedId = `${claimed}#${++dedupeCounter}`;
+      } while (instances.has(resolvedId) && instances.get(resolvedId) !== instance);
       console.warn(
-        `[ComviInContextEditor] Two i18n instances announced the same instanceId; tracking the second as "${resolvedId}". Two copies of @comvi/core on one page is the usual cause.`,
+        `[ComviInContextEditor] Two i18n instances announced the same instanceId "${claimed}"; tracking the second as "${resolvedId}". Two copies of @comvi/core on one page is the usual cause.`,
       );
     }
     const prevId = idsByInstance.get(instance);
@@ -170,12 +191,32 @@ function createHook(): ComviHookApi {
       return;
     }
     idsByInstance.delete(instance);
+    forgetClaims(instance);
     // Identity guard: only drop the slot while it still holds THIS instance.
     // Without it, a destroyed instance whose id was taken over by another live
     // one evicts that live one from discovery.
     if (instances.get(id) === instance) {
       instances.delete(id);
     }
+  };
+
+  /**
+   * The instance a deduped id now lives under, when that is unambiguous: an
+   * `instanceId` is public (an app reads it, `activate({ instanceId })` passes
+   * it), so an instance tracked as `<id>#<n>` must still be addressable by the
+   * id it announced once nothing holds the exact key. Two candidates mean the
+   * caller has to name the deduped key itself.
+   */
+  const resolveDeduped = (id: string): I18n | undefined => {
+    const prefix = `${id}#`;
+    let found: I18n | undefined;
+    for (const [key, instance] of instances) {
+      if (key.startsWith(prefix)) {
+        if (found) return undefined;
+        found = instance;
+      }
+    }
+    return found;
   };
 
   Object.assign(hook, {
@@ -195,11 +236,11 @@ function createHook(): ComviHookApi {
       track(instance, undefined, id);
     },
     unregister(id: string): void {
-      untrack(instances.get(id));
+      untrack(claimedIds.get(id) ?? instances.get(id));
     },
     get(id?: string): I18n | undefined {
       if (id) {
-        return instances.get(id);
+        return instances.get(id) ?? resolveDeduped(id);
       }
       return instances.values().next().value;
     },
