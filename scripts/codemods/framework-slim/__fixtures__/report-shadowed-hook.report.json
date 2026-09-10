@@ -4,5 +4,11 @@
     "column": 26,
     "shape": "shadowed-hook-source",
     "detail": "`useI18n` is imported from @comvi/react AND declared locally in this module — every `useI18n()` destructure here is left alone; rename the local binding and re-run"
+  },
+  {
+    "line": 14,
+    "column": 12,
+    "shape": "shadowed-hook-source",
+    "detail": "`useI18n` is imported from @comvi/react AND declared locally in this module — every `useI18n()` destructure here is left alone; rename the local binding and re-run"
   }
 ]

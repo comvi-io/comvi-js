@@ -21,18 +21,46 @@
  */
 import { HOOKS, HOOK_NAMES, MEMBER_TO_HOOK, SOURCE_HOOK } from "./capabilities.mjs";
 import { braceListInsertion } from "./script-blocks.mjs";
-import { blockId } from "./scope.mjs";
+import { blockId, switchCaseId } from "./scope.mjs";
 
 const DECLARATION_KINDS = ["lexical_declaration", "variable_declaration"];
 
 /** The declaration keyword, read from the text rather than guessed at. */
 const DECLARATION_KEYWORD = /^(const|let|var)\b/;
 
-/** A quoted static key names the same member as the bare one. */
-const keyText = (key) => (key.kind() === "string" ? key.text().slice(1, -1) : key.text());
-
 /** Static key kinds a destructured member name can be read from. */
 const STATIC_KEY_KINDS = new Set(["property_identifier", "string", "number"]);
+
+/**
+ * The member a static key names.
+ *
+ * A quoted key names the same member as the bare one, ESCAPES INCLUDED:
+ * `{ "reloadTranslations": reload }` is `reloadTranslations`, and reading
+ * the quoted body raw made that key a silent miss reported as "nothing to
+ * migrate". A double-quoted key is a JSON string, so `JSON.parse` decodes it
+ * exactly; anything else carrying a backslash is refused rather than guessed
+ * at, because the wrong answer here is a missed migration with a false
+ * all-clear.
+ *
+ * @returns {{ member: string } | { blocker: string }}
+ */
+function keyMember(key) {
+  if (key.kind() !== "string") return { member: key.text() };
+  const raw = key.text();
+  const body = raw.slice(1, -1);
+  if (!body.includes("\\")) return { member: body };
+  if (raw.startsWith('"')) {
+    try {
+      const decoded = JSON.parse(raw);
+      if (typeof decoded === "string") return { member: decoded };
+    } catch {
+      // Not a JSON string after all: fall through to the refusal.
+    }
+  }
+  return {
+    blocker: `escaped key \`${raw}\` — the member name it spells cannot be decoded`,
+  };
+}
 
 function isHookCall(value, hookName) {
   if (value === null || value.kind() !== "call_expression") return false;
@@ -85,9 +113,13 @@ function readPattern(pattern) {
           always: true,
         };
       }
+      const decoded = keyMember(key);
+      if (decoded.blocker !== undefined) {
+        return { entries, blocker: decoded.blocker, always: true };
+      }
       // `{ "reloadTranslations": reload }` names the same member as the bare
       // key, so it migrates the same way — the emitted TEXT stays verbatim.
-      entries.push({ member: keyText(key), text: child.text() });
+      entries.push({ member: decoded.member, text: child.text() });
       continue;
     }
     if (kind === "object_assignment_pattern") {
@@ -157,6 +189,8 @@ export function planDestructures(root, text, sourceHook = SOURCE_HOOK) {
       existing.set(key, {
         pattern: name,
         members: new Set(entries.map((entry) => entry.member)),
+        caseId: switchCaseId(declaration),
+        declaration,
       });
     }
   }
@@ -232,21 +266,50 @@ export function planDestructures(root, text, sourceHook = SOURCE_HOOK) {
     }
     const keyword = keywordMatch[1];
 
+    // A comment anywhere in the part of the statement the split RE-PRINTS (the
+    // keyword, the pattern, the `=`) has nowhere to go: `const /* mid */ {…}`
+    // and `const {…} /* after */ =` both used to lose it. The call's argument
+    // text is copied verbatim, so a comment inside `useI18n(/* ns */ "x")`
+    // survives and is left alone.
+    const argumentsStart = call.field("arguments")?.range().start.index ?? Infinity;
+    const reprinted = declaration
+      .findAll({ rule: { kind: "comment" } })
+      .find((node) => node.range().start.index < argumentsStart);
+    if (reprinted !== undefined) {
+      manual.push({
+        offset: declaration.range().start.index,
+        shape: "unsupported-destructure",
+        detail:
+          `comment \`${reprinted.text().replace(/\s+/g, " ")}\` in a \`${sourceHook}()\` ` +
+          `declaration — the split re-prints that statement and cannot place it`,
+      });
+      continue;
+    }
+
     // An exported declaration never shares a bucket: `export` covers only the
     // FIRST statement the split emits, so the halves have to be emitted
     // together where the `export ` keyword can be repeated onto them.
     const exported = declaration.parent()?.kind() === "export_statement";
     const scope = exported ? `export@${declaration.range().start.index}` : blockId(declaration);
+    const caseId = switchCaseId(declaration);
     const kept = entries.filter((entry) => !MEMBER_TO_HOOK.has(entry.member));
     const perHook = new Map();
     for (const entry of capabilityNames) {
       const hook = MEMBER_TO_HOOK.get(entry.member);
       const key = `${scope}:${hook}`;
-      if (!moves.has(key)) moves.set(key, { hook, entries: [], firstOwnerIndex: owners.length });
+      if (!moves.has(key)) {
+        moves.set(key, {
+          hook,
+          entries: [],
+          firstOwnerIndex: owners.length,
+          cases: new Map(),
+        });
+      }
       const bucket = moves.get(key);
       if (!bucket.entries.some((existingEntry) => existingEntry.member === entry.member)) {
         bucket.entries.push(entry);
       }
+      if (!bucket.cases.has(caseId)) bucket.cases.set(caseId, declaration);
       perHook.set(hook, key);
       hooksUsed.add(hook);
     }
@@ -263,6 +326,38 @@ export function planDestructures(root, text, sourceHook = SOURCE_HOOK) {
   }
 
   if (owners.length === 0) return { edits, manual, rewrites: 0, hooksUsed: [] };
+
+  // --- a merge that would cross unbraced `switch` cases is refused ----------
+  // Sibling cases share ONE scope, so there is no sound answer: emitting a
+  // capability call per case redeclares the same `const` in that scope, and
+  // merging them moves the binding into a case that may never run, leaving the
+  // read in the other case to hit the temporal dead zone. Report and rewrite
+  // nothing, so the file the user gets is the file they can still fix.
+  const crossCase = new Map(); // declaration offset -> declaration
+  for (const [key, bucket] of moves) {
+    const cases = new Map(bucket.cases);
+    const target = existing.get(key);
+    if (target !== undefined && !cases.has(target.caseId)) {
+      cases.set(target.caseId, target.declaration);
+    }
+    if (cases.size < 2) continue;
+    for (const declaration of cases.values()) {
+      crossCase.set(declaration.range().start.index, declaration);
+    }
+  }
+  if (crossCase.size > 0) {
+    for (const [offset] of [...crossCase].sort((a, b) => a[0] - b[0])) {
+      manual.push({
+        offset,
+        shape: "unsupported-destructure",
+        detail:
+          `\`${sourceHook}()\` destructures in different \`switch\` cases share one scope, so ` +
+          `there is no position a single capability call can hold — brace the cases ` +
+          `(\`case 1: { … }\`) or split them by hand`,
+      });
+    }
+    return { edits: [], manual, rewrites: 0, hooksUsed: [] };
+  }
 
   // --- turn the plan into text splices --------------------------------------
   const emitAt = new Map(); // owner index -> [hook statements]

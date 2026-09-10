@@ -244,8 +244,10 @@ now-illegal namespace argument from the capability call, merges into a capabilit
 destructure already present in the same **block**, and maintains the import
 statement. The merge unit is the block and not the function on purpose: a
 `const` declared inside an `if` is not visible after it, so merging across
-blocks would move a binding out of the block that declared it. For the **single
-entry** it migrates host construction:
+blocks would move a binding out of the block that declared it. Unbraced
+`switch` cases are the one shape a block cannot express — sibling cases share
+one scope — so a merge that would cross them is refused rather than guessed at
+(below). For the **single entry** it migrates host construction:
 
 | shape                                                          | becomes                                    |
 | -------------------------------------------------------------- | ------------------------------------------ |
@@ -269,12 +271,15 @@ a second run is a byte-identical no-op.
 **Comments survive because the host rules never re-print.** Every single-entry
 edit is a splice of your own characters, so comments, formatting, directive
 prologues and shebangs come through untouched. The destructure SPLIT is the one
-rule that re-emits a statement, and there nothing can say which half a comment
-between two members belongs to, so a destructure with a comment inside its
-braces is reported instead of rewritten. Same for an annotated pattern
-(`const { t, reloadTranslations }: Bag = useI18n()`): the annotation describes
-one shape and the split produces two, so it is reported. An `export const {…} =
-useI18n()` split does migrate, and keeps `export` on both halves.
+rule that re-emits a statement, and there nothing can say where a comment in the
+re-printed range belongs, so a comment anywhere from the keyword to the `=`
+(`const /* mid */ { t, … }`, `const { t, … } /* after */ =`, or between two
+members) is reported instead of rewritten. A comment on its own line, or inside
+the call's arguments, is outside that range and does not block anything. Same
+refusal for an annotated pattern (`const { t, reloadTranslations }: Bag =
+useI18n()`): the annotation describes one shape and the split produces two. An
+`export const {…} = useI18n()` split does migrate, and keeps `export` on both
+halves.
 
 **It never rewrites silently.** These are reported (`path:line:column`, as a list
 and as JSON) and left alone:
@@ -283,12 +288,25 @@ and as JSON) and left alone:
 - a hook result stored in a variable, or crossing a function boundary
 - a local name that would collide with a hook or installer it wants to introduce
 - a `useI18n` / `createI18n` / `I18n` / `createSlimI18n` name that is BOTH
-  imported from Comvi and declared locally somewhere in the module (a parameter,
-  a local `const`, a `catch` binding). A call there may resolve to either
-  binding, so the whole module's calls through that name are left alone and
-  every one of them is listed
-- a comment inside a destructure's braces, or a type annotation on its pattern:
-  the split re-emits the statement and cannot divide either between the halves
+  imported from Comvi and declared locally somewhere in the module (a value
+  parameter, a local `const`, a `catch` binding — a parameter name inside a
+  TYPE, as in `type Injected = (useI18n: () => unknown) => void` or a
+  `declare function`, binds nothing and does not count). A call there may
+  resolve to either binding, so every call through that name in the module is
+  left alone: the host rules list each construction they refused, and the hook
+  rules list each shadowing declaration
+- two `useI18n()` destructures in different UNBRACED `switch` cases. Sibling
+  cases share one scope, so a capability call per case redeclares the same
+  `const` in it, while one call in the first case leaves the read in the second
+  in the temporal dead zone whenever that case is skipped. Brace the cases
+  (`case 1: { … }`) and both migrate
+- a comment anywhere in the range a destructure split re-prints (keyword,
+  pattern, `=`), or a type annotation on the pattern: the split cannot place
+  either
+- a quoted key whose escapes cannot be decoded, such as
+  `{ '\u0072eloadTranslations': reload }`. A DOUBLE-quoted key is a JSON string
+  and is decoded, so `{ "\u0072eloadTranslations": reload }` migrates like the
+  bare key; a single-quoted escape is not JSON and fails closed
 - `useI18n` / `createI18n` from a relative path or a nuxt auto-import
   (`manual-import`); it will not guess where the capability API lives
 - `.vue` / `.svelte` script blocks that fail extraction

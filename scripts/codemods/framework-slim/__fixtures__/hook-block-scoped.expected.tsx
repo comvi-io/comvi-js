@@ -1,5 +1,6 @@
 // The merge unit is the BLOCK: a capability call inside the `if` must not
-// swallow a member whose only reference is after the block.
+// swallow a member whose only reference is after the block. A BRACED `switch`
+// case is a block too, so each one gets its own call.
 import { useI18n, useI18nLoader } from "@comvi/react";
 
 export function Conditional(flag: boolean) {
@@ -20,4 +21,19 @@ export function IntoBlockLocalExisting(flag: boolean) {
   const { onLoadError } = useI18nLoader();
   onLoadError(() => {});
   return t("x");
+}
+
+export function BracedCases(kind: number) {
+  switch (kind) {
+    case 1: {
+      const { reloadTranslations } = useI18nLoader();
+      reloadTranslations();
+      break;
+    }
+    case 2: {
+      const { onLoadError } = useI18nLoader();
+      onLoadError(() => {});
+      break;
+    }
+  }
 }

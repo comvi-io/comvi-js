@@ -39,9 +39,17 @@ export function scopeId(node) {
  * destructures within one block and leaves a sibling block its own capability
  * call.
  *
- * A `switch` case is deliberately NOT a unit: sibling cases share ONE block
- * scope, so giving each its own capability call would emit the same `const`
- * twice in that scope. They keep merging, exactly as before.
+ * An unbraced `switch` case is the one shape a block cannot express: sibling
+ * cases share ONE scope, so per-case calls would redeclare the same `const` in
+ * it, while merging them moves the binding into a case that may never run and
+ * the read in the other case hits the temporal dead zone:
+ *
+ *     case 1: const { addActiveNamespace, onLoadError } = useI18nLoader();
+ *     case 2: onLoadError(() => {});   // ReferenceError when case 1 is skipped
+ *
+ * Neither answer is sound, so a merge that would cross cases is REFUSED and
+ * reported (`switchCaseId` below is what detects it). A braced case is a real
+ * block and never reaches that check.
  */
 const BLOCK_KINDS = new Set(["statement_block", "class_static_block", "program"]);
 
@@ -56,4 +64,21 @@ export function blockOf(node) {
 /** Stable identity for a block node — its start offset. */
 export function blockId(node) {
   return blockOf(node).range().start.index;
+}
+
+const SWITCH_CASE_KINDS = new Set(["switch_case", "switch_default"]);
+
+/**
+ * Start offset of the UNBRACED `switch` case a node sits directly in, or
+ * `undefined` when it sits in a block of its own.
+ *
+ * The walk stops at the first block, so `case 1: { … }` reports `undefined`:
+ * its braces already make it a merge unit and nothing can leak out of it.
+ */
+export function switchCaseId(node) {
+  for (const ancestor of node.ancestors()) {
+    if (BLOCK_KINDS.has(ancestor.kind())) return undefined;
+    if (SWITCH_CASE_KINDS.has(ancestor.kind())) return ancestor.range().start.index;
+  }
+  return undefined;
 }

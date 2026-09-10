@@ -1,0 +1,14 @@
+[
+  {
+    "line": 8,
+    "column": 3,
+    "shape": "unsupported-destructure",
+    "detail": "comment `/* mid */` in a `useI18n()` declaration — the split re-prints that statement and cannot place it"
+  },
+  {
+    "line": 14,
+    "column": 3,
+    "shape": "unsupported-destructure",
+    "detail": "comment `/* after */` in a `useI18n()` declaration — the split re-prints that statement and cannot place it"
+  }
+]

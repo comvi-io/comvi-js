@@ -47,10 +47,14 @@ const REQUIRED_CASES = [
   "hook-block-scoped", // N2: the merge unit is the block, not the function
   "hook-export-split", // N3: a T3 split keeps `export` on both halves
   "hook-quoted-key", // P2-1: a quoted static key migrates like the bare one
+  "hook-type-position-param", // a parameter name in a TYPE binds nothing
   "report-shadowed-host", // P1-2: a shadowed host binding is never rewritten
   "report-shadowed-hook", // P1-2: a shadowed `useI18n` is never rewritten
   "report-annotated-destructure", // N4: an annotation cannot be split
   "report-comment-destructure", // N4: an in-pattern comment cannot be split
+  "report-comment-declaration", // a comment in the re-printed range cannot be placed
+  "report-switch-cases", // sibling cases share one scope: no sound merge position
+  "report-escaped-key", // an undecodable escaped key fails closed
   "report-collision",
   "report-stored-result",
   "report-rest-spread",
@@ -140,6 +144,7 @@ test("CRLF sources come back with CRLF", () => {
       "hook-export-split",
       "hook-nospace-keyword",
       "hook-quoted-key",
+      "hook-type-position-param",
       "prologue-shebang",
       "sfc-svelte",
       "sfc-vue",
@@ -176,12 +181,20 @@ test("the migration table is the single source of truth", () => {
 });
 
 /**
- * The merge unit is a BLOCK, and sibling `switch` cases are NOT separate
- * blocks: they share one scope, so a per-case capability call would emit the
- * same `const` twice in it. They keep merging, and a braced case is a block of
- * its own.
+ * Sibling unbraced `switch` cases share ONE scope, so neither answer is sound:
+ * a call per case redeclares the same `const` in that scope, and merging them
+ * into the first case leaves the read in the second in the temporal dead zone.
+ * This is the exact runtime failure, measured:
+ *
+ *   case 1: const { addActiveNamespace, onLoadError } = useI18nLoader();
+ *   case 2: onLoadError(() => {});
+ *   Bare(1) -> OK;  Bare(2) -> ReferenceError: Cannot access 'onLoadError'
+ *                              before initialization
+ *
+ * So the cross-case merge is REFUSED and reported, and nothing is rewritten.
+ * A braced case is a real block and migrates normally.
  */
-test("sibling switch cases merge; a braced case gets its own call", () => {
+test("a merge across unbraced switch cases is refused, not rewritten", () => {
   const source = `import { useI18n } from "@comvi/react";
 
 export function Bare(kind: number) {
@@ -196,27 +209,249 @@ export function Bare(kind: number) {
       break;
   }
 }
+`;
+
+  const result = transformSource(source, "switch.ts");
+
+  assert.equal(result.text, source, "the file must come back byte-identical");
+  assert.equal(result.rewrites, 0);
+  const cases = result.manual.filter(
+    (item) => item.shape === "unsupported-destructure" && /`switch` cases/.test(item.detail),
+  );
+  assert.equal(cases.length, 2, `both cases must be named, got ${JSON.stringify(result.manual)}`);
+  assert.deepEqual(
+    cases.map((item) => item.line),
+    [6, 10],
+  );
+});
+
+test("braced switch cases each get their own capability call", () => {
+  const source = `import { useI18n } from "@comvi/react";
 
 export function Braced(kind: number) {
   switch (kind) {
     case 1: {
-      const { reloadTranslations } = useI18n();
-      reloadTranslations();
+      const { addActiveNamespace } = useI18n();
+      addActiveNamespace("a");
+      break;
+    }
+    case 2: {
+      const { onLoadError } = useI18n();
+      onLoadError(() => {});
       break;
     }
   }
 }
 `;
 
-  const result = transformSource(source, "switch.ts");
+  const result = transformSource(source, "switch-braced.ts");
 
+  assert.deepEqual(result.manual, []);
   assert.equal(
     (result.text.match(/= useI18nLoader\(\)/g) ?? []).length,
     2,
-    "one call for the shared switch scope, one for the braced case",
+    "a braced case is its own block, so neither borrows the other's binding",
   );
-  assert.match(result.text, /const \{ addActiveNamespace, onLoadError \} = useI18nLoader\(\);/);
-  assert.match(result.text, /const \{ reloadTranslations \} = useI18nLoader\(\);/);
+});
+
+/**
+ * A parameter name inside a TYPE is erased by TypeScript: it binds nothing and
+ * shadows nothing, so treating one as a collision refuses a whole module over a
+ * type alias. The positive shapes below must still refuse.
+ */
+test("a parameter name in type position is not a shadow", async (t) => {
+  const migrates = [
+    {
+      name: "function type alias",
+      source: `import { useI18n } from "@comvi/react";
+type Injected = (useI18n: () => unknown) => void;
+export const { reloadTranslations } = useI18n();
+export type { Injected };
+`,
+    },
+    {
+      name: "ambient function declaration",
+      source: `import { createI18n } from "@comvi/core";
+declare function inject(createI18n: () => unknown): void;
+export const i18n = createI18n({ locale: "en", exposeGlobal: true });
+export { inject };
+`,
+    },
+    {
+      name: "interface method signature",
+      source: `import { useI18n } from "@comvi/react";
+interface Deps {
+  provide(useI18n: () => unknown): void;
+}
+export const { reloadTranslations } = useI18n();
+export type { Deps };
+`,
+    },
+    {
+      name: "construct signature",
+      source: `import { useI18n } from "@comvi/react";
+interface Factory {
+  new (useI18n: () => unknown): object;
+}
+export const { reloadTranslations } = useI18n();
+export type { Factory };
+`,
+    },
+    {
+      name: "overload signature with no body",
+      source: `import { useI18n } from "@comvi/react";
+export function inject(useI18n: () => unknown): void;
+export function inject(hook: unknown): void {
+  void hook;
+}
+export const { reloadTranslations } = useI18n();
+`,
+    },
+  ];
+
+  for (const { name, source } of migrates) {
+    await t.test(`migrates: ${name}`, () => {
+      const result = transformSource(source, "type-position.ts");
+
+      assert.notEqual(result.text, source, "a type-position name must not refuse the module");
+      assert.deepEqual(result.manual, []);
+    });
+  }
+
+  const refused = [
+    {
+      name: "a real value parameter",
+      source: `import { useI18n } from "@comvi/react";
+export function render(useI18n) {
+  const { reloadTranslations } = useI18n();
+  return reloadTranslations;
+}
+`,
+      shape: "shadowed-hook-source",
+    },
+    {
+      name: "an implemented function's typed parameter",
+      source: `import { createI18n } from "@comvi/core";
+export function make(createI18n: (options: unknown) => unknown) {
+  return createI18n({ exposeGlobal: true });
+}
+`,
+      shape: "shadowed-host-binding",
+    },
+  ];
+
+  for (const { name, source, shape } of refused) {
+    await t.test(`still refuses: ${name}`, () => {
+      const result = transformSource(source, "type-position.ts");
+
+      assert.equal(result.text, source);
+      assert.equal(result.rewrites, 0);
+      assert.ok(
+        result.manual.some((item) => item.shape === shape),
+        `expected a ${shape} action, got ${JSON.stringify(result.manual)}`,
+      );
+    });
+  }
+});
+
+/**
+ * A quoted key is the same member as the bare one, escapes included. Reading a
+ * quoted body raw made `"\\u0072eloadTranslations"` a member the table does not
+ * know: no rewrite, no report, "nothing to migrate". Double quotes are JSON and
+ * decode exactly; anything else with a backslash fails closed.
+ */
+test("escaped quoted keys either decode or fail closed", async (t) => {
+  await t.test("a double-quoted escape decodes", () => {
+    const source = `import { useI18n } from "@comvi/react";
+export function C() {
+  const { "\\u0072eloadTranslations": reload, t } = useI18n();
+  reload();
+  return t("x");
+}
+`;
+
+    const result = transformSource(source, "escaped.ts");
+
+    assert.deepEqual(result.manual, []);
+    assert.match(result.text, /const \{ "\\u0072eloadTranslations": reload \} = useI18nLoader\(\)/);
+    assert.match(result.text, /const \{ t \} = useI18n\(\)/);
+  });
+
+  await t.test("a single-quoted escape is refused, never read raw", () => {
+    const source = `import { useI18n } from "@comvi/react";
+export function C() {
+  const { '\\u0072eloadTranslations': reload, t } = useI18n();
+  reload();
+  return t("x");
+}
+`;
+
+    const result = transformSource(source, "escaped.ts");
+
+    assert.equal(result.text, source, "an undecodable key must not be guessed at");
+    assert.equal(result.rewrites, 0);
+    assert.ok(
+      result.manual.some(
+        (item) => item.shape === "unsupported-destructure" && /escaped key/.test(item.detail),
+      ),
+      `expected an escaped-key action, got ${JSON.stringify(result.manual)}`,
+    );
+  });
+});
+
+/**
+ * Both shadow families report when both are present: one fact hiding the other
+ * is how the next re-run surprises the user.
+ */
+test("a shadowed source hook and a shadowed introduced hook both report", () => {
+  const source = `import { useI18n } from "@comvi/react";
+
+function useI18nLoader() {
+  return { reloadTranslations: () => {} };
+}
+
+export function Shadowed(useI18n) {
+  const { reloadTranslations } = useI18n();
+  return { reloadTranslations, useI18nLoader };
+}
+`;
+
+  const result = transformSource(source, "both-shadows.ts");
+
+  assert.equal(result.text, source);
+  assert.equal(result.rewrites, 0);
+  assert.deepEqual(result.manual.map((item) => item.shape).sort(), [
+    "local-name-collision",
+    "shadowed-hook-source",
+  ]);
+});
+
+test("every declaration that shadows the source hook is listed", () => {
+  const source = `import { useI18n } from "@comvi/react";
+
+export function First(useI18n) {
+  const { reloadTranslations } = useI18n();
+  return reloadTranslations;
+}
+
+export function Second() {
+  try {
+    return null;
+  } catch (useI18n) {
+    const { onMissingKey } = useI18n();
+    return onMissingKey;
+  }
+}
+`;
+
+  const result = transformSource(source, "many-shadows.ts");
+
+  assert.equal(result.text, source);
+  assert.deepEqual(
+    result.manual.filter((item) => item.shape === "shadowed-hook-source").map((item) => item.line),
+    [3, 11],
+    "one item per shadowing declaration, not just the first",
+  );
 });
 
 test("installer imports refuse every local-binding collision shape", () => {
@@ -655,6 +890,7 @@ test("transformed TypeScript goldens compile", (t) => {
       "hook-export-split",
       "hook-nospace-keyword",
       "hook-quoted-key",
+      "hook-type-position-param",
       "slim-factory-rename",
       "slim-specifier",
       "t1-pure-loader",

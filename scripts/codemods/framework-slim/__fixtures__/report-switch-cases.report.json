@@ -1,0 +1,14 @@
+[
+  {
+    "line": 10,
+    "column": 7,
+    "shape": "unsupported-destructure",
+    "detail": "`useI18n()` destructures in different `switch` cases share one scope, so there is no position a single capability call can hold — brace the cases (`case 1: { … }`) or split them by hand"
+  },
+  {
+    "line": 14,
+    "column": 7,
+    "shape": "unsupported-destructure",
+    "detail": "`useI18n()` destructures in different `switch` cases share one scope, so there is no position a single capability call can hold — brace the cases (`case 1: { … }`) or split them by hand"
+  }
+]

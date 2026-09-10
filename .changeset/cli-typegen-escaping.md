@@ -9,8 +9,8 @@ closes its own quote and produces a file the compiler cannot parse, and a parame
 
 A parameter whose type is neither `string` nor `number` is rejected, naming the key, the
 parameter and the type, instead of being pasted verbatim into the declarations.
-`comvi typegen --check` exits 4 for it. A plain `comvi typegen` exits 1, the code every
-generation failure uses, so key CI on 4 only under `--check`.
+`comvi typegen --check` exits 4 for it. Outside `--check`, a generation failure exits 1
+(an invalid config still exits 4), so key CI on 4 only under `--check`.
 
 `comvi typegen --check` counts keys in an existing declaration file written in either quote
 style, so the check keeps working against a file left by an earlier version.

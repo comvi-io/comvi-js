@@ -210,26 +210,25 @@ export function transformBody(body, lang, { vueProxies = false } = {}) {
     const [sourceImport] = supported;
     const plan = planDestructures(root, body, sourceImport.local);
     manual.push(...plan.manual, ...detectEscapedHookResults(root, sourceImport.local));
-    // The SOURCE hook was never checked for a shadow, only the hooks the
-    // codemod introduces: a `function render(useI18n)` parameter made every
-    // `useI18n()` in that function read from the module import instead. Like
-    // every other collision it only matters once there IS something to
-    // rewrite, and it refuses the whole module because the text cannot say
-    // which call sites the shadow covers.
-    const sourceShadow = localDeclarations(root, sourceImport.local)[0];
-    if (plan.edits.length > 0 && sourceShadow !== undefined) {
-      manual.push({
-        offset: sourceShadow.range().start.index,
-        shape: "shadowed-hook-source",
-        detail: `\`${sourceImport.local}\` is imported from ${sourceImport.source} AND declared locally in this module — every \`${sourceImport.local}()\` destructure here is left alone; rename the local binding and re-run`,
-      });
-    } else if (plan.edits.length > 0) {
+    if (plan.edits.length > 0) {
+      // Two shadow families, and BOTH are reported when both are present: one
+      // fact hiding the other is how a second re-run surprises the user.
+      //
       // A shadowing local only matters once there IS something to rewrite —
       // the module that defines a capability hook is not a migration target.
       const collisions = detectHookNameCollisions(root);
-      if (collisions.length > 0) {
-        manual.push(...collisions);
-      } else {
+      // The SOURCE hook was never checked, only the hooks the codemod
+      // introduces: a `function render(useI18n)` parameter made every
+      // `useI18n()` in that function read from the module import instead. Every
+      // shadowing declaration is listed, and the refusal is module-wide because
+      // the text cannot say which call sites a shadow covers.
+      const sourceShadows = localDeclarations(root, sourceImport.local).map((node) => ({
+        offset: node.range().start.index,
+        shape: "shadowed-hook-source",
+        detail: `\`${sourceImport.local}\` is imported from ${sourceImport.source} AND declared locally in this module — every \`${sourceImport.local}()\` destructure here is left alone; rename the local binding and re-run`,
+      }));
+      manual.push(...collisions, ...sourceShadows);
+      if (collisions.length === 0 && sourceShadows.length === 0) {
         const importPlan = planHookImport(root, sourceImport, plan.hooksUsed);
         manual.push(...importPlan.manual);
         if (!importPlan.blocked) {
