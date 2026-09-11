@@ -6,7 +6,7 @@ New subpath entries decompose the core, so an app pays only for what it composes
 
 - `@comvi/core` — `createI18n` with the simple `{param}` compiler only; the `compiler`
   option injects ICU per instance.
-- `@comvi/core/icu` — pure: `icuCompiler` (its only public home) and the `icu()` installer.
+- `@comvi/core/icu` — pure: `icuCompiler`, its only public home.
 - `@comvi/core/tags` — the tag-interpolation toolbox. **Importing it registers tag syntax
   ambiently**, so string-API `t()` parses `<tag>…</tag>` everywhere. Also exports
   `registerTagSyntax()` (returns a disposer), `tagSyntaxExtension` for per-call activation,

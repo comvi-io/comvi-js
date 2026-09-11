@@ -31,35 +31,34 @@ Everything in the left column below used to be there whether you used it or not.
 In 0.5 each is absent until composed, and absent means _its module never entered
 your bundle_.
 
-| 0.4 root behaviour                                  | converged root                        | migration                                                |
-| --------------------------------------------------- | ------------------------------------- | -------------------------------------------------------- |
-| ICU plurals / select                                | dev throws, prod renders it literally | `compiler: icuCompiler`, or `.with(icu())` pre-ingestion |
-| `.use(plugin)`                                      | absent: TS error plus `TypeError`     | `.with(plugins()).use(p)`, or a lowercase installer      |
-| loader (`registerLoader`, …)                        | absent: the loud capability error     | `.with(loader())`, or `fetchLoader(opts)`                |
-| discovery (`instanceId`, `window.__COMVI__`)        | absent: invisible to the extension    | `.with(devtools())`, or `inContextEditor()`              |
-| nested catalogs                                     | stored verbatim, dev warning          | `flattenCatalog(…)`, or compose `loader()`               |
-| string-API tags (`"<b>hi</b>"`)                     | literal text, dev warning             | `<T>`, or `import "@comvi/core/tags"`                    |
-| a plugin returning a value                          | throws at `init()`                    | return nothing, or a cleanup function                    |
-| `clearTranslations(undefined, ns)` deactivated `ns` | clears CONTENT only, in every form    | `removeActiveNamespace(ns)` from `.with(loader())`       |
-| `new I18n(options)`                                 | unchanged, one argument               | —                                                        |
-| `createNextI18n`, the CDN global                    | unchanged, still fully composed       | —                                                        |
+| 0.4 root behaviour                                  | converged root                        | migration                                           |
+| --------------------------------------------------- | ------------------------------------- | --------------------------------------------------- |
+| ICU plurals / select                                | dev throws, prod renders it literally | `compiler: icuCompiler` in the constructor options  |
+| `.use(plugin)`                                      | absent: TS error plus `TypeError`     | `.with(plugins()).use(p)`, or a lowercase installer |
+| loader (`registerLoader`, …)                        | absent: the loud capability error     | `.with(loader())`, or `fetchLoader(opts)`           |
+| discovery (`instanceId`, `window.__COMVI__`)        | absent: invisible to the extension    | `.with(devtools())`, or `inContextEditor()`         |
+| nested catalogs                                     | stored verbatim, dev warning          | `flattenCatalog(…)`, or compose `loader()`          |
+| string-API tags (`"<b>hi</b>"`)                     | literal text, dev warning             | `<T>`, or `import "@comvi/core/tags"`               |
+| a plugin returning a value                          | throws at `init()`                    | return nothing, or a cleanup function               |
+| `clearTranslations(undefined, ns)` deactivated `ns` | clears CONTENT only, in every form    | `removeActiveNamespace(ns)` from `.with(loader())`  |
+| `new I18n(options)`                                 | unchanged, one argument               | —                                                   |
+| `createNextI18n`, the CDN global                    | unchanged, still fully composed       | —                                                   |
 
 A **missing interpolation parameter now renders as the literal placeholder.** In
 0.4, `t("greet")` on `"Hello, {name}!"` gave `"Hello, !"`; in 0.5 it gives
 `"Hello, {name}!"`, plus one dev warning per (template, parameter). An explicit
 `null` still renders as an empty string. Opt out with `missingParam: "drop"`.
 
-### 0.1 The compiler has a timing rule
+### 0.1 The compiler is a constructor option
 
 If your 0.4 catalogs contain ICU (`{count, plural, …}`, `{gender, select, …}`),
-the root no longer compiles them for you. Name the compiler. The timing rule
-belongs to the installer alone: `compiler: icuCompiler` on the constructor is a
-plain field held for the instance's life, so it covers a catalog that arrives
-later just as well as an inline one, while `.with(icu())` has to run before the
-first catalog reaches the host.
+the root no longer compiles them for you. Name the compiler. The option
+`compiler: icuCompiler` is a plain field held for the instance's life, so one
+option covers every catalog source: inline, an `addTranslations` call, a loader
+merge, the CDN, the API.
 
 ```ts
-// INLINE catalogs — the constructor ingests them, so choose the compiler here.
+// INLINE catalogs.
 import { createI18n } from "@comvi/core";
 import { icuCompiler } from "@comvi/core/icu";
 
@@ -69,24 +68,22 @@ const i18n = createI18n({ locale: "en", translation, compiler: icuCompiler });
 ```
 
 ```ts
-// REMOTE catalogs — the installer, ahead of the first catalog.
+// REMOTE catalogs — the same option, in the same place.
 import { createI18n } from "@comvi/core";
-import { icu } from "@comvi/core/icu";
+import { icuCompiler } from "@comvi/core/icu";
 import { cdnLoader } from "@comvi/plugin-fetch-loader/cdn";
 
-const i18n = createI18n({ locale: "en" })
-  .with(icu())
-  .with(cdnLoader({ cdnUrl: "https://cdn.comvi.io/your-distribution-id" }));
+const i18n = createI18n({ locale: "en", compiler: icuCompiler }).with(
+  cdnLoader({ cdnUrl: "https://cdn.comvi.io/your-distribution-id" }),
+);
 ```
 
-`.with(icu())` is **pre-ingestion only**. The compiler locks irreversibly at the
-first catalog that reaches the host, whether that is a constructor `translation`,
-an `addTranslations` call (even an empty one), or a loader merge. A later `icu()`
-throws with own `code === "E_COMPILER_LOCKED"` before mutating anything, in
-development and production alike, so `createI18n({ translation }).with(icu())` is
-invalid by construction. `clearTranslations()` does not unlock it.
+A tree written against a 0.5 pre-release may still compose the removed `icu`
+installer. The codemod reports that rather than rewriting it (§3,
+`icu-installer-removed`), because the option belongs in a constructor call it
+cannot always see.
 
-That is the library's **only** ordering rule; `loader()`, `plugins()` and
+Composition carries no ordering rule at all: `loader()`, `plugins()` and
 `devtools()` may go in any order among themselves, and all three only have to be
 composed before `init()`.
 
@@ -262,14 +259,11 @@ one scope — so a merge that would cross them is refused rather than guessed at
 | inline `translation` with ICU comma syntax                     | `compiler: icuCompiler` in the same call   |
 | `exposeGlobal` / `instanceId` options                          | `.with(devtools({ … }))`, options moved    |
 | a nested inline `translation` catalog                          | `flattenCatalog(…)`, per locale            |
-| `.with(icu())` after a loader in one chain                     | `icu()` hoisted ahead of the first catalog |
 
-That last row is cosmetic rather than a rule: `.with(loader(map)).with(icu())`
-already works, because composing a loader ingests nothing (§0.1). A **chain** is
-the unit, meaning `createI18n(…)` plus the `.use` / `.with` calls chained onto
-it, so nothing outside one is guessed at. Imports are maintained in the same pass,
-`new I18n(options)` migrates like `createI18n(options)`, CRLF endings survive, and
-a second run is a byte-identical no-op.
+A **chain** is the unit, meaning `createI18n(…)` plus the `.use` / `.with` calls
+chained onto it, so nothing outside one is guessed at. Imports are maintained in
+the same pass, `new I18n(options)` migrates like `createI18n(options)`, CRLF
+endings survive, and a second run is a byte-identical no-op.
 
 **Comments survive because the host rules never re-print.** Every single-entry
 edit is a splice of your own characters, so comments, formatting, directive
@@ -324,6 +318,11 @@ and as JSON) and left alone:
 - `createI18n(optionsBuiltElsewhere)`, whose contents it cannot see
 - catalogs loaded at RUNTIME; nothing in the source proves what a CDN returns, so
   every loader chain without a compiler gets an advisory
+- an `icu` import, or a chain that still composes that removed installer,
+  reported as `icu-installer-removed` with the chain left byte-identical: the
+  installer is gone and ICU is `compiler: icuCompiler` in the constructor
+  options (§0.1). A genuine 0.4 tree can never hit this item, because 0.4 had no
+  installer; it fires only for a tree written against a 0.5 pre-release
 
 ## 4. Per binding
 
@@ -343,13 +342,13 @@ constructor and the capability toolkit on the ONE entry it publishes.
 | `@comvi/nuxt`   | auto-imported                              | generated, or `hostModule`; see §7                                                                   |
 
 Next's two entries are a RUNTIME split, not a host-tier split: both publish the
-same base constructor and the same toolkit. Nine capability bindings are
-re-exported **by name** on each entry (`icu`, `icuCompiler`, `loader`,
-`attachLoader`, `flattenCatalog`, `plugins`, `attachPlugins`, `devtools`,
-`attachDevtools`), plus the base `I18n` class and the core type vocabulary, so
-the remote-catalog ICU recipe is reachable from the one import an app already
-has, and the bindings you never call are pruned by your bundler. `@comvi/nuxt` is
-the one exception and re-exports nothing (§7). `createI18n` IS core's own
+same base constructor and the same toolkit. Eight capability bindings are
+re-exported **by name** on each entry (`icuCompiler`, `loader`, `attachLoader`,
+`flattenCatalog`, `plugins`, `attachPlugins`, `devtools`, `attachDevtools`), plus
+the base `I18n` class and the core type vocabulary, so the ICU compiler is
+reachable from the one import an app already has, and the bindings you never call
+are pruned by your bundler. `@comvi/nuxt` is the one exception and re-exports
+nothing (§7). `createI18n` IS core's own
 constructor everywhere but `@comvi/vue`, whose `createI18n` builds the `VueI18n`
 preset around it.
 
@@ -421,9 +420,8 @@ const i18n = createI18n({ locale: "en", translation: { en: { hi: "Hi" } } }).wit
 
 Svelte sets context instead of rendering a provider:
 `setI18nContext(createI18n({ … }))`, then `useI18n()` in any descendant. For
-inline ICU catalogs add `compiler: icuCompiler` to the constructor call; for
-remote ones import `icu` from the same entry and compose `.with(icu())` ahead of
-the first catalog. Compose neither capability and `useI18nLoader()` /
+ICU catalogs add `compiler: icuCompiler` to the constructor call, whether the
+catalogs are inline or loaded. Compose neither capability and `useI18nLoader()` /
 `useI18nPlugins()` throw with the message in §8.
 
 - **React:** `useI18nPlugins().onMissingKey` no longer coerces its callback's
@@ -473,31 +471,28 @@ construction paths keep distinct names and ship from the one entry.
 included. **The pipe goes on its result**: `const i18n =
 createI18n(options).with(installer)` runs the installer on `i18n.core`, hands
 back the same `VueI18n`, and widens the type of `core` by what the installer
-composed, so the capability is in place ahead of the first _loaded_ catalog and
-stays typed afterwards; an inline `translation` in the options is ingested
-first, which is why ICU is `compiler: icuCompiler` there. Assign the result: a
-discarded `i18n.with(…)` still attaches the capability at runtime but leaves the
-binding's `core` unwidened. Compose before `app.use(i18n)`, which starts
-`init()` and drains the plugin queue once. `createCore` (core's own constructor)
+composed, so the capability is in place and stays typed afterwards. ICU is not
+composed at all: it is `compiler: icuCompiler` in the options, beside
+`ssrLocale`. Assign the result: a discarded `i18n.with(…)` still attaches the
+capability at runtime but leaves the binding's `core` unwidened. Compose before
+`app.use(i18n)`, which starts `init()` and drains the plugin queue once.
+`createCore` (core's own constructor)
 and `createI18nFromCore` (a host you built yourself) are unchanged and advanced:
 they are for a host built elsewhere, such as Nuxt's `hostModule` (§7) or one host
 shared between a Vue app and non-Vue code. `.with(…)` works on a
 `createI18nFromCore` result too.
 
 ```ts
-import { createI18n, icu, loader } from "@comvi/vue";
+import { createI18n, icuCompiler, loader } from "@comvi/vue";
 
-const i18n = createI18n({ locale: "en", ssrLocale: "en" })
-  .with(icu())
-  .with(loader({ uk: () => import("./uk.json") }));
+const i18n = createI18n({ locale: "en", ssrLocale: "en", compiler: icuCompiler }).with(
+  loader({ uk: () => import("./uk.json") }),
+);
 i18n.core.reloadTranslations(); // typed: `.with` widened `core`
 ```
 
-The one-call preset ingests its `translation` immediately, so
-`createI18n({ translation }).with(icu())` throws `E_COMPILER_LOCKED` by
-construction. Pass `compiler: icuCompiler` there instead. Vue's `<T>` also gained
-a **default-slot fallback**: a key with no translation and no `fallback` prop
-renders the default slot instead of the key.
+Vue's `<T>` also gained a **default-slot fallback**: a key with no translation
+and no `fallback` prop renders the default slot instead of the key.
 
 **Nine named value exports dropped.** `@comvi/vue` used to re-export core with
 `export * from "@comvi/core"`, so every value on core's root entry, except
@@ -617,11 +612,8 @@ has it, and the codemod does the rename.
 A client host is hydrated rather than loaded: nothing is ingested at
 construction, and the catalog arrives through `<I18nProvider messages>`. So an
 inline catalog takes `compiler: icuCompiler` in the same call, and so does a
-catalog that arrives LATER, hydrated or fetched by an SSR loader. The installer
-is the alternative for that later catalog, and it goes ahead of it:
-`createI18n({ locale }).with(icu()).with(loader(map))`. Both `icu` and
-`icuCompiler` ship from both entries, and `CompilerLockedError` types the
-failure.
+catalog that arrives LATER, hydrated or fetched by an SSR loader. One option
+covers both, and `icuCompiler` ships from both entries.
 
 The server gains a compose-it-yourself companion, exported from
 `@comvi/next/server` and nowhere else. That entry carries the toolkit too,
@@ -716,13 +708,13 @@ export default ((options) =>
     .with(devtools())) satisfies NuxtHostFactory;
 ```
 
-Drop the lines you do not need. Their order is free (§0.1), and this factory is
-catalog-bearing, so it takes `compiler: icuCompiler` rather than the `icu()`
-installer. The rest of the map: SSR / async loading → `.with(loader(map))`;
-`comvi.setup` calling `core.use(...)` → `.with(plugins())`; browser-extension
-visibility → `.with(devtools())`; `<tag>` in plain `t()` → one
-`import "@comvi/core/tags"`; nested inline catalogs → `flattenCatalog`, or
-`.with(loader())`, which flattens on ingestion.
+Drop the lines you do not need. Their order is free (§0.1), and ICU is not a
+composed capability at all: `compiler: icuCompiler` is a constructor field. The
+rest of the map: SSR / async loading → `.with(loader(map))`; `comvi.setup`
+calling `core.use(...)` → `.with(plugins())`; browser-extension visibility →
+`.with(devtools())`; `<tag>` in plain `t()` → one `import "@comvi/core/tags"`;
+nested inline catalogs → `flattenCatalog`, or `.with(loader())`, which flattens
+on ingestion.
 
 **The factory receives nuxt's resolved options**: `locale` (the render locale on
 the client, the request locale on the server), `fallbackLocale`, `defaultNs`,
@@ -773,7 +765,7 @@ conditions, never silently:
 ```
 
 Beside those, 0.5 has a family of "is not a function" failures that all mean one
-thing, that a capability was never composed, plus four named errors from the
+thing, that a capability was never composed, plus three named errors from the
 composition rules, one of them vue-only. This is the whole list your first run can produce:
 
 | symptom                                                                                                 | fix                                                                                                                            |
@@ -784,12 +776,11 @@ composition rules, one of them vue-only. This is the whole list your first run c
 | vue: `i18n.core.reloadTranslations` will not type-check                                                 | the wrapper you hold was never composed — chain `.with(loader())`; inside a component, `useI18nLoader()`                       |
 | `E_INSTALLER_NESTED_USE`                                                                                | you wrote `.use(installer(…))`; write `.with(…)`                                                                               |
 | `E_PLUGIN_INIT_RETURN`                                                                                  | a plugin returned a value — use a statement body                                                                               |
-| `E_COMPILER_LOCKED`                                                                                     | `icu()` after a catalog — §0.1                                                                                                 |
 | `E_WITH_HOST_IDENTITY`                                                                                  | vue: your installer returned a different object; return the host it was given                                                  |
 
 Those `E_*` names are the **production** messages; a development build throws a
-longer message instead. Of the errors in this table, `E_COMPILER_LOCKED` and
-`E_WITH_HOST_IDENTITY` carry a `code` own-property to branch on. It is not the only branchable code in
+longer message instead. Of the errors in this table, `E_WITH_HOST_IDENTITY`
+carries a `code` own-property to branch on. It is not the only branchable code in
 0.5: `E_ICU_SYNTAX` is thrown in development as an `IcuSyntaxError` carrying both
 `code` and `argumentType`, and reported through `onError` with the same fields in
 production.

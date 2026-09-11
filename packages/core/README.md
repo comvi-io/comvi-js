@@ -107,19 +107,15 @@ const i18n = createI18n({ locale: "en", compiler: icuCompiler })
 this is a breaking change on a 0.x minor: ICU syntax now throws instead of
 rendering plausibly-wrong text, and `.use()`, the loader, discovery and
 nested-catalog flattening are absent until composed.
-See **[MIGRATION.md](../../MIGRATION.md)** for the per-feature table, the
-codemod, and the one rule that has a timing constraint:
+See **[MIGRATION.md](../../MIGRATION.md)** for the per-feature table and the
+codemod.
 
-- **inline catalogs:** `createI18n({ translation, compiler: icuCompiler })`;
-- **remote catalogs:** `createI18n({ locale }).with(icu()).with(cdnLoader({ … }))`,
-  BEFORE anything is ingested. The compiler locks irreversibly at the first
-  catalog (constructor, `addTranslations`, or a loader merge) and a later
-  `icu()` throws `E_COMPILER_LOCKED` before mutating anything.
-
-The timing rule is the installer's, not the compiler's. `compiler: icuCompiler`
-is a constructor field held for the instance's life, so it also covers a catalog
-that arrives later, as the composition example above does. Reach for `.with(icu())`
-when the host was constructed somewhere you do not control.
+ICU is not a composed capability at all: `compiler: icuCompiler` is a
+constructor field held for the instance's life, so one option covers every
+catalog source. `createI18n({ translation, compiler: icuCompiler })` for inline
+catalogs, `createI18n({ locale, compiler: icuCompiler }).with(cdnLoader({ … }))`
+for remote ones, and nothing about where the catalog came from changes the
+answer.
 
 ### ICU syntax on the default compiler is never silent
 
@@ -235,10 +231,9 @@ a host that was already composed) installs nothing and shadows nothing.
 > `createI18n({ … }).with(plugins()).with(loader())` are equivalent, because
 > every capability composed before `init()` is attached by the time plugins run.
 >
-> The library has exactly one ordering rule, and it is about ICU: `.with(icu())`
-> must run before the first catalog reaches the host, whether that is a
-> constructor `translation`, an `addTranslations` call, or a loader merge.
-> Composing a loader ingests nothing, so it does not count.
+> Beyond that the library has no ordering rule. ICU is not composed at all: it
+> is `compiler: icuCompiler` in the constructor options, and it covers every
+> catalog source.
 >
 > Published plugin packages ship a lowercase **installer** that does the ordering
 > for you: `.with(cdnLoader({ … }))` composes `/loader`, then `/plugins`, then
@@ -260,7 +255,7 @@ TypeScript catches a missing capability, so you never discover one in production
 | Missing-key callbacks | `@comvi/core/plugins`                 | `onMissingKey`                                                                                                          |
 | Post-processors       | `@comvi/core/plugins`                 | `registerPostProcessor`                                                                                                 |
 | Devtools discovery    | `@comvi/core/devtools` (`devtools()`) | `instanceId`, the `window.__COMVI__` queue protocol, removal on `destroy()`                                             |
-| ICU plural/select     | `@comvi/core/icu`                     | `createI18n({ …, compiler: icuCompiler })`, or `.with(icu())` before any catalog                                        |
+| ICU plural/select     | `@comvi/core/icu`                     | `createI18n({ …, compiler: icuCompiler })`                                                                              |
 | Rich-text components  | `@comvi/core/rich-text`               | pure `prepareTranslation` / VirtualNode toolbox; tag syntax is passed per call and never registered ambiently           |
 | String-API tags       | `@comvi/core/tags`                    | ambient registration plus the same rich-text toolbox, and `&lt;` / `&gt;` / `&amp;` and the `\<` escape                 |
 
@@ -382,8 +377,7 @@ Measured min+gz through the published exports map, from the landed run
 | Graph                                    | min+gz  |
 | ---------------------------------------- | ------- |
 | `@comvi/core` (the base host)            | 5,016 B |
-| `+ /icu` (constructor option)            | 5,890 B |
-| `+ /icu` (`.with(icu())` installer)      | 5,941 B |
+| `+ /icu`                                 | 5,890 B |
 | `+ /tags`                                | 5,976 B |
 | `+ /loader + /plugins`                   | 6,549 B |
 | `+ /icu + /tags`                         | 6,803 B |

@@ -100,20 +100,22 @@ which keeps the same instance and widens the type of `i18n.core`:
 ```ts
 // main.ts
 import { createApp } from "vue";
-import { createI18n, icu } from "@comvi/vue";
+import { createI18n, icuCompiler } from "@comvi/vue";
 import { cdnLoader } from "@comvi/plugin-fetch-loader/cdn";
 import App from "./App.vue";
 
-const i18n = createI18n({ locale: "en", fallbackLocale: "en" })
-  .with(icu())
-  .with(cdnLoader({ cdnUrl: "https://cdn.comvi.io/your-distribution-id" }));
+const i18n = createI18n({
+  locale: "en",
+  fallbackLocale: "en",
+  compiler: icuCompiler,
+}).with(cdnLoader({ cdnUrl: "https://cdn.comvi.io/your-distribution-id" }));
 
 createApp(App).use(i18n).mount("#app");
 ```
 
-`icu()` must be composed before the first catalog reaches the host, so it comes
-ahead of the loader. That is the library's only ordering rule; drop
-`icu()` if the project uses no plural/select.
+`compiler: icuCompiler` is the one way to enable ICU, and it works whatever the
+catalogs come from; drop the option if the project uses no plural/select. The
+one rule left is vue's own: compose before `app.use(i18n)`.
 
 There is no `i18n.init()` call here because `app.use(i18n)` initializes the host
 itself. The first paint therefore happens while the catalog is still in flight,
@@ -239,7 +241,7 @@ the [0.5.0 migration guide](https://github.com/comvi-io/comvi-js/blob/main/MIGRA
 | `createCore`                                    | core's own constructor, for a host built elsewhere        |
 | `createI18nFromCore`                            | wraps that host, preserving its exact type                |
 | `I18n`                                          | the base class `createI18n` and `createCore` both produce |
-| `icuCompiler`, `icu`                            | from `@comvi/core/icu`: compiler and installer            |
+| `icuCompiler`                                   | from `@comvi/core/icu`: the ICU compiler                  |
 | `loader`, `attachLoader`, `flattenCatalog`      | from `@comvi/core/loader`                                 |
 | `plugins`, `attachPlugins`                      | from `@comvi/core/plugins`                                |
 | `devtools`, `attachDevtools`                    | from `@comvi/core/devtools`                               |
@@ -300,10 +302,10 @@ const i18n = createI18n({
 createApp(App).use(i18n).mount("#app");
 ```
 
-### Inline catalogs with ICU — the `compiler` option
+### ICU — the `compiler` option
 
-The preset ingests `translation`, so the compiler has to be chosen in the same
-call:
+ICU is a constructor option, so it is chosen in the same call as the rest of the
+options, whatever the catalogs come from:
 
 ```ts
 import { createI18n, icuCompiler } from "@comvi/vue";
@@ -317,25 +319,20 @@ const i18n = createI18n({
 });
 ```
 
-### Remote catalogs with ICU — `.with(icu())` before ingestion
-
-When the catalog arrives from a loader there is nothing to compile at
-construction time, so compose the compiler first, ahead of the loader:
+A catalog that arrives from a loader takes the same option, beside `ssrLocale`:
 
 ```ts
-import { createI18n, icu, loader } from "@comvi/vue";
+import { createI18n, icuCompiler, loader } from "@comvi/vue";
 
-const i18n = createI18n({ locale: "en", ssrLocale: "en" })
-  .with(icu())
-  .with(loader({ uk: () => import("./uk.json") }));
+const i18n = createI18n({ locale: "en", ssrLocale: "en", compiler: icuCompiler }).with(
+  loader({ uk: () => import("./uk.json") }),
+);
 // i18n.core now carries the loader capability, exactly typed
 ```
 
-`.with(icu())` is **pre-ingestion only**. The compiler locks the moment any
-catalog reaches the host: a constructor `translation`, an `addTranslations`
-call, or a loader merge. A later `icu()` throws with own
-`code === "E_COMPILER_LOCKED"`. So `createI18n({ translation }).with(icu())` is
-invalid by construction: pass `compiler: icuCompiler` there instead.
+The option is a constructor field held for the instance's life, so it covers a
+catalog merged later by a loader as well as a constructor `translation` or an
+`addTranslations` call.
 
 ### Async loading — `loader()`
 

@@ -4,31 +4,29 @@
 
 **BREAKING (breaking change on a 0.x minor): the root `@comvi/core` entry changes semantics.** `@comvi/core` is now ONE entry — the base host — and capability is an import you add, never an entry you switch. The second entry, `@comvi/core/slim`, is deleted; it never published, so there is no deprecation debt.
 
-| what a 0.4 root had                          | on the converged root                 | compose it back                                          |
-| -------------------------------------------- | ------------------------------------- | -------------------------------------------------------- |
-| ICU plurals / select                         | dev throws, prod renders it literally | `compiler: icuCompiler`, or `.with(icu())` pre-ingestion |
-| `.use(plugin)`                               | absent — TS error + `TypeError`       | `.with(plugins()).use(p)`                                |
-| loader (`registerLoader`, …)                 | absent — the loud capability error    | `.with(loader())`                                        |
-| discovery (`instanceId`, `window.__COMVI__`) | absent — invisible to the extension   | `.with(devtools())`                                      |
-| nested catalogs                              | stored verbatim, dev warning          | `flattenCatalog(…)`, or compose `loader()`               |
-| string-API tags (`"<b>hi</b>"`)              | literal text, dev warning             | `<T>`, or `import "@comvi/core/tags"`                    |
+| what a 0.4 root had                          | on the converged root                 | compose it back                                    |
+| -------------------------------------------- | ------------------------------------- | -------------------------------------------------- |
+| ICU plurals / select                         | dev throws, prod renders it literally | `compiler: icuCompiler` in the constructor options |
+| `.use(plugin)`                               | absent — TS error + `TypeError`       | `.with(plugins()).use(p)`                          |
+| loader (`registerLoader`, …)                 | absent — the loud capability error    | `.with(loader())`                                  |
+| discovery (`instanceId`, `window.__COMVI__`) | absent — invisible to the extension   | `.with(devtools())`                                |
+| nested catalogs                              | stored verbatim, dev warning          | `flattenCatalog(…)`, or compose `loader()`         |
+| string-API tags (`"<b>hi</b>"`)              | literal text, dev warning             | `<T>`, or `import "@comvi/core/tags"`              |
 
 `new I18n(options)`, `@comvi/next`'s `createNextI18n` (now typed `NextComposedI18n<D>`) and
 the batteries-included CDN global are unchanged.
 
 ```ts
-// INLINE catalogs — the constructor ingests them, so choose the compiler here.
+// INLINE catalogs.
 const i18n = createI18n({ locale: "en", translation, compiler: icuCompiler });
-// REMOTE catalogs — the installer, ahead of the first catalog.
-const i18n = createI18n({ locale: "en" }).with(icu()).with(fetchLoader({ … }));
+// REMOTE catalogs — the same option, in the same place.
+const i18n = createI18n({ locale: "en", compiler: icuCompiler }).with(fetchLoader({ … }));
 ```
 
-`.with(icu())` is **pre-ingestion only**: the compiler locks at the first catalog that
-reaches the host — a constructor `translation`, an `addTranslations` call, or a loader merge
-— and a later `icu()` throws with own `code === "E_COMPILER_LOCKED"` before mutating
-anything; `clearTranslations()` does not unlock it. That is the only ordering rule in the
-library, since composing a loader ingests nothing, so `loader()`, `plugins()` and
-`devtools()` may be composed in any order among themselves.
+`compiler` is a constructor field held for the instance's life, so one option covers every
+catalog source: a constructor `translation`, an `addTranslations` call, a loader merge. The
+library has no ordering rule left, so `loader()`, `plugins()` and `devtools()` may be
+composed in any order among themselves.
 
 **The ICU failure is structured, and its context is yours.** Development throws where the
 template is COMPILED — at ingestion for catalog strings, at first compile for one that

@@ -16,19 +16,18 @@ One entry now carries both.
 </script>
 ```
 
-| export                                       | what it is                                              |
-| -------------------------------------------- | ------------------------------------------------------- |
-| `createI18n`, `I18n`                         | core's base host — its constructor and its class        |
-| `icuCompiler`, `icu`                         | from `@comvi/core/icu` — the compiler and the installer |
-| `loader`, `attachLoader`, `flattenCatalog`   | from `@comvi/core/loader`                               |
-| `plugins`, `attachPlugins`                   | from `@comvi/core/plugins`                              |
-| `devtools`, `attachDevtools`                 | from `@comvi/core/devtools`                             |
-| every store factory, the readers, `T`, types | the svelte bindings                                     |
+| export                                       | what it is                                       |
+| -------------------------------------------- | ------------------------------------------------ |
+| `createI18n`, `I18n`                         | core's base host — its constructor and its class |
+| `icuCompiler`                                | from `@comvi/core/icu` — the ICU compiler        |
+| `loader`, `attachLoader`, `flattenCatalog`   | from `@comvi/core/loader`                        |
+| `plugins`, `attachPlugins`                   | from `@comvi/core/plugins`                       |
+| `devtools`, `attachDevtools`                 | from `@comvi/core/devtools`                      |
+| every store factory, the readers, `T`, types | the svelte bindings                              |
 
 There is no svelte-side wrapper object to build — the host goes straight into
 `setI18nContext(i18n)` — so the constructor IS core's own `createI18n`, re-exported by name.
-Both halves of ICU are here on purpose, so neither recipe makes a svelte app reach for a
-core subpath.
+ICU is here on purpose, so neither recipe makes a svelte app reach for a core subpath.
 
 The re-exports cost nothing: they are **named** re-exports of core's own bindings
 (`svelte.attachLoader === attachLoader`), from core's pure subpaths only — never `export *`,

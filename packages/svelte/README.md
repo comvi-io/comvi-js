@@ -97,15 +97,17 @@ Translations served by the Comvi platform, fetched at runtime instead of bundled
 ```svelte
 <!-- src/routes/+layout.svelte (or App.svelte) -->
 <script lang="ts">
-  import { createI18n, icu, setI18nContext } from "@comvi/svelte";
+  import { createI18n, icuCompiler, setI18nContext } from "@comvi/svelte";
   import { cdnLoader } from "@comvi/plugin-fetch-loader/cdn";
   import type { Snippet } from "svelte";
 
   const { children }: { children: Snippet } = $props();
 
-  const i18n = createI18n({ locale: "en", fallbackLocale: "en" })
-    .with(icu())
-    .with(cdnLoader({ cdnUrl: "https://cdn.comvi.io/your-distribution-id" }));
+  const i18n = createI18n({
+    locale: "en",
+    fallbackLocale: "en",
+    compiler: icuCompiler,
+  }).with(cdnLoader({ cdnUrl: "https://cdn.comvi.io/your-distribution-id" }));
 
   setI18nContext(i18n);
 </script>
@@ -113,9 +115,9 @@ Translations served by the Comvi platform, fetched at runtime instead of bundled
 {@render children()}
 ```
 
-`icu()` must be composed before the first catalog reaches the host, so it comes
-ahead of the loader. That is the library's only ordering rule; drop
-`icu()` if the project uses no plural/select.
+`compiler: icuCompiler` is the one way to enable ICU, and it works whatever the
+catalogs come from. Nothing about composition is ordered; drop the option if the
+project uses no plural/select.
 
 There is no `i18n.init()` call here because `setI18nContext` initializes the
 host itself (`autoInit`, on by default). The first paint therefore happens while
@@ -206,14 +208,14 @@ below the historical 0.4 composed root, which measured 9836 B.
 the svelte bindings, and core's capability installers as **named** re-exports.
 A svelte app names one package and nothing else.
 
-| export                                       | what it is                                     |
-| -------------------------------------------- | ---------------------------------------------- |
-| `createI18n`, `I18n`                         | core's base host: constructor and class        |
-| `icuCompiler`, `icu`                         | from `@comvi/core/icu`: compiler and installer |
-| `loader`, `attachLoader`, `flattenCatalog`   | from `@comvi/core/loader`                      |
-| `plugins`, `attachPlugins`                   | from `@comvi/core/plugins`                     |
-| `devtools`, `attachDevtools`                 | from `@comvi/core/devtools`                    |
-| every store factory, the readers, `T`, types | the svelte bindings                            |
+| export                                       | what it is                               |
+| -------------------------------------------- | ---------------------------------------- |
+| `createI18n`, `I18n`                         | core's base host: constructor and class  |
+| `icuCompiler`                                | from `@comvi/core/icu`: the ICU compiler |
+| `loader`, `attachLoader`, `flattenCatalog`   | from `@comvi/core/loader`                |
+| `plugins`, `attachPlugins`                   | from `@comvi/core/plugins`               |
+| `devtools`, `attachDevtools`                 | from `@comvi/core/devtools`              |
+| every store factory, the readers, `T`, types | the svelte bindings                      |
 
 There is no svelte-side wrapper object to build. The host goes straight into
 `setI18nContext(i18n)`, so the constructor IS core's own `createI18n`,
@@ -235,10 +237,10 @@ yourself (it keeps the import-map adapter out of your bundle).
 </script>
 ```
 
-### Inline catalogs with ICU — the `compiler` option
+### ICU — the `compiler` option
 
-The constructor ingests `translation`, so the compiler has to be chosen in the
-same call:
+ICU is a constructor option, so it is chosen in the same call as the rest of the
+options, whatever the catalogs come from:
 
 ```svelte
 <script lang="ts">
@@ -256,30 +258,24 @@ same call:
 </script>
 ```
 
-### Remote catalogs with ICU — `.with(icu())` before ingestion
-
-When the catalog arrives from a loader there is nothing to compile at
-construction time, so install the compiler first. `icu()` is the installer half
-of `@comvi/core/icu` and is re-exported here beside `icuCompiler`, so the whole
-recipe stays inside the one import:
+A catalog that arrives from a loader takes the same option. `icuCompiler` is
+re-exported here, so the whole recipe stays inside the one import:
 
 ```svelte
 <script lang="ts">
-  import { createI18n, icu, loader, setI18nContext } from "@comvi/svelte";
+  import { createI18n, icuCompiler, loader, setI18nContext } from "@comvi/svelte";
 
-  const i18n = createI18n({ locale: "en" })
-    .with(icu())
-    .with(loader({ uk: () => import("./uk.json") }));
+  const i18n = createI18n({ locale: "en", compiler: icuCompiler }).with(
+    loader({ uk: () => import("./uk.json") }),
+  );
 
   setI18nContext(i18n);
 </script>
 ```
 
-`.with(icu())` is **pre-ingestion only**. The compiler locks the moment any
-catalog reaches the host: a constructor `translation`, an `addTranslations`
-call, or a loader merge. A later `icu()` throws with own
-`code === "E_COMPILER_LOCKED"`. So `createI18n({ translation }).with(icu())` is
-invalid by construction: pass `compiler: icuCompiler` there instead.
+The option is a constructor field held for the instance's life, so it covers a
+catalog merged later by a loader as well as a constructor `translation` or an
+`addTranslations` call.
 
 ### Async loading — `loader()`
 
@@ -422,9 +418,9 @@ plausible-but-wrong text. Development throws `E_ICU_SYNTAX` at ingestion, and
 production renders the braced segment literally and reports `E_ICU_SYNTAX`
 through `onError` (or `console.error`) on the compilation that hit it. Every
 catalog below therefore needs the ICU compiler on the host:
-`createI18n({ compiler: icuCompiler, … })` for inline catalogs, `.with(icu())`
-before the first remote catalog reaches the host for remote ones. Both names
-come from `@comvi/svelte`; see [One package, one entry](#one-package-one-entry).
+`createI18n({ compiler: icuCompiler, … })`, whether the catalogs are inline or
+loaded. The name comes from `@comvi/svelte`; see
+[One package, one entry](#one-package-one-entry).
 
 ### Plurals across languages
 

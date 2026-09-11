@@ -348,16 +348,14 @@ deleted. It never published, so there is no deprecation debt. Run
 see the [0.5.0 migration guide](https://github.com/comvi-io/comvi-js/blob/main/MIGRATION.md)
 for the rename table.
 
-### ICU has two shapes, and the wrong one throws
+### ICU is one option, on both entries
 
-`icuCompiler` is a compiler and `icu()` is an installer. The constructor option
-is a field held for the instance's life, so it covers **any** catalog, inline or
-hydrated later; the installer is the one with the ordering rule. Both are
-exported from both `@comvi/next` entries:
+`compiler: icuCompiler` is a constructor field held for the instance's life, so
+it covers **any** catalog: inline, hydrated later, or fetched by an SSR loader.
+`icuCompiler` is exported from both `@comvi/next` entries:
 
 ```tsx
-// INLINE — the constructor ingests the catalog, so choose the compiler in the
-// same call.
+// INLINE — the constructor ingests the catalog.
 import { createI18n, icuCompiler } from "@comvi/next/client";
 
 const translation = { en: { items: "{count, plural, one {# item} other {# items}}" } };
@@ -367,25 +365,17 @@ const i18n = createI18n({ locale: "en", compiler: icuCompiler, translation });
 
 ```tsx
 // LATER — a hydrated client catalog, or anything an SSR loader fetches:
-// install BEFORE the first catalog reaches the host.
-import { createI18n, icu, loader } from "@comvi/next/server";
+// the same option, in the same place.
+import { createI18n, icuCompiler, loader } from "@comvi/next/server";
 
-const host = createI18n({ locale: "en" })
-  .with(icu())
-  .with(loader({ uk: () => import("./uk.json") }));
+const host = createI18n({ locale: "en", compiler: icuCompiler }).with(
+  loader({ uk: () => import("./uk.json") }),
+);
 ```
 
-`.with(icu())` is **pre-ingestion only**. The compiler locks the moment any
-catalog reaches the host: a constructor `translation`, an `addTranslations`
-call, or a loader merge. A later `icu()` throws with own
-`code === "E_COMPILER_LOCKED"` before mutating anything. So
-`createI18n({ translation }).with(icu())` is invalid by construction: pass
-`compiler: icuCompiler` there instead. `CompilerLockedError` is exported for
-typing that failure.
-
-A client host is hydrated rather than loaded, so the installer form is the usual
-one there: nothing is ingested at construction, and the catalog arrives through
-`<I18nProvider messages>`.
+A client host is hydrated rather than loaded: nothing is ingested at
+construction, and the catalog arrives through `<I18nProvider messages>`. The
+option covers that catalog too.
 
 ## Composed server hosts: `createNextI18nFromHost`
 
@@ -447,21 +437,21 @@ import which neither next entry re-exports.
 ## One package: both `@comvi/next` entries
 
 `@comvi/next/client` and `@comvi/next/server` each carry the base host
-constructor and the identical nine-name capability toolkit, so a next app never
+constructor and the identical eight-name capability toolkit, so a next app never
 names `@comvi/core`:
 
 | export                                     | what it is                                                     |
 | ------------------------------------------ | -------------------------------------------------------------- |
 | `createI18n`                               | core's base host constructor, the same binding on both entries |
-| `icu`, `icuCompiler`                       | the two ICU shapes, from core's pure `/icu` subpath            |
+| `icuCompiler`                              | the ICU compiler, from core's pure `/icu` subpath              |
 | `loader`, `attachLoader`, `flattenCatalog` | from core's pure `/loader` subpath                             |
 | `plugins`, `attachPlugins`                 | from core's pure `/plugins` subpath                            |
 | `devtools`, `attachDevtools`               | from core's pure `/devtools` subpath                           |
 
-`CompilerLockedError` and `DevtoolsOptions` come with them as types. The server
-entry carries the toolkit because `NextServerHost = WrapperI18nHost & I18nLoaderApi`
-makes the loader **mandatory** for SSR. The one host an app cannot avoid
-composing should not require a second package to compose.
+`DevtoolsOptions` comes with them as a type. The server entry carries the toolkit
+because `NextServerHost = WrapperI18nHost & I18nLoaderApi` makes the loader
+**mandatory** for SSR. The one host an app cannot avoid composing should not
+require a second package to compose.
 
 These are **named** re-exports of core's own bindings, from core's pure
 subpaths only, never through `@comvi/react`, because webpack development

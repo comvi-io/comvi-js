@@ -70,12 +70,12 @@ Translations from the Comvi platform CDN, which is the recipe most apps want:
 
 ```ts
 import { createI18n } from "@comvi/core";
-import { icu } from "@comvi/core/icu";
+import { icuCompiler } from "@comvi/core/icu";
 import { cdnLoader } from "@comvi/plugin-fetch-loader/cdn";
 
-const i18n = createI18n({ locale: "en" })
-  .with(icu())
-  .with(cdnLoader({ cdnUrl: "https://cdn.comvi.io/your-distribution-id" }));
+const i18n = createI18n({ locale: "en", compiler: icuCompiler }).with(
+  cdnLoader({ cdnUrl: "https://cdn.comvi.io/your-distribution-id" }),
+);
 
 await i18n.init();
 
@@ -83,14 +83,14 @@ i18n.t("greeting", { name: "Alice" }); // "Hello, Alice!"
 i18n.t("items", { count: 5 }); // "5 items"
 ```
 
-Drop `icu()` if you use no plural/select; plain `{param}` interpolation needs no
-import. It has to be composed before the first catalog reaches the host, so it
-comes ahead of the loader here.
+Drop `compiler: icuCompiler` if you use no plural/select; plain `{param}`
+interpolation needs no import. The option is the one way to enable ICU, and it
+works whatever the catalogs come from: inline, a loader, the CDN, the API.
 
 The distribution id in `cdnUrl` comes from the Comvi platform: open your project
 and read it off the **Distributions** page.
 
-Or ship the catalogs inline, with the compiler chosen in the same call:
+Or ship the catalogs inline instead:
 
 ```ts
 import { createI18n } from "@comvi/core";
@@ -142,11 +142,12 @@ Or jump straight into runnable code in [`test-apps/`](test-apps/), one demo app 
 
 Every package publishes ONE host entry. A capability is an import you add to
 that entry, not a second entry you switch to. A bundle carries a capability
-because you composed it, and for no other reason.
+because you asked for it, composed with `.with(…)` or, for ICU, named as the
+`compiler` option, and for no other reason.
 
 Compose before `init()`; a later `.with()` / `.use()` warns in development and
-does nothing. `icu()` is stricter still: it has to come before the first
-catalog reaches the host, which is the library's only ordering rule.
+does nothing. Beyond that the library has no ordering rule: ICU is a
+constructor option, not a composition step.
 
 | package         | the entry you import                       | host constructor                             | notes                                                                                                                                                                    |
 | --------------- | ------------------------------------------ | -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -166,14 +167,14 @@ exception: app code imports nothing, so the toolkit is not re-exported.
 Composition happens in one `hostModule` file that names `@comvi/core` and its
 subpaths directly.)
 
-| you want                                                       | you add                                                                          |
-| -------------------------------------------------------------- | -------------------------------------------------------------------------------- |
-| ICU `plural` / `select` / `selectordinal`                      | `compiler: icuCompiler` in the options, or `.with(icu())` **before** any catalog |
-| async / remote loading, nested-catalog flattening              | `.with(loader(importMap))`, `.with(attachLoader)`, or the pure `flattenCatalog`  |
-| the plugin host: `use`, post-processors, missing-key hooks     | `.with(plugins())`                                                               |
-| browser-extension discovery (`instanceId`, `window.__COMVI__`) | `.with(devtools())`                                                              |
-| `<tag>` markup inside plain string-API `t()`                   | `import "@comvi/core/tags"` once, anywhere in the app                            |
-| rich text through `<T>`                                        | nothing; `<T>` uses the pure `@comvi/core/rich-text` path and registers nothing  |
+| you want                                                       | you add                                                                         |
+| -------------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| ICU `plural` / `select` / `selectordinal`                      | `compiler: icuCompiler` in the constructor options                              |
+| async / remote loading, nested-catalog flattening              | `.with(loader(importMap))`, `.with(attachLoader)`, or the pure `flattenCatalog` |
+| the plugin host: `use`, post-processors, missing-key hooks     | `.with(plugins())`                                                              |
+| browser-extension discovery (`instanceId`, `window.__COMVI__`) | `.with(devtools())`                                                             |
+| `<tag>` markup inside plain string-API `t()`                   | `import "@comvi/core/tags"` once, anywhere in the app                           |
+| rich text through `<T>`                                        | nothing; `<T>` uses the pure `@comvi/core/rich-text` path and registers nothing |
 
 Two hosts are the exception to "a capability because you composed it":
 `createNextI18n` on `@comvi/next` (the composed 0.4 host, kept
@@ -273,11 +274,11 @@ i18n.t("rank", { place: 3 }); // "You finished 3rd"
 i18n.t("salutation", { gender: "female" }); // "Welcome, madam"
 ```
 
-ICU is a composed capability rather than a default. Name it once where you build
-the host, with `compiler: icuCompiler` for inline catalogs or `.with(icu())`
-before the first remote catalog is ingested, and the whole grammar above is
-live. Leave it out and the failure is loud in every build condition, never
-silent and never a plausible wrong answer: development throws `E_ICU_SYNTAX` at
+ICU is an opt-in compiler rather than a default. Name it once in the constructor
+options, with `compiler: icuCompiler`, and the whole grammar above is live for
+every catalog source: inline, a loader, the CDN, the API. Leave it out and the
+failure is loud in every build condition, never silent and never a plausible
+wrong answer: development throws `E_ICU_SYNTAX` at
 ingestion, and production renders the braced segment literally and reports
 `E_ICU_SYNTAX` through `onError` (or `console.error`) on the compilation that
 hit it. That report is best-effort, per process, and never fires on cached

@@ -10,16 +10,13 @@ core's base host, so ICU, async loading, the plugin host, devtools discovery and
 syntax became things a Nuxt app composes. `nuxt-framework-slim.md` carries the recipe and
 the migration table; this entry states the three contracts that are Nuxt's alone.
 
-**ICU is a compiler option here, not an installer.** A Nuxt host is catalog-bearing by
-construction — the module hands the factory its resolved options, and translations arrive
-from `nuxt.config`, from `comvi.setup` or from a loader — so the factory takes
-`compiler: icuCompiler` in the same call (or the `icu` module option, for an app with no
-`hostModule`). `.with(icu())` is **pre-ingestion only**: the compiler locks the moment any
-catalog reaches the host, and a later `icu()` throws with own
-`code === "E_COMPILER_LOCKED"`. Under the default compiler an ICU template never renders as
-a plural — development throws `E_ICU_SYNTAX` at ingestion, production renders the braced
-segment literally and reports it through `onError` (or `console.error`). **ICU is never
-enabled automatically.**
+**ICU is a compiler option.** The module hands the factory its resolved options, and the
+factory takes `compiler: icuCompiler` in the same call (or the `icu` module option, for an
+app with no `hostModule`). One option covers every catalog source, whether translations
+arrive from `nuxt.config`, from `comvi.setup` or from a loader. Under the default compiler
+an ICU template never renders as a plural — development throws `E_ICU_SYNTAX` at ingestion,
+production renders the braced segment literally and reports it through `onError` (or
+`console.error`). **ICU is never enabled automatically.**
 
 **The capability toolkit is deliberately not re-exported here.** Every other converged
 package re-exports core's installers so an app never names a capability subpath;

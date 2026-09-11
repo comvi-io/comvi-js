@@ -8,15 +8,14 @@ next app no longer names `@comvi/core` to build a host on either side of the bou
 | export                                     | on   | what it is                                                   |
 | ------------------------------------------ | ---- | ------------------------------------------------------------ |
 | `createI18n`                               | both | core's base host constructor, the same binding on each entry |
-| `icu`, `icuCompiler`                       | both | the installer and the compiler                               |
+| `icuCompiler`                              | both | the ICU compiler, from core's pure `/icu` subpath            |
 | `loader`, `attachLoader`, `flattenCatalog` | both | from core's pure `/loader` subpath                           |
 | `plugins`, `attachPlugins`                 | both | from core's pure `/plugins` subpath                          |
 | `devtools`, `attachDevtools`               | both | from core's pure `/devtools` subpath                         |
 
-`CompilerLockedError` and `DevtoolsOptions` come with them as types. The server entry
-carries the toolkit because `NextServerHost = WrapperI18nHost & I18nLoaderApi` makes the
-loader **mandatory** for SSR — the one host an app cannot avoid composing should not take a
-second package to compose.
+`DevtoolsOptions` comes with them as a type. The server entry carries the toolkit because
+`NextServerHost = WrapperI18nHost & I18nLoaderApi` makes the loader **mandatory** for SSR —
+the one host an app cannot avoid composing should not take a second package to compose.
 
 One constructor name on two entries: the client/server split is a RUNTIME split — which
 helpers are reachable — never a host-tier split. The semantics of that name changed in this
