@@ -270,11 +270,32 @@ test("formatReport → the divergence baseline, page by page", (t) => {
   );
 });
 
-test("the CLI on the js-sdk npm surface → exit 0", () => {
-  const result = spawnSync(process.execPath, [RUN, "--readmes"], { cwd: REPO, encoding: "utf8" });
+test("the CLI on the js-sdk npm surface → runs the whole corpus, and the tool itself is clean", () => {
+  const result = spawnSync(process.execPath, [RUN, "--readmes", "--json"], {
+    cwd: REPO,
+    encoding: "utf8",
+  });
 
-  assert.equal(result.status, 0, result.stdout + result.stderr);
-  assert.match(result.stdout, /docs-snippets: OK — no findings\./);
+  // This test asserts the TOOL, not the corpus. It used to pin `exit 0` — "the
+  // live READMEs have no findings" — and that made the unit suite a second copy
+  // of `pnpm check:snippets`: the day a rule correctly caught something in a
+  // README, this test went red for a reason that has nothing to do with the
+  // runner. Corpus cleanliness is the GATE's job, it is wired as
+  // `check:snippets` in CI, and it is the document owner who clears it. What is
+  // this test's job is that the runner reaches every document and does not
+  // choke on any of them.
+  assert.ok(result.status === 0 || result.status === 1, result.stdout + result.stderr);
+  const { findings, stats } = JSON.parse(result.stdout);
+  assert.equal(stats.length, 17);
+  assert.ok(stats.every((stat) => stat.fences >= 0 && stat.linted <= stat.fences));
+
+  // TOOL-level findings, as opposed to API ones: an unparsed fence or a
+  // meta token the vocabulary does not define means the gate misread the
+  // corpus, and every verdict downstream of it is worthless.
+  assert.deepEqual(
+    findings.filter((finding) => !finding.rule.startsWith("banned/")).map((f) => f.rule),
+    [],
+  );
 });
 
 test("the CLI on a surface with findings → exit 1", (t) => {

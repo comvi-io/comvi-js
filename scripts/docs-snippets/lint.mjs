@@ -13,6 +13,16 @@
  * the section it comes from, in the rule and in the message a reader sees. No
  * rule states an API fact that MIGRATION.md does not.
  *
+ * ONE rule is derived from somewhere else, and it is the exception that proves
+ * the shape of the rest. `banned/unresolved-comvi-import` cites no section: it
+ * RESOLVES each `@comvi/*` specifier against that package's `exports` map and
+ * each imported name against the source the entry is built from (`surface.mjs`).
+ * It exists because pattern-lint has one blind spot by construction — a symbol
+ * that is neither banned nor required, merely imported from the wrong place —
+ * and that blind spot shipped: `flattenCatalog` left `@comvi/core/loader`, a
+ * live README fence kept importing it from there, and every rule above had
+ * nothing to say.
+ *
  * Scope rule that matters: a capability is acquired PER CHAIN, not per page.
  * MIGRATION.md §3 makes the chain the unit for the codemod, and the same unit is
  * used here. A page-wide scope would clear `ssr.mdx`'s `defineComviSetup`
@@ -39,6 +49,7 @@
 
 import path from "node:path";
 import { extractFences, extractProse, parseFrontmatter } from "./extract.mjs";
+import { splitSpecifier } from "./surface.mjs";
 
 /** Fence languages whose contents are comvi code worth linting. */
 const CODE_LANGS = new Set([
@@ -554,11 +565,275 @@ function skipCategory(fence) {
 }
 
 /**
+ * The start of an `import` / `export` STATEMENT, in the shapes a fence writes.
+ *
+ * Anchored at a line start or after a `;`, which is what makes a one-line
+ * `import React from "react"; import { useI18n } from "@comvi/react";` two
+ * statements rather than one — the site and the READMEs both write that.
+ *
+ * The anchor is also what makes scanning the RAW fence text (comments included,
+ * exactly as the other banned rules do) safe: a commented-out import reads
+ * `// import { … }` or ` * import { … }`, and neither `/` nor `*` is whitespace,
+ * so the anchor never reaches the keyword. `\+?` admits a diff fence's ADDED
+ * line; `codeLines` has already dropped the `-` side.
+ */
+const IMPORT_ANCHOR = /(?:^|[\n;])[^\S\n]*\+?[^\S\n]*(import|export)(?![\w$])/g;
+
+/**
+ * `<clause> from "<specifier>"`. The clause alternatives are the whole ES
+ * grammar a doc uses: a brace list, a namespace, a default binding, or a
+ * default binding followed by one of the other two. `[^}]*` spans newlines on
+ * purpose — a long import clause is wrapped by the formatter — and cannot
+ * over-run, because an import clause has no nested braces.
+ */
+const CLAUSE_FROM =
+  /^(\s*)((?:type\s+)?(?:\{[^}]*\}|\*(?:\s*as\s+[A-Za-z_$][\w$]*)?|[A-Za-z_$][\w$]*(?:\s*,\s*(?:\{[^}]*\}|\*\s*as\s+[A-Za-z_$][\w$]*))?))\s*from\s*(["'])([^"'\n]+)\3/;
+
+/** `import "<specifier>"` — a side-effect import, which has no clause. */
+const BARE_IMPORT = /^(\s*)(["'])([^"'\n]+)\2/;
+
+/** One brace-list entry: `a`, `a as b`, `type A`, `type A as B`, `default as X`. */
+const IMPORT_BINDING = /^(\s*)(type\s+)?([A-Za-z_$][\w$]*)(?:\s+as\s+([A-Za-z_$][\w$]*))?\s*$/;
+
+/**
+ * Split an import clause into what it actually asks the module for.
+ *
+ * `at` is the clause's offset in the fence, and every binding carries its own
+ * offset, so a finding lands on the NAME rather than on the line — the same
+ * precision `banned/icu-installer` reports its import half with.
+ */
+function parseImportClause(clause, at) {
+  const names = [];
+  let namespace = false;
+  let defaultBinding = null;
+  let rest = clause;
+  let offset = at;
+
+  const typePrefix = /^type\s+/.exec(rest);
+  const clauseTypeOnly = typePrefix !== null;
+  if (typePrefix !== null) {
+    rest = rest.slice(typePrefix[0].length);
+    offset += typePrefix[0].length;
+  }
+
+  if (!rest.startsWith("{") && !rest.startsWith("*")) {
+    const binding = /^([A-Za-z_$][\w$]*)\s*(?:,\s*)?/.exec(rest);
+    if (binding !== null) {
+      defaultBinding = { typeOnly: clauseTypeOnly, index: offset };
+      rest = rest.slice(binding[0].length);
+      offset += binding[0].length;
+    }
+  }
+
+  if (rest.startsWith("*")) return { names, namespace: true, defaultBinding };
+  if (!rest.startsWith("{")) return { names, namespace, defaultBinding };
+
+  const close = rest.lastIndexOf("}");
+  const inner = rest.slice(1, close === -1 ? rest.length : close);
+  let cursor = offset + 1;
+  for (const part of inner.split(",")) {
+    const parsed = IMPORT_BINDING.exec(part);
+    if (parsed !== null) {
+      const index = cursor + parsed[1].length + (parsed[2]?.length ?? 0);
+      const typeOnly = clauseTypeOnly || parsed[2] !== undefined;
+      // `{ default as X }` asks for the default export, not for a name.
+      if (parsed[3] === "default") defaultBinding = { typeOnly, index };
+      else names.push({ imported: parsed[3], typeOnly, index });
+    }
+    cursor += part.length + 1;
+  }
+  return { names, namespace, defaultBinding };
+}
+
+/**
+ * Every module specifier a fence imports, with the names it asks for.
+ *
+ * Dynamic `import("…")` is included with no names: the specifier is all it
+ * states, and a wrong specifier is still a broken snippet.
+ */
+export function parseFenceImports(text) {
+  const statements = [];
+  for (const match of text.matchAll(IMPORT_ANCHOR)) {
+    const keyword = match[1];
+    const keywordAt = match.index + match[0].length - keyword.length;
+    const tail = text.slice(match.index + match[0].length);
+
+    const clause = CLAUSE_FROM.exec(tail);
+    if (clause !== null) {
+      const clauseAt = match.index + match[0].length + clause[1].length;
+      statements.push({
+        keyword,
+        specifier: clause[4],
+        index: keywordAt,
+        statement: `${keyword} ${clause[2].replace(/\s+/g, " ").trim()} from "${clause[4]}"`,
+        ...parseImportClause(clause[2], clauseAt),
+      });
+      continue;
+    }
+    // `export "x"` is not a thing; only a side-effect IMPORT has no clause.
+    if (keyword !== "import") continue;
+    const bare = BARE_IMPORT.exec(tail);
+    if (bare !== null) {
+      statements.push({
+        keyword,
+        specifier: bare[3],
+        index: keywordAt,
+        statement: `import "${bare[3]}"`,
+        names: [],
+        namespace: false,
+        defaultBinding: null,
+      });
+    }
+  }
+  for (const match of text.matchAll(/\bimport\s*\(\s*(["'])([^"'\n]+)\1/g)) {
+    statements.push({
+      keyword: "import",
+      specifier: match[2],
+      index: match.index,
+      statement: `import("${match[2]}")`,
+      names: [],
+      namespace: false,
+      defaultBinding: null,
+    });
+  }
+  return statements;
+}
+
+/**
+ * `@comvi/core` — where the symbol actually lives, as a fix rather than a list.
+ *
+ * A VALUE import gets only the entries that publish it as a value when any do.
+ * Without that filter the `flattenCatalog` finding read "exported from
+ * @comvi/core, @comvi/next (as a type only), @comvi/react (as a type only)":
+ * every binding root re-exports core's TYPES with `export type *`, so a
+ * type-only echo of the name appears on five of them and buries the one answer
+ * a reader can act on. Type-only hits are still named when they are all there
+ * is, because then the fix is `import type`.
+ */
+function nameAlternatives(hits, wantValue) {
+  const usable =
+    wantValue && hits.some((hit) => hit.value) ? hits.filter((hit) => hit.value) : hits;
+  return usable
+    .slice(0, 3)
+    .map((hit) => (wantValue && !hit.value ? `${hit.specifier} (as a type only)` : hit.specifier))
+    .join(", ");
+}
+
+/**
  * Banned code patterns. `scope` is `"chain"` when an acquisition token in the
  * same chain clears the finding, and `"always"` when the symbol is simply gone
  * from 0.5.0 and nothing can clear it.
+ *
+ * `find(text, context)` — the second argument carries the run's package surface
+ * and is read by exactly one rule; every other rule reasons from the text alone
+ * and ignores it.
  */
 const BANNED_RULES = [
+  {
+    id: "banned/unresolved-comvi-import",
+    // Not a MIGRATION.md rule, and saying so matters: every other entry here
+    // cites the guide because the guide is what makes the symbol wrong. This
+    // one cites the PACKAGE, because the package is the authority on what it
+    // exports and no prose can overrule it.
+    migration:
+      "packages/<pkg>/package.json `exports` and the source each entry is built from " +
+      "(resolved statically — see scripts/docs-snippets/surface.mjs)",
+    // "always", like `banned/slim-entry` and `banned/icu-installer`, and for
+    // the same reason those two are: the two chain-scoped rules exist because a
+    // capability is ACQUIRED, so evidence elsewhere in the chain can make the
+    // call legal. An export is not acquired. `@comvi/core/loader` either
+    // publishes `flattenCatalog` or it does not, and nothing another fence in
+    // the group composes can change that — a chain scope here would only give
+    // the finding a way to be silenced by unrelated code.
+    scope: "always",
+    find(text, context) {
+      const surface = context?.surface;
+      // Inert without the workspace sources. The www copy of this module has no
+      // `packages/` tree to resolve against (see `loadRepoSurface`), and a rule
+      // that cannot see the surface must answer nothing rather than everything.
+      if (!surface) return [];
+
+      const matches = [];
+      const report = (statement, index, message) => {
+        matches.push({ index, text: statement.statement, message });
+      };
+
+      for (const statement of parseFenceImports(text)) {
+        if (splitSpecifier(statement.specifier) === null) continue;
+        const entry = surface.resolve(statement.specifier);
+
+        if (entry.status === "unknown-package") {
+          report(
+            statement,
+            statement.index,
+            `there is no ${entry.package} package in this repo — nothing under packages/* ` +
+              "publishes that name.",
+          );
+          continue;
+        }
+        if (entry.status === "unknown-subpath") {
+          report(
+            statement,
+            statement.index,
+            `${entry.package} has no "${entry.subpath}" entry: an import of it fails to resolve. ` +
+              `Its exports map publishes ${entry.published.join(", ")}.`,
+          );
+          continue;
+        }
+        // OPAQUE: the entry exists but this module could not find the source it
+        // is built from. NOT-COMVI cannot happen here. Either way, no names.
+        if (entry.status !== "ok") continue;
+        // An OPEN surface is a lower bound, so "not exported" is unprovable.
+        // Reported subpaths above stay, because the exports map is complete
+        // whatever the sources do.
+        if (!entry.closed) continue;
+
+        if (statement.defaultBinding !== null && !entry.names.has("default")) {
+          report(
+            statement,
+            statement.defaultBinding.index,
+            `${statement.specifier} has no default export.`,
+          );
+        }
+
+        for (const name of statement.names) {
+          const flags = entry.names.get(name.imported);
+          if (flags === undefined) {
+            const hits = surface
+              .whereIs(name.imported, entry.package)
+              .filter((hit) => hit.specifier !== statement.specifier);
+            report(
+              statement,
+              name.index,
+              `${statement.specifier} has no export named ${name.imported}` +
+                (hits.length > 0
+                  ? `. It is exported from ${nameAlternatives(hits, !name.typeOnly)} — import it from there.`
+                  : ", and no @comvi/* entry point in this repo exports that name."),
+            );
+            continue;
+          }
+          // A TYPE import of a value is legal TypeScript and always was, so only
+          // the other direction is a finding: a VALUE import of a type-only
+          // export survives `tsc` and breaks in any bundler that does not elide
+          // the binding.
+          if (!name.typeOnly && !flags.value) {
+            report(
+              statement,
+              name.index,
+              `${name.imported} is a type-only export of ${statement.specifier}: import it as ` +
+                `\`import type { ${name.imported} }\` or \`{ type ${name.imported} }\`, or the ` +
+                "binding is missing at runtime.",
+            );
+          }
+        }
+      }
+      return matches;
+    },
+    message:
+      "this import does not resolve against the package it names. The specifier is checked " +
+      "against that package's `exports` map and the name against the source the entry is built " +
+      "from, so a README fence cannot name API the package does not publish.",
+  },
   {
     id: "banned/register-loader-on-instance",
     migration: "MIGRATION.md §0 (loader row) and §4 `.use(installer)`",
@@ -876,10 +1151,17 @@ function locate(lines, offset) {
 /**
  * Lint one document.
  *
- * @param {{ file: string, source: string, sdkVersion?: string }} input
+ * `surface` is the repo's `@comvi/*` package surface, from
+ * `loadRepoSurface()`. It is OPTIONAL, and the omission is the contract:
+ * `banned/unresolved-comvi-import` is the only rule that needs the filesystem,
+ * and without it the lint stays the pure text function every other rule is
+ * written against — which is also what keeps the www copy, where there is no
+ * `packages/` tree, reporting the D2a findings and nothing invented.
+ *
+ * @param {{ file: string, source: string, sdkVersion?: string, surface?: object }} input
  * @returns {{ findings: Array<object>, stats: object }}
  */
-export function lintDocument({ file, source, sdkVersion }) {
+export function lintDocument({ file, source, sdkVersion, surface }) {
   const findings = [];
   const { fences, errors } = extractFences(source, file);
   const frontmatter = parseFrontmatter(source);
@@ -968,7 +1250,7 @@ export function lintDocument({ file, source, sdkVersion }) {
         const tokens = rule.capability === "loader" ? LOADER_TOKENS : PLUGIN_TOKENS;
         if (hasAny(tokens, chain)) continue;
       }
-      for (const match of rule.find(text)) {
+      for (const match of rule.find(text, { surface })) {
         const at = locate(lines, match.index);
         findings.push({
           file,
@@ -977,7 +1259,11 @@ export function lintDocument({ file, source, sdkVersion }) {
           rule: rule.id,
           // A match may span lines (`\n  .use(\n  FetchLoader(`); the report is
           // one line per finding, so the quoted symbol is flattened.
-          message: `${match.text.replace(/\s+/g, " ").trim()} — ${rule.message}`,
+          //
+          // `match.message` overrides the rule's: an import-resolution finding
+          // says which name is missing from which entry and where it moved to,
+          // and that fact is per MATCH, not per rule.
+          message: `${match.text.replace(/\s+/g, " ").trim()} — ${match.message ?? rule.message}`,
           migration: rule.migration,
         });
       }
