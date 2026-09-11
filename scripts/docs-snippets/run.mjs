@@ -42,6 +42,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { lintDocument } from "./lint.mjs";
+import { loadRepoSurface } from "./surface.mjs";
 import { createTypecheckContext, typecheckDocument } from "./typecheck.mjs";
 import { sfcCheckDocuments } from "./sfc-check.mjs";
 
@@ -166,13 +167,23 @@ export function runGate(options) {
   // root are parsed once and reused by every page's program. Per-page contexts
   // would re-parse `@types/react` forty times.
   const context = options.typecheck ? createTypecheckContext({ sdkRoot: options.sdkRoot }) : null;
+  // One surface for the whole run: every package.json and entry source is read
+  // once and memoised, so resolving four hundred fences costs one pass over
+  // `packages/*`. `null` here — no `packages/` tree under `--root`, which is
+  // the www case — leaves `banned/unresolved-comvi-import` inert.
+  const surface = loadRepoSurface(options.root);
 
   const sources = new Map();
   for (const file of files) {
     const source = fs.readFileSync(file, "utf8");
     const relative = path.relative(options.root, file) || file;
     sources.set(relative, source);
-    const result = lintDocument({ file: relative, source, sdkVersion: options.sdkVersion });
+    const result = lintDocument({
+      file: relative,
+      source,
+      sdkVersion: options.sdkVersion,
+      surface,
+    });
     findings.push(...result.findings);
     stats.push(result.stats);
 

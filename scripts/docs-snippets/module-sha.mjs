@@ -41,6 +41,14 @@ import { fileURLToPath } from "node:url";
 export const MODULE_FILES = [
   "extract.mjs",
   "lint.mjs",
+  // `surface.mjs` is hashed even though it is INERT in the www copy (no
+  // `packages/` tree there, so `loadRepoSurface` returns null and
+  // `banned/unresolved-comvi-import` reports nothing). `lint.mjs` imports it
+  // unconditionally, so a copy that took the lint without it does not load at
+  // all — and a copy that took a STALE one would answer a different surface the
+  // day www is pointed at installed packages. Hashing it is what makes both
+  // failures a marker mismatch instead of a surprise.
+  "surface.mjs",
   "project.mjs",
   "typecheck.mjs",
   "sfc-check.mjs",
