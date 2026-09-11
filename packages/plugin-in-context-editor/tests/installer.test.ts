@@ -139,9 +139,11 @@ describe("inContextEditor() wrong use — default entry", () => {
 
     // `.use` is a dumb pipe: it CALLS what you give it, and the plugin needs
     // `registerPostProcessor`, which a base host does not have. Handing an
-    // installer a plugin is the misuse under test, so the cast is deliberate.
+    // installer a plugin is the misuse under test, so the cast is deliberate —
+    // and it has to name the host as the return type, because `.use`'s own
+    // `T extends this` bound now refuses anything that is not the host.
     expect(() =>
-      i18n.use(InContextEditorPlugin() as unknown as (host: typeof i18n) => unknown),
+      i18n.use(InContextEditorPlugin() as unknown as (host: typeof i18n) => typeof i18n),
     ).toThrow(TypeError);
     expect(coreStartMock).not.toHaveBeenCalled();
   });

@@ -30,9 +30,10 @@ const NO_LOADER_CAPABILITY_MESSAGE =
 // the composition — and it may only name shapes the docs teach.
 // `registerPlugin(...)` is not one of them: the plugin host is a SEPARATE
 // composition, absent on the generated default host, so a message naming it
-// would send a reader to a member that is usually not there. `comvi.setup`'s context destructures `core` because
-// `context.i18n` is a union of `VueI18n` and the bare host. BOTH attach-only
-// compositions are named: `loader()` without a map delegates to `attachLoader`
+// would send a reader to a member that is usually not there. `comvi.setup`'s
+// context destructures `core` because `context.i18n` is a union of `VueI18n`
+// and the bare host. BOTH attach-only compositions are named: `loader()`
+// without a map delegates to `attachLoader`
 // and registers nothing (core's `loader` installer), so a reader who composed
 // it lands here too.
 const NO_LOADER_REGISTERED_MESSAGE =

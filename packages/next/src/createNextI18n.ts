@@ -193,6 +193,16 @@ export interface CreateNextI18nResult<D extends DefaultTranslationParams = {}> {
    *   )
    *   .use(AnotherPlugin(), { required: false });
    * ```
+   *
+   * @remarks
+   * This `use` is NOT the host's composition verb, and a Next app holds both
+   * objects. It queues a RAW plugin and is Next's own scoped registration: the
+   * `runtime` / `lazy` / `environment` options are what a per-request server
+   * host and a client host need, and nothing runs until the builder creates
+   * them. `result.i18n.use(...)` is core's installer pipe on the host itself —
+   * it CALLS what it is given and demands the host back, so handing it a raw
+   * plugin throws `E_USE_NOT_INSTALLER`. Register plugins here; compose
+   * capabilities there.
    */
   use(plugin: I18nPlugin, options?: UsePluginOptions & { lazy?: false }): CreateNextI18nResult<D>;
   use(

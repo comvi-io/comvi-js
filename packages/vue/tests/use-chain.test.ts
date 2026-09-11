@@ -54,6 +54,41 @@ describe("VueI18n.use()", () => {
     expect(i18n.core).not.toBe(foreign);
   });
 
+  it("swallows the rejection an already-invoked async plugin left behind", async () => {
+    const i18n = createI18n({ locale: "en", exposeGlobal: false });
+    const unhandled = vi.fn();
+    process.on("unhandledRejection", unhandled);
+    try {
+      expect(() =>
+        i18n.use((async () => {
+          throw new Error("the plugin's own failure");
+        }) as unknown as (core: typeof i18n.core) => typeof i18n.core),
+      ).toThrow(expect.objectContaining({ code: "E_USE_HOST_IDENTITY" }));
+
+      // Two macrotask turns: enough for node to have reported one.
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      expect(unhandled).not.toHaveBeenCalled();
+    } finally {
+      process.off("unhandledRejection", unhandled);
+    }
+  });
+
+  it("names the rule and the ways out in development", () => {
+    const i18n = createI18n({ locale: "en", exposeGlobal: false });
+
+    let message = "";
+    try {
+      i18n.use((() => undefined) as unknown as (core: typeof i18n.core) => typeof i18n.core);
+    } catch (error) {
+      message = (error as Error).message;
+    }
+    expect(message).toContain("must return the host it was given");
+    expect(message).toContain(".use(definePlugin(f))");
+    expect(message).toContain("registerPlugin(f)");
+    expect(message).toContain("localeDetector(), not LocaleDetector()");
+  });
+
   it("composes devtools through the pipe without widening", () => {
     const i18n = createI18n({ locale: "en", exposeGlobal: false });
     const composed = i18n.use(devtools({ instanceId: "use-chain" }));

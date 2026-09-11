@@ -463,6 +463,32 @@ describe(".use(installer) — the composition pipe", () => {
       expect(message).toContain("localeDetector(), not LocaleDetector()");
     });
 
+    it("names WHAT came back, which is what separates the three misuses", () => {
+      const i18n = createI18n({ locale: "en", exposeGlobal: false });
+      const messageFor = (f: unknown): string => {
+        try {
+          i18n.use(f as (host: typeof i18n) => typeof i18n);
+        } catch (error) {
+          return (error as Error).message;
+        }
+        return "";
+      };
+
+      // Returned nothing at all — a statement-body plugin.
+      expect(messageFor(() => undefined)).toContain("f returned undefined");
+      // Returned a derived object.
+      expect(messageFor(() => ({ dispose: () => {} }))).toContain("f returned object");
+      // Returned a Promise — the async raw plugin, and the one case where
+      // `typeof` alone ("object") would not have told the reader anything.
+      expect(messageFor(async () => {})).toContain(
+        "f returned a thenable object (an async function is not an installer)",
+      );
+      // `null` is an object to `typeof`; the message must not say so.
+      expect(messageFor(() => null)).toContain("f returned null");
+      // A primitive still names its own type.
+      expect(messageFor(() => 1)).toContain("f returned number");
+    });
+
     it("leaves the host untouched — a refused .use() composed nothing", () => {
       const i18n = createI18n({ locale: "en", exposeGlobal: false });
       const before = Object.getOwnPropertyNames(i18n);

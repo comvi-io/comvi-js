@@ -445,7 +445,10 @@ export class VueI18n<
    * Installers widen the host IN PLACE and return it; the wrapper's bound
    * proxies point at that one host, so an installer that hands back a
    * different object is refused (`code: "E_USE_HOST_IDENTITY"`) instead of
-   * leaving the wrapper driving a host the app never sees.
+   * leaving the wrapper driving a host the app never sees. A raw ASYNC plugin
+   * handed here has already run by the time the check fires, so its rejection
+   * is swallowed and the identity error is the only thing the app sees — and
+   * the development message names the ways out, exactly as core's does.
    */
   use<T extends WrapperI18nHost<D>>(installer: (core: C) => T): VueI18n<D, T> {
     if (IS_DEV && (this.core.isInitialized || this.core.isInitializing) && !this._warnedLateUse) {
@@ -456,8 +459,18 @@ export class VueI18n<
     }
     const widened: unknown = installer(this.core);
     if (widened !== this.core) {
+      // Same three lines core's `use` has, for the same reason: the function
+      // already RAN, so a raw ASYNC plugin has a live promise here. The error
+      // below is the report; that promise's rejection is not, and leaving it
+      // floating would print an unhandled rejection on top of an already-clear
+      // diagnostic. Swallow it, and only it.
+      if (typeof (widened as { then?: unknown } | null | undefined)?.then === "function") {
+        void (widened as Promise<unknown>).then(undefined, () => {});
+      }
       const error = new Error(
-        IS_DEV ? "[i18n] .use(installer) must return the host it was given" : "E_USE_HOST_IDENTITY",
+        IS_DEV
+          ? "[i18n] .use(installer) must return the host it was given. A raw plugin goes through .use(definePlugin(f)) or registerPlugin(f); a plugin package's installer is the lowercase factory (localeDetector(), not LocaleDetector())."
+          : "E_USE_HOST_IDENTITY",
       ) as UseHostIdentityError;
       error.code = "E_USE_HOST_IDENTITY";
       throw error;

@@ -427,3 +427,32 @@ createBaseI18n({ locale: "en" }).use(loader({ uk: "./uk.json" }));
 createBaseI18n({ locale: "en" }).use(devtools({ locale: "en" }));
 // @ts-expect-error — plugins() takes no configuration yet
 createBaseI18n({ locale: "en" }).use(plugins({ strict: true }));
+
+// ── the identity rule, at the TYPE level ──────────────────────────────────
+//
+// `use<T extends this>` makes all three runtime misuses of `E_USE_NOT_INSTALLER`
+// compile errors instead. The POSITIVE side of the same constraint is pinned
+// above: `loader()`, `plugins()`, `definePlugin()`, a bare `attachLoader` /
+// `attachPlugins` / `attachDevtools`, the hand-written in-place installer with
+// its phantom brand, and the `BrandedInstaller<A>` probe all still infer and
+// widen through it. The runtime guard is NOT redundant — a JS caller, or an
+// `any`-typed one, walks straight past every line here.
+
+// 1. A DERIVED object: the classic pre-E hand-written shape. Widen in place and
+//    keep the extra beside the chain.
+createBaseI18n({ locale: "en" }).use(
+  // @ts-expect-error — a derived object is not the host
+  (i18n) => ({ i18n, dispose: () => {} }),
+);
+
+// 2. An ASYNC installer: calling it yields a Promise, never the host. This is
+//    the shape a raw `FetchLoader(…)`-style plugin has.
+// @ts-expect-error — an async function returns a Promise, not the host
+createBaseI18n({ locale: "en" }).use(async (i18n) => i18n);
+
+// 3. An installer that returns NOTHING — a statement body, which is what a
+//    hand-written plugin looks like.
+// @ts-expect-error — an installer must return the host it was given
+createBaseI18n({ locale: "en" }).use((i18n) => {
+  void i18n;
+});
