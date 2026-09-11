@@ -367,8 +367,16 @@ export interface I18nBaseOptions {
   /**
    * Namespaces to load during initialization. Omitted, only the default
    * namespace loads; pass `[]` to skip initial loading entirely.
+   *
+   * LOADING is the loader capability's job, so on a host without it this
+   * option has nothing to do and `init()` says so in development.
    */
   ns?: string[];
+  /**
+   * Inline catalogs, keyed by `locale` or `"locale:namespace"`. Nested objects
+   * (`{ nav: { home: "Home" } }`) and flat dotted keys (`{ "nav.home": "Home" }`)
+   * are the same catalog: every host flattens on ingestion.
+   */
   translation?: Record<string, Record<string, TranslationValue>>;
   /** Tried in order when a key is missing in the active locale. */
   fallbackLocale?: string | string[];
@@ -394,7 +402,8 @@ export interface I18nBaseOptions {
    * Discovery option for composed compatibility hosts (the CDN/UMD host and
    * `@comvi/next`'s composed preset). The base `@comvi/core` host accepts this
    * shared option shape but does not install discovery; base-host users compose
-   * `devtools({ exposeGlobal })` or call `attachDevtools`.
+   * `devtools({ exposeGlobal })` or call `attachDevtools`. Passing it without
+   * that capability does nothing, and `init()` says so in development.
    * @default true when the devtools capability is installed in a browser
    */
   exposeGlobal?: boolean;

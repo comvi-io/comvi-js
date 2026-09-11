@@ -21,14 +21,15 @@
 // before `init()` is attached. There is no other ordering rule: ICU is the
 // constructor option `compiler: icuCompiler`, not an installer.
 //
-// `flattenCatalog` is exported here too and is PURE, so importing only it from
-// this subpath pulls the flattener and nothing else.
+// `flattenCatalog` is NOT here: every host flattens nested catalogs itself, so
+// the flattener is no longer this capability's escape hatch. It stays published
+// from the `@comvi/core` root, for pre-flattening data by hand.
 import type { I18n } from "./core/i18n";
 import type { I18nLoaderApi } from "./types";
 import { attachLoader } from "./core/loader";
 import { createImportMapLoader, type LoaderImportMap } from "./core/importMapLoader";
 
-export { attachLoader, flattenCatalog } from "./core/loader";
+export { attachLoader } from "./core/loader";
 export { createImportMapLoader } from "./core/importMapLoader";
 export type { LoaderImportMap, LoaderImportResult } from "./core/importMapLoader";
 export type { I18nLoaderApi, LoaderFn, LoaderResult } from "./types";

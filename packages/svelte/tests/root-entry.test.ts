@@ -17,7 +17,7 @@ import { mount, unmount } from "svelte";
 import { createI18n as coreCreateI18n, I18n as CoreI18n } from "@comvi/core";
 import { attachDevtools, devtools } from "@comvi/core/devtools";
 import { icuCompiler } from "@comvi/core/icu";
-import { attachLoader, flattenCatalog, loader } from "@comvi/core/loader";
+import { attachLoader, loader } from "@comvi/core/loader";
 import type { I18nLoaderApi } from "@comvi/core/loader";
 import { attachPlugins, plugins } from "@comvi/core/plugins";
 import type { I18nPluginHostApi } from "@comvi/core/plugins";
@@ -121,7 +121,8 @@ describe("@comvi/svelte — the capability toolkit", () => {
     expect(root.I18n).toBe(CoreI18n);
     expect(root.icuCompiler).toBe(icuCompiler);
     expect(root.attachLoader).toBe(attachLoader);
-    expect(root.flattenCatalog).toBe(flattenCatalog);
+    // `flattenCatalog` is NOT re-exported: nested catalogs are base behaviour (C1).
+    expect(root).not.toHaveProperty("flattenCatalog");
     expect(root.attachPlugins).toBe(attachPlugins);
     expect(root.attachDevtools).toBe(attachDevtools);
     // The installers are core's own factories, one hop, same rule.
@@ -230,7 +231,6 @@ describe("@comvi/svelte — the export surface", () => {
     "createLocaleStore",
     "definePlugin",
     "devtools",
-    "flattenCatalog",
     "getI18nContext",
     "icuCompiler",
     "loader",

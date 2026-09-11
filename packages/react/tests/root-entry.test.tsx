@@ -13,7 +13,7 @@ import { renderHook } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { attachDevtools, devtools } from "@comvi/core/devtools";
 import { icuCompiler } from "@comvi/core/icu";
-import { attachLoader, flattenCatalog, loader } from "@comvi/core/loader";
+import { attachLoader, loader } from "@comvi/core/loader";
 import type { I18nLoaderApi } from "@comvi/core/loader";
 import { attachPlugins, plugins } from "@comvi/core/plugins";
 import type { I18nPluginHostApi } from "@comvi/core/plugins";
@@ -71,7 +71,8 @@ describe("@comvi/react — the capability toolkit", () => {
   it("re-exports core's own bindings, not copies", () => {
     expect(root.icuCompiler).toBe(icuCompiler);
     expect(root.attachLoader).toBe(attachLoader);
-    expect(root.flattenCatalog).toBe(flattenCatalog);
+    // `flattenCatalog` is NOT re-exported: nested catalogs are base behaviour (C1).
+    expect(root).not.toHaveProperty("flattenCatalog");
     expect(root.attachPlugins).toBe(attachPlugins);
     expect(root.attachDevtools).toBe(attachDevtools);
     // The installers are core's own factories, one hop, same rule.
@@ -136,7 +137,6 @@ describe("@comvi/react — the export surface", () => {
     "createI18n",
     "definePlugin",
     "devtools",
-    "flattenCatalog",
     "icuCompiler",
     "loader",
     "plugins",

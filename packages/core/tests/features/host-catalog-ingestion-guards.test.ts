@@ -1,29 +1,41 @@
 import { describe, it, expect, vi } from "vitest";
 import { createI18n } from "../../src";
 
-describe("addTranslations() dev guidance for a non-flat catalog", () => {
-  it("names the locale and the offending key, and says the host stores catalogs verbatim", () => {
+describe("addTranslations() on a non-flat catalog (C1)", () => {
+  // This block used to assert the opposite: a dev warning naming the offending
+  // key and telling the reader the base host "stores catalogs as given". The
+  // rule it softened is gone — the base flattens unconditionally — so the
+  // warning must be gone with it.
+  it("flattens instead of warning, with no mention of flattenCatalog", () => {
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
     const i18n = createI18n({ locale: "en" });
 
     i18n.addTranslations({ en: { nav: { home: "Home" } } as never });
 
-    expect(warnSpy).toHaveBeenCalledWith(
-      expect.stringContaining('addTranslations("en"): "nav" is not a string'),
-    );
-    expect(warnSpy).toHaveBeenCalledWith(
-      expect.stringContaining("catalogs as given — pass a FLAT catalog"),
-    );
+    expect(i18n.t("nav.home" as never)).toBe("Home");
+    expect(warnSpy).not.toHaveBeenCalled();
   });
 
-  it("stores a null leaf verbatim rather than failing the ingestion preflight", () => {
+  it("drops a null leaf with the flattener's own warning, as the loader path does", () => {
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
     const i18n = createI18n({ locale: "en" });
 
     i18n.addTranslations({ en: { total: null } as never });
 
-    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('"total" is not a string'));
-    expect(i18n.hasTranslation("total")).toBe(true);
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('Dropping translation "total"'));
+    expect(i18n.hasTranslation("total")).toBe(false);
+  });
+
+  it("coerces a non-string leaf with the flattener's own warning", () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const i18n = createI18n({ locale: "en" });
+
+    i18n.addTranslations({ en: { total: 3 } as never });
+
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining('Translation "total" is not a string'),
+    );
+    expect(i18n.t("total" as never)).toBe("3");
   });
 });
 

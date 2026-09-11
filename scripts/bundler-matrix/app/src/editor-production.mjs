@@ -45,9 +45,8 @@ async function main() {
   const i18n = createI18n({
     locale: "en",
     exposeGlobal: false,
-    // The base host stores catalogs exactly as given, so this is FLAT: a
-    // nested one would need `flattenCatalog()` from `@comvi/core/loader`,
-    // which is a capability this fixture deliberately does not compose.
+    // Flat by choice, not by rule: the base host flattens nested catalogs
+    // itself, and this fixture deliberately composes no capability.
     translation: { en: { hello: "Hello", greeting: "Hi {name}" } },
   });
 

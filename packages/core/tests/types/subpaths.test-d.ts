@@ -4,6 +4,7 @@
 // about a capability being ABSENT until it is composed in.
 import {
   createI18n as createBaseI18n,
+  flattenCatalog,
   subscribeToRevision,
   REVISION_EVENTS,
   isVirtualNode as baseIsVirtualNode,
@@ -15,13 +16,8 @@ import {
   type CapabilityName,
   type WrapperI18nHost,
 } from "@comvi/core";
-import {
-  attachLoader,
-  createImportMapLoader,
-  flattenCatalog,
-  loader,
-  type LoaderFn,
-} from "@comvi/core/loader";
+import { attachLoader, createImportMapLoader, loader, type LoaderFn } from "@comvi/core/loader";
+import * as loaderEntry from "@comvi/core/loader";
 import {
   attachDevtools,
   devtools,
@@ -282,7 +278,13 @@ const queueEntry: ComviQueueEntry = { v: "0.5.0", i: createI18n({ locale: "en" }
 const queue: ComviQueue = [queueEntry];
 void (queue satisfies ComviQueueEntry[] | ComviHook);
 
-// ── flattenCatalog: the bare-host escape hatch for nested catalogs (C6) ───
+// ── nested catalogs: BASE behaviour, no escape hatch needed (C1) ─────────
+createBaseI18n({ locale: "en", translation: { en: { nav: { home: "Home" } } } });
+createBaseI18n({ locale: "en" }).addTranslations({ en: { nav: { home: "Home" } } });
+
+// `flattenCatalog` stays published, from the ROOT only, for hand-flattening.
+// @ts-expect-error — flattenCatalog is no longer part of @comvi/core/loader
+void (loaderEntry.flattenCatalog as unknown);
 const flat: Record<string, string> = flattenCatalog({ nav: { home: "Home" } });
 createBaseI18n({ locale: "en" }).addTranslations({ en: flat });
 

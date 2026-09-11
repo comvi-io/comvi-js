@@ -31,6 +31,7 @@ import {
   assertPreservesDefaultParamKeys,
 } from "../utils/defaultParams";
 import { translationResultToString } from "../utils/translationResultToString";
+import { normalizeTranslationObject } from "../utils";
 import { claimCoreInstance } from "./duplicateGuard";
 import { TranslationCache } from "./TranslationCache";
 import { isStaticTemplate, translate, translateTemplate } from "./translate";
@@ -84,23 +85,6 @@ const useNotInstallerMessage = (widened: unknown): string =>
 // production drops the call, then the import, then the module itself.
 if (IS_DEV) claimCoreInstance(typeof __VERSION__ !== "undefined" ? __VERSION__ : "");
 
-/**
- * A bare host stores catalogs verbatim, so a nested object or a non-string leaf
- * silently becomes an un-renderable template. DEV-only: the production bundle
- * pays nothing for the flattener seam.
- */
-function warnIfNotFlat(localeOrKey: string, catalog: Record<string, unknown>): void {
-  for (const key in catalog) {
-    if (typeof catalog[key] === "string") continue;
-    warn(
-      `[i18n] addTranslations("${localeOrKey}"): "${key}" is not a string. This host stores ` +
-        `catalogs as given — pass a FLAT catalog, wrap a nested one with ` +
-        `flattenCatalog() from "@comvi/core/loader", or attach the loader capability.`,
-    );
-    return;
-  }
-}
-
 /** Type-only re-export so `full.ts` / `importMapLoader.ts` can import them from here. */
 export type { LoaderFn, LoaderResult };
 
@@ -143,13 +127,6 @@ export interface I18nInternal<D extends DefaultTranslationParams = {}> extends I
   _cancelNs?: (locale?: string, namespace?: string) => void;
   _beforeInit?: () => Promise<void>;
   _missHook?: (key: string, locale: string, namespace: string) => TranslationResult | undefined;
-  /**
-   * Nested-catalog flattening for `addTranslations` / `options.translation`.
-   * A PROTOTYPE method on `I18nWithLoader`, never an instance field, so the
-   * composite has it during `super()` — `options.translation` is merged
-   * inside the base constructor, before any `_init*` runs.
-   */
-  _flattenNs?: (catalog: Record<string, TranslationValue>) => FlattenedTranslations;
 
   /**
    * Read-only through the seam: the compiler is a constructor option and its
@@ -204,6 +181,12 @@ export class I18n<D extends DefaultTranslationParams = {}>
   declare public readonly instanceId: string | undefined;
   private _cachedDefaultNs: string;
   private _initialNamespaces?: string[];
+  /**
+   * DEV-ONLY: `instanceId`/`exposeGlobal` were passed, so `init()` can say so
+   * if discovery was never composed. Optional and never initialized, so the
+   * production constructor neither assigns it nor makes it an own property.
+   */
+  private _devDiscoveryOptions?: boolean;
   private _strict: "dev" | "off";
   private _defaultParams?: DefaultTranslationParams;
   private _guaranteedDefaultParamKeys: readonly string[];
@@ -331,7 +314,16 @@ export class I18n<D extends DefaultTranslationParams = {}>
 
     // Discovery (`window.__COMVI__`) is deliberately NOT here: it is the
     // `core/devtools.ts` capability, which is where `options.exposeGlobal` /
-    // `options.instanceId` are read.
+    // `options.instanceId` are read. All the base does is REMEMBER that one of
+    // them ASKED for discovery, so `init()` can report it as inert if that
+    // capability never arrives.
+    //
+    // `exposeGlobal: false` is deliberately NOT a request: it asks for the
+    // absence a base host already delivers, so there is nothing to report and
+    // no reason to flag the 0.4 boilerplate that carries it.
+    if (IS_DEV && (options.instanceId !== undefined || options.exposeGlobal === true)) {
+      this._devDiscoveryOptions = true;
+    }
   }
 
   /**
@@ -390,6 +382,31 @@ export class I18n<D extends DefaultTranslationParams = {}>
     try {
       if (this._isDestroyed) {
         throw new Error(ERR_INSTANCE_DESTROYED);
+      }
+
+      // An option whose capability was never composed does nothing, and doing
+      // nothing quietly is what makes it cost an afternoon. Reported HERE
+      // rather than in the constructor because both capabilities are legally
+      // composed after construction and before `init()`. Once per host: a
+      // second `init()` finds one of the two lifecycle flags already set.
+      // DEV-only — a missing capability is not a boundary violation, so
+      // production stays fail-soft and silent.
+      if (IS_DEV && !this._isInitialized && !this._isInitializing) {
+        const internal = this as unknown as I18nInternal;
+        if (this._initialNamespaces?.length && internal._loadNs === undefined) {
+          warn(
+            `[i18n] options.ns (${this._initialNamespaces.join(", ")}) needs the loader ` +
+              `capability; this host has none, so init() loads nothing. Compose it: ` +
+              `createI18n(options).use(loader(map)).`,
+          );
+        }
+        if (this._devDiscoveryOptions && internal._initDevtools === undefined) {
+          warn(
+            `[i18n] options.instanceId / options.exposeGlobal need the discovery ` +
+              `capability; this host has none, so neither does anything. Compose it: ` +
+              `createI18n(options).use(devtools({ instanceId })).`,
+          );
+        }
       }
 
       this._isInitializing = true;
@@ -938,24 +955,24 @@ export class I18n<D extends DefaultTranslationParams = {}>
   /**
    * Merge a `{ locale | "locale:ns": catalog }` map into the cache.
    *
-   * The base accepts FLAT catalogs only — `{ "a.b": "…" }`. Nested catalogs are
-   * the `_flattenNs` capability's job (`core/loader.ts`): a nested object is
-   * data the loader path produces, and a host that never loads anything should
-   * not carry a recursive flattener for it.
+   * Flattening is UNCONDITIONAL and lives here, in the base: `{ nav: { home } }`
+   * and `{ "nav.home": … }` are the same catalog on every host, whether or not
+   * anything is composed onto it. It used to be an optional `_flattenNs`
+   * capability hook, which made a nested inline catalog type-check and then
+   * resolve as missing on a base host.
    */
   private _nsAddTranslations(translations: Record<string, Record<string, TranslationValue>>): void {
     for (const localeOrKey in translations) {
-      const value = translations[localeOrKey];
-      // The copy onto a prototype-less target IS the prototype-pollution
-      // guard, and it happens here, once, where the raw object enters. The
-      // flattener already returns a fresh null-prototype object, so a host that
-      // has one never pays a second copy.
-      const flat =
-        (this as unknown as I18nInternal)._flattenNs?.(value) ??
-        Object.assign(Object.create(null), value);
+      // `normalizeTranslationObject` returns a FRESH null-prototype object, so
+      // this is also the prototype-pollution guard — one copy, here, where the
+      // raw object enters. Input that is already prototype-less is taken as
+      // normalized and passes through without a second copy.
+      // `?? {}` keeps the documented leniency of a `null`/`undefined` locale
+      // value (an empty catalog plus the event), which the old shallow
+      // `Object.assign` gave for free and `Object.getPrototypeOf` would throw on.
+      const flat = normalizeTranslationObject(translations[localeOrKey] ?? {});
 
       if (IS_DEV) {
-        warnIfNotFlat(localeOrKey, flat);
         (this as unknown as I18nInternal)._preflightSimpleCatalog?.(flat);
       }
 

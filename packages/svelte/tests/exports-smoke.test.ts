@@ -155,7 +155,6 @@ describe("exports map smoke (F0b)", () => {
       "I18n",
       "loader",
       "attachLoader",
-      "flattenCatalog",
       "plugins",
       "attachPlugins",
       "devtools",

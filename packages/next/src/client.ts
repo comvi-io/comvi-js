@@ -32,7 +32,7 @@ export { createI18n } from "@comvi/core";
 // `i18n.use(…)`: one expression composes and configures a capability; the
 // `attach*` functions stay as the low-level API.
 export { icuCompiler } from "@comvi/core/icu";
-export { attachLoader, flattenCatalog, loader } from "@comvi/core/loader";
+export { attachLoader, loader } from "@comvi/core/loader";
 export { attachPlugins, definePlugin, plugins } from "@comvi/core/plugins";
 export { attachDevtools, devtools } from "@comvi/core/devtools";
 export type { DevtoolsOptions } from "@comvi/core/devtools";

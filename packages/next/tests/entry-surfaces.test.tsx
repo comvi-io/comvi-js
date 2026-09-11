@@ -13,7 +13,7 @@ import type { ReactNode } from "react";
 import { createI18n as createCoreI18n } from "@comvi/core";
 import { attachDevtools, devtools } from "@comvi/core/devtools";
 import { icuCompiler } from "@comvi/core/icu";
-import { attachLoader, flattenCatalog, loader } from "@comvi/core/loader";
+import { attachLoader, loader } from "@comvi/core/loader";
 import { attachPlugins, plugins } from "@comvi/core/plugins";
 import type { WrapperI18nHost } from "@comvi/core";
 import * as client from "../src/client";
@@ -84,7 +84,8 @@ describe("@comvi/next/client — the capability toolkit", () => {
   it("re-exports core's own bindings, not copies", () => {
     expect(client.icuCompiler).toBe(icuCompiler);
     expect(client.attachLoader).toBe(attachLoader);
-    expect(client.flattenCatalog).toBe(flattenCatalog);
+    // `flattenCatalog` is NOT re-exported: nested catalogs are base behaviour (C1).
+    expect(client).not.toHaveProperty("flattenCatalog");
     expect(client.attachPlugins).toBe(attachPlugins);
     expect(client.attachDevtools).toBe(attachDevtools);
     // The installers are core's own factories, one hop, same rule.
@@ -138,7 +139,7 @@ describe("@comvi/next/server — the same surface for the SSR half", () => {
     expect(server.icuCompiler).toBe(icuCompiler);
     expect(server).not.toHaveProperty("icu");
     expect(server.attachLoader).toBe(attachLoader);
-    expect(server.flattenCatalog).toBe(flattenCatalog);
+    expect(server).not.toHaveProperty("flattenCatalog");
     expect(server.attachPlugins).toBe(attachPlugins);
     expect(server.attachDevtools).toBe(attachDevtools);
     expect(server.loader).toBe(loader);

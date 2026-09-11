@@ -19,12 +19,12 @@ import {
   createLocaleStore,
   definePlugin,
   devtools,
-  flattenCatalog,
   icuCompiler,
   loader,
   plugins,
   setI18nContext,
 } from "../../src/index";
+import * as rootEntry from "../../src/index";
 
 type Equal<X, Y> =
   (<T>() => T extends X ? 1 : 2) extends <T>() => T extends Y ? 1 : 2 ? true : false;
@@ -102,8 +102,11 @@ void _withPlugins.registerPlugin(() => undefined);
 const _withDevtools = attachDevtools(createI18n({ locale: "en" }), { exposeGlobal: false });
 export type _DevtoolsKeepsHostType = Expect<Equal<typeof _withDevtools, I18n<{}>>>;
 
-const flat: Record<string, string> = flattenCatalog({ nav: { home: "Home" } });
-void flat;
+// Nested catalogs are BASE behaviour, so this root no longer re-exports
+// `flattenCatalog` — it lives on the `@comvi/core` root alone (C1).
+// @ts-expect-error -- flattenCatalog is not part of this entry
+void (rootEntry.flattenCatalog as unknown);
+createI18n({ locale: "en", translation: { en: { nav: { home: "Home" } } } });
 
 // `.use(installer)`: the generic host type flows THROUGH the pipe and comes
 // out widened, never decayed to `any`. The import map is spelled inline here —
