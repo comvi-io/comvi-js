@@ -21,7 +21,8 @@ const toError = (error: unknown): Error =>
 const noLoaderWarnings = new WeakSet<ServerI18nHost>();
 const NO_LOADER_WARNING_MESSAGE =
   "[comvi/next] No loader configured. " +
-  "Register one via i18n.registerLoader(...) or createNextI18n(...).use(plugin).";
+  "Register one via i18n.registerLoader(...), or compose one onto the host: " +
+  "createNextI18n(...).i18n.use(fetchLoader(...)).";
 
 const toPlainObject = (
   value: Record<string, TranslationValue>,

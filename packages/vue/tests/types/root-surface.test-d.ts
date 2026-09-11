@@ -19,6 +19,7 @@ import {
   createCore,
   createI18n,
   createI18nFromCore,
+  definePlugin,
   devtools,
   flattenCatalog,
   icuCompiler,
@@ -115,10 +116,10 @@ export type _DevtoolsKeepsHostType = Expect<Equal<typeof _withDevtools, I18n<{}>
 const flat: Record<string, string> = flattenCatalog({ nav: { home: "Home" } });
 void flat;
 
-// `.with(installer)`: the generic host type flows THROUGH the pipe and comes
+// `.use(installer)`: the generic host type flows THROUGH the pipe and comes
 // out widened, never decayed to `any`. Against a real `./uk.json`, so the
 // dynamic-import thunk is typed the way an app's is.
-const piped = createCore({ locale: "en", compiler: icuCompiler }).with(
+const piped = createCore({ locale: "en", compiler: icuCompiler }).use(
   loader({ uk: () => import("./uk.json") }),
 );
 export type _PipedIsWidened = Expect<
@@ -127,23 +128,23 @@ export type _PipedIsWidened = Expect<
 export type _PipedIsStillTheHost = Expect<Equal<typeof piped, I18n<{}> & I18nLoaderApi>>;
 void piped.registerLoader(() => Promise.resolve({}));
 // @ts-expect-error -- loader() composes ONLY the loader capability
-piped.use(() => undefined);
+piped.registerPlugin(() => undefined);
 
 // The preset's own host takes the pipe too, at `i18n.core` — vue's factory
 // returns a wrapper rather than the host itself.
-const _presetPiped = createI18n({ locale: "en" }).core.with(loader());
+const _presetPiped = createI18n({ locale: "en" }).core.use(loader());
 export type _PresetHostTakesThePipe = Expect<Equal<typeof _presetPiped, I18n<{}> & I18nLoaderApi>>;
 
 // Chaining compounds the widenings.
-const _both = createCore({ locale: "en" }).with(loader()).with(plugins());
+const _both = createCore({ locale: "en" }).use(loader()).use(plugins());
 export type _ChainCompounds = Expect<
   Equal<typeof _both extends I18nLoaderApi & I18nPluginHostApi ? true : false, true>
 >;
-void _both.use(() => undefined).registerLoader(() => Promise.resolve({}));
+void _both.registerPlugin(() => undefined).registerLoader(() => Promise.resolve({}));
 
 // The DECAY PROBE: a declared default-param set must survive the pipe. If the
 // host collapsed to `any`, `Equal<…>` would resolve against `any` and fail.
-const _pipedDefaults = createCore({ locale: "en", defaultParams: { brand: "Comvi" } }).with(
+const _pipedDefaults = createCore({ locale: "en", defaultParams: { brand: "Comvi" } }).use(
   loader(),
 );
 export type _PipeKeepsExactDefaults = Expect<
@@ -151,19 +152,31 @@ export type _PipeKeepsExactDefaults = Expect<
 >;
 
 // devtools() adds no public members, so the host type is unchanged.
-const _pipedDevtools = createCore({ locale: "en" }).with(devtools({ exposeGlobal: false }));
+const _pipedDevtools = createCore({ locale: "en" }).use(devtools({ exposeGlobal: false }));
 export type _DevtoolsPipeKeepsHostType = Expect<Equal<typeof _pipedDevtools, I18n<{}>>>;
 
 // The low-level attaches are installers too — the factories only add config.
 void createCore({ locale: "en" })
-  .with(attachLoader)
+  .use(attachLoader)
   .registerLoader(() => Promise.resolve({}));
 void createCore({ locale: "en" })
-  .with(attachPlugins)
-  .use(() => undefined);
-void createCore({ locale: "en" }).with(attachDevtools).addTranslations({ en: {} });
+  .use(attachPlugins)
+  .registerPlugin(() => undefined);
+void createCore({ locale: "en" }).use(attachDevtools).addTranslations({ en: {} });
 
 // @ts-expect-error -- the factory is not an installer; it must be called
-createCore({ locale: "en" }).with(loader);
+createCore({ locale: "en" }).use(loader);
 // @ts-expect-error -- an import map's values must be import functions
-createCore({ locale: "en" }).with(loader({ uk: "./uk.json" }));
+createCore({ locale: "en" }).use(loader({ uk: "./uk.json" }));
+
+// `definePlugin(fn)` — the root's re-export of the inline-plugin installer.
+// Pinned here so a root that dropped it fails the type gate rather than only
+// the runtime surface test. `plugins()` attaches the plugin HOST;
+// `definePlugin(fn)` registers ONE plugin on it, and both flow through `.use`.
+const _withDefinedPlugin = createCore({ locale: "en" }).use(definePlugin(() => {}));
+export type _DefinePluginWidensToThePluginHost = Expect<
+  Equal<typeof _withDefinedPlugin extends I18nPluginHostApi ? true : false, true>
+>;
+void _withDefinedPlugin.registerPlugin(() => {});
+// @ts-expect-error -- definePlugin takes a PLUGIN, not an installer
+createCore({ locale: "en" }).use(definePlugin(attachLoader));

@@ -146,7 +146,7 @@ describe("@comvi/solid — the capability toolkit", () => {
   it("composes AND configures in one expression — the documented recipe", async () => {
     const i18n = root
       .createI18n({ locale: "en", exposeGlobal: false, compiler: root.icuCompiler })
-      .with(
+      .use(
         root.loader({
           en: async () => ({
             default: { items: "{count, plural, one {# item} other {# items}}" },
@@ -193,6 +193,7 @@ describe("@comvi/solid — the export surface", () => {
     "createInitializingSignal",
     "createLoadingSignal",
     "createLocaleSignal",
+    "definePlugin",
     "devtools",
     "flattenCatalog",
     "icuCompiler",

@@ -22,7 +22,7 @@ async function createServerLikeI18n(
     translation,
   });
 
-  i18n.use(InContextEditorPlugin());
+  i18n.registerPlugin(InContextEditorPlugin());
   await i18n.init();
   return i18n;
 }

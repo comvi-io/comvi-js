@@ -26,7 +26,7 @@ describe("destroy ordering", () => {
     // "pending" never resolves, so a load is still in flight at destroy time and
     // the destroy path emits `loadingStateChanged`.
     i18n.registerLoader(loaderFn);
-    i18n.use(() => {
+    i18n.registerPlugin(() => {
       i18n.setPluginData("probe", "set");
       return () => {
         order.push("cleanup");
@@ -101,7 +101,7 @@ describe("destroy ordering", () => {
 
     const loaderFn = async () => ({ hello: "Hello" });
     i18n.registerLoader(loaderFn);
-    i18n.use(() => {
+    i18n.registerPlugin(() => {
       i18n.setPluginData("probe", "set");
       return () => {
         order.push("cleanup");
@@ -137,7 +137,7 @@ describe("destroy ordering", () => {
     const i18n = attachPlugins(attachLoader(createBaseI18n({ locale: "en", exposeGlobal: false })));
 
     i18n.registerLoader(async () => ({ hello: "Hello" }));
-    i18n.use(() => () => void order.push("cleanup"));
+    i18n.registerPlugin(() => () => void order.push("cleanup"));
     i18n.on("destroyed", () => order.push("destroyed"));
     await i18n.init();
     await i18n.destroy();

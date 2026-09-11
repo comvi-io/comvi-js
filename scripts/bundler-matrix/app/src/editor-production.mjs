@@ -51,10 +51,10 @@ async function main() {
     translation: { en: { hello: "Hello", greeting: "Hi {name}" } },
   });
 
-  // `.with(inContextEditor())` returns the host it was handed. Under the
+  // `.use(inContextEditor())` returns the host it was handed. Under the
   // production condition that is all it does; under the default condition it
   // has attached the plugin and devtools capabilities on the way through.
-  const composed = i18n.with(inContextEditor({ apiKeyOverride: "bundler-matrix" }));
+  const composed = i18n.use(inContextEditor({ apiKeyOverride: "bundler-matrix" }));
   assertEqual(composed === i18n, true, "inContextEditor returns the same host");
 
   await i18n.init();

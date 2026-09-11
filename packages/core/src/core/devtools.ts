@@ -193,9 +193,9 @@ export class I18nWithDevtools<D extends DefaultTranslationParams = {}> extends I
  * flipped `exposeGlobal` back on:
  *
  * ```ts
- * const i18n = createI18n({ locale: "en" }).with(devtools({ exposeGlobal: false }));
+ * const i18n = createI18n({ locale: "en" }).use(devtools({ exposeGlobal: false }));
  * // …hydrate…
- * i18n.with(devtools({ exposeGlobal: true, instanceId: "app" })); // now exposes
+ * i18n.use(devtools({ exposeGlobal: true, instanceId: "app" })); // now exposes
  * ```
  *
  * Exposure therefore re-runs while the instance has NOT been exposed, and

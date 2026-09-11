@@ -32,7 +32,7 @@ export type _ExactHostType = Expect<Equal<typeof composed.i18n, typeof composedH
 
 // A host composed through the INSTALLER pipe instead of `attachLoader`: the
 // second acquisition path.
-const installerHost = createI18n({ locale: "en" }).with(loader());
+const installerHost = createI18n({ locale: "en" }).use(loader());
 const _onPiped = createNextI18nFromHost(() => installerHost, ROUTING);
 
 export type _PipedHostAlsoExact = Expect<Equal<typeof _onPiped.i18n, typeof installerHost>>;
@@ -129,26 +129,26 @@ export type _NoServerLockedError = serverEntry.CompilerLockedError;
 const serverFlat: Record<string, string> = serverEntry.flattenCatalog({ nav: { home: "Home" } });
 void serverFlat;
 
-// The same recipe through the `.with(installer)` pipe — the sharpest decay
+// The same recipe through the `.use(installer)` pipe — the sharpest decay
 // probe: if the pipe let the host collapse to `any`, the negative case below
 // would stop erroring.
 const pipedHost = serverEntry
   .createI18n({ locale: "en", defaultNs: "common" })
-  .with(serverEntry.loader({ en: async () => ({ default: { hello: "Hello" } }) }));
+  .use(serverEntry.loader({ en: async () => ({ default: { hello: "Hello" } }) }));
 const _piped = createNextI18nFromHost(() => pipedHost, ROUTING);
 
 export type _PipedHostIsExact = Expect<Equal<typeof _piped.i18n, typeof pipedHost>>;
 export type _PipedHostIsAServerHost = Expect<
   Equal<typeof pipedHost extends NextServerHost ? true : false, true>
 >;
-// `.with(attachLoader)` is the installer for a host with no import map.
+// `.use(attachLoader)` is the installer for a host with no import map.
 void createNextI18nFromHost(
-  () => serverEntry.createI18n({ locale: "en" }).with(serverEntry.attachLoader),
+  () => serverEntry.createI18n({ locale: "en" }).use(serverEntry.attachLoader),
   ROUTING,
 );
 createNextI18nFromHost(
   // @ts-expect-error -- plugins() is not the loader: the server host still needs one
-  () => serverEntry.createI18n({ locale: "en" }).with(serverEntry.plugins()),
+  () => serverEntry.createI18n({ locale: "en" }).use(serverEntry.plugins()),
   ROUTING,
 );
 

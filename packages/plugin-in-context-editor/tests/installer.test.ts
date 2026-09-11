@@ -7,7 +7,7 @@
  * `(host) => host` — no discovery, no capability, no plugin.
  *
  * The two wrong-use MECHANISMS are both proved here, because this package is
- * the only one that ships both. `.use(inContextEditor(…))` on the default
+ * the only one that ships both. `registerPlugin(inContextEditor(…))` on the default
  * entry hits the nested-use guard at the first ensure-step; on the production
  * entry there is no ensure-step to hit, so the identity no-op runs and the
  * plugin host's return-shape guard rejects the host it handed back.
@@ -45,7 +45,7 @@ afterEach(() => {
 
 describe("inContextEditor() installer — default entry", () => {
   it("ensures discovery and the plugin host, starts the editor at init() and stops it at destroy()", async () => {
-    const i18n = base().with(inContextEditor());
+    const i18n = base().use(inContextEditor());
 
     // Discovery came FIRST, and the plugin host is composed on.
     expect(i18n.instanceId).toBeDefined();
@@ -66,12 +66,12 @@ describe("inContextEditor() installer — default entry", () => {
   it("hands the host back unchanged — the widening is deliberately none", () => {
     const host = base();
 
-    expect(host.with(inContextEditor())).toBe(host);
+    expect(host.use(inContextEditor())).toBe(host);
   });
 
   it("passes options through to the plugin factory", async () => {
     const target = document.createElement("div");
-    const i18n = base().with(inContextEditor({ targetElement: target, debug: true }));
+    const i18n = base().use(inContextEditor({ targetElement: target, debug: true }));
 
     await i18n.init();
 
@@ -90,10 +90,10 @@ describe("inContextEditor() installer — default entry", () => {
   });
 
   it("is idempotent about discovery: an already-composed host keeps its id", async () => {
-    const host = attachDevtools(base(), { instanceId: "kept" }).with(plugins());
+    const host = attachDevtools(base(), { instanceId: "kept" }).use(plugins());
     host.setPluginData("existing", "kept");
 
-    const again = host.with(inContextEditor());
+    const again = host.use(inContextEditor());
 
     expect(again).toBe(host);
     expect(host.instanceId).toBe("kept");
@@ -107,10 +107,10 @@ describe("inContextEditor() installer — default entry", () => {
     const order: string[] = [];
     // `use` is the caller's own capability here — the editor installer does
     // not widen the host, so the recipe composes `plugins()` explicitly.
-    const i18n = base().with(plugins()).with(inContextEditor());
+    const i18n = base().use(plugins()).use(inContextEditor());
     coreStopMock.mockImplementation(() => void order.push("editor"));
 
-    i18n.use(() => () => void order.push("after"));
+    i18n.registerPlugin(() => () => void order.push("after"));
 
     await i18n.init();
     await i18n.destroy();
@@ -122,10 +122,10 @@ describe("inContextEditor() installer — default entry", () => {
 
 describe("inContextEditor() wrong use — default entry", () => {
   it("fails at init on the first ensure-step, before discovery or attachment", async () => {
-    const i18n = base().with(plugins());
-    i18n.use(inContextEditor() as unknown as I18nPlugin);
+    const i18n = base().use(plugins());
+    i18n.registerPlugin(inContextEditor() as unknown as I18nPlugin);
 
-    await expect(i18n.init()).rejects.toThrow(/inContextEditor\(\) is a \.with\(…\) installer/);
+    await expect(i18n.init()).rejects.toThrow(/inContextEditor\(\) is a \.use installer/);
 
     // The guard ran BEFORE attachDevtools, so no discovery happened…
     expect(i18n.instanceId).toBeUndefined();
@@ -134,29 +134,29 @@ describe("inContextEditor() wrong use — default entry", () => {
     await expect(i18n.destroy()).resolves.toBeUndefined();
   });
 
-  it("rejects the uppercase factory handed to .with()", () => {
+  it("rejects the uppercase factory handed to .use()", () => {
     const i18n = base();
 
-    // `.with` is a dumb pipe: it CALLS what you give it, and the plugin needs
+    // `.use` is a dumb pipe: it CALLS what you give it, and the plugin needs
     // `registerPostProcessor`, which a base host does not have. Handing an
     // installer a plugin is the misuse under test, so the cast is deliberate.
     expect(() =>
-      i18n.with(InContextEditorPlugin() as unknown as (host: typeof i18n) => unknown),
+      i18n.use(InContextEditorPlugin() as unknown as (host: typeof i18n) => unknown),
     ).toThrow(TypeError);
     expect(coreStartMock).not.toHaveBeenCalled();
   });
 });
 
 describe("inContextEditor() — production condition", () => {
-  it("valid .with() returns the identical host and attaches nothing", async () => {
+  it("valid .use() returns the identical host and attaches nothing", async () => {
     const host = base();
 
-    const returned = host.with(prodInContextEditor({ debug: true }));
+    const returned = host.use(prodInContextEditor({ debug: true }));
 
     expect(returned).toBe(host);
     // No discovery, no plugin host, no editor, no mappings bridge.
     expect(host.instanceId).toBeUndefined();
-    expect((host as unknown as Record<string, unknown>).use).toBeUndefined();
+    expect((host as unknown as Record<string, unknown>).registerPlugin).toBeUndefined();
     expect((host as unknown as Record<string, unknown>)[MAPPINGS_BRIDGE_KEY]).toBeUndefined();
     expect(coreCtorMock).not.toHaveBeenCalled();
     expect(browserGlobals.__COMVI__).toBeUndefined();
@@ -165,9 +165,9 @@ describe("inContextEditor() — production condition", () => {
     expect(coreStartMock).not.toHaveBeenCalled();
   });
 
-  it("wrong .use() fails at init on the return-shape guard, mutating nothing", async () => {
-    const i18n = base().with(plugins());
-    i18n.use(prodInContextEditor() as unknown as I18nPlugin);
+  it("wrong registerPlugin() fails at init on the return-shape guard, mutating nothing", async () => {
+    const i18n = base().use(plugins());
+    i18n.registerPlugin(prodInContextEditor() as unknown as I18nPlugin);
 
     // No ensure-step exists to reject it, so the identity no-op RUNS and hands
     // the host back; only nothing or a cleanup function is a legal result.
@@ -182,11 +182,14 @@ describe("inContextEditor() — production condition", () => {
   it("keeps every other plugin's cleanup intact around the rejection", async () => {
     const order: string[] = [];
     const onError = vi.fn();
-    const i18n = base().with(plugins());
+    const i18n = base().use(plugins());
 
-    i18n.use(() => () => void order.push("first"));
-    i18n.use(prodInContextEditor() as unknown as I18nPlugin, { required: false, onError });
-    i18n.use(() => () => void order.push("third"));
+    i18n.registerPlugin(() => () => void order.push("first"));
+    i18n.registerPlugin(prodInContextEditor() as unknown as I18nPlugin, {
+      required: false,
+      onError,
+    });
+    i18n.registerPlugin(() => () => void order.push("third"));
 
     await i18n.init();
 

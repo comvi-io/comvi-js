@@ -45,8 +45,8 @@ describe("Vue plugin integration", () => {
     const plugin = vi.fn();
     // `use` is the plugin-host capability, so this instance is built on a host
     // that composes it rather than on the base preset.
-    const i18nPlugin = createI18nFromCore(createCore({ locale: "en" }).with(attachPlugins));
-    i18nPlugin.core.use(plugin);
+    const i18nPlugin = createI18nFromCore(createCore({ locale: "en" }).use(attachPlugins));
+    i18nPlugin.core.registerPlugin(plugin);
     i18nPlugin.addTranslations({ en: { hello: "Hi" } });
 
     const app = createApp(defineComponent({ template: "<div />" }));

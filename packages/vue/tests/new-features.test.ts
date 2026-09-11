@@ -133,7 +133,7 @@ describe("New Features", () => {
       const loader = vi.fn(async () => ({ title: "Title" }));
 
       const i18n = createI18nFromCore(
-        createCore({ locale: "en", defaultNs: "common" }).with(attachLoader),
+        createCore({ locale: "en", defaultNs: "common" }).use(attachLoader),
       );
       i18n.core.registerLoader(loader);
       await i18n.init();
@@ -375,10 +375,10 @@ describe("New Features", () => {
     it("should cleanup plugin resources on destroy", async () => {
       const cleanupSpy = vi.fn();
       const i18n = createI18nFromCore(
-        createCore({ locale: "en", defaultNs: "common" }).with(attachPlugins),
+        createCore({ locale: "en", defaultNs: "common" }).use(attachPlugins),
       );
 
-      i18n.core.use(() => () => cleanupSpy());
+      i18n.core.registerPlugin(() => () => cleanupSpy());
       await i18n.init();
 
       i18n.destroy();
@@ -390,8 +390,8 @@ describe("New Features", () => {
 
     it("should be safe to call destroy multiple times", async () => {
       const cleanupSpy = vi.fn();
-      const i18n = createI18nFromCore(createCore({ locale: "en" }).with(attachPlugins));
-      i18n.core.use(() => () => cleanupSpy());
+      const i18n = createI18nFromCore(createCore({ locale: "en" }).use(attachPlugins));
+      i18n.core.registerPlugin(() => () => cleanupSpy());
       await i18n.init();
 
       i18n.destroy();

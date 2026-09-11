@@ -67,7 +67,7 @@ describe("catalog ingestion — the dev preflight", () => {
   it("stays silent for tag markup a loader merges in", async () => {
     // The loader preflights its own normalized copy BEFORE the merge — a second
     // ingestion seam, which `addTranslations` above cannot speak for.
-    const i18n = createI18n({ locale: "en", exposeGlobal: false }).with(loader());
+    const i18n = createI18n({ locale: "en", exposeGlobal: false }).use(loader());
     i18n.registerLoader(async () => ({ greet: GREET }));
 
     await i18n.init();

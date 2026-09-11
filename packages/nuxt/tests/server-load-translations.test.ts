@@ -14,15 +14,15 @@ vi.mock("#build/comvi.setup", () => ({
 // The host HAS the loader capability here, so the fix is the registration, not
 // the composition — and the message names only shapes the docs teach: the import
 // map goes where the capability is composed, and a bare LoaderFn is registered
-// from `comvi.setup`, whose context destructures `core`. `.use(...)` is NOT one
-// of them: the generated default host has no plugin capability. Both
+// from `comvi.setup`, whose context destructures `core`. `registerPlugin(...)` is
+// NOT one of them: the generated default host has no plugin capability. Both
 // attach-only compositions are named, because `loader()` with no map registers
 // nothing either.
 const NO_LOADER_REGISTERED_MESSAGE =
   "[@comvi/nuxt] This i18n host has a loader capability but no loader registered, so SSR " +
   "loaded nothing. Pass the import map where you compose it — " +
-  "createI18n(options).with(loader(map)) in your `hostModule` factory — or, on a host " +
-  "composed with .with(attachLoader) or a bare .with(loader()), register a LoaderFn from " +
+  "createI18n(options).use(loader(map)) in your `hostModule` factory — or, on a host " +
+  "composed with .use(attachLoader) or a bare .use(loader()), register a LoaderFn from " +
   "comvi.setup: (({ core }) => { core.registerLoader(fn); }).";
 
 function createEvent(runtimeConfigOverrides: Partial<any> = {}) {
@@ -239,7 +239,7 @@ describe("loadTranslations", () => {
     const [message] = warnSpy.mock.lastCall ?? [];
     expect(message).toContain("has no loader capability");
     expect(message).toContain("hostModule");
-    expect(message).toContain("with(loader(map))");
+    expect(message).toContain("use(loader(map))");
     // The capability-less message must not send a reader to comvi.setup.
     expect(message).not.toContain("registerLoader");
   });

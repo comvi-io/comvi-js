@@ -18,7 +18,7 @@
         "gzipBytes": 8693,
         "measuredAt": "2026-08-29"
       },
-      "note": "Gated core ceiling: all six core subpaths recomposed with `.with(...)` in the 0.4 parity order (parity itself is covered by packages/core/tests/features/composite-parity.test.ts)."
+      "note": "Gated core ceiling: all six core subpaths recomposed with `.use(...)` in the 0.4 parity order (parity itself is covered by packages/core/tests/features/composite-parity.test.ts)."
     },
     {
       "name": "core-base",

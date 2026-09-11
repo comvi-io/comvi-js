@@ -43,9 +43,9 @@ interface HostOptions {
 type FullHost = I18nPluginHost & {
   registerLoader(loader: LoaderFn): void;
   t(key: string, params?: Record<string, unknown>): string;
-  // `with(f)` is `f(this)`; the installers this harness pipes through it are
+  // `use(f)` is `f(this)`; the installers this harness pipes through it are
   // the low-level attaches, which install in place and hand the host back.
-  with(installer: (host: never) => unknown): FullHost;
+  use(installer: (host: never) => unknown): FullHost;
 };
 
 /** The internal composite — one constructor call, 0.4 semantics. */
@@ -60,10 +60,10 @@ function makeComposite(options: HostOptions = {}): FullHost {
 function makeRecomposed(options: HostOptions = {}): FullHost {
   const { importMap, instanceId, exposeGlobal, translation, ...rest } = options;
   const host = createI18n({ locale: "en", compiler: icuCompiler, ...rest } as never)
-    .with(importMap ? loader(importMap) : loader())
-    .with(plugins());
+    .use(importMap ? loader(importMap) : loader())
+    .use(plugins());
   if (translation !== undefined) host.addTranslations(translation);
-  host.with(devtools({ instanceId, exposeGlobal }));
+  host.use(devtools({ instanceId, exposeGlobal }));
   return host as unknown as FullHost;
 }
 
@@ -306,7 +306,7 @@ describe("composite parity — loader capability", () => {
       },
       {
         threw:
-          "[i18n] registerLoader(): argument must be a loader function. For a static import map use .with(loader(map)), or wrap it with createImportMapLoader(map, () => i18n.getDefaultNamespace()) — both from @comvi/core/loader.",
+          "[i18n] registerLoader(): argument must be a loader function. For a static import map use .use(loader(map)), or wrap it with createImportMapLoader(map, () => i18n.getDefaultNamespace()) — both from @comvi/core/loader.",
       },
     );
   });
@@ -316,7 +316,7 @@ describe("composite parity — loader capability", () => {
       (make) => {
         const i18n = make();
         const before = Object.keys(i18n).sort().join();
-        const same = i18n.with(attachLoader) === i18n;
+        const same = i18n.use(attachLoader) === i18n;
         return [same, Object.keys(i18n).sort().join() === before];
       },
       { value: [true, true] },
@@ -330,12 +330,12 @@ describe("composite parity — plugin host and discovery", () => {
       async (make) => {
         const log: string[] = [];
         const i18n = make();
-        i18n.use((host) => {
+        i18n.registerPlugin((host) => {
           log.push("init-a");
           host.registerLoader(async () => ({ pk: "from-plugin" }));
           return () => void log.push("cleanup-a");
         });
-        i18n.use(() => {
+        i18n.registerPlugin(() => {
           log.push("init-b");
           return () => void log.push("cleanup-b");
         });

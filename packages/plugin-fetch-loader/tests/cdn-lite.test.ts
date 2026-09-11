@@ -31,7 +31,7 @@ describe("cdnLoader() installer", () => {
   it("composes both capabilities and loads the initial namespace from the CDN", async () => {
     mockCdnSuccessResponse("en", "default", { greeting: "Hello" });
 
-    const i18n = base().with(cdnLoader({ cdnUrl: TEST_CDN_URL }));
+    const i18n = base().use(cdnLoader({ cdnUrl: TEST_CDN_URL }));
     await i18n.init();
 
     expect(i18n.t("greeting")).toBe("Hello");
@@ -44,7 +44,7 @@ describe("cdnLoader() installer", () => {
     mockCdnSuccessResponse("en", "default", { greeting: "Hello" });
     mockCdnSuccessResponse("fr", "default", { greeting: "Bonjour" });
 
-    const i18n = base().with(cdnLoader({ cdnUrl: TEST_CDN_URL }));
+    const i18n = base().use(cdnLoader({ cdnUrl: TEST_CDN_URL }));
     await i18n.init();
     await i18n.setLocaleAsync("fr");
 
@@ -54,14 +54,14 @@ describe("cdnLoader() installer", () => {
   });
 
   it("reports a missing cdnUrl at COMPOSITION time, not at init", () => {
-    expect(() => base().with(cdnLoader({ cdnUrl: "" }))).toThrow(/cdnUrl is required/);
+    expect(() => base().use(cdnLoader({ cdnUrl: "" }))).toThrow(/cdnUrl is required/);
   });
 
-  it("fails at init through .use(), before either capability is attached", async () => {
-    const i18n = base().with(plugins());
-    i18n.use(cdnLoader({ cdnUrl: TEST_CDN_URL }) as unknown as I18nPlugin);
+  it("fails at init through registerPlugin(), before either capability is attached", async () => {
+    const i18n = base().use(plugins());
+    i18n.registerPlugin(cdnLoader({ cdnUrl: TEST_CDN_URL }) as unknown as I18nPlugin);
 
-    await expect(i18n.init()).rejects.toThrow(/cdnLoader\(\) is a \.with\(…\) installer/);
+    await expect(i18n.init()).rejects.toThrow(/cdnLoader\(\) is a \.use installer/);
 
     expect(hasLoaderApi(i18n)).toBe(false);
   });
@@ -72,11 +72,11 @@ describe("cdnLoader() installer", () => {
     const i18n = base();
     await i18n.init();
 
-    const late = i18n.with(cdnLoader({ cdnUrl: TEST_CDN_URL }));
+    const late = i18n.use(cdnLoader({ cdnUrl: TEST_CDN_URL }));
     const messages = warn.mock.calls.map((call) => String(call[0]));
 
     expect(messages).toHaveLength(1);
-    expect(messages[0]).toContain(".with(plugins()) ran after init()");
+    expect(messages[0]).toContain(".use(plugins()) ran after init()");
     expect(messages[0]).not.toContain("reloadTranslations()");
     expect(late.getLoader()).toBeUndefined();
 

@@ -79,7 +79,7 @@ export type _LoaderApiKeys = Expect<
 export type _PluginApiKeys = Expect<
   Equal<
     keyof I18nPluginHostApi,
-    | "use"
+    | "registerPlugin"
     | "registerLocaleDetector"
     | "getLanguageDetector"
     | "onMissingKey"
@@ -100,8 +100,8 @@ type ComposedHost = I18nPluginHost & I18nLoaderApi & I18nCoreInstance;
 export type _RegisterLoaderArg = Expect<
   Equal<Parameters<ComposedHost["registerLoader"]>[0], LoaderFn>
 >;
-export type _UseOptionsArg = Expect<
-  Equal<Parameters<ComposedHost["use"]>[1], PluginOptions | undefined>
+export type _RegisterPluginOptionsArg = Expect<
+  Equal<Parameters<ComposedHost["registerPlugin"]>[1], PluginOptions | undefined>
 >;
 // The published import-map shape survives as `@comvi/next`'s composed host and
 // as the configured installer's argument — pinned here for the installer.
@@ -113,7 +113,7 @@ export type _LoaderInstallerArg = Expect<
 // interface only once both capabilities are composed on.
 const baseInstance: I18nCoreInstance = createI18n({ locale: "en" });
 void baseInstance;
-const composedInstance: I18nInstance = createI18n({ locale: "en" }).with(loader()).with(plugins());
+const composedInstance: I18nInstance = createI18n({ locale: "en" }).use(loader()).use(plugins());
 void composedInstance;
 // @ts-expect-error — the base root lacks the loader/plugin members
 const notAnInstance: I18nInstance = createI18n({ locale: "en" });

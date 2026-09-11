@@ -110,7 +110,7 @@ function acquirePlugins(host: AnyHost): UseI18nPluginsReturn {
  * Throws `missingCapability("loader")` — in dev and in prod — when the host is
  * a base `@comvi/core` instance, which is every host nobody composed a loader
  * onto. The capability ships in `@comvi/core/loader` and nowhere else, so
- * compose it where the instance is created: `createI18n(...).with(loader())`,
+ * compose it where the instance is created: `createI18n(...).use(loader())`,
  * or the lower-level `attachLoader(createI18n(...))`.
  *
  * @example

@@ -496,7 +496,7 @@ describe("FetchLoader Plugin", () => {
 
     describe("loadOnInit", () => {
       // Manual invocation is the ONLY path `loadOnInit` reaches: through
-      // `.with(fetchLoader(…))` or `.use(FetchLoader(…))` the plugin body runs
+      // `.use(fetchLoader(…))` or `registerPlugin(FetchLoader(…))` the plugin body runs
       // inside `init()`, where the install-time load is skipped either way and
       // `init()` loads the initial namespaces itself. See
       // `tests/installer.test.ts` and the option's JSDoc.

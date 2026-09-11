@@ -4,7 +4,7 @@
  * `composition-hardening.test.ts` pins the warning itself; both of its
  * boundaries are open. On one side the supported order must be SILENT — its
  * suite composes before clearing the console spy, so a capability that warned
- * on every attach would go unnoticed. On the other side `.with(plugins())`
+ * on every attach would go unnoticed. On the other side `.use(plugins())`
  * after `init()` must warn on its own, without a `use()` afterwards to raise
  * the warning for it.
  */
@@ -25,34 +25,34 @@ describe("composing before init()", () => {
   });
 
   it("stays silent when the loader is composed onto a fresh host", () => {
-    makeHost().with(loader());
+    makeHost().use(loader());
 
     expect(warnSpy).not.toHaveBeenCalled();
   });
 
   it("stays silent when the plugin host is composed onto a fresh host", () => {
-    makeHost().with(plugins());
+    makeHost().use(plugins());
 
     expect(warnSpy).not.toHaveBeenCalled();
   });
 
   it("stays silent when a plugin is queued on a host that has not been initialized", () => {
     makeHost()
-      .with(plugins())
-      .use(() => {});
+      .use(plugins())
+      .registerPlugin(() => {});
 
     expect(warnSpy).not.toHaveBeenCalled();
   });
 });
 
 describe("composing after init()", () => {
-  it("warns for `.with(plugins())` alone, with no plugin queued behind it", async () => {
+  it("warns for `.use(plugins())` alone, with no plugin queued behind it", async () => {
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
     const i18n = makeHost();
     await i18n.init();
     warnSpy.mockClear();
 
-    i18n.with(plugins());
+    i18n.use(plugins());
 
     expect(warnSpy).toHaveBeenCalledTimes(1);
     expect(String(warnSpy.mock.calls[0]![0])).toContain("before init()");

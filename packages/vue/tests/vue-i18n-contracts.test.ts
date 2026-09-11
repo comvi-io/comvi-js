@@ -8,7 +8,7 @@ import type { I18nOptions, LoaderResult } from "../src";
 // the capability it exercises: the loader for `registerLoader`/`onLoadError`/
 // `addActiveNamespace`, the plugin host for `use`/`onMissingKey`/the detector.
 const createLoaderI18n = (options: I18nOptions) =>
-  createI18nFromCore(createCore(options).with(attachLoader));
+  createI18nFromCore(createCore(options).use(attachLoader));
 
 describe("VueI18n contracts", () => {
   it("keeps the last requested locale when computed setter is called rapidly", async () => {
@@ -146,8 +146,8 @@ describe("VueI18n contracts", () => {
     });
     const i18n = createI18nFromCore(
       createCore({ locale: "en", defaultNs: "common", ...(onError ? { onError } : {}) })
-        .with(attachLoader)
-        .with(attachPlugins),
+        .use(attachLoader)
+        .use(attachPlugins),
     );
     i18n.core.registerLocaleDetector(localeDetector);
     i18n.core.registerLoader(loader);
@@ -240,11 +240,11 @@ describe("VueI18n contracts", () => {
   it("reports async cleanup failures through the configured error handler", async () => {
     const onError = vi.fn();
     const i18n = createI18nFromCore(
-      createCore({ locale: "en", defaultNs: "common", onError }).with(attachPlugins),
+      createCore({ locale: "en", defaultNs: "common", onError }).use(attachPlugins),
     );
     const destroyError = new Error("destroy failed");
 
-    i18n.core.use(() => async () => {
+    i18n.core.registerPlugin(() => async () => {
       throw destroyError;
     });
     await i18n.init();
@@ -271,7 +271,7 @@ describe("VueI18n contracts", () => {
 
   it("supports fallback return values from onMissingKey callback", () => {
     const i18n = createI18nFromCore(
-      createCore({ locale: "en", defaultNs: "common" }).with(attachPlugins),
+      createCore({ locale: "en", defaultNs: "common" }).use(attachPlugins),
     );
     const unsubscribe = i18n.core.onMissingKey((key) => `fallback:${key}`);
 

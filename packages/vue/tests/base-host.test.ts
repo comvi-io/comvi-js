@@ -113,17 +113,20 @@ describe("vue on a base host", () => {
     );
   });
 
-  it("has no use() anywhere on a base host — wrapper or core", () => {
+  it("has no registerPlugin() anywhere on a base host — wrapper or core", () => {
     const i18n = createI18nFromCore(baseHost());
 
     // No member of VueI18n is typed present and then throws "missing
     // capability"; plugin registration is a capability, absent from the host.
-    expect("use" in i18n).toBe(false);
-    expect((i18n as unknown as Record<string, unknown>).use).toBeUndefined();
-    expect("use" in i18n.core).toBe(false);
+    // The wrapper's own `use` is the composition verb, so it IS present — it
+    // takes an installer and never pretends to hold a capability.
+    expect("registerPlugin" in i18n).toBe(false);
+    expect((i18n as unknown as Record<string, unknown>).registerPlugin).toBeUndefined();
+    expect("registerPlugin" in i18n.core).toBe(false);
+    expect(typeof i18n.use).toBe("function");
   });
 
-  it("registers a plugin through i18n.core.use() once the capability is attached", async () => {
+  it("registers a plugin through i18n.core.registerPlugin() once the capability is attached", async () => {
     const host = attachPlugins(baseHost());
     const i18n = createI18nFromCore(host);
     let installed = false;
@@ -132,7 +135,7 @@ describe("vue on a base host", () => {
     // rejects a return value that is neither void nor a cleanup function, and
     // an expression-bodied `() => (installed = true)` returns `true`.
     expect(
-      i18n.core.use(() => {
+      i18n.core.registerPlugin(() => {
         installed = true;
       }),
     ).toBe(host);

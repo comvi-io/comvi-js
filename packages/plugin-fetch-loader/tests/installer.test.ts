@@ -9,8 +9,8 @@ import { buildTestCdnUrl, mockCdnSuccessResponse, server, TEST_CDN_URL } from ".
 
 /**
  * `fetchLoader(options)` is the one-call form of the recipe the composed-host
- * suite spells out: `.with(loader()).with(plugins())` then
- * `.use(FetchLoader(options))` — same host, same lifecycle, same teardown, and
+ * suite spells out: `.use(loader()).use(plugins())` then
+ * `registerPlugin(FetchLoader(options))` — same host, same lifecycle, same teardown, and
  * it must reject the two cross-uses the type system also rejects.
  */
 const base = () => createI18n({ locale: "en", exposeGlobal: false, devMode: false });
@@ -21,7 +21,7 @@ describe("fetchLoader() installer", () => {
     mockCdnSuccessResponse("en", "default", { greeting: "Hello" });
     mockCdnSuccessResponse("fr", "default", { greeting: "Bonjour" });
 
-    const i18n = base().with(fetchLoader(OPTIONS));
+    const i18n = base().use(fetchLoader(OPTIONS));
 
     expect(typeof i18n.registerLoader).toBe("function");
     expect(typeof i18n.use).toBe("function");
@@ -45,9 +45,9 @@ describe("fetchLoader() installer", () => {
   it("is the same host as the explicit recipe", async () => {
     mockCdnSuccessResponse("en", "default", { greeting: "Hello" });
 
-    const installed = base().with(fetchLoader(OPTIONS));
-    const explicit = base().with(loader()).with(plugins());
-    explicit.use(FetchLoader(OPTIONS));
+    const installed = base().use(fetchLoader(OPTIONS));
+    const explicit = base().use(loader()).use(plugins());
+    explicit.registerPlugin(FetchLoader(OPTIONS));
 
     await installed.init();
     await explicit.init();
@@ -60,12 +60,12 @@ describe("fetchLoader() installer", () => {
   it("returns the same instance and keeps registered state when composed twice", async () => {
     mockCdnSuccessResponse("en", "default", { greeting: "Hello" });
 
-    const i18n = base().with(loader()).with(plugins());
+    const i18n = base().use(loader()).use(plugins());
     const marker: I18nPlugin = () => undefined;
-    i18n.use(marker);
+    i18n.registerPlugin(marker);
     i18n.setPluginData("existing", "kept");
 
-    const again = i18n.with(fetchLoader(OPTIONS));
+    const again = i18n.use(fetchLoader(OPTIONS));
 
     expect(again).toBe(i18n);
     expect(again.getPluginData("existing")).toBe("kept");
@@ -76,7 +76,7 @@ describe("fetchLoader() installer", () => {
   });
 
   it("reports a missing cdnUrl at COMPOSITION time, not at init", () => {
-    expect(() => base().with(fetchLoader({ cdnUrl: "" }))).toThrow(/cdnUrl is required/);
+    expect(() => base().use(fetchLoader({ cdnUrl: "" }))).toThrow(/cdnUrl is required/);
   });
 
   /**
@@ -96,7 +96,7 @@ describe("fetchLoader() installer", () => {
       }),
     );
 
-    const i18n = base().with(fetchLoader({ cdnUrl: TEST_CDN_URL, loadOnInit: false }));
+    const i18n = base().use(fetchLoader({ cdnUrl: TEST_CDN_URL, loadOnInit: false }));
     await i18n.init();
 
     expect(requests).toBe(1);
@@ -114,7 +114,7 @@ describe("fetchLoader() installer", () => {
       }),
     );
 
-    const i18n = createI18n({ locale: "en", exposeGlobal: false, devMode: false, ns: [] }).with(
+    const i18n = createI18n({ locale: "en", exposeGlobal: false, devMode: false, ns: [] }).use(
       fetchLoader({ cdnUrl: TEST_CDN_URL }),
     );
     await i18n.init();
@@ -133,8 +133,8 @@ describe("fetchLoader() installer", () => {
     mockCdnSuccessResponse("en", "default", { greeting: "Hello" });
     const order: string[] = [];
 
-    const i18n = base().with(fetchLoader(OPTIONS));
-    i18n.use(() => () => void order.push("after"));
+    const i18n = base().use(fetchLoader(OPTIONS));
+    i18n.registerPlugin(() => () => void order.push("after"));
 
     await i18n.init();
     await i18n.destroy();
@@ -146,11 +146,11 @@ describe("fetchLoader() installer", () => {
 });
 
 describe("fetchLoader() wrong use", () => {
-  it("fails at init through .use(), before anything is attached", async () => {
-    const i18n = base().with(plugins());
-    i18n.use(fetchLoader(OPTIONS) as unknown as I18nPlugin);
+  it("fails at init through registerPlugin(), before anything is attached", async () => {
+    const i18n = base().use(plugins());
+    i18n.registerPlugin(fetchLoader(OPTIONS) as unknown as I18nPlugin);
 
-    await expect(i18n.init()).rejects.toThrow(/fetchLoader\(\) is a \.with\(…\) installer/);
+    await expect(i18n.init()).rejects.toThrow(/fetchLoader\(\) is a \.use installer/);
 
     // The nested-use guard is the FIRST ensure-step: no loader capability.
     // Probed through `hasLoaderApi`, not `registerLoader === undefined`: a
@@ -163,24 +163,26 @@ describe("fetchLoader() wrong use", () => {
     await expect(i18n.destroy()).resolves.toBeUndefined();
   });
 
-  it("rejects the uppercase factory handed to .with()", async () => {
+  it("rejects the uppercase factory handed to .use()", () => {
     const i18n = base();
 
-    // `.with` is a dumb pipe: it CALLS what you give it. A plugin handed to it
-    // runs against a host that has none of the capabilities it needs, so the
-    // invocation is rejected rather than silently half-installing.
-    const misuse = i18n.with(
-      FetchLoader(OPTIONS) as unknown as Parameters<typeof i18n.with>[0],
-    ) as unknown as Promise<void>;
-
-    await expect(misuse).rejects.toThrow(TypeError);
+    // `FetchLoader` is an ASYNC plugin, so calling it returns a Promise —
+    // which any "did it return an object?" probe would wave through, leaving
+    // the plugin running at composition time with its rejection unhandled.
+    // `.use`'s rule is IDENTITY: the Promise is not the host, so this throws
+    // synchronously with the actionable code, and `.use` swallows the rejected
+    // promise the already-invoked plugin left behind (no unhandled rejection
+    // on top of a clear diagnostic — vitest would fail the file for one).
+    expect(() =>
+      i18n.use(FetchLoader(OPTIONS) as unknown as Parameters<typeof i18n.use>[0]),
+    ).toThrow(expect.objectContaining({ code: "E_USE_NOT_INSTALLER" }));
 
     expect((i18n as unknown as Record<string, unknown>).registerLoader).toBeUndefined();
-    expect((i18n as unknown as Record<string, unknown>).use).toBeUndefined();
+    expect((i18n as unknown as Record<string, unknown>).registerPlugin).toBeUndefined();
   });
 
   /**
-   * A late `.with(fetchLoader(…))` registers nothing, so the loader
+   * A late `.use(fetchLoader(…))` registers nothing, so the loader
    * capability's recovery advice ("call reloadTranslations() or
    * addActiveNamespace()") cannot work: the plugin that would have called
    * `registerLoader` never runs. The late-compose warning is once per host, so
@@ -191,11 +193,11 @@ describe("fetchLoader() wrong use", () => {
     const i18n = base();
     await i18n.init();
 
-    const late = i18n.with(fetchLoader(OPTIONS));
+    const late = i18n.use(fetchLoader(OPTIONS));
     const messages = warn.mock.calls.map((call) => String(call[0]));
 
     expect(messages).toHaveLength(1);
-    expect(messages[0]).toContain(".with(plugins()) ran after init()");
+    expect(messages[0]).toContain(".use(plugins()) ran after init()");
     expect(messages[0]).toContain("a plugin queued now will never run");
     expect(messages[0]).not.toContain("reloadTranslations()");
 
@@ -208,14 +210,17 @@ describe("fetchLoader() wrong use", () => {
     await late.destroy();
   });
 
-  it("still installs normally after a rejected .use() attempt", async () => {
-    const i18n = base().with(plugins());
-    i18n.use(fetchLoader(OPTIONS) as unknown as I18nPlugin, { required: false, onError: vi.fn() });
+  it("still installs normally after a rejected registerPlugin() attempt", async () => {
+    const i18n = base().use(plugins());
+    i18n.registerPlugin(fetchLoader(OPTIONS) as unknown as I18nPlugin, {
+      required: false,
+      onError: vi.fn(),
+    });
 
     await i18n.init();
 
     // The guard is transient: outside the drain loop the same installer works.
-    const composed = i18n.with(fetchLoader(OPTIONS));
+    const composed = i18n.use(fetchLoader(OPTIONS));
     expect(composed).toBe(i18n);
     expect(typeof composed.registerLoader).toBe("function");
 

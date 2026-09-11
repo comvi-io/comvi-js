@@ -29,7 +29,7 @@ export { resolveFallback } from "./fallback";
  *   locale: 'en',
  *   apiKey: 'your-api-key',
  * })
- * .use(FetchLoader({
+ * .registerPlugin(FetchLoader({
  *   cdnUrl: 'https://cdn.comvi.io/your-distribution-id',
  *   fallback: {
  *     'en': () => import('./locales/en.json'),

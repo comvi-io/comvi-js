@@ -50,12 +50,12 @@ export type { ComponentMap, ComponentMapping, TProps } from "./types";
 
 // The capability toolkit. Each is a named binding under `sideEffects: false`,
 // so the subpaths an app never calls stay out of its graph. `loader()` /
-// `plugins()` / `devtools()` are the configured installers for `i18n.with(…)`;
-// the `attach*` functions are themselves installers, so `.with(attachLoader)`
+// `plugins()` / `devtools()` are the configured installers for `i18n.use(…)`;
+// the `attach*` functions are themselves installers, so `.use(attachLoader)`
 // works too.
 export { icuCompiler } from "@comvi/core/icu";
 export { attachLoader, flattenCatalog, loader } from "@comvi/core/loader";
-export { attachPlugins, plugins } from "@comvi/core/plugins";
+export { attachPlugins, definePlugin, plugins } from "@comvi/core/plugins";
 export { attachDevtools, devtools } from "@comvi/core/devtools";
 
 export type * from "@comvi/core";

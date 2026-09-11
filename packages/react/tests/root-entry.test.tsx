@@ -95,7 +95,7 @@ describe("@comvi/react — the capability toolkit", () => {
   it("composes AND configures in one expression — the documented recipe", async () => {
     const i18n = root
       .createI18n({ locale: "en", exposeGlobal: false, compiler: root.icuCompiler })
-      .with(
+      .use(
         root.loader({
           en: async () => ({ default: { greeting: "Hello" } }),
           uk: async () => ({ default: { greeting: "Привіт" } }),
@@ -134,6 +134,7 @@ describe("@comvi/react — the export surface", () => {
     "attachLoader",
     "attachPlugins",
     "createI18n",
+    "definePlugin",
     "devtools",
     "flattenCatalog",
     "icuCompiler",

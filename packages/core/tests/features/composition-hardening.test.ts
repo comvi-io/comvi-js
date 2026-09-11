@@ -41,14 +41,14 @@ describe("B2 — composing after init() warns instead of silently doing nothing"
     warnSpy.mockRestore();
   });
 
-  it("warns exactly once for `.with(plugins()).use(…)` after init()", async () => {
+  it("warns exactly once for `.use(plugins()).use(…)` after init()", async () => {
     const i18n = makeHost();
     await i18n.init();
     warnSpy.mockClear();
 
     const ran = vi.fn();
-    const host = i18n.with(plugins());
-    host.use(() => void ran());
+    const host = i18n.use(plugins());
+    host.registerPlugin(() => void ran());
 
     // The defect itself: the plugin is queued and never drained.
     expect(ran).not.toHaveBeenCalled();
@@ -57,23 +57,23 @@ describe("B2 — composing after init() warns instead of silently doing nothing"
   });
 
   it("warns exactly once for `use()` on a host composed before init()", async () => {
-    const i18n = makeHost().with(plugins());
+    const i18n = makeHost().use(plugins());
     await i18n.init();
     warnSpy.mockClear();
 
-    i18n.use(() => {});
-    i18n.use(() => {});
+    i18n.registerPlugin(() => {});
+    i18n.registerPlugin(() => {});
 
     expect(warnSpy).toHaveBeenCalledTimes(1);
     expect(String(warnSpy.mock.calls[0]![0])).toContain("before init()");
   });
 
-  it("warns exactly once for `.with(loader())` after init()", async () => {
+  it("warns exactly once for `.use(loader())` after init()", async () => {
     const i18n = makeHost();
     await i18n.init();
     warnSpy.mockClear();
 
-    i18n.with(loader());
+    i18n.use(loader());
 
     expect(warnSpy).toHaveBeenCalledTimes(1);
     expect(String(warnSpy.mock.calls[0]![0])).toContain("before init()");
@@ -85,9 +85,9 @@ describe("B2 — composing after init() warns instead of silently doing nothing"
     warnSpy.mockClear();
 
     i18n
-      .with(loader())
-      .with(plugins())
-      .use(() => {});
+      .use(loader())
+      .use(plugins())
+      .registerPlugin(() => {});
 
     // One mistake, one warning: the loader and plugin capabilities share the
     // per-host deduper, and each message names the same rule.
@@ -96,9 +96,9 @@ describe("B2 — composing after init() warns instead of silently doing nothing"
   });
 
   it("stays silent on the supported order (compose, then init)", async () => {
-    const i18n = makeHost().with(loader()).with(plugins());
+    const i18n = makeHost().use(loader()).use(plugins());
     const ran = vi.fn();
-    i18n.use(() => void ran());
+    i18n.registerPlugin(() => void ran());
     warnSpy.mockClear();
 
     await i18n.init();
@@ -108,9 +108,9 @@ describe("B2 — composing after init() warns instead of silently doing nothing"
   });
 
   it("stays silent for a plugin queued BY a plugin during init()", async () => {
-    const i18n = makeHost().with(plugins());
-    i18n.use((host) => {
-      host.use(() => {});
+    const i18n = makeHost().use(plugins());
+    i18n.registerPlugin((host) => {
+      host.registerPlugin(() => {});
     });
     warnSpy.mockClear();
 
@@ -119,12 +119,12 @@ describe("B2 — composing after init() warns instead of silently doing nothing"
     expect(warnSpy).not.toHaveBeenCalled();
   });
 
-  it("stays silent when a second `.with(plugins())` lands on a host that has it", async () => {
-    const i18n = makeHost().with(plugins());
+  it("stays silent when a second `.use(plugins())` lands on a host that has it", async () => {
+    const i18n = makeHost().use(plugins());
     await i18n.init();
     warnSpy.mockClear();
 
-    i18n.with(plugins());
+    i18n.use(plugins());
 
     // Nothing was installed, so nothing was lost — the `use()` warning is the
     // one that fires when a plugin is actually queued too late.
@@ -141,7 +141,7 @@ describe("B2 — composing after init() warns instead of silently doing nothing"
  */
 describe("B4 — a plugins-only host reports the missing loader capability (dev)", () => {
   it("throws the actionable capability error instead of a bare TypeError", () => {
-    const i18n = makeHost().with(plugins());
+    const i18n = makeHost().use(plugins());
 
     expect(() =>
       (i18n as unknown as I18nLoaderApi).registerLoader(async () => ({ hello: "Hi" })),
@@ -149,10 +149,10 @@ describe("B4 — a plugins-only host reports the missing loader capability (dev)
   });
 
   it("surfaces the same error through the plugin lifecycle", async () => {
-    const i18n = makeHost().with(plugins());
+    const i18n = makeHost().use(plugins());
     const onError = vi.fn();
 
-    i18n.use(
+    i18n.registerPlugin(
       (host) => {
         host.registerLoader(async () => ({ hello: "Hi" }));
       },
@@ -165,7 +165,7 @@ describe("B4 — a plugins-only host reports the missing loader capability (dev)
   });
 
   it("shims EVERY member of the loader API, and only those", () => {
-    const i18n = makeHost().with(plugins());
+    const i18n = makeHost().use(plugins());
 
     const shimmed = LOADER_MEMBERS.filter((name) =>
       Object.prototype.hasOwnProperty.call(i18n, name),
@@ -192,17 +192,17 @@ describe("B4 — a plugins-only host reports the missing loader capability (dev)
   });
 
   it("keeps `hasLoaderApi` false — a shim is not the capability", () => {
-    const i18n = makeHost().with(plugins());
+    const i18n = makeHost().use(plugins());
 
     // The prod/dev parity gate, dev half. Prod has no shims to reject, so dev
     // MUST reject the ones it installs, or the two builds take different
     // branches on the same host.
     expect(hasLoaderApi(i18n)).toBe(false);
-    expect(hasLoaderApi(makeHost().with(plugins()).with(loader()))).toBe(true);
+    expect(hasLoaderApi(makeHost().use(plugins()).use(loader()))).toBe(true);
   });
 
   it("installs no shims when the loader is already composed", () => {
-    const i18n = makeHost().with(loader());
+    const i18n = makeHost().use(loader());
     const descriptorsBefore = LOADER_MEMBERS.map((name) => [
       name,
       Object.getOwnPropertyDescriptor(i18n, name),
@@ -254,10 +254,10 @@ describe("B4 — a plugins-only host reports the missing loader capability (dev)
     // No static catalog: the loaded value must be the only source of `hello`.
     const bare = createI18n({ locale: "en", exposeGlobal: false });
     const i18n = pluginsFirst
-      ? bare.with(plugins()).with(loader())
-      : bare.with(loader()).with(plugins());
+      ? bare.use(plugins()).use(loader())
+      : bare.use(loader()).use(plugins());
 
-    i18n.use((host) => {
+    i18n.registerPlugin((host) => {
       host.registerLoader(async () => ({ hello: "Loaded" }));
     });
     await i18n.init();
@@ -283,24 +283,24 @@ describe("B3 — attachDevtools re-runs exposure when a later call flips it on",
   }
 
   it("announces on the second call when the first opted out (SSR construct, client enable)", () => {
-    const i18n = createI18n({ locale: "en" }).with(devtools({ exposeGlobal: false }));
+    const i18n = createI18n({ locale: "en" }).use(devtools({ exposeGlobal: false }));
 
     expect(i18n.instanceId).toBeUndefined();
     expect(queue()).toHaveLength(0);
 
-    i18n.with(devtools({ exposeGlobal: true, instanceId: "client-app" }));
+    i18n.use(devtools({ exposeGlobal: true, instanceId: "client-app" }));
 
     expect(i18n.instanceId).toBe("client-app");
     expect(queue().map((entry) => entry.i)).toEqual([i18n]);
   });
 
   it("stays idempotent once announced: same id, no double push", () => {
-    const i18n = createI18n({ locale: "en" }).with(
+    const i18n = createI18n({ locale: "en" }).use(
       devtools({ exposeGlobal: true, instanceId: "app" }),
     );
 
-    i18n.with(devtools({ exposeGlobal: true, instanceId: "other" }));
-    i18n.with(devtools({ exposeGlobal: true }));
+    i18n.use(devtools({ exposeGlobal: true, instanceId: "other" }));
+    i18n.use(devtools({ exposeGlobal: true }));
 
     expect(i18n.instanceId).toBe("app");
     expect(queue()).toHaveLength(1);
@@ -324,18 +324,18 @@ describe("B3 — attachDevtools re-runs exposure when a later call flips it on",
   it("exposes a windowless host exactly once — the auto id survives three attaches", () => {
     vi.stubGlobal("window", undefined);
 
-    const auto = createI18n({ locale: "en" }).with(devtools({ exposeGlobal: true }));
+    const auto = createI18n({ locale: "en" }).use(devtools({ exposeGlobal: true }));
     const firstAutoId = auto.instanceId;
     expect(firstAutoId).toMatch(/^comvi-\d+$/);
 
-    auto.with(devtools({ exposeGlobal: true }));
-    auto.with(devtools({ exposeGlobal: true, instanceId: "other" }));
+    auto.use(devtools({ exposeGlobal: true }));
+    auto.use(devtools({ exposeGlobal: true, instanceId: "other" }));
 
     expect(auto.instanceId).toBe(firstAutoId);
     // The counter moved exactly once for `auto`: the next windowless host takes
     // the very next number, which it could not if the three attaches above had
     // each generated one.
-    const next = createI18n({ locale: "en" }).with(devtools({ exposeGlobal: true }));
+    const next = createI18n({ locale: "en" }).use(devtools({ exposeGlobal: true }));
     expect(Number(next.instanceId!.slice("comvi-".length))).toBe(
       Number(firstAutoId!.slice("comvi-".length)) + 1,
     );
@@ -344,11 +344,11 @@ describe("B3 — attachDevtools re-runs exposure when a later call flips it on",
   it("keeps an EXPLICIT windowless id sticky across three attaches", () => {
     vi.stubGlobal("window", undefined);
 
-    const named = createI18n({ locale: "en" }).with(
+    const named = createI18n({ locale: "en" }).use(
       devtools({ exposeGlobal: true, instanceId: "app" }),
     );
-    named.with(devtools({ exposeGlobal: true, instanceId: "other" }));
-    named.with(devtools({ exposeGlobal: true, instanceId: "third" }));
+    named.use(devtools({ exposeGlobal: true, instanceId: "other" }));
+    named.use(devtools({ exposeGlobal: true, instanceId: "third" }));
 
     expect(named.instanceId).toBe("app");
   });
@@ -357,20 +357,20 @@ describe("B3 — attachDevtools re-runs exposure when a later call flips it on",
     // Deliberate: a host exposed under SSR has an id, so it is done. The
     // client builds its own host rather than re-attaching the server's.
     vi.stubGlobal("window", undefined);
-    const i18n = createI18n({ locale: "en" }).with(
+    const i18n = createI18n({ locale: "en" }).use(
       devtools({ exposeGlobal: true, instanceId: "ssr" }),
     );
     vi.unstubAllGlobals();
 
-    i18n.with(devtools({ exposeGlobal: true, instanceId: "client" }));
+    i18n.use(devtools({ exposeGlobal: true, instanceId: "client" }));
 
     expect(i18n.instanceId).toBe("ssr");
     expect(queue()).toHaveLength(0);
   });
 
   it("keeps opting out while every call opts out", () => {
-    const i18n = createI18n({ locale: "en" }).with(devtools({ exposeGlobal: false }));
-    i18n.with(devtools({ exposeGlobal: false }));
+    const i18n = createI18n({ locale: "en" }).use(devtools({ exposeGlobal: false }));
+    i18n.use(devtools({ exposeGlobal: false }));
 
     expect(i18n.instanceId).toBeUndefined();
     expect(queue()).toHaveLength(0);

@@ -2,7 +2,7 @@
 
 // ICU has ONE shape, whatever the catalog source: `compiler: icuCompiler` in
 // the `createI18n` options. It is a compiler setting read in the constructor,
-// so it imposes no ordering on `.with(…)` composition.
+// so it imposes no ordering on `.use(…)` composition.
 
 export {
   useI18n,
@@ -29,11 +29,11 @@ export { createI18n } from "@comvi/core";
 // and passes syntax per call, so importing or rendering it never registers
 // string-API tag syntax ambiently.
 // `loader()` / `plugins()` / `devtools()` are the CONFIGURED installers for
-// `i18n.with(…)`: one expression composes and configures a capability; the
+// `i18n.use(…)`: one expression composes and configures a capability; the
 // `attach*` functions stay as the low-level API.
 export { icuCompiler } from "@comvi/core/icu";
 export { attachLoader, flattenCatalog, loader } from "@comvi/core/loader";
-export { attachPlugins, plugins } from "@comvi/core/plugins";
+export { attachPlugins, definePlugin, plugins } from "@comvi/core/plugins";
 export { attachDevtools, devtools } from "@comvi/core/devtools";
 export type { DevtoolsOptions } from "@comvi/core/devtools";
 

@@ -128,7 +128,7 @@ interface DetectionResult {
  * import { LocaleDetector } from '@comvi/plugin-locale-detector';
  *
  * const i18n = createI18n({ locale: 'en' })
- *   .use(LocaleDetector({
+ *   .registerPlugin(LocaleDetector({
  *     order: ['querystring', 'localStorage', 'cookie', 'navigator'],
  *     caches: ['localStorage', 'cookie'],
  *     lookupQuerystring: 'lang',
@@ -273,10 +273,10 @@ export const LocaleDetector: I18nPluginFactory<LocaleDetectorOptions> = (
 export type LocaleDetectorInstaller = <T extends I18n<any>>(i18n: T) => T & I18nPluginHostApi;
 
 /**
- * The locale detector as a `.with(…)` installer.
+ * The locale detector as a `.use(…)` installer.
  *
  * ```ts
- * const i18n = createI18n({ locale: "en" }).with(
+ * const i18n = createI18n({ locale: "en" }).use(
  *   localeDetector({ supportedLocales: ["en", "uk", "de"], caches: ["cookie"] }),
  * );
  * await i18n.init();
@@ -290,16 +290,16 @@ export type LocaleDetectorInstaller = <T extends I18n<any>>(i18n: T) => T & I18n
  *
  * `required`, `timeout`, `onError`, cleanup registration and LIFO destroy are
  * not re-implemented here; they keep running inside `I18nPluginHost`, because
- * the last thing this installer does is call `use`.
+ * the last thing this installer does is call `registerPlugin`.
  *
- * `.use(localeDetector(…))` is a type error, and at runtime fails at `init()`
- * on `ensureInstallable` before the plugin capability is attached. Hand the
- * uppercase `LocaleDetector` factory to `.use` instead.
+ * `registerPlugin(localeDetector(…))` is a type error, and at runtime fails at
+ * `init()` on `ensureInstallable` before the plugin capability is attached.
+ * Hand the uppercase `LocaleDetector` factory to `registerPlugin` instead.
  */
 export function localeDetector(options?: LocaleDetectorOptions): LocaleDetectorInstaller {
   return (i18n) => {
     const host = attachPlugins(ensureInstallable(i18n, "localeDetector"));
-    host.use(LocaleDetector(options));
+    host.registerPlugin(LocaleDetector(options));
     return host;
   };
 }

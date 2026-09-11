@@ -18,7 +18,7 @@ const createDeferred = <T>() => {
 // registered" case, which needs the capability present to show that a host
 // without a loader FUNCTION still behaves.
 const createLoaderI18n = (options: I18nOptions) =>
-  createI18nFromCore(createCore(options).with(attachLoader));
+  createI18nFromCore(createCore(options).use(attachLoader));
 
 describe("Reactive State Transitions", () => {
   describe("Language Reactivity", () => {

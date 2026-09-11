@@ -16,7 +16,7 @@ describe("init() with a required plugin", () => {
     };
 
     const i18n = new I18n({ locale: "en" });
-    i18n.use(failingPlugin);
+    i18n.registerPlugin(failingPlugin);
 
     await expect(i18n.init()).rejects.toThrow("Async plugin error");
   });
@@ -28,7 +28,7 @@ describe("init() with a required plugin", () => {
     };
 
     const i18n = new I18n({ locale: "en" });
-    i18n.use(failingPlugin, { required: true, onError: errorHandler });
+    i18n.registerPlugin(failingPlugin, { required: true, onError: errorHandler });
 
     await expect(i18n.init()).rejects.toThrow(/Plugin error/);
 
@@ -52,8 +52,8 @@ describe("init() with an optional plugin", () => {
     };
 
     const i18n = new I18n({ locale: "en" });
-    i18n.use(failingPlugin, { required: false, onError: errorHandler });
-    i18n.use(successPlugin);
+    i18n.registerPlugin(failingPlugin, { required: false, onError: errorHandler });
+    i18n.registerPlugin(successPlugin);
 
     await i18n.init();
 
@@ -75,13 +75,13 @@ describe("init() with an optional plugin", () => {
     };
 
     const i18n = new I18n({ locale: "en" });
-    i18n.use(failingPlugin, {
+    i18n.registerPlugin(failingPlugin, {
       required: false,
       onError: () => {
         throw new Error("onError failed");
       },
     });
-    i18n.use(successPlugin, { required: true });
+    i18n.registerPlugin(successPlugin, { required: true });
 
     await expect(i18n.init()).resolves.toBe(i18n);
 
@@ -103,7 +103,7 @@ describe("init() plugin timeout protection", () => {
     const slowPlugin: I18nPlugin = () => new Promise<void>(() => {});
 
     const i18n = new I18n({ locale: "en" });
-    i18n.use(slowPlugin, { required: true, timeout: 100 });
+    i18n.registerPlugin(slowPlugin, { required: true, timeout: 100 });
 
     const initPromise = i18n.init();
     // Attached before the clock moves: advancing async drains the microtask
@@ -124,8 +124,8 @@ describe("init() plugin timeout protection", () => {
     };
 
     const i18n = new I18n({ locale: "en" });
-    i18n.use(slowPlugin, { required: false, timeout: 100 });
-    i18n.use(fastPlugin, { required: true });
+    i18n.registerPlugin(slowPlugin, { required: false, timeout: 100 });
+    i18n.registerPlugin(fastPlugin, { required: true });
 
     const initPromise = i18n.init();
     await vi.advanceTimersByTimeAsync(150);
@@ -144,9 +144,9 @@ describe("destroy() plugin cleanup", () => {
     const plugin3: I18nPlugin = () => () => void executionOrder.push(3);
 
     const i18n = new I18n({ locale: "en" });
-    i18n.use(plugin1);
-    i18n.use(plugin2);
-    i18n.use(plugin3);
+    i18n.registerPlugin(plugin1);
+    i18n.registerPlugin(plugin2);
+    i18n.registerPlugin(plugin3);
 
     await i18n.init();
     await i18n.destroy();
@@ -159,14 +159,14 @@ describe("destroy() plugin cleanup", () => {
     const cleanupOrder: string[] = [];
 
     const i18n = new I18n({ locale: "en", onError });
-    i18n.use(() => () => {
+    i18n.registerPlugin(() => () => {
       cleanupOrder.push("cleanup1");
     });
-    i18n.use(() => () => {
+    i18n.registerPlugin(() => () => {
       cleanupOrder.push("cleanup2");
       throw new Error("Cleanup error");
     });
-    i18n.use(() => () => {
+    i18n.registerPlugin(() => () => {
       cleanupOrder.push("cleanup3");
     });
 
@@ -189,7 +189,7 @@ describe("destroy() plugin cleanup", () => {
     });
 
     const i18n = new I18n({ locale: "en" });
-    i18n.use(() => () => cleanupPromise);
+    i18n.registerPlugin(() => () => cleanupPromise);
     await i18n.init();
 
     const destroyPromise = i18n.destroy().then(() => {

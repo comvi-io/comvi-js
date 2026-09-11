@@ -22,11 +22,11 @@ export default ((options) =>
     ...options,
     // ICU is never on by default. Without this the `{count, plural, …}` in the
     // catalog is not syntax. It is a CONSTRUCTOR argument, not something
-    // `.with()` can pipe on, which is the whole reason `comvi.icu` exists as a
+    // `.use()` can pipe on, which is the whole reason `comvi.icu` exists as a
     // module option for apps that have no host module — and why it is ignored,
     // with a build-time warning, once this file exists.
     compiler: icuCompiler,
-  }).with(
+  }).use(
     // The lazy loader, and the reason this app renders translated HTML on the
     // server at all: SSR loading IS the loader capability. One dynamic
     // `import()` per locale, so a catalog is read the first time that locale is

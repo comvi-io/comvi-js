@@ -7,11 +7,11 @@
 // base+loader module graph is the one thing the capability split exists to
 // prevent.
 //
-// WHY ONE WARNING PER HOST, not one per capability: `.with(loader())`,
-// `.with(plugins())` and `use()` after `init()` are the same single mistake
+// WHY ONE WARNING PER HOST, not one per capability: `.use(loader())`,
+// `.use(plugins())` and `registerPlugin()` after `init()` are the same single mistake
 // wearing three hats, and each message already names the rule ("compose
 // capabilities before init()"). Warning once per host means a chained
-// `.with(loader()).with(plugins())` reports it once instead of twice; which
+// `.use(loader()).use(plugins())` reports it once instead of twice; which
 // of the two messages wins is call order, and either one is actionable.
 import { warn } from "../logger";
 

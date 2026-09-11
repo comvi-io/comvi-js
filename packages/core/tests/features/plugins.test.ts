@@ -3,7 +3,51 @@ import { I18n } from "../helpers/composedHost";
 import type { I18nPlugin } from "../helpers/composedHost";
 import { createDeferred } from "../helpers/deferred";
 
-describe("I18n#use()", () => {
+/**
+ * `registerPlugin(plugin, options?)` — the plugin host's raw queue. Renamed
+ * from `use()` by decision E, which gave `use` to the composition pipe: these
+ * cases pin the queue's OWN contract under the new name, so the rename cannot
+ * quietly turn a queued plugin into a synchronously-run installer.
+ */
+describe("I18n#registerPlugin()", () => {
+  it("is the plugin host's member and is chainable, returning the host", () => {
+    const i18n = new I18n({ locale: "en" });
+
+    expect(i18n.registerPlugin(() => {})).toBe(i18n);
+    expect("use" in i18n).toBe(true); // the composition pipe, a different member
+    expect(i18n.registerPlugin).not.toBe(i18n.use);
+  });
+
+  it("defers: nothing runs before init(), everything runs inside it", async () => {
+    const ran: string[] = [];
+    const i18n = new I18n({ locale: "en", ns: [] })
+      .registerPlugin(() => void ran.push("a"))
+      .registerPlugin(() => void ran.push("b"));
+
+    expect(ran).toEqual([]);
+    await i18n.init();
+    expect(ran).toEqual(["a", "b"]);
+  });
+
+  it("warns in development when called after init(), and queues a plugin that never runs", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const i18n = new I18n({ locale: "en", ns: [] });
+      await i18n.init();
+
+      const late = vi.fn();
+      i18n.registerPlugin(late);
+
+      expect(warn).toHaveBeenCalledTimes(1);
+      expect(warn.mock.calls[0]![0]).toContain("registerPlugin() was called after init()");
+      expect(late).not.toHaveBeenCalled();
+    } finally {
+      warn.mockRestore();
+    }
+  });
+});
+
+describe("I18n#registerPlugin() — execution, ordering and failure", () => {
   it("executes plugins sequentially and in order", async () => {
     const executionOrder: string[] = [];
     const gate = createDeferred<void>();
@@ -19,7 +63,7 @@ describe("I18n#use()", () => {
       executionOrder.push("end-2");
     };
 
-    const i18n = new I18n({ locale: "en" }).use(plugin1).use(plugin2);
+    const i18n = new I18n({ locale: "en" }).registerPlugin(plugin1).registerPlugin(plugin2);
 
     const initPromise = i18n.init();
 
@@ -42,7 +86,7 @@ describe("I18n#use()", () => {
       i18n.registerLoader(loader);
     };
 
-    const i18n = new I18n({ locale: "en", ns: [] }).use(loaderPlugin);
+    const i18n = new I18n({ locale: "en", ns: [] }).registerPlugin(loaderPlugin);
     await i18n.init();
     await i18n.addActiveNamespace("test");
 
@@ -60,7 +104,7 @@ describe("I18n#use()", () => {
       i18n.registerPostProcessor((val) => (typeof val === "string" ? `${val}[suffix]` : val));
     };
 
-    const i18n = new I18n({ locale: "en" }).use(addPrefix).use(addSuffix);
+    const i18n = new I18n({ locale: "en" }).registerPlugin(addPrefix).registerPlugin(addSuffix);
     i18n.addTranslations({ en: { test: "value" } });
     await i18n.init();
 
@@ -78,7 +122,9 @@ describe("I18n#use()", () => {
       i18n.registerPostProcessor((val) => (typeof val === "string" ? val.toUpperCase() : val));
     };
 
-    const i18n = new I18n({ locale: "en" }).use(throwingPlugin).use(upperCasePlugin);
+    const i18n = new I18n({ locale: "en" })
+      .registerPlugin(throwingPlugin)
+      .registerPlugin(upperCasePlugin);
     i18n.addTranslations({ en: { test: "hello" } });
     await i18n.init();
 

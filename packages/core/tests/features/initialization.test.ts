@@ -93,7 +93,7 @@ describe("init()", () => {
     const initCallback = vi.fn();
 
     const i18n = new I18n({ locale: "en" });
-    i18n.use(pluginSpy);
+    i18n.registerPlugin(pluginSpy);
     i18n.on("initialized", initCallback);
 
     await i18n.init();
@@ -118,7 +118,7 @@ describe("init()", () => {
     });
 
     const i18n = new I18n({ locale: "en" });
-    i18n.use(plugin);
+    i18n.registerPlugin(plugin);
 
     await i18n.init();
     await i18n.init();
@@ -232,7 +232,7 @@ describe("init() after destroy()", () => {
   it("rejects and does not re-run the plugins", async () => {
     const plugin = vi.fn();
     const i18n = new I18n({ locale: "en", ns: [] });
-    i18n.use(plugin);
+    i18n.registerPlugin(plugin);
     await i18n.init();
     await i18n.destroy();
 

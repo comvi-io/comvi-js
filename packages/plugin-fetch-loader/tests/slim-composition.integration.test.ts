@@ -7,7 +7,7 @@ import { mockCdnSuccessResponse, mockCdnErrorResponse, TEST_CDN_URL } from "./se
 
 /**
  * A real published plugin on a host that acquired its capabilities by explicit
- * composition — `.with(loader()).with(plugins())`. Nothing here is a stub:
+ * composition — `.use(loader()).use(plugins())`. Nothing here is a stub:
  * every core specifier resolves through the workspace link to `@comvi/core`'s
  * BUILT dist, so the terser-mangled internals and the real exports map are
  * what the plugin runs against. The plugin's two requirements come from two
@@ -21,9 +21,7 @@ import { mockCdnSuccessResponse, mockCdnErrorResponse, TEST_CDN_URL } from "./se
  */
 describe("published plugins on a composed slim host", () => {
   const composed = () =>
-    createI18n({ locale: "en", exposeGlobal: false, devMode: false })
-      .with(loader())
-      .with(plugins());
+    createI18n({ locale: "en", exposeGlobal: false, devMode: false }).use(loader()).use(plugins());
 
   it("registers the loader, loads translations and cleans up on destroy", async () => {
     mockCdnSuccessResponse("en", "default", { greeting: "Hello" });
@@ -34,7 +32,7 @@ describe("published plugins on a composed slim host", () => {
     // Before the plugin runs the host is composed but unconfigured.
     expect(i18n.getLoader()).toBeUndefined();
 
-    i18n.use(FetchLoader({ cdnUrl: TEST_CDN_URL, loadOnInit: true }));
+    i18n.registerPlugin(FetchLoader({ cdnUrl: TEST_CDN_URL, loadOnInit: true }));
     await i18n.init();
 
     expect(typeof i18n.getLoader()).toBe("function");
@@ -56,7 +54,7 @@ describe("published plugins on a composed slim host", () => {
     const onLoadError = vi.fn();
 
     const i18n = composed();
-    i18n.use(FetchLoader({ cdnUrl: TEST_CDN_URL, loadOnInit: true, onLoadError }));
+    i18n.registerPlugin(FetchLoader({ cdnUrl: TEST_CDN_URL, loadOnInit: true, onLoadError }));
     await i18n.init();
     await i18n.destroy();
 
@@ -70,7 +68,7 @@ describe("published plugins on a composed slim host", () => {
     const onLoadError = vi.fn();
 
     const i18n = composed();
-    i18n.use(FetchLoader({ cdnUrl: TEST_CDN_URL, loadOnInit: true, onLoadError }));
+    i18n.registerPlugin(FetchLoader({ cdnUrl: TEST_CDN_URL, loadOnInit: true, onLoadError }));
 
     // The plugin registers its loader and core drives the initial namespace
     // load, so a total failure propagates out of init() exactly as it does on
@@ -89,10 +87,10 @@ describe("published plugins on a composed slim host", () => {
     const piped = composed();
     const attached = attachLoader(
       createI18n({ locale: "en", exposeGlobal: false, devMode: false }),
-    ).with(plugins());
+    ).use(plugins());
 
-    piped.use(FetchLoader({ cdnUrl: TEST_CDN_URL, loadOnInit: true }));
-    attached.use(FetchLoader({ cdnUrl: TEST_CDN_URL, loadOnInit: true }));
+    piped.registerPlugin(FetchLoader({ cdnUrl: TEST_CDN_URL, loadOnInit: true }));
+    attached.registerPlugin(FetchLoader({ cdnUrl: TEST_CDN_URL, loadOnInit: true }));
     await piped.init();
     await attached.init();
 
@@ -102,9 +100,9 @@ describe("published plugins on a composed slim host", () => {
   });
 
   it("a loader-only host cannot host the plugin — plugins() is what adds use()", () => {
-    const loaderOnly = createI18n({ locale: "en", exposeGlobal: false }).with(loader());
+    const loaderOnly = createI18n({ locale: "en", exposeGlobal: false }).use(loader());
 
     expect(hasPluginHostApi(loaderOnly)).toBe(false);
-    expect(hasPluginHostApi(loaderOnly.with(plugins()))).toBe(true);
+    expect(hasPluginHostApi(loaderOnly.use(plugins()))).toBe(true);
   });
 });

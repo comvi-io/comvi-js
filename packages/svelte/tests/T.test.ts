@@ -19,7 +19,7 @@ const makeHandlerI18n = (translations: Record<string, Record<string, string>>) =
     locale: "en",
     exposeGlobal: false,
     translation: translations,
-  }).with(attachPlugins);
+  }).use(attachPlugins);
   i18n.onMissingKey(() => "Handler Fallback");
   return i18n;
 };

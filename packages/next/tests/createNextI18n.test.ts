@@ -224,14 +224,14 @@ describe("createNextI18n", () => {
     expect(development.i18n.devMode).toBe(true);
   });
 
-  it("exposes chainable use() and forwards plugin options to i18n.use()", () => {
+  it("exposes chainable use() and forwards plugin options to i18n.registerPlugin()", () => {
     const nextI18n = createNextI18n({
       locales: ["en", "de"],
       defaultLocale: "en",
       devMode: false,
     });
 
-    const useSpy = vi.spyOn(nextI18n.i18n, "use");
+    const useSpy = vi.spyOn(nextI18n.i18n, "registerPlugin");
     const pluginA = vi.fn(() => undefined) as unknown as I18nPlugin;
     const pluginB = vi.fn(() => undefined) as unknown as I18nPlugin;
     const pluginOptions: PluginOptions = {
@@ -554,7 +554,7 @@ describe("createNextI18n unified use()", () => {
 
   it("use strips runtime/lazy/environment before forwarding plugin options", () => {
     const nextI18n = create();
-    const useSpy = vi.spyOn(nextI18n.i18n, "use");
+    const useSpy = vi.spyOn(nextI18n.i18n, "registerPlugin");
     const plugin = vi.fn(async () => undefined);
 
     nextI18n.use(plugin, { runtime: "server", required: false, timeout: 2500 });

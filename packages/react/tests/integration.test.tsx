@@ -86,7 +86,7 @@ describe("Integration Tests", () => {
       translation: {
         en: { home: "Home", loading: "Loading..." },
       },
-    }).with(attachLoader);
+    }).use(attachLoader);
 
     i18n.registerLoader((locale, namespace) => loader(locale, namespace));
 
@@ -143,7 +143,7 @@ describe("Integration Tests", () => {
       locale: "en",
       defaultNs: "common",
       translation: { en: { home: "Home", loading: "Loading..." } },
-    }).with(attachLoader);
+    }).use(attachLoader);
 
     i18n.registerLoader(() => deferred.promise);
 

@@ -265,7 +265,7 @@ const CASES = [
     // silently ship an editor that never opens.
     //
     // The fixture composes and runs the host in both modes, so the identity
-    // the two entries share (`.with(inContextEditor())` returns the host) is
+    // the two entries share (`.use(inContextEditor())` returns the host) is
     // exercised as well as the graph.
     name: "editor-production",
     sentinels: "absent",

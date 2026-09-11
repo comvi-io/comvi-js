@@ -52,7 +52,7 @@ assert(typeof loader === "function", "@comvi/vue re-exports the loader() install
 async function main() {
   // THE DOCUMENTED RECIPE, in one expression: host + capability + import map,
   // then wrapped for vue. `createCore` is core's own constructor.
-  const host = createCore({ locale: "en", exposeGlobal: false }).with(
+  const host = createCore({ locale: "en", exposeGlobal: false }).use(
     loader({
       en: async () => ({ default: { greeting: "Hello" } }),
       uk: async () => ({ default: { greeting: "Привіт" } }),
@@ -73,7 +73,7 @@ async function main() {
 
   // The preset's own host takes the same pipe — the vue-specific half.
   const preset = createI18n({ locale: "en", exposeGlobal: false });
-  assert(preset.core.with(attachLoader) === preset.core, "the pipe returns the preset's own host");
+  assert(preset.core.use(attachLoader) === preset.core, "the pipe returns the preset's own host");
   assert(
     typeof preset.core.reloadTranslations === "function",
     "the preset host gains the capability it was piped",

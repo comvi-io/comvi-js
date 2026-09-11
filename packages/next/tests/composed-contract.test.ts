@@ -126,12 +126,12 @@ describe("published createNextI18n — composed capabilities", () => {
     const log: string[] = [];
     const { i18n } = make();
 
-    i18n.use((host) => {
+    i18n.registerPlugin((host) => {
       log.push("init-a");
       host.registerLoader(async () => ({ pk: "from-plugin" }));
       return () => void log.push("cleanup-a");
     });
-    i18n.use(() => {
+    i18n.registerPlugin(() => {
       log.push("init-b");
       return () => void log.push("cleanup-b");
     });
@@ -220,7 +220,7 @@ describe("published createNextI18n — the result surface", () => {
     const host: NextComposedI18n = i18n;
 
     for (const member of [
-      "use",
+      "registerPlugin",
       "setPluginData",
       "getPluginData",
       "registerLocaleDetector",
@@ -291,7 +291,7 @@ describe("published createNextI18n — unchanged by the P4 direct-host convergen
     const nested = { nav: { home: "Home" } };
 
     const composed = make({ translation: { en: nested } }).i18n;
-    expect(typeof composed.use).toBe("function");
+    expect(typeof composed.registerPlugin).toBe("function");
     expect(composed.t("nav.home")).toBe("Home");
 
     const base = baseCreateI18n({
@@ -299,7 +299,7 @@ describe("published createNextI18n — unchanged by the P4 direct-host convergen
       exposeGlobal: false,
       translation: { en: nested },
     }) as unknown as Record<string, unknown>;
-    expect(base.use).toBeUndefined();
+    expect(base.registerPlugin).toBeUndefined();
     expect(base.registerLoader).toBeUndefined();
   });
 });

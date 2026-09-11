@@ -39,9 +39,9 @@ const BASE_PROTOTYPE_METHODS = [
   "init",
   "destroy",
   "on",
-  // `.with(installer)` is the composition pipe and lives on the BASE class, so
+  // `.use(installer)` is the composition pipe and lives on the BASE class, so
   // it is an ordinary prototype method like any other.
-  "with",
+  "use",
   "t",
   "tRaw",
   "setLocaleAsync",
@@ -76,7 +76,7 @@ const CAPABILITY_PROTOTYPE_METHODS = [
   "removeActiveNamespace",
   "removeActiveNamespaces",
   "onLoadError",
-  "use",
+  "registerPlugin",
   "registerLocaleDetector",
   "getLanguageDetector",
   "onMissingKey",

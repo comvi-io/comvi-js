@@ -98,8 +98,10 @@ describe.each([
 
 // The vue-specific half: the instance proxies are gone from VueI18n, and the
 // same operations are reachable through `i18n.core` on a host that has the
-// capability. `use` is on the list too — a proxy typed present that throws
-// "missing capability" is the failure class this contract exists to prevent.
+// capability. `registerPlugin` is on the list too — a proxy typed present that
+// throws "missing capability" is the failure class this contract exists to
+// prevent. `use` is NOT on it: the wrapper's `use` is the composition verb,
+// which is the wrapper's own member and takes an installer, not a plugin.
 const DROPPED_PROXIES = [
   "addActiveNamespace",
   "reloadTranslations",
@@ -108,7 +110,7 @@ const DROPPED_PROXIES = [
   "registerPostProcessor",
   "onMissingKey",
   "onLoadError",
-  "use",
+  "registerPlugin",
 ];
 
 describe("VueI18n dropped instance proxies", () => {
@@ -141,7 +143,7 @@ describe("VueI18n dropped instance proxies", () => {
     // that is neither void nor a cleanup function, and an expression-bodied
     // `() => (pluginRan = true)` returns `true`.
     expect(
-      i18n.core.use(() => {
+      i18n.core.registerPlugin(() => {
         pluginRan = true;
       }),
     ).toBe(host);

@@ -312,17 +312,20 @@ export function createNextI18n<const D extends DefaultTranslationParams = {}>(
     use(pluginOrLoader: I18nPlugin | LazyPluginLoader, options?: UsePluginOptions) {
       const { runtime, lazy, environment = "all", ...pluginOptions } = options ?? {};
       if (lazy) {
-        i18n.use(
+        i18n.registerPlugin(
           createScopedLazyPlugin(pluginOrLoader as LazyPluginLoader, runtime, environment),
           pluginOptions,
         );
       } else if (runtime !== undefined || environment !== "all") {
-        i18n.use(
+        i18n.registerPlugin(
           createScopedPlugin(pluginOrLoader as I18nPlugin, runtime, environment),
           pluginOptions,
         );
       } else {
-        i18n.use(pluginOrLoader as I18nPlugin, options === undefined ? undefined : pluginOptions);
+        i18n.registerPlugin(
+          pluginOrLoader as I18nPlugin,
+          options === undefined ? undefined : pluginOptions,
+        );
       }
       return result;
     },

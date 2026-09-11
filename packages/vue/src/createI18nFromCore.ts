@@ -7,14 +7,14 @@ import { VueI18n, type VueI18nCoreOptions } from "./VueI18n";
  * Wrap an existing core host in Vue reactivity — the ESCAPE HATCH, for a host
  * built somewhere other than next to the app: Nuxt's `hostModule`, or one host
  * shared between a Vue app and non-Vue code. An app that builds its own host
- * here wants `createI18n(options).with(installer)` instead, which composes on
+ * here wants `createI18n(options).use(installer)` instead, which composes on
  * the host this package builds and widens `i18n.core` the same way.
  *
  * The host's exact type is preserved as `VueI18n["core"]`, so a composed host
  * keeps its capabilities at the type level while a base host does not:
  * `createI18nFromCore(attachLoader(core)).core.reloadTranslations(...)`
  * compiles, `createI18nFromCore(baseCore).core.reloadTranslations(...)`
- * does not. {@link VueI18n.with} works on the result as well, widening from
+ * does not. {@link VueI18n.use} works on the result as well, widening from
  * whatever type came in.
  *
  * @param core - The host, built elsewhere: core's own constructor, re-exported

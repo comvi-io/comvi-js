@@ -20,7 +20,7 @@ describe("setLocaleAsync() / addActiveNamespace() concurrency", () => {
       i18n.registerLoader(async (lang, ns) => pending(`${lang}:${ns}`).promise);
     };
 
-    const i18n = new I18n({ locale: "en", ns: [] }).use(loaderPlugin);
+    const i18n = new I18n({ locale: "en", ns: [] }).registerPlugin(loaderPlugin);
     await i18n.init();
 
     const addPromise = i18n.addActiveNamespace("common");
@@ -51,7 +51,7 @@ describe("setLocaleAsync() / addActiveNamespace() concurrency", () => {
       });
     };
 
-    const i18n = new I18n({ locale: "en", ns: [] }).use(loaderPlugin);
+    const i18n = new I18n({ locale: "en", ns: [] }).registerPlugin(loaderPlugin);
     await i18n.init();
 
     const activations = [
@@ -77,7 +77,7 @@ describe("setLocaleAsync() / addActiveNamespace() concurrency", () => {
       });
     };
 
-    const i18n = new I18n({ locale: "en", ns: [] }).use(loaderPlugin);
+    const i18n = new I18n({ locale: "en", ns: [] }).registerPlugin(loaderPlugin);
     await i18n.init();
     await i18n.addActiveNamespace("shared");
 
@@ -95,7 +95,7 @@ describe("setLocaleAsync() / addActiveNamespace() concurrency", () => {
       i18n.registerLoader(async (_lang, ns) => (ns === "ns1" ? ns1.promise : ns2.promise));
     };
 
-    const i18n = new I18n({ locale: "en", ns: [] }).use(loaderPlugin);
+    const i18n = new I18n({ locale: "en", ns: [] }).registerPlugin(loaderPlugin);
     await i18n.init();
 
     const p1 = i18n.addActiveNamespace("ns1");
@@ -122,7 +122,7 @@ describe("setLocaleAsync() / addActiveNamespace() concurrency", () => {
       });
     };
 
-    const i18n = new I18n({ locale: "en", ns: [] }).use(loaderPlugin);
+    const i18n = new I18n({ locale: "en", ns: [] }).registerPlugin(loaderPlugin);
     await i18n.init();
 
     await expect(i18n.addActiveNamespace("failing")).rejects.toThrow(

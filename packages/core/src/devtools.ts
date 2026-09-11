@@ -7,7 +7,7 @@
 // import { createI18n } from "@comvi/core";
 // import { devtools } from "@comvi/core/devtools";
 //
-// const i18n = createI18n({ locale: "en" }).with(devtools({ instanceId: "app" }));
+// const i18n = createI18n({ locale: "en" }).use(devtools({ instanceId: "app" }));
 // ```
 //
 // The capability assigns `instanceId` and publishes the instance on the
@@ -25,17 +25,17 @@ export type { DevtoolsOptions } from "./core/devtools";
 export type { ComviQueue, ComviQueueEntry, ComviHook } from "./types";
 
 /**
- * Discovery as a configured `.with(…)` installer.
+ * Discovery as a configured `.use(…)` installer.
  *
  * ```ts
- * const i18n = createI18n({ locale: "en" }).with(devtools({ exposeGlobal: false }));
+ * const i18n = createI18n({ locale: "en" }).use(devtools({ exposeGlobal: false }));
  * ```
  *
  * Adds no public members — it populates `instanceId`, which the host already
- * declares — so the host type is returned unchanged. `.with(attachDevtools)`
+ * declares — so the host type is returned unchanged. `.use(attachDevtools)`
  * is the unconfigured equivalent.
  *
- * Attaching is idempotent: a second `.with(devtools())`, or the composite
+ * Attaching is idempotent: a second `.use(devtools())`, or the composite
  * (which installs discovery in its constructor), installs nothing, re-registers
  * nothing on the queue, and keeps the `instanceId` already assigned.
  */

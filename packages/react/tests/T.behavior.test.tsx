@@ -16,7 +16,7 @@ declare module "@comvi/core" {
 
 /** A plugins host whose post-processor upper-cases anything not asked for raw. */
 const hostWithUppercasePostProcessor = () => {
-  const i18n = createI18n({ locale: "en" }).with(plugins());
+  const i18n = createI18n({ locale: "en" }).use(plugins());
   i18n.addTranslations({ "en:default": { reserved: "English default" } });
   i18n.registerPostProcessor((result, _key, _ns, params) => {
     if (params?.raw === true) {

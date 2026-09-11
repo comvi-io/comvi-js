@@ -63,13 +63,13 @@ export const LOADER_MEMBERS = [
  * Every public member of `I18nPluginHostApi`.
  *
  * Probe-only, unlike {@link LOADER_MEMBERS}: nothing stands in for a missing
- * plugin host, because a host without the capability has no `use()` to hand a
- * plugin the instance in the first place.
+ * plugin host, because a host without the capability has no `registerPlugin()`
+ * to hand a plugin the instance in the first place.
  *
  * @internal
  */
 export const PLUGIN_MEMBERS = [
-  "use",
+  "registerPlugin",
   "registerLocaleDetector",
   "getLanguageDetector",
   "onMissingKey",
@@ -90,7 +90,7 @@ export const PLUGIN_MEMBERS = [
 export function missingCapability(name: CapabilityName): Error {
   return new Error(
     IS_DEV
-      ? `[comvi] This i18n instance has no ${name} capability. Compose it: .with(${name}()) from "@comvi/core/${name}", or the lower-level attach${
+      ? `[comvi] This i18n instance has no ${name} capability. Compose it: .use(${name}()) from "@comvi/core/${name}", or the lower-level attach${
           name === "loader" ? "Loader" : "Plugins"
         }.`
       : `[comvi] missing ${name} capability — attach @comvi/core/${name}`,

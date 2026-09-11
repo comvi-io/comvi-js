@@ -18,7 +18,7 @@ export const InContextEditorPlugin: I18nPluginFactory<EditorOptions> = (): I18nP
 export type InContextEditorInstaller = <T extends I18n<any>>(i18n: T) => T;
 
 /**
- * Production `.with(…)` installer: host identity, and nothing else.
+ * Production `.use(…)` installer: host identity, and nothing else.
  *
  * The type is IDENTICAL to the default entry's `inContextEditor`, so the same
  * chain type-checks under both conditions. The body is not: no discovery, no
@@ -26,7 +26,7 @@ export type InContextEditorInstaller = <T extends I18n<any>>(i18n: T) => T;
  * or `@comvi/core/plugins` — a production graph carries zero editor bytes AND
  * zero capability bytes.
  *
- * `.use(inContextEditor(…))` is a type error, and here nothing guards it at
+ * `registerPlugin(inContextEditor(…))` is a type error, and here nothing guards it at
  * runtime: the identity function hands the host back and the plugin host's
  * return-shape guard rejects that at `init()`, registering nothing.
  */

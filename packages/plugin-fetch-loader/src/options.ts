@@ -127,10 +127,10 @@ export interface FetchLoaderOptions {
    * It is NOT an opt-out of the initial network request, in either direction.
    * `init()` loads the initial namespaces through the registered loader on its
    * own, after every plugin has registered, and this flag has no say in that:
-   * `.with(fetchLoader({ loadOnInit: false }))` followed by `await init()`
+   * `.use(fetchLoader({ loadOnInit: false }))` followed by `await init()`
    * still issues exactly the request `loadOnInit: true` does. Nor does
    * `loadOnInit: true` add one — the plugin body runs inside `init()` on both
-   * supported entry points (`.with(fetchLoader(…))` and `.use(FetchLoader(…))`),
+   * supported entry points (`.use(fetchLoader(…))` and `registerPlugin(FetchLoader(…))`),
    * where `i18n.isInitializing` is already true, so the install-time load below
    * is skipped and `init()`'s own load is the only one.
    *

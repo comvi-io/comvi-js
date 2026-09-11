@@ -11,7 +11,7 @@ describe("the devMode option", () => {
       pluginDevModeValue = instance.devMode;
     };
 
-    i18n.use(testPlugin);
+    i18n.registerPlugin(testPlugin);
     await i18n.init();
 
     expect(pluginDevModeValue).toBe(devMode);

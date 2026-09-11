@@ -7,13 +7,13 @@ export function createI18n(locale: string = "en"): I18n {
   return new I18n({ locale, exposeGlobal: false });
 }
 
-/** The whole install path a consumer takes: `.use(LocaleDetector(…))` then `init()`. */
+/** The whole install path a consumer takes: `registerPlugin(LocaleDetector(…))` then `init()`. */
 export async function initWithPlugin(
   options: LocaleDetectorOptions = {},
   initialLocale: string = "en",
 ): Promise<I18n> {
   const i18n = createI18n(initialLocale);
-  i18n.use(LocaleDetector(options));
+  i18n.registerPlugin(LocaleDetector(options));
   await i18n.init();
 
   return i18n;

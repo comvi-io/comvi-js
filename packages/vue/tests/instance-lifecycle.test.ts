@@ -97,7 +97,7 @@ describe("VueI18n install()", () => {
   it("does not initialize a host whose own init is still in flight", async () => {
     const slowLoad = createDeferred();
     const i18n = createI18nFromCore(
-      createCore({ locale: "en", defaultNs: "common" }).with(attachLoader),
+      createCore({ locale: "en", defaultNs: "common" }).use(attachLoader),
     );
     i18n.core.registerLoader(async () => {
       await slowLoad.promise;

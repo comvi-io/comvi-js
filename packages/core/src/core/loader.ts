@@ -39,7 +39,7 @@ const IS_DEV = typeof __DEV__ !== "undefined" && __DEV__;
  * happens to trigger a load. Empty in prod so terser drops the string.
  */
 const ERR_LATE_LOADER = IS_DEV
-  ? "[i18n] .with(loader()) ran after init(): compose capabilities before init(). init() has already loaded the initial namespaces and will not re-run for this loader — call reloadTranslations() or addActiveNamespace() to load now."
+  ? "[i18n] .use(loader()) ran after init(): compose capabilities before init(). init() has already loaded the initial namespaces and will not re-run for this loader — call reloadTranslations() or addActiveNamespace() to load now."
   : "";
 
 const ERR_NO_LOADER_REGISTERED = IS_DEV
@@ -61,7 +61,7 @@ function reloadNoActiveNsMessage(defaultNs: string): string {
 }
 
 const ERR_REGISTER_LOADER_ARG = IS_DEV
-  ? "[i18n] registerLoader(): argument must be a loader function. For a static import map use .with(loader(map)), or wrap it with createImportMapLoader(map, () => i18n.getDefaultNamespace()) — both from @comvi/core/loader."
+  ? "[i18n] registerLoader(): argument must be a loader function. For a static import map use .use(loader(map)), or wrap it with createImportMapLoader(map, () => i18n.getDefaultNamespace()) — both from @comvi/core/loader."
   : "E_REGISTER_LOADER_ARG";
 
 function createPartialNamespaceLoadError(
@@ -91,7 +91,7 @@ function createAllNamespacesFailedError(locale: string, failedNamespaces: string
 /**
  * The loader capability. Not exported from any entry point: the composite
  * (`core/full.ts`) extends this class, any other host gets it from
- * `attachLoader` / `.with(loader())`.
+ * `attachLoader` / `.use(loader())`.
  *
  * Members are reached through `this`, never through a local alias: `this.x` is
  * the most repeated token in the bundle, and aliasing it (`const i = this as

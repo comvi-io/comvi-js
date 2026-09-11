@@ -11,9 +11,9 @@ import { CdnLoader, cdnLoader, type CdnLoaderInstaller } from "../../src/cdn/ind
 
 const OPTIONS = { cdnUrl: "https://cdn.comvi.io/distribution" };
 
-// VALID — `.with(cdnLoader(…))` widens the BASE host with exactly the two
+// VALID — `.use(cdnLoader(…))` widens the BASE host with exactly the two
 // capabilities the installer attaches.
-export const composed = createI18n({ locale: "en" }).with(cdnLoader(OPTIONS));
+export const composed = createI18n({ locale: "en" }).use(cdnLoader(OPTIONS));
 void composed.registerLoader;
 void composed.use;
 void composed.t;
@@ -45,14 +45,14 @@ cdnLoader({ cdnUrl: "https://cdn.comvi.io/distribution", apiBaseUrl: "https://ap
 // @ts-expect-error
 cdnLoader({ cdnUrl: "https://cdn.comvi.io/distribution", retry: false });
 
-// WRONG — the uppercase PLUGIN through `.with`.
+// WRONG — the uppercase PLUGIN through `.use`.
 // @ts-expect-error
-createI18n({ locale: "en" }).with(CdnLoader(OPTIONS));
+createI18n({ locale: "en" }).use(CdnLoader(OPTIONS));
 
 // WRONG — the lowercase INSTALLER through `.use`.
 // @ts-expect-error
-createI18n({ locale: "en" }).with(plugins()).use(cdnLoader(OPTIONS));
+createI18n({ locale: "en" }).use(plugins()).registerPlugin(cdnLoader(OPTIONS));
 
 // VALID — the uppercase factory on a host that already has both capabilities.
-export const manual = createI18n({ locale: "en" }).with(loader()).with(plugins());
-manual.use(CdnLoader(OPTIONS));
+export const manual = createI18n({ locale: "en" }).use(loader()).use(plugins());
+manual.registerPlugin(CdnLoader(OPTIONS));

@@ -35,9 +35,9 @@ import { I18N_INJECTION_KEY } from "./keys";
 declare const __DEV__: boolean | undefined;
 const IS_DEV = typeof __DEV__ !== "undefined" && __DEV__;
 
-/** Thrown by {@link VueI18n.with} when an installer hands back a different object. */
-export interface WithHostIdentityError extends Error {
-  code: "E_WITH_HOST_IDENTITY";
+/** Thrown by {@link VueI18n.use} when an installer hands back a different object. */
+export interface UseHostIdentityError extends Error {
+  code: "E_USE_HOST_IDENTITY";
 }
 
 /**
@@ -62,7 +62,7 @@ export type VueI18nOptions<D extends DefaultTranslationParams = {}> = I18nOption
  *
  * The host stays reachable as {@link VueI18n.core}: everything the wrapper does
  * not proxy — including the loader and plugin-host capabilities, when the host
- * has them — goes through it. Capabilities are composed with {@link VueI18n.with},
+ * has them — goes through it. Capabilities are composed with {@link VueI18n.use},
  * which returns this same instance with `core` retyped: assign the result,
  * since a discarded return leaves the binding's `C` unwidened. `C` is exact
  * when you hold the factory result; through `inject(I18N_INJECTION_KEY)` the
@@ -88,7 +88,7 @@ export class VueI18n<
   private _localeQueue: Promise<void> = Promise.resolve();
   private _isLocaleQueueIdle = true;
   private _isDestroyed = false;
-  private _warnedLateWith = false;
+  private _warnedLateUse = false;
 
   // Declared here, assigned as bound proxies in the constructor.
   declare addTranslations: (translations: Record<string, Record<string, TranslationValue>>) => void;
@@ -426,41 +426,40 @@ export class VueI18n<
   }
 
   /**
-   * Compose a capability onto the host and keep this wrapper: `with(f)` is
+   * Compose a capability onto the host and keep this wrapper: `use(f)` is
    * `f(this.core)`, and the return value is this same instance retyped so
    * `core` carries whatever the installer widened the host to.
    *
    * ```ts
-   * const i18n = createI18n({ locale: "en" }).with(loader(importMap));
+   * const i18n = createI18n({ locale: "en" }).use(loader(importMap));
    * i18n.core.reloadTranslations(); // typed: the loader is on `core`
    * ```
    *
-   * The one ordering rule: compose BEFORE `app.use(i18n)`, because `install`
-   * starts `init()`, which drains the plugin queue once — a `plugins()` or
-   * `.use(…)` composed later is never run (development warns; the host's own
-   * late-compose guards do not see the synchronous start of `init()`). ICU is
-   * not composed at all: it is `compiler: icuCompiler` in the options.
+   * The one ordering rule: compose BEFORE `app.use(i18n)` — Vue's own `use`,
+   * not this one — because `install` starts `init()`, which drains the plugin
+   * queue once, so a `plugins()` or `definePlugin(…)` composed later is never run
+   * (development warns; the host's own late-compose guards do not see the
+   * synchronous start of `init()`). ICU is not composed at all: it is
+   * `compiler: icuCompiler` in the options.
    *
    * Installers widen the host IN PLACE and return it; the wrapper's bound
    * proxies point at that one host, so an installer that hands back a
-   * different object is refused (`code: "E_WITH_HOST_IDENTITY"`) instead of
+   * different object is refused (`code: "E_USE_HOST_IDENTITY"`) instead of
    * leaving the wrapper driving a host the app never sees.
    */
-  with<T extends WrapperI18nHost<D>>(installer: (core: C) => T): VueI18n<D, T> {
-    if (IS_DEV && (this.core.isInitialized || this.core.isInitializing) && !this._warnedLateWith) {
-      this._warnedLateWith = true;
+  use<T extends WrapperI18nHost<D>>(installer: (core: C) => T): VueI18n<D, T> {
+    if (IS_DEV && (this.core.isInitialized || this.core.isInitializing) && !this._warnedLateUse) {
+      this._warnedLateUse = true;
       console.warn(
-        "[i18n] .with(installer) ran after app.use(i18n) started init(): compose capabilities before installing the plugin. The plugin queue is drained inside init() and never again, so a plugin composed now will never run.",
+        "[i18n] .use(installer) ran after app.use(i18n) started init(): compose capabilities before installing the plugin. The plugin queue is drained inside init() and never again, so a plugin composed now will never run.",
       );
     }
     const widened: unknown = installer(this.core);
     if (widened !== this.core) {
       const error = new Error(
-        IS_DEV
-          ? "[i18n] .with(installer) must return the host it was given"
-          : "E_WITH_HOST_IDENTITY",
-      ) as WithHostIdentityError;
-      error.code = "E_WITH_HOST_IDENTITY";
+        IS_DEV ? "[i18n] .use(installer) must return the host it was given" : "E_USE_HOST_IDENTITY",
+      ) as UseHostIdentityError;
+      error.code = "E_USE_HOST_IDENTITY";
       throw error;
     }
     return this as unknown as VueI18n<D, T>;

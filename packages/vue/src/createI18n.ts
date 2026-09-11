@@ -13,7 +13,7 @@ import { VueI18n, type VueI18nOptions } from "./VueI18n";
  *
  * The host is the BASE one: text + `{param}`, the cache, events and default
  * params. Capabilities are imports the app composes on the result with
- * `.with(installer)`, each widening `i18n.core`'s type: `loader()`,
+ * `.use(installer)`, each widening `i18n.core`'s type: `loader()`,
  * `plugins()`, `devtools()`, or a plugin's own installer such as `fetchLoader()`.
  * ICU is not a capability: pass `compiler: icuCompiler` from `@comvi/core/icu`
  * in this same options object and every catalog this instance ingests is ICU.
@@ -27,8 +27,8 @@ import { VueI18n, type VueI18nOptions } from "./VueI18n";
  * @example
  * ```ts
  * const i18n = createI18n({ locale: "en", compiler: icuCompiler })
- *   .with(fetchLoader({ cdnUrl }));
- * i18n.core.reloadTranslations(); // typed: `.with` widened `core`
+ *   .use(fetchLoader({ cdnUrl }));
+ * i18n.core.reloadTranslations(); // typed: `.use` widened `core`
  * ```
  */
 export function createI18n<const D extends DefaultTranslationParams = {}>(

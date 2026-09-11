@@ -100,7 +100,7 @@ function flushPendingKeys(pendingCombinedKeys: Set<string>): void {
  * No-op plugin used when the full entry is evaluated under NODE_ENV=production.
  *
  * Mirrors the real plugin's shape — accepts the i18n instance and returns a
- * cleanup function — so `i18n.use()` and teardown code behave identically,
+ * cleanup function — so `registerPlugin()` and teardown code behave identically,
  * while the editor runtime never activates.
  */
 const noopPlugin: I18nPlugin = () => {
@@ -122,7 +122,7 @@ const noopPlugin: I18nPlugin = () => {
  *   locale: 'en',
  *   apiKey: 'your-api-key'
  * });
- * i18n.use(InContextEditorPlugin());
+ * i18n.registerPlugin(InContextEditorPlugin());
  *
  * await i18n.init();
  * ```
@@ -246,27 +246,27 @@ export const InContextEditorPlugin: I18nPluginFactory<EditorOptions> = (options)
 export type InContextEditorInstaller = <T extends I18n<any>>(i18n: T) => T;
 
 /**
- * The in-context editor as a `.with(…)` installer.
+ * The in-context editor as a `.use(…)` installer.
  *
  * ```ts
- * const i18n = createI18n({ locale: "en", apiKey }).with(inContextEditor());
+ * const i18n = createI18n({ locale: "en", apiKey }).use(inContextEditor());
  * await i18n.init();
  * ```
  *
  * Devtools is ensured BEFORE plugins on purpose: the editor's whole point is
  * being driven from outside the page, so an editor-enabled host announces
- * itself on the `window.__COMVI__` queue without a second `.with(devtools())`.
+ * itself on the `window.__COMVI__` queue without a second `.use(devtools())`.
  * Both attaches are idempotent — an already-composed host keeps its
  * `instanceId`, its queue entry and every registered plugin.
  *
  * `required`, `timeout`, `onError`, cleanup registration and LIFO destroy are
  * not re-implemented here; they keep running inside `I18nPluginHost`, because
- * the last thing this installer does is call `use`.
+ * the last thing this installer does is call `registerPlugin`.
  *
  * The host type comes back UNCHANGED, deliberately: the package's `production`
  * condition ships this same signature with `(host) => host`, attaching nothing.
  * Promising `I18nPluginHostApi` here would type a member present in dev and
- * absent in production. Need `use` yourself? Compose `.with(plugins())`.
+ * absent in production. Need `registerPlugin` yourself? Compose `.use(plugins())`.
  *
  * `.use(inContextEditor(…))` is a type error. Under this entry it fails at
  * `init()` on `ensureInstallable`; under the `production` condition the
@@ -276,7 +276,7 @@ export type InContextEditorInstaller = <T extends I18n<any>>(i18n: T) => T;
 export function inContextEditor(options?: EditorOptions): InContextEditorInstaller {
   return (i18n) => {
     const host = attachPlugins(attachDevtools(ensureInstallable(i18n, "inContextEditor")));
-    host.use(InContextEditorPlugin(options));
+    host.registerPlugin(InContextEditorPlugin(options));
     return i18n;
   };
 }

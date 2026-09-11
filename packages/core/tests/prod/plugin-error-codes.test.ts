@@ -38,7 +38,7 @@ describe("plugin initialization", () => {
   it("fails a plugin that returns a value with the bare E_PLUGIN_INIT_RETURN code", async () => {
     const onError = vi.fn();
     const i18n = makeHost(onError);
-    i18n.use(() => ({ notACleanup: true }) as never);
+    i18n.registerPlugin(() => ({ notACleanup: true }) as never);
 
     await expect(i18n.init()).rejects.toThrowError(
       expect.objectContaining({ message: "E_PLUGIN_INIT_RETURN" }),
@@ -52,7 +52,7 @@ describe("plugin initialization", () => {
 
   it("fails a plugin that outruns its timeout with the bare E_PLUGIN_INIT_TIMEOUT code", async () => {
     const i18n = makeHost();
-    i18n.use(() => new Promise<void>(() => {}), { timeout: 1 });
+    i18n.registerPlugin(() => new Promise<void>(() => {}), { timeout: 1 });
 
     await expect(i18n.init()).rejects.toThrowError(
       expect.objectContaining({ message: "E_PLUGIN_INIT_TIMEOUT" }),
@@ -61,7 +61,7 @@ describe("plugin initialization", () => {
 
   it("wraps a plugin's non-Error throw in the bare E_PLUGIN_INIT_FAILED code", async () => {
     const i18n = makeHost();
-    i18n.use(() => {
+    i18n.registerPlugin(() => {
       throw "boom";
     });
 
@@ -72,7 +72,7 @@ describe("plugin initialization", () => {
 
   it("keeps a plugin's own Error untouched — only a non-Error throw gets a code", async () => {
     const i18n = makeHost();
-    i18n.use(() => {
+    i18n.registerPlugin(() => {
       throw new Error("the plugin's own words");
     });
 
@@ -83,12 +83,12 @@ describe("plugin initialization", () => {
 });
 
 describe("ensureInstallable()", () => {
-  it("rejects an installer run as a plugin with the bare E_INSTALLER_NESTED_USE code", async () => {
+  it("rejects an installer run as a plugin with the bare E_INSTALLER_AS_PLUGIN code", async () => {
     const i18n = makeHost();
-    i18n.use((host) => void ensureInstallable(host, "fetchLoader"));
+    i18n.registerPlugin((host) => void ensureInstallable(host, "fetchLoader"));
 
     await expect(i18n.init()).rejects.toThrowError(
-      expect.objectContaining({ message: "E_INSTALLER_NESTED_USE" }),
+      expect.objectContaining({ message: "E_INSTALLER_AS_PLUGIN" }),
     );
   });
 

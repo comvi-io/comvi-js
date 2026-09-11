@@ -78,7 +78,7 @@ describe("isInitializing — owned by init()", () => {
     const i18n = new I18n({ locale: "en" });
     let flagInsideLoader: boolean | undefined;
 
-    i18n.use((inst) => {
+    i18n.registerPlugin((inst) => {
       inst.registerLocaleDetector(() => "de");
     });
     i18n.registerLoader(async () => {

@@ -728,7 +728,7 @@ export interface I18nCoreInstance<D extends DefaultTranslationParams = {}> {
 
 /**
  * Async-loading capability — `@comvi/core/loader`, composed on with
- * `.with(loader())` / `attachLoader`. Absent from the base root by module
+ * `.use(loader())` / `attachLoader`. Absent from the base root by module
  * graph; the internal composite and `@comvi/next`'s composed host carry it on
  * their class surface.
  */
@@ -790,13 +790,17 @@ export interface I18nLoaderApi {
 
 /**
  * Plugin-host capability — `@comvi/core/plugins`, composed on with
- * `.with(plugins())` / `attachPlugins`. Absent from the base root by module
+ * `.use(plugins())` / `attachPlugins`. Absent from the base root by module
  * graph. Constructor *options* (`postProcess`, `onMissingKey`) stay universal;
  * only the runtime registration APIs are a capability.
  */
 export interface I18nPluginHostApi {
-  /** Chainable. MUST be called before `init()`, which drains the queue once. */
-  use(plugin: I18nPlugin, options?: PluginOptions): this;
+  /**
+   * Register a raw plugin. Chainable. MUST be called before `init()`, which
+   * drains the queue once. NOT a composition verb — `.use(definePlugin(fn))` is
+   * how an app registers its own inline plugin through the one verb.
+   */
+  registerPlugin(plugin: I18nPlugin, options?: PluginOptions): this;
 
   /** `init()` consults it after the plugins have run. */
   registerLocaleDetector: (detector: () => string | Promise<string>) => void;

@@ -8,7 +8,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { I18n } from "../../src/core/full";
 import { createI18n } from "../../src";
 import { attachLoader, createImportMapLoader, loader } from "../../src/loader";
-import { attachPlugins, plugins } from "../../src/plugins";
+import { attachPlugins, definePlugin, plugins } from "../../src/plugins";
 import { attachDevtools, devtools } from "../../src/devtools";
 import { hasLoaderApi, hasPluginHostApi } from "../../src/utils/capability";
 import { createDeferred } from "../helpers/deferred";
@@ -151,7 +151,7 @@ it("reports both capabilities as absent on a bare host", () => {
 
 describe("base + /plugins composition", () => {
   const PLUGIN_API = [
-    "use",
+    "registerPlugin",
     "registerLocaleDetector",
     "getLanguageDetector",
     "onMissingKey",
@@ -185,8 +185,8 @@ describe("base + /plugins composition", () => {
       ).toEqual({ writable: true, enumerable: false, configurable: true });
     }
 
-    expect(Object.keys(i18n)).not.toContain("use");
-    expect(Object.keys({ ...i18n })).not.toContain("use");
+    expect(Object.keys(i18n)).not.toContain("registerPlugin");
+    expect(Object.keys({ ...i18n })).not.toContain("registerPlugin");
   });
 
   it("is idempotent and preserves already-registered state", () => {
@@ -209,7 +209,7 @@ describe("base + /plugins composition", () => {
       ),
     );
 
-    i18n.use((host) => {
+    i18n.registerPlugin((host) => {
       order.push("plugin");
       host.registerLocaleDetector(() => {
         order.push("detector");
@@ -231,7 +231,7 @@ describe("base + /plugins composition", () => {
   it("hosts a loader-registering plugin when attachLoader ran first (R8)", async () => {
     const i18n = attachPlugins(attachLoader(createI18n({ locale: "en", exposeGlobal: false })));
 
-    i18n.use((host) => {
+    i18n.registerPlugin((host) => {
       host.setPluginData("fetchLoader", { projectId: "p" });
       host.registerLoader(async () => ({ hello: "Hello" }));
     });
@@ -333,16 +333,19 @@ it("returns the key itself when neither an option nor a callback supplies a valu
 });
 
 /**
- * `.with(installer)` — the composition pipe. `with` lives on the BASE class and
- * is literally `installer(this)`. These cases pin the two things that make it
- * safe there: it is an ordinary prototype method, and composing a capability
- * the host ALREADY has changes nothing.
+ * `.use(installer)` — the ONE composition verb. It lives on the BASE class,
+ * calls `installer(this)`, and returns `this` — anything else is refused with
+ * `E_USE_NOT_INSTALLER`, which is what separates an installer from a raw
+ * plugin. These cases pin the things that make it safe there: it is an
+ * ordinary prototype method, composing a capability the host ALREADY has
+ * changes nothing, and the identity rule is enforced for sync AND async
+ * returns alike.
  *
  * The published plugin ecosystem is exercised against this API end-to-end from
  * `@comvi/plugin-fetch-loader`'s own suite — it cannot live here, because
  * @comvi/core must not devDepend on a package that peer-depends on it.
  */
-describe(".with(installer) — the composition pipe", () => {
+describe(".use(installer) — the composition pipe", () => {
   it.each([
     ["base", () => createI18n({ locale: "en", exposeGlobal: false })],
     ["composed host", () => new I18n({ locale: "en", exposeGlobal: false })],
@@ -358,7 +361,7 @@ describe(".with(installer) — the composition pipe", () => {
       proto && proto !== Object.prototype && !descriptor;
       proto = Object.getPrototypeOf(proto) as object | null
     ) {
-      descriptor = Object.getOwnPropertyDescriptor(proto, "with");
+      descriptor = Object.getOwnPropertyDescriptor(proto, "use");
     }
 
     expect(typeof descriptor?.value).toBe("function");
@@ -367,18 +370,20 @@ describe(".with(installer) — the composition pipe", () => {
       enumerable: descriptor!.enumerable,
       configurable: descriptor!.configurable,
     }).toEqual({ writable: true, enumerable: false, configurable: true });
-    expect(Object.prototype.hasOwnProperty.call(i18n, "with")).toBe(false);
-    expect(Object.keys(i18n)).not.toContain("with");
+    expect(Object.prototype.hasOwnProperty.call(i18n, "use")).toBe(false);
+    expect(Object.keys(i18n)).not.toContain("use");
   });
 
-  it("is a pipe and nothing more: with(f) is f(this)", () => {
+  it("calls the installer with the host, exactly once, and returns that host", () => {
     const i18n = createI18n({ locale: "en", exposeGlobal: false });
-    const installer = vi.fn((host: typeof i18n) => ({ host, tag: "installed" }));
+    // The widening an installer performs is a SIDE EFFECT on the host; the
+    // return value is the host itself, retyped.
+    const installer = vi.fn((host: typeof i18n) => Object.assign(host, { tag: "installed" }));
 
-    const result = i18n.with(installer);
+    const result = i18n.use(installer);
 
     expect(installer).toHaveBeenCalledExactlyOnceWith(i18n);
-    expect(result.host).toBe(i18n);
+    expect(result).toBe(i18n);
     expect(result.tag).toBe("installed");
   });
 
@@ -387,17 +392,179 @@ describe(".with(installer) — the composition pipe", () => {
 
     // The attach installs in place and returns the SAME host, so this local is
     // `i18n` — it just carries the widened type the installer returns.
-    const withLoader = i18n.with(attachLoader);
+    const withLoader = i18n.use(attachLoader);
 
     expect(withLoader).toBe(i18n);
     expect(typeof withLoader.getLoader).toBe("function");
-    expect(typeof i18n.with(attachPlugins).use).toBe("function");
+    expect(typeof i18n.use(attachPlugins).registerPlugin).toBe("function");
+  });
+
+  /**
+   * The `E_USE_NOT_INSTALLER` guard. `use` and the plugin queue were two verbs
+   * before decision E; now there is one, so the shape a RAW PLUGIN returns —
+   * nothing, or a cleanup function — is exactly what tells the two apart. The
+   * guard fires on the installer's RETURN, so the plugin body has already run;
+   * what it buys is that the caller is told, by name, where its plugin belongs,
+   * instead of holding `undefined` typed as the widened host.
+   */
+  describe("E_USE_NOT_INSTALLER — a raw plugin handed to .use()", () => {
+    it.each([
+      ["a statement-bodied plugin (undefined)", () => undefined],
+      ["a plugin that returns its cleanup", () => () => {}],
+      ["a plugin that returns null", () => null],
+      ["a plugin that leaked a primitive", () => 42],
+      // THE case a shape probe would wave through: an async plugin returns a
+      // Promise, which IS an object. Identity catches it, and catches it
+      // BEFORE the rejection can go unhandled at composition time.
+      ["an ASYNC plugin (a Promise)", async () => {}],
+      ["an async plugin that rejects", async () => void (await Promise.reject(new Error("x")))],
+      // A derived object is not the host either: installers widen in place.
+      ["an installer that builds a new object", (host: unknown) => ({ host })],
+    ] as const)("rejects %s", (_label, plugin) => {
+      const i18n = createI18n({ locale: "en", exposeGlobal: false });
+
+      expect(() => i18n.use(plugin as unknown as (host: typeof i18n) => typeof i18n)).toThrow(
+        expect.objectContaining({ code: "E_USE_NOT_INSTALLER" }),
+      );
+    });
+
+    it("swallows the rejection an already-invoked async plugin left behind", async () => {
+      const i18n = createI18n({ locale: "en", exposeGlobal: false });
+      const unhandled = vi.fn();
+      process.on("unhandledRejection", unhandled);
+      try {
+        expect(() =>
+          i18n.use((async () => {
+            throw new Error("the plugin's own failure");
+          }) as unknown as (host: typeof i18n) => typeof i18n),
+        ).toThrow(expect.objectContaining({ code: "E_USE_NOT_INSTALLER" }));
+
+        // Two macrotask turns: enough for node to have reported one.
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        expect(unhandled).not.toHaveBeenCalled();
+      } finally {
+        process.off("unhandledRejection", unhandled);
+      }
+    });
+
+    it("names the rule and both ways out in development", () => {
+      const i18n = createI18n({ locale: "en", exposeGlobal: false });
+
+      let message = "";
+      try {
+        i18n.use((() => undefined) as unknown as (host: typeof i18n) => typeof i18n);
+      } catch (error) {
+        message = (error as Error).message;
+      }
+      expect(message).toContain("returns the host it was given");
+      expect(message).toContain(".use(definePlugin(f))");
+      expect(message).toContain("registerPlugin(f)");
+      expect(message).toContain("localeDetector(), not LocaleDetector()");
+    });
+
+    it("leaves the host untouched — a refused .use() composed nothing", () => {
+      const i18n = createI18n({ locale: "en", exposeGlobal: false });
+      const before = Object.getOwnPropertyNames(i18n);
+
+      expect(() =>
+        i18n.use((() => undefined) as unknown as (host: typeof i18n) => typeof i18n),
+      ).toThrow(expect.objectContaining({ code: "E_USE_NOT_INSTALLER" }));
+
+      expect(Object.getOwnPropertyNames(i18n)).toEqual(before);
+      expect(hasPluginHostApi(i18n)).toBe(false);
+    });
+
+    it("accepts every installer core itself ships — they all return the host", () => {
+      // The identity rule is only safe because it is the rule the shipped
+      // installers already follow; this is that claim, asserted rather than
+      // assumed.
+      const i18n = createI18n({ locale: "en", exposeGlobal: false });
+
+      expect(i18n.use(attachLoader)).toBe(i18n);
+      expect(i18n.use(attachPlugins)).toBe(i18n);
+      expect(i18n.use(attachDevtools)).toBe(i18n);
+      expect(i18n.use(loader())).toBe(i18n);
+      expect(i18n.use(plugins())).toBe(i18n);
+      expect(i18n.use(devtools({ exposeGlobal: false }))).toBe(i18n);
+      expect(i18n.use(definePlugin(() => {}))).toBe(i18n);
+    });
   });
 });
 
-describe(".with(loader(…)) — the configured loader installer", () => {
+/**
+ * `definePlugin(fn, options?)` — how an app registers its OWN inline plugin
+ * through the one verb. It is `attachPlugins(host).registerPlugin(fn, options)`
+ * wrapped as an installer, so it both ATTACHES the plugin host and queues one
+ * plugin on it, and it satisfies the `E_USE_NOT_INSTALLER` guard because it
+ * hands the host back.
+ */
+describe(".use(definePlugin(fn)) — an app's own inline plugin", () => {
+  it("attaches the plugin host and returns the same instance", () => {
+    const i18n = createI18n({ locale: "en", exposeGlobal: false });
+
+    const composed = i18n.use(definePlugin(() => {}));
+
+    expect(composed).toBe(i18n);
+    expect(hasPluginHostApi(composed)).toBe(true);
+    expect(typeof composed.registerPlugin).toBe("function");
+  });
+
+  it("runs the plugin at init(), with the host as its argument", async () => {
+    const seen: unknown[] = [];
+    const i18n = createI18n({ locale: "en", ns: [], exposeGlobal: false }).use(
+      definePlugin((host) => {
+        seen.push(host);
+      }),
+    );
+
+    expect(seen).toEqual([]);
+    await i18n.init();
+    expect(seen).toEqual([i18n]);
+  });
+
+  it("forwards the plugin options — a non-required plugin's failure is reported, not fatal", async () => {
+    const onError = vi.fn();
+    const i18n = createI18n({ locale: "en", ns: [], exposeGlobal: false }).use(
+      definePlugin(
+        () => {
+          throw new Error("boom");
+        },
+        { required: false, onError },
+      ),
+    );
+
+    await expect(i18n.init()).resolves.toBe(i18n);
+    expect(onError).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ message: "boom" }));
+  });
+
+  it("registers its cleanup, run on destroy", async () => {
+    const cleanup = vi.fn();
+    const i18n = createI18n({ locale: "en", ns: [], exposeGlobal: false }).use(
+      definePlugin(() => cleanup),
+    );
+
+    await i18n.init();
+    expect(cleanup).not.toHaveBeenCalled();
+    await i18n.destroy();
+    expect(cleanup).toHaveBeenCalledTimes(1);
+  });
+
+  it("stacks with plugins() and with itself, in any order, keeping every plugin", async () => {
+    const order: string[] = [];
+    const i18n = createI18n({ locale: "en", ns: [], exposeGlobal: false })
+      .use(definePlugin(() => void order.push("a")))
+      .use(plugins())
+      .use(definePlugin(() => void order.push("b")));
+
+    await i18n.init();
+    expect(order).toEqual(["a", "b"]);
+  });
+});
+
+describe(".use(loader(…)) — the configured loader installer", () => {
   it("bare loader() attaches the capability and configures nothing", () => {
-    const i18n = createI18n({ locale: "en", exposeGlobal: false }).with(loader());
+    const i18n = createI18n({ locale: "en", exposeGlobal: false }).use(loader());
 
     expect(typeof i18n.registerLoader).toBe("function");
     expect(typeof i18n.reloadTranslations).toBe("function");
@@ -406,7 +573,7 @@ describe(".with(loader(…)) — the configured loader installer", () => {
 
   it("loader(importMap) attaches AND registers, loading on demand", async () => {
     const uk = vi.fn(async () => ({ default: { hello: "Привіт" } }));
-    const i18n = createI18n({ locale: "en", exposeGlobal: false }).with(
+    const i18n = createI18n({ locale: "en", exposeGlobal: false }).use(
       loader({ en: async () => ({ hello: "Hello" }), uk }),
     );
 
@@ -421,7 +588,7 @@ describe(".with(loader(…)) — the configured loader installer", () => {
   });
 
   it("reads the default namespace live, so setDefaultNamespace after composition applies", async () => {
-    const i18n = createI18n({ locale: "en", exposeGlobal: false }).with(
+    const i18n = createI18n({ locale: "en", exposeGlobal: false }).use(
       loader({ "en:site": async () => ({ hello: "Hello" }) }),
     );
 
@@ -432,7 +599,7 @@ describe(".with(loader(…)) — the configured loader installer", () => {
   });
 
   it("installs exactly the descriptors attachLoader does", () => {
-    const piped = createI18n({ locale: "en", exposeGlobal: false }).with(loader());
+    const piped = createI18n({ locale: "en", exposeGlobal: false }).use(loader());
     const attached = attachLoader(createI18n({ locale: "en", exposeGlobal: false }));
 
     expect(Object.getOwnPropertyNames(piped).sort()).toEqual(
@@ -441,13 +608,13 @@ describe(".with(loader(…)) — the configured loader installer", () => {
   });
 
   it("is a no-op the second time and keeps the registered loader", () => {
-    const i18n = createI18n({ locale: "en", exposeGlobal: false }).with(
+    const i18n = createI18n({ locale: "en", exposeGlobal: false }).use(
       loader({ en: async () => ({ hello: "Hello" }) }),
     );
     const registered = i18n.getLoader();
     const ownProps = Object.getOwnPropertyNames(i18n);
 
-    const again = i18n.with(loader());
+    const again = i18n.use(loader());
 
     expect(again).toBe(i18n);
     expect(again.getLoader()).toBe(registered);
@@ -459,7 +626,7 @@ describe(".with(loader(…)) — the configured loader installer", () => {
     const before = Object.getOwnPropertyNames(root);
     const inheritedRegisterLoader = root.registerLoader;
 
-    const piped = root.with(loader());
+    const piped = root.use(loader());
 
     expect(piped).toBe(root);
     // No own property shadows the inherited prototype member.
@@ -470,7 +637,7 @@ describe(".with(loader(…)) — the configured loader installer", () => {
   });
 
   it("still CONFIGURES a root instance when handed an import map", async () => {
-    const root = new I18n({ locale: "en", exposeGlobal: false }).with(
+    const root = new I18n({ locale: "en", exposeGlobal: false }).use(
       loader({ en: async () => ({ default: { hello: "Hello" } }) }),
     );
 
@@ -481,7 +648,7 @@ describe(".with(loader(…)) — the configured loader installer", () => {
 
   it("produces the same loader an explicit createImportMapLoader would", async () => {
     const map = { en: async () => ({ hello: "Hello" }) };
-    const piped = createI18n({ locale: "en", exposeGlobal: false }).with(loader(map));
+    const piped = createI18n({ locale: "en", exposeGlobal: false }).use(loader(map));
     const manual = attachLoader(createI18n({ locale: "en", exposeGlobal: false }));
     manual.registerLoader(createImportMapLoader(map, () => manual.getDefaultNamespace()));
 
@@ -491,7 +658,7 @@ describe(".with(loader(…)) — the configured loader installer", () => {
   });
 });
 
-describe(".with(plugins()) / .with(devtools()) — the other two installers", () => {
+describe(".use(plugins()) / .use(devtools()) — the other two installers", () => {
   // Two cases below expose on the real `window.__COMVI__`; leave it as found.
   const win = window as { __COMVI__?: unknown };
 
@@ -504,10 +671,10 @@ describe(".with(plugins()) / .with(devtools()) — the other two installers", ()
   });
 
   it("plugins() installs the host and is idempotent", () => {
-    const i18n = createI18n({ locale: "en", exposeGlobal: false }).with(plugins());
+    const i18n = createI18n({ locale: "en", exposeGlobal: false }).use(plugins());
     i18n.setPluginData("probe", "set");
 
-    expect(i18n.with(plugins())).toBe(i18n);
+    expect(i18n.use(plugins())).toBe(i18n);
     expect(i18n.getPluginData("probe")).toBe("set");
   });
 
@@ -515,20 +682,20 @@ describe(".with(plugins()) / .with(devtools()) — the other two installers", ()
     const root = new I18n({ locale: "en", exposeGlobal: false });
     const before = Object.getOwnPropertyNames(root);
 
-    expect(root.with(plugins())).toBe(root);
+    expect(root.use(plugins())).toBe(root);
     expect(Object.getOwnPropertyNames(root)).toEqual(before);
-    expect(Object.prototype.hasOwnProperty.call(root, "use")).toBe(false);
+    expect(Object.prototype.hasOwnProperty.call(root, "registerPlugin")).toBe(false);
   });
 
   it("devtools(options) configures discovery, and a second pipe keeps the first id", () => {
     // `exposeGlobal: false` opts out of the id too — assigning one is part of
     // exposing, so the configured case has to actually expose.
-    const i18n = createI18n({ locale: "en", exposeGlobal: false }).with(
+    const i18n = createI18n({ locale: "en", exposeGlobal: false }).use(
       devtools({ instanceId: "app", exposeGlobal: true }),
     );
 
     expect(i18n.instanceId).toBe("app");
-    expect(i18n.with(devtools({ instanceId: "other", exposeGlobal: true }))).toBe(i18n);
+    expect(i18n.use(devtools({ instanceId: "other", exposeGlobal: true }))).toBe(i18n);
     expect(i18n.instanceId).toBe("app");
   });
 
@@ -536,7 +703,7 @@ describe(".with(plugins()) / .with(devtools()) — the other two installers", ()
     const root = new I18n({ locale: "en", exposeGlobal: true, instanceId: "root-app" });
     const before = Object.getOwnPropertyNames(root);
 
-    expect(root.with(devtools({ instanceId: "hijack" }))).toBe(root);
+    expect(root.use(devtools({ instanceId: "hijack" }))).toBe(root);
     expect(Object.getOwnPropertyNames(root)).toEqual(before);
     expect(root.instanceId).toBe("root-app");
 
@@ -545,8 +712,8 @@ describe(".with(plugins()) / .with(devtools()) — the other two installers", ()
 
   it("matches the descriptors the bare attaches install", () => {
     const piped = createI18n({ locale: "en", exposeGlobal: false })
-      .with(plugins())
-      .with(devtools({ exposeGlobal: false }));
+      .use(plugins())
+      .use(devtools({ exposeGlobal: false }));
     const attached = attachDevtools(
       attachPlugins(createI18n({ locale: "en", exposeGlobal: false })),
       {
@@ -560,18 +727,18 @@ describe(".with(plugins()) / .with(devtools()) — the other two installers", ()
   });
 });
 
-describe(".with chaining — order is the caller's", () => {
+describe(".use chaining — order is the caller's", () => {
   it.each([
     ["loader then plugins", true],
     ["plugins then loader", false],
   ] as const)("composes both capabilities: %s", async (_label, loaderFirst) => {
     const bare = createI18n({ locale: "en", exposeGlobal: false });
     const i18n = loaderFirst
-      ? bare.with(loader()).with(plugins())
-      : bare.with(plugins()).with(loader());
+      ? bare.use(loader()).use(plugins())
+      : bare.use(plugins()).use(loader());
     const order: string[] = [];
 
-    i18n.use((host) => {
+    i18n.registerPlugin((host) => {
       order.push("plugin");
       host.registerLoader(async () => ({ hello: "Hello" }));
       return () => void order.push("cleanup");
@@ -587,8 +754,8 @@ describe(".with chaining — order is the caller's", () => {
 
   it("keeps a loader configured by loader(map) when plugins() lands after it", async () => {
     const i18n = createI18n({ locale: "en", exposeGlobal: false })
-      .with(loader({ en: async () => ({ hello: "Hello" }) }))
-      .with(plugins());
+      .use(loader({ en: async () => ({ hello: "Hello" }) }))
+      .use(plugins());
 
     await i18n.init();
 

@@ -4,10 +4,10 @@
 // so there is exactly one way to enable it, for every catalog source (inline,
 // loader, CDN, API):
 //
-//   createI18n({ locale: "en", compiler: icuCompiler }).with(fetchLoader({ … }))
+//   createI18n({ locale: "en", compiler: icuCompiler }).use(fetchLoader({ … }))
 //
 // No ordering rule comes with it: the option is read in the constructor, so
-// composition (`.with(loader())`, `.with(plugins())`, …) is unaffected.
+// composition (`.use(loader())`, `.use(plugins())`, …) is unaffected.
 //
 // Deliberately not exported from the root, which is the BASE host with the
 // simple compiler. This subpath must stay out of the package `sideEffects`
