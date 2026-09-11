@@ -58,6 +58,34 @@ test("registerLoader after .use(loader()) in the same fence → clean", () => {
   assert.deepEqual(rulesOf(body), []);
 });
 
+test("registerLoader after .use(loader(map)) keeps its exemption", () => {
+  // The chain-exemption tokens are keyed on the VERB, so retiring `.with` took
+  // the exemption with it until they were moved: nine correctly-composed pages
+  // in the corpus were reported for `registerLoader` calls their own chain had
+  // already earned. The map argument is the shape the pages actually write.
+  const body = [
+    "```ts",
+    "const i18n = createI18n({ locale: 'en' }).use(loader({ de: () => import('./de.json') }));",
+    "i18n.registerLoader(myLoader);",
+    "```",
+  ].join("\n");
+
+  assert.deepEqual(rulesOf(body), []);
+});
+
+test("registerPlugin after .use(plugins()) keeps its exemption", () => {
+  // Same fact for the other capability, and the rule that asks for it is new:
+  // the 0.4 `.use(Plugin())` sites all became `registerPlugin(…)`.
+  const body = [
+    "```ts",
+    "const i18n = createI18n({ locale: 'en' }).use(plugins());",
+    "i18n.registerPlugin(myPlugin);",
+    "```",
+  ].join("\n");
+
+  assert.deepEqual(rulesOf(body), []);
+});
+
 test("registerLoader after .use(attachLoader) in the same fence → clean", () => {
   const body = [
     "```ts",

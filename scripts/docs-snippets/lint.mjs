@@ -464,13 +464,18 @@ const BANNED_RULES = [
       // is the only verb and an installer is exactly what belongs in it; the
       // mistake is the other argument — a RAW plugin, which every package
       // spells as an Uppercase factory (`FetchLoader()`, `LocaleDetector()`,
-      // `InContextEditor()`) and an app spells as its own function. A raw
-      // plugin returns nothing or a cleanup function, so the host's guard
-      // throws `E_USE_NOT_INSTALLER` rather than silently doing nothing.
+      // `InContextEditor()`) and an app spells as its own function.
+      //
+      // The host's guard is an IDENTITY check: an installer widens the host in
+      // place and hands the SAME object back, so `.use` throws
+      // `E_USE_NOT_INSTALLER` unless the return value is the host it was
+      // given. That is what catches a raw plugin whatever it returns —
+      // nothing, a cleanup function, or (an async plugin) a Promise, which a
+      // shape check would have waved through as an object.
       //
       // An Uppercase callee is the detectable half. A lowercase local function
-      // handed straight to `.use(` is indistinguishable from an installer by
-      // shape alone, and the guard catches it at runtime; this rule does not
+      // handed straight to `.use(` is indistinguishable from an installer in
+      // the text, and the runtime guard is what catches it; this rule does not
       // guess. `icu` is still deliberately absent — it is not a plugin in the
       // wrong slot, it is a name that no longer exists, and
       // `banned/icu-installer` below reports it with the message that says
