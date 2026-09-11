@@ -72,10 +72,14 @@ const REQUIRED_CASES = [
   "ctor-icu-compiler", // 4: inline ICU catalog -> `compiler: icuCompiler`
   "ctor-devtools-options", // 5: exposeGlobal / instanceId -> `devtools({…})`
   "ctor-type-only-import", // runtime installer never merges into `import type`
-  "ctor-nested-catalog", // 6: non-flat catalog -> `flattenCatalog(…)`
-  "chain-with-verb", // 7: a 0.5-pre `.with(installer)` chain -> `.use(installer)`
-  "chain-with-residual", // 7: a `.with` reached through a STORED binding
-  "stored-register-plugin", // 8: `host.use(raw)` on a proven plugin host
+  "chain-with-verb", // 6: a 0.5-pre `.with(installer)` chain -> `.use(installer)`
+  "chain-with-residual", // 6: a `.with` reached through a STORED binding
+  "stored-register-plugin", // 7: `host.use(raw)` on a proven plugin host
+  "flatten-catalog-subpath", // 8: `flattenCatalog` off `@comvi/core/loader`
+  "flatten-catalog-binding-root", // 8: the same, off a binding root, aliased
+  // a NESTED inline catalog: byte-identical, empty report — the base host
+  // flattens it, so there is no migration and nothing to report.
+  "ctor-nested-catalog",
   "prologue-shebang", // shebang + directive prologue keep their positions
   // one golden per report-only residual.
   "report-slim-rename",
@@ -90,6 +94,9 @@ const REQUIRED_CASES = [
   "report-icu-installer",
   // a `.with` the sweep cannot attribute to a host: reported, never rewritten.
   "report-residual-with",
+  // `flattenCatalog` reached through a namespace, an `import()` or a shared
+  // re-export clause: the retarget cannot rewrite any of the three.
+  "report-flatten-catalog-moved",
 ];
 
 test("every matrix row and report-only shape has a golden fixture", () => {
@@ -145,8 +152,9 @@ test("CRLF sources come back with CRLF", () => {
       "chain-with-verb",
       "ctor-devtools-options",
       "ctor-icu-compiler",
-      "ctor-nested-catalog",
       "ctor-type-only-import",
+      "flatten-catalog-binding-root",
+      "flatten-catalog-subpath",
       "hook-block-scoped",
       "hook-export-split",
       "hook-nospace-keyword",
@@ -975,6 +983,186 @@ const i18n = createI18n({ locale: "en", compiler: icuCompiler }).with(loader());
   assert.deepEqual(result.manual, []);
 });
 
+/**
+ * Nesting is NOT a migration any more: the base host flattens
+ * `{ nav: { home } }` itself, at the one seam a catalog enters, whether or not
+ * anything is composed onto it. The old rule wrapped every nested locale in
+ * `flattenCatalog(…)`, which is now pure noise — and an advisory saying "check
+ * this by hand for nested keys" is worse than noise, because there is nothing
+ * to find. So the whole shape is silent: no edit, no import, no report.
+ *
+ * Every host entry is checked, because the hook that made nesting a capability
+ * was installed by composition and the bug it left behind was host-specific.
+ */
+test("a nested inline catalog is silent on every host entry", async (t) => {
+  const hosts = [
+    ["@comvi/core", "createI18n"],
+    ["@comvi/core", "I18n"],
+    ["@comvi/react", "createI18n"],
+    ["@comvi/vue", "createI18n"],
+    ["@comvi/next/server", "createI18n"],
+  ];
+  for (const [module, factory] of hosts) {
+    await t.test(`${factory} from ${module}`, () => {
+      const construct = factory === "I18n" ? `new ${factory}` : factory;
+      const source = `import { ${factory} } from "${module}";
+export const i18n = ${construct}({
+  locale: "en",
+  translation: { en: { nav: { home: "Home" } }, "en:footer": { legal: { imprint: "I" } } },
+});
+`;
+
+      const result = transformSource(source, "nested.ts");
+
+      assert.equal(result.text, source, "a nested catalog must come back byte-identical");
+      assert.equal(result.rewrites, 0);
+      assert.deepEqual(result.manual, []);
+    });
+  }
+});
+
+/**
+ * The catalogs the codemod CANNOT read still get an advisory, and it must not
+ * send the reader looking for nesting: whatever shape the runtime value turns
+ * out to be, the host flattens it. ICU is the one thing left to check by hand.
+ */
+test("an unreadable catalog is flagged for ICU only, never for nesting", () => {
+  const source = `import { createI18n } from "@comvi/core";
+import catalogs from "./catalogs.json";
+export const i18n = createI18n({ locale: "en", translation: catalogs });
+`;
+
+  const details = transformSource(source, "opaque.ts").manual.map(({ detail }) => detail);
+
+  assert.deepEqual(details, [
+    "`translation` is not an inline catalog — check it by hand for ICU comma syntax",
+  ]);
+});
+
+/**
+ * `flattenCatalog` itself did not change; only the entry that publishes it did.
+ * So the retarget is an IMPORT rewrite and nothing else — the call site is not
+ * even read — and it has to reach every 0.4 spelling of the old home.
+ */
+test("a flattenCatalog import is retargeted from every entry that dropped it", async (t) => {
+  const dropped = [
+    "@comvi/core/loader",
+    "@comvi/react",
+    "@comvi/solid",
+    "@comvi/svelte",
+    "@comvi/vue",
+    "@comvi/next/client",
+    "@comvi/next/server",
+  ];
+  for (const module of dropped) {
+    await t.test(module, () => {
+      const source = `import { flattenCatalog } from "${module}";
+export const flat = flattenCatalog({ nav: { home: "Home" } });
+`;
+
+      const result = transformSource(source, "flatten.ts");
+
+      assert.equal(
+        result.text,
+        `import { flattenCatalog } from "@comvi/core";
+export const flat = flattenCatalog({ nav: { home: "Home" } });
+`,
+      );
+      assert.deepEqual(result.manual, []);
+      assert.deepEqual(Object.fromEntries(result.transforms), { "flatten-catalog-source": 1 });
+    });
+  }
+});
+
+/**
+ * `@comvi/next` (the ROOT) never re-exported the flattener, and neither does
+ * anyone's own barrel file. Retargeting an import the codemod cannot vouch for
+ * would point it at a module that may not have the name either.
+ */
+test("an entry that never published flattenCatalog is left alone", async (t) => {
+  for (const module of ["@comvi/next", "@comvi/core", "./i18n/barrel"]) {
+    await t.test(module, () => {
+      const source = `import { flattenCatalog } from "${module}";
+export const flat = flattenCatalog({ nav: { home: "Home" } });
+`;
+
+      const result = transformSource(source, "flatten.ts");
+
+      assert.equal(result.text, source);
+      assert.deepEqual(result.manual, []);
+    });
+  }
+});
+
+/**
+ * A clause the flattener SHARES is split, not dragged: `createI18n` still comes
+ * from the binding root. Two shapes have to survive that split — a default
+ * import, whose braces must not be left empty, and an alias, which is the
+ * user's own name at every call site.
+ */
+test("a shared import clause is split and the surrounding bindings keep their module", () => {
+  const source = `import host, { createI18n, flattenCatalog as flat } from "@comvi/vue";
+import { loader } from "@comvi/core/loader";
+export const i18n = createI18n({ locale: "en", translation: { en: flat({ a: { b: "c" } }) } });
+export const parts = [host, loader];
+`;
+
+  const result = transformSource(source, "shared.ts");
+
+  assert.equal(
+    result.text,
+    `import host, { createI18n } from "@comvi/vue";
+import { loader } from "@comvi/core/loader";
+import { flattenCatalog as flat } from "@comvi/core";
+export const i18n = createI18n({ locale: "en", translation: { en: flat({ a: { b: "c" } }) } });
+export const parts = [host, loader];
+`,
+  );
+  assert.deepEqual(result.manual, []);
+});
+
+test("the sole name in a clause beside a default import leaves no empty braces", () => {
+  const source = `import host, { flattenCatalog } from "@comvi/svelte";
+export const parts = [host, flattenCatalog({ a: { b: "c" } })];
+`;
+
+  const result = transformSource(source, "default-plus-named.ts");
+
+  assert.equal(
+    result.text,
+    `import host from "@comvi/svelte";
+import { flattenCatalog } from "@comvi/core";
+export const parts = [host, flattenCatalog({ a: { b: "c" } })];
+`,
+  );
+});
+
+/**
+ * A `/slim` entry that also names the flattener has ONE right answer, and both
+ * rules want the same string. Planning the retarget first — and letting it
+ * claim the declaration — is what keeps this from being either an overlapping
+ * edit (a thrown codemod) or a two-pass convergence.
+ */
+test("a /slim entry naming flattenCatalog converges in one pass", () => {
+  const source = `import { flattenCatalog } from "@comvi/react/slim";
+import { createSlimI18n } from "@comvi/react/slim";
+export const i18n = createSlimI18n({ locale: "en", translation: { en: flattenCatalog({}) } });
+`;
+
+  const result = transformSource(source, "slim-flatten.ts");
+
+  assert.equal(
+    result.text,
+    `import { flattenCatalog } from "@comvi/core";
+import { createI18n } from "@comvi/react";
+export const i18n = createI18n({ locale: "en", translation: { en: flattenCatalog({}) } });
+`,
+  );
+  const again = transformSource(result.text, "slim-flatten.ts");
+  assert.equal(again.text, result.text, "one pass must be enough");
+  assert.equal(again.rewrites, 0);
+});
+
 test("transformed TypeScript goldens compile", (t) => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "comvi-codemod-tsc-"));
   t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
@@ -991,8 +1179,9 @@ test("transformed TypeScript goldens compile", (t) => {
       "chain-with-verb",
       "ctor-devtools-options",
       "ctor-icu-compiler",
-      "ctor-nested-catalog",
       "ctor-type-only-import",
+      "flatten-catalog-binding-root",
+      "flatten-catalog-subpath",
       "hook-block-scoped",
       "hook-export-split",
       "hook-nospace-keyword",
@@ -1057,18 +1246,23 @@ test("transformed TypeScript goldens compile", (t) => {
  * `use` is the ONE composition verb here, as on the real host, and the raw
  * plugin queue is `registerPlugin` — so a golden that still emitted `.with(` or
  * queued a plugin through `use` fails to compile instead of passing the gate.
+ *
+ * `flattenCatalog` is on the core ROOT and NOWHERE else, for the same reason: a
+ * golden that left the specifier pointing at `@comvi/core/loader` or at a
+ * binding root has to fail here, not resolve by accident.
  */
 function writeStandIns(dir) {
   const files = {
     "comvi/api.ts": `export interface MessageCompiler {
   readonly cid: number;
 }
+export type TranslationValue = string | { [key: string]: TranslationValue };
 export interface I18nPlugin {
   (host: Host): void | (() => void);
 }
 export interface HostOptions {
   locale: string;
-  translation?: Record<string, Record<string, string>>;
+  translation?: Record<string, Record<string, TranslationValue>>;
   compiler?: MessageCompiler;
   exposeGlobal?: boolean;
   instanceId?: string;
@@ -1118,12 +1312,14 @@ export declare function inContextEditor(options?: {
     "comvi/core.ts": `export { createI18n, flattenCatalog, I18n } from "./api";
 export type * from "./api";
 `,
+    "comvi/core/loader.ts": `export { loader } from "../api";
+`,
     "comvi/core/plugins.ts": `export { attachPlugins, definePlugin, plugins } from "../api";
 `,
     "comvi/core/devtools.ts": `export { devtools } from "../api";
 export type { DevtoolsOptions } from "../api";
 `,
-    "comvi/react.ts": `export { createI18n, devtools, flattenCatalog, I18n } from "./api";
+    "comvi/react.ts": `export { createI18n, devtools, I18n } from "./api";
 export { attachPlugins, definePlugin, icuCompiler, loader, plugins } from "./api";
 export type * from "./api";
 
@@ -1215,7 +1411,10 @@ function makeShapesTree(t) {
   t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
   fs.copyFileSync(path.join(FIXTURES, "prologue-shebang.input.mjs"), path.join(dir, "cli.mjs"));
   fs.copyFileSync(path.join(FIXTURES, "t1-pure-loader.input.tsx"), path.join(dir, "a.tsx"));
-  fs.copyFileSync(path.join(FIXTURES, "ctor-nested-catalog.input.ts"), path.join(dir, "i18n.ts"));
+  fs.copyFileSync(
+    path.join(FIXTURES, "flatten-catalog-subpath.input.ts"),
+    path.join(dir, "i18n.ts"),
+  );
   return dir;
 }
 
@@ -1227,11 +1426,11 @@ test("the report counts every transform by shape", (t) => {
   assert.deepEqual(report.summary.transforms, {
     "capability-hook": 2,
     "devtools-options": 1,
-    "nested-catalog": 2,
+    "flatten-catalog-source": 1,
     "raw-plugin-helper": 1,
     "slim-specifier": 1,
   });
-  assert.equal(report.summary.rewrites, 7);
+  assert.equal(report.summary.rewrites, 6);
 });
 
 test("the human report names the same breakdown the JSON carries", (t) => {
@@ -1239,7 +1438,7 @@ test("the human report names the same breakdown the JSON carries", (t) => {
 
   const rendered = run(["*"], dir).stdout;
 
-  assert.match(rendered, /transform {2}nested-catalog x2/);
+  assert.match(rendered, /transform {2}flatten-catalog-source x1/);
 });
 
 test("the report is sorted by path:line", (t) => {

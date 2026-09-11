@@ -7,10 +7,13 @@
  *     `useI18nLoader()` / `useI18nPlugins()`;
  *   • `/slim` specifiers and `createSlimI18n` collapse into the one entry,
  *     chained `.use(Plugin(o))` becomes `.use(installer(o))` and `.with(…)`
- *     becomes `.use(…)` — one composition verb — and the
- *     constructor options that became capabilities (`compiler: icuCompiler`,
- *     `devtools({ exposeGlobal, instanceId })`, `flattenCatalog`) move with
- *     their imports.
+ *     becomes `.use(…)` — one composition verb — the constructor options that
+ *     became capabilities (`compiler: icuCompiler`,
+ *     `devtools({ exposeGlobal, instanceId })`) move with their imports, and a
+ *     `flattenCatalog` import is retargeted onto the `@comvi/core` root.
+ *
+ * A nested inline catalog needs NOTHING: the base host flattens it itself, so
+ * neither family touches it and neither reports it.
  *
  * Both report — deterministically, never silently — every shape they refuse to
  * rewrite.
