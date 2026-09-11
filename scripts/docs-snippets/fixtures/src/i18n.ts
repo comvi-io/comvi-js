@@ -7,7 +7,7 @@
  * says nothing about the snippet under test.
  */
 import { createI18n } from "@comvi/core";
-import { icu } from "@comvi/core/icu";
+import { icuCompiler } from "@comvi/core/icu";
 import { loader } from "@comvi/core/loader";
 import { plugins } from "@comvi/core/plugins";
 
@@ -18,8 +18,8 @@ export const i18n = createI18n({
   locale: defaultLocale,
   fallbackLocale: defaultLocale,
   translation: { en: {} },
+  compiler: icuCompiler,
 })
-  .with(icu())
   .with(
     loader({
       de: () => import("./locales/de.json"),

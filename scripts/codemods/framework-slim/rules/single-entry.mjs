@@ -7,7 +7,13 @@
  * | 4 | inline ICU catalog                    | `compiler: icuCompiler`      |
  * | 5 | `exposeGlobal` / `instanceId` options | `.with(devtools({…}))`       |
  * | 6 | non-flat inline catalog               | `flattenCatalog(…)`          |
- * | + | `.with(icu())` after a loader         | moved BEFORE it              |
+ * | + | `.with(icu())`, anywhere in a chain   | reported, never rewritten    |
+ *
+ * Row `+` is the one shape here that has no rewrite. `.with(icu())` was a real
+ * installer during 0.5 development and is not part of the released surface: ICU
+ * is a compiler setting, so the fix is `compiler: icuCompiler` in the
+ * constructor options, and `icu(myOwnCompiler)` means the codemod cannot know
+ * which compiler to name. So the chain is refused whole and reported.
  *
  * TWO invariants make this safe to run on someone else's app:
  *
@@ -19,10 +25,9 @@
  *     and reports it: a half-migrated chain silently reorders capability
  *     installation, which is worse than not migrating it at all.
  *   • EVERY EDIT IS A SPLICE OF THE ORIGINAL TEXT. Options move by copying
- *     their own source text, catalogs are wrapped rather than rebuilt, and the
- *     `.with(icu())` reorder moves the user's own characters. Comments,
- *     formatting, directive prologues, shebangs and CRLF survive because
- *     nothing is ever re-printed from the tree.
+ *     their own source text and catalogs are wrapped rather than rebuilt.
+ *     Comments, formatting, directive prologues, shebangs and CRLF survive
+ *     because nothing is ever re-printed from the tree.
  *
  * The host is resolved through the IMPORT, never by name: a `createI18n` that
  * comes from a local factory is not this API and is left alone, and
@@ -37,7 +42,6 @@ import {
   HOST_CLASS,
   HOST_FACTORY,
   ICU_COMPILER,
-  ICU_INSTALLER,
   LOADER_INSTALLERS,
   PLUGIN_HOST_INSTALLER,
   PLUGIN_HOST_PROVIDERS,
@@ -118,6 +122,41 @@ function installedBy(root, step, hostModule) {
   const owner = pluginEntry === undefined ? undefined : PLUGIN_FACTORY_MODULES.get(pluginEntry[0]);
   const fromHost = hostModule !== "@comvi/core" && binding.source === hostModule;
   return binding.source === coreModule || binding.source === owner || fromHost ? api : undefined;
+}
+
+/**
+ * The name the removed ICU installer was imported under. It is deliberately NOT
+ * in `capabilities.mjs`: that file is the LIVE 0.5.0 surface, and this is a name
+ * only the detector below still has a use for.
+ */
+const REMOVED_ICU_INSTALLER = "icu";
+
+/**
+ * The LOCAL name a `.with(x(…))` step uses for the removed `icu()` installer,
+ * or `undefined` when the step is something else.
+ *
+ * Resolved through the IMPORT rather than the call text, for the two reasons
+ * every other provenance check here has: `import { icu as installIcu }` writes
+ * `installIcu()` at the call site, and a reader's own local `icu()` helper is
+ * not this API. Any `@comvi/*` source counts — core publishes it on the
+ * `/icu` subpath while every wrapper re-exports it from its single entry, and
+ * both spellings name the same removed function. The local name is what comes
+ * back because it is what the reader has to go and find.
+ */
+function removedIcuInstallerAt(root, step) {
+  const args = argumentsOf(step.call);
+  if (args.length !== 1) return undefined;
+  const argument = args[0];
+  const name =
+    calleeName(argument) ?? (argument.kind() === "identifier" ? argument.text() : undefined);
+  if (name === undefined) return undefined;
+  const binding = importedBinding(root, name);
+  const removed =
+    binding !== undefined &&
+    !binding.typeOnly &&
+    binding.imported === REMOVED_ICU_INSTALLER &&
+    binding.source.startsWith("@comvi/");
+  return removed ? name : undefined;
 }
 
 const keyText = (key) => (key.kind() === "string" ? key.text().slice(1, -1) : key.text());
@@ -684,19 +723,34 @@ function planChain(root, text, call, hostModule) {
 
   // --- the chain: what does it already compose, and where? ------------------
   let pluginHostAt;
-  let icuStep;
   let devtoolsStep;
   let loaderStep;
   let firstUnknownUse;
 
   for (const step of steps) {
     if (step.method === "with") {
+      // The removed installer is checked FIRST and refuses the chain: it is the
+      // one step whose presence means the text was written against a surface
+      // that never shipped, and rewriting the rest around it would leave a
+      // chain that still does not resolve.
+      const removedIcu = removedIcuInstallerAt(root, step);
+      if (removedIcu !== undefined) {
+        blockers.push({
+          offset: startOf(step.property),
+          shape: "icu-installer-removed",
+          detail:
+            `\`.with(${removedIcu}(…))\` composes the removed \`${REMOVED_ICU_INSTALLER}()\` ` +
+            `installer — ICU is a compiler setting, not a capability: drop the step and pass ` +
+            `\`compiler: ${ICU_COMPILER}\` in the \`${HOST_FACTORY}(…)\` options, which serves ` +
+            `inline, loader, CDN and API catalogs alike`,
+        });
+        continue;
+      }
       const installer = installedBy(root, step, hostModule);
       if (installer === undefined) continue;
       if (PLUGIN_HOST_PROVIDERS.includes(installer) && pluginHostAt === undefined) {
         pluginHostAt = steps.indexOf(step);
       }
-      if (installer === ICU_INSTALLER && icuStep === undefined) icuStep = step;
       if (DEVTOOLS_PROVIDERS.includes(installer)) devtoolsStep = step;
       if (LOADER_INSTALLERS.includes(installer) && loaderStep === undefined) loaderStep = step;
       continue;
@@ -771,17 +825,10 @@ function planChain(root, text, call, hostModule) {
     }
   }
 
-  // --- safe ordering: `icu()` cannot run once a loader has ingested --------
-  if (icuStep !== undefined && loaderStep !== undefined) {
-    if (steps.indexOf(icuStep) > steps.indexOf(loaderStep)) {
-      const from = icuStep.object.range().end.index;
-      const to = icuStep.call.range().end.index;
-      const before = loaderStep.object.range().end.index;
-      edits.push({ start: from, end: to, text: "" });
-      edits.push({ start: before, end: before, text: text.slice(from, to) });
-      count("icu-before-loader");
-    }
-  }
+  // There is no ordering rule to enforce here. ICU used to be a composed step
+  // that had to reach the host before the first catalog, and that is exactly
+  // what the constructor option replaced: a compiler named in the options is
+  // decided before anything is ingested, from any source.
 
   // --- the constructor options ----------------------------------------------
   const inline = options !== undefined && options.kind() === "object";
@@ -900,17 +947,15 @@ function planChain(root, text, call, hostModule) {
 
   // --- the catalogs the codemod cannot read --------------------------------
   const compilerProven =
-    compilerAdded ||
-    icuStep !== undefined ||
-    (properties?.some(({ key }) => key === "compiler") ?? false);
+    compilerAdded || (properties?.some(({ key }) => key === "compiler") ?? false);
   if (loaderStep !== undefined && inline && !compilerProven) {
     advisories.push({
       offset: startOf(loaderStep.property),
       shape: "runtime-icu-unproven",
       detail:
         `this host loads catalogs at runtime and keeps the default compiler — if any loaded ` +
-        `catalog uses ICU syntax, compose \`.with(${ICU_INSTALLER}())\` BEFORE the loader ` +
-        `(the codemod cannot read remote catalogs)`,
+        `catalog uses ICU syntax, pass \`compiler: ${ICU_COMPILER}\` in the ` +
+        `\`${HOST_FACTORY}(…)\` options (the codemod cannot read remote catalogs)`,
     });
   }
 

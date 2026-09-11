@@ -47,7 +47,19 @@ export declare function loader(
 `;
 
 const CORE_PLUGINS = `export declare function plugins(): <T>(i18n: T) => T;\n`;
-const CORE_ICU = `export declare function icu(): <T>(i18n: T) => T;\n`;
+
+/**
+ * `@comvi/core/icu` publishes a COMPILER, not an installer. There is no `icu()`
+ * and no `CompilerLockedError`: ICU is enabled by `compiler: icuCompiler` in the
+ * constructor options, so a snippet that reaches for the installer must fail to
+ * resolve here exactly as it would in a reader's project.
+ */
+const CORE_ICU = `
+export interface MessageCompiler {
+  (message: string): (params?: Record<string, unknown>) => string;
+}
+export declare const icuCompiler: MessageCompiler;
+`;
 
 /**
  * Write the stub under `dir` and return `dir`, ready to be an `--sdk-root`.

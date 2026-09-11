@@ -109,8 +109,18 @@ const PLUGIN_TOKENS = [
   /\bcreateNextI18n\s*\(/,
 ];
 
-/** Tokens proving the page picked a compiler explicitly (MIGRATION.md §0.1). */
-const ICU_TOKENS = [/\bicuCompiler\b/, /@comvi\/core\/icu/, /\.with\(\s*icu\s*\(/];
+/**
+ * Tokens proving the page picked a compiler explicitly (MIGRATION.md §0.1).
+ *
+ * `.with(icu(` was evidence while the installer existed. It is not evidence any
+ * more — the installer is gone, so a page that still writes it has named NO
+ * compiler the reader can use, and counting it would green exactly the page
+ * `banned/icu-installer` below exists to catch.
+ */
+const ICU_TOKENS = [/\bicuCompiler\b/, /@comvi\/core\/icu/];
+
+/** The removed installer's imported name, `icuCompiler` deliberately excluded. */
+const ICU_INSTALLER_IMPORT = /^\s*(?:type\s+)?(icu)(?![\w$])/;
 
 /** An ICU argument in a catalog string: `{count, plural, …}` (MIGRATION.md §0). */
 const ICU_SYNTAX = /\{\s*\w+\s*,\s*(?:plural|selectordinal|select)\s*,/;
@@ -396,13 +406,57 @@ const BANNED_RULES = [
     scope: "always",
     find(text) {
       const matches = [];
+      // `icu` is deliberately absent: it is not an installer that belongs in the
+      // wrong slot, it is a name that no longer exists. `banned/icu-installer`
+      // owns every mention of it, in either slot, with the message that says so.
       const re =
-        /\.use\s*\(\s*(fetchLoader|cdnLoader|localeDetector|inContextEditor|loader|plugins|devtools|icu)\s*\(/g;
+        /\.use\s*\(\s*(fetchLoader|cdnLoader|localeDetector|inContextEditor|loader|plugins|devtools)\s*\(/g;
       for (const match of text.matchAll(re)) matches.push({ index: match.index, text: match[0] });
       return matches;
     },
     message:
       "an installer goes in the .with() slot, not .use(): this throws E_INSTALLER_NESTED_USE at init().",
+  },
+  {
+    id: "banned/icu-installer",
+    migration: "MIGRATION.md §0 (ICU row)",
+    scope: "always",
+    find(text) {
+      const matches = [];
+      for (const match of text.matchAll(/\.with\s*\(\s*icu\s*\(/g)) {
+        matches.push({ index: match.index, text: match[0] });
+      }
+      // The import is the other half, and the half that survives an alias:
+      // `import { icu as installIcu }` writes `installIcu()` at the call site,
+      // which no call-shape regex can tell from a local helper. The IMPORTED
+      // name is the fact. Specifiers are read one at a time so only the imported
+      // name is inspected — `icuCompiler as icu` renames a live export and is
+      // not this finding.
+      // The optional `+` is a diff fence's ADDED line: `codeLines` already
+      // dropped the `-` side, and an added import is code the reader copies.
+      const importRe =
+        /(?:^|[\n;])[^\S\n]*\+?[^\S\n]*(?:import|export)\s+(?:type\s+)?\{([^}]*)\}\s*from\s*(["'])(@comvi\/[^"']*)\2/g;
+      for (const match of text.matchAll(importRe)) {
+        const clause = match[1];
+        const clauseAt = match.index + match[0].indexOf("{") + 1;
+        let cursor = 0;
+        for (const specifier of clause.split(",")) {
+          const named = ICU_INSTALLER_IMPORT.exec(specifier);
+          if (named !== null) {
+            matches.push({
+              index: clauseAt + cursor + named[0].length - named[1].length,
+              text: `import { ${named[1]} } from "${match[3]}"`,
+            });
+          }
+          cursor += specifier.length + 1;
+        }
+      }
+      return matches;
+    },
+    message:
+      "the icu() installer was removed: ICU is a compiler setting, not a capability. " +
+      "Pass `compiler: icuCompiler` in the constructor options — it works for inline, loader, " +
+      "CDN and API catalogs alike.",
   },
   {
     id: "banned/removed-svelte-api",
@@ -704,9 +758,10 @@ export function lintDocument({ file, source, sdkVersion }) {
       rule: "required/icu-compiler",
       message:
         "this page shows an ICU argument, and the 0.5.0 default compiler does not render it: " +
-        "dev throws at ingestion, production renders the braces literally. Name `icuCompiler` " +
-        "(inline catalogs) or `.with(icu())` from @comvi/core/icu (remote catalogs).",
-      migration: "MIGRATION.md §0 (ICU row) and §0.1 (the compiler has a timing rule)",
+        "dev throws at ingestion, production renders the braces literally. Name " +
+        "`compiler: icuCompiler` from @comvi/core/icu — the one enable form, for every catalog " +
+        "source.",
+      migration: "MIGRATION.md §0 (ICU row) and §0.1 (the compiler option)",
     });
   }
 

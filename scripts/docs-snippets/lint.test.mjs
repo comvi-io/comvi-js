@@ -705,7 +705,10 @@ test("the same catalog on a page that names icuCompiler → clean", () => {
   assert.deepEqual(rulesOf(body), []);
 });
 
-test("the same catalog on a page that composes .with(icu()) → clean", () => {
+test("the same catalog on a page that composes .with(icu()) → the installer is NOT evidence", () => {
+  // `.with(icu())` used to vouch for the page. The installer is gone, so it
+  // vouches for nothing and is itself banned: a reader copying this fence gets
+  // an unresolved import, and the page still never names a usable compiler.
   const body = [
     '```json title="locales/en.json"',
     '{ "cart": "{count, plural, one {# item} other {# items}}" }',
@@ -715,7 +718,94 @@ test("the same catalog on a page that composes .with(icu()) → clean", () => {
     "```",
   ].join("\n");
 
+  assert.deepEqual(rulesOf(body), ["banned/icu-installer", "required/icu-compiler"]);
+});
+
+test(".with(icu()) alone → banned at the call, whatever else the page says", () => {
+  const body = ["```ts", "const i18n = createI18n({ locale: 'en' }).with(icu());", "```"].join(
+    "\n",
+  );
+
+  const findings = findingsOf(body);
+
+  assert.equal(findings.length, 1);
+  assert.equal(findings[0].rule, "banned/icu-installer");
+  assert.equal(findings[0].line, 6);
+  assert.equal(findings[0].col, "const i18n = createI18n({ locale: 'en' })".length + 1);
+  assert.match(findings[0].message, /compiler: icuCompiler/);
+});
+
+test("importing the bare `icu` from a @comvi specifier → banned even with no call in the fence", () => {
+  // The alias is why the IMPORT is the fact: `icu as installIcu` writes
+  // `installIcu()` at the call site, which no call-shape regex separates from a
+  // local helper of the same name.
+  const body = [
+    "```ts",
+    "import { createI18n, icu as installIcu } from '@comvi/react';",
+    "```",
+  ].join("\n");
+
+  const findings = findingsOf(body);
+
+  assert.equal(findings.length, 1);
+  assert.equal(findings[0].rule, "banned/icu-installer");
+  assert.equal(findings[0].line, 6);
+  assert.equal(findings[0].col, "import { createI18n, ".length + 1);
+});
+
+test("importing `icu` from @comvi/core/icu → banned, the subpath still publishes the compiler", () => {
+  const body = ["```ts", "import { icu } from '@comvi/core/icu';", "```"].join("\n");
+
+  assert.deepEqual(rulesOf(body), ["banned/icu-installer"]);
+});
+
+test("importing `icuCompiler` → clean, that is the surviving export", () => {
+  // The prefix match is the trap: `icu` is a prefix of `icuCompiler`, and a
+  // rule that read it as one would ban the very fix it recommends.
+  const body = [
+    "```ts",
+    "import { createI18n, icuCompiler } from '@comvi/vue';",
+    "const i18n = createI18n({ locale: 'en', compiler: icuCompiler });",
+    "```",
+  ].join("\n");
+
   assert.deepEqual(rulesOf(body), []);
+});
+
+test("`icuCompiler as icu` → clean, the imported name is the live export", () => {
+  const body = ["```ts", "import { icuCompiler as icu } from '@comvi/core/icu';", "```"].join("\n");
+
+  assert.deepEqual(rulesOf(body), []);
+});
+
+test("importing `icu` from another library → not this rule's business", () => {
+  const body = ["```ts", "import { icu } from 'some-other-i18n';", "```"].join("\n");
+
+  assert.deepEqual(rulesOf(body), []);
+});
+
+test("a diff fence's removed .with(icu()) line → not linted, it teaches the fix", () => {
+  const body = [
+    "```diff",
+    "-import { icu } from '@comvi/core/icu';",
+    "-const i18n = createI18n({ locale: 'en' }).with(icu());",
+    "+import { icuCompiler } from '@comvi/core/icu';",
+    "+const i18n = createI18n({ locale: 'en', compiler: icuCompiler });",
+    "```",
+  ].join("\n");
+
+  assert.deepEqual(rulesOf(body), []);
+});
+
+test("a diff fence's ADDED icu import → linted, that is the line a reader copies", () => {
+  const body = [
+    "```diff",
+    "-import { icuCompiler } from '@comvi/core/icu';",
+    "+import { icu } from '@comvi/core/icu';",
+    "```",
+  ].join("\n");
+
+  assert.deepEqual(rulesOf(body), ["banned/icu-installer"]);
 });
 
 test("the same catalog on a page that names icuCompiler only in prose → clean", () => {
