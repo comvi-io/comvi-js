@@ -249,17 +249,17 @@ blocks would move a binding out of the block that declared it. Unbraced
 one scope — so a merge that would cross them is refused rather than guessed at
 (below). For the **single entry** it migrates host construction:
 
-| shape                                                          | becomes                                             |
-| -------------------------------------------------------------- | --------------------------------------------------- |
-| `@comvi/<pkg>/slim`, on react, solid, svelte, vue, next client | `@comvi/<pkg>`                                      |
-| `@comvi/core/slim`                                             | `@comvi/core`                                       |
-| `createSlimI18n`                                               | `createI18n` (import, references, aliases)          |
-| `.use(FetchLoader(o))` + the two other first-party factories   | `.use(fetchLoader(o))` in place                     |
-| `.use(YourPlugin(o))`                                          | `.use(plugins())` + `registerPlugin(YourPlugin(o))` |
-| a 0.5-pre-release `.with` call, anywhere in a chain            | `.use` — the one composition verb                   |
-| inline `translation` with ICU comma syntax                     | `compiler: icuCompiler` in the same call            |
-| `exposeGlobal` / `instanceId` options                          | `.use(devtools({ … }))`, options moved              |
-| a nested inline `translation` catalog                          | `flattenCatalog(…)`, per locale                     |
+| shape                                                          | becomes                                      |
+| -------------------------------------------------------------- | -------------------------------------------- |
+| `@comvi/<pkg>/slim`, on react, solid, svelte, vue, next client | `@comvi/<pkg>`                               |
+| `@comvi/core/slim`                                             | `@comvi/core`                                |
+| `createSlimI18n`                                               | `createI18n` (import, references, aliases)   |
+| `.use(FetchLoader(o))` + the two other first-party factories   | `.use(fetchLoader(o))` in place              |
+| `.use(YourPlugin(o))`                                          | `.use(definePlugin(YourPlugin(o)))` in place |
+| a 0.5-pre-release `.with` call, anywhere in a chain            | `.use` — the one composition verb            |
+| inline `translation` with ICU comma syntax                     | `compiler: icuCompiler` in the same call     |
+| `exposeGlobal` / `instanceId` options                          | `.use(devtools({ … }))`, options moved       |
+| a nested inline `translation` catalog                          | `flattenCatalog(…)`, per locale              |
 
 A **chain** is the unit, meaning `createI18n(…)` plus the `.use` calls chained
 onto it, so nothing outside one is guessed at. Imports are maintained in
@@ -316,13 +316,18 @@ and as JSON) and left alone:
   not a statically named factory call, plus one on a stored host; the fix is a
   change at CONSTRUCTION, so the recipe is printed instead. These report shapes
   carry the `registerPlugin` name now, not the 0.4 `use` one
-- a **raw plugin handed to `.use(…)`**: a plugin of your own, or an uppercase
-  first-party factory, in the installer slot. `.use` throws
-  `E_USE_NOT_INSTALLER` on it, because what a plugin hands back is not the host,
-  and the rewrite is a choice the codemod will not make for you —
-  `.use(definePlugin(fn))` keeps it in the chain, `registerPlugin(fn)` puts it
-  on a host that already composed `plugins()` — so the call site is reported
-  with both recipes
+- a **raw plugin in the `.use(…)` slot that cannot be proven to be one**. `.use`
+  throws `E_USE_NOT_INSTALLER` on a raw plugin, because what a plugin hands back
+  is not the host, and the rule is mechanical: a plugin the tool can identify
+  from the source alone is rewritten to `.use(definePlugin(plugin))` in place,
+  and one it cannot is reported instead of guessed at. The unprovable shapes are
+  the ones where the argument is not a single named call — a spread, a plugin
+  read out of a variable or an array — a lowercase-named call it has to take at
+  its word as an installer, a first-party uppercase name it cannot trace to the
+  package that publishes it, and a `.use(…)` on a host held in a variable whose
+  chain never composed `plugins()`. Each is reported with both recipes:
+  `.use(definePlugin(fn))` keeps the plugin in the chain, `registerPlugin(fn)`
+  puts it on a host that already composed `plugins()`
 - a first-party factory NAME that is not a first-party import
 - `exposeGlobal` / `instanceId` beside a chain that already composes `devtools(…)`
 - `createI18n(optionsBuiltElsewhere)`, whose contents it cannot see
