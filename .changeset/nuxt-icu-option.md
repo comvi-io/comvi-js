@@ -12,5 +12,5 @@ the option is ignored with a one-line build-time warning — a composed host pic
 compiler.
 
 Loader, plugin host and devtools discovery still arrive only through `hostModule`. ICU is
-the one capability that is a constructor argument rather than a pipeable installer, which is
-why it alone gets a module option. **ICU is never enabled automatically.**
+the one capability that is a constructor argument rather than something `.with()` can pipe
+on, which is why it alone gets a module option. **ICU is never enabled automatically.**

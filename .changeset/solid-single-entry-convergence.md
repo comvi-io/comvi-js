@@ -11,27 +11,26 @@ accessors changes here; this is the host underneath them, and the packaging half
 `solid-single-package-slim.md`. Compose what you had back — every installer is re-exported
 from `@comvi/solid`, so each fix stays inside the one specifier you already have:
 
-| you had                                      | you add                                                  |
-| -------------------------------------------- | -------------------------------------------------------- |
-| ICU plurals, select, selectordinal           | `compiler: icuCompiler`, or `.with(icu())` pre-ingestion |
-| loader (`registerLoader`, …)                 | `.with(loader(map))`, or `.with(attachLoader)`           |
-| `.use(plugin)`, `onMissingKey`               | `.with(plugins())`, then `use(p)`                        |
-| discovery (`instanceId`, `window.__COMVI__`) | `.with(devtools({ instanceId }))`                        |
-| nested constructor catalogs                  | `flattenCatalog(…)`, or compose `loader()`               |
-| `<tag>` markup through `t()`                 | render `<T>`, or `import "@comvi/core/tags"`             |
+| you had                                      | you add                                            |
+| -------------------------------------------- | -------------------------------------------------- |
+| ICU plurals, select, selectordinal           | `compiler: icuCompiler` in the constructor options |
+| loader (`registerLoader`, …)                 | `.with(loader(map))`, or `.with(attachLoader)`     |
+| `.use(plugin)`, `onMissingKey`               | `.with(plugins())`, then `use(p)`                  |
+| discovery (`instanceId`, `window.__COMVI__`) | `.with(devtools({ instanceId }))`                  |
+| nested constructor catalogs                  | `flattenCatalog(…)`, or compose `loader()`         |
+| `<tag>` markup through `t()`                 | render `<T>`, or `import "@comvi/core/tags"`       |
 
 ```tsx
-import { createI18n, icu, icuCompiler, loader } from "@comvi/solid";
+import { createI18n, icuCompiler, loader } from "@comvi/solid";
 
-// INLINE — the constructor ingests the catalog, so choose the compiler in the same call.
+// INLINE — the constructor ingests the catalog.
 const inline = createI18n({ locale: "en", compiler: icuCompiler, translation });
-// REMOTE — install ahead of the first catalog.
-const remote = createI18n({ locale: "en" }).with(icu()).with(loader(importMap));
+// REMOTE — the same option, in the same place.
+const remote = createI18n({ locale: "en", compiler: icuCompiler }).with(loader(importMap));
 ```
 
-`.with(icu())` is **pre-ingestion only**: the compiler locks at the first catalog that
-reaches the host and a later `icu()` throws with own `code === "E_COMPILER_LOCKED"`, so
-`createI18n({ translation }).with(icu())` is invalid by construction.
+`compiler` is a constructor field held for the instance's life, so one option covers every
+catalog source, and nothing about composition is ordered.
 
 Residual: `t("Click <b>here</b>")` returns that markup as text, because no entry registers
 tag syntax ambiently — development warns the first time, production stays literal and never

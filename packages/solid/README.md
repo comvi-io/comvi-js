@@ -102,13 +102,15 @@ Translations served by the Comvi platform, fetched at runtime instead of bundled
 ```tsx
 // index.tsx
 import { render } from "solid-js/web";
-import { createI18n, icu, I18nProvider } from "@comvi/solid";
+import { createI18n, icuCompiler, I18nProvider } from "@comvi/solid";
 import { cdnLoader } from "@comvi/plugin-fetch-loader/cdn";
 import App from "./App";
 
-const i18n = createI18n({ locale: "en", fallbackLocale: "en" })
-  .with(icu())
-  .with(cdnLoader({ cdnUrl: "https://cdn.comvi.io/your-distribution-id" }));
+const i18n = createI18n({
+  locale: "en",
+  fallbackLocale: "en",
+  compiler: icuCompiler,
+}).with(cdnLoader({ cdnUrl: "https://cdn.comvi.io/your-distribution-id" }));
 
 render(
   () => (
@@ -120,9 +122,9 @@ render(
 );
 ```
 
-`icu()` must be composed before the first catalog reaches the host, so it comes
-ahead of the loader. That is the library's only ordering rule; drop
-`icu()` if the project uses no plural/select.
+`compiler: icuCompiler` is the one way to enable ICU, and it works whatever the
+catalogs come from. Nothing about composition is ordered; drop the option if the
+project uses no plural/select.
 
 There is no `i18n.init()` call here because `<I18nProvider>` initializes the
 host itself (`autoInit`, on by default). The first paint therefore happens while
@@ -226,14 +228,14 @@ entry, one build pass, one solid context. A solid app names one package and
 nothing else, and no sibling entry exists whose `<I18nProvider>` could be
 invisible to this one's `useI18n()`.
 
-| export                                          | what it is                                     |
-| ----------------------------------------------- | ---------------------------------------------- |
-| `createI18n`, `I18n`                            | core's base host: constructor and class        |
-| `icuCompiler`, `icu`                            | from `@comvi/core/icu`: compiler and installer |
-| `loader`, `attachLoader`, `flattenCatalog`      | from `@comvi/core/loader`                      |
-| `plugins`, `attachPlugins`                      | from `@comvi/core/plugins`                     |
-| `devtools`, `attachDevtools`                    | from `@comvi/core/devtools`                    |
-| every primitive, `I18nProvider`, `T`, the types | the solid bindings                             |
+| export                                          | what it is                               |
+| ----------------------------------------------- | ---------------------------------------- |
+| `createI18n`, `I18n`                            | core's base host: constructor and class  |
+| `icuCompiler`                                   | from `@comvi/core/icu`: the ICU compiler |
+| `loader`, `attachLoader`, `flattenCatalog`      | from `@comvi/core/loader`                |
+| `plugins`, `attachPlugins`                      | from `@comvi/core/plugins`               |
+| `devtools`, `attachDevtools`                    | from `@comvi/core/devtools`              |
+| every primitive, `I18nProvider`, `T`, the types | the solid bindings                       |
 
 `I18n` is the class `createI18n` instantiates: core's base one, not a solid
 subclass. Reach for it to type a host you compose yourself, or to call
@@ -258,10 +260,10 @@ const i18n = createI18n({
 <I18nProvider i18n={i18n}>…</I18nProvider>;
 ```
 
-### Inline catalogs with ICU — the `compiler` option
+### ICU — the `compiler` option
 
-The constructor ingests `translation`, so the compiler has to be chosen in the
-same call:
+ICU is a constructor option, so it is chosen in the same call as the rest of the
+options, whatever the catalogs come from:
 
 ```tsx
 import { createI18n, icuCompiler } from "@comvi/solid";
@@ -275,26 +277,20 @@ const i18n = createI18n({
 });
 ```
 
-### Remote catalogs with ICU — `.with(icu())` before ingestion
-
-When the catalog arrives from a loader there is nothing to compile at
-construction time, so install the compiler first. `icu()` is the installer half
-of `@comvi/core/icu` and is re-exported here beside `icuCompiler`, so the whole
-recipe stays inside the one import:
+A catalog that arrives from a loader takes the same option. `icuCompiler` is
+re-exported here, so the whole recipe stays inside the one import:
 
 ```tsx
-import { createI18n, icu, loader } from "@comvi/solid";
+import { createI18n, icuCompiler, loader } from "@comvi/solid";
 
-const i18n = createI18n({ locale: "en" })
-  .with(icu())
-  .with(loader({ uk: () => import("./uk.json") }));
+const i18n = createI18n({ locale: "en", compiler: icuCompiler }).with(
+  loader({ uk: () => import("./uk.json") }),
+);
 ```
 
-`.with(icu())` is **pre-ingestion only**. The compiler locks the moment any
-catalog reaches the host: a constructor `translation`, an `addTranslations`
-call, or a loader merge. A later `icu()` throws with own
-`code === "E_COMPILER_LOCKED"`. So `createI18n({ translation }).with(icu())` is
-invalid by construction: pass `compiler: icuCompiler` there instead.
+The option is a constructor field held for the instance's life, so it covers a
+catalog merged later by a loader as well as a constructor `translation` or an
+`addTranslations` call.
 
 ### Async loading — `loader()`
 
@@ -419,9 +415,9 @@ const privacy = <T i18nKey="privacy" components={{ policy: "a" }} />;
 
 `count === 1 ? "item" : "items"` works in English. It silently ships broken grammar in Polish, Ukrainian, Arabic, Welsh, and 30+ other locales, which have 3, 4, sometimes 6 distinct plural categories that a binary if/else can't express. [ICU MessageFormat](https://unicode-org.github.io/icu/userguide/format_parse/messages/) is the standard syntax for handling them, and it is the syntax Crowdin, Lokalise, Phrase, and every major TMS already speak. Comvi i18n parses it via native [`Intl.PluralRules`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Intl/PluralRules), so every CLDR plural category is correct by default.
 
-ICU is opt-in on the base host: pass `compiler: icuCompiler` for the inline
-catalogs below, or `.with(icu())` before the first remote catalog reaches the
-host. Both names are re-exported from `@comvi/solid`; see
+ICU is opt-in on the base host: pass `compiler: icuCompiler` in the constructor
+options, for the inline catalogs below and for remote ones alike. The name is
+re-exported from `@comvi/solid`; see
 [One package, one entry](#one-package-one-entry). Without a compiler the default
 one never renders these templates as grammar: development throws
 `E_ICU_SYNTAX` at ingestion, and production renders the braced segment

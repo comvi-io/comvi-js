@@ -29,8 +29,8 @@ export default ((options) =>
 ```
 
 Add `.with(plugins())` and `.with(devtools())` as the app needs them; their order among
-themselves is free, and all three only have to be composed before `init()`. Constructor
-catalogs select ICU with the `compiler` option, so `.with(icu())` is not Nuxt's recipe.
+themselves is free, and all three only have to be composed before `init()`. ICU is not
+composed: it is the `compiler` option, and it covers every catalog source.
 
 **The factory receives Nuxt's resolved host options** — `locale` (render locale on the
 client, request locale on the server), `fallbackLocale`, `defaultNs`, `defaultParams`,

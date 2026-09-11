@@ -17,25 +17,25 @@ to compose anything. Its host type is now published as `NextComposedI18n<D>`. No
 Compose what you had back — every installer is re-exported from BOTH host entries, so each
 fix stays inside the specifier you already import:
 
-| you had                                      | you add                                                  |
-| -------------------------------------------- | -------------------------------------------------------- |
-| ICU plurals, select, selectordinal           | `compiler: icuCompiler`, or `.with(icu())` pre-ingestion |
-| loader (`registerLoader`, …)                 | `.with(loader(map))`, or `.with(attachLoader)`           |
-| `.use(plugin)`, `onMissingKey`               | `.with(plugins())`, then `use(p)`                        |
-| discovery (`instanceId`, `window.__COMVI__`) | `.with(devtools({ instanceId }))`                        |
-| nested constructor catalogs                  | `flattenCatalog(…)`, or compose `loader()`               |
-| `<tag>` markup through `t()`                 | render `<T>`, or `import "@comvi/core/tags"`             |
+| you had                                      | you add                                            |
+| -------------------------------------------- | -------------------------------------------------- |
+| ICU plurals, select, selectordinal           | `compiler: icuCompiler` in the constructor options |
+| loader (`registerLoader`, …)                 | `.with(loader(map))`, or `.with(attachLoader)`     |
+| `.use(plugin)`, `onMissingKey`               | `.with(plugins())`, then `use(p)`                  |
+| discovery (`instanceId`, `window.__COMVI__`) | `.with(devtools({ instanceId }))`                  |
+| nested constructor catalogs                  | `flattenCatalog(…)`, or compose `loader()`         |
+| `<tag>` markup through `t()`                 | render `<T>`, or `import "@comvi/core/tags"`       |
 
 ```tsx
-// INLINE — the constructor ingests the catalog, so choose the compiler in the same call.
+// INLINE — the constructor ingests the catalog.
 const i18n = createI18n({ locale: "en", compiler: icuCompiler, translation });
-// LATER — a hydrated client catalog, or anything an SSR loader fetches.
-const host = createI18n({ locale: "en" }).with(icu()).with(loader(importMap));
+// LATER — a hydrated client catalog, or anything an SSR loader fetches: the same option.
+const host = createI18n({ locale: "en", compiler: icuCompiler }).with(loader(importMap));
 ```
 
-`.with(icu())` is **pre-ingestion only**: the compiler locks at the first catalog and a later
-`icu()` throws with own `code === "E_COMPILER_LOCKED"`, typed by `CompilerLockedError`. A
-client host is hydrated rather than loaded, so nothing is ingested at construction.
+`compiler` is a constructor field held for the instance's life, so one option covers every
+catalog source. A client host is hydrated rather than loaded, so nothing is ingested at
+construction, and the option covers the hydrated catalog too.
 `@comvi/next/server` exports that same base `createI18n` — the client/server split is a
 runtime split, never a host-tier split.
 

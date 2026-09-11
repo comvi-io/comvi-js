@@ -11,28 +11,28 @@ readers changes here; this is the host underneath them, and the packaging half i
 `svelte-single-package-slim.md`. Compose what you had back — every installer is re-exported
 from `@comvi/svelte`, so each fix stays inside the one specifier you already have:
 
-| you had                                      | you add                                                  |
-| -------------------------------------------- | -------------------------------------------------------- |
-| ICU plurals, select, selectordinal           | `compiler: icuCompiler`, or `.with(icu())` pre-ingestion |
-| loader (`registerLoader`, …)                 | `.with(loader(map))`, or `.with(attachLoader)`           |
-| `.use(plugin)`, `onMissingKey`               | `.with(plugins())`, then `use(p)`                        |
-| discovery (`instanceId`, `window.__COMVI__`) | `.with(devtools({ instanceId }))`                        |
-| nested constructor catalogs                  | `flattenCatalog(…)`, or compose `loader()`               |
-| `<tag>` markup through `t()`                 | render `<T>`, or `import "@comvi/core/tags"`             |
+| you had                                      | you add                                            |
+| -------------------------------------------- | -------------------------------------------------- |
+| ICU plurals, select, selectordinal           | `compiler: icuCompiler` in the constructor options |
+| loader (`registerLoader`, …)                 | `.with(loader(map))`, or `.with(attachLoader)`     |
+| `.use(plugin)`, `onMissingKey`               | `.with(plugins())`, then `use(p)`                  |
+| discovery (`instanceId`, `window.__COMVI__`) | `.with(devtools({ instanceId }))`                  |
+| nested constructor catalogs                  | `flattenCatalog(…)`, or compose `loader()`         |
+| `<tag>` markup through `t()`                 | render `<T>`, or `import "@comvi/core/tags"`       |
 
 ```svelte
 <script lang="ts">
-  import { createI18n, icu, icuCompiler, loader, setI18nContext } from "@comvi/svelte";
+  import { createI18n, icuCompiler, loader, setI18nContext } from "@comvi/svelte";
 
-  // INLINE — the constructor ingests the catalog, so choose the compiler in the same call.
+  // INLINE — the constructor ingests the catalog.
   setI18nContext(createI18n({ locale: "en", compiler: icuCompiler, translation }));
-  // REMOTE — install ahead of the first catalog.
-  setI18nContext(createI18n({ locale: "en" }).with(icu()).with(loader(importMap)));
+  // REMOTE — the same option, in the same place.
+  setI18nContext(createI18n({ locale: "en", compiler: icuCompiler }).with(loader(importMap)));
 </script>
 ```
 
-`.with(icu())` is **pre-ingestion only**: the compiler locks at the first catalog that
-reaches the host and a later `icu()` throws with own `code === "E_COMPILER_LOCKED"`.
+`compiler` is a constructor field held for the instance's life, so one option covers every
+catalog source, and nothing about composition is ordered.
 
 **`<T>` moved to a pure seam.** It used to import `@comvi/core/tags`, whose import registers
 tag syntax **ambiently**, so rendering rich text anywhere silently switched plain `t()` over

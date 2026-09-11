@@ -64,20 +64,19 @@ npm install @comvi/plugin-fetch-loader
 
 ```ts
 import { createI18n } from "@comvi/core";
-import { icu } from "@comvi/core/icu";
+import { icuCompiler } from "@comvi/core/icu";
 import { cdnLoader } from "@comvi/plugin-fetch-loader/cdn";
 
-const i18n = createI18n({ locale: "en" })
-  .with(icu())
-  .with(cdnLoader({ cdnUrl: "https://cdn.comvi.io/your-distribution-id" }));
+const i18n = createI18n({ locale: "en", compiler: icuCompiler }).with(
+  cdnLoader({ cdnUrl: "https://cdn.comvi.io/your-distribution-id" }),
+);
 
 await i18n.init();
 ```
 
-Compose `icu()` before the first catalog arrives, so it goes ahead of the
-loader; drop it only if the project uses no plural/select. That is the
-library's only ordering rule. See
-[MIGRATION.md §0.1](../../MIGRATION.md#01-the-compiler-has-a-timing-rule).
+`compiler: icuCompiler` enables ICU for a loaded catalog exactly as it does for
+an inline one; drop it only if the project uses no plural/select. See
+[MIGRATION.md §0.1](../../MIGRATION.md#01-the-compiler-is-a-constructor-option).
 
 The distribution id in `cdnUrl` comes from the Comvi platform: open your project
 and read it off the **Distributions** page.

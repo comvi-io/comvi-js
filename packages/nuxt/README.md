@@ -288,13 +288,11 @@ export default ((options) =>
     .with(devtools())) satisfies NuxtHostFactory;
 ```
 
-Order matters in exactly one way, and it is not the order above: `.with(icu())`
-must run before the first catalog reaches the host (constructor `translation`,
-`addTranslations`, or a loader merge). The order of `loader()`, `plugins()` and
-`devtools()` among themselves is free, because every capability composed before
-`init()` is attached by the time plugins run. `loader(map)` attaches the loader
-capability **and** registers the map; for a plain `LoaderFn`, use
-`.with(attachLoader)` and call `registerLoader(fn)`.
+Order does not matter here. `loader()`, `plugins()` and `devtools()` may go in
+any order, because every capability composed before `init()` is attached by the
+time plugins run, and ICU is an option rather than a composition step.
+`loader(map)` attaches the loader capability **and** registers the map; for a
+plain `LoaderFn`, use `.with(attachLoader)` and call `registerLoader(fn)`.
 
 So `comvi.host.ts` is the one file in a nuxt app that names comvi packages at
 all. `useI18n()`, `useI18nLoader()`, `useI18nPlugins()`, `<T>` and
