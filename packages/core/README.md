@@ -620,9 +620,10 @@ Swapping the two slots is a type error, and both halves are caught at runtime as
 well. `registerPlugin(cdnLoader(…))` throws `E_INSTALLER_AS_PLUGIN` at `init()`,
 on the installer's first ensure-step, before any capability is attached.
 `.use(CdnLoader(…))` throws `E_USE_NOT_INSTALLER`: `.use` is a pipe and nothing
-more — it never inspects, orders or brands what you hand it — but an installer
-widens the host in place and hands that same host back, and `.use` refuses any
-other return value, whatever its shape. It calls the function before it checks,
+more — it never inspects, orders or brands the function you hand it — but it
+does check the one thing that makes a function an installer. An installer widens
+the host in place and hands that same host back, so `.use` refuses any other
+return value, whatever its shape. It calls the function before it checks,
 so this plugin runs outside `init()`'s drain loop and, being async, hands back a
 promise nobody awaits. Register it with `registerPlugin` instead, where the
 queue gives it `required`, `timeout`, `onError` and cleanup.

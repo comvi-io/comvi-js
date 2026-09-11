@@ -286,8 +286,8 @@ createI18n(options).use(f)` runs `f(i18n.core)`, keeps the same wrapper, and
 retypes `core` by what `f` composed. Assign the result: a discarded
 `i18n.use(f)` still attaches the capability at runtime but leaves the binding's
 `core` unwidened. Compose before `app.use(i18n)`: `install` starts `init()`,
-which drains the plugin queue once, so a `plugins()` or `.use(…)` composed later
-never runs (development warns). `loader(map)` attaches the capability **and**
+which drains the plugin queue once, so a `.use(…)` composed later never runs
+(development warns). `loader(map)` attaches the capability **and**
 registers the map; for a plain `LoaderFn`, compose `.use(attachLoader)` and
 call `registerLoader(fn)` yourself (it keeps the import-map adapter out of your
 bundle).

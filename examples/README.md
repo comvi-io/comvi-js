@@ -65,15 +65,18 @@ The same scenario everywhere, in the same order down the page:
    `nuxt` read that line after mount rather than during the server render; see
    below.)
 
-The whole setup is one file per example, and the composition is the same
-everywhere: ICU through the constructor's `compiler`, then `.use(loader({…}))`,
-then `.use(plugins())`, then `registerPlugin(LocaleDetector(…))`. Here is
-`examples/react/src/i18n.ts`, which `solid` and `svelte` match line for line
-apart from the import specifier:
+The whole setup is one file per example, and in five of the seven that file is
+the same composition: ICU through the constructor's `compiler`, then
+`.use(loader({…}))`, then `.use(localeDetector({…}))`. Here is
+`examples/react/src/i18n.ts` with its comments elided — `solid` and `svelte`
+match it byte for byte apart from the import specifier, and `vue` matches too
+apart from that specifier and two comments of its own:
 
 ```ts title="src/i18n.ts"
-import { createI18n, icuCompiler, loader, plugins } from "@comvi/react";
-import { LocaleDetector } from "@comvi/plugin-locale-detector";
+import { createI18n, icuCompiler, loader } from "@comvi/react";
+import { localeDetector } from "@comvi/plugin-locale-detector";
+
+export const locales = ["en", "uk", "de"] as const;
 
 export const i18n = createI18n({
   locale: "en",
@@ -87,82 +90,95 @@ export const i18n = createI18n({
       de: () => import("./locales/de.json"),
     }),
   )
-  .use(plugins());
-
-i18n.registerPlugin(LocaleDetector({ supportedLocales: ["en", "uk", "de"], fallbackLocale: "en" }));
+  .use(
+    localeDetector({
+      supportedLocales: [...locales],
+      order: ["querystring", "localStorage", "navigator"],
+      caches: ["localStorage"],
+      fallbackLocale: "en",
+    }),
+  );
 ```
+
+Every step there is an installer, and `.use(installer)` is the one verb that
+composes one: `loader(map)` attaches the loader capability _and_ registers the
+import-map adapter, and `localeDetector(options)` attaches the plugin host it
+needs and registers the detector on it. Which is why no example names the raw
+plugin queue at all — the comment above that last step in the source says so in
+as many words: an app never touches it.
 
 Four of the seven depart from that file, and each departure says something about
 the binding:
 
 **Vue.** `createI18n` from `@comvi/vue` is not a rename of core's: it constructs
-a core for you and wraps it in a `VueI18n` reactivity layer. The pipe is the
-same anyway, because `VueI18n` has its own `.use(installer)`, which runs
-the installer on `i18n.core` and widens that core's type by what it composed.
-What differs is the last line: the wrapper does not proxy plugin registration,
-so the plugin is registered on the host as `i18n.core.registerPlugin(…)`
-(`packages/vue/README.md`, "Supported hosts and what they cost").
+a core for you and wraps it in a `VueI18n` reactivity layer. The chain is the
+same anyway, and that is what one verb buys: `VueI18n` has its own
+`.use(installer)`, which runs the installer on `i18n.core`, hands back the same
+wrapper, and widens that core's type by what it composed
+(`packages/vue/README.md`, "Supported hosts and what they cost"). So
+`examples/vue/src/i18n.ts` reads like the file above and its two extra comments
+are about the wrapper rather than about a different pipe: the result is one
+`VueI18n` instance throughout, and the chain has to be finished before
+`app.use(i18n)` — Vue's own `use`, which starts `init()`.
 
-```ts title="src/i18n.ts"
-import { createI18n, icuCompiler, loader, plugins } from "@comvi/vue";
-import { LocaleDetector } from "@comvi/plugin-locale-detector";
+**Vanilla.** The same chain, arriving from different modules. There is no
+binding to re-export the toolkit, so each capability comes from its own subpath:
+`createI18n` from `@comvi/core`, `icuCompiler` from `@comvi/core/icu`, `loader`
+from `@comvi/core/loader`; the detector is the same package here as in the other
+four. It also side-effect-imports `@comvi/core/tags`, which those four must not:
+that import registers tag syntax _ambiently_, so plain `t()` starts parsing
+`<tag>…</tag>` everywhere. The framework examples get tags through `<T>`, which
+passes the grammar per call and leaves `t()` alone. Without a `<T>`, the vanilla
+example has to opt in by name.
 
-export const i18n = createI18n({
-  locale: "en",
-  fallbackLocale: "en",
-  compiler: icuCompiler,
-})
-  .use(
-    loader({
-      en: () => import("./locales/en.json"),
-      uk: () => import("./locales/uk.json"),
-      de: () => import("./locales/de.json"),
-    }),
-  )
-  .use(plugins());
-
-i18n.core.registerPlugin(
-  LocaleDetector({ supportedLocales: ["en", "uk", "de"], fallbackLocale: "en" }),
-);
-```
-
-**Vanilla.** There is no binding to re-export the toolkit, so every capability
-arrives by its own subpath: `@comvi/core/icu`, `@comvi/core/loader`,
-`@comvi/core/plugins`. It also side-effect-imports `@comvi/core/tags`, which the
-other four must not: that import registers tag syntax _ambiently_, so plain
-`t()` starts parsing `<tag>…</tag>` everywhere. The framework examples get tags
-through `<T>`, which passes the grammar per call and leaves `t()` alone. Without
-a `<T>`, the vanilla example has to opt in by name.
-
-**Next.** Nothing here composes anything. `createNextI18n` is the preset that
-composes ICU, the tag grammar, the loader and the plugin host **inside the
-package**, so `examples/next/src/i18n/config.ts` names no installer at all. What
-it names instead is the URL, because `createNextI18n` returns the host **and**
-the routing config from one call, and they cannot drift apart:
+**Next.** No installer is named here at all. `createNextI18n` is the preset
+that composes ICU, the tag grammar, the loader and the plugin host **inside the
+package**, so `examples/next/src/i18n/config.ts` has no `.use(` chain to write.
+What it adds to the preset is the catalog map — `registerLoader` keeps its
+import-map overload on a host that already composed the loader — and what it
+takes from elsewhere is the URL:
 
 ```ts title="src/i18n/config.ts" check=group=examples-next
 import { createNextI18n } from "@comvi/next";
+import { routing } from "./routing";
+
+export { locales, routing } from "./routing";
 
 export const nextI18n = createNextI18n({
-  locales: ["en", "uk", "de"],
-  defaultLocale: "en",
-  localePrefix: "always",
+  ...routing,
   fallbackLocale: "en",
 });
 
-export const { i18n, routing } = nextI18n;
+nextI18n.i18n.registerLoader({
+  en: () => import("../locales/en.json"),
+  uk: () => import("../locales/uk.json"),
+  de: () => import("../locales/de.json"),
+});
+
+export const { i18n } = nextI18n;
 ```
 
+`src/i18n/routing.ts` is `defineRouting({ locales, localePrefix: "always",
+defaultLocale: "en" })` and nothing else, and that second file is a bundle fact
+rather than a taste: `middleware.ts` runs in the Edge runtime, which ships and
+executes every module its entry reaches on each cold start, so importing the
+composed host for one plain object pulled core, ICU, the loader, the plugin
+host, devtools and the tag grammar into middleware — measured with esbuild at
+30.3 KB / 25 modules, against 3.8 KB / 7 modules through the routing file.
+`config.ts` spreads the same object straight back in, so the rules the
+middleware enforces and the rules the app renders with are still one source.
+
 Five more files carry that through, and each one is doing a job the client-only
-examples never have: `src/i18n/server.ts` is a `server-only` module whose import
-runs `setI18n(i18n)` before any Server Component asks for a translation;
-`src/middleware.ts` is `createMiddleware(routing)` and nothing else;
-`app/[locale]/ComviProvider.tsx` is `"use client"` because Next cannot serialize
-a class instance across the hydration boundary, so the host is imported on the
-client side and the server hands over only a locale and a catalog; the layout
-calls `setRequestLocale(locale)` and `loadTranslations(locale)` and passes both
-to that provider; and the page reads `getI18n()`, which is exactly `t` and
-`hasTranslation` bound once to this request.
+examples never have: `src/i18n/server.ts` is a `server-only` module whose
+import runs `setI18n(i18n)` before any Server Component asks for a translation;
+`src/middleware.ts` is `createMiddleware(routing)` plus its matcher and nothing
+else; `app/[locale]/ComviProvider.tsx` is `"use client"` because Next cannot
+serialize a class instance across the hydration boundary, so the host is
+imported on the client side and the server hands over only a locale and a
+catalog; the layout calls `setRequestLocale(locale)` and
+`loadTranslations(locale)` and passes both to that provider; and the page reads
+`getI18n()`, which is exactly `t` and `hasTranslation` bound once to this
+request.
 
 `<T>` is in `Demo.tsx` and the six rows are a client component, five of them
 interactive, but they still render on the SERVER for the first paint,
@@ -176,7 +192,7 @@ Server Component has no hooks.
 **base** one: no ICU, no loader, no plugins. `comvi.hostModule` is the only way
 to change that, so `examples/nuxt/src/comvi.host.ts` is the one file in the app
 that names a comvi package at all. `useI18n()`, `<T>` and `useSwitchLocalePath()`
-are auto-imported, and nothing under `pages/` writes an import:
+are auto-imported, and nothing under `pages/` imports a comvi package:
 
 ```ts title="comvi.host.ts" check=group=examples-nuxt
 import { createI18n, type I18n } from "@comvi/core";
@@ -238,12 +254,15 @@ browser has, and rendering it during SSR would be a hydration mismatch.
 Three details are worth reading in the source:
 
 - **Composition is explicit.** A capability is absent because its module never
-  entered the bundle, so ICU, loading and plugins are each named at the point
+  entered the bundle, so ICU, loading and detection are each named at the point
   they are added: `compiler: icuCompiler` in the constructor options,
-  `.use(loader({…}))`, `.use(plugins())`. `loader(map)` attaches the
+  `.use(loader({…}))`, `.use(localeDetector({…}))`. `loader(map)` attaches the
   capability _and_ registers the import-map adapter; `registerLoader` on its own
-  takes a plain function. `.use(installer)` is on every host; `registerPlugin()`
-  is the one that lives on the plugin capability, not on the base host.
+  takes a plain function. `.use(installer)` is the one composition verb and is
+  on every host; `registerPlugin()` is the raw queue that lives on the plugin
+  capability, not on the base host, and no example needs it — a plugin package's
+  lowercase installer registers its plugin for you, and an app's own plugin goes
+  through `.use(definePlugin(fn))`.
 - **ICU is opt-in.** Without `compiler: icuCompiler` the plural line in the
   catalog is not syntax; the simple compiler renders the braced segment
   literally.
