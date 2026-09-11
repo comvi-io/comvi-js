@@ -1318,6 +1318,73 @@ test("a surviving `.with` is never certified: rewritten where provable, reported
   assert.equal(reported.status, 2, reported.stderr);
   assert.match(reported.stdout, /MANUAL .*residual-with-verb/);
   assert.doesNotMatch(reported.stdout, /nothing to migrate/);
+  // The Temporal and Array lines in the same fixture contribute nothing: one
+  // installer-shaped `.with` is the whole report.
+  assert.equal(reported.stdout.match(/residual-with-verb/g).length, 1);
+
+  // And the all-clear becomes reachable again only once that call is gone.
+  fs.writeFileSync(
+    path.join(dir, "other.ts"),
+    fs
+      .readFileSync(path.join(dir, "other.ts"), "utf8")
+      .replace("getHost().with(loader())", "getHost().use(loader())"),
+  );
+  const cleared = run(["other.ts"], dir);
+
+  assert.equal(cleared.status, 0, cleared.stderr);
+  assert.match(cleared.stdout, /nothing to migrate/);
+});
+
+/**
+ * `with` is not a Comvi word. Temporal's `Temporal.PlainDate.prototype.with`
+ * and `Array.prototype.with` are real, shipped APIs, and the retired verb only
+ * ever took a CALL or a bare `attach*` reference — so an object literal or a
+ * number in the slot means the receiver is somebody else's and the codemod owes
+ * the reader silence, not a manual item for a verb they never wrote.
+ */
+test("Temporal and Array `.with` are silent, while the real chain in the same file migrates", () => {
+  const source = `import { createI18n, loader } from "@comvi/react";
+
+declare const date: { with: (fields: { month: number }) => unknown };
+declare const locales: string[];
+
+export const i18n = createI18n({ locale: "en" });
+export const composed = i18n.with(loader());
+
+export const shifted = date.with({ month: 2 });
+export const swapped = locales.with(0, "en");
+`;
+
+  const result = transformSource(source, "temporal.ts");
+
+  assert.match(result.text, /export const composed = i18n\.use\(loader\(\)\);/);
+  assert.match(result.text, /date\.with\(\{ month: 2 \}\)/);
+  assert.match(result.text, /locales\.with\(0, "en"\)/);
+  assert.deepEqual(result.manual, []);
+  assert.equal(result.rewrites, 1);
+});
+
+/**
+ * The other side of that line: an INSTALLER-SHAPED argument on a receiver the
+ * codemod cannot see through stays a manual item, because `getHost()` may well
+ * be returning a 0.5-pre host.
+ */
+test("an installer-shaped `.with` on an unprovable receiver is still reported", () => {
+  const source = `import { attachLoader, loader } from "@comvi/react";
+
+declare const getHost: () => { with: <R>(f: (host: unknown) => R) => R };
+
+export const viaCall = getHost().with(loader());
+export const bare = getHost().with(attachLoader);
+`;
+
+  const result = transformSource(source, "unprovable.ts");
+
+  assert.equal(result.text, source, "an unprovable receiver is never rewritten");
+  assert.deepEqual(
+    result.manual.map((item) => item.shape),
+    ["residual-with-verb", "residual-with-verb"],
+  );
 });
 
 /**

@@ -764,6 +764,29 @@ function hostBindingNames(root, hosts) {
 }
 
 /**
+ * Did the retired verb ever take this argument?
+ *
+ * `.with(installer)` took exactly two shapes: a CALL — the installer factory,
+ * `loader()`, `plugins()`, the reader's own `wrapMetrics()` — or a bare
+ * `attach*` reference, the low-level installer used without calling it. Nothing
+ * else was ever a composition step.
+ *
+ * This is what keeps the sweep below quiet on code that has nothing to do with
+ * us. `with` is not a Comvi word: `date.with({ month: 2 })` is Temporal and
+ * `locales.with(0, "en")` is `Array.prototype.with`, and an object, a number, a
+ * string or a bare non-`attach` identifier in the slot says the receiver is
+ * somebody else's API. Reporting those made every app that uses either feature
+ * carry a manual item for a verb it never wrote. Same discriminator the
+ * `banned/with-composition` lint rule uses, for the same reason.
+ */
+function withInstallerShaped(call) {
+  const argument = argumentsOf(call)[0];
+  if (argument === undefined) return false;
+  if (argument.kind() === "call_expression") return true;
+  return argument.kind() === "identifier" && /^attach/.test(argument.text());
+}
+
+/**
  * Every `.with(` the chain transform did not reach.
  *
  * `.with` is handled inside `chainSteps()`, which only walks the calls chained
@@ -774,13 +797,17 @@ function hostBindingNames(root, hosts) {
  * That sentence is the failure: a certification nobody can act on is worse than
  * a rewrite nobody asked for.
  *
- * So every surviving `.with(` is accounted for, one of two ways. On a PROVABLE
- * Comvi host the rename is as safe as it is in a chain — `with` exists on no
- * 0.5.0 host, so `use` with the same argument in the same position is the only
- * spelling that can run. On anything else it is REPORTED: the receiver may be a
- * Temporal date or an array, in which case nothing needs doing, and the report
- * says so — but the tool can no longer call the tree clean without a human
- * having looked.
+ * So every surviving `.with(` is accounted for, one of three ways:
+ *
+ *   • on a PROVABLE Comvi host it is RENAMED, as safely as it is in a chain —
+ *     `with` exists on no 0.5.0 host, so `use` with the same argument in the
+ *     same position is the only spelling that can run;
+ *   • on an unprovable receiver where the argument is INSTALLER-SHAPED it is
+ *     REPORTED. `getHost()` may well return a 0.5-pre host and the codemod
+ *     cannot see through the call, so the rename is the reader's to make — but
+ *     the tool can no longer call the tree clean without a human having looked;
+ *   • on an unprovable receiver whose argument the retired verb never took, the
+ *     codemod is SILENT. That `with` belongs to somebody else's API.
  */
 function detectResidualWith(root, hosts, handled) {
   const findings = [];
@@ -824,14 +851,16 @@ function detectResidualWith(root, hosts, handled) {
       renames += 1;
       continue;
     }
+    // Unprovable receiver. Only an INSTALLER-SHAPED argument makes this
+    // plausibly ours; anything else is a `with` the retired verb never had.
+    if (!withInstallerShaped(call)) continue;
     findings.push({
       offset: startOf(property),
       shape: "residual-with-verb",
       detail:
-        `\`${brief(member)}(…)\` calls \`with\`, which no 0.5.0 Comvi host has — and this ` +
-        `receiver cannot be proven to be one, so it is left exactly as written: rename it to ` +
-        `\`.use(…)\` by hand if it IS a host (a \`with\` on something else — a Temporal date, an ` +
-        `array — needs nothing)`,
+        `\`${brief(member)}(…)\` calls \`with\` with an installer-shaped argument, and no 0.5.0 ` +
+        `Comvi host has \`with\` — but this receiver cannot be proven to be one, so it is left ` +
+        `exactly as written: rename it to \`.use(…)\` by hand if it IS a host`,
     });
   }
   return { manual: findings, edits, renames };
