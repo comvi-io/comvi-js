@@ -30,7 +30,6 @@ const INTERNAL_NAMES = [
   "_missHook",
   "_resetPlugins",
   "_initPlugins",
-  "_flattenNs",
   "_initDevtools",
   "_disposeDevtools",
   "_globalEntry",
@@ -180,25 +179,34 @@ describe("prod dist: base + /loader + /plugins composition (A6)", () => {
     expect(queue).toHaveLength(0);
   });
 
-  it("a bare host needs flattenCatalog for a nested catalog", async () => {
-    const { createI18n } = await import("../../dist/comvi-core.js");
-    const { flattenCatalog } = await import("../../dist/comvi-core-loader.js");
+  it("a BARE host flattens a nested catalog against the mangled build (C1)", async () => {
+    const { createI18n, flattenCatalog } = await import("../../dist/comvi-core.js");
 
-    const bare = createI18n({ locale: "en", exposeGlobal: false });
-
-    bare.addTranslations({ en: { nav: { home: "Home" } } });
-    expect(bare.t("nav.home")).toBe("nav.home");
-
-    bare.addTranslations({ en: flattenCatalog({ nav: { home: "Home" } }) });
+    const bare = createI18n({
+      locale: "en",
+      exposeGlobal: false,
+      translation: { en: { nav: { home: "Home" } } },
+    });
     expect(bare.t("nav.home")).toBe("Home");
+
+    bare.addTranslations({ en: { menu: { about: "About" } } });
+    expect(bare.t("menu.about")).toBe("About");
+
+    // The root still publishes the flattener, and it agrees with ingestion.
+    expect(flattenCatalog({ nav: { home: "Home" } })).toEqual({ "nav.home": "Home" });
   });
 
-  it("a loader-attached host flattens a nested catalog against the mangled build", async () => {
+  it("the /loader subpath no longer publishes flattenCatalog", async () => {
+    const loaderEntry = await import("../../dist/comvi-core-loader.js");
+
+    expect(loaderEntry.flattenCatalog).toBeUndefined();
+    expect(typeof loaderEntry.attachLoader).toBe("function");
+  });
+
+  it("a loader-attached host flattens identically — no seam left to lose", async () => {
     const { createI18n } = await import("../../dist/comvi-core.js");
     const { attachLoader } = await import("../../dist/comvi-core-loader.js");
 
-    // `_flattenNs` is a prototype member of the loader chunk consumed by the
-    // base class's `_nsAddTranslations` — the same cross-chunk contract.
     const loaded = attachLoader(createI18n({ locale: "en", exposeGlobal: false }));
 
     loaded.addTranslations({ en: { nav: { home: "Home" } } });

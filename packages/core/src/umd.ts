@@ -11,7 +11,7 @@ import "./register-tags";
 
 export { createI18n, I18n } from "./core/full";
 export { TranslationCache } from "./core/TranslationCache";
-export { flattenCatalog } from "./core/loader";
+export { normalizeTranslationObject as flattenCatalog } from "./utils";
 export { createBoundTranslation } from "./utils/createBoundTranslation";
 export { translationResultToString } from "./utils/translationResultToString";
 export { subscribeToRevision, REVISION_EVENTS } from "./utils/subscribeToRevision";

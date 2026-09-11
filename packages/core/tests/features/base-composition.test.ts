@@ -116,29 +116,141 @@ describe("base + /loader composition", () => {
     expect(i18n.getTranslations()).toEqual({});
   });
 
-  // The `_flattenNs` seam: a loader returns raw JSON, so nested-catalog
-  // flattening belongs to the loader capability, and attaching it must restore
-  // the composite's `addTranslations` semantics exactly.
-  it("restores nested-catalog flattening on addTranslations", () => {
+  // Nested-catalog flattening is NOT a capability (C1): `_nsAddTranslations`
+  // in the base calls the flattener unconditionally. Attaching the loader must
+  // therefore leave `addTranslations` semantics untouched, not restore them.
+  it("leaves nested-catalog flattening on addTranslations unchanged", () => {
     const i18n = attachLoader(createI18n({ locale: "en", exposeGlobal: false }));
+    const bare = createI18n({ locale: "en", exposeGlobal: false });
 
-    i18n.addTranslations({ en: { nav: { home: "Home", deep: { x: "X" } }, n: 7 } as never });
+    for (const host of [i18n, bare]) {
+      host.addTranslations({ en: { nav: { home: "Home", deep: { x: "X" } }, n: 7 } as never });
 
-    expect(i18n.t("nav.home" as never)).toBe("Home");
-    expect(i18n.t("nav.deep.x" as never)).toBe("X");
-    expect(i18n.t("n" as never)).toBe("7");
+      expect(host.t("nav.home" as never)).toBe("Home");
+      expect(host.t("nav.deep.x" as never)).toBe("X");
+      expect(host.t("n" as never)).toBe("7");
+    }
   });
 
-  it("flattens options.translation too — the hook is a prototype member", () => {
-    // `options.translation` is merged inside the constructor, so a hook that
-    // only existed after `_initLoader` would be too late.
+  it("merges a nested addTranslations onto a nested LOADER result", async () => {
+    // Both ends of the ingestion path run the same flattener now: the loader's
+    // raw nested JSON and a nested `addTranslations` land in one namespace.
+    const i18n = attachLoader(
+      createI18n({
+        locale: "en",
+        exposeGlobal: false,
+        translation: { en: { nav: { home: "Home" } } },
+      }),
+    );
+    i18n.registerLoader(async () => ({ nav: { away: "Away" }, deep: { a: { b: "AB" } } }));
+
+    // A namespace load REPLACES that namespace, so the constructor catalog is
+    // gone; the loaded nested JSON must be flat in the cache all the same.
+    await i18n.reloadTranslations();
+    expect(i18n.t("nav.away" as never)).toBe("Away");
+    expect(i18n.t("deep.a.b" as never)).toBe("AB");
+
+    // And a nested merge on top of a loaded namespace keeps both sides flat.
+    i18n.addTranslations({ en: { nav: { home: "Home" } } });
+    expect(i18n.t("nav.home" as never)).toBe("Home");
+    expect(i18n.t("nav.away" as never)).toBe("Away");
+    expect(Object.keys(i18n.getTranslations("en")).sort()).toEqual([
+      "deep.a.b",
+      "nav.away",
+      "nav.home",
+    ]);
+  });
+
+  it("flattens options.translation on the bare base constructor too", () => {
+    // `options.translation` is merged inside the base constructor, which is
+    // exactly where a capability hook could not have reached it.
     const root = new I18n({
       locale: "en",
       exposeGlobal: false,
       translation: { en: { nav: { home: "Home" } } as never },
     });
+    const composed = attachLoader(
+      new I18n({
+        locale: "en",
+        exposeGlobal: false,
+        translation: { en: { nav: { home: "Home" } } },
+      }),
+    );
 
     expect(root.t("nav.home")).toBe("Home");
+    expect(composed.t("nav.home")).toBe("Home");
+  });
+});
+
+/**
+ * C2 — an option whose capability was never composed used to do nothing and say
+ * nothing, in dev AND in prod. `init()` now reports both cases once, in DEV
+ * only: a missing capability is a misconfiguration, not a boundary violation,
+ * so production stays fail-soft and silent (`tests/prod/` covers that half).
+ */
+describe("init() reports inert options on a bare host", () => {
+  let warned: string[] = [];
+  let warnSpy: ReturnType<typeof vi.spyOn>;
+
+  beforeEach(() => {
+    warned = [];
+    warnSpy = vi
+      .spyOn(console, "warn")
+      .mockImplementation((...args: unknown[]) => void warned.push(String(args[0])));
+  });
+
+  afterEach(() => {
+    warnSpy.mockRestore();
+  });
+
+  const matching = (needle: string): string[] => warned.filter((text) => text.includes(needle));
+
+  it("names .use(loader(map)) when options.ns has nothing to load it", async () => {
+    const bare = createI18n({ locale: "en", exposeGlobal: false, ns: ["common", "admin"] });
+
+    await bare.init();
+
+    const nsWarnings = matching("options.ns");
+    expect(nsWarnings).toHaveLength(1);
+    expect(nsWarnings[0]).toContain("common, admin");
+    expect(nsWarnings[0]).toContain(".use(loader(map))");
+
+    // Once per host: a second init() must not repeat it.
+    await bare.init();
+    expect(matching("options.ns")).toHaveLength(1);
+
+    // Silent with the capability composed, and silent without the option.
+    warned = [];
+    await attachLoader(createI18n({ locale: "en", exposeGlobal: false, ns: ["common"] })).init();
+    await createI18n({ locale: "en", exposeGlobal: false }).init();
+    expect(warned).toEqual([]);
+  });
+
+  it("names .use(devtools({ instanceId })) when discovery was never composed", async () => {
+    const bare = createI18n({ locale: "en", instanceId: "c2-probe" });
+
+    await bare.init();
+
+    const idWarnings = matching("options.instanceId");
+    expect(idWarnings).toHaveLength(1);
+    expect(idWarnings[0]).toContain(".use(devtools({ instanceId }))");
+
+    await bare.init();
+    expect(matching("options.instanceId")).toHaveLength(1);
+
+    // `exposeGlobal: true` is the same request through the other option.
+    warned = [];
+    await createI18n({ locale: "en", exposeGlobal: true }).init();
+    expect(matching("options.instanceId")).toHaveLength(1);
+
+    // Composed discovery is silent; so is `exposeGlobal: false`, which asks for
+    // the absence a base host already delivers.
+    warned = [];
+    await attachDevtools(createI18n({ locale: "en", instanceId: "c2-composed" }), {
+      exposeGlobal: false,
+    }).init();
+    await createI18n({ locale: "en", exposeGlobal: false }).init();
+    expect(warned).toEqual([]);
   });
 });
 

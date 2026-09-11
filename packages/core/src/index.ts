@@ -5,7 +5,7 @@
 //   • `@comvi/core/icu`      — `icuCompiler` for plural/select/selectordinal
 //     (pass it as `compiler: icuCompiler` in the constructor options);
 //   • `@comvi/core/loader`   — registerLoader / reloadTranslations,
-//     `createImportMapLoader`, automatic nested-catalog flattening;
+//     `createImportMapLoader`;
 //   • `@comvi/core/plugins`  — use / locale detector / missing-key callbacks /
 //     post-processors / plugin data;
 //   • `@comvi/core/devtools` — `instanceId` and the `window.__COMVI__` handshake;
@@ -41,10 +41,15 @@ export function createI18n<const D extends DefaultTranslationParams = {}>(
 export { TranslationCache } from "./core/TranslationCache";
 
 /**
- * Flatten a nested catalog into the flat `{ "a.b": "…" }` shape the base
- * host stores. PURE — the same function `@comvi/core/loader` exports, and the
- * escape hatch for handing nested data straight to `addTranslations` on a host
- * without the loader capability (which flattens automatically).
+ * Flatten a nested catalog into the flat `{ "a.b": "…" }` shape a host stores.
+ * PURE, and NOT required: `options.translation` and `addTranslations()` accept
+ * nested objects on every host and flatten them themselves. Reach for this only
+ * to pre-flatten data by hand — to inspect the keys a catalog will produce, or
+ * to merge several sources before handing one object over.
+ *
+ * Non-string leaves are coerced with `String()` and `null`/`undefined` leaves
+ * are dropped (with a dev warning). Input with a null prototype is assumed
+ * already flat and passes through.
  */
 export { normalizeTranslationObject as flattenCatalog } from "./utils";
 

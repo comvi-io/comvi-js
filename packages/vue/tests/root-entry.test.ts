@@ -19,7 +19,7 @@ import { mount } from "@vue/test-utils";
 import { createI18n as coreCreateI18n, I18n as CoreI18n } from "@comvi/core";
 import { attachDevtools, devtools } from "@comvi/core/devtools";
 import { icuCompiler } from "@comvi/core/icu";
-import { attachLoader, flattenCatalog, loader } from "@comvi/core/loader";
+import { attachLoader, loader } from "@comvi/core/loader";
 import { attachPlugins, plugins } from "@comvi/core/plugins";
 import * as root from "../src/index";
 import { VueI18n } from "../src/VueI18n";
@@ -139,7 +139,8 @@ describe("@comvi/vue — the capability toolkit", () => {
     expect(root.I18n).toBe(CoreI18n);
     expect(root.icuCompiler).toBe(icuCompiler);
     expect(root.attachLoader).toBe(attachLoader);
-    expect(root.flattenCatalog).toBe(flattenCatalog);
+    // `flattenCatalog` is NOT re-exported: nested catalogs are base behaviour (C1).
+    expect(root).not.toHaveProperty("flattenCatalog");
     expect(root.attachPlugins).toBe(attachPlugins);
     expect(root.attachDevtools).toBe(attachDevtools);
     // The installers are core's own factories, one hop, same rule.
@@ -242,7 +243,6 @@ describe("@comvi/vue — the export surface", () => {
     "createI18nFromCore",
     "definePlugin",
     "devtools",
-    "flattenCatalog",
     "icuCompiler",
     "loader",
     "plugins",

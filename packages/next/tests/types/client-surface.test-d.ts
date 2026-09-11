@@ -14,7 +14,6 @@ import {
   createI18n,
   definePlugin,
   devtools,
-  flattenCatalog,
   icuCompiler,
   loader,
   plugins,
@@ -78,8 +77,11 @@ export type _PluginsWiden = Expect<
 const _withDevtools = attachDevtools(createI18n({ locale: "en" }), { exposeGlobal: false });
 export type _DevtoolsKeepsHostType = Expect<Equal<typeof _withDevtools, BaseI18n<{}>>>;
 
-const flat: Record<string, string> = flattenCatalog({ nav: { home: "Home" } });
-void flat;
+// Nested catalogs are BASE behaviour, so this root no longer re-exports
+// `flattenCatalog` — it lives on the `@comvi/core` root alone (C1).
+// @ts-expect-error -- flattenCatalog is not part of this entry
+void (clientEntry.flattenCatalog as unknown);
+createI18n({ locale: "en", translation: { en: { nav: { home: "Home" } } } });
 
 // `.use(installer)` — the composition pipe. The generic host type must flow
 // THROUGH it and come out widened, never decayed to `any`.

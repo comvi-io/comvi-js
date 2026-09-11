@@ -126,8 +126,11 @@ void serverEntry.attachLoader(
 export type _NoServerIcuInstaller = Expect<Equal<Extract<keyof typeof serverEntry, "icu">, never>>;
 // @ts-expect-error -- `CompilerLockedError` went with the lock it described
 export type _NoServerLockedError = serverEntry.CompilerLockedError;
-const serverFlat: Record<string, string> = serverEntry.flattenCatalog({ nav: { home: "Home" } });
-void serverFlat;
+// Nested catalogs are BASE behaviour, so this entry no longer re-exports
+// `flattenCatalog` — it lives on the `@comvi/core` root alone (C1).
+// @ts-expect-error -- flattenCatalog is not part of this entry
+void (serverEntry.flattenCatalog as unknown);
+serverEntry.createI18n({ locale: "en", translation: { en: { nav: { home: "Home" } } } });
 
 // The same recipe through the `.use(installer)` pipe — the sharpest decay
 // probe: if the pipe let the host collapse to `any`, the negative case below

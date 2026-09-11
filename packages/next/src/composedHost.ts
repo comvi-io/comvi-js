@@ -4,8 +4,8 @@
 //
 // Composition order mirrors the 0.4 root constructor exactly:
 //   loader capability → plugin host → catalog ingestion → discovery,
-// so nested constructor catalogs still flatten and the reflective own-property
-// order is unchanged.
+// so the reflective own-property order is unchanged. (Nested constructor
+// catalogs no longer depend on this order: the base host flattens them itself.)
 import "@comvi/core/tags"; // ambient tag syntax, as the 0.4 root registered it
 import { I18n, createI18n } from "@comvi/core";
 import { icuCompiler } from "@comvi/core/icu";

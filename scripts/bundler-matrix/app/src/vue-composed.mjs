@@ -20,7 +20,6 @@ import {
   createCore,
   createI18n,
   createI18nFromCore,
-  flattenCatalog,
   loader,
   useI18n,
 } from "@comvi/vue";
@@ -46,7 +45,6 @@ assert(typeof createCore === "function", "@comvi/vue exports createCore");
 assert(typeof createI18nFromCore === "function", "@comvi/vue exports createI18nFromCore");
 assert(typeof useI18n === "function", "@comvi/vue exports useI18n");
 assert(typeof attachLoader === "function", "@comvi/vue re-exports attachLoader");
-assert(typeof flattenCatalog === "function", "@comvi/vue re-exports flattenCatalog");
 assert(typeof loader === "function", "@comvi/vue re-exports the loader() installer");
 
 async function main() {
@@ -83,11 +81,11 @@ async function main() {
   const manual = attachLoader(createCore({ locale: "en", exposeGlobal: false }));
   assert(typeof manual.reloadTranslations === "function", "attachLoader composes the loader API");
   assert(typeof manual.onMissingKey === "undefined", "attachLoader composes ONLY the loader API");
-  assertEqual(
-    JSON.stringify(flattenCatalog({ nav: { home: "Home" } })),
-    JSON.stringify({ "nav.home": "Home" }),
-    "flattenCatalog is core's flattener",
-  );
+  // Nested catalogs are BASE behaviour (C1): no `flattenCatalog` hop, and the
+  // binding root no longer re-exports one.
+  const nested = createCore({ locale: "en", exposeGlobal: false });
+  nested.addTranslations({ en: { nav: { home: "Home" } } });
+  assertEqual(nested.t("nav.home"), "Home", "a base host flattens a nested catalog");
 
   console.log("BUNDLER_MATRIX_OK vue-composed");
 }

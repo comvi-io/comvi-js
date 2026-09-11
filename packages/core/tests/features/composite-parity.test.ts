@@ -4,9 +4,9 @@ import { describe, it, expect, beforeEach } from "vitest";
 // in and how `src/umd.ts` keeps the CDN global batteries-included.
 import "../../src/tags";
 import { I18n as ComposedI18n } from "../../src/core/full";
-import { createI18n } from "../../src";
+import { createI18n, flattenCatalog } from "../../src";
 import { icuCompiler } from "../../src/icu";
-import { attachLoader, createImportMapLoader, flattenCatalog, loader } from "../../src/loader";
+import { attachLoader, createImportMapLoader, loader } from "../../src/loader";
 import { plugins } from "../../src/plugins";
 import { devtools } from "../../src/devtools";
 import type { I18nPluginHost, LoaderFn, TranslationValue } from "../../src/types";
@@ -23,10 +23,9 @@ import type { LoaderImportMap } from "../../src/core/importMapLoader";
  *
  *   capabilities first → catalog ingested → discovery LAST
  *
- * Ingesting the catalog before `loader()` is attached would store nested
- * constructor catalogs verbatim (no `_flattenNs` yet), and attaching discovery
- * before the catalog would move `instanceId` out of its documented position as
- * the final public own property.
+ * Attaching discovery before the catalog would move `instanceId` out of its
+ * documented position as the final public own property. (Catalog ingestion no
+ * longer depends on the order: the base host flattens nested catalogs itself.)
  */
 
 interface HostOptions {

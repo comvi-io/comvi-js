@@ -1,14 +1,13 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 // IMPORTANT: this file never imports the tags entry or the internal composite,
 // so no ambient tag registration and no ICU wiring happen behind its back.
-import { createI18n } from "../../src";
+import { createI18n, flattenCatalog } from "../../src";
 import { icuCompiler } from "../../src/icu";
 import { clearTemplateCache } from "../../src/core/translate";
 import { _resetSyntaxExtensions, getAmbientExtensions } from "../../src/core/translate/syntax";
 // The pure extension object, NOT `../../src/tags` — that entry registers
 // ambiently on import and would defeat the point of this file.
 import { tagSyntaxExtension } from "../../src/core/translate/tags";
-import { flattenCatalog } from "../../src/loader";
 
 beforeEach(() => {
   _resetSyntaxExtensions();
@@ -115,7 +114,7 @@ describe("createI18n() — the base host", () => {
     expect(i18n.t("plain" as never)).toBe("Superiors' behavior");
   });
 
-  // Nested-catalog flattening is a capability, not base behaviour.
+  // Nested-catalog flattening is BASE behaviour, not a capability (C1).
   describe("addTranslations on a bare host", () => {
     it("stores a FLAT catalog, including colon-keyed namespaces", () => {
       const i18n = createI18n({ locale: "en" });
@@ -149,17 +148,67 @@ describe("createI18n() — the base host", () => {
       expect(Object.getPrototypeOf(i18n.getTranslations())).toBeNull();
     });
 
-    it("does NOT flatten a nested catalog, and says so in dev", () => {
+    it("flattens a nested catalog, with no warning about it", () => {
       const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
       const i18n = createI18n({ locale: "en" });
 
-      i18n.addTranslations({ en: { nav: { home: "Home" } } as never });
+      i18n.addTranslations({ en: { nav: { home: "Home", deep: { x: "X" } } } as never });
 
-      expect(i18n.hasTranslation("nav.home")).toBe(false);
-      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("flattenCatalog()"));
+      expect(i18n.t("nav.home" as never)).toBe("Home");
+      expect(i18n.t("nav.deep.x" as never)).toBe("X");
+      // The old dev warning pointed at `flattenCatalog()` as the escape hatch
+      // from a rule that no longer exists; it must not fire at all.
+      expect(warnSpy).not.toHaveBeenCalled();
     });
 
-    it("accepts a nested catalog wrapped in flattenCatalog()", () => {
+    it("flattens a nested CONSTRUCTOR catalog — the C1 reproduction", () => {
+      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+      const i18n = createI18n({ locale: "en", translation: { en: { nav: { home: "Home" } } } });
+
+      expect(i18n.t("nav.home" as never)).toBe("Home");
+      expect(i18n.hasTranslation("nav.home")).toBe(true);
+      expect(warnSpy).not.toHaveBeenCalled();
+    });
+
+    it("takes a MIXED flat-and-nested catalog in one object", () => {
+      const i18n = createI18n({
+        locale: "en",
+        translation: {
+          en: { "nav.home": "Home", nav: { away: "Away" }, plain: "Plain" },
+          "en:admin": { panel: { title: "Panel" } },
+        },
+      });
+
+      expect(i18n.t("nav.home" as never)).toBe("Home");
+      expect(i18n.t("nav.away" as never)).toBe("Away");
+      expect(i18n.t("plain" as never)).toBe("Plain");
+      expect(i18n.t("panel.title" as never, { ns: "admin" } as never)).toBe("Panel");
+    });
+
+    it("flattens a nested value holding an ICU plural under compiler: icuCompiler", () => {
+      const i18n = createI18n({
+        locale: "en",
+        compiler: icuCompiler,
+        translation: {
+          en: { cart: { items: "{count, plural, one {# item} other {# items}}" } },
+        },
+      });
+
+      expect(i18n.t("cart.items" as never, { count: 1 } as never)).toBe("1 item");
+      expect(i18n.t("cart.items" as never, { count: 4 } as never)).toBe("4 items");
+    });
+
+    it("keeps prototype-pollution safety through the flattener", () => {
+      const hostile = JSON.parse('{"nav":{"home":"Home"},"__proto__":{"polluted":"yes"}}');
+      const i18n = createI18n({ locale: "en", translation: { en: hostile } });
+
+      expect(i18n.t("nav.home" as never)).toBe("Home");
+      expect(Object.getPrototypeOf(i18n.getTranslations())).toBeNull();
+      expect(i18n.hasTranslation("toString")).toBe(false);
+      expect(({} as Record<string, unknown>).polluted).toBeUndefined();
+    });
+
+    it("still accepts an already-flattened catalog from flattenCatalog()", () => {
       const i18n = createI18n({ locale: "en" });
       i18n.addTranslations({ en: flattenCatalog({ nav: { home: "Home" }, count: 3 }) });
 

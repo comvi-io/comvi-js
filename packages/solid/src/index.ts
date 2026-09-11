@@ -45,7 +45,7 @@ export {
 // the `attach*` functions are themselves installers, so `.use(attachLoader)`
 // works too.
 export { icuCompiler } from "@comvi/core/icu";
-export { attachLoader, flattenCatalog, loader } from "@comvi/core/loader";
+export { attachLoader, loader } from "@comvi/core/loader";
 export { attachPlugins, definePlugin, plugins } from "@comvi/core/plugins";
 export { attachDevtools, devtools } from "@comvi/core/devtools";
 
