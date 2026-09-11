@@ -982,6 +982,9 @@ importers:
       '@comvi/core':
         specifier: workspace:*
         version: link:../../packages/core
+      '@comvi/plugin-fetch-loader':
+        specifier: workspace:*
+        version: link:../../packages/plugin-fetch-loader
       '@comvi/plugin-in-context-editor':
         specifier: workspace:*
         version: link:../../packages/plugin-in-context-editor

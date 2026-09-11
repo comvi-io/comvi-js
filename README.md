@@ -148,15 +148,15 @@ Compose before `init()`; a later `.with()` / `.use()` warns in development and
 does nothing. `icu()` is stricter still: it has to come before the first
 catalog reaches the host, which is the library's only ordering rule.
 
-| package         | the entry you import                       | host constructor                                   | notes                                                                                             |
-| --------------- | ------------------------------------------ | -------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
-| `@comvi/core`   | `@comvi/core`                              | `createI18n`                                       | the base host, plus the pure capability subpaths below                                            |
-| `@comvi/react`  | `@comvi/react`                             | `createI18n`                                       | core's own constructor, re-exported by name                                                       |
-| `@comvi/solid`  | `@comvi/solid`                             | `createI18n`                                       | core's own constructor, re-exported by name                                                       |
-| `@comvi/svelte` | `@comvi/svelte`                            | `createI18n`                                       | core's own constructor, re-exported by name                                                       |
-| `@comvi/vue`    | `@comvi/vue`                               | `createI18n` / `createCore` / `createI18nFromCore` | `createI18n` builds the `VueI18n` preset over a base host; `createCore` is core's own constructor |
-| `@comvi/next`   | `@comvi/next/client`, `@comvi/next/server` | `createI18n`                                       | a RUNTIME split, not a host tier; `createNextI18n` on `@comvi/next` stays the composed 0.4 host   |
-| `@comvi/nuxt`   | auto-imported                              | the module's generated host, or `hostModule`       | the default generated host is the base host; `hostModule` is the composition escape               |
+| package         | the entry you import                       | host constructor                             | notes                                                                                                                                                                    |
+| --------------- | ------------------------------------------ | -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `@comvi/core`   | `@comvi/core`                              | `createI18n`                                 | the base host, plus the pure capability subpaths below                                                                                                                   |
+| `@comvi/react`  | `@comvi/react`                             | `createI18n`                                 | core's own constructor, re-exported by name                                                                                                                              |
+| `@comvi/solid`  | `@comvi/solid`                             | `createI18n`                                 | core's own constructor, re-exported by name                                                                                                                              |
+| `@comvi/svelte` | `@comvi/svelte`                            | `createI18n`                                 | core's own constructor, re-exported by name                                                                                                                              |
+| `@comvi/vue`    | `@comvi/vue`                               | `createI18n`                                 | builds the `VueI18n` preset over a base host, and `.with(…)` composes on the result; `createCore` / `createI18nFromCore` are the escape hatch for a host built elsewhere |
+| `@comvi/next`   | `@comvi/next/client`, `@comvi/next/server` | `createI18n`                                 | a RUNTIME split, not a host tier; `createNextI18n` on `@comvi/next` stays the composed 0.4 host                                                                          |
+| `@comvi/nuxt`   | auto-imported                              | the module's generated host, or `hostModule` | the default generated host is the base host; `hostModule` is the composition escape                                                                                      |
 
 Capabilities are core's pure subpaths, re-exported **by name** from every
 framework entry except `@comvi/nuxt`, so the ones you never call are pruned by

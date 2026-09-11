@@ -7,12 +7,13 @@
 host it exposes as `readonly core: C`, and the capability APIs live where the host actually
 has them.
 
-**New:** `createI18nFromCore(core, options?)` wraps a host you composed yourself, preserving
-its exact type as `i18n.core`; `useI18nLoader()` / `useI18nPlugins()` composables
-(`UseI18nLoaderReturn`, `UseI18nPluginsReturn`); and `createCore(options)` — core's own
-constructor, re-exported by name because vue's `createI18n` is a real preset that already
-owns that name. `createI18n(options)` is unchanged and still the default: it builds the host
-internally from the same options object.
+**New:** `useI18nLoader()` / `useI18nPlugins()` composables (`UseI18nLoaderReturn`,
+`UseI18nPluginsReturn`); and, as the escape hatch for a host built elsewhere,
+`createCore(options)` — core's own constructor, re-exported by name because vue's `createI18n`
+is a real preset that already owns that name — with `createI18nFromCore(core, options?)` to
+wrap it, preserving its exact type as `i18n.core`. `createI18n(options)` is unchanged and
+still the default: it builds the host internally from the same options object, and
+`.with(installer)` on its result composes capabilities onto that host.
 
 | 0.4.x                                                                       | 0.5.0                                                                  |
 | --------------------------------------------------------------------------- | ---------------------------------------------------------------------- |

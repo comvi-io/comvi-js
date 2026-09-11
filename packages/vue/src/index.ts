@@ -19,7 +19,13 @@
 // Vue is the one binding whose preset is a REAL function — there is a `VueI18n`
 // to build around the host, and `ssrLocale` has to reach the core before the
 // reactive ref is seeded — so `createI18n` here is vue's own factory, not a
-// rename of core's. Core's constructor is therefore re-exported as `createCore`.
+// rename of core's. Capabilities are composed on its result with
+// `.with(installer)`, which runs on `i18n.core` and retypes it.
+//
+// Core's constructor is re-exported as `createCore`, and `createI18nFromCore`
+// wraps what it built: together they are the escape hatch for a host built
+// somewhere other than next to the app (nuxt's `hostModule`, or one host shared
+// with non-Vue code), not the way an app composes.
 export { VueI18n } from "./VueI18n";
 export { createI18n } from "./createI18n";
 export { createI18nFromCore } from "./createI18nFromCore";
@@ -36,13 +42,14 @@ export type {
   VueI18nOptions,
   VueI18nCoreOptions,
   AnyVueI18n,
+  WithHostIdentityError,
 } from "./VueI18n";
 
 // The capability toolkit. Each is a named binding under `sideEffects: false`,
 // so the subpaths an app never calls stay out of its graph. `loader()` /
-// `plugins()` / `devtools()` are the configured installers for `host.with(…)`;
-// the `attach*` functions are themselves installers, so `.with(attachLoader)`
-// works too.
+// `plugins()` / `devtools()` are the configured installers for `i18n.with(…)`
+// (and for `host.with(…)`, one level down); the `attach*` functions are
+// themselves installers, so `.with(attachLoader)` works too.
 export { icu, icuCompiler } from "@comvi/core/icu";
 export type { CompilerLockedError } from "@comvi/core/icu";
 export { attachLoader, flattenCatalog, loader } from "@comvi/core/loader";

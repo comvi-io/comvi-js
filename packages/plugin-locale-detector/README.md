@@ -144,12 +144,12 @@ const i18n = createI18n({ locale: "en", fallbackLocale: "en" }).with(
 <I18nProvider i18n={i18n}>…</I18nProvider>;
 ```
 
-Same setup works in Solid and Svelte. Vue's `createI18n` returns a `VueI18n`
-wrapper rather than a core host, so install onto the host it exposes:
-`i18n.core.with(localeDetector({ … }))`. For Next.js and Nuxt, prefer the
-framework's middleware (`@comvi/next`'s `createMiddleware()` or `@comvi/nuxt`'s
-`detectBrowserLanguage` config), which detect on the server before the page
-renders.
+Same setup works in Solid and Svelte, and in Vue: `createI18n` there returns a
+`VueI18n` wrapper rather than a core host, and that wrapper has the same pipe,
+so `createI18n({ … }).with(localeDetector({ … }))` reads identically. For
+Next.js and Nuxt, prefer the framework's middleware (`@comvi/next`'s
+`createMiddleware()` or `@comvi/nuxt`'s `detectBrowserLanguage` config), which
+detect on the server before the page renders.
 
 For all detection sources, cookie/storage key options, BCP 47 normalization rules, and the full options reference, see the [documentation](https://comvi.io/docs/i18n/plugins/locale-detector/).
 

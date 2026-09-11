@@ -207,10 +207,11 @@ import { createI18n } from "@comvi/vue";
 import { cdnLoader } from "@comvi/plugin-fetch-loader/cdn";
 import App from "./App.vue";
 
-// `VueI18n` wraps a core host and exposes it as `readonly core`, which is
-// where installers and plugins go.
-const i18n = createI18n({ locale: "en" });
-i18n.core.with(cdnLoader({ cdnUrl: "https://cdn.comvi.io/your-distribution-id" }));
+// `VueI18n` has its own `.with(installer)`: it runs the installer on the host
+// it wraps and widens the type of `i18n.core` by what was composed.
+const i18n = createI18n({ locale: "en" }).with(
+  cdnLoader({ cdnUrl: "https://cdn.comvi.io/your-distribution-id" }),
+);
 
 createApp(App).use(i18n).mount("#app");
 ```

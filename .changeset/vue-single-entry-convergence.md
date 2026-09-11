@@ -8,32 +8,34 @@
 
 Nothing about the preset itself changes: same call signature, same `ssrLocale` handling,
 same `VueI18n`, same `app.use(i18n)` install, same composables, same `<T>`, same
-`I18N_INJECTION_KEY`, and `createCore` / `createI18nFromCore` are untouched escape hatches.
-**Where the pipe goes on vue:** `createI18n` returns a `VueI18n`, not the host, so `.with(…)`
-lives one level down — on `i18n.core`, or on a host you build with `createCore` and hand to
-`createI18nFromCore`. That is the one shape that differs from react, solid and svelte.
+`I18N_INJECTION_KEY`, and `createCore` / `createI18nFromCore` are untouched escape hatches for
+a host built elsewhere.
+**Where the pipe goes on vue:** on the `createI18n` result. `VueI18n` has its own
+`.with(installer)`, which runs the installer on `i18n.core`, hands back the same instance and
+widens the type of `core` by what was composed — so the chain reads like the react, solid and
+svelte one. The one shape that still differs is registration: the wrapper does not proxy
+`use`, so a plugin goes to `i18n.core.use(…)`.
 
-| you had                                      | you add                                                |
-| -------------------------------------------- | ------------------------------------------------------ |
-| ICU plurals, select, selectordinal           | `compiler: icuCompiler`, or `.with(icu())` on the core |
-| loader (`registerLoader`, …)                 | `i18n.core.with(loader(map))`                          |
-| `.use(plugin)`, `onMissingKey`               | `i18n.core.with(plugins())`, then `i18n.core.use(p)`   |
-| discovery (`instanceId`, `window.__COMVI__`) | `i18n.core.with(devtools({ instanceId }))`             |
-| nested constructor catalogs                  | `flattenCatalog(…)`, or compose `loader()`             |
-| `<tag>` markup through `t()`                 | render `<T>`, or `import "@comvi/core/tags"`           |
+| you had                                      | you add                                                       |
+| -------------------------------------------- | ------------------------------------------------------------- |
+| ICU plurals, select, selectordinal           | `compiler: icuCompiler`, or `.with(icu())` before any catalog |
+| loader (`registerLoader`, …)                 | `createI18n(options).with(loader(map))`                       |
+| `.use(plugin)`, `onMissingKey`               | `.with(plugins())`, then `i18n.core.use(p)`                   |
+| discovery (`instanceId`, `window.__COMVI__`) | `.with(devtools({ instanceId }))`                             |
+| nested constructor catalogs                  | `flattenCatalog(…)`, or compose `loader()`                    |
+| `<tag>` markup through `t()`                 | render `<T>`, or `import "@comvi/core/tags"`                  |
 
 ```ts
 // INLINE — the preset ingests the catalog, so choose the compiler in the same call.
-const i18n = createI18n({ locale: "en", compiler: icuCompiler, translation });
+const inline = createI18n({ locale: "en", compiler: icuCompiler, translation });
 
-// REMOTE — install on the core, ahead of the first catalog.
-const core = createCore({ locale: "en" }).with(icu()).with(loader(importMap));
-const i18n = createI18nFromCore(core, { ssrLocale: "en" });
+// REMOTE — compose ahead of the first catalog, on the result.
+const remote = createI18n({ locale: "en", ssrLocale: "en" }).with(icu()).with(loader(importMap));
 ```
 
 `.with(icu())` is **pre-ingestion only**: the compiler locks at the first catalog and a later
 `icu()` throws with own `code === "E_COMPILER_LOCKED"`, so
-`createI18n({ translation }).core.with(icu())` is invalid by construction.
+`createI18n({ translation }).with(icu())` is invalid by construction.
 
 **`<T>` changed seams.** It used to import `@comvi/core/tags`, the side-effectful subpath, so
 rendering `<T>` anywhere also switched tag syntax on for every plain `t()` call — and off
