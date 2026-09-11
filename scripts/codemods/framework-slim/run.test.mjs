@@ -74,6 +74,7 @@ const REQUIRED_CASES = [
   "ctor-type-only-import", // runtime installer never merges into `import type`
   "ctor-nested-catalog", // 6: non-flat catalog -> `flattenCatalog(…)`
   "chain-with-verb", // 7: a 0.5-pre `.with(installer)` chain -> `.use(installer)`
+  "chain-with-residual", // 7: a `.with` reached through a STORED binding
   "stored-register-plugin", // 8: `host.use(raw)` on a proven plugin host
   "prologue-shebang", // shebang + directive prologue keep their positions
   // one golden per report-only residual.
@@ -87,6 +88,8 @@ const REQUIRED_CASES = [
   "report-namespace-host",
   // the removed ICU installer: a chain that composes it is refused whole.
   "report-icu-installer",
+  // a `.with` the sweep cannot attribute to a host: reported, never rewritten.
+  "report-residual-with",
 ];
 
 test("every matrix row and report-only shape has a golden fixture", () => {
@@ -138,6 +141,7 @@ test("CRLF sources come back with CRLF", () => {
     [
       "chain-plugin-host",
       "chain-plugin-installers",
+      "chain-with-residual",
       "chain-with-verb",
       "ctor-devtools-options",
       "ctor-icu-compiler",
@@ -983,6 +987,7 @@ test("transformed TypeScript goldens compile", (t) => {
     [
       "chain-plugin-host",
       "chain-plugin-installers",
+      "chain-with-residual",
       "chain-with-verb",
       "ctor-devtools-options",
       "ctor-icu-compiler",
@@ -1156,6 +1161,8 @@ export type * from "../api";
 export declare function Analytics(options?: { id?: number }): I18nPlugin;
 export declare function Metrics(): I18nPlugin;
 export declare function wrapMetrics(): <T extends Host>(host: T) => T;
+export declare const vendor: { Metrics: () => I18nPlugin };
+export declare const VendorPlugin: new () => I18nPlugin;
 `,
   };
   for (const [name, contents] of Object.entries(files)) {
@@ -1275,6 +1282,104 @@ test('a tree with manual actions never prints "nothing to migrate"', (t) => {
 
   assert.equal(nothing.status, 0, nothing.stderr);
   assert.match(nothing.stdout, /nothing to migrate/);
+});
+
+/**
+ * A tree that still calls a DELETED method may not be certified clean.
+ *
+ * This is the sentence the residual sweep exists to stop printing. `.with` was
+ * handled only inside a chain rooted at `createI18n(…)`, so one reached through
+ * a stored binding survived and the tool announced "nothing to migrate — this
+ * tree is already on the 0.5.0 surface" over it.
+ */
+test("a surviving `.with` is never certified: rewritten where provable, reported where not", (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "comvi-codemod-residual-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  fs.copyFileSync(path.join(FIXTURES, "chain-with-residual.input.ts"), path.join(dir, "i18n.ts"));
+
+  const rewritten = run(["*.ts"], dir);
+
+  assert.equal(rewritten.status, 0, rewritten.stderr);
+  assert.match(rewritten.stdout, /use-verb-rename x3/);
+  assert.doesNotMatch(rewritten.stdout, /nothing to migrate/);
+  const code = fs
+    .readFileSync(path.join(dir, "i18n.ts"), "utf8")
+    .split("\n")
+    .filter((line) => !line.startsWith("//"))
+    .join("\n");
+  assert.doesNotMatch(code, /\.with\(/);
+  assert.match(code, /i18n\.use\(loader\(\)\)/);
+  assert.match(code, /withLoader\.use\(plugins\(\)\)/);
+  assert.match(code, /withPlugins\.use\(wrapMetrics\(\)\)/);
+
+  fs.copyFileSync(path.join(FIXTURES, "report-residual-with.input.ts"), path.join(dir, "other.ts"));
+  const reported = run(["other.ts"], dir);
+
+  assert.equal(reported.status, 2, reported.stderr);
+  assert.match(reported.stdout, /MANUAL .*residual-with-verb/);
+  assert.doesNotMatch(reported.stdout, /nothing to migrate/);
+});
+
+/**
+ * The refusal message is about ONE chain, because that is the unit the planner
+ * refuses. Saying "the chains in this file are left untouched" was false
+ * exactly when it mattered: one chain rewritten, another refused, and the
+ * report telling the reader to go and look at work that was already done.
+ */
+test("a collision refuses only its own chain, and the message says so", () => {
+  const source = `import { createI18n, icuCompiler } from "@comvi/react";
+import { Analytics } from "./analytics";
+
+function definePlugin() {
+  return Analytics();
+}
+
+export const refused = createI18n({ locale: "en" }).use(Analytics());
+
+export const migrated = createI18n({
+  locale: "en",
+  translation: { en: { cart: "{count, plural, one {# item} other {# items}}" } },
+});
+
+export { definePlugin, icuCompiler };
+`;
+
+  const result = transformSource(source, "collision.ts");
+
+  // The second chain really was migrated: the compiler option landed.
+  assert.match(result.text, /compiler: icuCompiler/);
+  assert.equal(result.text.includes("definePlugin(Analytics())"), false);
+  const collision = result.manual.find((item) => item.shape === "local-name-collision");
+  assert.ok(collision, JSON.stringify(result.manual));
+  assert.match(collision.detail, /THIS `createI18n\(…\)` chain is left untouched/);
+  assert.doesNotMatch(collision.detail, /chains in this file are left untouched/);
+});
+
+/**
+ * `.use(x())` on a STORED host reads differently before and after decision E,
+ * and the discriminator is the same one a chained `.use` uses. Renaming
+ * whatever `installedBy` could not PLACE turned the reader's own installer into
+ * a `registerPlugin` that throws `E_PLUGIN_INIT_RETURN` at `init()`.
+ */
+test("a stored host renames only a PROVABLE raw plugin, and flags the rest", () => {
+  const source = `import { createI18n } from "@comvi/core";
+import { plugins } from "@comvi/core/plugins";
+import { Metrics, wrapMetrics } from "./analytics";
+
+export const i18n = createI18n({ locale: "en" }).use(plugins());
+i18n.use(wrapMetrics());
+i18n.use(Metrics());
+`;
+
+  const result = transformSource(source, "stored.ts");
+
+  assert.match(result.text, /i18n\.use\(wrapMetrics\(\)\);/);
+  assert.match(result.text, /i18n\.registerPlugin\(Metrics\(\)\);/);
+  assert.deepEqual(
+    result.manual.map((item) => item.shape),
+    ["raw-plugin-needs-helper"],
+  );
+  assert.match(result.manual[0].detail, /reads as an installer by its lowercase name/);
 });
 
 function run(args, cwd) {

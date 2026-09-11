@@ -21,7 +21,7 @@
     "line": 19,
     "column": 25,
     "shape": "local-name-collision",
-    "detail": "`definePlugin` is already declared locally — the `createI18n(…)` chains in this file are left untouched"
+    "detail": "`definePlugin` is already declared locally — THIS `createI18n(…)` chain is left untouched (every chain is planned on its own, so the others in this file may well be migrated)"
   },
   {
     "line": 25,
@@ -30,9 +30,27 @@
     "detail": "`.use(metrics())` reads as an installer by its lowercase name and is left as written — if `metrics()` returns a PLUGIN rather than an installer, wrap it as `.use(definePlugin(metrics(…)))`"
   },
   {
-    "line": 29,
+    "line": 31,
     "column": 44,
     "shape": "stored-host-plugin-use",
     "detail": "`app.use(…)` runs a raw plugin on a stored `createI18n(…)` result, and `.use` takes an INSTALLER — compose `.use(plugins())` (or a lowercase installer) where the host is constructed and call `app.registerPlugin(…)` here, or wrap the plugin as `app.use(definePlugin(…))`"
+  },
+  {
+    "line": 32,
+    "column": 1,
+    "shape": "stored-host-plugin-use",
+    "detail": "`app.use(…)` runs a raw plugin on a stored `createI18n(…)` result, and `.use` takes an INSTALLER — compose `.use(plugins())` (or a lowercase installer) where the host is constructed and call `app.registerPlugin(…)` here, or wrap the plugin as `app.use(definePlugin(…))`"
+  },
+  {
+    "line": 33,
+    "column": 1,
+    "shape": "stored-host-plugin-use",
+    "detail": "`app.use(…)` runs a raw plugin on a stored `createI18n(…)` result, and `.use` takes an INSTALLER — compose `.use(plugins())` (or a lowercase installer) where the host is constructed and call `app.registerPlugin(…)` here, or wrap the plugin as `app.use(definePlugin(…))`"
+  },
+  {
+    "line": 38,
+    "column": 1,
+    "shape": "stored-host-plugin-use",
+    "detail": "`app.use(extras[0])` hands `.use` something the codemod cannot prove is an installer OR a plugin — a spread is N plugins in one call and a bare binding may hold a list, so neither the rename nor the `definePlugin(…)` wrap is safe here: write it out by hand, one call per plugin"
   }
 ]

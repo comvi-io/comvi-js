@@ -7,9 +7,10 @@
  * | 4 | inline ICU catalog                    | `compiler: icuCompiler`      |
  * | 5 | `exposeGlobal` / `instanceId` options | `.use(devtools({…}))`        |
  * | 6 | non-flat inline catalog               | `flattenCatalog(…)`          |
- * | 7 | chained `.with(installer)`            | `.use(installer)`            |
+ * | 7 | `.with(installer)`, chained or stored | `.use(installer)`            |
  * | 8 | `host.use(raw)` on a plugin host      | `host.registerPlugin(raw)`   |
  * | + | `.with(icu())`, anywhere in a chain   | reported, never rewritten    |
+ * | + | `.with(` on an unprovable receiver    | reported, never rewritten    |
  *
  * Rows 7 and 8 are the two verbs converging (decision E). `.use(installer)` is
  * the only composition verb now, so the 0.5-pre `.with` spelling is renamed —
@@ -177,6 +178,46 @@ function removedIcuInstallerAt(root, step) {
     binding.imported === REMOVED_ICU_INSTALLER &&
     binding.source.startsWith("@comvi/");
   return removed ? name : undefined;
+}
+
+/**
+ * Is this argument a PROVABLE raw plugin — something that cannot be an
+ * installer?
+ *
+ * Four shapes, and they are the same four the chain path decides on
+ * (`planChain` below, the `raw-plugin-needs-helper` branch):
+ *
+ *   • an Uppercase factory call, `FetchLoader()`, the published convention;
+ *   • `new Uppercase()`, the class spelling of the same thing;
+ *   • a member expression ending in an Uppercase call, `pkg.MyPlugin()`, which
+ *     is that convention reached through a namespace;
+ *   • an INLINE function or arrow, which needs no convention at all: an
+ *     installer widens the host and returns it, so a literal function in the
+ *     slot cannot be one.
+ *
+ * Everything else — a lowercase callee, a bare binding, an element read, a
+ * spread — is NOT provable, and the two callers treat it as such.
+ */
+function isProvableRawPlugin(argument) {
+  if (argument === undefined) return false;
+  const kind = argument.kind();
+  if (kind === "arrow_function" || kind === "function_expression") return true;
+  if (kind === "new_expression") {
+    const constructor = argument.field("constructor");
+    if (constructor === null) return false;
+    const name =
+      constructor.kind() === "member_expression"
+        ? constructor.field("property")?.text()
+        : constructor.text();
+    return name !== undefined && /^[A-Z]/.test(name);
+  }
+  if (kind !== "call_expression") return false;
+  const callee = argument.field("function");
+  if (callee === null) return false;
+  if (callee.kind() === "identifier") return /^[A-Z]/.test(callee.text());
+  if (callee.kind() !== "member_expression") return false;
+  const property = callee.field("property");
+  return property !== null && /^[A-Z]/.test(property.text());
 }
 
 const keyText = (key) => (key.kind() === "string" ? key.text().slice(1, -1) : key.text());
@@ -563,10 +604,22 @@ function planHostRename(root) {
  *   • it does not, so the receiver's capability is still the open question and
  *     the recipe still belongs at the construction — reported, as before.
  *
- * Two guards keep both halves honest: only bindings the file itself assigns
+ * Three guards keep both halves honest: only bindings the file itself assigns
  * from a host construction count (`app.use(router)` in a component is not this
- * shape), and a `.use(installer)` — already the one composition verb — is
- * neither renamed nor reported.
+ * shape); a `.use(installer)` — already the one composition verb — is neither
+ * renamed nor reported; and, the guard this shape was missing, the ARGUMENT has
+ * to be a provable raw plugin before the rename fires.
+ *
+ * That last one is the whole discriminator the chain path spells out at
+ * `planChain`'s `raw-plugin-needs-helper` branch, and it belongs here for
+ * exactly the reason stated there: `.use(x())` reads differently before and
+ * after decision E. Skipping only what `installedBy` can PLACE renamed every
+ * other argument, so `i18n.use(wrapMetrics())` — the reader's own installer,
+ * from the reader's own module, already correct — became
+ * `i18n.registerPlugin(wrapMetrics())`, which throws `E_PLUGIN_INIT_RETURN` at
+ * `init()`. A migration must not break code that is already correct, so a
+ * lowercase unprovable callee is taken at its word and left alone, with an
+ * advisory that says what to do if the convention got it wrong.
  */
 function detectStoredHostUse(root, hosts) {
   const findings = [];
@@ -596,6 +649,39 @@ function detectStoredHostUse(root, hosts) {
       // call is valid on any host, and renaming it would break it.
       if (installedBy(root, { call }, hostModule) !== undefined) continue;
 
+      // The queue form is `use(plugin, options)`, so the plugin is the FIRST
+      // argument whether or not options follow it.
+      const args = argumentsOf(call);
+      const argument = args.length > 0 && args[0].kind() !== "spread_element" ? args[0] : undefined;
+      const local = calleeName(argument);
+
+      if (!isProvableRawPlugin(argument)) {
+        if (argument !== undefined && local !== undefined && !/^[A-Z]/.test(local)) {
+          findings.push({
+            offset: startOf(property),
+            shape: "raw-plugin-needs-helper",
+            detail:
+              `\`${binding}.use(${brief(argument)})\` reads as an installer by its lowercase ` +
+              `name and is left as written — if \`${local}()\` returns a PLUGIN rather than an ` +
+              `installer, call \`${binding}.registerPlugin(${local}(…))\` on a host that ` +
+              `composes \`.use(${PLUGIN_HOST_INSTALLER}())\`, or wrap it as ` +
+              `\`${binding}.use(${PLUGIN_HELPER}(${local}(…)))\``,
+          });
+          continue;
+        }
+        findings.push({
+          offset: startOf(access),
+          shape: "stored-host-plugin-use",
+          detail:
+            `\`${binding}.use(${args[0] === undefined ? "…" : brief(args[0])})\` hands \`.use\` ` +
+            `something the codemod cannot prove is an installer OR a plugin — a spread is N ` +
+            `plugins in one call and a bare binding may hold a list, so neither the rename nor ` +
+            `the \`${PLUGIN_HELPER}(…)\` wrap is safe here: write it out by hand, one call per ` +
+            `plugin`,
+        });
+        continue;
+      }
+
       if (composed) {
         edits.push({ ...spanOf(property), text: "registerPlugin" });
         renames += 1;
@@ -612,6 +698,141 @@ function detectStoredHostUse(root, hosts) {
           `\`${binding}.use(${PLUGIN_HELPER}(…))\``,
       });
     }
+  }
+  return { manual: findings, edits, renames };
+}
+
+// ---------------------------------------------------------------------------
+// `.with` that never reaches a static chain
+// ---------------------------------------------------------------------------
+
+/**
+ * The node a COMPOSITION chain starts from, or `undefined` when the expression
+ * is not one.
+ *
+ * The difference from `chainRootOf` is the method test: every link between the
+ * expression and its root must be `use` or `with`. `i18n.with(loader())` walks
+ * down to `i18n`; `i18n.t("x")` does not walk at all, because `t` is not a
+ * composition step and the value it produces is a string, not a host.
+ */
+function compositionRootOf(node) {
+  let current = node;
+  while (current.kind() === "call_expression") {
+    const callee = current.field("function");
+    if (callee === null) return undefined;
+    if (callee.kind() !== "member_expression") return current;
+    const method = callee.field("property")?.text();
+    if (method !== "use" && method !== "with") return undefined;
+    const object = callee.field("object");
+    if (object === null) return undefined;
+    current = object;
+  }
+  return current;
+}
+
+/**
+ * Local bindings that PROVABLY hold a Comvi host, to a fixed point.
+ *
+ * Seeded from the constructions `hosts` vouches for, then grown through
+ * composition: `const withLoader = i18n.with(loader())` holds whatever `i18n`
+ * held, because that is what an installer returns. The fixed point is what
+ * makes a two-step migration decidable — `withLoader.with(plugins())` is a host
+ * call, and the only way to know is to have followed `i18n` through the first
+ * step.
+ */
+function hostBindingNames(root, hosts) {
+  const names = new Set();
+  const declarators = root.findAll({ rule: { kind: "variable_declarator" } });
+  for (;;) {
+    let grew = false;
+    for (const declarator of declarators) {
+      const name = declarator.field("name");
+      const value = declarator.field("value");
+      if (name === null || value === null || name.kind() !== "identifier") continue;
+      if (names.has(name.text())) continue;
+      const origin = compositionRootOf(value);
+      if (origin === undefined) continue;
+      const proven =
+        hosts.has(constructedName(origin) ?? "") ||
+        (origin.kind() === "identifier" && names.has(origin.text()));
+      if (!proven) continue;
+      names.add(name.text());
+      grew = true;
+    }
+    if (!grew) return names;
+  }
+}
+
+/**
+ * Every `.with(` the chain transform did not reach.
+ *
+ * `.with` is handled inside `chainSteps()`, which only walks the calls chained
+ * DIRECTLY onto a `createI18n(…)`. A `.with` reached through a stored binding —
+ * `const withLoader = i18n.with(loader())` — is not in any such chain, so it
+ * survived, and the tool then printed "nothing to migrate, this tree is already
+ * on the 0.5.0 surface" over a file that still calls a method 0.5.0 deleted.
+ * That sentence is the failure: a certification nobody can act on is worse than
+ * a rewrite nobody asked for.
+ *
+ * So every surviving `.with(` is accounted for, one of two ways. On a PROVABLE
+ * Comvi host the rename is as safe as it is in a chain — `with` exists on no
+ * 0.5.0 host, so `use` with the same argument in the same position is the only
+ * spelling that can run. On anything else it is REPORTED: the receiver may be a
+ * Temporal date or an array, in which case nothing needs doing, and the report
+ * says so — but the tool can no longer call the tree clean without a human
+ * having looked.
+ */
+function detectResidualWith(root, hosts, handled) {
+  const findings = [];
+  const edits = [];
+  let renames = 0;
+  const bindings = hostBindingNames(root, hosts);
+
+  for (const member of root.findAll({ rule: { kind: "member_expression" } })) {
+    const property = member.field("property");
+    const object = member.field("object");
+    if (property === null || object === null || property.text() !== "with") continue;
+    if (handled.has(startOf(property))) continue;
+    const call = member.parent();
+    if (call?.kind() !== "call_expression") continue;
+    if (startOf(call.field("function")) !== startOf(member)) continue;
+
+    // The removed ICU installer is refused here exactly as it is in a chain:
+    // renaming the verb around a call that has to GO would leave a step that
+    // still does not resolve.
+    const removedIcu = removedIcuInstallerAt(root, { call });
+    if (removedIcu !== undefined) {
+      findings.push({
+        offset: startOf(property),
+        shape: "icu-installer-removed",
+        detail:
+          `\`.with(${removedIcu}(…))\` composes the removed \`${REMOVED_ICU_INSTALLER}()\` ` +
+          `installer — ICU is a compiler setting, not a capability: drop the step and pass ` +
+          `\`compiler: ${ICU_COMPILER}\` in the \`${HOST_FACTORY}(…)\` options, which serves ` +
+          `inline, loader, CDN and API catalogs alike`,
+      });
+      continue;
+    }
+
+    const origin = compositionRootOf(call);
+    const proven =
+      origin !== undefined &&
+      (hosts.has(constructedName(origin) ?? "") ||
+        (origin.kind() === "identifier" && bindings.has(origin.text())));
+    if (proven) {
+      edits.push({ ...spanOf(property), text: "use" });
+      renames += 1;
+      continue;
+    }
+    findings.push({
+      offset: startOf(property),
+      shape: "residual-with-verb",
+      detail:
+        `\`${brief(member)}(…)\` calls \`with\`, which no 0.5.0 Comvi host has — and this ` +
+        `receiver cannot be proven to be one, so it is left exactly as written: rename it to ` +
+        `\`.use(…)\` by hand if it IS a host (a \`with\` on something else — a Temporal date, an ` +
+        `array — needs nothing)`,
+    });
   }
   return { manual: findings, edits, renames };
 }
@@ -700,6 +921,7 @@ export function planSingleEntry(root, text) {
     ...root.findAll({ rule: { kind: "call_expression" } }),
     ...root.findAll({ rule: { kind: "new_expression" } }),
   ];
+  const withInChains = new Set();
   for (const call of constructions) {
     const hostName = constructedName(call) ?? "";
     if (shadowedHosts.has(hostName)) {
@@ -716,6 +938,14 @@ export function planSingleEntry(root, text) {
     const hostModule = hosts.get(hostName);
     if (hostModule === undefined) continue;
 
+    // Every `.with` step of a proven chain is accounted for by `planChain`,
+    // whether it rewrites it or refuses the chain whole, so the residual sweep
+    // below must not see it twice — and must not rewrite a step inside a chain
+    // that came back byte-identical on purpose.
+    for (const step of chainSteps(call)) {
+      if (step.method === "with") withInChains.add(startOf(step.property));
+    }
+
     const chain = planChain(root, text, call, hostModule);
     manual.push(...chain.manual);
     if (chain.blocked) continue;
@@ -724,6 +954,11 @@ export function planSingleEntry(root, text) {
     for (const [name, module] of chain.needs) needs.set(name, module);
     for (const name of chain.prunable) prunable.add(name);
   }
+
+  const residual = detectResidualWith(root, hosts, withInChains);
+  manual.push(...residual.manual);
+  edits.push(...residual.edits);
+  if (residual.renames > 0) count("use-verb-rename", residual.renames);
 
   const imports = planNamedImports(root, text, needs);
   edits.push(...imports.edits);
@@ -1051,8 +1286,9 @@ function planChain(root, text, call, hostModule) {
         offset: startOf(call),
         shape: "local-name-collision",
         detail:
-          `\`${name}\` is already declared locally — the \`${HOST_FACTORY}(…)\` chains in this ` +
-          `file are left untouched`,
+          `\`${name}\` is already declared locally — THIS \`${HOST_FACTORY}(…)\` chain is left ` +
+          `untouched (every chain is planned on its own, so the others in this file may well be ` +
+          `migrated)`,
       });
       continue;
     }

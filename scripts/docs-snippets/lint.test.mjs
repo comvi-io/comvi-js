@@ -1245,3 +1245,267 @@ test("an ICU compiler named in the body does vouch for the page", () => {
 
   assert.deepEqual(rulesOf(body), []);
 });
+
+// ---------------------------------------------------------------------------
+// Decision-E follow-up: which `.use(` is ours, and which receiver is not.
+// ---------------------------------------------------------------------------
+
+test("createApp(App).use(createPinia()).use(i18n) → composes nothing comvi, so still flagged", () => {
+  // The receiver denylist was a capture group in FRONT of `\.use`, optional
+  // because a chained `.use` has no identifier there — so on this line it was
+  // undefined and did no work, while `createPinia()` satisfied "any lowercase
+  // call". A Vue page that never composes a capability came back clean.
+  const body = ["```ts", "createApp(App).use(createPinia()).use(i18n).mount('#app');", "```"].join(
+    "\n",
+  );
+
+  assert.deepEqual(rulesOf(body, { file: "docs/i18n/vue.mdx" }), ["required/use-composition"]);
+});
+
+test("nuxtApp.vueApp.use(loader()) → the denylist reaches a CHAINED receiver too", () => {
+  const body = ["```ts", "nuxtApp.vueApp.use(loader());", "```"].join("\n");
+
+  assert.deepEqual(rulesOf(body, { file: "docs/i18n/nuxt.mdx" }), ["required/use-composition"]);
+});
+
+test("a lowercase call that is not an installer by NAME → not composition evidence", () => {
+  const body = [
+    "```tsx",
+    "const i18n = createI18n({ locale: 'en' }).use(myFavouriteThing());",
+    "```",
+  ].join("\n");
+
+  assert.deepEqual(rulesOf(body, { file: "docs/i18n/react.mdx" }), ["required/use-composition"]);
+});
+
+test("every named installer counts as composition, one fence each", () => {
+  for (const installer of [
+    "loader()",
+    "plugins()",
+    "devtools({})",
+    "definePlugin(fn)",
+    "fetchLoader({ apiKey })",
+    "cdnLoader({ cdnUrl })",
+    "localeDetector()",
+    "inContextEditor()",
+    "attachLoader",
+    "attachPlugins",
+    "attachDevtools",
+  ]) {
+    const body = [
+      "```tsx",
+      `const i18n = createI18n({ locale: 'en' }).use(${installer});`,
+      "```",
+    ].join("\n");
+
+    assert.deepEqual(
+      rulesOf(body, { file: "docs/i18n/react.mdx" }).filter(
+        (rule) => rule === "required/use-composition",
+      ),
+      [],
+      installer,
+    );
+  }
+});
+
+test(".use (\\n  loader()) → the anchoring accepts a space after the verb", () => {
+  const body = [
+    "```tsx",
+    "const i18n = createI18n({ locale: 'en' }).use (loader());",
+    "i18n.registerLoader(myLoader);",
+    "```",
+  ].join("\n");
+
+  assert.deepEqual(rulesOf(body, { file: "docs/i18n/react.mdx" }), []);
+});
+
+test("app.use(Vuetify) and friends → exempt, those pages are correct", () => {
+  // Four shapes verified in the platform docs. Nothing in a comvi chain can
+  // ever clear this rule (it is scope `always`), so a finding here would be
+  // unclearable on a correct page — which is how a pinned baseline moves.
+  const body = [
+    "```ts",
+    "app.use(Vuetify);",
+    "app.use(PrimeVue);",
+    "nuxtApp.vueApp.use(Antd);",
+    "i18next.use(HttpBackend);",
+    "server.use(Middleware());",
+    "router.use(Guard());",
+    "```",
+  ].join("\n");
+
+  assert.deepEqual(rulesOf(body), []);
+});
+
+test("a raw plugin on a receiver that is NOT exempt → still banned", () => {
+  const body = ["```ts", "myHost.use(Vuetify);", "```"].join("\n");
+
+  assert.deepEqual(rulesOf(body), ["banned/raw-plugin-in-use-slot"]);
+});
+
+test("createNextI18n's result.use(RawPlugin()) → exempt, a deliberate compat surface", () => {
+  // `createNextI18n` is preserved exactly across 0.5.0 (MIGRATION.md §6) and
+  // its composed host keeps the raw plugin queue.
+  const stored = [
+    "```ts",
+    "const result = createNextI18n({ locale: 'en' });",
+    "result.use(RawPlugin());",
+    "```",
+  ].join("\n");
+  const chained = [
+    "```ts",
+    "export const i18n = createNextI18n({ locale: 'en' }).use(RawPlugin());",
+    "```",
+  ].join("\n");
+
+  assert.deepEqual(rulesOf(stored), []);
+  assert.deepEqual(rulesOf(chained), []);
+});
+
+test("a raw plugin on an unrelated binding beside a createNextI18n call → still banned", () => {
+  const body = [
+    "```ts",
+    "const next = createNextI18n({ locale: 'en' });",
+    "other.use(RawPlugin());",
+    "```",
+  ].join("\n");
+
+  assert.deepEqual(rulesOf(body), ["banned/raw-plugin-in-use-slot"]);
+});
+
+test("an inline function or arrow in the .use slot → banned, it cannot be an installer", () => {
+  // An installer widens the host and returns it, so a literal function in the
+  // slot is a raw plugin by construction — the codemod's own
+  // `chain-plugin-host` fixture says exactly this and wraps it in
+  // `definePlugin`. The lint used to see only an Uppercase callee.
+  const body = [
+    "```ts",
+    "const a = createI18n({ locale: 'en' }).use((i18n) => { track(i18n); });",
+    "const b = createI18n({ locale: 'en' }).use(function (i18n) { track(i18n); });",
+    "const c = createI18n({ locale: 'en' }).use(async (i18n) => { await track(i18n); });",
+    "```",
+  ].join("\n");
+
+  assert.deepEqual(rulesOf(body), [
+    "banned/raw-plugin-in-use-slot",
+    "banned/raw-plugin-in-use-slot",
+    "banned/raw-plugin-in-use-slot",
+  ]);
+});
+
+test("new Uppercase() and pkg.Uppercase() in the .use slot → banned, same convention", () => {
+  const body = [
+    "```ts",
+    "const a = createI18n({ locale: 'en' }).use(new MetricsPlugin());",
+    "const b = createI18n({ locale: 'en' }).use(vendor.MetricsPlugin());",
+    "```",
+  ].join("\n");
+
+  assert.deepEqual(rulesOf(body), [
+    "banned/raw-plugin-in-use-slot",
+    "banned/raw-plugin-in-use-slot",
+  ]);
+});
+
+test("registerPlugin without an identifier receiver → banned in every receiver shape", () => {
+  // `registerPlugin` needs the capability whatever the receiver LOOKS like: a
+  // call result, an optional chain and an element read all throw on an
+  // uncomposed host, and an identifier-only pattern could see none of them.
+  for (const call of [
+    "createI18n({ locale: 'en' }).registerPlugin(fn);",
+    "getI18n().registerPlugin(fn);",
+    "i18n?.registerPlugin(fn);",
+    "hosts[0].registerPlugin(fn);",
+  ]) {
+    assert.deepEqual(
+      rulesOf(["```ts", call, "```"].join("\n")),
+      ["banned/register-plugin-without-plugins"],
+      call,
+    );
+  }
+});
+
+test("registerLoader without an identifier receiver → banned in every receiver shape", () => {
+  for (const call of [
+    "createI18n({ locale: 'en' }).registerLoader(fn);",
+    "getI18n().registerLoader(fn);",
+    "i18n?.registerLoader(fn);",
+    "hosts[0].registerLoader(fn);",
+  ]) {
+    const { findings, stats } = lintDocument(page(["```ts", call, "```"].join("\n")));
+
+    assert.deepEqual(
+      findings.map((f) => f.rule),
+      ["banned/register-loader-on-instance"],
+      call,
+    );
+    assert.equal(stats.registerLoaderCalls, 1, call);
+  }
+});
+
+test("a BARE registerPlugin / registerLoader call → still exempt, it names an acquired capability", () => {
+  const body = [
+    "```ts",
+    "const { registerPlugin } = useI18nPlugins();",
+    "const { registerLoader } = useI18nLoader();",
+    "registerPlugin(fn);",
+    "registerLoader(map);",
+    "```",
+  ].join("\n");
+
+  assert.deepEqual(rulesOf(body), []);
+});
+
+test("Temporal's date.with and Array.prototype.with → clean, the argument is not an installer", () => {
+  // Both were flagged by `banned/with-composition` with nothing but
+  // `check=skip` to escape with. A composition step hands `with` a CALL.
+  const body = [
+    "```ts",
+    "const shifted = date.with({ month: 2 });",
+    "const swapped = locales.with(0, 'en');",
+    "const named = locales.with('en');",
+    "```",
+  ].join("\n");
+
+  assert.deepEqual(rulesOf(body), []);
+});
+
+test(".with(installer()) and .with(attachLoader) → still banned, the verb is gone", () => {
+  const body = [
+    "```ts",
+    "const a = createI18n({ locale: 'en' }).with(myOwnInstaller());",
+    "const b = createI18n({ locale: 'en' }).with(attachLoader);",
+    "const c = createI18n({ locale: 'en' }).with(FetchLoader());",
+    "```",
+  ].join("\n");
+
+  assert.deepEqual(
+    rulesOf(body).filter((rule) => rule === "banned/with-composition"),
+    ["banned/with-composition", "banned/with-composition", "banned/with-composition"],
+  );
+});
+
+test(".use(inContextEditor()) does NOT clear a registerPlugin finding", () => {
+  // Its installer is `<T extends I18n<any>>(i18n: T) => T` in both entries and
+  // the production entry is a no-op: it widens nothing, so the host it hands
+  // back still has no `registerPlugin`.
+  const body = [
+    "```ts",
+    "const i18n = createI18n({ locale: 'en' }).use(inContextEditor());",
+    "i18n.registerPlugin(myPlugin);",
+    "```",
+  ].join("\n");
+
+  assert.deepEqual(rulesOf(body), ["banned/register-plugin-without-plugins"]);
+});
+
+test(".use(localeDetector()) still DOES clear one — that installer really widens", () => {
+  const body = [
+    "```ts",
+    "const i18n = createI18n({ locale: 'en' }).use(localeDetector());",
+    "i18n.registerPlugin(myPlugin);",
+    "```",
+  ].join("\n");
+
+  assert.deepEqual(rulesOf(body), []);
+});

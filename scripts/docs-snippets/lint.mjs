@@ -80,11 +80,15 @@ const FOREIGN_SPECIFIERS = [
 
 /** Tokens proving the chain already has the loader capability. */
 const LOADER_TOKENS = [
-  /\.use\(\s*loader\s*\(/,
-  /\.use\(\s*attachLoader\b/,
+  // `\s*` after the verb everywhere, as in PLUGIN_TOKENS and USE_COMPOSITION
+  // below: a chain broken across lines writes `.use(\n  loader(…)` and a
+  // formatter may put a space in, and an anchoring that only accepted `.use(`
+  // graded the same evidence differently from rule to rule.
+  /\.use\s*\(\s*loader\s*\(/,
+  /\.use\s*\(\s*attachLoader\b/,
   /\battachLoader\s*\(/,
-  /\.use\(\s*fetchLoader\s*\(/,
-  /\.use\(\s*cdnLoader\s*\(/,
+  /\.use\s*\(\s*fetchLoader\s*\(/,
+  /\.use\s*\(\s*cdnLoader\s*\(/,
   // MIGRATION.md §6: `createNextI18n` is preserved exactly and composes the
   // loader with both `registerLoader` overloads inside the package; its host
   // type `NextComposedI18n` and the SSR `NextServerLoaderHost` carry it too.
@@ -115,13 +119,19 @@ const LOADER_TOKENS = [
  * plugin API on its host exactly as `.use(plugins())` does. The two names are
  * deliberately unalike — `plugins()` takes the capability, `definePlugin(fn)`
  * takes a plugin — and the rule has to know both.
+ *
+ * `inContextEditor` is deliberately NOT here, and it is the one first-party
+ * installer that is not. Its type is `<T extends I18n<any>>(i18n: T) => T` in
+ * both entries — it widens NOTHING — and the production entry is a no-op, so a
+ * chain that composes it has exactly the host it started with and still has no
+ * `registerPlugin`. Counting it cleared the very finding this rule exists for.
  */
 const PLUGIN_TOKENS = [
-  /\.use\(\s*plugins\s*\(/,
-  /\.use\(\s*definePlugin\s*\(/,
-  /\.use\(\s*attachPlugins\b/,
+  /\.use\s*\(\s*plugins\s*\(/,
+  /\.use\s*\(\s*definePlugin\s*\(/,
+  /\.use\s*\(\s*attachPlugins\b/,
   /\battachPlugins\s*\(/,
-  /\.use\(\s*(?:fetchLoader|cdnLoader|localeDetector|inContextEditor)\s*\(/,
+  /\.use\s*\(\s*(?:fetchLoader|cdnLoader|localeDetector)\s*\(/,
   /\bcreateNextI18n\s*\(/,
 ];
 
@@ -217,23 +227,187 @@ function hasAny(patterns, text) {
 const FOREIGN_USE_RECEIVERS = new Set(["app", "nuxtApp", "vueApp", "vue"]);
 
 /**
+ * Receivers whose `.use(` takes a RAW plugin on purpose and always did: Vue's
+ * app and Nuxt's `nuxtApp.vueApp` install Vue plugins, Express-shaped `server` /
+ * `router` install middleware, and `i18next.use(HttpBackend)` is a competitor's
+ * own verb quoted in a comparison. None of them is the comvi host, so
+ * `banned/raw-plugin-in-use-slot` must not fire on them: the finding would be
+ * unclearable on a page that is correct, which is how a pinned baseline moves.
+ */
+const FOREIGN_PLUGIN_RECEIVERS = new Set([
+  "app",
+  "vueApp",
+  "nuxtApp",
+  "server",
+  "router",
+  "i18next",
+]);
+
+/**
+ * Every installer the 0.5.0 surface publishes, by name. This list — not "any
+ * lowercase call" — is what counts as composition evidence.
+ *
+ * The looser test was the bug: `createApp(App).use(createPinia()).use(i18n)`
+ * satisfied `required/use-composition` on a page that composes nothing comvi at
+ * all, because `createPinia()` is a lowercase call. A capability the reader can
+ * copy has a NAME, and there are twelve of them.
+ *
+ * `flattenCatalog` is not here on purpose: it wraps a catalog inside the
+ * constructor options and is never an argument to `.use(`, so listing it would
+ * only widen the pattern back towards "any lowercase call".
+ */
+const INSTALLER_NAMES = [
+  "loader",
+  "attachLoader",
+  "plugins",
+  "attachPlugins",
+  "definePlugin",
+  "devtools",
+  "attachDevtools",
+  "fetchLoader",
+  "cdnLoader",
+  "localeDetector",
+  "inContextEditor",
+];
+
+/**
  * `.use(` in the comvi composition sense.
  *
- * The argument must be an INSTALLER: a call to a lowercase factory (`loader()`,
- * `cdnLoader()`, `plugin(fn)`) or a bare `attachLoader` / `attachPlugins` /
+ * The argument must be an INSTALLER BY NAME: a call to one of
+ * `INSTALLER_NAMES`, or a bare `attachLoader` / `attachPlugins` /
  * `attachDevtools` reference. `app.use(i18n)` fails on both halves — foreign
- * receiver, and an argument that is a host rather than a call — which is the
- * whole reason the two verbs can share a name safely.
+ * receiver, and an argument that is neither a named installer nor a call —
+ * which is the whole reason the two verbs can share a name safely.
+ *
+ * The receiver is NOT captured here. A capture group in front of `\.use` is
+ * optional by necessity — a chained `.use` has no identifier in front of it —
+ * and an optional group that is undefined on every chained call is a denylist
+ * that never runs. It is read separately, by `receiverTail`, which walks
+ * backwards from the dot and so works on `nuxtApp.vueApp.use(` too.
  */
-const USE_COMPOSITION =
-  /([A-Za-z_$][\w$]*)?\s*\.use\s*\(\s*(?:[a-z][\w$]*\s*\(|attach(?:Loader|Plugins|Devtools)\b)/g;
+const USE_COMPOSITION = new RegExp(
+  String.raw`\.use\s*\(\s*(?:(?:${INSTALLER_NAMES.join("|")})\s*\(|attach(?:Loader|Plugins|Devtools)\b)`,
+  "g",
+);
+
+/**
+ * The last identifier of the receiver immediately in front of a `.` at
+ * `dotIndex`, or `""` when the receiver ends in a call or an index.
+ *
+ * `nuxtApp.vueApp.use(` gives `vueApp`, `i18n?.use(` gives `i18n`, and
+ * `createApp(App).use(` gives `""`. The LAST segment is what the denylists
+ * name, which is what makes "a receiver chain ending in `.vueApp`" a lookup
+ * rather than a second pattern.
+ */
+function receiverTail(text, dotIndex) {
+  let index = dotIndex - 1;
+  const skipSpace = () => {
+    while (index >= 0 && /\s/.test(text[index])) index -= 1;
+  };
+  skipSpace();
+  if (index >= 0 && text[index] === "?") {
+    index -= 1;
+    skipSpace();
+  }
+  const end = index + 1;
+  while (index >= 0 && /[\w$]/.test(text[index])) index -= 1;
+  return text.slice(index + 1, end);
+}
 
 /** Does this code compose a capability with `.use(installer)`? */
 export function hasUseComposition(text) {
   for (const match of text.matchAll(USE_COMPOSITION)) {
-    if (!FOREIGN_USE_RECEIVERS.has(match[1] ?? "")) return true;
+    if (!FOREIGN_USE_RECEIVERS.has(receiverTail(text, match.index))) return true;
   }
   return false;
+}
+
+/**
+ * A receiver in front of a capability call, in the shapes a doc actually
+ * writes. An IDENTIFIER CHAIN (`i18n`, `i18n.core`, `i18n?.core`) is the
+ * common one, and the two others are the ones an identifier-only pattern made
+ * invisible: a call result (`createI18n({…}).registerPlugin(fn)`,
+ * `getI18n().registerPlugin(fn)`) and an element read
+ * (`hosts[0].registerPlugin(fn)`). All three carry the same fact — a receiver
+ * is present — and a BARE call is still exempt, because
+ * `const { registerPlugin } = useI18nPlugins()` names a capability the page
+ * already acquired.
+ */
+const CAPABILITY_RECEIVER = String.raw`(?:[A-Za-z_$][\w$]*(?:\s*\??\.\s*[A-Za-z_$][\w$]*)*|\)|\])`;
+
+/** `<receiver>.<member>(` for a capability member, optional chaining included. */
+function capabilityCallPattern(member) {
+  return new RegExp(`${CAPABILITY_RECEIVER}\\s*\\??\\.\\s*${member}\\s*\\(`, "g");
+}
+
+const REGISTER_LOADER_CALL = capabilityCallPattern("registerLoader");
+const REGISTER_PLUGIN_CALL = capabilityCallPattern("registerPlugin");
+
+/**
+ * A raw plugin in the `.use(` slot, in every shape the text can PROVE.
+ *
+ * Four of them, and the fourth is the one the codemod's own
+ * `chain-plugin-host` fixture calls out: an inline function or arrow cannot be
+ * an installer, because an installer widens the host and returns it, so a
+ * literal function in the slot is a raw plugin by construction and needs no
+ * naming convention at all. The other three are the published convention —
+ * `FetchLoader()` is a plugin, `fetchLoader()` is its installer — reached
+ * directly, through `new`, or through a namespace (`pkg.MyPlugin()`).
+ *
+ * A bare lowercase call stays unmatched on purpose: it is indistinguishable
+ * from an installer in the text, and the host's runtime identity guard is what
+ * catches it.
+ */
+const RAW_PLUGIN_IN_USE_SLOT = new RegExp(
+  String.raw`\.use\s*\(\s*(?:` +
+    String.raw`new\s+(?:[A-Za-z_$][\w$]*\s*\.\s*)*[A-Z][\w$]*\s*[(,)]` +
+    String.raw`|(?:[A-Za-z_$][\w$]*\s*\.\s*)+[A-Z][\w$]*\s*\(` +
+    String.raw`|[A-Z][\w$]*\s*[(,)]` +
+    String.raw`|(?:async\s*)?(?:\(|function\b)` +
+    String.raw`)`,
+  "g",
+);
+
+/** Bindings the fence assigns from `createNextI18n(…)`. */
+function nextHostBindings(text) {
+  const names = new Set();
+  for (const match of text.matchAll(
+    /\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*(?:await\s+)?createNextI18n\s*\(/g,
+  )) {
+    names.add(match[1]);
+  }
+  return names;
+}
+
+/**
+ * The text of the STATEMENT a match sits in, back to the last `;` or blank
+ * line.
+ *
+ * Not back to the last `{`: a chain's own options object
+ * (`createNextI18n({ locale: "en" }).use(…)`) closes a brace between the root
+ * and the call, so a brace boundary would cut the root off. The limit of the
+ * heuristic, stated rather than hidden: a statement with no terminating `;` and
+ * a blank line inside it reads as two.
+ */
+function statementAt(text, index) {
+  const semicolon = text.lastIndexOf(";", index);
+  const blank = text.lastIndexOf("\n\n", index);
+  return text.slice(Math.max(semicolon + 1, blank + 1, 0), index);
+}
+
+/**
+ * Is this `.use(` the `createNextI18n` compat surface?
+ *
+ * `createNextI18n` is preserved EXACTLY across 0.5.0 (MIGRATION.md §6) and its
+ * composed host keeps the raw plugin queue, so `result.use(RawPlugin())` on it
+ * is a deliberate surviving shape rather than an `E_USE_NOT_INSTALLER` waiting
+ * to happen. Proven two ways: the receiver is a binding the fence assigned from
+ * `createNextI18n(…)`, or the statement the call sits in is a chain rooted
+ * there.
+ */
+function isNextCompatUse(text, index, receiver, nextHosts) {
+  if (receiver !== "" && nextHosts.has(receiver)) return true;
+  return /\bcreateNextI18n\s*\(/.test(statementAt(text, index));
 }
 
 /**
@@ -397,9 +571,13 @@ const BANNED_RULES = [
       // (packages/vue/src/createI18n.ts), so `i18n.core.registerLoader(fn)` on
       // an uncomposed wrapper throws exactly like the 0.4 call it replaced.
       // The receiver is therefore not exempt — only the chain can clear it.
-      for (const match of text.matchAll(
-        /([A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)*)\.registerLoader\s*\(/g,
-      )) {
+      //
+      // Any receiver SHAPE counts, not just an identifier chain:
+      // `createI18n({…}).registerLoader(fn)` and `hosts[0].registerLoader(fn)`
+      // throw exactly as `i18n.registerLoader(fn)` does, and an
+      // identifier-only pattern could not see either. Only a BARE call stays
+      // exempt — see the registerPlugin rule below for why.
+      for (const match of text.matchAll(REGISTER_LOADER_CALL)) {
         matches.push({ index: match.index, text: match[0] });
       }
       return matches;
@@ -425,9 +603,13 @@ const BANNED_RULES = [
       // component fence `const { registerPlugin } = useI18nPlugins()` is the
       // correct 0.5 shape, and the bare call it leads to names a capability
       // already acquired.
-      for (const match of text.matchAll(
-        /([A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)*)\.registerPlugin\s*\(/g,
-      )) {
+      //
+      // "A receiver" is not "an identifier", though, and reading it that way
+      // made four shapes invisible: `createI18n({…}).registerPlugin(fn)`,
+      // `getI18n().registerPlugin(fn)`, `i18n?.registerPlugin(fn)` and
+      // `hosts[0].registerPlugin(fn)` all throw on an uncomposed host, and none
+      // of them puts a plain identifier in front of the dot.
+      for (const match of text.matchAll(REGISTER_PLUGIN_CALL)) {
         matches.push({ index: match.index, text: match[0] });
       }
       return matches;
@@ -473,15 +655,30 @@ const BANNED_RULES = [
       // nothing, a cleanup function, or (an async plugin) a Promise, which a
       // shape check would have waved through as an object.
       //
-      // An Uppercase callee is the detectable half. A lowercase local function
-      // handed straight to `.use(` is indistinguishable from an installer in
-      // the text, and the runtime guard is what catches it; this rule does not
-      // guess. `icu` is still deliberately absent — it is not a plugin in the
-      // wrong slot, it is a name that no longer exists, and
+      // An Uppercase callee is the detectable half, and so is an INLINE
+      // function: an installer returns the host it was given, so a literal
+      // function or arrow in the slot cannot be one (the codemod's own
+      // `chain-plugin-host` fixture says exactly this, and wraps it in
+      // `definePlugin`). A bare LOWERCASE call is indistinguishable from an
+      // installer in the text, and the runtime guard is what catches it; this
+      // rule does not guess. `icu` is still deliberately absent — it is not a
+      // plugin in the wrong slot, it is a name that no longer exists, and
       // `banned/icu-installer` below reports it with the message that says
       // replace rather than rewrap.
-      const re = /\.use\s*\(\s*[A-Z][\w$]*\s*[(,)]/g;
-      for (const match of text.matchAll(re)) matches.push({ index: match.index, text: match[0] });
+      //
+      // The RECEIVER is an exemption here, unlike the two capability rules
+      // above, and it has to be: `app.use(Vuetify)`, `nuxtApp.vueApp.use(Antd)`
+      // and `i18next.use(HttpBackend)` are somebody else's verb taking
+      // somebody else's plugin (brief E, hard rule 4). Those pages are correct,
+      // nothing in a comvi chain could ever clear the finding, and an
+      // unclearable finding on a correct page is how a pinned baseline moves.
+      const nextHosts = nextHostBindings(text);
+      for (const match of text.matchAll(RAW_PLUGIN_IN_USE_SLOT)) {
+        const receiver = receiverTail(text, match.index);
+        if (FOREIGN_PLUGIN_RECEIVERS.has(receiver)) continue;
+        if (isNextCompatUse(text, match.index, receiver, nextHosts)) continue;
+        matches.push({ index: match.index, text: match[0] });
+      }
       return matches;
     },
     message:
@@ -505,7 +702,16 @@ const BANNED_RULES = [
       // `.with(icu(` is left to `banned/icu-installer`: one call site, one
       // finding, and there the fix is to replace the call with a constructor
       // option rather than to rename the verb around it.
-      for (const match of text.matchAll(/\.with\s*\((?!\s*icu\s*\()/g)) {
+      //
+      // The ARGUMENT is tested, though, because `with` is not a comvi-only
+      // word: `date.with({ month: 2 })` is Temporal and `locales.with(0, "en")`
+      // is Array.prototype.with, both flagged with nothing but `check=skip` to
+      // escape with. A composition step hands `with` a CALL — the installer —
+      // or a bare `attach*` reference; a plain object, a number or a string
+      // argument is somebody else's `with` and is none of our business.
+      for (const match of text.matchAll(
+        /\.with\s*\((?!\s*icu\s*\()\s*(?:[A-Za-z_$][\w$]*\s*\(|attach(?:Loader|Plugins|Devtools)\b)/g,
+      )) {
         matches.push({ index: match.index, text: match[0] });
       }
       return matches;
@@ -942,7 +1148,9 @@ function countRegisterLoaderCalls(fences) {
   for (const fence of fences) {
     if (!CODE_LANGS.has(fence.lang)) continue;
     for (const line of codeLines(fence)) {
-      count += [...line.text.matchAll(/[A-Za-z_$][\w$.]*\.registerLoader\s*\(/g)].length;
+      // The same receiver shapes the rule counts as findings — a budget that
+      // cannot see `getI18n().registerLoader(fn)` is not a budget.
+      count += [...line.text.matchAll(REGISTER_LOADER_CALL)].length;
     }
   }
   return count;

@@ -112,7 +112,15 @@ export function collectDocs(dir) {
   return out;
 }
 
-/** The js-sdk npm surface: every package README, MIGRATION.md, the root README. */
+/**
+ * The js-sdk npm surface: every package README, MIGRATION.md, the root README,
+ * and `examples/README.md`.
+ *
+ * `examples/README.md` is last because it was missing. It is a reader-facing
+ * page — the index every example app is reached through — and no gate covered
+ * it, which is exactly how it drifted while the pages beside it were migrated.
+ * A page a reader copies from is either gated or it rots.
+ */
 export function collectReadmes(root) {
   const out = [];
   const packagesDir = path.join(root, "packages");
@@ -122,7 +130,7 @@ export function collectReadmes(root) {
       if (fs.existsSync(readme)) out.push(readme);
     }
   }
-  for (const name of ["MIGRATION.md", "README.md"]) {
+  for (const name of ["MIGRATION.md", "README.md", path.join("examples", "README.md")]) {
     const abs = path.join(root, name);
     if (fs.existsSync(abs)) out.push(abs);
   }
