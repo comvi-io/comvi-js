@@ -1,7 +1,5 @@
-import { createI18n, type I18n } from "@comvi/core";
-import { icuCompiler } from "@comvi/core/icu";
-import { loader, type I18nLoaderApi } from "@comvi/core/loader";
-import type { NuxtHostFactory } from "@comvi/nuxt";
+import { createI18n, icuCompiler, loader } from "@comvi/nuxt/host";
+import type { NuxtHostFactory, NuxtServerLoaderHost } from "@comvi/nuxt";
 
 /**
  * The composition root, and the one file in a Nuxt app that names comvi
@@ -13,9 +11,9 @@ import type { NuxtHostFactory } from "@comvi/nuxt";
  * `nuxt.config.ts` stays in charge of configuration while this file stays in
  * charge of capabilities.
  *
- * That is also why `@comvi/core` is a direct dependency: the installers below
- * come from its subpaths, and a transitive dependency is not resolvable under
- * pnpm's default layout.
+ * Both specifiers are `@comvi/nuxt`: `@comvi/nuxt/host` re-exports core's
+ * installers, so this recipe is followable from `pnpm add @comvi/nuxt` alone —
+ * a transitive `@comvi/core` is not resolvable under pnpm's default layout.
  */
 export default ((options) =>
   createI18n({
@@ -36,4 +34,4 @@ export default ((options) =>
       uk: () => import("./locales/uk.json"),
       de: () => import("./locales/de.json"),
     }),
-  )) satisfies NuxtHostFactory<I18n & I18nLoaderApi>;
+  )) satisfies NuxtHostFactory<NuxtServerLoaderHost>;

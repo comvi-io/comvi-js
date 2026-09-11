@@ -1,6 +1,7 @@
-import { readdirSync } from "node:fs";
-import { resolve } from "node:path";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join, resolve } from "node:path";
+import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 import type { NuxtPage } from "@nuxt/schema";
 
 type NuxtTemplateStub = { filename: string; getContents: () => string };
@@ -18,6 +19,16 @@ const nuxtKitMocks = {
 };
 
 let extendPagesHandler: ((pages: NuxtPage[]) => void) | undefined;
+
+/**
+ * The `comvi.setup` near-miss probe READS srcDir and rootDir, so every case
+ * that expects no warning needs those reads to fail. A unique path under
+ * os.tmpdir() is absent by construction — unlike "/app", which a container
+ * could genuinely have — and the one case that wants the warning points srcDir
+ * at a real tree instead.
+ */
+const ABSENT_ROOT_DIR = join(tmpdir(), `comvi-nuxt-module-absent-${process.pid}`);
+const ABSENT_SRC_DIR = join(ABSENT_ROOT_DIR, "src");
 
 vi.mock("@nuxt/kit", () => ({
   defineNuxtModule: (definition: unknown) => definition,
@@ -43,8 +54,8 @@ function createNuxtStub() {
         comvi: {},
       },
       appConfig: {},
-      srcDir: "/app/src",
-      rootDir: "/app",
+      srcDir: ABSENT_SRC_DIR,
+      rootDir: ABSENT_ROOT_DIR,
       build: {
         transpile: [] as string[],
       },
@@ -71,6 +82,12 @@ function template(filename: string) {
 
 const setupTemplateContents = () => template("comvi.setup.mjs")?.getContents();
 const hostTemplateContents = () => template("comvi.host.mjs")?.getContents();
+
+const tempDirs: string[] = [];
+
+afterAll(() => {
+  for (const dir of tempDirs) rmSync(dir, { recursive: true, force: true });
+});
 
 describe("nuxt module setup", () => {
   beforeEach(() => {
@@ -126,8 +143,7 @@ describe("nuxt module setup", () => {
         defaultNs: "common",
         fallbackLanguage: "en",
         defaultParams: { formality: "formal" },
-        cdnUrl: "https://cdn.example.com",
-        apiBaseUrl: "https://api.example.com",
+        translation: { en: { greeting: "Hello" } },
         apiKey: "secret-key",
         setup: "./comvi.setup.ts",
         detectBrowserLanguage: {
@@ -150,13 +166,17 @@ describe("nuxt module setup", () => {
       defaultLocale: "en",
       localePrefix: "as-needed",
       cookieName: "locale_cookie",
-      cdnUrl: "https://cdn.example.com",
-      apiBaseUrl: "https://api.example.com",
+      translation: { en: { greeting: "Hello" } },
       defaultNs: "common",
       fallbackLocale: "en",
       defaultParams: { formality: "formal" },
       basicHtmlTags: ["strong", "em"],
     });
+    // Both were documented with CDN examples and read by no runtime code; the
+    // module loads nothing on the app's behalf, so they are gone rather than
+    // wired. A stale 0.4 config must not resurrect them through this object.
+    expect(nuxt.options.runtimeConfig.public.comvi).not.toHaveProperty("cdnUrl");
+    expect(nuxt.options.runtimeConfig.public.comvi).not.toHaveProperty("apiBaseUrl");
     expect(nuxt.options.runtimeConfig.comvi).toEqual({ apiKey: "secret-key" });
     expect(nuxt.options.appConfig.comvi).toEqual({
       routing: {
@@ -270,13 +290,13 @@ describe("nuxt module setup", () => {
     const nuxt = createNuxtStub();
     nuxtKitMocks.findPath.mockImplementation(
       async (_specifier: string, options: { cwd: string; type: string }) =>
-        options.cwd === "/app" && options.type === "file" ? "/app/comvi.setup.ts" : null,
+        options.cwd === ABSENT_ROOT_DIR && options.type === "file" ? "/app/comvi.setup.ts" : null,
     );
 
     await moduleDefinition.setup({ locales: ["en"], defaultLocale: "en" }, nuxt);
 
     expect(nuxtKitMocks.findPath).toHaveBeenNthCalledWith(1, "./comvi.setup", {
-      cwd: "/app/src",
+      cwd: ABSENT_SRC_DIR,
       type: "file",
     });
     expect(setupTemplateContents()).toContain('import userSetup from "/app/comvi.setup.ts";');
@@ -311,6 +331,31 @@ describe("nuxt module setup", () => {
     );
 
     expect(setupTemplateContents()).toContain('import userSetup from "/app/comvi.setup.ts";');
+  });
+
+  it("names the near-missed file when comvi.setup auto-detection resolved nothing", async () => {
+    const moduleDefinition = await importModule();
+    const nuxt = createNuxtStub();
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    // A REAL tree, because the probe reads the directory. `findPath` never
+    // tries `.cjs`, so the file is present and still unreachable — the exact
+    // shape that used to produce an empty `runComviSetup() {}` with no
+    // explanation anywhere.
+    const srcDir = mkdtempSync(join(tmpdir(), "comvi-nuxt-near-miss-"));
+    tempDirs.push(srcDir);
+    writeFileSync(join(srcDir, "app.vue"), "");
+    writeFileSync(join(srcDir, "comvi.setup.cjs"), "");
+    nuxt.options.srcDir = srcDir;
+
+    await moduleDefinition.setup({ locales: ["en"], defaultLocale: "en" }, nuxt);
+
+    expect(setupTemplateContents()).toContain("runComviSetup() {}");
+    expect(warnSpy).toHaveBeenCalledTimes(1);
+    const [message] = warnSpy.mock.calls[0] as [string];
+    expect(message).toContain(`Found "${join(srcDir, "comvi.setup.cjs")}"`);
+    expect(message).toContain('could not resolve "./comvi.setup"');
+    expect(message).toContain(srcDir);
+    expect(message).toContain("the comvi.setup hook is EMPTY");
   });
 
   it("throws when setup option points to missing file", async () => {
@@ -438,7 +483,11 @@ describe("nuxt module setup", () => {
     // The whole point of branching at build time: no root import to tree-shake.
     expect(contents).not.toContain('from "@comvi/core"');
     expect(contents).toContain("comvi hostModule must export a default function");
-    expect(contents).toContain("returned no i18n host");
+    // The guard names the import that FIXES it, and it is the module's own
+    // subpath — @comvi/vue's createI18n is the wrapper the guard rejects.
+    expect(contents).toContain("must default-export a factory returning a core HOST");
+    expect(contents).toContain('createI18n from "@comvi/nuxt/host"');
+    expect(contents).toContain("createI18n(options).use(loader(map))");
     // A composed host honours the same nuxt.config the default branch does.
     expect(contents).toContain("hostFactory(options)");
     expect(contents).toContain("createHost({ ...options, locale })");
@@ -487,8 +536,7 @@ describe("nuxt module setup", () => {
     const moduleDefinition = await importModule();
     const nuxt = createNuxtStub();
     nuxt.options.runtimeConfig.public.comvi = {
-      cdnUrl: "https://runtime.example.com",
-      apiBaseUrl: "https://runtime-api.example.com",
+      translation: { en: { greeting: "Runtime" } },
       defaultNs: "runtime-default",
       fallbackLocale: ["uk", "en"],
       basicHtmlTags: ["strong"],
@@ -505,8 +553,7 @@ describe("nuxt module setup", () => {
       {
         locales: ["en", "de"],
         defaultLocale: "en",
-        cdnUrl: "https://module.example.com",
-        apiBaseUrl: "https://module-api.example.com",
+        translation: { en: { greeting: "Module" } },
         defaultNs: "module-default",
         fallbackLanguage: "en",
         basicHtmlTags: ["em"],
@@ -525,8 +572,7 @@ describe("nuxt module setup", () => {
       defaultLocale: "en",
       localePrefix: "as-needed",
       cookieName: "runtime_locale",
-      cdnUrl: "https://runtime.example.com",
-      apiBaseUrl: "https://runtime-api.example.com",
+      translation: { en: { greeting: "Runtime" } },
       defaultNs: "runtime-default",
       fallbackLocale: ["uk", "en"],
       basicHtmlTags: ["strong"],

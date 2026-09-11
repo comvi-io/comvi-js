@@ -10,6 +10,8 @@ import {
   addRouteMiddleware,
   extendPages,
 } from "@nuxt/kit";
+import { readdir } from "node:fs/promises";
+import { join } from "node:path";
 import type { NuxtModule, NuxtPage } from "@nuxt/schema";
 import type { NuxtI18nOptions, LocaleObject, ResolvedRoutingConfig } from "./types";
 import { DEFAULT_DETECT_BROWSER_LANGUAGE } from "./runtime/defaults";
@@ -106,9 +108,42 @@ const comviNuxtModule: NuxtModule<NuxtI18nOptions> = defineNuxtModule<NuxtI18nOp
       return undefined;
     };
 
+    // An auto-detect MISS is otherwise the quietest failure the module has: the
+    // setup template degrades to an empty `runComviSetup()` and the app boots
+    // with none of its hooks. A file that merely does not RESOLVE (an extension
+    // Nuxt does not try, a typo after the prefix) is the reachable shape, so it
+    // is looked for by prefix, at build time only.
+    const findNearMiss = async (prefix: string): Promise<string | undefined> => {
+      for (const cwd of [nuxt.options.srcDir, nuxt.options.rootDir]) {
+        if (!cwd) continue;
+        try {
+          const entries = await readdir(cwd);
+          const hit = entries.find((entry) => entry.startsWith(prefix));
+          if (hit) return join(cwd, hit);
+        } catch {
+          // Unreadable directory: nothing to report, and nothing to fail on.
+        }
+      }
+      return undefined;
+    };
+
     const resolvedSetupPath = await findUserModule(options.setup ?? "./comvi.setup");
     if (options.setup && !resolvedSetupPath) {
       throw new Error(`[@comvi/nuxt] Failed to resolve comvi.setup path: "${options.setup}".`);
+    }
+
+    // `hostModule` gets no equivalent because it has no auto-detect to miss:
+    // unset means "build the base host", not "look for a file".
+    if (!options.setup && !resolvedSetupPath) {
+      const nearMiss = await findNearMiss("comvi.setup");
+      if (nearMiss) {
+        console.warn(
+          `[@comvi/nuxt] Found "${nearMiss}" but could not resolve "./comvi.setup" under ` +
+            `${nuxt.options.srcDir} or ${nuxt.options.rootDir}, so the comvi.setup hook is EMPTY. ` +
+            `Give the file an extension Nuxt resolves (.ts, .mts, .js, .mjs) or point ` +
+            "`comvi.setup` at it explicitly.",
+        );
+      }
     }
 
     const resolvedHostModulePath = options.hostModule
@@ -162,8 +197,10 @@ const comviNuxtModule: NuxtModule<NuxtI18nOptions> = defineNuxtModule<NuxtI18nOp
       defaultLocale: options.defaultLocale,
       localePrefix: options.localePrefix ?? "as-needed",
       cookieName,
-      cdnUrl: existingPublicRuntimeConfig.cdnUrl ?? options.cdnUrl,
-      apiBaseUrl: existingPublicRuntimeConfig.apiBaseUrl ?? options.apiBaseUrl,
+      // Forwarded so BOTH construction paths — the client plugin and each
+      // per-request server host — receive the same inline catalog, and so a
+      // `hostModule` factory sees it in its resolved options.
+      translation: existingPublicRuntimeConfig.translation ?? options.translation,
       defaultNs: existingPublicRuntimeConfig.defaultNs ?? options.defaultNs ?? "default",
       fallbackLocale:
         existingPublicRuntimeConfig.fallbackLocale ??
@@ -273,9 +310,12 @@ function createHost(options) {
 
   const host = hostFactory(options);
 
-  if (!host || typeof host.t !== "function") {
+  // A VueI18n HAS a t(), so a t-only check let @comvi/vue's createI18n(...)
+  // through and createI18nFromCore wrapped a wrapper. "core" is the wrapper's
+  // own tell, and init() separates a host from any object carrying a t().
+  if (!host || typeof host.t !== "function" || typeof host.init !== "function" || "core" in host) {
     throw new TypeError(
-      "[@comvi/nuxt] comvi hostModule's default export returned no i18n host. Return the composed host, e.g. createI18n(options).use(loader(map)).",
+      '[@comvi/nuxt] comvi hostModule must default-export a factory returning a core HOST, not a VueI18n. Use createI18n from "@comvi/nuxt/host", e.g. createI18n(options).use(loader(map)).',
     );
   }
 

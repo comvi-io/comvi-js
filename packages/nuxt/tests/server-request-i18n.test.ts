@@ -117,6 +117,7 @@ describe("getRequestI18n", () => {
         defaultNs: "common",
         devMode: false,
         apiKey: "secret",
+        translation: undefined,
         tagInterpolation: undefined,
       });
     });
@@ -132,6 +133,7 @@ describe("getRequestI18n", () => {
         defaultNs: "common",
         devMode: false,
         apiKey: "secret",
+        translation: undefined,
         tagInterpolation: { basicHtmlTags: ["b", "i"] },
       });
     });
@@ -153,6 +155,25 @@ describe("getRequestI18n", () => {
         "Hello ",
         expect.objectContaining({ type: "element", tag: "b", children: ["world"] }),
       ]);
+    });
+
+    it("renders a key from comvi.translation on the request host", async () => {
+      // The SSR half of the two-line module-options floor: the same option, the
+      // same key as the client plugin resolves, on a per-request host that has
+      // no loader to fetch anything with.
+      createComviCore.mockImplementation((options: Record<string, unknown>) =>
+        createI18n(options as unknown as Parameters<typeof createI18n>[0]),
+      );
+
+      const host = await getRequestI18n(
+        createEvent({ defaultNs: "default", translation: { en: { greeting: "Hello" } } }),
+        "en",
+      );
+
+      expect(createComviCore).toHaveBeenCalledWith(
+        expect.objectContaining({ translation: { en: { greeting: "Hello" } } }),
+      );
+      expect(host.t("greeting")).toBe("Hello");
     });
 
     it("prefers the configured fallbackLocale over defaultLocale and the request locale", async () => {

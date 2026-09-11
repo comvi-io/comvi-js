@@ -215,6 +215,18 @@
       "note": "Gated Nuxt client floor: the runtime client entry only — the anchor the Nuxt ceiling row is read against."
     },
     {
+      "name": "fw-nuxt-host",
+      "entry": ["@comvi/nuxt/host"],
+      "fixture": "framework/nuxt-host.ts",
+      "gzipBudgetBytes": 8436,
+      "baseline": {
+        "minBytes": 22643,
+        "gzipBytes": 8034,
+        "measuredAt": "2026-09-11"
+      },
+      "note": "Gated `@comvi/nuxt/host` subpath: the one specifier a comvi.host.ts names, composing ICU + loader + plugin host + devtools through the module re-export instead of four app-declared @comvi/core subpaths."
+    },
+    {
       "name": "plugin-fetch-loader-cdn",
       "entry": ["@comvi/core", "@comvi/core/icu", "@comvi/plugin-fetch-loader"],
       "fixture": "plugin-fetch-loader-cdn.ts",

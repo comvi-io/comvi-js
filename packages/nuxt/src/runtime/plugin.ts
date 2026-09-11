@@ -75,6 +75,9 @@ export default defineNuxtPlugin({
       defaultNs: publicConfig.defaultNs,
       devMode: import.meta.dev,
       apiKey: privateConfig?.apiKey,
+      // Without a `hostModule` the generated host is core's BASE host and has
+      // no loader, so `comvi.translation` is the only catalog it ever gets.
+      translation: publicConfig.translation,
       tagInterpolation: publicConfig.basicHtmlTags
         ? { basicHtmlTags: publicConfig.basicHtmlTags }
         : undefined,

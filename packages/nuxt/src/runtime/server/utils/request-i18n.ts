@@ -42,6 +42,10 @@ export async function getRequestI18n(event: H3Event, locale: string): Promise<Nu
         defaultNs: publicConfig.defaultNs || "default",
         devMode: process.env.NODE_ENV === "development",
         apiKey: privateConfig?.apiKey,
+        // Symmetric with the app plugin: the inline catalog is what makes an
+        // app with no `hostModule` (and therefore no loader) render anything at
+        // all, so SSR must construct with the same one the client does.
+        translation: publicConfig.translation,
         // Symmetric with the app plugin (runtime/plugin.ts): a server route that
         // renders rich text off the request host keeps the same whitelist the
         // client render used. `ssrLocale` stays client-only.

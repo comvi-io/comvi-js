@@ -1,5 +1,11 @@
 import type { H3Event } from "h3";
-import type { DefaultTranslationParams, I18n, I18nLoaderApi, WrapperI18nHost } from "@comvi/core";
+import type {
+  DefaultTranslationParams,
+  I18n,
+  I18nLoaderApi,
+  I18nOptions,
+  WrapperI18nHost,
+} from "@comvi/core";
 import type { VueI18n } from "@comvi/vue";
 
 export type LocalePrefixMode = "always" | "as-needed" | "never";
@@ -100,23 +106,36 @@ export interface NuxtI18nOptions {
   localePrefix?: LocalePrefixMode;
 
   /**
-   * Full CDN URL for production mode
-   * @example "https://cdn.comvi.io/your-distribution-id"
-   */
-  cdnUrl?: string;
-
-  /**
-   * API key for authentication (required for dev mode API loading)
-   * Should be set via runtimeConfig for security
+   * Credential forwarded to the host as `i18n.apiKey`, for a loader plugin that
+   * authenticates against a backend (`@comvi/plugin-fetch-loader` reads it
+   * there). This module loads NOTHING on your behalf — it neither contacts a
+   * CDN nor an API — so the key is inert until a `hostModule` factory composes
+   * a plugin that reads it.
+   *
+   * Set it through private `runtimeConfig` rather than in `nuxt.config`
+   * literally: it is read from the server-only config, never serialized into
+   * the client payload.
+   *
    * @example process.env.NUXT_COMVI_API_KEY
    */
   apiKey?: string;
 
   /**
-   * API base URL
-   * @example 'https://api.comvi.io'
+   * Inline translation catalogs, keyed `locale` or `"locale:namespace"` —
+   * exactly `I18nOptions["translation"]`, forwarded verbatim into BOTH
+   * constructed hosts (the client plugin and each per-request server host) and
+   * into a `hostModule` factory's resolved options.
+   *
+   * This is the whole reason a two-line `comvi` block can render a translation:
+   * without a `hostModule` the generated host is core's BASE host, which has no
+   * loader, so a catalog declared here is the only catalog it will ever have.
+   *
+   * It travels through public `runtimeConfig`, so it must stay
+   * JSON-serializable and must not hold anything private.
+   *
+   * @example { en: { greeting: "Hello" }, de: { greeting: "Hallo" } }
    */
-  apiBaseUrl?: string;
+  translation?: I18nOptions["translation"];
 
   /**
    * Default namespace for translations
@@ -145,7 +164,7 @@ export interface NuxtI18nOptions {
    * Path to a setup file that runs before i18n.init().
    *
    * Register your own plugin with `i18n.core.use(definePlugin(fn))` from
-   * `@comvi/core/plugins` — `i18n` is a `VueI18n`, whose capability APIs live on
+   * `@comvi/nuxt/host` — `i18n` is a `VueI18n`, whose capability APIs live on
    * `i18n.core`. That shape works on BOTH hosts: `definePlugin` attaches the
    * plugin host when it is absent, which it is on the module's generated DEFAULT
    * host (core's base host). `i18n.core.registerPlugin(...)` is the raw queue
@@ -201,12 +220,11 @@ export interface NuxtI18nOptions {
    * @example "./comvi.host.ts"
    * @example
    * ```ts
-   * // comvi.host.ts — the full explicit composition
-   * import { createI18n } from "@comvi/core";
-   * import { icuCompiler } from "@comvi/core/icu";
-   * import { loader } from "@comvi/core/loader";
-   * import { plugins } from "@comvi/core/plugins";
-   * import { devtools } from "@comvi/core/devtools";
+   * // comvi.host.ts — the full explicit composition.
+   * // One specifier, and it is this package: `@comvi/nuxt/host` re-exports
+   * // core's installers so the recipe needs no dependency the app did not
+   * // already install.
+   * import { createI18n, icuCompiler, loader, plugins, devtools } from "@comvi/nuxt/host";
    *
    * export default (options) =>
    *   createI18n({ ...options, compiler: icuCompiler })
@@ -254,8 +272,7 @@ export interface NuxtI18nRuntimeConfig {
     defaultLocale: string;
     localePrefix: LocalePrefixMode;
     cookieName: string;
-    cdnUrl?: string;
-    apiBaseUrl?: string;
+    translation?: I18nOptions["translation"];
     defaultNs: string;
     fallbackLocale: string | string[];
     defaultParams?: NuxtDefaultTranslationParams;
@@ -332,6 +349,8 @@ export type NuxtHostFactoryOptions<D extends DefaultTranslationParams = {}> = {
   defaultNs?: string;
   devMode?: boolean;
   apiKey?: string;
+  /** `comvi.translation` verbatim; a factory that spreads `options` keeps it. */
+  translation?: I18nOptions["translation"];
   tagInterpolation?: { basicHtmlTags?: string[] };
   /** Present on the client plugin's call only; equal to `locale`. */
   ssrLocale?: string;
