@@ -134,10 +134,8 @@ export interface I18nInternal<D extends DefaultTranslationParams = {}> extends I
    */
   _flattenNs?: (catalog: Record<string, TranslationValue>) => FlattenedTranslations;
 
-  // Pre-ingestion compiler seam — `/icu`'s only entry point.
   _compiler: MessageCompiler;
   _tagInterpolation?: TagInterpolationOptions;
-  _setCompilerBeforeIngestion(compiler: MessageCompiler): boolean;
 
   /** DEV-ONLY eager catalog check; absent from production builds. */
   _preflightSimpleCatalog?: (catalog: Record<string, unknown>) => void;
@@ -192,11 +190,6 @@ export class I18n<D extends DefaultTranslationParams = {}>
   private _missingParam: MissingParamMode;
   protected _compiler: MessageCompiler;
   protected _compilerId: number;
-  /**
-   * Irreversible once any catalog has been ingested. No initializer: an
-   * unlocked host simply has no own property for it.
-   */
-  protected _compilerLocked?: boolean;
   /** `protected`: `registerPostProcessor` lives in the plugin capability. */
   protected _postProcessors: PostProcessFn[] = [];
   private _primaryTranslations?: FlattenedTranslations;
@@ -317,19 +310,6 @@ export class I18n<D extends DefaultTranslationParams = {}>
     // Discovery (`window.__COMVI__`) is deliberately NOT here: it is the
     // `core/devtools.ts` capability, which is where `options.exposeGlobal` /
     // `options.instanceId` are read.
-  }
-
-  /**
-   * @internal PINNED SEAM (`I18nInternal`). Atomically replace the compiler
-   * and its identity while NO catalog has been ingested. Returns `false`
-   * once the host is locked; the lock proves no compiled template can exist
-   * for this host's catalogs, which is why no cache is cleared or rekeyed.
-   */
-  public _setCompilerBeforeIngestion(compiler: MessageCompiler): boolean {
-    if (this._compilerLocked) return false;
-    this._compiler = compiler;
-    this._compilerId = getCompilerId(compiler);
-    return true;
   }
 
   /**
@@ -907,9 +887,6 @@ export class I18n<D extends DefaultTranslationParams = {}>
    * not carry a recursive flattener for it.
    */
   private _nsAddTranslations(translations: Record<string, Record<string, TranslationValue>>): void {
-    // Lock BEFORE any catalog (an empty map included) is handled, and before
-    // the dev preflight can throw.
-    this._compilerLocked = true;
     for (const localeOrKey in translations) {
       const value = translations[localeOrKey];
       // The copy onto a prototype-less target IS the prototype-pollution

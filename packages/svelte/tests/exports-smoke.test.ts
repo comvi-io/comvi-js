@@ -153,7 +153,6 @@ describe("exports map smoke (F0b)", () => {
 
     for (const name of [
       "I18n",
-      "icu",
       "loader",
       "attachLoader",
       "flattenCatalog",
@@ -166,10 +165,11 @@ describe("exports map smoke (F0b)", () => {
     }
 
     // `icuCompiler` is the odd one out on purpose: a `MessageCompiler` record,
-    // not a factory. It is what `createI18n({ compiler })` takes, where `icu()`
-    // above is the installer.
+    // not a factory. It is what `createI18n({ compiler })` takes, and it is the
+    // ONLY way ICU is enabled — there is no `icu` installer beside it.
     expect(typeof surface.icuCompiler).toBe("object");
     expect(surface.icuCompiler).not.toBeNull();
+    expect(surface).not.toHaveProperty("icu");
   });
 
   it("names the PURE core seam and never the side-effectful tags entry", () => {

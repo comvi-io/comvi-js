@@ -3,8 +3,7 @@
 // A capability is absent because its module never entered your bundle, never
 // because a runtime flag turned it off. Each one is a subpath import:
 //   • `@comvi/core/icu`      — `icuCompiler` for plural/select/selectordinal
-//     (`compiler: icuCompiler` for inline catalogs, `.with(icu())` BEFORE any
-//     catalog for remote ones);
+//     (pass it as `compiler: icuCompiler` in the constructor options);
 //   • `@comvi/core/loader`   — registerLoader / reloadTranslations,
 //     `createImportMapLoader`, automatic nested-catalog flattening;
 //   • `@comvi/core/plugins`  — use / locale detector / missing-key callbacks /

@@ -4,12 +4,12 @@
 // `plugin-fetch-loader-cdn`, the same graph through the root entry, whose
 // runtime `if (apiKey)` branch also carries the API request path.
 import { createI18n } from "@comvi/core";
-import { icu } from "@comvi/core/icu";
+import { icuCompiler } from "@comvi/core/icu";
 import { cdnLoader } from "@comvi/plugin-fetch-loader/cdn";
 
-const i18n = createI18n({ locale: "en" })
-  .with(icu())
-  .with(cdnLoader({ cdnUrl: "https://cdn.comvi.io/your-distribution-id" }));
+const i18n = createI18n({ locale: "en", compiler: icuCompiler }).with(
+  cdnLoader({ cdnUrl: "https://cdn.comvi.io/your-distribution-id" }),
+);
 
 // Observable use keeps the loader and core graphs live for the bundler.
 void i18n.init().then(() => console.log(i18n.t("items" as never, { count: 2 } as never)));

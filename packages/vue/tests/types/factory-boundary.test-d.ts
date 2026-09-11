@@ -11,7 +11,6 @@ import {
   createI18nFromCore,
   devtools,
   I18N_INJECTION_KEY,
-  icu,
   loader,
   plugins,
 } from "../../src/index";
@@ -82,7 +81,7 @@ void fromPreset.core.with(attachLoader).registerLoader(() => Promise.resolve({})
 
 // The WRAPPER pipe: `createI18n(options).with(installer)` is the same instance
 // with `core` widened by the installer's return type, one capability per call.
-const chained = createI18n({ locale: "en" }).with(icu()).with(loader()).with(plugins());
+const chained = createI18n({ locale: "en" }).with(loader()).with(plugins());
 type _ChainedIsWrapper = Expect<
   Equal<typeof chained, VueI18n<{}, I18n<{}> & I18nLoaderApi & I18nPluginHostApi>>
 >;
@@ -97,8 +96,8 @@ type _WithLoaderOnlyCore = Expect<Equal<(typeof withLoaderOnly)["core"], I18n<{}
 void withLoaderOnly.core.addActiveNamespace("admin");
 // @ts-expect-error — the plugin host was not composed on this chain
 withLoaderOnly.core.onMissingKey(() => undefined);
-// @ts-expect-error — `icu()` widens nothing: the core stays what it was
-withLoaderOnly.with(icu()).core.onMissingKey(() => undefined);
+// @ts-expect-error — an identity installer widens nothing: the core stays what it was
+withLoaderOnly.with(devtools()).core.onMissingKey(() => undefined);
 
 // `D` survives the pipe: the default-params generic is the wrapper's, not the installer's.
 const unchainedParams = createI18n({ locale: "en", defaultParams: { brand: "Comvi" } });
@@ -115,7 +114,8 @@ type _FromBaseChainedCore = Expect<
 >;
 void fromBaseChained.core.reloadTranslations();
 
-// `devtools()` widens nothing either: the core keeps its exact type.
+// `devtools()` is THE identity installer: it widens nothing, so the core keeps
+// its exact type.
 const withDevtools = createI18n({ locale: "en" }).with(devtools());
 type _DevtoolsWidensNothing = Expect<Equal<(typeof withDevtools)["core"], I18n<{}>>>;
 void withDevtools.t("greeting");

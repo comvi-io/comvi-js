@@ -1,53 +1,16 @@
 // @comvi/core/icu — pure, side-effect-free subpath.
 //
-// The ONLY public home of the ICU message compiler, plus the `icu()`
-// installer for the remote-catalog recipe:
+// The ONLY public home of the ICU message compiler. ICU is a compiler setting,
+// so there is exactly one way to enable it, for every catalog source (inline,
+// loader, CDN, API):
 //
-//   createI18n({ locale: "en" }).with(icu()).with(fetchLoader({ … }))
+//   createI18n({ locale: "en", compiler: icuCompiler }).with(fetchLoader({ … }))
 //
-// PRE-INGESTION ONLY. Once a catalog has reached the host — a constructor
-// `translation`, an `addTranslations` call, or a loader merge — the compiler
-// is locked and `icu()` throws `E_COMPILER_LOCKED` BEFORE mutating anything.
-// Inline constructor catalogs use the option form instead:
-// `createI18n({ translation, compiler: icuCompiler })`.
-//
-// The rule is about the first CATALOG, never about a particular installer:
-// composing a loader ingests nothing, so `.with(loader(map)).with(icu())` is
-// exactly as valid as the recipe above.
+// No ordering rule comes with it: the option is read in the constructor, so
+// composition (`.with(loader())`, `.with(plugins())`, …) is unaffected.
 //
 // Deliberately not exported from the root, which is the BASE host with the
 // simple compiler. This subpath must stay out of the package `sideEffects`
 // array.
-import type { I18n, I18nInternal } from "./core/i18n";
-import { icuCompiler } from "./core/translate/compile-icu";
-import type { MessageCompiler } from "./core/translate/syntax";
-
-declare const __DEV__: boolean | undefined;
-const IS_DEV = typeof __DEV__ !== "undefined" && __DEV__;
-
 export { icuCompiler } from "./core/translate/compile-icu";
 export type { MessageCompiler } from "./core/translate/syntax";
-
-/** Structured failure raised when `icu()` runs after catalog ingestion. */
-export interface CompilerLockedError extends Error {
-  code: "E_COMPILER_LOCKED";
-}
-
-/**
- * Install an ICU-capable compiler on a host that has ingested NO catalog yet.
- * Idempotent before ingestion; throws `E_COMPILER_LOCKED` after it.
- */
-export function icu(compiler: MessageCompiler = icuCompiler) {
-  return <T extends I18n<any>>(i18n: T): T => {
-    if (!(i18n as unknown as I18nInternal)._setCompilerBeforeIngestion(compiler)) {
-      const error = new Error(
-        IS_DEV
-          ? "[i18n] .with(icu()) ran after a catalog was ingested. Move it before the first constructor/addTranslations/loader catalog, or pass compiler: icuCompiler to the constructor for inline catalogs."
-          : "E_COMPILER_LOCKED",
-      ) as CompilerLockedError;
-      error.code = "E_COMPILER_LOCKED";
-      throw error;
-    }
-    return i18n;
-  };
-}

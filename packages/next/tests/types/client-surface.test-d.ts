@@ -14,12 +14,10 @@ import {
   createI18n,
   devtools,
   flattenCatalog,
-  icu,
   icuCompiler,
   loader,
   plugins,
 } from "../../src/client";
-import type { CompilerLockedError } from "../../src/client";
 
 type Equal<X, Y> =
   (<T>() => T extends X ? 1 : 2) extends <T>() => T extends Y ? 1 : 2 ? true : false;
@@ -50,16 +48,16 @@ void host.registerLoader(() => Promise.resolve({}));
 // The hydration path a client actually uses.
 host.addTranslations({ "en:default": { greeting: "Hello" } });
 
-// ICU has two shapes on this entry, both typed. The COMPILER is for inline
-// constructor catalogs; the INSTALLER is for catalogs that arrive later, and it
-// must run before ingestion (`CompilerLockedError` is what a late call throws).
+// ICU has ONE shape on this entry: the `compiler` option, for every catalog
+// source. It configures the host rather than widening it.
 
 const _withIcuCompiler = createI18n({ locale: "en", compiler: icuCompiler });
 export type _IcuHostIsStillBase = Expect<Equal<typeof _withIcuCompiler, BaseI18n<{}>>>;
 
-const _withIcuInstaller = createI18n({ locale: "en" }).with(icu());
-export type _IcuInstallerKeepsHostType = Expect<Equal<typeof _withIcuInstaller, BaseI18n<{}>>>;
-export type _LockedErrorCode = Expect<Equal<CompilerLockedError["code"], "E_COMPILER_LOCKED">>;
+// …and no installer beside it.
+export type _NoIcuInstaller = Expect<Equal<Extract<keyof typeof clientEntry, "icu">, never>>;
+// @ts-expect-error -- `CompilerLockedError` went with the lock it described
+export type _NoLockedError = clientEntry.CompilerLockedError;
 
 // The toolkit re-exports carry core's own widening types.
 

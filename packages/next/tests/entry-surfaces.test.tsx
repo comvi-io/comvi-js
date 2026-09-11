@@ -12,7 +12,7 @@ import { renderHook } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { createI18n as createCoreI18n } from "@comvi/core";
 import { attachDevtools, devtools } from "@comvi/core/devtools";
-import { icu, icuCompiler } from "@comvi/core/icu";
+import { icuCompiler } from "@comvi/core/icu";
 import { attachLoader, flattenCatalog, loader } from "@comvi/core/loader";
 import { attachPlugins, plugins } from "@comvi/core/plugins";
 import type { WrapperI18nHost } from "@comvi/core";
@@ -60,10 +60,14 @@ describe("@comvi/next/client — createI18n", () => {
     expect(i18n.t("items" as never, { count: 4 } as never)).toBe("4 items");
   });
 
-  it("takes the ICU INSTALLER for a catalog that arrives later", () => {
-    // The remote/hydration shape: nothing is ingested at construction, so the
-    // installer still runs before the compiler locks.
-    const i18n = client.createI18n({ locale: "en", exposeGlobal: false }).with(client.icu());
+  it("takes the SAME compiler option for a catalog that arrives later", () => {
+    // The remote/hydration shape: nothing is ingested at construction, and the
+    // option still governs whatever is merged afterwards.
+    const i18n = client.createI18n({
+      locale: "en",
+      exposeGlobal: false,
+      compiler: client.icuCompiler,
+    });
     i18n.addTranslations({
       "en:default": { items: "{count, plural, one {# item} other {# items}}" },
     });
@@ -71,27 +75,13 @@ describe("@comvi/next/client — createI18n", () => {
     expect(i18n.t("items" as never, { count: 2 } as never)).toBe("2 items");
   });
 
-  it("throws E_COMPILER_LOCKED when the installer runs after ingestion", () => {
-    const i18n = client.createI18n({
-      locale: "en",
-      exposeGlobal: false,
-      translation: { en: { greeting: "Hello" } },
-    });
-
-    // The constructor catalog locked the compiler, so the wrong ICU shape fails
-    // loud instead of silently doing nothing — this is why the two shapes are
-    // documented per catalog source, not as interchangeable spellings.
-    // `icu()` throws before mutating anything, so probing it twice is safe.
-    const installIcu = () => i18n.with(client.icu());
-
-    expect(installIcu).toThrow(Error);
-    expect(installIcu).toThrow(expect.objectContaining({ code: "E_COMPILER_LOCKED" }));
+  it("publishes no `icu` installer on the client entry", () => {
+    expect(client).not.toHaveProperty("icu");
   });
 });
 
 describe("@comvi/next/client — the capability toolkit", () => {
   it("re-exports core's own bindings, not copies", () => {
-    expect(client.icu).toBe(icu);
     expect(client.icuCompiler).toBe(icuCompiler);
     expect(client.attachLoader).toBe(attachLoader);
     expect(client.flattenCatalog).toBe(flattenCatalog);
@@ -145,8 +135,8 @@ describe("@comvi/next/server — the same surface for the SSR half", () => {
   it("re-exports the same toolkit bindings the client entry does", async () => {
     const server = await importServerEntry();
 
-    expect(server.icu).toBe(icu);
     expect(server.icuCompiler).toBe(icuCompiler);
+    expect(server).not.toHaveProperty("icu");
     expect(server.attachLoader).toBe(attachLoader);
     expect(server.flattenCatalog).toBe(flattenCatalog);
     expect(server.attachPlugins).toBe(attachPlugins);

@@ -21,7 +21,6 @@ import {
   createI18nFromCore,
   devtools,
   flattenCatalog,
-  icu,
   icuCompiler,
   loader,
   plugins,
@@ -64,15 +63,19 @@ export type _CreateCoreBuildsThePresetsClass = Expect<
   Equal<typeof _coreProbe, (typeof preset)["core"]>
 >;
 
-// ICU has TWO shapes, both named by this entry: the compiler for an inline
-// constructor catalog, the installer for a pre-ingestion pipe.
+// ICU has ONE shape: the `compiler` option, which travels through vue's preset
+// to the host it builds and never changes the wrapper's type.
 const _withIcu = createI18n({ locale: "en", compiler: icuCompiler });
 export type _IcuPresetIsStillBase = Expect<Equal<typeof _withIcu, VueI18n<{}, I18n<{}>>>>;
 
-// The installer goes on the CORE — vue's preset returns a wrapper, so the pipe
-// lives at `i18n.core`, or on a host built with `createCore`.
-const _icuInstalled = createCore({ locale: "en" }).with(icu());
-export type _IcuInstallerKeepsHostType = Expect<Equal<typeof _icuInstalled, I18n<{}>>>;
+// The same option on a host built with `createCore`.
+const _icuCore = createCore({ locale: "en", compiler: icuCompiler });
+export type _IcuCoreIsStillBase = Expect<Equal<typeof _icuCore, I18n<{}>>>;
+
+// …and there is no installer beside it: `icu` is gone from the entry.
+export type _NoIcuInstaller = Expect<
+  Equal<"icu" extends keyof typeof import("../../src") ? true : false, false>
+>;
 
 // `const D` inference survives the entry hop.
 const _withDefaults = createI18n({ locale: "en", defaultParams: { brand: "Comvi" } });

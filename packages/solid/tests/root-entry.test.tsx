@@ -18,7 +18,7 @@ import { render } from "solid-js/web";
 import { createI18n as coreCreateI18n, I18n as CoreI18n } from "@comvi/core";
 import type { WrapperI18nHost } from "@comvi/core";
 import { attachDevtools, devtools } from "@comvi/core/devtools";
-import { icu, icuCompiler } from "@comvi/core/icu";
+import { icuCompiler } from "@comvi/core/icu";
 import { attachLoader, flattenCatalog, loader } from "@comvi/core/loader";
 import type { I18nLoaderApi } from "@comvi/core/loader";
 import { attachPlugins, plugins } from "@comvi/core/plugins";
@@ -81,7 +81,7 @@ describe("@comvi/solid — the single root entry", () => {
   });
 });
 
-describe("@comvi/solid — ICU, both shapes, one specifier", () => {
+describe("@comvi/solid — ICU, one shape, one specifier", () => {
   it("takes the COMPILER in the constructor call for an inline catalog", () => {
     const i18n = root.createI18n({
       locale: "en",
@@ -94,10 +94,15 @@ describe("@comvi/solid — ICU, both shapes, one specifier", () => {
     expect(i18n.t("items" as never, { count: 4 } as never)).toBe("4 items");
   });
 
-  it("takes the INSTALLER before ingestion for a remote catalog", () => {
-    // The remote-catalog recipe: `.with(icu())` runs on a host that has not
-    // seen a catalog yet, so a later loader merge is compiled by ICU.
-    const i18n = root.createI18n({ locale: "en", exposeGlobal: false }).with(root.icu());
+  it("takes the same COMPILER option for a catalog that arrives later", () => {
+    // One enable form for every catalog source: the option is read in the
+    // constructor, so an `addTranslations` or loader merge compiles under ICU
+    // without anything being composed.
+    const i18n = root.createI18n({
+      locale: "en",
+      exposeGlobal: false,
+      compiler: root.icuCompiler,
+    });
 
     i18n.addTranslations({ en: { items: "{count, plural, one {# item} other {# items}}" } });
 
@@ -105,28 +110,9 @@ describe("@comvi/solid — ICU, both shapes, one specifier", () => {
     expect(i18n.t("items" as never, { count: 4 } as never)).toBe("4 items");
   });
 
-  it("repeats the ICU installer idempotently before ingestion", () => {
-    const i18n = root
-      .createI18n({ locale: "en", exposeGlobal: false })
-      .with(root.icu())
-      .with(root.icu());
-
-    i18n.addTranslations({ en: { items: "{count, plural, one {# item} other {# items}}" } });
-
-    expect(i18n.t("items" as never, { count: 2 } as never)).toBe("2 items");
-  });
-
-  it("refuses the installer AFTER ingestion, and mutates nothing on the way out", () => {
-    const i18n = root.createI18n({
-      locale: "en",
-      exposeGlobal: false,
-      translation: { en: { greeting: "Hello" } },
-    });
-
-    expect(() => i18n.with(root.icu())).toThrow(
-      expect.objectContaining({ code: "E_COMPILER_LOCKED" }),
-    );
-    expect(i18n.t("greeting" as never)).toBe("Hello");
+  it("publishes no `icu` installer beside the compiler", () => {
+    expect(Object.keys(root)).not.toContain("icu");
+    expect((root as Record<string, unknown>).icu).toBeUndefined();
   });
 });
 
@@ -134,7 +120,6 @@ describe("@comvi/solid — the capability toolkit", () => {
   it("re-exports core's own bindings, not copies", () => {
     expect(root.createI18n).toBe(coreCreateI18n);
     expect(root.I18n).toBe(CoreI18n);
-    expect(root.icu).toBe(icu);
     expect(root.icuCompiler).toBe(icuCompiler);
     expect(root.attachLoader).toBe(attachLoader);
     expect(root.flattenCatalog).toBe(flattenCatalog);
@@ -160,8 +145,7 @@ describe("@comvi/solid — the capability toolkit", () => {
 
   it("composes AND configures in one expression — the documented recipe", async () => {
     const i18n = root
-      .createI18n({ locale: "en", exposeGlobal: false })
-      .with(root.icu())
+      .createI18n({ locale: "en", exposeGlobal: false, compiler: root.icuCompiler })
       .with(
         root.loader({
           en: async () => ({
@@ -211,7 +195,6 @@ describe("@comvi/solid — the export surface", () => {
     "createLocaleSignal",
     "devtools",
     "flattenCatalog",
-    "icu",
     "icuCompiler",
     "loader",
     "plugins",

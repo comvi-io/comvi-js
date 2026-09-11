@@ -10,7 +10,7 @@ import {
   createI18nFromCore,
   createCore,
   devtools,
-  icu,
+  icuCompiler,
   loader,
   plugins,
   useI18n,
@@ -35,20 +35,13 @@ describe("VueI18n.with()", () => {
     expect(composed.t("greeting")).toBe("Hello");
   });
 
-  it("composes ICU ahead of the first catalog", () => {
-    const i18n = createI18n({ locale: "en", exposeGlobal: false }).with(icu());
+  it("carries the compiler option through the preset, ahead of a later catalog", () => {
+    // ICU is not composed: the option reaches the host the preset builds, so a
+    // catalog ingested after construction still compiles under it.
+    const i18n = createI18n({ locale: "en", exposeGlobal: false, compiler: icuCompiler });
     i18n.addTranslations({ en: { items: "{count, plural, one {# item} other {# items}}" } });
     expect(i18n.t("items", { count: 1 })).toBe("1 item");
     expect(i18n.t("items", { count: 3 })).toBe("3 items");
-  });
-
-  it("keeps the host's ordering rule: icu() after an inline catalog is E_COMPILER_LOCKED", () => {
-    const i18n = createI18n({
-      locale: "en",
-      exposeGlobal: false,
-      translation: { en: { greeting: "Hello" } },
-    });
-    expect(() => i18n.with(icu())).toThrow(expect.objectContaining({ code: "E_COMPILER_LOCKED" }));
   });
 
   it("refuses an installer that hands back a different host", () => {

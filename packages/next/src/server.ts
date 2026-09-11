@@ -32,8 +32,7 @@ export type { LoadTranslationsOptions, TranslationsResult } from "./server/loadT
 // star re-export, and it cannot reconnect a two-package chain either, so every
 // binding below comes straight from core.
 export { createI18n } from "@comvi/core";
-export { icu, icuCompiler } from "@comvi/core/icu";
-export type { CompilerLockedError } from "@comvi/core/icu";
+export { icuCompiler } from "@comvi/core/icu";
 export { attachLoader, flattenCatalog, loader } from "@comvi/core/loader";
 export { attachPlugins, plugins } from "@comvi/core/plugins";
 export { attachDevtools, devtools } from "@comvi/core/devtools";
