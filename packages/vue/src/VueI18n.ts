@@ -54,9 +54,10 @@ export type VueI18nOptions<D extends DefaultTranslationParams = {}> = I18nOption
  *
  * The host stays reachable as {@link VueI18n.core}: everything the wrapper does
  * not proxy — including the loader and plugin-host capabilities, when the host
- * has them — goes through it. `C` is exact when you hold the factory result;
- * through `inject(I18N_INJECTION_KEY)` the core is seen as a bare
- * {@link WrapperI18nHost}, so capability calls are a compile error there.
+ * has them — goes through it. Capabilities are composed with {@link VueI18n.with},
+ * which widens `C` on the instance you hold. `C` is exact when you hold the
+ * factory result; through `inject(I18N_INJECTION_KEY)` the core is seen as a
+ * bare {@link WrapperI18nHost}, so capability calls are a compile error there.
  */
 export class VueI18n<
   D extends DefaultTranslationParams = {},
@@ -411,6 +412,31 @@ export class VueI18n<
 
   t(key: string, ...params: [import("@comvi/core").TranslationParams?]): string {
     return translationResultToString(this.tRaw(key as any, ...(params as any)));
+  }
+
+  /**
+   * Compose a capability onto the host and keep this wrapper: `with(f)` is
+   * `f(this.core)`, and the return value is this same instance retyped so
+   * `core` carries whatever the installer widened the host to.
+   *
+   * ```ts
+   * const i18n = createI18n({ locale: "en" }).with(icu()).with(loader(importMap));
+   * i18n.core.reloadTranslations(); // typed: the loader is on `core`
+   * ```
+   *
+   * Same ordering rule as on the host: `icu()` goes before the first catalog,
+   * so an inline `translation` in the options takes `compiler: icuCompiler`
+   * there instead. Installers widen the host IN PLACE and return it; the
+   * wrapper's bound proxies point at that one host, so an installer that
+   * hands back a different object is refused instead of leaving the wrapper
+   * driving a host the app never sees.
+   */
+  with<T extends WrapperI18nHost<D>>(installer: (core: C) => T): VueI18n<D, T> {
+    const widened: unknown = installer(this.core);
+    if (widened !== this.core) {
+      throw new Error("[i18n] .with(installer) must return the host it was given");
+    }
+    return this as unknown as VueI18n<D, T>;
   }
 
   async init(): Promise<this> {

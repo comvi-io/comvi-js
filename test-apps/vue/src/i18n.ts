@@ -5,11 +5,11 @@
 // `@comvi/core/tags`: it registers tag syntax ambiently, so an app that wants
 // tags in the plain `t()` string API names that side effect itself.
 import "@comvi/core/tags";
-import { createCore, createI18nFromCore, icu } from "@comvi/vue";
+import { createI18n, icu } from "@comvi/vue";
 import { cdnLoader } from "@comvi/plugin-fetch-loader/cdn";
 
-// Installers run on the HOST, so compose FIRST and wrap afterwards:
-// `createI18nFromCore` preserves the host's exact type, so `i18n.core.use(…)`
+// `createI18n` builds the base host and each `.with(…)` composes a capability
+// on it, widening the type of `i18n.core` as it goes, so `i18n.core.use(…)`
 // stays typed.
 //
 // `icu()` comes before `cdnLoader(…)` because it has to be composed before
@@ -22,7 +22,7 @@ import { cdnLoader } from "@comvi/plugin-fetch-loader/cdn";
 // has no reason to bundle the API request path. An app that does talk to the
 // API composes `fetchLoader` from the package root and passes `apiKey` as a
 // HOST option instead.
-const core = createCore({
+export const i18n = createI18n({
   locale: "en",
   fallbackLocale: "en",
   tagInterpolation: {
@@ -38,8 +38,6 @@ const core = createCore({
     }),
   );
 
-export const i18n = createI18nFromCore(core);
-
 export default i18n;
 
 // The API-mode variant, kept runnable by hand: swap the block above for this
@@ -48,7 +46,7 @@ export default i18n;
 //
 // import { fetchLoader } from "@comvi/plugin-fetch-loader";
 //
-// const core = createCore({
+// export const i18n = createI18n({
 //   locale: "en",
 //   fallbackLocale: "en",
 //   tagInterpolation: { basicHtmlTags: ["strong", "em", "br", "a"] },

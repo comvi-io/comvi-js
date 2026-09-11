@@ -1,0 +1,103 @@
+// `VueI18n.with(installer)`: the pipe on the WRAPPER. It runs the installer on
+// `core`, keeps the one instance the app holds, and widens `core`'s type — so
+// `createI18n(options).with(…)` reads like the other bindings' `createI18n`
+// instead of the `createCore` + `createI18nFromCore` detour.
+import { describe, it, expect, vi } from "vitest";
+import { defineComponent, h } from "vue";
+import { mount } from "@vue/test-utils";
+import {
+  createI18n,
+  createI18nFromCore,
+  createCore,
+  icu,
+  loader,
+  plugins,
+  useI18n,
+  useI18nLoader,
+  useI18nPlugins,
+} from "../src/index";
+
+describe("VueI18n.with()", () => {
+  it("returns the same wrapper and widens its core in place", () => {
+    const base = createI18n({ locale: "en", exposeGlobal: false });
+    const core = base.core;
+    expect("reloadTranslations" in core).toBe(false);
+
+    const composed = base.with(loader()).with(plugins());
+
+    expect(composed).toBe(base);
+    expect(composed.core).toBe(core);
+    expect(typeof composed.core.reloadTranslations).toBe("function");
+    expect(typeof composed.core.onMissingKey).toBe("function");
+    // The wrapper's bound proxies still drive that one host.
+    composed.addTranslations({ en: { greeting: "Hello" } });
+    expect(composed.t("greeting")).toBe("Hello");
+  });
+
+  it("composes ICU ahead of the first catalog", () => {
+    const i18n = createI18n({ locale: "en", exposeGlobal: false }).with(icu());
+    i18n.addTranslations({ en: { items: "{count, plural, one {# item} other {# items}}" } });
+    expect(i18n.t("items", { count: 1 })).toBe("1 item");
+    expect(i18n.t("items", { count: 3 })).toBe("3 items");
+  });
+
+  it("keeps the host's ordering rule: icu() after an inline catalog is E_COMPILER_LOCKED", () => {
+    const i18n = createI18n({
+      locale: "en",
+      exposeGlobal: false,
+      translation: { en: { greeting: "Hello" } },
+    });
+    expect(() => i18n.with(icu())).toThrow(expect.objectContaining({ code: "E_COMPILER_LOCKED" }));
+  });
+
+  it("refuses an installer that hands back a different host", () => {
+    const i18n = createI18n({ locale: "en", exposeGlobal: false });
+    const foreign = createCore({ locale: "en", exposeGlobal: false });
+    expect(() => i18n.with(() => foreign)).toThrow(
+      "[i18n] .with(installer) must return the host it was given",
+    );
+    // The refused installer left the wrapper on its own host.
+    expect(i18n.core).not.toBe(foreign);
+  });
+
+  it("hands the installer the core, not the wrapper", () => {
+    const i18n = createI18n({ locale: "en", exposeGlobal: false });
+    const installer = vi.fn((core: typeof i18n.core) => core);
+    i18n.with(installer);
+    expect(installer).toHaveBeenCalledTimes(1);
+    expect(installer.mock.calls[0]![0]).toBe(i18n.core);
+  });
+
+  it("works on a createI18nFromCore wrapper too", () => {
+    const i18n = createI18nFromCore(createCore({ locale: "en", exposeGlobal: false })).with(
+      loader(),
+    );
+    expect(typeof i18n.core.addActiveNamespace).toBe("function");
+  });
+
+  it("makes the capability composables acquirable inside the app", async () => {
+    const i18n = createI18n({
+      locale: "en",
+      exposeGlobal: false,
+      translation: { en: { greeting: "Hello" } },
+    })
+      .with(loader())
+      .with(plugins());
+
+    const seen: { loader?: string; plugins?: string; text?: string } = {};
+    const Probe = defineComponent({
+      setup() {
+        const { t } = useI18n();
+        seen.loader = typeof useI18nLoader().reloadTranslations;
+        seen.plugins = typeof useI18nPlugins().onMissingKey;
+        seen.text = t("greeting");
+        return () => h("span", seen.text);
+      },
+    });
+
+    const wrapper = mount(Probe, { global: { plugins: [i18n] } });
+    expect(seen).toEqual({ loader: "function", plugins: "function", text: "Hello" });
+    wrapper.unmount();
+    i18n.destroy();
+  });
+});

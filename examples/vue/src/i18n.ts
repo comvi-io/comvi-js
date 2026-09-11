@@ -1,13 +1,12 @@
-import { createCore, createI18nFromCore, icuCompiler, loader, plugins } from "@comvi/vue";
+import { createI18n, icuCompiler, loader, plugins } from "@comvi/vue";
 import { LocaleDetector } from "@comvi/plugin-locale-detector";
 
 export const locales = ["en", "uk", "de"] as const;
 
-// Installers run on the HOST, so compose first and wrap afterwards.
-// `createCore` is core's own constructor, re-exported by `@comvi/vue`;
-// `createI18nFromCore` adds the Vue reactivity layer and preserves the
-// composed host's exact type as `i18n.core`.
-const core = createCore({
+// One call builds the base host, and each `.with(…)` composes a capability on
+// it. The result is the same `VueI18n` instance throughout; `.with` only
+// widens the type of `i18n.core` by what it just composed.
+export const i18n = createI18n({
   locale: "en",
   fallbackLocale: "en",
   // ICU is never on by default. Without this line `{count, plural, …}` in the
@@ -29,14 +28,13 @@ const core = createCore({
     }),
   )
   // The plugin host. `.use()` lives on this capability, not on the base host.
-  .with(plugins())
-  .use(
-    LocaleDetector({
-      supportedLocales: [...locales],
-      order: ["querystring", "localStorage", "navigator"],
-      caches: ["localStorage"],
-      fallbackLocale: "en",
-    }),
-  );
+  .with(plugins());
 
-export const i18n = createI18nFromCore(core);
+i18n.core.use(
+  LocaleDetector({
+    supportedLocales: [...locales],
+    order: ["querystring", "localStorage", "navigator"],
+    caches: ["localStorage"],
+    fallbackLocale: "en",
+  }),
+);

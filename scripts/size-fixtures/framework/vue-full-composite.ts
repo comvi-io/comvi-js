@@ -1,21 +1,13 @@
 // Framework size fixture: the UPPER BOUND of the capabilities the Vue root exports,
-// composed on one host from one specifier, plus <T>.
-import {
-  createCore,
-  createI18nFromCore,
-  devtools,
-  icuCompiler,
-  loader,
-  plugins,
-  T,
-  useI18n,
-} from "@comvi/vue";
+// composed on one instance through the wrapper pipe, plus <T>. This is the
+// shipped recipe: `createI18n(options).with(…)`, one specifier.
+import { createI18n, devtools, icuCompiler, loader, plugins, T, useI18n } from "@comvi/vue";
 
-const core = createCore({ locale: "en", compiler: icuCompiler }).with(loader()).with(plugins());
-core.addTranslations({ en: { greeting: "Hello, <b>{name}</b>!" } });
-core.with(devtools());
-
-const i18n = createI18nFromCore(core, { ssrLocale: "en" });
+const i18n = createI18n({ locale: "en", compiler: icuCompiler, ssrLocale: "en" })
+  .with(loader())
+  .with(plugins());
+i18n.addTranslations({ en: { greeting: "Hello, <b>{name}</b>!" } });
+i18n.with(devtools());
 
 // Observable use keeps the whole instance graph live for the bundler.
 console.log(i18n.t("greeting" as never, { name: "world" } as never), useI18n, T);
