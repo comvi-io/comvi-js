@@ -1,12 +1,8 @@
 "use client";
 
-// ICU has TWO shapes: an INLINE constructor catalog takes `compiler:
-// icuCompiler` in the same call, a REMOTE one takes `.with(icu())`, which must
-// run BEFORE the first catalog reaches the host. The host locks its compiler at
-// that first ingestion, so a later `icu()` throws `E_COMPILER_LOCKED` —
-// `createI18n({ translation }).with(icu())` is invalid by construction.
-// Composing a loader is not ingestion, so `icu()` and `loader()` chain in either
-// order.
+// ICU has ONE shape, whatever the catalog source: `compiler: icuCompiler` in
+// the `createI18n` options. It is a compiler setting read in the constructor,
+// so it imposes no ordering on `.with(…)` composition.
 
 export {
   useI18n,
@@ -35,8 +31,7 @@ export { createI18n } from "@comvi/core";
 // `loader()` / `plugins()` / `devtools()` are the CONFIGURED installers for
 // `i18n.with(…)`: one expression composes and configures a capability; the
 // `attach*` functions stay as the low-level API.
-export { icu, icuCompiler } from "@comvi/core/icu";
-export type { CompilerLockedError } from "@comvi/core/icu";
+export { icuCompiler } from "@comvi/core/icu";
 export { attachLoader, flattenCatalog, loader } from "@comvi/core/loader";
 export { attachPlugins, plugins } from "@comvi/core/plugins";
 export { attachDevtools, devtools } from "@comvi/core/devtools";

@@ -365,8 +365,6 @@ export class I18nWithLoader<D extends DefaultTranslationParams = {}> extends I18
       try {
         const translations = await loader(locale, namespace);
         if (generation !== this._nsGeneration || this._pendingLoads[key] !== guarded) return;
-        // Lock immediately before the direct cache merge.
-        this._compilerLocked = true;
         // The preflight normalizes its own copy so the production statement
         // below stays byte-identical to the shipped one.
         if (IS_DEV)

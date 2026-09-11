@@ -431,16 +431,15 @@ export class VueI18n<
    * `core` carries whatever the installer widened the host to.
    *
    * ```ts
-   * const i18n = createI18n({ locale: "en" }).with(icu()).with(loader(importMap));
+   * const i18n = createI18n({ locale: "en" }).with(loader(importMap));
    * i18n.core.reloadTranslations(); // typed: the loader is on `core`
    * ```
    *
-   * Same ordering rules as on the host: `icu()` goes before the first catalog,
-   * so an inline `translation` in the options takes `compiler: icuCompiler`
-   * there instead; and compose BEFORE `app.use(i18n)`, because `install` starts
-   * `init()`, which drains the plugin queue once — a `plugins()` or `.use(…)`
-   * composed later is never run (development warns; the host's own
-   * late-compose guards do not see the synchronous start of `init()`).
+   * The one ordering rule: compose BEFORE `app.use(i18n)`, because `install`
+   * starts `init()`, which drains the plugin queue once — a `plugins()` or
+   * `.use(…)` composed later is never run (development warns; the host's own
+   * late-compose guards do not see the synchronous start of `init()`). ICU is
+   * not composed at all: it is `compiler: icuCompiler` in the options.
    *
    * Installers widen the host IN PLACE and return it; the wrapper's bound
    * proxies point at that one host, so an installer that hands back a

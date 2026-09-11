@@ -51,9 +51,11 @@ describe("E_ICU_SYNTAX — the argument types the ICU compiler ships", () => {
 
     expect(error.code).toBe("E_ICU_SYNTAX");
     expect(error.argumentType).toBe(argumentType);
-    // For a type the ICU compiler DOES ship, the guidance names both recipes.
+    // For a type the ICU compiler DOES ship, the guidance names the one enable
+    // form and nothing else — there is no installer to point at.
     expect(error.message).toContain("@comvi/core/icu");
-    expect(error.message).toContain(".with(icu())");
+    expect(error.message).toContain("compiler: icuCompiler");
+    expect(error.message).not.toContain("icu()");
   });
 });
 

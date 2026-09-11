@@ -18,9 +18,8 @@
 //
 // The ORDER of `loader()`, `plugins()` and `devtools()` among themselves is
 // free: plugins run at `init()`, by which point every capability composed
-// before `init()` is attached. The library's one ordering rule is `icu()`'s —
-// it must run before the first catalog reaches the host, and COMPOSING a loader
-// is not ingestion.
+// before `init()` is attached. There is no other ordering rule: ICU is the
+// constructor option `compiler: icuCompiler`, not an installer.
 //
 // `flattenCatalog` is exported here too and is PURE, so importing only it from
 // this subpath pulls the flattener and nothing else.

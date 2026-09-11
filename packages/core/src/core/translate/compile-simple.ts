@@ -76,7 +76,7 @@ export const simpleCompiler: MessageCompiler = {
           (argumentType === "plural" ||
           argumentType === "select" ||
           argumentType === "selectordinal"
-            ? `Use compiler: icuCompiler from "@comvi/core/icu" for inline catalogs, or .with(icu()) before any catalog is ingested for remote ones.`
+            ? `Pass compiler: icuCompiler from "@comvi/core/icu" in the constructor options.`
             : `"${argumentType}" is not a shipped ICU argument type: quote the literal ('{…}') or pass your own compiler.`),
       ) as IcuSyntaxError;
       error.code = "E_ICU_SYNTAX";

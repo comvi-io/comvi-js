@@ -28,8 +28,7 @@ export type { TProps } from "./T";
 
 // Each is a named binding under `sideEffects: false`, so the subpaths an app
 // never calls stay out of its graph.
-export { icu, icuCompiler } from "@comvi/core/icu";
-export type { CompilerLockedError } from "@comvi/core/icu";
+export { icuCompiler } from "@comvi/core/icu";
 export { attachLoader, flattenCatalog, loader } from "@comvi/core/loader";
 export { attachPlugins, plugins } from "@comvi/core/plugins";
 export { attachDevtools, devtools } from "@comvi/core/devtools";

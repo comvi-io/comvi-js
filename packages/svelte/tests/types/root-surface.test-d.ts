@@ -19,7 +19,6 @@ import {
   createLocaleStore,
   devtools,
   flattenCatalog,
-  icu,
   icuCompiler,
   loader,
   plugins,
@@ -49,20 +48,15 @@ bare.onMissingKey(() => undefined);
 
 bare.addTranslations({ en: { greeting: "Hello" } });
 
-// ICU has TWO shapes, both named by this entry: the compiler for an inline
-// constructor catalog, the installer for a pre-ingestion pipe.
+// ICU has ONE shape: the compiler option. It never changes the host type,
+// because it configures the host rather than widening it.
 const _withIcu = createI18n({ locale: "en", compiler: icuCompiler });
 export type _IcuHostIsStillBase = Expect<Equal<typeof _withIcu, I18n<{}>>>;
 
-// `.with(icu())` composes a compiler, never a capability: the host type is
-// unchanged, and the default argument makes the call site argument-free.
-const _withIcuInstaller = createI18n({ locale: "en" }).with(icu());
-export type _IcuInstallerKeepsHostType = Expect<Equal<typeof _withIcuInstaller, I18n<{}>>>;
-const _withIcuCustom = createI18n({ locale: "en" }).with(icu(icuCompiler));
-export type _IcuInstallerTakesACompiler = Expect<Equal<typeof _withIcuCustom, I18n<{}>>>;
-
-// @ts-expect-error -- `icu` is the installer FACTORY; the pipe wants its result
-createI18n({ locale: "en" }).with(icu);
+// …and there is no installer beside it: `icu` is gone from the entry.
+export type _NoIcuInstaller = Expect<
+  Equal<"icu" extends keyof typeof import("../../src") ? true : false, false>
+>;
 
 // The host the entry builds is the host its bindings accept: one entry, one
 // `WrapperI18nHost`, no cross-entry structural drift. Svelte has no provider

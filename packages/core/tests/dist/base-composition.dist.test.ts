@@ -34,10 +34,6 @@ const INTERNAL_NAMES = [
   "_initDevtools",
   "_disposeDevtools",
   "_globalEntry",
-  // `/icu`'s installer reaches `_setCompilerBeforeIngestion` by dot access
-  // ACROSS a chunk boundary, so these are live nameCache canaries too.
-  "_setCompilerBeforeIngestion",
-  "_compilerLocked",
   "_preflightSimpleCatalog",
 ];
 

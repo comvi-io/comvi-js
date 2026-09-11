@@ -349,7 +349,8 @@ export interface I18nBaseOptions {
   /**
    * Message compiler for this instance. Defaults to the simple
    * text + `{param}` compiler; pass `icuCompiler` from `@comvi/core/icu`
-   * for inline ICU catalogs, or install it pre-ingestion with `.with(icu())`.
+   * to enable ICU plural/select/selectordinal for every catalog this
+   * instance ingests, wherever the catalog comes from.
    */
   compiler?: MessageCompiler;
   /**

@@ -5,15 +5,15 @@
 // `@comvi/core/tags`: it registers tag syntax ambiently, so an app that wants
 // tags in the plain `t()` string API names that side effect itself.
 import "@comvi/core/tags";
-import { createI18n, icu } from "@comvi/vue";
+import { createI18n, icuCompiler } from "@comvi/vue";
 import { cdnLoader } from "@comvi/plugin-fetch-loader/cdn";
 
 // `createI18n` builds the base host and each `.with(…)` composes a capability
 // on it, widening the type of `i18n.core` as it goes, so `i18n.core.use(…)`
 // stays typed.
 //
-// `icu()` comes before `cdnLoader(…)` because it has to be composed before
-// the first catalog reaches the host — the library's only ordering rule. The
+// ICU is the `compiler` option, not something `.with()` pipes on: it is read in
+// the constructor and applies to every catalog this instance ingests. The
 // loader's own capabilities (`/loader`, `/plugins`) are composed by the
 // installer itself.
 //
@@ -28,15 +28,14 @@ export const i18n = createI18n({
   tagInterpolation: {
     basicHtmlTags: ["strong", "em", "br", "a"],
   },
-})
-  .with(icu())
-  .with(
-    cdnLoader({
-      // The distribution id comes from the Comvi platform: open your project
-      // and read it off the Distributions page.
-      cdnUrl: "https://cdn.comvi.io/8d4beabdb0aa42008e15aa4e91a971bd/",
-    }),
-  );
+  compiler: icuCompiler,
+}).with(
+  cdnLoader({
+    // The distribution id comes from the Comvi platform: open your project
+    // and read it off the Distributions page.
+    cdnUrl: "https://cdn.comvi.io/8d4beabdb0aa42008e15aa4e91a971bd/",
+  }),
+);
 
 export default i18n;
 
@@ -53,6 +52,5 @@ export default i18n;
 //   // The API key is a HOST option, not a `fetchLoader` option: the loader
 //   // reads `i18n.apiKey` and then talks to the API instead of the CDN.
 //   apiKey: import.meta.env.VITE_COMVI_API_KEY,
-// })
-//   .with(icu())
-//   .with(fetchLoader({ cdnUrl: "https://cdn.comvi.io/8d4beabdb0aa42008e15aa4e91a971bd/" }));
+//   compiler: icuCompiler,
+// }).with(fetchLoader({ cdnUrl: "https://cdn.comvi.io/8d4beabdb0aa42008e15aa4e91a971bd/" }));

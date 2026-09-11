@@ -41,9 +41,9 @@ assert(
   "@comvi/react exports icuCompiler from core's pure /icu subpath",
 );
 
-// INLINE catalogs take the constructor option: the compiler must be in place
-// before the translation passed here is ingested. `.with(icu())` is the remote
-// -catalog form and is measured in core, not per wrapper.
+// ICU is the constructor option, whatever the catalog source: the compiler has
+// to be in place before the translation passed here is ingested, and the option
+// is read in the constructor, so remote catalogs enable it the same way.
 const i18n = createI18n({
   locale: "en",
   exposeGlobal: false,

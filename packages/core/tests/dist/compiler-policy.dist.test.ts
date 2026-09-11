@@ -12,10 +12,10 @@ import { fileURLToPath } from "node:url";
  *     braced segment literally and reporting `E_ICU_SYNTAX` on the compile.
  *  2. **0 B in production.** The preflight identifier occurs in no prod
  *     artifact — the `__DEV__` fold removed it, not the mangler.
- *  3. **cross-chunk mangling.** `icu()` lives in `comvi-core-icu.js` and reaches
- *     `_setCompilerBeforeIngestion` on a host built by `comvi-core.js`: a
- *     mangled `_`-internal dot access across a chunk boundary, which only the
- *     shared-nameCache prod build can satisfy.
+ *  3. **cross-chunk mangling.** `attachLoader` lives in `comvi-core-loader.js`
+ *     and drives mangled `_`-internals on a host built by `comvi-core.js` — a
+ *     dot access across a chunk boundary, which only the shared-nameCache prod
+ *     build can satisfy.
  *
  * THE TEMPLATE CACHE is module-global to the imported dist module, so every
  * case below uses a DISTINCT template string — two cases sharing one would make
@@ -253,22 +253,22 @@ describe("prod dist: the ICU literal + best-effort report (D1)", () => {
     expect(i18n.t("plain", { name: "Ada" })).toBe("Hello, Ada!");
   });
 
-  it("is bypassed by the ICU compiler, from the option and from the installer", async () => {
+  it("is bypassed by the ICU compiler, from a constructor and a later catalog", async () => {
     const { createI18n } = await import("../../dist/comvi-core.js");
-    const { icu, icuCompiler } = await import("../../dist/comvi-core-icu.js");
+    const { icuCompiler } = await import("../../dist/comvi-core-icu.js");
 
-    const viaOption = createI18n({
+    const viaConstructorCatalog = createI18n({
       locale: "en",
       compiler: icuCompiler,
       translation: { en: { items: PLURAL } },
     });
-    expect(viaOption.t("items", { count: 2 })).toBe("2 items");
+    expect(viaConstructorCatalog.t("items", { count: 2 })).toBe("2 items");
 
-    // This call is the nameCache canary: it reaches the MANGLED
-    // `_setCompilerBeforeIngestion` across a chunk boundary.
-    const viaInstaller = createI18n({ locale: "en" }).with(icu());
-    viaInstaller.addTranslations({ en: { items: PLURAL } });
-    expect(viaInstaller.t("items", { count: 1 })).toBe("1 item");
+    // The option is the ONLY enable form, so it has to hold for a catalog that
+    // arrives after construction too.
+    const viaLaterCatalog = createI18n({ locale: "en", compiler: icuCompiler });
+    viaLaterCatalog.addTranslations({ en: { items: PLURAL } });
+    expect(viaLaterCatalog.t("items", { count: 1 })).toBe("1 item");
   });
 
   it("keeps the LOADER path lazy: the merge succeeds, the first render reports", async () => {
@@ -289,17 +289,6 @@ describe("prod dist: the ICU literal + best-effort report (D1)", () => {
     expect(reports).toHaveLength(1);
     expect(reports[0]!.code).toBe("E_ICU_SYNTAX");
   });
-
-  it("locks the compiler at ingestion and throws E_COMPILER_LOCKED afterwards", async () => {
-    const { createI18n } = await import("../../dist/comvi-core.js");
-    const { icu } = await import("../../dist/comvi-core-icu.js");
-
-    const i18n = createI18n({ locale: "en", translation: { en: { hi: "Hi" } } });
-
-    expect(() => i18n.with(icu())).toThrowError(
-      expect.objectContaining({ code: "E_COMPILER_LOCKED", message: "E_COMPILER_LOCKED" }),
-    );
-  });
 });
 
 describe("dev dist: the eager preflight (§2.1a)", () => {
@@ -315,9 +304,8 @@ describe("dev dist: the eager preflight (§2.1a)", () => {
     );
   });
 
-  it("throws EAGERLY from addTranslations too, and the host stays locked", async () => {
+  it("throws EAGERLY from addTranslations too", async () => {
     const { createI18n } = await import("../../dist/comvi-core.dev.js");
-    const { icu } = await import("../../dist/comvi-core-icu.dev.js");
 
     const i18n = createI18n({ locale: "en" });
     expect(() => i18n.addTranslations({ en: { items: PLURAL } })).toThrowError(
@@ -327,16 +315,11 @@ describe("dev dist: the eager preflight (§2.1a)", () => {
         message: expect.stringContaining("@comvi/core/icu"),
       }),
     );
-
-    expect(() => i18n.with(icu())).toThrowError(
-      expect.objectContaining({ code: "E_COMPILER_LOCKED" }),
-    );
   });
 
   it("throws EAGERLY from the LOADER's direct merge, before the cache write", async () => {
     const { createI18n } = await import("../../dist/comvi-core.dev.js");
     const { attachLoader } = await import("../../dist/comvi-core-loader.dev.js");
-    const { icu } = await import("../../dist/comvi-core-icu.dev.js");
 
     const i18n = attachLoader(createI18n({ locale: "en" }));
     i18n.registerLoader(async () => ({ items: PLURAL }));
@@ -357,12 +340,6 @@ describe("dev dist: the eager preflight (§2.1a)", () => {
     // later ever entered the cache.
     expect(i18n.t("items", { count: 2 })).toBe("items");
     expect(i18n.hasTranslation("items")).toBe(false);
-
-    // The seam locked the compiler on its way through, so a late installer
-    // cannot paper over the rejected catalog.
-    expect(() => i18n.with(icu())).toThrowError(
-      expect.objectContaining({ code: "E_COMPILER_LOCKED" }),
-    );
   });
 
   it("stays silent when the effective compiler is not the simple one", async () => {

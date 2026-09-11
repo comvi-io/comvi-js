@@ -44,8 +44,7 @@ export {
 // `plugins()` / `devtools()` are the configured installers for `i18n.with(…)`;
 // the `attach*` functions are themselves installers, so `.with(attachLoader)`
 // works too.
-export { icu, icuCompiler } from "@comvi/core/icu";
-export type { CompilerLockedError } from "@comvi/core/icu";
+export { icuCompiler } from "@comvi/core/icu";
 export { attachLoader, flattenCatalog, loader } from "@comvi/core/loader";
 export { attachPlugins, plugins } from "@comvi/core/plugins";
 export { attachDevtools, devtools } from "@comvi/core/devtools";

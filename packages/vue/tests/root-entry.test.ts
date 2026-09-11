@@ -18,7 +18,7 @@ import { defineComponent, h } from "vue";
 import { mount } from "@vue/test-utils";
 import { createI18n as coreCreateI18n, I18n as CoreI18n } from "@comvi/core";
 import { attachDevtools, devtools } from "@comvi/core/devtools";
-import { icu, icuCompiler } from "@comvi/core/icu";
+import { icuCompiler } from "@comvi/core/icu";
 import { attachLoader, flattenCatalog, loader } from "@comvi/core/loader";
 import { attachPlugins, plugins } from "@comvi/core/plugins";
 import * as root from "../src/index";
@@ -97,7 +97,7 @@ describe("@comvi/vue — the single root entry", () => {
   });
 });
 
-describe("@comvi/vue — ICU, both shapes, one specifier", () => {
+describe("@comvi/vue — ICU, one shape, one specifier", () => {
   it("takes the COMPILER in the preset call for an inline catalog", () => {
     const i18n = root.createI18n({
       locale: "en",
@@ -110,11 +110,15 @@ describe("@comvi/vue — ICU, both shapes, one specifier", () => {
     expect(i18n.t("items" as never, { count: 4 } as never)).toBe("4 items");
   });
 
-  it("takes the INSTALLER before ingestion for a remote catalog", () => {
-    // The remote-catalog recipe: `.with(icu())` runs on a host that has not
-    // seen a catalog yet, so a later loader merge is compiled by ICU. On vue
-    // the pipe goes on the CORE.
-    const core = root.createCore({ locale: "en", exposeGlobal: false }).with(root.icu());
+  it("takes the same COMPILER option on a host built with createCore", () => {
+    // One enable form for every catalog source: the option is read in the
+    // constructor, so a catalog that arrives later compiles under ICU with
+    // nothing composed.
+    const core = root.createCore({
+      locale: "en",
+      exposeGlobal: false,
+      compiler: root.icuCompiler,
+    });
     const i18n = root.createI18nFromCore(core);
 
     core.addTranslations({ en: { items: "{count, plural, one {# item} other {# items}}" } });
@@ -123,38 +127,9 @@ describe("@comvi/vue — ICU, both shapes, one specifier", () => {
     expect(i18n.t("items" as never, { count: 4 } as never)).toBe("4 items");
   });
 
-  it("repeats the ICU installer idempotently before ingestion", () => {
-    const core = root
-      .createCore({ locale: "en", exposeGlobal: false })
-      .with(root.icu())
-      .with(root.icu());
-
-    core.addTranslations({ en: { items: "{count, plural, one {# item} other {# items}}" } });
-
-    expect(root.createI18nFromCore(core).t("items" as never, { count: 2 } as never)).toBe(
-      "2 items",
-    );
-  });
-
-  it("refuses the installer AFTER ingestion, and mutates nothing on the way out", () => {
-    // The preset ingests its `translation` at construction, so its host is
-    // already locked — which is why an inline catalog takes the compiler
-    // option instead.
-    const i18n = root.createI18n({
-      locale: "en",
-      exposeGlobal: false,
-      translation: { en: { greeting: "Hello" } },
-    });
-
-    let code: unknown;
-    try {
-      i18n.core.with(root.icu());
-    } catch (error) {
-      if (error && typeof error === "object" && "code" in error) code = error.code;
-    }
-
-    expect(code).toBe("E_COMPILER_LOCKED");
-    expect(i18n.t("greeting" as never)).toBe("Hello");
+  it("publishes no `icu` installer beside the compiler", () => {
+    expect(Object.keys(root)).not.toContain("icu");
+    expect((root as Record<string, unknown>).icu).toBeUndefined();
   });
 });
 
@@ -162,7 +137,6 @@ describe("@comvi/vue — the capability toolkit", () => {
   it("re-exports core's own bindings, not copies", () => {
     expect(root.createCore).toBe(coreCreateI18n);
     expect(root.I18n).toBe(CoreI18n);
-    expect(root.icu).toBe(icu);
     expect(root.icuCompiler).toBe(icuCompiler);
     expect(root.attachLoader).toBe(attachLoader);
     expect(root.flattenCatalog).toBe(flattenCatalog);
@@ -268,7 +242,6 @@ describe("@comvi/vue — the export surface", () => {
     "createI18nFromCore",
     "devtools",
     "flattenCatalog",
-    "icu",
     "icuCompiler",
     "loader",
     "plugins",

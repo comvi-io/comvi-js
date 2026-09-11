@@ -136,7 +136,6 @@ describe("@comvi/react — the export surface", () => {
     "createI18n",
     "devtools",
     "flattenCatalog",
-    "icu",
     "icuCompiler",
     "loader",
     "plugins",
@@ -152,6 +151,11 @@ describe("@comvi/react — the export surface", () => {
 
   it("publishes exactly the bindings, the toolkit and the two construction names", () => {
     expect(Object.keys(root).sort()).toEqual([...SURFACE].sort());
+  });
+
+  it("publishes no `icu` installer: ICU is the `compiler: icuCompiler` option", () => {
+    expect(Object.keys(root)).not.toContain("icu");
+    expect((root as Record<string, unknown>).icu).toBeUndefined();
   });
 
   it("re-exports core's base `I18n` and `createI18n` by name, not copies", () => {

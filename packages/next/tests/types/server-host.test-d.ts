@@ -118,16 +118,14 @@ export type _SinglePackageConstructorIsBase = Expect<
 // @ts-expect-error -- still NextServerHost = WrapperI18nHost & I18nLoaderApi
 createNextI18nFromHost(() => serverEntry.createI18n({ locale: "en" }), ROUTING);
 
-// ICU stays injectable from the same specifier, in BOTH shapes: the compiler
-// option for an inline catalog, and the pre-ingestion installer for the remote
-// catalogs an SSR loader fetches.
+// ICU stays injectable from the same specifier, in its ONE shape: the compiler
+// option, which covers the remote catalogs an SSR loader fetches too.
 void serverEntry.attachLoader(
   serverEntry.createI18n({ locale: "en", compiler: serverEntry.icuCompiler }),
 );
-void serverEntry.attachLoader(serverEntry.createI18n({ locale: "en" }).with(serverEntry.icu()));
-export type _ServerLockedErrorCode = Expect<
-  Equal<serverEntry.CompilerLockedError["code"], "E_COMPILER_LOCKED">
->;
+export type _NoServerIcuInstaller = Expect<Equal<Extract<keyof typeof serverEntry, "icu">, never>>;
+// @ts-expect-error -- `CompilerLockedError` went with the lock it described
+export type _NoServerLockedError = serverEntry.CompilerLockedError;
 const serverFlat: Record<string, string> = serverEntry.flattenCatalog({ nav: { home: "Home" } });
 void serverFlat;
 
