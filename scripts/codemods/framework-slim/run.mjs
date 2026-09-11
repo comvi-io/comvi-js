@@ -6,7 +6,8 @@
  *   • the four members that left `useI18n()` move onto the capability hooks
  *     `useI18nLoader()` / `useI18nPlugins()`;
  *   • `/slim` specifiers and `createSlimI18n` collapse into the one entry,
- *     chained `.use(Plugin(o))` becomes `.with(installer(o))`, and the
+ *     chained `.use(Plugin(o))` becomes `.use(installer(o))` and `.with(…)`
+ *     becomes `.use(…)` — one composition verb — and the
  *     constructor options that became capabilities (`compiler: icuCompiler`,
  *     `devtools({ exposeGlobal, instanceId })`, `flattenCatalog`) move with
  *     their imports.
@@ -279,7 +280,7 @@ export function transformBody(body, lang, { vueProxies = false } = {}) {
 /**
  * Drops the names a rewrite left with no remaining reference from their import:
  * `useI18n` after a pure T1/T2 destructure move, `FetchLoader` after its
- * `.use(FetchLoader(o))` became `.with(fetchLoader(o))`. Without this every
+ * `.use(FetchLoader(o))` became `.use(fetchLoader(o))`. Without this every
  * migrated file inherits a fresh `no-unused-vars` error from the codemod.
  *
  * Runs on the REWRITTEN text, because "no remaining reference" is a property of

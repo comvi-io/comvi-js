@@ -43,7 +43,7 @@ export function App() {
      import { createI18n } from '@comvi/react';
      import { loader } from '@comvi/core/loader';
 
-     export const i18n = createI18n({ locale: 'en' }).with(loader());
+     export const i18n = createI18n({ locale: 'en' }).use(loader());
      ```
 
 2. **Register a catalog**

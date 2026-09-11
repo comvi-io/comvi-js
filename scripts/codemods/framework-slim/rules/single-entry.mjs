@@ -3,11 +3,22 @@
  *
  * | 1 | `@comvi/<pkg>/slim` -> `@comvi/<pkg>` | the retired host tier        |
  * | 2 | `createSlimI18n` -> `createI18n`      | never published, so renamed  |
- * | 3 | chained `.use(X(o))`                  | installer, or plugins()+use  |
+ * | 3 | chained `.use(X(o))`                  | `.use(x(o))` / definePlugin  |
  * | 4 | inline ICU catalog                    | `compiler: icuCompiler`      |
- * | 5 | `exposeGlobal` / `instanceId` options | `.with(devtools({…}))`       |
+ * | 5 | `exposeGlobal` / `instanceId` options | `.use(devtools({…}))`        |
  * | 6 | non-flat inline catalog               | `flattenCatalog(…)`          |
+ * | 7 | chained `.with(installer)`            | `.use(installer)`            |
+ * | 8 | `host.use(raw)` on a plugin host      | `host.registerPlugin(raw)`   |
  * | + | `.with(icu())`, anywhere in a chain   | reported, never rewritten    |
+ *
+ * Rows 7 and 8 are the two verbs converging (decision E). `.use(installer)` is
+ * the only composition verb now, so the 0.5-pre `.with` spelling is renamed —
+ * same argument, same position, nothing else about the chain moves — and the
+ * raw plugin queue that used to be spelled `use` is `registerPlugin`, which is
+ * where a `.use(rawPlugin)` on a PROVEN plugin host goes. A `.use(rawPlugin)`
+ * inside a chain takes the other road and becomes `.use(definePlugin(raw))`,
+ * because `definePlugin(fn)` attaches the capability itself and so needs
+ * nothing in front of it.
  *
  * Row `+` is the one shape here that has no rewrite. `.with(icu())` was a real
  * installer during 0.5 development and is not part of the released surface: ICU
@@ -43,6 +54,7 @@ import {
   HOST_FACTORY,
   ICU_COMPILER,
   LOADER_INSTALLERS,
+  PLUGIN_HELPER,
   PLUGIN_HOST_INSTALLER,
   PLUGIN_HOST_PROVIDERS,
   PLUGIN_INSTALLERS,
@@ -105,7 +117,14 @@ function constructedName(node) {
   return callee !== null && callee.kind() === "identifier" ? callee.text() : undefined;
 }
 
-/** What a proven `.with(x)` installs: `plugins()` and `attachPlugins` both. */
+/**
+ * What a proven composition step installs — the IMPORTED name of its single
+ * argument, whichever verb the step is spelled with.
+ *
+ * This is also how an already-migrated step is told from a pre-E one: an
+ * argument that resolves to a Comvi installer is composition and is left alone,
+ * while a `.use(x)` whose `x` is not one was the raw plugin queue.
+ */
 function installedBy(root, step, hostModule) {
   const args = argumentsOf(step.call);
   if (args.length !== 1) return undefined;
@@ -132,8 +151,9 @@ function installedBy(root, step, hostModule) {
 const REMOVED_ICU_INSTALLER = "icu";
 
 /**
- * The LOCAL name a `.with(x(…))` step uses for the removed `icu()` installer,
- * or `undefined` when the step is something else.
+ * The LOCAL name a composition step uses for the removed `icu()` installer, or
+ * `undefined` when the step is something else. Either verb: a 0.5-pre tree
+ * spells the step `.with(icu())`, and the reader may have renamed it already.
  *
  * Resolved through the IMPORT rather than the call text, for the two reasons
  * every other provenance check here has: `import { icu as installIcu }` writes
@@ -530,15 +550,29 @@ function planHostRename(root) {
  * `.use(…)` on a STORED host: `const i18n = createI18n(…); i18n.use(p)`, the
  * conditional `if (dev) i18n.use(p)`, and every loop or array around them.
  *
- * The base host has no `.use` at all, so these break loudly at runtime — but
- * the fix is a change at CONSTRUCTION, which is not where the call is, so they
- * are reported with the recipe rather than rewritten. Two guards keep the
- * report worth reading: only bindings the file itself assigns from a host
- * construction count (`app.use(router)` in a component is not this shape), and
- * a construction that already composes the plugin host is already correct.
+ * Before decision E this was always a report: `use` was the raw plugin queue,
+ * the base host did not have it, and the fix was a change at CONSTRUCTION,
+ * which is not where the call is. The queue is now called `registerPlugin`, and
+ * that splits the shape in two along a line the text can actually decide:
+ *
+ *   • the construction PROVES the plugin host (it composes `plugins()`,
+ *     `attachPlugins`, `${PLUGIN_HELPER}(…)` or a lowercase plugin installer),
+ *     so the receiver has the queue under its new name and the call is a
+ *     RENAME: `i18n.use(p)` -> `i18n.registerPlugin(p)`. Nothing moves, the
+ *     argument is untouched, and evaluation order cannot change.
+ *   • it does not, so the receiver's capability is still the open question and
+ *     the recipe still belongs at the construction — reported, as before.
+ *
+ * Two guards keep both halves honest: only bindings the file itself assigns
+ * from a host construction count (`app.use(router)` in a component is not this
+ * shape), and a `.use(installer)` — already the one composition verb — is
+ * neither renamed nor reported.
  */
 function detectStoredHostUse(root, hosts) {
   const findings = [];
+  const edits = [];
+  let renames = 0;
+
   for (const declarator of root.findAll({ rule: { kind: "variable_declarator" } })) {
     const name = declarator.field("name");
     const value = declarator.field("value");
@@ -547,29 +581,39 @@ function detectStoredHostUse(root, hosts) {
     const construction = chainRootOf(value);
     const hostModule = hosts.get(constructedName(construction) ?? "");
     if (hostModule === undefined) continue;
-    const composed = chainSteps(construction).some(
-      (step) =>
-        step.method === "with" &&
-        PLUGIN_HOST_PROVIDERS.includes(installedBy(root, step, hostModule)),
+    const composed = chainSteps(construction).some((step) =>
+      PLUGIN_HOST_PROVIDERS.includes(installedBy(root, step, hostModule)),
     );
-    if (composed) continue;
 
     const binding = name.text();
     for (const access of scopeOf(declarator).findAll({ rule: { kind: "member_expression" } })) {
       if (access.field("object")?.text() !== binding) continue;
-      if (access.field("property")?.text() !== "use") continue;
-      if (access.parent()?.kind() !== "call_expression") continue;
+      const property = access.field("property");
+      if (property?.text() !== "use") continue;
+      const call = access.parent();
+      if (call?.kind() !== "call_expression") continue;
+      // An installer in the slot is composition, not a queued plugin: the same
+      // call is valid on any host, and renaming it would break it.
+      if (installedBy(root, { call }, hostModule) !== undefined) continue;
+
+      if (composed) {
+        edits.push({ ...spanOf(property), text: "registerPlugin" });
+        renames += 1;
+        continue;
+      }
       findings.push({
         offset: startOf(access),
         shape: "stored-host-plugin-use",
         detail:
-          `\`${binding}.use(…)\` runs on a stored \`${HOST_FACTORY}(…)\` result, and the base ` +
-          `host has no \`use\` — compose \`.with(${PLUGIN_HOST_INSTALLER}())\` (or a lowercase ` +
-          `installer) where the host is constructed`,
+          `\`${binding}.use(…)\` runs a raw plugin on a stored \`${HOST_FACTORY}(…)\` result, ` +
+          `and \`.use\` takes an INSTALLER — compose \`.use(${PLUGIN_HOST_INSTALLER}())\` (or a ` +
+          `lowercase installer) where the host is constructed and call ` +
+          `\`${binding}.registerPlugin(…)\` here, or wrap the plugin as ` +
+          `\`${binding}.use(${PLUGIN_HELPER}(…))\``,
       });
     }
   }
-  return findings;
+  return { manual: findings, edits, renames };
 }
 
 // ---------------------------------------------------------------------------
@@ -647,7 +691,10 @@ export function planSingleEntry(root, text) {
     shadowedHosts.set(name, shadow);
     hosts.delete(name);
   }
-  manual.push(...detectStoredHostUse(root, hosts));
+  const storedUse = detectStoredHostUse(root, hosts);
+  manual.push(...storedUse.manual);
+  edits.push(...storedUse.edits);
+  if (storedUse.renames > 0) count("register-plugin-rename", storedUse.renames);
 
   const constructions = [
     ...root.findAll({ rule: { kind: "call_expression" } }),
@@ -722,108 +769,141 @@ function planChain(root, text, call, hostModule) {
   const options = argumentsOf(call)[0];
 
   // --- the chain: what does it already compose, and where? ------------------
-  let pluginHostAt;
   let devtoolsStep;
   let loaderStep;
-  let firstUnknownUse;
 
   for (const step of steps) {
+    // The removed installer is checked FIRST and refuses the chain: it is the
+    // one step whose presence means the text was written against a surface
+    // that never shipped, and rewriting the rest around it would leave a
+    // chain that still does not resolve.
+    const removedIcu = removedIcuInstallerAt(root, step);
+    if (removedIcu !== undefined) {
+      blockers.push({
+        offset: startOf(step.property),
+        shape: "icu-installer-removed",
+        detail:
+          `\`.${step.method}(${removedIcu}(…))\` composes the removed ` +
+          `\`${REMOVED_ICU_INSTALLER}()\` installer — ICU is a compiler setting, not a ` +
+          `capability: drop the step and pass \`compiler: ${ICU_COMPILER}\` in the ` +
+          `\`${HOST_FACTORY}(…)\` options, which serves inline, loader, CDN and API catalogs alike`,
+      });
+      continue;
+    }
+
+    // A step whose argument is a proven Comvi installer is COMPOSITION, under
+    // whichever verb it is written. Only the verb may need fixing.
+    const composed = installedBy(root, step, hostModule);
+    if (composed !== undefined) {
+      if (DEVTOOLS_PROVIDERS.includes(composed)) devtoolsStep = step;
+      if (LOADER_INSTALLERS.includes(composed) && loaderStep === undefined) loaderStep = step;
+      if (step.method === "with") {
+        edits.push({ ...spanOf(step.property), text: "use" });
+        count("use-verb-rename");
+      }
+      continue;
+    }
+
+    // Not an installer. Under `with` that is simply a step the codemod cannot
+    // vouch for — the reader's own installer, or a foreign one — and the verb
+    // rename is still right: `with` does not exist on any 0.5.0 host, so the
+    // only spelling that can work is `use`, with the same argument.
     if (step.method === "with") {
-      // The removed installer is checked FIRST and refuses the chain: it is the
-      // one step whose presence means the text was written against a surface
-      // that never shipped, and rewriting the rest around it would leave a
-      // chain that still does not resolve.
-      const removedIcu = removedIcuInstallerAt(root, step);
-      if (removedIcu !== undefined) {
+      edits.push({ ...spanOf(step.property), text: "use" });
+      count("use-verb-rename");
+      continue;
+    }
+
+    // Under `use` it is a RAW PLUGIN: that slot was the plugin queue in every
+    // surface before decision E, and after it the slot takes an installer.
+    const args = argumentsOf(step.call);
+    const argument = args.length === 1 && args[0].kind() !== "spread_element" ? args[0] : undefined;
+    const local = calleeName(argument);
+
+    const installer = local === undefined ? undefined : PLUGIN_INSTALLERS.get(local);
+    if (installer !== undefined) {
+      const binding = importedBinding(root, local);
+      const expectedModule = PLUGIN_FACTORY_MODULES.get(local);
+      if (
+        binding === undefined ||
+        binding.typeOnly ||
+        binding.imported !== local ||
+        binding.source !== expectedModule
+      ) {
         blockers.push({
           offset: startOf(step.property),
-          shape: "icu-installer-removed",
+          shape: "ambiguous-plugin-factory",
           detail:
-            `\`.with(${removedIcu}(…))\` composes the removed \`${REMOVED_ICU_INSTALLER}()\` ` +
-            `installer — ICU is a compiler setting, not a capability: drop the step and pass ` +
-            `\`compiler: ${ICU_COMPILER}\` in the \`${HOST_FACTORY}(…)\` options, which serves ` +
-            `inline, loader, CDN and API catalogs alike`,
+            `\`${local}\` is not a value import from "${expectedModule}" under its own name, so ` +
+            `it cannot be proven to be the first-party factory — write ` +
+            `\`.use(${installer}(…))\` by hand`,
         });
         continue;
       }
-      const installer = installedBy(root, step, hostModule);
-      if (installer === undefined) continue;
-      if (PLUGIN_HOST_PROVIDERS.includes(installer) && pluginHostAt === undefined) {
-        pluginHostAt = steps.indexOf(step);
-      }
-      if (DEVTOOLS_PROVIDERS.includes(installer)) devtoolsStep = step;
+      // The verb already reads correctly; only the callee moves, so the
+      // options, the position and the evaluation order are all preserved.
+      edits.push({ ...spanOf(argument.field("function")), text: installer });
+      needs.set(installer, binding.source);
+      prunable.add(local);
+      count("plugin-installer");
       if (LOADER_INSTALLERS.includes(installer) && loaderStep === undefined) loaderStep = step;
       continue;
     }
 
-    const args = argumentsOf(step.call);
-    const factory = args.length === 1 ? args[0] : undefined;
-    const local = calleeName(factory);
-    if (local === undefined) {
+    // Any other plugin goes through the helper, which attaches the capability
+    // itself — so nothing has to be inserted in front of it and the step keeps
+    // its exact position. The wrap is a splice around the argument's own text:
+    // one expression, evaluated once, in the same order as before.
+    //
+    // WHICH arguments, though, is the one judgement call in this file, because
+    // `.use(x())` reads differently before and after decision E: it was the raw
+    // plugin queue, and it is now the installer pipe. The discriminator is the
+    // published naming convention, the same one `PLUGIN_INSTALLERS` above
+    // encodes — `FetchLoader()` is a plugin, `fetchLoader()` is its installer:
+    //
+    //   • an Uppercase callee, or an INLINE function, is a raw plugin and is
+    //     wrapped;
+    //   • a lowercase callee the codemod cannot place is taken at its word as
+    //     an installer and LEFT ALONE, with an advisory. Wrapping it would
+    //     corrupt every hand-written `.use(myOwnInstaller())` on the second run
+    //     — a migration must not break code that is already correct — and
+    //     silence would hide the one case the convention gets wrong;
+    //   • anything else is refused. A SPREAD is N plugins in one call and
+    //     cannot become one wrap, and a bare binding or an element read may
+    //     hold an array or a list, which `${PLUGIN_HELPER}` would accept as a
+    //     single plugin without complaint.
+    const inlinePlugin =
+      argument !== undefined &&
+      (argument.kind() === "arrow_function" || argument.kind() === "function_expression");
+    if (argument !== undefined && local !== undefined && !/^[A-Z]/.test(local)) {
+      advisories.push({
+        offset: startOf(step.property),
+        shape: "raw-plugin-needs-helper",
+        detail:
+          `\`.use(${brief(argument)})\` reads as an installer by its lowercase name and is left ` +
+          `as written — if \`${local}()\` returns a PLUGIN rather than an installer, wrap it as ` +
+          `\`.use(${PLUGIN_HELPER}(${local}(…)))\``,
+      });
+      continue;
+    }
+    if (argument === undefined || (local === undefined && !inlinePlugin)) {
       blockers.push({
         offset: startOf(step.property),
-        shape: "dynamic-plugin-use",
+        shape: "raw-plugin-needs-helper",
         detail:
-          `\`.use(${factory === undefined ? "…" : brief(factory)})\` is not a statically named ` +
-          `plugin factory call — compose \`.with(${PLUGIN_HOST_INSTALLER}())\` and keep this ` +
-          `\`.use(…)\` by hand`,
+          `\`.use(${argument === undefined ? (args[0] === undefined ? "…" : brief(args[0])) : brief(argument)})\` ` +
+          `hands \`.use\` something that is not an installer — wrap each plugin as ` +
+          `\`.use(${PLUGIN_HELPER}(plugin))\` by hand, one call per plugin`,
       });
       continue;
     }
 
-    const installer = PLUGIN_INSTALLERS.get(local);
-    if (installer === undefined) {
-      // An unknown plugin keeps its `.use`; the host just has to gain one.
-      if (firstUnknownUse === undefined) firstUnknownUse = step;
-      continue;
-    }
-
-    const binding = importedBinding(root, local);
-    const expectedModule = PLUGIN_FACTORY_MODULES.get(local);
-    if (
-      binding === undefined ||
-      binding.typeOnly ||
-      binding.imported !== local ||
-      binding.source !== expectedModule
-    ) {
-      blockers.push({
-        offset: startOf(step.property),
-        shape: "ambiguous-plugin-factory",
-        detail:
-          `\`${local}\` is not a value import from "${expectedModule}" under its own name, so it ` +
-          `cannot be proven to be the first-party factory — write \`.with(${installer}(…))\` by hand`,
-      });
-      continue;
-    }
-
-    edits.push({ ...spanOf(step.property), text: "with" });
-    edits.push({ ...spanOf(factory.field("function")), text: installer });
-    needs.set(installer, binding.source);
-    prunable.add(local);
-    count("plugin-installer");
-    if (LOADER_INSTALLERS.includes(installer) && loaderStep === undefined) loaderStep = step;
+    edits.push({ ...spanOf(argument), text: `${PLUGIN_HELPER}(${argument.text()})` });
+    needs.set(PLUGIN_HELPER, bindingModule(hostModule, PLUGIN_HELPER));
+    count("raw-plugin-helper");
   }
 
   if (blockers.length > 0) return refuse();
-
-  // --- unknown plugins: the generic host, once, before the first use -------
-  //
-  // A lowercase installer this pass just wrote (`fetchLoader`) ensures the
-  // plugin host itself, so the `plugins()` below is redundant beside one — and
-  // it is emitted anyway, deliberately: attaching twice is a documented no-op,
-  // while relying on another installer's RETURN TYPE to widen the host is a bet
-  // on a signature this codemod does not own.
-  if (firstUnknownUse !== undefined) {
-    const already = pluginHostAt !== undefined && pluginHostAt < steps.indexOf(firstUnknownUse);
-    if (!already) {
-      const insertAt = firstUnknownUse.object.range().end.index;
-      const gap = chainGap(text, firstUnknownUse);
-      const install = `${gap}.with(${PLUGIN_HOST_INSTALLER}())`;
-      edits.push({ start: insertAt, end: insertAt, text: install });
-      needs.set(PLUGIN_HOST_INSTALLER, bindingModule(hostModule, PLUGIN_HOST_INSTALLER));
-      count("plugin-host");
-    }
-  }
 
   // There is no ordering rule to enforce here. ICU used to be a composed step
   // that had to reach the host before the first catalog, and that is exactly
@@ -939,7 +1019,7 @@ function planChain(root, text, call, hostModule) {
     edits.push({
       start: insertAt,
       end: insertAt,
-      text: `${gap}.with(${DEVTOOLS_INSTALLER}({ ${carried} }))`,
+      text: `${gap}.use(${DEVTOOLS_INSTALLER}({ ${carried} }))`,
     });
     needs.set(DEVTOOLS_INSTALLER, bindingModule(hostModule, DEVTOOLS_INSTALLER));
     count("devtools-options");

@@ -9,6 +9,6 @@
     "line": 11,
     "column": 3,
     "shape": "vue-instance-proxy-call",
-    "detail": "`i18n.use(...)` — if the receiver is a VueI18n it must become `i18n.core.use(...)`"
+    "detail": "`i18n.use(...)` — if the receiver is a VueI18n it must become `i18n.core.registerPlugin(...)`"
   }
 ]

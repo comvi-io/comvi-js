@@ -12,11 +12,11 @@ const exposeGlobal = __DEV__;
 export const app = createI18n({
   locale: "en",
   translation: { en: { hello: "Hello" } },
-}).with(devtools({ exposeGlobal, instanceId: "app" }));
+}).use(devtools({ exposeGlobal, instanceId: "app" }));
 
 export const dashboard = createI18n({ locale: "en" })
-  .with(loader())
-  .with(devtools({ instanceId: "dashboard" }));
+  .use(loader())
+  .use(devtools({ instanceId: "dashboard" }));
 
 // `createI18n(options)` IS `new I18n(options)`, so the class form migrates too.
-export const widget = new I18n({ locale: "en" }).with(devtools({ exposeGlobal: false }));
+export const widget = new I18n({ locale: "en" }).use(devtools({ exposeGlobal: false }));

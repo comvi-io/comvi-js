@@ -1,5 +1,6 @@
 // the three first-party factories that gained a lowercase installer.
-// `.use(X(o))` becomes `.with(x(o))` IN PLACE, so the composition order the
+// `.use(X(o))` becomes `.use(x(o))` IN PLACE — only the callee changes, since
+// `.use` is already the one composition verb — so the composition order the
 // author wrote is the order the host installs in, and the uppercase import
 // leaves with its last reference.
 //

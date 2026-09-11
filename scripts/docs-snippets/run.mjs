@@ -241,7 +241,7 @@ export function formatReport({ files, findings, stats, typeStats = [], sfcStats 
   }
 
   // The divergence baseline D3–D5 is measured against: which pages still call
-  // registerLoader on an instance, and which owe a `.with(` they never write.
+  // registerLoader on an instance, and which owe a `.use(` they never write.
   // Call sites and mentions are counted separately on purpose — a page that only
   // NAMES registerLoader in a sentence is not a lint failure, but it is still a
   // page the rewrite has to touch.
@@ -250,7 +250,7 @@ export function formatReport({ files, findings, stats, typeStats = [], sfcStats 
   );
   const callers = stats.filter((stat) => stat.registerLoaderCalls > 0);
   const mentions = stats.filter((stat) => stat.registerLoaderMentions > 0);
-  const missingWith = stats.filter((stat) => stat.classes.includes("framework") && !stat.hasWith);
+  const missingUse = stats.filter((stat) => stat.classes.includes("framework") && !stat.hasUse);
   if (mentions.length > 0) {
     lines.push(`  pages mentioning registerLoader at all: ${mentions.length}`);
     for (const stat of mentions) {
@@ -267,9 +267,9 @@ export function formatReport({ files, findings, stats, typeStats = [], sfcStats 
       `  of those, pages with a banned registerLoader call: ${flagged.size} (call sites on ${callers.length} pages)`,
     );
   }
-  if (missingWith.length > 0) {
-    lines.push(`  framework pages missing .with(: ${missingWith.length}`);
-    for (const stat of missingWith) lines.push(`    ${stat.file}`);
+  if (missingUse.length > 0) {
+    lines.push(`  framework pages missing .use(installer): ${missingUse.length}`);
+    for (const stat of missingUse) lines.push(`    ${stat.file}`);
   }
 
   if (typeStats.length > 0 || sfcStats.length > 0) {
