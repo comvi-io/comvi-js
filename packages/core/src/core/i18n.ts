@@ -62,10 +62,23 @@ const ERR_TRANSLATION_NOT_OBJECT = IS_DEV
 const ERR_INSTANCE_DESTROYED = IS_DEV
   ? "[i18n] Cannot call init() after destroy(). Create a new i18n instance."
   : "E_INSTANCE_DESTROYED";
-/** See {@link I18n.use}: the rule is identity, and this is the whole diagnostic. */
-const ERR_USE_NOT_INSTALLER = IS_DEV
-  ? "[i18n] .use(f) expects an installer that returns the host it was given, but f returned something else. A raw plugin goes through .use(definePlugin(f)) or registerPlugin(f); a plugin package's installer is the lowercase factory (localeDetector(), not LocaleDetector())."
-  : "E_USE_NOT_INSTALLER";
+/**
+ * See {@link I18n.use}: the rule is identity, and this is the whole diagnostic.
+ *
+ * It NAMES what came back — `typeof`, plus whether an object is thenable —
+ * because that is the detail separating "you passed an async plugin" from "you
+ * passed nothing", and the two have different fixes. DEV-only by construction:
+ * the builder is reachable only from an `IS_DEV ?` arm, so production folds to
+ * the bare code and then drops this function entirely.
+ */
+const useNotInstallerMessage = (widened: unknown): string =>
+  `[i18n] .use(f) expects an installer that returns the host it was given, but f returned ${
+    widened === null
+      ? "null"
+      : typeof widened === "object" && typeof (widened as { then?: unknown }).then === "function"
+        ? "a thenable object (an async function is not an installer)"
+        : typeof widened
+  }. A raw plugin goes through .use(definePlugin(f)) or registerPlugin(f); a plugin package's installer is the lowercase factory (localeDetector(), not LocaleDetector()).`;
 
 // Two copies of core share none of the module-scoped state below. DEV-only:
 // production drops the call, then the import, then the module itself.
@@ -342,10 +355,17 @@ export class I18n<D extends DefaultTranslationParams = {}>
    * composition time with its rejection unhandled. A raw plugin goes through
    * `.use(definePlugin(f))` or `registerPlugin(f)` instead.
    *
+   * `T extends this` states the identity rule at the TYPE level too, so the
+   * three misuse shapes — a derived object, an async installer, an installer
+   * that returns nothing — are compile errors rather than runtime ones, while
+   * every widening installer (`loader()`, `plugins()`, `definePlugin()`, a bare
+   * `attachLoader`, a hand-written in-place step) still infers and widens. The
+   * runtime guard stays: a JS caller, or an `any`-typed one, reaches it anyway.
+   *
    * Vue's wrapper enforces the same rule one level up, over `i18n.core`, and
    * reports it under the wrapper's own code `E_USE_HOST_IDENTITY`.
    */
-  public use<T>(installer: (i18n: this) => T): T {
+  public use<T extends this>(installer: (host: this) => T): T {
     const widened: unknown = installer(this);
     if (widened !== this) {
       // The function already RAN, so a raw ASYNC plugin has a live promise
@@ -355,7 +375,9 @@ export class I18n<D extends DefaultTranslationParams = {}>
       if (typeof (widened as { then?: unknown } | null | undefined)?.then === "function") {
         void (widened as Promise<unknown>).then(undefined, () => {});
       }
-      const error = new Error(ERR_USE_NOT_INSTALLER) as Error & {
+      const error = new Error(
+        IS_DEV ? useNotInstallerMessage(widened) : "E_USE_NOT_INSTALLER",
+      ) as Error & {
         code: "E_USE_NOT_INSTALLER";
       };
       error.code = "E_USE_NOT_INSTALLER";

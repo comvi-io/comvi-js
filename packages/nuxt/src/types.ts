@@ -143,8 +143,16 @@ export interface NuxtI18nOptions {
 
   /**
    * Path to a setup file that runs before i18n.init().
-   * Use it to register plugins via i18n.core.registerPlugin(...) — `i18n` is a
-   * `VueI18n`, whose capability APIs live on `i18n.core`.
+   *
+   * Register your own plugin with `i18n.core.use(definePlugin(fn))` from
+   * `@comvi/core/plugins` — `i18n` is a `VueI18n`, whose capability APIs live on
+   * `i18n.core`. That shape works on BOTH hosts: `definePlugin` attaches the
+   * plugin host when it is absent, which it is on the module's generated DEFAULT
+   * host (core's base host). `i18n.core.registerPlugin(...)` is the raw queue
+   * and exists only when the host was composed with the plugin capability — in
+   * a `hostModule` factory — so on the default host it is `undefined` and
+   * calling it throws a `TypeError`.
+   *
    * If omitted, module auto-detects ./comvi.setup.* in project root.
    *
    * @example "./comvi.setup.ts"
