@@ -93,3 +93,6 @@ smithers.db-wal
 # tarballs from `pnpm pack:release` (scripts/docs-snippets/link-sdk.mjs packs all
 # fourteen so the docs gate can install them; they are build output, not source)
 packages/*/*.tgz
+
+# Local git worktrees used for parallel lots (never committed)
+.worktrees/
