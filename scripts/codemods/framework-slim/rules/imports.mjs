@@ -2,10 +2,14 @@
  * Import maintenance for the single-entry rules.
  *
  * Every rewrite below introduces a BINDING (`plugins`, `icuCompiler`,
- * `flattenCatalog`, `devtools`, a lowercase plugin installer), and a codemod
- * that emits a reference it never imported has produced a broken file, not a
- * migration. So the plan and the import land in the SAME edit set, and a name
- * the codemod cannot place is a manual action instead of a rewrite.
+ * `devtools`, a lowercase plugin installer), and a codemod that emits a
+ * reference it never imported has produced a broken file, not a migration. So
+ * the plan and the import land in the SAME edit set, and a name the codemod
+ * cannot place is a manual action instead of a rewrite.
+ *
+ * `flattenCatalog` is the one name that arrives here without a new reference
+ * behind it: nothing is rewritten to CALL it, only the entry it is imported
+ * from moved, so what needs placing is the specifier the user already wrote.
  */
 import { CORE_SUBPATH_OF, SLIM_SUBPATH } from "./capabilities.mjs";
 import { braceListInsertion } from "./script-blocks.mjs";
@@ -180,7 +184,10 @@ export function bindingState(root, name, module) {
 }
 
 /**
- * Edits that make `needs` (binding name -> module specifier) importable.
+ * Edits that make `needs` importable. A key is what goes INSIDE the braces —
+ * usually a bare name, but `flattenCatalog as flat` when a retarget is moving
+ * an aliased import to a new module — and the value is the module it comes
+ * from.
  *
  * A module the file already imports FROM gets the name merged into its existing
  * clause — one import per module, import grouping untouched. Anything new lands

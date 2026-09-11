@@ -1,0 +1,20 @@
+[
+  {
+    "line": 8,
+    "column": 23,
+    "shape": "flatten-catalog-moved",
+    "detail": "`comvi.flattenCatalog` reaches `flattenCatalog` through a namespace import from \"@comvi/vue\", which no longer re-exports it — import it from \"@comvi/core\" and re-run"
+  },
+  {
+    "line": 13,
+    "column": 11,
+    "shape": "flatten-catalog-moved",
+    "detail": "`import(\"@comvi/core/loader\")` is read for `flattenCatalog`, which that entry no longer re-exports — take it from \"@comvi/core\" by hand"
+  },
+  {
+    "line": 19,
+    "column": 1,
+    "shape": "flatten-catalog-moved",
+    "detail": "`flattenCatalog` is re-exported from \"@comvi/svelte\", which no longer publishes it — move it to its own `export { flattenCatalog } from \"@comvi/core\";` by hand"
+  }
+]

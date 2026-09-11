@@ -140,8 +140,31 @@ export const PLUGIN_HOST_PROVIDERS = [
  */
 export const ICU_COMPILER = "icuCompiler";
 
-/** The flattener a non-flat inline catalog is wrapped with. */
+/**
+ * The pure flattener. It is NOT a capability and it wraps NOTHING: the base
+ * host flattens `{ nav: { home } }` itself, at the one seam a catalog enters,
+ * on every host and whether or not anything is composed onto it. So a nested
+ * inline catalog needs no migration at all.
+ *
+ * What did change is WHERE it is published. 0.5.0 keeps it on the `@comvi/core`
+ * root only — the entries below stopped re-exporting it when the base took over
+ * flattening — so the one thing a 0.4 tree needs is the import retargeted.
+ */
 export const FLATTEN_CATALOG = "flattenCatalog";
+
+/**
+ * Entries that re-exported `flattenCatalog` in 0.4 and no longer publish it.
+ * `@comvi/next` (the root) is deliberately absent: it never re-exported it.
+ */
+export const FLATTEN_CATALOG_MOVED_FROM = [
+  "@comvi/core/loader",
+  "@comvi/react",
+  "@comvi/solid",
+  "@comvi/svelte",
+  "@comvi/vue",
+  "@comvi/next/client",
+  "@comvi/next/server",
+];
 
 /** The installer that now owns the two dropped constructor options. */
 export const DEVTOOLS_INSTALLER = "devtools";
@@ -163,6 +186,9 @@ export const LOADER_INSTALLERS = ["loader", "attachLoader", "fetchLoader"];
  * Where a binding lives when the host itself came from `@comvi/core`:
  * core keeps ONE capability per pure subpath, while every wrapper package
  * re-exports all of them from its single entry.
+ *
+ * `flattenCatalog` is the one entry that is not a capability: it is on the
+ * ROOT, and the root is also where a 0.4 import of it is retargeted to.
  */
 export const CORE_SUBPATH_OF = new Map([
   [ICU_COMPILER, "@comvi/core/icu"],

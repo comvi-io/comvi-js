@@ -6,13 +6,18 @@
  * | 3 | chained `.use(X(o))`                  | `.use(x(o))` / definePlugin  |
  * | 4 | inline ICU catalog                    | `compiler: icuCompiler`      |
  * | 5 | `exposeGlobal` / `instanceId` options | `.use(devtools({…}))`        |
- * | 6 | non-flat inline catalog               | `flattenCatalog(…)`          |
- * | 7 | `.with(installer)`, chained or stored | `.use(installer)`            |
- * | 8 | `host.use(raw)` on a plugin host      | `host.registerPlugin(raw)`   |
+ * | 6 | `.with(installer)`, chained or stored | `.use(installer)`            |
+ * | 7 | `host.use(raw)` on a plugin host      | `host.registerPlugin(raw)`   |
+ * | 8 | `flattenCatalog` from a moved entry   | imported from `@comvi/core`  |
  * | + | `.with(icu())`, anywhere in a chain   | reported, never rewritten    |
  * | + | `.with(` on an unprovable receiver    | reported, never rewritten    |
  *
- * Rows 7 and 8 are the two verbs converging (decision E). `.use(installer)` is
+ * A NESTED INLINE CATALOG is not on this table, and that is the point: the base
+ * host flattens it itself, on every host, so `{ en: { nav: { home } } }` needs
+ * no rewrite, no advisory and no manual item. Row 8 is all that is left of the
+ * flattener — it moved to the `@comvi/core` root, so only its IMPORT migrates.
+ *
+ * Rows 6 and 7 are the two verbs converging (decision E). `.use(installer)` is
  * the only composition verb now, so the 0.5-pre `.with` spelling is renamed —
  * same argument, same position, nothing else about the chain moves — and the
  * raw plugin queue that used to be spelled `use` is `registerPlugin`, which is
@@ -37,9 +42,10 @@
  *     and reports it: a half-migrated chain silently reorders capability
  *     installation, which is worse than not migrating it at all.
  *   • EVERY EDIT IS A SPLICE OF THE ORIGINAL TEXT. Options move by copying
- *     their own source text and catalogs are wrapped rather than rebuilt.
- *     Comments, formatting, directive prologues, shebangs and CRLF survive
- *     because nothing is ever re-printed from the tree.
+ *     their own source text; a catalog is never rebuilt, and after the base
+ *     host took over flattening it is never even touched. Comments,
+ *     formatting, directive prologues, shebangs and CRLF survive because
+ *     nothing is ever re-printed from the tree.
  *
  * The host is resolved through the IMPORT, never by name: a `createI18n` that
  * comes from a local factory is not this API and is left alone, and
@@ -51,6 +57,7 @@ import {
   DEVTOOLS_OPTIONS,
   DEVTOOLS_PROVIDERS,
   FLATTEN_CATALOG,
+  FLATTEN_CATALOG_MOVED_FROM,
   HOST_CLASS,
   HOST_FACTORY,
   ICU_COMPILER,
@@ -517,6 +524,214 @@ function detectDynamicSlimSpecifiers(root) {
 }
 
 // ---------------------------------------------------------------------------
+// `flattenCatalog` moved to the `@comvi/core` root
+// ---------------------------------------------------------------------------
+
+/** The quoted-string span of a declaration's `from "…"`, quotes excluded. */
+function sourceSpanOf(declaration) {
+  const node = declaration.field("source");
+  if (node === null || node.kind() !== "string") return undefined;
+  return { start: startOf(node) + 1, end: node.range().end.index - 1 };
+}
+
+/**
+ * Plans the ONE thing a 0.4 `flattenCatalog` needs: a different module.
+ *
+ * The function itself did not change and neither did any call to it, so nothing
+ * at a call site moves — this rule never reads one. What changed is publication:
+ * `@comvi/core/loader` and the five binding roots that re-exported it dropped it
+ * when the base host took over flattening, leaving the `@comvi/core` root. An
+ * import the codemod left pointing at the old entry does not resolve, which is a
+ * broken file rather than a migration.
+ *
+ * A clause that names it ALONE is retargeted in place, alias and all. One that
+ * carries other names is SPLIT — `createI18n` still belongs to the binding it
+ * came from — by dropping the specifier and placing it on `@comvi/core`: in the
+ * clause an in-place retarget just produced, if there was one, and otherwise
+ * through `planNamedImports`, which merges it into an existing `@comvi/core`
+ * import or opens one.
+ *
+ * A `/slim` source is absorbed here rather than left to the specifier rule:
+ * two edits to one string collide, and a retarget that needs a second run to
+ * converge is not one. Hence `claimed`.
+ *
+ * Everything else that names it from a moved entry is REPORTED, because it is
+ * already broken on 0.5.0 and silence would certify a tree that cannot build:
+ * a namespace access, an `import()` / `require()` result, and a re-export whose
+ * clause carries other names (splitting an `export … from` is the reader's
+ * call — the names around it may be type-only re-exports).
+ */
+function planFlattenCatalogMove(root) {
+  const target = CORE_SUBPATH_OF.get(FLATTEN_CATALOG);
+  const edits = [];
+  const manual = [];
+  const needs = new Map();
+  const claimed = new Set();
+  let retargets = 0;
+
+  const moved = (source) => source !== undefined && FLATTEN_CATALOG_MOVED_FROM.includes(source);
+
+  // --- named imports --------------------------------------------------------
+  const byDeclaration = new Map();
+  for (const entry of namedImports(root)) {
+    if (entry.imported !== FLATTEN_CATALOG || !moved(entry.source)) continue;
+    byDeclaration.set(startOf(entry.declaration), entry);
+  }
+  const inPlace = [];
+  const split = [];
+  for (const entry of byDeclaration.values()) {
+    const bindings = entry.declaration.find({ rule: { kind: "import_clause" } });
+    const siblings = bindings === null ? [] : bindings.children().filter((kid) => kid.isNamed());
+    const alone = braceListMembers(entry.clause).length === 1;
+    const span = sourceSpanOf(entry.declaration);
+    // A DEFAULT import shares the clause, so the declaration is not ours to
+    // retarget even when `{ flattenCatalog }` is the only name in the braces.
+    if (alone && siblings.length <= 1 && span !== undefined) inPlace.push({ entry, span });
+    else split.push({ entry, alone, siblings });
+  }
+
+  for (const { entry, span } of inPlace) {
+    edits.push({ ...span, text: target });
+    claimed.add(startOf(entry.declaration));
+    retargets += 1;
+  }
+
+  // A clause retargeted in place IS an `@comvi/core` import once the edits
+  // land, so the split names merge into it instead of opening a second import
+  // of the same module. A type-only one is not a host for a value name.
+  const host = inPlace.find(({ entry }) => !entry.typeOnly)?.entry.clause;
+  const merged = [];
+  for (const { entry, alone, siblings } of split) {
+    if (alone) {
+      // Emptying the braces would leave `import def, {} from "…"`, so the
+      // braces go with the comma in front of them.
+      const before = siblings.filter((kid) => kid.range().end.index <= startOf(entry.clause)).pop();
+      edits.push({
+        start: before === undefined ? startOf(entry.clause) : before.range().end.index,
+        end: entry.clause.range().end.index,
+        text: "",
+      });
+    } else {
+      edits.push(
+        ...braceListRemoval(entry.clause, (member) => startOf(member) === startOf(entry.specifier)),
+      );
+    }
+    // The specifier's own text carries the alias and any inline `type` keyword,
+    // so the new import is the old one with a different module behind it.
+    if (host === undefined) needs.set(entry.specifier.text(), target);
+    else merged.push(entry.specifier.text());
+    retargets += 1;
+  }
+  if (host !== undefined && merged.length > 0) edits.push(braceListInsertion(host, merged));
+
+  // --- re-exports -----------------------------------------------------------
+  for (const declaration of root.findAll({ rule: { kind: "export_statement" } })) {
+    const source = moduleOf(declaration);
+    if (!moved(source)) continue;
+    const specifiers = declaration.findAll({ rule: { kind: "export_specifier" } });
+    if (!specifiers.some((entry) => entry.field("name")?.text() === FLATTEN_CATALOG)) continue;
+    const span = sourceSpanOf(declaration);
+    if (specifiers.length === 1 && span !== undefined) {
+      edits.push({ ...span, text: target });
+      claimed.add(startOf(declaration));
+      retargets += 1;
+      continue;
+    }
+    manual.push({
+      offset: startOf(declaration),
+      shape: "flatten-catalog-moved",
+      detail:
+        `\`${FLATTEN_CATALOG}\` is re-exported from "${source}", which no longer publishes it ` +
+        `— move it to its own \`export { ${FLATTEN_CATALOG} } from "${target}";\` by hand`,
+    });
+  }
+
+  // --- namespace access -----------------------------------------------------
+  const namespaces = new Map();
+  for (const declaration of root.findAll({ rule: { kind: "import_statement" } })) {
+    const source = moduleOf(declaration);
+    if (!moved(source)) continue;
+    const namespace = declaration.find({ rule: { kind: "namespace_import" } });
+    const match =
+      namespace === null ? undefined : /^\*\s+as\s+([A-Za-z_$][\w$]*)$/.exec(namespace.text());
+    if (match !== undefined && match !== null) namespaces.set(match[1], source);
+  }
+  for (const access of root.findAll({ rule: { kind: "member_expression" } })) {
+    const object = access.field("object");
+    if (object?.kind() !== "identifier" || !namespaces.has(object.text())) continue;
+    if (access.field("property")?.text() !== FLATTEN_CATALOG) continue;
+    manual.push({
+      offset: startOf(access),
+      shape: "flatten-catalog-moved",
+      detail:
+        `\`${access.text()}\` reaches \`${FLATTEN_CATALOG}\` through a namespace import from ` +
+        `"${namespaces.get(object.text())}", which no longer re-exports it — import it from ` +
+        `"${target}" and re-run`,
+    });
+  }
+
+  // --- an `import()` / `require()` result -----------------------------------
+  for (const call of root.findAll({ rule: { kind: "call_expression" } })) {
+    const loader = call.field("function")?.text();
+    if (loader !== "import" && loader !== "require") continue;
+    const specifier = argumentsOf(call)[0];
+    if (specifier?.kind() !== "string") continue;
+    const source = specifier.text().slice(1, -1);
+    if (!moved(source)) continue;
+    const reads = readsFlattenCatalogOff(call);
+    if (reads === undefined) continue;
+    manual.push({
+      offset: startOf(reads),
+      shape: "flatten-catalog-moved",
+      detail:
+        `\`${loader}("${source}")\` is read for \`${FLATTEN_CATALOG}\`, which that entry no ` +
+        `longer re-exports — take it from "${target}" by hand`,
+    });
+  }
+
+  return { edits, manual, needs, claimed, retargets };
+}
+
+/**
+ * The node that takes `flattenCatalog` off a dynamic module record, if any —
+ * the destructured name in `const { flattenCatalog } = await import(…)`, the
+ * property read in `require(…).flattenCatalog`, or the one inside the callback
+ * of `import(…).then((m) => m.flattenCatalog)`.
+ *
+ * Deliberately gated on the NAME: a dynamic import of a binding root is an
+ * ordinary thing to do, and reporting every one of them would bury the finding
+ * that matters under a manual item for every lazily-loaded route.
+ */
+function readsFlattenCatalogOff(call) {
+  // The expression that CONSUMES the module record: the declarator it is
+  // assigned from, or the member/call chain hanging off the import.
+  let scope = call;
+  for (const ancestor of call.ancestors()) {
+    const kind = ancestor.kind();
+    if (kind === "await_expression" || kind === "member_expression" || kind === "call_expression") {
+      scope = ancestor;
+      continue;
+    }
+    if (kind === "variable_declarator") scope = ancestor;
+    break;
+  }
+
+  const bound = scope.find({
+    rule: { kind: "shorthand_property_identifier_pattern", regex: `^${FLATTEN_CATALOG}$` },
+  });
+  if (bound !== null) return bound;
+  return (
+    scope
+      .findAll({ rule: { kind: "member_expression" } })
+      .find((access) => access.field("property")?.text() === FLATTEN_CATALOG) ??
+    scope.findAll({ rule: { kind: "pair_pattern" } }).find((pair) => {
+      const key = pair.field("key");
+      return key !== null && keyText(key) === FLATTEN_CATALOG;
+    })
+  );
+}
+
+// ---------------------------------------------------------------------------
 // the host-factory rename
 // ---------------------------------------------------------------------------
 
@@ -889,7 +1104,17 @@ export function planSingleEntry(root, text) {
   manual.push(...rename.manual, ...detectDynamicSlimSpecifiers(root));
   if (rename.renames > 0) count("slim-factory-rename", rename.renames);
 
+  // Planned BEFORE the /slim rewrite below, which is why it returns `claimed`:
+  // a `flattenCatalog` import off `@comvi/react/slim` has one right answer
+  // (`@comvi/core`), and two rules editing that one string would collide.
+  const flatten = planFlattenCatalogMove(root);
+  edits.push(...flatten.edits);
+  manual.push(...flatten.manual);
+  for (const [specifier, module] of flatten.needs) needs.set(specifier, module);
+  if (flatten.retargets > 0) count("flatten-catalog-source", flatten.retargets);
+
   for (const specifier of moduleSpecifiers(root)) {
+    if (flatten.claimed.has(startOf(specifier.declaration))) continue;
     const match = SLIM_SUBPATH.exec(specifier.value);
     if (match === null) continue;
     const namespace = specifier.declaration.find({ rule: { kind: "namespace_import" } });
@@ -1184,7 +1409,7 @@ function planChain(root, text, call, hostModule) {
       shape: "opaque-host-options",
       detail:
         "inline host options contain a spread or computed member — check them by hand for " +
-        `\`${DEVTOOLS_OPTIONS.join("` / `")}\`, ICU comma syntax and nested catalogs`,
+        `\`${DEVTOOLS_OPTIONS.join("` / `")}\` and ICU comma syntax`,
     });
     return refuse();
   }
@@ -1194,7 +1419,7 @@ function planChain(root, text, call, hostModule) {
       shape: "opaque-host-options",
       detail:
         `\`${HOST_FACTORY}(${brief(options)})\` options are not an inline object — check them by ` +
-        `hand for \`${DEVTOOLS_OPTIONS.join("` / `")}\`, ICU comma syntax and nested catalogs`,
+        `hand for \`${DEVTOOLS_OPTIONS.join("` / `")}\` and ICU comma syntax`,
     });
   }
 
@@ -1224,7 +1449,7 @@ function planChain(root, text, call, hostModule) {
         shape: "opaque-host-options",
         detail:
           "inline translations contain a spread or computed member — check them by hand for " +
-          "ICU comma syntax and nested keys",
+          "ICU comma syntax",
       });
       return refuse();
     }
@@ -1235,21 +1460,23 @@ function planChain(root, text, call, hostModule) {
         shape: "opaque-host-options",
         detail:
           "inline translations contain an interpolated template — check the runtime value by hand " +
-          "for ICU comma syntax and nested keys",
+          "for ICU comma syntax",
       });
       return refuse();
     }
 
     // A catalog assembled elsewhere is the SAME blind spot as opaque options,
     // and it is the common one: `translation: en` from a JSON module is exactly
-    // the shape that silently loses ICU and flattening.
+    // the shape that silently loses ICU. Nesting is NOT part of that blind spot
+    // any more — the host flattens whatever shape this turns out to be — so the
+    // advisory asks about ICU and nothing else.
     if (translation !== undefined && catalogs === undefined) {
       advisories.push({
         offset: startOf(translation.member),
         shape: "opaque-host-options",
         detail:
           `\`${translation.member.text().split(/\s*:/)[0]}\` is not an inline catalog — check it ` +
-          `by hand for ICU comma syntax and nested keys`,
+          `by hand for ICU comma syntax`,
       });
     }
 
@@ -1259,17 +1486,32 @@ function planChain(root, text, call, hostModule) {
         needs.set(ICU_COMPILER, bindingModule(hostModule, ICU_COMPILER));
         compilerAdded = true;
         count("inline-icu-compiler");
+      } else {
+        // No ICU was PROVEN, which is not the same as no ICU: a locale whose
+        // value lives elsewhere — `{ en }` shorthand, a binding, a call — is
+        // `translation: en` written inside the braces, and it earns the same
+        // advisory for the same reason. Only when nothing proved ICU: a
+        // `compiler` the rewrite just added already serves the halves it
+        // could not read.
+        for (const locale of objectProperties(catalogs)) {
+          if (isReadableCatalog(locale.value)) continue;
+          advisories.push({
+            offset: startOf(locale.member),
+            shape: "opaque-host-options",
+            detail:
+              `\`${locale.member.field("key")?.text() ?? locale.member.text()}\` is not an ` +
+              `inline catalog — check it by hand for ICU comma syntax`,
+          });
+        }
       }
     }
 
-    for (const locale of catalogs === undefined ? [] : objectProperties(catalogs)) {
-      const catalog = locale.value;
-      if (catalog === undefined || catalog === null || catalog.kind() !== "object") continue;
-      if (!objectProperties(catalog).some(({ value }) => value?.kind() === "object")) continue;
-      edits.push({ ...spanOf(catalog), text: `${FLATTEN_CATALOG}(${catalog.text()})` });
-      needs.set(FLATTEN_CATALOG, bindingModule(hostModule, FLATTEN_CATALOG));
-      count("nested-catalog");
-    }
+    // A NESTED catalog is deliberately not looked at. It used to be wrapped in
+    // `flattenCatalog(…)`, because flattening was an optional capability hook
+    // and a base host stored `{ nav: { home } }` as if it were already flat.
+    // The base host now flattens at the one seam a catalog enters, so nesting
+    // is not a migration: the wrap would be pure noise, and so would an
+    // advisory telling the reader to go and look at something that works.
   }
 
   // --- the two options that became `devtools()` arguments -------------------
@@ -1385,9 +1627,17 @@ function staticLiteralValue(leaf) {
   return value;
 }
 
-/** The first ICU argument type in the VALUES of a fully static inline catalog. */
+/**
+ * The first ICU argument type in the VALUES of a fully static inline catalog.
+ *
+ * A property with NO value node is the shorthand `{ en }`, which is legal
+ * wherever an object literal is — so it is the first thing checked. Reading
+ * `.kind()` off it threw, which made `createI18n({ locale, translation: { en } })`
+ * crash the whole tool instead of migrating the file.
+ */
 function firstIcuArgument(catalogs) {
   const visit = (value) => {
+    if (value === undefined || value === null) return undefined;
     if (value.kind() === "template_string") {
       if (value.find({ rule: { kind: "template_substitution" } }) !== null) return undefined;
       return icuArgumentType(staticLiteralValue(value));
@@ -1402,4 +1652,30 @@ function firstIcuArgument(catalogs) {
   };
 
   return visit(catalogs);
+}
+
+/**
+ * Can the ICU scan above READ this catalog value to the leaves — literals, or
+ * nested objects of them?
+ *
+ * This is the other half of the answer `firstIcuArgument` gives: "no ICU found"
+ * and "no ICU provable" look identical from its return value, and they are not
+ * the same fact. A shorthand `{ en }`, a binding, a call or an element read puts
+ * the leaves somewhere the codemod cannot follow.
+ *
+ * NOT the same question as `firstOpaqueMember`, which asks whether the object's
+ * own SHAPE is decidable and refuses the chain when it is not. Here the shape is
+ * plain; only the text of the messages is missing.
+ */
+function isReadableCatalog(value) {
+  if (value === undefined || value === null) return false;
+  const kind = value.kind();
+  if (kind === "string") return true;
+  if (kind === "template_string") {
+    return value.find({ rule: { kind: "template_substitution" } }) === null;
+  }
+  if (kind !== "object") return false;
+  // Spreads and computed keys never get this far: both refuse the chain above,
+  // so `objectProperties` skipping them cannot hide a leaf from this walk.
+  return objectProperties(value).every(({ value: leaf }) => isReadableCatalog(leaf));
 }
