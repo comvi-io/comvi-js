@@ -21,7 +21,7 @@ the host clears a scope that is still loading.
 import { createI18n } from "@comvi/core";
 import { cdnLoader } from "@comvi/plugin-fetch-loader/cdn";
 
-const i18n = createI18n({ locale: "en" }).with(
+const i18n = createI18n({ locale: "en" }).use(
   cdnLoader({ cdnUrl: "https://cdn.comvi.io/your-distribution-id" }),
 );
 ```

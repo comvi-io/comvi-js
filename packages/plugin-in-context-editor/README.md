@@ -58,7 +58,7 @@ const i18n = createI18n({
   locale: "en",
   // Dev/preview editor key used to create and edit keys/translations.
   apiKey: import.meta.env.VITE_COMVI_EDITOR_API_KEY,
-}).with(inContextEditor());
+}).use(inContextEditor());
 
 await i18n.init();
 ```
@@ -71,19 +71,20 @@ Without an API key the editor runs in **demo mode**: the UI mounts but edits are
 imports you add, so an app that uses neither never pays for them. This package
 exports one name for each way of adding them.
 
-|                    | `.with(inContextEditor(options))`                                                                                           | `.use(InContextEditorPlugin(options))`     |
-| ------------------ | --------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------ |
-| what it is         | the **installer**, lowercase                                                                                                | the **plugin factory**, uppercase          |
-| the host it needs  | any host, including a bare `createI18n(…)`                                                                                  | one that already has `@comvi/core/plugins` |
-| what it composes   | `@comvi/core/devtools` first, then `@comvi/core/plugins`, both idempotently                                                 | nothing; it only registers                 |
-| host type after    | **unchanged**. The editor asks nothing of your public API, and this is the only widening that stays true under `production` | unchanged                                  |
-| lifecycle          | the host's own: it ends in `use(InContextEditorPlugin(options))`                                                            | the host's own                             |
-| under `production` | `(host) => host`. No discovery, no capability, no plugin, no editor bytes                                                   | a plugin that does nothing                 |
+|                    | `.use(inContextEditor(options))`                                                                                            | `registerPlugin(InContextEditorPlugin(options))` |
+| ------------------ | --------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------ |
+| what it is         | the **installer**, lowercase                                                                                                | the **plugin factory**, uppercase                |
+| the host it needs  | any host, including a bare `createI18n(…)`                                                                                  | one that already has `@comvi/core/plugins`       |
+| what it composes   | `@comvi/core/devtools` first, then `@comvi/core/plugins`, both idempotently                                                 | nothing; it only registers                       |
+| host type after    | **unchanged**. The editor asks nothing of your public API, and this is the only widening that stays true under `production` | unchanged                                        |
+| lifecycle          | the host's own: it ends in `registerPlugin(InContextEditorPlugin(options))`                                                 | the host's own                                   |
+| under `production` | `(host) => host`. No discovery, no capability, no plugin, no editor bytes                                                   | a plugin that does nothing                       |
 
 Discovery comes first. The editor is the one capability that is driven from
 outside the page, so an editor-enabled host announces itself on the
-`window.__COMVI__` queue without a second `.with(devtools())`. If you want `use`
-yourself, compose `.with(plugins())`. The installer does not promise it, because
+`window.__COMVI__` queue without a second `.use(devtools())`. If you want
+`registerPlugin` yourself, compose `.use(plugins())`. The installer does not
+promise it, because
 under `production` that member would be typed present and absent at the same
 time.
 
@@ -91,15 +92,20 @@ time.
 is branded: an installer and a plugin are both "a function of the host". So each
 slot rejects the other explicitly instead of half-working:
 
-- `.use(inContextEditor(…))` fails at `init()`. Under the default entry it
-  stops on the installer's first ensure-step, before discovery or the plugin
-  host is attached. Under `production` there is no ensure-step to stop on, so
-  the identity no-op runs and hands the host back. A plugin may only return
-  nothing or a cleanup function, so `init()` rejects that too, before anything
-  is queued for teardown.
-- `.with(InContextEditorPlugin(…))` calls the plugin against a host that has no
-  `registerPostProcessor`, so the invocation is rejected. `.with` is a pipe and
-  nothing more: it never inspects, orders or brands what you hand it.
+- `registerPlugin(inContextEditor(…))` fails at `init()` with
+  `E_INSTALLER_AS_PLUGIN`. Under the default entry it stops on the installer's
+  first ensure-step, before discovery or the plugin host is attached. Under
+  `production` there is no ensure-step to stop on, so the identity no-op runs
+  and hands the host back. A plugin may only return nothing or a cleanup
+  function, so `init()` rejects that too, before anything is queued for
+  teardown.
+- `.use(InContextEditorPlugin(…))` calls the plugin against a host that has no
+  `registerPostProcessor`, so the invocation is rejected. On a host that does
+  have the plugin capability the plugin runs, and `.use` then throws
+  `E_USE_NOT_INSTALLER`: an installer widens the host in place and hands that
+  same host back, and `.use` refuses any other return value, whatever its shape.
+  A plugin belongs in the queue, through `registerPlugin` or
+  `definePlugin(fn)`.
 
 For target-element scoping, the full options reference, and the standalone bundle (used by the Comvi Chrome extension), see the [documentation](https://comvi.io/docs/i18n/plugins/in-context-editor/).
 

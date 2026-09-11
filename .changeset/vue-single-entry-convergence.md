@@ -11,26 +11,27 @@ same `VueI18n`, same `app.use(i18n)` install, same composables, same `<T>`, same
 `I18N_INJECTION_KEY`, and `createCore` / `createI18nFromCore` are untouched escape hatches for
 a host built elsewhere.
 **Where the pipe goes on vue:** on the `createI18n` result. `VueI18n` has its own
-`.with(installer)`, which runs the installer on `i18n.core`, hands back the same instance and
+`.use(installer)`, which runs the installer on `i18n.core`, hands back the same instance and
 widens the type of `core` by what was composed — so the chain reads like the react, solid and
-svelte one. The one shape that still differs is registration: the wrapper does not proxy
-`use`, so a plugin goes to `i18n.core.use(…)`.
+svelte one. The one shape that still differs is registration: the wrapper does not proxy plugin
+registration, so a plugin goes to `i18n.core.registerPlugin(…)`, or into the chain as
+`.use(definePlugin(p))`.
 
-| you had                                      | you add                                            |
-| -------------------------------------------- | -------------------------------------------------- |
-| ICU plurals, select, selectordinal           | `compiler: icuCompiler` in the constructor options |
-| loader (`registerLoader`, …)                 | `createI18n(options).with(loader(map))`            |
-| `.use(plugin)`, `onMissingKey`               | `.with(plugins())`, then `i18n.core.use(p)`        |
-| discovery (`instanceId`, `window.__COMVI__`) | `.with(devtools({ instanceId }))`                  |
-| nested constructor catalogs                  | `flattenCatalog(…)`, or compose `loader()`         |
-| `<tag>` markup through `t()`                 | render `<T>`, or `import "@comvi/core/tags"`       |
+| you had                                      | you add                                                   |
+| -------------------------------------------- | --------------------------------------------------------- |
+| ICU plurals, select, selectordinal           | `compiler: icuCompiler` in the constructor options        |
+| loader (`registerLoader`, …)                 | `createI18n(options).use(loader(map))`                    |
+| `.use(plugin)`, `onMissingKey`               | `.use(definePlugin(p))`, or `i18n.core.registerPlugin(p)` |
+| discovery (`instanceId`, `window.__COMVI__`) | `.use(devtools({ instanceId }))`                          |
+| nested constructor catalogs                  | `flattenCatalog(…)`, or compose `loader()`                |
+| `<tag>` markup through `t()`                 | render `<T>`, or `import "@comvi/core/tags"`              |
 
 ```ts
 // INLINE — the preset ingests the catalog.
 const inline = createI18n({ locale: "en", compiler: icuCompiler, translation });
 
 // REMOTE — the same option; the loader composes on the result.
-const remote = createI18n({ locale: "en", ssrLocale: "en", compiler: icuCompiler }).with(
+const remote = createI18n({ locale: "en", ssrLocale: "en", compiler: icuCompiler }).use(
   loader(importMap),
 );
 ```

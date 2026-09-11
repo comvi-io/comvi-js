@@ -31,7 +31,7 @@ Comvi i18n is a framework-agnostic internationalization library with type-safe t
 - **ICU `plural`, `selectordinal` & `select`.** Locale-correct grammar via `Intl.PluralRules`, including Polish, Ukrainian, Arabic, Welsh and the rest. It is the same syntax every major TMS (Crowdin, Lokalise, Phrase) already speaks. The `number` / `date` / `time` argument types and the plural `offset:` form are not implemented and are not planned. Each one fails with `E_ICU_SYNTAX` instead of rendering something wrong.
 - **Locale-aware formatters built in.** `formatNumber`, `formatDate`, `formatCurrency`, and `formatRelativeTime` follow the active locale via native `Intl`, with reactive updates in every framework binding.
 - **~6.3 kB minified + gzipped for a default app graph (measured, `solid-js` externalized), zero runtime dependencies.** That is the base host plus the solid bindings; ICU, async loading, the plugin host and devtools discovery cost only where you compose them. No `eval` or `new Function` anywhere, so it runs under a strict CSP without `unsafe-eval`. Safe for Chrome extensions, Cloudflare Workers, and locked-down enterprise apps.
-- **Pluggable.** Translation loading (CDN/API), locale detection, and in-context editing are opt-in plugins via `@comvi/plugin-fetch-loader`, `@comvi/plugin-locale-detector`, and `@comvi/plugin-in-context-editor`, one lowercase `.with(installer)` each. You only ship what you use.
+- **Pluggable.** Translation loading (CDN/API), locale detection, and in-context editing are opt-in plugins via `@comvi/plugin-fetch-loader`, `@comvi/plugin-locale-detector`, and `@comvi/plugin-in-context-editor`, one lowercase `.use(installer)` each. You only ship what you use.
 - **Same API across 6 frameworks.** `useI18n()` and `<T>` look the same in [Vue](https://www.npmjs.com/package/@comvi/vue), [React](https://www.npmjs.com/package/@comvi/react), [SolidJS](https://www.npmjs.com/package/@comvi/solid), [Svelte](https://www.npmjs.com/package/@comvi/svelte), [Next.js](https://www.npmjs.com/package/@comvi/next), and [Nuxt](https://www.npmjs.com/package/@comvi/nuxt), so switching frameworks doesn't mean relearning your i18n layer.
 
 ## Why @comvi/solid?
@@ -110,7 +110,7 @@ const i18n = createI18n({
   locale: "en",
   fallbackLocale: "en",
   compiler: icuCompiler,
-}).with(cdnLoader({ cdnUrl: "https://cdn.comvi.io/your-distribution-id" }));
+}).use(cdnLoader({ cdnUrl: "https://cdn.comvi.io/your-distribution-id" }));
 
 render(
   () => (
@@ -189,7 +189,7 @@ On a host that lacks the capability the acquisition call throws, in
 development **and** production, never a silent no-op:
 
 ```
-[comvi] This i18n instance has no loader capability. Compose it: .with(loader()) from "@comvi/core/loader", or the lower-level attachLoader.
+[comvi] This i18n instance has no loader capability. Compose it: .use(loader()) from "@comvi/core/loader", or the lower-level attachLoader.
 ```
 
 Migrating from 0.4.x: `pnpm codemod:framework-slim "src/**/*.{ts,tsx,js,jsx}"`,
@@ -199,8 +199,8 @@ or the [0.5.0 migration guide](https://github.com/comvi-io/comvi-js/blob/main/MI
 
 `<I18nProvider i18n={…}>`, `useI18nContext()` and all six reactive primitives
 accept any `WrapperI18nHost`: `createI18n` from `@comvi/solid` (core's own
-base-host constructor, re-exported by name), with or without `.with(loader())` /
-`.with(plugins())` composed on. The base host is the cheap one. ICU, tag syntax,
+base-host constructor, re-exported by name), with or without `.use(loader())` /
+`.use(plugins())` composed on. The base host is the cheap one. ICU, tag syntax,
 async loading, the plugin host and devtools discovery are each something you
 compose, and you carry none of them by default.
 
@@ -233,7 +233,7 @@ invisible to this one's `useI18n()`.
 | `createI18n`, `I18n`                            | core's base host: constructor and class  |
 | `icuCompiler`                                   | from `@comvi/core/icu`: the ICU compiler |
 | `loader`, `attachLoader`, `flattenCatalog`      | from `@comvi/core/loader`                |
-| `plugins`, `attachPlugins`                      | from `@comvi/core/plugins`               |
+| `plugins`, `attachPlugins`, `definePlugin`      | from `@comvi/core/plugins`               |
 | `devtools`, `attachDevtools`                    | from `@comvi/core/devtools`              |
 | every primitive, `I18nProvider`, `T`, the types | the solid bindings                       |
 
@@ -242,9 +242,9 @@ subclass. Reach for it to type a host you compose yourself, or to call
 `new I18n(options)` directly; the factory is the recommended form and takes the
 same single options object.
 
-`.with(installer)` is core's composition pipe: `i18n.with(f)` is `f(i18n)`.
+`.use(installer)` is core's composition pipe: `i18n.use(f)` is `f(i18n)`.
 `loader(map)` attaches the capability **and** registers the map; for a plain
-`LoaderFn`, compose `.with(attachLoader)` and call `registerLoader(fn)`
+`LoaderFn`, compose `.use(attachLoader)` and call `registerLoader(fn)`
 yourself (it keeps the import-map adapter out of your bundle).
 
 ### Default — text and `{param}` interpolation
@@ -283,7 +283,7 @@ re-exported here, so the whole recipe stays inside the one import:
 ```tsx
 import { createI18n, icuCompiler, loader } from "@comvi/solid";
 
-const i18n = createI18n({ locale: "en", compiler: icuCompiler }).with(
+const i18n = createI18n({ locale: "en", compiler: icuCompiler }).use(
   loader({ uk: () => import("./uk.json") }),
 );
 ```
@@ -297,11 +297,11 @@ catalog merged later by a loader as well as a constructor `translation` or an
 ```tsx
 import { createI18n, I18nProvider, loader, useI18nLoader } from "@comvi/solid";
 
-const i18n = createI18n({ locale: "en" }).with(loader({ uk: () => import("./uk.json") }));
+const i18n = createI18n({ locale: "en" }).use(loader({ uk: () => import("./uk.json") }));
 // inside a component: const { reloadTranslations } = useI18nLoader();
 ```
 
-### Plugins — one `.with(installer)`
+### Plugins — one `.use(installer)`
 
 The three first-party plugin packages ship a lowercase **installer** beside the
 uppercase factory. The installer composes the capabilities that plugin needs
@@ -312,7 +312,7 @@ call:
 import { createI18n } from "@comvi/solid";
 import { cdnLoader } from "@comvi/plugin-fetch-loader/cdn";
 
-const i18n = createI18n({ locale: "en", defaultNs: "common" }).with(
+const i18n = createI18n({ locale: "en", defaultNs: "common" }).use(
   cdnLoader({ cdnUrl: "https://cdn.comvi.io/your-distribution-id" }),
 );
 ```
@@ -327,13 +327,20 @@ composed before `init()` is attached by then.
 import { createI18n, loader, plugins } from "@comvi/solid";
 import { CdnLoader } from "@comvi/plugin-fetch-loader/cdn";
 
-const i18n = createI18n({ locale: "en", defaultNs: "common" }).with(loader()).with(plugins());
+const i18n = createI18n({ locale: "en", defaultNs: "common" }).use(loader()).use(plugins());
 
-i18n.use(CdnLoader({ cdnUrl: "https://cdn.comvi.io/your-distribution-id" }));
+i18n.registerPlugin(CdnLoader({ cdnUrl: "https://cdn.comvi.io/your-distribution-id" }));
 ```
 
-Swapping the two slots is a type error and loud at runtime:
-`.use(cdnLoader(…))` throws at `init()` before any capability is attached.
+Swapping the two slots is a type error and loud at runtime in both directions:
+`registerPlugin(cdnLoader(…))` throws `E_INSTALLER_AS_PLUGIN` at `init()` before
+any capability is attached, and `.use(CdnLoader(…))` throws
+`E_USE_NOT_INSTALLER`: an installer widens the host in place and hands that same
+host back, so `.use` refuses any other return value, whatever its shape.
+
+Your app's own inline plugin needs neither slot: `.use(definePlugin(fn))`, with
+`definePlugin` from `@comvi/solid`, composes the plugin host and registers `fn`
+in one call.
 
 ### Devtools — `devtools()`
 
@@ -343,7 +350,7 @@ opt-in too:
 ```tsx
 import { createI18n, devtools } from "@comvi/solid";
 
-const i18n = createI18n({ locale: "en" }).with(devtools({ instanceId: "storefront" }));
+const i18n = createI18n({ locale: "en" }).use(devtools({ instanceId: "storefront" }));
 ```
 
 These are **named** re-exports of core's own bindings, so the ones you do not
@@ -591,7 +598,7 @@ import { cdnLoader } from "@comvi/plugin-fetch-loader/cdn";
 const i18n = createI18n({
   locale: "en",
   defaultNs: "common",
-}).with(
+}).use(
   cdnLoader({
     cdnUrl: "https://cdn.comvi.io/your-distribution-id",
   }),

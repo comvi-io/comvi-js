@@ -31,7 +31,7 @@ Comvi i18n is a framework-agnostic internationalization library with type-safe t
 - **ICU `plural`, `selectordinal` & `select`.** Locale-correct grammar via `Intl.PluralRules`, including Polish, Ukrainian, Arabic, Welsh and the rest. It is the same syntax every major TMS (Crowdin, Lokalise, Phrase) already speaks. The `number` / `date` / `time` argument types and the plural `offset:` form are not implemented and are not planned. Each one fails with `E_ICU_SYNTAX` instead of rendering something wrong.
 - **Locale-aware formatters built in.** `formatNumber`, `formatDate`, `formatCurrency`, and `formatRelativeTime` follow the active locale via native `Intl`, with reactive updates in every framework binding.
 - **~6.4 kB minified + gzipped for a default app graph (measured, `svelte` externalized), zero runtime dependencies.** That is the base host plus the svelte bindings; ICU, async loading, the plugin host and devtools discovery cost only where you compose them. No `eval` or `new Function` anywhere, so it runs under a strict CSP without `unsafe-eval`. Safe for Chrome extensions, Cloudflare Workers, and locked-down enterprise apps.
-- **Pluggable.** Translation loading (CDN/API), locale detection, and in-context editing are opt-in plugins via `@comvi/plugin-fetch-loader`, `@comvi/plugin-locale-detector`, and `@comvi/plugin-in-context-editor`, one lowercase `.with(installer)` each. You only ship what you use.
+- **Pluggable.** Translation loading (CDN/API), locale detection, and in-context editing are opt-in plugins via `@comvi/plugin-fetch-loader`, `@comvi/plugin-locale-detector`, and `@comvi/plugin-in-context-editor`, one lowercase `.use(installer)` each. You only ship what you use.
 - **Same API across 6 frameworks.** `useI18n()` and `<T>` look the same in [Vue](https://www.npmjs.com/package/@comvi/vue), [React](https://www.npmjs.com/package/@comvi/react), [SolidJS](https://www.npmjs.com/package/@comvi/solid), [Svelte](https://www.npmjs.com/package/@comvi/svelte), [Next.js](https://www.npmjs.com/package/@comvi/next), and [Nuxt](https://www.npmjs.com/package/@comvi/nuxt), so switching frameworks doesn't mean relearning your i18n layer.
 
 ## Why @comvi/svelte?
@@ -107,7 +107,7 @@ Translations served by the Comvi platform, fetched at runtime instead of bundled
     locale: "en",
     fallbackLocale: "en",
     compiler: icuCompiler,
-  }).with(cdnLoader({ cdnUrl: "https://cdn.comvi.io/your-distribution-id" }));
+  }).use(cdnLoader({ cdnUrl: "https://cdn.comvi.io/your-distribution-id" }));
 
   setI18nContext(i18n);
 </script>
@@ -170,7 +170,7 @@ On a host that lacks the capability the acquisition call throws, in
 development **and** production, never a silent no-op:
 
 ```
-[comvi] This i18n instance has no loader capability. Compose it: .with(loader()) from "@comvi/core/loader", or the lower-level attachLoader.
+[comvi] This i18n instance has no loader capability. Compose it: .use(loader()) from "@comvi/core/loader", or the lower-level attachLoader.
 ```
 
 Migrating from 0.4.x: `pnpm codemod:framework-slim "src/**/*.{ts,js,svelte}"`,
@@ -180,8 +180,8 @@ or the [0.5.0 migration guide](https://github.com/comvi-io/comvi-js/blob/main/MI
 
 `setI18nContext(i18n)`, `getI18nContext()` and all six store factories accept
 any `WrapperI18nHost`: `createI18n` from `@comvi/svelte` (core's own base-host
-constructor, re-exported by name), with or without `.with(loader())` /
-`.with(plugins())` composed on. Before 0.5.0 a base host did not merely mistype
+constructor, re-exported by name), with or without `.use(loader())` /
+`.use(plugins())` composed on. Before 0.5.0 a base host did not merely mistype
 here, it **crashed**: `useI18n()` eagerly `.bind()`-ed the capability members in
 the object literal it returned. The base host is also the cheap one: ICU, tag
 syntax, async loading, the plugin host and devtools discovery are each something
@@ -213,7 +213,7 @@ A svelte app names one package and nothing else.
 | `createI18n`, `I18n`                         | core's base host: constructor and class  |
 | `icuCompiler`                                | from `@comvi/core/icu`: the ICU compiler |
 | `loader`, `attachLoader`, `flattenCatalog`   | from `@comvi/core/loader`                |
-| `plugins`, `attachPlugins`                   | from `@comvi/core/plugins`               |
+| `plugins`, `attachPlugins`, `definePlugin`   | from `@comvi/core/plugins`               |
 | `devtools`, `attachDevtools`                 | from `@comvi/core/devtools`              |
 | every store factory, the readers, `T`, types | the svelte bindings                      |
 
@@ -222,9 +222,9 @@ There is no svelte-side wrapper object to build. The host goes straight into
 re-exported by name. `I18n` is the class it instantiates; use it to type a host
 you compose yourself, or to call `new I18n(options)` directly.
 
-`.with(installer)` is core's composition pipe: `i18n.with(f)` is `f(i18n)`.
+`.use(installer)` is core's composition pipe: `i18n.use(f)` is `f(i18n)`.
 `loader(map)` attaches the capability **and** registers the map; for a plain
-`LoaderFn`, compose `.with(attachLoader)` and call `registerLoader(fn)`
+`LoaderFn`, compose `.use(attachLoader)` and call `registerLoader(fn)`
 yourself (it keeps the import-map adapter out of your bundle).
 
 ### Default — text and `{param}` interpolation
@@ -265,7 +265,7 @@ re-exported here, so the whole recipe stays inside the one import:
 <script lang="ts">
   import { createI18n, icuCompiler, loader, setI18nContext } from "@comvi/svelte";
 
-  const i18n = createI18n({ locale: "en", compiler: icuCompiler }).with(
+  const i18n = createI18n({ locale: "en", compiler: icuCompiler }).use(
     loader({ uk: () => import("./uk.json") }),
   );
 
@@ -283,14 +283,14 @@ catalog merged later by a loader as well as a constructor `translation` or an
 <script lang="ts">
   import { createI18n, loader, setI18nContext, useI18nLoader } from "@comvi/svelte";
 
-  const i18n = createI18n({ locale: "en" }).with(loader({ uk: () => import("./uk.json") }));
+  const i18n = createI18n({ locale: "en" }).use(loader({ uk: () => import("./uk.json") }));
   setI18nContext(i18n);
 
   const { reloadTranslations } = useI18nLoader();
 </script>
 ```
 
-### Plugins — one `.with(installer)`
+### Plugins — one `.use(installer)`
 
 The three first-party plugin packages ship a lowercase **installer** beside the
 uppercase factory. The installer composes the capabilities that plugin needs
@@ -302,7 +302,7 @@ call:
   import { createI18n, setI18nContext } from "@comvi/svelte";
   import { cdnLoader } from "@comvi/plugin-fetch-loader/cdn";
 
-  const i18n = createI18n({ locale: "en", defaultNs: "common" }).with(
+  const i18n = createI18n({ locale: "en", defaultNs: "common" }).use(
     cdnLoader({ cdnUrl: "https://cdn.comvi.io/your-distribution-id" }),
   );
 
@@ -322,16 +322,23 @@ composed before `init()` is attached by then.
   import { CdnLoader } from "@comvi/plugin-fetch-loader/cdn";
 
   const i18n = createI18n({ locale: "en", defaultNs: "common" })
-    .with(loader())
-    .with(plugins());
+    .use(loader())
+    .use(plugins());
 
-  i18n.use(CdnLoader({ cdnUrl: "https://cdn.comvi.io/your-distribution-id" }));
+  i18n.registerPlugin(CdnLoader({ cdnUrl: "https://cdn.comvi.io/your-distribution-id" }));
   setI18nContext(i18n);
 </script>
 ```
 
-Swapping the two slots is a type error and loud at runtime:
-`.use(cdnLoader(…))` throws at `init()` before any capability is attached.
+Swapping the two slots is a type error and loud at runtime in both directions:
+`registerPlugin(cdnLoader(…))` throws `E_INSTALLER_AS_PLUGIN` at `init()` before
+any capability is attached, and `.use(CdnLoader(…))` throws
+`E_USE_NOT_INSTALLER`: an installer widens the host in place and hands that same
+host back, so `.use` refuses any other return value, whatever its shape.
+
+Your app's own inline plugin needs neither slot: `.use(definePlugin(fn))`, with
+`definePlugin` from `@comvi/svelte`, composes the plugin host and registers `fn`
+in one call.
 
 ### Devtools — `devtools()`
 
@@ -342,7 +349,7 @@ opt-in too:
 <script lang="ts">
   import { createI18n, devtools, setI18nContext } from "@comvi/svelte";
 
-  setI18nContext(createI18n({ locale: "en" }).with(devtools({ instanceId: "storefront" })));
+  setI18nContext(createI18n({ locale: "en" }).use(devtools({ instanceId: "storefront" })));
 </script>
 ```
 
@@ -594,7 +601,7 @@ Pair with `@comvi/plugin-fetch-loader` to load translations from the platform, w
 
   // The installer composes the loader capability, then the plugin host, then
   // registers the plugin — the order a loader-registering plugin needs.
-  const i18n = createI18n({ locale: "en" }).with(
+  const i18n = createI18n({ locale: "en" }).use(
     cdnLoader({
       cdnUrl: "https://cdn.comvi.io/your-distribution-id",
     }),
@@ -656,7 +663,7 @@ export const load: LayoutLoad = async ({ fetch }) => {
 
 Child components call `useI18n()` as normal, and the context carries the per-request instance.
 
-> Prefer the runtime CDN/API loader (`@comvi/plugin-fetch-loader`) for client navigation? Keep the per-request `createI18n(...).with(fetchLoader(...))` in `+layout.svelte` and `await i18n.init()` inside an `$effect` / `onMount` for the client, while still seeding `translation` from `load` data for the initial server render. The rule is the same: only serializable data crosses `load`.
+> Prefer the runtime CDN/API loader (`@comvi/plugin-fetch-loader`) for client navigation? Keep the per-request `createI18n(...).use(fetchLoader(...))` in `+layout.svelte` and `await i18n.init()` inside an `$effect` / `onMount` for the client, while still seeding `translation` from `load` data for the initial server render. The rule is the same: only serializable data crosses `load`.
 
 ## License
 

@@ -40,7 +40,7 @@
 - **Same API across six frameworks.** `useI18n()` and the `<T>` component look the same in Vue, React, SolidJS, Svelte, Next.js, and Nuxt. All bindings ship together with the core, on one version and one release cycle.
 - **ICU `plural`, `selectordinal` & `select`.** Locale-correct grammar for every language `Intl.PluralRules` supports, reached through one explicit import: `compiler: icuCompiler` from `@comvi/core/icu`. The `number` / `date` / `time` argument types and the plural `offset:` form are not implemented and are not planned. Each one fails with `E_ICU_SYNTAX` instead of rendering something wrong. Numbers, dates, currency, and relative time are formatted via native `Intl` by `formatNumber(i18n, …)` and friends, which are free functions on core, already bound to the render locale in every framework binding.
 - **~5 kB base host, ~8.5 kB fully composed (min+gz, as bundled by your app), zero dependencies.** On the platform CDN path (`cdnLoader` plus ICU) a whole app graph is ≈ 8.9 kB with `@comvi/core` and ≈ 10.5 kB with `@comvi/react`; `fetchLoader`, which carries the authenticated API path as well, is ≈ 10.8 kB on core. Every capability is an import you add, so an app carries only what it composes. No `eval` or `new Function` in any runtime package, so it works under a strict CSP without `unsafe-eval`.
-- **Pluggable loading & detection.** Translations come from inline objects, local JSON, or a CDN/API loader plugin: one `.with(cdnLoader({ … }))`, or `.with(fetchLoader({ … }))` when the app also reads the authenticated API. Locale detection (query, cookie, storage, `navigator`) is a separate plugin you opt into.
+- **Pluggable loading & detection.** Translations come from inline objects, local JSON, or a CDN/API loader plugin: one `.use(cdnLoader({ … }))`, or `.use(fetchLoader({ … }))` when the app also reads the authenticated API. Locale detection (query, cookie, storage, `navigator`) is a separate plugin you opt into.
 - **Server-side rendering for Next.js & Nuxt.** `@comvi/next` ships an App Router `loadTranslations()` for server components, locale-routed layouts under `[locale]`, and a `createMiddleware()` for redirect-on-detect. `@comvi/nuxt` is a Nuxt 3 / 4 module with locale composables, middleware, and `<NuxtLinkLocale>`.
 
 ## Install
@@ -73,7 +73,7 @@ import { createI18n } from "@comvi/core";
 import { icuCompiler } from "@comvi/core/icu";
 import { cdnLoader } from "@comvi/plugin-fetch-loader/cdn";
 
-const i18n = createI18n({ locale: "en", compiler: icuCompiler }).with(
+const i18n = createI18n({ locale: "en", compiler: icuCompiler }).use(
   cdnLoader({ cdnUrl: "https://cdn.comvi.io/your-distribution-id" }),
 );
 
@@ -142,22 +142,23 @@ Or jump straight into runnable code in [`test-apps/`](test-apps/), one demo app 
 
 Every package publishes ONE host entry. A capability is an import you add to
 that entry, not a second entry you switch to. A bundle carries a capability
-because you asked for it, composed with `.with(…)` or, for ICU, named as the
+because you asked for it, composed with `.use(…)` or, for ICU, named as the
 `compiler` option, and for no other reason.
 
-Compose before `init()`; a later `.with()` / `.use()` warns in development and
-does nothing. Beyond that the library has no ordering rule: ICU is a
-constructor option, not a composition step.
+`.use(installer)` is the one composition verb; a later `.use()` warns in
+development and does nothing, so compose before `init()`. Beyond that the
+library has no ordering rule: ICU is a constructor option, not a composition
+step.
 
-| package         | the entry you import                       | host constructor                             | notes                                                                                                                                                                    |
-| --------------- | ------------------------------------------ | -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `@comvi/core`   | `@comvi/core`                              | `createI18n`                                 | the base host, plus the pure capability subpaths below                                                                                                                   |
-| `@comvi/react`  | `@comvi/react`                             | `createI18n`                                 | core's own constructor, re-exported by name                                                                                                                              |
-| `@comvi/solid`  | `@comvi/solid`                             | `createI18n`                                 | core's own constructor, re-exported by name                                                                                                                              |
-| `@comvi/svelte` | `@comvi/svelte`                            | `createI18n`                                 | core's own constructor, re-exported by name                                                                                                                              |
-| `@comvi/vue`    | `@comvi/vue`                               | `createI18n`                                 | builds the `VueI18n` preset over a base host, and `.with(…)` composes on the result; `createCore` / `createI18nFromCore` are the escape hatch for a host built elsewhere |
-| `@comvi/next`   | `@comvi/next/client`, `@comvi/next/server` | `createI18n`                                 | a RUNTIME split, not a host tier; `createNextI18n` on `@comvi/next` stays the composed 0.4 host                                                                          |
-| `@comvi/nuxt`   | auto-imported                              | the module's generated host, or `hostModule` | the default generated host is the base host; `hostModule` is the composition escape                                                                                      |
+| package         | the entry you import                       | host constructor                             | notes                                                                                                                                                                   |
+| --------------- | ------------------------------------------ | -------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `@comvi/core`   | `@comvi/core`                              | `createI18n`                                 | the base host, plus the pure capability subpaths below                                                                                                                  |
+| `@comvi/react`  | `@comvi/react`                             | `createI18n`                                 | core's own constructor, re-exported by name                                                                                                                             |
+| `@comvi/solid`  | `@comvi/solid`                             | `createI18n`                                 | core's own constructor, re-exported by name                                                                                                                             |
+| `@comvi/svelte` | `@comvi/svelte`                            | `createI18n`                                 | core's own constructor, re-exported by name                                                                                                                             |
+| `@comvi/vue`    | `@comvi/vue`                               | `createI18n`                                 | builds the `VueI18n` preset over a base host, and `.use(…)` composes on the result; `createCore` / `createI18nFromCore` are the escape hatch for a host built elsewhere |
+| `@comvi/next`   | `@comvi/next/client`, `@comvi/next/server` | `createI18n`                                 | a RUNTIME split, not a host tier; `createNextI18n` on `@comvi/next` stays the composed 0.4 host                                                                         |
+| `@comvi/nuxt`   | auto-imported                              | the module's generated host, or `hostModule` | the default generated host is the base host; `hostModule` is the composition escape                                                                                     |
 
 Capabilities are core's pure subpaths, re-exported **by name** from every
 framework entry except `@comvi/nuxt`, so the ones you never call are pruned by
@@ -167,14 +168,15 @@ exception: app code imports nothing, so the toolkit is not re-exported.
 Composition happens in one `hostModule` file that names `@comvi/core` and its
 subpaths directly.)
 
-| you want                                                       | you add                                                                         |
-| -------------------------------------------------------------- | ------------------------------------------------------------------------------- |
-| ICU `plural` / `select` / `selectordinal`                      | `compiler: icuCompiler` in the constructor options                              |
-| async / remote loading, nested-catalog flattening              | `.with(loader(importMap))`, `.with(attachLoader)`, or the pure `flattenCatalog` |
-| the plugin host: `use`, post-processors, missing-key hooks     | `.with(plugins())`                                                              |
-| browser-extension discovery (`instanceId`, `window.__COMVI__`) | `.with(devtools())`                                                             |
-| `<tag>` markup inside plain string-API `t()`                   | `import "@comvi/core/tags"` once, anywhere in the app                           |
-| rich text through `<T>`                                        | nothing; `<T>` uses the pure `@comvi/core/rich-text` path and registers nothing |
+| you want                                                              | you add                                                                         |
+| --------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| ICU `plural` / `select` / `selectordinal`                             | `compiler: icuCompiler` in the constructor options                              |
+| async / remote loading, nested-catalog flattening                     | `.use(loader(importMap))`, `.use(attachLoader)`, or the pure `flattenCatalog`   |
+| the plugin host: `registerPlugin`, post-processors, missing-key hooks | `.use(plugins())`                                                               |
+| your own inline plugin, in one call                                   | `.use(definePlugin(fn))`                                                        |
+| browser-extension discovery (`instanceId`, `window.__COMVI__`)        | `.use(devtools())`                                                              |
+| `<tag>` markup inside plain string-API `t()`                          | `import "@comvi/core/tags"` once, anywhere in the app                           |
+| rich text through `<T>`                                               | nothing; `<T>` uses the pure `@comvi/core/rich-text` path and registers nothing |
 
 Two hosts are the exception to "a capability because you composed it":
 `createNextI18n` on `@comvi/next` (the composed 0.4 host, kept
@@ -184,8 +186,8 @@ the app asks. Neither is the base host, and neither is what
 
 First-party plugins ship a lowercase **installer** beside the uppercase factory,
 and the installer composes whatever capabilities that plugin needs:
-`.with(cdnLoader({ cdnUrl }))`, `.with(localeDetector())`,
-`.with(inContextEditor())`.
+`.use(cdnLoader({ cdnUrl }))`, `.use(localeDetector())`,
+`.use(inContextEditor())`.
 
 ## Rich text without XSS
 

@@ -27,5 +27,5 @@ The policy is deliberately narrow:
 Pass `retry: false` to the installer to switch it off:
 
 ```ts
-i18n.with(fetchLoader({ cdnUrl, retry: false }));
+i18n.use(fetchLoader({ cdnUrl, retry: false }));
 ```

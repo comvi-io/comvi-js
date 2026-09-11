@@ -66,8 +66,8 @@ The same scenario everywhere, in the same order down the page:
    below.)
 
 The whole setup is one file per example, and the composition is the same
-everywhere: ICU through the constructor's `compiler`, then `.with(loader({…}))`,
-then `.with(plugins())`, then `.use(LocaleDetector(…))`. Here is
+everywhere: ICU through the constructor's `compiler`, then `.use(loader({…}))`,
+then `.use(plugins())`, then `registerPlugin(LocaleDetector(…))`. Here is
 `examples/react/src/i18n.ts`, which `solid` and `svelte` match line for line
 apart from the import specifier:
 
@@ -80,15 +80,16 @@ export const i18n = createI18n({
   fallbackLocale: "en",
   compiler: icuCompiler,
 })
-  .with(
+  .use(
     loader({
       en: () => import("./locales/en.json"),
       uk: () => import("./locales/uk.json"),
       de: () => import("./locales/de.json"),
     }),
   )
-  .with(plugins())
-  .use(LocaleDetector({ supportedLocales: ["en", "uk", "de"], fallbackLocale: "en" }));
+  .use(plugins());
+
+i18n.registerPlugin(LocaleDetector({ supportedLocales: ["en", "uk", "de"], fallbackLocale: "en" }));
 ```
 
 Four of the seven depart from that file, and each departure says something about
@@ -96,11 +97,11 @@ the binding:
 
 **Vue.** `createI18n` from `@comvi/vue` is not a rename of core's: it constructs
 a core for you and wraps it in a `VueI18n` reactivity layer. The pipe is the
-same anyway, because `VueI18n` has its own `.with(installer)`, which runs
+same anyway, because `VueI18n` has its own `.use(installer)`, which runs
 the installer on `i18n.core` and widens that core's type by what it composed.
-What differs is the last line: the wrapper does not proxy `use`, so the plugin
-is registered on the host as `i18n.core.use(…)` (`packages/vue/README.md`,
-"Supported hosts and what they cost").
+What differs is the last line: the wrapper does not proxy plugin registration,
+so the plugin is registered on the host as `i18n.core.registerPlugin(…)`
+(`packages/vue/README.md`, "Supported hosts and what they cost").
 
 ```ts title="src/i18n.ts"
 import { createI18n, icuCompiler, loader, plugins } from "@comvi/vue";
@@ -111,16 +112,18 @@ export const i18n = createI18n({
   fallbackLocale: "en",
   compiler: icuCompiler,
 })
-  .with(
+  .use(
     loader({
       en: () => import("./locales/en.json"),
       uk: () => import("./locales/uk.json"),
       de: () => import("./locales/de.json"),
     }),
   )
-  .with(plugins());
+  .use(plugins());
 
-i18n.core.use(LocaleDetector({ supportedLocales: ["en", "uk", "de"], fallbackLocale: "en" }));
+i18n.core.registerPlugin(
+  LocaleDetector({ supportedLocales: ["en", "uk", "de"], fallbackLocale: "en" }),
+);
 ```
 
 **Vanilla.** There is no binding to re-export the toolkit, so every capability
@@ -182,7 +185,7 @@ import { loader, type I18nLoaderApi } from "@comvi/core/loader";
 import type { NuxtHostFactory } from "@comvi/nuxt";
 
 export default ((options) =>
-  createI18n({ ...options, compiler: icuCompiler }).with(
+  createI18n({ ...options, compiler: icuCompiler }).use(
     loader({
       en: () => import("./locales/en.json"),
       uk: () => import("./locales/uk.json"),
@@ -237,10 +240,10 @@ Three details are worth reading in the source:
 - **Composition is explicit.** A capability is absent because its module never
   entered the bundle, so ICU, loading and plugins are each named at the point
   they are added: `compiler: icuCompiler` in the constructor options,
-  `.with(loader({…}))`, `.with(plugins())`. `loader(map)` attaches the
+  `.use(loader({…}))`, `.use(plugins())`. `loader(map)` attaches the
   capability _and_ registers the import-map adapter; `registerLoader` on its own
-  takes a plain function. `.use()` lives on the plugin capability, not on the
-  base host.
+  takes a plain function. `.use(installer)` is on every host; `registerPlugin()`
+  is the one that lives on the plugin capability, not on the base host.
 - **ICU is opt-in.** Without `compiler: icuCompiler` the plural line in the
   catalog is not syntax; the simple compiler renders the braced segment
   literally.

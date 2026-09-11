@@ -14,9 +14,9 @@ from `@comvi/svelte`, so each fix stays inside the one specifier you already hav
 | you had                                      | you add                                            |
 | -------------------------------------------- | -------------------------------------------------- |
 | ICU plurals, select, selectordinal           | `compiler: icuCompiler` in the constructor options |
-| loader (`registerLoader`, …)                 | `.with(loader(map))`, or `.with(attachLoader)`     |
-| `.use(plugin)`, `onMissingKey`               | `.with(plugins())`, then `use(p)`                  |
-| discovery (`instanceId`, `window.__COMVI__`) | `.with(devtools({ instanceId }))`                  |
+| loader (`registerLoader`, …)                 | `.use(loader(map))`, or `.use(attachLoader)`       |
+| `.use(plugin)`, `onMissingKey`               | `.use(definePlugin(p))`, or `registerPlugin(p)`    |
+| discovery (`instanceId`, `window.__COMVI__`) | `.use(devtools({ instanceId }))`                   |
 | nested constructor catalogs                  | `flattenCatalog(…)`, or compose `loader()`         |
 | `<tag>` markup through `t()`                 | render `<T>`, or `import "@comvi/core/tags"`       |
 
@@ -27,7 +27,7 @@ from `@comvi/svelte`, so each fix stays inside the one specifier you already hav
   // INLINE — the constructor ingests the catalog.
   setI18nContext(createI18n({ locale: "en", compiler: icuCompiler, translation }));
   // REMOTE — the same option, in the same place.
-  setI18nContext(createI18n({ locale: "en", compiler: icuCompiler }).with(loader(importMap)));
+  setI18nContext(createI18n({ locale: "en", compiler: icuCompiler }).use(loader(importMap)));
 </script>
 ```
 

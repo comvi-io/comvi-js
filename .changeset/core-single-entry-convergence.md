@@ -4,14 +4,14 @@
 
 **BREAKING (breaking change on a 0.x minor): the root `@comvi/core` entry changes semantics.** `@comvi/core` is now ONE entry — the base host — and capability is an import you add, never an entry you switch. The second entry, `@comvi/core/slim`, is deleted; it never published, so there is no deprecation debt.
 
-| what a 0.4 root had                          | on the converged root                 | compose it back                                    |
-| -------------------------------------------- | ------------------------------------- | -------------------------------------------------- |
-| ICU plurals / select                         | dev throws, prod renders it literally | `compiler: icuCompiler` in the constructor options |
-| `.use(plugin)`                               | absent — TS error + `TypeError`       | `.with(plugins()).use(p)`                          |
-| loader (`registerLoader`, …)                 | absent — the loud capability error    | `.with(loader())`                                  |
-| discovery (`instanceId`, `window.__COMVI__`) | absent — invisible to the extension   | `.with(devtools())`                                |
-| nested catalogs                              | stored verbatim, dev warning          | `flattenCatalog(…)`, or compose `loader()`         |
-| string-API tags (`"<b>hi</b>"`)              | literal text, dev warning             | `<T>`, or `import "@comvi/core/tags"`              |
+| what a 0.4 root had                          | on the converged root                 | compose it back                                                     |
+| -------------------------------------------- | ------------------------------------- | ------------------------------------------------------------------- |
+| ICU plurals / select                         | dev throws, prod renders it literally | `compiler: icuCompiler` in the constructor options                  |
+| `.use(plugin)`                               | absent — TS error + `TypeError`       | `.use(definePlugin(p))`, or `.use(plugins())` + `registerPlugin(p)` |
+| loader (`registerLoader`, …)                 | absent — the loud capability error    | `.use(loader())`                                                    |
+| discovery (`instanceId`, `window.__COMVI__`) | absent — invisible to the extension   | `.use(devtools())`                                                  |
+| nested catalogs                              | stored verbatim, dev warning          | `flattenCatalog(…)`, or compose `loader()`                          |
+| string-API tags (`"<b>hi</b>"`)              | literal text, dev warning             | `<T>`, or `import "@comvi/core/tags"`                               |
 
 `new I18n(options)`, `@comvi/next`'s `createNextI18n` (now typed `NextComposedI18n<D>`) and
 the batteries-included CDN global are unchanged.
@@ -20,7 +20,7 @@ the batteries-included CDN global are unchanged.
 // INLINE catalogs.
 const i18n = createI18n({ locale: "en", translation, compiler: icuCompiler });
 // REMOTE catalogs — the same option, in the same place.
-const i18n = createI18n({ locale: "en", compiler: icuCompiler }).with(fetchLoader({ … }));
+const i18n = createI18n({ locale: "en", compiler: icuCompiler }).use(fetchLoader({ … }));
 ```
 
 `compiler` is a constructor field held for the instance's life, so one option covers every
@@ -43,8 +43,8 @@ through the plugin lifecycle's normal error path. The shape that bites is the
 expression-bodied arrow:
 
 ```diff
--i18n.use(() => (ready = true));   // returns `true` — now throws
-+i18n.use(() => { ready = true; }); // returns nothing — fine
+-i18n.registerPlugin(() => (ready = true));   // returns `true` — now throws
++i18n.registerPlugin(() => { ready = true; }); // returns nothing — fine
 ```
 
 Residuals: `flattenCatalog` is exported from the root as well as `@comvi/core/loader`;

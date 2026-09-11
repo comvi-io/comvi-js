@@ -28,7 +28,7 @@ Comvi i18n is a framework-agnostic internationalization library. You get ICU Mes
 - **Same API** across [Vue](https://www.npmjs.com/package/@comvi/vue), [React](https://www.npmjs.com/package/@comvi/react), [SolidJS](https://www.npmjs.com/package/@comvi/solid), [Svelte](https://www.npmjs.com/package/@comvi/svelte), [Next.js](https://www.npmjs.com/package/@comvi/next), and [Nuxt](https://www.npmjs.com/package/@comvi/nuxt).
 - **ICU `plural`, `selectordinal` & `select`:** locale-correct plurals, ordinals, and gender via `Intl.PluralRules`. Recognized by every major TMS. One explicit import: `compiler: icuCompiler` from `@comvi/core/icu`. The `number` / `date` / `time` argument types and the plural `offset:` form are not implemented and are not planned. Each one fails with `E_ICU_SYNTAX` instead of rendering something wrong.
 - **Type-safe translation keys** via TypeScript declaration merging, for autocomplete and parameter validation everywhere.
-- **Pluggable:** translation loading, locale detection, and in-context editing are opt-in plugins, one `.with(…)` call each.
+- **Pluggable:** translation loading, locale detection, and in-context editing are opt-in plugins, one `.use(…)` call each.
 
 See the [main repo](https://github.com/comvi-io/comvi-js) for the full library overview, runnable demos, and the framework binding matrix.
 
@@ -86,7 +86,7 @@ i18n.t("items", { count: 5 }); // "5 items"
 
 `@comvi/core` is THE entry, and it is the **base host**: text + `{param}`
 interpolation, the translation cache, events, default params and the
-`.with(installer)` composition pipe. You add a capability by importing it, not by
+`.use(installer)` composition pipe. You add a capability by importing it, not by
 switching entry points. A capability you never import never enters your module
 graph, and there is no runtime flag that turns one off.
 
@@ -99,21 +99,21 @@ import { devtools } from "@comvi/core/devtools"; // extension discovery
 import "@comvi/core/tags"; // ambient <tag> syntax
 
 const i18n = createI18n({ locale: "en", compiler: icuCompiler })
-  .with(loader({ uk: () => import("./uk.json") }))
-  .with(plugins());
+  .use(loader({ uk: () => import("./uk.json") }))
+  .use(plugins());
 ```
 
 **Upgrading from 0.4.x?** The 0.4 root shipped every capability by default, so
 this is a breaking change on a 0.x minor: ICU syntax now throws instead of
-rendering plausibly-wrong text, and `.use()`, the loader, discovery and
-nested-catalog flattening are absent until composed.
+rendering plausibly-wrong text, and plugin registration, the loader, discovery
+and nested-catalog flattening are absent until composed.
 See **[MIGRATION.md](../../MIGRATION.md)** for the per-feature table and the
 codemod.
 
 ICU is not a composed capability at all: `compiler: icuCompiler` is a
 constructor field held for the instance's life, so one option covers every
 catalog source. `createI18n({ translation, compiler: icuCompiler })` for inline
-catalogs, `createI18n({ locale, compiler: icuCompiler }).with(cdnLoader({ … }))`
+catalogs, `createI18n({ locale, compiler: icuCompiler }).use(cdnLoader({ … }))`
 for remote ones, and nothing about where the catalog came from changes the
 answer.
 
@@ -172,10 +172,10 @@ ambient tags, the loader, the plugin host and discovery, and also exposes
 `tagSyntaxExtension`. ESM starts from the base host; the global starts composed.
 Nothing else in the package is published two ways.
 
-### `.with(installer)` — the composition pipe
+### `.use(installer)` — the composition pipe
 
-`.with` is on the base class, so every host has it. It is a pipe and nothing
-more: `i18n.with(f)` **is** `f(i18n)`. Composition stays part of the
+`.use` is on the base class, so every host has it. It is a pipe and nothing
+more: `i18n.use(f)` **is** `f(i18n)`. Composition stays part of the
 construction expression instead of a wrapper around it.
 
 ```ts
@@ -189,24 +189,24 @@ const i18n = createI18n({
   fallbackLocale: "en",
   translation: { en: { greeting: "Hello, {name}!" } },
 })
-  .with(loader({ uk: () => import("./uk.json") }))
-  .with(plugins());
+  .use(loader({ uk: () => import("./uk.json") }))
+  .use(plugins());
 
-i18n.use(LocaleDetector({ supportedLocales: ["en", "uk"] }));
+i18n.registerPlugin(LocaleDetector({ supportedLocales: ["en", "uk"] }));
 
 await i18n.init();
 i18n.t("greeting", { name: "Alice" }); // "Hello, Alice!"
 ```
 
 An **installer** is any `(host) => value`, so the `attach*` functions are
-installers already. `.with(attachLoader)` works, and it is what you want for a
+installers already. `.use(attachLoader)` works, and it is what you want for a
 host you will hand a plain `LoaderFn`:
 
 ```ts
 import { createI18n } from "@comvi/core";
 import { attachLoader } from "@comvi/core/loader";
 
-const i18n = createI18n({ locale: "en" }).with(attachLoader);
+const i18n = createI18n({ locale: "en" }).use(attachLoader);
 i18n.registerLoader(async (locale, ns) => (await fetch(`/i18n/${locale}/${ns}.json`)).json());
 ```
 
@@ -215,10 +215,22 @@ attach **and** configure in the same call. Pick by what you have. `loader`
 names the import-map adapter statically, so it costs ~111–124 B min+gz whether
 or not you pass a map, while `attachLoader` costs 2 B over calling it directly.
 
+Your app's own inline plugin reaches the queue through
+`definePlugin(fn, options?)` from `@comvi/core/plugins`:
+`.use(definePlugin((i18n) => { … }))` composes the plugin host and registers
+`fn` in the same call. An installer widens the host **in place** and hands that
+same host back, so `.use` refuses anything else, whatever its shape: give it the
+raw plugin and it throws `E_USE_NOT_INSTALLER`. The check is identity, not
+shape, which is why an async plugin cannot slip past it — and why `.use` is not
+a place to register one: it calls the function before it checks, so the promise
+that function returns is never awaited. `definePlugin(fn)` and
+`registerPlugin(fn)` put the plugin in the queue, where `required`, `timeout`
+and `onError` apply to it.
+
 Every install is idempotent, and installs land as **non-enumerable own
 properties** with ordinary method descriptors, so `Object.keys(i18n)`, spread
 copies and `JSON.stringify` see exactly what they saw before. Composing a
-capability a host already has (a second `.with(loader())`, or any `.with(…)` on
+capability a host already has (a second `.use(loader())`, or any `.use(…)` on
 a host that was already composed) installs nothing and shadows nothing.
 
 > **Compose the loader alongside the plugin host. Order between them is free.**
@@ -227,8 +239,8 @@ a host that was already composed) installs nothing and shadows nothing.
 > on the instance. If the loader capability was never composed at all, that call
 > is a `TypeError` at `init()` time, not a compile error. Composing both is what
 > fixes it, and either chain does it:
-> `createI18n({ … }).with(loader()).with(plugins())` and
-> `createI18n({ … }).with(plugins()).with(loader())` are equivalent, because
+> `createI18n({ … }).use(loader()).use(plugins())` and
+> `createI18n({ … }).use(plugins()).use(loader())` are equivalent, because
 > every capability composed before `init()` is attached by the time plugins run.
 >
 > Beyond that the library has no ordering rule. ICU is not composed at all: it
@@ -236,7 +248,7 @@ a host that was already composed) installs nothing and shadows nothing.
 > catalog source.
 >
 > Published plugin packages ship a lowercase **installer** that does the ordering
-> for you: `.with(cdnLoader({ … }))` composes `/loader`, then `/plugins`, then
+> for you: `.use(cdnLoader({ … }))` composes `/loader`, then `/plugins`, then
 > registers the plugin, all in one call. The uppercase factory is unchanged; use
 > it when you compose capabilities yourself or register plugins from a list.
 
@@ -245,19 +257,19 @@ a host that was already composed) installs nothing and shadows nothing.
 Everything below is a **compile error** on the base host until you compose the subpath in.
 TypeScript catches a missing capability, so you never discover one in production.
 
-| Capability            | Subpath                               | Members                                                                                                                 |
-| --------------------- | ------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| Async loading         | `@comvi/core/loader` (`loader()`)     | `registerLoader`, `getLoader`, `reloadTranslations`, `addActiveNamespace(s)`, `removeActiveNamespace(s)`, `onLoadError` |
-| Import-map loading    | `@comvi/core/loader`                  | `createImportMapLoader`, and `loader(map)` to attach + register in one call                                             |
-| Nested catalogs       | `@comvi/core/loader`                  | automatic once the loader is composed, or the pure `flattenCatalog(nested)`; see below                                  |
-| Plugin host           | `@comvi/core/plugins` (`plugins()`)   | `use`, `setPluginData`, `getPluginData`                                                                                 |
-| Locale detection      | `@comvi/core/plugins`                 | `registerLocaleDetector`, `getLanguageDetector`                                                                         |
-| Missing-key callbacks | `@comvi/core/plugins`                 | `onMissingKey`                                                                                                          |
-| Post-processors       | `@comvi/core/plugins`                 | `registerPostProcessor`                                                                                                 |
-| Devtools discovery    | `@comvi/core/devtools` (`devtools()`) | `instanceId`, the `window.__COMVI__` queue protocol, removal on `destroy()`                                             |
-| ICU plural/select     | `@comvi/core/icu`                     | `createI18n({ …, compiler: icuCompiler })`                                                                              |
-| Rich-text components  | `@comvi/core/rich-text`               | pure `prepareTranslation` / VirtualNode toolbox; tag syntax is passed per call and never registered ambiently           |
-| String-API tags       | `@comvi/core/tags`                    | ambient registration plus the same rich-text toolbox, and `&lt;` / `&gt;` / `&amp;` and the `\<` escape                 |
+| Capability            | Subpath                                                 | Members                                                                                                                 |
+| --------------------- | ------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| Async loading         | `@comvi/core/loader` (`loader()`)                       | `registerLoader`, `getLoader`, `reloadTranslations`, `addActiveNamespace(s)`, `removeActiveNamespace(s)`, `onLoadError` |
+| Import-map loading    | `@comvi/core/loader`                                    | `createImportMapLoader`, and `loader(map)` to attach + register in one call                                             |
+| Nested catalogs       | `@comvi/core/loader`                                    | automatic once the loader is composed, or the pure `flattenCatalog(nested)`; see below                                  |
+| Plugin host           | `@comvi/core/plugins` (`plugins()`, `definePlugin(fn)`) | `registerPlugin`, `setPluginData`, `getPluginData`                                                                      |
+| Locale detection      | `@comvi/core/plugins`                                   | `registerLocaleDetector`, `getLanguageDetector`                                                                         |
+| Missing-key callbacks | `@comvi/core/plugins`                                   | `onMissingKey`                                                                                                          |
+| Post-processors       | `@comvi/core/plugins`                                   | `registerPostProcessor`                                                                                                 |
+| Devtools discovery    | `@comvi/core/devtools` (`devtools()`)                   | `instanceId`, the `window.__COMVI__` queue protocol, removal on `destroy()`                                             |
+| ICU plural/select     | `@comvi/core/icu`                                       | `createI18n({ …, compiler: icuCompiler })`                                                                              |
+| Rich-text components  | `@comvi/core/rich-text`                                 | pure `prepareTranslation` / VirtualNode toolbox; tag syntax is passed per call and never registered ambiently           |
+| String-API tags       | `@comvi/core/tags`                                      | ambient registration plus the same rich-text toolbox, and `&lt;` / `&gt;` / `&amp;` and the `\<` escape                 |
 
 Four placements are not where you might guess:
 
@@ -273,7 +285,7 @@ Four placements are not where you might guess:
   catalogs exactly as given; see “The base host wants flat catalogs” below.
 - **Discovery lives on `/devtools`.** `instanceId` and the `window.__COMVI__` handshake
   exist for browser extensions; an app that ships no extension integration should not
-  carry a `window` protocol. `.with(devtools({ instanceId, exposeGlobal }))` takes
+  carry a `window` protocol. `.use(devtools({ instanceId, exposeGlobal }))` takes
   the two options the 0.4 root read off `createI18n`.
 
 The `postProcess` and `onMissingKey` **constructor options** stay universal: they work on
@@ -562,9 +574,9 @@ i18n.t("typo", { name: "Alice" });
 
 Translation loading, locale detection, and editing are opt-in plugins. Each
 first-party package exports two names for the same plugin: a lowercase
-**installer** for `.with(…)`, which composes the capabilities that plugin needs
-and then registers it, and the uppercase **factory** for `.use(…)` on a host you
-composed yourself.
+**installer** for `.use(…)`, which composes the capabilities that plugin needs
+and then registers it, and the uppercase **factory** for `registerPlugin(…)` on
+a host you composed yourself.
 
 ```ts
 import { createI18n } from "@comvi/core";
@@ -572,13 +584,13 @@ import { cdnLoader } from "@comvi/plugin-fetch-loader/cdn";
 import { localeDetector } from "@comvi/plugin-locale-detector";
 
 const i18n = createI18n({ locale: "en", fallbackLocale: "en" })
-  .with(
+  .use(
     localeDetector({
       order: ["querystring", "cookie", "localStorage", "navigator"],
       lookupCookie: "i18n_locale",
     }),
   )
-  .with(
+  .use(
     cdnLoader({
       cdnUrl: "https://cdn.comvi.io/your-distribution-id",
     }),
@@ -599,18 +611,21 @@ import { loader } from "@comvi/core/loader";
 import { plugins } from "@comvi/core/plugins";
 import { CdnLoader } from "@comvi/plugin-fetch-loader/cdn";
 
-const i18n = createI18n({ locale: "en", fallbackLocale: "en" }).with(loader()).with(plugins());
+const i18n = createI18n({ locale: "en", fallbackLocale: "en" }).use(loader()).use(plugins());
 
-i18n.use(CdnLoader({ cdnUrl: "https://cdn.comvi.io/your-distribution-id" }));
+i18n.registerPlugin(CdnLoader({ cdnUrl: "https://cdn.comvi.io/your-distribution-id" }));
 ```
 
-Swapping the two slots is a type error, and only one half is caught at runtime:
-`.use(cdnLoader(…))` throws at `init()` on the installer's first ensure-step,
-before any capability is attached. `.with(CdnLoader(…))` is not rejected at all.
-`.with` is a pipe and nothing more: it never inspects, orders or brands what you
-hand it, so the plugin runs immediately, outside `init()`'s drain loop. On a
-host that already composed both capabilities it appears to work, while its
-cleanup is discarded and `required`, `timeout` and `onError` never apply.
+Swapping the two slots is a type error, and both halves are caught at runtime as
+well. `registerPlugin(cdnLoader(…))` throws `E_INSTALLER_AS_PLUGIN` at `init()`,
+on the installer's first ensure-step, before any capability is attached.
+`.use(CdnLoader(…))` throws `E_USE_NOT_INSTALLER`: `.use` is a pipe and nothing
+more — it never inspects, orders or brands what you hand it — but an installer
+widens the host in place and hands that same host back, and `.use` refuses any
+other return value, whatever its shape. It calls the function before it checks,
+so this plugin runs outside `init()`'s drain loop and, being async, hands back a
+promise nobody awaits. Register it with `registerPlugin` instead, where the
+queue gives it `required`, `timeout`, `onError` and cleanup.
 
 Plugins run sequentially during `.init()`, with timeout protection (10s default)
 and error recovery for non-required plugins. A plugin may return **nothing or a

@@ -30,13 +30,13 @@ Comvi i18n is a framework-agnostic internationalization library with type-safe t
 - **ICU `plural`, `selectordinal` & `select`.** Locale-correct grammar via `Intl.PluralRules`, including Polish, Ukrainian, Arabic, Welsh and the rest. It is the same syntax every major TMS (Crowdin, Lokalise, Phrase) already speaks. The `number` / `date` / `time` argument types and the plural `offset:` form are not implemented and are not planned. Each one fails with `E_ICU_SYNTAX` instead of rendering something wrong.
 - **Locale-aware formatters built in.** `formatNumber`, `formatDate`, `formatCurrency`, and `formatRelativeTime` follow the active locale via native `Intl`, with reactive updates in every framework binding.
 - **~8.2 kB minified + gzipped for the default client graph, ~11.7 kB fully composed (measured, `vue` / `#app` / `h3` externalized), no runtime dependencies beyond `h3` and `@nuxt/kit`, which every Nuxt app already has.** ICU, the plugin host and devtools discovery cost only where your `hostModule` composes them. No `eval` or `new Function` anywhere, so it runs under a strict CSP without `unsafe-eval`. Safe for Chrome extensions, Cloudflare Workers, and locked-down enterprise apps.
-- **Pluggable.** Translation loading (CDN/API), locale detection, and in-context editing are opt-in plugins via `@comvi/plugin-fetch-loader`, `@comvi/plugin-locale-detector`, and `@comvi/plugin-in-context-editor`, one lowercase `.with(installer)` each. You only ship what you use.
+- **Pluggable.** Translation loading (CDN/API), locale detection, and in-context editing are opt-in plugins via `@comvi/plugin-fetch-loader`, `@comvi/plugin-locale-detector`, and `@comvi/plugin-in-context-editor`, one lowercase `.use(installer)` each. You only ship what you use.
 - **Same API across 6 frameworks.** `useI18n()` and `<T>` look the same in [Vue](https://www.npmjs.com/package/@comvi/vue), [React](https://www.npmjs.com/package/@comvi/react), [SolidJS](https://www.npmjs.com/package/@comvi/solid), [Svelte](https://www.npmjs.com/package/@comvi/svelte), [Next.js](https://www.npmjs.com/package/@comvi/next), and [Nuxt](https://www.npmjs.com/package/@comvi/nuxt), so switching frameworks doesn't mean relearning your i18n layer.
 - **SSR support.** `@comvi/next` and `@comvi/nuxt` ship server-side translation loading, locale-routed layouts, and middleware for redirect-on-detect, so there is no flash of untranslated content.
 
 ## Why @comvi/nuxt?
 
-- **Two-file setup.** Add `@comvi/nuxt` to `modules` in `nuxt.config.ts` and configure locales. Routing, detection, middleware and auto-imports work with no boilerplate. Point `hostModule` at one `comvi.host.ts` and that file is the whole of what your app pays for: ICU, loading, plugins and devtools are each one import and one `.with(...)`.
+- **Two-file setup.** Add `@comvi/nuxt` to `modules` in `nuxt.config.ts` and configure locales. Routing, detection, middleware and auto-imports work with no boilerplate. Point `hostModule` at one `comvi.host.ts` and that file is the whole of what your app pays for: ICU, loading, plugins and devtools are each one import and one `.use(...)`.
 - **Auto-imported composables and registered components.** `useI18n()`, route helpers, `<T>`, and `<NuxtLinkLocale>` are available without manual imports. `$t` is installed as a Vue global property for templates.
 - **Built-in locale routing and middleware.** Clones your existing pages into locale-prefixed routes and adds a global middleware for locale detection and cookie persistence, with no extra setup.
 
@@ -75,7 +75,7 @@ import { loader } from "@comvi/core/loader";
 import type { NuxtHostFactory } from "@comvi/nuxt";
 
 export default ((options) =>
-  createI18n({ ...options, compiler: icuCompiler }).with(
+  createI18n({ ...options, compiler: icuCompiler }).use(
     loader({
       en: () => import("./locales/en.json"),
       uk: () => import("./locales/uk.json"),
@@ -254,23 +254,24 @@ on the render locale; the request-scoped Nitro host has no hydration to match
 and omits it. Set it inside the factory if a server route needs it too.
 
 ICU is the one exception to "compose it here": `compiler` is a constructor
-argument rather than something `.with()` can pipe on, so an app with no
+argument rather than something `.use()` can pipe on, so an app with no
 `hostModule` reaches it through the `icu: true` module option instead.
 Everything else in the table below (loader, plugins, devtools) still needs
 `hostModule`, and with `hostModule` set `icu` is ignored with a build-time
 warning because your factory already chose a compiler.
 
-Each capability is one import and one `.with(...)`. `.with(installer)` is
-core's composition pipe: `i18n.with(f)` is `f(i18n)`, nothing more.
+Each capability is one import and one `.use(...)`. `.use(installer)` is
+core's composition pipe: `i18n.use(f)` is `f(i18n)`, nothing more.
 
-| you want                                                  | you add                                                                                                                                        |
-| --------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
-| ICU plurals / select / selectordinal                      | `compiler: icuCompiler` from `@comvi/core/icu`, in the options object                                                                          |
-| SSR + async translation loading                           | `.with(loader(importMap))` from `@comvi/core/loader`                                                                                           |
-| plugins, locale detectors, missing-key hooks              | `.with(plugins())` from `@comvi/core/plugins`                                                                                                  |
-| browser-extension discovery                               | `.with(devtools())` from `@comvi/core/devtools`                                                                                                |
-| `<tag>` syntax in plain string-API `t()`                  | `import "@comvi/core/tags"` once, anywhere in the app                                                                                          |
-| a first-party plugin: CDN loader, locale detector, editor | `.with(cdnLoader({ … }))` / `.with(localeDetector())` / `.with(inContextEditor())`; each installer composes the capabilities that plugin needs |
+| you want                                                  | you add                                                                                                                                     |
+| --------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| ICU plurals / select / selectordinal                      | `compiler: icuCompiler` from `@comvi/core/icu`, in the options object                                                                       |
+| SSR + async translation loading                           | `.use(loader(importMap))` from `@comvi/core/loader`                                                                                         |
+| plugins, locale detectors, missing-key hooks              | `.use(plugins())` from `@comvi/core/plugins`                                                                                                |
+| your own inline plugin, in one call                       | `.use(definePlugin(fn))` from `@comvi/core/plugins`                                                                                         |
+| browser-extension discovery                               | `.use(devtools())` from `@comvi/core/devtools`                                                                                              |
+| `<tag>` syntax in plain string-API `t()`                  | `import "@comvi/core/tags"` once, anywhere in the app                                                                                       |
+| a first-party plugin: CDN loader, locale detector, editor | `.use(cdnLoader({ … }))` / `.use(localeDetector())` / `.use(inContextEditor())`; each installer composes the capabilities that plugin needs |
 
 ```ts
 // comvi.host.ts — everything at once
@@ -283,16 +284,16 @@ import type { NuxtHostFactory } from "@comvi/nuxt";
 
 export default ((options) =>
   createI18n({ ...options, compiler: icuCompiler })
-    .with(loader({ uk: () => import("./locales/uk.json") }))
-    .with(plugins())
-    .with(devtools())) satisfies NuxtHostFactory;
+    .use(loader({ uk: () => import("./locales/uk.json") }))
+    .use(plugins())
+    .use(devtools())) satisfies NuxtHostFactory;
 ```
 
 Order does not matter here. `loader()`, `plugins()` and `devtools()` may go in
 any order, because every capability composed before `init()` is attached by the
 time plugins run, and ICU is an option rather than a composition step.
 `loader(map)` attaches the loader capability **and** registers the map; for a
-plain `LoaderFn`, use `.with(attachLoader)` and call `registerLoader(fn)`.
+plain `LoaderFn`, use `.use(attachLoader)` and call `registerLoader(fn)`.
 
 So `comvi.host.ts` is the one file in a nuxt app that names comvi packages at
 all. `useI18n()`, `useI18nLoader()`, `useI18nPlugins()`, `<T>` and
@@ -360,7 +361,7 @@ export default ((options) =>
 
 Without a `hostModule`, set `icu: true` in `nuxt.config.ts` instead. It is the
 one capability with a module option, because `compiler` is a constructor
-argument no `.with(...)` can add afterwards:
+argument no `.use(...)` can add afterwards:
 
 ```ts
 // nuxt.config.ts
