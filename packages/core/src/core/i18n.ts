@@ -134,7 +134,12 @@ export interface I18nInternal<D extends DefaultTranslationParams = {}> extends I
    */
   _flattenNs?: (catalog: Record<string, TranslationValue>) => FlattenedTranslations;
 
-  _compiler: MessageCompiler;
+  /**
+   * Read-only through the seam: the compiler is a constructor option and its
+   * id is baked into every compiled-template cache key, so nothing may swap
+   * it after construction.
+   */
+  readonly _compiler: MessageCompiler;
   _tagInterpolation?: TagInterpolationOptions;
 
   /** DEV-ONLY eager catalog check; absent from production builds. */

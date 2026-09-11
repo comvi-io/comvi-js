@@ -32,6 +32,12 @@ plugin's own installer compose in any order. Vue keeps its own rule, which is
 about the plugin queue rather than ICU: compose before `app.use(i18n)`. Nuxt's
 `comvi.icu: true` already maps to `compiler: icuCompiler` and is unchanged.
 
+Two smaller consequences. The development `E_ICU_SYNTAX` message now ends with
+`Pass compiler: icuCompiler from "@comvi/core/icu" in the constructor options.`,
+so anything asserting on the old hint text needs updating. And the production
+error inventory shrinks by one: the identities that carry a branchable `code`
+are `E_ICU_SYNTAX` and, on the Vue wrapper, `E_WITH_HOST_IDENTITY`.
+
 Migration: replace `createI18n(options).with(icu())` with
 `createI18n({ ...options, compiler: icuCompiler })` and drop the `icu` import.
 Code that branched on `code === "E_COMPILER_LOCKED"` has nothing left to catch.

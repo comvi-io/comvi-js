@@ -61,6 +61,19 @@ describe("compiler option — every catalog source", () => {
     expect(i18n.t("items" as never, { count: 3 } as never)).toBe("3 items");
   });
 
+  it("survives a reloadTranslations() round-trip after a locale switch", async () => {
+    const i18n = attachLoader(createI18n({ locale: "en", compiler: icuCompiler }));
+    i18n.registerLoader(async (locale) => ({
+      items: locale === "uk" ? "{count, plural, one {# річ} few {# речі} other {# речей}}" : PLURAL,
+    }));
+    await i18n.init();
+    await i18n.setLocaleAsync("uk");
+    await i18n.reloadTranslations();
+    expect(i18n.t("items", { count: 3 })).toBe("3 речі");
+    await i18n.setLocaleAsync("en");
+    expect(i18n.t("items", { count: 1 })).toBe("1 item");
+  });
+
   it("accepts a custom compiler", () => {
     const i18n = createI18n({
       locale: "en",
