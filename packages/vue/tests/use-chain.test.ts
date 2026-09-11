@@ -1,6 +1,6 @@
-// `VueI18n.with(installer)`: the pipe on the WRAPPER. It runs the installer on
+// `VueI18n.use(installer)`: the pipe on the WRAPPER. It runs the installer on
 // `core`, keeps the one instance the app holds, and widens `core`'s type — so
-// `createI18n(options).with(…)` reads like the other bindings' `createI18n`
+// `createI18n(options).use(…)` reads like the other bindings' `createI18n`
 // instead of the `createCore` + `createI18nFromCore` detour.
 import { describe, it, expect, vi } from "vitest";
 import { defineComponent, h } from "vue";
@@ -18,13 +18,13 @@ import {
   useI18nPlugins,
 } from "../src/index";
 
-describe("VueI18n.with()", () => {
+describe("VueI18n.use()", () => {
   it("returns the same wrapper and widens its core in place", () => {
     const base = createI18n({ locale: "en", exposeGlobal: false });
     const core = base.core;
     expect("reloadTranslations" in core).toBe(false);
 
-    const composed = base.with(loader()).with(plugins());
+    const composed = base.use(loader()).use(plugins());
 
     expect(composed).toBe(base);
     expect(composed.core).toBe(core);
@@ -47,8 +47,8 @@ describe("VueI18n.with()", () => {
   it("refuses an installer that hands back a different host", () => {
     const i18n = createI18n({ locale: "en", exposeGlobal: false });
     const foreign = createCore({ locale: "en", exposeGlobal: false });
-    expect(() => i18n.with(() => foreign)).toThrow(
-      expect.objectContaining({ code: "E_WITH_HOST_IDENTITY" }),
+    expect(() => i18n.use(() => foreign)).toThrow(
+      expect.objectContaining({ code: "E_USE_HOST_IDENTITY" }),
     );
     // The refused installer left the wrapper on its own host.
     expect(i18n.core).not.toBe(foreign);
@@ -56,9 +56,9 @@ describe("VueI18n.with()", () => {
 
   it("composes devtools through the pipe without widening", () => {
     const i18n = createI18n({ locale: "en", exposeGlobal: false });
-    const composed = i18n.with(devtools({ instanceId: "with-chain" }));
+    const composed = i18n.use(devtools({ instanceId: "use-chain" }));
     expect(composed).toBe(i18n);
-    expect(composed.core.instanceId).toBe("with-chain");
+    expect(composed.core.instanceId).toBe("use-chain");
     composed.destroy();
   });
 
@@ -74,7 +74,7 @@ describe("VueI18n.with()", () => {
         global: { plugins: [i18n] },
       });
       expect(i18n.core.isInitialized || i18n.core.isInitializing).toBe(true);
-      i18n.with(plugins()).with(loader());
+      i18n.use(plugins()).use(loader());
       expect(warn).toHaveBeenCalledTimes(1);
       expect(warn.mock.calls[0]![0]).toContain("after app.use(i18n) started init()");
       wrapper.unmount();
@@ -87,13 +87,13 @@ describe("VueI18n.with()", () => {
   it("hands the installer the core, not the wrapper", () => {
     const i18n = createI18n({ locale: "en", exposeGlobal: false });
     const installer = vi.fn((core: typeof i18n.core) => core);
-    i18n.with(installer);
+    i18n.use(installer);
     expect(installer).toHaveBeenCalledTimes(1);
     expect(installer.mock.calls[0]![0]).toBe(i18n.core);
   });
 
   it("works on a createI18nFromCore wrapper too", () => {
-    const i18n = createI18nFromCore(createCore({ locale: "en", exposeGlobal: false })).with(
+    const i18n = createI18nFromCore(createCore({ locale: "en", exposeGlobal: false })).use(
       loader(),
     );
     expect(typeof i18n.core.addActiveNamespace).toBe("function");
@@ -105,8 +105,8 @@ describe("VueI18n.with()", () => {
       exposeGlobal: false,
       translation: { en: { greeting: "Hello" } },
     })
-      .with(loader())
-      .with(plugins());
+      .use(loader())
+      .use(plugins());
 
     const seen: { loader?: string; plugins?: string; text?: string } = {};
     const Probe = defineComponent({

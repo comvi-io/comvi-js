@@ -37,7 +37,7 @@ describe("destroy()", () => {
       return cleanup;
     };
 
-    const i18n = new I18n({ locale: "en" }).use(plugin);
+    const i18n = new I18n({ locale: "en" }).registerPlugin(plugin);
     i18n.addTranslations({ en: { hello: "Hello" } });
     await i18n.init();
 
@@ -65,7 +65,7 @@ describe("destroy()", () => {
       i18n.registerLoader(async () => load.promise);
     };
 
-    const i18n = new I18n({ locale: "en", ns: [] }).use(plugin);
+    const i18n = new I18n({ locale: "en", ns: [] }).registerPlugin(plugin);
     await i18n.init();
     const loadingStates: Array<{ isLoading: boolean; isInitializing: boolean }> = [];
     i18n.on("loadingStateChanged", (state) => {
@@ -120,7 +120,7 @@ describe("onLoadError()", () => {
       });
     };
 
-    const i18n = new I18n({ locale: "en", ns: [] }).use(failingLoader);
+    const i18n = new I18n({ locale: "en", ns: [] }).registerPlugin(failingLoader);
     i18n.onLoadError(onLoadError);
     i18n.on("loadError", onEvent);
     await i18n.init();
@@ -142,7 +142,7 @@ describe("onLoadError()", () => {
       });
     };
 
-    const i18n = new I18n({ locale: "en", ns: [] }).use(failingLoader);
+    const i18n = new I18n({ locale: "en", ns: [] }).registerPlugin(failingLoader);
     const unsubscribe = i18n.onLoadError(onLoadError);
     await i18n.init();
 
@@ -192,7 +192,7 @@ describe("initialized event", () => {
       throw new Error("boom");
     };
 
-    const i18n = new I18n({ locale: "en" }).use(failingPlugin);
+    const i18n = new I18n({ locale: "en" }).registerPlugin(failingPlugin);
     i18n.on("initialized", callback);
 
     await expect(i18n.init()).rejects.toThrow();

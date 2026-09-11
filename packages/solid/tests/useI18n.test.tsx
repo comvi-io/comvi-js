@@ -16,7 +16,7 @@ const mountFallbackHost = async () => {
     locale: "es",
     defaultNs: "common",
     translation: { "fr:common": { hello: "Bonjour" } },
-  }).with(attachPlugins);
+  }).use(attachPlugins);
 
   await i18n.init();
 
@@ -260,7 +260,7 @@ describe("useI18n", () => {
         "en:common": { title: commonTitle },
       },
       // `attachLoader` rather than `loader()`: this registers a raw `LoaderFn`.
-    }).with(attachLoader);
+    }).use(attachLoader);
 
     i18n.registerLoader(async (_language, namespace): Promise<LoaderResult> => {
       if (namespace === "common") {
@@ -329,7 +329,7 @@ describe("useI18n", () => {
   });
 
   it("surfaces load errors through the returned callbacks", async () => {
-    const i18n = createI18n({ locale: "en", defaultNs: "common" }).with(attachLoader);
+    const i18n = createI18n({ locale: "en", defaultNs: "common" }).use(attachLoader);
     i18n.registerLoader(async (_language, namespace) => {
       if (namespace === "admin") {
         throw new Error("admin namespace failed");

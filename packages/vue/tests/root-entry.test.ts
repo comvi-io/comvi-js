@@ -50,7 +50,7 @@ describe("@comvi/vue — the single root entry", () => {
     expect("instanceId" in i18n.core).toBe(false);
     // The eight dropped proxies stay dropped on the preset path too.
     expect("reloadTranslations" in i18n).toBe(false);
-    expect("use" in i18n).toBe(false);
+    expect("registerPlugin" in i18n).toBe(false);
   });
 
   it("applies ssrLocale to the host before seeding the reactive ref", () => {
@@ -162,7 +162,7 @@ describe("@comvi/vue — the capability toolkit", () => {
   it("composes AND configures in one expression — the documented recipe", async () => {
     const core = root
       .createCore({ locale: "en", exposeGlobal: false, compiler: root.icuCompiler })
-      .with(
+      .use(
         root.loader({
           en: async () => ({ default: { greeting: "Hello" } }),
           uk: async () => ({ default: { greeting: "Привіт" } }),
@@ -184,7 +184,7 @@ describe("@comvi/vue — the capability toolkit", () => {
   it("the one-call preset's own host takes the pipe too", () => {
     const i18n = root.createI18n({ locale: "en", ssrLocale: "en", exposeGlobal: false });
 
-    const composed = i18n.core.with(root.plugins());
+    const composed = i18n.core.use(root.plugins());
     expect(composed).toBe(i18n.core);
     expect(typeof composed.use).toBe("function");
   });
@@ -240,6 +240,7 @@ describe("@comvi/vue — the export surface", () => {
     "createCore",
     "createI18n",
     "createI18nFromCore",
+    "definePlugin",
     "devtools",
     "flattenCatalog",
     "icuCompiler",

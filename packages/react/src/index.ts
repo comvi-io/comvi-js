@@ -30,7 +30,7 @@ export type { TProps } from "./T";
 // never calls stay out of its graph.
 export { icuCompiler } from "@comvi/core/icu";
 export { attachLoader, flattenCatalog, loader } from "@comvi/core/loader";
-export { attachPlugins, plugins } from "@comvi/core/plugins";
+export { attachPlugins, definePlugin, plugins } from "@comvi/core/plugins";
 export { attachDevtools, devtools } from "@comvi/core/devtools";
 
 export type * from "@comvi/core";

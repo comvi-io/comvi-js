@@ -34,13 +34,13 @@ describe("hasPluginHostApi()", () => {
 describe("missingCapability()", () => {
   it("names the loader subpath and its lower-level attach function", () => {
     expect(missingCapability("loader").message).toBe(
-      '[comvi] This i18n instance has no loader capability. Compose it: .with(loader()) from "@comvi/core/loader", or the lower-level attachLoader.',
+      '[comvi] This i18n instance has no loader capability. Compose it: .use(loader()) from "@comvi/core/loader", or the lower-level attachLoader.',
     );
   });
 
   it("names the plugins subpath and its lower-level attach function", () => {
     expect(missingCapability("plugins").message).toBe(
-      '[comvi] This i18n instance has no plugins capability. Compose it: .with(plugins()) from "@comvi/core/plugins", or the lower-level attachPlugins.',
+      '[comvi] This i18n instance has no plugins capability. Compose it: .use(plugins()) from "@comvi/core/plugins", or the lower-level attachPlugins.',
     );
   });
 });

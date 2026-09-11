@@ -10,14 +10,14 @@ export type CdnLoaderInstaller = <T extends I18n<any>>(
 ) => T & I18nLoaderApi & I18nPluginHostApi;
 
 /**
- * The CDN-only fetch loader as a `.with(…)` installer.
+ * The CDN-only fetch loader as a `.use(…)` installer.
  *
  * ```ts
- * const i18n = createI18n({ locale: "en" }).with(cdnLoader({ cdnUrl }));
+ * const i18n = createI18n({ locale: "en" }).use(cdnLoader({ cdnUrl }));
  * ```
  *
  * The same composition `fetchLoader` performs — `@comvi/core/plugins` and
- * `@comvi/core/loader`, both idempotent, then `use`, with `attachPlugins`
+ * `@comvi/core/loader`, both idempotent, then `registerPlugin`, with `attachPlugins`
  * first so a late compose reports the plugin queue rather than the loader's
  * unreachable recovery advice — around `CdnLoader(options)` instead of
  * `FetchLoader(options)`. Reach for
@@ -28,14 +28,14 @@ export type CdnLoaderInstaller = <T extends I18n<any>>(
  * `undefined`: `cdnUrl` has no default, and the throw stays at COMPOSITION
  * time — this installer builds the plugin before it queues it.
  *
- * `.use(cdnLoader(…))` is a type error, and at runtime fails at `init()` on
+ * `registerPlugin(cdnLoader(…))` is a type error, and at runtime fails at `init()` on
  * `ensureInstallable` before either capability is attached. Hand the uppercase
  * `CdnLoader` factory to `.use` instead.
  */
 export function cdnLoader(options: CdnLoaderOptions): CdnLoaderInstaller {
   return (i18n) => {
     const host = attachLoader(attachPlugins(ensureInstallable(i18n, "cdnLoader")));
-    host.use(CdnLoader(options));
+    host.registerPlugin(CdnLoader(options));
     return host;
   };
 }

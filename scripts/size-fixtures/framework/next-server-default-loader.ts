@@ -1,6 +1,6 @@
 // Framework size fixture: the next SERVER graph on a composed BASE host — SSR without
 // ICU or tags, every specifier `@comvi/next/server`. Composition goes through
-// `.with(attachLoader)`, not `.with(loader())`, because this host registers no import
+// `.use(attachLoader)`, not `.use(loader())`, because this host registers no import
 // map and `loader()` statically references the import-map adapter.
 import {
   attachLoader,
@@ -16,7 +16,7 @@ const { i18n, routing } = createNextI18nFromHost(
     createI18n({
       locale: "en",
       translation: { en: { greeting: "Hello, {name}!" } },
-    }).with(attachLoader),
+    }).use(attachLoader),
   { locales: ["en", "de"], defaultLocale: "en" },
 );
 

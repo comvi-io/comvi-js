@@ -66,7 +66,11 @@ assert(result.i18n === i18n, "the resolved host is memoized");
 assertEqual(hostCalls, 1, "later accesses reuse the memoized host");
 
 assert(typeof i18n.reloadTranslations === "function", "the composed host carries the loader API");
-assert(typeof i18n.use === "undefined", "base + attachLoader has no plugin-host capability");
+assert(
+  typeof i18n.registerPlugin === "undefined",
+  "base + attachLoader has no plugin-host capability",
+);
+assert(typeof i18n.use === "function", "…but the composition verb is on the base host");
 assertEqual(
   i18n.t("msg", { b: ({ children }) => `*${children}*` }),
   "a <b>c</b> d",

@@ -2,9 +2,9 @@
 // `@comvi/core/tags`: it registers tag syntax ambiently, so an app that wants
 // tags in the plain `t()` string API names that side effect itself.
 import "@comvi/core/tags";
-import { createI18n, icuCompiler, loader, plugins } from "@comvi/solid";
+import { createI18n, icuCompiler, loader } from "@comvi/solid";
 import type { I18n, I18nLoaderApi, I18nPluginHostApi } from "@comvi/solid";
-import { LocaleDetector } from "@comvi/plugin-locale-detector";
+import { localeDetector } from "@comvi/plugin-locale-detector";
 
 const supportedLocales = ["en", "de", "fr", "es", "uk", "ar"] as const;
 
@@ -20,7 +20,7 @@ export const i18n: I18n & I18nLoaderApi & I18nPluginHostApi = createI18n({
 })
   // `loader(map)` attaches the capability and registers the import-map adapter
   // in one call; `registerLoader` on its own takes a plain `LoaderFn`.
-  .with(
+  .use(
     loader({
       en: () => import("../../locales/en.json"),
       de: () => import("../../locales/de.json"),
@@ -36,9 +36,11 @@ export const i18n: I18n & I18nLoaderApi & I18nPluginHostApi = createI18n({
       "ar:admin": () => import("../../locales/admin/ar.json"),
     }),
   )
-  .with(plugins())
+  // The locale detector, through the package's own lowercase installer: it
+  // attaches the plugin host it needs and registers the detector, so an app
+  // never touches the raw plugin queue.
   .use(
-    LocaleDetector({
+    localeDetector({
       supportedLocales: [...supportedLocales],
       order: ["localStorage", "navigator"],
       caches: ["localStorage"],

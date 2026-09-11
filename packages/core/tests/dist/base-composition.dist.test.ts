@@ -134,7 +134,7 @@ describe("prod dist: base + /loader + /plugins composition (A6)", () => {
       ),
     );
 
-    i18n.use((host: { registerLocaleDetector: (d: () => string) => void }) => {
+    i18n.registerPlugin((host: { registerLocaleDetector: (d: () => string) => void }) => {
       order.push("plugin");
       host.registerLocaleDetector(() => "fr");
       return () => void order.push("cleanup");
@@ -222,7 +222,7 @@ describe("prod dist: base + /loader + /plugins composition (A6)", () => {
     });
     await i18n.init();
 
-    attachPlugins(i18n).use(() => {});
+    attachPlugins(i18n).registerPlugin(() => {});
     attachLoader(i18n);
 
     expect(warnSpy).not.toHaveBeenCalled();

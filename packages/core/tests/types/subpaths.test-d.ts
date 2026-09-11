@@ -30,7 +30,13 @@ import {
   type ComviQueueEntry,
   type DevtoolsOptions,
 } from "@comvi/core/devtools";
-import { attachPlugins, plugins, type I18nPlugin } from "@comvi/core/plugins";
+import {
+  attachPlugins,
+  definePlugin,
+  plugins,
+  type I18nPlugin,
+  type I18nPluginHostApi,
+} from "@comvi/core/plugins";
 import { icuCompiler, type MessageCompiler } from "@comvi/core/icu";
 import {
   registerTagSyntax,
@@ -170,7 +176,7 @@ withLoader.registerLoader(mapLoader);
 // The import-map form is the CONFIGURED installer's job: the base root has no
 // `registerLoader` at all, and the loader capability's signature takes a
 // `LoaderFn`. `@comvi/next`'s composed host restores the two-overload shape.
-const mapConfigured = createBaseI18n({ locale: "en" }).with(
+const mapConfigured = createBaseI18n({ locale: "en" }).use(
   loader({ en: async () => ({ hello: "world" }) }),
 );
 void mapConfigured.getLoader();
@@ -179,7 +185,7 @@ void mapConfigured.getLoader();
 
 // A bare slim instance genuinely lacks the plugin host.
 // @ts-expect-error — use() lives in @comvi/core/plugins
-slim.use(() => {});
+slim.registerPlugin(() => {});
 // @ts-expect-error — registerPostProcessor lives in @comvi/core/plugins
 slim.registerPostProcessor((r) => r);
 // @ts-expect-error — setPluginData lives in @comvi/core/plugins
@@ -189,7 +195,7 @@ slim.setPluginData("k", 1);
 // loader-registering plugins.
 const composed = attachPlugins(attachLoader(createBaseI18n({ locale: "en" })));
 composed.registerLoader(loaderFn);
-composed.use(() => {});
+composed.registerPlugin(() => {});
 composed.registerLocaleDetector(() => "fr");
 const detector: (() => string | Promise<string>) | undefined = composed.getLanguageDetector();
 void detector;
@@ -200,7 +206,7 @@ composed.setPluginData("cfg", { a: 1 });
 const cfg: { a: number } | undefined = composed.getPluginData<{ a: number }>("cfg");
 void cfg;
 // the base surface survives both widenings, and `use` stays chainable
-composed.use(() => {}).t("count", { count: 1 });
+composed.registerPlugin(() => {}).t("count", { count: 1 });
 
 // A fetch-loader-shaped plugin (registers a loader + stores plugin data
 // through the host) compiles and can be hosted by the composed slim chain.
@@ -208,9 +214,9 @@ const fetchLoaderShaped: I18nPlugin = (i18n) => {
   i18n.setPluginData("fetchLoader", { projectId: "p" });
   i18n.registerLoader(async () => ({ hello: "world" }));
 };
-composed.use(fetchLoaderShaped);
-// @ts-expect-error — the base root is not a plugin host until `.with(plugins())`
-createBaseI18n({ locale: "en" }).use(fetchLoaderShaped);
+composed.registerPlugin(fetchLoaderShaped);
+// @ts-expect-error — the base root is not a plugin host until `.use(plugins())`
+createBaseI18n({ locale: "en" }).registerPlugin(fetchLoaderShaped);
 
 // Every value a wrapper runtime module needs resolves through the single root
 // entry, which is side-effect-free — so reaching for a helper costs a wrapper
@@ -280,14 +286,14 @@ void (queue satisfies ComviQueueEntry[] | ComviHook);
 const flat: Record<string, string> = flattenCatalog({ nav: { home: "Home" } });
 createBaseI18n({ locale: "en" }).addTranslations({ en: flat });
 
-// ── `.with(…)`: the composition pipe + configured installers (fs-dx2) ─────
+// ── `.use(…)`: the composition pipe + configured installers (fs-dx2) ─────
 //
 // `with` is on the BASE class, so it is always present and always just
 // `f(this)`. Everything below is about ONE property: the generic host type
 // must flow THROUGH the pipe and come out widened, never decayed to `any`.
 
 // The target DX, verbatim: one expression, capability configured in place.
-const piped = createBaseI18n({ locale: "en", compiler: icuCompiler }).with(
+const piped = createBaseI18n({ locale: "en", compiler: icuCompiler }).use(
   loader({ uk: async () => ({ default: { hello: "Привіт" } }) }),
 );
 piped.registerLoader(loaderFn);
@@ -297,7 +303,7 @@ void piped.reloadTranslations("uk", "default");
 piped.onLoadError(() => {});
 
 // THE DECAY PROBE. `D` is empty here, so `review` still requires its
-// `formality` param. If `.with` let the host collapse to `any`, this call
+// `formality` param. If `.use` let the host collapse to `any`, this call
 // would succeed and the directive would report itself as unused.
 // @ts-expect-error — D survives the pipe: no constructor defaults were given
 piped.t("review");
@@ -308,81 +314,116 @@ piped.t("review", { formality: "formal" });
 const pipedWithDefaults = createBaseI18n({
   locale: "en",
   defaultParams: { formality: "formal" },
-}).with(loader());
+}).use(loader());
 pipedWithDefaults.t("review");
 pipedWithDefaults.registerLoader(loaderFn);
 
 // Chaining compounds the widenings; the base surface survives both.
-const pipedBoth = createBaseI18n({ locale: "en" }).with(loader()).with(plugins());
+const pipedBoth = createBaseI18n({ locale: "en" }).use(loader()).use(plugins());
 pipedBoth.registerLoader(loaderFn);
-pipedBoth.use(fetchLoaderShaped).t("count", { count: 1 });
+pipedBoth.registerPlugin(fetchLoaderShaped).t("count", { count: 1 });
 pipedBoth.registerPostProcessor((result) => result);
 const pipedBothHost: WrapperI18nHost = pipedBoth;
 void pipedBothHost;
 
 // Order is the caller's; the type compounds either way.
-const pipedReversed = createBaseI18n({ locale: "en" }).with(plugins()).with(loader());
-pipedReversed.use(() => {});
+const pipedReversed = createBaseI18n({ locale: "en" }).use(plugins()).use(loader());
+pipedReversed.registerPlugin(() => {});
 pipedReversed.registerLoader(loaderFn);
 
-// The addendum's plugin-ecosystem guarantee, at the type level: `.use` is a
-// compile error until `plugins()` is composed in, and present afterwards.
-const pipedLoaderOnly = createBaseI18n({ locale: "en" }).with(loader());
+// The addendum's plugin-ecosystem guarantee, at the type level:
+// `registerPlugin` is a compile error until `plugins()` is composed in, and
+// present afterwards. `.use` itself is on the BASE host and always there.
+const pipedLoaderOnly = createBaseI18n({ locale: "en" }).use(loader());
 // @ts-expect-error — use() arrives with @comvi/core/plugins, not with the loader
-pipedLoaderOnly.use(fetchLoaderShaped);
-pipedLoaderOnly.with(plugins()).use(fetchLoaderShaped);
+pipedLoaderOnly.registerPlugin(fetchLoaderShaped);
+pipedLoaderOnly.use(plugins()).registerPlugin(fetchLoaderShaped);
 
 // devtools() adds no public members: the host type comes back unchanged.
-const pipedDevtools: typeof slim = slim.with(devtools({ exposeGlobal: false }));
+const pipedDevtools: typeof slim = slim.use(devtools({ exposeGlobal: false }));
 void pipedDevtools;
 
 // The low-level attaches ARE installers — the factories only add config.
-createBaseI18n({ locale: "en" }).with(attachLoader).registerLoader(loaderFn);
+createBaseI18n({ locale: "en" }).use(attachLoader).registerLoader(loaderFn);
 createBaseI18n({ locale: "en" })
-  .with(attachPlugins)
-  .use(() => {});
-createBaseI18n({ locale: "en" }).with(attachDevtools).t("count", { count: 1 });
+  .use(attachPlugins)
+  .registerPlugin(() => {});
+createBaseI18n({ locale: "en" }).use(attachDevtools).t("count", { count: 1 });
 
 // A hand-written installer is just a function; nothing is branded or
-// registered, so a user's own composition step needs no core import.
-const withRevision = createBaseI18n({ locale: "en" }).with((i18n) => ({
-  i18n,
-  dispose: subscribeToRevision(i18n, () => {}),
-}));
-withRevision.dispose();
-withRevision.i18n.t("count", { count: 1 });
+// registered, so a user's own composition step needs no core import. It must
+// widen the host IN PLACE and return IT — a derived object is refused at
+// runtime with `E_USE_NOT_INSTALLER`, so the extra it produces lives beside
+// the chain rather than in the return value.
+let unsubscribeHandwritten: () => void = () => {};
+const withRevision = createBaseI18n({ locale: "en" }).use((i18n) => {
+  unsubscribeHandwritten = subscribeToRevision(i18n, () => {});
+  return i18n as typeof i18n & { readonly revisionSubscribed: true };
+});
+unsubscribeHandwritten();
+withRevision.revisionSubscribed satisfies true;
+withRevision.t("count", { count: 1 });
 
 // FUTURE-PROOFING (fs-dx2 contract 2): the parameter is the widest honest
 // shape — any `(host) => value`. A branded installer, which is how published
-// plugin packages are expected to become directly `.with`-able, therefore
+// plugin packages are expected to become directly `.use`-able, therefore
 // already flows through unchanged and needs no overload today.
 interface BrandedInstaller<A> {
   <T extends object>(host: T): T & A;
   readonly __comviInstaller: unique symbol;
 }
 declare const brandedFetchLoader: BrandedInstaller<{ readonly fetchLoaderConfigured: true }>;
-const pipedBranded = createBaseI18n({ locale: "en" }).with(brandedFetchLoader);
+const pipedBranded = createBaseI18n({ locale: "en" }).use(brandedFetchLoader);
 pipedBranded.fetchLoaderConfigured satisfies true;
+
+type Equal<X, Y> =
+  (<T>() => T extends X ? 1 : 2) extends <T>() => T extends Y ? 1 : 2 ? true : false;
+type Expect<T extends true> = T;
+
+// `registerPlugin` is the plugin host's member under its post-E name, and
+// `use` is NOT on that API: the queue and the composition verb are two
+// different members with two different contracts (`use` is on the BASE host).
+export type _RegisterPluginIsOnTheApi = Expect<
+  Equal<"registerPlugin" extends keyof I18nPluginHostApi ? true : false, true>
+>;
+export type _RegisterPluginArg = Expect<
+  Equal<Parameters<I18nPluginHostApi["registerPlugin"]>[0], I18nPlugin>
+>;
+export type _ApiHasNoUse = Expect<
+  Equal<"use" extends keyof I18nPluginHostApi ? true : false, false>
+>;
+
+// `definePlugin(fn)` is an installer, so it satisfies `.use`'s parameter and
+// widens the host by exactly the plugin-host API.
+const withDefinedPlugin = createBaseI18n({ locale: "en" }).use(definePlugin(() => {}));
+export type _DefinePluginWidensToThePluginHost = Expect<
+  Equal<typeof withDefinedPlugin extends I18nPluginHostApi ? true : false, true>
+>;
+withDefinedPlugin.registerPlugin(() => {});
+// It takes the same options the queue does.
+createBaseI18n({ locale: "en" }).use(definePlugin(() => {}, { required: false, timeout: 50 }));
+// @ts-expect-error — definePlugin takes a PLUGIN, not an installer
+createBaseI18n({ locale: "en" }).use(definePlugin(attachLoader));
 pipedBranded.t("count", { count: 1 });
 
 // Composing both capabilities onto the base root widens it to the full
 // surface, and the widened host accepts a plain LoaderFn plus plugins.
-const fullyPiped = createBaseI18n({ locale: "en" }).with(loader()).with(plugins());
+const fullyPiped = createBaseI18n({ locale: "en" }).use(loader()).use(plugins());
 fullyPiped.registerLoader(loaderFn);
-fullyPiped.use(fetchLoaderShaped);
+fullyPiped.registerPlugin(fetchLoaderShaped);
 
 // ── wrong installer shapes ────────────────────────────────────────────────
 
 // @ts-expect-error — the FACTORY is not an installer; it must be called
-createBaseI18n({ locale: "en" }).with(loader);
+createBaseI18n({ locale: "en" }).use(loader);
 // @ts-expect-error — an installer is a function, not a value
-createBaseI18n({ locale: "en" }).with(attachLoader(createBaseI18n({ locale: "en" })));
+createBaseI18n({ locale: "en" }).use(attachLoader(createBaseI18n({ locale: "en" })));
 // @ts-expect-error — a PLUGIN is not an installer: it demands a plugin host,
-// which a bare slim instance is not (that is what `.with(plugins())` fixes)
-createBaseI18n({ locale: "en" }).with(fetchLoaderShaped);
+// which a bare slim instance is not (that is what `.use(plugins())` fixes)
+createBaseI18n({ locale: "en" }).use(fetchLoaderShaped);
 // @ts-expect-error — an import map's values must be import functions
-createBaseI18n({ locale: "en" }).with(loader({ uk: "./uk.json" }));
+createBaseI18n({ locale: "en" }).use(loader({ uk: "./uk.json" }));
 // @ts-expect-error — devtools() takes DevtoolsOptions, not I18nOptions
-createBaseI18n({ locale: "en" }).with(devtools({ locale: "en" }));
+createBaseI18n({ locale: "en" }).use(devtools({ locale: "en" }));
 // @ts-expect-error — plugins() takes no configuration yet
-createBaseI18n({ locale: "en" }).with(plugins({ strict: true }));
+createBaseI18n({ locale: "en" }).use(plugins({ strict: true }));

@@ -1,5 +1,5 @@
 // @comvi/core — the BASE host: text + `{param}` interpolation, the translation
-// cache, events, default params and the `.with(installer)` composition pipe.
+// cache, events, default params and the `.use(installer)` composition pipe.
 // A capability is absent because its module never entered your bundle, never
 // because a runtime flag turned it off. Each one is a subpath import:
 //   • `@comvi/core/icu`      — `icuCompiler` for plural/select/selectordinal

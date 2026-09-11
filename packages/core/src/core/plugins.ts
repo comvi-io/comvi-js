@@ -38,15 +38,15 @@ const ERR_REGISTER_LOCALE_DETECTOR = IS_DEV
  * strings — and the WeakSet with them.
  */
 const ERR_LATE_PLUGINS = IS_DEV
-  ? "[i18n] .with(plugins()) ran after init(): compose capabilities before init(). The plugin queue is drained inside init() and never again, so a plugin queued now will never run. Create the host, compose it, then init()."
+  ? "[i18n] .use(plugins()) ran after init(): compose capabilities before init(). The plugin queue is drained inside init() and never again, so a plugin queued now will never run. Create the host, compose it, then init()."
   : "";
 
-const ERR_LATE_USE = IS_DEV
-  ? "[i18n] use() was called after init(): compose capabilities before init(). The plugin queue is drained inside init() and never again, so this plugin will never run."
+const ERR_LATE_REGISTER_PLUGIN = IS_DEV
+  ? "[i18n] registerPlugin() was called after init(): register plugins before init(). The plugin queue is drained inside init() and never again, so this plugin will never run."
   : "";
 
 const ERR_PLUGIN_INIT_RETURN = IS_DEV
-  ? "[i18n] A plugin returned a value. A plugin may only return nothing (`undefined`) or a cleanup function, so nothing was registered. If this was a lowercase installer, compose it with `.with(installer(…))` — `.use()` runs it as a plugin and it hands the host back. If it was your own plugin, use a statement body: `(i18n) => { flag = true; }`."
+  ? "[i18n] A plugin returned a value. A plugin may only return nothing (`undefined`) or a cleanup function, so nothing was registered. If this was a lowercase installer, compose it with `.use(installer(…))` — `registerPlugin()` runs it as a plugin and it hands the host back. If it was your own plugin, use a statement body: `(i18n) => { flag = true; }`."
   : "E_PLUGIN_INIT_RETURN";
 
 /** @internal Registered plugin tuple; owned by the plugin capability. */
@@ -121,7 +121,11 @@ export class I18nWithPlugins<D extends DefaultTranslationParams = {}> extends I1
   }
 
   /**
-   * Register a plugin (chainable).
+   * Register a raw plugin (chainable) — the deferred queue, drained at `init()`.
+   *
+   * NOT a composition verb: `.use(installer)` composes, this queues. An app's
+   * own inline plugin goes through the `definePlugin(fn)` installer, which is this
+   * call in `.use` clothing.
    *
    * MUST be called BEFORE `init()`. The queue is drained once, inside `init()`,
    * and re-running it is not supported (a plugin's cleanup and the lifecycle
@@ -129,8 +133,8 @@ export class I18nWithPlugins<D extends DefaultTranslationParams = {}> extends I1
    * never runs — that warns in dev and is a no-op in prod. Registering from
    * INSIDE a plugin is fine: the drain loop picks the new entry up.
    */
-  public use(plugin: I18nPluginFn, options?: PluginOptions): this {
-    if (IS_DEV && this.isInitialized) warnLateCompose(this, ERR_LATE_USE);
+  public registerPlugin(plugin: I18nPluginFn, options?: PluginOptions): this {
+    if (IS_DEV && this.isInitialized) warnLateCompose(this, ERR_LATE_REGISTER_PLUGIN);
     this._plugins.push([
       plugin,
       options?.required ?? true,
@@ -285,7 +289,7 @@ export class I18nWithPlugins<D extends DefaultTranslationParams = {}> extends I1
  * Add the plugin-host capability to a base host.
  *
  * MUST run BEFORE `init()`, which drains the plugin queue exactly once — a host
- * composed afterwards has a `use()` that can never take effect.
+ * composed afterwards has a `registerPlugin()` that can never take effect.
  *
  * Attach `attachLoader` TOO if any hosted plugin registers a loader, in either
  * order. Without it, this installs — IN DEVELOPMENT ONLY — a branded throwing
@@ -334,14 +338,14 @@ interface PluginInitProbe {
 
 /**
  * The FIRST ensure-step of a lowercase plugin-package installer — the
- * plugins-only nested-use guard.
+ * plugins-only installer-as-plugin guard.
  *
  * An installer is a function of the host, and so is a plugin: nothing brands
- * them apart, so `.use(fetchLoader(…))` is a type error that would otherwise
- * RUN, letting the installer attach capabilities and queue a second plugin from
- * inside the drain loop. This throws instead, at the installer's innermost
- * expression — before anything is attached — so a rejected install leaves the
- * host exactly as it was.
+ * them apart, so `registerPlugin(fetchLoader(…))` is a type error that would
+ * otherwise RUN, letting the installer attach capabilities and queue a second
+ * plugin from inside the drain loop. This throws instead, at the installer's
+ * innermost expression — before anything is attached — so a rejected install
+ * leaves the host exactly as it was.
  *
  * Outside plugin initialization it returns the host untouched, which is what
  * makes it safe as the first line of every installer.
@@ -350,8 +354,8 @@ export function ensureInstallable<T>(i18n: T, installer: string): T {
   if ((i18n as unknown as PluginInitProbe)._pluginInit) {
     throw new Error(
       IS_DEV
-        ? `[i18n] ${installer}() is a .with(…) installer, not a plugin, and it ran during plugin initialization — it was registered with .use(${installer}(…)). Compose it instead: createI18n(…).with(${installer}(…)). Nothing was installed.`
-        : "E_INSTALLER_NESTED_USE",
+        ? `[i18n] ${installer}() is a .use installer, not a plugin, and it ran during plugin initialization — it was registered with registerPlugin(${installer}(…)) or definePlugin(${installer}(…)). Compose it instead: createI18n(…).use(${installer}(…)). Nothing was installed.`
+        : "E_INSTALLER_AS_PLUGIN",
     );
   }
   return i18n;

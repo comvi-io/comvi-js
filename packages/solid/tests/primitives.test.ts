@@ -99,7 +99,7 @@ describe("Solid primitives", () => {
   it("updates loading and initializing signals during initialization work", async () => {
     // The only host in this file that needs a capability: the loading signals
     // are driven by a real loader, which the base host does not have.
-    const i18n = createI18n({ locale: "en", defaultNs: "common" }).with(attachLoader);
+    const i18n = createI18n({ locale: "en", defaultNs: "common" }).use(attachLoader);
     let resolveLoader!: (value: Record<string, string>) => void;
     const loaderResult = new Promise<Record<string, string>>((resolve) => {
       resolveLoader = resolve;

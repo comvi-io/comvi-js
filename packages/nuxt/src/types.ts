@@ -143,8 +143,8 @@ export interface NuxtI18nOptions {
 
   /**
    * Path to a setup file that runs before i18n.init().
-   * Use it to register plugins via i18n.core.use(...) — `i18n` is a `VueI18n`,
-   * whose capability APIs live on `i18n.core`.
+   * Use it to register plugins via i18n.core.registerPlugin(...) — `i18n` is a
+   * `VueI18n`, whose capability APIs live on `i18n.core`.
    * If omitted, module auto-detects ./comvi.setup.* in project root.
    *
    * @example "./comvi.setup.ts"
@@ -202,9 +202,9 @@ export interface NuxtI18nOptions {
    *
    * export default (options) =>
    *   createI18n({ ...options, compiler: icuCompiler })
-   *     .with(loader({ uk: () => import("./locales/uk.json") }))
-   *     .with(plugins())
-   *     .with(devtools());
+   *     .use(loader({ uk: () => import("./locales/uk.json") }))
+   *     .use(plugins())
+   *     .use(devtools());
    * ```
    */
   hostModule?: string;

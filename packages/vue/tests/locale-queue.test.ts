@@ -18,7 +18,7 @@ const createDeferred = () => {
 
 const createLoaderI18n = (options: Partial<I18nOptions> = {}) =>
   createI18nFromCore(
-    createCore({ locale: "en", defaultNs: "common", ...options } as I18nOptions).with(attachLoader),
+    createCore({ locale: "en", defaultNs: "common", ...options } as I18nOptions).use(attachLoader),
   );
 
 // A queued change starts one microtask after the task ahead of it settles, so

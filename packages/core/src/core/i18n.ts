@@ -62,6 +62,10 @@ const ERR_TRANSLATION_NOT_OBJECT = IS_DEV
 const ERR_INSTANCE_DESTROYED = IS_DEV
   ? "[i18n] Cannot call init() after destroy(). Create a new i18n instance."
   : "E_INSTANCE_DESTROYED";
+/** See {@link I18n.use}: the rule is identity, and this is the whole diagnostic. */
+const ERR_USE_NOT_INSTALLER = IS_DEV
+  ? "[i18n] .use(f) expects an installer that returns the host it was given, but f returned something else. A raw plugin goes through .use(definePlugin(f)) or registerPlugin(f); a plugin package's installer is the lowercase factory (localeDetector(), not LocaleDetector())."
+  : "E_USE_NOT_INSTALLER";
 
 // Two copies of core share none of the module-scoped state below. DEV-only:
 // production drops the call, then the import, then the module itself.
@@ -318,20 +322,46 @@ export class I18n<D extends DefaultTranslationParams = {}>
   }
 
   /**
-   * Apply a capability installer and return whatever it produces.
+   * Apply a capability installer — the ONE composition verb.
    *
    * ```ts
-   * const i18n = createI18n({ locale: "en" }).with(loader({ uk: () => import("./uk.json") }));
+   * const i18n = createI18n({ locale: "en" }).use(loader({ uk: () => import("./uk.json") }));
    * ```
    *
-   * A pipe and nothing more: `with(f)` is `f(this)`. No registry, no ordering,
-   * no capability semantics — the installer's own return type decides what the
-   * host widens to. `attachLoader` / `attachPlugins` / `attachDevtools` are
-   * themselves valid installers; the `loader()` / `plugins()` / `devtools()`
-   * factories exist to CONFIGURE the capability in the same call.
+   * An installer widens the host IN PLACE and returns IT: `use(f)` calls
+   * `f(this)` and hands back `this`, retyped to whatever the installer's return
+   * type says it widened to. No registry, no ordering, no capability semantics.
+   * `attachLoader` / `attachPlugins` / `attachDevtools` are themselves valid
+   * installers; the `loader()` / `plugins()` / `devtools()` factories exist to
+   * CONFIGURE the capability in the same call.
+   *
+   * Anything else is refused with `code: "E_USE_NOT_INSTALLER"`. Identity —
+   * rather than a shape probe — is what makes ONE verb safe: a raw plugin is
+   * also a function of the host, and an ASYNC one returns a Promise, which any
+   * "is it an object?" test would wave through and then leave running at
+   * composition time with its rejection unhandled. A raw plugin goes through
+   * `.use(definePlugin(f))` or `registerPlugin(f)` instead.
+   *
+   * Vue's wrapper enforces the same rule one level up, over `i18n.core`, and
+   * reports it under the wrapper's own code `E_USE_HOST_IDENTITY`.
    */
-  public with<T>(installer: (i18n: this) => T): T {
-    return installer(this);
+  public use<T>(installer: (i18n: this) => T): T {
+    const widened: unknown = installer(this);
+    if (widened !== this) {
+      // The function already RAN, so a raw ASYNC plugin has a live promise
+      // here. The error below is the report; that promise's rejection is not,
+      // and leaving it floating would print an unhandled rejection on top of
+      // an already-clear diagnostic. Swallow it, and only it.
+      if (typeof (widened as { then?: unknown } | null | undefined)?.then === "function") {
+        void (widened as Promise<unknown>).then(undefined, () => {});
+      }
+      const error = new Error(ERR_USE_NOT_INSTALLER) as Error & {
+        code: "E_USE_NOT_INSTALLER";
+      };
+      error.code = "E_USE_NOT_INSTALLER";
+      throw error;
+    }
+    return widened as T;
   }
 
   public async init(): Promise<this> {

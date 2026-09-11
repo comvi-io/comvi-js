@@ -148,7 +148,7 @@ describe("<T /> component", () => {
   // `registerPostProcessor` is a `@comvi/core/plugins` member, so every case
   // here wraps a host that composed the plugin capability.
   const createPostProcessorI18n = (translation: Record<string, Record<string, string>>) =>
-    createI18nFromCore(createCore({ locale: "en", translation }).with(attachPlugins));
+    createI18nFromCore(createCore({ locale: "en", translation }).use(attachPlugins));
 
   const upperCaseUnlessRaw = (
     result: TranslationResult,

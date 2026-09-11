@@ -219,7 +219,7 @@ export async function runComviSetup(context) {
     // The host is decided HERE, at codegen: the same branch taken at runtime
     // would keep BOTH paths alive in every bundle. The default branch builds the
     // BASE host — ICU is the one capability with a module option, because it is
-    // a constructor argument rather than something `.with()` can pipe on. Every
+    // a constructor argument rather than something `.use()` can pipe on. Every
     // other capability arrives through `hostModule`, which is why that branch
     // forwards nuxt's RESOLVED options into the factory.
     addTemplate({
@@ -275,7 +275,7 @@ function createHost(options) {
 
   if (!host || typeof host.t !== "function") {
     throw new TypeError(
-      "[@comvi/nuxt] comvi hostModule's default export returned no i18n host. Return the composed host, e.g. createI18n(options).with(loader(map)).",
+      "[@comvi/nuxt] comvi hostModule's default export returned no i18n host. Return the composed host, e.g. createI18n(options).use(loader(map)).",
     );
   }
 

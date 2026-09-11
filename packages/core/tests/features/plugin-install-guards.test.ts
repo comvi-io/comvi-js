@@ -11,11 +11,11 @@ import type { I18nPlugin } from "../../src/plugins/types";
  * The two plugins-only misuse guards.
  *
  * Installers and plugins are both "a function of the host" and NOTHING brands
- * them apart — `.with` stays a dumb pipe, so the type system rejects the two
+ * them apart — `.use` stays a dumb pipe, so the type system rejects the two
  * cross-uses and these guards make the runtime reject them too:
  *
  *   1. the NESTED-USE guard — `ensureInstallable`, the first ensure-step of
- *      every lowercase plugin-package installer. `.use(fetchLoader(…))` runs
+ *      every lowercase plugin-package installer. `registerPlugin(fetchLoader(…))` runs
  *      the installer from inside the init drain loop; the guard throws there,
  *      before any capability is attached and before a second plugin is queued;
  *   2. the RETURN-SHAPE guard — `init()` accepts only `undefined` or a cleanup
@@ -30,7 +30,7 @@ import type { I18nPlugin } from "../../src/plugins/types";
  */
 
 /** A base host with the plugin capability and nothing else. */
-const pluginHost = () => createI18n({ locale: "en", exposeGlobal: false }).with(plugins());
+const pluginHost = () => createI18n({ locale: "en", exposeGlobal: false }).use(plugins());
 
 /**
  * The shape every lowercase plugin-package installer has: guard first, then
@@ -41,21 +41,21 @@ const pluginHost = () => createI18n({ locale: "en", exposeGlobal: false }).with(
 function installerLike(inner: I18nPlugin) {
   return <T extends I18n<any>>(i18n: T) => {
     const host = attachPlugins(attachLoader(ensureInstallable(i18n, "fetchLoader")));
-    host.use(inner);
+    host.registerPlugin(inner);
     return host;
   };
 }
 
 describe("nested-use guard", () => {
-  it("is transparent on the valid `.with` path", () => {
+  it("is transparent on the valid `.use` path", () => {
     const i18n = createI18n({ locale: "en", exposeGlobal: false });
 
     expect(ensureInstallable(i18n, "fetchLoader")).toBe(i18n);
   });
 
-  it("lets a real installer compose through `.with`", async () => {
+  it("lets a real installer compose through `.use`", async () => {
     const inner = vi.fn<I18nPlugin>(() => undefined);
-    const i18n = createI18n({ locale: "en", exposeGlobal: false }).with(installerLike(inner));
+    const i18n = createI18n({ locale: "en", exposeGlobal: false }).use(installerLike(inner));
 
     await i18n.init();
 
@@ -64,17 +64,17 @@ describe("nested-use guard", () => {
     expect(inner).toHaveBeenCalledTimes(1);
   });
 
-  it("rejects `.use(installer)` at init, actionably and by name", async () => {
+  it("rejects `registerPlugin(installer)` at init, actionably and by name", async () => {
     const i18n = pluginHost();
-    i18n.use(installerLike(() => undefined) as unknown as I18nPlugin);
+    i18n.registerPlugin(installerLike(() => undefined) as unknown as I18nPlugin);
 
-    await expect(i18n.init()).rejects.toThrow(/fetchLoader\(\) is a \.with\(…\) installer/);
+    await expect(i18n.init()).rejects.toThrow(/fetchLoader\(\) is a \.use installer/);
   });
 
   it("mutates nothing: no attachment, no queued plugin, no cleanup", async () => {
     const inner = vi.fn<I18nPlugin>(() => () => undefined);
     const i18n = pluginHost();
-    i18n.use(installerLike(inner) as unknown as I18nPlugin);
+    i18n.registerPlugin(installerLike(inner) as unknown as I18nPlugin);
 
     await expect(i18n.init()).rejects.toThrow();
 
@@ -99,7 +99,7 @@ describe("nested-use guard", () => {
     const inner = vi.fn<I18nPlugin>(() => undefined);
     // The installer attaches in place and returns the SAME host; the local
     // only carries the loader capability it added to the type.
-    const installed = i18n.with(installerLike(inner));
+    const installed = i18n.use(installerLike(inner));
 
     expect(installed).toBe(i18n);
     expect(typeof installed.registerLoader).toBe("function");
@@ -107,13 +107,13 @@ describe("nested-use guard", () => {
 
   it("stays closed after a plugin throws, so a later install still works", async () => {
     const i18n = pluginHost();
-    i18n.use(() => {
+    i18n.registerPlugin(() => {
       throw new Error("boom");
     });
 
     await expect(i18n.init()).rejects.toThrow("boom");
 
-    const i18nAgain = i18n.with(installerLike(() => undefined));
+    const i18nAgain = i18n.use(installerLike(() => undefined));
     expect(i18nAgain).toBe(i18n);
   });
 });
@@ -133,7 +133,7 @@ describe("plugin init return-shape guard", () => {
 
   it.each(rejected)("rejects %s", async (_label, value) => {
     const i18n = pluginHost();
-    i18n.use((() => value) as unknown as I18nPlugin);
+    i18n.registerPlugin((() => value) as unknown as I18nPlugin);
 
     await expect(i18n.init()).rejects.toThrow(/A plugin returned a value/);
   });
@@ -143,9 +143,9 @@ describe("plugin init return-shape guard", () => {
     const onError = vi.fn();
     const i18n = pluginHost();
 
-    i18n.use(() => () => void order.push("first"));
-    i18n.use((() => value) as unknown as I18nPlugin, { required: false, onError });
-    i18n.use(() => () => void order.push("third"));
+    i18n.registerPlugin(() => () => void order.push("first"));
+    i18n.registerPlugin((() => value) as unknown as I18nPlugin, { required: false, onError });
+    i18n.registerPlugin(() => () => void order.push("third"));
 
     await i18n.init();
 
@@ -160,7 +160,7 @@ describe("plugin init return-shape guard", () => {
 
   it("resolves an async plugin's value before judging it", async () => {
     const i18n = pluginHost();
-    i18n.use((async () => ({ nope: true })) as unknown as I18nPlugin);
+    i18n.registerPlugin((async () => ({ nope: true })) as unknown as I18nPlugin);
 
     await expect(i18n.init()).rejects.toThrow(/A plugin returned a value/);
   });
@@ -168,7 +168,7 @@ describe("plugin init return-shape guard", () => {
   it("still accepts nothing", async () => {
     const i18n = pluginHost();
     const plugin = vi.fn<I18nPlugin>(() => undefined);
-    i18n.use(plugin);
+    i18n.registerPlugin(plugin);
 
     await expect(i18n.init()).resolves.toBe(i18n);
     expect(plugin).toHaveBeenCalledTimes(1);
@@ -178,8 +178,8 @@ describe("plugin init return-shape guard", () => {
     const order: string[] = [];
     const i18n = pluginHost();
 
-    i18n.use(() => () => void order.push("sync"));
-    i18n.use(async () => async () => void order.push("async"));
+    i18n.registerPlugin(() => () => void order.push("sync"));
+    i18n.registerPlugin(async () => async () => void order.push("async"));
 
     await i18n.init();
     await i18n.destroy();
@@ -191,7 +191,7 @@ describe("plugin init return-shape guard", () => {
     const onError = vi.fn();
     const i18n = pluginHost();
 
-    i18n.use((() => 1) as unknown as I18nPlugin, { onError });
+    i18n.registerPlugin((() => 1) as unknown as I18nPlugin, { onError });
 
     await expect(i18n.init()).rejects.toThrow(/A plugin returned a value/);
     expect(onError).toHaveBeenCalledTimes(1);

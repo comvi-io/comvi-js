@@ -5,7 +5,7 @@ import { createI18n } from "@comvi/core";
 import { icuCompiler } from "@comvi/core/icu";
 import { fetchLoader } from "@comvi/plugin-fetch-loader";
 
-const i18n = createI18n({ locale: "en", compiler: icuCompiler }).with(
+const i18n = createI18n({ locale: "en", compiler: icuCompiler }).use(
   fetchLoader({ cdnUrl: "https://cdn.comvi.io/your-distribution-id" }),
 );
 

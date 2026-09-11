@@ -2,9 +2,9 @@
  * @comvi/plugin-fetch-loader
  *
  * Two ways in, one lifecycle:
- * - `.with(fetchLoader(options))` — composes the loader and plugin
+ * - `.use(fetchLoader(options))` — composes the loader and plugin
  *   capabilities, then registers the plugin. Start here.
- * - `.use(FetchLoader(options))` — the plugin factory, for a host that
+ * - `registerPlugin(FetchLoader(options))` — the plugin factory, for a host that
  *   already has both capabilities.
  */
 export type {

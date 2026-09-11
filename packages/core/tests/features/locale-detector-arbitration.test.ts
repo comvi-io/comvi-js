@@ -31,7 +31,7 @@ describe("init() with a locale detector", () => {
     const changes: string[] = [];
     i18n.on("localeChanged", ({ from, to }) => changes.push(`${from}->${to}`));
     let switching!: Promise<void>;
-    i18n.use((host) => {
+    i18n.registerPlugin((host) => {
       switching = host.setLocaleAsync("fr");
       host.registerLocaleDetector(() => "en");
     });

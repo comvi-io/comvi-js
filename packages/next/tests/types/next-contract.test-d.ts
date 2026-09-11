@@ -57,7 +57,7 @@ export type _UseServerLazyChains = Expect<
 
 // The base composition pipe is reachable on the published host.
 export type _HasThePipe = Expect<
-  Equal<NextComposedI18n["with"] extends (installer: never) => unknown ? true : false, true>
+  Equal<NextComposedI18n["use"] extends (installer: never) => unknown ? true : false, true>
 >;
 
 // `D` flows when named explicitly. It does NOT infer from `defaultParams`

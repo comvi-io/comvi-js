@@ -7,8 +7,8 @@ import { LocaleDetector, localeDetector } from "../src/index";
 import { mockWindowLocation } from "./setup";
 
 /**
- * `localeDetector(options)` is the one-call form of `.with(plugins())` then
- * `.use(LocaleDetector(options))`: same host, same lifecycle, same teardown,
+ * `localeDetector(options)` is the one-call form of `.use(plugins())` then
+ * `registerPlugin(LocaleDetector(options))`: same host, same lifecycle, same teardown,
  * and it must reject the two cross-uses the type system also rejects.
  */
 const base = () => createI18n({ locale: "en", exposeGlobal: false });
@@ -18,7 +18,7 @@ describe("localeDetector() installer", () => {
   it("composes the plugin capability and detects at init", async () => {
     mockWindowLocation("?lng=fr");
 
-    const i18n = base().with(localeDetector(QS_ONLY));
+    const i18n = base().use(localeDetector(QS_ONLY));
 
     expect(typeof i18n.use).toBe("function");
     expect(typeof i18n.registerLocaleDetector).toBe("function");
@@ -35,9 +35,9 @@ describe("localeDetector() installer", () => {
   it("is the same host as the explicit recipe", async () => {
     mockWindowLocation("?lng=de");
 
-    const installed = base().with(localeDetector(QS_ONLY));
-    const explicit = base().with(plugins());
-    explicit.use(LocaleDetector(QS_ONLY));
+    const installed = base().use(localeDetector(QS_ONLY));
+    const explicit = base().use(plugins());
+    explicit.registerPlugin(LocaleDetector(QS_ONLY));
 
     await Promise.all([installed.init(), explicit.init()]);
 
@@ -46,7 +46,7 @@ describe("localeDetector() installer", () => {
   });
 
   it("composes no loader capability", () => {
-    const i18n = base().with(localeDetector());
+    const i18n = base().use(localeDetector());
 
     // Probed through `hasLoaderApi`, not `registerLoader === undefined`: a
     // plugins-only host carries a branded throwing stand-in for every loader
@@ -60,10 +60,10 @@ describe("localeDetector() installer", () => {
   it("returns the same instance and keeps registered state when composed twice", async () => {
     mockWindowLocation("?lng=uk");
 
-    const i18n = base().with(plugins());
+    const i18n = base().use(plugins());
     i18n.setPluginData("existing", "kept");
 
-    const again = i18n.with(localeDetector(QS_ONLY));
+    const again = i18n.use(localeDetector(QS_ONLY));
 
     expect(again).toBe(i18n);
     expect(again.getPluginData("existing")).toBe("kept");
@@ -76,9 +76,9 @@ describe("localeDetector() installer", () => {
     mockWindowLocation("?lng=fr");
     const order: string[] = [];
 
-    const i18n = base().with(localeDetector(QS_ONLY));
-    i18n.use(() => () => void order.push("second"));
-    i18n.use(() => () => void order.push("third"));
+    const i18n = base().use(localeDetector(QS_ONLY));
+    i18n.registerPlugin(() => () => void order.push("second"));
+    i18n.registerPlugin(() => () => void order.push("third"));
 
     await i18n.init();
     await i18n.destroy();
@@ -91,13 +91,13 @@ describe("localeDetector() installer", () => {
 });
 
 describe("localeDetector() wrong use", () => {
-  it("fails at init through .use(), before anything is attached", async () => {
+  it("fails at init through registerPlugin(), before anything is attached", async () => {
     mockWindowLocation("?lng=fr");
 
-    const i18n = base().with(plugins());
-    i18n.use(localeDetector(QS_ONLY) as unknown as I18nPlugin);
+    const i18n = base().use(plugins());
+    i18n.registerPlugin(localeDetector(QS_ONLY) as unknown as I18nPlugin);
 
-    await expect(i18n.init()).rejects.toThrow(/localeDetector\(\) is a \.with\(…\) installer/);
+    await expect(i18n.init()).rejects.toThrow(/localeDetector\(\) is a \.use installer/);
 
     // Nothing was registered, so the locale was never touched.
     expect(i18n.getLanguageDetector()).toBeUndefined();
@@ -105,24 +105,24 @@ describe("localeDetector() wrong use", () => {
     await expect(i18n.destroy()).resolves.toBeUndefined();
   });
 
-  it("rejects the uppercase factory handed to .with()", () => {
+  it("rejects the uppercase factory handed to .use()", () => {
     const i18n = base();
 
-    // `.with` is a dumb pipe: it CALLS what you give it. A plugin handed to it
+    // `.use` is a dumb pipe: it CALLS what you give it. A plugin handed to it
     // runs against a host that has none of the capabilities it needs. The casts
     // stand in for the type errors that same misuse raises: a plugin is not an
-    // installer, and a base host has no `use`.
-    expect(() => i18n.with(LocaleDetector(QS_ONLY) as unknown as LocaleDetectorInstaller)).toThrow(
+    // installer, and a base host has no `registerPlugin`.
+    expect(() => i18n.use(LocaleDetector(QS_ONLY) as unknown as LocaleDetectorInstaller)).toThrow(
       TypeError,
     );
-    expect((i18n as unknown as { use?: unknown }).use).toBeUndefined();
+    expect((i18n as unknown as { registerPlugin?: unknown }).registerPlugin).toBeUndefined();
   });
 
-  it("still installs normally after a rejected .use() attempt", async () => {
+  it("still installs normally after a rejected registerPlugin() attempt", async () => {
     mockWindowLocation("?lng=fr");
 
-    const i18n = base().with(plugins());
-    i18n.use(localeDetector(QS_ONLY) as unknown as I18nPlugin, {
+    const i18n = base().use(plugins());
+    i18n.registerPlugin(localeDetector(QS_ONLY) as unknown as I18nPlugin, {
       required: false,
       onError: vi.fn(),
     });
@@ -131,6 +131,6 @@ describe("localeDetector() wrong use", () => {
     expect(i18n.locale).toBe("en");
 
     // The guard is transient: outside the drain loop the same installer works.
-    expect(i18n.with(localeDetector(QS_ONLY))).toBe(i18n);
+    expect(i18n.use(localeDetector(QS_ONLY))).toBe(i18n);
   });
 });

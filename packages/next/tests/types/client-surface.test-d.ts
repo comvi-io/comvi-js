@@ -12,6 +12,7 @@ import {
   attachLoader,
   attachPlugins,
   createI18n,
+  definePlugin,
   devtools,
   flattenCatalog,
   icuCompiler,
@@ -80,18 +81,18 @@ export type _DevtoolsKeepsHostType = Expect<Equal<typeof _withDevtools, BaseI18n
 const flat: Record<string, string> = flattenCatalog({ nav: { home: "Home" } });
 void flat;
 
-// `.with(installer)` — the composition pipe. The generic host type must flow
+// `.use(installer)` — the composition pipe. The generic host type must flow
 // THROUGH it and come out widened, never decayed to `any`.
 
-const piped = createI18n({ locale: "en", compiler: icuCompiler }).with(
+const piped = createI18n({ locale: "en", compiler: icuCompiler }).use(
   loader({ uk: async () => ({ default: { greeting: "Привіт" } }) }),
 );
 export type _PipedIsStillBase = Expect<Equal<typeof piped, BaseI18n<{}> & I18nLoaderApi>>;
 void piped.registerLoader(() => Promise.resolve({}));
 // @ts-expect-error -- loader() composes ONLY the loader capability
-piped.use(() => undefined);
+piped.registerPlugin(() => undefined);
 
-const _pipedBoth = createI18n({ locale: "en" }).with(loader()).with(plugins());
+const _pipedBoth = createI18n({ locale: "en" }).use(loader()).use(plugins());
 export type _ChainCompounds = Expect<
   Equal<typeof _pipedBoth extends I18nLoaderApi & I18nPluginHostApi ? true : false, true>
 >;
@@ -100,17 +101,34 @@ export type _ChainCompounds = Expect<
 // installer's argument here — the published two-overload `registerLoader` lives
 // on `@comvi/next`'s composed host, not on this base one.
 export type _BaseHasThePipe = Expect<
-  Equal<typeof host.with extends (i: never) => unknown ? true : false, true>
+  Equal<typeof host.use extends (i: never) => unknown ? true : false, true>
 >;
 const _hostPiped = createI18n({ locale: "en" })
-  .with(loader({ en: async () => ({ hello: "world" }) }))
-  .with(plugins());
+  .use(loader({ en: async () => ({ hello: "world" }) }))
+  .use(plugins());
 void _hostPiped.registerLoader(() => Promise.resolve({}));
-void _hostPiped.use(() => undefined);
+void _hostPiped.registerPlugin(() => undefined);
 
 // devtools() adds no public members, so the host type is unchanged.
-const _pipedDevtools = createI18n({ locale: "en" }).with(devtools({ exposeGlobal: false }));
+const _pipedDevtools = createI18n({ locale: "en" }).use(devtools({ exposeGlobal: false }));
 export type _DevtoolsPipeKeepsHostType = Expect<Equal<typeof _pipedDevtools, BaseI18n<{}>>>;
 
 // @ts-expect-error -- the factory is not an installer; it must be called
-createI18n({ locale: "en" }).with(loader);
+createI18n({ locale: "en" }).use(loader);
+
+// `definePlugin(fn)` — the inline-plugin installer, re-exported by BOTH next
+// entries beside `plugins`/`attachPlugins`. Pinned here so an entry that
+// dropped it fails the type gate.
+const _withDefinedPlugin = createI18n({ locale: "en" }).use(definePlugin(() => {}));
+export type _DefinePluginWidensToThePluginHost = Expect<
+  Equal<typeof _withDefinedPlugin extends I18nPluginHostApi ? true : false, true>
+>;
+void _withDefinedPlugin.registerPlugin(() => {});
+export type _ServerEntryAlsoPublishesIt = Expect<
+  Equal<
+    (typeof import("../../src/server"))["definePlugin"] extends typeof definePlugin ? true : false,
+    true
+  >
+>;
+// @ts-expect-error -- definePlugin takes a PLUGIN, not an installer
+createI18n({ locale: "en" }).use(definePlugin(attachLoader));

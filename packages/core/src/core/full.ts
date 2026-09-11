@@ -21,9 +21,9 @@ import { icuCompiler } from "./translate/compile-icu";
 /*
  * Declaration merging is the point, not an accident: the plugin members are
  * genuinely installed on `I18n.prototype` at module scope (below), and
- * merging is the only way to keep `use()`'s `this` return polymorphic — an
+ * merging is the only way to keep `registerPlugin()`'s `this` return polymorphic — an
  * indexed-access or property-style redeclaration would pin it to the
- * capability class and break `i18n.use(p).registerLoader(...)`. `D` is
+ * capability class and break `i18n.registerPlugin(p).registerLoader(...)`. `D` is
  * unused here but must stay: TS requires identical type parameters on every
  * declaration of a merged name.
  */

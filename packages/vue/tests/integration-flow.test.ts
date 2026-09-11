@@ -38,8 +38,8 @@ describe("Integration Flow", () => {
         fallbackLocale: "en",
         defaultNs: "common",
       })
-        .with(attachLoader)
-        .with(attachPlugins),
+        .use(attachLoader)
+        .use(attachPlugins),
     );
 
     i18n.core.registerLocaleDetector(mockLanguageDetector);
@@ -91,7 +91,7 @@ describe("Integration Flow", () => {
       createCore({
         locale: "en",
         defaultNs: "common",
-      }).with(attachLoader),
+      }).use(attachLoader),
     );
 
     i18n.core.registerLoader(mockLoader);

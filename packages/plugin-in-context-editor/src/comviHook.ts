@@ -24,7 +24,7 @@ type QueueI18n = CoreQueueEntry["i"];
  * The instance type the editor DRIVES. It registers a post-processor on every
  * instance it edits, so it only ever works with a host that has the
  * plugin-host surface composed onto it — `@comvi/core/plugins`
- * (`attachPlugins` / `.with(plugins())`), or a framework builder that composes
+ * (`attachPlugins` / `.use(plugins())`), or a framework builder that composes
  * it for you. A bare base host may still be pushed onto the queue — it is
  * tracked and counted, it is simply not editable.
  */

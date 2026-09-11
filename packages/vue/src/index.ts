@@ -20,7 +20,7 @@
 // to build around the host, and `ssrLocale` has to reach the core before the
 // reactive ref is seeded — so `createI18n` here is vue's own factory, not a
 // rename of core's. Capabilities are composed on its result with
-// `.with(installer)`, which runs on `i18n.core` and retypes it.
+// `.use(installer)`, which runs on `i18n.core` and retypes it.
 //
 // Core's constructor is re-exported as `createCore`, and `createI18nFromCore`
 // wraps what it built: together they are the escape hatch for a host built
@@ -42,17 +42,17 @@ export type {
   VueI18nOptions,
   VueI18nCoreOptions,
   AnyVueI18n,
-  WithHostIdentityError,
+  UseHostIdentityError,
 } from "./VueI18n";
 
 // The capability toolkit. Each is a named binding under `sideEffects: false`,
 // so the subpaths an app never calls stay out of its graph. `loader()` /
-// `plugins()` / `devtools()` are the configured installers for `i18n.with(…)`
-// (and for `host.with(…)`, one level down); the `attach*` functions are
-// themselves installers, so `.with(attachLoader)` works too.
+// `plugins()` / `devtools()` are the configured installers for `i18n.use(…)`
+// (and for `host.use(…)`, one level down); the `attach*` functions are
+// themselves installers, so `.use(attachLoader)` works too.
 export { icuCompiler } from "@comvi/core/icu";
 export { attachLoader, flattenCatalog, loader } from "@comvi/core/loader";
-export { attachPlugins, plugins } from "@comvi/core/plugins";
+export { attachPlugins, definePlugin, plugins } from "@comvi/core/plugins";
 export { attachDevtools, devtools } from "@comvi/core/devtools";
 
 export type * from "@comvi/core";

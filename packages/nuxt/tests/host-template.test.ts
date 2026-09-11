@@ -150,7 +150,7 @@ describe("generated #build/comvi.host template", () => {
     expect(i18n.locale.value).toBe("en");
     // Absent from the module graph, not merely disabled: a capability is a `hostModule` import.
     expect(i18n.core.registerLoader).toBeUndefined();
-    expect(i18n.core.use).toBeUndefined();
+    expect(i18n.core.registerPlugin).toBeUndefined();
 
     const core = createComviCore({ locale: "de", exposeGlobal: false });
     expect(core.locale).toBe("de");
@@ -227,7 +227,7 @@ export default () => {
     expect(core).toBe(built[0]);
     // Exactly the capabilities the factory added: loader yes, plugin host no.
     expect(typeof core.reloadTranslations).toBe("function");
-    expect(core.use).toBeUndefined();
+    expect(core.registerPlugin).toBeUndefined();
 
     // …and every construction gets a FRESH host (one per request on the server).
     const i18n = createComviI18n({ locale: "en", ssrLocale: "de" });

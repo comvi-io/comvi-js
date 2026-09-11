@@ -138,7 +138,7 @@ describe("UMD global build (A12)", () => {
     // Every translation arrives through the loader, so the locale switch below
     // is loader-driven rather than served from constructor-supplied data.
     i18n.registerLoader(async (locale) => store[locale] ?? {});
-    i18n.use((host) => {
+    i18n.registerPlugin((host) => {
       order.push("plugin");
       host.setPluginData("umd", { ok: true });
       return () => void order.push("cleanup");

@@ -30,8 +30,8 @@ describe("FetchLoader plugin on a live host", () => {
         namespaceLoadedAfterLaterPlugin.push(laterPluginRan);
       });
 
-      i18n.use(FetchLoader({ cdnUrl: TEST_CDN_URL, loadOnInit: true }));
-      i18n.use(() => {
+      i18n.registerPlugin(FetchLoader({ cdnUrl: TEST_CDN_URL, loadOnInit: true }));
+      i18n.registerPlugin(() => {
         laterPluginRan = true;
       });
 

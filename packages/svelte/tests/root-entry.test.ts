@@ -156,7 +156,7 @@ describe("@comvi/svelte — the capability toolkit", () => {
   it("composes AND configures in one expression — the documented recipe", async () => {
     const i18n = root
       .createI18n({ locale: "en", exposeGlobal: false, compiler: root.icuCompiler })
-      .with(
+      .use(
         root.loader({
           en: async () => ({
             default: {
@@ -228,6 +228,7 @@ describe("@comvi/svelte — the export surface", () => {
     "createInitializingStore",
     "createLoadingStore",
     "createLocaleStore",
+    "definePlugin",
     "devtools",
     "flattenCatalog",
     "getI18nContext",

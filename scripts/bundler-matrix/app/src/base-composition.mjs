@@ -6,14 +6,15 @@
 // exports map, the chunk graph or a bundler transform breaks that contract, one
 // of the assertions below fails instead of printing the success marker.
 //
-// Both call forms stay: `attach*` is the low-level API the configured
-// `loader()` / `plugins()` factories delegate to.
+// All three call forms stay: `attach*` is the low-level API the configured
+// `loader()` / `plugins()` factories delegate to, and `definePlugin(fn)` is
+// the installer that registers ONE plugin through the same `.use` chain.
 //
 // No top-level await: the webpack leg emits commonjs2, where a TLA module
 // would change the emitted module shape rather than test the composition.
 import { createI18n } from "@comvi/core";
 import { attachLoader, loader } from "@comvi/core/loader";
-import { attachPlugins, plugins } from "@comvi/core/plugins";
+import { attachPlugins, definePlugin, plugins } from "@comvi/core/plugins";
 
 function assertEqual(actual, expected, label) {
   if (JSON.stringify(actual) !== JSON.stringify(expected)) {
@@ -34,7 +35,7 @@ async function main() {
   const i18n = attachPlugins(attachLoader(createI18n({ locale: "en", exposeGlobal: false })));
 
   i18n.registerLoader(async (locale, ns) => store[`${locale}:${ns}`] ?? {});
-  i18n.use((host) => {
+  i18n.registerPlugin((host) => {
     order.push("plugin");
     host.setPluginData("probe", "set");
     return () => order.push("cleanup");
@@ -62,18 +63,18 @@ async function main() {
   assertEqual(i18n.getLoader(), undefined, "loader state reset after destroy");
   assertEqual(i18n.getPluginData("probe"), undefined, "plugin state reset after destroy");
 
-  // ── the same composition through `.with(…)` ────────────────────────────
+  // ── the same composition through `.use(…)` ────────────────────────────
   const piped = createI18n({ locale: "en", exposeGlobal: false })
-    .with(
+    .use(
       loader({
         en: async () => ({ default: { hello: "Hello" } }),
         "fr:default": async () => ({ hello: "Bonjour" }),
       }),
     )
-    .with(plugins());
+    .use(plugins());
 
   const pipedOrder = [];
-  piped.use((host) => {
+  piped.registerPlugin((host) => {
     pipedOrder.push("plugin");
     host.setPluginData("probe", "set");
     return () => pipedOrder.push("cleanup");
@@ -89,11 +90,34 @@ async function main() {
 
   // Composing a capability the host already has must change nothing.
   const registered = piped.getLoader();
-  assertEqual(piped.with(loader()) === piped, true, "a second loader() is a no-op");
+  assertEqual(piped.use(loader()) === piped, true, "a second loader() is a no-op");
   assertEqual(piped.getLoader() === registered, true, "the no-op keeps the registered loader");
 
   await piped.destroy();
   assertEqual(pipedOrder, ["plugin", "cleanup"], "piped plugin cleanup runs on destroy");
+
+  // ── an app's OWN inline plugin, through `.use(definePlugin(fn))` ──────
+  // The installer attaches the plugin host itself, so this is the whole
+  // composition — and it resolves `definePlugin` through the published
+  // `@comvi/core/plugins` exports entry, which is what this leg pins.
+  const defineOrder = [];
+  const defined = createI18n({ locale: "en", ns: [], exposeGlobal: false }).use(
+    definePlugin((host) => {
+      defineOrder.push("plugin");
+      host.setPluginData("probe", "set");
+      return () => defineOrder.push("cleanup");
+    }),
+  );
+
+  assertEqual(typeof defined.registerPlugin, "function", "definePlugin attached the plugin host");
+  assertEqual(defineOrder, [], "definePlugin defers to init()");
+
+  await defined.init();
+  assertEqual(defineOrder, ["plugin"], "definePlugin runs its plugin at init");
+  assertEqual(defined.getPluginData("probe"), "set", "the defined plugin saw the host");
+
+  await defined.destroy();
+  assertEqual(defineOrder, ["plugin", "cleanup"], "the defined plugin's cleanup runs on destroy");
 
   console.log("BUNDLER_MATRIX_OK base-composition");
 }

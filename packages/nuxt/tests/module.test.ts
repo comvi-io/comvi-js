@@ -353,7 +353,7 @@ describe("nuxt module setup", () => {
     expect(contents).not.toContain("createI18nFromCore");
     // Single-entry policy as codegen: no capability subpath, no installer, no compiler.
     expect(contents).not.toContain("@comvi/core/");
-    expect(contents).not.toContain(".with(");
+    expect(contents).not.toContain(".use(");
     expect(contents).not.toContain("compiler");
   });
 
@@ -365,14 +365,14 @@ describe("nuxt module setup", () => {
 
     const contents = hostTemplateContents();
 
-    // `compiler` is a constructor argument, so `.with()` cannot pipe it on afterwards.
+    // `compiler` is a constructor argument, so `.use()` cannot pipe it on afterwards.
     expect(contents).toContain('import { icuCompiler } from "@comvi/core/icu";');
     // Both hosts, or SSR and hydration compile the same catalog with two compilers.
     expect(contents).toContain("createI18n({ ...options, compiler: icuCompiler })");
     expect(contents).toContain("createCore({ ...options, compiler: icuCompiler })");
     expect(contents).toContain('import { createI18n } from "@comvi/vue";');
     expect(contents).not.toContain("createI18nFromCore");
-    expect(contents).not.toContain(".with(");
+    expect(contents).not.toContain(".use(");
   });
 
   it("emits no ICU import when icu is left at its default", async () => {

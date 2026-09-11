@@ -1,10 +1,10 @@
-import { createI18n, icuCompiler, loader, plugins } from "@comvi/vue";
-import { LocaleDetector } from "@comvi/plugin-locale-detector";
+import { createI18n, icuCompiler, loader } from "@comvi/vue";
+import { localeDetector } from "@comvi/plugin-locale-detector";
 
 export const locales = ["en", "uk", "de"] as const;
 
-// One call builds the base host, and each `.with(…)` composes a capability on
-// it. The result is the same `VueI18n` instance throughout; `.with` only
+// One call builds the base host, and each `.use(…)` composes a capability on
+// it. The result is the same `VueI18n` instance throughout; `.use` only
 // widens the type of `i18n.core` by what it just composed.
 export const i18n = createI18n({
   locale: "en",
@@ -20,21 +20,22 @@ export const i18n = createI18n({
   // splits each JSON into its own chunk. `loader(map)` attaches the loader
   // capability AND registers the import-map adapter; `registerLoader` on its
   // own takes a plain function, never a map.
-  .with(
+  .use(
     loader({
       en: () => import("./locales/en.json"),
       uk: () => import("./locales/uk.json"),
       de: () => import("./locales/de.json"),
     }),
   )
-  // The plugin host. `.use()` lives on this capability, not on the base host.
-  .with(plugins());
-
-i18n.core.use(
-  LocaleDetector({
-    supportedLocales: [...locales],
-    order: ["querystring", "localStorage", "navigator"],
-    caches: ["localStorage"],
-    fallbackLocale: "en",
-  }),
-);
+  // The locale detector, through the package's own lowercase installer: it
+  // attaches the plugin host it needs and registers the detector, so an app
+  // never touches the raw plugin queue. Composed on the WRAPPER, before
+  // `app.use(i18n)` — vue's own `use`, which starts init().
+  .use(
+    localeDetector({
+      supportedLocales: [...locales],
+      order: ["querystring", "localStorage", "navigator"],
+      caches: ["localStorage"],
+      fallbackLocale: "en",
+    }),
+  );

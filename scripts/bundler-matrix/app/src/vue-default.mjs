@@ -43,12 +43,14 @@ const i18n = createI18n({
 });
 
 assert(i18n.core instanceof I18n, "the named base I18n is the preset's host constructor");
-assert(typeof i18n.core.with === "function", "the pipe is on the preset's core host");
+assert(typeof i18n.core.use === "function", "the pipe is on the preset's core host");
 assert(typeof i18n.core.reloadTranslations === "undefined", "the preset builds a BASE host");
 assert(typeof i18n.core.onMissingKey === "undefined", "default host has no plugin capability");
 assert(typeof i18n.core.instanceId === "undefined", "default host has no devtools discovery");
 assert("reloadTranslations" in i18n === false, "VueI18n does not proxy loader capabilities");
-assert("use" in i18n === false, "VueI18n does not proxy the plugin host either");
+assert("registerPlugin" in i18n === false, "VueI18n does not proxy the plugin host either");
+// …but `use` IS on the wrapper: the composition verb is the wrapper's own.
+assert(typeof i18n.use === "function", "VueI18n has the composition verb");
 assertEqual(i18n.t("plain"), "hello", "the preset host translates through the wrapper");
 assertEqual(
   i18n.t("msg", { b: ({ children }) => `*${children}*` }),

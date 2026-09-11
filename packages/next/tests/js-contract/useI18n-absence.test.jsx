@@ -18,10 +18,10 @@ const IS_DEV_BUILD = __COMVI_CORE_BUILD__ === "development";
 
 const EXPECTED = {
   loader: IS_DEV_BUILD
-    ? '[comvi] This i18n instance has no loader capability. Compose it: .with(loader()) from "@comvi/core/loader", or the lower-level attachLoader.'
+    ? '[comvi] This i18n instance has no loader capability. Compose it: .use(loader()) from "@comvi/core/loader", or the lower-level attachLoader.'
     : "[comvi] missing loader capability — attach @comvi/core/loader",
   plugins: IS_DEV_BUILD
-    ? '[comvi] This i18n instance has no plugins capability. Compose it: .with(plugins()) from "@comvi/core/plugins", or the lower-level attachPlugins.'
+    ? '[comvi] This i18n instance has no plugins capability. Compose it: .use(plugins()) from "@comvi/core/plugins", or the lower-level attachPlugins.'
     : "[comvi] missing plugins capability — attach @comvi/core/plugins",
 };
 
@@ -120,12 +120,12 @@ describe(`capability acquisition through @comvi/next/client (${__COMVI_CORE_BUIL
   });
 
   it("returns working bags on a host composed through the installers", () => {
-    // The other acquisition path: `.with(loader()).with(plugins())` instead of
+    // The other acquisition path: `.use(loader()).use(plugins())` instead of
     // the low-level `attach*` calls above.
     const wrapper = wrapperFor(
       createI18n({ locale: "en", exposeGlobal: false, translation: { en: {} } })
-        .with(loaderInstaller())
-        .with(pluginsInstaller()),
+        .use(loaderInstaller())
+        .use(pluginsInstaller()),
     );
 
     expect(() => renderHook(() => useI18nLoader(), { wrapper })).not.toThrow();

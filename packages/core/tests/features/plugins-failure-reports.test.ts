@@ -13,7 +13,7 @@ import { plugins } from "../../src/plugins";
 import { createDeferred } from "../helpers/deferred";
 
 const makeHost = (onError?: (error: Error, context?: unknown) => void) =>
-  createI18n({ locale: "en", onError, translation: { en: { hi: "Hi" } } }).with(plugins());
+  createI18n({ locale: "en", onError, translation: { en: { hi: "Hi" } } }).use(plugins());
 
 afterEach(() => {
   vi.useRealTimers();
@@ -26,7 +26,7 @@ describe("plugin failure reports", () => {
     const trackingPlugin = () => {
       throw new Error("boom");
     };
-    i18n.use(trackingPlugin, { required: false });
+    i18n.registerPlugin(trackingPlugin, { required: false });
 
     await i18n.init();
 
@@ -39,7 +39,7 @@ describe("plugin failure reports", () => {
   it("reports an unnamed plugin as anonymous", async () => {
     const onError = vi.fn();
     const i18n = makeHost(onError);
-    i18n.use(
+    i18n.registerPlugin(
       () => {
         throw new Error("boom");
       },
@@ -57,7 +57,7 @@ describe("plugin failure reports", () => {
   it("wraps a non-Error rejection in an initialization-failed message", async () => {
     const onError = vi.fn();
     const i18n = makeHost(onError);
-    i18n.use(() => Promise.reject<void>("socket hung up"), { required: false });
+    i18n.registerPlugin(() => Promise.reject<void>("socket hung up"), { required: false });
 
     await i18n.init();
 
@@ -71,7 +71,7 @@ describe("plugin failure reports", () => {
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
     const onError = vi.fn();
     const i18n = makeHost(onError);
-    i18n.use(
+    i18n.registerPlugin(
       () => {
         throw new Error("boom");
       },
@@ -99,7 +99,7 @@ describe("plugin failure reports", () => {
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
     const onError = vi.fn();
     const i18n = makeHost(onError);
-    i18n.use(
+    i18n.registerPlugin(
       () => {
         throw new Error("boom");
       },
@@ -118,7 +118,7 @@ describe("plugin timeout guard", () => {
     vi.useFakeTimers();
     const plugin = createDeferred<void>();
     const i18n = makeHost();
-    i18n.use(() => plugin.promise, { timeout: 5000 });
+    i18n.registerPlugin(() => plugin.promise, { timeout: 5000 });
 
     const init = i18n.init();
 
@@ -134,7 +134,7 @@ describe("plugin timeout guard", () => {
 describe("locale detector", () => {
   it("keeps the configured locale when the detector returns an empty string", async () => {
     const i18n = makeHost();
-    i18n.use((host) => {
+    i18n.registerPlugin((host) => {
       host.registerLocaleDetector(() => "");
     });
 

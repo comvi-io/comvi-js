@@ -8,11 +8,11 @@ import "@comvi/core/tags";
 import { createI18n, icuCompiler } from "@comvi/vue";
 import { cdnLoader } from "@comvi/plugin-fetch-loader/cdn";
 
-// `createI18n` builds the base host and each `.with(…)` composes a capability
+// `createI18n` builds the base host and each `.use(…)` composes a capability
 // on it, widening the type of `i18n.core` as it goes, so `i18n.core.use(…)`
 // stays typed.
 //
-// ICU is the `compiler` option, not something `.with()` pipes on: it is read in
+// ICU is the `compiler` option, not something `.use()` pipes on: it is read in
 // the constructor and applies to every catalog this instance ingests. The
 // loader's own capabilities (`/loader`, `/plugins`) are composed by the
 // installer itself.
@@ -29,7 +29,7 @@ export const i18n = createI18n({
     basicHtmlTags: ["strong", "em", "br", "a"],
   },
   compiler: icuCompiler,
-}).with(
+}).use(
   cdnLoader({
     // The distribution id comes from the Comvi platform: open your project
     // and read it off the Distributions page.
@@ -53,4 +53,4 @@ export default i18n;
 //   // reads `i18n.apiKey` and then talks to the API instead of the CDN.
 //   apiKey: import.meta.env.VITE_COMVI_API_KEY,
 //   compiler: icuCompiler,
-// }).with(fetchLoader({ cdnUrl: "https://cdn.comvi.io/8d4beabdb0aa42008e15aa4e91a971bd/" }));
+// }).use(fetchLoader({ cdnUrl: "https://cdn.comvi.io/8d4beabdb0aa42008e15aa4e91a971bd/" }));

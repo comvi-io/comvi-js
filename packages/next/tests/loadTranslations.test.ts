@@ -30,7 +30,8 @@ describe("loadTranslations", () => {
     expect(result).toEqual({});
     expect(warnSpy).toHaveBeenCalledWith(
       "[comvi/next] No loader configured. " +
-        "Register one via i18n.registerLoader(...) or createNextI18n(...).use(plugin).",
+        "Register one via i18n.registerLoader(...), or compose one onto the host: " +
+        "createNextI18n(...).i18n.use(fetchLoader(...)).",
     );
   });
 

@@ -7,13 +7,13 @@
 // import { createI18n } from "@comvi/core";
 // import { loader } from "@comvi/core/loader";
 //
-// const i18n = createI18n({ locale: "en" }).with(loader({ uk: () => import("./uk.json") }));
+// const i18n = createI18n({ locale: "en" }).use(loader({ uk: () => import("./uk.json") }));
 // await i18n.init();
 // ```
 //
 // `loader(importMap?)` attaches the capability and, when handed an import map,
 // registers it. `attachLoader` is the low-level API and is itself a valid
-// installer (`.with(attachLoader)`) — what you want when the loader is a plain
+// installer (`.use(attachLoader)`) — what you want when the loader is a plain
 // function you register yourself.
 //
 // The ORDER of `loader()`, `plugins()` and `devtools()` among themselves is
@@ -34,10 +34,10 @@ export type { LoaderImportMap, LoaderImportResult } from "./core/importMapLoader
 export type { I18nLoaderApi, LoaderFn, LoaderResult } from "./types";
 
 /**
- * The loader capability as a configured `.with(…)` installer.
+ * The loader capability as a configured `.use(…)` installer.
  *
  * ```ts
- * const i18n = createI18n({ locale: "en" }).with(loader({ uk: () => import("./uk.json") }));
+ * const i18n = createI18n({ locale: "en" }).use(loader({ uk: () => import("./uk.json") }));
  * ```
  *
  * With an import map: attach + `registerLoader(createImportMapLoader(map))`,
@@ -47,7 +47,7 @@ export type { I18nLoaderApi, LoaderFn, LoaderResult } from "./types";
  * PICK THE INSTALLER BY WHAT YOU HAVE. `loader` names the import-map adapter
  * statically, so merely referencing it pulls that adapter into your graph
  * whether or not you pass a map — bare `loader()` is attach-only but NOT free.
- * For a plain `LoaderFn`, compose `.with(attachLoader)` and register it
+ * For a plain `LoaderFn`, compose `.use(attachLoader)` and register it
  * yourself; no adapter is pulled in.
  *
  * Attaching is idempotent: on a host that already has the capability nothing is
