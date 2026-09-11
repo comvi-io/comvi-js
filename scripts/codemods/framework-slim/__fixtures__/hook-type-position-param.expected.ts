@@ -10,7 +10,7 @@ interface Deps {
   provide(useI18n: () => unknown): void;
 }
 
-export const i18n = createI18n({ locale: "en" }).with(devtools({ exposeGlobal: true }));
+export const i18n = createI18n({ locale: "en" }).use(devtools({ exposeGlobal: true }));
 
 export function Consumer() {
   const { t } = useI18n();

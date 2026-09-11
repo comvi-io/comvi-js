@@ -13,7 +13,7 @@ export const labels = { createSlimI18n: "unrelated key" };
 unrelated.createSlimI18n();
 
 export const client = createI18n({ locale: "en" });
-export const server = createServerHost({ locale: "en" }).with(devtools({ exposeGlobal: false }));
+export const server = createServerHost({ locale: "en" }).use(devtools({ exposeGlobal: false }));
 
 export function preview() {
   return createI18n({ locale: "de" });

@@ -36,7 +36,8 @@ export interface I18nOptions {
 
 export interface I18n {
   t(key: AnyKey, params?: Record<string, unknown>): string;
-  with<R>(installer: (i18n: this) => R): R;
+  use<R>(installer: (i18n: this) => R): R;
+  registerPlugin(plugin: (i18n: I18n) => unknown, options?: Record<string, unknown>): I18n;
   reloadTranslations(locale?: string, namespace?: string): Promise<void>;
   locale: string;
 }
@@ -50,7 +51,29 @@ export declare function loader(
 ): <T>(i18n: T) => T;
 `;
 
-const CORE_PLUGINS = `export declare function plugins(): <T>(i18n: T) => T;\n`;
+/**
+ * `@comvi/core/plugins` publishes the capability installer AND the helper an app
+ * wraps its own inline plugin in (brief E §3). `definePlugin(fn)` is what makes
+ * `.use(` the one verb work for a raw function: `.use(fn)` throws
+ * `E_USE_NOT_INSTALLER` at runtime, and the fences the gate checks must be able
+ * to show the form that does not. The name is deliberately not `plugin`: one
+ * character from `plugins()`, with the opposite job, in the same chain.
+ *
+ * `use` is declared on the host in the index, so the stub does not model the
+ * widening: both installers return the host they were given, which is enough
+ * for a fence to compile and is the one relationship the driver's tests turn on.
+ * The callback is typed with the host, not `unknown`, so a fence that writes
+ * `definePlugin((i18n) => i18n.t("k"))` gets the parameter inferred the way a
+ * reader's project infers it.
+ */
+const CORE_PLUGINS = `
+import type { I18n } from "@comvi/core";
+export declare function plugins(): <T>(i18n: T) => T;
+export declare function definePlugin(
+  fn: (i18n: I18n) => unknown,
+  options?: Record<string, unknown>,
+): <T>(i18n: T) => T;
+`;
 
 /**
  * `@comvi/core/icu` publishes a COMPILER, not an installer. There is no `icu()`

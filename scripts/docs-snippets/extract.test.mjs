@@ -326,7 +326,7 @@ test("a <TabItem> named inside a comment is not a tab boundary", () => {
     "<Tabs>",
     "<TabItem label='React'>",
     "```ts title='src/i18n.ts'",
-    "export const i18n = createI18n({ locale: 'en' }).with(loader());",
+    "export const i18n = createI18n({ locale: 'en' }).use(loader());",
     "```",
     "{/* the <TabItem> above owns this file */}",
     "```ts title='src/App.tsx'",

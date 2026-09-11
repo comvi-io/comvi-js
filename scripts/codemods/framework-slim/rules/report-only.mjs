@@ -5,9 +5,35 @@
  * cannot answer from the text alone, and its findings force exit code 2 so a
  * partial migration can never be mistaken for a clean one.
  */
-import { DROPPED_VUE_PROXIES, HOOK_NAMES, MEMBER_TO_HOOK, SOURCE_HOOK } from "./capabilities.mjs";
+import {
+  DROPPED_VUE_PROXIES,
+  HOOK_NAMES,
+  MEMBER_TO_HOOK,
+  SOURCE_HOOK,
+  VUE_PROXY_TARGET,
+} from "./capabilities.mjs";
 import { localDeclarations } from "./imports.mjs";
 import { scopeOf } from "./scope.mjs";
+
+/**
+ * Does this call hand its receiver a RAW PLUGIN — an argument that is a call to
+ * an Uppercase factory?
+ *
+ * The uppercase name is the whole test, and it is the convention the packages
+ * themselves follow: `FetchLoader()` is a plugin, `fetchLoader()` is its
+ * installer. Anything else in the slot (an installer call, a bare binding, a
+ * Vue plugin object) is left alone, because `.use` legitimately takes an
+ * installer now.
+ */
+function hasRawPluginArgument(call) {
+  const args = call.field("arguments");
+  if (args === null) return false;
+  return args.children().some((child) => {
+    if (child.kind() !== "call_expression") return false;
+    const callee = child.field("function");
+    return callee?.kind() === "identifier" && /^[A-Z]/.test(callee.text());
+  });
+}
 
 /** Bindings that would shadow the hooks this codemod introduces. */
 export function detectHookNameCollisions(root) {
@@ -104,9 +130,15 @@ export function detectEscapedHookResults(root, sourceHook = SOURCE_HOOK) {
  * (already correct) — so these are listed for a human, never rewritten. Only
  * `.vue` sources are scanned: elsewhere the same shape is overwhelmingly a
  * core instance and reporting it would be pure noise. The receiver set covers
- * nuxt `comvi.setup` hooks too. `app.use(plugin)` in a component is the one
- * benign shape this catches, which is why the report hedges with "if the
- * receiver is a VueI18n".
+ * nuxt `comvi.setup` hooks too. The report hedges with "if the receiver is a
+ * VueI18n" because that is exactly what the text cannot settle.
+ *
+ * `use` is the one proxy whose ARGUMENT decides it, and after decision E it has
+ * to: the wrapper's `use` is the composition verb now, so
+ * `i18n.use(localeDetector())` and Vue's own `app.use(i18n)` are both correct
+ * and neither is this finding. Only an Uppercase factory call — the way every
+ * package spells a raw plugin — is reported, and its target member is
+ * `registerPlugin`, not `use`.
  */
 export function detectVueProxyCalls(root) {
   const findings = [];
@@ -117,11 +149,14 @@ export function detectVueProxyCalls(root) {
     if (!DROPPED_VUE_PROXIES.includes(property.text())) continue;
     if (object.kind() === "member_expression" && object.field("property")?.text() === "core")
       continue;
-    if (access.parent()?.kind() !== "call_expression") continue;
+    const call = access.parent();
+    if (call?.kind() !== "call_expression") continue;
+    if (property.text() === "use" && !hasRawPluginArgument(call)) continue;
+    const target = VUE_PROXY_TARGET.get(property.text()) ?? property.text();
     findings.push({
       offset: access.range().start.index,
       shape: "vue-instance-proxy-call",
-      detail: `\`${access.text()}(...)\` — if the receiver is a VueI18n it must become \`${object.text()}.core.${property.text()}(...)\``,
+      detail: `\`${access.text()}(...)\` — if the receiver is a VueI18n it must become \`${object.text()}.core.${target}(...)\``,
     });
   }
   return findings;

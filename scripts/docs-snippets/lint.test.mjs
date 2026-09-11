@@ -44,13 +44,13 @@ test("registerLoader on an instance whose chain composes nothing → banned, at 
   assert.equal(findings[0].rule, "banned/register-loader-on-instance");
   assert.equal(findings[0].line, 7);
   assert.equal(findings[0].col, 1);
-  assert.equal(findings[0].migration, "MIGRATION.md §0 (loader row) and §4 `.with(installer)`");
+  assert.equal(findings[0].migration, "MIGRATION.md §0 (loader row) and §4 `.use(installer)`");
 });
 
-test("registerLoader after .with(loader()) in the same fence → clean", () => {
+test("registerLoader after .use(loader()) in the same fence → clean", () => {
   const body = [
     "```ts",
-    "const i18n = createI18n({ locale: 'en' }).with(loader());",
+    "const i18n = createI18n({ locale: 'en' }).use(loader());",
     "i18n.registerLoader(myLoader);",
     "```",
   ].join("\n");
@@ -58,10 +58,38 @@ test("registerLoader after .with(loader()) in the same fence → clean", () => {
   assert.deepEqual(rulesOf(body), []);
 });
 
-test("registerLoader after .with(attachLoader) in the same fence → clean", () => {
+test("registerLoader after .use(loader(map)) keeps its exemption", () => {
+  // The chain-exemption tokens are keyed on the VERB, so retiring `.with` took
+  // the exemption with it until they were moved: nine correctly-composed pages
+  // in the corpus were reported for `registerLoader` calls their own chain had
+  // already earned. The map argument is the shape the pages actually write.
   const body = [
     "```ts",
-    "const i18n = createI18n({ locale: 'en' }).with(attachLoader);",
+    "const i18n = createI18n({ locale: 'en' }).use(loader({ de: () => import('./de.json') }));",
+    "i18n.registerLoader(myLoader);",
+    "```",
+  ].join("\n");
+
+  assert.deepEqual(rulesOf(body), []);
+});
+
+test("registerPlugin after .use(plugins()) keeps its exemption", () => {
+  // Same fact for the other capability, and the rule that asks for it is new:
+  // the 0.4 `.use(Plugin())` sites all became `registerPlugin(…)`.
+  const body = [
+    "```ts",
+    "const i18n = createI18n({ locale: 'en' }).use(plugins());",
+    "i18n.registerPlugin(myPlugin);",
+    "```",
+  ].join("\n");
+
+  assert.deepEqual(rulesOf(body), []);
+});
+
+test("registerLoader after .use(attachLoader) in the same fence → clean", () => {
+  const body = [
+    "```ts",
+    "const i18n = createI18n({ locale: 'en' }).use(attachLoader);",
     "i18n.registerLoader(myLoader);",
     "```",
   ].join("\n");
@@ -82,7 +110,7 @@ test("two fences sharing a title inside ONE <TabItem> → one chain, so the comp
     "  </TabItem>",
     '  <TabItem label="Vue">',
     '  ```ts title="src/i18n.ts"',
-    "  export const i18n = createI18n({ locale: 'en' }).with(loader());",
+    "  export const i18n = createI18n({ locale: 'en' }).use(loader());",
     "  ```",
     '  ```ts title="src/i18n.ts"',
     "  i18n.registerLoader(myLoader);",
@@ -102,7 +130,7 @@ test("two <TabItem>s writing the same title → the other tab's composition does
     "<Tabs>",
     '  <TabItem label="React">',
     '  ```ts title="src/i18n.ts"',
-    "  export const i18n = createI18n({ locale: 'en' }).with(loader());",
+    "  export const i18n = createI18n({ locale: 'en' }).use(loader());",
     "  ```",
     "  </TabItem>",
     '  <TabItem label="Vue">',
@@ -127,7 +155,7 @@ test("an explicit check=group crossing two <TabItem>s → still one chain", () =
     "<Tabs>",
     '  <TabItem label="React">',
     "  ```ts check=group=app-host",
-    "  export const i18n = createI18n({ locale: 'en' }).with(loader());",
+    "  export const i18n = createI18n({ locale: 'en' }).use(loader());",
     "  ```",
     "  </TabItem>",
     '  <TabItem label="Vue">',
@@ -144,7 +172,7 @@ test("an explicit check=group crossing two <TabItem>s → still one chain", () =
 test("registerLoader in a fence the group does NOT reach → banned", () => {
   const body = [
     '```ts title="src/i18n.ts"',
-    "export const i18n = createI18n({ locale: 'en' }).with(loader());",
+    "export const i18n = createI18n({ locale: 'en' }).use(loader());",
     "```",
     '```ts title="src/other.ts"',
     "other.registerLoader(myLoader);",
@@ -157,7 +185,7 @@ test("registerLoader in a fence the group does NOT reach → banned", () => {
 test("registerLoader with an explicit check=group shared across fences → clean", () => {
   const body = [
     "```ts check=group=app-host",
-    "export const i18n = createI18n({ locale: 'en' }).with(loader());",
+    "export const i18n = createI18n({ locale: 'en' }).use(loader());",
     "```",
     "```ts check=group=app-host",
     "i18n.registerLoader(myLoader);",
@@ -182,10 +210,10 @@ test("i18n.core.registerLoader on a wrapper whose core was never composed → ba
   assert.deepEqual(rulesOf(body), ["banned/register-loader-on-instance"]);
 });
 
-test("i18n.core.registerLoader after createCore(…).with(loader()) in the chain → clean", () => {
+test("i18n.core.registerLoader after createCore(…).use(loader()) in the chain → clean", () => {
   const body = [
     "```ts",
-    "const core = createCore({ locale: 'en' }).with(loader());",
+    "const core = createCore({ locale: 'en' }).use(loader());",
     "const i18n = createI18nFromCore(core);",
     "i18n.core.registerLoader(myLoader);",
     "```",
@@ -194,15 +222,15 @@ test("i18n.core.registerLoader after createCore(…).with(loader()) in the chain
   assert.deepEqual(rulesOf(body), []);
 });
 
-test("i18n.core.use(Plugin()) on a wrapper whose core was never composed → banned", () => {
+test("i18n.core.registerPlugin on a wrapper whose core was never composed → banned", () => {
   const body = [
     "```ts",
     "const i18n = createI18n({ locale: 'en' });",
-    "i18n.core.use(FetchLoader({ apiKey }));",
+    "i18n.core.registerPlugin(myPlugin);",
     "```",
   ].join("\n");
 
-  assert.deepEqual(rulesOf(body), ["banned/plugin-use-without-plugins"]);
+  assert.deepEqual(rulesOf(body), ["banned/register-plugin-without-plugins"]);
 });
 
 test("core.registerLoader inside a nuxt hook typed with I18nLoaderApi → clean", () => {
@@ -255,7 +283,7 @@ test("a diff fence's ADDED line carrying a dead symbol → linted", () => {
   assert.deepEqual(rulesOf(body), ["banned/slim-entry", "banned/slim-entry"]);
 });
 
-test(".use(Plugin()) on a chain without the plugin capability → banned", () => {
+test(".use(RawPlugin()) → banned, a raw plugin is not an installer", () => {
   const body = [
     "```ts",
     "const i18n = createI18n({ locale: 'en' });",
@@ -263,25 +291,66 @@ test(".use(Plugin()) on a chain without the plugin capability → banned", () =>
     "```",
   ].join("\n");
 
-  assert.deepEqual(rulesOf(body), ["banned/plugin-use-without-plugins"]);
+  const findings = findingsOf(body);
+
+  assert.deepEqual(
+    findings.map((f) => f.rule),
+    ["banned/raw-plugin-in-use-slot"],
+  );
+  assert.match(findings[0].message, /E_USE_NOT_INSTALLER/);
 });
 
-test(".use(Plugin()) after .with(plugins()) → clean", () => {
+test(".use(RawPlugin()) after .use(plugins()) → STILL banned, the chain cannot clear it", () => {
+  // This is where the premise inverted at decision E. While `use` was the raw
+  // plugin queue, composing `plugins()` was exactly what made the call legal.
+  // Now `use` is the installer pipe on every host, so the capability changes
+  // nothing: a raw plugin hits the E_USE_NOT_INSTALLER guard either way, and
+  // the rule is unconditional rather than chain-scoped.
   const body = [
     "```ts",
-    "const i18n = createI18n({ locale: 'en' }).with(loader()).with(plugins());",
+    "const i18n = createI18n({ locale: 'en' }).use(loader()).use(plugins());",
     "i18n.use(FetchLoader({ apiKey }));",
+    "```",
+  ].join("\n");
+
+  assert.deepEqual(rulesOf(body), ["banned/raw-plugin-in-use-slot"]);
+});
+
+test(".use(LocaleDetector()) → banned, and the message names the lowercase installer", () => {
+  const body = [
+    "```ts",
+    "const i18n = createI18n({ locale: 'en' }).use(attachPlugins);",
+    "i18n.use(LocaleDetector());",
+    "```",
+  ].join("\n");
+
+  const findings = findingsOf(body);
+
+  assert.deepEqual(
+    findings.map((f) => f.rule),
+    ["banned/raw-plugin-in-use-slot"],
+  );
+  assert.match(findings[0].message, /localeDetector\(\), not LocaleDetector\(\)/);
+  assert.match(findings[0].message, /\.use\(definePlugin\(fn\)\)/);
+});
+
+test(".use(localeDetector()) → clean, the lowercase factory IS the installer", () => {
+  const body = [
+    "```ts",
+    "const i18n = createI18n({ locale: 'en' }).use(localeDetector({ order: ['navigator'] }));",
     "```",
   ].join("\n");
 
   assert.deepEqual(rulesOf(body), []);
 });
 
-test(".use(Plugin()) after .with(attachPlugins) → clean", () => {
+test(".use(definePlugin(fn)) → clean, and it composes the plugin capability for the chain", () => {
+  // `definePlugin(fn)` attaches the capability and queues `fn` (brief E §3), so
+  // a later `registerPlugin` in the same chain is served by the host it built.
   const body = [
     "```ts",
-    "const i18n = createI18n({ locale: 'en' }).with(attachPlugins);",
-    "i18n.use(LocaleDetector());",
+    "const i18n = createI18n({ locale: 'en' }).use(definePlugin((i18n) => undefined));",
+    "i18n.registerPlugin(myOtherPlugin);",
     "```",
   ].join("\n");
 
@@ -294,15 +363,50 @@ test("app.use(i18n) installing the Vue plugin → clean, it is not a comvi plugi
   assert.deepEqual(rulesOf(body), []);
 });
 
-test("an installer handed to .use() instead of .with() → banned as E_INSTALLER_NESTED_USE", () => {
+test("an installer handed to .use() → clean, that is the one composition verb", () => {
+  // The rule that used to fire here said the opposite: an installer belonged in
+  // `.with()` and `.use()` was the raw plugin queue. After decision E there is
+  // one verb and this is it.
   const body = [
     "```ts",
-    "const i18n = createI18n({ locale: 'en' }).with(plugins());",
+    "const i18n = createI18n({ locale: 'en' }).use(plugins());",
     "i18n.use(cdnLoader({ cdnUrl }));",
     "```",
   ].join("\n");
 
-  assert.deepEqual(rulesOf(body), ["banned/installer-in-plugin-slot"]);
+  assert.deepEqual(rulesOf(body), []);
+});
+
+test("a .use( fence is clean but a .with( fence is banned, with no chain to clear it", () => {
+  const body = [
+    "```ts",
+    "const i18n = createI18n({ locale: 'en' }).with(loader()).with(plugins());",
+    "```",
+  ].join("\n");
+
+  const findings = findingsOf(body);
+
+  assert.deepEqual(
+    findings.map((f) => f.rule),
+    ["banned/with-composition", "banned/with-composition"],
+  );
+  assert.equal(findings[0].line, 6);
+  assert.equal(findings[0].col, "const i18n = createI18n({ locale: 'en' })".length + 1);
+  assert.match(findings[0].message, /the composition verb is `\.use\(\.\.\.\)`/);
+});
+
+test("a .with( on a framework page is banned AND leaves the composition requirement unmet", () => {
+  // The two rules are independent halves of the same fact: `.with(` is not the
+  // verb, and a page whose only composition is spelled that way has not shown
+  // the reader a chain they can copy.
+  const body = ["```tsx", "const i18n = createI18n({ locale: 'en' }).with(loader());", "```"].join(
+    "\n",
+  );
+
+  assert.deepEqual(rulesOf(body, { file: "docs/i18n/react.mdx" }), [
+    "banned/with-composition",
+    "required/use-composition",
+  ]);
 });
 
 test("a slim entry import → banned, no chain can clear it", () => {
@@ -341,10 +445,10 @@ test("exposeGlobal passed to the constructor with no devtools() in sight → ban
   assert.equal(findings[0].col, "const i18n = createI18n({ locale: 'en', ".length + 1);
 });
 
-test("instanceId inside .with(devtools({ … })) → clean", () => {
+test("instanceId inside .use(devtools({ … })) → clean", () => {
   const body = [
     "```ts",
-    "const i18n = createI18n({ locale: 'en' }).with(devtools({ instanceId: 'app' }));",
+    "const i18n = createI18n({ locale: 'en' }).use(devtools({ instanceId: 'app' }));",
     "```",
   ].join("\n");
 
@@ -355,12 +459,12 @@ test("instanceId inside .with(devtools({ … })) → clean", () => {
 // Acquisition evidence has to be code, not talk about code.
 // ---------------------------------------------------------------------------
 
-test("a line comment naming .with(loader()) above a bare registerLoader → does NOT clear it", () => {
+test("a line comment naming .use(loader()) above a bare registerLoader → does NOT clear it", () => {
   // The bypass reads as the most natural sentence a doc could write, which is
   // why it has to be closed: the comment describes the bug, not the fix.
   const body = [
     "```ts",
-    "// Wrong: you must write .with(loader()) first.",
+    "// Wrong: you must write .use(loader()) first.",
     "i18n.registerLoader(myLoader);",
     "```",
   ].join("\n");
@@ -368,21 +472,21 @@ test("a line comment naming .with(loader()) above a bare registerLoader → does
   assert.deepEqual(rulesOf(body), ["banned/register-loader-on-instance"]);
 });
 
-test("a block comment naming .with(plugins()) above a bare .use(Plugin()) → does NOT clear it", () => {
+test("a block comment naming .use(plugins()) above a bare registerPlugin → does NOT clear it", () => {
   const body = [
     "```ts",
-    "/* Compose .with(plugins()) before this line. */",
-    "i18n.use(FetchLoader({ apiKey }));",
+    "/* Compose .use(plugins()) before this line. */",
+    "i18n.registerPlugin(myPlugin);",
     "```",
   ].join("\n");
 
-  assert.deepEqual(rulesOf(body), ["banned/plugin-use-without-plugins"]);
+  assert.deepEqual(rulesOf(body), ["banned/register-plugin-without-plugins"]);
 });
 
-test("a string literal quoting .with(loader()) → does NOT clear a bare registerLoader", () => {
+test("a string literal quoting .use(loader()) → does NOT clear a bare registerLoader", () => {
   const body = [
     "```ts",
-    "throw new Error('compose .with(loader()) first');",
+    "throw new Error('compose .use(loader()) first');",
     "i18n.registerLoader(myLoader);",
     "```",
   ].join("\n");
@@ -393,7 +497,7 @@ test("a string literal quoting .with(loader()) → does NOT clear a bare registe
 test("a comment in ANOTHER fence of the same chain → does NOT clear the call", () => {
   const body = [
     '```ts title="src/i18n.ts"',
-    "// Remember to call .with(loader()) here.",
+    "// Remember to call .use(loader()) here.",
     "export const i18n = createI18n({ locale: 'en' });",
     "```",
     '```ts title="src/i18n.ts"',
@@ -405,7 +509,7 @@ test("a comment in ANOTHER fence of the same chain → does NOT clear the call",
 });
 
 test("stripCommentsAndStrings → comments and literals gone, template substitutions kept", () => {
-  const code = "const a = `x${count}y`; // .with(loader())\nconst b = '.with(plugins())';";
+  const code = "const a = `x${count}y`; // .use(loader())\nconst b = '.use(plugins())';";
 
   assert.equal(stripCommentsAndStrings(code), "const a = ${count}; \nconst b = ;");
 });
@@ -567,59 +671,95 @@ test("the same claim inside a code comment in a fence → not a prose finding", 
 // REQUIRED — API that must be present, which typecheck can never notice.
 // ---------------------------------------------------------------------------
 
-test("a framework page that never writes .with( → required/with-composition", () => {
+test("a framework page that never writes .use( → required/use-composition", () => {
   const body = ["```tsx", "const i18n = createI18n({ locale: 'en' });", "```"].join("\n");
 
-  assert.deepEqual(rulesOf(body, { file: "docs/i18n/react.mdx" }), ["required/with-composition"]);
+  assert.deepEqual(rulesOf(body, { file: "docs/i18n/react.mdx" }), ["required/use-composition"]);
 });
 
 test("a framework page that composes a capability → clean", () => {
-  const body = ["```tsx", "const i18n = createI18n({ locale: 'en' }).with(loader());", "```"].join(
+  const body = ["```tsx", "const i18n = createI18n({ locale: 'en' }).use(loader());", "```"].join(
     "\n",
   );
 
   assert.deepEqual(rulesOf(body, { file: "docs/i18n/react.mdx" }), []);
 });
 
-test("a framework page whose only .with( is in prose → still flagged", () => {
-  // `quick-start.mdx` lists `.with(loader({…}))` in a comparison table while
+test("a framework page whose only .use( is Vue's app.use(i18n) → still flagged", () => {
+  // The one verb shares its NAME with Vue's, not its meaning: `app.use(i18n)`
+  // installs the Vue plugin on the app and composes no capability at all. A
+  // bare `\.use\(` probe would have greened every 0.4 Vue page in the corpus,
+  // since `app.use(i18n)` is the line they all already had.
+  const body = [
+    "```ts",
+    "const i18n = createI18n({ locale: 'en' });",
+    "createApp(App).use(i18n).mount('#app');",
+    "```",
+  ].join("\n");
+
+  assert.deepEqual(rulesOf(body, { file: "docs/i18n/vue.mdx" }), ["required/use-composition"]);
+});
+
+test("a framework page composing before app.use(i18n) → clean, the chain is what counts", () => {
+  const body = [
+    "```ts",
+    "const i18n = createI18n({ locale: 'en' }).use(cdnLoader({ cdnUrl }));",
+    "createApp(App).use(i18n).mount('#app');",
+    "```",
+  ].join("\n");
+
+  assert.deepEqual(rulesOf(body, { file: "docs/i18n/vue.mdx" }), []);
+});
+
+test("a framework page whose composition is .use(attachLoader) → clean, a bare installer counts", () => {
+  const body = [
+    "```tsx",
+    "const i18n = createI18n({ locale: 'en' }).use(attachLoader);",
+    "```",
+  ].join("\n");
+
+  assert.deepEqual(rulesOf(body, { file: "docs/i18n/react.mdx" }), []);
+});
+
+test("a framework page whose only .use( is in prose → still flagged", () => {
+  // `quick-start.mdx` lists `.use(loader({…}))` in a comparison table while
   // every tab below it still constructs a 0.4 host. A reader copies the tab.
   const body = [
     "| capability | how |",
     "| --- | --- |",
-    "| lazy locale files | `.with(loader({ de: () => import('./de.json') }))` |",
+    "| lazy locale files | `.use(loader({ de: () => import('./de.json') }))` |",
     "",
     "```tsx",
     "const i18n = createI18n({ locale: 'en' });",
     "```",
   ].join("\n");
 
-  assert.deepEqual(rulesOf(body, { file: "docs/i18n/react.mdx" }), ["required/with-composition"]);
+  assert.deepEqual(rulesOf(body, { file: "docs/i18n/react.mdx" }), ["required/use-composition"]);
 });
 
-test("a framework page whose only .with( is in a code comment → still flagged", () => {
+test("a framework page whose only .use( is in a code comment → still flagged", () => {
   const body = [
     "```tsx",
-    "// later: .with(loader())",
+    "// later: .use(loader())",
     "const i18n = createI18n({ locale: 'en' });",
     "```",
   ].join("\n");
 
-  assert.deepEqual(rulesOf(body, { file: "docs/i18n/react.mdx" }), ["required/with-composition"]);
+  assert.deepEqual(rulesOf(body, { file: "docs/i18n/react.mdx" }), ["required/use-composition"]);
 });
 
-test("a framework page whose only .with( is in a skipped competitor fence → still flagged", () => {
+test("a framework page whose only .use( is in a skipped competitor fence → still flagged", () => {
   const body = [
     "```ts check=skip:competitor-example",
     "import i18next from 'i18next';",
-    "const other = build().with(loader());",
+    "const other = build().use(loader());",
     "```",
     "```tsx",
     "const i18n = createI18n({ locale: 'en' });",
     "```",
   ].join("\n");
 
-  assert.deepEqual(rulesOf(body, { file: "docs/i18n/react.mdx" }), ["required/with-composition"]);
+  assert.deepEqual(rulesOf(body, { file: "docs/i18n/react.mdx" }), ["required/use-composition"]);
 });
 
 test("a framework page where one tab composes and another does not → clean, the page shows the API", () => {
@@ -630,7 +770,7 @@ test("a framework page where one tab composes and another does not → clean, th
     "<Tabs>",
     '  <TabItem label="React">',
     "  ```tsx",
-    "  const i18n = createI18n({ locale: 'en' }).with(loader());",
+    "  const i18n = createI18n({ locale: 'en' }).use(loader());",
     "  ```",
     "  </TabItem>",
     '  <TabItem label="Vue">',
@@ -647,7 +787,7 @@ test("a framework page where one tab composes and another does not → clean, th
   ]);
 });
 
-test("a non-framework page with no .with( → clean, the requirement is by page class", () => {
+test("a non-framework page with no .use( → clean, the requirement is by page class", () => {
   const body = ["```ts", "const i18n = createI18n({ locale: 'en' });", "```"].join("\n");
 
   assert.deepEqual(rulesOf(body, { file: "docs/i18n/formatting.mdx" }), []);
@@ -664,7 +804,7 @@ test("a README of a non-framework package → no class, so no composition requir
 test("the INSTALLED README of a non-framework package → the same class as its source", () => {
   // The www runner reads `node_modules/@comvi/*/README.md`. Matching only the
   // `packages/` layout made every installed copy fall through to `framework`,
-  // so cli, typegen, vite-plugin and locale-routing owed a `.with(` that their
+  // so cli, typegen, vite-plugin and locale-routing owed a `.use(` that their
   // own sources are rightly never asked for.
   assert.deepEqual([...classify("node_modules/@comvi/cli/README.md")], []);
   assert.deepEqual([...classify("node_modules/@comvi/vite-plugin/README.md")], []);
@@ -694,7 +834,7 @@ test("an ICU argument in a JSON catalog fence with no compiler named → require
   // describes it. Both are pinned: the message is the only instruction a reader
   // gets, and a citation that outlives its section sends them to the wrong page.
   assert.match(findings[0].message, /compiler: icuCompiler/);
-  assert.doesNotMatch(findings[0].message, /\.with\(\s*icu/);
+  assert.doesNotMatch(findings[0].message, /\.use\(\s*icu/);
   assert.equal(
     findings[0].migration,
     "MIGRATION.md §0 (ICU row) and §0.1 (the compiler is a constructor option)",
@@ -714,8 +854,8 @@ test("the same catalog on a page that names icuCompiler → clean", () => {
   assert.deepEqual(rulesOf(body), []);
 });
 
-test("the same catalog on a page that composes .with(icu()) → the installer is NOT evidence", () => {
-  // `.with(icu())` used to vouch for the page. The installer is gone, so it
+test("the same catalog on a page that composes .use(icu()) → the installer is NOT evidence", () => {
+  // The installer used to vouch for the page. It is gone, so it
   // vouches for nothing and is itself banned: a reader copying this fence gets
   // an unresolved import, and the page still never names a usable compiler.
   const body = [
@@ -723,17 +863,15 @@ test("the same catalog on a page that composes .with(icu()) → the installer is
     '{ "cart": "{count, plural, one {# item} other {# items}}" }',
     "```",
     "```ts",
-    "const i18n = createI18n({ locale: 'en' }).with(icu()).with(loader(map));",
+    "const i18n = createI18n({ locale: 'en' }).use(icu()).use(loader(map));",
     "```",
   ].join("\n");
 
   assert.deepEqual(rulesOf(body), ["banned/icu-installer", "required/icu-compiler"]);
 });
 
-test(".with(icu()) alone → banned at the call, whatever else the page says", () => {
-  const body = ["```ts", "const i18n = createI18n({ locale: 'en' }).with(icu());", "```"].join(
-    "\n",
-  );
+test(".use(icu()) alone → banned at the call, whatever else the page says", () => {
+  const body = ["```ts", "const i18n = createI18n({ locale: 'en' }).use(icu());", "```"].join("\n");
 
   const findings = findingsOf(body);
 
@@ -744,15 +882,15 @@ test(".with(icu()) alone → banned at the call, whatever else the page says", (
   assert.match(findings[0].message, /compiler: icuCompiler/);
 });
 
-test(".use(icu()) in an import-less fence → banned/icu-installer, NOT the wrong-slot rule", () => {
-  // The wrong-slot rule would tell the reader to move the call to `.with()`,
-  // which is the wrong fix for a name that no longer exists — so `icu` left that
-  // rule's list and this one matches BOTH slots. Import-less on purpose: the
-  // site's fences routinely omit the imports, so the call half cannot lean on
-  // the provenance check the import half makes.
+test(".use(icu()) in an import-less fence → banned/icu-installer, and nothing else", () => {
+  // `icu` is deliberately absent from the raw-plugin rule's list and exempted
+  // from `banned/with-composition`: both would have the reader rewrap a call
+  // that has to GO, which is the wrong fix for a name that no longer exists.
+  // Import-less on purpose: the site's fences routinely omit the imports, so
+  // the call half cannot lean on the provenance check the import half makes.
   const body = [
     "```ts",
-    "const i18n = createI18n({ locale: 'en' }).with(plugins());",
+    "const i18n = createI18n({ locale: 'en' }).use(plugins());",
     "i18n.use(icu());",
     "```",
   ].join("\n");
@@ -764,6 +902,21 @@ test(".use(icu()) in an import-less fence → banned/icu-installer, NOT the wron
   assert.equal(findings[0].line, 7);
   assert.equal(findings[0].col, "i18n".length + 1);
   assert.match(findings[0].message, /compiler: icuCompiler/);
+});
+
+test(".with(icu()) → the same one finding, because a reader may still have the old verb", () => {
+  // The matcher keeps BOTH spellings. `.with(` is banned in its own right, but
+  // not here: one call site earns one finding, and this is the finding whose fix
+  // removes the call instead of renaming the verb around it.
+  const body = ["```ts", "const i18n = createI18n({ locale: 'en' }).with(icu());", "```"].join(
+    "\n",
+  );
+
+  const findings = findingsOf(body);
+
+  assert.equal(findings.length, 1);
+  assert.equal(findings[0].rule, "banned/icu-installer");
+  assert.equal(findings[0].col, "const i18n = createI18n({ locale: 'en' })".length + 1);
 });
 
 test("importing the bare `icu` from a @comvi specifier → banned even with no call in the fence", () => {
@@ -815,11 +968,11 @@ test("importing `icu` from another library → not this rule's business", () => 
   assert.deepEqual(rulesOf(body), []);
 });
 
-test("a diff fence's removed .with(icu()) line → not linted, it teaches the fix", () => {
+test("a diff fence's removed .use(icu()) line → not linted, it teaches the fix", () => {
   const body = [
     "```diff",
     "-import { icu } from '@comvi/core/icu';",
-    "-const i18n = createI18n({ locale: 'en' }).with(icu());",
+    "-const i18n = createI18n({ locale: 'en' }).use(icu());",
     "+import { icuCompiler } from '@comvi/core/icu';",
     "+const i18n = createI18n({ locale: 'en', compiler: icuCompiler });",
     "```",
@@ -840,7 +993,7 @@ test("a diff fence's ADDED icu import → linted, that is the line a reader copi
 });
 
 test("the same catalog on a page that names icuCompiler only in prose → clean", () => {
-  // Unlike `.with(`, this requirement asks whether the PAGE warns its reader —
+  // Unlike the composition requirement, this one asks whether the PAGE warns —
   // one answer per host — so a sentence is evidence. `vite-plugin/README.md`
   // shows a catalog for typegen and names the explicit import in a bullet.
   const body = [
@@ -1012,10 +1165,10 @@ test("NuxtServerLoaderHost in a type-argument position → vouches", () => {
 test("a check=skip fence sharing a group does NOT clear its linted sibling", () => {
   // A historical 0.3 example kept for reference composes nothing a 0.5 reader
   // can copy; letting it pool into the chain hands the live fence a
-  // `.with(loader())` that appears nowhere in the 0.5 code on the page.
+  // `.use(loader())` that appears nowhere in the 0.5 code on the page.
   const body = [
     "```ts check=group=app check=skip:historical",
-    "const i18n = createI18n({ locale: 'en' }).with(loader());",
+    "const i18n = createI18n({ locale: 'en' }).use(loader());",
     "```",
     "",
     "```ts check=group=app",
@@ -1029,7 +1182,7 @@ test("a check=skip fence sharing a group does NOT clear its linted sibling", () 
 test("a linted fence in the same group still clears its sibling", () => {
   const body = [
     "```ts check=group=app",
-    "const i18n = createI18n({ locale: 'en' }).with(loader());",
+    "const i18n = createI18n({ locale: 'en' }).use(loader());",
     "```",
     "",
     "```ts check=group=app",
@@ -1042,12 +1195,12 @@ test("a linted fence in the same group still clears its sibling", () => {
 
 test("a URL inside a string does not eat the rest of the line", () => {
   // `https://…` carries a `//`. Reading it as a line comment swallowed the
-  // `.with(loader())` that follows it on the same line and reported a framework
+  // `.use(loader())` that follows it on the same line and reported a framework
   // page that composes correctly as one that never composes.
   const body = [
     "```ts",
     "import { createI18n } from '@comvi/core';",
-    "const i18n = createI18n({ locale: 'en', baseUrl: \"https://cdn.comvi.io/x\" }).with(loader());",
+    "const i18n = createI18n({ locale: 'en', baseUrl: \"https://cdn.comvi.io/x\" }).use(loader());",
     "```",
   ].join("\n");
 
@@ -1063,9 +1216,9 @@ test("stripComments keeps a quoted URL verbatim and still drops real comments", 
 });
 
 test("an apostrophe in JSX prose is not a string, so nothing after it is eaten", () => {
-  const kept = stripCommentsAndStrings("<p>don't</p>\nconst i18n = base.with(loader());");
+  const kept = stripCommentsAndStrings("<p>don't</p>\nconst i18n = base.use(loader());");
 
-  assert.match(kept, /\.with\(loader\(\)\)/);
+  assert.match(kept, /\.use\(loader\(\)\)/);
 });
 
 test("an ICU compiler named only in the frontmatter does not vouch for the page", () => {

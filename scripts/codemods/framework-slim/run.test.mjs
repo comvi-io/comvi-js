@@ -68,11 +68,13 @@ const REQUIRED_CASES = [
   "slim-specifier", // 1: `@comvi/<pkg>/slim` -> `@comvi/<pkg>`
   "slim-factory-rename", // 2: `createSlimI18n` -> `createI18n`
   "chain-plugin-installers", // 3: known factory -> lowercase installer
-  "chain-plugin-host", // 3: unknown plugin -> `.with(plugins())` + `.use`
+  "chain-plugin-host", // 3: unknown plugin -> `.use(definePlugin(p))`
   "ctor-icu-compiler", // 4: inline ICU catalog -> `compiler: icuCompiler`
   "ctor-devtools-options", // 5: exposeGlobal / instanceId -> `devtools({…})`
   "ctor-type-only-import", // runtime installer never merges into `import type`
   "ctor-nested-catalog", // 6: non-flat catalog -> `flattenCatalog(…)`
+  "chain-with-verb", // 7: a 0.5-pre `.with(installer)` chain -> `.use(installer)`
+  "stored-register-plugin", // 8: `host.use(raw)` on a proven plugin host
   "prologue-shebang", // shebang + directive prologue keep their positions
   // one golden per report-only residual.
   "report-slim-rename",
@@ -136,6 +138,7 @@ test("CRLF sources come back with CRLF", () => {
     [
       "chain-plugin-host",
       "chain-plugin-installers",
+      "chain-with-verb",
       "ctor-devtools-options",
       "ctor-icu-compiler",
       "ctor-nested-catalog",
@@ -151,6 +154,7 @@ test("CRLF sources come back with CRLF", () => {
       "sfc-vue-compact",
       "slim-factory-rename",
       "slim-specifier",
+      "stored-register-plugin",
       "t1-pure-loader",
       "t2-pure-plugins",
       "t3-mixed",
@@ -480,7 +484,7 @@ const i18n = createI18n({ locale: "en", exposeGlobal: false });
     {
       name: "default import",
       source: `import { createI18n } from "@comvi/react";
-import plugins from "./plugins";
+import definePlugin from "./definePlugin";
 const i18n = createI18n({ locale: "en" }).use(CustomPlugin({}));
 `,
     },
@@ -608,10 +612,13 @@ const i18n = createI18n({ locale: "en" }).use(FetchLoader({ cdnUrl: "/x" }));
 `,
     },
     {
-      name: "a `plugins` installer imported from another library",
+      // The helper the raw-plugin wrap needs is a BINDING like any other, so a
+      // same-named import from elsewhere refuses the chain rather than
+      // emitting a reference to the wrong `definePlugin`.
+      name: "a `definePlugin` helper imported from another library",
       source: `import { createI18n } from "@comvi/react";
-import { plugins } from "other-lib";
-const i18n = createI18n({ locale: "en" }).with(plugins()).use(CustomPlugin({}));
+import { definePlugin } from "other-lib";
+const i18n = createI18n({ locale: "en" }).use(CustomPlugin({}));
 `,
     },
   ];
@@ -976,6 +983,7 @@ test("transformed TypeScript goldens compile", (t) => {
     [
       "chain-plugin-host",
       "chain-plugin-installers",
+      "chain-with-verb",
       "ctor-devtools-options",
       "ctor-icu-compiler",
       "ctor-nested-catalog",
@@ -987,6 +995,7 @@ test("transformed TypeScript goldens compile", (t) => {
       "hook-type-position-param",
       "slim-factory-rename",
       "slim-specifier",
+      "stored-register-plugin",
       "t1-pure-loader",
       "t2-pure-plugins",
       "t3-mixed",
@@ -1035,10 +1044,14 @@ test("transformed TypeScript goldens compile", (t) => {
 });
 
 /**
- * A local stand-in for the published surface: the base host and its `.with(…)`
+ * A local stand-in for the published surface: the base host and its `.use(…)`
  * installers, the capability hooks, the three uppercase plugin factories and
  * their lowercase installers. Deliberately does NOT declare `process` or any
  * DOM global (`types: []`), so a golden can only reference what it imports.
+ *
+ * `use` is the ONE composition verb here, as on the real host, and the raw
+ * plugin queue is `registerPlugin` — so a golden that still emitted `.with(` or
+ * queued a plugin through `use` fails to compile instead of passing the gate.
  */
 function writeStandIns(dir) {
   const files = {
@@ -1046,7 +1059,7 @@ function writeStandIns(dir) {
   readonly cid: number;
 }
 export interface I18nPlugin {
-  (host: unknown): void | (() => void);
+  (host: Host): void | (() => void);
 }
 export interface HostOptions {
   locale: string;
@@ -1058,13 +1071,13 @@ export interface HostOptions {
 export interface Host {
   readonly locale: string;
   t: (key: string, params?: Record<string, unknown>) => string;
-  with<R>(installer: (host: this) => R): R;
+  use<R>(installer: (host: this) => R): R;
 }
 export interface LoaderApi {
   reloadTranslations: (locale?: string, ns?: string) => Promise<void>;
 }
 export interface PluginApi {
-  use(plugin: I18nPlugin): this;
+  registerPlugin(plugin: I18nPlugin, options?: Record<string, unknown>): this;
 }
 export declare function createI18n(options: HostOptions): Host;
 export declare const I18n: new (options: HostOptions) => Host;
@@ -1074,6 +1087,11 @@ export declare function loader(
   importMap?: Record<string, () => Promise<unknown>>,
 ): <T extends Host>(host: T) => T & LoaderApi;
 export declare function plugins(): <T extends Host>(host: T) => T & PluginApi;
+export declare function attachPlugins<T extends Host>(host: T): T & PluginApi;
+export declare function definePlugin(
+  plugin: I18nPlugin,
+  options?: Record<string, unknown>,
+): <T extends Host>(host: T) => T & PluginApi;
 export interface DevtoolsOptions {
   instanceId?: string;
   exposeGlobal?: boolean;
@@ -1095,13 +1113,13 @@ export declare function inContextEditor(options?: {
     "comvi/core.ts": `export { createI18n, flattenCatalog, I18n } from "./api";
 export type * from "./api";
 `,
-    "comvi/core/plugins.ts": `export { plugins } from "../api";
+    "comvi/core/plugins.ts": `export { attachPlugins, definePlugin, plugins } from "../api";
 `,
     "comvi/core/devtools.ts": `export { devtools } from "../api";
 export type { DevtoolsOptions } from "../api";
 `,
     "comvi/react.ts": `export { createI18n, devtools, flattenCatalog, I18n } from "./api";
-export { icuCompiler, loader, plugins } from "./api";
+export { attachPlugins, definePlugin, icuCompiler, loader, plugins } from "./api";
 export type * from "./api";
 
 export interface UseI18nReturn {
@@ -1133,10 +1151,11 @@ export type * from "../api";
 `,
     "comvi/plugin-in-context-editor.ts": `export { InContextEditorPlugin, inContextEditor } from "./api";
 `,
-    "analytics.ts": `import type { I18nPlugin } from "./comvi/api";
+    "analytics.ts": `import type { Host, I18nPlugin } from "./comvi/api";
 
 export declare function Analytics(options?: { id?: number }): I18nPlugin;
 export declare function Metrics(): I18nPlugin;
+export declare function wrapMetrics(): <T extends Host>(host: T) => T;
 `,
   };
   for (const [name, contents] of Object.entries(files)) {
@@ -1202,7 +1221,7 @@ test("the report counts every transform by shape", (t) => {
     "capability-hook": 2,
     "devtools-options": 1,
     "nested-catalog": 2,
-    "plugin-host": 1,
+    "raw-plugin-helper": 1,
     "slim-specifier": 1,
   });
   assert.equal(report.summary.rewrites, 7);

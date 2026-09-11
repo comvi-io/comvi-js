@@ -4,4 +4,4 @@ import type { DevtoolsOptions } from "@comvi/core/devtools";
 import { devtools } from "@comvi/core/devtools";
 
 const documented: DevtoolsOptions = { exposeGlobal: false };
-export const i18n = createI18n({ locale: "en" }).with(devtools({ exposeGlobal: documented.exposeGlobal }));
+export const i18n = createI18n({ locale: "en" }).use(devtools({ exposeGlobal: documented.exposeGlobal }));

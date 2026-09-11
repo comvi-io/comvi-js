@@ -1,32 +1,38 @@
 [
   {
-    "line": 9,
-    "column": 52,
-    "shape": "dynamic-plugin-use",
-    "detail": "`.use(...extras)` is not a statically named plugin factory call — compose `.with(plugins())` and keep this `.use(…)` by hand"
-  },
-  {
     "line": 10,
-    "column": 51,
-    "shape": "dynamic-plugin-use",
-    "detail": "`.use(extras)` is not a statically named plugin factory call — compose `.with(plugins())` and keep this `.use(…)` by hand"
+    "column": 52,
+    "shape": "raw-plugin-needs-helper",
+    "detail": "`.use(...extras)` hands `.use` something that is not an installer — wrap each plugin as `.use(definePlugin(plugin))` by hand, one call per plugin"
   },
   {
     "line": 11,
-    "column": 52,
-    "shape": "dynamic-plugin-use",
-    "detail": "`.use(extras[0])` is not a statically named plugin factory call — compose `.with(plugins())` and keep this `.use(…)` by hand"
+    "column": 51,
+    "shape": "raw-plugin-needs-helper",
+    "detail": "`.use(extras)` hands `.use` something that is not an installer — wrap each plugin as `.use(definePlugin(plugin))` by hand, one call per plugin"
   },
   {
-    "line": 18,
+    "line": 12,
+    "column": 52,
+    "shape": "raw-plugin-needs-helper",
+    "detail": "`.use(extras[0])` hands `.use` something that is not an installer — wrap each plugin as `.use(definePlugin(plugin))` by hand, one call per plugin"
+  },
+  {
+    "line": 19,
     "column": 25,
     "shape": "local-name-collision",
-    "detail": "`plugins` is already declared locally — the `createI18n(…)` chains in this file are left untouched"
+    "detail": "`definePlugin` is already declared locally — the `createI18n(…)` chains in this file are left untouched"
   },
   {
-    "line": 22,
+    "line": 25,
+    "column": 51,
+    "shape": "raw-plugin-needs-helper",
+    "detail": "`.use(metrics())` reads as an installer by its lowercase name and is left as written — if `metrics()` returns a PLUGIN rather than an installer, wrap it as `.use(definePlugin(metrics(…)))`"
+  },
+  {
+    "line": 29,
     "column": 44,
     "shape": "stored-host-plugin-use",
-    "detail": "`app.use(…)` runs on a stored `createI18n(…)` result, and the base host has no `use` — compose `.with(plugins())` (or a lowercase installer) where the host is constructed"
+    "detail": "`app.use(…)` runs a raw plugin on a stored `createI18n(…)` result, and `.use` takes an INSTALLER — compose `.use(plugins())` (or a lowercase installer) where the host is constructed and call `app.registerPlugin(…)` here, or wrap the plugin as `app.use(definePlugin(…))`"
   }
 ]

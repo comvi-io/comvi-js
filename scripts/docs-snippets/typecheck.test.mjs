@@ -311,6 +311,40 @@ test("the icu subpath publishes a compiler, and the constructor option takes it"
   assert.deepEqual(errors(check(body)), []);
 });
 
+test("the one composition verb resolves, and the raw queue under its own name", () => {
+  // The stub host is the surface a fence is judged against, so it carries
+  // exactly what decision E left: `use(installer)` composing, `definePlugin`
+  // wrapping an app's own plugin, and `registerPlugin` as the raw queue. A
+  // fence that writes the recommended shape has to compile clean here, or the
+  // gate is judging pages against an API nobody ships.
+  const body = [
+    "```ts",
+    'import { createI18n } from "@comvi/core";',
+    'import { definePlugin, plugins } from "@comvi/core/plugins";',
+    'const i18n = createI18n({ locale: "en" })',
+    "  .use(plugins())",
+    '  .use(definePlugin((host) => void host.t("hello")));',
+    "export const queued = i18n.registerPlugin(() => undefined);",
+    "```",
+  ].join("\n");
+
+  assert.deepEqual(errors(check(body)), []);
+});
+
+test("the retired `with` verb does not resolve on the host", () => {
+  // `.with` has no alias in 0.5.0, so a page that still writes it fails to
+  // compile as well as failing the symbol lint.
+  const body = [
+    "```ts",
+    'import { createI18n } from "@comvi/core";',
+    'import { plugins } from "@comvi/core/plugins";',
+    'export const i18n = createI18n({ locale: "en" }).with(plugins());',
+    "```",
+  ].join("\n");
+
+  assert.equal(errors(check(body)).length, 1);
+});
+
 test("the removed icu() installer does not resolve from the icu subpath", () => {
   const body = [
     "```ts",

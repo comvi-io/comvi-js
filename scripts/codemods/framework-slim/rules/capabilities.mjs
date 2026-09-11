@@ -32,6 +32,12 @@ export const HOOK_NAMES = HOOKS.map(({ hook }) => hook);
  * The eight instance proxies `VueI18n` drops in 0.5.0. Call sites move to
  * `i18n.core.*`, but the receiver's type is textually undecidable, so these are
  * REPORTED, never rewritten.
+ *
+ * `use` is on the list for the 0.4 proxy that forwarded a RAW PLUGIN to the
+ * core queue, which decision E did not bring back: the wrapper's own `use` is
+ * now the installer pipe (`.use(installer)`), and a raw plugin has to reach the
+ * core's plugin host. So its target member is not the same name — see
+ * `VUE_PROXY_TARGET`.
  */
 export const DROPPED_VUE_PROXIES = [
   "addActiveNamespace",
@@ -43,6 +49,14 @@ export const DROPPED_VUE_PROXIES = [
   "onLoadError",
   "use",
 ];
+
+/**
+ * The member a dropped proxy became on `i18n.core`, where that is NOT the same
+ * name. Only `use` moved: the raw plugin queue was renamed `registerPlugin` to
+ * sit beside `registerLoader` / `registerLocaleDetector`, freeing `use` for the
+ * one composition verb.
+ */
+export const VUE_PROXY_TARGET = new Map([["use", "registerPlugin"]]);
 
 /** The hook whose destructures this codemod rewrites. */
 export const SOURCE_HOOK = "useI18n";
@@ -66,10 +80,12 @@ export const SLIM_HOST_FACTORY = "createSlimI18n";
 export const SLIM_SUBPATH = /^(@comvi\/[a-z0-9-]+)\/slim$/;
 
 /**
- * Uppercase plugin factories that gained a lowercase `.with(…)` installer in
- * the same package. `.use(Factory(opts))` on a statically chained
- * host becomes `.with(installer(opts))` — same options, same position in the
- * chain, so evaluation order is preserved exactly.
+ * Uppercase plugin factories that gained a lowercase installer in the same
+ * package. `.use(Factory(opts))` on a statically chained host becomes
+ * `.use(installer(opts))` — only the CALLEE changes, so the options, the
+ * position in the chain and therefore the evaluation order are preserved
+ * exactly. The verb does not change: after decision E `.use` is the one
+ * composition verb, and an installer is exactly what belongs in it.
  */
 export const PLUGIN_INSTALLERS = new Map([
   ["FetchLoader", "fetchLoader"],
@@ -86,16 +102,33 @@ export const PLUGIN_FACTORY_MODULES = new Map([
   ["InContextEditorPlugin", "@comvi/plugin-in-context-editor"],
 ]);
 
-/** The generic plugin-host installer every unknown `.use` needs first. */
+/** The generic plugin-host installer: the capability, with nothing queued. */
 export const PLUGIN_HOST_INSTALLER = "plugins";
 
 /**
+ * The installer that carries ONE raw plugin: `definePlugin(fn, options?)`
+ * attaches the plugin capability and queues `fn` on it. It is how an app
+ * registers its own plugin through the one verb — `.use(definePlugin(fn))` —
+ * and it is what a pre-E `.use(rawPlugin)` step becomes.
+ *
+ * NOT `plugin`: one character from `plugins()` above, the opposite job, and
+ * both sit in the same chain.
+ */
+export const PLUGIN_HELPER = "definePlugin";
+
+/**
  * Every installer that leaves the host with a plugin API. The lowercase plugin
- * installers ensure it themselves, so a chain that composes one of them
- * already has `.use` and needs no `plugins()` added and no report.
+ * installers and `definePlugin(fn)` ensure it themselves, so a chain that composes
+ * one of them already has `registerPlugin` and needs no `plugins()` and no
+ * report.
  */
 export const PLUGIN_HOST_PROVIDERS = [
-  ...new Set([PLUGIN_HOST_INSTALLER, "attachPlugins", ...PLUGIN_INSTALLERS.values()]),
+  ...new Set([
+    PLUGIN_HOST_INSTALLER,
+    PLUGIN_HELPER,
+    "attachPlugins",
+    ...PLUGIN_INSTALLERS.values(),
+  ]),
 ];
 
 /**
@@ -134,6 +167,7 @@ export const LOADER_INSTALLERS = ["loader", "attachLoader", "fetchLoader"];
 export const CORE_SUBPATH_OF = new Map([
   [ICU_COMPILER, "@comvi/core/icu"],
   [PLUGIN_HOST_INSTALLER, "@comvi/core/plugins"],
+  [PLUGIN_HELPER, "@comvi/core/plugins"],
   ["loader", "@comvi/core/loader"],
   ["attachLoader", "@comvi/core/loader"],
   ["attachPlugins", "@comvi/core/plugins"],

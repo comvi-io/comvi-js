@@ -39,7 +39,7 @@ function makeFixtureRoot(t) {
       "# @comvi/react",
       "",
       "```tsx",
-      "const i18n = createI18n({ locale: 'en' }).with(loader());",
+      "const i18n = createI18n({ locale: 'en' }).use(loader());",
       "```",
       "",
     ].join("\n"),
@@ -47,11 +47,11 @@ function makeFixtureRoot(t) {
   write(path.join(root, "packages/cli/README.md"), "# @comvi/cli\n\nNo code here.\n");
   write(
     path.join(root, "MIGRATION.md"),
-    "# Migrating\n\n```ts\nconst i18n = createI18n({ locale: 'en' }).with(loader());\n```\n",
+    "# Migrating\n\n```ts\nconst i18n = createI18n({ locale: 'en' }).use(loader());\n```\n",
   );
   write(
     path.join(root, "README.md"),
-    "# comvi\n\n```ts\nconst i18n = createI18n({ locale: 'en' }).with(loader());\n```\n",
+    "# comvi\n\n```ts\nconst i18n = createI18n({ locale: 'en' }).use(loader());\n```\n",
   );
 
   write(
@@ -249,7 +249,7 @@ test("formatReport → the divergence baseline, page by page", (t) => {
   assert.match(report, /of those, pages with a banned registerLoader call: 2/);
   assert.match(
     report,
-    /framework pages missing \.with\(: 2\n {4}content\/react\.mdx\n {4}node_modules\/@comvi\/core\/README\.md/,
+    /framework pages missing \.use\(installer\): 2\n {4}content\/react\.mdx\n {4}node_modules\/@comvi\/core\/README\.md/,
   );
 });
 

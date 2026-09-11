@@ -1,5 +1,6 @@
 // the three first-party factories that gained a lowercase installer.
-// `.use(X(o))` becomes `.with(x(o))` IN PLACE, so the composition order the
+// `.use(X(o))` becomes `.use(x(o))` IN PLACE — only the callee changes, since
+// `.use` is already the one composition verb — so the composition order the
 // author wrote is the order the host installs in, and the uppercase import
 // leaves with its last reference.
 //
@@ -11,6 +12,6 @@ import { localeDetector } from "@comvi/plugin-locale-detector";
 import { inContextEditor } from "@comvi/plugin-in-context-editor";
 
 export const i18n = createI18n({ locale: "en" })
-  .with(fetchLoader({ cdnUrl: "https://cdn.comvi.io/demo" }))
-  .with(localeDetector({ order: ["cookie", "navigator"] }))
-  .with(inContextEditor({ apiKey: "demo" }));
+  .use(fetchLoader({ cdnUrl: "https://cdn.comvi.io/demo" }))
+  .use(localeDetector({ order: ["cookie", "navigator"] }))
+  .use(inContextEditor({ apiKey: "demo" }));

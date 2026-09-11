@@ -3,8 +3,8 @@
  *
  * Fully composed on purpose — loader, plugins and the ICU compiler — because a
  * fence that imports it goes on to call `i18n.loadTranslations(…)` or
- * `i18n.use(…)`, and a base host would fail those with a capability error that
- * says nothing about the snippet under test.
+ * `i18n.registerPlugin(…)`, and a base host would fail those with a capability
+ * error that says nothing about the snippet under test.
  */
 import { createI18n } from "@comvi/core";
 import { icuCompiler } from "@comvi/core/icu";
@@ -20,14 +20,14 @@ export const i18n = createI18n({
   translation: { en: {} },
   compiler: icuCompiler,
 })
-  .with(
+  .use(
     loader({
       de: () => import("./locales/de.json"),
       uk: () => import("./locales/uk.json"),
       fr: () => import("./locales/fr.json"),
     }),
   )
-  .with(plugins());
+  .use(plugins());
 
 export type AppI18n = typeof i18n;
 
