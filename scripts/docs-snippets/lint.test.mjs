@@ -690,6 +690,15 @@ test("an ICU argument in a JSON catalog fence with no compiler named → require
   assert.equal(findings.length, 1);
   assert.equal(findings[0].rule, "required/icu-compiler");
   assert.equal(findings[0].line, 6);
+  // The message names ONE enable form, and the citation names the section that
+  // describes it. Both are pinned: the message is the only instruction a reader
+  // gets, and a citation that outlives its section sends them to the wrong page.
+  assert.match(findings[0].message, /compiler: icuCompiler/);
+  assert.doesNotMatch(findings[0].message, /\.with\(\s*icu/);
+  assert.equal(
+    findings[0].migration,
+    "MIGRATION.md §0 (ICU row) and §0.1 (the compiler is a constructor option)",
+  );
 });
 
 test("the same catalog on a page that names icuCompiler → clean", () => {
@@ -732,6 +741,28 @@ test(".with(icu()) alone → banned at the call, whatever else the page says", (
   assert.equal(findings[0].rule, "banned/icu-installer");
   assert.equal(findings[0].line, 6);
   assert.equal(findings[0].col, "const i18n = createI18n({ locale: 'en' })".length + 1);
+  assert.match(findings[0].message, /compiler: icuCompiler/);
+});
+
+test(".use(icu()) in an import-less fence → banned/icu-installer, NOT the wrong-slot rule", () => {
+  // The wrong-slot rule would tell the reader to move the call to `.with()`,
+  // which is the wrong fix for a name that no longer exists — so `icu` left that
+  // rule's list and this one matches BOTH slots. Import-less on purpose: the
+  // site's fences routinely omit the imports, so the call half cannot lean on
+  // the provenance check the import half makes.
+  const body = [
+    "```ts",
+    "const i18n = createI18n({ locale: 'en' }).with(plugins());",
+    "i18n.use(icu());",
+    "```",
+  ].join("\n");
+
+  const findings = findingsOf(body);
+
+  assert.equal(findings.length, 1);
+  assert.equal(findings[0].rule, "banned/icu-installer");
+  assert.equal(findings[0].line, 7);
+  assert.equal(findings[0].col, "i18n".length + 1);
   assert.match(findings[0].message, /compiler: icuCompiler/);
 });
 

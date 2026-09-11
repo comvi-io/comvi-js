@@ -23,11 +23,15 @@ export interface TranslationKeys {}
 type PermissiveKey = keyof TranslationKeys extends never ? string : never;
 export type AnyKey = keyof TranslationKeys | PermissiveKey;
 
+export interface MessageCompiler {
+  (message: string): (params?: Record<string, unknown>) => string;
+}
+
 export interface I18nOptions {
   locale: string;
   fallbackLocale?: string | string[];
   translation?: Record<string, Record<string, unknown>>;
-  compiler?: unknown;
+  compiler?: MessageCompiler;
 }
 
 export interface I18n {
@@ -53,11 +57,20 @@ const CORE_PLUGINS = `export declare function plugins(): <T>(i18n: T) => T;\n`;
  * and no `CompilerLockedError`: ICU is enabled by `compiler: icuCompiler` in the
  * constructor options, so a snippet that reaches for the installer must fail to
  * resolve here exactly as it would in a reader's project.
+ *
+ * `MessageCompiler` is DECLARED in the index and re-exported here, one type for
+ * both entries. The option is typed with it rather than `unknown`, so
+ * `compiler: "icu"` — the shape a reader lands on after reading a page that
+ * still talks about an installer — is a type error the gate reports instead of a
+ * string the compiler happily accepts.
+ *
+ * The specifier is bare, not relative: the stub package is `"type": "module"`,
+ * and the node16 pass rejects an extensionless relative import in one (TS2834).
+ * `@comvi/core` resolves through the exports map under both passes.
  */
 const CORE_ICU = `
-export interface MessageCompiler {
-  (message: string): (params?: Record<string, unknown>) => string;
-}
+export type { MessageCompiler } from "@comvi/core";
+import type { MessageCompiler } from "@comvi/core";
 export declare const icuCompiler: MessageCompiler;
 `;
 

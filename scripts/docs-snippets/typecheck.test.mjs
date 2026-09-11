@@ -299,6 +299,43 @@ test("a fence importing ./i18n resolves the fixture host", () => {
   assert.deepEqual(errors(check(body)), []);
 });
 
+test("the icu subpath publishes a compiler, and the constructor option takes it", () => {
+  const body = [
+    "```ts",
+    'import { createI18n } from "@comvi/core";',
+    'import { icuCompiler } from "@comvi/core/icu";',
+    'export const i18n = createI18n({ locale: "en", compiler: icuCompiler });',
+    "```",
+  ].join("\n");
+
+  assert.deepEqual(errors(check(body)), []);
+});
+
+test("the removed icu() installer does not resolve from the icu subpath", () => {
+  const body = [
+    "```ts",
+    'import { icu } from "@comvi/core/icu";',
+    "export const installer = icu;",
+    "```",
+  ].join("\n");
+
+  assert.equal(errors(check(body)).length, 1);
+});
+
+test("`compiler` is typed, so the string a reader might guess is an error", () => {
+  // `compiler?: unknown` accepted this silently. A page that still describes an
+  // installer leaves a reader guessing at the option, and `compiler: "icu"` is
+  // the guess — so the option carries `MessageCompiler` and the guess fails here.
+  const body = [
+    "```ts",
+    'import { createI18n } from "@comvi/core";',
+    'export const i18n = createI18n({ locale: "en", compiler: "icu" });',
+    "```",
+  ].join("\n");
+
+  assert.equal(errors(check(body)).length, 1);
+});
+
 test("a page that defines src/i18n.ts itself wins over the fixture", () => {
   const body = [
     "```ts title='src/i18n.ts'",

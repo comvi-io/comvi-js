@@ -406,9 +406,10 @@ const BANNED_RULES = [
     scope: "always",
     find(text) {
       const matches = [];
-      // `icu` is deliberately absent: it is not an installer that belongs in the
-      // wrong slot, it is a name that no longer exists. `banned/icu-installer`
-      // owns every mention of it, in either slot, with the message that says so.
+      // `icu` is deliberately absent: it is not an installer in the wrong slot,
+      // it is a name that no longer exists, and "move it to .with()" is the
+      // wrong fix. `banned/icu-installer` below matches BOTH slots, so
+      // `.use(icu())` is still reported — with the message that says replace.
       const re =
         /\.use\s*\(\s*(fetchLoader|cdnLoader|localeDetector|inContextEditor|loader|plugins|devtools)\s*\(/g;
       for (const match of text.matchAll(re)) matches.push({ index: match.index, text: match[0] });
@@ -423,7 +424,16 @@ const BANNED_RULES = [
     scope: "always",
     find(text) {
       const matches = [];
-      for (const match of text.matchAll(/\.with\s*\(\s*icu\s*\(/g)) {
+      // BOTH slots: the name is gone, so `.use(icu())` is the same finding as
+      // `.with(icu())` and must not fall to `banned/installer-in-plugin-slot`,
+      // whose message would send the reader to move it rather than replace it.
+      //
+      // The asymmetry with the import half below is deliberate: this half has no
+      // `@comvi/*` provenance check, because a fence can call `icu()` without
+      // importing anything (the site's fences routinely omit the imports), and a
+      // bare `icu()` in the installer position of a comvi chain is not plausibly
+      // a reader's own helper. The import half can and does demand provenance.
+      for (const match of text.matchAll(/\.(?:with|use)\s*\(\s*icu\s*\(/g)) {
         matches.push({ index: match.index, text: match[0] });
       }
       // The import is the other half, and the half that survives an alias:
@@ -761,7 +771,7 @@ export function lintDocument({ file, source, sdkVersion }) {
         "dev throws at ingestion, production renders the braces literally. Name " +
         "`compiler: icuCompiler` from @comvi/core/icu — the one enable form, for every catalog " +
         "source.",
-      migration: "MIGRATION.md §0 (ICU row) and §0.1 (the compiler option)",
+      migration: "MIGRATION.md §0 (ICU row) and §0.1 (the compiler is a constructor option)",
     });
   }
 
