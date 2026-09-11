@@ -1040,6 +1040,157 @@ export const i18n = createI18n({ locale: "en", translation: catalogs });
 });
 
 /**
+ * `{ en }` is ordinary JavaScript, legal wherever an object literal is, and the
+ * ICU scan used to read `.kind()` off a property that has no value node. So
+ * `createI18n({ locale: "en", translation: { en } })` did not get a worse
+ * migration — it CRASHED the tool, and a 0.4 app written that way could not run
+ * the codemod at all. The migration the rest of the file earns has to land.
+ */
+test("a shorthand catalog property migrates the file instead of crashing", () => {
+  const source = `import { createSlimI18n } from "@comvi/react/slim";
+import en from "./en.json";
+export const i18n = createSlimI18n({ locale: "en", translation: { en } });
+`;
+
+  const result = transformSource(source, "shorthand-catalog.ts");
+
+  assert.equal(
+    result.text,
+    `import { createI18n } from "@comvi/react";
+import en from "./en.json";
+export const i18n = createI18n({ locale: "en", translation: { en } });
+`,
+  );
+  assert.deepEqual(Object.fromEntries(result.transforms), {
+    "slim-factory-rename": 2,
+    "slim-specifier": 1,
+  });
+  // Not silence either: the leaves are somewhere the codemod cannot follow, so
+  // the ICU it cannot prove is the reader's to check — the same advisory
+  // `translation: en` has always earned, named after the locale it is about.
+  assert.deepEqual(
+    result.manual.map(({ shape, detail }) => ({ shape, detail })),
+    [
+      {
+        shape: "opaque-host-options",
+        detail: "`en` is not an inline catalog — check it by hand for ICU comma syntax",
+      },
+    ],
+  );
+});
+
+/**
+ * "No ICU found" and "no ICU provable" are not the same fact, and every locale
+ * value the scan cannot read produces the second one — the shorthand is only
+ * the spelling that used to throw. The advisory names the key AS WRITTEN, which
+ * for a `"locale:ns"` key means the quotes stay on.
+ */
+test("every unreadable locale value earns the cannot-prove-ICU advisory", async (t) => {
+  const unreadable = [
+    ["shorthand", "{ en, de: { a: \\`b\\` } }", "`en`"],
+    ["a binding", '{ en: catalog, de: { a: "b" } }', "`en`"],
+    ["a call", '{ en: load(), de: { a: "b" } }', "`en`"],
+    ["a namespaced key", '{ "en:footer": catalog, de: { a: "b" } }', '`"en:footer"`'],
+  ];
+  for (const [label, translation, named] of unreadable) {
+    await t.test(label, () => {
+      const source = `import { createI18n } from "@comvi/core";
+export const i18n = createI18n({ locale: "en", translation: ${translation} });
+`;
+
+      const result = transformSource(source, "unreadable.ts");
+
+      assert.equal(result.text, source, "an unreadable locale is never rewritten");
+      assert.deepEqual(
+        result.manual.map(({ shape, detail }) => ({ shape, detail })),
+        [
+          {
+            shape: "opaque-host-options",
+            detail: `${named} is not an inline catalog — check it by hand for ICU comma syntax`,
+          },
+        ],
+      );
+    });
+  }
+});
+
+/**
+ * The unreadable half must not cost the readable one its migration: ICU proven
+ * anywhere in the catalog names the compiler, and the compiler then serves every
+ * catalog this host ingests — including the locale the codemod could not read.
+ * So that locale gets the rewrite, not an advisory telling it to do this by hand.
+ */
+test("a shorthand locale does not stop the readable half proving ICU", () => {
+  const source = `import { createI18n } from "@comvi/core";
+import de from "./de.json";
+export const i18n = createI18n({
+  locale: "en",
+  translation: { en: { n: "{count, plural, one {#} other {#}}" }, de },
+});
+`;
+
+  const result = transformSource(source, "shorthand-beside-icu.ts");
+
+  assert.equal(
+    result.text,
+    `import { createI18n } from "@comvi/core";
+import { icuCompiler } from "@comvi/core/icu";
+import de from "./de.json";
+export const i18n = createI18n({
+  locale: "en",
+  translation: { en: { n: "{count, plural, one {#} other {#}}" }, de },
+  compiler: icuCompiler,
+});
+`,
+  );
+  assert.deepEqual(result.manual, []);
+});
+
+/**
+ * The other two options positions a shorthand reaches. `translation` itself has
+ * always been read through `?.value?.kind()`, so it already fell through to the
+ * unreadable-catalog advisory; `instanceId` is read for its MEMBER text, which
+ * is why the shorthand moves into `devtools({ instanceId })` verbatim. Both are
+ * pinned here so a future reader of `objectProperties` cannot quietly break
+ * them the way the ICU scan was broken.
+ */
+test("a shorthand option is handled in every other options position", async (t) => {
+  await t.test("translation", () => {
+    const source = `import { createI18n } from "@comvi/core";
+const translation = { en: { a: "b" } };
+export const i18n = createI18n({ locale: "en", translation });
+`;
+
+    const result = transformSource(source, "shorthand-translation.ts");
+
+    assert.equal(result.text, source);
+    assert.deepEqual(
+      result.manual.map(({ detail }) => detail),
+      ["`translation` is not an inline catalog — check it by hand for ICU comma syntax"],
+    );
+  });
+
+  await t.test("instanceId", () => {
+    const source = `import { createI18n } from "@comvi/core";
+const instanceId = "app";
+export const i18n = createI18n({ locale: "en", instanceId });
+`;
+
+    const result = transformSource(source, "shorthand-devtools.ts");
+
+    assert.equal(
+      result.text,
+      `import { createI18n } from "@comvi/core";
+import { devtools } from "@comvi/core/devtools";
+const instanceId = "app";
+export const i18n = createI18n({ locale: "en" }).use(devtools({ instanceId }));
+`,
+    );
+    assert.deepEqual(result.manual, []);
+  });
+});
+
+/**
  * `flattenCatalog` itself did not change; only the entry that publishes it did.
  * So the retarget is an IMPORT rewrite and nothing else — the call site is not
  * even read — and it has to reach every 0.4 spelling of the old home.
@@ -1103,7 +1254,8 @@ export const flat = flattenCatalog({ nav: { home: "Home" } });
 test("a shared import clause is split and the surrounding bindings keep their module", () => {
   const source = `import host, { createI18n, flattenCatalog as flat } from "@comvi/vue";
 import { loader } from "@comvi/core/loader";
-export const i18n = createI18n({ locale: "en", translation: { en: flat({ a: { b: "c" } }) } });
+export const catalog = flat({ a: { b: "c" } });
+export const i18n = createI18n({ locale: "en", translation: { en: { a: "b" } } });
 export const parts = [host, loader];
 `;
 
@@ -1114,7 +1266,8 @@ export const parts = [host, loader];
     `import host, { createI18n } from "@comvi/vue";
 import { loader } from "@comvi/core/loader";
 import { flattenCatalog as flat } from "@comvi/core";
-export const i18n = createI18n({ locale: "en", translation: { en: flat({ a: { b: "c" } }) } });
+export const catalog = flat({ a: { b: "c" } });
+export const i18n = createI18n({ locale: "en", translation: { en: { a: "b" } } });
 export const parts = [host, loader];
 `,
   );

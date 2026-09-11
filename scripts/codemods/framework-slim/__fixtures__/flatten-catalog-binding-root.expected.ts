@@ -8,6 +8,6 @@
 import { createI18n } from "@comvi/react";
 import { flattenCatalog as flat } from "@comvi/core";
 
-const preflattened = flat({ footer: { legal: "Legal" } });
+export const preflattened = flat({ footer: { legal: "Legal" } });
 
-export const i18n = createI18n({ locale: "en", translation: { en: preflattened } });
+export const i18n = createI18n({ locale: "en", translation: { en: { title: "Comvi" } } });

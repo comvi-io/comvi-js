@@ -1486,6 +1486,23 @@ function planChain(root, text, call, hostModule) {
         needs.set(ICU_COMPILER, bindingModule(hostModule, ICU_COMPILER));
         compilerAdded = true;
         count("inline-icu-compiler");
+      } else {
+        // No ICU was PROVEN, which is not the same as no ICU: a locale whose
+        // value lives elsewhere — `{ en }` shorthand, a binding, a call — is
+        // `translation: en` written inside the braces, and it earns the same
+        // advisory for the same reason. Only when nothing proved ICU: a
+        // `compiler` the rewrite just added already serves the halves it
+        // could not read.
+        for (const locale of objectProperties(catalogs)) {
+          if (isReadableCatalog(locale.value)) continue;
+          advisories.push({
+            offset: startOf(locale.member),
+            shape: "opaque-host-options",
+            detail:
+              `\`${locale.member.field("key")?.text() ?? locale.member.text()}\` is not an ` +
+              `inline catalog — check it by hand for ICU comma syntax`,
+          });
+        }
       }
     }
 
@@ -1610,9 +1627,17 @@ function staticLiteralValue(leaf) {
   return value;
 }
 
-/** The first ICU argument type in the VALUES of a fully static inline catalog. */
+/**
+ * The first ICU argument type in the VALUES of a fully static inline catalog.
+ *
+ * A property with NO value node is the shorthand `{ en }`, which is legal
+ * wherever an object literal is — so it is the first thing checked. Reading
+ * `.kind()` off it threw, which made `createI18n({ locale, translation: { en } })`
+ * crash the whole tool instead of migrating the file.
+ */
 function firstIcuArgument(catalogs) {
   const visit = (value) => {
+    if (value === undefined || value === null) return undefined;
     if (value.kind() === "template_string") {
       if (value.find({ rule: { kind: "template_substitution" } }) !== null) return undefined;
       return icuArgumentType(staticLiteralValue(value));
@@ -1627,4 +1652,30 @@ function firstIcuArgument(catalogs) {
   };
 
   return visit(catalogs);
+}
+
+/**
+ * Can the ICU scan above READ this catalog value to the leaves — literals, or
+ * nested objects of them?
+ *
+ * This is the other half of the answer `firstIcuArgument` gives: "no ICU found"
+ * and "no ICU provable" look identical from its return value, and they are not
+ * the same fact. A shorthand `{ en }`, a binding, a call or an element read puts
+ * the leaves somewhere the codemod cannot follow.
+ *
+ * NOT the same question as `firstOpaqueMember`, which asks whether the object's
+ * own SHAPE is decidable and refuses the chain when it is not. Here the shape is
+ * plain; only the text of the messages is missing.
+ */
+function isReadableCatalog(value) {
+  if (value === undefined || value === null) return false;
+  const kind = value.kind();
+  if (kind === "string") return true;
+  if (kind === "template_string") {
+    return value.find({ rule: { kind: "template_substitution" } }) === null;
+  }
+  if (kind !== "object") return false;
+  // Spreads and computed keys never get this far: both refuse the chain above,
+  // so `objectProperties` skipping them cannot hide a leaf from this walk.
+  return objectProperties(value).every(({ value: leaf }) => isReadableCatalog(leaf));
 }

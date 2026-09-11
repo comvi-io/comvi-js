@@ -7,6 +7,6 @@
 // the move untouched, at the call site and in the new clause alike.
 import { createI18n, flattenCatalog as flat } from "@comvi/react";
 
-const preflattened = flat({ footer: { legal: "Legal" } });
+export const preflattened = flat({ footer: { legal: "Legal" } });
 
-export const i18n = createI18n({ locale: "en", translation: { en: preflattened } });
+export const i18n = createI18n({ locale: "en", translation: { en: { title: "Comvi" } } });
