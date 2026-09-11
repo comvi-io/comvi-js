@@ -164,18 +164,20 @@ Capabilities are core's pure subpaths, re-exported **by name** from every
 framework entry except `@comvi/nuxt`, so the ones you never call are pruned by
 your bundler. The repo's bundler matrix asserts that from the emitted module
 graph in webpack and vite, development and production. (`@comvi/nuxt` is the
-exception: app code imports nothing, so the toolkit is not re-exported.
-Composition happens in one `hostModule` file that names `@comvi/core` and its
-subpaths directly.)
+exception: app code imports nothing, so the toolkit is not on the module's own
+entry. Composition happens in one `hostModule` file, which names the
+`@comvi/nuxt/host` subpath — one specifier, so the recipe follows from
+`npm install @comvi/nuxt` and nothing else.)
 
 | you want                                                              | you add                                                                         |
 | --------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
 | ICU `plural` / `select` / `selectordinal`                             | `compiler: icuCompiler` in the constructor options                              |
-| async / remote loading, nested-catalog flattening                     | `.use(loader(importMap))`, `.use(attachLoader)`, or the pure `flattenCatalog`   |
+| async / remote loading                                                | `.use(loader(importMap))` or `.use(attachLoader)`                               |
 | the plugin host: `registerPlugin`, post-processors, missing-key hooks | `.use(plugins())`                                                               |
 | your own inline plugin, in one call                                   | `.use(definePlugin(fn))`                                                        |
 | browser-extension discovery (`instanceId`, `window.__COMVI__`)        | `.use(devtools())`                                                              |
 | `<tag>` markup inside plain string-API `t()`                          | `import "@comvi/core/tags"` once, anywhere in the app                           |
+| a nested inline catalog (`{ nav: { home } }`)                         | nothing; every host flattens it, so `t("nav.home")` resolves                    |
 | rich text through `<T>`                                               | nothing; `<T>` uses the pure `@comvi/core/rich-text` path and registers nothing |
 
 Two hosts are the exception to "a capability because you composed it":

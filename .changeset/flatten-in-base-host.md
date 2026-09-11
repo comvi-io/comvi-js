@@ -27,9 +27,10 @@ Non-string leaves now behave identically on every host, as they already did on t
 coerced with `String()`, and `null`/`undefined` leaves dropped with a dev warning. On a base host a
 `null` leaf used to be stored verbatim and resolve as an empty template.
 
-MIGRATION — `flattenCatalog` is no longer re-exported from `@comvi/core/loader`, nor from the
-`@comvi/react`, `@comvi/solid`, `@comvi/svelte`, `@comvi/vue`, `@comvi/next/client` and
-`@comvi/next/server` roots. In almost every case the call can simply be deleted:
+MIGRATION — `flattenCatalog` is no longer re-exported from the loader subpath
+(`@comvi/core/loader`), nor from the `@comvi/react`, `@comvi/solid`, `@comvi/svelte`,
+`@comvi/vue`, `@comvi/next/client` and `@comvi/next/server` roots. In almost every case the
+call can simply be deleted:
 
 ```diff
 -import { createI18n } from "@comvi/react";
