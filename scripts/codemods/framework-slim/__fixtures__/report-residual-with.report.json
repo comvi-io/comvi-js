@@ -1,0 +1,8 @@
+[
+  {
+    "line": 17,
+    "column": 44,
+    "shape": "residual-with-verb",
+    "detail": "`getHost().with(…)` calls `with` with an installer-shaped argument, and no 0.5.0 Comvi host has `with` — but this receiver cannot be proven to be one, so it is left exactly as written: rename it to `.use(…)` by hand if it IS a host"
+  }
+]

@@ -13,26 +13,32 @@ import {
   VUE_PROXY_TARGET,
 } from "./capabilities.mjs";
 import { localDeclarations } from "./imports.mjs";
+import { braceListMembers } from "./script-blocks.mjs";
 import { scopeOf } from "./scope.mjs";
 
 /**
- * Does this call hand its receiver a RAW PLUGIN — an argument that is a call to
- * an Uppercase factory?
+ * Does this call hand its receiver a RAW PLUGIN — a FIRST argument that is a
+ * call to an Uppercase factory?
  *
  * The uppercase name is the whole test, and it is the convention the packages
  * themselves follow: `FetchLoader()` is a plugin, `fetchLoader()` is its
  * installer. Anything else in the slot (an installer call, a bare binding, a
  * Vue plugin object) is left alone, because `.use` legitimately takes an
  * installer now.
+ *
+ * The FIRST argument, and only it, because that is the only position a plugin
+ * can occupy: both `use(plugin, options)` and `.use(installer)` take their
+ * subject first. Scanning every argument reported
+ * `i18n.use(myInstaller(), { scope: Thing() })` — a correct 0.5 composition
+ * whose SECOND argument happens to build something with a capitalised name.
  */
 function hasRawPluginArgument(call) {
   const args = call.field("arguments");
   if (args === null) return false;
-  return args.children().some((child) => {
-    if (child.kind() !== "call_expression") return false;
-    const callee = child.field("function");
-    return callee?.kind() === "identifier" && /^[A-Z]/.test(callee.text());
-  });
+  const first = braceListMembers(args)[0];
+  if (first === undefined || first.kind() !== "call_expression") return false;
+  const callee = first.field("function");
+  return callee?.kind() === "identifier" && /^[A-Z]/.test(callee.text());
 }
 
 /** Bindings that would shadow the hooks this codemod introduces. */

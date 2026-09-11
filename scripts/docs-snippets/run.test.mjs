@@ -159,6 +159,23 @@ test("collectReadmes → every package README, then MIGRATION.md, then the root 
   ]);
 });
 
+test("collectReadmes → examples/README.md is gated too", (t) => {
+  // A reader-facing page no gate covered, which is how it drifted while the
+  // pages beside it were migrated. Last in the list, after the root README.
+  const root = makeFixtureRoot(t);
+  write(path.join(root, "examples/README.md"), "# Examples\n\nNo code here.\n");
+
+  const files = collectReadmes(root).map((file) => path.relative(root, file));
+
+  assert.deepEqual(files, [
+    "packages/cli/README.md",
+    "packages/react/README.md",
+    "MIGRATION.md",
+    "README.md",
+    path.join("examples", "README.md"),
+  ]);
+});
+
 test("collectDocs → .md and .mdx below the directory, node_modules excluded", (t) => {
   const root = makeFixtureRoot(t);
 
