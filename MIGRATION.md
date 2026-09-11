@@ -259,7 +259,7 @@ one scope — so a merge that would cross them is refused rather than guessed at
 | a 0.5-pre-release `.with` call, anywhere in a chain            | `.use` — the one composition verb            |
 | inline `translation` with ICU comma syntax                     | `compiler: icuCompiler` in the same call     |
 | `exposeGlobal` / `instanceId` options                          | `.use(devtools({ … }))`, options moved       |
-| a nested inline `translation` catalog                          | `flattenCatalog(…)`, per locale              |
+| a `flattenCatalog` import from a binding root or `/loader`     | the same name, from `@comvi/core`            |
 
 A **chain** is the unit, meaning `createI18n(…)` plus the `.use` calls chained
 onto it, so nothing outside one is guessed at. Imports are maintained in
