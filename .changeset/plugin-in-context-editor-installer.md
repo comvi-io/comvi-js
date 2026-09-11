@@ -30,4 +30,5 @@ bundler picked. If you want `registerPlugin` yourself, compose `.use(plugins())`
 `timeout`, `onError`, cleanup registration and LIFO destroy keep running inside the plugin host,
 because the installer's last act is `registerPlugin`. Putting one in the other's slot is a type
 error and loud at runtime — and under `production` `registerPlugin(inContextEditor(…))` is caught
-by the return-shape rule instead, because the identity no-op hands the host back.
+by the plugin-return rule instead, because the identity no-op hands the host back and a plugin
+may only hand back nothing or a cleanup function.

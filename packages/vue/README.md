@@ -383,7 +383,8 @@ i18n.core.registerPlugin(CdnLoader({ cdnUrl: "https://cdn.comvi.io/your-distribu
 Swapping the two slots is a type error and loud at runtime in both directions:
 `registerPlugin(cdnLoader(…))` throws `E_INSTALLER_AS_PLUGIN` at `init()` before
 any capability is attached, and `.use(CdnLoader(…))` throws
-`E_USE_NOT_INSTALLER` on the plugin's own return value.
+`E_USE_NOT_INSTALLER`: an installer widens the host in place and hands that same
+host back, so `.use` refuses any other return value, whatever its shape.
 
 Your app's own inline plugin needs neither slot: `.use(definePlugin(fn))`, with
 `definePlugin` from `@comvi/vue`, composes the plugin host and registers `fn` in

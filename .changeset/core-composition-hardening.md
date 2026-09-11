@@ -4,11 +4,11 @@
 
 Three composition-hardening fixes on the base host.
 
-- - **Composing or registering after `init()` warns in development.** `.use(loader())`,
-    `.use(plugins())` and `registerPlugin()` on an initialized host used to succeed silently while
-    the plugin queue never ran and the initial namespace never loaded. Development now emits one
-    warning per host naming the rule ("compose capabilities before `init()`"); production behaviour
-    is unchanged.
+- **Composing or registering after `init()` warns in development.** `.use(loader())`,
+  `.use(plugins())` and `registerPlugin()` on an initialized host used to succeed silently while
+  the plugin queue never ran and the initial namespace never loaded. Development now emits one
+  warning per host naming the rule ("compose capabilities before `init()`"); production behaviour
+  is unchanged.
 - **A plugin on a plugins-only host gets the actionable capability error in development.**
   A plugin that calls `registerLoader` on a host with no loader composed now fails with
   `[comvi] This i18n instance has no loader capability. Compose it: .use(loader()) …`

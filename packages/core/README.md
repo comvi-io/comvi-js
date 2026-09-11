@@ -218,9 +218,14 @@ or not you pass a map, while `attachLoader` costs 2 B over calling it directly.
 Your app's own inline plugin reaches the queue through
 `definePlugin(fn, options?)` from `@comvi/core/plugins`:
 `.use(definePlugin((i18n) => { … }))` composes the plugin host and registers
-`fn` in the same call. Handing `.use` the raw plugin instead throws
-`E_USE_NOT_INSTALLER`, because a plugin returns nothing or a cleanup function
-where an installer has to return the host.
+`fn` in the same call. An installer widens the host **in place** and hands that
+same host back, so `.use` refuses anything else, whatever its shape: give it the
+raw plugin and it throws `E_USE_NOT_INSTALLER`. The check is identity, not
+shape, which is why an async plugin cannot slip past it — and why `.use` is not
+a place to register one: it calls the function before it checks, so the promise
+that function returns is never awaited. `definePlugin(fn)` and
+`registerPlugin(fn)` put the plugin in the queue, where `required`, `timeout`
+and `onError` apply to it.
 
 Every install is idempotent, and installs land as **non-enumerable own
 properties** with ordinary method descriptors, so `Object.keys(i18n)`, spread
@@ -615,11 +620,12 @@ Swapping the two slots is a type error, and both halves are caught at runtime as
 well. `registerPlugin(cdnLoader(…))` throws `E_INSTALLER_AS_PLUGIN` at `init()`,
 on the installer's first ensure-step, before any capability is attached.
 `.use(CdnLoader(…))` throws `E_USE_NOT_INSTALLER`: `.use` is a pipe and nothing
-more — it never inspects, orders or brands what you hand it, so the plugin runs
-immediately, outside `init()`'s drain loop, with its cleanup discarded and
-`required`, `timeout` and `onError` never applying — but what it hands back is
-nothing or a cleanup function where an installer returns the host, and that is
-the return value `.use` refuses.
+more — it never inspects, orders or brands what you hand it — but an installer
+widens the host in place and hands that same host back, and `.use` refuses any
+other return value, whatever its shape. It calls the function before it checks,
+so this plugin runs outside `init()`'s drain loop and, being async, hands back a
+promise nobody awaits. Register it with `registerPlugin` instead, where the
+queue gives it `required`, `timeout`, `onError` and cleanup.
 
 Plugins run sequentially during `.init()`, with timeout protection (10s default)
 and error recovery for non-required plugins. A plugin may return **nothing or a

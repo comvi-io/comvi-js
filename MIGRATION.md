@@ -318,10 +318,11 @@ and as JSON) and left alone:
   carry the `registerPlugin` name now, not the 0.4 `use` one
 - a **raw plugin handed to `.use(…)`**: a plugin of your own, or an uppercase
   first-party factory, in the installer slot. `.use` throws
-  `E_USE_NOT_INSTALLER` on it, and the rewrite is a choice the codemod will not
-  make for you — `.use(definePlugin(fn))` keeps it in the chain,
-  `registerPlugin(fn)` puts it on a host that already composed `plugins()` — so
-  the call site is reported with both recipes
+  `E_USE_NOT_INSTALLER` on it, because what a plugin hands back is not the host,
+  and the rewrite is a choice the codemod will not make for you —
+  `.use(definePlugin(fn))` keeps it in the chain, `registerPlugin(fn)` puts it
+  on a host that already composed `plugins()` — so the call site is reported
+  with both recipes
 - a first-party factory NAME that is not a first-party import
 - `exposeGlobal` / `instanceId` beside a chain that already composes `devtools(…)`
 - `createI18n(optionsBuiltElsewhere)`, whose contents it cannot see
@@ -356,10 +357,10 @@ re-exported **by name** on each entry (`icuCompiler`, `loader`, `attachLoader`,
 `flattenCatalog`, `plugins`, `attachPlugins`, `definePlugin`, `devtools`,
 `attachDevtools`), plus the base `I18n` class and the core type vocabulary, so
 the ICU compiler is reachable from the one import an app already has, and the
-bindings you never call are pruned by your bundler. `@comvi/nuxt` is the one exception and re-exports
-nothing (§7). `createI18n` IS core's own
-constructor everywhere but `@comvi/vue`, whose `createI18n` builds the `VueI18n`
-preset around it.
+bindings you never call are pruned by your bundler. `@comvi/nuxt` is the one
+exception and re-exports nothing (§7). `createI18n` IS core's own constructor
+everywhere but `@comvi/vue`, whose `createI18n` builds the `VueI18n` preset
+around it.
 
 **Every 0.4.x import path still resolves** — the SPECIFIER, that is. What
 changed is the HOST those entries construct, not the module you name. The one
@@ -585,14 +586,18 @@ when you want `registerPlugin` yourself.
 
 **Installers and plugins reject each other's slot.** Neither is branded, and
 `.use` has no registry, ordering or dispatch, so the two are told apart by their
-signatures and by what they hand back. Both cross-uses are TYPE errors and both
-fail at runtime: `registerPlugin(fetchLoader(…))` throws `E_INSTALLER_AS_PLUGIN`
-at `init()` on the installer's first ensure-step, before any capability is
-attached, naming the installer and the `.use` form; `.use(FetchLoader(…))` runs
-the plugin against a host that has none of the capabilities it needs, so the
-invocation is rejected, and on a host that has them `.use` still throws
-`E_USE_NOT_INSTALLER`, because a plugin hands back nothing or a cleanup function
-where an installer returns the host. `ensureInstallable(host, name)` is exported
+signatures and, at runtime, by identity: an installer widens the host in place
+and hands that same host back, and `.use` refuses any other return value,
+whatever its shape. Both cross-uses are TYPE errors and both fail at runtime:
+`registerPlugin(fetchLoader(…))` throws `E_INSTALLER_AS_PLUGIN` at `init()` on
+the installer's first ensure-step, before any capability is attached, naming the
+installer and the `.use` form; `.use(FetchLoader(…))` runs the plugin against a
+host that has none of the capabilities it needs, so the invocation is rejected,
+and on a host that has them `.use` still throws `E_USE_NOT_INSTALLER`, since a
+plugin never hands the host back. `.use` calls the function before it checks, so
+an async plugin put there returns a promise nobody awaits; the queue, through
+`registerPlugin` or `definePlugin(fn)`, is what gives a plugin `required`,
+`timeout`, `onError` and cleanup. `ensureInstallable(host, name)` is exported
 from `@comvi/core/plugins` for third-party installers.
 
 **A plugin may only return nothing or a cleanup function.** That is a real break
@@ -673,7 +678,7 @@ it under any specifier.
 
 **Plugin registration on `createNextI18n` is one method now.** `useClient`,
 `useServer`, `useClientLazy` and `useServerLazy` are deprecated delegates; pass
-`{ runtime, environment, lazy }` to `registerPlugin()` instead.
+`{ runtime, environment, lazy }` to `use()` instead.
 
 **Locale routing** moved onto the shared `@comvi/locale-routing` package. It is
 published, but it is a dependency of `@comvi/next` and `@comvi/nuxt` rather than
@@ -788,21 +793,23 @@ Beside those, 0.5 has a family of "is not a function" failures that all mean one
 thing, that a capability was never composed, plus four named errors from the
 composition rules, one of them vue-only. This is the whole list your first run can produce:
 
-| symptom                                                                                                 | fix                                                                                                                          |
-| ------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| `addActiveNamespace` / `removeActiveNamespace` / `reloadTranslations` / `onLoadError` is not a function | `useI18nLoader()`                                                                                                            |
-| `onMissingKey is not a function`                                                                        | `useI18nPlugins()`                                                                                                           |
-| vue: `i18n.registerLoader` / `i18n.registerPlugin` is not a function                                    | compose the capability on the factory result (`createI18n(…).use(loader())`, `.use(plugins())`), then call it on `i18n.core` |
-| vue: `i18n.core.reloadTranslations` will not type-check                                                 | the wrapper you hold was never composed — chain `.use(loader())`; inside a component, `useI18nLoader()`                      |
-| `E_INSTALLER_AS_PLUGIN`                                                                                 | you handed an installer to `registerPlugin(…)` or `definePlugin(…)`; compose it instead, as `.use(installer(…))`             |
-| `E_PLUGIN_INIT_RETURN`                                                                                  | a plugin returned a value — use a statement body                                                                             |
-| `E_USE_NOT_INSTALLER`                                                                                   | you handed `.use(…)` a raw plugin; write `.use(definePlugin(fn))`, or the package's lowercase installer                      |
-| `E_USE_HOST_IDENTITY`                                                                                   | vue: your installer returned a different object; return the host it was given                                                |
+| symptom                                                                                                 | fix                                                                                                                                |
+| ------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `addActiveNamespace` / `removeActiveNamespace` / `reloadTranslations` / `onLoadError` is not a function | `useI18nLoader()`                                                                                                                  |
+| `onMissingKey is not a function`                                                                        | `useI18nPlugins()`                                                                                                                 |
+| vue: `i18n.registerLoader` / `i18n.registerPlugin` is not a function                                    | compose the capability on the factory result (`createI18n(…).use(loader())`, `.use(plugins())`), then call it on `i18n.core`       |
+| vue: `i18n.core.reloadTranslations` will not type-check                                                 | the wrapper you hold was never composed — chain `.use(loader())`; inside a component, `useI18nLoader()`                            |
+| `E_INSTALLER_AS_PLUGIN`                                                                                 | you handed an installer to `registerPlugin(…)` or `definePlugin(…)`; compose it instead, as `.use(installer(…))`                   |
+| `E_PLUGIN_INIT_RETURN`                                                                                  | a plugin returned a value — use a statement body                                                                                   |
+| `E_USE_NOT_INSTALLER`                                                                                   | `.use(…)` got something that did not hand the host back — a raw plugin; write `.use(definePlugin(fn))`, or the lowercase installer |
+| `E_USE_HOST_IDENTITY`                                                                                   | vue: your installer returned a different object; return the host it was given                                                      |
 
 Those `E_*` names are the **production** messages; a development build throws a
-longer message instead. Across every package 0.5 publishes **22** production
-error identities, five of them new in 0.5, and **three** carry a `code`
-own-property to branch on: `E_ICU_SYNTAX`, `E_USE_HOST_IDENTITY` and
+longer message instead. **Five** error identities are new in 0.5:
+`E_ICU_SYNTAX`, `E_INSTALLER_AS_PLUGIN`, `E_PLUGIN_INIT_RETURN`,
+`E_USE_HOST_IDENTITY` and `E_USE_NOT_INSTALLER` — the last four have a row
+above, and `E_ICU_SYNTAX` has the rest of this section. **Three** of them carry
+a `code` own-property to branch on: `E_ICU_SYNTAX`, `E_USE_HOST_IDENTITY` and
 `E_USE_NOT_INSTALLER`. `E_ICU_SYNTAX` is thrown in development as an
 `IcuSyntaxError` carrying both `code` and `argumentType`, and reported through
 `onError` with the same fields in production.

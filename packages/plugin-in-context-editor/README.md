@@ -99,12 +99,13 @@ slot rejects the other explicitly instead of half-working:
   and hands the host back. A plugin may only return nothing or a cleanup
   function, so `init()` rejects that too, before anything is queued for
   teardown.
-- - `.use(InContextEditorPlugin(…))` calls the plugin against a host that has no
-    `registerPostProcessor`, so the invocation is rejected. On a host that does
-    have the plugin capability the plugin runs and hands back nothing or its
-    cleanup, and `.use` rejects that as `E_USE_NOT_INSTALLER`: `.use` is a pipe
-    and nothing more — it never inspects, orders or brands what you hand it, only
-    what it hands back.
+- `.use(InContextEditorPlugin(…))` calls the plugin against a host that has no
+  `registerPostProcessor`, so the invocation is rejected. On a host that does
+  have the plugin capability the plugin runs, and `.use` then throws
+  `E_USE_NOT_INSTALLER`: an installer widens the host in place and hands that
+  same host back, and `.use` refuses any other return value, whatever its shape.
+  A plugin belongs in the queue, through `registerPlugin` or
+  `definePlugin(fn)`.
 
 For target-element scoping, the full options reference, and the standalone bundle (used by the Comvi Chrome extension), see the [documentation](https://comvi.io/docs/i18n/plugins/in-context-editor/).
 

@@ -92,24 +92,25 @@ i18n.registerPlugin(LocaleDetector({ supportedLocales: ["en", "uk", "de"] }));
 **Swapping the two is a type error, and each half is caught at runtime too.**
 Nothing is branded: an installer and a plugin are both "a function of the host",
 and `.use` is a pipe and nothing more, so it never inspects, orders or brands
-what you hand it — only what it hands back.
+what you hand it. What it does check is identity: an installer widens the host
+in place and hands that same host back, and `.use` refuses any other return
+value, whatever its shape.
 
 - `registerPlugin(localeDetector(…))` fails at `init()` with
   `E_INSTALLER_AS_PLUGIN`, on the installer's first ensure-step, **before** the
   plugin host is attached and before a second plugin reaches the queue. The
   message names `localeDetector` and the `.use` form.
-- - `.use(LocaleDetector(…))` throws `E_USE_NOT_INSTALLER`, because a plugin
-    hands back nothing or a cleanup function where an installer returns the host.
-    The plugin still runs first, straight away, outside `init()`'s drain loop. On
-    a bare host it dies even earlier, on `registerLocaleDetector`, and because
-    this plugin is synchronous that lands as a `TypeError` at the call site. On a
-    host that already composed `@comvi/core/plugins` every member it touches
-    exists, so the detector is live by the time `.use` refuses its return value,
-    while its cleanup is discarded: nothing on the host unsubscribes the
-    `localeChanged` listener, and `required`, `timeout` and `onError` never apply.
-    The listener is not leaked past teardown — `destroy()` clears every listener
-    on the host wholesale, registered cleanup or not — but the detector cannot be
-    disposed on its own short of destroying the host.
+- `.use(LocaleDetector(…))` throws `E_USE_NOT_INSTALLER`: the plugin is not an
+  installer, so what it hands back is not the host. `.use` calls it before it
+  checks. On a bare host it dies even earlier, on `registerLocaleDetector`, and
+  because this plugin is synchronous that lands as a `TypeError` at the call
+  site. On a host that already composed `@comvi/core/plugins` every member it
+  touches exists, so the detector is live and subscribed to `localeChanged` by
+  the time `.use` refuses the return value, with no cleanup registered for it.
+  The listener is not leaked past teardown — `destroy()` clears every listener
+  on the host wholesale, registered cleanup or not — but the detector cannot be
+  disposed on its own short of destroying the host. `registerPlugin` is where a
+  plugin gets `required`, `timeout`, `onError` and cleanup registration.
 
 ## How detection works
 

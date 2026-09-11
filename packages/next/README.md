@@ -281,11 +281,11 @@ There is no next-specific hook API. Migrating from 0.4.x:
 `@comvi/next` publishes THREE ways to get an i18n host. Read the differences
 before you pick:
 
-| you call                                         | from                 | what you get                                                                     |
-| ------------------------------------------------ | -------------------- | -------------------------------------------------------------------------------- |
-| `createNextI18n(options)`                        | `@comvi/next`        | the COMPOSED host + routing + plugin registration, exactly as 0.4.x published it |
-| `createI18n(options)`                            | `@comvi/next/client` | the BASE host; capabilities are things you compose, on the client                |
-| `createI18n(options)` + `createNextI18nFromHost` | `@comvi/next/server` | the BASE host you compose yourself, handed to the SSR factory                    |
+| you call                                         | from                 | what you get                                                         |
+| ------------------------------------------------ | -------------------- | -------------------------------------------------------------------- |
+| `createNextI18n(options)`                        | `@comvi/next`        | the COMPOSED host + routing + `.use*`, exactly as 0.4.x published it |
+| `createI18n(options)`                            | `@comvi/next/client` | the BASE host; capabilities are things you compose, on the client    |
+| `createI18n(options)` + `createNextI18nFromHost` | `@comvi/next/server` | the BASE host you compose yourself, handed to the SSR factory        |
 
 The two entries expose the SAME `createI18n`: the client/server split is a
 runtime split (which helpers are reachable), never a host-tier split. There is

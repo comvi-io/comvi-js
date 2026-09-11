@@ -112,19 +112,21 @@ i18n.registerPlugin(CdnLoader({ cdnUrl: "https://cdn.comvi.io/your-distribution-
 **Swapping the two is a type error, and each half is caught at runtime too.**
 Nothing is branded: an installer and a plugin are both "a function of the host",
 and `.use` is a pipe and nothing more, so it never inspects, orders or brands
-what you hand it — only what it hands back.
+what you hand it. What it does check is identity: an installer widens the host
+in place and hands that same host back, and `.use` refuses any other return
+value, whatever its shape.
 
 - `registerPlugin(cdnLoader(…))` fails at `init()` with
   `E_INSTALLER_AS_PLUGIN`, on the installer's first ensure-step, **before** the
   loader or plugin capability is attached and before a second plugin reaches the
   queue. The message names `cdnLoader` and the `.use` form.
-- - `.use(CdnLoader(…))` throws `E_USE_NOT_INSTALLER`, because a plugin hands
-    back nothing or a cleanup function where an installer returns the host. The
-    plugin still runs first, straight away, outside `init()`'s drain loop: its
-    cleanup is discarded, so `destroy()` never stops the in-flight tracker, and
-    `required`, `timeout` and `onError` never apply. This plugin is async, so on a
-    bare host the missing `setPluginData` surfaces as a rejected promise rather
-    than a throw at the call site.
+- `.use(CdnLoader(…))` throws `E_USE_NOT_INSTALLER`: the plugin is not an
+  installer, so what it hands back is not the host. `.use` calls it before it
+  checks, so the plugin runs outside `init()`'s drain loop, and this plugin is
+  async — the promise it returns is never awaited, and on a bare host the
+  missing `setPluginData` rejects into nothing. That is the reason to put a
+  plugin in the queue with `registerPlugin`, where `required`, `timeout`,
+  `onError` and cleanup registration apply to it.
 
 ## CDN namespace layout
 

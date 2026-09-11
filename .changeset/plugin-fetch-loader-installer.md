@@ -29,5 +29,5 @@ Putting one in the other's slot is rejected: both cross-uses are type errors, an
 `registerPlugin(fetchLoader(…))` fails at `init()` with `E_INSTALLER_AS_PLUGIN`, on the
 installer's first ensure-step, naming `fetchLoader` and the `.use` form, while
 `.use(FetchLoader(…))` runs the plugin against a host that has neither capability — and on
-one that has both it throws `E_USE_NOT_INSTALLER`, because a plugin hands back nothing or a
-cleanup function where an installer returns the host.
+one that has both it throws `E_USE_NOT_INSTALLER`, because an installer widens the host in
+place and hands that same host back, and a plugin never does.
