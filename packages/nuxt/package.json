@@ -38,6 +38,10 @@
       "types": "./dist/module.d.mts",
       "import": "./dist/module.mjs"
     },
+    "./host": {
+      "types": "./dist/runtime/host.d.ts",
+      "import": "./dist/runtime/host.js"
+    },
     "./setup": {
       "types": "./dist/runtime/setup.d.ts",
       "import": "./dist/runtime/setup.js"

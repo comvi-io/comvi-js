@@ -284,14 +284,120 @@ export default (options) => {
     expect(i18n.locale.value).toBe("uk");
   });
 
+  it("renders a key from comvi.translation on the default branch", async () => {
+    // The two-line module-options floor: no hostModule, therefore no loader,
+    // therefore this inline catalog is the only one the host will ever have.
+    const { createComviI18n, createComviCore } = await emitHostTemplate();
+
+    const i18n = createComviI18n({
+      locale: "en",
+      exposeGlobal: false,
+      translation: { en: { greeting: "Hello" } },
+    });
+    expect(i18n.core.t("greeting")).toBe("Hello");
+
+    // Same option, same key, on the shape the per-request server host is.
+    const core = createComviCore({
+      locale: "en",
+      exposeGlobal: false,
+      translation: { en: { greeting: "Hello" } },
+    });
+    expect(core.t("greeting")).toBe("Hello");
+  });
+
+  it("stores a NESTED comvi.translation catalog verbatim on the base host", async () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const { createComviCore } = await emitHostTemplate();
+
+    const core = createComviCore({
+      locale: "en",
+      exposeGlobal: false,
+      translation: { en: { nav: { home: "Home" } } },
+    });
+
+    // OBSERVED behaviour on core as it stands: the base host has no flattener,
+    // so a nested catalog is stored as-is and the dotted key misses. Core's dev
+    // warning is the only signal, which is why it is asserted here too. The
+    // parallel core lot (C1) makes the base host flatten unconditionally — when
+    // that lands, this expectation becomes `toBe("Home")` and the warning goes.
+    expect(core.t("nav.home")).toBe("nav.home");
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("is not a string"));
+  });
+
   it("throws a named error when the host factory returns no host", async () => {
     nuxtKitMocks.findPath.mockResolvedValue(writeHostModule("export default () => undefined;\n"));
     const { createComviCore } = await emitHostTemplate("./comvi.host.mjs");
 
     // Regression: a factory missing its `return` used to fail deep inside createI18nFromCore.
     expect(() => createComviCore()).toThrow(
-      "[@comvi/nuxt] comvi hostModule's default export returned no i18n host.",
+      "[@comvi/nuxt] comvi hostModule must default-export a factory returning a core HOST",
     );
+  });
+
+  it("rejects a factory that returns a VueI18n instead of a core host", async () => {
+    // The defect the guard exists for: a VueI18n HAS a t(), so a t-only check
+    // passed it to createI18nFromCore and a wrapper got wrapped a second time.
+    // The old message even named `createI18n`, which in @comvi/vue returns
+    // exactly this.
+    nuxtKitMocks.findPath.mockResolvedValue(
+      writeHostModule(`
+import { createI18n } from "@comvi/vue";
+
+export default (options) => createI18n({ ...options, exposeGlobal: false });
+`),
+    );
+    const { createComviCore } = await emitHostTemplate("./comvi.host.mjs");
+
+    expect(() => createComviCore({ locale: "en" })).toThrow(
+      '[@comvi/nuxt] comvi hostModule must default-export a factory returning a core HOST, not a VueI18n. Use createI18n from "@comvi/nuxt/host", e.g. createI18n(options).use(loader(map)).',
+    );
+  });
+
+  it("accepts a factory that returns a core host", async () => {
+    // The counterpart: the tightened guard must not reject what the recipe
+    // actually tells a reader to write.
+    nuxtKitMocks.findPath.mockResolvedValue(
+      writeHostModule(`
+import { createI18n } from "@comvi/core";
+import { loader } from "@comvi/core/loader";
+
+export default (options) => createI18n({ ...options, exposeGlobal: false }).use(loader());
+`),
+    );
+    const { createComviI18n, createComviCore } = await emitHostTemplate("./comvi.host.mjs");
+
+    const core = createComviCore({ locale: "en", translation: { en: { greeting: "Hello" } } });
+    expect(core.t("greeting")).toBe("Hello");
+    expect(typeof core.reloadTranslations).toBe("function");
+
+    // And the wrapper branch wraps it exactly once.
+    const i18n = createComviI18n({ locale: "en", translation: { en: { greeting: "Hello" } } });
+    expect(i18n.core.t("greeting")).toBe("Hello");
+    expect((i18n.core as unknown as { core?: unknown }).core).toBeUndefined();
+  });
+
+  it("hands comvi.translation to a hostModule factory in its resolved options", async () => {
+    const hostPath = writeHostModule(`
+import { createI18n } from "@comvi/core";
+
+export const seen = [];
+
+export default (options) => {
+  seen.push(options);
+  return createI18n({ ...options, exposeGlobal: false });
+};
+`);
+    nuxtKitMocks.findPath.mockResolvedValue(hostPath);
+    const { createComviCore } = await emitHostTemplate("./comvi.host.mjs");
+    // Dynamic by necessity: the specifier is a file this test just generated.
+    const { seen } = (await import(pathToFileURL(hostPath).href)) as {
+      seen: Record<string, unknown>[];
+    };
+
+    const core = createComviCore({ locale: "en", translation: { en: { greeting: "Hello" } } });
+
+    expect(seen[0]).toMatchObject({ translation: { en: { greeting: "Hello" } } });
+    expect(core.t("greeting")).toBe("Hello");
   });
 
   it("throws a named error when the host module's default export is not a function", async () => {

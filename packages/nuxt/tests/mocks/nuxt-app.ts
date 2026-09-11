@@ -23,8 +23,6 @@ const defaultRuntimeConfig: {
       defaultLocale: "en",
       localePrefix: "as-needed",
       cookieName: "i18n_locale",
-      cdnUrl: "https://cdn.example.com",
-      apiBaseUrl: "https://api.example.com",
       defaultNs: "default",
       fallbackLocale: "en",
       basicHtmlTags: ["strong", "em"],

@@ -3,6 +3,9 @@ import type { Mock } from "vitest";
 import type { NuxtApp } from "#app";
 import { computed, nextTick, ref } from "vue";
 import { EDITOR_INITIAL_MAPPINGS_GLOBAL, EDITOR_MAPPINGS_GLOBAL } from "@comvi/core/editor-bridge";
+// A REAL instance, for the one case that has to prove a key renders rather
+// than that an option was forwarded; every other case keeps the stub.
+import { createI18n as createVueI18n } from "@comvi/vue";
 import * as nuxtAppMocks from "./mocks/nuxt-app";
 import { resetComviSetupMock, runComviSetup } from "./mocks/comvi-setup";
 
@@ -157,6 +160,29 @@ describe("runtime plugin", () => {
     });
   });
 
+  it("renders a key from comvi.translation on a real client instance", async () => {
+    // The two-line module-options floor: no hostModule means the generated host
+    // is core's BASE host and has no loader, so the instance this plugin hands
+    // the app must already hold the catalog nuxt.config declared — otherwise
+    // the app can never show a translation at all.
+    (nuxtAppMocks.mockRuntimeConfig.public.comvi as any).translation = {
+      en: { greeting: "Hello" },
+    };
+    createComviI18n.mockImplementation((options: Record<string, unknown>) =>
+      createVueI18n({ ...options, exposeGlobal: false } as never),
+    );
+
+    const plugin = await importPlugin();
+    const result = (await plugin.setup(createNuxtAppStub())) as {
+      provide: { i18n: { t: (key: string) => string } };
+    };
+
+    expect(createComviI18n).toHaveBeenCalledWith(
+      expect.objectContaining({ translation: { en: { greeting: "Hello" } } }),
+    );
+    expect(result.provide.i18n.t("greeting")).toBe("Hello");
+  });
+
   it("hands the comvi.setup hook the core host as `core`", async () => {
     const i18n = createI18nStub("en");
     createComviI18n.mockReturnValue(i18n);
@@ -190,8 +216,8 @@ describe("runtime plugin", () => {
     expect(i18n.init).toHaveBeenCalledTimes(1);
   });
 
-  it("still runs setup hook when cdnUrl is absent", async () => {
-    nuxtAppMocks.mockRuntimeConfig.public.comvi.cdnUrl = undefined;
+  it("still runs setup hook when no inline catalog is configured", async () => {
+    nuxtAppMocks.mockRuntimeConfig.public.comvi.translation = undefined;
     const i18n = createI18nStub("en");
     createComviI18n.mockReturnValue(i18n);
 

@@ -1,0 +1,53 @@
+// `@comvi/nuxt/host` exists so the documented `comvi.host.ts` recipe is
+// followable from `pnpm add @comvi/nuxt` alone — @comvi/core is a dependency of
+// THIS package, not of the app. That makes the export list a contract: a name
+// dropped here is a recipe a reader cannot follow.
+import { describe, expect, it } from "vitest";
+import * as host from "../src/runtime/host";
+
+describe("@comvi/nuxt/host", () => {
+  it("re-exports exactly the installers a hostModule factory composes with", () => {
+    expect(Object.keys(host).sort()).toEqual([
+      "attachLoader",
+      "attachPlugins",
+      "createI18n",
+      "definePlugin",
+      "devtools",
+      "icuCompiler",
+      "loader",
+      "plugins",
+    ]);
+  });
+
+  it("does not re-export flattenCatalog", () => {
+    // The base host flattens a nested catalog itself, so pre-flattening by hand
+    // stays on the `@comvi/core` root instead of becoming the answer to a rule.
+    expect(host).not.toHaveProperty("flattenCatalog");
+  });
+
+  it("composes a working host through this subpath alone", () => {
+    const i18n = host
+      .createI18n({ locale: "en", compiler: host.icuCompiler, exposeGlobal: false })
+      .use(host.loader())
+      .use(host.plugins());
+
+    i18n.addTranslations({ en: { cart: "{count, plural, one {# item} other {# items}}" } });
+
+    expect(i18n.t("cart", { count: 2 })).toBe("2 items");
+    expect(typeof i18n.reloadTranslations).toBe("function");
+    expect(typeof i18n.registerPlugin).toBe("function");
+  });
+
+  it("wraps an inline plugin through definePlugin, not registerPlugin", async () => {
+    // `definePlugin` is the one that also ATTACHES the plugin host, which is
+    // what makes it usable on a chain that has not composed `plugins()` yet.
+    const ran: string[] = [];
+    const i18n = host
+      .createI18n({ locale: "en", exposeGlobal: false })
+      .use(host.definePlugin(() => void ran.push("inline")));
+
+    await i18n.init();
+
+    expect(ran).toEqual(["inline"]);
+  });
+});

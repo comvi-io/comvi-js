@@ -36,8 +36,6 @@ function createEvent(comviOverrides: Record<string, unknown> = {}) {
               useCookie: true,
               fallbackLocale: "en",
             },
-            cdnUrl: undefined,
-            apiBaseUrl: "https://api.example.com",
             ...comviOverrides,
           },
         },
