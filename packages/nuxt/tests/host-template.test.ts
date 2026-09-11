@@ -305,7 +305,7 @@ export default (options) => {
     expect(core.t("greeting")).toBe("Hello");
   });
 
-  it("stores a NESTED comvi.translation catalog verbatim on the base host", async () => {
+  it("flattens a NESTED comvi.translation catalog on the base host", async () => {
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
     const { createComviCore } = await emitHostTemplate();
 
@@ -315,13 +315,13 @@ export default (options) => {
       translation: { en: { nav: { home: "Home" } } },
     });
 
-    // OBSERVED behaviour on core as it stands: the base host has no flattener,
-    // so a nested catalog is stored as-is and the dotted key misses. Core's dev
-    // warning is the only signal, which is why it is asserted here too. The
-    // parallel core lot (C1) makes the base host flatten unconditionally — when
-    // that lands, this expectation becomes `toBe("Home")` and the warning goes.
-    expect(core.t("nav.home")).toBe("nav.home");
-    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("is not a string"));
+    // The base host flattens every catalog it ingests, so the module's own
+    // generated host resolves a dotted key from a nested `comvi.translation`
+    // with no capability composed and nothing to warn about. This pairs the
+    // nuxt option with core's guarantee: the two construction paths cannot
+    // disagree about what a nested catalog means.
+    expect(core.t("nav.home")).toBe("Home");
+    expect(warnSpy).not.toHaveBeenCalled();
   });
 
   it("throws a named error when the host factory returns no host", async () => {
