@@ -2,7 +2,7 @@
 "@comvi/core": minor
 ---
 
-Three more capabilities moved out of the base core into subpaths that compose them back.
+Two more capabilities moved out of the base core into subpaths that compose them back.
 
 **`@comvi/core/devtools` — browser-extension discovery.** `instanceId`, the
 `window.__COMVI__` handshake and the identity-based removal on `destroy()` are a capability
@@ -17,16 +17,20 @@ where `<` decodes. With no tag extension they stay literal: `t("a &lt;b&gt;")` r
 before. **ICU apostrophe quoting is deliberately NOT part of this** — `'{literal}'` and `''`
 are core grammar and keep working everywhere.
 
-**Nested-catalog flattening moved into the loader capability**, because a loader is what
-hands back raw JSON. A base host stores catalogs as given, so pass flat dot-notation
-catalogs, optionally keyed `"locale:namespace"` — or use the pure export:
+**Nested-catalog flattening is NOT one of them.** It briefly moved into the loader
+capability in 0.5.0 development, and it moved back: every host flattens a nested catalog
+itself, unconditionally, at the one place a catalog enters. `{ nav: { home } }` and
+`{ "nav.home": … }` are the same catalog in the constructor, in `addTranslations()` and in a
+loader result:
 
 ```ts
-import { flattenCatalog } from "@comvi/core/loader";
+import { createI18n } from "@comvi/core";
 
-i18n.addTranslations({ en: flattenCatalog({ nav: { home: "Home" } }) });
+const i18n = createI18n({ locale: "en" });
+i18n.addTranslations({ en: { nav: { home: "Home" } } }); // -> "nav.home"
 ```
 
-Development warns, naming that hint, the first time a non-string leaf reaches a host that
-cannot flatten it. Prototype safety is unchanged. **Not affected:** `t()` / `tRaw()`, the
-template cache, the fast paths, the parser's ICU grammar, and every event.
+A non-string leaf is coerced with `String()` and a `null`/`undefined` leaf is dropped, each
+with a development warning, on every host. Prototype safety is unchanged. **Not affected:**
+`t()` / `tRaw()`, the template cache, the fast paths, the parser's ICU grammar, and every
+event.

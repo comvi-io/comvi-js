@@ -10,7 +10,6 @@
 | `.use(plugin)`                               | absent — TS error + `TypeError`       | `.use(definePlugin(p))`, or `.use(plugins())` + `registerPlugin(p)` |
 | loader (`registerLoader`, …)                 | absent — the loud capability error    | `.use(loader())`                                                    |
 | discovery (`instanceId`, `window.__COMVI__`) | absent — invisible to the extension   | `.use(devtools())`                                                  |
-| nested catalogs                              | stored verbatim, dev warning          | `flattenCatalog(…)`, or compose `loader()`                          |
 | string-API tags (`"<b>hi</b>"`)              | literal text, dev warning             | `<T>`, or `import "@comvi/core/tags"`                               |
 
 `new I18n(options)`, `@comvi/next`'s `createNextI18n` (now typed `NextComposedI18n<D>`) and
@@ -47,7 +46,9 @@ expression-bodied arrow:
 +i18n.registerPlugin(() => { ready = true; }); // returns nothing — fine
 ```
 
-Residuals: `flattenCatalog` is exported from the root as well as `@comvi/core/loader`;
+Residuals: nested catalogs are flattened by the BASE host, unconditionally, so they need no
+composition at all, and `flattenCatalog` is exported from the `@comvi/core` root only — for
+pre-flattening data by hand, not as the answer to a rule;
 `@comvi/core/rich-text` is the pure `<T>` toolbox and `@comvi/core/tags` still registers
 string-API tag syntax; `instanceId` is absent unless devtools is composed, and the
 loader/plugin members are no longer on the prototype chain. See the

@@ -23,7 +23,6 @@ registration, so a plugin goes to `i18n.core.registerPlugin(…)`, or into the c
 | loader (`registerLoader`, …)                 | `createI18n(options).use(loader(map))`                    |
 | `.use(plugin)`, `onMissingKey`               | `.use(definePlugin(p))`, or `i18n.core.registerPlugin(p)` |
 | discovery (`instanceId`, `window.__COMVI__`) | `.use(devtools({ instanceId }))`                          |
-| nested constructor catalogs                  | `flattenCatalog(…)`, or compose `loader()`                |
 | `<tag>` markup through `t()`                 | render `<T>`, or `import "@comvi/core/tags"`              |
 
 ```ts

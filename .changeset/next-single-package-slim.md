@@ -9,7 +9,7 @@ next app no longer names `@comvi/core` to build a host on either side of the bou
 | ------------------------------------------ | ---- | ------------------------------------------------------------ |
 | `createI18n`                               | both | core's base host constructor, the same binding on each entry |
 | `icuCompiler`                              | both | the ICU compiler, from core's pure `/icu` subpath            |
-| `loader`, `attachLoader`, `flattenCatalog` | both | from core's pure `/loader` subpath                           |
+| `loader`, `attachLoader`                   | both | from core's pure `/loader` subpath                           |
 | `plugins`, `attachPlugins`, `definePlugin` | both | from core's pure `/plugins` subpath                          |
 | `devtools`, `attachDevtools`               | both | from core's pure `/devtools` subpath                         |
 

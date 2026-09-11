@@ -20,7 +20,7 @@ One entry now carries both.
 | -------------------------------------------- | ------------------------------------------------ |
 | `createI18n`, `I18n`                         | core's base host — its constructor and its class |
 | `icuCompiler`                                | from `@comvi/core/icu` — the ICU compiler        |
-| `loader`, `attachLoader`, `flattenCatalog`   | from `@comvi/core/loader`                        |
+| `loader`, `attachLoader`                     | from `@comvi/core/loader`                        |
 | `plugins`, `attachPlugins`, `definePlugin`   | from `@comvi/core/plugins`                       |
 | `devtools`, `attachDevtools`                 | from `@comvi/core/devtools`                      |
 | every store factory, the readers, `T`, types | the svelte bindings                              |

@@ -93,7 +93,7 @@ graph, and there is no runtime flag that turns one off.
 ```ts
 import { createI18n } from "@comvi/core"; // the base host
 import { icuCompiler } from "@comvi/core/icu"; // ICU plural/select/selectordinal
-import { loader } from "@comvi/core/loader"; // async loading + nested catalogs
+import { loader } from "@comvi/core/loader"; // async / remote loading
 import { plugins } from "@comvi/core/plugins"; // the plugin host
 import { devtools } from "@comvi/core/devtools"; // extension discovery
 import "@comvi/core/tags"; // ambient <tag> syntax
@@ -105,8 +105,9 @@ const i18n = createI18n({ locale: "en", compiler: icuCompiler })
 
 **Upgrading from 0.4.x?** The 0.4 root shipped every capability by default, so
 this is a breaking change on a 0.x minor: ICU syntax now throws instead of
-rendering plausibly-wrong text, and plugin registration, the loader, discovery
-and nested-catalog flattening are absent until composed.
+rendering plausibly-wrong text, and plugin registration, the loader and
+discovery are absent until composed. (Nested-catalog flattening is not on that
+list: every host does it.)
 See **[MIGRATION.md](../../MIGRATION.md)** for the per-feature table and the
 codemod.
 
@@ -261,7 +262,6 @@ TypeScript catches a missing capability, so you never discover one in production
 | --------------------- | ------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
 | Async loading         | `@comvi/core/loader` (`loader()`)                       | `registerLoader`, `getLoader`, `reloadTranslations`, `addActiveNamespace(s)`, `removeActiveNamespace(s)`, `onLoadError` |
 | Import-map loading    | `@comvi/core/loader`                                    | `createImportMapLoader`, and `loader(map)` to attach + register in one call                                             |
-| Nested catalogs       | `@comvi/core/loader`                                    | automatic once the loader is composed, or the pure `flattenCatalog(nested)`; see below                                  |
 | Plugin host           | `@comvi/core/plugins` (`plugins()`, `definePlugin(fn)`) | `registerPlugin`, `setPluginData`, `getPluginData`                                                                      |
 | Locale detection      | `@comvi/core/plugins`                                   | `registerLocaleDetector`, `getLanguageDetector`                                                                         |
 | Missing-key callbacks | `@comvi/core/plugins`                                   | `onMissingKey`                                                                                                          |
@@ -271,7 +271,7 @@ TypeScript catches a missing capability, so you never discover one in production
 | Rich-text components  | `@comvi/core/rich-text`                                 | pure `prepareTranslation` / VirtualNode toolbox; tag syntax is passed per call and never registered ambiently           |
 | String-API tags       | `@comvi/core/tags`                                      | ambient registration plus the same rich-text toolbox, and `&lt;` / `&gt;` / `&amp;` and the `\<` escape                 |
 
-Four placements are not where you might guess:
+Three placements are not where you might guess, and one non-placement:
 
 - **`addActiveNamespace(s)` / `removeActiveNamespace(s)` live on `/loader`.** Activating a
   namespace only means anything when something loads namespaces. The base host activates
@@ -280,16 +280,35 @@ Four placements are not where you might guess:
   every form and never changes which namespaces are active.
 - **`onLoadError` lives on `/loader`.** Only the loader capability can emit `loadError`,
   so subscribing to it without a loader would be a no-op by construction.
-- **Nested-catalog flattening lives on `/loader`.** A loader hands back raw JSON, so
-  turning `{ nav: { home } }` into `"nav.home"` is part of that job. A bare host stores
-  catalogs exactly as given; see “The base host wants flat catalogs” below.
 - **Discovery lives on `/devtools`.** `instanceId` and the `window.__COMVI__` handshake
   exist for browser extensions; an app that ships no extension integration should not
   carry a `window` protocol. `.use(devtools({ instanceId, exposeGlobal }))` takes
   the two options the 0.4 root read off `createI18n`.
+- **Nested-catalog flattening is NOT on `/loader`**, and not on any subpath. It is
+  base-host behaviour: turning `{ nav: { home } }` into `"nav.home"` happens at the one
+  place a catalog enters, whether or not anything is composed. See “Nested or flat, on
+  every host” below.
 
 The `postProcess` and `onMissingKey` **constructor options** stay universal: they work on
 the base host. Only the runtime _registration_ APIs are part of the plugin-host capability.
+
+### An option whose capability never arrived says so
+
+Two options are accepted by the base host and then do nothing there, because the code that
+reads them belongs to a capability. `init()` reports each one ONCE, in development only:
+
+- **`ns`** (initial namespaces) with no loader composed: `init()` has nothing to load with,
+  so the warning names `.use(loader(map))`.
+- **`instanceId`, or `exposeGlobal: true`**, with no discovery composed: nothing touches
+  `window.__COMVI__`, so the warning names `.use(devtools({ instanceId }))`.
+
+The report is at `init()` rather than in the constructor, because both capabilities are
+legally composed after construction and before `init()`. Production stays silent: a missing
+capability is not a boundary violation, so the fail-soft rule applies.
+
+**`exposeGlobal: false` is deliberately silent.** It asks for the absence a base host
+already delivers, so there is nothing to report — and 0.4 boilerplate that carries it is not
+worth a warning.
 
 ### Tags-less graphs: markup stays literal
 
@@ -346,11 +365,11 @@ i18n.t("hi", { who: someVNode }); // string — coerced
 i18n.tRaw("hi", { who: someVNode }); // ["Hi, ", someVNode, "!"]
 ```
 
-### The base host wants flat catalogs
+### Nested or flat, on every host
 
-A bare host stores what you hand it. `addTranslations` (and `translation` in the
-constructor) takes catalogs keyed by locale or `"locale:namespace"`, whose
-values are **flat**: dot-notation keys and string values:
+`addTranslations` (and `translation` in the constructor) takes catalogs keyed by
+locale or `"locale:namespace"`. The values may be **flat** — dot-notation keys
+and string values — or **nested**, and the two are the same catalog:
 
 ```ts
 import { createI18n } from "@comvi/core";
@@ -359,26 +378,38 @@ const i18n = createI18n({ locale: "en" });
 
 i18n.addTranslations({
   en: { "nav.home": "Home" },
-  "en:admin": { "nav.home": "Admin home" },
+  "en:admin": { nav: { home: "Admin home" } }, // -> "nav.home"
 });
 ```
 
-Nested objects are recursively flattened by the **loader capability**, because that is
-where raw JSON arrives. So nested input works on any host with the loader composed on;
-on a base host it needs one call, and development says so:
+Flattening happens in the BASE host, unconditionally, at the one place a catalog enters, so
+`createI18n({ translation: { en: { nav: { home: "Home" } } } })` resolves `t("nav.home")`
+with nothing composed. A loader result, an `addTranslations` call and the constructor all go
+through it, and an object mixing both shapes works too. The cache stores a prototype-less
+catalog, so a catalog key can never resolve to an `Object.prototype` member.
+
+Two leaf shapes are not strings, and both behave the same way everywhere:
+
+- a non-string leaf (number, boolean, array) is **coerced with `String()`**;
+- a `null` or `undefined` leaf is **dropped**, so the key is simply missing.
+
+Each reports one development warning naming the key; production is silent, per the
+fail-soft rule. On a base host these used to be stored verbatim, which made a `null` leaf
+resolve as an empty template.
+
+`flattenCatalog` is the same function, exported from the `@comvi/core` ROOT for
+pre-flattening data by hand — inspecting the keys a nested object will produce, or merging
+several sources before handing one object over. It is **not** an escape hatch any more, and
+it is not on `@comvi/core/loader`:
 
 ```ts
-import { createI18n } from "@comvi/core";
-import { flattenCatalog } from "@comvi/core/loader";
+import { createI18n, flattenCatalog } from "@comvi/core";
 
 const i18n = createI18n({ locale: "en" });
 
-i18n.addTranslations({ en: flattenCatalog({ nav: { home: "Home" } }) }); // -> "nav.home"
+flattenCatalog({ nav: { home: "Home" } }); // { "nav.home": "Home" }
+i18n.addTranslations({ en: { nav: { home: "Home" } } }); // the same result, no call needed
 ```
-
-`flattenCatalog` is a pure function, so importing only it pulls the flattener and none of
-the loader. Either way the cache stores a prototype-less catalog, so a catalog key can never
-resolve to an `Object.prototype` member.
 
 ### What it costs
 

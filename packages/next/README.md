@@ -46,9 +46,14 @@ Comvi i18n is a framework-agnostic internationalization library with type-safe t
 ## Install
 
 ```bash
-npm install @comvi/next
+npm install @comvi/next server-only
 # Peers: next ^14 || ^15, react ^18 || ^19
 ```
+
+`server-only` is the guard on `src/i18n/server.ts` below: importing that module
+from a Client Component becomes a build error instead of a leaked host. It is
+its own package, so declare it in `dependencies` rather than relying on a
+transitive copy.
 
 Upgrading from v0.2.x? See the [CHANGELOG](./CHANGELOG.md).
 
@@ -57,11 +62,13 @@ Upgrading from v0.2.x? See the [CHANGELOG](./CHANGELOG.md).
 ```ts title="src/i18n/config.ts"
 // src/i18n/config.ts
 import { createNextI18n } from "@comvi/next";
+// The URL rules live in `./routing` (below) and are SPREAD in, so the host and
+// the middleware cannot drift apart. Declare `locales` in both files and `/uk/…`
+// becomes a real route in one and an unknown one in the other.
+import { routing } from "./routing";
 
 export const nextI18n = createNextI18n({
-  locales: ["en", "uk", "de"],
-  defaultLocale: "en",
-  localePrefix: "as-needed",
+  ...routing,
   fallbackLocale: "en",
 });
 
@@ -71,7 +78,8 @@ nextI18n.i18n.registerLoader({
   de: () => import("./locales/de.json"),
 });
 
-export const { i18n, routing } = nextI18n;
+export { routing } from "./routing";
+export const { i18n } = nextI18n;
 ```
 
 ```ts title="src/i18n/server.ts"
@@ -112,8 +120,9 @@ export function ComviProvider({
 import { defineRouting } from "@comvi/next/routing";
 
 export const routing = defineRouting({
-  locales: ["en", "de"],
+  locales: ["en", "uk", "de"],
   defaultLocale: "en",
+  localePrefix: "as-needed",
 });
 ```
 
@@ -297,8 +306,9 @@ Since core converged to a single BASE entry, `createNextI18n` no longer inherits
 a composed core. It **composes one explicitly**, inside this package, so its
 published behaviour is preserved exactly: ICU, ambient tag syntax, the loader
 (with BOTH `registerLoader` overloads, a loader function and a static import
-map), the plugin host, nested constructor catalogs, default params and devtools
-discovery, in that order.
+map), the plugin host, default params and devtools discovery, in that order.
+Nested constructor catalogs are not on that list because they never needed to
+be: every host flattens them.
 
 It is therefore one of exactly two hosts in the repo that carry ICU whether or not
 the app asked for it; the other is the CDN global build. This factory preserves
@@ -334,7 +344,6 @@ loader, the plugin host and devtools discovery became things you compose:
 | loader (`registerLoader`, `reloadTranslations`, …)    | absent until composed   | the loud capability error, at `useI18nLoader()`                      | `.use(loader(map))` / `.use(attachLoader)`                             |
 | `.use(plugin)`, `onMissingKey`                        | absent until composed   | TS error + runtime `TypeError`                                       | `.use(definePlugin(p))`, or `.use(plugins())` then `registerPlugin(p)` |
 | devtools discovery (`instanceId`, `window.__COMVI__`) | absent                  | invisible to the browser extension (documented)                      | `.use(devtools({ instanceId }))`                                       |
-| nested constructor catalogs                           | stored verbatim         | dev warning                                                          | `flattenCatalog(…)`, or compose `loader()`                             |
 | tag markup through `t()` (`"<b>hi</b>"`)              | literal text            | dev warning; prod literal, never a throw                             | render `<T>`, or `import "@comvi/core/tags"`                           |
 | `<I18nProvider>`, every hook, `<T>`, routing          | untouched               | —                                                                    | —                                                                      |
 
@@ -444,7 +453,7 @@ names `@comvi/core`:
 | ------------------------------------------ | -------------------------------------------------------------- |
 | `createI18n`                               | core's base host constructor, the same binding on both entries |
 | `icuCompiler`                              | the ICU compiler, from core's pure `/icu` subpath              |
-| `loader`, `attachLoader`, `flattenCatalog` | from core's pure `/loader` subpath                             |
+| `loader`, `attachLoader`                   | from core's pure `/loader` subpath                             |
 | `plugins`, `attachPlugins`, `definePlugin` | from core's pure `/plugins` subpath                            |
 | `devtools`, `attachDevtools`               | from core's pure `/devtools` subpath                           |
 

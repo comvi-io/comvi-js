@@ -195,10 +195,8 @@ that names a comvi package at all. `useI18n()`, `<T>` and `useSwitchLocalePath()
 are auto-imported, and nothing under `pages/` imports a comvi package:
 
 ```ts title="comvi.host.ts" check=group=examples-nuxt
-import { createI18n, type I18n } from "@comvi/core";
-import { icuCompiler } from "@comvi/core/icu";
-import { loader, type I18nLoaderApi } from "@comvi/core/loader";
-import type { NuxtHostFactory } from "@comvi/nuxt";
+import { createI18n, icuCompiler, loader } from "@comvi/nuxt/host";
+import type { NuxtHostFactory, NuxtServerLoaderHost } from "@comvi/nuxt";
 
 export default ((options) =>
   createI18n({ ...options, compiler: icuCompiler }).use(
@@ -207,15 +205,18 @@ export default ((options) =>
       uk: () => import("./locales/uk.json"),
       de: () => import("./locales/de.json"),
     }),
-  )) satisfies NuxtHostFactory<I18n & I18nLoaderApi>;
+  )) satisfies NuxtHostFactory<NuxtServerLoaderHost>;
 ```
 
 It is a **factory** rather than a host: it runs once for the client plugin and
 once per server request, and it receives Nuxt's resolved `comvi` options, so
 `nuxt.config.ts` stays in charge of configuration while this file stays in
-charge of capabilities. That is also why `@comvi/core` is a direct dependency
-here: the installers come from its subpaths, and a transitive dependency is not
-resolvable under pnpm's default layout.
+charge of capabilities. Both specifiers are `@comvi/nuxt`, and that is the
+point: `@comvi/nuxt/host` re-exports the installers, so this example's
+`package.json` declares `@comvi/nuxt`, `nuxt` and `vue`, with no `@comvi/core`
+at all. Core is a dependency of `@comvi/nuxt` rather than of the app, and a
+transitive dependency is not resolvable under pnpm's default layout — which is
+exactly what the subpath exists to fix.
 
 The example asks for `nuxt: ^4.5.2` rather than 3.x, and that is not a comvi
 constraint; `@comvi/nuxt` supports `^3.0.0 || ^4.0.0`. It is Nuxt 3's own peer
@@ -224,10 +225,12 @@ graph: `nuxt@3.21.11` ships `@nuxt/cli@3.37.0`, which declares a peer of
 `ERR_PNPM_PEER_DEP_ISSUES` under the `strict-peer-dependencies=true` that gate 7
 runs with, and that a reader's `npm install` enforces too.
 
-Two things about it are easy to get wrong, and both are visible in the app.
-`comvi.cdnUrl` and `comvi.apiBaseUrl` **load nothing** in 0.5: they are copied
-into public runtime config and read by no code in the module. SSR loading is the
-loader capability above, and this example sets neither. The module also never
+One thing about it is easy to get wrong, and it is visible in the app. There is
+no module option that loads translations at all: `comvi.cdnUrl` and
+`comvi.apiBaseUrl` existed in 0.4, were copied into public runtime config, were
+read by no code in the module, and are **removed** in 0.5 rather than wired. A
+loader is composed in the host file — `.use(cdnLoader({ cdnUrl }))` for the CDN,
+or `loader()` as above for local catalogs. The module also never
 touches `<html>`: `src/app.vue` calls
 `useLocaleHead({ addLang: true, addDir: true })`, without which the page renders
 correctly and ships neither `lang` nor `dir`. None of the three locale objects declares a `dir`, because the composable

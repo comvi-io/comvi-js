@@ -27,7 +27,7 @@ const wrapped = createI18nFromCore(host, { ssrLocale: "en" }); // wrapped.core i
 | `createI18nFromCore`                              | unchanged — wraps that host, preserving its exact type          |
 | `I18n`                                            | the base class `createI18n` and `createCore` both produce       |
 | `icuCompiler`                                     | from `@comvi/core/icu` — the ICU compiler                       |
-| `loader`, `attachLoader`, `flattenCatalog`        | from `@comvi/core/loader`                                       |
+| `loader`, `attachLoader`                          | from `@comvi/core/loader`                                       |
 | `plugins`, `attachPlugins`, `definePlugin`        | from `@comvi/core/plugins`                                      |
 | `devtools`, `attachDevtools`                      | from `@comvi/core/devtools`                                     |
 | `VueI18n`, the composables, `<T>`, the inject key | unchanged                                                       |

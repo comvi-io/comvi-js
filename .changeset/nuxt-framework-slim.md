@@ -7,8 +7,9 @@
 utility. What changes is the build-time `#build/comvi.host` template when `hostModule` is
 unset: it builds text + `{param}` interpolation, the cache, events and default params, and
 NOTHING ELSE. ICU throws `E_ICU_SYNTAX` in development and renders literally in production;
-the loader, plugin host and devtools discovery are absent until the app composes them;
-string-API tag syntax is literal (dev-warned); nested inline catalogs need `flattenCatalog`.
+the loader, plugin host and devtools discovery are absent until the app composes them; and
+string-API tag syntax is literal (dev-warned). A nested inline catalog is NOT on that list:
+the base host flattens one itself, so `comvi.translation` works nested or flat.
 
 `hostModule` is the composition escape and, for any app that loads translations
 asynchronously, the migration path. (`icu: true` is the one exception — see

@@ -11,8 +11,9 @@ New subpath entries decompose the core, so an app pays only for what it composes
   ambiently**, so string-API `t()` parses `<tag>…</tag>` everywhere. Also exports
   `registerTagSyntax()` (returns a disposer), `tagSyntaxExtension` for per-call activation,
   and the VirtualNode helpers.
-- `@comvi/core/loader` — pure: `attachLoader` / `loader()`, `createImportMapLoader`,
-  `flattenCatalog` and the loader types.
+- `@comvi/core/loader` — pure: `attachLoader` / `loader()`, `createImportMapLoader` and the
+  loader types. (`flattenCatalog` is NOT here: every host flattens nested catalogs itself,
+  and the function stays on the `@comvi/core` root.)
 - `@comvi/core/plugins` — pure: `attachPlugins`, the `definePlugin(fn, options?)` installer and
   the plugin types.
 - `@comvi/core/devtools` — pure: `attachDevtools(i18n, { instanceId, exposeGlobal })`.

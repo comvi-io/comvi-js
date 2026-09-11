@@ -37,10 +37,10 @@ your bundle_.
 | 0.4's `.use(plugin)`                                | absent: TS error plus `TypeError`     | `.use(definePlugin(p))`, or a lowercase installer  |
 | loader (`registerLoader`, …)                        | absent: the loud capability error     | `.use(loader())`, or `fetchLoader(opts)`           |
 | discovery (`instanceId`, `window.__COMVI__`)        | absent: invisible to the extension    | `.use(devtools())`, or `inContextEditor()`         |
-| nested catalogs                                     | stored verbatim, dev warning          | `flattenCatalog(…)`, or compose `loader()`         |
 | string-API tags (`"<b>hi</b>"`)                     | literal text, dev warning             | `<T>`, or `import "@comvi/core/tags"`              |
 | a plugin returning a value                          | throws at `init()`                    | return nothing, or a cleanup function              |
 | `clearTranslations(undefined, ns)` deactivated `ns` | clears CONTENT only, in every form    | `removeActiveNamespace(ns)` from `.use(loader())`  |
+| nested inline catalogs                              | unchanged: every host flattens them   | —                                                  |
 | `new I18n(options)`                                 | unchanged, one argument               | —                                                  |
 | `createNextI18n`, the CDN global                    | unchanged, still fully composed       | —                                                  |
 
@@ -357,11 +357,11 @@ constructor and the capability toolkit on the ONE entry it publishes.
 | `@comvi/nuxt`   | auto-imported                              | generated, or `hostModule`; see §7                                                                  |
 
 Next's two entries are a RUNTIME split, not a host-tier split: both publish the
-same base constructor and the same toolkit. Nine capability bindings are
+same base constructor and the same toolkit. Eight capability bindings are
 re-exported **by name** on each entry (`icuCompiler`, `loader`, `attachLoader`,
-`flattenCatalog`, `plugins`, `attachPlugins`, `definePlugin`, `devtools`,
-`attachDevtools`), plus the base `I18n` class and the core type vocabulary, so
-the ICU compiler is reachable from the one import an app already has, and the
+`plugins`, `attachPlugins`, `definePlugin`, `devtools`, `attachDevtools`), plus
+the base `I18n` class and the core type vocabulary, so the ICU compiler is
+reachable from the one import an app already has, and the
 bindings you never call are pruned by your bundler. `@comvi/nuxt` is the one
 exception and re-exports nothing (§7). `createI18n` IS core's own constructor
 everywhere but `@comvi/vue`, whose `createI18n` builds the `VueI18n` preset
@@ -371,7 +371,7 @@ around it.
 changed is the HOST those entries construct, not the module you name. The one
 place a 0.4.x _named import_ can stop resolving is `@comvi/vue`, which used to
 carry `export * from "@comvi/core"` and now re-exports core's values by name;
-the nine names that dropped out, and where each one moved, are tabled in the
+the ten names that dropped out, and where each one moved, are tabled in the
 `@comvi/vue` subsection below. And since no package publishes a
 second copy of a binding, the old entry-mixing hazard is gone: `@comvi/react`,
 `@comvi/solid`, `@comvi/svelte` and `@comvi/vue` ship theirs from one entry each,
@@ -515,7 +515,7 @@ i18n.core.reloadTranslations(); // typed: `.use` widened `core`
 Vue's `<T>` also gained a **default-slot fallback**: a key with no translation
 and no `fallback` prop renders the default slot instead of the key.
 
-**Nine named value exports dropped.** `@comvi/vue` used to re-export core with
+**Ten named value exports dropped.** `@comvi/vue` used to re-export core with
 `export * from "@comvi/core"`, so every value on core's root entry, except
 `createI18n` (vue shadowed it with its own), was also a named export of
 `@comvi/vue`. The entry now re-exports core's values **by
@@ -523,17 +523,18 @@ name** and its types with `export type *`, because a star re-export of values
 is a name set webpack can only resolve by keeping the source module alive
 (§0.3's bundle notes). The types are unaffected —
 `import type { TranslationCache } from "@comvi/vue"` still resolves — but these
-nine **values** no longer do, and the failure is a bundler or ESM "no such
+ten **values** no longer do, and the failure is a bundler or ESM "no such
 export" at build time, not a runtime `undefined`:
 
-| 0.4.x `import { … } from "@comvi/vue"`                                 | 0.5.0                                                                                      |
-| ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
-| `formatNumber`, `formatDate`, `formatCurrency`, `formatRelativeTime`   | `useI18n()` returns all four, already bound to the reactive locale; unbound, `@comvi/core` |
-| `getTextDirection`                                                     | `useI18n().dir` for the current locale; the helper itself, `@comvi/core`                   |
-| `TranslationCache`                                                     | `useI18n().translationCache` for the read-only snapshot; the class, `@comvi/core`          |
-| `createBoundTranslation`, `translationResultToString`, `createElement` | `@comvi/core`                                                                              |
+| 0.4.x `import { … } from "@comvi/vue"`                                 | 0.5.0                                                                                                   |
+| ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| `formatNumber`, `formatDate`, `formatCurrency`, `formatRelativeTime`   | `useI18n()` returns all four, already bound to the reactive locale; unbound, `@comvi/core`              |
+| `getTextDirection`                                                     | `useI18n().dir` for the current locale; the helper itself, `@comvi/core`                                |
+| `TranslationCache`                                                     | `useI18n().translationCache` for the read-only snapshot; the class, `@comvi/core`                       |
+| `createBoundTranslation`, `translationResultToString`, `createElement` | `@comvi/core`                                                                                           |
+| `flattenCatalog`                                                       | nothing, in almost every case: every host flattens a nested catalog itself. The function, `@comvi/core` |
 
-Every one of the nine is still exported by `@comvi/core`, which `@comvi/vue`
+Every one of the ten is still exported by `@comvi/core`, which `@comvi/vue`
 depends on, so the fix is a one-line import move and nothing was actually
 removed from the library. Prefer the `useI18n()` members where the table offers
 them: those track the locale, where the bare helpers take it as an argument.
@@ -628,9 +629,9 @@ The client inherits react's migration verbatim: `@comvi/next/client` re-exports
 
 **Three host entry points, and only one of them changed.** `createNextI18n` from
 `@comvi/next` is preserved exactly: it composes ICU, ambient tags, the loader
-with both `registerLoader` overloads, the plugin host, nested constructor
-catalogs, default params and devtools discovery inside the package, so a 0.4 app
-that calls it needs no migration at all; its host type is now published as
+with both `registerLoader` overloads, the plugin host, default params and
+devtools discovery inside the package, so a 0.4 app that calls it needs no
+migration at all; its host type is now published as
 `NextComposedI18n<D>`. What changed is the DIRECT-host constructor on the two
 runtime entries: `createI18n` on `@comvi/next/client` and `@comvi/next/server` is
 the base host, row for row as §0 describes, and every installer that table names
@@ -723,12 +724,14 @@ export default defineNuxtConfig({
 
 ```ts check=group=nuxt
 // comvi.host.ts — default-export a factory returning a FRESH host per call
-import { createI18n } from "@comvi/core";
-import { icuCompiler } from "@comvi/core/icu";
-import { loader } from "@comvi/core/loader";
-import { plugins } from "@comvi/core/plugins";
-import { devtools } from "@comvi/core/devtools";
-import type { NuxtHostFactory } from "@comvi/nuxt";
+import {
+  createI18n,
+  icuCompiler,
+  loader,
+  plugins,
+  devtools,
+  type NuxtHostFactory,
+} from "@comvi/nuxt/host";
 
 export default ((options) =>
   createI18n({ ...options, compiler: icuCompiler })
@@ -737,20 +740,64 @@ export default ((options) =>
     .use(devtools())) satisfies NuxtHostFactory;
 ```
 
+**One specifier, and it is `@comvi/nuxt`.** `@comvi/nuxt/host` re-exports exactly
+the composition surface — `createI18n`, `icuCompiler`, `loader`, `attachLoader`,
+`plugins`, `attachPlugins`, `devtools`, `definePlugin` and the `NuxtHostFactory`
+type. `@comvi/core` is a dependency of `@comvi/nuxt` rather than of your app, so
+under pnpm's default layout a host file that named `@comvi/core/icu` did not
+resolve from `pnpm add @comvi/nuxt` alone. Naming core's subpaths directly still
+works if your app declares `@comvi/core` itself. `flattenCatalog` is deliberately
+not on the subpath: the base host flattens a nested catalog itself.
+
 Drop the lines you do not need. Their order is free (§0.1), and ICU is not a
 composed capability at all: `compiler: icuCompiler` is a constructor field. The
 rest of the map: SSR / async loading → `.use(loader(map))`; `comvi.setup`
 registering a plugin with 0.4's `core.use(…)` → `.use(plugins())` and
 `registerPlugin(…)`, or one `.use(definePlugin(fn))`; browser-extension
 visibility → `.use(devtools())`; `<tag>` in plain `t()` → one
-`import "@comvi/core/tags"`; nested inline catalogs → `flattenCatalog`, or
-`.use(loader())`, which flattens on ingestion.
+`import "@comvi/core/tags"`. Nested inline catalogs need nothing: every host
+flattens them.
+
+**The factory must return a core HOST, not a `VueI18n`.** The guard used to check
+only for a `t()`, which a `VueI18n` has, so `@comvi/vue`'s `createI18n` passed it
+and the module wrapped a wrapper. It now also requires `init()` and rejects the
+wrapper's own `core` member, and its `TypeError` names
+`createI18n from "@comvi/nuxt/host"`.
+
+**Two module options were removed, and the third one people group with them stays.**
+
+| 0.4 `comvi` option | 0.5.0                                                                                            |
+| ------------------ | ------------------------------------------------------------------------------------------------ |
+| `comvi.cdnUrl`     | removed. `.use(cdnLoader({ cdnUrl }))` from `@comvi/plugin-fetch-loader/cdn`, in `comvi.host.ts` |
+| `comvi.apiBaseUrl` | removed. The same loader plugin's own `baseUrl` option, in `comvi.host.ts`                       |
+| `comvi.apiKey`     | kept, still forwarded to the host as `i18n.apiKey` — but it loads nothing on its own             |
+
+Both were written into `runtimeConfig.public.comvi` and read by no runtime code,
+so an app that set `cdnUrl` and expected translations got neither a load nor a
+diagnostic. They are gone rather than wired, because a module composing a loader
+on the app's behalf is exactly what `hostModule` exists to avoid.
+
+```ts
+// comvi.host.ts — what `comvi.cdnUrl` was supposed to do
+import { createI18n, type NuxtHostFactory } from "@comvi/nuxt/host";
+import { cdnLoader } from "@comvi/plugin-fetch-loader/cdn";
+
+export default ((options) =>
+  createI18n(options).use(
+    cdnLoader({ cdnUrl: "https://cdn.comvi.io/your-distribution-id" }),
+  )) satisfies NuxtHostFactory;
+```
+
+**`comvi.translation` is new**, and it is `I18nOptions["translation"]` verbatim:
+inline catalogs keyed `locale` or `"locale:namespace"`, forwarded into both the
+client plugin's host and each request-scoped server host. It is what makes a
+`comvi` block with no `hostModule` render an actual translation.
 
 **The factory receives nuxt's resolved options**: `locale` (the render locale on
 the client, the request locale on the server), `fallbackLocale`, `defaultNs`,
-`defaultParams`, `devMode` and `apiKey`. A composed host therefore honours the
-same `nuxt.config` an uncomposed one does. A 0.5.0-development factory that takes
-no argument keeps working.
+`defaultParams`, `devMode`, `apiKey` and `translation`. A composed host
+therefore honours the same `nuxt.config` an uncomposed one does. A
+0.5.0-development factory that takes no argument keeps working.
 
 Two options reach only one of the two calls. The app plugin runs in both bundles
 and adds `tagInterpolation` from `basicHtmlTags` plus `ssrLocale`, so a server
@@ -837,6 +884,15 @@ Format the value in code and interpolate it as a plain `{param}`. `number`,
 Give every selector a braced sub-message of its own. The plural `offset:` form
 lands here too, not above: `offset:N` parses as a selector with no braced
 sub-message.
+
+**Two carried-over options now warn instead of doing nothing.** `init()` reports
+each ONCE, in development only, when the option's capability was never composed:
+`ns` with no loader (naming `.use(loader(map))`), and `instanceId` or
+`exposeGlobal: true` with no discovery (naming
+`.use(devtools({ instanceId }))`). Both are 0.4 shapes an upgraded app is likely
+to still be passing, and both used to be accepted and then ignored in silence.
+Production stays silent, per the fail-soft rule. `exposeGlobal: false` warns
+about nothing: it asks for the absence a base host already delivers.
 
 Two changes are silent: neither produces an error.
 

@@ -7,8 +7,8 @@
 **Grep target for a tree built against 0.5 development:** the second constructor name that briefly stood beside `createI18n` on both entries for the bare host was `createSlimI18n`. It is deleted — one host, one name — it never published, and `pnpm codemod:framework-slim` renames it, aliased imports included.
 
 **`createNextI18n` from `@comvi/next` is NOT affected.** It composes ICU, ambient tags, the
-loader (both `registerLoader` overloads), the plugin host, nested constructor catalogs,
-default params and devtools discovery explicitly, inside this package — so a 0.4 app built
+loader (both `registerLoader` overloads), the plugin host, default params and devtools
+discovery explicitly, inside this package — so a 0.4 app built
 on it migrates by changing nothing, and it is the one-line escape hatch if you do not want
 to compose anything. Its host type is now published as `NextComposedI18n<D>`. Nothing about
 `<I18nProvider>`, `useI18n()`, `<T>`, the capability hooks, `createMiddleware`,
@@ -23,7 +23,6 @@ fix stays inside the specifier you already import:
 | loader (`registerLoader`, …)                 | `.use(loader(map))`, or `.use(attachLoader)`       |
 | `.use(plugin)`, `onMissingKey`               | `.use(definePlugin(p))`, or `registerPlugin(p)`    |
 | discovery (`instanceId`, `window.__COMVI__`) | `.use(devtools({ instanceId }))`                   |
-| nested constructor catalogs                  | `flattenCatalog(…)`, or compose `loader()`         |
 | `<tag>` markup through `t()`                 | render `<T>`, or `import "@comvi/core/tags"`       |
 
 ```tsx

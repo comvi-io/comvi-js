@@ -17,7 +17,6 @@ from `@comvi/svelte`, so each fix stays inside the one specifier you already hav
 | loader (`registerLoader`, …)                 | `.use(loader(map))`, or `.use(attachLoader)`       |
 | `.use(plugin)`, `onMissingKey`               | `.use(definePlugin(p))`, or `registerPlugin(p)`    |
 | discovery (`instanceId`, `window.__COMVI__`) | `.use(devtools({ instanceId }))`                   |
-| nested constructor catalogs                  | `flattenCatalog(…)`, or compose `loader()`         |
 | `<tag>` markup through `t()`                 | render `<T>`, or `import "@comvi/core/tags"`       |
 
 ```svelte
