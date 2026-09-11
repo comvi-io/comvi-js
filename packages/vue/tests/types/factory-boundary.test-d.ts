@@ -9,6 +9,7 @@ import {
   createCore,
   createI18n,
   createI18nFromCore,
+  devtools,
   I18N_INJECTION_KEY,
   icu,
   loader,
@@ -113,6 +114,24 @@ type _FromBaseChainedCore = Expect<
   Equal<(typeof fromBaseChained)["core"], I18n<{}> & I18nLoaderApi>
 >;
 void fromBaseChained.core.reloadTranslations();
+
+// `devtools()` widens nothing either: the core keeps its exact type.
+const withDevtools = createI18n({ locale: "en" }).with(devtools());
+type _DevtoolsWidensNothing = Expect<Equal<(typeof withDevtools)["core"], I18n<{}>>>;
+void withDevtools.t("greeting");
+
+// A plugin package's installer has the `fetchLoader` / `cdnLoader` shape —
+// `<T extends I18n<any>>(i18n: T) => T & I18nLoaderApi & I18nPluginHostApi` —
+// and composes through the wrapper pipe with both capabilities typed on `core`.
+declare const pluginInstaller: <T extends I18n<any>>(
+  i18n: T,
+) => T & I18nLoaderApi & I18nPluginHostApi;
+const withPlugin = createI18n({ locale: "en" }).with(pluginInstaller);
+type _PluginInstallerCore = Expect<
+  Equal<(typeof withPlugin)["core"], I18n<{}> & I18nLoaderApi & I18nPluginHostApi>
+>;
+void withPlugin.core.reloadTranslations();
+void withPlugin.core.use(() => undefined);
 
 // …but NOT through the inject path: the injected core is a bare
 // `WrapperI18nHost`, which no installer accepts, so composing from inside a

@@ -130,7 +130,7 @@ function injectHost(composable: string): AnyHost {
  * a base `@comvi/core` instance, which is every host nobody composed a loader
  * onto. The capability ships in `@comvi/core/loader` and nowhere else, so
  * compose it where the instance is created: `createI18n(...).with(loader())`,
- * or the lower-level `attachLoader(createI18n(...))`.
+ * or the lower-level `createI18n(...).with(attachLoader)`.
  *
  * @example
  * ```vue

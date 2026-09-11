@@ -32,6 +32,14 @@ import {
 } from "vue";
 import { I18N_INJECTION_KEY } from "./keys";
 
+declare const __DEV__: boolean | undefined;
+const IS_DEV = typeof __DEV__ !== "undefined" && __DEV__;
+
+/** Thrown by {@link VueI18n.with} when an installer hands back a different object. */
+export interface WithHostIdentityError extends Error {
+  code: "E_WITH_HOST_IDENTITY";
+}
+
 /**
  * Vue-layer options — the ones that do NOT configure the core.
  *
@@ -55,9 +63,11 @@ export type VueI18nOptions<D extends DefaultTranslationParams = {}> = I18nOption
  * The host stays reachable as {@link VueI18n.core}: everything the wrapper does
  * not proxy — including the loader and plugin-host capabilities, when the host
  * has them — goes through it. Capabilities are composed with {@link VueI18n.with},
- * which widens `C` on the instance you hold. `C` is exact when you hold the
- * factory result; through `inject(I18N_INJECTION_KEY)` the core is seen as a
- * bare {@link WrapperI18nHost}, so capability calls are a compile error there.
+ * which returns this same instance with `core` retyped: assign the result,
+ * since a discarded return leaves the binding's `C` unwidened. `C` is exact
+ * when you hold the factory result; through `inject(I18N_INJECTION_KEY)` the
+ * core is seen as a bare {@link WrapperI18nHost}, so capability calls are a
+ * compile error there.
  */
 export class VueI18n<
   D extends DefaultTranslationParams = {},
@@ -78,6 +88,7 @@ export class VueI18n<
   private _localeQueue: Promise<void> = Promise.resolve();
   private _isLocaleQueueIdle = true;
   private _isDestroyed = false;
+  private _warnedLateWith = false;
 
   // Declared here, assigned as bound proxies in the constructor.
   declare addTranslations: (translations: Record<string, Record<string, TranslationValue>>) => void;
@@ -424,17 +435,34 @@ export class VueI18n<
    * i18n.core.reloadTranslations(); // typed: the loader is on `core`
    * ```
    *
-   * Same ordering rule as on the host: `icu()` goes before the first catalog,
+   * Same ordering rules as on the host: `icu()` goes before the first catalog,
    * so an inline `translation` in the options takes `compiler: icuCompiler`
-   * there instead. Installers widen the host IN PLACE and return it; the
-   * wrapper's bound proxies point at that one host, so an installer that
-   * hands back a different object is refused instead of leaving the wrapper
-   * driving a host the app never sees.
+   * there instead; and compose BEFORE `app.use(i18n)`, because `install` starts
+   * `init()`, which drains the plugin queue once — a `plugins()` or `.use(…)`
+   * composed later is never run (development warns; the host's own
+   * late-compose guards do not see the synchronous start of `init()`).
+   *
+   * Installers widen the host IN PLACE and return it; the wrapper's bound
+   * proxies point at that one host, so an installer that hands back a
+   * different object is refused (`code: "E_WITH_HOST_IDENTITY"`) instead of
+   * leaving the wrapper driving a host the app never sees.
    */
   with<T extends WrapperI18nHost<D>>(installer: (core: C) => T): VueI18n<D, T> {
+    if (IS_DEV && (this.core.isInitialized || this.core.isInitializing) && !this._warnedLateWith) {
+      this._warnedLateWith = true;
+      console.warn(
+        "[i18n] .with(installer) ran after app.use(i18n) started init(): compose capabilities before installing the plugin. The plugin queue is drained inside init() and never again, so a plugin composed now will never run.",
+      );
+    }
     const widened: unknown = installer(this.core);
     if (widened !== this.core) {
-      throw new Error("[i18n] .with(installer) must return the host it was given");
+      const error = new Error(
+        IS_DEV
+          ? "[i18n] .with(installer) must return the host it was given"
+          : "E_WITH_HOST_IDENTITY",
+      ) as WithHostIdentityError;
+      error.code = "E_WITH_HOST_IDENTITY";
+      throw error;
     }
     return this as unknown as VueI18n<D, T>;
   }

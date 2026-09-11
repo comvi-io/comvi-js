@@ -9,6 +9,7 @@ import {
   createI18n,
   createI18nFromCore,
   createCore,
+  devtools,
   icu,
   loader,
   plugins,
@@ -54,10 +55,40 @@ describe("VueI18n.with()", () => {
     const i18n = createI18n({ locale: "en", exposeGlobal: false });
     const foreign = createCore({ locale: "en", exposeGlobal: false });
     expect(() => i18n.with(() => foreign)).toThrow(
-      "[i18n] .with(installer) must return the host it was given",
+      expect.objectContaining({ code: "E_WITH_HOST_IDENTITY" }),
     );
     // The refused installer left the wrapper on its own host.
     expect(i18n.core).not.toBe(foreign);
+  });
+
+  it("composes devtools through the pipe without widening", () => {
+    const i18n = createI18n({ locale: "en", exposeGlobal: false });
+    const composed = i18n.with(devtools({ instanceId: "with-chain" }));
+    expect(composed).toBe(i18n);
+    expect(composed.core.instanceId).toBe("with-chain");
+    composed.destroy();
+  });
+
+  it("warns once in development when composed after app.use(i18n) started init()", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const i18n = createI18n({
+        locale: "en",
+        exposeGlobal: false,
+        translation: { en: { greeting: "Hello" } },
+      });
+      const wrapper = mount(defineComponent({ render: () => h("span") }), {
+        global: { plugins: [i18n] },
+      });
+      expect(i18n.core.isInitialized || i18n.core.isInitializing).toBe(true);
+      i18n.with(plugins()).with(loader());
+      expect(warn).toHaveBeenCalledTimes(1);
+      expect(warn.mock.calls[0]![0]).toContain("after app.use(i18n) started init()");
+      wrapper.unmount();
+      i18n.destroy();
+    } finally {
+      warn.mockRestore();
+    }
   });
 
   it("hands the installer the core, not the wrapper", () => {

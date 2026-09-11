@@ -94,21 +94,19 @@ export const i18n = createI18n({
 Four of the seven depart from that file, and each departure says something about
 the binding:
 
-**Vue.** Installers run on the HOST, and `createI18n` from `@comvi/vue` is not
-a rename of core's: it constructs a core for you and wraps it in a `VueI18n`
-reactivity layer. So compose first and wrap afterwards. Piping onto the wrapper
-instead, as `createI18n(options).core.with(loader())`, does attach the capability
-at runtime, but `createI18n` returns `VueI18n<D, I18n<D>>` and the wrapper never
-re-types `.core`, so every later `i18n.core.registerLoader(…)` is a compile
-error. `createI18nFromCore` preserves the composed host's exact type, which is
-why this file differs (`packages/vue/README.md`,
+**Vue.** `createI18n` from `@comvi/vue` is not a rename of core's: it constructs
+a core for you and wraps it in a `VueI18n` reactivity layer. The pipe is the
+same anyway, because `VueI18n` has its own `.with(installer)`, which runs
+the installer on `i18n.core` and widens that core's type by what it composed.
+What differs is the last line: the wrapper does not proxy `use`, so the plugin
+is registered on the host as `i18n.core.use(…)` (`packages/vue/README.md`,
 "Supported hosts and what they cost").
 
 ```ts title="src/i18n.ts"
-import { createCore, createI18nFromCore, icuCompiler, loader, plugins } from "@comvi/vue";
+import { createI18n, icuCompiler, loader, plugins } from "@comvi/vue";
 import { LocaleDetector } from "@comvi/plugin-locale-detector";
 
-const core = createCore({
+export const i18n = createI18n({
   locale: "en",
   fallbackLocale: "en",
   compiler: icuCompiler,
@@ -120,10 +118,9 @@ const core = createCore({
       de: () => import("./locales/de.json"),
     }),
   )
-  .with(plugins())
-  .use(LocaleDetector({ supportedLocales: ["en", "uk", "de"], fallbackLocale: "en" }));
+  .with(plugins());
 
-export const i18n = createI18nFromCore(core);
+i18n.core.use(LocaleDetector({ supportedLocales: ["en", "uk", "de"], fallbackLocale: "en" }));
 ```
 
 **Vanilla.** There is no binding to re-export the toolkit, so every capability

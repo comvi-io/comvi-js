@@ -85,26 +85,28 @@ const { t, locale, setLocale } = useI18n();
 </template>
 ```
 
+That host is the base one: ICU, async loading, the plugin host and devtools
+discovery are each one `.with(installer)` on the `createI18n` result, as in
+[From the Comvi CDN](#from-the-comvi-cdn) below.
+
 For the `<T>` component (rich text with slot-based tag interpolation), `$t` template helper, type-safe keys, and the full composable API, see the [documentation](https://comvi.io/docs/i18n/vue/).
 
 ## From the Comvi CDN
 
 Translations served by the Comvi platform, fetched at runtime instead of
-bundled. Installers run on the HOST, so compose with `createCore` and wrap the
-result with `createI18nFromCore`:
+bundled. Each capability is one `.with(installer)` on the `createI18n` result,
+which keeps the same instance and widens the type of `i18n.core`:
 
 ```ts
 // main.ts
 import { createApp } from "vue";
-import { createCore, createI18nFromCore, icu } from "@comvi/vue";
+import { createI18n, icu } from "@comvi/vue";
 import { cdnLoader } from "@comvi/plugin-fetch-loader/cdn";
 import App from "./App.vue";
 
-const core = createCore({ locale: "en", fallbackLocale: "en" })
+const i18n = createI18n({ locale: "en", fallbackLocale: "en" })
   .with(icu())
   .with(cdnLoader({ cdnUrl: "https://cdn.comvi.io/your-distribution-id" }));
-
-const i18n = createI18nFromCore(core);
 
 createApp(App).use(i18n).mount("#app");
 ```
@@ -157,10 +159,9 @@ happens on the host instead:
 ```diff check=skip:proxy-relocation
 -i18n.registerLoader(myLoader);
 -i18n.use(FetchLoader({ … }));
-+const core = createCore({ locale: "en" }).with(loader()).with(plugins());
-+core.registerLoader(myLoader);
-+core.use(FetchLoader({ … }));
-+const i18n = createI18nFromCore(core);
++const i18n = createI18n({ locale: "en" }).with(loader()).with(plugins());
++i18n.core.registerLoader(myLoader);
++i18n.core.use(FetchLoader({ … }));
 ```
 
 Both members are capabilities, so they exist on the host only once that host has
@@ -177,28 +178,46 @@ type is textually undecidable), or the
 ## Supported hosts and what they cost
 
 `createI18n(options)` keeps its 0.4 signature and still builds the host for you,
-a `@comvi/core` base host. ICU, tag syntax, async loading, the plugin host and
-devtools discovery are each something you compose, and the wrapper carries none
-of them by default. `createCore(options)` is core's own constructor
-when you want to build that host yourself, and
-`createI18nFromCore(core, options?)` wraps whatever you built, preserving its
-exact type as `i18n.core`. All three ship from the one entry.
+a `@comvi/core` base host. ICU, async loading, the plugin host and devtools
+discovery are each something you compose, tag syntax is an import you name
+yourself, and the wrapper carries none of them by default.
 
-**To compose capabilities, use `createCore(options).with(…)` and then
-`createI18nFromCore(core)`, not `createI18n(options).core.with(…)`.**
-`createI18n` returns `VueI18n<D, I18n<D>>`, so `.core` is typed as the BASE
-`I18n<D>` and the wrapper does not re-type it: composing through `.core.with(…)`
-attaches the capability at runtime, but `i18n.core` keeps the base type and
-every later `i18n.core.registerLoader(…)` is a compile error. `createCore` +
-`createI18nFromCore` is the path that carries the composed type through.
+**To compose capabilities, chain `.with(installer)` on the `createI18n` result.**
+`with` runs the installer on `i18n.core`, hands back the same `VueI18n`
+instance, and widens the type of `core` by what the installer composed, so a
+loader member on `i18n.core` type-checks once `loader()` is in the chain:
+
+```ts
+import { createI18n, loader, plugins } from "@comvi/vue";
+
+const i18n = createI18n({ locale: "en" })
+  .with(loader({ uk: () => import("./uk.json") }))
+  .with(plugins());
+i18n.core.reloadTranslations(); // typed: `.with` widened `core`
+```
+
+Reaching one level down instead, as `createI18n(options).core.with(…)`, still
+attaches the capability at runtime, but `createI18n` returns
+`VueI18n<D, I18n<D>>` and `.core.with(…)` does not re-type the wrapper: `i18n.core`
+keeps the base type and every later `i18n.core.registerLoader(…)` is a compile
+error. The fix is the wrapper pipe above.
+
+`createCore(options)` and `createI18nFromCore(core, options?)` are the escape
+hatch for a host built elsewhere: `createCore` is core's own constructor, and
+`createI18nFromCore` wraps whatever you hand it, preserving its exact type as
+`i18n.core`. Use them when the host is not built next to the app — Nuxt's
+`hostModule`, or one host shared between a Vue app and non-Vue code. Everything
+ships from the one entry, and `.with(…)` works on a `createI18nFromCore` result
+too.
 
 Whole-app comvi graph, min+gz, `vue` externalized (`pnpm size`, rows in
-`scripts/size-budgets.json`, each gated at measured + 5 %):
+`scripts/size-budgets.json`, each gated at its recorded baseline + 5 %; the
+figures below are this branch's measurement):
 
 | app shape                         | size fixture            | min+gz      |
 | --------------------------------- | ----------------------- | ----------- |
-| base host, one call, no `<T>`     | `fw-vue-default`        | **7029 B**  |
-| full explicit composition + `<T>` | `fw-vue-full-composite` | **11527 B** |
+| base host, one call, no `<T>`     | `fw-vue-default`        | **7111 B**  |
+| full explicit composition + `<T>` | `fw-vue-full-composite` | **11805 B** |
 
 `<T>` adds the pure `@comvi/core/rich-text` path. It moved to that path in this
 release and no longer registers ambient string-API tags, so its graph excludes
@@ -214,22 +233,23 @@ could be invisible to this one's `useI18n()`. Migrating a 0.4 app is
 `pnpm codemod:framework-slim "src/**/*.{ts,vue}"`; the breaks are written up in
 the [0.5.0 migration guide](https://github.com/comvi-io/comvi-js/blob/main/MIGRATION.md).
 
-| export                                          | what it is                                        |
-| ----------------------------------------------- | ------------------------------------------------- |
-| `createI18n`                                    | the one-call preset: a `VueI18n` over a base host |
-| `createCore`                                    | core's own constructor, for the composed path     |
-| `createI18nFromCore`                            | wraps a host you built, preserving its exact type |
-| `I18n`                                          | the base class `createCore` instantiates          |
-| `icuCompiler`, `icu`                            | from `@comvi/core/icu`: compiler and installer    |
-| `loader`, `attachLoader`, `flattenCatalog`      | from `@comvi/core/loader`                         |
-| `plugins`, `attachPlugins`                      | from `@comvi/core/plugins`                        |
-| `devtools`, `attachDevtools`                    | from `@comvi/core/devtools`                       |
-| `VueI18n`, the composables, `T`, the inject key | the vue bindings                                  |
+| export                                          | what it is                                                |
+| ----------------------------------------------- | --------------------------------------------------------- |
+| `createI18n`                                    | the preset: a `VueI18n` over a base host, plus `.with(…)` |
+| `createCore`                                    | core's own constructor, for a host built elsewhere        |
+| `createI18nFromCore`                            | wraps that host, preserving its exact type                |
+| `I18n`                                          | the base class `createI18n` and `createCore` both produce |
+| `icuCompiler`, `icu`                            | from `@comvi/core/icu`: compiler and installer            |
+| `loader`, `attachLoader`, `flattenCatalog`      | from `@comvi/core/loader`                                 |
+| `plugins`, `attachPlugins`                      | from `@comvi/core/plugins`                                |
+| `devtools`, `attachDevtools`                    | from `@comvi/core/devtools`                               |
+| `VueI18n`, the composables, `T`, the inject key | the vue bindings                                          |
 
 `createI18n` is vue's own function, not a rename: there is a `VueI18n` to
 construct, and `ssrLocale` has to reach the host before the reactive ref is
-seeded so the ref and `core.locale` cannot disagree for a render. That is also
-why the composition pipe lives one level down.
+seeded so the ref and `core.locale` cannot disagree for a render. The
+composition pipe reads the same as in the other bindings anyway, because
+`.with(installer)` is on the `VueI18n` as well as on the host.
 
 **Named, which is the point — and it costs nine 0.4.x names.** The table above
 is the whole value surface. 0.4.x carried `export * from "@comvi/core"`, so
@@ -254,8 +274,13 @@ offers them: they track the locale, where the bare helpers take it as an
 argument.
 
 `.with(installer)` is core's composition pipe: `host.with(f)` is `f(host)`. On
-vue it goes on the **host**: `i18n.core` for a preset instance, or the
-value `createCore` handed you. `loader(map)` attaches the capability **and**
+vue it goes on the **instance the factory returned**: `const i18n =
+createI18n(options).with(f)` runs `f(i18n.core)`, keeps the same wrapper, and
+retypes `core` by what `f` composed. Assign the result: a discarded
+`i18n.with(f)` still attaches the capability at runtime but leaves the binding's
+`core` unwidened. Compose before `app.use(i18n)`: `install` starts `init()`,
+which drains the plugin queue once, so a `plugins()` or `.use(…)` composed later
+never runs (development warns). `loader(map)` attaches the capability **and**
 registers the map; for a plain `LoaderFn`, compose `.with(attachLoader)` and
 call `registerLoader(fn)` yourself (it keeps the import-map adapter out of your
 bundle).
@@ -295,31 +320,29 @@ const i18n = createI18n({
 ### Remote catalogs with ICU — `.with(icu())` before ingestion
 
 When the catalog arrives from a loader there is nothing to compile at
-construction time, so install the compiler first, on the host. That means
-building it with `createCore` and wrapping the result:
+construction time, so compose the compiler first, ahead of the loader:
 
 ```ts
-import { createCore, createI18nFromCore, icu, loader } from "@comvi/vue";
+import { createI18n, icu, loader } from "@comvi/vue";
 
-const core = createCore({ locale: "en" })
+const i18n = createI18n({ locale: "en", ssrLocale: "en" })
   .with(icu())
   .with(loader({ uk: () => import("./uk.json") }));
-const i18n = createI18nFromCore(core, { ssrLocale: "en" }); // i18n.core is exactly `core`
+// i18n.core now carries the loader capability, exactly typed
 ```
 
 `.with(icu())` is **pre-ingestion only**. The compiler locks the moment any
 catalog reaches the host: a constructor `translation`, an `addTranslations`
 call, or a loader merge. A later `icu()` throws with own
-`code === "E_COMPILER_LOCKED"`. So `createI18n({ translation }).core.with(icu())`
-is invalid by construction: pass `compiler: icuCompiler` there instead.
+`code === "E_COMPILER_LOCKED"`. So `createI18n({ translation }).with(icu())` is
+invalid by construction: pass `compiler: icuCompiler` there instead.
 
 ### Async loading — `loader()`
 
 ```ts
 import { createI18n, loader } from "@comvi/vue";
 
-const i18n = createI18n({ locale: "en" });
-i18n.core.with(loader({ uk: () => import("./uk.json") }));
+const i18n = createI18n({ locale: "en" }).with(loader({ uk: () => import("./uk.json") }));
 // inside a component: const { reloadTranslations } = useI18nLoader();
 ```
 
@@ -328,17 +351,15 @@ i18n.core.with(loader({ uk: () => import("./uk.json") }));
 The three first-party plugin packages ship a lowercase **installer** beside the
 uppercase factory. The installer composes the capabilities that plugin needs
 (`cdnLoader` attaches `/loader`, then `/plugins`) and registers it, in one
-call. It runs on the HOST, so build with `createCore` and wrap afterwards:
+call. One `.with(…)` on the `createI18n` result is the whole setup:
 
 ```ts
-import { createCore, createI18nFromCore } from "@comvi/vue";
+import { createI18n } from "@comvi/vue";
 import { cdnLoader } from "@comvi/plugin-fetch-loader/cdn";
 
-const core = createCore({ locale: "en", defaultNs: "common" }).with(
+const i18n = createI18n({ locale: "en", defaultNs: "common" }).with(
   cdnLoader({ cdnUrl: "https://cdn.comvi.io/your-distribution-id" }),
 );
-
-const i18n = createI18nFromCore(core);
 ```
 
 The explicit form is that composition spelled out, and it is what you want when
@@ -346,18 +367,15 @@ you register plugins from a list. Compose `loader()` as well when a plugin
 registers one. The order of `loader()`, `plugins()` and `devtools()` among
 themselves is free, because plugins run at `init()` and every capability
 composed before `init()` is attached by then. `VueI18n` does not proxy `use`, so
-registration happens on the host, either before wrapping or as
-`i18n.core.use(…)` afterwards.
+registration happens on the host, as `i18n.core.use(…)`:
 
 ```ts
-import { createCore, createI18nFromCore, loader, plugins } from "@comvi/vue";
+import { createI18n, loader, plugins } from "@comvi/vue";
 import { CdnLoader } from "@comvi/plugin-fetch-loader/cdn";
 
-const core = createCore({ locale: "en", defaultNs: "common" }).with(loader()).with(plugins());
+const i18n = createI18n({ locale: "en", defaultNs: "common" }).with(loader()).with(plugins());
 
-core.use(CdnLoader({ cdnUrl: "https://cdn.comvi.io/your-distribution-id" }));
-
-const i18n = createI18nFromCore(core);
+i18n.core.use(CdnLoader({ cdnUrl: "https://cdn.comvi.io/your-distribution-id" }));
 ```
 
 Swapping the two slots is a type error and loud at runtime:
@@ -371,8 +389,7 @@ opt-in too:
 ```ts
 import { createI18n, devtools } from "@comvi/vue";
 
-const i18n = createI18n({ locale: "en" });
-i18n.core.with(devtools({ instanceId: "storefront" }));
+const i18n = createI18n({ locale: "en" }).with(devtools({ instanceId: "storefront" }));
 ```
 
 These are **named** re-exports of core's own bindings, so the ones you do not
@@ -380,8 +397,8 @@ call are pruned. Three bundler-matrix cases hold that line, on webpack and vite,
 in development and production: `vue-default` calls no capability and asserts all
 four subpath entries out of the module graph, `vue-icu` calls `icuCompiler`,
 formats a real plural from the built bundle and asserts the other three out, and
-`vue-composed` composes `createCore(...).with(loader(map))` through
-`createI18nFromCore` and asserts the three it does not call out.
+`vue-composed` takes the escape hatch — `createCore(...).with(loader(map))`
+through `createI18nFromCore` — and asserts the three it does not call out.
 
 `@comvi/core/tags` is not re-exported, because importing it registers tag
 syntax ambiently. `<T>` uses the pure `@comvi/core/rich-text` path in its own
@@ -601,14 +618,14 @@ Pair with `@comvi/plugin-fetch-loader` to load translations from the platform, w
 ```ts
 // main.ts
 import { createApp } from "vue";
-import { createCore, createI18nFromCore } from "@comvi/vue";
+import { createI18n } from "@comvi/vue";
 import { cdnLoader } from "@comvi/plugin-fetch-loader/cdn";
 import App from "./App.vue";
 
 // One installer composes the loader capability, then the plugin host, then
-// registers the plugin — the order a loader-registering plugin needs. It runs
-// on the HOST, because `VueI18n` does not proxy `use`.
-const core = createCore({
+// registers the plugin — the order a loader-registering plugin needs. `.with`
+// runs it on `i18n.core` and widens that core's type by what it composed.
+const i18n = createI18n({
   locale: "en",
   defaultNs: "common",
 }).with(
@@ -616,8 +633,6 @@ const core = createCore({
     cdnUrl: "https://cdn.comvi.io/your-distribution-id",
   }),
 );
-
-const i18n = createI18nFromCore(core);
 
 createApp(App).use(i18n).mount("#app");
 ```

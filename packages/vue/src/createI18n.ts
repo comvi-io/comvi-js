@@ -28,7 +28,7 @@ import { VueI18n, type VueI18nOptions } from "./VueI18n";
  * ```ts
  * const i18n = createI18n({ locale: "en" })
  *   .with(icu())
- *   .with(fetchLoader({ apiUrl, projectId }));
+ *   .with(fetchLoader({ cdnUrl }));
  * i18n.core.reloadTranslations(); // typed: `.with` widened `core`
  * ```
  */
