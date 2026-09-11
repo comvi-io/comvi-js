@@ -20,9 +20,9 @@ fix stays inside the specifier you already import:
 | you had                                      | you add                                            |
 | -------------------------------------------- | -------------------------------------------------- |
 | ICU plurals, select, selectordinal           | `compiler: icuCompiler` in the constructor options |
-| loader (`registerLoader`, …)                 | `.with(loader(map))`, or `.with(attachLoader)`     |
-| `.use(plugin)`, `onMissingKey`               | `.with(plugins())`, then `use(p)`                  |
-| discovery (`instanceId`, `window.__COMVI__`) | `.with(devtools({ instanceId }))`                  |
+| loader (`registerLoader`, …)                 | `.use(loader(map))`, or `.use(attachLoader)`       |
+| `.use(plugin)`, `onMissingKey`               | `.use(definePlugin(p))`, or `registerPlugin(p)`    |
+| discovery (`instanceId`, `window.__COMVI__`) | `.use(devtools({ instanceId }))`                   |
 | nested constructor catalogs                  | `flattenCatalog(…)`, or compose `loader()`         |
 | `<tag>` markup through `t()`                 | render `<T>`, or `import "@comvi/core/tags"`       |
 
@@ -30,7 +30,7 @@ fix stays inside the specifier you already import:
 // INLINE — the constructor ingests the catalog.
 const i18n = createI18n({ locale: "en", compiler: icuCompiler, translation });
 // LATER — a hydrated client catalog, or anything an SSR loader fetches: the same option.
-const host = createI18n({ locale: "en", compiler: icuCompiler }).with(loader(importMap));
+const host = createI18n({ locale: "en", compiler: icuCompiler }).use(loader(importMap));
 ```
 
 `compiler` is a constructor field held for the instance's life, so one option covers every

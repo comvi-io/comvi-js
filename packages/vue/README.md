@@ -33,7 +33,7 @@ Comvi i18n is a framework-agnostic internationalization library with type-safe t
 - **ICU `plural`, `selectordinal` & `select`.** Locale-correct grammar via `Intl.PluralRules`, including Polish, Ukrainian, Arabic, Welsh and the rest. It is the same syntax every major TMS (Crowdin, Lokalise, Phrase) already speaks. The `number` / `date` / `time` argument types and the plural `offset:` form are not implemented and are not planned. Each one fails with `E_ICU_SYNTAX` instead of rendering something wrong.
 - **Locale-aware formatters built in.** `formatNumber`, `formatDate`, `formatCurrency`, and `formatRelativeTime` follow the active locale via native `Intl`, with reactive updates in every framework binding.
 - **~7.0 kB minified + gzipped for a default app graph (measured, `vue` externalized), zero runtime dependencies.** That is the base host plus the vue bindings and the `VueI18n` preset; ICU, async loading, the plugin host and devtools discovery cost only where you compose them. No `eval` or `new Function` anywhere, so it runs under a strict CSP without `unsafe-eval`. Safe for Chrome extensions, Cloudflare Workers, and locked-down enterprise apps.
-- **Pluggable.** Translation loading (CDN/API), locale detection, and in-context editing are opt-in plugins via `@comvi/plugin-fetch-loader`, `@comvi/plugin-locale-detector`, and `@comvi/plugin-in-context-editor`, one lowercase `.with(installer)` each. You only ship what you use.
+- **Pluggable.** Translation loading (CDN/API), locale detection, and in-context editing are opt-in plugins via `@comvi/plugin-fetch-loader`, `@comvi/plugin-locale-detector`, and `@comvi/plugin-in-context-editor`, one lowercase `.use(installer)` each. You only ship what you use.
 - **Same API across 6 frameworks.** `useI18n()` and `<T>` look the same in [Vue](https://www.npmjs.com/package/@comvi/vue), [React](https://www.npmjs.com/package/@comvi/react), [SolidJS](https://www.npmjs.com/package/@comvi/solid), [Svelte](https://www.npmjs.com/package/@comvi/svelte), [Next.js](https://www.npmjs.com/package/@comvi/next), and [Nuxt](https://www.npmjs.com/package/@comvi/nuxt), so switching frameworks doesn't mean relearning your i18n layer.
 
 ## Why @comvi/vue?
@@ -86,7 +86,7 @@ const { t, locale, setLocale } = useI18n();
 ```
 
 That host is the base one: ICU, async loading, the plugin host and devtools
-discovery are each one `.with(installer)` on the `createI18n` result, as in
+discovery are each one `.use(installer)` on the `createI18n` result, as in
 [From the Comvi CDN](#from-the-comvi-cdn) below.
 
 For the `<T>` component (rich text with slot-based tag interpolation), `$t` template helper, type-safe keys, and the full composable API, see the [documentation](https://comvi.io/docs/i18n/vue/).
@@ -94,7 +94,7 @@ For the `<T>` component (rich text with slot-based tag interpolation), `$t` temp
 ## From the Comvi CDN
 
 Translations served by the Comvi platform, fetched at runtime instead of
-bundled. Each capability is one `.with(installer)` on the `createI18n` result,
+bundled. Each capability is one `.use(installer)` on the `createI18n` result,
 which keeps the same instance and widens the type of `i18n.core`:
 
 ```ts
@@ -108,7 +108,7 @@ const i18n = createI18n({
   locale: "en",
   fallbackLocale: "en",
   compiler: icuCompiler,
-}).with(cdnLoader({ cdnUrl: "https://cdn.comvi.io/your-distribution-id" }));
+}).use(cdnLoader({ cdnUrl: "https://cdn.comvi.io/your-distribution-id" }));
 
 createApp(App).use(i18n).mount("#app");
 ```
@@ -149,28 +149,33 @@ On a host that lacks the capability the acquisition call throws, in
 development **and** production, never a silent no-op:
 
 ```
-[comvi] This i18n instance has no loader capability. Compose it: .with(loader()) from "@comvi/core/loader", or the lower-level attachLoader.
+[comvi] This i18n instance has no loader capability. Compose it: .use(loader()) from "@comvi/core/loader", or the lower-level attachLoader.
 ```
 
 **`VueI18n` dropped its eight instance proxies.** `addActiveNamespace`,
 `reloadTranslations`, `registerLoader`, `registerLocaleDetector`,
-`registerPostProcessor`, `onMissingKey`, `onLoadError` and `use` are gone from
-the class; the host it wraps is public as `readonly core`, so registration
-happens on the host instead:
+`registerPostProcessor`, `onMissingKey`, `onLoadError` and plugin registration
+(0.4's `use(plugin)`) are gone from the class; the host it wraps is public as
+`readonly core`, so registration happens on the host instead:
 
 ```diff check=skip:proxy-relocation
 -i18n.registerLoader(myLoader);
 -i18n.use(FetchLoader({ … }));
-+const i18n = createI18n({ locale: "en" }).with(loader()).with(plugins());
++const i18n = createI18n({ locale: "en" }).use(loader()).use(plugins());
 +i18n.core.registerLoader(myLoader);
-+i18n.core.use(FetchLoader({ … }));
++i18n.core.registerPlugin(FetchLoader({ … }));
 ```
 
+The `use` the class has today is the composition pipe of decision E,
+`.use(installer)`, not 0.4's plugin proxy: it runs an installer and hands the
+wrapper back.
+
 Both members are capabilities, so they exist on the host only once that host has
-composed them. `registerLoader` comes with `@comvi/core/loader` and `use` with
-`@comvi/core/plugins`; on the base host `createI18n` builds, `i18n.core.use(…)`
-is a type error and a `TypeError` at runtime. Nothing on `VueI18n` is typed
-present and then throws "missing capability", so `use` left with the rest.
+composed them. `registerLoader` comes with `@comvi/core/loader` and
+`registerPlugin` with `@comvi/core/plugins`; on the base host `createI18n`
+builds, `i18n.core.registerPlugin(…)` is a type error and a `TypeError` at
+runtime. Nothing on `VueI18n` is typed present and then throws "missing
+capability", so plugin registration left with the rest.
 
 Migrating from 0.4.x: `pnpm codemod:framework-slim "src/**/*.{ts,vue}"` (it
 rewrites the destructures and _reports_ the proxy call sites, whose receiver
@@ -184,8 +189,8 @@ a `@comvi/core` base host. ICU, async loading, the plugin host and devtools
 discovery are each something you compose, tag syntax is an import you name
 yourself, and the wrapper carries none of them by default.
 
-**To compose capabilities, chain `.with(installer)` on the `createI18n` result.**
-`with` runs the installer on `i18n.core`, hands back the same `VueI18n`
+**To compose capabilities, chain `.use(installer)` on the `createI18n` result.**
+`use` runs the installer on `i18n.core`, hands back the same `VueI18n`
 instance, and widens the type of `core` by what the installer composed, so a
 loader member on `i18n.core` type-checks once `loader()` is in the chain:
 
@@ -193,14 +198,14 @@ loader member on `i18n.core` type-checks once `loader()` is in the chain:
 import { createI18n, loader, plugins } from "@comvi/vue";
 
 const i18n = createI18n({ locale: "en" })
-  .with(loader({ uk: () => import("./uk.json") }))
-  .with(plugins());
-i18n.core.reloadTranslations(); // typed: `.with` widened `core`
+  .use(loader({ uk: () => import("./uk.json") }))
+  .use(plugins());
+i18n.core.reloadTranslations(); // typed: `.use` widened `core`
 ```
 
-Reaching one level down instead, as `createI18n(options).core.with(…)`, still
+Reaching one level down instead, as `createI18n(options).core.use(…)`, still
 attaches the capability at runtime, but `createI18n` returns
-`VueI18n<D, I18n<D>>` and `.core.with(…)` does not re-type the wrapper: `i18n.core`
+`VueI18n<D, I18n<D>>` and `.core.use(…)` does not re-type the wrapper: `i18n.core`
 keeps the base type and every later `i18n.core.registerLoader(…)` is a compile
 error. The fix is the wrapper pipe above.
 
@@ -209,7 +214,7 @@ hatch for a host built elsewhere: `createCore` is core's own constructor, and
 `createI18nFromCore` wraps whatever you hand it, preserving its exact type as
 `i18n.core`. Use them when the host is not built next to the app — Nuxt's
 `hostModule`, or one host shared between a Vue app and non-Vue code. Everything
-ships from the one entry, and `.with(…)` works on a `createI18nFromCore` result
+ships from the one entry, and `.use(…)` works on a `createI18nFromCore` result
 too.
 
 Whole-app comvi graph, min+gz, `vue` externalized (`pnpm size`, rows in
@@ -237,13 +242,13 @@ the [0.5.0 migration guide](https://github.com/comvi-io/comvi-js/blob/main/MIGRA
 
 | export                                          | what it is                                                |
 | ----------------------------------------------- | --------------------------------------------------------- |
-| `createI18n`                                    | the preset: a `VueI18n` over a base host, plus `.with(…)` |
+| `createI18n`                                    | the preset: a `VueI18n` over a base host, plus `.use(…)`  |
 | `createCore`                                    | core's own constructor, for a host built elsewhere        |
 | `createI18nFromCore`                            | wraps that host, preserving its exact type                |
 | `I18n`                                          | the base class `createI18n` and `createCore` both produce |
 | `icuCompiler`                                   | from `@comvi/core/icu`: the ICU compiler                  |
 | `loader`, `attachLoader`, `flattenCatalog`      | from `@comvi/core/loader`                                 |
-| `plugins`, `attachPlugins`                      | from `@comvi/core/plugins`                                |
+| `plugins`, `attachPlugins`, `definePlugin`      | from `@comvi/core/plugins`                                |
 | `devtools`, `attachDevtools`                    | from `@comvi/core/devtools`                               |
 | `VueI18n`, the composables, `T`, the inject key | the vue bindings                                          |
 
@@ -251,7 +256,7 @@ the [0.5.0 migration guide](https://github.com/comvi-io/comvi-js/blob/main/MIGRA
 construct, and `ssrLocale` has to reach the host before the reactive ref is
 seeded so the ref and `core.locale` cannot disagree for a render. The
 composition pipe reads the same as in the other bindings anyway, because
-`.with(installer)` is on the `VueI18n` as well as on the host.
+`.use(installer)` is on the `VueI18n` as well as on the host.
 
 **Named, which is the point — and it costs nine 0.4.x names.** The table above
 is the whole value surface. 0.4.x carried `export * from "@comvi/core"`, so
@@ -275,15 +280,15 @@ the fix is an import move. Prefer the `useI18n()` members where the table
 offers them: they track the locale, where the bare helpers take it as an
 argument.
 
-`.with(installer)` is core's composition pipe: `host.with(f)` is `f(host)`. On
+`.use(installer)` is core's composition pipe: `host.use(f)` is `f(host)`. On
 vue it goes on the **instance the factory returned**: `const i18n =
-createI18n(options).with(f)` runs `f(i18n.core)`, keeps the same wrapper, and
+createI18n(options).use(f)` runs `f(i18n.core)`, keeps the same wrapper, and
 retypes `core` by what `f` composed. Assign the result: a discarded
-`i18n.with(f)` still attaches the capability at runtime but leaves the binding's
+`i18n.use(f)` still attaches the capability at runtime but leaves the binding's
 `core` unwidened. Compose before `app.use(i18n)`: `install` starts `init()`,
 which drains the plugin queue once, so a `plugins()` or `.use(…)` composed later
 never runs (development warns). `loader(map)` attaches the capability **and**
-registers the map; for a plain `LoaderFn`, compose `.with(attachLoader)` and
+registers the map; for a plain `LoaderFn`, compose `.use(attachLoader)` and
 call `registerLoader(fn)` yourself (it keeps the import-map adapter out of your
 bundle).
 
@@ -324,7 +329,7 @@ A catalog that arrives from a loader takes the same option, beside `ssrLocale`:
 ```ts
 import { createI18n, icuCompiler, loader } from "@comvi/vue";
 
-const i18n = createI18n({ locale: "en", ssrLocale: "en", compiler: icuCompiler }).with(
+const i18n = createI18n({ locale: "en", ssrLocale: "en", compiler: icuCompiler }).use(
   loader({ uk: () => import("./uk.json") }),
 );
 // i18n.core now carries the loader capability, exactly typed
@@ -339,22 +344,22 @@ catalog merged later by a loader as well as a constructor `translation` or an
 ```ts
 import { createI18n, loader } from "@comvi/vue";
 
-const i18n = createI18n({ locale: "en" }).with(loader({ uk: () => import("./uk.json") }));
+const i18n = createI18n({ locale: "en" }).use(loader({ uk: () => import("./uk.json") }));
 // inside a component: const { reloadTranslations } = useI18nLoader();
 ```
 
-### Plugins — one `.with(installer)`
+### Plugins — one `.use(installer)`
 
 The three first-party plugin packages ship a lowercase **installer** beside the
 uppercase factory. The installer composes the capabilities that plugin needs
 (`cdnLoader` attaches `/loader`, then `/plugins`) and registers it, in one
-call. One `.with(…)` on the `createI18n` result is the whole setup:
+call. One `.use(…)` on the `createI18n` result is the whole setup:
 
 ```ts
 import { createI18n } from "@comvi/vue";
 import { cdnLoader } from "@comvi/plugin-fetch-loader/cdn";
 
-const i18n = createI18n({ locale: "en", defaultNs: "common" }).with(
+const i18n = createI18n({ locale: "en", defaultNs: "common" }).use(
   cdnLoader({ cdnUrl: "https://cdn.comvi.io/your-distribution-id" }),
 );
 ```
@@ -363,20 +368,26 @@ The explicit form is that composition spelled out, and it is what you want when
 you register plugins from a list. Compose `loader()` as well when a plugin
 registers one. The order of `loader()`, `plugins()` and `devtools()` among
 themselves is free, because plugins run at `init()` and every capability
-composed before `init()` is attached by then. `VueI18n` does not proxy `use`, so
-registration happens on the host, as `i18n.core.use(…)`:
+composed before `init()` is attached by then. `VueI18n` does not proxy plugin
+registration, so that happens on the host, as `i18n.core.registerPlugin(…)`:
 
 ```ts
 import { createI18n, loader, plugins } from "@comvi/vue";
 import { CdnLoader } from "@comvi/plugin-fetch-loader/cdn";
 
-const i18n = createI18n({ locale: "en", defaultNs: "common" }).with(loader()).with(plugins());
+const i18n = createI18n({ locale: "en", defaultNs: "common" }).use(loader()).use(plugins());
 
-i18n.core.use(CdnLoader({ cdnUrl: "https://cdn.comvi.io/your-distribution-id" }));
+i18n.core.registerPlugin(CdnLoader({ cdnUrl: "https://cdn.comvi.io/your-distribution-id" }));
 ```
 
-Swapping the two slots is a type error and loud at runtime:
-`.use(cdnLoader(…))` throws at `init()` before any capability is attached.
+Swapping the two slots is a type error and loud at runtime in both directions:
+`registerPlugin(cdnLoader(…))` throws `E_INSTALLER_AS_PLUGIN` at `init()` before
+any capability is attached, and `.use(CdnLoader(…))` throws
+`E_USE_NOT_INSTALLER` on the plugin's own return value.
+
+Your app's own inline plugin needs neither slot: `.use(definePlugin(fn))`, with
+`definePlugin` from `@comvi/vue`, composes the plugin host and registers `fn` in
+one call.
 
 ### Devtools — `devtools()`
 
@@ -386,7 +397,7 @@ opt-in too:
 ```ts
 import { createI18n, devtools } from "@comvi/vue";
 
-const i18n = createI18n({ locale: "en" }).with(devtools({ instanceId: "storefront" }));
+const i18n = createI18n({ locale: "en" }).use(devtools({ instanceId: "storefront" }));
 ```
 
 These are **named** re-exports of core's own bindings, so the ones you do not
@@ -394,7 +405,7 @@ call are pruned. Three bundler-matrix cases hold that line, on webpack and vite,
 in development and production: `vue-default` calls no capability and asserts all
 four subpath entries out of the module graph, `vue-icu` calls `icuCompiler`,
 formats a real plural from the built bundle and asserts the other three out, and
-`vue-composed` takes the escape hatch — `createCore(...).with(loader(map))`
+`vue-composed` takes the escape hatch — `createCore(...).use(loader(map))`
 through `createI18nFromCore` — and asserts the three it does not call out.
 
 `@comvi/core/tags` is not re-exported, because importing it registers tag
@@ -620,12 +631,12 @@ import { cdnLoader } from "@comvi/plugin-fetch-loader/cdn";
 import App from "./App.vue";
 
 // One installer composes the loader capability, then the plugin host, then
-// registers the plugin — the order a loader-registering plugin needs. `.with`
+// registers the plugin — the order a loader-registering plugin needs. `.use`
 // runs it on `i18n.core` and widens that core's type by what it composed.
 const i18n = createI18n({
   locale: "en",
   defaultNs: "common",
-}).with(
+}).use(
   cdnLoader({
     cdnUrl: "https://cdn.comvi.io/your-distribution-id",
   }),

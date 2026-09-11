@@ -14,7 +14,7 @@ import "server-only";
 import { createI18n, createNextI18nFromHost, loader } from "@comvi/next/server";
 
 export const { i18n, routing } = createNextI18nFromHost(
-  () => createI18n({ locale: "en", defaultNs: "default" }).with(loader(importMap)),
+  () => createI18n({ locale: "en", defaultNs: "default" }).use(loader(importMap)),
   { locales: ["en", "de"], defaultLocale: "en", localePrefix: "as-needed" },
 );
 ```

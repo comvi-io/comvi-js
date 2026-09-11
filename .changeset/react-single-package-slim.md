@@ -9,7 +9,7 @@ One entry now carries both.
 ```ts
 import { createI18n, icuCompiler, loader } from "@comvi/react";
 
-const i18n = createI18n({ locale: "en", compiler: icuCompiler }).with(loader(importMap));
+const i18n = createI18n({ locale: "en", compiler: icuCompiler }).use(loader(importMap));
 ```
 
 | export                                     | what it is                                       |
@@ -17,7 +17,7 @@ const i18n = createI18n({ locale: "en", compiler: icuCompiler }).with(loader(imp
 | `createI18n`, `I18n`                       | core's base host — its constructor and its class |
 | `icuCompiler`                              | from `@comvi/core/icu` — the ICU compiler        |
 | `loader`, `attachLoader`, `flattenCatalog` | from `@comvi/core/loader`                        |
-| `plugins`, `attachPlugins`                 | from `@comvi/core/plugins`                       |
+| `plugins`, `attachPlugins`, `definePlugin` | from `@comvi/core/plugins`                       |
 | `devtools`, `attachDevtools`               | from `@comvi/core/devtools`                      |
 | every hook, `I18nProvider`, `T`, the types | the react bindings                               |
 

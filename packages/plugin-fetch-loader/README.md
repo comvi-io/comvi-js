@@ -67,7 +67,7 @@ import { createI18n } from "@comvi/core";
 import { icuCompiler } from "@comvi/core/icu";
 import { cdnLoader } from "@comvi/plugin-fetch-loader/cdn";
 
-const i18n = createI18n({ locale: "en", compiler: icuCompiler }).with(
+const i18n = createI18n({ locale: "en", compiler: icuCompiler }).use(
   cdnLoader({ cdnUrl: "https://cdn.comvi.io/your-distribution-id" }),
 );
 
@@ -89,13 +89,13 @@ exports one name for each way of adding them: `cdnLoader` / `CdnLoader` on
 `/cdn`, `fetchLoader` / `FetchLoader` at the root. The table below uses the
 `/cdn` pair; the root pair behaves identically.
 
-|                   | `.with(cdnLoader(options))`                          | `.use(CdnLoader(options))`                                                       |
-| ----------------- | ---------------------------------------------------- | -------------------------------------------------------------------------------- |
-| what it is        | the **installer**, lowercase                         | the **plugin factory**, uppercase                                                |
-| the host it needs | any host, including a bare `createI18n(…)`           | one that already has `@comvi/core/loader` **and** `@comvi/core/plugins`          |
-| what it composes  | both capabilities, idempotently, loader first        | nothing; it only registers                                                       |
-| lifecycle         | the host's own: it ends in `use(CdnLoader(options))` | the host's own                                                                   |
-| use it when       | you are setting up the host                          | you already compose capabilities explicitly, or you register plugins from a list |
+|                   | `.use(cdnLoader(options))`                                      | `registerPlugin(CdnLoader(options))`                                             |
+| ----------------- | --------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| what it is        | the **installer**, lowercase                                    | the **plugin factory**, uppercase                                                |
+| the host it needs | any host, including a bare `createI18n(…)`                      | one that already has `@comvi/core/loader` **and** `@comvi/core/plugins`          |
+| what it composes  | both capabilities, idempotently, loader first                   | nothing; it only registers                                                       |
+| lifecycle         | the host's own: it ends in `registerPlugin(CdnLoader(options))` | the host's own                                                                   |
+| use it when       | you are setting up the host                                     | you already compose capabilities explicitly, or you register plugins from a list |
 
 Both end in the same place. The installer is the one-call form of this:
 
@@ -105,26 +105,26 @@ import { attachLoader } from "@comvi/core/loader";
 import { attachPlugins } from "@comvi/core/plugins";
 import { CdnLoader } from "@comvi/plugin-fetch-loader/cdn";
 
-const i18n = createI18n({ locale: "en" }).with(attachLoader).with(attachPlugins);
-i18n.use(CdnLoader({ cdnUrl: "https://cdn.comvi.io/your-distribution-id" }));
+const i18n = createI18n({ locale: "en" }).use(attachLoader).use(attachPlugins);
+i18n.registerPlugin(CdnLoader({ cdnUrl: "https://cdn.comvi.io/your-distribution-id" }));
 ```
 
-**Swapping the two is a type error. Only one of the two is caught at runtime.**
+**Swapping the two is a type error, and each half is caught at runtime too.**
 Nothing is branded: an installer and a plugin are both "a function of the host",
-and `.with` is a pipe and nothing more, so it never inspects, orders or brands
-what you hand it.
+and `.use` is a pipe and nothing more, so it never inspects, orders or brands
+what you hand it — only what it hands back.
 
-- `.use(cdnLoader(…))` fails at `init()`, on the installer's first
-  ensure-step, **before** the loader or plugin capability is attached and
-  before a second plugin reaches the queue. The message names `cdnLoader`
-  and the `.with` form.
-- `.with(CdnLoader(…))` is **not** rejected. The plugin runs straight away,
-  outside `init()`'s drain loop. This plugin is async, so on a bare host the
-  missing `setPluginData` surfaces as a rejected promise rather than a throw at
-  the call site. On a host that already composed both capabilities it appears to
-  work while its cleanup is discarded: `destroy()` never stops the in-flight
-  tracker, `.with` hands you that cleanup function instead of the host, and
-  `required`, `timeout` and `onError` never apply.
+- `registerPlugin(cdnLoader(…))` fails at `init()` with
+  `E_INSTALLER_AS_PLUGIN`, on the installer's first ensure-step, **before** the
+  loader or plugin capability is attached and before a second plugin reaches the
+  queue. The message names `cdnLoader` and the `.use` form.
+- - `.use(CdnLoader(…))` throws `E_USE_NOT_INSTALLER`, because a plugin hands
+    back nothing or a cleanup function where an installer returns the host. The
+    plugin still runs first, straight away, outside `init()`'s drain loop: its
+    cleanup is discarded, so `destroy()` never stops the in-flight tracker, and
+    `required`, `timeout` and `onError` never apply. This plugin is async, so on a
+    bare host the missing `setPluginData` surfaces as a rejected promise rather
+    than a throw at the call site.
 
 ## CDN namespace layout
 
@@ -143,7 +143,7 @@ const i18n = createI18n({
   locale: "en",
   defaultNs: "storefront",
   ns: ["storefront", "default"],
-}).with(
+}).use(
   cdnLoader({
     cdnUrl: "https://cdn.comvi.io/your-distribution-id",
     cdnLayout: { rootNamespace: "default" },
@@ -169,7 +169,7 @@ import { fetchLoader } from "@comvi/plugin-fetch-loader";
 const i18n = createI18n({
   locale: "en",
   apiKey: process.env.COMVI_API_KEY, // triggers API mode
-}).with(
+}).use(
   fetchLoader({
     cdnUrl: "https://cdn.comvi.io/your-distribution-id", // required by the loader
     apiBaseUrl: process.env.COMVI_API_URL || "https://api.comvi.io",
@@ -191,7 +191,7 @@ The setup is the same in every binding. The plugin lives on the underlying `@com
 import { createI18n, I18nProvider } from "@comvi/react";
 import { cdnLoader } from "@comvi/plugin-fetch-loader/cdn";
 
-const i18n = createI18n({ locale: "en" }).with(
+const i18n = createI18n({ locale: "en" }).use(
   cdnLoader({ cdnUrl: "https://cdn.comvi.io/your-distribution-id" }),
 );
 
@@ -206,9 +206,9 @@ import { createI18n } from "@comvi/vue";
 import { cdnLoader } from "@comvi/plugin-fetch-loader/cdn";
 import App from "./App.vue";
 
-// `VueI18n` has its own `.with(installer)`: it runs the installer on the host
+// `VueI18n` has its own `.use(installer)`: it runs the installer on the host
 // it wraps and widens the type of `i18n.core` by what was composed.
-const i18n = createI18n({ locale: "en" }).with(
+const i18n = createI18n({ locale: "en" }).use(
   cdnLoader({ cdnUrl: "https://cdn.comvi.io/your-distribution-id" }),
 );
 

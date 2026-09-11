@@ -51,7 +51,7 @@ npm install @comvi/plugin-locale-detector
 import { createI18n } from "@comvi/core";
 import { localeDetector } from "@comvi/plugin-locale-detector";
 
-const i18n = createI18n({ locale: "en" }).with(
+const i18n = createI18n({ locale: "en" }).use(
   localeDetector({
     supportedLocales: ["en", "uk", "de"],
     order: ["querystring", "localStorage", "cookie", "navigator"],
@@ -70,12 +70,12 @@ await i18n.init();
 that registers no plugins never pays for it. This package exports one name for
 each way of adding it.
 
-|                   | `.with(localeDetector(options))`                                                                     | `.use(LocaleDetector(options))`                                                  |
+|                   | `.use(localeDetector(options))`                                                                      | `registerPlugin(LocaleDetector(options))`                                        |
 | ----------------- | ---------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
 | what it is        | the **installer**, lowercase                                                                         | the **plugin factory**, uppercase                                                |
 | the host it needs | any host, including a bare `createI18n(…)`                                                           | one that already has `@comvi/core/plugins`                                       |
 | what it composes  | the plugin host, idempotently. No loader: the detector hands core a locale and never loads a catalog | nothing; it only registers                                                       |
-| lifecycle         | the host's own: it ends in `use(LocaleDetector(options))`                                            | the host's own                                                                   |
+| lifecycle         | the host's own: it ends in `registerPlugin(LocaleDetector(options))`                                 | the host's own                                                                   |
 | use it when       | you are setting up the host                                                                          | you already compose capabilities explicitly, or you register plugins from a list |
 
 Both end in the same place. The installer is the one-call form of this:
@@ -85,31 +85,31 @@ import { createI18n } from "@comvi/core";
 import { attachPlugins } from "@comvi/core/plugins";
 import { LocaleDetector } from "@comvi/plugin-locale-detector";
 
-const i18n = createI18n({ locale: "en" }).with(attachPlugins);
-i18n.use(LocaleDetector({ supportedLocales: ["en", "uk", "de"] }));
+const i18n = createI18n({ locale: "en" }).use(attachPlugins);
+i18n.registerPlugin(LocaleDetector({ supportedLocales: ["en", "uk", "de"] }));
 ```
 
-**Swapping the two is a type error. Only one of the two is caught at runtime.**
+**Swapping the two is a type error, and each half is caught at runtime too.**
 Nothing is branded: an installer and a plugin are both "a function of the host",
-and `.with` is a pipe and nothing more, so it never inspects, orders or brands
-what you hand it.
+and `.use` is a pipe and nothing more, so it never inspects, orders or brands
+what you hand it — only what it hands back.
 
-- `.use(localeDetector(…))` fails at `init()`, on the installer's first
-  ensure-step, **before** the plugin host is attached and before a second
-  plugin reaches the queue. The message names `localeDetector` and the `.with`
-  form.
-- `.with(LocaleDetector(…))` is **not** rejected. The plugin runs straight away,
-  outside `init()`'s drain loop. On a bare host it dies on
-  `registerLocaleDetector`, and because this plugin is synchronous that lands as
-  a `TypeError` at the call site. On a host that already composed
-  `@comvi/core/plugins` every member it touches exists, so it appears to work
-  while its cleanup is discarded: `.with` hands you that cleanup function
-  instead of the host, nothing on the host unsubscribes the `localeChanged`
-  listener, and `required`, `timeout` and `onError` never apply. The listener
-  is not leaked past teardown — `destroy()` clears every listener on the host
-  wholesale, registered cleanup or not — but the detector cannot be disposed on
-  its own, so the only way to stop it short of destroying the host is to call
-  the cleanup function `.with` handed you.
+- `registerPlugin(localeDetector(…))` fails at `init()` with
+  `E_INSTALLER_AS_PLUGIN`, on the installer's first ensure-step, **before** the
+  plugin host is attached and before a second plugin reaches the queue. The
+  message names `localeDetector` and the `.use` form.
+- - `.use(LocaleDetector(…))` throws `E_USE_NOT_INSTALLER`, because a plugin
+    hands back nothing or a cleanup function where an installer returns the host.
+    The plugin still runs first, straight away, outside `init()`'s drain loop. On
+    a bare host it dies even earlier, on `registerLocaleDetector`, and because
+    this plugin is synchronous that lands as a `TypeError` at the call site. On a
+    host that already composed `@comvi/core/plugins` every member it touches
+    exists, so the detector is live by the time `.use` refuses its return value,
+    while its cleanup is discarded: nothing on the host unsubscribes the
+    `localeChanged` listener, and `required`, `timeout` and `onError` never apply.
+    The listener is not leaked past teardown — `destroy()` clears every listener
+    on the host wholesale, registered cleanup or not — but the detector cannot be
+    disposed on its own short of destroying the host.
 
 ## How detection works
 
@@ -133,7 +133,7 @@ BCP 47 lookup means `de-DE` matches `de` if `supportedLocales: ["en", "de"]`, an
 import { createI18n, I18nProvider } from "@comvi/react";
 import { localeDetector } from "@comvi/plugin-locale-detector";
 
-const i18n = createI18n({ locale: "en", fallbackLocale: "en" }).with(
+const i18n = createI18n({ locale: "en", fallbackLocale: "en" }).use(
   localeDetector({
     supportedLocales: ["en", "uk", "de"],
     order: ["querystring", "cookie", "navigator"],
@@ -146,7 +146,7 @@ const i18n = createI18n({ locale: "en", fallbackLocale: "en" }).with(
 
 Same setup works in Solid and Svelte, and in Vue: `createI18n` there returns a
 `VueI18n` wrapper rather than a core host, and that wrapper has the same pipe,
-so `createI18n({ … }).with(localeDetector({ … }))` reads identically. For
+so `createI18n({ … }).use(localeDetector({ … }))` reads identically. For
 Next.js and Nuxt, prefer the framework's middleware (`@comvi/next`'s
 `createMiddleware()` or `@comvi/nuxt`'s `detectBrowserLanguage` config), which
 detect on the server before the page renders.

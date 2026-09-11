@@ -14,9 +14,9 @@ from `@comvi/react`, so each fix stays inside the one specifier you already have
 | you had                                      | you add                                            |
 | -------------------------------------------- | -------------------------------------------------- |
 | ICU plurals, select, selectordinal           | `compiler: icuCompiler` in the constructor options |
-| loader (`registerLoader`, …)                 | `.with(loader(map))`, or `.with(attachLoader)`     |
-| `.use(plugin)`, `onMissingKey`               | `.with(plugins())`, then `use(p)`                  |
-| discovery (`instanceId`, `window.__COMVI__`) | `.with(devtools({ instanceId }))`                  |
+| loader (`registerLoader`, …)                 | `.use(loader(map))`, or `.use(attachLoader)`       |
+| `.use(plugin)`, `onMissingKey`               | `.use(definePlugin(p))`, or `registerPlugin(p)`    |
+| discovery (`instanceId`, `window.__COMVI__`) | `.use(devtools({ instanceId }))`                   |
 | nested constructor catalogs                  | `flattenCatalog(…)`, or compose `loader()`         |
 | `<tag>` markup through `t()`                 | render `<T>`, or `import "@comvi/core/tags"`       |
 
@@ -26,7 +26,7 @@ import { createI18n, icuCompiler, loader } from "@comvi/react";
 // INLINE — the constructor ingests the catalog.
 const inline = createI18n({ locale: "en", compiler: icuCompiler, translation });
 // REMOTE — the same option, in the same place.
-const remote = createI18n({ locale: "en", compiler: icuCompiler }).with(loader(importMap));
+const remote = createI18n({ locale: "en", compiler: icuCompiler }).use(loader(importMap));
 ```
 
 `compiler` is a constructor field held for the instance's life, so one option covers every

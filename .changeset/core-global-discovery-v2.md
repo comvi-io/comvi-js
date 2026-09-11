@@ -6,8 +6,8 @@
 (`version` / `instances` / `register` / `unregister` / `get`, plus the `COMVI_READY` event)
 is gone, and announcing is a capability now rather than a constructor behaviour.
 
-A host that composed discovery — `.with(devtools({ exposeGlobal }))`, the lower-level
-`attachDevtools`, or `.with(inContextEditor())` under the editor package's development
+A host that composed discovery — `.use(devtools({ exposeGlobal }))`, the lower-level
+`attachDevtools`, or `.use(inContextEditor())` under the editor package's development
 entry — pushes a `{ v: version, i: instance }` envelope onto a plain queue array at
 `window.__COMVI__`, installing the array when the slot is empty. A host that never composes
 it reads `instanceId` as `undefined`, touches no global at all, and is invisible to the

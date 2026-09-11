@@ -33,7 +33,7 @@ Comvi i18n is a framework-agnostic internationalization library with type-safe t
 - **ICU `plural`, `selectordinal` & `select`.** Locale-correct grammar via `Intl.PluralRules`, including Polish, Ukrainian, Arabic, Welsh and the rest. It is the same syntax every major TMS (Crowdin, Lokalise, Phrase) already speaks. The `number` / `date` / `time` argument types and the plural `offset:` form are not implemented and are not planned. Each one fails with `E_ICU_SYNTAX` instead of rendering something wrong.
 - **Locale-aware formatters built in.** `formatNumber`, `formatDate`, `formatCurrency`, and `formatRelativeTime` follow the active locale via native `Intl`, with reactive updates in every framework binding.
 - **~7.1 kB minified + gzipped for a default client graph, ~7.2 kB for the server graph (measured, `next` and `react` externalized), zero runtime dependencies.** That is the base host plus the bindings; ICU, async loading, the plugin host and devtools discovery cost only where you compose them. No `eval` or `new Function` anywhere, so it runs under a strict CSP without `unsafe-eval`. Safe for Chrome extensions, Cloudflare Workers, and locked-down enterprise apps.
-- **Pluggable.** Translation loading (CDN/API), locale detection, and in-context editing are opt-in plugins via `@comvi/plugin-fetch-loader`, `@comvi/plugin-locale-detector`, and `@comvi/plugin-in-context-editor`, one lowercase `.with(installer)` each. You only ship what you use.
+- **Pluggable.** Translation loading (CDN/API), locale detection, and in-context editing are opt-in plugins via `@comvi/plugin-fetch-loader`, `@comvi/plugin-locale-detector`, and `@comvi/plugin-in-context-editor`, one lowercase `.use(installer)` each. You only ship what you use.
 - **Same API across 6 frameworks.** `useI18n()` and `<T>` look the same in [Vue](https://www.npmjs.com/package/@comvi/vue), [React](https://www.npmjs.com/package/@comvi/react), [SolidJS](https://www.npmjs.com/package/@comvi/solid), [Svelte](https://www.npmjs.com/package/@comvi/svelte), [Next.js](https://www.npmjs.com/package/@comvi/next), and [Nuxt](https://www.npmjs.com/package/@comvi/nuxt), so switching frameworks doesn't mean relearning your i18n layer.
 - **SSR support.** `@comvi/next` and `@comvi/nuxt` ship server-side translation loading, locale-routed layouts, and middleware for redirect-on-detect, so there is no flash of untranslated content.
 
@@ -281,11 +281,11 @@ There is no next-specific hook API. Migrating from 0.4.x:
 `@comvi/next` publishes THREE ways to get an i18n host. Read the differences
 before you pick:
 
-| you call                                         | from                 | what you get                                                         |
-| ------------------------------------------------ | -------------------- | -------------------------------------------------------------------- |
-| `createNextI18n(options)`                        | `@comvi/next`        | the COMPOSED host + routing + `.use*`, exactly as 0.4.x published it |
-| `createI18n(options)`                            | `@comvi/next/client` | the BASE host; capabilities are things you compose, on the client    |
-| `createI18n(options)` + `createNextI18nFromHost` | `@comvi/next/server` | the BASE host you compose yourself, handed to the SSR factory        |
+| you call                                         | from                 | what you get                                                                     |
+| ------------------------------------------------ | -------------------- | -------------------------------------------------------------------------------- |
+| `createNextI18n(options)`                        | `@comvi/next`        | the COMPOSED host + routing + plugin registration, exactly as 0.4.x published it |
+| `createI18n(options)`                            | `@comvi/next/client` | the BASE host; capabilities are things you compose, on the client                |
+| `createI18n(options)` + `createNextI18nFromHost` | `@comvi/next/server` | the BASE host you compose yourself, handed to the SSR factory                    |
 
 The two entries expose the SAME `createI18n`: the client/server split is a
 runtime split (which helpers are reachable), never a host-tier split. There is
@@ -328,15 +328,15 @@ capability a 0.4 caller could reach through `result.i18n`.
 the name 0.4 published, and it now builds the BASE host. ICU, tag syntax, the
 loader, the plugin host and devtools discovery became things you compose:
 
-| 0.4 behaviour of `createI18n`                         | after                   | loudness                                                             | migration                                    |
-| ----------------------------------------------------- | ----------------------- | -------------------------------------------------------------------- | -------------------------------------------- |
-| ICU plurals, select, selectordinal                    | not compiled by default | **dev throws; prod renders it literally and reports** `E_ICU_SYNTAX` | see the two ICU shapes below                 |
-| loader (`registerLoader`, `reloadTranslations`, …)    | absent until composed   | the loud capability error, at `useI18nLoader()`                      | `.with(loader(map))` / `.with(attachLoader)` |
-| `.use(plugin)`, `onMissingKey`                        | absent until composed   | TS error + runtime `TypeError`                                       | `.with(plugins())`, then `use(p)`            |
-| devtools discovery (`instanceId`, `window.__COMVI__`) | absent                  | invisible to the browser extension (documented)                      | `.with(devtools({ instanceId }))`            |
-| nested constructor catalogs                           | stored verbatim         | dev warning                                                          | `flattenCatalog(…)`, or compose `loader()`   |
-| tag markup through `t()` (`"<b>hi</b>"`)              | literal text            | dev warning; prod literal, never a throw                             | render `<T>`, or `import "@comvi/core/tags"` |
-| `<I18nProvider>`, every hook, `<T>`, routing          | untouched               | —                                                                    | —                                            |
+| 0.4 behaviour of `createI18n`                         | after                   | loudness                                                             | migration                                                              |
+| ----------------------------------------------------- | ----------------------- | -------------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| ICU plurals, select, selectordinal                    | not compiled by default | **dev throws; prod renders it literally and reports** `E_ICU_SYNTAX` | see the two ICU shapes below                                           |
+| loader (`registerLoader`, `reloadTranslations`, …)    | absent until composed   | the loud capability error, at `useI18nLoader()`                      | `.use(loader(map))` / `.use(attachLoader)`                             |
+| `.use(plugin)`, `onMissingKey`                        | absent until composed   | TS error + runtime `TypeError`                                       | `.use(definePlugin(p))`, or `.use(plugins())` then `registerPlugin(p)` |
+| devtools discovery (`instanceId`, `window.__COMVI__`) | absent                  | invisible to the browser extension (documented)                      | `.use(devtools({ instanceId }))`                                       |
+| nested constructor catalogs                           | stored verbatim         | dev warning                                                          | `flattenCatalog(…)`, or compose `loader()`                             |
+| tag markup through `t()` (`"<b>hi</b>"`)              | literal text            | dev warning; prod literal, never a throw                             | render `<T>`, or `import "@comvi/core/tags"`                           |
+| `<I18nProvider>`, every hook, `<T>`, routing          | untouched               | —                                                                    | —                                                                      |
 
 Staying on the 0.4 semantics with no composition work at all is one line:
 `createNextI18n` above is that recipe, preserved.
@@ -368,7 +368,7 @@ const i18n = createI18n({ locale: "en", compiler: icuCompiler, translation });
 // the same option, in the same place.
 import { createI18n, icuCompiler, loader } from "@comvi/next/server";
 
-const host = createI18n({ locale: "en", compiler: icuCompiler }).with(
+const host = createI18n({ locale: "en", compiler: icuCompiler }).use(
   loader({ uk: () => import("./uk.json") }),
 );
 ```
@@ -390,16 +390,16 @@ import { createI18n, createNextI18nFromHost, loader } from "@comvi/next/server";
 
 export const { i18n, routing } = createNextI18nFromHost(
   () =>
-    createI18n({ locale: "en", defaultNs: "default" }).with(
+    createI18n({ locale: "en", defaultNs: "default" }).use(
       loader({ uk: () => import("./uk.json") }),
     ),
   { locales: ["en", "de"], defaultLocale: "en", localePrefix: "as-needed" },
 );
 ```
 
-`.with(installer)` is core's composition pipe: `host.with(f)` is `f(host)`.
+`.use(installer)` is core's composition pipe: `host.use(f)` is `f(host)`.
 `loader(map)` attaches the capability **and** registers the map. For a
-plain `LoaderFn`, compose `.with(attachLoader)` and call `registerLoader(fn)`
+plain `LoaderFn`, compose `.use(attachLoader)` and call `registerLoader(fn)`
 yourself; that keeps the import-map adapter out of the server bundle (it is
 +111 B min+gz on this graph), which is the form the size fixture measures.
 
@@ -445,7 +445,7 @@ names `@comvi/core`:
 | `createI18n`                               | core's base host constructor, the same binding on both entries |
 | `icuCompiler`                              | the ICU compiler, from core's pure `/icu` subpath              |
 | `loader`, `attachLoader`, `flattenCatalog` | from core's pure `/loader` subpath                             |
-| `plugins`, `attachPlugins`                 | from core's pure `/plugins` subpath                            |
+| `plugins`, `attachPlugins`, `definePlugin` | from core's pure `/plugins` subpath                            |
 | `devtools`, `attachDevtools`               | from core's pure `/devtools` subpath                           |
 
 `DevtoolsOptions` comes with them as a type. The server entry carries the toolkit

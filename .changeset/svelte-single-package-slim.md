@@ -11,7 +11,7 @@ One entry now carries both.
   import { createI18n, icuCompiler, loader, setI18nContext } from "@comvi/svelte";
 
   setI18nContext(
-    createI18n({ locale: "en", compiler: icuCompiler }).with(loader(importMap)),
+    createI18n({ locale: "en", compiler: icuCompiler }).use(loader(importMap)),
   );
 </script>
 ```
@@ -21,7 +21,7 @@ One entry now carries both.
 | `createI18n`, `I18n`                         | core's base host — its constructor and its class |
 | `icuCompiler`                                | from `@comvi/core/icu` — the ICU compiler        |
 | `loader`, `attachLoader`, `flattenCatalog`   | from `@comvi/core/loader`                        |
-| `plugins`, `attachPlugins`                   | from `@comvi/core/plugins`                       |
+| `plugins`, `attachPlugins`, `definePlugin`   | from `@comvi/core/plugins`                       |
 | `devtools`, `attachDevtools`                 | from `@comvi/core/devtools`                      |
 | every store factory, the readers, `T`, types | the svelte bindings                              |
 

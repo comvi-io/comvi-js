@@ -13,7 +13,8 @@ New subpath entries decompose the core, so an app pays only for what it composes
   and the VirtualNode helpers.
 - `@comvi/core/loader` — pure: `attachLoader` / `loader()`, `createImportMapLoader`,
   `flattenCatalog` and the loader types.
-- `@comvi/core/plugins` — pure: `attachPlugins` and the plugin types.
+- - `@comvi/core/plugins` — pure: `attachPlugins`, the `definePlugin(fn, options?)` installer and
+    the plugin types.
 - `@comvi/core/devtools` — pure: `attachDevtools(i18n, { instanceId, exposeGlobal })`.
 - `@comvi/core/rich-text` — the pure `<T>` toolbox; `@comvi/core/editor-bridge` — the
   in-context-editor contract module.

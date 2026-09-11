@@ -23,12 +23,12 @@ import { loader } from "@comvi/core/loader";
 import type { NuxtHostFactory } from "@comvi/nuxt";
 
 export default ((options) =>
-  createI18n({ ...options, compiler: icuCompiler }).with(
+  createI18n({ ...options, compiler: icuCompiler }).use(
     loader({ de: () => import("./locales/de.json") }),
   )) satisfies NuxtHostFactory;
 ```
 
-Add `.with(plugins())` and `.with(devtools())` as the app needs them; their order among
+Add `.use(plugins())` and `.use(devtools())` as the app needs them; their order among
 themselves is free, and all three only have to be composed before `init()`. ICU is not
 composed: it is the `compiler` option, and it covers every catalog source.
 
@@ -45,7 +45,7 @@ request-scoped server instance.
 server utilities accept; `NuxtServerLoaderHost` is that host plus `I18nLoaderApi`, the shape
 SSR loading needs. Utilities narrow with `hasLoaderApi` before driving the loader, so a base
 host with cached or setup-provided translations renders them, a base host with an empty
-catalog warns once naming the `hostModule` + `.with(loader(map))` fix, and no path calls an
+catalog warns once naming the `hostModule` + `.use(loader(map))` fix, and no path calls an
 absent loader member.
 
 `comvi.setup` still receives a `VueI18n`, and its removed capability proxies remain a

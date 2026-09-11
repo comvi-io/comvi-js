@@ -12,7 +12,7 @@ Core enablers for framework bindings running on the base `@comvi/core` host.
   member names only, so property mangling cannot fool them. `missingCapability` builds the
   error a binding throws at a capability-acquisition call, in development **and** production,
   never a silent no-op: `[comvi] This i18n instance has no loader capability. Compose it:
-.with(loader()) from "@comvi/core/loader", or the lower-level attachLoader.`
+.use(loader()) from "@comvi/core/loader", or the lower-level attachLoader.`
 - **`subscribeToRevision`, `REVISION_EVENTS` and `isVirtualNode`** are exported from
   `@comvi/core`, so a binding that reads reactivity events or sniffs virtual nodes reaches
   them without pulling ambient tag registration into its bundle.

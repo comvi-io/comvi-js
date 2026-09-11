@@ -13,21 +13,23 @@ has them.
 is a real preset that already owns that name — with `createI18nFromCore(core, options?)` to
 wrap it, preserving its exact type as `i18n.core`. `createI18n(options)` is unchanged and
 still the default: it builds the host internally from the same options object, and
-`.with(installer)` on its result composes capabilities onto that host.
+`.use(installer)` on its result composes capabilities onto that host.
 
-| 0.4.x                                                                       | 0.5.0                                                                  |
-| --------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
-| `const { reloadTranslations, addActiveNamespace, onLoadError } = useI18n()` | the same names from `useI18nLoader()`                                  |
-| `const { onMissingKey } = useI18n()`                                        | `const { onMissingKey } = useI18nPlugins()`                            |
-| `const { t, reloadTranslations } = useI18n("ns")`                           | `useI18n("ns")` keeps `t`; the capability composables take no argument |
-| `i18n.registerLoader(…)` and the other six instance proxies                 | `i18n.core.registerLoader(…)` etc.                                     |
-| `i18n.use(plugin)` / `createI18n(options).use(plugin)`                      | `i18n.core.use(plugin)` — assign first, then register on the host      |
-| `new VueI18n(options)`                                                      | `createI18n(options)` — the constructor now takes `(core, vueOptions)` |
+| 0.4.x                                                                       | 0.5.0                                                                        |
+| --------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| `const { reloadTranslations, addActiveNamespace, onLoadError } = useI18n()` | the same names from `useI18nLoader()`                                        |
+| `const { onMissingKey } = useI18n()`                                        | `const { onMissingKey } = useI18nPlugins()`                                  |
+| `const { t, reloadTranslations } = useI18n("ns")`                           | `useI18n("ns")` keeps `t`; the capability composables take no argument       |
+| `i18n.registerLoader(…)` and the other six instance proxies                 | `i18n.core.registerLoader(…)` etc.                                           |
+| `i18n.use(plugin)` / `createI18n(options).use(plugin)`                      | `i18n.core.registerPlugin(plugin)` — assign first, then register on the host |
+| `new VueI18n(options)`                                                      | `createI18n(options)` — the constructor now takes `(core, vueOptions)`       |
 
-`use` is the **eighth** dropped proxy and the one that changed late: it briefly survived
-behind a capability guard, which made it the only member typed present on every `C` that
-could still throw "missing capability" at runtime — precisely the failure class this release
-removes. It is gone from the class in types and at runtime.
+Plugin registration is the **eighth** dropped proxy and the one that changed late: 0.4's
+`use(plugin)` briefly survived behind a capability guard, which made it the only member typed
+present on every `C` that could still throw "missing capability" at runtime — precisely the
+failure class this release removes. It is gone from the class in types and at runtime, and it is
+called `registerPlugin` on the host. The `use` the class carries now is the composition pipe,
+which takes an installer.
 
 ```
 pnpm codemod:framework-slim "src/**/*.{ts,vue}"
