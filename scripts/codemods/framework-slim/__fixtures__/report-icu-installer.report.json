@@ -1,0 +1,8 @@
+[
+  {
+    "line": 10,
+    "column": 50,
+    "shape": "icu-installer-removed",
+    "detail": "`.with(installIcu(…))` composes the removed `icu()` installer — ICU is a compiler setting, not a capability: drop the step and pass `compiler: icuCompiler` in the `createI18n(…)` options, which serves inline, loader, CDN and API catalogs alike"
+  }
+]

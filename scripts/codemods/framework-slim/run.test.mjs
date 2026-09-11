@@ -73,7 +73,6 @@ const REQUIRED_CASES = [
   "ctor-devtools-options", // 5: exposeGlobal / instanceId -> `devtools({…})`
   "ctor-type-only-import", // runtime installer never merges into `import type`
   "ctor-nested-catalog", // 6: non-flat catalog -> `flattenCatalog(…)`
-  "chain-icu-order", // the one provable remote-ICU reorder
   "prologue-shebang", // shebang + directive prologue keep their positions
   // one golden per report-only residual.
   "report-slim-rename",
@@ -84,6 +83,8 @@ const REQUIRED_CASES = [
   "report-host-module",
   "report-host-spread",
   "report-namespace-host",
+  // the removed ICU installer: a chain that composes it is refused whole.
+  "report-icu-installer",
 ];
 
 test("every matrix row and report-only shape has a golden fixture", () => {
@@ -133,7 +134,6 @@ test("CRLF sources come back with CRLF", () => {
   assert.deepEqual(
     rewritten.map(caseNameOf).sort(),
     [
-      "chain-icu-order",
       "chain-plugin-host",
       "chain-plugin-installers",
       "ctor-devtools-options",
@@ -869,6 +869,101 @@ export function render() {
   }
 });
 
+/**
+ * The removed `icu()` installer, in the two spellings the golden fixture cannot
+ * carry at once and the two that must NOT be mistaken for it.
+ *
+ * The core-subpath case is the one worth stating: `@comvi/core/icu` is no longer
+ * in the capability table at all, so a detector that resolved the step through
+ * that table would see nothing here and migrate the chain around a step that
+ * does not resolve.
+ */
+test("a chain composing the removed icu() installer is refused and reported", async (t) => {
+  const reported = [
+    {
+      name: "imported under its own name from a wrapper package",
+      source: `import { createI18n, icu } from "@comvi/react";
+const i18n = createI18n({ locale: "en" }).with(icu());
+`,
+      local: "icu",
+    },
+    {
+      name: "imported from the core subpath, which the capability table no longer maps",
+      source: `import { createI18n } from "@comvi/core";
+import { icu } from "@comvi/core/icu";
+const i18n = createI18n({ locale: "en" }).with(icu());
+`,
+      local: "icu",
+    },
+    {
+      name: "aliased, so only the imported name gives it away",
+      source: `import { createI18n, icu as withIcu } from "@comvi/vue";
+const i18n = createI18n({ locale: "en" }).with(withIcu());
+`,
+      local: "withIcu",
+    },
+  ];
+  for (const { name, source, local } of reported) {
+    await t.test(name, () => {
+      const result = transformSource(source, "icu.ts");
+
+      assert.equal(result.text, source, "the chain must come back byte-identical");
+      assert.equal(result.rewrites, 0);
+      const items = result.manual.filter(({ shape }) => shape === "icu-installer-removed");
+      assert.equal(items.length, 1, JSON.stringify(result.manual));
+      assert.match(items[0].detail, new RegExp(`\\.with\\(${local}\\(…\\)\\)`));
+      assert.match(items[0].detail, /compiler: icuCompiler/);
+    });
+  }
+
+  const untouched = [
+    {
+      name: "a local icu() helper of the reader's own",
+      source: `import { createI18n } from "@comvi/react";
+function icu() {
+  return <T,>(host: T) => host;
+}
+const i18n = createI18n({ locale: "en" }).with(icu());
+`,
+    },
+    {
+      name: "icu() from another library",
+      source: `import { createI18n } from "@comvi/react";
+import { icu } from "other-i18n";
+const i18n = createI18n({ locale: "en" }).with(icu());
+`,
+    },
+    {
+      name: "icuCompiler, the export that survived",
+      source: `import { createI18n, icuCompiler } from "@comvi/react";
+const i18n = createI18n({ locale: "en", compiler: icuCompiler });
+`,
+    },
+  ];
+  for (const { name, source } of untouched) {
+    await t.test(name, () => {
+      const result = transformSource(source, "icu.ts");
+
+      assert.deepEqual(
+        result.manual.filter(({ shape }) => shape === "icu-installer-removed"),
+        [],
+      );
+    });
+  }
+});
+
+test("the `compiler` option a chain already carries silences runtime-icu-unproven", () => {
+  // The installer used to be the other proof. Now the option is the only one,
+  // and a host that names it must not be told to name it again.
+  const source = `import { createI18n, icuCompiler, loader } from "@comvi/react";
+const i18n = createI18n({ locale: "en", compiler: icuCompiler }).with(loader());
+`;
+
+  const result = transformSource(source, "compiler-named.ts");
+
+  assert.deepEqual(result.manual, []);
+});
+
 test("transformed TypeScript goldens compile", (t) => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "comvi-codemod-tsc-"));
   t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
@@ -879,7 +974,6 @@ test("transformed TypeScript goldens compile", (t) => {
   assert.deepEqual(
     tsGoldens.map(caseNameOf).sort(),
     [
-      "chain-icu-order",
       "chain-plugin-host",
       "chain-plugin-installers",
       "ctor-devtools-options",
@@ -976,7 +1070,6 @@ export declare function createI18n(options: HostOptions): Host;
 export declare const I18n: new (options: HostOptions) => Host;
 export declare function flattenCatalog(catalog: Record<string, unknown>): Record<string, string>;
 export declare const icuCompiler: MessageCompiler;
-export declare function icu(compiler?: MessageCompiler): <T extends Host>(host: T) => T;
 export declare function loader(
   importMap?: Record<string, () => Promise<unknown>>,
 ): <T extends Host>(host: T) => T & LoaderApi;
@@ -1008,7 +1101,7 @@ export type * from "./api";
 export type { DevtoolsOptions } from "../api";
 `,
     "comvi/react.ts": `export { createI18n, devtools, flattenCatalog, I18n } from "./api";
-export { icu, icuCompiler, loader, plugins } from "./api";
+export { icuCompiler, loader, plugins } from "./api";
 export type * from "./api";
 
 export interface UseI18nReturn {

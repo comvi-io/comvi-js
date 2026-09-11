@@ -3,6 +3,6 @@
     "line": 14,
     "column": 4,
     "shape": "runtime-icu-unproven",
-    "detail": "this host loads catalogs at runtime and keeps the default compiler — if any loaded catalog uses ICU syntax, compose `.with(icu())` BEFORE the loader (the codemod cannot read remote catalogs)"
+    "detail": "this host loads catalogs at runtime and keeps the default compiler — if any loaded catalog uses ICU syntax, pass `compiler: icuCompiler` in the `createI18n(…)` options (the codemod cannot read remote catalogs)"
   }
 ]

@@ -98,8 +98,13 @@ export const PLUGIN_HOST_PROVIDERS = [
   ...new Set([PLUGIN_HOST_INSTALLER, "attachPlugins", ...PLUGIN_INSTALLERS.values()]),
 ];
 
-/** The ICU installer, and the compiler option inline catalogs take instead. */
-export const ICU_INSTALLER = "icu";
+/**
+ * The compiler an ICU catalog takes, in the constructor options.
+ *
+ * There is no installer beside it. ICU is a compiler setting, not a capability
+ * with an API, so `compiler: icuCompiler` is the one enable form and it works
+ * whatever the catalog's source — inline, loader, CDN or API.
+ */
 export const ICU_COMPILER = "icuCompiler";
 
 /** The flattener a non-flat inline catalog is wrapped with. */
@@ -115,9 +120,9 @@ export const DEVTOOLS_PROVIDERS = [DEVTOOLS_INSTALLER, "attachDevtools"];
 export const DEVTOOLS_OPTIONS = ["exposeGlobal", "instanceId"];
 
 /**
- * Installers that compose a LOADER — the anchor for the safe remote-ICU
- * ordering: `icu()` must run before the host ingests anything, and a loader is
- * the only composed step that can ingest.
+ * Installers that compose a LOADER. A loader is the only composed step that
+ * fetches a catalog the codemod cannot read, which is what makes it the anchor
+ * for the `runtime-icu-unproven` advisory.
  */
 export const LOADER_INSTALLERS = ["loader", "attachLoader", "fetchLoader"];
 
@@ -128,7 +133,6 @@ export const LOADER_INSTALLERS = ["loader", "attachLoader", "fetchLoader"];
  */
 export const CORE_SUBPATH_OF = new Map([
   [ICU_COMPILER, "@comvi/core/icu"],
-  [ICU_INSTALLER, "@comvi/core/icu"],
   [PLUGIN_HOST_INSTALLER, "@comvi/core/plugins"],
   ["loader", "@comvi/core/loader"],
   ["attachLoader", "@comvi/core/loader"],
