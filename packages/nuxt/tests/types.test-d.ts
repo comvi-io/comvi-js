@@ -1,10 +1,20 @@
 import { describe, it, expectTypeOf } from "vitest";
-import type { I18n, I18nLoaderApi, I18nPluginHostApi, WrapperI18nHost } from "@comvi/core";
+import type {
+  I18n,
+  I18nLoaderApi,
+  I18nPluginHostApi,
+  LoaderFn,
+  MessageCompiler,
+  WrapperI18nHost,
+} from "@comvi/core";
 import type { UseI18nReturn as VueUseI18nReturn, VueI18n } from "@comvi/vue";
 import type {
+  I18nLoaderApi as PublicI18nLoaderApi,
+  LoaderFn as PublicLoaderFn,
   ModuleOptions,
   NuxtHostFactory as PublicNuxtHostFactory,
   NuxtHostFactoryOptions as PublicNuxtHostFactoryOptions,
+  NuxtI18nSetup as PublicNuxtI18nSetup,
 } from "@comvi/nuxt";
 import type { UseI18nReturn as NuxtUseI18nReturn } from "../src/runtime/composables/useI18n";
 import type {
@@ -27,6 +37,24 @@ describe("published package-root types", () => {
     expectTypeOf<ModuleOptions>().toMatchTypeOf<Partial<NuxtI18nOptions>>();
     expectTypeOf<PublicNuxtHostFactoryOptions>().toMatchTypeOf<{ locale: string }>();
     expectTypeOf<PublicNuxtHostFactory>().toBeFunction();
+  });
+
+  it("carries the loader types a typed comvi.setup hook needs, from one specifier", () => {
+    // `@comvi/core` is this package's dependency, not the app's: a hook typed
+    // `NuxtI18nSetup<I18n & I18nLoaderApi>` must be able to name all three from
+    // `@comvi/nuxt` alone.
+    expectTypeOf<PublicI18nLoaderApi>().toEqualTypeOf<I18nLoaderApi>();
+    expectTypeOf<PublicLoaderFn>().toEqualTypeOf<LoaderFn>();
+    const hook = (({ core }) => {
+      core.registerLoader(async () => ({}));
+    }) satisfies PublicNuxtI18nSetup<I18n & PublicI18nLoaderApi>;
+    expectTypeOf(hook).toBeFunction();
+  });
+
+  it("names the compiler a factory receives when comvi.icu is on", () => {
+    expectTypeOf<PublicNuxtHostFactoryOptions["compiler"]>().toEqualTypeOf<
+      MessageCompiler | undefined
+    >();
   });
 });
 

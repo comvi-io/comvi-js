@@ -18,6 +18,8 @@ export type {
   TranslationResult,
   TranslationKeys,
   I18n,
+  I18nLoaderApi,
+  LoaderFn,
 } from "./types";
 
 export type { T } from "@comvi/vue";

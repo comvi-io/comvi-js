@@ -21,8 +21,8 @@ export default ((options) =>
     // ICU is never on by default. Without this the `{count, plural, …}` in the
     // catalog is not syntax. It is a CONSTRUCTOR argument, not something
     // `.use()` can pipe on, which is the whole reason `comvi.icu` exists as a
-    // module option for apps that have no host module — and why it is ignored,
-    // with a build-time warning, once this file exists.
+    // module option: with `icu: true` in nuxt.config.ts the module puts
+    // `compiler: icuCompiler` into `options` and this line is unnecessary.
     compiler: icuCompiler,
   }).use(
     // The lazy loader, and the reason this app renders translated HTML on the

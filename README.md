@@ -165,9 +165,10 @@ framework entry except `@comvi/nuxt`, so the ones you never call are pruned by
 your bundler. The repo's bundler matrix asserts that from the emitted module
 graph in webpack and vite, development and production. (`@comvi/nuxt` is the
 exception: app code imports nothing, so the toolkit is not on the module's own
-entry. Composition happens in one `hostModule` file, which names the
-`@comvi/nuxt/host` subpath — one specifier, so the recipe follows from
-`npm install @comvi/nuxt` and nothing else.)
+entry. Composition happens in one file, `comvi.host.ts`, and the values come
+from `@comvi/nuxt/host` — so the recipe follows from `npm install @comvi/nuxt`
+and nothing else; a `TranslationKeys` augmentation targets `@comvi/core`, which
+the app declares.)
 
 | you want                                                              | you add                                                                         |
 | --------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
