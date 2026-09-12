@@ -161,6 +161,29 @@ function Greeting() {
 
 If you need a derived value, wrap it in a memo: `const greeting = createMemo(() => t("greeting", { name: "Alice" }))`, then read `greeting()`. (Coming from React/Vue, where `const g = t(...)` works because the whole component re-renders: Solid does not re-render, so the call must stay in a tracked position.)
 
+## The bare host: `useI18nHost()`
+
+`useI18nHost()` returns the `WrapperI18nHost` the nearest `<I18nProvider>`
+holds — the same name in `@comvi/react`, `@comvi/solid` and `@comvi/svelte`
+(vue's equivalent is `inject(I18N_INJECTION_KEY).core`). It is not a signal:
+read it for an imperative call, and use `useI18n()` or a primitive when the
+view must follow the host. `useI18nContext()` is the deprecated spelling of the
+same reader.
+
+```tsx
+import { useI18nHost } from "@comvi/solid";
+
+function Debug() {
+  const host = useI18nHost();
+  return <pre>{host.getLoadedLocales().join(", ")}</pre>;
+}
+```
+
+`useI18n("admin")` binds the namespace at the type level too: with generated
+keys, `t("dashboard")` is exact for `admin:dashboard`, and a key from another
+namespace is rejected — through core's `NamespaceBoundTranslateFn`, shared by
+all four bindings.
+
 ## Capability APIs: `useI18nLoader()` / `useI18nPlugins()`
 
 Async loading and the plugin host are `@comvi/core` **capabilities** rather than
@@ -197,7 +220,7 @@ or the [0.5.0 migration guide](https://github.com/comvi-io/comvi-js/blob/main/MI
 
 ## Supported hosts and what they cost
 
-`<I18nProvider i18n={…}>`, `useI18nContext()` and all six reactive primitives
+`<I18nProvider i18n={…}>`, `useI18nHost()` and all six reactive primitives
 accept any `WrapperI18nHost`: `createI18n` from `@comvi/solid` (core's own
 base-host constructor, re-exported by name), with or without `.use(loader())` /
 `.use(plugins())` composed on. The base host is the cheap one. ICU, tag syntax,
@@ -228,19 +251,20 @@ entry, one build pass, one solid context. A solid app names one package and
 nothing else, and no sibling entry exists whose `<I18nProvider>` could be
 invisible to this one's `useI18n()`.
 
-| export                                          | what it is                               |
-| ----------------------------------------------- | ---------------------------------------- |
-| `createI18n`, `I18n`                            | core's base host: constructor and class  |
-| `icuCompiler`                                   | from `@comvi/core/icu`: the ICU compiler |
-| `loader`, `attachLoader`                        | from `@comvi/core/loader`                |
-| `plugins`, `attachPlugins`, `definePlugin`      | from `@comvi/core/plugins`               |
-| `devtools`, `attachDevtools`                    | from `@comvi/core/devtools`              |
-| every primitive, `I18nProvider`, `T`, the types | the solid bindings                       |
+| export                                          | what it is                                                 |
+| ----------------------------------------------- | ---------------------------------------------------------- |
+| `createI18n`, `I18n` (type)                     | core's base host: its constructor, and its class as a type |
+| `icuCompiler`                                   | from `@comvi/core/icu`: the ICU compiler                   |
+| `loader`, `attachLoader`                        | from `@comvi/core/loader`                                  |
+| `plugins`, `attachPlugins`, `definePlugin`      | from `@comvi/core/plugins`                                 |
+| `devtools`, `attachDevtools`                    | from `@comvi/core/devtools`                                |
+| every primitive, `I18nProvider`, `T`, the types | the solid bindings                                         |
 
 `I18n` is the class `createI18n` instantiates: core's base one, not a solid
-subclass. Reach for it to type a host you compose yourself, or to call
-`new I18n(options)` directly; the factory is the recommended form and takes the
-same single options object.
+subclass, and this root exports it as a **type** only — reach for it to type a
+host you compose yourself. `createI18n(options)` and `new I18n(options)` build
+the same object, so to call the constructor directly import the class from
+`@comvi/core`.
 
 `.use(installer)` is core's composition pipe: `i18n.use(f)` is `f(i18n)`.
 `loader(map)` attaches the capability **and** registers the map; for a plain

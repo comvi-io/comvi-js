@@ -66,6 +66,8 @@ export function useI18n<D extends DefaultTranslationParams = {}>(ns?: string): U
     translationCache: i18n.translationCache,
     isLoading: i18n.isLoading,
     isInitializing: i18n.isInitializing,
+    isInitialized: i18n.isInitialized,
+    cacheRevision: i18n.cacheRevision,
     addTranslations: i18n.addTranslations,
     setFallbackLocale: i18n.setFallbackLocale,
     defaultParams: i18n.defaultParams as VueUseI18nReturn<D>["defaultParams"],

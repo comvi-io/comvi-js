@@ -7,7 +7,7 @@ import {
   type ParentComponent,
   type Accessor,
 } from "solid-js";
-import type { WrapperI18nHost } from "@comvi/core";
+import type { AnyI18nHost, WrapperI18nHost } from "@comvi/core";
 import {
   createLocaleSignal,
   createDefaultNamespaceSignal,
@@ -35,34 +35,9 @@ export interface I18nContextValue {
   };
 }
 
-/**
- * A host with ANY default-params type — what the Provider accepts.
- *
- * `I18nCoreInstance` declares `setDefaultParams` as a PROPERTY rather than a
- * method, so `strictFunctionTypes` checks its parameter contravariantly and
- * the host is INVARIANT in `D`: an instance from `createI18n({ defaultParams })`
- * was not assignable to `WrapperI18nHost<{}>` at all, so it could not be
- * passed in.
- *
- * Making the boundary generic over `D` does NOT fix it. Every `D` position in
- * the host is either a conditional type (`SetDefaultParamsArg<D>`,
- * `ParamsArg<K, D>`) or a bivariant method, so `D` has no inference site: it
- * silently falls back to the constraint and the call fails just the same.
- *
- * Widening the two members that carry the invariance is what actually works.
- * `setDefaultParams` is the source; `init()` re-imports it by returning the
- * host recursively. Every other `D` occurrence is a method (bivariant) or a
- * return type (covariant), so nothing else has to move.
- *
- * Both are widened with METHOD syntax and `any` rather than `never` /
- * `unknown` on purpose: methods are bivariant, so the result stays assignable
- * to `WrapperI18nHost<{}>` in BOTH directions. Everything downstream that
- * expects the plain host keeps compiling, and no internal cast is needed.
- */
-export type AnyI18nHost = Omit<WrapperI18nHost, "setDefaultParams" | "init"> & {
-  setDefaultParams(params: any): void;
-  init(): Promise<any>;
-};
+// `AnyI18nHost` is core's: the `strictFunctionTypes` invariance in `D` it
+// widens is documented there, once, for all three providers that accept it.
+export type { AnyI18nHost };
 
 const I18nContext = createContext<I18nContextValue>();
 
@@ -153,7 +128,21 @@ export function useI18nContextValue(): I18nContextValue {
   return ctx;
 }
 
-/** @throws if called outside an `<I18nProvider>`. */
-export function useI18nContext(): WrapperI18nHost {
+/**
+ * The host the nearest `<I18nProvider>` holds, as a bare `WrapperI18nHost` —
+ * THE name for "give me the host", the same in react, solid and svelte (vue's
+ * equivalent is `inject(I18N_INJECTION_KEY).core`).
+ *
+ * @throws if called outside an `<I18nProvider>`.
+ */
+export function useI18nHost(): WrapperI18nHost {
   return useI18nContextValue().i18n;
+}
+
+/**
+ * @deprecated Use `useI18nHost()` — the same host under the one name react,
+ *   solid and svelte share. Scheduled for removal in the next major.
+ */
+export function useI18nContext(): WrapperI18nHost {
+  return useI18nHost();
 }

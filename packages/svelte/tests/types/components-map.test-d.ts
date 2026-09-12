@@ -56,3 +56,8 @@ export type _RejectsTargetlessConfig = Accepts<{ link: { props: { href: string }
 export type _RejectsForeignObject = Accepts<{ link: { href: "/help" } }>;
 // @ts-expect-error -- a number is not a renderable target
 export type _RejectsNonTarget = Accepts<{ link: 42 }>;
+
+// P7: `ComponentMapping` (one entry) is no longer a public name — it is the
+// internal `ComponentHandler`, as in solid. `ComponentMap` is the export.
+// @ts-expect-error -- not exported from the root
+export type _NoComponentMapping = import("../../src/index").ComponentMapping;

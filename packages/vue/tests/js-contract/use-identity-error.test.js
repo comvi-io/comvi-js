@@ -7,7 +7,8 @@
 // matter what it says. `__COMVI_CORE_BUILD__` is defined per vitest project and
 // says which build condition this run compiled under.
 import { describe, it, expect, vi } from "vitest";
-import { createI18n, createCore } from "../../src/index";
+import { createI18n as createCore } from "@comvi/core";
+import { createI18n } from "../../src/index";
 
 /* global __COMVI_CORE_BUILD__ */
 const IS_DEV_BUILD = __COMVI_CORE_BUILD__ === "development";

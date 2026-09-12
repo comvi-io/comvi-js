@@ -160,3 +160,9 @@ export type _DefinePluginWidensToThePluginHost = Expect<
 void _withDefinedPlugin.registerPlugin(() => {});
 // @ts-expect-error -- definePlugin takes a PLUGIN, not an installer
 createI18n({ locale: "en" }).use(definePlugin(attachLoader));
+
+// P5: `I18n` is a TYPE-only export from a binding root. `createI18n(o)` and
+// `new I18n(o)` build the same object, so the class VALUE is `@comvi/core`'s.
+// @ts-expect-error -- `I18n` only refers to a type from this root
+void rootEntry.I18n;
+export type _I18nTypeStillReachable = I18n<{}>;

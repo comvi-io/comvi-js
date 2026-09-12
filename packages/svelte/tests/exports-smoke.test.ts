@@ -146,13 +146,13 @@ describe("exports map smoke (F0b)", () => {
     expect(existsSync(resolve(distDir, "slim.d.ts"))).toBe(false);
   });
 
-  it("dist/index.js exports the capability toolkit and the base I18n class", () => {
+  it("dist/index.js exports the capability toolkit; `I18n` is a type, so it is absent", () => {
     // Named re-exports of core's own bindings, so what this asserts through
     // dist is that svelte-package emitted them at all.
     const surface = pkg as unknown as Record<string, unknown>;
+    expect(surface).not.toHaveProperty("I18n");
 
     for (const name of [
-      "I18n",
       "loader",
       "attachLoader",
       "plugins",

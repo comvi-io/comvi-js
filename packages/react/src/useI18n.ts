@@ -12,7 +12,7 @@ import {
 import type {
   TranslationParams,
   TranslationResult,
-  TranslateFn,
+  NamespaceBoundTranslateFn,
   VirtualNode,
   FlattenedTranslations,
   TranslationValue,
@@ -134,18 +134,28 @@ const BIND_METHODS = [
  * The host-only translation surface. Loader and plugin-host members are not
  * part of it — they do not exist on a base host, so a type promising them
  * would be lying; `useI18nLoader()` / `useI18nPlugins()` acquire those.
+ *
+ * `NS` is the namespace `useI18n(ns)` bound, and narrows `t` / `tRaw` through
+ * core's `NamespaceBoundTranslateFn` exactly as the other three wrappers do.
  */
-export interface UseI18nReturn<D extends DefaultTranslationParams = {}> {
+export interface UseI18nReturn<
+  D extends DefaultTranslationParams = {},
+  NS extends string | undefined = undefined,
+> {
   /** Translate a key. Returns plain text; for rich-text use `tRaw()` or `<T>`. */
-  t: TranslateFn<D, string>;
+  t: NamespaceBoundTranslateFn<NS, D, string>;
 
   /** The full core `TranslationResult`: a string or a structured array. */
-  tRaw: TranslateFn<D, TranslationResult>;
+  tRaw: NamespaceBoundTranslateFn<NS, D, TranslationResult>;
 
   locale: string;
   translationCache: ReadonlyMap<string, FlattenedTranslations>;
   isLoading: boolean;
   isInitializing: boolean;
+  isInitialized: boolean;
+
+  /** Core's translation-cache revision for this render; changes on cache mutation. */
+  cacheRevision: number;
 
   /** Change the current locale and wait for translations to load. */
   setLocale: (locale: string) => Promise<void>;
@@ -169,15 +179,26 @@ export interface UseI18nReturn<D extends DefaultTranslationParams = {}> {
   getActiveNamespaces: () => string[];
   getDefaultNamespace: () => string;
 
-  // The formatters below are bound to the render-time locale.
-  formatNumber: (value: number, options?: Intl.NumberFormatOptions) => string;
-  formatDate: (value: Date | number, options?: Intl.DateTimeFormatOptions) => string;
-  formatCurrency: (value: number, currency: string, options?: Intl.NumberFormatOptions) => string;
+  // The formatters below default to the render-time locale; the trailing
+  // `locale` overrides it for one call, as in the other three bindings.
+  formatNumber: (value: number, options?: Intl.NumberFormatOptions, locale?: string) => string;
+  formatDate: (
+    value: Date | number,
+    options?: Intl.DateTimeFormatOptions,
+    locale?: string,
+  ) => string;
+  formatCurrency: (
+    value: number,
+    currency: string,
+    options?: Intl.NumberFormatOptions,
+    locale?: string,
+  ) => string;
   /** e.g. "2 hours ago". */
   formatRelativeTime: (
     value: number,
     unit: Intl.RelativeTimeFormatUnit,
     options?: Intl.RelativeTimeFormatOptions,
+    locale?: string,
   ) => string;
 
   dir: "ltr" | "rtl";
@@ -204,14 +225,20 @@ export interface UseI18nReturn<D extends DefaultTranslationParams = {}> {
  * }
  * ```
  */
-export function useI18n<D extends DefaultTranslationParams = {}>(ns?: string): UseI18nReturn<D> {
+export function useI18n<
+  D extends DefaultTranslationParams = {},
+  NS extends string | undefined = undefined,
+>(ns?: NS): UseI18nReturn<D, NS> {
   const { i18n, isLoading, isInitializing } = useI18nInstance();
   const locale = useContext(LocaleContext) ?? "";
 
   // Load-bearing: subscribes this component to re-render on the canonical
-  // revision event set (return unused).
+  // revision event set (return unused). The three reads below are render
+  // snapshots of state that set is keyed on, so they are fresh per render.
   useStoreRevision(i18n);
   const translationCache = i18n.translationCache.getInternalMap();
+  const isInitialized = i18n.isInitialized;
+  const cacheRevision = i18n.translationCache.getRevision();
 
   // Inject the React-tracked `locale` into every bound call so descendant
   // translations resolve against the render-time locale (not the mutable
@@ -239,13 +266,16 @@ export function useI18n<D extends DefaultTranslationParams = {}>(ns?: string): U
     const localeOnly = Object.freeze({ locale }) as TranslationParams;
     const wrapper = (key: string, params?: TranslationParams): TranslationResult =>
       bound(key, params == null ? localeOnly : { locale, ...params });
-    return wrapper as UseI18nReturn<D>["tRaw"];
+    return wrapper as UseI18nReturn<D, NS>["tRaw"];
   }, [i18n, ns, locale]);
 
   const t = useMemo(
     () =>
       ((key: string, params?: TranslationParams) =>
-        translationResultToString(tRaw(key as never, params as never))) as UseI18nReturn<D>["t"],
+        translationResultToString(tRaw(key as never, params as never))) as UseI18nReturn<
+        D,
+        NS
+      >["t"],
     [tRaw],
   );
 
@@ -269,23 +299,31 @@ export function useI18n<D extends DefaultTranslationParams = {}>(ns?: string): U
   const hasTranslation = useMemo(
     () =>
       ((key: string, loc: string = locale, ns?: string, checkFallbacks?: boolean) =>
-        i18n.hasTranslation(key, loc, ns, checkFallbacks)) as UseI18nReturn<D>["hasTranslation"],
+        i18n.hasTranslation(key, loc, ns, checkFallbacks)) as UseI18nReturn<
+        D,
+        NS
+      >["hasTranslation"],
     [i18n, locale],
   );
 
   const formatters = useMemo(
     () => ({
-      formatNumber: (value: number, options?: Intl.NumberFormatOptions) =>
-        formatNumber(i18n, value, options, locale),
-      formatDate: (value: Date | number, options?: Intl.DateTimeFormatOptions) =>
-        formatDate(i18n, value, options, locale),
-      formatCurrency: (value: number, currency: string, options?: Intl.NumberFormatOptions) =>
-        formatCurrency(i18n, value, currency, options, locale),
+      formatNumber: (value: number, options?: Intl.NumberFormatOptions, loc?: string) =>
+        formatNumber(i18n, value, options, loc ?? locale),
+      formatDate: (value: Date | number, options?: Intl.DateTimeFormatOptions, loc?: string) =>
+        formatDate(i18n, value, options, loc ?? locale),
+      formatCurrency: (
+        value: number,
+        currency: string,
+        options?: Intl.NumberFormatOptions,
+        loc?: string,
+      ) => formatCurrency(i18n, value, currency, options, loc ?? locale),
       formatRelativeTime: (
         value: number,
         unit: Intl.RelativeTimeFormatUnit,
         options?: Intl.RelativeTimeFormatOptions,
-      ) => formatRelativeTime(i18n, value, unit, options, locale),
+        loc?: string,
+      ) => formatRelativeTime(i18n, value, unit, options, loc ?? locale),
     }),
     [i18n, locale],
   );
@@ -297,11 +335,13 @@ export function useI18n<D extends DefaultTranslationParams = {}>(ns?: string): U
     translationCache,
     isLoading,
     isInitializing,
+    isInitialized,
+    cacheRevision,
     defaultParams: i18n.defaultParams as DefaultParamsSnapshot<D>,
     dir: getTextDirection(locale || i18n.locale),
     hasTranslation,
     ...(boundMethods as Omit<
-      UseI18nReturn<D>,
+      UseI18nReturn<D, NS>,
       | "t"
       | "tRaw"
       | "hasTranslation"
@@ -309,6 +349,8 @@ export function useI18n<D extends DefaultTranslationParams = {}>(ns?: string): U
       | "translationCache"
       | "isLoading"
       | "isInitializing"
+      | "isInitialized"
+      | "cacheRevision"
       | "defaultParams"
       | "dir"
       | "formatNumber"

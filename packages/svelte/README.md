@@ -142,6 +142,32 @@ the react and solid providers.
 The distribution id in `cdnUrl` comes from the Comvi platform: open your project
 and read it off the **Distributions** page.
 
+## The bare host: `useI18nHost()`
+
+`useI18nHost()` returns the `WrapperI18nHost` the nearest `setI18nContext`
+ancestor provided — the same name in `@comvi/react`, `@comvi/solid` and
+`@comvi/svelte` (vue's equivalent is `inject(I18N_INJECTION_KEY).core`). A
+context reader, so callable during component initialisation only, and not a
+store. `getI18nContext()` is the deprecated spelling of the same reader: this
+package's rule is `useI18n*`, not `getI18n*`, so one grep finds the API in all
+three.
+
+```svelte
+<script lang="ts">
+  import { useI18nHost } from "@comvi/svelte";
+
+  const host = useI18nHost();
+  const loaded = host.getLoadedLocales().join(", ");
+</script>
+
+<pre>{loaded}</pre>
+```
+
+`useI18n("admin")` binds the namespace at the type level too: with generated
+keys, `$t("dashboard")` is exact for `admin:dashboard`, and a key from another
+namespace is rejected — through core's `NamespaceBoundTranslateFn`, shared by
+all four bindings.
+
 ## Capability APIs: `useI18nLoader()` / `useI18nPlugins()`
 
 Async loading and the plugin host are `@comvi/core` **capabilities** rather than
@@ -160,7 +186,7 @@ instead of getting them from `useI18n()`:
 ```
 
 They are **context readers, not stores**: like `useI18n()` they call
-`getI18nContext()`, so they are callable during component initialisation only,
+`useI18nHost()`, so they are callable during component initialisation only,
 and what they return is a plain object of bound functions. Do not `$`-prefix a
 member. They differ from `createLocaleStore()` and friends because a capability
 action is an imperative operation rather than a value that changes over time.
@@ -178,7 +204,7 @@ or the [0.5.0 migration guide](https://github.com/comvi-io/comvi-js/blob/main/MI
 
 ## Supported hosts and what they cost
 
-`setI18nContext(i18n)`, `getI18nContext()` and all six store factories accept
+`setI18nContext(i18n)`, `useI18nHost()` and all six store factories accept
 any `WrapperI18nHost`: `createI18n` from `@comvi/svelte` (core's own base-host
 constructor, re-exported by name), with or without `.use(loader())` /
 `.use(plugins())` composed on. Before 0.5.0 a base host did not merely mistype
@@ -208,19 +234,21 @@ below the historical 0.4 composed root, which measured 9836 B.
 the svelte bindings, and core's capability installers as **named** re-exports.
 A svelte app names one package and nothing else.
 
-| export                                       | what it is                               |
-| -------------------------------------------- | ---------------------------------------- |
-| `createI18n`, `I18n`                         | core's base host: constructor and class  |
-| `icuCompiler`                                | from `@comvi/core/icu`: the ICU compiler |
-| `loader`, `attachLoader`                     | from `@comvi/core/loader`                |
-| `plugins`, `attachPlugins`, `definePlugin`   | from `@comvi/core/plugins`               |
-| `devtools`, `attachDevtools`                 | from `@comvi/core/devtools`              |
-| every store factory, the readers, `T`, types | the svelte bindings                      |
+| export                                       | what it is                                                 |
+| -------------------------------------------- | ---------------------------------------------------------- |
+| `createI18n`, `I18n` (type)                  | core's base host: its constructor, and its class as a type |
+| `icuCompiler`                                | from `@comvi/core/icu`: the ICU compiler                   |
+| `loader`, `attachLoader`                     | from `@comvi/core/loader`                                  |
+| `plugins`, `attachPlugins`, `definePlugin`   | from `@comvi/core/plugins`                                 |
+| `devtools`, `attachDevtools`                 | from `@comvi/core/devtools`                                |
+| every store factory, the readers, `T`, types | the svelte bindings                                        |
 
 There is no svelte-side wrapper object to build. The host goes straight into
 `setI18nContext(i18n)`, so the constructor IS core's own `createI18n`,
-re-exported by name. `I18n` is the class it instantiates; use it to type a host
-you compose yourself, or to call `new I18n(options)` directly.
+re-exported by name. `I18n` is the class it instantiates, exported from this
+root as a **type** only — use it to type a host you compose yourself.
+`createI18n(options)` and `new I18n(options)` build the same object, so to call
+the constructor directly import the class from `@comvi/core`.
 
 `.use(installer)` is core's composition pipe: `i18n.use(f)` is `f(i18n)`.
 `loader(map)` attaches the capability **and** registers the map; for a plain

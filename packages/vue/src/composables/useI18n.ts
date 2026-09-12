@@ -5,7 +5,7 @@ import { createBoundTranslation, translationResultToString } from "@comvi/core";
 import type {
   TranslationParams,
   TranslationResult,
-  TranslateFn,
+  NamespaceBoundTranslateFn,
   FlattenedTranslations,
   TranslationValue,
   I18nEvent,
@@ -15,11 +15,18 @@ import type {
   WrapperI18nHost,
 } from "@comvi/core";
 
-export interface UseI18nReturn<D extends DefaultTranslationParams = {}> {
+/**
+ * `NS` is the namespace `useI18n(ns)` bound, and narrows `t` / `tRaw` through
+ * core's `NamespaceBoundTranslateFn` exactly as the other three wrappers do.
+ */
+export interface UseI18nReturn<
+  D extends DefaultTranslationParams = {},
+  NS extends string | undefined = undefined,
+> {
   /** Always plain text; `tRaw` is the rich-text half. */
-  t: TranslateFn<D, string>;
+  t: NamespaceBoundTranslateFn<NS, D, string>;
 
-  tRaw: TranslateFn<D, TranslationResult>;
+  tRaw: NamespaceBoundTranslateFn<NS, D, TranslationResult>;
 
   locale: Ref<string>;
 
@@ -31,6 +38,11 @@ export interface UseI18nReturn<D extends DefaultTranslationParams = {}> {
   isLoading: Readonly<Ref<boolean>>;
 
   isInitializing: Readonly<Ref<boolean>>;
+
+  isInitialized: Readonly<Ref<boolean>>;
+
+  /** Core's translation-cache revision, reactive; read it to depend on cache changes. */
+  cacheRevision: Readonly<Ref<number>>;
 
   addTranslations: (translations: Record<string, Record<string, TranslationValue>>) => void;
 
@@ -103,6 +115,8 @@ const PASSTHROUGH_KEYS = [
   "translationCache",
   "isLoading",
   "isInitializing",
+  "isInitialized",
+  "cacheRevision",
   "addTranslations",
   "setFallbackLocale",
   "defaultParams",
@@ -132,7 +146,10 @@ const PASSTHROUGH_KEYS = [
  *   instead of the configured `defaultNs`. Nothing else is scoped:
  *   `hasTranslation` & co. take an explicit `namespace` argument.
  */
-export function useI18n<D extends DefaultTranslationParams = {}>(ns?: string): UseI18nReturn<D> {
+export function useI18n<
+  D extends DefaultTranslationParams = {},
+  NS extends string | undefined = undefined,
+>(ns?: NS): UseI18nReturn<D, NS> {
   const injected = inject(I18N_INJECTION_KEY);
 
   if (!injected) {
@@ -144,11 +161,11 @@ export function useI18n<D extends DefaultTranslationParams = {}>(ns?: string): U
 
   const i18n = injected as unknown as VueI18n<D, WrapperI18nHost<D>>;
 
-  const tRaw = createBoundTranslation(i18n, ns) as UseI18nReturn<D>["tRaw"];
+  const tRaw = createBoundTranslation(i18n, ns) as UseI18nReturn<D, NS>["tRaw"];
   const t = ((key: string, params?: TranslationParams) =>
-    translationResultToString(tRaw(key as never, params as never))) as UseI18nReturn<D>["t"];
+    translationResultToString(tRaw(key as never, params as never))) as UseI18nReturn<D, NS>["t"];
 
-  const result = { t, tRaw } as UseI18nReturn<D>;
+  const result = { t, tRaw } as UseI18nReturn<D, NS>;
   for (const k of PASSTHROUGH_KEYS) {
     (result as any)[k] = (i18n as any)[k];
   }

@@ -124,6 +124,29 @@ so gate it on the `isLoading` ref from `useI18n()`.
 The distribution id in `cdnUrl` comes from the Comvi platform: open your project
 and read it off the **Distributions** page.
 
+## The bare host: `inject(I18N_INJECTION_KEY).core`
+
+React, solid and svelte spell "give me the host" `useI18nHost()`. Vue has no
+fourth spelling: the injected `VueI18n` already carries the host as `core`, so
+the equivalent is the injection key.
+
+```vue
+<script setup lang="ts">
+import { inject } from "vue";
+import { I18N_INJECTION_KEY } from "@comvi/vue";
+
+const host = inject(I18N_INJECTION_KEY)!.core;
+const loaded = host.getLoadedLocales().join(", ");
+</script>
+```
+
+The host is seen as a bare `WrapperI18nHost` there; capability calls go through
+`useI18nLoader()` / `useI18nPlugins()` below. `useI18n()` returns the same
+member names as the other three bindings — `isInitialized` and `cacheRevision`
+are refs beside `isLoading` / `isInitializing` — and `useI18n("admin")` binds
+the namespace at the type level: with generated keys, `t("dashboard")` is exact
+for `admin:dashboard`, and a key from another namespace is rejected.
+
 ## Capability composables: `useI18nLoader()` / `useI18nPlugins()`
 
 Async loading and the plugin host are `@comvi/core` **capabilities** rather than
@@ -209,13 +232,21 @@ attaches the capability at runtime, but `createI18n` returns
 keeps the base type and every later `i18n.core.registerLoader(…)` is a compile
 error. The fix is the wrapper pipe above.
 
-`createCore(options)` and `createI18nFromCore(core, options?)` are the escape
-hatch for a host built elsewhere: `createCore` is core's own constructor, and
-`createI18nFromCore` wraps whatever you hand it, preserving its exact type as
-`i18n.core`. Use them when the host is not built next to the app — Nuxt's
-`hostModule`, or one host shared between a Vue app and non-Vue code. Everything
-ships from the one entry, and `.use(…)` works on a `createI18nFromCore` result
-too.
+`createI18nFromCore(core, options?)` is the escape hatch for a host built
+elsewhere: it wraps whatever you hand it, preserving its exact type as
+`i18n.core`. The host itself comes from `createI18n` in `@comvi/core` — it is
+built elsewhere by definition, so crossing the import boundary is more honest
+than a local alias, and this package re-exports no `createCore`. Use it when the
+host is not built next to the app — Nuxt's `hostModule`, or one host shared
+between a Vue app and non-Vue code — and `.use(…)` works on the result too.
+
+```ts
+import { createI18n as createCore } from "@comvi/core";
+import { createI18nFromCore, loader } from "@comvi/vue";
+
+const host = createCore({ locale: "en" }).use(loader(importMap));
+const i18n = createI18nFromCore(host, { ssrLocale: "en" });
+```
 
 Whole-app comvi graph, min+gz, `vue` externalized (`pnpm size`, rows in
 `scripts/size-budgets.json`, each gated at its recorded baseline + 5 %; the
@@ -232,25 +263,24 @@ the tag-registration pair just as the rows that never render it do.
 
 ## One package, one entry
 
-`@comvi/vue` is the whole toolkit: all three constructors, the base `I18n`
-class, the vue bindings, and core's capability installers as **named**
+`@comvi/vue` is the whole toolkit: both constructors, the base `I18n` class as
+a type, the vue bindings, and core's capability installers as **named**
 re-exports. One entry, one build pass, one injection key. A vue app names one
 package and nothing else, and no sibling entry exists whose `app.use(i18n)`
 could be invisible to this one's `useI18n()`. Migrating a 0.4 app is
 `pnpm codemod:framework-slim "src/**/*.{ts,vue}"`; the breaks are written up in
 the [0.5.0 migration guide](https://github.com/comvi-io/comvi-js/blob/main/MIGRATION.md).
 
-| export                                          | what it is                                                |
-| ----------------------------------------------- | --------------------------------------------------------- |
-| `createI18n`                                    | the preset: a `VueI18n` over a base host, plus `.use(…)`  |
-| `createCore`                                    | core's own constructor, for a host built elsewhere        |
-| `createI18nFromCore`                            | wraps that host, preserving its exact type                |
-| `I18n`                                          | the base class `createI18n` and `createCore` both produce |
-| `icuCompiler`                                   | from `@comvi/core/icu`: the ICU compiler                  |
-| `loader`, `attachLoader`                        | from `@comvi/core/loader`                                 |
-| `plugins`, `attachPlugins`, `definePlugin`      | from `@comvi/core/plugins`                                |
-| `devtools`, `attachDevtools`                    | from `@comvi/core/devtools`                               |
-| `VueI18n`, the composables, `T`, the inject key | the vue bindings                                          |
+| export                                          | what it is                                               |
+| ----------------------------------------------- | -------------------------------------------------------- |
+| `createI18n`                                    | the preset: a `VueI18n` over a base host, plus `.use(…)` |
+| `createI18nFromCore`                            | wraps a host built with `@comvi/core`'s `createI18n`     |
+| `I18n` (type)                                   | the base class the preset's `core` is an instance of     |
+| `icuCompiler`                                   | from `@comvi/core/icu`: the ICU compiler                 |
+| `loader`, `attachLoader`                        | from `@comvi/core/loader`                                |
+| `plugins`, `attachPlugins`, `definePlugin`      | from `@comvi/core/plugins`                               |
+| `devtools`, `attachDevtools`                    | from `@comvi/core/devtools`                              |
+| `VueI18n`, the composables, `T`, the inject key | the vue bindings                                         |
 
 `createI18n` is vue's own function, not a rename: there is a `VueI18n` to
 construct, and `ssrLocale` has to reach the host before the reactive ref is
@@ -406,7 +436,7 @@ call are pruned. Three bundler-matrix cases hold that line, on webpack and vite,
 in development and production: `vue-default` calls no capability and asserts all
 four subpath entries out of the module graph, `vue-icu` calls `icuCompiler`,
 formats a real plural from the built bundle and asserts the other three out, and
-`vue-composed` takes the escape hatch — `createCore(...).use(loader(map))`
+`vue-composed` takes the escape hatch — core's `createI18n(...).use(loader(map))`
 through `createI18nFromCore` — and asserts the three it does not call out.
 
 `@comvi/core/tags` is not re-exported, because importing it registers tag
@@ -452,7 +482,7 @@ import { T } from "@comvi/vue";
 </template>
 ```
 
-Alternatively, use the `components` prop for programmatic tag handling. Pass `tagInterpolation: { strict: "warn" }` to `createI18n` to catch translations referencing tags you forgot to handle before they ship.
+Alternatively, use the `components` prop for programmatic tag handling; a map built in `setup()` is typed as `ComponentMap` (the same name in all four bindings). Pass `tagInterpolation: { strict: "warn" }` to `createI18n` to catch translations referencing tags you forgot to handle before they ship.
 
 ## ICU MessageFormat
 

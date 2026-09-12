@@ -50,7 +50,12 @@ type ComponentConfig = Omit<TagComponentConfig, "props"> & {
 
 type ComponentHandler = ComponentTarget | ComponentConfig;
 
-type ComponentsMap = Record<string, ComponentHandler>;
+/**
+ * Tag-name → handler map for `<T>`'s tag interpolation: an HTML tag name, a
+ * Vue component, or a `{ tag | component, props }` config. The same name in all
+ * four bindings, so a `components` map can be typed.
+ */
+export type ComponentMap = Record<string, ComponentHandler>;
 
 /**
  * Renders a translation. Named slots and the `components` prop both act as tag
@@ -129,7 +134,7 @@ const TComponent = /*@__PURE__*/ defineComponent({
      * }
      */
     components: {
-      type: Object as PropType<ComponentsMap>,
+      type: Object as PropType<ComponentMap>,
       default: undefined,
     },
   },

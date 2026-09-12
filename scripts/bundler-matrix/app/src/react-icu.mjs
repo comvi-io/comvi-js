@@ -12,7 +12,7 @@
 //
 // <T> rendering needs a DOM and is NOT exercised here. No top-level await: the
 // webpack leg emits commonjs2.
-import { createI18n, I18n, I18nProvider, icuCompiler, useI18n } from "@comvi/react";
+import { createI18n, I18nProvider, icuCompiler, useI18n } from "@comvi/react";
 
 function assert(condition, label) {
   if (!condition) {
@@ -33,7 +33,6 @@ function assertEqual(actual, expected, label) {
 const isComponent = (component) =>
   typeof component === "function" || (typeof component === "object" && component !== null);
 assert(typeof createI18n === "function", "@comvi/react exports createI18n");
-assert(typeof I18n === "function", "@comvi/react exports I18n");
 assert(typeof useI18n === "function", "@comvi/react exports useI18n");
 assert(isComponent(I18nProvider), "@comvi/react exports I18nProvider");
 assert(
@@ -56,7 +55,12 @@ const i18n = createI18n({
   },
 });
 
-assert(i18n instanceof I18n, "the named base I18n is the instance constructor");
+// `I18n` is a TYPE from a binding root (P5), so the pin is structural: a base
+// core host, with the composition verb and no capability attached.
+assert(
+  typeof i18n.t === "function" && typeof i18n.use === "function",
+  "createI18n builds a core host",
+);
 
 // The bought capability, proved positively: both plural branches select, and
 // `#` resolves to the count. Without `icuCompiler` this template throws.

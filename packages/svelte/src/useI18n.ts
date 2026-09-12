@@ -1,5 +1,5 @@
 import { derived, type Readable } from "svelte/store";
-import { getI18nContext } from "./context.js";
+import { useI18nHost } from "./context.js";
 import {
   createLocaleStore,
   createLoadingStore,
@@ -22,7 +22,7 @@ import type {
   TranslationParams,
   TranslationResult,
   TranslationValue,
-  TranslateFn,
+  NamespaceBoundTranslateFn,
   FlattenedTranslations,
   I18nEvent,
   I18nEventData,
@@ -35,14 +35,16 @@ type Host<D extends DefaultTranslationParams = {}> = WrapperI18nHost<D>;
 
 const DEFAULT_NS_CACHE_KEY = Symbol("comvi-default-ns");
 type TranslationStoreCacheKey = string | symbol;
-export type SvelteTextTranslationFunction<D extends DefaultTranslationParams = {}> = TranslateFn<
-  D,
-  string
->;
-export type SvelteRawTranslationFunction<D extends DefaultTranslationParams = {}> = TranslateFn<
-  D,
-  TranslationResult
->;
+// `NS` is the namespace `useI18n(ns)` bound; the narrowing is core's
+// `NamespaceBoundTranslateFn`, the same in all four wrappers.
+export type SvelteTextTranslationFunction<
+  D extends DefaultTranslationParams = {},
+  NS extends string | undefined = undefined,
+> = NamespaceBoundTranslateFn<NS, D, string>;
+export type SvelteRawTranslationFunction<
+  D extends DefaultTranslationParams = {},
+  NS extends string | undefined = undefined,
+> = NamespaceBoundTranslateFn<NS, D, TranslationResult>;
 
 type RawTranslationStore<D extends DefaultTranslationParams> = Readable<
   SvelteRawTranslationFunction<D>
@@ -132,7 +134,10 @@ function getOrCreateTextTranslationStore<D extends DefaultTranslationParams>(
  * where promising them crashed EAGERLY: `useI18n()` `.bind()`s its members at
  * call time, so a base host threw before returning anything.
  */
-export interface UseI18nReturn<D extends DefaultTranslationParams = {}> {
+export interface UseI18nReturn<
+  D extends DefaultTranslationParams = {},
+  NS extends string | undefined = undefined,
+> {
   /**
    * A STORE of the translation function — `$`-prefix it at the call site.
    *
@@ -141,10 +146,10 @@ export interface UseI18nReturn<D extends DefaultTranslationParams = {}> {
    * <p>{$t('greeting')}</p>
    * ```
    */
-  t: Readable<SvelteTextTranslationFunction<D>>;
+  t: Readable<SvelteTextTranslationFunction<D, NS>>;
 
   /** The rich-text half: a store of a function returning `TranslationResult`. */
-  tRaw: Readable<SvelteRawTranslationFunction<D>>;
+  tRaw: Readable<SvelteRawTranslationFunction<D, NS>>;
 
   locale: Readable<string>;
 
@@ -237,11 +242,14 @@ export interface UseI18nReturn<D extends DefaultTranslationParams = {}> {
  * <button onclick={() => setLocale('fr')}>Français</button>
  * ```
  */
-export function useI18n<D extends DefaultTranslationParams = {}>(ns?: string): UseI18nReturn<D> {
+export function useI18n<
+  D extends DefaultTranslationParams = {},
+  NS extends string | undefined = undefined,
+>(ns?: NS): UseI18nReturn<D, NS> {
   // Svelte context is type-erased — one fixed key — so `D` can only come from
   // the call site, and `WrapperI18nHost<D>` is invariant in `D`: hence the
   // two-step assertion.
-  const i18n = getI18nContext() as unknown as Host<D>;
+  const i18n = useI18nHost() as unknown as Host<D>;
 
   const locale = createLocaleStore(i18n);
   const isLoading = createLoadingStore(i18n);
@@ -252,8 +260,10 @@ export function useI18n<D extends DefaultTranslationParams = {}>(ns?: string): U
 
   // Reused per (instance, namespace); the derived function still re-computes
   // on locale and cache changes.
-  const tRaw = getOrCreateRawTranslationStore(i18n, ns);
-  const t = getOrCreateTextTranslationStore(i18n, ns);
+  // The cached stores are `D`-erased and re-typed per caller; `NS` is the
+  // same kind of cast, since the store cache is keyed by the runtime string.
+  const tRaw = getOrCreateRawTranslationStore(i18n, ns) as unknown as UseI18nReturn<D, NS>["tRaw"];
+  const t = getOrCreateTextTranslationStore(i18n, ns) as unknown as UseI18nReturn<D, NS>["t"];
 
   return {
     t,

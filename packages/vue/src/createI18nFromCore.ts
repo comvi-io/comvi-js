@@ -17,14 +17,16 @@ import { VueI18n, type VueI18nCoreOptions } from "./VueI18n";
  * does not. {@link VueI18n.use} works on the result as well, widening from
  * whatever type came in.
  *
- * @param core - The host, built elsewhere: core's own constructor, re-exported
- *   from `@comvi/vue` as `createCore`, plus whatever capabilities it composed.
+ * @param core - The host, built elsewhere with `createI18n` from `@comvi/core`
+ *   (the host is elsewhere by definition, so the import crosses the boundary
+ *   too), plus whatever capabilities it composed.
  * @param options - Vue-layer options only; every core option belongs to the
  *   host you built.
  *
  * @example
  * ```ts
- * import { attachLoader, createCore, createI18nFromCore } from "@comvi/vue";
+ * import { createI18n as createCore } from "@comvi/core";
+ * import { attachLoader, createI18nFromCore } from "@comvi/vue";
  *
  * const i18n = createI18nFromCore(attachLoader(createCore({ locale: "en" })));
  * i18n.core.registerLoader(myLoader);

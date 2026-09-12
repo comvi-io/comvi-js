@@ -31,7 +31,7 @@ export type ComponentTarget = string | Component<any>;
  * <T i18nKey="rich_text.message" {components} />
  * ```
  */
-export type ComponentMapping =
+export type ComponentHandler =
   | string // HTML tag name: "strong", "em", etc.
   | Component<any> // Svelte component — receives content as `children` snippet
   /**
@@ -56,7 +56,7 @@ export type ComponentMapping =
       | { component: ComponentTarget; tag?: ComponentTarget }
     ));
 
-export type ComponentMap = Record<string, ComponentMapping>;
+export type ComponentMap = Record<string, ComponentHandler>;
 
 interface TBaseProps {
   i18nKey: keyof TranslationKeys | PermissiveKey;

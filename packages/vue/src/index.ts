@@ -22,20 +22,23 @@
 // rename of core's. Capabilities are composed on its result with
 // `.use(installer)`, which runs on `i18n.core` and retypes it.
 //
-// Core's constructor is re-exported as `createCore`, and `createI18nFromCore`
-// wraps what it built: together they are the escape hatch for a host built
-// somewhere other than next to the app (nuxt's `hostModule`, or one host shared
-// with non-Vue code), not the way an app composes.
+// `createI18nFromCore` wraps a host built somewhere other than next to the app
+// (nuxt's `hostModule`, or one host shared with non-Vue code). That host is
+// built with `createI18n` from `@comvi/core` directly — it is elsewhere by
+// definition, so crossing the import boundary is more honest than a local
+// alias, and no `createCore` is re-exported here. `I18n` is a TYPE from this
+// root, the class VALUE is `@comvi/core`'s.
 export { VueI18n } from "./VueI18n";
 export { createI18n } from "./createI18n";
 export { createI18nFromCore } from "./createI18nFromCore";
-export { createI18n as createCore, I18n } from "@comvi/core";
+export type { I18n } from "@comvi/core";
 
 export { useI18n } from "./composables/useI18n";
 export type { UseI18nReturn } from "./composables/useI18n";
 export { useI18nLoader, useI18nPlugins } from "./composables/capabilities";
 export type { UseI18nLoaderReturn, UseI18nPluginsReturn } from "./composables/capabilities";
 export { T } from "./components/T";
+export type { ComponentMap } from "./components/T";
 export { I18N_INJECTION_KEY } from "./keys";
 export type {
   VueI18n as I18nInstance,

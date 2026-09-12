@@ -14,14 +14,7 @@
 // `sideEffects: false` WITHOUT resolving it, and that leg has no svelte loader —
 // so if `<T>` ever re-entered this graph the webpack build would fail outright
 // rather than quietly grow.
-import {
-  createI18n,
-  I18n,
-  getI18nContext,
-  useI18n,
-  useI18nLoader,
-  useI18nPlugins,
-} from "@comvi/svelte";
+import { createI18n, useI18nHost, useI18n, useI18nLoader, useI18nPlugins } from "@comvi/svelte";
 
 function assert(condition, label) {
   if (!condition) {
@@ -40,9 +33,8 @@ function assertEqual(actual, expected, label) {
 }
 
 assert(typeof createI18n === "function", "@comvi/svelte exports createI18n");
-assert(typeof I18n === "function", "@comvi/svelte exports I18n");
 assert(typeof useI18n === "function", "@comvi/svelte exports useI18n");
-assert(typeof getI18nContext === "function", "@comvi/svelte exports getI18nContext");
+assert(typeof useI18nHost === "function", "@comvi/svelte exports useI18nHost");
 assert(typeof useI18nLoader === "function", "@comvi/svelte exports useI18nLoader");
 assert(typeof useI18nPlugins === "function", "@comvi/svelte exports useI18nPlugins");
 
@@ -52,7 +44,12 @@ const i18n = createI18n({
   translation: { en: { msg: "a <b>c</b> d" } },
 });
 
-assert(i18n instanceof I18n, "the named base I18n is the instance constructor");
+// `I18n` is a TYPE from a binding root (P5), so the pin is structural: a base
+// core host, with the composition verb and no capability attached.
+assert(
+  typeof i18n.t === "function" && typeof i18n.use === "function",
+  "createI18n builds a core host",
+);
 assert(typeof i18n.reloadTranslations === "undefined", "default host has no loader capability");
 assert(typeof i18n.onMissingKey === "undefined", "default host has no plugin capability");
 assert(typeof i18n.instanceId === "undefined", "default host has no devtools discovery");

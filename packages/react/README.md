@@ -250,7 +250,9 @@ Provides `formatNumber`, `formatDate`, `formatCurrency`, and `formatRelativeTime
 
 ## Using `useI18n()`
 
-`useI18n()` returns the translation bag every host can serve: `{ i18n, locale, translationCache, isLoading, isInitializing, setLocale, t, tRaw, ... }`. It does **not** carry the loader/plugin members; see [Capability hooks](#capability-hooks-usei18nloader--usei18nplugins) below.
+`useI18n()` returns the translation bag every host can serve: `{ t, tRaw, locale, translationCache, cacheRevision, isLoading, isInitializing, isInitialized, setLocale, ... }` — the same member names as `@comvi/solid`, `@comvi/svelte` and `@comvi/vue`, so a component reads alike across bindings. The four formatters (`formatNumber`, `formatDate`, `formatCurrency`, `formatRelativeTime`) default to the render locale and take a trailing `locale` override for one call. It does **not** carry the loader/plugin members; see [Capability hooks](#capability-hooks-usei18nloader--usei18nplugins) below.
+
+`useI18n("admin")` binds the namespace at the type level too: with generated keys, `t("dashboard")` is exact for `admin:dashboard`, and a key from another namespace is rejected.
 
 ```tsx
 import { useI18n } from "@comvi/react";
@@ -269,7 +271,20 @@ function MyComponent() {
 
 **Identity note:** In v0.3, `t` and `tRaw` identity changes on locale flip, because the function now closes over the current locale. If you depend on their identity in `useEffect` dependencies, the effect will re-run when locale changes. For most code this is correct; if your effect should only run once, depend on the underlying trigger instead.
 
-**Deprecation note:** `useI18nContext()` was the v0.2 hook for the same purpose. It is still exported in 0.5 (`react/src/index.ts:16`) and still works; `src` marks it `@deprecated ... Scheduled for removal in the next major` (`react/src/I18nProvider.tsx:236-239`). It re-renders on every reactive axis, so prefer `useI18n()` or the per-axis `useLocale()` / `useIsLoading()`.
+**Deprecation note:** `useI18nContext()` was the v0.2 hook for the same purpose. It is still exported in 0.5 and still works; `src` marks it `@deprecated ... Scheduled for removal in the next major`. It re-renders on every reactive axis, so prefer `useI18n()` or the per-axis `useLocale()` / `useIsLoading()`; for the bare host, `useI18nHost()` below.
+
+### `useI18nHost()` — the bare host
+
+`useI18nHost()` returns the `WrapperI18nHost` the nearest `<I18nProvider>` holds — the same name in `@comvi/react`, `@comvi/solid` and `@comvi/svelte` (vue's equivalent is `inject(I18N_INJECTION_KEY).core`). It is not reactive on its own: read it for an imperative call, and pair it with `useI18n()` or a selector hook when the render must follow the host.
+
+```tsx
+import { useI18nHost } from "@comvi/react";
+
+function Debug() {
+  const host = useI18nHost();
+  return <pre>{host.getLoadedLocales().join(", ")}</pre>;
+}
+```
 
 ## Capability hooks: `useI18nLoader()` / `useI18nPlugins()`
 
@@ -336,19 +351,20 @@ entry, one build pass, one React context. A react app names one package and
 nothing else, and no sibling entry exists whose `<I18nProvider>` could be
 invisible to this one's `useI18n()`.
 
-| export                                     | what it is                               |
-| ------------------------------------------ | ---------------------------------------- |
-| `createI18n`, `I18n`                       | core's base host: constructor and class  |
-| `icuCompiler`                              | from `@comvi/core/icu`: the ICU compiler |
-| `loader`, `attachLoader`                   | from `@comvi/core/loader`                |
-| `plugins`, `attachPlugins`, `definePlugin` | from `@comvi/core/plugins`               |
-| `devtools`, `attachDevtools`               | from `@comvi/core/devtools`              |
-| every hook, `I18nProvider`, `T`, the types | the react bindings                       |
+| export                                     | what it is                                                 |
+| ------------------------------------------ | ---------------------------------------------------------- |
+| `createI18n`, `I18n` (type)                | core's base host: its constructor, and its class as a type |
+| `icuCompiler`                              | from `@comvi/core/icu`: the ICU compiler                   |
+| `loader`, `attachLoader`                   | from `@comvi/core/loader`                                  |
+| `plugins`, `attachPlugins`, `definePlugin` | from `@comvi/core/plugins`                                 |
+| `devtools`, `attachDevtools`               | from `@comvi/core/devtools`                                |
+| every hook, `I18nProvider`, `T`, the types | the react bindings                                         |
 
 `I18n` is the class `createI18n` instantiates: core's base one, not a react
-subclass. Use it to type a host you compose yourself, or to call
-`new I18n(options)` directly. The factory is the recommended form and takes the
-same single options object.
+subclass, and this root exports it as a **type** only — use it to type a host
+you compose yourself. `createI18n(options)` and `new I18n(options)` build the
+same object, so to call the constructor directly import the class from
+`@comvi/core`.
 
 `.use(installer)` is core's composition pipe: `i18n.use(f)` is `f(i18n)`.
 `loader(map)` attaches the capability **and** registers the map; for a plain
@@ -510,7 +526,7 @@ export default function Help() {
 }
 ```
 
-The `link` and `bold` elements are cloned with children injected automatically. Pass `tagInterpolation: { strict: "warn" }` to `createI18n` to catch translations referencing tags you forgot to handle before they ship.
+The `link` and `bold` elements are cloned with children injected automatically. A map built outside the JSX is typed as `ComponentMap` (the same name in all four bindings). Pass `tagInterpolation: { strict: "warn" }` to `createI18n` to catch translations referencing tags you forgot to handle before they ship.
 
 ## ICU MessageFormat
 

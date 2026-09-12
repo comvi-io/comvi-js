@@ -12,7 +12,8 @@
  */
 import { describe, it, expect, vi } from "vitest";
 import { nextTick, watch } from "vue";
-import { createCore, createI18n, createI18nFromCore } from "../src";
+import { createI18n as createCore } from "@comvi/core";
+import { createI18n, createI18nFromCore } from "../src";
 import type { I18nEvent } from "../src";
 
 const createReplayHost = () => {

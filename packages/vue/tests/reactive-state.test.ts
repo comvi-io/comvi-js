@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
-import { attachLoader, createCore, createI18n, createI18nFromCore, useI18n, T } from "../src";
+import { createI18n as createCore } from "@comvi/core";
+import { attachLoader, createI18n, createI18nFromCore, useI18n, T } from "../src";
 import type { I18nOptions } from "../src";
 import { watch, computed, nextTick } from "vue";
 import { mount, flushPromises } from "@vue/test-utils";

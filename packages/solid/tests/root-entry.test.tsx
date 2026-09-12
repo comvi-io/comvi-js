@@ -10,8 +10,8 @@
  * that ever touched `@comvi/core/tags` would decide the answer. What is
  * checkable from source — that no name from that subpath is re-exported — is
  * pinned below. Core's BASE root is deliberately not one of these absences:
- * this entry re-exports `createI18n` and `I18n`, so it is in the graph by
- * design.
+ * this entry re-exports `createI18n` (and `I18n` as a type), so it is in the
+ * graph by design.
  */
 import { describe, it, expect } from "vitest";
 import { render } from "solid-js/web";
@@ -73,11 +73,13 @@ describe("@comvi/solid — the single root entry", () => {
     expect("instanceId" in i18n).toBe(false);
   });
 
-  it("publishes the factory and the class it constructs as one pair", () => {
+  it("the factory constructs core's `I18n`; the class itself is a TYPE-only export", () => {
     const i18n = root.createI18n({ locale: "en", exposeGlobal: false });
 
-    expect(i18n).toBeInstanceOf(root.I18n);
-    expect(new root.I18n({ locale: "en", exposeGlobal: false })).toBeInstanceOf(CoreI18n);
+    expect(i18n).toBeInstanceOf(CoreI18n);
+    // `createI18n(o)` and `new I18n(o)` build the same object, so the class
+    // VALUE is core's to export — a binding root only names it as a type.
+    expect("I18n" in root).toBe(false);
   });
 });
 
@@ -119,7 +121,6 @@ describe("@comvi/solid — ICU, one shape, one specifier", () => {
 describe("@comvi/solid — the capability toolkit", () => {
   it("re-exports core's own bindings, not copies", () => {
     expect(root.createI18n).toBe(coreCreateI18n);
-    expect(root.I18n).toBe(CoreI18n);
     expect(root.icuCompiler).toBe(icuCompiler);
     expect(root.attachLoader).toBe(attachLoader);
     // `flattenCatalog` is NOT re-exported: nested catalogs are base behaviour (C1).
@@ -181,7 +182,6 @@ describe("@comvi/solid — the export surface", () => {
   // The whole published runtime surface, exact. A new name has to be added
   // here on purpose; an accidental one fails the suite.
   const SURFACE = [
-    "I18n",
     "I18nProvider",
     "T",
     "attachDevtools",
@@ -201,6 +201,7 @@ describe("@comvi/solid — the export surface", () => {
     "plugins",
     "useI18n",
     "useI18nContext",
+    "useI18nHost",
     "useI18nLoader",
     "useI18nPlugins",
   ];
