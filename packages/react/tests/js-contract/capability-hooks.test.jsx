@@ -9,8 +9,8 @@
 import { describe, it, expect } from "vitest";
 import { renderHook } from "@testing-library/react";
 import { createI18n } from "@comvi/core";
-import { attachLoader } from "@comvi/core/loader";
-import { attachPlugins } from "@comvi/core/plugins";
+import { acquireLoaderApi, attachLoader } from "@comvi/core/loader";
+import { acquirePluginsApi, attachPlugins } from "@comvi/core/plugins";
 import { I18nProvider } from "../../src/I18nProvider";
 import { useI18nLoader, useI18nPlugins } from "../../src/capabilityHooks";
 
@@ -255,5 +255,21 @@ describe(`capability acquisition (${__COMVI_CORE_BUILD__} core build)`, () => {
     host.t("absent");
     expect(received).toEqual(["absent", "en", "default"]);
     off();
+  });
+
+  // Q7 — the acquisition is CORE's, not this binding's. The bag the hook hands
+  // out IS the object `acquireLoaderApi(host)` / `acquirePluginsApi(host)`
+  // returns: a re-implemented local copy would cache in its own WeakMap and
+  // could never be identical to core's. This replaces the text-diff half of
+  // `scripts/wrapper-hooks-parity.test.mjs`, which pinned four copied regions.
+  it("delegates to core's acquirers rather than re-implementing them", () => {
+    const host = attachPlugins(attachLoader(baseHost()));
+    const wrapper = wrapperFor(host);
+
+    const loaderBag = renderHook(() => useI18nLoader(), { wrapper }).result.current;
+    const pluginsBag = renderHook(() => useI18nPlugins(), { wrapper }).result.current;
+
+    expect(loaderBag).toBe(acquireLoaderApi(host));
+    expect(pluginsBag).toBe(acquirePluginsApi(host));
   });
 });

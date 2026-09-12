@@ -21,6 +21,11 @@
 // plugins run at `init()`, by which point every capability composed before
 // `init()` is attached.
 //
+// `acquirePluginsApi(host)` is the COMPONENT-side half of the same subpath: the
+// one implementation behind `useI18nPlugins()` in all four bindings. It lives
+// here rather than on the `@comvi/core` root because a graph that never
+// acquires the capability must not pay for it — the root is the base floor.
+//
 // Two misuse guards live in this capability, so only apps that compose it pay
 // for them. `ensureInstallable` is the installer-as-plugin guard a lowercase
 // installer calls first, so `registerPlugin(fetchLoader(…))` fails before
@@ -28,9 +33,10 @@
 // an OBJECT — only nothing and a cleanup function are legal, which catches an
 // installer that hands the host back instead of registering a cleanup.
 import type { I18n } from "./core/i18n";
-import type { I18nPluginHostApi } from "./types";
+import type { I18nPluginHostApi, WrapperI18nHost } from "./types";
 import { attachPlugins } from "./core/plugins";
 import type { I18nPlugin as I18nPluginFn, PluginOptions } from "./plugins/types";
+import { hasPluginHostApi, missingCapability } from "./utils/capability";
 
 export { attachPlugins, ensureInstallable } from "./core/plugins";
 export type { I18nPluginHostApi, I18nPluginHost } from "./types";
@@ -82,4 +88,74 @@ export function definePlugin(
     attachPlugins(host).registerPlugin(fn, options);
     return host as typeof host & I18nPluginHostApi;
   };
+}
+
+/**
+ * The `@comvi/core/plugins` surface a COMPONENT may drive.
+ *
+ * `registerPlugin` / `registerPostProcessor` / `registerLocaleDetector` are
+ * deliberately absent for the same reason as the loader's registration APIs:
+ * wiring belongs where the instance is constructed.
+ *
+ * Re-exported by `@comvi/react`, `@comvi/vue`, `@comvi/solid` and
+ * `@comvi/svelte` as `UseI18nPluginsReturn`: it is the return of their
+ * `useI18nPlugins()`, which is {@link acquirePluginsApi} over the host in
+ * context.
+ */
+export interface AcquiredPluginsApi {
+  /**
+   * Register a callback for missing keys. Returns an unsubscribe function.
+   *
+   * The member is the bound host method — nothing wraps it, so a callback may
+   * return the full `TranslationResult` core accepts: a string, or the
+   * `Array<string | VirtualNode>` a rich-text fallback needs. Core runs every
+   * callback and the first defined result wins. A wrapper-side coercion would
+   * narrow that contract to a semantic core does not have, and one binding's
+   * `String(result)` once did exactly that.
+   */
+  onMissingKey: I18nPluginHostApi["onMissingKey"];
+}
+
+/**
+ * Identity contract: ONE bag per host, cached here rather than in a
+ * framework-local memo, so two components under one app receive the same
+ * function references.
+ *
+ * Annotated pure so a graph that never acquires the capability does not pay
+ * for the map: `acquirePluginsApi` is the only reader, and dropping the
+ * function has to drop this with it.
+ */
+const pluginBags = /* @__PURE__ */ new WeakMap<WrapperI18nHost, AcquiredPluginsApi>();
+
+/**
+ * Acquire the plugin-host capability of `host`, or throw
+ * {@link missingCapability | missingCapability("plugins")}.
+ *
+ * ONE implementation, four bindings: `useI18nPlugins()` in `@comvi/react`,
+ * `@comvi/vue`, `@comvi/solid` and `@comvi/svelte` is this call over the host
+ * each of them reads from context, and nothing else.
+ *
+ * The check is STRUCTURAL and it throws in dev AND in prod: there is no silent
+ * no-op and no dev-only tombstone. A bare `@comvi/core` instance has no plugin
+ * host, so compose it where the instance is created — `.use(plugins())`.
+ *
+ * @example
+ * ```ts
+ * const { onMissingKey } = acquirePluginsApi(host);
+ * const off = onMissingKey((key) => `[${key}]`);
+ * ```
+ */
+export function acquirePluginsApi(host: WrapperI18nHost): AcquiredPluginsApi {
+  // A cached bag implies the capability was already verified for this host:
+  // attach is monotonic, capabilities are added and never removed.
+  const cached = pluginBags.get(host);
+  if (cached) return cached;
+
+  if (!hasPluginHostApi(host)) throw missingCapability("plugins");
+
+  const bag: AcquiredPluginsApi = {
+    onMissingKey: host.onMissingKey.bind(host),
+  };
+  pluginBags.set(host, bag);
+  return bag;
 }

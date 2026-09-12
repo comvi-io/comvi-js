@@ -5,6 +5,14 @@
 // its `createI18n` is what this app constructs with — so it is never an absence
 // sentinel.
 //
+// `useI18nLoader` / `useI18nPlugins` are deliberately NOT named here, unlike in
+// the capability cases. Since the acquisition moved into `@comvi/core` the two
+// hooks ARE the capability subpaths — `acquireLoaderApi` lives on
+// `@comvi/core/loader`, `acquirePluginsApi` on `@comvi/core/plugins` — so merely
+// referencing one pulls the module this case asserts absent. The export surface
+// they used to pin here is pinned harder by the packages' own entry tests, which
+// CALL them through the published root.
+//
 // It is also the regression pin for the wrapper that crashed at BIND time:
 // before 0.5.0 `useI18n()` eagerly `.bind()`-ed four capability members that a
 // base host does not have.
@@ -14,7 +22,7 @@
 // `sideEffects: false` WITHOUT resolving it, and that leg has no svelte loader —
 // so if `<T>` ever re-entered this graph the webpack build would fail outright
 // rather than quietly grow.
-import { createI18n, useI18nHost, useI18n, useI18nLoader, useI18nPlugins } from "@comvi/svelte";
+import { createI18n, useI18nHost, useI18n } from "@comvi/svelte";
 
 function assert(condition, label) {
   if (!condition) {
@@ -35,8 +43,6 @@ function assertEqual(actual, expected, label) {
 assert(typeof createI18n === "function", "@comvi/svelte exports createI18n");
 assert(typeof useI18n === "function", "@comvi/svelte exports useI18n");
 assert(typeof useI18nHost === "function", "@comvi/svelte exports useI18nHost");
-assert(typeof useI18nLoader === "function", "@comvi/svelte exports useI18nLoader");
-assert(typeof useI18nPlugins === "function", "@comvi/svelte exports useI18nPlugins");
 
 const i18n = createI18n({
   locale: "en",

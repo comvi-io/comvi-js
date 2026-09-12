@@ -16,7 +16,15 @@ import {
   type CapabilityName,
   type WrapperI18nHost,
 } from "@comvi/core";
-import { attachLoader, createImportMapLoader, loader, type LoaderFn } from "@comvi/core/loader";
+import {
+  acquireLoaderApi,
+  attachLoader,
+  createImportMapLoader,
+  loader,
+  type AcquiredLoaderApi,
+  type I18nLoaderApi,
+  type LoaderFn,
+} from "@comvi/core/loader";
 import * as loaderEntry from "@comvi/core/loader";
 import {
   attachDevtools,
@@ -27,9 +35,11 @@ import {
   type DevtoolsOptions,
 } from "@comvi/core/devtools";
 import {
+  acquirePluginsApi,
   attachPlugins,
   definePlugin,
   plugins,
+  type AcquiredPluginsApi,
   type I18nPlugin,
   type I18nPluginHostApi,
 } from "@comvi/core/plugins";
@@ -465,3 +475,50 @@ createBaseI18n({ locale: "en" }).use(async (i18n) => i18n);
 createBaseI18n({ locale: "en" }).use((i18n) => {
   void i18n;
 });
+
+// ── the capability ACQUIRERS: one component-side surface per subpath ──────
+//
+// These carry the typing rules the deleted text-diff gate used to read out of
+// four copied source regions. `onMissingKey` is the one that actually drifted,
+// and it drifted in TYPES: a wrapper-side `String(result)` narrowed core's
+// `TranslationResult | void` to a string in one framework only.
+
+export type _AcquiredLoaderIsTheAcquirersReturn = Expect<
+  Equal<ReturnType<typeof acquireLoaderApi>, AcquiredLoaderApi>
+>;
+export type _AcquiredPluginsIsTheAcquirersReturn = Expect<
+  Equal<ReturnType<typeof acquirePluginsApi>, AcquiredPluginsApi>
+>;
+
+// Every member is core's own declaration, indexed straight off the capability
+// API — never a re-typed copy.
+export type _OnMissingKeyIsCoresType = Expect<
+  Equal<AcquiredPluginsApi["onMissingKey"], I18nPluginHostApi["onMissingKey"]>
+>;
+export type _LoaderMembersAreCoresTypes = Expect<
+  Equal<AcquiredLoaderApi, Pick<I18nLoaderApi, keyof AcquiredLoaderApi>>
+>;
+
+// NOT coerced: a callback may return the `Array<string | VirtualNode>` half of
+// `TranslationResult`, which a `string`-narrowed member would reject.
+declare const acquiredPlugins: AcquiredPluginsApi;
+const offRich: () => void = acquiredPlugins.onMissingKey(() => [
+  "rich-",
+  createElement("b", {}, ["fallback"]),
+]);
+offRich();
+
+// The registration-time APIs are deliberately absent from both bags: wiring
+// belongs where the instance is constructed, not in a component.
+export type _NoRegisterLoaderOnTheBag = Expect<
+  Equal<"registerLoader" extends keyof AcquiredLoaderApi ? true : false, false>
+>;
+export type _NoRegisterPluginOnTheBag = Expect<
+  Equal<"registerPlugin" extends keyof AcquiredPluginsApi ? true : false, false>
+>;
+
+// A bare host is refused at the CALL only at runtime — the parameter is the
+// wrapper host type, so every binding can hand its context host straight in.
+declare const anyWrapperHost: WrapperI18nHost;
+void acquireLoaderApi(anyWrapperHost);
+void acquirePluginsApi(anyWrapperHost);

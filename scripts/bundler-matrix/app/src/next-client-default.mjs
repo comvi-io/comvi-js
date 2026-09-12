@@ -6,18 +6,20 @@
 // is present — its `createI18n` is what this app constructs with — so it is
 // never an absence sentinel.
 //
+// `useI18nLoader` / `useI18nPlugins` are deliberately NOT named here, unlike in
+// the capability cases. Since the acquisition moved into `@comvi/core` the two
+// hooks ARE the capability subpaths — `acquireLoaderApi` lives on
+// `@comvi/core/loader`, `acquirePluginsApi` on `@comvi/core/plugins` — so merely
+// referencing one pulls the module this case asserts absent. The export surface
+// they used to pin here is pinned harder by the packages' own entry tests, which
+// CALL them through the published root.
+//
 // A namespace import here would keep every re-export of this entry live and
 // defeat the very absences the case exists to assert.
 //
 // Tag interpolation is asserted BEHAVIOURALLY here (markup stays literal);
 // rendering `<T>` needs a DOM and is NOT exercised.
-import {
-  createI18n,
-  I18nProvider,
-  useI18n,
-  useI18nLoader,
-  useI18nPlugins,
-} from "@comvi/next/client";
+import { createI18n, I18nProvider, useI18n } from "@comvi/next/client";
 
 function assert(condition, label) {
   if (!condition) {
@@ -39,8 +41,6 @@ const isComponent = (c) => typeof c === "function" || (typeof c === "object" && 
 assert(typeof createI18n === "function", "@comvi/next/client exports createI18n");
 assert(typeof useI18n === "function", "@comvi/next/client exports useI18n");
 assert(isComponent(I18nProvider), "@comvi/next/client exports I18nProvider");
-assert(typeof useI18nLoader === "function", "@comvi/next/client re-exports useI18nLoader");
-assert(typeof useI18nPlugins === "function", "@comvi/next/client re-exports useI18nPlugins");
 
 const i18n = createI18n({ locale: "en", exposeGlobal: false });
 
