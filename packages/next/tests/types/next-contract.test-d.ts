@@ -115,7 +115,7 @@ nextPlugin(plugin, { environment: "staging" });
 // @ts-expect-error -- `lazy` is not an option: the lazy form is its own installer
 nextPlugin(plugin, { lazy: true });
 // @ts-expect-error -- an installer is not a plugin
-nextPlugin(loader());
+nextPlugin(loader({ uk: () => Promise.resolve({}) }));
 // @ts-expect-error -- the lazy installer takes a LOADER, not a plugin
 nextPluginLazy(plugin);
 

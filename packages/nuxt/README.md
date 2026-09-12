@@ -137,7 +137,7 @@ has the upgrade path.
 
 The Nuxt module handles SSR by loading translations on the server and hydrating
 the client with pre-loaded messages. SSR loading is the loader capability at
-work, so a server-rendered app composes `loader()` in `comvi.host.ts` as the
+work, so a server-rendered app composes a loader in `comvi.host.ts` as the
 quickstart above does. Without it the server utilities say so once, by name,
 and render whatever the catalog already holds. They never call a member the
 host does not have.
@@ -341,11 +341,12 @@ export default ((options) =>
     .use(devtools())) satisfies NuxtHostFactory;
 ```
 
-Order does not matter here. `loader()`, `plugins()` and `devtools()` may go in
+Order does not matter here. The loader, `plugins()` and `devtools()` may go in
 any order, because every capability composed before `init()` is attached by the
-time plugins run, and ICU is an option rather than a composition step.
-`loader(map)` attaches the loader capability **and** registers the map; for a
-plain `LoaderFn`, use `.use(attachLoader)` and call `registerLoader(fn)`.
+time plugins run, and ICU is an option rather than a composition step. The
+import map is **required**, which is the whole rule: `loader(map)` attaches the
+capability **and** registers the map, while a plain `LoaderFn` goes to
+`.use(attachLoader)` followed by `registerLoader(fn)`.
 
 So `comvi.host.ts` is the one file in a nuxt app that names comvi VALUES, and
 they come from `@comvi/nuxt/host`. `useI18n()`, `useI18nLoader()`,

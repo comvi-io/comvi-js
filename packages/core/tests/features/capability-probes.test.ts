@@ -34,7 +34,7 @@ describe("hasPluginHostApi()", () => {
 describe("missingCapability()", () => {
   it("names the loader subpath and its lower-level attach function", () => {
     expect(missingCapability("loader").message).toBe(
-      '[comvi] This i18n instance has no loader capability. Compose it: .use(loader()) from "@comvi/core/loader", or the lower-level attachLoader.',
+      '[comvi] This i18n instance has no loader capability. Compose it: .use(attachLoader) from "@comvi/core/loader", or loader(map).',
     );
   });
 

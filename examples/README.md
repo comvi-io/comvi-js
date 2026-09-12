@@ -230,7 +230,7 @@ no module option that loads translations at all: `comvi.cdnUrl` and
 `comvi.apiBaseUrl` existed in 0.4, were copied into public runtime config, were
 read by no code in the module, and are **removed** in 0.5 rather than wired. A
 loader is composed in the host file — `.use(cdnLoader({ cdnUrl }))` for the CDN,
-or `loader()` as above for local catalogs. The module also never
+or `loader(map)` as above for local catalogs. The module also never
 touches `<html>`: `src/app.vue` calls
 `useLocaleHead({ addLang: true, addDir: true })`, without which the page renders
 correctly and ships neither `lang` nor `dir`. None of the three locale objects declares a `dir`, because the composable

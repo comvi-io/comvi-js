@@ -3,6 +3,12 @@
     "line": 17,
     "column": 44,
     "shape": "residual-with-verb",
-    "detail": "`getHost().with(…)` calls `with` with an installer-shaped argument, and no 0.5.0 Comvi host has `with` — but this receiver cannot be proven to be one, so it is left exactly as written: rename it to `.use(…)` by hand if it IS a host"
+    "detail": "`getHost().with(\u2026)` calls `with` with an installer-shaped argument, and no 0.5.0 Comvi host has `with` \u2014 but this receiver cannot be proven to be one, so it is left exactly as written: rename it to `.use(\u2026)` by hand if it IS a host"
+  },
+  {
+    "line": 17,
+    "column": 49,
+    "shape": "loader-map-unproven",
+    "detail": "`loader()` composes the loader with no import map, and `loader(map)` REQUIRES it in 0.5.0 \u2014 an import map goes to `.use(loader(map))`, a loader FUNCTION goes to `.use(attachLoader)` followed by `registerLoader(fn)`; this call site is not in a chain the codemod can prove, so it is left as written"
   }
 ]

@@ -28,7 +28,7 @@ export { createI18n } from "@comvi/core";
 // side-effectful subpath. `<T>` reaches `@comvi/core/rich-text` through React
 // and passes syntax per call, so importing or rendering it never registers
 // string-API tag syntax ambiently.
-// `loader()` / `plugins()` / `devtools()` are the CONFIGURED installers for
+// `loader(map)` / `plugins()` / `devtools()` are the CONFIGURED installers for
 // `i18n.use(…)`: one expression composes and configures a capability; the
 // `attach*` functions stay as the low-level API.
 export { icuCompiler } from "@comvi/core/icu";

@@ -337,7 +337,7 @@ export class I18n<D extends DefaultTranslationParams = {}>
    * `f(this)` and hands back `this`, retyped to whatever the installer's return
    * type says it widened to. No registry, no ordering, no capability semantics.
    * `attachLoader` / `attachPlugins` / `attachDevtools` are themselves valid
-   * installers; the `loader()` / `plugins()` / `devtools()` factories exist to
+   * installers; the `loader(map)` / `plugins()` / `devtools()` factories exist to
    * CONFIGURE the capability in the same call.
    *
    * Anything else is refused with `code: "E_USE_NOT_INSTALLER"`. Identity —
@@ -350,7 +350,7 @@ export class I18n<D extends DefaultTranslationParams = {}>
    * `T extends this` states the identity rule at the TYPE level too, so the
    * three misuse shapes — a derived object, an async installer, an installer
    * that returns nothing — are compile errors rather than runtime ones, while
-   * every widening installer (`loader()`, `plugins()`, `definePlugin()`, a bare
+   * every widening installer (`loader(map)`, `plugins()`, `definePlugin()`, a bare
    * `attachLoader`, a hand-written in-place step) still infers and widens. The
    * runtime guard stays: a JS caller, or an `any`-typed one, reaches it anyway.
    *

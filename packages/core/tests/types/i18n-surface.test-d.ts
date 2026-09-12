@@ -17,7 +17,7 @@ import type {
   TranslationValue,
 } from "@comvi/core";
 import { createI18n, I18n, TranslationCache } from "@comvi/core";
-import { loader, type LoaderImportMap } from "@comvi/core/loader";
+import { attachLoader, loader, type LoaderImportMap } from "@comvi/core/loader";
 import { icuCompiler } from "@comvi/core/icu";
 import { plugins } from "@comvi/core/plugins";
 
@@ -105,15 +105,20 @@ export type _RegisterPluginOptionsArg = Expect<
 >;
 // The published import-map shape survives as `@comvi/next`'s composed host and
 // as the configured installer's argument — pinned here for the installer.
-export type _LoaderInstallerArg = Expect<
-  Equal<Parameters<typeof loader>[0], LoaderImportMap | undefined>
->;
+export type _LoaderInstallerArg = Expect<Equal<Parameters<typeof loader>[0], LoaderImportMap>>;
+// …and it is REQUIRED. That is the whole attach-only rule stated as a type: a
+// bare `loader()` does not compile, so `attachLoader` is the ONE attach-only
+// installer. ARITY is what says so — an optional parameter would still satisfy
+// the element type above while leaving `loader()` legal.
+export type _LoaderInstallerArity = Expect<Equal<Parameters<typeof loader>["length"], 1>>;
 
 // The BASE root is assignable to the core surface, and to the full instance
 // interface only once both capabilities are composed on.
 const baseInstance: I18nCoreInstance = createI18n({ locale: "en" });
 void baseInstance;
-const composedInstance: I18nInstance = createI18n({ locale: "en" }).use(loader()).use(plugins());
+const composedInstance: I18nInstance = createI18n({ locale: "en" })
+  .use(attachLoader)
+  .use(plugins());
 void composedInstance;
 // @ts-expect-error — the base root lacks the loader/plugin members
 const notAnInstance: I18nInstance = createI18n({ locale: "en" });

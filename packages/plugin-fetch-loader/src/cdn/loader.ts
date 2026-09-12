@@ -25,7 +25,7 @@ import { ERROR_PREFIX } from "../http-core";
  * import { plugins } from '@comvi/core/plugins';
  * import { CdnLoader } from '@comvi/plugin-fetch-loader/cdn';
  *
- * const i18n = createI18n({ locale: 'en' }).use(loader()).use(plugins());
+ * const i18n = createI18n({ locale: 'en' }).use(attachLoader).use(plugins());
  *
  * i18n.registerPlugin(CdnLoader({ cdnUrl: 'https://cdn.comvi.io/your-distribution-id' }));
  *

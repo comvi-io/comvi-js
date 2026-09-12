@@ -7,14 +7,14 @@ import { useI18n } from "@comvi/nuxt/runtime/composables/useI18n.js";
 import { loadTranslations } from "@comvi/nuxt/runtime/server/utils/loadTranslations.js";
 import { createI18n } from "@comvi/core";
 import { icuCompiler } from "@comvi/core/icu";
-import { loader } from "@comvi/core/loader";
+import { attachLoader } from "@comvi/core/loader";
 import { plugins } from "@comvi/core/plugins";
 import { devtools } from "@comvi/core/devtools";
 import { createI18nFromCore } from "@comvi/vue";
 
 // The user's hostModule default export, inlined. Loader and plugin host exist
 // before the catalog is ingested; discovery attaches last.
-const host = createI18n({ locale: "en", compiler: icuCompiler }).use(loader()).use(plugins());
+const host = createI18n({ locale: "en", compiler: icuCompiler }).use(attachLoader).use(plugins());
 host.addTranslations({ en: { greeting: "Hello, {name}!" } });
 host.use(devtools({ exposeGlobal: false }));
 

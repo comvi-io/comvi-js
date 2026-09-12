@@ -13,8 +13,8 @@ export type PluginCleanup = () => void | Promise<void>;
  * calls loader APIs additionally requires `@comvi/core/loader` on that same
  * host. Both only have to be composed by `init()`, which is when plugins run,
  * so their order relative to each other is free —
- * `createI18n({ … }).use(loader()).use(plugins())` and
- * `createI18n({ … }).use(plugins()).use(loader())` are equivalent.
+ * `createI18n({ … }).use(attachLoader).use(plugins())` and
+ * `createI18n({ … }).use(plugins()).use(attachLoader)` are equivalent.
  *
  * @returns Nothing, or a cleanup function.
  *

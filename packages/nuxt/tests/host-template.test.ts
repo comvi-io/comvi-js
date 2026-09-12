@@ -359,9 +359,9 @@ export default (options) => createI18n({ ...options, exposeGlobal: false });
     nuxtKitMocks.findPath.mockResolvedValue(
       writeHostModule(`
 import { createI18n } from "@comvi/core";
-import { loader } from "@comvi/core/loader";
+import { attachLoader } from "@comvi/core/loader";
 
-export default (options) => createI18n({ ...options, exposeGlobal: false }).use(loader());
+export default (options) => createI18n({ ...options, exposeGlobal: false }).use(attachLoader);
 `),
     );
     const { createComviI18n, createComviCore } = await emitHostTemplate("./comvi.host.mjs");

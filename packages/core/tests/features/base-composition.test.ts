@@ -52,7 +52,7 @@ describe("base + /loader composition", () => {
 
   it("is idempotent and preserves already-registered state", () => {
     const i18n = attachLoader(createI18n({ locale: "en", exposeGlobal: false }));
-    // Named `loaderFn`, not `loader`: the `loader()` installer is imported above.
+    // Named `loaderFn`, not `loader`: the `loader(map)` installer is imported above.
     const loaderFn = vi.fn(async () => ({ hello: "Hello" }));
     i18n.registerLoader(loaderFn);
 
@@ -622,7 +622,7 @@ describe(".use(installer) — the composition pipe", () => {
       expect(i18n.use(attachLoader)).toBe(i18n);
       expect(i18n.use(attachPlugins)).toBe(i18n);
       expect(i18n.use(attachDevtools)).toBe(i18n);
-      expect(i18n.use(loader())).toBe(i18n);
+      expect(i18n.use(loader({}))).toBe(i18n);
       expect(i18n.use(plugins())).toBe(i18n);
       expect(i18n.use(devtools({ exposeGlobal: false }))).toBe(i18n);
       expect(i18n.use(definePlugin(() => {}))).toBe(i18n);
@@ -701,12 +701,24 @@ describe(".use(definePlugin(fn)) — an app's own inline plugin", () => {
 });
 
 describe(".use(loader(…)) — the configured loader installer", () => {
-  it("bare loader() attaches the capability and configures nothing", () => {
-    const i18n = createI18n({ locale: "en", exposeGlobal: false }).use(loader());
+  it("attachLoader is the attach-only installer — capability, nothing registered", () => {
+    const i18n = createI18n({ locale: "en", exposeGlobal: false }).use(attachLoader);
 
     expect(typeof i18n.registerLoader).toBe("function");
     expect(typeof i18n.reloadTranslations).toBe("function");
     expect(i18n.getLoader()).toBeUndefined();
+  });
+
+  it("REQUIRES the import map: a JS caller with nothing is told which installer to use", () => {
+    // `loader()` does not compile, so this is the JS caller's road — and the
+    // mistake it reports is not "you forgot an argument", it is "you wanted
+    // `attachLoader`". Named here, not as `undefined` deep inside the adapter
+    // on the first load.
+    const untyped = loader as unknown as (importMap?: unknown) => unknown;
+
+    expect(() => untyped()).toThrowError(/loader\(importMap\) requires the import map/);
+    expect(() => untyped()).toThrowError(/\.use\(attachLoader\)/);
+    expect(() => untyped(null)).toThrowError(/loader\(importMap\) requires the import map/);
   });
 
   it("loader(importMap) attaches AND registers, loading on demand", async () => {
@@ -736,23 +748,26 @@ describe(".use(loader(…)) — the configured loader installer", () => {
     expect(i18n.t("hello")).toBe("Hello");
   });
 
-  it("installs exactly the descriptors attachLoader does", () => {
-    const piped = createI18n({ locale: "en", exposeGlobal: false }).use(loader());
+  it("installs exactly the descriptors attachLoader + registerLoader do", () => {
+    // The map is required, so the installer is attach AND registration by
+    // construction — and that pair is what the descriptor set is read against.
+    const piped = createI18n({ locale: "en", exposeGlobal: false }).use(loader({}));
     const attached = attachLoader(createI18n({ locale: "en", exposeGlobal: false }));
+    attached.registerLoader(async () => ({}));
 
     expect(Object.getOwnPropertyNames(piped).sort()).toEqual(
       Object.getOwnPropertyNames(attached).sort(),
     );
   });
 
-  it("is a no-op the second time and keeps the registered loader", () => {
+  it("a following attachLoader is a no-op and keeps the registered loader", () => {
     const i18n = createI18n({ locale: "en", exposeGlobal: false }).use(
       loader({ en: async () => ({ hello: "Hello" }) }),
     );
     const registered = i18n.getLoader();
     const ownProps = Object.getOwnPropertyNames(i18n);
 
-    const again = i18n.use(loader());
+    const again = i18n.use(attachLoader);
 
     expect(again).toBe(i18n);
     expect(again.getLoader()).toBe(registered);
@@ -764,7 +779,7 @@ describe(".use(loader(…)) — the configured loader installer", () => {
     const before = Object.getOwnPropertyNames(root);
     const inheritedRegisterLoader = root.registerLoader;
 
-    const piped = root.use(loader());
+    const piped = root.use(attachLoader);
 
     expect(piped).toBe(root);
     // No own property shadows the inherited prototype member.
@@ -872,8 +887,8 @@ describe(".use chaining — order is the caller's", () => {
   ] as const)("composes both capabilities: %s", async (_label, loaderFirst) => {
     const bare = createI18n({ locale: "en", exposeGlobal: false });
     const i18n = loaderFirst
-      ? bare.use(loader()).use(plugins())
-      : bare.use(plugins()).use(loader());
+      ? bare.use(attachLoader).use(plugins())
+      : bare.use(plugins()).use(attachLoader);
     const order: string[] = [];
 
     i18n.registerPlugin((host) => {

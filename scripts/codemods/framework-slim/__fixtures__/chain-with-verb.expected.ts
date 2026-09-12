@@ -10,10 +10,10 @@
 // understood to know that. (A SECOND run sees only `.use(wrapMetrics())` and
 // can no longer tell a lowercase installer from a lowercase plugin factory, so
 // it adds the `raw-plugin-needs-helper` advisory this run does not need.)
-import { attachPlugins, createI18n, loader, plugins } from "@comvi/react";
+import { attachPlugins, createI18n, loader, plugins, attachLoader } from "@comvi/react";
 import { wrapMetrics } from "./analytics";
 
-export const one = createI18n({ locale: "en" }).use(loader());
+export const one = createI18n({ locale: "en" }).use(attachLoader);
 
 export const many = createI18n({ locale: "en" })
   .use(loader({ de: () => Promise.resolve({}) }))

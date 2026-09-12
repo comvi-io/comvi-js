@@ -259,7 +259,7 @@ describe("useI18n", () => {
       translation: {
         "en:common": { title: commonTitle },
       },
-      // `attachLoader` rather than `loader()`: this registers a raw `LoaderFn`.
+      // `attachLoader` rather than `loader(map)`: this registers a raw `LoaderFn`.
     }).use(attachLoader);
 
     i18n.registerLoader(async (_language, namespace): Promise<LoaderResult> => {

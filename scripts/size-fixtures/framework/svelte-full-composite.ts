@@ -4,14 +4,14 @@ import {
   createI18n,
   devtools,
   icuCompiler,
-  loader,
+  attachLoader,
   plugins,
   setI18nContext,
   T,
   useI18n,
 } from "@comvi/svelte";
 
-const i18n = createI18n({ locale: "en", compiler: icuCompiler }).use(loader()).use(plugins());
+const i18n = createI18n({ locale: "en", compiler: icuCompiler }).use(attachLoader).use(plugins());
 i18n.addTranslations({ en: { greeting: "Hello, <b>{name}</b>!" } });
 i18n.use(devtools());
 

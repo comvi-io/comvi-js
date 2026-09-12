@@ -10,12 +10,12 @@
 // installer, and `own` holds whatever `withPlugins` did. The rename is as safe
 // here as it is in a chain — `with` exists on no 0.5.0 host, so `use` with the
 // same argument in the same position is the only spelling that can run.
-import { createI18n, loader, plugins } from "@comvi/react";
+import { createI18n, plugins, attachLoader } from "@comvi/react";
 import { wrapMetrics } from "./analytics";
 
 export const i18n = createI18n({ locale: "en" });
 
-const withLoader = i18n.use(loader());
+const withLoader = i18n.use(attachLoader);
 
 export const withPlugins = withLoader.use(plugins());
 

@@ -78,7 +78,7 @@ describe("Integration Tests", () => {
     const deferred = createDeferred<Record<string, string>>();
     const loader = vi.fn((_locale: string, _namespace: string) => deferred.promise);
 
-    // `attachLoader` rather than `loader()`: this registers a raw `LoaderFn`,
+    // `attachLoader` rather than `loader(map)`: this registers a raw `LoaderFn`,
     // not an import map.
     const i18n = createI18n({
       locale: "en",

@@ -50,7 +50,7 @@ describe("solid integration smoke", () => {
       translation: {
         en: { hello: "Hello" },
       },
-      // `attachLoader` rather than `loader()`: this drives a raw `LoaderFn`.
+      // `attachLoader` rather than `loader(map)`: this drives a raw `LoaderFn`.
     }).use(attachLoader);
     i18n.registerLoader(async (_language, namespace): Promise<LoaderResult> => {
       if (namespace === "admin") return { title: "Admin Panel" };

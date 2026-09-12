@@ -28,7 +28,7 @@ describe("@comvi/nuxt/host", () => {
   it("composes a working host through this subpath alone", () => {
     const i18n = host
       .createI18n({ locale: "en", compiler: host.icuCompiler, exposeGlobal: false })
-      .use(host.loader())
+      .use(host.attachLoader)
       .use(host.plugins());
 
     i18n.addTranslations({ en: { cart: "{count, plural, one {# item} other {# items}}" } });

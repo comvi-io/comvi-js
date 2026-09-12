@@ -9,11 +9,24 @@
  */
 import { describe, it, expect, vi } from "vitest";
 import { createI18n } from "../../src";
-import { attachLoader, createImportMapLoader } from "../../src/loader";
+import { attachLoader, createImportMapLoader, loader } from "../../src/loader";
 
 function makeHost(onError?: (error: Error, context?: unknown) => void) {
   return attachLoader(createI18n({ locale: "en", ns: [], exposeGlobal: false, onError }));
 }
+
+describe("loader(importMap)", () => {
+  it("throws the bare E_LOADER_IMPORT_MAP code when a JS caller passes nothing", () => {
+    // A type error in TypeScript; this is the JS caller's road, and in
+    // production the code is the whole contract — so it is asserted EXACTly,
+    // not as a substring.
+    const untyped = loader as unknown as (importMap?: unknown) => unknown;
+
+    expect(() => untyped()).toThrowError(
+      expect.objectContaining({ message: "E_LOADER_IMPORT_MAP" }),
+    );
+  });
+});
 
 describe("registerLoader()", () => {
   it("throws the bare E_REGISTER_LOADER_ARG code for a non-function argument", () => {

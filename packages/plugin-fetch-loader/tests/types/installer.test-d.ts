@@ -4,7 +4,7 @@
 // `.use`, and NEITHER is branded — the two are kept apart by their signatures
 // alone, which is exactly what these assertions pin.
 import { createI18n } from "@comvi/core";
-import { loader } from "@comvi/core/loader";
+import { attachLoader } from "@comvi/core/loader";
 import { plugins } from "@comvi/core/plugins";
 import { FetchLoader, fetchLoader, type FetchLoaderInstaller } from "../../src/index";
 
@@ -38,5 +38,5 @@ createI18n({ locale: "en" }).use(FetchLoader(OPTIONS));
 createI18n({ locale: "en" }).use(plugins()).registerPlugin(fetchLoader(OPTIONS));
 
 // VALID — the uppercase factory on a host that already has both capabilities.
-export const manual = createI18n({ locale: "en" }).use(loader()).use(plugins());
+export const manual = createI18n({ locale: "en" }).use(attachLoader).use(plugins());
 manual.registerPlugin(FetchLoader(OPTIONS));

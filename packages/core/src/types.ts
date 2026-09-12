@@ -775,7 +775,7 @@ export interface I18nCoreInstance<D extends DefaultTranslationParams = {}> {
 
 /**
  * Async-loading capability — `@comvi/core/loader`, composed on with
- * `.use(loader())` / `attachLoader`. Absent from the base root by module
+ * `.use(attachLoader)` / `.use(loader(map))`. Absent from the base root by module
  * graph; the internal composite and `@comvi/next`'s composed host carry it on
  * their class surface.
  */

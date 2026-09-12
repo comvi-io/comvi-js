@@ -1,7 +1,7 @@
 // Framework size fixture: the next SERVER graph on a composed BASE host — SSR without
 // ICU or tags, every specifier `@comvi/next/server`. Composition goes through
-// `.use(attachLoader)`, not `.use(loader())`, because this host registers no import
-// map and `loader()` statically references the import-map adapter.
+// `.use(attachLoader)`, the attach-only installer: this host registers no import
+// map, and `loader(map)` requires one.
 import {
   attachLoader,
   createI18n,

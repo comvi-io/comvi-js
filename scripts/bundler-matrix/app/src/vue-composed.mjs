@@ -40,7 +40,7 @@ assert(typeof createI18n === "function", "@comvi/vue exports createI18n");
 assert(typeof createI18nFromCore === "function", "@comvi/vue exports createI18nFromCore");
 assert(typeof useI18n === "function", "@comvi/vue exports useI18n");
 assert(typeof attachLoader === "function", "@comvi/vue re-exports attachLoader");
-assert(typeof loader === "function", "@comvi/vue re-exports the loader() installer");
+assert(typeof loader === "function", "@comvi/vue re-exports the loader(map) installer");
 
 async function main() {
   // THE DOCUMENTED RECIPE, in one expression: host + capability + import map,
@@ -54,8 +54,8 @@ async function main() {
   const wrapped = createI18nFromCore(host, { ssrLocale: "en" });
 
   assert(wrapped.core === host, "createI18nFromCore exposes the piped core");
-  assert(typeof host.reloadTranslations === "function", "loader() composes the loader API");
-  assert(typeof host.onMissingKey === "undefined", "loader() composes ONLY the loader API");
+  assert(typeof host.reloadTranslations === "function", "loader(map) composes the loader API");
+  assert(typeof host.onMissingKey === "undefined", "loader(map) composes ONLY the loader API");
   assert(typeof host.getLoader() === "function", "loader(map) also REGISTERS the loader");
 
   await host.init();

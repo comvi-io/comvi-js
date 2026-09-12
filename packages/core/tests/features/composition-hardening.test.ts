@@ -16,7 +16,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import type { ComviQueueEntry, I18nLoaderApi } from "../../src";
 import { createI18n } from "../../src";
-import { attachLoader, loader } from "../../src/loader";
+import { attachLoader } from "../../src/loader";
 import { attachPlugins, plugins } from "../../src/plugins";
 import { attachDevtools, devtools } from "../../src/devtools";
 import { LOADER_MEMBERS, hasLoaderApi } from "../../src/utils/capability";
@@ -68,12 +68,12 @@ describe("B2 — composing after init() warns instead of silently doing nothing"
     expect(String(warnSpy.mock.calls[0]![0])).toContain("before init()");
   });
 
-  it("warns exactly once for `.use(loader())` after init()", async () => {
+  it("warns exactly once for `.use(attachLoader)` after init()", async () => {
     const i18n = makeHost();
     await i18n.init();
     warnSpy.mockClear();
 
-    i18n.use(loader());
+    i18n.use(attachLoader);
 
     expect(warnSpy).toHaveBeenCalledTimes(1);
     expect(String(warnSpy.mock.calls[0]![0])).toContain("before init()");
@@ -85,7 +85,7 @@ describe("B2 — composing after init() warns instead of silently doing nothing"
     warnSpy.mockClear();
 
     i18n
-      .use(loader())
+      .use(attachLoader)
       .use(plugins())
       .registerPlugin(() => {});
 
@@ -96,7 +96,7 @@ describe("B2 — composing after init() warns instead of silently doing nothing"
   });
 
   it("stays silent on the supported order (compose, then init)", async () => {
-    const i18n = makeHost().use(loader()).use(plugins());
+    const i18n = makeHost().use(attachLoader).use(plugins());
     const ran = vi.fn();
     i18n.registerPlugin(() => void ran());
     warnSpy.mockClear();
@@ -198,11 +198,11 @@ describe("B4 — a plugins-only host reports the missing loader capability (dev)
     // MUST reject the ones it installs, or the two builds take different
     // branches on the same host.
     expect(hasLoaderApi(i18n)).toBe(false);
-    expect(hasLoaderApi(makeHost().use(plugins()).use(loader()))).toBe(true);
+    expect(hasLoaderApi(makeHost().use(plugins()).use(attachLoader))).toBe(true);
   });
 
   it("installs no shims when the loader is already composed", () => {
-    const i18n = makeHost().use(loader());
+    const i18n = makeHost().use(attachLoader);
     const descriptorsBefore = LOADER_MEMBERS.map((name) => [
       name,
       Object.getOwnPropertyDescriptor(i18n, name),
@@ -254,8 +254,8 @@ describe("B4 — a plugins-only host reports the missing loader capability (dev)
     // No static catalog: the loaded value must be the only source of `hello`.
     const bare = createI18n({ locale: "en", exposeGlobal: false });
     const i18n = pluginsFirst
-      ? bare.use(plugins()).use(loader())
-      : bare.use(loader()).use(plugins());
+      ? bare.use(plugins()).use(attachLoader)
+      : bare.use(attachLoader).use(plugins());
 
     i18n.registerPlugin((host) => {
       host.registerLoader(async () => ({ hello: "Loaded" }));

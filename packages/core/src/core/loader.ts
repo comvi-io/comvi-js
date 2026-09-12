@@ -33,7 +33,7 @@ const IS_DEV = typeof __DEV__ !== "undefined" && __DEV__;
  * happens to trigger a load. Empty in prod so terser drops the string.
  */
 const ERR_LATE_LOADER = IS_DEV
-  ? "[i18n] .use(loader()) ran after init(): compose capabilities before init(). init() has already loaded the initial namespaces and will not re-run for this loader — call reloadTranslations() or addActiveNamespace() to load now."
+  ? "[i18n] .use(attachLoader) ran after init(): compose capabilities before init(). init() has already loaded the initial namespaces and will not re-run for this loader — call reloadTranslations() or addActiveNamespace() to load now."
   : "";
 
 const ERR_NO_LOADER_REGISTERED = IS_DEV
@@ -85,7 +85,7 @@ function createAllNamespacesFailedError(locale: string, failedNamespaces: string
 /**
  * The loader capability. Not exported from any entry point: the composite
  * (`core/full.ts`) extends this class, any other host gets it from
- * `attachLoader` / `.use(loader())`.
+ * `.use(attachLoader)` / `.use(loader(map))`.
  *
  * Members are reached through `this`, never through a local alias: `this.x` is
  * the most repeated token in the bundle, and aliasing it (`const i = this as

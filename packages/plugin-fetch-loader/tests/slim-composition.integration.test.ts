@@ -1,13 +1,13 @@
 import { describe, it, expect, vi } from "vitest";
 import { createI18n, hasPluginHostApi } from "@comvi/core";
-import { loader, attachLoader } from "@comvi/core/loader";
+import { attachLoader } from "@comvi/core/loader";
 import { plugins } from "@comvi/core/plugins";
 import { FetchLoader, FETCH_LOADER_PLUGIN_KEY } from "../src/index";
 import { mockCdnSuccessResponse, mockCdnErrorResponse, TEST_CDN_URL } from "./setup";
 
 /**
  * A real published plugin on a host that acquired its capabilities by explicit
- * composition — `.use(loader()).use(plugins())`. Nothing here is a stub:
+ * composition — `.use(attachLoader).use(plugins())`. Nothing here is a stub:
  * every core specifier resolves through the workspace link to `@comvi/core`'s
  * BUILT dist, so the terser-mangled internals and the real exports map are
  * what the plugin runs against. The plugin's two requirements come from two
@@ -21,7 +21,9 @@ import { mockCdnSuccessResponse, mockCdnErrorResponse, TEST_CDN_URL } from "./se
  */
 describe("published plugins on a composed slim host", () => {
   const composed = () =>
-    createI18n({ locale: "en", exposeGlobal: false, devMode: false }).use(loader()).use(plugins());
+    createI18n({ locale: "en", exposeGlobal: false, devMode: false })
+      .use(attachLoader)
+      .use(plugins());
 
   it("registers the loader, loads translations and cleans up on destroy", async () => {
     mockCdnSuccessResponse("en", "default", { greeting: "Hello" });
@@ -100,7 +102,7 @@ describe("published plugins on a composed slim host", () => {
   });
 
   it("a loader-only host cannot host the plugin — plugins() is what adds use()", () => {
-    const loaderOnly = createI18n({ locale: "en", exposeGlobal: false }).use(loader());
+    const loaderOnly = createI18n({ locale: "en", exposeGlobal: false }).use(attachLoader);
 
     expect(hasPluginHostApi(loaderOnly)).toBe(false);
     expect(hasPluginHostApi(loaderOnly.use(plugins()))).toBe(true);
