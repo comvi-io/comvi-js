@@ -87,4 +87,17 @@ describe.each(variants)("$label dist: the rich-text seam", ({ suffix }) => {
   it("the registration chunk keeps its hash-free, sideEffects-listed name", () => {
     expect(fs.existsSync(path.join(DIST, "chunks", `${REGISTER_CHUNK}${suffix}.js`))).toBe(true);
   });
+
+  it("exports registerTagSyntax from the pure grammar chunk, not the pinned registration chunk", () => {
+    // The export itself must resolve through the same reachable-without-the-
+    // register-chunk graph asserted above: it is re-exported from the grammar
+    // module (`core/translate/tags.ts`, the `tag-syntax` chunk), never from
+    // `register-tags.ts`. A regression that routed the export through the
+    // registration chunk would make importing `rich-text` pull that chunk in.
+    const code = fs.readFileSync(entry("rich-text", suffix), "utf8");
+    expect(code).toMatch(/\bregisterTagSyntax\b/);
+
+    const reachable = reachableFrom(entry("rich-text", suffix));
+    expect(reachable).not.toContain(registerChunk);
+  });
 });

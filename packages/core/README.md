@@ -271,6 +271,8 @@ TypeScript catches a missing capability, so you never discover one in production
 | Rich-text components  | `@comvi/core/rich-text`                                 | pure `prepareTranslation` / VirtualNode toolbox; tag syntax is passed per call and never registered ambiently           |
 | String-API tags       | `@comvi/core/tags`                                      | ambient registration plus the same rich-text toolbox, and `&lt;` / `&gt;` / `&amp;` and the `\<` escape                 |
 
+`@comvi/core/rich-text` also exports `registerTagSyntax` itself, so you can opt into the same ambient registration `@comvi/core/tags` performs — explicitly, next to `prepareTranslation` — without importing that second subpath.
+
 Three placements are not where you might guess, and one non-placement:
 
 - **`addActiveNamespace(s)` / `removeActiveNamespace(s)` live on `/loader`.** Activating a
