@@ -20,3 +20,10 @@ boundary), so the client host gets `compiler: icuCompiler` and the composed
 loader only because the same construction code runs twice — nothing is
 serialized from the running server instance to the browser. Both quickstarts
 were typechecked against a scratch copy of `test-apps/next` before writing.
+
+The inline quickstart's catalog is keyed `"<locale>:<namespace>"` (`"en:default"`), not nested
+`{ en: { default: … } }`: a colon-less top-level key is the LOCALE alone and its object is
+flattened into the default namespace, so the nested form defined `default.greeting` and
+`t("greeting")` rendered the literal key. Neither the snippet lint nor the snippet typecheck can
+see that, so the catalog is now read out of the README fence and RUN by
+`packages/next/tests/readme-inline-quickstart.test.ts`.

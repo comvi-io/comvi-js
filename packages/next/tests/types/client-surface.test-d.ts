@@ -4,7 +4,7 @@
 // `@comvi/next/client` exports exactly ONE host constructor, `createI18n`, and
 // it is core's BASE host: every capability member is absent from its type until
 // something composes it.
-import type { I18nLoaderApi, I18nPluginHostApi } from "@comvi/core";
+import type { I18nLoaderApi, I18nPluginHostApi, WrapperI18nHost } from "@comvi/core";
 import type { I18n as BaseI18n } from "@comvi/core";
 import * as clientEntry from "../../src/client";
 import {
@@ -144,3 +144,19 @@ export type _ServerEntryAlsoPublishesIt = Expect<
 >;
 // @ts-expect-error -- definePlugin takes a PLUGIN, not an installer
 createI18n({ locale: "en" }).use(definePlugin(attachLoader));
+
+// React's 0.5 surface, whole: `useI18nHost` is the bare-host reader every SPA
+// binding publishes under that name, and `ComponentMap` is the type a typed
+// `<T components={…}>` map needs. Both are pinned to react's own declarations,
+// so a re-export that drifted would fail here.
+export type _UseI18nHostIsReacts = Expect<
+  Equal<typeof clientEntry.useI18nHost, typeof import("@comvi/react").useI18nHost>
+>;
+export type _HostReaderReturnsTheBareHost = Expect<
+  Equal<ReturnType<typeof clientEntry.useI18nHost>, WrapperI18nHost<{}>>
+>;
+export type _ComponentMapIsReacts = Expect<
+  Equal<clientEntry.ComponentMap, import("@comvi/react").ComponentMap>
+>;
+const _components: clientEntry.ComponentMap = { bold: "strong" };
+void _components;

@@ -36,7 +36,9 @@ export type { ComponentMap } from "./types";
 export {
   createLocaleSignal,
   createDefaultNamespaceSignal,
+  createDefaultNamespaceState,
   createDefaultParamsSignal,
+  createDefaultParamsState,
   createLoadingSignal,
   createInitializingSignal,
   createInitializedSignal,

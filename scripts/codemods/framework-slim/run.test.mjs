@@ -107,6 +107,7 @@ const REQUIRED_CASES = [
   // F18 (Q5): `<T raw>` -> `<T skipPostProcess>`.
   "t-props-react", // bare, valued, and a nested unrelated `raw` left alone
   "t-props-solid", // same rule, solid's import source
+  "t-props-next-client", // same rule, next's client entry re-export of react's `T`
   "report-t-props-shadowed", // a local `T` declaration refuses the module
   "report-sfc-vue-template-raw", // template markup this codemod cannot parse
   "report-sfc-svelte-template-raw", // same, svelte's template syntax
@@ -183,6 +184,7 @@ test("CRLF sources come back with CRLF", () => {
       "slim-factory-rename",
       "slim-specifier",
       "stored-register-plugin",
+      "t-props-next-client",
       "t-props-react",
       "t-props-solid",
       "t1-pure-loader",
@@ -1364,6 +1366,7 @@ test("transformed TypeScript goldens compile", (t) => {
       "slim-factory-rename",
       "slim-specifier",
       "stored-register-plugin",
+      "t-props-next-client",
       "t-props-react",
       "t-props-solid",
       "t1-pure-loader",
@@ -1558,8 +1561,17 @@ export declare function nextPluginLazy(
     // the JSX attribute rename type-checks, not the real solid surface.
     "comvi/solid.ts": `export declare function T(props: Record<string, unknown>): any;
 `,
+    // `T` too: `@comvi/next/client` re-exports react's component, which is
+    // why the `raw` -> `skipPostProcess` rename covers that specifier.
     "comvi/next/client.ts": `export { createI18n, devtools, loader, plugins } from "../api";
 export type * from "../api";
+
+export declare function T(props: Record<string, unknown>): any;
+export interface UseI18nReturn {
+  t: (key: string) => string;
+  locale: string;
+}
+export declare function useI18n(ns?: string): UseI18nReturn;
 `,
     "comvi/next/server.ts": `export { createI18n, devtools, loader, plugins } from "../api";
 export type * from "../api";

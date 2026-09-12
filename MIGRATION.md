@@ -259,19 +259,19 @@ blocks would move a binding out of the block that declared it. Unbraced
 one scope — so a merge that would cross them is refused rather than guessed at
 (below). For the **single entry** it migrates host construction:
 
-| shape                                                          | becomes                                                                                                                  |
-| -------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
-| `@comvi/<pkg>/slim`, on react, solid, svelte, vue, next client | `@comvi/<pkg>`                                                                                                           |
-| `@comvi/core/slim`                                             | `@comvi/core`                                                                                                            |
-| `createSlimI18n`                                               | `createI18n` (import, references, aliases)                                                                               |
-| `.use(FetchLoader(o))` + the two other first-party factories   | `.use(fetchLoader(o))` in place                                                                                          |
-| `.use(YourPlugin(o))`                                          | `.use(definePlugin(YourPlugin(o)))` in place                                                                             |
-| a 0.5-pre-release `.with` call, anywhere in a chain            | `.use` — the one composition verb                                                                                        |
-| inline `translation` with ICU comma syntax                     | `compiler: icuCompiler` in the same call                                                                                 |
-| `exposeGlobal` / `instanceId` options                          | `.use(devtools({ … }))`, options moved                                                                                   |
-| a `flattenCatalog` import from a binding root or `/loader`     | the same name, from `@comvi/core`                                                                                        |
-| a bare `loader()` on a proven host                             | the bare `attachLoader`, import maintained                                                                               |
-| `<T raw>` / `<T raw={…}>`, react and solid JSX                 | `<T skipPostProcess>` / `<T skipPostProcess={…}>`; `<T.Sub>` and a nested unrelated component's own `raw` are left alone |
+| shape                                                                 | becomes                                                                                                                  |
+| --------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `@comvi/<pkg>/slim`, on react, solid, svelte, vue, next client        | `@comvi/<pkg>`                                                                                                           |
+| `@comvi/core/slim`                                                    | `@comvi/core`                                                                                                            |
+| `createSlimI18n`                                                      | `createI18n` (import, references, aliases)                                                                               |
+| `.use(FetchLoader(o))` + the two other first-party factories          | `.use(fetchLoader(o))` in place                                                                                          |
+| `.use(YourPlugin(o))`                                                 | `.use(definePlugin(YourPlugin(o)))` in place                                                                             |
+| a 0.5-pre-release `.with` call, anywhere in a chain                   | `.use` — the one composition verb                                                                                        |
+| inline `translation` with ICU comma syntax                            | `compiler: icuCompiler` in the same call                                                                                 |
+| `exposeGlobal` / `instanceId` options                                 | `.use(devtools({ … }))`, options moved                                                                                   |
+| a `flattenCatalog` import from a binding root or `/loader`            | the same name, from `@comvi/core`                                                                                        |
+| a bare `loader()` on a proven host                                    | the bare `attachLoader`, import maintained                                                                               |
+| `<T raw>` / `<T raw={…}>` in JSX (react, solid, `@comvi/next/client`) | `<T skipPostProcess>` / `<T skipPostProcess={…}>`; `<T.Sub>` and a nested unrelated component's own `raw` are left alone |
 
 A **chain** is the unit, meaning `createI18n(…)` plus the `.use` calls chained
 onto it, so nothing outside one is guessed at. Imports are maintained in
@@ -389,10 +389,13 @@ already has, and the bindings you never call are pruned by your bundler.
 core's own constructor everywhere but `@comvi/vue`, whose `createI18n` builds
 the `VueI18n` preset around it.
 
-The same two names dropped off `@comvi/react`, `@comvi/solid`, `@comvi/svelte`
-and `@comvi/vue`'s single entry, for the same reason: `attachPlugins` and
-`attachDevtools` are the low-level installers `plugins()` and `devtools()`
-already configure, so a binding user reaches for the lowercase factories.
+The same two names dropped off every binding entry — `@comvi/react`,
+`@comvi/solid`, `@comvi/svelte`, `@comvi/vue`, the `@comvi/next`
+root/`client`/`server` trio and `@comvi/nuxt/host` — for the same reason:
+`attachPlugins` and `attachDevtools` are the low-level installers `plugins()`
+and `devtools()` already configure, so a binding user reaches for the lowercase
+factories. `attachLoader` stays on all of them: it is not a synonym of
+`loader(map)` but the attach-only loader installer.
 Coming from a 0.5-pre build where a binding root still exported the pair,
 import it from `@comvi/core/plugins` / `@comvi/core/devtools` instead:
 
@@ -463,10 +466,16 @@ changes. Two things did, both additive: `<T>`'s `raw` prop is renamed to
 `skipPostProcess` (§3's codemod rewrites the JSX; `raw` still works — deprecated,
 for one release, with a one-time dev warning); and solid and svelte each gain
 the one per-axis primitive the other already had — solid's
-`createDefaultParamsSignal` (an accessor paired with a setter that writes
-through to the host) and svelte's `createDefaultNamespaceStore` (a writable
-store; assigning into it calls `setDefaultNamespace`). Otherwise only the host
-underneath them changes, plus the renames in §2.
+`createDefaultParamsSignal` and svelte's `createDefaultNamespaceStore`.
+
+Solid's primitives follow one naming rule: **`create*Signal` reads** (an
+`Accessor` mirroring the host, on all seven axes) and **`create*State` reads and
+writes** (`[accessor, setter]`, the setter writing through to the host), so the
+two writable axes are `createDefaultNamespaceState` and
+`createDefaultParamsState`. Svelte keeps stores as its write path:
+`createDefaultNamespaceStore` and `createDefaultParamsStore` are `Writable`, and
+their `set` / `update` call `setDefaultNamespace` / `setDefaultParams`.
+Otherwise only the host underneath them changes, plus the renames in §2.
 
 ```tsx
 import { createI18n, I18nProvider, loader, useI18n } from "@comvi/react";
@@ -511,7 +520,11 @@ instead of the children until the host is initialized — the `isInitialized`
 axis, so no frame paints raw keys, and with `autoInit: false` the gate holds
 until you call `init()`; solid's accepts `ssrLocale`, the render locale for
 `renderToString` and hydration, spelled the way `@comvi/vue` and `@comvi/nuxt`
-spell it. React accepts `ssrLocale` too, as an alias of its own
+spell it. Solid adopts it by WRITING `i18n.locale` during the render phase, so
+an SSR app has to build the host inside the request handler: a module-scope
+host shared by every concurrent request would carry one request's locale into
+another's tree (the solid README's SSR section has the per-request shape).
+React accepts `ssrLocale` too, as an alias of its own
 `ssrInitialLocale` — which stays canonical there and wins when both are passed.
 Svelte has no provider component and needs neither: gate the first paint on the
 `$isInitializing` store from `useI18n()`, and seed the render locale on the
@@ -719,10 +732,12 @@ export const { i18n, routing } = createNextI18nFromHost(
 ```
 
 Its options are routing-only; everything else belongs to the host factory. The
-result is exactly `{ i18n, routing }`, with no `.use*` methods, and `host()` is
-resolved lazily: by the first `result.i18n` access or the first server helper
-that needs the instance, exactly once, in either order. `@comvi/next/server`
-exports no composed constructor and no tag entry.
+result is exactly `{ i18n, routing }`, with no `.use*` methods, and construction
+is EAGER: `host()` runs exactly once, inside the call, so `result.i18n` is a
+plain field and every server helper (`getI18n()` / `loadTranslations()`) resolves
+that same instance. A factory that throws leaves nothing configured, and the
+two-source conflict (this factory plus `setI18n`) is checked BEFORE `host()`
+runs. `@comvi/next/server` exports no composed constructor and no tag entry.
 
 **`setI18n` no longer replaces the instance.** In 0.4 a second call won, and the
 last write took effect. In 0.5 it throws, in development and production, naming
@@ -804,8 +819,10 @@ export default ((options) =>
 
 **One specifier, and it is `@comvi/nuxt`.** `@comvi/nuxt/host` re-exports exactly
 the composition surface — `createI18n`, `icuCompiler`, `loader`, `attachLoader`,
-`plugins`, `attachPlugins`, `devtools`, `definePlugin` and the `NuxtHostFactory`
-type. `@comvi/core` is a dependency of `@comvi/nuxt` rather than of your app, so
+`plugins`, `devtools`, `definePlugin` and the `NuxtHostFactory` type. The
+low-level `attachPlugins` / `attachDevtools` pair is not on it, exactly as it is
+not on the binding roots: import it from `@comvi/core/plugins` /
+`@comvi/core/devtools` if a host file really wants the synonym. `@comvi/core` is a dependency of `@comvi/nuxt` rather than of your app, so
 under pnpm's default layout a host file that named `@comvi/core/icu` did not
 resolve from `pnpm add @comvi/nuxt` alone. Naming core's subpaths directly still
 works if your app declares `@comvi/core` itself. `flattenCatalog` is deliberately
@@ -861,12 +878,13 @@ the client, the request locale on the server), `fallbackLocale`, `defaultNs`,
 therefore honours the same `nuxt.config` an uncomposed one does. A
 0.5.0-development factory that takes no argument keeps working.
 
-Two options reach only one of the two calls. The app plugin runs in both bundles
-and adds `tagInterpolation` from `basicHtmlTags` plus `ssrLocale`, so a server
-render and the hydrated client agree. The request-scoped Nitro host omits both,
-so a `useTranslation()` or `loadTranslations()` call in `server/**` resolves the
-same string without them. Set them inside the factory when a server route needs
-them too.
+One option reaches only one of the two calls. The app plugin runs in both
+bundles and adds `tagInterpolation` from `basicHtmlTags` plus `ssrLocale`, so a
+server render and the hydrated client agree. The request-scoped Nitro host is
+given the same `tagInterpolation`, so rich text off the request host keeps the
+client's whitelist, but `ssrLocale` stays client-only: a request host is already
+built at the request locale. Set `ssrLocale` inside the factory only if a server
+route genuinely needs it.
 
 **`NuxtServerHost` is the base host now**, not the loader-carrying host it named
 before; `NuxtServerLoaderHost` is the composed one, and it is what SSR

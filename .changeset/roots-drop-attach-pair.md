@@ -6,7 +6,7 @@
 "@comvi/next": minor
 ---
 
-**Changed: the `attachPlugins` / `attachDevtools` low-level pair is no longer re-exported
+**BREAKING (breaking change on a 0.x minor): the `attachPlugins` / `attachDevtools` low-level pair is no longer re-exported
 from `@comvi/react`, `@comvi/solid`, `@comvi/svelte`, `@comvi/vue`, or the `@comvi/next`
 `client`/`server`/root entries.** They were synonyms for what `plugins()` / `devtools()`
 already configure, so a binding user now sees exactly `loader`, `attachLoader`, `plugins`,

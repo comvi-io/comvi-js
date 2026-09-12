@@ -11,8 +11,14 @@
  */
 import { namedImports, localDeclarations } from "./imports.mjs";
 
-/** Modules whose `T` export is JSX — the only shape this rule can rewrite. */
-export const T_JSX_MODULES = new Set(["@comvi/react", "@comvi/solid"]);
+/**
+ * Modules whose `T` export is JSX — the only shape this rule can rewrite.
+ *
+ * `@comvi/next/client` re-exports react's `T` verbatim, so a next app writes
+ * the same `<T raw>` in the same `.tsx`; `run.mjs` already treats that
+ * specifier as a root everywhere else (its `HOOK_MODULES`).
+ */
+export const T_JSX_MODULES = new Set(["@comvi/react", "@comvi/solid", "@comvi/next/client"]);
 
 const RAW_PROP = "raw";
 const SKIP_POST_PROCESS_PROP = "skipPostProcess";
@@ -90,6 +96,81 @@ export function planTPropRename(root) {
 }
 
 /**
+ * Index of the `>` that closes the tag opened at `start`, skipping any `>`
+ * inside a quoted attribute value (`"`, `'`) or a braced expression (`{…}`,
+ * svelte's and vue's own interpolation). `-1` when the tag never closes.
+ *
+ * @param {string} source
+ * @param {number} start Index of the `<` of the tag.
+ * @returns {number}
+ */
+function findTagEnd(source, start) {
+  let quote = null;
+  let braces = 0;
+  for (let i = start; i < source.length; i += 1) {
+    const char = source[i];
+    if (quote !== null) {
+      if (char === quote) quote = null;
+      continue;
+    }
+    if (char === '"' || char === "'") {
+      quote = char;
+      continue;
+    }
+    if (char === "{") {
+      braces += 1;
+      continue;
+    }
+    if (char === "}") {
+      if (braces > 0) braces -= 1;
+      continue;
+    }
+    if (char === ">" && braces === 0) return i;
+  }
+  return -1;
+}
+
+/**
+ * `text` with every quoted attribute value and every braced expression
+ * replaced by spaces, so an attribute-NAME scan cannot read a prop name out of
+ * a value. Length-preserving, so any index into the result still points at the
+ * same column of the input.
+ *
+ * @param {string} text One tag's text, without its leading `<T`.
+ * @returns {string}
+ */
+function maskAttributeValues(text) {
+  let out = "";
+  let quote = null;
+  let braces = 0;
+  for (const char of text) {
+    if (quote !== null) {
+      out += char === quote ? char : " ";
+      if (char === quote) quote = null;
+      continue;
+    }
+    if (braces > 0) {
+      if (char === "{") braces += 1;
+      if (char === "}") braces -= 1;
+      out += " ";
+      continue;
+    }
+    if (char === '"' || char === "'") {
+      quote = char;
+      out += char;
+      continue;
+    }
+    if (char === "{") {
+      braces += 1;
+      out += " ";
+      continue;
+    }
+    out += char;
+  }
+  return out;
+}
+
+/**
  * A `<T ... raw ...>` occurrence in a `.vue` / `.svelte` TEMPLATE (outside
  * every `<script>` block) — where the codemod cannot parse well enough to
  * rewrite, so it reports instead. Matches `<T` as a tag name (word boundary,
@@ -102,6 +183,11 @@ export function planTPropRename(root) {
  * that only ever REPORTS (never rewrites) does not need a real parser to be
  * safe — a false positive costs the user one look, a missed one costs nothing
  * since it degrades to what nothing but a human already knew.
+ *
+ * The tag's end is found QUOTE-AWARE, not at the first `>`: a `>` inside an
+ * attribute value is ordinary text there (`<T :count="a > b" raw />`,
+ * `<T fallback={a > b ? x : y} raw />`), and stopping at it truncated the tag
+ * before the `raw` attribute and reported nothing at all.
  *
  * @param {string} source Full SFC source.
  * @param {Array<{offset: number, body: string}>} scriptBlocks From
@@ -126,21 +212,24 @@ export function findSfcTemplateRawT(source, scriptBlocks) {
   let tagMatch;
   while ((tagMatch = TAG_OPEN.exec(source)) !== null) {
     if (isExcluded(tagMatch.index)) continue;
-    const tagEnd = source.indexOf(">", tagMatch.index);
+    const tagEnd = findTagEnd(source, tagMatch.index);
     if (tagEnd === -1) continue;
     const tagText = source.slice(tagMatch.index, tagEnd + 1);
-    // The prefix is WHITESPACE only, never a quote: attributes are
-    // whitespace-separated, so `"` or `'` there means `raw` is the first word
-    // of a PRECEDING attribute's quoted VALUE (`fallback="raw text"`), not a
-    // prop name.
-    const rawAttr = /(?:^|\s)(?::|v-bind:)?raw(?=[\s=/>])/.exec(tagText.slice(2 /* "<T" */));
+    // Attribute VALUES are masked out first, so only attribute NAMES are
+    // scanned: `raw` anywhere inside `fallback="a raw label"` or inside a
+    // braced expression is text, not a prop. The prefix is then WHITESPACE
+    // only, attributes being whitespace-separated.
+    const rawAttr = /(?:^|\s)(?::|v-bind:)?raw(?=[\s=/>])/.exec(
+      maskAttributeValues(tagText.slice(2 /* "<T" */)),
+    );
     if (rawAttr === null) continue;
     findings.push({
       offset: tagMatch.index,
       shape: "sfc-template-raw-t",
       detail:
         "<T raw> in a .vue/.svelte template — this codemod does not parse template markup; " +
-        "rename the prop to skipPostProcess by hand (raw keeps working, deprecated, until removed)",
+        "rename the prop to skipPostProcess by hand (`skip-post-process` in a Vue template, " +
+        "which camelizes it back) — raw keeps working, deprecated, until removed",
     });
   }
   return findings;

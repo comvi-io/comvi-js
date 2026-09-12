@@ -14,11 +14,18 @@
  * `flattenCatalog` is deliberately NOT here: the base host flattens a nested
  * catalog itself, so pre-flattening data by hand stays on the `@comvi/core`
  * root rather than becoming the answer to a rule.
+ *
+ * Neither is the `attachPlugins` / `attachDevtools` pair, for the reason the
+ * binding roots dropped it: `plugins()` / `devtools()` are the configured
+ * installers a host file writes, the pair is the low-level synonym, and it
+ * stays on `@comvi/core/plugins` / `@comvi/core/devtools`. `attachLoader` IS
+ * here, because it is not a synonym — it is the attach-only loader installer,
+ * the one way to compose the capability without also configuring a map.
  */
 export { createI18n } from "@comvi/core";
 export { icuCompiler } from "@comvi/core/icu";
 export { attachLoader, loader } from "@comvi/core/loader";
-export { attachPlugins, definePlugin, plugins } from "@comvi/core/plugins";
+export { definePlugin, plugins } from "@comvi/core/plugins";
 export { devtools } from "@comvi/core/devtools";
 
 export type { NuxtHostFactory } from "../types";

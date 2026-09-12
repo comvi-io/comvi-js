@@ -49,7 +49,7 @@ function injectHost(composable: string): WrapperI18nHost {
  * a base `@comvi/core` instance, which is every host nobody composed a loader
  * onto. The capability ships in `@comvi/core/loader` and nowhere else, so
  * compose it where the instance is created: `createI18n(...).use(attachLoader)`,
- * or the lower-level `createI18n(...).use(attachLoader)`.
+ * or the lower-level `attachLoader(createI18n(...))`.
  *
  * @example
  * ```vue

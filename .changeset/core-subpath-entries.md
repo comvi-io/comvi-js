@@ -11,11 +11,13 @@ New subpath entries decompose the core, so an app pays only for what it composes
   ambiently**, so string-API `t()` parses `<tag>…</tag>` everywhere. Also exports
   `registerTagSyntax()` (returns a disposer), `tagSyntaxExtension` for per-call activation,
   and the VirtualNode helpers.
-- `@comvi/core/loader` — pure: `attachLoader` / `loader()`, `createImportMapLoader` and the
-  loader types. (`flattenCatalog` is NOT here: every host flattens nested catalogs itself,
-  and the function stays on the `@comvi/core` root.)
-- `@comvi/core/plugins` — pure: `attachPlugins`, the `definePlugin(fn, options?)` installer and
-  the plugin types.
+- `@comvi/core/loader` — pure: `attachLoader` / `loader()`, `createImportMapLoader`, the
+  `acquireLoaderApi(host)` accessor every binding's `useI18nLoader()` is built on (with its
+  `AcquiredLoaderApi` type) and the loader types. (`flattenCatalog` is NOT here: every host
+  flattens nested catalogs itself, and the function stays on the `@comvi/core` root.)
+- `@comvi/core/plugins` — pure: `attachPlugins`, the `plugins()` and `definePlugin(fn, options?)`
+  installers, the `acquirePluginsApi(host)` accessor behind every binding's `useI18nPlugins()`
+  (with its `AcquiredPluginsApi` type) and the plugin types.
 - `@comvi/core/devtools` — pure: `attachDevtools(i18n, { instanceId, exposeGlobal })`.
 - `@comvi/core/rich-text` — the pure `<T>` toolbox; `@comvi/core/editor-bridge` — the
   in-context-editor contract module.

@@ -5,15 +5,17 @@
 **Added: the capability toolkit on both `@comvi/next/client` and `@comvi/next/server`.** A
 next app no longer names `@comvi/core` to build a host on either side of the boundary.
 
-| export                                     | on   | what it is                                                   |
-| ------------------------------------------ | ---- | ------------------------------------------------------------ |
-| `createI18n`                               | both | core's base host constructor, the same binding on each entry |
-| `icuCompiler`                              | both | the ICU compiler, from core's pure `/icu` subpath            |
-| `loader`, `attachLoader`                   | both | from core's pure `/loader` subpath                           |
-| `plugins`, `attachPlugins`, `definePlugin` | both | from core's pure `/plugins` subpath                          |
-| `devtools`, `attachDevtools`               | both | from core's pure `/devtools` subpath                         |
+| export                    | on   | what it is                                                   |
+| ------------------------- | ---- | ------------------------------------------------------------ |
+| `createI18n`              | both | core's base host constructor, the same binding on each entry |
+| `icuCompiler`             | both | the ICU compiler, from core's pure `/icu` subpath            |
+| `loader`, `attachLoader`  | both | from core's pure `/loader` subpath                           |
+| `plugins`, `definePlugin` | both | from core's pure `/plugins` subpath                          |
+| `devtools`                | both | from core's pure `/devtools` subpath                         |
 
-`DevtoolsOptions` comes with them as a type. The server entry carries the toolkit because
+`DevtoolsOptions` comes with them as a type. `attachPlugins` / `attachDevtools` are not on
+these entries: they are the low-level pair `plugins()` / `devtools()` already configure, and they
+stay on `@comvi/core/plugins` and `@comvi/core/devtools` (see `roots-drop-attach-pair.md`). The server entry carries the toolkit because
 `NextServerHost = WrapperI18nHost & I18nLoaderApi` makes the loader **mandatory** for SSR —
 the one host an app cannot avoid composing should not take a second package to compose.
 

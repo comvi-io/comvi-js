@@ -332,7 +332,7 @@ core's composition pipe: `i18n.use(f)` is `f(i18n)`, nothing more.
 
 Everything in the right column but the ambient tag import comes from
 **`@comvi/nuxt/host`**, which re-exports `createI18n`, `icuCompiler`, `loader`,
-`attachLoader`, `plugins`, `attachPlugins`, `devtools`, `definePlugin` and the
+`attachLoader`, `plugins`, `devtools`, `definePlugin` and the
 `NuxtHostFactory` type. Every value in the recipe comes from that one subpath of
 the package your app already installed: `@comvi/core` is a dependency of
 `@comvi/nuxt` rather than of your app, so a host file naming `@comvi/core/icu`
@@ -378,17 +378,17 @@ Whole-app comvi graph, min+gz, `vue` / `#app` / `#build` / `h3` externalized
 (`node scripts/size-check.mjs`; the committed anchors live in
 `scripts/size-budgets.json`):
 
-| graph                                                     | min+gz    | row                             |
-| --------------------------------------------------------- | --------- | ------------------------------- |
-| client: runtime plugin + `useI18n()` on the base host     | **8108**  | `fw-nuxt-client-default`        |
-| server: the same, plus the loader capability SSR needs    | **10017** | `fw-nuxt-server-default-loader` |
-| every capability composed: ICU, loader, plugins, devtools | 11648     | `fw-nuxt-full-composite`        |
+| graph                                                     | min+gz   | row                      |
+| --------------------------------------------------------- | -------- | ------------------------ |
+| client: runtime plugin + `useI18n()` on the base host     | **8108** | `fw-nuxt-client-default` |
+| a `comvi.host.ts` through the `@comvi/nuxt/host` subpath  | **8004** | `fw-nuxt-host`           |
+| every capability composed: ICU, loader, plugins, devtools | 11648    | `fw-nuxt-full-composite` |
 
 The client row is what a nuxt app with no host file builds. The last row is the migration
 CEILING for a fully composed 0.4 nuxt app rather than a parity claim: 0.4 also
 registered string-API tag syntax ambiently, which is now the separate
 `import "@comvi/core/tags"`. Every row is gated on its emitted module graph as
-well as its bytes, at the corpus-wide measured + 2%.
+well as its bytes, at the corpus-wide ×1.05 (measured + 5 %).
 
 ## Rich text with `<T>`
 

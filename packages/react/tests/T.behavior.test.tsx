@@ -269,6 +269,34 @@ describe("<T /> behavior", () => {
     }
   });
 
+  it("warns once for TWO sibling <T raw> under one provider", async () => {
+    // The dedupe key must be the HOST, not anything `useI18n()` memoizes:
+    // `useMemo` runs once per COMPONENT instance, so two siblings hold two
+    // different bound `reportError` functions and a WeakSet keyed on that one
+    // warned twice for a single host.
+    const i18n = createI18n({ locale: "en" });
+    i18n.addTranslations({ "en:default": { greeting: "Hello" } });
+
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const { container, unmount } = await renderWithI18n(
+        i18n,
+        <>
+          <T i18nKey={"greeting" as never} raw />
+          <T i18nKey={"greeting" as never} raw />
+        </>,
+      );
+
+      expect(container.textContent).toBe("HelloHello");
+      expect(warn).toHaveBeenCalledTimes(1);
+
+      unmount();
+      await i18n.destroy();
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
   it("warns again for a DIFFERENT host, even right after another host's warning", async () => {
     const first = createI18n({ locale: "en" });
     const second = createI18n({ locale: "en" });

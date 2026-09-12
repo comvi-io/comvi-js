@@ -70,9 +70,19 @@ export interface I18nProviderProps {
   fallback?: JSX.Element;
   /**
    * Render locale for SSR, under the name `@comvi/vue` uses: the host adopts
-   * it at mount, BEFORE the locale signal is seeded, so `renderToString` and
-   * the hydrating client agree on the first paint. Set it when the server
-   * renders in a locale the client would not detect on its own.
+   * it during the render phase, BEFORE the locale signal is seeded, so
+   * `renderToString` and the hydrating client agree on the first paint. Set it
+   * when the server renders in a locale the client would not detect on its
+   * own.
+   *
+   * **The host must be per request.** This is a WRITE to `i18n.locale`, and
+   * during `renderToString` it happens in the server process: a host built at
+   * module scope and shared by every concurrent request would take one
+   * request's locale into another's tree — the same leak
+   * `@comvi/next`'s provider refuses to risk by never writing the locale on
+   * the server. Build the host inside the request handler (see the SSR section
+   * of the package README); on the client, where a module-scope host is the
+   * normal shape, there is one request and nothing to leak.
    */
   ssrLocale?: string;
   /**
@@ -84,11 +94,13 @@ export interface I18nProviderProps {
 }
 
 export const I18nProvider: ParentComponent<I18nProviderProps> = (props) => {
-  // Read once, in the component body: `ssrLocale` is the render locale, the
-  // same contract vue's option of that name has, and the host is the ONE
-  // place that locale can live — `t()` resolves against `i18n.locale`, so
-  // seeding only the signal would leave the text and the locale disagreeing.
-  // Before `signalsMemo` below, so the first paint already reads it.
+  // Read once, in the component body — the RENDER phase, `renderToString`
+  // included, not an effect: `ssrLocale` is the render locale, the same
+  // contract vue's option of that name has, and the host is the ONE place that
+  // locale can live — `t()` resolves against `i18n.locale`, so seeding only
+  // the signal would leave the text and the locale disagreeing. Before
+  // `signalsMemo` below, so the first paint already reads it. The write is why
+  // an SSR app must hand this provider a PER-REQUEST host; see the prop's doc.
   const ssrLocale = props.ssrLocale;
   if (ssrLocale !== undefined && props.i18n.locale !== ssrLocale) {
     props.i18n.locale = ssrLocale;
@@ -143,10 +155,26 @@ export const I18nProvider: ParentComponent<I18nProviderProps> = (props) => {
     },
   };
 
-  // Whether the prop was PASSED, not whether it currently holds a node: an
-  // omitted `fallback` must leave the tree byte-identical to what it was
-  // before the gate existed, while `fallback={null}` is a blank gate.
-  const hasFallback = "fallback" in props;
+  // `undefined` means "no gate", the same axis `@comvi/react` reads
+  // (`fallback !== undefined`): a wrapper that forwards its own optional prop
+  // passes `fallback={undefined}`, and that must render the children
+  // throughout rather than gate on a blank node. `fallback={null}` still IS a
+  // blank gate.
+  //
+  // Read ONCE and lazily, never in the component body. Solid props are
+  // getters, so `<I18nProvider fallback={<Spinner />}>` re-runs `Spinner` on
+  // every access — and the read has to happen INSIDE the context below, since
+  // a fallback may call `useI18n()`. `||` short-circuits, so a host that is
+  // already initialized never constructs the fallback at all.
+  let fallbackNode: JSX.Element | undefined;
+  let fallbackRead = false;
+  const fallbackOnce = (): JSX.Element | undefined => {
+    if (!fallbackRead) {
+      fallbackRead = true;
+      fallbackNode = props.fallback;
+    }
+    return fallbackNode;
+  };
 
   return (
     <I18nContext.Provider
@@ -157,13 +185,12 @@ export const I18nProvider: ParentComponent<I18nProviderProps> = (props) => {
         signals,
       }}
     >
-      {hasFallback ? (
-        <Show when={signals.isInitialized()} fallback={props.fallback}>
-          {props.children}
-        </Show>
-      ) : (
-        props.children
-      )}
+      <Show
+        when={signals.isInitialized() || fallbackOnce() === undefined}
+        fallback={fallbackOnce()}
+      >
+        {props.children}
+      </Show>
     </I18nContext.Provider>
   );
 };

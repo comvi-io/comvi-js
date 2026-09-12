@@ -10,8 +10,11 @@ The documented host recipe composed `createI18n` from `@comvi/core` plus `@comvi
 package — so under pnpm's default layout the recipe did not resolve from a clean install, and the
 error arrived as a module-resolution failure rather than a missing install. The new subpath
 re-exports exactly the composition surface: `createI18n`, `icuCompiler`, `loader`,
-`attachLoader`, `plugins`, `attachPlugins`, `devtools`, `definePlugin`, and the
-`NuxtHostFactory` type.
+`attachLoader`, `plugins`, `devtools`, `definePlugin`, and the `NuxtHostFactory` type. The
+low-level `attachPlugins` / `attachDevtools` pair is NOT on it, the same call the binding roots
+made: `plugins()` / `devtools()` are the configured installers a host file writes, and the pair
+stays on `@comvi/core/plugins` / `@comvi/core/devtools`. `attachLoader` is not a synonym of
+`loader(map)` — it is the attach-only loader installer — so it is here.
 
 ```ts
 // comvi.host.ts

@@ -1,5 +1,6 @@
 import React from "react";
 import { useI18n } from "./useI18n";
+import { useI18nHostOrNull } from "./I18nProvider";
 import { isVirtualNode } from "@comvi/core";
 import type {
   TranslationParams,
@@ -74,12 +75,12 @@ const IS_DEV = typeof __DEV__ !== "undefined" && __DEV__;
 // Keyed by HOST identity, not one module-wide flag: a single boolean would
 // leak across unrelated hosts (two apps' worth on one page, or — the shape
 // that actually surfaced this during development, on svelte's port of this
-// same warning — two test files sharing a worker's module cache). `reportError`
-// is `useI18n()`'s host-bound method (memoized per host via `useMemo(…, [i18n])`
-// in `useI18n.ts`), so it is a stable per-host identity already in scope here
-// without a new `useI18nHost()` dependency — which matters because several
-// `<T>` tests mock `useI18n` directly, with no `<I18nProvider>` for a real
-// host hook to read.
+// same warning — two test files sharing a worker's module cache). The host
+// itself is the key, as in solid, svelte and vue: `useI18n()`'s bound
+// `reportError` is memoized per COMPONENT instance (`useMemo(…, [i18n])` runs
+// once per component, not once per host), so keying on it warned once per
+// sibling `<T raw>` instead of once per host. `/* @__PURE__ */` so the
+// allocation is not a side effect that pins the module (core's lateCompose).
 const warnedRawProp = /* @__PURE__ */ new WeakSet<object>();
 
 function warnDeprecatedRawProp(host: object): void {
@@ -231,8 +232,12 @@ const TComponent = function T({
     reportError,
   } = useI18n();
 
-  if (raw !== undefined) {
-    warnDeprecatedRawProp(reportError);
+  // `OrNull`, not `useI18nHost()`: a real render always has a provider (the
+  // `useI18n()` above throws without one), and the null branch is only reached
+  // by tests that mock `useI18n` — where there is no host to key a warning on.
+  const warnHost = useI18nHostOrNull();
+  if (raw !== undefined && warnHost !== null) {
+    warnDeprecatedRawProp(warnHost);
   }
   const effectiveRaw = skipPostProcess ?? raw;
 

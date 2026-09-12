@@ -204,6 +204,14 @@ The axis is `isInitialized` — the same host state `useI18n().isInitialized` re
 
 During `renderToString` the SSR snapshot decides, and `ssrInitialIsInitializing` is `false` by default — a server render is never gated, and because the hydration render reads that same snapshot, the hydrated markup matches before the gate re-applies on the client. On a page whose server render already produced real text, prefer no `fallback`: there is nothing to wait for, and gating it would replace correct content with a spinner until the client host initializes.
 
+So `fallback` alone gates the CLIENT only. If the server render itself has no catalog yet — the shape whose markup would ship raw keys — pass `ssrInitialIsInitializing={true}` with it, and the fallback is what the server paints, what hydration reuses, and what the children replace once the client host initializes:
+
+```tsx
+<I18nProvider i18n={i18n} fallback={<div className="spinner" />} ssrInitialIsInitializing={true}>
+  <App />
+</I18nProvider>
+```
+
 ### `ssrLocale` — the render locale for SSR
 
 `ssrInitialLocale` is react's name for the locale the server snapshot renders in. `ssrLocale` is that same prop under the name `@comvi/vue` and `@comvi/nuxt` use, so one shared SSR layer can pass one name to every binding:
@@ -377,16 +385,15 @@ Whole-app comvi graph, min+gz, `react` externalized (`node scripts/size-check.mj
 | app shape                         | size fixture              | min+gz      |
 | --------------------------------- | ------------------------- | ----------- |
 | base host, no `<T>`               | `fw-react-default`        | **6622 B**  |
-| base host + `<T>`                 | `fw-react-default-t`      | **8501 B**  |
-| base host + inline ICU            | `fw-react-icu`            | **7506 B**  |
 | full explicit composition + `<T>` | `fw-react-full-composite` | **11156 B** |
 
-All four rows are live in `scripts/size-budgets.json`, gated at measured +2%,
-and sentinel-checked from the emitted module graph. The default is +90 B
-(+1.38%) over the pre-convergence single-package anchor and 3432 B (34.1%)
-below the historical 0.4 composed root. `<T>` adds the pure
-`@comvi/core/rich-text` path; it does not register ambient string-API tags, and
-its graph still excludes the tag-registration pair and unused capabilities.
+Both rows are live in `scripts/size-budgets.json`, gated at ×1.05 (measured
+
+- 5 %), and sentinel-checked from the emitted module graph. The default is +90 B
+  (+1.38%) over the pre-convergence single-package anchor and 3432 B (34.1%)
+  below the historical 0.4 composed root. `<T>` adds the pure
+  `@comvi/core/rich-text` path; it does not register ambient string-API tags, and
+  its graph still excludes the tag-registration pair and unused capabilities.
 
 ## One package, one entry
 
