@@ -3,6 +3,8 @@
 "@comvi/solid": minor
 "@comvi/svelte": minor
 "@comvi/vue": minor
+"@comvi/next": patch
+"@comvi/nuxt": patch
 ---
 
 **Solid and svelte each gain the one per-axis primitive they were missing.** Solid shipped
@@ -12,7 +14,13 @@ axes: solid's new `createDefaultParamsSignal(i18n)` returns `[Accessor<DefaultPa
 setter]`, where the setter writes straight through to `i18n.setDefaultParams`; svelte's new
 `createDefaultNamespaceStore(i18n)` returns a writable store, memoized per instance like its
 siblings, where assigning into it (`store.set(ns)`) writes through to `i18n.setDefaultNamespace`.
-React and vue are unaffected.
+
+Both axes are now WRITABLE in both, each in its framework's own shape, so neither set is the
+read-only one: solid adds `createDefaultNamespaceState(i18n)` — `[Accessor<string>, setter]`
+beside the unchanged read-only `createDefaultNamespaceSignal` — and svelte's
+`createDefaultParamsStore(i18n)` is a writable store whose `set` / `update` call
+`i18n.setDefaultParams`. Every setter writes THROUGH to the host, which stays the source of
+truth; nothing assigns a local value. React and vue are unaffected.
 
 **`<T raw>` is renamed to `<T skipPostProcess>`, in all four bindings.** `raw` meant two unrelated
 things — `tRaw()` returns the structured result; `<T raw>` skips post-processors, notably the
@@ -20,6 +28,7 @@ in-context editor's invisible markers — and only the `<T>` prop is renamed; `t
 `raw` keeps working as a deprecated alias for one release, with a one-time development warning
 (`<T raw>` is deprecated. Use `<T skipPostProcess>` instead); setting both props lets
 `skipPostProcess` win. A repo-internal [codemod](https://github.com/comvi-io/comvi-js/blob/main/MIGRATION.md#3-the-codemod)
-rewrites `<T raw>` to `<T skipPostProcess>` in react's and solid's JSX; a `.vue` or `.svelte`
+rewrites `<T raw>` to `<T skipPostProcess>` in JSX that imports `T` from `@comvi/react`,
+`@comvi/solid` or `@comvi/next/client`; a `.vue` or `.svelte`
 template's `<T raw>` is template markup the codemod does not parse, so it is reported for a
 by-hand rename instead.

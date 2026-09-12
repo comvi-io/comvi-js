@@ -185,20 +185,52 @@ The axis is the provider's own `isInitialized` signal — the one `useI18n().isI
 
 ### `ssrLocale` — the render locale for SSR
 
-The host adopts `ssrLocale` at mount, before the locale signal is seeded, so `renderToString` and the hydrating client paint the same locale. It is the same option name `@comvi/vue` uses. Pass it on both sides — the server render and the client that hydrates it:
+The host adopts `ssrLocale` during the render phase, before the locale signal is seeded, so `renderToString` and the hydrating client paint the same locale. It is the same option name `@comvi/vue` uses. Pass it on both sides — the server render and the client that hydrates it.
+
+**On the server, build the host inside the request handler.** Adopting the locale is a WRITE to `i18n.locale`, and `renderToString` runs it in the server process: a host at module scope, shared by every concurrent request, would carry one request's locale into another's tree.
 
 ```tsx
+// src/entry-server.tsx — one host per request
+import { renderToString } from "solid-js/web";
+import { createI18n, I18nProvider, icuCompiler } from "@comvi/solid";
+import en from "./locales/en.json";
+import uk from "./locales/uk.json";
+import App from "./App";
+
+export function render(locale: string) {
+  const i18n = createI18n({
+    locale,
+    compiler: icuCompiler,
+    translation: { "en:default": en, "uk:default": uk },
+  });
+
+  return renderToString(() => (
+    <I18nProvider i18n={i18n} ssrLocale={locale}>
+      <App />
+    </I18nProvider>
+  ));
+}
+```
+
+On the client there is one request and nothing to leak, so the usual module-scope host is fine:
+
+```tsx
+// src/entry-client.tsx
+import { hydrate } from "solid-js/web";
 import { I18nProvider } from "@comvi/solid";
 import { i18n } from "./i18n";
 import App from "./App";
 
-export function Root(props: { locale: string }) {
-  return (
-    <I18nProvider i18n={i18n} ssrLocale={props.locale}>
+const locale = document.documentElement.lang;
+
+hydrate(
+  () => (
+    <I18nProvider i18n={i18n} ssrLocale={locale}>
       <App />
     </I18nProvider>
-  );
-}
+  ),
+  document.getElementById("app")!,
+);
 ```
 
 Without it the client keeps its own locale, the hydrated markup stays in the server's locale until the first reactive update, and then the text flips.
@@ -262,8 +294,13 @@ or the [0.5.0 migration guide](https://github.com/comvi-io/comvi-js/blob/main/MI
 
 ## Supported hosts and what they cost
 
-`<I18nProvider i18n={…}>`, `useI18nHost()` and all six reactive primitives
-accept any `WrapperI18nHost`: `createI18n` from `@comvi/solid` (core's own
+`<I18nProvider i18n={…}>`, `useI18nHost()` and all eight reactive primitives —
+`createLocaleSignal`, `createLoadingSignal`, `createInitializingSignal`,
+`createInitializedSignal`, `createCacheRevisionSignal`,
+`createDefaultNamespaceSignal`, its writable pair `createDefaultNamespaceState`
+(`[accessor, setter]`, the setter writing through to `setDefaultNamespace`) and
+`createDefaultParamsSignal` (the same shape for the instance-level
+interpolation defaults) — accept any `WrapperI18nHost`: `createI18n` from `@comvi/solid` (core's own
 base-host constructor, re-exported by name), with or without `.use(attachLoader)` /
 `.use(plugins())` composed on. The base host is the cheap one. ICU, tag syntax,
 async loading, the plugin host and devtools discovery are each something you
@@ -274,16 +311,15 @@ Whole-app comvi graph, min+gz, `solid-js` externalized (`node scripts/size-check
 | app shape                         | size fixture              | min+gz      |
 | --------------------------------- | ------------------------- | ----------- |
 | base host, no `<T>`               | `fw-solid-default`        | **6336 B**  |
-| base host + `<T>`                 | `fw-solid-default-t`      | **8131 B**  |
-| base host + inline ICU            | `fw-solid-icu`            | **7222 B**  |
 | full explicit composition + `<T>` | `fw-solid-full-composite` | **10791 B** |
 
-All four rows are live in `scripts/size-budgets.json`, gated at measured +2%,
-and sentinel-checked from the emitted module graph. The default is +100 B
-(+1.60%) over the pre-convergence single-package anchor and 3437 B (35.2%)
-below the historical 0.4 composed root, which measured 9773 B. `<T>` adds the
-pure `@comvi/core/rich-text` path; it does not register ambient string-API tags,
-and its graph still excludes the tag-registration pair and unused capabilities.
+Both rows are live in `scripts/size-budgets.json`, gated at ×1.05 (measured
+
+- 5 %), and sentinel-checked from the emitted module graph. The default is +100 B
+  (+1.60%) over the pre-convergence single-package anchor and 3437 B (35.2%)
+  below the historical 0.4 composed root, which measured 9773 B. `<T>` adds the
+  pure `@comvi/core/rich-text` path; it does not register ambient string-API tags,
+  and its graph still excludes the tag-registration pair and unused capabilities.
 
 ## One package, one entry
 

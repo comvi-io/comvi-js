@@ -232,6 +232,34 @@ describe("Svelte stores", () => {
     unsubscribe();
   });
 
+  it("writes a defaultParams assignment through to the host", () => {
+    const i18n = fake.asI18n();
+    const defaultParams = createDefaultParamsStore(i18n);
+    const values: unknown[] = [];
+    const unsubscribe = defaultParams.subscribe((value) => values.push(value));
+
+    defaultParams.set({ formality: "formal" });
+
+    // Written THROUGH `setDefaultParams`, not assigned into the store: the
+    // host is the source of truth, so it reports the new defaults and the
+    // subscriber sees them from the host's own `configChanged`.
+    expect(fake.defaultParams).toEqual({ formality: "formal" });
+    expect(values).toEqual([undefined, { formality: "formal" }]);
+
+    // Named keys rather than `{ ...current, … }`: `DefaultTranslationParams`
+    // types the reserved names as `ns?: never` (and friends), which a spread
+    // turns into an `undefined`-valued index signature core's value type
+    // excludes — the same shape solid's `setDefaultParams` setter takes.
+    defaultParams.update((current) => ({
+      formality: current?.formality ?? "formal",
+      tone: "warm",
+    }));
+
+    expect(fake.defaultParams).toEqual({ formality: "formal", tone: "warm" });
+
+    unsubscribe();
+  });
+
   it("reflects the current default namespace and updates when the host changes it", () => {
     const defaultNamespace = createDefaultNamespaceStore(fake.asI18n());
     const values: string[] = [];

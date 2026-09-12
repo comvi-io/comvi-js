@@ -44,7 +44,7 @@ Comvi i18n is a framework-agnostic internationalization library with type-safe t
 
 ```bash
 npm install @comvi/svelte
-# Peer: svelte ^5.0.0
+# Peer: svelte ^5.3.0
 ```
 
 ## Quick start
@@ -224,8 +224,12 @@ or the [0.5.0 migration guide](https://github.com/comvi-io/comvi-js/blob/main/MI
 
 ## Supported hosts and what they cost
 
-`setI18nContext(i18n)`, `useI18nHost()` and all six store factories accept
-any `WrapperI18nHost`: `createI18n` from `@comvi/svelte` (core's own base-host
+`setI18nContext(i18n)`, `useI18nHost()` and all seven store factories —
+`createLocaleStore`, `createLoadingStore`, `createInitializingStore`,
+`createInitializedStore`, `createCacheRevisionStore`, the writable
+`createDefaultNamespaceStore` (`$store = "admin"` writes through to
+`setDefaultNamespace`) and the writable `createDefaultParamsStore` (the same,
+through `setDefaultParams`) — accept any `WrapperI18nHost`: `createI18n` from `@comvi/svelte` (core's own base-host
 constructor, re-exported by name), with or without `.use(attachLoader)` /
 `.use(plugins())` composed on. Before 0.5.0 a base host did not merely mistype
 here, it **crashed**: `useI18n()` eagerly `.bind()`-ed the capability members in
@@ -238,15 +242,14 @@ Whole-app comvi graph, min+gz, `svelte` externalized (`node scripts/size-check.m
 | app shape                         | size fixture               | min+gz      | its sentinels assert absent                 |
 | --------------------------------- | -------------------------- | ----------- | ------------------------------------------- |
 | base host, no `<T>`               | `fw-svelte-default`        | **6412 B**  | ambient tags + all four capability subpaths |
-| base host + `<T>`                 | `fw-svelte-default-t`      | **8603 B**  | the same six; `<T>` registers nothing       |
-| base host + inline ICU            | `fw-svelte-icu`            | **7298 B**  | ambient tags, loader, plugins, devtools     |
 | full explicit composition + `<T>` | `fw-svelte-full-composite` | **11266 B** | ambient tag registration                    |
 
-All four rows are live in `scripts/size-budgets.json`, gated at measured +2%,
-and checked against the emitted module graph on every run, so the "an unused
-re-export costs nothing" claim is a gate rather than a sentence. The default is
-+93 B (+1.47%) over the pre-convergence single-package anchor and 3424 B (34.8%)
-below the historical 0.4 composed root, which measured 9836 B.
+Both rows are live in `scripts/size-budgets.json`, gated at ×1.05 (measured
+
+- 5 %), and checked against the emitted module graph on every run, so the "an
+  unused re-export costs nothing" claim is a gate rather than a sentence. The default is
+  +93 B (+1.47%) over the pre-convergence single-package anchor and 3424 B (34.8%)
+  below the historical 0.4 composed root, which measured 9836 B.
 
 ## One package, one entry
 

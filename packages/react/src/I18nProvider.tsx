@@ -110,19 +110,25 @@ export interface I18nProviderProps {
   /** Auto-initialize the i18n instance on mount (default: true). */
   autoInit?: boolean;
   /**
-   * Rendered INSTEAD of `children` until the host is INITIALIZED, so no paint
-   * is ever a flash of raw keys. Omit it and `children` render throughout,
-   * exactly as before this prop existed.
+   * Rendered INSTEAD of `children` until the host is INITIALIZED, so no
+   * CLIENT paint is ever a flash of raw keys. Omit it and `children` render
+   * throughout, exactly as before this prop existed.
    *
    * The axis is `isInitialized`, not `isInitializing`: `init()` starts from an
    * effect, after the first render, so a gate on "is it initializing" is open
    * for exactly the frame the raw keys would paint in. With `autoInit: false`
    * the fallback therefore stays until your app calls `i18n.init()` itself.
    *
-   * On the server the SSR snapshot decides: `ssrInitialIsInitializing` is
-   * `false` by default, so `children` render — and, being the snapshot the
-   * hydration render reads too, the hydrated markup matches before the gate
-   * re-applies on the client.
+   * On the server the SSR snapshot decides, and it is NOT gated by default:
+   * `ssrInitialIsInitializing` is `false`, so `children` render — the markup
+   * a server render whose catalog is not in yet emits with raw keys in it, and
+   * the hydration render reads that same snapshot, so the gate only re-applies
+   * afterwards on the client. To gate the server render too, pass
+   * `ssrInitialIsInitializing={true}` alongside `fallback`: the server and the
+   * hydration render both paint the fallback, and the children replace it once
+   * the client host initializes. (`@comvi/next`'s provider passes `false` for
+   * you, because its server render already has the catalog, so a `fallback`
+   * there is a post-hydration gate only.)
    *
    * `undefined` is the same as omitting it; for a blank gate pass `false`.
    *
@@ -268,6 +274,22 @@ export function useI18nInstance(): I18nInstanceContextValue {
  */
 export function useI18nHost(): WrapperI18nHost {
   return useI18nInstance().i18n;
+}
+
+/**
+ * {@link useI18nHost} without the throw: the host of the nearest
+ * `<I18nProvider>`, or `null` when there is none.
+ *
+ * For a warn-once diagnostic keyed by host identity, which must not be the
+ * reason a component crashes and must not need a provider the render path
+ * already guarantees (`useI18n()` throws without one). The only renders that
+ * reach the `null` branch are tests that mock `useI18n` — with no host, there
+ * is no identity to dedupe on and nothing to warn about.
+ *
+ * @internal
+ */
+export function useI18nHostOrNull(): WrapperI18nHost | null {
+  return useContext(I18nInstanceContext)?.i18n ?? null;
 }
 
 /**

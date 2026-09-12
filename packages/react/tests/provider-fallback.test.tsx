@@ -98,6 +98,21 @@ describe("I18nProvider fallback", () => {
     expect(screen.getByTestId("child")).toBeTruthy();
   });
 
+  it("treats fallback={undefined} as no fallback at all", () => {
+    const fake = new FakeI18n();
+
+    render(
+      <I18nProvider i18n={fake.asI18n()} autoInit={false} fallback={undefined}>
+        <Child />
+      </I18nProvider>,
+    );
+
+    // The gate is `fallback !== undefined`, not `"fallback" in props`: a prop
+    // forwarded as `undefined` (every wrapper that spreads its own optional
+    // prop does this) must leave the tree exactly as omitting it does.
+    expect(screen.getByTestId("child")).toBeTruthy();
+  });
+
   it("renders the fallback inside the providers, so it may read the locale", () => {
     const fake = new FakeI18n();
     const Spinner = () => <div data-testid="spinner">{useLocale()}</div>;

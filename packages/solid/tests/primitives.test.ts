@@ -5,6 +5,7 @@ import { attachLoader, createI18n } from "../src/index";
 import {
   createLocaleSignal,
   createDefaultNamespaceSignal,
+  createDefaultNamespaceState,
   createDefaultParamsSignal,
   createLoadingSignal,
   createInitializingSignal,
@@ -52,6 +53,27 @@ describe("Solid primitives", () => {
     i18n.setDefaultNamespace("admin");
 
     expect(defaultNamespace()).toBe("admin");
+  });
+
+  it("pairs the default namespace with a setter that writes through to the host", () => {
+    const i18n = createI18n({ locale: "en", defaultNs: "common" });
+
+    const [defaultNamespace, setDefaultNamespace] = createTestRoot(() =>
+      createDefaultNamespaceState(i18n),
+    );
+
+    expect(defaultNamespace()).toBe("common");
+
+    setDefaultNamespace("admin");
+
+    // Written THROUGH: the host is the source of truth, and the accessor
+    // half only mirrors it — so a direct host call lands the same way.
+    expect(i18n.getDefaultNamespace()).toBe("admin");
+    expect(defaultNamespace()).toBe("admin");
+
+    i18n.setDefaultNamespace("billing");
+
+    expect(defaultNamespace()).toBe("billing");
   });
 
   it("updates default params signal when the defaults change, and the setter writes through", () => {

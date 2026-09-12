@@ -19,13 +19,35 @@ export function createLocaleSignal(i18n: WrapperI18nHost): Accessor<string> {
   return signal as Accessor<string>;
 }
 
-/** MUST be called within a reactive context (component or effect). */
+/**
+ * Read-only: the accessor mirrors the host, and the writable form of the same
+ * axis is {@link createDefaultNamespaceState}. MUST be called within a
+ * reactive context (component or effect).
+ */
 export function createDefaultNamespaceSignal(i18n: WrapperI18nHost): Accessor<string> {
   const signal = from<string>((set) => {
     set(i18n.getDefaultNamespace());
     return i18n.on("defaultNamespaceChanged", ({ to }) => set(to));
   });
   return signal as Accessor<string>;
+}
+
+/**
+ * The default namespace paired with a setter that writes straight through to
+ * `i18n.setDefaultNamespace` — the writable form of the axis
+ * {@link createDefaultNamespaceSignal} reads, in the same
+ * `[accessor, setter]` shape {@link createDefaultParamsSignal} returns, and
+ * the counterpart of svelte's writable `createDefaultNamespaceStore`. The
+ * accessor half only mirrors the host, so changing the namespace means
+ * calling the setter. MUST be called within a reactive context (component or
+ * effect).
+ */
+export function createDefaultNamespaceState(
+  i18n: WrapperI18nHost,
+): [Accessor<string>, (namespace: string) => void] {
+  const namespace = createDefaultNamespaceSignal(i18n);
+  const setDefaultNamespace = (value: string) => i18n.setDefaultNamespace(value);
+  return [namespace, setDefaultNamespace];
 }
 
 /** MUST be called within a reactive context (component or effect). */
@@ -67,9 +89,10 @@ export function createInitializedSignal(i18n: WrapperI18nHost): Accessor<boolean
  * Shallow snapshot of the instance-level interpolation defaults, paired with a
  * setter that writes straight through to the host — the signal half of the
  * pair only mirrors the host, so mutating it means calling the setter, not
- * assigning into the returned snapshot. Mirrors
- * `svelte/src/stores.ts:createDefaultNamespaceStore`'s missing-axis
- * counterpart. MUST be called within a reactive context (component or effect).
+ * assigning into the returned snapshot. The svelte counterpart is
+ * `svelte/src/stores.ts:createDefaultParamsStore`, writable there through
+ * `.set` / `.update`. MUST be called within a reactive context (component or
+ * effect).
  */
 export function createDefaultParamsSignal<D extends DefaultTranslationParams = {}>(
   i18n: WrapperI18nHost<D>,
