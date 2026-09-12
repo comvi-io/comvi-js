@@ -1,0 +1,14 @@
+[
+  {
+    "line": 12,
+    "column": 3,
+    "shape": "sfc-template-raw-t",
+    "detail": "<T raw> in a .vue/.svelte template — this codemod does not parse template markup; rename the prop to skipPostProcess by hand (raw keeps working, deprecated, until removed)"
+  },
+  {
+    "line": 13,
+    "column": 3,
+    "shape": "sfc-template-raw-t",
+    "detail": "<T raw> in a .vue/.svelte template — this codemod does not parse template markup; rename the prop to skipPostProcess by hand (raw keeps working, deprecated, until removed)"
+  }
+]

@@ -1,4 +1,4 @@
-import { readable, type Readable } from "svelte/store";
+import { readable, writable, type Readable, type Writable } from "svelte/store";
 import { subscribeToRevision } from "@comvi/core";
 import type { WrapperI18nHost, DefaultTranslationParams, DefaultParamsSnapshot } from "@comvi/core";
 
@@ -24,6 +24,7 @@ const storeCache = new WeakMap<
     initialized: Readable<boolean>;
     cacheRevision: Readable<number>;
     defaultParams: Readable<Readonly<DefaultTranslationParams> | undefined>;
+    defaultNamespace: Writable<string>;
   }
 >();
 
@@ -85,6 +86,23 @@ function getOrCreateStores<D extends DefaultTranslationParams>(i18n: Host<D>) {
           return i18n.on("configChanged", sync);
         },
       ),
+      // Writable, not readable: the host is still the source of truth (`set`
+      // writes THROUGH to `setDefaultNamespace`, it does not assign the local
+      // value directly), but callers may assign into this one, unlike every
+      // other store here. Mirrors `solid/src/primitives.ts:createDefaultParamsSignal`'s
+      // missing-axis counterpart.
+      defaultNamespace: (() => {
+        const { subscribe } = writable(i18n.getDefaultNamespace(), (set) => {
+          set(i18n.getDefaultNamespace());
+          return i18n.on("defaultNamespaceChanged", ({ to }) => set(to));
+        });
+        return {
+          subscribe,
+          set: (value: string) => i18n.setDefaultNamespace(value),
+          update: (updater: (value: string) => string) =>
+            i18n.setDefaultNamespace(updater(i18n.getDefaultNamespace())),
+        };
+      })(),
     };
     storeCache.set(i18n, stores);
   }
@@ -135,4 +153,17 @@ export function createDefaultParamsStore<D extends DefaultTranslationParams = {}
   i18n: Host<D>,
 ): Readable<DefaultParamsSnapshot<D>> {
   return getOrCreateStores(i18n).defaultParams as Readable<DefaultParamsSnapshot<D>>;
+}
+
+/**
+ * The default namespace, writable: assigning into it (`$store = "admin"` or
+ * `store.set("admin")`) writes through to `setDefaultNamespace`, it does not
+ * shadow the host's own value. Memoized per i18n instance. Mirrors
+ * `solid/src/primitives.ts:createDefaultNamespaceSignal`'s missing-axis
+ * counterpart (there returned as a signal + setter tuple instead).
+ */
+export function createDefaultNamespaceStore<D extends DefaultTranslationParams = {}>(
+  i18n: Host<D>,
+): Writable<string> {
+  return getOrCreateStores(i18n).defaultNamespace;
 }

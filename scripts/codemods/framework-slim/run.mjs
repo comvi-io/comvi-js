@@ -33,6 +33,7 @@ import { parse, Lang } from "@ast-grep/napi";
 
 import { HOOKS, SOURCE_HOOK } from "./rules/capabilities.mjs";
 import { planDestructures } from "./rules/destructure.mjs";
+import { planTPropRename, findSfcTemplateRawT } from "./rules/t-props.mjs";
 import {
   detectEscapedHookResults,
   detectHookNameCollisions,
@@ -208,6 +209,18 @@ export function transformBody(body, lang, { vueProxies = false } = {}) {
   const orphaned = [...single.prunable];
   let rewrites = [...single.transforms.values()].reduce((sum, count) => sum + count, 0);
 
+  // F18 (Q5): `<T raw>` -> `<T skipPostProcess>`. Independent of every other
+  // family here — a JSX attribute rename never touches an import clause or a
+  // `useI18n()` destructure — so it is planned against the same parse and
+  // merged in unconditionally.
+  const tPropRename = planTPropRename(root);
+  manual.push(...tPropRename.manual);
+  if (tPropRename.edits.length > 0) {
+    edits.push(...tPropRename.edits);
+    transforms.set("t-skip-post-process-rename", tPropRename.rewrites);
+    rewrites += tPropRename.rewrites;
+  }
+
   const sourceImports = namedImports(root).filter((entry) => entry.imported === SOURCE_HOOK);
   const supported = sourceImports.filter(
     (entry) => !entry.typeOnly && HOOK_MODULES.has(entry.source),
@@ -372,6 +385,16 @@ export function transformSource(source, filePath) {
       edits.push({ start: block.offset, end: block.offset + block.body.length, text: result.text });
     }
   }
+
+  // F18 (Q5): `<T raw>` in TEMPLATE markup. Everything above only ever sees
+  // the `<script>` blocks `extractScriptBlocks` pulled out — template markup
+  // is not one of this codemod's tree-sitter grammars — so a `<T raw>` written
+  // in the template is reported here, against the ORIGINAL source (its
+  // offsets need no remapping, unlike a script-block finding).
+  for (const item of findSfcTemplateRawT(source, blocks)) {
+    manual.push({ ...positionAt(source, item.offset), ...item });
+  }
+  manual.sort((a, b) => a.line - b.line || a.column - b.column);
 
   return { text: applyEdits(source, edits), rewrites, transforms, manual };
 }

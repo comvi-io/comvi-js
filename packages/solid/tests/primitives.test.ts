@@ -5,6 +5,7 @@ import { attachLoader, createI18n } from "../src/index";
 import {
   createLocaleSignal,
   createDefaultNamespaceSignal,
+  createDefaultParamsSignal,
   createLoadingSignal,
   createInitializingSignal,
   createInitializedSignal,
@@ -51,6 +52,25 @@ describe("Solid primitives", () => {
     i18n.setDefaultNamespace("admin");
 
     expect(defaultNamespace()).toBe("admin");
+  });
+
+  it("updates default params signal when the defaults change, and the setter writes through", () => {
+    const i18n = createI18n({ locale: "en" });
+
+    const [defaultParams, setDefaultParams] = createTestRoot(() => createDefaultParamsSignal(i18n));
+
+    expect(defaultParams()).toBeUndefined();
+
+    setDefaultParams({ formality: "formal" });
+
+    expect(defaultParams()).toEqual({ formality: "formal" });
+    expect(i18n.defaultParams).toEqual({ formality: "formal" });
+
+    // The host stays the source of truth: a direct host call is reflected too,
+    // not just calls made through the setter this primitive returns.
+    i18n.setDefaultParams({ formality: "informal" });
+
+    expect(defaultParams()).toEqual({ formality: "informal" });
   });
 
   it("stops updating a signal once its reactive root is disposed", async () => {

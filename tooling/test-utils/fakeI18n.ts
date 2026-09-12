@@ -229,6 +229,10 @@ export class FakeI18n {
     return this.core.getDefaultNamespace();
   });
 
+  public readonly setDefaultNamespace = vi.fn((namespace: string): void => {
+    this.core.setDefaultNamespace(namespace);
+  });
+
   public readonly getFallbackLocales = vi.fn((): string[] => {
     return this.core.getFallbackLocales();
   });

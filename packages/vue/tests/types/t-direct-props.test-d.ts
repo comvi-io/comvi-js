@@ -25,6 +25,12 @@ export const _declaredProps: TProps = {
   ns: "dashboard",
   locale: "fr",
   fallback: "Hello",
-  raw: true,
+  skipPostProcess: true,
   components: { bold: "strong" },
+};
+
+// `raw` is a deprecated alias for `skipPostProcess`, still type-valid.
+export const _deprecatedRaw: TProps = {
+  i18nKey: "greeting",
+  raw: true,
 };

@@ -223,6 +223,7 @@ describe("@comvi/svelte — the export surface", () => {
     "T",
     "attachLoader",
     "createCacheRevisionStore",
+    "createDefaultNamespaceStore",
     "createDefaultParamsStore",
     "createI18n",
     "createInitializedStore",

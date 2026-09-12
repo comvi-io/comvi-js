@@ -104,7 +104,7 @@ export class FakeI18nCore {
   private _isLoading = false;
   private _isInitializing = false;
   private _isInitialized = false;
-  private readonly defaultNamespace: string;
+  private defaultNamespace: string;
   private _tImplementation: (key: string, params?: TranslationParams) => TranslationResult;
 
   public initError: unknown = null;
@@ -271,6 +271,13 @@ export class FakeI18nCore {
 
   getDefaultNamespace(): string {
     return this.defaultNamespace;
+  }
+
+  setDefaultNamespace(namespace: string): void {
+    const from = this.defaultNamespace;
+    if (from === namespace) return;
+    this.defaultNamespace = namespace;
+    this.emit("defaultNamespaceChanged", { from, to: namespace });
   }
 
   getTranslations(): Record<string, TranslationTable> {

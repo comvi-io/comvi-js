@@ -66,6 +66,12 @@ interface TBaseProps {
   /** Shown when the key is missing. Takes priority over the children snippet. */
   fallback?: string;
   /** Skip the post-processors that honour it, for this call only. */
+  skipPostProcess?: boolean;
+  /**
+   * @deprecated Renamed to `skipPostProcess` in 0.5. `raw` is still honored
+   * (a dev-only warning fires once per host) and will be removed in a future
+   * release.
+   */
   raw?: boolean;
   /** Tag-name → handler map (see {@link ComponentMap}). */
   components?: ComponentMap;

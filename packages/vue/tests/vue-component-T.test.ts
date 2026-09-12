@@ -211,4 +211,45 @@ describe("<T /> component", () => {
       expect(wrapper.text()).toBe("hello World");
     });
   });
+
+  describe("skipPostProcess prop", () => {
+    it("skips post-processor when skipPostProcess is true", () => {
+      const i18n = createPostProcessorI18n({ en: { greeting: "hello" } });
+
+      i18n.core.registerPostProcessor(upperCaseUnlessRaw);
+
+      const wrapper = mount(T, {
+        props: { i18nKey: "greeting", skipPostProcess: true },
+        global: { provide: { [I18N_INJECTION_KEY as symbol]: i18n } },
+      });
+
+      expect(wrapper.text()).toBe("hello");
+    });
+
+    it("applies post-processor when neither skipPostProcess nor raw is specified", () => {
+      const i18n = createPostProcessorI18n({ en: { greeting: "hello" } });
+
+      i18n.core.registerPostProcessor(upperCaseUnlessRaw);
+
+      const wrapper = mount(T, {
+        props: { i18nKey: "greeting" },
+        global: { provide: { [I18N_INJECTION_KEY as symbol]: i18n } },
+      });
+
+      expect(wrapper.text()).toBe("HELLO");
+    });
+
+    it("wins over the deprecated raw prop when both are set", () => {
+      const i18n = createPostProcessorI18n({ en: { greeting: "hello" } });
+
+      i18n.core.registerPostProcessor(upperCaseUnlessRaw);
+
+      const wrapper = mount(T, {
+        props: { i18nKey: "greeting", raw: false, skipPostProcess: true },
+        global: { provide: { [I18N_INJECTION_KEY as symbol]: i18n } },
+      });
+
+      expect(wrapper.text()).toBe("hello");
+    });
+  });
 });

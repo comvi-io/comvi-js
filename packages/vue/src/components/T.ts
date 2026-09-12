@@ -19,6 +19,23 @@ import {
 import type { TranslationParams, TranslationResult, VirtualNode } from "@comvi/core";
 import { I18N_INJECTION_KEY } from "../keys";
 
+declare const __DEV__: boolean | undefined;
+const IS_DEV = typeof __DEV__ !== "undefined" && __DEV__;
+
+// Keyed by HOST identity, not one module-wide flag: a single boolean would
+// leak across unrelated hosts (two apps' worth on one page, or two test files
+// sharing a worker's module cache).
+const warnedRawProp = new WeakSet<object>();
+
+function warnDeprecatedRawProp(host: object): void {
+  if (IS_DEV && !warnedRawProp.has(host)) {
+    warnedRawProp.add(host);
+    console.warn(
+      "[i18n] <T raw> is deprecated. Use <T skipPostProcess> instead — `raw` will be removed in a future release.",
+    );
+  }
+}
+
 /** What a tag can resolve to in Vue. */
 type ComponentTarget =
   | string // HTML tag name: "strong", "em", etc.
@@ -118,6 +135,16 @@ const TComponent = /*@__PURE__*/ defineComponent({
      * Skip post-processing — notably the invisible marker characters the
      * in-context editor injects.
      */
+    skipPostProcess: {
+      type: Boolean,
+      default: undefined,
+    },
+
+    /**
+     * @deprecated Renamed to `skipPostProcess` in 0.5. `raw` is still honored
+     * (a dev-only warning fires once per host) and will be removed in a
+     * future release.
+     */
     raw: {
       type: Boolean,
       default: undefined,
@@ -184,11 +211,17 @@ const TComponent = /*@__PURE__*/ defineComponent({
       // Every undeclared attribute is an interpolation param, matching the
       // react wrapper: `<T i18nKey="cart" :count="2" />` is `params: { count: 2 }`.
       // A direct prop wins a name collision with `params`, again as in react.
-      // Declared props (`ns`, `locale`, `fallback`, `raw`, `components`,
-      // `params`, `i18nKey`) never reach `attrs`, so they cannot leak in here.
+      // Declared props (`ns`, `locale`, `fallback`, `skipPostProcess`, `raw`,
+      // `components`, `params`, `i18nKey`) never reach `attrs`, so they
+      // cannot leak in here.
       const params = props.params as TranslationParams;
       const allParams =
         Object.keys(attrs).length === 0 ? params : ({ ...params, ...attrs } as TranslationParams);
+
+      if (props.raw !== undefined) {
+        warnDeprecatedRawProp(i18n);
+      }
+      const effectiveRaw = props.skipPostProcess ?? props.raw;
 
       const prepared = prepareTranslation(source, {
         i18nKey: props.i18nKey,
@@ -196,7 +229,7 @@ const TComponent = /*@__PURE__*/ defineComponent({
         ns: props.ns,
         locale: props.locale,
         fallback: props.fallback,
-        raw: props.raw,
+        raw: effectiveRaw,
         components: hasHandlers ? merged : undefined,
       });
 

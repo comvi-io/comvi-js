@@ -33,6 +33,18 @@ const shared = {
   plugins: [svelte({ compilerOptions: { dev: true } })],
 };
 
+// A FUNCTION, not a shared object: `unit` and `ssr` both spread `...shared`
+// and neither overrides `define` afterward, so a single `shared.define`
+// object would end up as the SAME reference on two project configs. Vitest
+// resolves projects concurrently, and observed flaky (~20-30% of runs, with
+// no svelte-specific code involved at all — a bare `.ts` module reading its
+// own `declare const __DEV__` sometimes saw it unsubstituted): one project's
+// in-place config normalization racing the other's read of the SAME mutable
+// object is the only shape that explains an intermittent, all-or-nothing
+// wrong value with no other varying input. Each project gets its own object
+// now, so there is nothing left to race.
+const freshDefine = () => ({ __DEV__: JSON.stringify(true) });
+
 const jsContract = {
   environment: "happy-dom" as const,
   globals: true,
@@ -53,6 +65,7 @@ export default defineConfig({
     projects: [
       {
         ...shared,
+        define: freshDefine(),
         resolve: { conditions: ["browser"] },
         test: {
           name: "unit",
@@ -77,6 +90,7 @@ export default defineConfig({
         // fails on the absent browser reactive machinery. Node environment, so
         // vitest transforms in ssr mode.
         ...shared,
+        define: freshDefine(),
         resolve: { conditions: ["svelte", "node"] },
         test: {
           name: "ssr",
@@ -89,13 +103,16 @@ export default defineConfig({
       {
         ...shared,
         resolve: { alias: coreBuild(".dev"), conditions: ["browser"] },
-        define: { __COMVI_CORE_BUILD__: JSON.stringify("development") },
+        define: { ...freshDefine(), __COMVI_CORE_BUILD__: JSON.stringify("development") },
         test: { ...jsContract, name: "js-contract-dev" },
       },
       {
         ...shared,
         resolve: { alias: coreBuild(""), conditions: ["browser"] },
-        define: { __COMVI_CORE_BUILD__: JSON.stringify("production") },
+        define: {
+          __DEV__: JSON.stringify(false),
+          __COMVI_CORE_BUILD__: JSON.stringify("production"),
+        },
         test: { ...jsContract, name: "js-contract-prod" },
       },
     ],

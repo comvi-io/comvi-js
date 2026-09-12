@@ -68,6 +68,29 @@ type ComponentHandler = ComponentTarget | ComponentConfig;
  */
 export type ComponentMap = Record<string, ComponentHandler>;
 
+declare const __DEV__: boolean | undefined;
+const IS_DEV = typeof __DEV__ !== "undefined" && __DEV__;
+
+// Keyed by HOST identity, not one module-wide flag: a single boolean would
+// leak across unrelated hosts (two apps' worth on one page, or — the shape
+// that actually surfaced this during development, on svelte's port of this
+// same warning — two test files sharing a worker's module cache). `reportError`
+// is `useI18n()`'s host-bound method (memoized per host via `useMemo(…, [i18n])`
+// in `useI18n.ts`), so it is a stable per-host identity already in scope here
+// without a new `useI18nHost()` dependency — which matters because several
+// `<T>` tests mock `useI18n` directly, with no `<I18nProvider>` for a real
+// host hook to read.
+const warnedRawProp = new WeakSet<object>();
+
+function warnDeprecatedRawProp(host: object): void {
+  if (IS_DEV && !warnedRawProp.has(host)) {
+    warnedRawProp.add(host);
+    console.warn(
+      "[i18n] <T raw> is deprecated. Use <T skipPostProcess> instead — `raw` will be removed in a future release.",
+    );
+  }
+}
+
 interface TagBoundaryProps {
   tagName: string;
   onTagError: (error: unknown, tagName: string) => void;
@@ -122,6 +145,13 @@ interface TBaseProps {
   /**
    * Skip post-processing — notably the invisible marker characters the
    * in-context editor injects.
+   */
+  skipPostProcess?: boolean;
+
+  /**
+   * @deprecated Renamed to `skipPostProcess` in 0.5. `raw` is still honored
+   * (a dev-only warning fires once per host) and will be removed in a future
+   * release.
    */
   raw?: boolean;
 
@@ -186,6 +216,7 @@ const TComponent = function T({
   locale,
   params = {},
   fallback,
+  skipPostProcess,
   raw,
   children,
   components,
@@ -199,6 +230,11 @@ const TComponent = function T({
     getDefaultNamespace,
     reportError,
   } = useI18n();
+
+  if (raw !== undefined) {
+    warnDeprecatedRawProp(reportError);
+  }
+  const effectiveRaw = skipPostProcess ?? raw;
 
   const translate =
     tRaw ??
@@ -235,7 +271,7 @@ const TComponent = function T({
           checkFallbacks,
         ),
     },
-    { i18nKey: keyString, params: allParams, ns, locale, fallback, raw, components },
+    { i18nKey: keyString, params: allParams, ns, locale, fallback, raw: effectiveRaw, components },
   );
 
   // Priority: translation (including a processed fallback/onMissing) > children
