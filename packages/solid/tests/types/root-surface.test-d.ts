@@ -22,6 +22,10 @@ import {
 } from "../../src/index";
 import { attachPlugins } from "@comvi/core/plugins";
 import { attachDevtools } from "@comvi/core/devtools";
+import { acquireLoaderApi } from "@comvi/core/loader";
+import { acquirePluginsApi } from "@comvi/core/plugins";
+import { useI18nLoader, useI18nPlugins } from "../../src/index";
+import type { UseI18nLoaderReturn, UseI18nPluginsReturn } from "../../src/index";
 import * as rootEntry from "../../src/index";
 
 type Equal<X, Y> =
@@ -176,3 +180,21 @@ createI18n({ locale: "en" }).use(definePlugin(attachLoader));
 // @ts-expect-error -- `I18n` only refers to a type from this root
 void rootEntry.I18n;
 export type _I18nTypeStillReachable = I18n<{}>;
+
+// Q7 — `useI18nLoader()` / `useI18nPlugins()` return CORE's acquired surfaces,
+// not a re-declared copy. The four bindings used to own a byte-identical copy
+// of the acquisition and one of them drifted; the return types are now the same
+// declarations `acquireLoaderApi` / `acquirePluginsApi` produce, so a re-typed
+// local bag fails here rather than in a release.
+export type _LoaderHookReturnsCoresBag = Expect<
+  Equal<ReturnType<typeof useI18nLoader>, ReturnType<typeof acquireLoaderApi>>
+>;
+export type _PluginsHookReturnsCoresBag = Expect<
+  Equal<ReturnType<typeof useI18nPlugins>, ReturnType<typeof acquirePluginsApi>>
+>;
+export type _PublicLoaderAliasIsCores = Expect<
+  Equal<UseI18nLoaderReturn, ReturnType<typeof acquireLoaderApi>>
+>;
+export type _PublicPluginsAliasIsCores = Expect<
+  Equal<UseI18nPluginsReturn, ReturnType<typeof acquirePluginsApi>>
+>;

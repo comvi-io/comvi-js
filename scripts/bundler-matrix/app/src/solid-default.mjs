@@ -5,12 +5,20 @@
 // its `createI18n` is what this app constructs with — so it is never an absence
 // sentinel.
 //
+// `useI18nLoader` / `useI18nPlugins` are deliberately NOT named here, unlike in
+// the capability cases. Since the acquisition moved into `@comvi/core` the two
+// hooks ARE the capability subpaths — `acquireLoaderApi` lives on
+// `@comvi/core/loader`, `acquirePluginsApi` on `@comvi/core/plugins` — so merely
+// referencing one pulls the module this case asserts absent. The export surface
+// they used to pin here is pinned harder by the packages' own entry tests, which
+// CALL them through the published root.
+//
 // It is also a regression pin: the base host really lacks the loader/plugin
 // capability members, so a wrapper that bound them eagerly would crash here.
 //
 // <T> rendering needs a DOM and is NOT exercised here. No top-level await: the
 // webpack leg emits commonjs2.
-import { createI18n, I18nProvider, useI18n, useI18nLoader, useI18nPlugins } from "@comvi/solid";
+import { createI18n, I18nProvider, useI18n } from "@comvi/solid";
 
 function assert(condition, label) {
   if (!condition) {
@@ -33,8 +41,6 @@ const isComponent = (component) =>
 assert(typeof createI18n === "function", "@comvi/solid exports createI18n");
 assert(typeof useI18n === "function", "@comvi/solid exports useI18n");
 assert(isComponent(I18nProvider), "@comvi/solid exports I18nProvider");
-assert(typeof useI18nLoader === "function", "@comvi/solid exports useI18nLoader");
-assert(typeof useI18nPlugins === "function", "@comvi/solid exports useI18nPlugins");
 
 const i18n = createI18n({
   locale: "en",

@@ -15,6 +15,10 @@ import type {
 import { createI18n as createCore } from "@comvi/core";
 import { attachPlugins } from "@comvi/core/plugins";
 import { attachDevtools } from "@comvi/core/devtools";
+import { acquireLoaderApi } from "@comvi/core/loader";
+import { acquirePluginsApi } from "@comvi/core/plugins";
+import { useI18nLoader, useI18nPlugins } from "../../src/index";
+import type { UseI18nLoaderReturn, UseI18nPluginsReturn } from "../../src/index";
 import {
   attachLoader,
   createI18n,
@@ -204,3 +208,21 @@ export type _I18nTypeStillReachable = I18n<{}>;
 // `createI18n` from `@comvi/core` directly.
 // @ts-expect-error -- `createCore` is not exported from `@comvi/vue`
 void rootEntry.createCore;
+
+// Q7 — `useI18nLoader()` / `useI18nPlugins()` return CORE's acquired surfaces,
+// not a re-declared copy. The four bindings used to own a byte-identical copy
+// of the acquisition and one of them drifted; the return types are now the same
+// declarations `acquireLoaderApi` / `acquirePluginsApi` produce, so a re-typed
+// local bag fails here rather than in a release.
+export type _LoaderHookReturnsCoresBag = Expect<
+  Equal<ReturnType<typeof useI18nLoader>, ReturnType<typeof acquireLoaderApi>>
+>;
+export type _PluginsHookReturnsCoresBag = Expect<
+  Equal<ReturnType<typeof useI18nPlugins>, ReturnType<typeof acquirePluginsApi>>
+>;
+export type _PublicLoaderAliasIsCores = Expect<
+  Equal<UseI18nLoaderReturn, ReturnType<typeof acquireLoaderApi>>
+>;
+export type _PublicPluginsAliasIsCores = Expect<
+  Equal<UseI18nPluginsReturn, ReturnType<typeof acquirePluginsApi>>
+>;

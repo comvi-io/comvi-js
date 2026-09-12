@@ -21,13 +21,19 @@
 // before `init()` is attached. There is no other ordering rule: ICU is the
 // constructor option `compiler: icuCompiler`, not an installer.
 //
+// `acquireLoaderApi(host)` is the COMPONENT-side half of the same subpath: the
+// one implementation behind `useI18nLoader()` in all four bindings. It lives
+// here rather than on the `@comvi/core` root because a graph that never
+// acquires the capability must not pay for it — the root is the base floor.
+//
 // `flattenCatalog` is NOT here: every host flattens nested catalogs itself, so
 // the flattener is no longer this capability's escape hatch. It stays published
 // from the `@comvi/core` root, for pre-flattening data by hand.
 import type { I18n } from "./core/i18n";
-import type { I18nLoaderApi } from "./types";
+import type { I18nLoaderApi, WrapperI18nHost } from "./types";
 import { attachLoader } from "./core/loader";
 import { createImportMapLoader, type LoaderImportMap } from "./core/importMapLoader";
+import { hasLoaderApi, missingCapability } from "./utils/capability";
 
 export { attachLoader } from "./core/loader";
 export { createImportMapLoader } from "./core/importMapLoader";
@@ -77,4 +83,86 @@ export function loader(
     host.registerLoader(createImportMapLoader(importMap, () => host.getDefaultNamespace()));
     return host;
   };
+}
+
+/**
+ * The `@comvi/core/loader` surface a COMPONENT may drive: the three members
+ * that left a binding's `useI18n()` in 0.5, plus their activation siblings —
+ * `addActiveNamespaces` and the `removeActiveNamespace(s)` pair that
+ * deactivates.
+ *
+ * Registration-time APIs (`registerLoader`, `getLoader`) are deliberately
+ * absent — wiring belongs where the instance is constructed, not in a
+ * component.
+ *
+ * Re-exported by `@comvi/react`, `@comvi/vue`, `@comvi/solid` and
+ * `@comvi/svelte` as `UseI18nLoaderReturn`: it is the return of their
+ * `useI18nLoader()`, which is {@link acquireLoaderApi} over the host in
+ * context.
+ */
+export interface AcquiredLoaderApi {
+  /** Activate a namespace and load it for the current locale. */
+  addActiveNamespace: I18nLoaderApi["addActiveNamespace"];
+  /** Activate several namespaces and load them for the current locale. */
+  addActiveNamespaces: I18nLoaderApi["addActiveNamespaces"];
+  /** Deactivate a namespace and cancel its pending loads; content is untouched. */
+  removeActiveNamespace: I18nLoaderApi["removeActiveNamespace"];
+  /** Deactivate several namespaces and cancel their pending loads. */
+  removeActiveNamespaces: I18nLoaderApi["removeActiveNamespaces"];
+  /** Force reload translations from the registered loader. */
+  reloadTranslations: I18nLoaderApi["reloadTranslations"];
+  /** Subscribe to load failures. Returns an unsubscribe function. */
+  onLoadError: I18nLoaderApi["onLoadError"];
+}
+
+/**
+ * Identity contract: ONE bag per host, cached here rather than in a
+ * framework-local memo, so two components under one provider receive the same
+ * function references.
+ *
+ * Annotated pure so a graph that never acquires the capability does not pay
+ * for the map: `acquireLoaderApi` is the only reader, and dropping the
+ * function has to drop this with it.
+ */
+const loaderBags = /* @__PURE__ */ new WeakMap<WrapperI18nHost, AcquiredLoaderApi>();
+
+/**
+ * Acquire the loader capability of `host`, or throw
+ * {@link missingCapability | missingCapability("loader")}.
+ *
+ * ONE implementation, four bindings: `useI18nLoader()` in `@comvi/react`,
+ * `@comvi/vue`, `@comvi/solid` and `@comvi/svelte` is this call over the host
+ * each of them reads from context, and nothing else. The four used to carry a
+ * byte-identical copy pinned by a text-diff gate, which is how one of them
+ * once drifted.
+ *
+ * The check is STRUCTURAL and it throws in dev AND in prod: there is no silent
+ * no-op and no dev-only tombstone. A base `@comvi/core` instance is every host
+ * nobody composed a loader onto, so compose it where the instance is created —
+ * `createI18n(...).use(attachLoader)` or `.use(loader(map))`.
+ *
+ * @example
+ * ```ts
+ * const { addActiveNamespace } = acquireLoaderApi(host);
+ * await addActiveNamespace("dashboard");
+ * ```
+ */
+export function acquireLoaderApi(host: WrapperI18nHost): AcquiredLoaderApi {
+  // A cached bag implies the capability was already verified for this host:
+  // attach is monotonic, capabilities are added and never removed.
+  const cached = loaderBags.get(host);
+  if (cached) return cached;
+
+  if (!hasLoaderApi(host)) throw missingCapability("loader");
+
+  const bag: AcquiredLoaderApi = {
+    addActiveNamespace: host.addActiveNamespace.bind(host),
+    addActiveNamespaces: host.addActiveNamespaces.bind(host),
+    removeActiveNamespace: host.removeActiveNamespace.bind(host),
+    removeActiveNamespaces: host.removeActiveNamespaces.bind(host),
+    reloadTranslations: host.reloadTranslations.bind(host),
+    onLoadError: host.onLoadError.bind(host),
+  };
+  loaderBags.set(host, bag);
+  return bag;
 }
