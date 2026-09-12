@@ -294,13 +294,19 @@ or the [0.5.0 migration guide](https://github.com/comvi-io/comvi-js/blob/main/MI
 
 ## Supported hosts and what they cost
 
-`<I18nProvider i18n={…}>`, `useI18nHost()` and all eight reactive primitives —
-`createLocaleSignal`, `createLoadingSignal`, `createInitializingSignal`,
-`createInitializedSignal`, `createCacheRevisionSignal`,
-`createDefaultNamespaceSignal`, its writable pair `createDefaultNamespaceState`
-(`[accessor, setter]`, the setter writing through to `setDefaultNamespace`) and
-`createDefaultParamsSignal` (the same shape for the instance-level
-interpolation defaults) — accept any `WrapperI18nHost`: `createI18n` from `@comvi/solid` (core's own
+Two names, one rule: **`create*Signal` reads, `create*State` reads and writes.**
+A `Signal` primitive returns an `Accessor` that mirrors the host, on all seven
+axes — `createLocaleSignal`, `createDefaultNamespaceSignal`,
+`createDefaultParamsSignal`, `createLoadingSignal`,
+`createInitializingSignal`, `createInitializedSignal`,
+`createCacheRevisionSignal` — and a `State` primitive returns
+`[accessor, setter]` for the two axes a host lets you write:
+`createDefaultNamespaceState` (its setter calls `setDefaultNamespace`) and
+`createDefaultParamsState` (`setDefaultParams`). Every setter writes THROUGH to
+the host, which stays the source of truth.
+
+`<I18nProvider i18n={…}>`, `useI18nHost()` and all nine of those primitives
+accept any `WrapperI18nHost`: `createI18n` from `@comvi/solid` (core's own
 base-host constructor, re-exported by name), with or without `.use(attachLoader)` /
 `.use(plugins())` composed on. The base host is the cheap one. ICU, tag syntax,
 async loading, the plugin host and devtools discovery are each something you

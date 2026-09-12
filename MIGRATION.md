@@ -466,14 +466,16 @@ changes. Two things did, both additive: `<T>`'s `raw` prop is renamed to
 `skipPostProcess` (§3's codemod rewrites the JSX; `raw` still works — deprecated,
 for one release, with a one-time dev warning); and solid and svelte each gain
 the one per-axis primitive the other already had — solid's
-`createDefaultParamsSignal` (an accessor paired with a setter that writes
-through to the host) and svelte's `createDefaultNamespaceStore` (a writable
-store; assigning into it calls `setDefaultNamespace`). Both axes are writable in
-both: solid also gains `createDefaultNamespaceState` (the accessor + setter pair
-for the namespace, beside the unchanged read-only `createDefaultNamespaceSignal`),
-and svelte's `createDefaultParamsStore` is writable, its `set` / `update`
-calling `setDefaultParams`. Otherwise only the host
-underneath them changes, plus the renames in §2.
+`createDefaultParamsSignal` and svelte's `createDefaultNamespaceStore`.
+
+Solid's primitives follow one naming rule: **`create*Signal` reads** (an
+`Accessor` mirroring the host, on all seven axes) and **`create*State` reads and
+writes** (`[accessor, setter]`, the setter writing through to the host), so the
+two writable axes are `createDefaultNamespaceState` and
+`createDefaultParamsState`. Svelte keeps stores as its write path:
+`createDefaultNamespaceStore` and `createDefaultParamsStore` are `Writable`, and
+their `set` / `update` call `setDefaultNamespace` / `setDefaultParams`.
+Otherwise only the host underneath them changes, plus the renames in §2.
 
 ```tsx
 import { createI18n, I18nProvider, loader, useI18n } from "@comvi/react";

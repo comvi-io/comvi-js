@@ -191,6 +191,7 @@ describe("@comvi/solid — the export surface", () => {
     "createDefaultNamespaceSignal",
     "createDefaultNamespaceState",
     "createDefaultParamsSignal",
+    "createDefaultParamsState",
     "createI18n",
     "createInitializedSignal",
     "createInitializingSignal",

@@ -81,7 +81,7 @@ function getOrCreateStores<D extends DefaultTranslationParams>(i18n: Host<D>) {
       // Writable for the same reason `defaultNamespace` below is: the host
       // stays the source of truth — `set` writes THROUGH to
       // `setDefaultParams`, it does not assign the local value — so the axis
-      // solid can write through `createDefaultParamsSignal`'s setter is
+      // solid can write through `createDefaultParamsState`'s setter is
       // writable here too.
       defaultParams: (() => {
         const { subscribe } = readable<Readonly<DefaultTranslationParams> | undefined>(
@@ -171,8 +171,8 @@ export function createCacheRevisionStore<D extends DefaultTranslationParams = {}
  * `store.set({ … })` / `$store = { … }` calls `setDefaultParams`, it does not
  * shadow the host's own value, and `undefined` clears them. Memoized per i18n
  * instance. The solid counterpart is
- * `solid/src/primitives.ts:createDefaultParamsSignal`, which returns the
- * setter beside the accessor instead.
+ * `solid/src/primitives.ts:createDefaultParamsState`, which returns the setter
+ * beside the accessor instead (its `create*Signal` half reads only).
  */
 export function createDefaultParamsStore<D extends DefaultTranslationParams = {}>(
   i18n: Host<D>,

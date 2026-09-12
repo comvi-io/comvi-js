@@ -7,6 +7,7 @@ import {
   createDefaultNamespaceSignal,
   createDefaultNamespaceState,
   createDefaultParamsSignal,
+  createDefaultParamsState,
   createLoadingSignal,
   createInitializingSignal,
   createInitializedSignal,
@@ -76,10 +77,23 @@ describe("Solid primitives", () => {
     expect(defaultNamespace()).toBe("billing");
   });
 
-  it("updates default params signal when the defaults change, and the setter writes through", () => {
+  it("updates default params signal when the defaults change", () => {
     const i18n = createI18n({ locale: "en" });
 
-    const [defaultParams, setDefaultParams] = createTestRoot(() => createDefaultParamsSignal(i18n));
+    // `create*Signal` READS: a bare accessor, never a tuple, on every axis.
+    const defaultParams = createTestRoot(() => createDefaultParamsSignal(i18n));
+
+    expect(defaultParams()).toBeUndefined();
+
+    i18n.setDefaultParams({ formality: "formal" });
+
+    expect(defaultParams()).toEqual({ formality: "formal" });
+  });
+
+  it("pairs the default params with a setter that writes through to the host", () => {
+    const i18n = createI18n({ locale: "en" });
+
+    const [defaultParams, setDefaultParams] = createTestRoot(() => createDefaultParamsState(i18n));
 
     expect(defaultParams()).toBeUndefined();
 

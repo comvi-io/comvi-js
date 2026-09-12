@@ -33,8 +33,8 @@ action is an imperative operation, not a reactive value. The bag they return is
 referentially stable per host instance. `<T>` ships as its own dist chunk taking
 `prepareTranslation` from the pure `@comvi/core/rich-text` seam, so an app that never
 renders it drops the whole rich-text path and one that does never executes tag registration.
-`I18nProviderProps.i18n`, `useI18nContext()`'s return and all eight reactive primitives accept
-`WrapperI18nHost` instead of the concrete `I18n` class — the six state signals plus
-`createDefaultParamsSignal` and `createDefaultNamespaceState`, the two `[accessor, setter]`
-pairs whose setters write through to the host. See the
+`I18nProviderProps.i18n`, `useI18nContext()`'s return and all nine reactive primitives accept
+`WrapperI18nHost` instead of the concrete `I18n` class — the seven read-only `create*Signal`
+accessors plus the two `create*State` pairs, `createDefaultNamespaceState` and
+`createDefaultParamsState`, whose setters write through to the host. See the
 [0.5.0 migration guide](https://github.com/comvi-io/comvi-js/blob/main/MIGRATION.md).

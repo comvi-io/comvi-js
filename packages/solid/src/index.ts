@@ -38,6 +38,7 @@ export {
   createDefaultNamespaceSignal,
   createDefaultNamespaceState,
   createDefaultParamsSignal,
+  createDefaultParamsState,
   createLoadingSignal,
   createInitializingSignal,
   createInitializedSignal,
