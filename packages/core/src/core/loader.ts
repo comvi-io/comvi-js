@@ -33,7 +33,7 @@ const IS_DEV = typeof __DEV__ !== "undefined" && __DEV__;
  * happens to trigger a load. Empty in prod so terser drops the string.
  */
 const ERR_LATE_LOADER = IS_DEV
-  ? "[i18n] .use(attachLoader) ran after init(): compose capabilities before init(). init() has already loaded the initial namespaces and will not re-run for this loader — call reloadTranslations() or addActiveNamespace() to load now."
+  ? "[i18n] The loader capability (.use(loader(map)) or .use(attachLoader)) was composed after init(): compose capabilities before init(). init() has already loaded the initial namespaces and will not re-run for this loader — call reloadTranslations() or addActiveNamespace() to load now."
   : "";
 
 const ERR_NO_LOADER_REGISTERED = IS_DEV
