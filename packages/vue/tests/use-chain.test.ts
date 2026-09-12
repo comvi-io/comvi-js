@@ -1,14 +1,14 @@
 // `VueI18n.use(installer)`: the pipe on the WRAPPER. It runs the installer on
 // `core`, keeps the one instance the app holds, and widens `core`'s type — so
 // `createI18n(options).use(…)` reads like the other bindings' `createI18n`
-// instead of the `createCore` + `createI18nFromCore` detour.
+// instead of the core `createI18n` + `createI18nFromCore` detour.
 import { describe, it, expect, vi } from "vitest";
 import { defineComponent, h } from "vue";
 import { mount } from "@vue/test-utils";
+import { createI18n as createCore } from "@comvi/core";
 import {
   createI18n,
   createI18nFromCore,
-  createCore,
   devtools,
   icuCompiler,
   loader,

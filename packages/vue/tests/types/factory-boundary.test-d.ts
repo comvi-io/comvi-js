@@ -3,10 +3,10 @@
 // `WrapperI18nHost`, so a capability call there is a compile error rather than
 // a typed-then-crashes path.
 import type { I18n, I18nLoaderApi, I18nPluginHostApi, WrapperI18nHost } from "../../src/index";
+import { createI18n as createCore } from "@comvi/core";
 import {
   attachLoader,
   attachPlugins,
-  createCore,
   createI18n,
   createI18nFromCore,
   devtools,

@@ -10,14 +10,7 @@
 //
 // <T> rendering needs a DOM and is NOT exercised here. No top-level await: the
 // webpack leg emits commonjs2.
-import {
-  createI18n,
-  I18n,
-  I18nProvider,
-  useI18n,
-  useI18nLoader,
-  useI18nPlugins,
-} from "@comvi/solid";
+import { createI18n, I18nProvider, useI18n, useI18nLoader, useI18nPlugins } from "@comvi/solid";
 
 function assert(condition, label) {
   if (!condition) {
@@ -38,7 +31,6 @@ function assertEqual(actual, expected, label) {
 const isComponent = (component) =>
   typeof component === "function" || (typeof component === "object" && component !== null);
 assert(typeof createI18n === "function", "@comvi/solid exports createI18n");
-assert(typeof I18n === "function", "@comvi/solid exports I18n");
 assert(typeof useI18n === "function", "@comvi/solid exports useI18n");
 assert(isComponent(I18nProvider), "@comvi/solid exports I18nProvider");
 assert(typeof useI18nLoader === "function", "@comvi/solid exports useI18nLoader");
@@ -50,7 +42,12 @@ const i18n = createI18n({
   translation: { en: { msg: "a <b>c</b> d" } },
 });
 
-assert(i18n instanceof I18n, "the named base I18n is the instance constructor");
+// `I18n` is a TYPE from a binding root (P5), so the pin is structural: a base
+// core host, with the composition verb and no capability attached.
+assert(
+  typeof i18n.t === "function" && typeof i18n.use === "function",
+  "createI18n builds a core host",
+);
 assert(typeof i18n.reloadTranslations === "undefined", "default host has no loader capability");
 assert(typeof i18n.onMissingKey === "undefined", "default host has no plugin capability");
 assert(typeof i18n.instanceId === "undefined", "default host has no devtools discovery");

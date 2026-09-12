@@ -1,9 +1,9 @@
 import { describe, it, expect, vi } from "vitest";
 import { mount } from "@vue/test-utils";
 import { h } from "vue";
+import { createI18n as createCore } from "@comvi/core";
 import {
   attachPlugins,
-  createCore,
   createI18nFromCore,
   type TranslationResult,
   type FragmentNode,

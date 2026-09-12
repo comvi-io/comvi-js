@@ -73,6 +73,32 @@ describe("useI18n composable", () => {
     expect(wrapper.text()).toBe("1.234,5");
   });
 
+  it("exposes isInitialized and cacheRevision as reactive refs", async () => {
+    const i18n = createI18n({ locale: "en", defaultNs: "common" });
+    i18n.addTranslations({ en: { k: "v" } });
+
+    const C = {
+      template: "<div>{{ isInitialized }}:{{ cacheRevision }}</div>",
+      setup() {
+        const { isInitialized, cacheRevision } = useI18n();
+        return { isInitialized, cacheRevision };
+      },
+    };
+
+    const wrapper = mount(C, { global: { plugins: [i18n] } });
+    const revisionBefore = i18n.core.translationCache.getRevision();
+    expect(wrapper.text()).toBe(`false:${revisionBefore}`);
+
+    await i18n.init();
+    await nextTick();
+    expect(wrapper.text().startsWith("true:")).toBe(true);
+
+    i18n.addTranslations({ en: { k2: "v2" } });
+    await nextTick();
+    expect(wrapper.text()).toBe(`true:${i18n.core.translationCache.getRevision()}`);
+    expect(i18n.core.translationCache.getRevision()).toBeGreaterThan(revisionBefore);
+  });
+
   it("binds the requested namespace for translations", async () => {
     const i18n = createI18n({ locale: "en", defaultNs: "common" });
     i18n.addTranslations({

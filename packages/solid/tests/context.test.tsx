@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { render } from "solid-js/web";
 import { createSignal } from "solid-js";
-import { I18nProvider, useI18nContext } from "../src/context";
+import { I18nProvider, useI18nContext, useI18nHost } from "../src/context";
 import { useI18n } from "../src/useI18n";
 import { FakeI18n } from "@comvi/test-utils/fakeI18n";
 import { flushMicrotasks, renderSolid } from "./test-utils";
@@ -35,6 +35,38 @@ describe("solid context", () => {
     ));
 
     expect(received).toBe(fake.asI18n());
+  });
+
+  it("useI18nHost returns the provider's host — the same object the deprecated useI18nContext does", () => {
+    const fake = new FakeI18n({ language: "en" });
+    let host: unknown;
+    let legacy: unknown;
+
+    const Probe = () => {
+      host = useI18nHost();
+      legacy = useI18nContext();
+      return null;
+    };
+
+    renderSolid(() => (
+      <I18nProvider i18n={fake.asI18n()} autoInit={false}>
+        <Probe />
+      </I18nProvider>
+    ));
+
+    expect(host).toBe(fake.asI18n());
+    expect(legacy).toBe(host);
+  });
+
+  it("useI18nHost throws outside a provider", () => {
+    const container = document.createElement("div");
+    const Bad = () => {
+      useI18nHost();
+      return null;
+    };
+    expect(() => render(() => <Bad />, container)).toThrow(
+      "[@comvi/solid] i18n context not found. Wrap your app with <I18nProvider i18n={i18n}>.",
+    );
   });
 
   it("auto-initializes when enabled and instance is not initialized", async () => {

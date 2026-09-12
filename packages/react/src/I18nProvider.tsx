@@ -7,41 +7,14 @@ import {
   useSyncExternalStore,
 } from "react";
 import { subscribeToRevision } from "@comvi/core";
-import type { WrapperI18nHost, FlattenedTranslations, I18nEvent } from "@comvi/core";
+import type { AnyI18nHost, WrapperI18nHost, FlattenedTranslations, I18nEvent } from "@comvi/core";
 
 /** Loader/plugin capabilities are not part of it — see `capabilityHooks`. */
 type Host = WrapperI18nHost;
 
-/**
- * A host with ANY default-params type — what the provider accepts.
- *
- * `I18nCoreInstance` declares `setDefaultParams` as a PROPERTY rather than a
- * method, so `strictFunctionTypes` checks its parameter contravariantly and
- * the host is INVARIANT in `D`: an instance from `createI18n({ defaultParams })`
- * was not assignable to `WrapperI18nHost<{}>` at all, so it could not be
- * passed to the provider.
- *
- * Making the boundary generic over `D` does NOT fix it. Every `D` position in
- * the host is either a conditional type (`SetDefaultParamsArg<D>`,
- * `ParamsArg<K, D>`) or a bivariant method, so `D` has no inference site: it
- * silently falls back to the constraint and the call fails just the same.
- *
- * Widening the two members that carry the invariance is what actually works.
- * `setDefaultParams` is the source; `init()` re-imports it by returning the
- * host recursively. Every other `D` occurrence is a method (bivariant) or a
- * return type (covariant), so nothing else has to move.
- *
- * Both are widened with METHOD syntax and `any` rather than `never` /
- * `unknown` on purpose: methods are bivariant, so the result stays assignable
- * to `WrapperI18nHost<{}>` in BOTH directions. That keeps every downstream
- * consumer of these props (notably `@comvi/next`, which passes this `i18n`
- * straight into helpers typed against the plain host) compiling unchanged,
- * and means the provider needs no internal cast at all.
- */
-export type AnyI18nHost = Omit<WrapperI18nHost, "setDefaultParams" | "init"> & {
-  setDefaultParams(params: any): void;
-  init(): Promise<any>;
-};
+// `AnyI18nHost` is core's: the `strictFunctionTypes` invariance in `D` it
+// widens is documented there, once, for all three providers that accept it.
+export type { AnyI18nHost };
 
 interface I18nContextValue {
   i18n: Host;
@@ -216,6 +189,18 @@ export function useI18nInstance(): I18nInstanceContextValue {
 }
 
 /**
+ * The host the nearest `<I18nProvider>` holds, as a bare `WrapperI18nHost` —
+ * THE name for "give me the host", the same in react, solid and svelte (vue's
+ * equivalent is `inject(I18N_INJECTION_KEY).core`). Not reactive on its own:
+ * pair it with `useI18n()` or a selector hook to re-render.
+ *
+ * @throws if called outside an `<I18nProvider>`.
+ */
+export function useI18nHost(): WrapperI18nHost {
+  return useI18nInstance().i18n;
+}
+
+/**
  * Read the current locale. Subscribes only to locale changes — non-translation
  * consumers (e.g. `<Link>`, `usePathname()`) prefer this over `useI18n()` to
  * skip re-renders on namespace loads and loading-state changes.
@@ -237,7 +222,8 @@ export function useIsLoading(): { isLoading: boolean; isInitializing: boolean } 
  * Legacy combined-context shape. Re-renders on every reactive axis.
  *
  * @deprecated Use `useI18n()` or the per-axis selector hooks `useLocale()` /
- *   `useIsLoading()`. Scheduled for removal in the next major.
+ *   `useIsLoading()`; for the bare host, `useI18nHost()`. Scheduled for
+ *   removal in the next major.
  */
 export function useI18nContext(): I18nContextValue {
   const { i18n, isLoading, isInitializing } = useI18nInstance();

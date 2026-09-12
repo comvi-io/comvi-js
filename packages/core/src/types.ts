@@ -262,6 +262,44 @@ export interface TranslateFn<D extends DefaultTranslationParams = {}, R = string
   (key: PermissiveKey, params?: TranslationParams): R;
 }
 
+/**
+ * Params for a BARE key under a bound namespace: `useI18n("admin").t("dashboard")`
+ * types its params as `"admin:dashboard"`'s. Loose when the pair is not a
+ * generated key.
+ */
+export type NamespaceBoundParamsArg<
+  NS extends string,
+  K extends string,
+  D extends DefaultTranslationParams = {},
+> = `${NS}:${K}` extends keyof TranslationKeys
+  ? ParamsArg<`${NS}:${K}` & keyof TranslationKeys, D>
+  : [params?: TranslationParams];
+
+/**
+ * The `t` / `tRaw` a wrapper's `useI18n(ns)` returns: {@link TranslateFn}
+ * plus, when `NS` is a generated namespace, the bare-key shorthand — so
+ * `useI18n("admin").t("dashboard")` is exact and `t("checkout")` from another
+ * namespace is rejected. With `NS` `undefined` (no namespace bound) or a
+ * namespace the registry does not know, it is `TranslateFn` unchanged.
+ *
+ * Every wrapper narrows through this ONE type, so the four cannot drift.
+ *
+ * @typeParam NS - The namespace the call site bound, or `undefined`.
+ * @typeParam D - Instance-level default interpolation params.
+ * @typeParam R - `string` for `t`, `TranslationResult` for `tRaw`.
+ */
+export type NamespaceBoundTranslateFn<
+  NS extends string | undefined,
+  D extends DefaultTranslationParams = {},
+  R = string,
+> = TranslateFn<D, R> &
+  (NS extends Namespaces
+    ? {
+        /** With `useI18n(ns)`, `t('title')` means `t('title', { ns })`. */
+        <K extends NamespacedKeys<NS>>(key: K, ...params: NamespaceBoundParamsArg<NS, K, D>): R;
+      }
+    : {});
+
 export interface TagCallbackParams {
   /** Inner content of the tag, already processed. */
   children: TranslationResult;
@@ -886,6 +924,39 @@ export interface I18nCoreExtraApi {
  */
 export type WrapperI18nHost<D extends DefaultTranslationParams = {}> = I18nCoreInstance<D> &
   I18nCoreExtraApi;
+
+/**
+ * A host with ANY default-params type — what a wrapper's provider / context
+ * setter accepts.
+ *
+ * `I18nCoreInstance` declares `setDefaultParams` as a PROPERTY rather than a
+ * method, so `strictFunctionTypes` checks its parameter contravariantly and
+ * the host is INVARIANT in `D`: an instance from `createI18n({ defaultParams })`
+ * was not assignable to `WrapperI18nHost<{}>` at all, so it could not be
+ * passed in.
+ *
+ * Making the boundary generic over `D` does NOT fix it. Every `D` position in
+ * the host is either a conditional type (`SetDefaultParamsArg<D>`,
+ * `ParamsArg<K, D>`) or a bivariant method, so `D` has no inference site: it
+ * silently falls back to the constraint and the call fails just the same.
+ *
+ * Widening the two members that carry the invariance is what actually works.
+ * `setDefaultParams` is the source; `init()` re-imports it by returning the
+ * host recursively. Every other `D` occurrence is a method (bivariant) or a
+ * return type (covariant), so nothing else has to move.
+ *
+ * Both are widened with METHOD syntax and `any` rather than `never` /
+ * `unknown` on purpose: methods are bivariant, so the result stays assignable
+ * to `WrapperI18nHost<{}>` in BOTH directions. Everything downstream that
+ * expects the plain host keeps compiling, and no wrapper needs an internal
+ * cast.
+ *
+ * Declared ONCE here: react, solid and svelte re-export it as a type.
+ */
+export type AnyI18nHost = Omit<WrapperI18nHost, "setDefaultParams" | "init"> & {
+  setDefaultParams(params: any): void;
+  init(): Promise<any>;
+};
 
 /**
  * The instance surface a plugin may rely on. A plugin that calls loader APIs on

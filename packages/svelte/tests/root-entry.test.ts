@@ -58,11 +58,13 @@ describe("@comvi/svelte — the single root entry", () => {
     expect("instanceId" in i18n).toBe(false);
   });
 
-  it("publishes the factory and the class it constructs as one pair", () => {
+  it("the factory constructs core's `I18n`; the class itself is a TYPE-only export", () => {
     const i18n = root.createI18n({ locale: "en", exposeGlobal: false });
 
-    expect(i18n).toBeInstanceOf(root.I18n);
-    expect(new root.I18n({ locale: "en", exposeGlobal: false })).toBeInstanceOf(root.I18n);
+    expect(i18n).toBeInstanceOf(CoreI18n);
+    // `createI18n(o)` and `new I18n(o)` build the same object, so the class
+    // VALUE is core's to export — a binding root only names it as a type.
+    expect("I18n" in root).toBe(false);
   });
 });
 
@@ -118,7 +120,6 @@ describe("@comvi/svelte — the capability toolkit", () => {
 
   it("re-exports core's own bindings, not copies", () => {
     expect(root.createI18n).toBe(coreCreateI18n);
-    expect(root.I18n).toBe(CoreI18n);
     expect(root.icuCompiler).toBe(icuCompiler);
     expect(root.attachLoader).toBe(attachLoader);
     // `flattenCatalog` is NOT re-exported: nested catalogs are base behaviour (C1).
@@ -217,7 +218,6 @@ describe("@comvi/svelte — the export surface", () => {
   // The whole published runtime surface, exact. A new name has to be added
   // here on purpose; an accidental one fails the suite.
   const SURFACE = [
-    "I18n",
     "T",
     "attachDevtools",
     "attachLoader",
@@ -237,6 +237,7 @@ describe("@comvi/svelte — the export surface", () => {
     "plugins",
     "setI18nContext",
     "useI18n",
+    "useI18nHost",
     "useI18nLoader",
     "useI18nPlugins",
   ];

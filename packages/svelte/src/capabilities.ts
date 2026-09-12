@@ -4,7 +4,7 @@
 // STRUCTURALLY and throws when the capability was never attached — in dev AND
 // in prod. There is no silent no-op and no dev-only tombstone.
 //
-// These are CONTEXT READERS, not stores: they call `getI18nContext()`, so —
+// These are CONTEXT READERS, not stores: they call `useI18nHost()`, so —
 // exactly like `useI18n()` — they are callable during component initialisation
 // only, and what they return is a plain object of bound functions captured at
 // that moment. Nothing here is reactive and `$`-prefixing a member is a type
@@ -18,7 +18,7 @@
 // so members are referentially stable per host across components.
 import { hasLoaderApi, hasPluginHostApi, missingCapability } from "@comvi/core";
 import type { I18nLoaderApi, I18nPluginHostApi, WrapperI18nHost } from "@comvi/core";
-import { getI18nContext } from "./context.js";
+import { useI18nHost } from "./context.js";
 
 // #region capability-parity (B8) — FRAMEWORK-NEUTRAL, BYTE-IDENTICAL
 // Everything between the region markers is the same text in @comvi/react,
@@ -135,7 +135,7 @@ function acquirePlugins(host: AnyHost): UseI18nPluginsReturn {
  * ```
  */
 export function useI18nLoader(): UseI18nLoaderReturn {
-  return acquireLoader(getI18nContext());
+  return acquireLoader(useI18nHost());
 }
 
 /**
@@ -157,5 +157,5 @@ export function useI18nLoader(): UseI18nLoaderReturn {
  * ```
  */
 export function useI18nPlugins(): UseI18nPluginsReturn {
-  return acquirePlugins(getI18nContext());
+  return acquirePlugins(useI18nHost());
 }

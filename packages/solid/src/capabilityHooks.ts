@@ -7,14 +7,14 @@
 // Solid idiom: plain accessors under the Provider, NO signals — a capability
 // action is an imperative operation, not a reactive value, and the returned
 // members are bound host methods with nothing to track. They read the context
-// exactly like `useI18nContext()` does, so the same rule applies: call them in
+// exactly like `useI18nHost()` does, so the same rule applies: call them in
 // a component/owner scope.
 //
 // Identity contract: the bag is cached in a module-level `WeakMap<host, bag>`,
 // so members are referentially stable per host across components.
 import { hasLoaderApi, hasPluginHostApi, missingCapability } from "@comvi/core";
 import type { I18nLoaderApi, I18nPluginHostApi, WrapperI18nHost } from "@comvi/core";
-import { useI18nContext } from "./context";
+import { useI18nHost } from "./context";
 
 // #region capability-parity (B8) — FRAMEWORK-NEUTRAL, BYTE-IDENTICAL
 // Everything between the region markers is the same text in @comvi/react,
@@ -127,7 +127,7 @@ function acquirePlugins(host: AnyHost): UseI18nPluginsReturn {
  * ```
  */
 export function useI18nLoader(): UseI18nLoaderReturn {
-  return acquireLoader(useI18nContext());
+  return acquireLoader(useI18nHost());
 }
 
 /**
@@ -145,5 +145,5 @@ export function useI18nLoader(): UseI18nLoaderReturn {
  * ```
  */
 export function useI18nPlugins(): UseI18nPluginsReturn {
-  return acquirePlugins(useI18nContext());
+  return acquirePlugins(useI18nHost());
 }

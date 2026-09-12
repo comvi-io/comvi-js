@@ -61,7 +61,12 @@ type ComponentConfig = Omit<TagComponentConfig, "props"> & {
 
 type ComponentHandler = ComponentTarget | ComponentConfig;
 
-type ComponentsMap = Record<string, ComponentHandler>;
+/**
+ * Tag-name → handler map for `<T>`'s tag interpolation: an HTML tag name, a
+ * React element, a render function, or a `{ tag | component, props }` config.
+ * The same name in all four bindings, so a `components` map can be typed.
+ */
+export type ComponentMap = Record<string, ComponentHandler>;
 
 interface TagBoundaryProps {
   tagName: string;
@@ -133,7 +138,7 @@ interface TBaseProps {
    *   btn: ({ children }) => <button>{children}</button>  // Function handler
    * }
    */
-  components?: ComponentsMap;
+  components?: ComponentMap;
 }
 
 type TranslationKeysMap = TranslationKeys;
@@ -202,7 +207,7 @@ const TComponent = function T({
 
   // Peeled off restProps so it is never passed as a translation param.
   const { components: _, ...cleanRestProps } = restProps as {
-    components?: ComponentsMap;
+    components?: ComponentMap;
     [key: string]: unknown;
   };
 

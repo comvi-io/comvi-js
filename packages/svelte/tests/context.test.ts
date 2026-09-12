@@ -43,6 +43,7 @@ describe("svelte context", () => {
     });
 
     expect(text("context-language")).toBe("en");
+    expect(text("host-identity")).toBe("same");
     expect(text("hook")).toBe("Hello-en");
     expect(text("component")).toBe("Hello");
 

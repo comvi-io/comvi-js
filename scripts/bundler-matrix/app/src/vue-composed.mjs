@@ -1,5 +1,7 @@
-// The vue COMPOSED-HOST recipe — `createCore` plus a configured capability,
-// wrapped by `createI18nFromCore`. Every specifier is `@comvi/vue`.
+// The vue COMPOSED-HOST recipe — core's `createI18n` plus a configured
+// capability, wrapped by `createI18nFromCore`. The host is built elsewhere by
+// definition, so `@comvi/core` IS named here for its constructor (there is no
+// `createCore` alias on `@comvi/vue`); everything else comes from `@comvi/vue`.
 //
 // The question it answers: does a named re-export hop through a
 // `sideEffects: false` wrapper tree-shake in a REAL bundler, in DEVELOPMENT as
@@ -11,18 +13,12 @@
 // Vue keeps a case of its own because it is the one binding with TWO
 // construction paths on one entry: the wrapper preset (`vue-default`) and this
 // injected-host escape hatch, whose exact host type survives into `i18n.core`.
-// Core's base entry IS in the graph — `createCore` is its constructor.
+// Core's base entry IS in the graph — it is the host's constructor.
 //
 // <T> rendering needs a renderer and is NOT exercised here. No top-level await:
 // the webpack leg emits commonjs2.
-import {
-  attachLoader,
-  createCore,
-  createI18n,
-  createI18nFromCore,
-  loader,
-  useI18n,
-} from "@comvi/vue";
+import { createI18n as createCore } from "@comvi/core";
+import { attachLoader, createI18n, createI18nFromCore, loader, useI18n } from "@comvi/vue";
 
 function assert(condition, label) {
   if (!condition) {
@@ -41,7 +37,6 @@ function assertEqual(actual, expected, label) {
 }
 
 assert(typeof createI18n === "function", "@comvi/vue exports createI18n");
-assert(typeof createCore === "function", "@comvi/vue exports createCore");
 assert(typeof createI18nFromCore === "function", "@comvi/vue exports createI18nFromCore");
 assert(typeof useI18n === "function", "@comvi/vue exports useI18n");
 assert(typeof attachLoader === "function", "@comvi/vue re-exports attachLoader");
@@ -49,7 +44,7 @@ assert(typeof loader === "function", "@comvi/vue re-exports the loader() install
 
 async function main() {
   // THE DOCUMENTED RECIPE, in one expression: host + capability + import map,
-  // then wrapped for vue. `createCore` is core's own constructor.
+  // then wrapped for vue. `createCore` is core's own `createI18n`.
   const host = createCore({ locale: "en", exposeGlobal: false }).use(
     loader({
       en: async () => ({ default: { greeting: "Hello" } }),

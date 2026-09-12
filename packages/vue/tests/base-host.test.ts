@@ -10,14 +10,8 @@
 import { describe, it, expect } from "vitest";
 import { defineComponent, h, nextTick } from "vue";
 import { mount } from "@vue/test-utils";
-import {
-  attachLoader,
-  attachPlugins,
-  createCore,
-  createI18nFromCore,
-  T,
-  useI18n,
-} from "../src/index";
+import { createI18n as createCore } from "@comvi/core";
+import { attachLoader, attachPlugins, createI18nFromCore, T, useI18n } from "../src/index";
 import type { AnyVueI18n } from "../src/index";
 
 const baseHost = () =>

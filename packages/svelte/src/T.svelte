@@ -7,7 +7,7 @@
   import type { PendingHandler } from '@comvi/core/rich-text';
   import type { Component } from 'svelte';
   import type { VirtualNode } from '@comvi/core';
-  import { getI18nContext } from './context.js';
+  import { useI18nHost } from './context.js';
   import { createLocaleStore, createCacheRevisionStore } from './stores.js';
   import type { TProps } from './types';
 
@@ -25,7 +25,7 @@
     ...directParams
   }: TProps = $props();
 
-  const i18n = getI18nContext();
+  const i18n = useI18nHost();
   const languageStore = createLocaleStore(i18n);
   const cacheRevision = createCacheRevisionStore(i18n);
 

@@ -11,9 +11,12 @@
 // it either: it is the one side-effectful subpath, so naming it would put
 // ambient tag registration in every graph.
 
-export { createI18n, I18n } from "@comvi/core";
+export { createI18n } from "@comvi/core";
+// `I18n` is a TYPE here: `createI18n(o)` and `new I18n(o)` build the same
+// object, so the class VALUE is `@comvi/core`'s to export, not a binding's.
+export type { I18n } from "@comvi/core";
 
-export { I18nProvider, useI18nContext, useLocale, useIsLoading } from "./I18nProvider";
+export { I18nProvider, useI18nHost, useI18nContext, useLocale, useIsLoading } from "./I18nProvider";
 export type { I18nProviderProps } from "./I18nProvider";
 export { useI18n } from "./useI18n";
 export type { UseI18nReturn } from "./useI18n";
@@ -24,7 +27,7 @@ export type { UseSetLocaleTransitionReturn } from "./useSetLocaleTransition";
 export { useFormatters } from "./useFormatters";
 export type { UseFormattersReturn } from "./useFormatters";
 export { T } from "./T";
-export type { TProps } from "./T";
+export type { ComponentMap, TProps } from "./T";
 
 // Each is a named binding under `sideEffects: false`, so the subpaths an app
 // never calls stay out of its graph.

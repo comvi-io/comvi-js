@@ -79,6 +79,7 @@ export class VueI18n<
   private _localeComputed?: WritableComputedRef<string>;
   private _isLoading: ShallowRef<boolean>;
   private _isInitializing: ShallowRef<boolean>;
+  private _isInitialized: ShallowRef<boolean>;
   private _cacheRevision: ShallowRef<number>;
   private _configRevision: ShallowRef<number>;
   private _defaultParamsComputed?: ComputedRef<DefaultParamsSnapshot<D>>;
@@ -145,6 +146,7 @@ export class VueI18n<
     this._requestedLocale = initialLocale;
     this._isLoading = shallowRef(this.core.isLoading);
     this._isInitializing = shallowRef(this.core.isInitializing);
+    this._isInitialized = shallowRef(this.core.isInitialized);
     this._cacheRevision = shallowRef(this.core.translationCache.getRevision());
     this._configRevision = shallowRef(0);
     const syncCache = () => {
@@ -169,6 +171,7 @@ export class VueI18n<
             syncCache();
             this._isLoading.value = this.core.isLoading;
             this._isInitializing.value = this.core.isInitializing;
+            this._isInitialized.value = this.core.isInitialized;
             break;
           case "namespaceLoaded":
           case "translationsCleared":
@@ -379,6 +382,15 @@ export class VueI18n<
 
   get isInitializing(): Readonly<Ref<boolean>> {
     return readonly(this._isInitializing);
+  }
+
+  get isInitialized(): Readonly<Ref<boolean>> {
+    return readonly(this._isInitialized);
+  }
+
+  /** Core's translation-cache revision, reactive; read it to depend on cache changes. */
+  get cacheRevision(): Readonly<Ref<number>> {
+    return readonly(this._cacheRevision);
   }
 
   /** The rich-text half of `t()`: the full core `TranslationResult`. */

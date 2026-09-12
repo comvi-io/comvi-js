@@ -12,11 +12,7 @@ import type {
   WrapperI18nHost,
   TranslationParams,
   TranslationResult,
-  TranslationKeys,
-  TranslateFn,
-  Namespaces,
-  NamespacedKeys,
-  ParamsArg,
+  NamespaceBoundTranslateFn,
   FlattenedTranslations,
   DefaultTranslationParams,
   DefaultParamsSnapshot,
@@ -25,37 +21,18 @@ import type {
 /** Loader/plugin-host members are NOT part of it — see `capabilityHooks`. */
 type Host<D extends DefaultTranslationParams = {}> = WrapperI18nHost<D>;
 
-type BoundDefaultNamespaceParams<
-  NS extends string,
-  K extends string,
-  D extends DefaultTranslationParams,
-> = `${NS}:${K}` extends keyof TranslationKeys
-  ? ParamsArg<`${NS}:${K}` & keyof TranslationKeys, D>
-  : [params?: TranslationParams];
-
-type BoundNamespaceShorthand<
-  DefaultNS extends string | undefined,
-  D extends DefaultTranslationParams,
-  R,
-> = DefaultNS extends Namespaces
-  ? {
-      /** With `useI18n(ns)`, `t('title')` means `t('title', { ns })`. */
-      <K extends NamespacedKeys<DefaultNS>>(
-        key: K,
-        ...params: BoundDefaultNamespaceParams<DefaultNS, K, D>
-      ): R;
-    }
-  : {};
-
+// The namespace-bound narrowing is core's `NamespaceBoundTranslateFn`, shared
+// by all four wrappers, so `useI18n("admin").t("dashboard")` reads the same in
+// each of them.
 type UseI18nTranslation<
   DefaultNS extends string | undefined,
   D extends DefaultTranslationParams,
-> = TranslateFn<D, string> & BoundNamespaceShorthand<DefaultNS, D, string>;
+> = NamespaceBoundTranslateFn<DefaultNS, D, string>;
 
 type UseI18nRawTranslation<
   DefaultNS extends string | undefined,
   D extends DefaultTranslationParams,
-> = TranslateFn<D, TranslationResult> & BoundNamespaceShorthand<DefaultNS, D, TranslationResult>;
+> = NamespaceBoundTranslateFn<DefaultNS, D, TranslationResult>;
 
 /**
  * The host-only translation surface. Loader and plugin-host members are not

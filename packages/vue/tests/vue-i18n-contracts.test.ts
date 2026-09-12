@@ -1,7 +1,8 @@
 import { describe, it, expect, vi } from "vitest";
 import { nextTick } from "vue";
 import { createI18n } from "../src/createI18n";
-import { attachLoader, attachPlugins, createCore, createI18nFromCore } from "../src";
+import { createI18n as createCore } from "@comvi/core";
+import { attachLoader, attachPlugins, createI18nFromCore } from "../src";
 import type { I18nOptions, LoaderResult } from "../src";
 
 // Vue's preset builds the BASE host, so each contract below composes exactly

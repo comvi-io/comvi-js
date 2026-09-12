@@ -1,6 +1,6 @@
 // `ssrLocale` has to reach the core BEFORE the reactive ref is seeded, or the
 // ref and `core.locale` disagree for one render — which is why vue's preset is
-// a real function and core's constructor is re-exported as `createCore`.
+// a real function rather than a rename of core's constructor.
 //
 // Its own module because it is the only one that constructs a core: an app
 // composing its own host and calling `createI18nFromCore` never runs it.

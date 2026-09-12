@@ -5,9 +5,16 @@
  * used to list only the plain targets — so tests had to cast around it.
  */
 import type * as React from "react";
-import type { T } from "../../src/index";
+import type { ComponentMap, T } from "../../src/index";
 
+type Equal<X, Y> =
+  (<G>() => G extends X ? 1 : 2) extends <G>() => G extends Y ? 1 : 2 ? true : false;
+type Expect<X extends true> = X;
+
+// P7: the map is EXPORTED under the one name all four bindings share, and it
+// is exactly what `<T components>` takes.
 type ComponentsMap = NonNullable<React.ComponentProps<typeof T>["components"]>;
+export type _ComponentMapIsTheProp = Expect<Equal<ComponentMap, ComponentsMap>>;
 
 /** Fails to compile unless `M` is a legal components map. */
 type Accepts<M extends ComponentsMap> = M;

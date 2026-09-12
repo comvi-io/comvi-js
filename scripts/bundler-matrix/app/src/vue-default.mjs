@@ -11,7 +11,7 @@
 //
 // <T> rendering needs a renderer and is NOT exercised here. No top-level await:
 // the webpack leg emits commonjs2.
-import { createCore, createI18n, createI18nFromCore, I18n, useI18n } from "@comvi/vue";
+import { createI18n, createI18nFromCore, useI18n } from "@comvi/vue";
 
 function assert(condition, label) {
   if (!condition) {
@@ -30,9 +30,7 @@ function assertEqual(actual, expected, label) {
 }
 
 assert(typeof createI18n === "function", "@comvi/vue exports createI18n");
-assert(typeof createCore === "function", "@comvi/vue exports createCore");
 assert(typeof createI18nFromCore === "function", "@comvi/vue exports createI18nFromCore");
-assert(typeof I18n === "function", "@comvi/vue exports the base I18n class");
 assert(typeof useI18n === "function", "@comvi/vue exports useI18n");
 
 const i18n = createI18n({
@@ -42,7 +40,8 @@ const i18n = createI18n({
   translation: { en: { plain: "hello", msg: "a <b>c</b> d" } },
 });
 
-assert(i18n.core instanceof I18n, "the named base I18n is the preset's host constructor");
+// `I18n` is a TYPE from a binding root (P5), so the pin is structural.
+assert(typeof i18n.core.t === "function", "the preset's host is a core host");
 assert(typeof i18n.core.use === "function", "the pipe is on the preset's core host");
 assert(typeof i18n.core.reloadTranslations === "undefined", "the preset builds a BASE host");
 assert(typeof i18n.core.onMissingKey === "undefined", "default host has no plugin capability");

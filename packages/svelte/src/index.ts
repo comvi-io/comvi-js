@@ -21,9 +21,12 @@
 // it either: it is the one side-effectful subpath, so naming it would put
 // ambient tag registration in every graph.
 
-export { createI18n, I18n } from "@comvi/core";
+export { createI18n } from "@comvi/core";
+// `I18n` is a TYPE here: `createI18n(o)` and `new I18n(o)` build the same
+// object, so the class VALUE is `@comvi/core`'s to export, not a binding's.
+export type { I18n } from "@comvi/core";
 
-export { setI18nContext, getI18nContext } from "./context.js";
+export { setI18nContext, useI18nHost, getI18nContext } from "./context.js";
 export type { SetI18nContextOptions } from "./context.js";
 export { useI18n } from "./useI18n.js";
 export type {
@@ -46,7 +49,8 @@ export {
 } from "./stores.js";
 
 export { default as T } from "./T.svelte";
-export type { ComponentMap, ComponentMapping, TProps } from "./types";
+// `ComponentHandler` (one entry of the map) stays internal, as solid's does.
+export type { ComponentMap, TProps } from "./types";
 
 // The capability toolkit. Each is a named binding under `sideEffects: false`,
 // so the subpaths an app never calls stay out of its graph. `loader()` /

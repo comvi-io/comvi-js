@@ -13,7 +13,7 @@
 // <T> rendering needs a DOM and is NOT exercised here, and not importing `T`
 // keeps the webpack leg — which has no svelte loader — able to prune `T.svelte`
 // without resolving it.
-import { createI18n, I18n, icuCompiler, setI18nContext, useI18n } from "@comvi/svelte";
+import { createI18n, icuCompiler, setI18nContext, useI18n } from "@comvi/svelte";
 
 function assert(condition, label) {
   if (!condition) {
@@ -32,7 +32,6 @@ function assertEqual(actual, expected, label) {
 }
 
 assert(typeof createI18n === "function", "@comvi/svelte exports createI18n");
-assert(typeof I18n === "function", "@comvi/svelte exports I18n");
 assert(typeof useI18n === "function", "@comvi/svelte exports useI18n");
 assert(typeof setI18nContext === "function", "@comvi/svelte exports setI18nContext");
 assert(
@@ -55,7 +54,12 @@ const i18n = createI18n({
   },
 });
 
-assert(i18n instanceof I18n, "the named base I18n is the instance constructor");
+// `I18n` is a TYPE from a binding root (P5), so the pin is structural: a base
+// core host, with the composition verb and no capability attached.
+assert(
+  typeof i18n.t === "function" && typeof i18n.use === "function",
+  "createI18n builds a core host",
+);
 
 // The bought capability, proved positively: both plural branches select, and
 // `#` resolves to the count. Without `icuCompiler` this template throws.

@@ -6,7 +6,7 @@
  * subpaths pruning — cannot be made from source, where every module loads
  * eagerly; they live in scripts/bundler-matrix and the size fixtures. Core's
  * base root is NOT one of those absences: this entry re-exports `createI18n`
- * and `I18n`, so it is in the graph by design.
+ * (and `I18n` as a type), so it is in the graph by design.
  */
 import { describe, it, expect } from "vitest";
 import { renderHook } from "@testing-library/react";
@@ -128,7 +128,6 @@ describe("@comvi/react — the export surface", () => {
   // The whole published value surface. A binding that appears here without a
   // decision is a leak; one that disappears is a break.
   const SURFACE = [
-    "I18n",
     "I18nProvider",
     "T",
     "attachDevtools",
@@ -143,6 +142,7 @@ describe("@comvi/react — the export surface", () => {
     "useFormatters",
     "useI18n",
     "useI18nContext",
+    "useI18nHost",
     "useI18nLoader",
     "useI18nPlugins",
     "useIsLoading",
@@ -159,14 +159,16 @@ describe("@comvi/react — the export surface", () => {
     expect((root as Record<string, unknown>).icu).toBeUndefined();
   });
 
-  it("re-exports core's base `I18n` and `createI18n` by name, not copies", () => {
+  it("re-exports core's `createI18n` by name; `I18n` is a TYPE, not a value, here", () => {
     expect(root.createI18n).toBe(createI18n);
-    expect(root.I18n).toBe(I18n);
+    // `createI18n(o)` and `new I18n(o)` build the same object, so the class
+    // VALUE is core's to export — a binding root only names it as a type.
+    expect("I18n" in root).toBe(false);
 
     // Arity-coupled and therefore weak, but it is the only pin on the base
     // constructor's published shape.
-    expect(root.I18n.length).toBe(1);
-    const built = new root.I18n({
+    expect(root.createI18n.length).toBe(1);
+    const built = root.createI18n({
       locale: "en",
       exposeGlobal: false,
       translation: { en: { greeting: "Hello" } },

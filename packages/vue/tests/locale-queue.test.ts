@@ -5,7 +5,8 @@
  */
 import { describe, it, expect, vi } from "vitest";
 import { flushPromises } from "@vue/test-utils";
-import { attachLoader, createCore, createI18n, createI18nFromCore } from "../src";
+import { createI18n as createCore } from "@comvi/core";
+import { attachLoader, createI18n, createI18nFromCore } from "../src";
 import type { I18nOptions } from "../src";
 
 const createDeferred = () => {

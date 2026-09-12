@@ -1,7 +1,13 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, waitFor, act } from "@testing-library/react";
 import { renderToString } from "react-dom/server";
-import { I18nProvider, useI18nContext, useIsLoading, useLocale } from "../src/I18nProvider";
+import {
+  I18nProvider,
+  useI18nContext,
+  useI18nHost,
+  useIsLoading,
+  useLocale,
+} from "../src/I18nProvider";
 import { FakeI18n } from "@comvi/test-utils/fakeI18n";
 import { flushEffects } from "./test-utils";
 
@@ -404,5 +410,37 @@ describe("I18nProvider", () => {
     });
 
     expect(screen.getByTestId("lang").textContent).toBe("fr");
+  });
+});
+
+describe("useI18nHost", () => {
+  it("returns the provider's host — the same object useI18nContext().i18n hands back", () => {
+    const fake = new FakeI18n({ language: "en" });
+    let host: unknown;
+    let legacy: unknown;
+
+    function Probe() {
+      host = useI18nHost();
+      legacy = useI18nContext().i18n;
+      return null;
+    }
+
+    render(
+      <I18nProvider i18n={fake.asI18n()} autoInit={false}>
+        <Probe />
+      </I18nProvider>,
+    );
+
+    expect(host).toBe(fake.asI18n());
+    expect(legacy).toBe(host);
+  });
+
+  it("throws outside a provider", () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    function Probe() {
+      useI18nHost();
+      return null;
+    }
+    expect(() => render(<Probe />)).toThrow("[i18n] Hooks must be used within an I18nProvider.");
   });
 });

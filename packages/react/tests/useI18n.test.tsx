@@ -108,6 +108,43 @@ describe("useI18n", () => {
     expect(result.current.setLocale).toBe(setLocaleBefore);
   });
 
+  it("exposes isInitialized and cacheRevision as render snapshots", async () => {
+    const fake = new FakeI18n();
+    const { result } = renderHook(() => useI18n(), { wrapper: createWrapper(fake) });
+
+    expect(result.current.isInitialized).toBe(false);
+    const revisionBefore = result.current.cacheRevision;
+    expect(revisionBefore).toBe(fake.translationCache.getRevision());
+
+    await act(async () => {
+      await fake.init();
+      await flushMicrotasks();
+    });
+    expect(result.current.isInitialized).toBe(true);
+
+    await act(async () => {
+      fake.addTranslations({ en: { hello: "Hello" } });
+      await flushMicrotasks();
+    });
+    expect(result.current.cacheRevision).toBe(revisionBefore + 1);
+  });
+
+  it("formatters honour a trailing locale override over the render locale", () => {
+    const fake = new FakeI18n({ language: "en" });
+    const { result } = renderHook(() => useI18n(), { wrapper: createWrapper(fake) });
+
+    expect(result.current.formatNumber(1234)).toBe("1,234");
+    expect(result.current.formatNumber(1234, undefined, "de")).toBe("1.234");
+    // ICU joins the amount and the symbol with a no-break space.
+    expect(
+      result.current.formatCurrency(1234, "EUR", undefined, "de").replace(/\u00a0/g, " "),
+    ).toBe("1.234,00 €");
+    expect(result.current.formatDate(Date.UTC(2024, 0, 15), { timeZone: "UTC" }, "de")).toBe(
+      "15.1.2024",
+    );
+    expect(result.current.formatRelativeTime(-2, "hour", undefined, "de")).toBe("vor 2 Stunden");
+  });
+
   it("re-renders when fallback config changes without a cache revision change", async () => {
     const i18n = createI18n({
       locale: "fr",

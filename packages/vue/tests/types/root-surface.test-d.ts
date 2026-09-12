@@ -1,7 +1,7 @@
 // Companion to factory-boundary.test-d.ts, which covers the inject boundary
 // and the dropped proxies. Three claims: vue's preset builds a BASE host
 // (`VueI18n<D, I18n<D>>` over core's own class, so capability members are
-// absent from the TYPE); the exact-`C` custom-host path (`createCore` +
+// absent from the TYPE); the exact-`C` custom-host path (core's `createI18n` +
 // `createI18nFromCore`) preserves whatever the app composed; and the type
 // vocabulary and toolkit are core's own — a wrapper that re-declared them
 // would hand an app types that drift from the runtime it composes against.
@@ -12,11 +12,11 @@ import type {
   VueI18n,
   WrapperI18nHost,
 } from "../../src/index";
+import { createI18n as createCore } from "@comvi/core";
 import {
   attachDevtools,
   attachLoader,
   attachPlugins,
-  createCore,
   createI18n,
   createI18nFromCore,
   definePlugin,
@@ -183,3 +183,14 @@ export type _DefinePluginWidensToThePluginHost = Expect<
 void _withDefinedPlugin.registerPlugin(() => {});
 // @ts-expect-error -- definePlugin takes a PLUGIN, not an installer
 createCore({ locale: "en" }).use(definePlugin(attachLoader));
+
+// P5: `I18n` is a TYPE-only export from a binding root. `createI18n(o)` and
+// `new I18n(o)` build the same object, so the class VALUE is `@comvi/core`'s.
+// @ts-expect-error -- `I18n` only refers to a type from this root
+void rootEntry.I18n;
+export type _I18nTypeStillReachable = I18n<{}>;
+
+// P6: no `createCore` alias either — the escape-hatch host is built with
+// `createI18n` from `@comvi/core` directly.
+// @ts-expect-error -- `createCore` is not exported from `@comvi/vue`
+void rootEntry.createCore;

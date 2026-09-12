@@ -9,7 +9,7 @@
  * SSR. So a components-map entry whose handler is not renderable degrades
  * gracefully on the client but takes the WHOLE server render down here —
  * `render()` throws and the body is lost. That is the consequence that makes
- * the `ComponentMapping` config form require one of `tag`/`component`: the
+ * the `ComponentHandler` config form require one of `tag`/`component`: the
  * type is the only gate in front of it.
  */
 import { describe, expect, it, vi } from "vitest";

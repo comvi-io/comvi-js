@@ -2,16 +2,16 @@
  * Pins WHAT the single `@comvi/vue` entry publishes; composable behaviour on a
  * base host lives in tests/base-host.test.ts and the js-contract suites.
  *
- * `createI18n` here is vue's own factory and `createCore` is core's
- * constructor under a name of its own, because vue has a `VueI18n` to
+ * `createI18n` here is vue's own factory, because vue has a `VueI18n` to
  * construct and `ssrLocale` must reach the core before the reactive ref is
- * seeded.
+ * seeded. A host built elsewhere comes from `createI18n` in `@comvi/core`
+ * directly — there is no `createCore` alias — and `I18n` is a type here.
  *
  * The absence claims — the `<T>` chunk staying out of a graph that never
  * renders it, unused capability subpaths pruning — cannot be made from source,
  * where every module loads eagerly; they live in the bundler-matrix cases and
- * the size rows. Core's BASE root is deliberately not one of them: this entry
- * re-exports `createCore` and `I18n` by name, so it is in the graph by design.
+ * the size rows. Core's BASE root is deliberately not one of them: the preset
+ * constructs on it, so it is in the graph by design.
  */
 import { describe, it, expect } from "vitest";
 import { defineComponent, h } from "vue";
@@ -86,14 +86,12 @@ describe("@comvi/vue — the single root entry", () => {
     expect(wrapper.text()).toBe("en:Hello, Ada!");
   });
 
-  it("publishes core's own base constructor and class beside the preset", () => {
-    // The preset builds on exactly the class `createCore` exposes, so the two
-    // halves cannot drift.
-    const core = root.createCore({ locale: "en", exposeGlobal: false });
-
-    expect(core).toBeInstanceOf(root.I18n);
-    expect(root.createI18n({ locale: "en", exposeGlobal: false }).core).toBeInstanceOf(root.I18n);
-    expect(new root.I18n({ locale: "en", exposeGlobal: false })).toBeInstanceOf(root.I18n);
+  it("builds the preset on core's own class, and publishes neither `createCore` nor `I18n` as values", () => {
+    expect(root.createI18n({ locale: "en", exposeGlobal: false }).core).toBeInstanceOf(CoreI18n);
+    // The escape-hatch host is built with `createI18n` from `@comvi/core`
+    // directly; `I18n` is a TYPE from this root.
+    expect("createCore" in root).toBe(false);
+    expect("I18n" in root).toBe(false);
   });
 });
 
@@ -110,11 +108,11 @@ describe("@comvi/vue — ICU, one shape, one specifier", () => {
     expect(i18n.t("items" as never, { count: 4 } as never)).toBe("4 items");
   });
 
-  it("takes the same COMPILER option on a host built with createCore", () => {
+  it("takes the same COMPILER option on a host built with core's createI18n", () => {
     // One enable form for every catalog source: the option is read in the
     // constructor, so a catalog that arrives later compiles under ICU with
     // nothing composed.
-    const core = root.createCore({
+    const core = coreCreateI18n({
       locale: "en",
       exposeGlobal: false,
       compiler: root.icuCompiler,
@@ -135,8 +133,6 @@ describe("@comvi/vue — ICU, one shape, one specifier", () => {
 
 describe("@comvi/vue — the capability toolkit", () => {
   it("re-exports core's own bindings, not copies", () => {
-    expect(root.createCore).toBe(coreCreateI18n);
-    expect(root.I18n).toBe(CoreI18n);
     expect(root.icuCompiler).toBe(icuCompiler);
     expect(root.attachLoader).toBe(attachLoader);
     // `flattenCatalog` is NOT re-exported: nested catalogs are base behaviour (C1).
@@ -149,8 +145,8 @@ describe("@comvi/vue — the capability toolkit", () => {
     expect(root.devtools).toBe(devtools);
   });
 
-  it("createCore composes through createI18nFromCore, preserving the host", () => {
-    const core = root.attachLoader(root.createCore({ locale: "en", exposeGlobal: false }));
+  it("a core host composes through createI18nFromCore, preserving the host", () => {
+    const core = root.attachLoader(coreCreateI18n({ locale: "en", exposeGlobal: false }));
     const i18n = root.createI18nFromCore(core);
 
     expect(i18n.core).toBe(core);
@@ -161,14 +157,16 @@ describe("@comvi/vue — the capability toolkit", () => {
   });
 
   it("composes AND configures in one expression — the documented recipe", async () => {
-    const core = root
-      .createCore({ locale: "en", exposeGlobal: false, compiler: root.icuCompiler })
-      .use(
-        root.loader({
-          en: async () => ({ default: { greeting: "Hello" } }),
-          uk: async () => ({ default: { greeting: "Привіт" } }),
-        }),
-      );
+    const core = coreCreateI18n({
+      locale: "en",
+      exposeGlobal: false,
+      compiler: root.icuCompiler,
+    }).use(
+      root.loader({
+        en: async () => ({ default: { greeting: "Hello" } }),
+        uk: async () => ({ default: { greeting: "Привіт" } }),
+      }),
+    );
     const i18n = root.createI18nFromCore(core);
 
     expect(i18n.core).toBe(core);
@@ -192,7 +190,7 @@ describe("@comvi/vue — the capability toolkit", () => {
 
   it("acquires the composed capability through the composable", () => {
     const i18n = root.createI18nFromCore(
-      root.attachLoader(root.createCore({ locale: "en", exposeGlobal: false })),
+      root.attachLoader(coreCreateI18n({ locale: "en", exposeGlobal: false })),
     );
     let bag: root.UseI18nLoaderReturn | undefined;
 
@@ -232,13 +230,11 @@ describe("@comvi/vue — the export surface", () => {
   // here on purpose, an accidental one fails the suite.
   const SURFACE = [
     "I18N_INJECTION_KEY",
-    "I18n",
     "T",
     "VueI18n",
     "attachDevtools",
     "attachLoader",
     "attachPlugins",
-    "createCore",
     "createI18n",
     "createI18nFromCore",
     "definePlugin",
