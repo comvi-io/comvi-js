@@ -156,6 +156,286 @@ there is still exactly one source of truth for the URL rules.
 
 The full setup also includes a `[locale]/layout.tsx` that imports the server registration once, calls `loadTranslations(locale)`, and renders the client wrapper above. See the [documentation](https://comvi.io/docs/i18n/next/) for locale-aware `<Link>`, `useLocalizedRouter`, server/client subpath imports, and the runtime-scoped plugin installers.
 
+## Quickstart: inline catalog, App Router
+
+The smallest complete app: one static catalog, no loader, no CDN. `createNextI18n`
+ingests the whole thing at construction, so there is nothing to fetch and no
+loading state to render for.
+
+```ts title="src/i18n.ts" check=group=next-quickstart-inline
+import { createNextI18n, icuCompiler } from "@comvi/next";
+
+export const { i18n, routing } = createNextI18n({
+  locales: ["en", "uk"],
+  defaultLocale: "en",
+  // The 0.5 default is already `icuCompiler`, named here so the plural rule
+  // below is legible without cross-referencing "ICU is one option" further down.
+  compiler: icuCompiler,
+  translation: {
+    en: {
+      default: {
+        greeting: "Hello, {name}!",
+        items: "{count, plural, one {# item} other {# items}}",
+      },
+    },
+    uk: {
+      default: {
+        greeting: "Привіт, {name}!",
+        items: "{count, plural, one {# товар} few {# товари} many {# товарів} other {# товару}}",
+      },
+    },
+  },
+});
+```
+
+```ts title="src/i18n.server.ts" check=group=next-quickstart-inline
+// A separate module, imported ONLY on the server: getI18n() and
+// loadTranslations() read the instance this registers, and the "server-only"
+// package turns an accidental client import into a build error.
+import "server-only";
+import { setI18n } from "@comvi/next/server";
+import { i18n } from "./i18n";
+
+setI18n(i18n);
+```
+
+```tsx title="src/app/[locale]/I18nClientProvider.tsx" check=group=next-quickstart-inline
+"use client";
+
+import { I18nProvider } from "@comvi/next/client";
+import { i18n } from "@/i18n";
+
+// A "use client" wrapper that imports the instance itself: Next.js cannot pass
+// a class instance from a Server Component to a Client Component, so the
+// layout below hands this component a locale, never the host.
+export function I18nClientProvider({
+  children,
+  locale,
+}: {
+  children: React.ReactNode;
+  locale: string;
+}) {
+  return (
+    <I18nProvider i18n={i18n} locale={locale}>
+      {children}
+    </I18nProvider>
+  );
+}
+```
+
+```tsx title="src/app/[locale]/layout.tsx" check=group=next-quickstart-inline
+import { notFound } from "next/navigation";
+import { routing } from "@/i18n";
+import { I18nClientProvider } from "./I18nClientProvider";
+import "../globals.css";
+
+export default async function LocaleLayout({
+  children,
+  params,
+}: {
+  children: React.ReactNode;
+  params: Promise<{ locale: string }>;
+}) {
+  const { locale } = await params;
+
+  if (!routing.locales.includes(locale)) {
+    notFound();
+  }
+
+  return (
+    <html lang={locale}>
+      <body>
+        <I18nClientProvider locale={locale}>{children}</I18nClientProvider>
+      </body>
+    </html>
+  );
+}
+```
+
+```tsx title="src/app/[locale]/page.tsx" check=group=next-quickstart-inline
+// Imported for its side effect: setI18n() must run before getI18n() does.
+import "@/i18n.server";
+import { getI18n } from "@comvi/next/server";
+import { Greeting } from "./Greeting";
+
+export default async function HomePage() {
+  const { t } = await getI18n();
+
+  return (
+    <div>
+      <h1>{t("greeting", { name: "Server" })}</h1>
+      <p>{t("items", { count: 3 })}</p>
+      <Greeting />
+    </div>
+  );
+}
+```
+
+```tsx title="src/app/[locale]/Greeting.tsx" check=group=next-quickstart-inline
+"use client";
+
+import { useI18n } from "@comvi/next/client";
+
+export function Greeting() {
+  const { t } = useI18n();
+  return <p>{t("greeting", { name: "Client" })}</p>;
+}
+```
+
+Nothing here calls `loadTranslations()` or passes `messages` to `<I18nProvider>`:
+the catalog is inline in `src/i18n.ts`, so both the server render and the
+client host already have it at construction — there is nothing to hydrate.
+Add a loader (see the next quickstart) the moment a catalog needs to be fetched
+rather than shipped in the bundle.
+
+## Quickstart: `@comvi/plugin-fetch-loader/cdn`, App Router
+
+A remote catalog, served from a CDN. The one file that changes shape is the
+host: `.use(cdnLoader({ cdnUrl }))` composes the loader and plugin capabilities
+and registers the CDN plugin, in one step, on top of the same
+`createNextI18n(...)` this package always starts from.
+
+```ts title="src/i18n/config.ts" check=group=next-quickstart-cdn
+import { createNextI18n, icuCompiler } from "@comvi/next";
+import { cdnLoader } from "@comvi/plugin-fetch-loader/cdn";
+
+export const { i18n, routing } = createNextI18n({
+  locales: ["en", "uk"],
+  defaultLocale: "en",
+  compiler: icuCompiler,
+}).use(cdnLoader({ cdnUrl: "https://cdn.comvi.io/<project>" }));
+```
+
+```ts title="src/i18n/server.ts" check=group=next-quickstart-cdn
+import "server-only";
+import { setI18n } from "@comvi/next/server";
+import { i18n, routing } from "./config";
+
+setI18n(i18n);
+
+export { i18n, routing };
+export { getI18n, loadTranslations } from "@comvi/next/server";
+```
+
+```tsx title="src/app/[locale]/I18nClientProvider.tsx" check=group=next-quickstart-cdn
+"use client";
+
+import { I18nProvider } from "@comvi/next/client";
+import type { MessagesMap } from "@comvi/next/client";
+import { i18n } from "@/i18n/config";
+
+export function I18nClientProvider({
+  children,
+  locale,
+  messages,
+}: {
+  children: React.ReactNode;
+  locale: string;
+  messages?: MessagesMap;
+}) {
+  return (
+    <I18nProvider i18n={i18n} locale={locale} messages={messages}>
+      {children}
+    </I18nProvider>
+  );
+}
+```
+
+```tsx title="src/app/[locale]/layout.tsx" check=group=next-quickstart-cdn
+import { notFound } from "next/navigation";
+import { routing, loadTranslations } from "@/i18n/server";
+import { I18nClientProvider } from "./I18nClientProvider";
+import "../globals.css";
+
+export default async function LocaleLayout({
+  children,
+  params,
+}: {
+  children: React.ReactNode;
+  params: Promise<{ locale: string }>;
+}) {
+  const { locale } = await params;
+
+  if (!routing.locales.includes(locale)) {
+    notFound();
+  }
+
+  // Loaded server-side and handed to the client as `messages`, so first paint
+  // never flashes untranslated content or races the CDN request.
+  const messages = await loadTranslations(locale);
+
+  return (
+    <html lang={locale}>
+      <body>
+        <I18nClientProvider locale={locale} messages={messages}>
+          {children}
+        </I18nClientProvider>
+      </body>
+    </html>
+  );
+}
+```
+
+```tsx title="src/app/[locale]/page.tsx" check=group=next-quickstart-cdn
+import { getI18n } from "@/i18n/server";
+import { Greeting } from "./Greeting";
+
+export default async function HomePage() {
+  const { t } = await getI18n();
+
+  return (
+    <div>
+      <h1>{t("greeting", { name: "Server" })}</h1>
+      <Greeting />
+    </div>
+  );
+}
+```
+
+```tsx title="src/app/[locale]/Greeting.tsx" check=group=next-quickstart-cdn
+"use client";
+
+import { useI18n } from "@comvi/next/client";
+
+export function Greeting() {
+  const { t } = useI18n();
+  return <p>{t("greeting", { name: "Client" })}</p>;
+}
+```
+
+**Never compose `localeDetector()` on `src/i18n/config.ts`.** It lives at
+module scope and is process-wide on the App Router, so the detector would run
+once, at the host's `init()`, and the first request's headers would pin the
+locale for every later render. A locale detector belongs behind
+`nextPlugin(LocaleDetector(…), { runtime: "client" })` instead — see
+[Composing onto the result](#composing-onto-the-result-useinstaller).
+
+**How the hydration-side client host gets ICU and the loader.** `src/i18n/config.ts`
+is imported on both sides — by `src/i18n/server.ts` (`"server-only"`) and, one
+hop further, by `I18nClientProvider.tsx` (`"use client"`) — because Next.js
+cannot pass a class instance from a Server Component to a Client Component
+(`packages/next/src/client/I18nProvider.tsx`'s doc comment states this
+constraint; `I18nClientProvider` above is the workaround every 0.5 quickstart
+in this README uses). Next therefore bundles `config.ts` into BOTH the server
+build and the client build, and each build EVALUATES the module independently:
+`createComposedNextI18n` (`packages/next/src/composedHost.ts`) runs once on the
+server, producing the instance `setI18n()` registers, and runs again inside the
+browser, producing a second, unrelated instance, when the client bundle
+executes `config.ts` to get `i18n` for `<I18nProvider i18n={i18n}>`. Nothing is
+serialized from the running server instance to the browser at request time —
+there is no wire format for a compiled `MessageCompiler` or a queued plugin to
+travel across. The client host has `compiler: icuCompiler` and the CDN loader
+ONLY because the exact same `createNextI18n({ … }).use(cdnLoader({ … }))`
+expression in `config.ts` runs a second time, in the browser, producing an
+equivalent host from equivalent source. If a project instead built a
+client-only config with different options — or omitted `.use(cdnLoader(…))`
+from one side — the two hosts would silently diverge: same `i18n.ts` file,
+imported by both runtimes, is what keeps `compiler` and the loader identical,
+not any runtime hand-off. `test-apps/next/src/i18n/config.ts` and
+`src/i18n/index.ts` in this repository follow exactly this shape — one shared
+config module, one `"server-only"` file that calls `setI18n`, one `"use
+client"` wrapper that imports the config module a second time.
+
 ## Rendering behaviour
 
 **Routing components now use `useLocale()`.** `<Link>`, `usePathname()`, and `useLocalizedRouter()` internally switched to the `useLocale()` hook in v0.3 and still use it. Nothing changes for consumers; routing works identically. Internally it means locale-aware routing skips re-renders on namespace loads and loading-state changes (a measured P1 performance improvement).
@@ -293,20 +573,26 @@ There is no next-specific hook API. Migrating from 0.4.x:
 `pnpm codemod:framework-slim "src/**/*.{ts,tsx,js,jsx}"`, or the
 [0.5.0 migration guide](https://github.com/comvi-io/comvi-js/blob/main/MIGRATION.md).
 
-## Two hosts, one package: the composed root and the base constructor
+## `createNextI18n`: the one recommended way to get a host
 
-`@comvi/next` publishes THREE ways to get an i18n host. Read the differences
-before you pick:
+`createNextI18n(options)`, from `@comvi/next`, is the recommendation: it builds
+the COMPOSED host, the routing config, and the `.use(installer)` pipe in one
+call. Reach for it first, and reach for it again when in doubt — the two
+quickstarts above are both built on it.
 
-| you call                                         | from                 | what you get                                                          |
-| ------------------------------------------------ | -------------------- | --------------------------------------------------------------------- |
-| `createNextI18n(options)`                        | `@comvi/next`        | the COMPOSED host + routing + `.use(installer)`, the recommended path |
-| `createI18n(options)`                            | `@comvi/next/client` | the BASE host; capabilities are things you compose, on the client     |
-| `createI18n(options)` + `createNextI18nFromHost` | `@comvi/next/server` | the BASE host you compose yourself, handed to the SSR factory         |
+**If a host is built somewhere else**, hand it to the server-only companion
+factory instead of building a second one: see
+[Host built elsewhere: `createNextI18nFromHost`](#host-built-elsewhere-createnexti18nfromhost)
+below.
 
-The two entries expose the SAME `createI18n`: the client/server split is a
-runtime split (which helpers are reachable), never a host-tier split. There is
-one direct-host constructor name in this package, on both entries.
+`createI18n` also stays exported from `@comvi/next/client` and
+`@comvi/next/server` — the base host constructor, unchanged since 0.4 — but it
+is not a second peer option for a new app to weigh against `createNextI18n`.
+It exists for the host factory `createNextI18nFromHost` takes, and for 0.4
+callers who already have `createI18n(...)` calls to migrate: see
+[`createI18n` on the client and server entries](#createi18n-on-the-client-and-server-entries)
+below. The full export list, with `createI18n` alongside it, is in
+[One package: all three `@comvi/next` entries](#one-package-all-three-comvinext-entries).
 
 ### `createNextI18n` — the composed root
 
@@ -414,7 +700,12 @@ applies:
 | `.useClientLazy(l, o)` / `.useServerLazy(l, o)`   | `.use(nextPluginLazy(l, { …o, runtime: "client" \| "server" }))` |
 | `nextI18n.i18n.registerLoader(map)`               | `.use(loader(map))` (the overload still works)                   |
 
-### `createI18n` — the base host on both entries
+### `createI18n` on the client and server entries
+
+Not a peer of `createNextI18n` above — this is the direct base-host
+constructor `@comvi/next/client` and `@comvi/next/server` both re-export from
+`@comvi/core`, for the host factory `createNextI18nFromHost` takes and for 0.4
+callers migrating a direct `createI18n(...)` call.
 
 **Upgrading from 0.4.x? Read this.** `createI18n` from `@comvi/next/client` is
 the name 0.4 published, and it now builds the BASE host. ICU, tag syntax, the
@@ -468,11 +759,11 @@ A client host is hydrated rather than loaded: nothing is ingested at
 construction, and the catalog arrives through `<I18nProvider messages>`. The
 option covers that catalog too.
 
-## Composed server hosts: `createNextI18nFromHost`
+## Host built elsewhere: `createNextI18nFromHost`
 
-When you want the server to pay only for what it uses, build the host yourself
-and hand it to the companion factory, exported from **`@comvi/next/server`** and
-nowhere else:
+The "host built elsewhere" option: when you want the server to pay only for
+what it uses, build the host yourself and hand it to the companion factory,
+exported from **`@comvi/next/server`** and nowhere else:
 
 ```ts
 // i18n/index.ts — a separate, self-contained example, not the quickstart app:
