@@ -32,9 +32,10 @@ import { execFileSync, spawnSync } from "node:child_process";
  *    identity, and only their content differs.
  *
  * Wrapper <T> rendering is NOT exercised (needs a DOM/renderer); wrapper
- * tarballs are still packed, installed, and bundled (app/src/wrappers.mjs),
- * and the `*-dev-conditions` cases import `T` so the module carrying the
- * dev-only warning is in the graph under both conditions.
+ * tarballs are still packed, installed, and bundled (app/src/wrappers.mjs).
+ * Each `*-dev-conditions` case imports whichever module carries its binding's
+ * dev-only diagnostic — `T` for the four wrappers, `createNextI18n` for
+ * `@comvi/next` — so that module is in the graph under both conditions.
  */
 
 const SCRIPT_DIR = path.dirname(url.fileURLToPath(import.meta.url));
@@ -101,6 +102,12 @@ const BINDING_T_MODULE = {
   vue: [`@comvi${path.sep}vue${path.sep}dist${path.sep}chunks${path.sep}comvi-vue-T`],
 };
 /**
+ * `@comvi/next`'s composed-root module, the one that carries its `IS_DEV`
+ * diagnostic. `preserveModules` names it per module rather than per chunk, and
+ * the fragment covers `createNextI18n.js` and `createNextI18n.dev.js` alike.
+ */
+const NEXT_COMPOSED_ROOT_MODULE = [`@comvi${path.sep}next${path.sep}dist${path.sep}createNextI18n`];
+/**
  * The `<T raw>` deprecation, verbatim and identical in all four bindings. It
  * is guarded by each binding's `IS_DEV`, so it is in the DEVELOPMENT artifact
  * only — which is the whole point: before the `development` export condition
@@ -108,6 +115,14 @@ const BINDING_T_MODULE = {
  * NO artifact a consumer could resolve, in any mode.
  */
 const T_RAW_DEPRECATION = "<T raw> is deprecated";
+/**
+ * `@comvi/next`'s one `IS_DEV` diagnostic: the readable half of the
+ * `E_USE_HOST_IDENTITY` error `createNextI18n(…).use` throws when an installer
+ * hands back a different object. The production family throws the bare code
+ * instead, so this text is a development-artifact marker in the same way.
+ * `next-dev-conditions.mjs` deliberately never quotes it.
+ */
+const NEXT_USE_IDENTITY_HINT = ".use(installer) must return the host it was given";
 /**
  * Matrix cases. `sentinels` says what the bundler's module graph must look
  * like for core's tag-registration chunks (the `sideEffects` set):
@@ -340,6 +355,18 @@ const CASES = [
     presentModules: BINDING_T_MODULE.vue,
     packages: ["@comvi/core", "@comvi/vue"],
     deps: ["vue"],
+  },
+  {
+    // `@comvi/next`, on its ROOT entry: `createNextI18n` — the only module
+    // with an `IS_DEV` diagnostic — ships from `./index` alone. Tags are
+    // PRESENT here, unlike every other dev-conditions case: the composed root
+    // bare-imports `@comvi/core/tags`, as the 0.4 root did.
+    name: "next-dev-conditions",
+    sentinels: "present",
+    devOnlyText: [NEXT_USE_IDENTITY_HINT],
+    presentModules: NEXT_COMPOSED_ROOT_MODULE,
+    packages: ["@comvi/core", "@comvi/locale-routing", "@comvi/react", "@comvi/next"],
+    deps: ["react", "next"],
   },
   {
     // The editor's production exclusion, as a gate rather than a claim. The
