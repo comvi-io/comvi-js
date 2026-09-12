@@ -821,11 +821,13 @@ A `comvi.setup` hook used to call the capability **on the `VueI18n` proxy**
 (`i18n.reloadTranslations()`). Those eight proxies are gone, so call the host
 instead: **`context.core`**, which is the one member you can call the same way in
 the client plugin and in a server utility. `context.i18n` is a union of `VueI18n`
-and the bare host (`VueI18n<{}, C> | C`). `NuxtI18nSetupContext<C>` /
-`NuxtI18nSetup<C>` are generic in the host and default to core's `I18n`, so
-annotate the hook with the host your factory returns
-(`satisfies NuxtI18nSetup<I18n & I18nLoaderApi>`) and a call the host cannot
-serve fails at type-check instead of at request time.
+and the bare host (`VueI18n<{}, C> | C`). Write the hook with no host type
+(`satisfies NuxtI18nSetup`): the module generates `.nuxt/types/comvi-host.ts`,
+which reads the host off your `comvi.host` factory's return type, so a call the
+host cannot serve fails at type-check instead of at request time. Naming the
+host by hand (`NuxtI18nSetup<I18n & I18nLoaderApi>`) stays supported for a
+factory the module cannot see, and the generated file cross-checks that claim
+against the factory.
 
 Nuxt's rendering layer is `@comvi/vue`, so vue's `<T>` change carries through:
 rendering rich text no longer switches string-API tag parsing on behind your
