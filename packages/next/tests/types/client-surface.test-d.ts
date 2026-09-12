@@ -8,9 +8,7 @@ import type { I18nLoaderApi, I18nPluginHostApi } from "@comvi/core";
 import type { I18n as BaseI18n } from "@comvi/core";
 import * as clientEntry from "../../src/client";
 import {
-  attachDevtools,
   attachLoader,
-  attachPlugins,
   createI18n,
   definePlugin,
   devtools,
@@ -18,6 +16,8 @@ import {
   loader,
   plugins,
 } from "../../src/client";
+import { attachPlugins } from "@comvi/core/plugins";
+import { attachDevtools } from "@comvi/core/devtools";
 
 type Equal<X, Y> =
   (<T>() => T extends X ? 1 : 2) extends <T>() => T extends Y ? 1 : 2 ? true : false;
@@ -56,6 +56,16 @@ export type _IcuHostIsStillBase = Expect<Equal<typeof _withIcuCompiler, BaseI18n
 
 // …and no installer beside it.
 export type _NoIcuInstaller = Expect<Equal<Extract<keyof typeof clientEntry, "icu">, never>>;
+
+// P4: the low-level `attach*` pair for plugins/devtools is gone from this
+// entry — `plugins()`/`devtools()` are the configured installers here, and
+// the advanced pair lives on `@comvi/core/plugins` / `@comvi/core/devtools`.
+export type _NoAttachPluginsExport = Expect<
+  Equal<Extract<keyof typeof clientEntry, "attachPlugins">, never>
+>;
+export type _NoAttachDevtoolsExport = Expect<
+  Equal<Extract<keyof typeof clientEntry, "attachDevtools">, never>
+>;
 // @ts-expect-error -- `CompilerLockedError` went with the lock it described
 export type _NoLockedError = clientEntry.CompilerLockedError;
 
@@ -119,8 +129,8 @@ export type _DevtoolsPipeKeepsHostType = Expect<Equal<typeof _pipedDevtools, Bas
 createI18n({ locale: "en" }).use(loader);
 
 // `definePlugin(fn)` — the inline-plugin installer, re-exported by BOTH next
-// entries beside `plugins`/`attachPlugins`. Pinned here so an entry that
-// dropped it fails the type gate.
+// entries beside `plugins`. Pinned here so an entry that dropped it fails the
+// type gate.
 const _withDefinedPlugin = createI18n({ locale: "en" }).use(definePlugin(() => {}));
 export type _DefinePluginWidensToThePluginHost = Expect<
   Equal<typeof _withDefinedPlugin extends I18nPluginHostApi ? true : false, true>

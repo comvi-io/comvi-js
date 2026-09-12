@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { render } from "solid-js/web";
-import { attachLoader, attachPlugins, createI18n, icuCompiler } from "../src/index";
+import { attachLoader, createI18n, icuCompiler } from "../src/index";
+import { attachPlugins } from "@comvi/core/plugins";
 import type { WrapperI18nHost } from "@comvi/core";
 import type { LoaderResult } from "@comvi/core/loader";
 import { I18nProvider } from "../src/context";

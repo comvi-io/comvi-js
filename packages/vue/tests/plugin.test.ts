@@ -1,7 +1,8 @@
 import { describe, it, expect, vi } from "vitest";
 import { createApp, defineComponent } from "vue";
 import { createI18n as createCore } from "@comvi/core";
-import { attachPlugins, createI18n, createI18nFromCore } from "../src";
+import { attachPlugins } from "@comvi/core/plugins";
+import { createI18n, createI18nFromCore } from "../src";
 
 describe("Vue plugin integration", () => {
   it("installs and exposes $t and $i18n", () => {

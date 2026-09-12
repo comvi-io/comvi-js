@@ -357,15 +357,27 @@ constructor and the capability toolkit on the ONE entry it publishes.
 | `@comvi/nuxt`   | auto-imported                              | generated, or `hostModule`; see §7                                                                                                 |
 
 Next's two entries are a RUNTIME split, not a host-tier split: both publish the
-same base constructor and the same toolkit. Eight capability bindings are
+same base constructor and the same toolkit. Six capability bindings are
 re-exported **by name** on each entry (`icuCompiler`, `loader`, `attachLoader`,
-`plugins`, `attachPlugins`, `definePlugin`, `devtools`, `attachDevtools`), plus
-the base `I18n` class and the core type vocabulary, so the ICU compiler is
-reachable from the one import an app already has, and the
-bindings you never call are pruned by your bundler. `@comvi/nuxt` is the one
-exception and re-exports nothing (§7). `createI18n` IS core's own constructor
-everywhere but `@comvi/vue`, whose `createI18n` builds the `VueI18n` preset
-around it.
+`plugins`, `definePlugin`, `devtools`), plus the base `I18n` class and the core
+type vocabulary, so the ICU compiler is reachable from the one import an app
+already has, and the bindings you never call are pruned by your bundler.
+`@comvi/nuxt` is the one exception and re-exports nothing (§7). `createI18n` IS
+core's own constructor everywhere but `@comvi/vue`, whose `createI18n` builds
+the `VueI18n` preset around it.
+
+The same two names dropped off `@comvi/react`, `@comvi/solid`, `@comvi/svelte`
+and `@comvi/vue`'s single entry, for the same reason: `attachPlugins` and
+`attachDevtools` are the low-level installers `plugins()` and `devtools()`
+already configure, so a binding user reaches for the lowercase factories.
+Coming from a 0.5-pre build where a binding root still exported the pair,
+import it from `@comvi/core/plugins` / `@comvi/core/devtools` instead:
+
+```diff check=skip:core-subpath-migration
+-import { attachPlugins, attachDevtools } from "@comvi/react";
++import { attachPlugins } from "@comvi/core/plugins";
++import { attachDevtools } from "@comvi/core/devtools";
+```
 
 **Every 0.4.x import path still resolves** — the SPECIFIER, that is. What
 changed is the HOST those entries construct, not the module you name. The one

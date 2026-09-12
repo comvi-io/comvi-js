@@ -11,10 +11,10 @@ import { describe, it, expect } from "vitest";
 import { renderHook } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { createI18n as createCoreI18n } from "@comvi/core";
-import { attachDevtools, devtools } from "@comvi/core/devtools";
+import { devtools } from "@comvi/core/devtools";
 import { icuCompiler } from "@comvi/core/icu";
 import { attachLoader, loader } from "@comvi/core/loader";
-import { attachPlugins, plugins } from "@comvi/core/plugins";
+import { plugins } from "@comvi/core/plugins";
 import type { WrapperI18nHost } from "@comvi/core";
 import * as client from "../src/client";
 import * as root from "../src/index";
@@ -88,8 +88,10 @@ describe("@comvi/next/client — the capability toolkit", () => {
     expect(client.attachLoader).toBe(attachLoader);
     // `flattenCatalog` is NOT re-exported: nested catalogs are base behaviour (C1).
     expect(client).not.toHaveProperty("flattenCatalog");
-    expect(client.attachPlugins).toBe(attachPlugins);
-    expect(client.attachDevtools).toBe(attachDevtools);
+    // `attachPlugins`/`attachDevtools` are NOT re-exported here: they stay on
+    // `@comvi/core/plugins` and `@comvi/core/devtools` for advanced use (P4).
+    expect(client).not.toHaveProperty("attachPlugins");
+    expect(client).not.toHaveProperty("attachDevtools");
     // The installers are core's own factories, one hop, same rule.
     expect(client.loader).toBe(loader);
     expect(client.plugins).toBe(plugins);
@@ -132,12 +134,13 @@ describe("@comvi/next — the root carries the toolkit a shared config module ne
     expect(root.icuCompiler).toBe(icuCompiler);
     expect(root.attachLoader).toBe(attachLoader);
     expect(root.loader).toBe(loader);
-    expect(root.attachPlugins).toBe(attachPlugins);
     expect(root.plugins).toBe(plugins);
-    expect(root.attachDevtools).toBe(attachDevtools);
     expect(root.devtools).toBe(devtools);
     expect(root).not.toHaveProperty("flattenCatalog");
     expect(root).not.toHaveProperty("createNextI18nFromHost");
+    // `attachPlugins`/`attachDevtools` are NOT re-exported here (P4).
+    expect(root).not.toHaveProperty("attachPlugins");
+    expect(root).not.toHaveProperty("attachDevtools");
   });
 });
 
@@ -166,8 +169,9 @@ describe("@comvi/next/server — the same surface for the SSR half", () => {
     expect(server).not.toHaveProperty("icu");
     expect(server.attachLoader).toBe(attachLoader);
     expect(server).not.toHaveProperty("flattenCatalog");
-    expect(server.attachPlugins).toBe(attachPlugins);
-    expect(server.attachDevtools).toBe(attachDevtools);
+    // `attachPlugins`/`attachDevtools` are NOT re-exported here (P4).
+    expect(server).not.toHaveProperty("attachPlugins");
+    expect(server).not.toHaveProperty("attachDevtools");
     expect(server.loader).toBe(loader);
     expect(server.plugins).toBe(plugins);
     expect(server.devtools).toBe(devtools);

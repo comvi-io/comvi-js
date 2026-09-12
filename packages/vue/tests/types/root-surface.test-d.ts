@@ -13,10 +13,10 @@ import type {
   WrapperI18nHost,
 } from "../../src/index";
 import { createI18n as createCore } from "@comvi/core";
+import { attachPlugins } from "@comvi/core/plugins";
+import { attachDevtools } from "@comvi/core/devtools";
 import {
-  attachDevtools,
   attachLoader,
-  attachPlugins,
   createI18n,
   createI18nFromCore,
   definePlugin,
@@ -76,6 +76,16 @@ export type _IcuCoreIsStillBase = Expect<Equal<typeof _icuCore, I18n<{}>>>;
 // …and there is no installer beside it: `icu` is gone from the entry.
 export type _NoIcuInstaller = Expect<
   Equal<"icu" extends keyof typeof import("../../src") ? true : false, false>
+>;
+
+// P4: the low-level `attach*` pair for plugins/devtools is gone from this
+// root — `plugins()`/`devtools()` are the configured installers here, and the
+// advanced pair lives on `@comvi/core/plugins` / `@comvi/core/devtools`.
+export type _NoAttachPluginsExport = Expect<
+  Equal<"attachPlugins" extends keyof typeof import("../../src") ? true : false, false>
+>;
+export type _NoAttachDevtoolsExport = Expect<
+  Equal<"attachDevtools" extends keyof typeof import("../../src") ? true : false, false>
 >;
 
 // `const D` inference survives the entry hop.

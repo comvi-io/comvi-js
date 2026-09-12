@@ -7,7 +7,8 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { mount, tick, unmount } from "svelte";
 import TFallbackWrapper from "./TFallback.test.svelte";
-import { attachPlugins, createI18n } from "../src/index";
+import { attachPlugins } from "@comvi/core/plugins";
+import { createI18n } from "../src/index";
 
 const makeI18n = (translations: Record<string, Record<string, string>>) =>
   createI18n({ locale: "en", exposeGlobal: false, translation: translations });

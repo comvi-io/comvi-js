@@ -21,8 +21,8 @@ export type { NextPluginOptions, LazyPluginModule, LazyPluginLoader } from "./ne
 // `sideEffects: false` the names an app does not call are pruned.
 export { icuCompiler } from "@comvi/core/icu";
 export { attachLoader, loader } from "@comvi/core/loader";
-export { attachPlugins, definePlugin, plugins } from "@comvi/core/plugins";
-export { attachDevtools, devtools } from "@comvi/core/devtools";
+export { definePlugin, plugins } from "@comvi/core/plugins";
+export { devtools } from "@comvi/core/devtools";
 export type { DevtoolsOptions } from "@comvi/core/devtools";
 
 // Published so a consumer can name the type of `result.i18n` without reaching

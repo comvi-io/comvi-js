@@ -1,7 +1,8 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import type { Mock } from "vitest";
 import { createI18n as createCore } from "@comvi/core";
-import { attachLoader, attachPlugins, createI18nFromCore, useI18n, T } from "../src";
+import { attachPlugins } from "@comvi/core/plugins";
+import { attachLoader, createI18nFromCore, useI18n, T } from "../src";
 import type { LoaderFn } from "../src";
 import { mount } from "@vue/test-utils";
 import { defineComponent, h, nextTick } from "vue";

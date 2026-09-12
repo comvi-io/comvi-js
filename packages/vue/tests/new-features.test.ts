@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { createI18n as createCore } from "@comvi/core";
-import { attachLoader, attachPlugins, createI18n, createI18nFromCore, useI18n } from "../src";
+import { attachPlugins } from "@comvi/core/plugins";
+import { attachLoader, createI18n, createI18nFromCore, useI18n } from "../src";
 import { nextTick, isRef, effectScope } from "vue";
 import { mount } from "@vue/test-utils";
 
