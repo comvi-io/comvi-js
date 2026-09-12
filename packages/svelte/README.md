@@ -464,6 +464,8 @@ Tag interpolation lets translators write readable markup like `"Click <link>here
 
 The `<T>` component renders the translation structurally: real DOM nodes built from the parsed translation tree, with no HTML-string sink. Translators can only ever produce text and the tags you map; a tag without a mapping falls back to its inner text.
 
+`<T skipPostProcess>` skips post-processors for that one call — notably the in-context editor's invisible markers. `raw` is the same prop under its old 0.4 name: it still works, but is deprecated and prints a one-time development warning. The [codemod](https://github.com/comvi-io/comvi-js/blob/main/MIGRATION.md#3-the-codemod) cannot rewrite Svelte template markup, so it flags `<T raw>` here for a by-hand rename instead.
+
 ## ICU MessageFormat
 
 `count === 1 ? "item" : "items"` works in English. It silently ships broken grammar in Polish, Ukrainian, Arabic, Welsh, and 30+ other locales, which have 3, 4, sometimes 6 distinct plural categories that a binary if/else can't express. [ICU MessageFormat](https://unicode-org.github.io/icu/userguide/format_parse/messages/) is the standard syntax for handling them, and it is the syntax Crowdin, Lokalise, Phrase, and every major TMS already speak. Comvi i18n parses it via native [`Intl.PluralRules`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Intl/PluralRules), so every CLDR plural category is correct by default.

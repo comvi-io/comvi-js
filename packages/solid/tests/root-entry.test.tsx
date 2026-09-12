@@ -189,6 +189,7 @@ describe("@comvi/solid — the export surface", () => {
     "attachLoader",
     "createCacheRevisionSignal",
     "createDefaultNamespaceSignal",
+    "createDefaultParamsSignal",
     "createI18n",
     "createInitializedSignal",
     "createInitializingSignal",

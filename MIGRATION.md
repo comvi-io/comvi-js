@@ -250,18 +250,19 @@ blocks would move a binding out of the block that declared it. Unbraced
 one scope — so a merge that would cross them is refused rather than guessed at
 (below). For the **single entry** it migrates host construction:
 
-| shape                                                          | becomes                                      |
-| -------------------------------------------------------------- | -------------------------------------------- |
-| `@comvi/<pkg>/slim`, on react, solid, svelte, vue, next client | `@comvi/<pkg>`                               |
-| `@comvi/core/slim`                                             | `@comvi/core`                                |
-| `createSlimI18n`                                               | `createI18n` (import, references, aliases)   |
-| `.use(FetchLoader(o))` + the two other first-party factories   | `.use(fetchLoader(o))` in place              |
-| `.use(YourPlugin(o))`                                          | `.use(definePlugin(YourPlugin(o)))` in place |
-| a 0.5-pre-release `.with` call, anywhere in a chain            | `.use` — the one composition verb            |
-| inline `translation` with ICU comma syntax                     | `compiler: icuCompiler` in the same call     |
-| `exposeGlobal` / `instanceId` options                          | `.use(devtools({ … }))`, options moved       |
-| a `flattenCatalog` import from a binding root or `/loader`     | the same name, from `@comvi/core`            |
-| a bare `loader()` on a proven host                             | the bare `attachLoader`, import maintained   |
+| shape                                                          | becomes                                                                                                                  |
+| -------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `@comvi/<pkg>/slim`, on react, solid, svelte, vue, next client | `@comvi/<pkg>`                                                                                                           |
+| `@comvi/core/slim`                                             | `@comvi/core`                                                                                                            |
+| `createSlimI18n`                                               | `createI18n` (import, references, aliases)                                                                               |
+| `.use(FetchLoader(o))` + the two other first-party factories   | `.use(fetchLoader(o))` in place                                                                                          |
+| `.use(YourPlugin(o))`                                          | `.use(definePlugin(YourPlugin(o)))` in place                                                                             |
+| a 0.5-pre-release `.with` call, anywhere in a chain            | `.use` — the one composition verb                                                                                        |
+| inline `translation` with ICU comma syntax                     | `compiler: icuCompiler` in the same call                                                                                 |
+| `exposeGlobal` / `instanceId` options                          | `.use(devtools({ … }))`, options moved                                                                                   |
+| a `flattenCatalog` import from a binding root or `/loader`     | the same name, from `@comvi/core`                                                                                        |
+| a bare `loader()` on a proven host                             | the bare `attachLoader`, import maintained                                                                               |
+| `<T raw>` / `<T raw={…}>`, react and solid JSX                 | `<T skipPostProcess>` / `<T skipPostProcess={…}>`; `<T.Sub>` and a nested unrelated component's own `raw` are left alone |
 
 A **chain** is the unit, meaning `createI18n(…)` plus the `.use` calls chained
 onto it, so nothing outside one is guessed at. Imports are maintained in
@@ -344,6 +345,13 @@ and as JSON) and left alone:
   installer is gone and ICU is `compiler: icuCompiler` in the constructor
   options (§0.1). A genuine 0.4 tree can never hit this item, because 0.4 had no
   installer; it fires only for a tree written against a 0.5 pre-release
+- a `<T raw>` written in a `.vue` or `.svelte` TEMPLATE (`:raw="…"` too):
+  neither template language is one of the codemod's grammars — only
+  `<script>` blocks are, on both — so the occurrence is listed for a by-hand
+  `skipPostProcess` edit instead of guessed at
+- a local declaration that shadows the imported `T` component (`function T()`,
+  `const { T } = …`): every `<T raw>` the module writes is left alone, because
+  the text cannot say which meaning of `T` a given JSX element refers to
 
 ## 4. Per binding
 
@@ -441,9 +449,15 @@ what `createNextI18n`'s composed host and the CDN/UMD global are both built from
 ### `@comvi/react`, `@comvi/solid`, `@comvi/svelte`
 
 Each publishes one entry carrying its bindings plus the toolkit, and `createI18n`
-there is core's own constructor. Nothing about the providers, hooks, primitives,
-stores or `<T>` changes. Only the host underneath them changes, plus the renames
-in §2.
+there is core's own constructor. Nothing about the providers, hooks or stores
+changes. Two things did, both additive: `<T>`'s `raw` prop is renamed to
+`skipPostProcess` (§3's codemod rewrites the JSX; `raw` still works — deprecated,
+for one release, with a one-time dev warning); and solid and svelte each gain
+the one per-axis primitive the other already had — solid's
+`createDefaultParamsSignal` (an accessor paired with a setter that writes
+through to the host) and svelte's `createDefaultNamespaceStore` (a writable
+store; assigning into it calls `setDefaultNamespace`). Otherwise only the host
+underneath them changes, plus the renames in §2.
 
 ```tsx
 import { createI18n, I18nProvider, loader, useI18n } from "@comvi/react";
@@ -532,7 +546,11 @@ i18n.core.reloadTranslations(); // typed: `.use` widened `core`
 ```
 
 Vue's `<T>` also gained a **default-slot fallback**: a key with no translation
-and no `fallback` prop renders the default slot instead of the key.
+and no `fallback` prop renders the default slot instead of the key. Its `raw`
+prop is renamed to `skipPostProcess`, the same rename every binding's `<T>`
+gets (§3's codemod rewrites `.tsx`/`.jsx`; a Vue template's `<T raw>` is
+reported, not rewritten, and needs a by-hand edit) — `raw` still works,
+deprecated, for one release, with a one-time dev warning.
 
 **Ten named value exports dropped.** `@comvi/vue` used to re-export core with
 `export * from "@comvi/core"`, so every value on core's root entry, except

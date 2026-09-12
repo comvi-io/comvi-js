@@ -1,0 +1,25 @@
+---
+"@comvi/react": minor
+"@comvi/solid": minor
+"@comvi/svelte": minor
+"@comvi/vue": minor
+---
+
+**Solid and svelte each gain the one per-axis primitive they were missing.** Solid shipped
+`createDefaultNamespaceSignal` with no default-params counterpart; svelte shipped
+`createDefaultParamsStore` with no default-namespace counterpart. Both sets now cover the same
+axes: solid's new `createDefaultParamsSignal(i18n)` returns `[Accessor<DefaultParamsSnapshot<D>>,
+setter]`, where the setter writes straight through to `i18n.setDefaultParams`; svelte's new
+`createDefaultNamespaceStore(i18n)` returns a writable store, memoized per instance like its
+siblings, where assigning into it (`store.set(ns)`) writes through to `i18n.setDefaultNamespace`.
+React and vue are unaffected.
+
+**`<T raw>` is renamed to `<T skipPostProcess>`, in all four bindings.** `raw` meant two unrelated
+things — `tRaw()` returns the structured result; `<T raw>` skips post-processors, notably the
+in-context editor's invisible markers — and only the `<T>` prop is renamed; `tRaw` is untouched.
+`raw` keeps working as a deprecated alias for one release, with a one-time development warning
+(`<T raw>` is deprecated. Use `<T skipPostProcess>` instead); setting both props lets
+`skipPostProcess` win. A repo-internal [codemod](https://github.com/comvi-io/comvi-js/blob/main/MIGRATION.md#3-the-codemod)
+rewrites `<T raw>` to `<T skipPostProcess>` in react's and solid's JSX; a `.vue` or `.svelte`
+template's `<T raw>` is template markup the codemod does not parse, so it is reported for a
+by-hand rename instead.

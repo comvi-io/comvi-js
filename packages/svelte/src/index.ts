@@ -46,6 +46,7 @@ export {
   createInitializedStore,
   createCacheRevisionStore,
   createDefaultParamsStore,
+  createDefaultNamespaceStore,
 } from "./stores.js";
 
 export { default as T } from "./T.svelte";

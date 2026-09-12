@@ -8,6 +8,7 @@ import {
   createInitializedStore,
   createCacheRevisionStore,
   createDefaultParamsStore,
+  createDefaultNamespaceStore,
 } from "../src/stores";
 import { FakeI18n } from "@comvi/test-utils/fakeI18n";
 import type { I18n } from "@comvi/core";
@@ -19,6 +20,7 @@ const memoizedStoreFactories: ReadonlyArray<readonly [string, (i18n: I18n) => un
   ["createInitializedStore", createInitializedStore],
   ["createCacheRevisionStore", createCacheRevisionStore],
   ["createDefaultParamsStore", createDefaultParamsStore],
+  ["createDefaultNamespaceStore", createDefaultNamespaceStore],
 ];
 
 describe("Svelte stores", () => {
@@ -226,6 +228,35 @@ describe("Svelte stores", () => {
     const unsubscribe = defaultParams.subscribe((value) => values.push(value));
 
     expect(values).toEqual([{ formality: "formal" }]);
+
+    unsubscribe();
+  });
+
+  it("reflects the current default namespace and updates when the host changes it", () => {
+    const defaultNamespace = createDefaultNamespaceStore(fake.asI18n());
+    const values: string[] = [];
+    const unsubscribe = defaultNamespace.subscribe((value) => values.push(value));
+
+    expect(get(defaultNamespace)).toBe("common");
+
+    fake.setDefaultNamespace("admin");
+
+    expect(get(defaultNamespace)).toBe("admin");
+    expect(values).toEqual(["common", "admin"]);
+
+    unsubscribe();
+  });
+
+  it("writes a defaultNamespace assignment through to the host", () => {
+    const i18n = fake.asI18n();
+    const defaultNamespace = createDefaultNamespaceStore(i18n);
+    const values: string[] = [];
+    const unsubscribe = defaultNamespace.subscribe((value) => values.push(value));
+
+    defaultNamespace.set("admin");
+
+    expect(fake.getDefaultNamespace()).toBe("admin");
+    expect(values).toEqual(["common", "admin"]);
 
     unsubscribe();
   });

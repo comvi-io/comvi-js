@@ -104,6 +104,12 @@ const REQUIRED_CASES = [
   "next-delegates", // 11, 12: the delegates, chained and on a stored result
   "report-next-plugin-unproven", // options / `lazy` / spreads the codemod cannot decide
   "report-next-shadowed-factory", // a shadowed `createNextI18n` refuses the module
+  // F18 (Q5): `<T raw>` -> `<T skipPostProcess>`.
+  "t-props-react", // bare, valued, and a nested unrelated `raw` left alone
+  "t-props-solid", // same rule, solid's import source
+  "report-t-props-shadowed", // a local `T` declaration refuses the module
+  "report-sfc-vue-template-raw", // template markup this codemod cannot parse
+  "report-sfc-svelte-template-raw", // same, svelte's template syntax
 ];
 
 test("every matrix row and report-only shape has a golden fixture", () => {
@@ -177,6 +183,8 @@ test("CRLF sources come back with CRLF", () => {
       "slim-factory-rename",
       "slim-specifier",
       "stored-register-plugin",
+      "t-props-react",
+      "t-props-solid",
       "t1-pure-loader",
       "t2-pure-plugins",
       "t3-mixed",
@@ -1356,6 +1364,8 @@ test("transformed TypeScript goldens compile", (t) => {
       "slim-factory-rename",
       "slim-specifier",
       "stored-register-plugin",
+      "t-props-react",
+      "t-props-solid",
       "t1-pure-loader",
       "t2-pure-plugins",
       "t3-mixed",
@@ -1385,7 +1395,10 @@ test("transformed TypeScript goldens compile", (t) => {
           // The stand-ins below ARE `@comvi/*` for this compilation: the gate
           // asserts the EMITTED code type-checks (installer arity, alias
           // bindings, no leftover members), not that the workspace resolves.
-          paths: { "@comvi/*": ["./comvi/*"] },
+          paths: {
+            "@comvi/*": ["./comvi/*"],
+            "react/jsx-runtime": ["./react/jsx-runtime"],
+          },
         },
         include: ["**/*.ts", "**/*.tsx"],
       },
@@ -1490,6 +1503,10 @@ export type { DevtoolsOptions } from "../api";
 export { attachLoader, attachPlugins, definePlugin, icuCompiler, loader, plugins } from "./api";
 export type * from "./api";
 
+// Permissive on purpose: this stand-in only has to make \`<T raw>\` /
+// \`<T skipPostProcess>\` type-check, not reproduce the real \`TProps\` union.
+export declare function T(props: Record<string, unknown>): any;
+
 export interface UseI18nReturn {
   t: (key: string) => string;
   locale: string;
@@ -1537,6 +1554,10 @@ export declare function nextPluginLazy(
   options?: NextPluginOptions,
 ): <T extends Host>(host: T) => T & PluginApi;
 `,
+    // Solid's `T` only, for the same reason react's exists above: proving
+    // the JSX attribute rename type-checks, not the real solid surface.
+    "comvi/solid.ts": `export declare function T(props: Record<string, unknown>): any;
+`,
     "comvi/next/client.ts": `export { createI18n, devtools, loader, plugins } from "../api";
 export type * from "../api";
 `,
@@ -1548,6 +1569,25 @@ export type * from "../api";
     "comvi/plugin-locale-detector.ts": `export { LocaleDetector, localeDetector } from "./api";
 `,
     "comvi/plugin-in-context-editor.ts": `export { InContextEditorPlugin, inContextEditor } from "./api";
+`,
+    // Minimal automatic-runtime + global \`JSX\` namespace, permissive on
+    // purpose: the \`t-props-*\` goldens are the first ones with REAL JSX in
+    // them, and this gate only needs the \`raw\`/\`skipPostProcess\` attribute
+    // rename to type-check — not real React or Solid intrinsic-element typing.
+    "react/jsx-runtime.ts": `export declare function jsx(type: any, props: any, key?: any): any;
+export declare function jsxs(type: any, props: any, key?: any): any;
+export declare function Fragment(props: any): any;
+declare global {
+  namespace JSX {
+    interface Element {}
+    interface IntrinsicElements {
+      [elemName: string]: any;
+    }
+    interface ElementChildrenAttribute {
+      children: {};
+    }
+  }
+}
 `,
     "analytics.ts": `import type { Host, I18nPlugin } from "./comvi/api";
 

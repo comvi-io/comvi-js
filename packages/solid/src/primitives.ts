@@ -1,6 +1,11 @@
 import { from, type Accessor } from "solid-js";
 import { subscribeToRevision } from "@comvi/core";
-import type { WrapperI18nHost } from "@comvi/core";
+import type {
+  WrapperI18nHost,
+  DefaultTranslationParams,
+  DefaultParamsSnapshot,
+  SetDefaultParamsArg,
+} from "@comvi/core";
 
 // CSR-only: provider auto-init does not run during SSR. Every producer below
 // calls `set()` synchronously, so the first read is always defined.
@@ -56,6 +61,30 @@ export function createInitializedSignal(i18n: WrapperI18nHost): Accessor<boolean
     };
   });
   return signal as Accessor<boolean>;
+}
+
+/**
+ * Shallow snapshot of the instance-level interpolation defaults, paired with a
+ * setter that writes straight through to the host — the signal half of the
+ * pair only mirrors the host, so mutating it means calling the setter, not
+ * assigning into the returned snapshot. Mirrors
+ * `svelte/src/stores.ts:createDefaultNamespaceStore`'s missing-axis
+ * counterpart. MUST be called within a reactive context (component or effect).
+ */
+export function createDefaultParamsSignal<D extends DefaultTranslationParams = {}>(
+  i18n: WrapperI18nHost<D>,
+): [Accessor<DefaultParamsSnapshot<D>>, (params: SetDefaultParamsArg<D>) => void] {
+  const signal = from<DefaultParamsSnapshot<D>>((set) => {
+    // `as never`: `Setter<T>`'s overloads exclude `Function` from `T`, which
+    // TS cannot prove for `DefaultParamsSnapshot<D>` — a conditional type over
+    // an unresolved generic. The Accessor's declared type param above is what
+    // callers actually see; this cast only silences the producer's own
+    // internal call.
+    set(i18n.defaultParams as never);
+    return i18n.on("configChanged", () => set(i18n.defaultParams as never));
+  });
+  const setDefaultParams = (params: SetDefaultParamsArg<D>) => i18n.setDefaultParams(params);
+  return [signal as Accessor<DefaultParamsSnapshot<D>>, setDefaultParams];
 }
 
 /**
