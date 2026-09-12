@@ -52,7 +52,8 @@ the bytes first, then decide whether they ship.
 
 `core-base`, `core-base-icu`, `core-full-composite`; per framework
 `fw-{react,solid,svelte,vue}-{default,full-composite}`; `fw-next-client-default`,
-`fw-next-server-default-loader`, `fw-nuxt-client-default`, `fw-nuxt-full-composite`; the platform
+`fw-next-server-default-loader`, `fw-next-root-composed`, `fw-nuxt-client-default`,
+`fw-nuxt-full-composite`, `fw-nuxt-host`; the platform
 path `plugin-fetch-loader-cdn`, `plugin-fetch-loader-cdn-lite`, `platform-path-react`.
 
 Each framework pair is a floor (one specifier, base host) and a ceiling (every capability composed

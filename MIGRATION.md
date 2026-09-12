@@ -682,9 +682,13 @@ only from the package's own source, `../src/server/cache`. `@comvi/next`
 publishes six `exports` keys and no wildcard, so an installed copy cannot import
 it under any specifier.
 
-**Plugin registration on `createNextI18n` is one method now.** `useClient`,
-`useServer`, `useClientLazy` and `useServerLazy` are deprecated delegates; pass
-`{ runtime, environment, lazy }` to `use()` instead.
+**`createNextI18n(...).use(installer)` is the composition pipe, the same verb as every
+other host.** The 0.4 scoped registration `use(plugin, { runtime, environment, lazy })` and
+the four delegates `useClient`, `useServer`, `useClientLazy`, `useServerLazy` are gone.
+Scoping is now two installers: `.use(nextPlugin(plugin, { runtime, environment }))` and
+`.use(nextPluginLazy(load, { runtime, environment }))`. The codemod rewrites every
+statically provable call; a runtime-decided `lazy`, a spread in the options, or a
+shadowed `createNextI18n` is reported for you to move by hand.
 
 **Locale routing** moved onto the shared `@comvi/locale-routing` package. It is
 published, but it is a dependency of `@comvi/next` and `@comvi/nuxt` rather than
