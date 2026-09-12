@@ -179,6 +179,49 @@ createRoot(document.getElementById("root")!).render(
 
 Alternatively, use a third-party Error Boundary library like [react-error-boundary](https://github.com/bvaughn/react-error-boundary).
 
+## `<I18nProvider>` props
+
+### `fallback` — gate the first paint
+
+While the host is initializing there is nothing to translate with yet, so children render raw keys for one paint. Pass a `fallback` and it renders in their place until initialization finishes:
+
+```tsx
+import { createI18n, I18nProvider } from "@comvi/react";
+import App from "./App";
+
+const i18n = createI18n({ locale: "en", translation: { en: { greeting: "Hello" } } });
+
+export default function Root() {
+  return (
+    <I18nProvider i18n={i18n} fallback={<div className="spinner" />}>
+      <App />
+    </I18nProvider>
+  );
+}
+```
+
+It reads the same `isInitializing` value `useIsLoading()` returns, so a hand-rolled gate and this one can never disagree. Both branches render inside the provider, so the fallback may use the hooks. During `renderToString` the SSR snapshot decides, and `ssrInitialIsInitializing` is `false` by default — a server render is never gated. Omit the prop and children render throughout, exactly as before it existed.
+
+### `ssrLocale` — the render locale for SSR
+
+`ssrInitialLocale` is react's name for the locale the server snapshot renders in. `ssrLocale` is that same prop under the name `@comvi/vue` and `@comvi/nuxt` use, so one shared SSR layer can pass one name to every binding:
+
+```tsx
+import type { ReactNode } from "react";
+import { I18nProvider } from "@comvi/react";
+import { i18n } from "./i18n";
+
+export function Document({ locale, children }: { locale: string; children: ReactNode }) {
+  return (
+    <I18nProvider i18n={i18n} ssrLocale={locale}>
+      {children}
+    </I18nProvider>
+  );
+}
+```
+
+Both names are accepted and `ssrInitialLocale` stays the canonical one here: when both are passed it wins, and a development build warns. `@comvi/next` takes the render locale from its own `locale` prop and accepts neither.
+
 ## Selector hooks
 
 For components that only need a slice of the i18n state, use these selector hooks to skip unnecessary re-renders.

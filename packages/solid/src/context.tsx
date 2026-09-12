@@ -3,6 +3,7 @@ import {
   useContext,
   createEffect,
   createMemo,
+  Show,
   type JSX,
   type ParentComponent,
   type Accessor,
@@ -47,6 +48,31 @@ export interface I18nProviderProps {
   /** Auto-initialize the instance on mount (default: true). */
   autoInit?: boolean;
   /**
+   * Rendered INSTEAD of `children` while the host is initializing, so the
+   * first paint is not a flash of raw keys. Omit it and `children` render
+   * throughout, exactly as before this prop existed.
+   *
+   * It reads the provider's own `isInitializing` signal — the one
+   * `useI18n().isInitializing()` returns — so the gate closes the moment
+   * auto-init starts and opens when it resolves. During `renderToString` the
+   * effect that starts init never runs, so `children` render.
+   *
+   * @example
+   * ```tsx
+   * <I18nProvider i18n={i18n} fallback={<p>Loading…</p>}>
+   *   <App />
+   * </I18nProvider>
+   * ```
+   */
+  fallback?: JSX.Element;
+  /**
+   * Render locale for SSR, under the name `@comvi/vue` uses: the host adopts
+   * it at mount, BEFORE the locale signal is seeded, so `renderToString` and
+   * the hydrating client agree on the first paint. Set it when the server
+   * renders in a locale the client would not detect on its own.
+   */
+  ssrLocale?: string;
+  /**
    * Called if auto-initialization fails. Core's configured error handler has
    * already reported the error by then; this only lets the app observe it too.
    */
@@ -55,6 +81,16 @@ export interface I18nProviderProps {
 }
 
 export const I18nProvider: ParentComponent<I18nProviderProps> = (props) => {
+  // Read once, in the component body: `ssrLocale` is the render locale, the
+  // same contract vue's option of that name has, and the host is the ONE
+  // place that locale can live — `t()` resolves against `i18n.locale`, so
+  // seeding only the signal would leave the text and the locale disagreeing.
+  // Before `signalsMemo` below, so the first paint already reads it.
+  const ssrLocale = props.ssrLocale;
+  if (ssrLocale !== undefined && props.i18n.locale !== ssrLocale) {
+    props.i18n.locale = ssrLocale;
+  }
+
   // `isInitialized`/`isInitializing` are plain non-reactive getters, read here
   // only as a re-entry guard: the effect re-runs on `props.i18n` /
   // `props.autoInit` alone, by design.
@@ -104,6 +140,11 @@ export const I18nProvider: ParentComponent<I18nProviderProps> = (props) => {
     },
   };
 
+  // Whether the prop was PASSED, not whether it currently holds a node: an
+  // omitted `fallback` must leave the tree byte-identical to what it was
+  // before the gate existed, while `fallback={null}` is a blank gate.
+  const hasFallback = "fallback" in props;
+
   return (
     <I18nContext.Provider
       value={{
@@ -113,7 +154,13 @@ export const I18nProvider: ParentComponent<I18nProviderProps> = (props) => {
         signals,
       }}
     >
-      {props.children}
+      {hasFallback ? (
+        <Show when={!signals.isInitializing()} fallback={props.fallback}>
+          {props.children}
+        </Show>
+      ) : (
+        props.children
+      )}
     </I18nContext.Provider>
   );
 };

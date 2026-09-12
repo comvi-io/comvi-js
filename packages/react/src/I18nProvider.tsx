@@ -4,10 +4,16 @@ import {
   useEffect,
   useMemo,
   useCallback,
+  useRef,
   useSyncExternalStore,
 } from "react";
 import { subscribeToRevision } from "@comvi/core";
 import type { AnyI18nHost, WrapperI18nHost, FlattenedTranslations, I18nEvent } from "@comvi/core";
+
+// Build-time flag, same shape the other bindings use: `undefined` under a
+// bundler that does not define it, never a bare reference that throws.
+declare const __DEV__: boolean | undefined;
+const IS_DEV = typeof __DEV__ !== "undefined" && __DEV__;
 
 /** Loader/plugin capabilities are not part of it — see `capabilityHooks`. */
 type Host = WrapperI18nHost;
@@ -103,8 +109,37 @@ export interface I18nProviderProps {
   i18n: AnyI18nHost;
   /** Auto-initialize the i18n instance on mount (default: true). */
   autoInit?: boolean;
-  /** Initial locale for SSR hydration. */
+  /**
+   * Rendered INSTEAD of `children` while the host is initializing, so the
+   * first paint is not a flash of raw keys. Omit it and `children` render
+   * throughout, exactly as before this prop existed.
+   *
+   * It reads the same `isInitializing` axis `useIsLoading()` exposes, so on
+   * the server the SSR snapshot decides: `ssrInitialIsInitializing` is `false`
+   * by default and `children` render immediately.
+   *
+   * `undefined` is the same as omitting it; for a blank gate pass `false`.
+   *
+   * @example
+   * ```tsx
+   * <I18nProvider i18n={i18n} fallback={<Spinner />}>
+   *   <App />
+   * </I18nProvider>
+   * ```
+   */
+  fallback?: React.ReactNode;
+  /**
+   * Render locale for the server snapshot — react's original name for it, and
+   * still the canonical one here: when both are passed, this wins.
+   */
   ssrInitialLocale?: string;
+  /**
+   * Render locale for the server snapshot, under the name `@comvi/vue` and
+   * `@comvi/nuxt` use. Prefer it in new code: it is the cross-binding spelling
+   * of {@link I18nProviderProps.ssrInitialLocale}, which react keeps for
+   * compatibility.
+   */
+  ssrLocale?: string;
   /** Initial loading state for SSR hydration. */
   ssrInitialIsLoading?: boolean;
   /** Initial initializing state for SSR hydration. */
@@ -127,11 +162,26 @@ export function I18nProvider({
   children,
   i18n,
   autoInit = true,
+  fallback,
   ssrInitialLocale,
+  ssrLocale,
   ssrInitialIsLoading = false,
   ssrInitialIsInitializing = false,
   onError,
 }: I18nProviderProps) {
+  // Once per provider instance, including the server render — where there are
+  // no effects and this is the only place a diagnostic can reach the logs.
+  const warnedAliasRef = useRef(false);
+  if (IS_DEV && ssrInitialLocale !== undefined && ssrLocale !== undefined) {
+    if (!warnedAliasRef.current) {
+      warnedAliasRef.current = true;
+      console.warn(
+        `[i18n] <I18nProvider> got both ssrInitialLocale="${ssrInitialLocale}" and ssrLocale="${ssrLocale}". ssrInitialLocale wins; drop one. ssrLocale is the cross-binding name (@comvi/vue, @comvi/nuxt), ssrInitialLocale is react's original one.`,
+      );
+    }
+  }
+  const serverLocale = ssrInitialLocale ?? ssrLocale;
+
   useEffect(() => {
     if (autoInit && !i18n.isInitialized && !i18n.isInitializing) {
       i18n.init().catch((err) => {
@@ -151,7 +201,7 @@ export function I18nProvider({
   const locale = useSyncExternalStore(
     subLang,
     () => i18n.locale,
-    () => ssrInitialLocale ?? i18n.locale,
+    () => serverLocale ?? i18n.locale,
   );
 
   const isLoading = useSyncExternalStore(
@@ -170,9 +220,14 @@ export function I18nProvider({
     [i18n, isLoading, isInitializing],
   );
 
+  // ONE source of truth for the gate: the same `isInitializing` the contexts
+  // carry, which on the server is whatever `ssrInitialIsInitializing` says.
+  // Both branches sit inside the providers, so the fallback may use the hooks.
+  const gated = fallback !== undefined && isInitializing;
+
   return (
     <I18nInstanceContext.Provider value={instanceValue}>
-      <LocaleContext.Provider value={locale}>{children}</LocaleContext.Provider>
+      <LocaleContext.Provider value={locale}>{gated ? fallback : children}</LocaleContext.Provider>
     </I18nInstanceContext.Provider>
   );
 }

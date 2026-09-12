@@ -161,6 +161,48 @@ function Greeting() {
 
 If you need a derived value, wrap it in a memo: `const greeting = createMemo(() => t("greeting", { name: "Alice" }))`, then read `greeting()`. (Coming from React/Vue, where `const g = t(...)` works because the whole component re-renders: Solid does not re-render, so the call must stay in a tracked position.)
 
+## `<I18nProvider>` props
+
+### `fallback` — gate the first paint
+
+While the host is initializing there is nothing to translate with yet, so children render raw keys. Pass a `fallback` and it renders in their place until initialization finishes:
+
+```tsx
+import { I18nProvider } from "@comvi/solid";
+import { i18n } from "./i18n";
+import App from "./App";
+
+export default function Root() {
+  return (
+    <I18nProvider i18n={i18n} fallback={<div class="spinner" />}>
+      <App />
+    </I18nProvider>
+  );
+}
+```
+
+It reads the provider's own `isInitializing` signal — the one `useI18n().isInitializing()` returns — so a hand-rolled gate and this one can never disagree. Solid flushes the provider's effect before `render()` returns, so the gate is already closed on the first paint. Both branches render inside the provider, so the fallback may call `useI18n()`. Omit the prop and children render throughout, exactly as before it existed.
+
+### `ssrLocale` — the render locale for SSR
+
+The host adopts `ssrLocale` at mount, before the locale signal is seeded, so `renderToString` and the hydrating client paint the same locale. It is the same option name `@comvi/vue` uses. Pass it on both sides — the server render and the client that hydrates it:
+
+```tsx
+import { I18nProvider } from "@comvi/solid";
+import { i18n } from "./i18n";
+import App from "./App";
+
+export function Root(props: { locale: string }) {
+  return (
+    <I18nProvider i18n={i18n} ssrLocale={props.locale}>
+      <App />
+    </I18nProvider>
+  );
+}
+```
+
+Without it the client keeps its own locale, the hydrated markup stays in the server's locale until the first reactive update, and then the text flips.
+
 ## The bare host: `useI18nHost()`
 
 `useI18nHost()` returns the `WrapperI18nHost` the nearest `<I18nProvider>`
@@ -655,9 +697,9 @@ See [`@comvi/plugin-fetch-loader`](https://github.com/comvi-io/comvi-js/tree/mai
 
 ## Server-Side Rendering
 
-`@comvi/solid` is **client-side rendering (CSR) only** today. `<I18nProvider>` auto-initializes the instance from a `createEffect`, which does not run during Solid's server render (`renderToString`), so translations are not initialized on the server. The reactive primitives populate on the client once the component mounts.
+A catalog the host already holds — an inline `translation` map — renders during `renderToString`, and [`ssrLocale`](#ssrlocale--the-render-locale-for-ssr) is how the server render and the hydrating client agree on which locale that is.
 
-If you render with SolidStart or another SSR setup, initialize and load translations on the client and gate UI on `isInitialized()` / `isLoading()` from `useI18n()` to avoid a flash of untranslated keys. Server-side translation resolution and hydration are not yet supported. Track progress in the [issues](https://github.com/comvi-io/comvi-js/issues).
+What does **not** happen on the server is initialization: `<I18nProvider>` calls `init()` from a `createEffect`, and effects do not run during Solid's server render. So a catalog that a loader would have fetched is absent server-side, and `isInitialized()` is `false` there. With SolidStart or another SSR setup, load such translations on the client and gate the UI with [`fallback`](#fallback--gate-the-first-paint) rather than letting keys paint. Server-side loading is not supported yet; track progress in the [issues](https://github.com/comvi-io/comvi-js/issues).
 
 ## License
 
