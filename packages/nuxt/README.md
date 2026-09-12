@@ -68,7 +68,7 @@ export default defineNuxtConfig({
 });
 ```
 
-```ts
+```ts check=group=nuxt-app
 // comvi.host.ts — the host, composed explicitly
 import { createI18n, icuCompiler, loader, type NuxtHostFactory } from "@comvi/nuxt/host";
 
@@ -225,26 +225,43 @@ the host directly as `core`, the same object on both runtimes:
 ```
 
 That call needs a host that composed the loader, which is a `comvi.host.ts`
-decision, not a `comvi.setup.ts` one. Type the hook with the host you built and
-TypeScript tells you before the app runs:
+decision, not a `comvi.setup.ts` one. Write the hook with NO host type and the
+module supplies it, read off your factory:
 
-```ts
+```ts check=group=nuxt-app
 // comvi.setup.ts — the types are on the module's root, so this file, like
-// comvi.host.ts, needs no dependency your app did not declare.
-import type { I18n, I18nLoaderApi, LoaderFn, NuxtI18nSetup } from "@comvi/nuxt";
+// comvi.host.ts, needs no dependency your app did not declare. It shares a
+// fence group with the `comvi.host.ts` above BECAUSE the loader capability this
+// file calls is composed there: the snippet gate pools the two the same way
+// codegen does, so neither one alone can vouch for the call below.
+import type { LoaderFn, NuxtI18nSetup } from "@comvi/nuxt";
 
 const myLoader: LoaderFn = async (locale, namespace) =>
   (await fetch(`/i18n/${locale}/${namespace}.json`)).json();
 
 export default (({ core }) => {
   core.registerLoader(myLoader);
-}) satisfies NuxtI18nSetup<I18n & I18nLoaderApi>;
+}) satisfies NuxtI18nSetup;
 ```
 
-`NuxtI18nSetupContext<C>` / `NuxtI18nSetup<C>` are generic in the host type and
-default to core's base `I18n`, "so capability calls do not compile by accident"
-(`nuxt/src/types.ts:393-394`). A hook on the module's own host needs no
-annotation, and one on a composed host must name it. Migrating from 0.4.x:
+That line compiles BECAUSE your `comvi.host.ts` composed `loader(...)`. At build
+time the module generates `.nuxt/types/comvi-host.ts`, which declares the host
+as `ReturnType<typeof import("./comvi.host").default>` and publishes it through
+the `ComviNuxtHostRegistry` interface — so `NuxtI18nSetup`'s default type
+argument is the host your factory actually returns, not a claim about it. Drop
+the `.use(loader(...))` from `comvi.host.ts` and `nuxi typecheck` fails on the
+`registerLoader` line above, where it used to throw a `TypeError` on the first
+call instead.
+
+`NuxtI18nSetupContext<C>` / `NuxtI18nSetup<C>` stay generic in the host type, for
+a host whose type the module cannot see — a factory in another package, a `.js`
+`comvi.host`, or a hook shared by several apps. Naming it by hand is the
+FALLBACK, and codegen cross-checks the claim rather than trusting it: the
+generated file puts your hook through `CheckedNuxtI18nSetup<TheRealHost, YourHook>`,
+so `NuxtI18nSetup<I18n & I18nLoaderApi>` against a factory that composed no
+loader is a build error naming both sides. With no `comvi.host` file at all the
+host is core's base `I18n` and every capability call is a compile error, which is
+what the default branch really builds. Migrating from 0.4.x:
 `pnpm codemod:framework-slim "app/**/*.{ts,vue}"`, or the
 [0.5.0 migration guide](https://github.com/comvi-io/comvi-js/blob/main/MIGRATION.md).
 

@@ -380,15 +380,75 @@ export type NuxtHostFactory<C = WrapperI18nHost, D extends DefaultTranslationPar
   C extends WrapperI18nHost<D> ? (options: NuxtHostFactoryOptions<D>) => C : never;
 
 /**
+ * The one slot the module's generated `#build` declaration writes the app's
+ * REAL host into, as `ReturnType<typeof import("./comvi.host").default>`.
+ *
+ * It exists because a `comvi.setup` hook's host type used to be an unverified
+ * ASSERTION about a different file reached by a string path: a hook typed
+ * `NuxtI18nSetup<I18n & I18nLoaderApi>` compiled whether or not
+ * `comvi.host.ts` ever composed the loader, and a base host has no capability
+ * shim, so `core.registerLoader(...)` threw a raw `TypeError` on the first
+ * call. Codegen augments this interface, which makes {@link ResolvedNuxtHost}
+ * — and therefore `NuxtI18nSetup`'s DEFAULT type argument — the host the
+ * factory actually returns.
+ *
+ * An app never writes to it by hand. Empty here on purpose: this package
+ * compiles without any app, and the fallbacks below are what that means.
+ */
+export interface ComviNuxtHostRegistry {}
+
+/**
+ * {@link ComviNuxtHostRegistry}'s `host` when codegen wrote one, `Fallback`
+ * otherwise — the seam the two audiences need different answers from.
+ */
+export type RegisteredNuxtHost<Fallback extends WrapperI18nHost> = ComviNuxtHostRegistry extends {
+  host: infer H;
+}
+  ? H extends WrapperI18nHost
+    ? H
+    : Fallback
+  : Fallback;
+
+/**
+ * The host this app runs on: the `comvi.host` factory's return type when the
+ * module's generated declaration is in the program, core's base `I18n` (the
+ * no-`hostModule` branch, and this package's own compilation) otherwise.
+ *
+ * This is `NuxtI18nSetup`'s default type argument, so a hook written
+ * `satisfies NuxtI18nSetup` — no type argument at all — is typed from the
+ * factory rather than from a claim about it.
+ */
+export type ResolvedNuxtHost = RegisteredNuxtHost<I18n>;
+
+/**
+ * The cross-check the module's generated `#build` declaration applies to
+ * `comvi.setup`'s default export: `Hook` is returned unchanged when it matches
+ * `Host`, and is a COMPILE error when it asks for a capability `Host` does not
+ * have.
+ *
+ * The generated declaration passes `ReturnType<typeof
+ * import("./comvi.host").default>` as `Host` and `typeof
+ * import("./comvi.setup").default` as `Hook`, so a hook that calls
+ * `core.registerLoader(...)` against a factory that never composed the loader
+ * fails at build time, by name, instead of at the first call.
+ */
+export type CheckedNuxtI18nSetup<
+  Host extends WrapperI18nHost,
+  Hook extends NuxtI18nSetup<Host>,
+> = Hook;
+
+/**
  * Context passed to `comvi.setup` hook.
  *
- * `C` is the host the app runs on. It defaults to the base `I18n` that
- * `@comvi/vue`'s `createI18n` builds — the no-`hostModule` configuration. An
- * app that DOES set it declares its own host type (`NuxtI18nSetup<MyHost>`) and
- * gets exactly the capabilities it composed; capability calls live on
- * `i18n.core.*` on the plugin side.
+ * `C` is the host the app runs on, and it defaults to
+ * {@link ResolvedNuxtHost}: the `comvi.host` factory's return type when the
+ * module's generated declaration is in the program, core's base `I18n` — the
+ * no-`hostModule` configuration — otherwise. An app MAY still name its own
+ * host type (`NuxtI18nSetup<MyHost>`) and get exactly the capabilities it
+ * names; codegen then cross-checks that claim against the factory. Capability
+ * calls live on `i18n.core.*` on the plugin side.
  */
-export interface NuxtI18nSetupContext<C extends WrapperI18nHost = I18n> {
+export interface NuxtI18nSetupContext<C extends WrapperI18nHost = ResolvedNuxtHost> {
   /**
    * i18n instance for current runtime.
    * - VueI18n in Nuxt app plugin — capability APIs live on `i18n.core`
@@ -430,13 +490,31 @@ export interface NuxtI18nSetupContext<C extends WrapperI18nHost = I18n> {
 /**
  * Signature for a `comvi.setup` default export.
  *
- * The default type parameter is the BASE host, so capability calls do not
- * compile by accident. Give it the host shape the matching `hostModule`
- * factory composed:
+ * The default type parameter is {@link ResolvedNuxtHost} — inside an app, the
+ * `comvi.host` factory's own return type, read from the file rather than
+ * claimed about it; with no host module (and in this package's own
+ * compilation) the BASE host, so capability calls do not compile by accident.
+ * Prefer the bare form:
  *
  * @example
  * ```ts
- * // comvi.setup.ts — every type it names is on this package's root.
+ * // comvi.setup.ts — the host type comes from comvi.host.ts, so composing the
+ * // loader there is what makes this call compile here.
+ * import type { NuxtI18nSetup } from "@comvi/nuxt";
+ *
+ * export default (({ core }) => {
+ *   core.registerLoader(myLoader);
+ * }) satisfies NuxtI18nSetup;
+ * ```
+ *
+ * Naming the host by hand stays supported, and codegen cross-checks the claim
+ * against the factory, so `NuxtI18nSetup<I18n & I18nLoaderApi>` against a
+ * factory that composed no loader is a build error rather than a `TypeError`:
+ *
+ * @example
+ * ```ts
+ * // The hand-typed fallback — for a host whose type this package cannot see
+ * // (a factory in another package, a `.js` host module).
  * import type { I18n, I18nLoaderApi, NuxtI18nSetup } from "@comvi/nuxt";
  *
  * export default (({ core }) => {
@@ -444,7 +522,7 @@ export interface NuxtI18nSetupContext<C extends WrapperI18nHost = I18n> {
  * }) satisfies NuxtI18nSetup<I18n & I18nLoaderApi>;
  * ```
  */
-export type NuxtI18nSetup<C extends WrapperI18nHost = I18n> = (
+export type NuxtI18nSetup<C extends WrapperI18nHost = ResolvedNuxtHost> = (
   context: NuxtI18nSetupContext<C>,
 ) => void | Promise<void>;
 

@@ -1,11 +1,16 @@
 declare module "#build/comvi.setup" {
   // The plugin and the server utilities hand this whatever host the app was
-  // built with, so the accepted context is host-typed. What the USER's hook
-  // sees is `NuxtI18nSetup<C>` (core's base `I18n` by default) — the generated
-  // template forwards the context untyped, so the two sides stay typed for
-  // their own audiences.
+  // built with, so the accepted context is host-typed: `RegisteredNuxtHost`
+  // resolves to the `comvi.host` factory's own return type inside an app (the
+  // module's generated `#build` declaration writes it there) and to the widest
+  // host in this package's own compilation, which is what the two call sites
+  // can prove they hold. What the USER's hook sees is `NuxtI18nSetup<C>`,
+  // defaulting to the same resolved host — the generated template forwards the
+  // context untyped, so the two sides stay typed for their own audiences.
   export function runComviSetup(
-    context: import("../types").NuxtI18nSetupContext<import("@comvi/core").WrapperI18nHost>,
+    context: import("../types").NuxtI18nSetupContext<
+      import("../types").RegisteredNuxtHost<import("@comvi/core").WrapperI18nHost>
+    >,
   ): Promise<void>;
 }
 
@@ -17,9 +22,9 @@ declare module "#build/comvi.host" {
   // the default branch has no capability at all, and a composed one has exactly
   // the capabilities its factory added — a fact this one declaration cannot
   // know. Server utilities therefore probe with core's `hasLoaderApi` rather
-  // than trusting the annotation, and an app that wants its own composition
-  // typed end-to-end annotates its factory `NuxtHostFactory<MyHost>` and its
-  // hook `NuxtI18nSetup<MyHost>`.
+  // than trusting the annotation. The app-side answer to the same gap is the
+  // generated `types/comvi-host.ts`, which reads the factory's return type
+  // and is what makes a `comvi.setup` hook's host a CHECK rather than a claim.
   export function createComviI18n<D extends import("@comvi/core").DefaultTranslationParams = {}>(
     options: import("@comvi/vue").VueI18nOptions<D>,
   ): import("@comvi/vue").AnyVueI18n;

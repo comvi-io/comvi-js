@@ -9,7 +9,8 @@ import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vites
 import { hasLoaderApi } from "@comvi/core";
 import type { WrapperI18nHost } from "@comvi/core";
 
-type NuxtTemplateStub = { filename: string; getContents: () => string };
+type NuxtTemplateStub = { filename: string; write?: boolean; getContents: () => string };
+type ResolvedTemplateStub = { filename: string; dst: string };
 
 const nuxtKitMocks = {
   // The `@nuxt/kit` facade below forwards with a rest spread, so every mock
@@ -20,7 +21,7 @@ const nuxtKitMocks = {
   })),
   findPath: vi.fn(),
   addPlugin: vi.fn(),
-  addTemplate: vi.fn<(template: NuxtTemplateStub) => void>(),
+  addTemplate: vi.fn<(template: NuxtTemplateStub) => ResolvedTemplateStub>(),
   addImports: vi.fn(),
   addComponent: vi.fn(),
   addServerImportsDir: vi.fn(),
@@ -63,14 +64,20 @@ interface HostTemplate {
 }
 
 let moduleId = 0;
+let prepareTypesHandlers: ((payload: TypeReferencePayload) => void)[] = [];
 
 interface NuxtStub {
+  hook: (name: string, handler: (payload: TypeReferencePayload) => void) => void;
   options: {
     runtimeConfig: { public: Record<string, unknown>; comvi: Record<string, unknown> };
     appConfig: Record<string, unknown>;
     build: { transpile: string[] };
     vite: { optimizeDeps: { include: string[] } };
   };
+}
+
+interface TypeReferencePayload {
+  references?: { path: string }[];
 }
 
 interface ModuleDefinition {
@@ -96,6 +103,9 @@ async function emitHostTemplate(
       ...extraOptions,
     },
     {
+      hook: (name, handler) => {
+        if (name === "prepare:types") prepareTypesHandlers.push(handler);
+      },
       options: {
         runtimeConfig: { public: {}, comvi: {} },
         appConfig: {},
@@ -130,6 +140,13 @@ describe("generated #build/comvi.host template", () => {
     for (const mock of Object.values(nuxtKitMocks)) mock.mockReset();
     nuxtKitMocks.createResolver.mockReturnValue({ resolve: (id: string) => `/resolved/${id}` });
     nuxtKitMocks.findPath.mockResolvedValue(null);
+    // `addTemplate` RESOLVES a template, and the module reads `.dst` off the
+    // type-check template to register it as a tsconfig reference.
+    nuxtKitMocks.addTemplate.mockImplementation((candidate) => ({
+      filename: candidate.filename,
+      dst: `/build/${candidate.filename}`,
+    }));
+    prepareTypesHandlers = [];
 
     previousComviGlobal = globals.__COMVI__;
     delete globals.__COMVI__;
@@ -487,5 +504,170 @@ export default (options) => {
     expect(() => createComviCore()).toThrow(
       "[@comvi/nuxt] comvi hostModule must export a default function returning an i18n host.",
     );
+  });
+});
+
+// The `.host.mjs` template decides which host is BUILT; this one decides how it
+// is TYPED. `comvi.setup`'s host was an unverified assertion about a different
+// file reached by a string path — a hook typed `NuxtI18nSetup<I18n &
+// I18nLoaderApi>` compiled whether or not `comvi.host` composed the loader, and
+// a base host gets no capability shim, so the call threw a raw `TypeError`.
+// These cases pin the text that turns the assertion into a compile-time check.
+describe("generated types/comvi-host.ts declaration", () => {
+  beforeEach(() => {
+    for (const mock of Object.values(nuxtKitMocks)) mock.mockReset();
+    nuxtKitMocks.createResolver.mockReturnValue({ resolve: (id: string) => `/resolved/${id}` });
+    nuxtKitMocks.findPath.mockResolvedValue(null);
+    nuxtKitMocks.addTemplate.mockImplementation((candidate) => ({
+      filename: candidate.filename,
+      dst: `/build/${candidate.filename}`,
+    }));
+    prepareTypesHandlers = [];
+  });
+
+  /**
+   * Runs the module's setup with the two conventions resolved independently —
+   * a blanket `mockResolvedValue` would hand the host file to the setup branch
+   * too — and returns the generated declaration's text.
+   */
+  async function emitTypeTemplate(
+    paths: { host?: string; setup?: string } = {},
+    extraOptions: Record<string, unknown> = {},
+  ): Promise<string> {
+    nuxtKitMocks.findPath.mockImplementation(async (specifier: string) =>
+      specifier === "./comvi.host"
+        ? (paths.host ?? null)
+        : specifier === "./comvi.setup"
+          ? (paths.setup ?? null)
+          : null,
+    );
+
+    vi.resetModules();
+    // Dynamic on purpose: re-evaluated per case so its @nuxt/kit calls hit a fresh mock.
+    const imported = await import("../src/module");
+    const moduleDefinition = imported.default as unknown as ModuleDefinition;
+
+    await moduleDefinition.setup(
+      { locales: ["en"], defaultLocale: "en", ...extraOptions },
+      {
+        hook: (name, handler) => {
+          if (name === "prepare:types") prepareTypesHandlers.push(handler);
+        },
+        options: {
+          runtimeConfig: { public: {}, comvi: {} },
+          appConfig: {},
+          build: { transpile: [] },
+          vite: { optimizeDeps: { include: [] } },
+        },
+      },
+    );
+
+    const template = nuxtKitMocks.addTemplate.mock.calls.find(
+      ([candidate]) => candidate.filename === "types/comvi-host.ts",
+    )?.[0] as NuxtTemplateStub;
+
+    return template.getContents();
+  }
+
+  it("reads the host type off the factory, and does not re-declare it", async () => {
+    const contents = await emitTypeTemplate({ host: "/app/comvi.host.ts" });
+
+    // The whole point of U4: the type comes FROM the file the runtime template
+    // imports, so the two cannot drift. A hand-written wrapper type here would
+    // be the same unverified assertion, one file further along.
+    expect(contents).toContain(
+      'type ComviResolvedHost = ReturnType<typeof import("/app/comvi.host").default>;',
+    );
+    // …published through the registry, so `NuxtI18nSetup`'s DEFAULT type
+    // argument is the real host and the bare `satisfies NuxtI18nSetup` is typed
+    // rather than merely accepted.
+    expect(contents).toContain('declare module "@comvi/nuxt" {');
+    expect(contents).toContain("interface ComviNuxtHostRegistry {");
+    expect(contents).toContain("host: ComviResolvedHost;");
+  });
+
+  it("names core's BASE host when there is no host module", async () => {
+    const contents = await emitTypeTemplate();
+
+    // The default branch builds core's base host, and saying so is what makes a
+    // hook that calls a capability on it a compile error instead of a TypeError.
+    expect(contents).toContain('type ComviResolvedHost = import("@comvi/nuxt").I18n;');
+    expect(contents).not.toContain("ReturnType<typeof import(");
+  });
+
+  it("strips the extension from both resolved paths", async () => {
+    // `import("…/comvi.host.ts")` needs `allowImportingTsExtensions`, which an
+    // app does not have, and `…/comvi.host.js` next to a `.d.ts` resolves to
+    // the wrong file. Every extension nuxt's own resolution tries must go.
+    for (const extension of ["ts", "mts", "cts", "js", "mjs", "cjs", "tsx", "jsx"]) {
+      const contents = await emitTypeTemplate({
+        host: `/app/comvi.host.${extension}`,
+        setup: `/app/comvi.setup.${extension}`,
+      });
+      expect(contents).toContain('import("/app/comvi.host").default');
+      expect(contents).toContain('import("/app/comvi.setup").default');
+      expect(contents).not.toContain(`.${extension}").default`);
+    }
+  });
+
+  it("puts comvi.setup's default export through the cross-check", async () => {
+    const contents = await emitTypeTemplate({
+      host: "/app/comvi.host.ts",
+      setup: "/app/comvi.setup.ts",
+    });
+
+    expect(contents).toContain(
+      'export type ComviSetupMatchesHost = import("@comvi/nuxt").CheckedNuxtI18nSetup<',
+    );
+    expect(contents).toContain("  ComviResolvedHost,");
+    expect(contents).toContain('  typeof import("/app/comvi.setup").default');
+  });
+
+  it("emits no cross-check when there is no setup file", async () => {
+    const contents = await emitTypeTemplate({ host: "/app/comvi.host.ts" });
+
+    // Nothing to check, and naming a file that is not there would be a
+    // "cannot find module" reported against generated code.
+    expect(contents).not.toContain("ComviSetupMatchesHost");
+    expect(contents).not.toContain("comvi.setup");
+  });
+
+  it("is written to disk and referenced from the generated types", async () => {
+    await emitTypeTemplate({ host: "/app/comvi.host.ts", setup: "/app/comvi.setup.ts" });
+
+    // A `.ts`, not the `.d.ts` `addTypeTemplate` insists on: every nuxt
+    // tsconfig sets `skipLibCheck: true`, which silences every error inside a
+    // declaration file — including the one this file exists to raise. And a
+    // template is VIRTUAL unless `write` says otherwise, so without both of
+    // these the cross-check is a file tsc never opens.
+    expect(nuxtKitMocks.addTemplate).toHaveBeenCalledWith(
+      expect.objectContaining({ filename: "types/comvi-host.ts", write: true }),
+    );
+
+    const payload: { references?: { path: string }[] } = {};
+    expect(prepareTypesHandlers).toHaveLength(1);
+    for (const handler of prepareTypesHandlers) handler(payload);
+    expect(payload.references).toEqual([{ path: "/build/types/comvi-host.ts" }]);
+  });
+
+  it("keeps the reference when a payload already carries some", async () => {
+    await emitTypeTemplate({ host: "/app/comvi.host.ts" });
+
+    // Every other module writes into the same array; clobbering it would drop
+    // their types and be blamed on them.
+    const payload = { references: [{ path: "/build/types/other.d.ts" }] };
+    for (const handler of prepareTypesHandlers) handler(payload);
+    expect(payload.references).toEqual([
+      { path: "/build/types/other.d.ts" },
+      { path: "/build/types/comvi-host.ts" },
+    ]);
+  });
+
+  it("declares the host the same way whether or not icu is on", async () => {
+    // `comvi.icu` changes the compiler the factory is HANDED, not the type it
+    // returns, so the declaration must not fork on it.
+    const off = await emitTypeTemplate({ host: "/app/comvi.host.ts" });
+    const on = await emitTypeTemplate({ host: "/app/comvi.host.ts" }, { icu: true });
+    expect(on).toBe(off);
   });
 });

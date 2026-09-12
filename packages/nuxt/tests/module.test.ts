@@ -4,13 +4,14 @@ import { join, resolve } from "node:path";
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 import type { NuxtPage } from "@nuxt/schema";
 
-type NuxtTemplateStub = { filename: string; getContents: () => string };
+type NuxtTemplateStub = { filename: string; write?: boolean; getContents: () => string };
+type ResolvedTemplateStub = { filename: string; dst: string };
 
 const nuxtKitMocks = {
   createResolver: vi.fn(),
   findPath: vi.fn(),
   addPlugin: vi.fn(),
-  addTemplate: vi.fn<(template: NuxtTemplateStub) => void>(),
+  addTemplate: vi.fn<(template: NuxtTemplateStub) => ResolvedTemplateStub>(),
   addImports: vi.fn(),
   addComponent: vi.fn(),
   addServerImportsDir: vi.fn(),
@@ -48,6 +49,10 @@ vi.mock("@nuxt/kit", () => ({
 
 function createNuxtStub() {
   return {
+    // The module registers the generated `types/comvi-host.ts` as a tsconfig
+    // reference through `prepare:types`; the payload handler is invoked by the
+    // cases that assert on it.
+    hook: vi.fn(),
     options: {
       runtimeConfig: {
         public: {},
@@ -116,6 +121,12 @@ describe("nuxt module setup", () => {
       resolve: (id: string) => `/resolved/${id}`,
     });
     nuxtKitMocks.findPath.mockResolvedValue(null);
+    // `addTemplate` RESOLVES a template, and the module reads `.dst` off the
+    // type-check template to register it as a tsconfig reference.
+    nuxtKitMocks.addTemplate.mockImplementation((candidate) => ({
+      filename: candidate.filename,
+      dst: `/build/${candidate.filename}`,
+    }));
   });
 
   it("declares its Nuxt module identity and option defaults", async () => {

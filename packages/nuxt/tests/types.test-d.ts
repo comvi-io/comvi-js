@@ -9,6 +9,7 @@ import type {
 } from "@comvi/core";
 import type { UseI18nReturn as VueUseI18nReturn, VueI18n } from "@comvi/vue";
 import type {
+  CheckedNuxtI18nSetup as PublicCheckedNuxtI18nSetup,
   I18nLoaderApi as PublicI18nLoaderApi,
   LoaderFn as PublicLoaderFn,
   ModuleOptions,
@@ -18,12 +19,15 @@ import type {
 } from "@comvi/nuxt";
 import type { UseI18nReturn as NuxtUseI18nReturn } from "../src/runtime/composables/useI18n";
 import type {
+  CheckedNuxtI18nSetup,
   NuxtHostFactory,
   NuxtHostFactoryOptions,
   NuxtI18nOptions,
   NuxtI18nSetup,
+  NuxtI18nSetupContext,
   NuxtServerHost,
   NuxtServerLoaderHost,
+  ResolvedNuxtHost,
 } from "../src/types";
 
 describe("UseI18nReturn type parity", () => {
@@ -111,5 +115,62 @@ describe("host vocabulary after the single-entry convergence", () => {
     expectTypeOf<NuxtHostFactoryOptions["tagInterpolation"]>().toEqualTypeOf<
       { basicHtmlTags?: string[] } | undefined
     >();
+  });
+});
+
+// `comvi.setup`'s host type was an unverified ASSERTION about a different file
+// reached by a string path: `NuxtI18nSetup<I18n & I18nLoaderApi>` compiled
+// whether or not `comvi.host` composed the loader, and a base host gets no
+// capability shim, so `core.registerLoader(...)` threw a raw `TypeError` on the
+// first call. `CheckedNuxtI18nSetup` is the constraint the module's generated
+// `types/comvi-host.ts` applies to close that gap; these are both of its
+// directions, on the exact shapes codegen passes it.
+type LoaderHook = (context: NuxtI18nSetupContext<I18n & I18nLoaderApi>) => void;
+
+/** A factory that composed `loader(map)`: the hook's claim is true. */
+export type SetupAgainstComposedLoader = CheckedNuxtI18nSetup<I18n & I18nLoaderApi, LoaderHook>;
+
+/** The published constraint is the same one, so an app gets this check too. */
+export type PublicSetupAgainstComposedLoader = PublicCheckedNuxtI18nSetup<
+  I18n & PublicI18nLoaderApi,
+  LoaderHook
+>;
+
+/** A factory that composed the PLUGIN host instead — a capability mismatch. */
+export type SetupAgainstPluginsOnlyHost = CheckedNuxtI18nSetup<
+  I18n & I18nPluginHostApi,
+  // @ts-expect-error the hook names a loader this factory never composed
+  LoaderHook
+>;
+
+/** The no-`hostModule` branch: core's BASE host, so every capability is absent. */
+export type SetupAgainstDefaultBranch = CheckedNuxtI18nSetup<
+  ResolvedNuxtHost,
+  // @ts-expect-error a base host has no loader, and this is the whole U4 defect
+  LoaderHook
+>;
+
+describe("the comvi.setup host cross-check", () => {
+  it("hands the check back the hook it was given when the host matches", () => {
+    expectTypeOf<SetupAgainstComposedLoader>().toEqualTypeOf<LoaderHook>();
+    expectTypeOf<PublicSetupAgainstComposedLoader>().toEqualTypeOf<LoaderHook>();
+  });
+
+  it("resolves to core's BASE host with no generated declaration in the program", () => {
+    // This package compiles without any app, and `ComviNuxtHostRegistry` is
+    // empty here; an app's generated `types/comvi-host.ts` augments it with
+    // `ReturnType<typeof import("./comvi.host").default>`.
+    expectTypeOf<ResolvedNuxtHost>().toEqualTypeOf<I18n>();
+    expectTypeOf<Parameters<NuxtI18nSetup>[0]["core"]>().toEqualTypeOf<ResolvedNuxtHost>();
+  });
+
+  it("accepts a hook written with no type argument at all", () => {
+    // The recommended shape after U4: no host named by hand, so nothing to
+    // verify — the default type argument IS the factory's return type inside an
+    // app, and the base host here.
+    const hook = (({ core }) => {
+      core.t("greeting");
+    }) satisfies NuxtI18nSetup;
+    expectTypeOf(hook).toBeFunction();
   });
 });
