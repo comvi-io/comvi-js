@@ -394,8 +394,8 @@ Two leaf shapes are not strings, and both behave the same way everywhere:
 - a `null` or `undefined` leaf is **dropped**, so the key is simply missing.
 
 Each reports one development warning naming the key; production is silent, per the
-fail-soft rule. On a base host these used to be stored verbatim, which made a `null` leaf
-resolve as an empty template.
+fail-soft rule. This is what 0.4 did as well; only the unreleased 0.5 pre-releases stored these
+verbatim on a base host, which made a `null` leaf resolve as an empty template.
 
 `flattenCatalog` is the same function, exported from the `@comvi/core` ROOT for
 pre-flattening data by hand — inspecting the keys a nested object will produce, or merging

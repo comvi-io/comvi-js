@@ -4,8 +4,8 @@
  * Catalog shape: the top-level `translation` option is validated in both
  * builds — a wrong type there is a programming error the host cannot recover
  * from — while the per-locale walk that inspects every entry is development
- * guidance and is folded out, so a malformed locale catalog is stored as given
- * rather than rejected.
+ * guidance and is folded out, so a malformed locale catalog is flattened as
+ * best it can be rather than rejected.
  *
  * Missing parameters: the once-per-(template, param) warn dedup exists only to
  * keep the dev console readable, so production carries neither the bookkeeping
@@ -29,8 +29,9 @@ describe("catalog shape validation", () => {
       translation: { en: "hi" as never },
     });
 
-    // Stored as given: `Object.assign` over a string spreads its characters, so
-    // the un-renderable catalog surfaces at lookup instead of at construction.
+    // Flattened as best it can be: `Object.keys` over a string yields its
+    // character indexes, so the un-renderable catalog surfaces at lookup instead
+    // of at construction.
     expect(i18n.t("0")).toBe("h");
   });
 });

@@ -49,7 +49,8 @@ export { TranslationCache } from "./core/TranslationCache";
  *
  * Non-string leaves are coerced with `String()` and `null`/`undefined` leaves
  * are dropped (with a dev warning). Input with a null prototype is assumed
- * already flat and passes through.
+ * already flat and passes through BY REFERENCE, unflattened, so a hand-built
+ * null-prototype object with nested values stays nested.
  */
 export { normalizeTranslationObject as flattenCatalog } from "./utils";
 
