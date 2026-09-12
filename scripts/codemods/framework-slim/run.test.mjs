@@ -74,6 +74,7 @@ const REQUIRED_CASES = [
   "ctor-type-only-import", // runtime installer never merges into `import type`
   "chain-with-verb", // 6: a 0.5-pre `.with(installer)` chain -> `.use(installer)`
   "chain-with-residual", // 6: a `.with` reached through a STORED binding
+  "chain-loader-attach-only", // 14: a bare `loader()` -> the bare `attachLoader`
   "stored-register-plugin", // 7: `host.use(raw)` on a proven plugin host
   "flatten-catalog-subpath", // 8: `flattenCatalog` off `@comvi/core/loader`
   "flatten-catalog-binding-root", // 8: the same, off a binding root, aliased
@@ -152,6 +153,7 @@ test("CRLF sources come back with CRLF", () => {
   assert.deepEqual(
     rewritten.map(caseNameOf).sort(),
     [
+      "chain-loader-attach-only",
       "chain-plugin-host",
       "chain-plugin-installers",
       "chain-with-residual",
@@ -983,7 +985,7 @@ test("the `compiler` option a chain already carries silences runtime-icu-unprove
   // The installer used to be the other proof. Now the option is the only one,
   // and a host that names it must not be told to name it again.
   const source = `import { createI18n, icuCompiler, loader } from "@comvi/react";
-const i18n = createI18n({ locale: "en", compiler: icuCompiler }).with(loader());
+const i18n = createI18n({ locale: "en", compiler: icuCompiler }).with(loader({ de: async () => ({}) }));
 `;
 
   const result = transformSource(source, "compiler-named.ts");
@@ -1334,6 +1336,7 @@ test("transformed TypeScript goldens compile", (t) => {
   assert.deepEqual(
     tsGoldens.map(caseNameOf).sort(),
     [
+      "chain-loader-attach-only",
       "chain-plugin-host",
       "chain-plugin-installers",
       "chain-with-residual",
@@ -1446,8 +1449,9 @@ export declare const I18n: new (options: HostOptions) => Host;
 export declare function flattenCatalog(catalog: Record<string, unknown>): Record<string, string>;
 export declare const icuCompiler: MessageCompiler;
 export declare function loader(
-  importMap?: Record<string, () => Promise<unknown>>,
+  importMap: Record<string, () => Promise<unknown>>,
 ): <T extends Host>(host: T) => T & LoaderApi;
+export declare function attachLoader<T extends Host>(host: T): T & LoaderApi;
 export declare function plugins(): <T extends Host>(host: T) => T & PluginApi;
 export declare function attachPlugins<T extends Host>(host: T): T & PluginApi;
 export declare function definePlugin(
@@ -1475,7 +1479,7 @@ export declare function inContextEditor(options?: {
     "comvi/core.ts": `export { createI18n, flattenCatalog, I18n } from "./api";
 export type * from "./api";
 `,
-    "comvi/core/loader.ts": `export { loader } from "../api";
+    "comvi/core/loader.ts": `export { attachLoader, loader } from "../api";
 `,
     "comvi/core/plugins.ts": `export { attachPlugins, definePlugin, plugins } from "../api";
 `,
@@ -1483,7 +1487,7 @@ export type * from "./api";
 export type { DevtoolsOptions } from "../api";
 `,
     "comvi/react.ts": `export { createI18n, devtools, I18n } from "./api";
-export { attachPlugins, definePlugin, icuCompiler, loader, plugins } from "./api";
+export { attachLoader, attachPlugins, definePlugin, icuCompiler, loader, plugins } from "./api";
 export type * from "./api";
 
 export interface UseI18nReturn {
@@ -1504,7 +1508,7 @@ export declare function useI18nLoader(): UseI18nLoaderReturn;
 export declare function useI18nPlugins(): UseI18nPluginsReturn;
 `,
     "comvi/next.ts": `import type { Host, I18nPlugin, LoaderApi, PluginApi } from "./api";
-export { definePlugin, devtools, icuCompiler, loader, plugins } from "./api";
+export { attachLoader, definePlugin, devtools, icuCompiler, loader, plugins } from "./api";
 export type * from "./api";
 
 export interface NextPluginOptions {
@@ -1700,7 +1704,10 @@ test("a surviving `.with` is never certified: rewritten where provable, reported
     .filter((line) => !line.startsWith("//"))
     .join("\n");
   assert.doesNotMatch(code, /\.with\(/);
-  assert.match(code, /i18n\.use\(loader\(\)\)/);
+  // The residual sweep carries the bare-`loader()` rewrite too: the receiver is
+  // proven, so leaving the call would rename the verb around an argument the
+  // required map deleted.
+  assert.match(code, /i18n\.use\(attachLoader\)/);
   assert.match(code, /withLoader\.use\(plugins\(\)\)/);
   assert.match(code, /withPlugins\.use\(wrapMetrics\(\)\)/);
 
@@ -1719,7 +1726,7 @@ test("a surviving `.with` is never certified: rewritten where provable, reported
     path.join(dir, "other.ts"),
     fs
       .readFileSync(path.join(dir, "other.ts"), "utf8")
-      .replace("getHost().with(loader())", "getHost().use(loader())"),
+      .replace("getHost().with(loader())", "getHost().use(loader({}))"),
   );
   const cleared = run(["other.ts"], dir);
 
@@ -1749,11 +1756,12 @@ export const swapped = locales.with(0, "en");
 
   const result = transformSource(source, "temporal.ts");
 
-  assert.match(result.text, /export const composed = i18n\.use\(loader\(\)\);/);
+  assert.match(result.text, /export const composed = i18n\.use\(attachLoader\);/);
+  assert.match(result.text, /import \{ createI18n, attachLoader \} from "@comvi\/react";/);
   assert.match(result.text, /date\.with\(\{ month: 2 \}\)/);
   assert.match(result.text, /locales\.with\(0, "en"\)/);
   assert.deepEqual(result.manual, []);
-  assert.equal(result.rewrites, 1);
+  assert.equal(result.rewrites, 2);
 });
 
 /**
@@ -1775,7 +1783,9 @@ export const bare = getHost().with(attachLoader);
   assert.equal(result.text, source, "an unprovable receiver is never rewritten");
   assert.deepEqual(
     result.manual.map((item) => item.shape),
-    ["residual-with-verb", "residual-with-verb"],
+    // The bare `loader()` on the unprovable receiver earns BOTH: the verb no
+    // 0.5.0 host has, and the call the required map deleted.
+    ["residual-with-verb", "loader-map-unproven", "residual-with-verb"],
   );
 });
 

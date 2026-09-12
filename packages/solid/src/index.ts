@@ -43,7 +43,7 @@ export {
 } from "./primitives";
 
 // The capability toolkit. Each is a named binding under `sideEffects: false`,
-// so the subpaths an app never calls stay out of its graph. `loader()` /
+// so the subpaths an app never calls stay out of its graph. `loader(map)` /
 // `plugins()` / `devtools()` are the configured installers for `i18n.use(…)`;
 // the `attach*` functions are themselves installers, so `.use(attachLoader)`
 // works too.

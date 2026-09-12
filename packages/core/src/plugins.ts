@@ -9,14 +9,15 @@
 // import { definePlugin, plugins } from "@comvi/core/plugins";
 //
 // const i18n = createI18n({ locale: "en" })
-//   .use(loader())
+//   .use(loader({ uk: () => import("./uk.json") }))
 //   .use(plugins())
 //   .use(definePlugin(myPlugin));
 // await i18n.init();
 // ```
 //
-// Compose `loader()` as well when any hosted plugin registers a loader. The
-// ORDER of `loader()`, `plugins()` and `devtools()` among themselves is free:
+// Compose the loader capability as well when any hosted plugin registers a
+// loader. The ORDER of `loader(map)`, `plugins()` and `devtools()` among
+// themselves is free:
 // plugins run at `init()`, by which point every capability composed before
 // `init()` is attached.
 //

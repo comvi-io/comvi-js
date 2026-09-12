@@ -20,7 +20,7 @@ const IS_DEV_BUILD = __COMVI_CORE_BUILD__ === "development";
 
 const EXPECTED = {
   loader: IS_DEV_BUILD
-    ? '[comvi] This i18n instance has no loader capability. Compose it: .use(loader()) from "@comvi/core/loader", or the lower-level attachLoader.'
+    ? '[comvi] This i18n instance has no loader capability. Compose it: .use(attachLoader) from "@comvi/core/loader", or loader(map).'
     : "[comvi] missing loader capability — attach @comvi/core/loader",
   plugins: IS_DEV_BUILD
     ? '[comvi] This i18n instance has no plugins capability. Compose it: .use(plugins()) from "@comvi/core/plugins", or the lower-level attachPlugins.'

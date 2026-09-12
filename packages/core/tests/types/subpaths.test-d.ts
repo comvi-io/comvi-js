@@ -316,12 +316,12 @@ piped.t("review", { formality: "formal" });
 const pipedWithDefaults = createBaseI18n({
   locale: "en",
   defaultParams: { formality: "formal" },
-}).use(loader());
+}).use(attachLoader);
 pipedWithDefaults.t("review");
 pipedWithDefaults.registerLoader(loaderFn);
 
 // Chaining compounds the widenings; the base surface survives both.
-const pipedBoth = createBaseI18n({ locale: "en" }).use(loader()).use(plugins());
+const pipedBoth = createBaseI18n({ locale: "en" }).use(attachLoader).use(plugins());
 pipedBoth.registerLoader(loaderFn);
 pipedBoth.registerPlugin(fetchLoaderShaped).t("count", { count: 1 });
 pipedBoth.registerPostProcessor((result) => result);
@@ -329,14 +329,14 @@ const pipedBothHost: WrapperI18nHost = pipedBoth;
 void pipedBothHost;
 
 // Order is the caller's; the type compounds either way.
-const pipedReversed = createBaseI18n({ locale: "en" }).use(plugins()).use(loader());
+const pipedReversed = createBaseI18n({ locale: "en" }).use(plugins()).use(attachLoader);
 pipedReversed.registerPlugin(() => {});
 pipedReversed.registerLoader(loaderFn);
 
 // The addendum's plugin-ecosystem guarantee, at the type level:
 // `registerPlugin` is a compile error until `plugins()` is composed in, and
 // present afterwards. `.use` itself is on the BASE host and always there.
-const pipedLoaderOnly = createBaseI18n({ locale: "en" }).use(loader());
+const pipedLoaderOnly = createBaseI18n({ locale: "en" }).use(attachLoader);
 // @ts-expect-error — use() arrives with @comvi/core/plugins, not with the loader
 pipedLoaderOnly.registerPlugin(fetchLoaderShaped);
 pipedLoaderOnly.use(plugins()).registerPlugin(fetchLoaderShaped);
@@ -410,7 +410,7 @@ pipedBranded.t("count", { count: 1 });
 
 // Composing both capabilities onto the base root widens it to the full
 // surface, and the widened host accepts a plain LoaderFn plus plugins.
-const fullyPiped = createBaseI18n({ locale: "en" }).use(loader()).use(plugins());
+const fullyPiped = createBaseI18n({ locale: "en" }).use(attachLoader).use(plugins());
 fullyPiped.registerLoader(loaderFn);
 fullyPiped.registerPlugin(fetchLoaderShaped);
 
@@ -425,6 +425,13 @@ createBaseI18n({ locale: "en" }).use(attachLoader(createBaseI18n({ locale: "en" 
 createBaseI18n({ locale: "en" }).use(fetchLoaderShaped);
 // @ts-expect-error — an import map's values must be import functions
 createBaseI18n({ locale: "en" }).use(loader({ uk: "./uk.json" }));
+// THE ATTACH-ONLY RULE, at the type level: the import map is REQUIRED, so
+// there is exactly one attach-only installer and it is `attachLoader`. A bare
+// `loader()` is the shape this decision deletes.
+// @ts-expect-error — loader() needs the import map; .use(attachLoader) is attach-only
+createBaseI18n({ locale: "en" }).use(loader());
+// @ts-expect-error — and an EXPLICIT undefined is the same mistake, spelled out
+createBaseI18n({ locale: "en" }).use(loader(undefined));
 // @ts-expect-error — devtools() takes DevtoolsOptions, not I18nOptions
 createBaseI18n({ locale: "en" }).use(devtools({ locale: "en" }));
 // @ts-expect-error — plugins() takes no configuration yet
@@ -434,7 +441,7 @@ createBaseI18n({ locale: "en" }).use(plugins({ strict: true }));
 //
 // `use<T extends this>` makes all three runtime misuses of `E_USE_NOT_INSTALLER`
 // compile errors instead. The POSITIVE side of the same constraint is pinned
-// above: `loader()`, `plugins()`, `definePlugin()`, a bare `attachLoader` /
+// above: `loader(map)`, `plugins()`, `definePlugin()`, a bare `attachLoader` /
 // `attachPlugins` / `attachDevtools`, the hand-written in-place installer with
 // its phantom brand, and the `BrandedInstaller<A>` probe all still infer and
 // widen through it. The runtime guard is NOT redundant — a JS caller, or an

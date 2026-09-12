@@ -3,6 +3,12 @@
     "line": 10,
     "column": 50,
     "shape": "icu-installer-removed",
-    "detail": "`.with(installIcu(…))` composes the removed `icu()` installer — ICU is a compiler setting, not a capability: drop the step and pass `compiler: icuCompiler` in the `createI18n(…)` options, which serves inline, loader, CDN and API catalogs alike"
+    "detail": "`.with(installIcu(\u2026))` composes the removed `icu()` installer \u2014 ICU is a compiler setting, not a capability: drop the step and pass `compiler: icuCompiler` in the `createI18n(\u2026)` options, which serves inline, loader, CDN and API catalogs alike"
+  },
+  {
+    "line": 10,
+    "column": 74,
+    "shape": "loader-map-unproven",
+    "detail": "`loader()` composes the loader with no import map, and `loader(map)` REQUIRES it in 0.5.0 \u2014 an import map goes to `.use(loader(map))`, a loader FUNCTION goes to `.use(attachLoader)` followed by `registerLoader(fn)`; this call site is not in a chain the codemod can prove, so it is left as written"
   }
 ]

@@ -11,7 +11,7 @@ import type {
   NextServerHost,
 } from "@comvi/next/server";
 import { createI18n } from "@comvi/core";
-import { attachLoader, loader } from "@comvi/core/loader";
+import { attachLoader } from "@comvi/core/loader";
 import type { CreateNextI18nResult } from "../../src/createNextI18n";
 import type { ServerI18nHost, ServerTranslatingHost } from "../../src/server/hostTypes";
 
@@ -32,7 +32,7 @@ export type _ExactHostType = Expect<Equal<typeof composed.i18n, typeof composedH
 
 // A host composed through the INSTALLER pipe instead of `attachLoader`: the
 // second acquisition path.
-const installerHost = createI18n({ locale: "en" }).use(loader());
+const installerHost = createI18n({ locale: "en" }).use(attachLoader);
 const _onPiped = createNextI18nFromHost(() => installerHost, ROUTING);
 
 export type _PipedHostAlsoExact = Expect<Equal<typeof _onPiped.i18n, typeof installerHost>>;

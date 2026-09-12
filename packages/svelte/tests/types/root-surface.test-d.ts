@@ -130,11 +130,11 @@ export type _PipedIsWidened = Expect<
 >;
 export type _PipedIsStillTheHost = Expect<Equal<typeof piped, I18n<{}> & I18nLoaderApi>>;
 void piped.registerLoader(() => Promise.resolve({}));
-// @ts-expect-error -- loader() composes ONLY the loader capability
+// @ts-expect-error -- loader(map) composes ONLY the loader capability
 piped.registerPlugin(() => undefined);
 
 // Chaining compounds the widenings.
-const _both = createI18n({ locale: "en" }).use(loader()).use(plugins());
+const _both = createI18n({ locale: "en" }).use(attachLoader).use(plugins());
 export type _ChainCompounds = Expect<
   Equal<typeof _both extends I18nLoaderApi & I18nPluginHostApi ? true : false, true>
 >;
@@ -147,7 +147,7 @@ setI18nContext(_both);
 // The DECAY PROBE: a declared default-param set must survive the pipe. If the
 // host collapsed to `any`, `Equal<…>` would resolve against `any` and fail.
 const _pipedDefaults = createI18n({ locale: "en", defaultParams: { brand: "Comvi" } }).use(
-  loader(),
+  attachLoader,
 );
 export type _PipeKeepsExactDefaults = Expect<
   Equal<typeof _pipedDefaults, I18n<{ readonly brand: "Comvi" }> & I18nLoaderApi>

@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { http, HttpResponse } from "msw";
 import { createI18n, hasLoaderApi } from "@comvi/core";
-import { loader } from "@comvi/core/loader";
+import { attachLoader } from "@comvi/core/loader";
 import { plugins } from "@comvi/core/plugins";
 import type { I18nPlugin } from "@comvi/core";
 import { FETCH_LOADER_PLUGIN_KEY, FetchLoader, fetchLoader } from "../src/index";
@@ -9,7 +9,7 @@ import { buildTestCdnUrl, mockCdnSuccessResponse, server, TEST_CDN_URL } from ".
 
 /**
  * `fetchLoader(options)` is the one-call form of the recipe the composed-host
- * suite spells out: `.use(loader()).use(plugins())` then
+ * suite spells out: `.use(attachLoader).use(plugins())` then
  * `registerPlugin(FetchLoader(options))` — same host, same lifecycle, same teardown, and
  * it must reject the two cross-uses the type system also rejects.
  */
@@ -46,7 +46,7 @@ describe("fetchLoader() installer", () => {
     mockCdnSuccessResponse("en", "default", { greeting: "Hello" });
 
     const installed = base().use(fetchLoader(OPTIONS));
-    const explicit = base().use(loader()).use(plugins());
+    const explicit = base().use(attachLoader).use(plugins());
     explicit.registerPlugin(FetchLoader(OPTIONS));
 
     await installed.init();
@@ -60,7 +60,7 @@ describe("fetchLoader() installer", () => {
   it("returns the same instance and keeps registered state when composed twice", async () => {
     mockCdnSuccessResponse("en", "default", { greeting: "Hello" });
 
-    const i18n = base().use(loader()).use(plugins());
+    const i18n = base().use(attachLoader).use(plugins());
     const marker: I18nPlugin = () => undefined;
     i18n.registerPlugin(marker);
     i18n.setPluginData("existing", "kept");

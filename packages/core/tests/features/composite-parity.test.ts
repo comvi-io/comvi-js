@@ -59,7 +59,7 @@ function makeComposite(options: HostOptions = {}): FullHost {
 function makeRecomposed(options: HostOptions = {}): FullHost {
   const { importMap, instanceId, exposeGlobal, translation, ...rest } = options;
   const host = createI18n({ locale: "en", compiler: icuCompiler, ...rest } as never)
-    .use(importMap ? loader(importMap) : loader())
+    .use(importMap ? loader(importMap) : attachLoader)
     .use(plugins());
   if (translation !== undefined) host.addTranslations(translation);
   host.use(devtools({ instanceId, exposeGlobal }));

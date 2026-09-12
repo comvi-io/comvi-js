@@ -21,7 +21,7 @@ import { createI18n } from "../../src";
 // registry that still claims no `<`, which is what makes the branch walk
 // observable.
 import { I18n as IcuI18n } from "../../src/core/full";
-import { loader } from "../../src/loader";
+import { attachLoader } from "../../src/loader";
 import { prepareTranslation } from "../../src/rich-text";
 import { _resetSyntaxExtensions, registerSyntaxExtension } from "../../src/core/translate/syntax";
 import { tagSyntaxExtension } from "../../src/core/translate/tags";
@@ -67,7 +67,7 @@ describe("catalog ingestion — the dev preflight", () => {
   it("stays silent for tag markup a loader merges in", async () => {
     // The loader preflights its own normalized copy BEFORE the merge — a second
     // ingestion seam, which `addTranslations` above cannot speak for.
-    const i18n = createI18n({ locale: "en", exposeGlobal: false }).use(loader());
+    const i18n = createI18n({ locale: "en", exposeGlobal: false }).use(attachLoader);
     i18n.registerLoader(async () => ({ greet: GREET }));
 
     await i18n.init();

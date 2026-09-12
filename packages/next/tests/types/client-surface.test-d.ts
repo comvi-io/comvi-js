@@ -101,10 +101,10 @@ const piped = createI18n({ locale: "en", compiler: icuCompiler }).use(
 );
 export type _PipedIsStillBase = Expect<Equal<typeof piped, BaseI18n<{}> & I18nLoaderApi>>;
 void piped.registerLoader(() => Promise.resolve({}));
-// @ts-expect-error -- loader() composes ONLY the loader capability
+// @ts-expect-error -- loader(map) composes ONLY the loader capability
 piped.registerPlugin(() => undefined);
 
-const _pipedBoth = createI18n({ locale: "en" }).use(loader()).use(plugins());
+const _pipedBoth = createI18n({ locale: "en" }).use(attachLoader).use(plugins());
 export type _ChainCompounds = Expect<
   Equal<typeof _pipedBoth extends I18nLoaderApi & I18nPluginHostApi ? true : false, true>
 >;

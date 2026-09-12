@@ -10,8 +10,10 @@
  * | 7 | `host.use(raw)` on a plugin host      | `host.registerPlugin(raw)`   |
  * | 8 | `flattenCatalog` from a moved entry   | imported from `@comvi/core`  |
  * | 9–13 | the `createNextI18n(…)` result     | see `next-result.mjs`        |
+ * | 14 | a bare `loader()` on a proven host   | `attachLoader`, bare         |
  * | + | `.with(icu())`, anywhere in a chain   | reported, never rewritten    |
  * | + | `.with(` on an unprovable receiver    | reported, never rewritten    |
+ * | + | a bare `loader()` anywhere else       | reported, never rewritten    |
  *
  * A NESTED INLINE CATALOG is not on this table, and that is the point: the base
  * host flattens it itself, on every host, so `{ en: { nav: { home } } }` needs
@@ -26,6 +28,14 @@
  * inside a chain takes the other road and becomes `.use(definePlugin(raw))`,
  * because `definePlugin(fn)` attaches the capability itself and so needs
  * nothing in front of it.
+ *
+ * Row 14 is decision P3: `loader(importMap)` REQUIRES its map now, so a bare
+ * `loader()` — attach-only against the 0.5 pre-release, and the third spelling
+ * of one capability — becomes the bare `attachLoader` it always delegated to.
+ * The argument changes, nothing else does, and the import-map adapter the
+ * static reference dragged in leaves the graph with it. Where the receiver is
+ * not provable the call is REPORTED instead, because it no longer compiles and
+ * silence would certify a file that cannot build.
  *
  * Row `+` is the one shape here that has no rewrite. `.with(icu())` was a real
  * installer during 0.5 development and is not part of the released surface: ICU
@@ -62,6 +72,8 @@ import {
   HOST_CLASS,
   HOST_FACTORY,
   ICU_COMPILER,
+  LOADER_ATTACH_INSTALLER,
+  LOADER_INSTALLER,
   LOADER_INSTALLERS,
   PLUGIN_HELPER,
   PLUGIN_HOST_INSTALLER,
@@ -133,6 +145,41 @@ function installedBy(root, step, hostModule) {
   const owner = pluginEntry === undefined ? undefined : PLUGIN_FACTORY_MODULES.get(pluginEntry[0]);
   const fromHost = hostModule !== "@comvi/core" && binding.source === hostModule;
   return binding.source === coreModule || binding.source === owner || fromHost ? api : undefined;
+}
+
+/**
+ * A composition step that is a BARE `loader()` — the configured installer
+ * called with no import map.
+ *
+ * The map is required in 0.5.0, so this call does not type-check any more; what
+ * it meant is `attachLoader`, which is what it delegated to. Returns the
+ * argument NODE to splice over, the local name `loader` was reached through,
+ * and the SPECIFIER it came from — both names live on every entry that
+ * publishes either, so the new import merges into that same clause.
+ *
+ * Resolves the import itself rather than trusting the caller, so the chain
+ * walk and the residual `.with` sweep can share one answer.
+ *
+ * ONLY a zero-argument call is rewritten. `loader(...maps)` spreads to
+ * something the text does not name — it may well be one map — so it comes back
+ * marked `spread` and is reported: rewriting it would silently drop a
+ * registration.
+ */
+function bareLoaderCallAt(root, call) {
+  const argument = argumentsOf(call)[0];
+  if (argument === undefined || argument.kind() !== "call_expression") return undefined;
+  const local = calleeName(argument);
+  if (local === undefined) return undefined;
+  const binding = importedBinding(root, local);
+  if (binding === undefined || binding.typeOnly) return undefined;
+  if (binding.imported !== LOADER_INSTALLER || !binding.source.startsWith("@comvi/")) {
+    return undefined;
+  }
+  const args = argumentsOf(argument);
+  const found = { argument, local, source: binding.source };
+  if (args.length === 0) return { ...found, spread: false };
+  if (args.some((node) => node.kind() === "spread_element")) return { ...found, spread: true };
+  return undefined;
 }
 
 /**
@@ -971,7 +1018,11 @@ function withInstallerShaped(call) {
 function detectResidualWith(root, hosts, handled) {
   const findings = [];
   const edits = [];
+  const needs = new Map();
+  const prunable = new Set();
+  const loaderRewrites = new Set();
   let renames = 0;
+  let attachRewrites = 0;
   const bindings = hostBindingNames(root, hosts);
 
   for (const member of root.findAll({ rule: { kind: "member_expression" } })) {
@@ -1008,6 +1059,41 @@ function detectResidualWith(root, hosts, handled) {
     if (proven) {
       edits.push({ ...spanOf(property), text: "use" });
       renames += 1;
+      // The step is on a proven host, so the bare-`loader()` rewrite is as
+      // right here as it is inside a chain — and leaving it would rename the
+      // verb around a call that no longer type-checks.
+      const bare = bareLoaderCallAt(root, call);
+      if (bare !== undefined && bare.spread) {
+        findings.push({
+          offset: startOf(property),
+          shape: "loader-map-unproven",
+          detail:
+            `\`.with(${brief(bare.argument)})\` spreads its arguments, so the codemod cannot ` +
+            `tell an import map from nothing — \`${LOADER_INSTALLER}(map)\` now REQUIRES the ` +
+            `map: pass it, or write \`.use(${LOADER_ATTACH_INSTALLER})\` and ` +
+            `\`registerLoader(fn)\` by hand`,
+        });
+      } else if (bare !== undefined) {
+        // A binding the codemod cannot place is a REPORT, not a half-rewrite:
+        // the emitted file has to still resolve.
+        if (bindingState(root, LOADER_ATTACH_INSTALLER, bare.source) === "collision") {
+          findings.push({
+            offset: startOf(property),
+            shape: "loader-map-unproven",
+            detail:
+              `\`.with(${bare.local}())\` composes the loader with no import map, which ` +
+              `\`${LOADER_INSTALLER}(map)\` now REQUIRES — and ` +
+              `\`${LOADER_ATTACH_INSTALLER}\` is already declared locally, so it cannot be ` +
+              `imported here: write \`.use(${LOADER_ATTACH_INSTALLER})\` by hand`,
+          });
+        } else {
+          edits.push({ ...spanOf(bare.argument), text: LOADER_ATTACH_INSTALLER });
+          needs.set(LOADER_ATTACH_INSTALLER, bare.source);
+          prunable.add(bare.local);
+          loaderRewrites.add(startOf(bare.argument));
+          attachRewrites += 1;
+        }
+      }
       continue;
     }
     // Unprovable receiver. Only an INSTALLER-SHAPED argument makes this
@@ -1022,7 +1108,45 @@ function detectResidualWith(root, hosts, handled) {
         `exactly as written: rename it to \`.use(…)\` by hand if it IS a host`,
     });
   }
-  return { manual: findings, edits, renames };
+  return { manual: findings, edits, renames, needs, prunable, attachRewrites, loaderRewrites };
+}
+
+/**
+ * Every bare `loader()` the rules above did NOT rewrite.
+ *
+ * The two rewrite paths reach a bare `loader()` only through a PROVEN host: a
+ * static `createI18n(…)` chain, or a `.with` on a binding the sweep followed
+ * to one. Everywhere else the call survives — a refused chain, an unprovable
+ * receiver, an installer stored in a local — and in 0.5.0 it does not compile,
+ * because `loader(map)` requires its map.
+ *
+ * Saying nothing about those is the failure this codemod exists to avoid: the
+ * tool would print "already on the 0.5.0 surface" over a file that cannot
+ * build. So each one is reported at its own offset, with the sentence the
+ * decision collapses to.
+ */
+function detectUnrewrittenBareLoader(root, rewritten) {
+  const findings = [];
+  for (const call of root.findAll({ rule: { kind: "call_expression" } })) {
+    if (rewritten.has(startOf(call))) continue;
+    const callee = call.field("function");
+    if (callee === null || callee.kind() !== "identifier") continue;
+    if (argumentsOf(call).length > 0) continue;
+    const binding = importedBinding(root, callee.text());
+    if (binding === undefined || binding.typeOnly) continue;
+    if (binding.imported !== LOADER_INSTALLER || !binding.source.startsWith("@comvi/")) continue;
+    findings.push({
+      offset: startOf(call),
+      shape: "loader-map-unproven",
+      detail:
+        `\`${callee.text()}()\` composes the loader with no import map, and ` +
+        `\`${LOADER_INSTALLER}(map)\` REQUIRES it in 0.5.0 — an import map goes to ` +
+        `\`.use(${LOADER_INSTALLER}(map))\`, a loader FUNCTION goes to ` +
+        `\`.use(${LOADER_ATTACH_INSTALLER})\` followed by \`registerLoader(fn)\`; this call ` +
+        `site is not in a chain the codemod can prove, so it is left as written`,
+    });
+  }
+  return findings;
 }
 
 // ---------------------------------------------------------------------------
@@ -1041,6 +1165,7 @@ export function planSingleEntry(root, text) {
   const transforms = new Map();
   const prunable = new Set();
   const needs = new Map();
+  const loaderRewrites = new Set();
   const count = (kind, amount = 1) => transforms.set(kind, (transforms.get(kind) ?? 0) + amount);
 
   const rename = planHostRename(root);
@@ -1151,12 +1276,17 @@ export function planSingleEntry(root, text) {
     for (const [kind, amount] of chain.transforms) count(kind, amount);
     for (const [name, module] of chain.needs) needs.set(name, module);
     for (const name of chain.prunable) prunable.add(name);
+    for (const offset of chain.loaderRewrites) loaderRewrites.add(offset);
   }
 
   const residual = detectResidualWith(root, hosts, withInChains);
   manual.push(...residual.manual);
   edits.push(...residual.edits);
+  for (const [name, module] of residual.needs) needs.set(name, module);
+  for (const name of residual.prunable) prunable.add(name);
+  for (const offset of residual.loaderRewrites) loaderRewrites.add(offset);
   if (residual.renames > 0) count("use-verb-rename", residual.renames);
+  if (residual.attachRewrites > 0) count("loader-attach-only", residual.attachRewrites);
 
   // The `createNextI18n(…)` result is its own receiver family (`@comvi/next`
   // is not a host module above): planned here so its imports land in the ONE
@@ -1167,6 +1297,8 @@ export function planSingleEntry(root, text) {
   for (const [kind, amount] of nextResult.transforms) count(kind, amount);
   for (const [name, module] of nextResult.needs) needs.set(name, module);
   for (const name of nextResult.prunable) prunable.add(name);
+
+  manual.push(...detectUnrewrittenBareLoader(root, loaderRewrites));
 
   const imports = planNamedImports(root, text, needs);
   edits.push(...imports.edits);
@@ -1205,6 +1337,9 @@ function planChain(root, text, call, hostModule) {
   const transforms = new Map();
   const prunable = new Set();
   const needs = new Map();
+  // Bare-`loader()` arguments this chain rewrote, by offset. The file-level
+  // sweep at the end of `planSingleEntry` reports the ones NOTHING reached.
+  const loaderRewrites = new Set();
   const count = (kind, amount = 1) => transforms.set(kind, (transforms.get(kind) ?? 0) + amount);
   const refuse = () => ({ blocked: true, manual: blockers, edits: [] });
 
@@ -1240,6 +1375,29 @@ function planChain(root, text, call, hostModule) {
     if (composed !== undefined) {
       if (DEVTOOLS_PROVIDERS.includes(composed)) devtoolsStep = step;
       if (LOADER_INSTALLERS.includes(composed) && loaderStep === undefined) loaderStep = step;
+
+      // The import map is REQUIRED in 0.5.0, so a bare `loader()` is the one
+      // composition step that still needs its ARGUMENT changed and not just
+      // its verb: `attachLoader`, the attach-only installer it delegated to.
+      const bare = bareLoaderCallAt(root, step.call);
+      if (bare !== undefined && bare.spread) {
+        advisories.push({
+          offset: startOf(step.property),
+          shape: "loader-map-unproven",
+          detail:
+            `\`.${step.method}(${brief(bare.argument)})\` spreads its arguments, so the codemod ` +
+            `cannot tell an import map from nothing — \`${LOADER_INSTALLER}(map)\` now REQUIRES ` +
+            `the map: pass it, or write \`.use(${LOADER_ATTACH_INSTALLER})\` and ` +
+            `\`registerLoader(fn)\` by hand`,
+        });
+      } else if (bare !== undefined) {
+        edits.push({ ...spanOf(bare.argument), text: LOADER_ATTACH_INSTALLER });
+        needs.set(LOADER_ATTACH_INSTALLER, bare.source);
+        prunable.add(bare.local);
+        loaderRewrites.add(startOf(bare.argument));
+        count("loader-attach-only");
+      }
+
       if (step.method === "with") {
         edits.push({ ...spanOf(step.property), text: "use" });
         count("use-verb-rename");
@@ -1529,7 +1687,7 @@ function planChain(root, text, call, hostModule) {
   }
   if (blockers.length > 0) return refuse();
 
-  return { blocked: false, edits, manual: advisories, transforms, needs, prunable };
+  return { blocked: false, edits, manual: advisories, transforms, needs, prunable, loaderRewrites };
 }
 
 /**

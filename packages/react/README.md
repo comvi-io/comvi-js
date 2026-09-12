@@ -313,7 +313,7 @@ On a host that lacks the capability the acquisition call throws, in
 development **and** production, never a silent no-op:
 
 ```
-[comvi] This i18n instance has no loader capability. Compose it: .use(loader()) from "@comvi/core/loader", or the lower-level attachLoader.
+[comvi] This i18n instance has no loader capability. Compose it: .use(attachLoader) from "@comvi/core/loader", or loader(map).
 ```
 
 Migrating from 0.4.x: `pnpm codemod:framework-slim "src/**/*.{ts,tsx,js,jsx}"`,
@@ -323,7 +323,7 @@ or the [0.5.0 migration guide](https://github.com/comvi-io/comvi-js/blob/main/MI
 
 `<I18nProvider i18n={…}>` accepts any `WrapperI18nHost`: `createI18n` from
 `@comvi/react` (core's own base-host constructor, re-exported by name), with or
-without `.use(loader())` / `.use(plugins())` composed on. The base host is the
+without `.use(attachLoader)` / `.use(plugins())` composed on. The base host is the
 cheap one. ICU, tag syntax, async loading, the plugin host and devtools
 discovery are each something you compose, and you carry none of them by default.
 
@@ -421,13 +421,26 @@ The option is a constructor field held for the instance's life, so it covers a
 catalog merged later by a loader as well as a constructor `translation` or an
 `addTranslations` call.
 
-### Async loading — `loader()`
+### Async loading — `loader(map)` and `attachLoader`
 
 ```tsx
 import { createI18n, I18nProvider, loader, useI18nLoader } from "@comvi/react";
 
 const i18n = createI18n({ locale: "en" }).use(loader({ uk: () => import("./uk.json") }));
 // inside a component: const { reloadTranslations } = useI18nLoader();
+```
+
+The import map is **required**, which makes the whole rule one sentence: a
+static map of import functions goes to `.use(loader(map))`; a plain loader
+**function** goes to `.use(attachLoader)` and then `registerLoader(fn)`. A bare
+`loader()` is a compile error, so there is no third spelling of this one
+capability.
+
+```tsx
+import { attachLoader, createI18n } from "@comvi/react";
+
+const i18n = createI18n({ locale: "en" }).use(attachLoader);
+i18n.registerLoader(async (locale, ns) => (await fetch(`/i18n/${locale}/${ns}.json`)).json());
 ```
 
 ### Plugins — one `.use(installer)`
@@ -447,16 +460,16 @@ const i18n = createI18n({ locale: "en", defaultNs: "common" }).use(
 ```
 
 The explicit form is that same composition spelled out, and it is what you want
-when you register plugins from a list. Compose `loader()` as well when a plugin
-registers one. The order of `loader()`, `plugins()` and `devtools()` among
-themselves is free, because plugins run at `init()` and every capability
+when you register plugins from a list. Compose the loader capability as well when a
+plugin registers one. The order of `loader(map)` / `attachLoader`, `plugins()`
+and `devtools()` among themselves is free, because plugins run at `init()` and every capability
 composed before `init()` is attached by then.
 
 ```tsx
-import { createI18n, loader, plugins } from "@comvi/react";
+import { attachLoader, createI18n, plugins } from "@comvi/react";
 import { CdnLoader } from "@comvi/plugin-fetch-loader/cdn";
 
-const i18n = createI18n({ locale: "en", defaultNs: "common" }).use(loader()).use(plugins());
+const i18n = createI18n({ locale: "en", defaultNs: "common" }).use(attachLoader).use(plugins());
 
 i18n.registerPlugin(CdnLoader({ cdnUrl: "https://cdn.comvi.io/your-distribution-id" }));
 ```

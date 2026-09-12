@@ -200,6 +200,20 @@ export const DEVTOOLS_OPTIONS = ["exposeGlobal", "instanceId"];
 export const LOADER_INSTALLERS = ["loader", "attachLoader", "fetchLoader"];
 
 /**
+ * The CONFIGURED loader installer and its attach-only twin.
+ *
+ * `loader(importMap)` REQUIRES its map in 0.5.0, so a bare `loader()` — legal
+ * against the 0.5 pre-release, where the map was optional and the call was
+ * attach-only — no longer type-checks. It is rewritten to `attachLoader` as a
+ * BARE IDENTIFIER: that is the one attach-only installer, it is exactly what
+ * the optional-map call delegated to, and the import-map adapter the static
+ * reference used to pull into the graph goes with it. Same host, same position,
+ * same evaluation order.
+ */
+export const LOADER_INSTALLER = "loader";
+export const LOADER_ATTACH_INSTALLER = "attachLoader";
+
+/**
  * Where a binding lives when the host itself came from `@comvi/core`:
  * core keeps ONE capability per pure subpath, while every wrapper package
  * re-exports all of them from its single entry.

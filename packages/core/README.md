@@ -211,10 +211,14 @@ const i18n = createI18n({ locale: "en" }).use(attachLoader);
 i18n.registerLoader(async (locale, ns) => (await fetch(`/i18n/${locale}/${ns}.json`)).json());
 ```
 
-`loader()`, `plugins()` and `devtools()` are the _configured_ installers: they
-attach **and** configure in the same call. Pick by what you have. `loader`
-names the import-map adapter statically, so it costs ~111–124 B min+gz whether
-or not you pass a map, while `attachLoader` costs 2 B over calling it directly.
+`loader(map)`, `plugins()` and `devtools()` are the _configured_ installers:
+they attach **and** configure in the same call. For the loader that is one
+sentence, because the import map is **required**: a static map of import
+functions goes to `.use(loader(map))`; a plain `LoaderFn` goes to
+`.use(attachLoader)` followed by `registerLoader(fn)`, as above. A bare
+`loader()` is a compile error, so there is no third form and nothing to weigh —
+and the import-map adapter (~111–124 B min+gz) is in your bundle only when you
+actually hand over a map.
 
 Your app's own inline plugin reaches the queue through
 `definePlugin(fn, options?)` from `@comvi/core/plugins`:
@@ -231,7 +235,7 @@ and `onError` apply to it.
 Every install is idempotent, and installs land as **non-enumerable own
 properties** with ordinary method descriptors, so `Object.keys(i18n)`, spread
 copies and `JSON.stringify` see exactly what they saw before. Composing a
-capability a host already has (a second `.use(loader())`, or any `.use(…)` on
+capability a host already has (a second `.use(attachLoader)`, or any `.use(…)` on
 a host that was already composed) installs nothing and shadows nothing.
 
 > **Compose the loader alongside the plugin host. Order between them is free.**
@@ -240,8 +244,8 @@ a host that was already composed) installs nothing and shadows nothing.
 > on the instance. If the loader capability was never composed at all, that call
 > is a `TypeError` at `init()` time, not a compile error. Composing both is what
 > fixes it, and either chain does it:
-> `createI18n({ … }).use(loader()).use(plugins())` and
-> `createI18n({ … }).use(plugins()).use(loader())` are equivalent, because
+> `createI18n({ … }).use(attachLoader).use(plugins())` and
+> `createI18n({ … }).use(plugins()).use(attachLoader)` are equivalent, because
 > every capability composed before `init()` is attached by the time plugins run.
 >
 > Beyond that the library has no ordering rule. ICU is not composed at all: it
@@ -260,7 +264,7 @@ TypeScript catches a missing capability, so you never discover one in production
 
 | Capability            | Subpath                                                 | Members                                                                                                                 |
 | --------------------- | ------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| Async loading         | `@comvi/core/loader` (`loader()`)                       | `registerLoader`, `getLoader`, `reloadTranslations`, `addActiveNamespace(s)`, `removeActiveNamespace(s)`, `onLoadError` |
+| Async loading         | `@comvi/core/loader` (`attachLoader`)                   | `registerLoader`, `getLoader`, `reloadTranslations`, `addActiveNamespace(s)`, `removeActiveNamespace(s)`, `onLoadError` |
 | Import-map loading    | `@comvi/core/loader`                                    | `createImportMapLoader`, and `loader(map)` to attach + register in one call                                             |
 | Plugin host           | `@comvi/core/plugins` (`plugins()`, `definePlugin(fn)`) | `registerPlugin`, `setPluginData`, `getPluginData`                                                                      |
 | Locale detection      | `@comvi/core/plugins`                                   | `registerLocaleDetector`, `getLanguageDetector`                                                                         |
@@ -640,11 +644,11 @@ compose capabilities yourself or register plugins from a list:
 
 ```ts
 import { createI18n } from "@comvi/core";
-import { loader } from "@comvi/core/loader";
+import { attachLoader } from "@comvi/core/loader";
 import { plugins } from "@comvi/core/plugins";
 import { CdnLoader } from "@comvi/plugin-fetch-loader/cdn";
 
-const i18n = createI18n({ locale: "en", fallbackLocale: "en" }).use(loader()).use(plugins());
+const i18n = createI18n({ locale: "en", fallbackLocale: "en" }).use(attachLoader).use(plugins());
 
 i18n.registerPlugin(CdnLoader({ cdnUrl: "https://cdn.comvi.io/your-distribution-id" }));
 ```

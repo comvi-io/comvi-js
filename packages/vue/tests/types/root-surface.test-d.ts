@@ -140,16 +140,16 @@ export type _PipedIsWidened = Expect<
 >;
 export type _PipedIsStillTheHost = Expect<Equal<typeof piped, I18n<{}> & I18nLoaderApi>>;
 void piped.registerLoader(() => Promise.resolve({}));
-// @ts-expect-error -- loader() composes ONLY the loader capability
+// @ts-expect-error -- loader(map) composes ONLY the loader capability
 piped.registerPlugin(() => undefined);
 
 // The preset's own host takes the pipe too, at `i18n.core` — vue's factory
 // returns a wrapper rather than the host itself.
-const _presetPiped = createI18n({ locale: "en" }).core.use(loader());
+const _presetPiped = createI18n({ locale: "en" }).core.use(attachLoader);
 export type _PresetHostTakesThePipe = Expect<Equal<typeof _presetPiped, I18n<{}> & I18nLoaderApi>>;
 
 // Chaining compounds the widenings.
-const _both = createCore({ locale: "en" }).use(loader()).use(plugins());
+const _both = createCore({ locale: "en" }).use(attachLoader).use(plugins());
 export type _ChainCompounds = Expect<
   Equal<typeof _both extends I18nLoaderApi & I18nPluginHostApi ? true : false, true>
 >;
@@ -158,7 +158,7 @@ void _both.registerPlugin(() => undefined).registerLoader(() => Promise.resolve(
 // The DECAY PROBE: a declared default-param set must survive the pipe. If the
 // host collapsed to `any`, `Equal<…>` would resolve against `any` and fail.
 const _pipedDefaults = createCore({ locale: "en", defaultParams: { brand: "Comvi" } }).use(
-  loader(),
+  attachLoader,
 );
 export type _PipeKeepsExactDefaults = Expect<
   Equal<typeof _pipedDefaults, I18n<{ readonly brand: "Comvi" }> & I18nLoaderApi>

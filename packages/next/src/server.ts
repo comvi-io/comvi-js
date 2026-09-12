@@ -22,11 +22,10 @@ export type {
 
 export type { LoadTranslationsOptions, TranslationsResult } from "./server/loadTranslations";
 
-// Pick the installer by what you have: an import map → `loader(map)`; a plain
+// One sentence, two installers: an import map → `loader(map)`; a plain
 // `LoaderFn` (or a host something else configures later) →
-// `.use(attachLoader)` + `registerLoader(fn)`, because `loader()` statically
-// references the import-map adapter and would pull it into a graph that never
-// uses it.
+// `.use(attachLoader)` + `registerLoader(fn)`. The map is required, so there is
+// no third form to choose between.
 //
 // NAMED re-exports only, never `export *`: webpack development cannot prune a
 // star re-export, and it cannot reconnect a two-package chain either, so every

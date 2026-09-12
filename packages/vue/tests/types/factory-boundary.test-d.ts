@@ -11,7 +11,6 @@ import {
   createI18nFromCore,
   devtools,
   I18N_INJECTION_KEY,
-  loader,
   plugins,
 } from "../../src/index";
 import { inject } from "vue";
@@ -76,12 +75,12 @@ const fromPreset = createI18n({ locale: "en" });
 type _PresetCoreIsBase = Expect<Equal<(typeof fromPreset)["core"], I18n<{}>>>;
 // @ts-expect-error — 0.4's root shipped the loader; the converged preset does not
 fromPreset.core.registerLoader(() => Promise.resolve({}));
-// …and one `.use(loader())` on that same host buys it back, exactly typed.
+// …and one `.use(attachLoader)` on that same host buys it back, exactly typed.
 void fromPreset.core.use(attachLoader).registerLoader(() => Promise.resolve({}));
 
 // The WRAPPER pipe: `createI18n(options).use(installer)` is the same instance
 // with `core` widened by the installer's return type, one capability per call.
-const chained = createI18n({ locale: "en" }).use(loader()).use(plugins());
+const chained = createI18n({ locale: "en" }).use(attachLoader).use(plugins());
 type _ChainedIsWrapper = Expect<
   Equal<typeof chained, VueI18n<{}, I18n<{}> & I18nLoaderApi & I18nPluginHostApi>>
 >;
@@ -91,7 +90,7 @@ void chained.core.registerPlugin(() => undefined);
 void chained.t("greeting");
 
 // Each step widens exactly by what it composed and nothing more.
-const withLoaderOnly = createI18n({ locale: "en" }).use(loader());
+const withLoaderOnly = createI18n({ locale: "en" }).use(attachLoader);
 type _WithLoaderOnlyCore = Expect<Equal<(typeof withLoaderOnly)["core"], I18n<{}> & I18nLoaderApi>>;
 void withLoaderOnly.core.addActiveNamespace("admin");
 // @ts-expect-error — the plugin host was not composed on this chain
@@ -101,14 +100,14 @@ withLoaderOnly.use(devtools()).core.onMissingKey(() => undefined);
 
 // `D` survives the pipe: the default-params generic is the wrapper's, not the installer's.
 const unchainedParams = createI18n({ locale: "en", defaultParams: { brand: "Comvi" } });
-const typedParams = unchainedParams.use(loader());
+const typedParams = unchainedParams.use(attachLoader);
 type _DSurvives = Expect<
   Equal<(typeof typedParams)["core"], (typeof unchainedParams)["core"] & I18nLoaderApi>
 >;
 void typedParams.core.reloadTranslations();
 
 // The pipe works on a `createI18nFromCore` wrapper as well, widening from its exact `C`.
-const fromBaseChained = createI18nFromCore(baseCore).use(loader());
+const fromBaseChained = createI18nFromCore(baseCore).use(attachLoader);
 type _FromBaseChainedCore = Expect<
   Equal<(typeof fromBaseChained)["core"], I18n<{}> & I18nLoaderApi>
 >;
@@ -137,7 +136,7 @@ void withPlugin.core.registerPlugin(() => undefined);
 // `WrapperI18nHost`, which no installer accepts, so composing from inside a
 // component is a compile error rather than a runtime surprise.
 // @ts-expect-error — installers take an `I18n`; the injected core is host-typed
-injected.use(loader());
+injected.use(attachLoader);
 
 // The instance never regains the dropped proxies, whatever `C` is — including
 // `use`, the last typed-present-may-throw member the class had. Probed on

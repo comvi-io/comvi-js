@@ -35,11 +35,12 @@ your bundle_.
 | --------------------------------------------------- | ------------------------------------- | -------------------------------------------------- |
 | ICU plurals / select                                | dev throws, prod renders it literally | `compiler: icuCompiler` in the constructor options |
 | 0.4's `.use(plugin)`                                | absent: TS error plus `TypeError`     | `.use(definePlugin(p))`, or a lowercase installer  |
-| loader (`registerLoader`, …)                        | absent: the loud capability error     | `.use(loader())`, or `fetchLoader(opts)`           |
+| loader (`registerLoader`, …)                        | absent: the loud capability error     | `.use(attachLoader)`, or `fetchLoader(opts)`       |
 | discovery (`instanceId`, `window.__COMVI__`)        | absent: invisible to the extension    | `.use(devtools())`, or `inContextEditor()`         |
+| a bare `loader()` (0.5 pre-release, attach-only)    | TS error: the import map is required  | `.use(attachLoader)`; the codemod rewrites it      |
 | string-API tags (`"<b>hi</b>"`)                     | literal text, dev warning             | `<T>`, or `import "@comvi/core/tags"`              |
 | a plugin returning a value                          | throws at `init()`                    | return nothing, or a cleanup function              |
-| `clearTranslations(undefined, ns)` deactivated `ns` | clears CONTENT only, in every form    | `removeActiveNamespace(ns)` from `.use(loader())`  |
+| `clearTranslations(undefined, ns)` deactivated `ns` | clears CONTENT only, in every form    | `removeActiveNamespace(ns)` from the loader        |
 | nested inline catalogs                              | unchanged: every host flattens them   | —                                                  |
 | `new I18n(options)`                                 | unchanged, one argument               | —                                                  |
 | `createNextI18n`, the CDN global                    | unchanged, still fully composed       | —                                                  |
@@ -83,7 +84,7 @@ installer. The codemod reports that rather than rewriting it (§3,
 `icu-installer-removed`), because the option belongs in a constructor call it
 cannot always see.
 
-Composition carries no ordering rule at all: `loader()`, `plugins()` and
+Composition carries no ordering rule at all: the loader, `plugins()` and
 `devtools()` may go in any order among themselves, and all three only have to be
 composed before `init()`.
 
@@ -193,16 +194,16 @@ naming the fix.
 
 ## 2. The migration table
 
-| 0.4.x                                                   | 0.5.0                                                                                                                                                   |
-| ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `const { reloadTranslations, … } = useI18n()`           | `const { reloadTranslations, addActiveNamespaces, … } = useI18nLoader()`                                                                                |
-| `const { onMissingKey } = useI18n()`                    | `const { onMissingKey } = useI18nPlugins()`                                                                                                             |
-| `useI18n("ns")` for a capability member                 | `useI18n("ns")` keeps `t`; the capability APIs take no argument                                                                                         |
-| vue `i18n.registerLoader(…)`, 0.4's `.use(…)`, six more | `i18n.core.*` once the capability is composed on the `createI18n` result: `.use(loader())` for `registerLoader`, `.use(plugins())` for `registerPlugin` |
-| vue `new VueI18n(options)`                              | `createI18n(options)`; the constructor takes `(core, vueOptions)`                                                                                       |
-| svelte/solid `getI18nContext().reloadTranslations()`    | `useI18nLoader()` in a component, or hold your own host                                                                                                 |
-| nuxt `comvi.setup` calling a dropped `VueI18n` proxy    | `context.core.*`                                                                                                                                        |
-| next: a second `setI18n(other)`                         | one configuration source per process; see §6                                                                                                            |
+| 0.4.x                                                   | 0.5.0                                                                                                                                                       |
+| ------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `const { reloadTranslations, … } = useI18n()`           | `const { reloadTranslations, addActiveNamespaces, … } = useI18nLoader()`                                                                                    |
+| `const { onMissingKey } = useI18n()`                    | `const { onMissingKey } = useI18nPlugins()`                                                                                                                 |
+| `useI18n("ns")` for a capability member                 | `useI18n("ns")` keeps `t`; the capability APIs take no argument                                                                                             |
+| vue `i18n.registerLoader(…)`, 0.4's `.use(…)`, six more | `i18n.core.*` once the capability is composed on the `createI18n` result: `.use(attachLoader)` for `registerLoader`, `.use(plugins())` for `registerPlugin` |
+| vue `new VueI18n(options)`                              | `createI18n(options)`; the constructor takes `(core, vueOptions)`                                                                                           |
+| svelte/solid `getI18nContext().reloadTranslations()`    | `useI18nLoader()` in a component, or hold your own host                                                                                                     |
+| nuxt `comvi.setup` calling a dropped `VueI18n` proxy    | `context.core.*`                                                                                                                                            |
+| next: a second `setI18n(other)`                         | one configuration source per process; see §6                                                                                                                |
 
 `useI18nLoader()` and `useI18nPlugins()` ship from every binding
 (`@comvi/react`, `@comvi/solid`, `@comvi/svelte`, `@comvi/vue`,
@@ -260,6 +261,7 @@ one scope — so a merge that would cross them is refused rather than guessed at
 | inline `translation` with ICU comma syntax                     | `compiler: icuCompiler` in the same call     |
 | `exposeGlobal` / `instanceId` options                          | `.use(devtools({ … }))`, options moved       |
 | a `flattenCatalog` import from a binding root or `/loader`     | the same name, from `@comvi/core`            |
+| a bare `loader()` on a proven host                             | the bare `attachLoader`, import maintained   |
 
 A **chain** is the unit, meaning `createI18n(…)` plus the `.use` calls chained
 onto it, so nothing outside one is guessed at. Imports are maintained in
@@ -282,6 +284,10 @@ halves.
 **It never rewrites silently.** These are reported (`path:line:column`, as a list
 and as JSON) and left alone:
 
+- a bare `loader()` the codemod cannot attribute to a host it has proven — in a
+  refused chain, on a receiver it cannot see through, or stored in a local. The
+  call no longer compiles (`loader(map)` requires its map), so saying nothing
+  would certify a tree that cannot build
 - rest spreads, computed member access
 - a hook result stored in a variable, or crossing a function boundary
 - a local name that would collide with a hook or installer it wants to introduce
@@ -400,9 +406,10 @@ the tag grammar per call and registers nothing.
 
 `.use` is on every host and is a pipe: `i18n.use(f)` **is** `f(i18n)`. An
 **installer** is any `(host) => value`, so `attachLoader`, `attachPlugins` and
-`attachDevtools` already are ones and `.use(attachLoader)` works. `loader()`,
-`plugins()` and `devtools()` are the _configured_ installers: `loader(importMap?)`
-also registers the map, `devtools(options?)` also takes `instanceId` /
+`attachDevtools` already are ones and `.use(attachLoader)` works. `loader(map)`,
+`plugins()` and `devtools()` are the _configured_ installers: `loader(importMap)`
+also registers the map — and REQUIRES it, so `attachLoader` is the one
+attach-only loader installer — `devtools(options?)` also takes `instanceId` /
 `exposeGlobal`, `plugins()` takes no options yet. `definePlugin(fn, options?)`
 is the one for a plugin of your own: it composes the plugin host and registers
 `fn`, so an app's inline plugin stays in the chain as `.use(definePlugin(fn))`.
@@ -590,8 +597,8 @@ editor-enabled host is visible to the extension without a separate
 
 The uppercase factories are unchanged, and the explicit recipe still works. Use
 it when you compose capabilities yourself or register plugins from a list:
-`createI18n({ … }).use(loader()).use(plugins())`, then
-`i18n.registerPlugin(FetchLoader({ … }))`. Compose `loader()` as well when a
+`createI18n({ … }).use(attachLoader).use(plugins())`, then
+`i18n.registerPlugin(FetchLoader({ … }))`. Compose the loader as well when a
 plugin registers one; their relative order does not matter (§0.1).
 
 No lifecycle is duplicated: an installer's last act is `registerPlugin`, so
@@ -854,7 +861,7 @@ conditions, never silently:
 
 ```
 // development
-[comvi] This i18n instance has no loader capability. Compose it: .use(loader()) from "@comvi/core/loader", or the lower-level attachLoader.
+[comvi] This i18n instance has no loader capability. Compose it: .use(attachLoader) from "@comvi/core/loader", or loader(map).
 // production
 [comvi] missing loader capability — attach @comvi/core/loader
 ```
@@ -867,8 +874,8 @@ composition rules, one of them vue-only. This is the whole list your first run c
 | ------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
 | `addActiveNamespace` / `removeActiveNamespace` / `reloadTranslations` / `onLoadError` is not a function | `useI18nLoader()`                                                                                                                  |
 | `onMissingKey is not a function`                                                                        | `useI18nPlugins()`                                                                                                                 |
-| vue: `i18n.registerLoader` / `i18n.registerPlugin` is not a function                                    | compose the capability on the factory result (`createI18n(…).use(loader())`, `.use(plugins())`), then call it on `i18n.core`       |
-| vue: `i18n.core.reloadTranslations` will not type-check                                                 | the wrapper you hold was never composed — chain `.use(loader())`; inside a component, `useI18nLoader()`                            |
+| vue: `i18n.registerLoader` / `i18n.registerPlugin` is not a function                                    | compose the capability on the factory result (`createI18n(…).use(attachLoader)`, `.use(plugins())`), then call it on `i18n.core`   |
+| vue: `i18n.core.reloadTranslations` will not type-check                                                 | the wrapper you hold was never composed — chain `.use(attachLoader)`; inside a component, `useI18nLoader()`                        |
 | `E_INSTALLER_AS_PLUGIN`                                                                                 | you handed an installer to `registerPlugin(…)` or `definePlugin(…)`; compose it instead, as `.use(installer(…))`                   |
 | `E_PLUGIN_INIT_RETURN`                                                                                  | a plugin returned a value — use a statement body                                                                                   |
 | `E_USE_NOT_INSTALLER`                                                                                   | `.use(…)` got something that did not hand the host back — a raw plugin; write `.use(definePlugin(fn))`, or the lowercase installer |

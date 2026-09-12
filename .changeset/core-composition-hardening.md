@@ -11,7 +11,7 @@ Three composition-hardening fixes on the base host.
   is unchanged.
 - **A plugin on a plugins-only host gets the actionable capability error in development.**
   A plugin that calls `registerLoader` on a host with no loader composed now fails with
-  `[comvi] This i18n instance has no loader capability. Compose it: .use(loader()) …`
+  `[comvi] This i18n instance has no loader capability. Compose it: .use(attachLoader) …`
   instead of a bare `TypeError`. Production keeps the bare `TypeError` — still loud — and
   carries none of the shim code.
 - **`attachDevtools` no longer swallows an `exposeGlobal` flip.** Idempotency is keyed on

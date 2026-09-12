@@ -15,14 +15,14 @@ vi.mock("#build/comvi.setup", () => ({
 // the composition — and the message names only shapes the docs teach: the import
 // map goes where the capability is composed, and a bare LoaderFn is registered
 // from `comvi.setup`, whose context destructures `core`. `registerPlugin(...)` is
-// NOT one of them: the generated default host has no plugin capability. Both
-// attach-only compositions are named, because `loader()` with no map registers
-// nothing either.
+// NOT one of them: the generated default host has no plugin capability. One
+// attach-only composition is named, because `attachLoader` is the only one core
+// publishes — `loader(map)` requires its map and therefore always registers.
 const NO_LOADER_REGISTERED_MESSAGE =
   "[@comvi/nuxt] This i18n host has a loader capability but no loader registered, so SSR " +
   "loaded nothing. Pass the import map where you compose it — " +
   "createI18n(options).use(loader(map)) in your `hostModule` factory — or, on a host " +
-  "composed with .use(attachLoader) or a bare .use(loader()), register a LoaderFn from " +
+  "composed with .use(attachLoader), register a LoaderFn from " +
   "comvi.setup: (({ core }) => { core.registerLoader(fn); }).";
 
 function createEvent(runtimeConfigOverrides: Partial<any> = {}) {

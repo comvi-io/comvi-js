@@ -7,11 +7,11 @@ import { defineComponent, h } from "vue";
 import { mount } from "@vue/test-utils";
 import { createI18n as createCore } from "@comvi/core";
 import {
+  attachLoader,
   createI18n,
   createI18nFromCore,
   devtools,
   icuCompiler,
-  loader,
   plugins,
   useI18n,
   useI18nLoader,
@@ -24,7 +24,7 @@ describe("VueI18n.use()", () => {
     const core = base.core;
     expect("reloadTranslations" in core).toBe(false);
 
-    const composed = base.use(loader()).use(plugins());
+    const composed = base.use(attachLoader).use(plugins());
 
     expect(composed).toBe(base);
     expect(composed.core).toBe(core);
@@ -109,7 +109,7 @@ describe("VueI18n.use()", () => {
         global: { plugins: [i18n] },
       });
       expect(i18n.core.isInitialized || i18n.core.isInitializing).toBe(true);
-      i18n.use(plugins()).use(loader());
+      i18n.use(plugins()).use(attachLoader);
       expect(warn).toHaveBeenCalledTimes(1);
       expect(warn.mock.calls[0]![0]).toContain("after app.use(i18n) started init()");
       wrapper.unmount();
@@ -129,7 +129,7 @@ describe("VueI18n.use()", () => {
 
   it("works on a createI18nFromCore wrapper too", () => {
     const i18n = createI18nFromCore(createCore({ locale: "en", exposeGlobal: false })).use(
-      loader(),
+      attachLoader,
     );
     expect(typeof i18n.core.addActiveNamespace).toBe("function");
   });
@@ -140,7 +140,7 @@ describe("VueI18n.use()", () => {
       exposeGlobal: false,
       translation: { en: { greeting: "Hello" } },
     })
-      .use(loader())
+      .use(attachLoader)
       .use(plugins());
 
     const seen: { loader?: string; plugins?: string; text?: string } = {};

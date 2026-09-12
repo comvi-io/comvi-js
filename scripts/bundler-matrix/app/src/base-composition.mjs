@@ -6,8 +6,8 @@
 // exports map, the chunk graph or a bundler transform breaks that contract, one
 // of the assertions below fails instead of printing the success marker.
 //
-// All three call forms stay: `attach*` is the low-level API the configured
-// `loader()` / `plugins()` factories delegate to, and `definePlugin(fn)` is
+// All three call forms stay: `attach*` is the attach-only API the configured
+// `loader(map)` / `plugins()` factories delegate to, and `definePlugin(fn)` is
 // the installer that registers ONE plugin through the same `.use` chain.
 //
 // No top-level await: the webpack leg emits commonjs2, where a TLA module
@@ -88,9 +88,11 @@ async function main() {
   await piped.setLocaleAsync("fr");
   assertEqual(piped.t("hello"), "Bonjour", "the piped import map loads on demand");
 
-  // Composing a capability the host already has must change nothing.
+  // Composing a capability the host already has must change nothing. The
+  // attach-only installer is the one that makes this claim readable: it
+  // configures nothing, so the registered loader is all that can survive.
   const registered = piped.getLoader();
-  assertEqual(piped.use(loader()) === piped, true, "a second loader() is a no-op");
+  assertEqual(piped.use(attachLoader) === piped, true, "a second attachLoader is a no-op");
   assertEqual(piped.getLoader() === registered, true, "the no-op keeps the registered loader");
 
   await piped.destroy();

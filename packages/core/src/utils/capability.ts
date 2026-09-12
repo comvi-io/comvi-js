@@ -82,6 +82,15 @@ export const PLUGIN_MEMBERS = [
  * The error every wrapper throws when a capability was requested from a host
  * that does not have it. One factory, one wording, four wrappers.
  *
+ * The two capabilities name DIFFERENT installers, because their surfaces
+ * differ: `plugins()` takes no configuration, so the factory and
+ * `attachPlugins` are interchangeable, while `loader(map)` REQUIRES the import
+ * map — so the spelling a host missing the capability needs FIRST is
+ * `attachLoader`, and `loader(map)` is the alternative for a reader who has a
+ * map. Both halves stay parameterised rather than written out twice: the
+ * sentence is dev-only text, and two full copies of it cost every wrapper
+ * bundle real bytes for one word of difference.
+ *
  * @example
  * ```ts
  * if (!hasLoaderApi(host)) throw missingCapability("loader");
@@ -90,8 +99,10 @@ export const PLUGIN_MEMBERS = [
 export function missingCapability(name: CapabilityName): Error {
   return new Error(
     IS_DEV
-      ? `[comvi] This i18n instance has no ${name} capability. Compose it: .use(${name}()) from "@comvi/core/${name}", or the lower-level attach${
-          name === "loader" ? "Loader" : "Plugins"
+      ? `[comvi] This i18n instance has no ${name} capability. Compose it: .use(${
+          name === "loader" ? "attachLoader" : "plugins()"
+        }) from "@comvi/core/${name}", or ${
+          name === "loader" ? "loader(map)" : "the lower-level attachPlugins"
         }.`
       : `[comvi] missing ${name} capability — attach @comvi/core/${name}`,
   );

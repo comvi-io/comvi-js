@@ -3,11 +3,18 @@
 // `pnpm add @comvi/nuxt` alone. This row is what that convenience costs: core's root
 // plus its icu, loader, plugins and devtools subpaths, reached through one re-export
 // hop instead of four app-declared dependencies.
-import { createI18n, icuCompiler, loader, plugins, devtools, definePlugin } from "@comvi/nuxt/host";
+import {
+  attachLoader,
+  createI18n,
+  definePlugin,
+  devtools,
+  icuCompiler,
+  plugins,
+} from "@comvi/nuxt/host";
 
 // The user's hostModule default export, inlined. Loader and plugin host exist
 // before the catalog is ingested; discovery attaches last.
-const host = createI18n({ locale: "en", compiler: icuCompiler }).use(loader()).use(plugins());
+const host = createI18n({ locale: "en", compiler: icuCompiler }).use(attachLoader).use(plugins());
 host.addTranslations({ en: { greeting: "Hello, {name}!" } });
 host.use(definePlugin(() => undefined));
 host.use(devtools({ exposeGlobal: false }));

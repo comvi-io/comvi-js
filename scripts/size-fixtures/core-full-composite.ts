@@ -3,11 +3,11 @@
 import "@comvi/core/tags";
 import { createI18n } from "@comvi/core";
 import { icuCompiler } from "@comvi/core/icu";
-import { loader } from "@comvi/core/loader";
+import { attachLoader } from "@comvi/core/loader";
 import { plugins } from "@comvi/core/plugins";
 import { devtools } from "@comvi/core/devtools";
 
-const i18n = createI18n({ locale: "en", compiler: icuCompiler }).use(loader()).use(plugins());
+const i18n = createI18n({ locale: "en", compiler: icuCompiler }).use(attachLoader).use(plugins());
 i18n.addTranslations({ en: { greeting: "Hello, {name}!" } });
 i18n.use(devtools());
 

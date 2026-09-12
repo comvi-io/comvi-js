@@ -172,7 +172,7 @@ On a host that lacks the capability the acquisition call throws, in
 development **and** production, never a silent no-op:
 
 ```
-[comvi] This i18n instance has no loader capability. Compose it: .use(loader()) from "@comvi/core/loader", or the lower-level attachLoader.
+[comvi] This i18n instance has no loader capability. Compose it: .use(attachLoader) from "@comvi/core/loader", or loader(map).
 ```
 
 **`VueI18n` dropped its eight instance proxies.** `addActiveNamespace`,
@@ -184,7 +184,7 @@ development **and** production, never a silent no-op:
 ```diff check=skip:proxy-relocation
 -i18n.registerLoader(myLoader);
 -i18n.use(FetchLoader({ … }));
-+const i18n = createI18n({ locale: "en" }).use(loader()).use(plugins());
++const i18n = createI18n({ locale: "en" }).use(attachLoader).use(plugins());
 +i18n.core.registerLoader(myLoader);
 +i18n.core.registerPlugin(FetchLoader({ … }));
 ```
@@ -215,7 +215,7 @@ yourself, and the wrapper carries none of them by default.
 **To compose capabilities, chain `.use(installer)` on the `createI18n` result.**
 `use` runs the installer on `i18n.core`, hands back the same `VueI18n`
 instance, and widens the type of `core` by what the installer composed, so a
-loader member on `i18n.core` type-checks once `loader()` is in the chain:
+loader member on `i18n.core` type-checks once a loader installer is in the chain:
 
 ```ts
 import { createI18n, loader, plugins } from "@comvi/vue";
@@ -374,13 +374,26 @@ The option is a constructor field held for the instance's life, so it covers a
 catalog merged later by a loader as well as a constructor `translation` or an
 `addTranslations` call.
 
-### Async loading — `loader()`
+### Async loading — `loader(map)` and `attachLoader`
 
 ```ts
 import { createI18n, loader } from "@comvi/vue";
 
 const i18n = createI18n({ locale: "en" }).use(loader({ uk: () => import("./uk.json") }));
 // inside a component: const { reloadTranslations } = useI18nLoader();
+```
+
+The import map is **required**, which makes the whole rule one sentence: a
+static map of import functions goes to `.use(loader(map))`; a plain loader
+**function** goes to `.use(attachLoader)` and then `registerLoader(fn)`. A bare
+`loader()` is a compile error, so there is no third spelling of this one
+capability.
+
+```ts
+import { attachLoader, createI18n } from "@comvi/vue";
+
+const i18n = createI18n({ locale: "en" }).use(attachLoader);
+i18n.core.registerLoader(async (locale, ns) => (await fetch(`/i18n/${locale}/${ns}.json`)).json());
 ```
 
 ### Plugins — one `.use(installer)`
@@ -400,17 +413,17 @@ const i18n = createI18n({ locale: "en", defaultNs: "common" }).use(
 ```
 
 The explicit form is that composition spelled out, and it is what you want when
-you register plugins from a list. Compose `loader()` as well when a plugin
-registers one. The order of `loader()`, `plugins()` and `devtools()` among
-themselves is free, because plugins run at `init()` and every capability
+you register plugins from a list. Compose the loader capability as well when a
+plugin registers one. The order of `loader(map)` / `attachLoader`, `plugins()`
+and `devtools()` among themselves is free, because plugins run at `init()` and every capability
 composed before `init()` is attached by then. `VueI18n` does not proxy plugin
 registration, so that happens on the host, as `i18n.core.registerPlugin(…)`:
 
 ```ts
-import { createI18n, loader, plugins } from "@comvi/vue";
+import { attachLoader, createI18n, plugins } from "@comvi/vue";
 import { CdnLoader } from "@comvi/plugin-fetch-loader/cdn";
 
-const i18n = createI18n({ locale: "en", defaultNs: "common" }).use(loader()).use(plugins());
+const i18n = createI18n({ locale: "en", defaultNs: "common" }).use(attachLoader).use(plugins());
 
 i18n.core.registerPlugin(CdnLoader({ cdnUrl: "https://cdn.comvi.io/your-distribution-id" }));
 ```

@@ -10,7 +10,7 @@
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { createI18n } from "../../src";
-import { loader } from "../../src/loader";
+import { attachLoader } from "../../src/loader";
 import { plugins } from "../../src/plugins";
 
 /** A host with a catalog, so `init()` needs no loader to succeed. */
@@ -25,7 +25,7 @@ describe("composing before init()", () => {
   });
 
   it("stays silent when the loader is composed onto a fresh host", () => {
-    makeHost().use(loader());
+    makeHost().use(attachLoader);
 
     expect(warnSpy).not.toHaveBeenCalled();
   });

@@ -66,7 +66,7 @@ const DEVTOOLS_SUBPATH = [
 /**
  * The three capability subpaths a single-package app that uses the LOADER does
  * not touch. LOADER_SUBPATH is deliberately not part of it: the cases using this
- * constant call attachLoader or the configured `loader()`. These fragments
+ * constant call `attachLoader` or the configured `loader(map)`. These fragments
  * staying OUT of the graph is the whole claim "an unused named re-export costs
  * nothing".
  */

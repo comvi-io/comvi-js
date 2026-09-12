@@ -5,7 +5,7 @@
 // one is a compile error rather than a silently ignored setting. The
 // installer/factory split mirrors the root entry's.
 import { createI18n } from "@comvi/core";
-import { loader } from "@comvi/core/loader";
+import { attachLoader } from "@comvi/core/loader";
 import { plugins } from "@comvi/core/plugins";
 import { CdnLoader, cdnLoader, type CdnLoaderInstaller } from "../../src/cdn/index";
 
@@ -54,5 +54,5 @@ createI18n({ locale: "en" }).use(CdnLoader(OPTIONS));
 createI18n({ locale: "en" }).use(plugins()).registerPlugin(cdnLoader(OPTIONS));
 
 // VALID — the uppercase factory on a host that already has both capabilities.
-export const manual = createI18n({ locale: "en" }).use(loader()).use(plugins());
+export const manual = createI18n({ locale: "en" }).use(attachLoader).use(plugins());
 manual.registerPlugin(CdnLoader(OPTIONS));
