@@ -1,8 +1,9 @@
 import { describe, it, expect, vi } from "vitest";
 import { createI18n as createCore } from "@comvi/core";
 import { attachPlugins } from "@comvi/core/plugins";
-import { attachLoader, createI18n, createI18nFromCore, useI18n } from "../src";
-import { nextTick, isRef, effectScope } from "vue";
+import { attachLoader, createI18n, createI18nFromCore, I18N_INJECTION_KEY, useI18n } from "../src";
+import type { VueI18n } from "../src";
+import { nextTick, isRef, effectScope, inject } from "vue";
 import { mount } from "@vue/test-utils";
 
 describe("New Features", () => {
@@ -320,31 +321,43 @@ describe("New Features", () => {
       expect(isRef(imperativeResult)).toBe(false);
     });
 
-    it("hasTranslationNow and hasLocaleNow are reachable via useI18n()", async () => {
+    // Q6 (wave 4). `hasTranslation` / `hasLocale` ARE the non-reactive form in
+    // react, solid and svelte, so `useI18n()` no longer carries a second
+    // spelling here: not in its type (a `?: never` tombstone) and not at
+    // runtime. The pair is the `VueI18n` class's, reachable through the
+    // injection key.
+    it("useI18n() does not return hasTranslationNow / hasLocaleNow, the class does", async () => {
       const i18n = createI18n({ locale: "en", defaultNs: "common" });
       i18n.addTranslations({ en: { hello: "Hello" } });
       await i18n.init();
 
-      let hasTranslationNowFn: ((key: string) => boolean) | undefined;
-      let hasLocaleNowFn: ((locale: string) => boolean) | undefined;
+      let composable: Record<string, unknown> | undefined;
+      let injected: VueI18n | undefined;
 
       const C = {
         setup() {
-          const composable = useI18n();
-          hasTranslationNowFn = composable.hasTranslationNow;
-          hasLocaleNowFn = composable.hasLocaleNow;
+          composable = useI18n() as unknown as Record<string, unknown>;
+          injected = inject(I18N_INJECTION_KEY) as unknown as VueI18n;
           return () => null;
         },
       };
 
       mount(C, { global: { plugins: [i18n] } });
 
-      expect(typeof hasTranslationNowFn).toBe("function");
-      expect(typeof hasLocaleNowFn).toBe("function");
-      expect(hasTranslationNowFn!("hello")).toBe(true);
-      expect(hasTranslationNowFn!("missing")).toBe(false);
-      expect(hasLocaleNowFn!("en")).toBe(true);
-      expect(hasLocaleNowFn!("fr")).toBe(false);
+      // Absent as KEYS, not merely undefined: a destructure finds nothing and
+      // `"hasLocaleNow" in bag` is false for anything walking the bag.
+      expect(Object.keys(composable!)).not.toContain("hasTranslationNow");
+      expect(Object.keys(composable!)).not.toContain("hasLocaleNow");
+      expect("hasTranslationNow" in composable!).toBe(false);
+      expect("hasLocaleNow" in composable!).toBe(false);
+
+      // Still reachable on the instance the key injects.
+      expect(typeof injected!.hasTranslationNow).toBe("function");
+      expect(typeof injected!.hasLocaleNow).toBe("function");
+      expect(injected!.hasTranslationNow("hello")).toBe(true);
+      expect(injected!.hasTranslationNow("missing")).toBe(false);
+      expect(injected!.hasLocaleNow("en")).toBe(true);
+      expect(injected!.hasLocaleNow("fr")).toBe(false);
     });
 
     it("hasTranslationNow respects locale and namespace opts", async () => {

@@ -75,8 +75,6 @@ export function useI18n<D extends DefaultTranslationParams = {}>(ns?: string): U
     clearTranslations: i18n.clearTranslations,
     hasLocale: i18n.hasLocale,
     hasTranslation: i18n.hasTranslation,
-    hasLocaleNow: i18n.hasLocaleNow,
-    hasTranslationNow: i18n.hasTranslationNow,
     loadedLocales: i18n.loadedLocales,
     activeNamespaces: i18n.activeNamespaces,
     defaultNamespace: i18n.defaultNamespace,

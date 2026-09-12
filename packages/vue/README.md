@@ -147,6 +147,12 @@ are refs beside `isLoading` / `isInitializing` — and `useI18n("admin")` binds
 the namespace at the type level: with generated keys, `t("dashboard")` is exact
 for `admin:dashboard`, and a key from another namespace is rejected.
 
+Since 0.5.0 that member set no longer includes `hasTranslationNow` /
+`hasLocaleNow`: `hasTranslation` and `hasLocale` already ARE the non-reactive
+form in react, solid and svelte, so the imperative pair would have been two
+vue-only names for what one name means everywhere else — it stays on the
+`VueI18n` class, as `inject(I18N_INJECTION_KEY)!.hasTranslationNow(key, opts?)`.
+
 ## Capability composables: `useI18nLoader()` / `useI18nPlugins()`
 
 Async loading and the plugin host are `@comvi/core` **capabilities** rather than
