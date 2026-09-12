@@ -169,6 +169,38 @@ describe("exports map smoke (F0b)", () => {
     expect(surface).not.toHaveProperty("icu");
   });
 
+  it("routes the dev-only warning through the `#dev-warn` imports map", () => {
+    // THE fix for a defect no source-level test could see: `svelte-package`
+    // substitutes no build-time defines, so the `typeof __DEV__ !== 'undefined'
+    // && __DEV__` guard this component used to carry shipped UNSUBSTITUTED —
+    // and no consumer defines `__DEV__`, so the diagnostic was dead in
+    // development too. `dist/T.svelte` is reached relatively from
+    // `dist/index.js`, so a `development` condition on the package ROOT cannot
+    // switch it either; package `imports` is what can.
+    const tComponent = readFileSync(resolve(distDir, "T.svelte"), "utf-8");
+    expect(stripComments(tComponent)).toContain("'#dev-warn'");
+    expect(tComponent).not.toContain("__DEV__ !== 'undefined'");
+
+    const pkgJson = JSON.parse(readFileSync(resolve(pkgRoot, "package.json"), "utf-8"));
+    const devWarn = pkgJson.imports?.["#dev-warn"];
+    expect(devWarn).toEqual({
+      development: "./dist/dev-warn.dev.js",
+      default: "./dist/dev-warn.js",
+    });
+    // Condition order is resolution order: `default` first would answer every
+    // consumer with the production no-op.
+    expect(Object.keys(devWarn)).toEqual(["development", "default"]);
+
+    // Both targets must exist, and the warning text must be in the
+    // development one ONLY — the production half is a no-op precisely so the
+    // string is absent from the published production graph by construction,
+    // not by a consumer bundler folding an imported `const` away.
+    const prodHalf = readFileSync(resolve(distDir, "dev-warn.js"), "utf-8");
+    const devHalf = readFileSync(resolve(distDir, "dev-warn.dev.js"), "utf-8");
+    expect(stripComments(prodHalf)).not.toContain("<T raw> is deprecated");
+    expect(devHalf).toContain("<T raw> is deprecated");
+  });
+
   it("names the PURE core seam and never the side-effectful tags entry", () => {
     // The specifier-level claim, against the BUILT artifacts. Importing
     // `@comvi/core/tags` registers tag syntax AMBIENTLY, so an app that merely

@@ -25,9 +25,17 @@ import { execFileSync, spawnSync } from "node:child_process";
  * 4. Assert per case whether the tag-registration modules are in the bundler's
  *    MODULE GRAPH (webpack `--json` stats `modules[].identifier`; vite via the
  *    `bm-module-ids` config plugin) — module IDs, never output-text substrings.
+ * 5. Assert, for the `*-dev-conditions` cases only, which ARTIFACT of a
+ *    package the bundler resolved, by looking for a dev-only warning's TEXT in
+ *    the bundle (`devOnlyText`). This is the one claim the module graph cannot
+ *    carry: a package's prod and dev artifacts are the same module by
+ *    identity, and only their content differs.
  *
  * Wrapper <T> rendering is NOT exercised (needs a DOM/renderer); wrapper
  * tarballs are still packed, installed, and bundled (app/src/wrappers.mjs).
+ * Each `*-dev-conditions` case imports whichever module carries its binding's
+ * dev-only diagnostic — `T` for the four wrappers, `createNextI18n` for
+ * `@comvi/next` — so that module is in the graph under both conditions.
  */
 
 const SCRIPT_DIR = path.dirname(url.fileURLToPath(import.meta.url));
@@ -81,6 +89,41 @@ const EDITOR_MODAL_CHUNK = [
   `@comvi${path.sep}plugin-in-context-editor${path.sep}dist${path.sep}EditModal-`,
 ];
 /**
+ * The `<T>` module of each binding, as a module-ID fragment. The `.dev`
+ * artifact's chunk carries the same fragment, so one entry covers both
+ * conditions. Used by the `*-dev-conditions` cases as the POSITIVE half of
+ * their claim: a warning missing from the production bundle only means
+ * something if the module that would have carried it is in the graph.
+ */
+const BINDING_T_MODULE = {
+  react: [`@comvi${path.sep}react${path.sep}dist${path.sep}chunks${path.sep}comvi-react-T`],
+  solid: [`@comvi${path.sep}solid${path.sep}dist${path.sep}chunks${path.sep}comvi-solid-T`],
+  svelte: [`@comvi${path.sep}svelte${path.sep}dist${path.sep}T.svelte`],
+  vue: [`@comvi${path.sep}vue${path.sep}dist${path.sep}chunks${path.sep}comvi-vue-T`],
+};
+/**
+ * `@comvi/next`'s composed-root module, the one that carries its `IS_DEV`
+ * diagnostic. `preserveModules` names it per module rather than per chunk, and
+ * the fragment covers `createNextI18n.js` and `createNextI18n.dev.js` alike.
+ */
+const NEXT_COMPOSED_ROOT_MODULE = [`@comvi${path.sep}next${path.sep}dist${path.sep}createNextI18n`];
+/**
+ * The `<T raw>` deprecation, verbatim and identical in all four bindings. It
+ * is guarded by each binding's `IS_DEV`, so it is in the DEVELOPMENT artifact
+ * only — which is the whole point: before the `development` export condition
+ * (and, for svelte, the `#dev-warn` imports entry) existed, this string was in
+ * NO artifact a consumer could resolve, in any mode.
+ */
+const T_RAW_DEPRECATION = "<T raw> is deprecated";
+/**
+ * `@comvi/next`'s one `IS_DEV` diagnostic: the readable half of the
+ * `E_USE_HOST_IDENTITY` error `createNextI18n(…).use` throws when an installer
+ * hands back a different object. The production family throws the bare code
+ * instead, so this text is a development-artifact marker in the same way.
+ * `next-dev-conditions.mjs` deliberately never quotes it.
+ */
+const NEXT_USE_IDENTITY_HINT = ".use(installer) must return the host it was given";
+/**
  * Matrix cases. `sentinels` says what the bundler's module graph must look
  * like for core's tag-registration chunks (the `sideEffects` set):
  *   "present" — the app opted into tags (an explicit `@comvi/core/tags` import,
@@ -103,6 +146,18 @@ const EDITOR_MODAL_CHUNK = [
  * development" — one claim per direction, because an absence and a presence are
  * different assertions and a module that is merely missing everywhere would
  * satisfy the absence alone. `editor-production` is the case that needs it.
+ *
+ * `devOnlyText` names strings that must appear in the DEVELOPMENT bundle's
+ * output and must NOT appear in the production one — the dev-artifact claim
+ * the module graph cannot express, because both artifacts of a package are the
+ * same module by identity and only their TEXT differs. Output text is the
+ * right instrument here and only here: the question is literally "did this
+ * warning ship".
+ *
+ * `bundlers` narrows a case to a subset of the matrix legs. Only
+ * `svelte-dev-conditions` uses it: it imports `T`, and the webpack leg has no
+ * svelte loader on purpose (every other svelte case relies on webpack pruning
+ * the `T.svelte` re-export WITHOUT resolving it).
  *
  * `packages` are the workspace tarballs the case needs, `deps` the framework
  * peer deps its bundle imports. A case carrying `pending` is declared but not
@@ -252,6 +307,64 @@ const CASES = [
       ...DEVTOOLS_SUBPATH,
       `@comvi${path.sep}next${path.sep}dist${path.sep}server${path.sep}`,
     ],
+    packages: ["@comvi/core", "@comvi/locale-routing", "@comvi/react", "@comvi/next"],
+    deps: ["react", "next"],
+  },
+  // ---------------------------------------------------------------------
+  // The DEV-CONDITIONS recipes: one per binding, each importing `T` from the
+  // one published root and defining NO `__DEV__` anywhere (neither bundler
+  // config does). `devOnlyText` then asserts the `<T raw>` deprecation is in
+  // the development bundle and out of the production one.
+  //
+  // These four are THE gate for "the dev-only diagnostics are reachable at
+  // all". Every binding used to bake `__DEV__: false` into its single
+  // artifact, so the warnings were dead in the published packages in BOTH
+  // modes — a defect no existing case could see, because the module graph is
+  // identical either way and only the resolved artifact's text differs.
+  {
+    name: "react-dev-conditions",
+    sentinels: "absent",
+    devOnlyText: [T_RAW_DEPRECATION],
+    presentModules: BINDING_T_MODULE.react,
+    packages: ["@comvi/core", "@comvi/react"],
+    deps: ["react"],
+  },
+  {
+    name: "solid-dev-conditions",
+    sentinels: "absent",
+    devOnlyText: [T_RAW_DEPRECATION],
+    presentModules: BINDING_T_MODULE.solid,
+    packages: ["@comvi/core", "@comvi/solid"],
+    deps: ["solid-js"],
+  },
+  {
+    // Vite only: this case imports `T`, and the webpack leg has no svelte
+    // loader by design — see the fixture's header.
+    name: "svelte-dev-conditions",
+    bundlers: ["vite"],
+    sentinels: "absent",
+    devOnlyText: [T_RAW_DEPRECATION],
+    presentModules: BINDING_T_MODULE.svelte,
+    packages: ["@comvi/core", "@comvi/svelte"],
+    deps: ["svelte"],
+  },
+  {
+    name: "vue-dev-conditions",
+    sentinels: "absent",
+    devOnlyText: [T_RAW_DEPRECATION],
+    presentModules: BINDING_T_MODULE.vue,
+    packages: ["@comvi/core", "@comvi/vue"],
+    deps: ["vue"],
+  },
+  {
+    // `@comvi/next`, on its ROOT entry: `createNextI18n` — the only module
+    // with an `IS_DEV` diagnostic — ships from `./index` alone. Tags are
+    // PRESENT here, unlike every other dev-conditions case: the composed root
+    // bare-imports `@comvi/core/tags`, as the 0.4 root did.
+    name: "next-dev-conditions",
+    sentinels: "present",
+    devOnlyText: [NEXT_USE_IDENTITY_HINT],
+    presentModules: NEXT_COMPOSED_ROOT_MODULE,
     packages: ["@comvi/core", "@comvi/locale-routing", "@comvi/react", "@comvi/next"],
     deps: ["react", "next"],
   },
@@ -541,6 +654,12 @@ for (const bundler of BUNDLERS) {
   for (const mode of MODES) {
     for (const testCase of ACTIVE_CASES) {
       const fixture = testCase.name;
+      if (testCase.bundlers !== undefined && !testCase.bundlers.includes(bundler)) {
+        console.log(
+          `SKIP  ${bundler} × ${mode} × ${fixture} — case is ${testCase.bundlers.join("/")}-only`,
+        );
+        continue;
+      }
       const label = `${bundler} × ${mode} × ${fixture}`;
       const { outFile, moduleIds } = bundle(bundler, mode, fixture);
 
@@ -553,6 +672,25 @@ for (const bundler of BUNDLERS) {
       }
       if (mode === "production" && hasDevMarker) {
         failures.push(`${label}: production bundle contains the development build of core`);
+      }
+
+      // Per-case dev-only TEXT: the same string asserted in both directions,
+      // because a string missing everywhere would satisfy the absence alone.
+      const devTextWrong = (testCase.devOnlyText ?? []).filter(
+        (text) => content.includes(text) !== (mode === "development"),
+      );
+      if (devTextWrong.length > 0) {
+        failures.push(
+          mode === "development"
+            ? `${label}: development bundle is MISSING dev-only text ${devTextWrong
+                .map((t) => JSON.stringify(t))
+                .join(
+                  ", ",
+                )} — the "development" artifact of the binding was not resolved, so its IS_DEV diagnostics are dead`
+            : `${label}: production bundle CONTAINS dev-only text ${devTextWrong
+                .map((t) => JSON.stringify(t))
+                .join(", ")}`,
+        );
       }
 
       // Module-graph check: tag registration is pulled in exactly when the
@@ -595,7 +733,12 @@ for (const bundler of BUNDLERS) {
           `${label}: bundle execution failed (exit ${exec.status})\n${exec.stdout}${exec.stderr}`,
         );
       }
-      const ok = ran && sentinelsOk && leaked.length === 0 && absent.length === 0;
+      const ok =
+        ran &&
+        sentinelsOk &&
+        leaked.length === 0 &&
+        absent.length === 0 &&
+        devTextWrong.length === 0;
       results.push(`${ok ? "PASS" : "FAIL"}  ${label}`);
       console.log(`${ok ? "PASS" : "FAIL"}  ${label} [tags ${expectTags}]`);
     }
