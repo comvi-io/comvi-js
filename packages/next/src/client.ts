@@ -6,6 +6,11 @@
 
 export {
   useI18n,
+  // `useI18nHost()` is THE name for "give me the host" in react, solid and
+  // svelte; this entry is react's Next face, so it carries it too — a client
+  // component that needs the bare host must not have to import `@comvi/react`
+  // beside this package. (`useI18nContext` is its deprecated spelling.)
+  useI18nHost,
   useI18nContext,
   useI18nLoader,
   useI18nPlugins,
@@ -49,6 +54,9 @@ export type {
   UseSetLocaleTransitionReturn,
   UseFormattersReturn,
   TProps,
+  // `<T components={…}>`'s map type, beside the `TProps` it belongs to: a
+  // typed `components` map is unwritable without it.
+  ComponentMap,
 } from "@comvi/react";
 
 // Syncs the locale across the hydration boundary.

@@ -16,6 +16,7 @@ import { icuCompiler } from "@comvi/core/icu";
 import { attachLoader, loader } from "@comvi/core/loader";
 import { plugins } from "@comvi/core/plugins";
 import type { WrapperI18nHost } from "@comvi/core";
+import * as react from "@comvi/react";
 import * as client from "../src/client";
 import * as root from "../src/index";
 import { nextPlugin, nextPluginLazy } from "../src/nextPlugin";
@@ -114,6 +115,35 @@ describe("@comvi/next/client — the capability toolkit", () => {
     expect(client.nextPluginLazy).toBe(nextPluginLazy);
     expect(root.nextPlugin).toBe(nextPlugin);
     expect(root.nextPluginLazy).toBe(nextPluginLazy);
+  });
+
+  it("carries react's whole 0.5 hook surface, `useI18nHost` included", () => {
+    // The README says this entry re-exports react's 0.5.0 surface. Wave 3 added
+    // `useI18nHost()` there — THE name for "give me the host" in react, solid
+    // and svelte — and this entry is react's Next face, so a client component
+    // must not have to import `@comvi/react` beside this package to get it.
+    for (const name of [
+      "useI18n",
+      "useI18nHost",
+      "useI18nContext",
+      "useI18nLoader",
+      "useI18nPlugins",
+      "useLocale",
+      "useIsLoading",
+      "useSetLocaleTransition",
+      "useFormatters",
+    ] as const) {
+      expect(typeof client[name], name).toBe("function");
+      expect(client[name], name).toBe(react[name]);
+    }
+  });
+
+  it("returns the provider's own host from useI18nHost()", () => {
+    const i18n = client.createI18n({ locale: "en", exposeGlobal: false });
+
+    const { result } = renderHook(() => client.useI18nHost(), { wrapper: wrapperFor(i18n) });
+
+    expect(result.current).toBe(i18n);
   });
 
   it("never re-exports the side-effectful tags toolbox", () => {

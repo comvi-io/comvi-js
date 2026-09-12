@@ -171,18 +171,18 @@ export const { i18n, routing } = createNextI18n({
   // The 0.5 default is already `icuCompiler`, named here so the plural rule
   // below is legible without cross-referencing "ICU is one option" further down.
   compiler: icuCompiler,
+  // `"<locale>:<namespace>"` keys. A colon-less key is the LOCALE alone and
+  // its object is flattened into the default namespace, so a nested
+  // `{ en: { default: { greeting } } }` would define the key
+  // `default.greeting` and `t("greeting")` would render the literal key.
   translation: {
-    en: {
-      default: {
-        greeting: "Hello, {name}!",
-        items: "{count, plural, one {# item} other {# items}}",
-      },
+    "en:default": {
+      greeting: "Hello, {name}!",
+      items: "{count, plural, one {# item} other {# items}}",
     },
-    uk: {
-      default: {
-        greeting: "Привіт, {name}!",
-        items: "{count, plural, one {# товар} few {# товари} many {# товарів} other {# товару}}",
-      },
+    "uk:default": {
+      greeting: "Привіт, {name}!",
+      items: "{count, plural, one {# товар} few {# товари} many {# товарів} other {# товару}}",
     },
   },
 });
@@ -442,6 +442,8 @@ client"` wrapper that imports the config module a second time.
 
 **Render-time mutation removed.** The internal `i18n.locale` assignment and `i18n.addTranslations()` calls that used to happen in `<I18nProvider>`'s render body have moved into a `useState` initializer. The server render never writes the shared host's locale; the client applies it before its first commit. The API did not change: `<I18nProvider>` props work identically, and the request locale still reaches every hook and `<T>` through the provider.
 
+**`fallback` is a post-hydration gate here.** `<I18nProvider>` forwards react's `fallback`, and it passes `ssrInitialIsInitializing={false}` on your behalf: the server render already has the catalog (`getI18n()` / `loadTranslations()`), so it is never gated, and neither is the hydration render that reads the same snapshot. A `fallback` in a next app therefore covers only what the CLIENT host still has to initialize after hydration.
+
 **The server request contract.** Your i18n instance lives at module scope and is shared by every concurrent request in a server process. It contributes the translation **catalog** and the **loader**; the locale belongs to the request. Every lookup `getI18n()` hands you names the request locale explicitly, so two concurrent renders at different locales cannot race, and the internal server host type carries no `t`, so a server helper that tried to translate without a locale would not compile. A request that cannot determine its locale throws before it triggers the host's one-time initialization.
 
 Two writes still travel from a request to the shared instance, and the package's tests pin that no request writes the instance's locale or its active namespaces. `addTranslations()` runs on the server: it is additive and keyed by `locale:namespace`, so a concurrent request can only write what the other would have loaded anyway (a first add for a given key does emit `namespaceLoaded`). And `init()` loads the default namespace once, at the instance's own configured locale, never at a request's. Validation of `routing.locales` also still runs on the server, so a bad `[locale]` segment reaches your `onError` in the server logs.
@@ -568,6 +570,12 @@ function Namespaces() {
   // …
 }
 ```
+
+The rest of react's surface is here under its own names too, `useI18nHost()`
+among them — the bare `WrapperI18nHost` the nearest `<I18nProvider>` holds, for
+an imperative call off the render path, and the same name `@comvi/react`,
+`@comvi/solid` and `@comvi/svelte` publish. Nothing sends you back to
+`@comvi/react` for a hook.
 
 There is no next-specific hook API. Migrating from 0.4.x:
 `pnpm codemod:framework-slim "src/**/*.{ts,tsx,js,jsx}"`, or the

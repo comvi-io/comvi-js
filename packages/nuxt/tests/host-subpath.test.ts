@@ -9,7 +9,6 @@ describe("@comvi/nuxt/host", () => {
   it("re-exports exactly the installers a hostModule factory composes with", () => {
     expect(Object.keys(host).sort()).toEqual([
       "attachLoader",
-      "attachPlugins",
       "createI18n",
       "definePlugin",
       "devtools",
@@ -17,6 +16,16 @@ describe("@comvi/nuxt/host", () => {
       "loader",
       "plugins",
     ]);
+  });
+
+  it("does not re-export the low-level attach pair for plugins/devtools", () => {
+    // Same rule as the binding roots: `plugins()` / `devtools()` are the
+    // configured installers, the pair is their low-level synonym, and it stays
+    // on `@comvi/core/plugins` / `@comvi/core/devtools`. `attachLoader` is not
+    // a synonym — it is the attach-only loader installer — so it stays.
+    expect(host).not.toHaveProperty("attachPlugins");
+    expect(host).not.toHaveProperty("attachDevtools");
+    expect(typeof host.attachLoader).toBe("function");
   });
 
   it("does not re-export flattenCatalog", () => {
