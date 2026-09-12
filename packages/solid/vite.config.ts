@@ -2,7 +2,7 @@ import { defineConfig } from "vite";
 import solid from "vite-plugin-solid";
 import dts from "vite-plugin-dts";
 import { resolve } from "path";
-import { COMVI_CORE_EXTERNALS, createLibraryBuildOptions } from "@comvi/vite-config";
+import { solidBuild } from "./vite.shared";
 
 export default defineConfig({
   plugins: [
@@ -11,30 +11,17 @@ export default defineConfig({
       insertTypesEntry: true,
     }),
   ],
-  build: createLibraryBuildOptions({
-    entry: resolve(__dirname, "src/index.ts"),
-    name: "ComviSolid",
-    fileNames: { es: "comvi-solid.js", cjs: "comvi-solid.cjs" },
-    external: ["solid-js", "solid-js/web", "solid-js/store", ...COMVI_CORE_EXTERNALS],
-    globals: {
-      "solid-js": "SolidJS",
-      "solid-js/web": "SolidJSWeb",
-      "solid-js/store": "SolidJSStore",
-      "@comvi/core": "ComviCore",
-    },
-    chunkFileNames: "chunks/comvi-solid-[name].js",
-    // `<T>` — and with it this package's only `@comvi/core/rich-text` import —
-    // is pinned into its own chunk, so an app that never renders `<T>` drops
-    // the whole module. Sharing a module with `useI18n` once put the rich-text
-    // pipeline into every solid app.
-    pinnedChunks: [{ name: "T", test: /src[\\/]T\.tsx/ }],
-  }),
+  build: solidBuild(__dirname, ""),
   resolve: {
     alias: {
       "@": resolve(__dirname, "./src"),
     },
   },
   define: {
-    __DEV__: JSON.stringify(process.env.NODE_ENV !== "production"),
+    // The published comvi-solid.js is always the PROD artifact — `vite build`
+    // pins NODE_ENV=production, so reading it here only ever produced `false`.
+    // The dev-only diagnostics ship in comvi-solid.dev.js
+    // (vite.config.dev.ts), reachable via the "development" export condition.
+    __DEV__: JSON.stringify(false),
   },
 });

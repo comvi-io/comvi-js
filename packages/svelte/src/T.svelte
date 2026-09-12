@@ -1,28 +1,13 @@
-<script module lang="ts">
-  // `<script module>`, NOT the instance script below: a top-level `let` in an
-  // instance `<script>` is per-COMPONENT-INSTANCE state in Svelte (it lives in
-  // the compiled instance function), so it would reset for every `<T>` mount
-  // and never actually dedupe across the app. This block is the one true
-  // module scope.
-  declare const __DEV__: boolean | undefined;
-  const IS_DEV = typeof __DEV__ !== 'undefined' && __DEV__;
-
-  // Keyed by HOST identity, not a single module-wide flag: an app's test
-  // suite (and, in principle, two apps' worth of hosts on one page) must not
-  // share this state just because they load the same module instance.
-  const warnedRawProp = new WeakSet<object>();
-
-  function warnDeprecatedRawProp(host: object): void {
-    if (IS_DEV && !warnedRawProp.has(host)) {
-      warnedRawProp.add(host);
-      console.warn(
-        '[i18n] <T raw> is deprecated. Use <T skipPostProcess> instead — `raw` will be removed in a future release.',
-      );
-    }
-  }
-</script>
-
 <script lang="ts">
+  // The dedupe-per-host warning lives in `#dev-warn`, NOT in a `<script
+  // module>` block here, and the reason is the published artifact rather than
+  // style: `svelte-package` copies this file to `dist/T.svelte` verbatim and
+  // substitutes no build-time defines, so a `__DEV__` guard written here ships
+  // unsubstituted and is false in every consumer, development included. Only
+  // the `imports` map can route this import through the `development`
+  // condition — see `src/dev-warn.ts` for the whole argument.
+  import { warnDeprecatedRawProp } from '#dev-warn';
+
   // The PURE rich-text seam, NOT '@comvi/core/tags': importing the tags entry
   // would register tag syntax AMBIENTLY, so every app rendering <T> would also
   // start parsing `<tag>` markup in plain string-API `t()`. prepareTranslation

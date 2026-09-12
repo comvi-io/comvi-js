@@ -80,7 +80,7 @@ const IS_DEV = typeof __DEV__ !== "undefined" && __DEV__;
 // without a new `useI18nHost()` dependency — which matters because several
 // `<T>` tests mock `useI18n` directly, with no `<I18nProvider>` for a real
 // host hook to read.
-const warnedRawProp = new WeakSet<object>();
+const warnedRawProp = /* @__PURE__ */ new WeakSet<object>();
 
 function warnDeprecatedRawProp(host: object): void {
   if (IS_DEV && !warnedRawProp.has(host)) {

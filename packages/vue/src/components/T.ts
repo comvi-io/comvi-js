@@ -25,7 +25,7 @@ const IS_DEV = typeof __DEV__ !== "undefined" && __DEV__;
 // Keyed by HOST identity, not one module-wide flag: a single boolean would
 // leak across unrelated hosts (two apps' worth on one page, or two test files
 // sharing a worker's module cache).
-const warnedRawProp = new WeakSet<object>();
+const warnedRawProp = /* @__PURE__ */ new WeakSet<object>();
 
 function warnDeprecatedRawProp(host: object): void {
   if (IS_DEV && !warnedRawProp.has(host)) {

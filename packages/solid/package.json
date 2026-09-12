@@ -34,6 +34,7 @@
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
+      "development": "./dist/comvi-solid.dev.js",
       "default": "./dist/comvi-solid.js"
     }
   },
@@ -46,7 +47,7 @@
   "sideEffects": false,
   "scripts": {
     "dev": "vite build --watch",
-    "build": "vite build && node ../../tooling/qualify-dts-specifiers.mjs dist",
+    "build": "vite build && vite build --config vite.config.dev.ts && node ../../tooling/qualify-dts-specifiers.mjs dist",
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.tests.json",
     "test:types": "tsc --noEmit -p tsconfig.test-types.json",
     "test": "vitest run && pnpm test:types",
