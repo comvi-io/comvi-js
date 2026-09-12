@@ -36,6 +36,10 @@ export { attachLoader, loader } from "@comvi/core/loader";
 export { attachPlugins, definePlugin, plugins } from "@comvi/core/plugins";
 export { attachDevtools, devtools } from "@comvi/core/devtools";
 export type { DevtoolsOptions } from "@comvi/core/devtools";
+// The Next-scoped plugin installers: `runtime` / `environment` on the PLUGIN,
+// composed with the same `.use(…)` as everything above.
+export { nextPlugin, nextPluginLazy } from "./nextPlugin";
+export type { NextPluginOptions, LazyPluginModule, LazyPluginLoader } from "./nextPlugin";
 
 export type {
   UseI18nReturn,

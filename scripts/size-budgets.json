@@ -175,6 +175,19 @@
       "note": "Gated Next client floor: the `@comvi/next/client` entry only, no server module in the graph."
     },
     {
+      "name": "fw-next-root-composed",
+      "entry": ["@comvi/next"],
+      "fixture": "framework/next-root-composed.ts",
+      "external": ["next", "next/*", "react", "react/*"],
+      "gzipBudgetBytes": 9923,
+      "baseline": {
+        "minBytes": 26612,
+        "gzipBytes": 9450,
+        "measuredAt": "2026-09-12"
+      },
+      "note": "Gated Next recommended path: the composed root from `@comvi/next` with `loader(map)` and `nextPlugin(…)` composed through `.use`."
+    },
+    {
       "name": "fw-nuxt-full-composite",
       "entry": [
         "@comvi/nuxt/runtime/plugin.js",

@@ -1,117 +1,25 @@
 import { createComposedNextI18n, type NextComposedI18n } from "./composedHost";
-import type { I18nOptions, I18nPlugin, PluginOptions, DefaultTranslationParams } from "@comvi/core";
+import { icuCompiler } from "@comvi/core/icu";
+import type { I18nOptions, DefaultTranslationParams, MessageCompiler } from "@comvi/core";
 import { resolveRouting } from "./nextI18nRouting";
 import type { NextRoutingOptions } from "./nextI18nRouting";
 import type { RoutingConfig } from "./routing/types";
 
-type PluginRuntimeTarget = "client" | "server";
-type PluginEnvironment = "all" | "development" | "production";
-type PluginReturn = ReturnType<I18nPlugin>;
-type AsyncPluginReturn = Promise<void> | Promise<Exclude<Awaited<PluginReturn>, void>>;
+declare const __DEV__: boolean | undefined;
+const IS_DEV = typeof __DEV__ !== "undefined" && __DEV__;
 
-export interface ScopedPluginOptions extends PluginOptions {
-  /**
-   * Environment where plugin should run.
-   * @default "all"
-   */
-  environment?: PluginEnvironment;
+/** Thrown by {@link CreateNextI18nResult.use} when an installer hands back a different object. */
+export interface UseHostIdentityError extends Error {
+  code: "E_USE_HOST_IDENTITY";
 }
-
-/**
- * Options for the unified {@link CreateNextI18nResult.use} method.
- */
-export interface UsePluginOptions extends ScopedPluginOptions {
-  /**
-   * Runtime where the plugin should run.
-   * Omit to run the plugin in both runtimes.
-   */
-  runtime?: PluginRuntimeTarget;
-  /**
-   * When `true`, the first argument is treated as a lazy loader
-   * (`() => Promise<plugin | { default: plugin }>`) that is only imported
-   * and executed when the plugin is due to run.
-   * @default false
-   */
-  lazy?: boolean;
-}
-
-export type LazyPluginModule = I18nPlugin | { default: I18nPlugin };
-export type LazyPluginLoader = () => Promise<LazyPluginModule>;
-
-const resolveLazyPlugin = (moduleOrPlugin: LazyPluginModule): I18nPlugin => {
-  if (typeof moduleOrPlugin === "function") {
-    return moduleOrPlugin;
-  }
-  if (moduleOrPlugin && typeof moduleOrPlugin.default === "function") {
-    return moduleOrPlugin.default;
-  }
-  throw new Error(
-    "[comvi/next] Invalid lazy plugin module. " +
-      "Expected a plugin function or { default: pluginFunction }.",
-  );
-};
-
-const isClientRuntime = (): boolean => {
-  // Next.js sets NEXT_RUNTIME in server bundles (nodejs/edge).
-  if (process.env.NEXT_RUNTIME) {
-    return false;
-  }
-  return typeof window !== "undefined";
-};
-
-const shouldRunForRuntime = (runtime: PluginRuntimeTarget): boolean => {
-  const isClient = isClientRuntime();
-  return runtime === "client" ? isClient : !isClient;
-};
-
-const shouldRunForEnvironment = (environment: PluginEnvironment): boolean => {
-  if (environment === "all") {
-    return true;
-  }
-  const isProduction = process.env.NODE_ENV === "production";
-  return environment === (isProduction ? "production" : "development");
-};
-
-const shouldRunScoped = (
-  runtime: PluginRuntimeTarget | undefined,
-  environment: PluginEnvironment,
-): boolean =>
-  (runtime === undefined || shouldRunForRuntime(runtime)) && shouldRunForEnvironment(environment);
-
-const createScopedPlugin = (
-  plugin: I18nPlugin,
-  runtime: PluginRuntimeTarget | undefined,
-  environment: PluginEnvironment,
-): I18nPlugin => {
-  return (i18n) => {
-    if (!shouldRunScoped(runtime, environment)) {
-      return;
-    }
-    return plugin(i18n);
-  };
-};
-
-const createScopedLazyPlugin = (
-  loadPlugin: LazyPluginLoader,
-  runtime: PluginRuntimeTarget | undefined,
-  environment: PluginEnvironment,
-): I18nPlugin => {
-  let pluginPromise: Promise<I18nPlugin> | null = null;
-
-  return (i18n) => {
-    if (!shouldRunScoped(runtime, environment)) {
-      return;
-    }
-    if (!pluginPromise) {
-      pluginPromise = loadPlugin().then(resolveLazyPlugin);
-    }
-    return pluginPromise.then((plugin) => plugin(i18n)) as AsyncPluginReturn;
-  };
-};
 
 export interface CreateNextI18nBaseOptions extends NextRoutingOptions {
   /**
-   * API key available to plugins/loaders that need authenticated requests.
+   * Credential forwarded to the host as `i18n.apiKey`, for a loader plugin
+   * that authenticates against a backend (`@comvi/plugin-fetch-loader` reads
+   * it there). This factory loads NOTHING on its own — it neither contacts a
+   * CDN nor an API — so the key is inert until you compose `fetchLoader` or
+   * `cdnLoader`.
    */
   apiKey?: string;
 
@@ -139,10 +47,23 @@ export interface CreateNextI18nBaseOptions extends NextRoutingOptions {
   defaultNs?: string;
 
   /**
-   * Development mode (uses API instead of CDN)
+   * Forwarded to the host as `i18n.devMode`, where a fetch-loader plugin reads
+   * it to pick the API over the CDN. This factory loads nothing on its own, so
+   * the flag changes nothing until `fetchLoader` or `cdnLoader` is composed.
    * @default process.env.NODE_ENV === 'development'
    */
   devMode?: boolean;
+
+  /**
+   * Message compiler for the host. Defaults to `icuCompiler` in 0.5 — the
+   * composed root keeps its published ICU behaviour — so plural, select and
+   * selectordinal compile in every catalog, whatever its source. Pass core's
+   * simple `{param}` compiler (`compiler: undefined` is NOT that: the default
+   * still applies) or your own `MessageCompiler` to opt out; `createI18n` on
+   * `/client` and `/server` has the opposite default.
+   * @default icuCompiler
+   */
+  compiler?: MessageCompiler;
 
   /**
    * HTML tags allowed in translations (for tag interpolation)
@@ -159,94 +80,56 @@ export interface CreateNextI18nBaseOptions extends NextRoutingOptions {
 export type CreateNextI18nOptions<D extends DefaultTranslationParams = {}> =
   CreateNextI18nBaseOptions & Pick<I18nOptions<D>, "defaultParams">;
 
-export interface CreateNextI18nResult<D extends DefaultTranslationParams = {}> {
+export interface CreateNextI18nResult<
+  D extends DefaultTranslationParams = {},
+  C extends NextComposedI18n<D> = NextComposedI18n<D>,
+> {
   /**
    * The i18n instance (use with I18nProvider and setI18n).
    */
-  i18n: NextComposedI18n<D>;
+  readonly i18n: C;
 
   /**
    * Routing configuration (use with middleware and navigation)
    */
-  routing: Required<RoutingConfig>;
+  readonly routing: Required<RoutingConfig>;
 
   /**
-   * Register an additional i18n plugin (chainable).
+   * Compose a capability onto the host and keep this result: `use(f)` is
+   * `f(this.i18n)`, and the return value is this same result retyped so
+   * `i18n` carries whatever the installer widened the host to. The one
+   * composition verb, with the same contract as core's `i18n.use(…)`.
    *
-   * The single `use()` method covers every registration mode via options:
-   * - `runtime: "client" | "server"` scopes the plugin to one runtime
-   *   (omit to run in both).
-   * - `lazy: true` treats the first argument as a lazy loader
-   *   (`() => Promise<plugin | { default: plugin }>`) that is only imported
-   *   when the plugin is due to run.
-   * - `environment: "development" | "production"` scopes to a build
-   *   environment (default `"all"`).
-   *
-   * @example
-   * ```typescript
-   * const nextI18n = createNextI18n({...})
-   *   .use(MyPlugin())
-   *   .use(MyServerPlugin(), { runtime: "server" })
-   *   .use(
-   *     () => import("@comvi/plugin-in-context-editor").then((m) => m.InContextEditorPlugin()),
-   *     { runtime: "client", lazy: true, environment: "development", required: false },
-   *   )
-   *   .use(AnotherPlugin(), { required: false });
+   * ```ts
+   * export const { i18n, routing } = createNextI18n({ ...routing, fallbackLocale: "en" })
+   *   .use(loader({ en: () => import("./locales/en.json") }))
+   *   .use(nextPlugin(LocaleDetector({ order: ["cookie"] }), { runtime: "client" }));
    * ```
    *
-   * @remarks
-   * This `use` is NOT the host's composition verb, and a Next app holds both
-   * objects. It queues a RAW plugin and is Next's own scoped registration: the
-   * `runtime` / `lazy` / `environment` options are what a per-request server
-   * host and a client host need, and nothing runs until the builder creates
-   * them. `result.i18n.use(...)` is core's installer pipe on the host itself —
-   * it CALLS what it is given and demands the host back, so handing it a raw
-   * plugin throws `E_USE_NOT_INSTALLER`. Register plugins here; compose
-   * capabilities there.
-   */
-  use(plugin: I18nPlugin, options?: UsePluginOptions & { lazy?: false }): CreateNextI18nResult<D>;
-  use(
-    loadPlugin: LazyPluginLoader,
-    options: UsePluginOptions & { lazy: true },
-  ): CreateNextI18nResult<D>;
-
-  /**
-   * Register a client-only plugin.
+   * A plugin scoped to one runtime or build environment goes through
+   * {@link nextPlugin} / {@link nextPluginLazy}; an unscoped one through
+   * `definePlugin(fn)`; a plugin package through its lowercase installer. ICU
+   * is not composed at all: it is the `compiler` option, `icuCompiler` by
+   * default here.
    *
-   * @deprecated Use `use(plugin, { runtime: "client" })` instead.
-   * Will be removed in 0.6.0.
-   */
-  useClient(plugin: I18nPlugin, options?: ScopedPluginOptions): CreateNextI18nResult<D>;
-
-  /**
-   * Register a server-only plugin.
+   * Never compose `localeDetector()` on this host. It lives at module scope
+   * and is process-wide on the App Router, so the detector would run once, at
+   * the host's `init()`, and the first request's headers would pin the locale
+   * for every later render. Use
+   * `nextPlugin(LocaleDetector(…), { runtime: "client" })` instead: the
+   * browser has exactly one visitor.
    *
-   * @deprecated Use `use(plugin, { runtime: "server" })` instead.
-   * Will be removed in 0.6.0.
+   * Installers widen the host IN PLACE and return it, and everything else in
+   * this result — `setI18n(i18n)`, the provider, the server helpers — holds
+   * that one host, so an installer that hands back a different object is
+   * refused with `code: "E_USE_HOST_IDENTITY"`, reported over `this.i18n`
+   * (the composed host), instead of leaving the app driving a host nothing
+   * else sees. A raw ASYNC plugin handed here has already run by the time the
+   * check fires, so its rejection is swallowed and the identity error is the
+   * only thing the app sees; the development message names the ways out,
+   * exactly as core's does.
    */
-  useServer(plugin: I18nPlugin, options?: ScopedPluginOptions): CreateNextI18nResult<D>;
-
-  /**
-   * Register a lazily imported client-only plugin.
-   *
-   * @deprecated Use `use(loadPlugin, { runtime: "client", lazy: true })` instead.
-   * Will be removed in 0.6.0.
-   */
-  useClientLazy(
-    loadPlugin: LazyPluginLoader,
-    options?: ScopedPluginOptions,
-  ): CreateNextI18nResult<D>;
-
-  /**
-   * Register a lazily imported server-only plugin.
-   *
-   * @deprecated Use `use(loadPlugin, { runtime: "server", lazy: true })` instead.
-   * Will be removed in 0.6.0.
-   */
-  useServerLazy(
-    loadPlugin: LazyPluginLoader,
-    options?: ScopedPluginOptions,
-  ): CreateNextI18nResult<D>;
+  use<T extends C>(installer: (i18n: C) => T): CreateNextI18nResult<D, T>;
 }
 
 /**
@@ -255,7 +138,7 @@ export interface CreateNextI18nResult<D extends DefaultTranslationParams = {}> {
  * @example
  * ```typescript
  * // i18n/config.ts
- * import { createNextI18n } from "@comvi/next";
+ * import { createNextI18n, loader } from "@comvi/next";
  *
  * export const { i18n, routing } = createNextI18n({
  *   // Routing
@@ -264,7 +147,7 @@ export interface CreateNextI18nResult<D extends DefaultTranslationParams = {}> {
  *
  *   // Optional
  *   basicHtmlTags: ["strong", "em", "br", "a"],
- * });
+ * }).use(loader({ en: () => import("./locales/en.json") }));
  * ```
  *
  * @example
@@ -292,6 +175,7 @@ export function createNextI18n<const D extends DefaultTranslationParams = {}>(
     fallbackLocale = defaultLocale,
     defaultNs = "default",
     devMode: devModeOption,
+    compiler = icuCompiler,
     basicHtmlTags,
     onMissingKey,
   } = options;
@@ -310,6 +194,7 @@ export function createNextI18n<const D extends DefaultTranslationParams = {}>(
     defaultParams,
     apiKey,
     devMode,
+    compiler,
     onMissingKey,
     tagInterpolation: basicHtmlTags ? { basicHtmlTags } : undefined,
   } as unknown as I18nOptions<D>);
@@ -319,37 +204,26 @@ export function createNextI18n<const D extends DefaultTranslationParams = {}>(
   const result: CreateNextI18nResult<D> = {
     i18n,
     routing,
-    use(pluginOrLoader: I18nPlugin | LazyPluginLoader, options?: UsePluginOptions) {
-      const { runtime, lazy, environment = "all", ...pluginOptions } = options ?? {};
-      if (lazy) {
-        i18n.registerPlugin(
-          createScopedLazyPlugin(pluginOrLoader as LazyPluginLoader, runtime, environment),
-          pluginOptions,
-        );
-      } else if (runtime !== undefined || environment !== "all") {
-        i18n.registerPlugin(
-          createScopedPlugin(pluginOrLoader as I18nPlugin, runtime, environment),
-          pluginOptions,
-        );
-      } else {
-        i18n.registerPlugin(
-          pluginOrLoader as I18nPlugin,
-          options === undefined ? undefined : pluginOptions,
-        );
+    use<T extends NextComposedI18n<D>>(installer: (i18n: NextComposedI18n<D>) => T) {
+      const widened: unknown = installer(i18n);
+      if (widened !== i18n) {
+        // Same three lines core's `use` has, for the same reason: the function
+        // already RAN, so a raw ASYNC plugin has a live promise here. The error
+        // below is the report; that promise's rejection is not, and leaving it
+        // floating would print an unhandled rejection on top of an already-clear
+        // diagnostic. Swallow it, and only it.
+        if (typeof (widened as { then?: unknown } | null | undefined)?.then === "function") {
+          void (widened as Promise<unknown>).then(undefined, () => {});
+        }
+        const error = new Error(
+          IS_DEV
+            ? "[i18n] .use(installer) must return the host it was given. A raw plugin goes through .use(definePlugin(f)) or .use(nextPlugin(f, { runtime })); a plugin package's installer is the lowercase factory (localeDetector(), not LocaleDetector())."
+            : "E_USE_HOST_IDENTITY",
+        ) as UseHostIdentityError;
+        error.code = "E_USE_HOST_IDENTITY";
+        throw error;
       }
-      return result;
-    },
-    useClient(plugin: I18nPlugin, options?: ScopedPluginOptions) {
-      return result.use(plugin, { ...options, runtime: "client" });
-    },
-    useServer(plugin: I18nPlugin, options?: ScopedPluginOptions) {
-      return result.use(plugin, { ...options, runtime: "server" });
-    },
-    useClientLazy(loadPlugin: LazyPluginLoader, options?: ScopedPluginOptions) {
-      return result.use(loadPlugin, { ...options, runtime: "client", lazy: true });
-    },
-    useServerLazy(loadPlugin: LazyPluginLoader, options?: ScopedPluginOptions) {
-      return result.use(loadPlugin, { ...options, runtime: "server", lazy: true });
+      return result as unknown as CreateNextI18nResult<D, T>;
     },
   };
 

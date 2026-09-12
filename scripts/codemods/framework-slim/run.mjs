@@ -10,7 +10,10 @@
  *     becomes `.use(…)` — one composition verb — the constructor options that
  *     became capabilities (`compiler: icuCompiler`,
  *     `devtools({ exposeGlobal, instanceId })`) move with their imports, and a
- *     `flattenCatalog` import is retargeted onto the `@comvi/core` root.
+ *     `flattenCatalog` import is retargeted onto the `@comvi/core` root;
+ *   • on the `createNextI18n(…)` result, the scoped raw-plugin queue and its
+ *     four deleted delegates become `.use(nextPlugin(…))` /
+ *     `.use(nextPluginLazy(…))` (rules/next-result.mjs).
  *
  * A nested inline catalog needs NOTHING: the base host flattens it itself, so
  * neither family touches it and neither reports it.

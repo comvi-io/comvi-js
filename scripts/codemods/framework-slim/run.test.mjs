@@ -97,6 +97,12 @@ const REQUIRED_CASES = [
   // `flattenCatalog` reached through a namespace, an `import()` or a shared
   // re-export clause: the retarget cannot rewrite any of the three.
   "report-flatten-catalog-moved",
+  // the `createNextI18n(…)` result (N1): the scoped queue and the four deleted
+  // delegates become `.use(nextPlugin(…))` / `.use(nextPluginLazy(…))`.
+  "next-use-scoped", // 9, 10, 13: `use(plugin, { runtime, lazy, … })` and the bare queue
+  "next-delegates", // 11, 12: the delegates, chained and on a stored result
+  "report-next-plugin-unproven", // options / `lazy` / spreads the codemod cannot decide
+  "report-next-shadowed-factory", // a shadowed `createNextI18n` refuses the module
 ];
 
 test("every matrix row and report-only shape has a golden fixture", () => {
@@ -160,6 +166,8 @@ test("CRLF sources come back with CRLF", () => {
       "hook-nospace-keyword",
       "hook-quoted-key",
       "hook-type-position-param",
+      "next-delegates",
+      "next-use-scoped",
       "prologue-shebang",
       "sfc-svelte",
       "sfc-vue",
@@ -1340,6 +1348,8 @@ test("transformed TypeScript goldens compile", (t) => {
       "hook-nospace-keyword",
       "hook-quoted-key",
       "hook-type-position-param",
+      "next-delegates",
+      "next-use-scoped",
       "slim-factory-rename",
       "slim-specifier",
       "stored-register-plugin",
@@ -1492,6 +1502,36 @@ export interface UseI18nPluginsReturn {
 export declare function useI18n(ns?: string): UseI18nReturn;
 export declare function useI18nLoader(): UseI18nLoaderReturn;
 export declare function useI18nPlugins(): UseI18nPluginsReturn;
+`,
+    "comvi/next.ts": `import type { Host, I18nPlugin, LoaderApi, PluginApi } from "./api";
+export { definePlugin, devtools, icuCompiler, loader, plugins } from "./api";
+export type * from "./api";
+
+export interface NextPluginOptions {
+  runtime?: "client" | "server";
+  environment?: "all" | "development" | "production";
+  required?: boolean;
+  timeout?: number;
+}
+export type NextComposedI18n = Host & LoaderApi & PluginApi;
+export interface CreateNextI18nResult<C extends NextComposedI18n = NextComposedI18n> {
+  readonly i18n: C;
+  readonly routing: { locales: readonly string[]; defaultLocale: string };
+  use<T extends C>(installer: (i18n: C) => T): CreateNextI18nResult<T>;
+}
+export declare function createNextI18n(options: {
+  locales: readonly string[];
+  defaultLocale: string;
+  fallbackLocale?: string;
+}): CreateNextI18nResult;
+export declare function nextPlugin(
+  plugin: I18nPlugin,
+  options?: NextPluginOptions,
+): <T extends Host>(host: T) => T & PluginApi;
+export declare function nextPluginLazy(
+  load: () => Promise<I18nPlugin | { default: I18nPlugin }>,
+  options?: NextPluginOptions,
+): <T extends Host>(host: T) => T & PluginApi;
 `,
     "comvi/next/client.ts": `export { createI18n, devtools, loader, plugins } from "../api";
 export type * from "../api";

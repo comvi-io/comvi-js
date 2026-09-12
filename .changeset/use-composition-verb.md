@@ -51,7 +51,7 @@ The rule is also stated in the TYPE: `use<T extends this>(installer: (host: this
 
 One consequence for hand-written installers: a step that returned a DERIVED object (`.use((i18n) => ({ i18n, dispose }))`) is no longer a valid installer. Widen in place and return the host, and keep whatever else you built beside the chain.
 
-Everything else keeps its name: `loader()`, `plugins()`, `devtools()`, `attachLoader`, `attachPlugins`, `attachDevtools`, `fetchLoader()`, `cdnLoader()`, `localeDetector()`, `inContextEditor()`, `icuCompiler`, the `compiler:` option, `useI18n()`, `useI18nLoader()`, `useI18nPlugins()`, `createCore`, `createI18nFromCore`, `createNextI18nFromHost`, Nuxt's `hostModule`, and `createNextI18n(...).use(plugin)` with its `useClient` / `useServer` / `useClientLazy` / `useServerLazy` siblings. Vue's `app.use(i18n)` and Nuxt's `nuxtApp.use` were never ours and are untouched.
+Everything else keeps its name: `loader()`, `plugins()`, `devtools()`, `attachLoader`, `attachPlugins`, `attachDevtools`, `fetchLoader()`, `cdnLoader()`, `localeDetector()`, `inContextEditor()`, `icuCompiler`, the `compiler:` option, `useI18n()`, `useI18nLoader()`, `useI18nPlugins()`, `createCore`, `createI18nFromCore`, `createNextI18nFromHost`, Nuxt's `hostModule`. (`createNextI18n(...).use` becomes the same installer pipe in wave 2 — see the `@comvi/next` entry.) Vue's `app.use(i18n)` and Nuxt's `nuxtApp.use` were never ours and are untouched.
 
 ### Migration
 

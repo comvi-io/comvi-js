@@ -1,5 +1,6 @@
 import { describe, it, expect, afterEach } from "vitest";
 import { createNextI18n } from "../src/createNextI18n";
+import { nextPlugin, nextPluginLazy } from "../src/nextPlugin";
 import type { NextComposedI18n } from "../src/composedHost";
 import { createI18n as baseCreateI18n, isVirtualNode } from "@comvi/core";
 import type { I18nPlugin, LoaderFn, TagCallbackParams } from "@comvi/core";
@@ -178,7 +179,7 @@ describe("published createNextI18n — composed capabilities", () => {
 });
 
 describe("published createNextI18n — the result surface", () => {
-  it("registers plugins through every .use* method and stays chainable", async () => {
+  it("registers plugins through `.use(nextPlugin(…))` / `.use(nextPluginLazy(…))` and stays chainable", async () => {
     const seen: string[] = [];
     const plugin =
       (name: string): I18nPlugin =>
@@ -188,11 +189,11 @@ describe("published createNextI18n — the result surface", () => {
 
     const result = make();
     const chained = result
-      .use(plugin("use"))
-      .useClient(plugin("useClient"))
-      .useServer(plugin("useServer"))
-      .useClientLazy(async () => plugin("useClientLazy"))
-      .useServerLazy(async () => plugin("useServerLazy"));
+      .use(nextPlugin(plugin("both")))
+      .use(nextPlugin(plugin("client"), { runtime: "client" }))
+      .use(nextPlugin(plugin("server"), { runtime: "server" }))
+      .use(nextPluginLazy(async () => plugin("clientLazy"), { runtime: "client" }))
+      .use(nextPluginLazy(async () => plugin("serverLazy"), { runtime: "server" }));
 
     expect(chained).toBe(result);
 
@@ -201,11 +202,11 @@ describe("published createNextI18n — the result surface", () => {
     // The client-scoped plugins run in this DOM-ish environment (happy-dom,
     // NEXT_RUNTIME unset); the server-scoped ones are scoped out. Both paths
     // registered without error, which is the contract this pins.
-    expect(seen).toContain("use");
-    expect(seen).toContain("useClient");
-    expect(seen).toContain("useClientLazy");
-    expect(seen).not.toContain("useServer");
-    expect(seen).not.toContain("useServerLazy");
+    expect(seen).toContain("both");
+    expect(seen).toContain("client");
+    expect(seen).toContain("clientLazy");
+    expect(seen).not.toContain("server");
+    expect(seen).not.toContain("serverLazy");
   });
 
   it("exposes the routing config beside the host", () => {
@@ -253,15 +254,7 @@ describe("published createNextI18n — unchanged by the P4 direct-host convergen
     // identity is pinned in tests/entry-surfaces.test.tsx); the published root
     // is a factory OVER it and hands back a result, never a host.
     expect(createNextI18n).not.toBe(baseCreateI18n);
-    expect(Object.keys(make()).sort()).toEqual([
-      "i18n",
-      "routing",
-      "use",
-      "useClient",
-      "useClientLazy",
-      "useServer",
-      "useServerLazy",
-    ]);
+    expect(Object.keys(make()).sort()).toEqual(["i18n", "routing", "use"]);
   });
 
   it("compiles ICU where the direct-host base throws E_ICU_SYNTAX", () => {

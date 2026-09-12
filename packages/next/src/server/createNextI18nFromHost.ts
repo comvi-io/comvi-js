@@ -6,7 +6,7 @@
 // or client entry.
 import { resolveRouting } from "../nextI18nRouting";
 import type { NextRoutingOptions } from "../nextI18nRouting";
-import { getI18nInstance, registerServerI18nFactory } from "./cache";
+import { registerServerI18nHost } from "./cache";
 import type { NextServerHost, ServerI18nHost } from "./hostTypes";
 import type { DefaultTranslationParams } from "@comvi/core";
 import type { RoutingConfig } from "../routing/types";
@@ -23,16 +23,16 @@ export type CreateNextI18nFromHostOptions = NextRoutingOptions;
 /**
  * Result of {@link createNextI18nFromHost}.
  *
- * No `.use*` methods: plugin and loader composition happen inside the host
- * factory, at construction time. `C` is the caller's host type, preserved
- * exactly — deliberately not `CreateNextI18nResult`, whose `.use*` methods call
- * a plugin-host API a plain `NextServerHost` does not have.
+ * No `.use` method: composition happens inside the host factory, at
+ * construction time. `C` is the caller's host type, preserved exactly —
+ * deliberately not `CreateNextI18nResult`, whose `.use` pipe is written for
+ * the composed root.
  */
 export interface CreateNextI18nFromHostResult<
   D extends DefaultTranslationParams = {},
   C extends NextServerHost<D> = NextServerHost<D>,
 > {
-  /** The host instance — constructed on first access, then memoized. */
+  /** The host instance `host()` returned, built inside `createNextI18nFromHost`. */
   readonly i18n: C;
 
   /** Routing configuration (use with middleware and navigation) */
@@ -42,14 +42,17 @@ export interface CreateNextI18nFromHostResult<
 /**
  * Create a Next.js i18n setup around a host you compose yourself.
  *
- * The host factory is registered, NOT called: `host()` runs at most once, on
- * whichever comes first — the first `result.i18n` access or the first server
- * helper that needs the instance (`getI18n()` / `loadTranslations()`). Both
- * paths resolve the same once-cell, so neither is a required initialization
- * order, and every later or concurrent access reuses the memoized instance.
+ * Construction is EAGER: `host()` runs exactly once, inside this call, and the
+ * instance it returns is both `result.i18n` and what every server helper
+ * (`getI18n()` / `loadTranslations()`) resolves. The documented shape is a
+ * module-scope `export const { i18n, routing } = createNextI18nFromHost(…)`,
+ * which is exactly when a module-scope host should be built — the same moment
+ * `createNextI18n` builds its own. A factory that throws leaves nothing
+ * configured, so the module that failed to load can be fixed and re-run.
  *
  * Configuring the server from two sources (this factory plus `setI18n`, or two
- * registrations) throws in development and production, naming both sources.
+ * calls) throws in development and production, naming both sources — checked
+ * BEFORE `host()` runs, so a conflicting registration builds nothing.
  *
  * @param host - Factory returning the composed host; the server always needs
  *   the loader capability, so the contract is `NextServerHost`
@@ -78,12 +81,7 @@ export function createNextI18nFromHost<
   C extends NextServerHost<D> = NextServerHost<D>,
 >(host: () => C, options: CreateNextI18nFromHostOptions): CreateNextI18nFromHostResult<D, C> {
   const routing = resolveRouting(options);
-  registerServerI18nFactory(host as () => ServerI18nHost);
+  const i18n = registerServerI18nHost(host as () => ServerI18nHost) as C;
 
-  return {
-    get i18n(): C {
-      return getI18nInstance() as C;
-    },
-    routing,
-  };
+  return { i18n, routing };
 }

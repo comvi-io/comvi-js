@@ -27,19 +27,24 @@ beforeEach(() => {
   _resetServerI18n();
 });
 
-describe("createNextI18nFromHost — lazy trigger", () => {
-  it("does not call host() while assembling the result", () => {
-    const host = vi.fn(() => composedHost());
+describe("createNextI18nFromHost — eager construction", () => {
+  it("calls host() exactly once, inside the call, and publishes what it returned", () => {
+    const built = composedHost();
+    const host = vi.fn(() => built);
 
     const result = createNextI18nFromHost(host, ROUTING);
 
-    expect(host).toHaveBeenCalledTimes(0);
+    expect(host).toHaveBeenCalledTimes(1);
+    expect(result.i18n).toBe(built);
     expect(result.routing.defaultLocale).toBe("en");
     expect(result.routing.localeCookie).toBe("NEXT_LOCALE");
-    expect(host).toHaveBeenCalledTimes(0);
+    // `i18n` is a plain data field, not a getter: reading it runs nothing.
+    expect(Object.getOwnPropertyDescriptor(result, "i18n")).toMatchObject({ value: built });
+    expect(result.i18n).toBe(built);
+    expect(host).toHaveBeenCalledTimes(1);
   });
 
-  it("triggers host() exactly once from the server helpers, with no prior result.i18n access", async () => {
+  it("is the same instance the server helpers resolve, with no prior result.i18n access", async () => {
     const host = vi.fn(() => composedHost({ "fr:common": { greeting: "Bonjour" } }));
     createNextI18nFromHost(host, ROUTING);
 
@@ -47,23 +52,12 @@ describe("createNextI18nFromHost — lazy trigger", () => {
     const { t } = await getI18n({ locale: "fr" });
 
     expect(host).toHaveBeenCalledTimes(1);
+    expect(getI18nInstance()).toBe(host.mock.results[0]!.value);
     expect(messages["fr:common"]).toEqual({ greeting: "Bonjour" });
     expect(t("greeting")).toBe("Bonjour");
   });
 
-  it("triggers host() exactly once from result.i18n, and both entry points share the instance", () => {
-    const host = vi.fn(() => composedHost());
-    const result = createNextI18nFromHost(host, ROUTING);
-
-    const first = result.i18n;
-
-    expect(host).toHaveBeenCalledTimes(1);
-    expect(result.i18n).toBe(first);
-    expect(getI18nInstance()).toBe(first);
-    expect(host).toHaveBeenCalledTimes(1);
-  });
-
-  it("calls host() once when two concurrent renders race the first trigger", async () => {
+  it("serves two concurrent renders from the one instance", async () => {
     const host = vi.fn(() => composedHost({ "en:common": { greeting: "Hello" } }));
     const result = createNextI18nFromHost(host, ROUTING);
 
@@ -75,6 +69,19 @@ describe("createNextI18nFromHost — lazy trigger", () => {
     expect(host).toHaveBeenCalledTimes(1);
     expect(renderA.t("greeting")).toBe("Hello");
     expect(renderB["en:common"]).toEqual({ greeting: "Hello" });
+    expect(getI18nInstance()).toBe(result.i18n);
+  });
+
+  it("propagates a throwing host() and configures nothing", () => {
+    expect(() =>
+      createNextI18nFromHost(() => {
+        throw new Error("host factory boom");
+      }, ROUTING),
+    ).toThrow("host factory boom");
+
+    expect(() => getI18nInstance()).toThrow(/i18n not configured/);
+    // The failed call left no trace: the corrected module registers cleanly.
+    const result = createNextI18nFromHost(() => composedHost(), ROUTING);
     expect(getI18nInstance()).toBe(result.i18n);
   });
 });
@@ -147,7 +154,7 @@ describe("createNextI18nFromHost — export boundary", () => {
     expect(typeof _resetServerI18n).toBe("function");
   });
 
-  it("has no .use* plugin methods on the result", () => {
+  it("has no .use pipe and none of the four deleted delegates on the result", () => {
     const result = createNextI18nFromHost(() => composedHost(), ROUTING) as unknown as Record<
       string,
       unknown

@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { createNextI18n } from "../src/createNextI18n";
+import { nextPlugin } from "../src/nextPlugin";
 import { getI18n, setI18n } from "../src/server";
 import { _resetServerI18n } from "../src/server/cache";
 import { getLocale } from "../src/server/getLocale";
@@ -166,7 +167,7 @@ describe("server getI18n", () => {
       });
 
       const serverPlugin = vi.fn(async () => undefined);
-      nextI18n.use(serverPlugin, { runtime: "server" });
+      nextI18n.use(nextPlugin(serverPlugin, { runtime: "server" }));
 
       nextI18n.i18n.addTranslations({
         "fr:common": { greeting: "Bonjour cached" },

@@ -37,8 +37,9 @@ const _onPiped = createNextI18nFromHost(() => installerHost, ROUTING);
 
 export type _PipedHostAlsoExact = Expect<Equal<typeof _onPiped.i18n, typeof installerHost>>;
 
-// The result has NO `.use*` methods — all five of `CreateNextI18nResult`. The
-// positive control keeps these five probes from passing vacuously.
+// The result has NO `.use` pipe (composition belongs in the host factory) and
+// none of the four delegates the composed root deleted. The positive control
+// keeps these probes from passing vacuously.
 export type _ResultIsTwoFields = Expect<
   Equal<keyof CreateNextI18nFromHostResult, "i18n" | "routing">
 >;
@@ -46,16 +47,20 @@ export type _RootResultStillHasUse = Expect<
   Equal<Extract<keyof CreateNextI18nResult, "use">, "use">
 >;
 
-// @ts-expect-error -- plugin composition belongs in the host factory
+// @ts-expect-error -- composition belongs in the host factory
 const _use: unknown = composed.use;
-// @ts-expect-error -- plugin composition belongs in the host factory
+// @ts-expect-error -- deleted from the composed root too; never existed here
 const _useClient: unknown = composed.useClient;
-// @ts-expect-error -- plugin composition belongs in the host factory
+// @ts-expect-error -- deleted from the composed root too; never existed here
 const _useServer: unknown = composed.useServer;
-// @ts-expect-error -- plugin composition belongs in the host factory
+// @ts-expect-error -- deleted from the composed root too; never existed here
 const _useClientLazy: unknown = composed.useClientLazy;
-// @ts-expect-error -- plugin composition belongs in the host factory
+// @ts-expect-error -- deleted from the composed root too; never existed here
 const _useServerLazy: unknown = composed.useServerLazy;
+
+// `i18n` is a plain readonly field: eager construction, no getter, no reassignment.
+// @ts-expect-error -- readonly
+composed.i18n = composedHost;
 
 // The suite-only cell reset is not part of the public server surface.
 export type _ResetIsNotPublic = Expect<

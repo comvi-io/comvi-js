@@ -61,26 +61,34 @@ Upgrading from v0.2.x? See the [CHANGELOG](./CHANGELOG.md).
 
 ```ts title="src/i18n/config.ts"
 // src/i18n/config.ts
-import { createNextI18n } from "@comvi/next";
+import { createNextI18n, loader } from "@comvi/next";
 // The URL rules live in `./routing` (below) and are SPREAD in, so the host and
 // the middleware cannot drift apart. Declare `locales` in both files and `/uk/…`
 // becomes a real route in one and an unknown one in the other.
 import { routing } from "./routing";
 
-export const nextI18n = createNextI18n({
+export const { i18n } = createNextI18n({
   ...routing,
   fallbackLocale: "en",
-});
-
-nextI18n.i18n.registerLoader({
-  en: () => import("./locales/en.json"),
-  uk: () => import("./locales/uk.json"),
-  de: () => import("./locales/de.json"),
-});
+}).use(
+  loader({
+    en: () => import("./locales/en.json"),
+    uk: () => import("./locales/uk.json"),
+    de: () => import("./locales/de.json"),
+  }),
+);
 
 export { routing } from "./routing";
-export const { i18n } = nextI18n;
 ```
+
+`.use(installer)` is the one composition verb, on this result as on every
+host: `loader(map)` registers the import-map loader, a plugin package goes in
+through its lowercase installer, and a plugin scoped to one runtime goes
+through `nextPlugin(…)` / `nextPluginLazy(…)` from the same specifier (see
+[Composing onto the result](#composing-onto-the-result-useinstaller)). This
+file is imported by BOTH runtimes, which is why its installers come from the
+package root: `@comvi/next/client` is a `"use client"` module and
+`@comvi/next/server` reaches `next/headers`.
 
 ```ts title="src/i18n/server.ts"
 // src/i18n/server.ts
@@ -146,7 +154,7 @@ plain object: 30.3 KB across 25 modules, against 3.8 KB across 7 with the
 same object into `createNextI18n({ ...routing, … })` in `src/i18n/config.ts` so
 there is still exactly one source of truth for the URL rules.
 
-The full setup also includes a `[locale]/layout.tsx` that imports the server registration once, calls `loadTranslations(locale)`, and renders the client wrapper above. See the [documentation](https://comvi.io/docs/i18n/next/) for locale-aware `<Link>`, `useLocalizedRouter`, server/client subpath imports, and the lazy-plugin API.
+The full setup also includes a `[locale]/layout.tsx` that imports the server registration once, calls `loadTranslations(locale)`, and renders the client wrapper above. See the [documentation](https://comvi.io/docs/i18n/next/) for locale-aware `<Link>`, `useLocalizedRouter`, server/client subpath imports, and the runtime-scoped plugin installers.
 
 ## Rendering behaviour
 
@@ -290,11 +298,11 @@ There is no next-specific hook API. Migrating from 0.4.x:
 `@comvi/next` publishes THREE ways to get an i18n host. Read the differences
 before you pick:
 
-| you call                                         | from                 | what you get                                                         |
-| ------------------------------------------------ | -------------------- | -------------------------------------------------------------------- |
-| `createNextI18n(options)`                        | `@comvi/next`        | the COMPOSED host + routing + `.use*`, exactly as 0.4.x published it |
-| `createI18n(options)`                            | `@comvi/next/client` | the BASE host; capabilities are things you compose, on the client    |
-| `createI18n(options)` + `createNextI18nFromHost` | `@comvi/next/server` | the BASE host you compose yourself, handed to the SSR factory        |
+| you call                                         | from                 | what you get                                                          |
+| ------------------------------------------------ | -------------------- | --------------------------------------------------------------------- |
+| `createNextI18n(options)`                        | `@comvi/next`        | the COMPOSED host + routing + `.use(installer)`, the recommended path |
+| `createI18n(options)`                            | `@comvi/next/client` | the BASE host; capabilities are things you compose, on the client     |
+| `createI18n(options)` + `createNextI18nFromHost` | `@comvi/next/server` | the BASE host you compose yourself, handed to the SSR factory         |
 
 The two entries expose the SAME `createI18n`: the client/server split is a
 runtime split (which helpers are reachable), never a host-tier split. There is
@@ -310,12 +318,13 @@ map), the plugin host, default params and devtools discovery, in that order.
 Nested constructor catalogs are not on that list because they never needed to
 be: every host flattens them.
 
-It is therefore one of exactly two hosts in the repo that carry ICU whether or not
-the app asked for it; the other is the CDN global build. This factory preserves
-published 0.4 behaviour, and the CDN global has no composition step a page could
-write. `createI18n` on
-`@comvi/next/client` and `@comvi/next/server` is the base host and carries
-nothing you did not compose.
+ICU is the `compiler` option, and here it **defaults to `icuCompiler`** — the
+0.5 promise is that the composed root keeps its published ICU behaviour, so
+plural, select and selectordinal compile in every catalog it ingests, whatever
+the source. Pass your own `MessageCompiler` to opt out (`compiler: undefined`
+is not an opt-out: the default still applies). `createI18n` on
+`@comvi/next/client` and `@comvi/next/server` has the opposite default: the base
+host, carrying nothing you did not compose, ICU included.
 
 The host type is published as `NextComposedI18n<D>`, which is exactly
 `CreateNextI18nResult<D>["i18n"]`:
@@ -329,8 +338,81 @@ function withHost(i18n: NextComposedI18n) {
 }
 ```
 
-Nothing about the call site changes, and `packages/next/tests/composed-contract.test.ts` pins every
-capability a 0.4 caller could reach through `result.i18n`.
+`packages/next/tests/composed-contract.test.ts` pins every capability a 0.4
+caller could reach through `result.i18n`.
+
+### Composing onto the result: `.use(installer)`
+
+The result is `{ i18n, routing, use }`, and `use` is the same composition verb
+every host has: `result.use(f)` is `f(result.i18n)`, and it hands back the same
+result with `i18n` retyped to whatever the installer widened the host to, so a
+chain reads top to bottom and destructures at the end:
+
+```ts
+import { createNextI18n, definePlugin, loader, nextPlugin, nextPluginLazy } from "@comvi/next";
+import { LocaleDetector } from "@comvi/plugin-locale-detector";
+import { routing } from "./routing";
+
+export const { i18n } = createNextI18n({ ...routing, fallbackLocale: "en" })
+  .use(loader({ en: () => import("./locales/en.json"), uk: () => import("./locales/uk.json") }))
+  .use(nextPlugin(LocaleDetector({ order: ["cookie", "navigator"] }), { runtime: "client" }))
+  .use(
+    nextPluginLazy(
+      () => import("@comvi/plugin-in-context-editor").then((m) => m.InContextEditorPlugin()),
+      { runtime: "client", environment: "development", required: false },
+    ),
+  )
+  .use(definePlugin((i18n) => i18n.on("localeChanged", () => {}))); // your own plugin
+```
+
+Runtime and environment scoping live on the PLUGIN form, in two Next-specific
+installers exported from the root, `/client` and `/server`:
+
+| installer                        | what it registers                                                                                                                                          |
+| -------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `nextPlugin(plugin, options?)`   | `plugin`, run at `init()` only where `runtime` (`"client"` / `"server"`, omit for both) and `environment` (`"all"` / `"development"` / `"production"`) say |
+| `nextPluginLazy(load, options?)` | the plugin `load()` resolves to (`() => Promise<plugin \| { default: plugin }>`), imported at most once and only where the scope says                      |
+
+`options` also takes every plugin option (`required`, `timeout`, `onError`),
+forwarded to `registerPlugin`. Both attach the plugin host if the chain has not
+already, exactly like `definePlugin(fn)` — which is what an UNscoped plugin of
+your own goes through — and a plugin package goes straight in through its
+lowercase installer (`fetchLoader(…)`, never `FetchLoader(…)`). A plugin scoped
+out of the current runtime is still imported; `nextPluginLazy` is the form that
+defers the import too.
+
+**Never compose `localeDetector()` on this host.** It lives at module scope and
+is process-wide on the App Router, so the detector would run once, at the
+host's `init()`, and the first request's headers would pin the locale for every
+later render. `nextPlugin(LocaleDetector(…), { runtime: "client" })` is the
+form: the browser has exactly one visitor, and the server's locale is the
+request's (`getI18n()` passes it explicitly).
+
+An installer widens the host IN PLACE and returns it, and everything else in
+the result — `setI18n(i18n)`, the provider, the server helpers — holds that one
+host. So an installer that hands back a different object is refused with
+`code: "E_USE_HOST_IDENTITY"`, reported over `result.i18n` (the composed host),
+and a raw plugin handed to `use` — an async one included, whose rejection is
+swallowed so the identity error is the only report — gets the same error with
+the ways out in its development message. TypeScript catches all three misuses
+(an async installer, one that returns nothing, one that returns a copy) before
+runtime.
+
+**Upgrading from 0.4.x:** `use(plugin, options)` was Next's own scoped
+raw-plugin queue and is gone, and the four delegates `useClient`, `useServer`,
+`useClientLazy` and `useServerLazy` are **deleted**, not deprecated. Run
+`pnpm codemod:framework-slim "src/**/*.{ts,tsx,js,jsx}"`; the rename table it
+applies:
+
+| 0.4                                               | 0.5                                                              |
+| ------------------------------------------------- | ---------------------------------------------------------------- |
+| `.use(Plugin())`                                  | `.use(nextPlugin(Plugin()))` (`definePlugin` is equivalent)      |
+| `.use(FetchLoader(o))`                            | `.use(fetchLoader(o))`                                           |
+| `.use(Plugin(), { runtime, environment, …opts })` | `.use(nextPlugin(Plugin(), { runtime, environment, …opts }))`    |
+| `.use(load, { lazy: true, …opts })`               | `.use(nextPluginLazy(load, { …opts }))`                          |
+| `.useClient(p, o)` / `.useServer(p, o)`           | `.use(nextPlugin(p, { …o, runtime: "client" \| "server" }))`     |
+| `.useClientLazy(l, o)` / `.useServerLazy(l, o)`   | `.use(nextPluginLazy(l, { …o, runtime: "client" \| "server" }))` |
+| `nextI18n.i18n.registerLoader(map)`               | `.use(loader(map))` (the overload still works)                   |
 
 ### `createI18n` — the base host on both entries
 
@@ -393,7 +475,9 @@ and hand it to the companion factory, exported from **`@comvi/next/server`** and
 nowhere else:
 
 ```ts
-// i18n/index.ts
+// i18n/index.ts — a separate, self-contained example, not the quickstart app:
+// its own locale list, its own catalog. In an app, spread the `defineRouting`
+// object here exactly as `createNextI18n` does above.
 import "server-only";
 import { createI18n, createNextI18nFromHost, loader } from "@comvi/next/server";
 
@@ -417,13 +501,15 @@ The server **always** needs the loader
 interpolation enter the graph only if your factory composes them. Options are
 routing-only; locale, namespaces, translations, tags, plugins and the API key
 belong to the host factory and do not exist on the options type. The result is
-exactly `{ i18n, routing }`, with no `.use*` methods and your host type
-preserved.
+exactly `{ i18n, routing }` — no `.use` pipe, composition belongs in the factory
+— with your host type preserved.
 
-`host()` is not called when the factory returns. The first `result.i18n` access
-**or** the first server helper that needs the instance (`getI18n()`,
-`loadTranslations()`) resolves it. Two entry points reach one cell, there is no
-required initialization order, and `host()` is called exactly once.
+Construction is **eager**: `host()` runs exactly once, inside the call, and the
+instance it returns is both `result.i18n` and what `getI18n()` /
+`loadTranslations()` resolve. The documented shape is a module-scope
+`export const { i18n, routing } = …`, which is exactly when a module-scope host
+should be built — the same moment `createNextI18n` builds its own. A factory
+that throws configures nothing, so the module can be fixed and re-run.
 
 **Configure the server i18n once per process.** A second `setI18n(other)` used
 to overwrite the first silently; it now throws, in development and production,
@@ -433,34 +519,39 @@ The client recipe is a base host hydrated from the catalog the server
 serialized. Whole-app comvi graph, min+gz, `next` and `react` externalized
 (`pnpm size`, rows in `scripts/size-budgets.json`, each gated at measured + 5 %):
 
-| graph                                                    | min+gz   | row                             |
-| -------------------------------------------------------- | -------- | ------------------------------- |
-| server, `createNextI18nFromHost` on a composed base host | **7284** | `fw-next-server-default-loader` |
-| client, base host hydrated                               | **7120** | `fw-next-client-default`        |
+| graph                                                            | min+gz   | row                             |
+| ---------------------------------------------------------------- | -------- | ------------------------------- |
+| server, `createNextI18nFromHost` on a composed base host         | **7240** | `fw-next-server-default-loader` |
+| client, base host hydrated                                       | **7331** | `fw-next-client-default`        |
+| the recommended path: `createNextI18n` + `loader` + `nextPlugin` | **9450** | `fw-next-root-composed`         |
 
 A fully composed 0.4-style client (ICU + loader + plugins + devtools + `<T>`)
 is the migration CEILING rather than a parity claim. 0.4 also registered
 string-API tag syntax ambiently, and that is now an explicit `@comvi/core/tags`
 import which neither next entry re-exports.
 
-## One package: both `@comvi/next` entries
+## One package: all three `@comvi/next` entries
 
 `@comvi/next/client` and `@comvi/next/server` each carry the base host
-constructor and the identical eight-name capability toolkit, so a next app never
-names `@comvi/core`:
+constructor and the identical capability toolkit, and the root `@comvi/next`
+carries the toolkit beside `createNextI18n`, so a next app never names
+`@comvi/core`:
 
-| export                                     | what it is                                                     |
-| ------------------------------------------ | -------------------------------------------------------------- |
-| `createI18n`                               | core's base host constructor, the same binding on both entries |
-| `icuCompiler`                              | the ICU compiler, from core's pure `/icu` subpath              |
-| `loader`, `attachLoader`                   | from core's pure `/loader` subpath                             |
-| `plugins`, `attachPlugins`, `definePlugin` | from core's pure `/plugins` subpath                            |
-| `devtools`, `attachDevtools`               | from core's pure `/devtools` subpath                           |
+| export                                     | what it is                                                             |
+| ------------------------------------------ | ---------------------------------------------------------------------- |
+| `createI18n`                               | core's base host constructor, the same binding on both runtime entries |
+| `icuCompiler`                              | the ICU compiler, from core's pure `/icu` subpath                      |
+| `loader`, `attachLoader`                   | from core's pure `/loader` subpath                                     |
+| `plugins`, `attachPlugins`, `definePlugin` | from core's pure `/plugins` subpath                                    |
+| `devtools`, `attachDevtools`               | from core's pure `/devtools` subpath                                   |
+| `nextPlugin`, `nextPluginLazy`             | this package's runtime-scoped plugin installers                        |
 
-`DevtoolsOptions` comes with them as a type. The server entry carries the toolkit
-because `NextServerHost = WrapperI18nHost & I18nLoaderApi` makes the loader
-**mandatory** for SSR. The one host an app cannot avoid composing should not
-require a second package to compose.
+`DevtoolsOptions` and `NextPluginOptions` come with them as types. The server
+entry carries the toolkit because `NextServerHost = WrapperI18nHost &
+I18nLoaderApi` makes the loader **mandatory** for SSR. The one host an app cannot
+avoid composing should not require a second package to compose. The root carries
+it because a shared `i18n/config.ts` is imported by both runtimes and can name
+neither runtime entry.
 
 These are **named** re-exports of core's own bindings, from core's pure
 subpaths only, never through `@comvi/react`, because webpack development
