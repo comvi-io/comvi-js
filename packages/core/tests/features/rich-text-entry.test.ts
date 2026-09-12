@@ -22,6 +22,7 @@ import {
   createFragment,
   createTextNode,
   isVirtualNode,
+  registerTagSyntax,
 } from "../../src/rich-text";
 import { clearTemplateCache } from "../../src/core/translate";
 import { getAmbientExtensions, _resetSyntaxExtensions } from "../../src/core/translate/syntax";
@@ -55,6 +56,17 @@ describe("@comvi/core/rich-text (pure seam)", () => {
     // test): the handler is supplied, so only the missing grammar can keep the
     // markup literal.
     expect(host().t("msg" as never, { link: linkHandler } as never)).toBe(TEMPLATE);
+  });
+
+  it("exports registerTagSyntax as an explicit opt-in, next to prepareTranslation — calling it is what registers", () => {
+    // Same host/template as the previous test: literal until the exported
+    // function is actually called, which is the point — the export sitting in
+    // the import list above registered nothing on its own.
+    expect(host().t("msg" as never, { link: linkHandler } as never)).toBe(TEMPLATE);
+
+    registerTagSyntax();
+
+    expect(host().t("msg" as never, { link: linkHandler } as never)).toBe("Click [here] now");
   });
 
   it("prepareTranslation still parses tags — the extension travels per call", () => {
@@ -125,8 +137,11 @@ describe("@comvi/core/rich-text (pure seam)", () => {
     expect(tags.createFragment).toBe(createFragment);
     expect(tags.isVirtualNode).toBe(isVirtualNode);
 
-    // Plus the registration half, which the pure seam does not carry.
+    // Plus the registration half — same function `@comvi/core/tags` calls at
+    // import time (identity, not just a same-named copy), now also reachable
+    // from the pure seam as an explicit opt-in.
     expect(tags.registerTagSyntax).toBeTypeOf("function");
+    expect(tags.registerTagSyntax).toBe(registerTagSyntax);
     expect(getAmbientExtensions()).toHaveLength(1);
 
     clearTemplateCache();
