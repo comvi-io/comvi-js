@@ -121,8 +121,28 @@ project uses no plural/select.
 
 There is no `i18n.init()` call here because `setI18nContext` initializes the
 host itself (`autoInit`, on by default). The first paint therefore happens while
-the catalog is still in flight, so gate it on the `$isLoading` store from
-`useI18n()`.
+the catalog is still in flight, so gate it on the `$isInitializing` store from
+`useI18n()`. Svelte needs no provider component and no `fallback` prop for
+this — the gate is three lines of markup in the component that owns the
+children:
+
+```svelte
+<!-- src/routes/+page.svelte -->
+<script lang="ts">
+  import { useI18n } from "@comvi/svelte";
+
+  const { isInitializing, t } = useI18n();
+</script>
+
+{#if $isInitializing}
+  <div class="spinner"></div>
+{:else}
+  <h1>{$t("greeting", { name: "Alice" })}</h1>
+{/if}
+```
+
+`$isLoading` is the other axis: it goes true again for every later namespace or
+locale load, where the UI usually stays up rather than being replaced.
 
 That init runs in a microtask, so nothing in the component can await it. To see
 a failure, pass `onError`:

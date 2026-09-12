@@ -119,7 +119,25 @@ one rule left is vue's own: compose before `app.use(i18n)`.
 
 There is no `i18n.init()` call here because `app.use(i18n)` initializes the host
 itself. The first paint therefore happens while the catalog is still in flight,
-so gate it on the `isLoading` ref from `useI18n()`.
+so gate it on the `isInitializing` ref from `useI18n()`. Vue needs no `fallback`
+prop for this — the gate is three lines of template in the component that owns
+the children:
+
+```vue
+<script setup lang="ts">
+import { useI18n } from "@comvi/vue";
+
+const { t, isInitializing } = useI18n();
+</script>
+
+<template>
+  <div v-if="isInitializing" class="spinner" />
+  <h1 v-else>{{ t("greeting", { name: "Alice" }) }}</h1>
+</template>
+```
+
+`isLoading` is the other axis: it goes true again for every later namespace or
+locale load, where the UI usually stays up rather than being replaced.
 
 The distribution id in `cdnUrl` comes from the Comvi platform: open your project
 and read it off the **Distributions** page.

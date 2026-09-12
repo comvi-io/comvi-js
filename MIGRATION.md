@@ -491,6 +491,18 @@ catalogs are inline or loaded. Compose neither capability and `useI18nLoader()` 
   peer warning at install and a compile error after it (changeset
   `svelte-t-handler-error-path`); every 5.x from 5.3 on satisfies it.
 
+Two provider props are new in 0.5 and purely additive, so there is nothing to
+migrate: react's and solid's `<I18nProvider>` accept a `fallback`, rendered
+instead of the children until the host is initialized — the `isInitialized`
+axis, so no frame paints raw keys, and with `autoInit: false` the gate holds
+until you call `init()`; solid's accepts `ssrLocale`, the render locale for
+`renderToString` and hydration, spelled the way `@comvi/vue` and `@comvi/nuxt`
+spell it. React accepts `ssrLocale` too, as an alias of its own
+`ssrInitialLocale` — which stays canonical there and wins when both are passed.
+Svelte has no provider component and needs neither: gate the first paint on the
+`$isInitializing` store from `useI18n()`, and seed the render locale on the
+per-request host you build in `+layout.svelte` (§SSR in its README).
+
 ### `@comvi/vue`
 
 ```diff check=skip:proxy-relocation

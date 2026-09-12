@@ -1,7 +1,7 @@
 // @vitest-environment node
 /** Exercises the `getServerSnapshot` paths that happy-dom does not hit. */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import React from "react";
 import { renderToString } from "react-dom/server";
 
@@ -182,5 +182,102 @@ describe("@comvi/react SSR — a throwing tag handler is NOT contained on the se
       );
 
     expect(renderServerSide).toThrow(new Error("handler exploded"));
+  });
+});
+
+/**
+ * W4/Q4 — `ssrLocale` is the cross-binding spelling of `ssrInitialLocale`
+ * (`@comvi/vue` and `@comvi/nuxt` call the option that). Both are accepted;
+ * react's original name stays canonical and wins when both are passed.
+ */
+describe("@comvi/react SSR — ssrLocale, the cross-binding alias", () => {
+  const withGreeting = () =>
+    createI18n({
+      locale: "en",
+      translation: { en: { greeting: "Hello" }, de: { greeting: "Hallo" } },
+      exposeGlobal: false,
+    });
+
+  function Show() {
+    const { locale, t } = useI18n();
+    return <span data-locale={locale}>{t("greeting" as never)}</span>;
+  }
+
+  it("seeds the server snapshot locale on its own", () => {
+    const html = renderToString(
+      <I18nProvider i18n={withGreeting()} autoInit={false} ssrLocale="de">
+        <Show />
+      </I18nProvider>,
+    );
+
+    expect(html).toContain('data-locale="de"');
+    expect(html.replaceAll("<!-- -->", "")).toContain("Hallo");
+  });
+
+  it("loses to ssrInitialLocale when both are passed, and says so once", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    const html = renderToString(
+      <I18nProvider i18n={withGreeting()} autoInit={false} ssrInitialLocale="en" ssrLocale="de">
+        <Show />
+      </I18nProvider>,
+    );
+
+    expect(html).toContain('data-locale="en"');
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(warn.mock.calls[0]![0]).toContain("ssrInitialLocale wins");
+  });
+
+  it("stays silent when only one of the two is passed", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    renderToString(
+      <I18nProvider i18n={withGreeting()} autoInit={false} ssrLocale="de">
+        <Show />
+      </I18nProvider>,
+    );
+    renderToString(
+      <I18nProvider i18n={withGreeting()} autoInit={false} ssrInitialLocale="de">
+        <Show />
+      </I18nProvider>,
+    );
+
+    expect(warn).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * W4/Q2 — the `fallback` gate reads the SAME `isInitializing` the contexts
+ * carry, which on the server is whatever the SSR snapshot says. Default
+ * `ssrInitialIsInitializing` is `false`, so a server render is never gated.
+ */
+describe("@comvi/react SSR — fallback follows the server snapshot", () => {
+  const host = () =>
+    createI18n({ locale: "en", translation: { en: { greeting: "Hello" } }, exposeGlobal: false });
+
+  it("renders children, not the fallback, on the default server snapshot", () => {
+    const html = renderToString(
+      <I18nProvider i18n={host()} autoInit={false} fallback={<span>gate</span>}>
+        <T i18nKey={"greeting" as never} />
+      </I18nProvider>,
+    );
+
+    expect(html.replaceAll("<!-- -->", "")).toBe("Hello");
+  });
+
+  it("renders the fallback when ssrInitialIsInitializing says the host is initializing", () => {
+    const html = renderToString(
+      <I18nProvider
+        i18n={host()}
+        autoInit={false}
+        ssrInitialIsInitializing
+        fallback={<span>gate</span>}
+      >
+        <T i18nKey={"greeting" as never} />
+      </I18nProvider>,
+    );
+
+    expect(html).toContain("<span>gate</span>");
+    expect(html).not.toContain("Hello");
   });
 });

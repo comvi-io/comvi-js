@@ -161,6 +161,48 @@ function Greeting() {
 
 If you need a derived value, wrap it in a memo: `const greeting = createMemo(() => t("greeting", { name: "Alice" }))`, then read `greeting()`. (Coming from React/Vue, where `const g = t(...)` works because the whole component re-renders: Solid does not re-render, so the call must stay in a tracked position.)
 
+## `<I18nProvider>` props
+
+### `fallback` — gate the first paint
+
+Until the host is initialized there is nothing to translate with yet, so children render raw keys. Pass a `fallback` and it renders in their place until initialization finishes:
+
+```tsx
+import { I18nProvider } from "@comvi/solid";
+import { i18n } from "./i18n";
+import App from "./App";
+
+export default function Root() {
+  return (
+    <I18nProvider i18n={i18n} fallback={<div class="spinner" />}>
+      <App />
+    </I18nProvider>
+  );
+}
+```
+
+The axis is the provider's own `isInitialized` signal — the one `useI18n().isInitialized()` returns — and deliberately not `isInitializing`: auto-init starts from an effect, after the tree is built, so a gate on "is it initializing" is open for exactly the paint the raw keys would appear in. With `autoInit: false` the fallback therefore stays until your app calls `i18n.init()` itself, and during `renderToString` — where no effect runs and nothing initializes the host — the fallback is what the server paints, then what hydration reuses, until client init resolves. An SSR page whose catalog is already inline has nothing to wait for and wants no `fallback`. Both branches render inside the provider, so the fallback may call `useI18n()`. Omit the prop and children render throughout, exactly as before it existed.
+
+### `ssrLocale` — the render locale for SSR
+
+The host adopts `ssrLocale` at mount, before the locale signal is seeded, so `renderToString` and the hydrating client paint the same locale. It is the same option name `@comvi/vue` uses. Pass it on both sides — the server render and the client that hydrates it:
+
+```tsx
+import { I18nProvider } from "@comvi/solid";
+import { i18n } from "./i18n";
+import App from "./App";
+
+export function Root(props: { locale: string }) {
+  return (
+    <I18nProvider i18n={i18n} ssrLocale={props.locale}>
+      <App />
+    </I18nProvider>
+  );
+}
+```
+
+Without it the client keeps its own locale, the hydrated markup stays in the server's locale until the first reactive update, and then the text flips.
+
 ## The bare host: `useI18nHost()`
 
 `useI18nHost()` returns the `WrapperI18nHost` the nearest `<I18nProvider>`
@@ -655,9 +697,9 @@ See [`@comvi/plugin-fetch-loader`](https://github.com/comvi-io/comvi-js/tree/mai
 
 ## Server-Side Rendering
 
-`@comvi/solid` is **client-side rendering (CSR) only** today. `<I18nProvider>` auto-initializes the instance from a `createEffect`, which does not run during Solid's server render (`renderToString`), so translations are not initialized on the server. The reactive primitives populate on the client once the component mounts.
+A catalog the host already holds — an inline `translation` map — renders during `renderToString`, and [`ssrLocale`](#ssrlocale--the-render-locale-for-ssr) is how the server render and the hydrating client agree on which locale that is.
 
-If you render with SolidStart or another SSR setup, initialize and load translations on the client and gate UI on `isInitialized()` / `isLoading()` from `useI18n()` to avoid a flash of untranslated keys. Server-side translation resolution and hydration are not yet supported. Track progress in the [issues](https://github.com/comvi-io/comvi-js/issues).
+What does **not** happen on the server is initialization: `<I18nProvider>` calls `init()` from a `createEffect`, and effects do not run during Solid's server render. So a catalog that a loader would have fetched is absent server-side, and `isInitialized()` is `false` there. With SolidStart or another SSR setup, load such translations on the client and gate the UI with [`fallback`](#fallback--gate-the-first-paint) rather than letting keys paint — knowing that the gate is closed on the server too, so the page ships the fallback and swaps once the client host initializes. Server-side loading is not supported yet; track progress in the [issues](https://github.com/comvi-io/comvi-js/issues).
 
 ## License
 
