@@ -29,12 +29,13 @@ export { createI18n } from "@comvi/core";
 // and passes syntax per call, so importing or rendering it never registers
 // string-API tag syntax ambiently.
 // `loader()` / `plugins()` / `devtools()` are the CONFIGURED installers for
-// `i18n.use(…)`: one expression composes and configures a capability; the
-// `attach*` functions stay as the low-level API.
+// `i18n.use(…)`: one expression composes and configures a capability; `attachLoader`
+// stays as the low-level API (the `plugins`/`devtools` counterparts live on
+// `@comvi/core/plugins` and `@comvi/core/devtools` for advanced use).
 export { icuCompiler } from "@comvi/core/icu";
 export { attachLoader, loader } from "@comvi/core/loader";
-export { attachPlugins, definePlugin, plugins } from "@comvi/core/plugins";
-export { attachDevtools, devtools } from "@comvi/core/devtools";
+export { definePlugin, plugins } from "@comvi/core/plugins";
+export { devtools } from "@comvi/core/devtools";
 export type { DevtoolsOptions } from "@comvi/core/devtools";
 // The Next-scoped plugin installers: `runtime` / `environment` on the PLUGIN,
 // composed with the same `.use(…)` as everything above.

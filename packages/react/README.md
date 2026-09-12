@@ -356,8 +356,8 @@ invisible to this one's `useI18n()`.
 | `createI18n`, `I18n` (type)                | core's base host: its constructor, and its class as a type |
 | `icuCompiler`                              | from `@comvi/core/icu`: the ICU compiler                   |
 | `loader`, `attachLoader`                   | from `@comvi/core/loader`                                  |
-| `plugins`, `attachPlugins`, `definePlugin` | from `@comvi/core/plugins`                                 |
-| `devtools`, `attachDevtools`               | from `@comvi/core/devtools`                                |
+| `plugins`, `definePlugin`                  | from `@comvi/core/plugins`                                 |
+| `devtools`                                 | from `@comvi/core/devtools`                                |
 | every hook, `I18nProvider`, `T`, the types | the react bindings                                         |
 
 `I18n` is the class `createI18n` instantiates: core's base one, not a react
@@ -370,6 +370,11 @@ same object, so to call the constructor directly import the class from
 `loader(map)` attaches the capability **and** registers the map; for a plain
 `LoaderFn`, compose `.use(attachLoader)` and call `registerLoader(fn)`
 yourself (it keeps the import-map adapter out of your bundle).
+
+`plugins()` and `devtools(options)` are the configured installers for their
+capabilities; the low-level `attachPlugins` / `attachDevtools` pair is not
+re-exported here — import it from `@comvi/core/plugins` /
+`@comvi/core/devtools` directly if you need it.
 
 ### Default — text and `{param}` interpolation
 

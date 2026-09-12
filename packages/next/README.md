@@ -537,14 +537,14 @@ constructor and the identical capability toolkit, and the root `@comvi/next`
 carries the toolkit beside `createNextI18n`, so a next app never names
 `@comvi/core`:
 
-| export                                     | what it is                                                             |
-| ------------------------------------------ | ---------------------------------------------------------------------- |
-| `createI18n`                               | core's base host constructor, the same binding on both runtime entries |
-| `icuCompiler`                              | the ICU compiler, from core's pure `/icu` subpath                      |
-| `loader`, `attachLoader`                   | from core's pure `/loader` subpath                                     |
-| `plugins`, `attachPlugins`, `definePlugin` | from core's pure `/plugins` subpath                                    |
-| `devtools`, `attachDevtools`               | from core's pure `/devtools` subpath                                   |
-| `nextPlugin`, `nextPluginLazy`             | this package's runtime-scoped plugin installers                        |
+| export                         | what it is                                                             |
+| ------------------------------ | ---------------------------------------------------------------------- |
+| `createI18n`                   | core's base host constructor, the same binding on both runtime entries |
+| `icuCompiler`                  | the ICU compiler, from core's pure `/icu` subpath                      |
+| `loader`, `attachLoader`       | from core's pure `/loader` subpath                                     |
+| `plugins`, `definePlugin`      | from core's pure `/plugins` subpath                                    |
+| `devtools`                     | from core's pure `/devtools` subpath                                   |
+| `nextPlugin`, `nextPluginLazy` | this package's runtime-scoped plugin installers                        |
 
 `DevtoolsOptions` and `NextPluginOptions` come with them as types. The server
 entry carries the toolkit because `NextServerHost = WrapperI18nHost &
@@ -565,6 +565,11 @@ Neither entry re-exports `@comvi/core/tags`, the one side-effectful subpath:
 importing it registers string-API tag syntax ambiently, and that stays your
 app's explicit call. `next-server-on-default` asserts those tag chunks never
 reach a server graph at all.
+
+`plugins()` and `devtools(options)` are the configured installers for their
+capabilities; the low-level `attachPlugins` / `attachDevtools` pair is not
+re-exported from any next entry — import it from `@comvi/core/plugins` /
+`@comvi/core/devtools` directly if you need it.
 
 ## Rich text with `<T>`
 

@@ -239,8 +239,8 @@ A svelte app names one package and nothing else.
 | `createI18n`, `I18n` (type)                  | core's base host: its constructor, and its class as a type |
 | `icuCompiler`                                | from `@comvi/core/icu`: the ICU compiler                   |
 | `loader`, `attachLoader`                     | from `@comvi/core/loader`                                  |
-| `plugins`, `attachPlugins`, `definePlugin`   | from `@comvi/core/plugins`                                 |
-| `devtools`, `attachDevtools`                 | from `@comvi/core/devtools`                                |
+| `plugins`, `definePlugin`                    | from `@comvi/core/plugins`                                 |
+| `devtools`                                   | from `@comvi/core/devtools`                                |
 | every store factory, the readers, `T`, types | the svelte bindings                                        |
 
 There is no svelte-side wrapper object to build. The host goes straight into
@@ -254,6 +254,11 @@ the constructor directly import the class from `@comvi/core`.
 `loader(map)` attaches the capability **and** registers the map; for a plain
 `LoaderFn`, compose `.use(attachLoader)` and call `registerLoader(fn)`
 yourself (it keeps the import-map adapter out of your bundle).
+
+`plugins()` and `devtools(options)` are the configured installers for their
+capabilities; the low-level `attachPlugins` / `attachDevtools` pair is not
+re-exported here — import it from `@comvi/core/plugins` /
+`@comvi/core/devtools` directly if you need it.
 
 ### Default — text and `{param}` interpolation
 

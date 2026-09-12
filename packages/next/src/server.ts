@@ -34,8 +34,8 @@ export type { LoadTranslationsOptions, TranslationsResult } from "./server/loadT
 export { createI18n } from "@comvi/core";
 export { icuCompiler } from "@comvi/core/icu";
 export { attachLoader, loader } from "@comvi/core/loader";
-export { attachPlugins, definePlugin, plugins } from "@comvi/core/plugins";
-export { attachDevtools, devtools } from "@comvi/core/devtools";
+export { definePlugin, plugins } from "@comvi/core/plugins";
+export { devtools } from "@comvi/core/devtools";
 export type { DevtoolsOptions } from "@comvi/core/devtools";
 // The Next-scoped plugin installers: `runtime` / `environment` on the PLUGIN,
 // composed with the same `.use(…)` as everything above.

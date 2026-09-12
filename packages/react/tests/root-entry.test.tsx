@@ -11,11 +11,11 @@
 import { describe, it, expect } from "vitest";
 import { renderHook } from "@testing-library/react";
 import type { ReactNode } from "react";
-import { attachDevtools, devtools } from "@comvi/core/devtools";
+import { devtools } from "@comvi/core/devtools";
 import { icuCompiler } from "@comvi/core/icu";
 import { attachLoader, loader } from "@comvi/core/loader";
 import type { I18nLoaderApi } from "@comvi/core/loader";
-import { attachPlugins, plugins } from "@comvi/core/plugins";
+import { plugins } from "@comvi/core/plugins";
 import type { I18nPluginHostApi } from "@comvi/core/plugins";
 import { I18n, createI18n } from "@comvi/core";
 import type { WrapperI18nHost } from "@comvi/core";
@@ -73,8 +73,10 @@ describe("@comvi/react — the capability toolkit", () => {
     expect(root.attachLoader).toBe(attachLoader);
     // `flattenCatalog` is NOT re-exported: nested catalogs are base behaviour (C1).
     expect(root).not.toHaveProperty("flattenCatalog");
-    expect(root.attachPlugins).toBe(attachPlugins);
-    expect(root.attachDevtools).toBe(attachDevtools);
+    // `attachPlugins`/`attachDevtools` are NOT re-exported here: they stay on
+    // `@comvi/core/plugins` and `@comvi/core/devtools` for advanced use (P4).
+    expect(root).not.toHaveProperty("attachPlugins");
+    expect(root).not.toHaveProperty("attachDevtools");
     // The installers are core's own factories, one hop, same rule.
     expect(root.loader).toBe(loader);
     expect(root.plugins).toBe(plugins);
@@ -130,9 +132,7 @@ describe("@comvi/react — the export surface", () => {
   const SURFACE = [
     "I18nProvider",
     "T",
-    "attachDevtools",
     "attachLoader",
-    "attachPlugins",
     "createI18n",
     "definePlugin",
     "devtools",

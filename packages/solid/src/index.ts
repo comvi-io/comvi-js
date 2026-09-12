@@ -49,8 +49,8 @@ export {
 // works too.
 export { icuCompiler } from "@comvi/core/icu";
 export { attachLoader, loader } from "@comvi/core/loader";
-export { attachPlugins, definePlugin, plugins } from "@comvi/core/plugins";
-export { attachDevtools, devtools } from "@comvi/core/devtools";
+export { definePlugin, plugins } from "@comvi/core/plugins";
+export { devtools } from "@comvi/core/devtools";
 
 export type * from "@comvi/core";
 export type { DevtoolsOptions } from "@comvi/core/devtools";

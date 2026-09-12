@@ -4,9 +4,9 @@
 // a typed-then-crashes path.
 import type { I18n, I18nLoaderApi, I18nPluginHostApi, WrapperI18nHost } from "../../src/index";
 import { createI18n as createCore } from "@comvi/core";
+import { attachPlugins } from "@comvi/core/plugins";
 import {
   attachLoader,
-  attachPlugins,
   createI18n,
   createI18nFromCore,
   devtools,

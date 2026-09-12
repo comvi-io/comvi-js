@@ -152,16 +152,14 @@ describe("exports map smoke (F0b)", () => {
     const surface = pkg as unknown as Record<string, unknown>;
     expect(surface).not.toHaveProperty("I18n");
 
-    for (const name of [
-      "loader",
-      "attachLoader",
-      "plugins",
-      "attachPlugins",
-      "devtools",
-      "attachDevtools",
-    ]) {
+    for (const name of ["loader", "attachLoader", "plugins", "devtools"]) {
       expect(typeof surface[name], `${name} must be callable`).toBe("function");
     }
+
+    // P4: the low-level `attach*` pair for plugins/devtools stays off this
+    // root — `@comvi/core/plugins` and `@comvi/core/devtools` carry it.
+    expect(surface).not.toHaveProperty("attachPlugins");
+    expect(surface).not.toHaveProperty("attachDevtools");
 
     // `icuCompiler` is the odd one out on purpose: a `MessageCompiler` record,
     // not a factory. It is what `createI18n({ compiler })` takes, and it is the

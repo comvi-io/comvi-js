@@ -278,8 +278,8 @@ the [0.5.0 migration guide](https://github.com/comvi-io/comvi-js/blob/main/MIGRA
 | `I18n` (type)                                   | the base class the preset's `core` is an instance of     |
 | `icuCompiler`                                   | from `@comvi/core/icu`: the ICU compiler                 |
 | `loader`, `attachLoader`                        | from `@comvi/core/loader`                                |
-| `plugins`, `attachPlugins`, `definePlugin`      | from `@comvi/core/plugins`                               |
-| `devtools`, `attachDevtools`                    | from `@comvi/core/devtools`                              |
+| `plugins`, `definePlugin`                       | from `@comvi/core/plugins`                               |
+| `devtools`                                      | from `@comvi/core/devtools`                              |
 | `VueI18n`, the composables, `T`, the inject key | the vue bindings                                         |
 
 `createI18n` is vue's own function, not a rename: there is a `VueI18n` to
@@ -287,6 +287,11 @@ construct, and `ssrLocale` has to reach the host before the reactive ref is
 seeded so the ref and `core.locale` cannot disagree for a render. The
 composition pipe reads the same as in the other bindings anyway, because
 `.use(installer)` is on the `VueI18n` as well as on the host.
+
+`plugins()` and `devtools(options)` are the configured installers for their
+capabilities; the low-level `attachPlugins` / `attachDevtools` pair is not
+re-exported here — import it from `@comvi/core/plugins` /
+`@comvi/core/devtools` directly if you need it.
 
 **Named, which is the point — and it costs nine 0.4.x names.** The table above
 is the whole value surface. 0.4.x carried `export * from "@comvi/core"`, so

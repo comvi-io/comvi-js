@@ -12,9 +12,7 @@ import type {
   WrapperI18nHost,
 } from "../../src/index";
 import {
-  attachDevtools,
   attachLoader,
-  attachPlugins,
   createI18n,
   definePlugin,
   devtools,
@@ -22,6 +20,8 @@ import {
   loader,
   plugins,
 } from "../../src/index";
+import { attachPlugins } from "@comvi/core/plugins";
+import { attachDevtools } from "@comvi/core/devtools";
 import * as rootEntry from "../../src/index";
 
 type Equal<X, Y> =
@@ -56,6 +56,16 @@ export type _IcuHostIsStillBase = Expect<Equal<typeof _withIcu, I18n<{}>>>;
 // …and there is no installer beside it: `icu` is gone from the entry.
 export type _NoIcuInstaller = Expect<
   Equal<"icu" extends keyof typeof import("../../src") ? true : false, false>
+>;
+
+// P4: the low-level `attach*` pair for plugins/devtools is gone from this
+// root — `plugins()`/`devtools()` are the configured installers here, and the
+// advanced pair lives on `@comvi/core/plugins` / `@comvi/core/devtools`.
+export type _NoAttachPluginsExport = Expect<
+  Equal<"attachPlugins" extends keyof typeof import("../../src") ? true : false, false>
+>;
+export type _NoAttachDevtoolsExport = Expect<
+  Equal<"attachDevtools" extends keyof typeof import("../../src") ? true : false, false>
 >;
 
 // The host the entry builds is the host its provider accepts: one entry, one

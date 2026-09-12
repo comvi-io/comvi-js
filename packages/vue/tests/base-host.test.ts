@@ -11,7 +11,8 @@ import { describe, it, expect } from "vitest";
 import { defineComponent, h, nextTick } from "vue";
 import { mount } from "@vue/test-utils";
 import { createI18n as createCore } from "@comvi/core";
-import { attachLoader, attachPlugins, createI18nFromCore, T, useI18n } from "../src/index";
+import { attachPlugins } from "@comvi/core/plugins";
+import { attachLoader, createI18nFromCore, T, useI18n } from "../src/index";
 import type { AnyVueI18n } from "../src/index";
 
 const baseHost = () =>
