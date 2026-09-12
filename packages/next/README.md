@@ -421,10 +421,10 @@ build and the client build, and each build EVALUATES the module independently:
 `createComposedNextI18n` (`packages/next/src/composedHost.ts`) runs once on the
 server, producing the instance `setI18n()` registers, and runs again inside the
 browser, producing a second, unrelated instance, when the client bundle
-executes `config.ts` to get `i18n` for `<I18nProvider i18n={i18n}>`. Nothing is
-serialized from the running server instance to the browser at request time —
-there is no wire format for a compiled `MessageCompiler` or a queued plugin to
-travel across. The client host has `compiler: icuCompiler` and the CDN loader
+executes `config.ts` to get `i18n` for `<I18nProvider i18n={i18n}>`. The
+catalog the server loaded does travel, as the `messages` prop; the instance's
+composition does not — there is no wire format for a compiled `MessageCompiler`
+or a queued plugin to travel across. The client host has `compiler: icuCompiler` and the CDN loader
 ONLY because the exact same `createNextI18n({ … }).use(cdnLoader({ … }))`
 expression in `config.ts` runs a second time, in the browser, producing an
 equivalent host from equivalent source. If a project instead built a
