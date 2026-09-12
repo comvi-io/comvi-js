@@ -207,6 +207,20 @@ export interface UseI18nReturn<
   on: <E extends I18nEvent>(event: E, callback: (payload: I18nEventData[E]) => void) => () => void;
   /** Report an error to the configured onError handler. */
   reportError: Host["reportError"];
+
+  // D″ tombstones. These four members LEFT `useI18n()` in 0.5 for
+  // `useI18nLoader()` / `useI18nPlugins()`. Declaring each optional and
+  // `never` keeps the name visible — struck through in autocomplete, with the
+  // acquisition in the tooltip — while any use stays a type error. Type-only:
+  // the object `useI18n()` returns never carries these keys, in any build.
+  /** @deprecated Moved in 0.5. Acquire it: `const { addActiveNamespace } = useI18nLoader()`. */
+  addActiveNamespace?: never;
+  /** @deprecated Moved in 0.5. Acquire it: `const { reloadTranslations } = useI18nLoader()`. */
+  reloadTranslations?: never;
+  /** @deprecated Moved in 0.5. Acquire it: `const { onLoadError } = useI18nLoader()`. */
+  onLoadError?: never;
+  /** @deprecated Moved in 0.5. Acquire it: `const { onMissingKey } = useI18nPlugins()`. */
+  onMissingKey?: never;
 }
 
 /**

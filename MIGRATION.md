@@ -192,6 +192,15 @@ type error rather than a runtime surprise. You acquire the four explicitly
 instead, and a host without the capability fails at that one call, with a message
 naming the fix.
 
+Each of the four is still DECLARED on `useI18n()`'s return type, as a
+`@deprecated` tombstone typed `never`, so a 0.4 destructure fails with the
+acquisition in the tooltip (`const { reloadTranslations } = useI18nLoader()`)
+rather than a bare "Property does not exist"; nothing is added at runtime.
+**Vue's `useI18n()` additionally drops `hasTranslationNow` / `hasLocaleNow`** —
+`hasTranslation` and `hasLocale` are already the non-reactive form in the other
+three bindings — and the pair stays on the `VueI18n` class, reachable as
+`inject(I18N_INJECTION_KEY)!.hasTranslationNow(...)`.
+
 ## 2. The migration table
 
 | 0.4.x                                                   | 0.5.0                                                                                                                                                       |

@@ -105,14 +105,6 @@ const ALLOWED_MEMBER_DIFFERENCES = {
     only: ["@comvi/react", "@comvi/solid", "@comvi/svelte"],
     reason: "the getter half of vue's `defaultNamespace` ComputedRef",
   },
-  hasTranslationNow: {
-    only: ["@comvi/vue"],
-    reason: "removal is a source break, tombstoned in wave 4",
-  },
-  hasLocaleNow: {
-    only: ["@comvi/vue"],
-    reason: "removal is a source break, tombstoned in wave 4",
-  },
   destroy: {
     only: ["@comvi/vue"],
     reason:
@@ -204,20 +196,43 @@ export function parseInterfaceMembers(body) {
     .map((text) => text.trim())
     .filter(Boolean)
     .map((text) => {
-      const name = /^(\w+)\s*[?:(<]/.exec(text);
+      const name = /^(\w+)\s*(\??)\s*[:(<]/.exec(text);
       assert.ok(name, `unparseable interface member: ${JSON.stringify(text)}`);
       const colon = text.indexOf(":", name[1].length);
-      return { name: name[1], type: colon === -1 ? "" : text.slice(colon + 1).trim() };
+      const type = colon === -1 ? "" : text.slice(colon + 1).trim();
+      // A D″ tombstone (`name?: never`) is a DECLARATION, not a member: the
+      // object `useI18n()` returns never carries the key, so it must not enter
+      // the member-set diff — vue tombstones two names the other three never
+      // had, and every tombstone is absent from all four at runtime. THE RULE
+      // IS: optional and `never` means tombstone. The tombstone tests further
+      // down assert the wording and the per-binding sets instead.
+      return { name: name[1], type, tombstone: name[2] === "?" && type === "never" };
     });
 }
 
-/** `useI18n()`'s members per binding, parsed from the source interface. */
-const USE_I18N_MEMBERS = Object.fromEntries(
+/** Everything each binding's `UseI18nReturn` declares, tombstones included. */
+const USE_I18N_DECLARATIONS = Object.fromEntries(
   Object.entries(USE_I18N_RETURN).map(([pkg, relativePath]) => [
     pkg,
     parseInterfaceMembers(
       extractInterfaceBody(readSource(relativePath), "UseI18nReturn", relativePath),
     ),
+  ]),
+);
+
+/** `useI18n()`'s real members per binding: the declarations bar the tombstones. */
+const USE_I18N_MEMBERS = Object.fromEntries(
+  Object.entries(USE_I18N_DECLARATIONS).map(([pkg, declarations]) => [
+    pkg,
+    declarations.filter((m) => !m.tombstone),
+  ]),
+);
+
+/** The tombstoned names per binding: declared `name?: never`, returned by nothing. */
+const USE_I18N_TOMBSTONES = Object.fromEntries(
+  Object.entries(USE_I18N_DECLARATIONS).map(([pkg, declarations]) => [
+    pkg,
+    declarations.filter((m) => m.tombstone).map((m) => m.name),
   ]),
 );
 
@@ -487,6 +502,127 @@ test("every binding's useI18n() formatters take the trailing locale override", (
     [],
     "formatter arity drift: every binding's formatters end in an optional locale override",
   );
+});
+
+// ---------------------------------------------------------------------------
+// D″ (wave 4) — the tombstones. A member that LEFT `useI18n()` in 0.5 is
+// re-declared `name?: never`, so a 0.4 destructure fails with the acquisition
+// in the tooltip instead of "Property does not exist". Tombstones are excluded
+// from the member-set diff above BY RULE (optional + `never`), which is what
+// lets vue tombstone two names the other three never had; the wording and the
+// per-binding sets are asserted here instead of on the allow-list.
+// ---------------------------------------------------------------------------
+
+/** The four members the 0.4 `UseI18nReturn` had and the 0.5 one does not. */
+const RELOCATED_TOMBSTONES = {
+  addActiveNamespace: "const { addActiveNamespace } = useI18nLoader()",
+  reloadTranslations: "const { reloadTranslations } = useI18nLoader()",
+  onLoadError: "const { onLoadError } = useI18nLoader()",
+  onMissingKey: "const { onMissingKey } = useI18nPlugins()",
+};
+
+/** Vue's two extra tombstones (Q6): removed from `useI18n()`, kept on the class. */
+const VUE_ONLY_TOMBSTONES = {
+  hasTranslationNow: "inject(I18N_INJECTION_KEY).hasTranslationNow",
+  hasLocaleNow: "inject(I18N_INJECTION_KEY).hasLocaleNow",
+};
+
+/** The exact declaration a tombstone must carry, comment included. */
+const tombstoneDeclaration = (name, acquisition) =>
+  `/** @deprecated Moved in 0.5. Acquire it: \`${acquisition}\`. */\n  ${name}?: never;`;
+
+test("parseInterfaceMembers marks `name?: never` a tombstone and nothing else", () => {
+  const members = parseInterfaceMembers(
+    extractInterfaceBody(
+      [
+        "export interface UseI18nReturn {",
+        "  t: TranslateFn;",
+        "  isLoading?: boolean;",
+        "  never: () => void;",
+        "  reloadTranslations?: never;",
+        "}",
+      ].join("\n"),
+      "UseI18nReturn",
+      "f.ts",
+    ),
+  );
+
+  assert.deepEqual(
+    members.map((m) => [m.name, m.tombstone]),
+    [
+      ["t", false],
+      ["isLoading", false],
+      ["never", false],
+      ["reloadTranslations", true],
+    ],
+  );
+});
+
+test("every binding tombstones the four relocated members, worded identically", () => {
+  const missing = [];
+  for (const [pkg, relativePath] of Object.entries(USE_I18N_RETURN)) {
+    const source = readSource(relativePath);
+    for (const [name, acquisition] of Object.entries(RELOCATED_TOMBSTONES)) {
+      const declaration = tombstoneDeclaration(name, acquisition);
+      if (!source.includes(declaration)) missing.push(`${pkg} (${relativePath}): ${name}`);
+    }
+  }
+
+  assert.deepEqual(
+    missing,
+    [],
+    "each relocated member needs its tombstone, byte-identical in all four bindings:\n" +
+      Object.entries(RELOCATED_TOMBSTONES)
+        .map(([name, acquisition]) => tombstoneDeclaration(name, acquisition))
+        .join("\n"),
+  );
+});
+
+test("vue alone tombstones hasTranslationNow / hasLocaleNow, toward the class", () => {
+  const vueSource = readSource(USE_I18N_RETURN["@comvi/vue"]);
+  for (const [name, acquisition] of Object.entries(VUE_ONLY_TOMBSTONES)) {
+    assert.ok(
+      vueSource.includes(tombstoneDeclaration(name, acquisition)),
+      `vue must tombstone ${name} toward \`${acquisition}\``,
+    );
+  }
+
+  const leaked = Object.keys(USE_I18N_RETURN).filter(
+    (pkg) =>
+      pkg !== "@comvi/vue" &&
+      Object.keys(VUE_ONLY_TOMBSTONES).some((name) =>
+        USE_I18N_DECLARATIONS[pkg].some((m) => m.name === name),
+      ),
+  );
+  assert.deepEqual(leaked, [], "the *Now pair was vue-only; do not declare it elsewhere");
+});
+
+test("the tombstoned names per binding are exactly the expected sets", () => {
+  const expected = {
+    "@comvi/react": Object.keys(RELOCATED_TOMBSTONES),
+    "@comvi/solid": Object.keys(RELOCATED_TOMBSTONES),
+    "@comvi/svelte": Object.keys(RELOCATED_TOMBSTONES),
+    "@comvi/vue": [...Object.keys(RELOCATED_TOMBSTONES), ...Object.keys(VUE_ONLY_TOMBSTONES)],
+  };
+
+  for (const [pkg, names] of Object.entries(expected)) {
+    assert.deepEqual(
+      USE_I18N_TOMBSTONES[pkg].slice().sort(),
+      names.slice().sort(),
+      `${pkg}: unexpected tombstone set`,
+    );
+  }
+});
+
+test("no binding still declares a tombstoned name as a real member", () => {
+  const tombstoned = new Set(Object.values(USE_I18N_TOMBSTONES).flat());
+  const live = [];
+  for (const [pkg, members] of Object.entries(USE_I18N_MEMBERS)) {
+    for (const member of members) {
+      if (tombstoned.has(member.name)) live.push(`${pkg}: ${member.name}`);
+    }
+  }
+  assert.deepEqual(live, [], "a name is either a member of `useI18n()` or a tombstone, never both");
 });
 
 // ---------------------------------------------------------------------------
