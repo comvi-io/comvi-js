@@ -347,14 +347,14 @@ A host used to take two packages: the constructor from `@comvi/core`, the
 bindings from `@comvi/<framework>`. Each framework package now carries the base
 constructor and the capability toolkit on the ONE entry it publishes.
 
-| binding         | specifier                                  | host constructor                                                                                    |
-| --------------- | ------------------------------------------ | --------------------------------------------------------------------------------------------------- |
-| `@comvi/react`  | `@comvi/react`                             | `createI18n`                                                                                        |
-| `@comvi/solid`  | `@comvi/solid`                             | `createI18n`                                                                                        |
-| `@comvi/svelte` | `@comvi/svelte`                            | `createI18n`                                                                                        |
-| `@comvi/vue`    | `@comvi/vue`                               | `createI18n`, plus `.use(…)` on its result; `createCore` / `createI18nFromCore` advanced, unchanged |
-| `@comvi/next`   | `@comvi/next/client`, `@comvi/next/server` | `createI18n`; see §6                                                                                |
-| `@comvi/nuxt`   | auto-imported                              | generated, or `hostModule`; see §7                                                                  |
+| binding         | specifier                                  | host constructor                                                                                                                   |
+| --------------- | ------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `@comvi/react`  | `@comvi/react`                             | `createI18n`                                                                                                                       |
+| `@comvi/solid`  | `@comvi/solid`                             | `createI18n`                                                                                                                       |
+| `@comvi/svelte` | `@comvi/svelte`                            | `createI18n`                                                                                                                       |
+| `@comvi/vue`    | `@comvi/vue`                               | `createI18n`, plus `.use(…)` on its result; `createI18nFromCore` wraps a host built elsewhere with `createI18n` from `@comvi/core` |
+| `@comvi/next`   | `@comvi/next/client`, `@comvi/next/server` | `createI18n`; see §6                                                                                                               |
+| `@comvi/nuxt`   | auto-imported                              | generated, or `hostModule`; see §7                                                                                                 |
 
 Next's two entries are a RUNTIME split, not a host-tier split: both publish the
 same base constructor and the same toolkit. Eight capability bindings are
@@ -497,9 +497,9 @@ composed at all: it is `compiler: icuCompiler` in the options, beside
 `ssrLocale`. Assign the result: a discarded `i18n.use(…)` still attaches the
 capability at runtime but leaves the binding's `core` unwidened. Compose before
 `app.use(i18n)`, which starts `init()` and drains the plugin queue once.
-`createCore` (core's own constructor)
-and `createI18nFromCore` (a host you built yourself) are unchanged and advanced:
-they are for a host built elsewhere, such as Nuxt's `hostModule` (§7) or one host
+`createI18nFromCore` (wrapping a host you built yourself, with `createI18n` from
+`@comvi/core`; the `createCore` alias is gone) is unchanged and advanced:
+it is for a host built elsewhere, such as Nuxt's `hostModule` (§7) or one host
 shared between a Vue app and non-Vue code. `.use(…)` works on a
 `createI18nFromCore` result too.
 
