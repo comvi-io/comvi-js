@@ -62,7 +62,7 @@ anything but itself: the lazy-trigger, cycle and retry cases were rewritten to p
 contract.
 
 **The root carries the toolkit.** `icuCompiler`, `loader`, `attachLoader`, `plugins`,
-`attachPlugins`, `definePlugin`, `devtools`, `attachDevtools` (and `DevtoolsOptions`) are now
+`definePlugin`, `devtools` (and `DevtoolsOptions`) are now
 re-exported from `@comvi/next` as well, because a shared `i18n/config.ts` is imported by both
 runtimes and can name neither `/client` (`"use client"`) nor `/server` (`next/headers`). A new size
 row, `fw-next-root-composed`, gates the recommended path.

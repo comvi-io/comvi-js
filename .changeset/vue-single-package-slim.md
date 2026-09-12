@@ -15,7 +15,8 @@ createApp(App).use(plain).mount("#app");
 const composed = createI18n({ locale: "en", ssrLocale: "en" }).use(loader(importMap));
 composed.core.reloadTranslations(); // typed: the loader is on `core`
 
-// host built elsewhere: `createCore` IS core's constructor, same package
+// host built elsewhere: core's own constructor, imported from @comvi/core
+// (`import { createI18n as createCore } from "@comvi/core"`)
 const host = createCore({ locale: "en" }).use(loader(importMap));
 const wrapped = createI18nFromCore(host, { ssrLocale: "en" }); // wrapped.core is exactly `host`
 ```
@@ -23,13 +24,12 @@ const wrapped = createI18nFromCore(host, { ssrLocale: "en" }); // wrapped.core i
 | export                                            | what it is                                                      |
 | ------------------------------------------------- | --------------------------------------------------------------- |
 | `createI18n`                                      | the preset — a `VueI18n` over a base host, with `.use(…)` on it |
-| `createCore`                                      | core's own constructor, for a host built outside the app        |
 | `createI18nFromCore`                              | unchanged — wraps that host, preserving its exact type          |
-| `I18n`                                            | the base class `createI18n` and `createCore` both produce       |
+| `I18n`                                            | the base class `createI18n` produces                            |
 | `icuCompiler`                                     | from `@comvi/core/icu` — the ICU compiler                       |
 | `loader`, `attachLoader`                          | from `@comvi/core/loader`                                       |
-| `plugins`, `attachPlugins`, `definePlugin`        | from `@comvi/core/plugins`                                      |
-| `devtools`, `attachDevtools`                      | from `@comvi/core/devtools`                                     |
+| `plugins`, `definePlugin`                         | from `@comvi/core/plugins`                                      |
+| `devtools`                                        | from `@comvi/core/devtools`                                     |
 | `VueI18n`, the composables, `<T>`, the inject key | unchanged                                                       |
 
 Vue is the one binding whose preset is a real function — there is a `VueI18n` to construct,
@@ -40,6 +40,10 @@ the same option shape it always did, `ssrLocale` and `compiler` included, and re
 it does not have; the eight dropped proxies stay dropped. The composition pipe goes on that
 wrapper: `createI18n(options).use(loader(map))` composes on the host underneath and retypes
 `core` to match.
+
+`attachPlugins` / `attachDevtools` are deliberately NOT among them: they are the low-level
+pair `plugins()` / `devtools()` already configure, and they stay on `@comvi/core/plugins` and
+`@comvi/core/devtools` (see `roots-drop-attach-pair.md`).
 
 The re-exports cost nothing: they are **named** re-exports of core's own bindings
 (`vue.attachLoader === attachLoader`), from core's pure subpaths only — never `export *`,

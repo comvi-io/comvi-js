@@ -1,14 +1,20 @@
 [
   {
-    "line": 11,
-    "column": 1,
-    "shape": "sfc-template-raw-t",
-    "detail": "<T raw> in a .vue/.svelte template — this codemod does not parse template markup; rename the prop to skipPostProcess by hand (raw keeps working, deprecated, until removed)"
-  },
-  {
     "line": 12,
     "column": 1,
     "shape": "sfc-template-raw-t",
-    "detail": "<T raw> in a .vue/.svelte template — this codemod does not parse template markup; rename the prop to skipPostProcess by hand (raw keeps working, deprecated, until removed)"
+    "detail": "<T raw> in a .vue/.svelte template — this codemod does not parse template markup; rename the prop to skipPostProcess by hand (`skip-post-process` in a Vue template, which camelizes it back) — raw keeps working, deprecated, until removed"
+  },
+  {
+    "line": 13,
+    "column": 1,
+    "shape": "sfc-template-raw-t",
+    "detail": "<T raw> in a .vue/.svelte template — this codemod does not parse template markup; rename the prop to skipPostProcess by hand (`skip-post-process` in a Vue template, which camelizes it back) — raw keeps working, deprecated, until removed"
+  },
+  {
+    "line": 15,
+    "column": 1,
+    "shape": "sfc-template-raw-t",
+    "detail": "<T raw> in a .vue/.svelte template — this codemod does not parse template markup; rename the prop to skipPostProcess by hand (`skip-post-process` in a Vue template, which camelizes it back) — raw keeps working, deprecated, until removed"
   }
 ]

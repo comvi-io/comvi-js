@@ -9,9 +9,10 @@ has them.
 
 **New:** `useI18nLoader()` / `useI18nPlugins()` composables (`UseI18nLoaderReturn`,
 `UseI18nPluginsReturn`); and, as the escape hatch for a host built elsewhere,
-`createCore(options)` — core's own constructor, re-exported by name because vue's `createI18n`
-is a real preset that already owns that name — with `createI18nFromCore(core, options?)` to
-wrap it, preserving its exact type as `i18n.core`. `createI18n(options)` is unchanged and
+`createI18nFromCore(core, options?)`, which wraps a host built with `createI18n` from
+`@comvi/core` directly (`import { createI18n as createCore } from "@comvi/core"`) and preserves
+its exact type as `i18n.core`. This package does not re-export core's constructor under a second
+name — see `vue-drop-create-core.md`. `createI18n(options)` is unchanged and
 still the default: it builds the host internally from the same options object, and
 `.use(installer)` on its result composes capabilities onto that host.
 

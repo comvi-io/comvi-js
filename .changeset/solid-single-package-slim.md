@@ -17,14 +17,18 @@ const i18n = createI18n({ locale: "en", compiler: icuCompiler }).use(loader(impo
 | `createI18n`, `I18n`                            | core's base host — its constructor and its class |
 | `icuCompiler`                                   | from `@comvi/core/icu` — the ICU compiler        |
 | `loader`, `attachLoader`                        | from `@comvi/core/loader`                        |
-| `plugins`, `attachPlugins`, `definePlugin`      | from `@comvi/core/plugins`                       |
-| `devtools`, `attachDevtools`                    | from `@comvi/core/devtools`                      |
+| `plugins`, `definePlugin`                       | from `@comvi/core/plugins`                       |
+| `devtools`                                      | from `@comvi/core/devtools`                      |
 | every primitive, `I18nProvider`, `T`, the types | the solid bindings                               |
 
 There is no solid-side wrapper object to build — the host goes straight into
 `<I18nProvider i18n={…}>` — so the constructor IS core's own `createI18n`, re-exported by
 name. ICU is here on purpose, so neither recipe makes a solid app reach for a core
 subpath.
+
+`attachPlugins` / `attachDevtools` are deliberately NOT among them: they are the low-level
+pair `plugins()` / `devtools()` already configure, and they stay on `@comvi/core/plugins` and
+`@comvi/core/devtools` (see `roots-drop-attach-pair.md`).
 
 The re-exports cost nothing: they are **named** re-exports of core's own bindings
 (`solid.attachLoader === attachLoader`), from core's pure subpaths only — never `export *`,

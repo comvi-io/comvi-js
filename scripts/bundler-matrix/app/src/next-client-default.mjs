@@ -11,8 +11,8 @@
 // hooks ARE the capability subpaths — `acquireLoaderApi` lives on
 // `@comvi/core/loader`, `acquirePluginsApi` on `@comvi/core/plugins` — so merely
 // referencing one pulls the module this case asserts absent. The export surface
-// they used to pin here is pinned harder by the packages' own entry tests, which
-// CALL them through the published root.
+// they used to pin here is pinned by the packages' own SOURCE entry tests, which
+// CALL them through `src/index` rather than through the published root.
 //
 // A namespace import here would keep every re-export of this entry live and
 // defeat the very absences the case exists to assert.
