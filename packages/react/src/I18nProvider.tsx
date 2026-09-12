@@ -110,13 +110,19 @@ export interface I18nProviderProps {
   /** Auto-initialize the i18n instance on mount (default: true). */
   autoInit?: boolean;
   /**
-   * Rendered INSTEAD of `children` while the host is initializing, so the
-   * first paint is not a flash of raw keys. Omit it and `children` render
-   * throughout, exactly as before this prop existed.
+   * Rendered INSTEAD of `children` until the host is INITIALIZED, so no paint
+   * is ever a flash of raw keys. Omit it and `children` render throughout,
+   * exactly as before this prop existed.
    *
-   * It reads the same `isInitializing` axis `useIsLoading()` exposes, so on
-   * the server the SSR snapshot decides: `ssrInitialIsInitializing` is `false`
-   * by default and `children` render immediately.
+   * The axis is `isInitialized`, not `isInitializing`: `init()` starts from an
+   * effect, after the first render, so a gate on "is it initializing" is open
+   * for exactly the frame the raw keys would paint in. With `autoInit: false`
+   * the fallback therefore stays until your app calls `i18n.init()` itself.
+   *
+   * On the server the SSR snapshot decides: `ssrInitialIsInitializing` is
+   * `false` by default, so `children` render — and, being the snapshot the
+   * hydration render reads too, the hydrated markup matches before the gate
+   * re-applies on the client.
    *
    * `undefined` is the same as omitting it; for a blank gate pass `false`.
    *
@@ -214,16 +220,25 @@ export function I18nProvider({
     () => i18n.isInitializing,
     () => ssrInitialIsInitializing,
   );
+  // The `fallback` gate's axis. Same host field `useI18n().isInitialized`
+  // reads and the same subscription the two above use — `initialized` is in
+  // it, and that is the event that flips this. On the server it is the
+  // negation of the initializing snapshot, so the SSR contract is unchanged:
+  // `ssrInitialIsInitializing: false` (the default) means "ready, render the
+  // children".
+  const isInitialized = useSyncExternalStore(
+    subLoading,
+    () => i18n.isInitialized,
+    () => !ssrInitialIsInitializing,
+  );
 
   const instanceValue = useMemo<I18nInstanceContextValue>(
     () => ({ i18n, isLoading, isInitializing }),
     [i18n, isLoading, isInitializing],
   );
 
-  // ONE source of truth for the gate: the same `isInitializing` the contexts
-  // carry, which on the server is whatever `ssrInitialIsInitializing` says.
   // Both branches sit inside the providers, so the fallback may use the hooks.
-  const gated = fallback !== undefined && isInitializing;
+  const gated = fallback !== undefined && !isInitialized;
 
   return (
     <I18nInstanceContext.Provider value={instanceValue}>

@@ -484,8 +484,9 @@ catalogs are inline or loaded. Compose neither capability and `useI18nLoader()` 
 
 Two provider props are new in 0.5 and purely additive, so there is nothing to
 migrate: react's and solid's `<I18nProvider>` accept a `fallback`, rendered
-instead of the children while the host is initializing, so a remote catalog no
-longer paints raw keys first; solid's accepts `ssrLocale`, the render locale for
+instead of the children until the host is initialized — the `isInitialized`
+axis, so no frame paints raw keys, and with `autoInit: false` the gate holds
+until you call `init()`; solid's accepts `ssrLocale`, the render locale for
 `renderToString` and hydration, spelled the way `@comvi/vue` and `@comvi/nuxt`
 spell it. React accepts `ssrLocale` too, as an alias of its own
 `ssrInitialLocale` — which stays canonical there and wins when both are passed.

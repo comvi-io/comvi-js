@@ -183,7 +183,7 @@ Alternatively, use a third-party Error Boundary library like [react-error-bounda
 
 ### `fallback` — gate the first paint
 
-While the host is initializing there is nothing to translate with yet, so children render raw keys for one paint. Pass a `fallback` and it renders in their place until initialization finishes:
+Until the host is initialized there is nothing to translate with yet, so children render raw keys. Pass a `fallback` and it renders in their place until initialization finishes:
 
 ```tsx
 import { createI18n, I18nProvider } from "@comvi/react";
@@ -200,7 +200,9 @@ export default function Root() {
 }
 ```
 
-It reads the same `isInitializing` value `useIsLoading()` returns, so a hand-rolled gate and this one can never disagree. Both branches render inside the provider, so the fallback may use the hooks. During `renderToString` the SSR snapshot decides, and `ssrInitialIsInitializing` is `false` by default — a server render is never gated. Omit the prop and children render throughout, exactly as before it existed.
+The axis is `isInitialized` — the same host state `useI18n().isInitialized` reads — and deliberately not `isInitializing`: `init()` starts from an effect, after the first render, so a gate on "is it initializing" is open for exactly the frame the raw keys would paint in. With `autoInit: false` the fallback therefore stays until your app calls `i18n.init()` itself. Both branches render inside the provider, so the fallback may use the hooks. Omit the prop and children render throughout, exactly as before it existed.
+
+During `renderToString` the SSR snapshot decides, and `ssrInitialIsInitializing` is `false` by default — a server render is never gated, and because the hydration render reads that same snapshot, the hydrated markup matches before the gate re-applies on the client. On a page whose server render already produced real text, prefer no `fallback`: there is nothing to wait for, and gating it would replace correct content with a spinner until the client host initializes.
 
 ### `ssrLocale` — the render locale for SSR
 

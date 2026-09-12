@@ -48,14 +48,17 @@ export interface I18nProviderProps {
   /** Auto-initialize the instance on mount (default: true). */
   autoInit?: boolean;
   /**
-   * Rendered INSTEAD of `children` while the host is initializing, so the
-   * first paint is not a flash of raw keys. Omit it and `children` render
-   * throughout, exactly as before this prop existed.
+   * Rendered INSTEAD of `children` until the host is INITIALIZED, so no paint
+   * is ever a flash of raw keys. Omit it and `children` render throughout,
+   * exactly as before this prop existed.
    *
-   * It reads the provider's own `isInitializing` signal — the one
-   * `useI18n().isInitializing()` returns — so the gate closes the moment
-   * auto-init starts and opens when it resolves. During `renderToString` the
-   * effect that starts init never runs, so `children` render.
+   * The axis is the provider's own `isInitialized` signal — the one
+   * `useI18n().isInitialized()` returns — not `isInitializing`: auto-init
+   * starts from an effect, after the tree is built, so a gate on "is it
+   * initializing" is open for exactly the paint the raw keys would appear in.
+   * With `autoInit: false` the fallback therefore stays until your app calls
+   * `i18n.init()` itself, and during `renderToString` — where no effect runs
+   * and nothing initializes the host — the fallback is what the server paints.
    *
    * @example
    * ```tsx
@@ -155,7 +158,7 @@ export const I18nProvider: ParentComponent<I18nProviderProps> = (props) => {
       }}
     >
       {hasFallback ? (
-        <Show when={!signals.isInitializing()} fallback={props.fallback}>
+        <Show when={signals.isInitialized()} fallback={props.fallback}>
           {props.children}
         </Show>
       ) : (

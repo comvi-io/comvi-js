@@ -165,7 +165,7 @@ If you need a derived value, wrap it in a memo: `const greeting = createMemo(() 
 
 ### `fallback` — gate the first paint
 
-While the host is initializing there is nothing to translate with yet, so children render raw keys. Pass a `fallback` and it renders in their place until initialization finishes:
+Until the host is initialized there is nothing to translate with yet, so children render raw keys. Pass a `fallback` and it renders in their place until initialization finishes:
 
 ```tsx
 import { I18nProvider } from "@comvi/solid";
@@ -181,7 +181,7 @@ export default function Root() {
 }
 ```
 
-It reads the provider's own `isInitializing` signal — the one `useI18n().isInitializing()` returns — so a hand-rolled gate and this one can never disagree. Solid flushes the provider's effect before `render()` returns, so the gate is already closed on the first paint. Both branches render inside the provider, so the fallback may call `useI18n()`. Omit the prop and children render throughout, exactly as before it existed.
+The axis is the provider's own `isInitialized` signal — the one `useI18n().isInitialized()` returns — and deliberately not `isInitializing`: auto-init starts from an effect, after the tree is built, so a gate on "is it initializing" is open for exactly the paint the raw keys would appear in. With `autoInit: false` the fallback therefore stays until your app calls `i18n.init()` itself, and during `renderToString` — where no effect runs and nothing initializes the host — the fallback is what the server paints, then what hydration reuses, until client init resolves. An SSR page whose catalog is already inline has nothing to wait for and wants no `fallback`. Both branches render inside the provider, so the fallback may call `useI18n()`. Omit the prop and children render throughout, exactly as before it existed.
 
 ### `ssrLocale` — the render locale for SSR
 
@@ -699,7 +699,7 @@ See [`@comvi/plugin-fetch-loader`](https://github.com/comvi-io/comvi-js/tree/mai
 
 A catalog the host already holds — an inline `translation` map — renders during `renderToString`, and [`ssrLocale`](#ssrlocale--the-render-locale-for-ssr) is how the server render and the hydrating client agree on which locale that is.
 
-What does **not** happen on the server is initialization: `<I18nProvider>` calls `init()` from a `createEffect`, and effects do not run during Solid's server render. So a catalog that a loader would have fetched is absent server-side, and `isInitialized()` is `false` there. With SolidStart or another SSR setup, load such translations on the client and gate the UI with [`fallback`](#fallback--gate-the-first-paint) rather than letting keys paint. Server-side loading is not supported yet; track progress in the [issues](https://github.com/comvi-io/comvi-js/issues).
+What does **not** happen on the server is initialization: `<I18nProvider>` calls `init()` from a `createEffect`, and effects do not run during Solid's server render. So a catalog that a loader would have fetched is absent server-side, and `isInitialized()` is `false` there. With SolidStart or another SSR setup, load such translations on the client and gate the UI with [`fallback`](#fallback--gate-the-first-paint) rather than letting keys paint — knowing that the gate is closed on the server too, so the page ships the fallback and swaps once the client host initializes. Server-side loading is not supported yet; track progress in the [issues](https://github.com/comvi-io/comvi-js/issues).
 
 ## License
 
