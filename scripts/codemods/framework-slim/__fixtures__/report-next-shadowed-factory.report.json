@@ -1,0 +1,8 @@
+[
+  {
+    "line": 12,
+    "column": 9,
+    "shape": "shadowed-host-binding",
+    "detail": "`createNextI18n` is imported from \"@comvi/next\" AND declared locally in this module, so its result chains may not be the imported one — they are left untouched; rename the local binding and re-run"
+  }
+]

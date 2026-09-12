@@ -9,6 +9,7 @@
  * | 6 | `.with(installer)`, chained or stored | `.use(installer)`            |
  * | 7 | `host.use(raw)` on a plugin host      | `host.registerPlugin(raw)`   |
  * | 8 | `flattenCatalog` from a moved entry   | imported from `@comvi/core`  |
+ * | 9–13 | the `createNextI18n(…)` result     | see `next-result.mjs`        |
  * | + | `.with(icu())`, anywhere in a chain   | reported, never rewritten    |
  * | + | `.with(` on an unprovable receiver    | reported, never rewritten    |
  *
@@ -79,6 +80,8 @@ import {
   namedImports,
   planNamedImports,
 } from "./imports.mjs";
+import { argumentsOf, brief, calleeName, isProvableRawPlugin } from "./chain.mjs";
+import { planNextResult } from "./next-result.mjs";
 import { braceListInsertion, braceListMembers, braceListRemoval } from "./script-blocks.mjs";
 import { scopeOf } from "./scope.mjs";
 
@@ -94,25 +97,6 @@ const HOST_MODULES = new Set([
 
 const spanOf = (node) => ({ start: node.range().start.index, end: node.range().end.index });
 const startOf = (node) => node.range().start.index;
-
-/** One line of a node's text, for a report a human reads. */
-function brief(node) {
-  const flat = node.text().replace(/\s+/g, " ").trim();
-  return flat.length > 60 ? `${flat.slice(0, 59)}…` : flat;
-}
-
-/** The argument expressions of a call, comments and punctuation excluded. */
-function argumentsOf(call) {
-  const args = call.field("arguments");
-  return args === null ? [] : braceListMembers(args);
-}
-
-/** The name a call invokes, when that is a plain identifier. */
-function calleeName(node) {
-  if (node === undefined || node === null || node.kind() !== "call_expression") return undefined;
-  const callee = node.field("function");
-  return callee !== null && callee.kind() === "identifier" ? callee.text() : undefined;
-}
 
 /**
  * The name a host CONSTRUCTION invokes — `createI18n(o)` and `new I18n(o)` are
@@ -185,46 +169,6 @@ function removedIcuInstallerAt(root, step) {
     binding.imported === REMOVED_ICU_INSTALLER &&
     binding.source.startsWith("@comvi/");
   return removed ? name : undefined;
-}
-
-/**
- * Is this argument a PROVABLE raw plugin — something that cannot be an
- * installer?
- *
- * Four shapes, and they are the same four the chain path decides on
- * (`planChain` below, the `raw-plugin-needs-helper` branch):
- *
- *   • an Uppercase factory call, `FetchLoader()`, the published convention;
- *   • `new Uppercase()`, the class spelling of the same thing;
- *   • a member expression ending in an Uppercase call, `pkg.MyPlugin()`, which
- *     is that convention reached through a namespace;
- *   • an INLINE function or arrow, which needs no convention at all: an
- *     installer widens the host and returns it, so a literal function in the
- *     slot cannot be one.
- *
- * Everything else — a lowercase callee, a bare binding, an element read, a
- * spread — is NOT provable, and the two callers treat it as such.
- */
-function isProvableRawPlugin(argument) {
-  if (argument === undefined) return false;
-  const kind = argument.kind();
-  if (kind === "arrow_function" || kind === "function_expression") return true;
-  if (kind === "new_expression") {
-    const constructor = argument.field("constructor");
-    if (constructor === null) return false;
-    const name =
-      constructor.kind() === "member_expression"
-        ? constructor.field("property")?.text()
-        : constructor.text();
-    return name !== undefined && /^[A-Z]/.test(name);
-  }
-  if (kind !== "call_expression") return false;
-  const callee = argument.field("function");
-  if (callee === null) return false;
-  if (callee.kind() === "identifier") return /^[A-Z]/.test(callee.text());
-  if (callee.kind() !== "member_expression") return false;
-  const property = callee.field("property");
-  return property !== null && /^[A-Z]/.test(property.text());
 }
 
 const keyText = (key) => (key.kind() === "string" ? key.text().slice(1, -1) : key.text());
@@ -1213,6 +1157,16 @@ export function planSingleEntry(root, text) {
   manual.push(...residual.manual);
   edits.push(...residual.edits);
   if (residual.renames > 0) count("use-verb-rename", residual.renames);
+
+  // The `createNextI18n(…)` result is its own receiver family (`@comvi/next`
+  // is not a host module above): planned here so its imports land in the ONE
+  // import plan below.
+  const nextResult = planNextResult(root);
+  manual.push(...nextResult.manual);
+  edits.push(...nextResult.edits);
+  for (const [kind, amount] of nextResult.transforms) count(kind, amount);
+  for (const [name, module] of nextResult.needs) needs.set(name, module);
+  for (const name of nextResult.prunable) prunable.add(name);
 
   const imports = planNamedImports(root, text, needs);
   edits.push(...imports.edits);

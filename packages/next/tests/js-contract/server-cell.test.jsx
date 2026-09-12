@@ -23,7 +23,8 @@ const conflict = (configured, incoming) =>
   `[comvi/next] i18n already configured by ${configured}; ${incoming} is a second source. ` +
   "Configure it once — only a same-instance setI18n() repeats.";
 
-const CYCLE = "[comvi/next] i18n host factory cycle: the factory read the instance it is building.";
+const NOT_CONFIGURED =
+  "[comvi/next] i18n not configured. Call setI18n(i18n) or createNextI18nFromHost(host, routing).";
 
 const host = () =>
   attachLoader(createI18n({ locale: "en", defaultNs: "common", exposeGlobal: false }));
@@ -39,19 +40,7 @@ describe(`server i18n once-cell — conflicts (${__COMVI_CORE_BUILD__} core buil
     expect(() => createNextI18nFromHost(host, ROUTING)).toThrow(conflict(SET_I18N, FACTORY));
   });
 
-  it("rejects setI18n after a host registration, before resolution", () => {
-    createNextI18nFromHost(host, ROUTING);
-
-    expect(() => setI18n(host())).toThrow(conflict(FACTORY, SET_I18N));
-  });
-
-  it("rejects a second host registration", () => {
-    createNextI18nFromHost(host, ROUTING);
-
-    expect(() => createNextI18nFromHost(host, ROUTING)).toThrow(conflict(FACTORY, FACTORY));
-  });
-
-  it("rejects setI18n with a DIFFERENT instance after the host resolved", () => {
+  it("rejects setI18n with a DIFFERENT instance after a host registration", () => {
     const result = createNextI18nFromHost(host, ROUTING);
     const resolved = result.i18n;
 
@@ -59,7 +48,20 @@ describe(`server i18n once-cell — conflicts (${__COMVI_CORE_BUILD__} core buil
     expect(getI18nInstance()).toBe(resolved);
   });
 
-  it("accepts setI18n with the SAME instance after the host resolved", () => {
+  it("rejects a second host registration WITHOUT building its host", () => {
+    createNextI18nFromHost(host, ROUTING);
+    let built = 0;
+
+    expect(() =>
+      createNextI18nFromHost(() => {
+        built += 1;
+        return host();
+      }, ROUTING),
+    ).toThrow(conflict(FACTORY, FACTORY));
+    expect(built).toBe(0);
+  });
+
+  it("accepts setI18n with the SAME instance after a host registration", () => {
     const result = createNextI18nFromHost(host, ROUTING);
     const resolved = result.i18n;
 
@@ -84,61 +86,31 @@ describe(`server i18n once-cell — conflicts (${__COMVI_CORE_BUILD__} core buil
   });
 });
 
-describe(`server i18n once-cell — resolution failures (${__COMVI_CORE_BUILD__} core build)`, () => {
+describe(`server i18n once-cell — construction failures (${__COMVI_CORE_BUILD__} core build)`, () => {
   beforeEach(() => {
     _resetServerI18n();
   });
 
-  it("throws a cycle error when the host factory reads the instance it is building", () => {
-    const result = createNextI18nFromHost(() => {
-      getI18nInstance();
-      return host();
-    }, ROUTING);
-
-    expect(() => result.i18n).toThrow(CYCLE);
+  it("a factory that reads the instance it is building sees the not-configured error", () => {
+    expect(() =>
+      createNextI18nFromHost(() => {
+        getI18nInstance();
+        return host();
+      }, ROUTING),
+    ).toThrow(NOT_CONFIGURED);
   });
 
-  it("throws the same cycle error through the result getter", () => {
-    let result;
-    result = createNextI18nFromHost(() => {
-      // eslint-disable-next-line @typescript-eslint/no-unused-expressions -- the read IS the probe
-      result.i18n;
-      return host();
-    }, ROUTING);
-
-    expect(() => result.i18n).toThrow(CYCLE);
-  });
-
-  it("propagates a factory throw and retries on the next access", () => {
-    let attempts = 0;
-    const result = createNextI18nFromHost(() => {
-      attempts += 1;
-      if (attempts === 1) {
+  it("propagates a factory throw out of the call and leaves the cell EMPTY", () => {
+    expect(() =>
+      createNextI18nFromHost(() => {
         throw new Error("host factory boom");
-      }
-      return host();
-    }, ROUTING);
+      }, ROUTING),
+    ).toThrow("host factory boom");
 
-    expect(() => result.i18n).toThrow("host factory boom");
-    expect(attempts).toBe(1);
-
-    const resolved = result.i18n;
-
-    expect(attempts).toBe(2);
-    expect(resolved).toBeDefined();
-    expect(getI18nInstance()).toBe(resolved);
-    expect(attempts).toBe(2);
-  });
-
-  it("leaves no half-initialized cell behind a failed resolution", () => {
-    const result = createNextI18nFromHost(() => {
-      throw new Error("host factory boom");
-    }, ROUTING);
-
-    expect(() => result.i18n).toThrow("host factory boom");
-    expect(() => getI18nInstance()).toThrow("host factory boom");
-    // Still `factory`, so the cell is neither empty nor resolved: a second
-    // configuration source is still a conflict, not a silent takeover.
-    expect(() => setI18n(host())).toThrow(conflict(FACTORY, SET_I18N));
+    expect(() => getI18nInstance()).toThrow(NOT_CONFIGURED);
+    // Nothing was configured, so either source may still configure it.
+    const only = host();
+    expect(() => setI18n(only)).not.toThrow();
+    expect(getI18nInstance()).toBe(only);
   });
 });

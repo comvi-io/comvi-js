@@ -166,6 +166,23 @@ export const FLATTEN_CATALOG_MOVED_FROM = [
   "@comvi/next/server",
 ];
 
+// ---------------------------------------------------------------------------
+// The `createNextI18n(…)` result (decision D7 for Next)
+// ---------------------------------------------------------------------------
+
+/** The composed-root factory `@comvi/next` publishes, and its specifier. */
+export const NEXT_ROOT = "@comvi/next";
+export const NEXT_RESULT_FACTORY = "createNextI18n";
+
+/**
+ * The two Next-scoped plugin installers `result.use(…)` takes after N1:
+ * `nextPlugin(plugin, { runtime, environment, …pluginOptions })` and its
+ * lazily imported twin. What used to be `result.use(plugin, options)` — the
+ * scoped raw-plugin queue — and its four runtime-fixed delegates.
+ */
+export const NEXT_PLUGIN_INSTALLER = "nextPlugin";
+export const NEXT_PLUGIN_LAZY_INSTALLER = "nextPluginLazy";
+
 /** The installer that now owns the two dropped constructor options. */
 export const DEVTOOLS_INSTALLER = "devtools";
 

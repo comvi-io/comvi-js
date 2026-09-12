@@ -8,7 +8,6 @@
 // catalogs no longer depend on this order: the base host flattens them itself.)
 import "@comvi/core/tags"; // ambient tag syntax, as the 0.4 root registered it
 import { I18n, createI18n } from "@comvi/core";
-import { icuCompiler } from "@comvi/core/icu";
 import { attachLoader, createImportMapLoader } from "@comvi/core/loader";
 import type { LoaderImportMap } from "@comvi/core/loader";
 import { attachPlugins } from "@comvi/core/plugins";
@@ -44,9 +43,9 @@ export function createComposedNextI18n<const D extends DefaultTranslationParams 
     translation?: I18nOptions["translation"];
   };
 
-  const host = attachPlugins(
-    attachLoader(createI18n<D>({ ...rest, compiler: icuCompiler } as unknown as I18nOptions<D>)),
-  );
+  // The compiler is the caller's: `createNextI18n` defaults it to `icuCompiler`
+  // and publishes that default, so nothing is forced here.
+  const host = attachPlugins(attachLoader(createI18n<D>(rest as unknown as I18nOptions<D>)));
 
   // The 0.4 root's `registerLoader` accepted a static import map as well as a
   // loader function; `attachLoader` installs only the function form, so the

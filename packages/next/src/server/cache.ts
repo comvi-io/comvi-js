@@ -13,29 +13,17 @@ const getRequestStore = cache(
 );
 
 /**
- * The server i18n once-cell. Two configuration sources feed it
- * (`setI18n(instance)` and `createNextI18nFromHost()`, a factory that must not
- * run until something needs the instance) and two paths resolve it (the factory
- * result's `i18n` getter and `getI18nInstance()`); neither path is required to
- * run first.
- *
- * `resolving` is a transient micro-state held only for the duration of the
- * synchronous factory call, so re-entrancy is a loud cycle error rather than a
- * second `host()` invocation. Resolution is synchronous by construction (the
- * factory is `() => C`), so concurrent server renders — which can only
- * interleave at await points — observe `factory` → `resolved` as atomic.
+ * The server i18n once-cell. Two configuration sources feed it —
+ * `setI18n(instance)` and `createNextI18nFromHost()`, which builds its host
+ * EAGERLY, inside the call — and `getI18nInstance()` reads it.
  *
  * Module-local, deliberately NEVER anchored on `globalThis`: a Next dev
  * recompile re-evaluates this module and gets a fresh `empty` cell. A surviving
  * cell that a re-run setup module conflicts with throws loudly (remedy: a full
  * dev-server restart) rather than silently resetting.
  */
-type HostFactory = () => ServerI18nHost;
-
 type CellState =
   | { readonly kind: "empty" }
-  | { readonly kind: "factory"; readonly factory: HostFactory }
-  | { readonly kind: "resolving"; readonly factory: HostFactory }
   | { readonly kind: "resolved"; readonly instance: ServerI18nHost; readonly bySetI18n: boolean };
 
 const SOURCE_FACTORY = "createNextI18nFromHost()";
@@ -105,49 +93,29 @@ export function setI18n(i18n: NextServerHost): void {
 }
 
 /**
- * Register a host FACTORY without invoking it (the lazy half of
- * `createNextI18nFromHost`).
+ * Build and register the host (the `createNextI18nFromHost` half).
+ *
+ * The conflict check comes FIRST, so a second configuration source never
+ * builds a host it cannot register; a `build()` that throws propagates and
+ * leaves the cell `empty`, exactly as if the call had never happened.
  * @internal
  */
-export function registerServerI18nFactory(factory: HostFactory): void {
+export function registerServerI18nHost<C extends ServerI18nHost>(build: () => C): C {
   if (cell.kind !== "empty") {
     throw configurationConflict(cell, SOURCE_FACTORY);
   }
-  cell = { kind: "factory", factory };
+  const instance = build();
+  cell = { kind: "resolved", instance, bySetI18n: false };
+  return instance;
 }
 
 /**
- * Resolve the once-cell: run the registered factory at most once, memoize
- * synchronously, and hand every later access the same instance.
- *
- * A factory that throws propagates its error and restores the `factory` state,
- * so the next access retries — an arbitrary `() => C` cannot be assumed
- * deterministic, and a stuck half-initialized cell would be worse than a
- * retry. The exactly-once guarantee is therefore about SUCCESSFUL resolution.
- *
+ * The configured instance, or the not-configured error naming both sources.
  * @internal
  */
 export function getI18nInstance(): ServerI18nHost {
   if (cell.kind === "resolved") {
     return cell.instance;
-  }
-  if (cell.kind === "factory") {
-    const { factory } = cell;
-    cell = { kind: "resolving", factory };
-    let instance: ServerI18nHost;
-    try {
-      instance = factory();
-    } catch (error) {
-      cell = { kind: "factory", factory };
-      throw error;
-    }
-    cell = { kind: "resolved", instance, bySetI18n: false };
-    return instance;
-  }
-  if (cell.kind === "resolving") {
-    throw new Error(
-      "[comvi/next] i18n host factory cycle: the factory read the instance it is building.",
-    );
   }
   throw new Error(
     "[comvi/next] i18n not configured. Call setI18n(i18n) or createNextI18nFromHost(host, routing).",

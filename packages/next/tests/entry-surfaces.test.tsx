@@ -17,6 +17,8 @@ import { attachLoader, loader } from "@comvi/core/loader";
 import { attachPlugins, plugins } from "@comvi/core/plugins";
 import type { WrapperI18nHost } from "@comvi/core";
 import * as client from "../src/client";
+import * as root from "../src/index";
+import { nextPlugin, nextPluginLazy } from "../src/nextPlugin";
 import { I18nProvider } from "../src/client/I18nProvider";
 
 const wrapperFor = (i18n: WrapperI18nHost) =>
@@ -105,6 +107,13 @@ describe("@comvi/next/client — the capability toolkit", () => {
     expect(i18n.getLoader()).toBeUndefined();
   });
 
+  it("carries the two Next-scoped installers, the same bindings as the root", () => {
+    expect(client.nextPlugin).toBe(nextPlugin);
+    expect(client.nextPluginLazy).toBe(nextPluginLazy);
+    expect(root.nextPlugin).toBe(nextPlugin);
+    expect(root.nextPluginLazy).toBe(nextPluginLazy);
+  });
+
   it("never re-exports the side-effectful tags toolbox", () => {
     // `registerTagSyntax` comes from ambient `@comvi/core/tags`; the pure
     // `prepareTranslation` toolbox lives on `/rich-text` and reaches this entry
@@ -112,6 +121,23 @@ describe("@comvi/next/client — the capability toolkit", () => {
     expect(client).not.toHaveProperty("registerTagSyntax");
     expect(client).not.toHaveProperty("tagSyntaxExtension");
     expect(client).not.toHaveProperty("prepareTranslation");
+  });
+});
+
+describe("@comvi/next — the root carries the toolkit a shared config module needs", () => {
+  it("re-exports core's own bindings, the same ones both runtime entries carry", () => {
+    // A shared `i18n/config.ts` is imported by both runtimes, so it can name
+    // neither `/client` ("use client") nor `/server` (`next/headers`): the
+    // installers it composes onto `createNextI18n(…)` come from here.
+    expect(root.icuCompiler).toBe(icuCompiler);
+    expect(root.attachLoader).toBe(attachLoader);
+    expect(root.loader).toBe(loader);
+    expect(root.attachPlugins).toBe(attachPlugins);
+    expect(root.plugins).toBe(plugins);
+    expect(root.attachDevtools).toBe(attachDevtools);
+    expect(root.devtools).toBe(devtools);
+    expect(root).not.toHaveProperty("flattenCatalog");
+    expect(root).not.toHaveProperty("createNextI18nFromHost");
   });
 });
 
@@ -145,6 +171,8 @@ describe("@comvi/next/server — the same surface for the SSR half", () => {
     expect(server.loader).toBe(loader);
     expect(server.plugins).toBe(plugins);
     expect(server.devtools).toBe(devtools);
+    expect(server.nextPlugin).toBe(nextPlugin);
+    expect(server.nextPluginLazy).toBe(nextPluginLazy);
   });
 
   it("never re-exports the side-effectful tags toolbox — that one IS a graph claim", async () => {

@@ -1,11 +1,11 @@
 // The PUBLISHED `@comvi/next` root type contract: `createNextI18n` returns the
 // exact, explicitly published `NextComposedI18n<D>` the non-exported builder
 // produces. `tests/composed-contract.test.ts` is the behavioural half.
-import type { NextComposedI18n } from "@comvi/next";
-import { createNextI18n } from "@comvi/next";
+import type { NextComposedI18n, NextPluginOptions } from "@comvi/next";
+import { createNextI18n, definePlugin, loader, nextPlugin, nextPluginLazy } from "@comvi/next";
 import { defineRouting } from "../../src/routing";
 import type { CreateNextI18nResult } from "../../src/createNextI18n";
-import type { I18n, I18nLoaderApi, I18nPluginHostApi, LoaderFn } from "@comvi/core";
+import type { I18n, I18nLoaderApi, I18nPlugin, I18nPluginHostApi, LoaderFn } from "@comvi/core";
 import type { LoaderImportMap } from "@comvi/core/loader";
 
 type Equal<X, Y> =
@@ -39,21 +39,85 @@ composed.registerLoader(map);
 // @ts-expect-error -- neither a loader function nor an import map
 composed.registerLoader(42);
 
-// Every result method returns the result, so `.use*` chains.
+// `.use(installer)` is the composition pipe: it hands back the SAME result
+// type with `i18n` retyped to what the installer widened the host to.
 const _result = createNextI18n({ locales: ["en"], defaultLocale: "en" });
-export type _UseChains = Expect<Equal<ReturnType<typeof _result.use>, CreateNextI18nResult>>;
-export type _UseClientChains = Expect<
-  Equal<ReturnType<typeof _result.useClient>, CreateNextI18nResult>
+export type _ResultIsThreeFields = Expect<
+  Equal<keyof CreateNextI18nResult, "i18n" | "routing" | "use">
 >;
-export type _UseServerChains = Expect<
-  Equal<ReturnType<typeof _result.useServer>, CreateNextI18nResult>
+
+declare const plugin: I18nPlugin;
+const _piped = _result
+  .use(loader({ en: async () => ({ default: { k: "EN" } }) }))
+  .use(nextPlugin(plugin, { runtime: "client", environment: "development", required: false }))
+  .use(nextPluginLazy(async () => plugin, { runtime: "server" }))
+  .use(definePlugin(plugin));
+export type _PipeKeepsTheResultShape = Expect<
+  Equal<keyof typeof _piped, "i18n" | "routing" | "use">
 >;
-export type _UseClientLazyChains = Expect<
-  Equal<ReturnType<typeof _result.useClientLazy>, CreateNextI18nResult>
+// The composed host already carries both capabilities, so these installers
+// widen it to itself: `i18n` stays the published type, and the pipe is still
+// exact rather than `any`.
+export type _PipeWidensToTheComposedHost = Expect<
+  Equal<typeof _piped.i18n, NextComposedI18n & I18nLoaderApi & I18nPluginHostApi>
 >;
-export type _UseServerLazyChains = Expect<
-  Equal<ReturnType<typeof _result.useServerLazy>, CreateNextI18nResult>
+export type _PipeIsStillTheComposedHost = Expect<
+  Equal<typeof _piped.i18n extends NextComposedI18n ? true : false, true>
 >;
+export type _PipeRoutingUnchanged = Expect<
+  Equal<typeof _piped.routing, CreateNextI18nResult["routing"]>
+>;
+
+// A widening installer of the reader's own carries its widening onto `i18n`.
+declare function withMetrics<T extends I18n<any>>(i18n: T): T & { metrics: () => void };
+const _widened = _result.use(withMetrics);
+export type _OwnInstallerWidens = Expect<
+  Equal<typeof _widened.i18n extends { metrics: () => void } ? true : false, true>
+>;
+_widened.i18n.metrics();
+_widened.i18n.registerPlugin(plugin);
+
+// The three misuses are compile errors, exactly as on core's `use`.
+// @ts-expect-error -- an async function returns a Promise, not the host
+_result.use(async (i18n) => i18n);
+// @ts-expect-error -- an installer must return the host it was given
+_result.use((i18n) => {
+  void i18n;
+});
+// @ts-expect-error -- a spread copy is a different object, and its type drops the host's methods
+_result.use((i18n) => ({ ...i18n }));
+// @ts-expect-error -- a raw plugin is not an installer: it goes through nextPlugin / definePlugin
+_result.use(plugin);
+// @ts-expect-error -- the factory is not an installer; it must be called
+_result.use(nextPlugin);
+
+// The four scoped delegates are GONE, not deprecated.
+// @ts-expect-error -- removed in 0.5: `.use(nextPlugin(p, { runtime: "client" }))`
+_result.useClient(plugin);
+// @ts-expect-error -- removed in 0.5: `.use(nextPlugin(p, { runtime: "server" }))`
+_result.useServer(plugin);
+// @ts-expect-error -- removed in 0.5: `.use(nextPluginLazy(load, { runtime: "client" }))`
+_result.useClientLazy(async () => plugin);
+// @ts-expect-error -- removed in 0.5: `.use(nextPluginLazy(load, { runtime: "server" }))`
+_result.useServerLazy(async () => plugin);
+// @ts-expect-error -- the old scoped raw-plugin form: scoping lives on nextPlugin now
+_result.use(plugin, { runtime: "client" });
+
+// `nextPlugin` / `nextPluginLazy` take a PLUGIN / LOADER and the Next scopes;
+// their options type is published.
+export type _NextPluginOptionsShape = Expect<
+  Equal<keyof NextPluginOptions, "runtime" | "environment" | "required" | "timeout" | "onError">
+>;
+// @ts-expect-error -- runtime is "client" | "server"
+nextPlugin(plugin, { runtime: "edge" });
+// @ts-expect-error -- environment is "all" | "development" | "production"
+nextPlugin(plugin, { environment: "staging" });
+// @ts-expect-error -- `lazy` is not an option: the lazy form is its own installer
+nextPlugin(plugin, { lazy: true });
+// @ts-expect-error -- an installer is not a plugin
+nextPlugin(loader());
+// @ts-expect-error -- the lazy installer takes a LOADER, not a plugin
+nextPluginLazy(plugin);
 
 // The base composition pipe is reachable on the published host.
 export type _HasThePipe = Expect<

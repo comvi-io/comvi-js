@@ -57,13 +57,14 @@ const result = createNextI18nFromHost(
   { locales: ["en", "de"], defaultLocale: "en" },
 );
 
-assertEqual(hostCalls, 0, "host factory is not called while assembling the result");
+// Construction is EAGER (N2): `host()` runs exactly once, inside the call, and
+// `i18n` is the instance it returned — a plain field, not a resolving getter.
+assertEqual(hostCalls, 1, "host factory runs exactly once, inside createNextI18nFromHost");
 assertEqual(result.routing.localeCookie, "NEXT_LOCALE", "routing defaults are applied");
 
 const i18n = result.i18n;
-assertEqual(hostCalls, 1, "first result.i18n access resolves the host exactly once");
-assert(result.i18n === i18n, "the resolved host is memoized");
-assertEqual(hostCalls, 1, "later accesses reuse the memoized host");
+assert(result.i18n === i18n, "the host is a plain field");
+assertEqual(hostCalls, 1, "later accesses run nothing");
 
 assert(typeof i18n.reloadTranslations === "function", "the composed host carries the loader API");
 assert(
