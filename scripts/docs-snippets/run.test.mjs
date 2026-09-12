@@ -286,7 +286,10 @@ test("the CLI on the js-sdk npm surface → runs the whole corpus, and the tool 
   // choke on any of them.
   assert.ok(result.status === 0 || result.status === 1, result.stdout + result.stderr);
   const { findings, stats } = JSON.parse(result.stdout);
-  assert.equal(stats.length, 17);
+  // One stat per gated document, however many there are today: pinning a
+  // literal count made this test red the day a README was added, the exact
+  // "red for a reason unrelated to the runner" this rewrite exists to remove.
+  assert.equal(stats.length, collectReadmes(REPO).length);
   assert.ok(stats.every((stat) => stat.fences >= 0 && stat.linted <= stat.fences));
 
   // TOOL-level findings, as opposed to API ones: an unparsed fence or a

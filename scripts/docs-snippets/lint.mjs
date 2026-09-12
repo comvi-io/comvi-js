@@ -263,9 +263,9 @@ const FOREIGN_PLUGIN_RECEIVERS = new Set([
  * all, because `createPinia()` is a lowercase call. A capability the reader can
  * copy has a NAME, and there are twelve of them.
  *
- * `flattenCatalog` is not here on purpose: it wraps a catalog inside the
- * constructor options and is never an argument to `.use(`, so listing it would
- * only widen the pattern back towards "any lowercase call".
+ * `flattenCatalog` is not here on purpose: it is a hand-flattening helper for
+ * catalog DATA, never an installer and never an argument to `.use(`, so listing
+ * it would only widen the pattern back towards "any lowercase call".
  */
 const INSTALLER_NAMES = [
   "loader",

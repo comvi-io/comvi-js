@@ -245,10 +245,12 @@ export function parseModuleExports(source) {
   const stars = [];
   let hasDefault = false;
 
-  // `export` at the start of a line. Every top-level export in these packages
-  // is written at column 0; anchoring here is also what keeps an `export`
-  // nested inside a `declare module { … }` shim block from being read as this
-  // module's own.
+  // `export` at the start of a line, leading whitespace allowed. Every
+  // top-level export in these packages is written at column 0, but an `export`
+  // nested inside a `declare module { … }` shim block IS matched too: that only
+  // ever OVER-reports names (a name the module does not really publish), which
+  // is the safe direction for a rule whose only verdict is "missing". Do not
+  // tighten this to `^export` without a test for an indented shim export.
   const anchor = /^[^\S\n]*export\b/gm;
   for (const match of text.matchAll(anchor)) {
     const tail = text.slice(match.index + match[0].length);
