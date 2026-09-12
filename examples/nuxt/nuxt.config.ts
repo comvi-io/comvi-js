@@ -27,8 +27,11 @@ export default defineNuxtConfig({
     // its route middleware pre-loads the catalog before the page renders.
     localePrefix: "always",
     fallbackLocale: "en",
-    // The one option that decides what the host CAN do. Without it the module
-    // generates the base host — no ICU, no loader — and this demo has both.
+    // The file that decides what the host CAN do. `./comvi.host.*` under
+    // srcDir is picked up by convention (the module logs the path it chose),
+    // so this line is the explicit form of the default; without the file the
+    // module generates the base host — no ICU, no loader — and this demo has
+    // both.
     hostModule: "./comvi.host.ts",
   },
 });

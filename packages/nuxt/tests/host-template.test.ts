@@ -400,6 +400,85 @@ export default (options) => {
     expect(core.t("greeting")).toBe("Hello");
   });
 
+  it("compiles ICU through a hostModule factory that spreads its options when icu is true", async () => {
+    const hostPath = writeHostModule(`
+import { createI18n } from "@comvi/core";
+
+export default (options) => createI18n({ ...options, exposeGlobal: false });
+`);
+    nuxtKitMocks.findPath.mockResolvedValue(hostPath);
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const { createComviI18n, createComviCore } = await emitHostTemplate("./comvi.host.mjs", {
+      icu: true,
+    });
+
+    // The rule used to be "hostModule wins, icu is ignored with a warning".
+    expect(warnSpy).not.toHaveBeenCalled();
+
+    const core = createComviCore({ locale: "en" });
+    core.addTranslations({ en: { cart: "{count, plural, one {# item} other {# items}}" } });
+    expect(core.t("cart", { count: 5 })).toBe("5 items");
+
+    // Both constructions, so SSR and hydration compile the same catalog the same way.
+    const i18n = createComviI18n({ locale: "en", ssrLocale: "en" });
+    i18n.core.addTranslations({ en: { cart: "{count, plural, one {# item} other {# items}}" } });
+    expect(i18n.core.t("cart", { count: 1 })).toBe("1 item");
+  });
+
+  it("lets a hostModule factory's own compiler win over icu by key order", async () => {
+    const hostPath = writeHostModule(`
+import { createI18n } from "@comvi/core";
+import { icuCompiler } from "@comvi/core/icu";
+
+export const seen = [];
+
+// A compiler that treats every braced segment as literal text: the most
+// visible way to prove which one the host ended up with.
+const literal = { makeArgToken: () => undefined };
+
+export default (options) => {
+  seen.push(options.compiler === icuCompiler);
+  return createI18n({ ...options, compiler: literal, exposeGlobal: false });
+};
+`);
+    nuxtKitMocks.findPath.mockResolvedValue(hostPath);
+    const { createComviCore } = await emitHostTemplate("./comvi.host.mjs", { icu: true });
+    const { seen } = (await import(pathToFileURL(hostPath).href)) as { seen: boolean[] };
+
+    const core = createComviCore({ locale: "en" });
+
+    // ICU arrived in the resolved options…
+    expect(seen).toEqual([true]);
+    // …and the factory's own `compiler`, written after the spread, is the one in use.
+    core.addTranslations({ en: { cart: "{count, plural, one {# item} other {# items}}" } });
+    expect(core.t("cart", { count: 5 })).toBe("{count, plural, one {# item} other {# items}}");
+  });
+
+  it("hands a hostModule factory no compiler when icu is off", async () => {
+    const hostPath = writeHostModule(`
+import { createI18n } from "@comvi/core";
+
+export const seen = [];
+
+export default (options) => {
+  seen.push("compiler" in options);
+  return createI18n({ ...options, exposeGlobal: false });
+};
+`);
+    nuxtKitMocks.findPath.mockResolvedValue(hostPath);
+    const { createComviCore } = await emitHostTemplate("./comvi.host.mjs");
+    const { seen } = (await import(pathToFileURL(hostPath).href)) as { seen: boolean[] };
+
+    const core = createComviCore({ locale: "en" });
+
+    // Not `compiler: undefined` either: the key is absent, as the option is off.
+    expect(seen).toEqual([false]);
+    // The simple compiler, so the detector fires as on the default branch.
+    expect(() =>
+      core.addTranslations({ en: { cart: "{count, plural, one {# item} other {# items}}" } }),
+    ).toThrow(expect.objectContaining({ code: "E_ICU_SYNTAX" }));
+  });
+
   it("throws a named error when the host module's default export is not a function", async () => {
     // A missing default is an ESM link error; a WRONG default is the reachable shape.
     nuxtKitMocks.findPath.mockResolvedValue(writeHostModule("export default {};\n"));

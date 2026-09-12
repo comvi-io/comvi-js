@@ -29,14 +29,14 @@ Comvi i18n is a framework-agnostic internationalization library with type-safe t
 - **Rich text without XSS.** Embed components inside translation strings (`Click <link>here</link>`). Translators see clean markup, and you decide what each tag renders to. No raw HTML, no unsafe DOM injection, and no splitting a sentence across template fragments.
 - **ICU `plural`, `selectordinal` & `select`.** Locale-correct grammar via `Intl.PluralRules`, including Polish, Ukrainian, Arabic, Welsh and the rest. It is the same syntax every major TMS (Crowdin, Lokalise, Phrase) already speaks. The `number` / `date` / `time` argument types and the plural `offset:` form are not implemented and are not planned. Each one fails with `E_ICU_SYNTAX` instead of rendering something wrong.
 - **Locale-aware formatters built in.** `formatNumber`, `formatDate`, `formatCurrency`, and `formatRelativeTime` follow the active locale via native `Intl`, with reactive updates in every framework binding.
-- **~8.2 kB minified + gzipped for the default client graph, ~11.7 kB fully composed (measured, `vue` / `#app` / `h3` externalized), no runtime dependencies beyond `h3` and `@nuxt/kit`, which every Nuxt app already has.** ICU, the plugin host and devtools discovery cost only where your `hostModule` composes them. No `eval` or `new Function` anywhere, so it runs under a strict CSP without `unsafe-eval`. Safe for Chrome extensions, Cloudflare Workers, and locked-down enterprise apps.
+- **~8.2 kB minified + gzipped for the default client graph, ~11.7 kB fully composed (measured, `vue` / `#app` / `h3` externalized), no runtime dependencies beyond `h3` and `@nuxt/kit`, which every Nuxt app already has.** ICU, the plugin host and devtools discovery cost only where your `comvi.host.ts` composes them. No `eval` or `new Function` anywhere, so it runs under a strict CSP without `unsafe-eval`. Safe for Chrome extensions, Cloudflare Workers, and locked-down enterprise apps.
 - **Pluggable.** Translation loading (CDN/API), locale detection, and in-context editing are opt-in plugins via `@comvi/plugin-fetch-loader`, `@comvi/plugin-locale-detector`, and `@comvi/plugin-in-context-editor`, one lowercase `.use(installer)` each. You only ship what you use.
 - **Same API across 6 frameworks.** `useI18n()` and `<T>` look the same in [Vue](https://www.npmjs.com/package/@comvi/vue), [React](https://www.npmjs.com/package/@comvi/react), [SolidJS](https://www.npmjs.com/package/@comvi/solid), [Svelte](https://www.npmjs.com/package/@comvi/svelte), [Next.js](https://www.npmjs.com/package/@comvi/next), and [Nuxt](https://www.npmjs.com/package/@comvi/nuxt), so switching frameworks doesn't mean relearning your i18n layer.
 - **SSR support.** `@comvi/next` and `@comvi/nuxt` ship server-side translation loading, locale-routed layouts, and middleware for redirect-on-detect, so there is no flash of untranslated content.
 
 ## Why @comvi/nuxt?
 
-- **Two-file setup.** Add `@comvi/nuxt` to `modules` in `nuxt.config.ts` and configure locales. Routing, detection, middleware and auto-imports work with no boilerplate. Point `hostModule` at one `comvi.host.ts` and that file is the whole of what your app pays for: ICU, loading, plugins and devtools are each one import and one `.use(...)`.
+- **Two-file setup.** Add `@comvi/nuxt` to `modules` in `nuxt.config.ts` and configure locales. Routing, detection, middleware and auto-imports work with no boilerplate. Add one `comvi.host.ts` next to `nuxt.config.ts` (or under `srcDir`), picked up by convention, and that file is the whole of what your app pays for: ICU, loading, plugins and devtools are each one import and one `.use(...)`.
 - **Auto-imported composables and registered components.** `useI18n()`, route helpers, `<T>`, and `<NuxtLinkLocale>` are available without manual imports. `$t` is installed as a Vue global property for templates.
 - **Built-in locale routing and middleware.** Clones your existing pages into locale-prefixed routes and adds a global middleware for locale detection and cookie persistence, with no extra setup.
 
@@ -62,7 +62,8 @@ export default defineNuxtConfig({
     ],
     defaultLocale: "en",
     localePrefix: "as-needed",
-    hostModule: "./comvi.host.ts",
+    // No `hostModule` needed: `./comvi.host.*` under srcDir, then rootDir, is
+    // picked up by convention and its path is logged at build time.
   },
 });
 ```
@@ -107,19 +108,25 @@ const { t, locale } = useI18n(); // auto-imported
 </template>
 ```
 
-**One specifier, and it is `@comvi/nuxt`.** `@comvi/nuxt/host` re-exports core's
-composition surface, so the host file resolves from `npm install @comvi/nuxt`
-alone. `@comvi/core` is a dependency of this package rather than of your app, so
-naming `@comvi/core/icu` directly needs your app to declare `@comvi/core` too.
-`useLocaleHead` is auto-imported like every other composable.
+**One file, and the values come from `@comvi/nuxt/host`.** That subpath
+re-exports core's composition surface, so `comvi.host.ts` resolves from
+`npm install @comvi/nuxt` alone: `@comvi/core` is a dependency of this package
+rather than of your app, so naming `@comvi/core/icu` directly would need your
+app to declare `@comvi/core` too. The TYPES a typed `comvi.setup.ts` names are
+on the `@comvi/nuxt` root for the same reason. `useLocaleHead` is auto-imported
+like every other composable.
 
 `comvi.host.ts` is where every capability is chosen, and that is the whole of
-0.5.0's change to this module. Leave `hostModule` out and the module builds the
-BASE host for you: text and `{param}` interpolation, the translation cache,
-events and default params, with no ICU compiler, no loader, no plugin host and
-no devtools discovery. Nothing is injected on your behalf, so nothing you did not
-ask for is in your bundle. (ICU is the one capability that default host can
-still opt into, with `icu: true`; it stays off unless you ask. Catalogs are
+0.5.0's change to this module. The module looks for `./comvi.host.*` under
+`srcDir`, then `rootDir`, logs the path it picked, and warns about a near miss
+(a `comvi.host.cjs` it found but could not resolve). `hostModule` names the
+file explicitly, and a set `hostModule` that does not resolve is a build error.
+With no host file at all the module builds the BASE host for you: text and
+`{param}` interpolation, the translation cache, events and default params, with
+no ICU compiler, no loader, no plugin host and no devtools discovery. Nothing is
+injected on your behalf, so nothing you did not ask for is in your bundle. (ICU
+is the one capability with a module option, `icu: true`; it stays off unless
+you ask, and a host file that spreads its options gets it too. Catalogs are
 `comvi.translation`, below — the base host flattens a nested one, so
 `{ nav: { home: "Home" } }` resolves `t("nav.home")` with nothing composed.) See
 [Composing your host](#composing-your-host-the-hostmodule-option) for the full
@@ -222,10 +229,9 @@ decision, not a `comvi.setup.ts` one. Type the hook with the host you built and
 TypeScript tells you before the app runs:
 
 ```ts
-// comvi.setup.ts
-import type { I18n } from "@comvi/core";
-import type { I18nLoaderApi, LoaderFn } from "@comvi/core/loader";
-import type { NuxtI18nSetup } from "@comvi/nuxt";
+// comvi.setup.ts — the types are on the module's root, so this file, like
+// comvi.host.ts, needs no dependency your app did not declare.
+import type { I18n, I18nLoaderApi, LoaderFn, NuxtI18nSetup } from "@comvi/nuxt";
 
 const myLoader: LoaderFn = async (locale, namespace) =>
   (await fetch(`/i18n/${locale}/${namespace}.json`)).json();
@@ -242,26 +248,31 @@ annotation, and one on a composed host must name it. Migrating from 0.4.x:
 `pnpm codemod:framework-slim "app/**/*.{ts,vue}"`, or the
 [0.5.0 migration guide](https://github.com/comvi-io/comvi-js/blob/main/MIGRATION.md).
 
-## Composing your host: the `hostModule` option
+## Composing your host: `comvi.host.ts` and the `hostModule` option
 
-`hostModule` points at a module whose default export builds the host, and that
-host must be a core HOST rather than a `VueI18n`. The guard requires `t()` AND
-`init()` and rejects the wrapper's own `core` member, because a `VueI18n` has a
-`t()` and used to slip through and get wrapped a second time; its `TypeError`
-names `createI18n from "@comvi/nuxt/host"`. It is a
-module **path**, not a function, and the branch is taken at **build time**: the
-module generates `#build/comvi.host`, and with `hostModule` set neither the
-runtime plugin nor the server utilities go through nuxt's own construction path.
-A runtime `if` could not deliver that, because it would keep both paths alive in
-every bundle.
+The host module's default export builds the host, and that host must be a core
+HOST rather than a `VueI18n`. The guard requires `t()` AND `init()` and rejects
+the wrapper's own `core` member, because a `VueI18n` has a `t()` and used to
+slip through and get wrapped a second time; its `TypeError` names
+`createI18n from "@comvi/nuxt/host"`.
+
+The file is found by convention: `./comvi.host.*` under `srcDir`, then
+`rootDir`, and the module logs the path it resolved at build time so a stray
+file is visible. `hostModule` is the explicit override for a file that lives
+elsewhere; it is a module **path**, not a function, and a set `hostModule` that
+does not resolve fails the build rather than falling back. Either way the branch
+is taken at **build time**: the module generates `#build/comvi.host`, and with a
+host module neither the runtime plugin nor the server utilities go through
+nuxt's own construction path. A runtime `if` could not deliver that, because it
+would keep both paths alive in every bundle.
 
 ```ts
-// nuxt.config.ts
+// nuxt.config.ts — only needed when the file is not ./comvi.host.*
 import { defineNuxtConfig } from "nuxt/config";
 
 export default defineNuxtConfig({
   modules: ["@comvi/nuxt"],
-  comvi: { locales: ["en", "de"], defaultLocale: "en", hostModule: "./comvi.host.ts" },
+  comvi: { locales: ["en", "de"], defaultLocale: "en", hostModule: "./i18n/host.ts" },
 });
 ```
 
@@ -281,12 +292,13 @@ bundles and adds `ssrLocale`, so a server render and the hydrated client agree
 on the render locale; the request-scoped Nitro host has no hydration to match
 and omits it. Set it inside the factory if a server route needs it too.
 
-ICU is the one exception to "compose it here": `compiler` is a constructor
-argument rather than something `.use()` can pipe on, so an app with no
-`hostModule` reaches it through the `icu: true` module option instead.
-Everything else in the table below (loader, plugins, devtools) still needs
-`hostModule`, and with `hostModule` set `icu` is ignored with a build-time
-warning because your factory already chose a compiler.
+ICU is the one capability with a module option: `compiler` is a constructor
+argument rather than something `.use()` can pipe on, so `icu: true` reaches the
+host through its options. With no host module it lands on the generated BASE
+host; with one, `compiler: icuCompiler` is the LAST key in the options your
+factory receives, so `createI18n({ ...options })` compiles ICU and
+`createI18n({ ...options, compiler: mine })` keeps yours. Everything else in the
+table below (loader, plugins, devtools) is composed in the host module.
 
 Each capability is one import and one `.use(...)`. `.use(installer)` is
 core's composition pipe: `i18n.use(f)` is `f(i18n)`, nothing more.
@@ -304,10 +316,10 @@ core's composition pipe: `i18n.use(f)` is `f(i18n)`, nothing more.
 Everything in the right column but the ambient tag import comes from
 **`@comvi/nuxt/host`**, which re-exports `createI18n`, `icuCompiler`, `loader`,
 `attachLoader`, `plugins`, `attachPlugins`, `devtools`, `definePlugin` and the
-`NuxtHostFactory` type. That is one specifier for the whole recipe, and it is the
-one your app already installed: `@comvi/core` is a dependency of `@comvi/nuxt`
-rather than of your app, so a host file naming `@comvi/core/icu` needs your app
-to declare `@comvi/core` itself. `flattenCatalog` is deliberately not on the
+`NuxtHostFactory` type. Every value in the recipe comes from that one subpath of
+the package your app already installed: `@comvi/core` is a dependency of
+`@comvi/nuxt` rather than of your app, so a host file naming `@comvi/core/icu`
+needs your app to declare `@comvi/core` itself. `flattenCatalog` is deliberately not on the
 subpath — the base host flattens a nested catalog itself, in `comvi.translation`
 and in a loader result alike.
 
@@ -335,11 +347,12 @@ time plugins run, and ICU is an option rather than a composition step.
 `loader(map)` attaches the loader capability **and** registers the map; for a
 plain `LoaderFn`, use `.use(attachLoader)` and call `registerLoader(fn)`.
 
-So `comvi.host.ts` is the one file in a nuxt app that names a comvi specifier at
-all, and that specifier is `@comvi/nuxt/host`. `useI18n()`, `useI18nLoader()`, `useI18nPlugins()`, `<T>` and
-`<NuxtLinkLocale>` are auto-imported, so app code names none. The composition
-root is a single readable file, and reading it tells you exactly what your app
-pays for.
+So `comvi.host.ts` is the one file in a nuxt app that names comvi VALUES, and
+they come from `@comvi/nuxt/host`. `useI18n()`, `useI18nLoader()`,
+`useI18nPlugins()`, `<T>` and `<NuxtLinkLocale>` are auto-imported, so app code
+names none; a typed `comvi.setup.ts` and a `TranslationKeys` augmentation name
+types only. The composition root is a single readable file, and reading it tells
+you exactly what your app pays for.
 
 ### What a nuxt app pays
 
@@ -353,7 +366,7 @@ Whole-app comvi graph, min+gz, `vue` / `#app` / `#build` / `h3` externalized
 | server: the same, plus the loader capability SSR needs    | **10017** | `fw-nuxt-server-default-loader` |
 | every capability composed: ICU, loader, plugins, devtools | 11648     | `fw-nuxt-full-composite`        |
 
-The client row is what `hostModule`-unset builds. The last row is the migration
+The client row is what a nuxt app with no host file builds. The last row is the migration
 CEILING for a fully composed 0.4 nuxt app rather than a parity claim: 0.4 also
 registered string-API tag syntax ambiently, which is now the separate
 `import "@comvi/core/tags"`. Every row is gated on its emitted module graph as
@@ -397,9 +410,12 @@ export default ((options) =>
   createI18n({ ...options, compiler: icuCompiler })) satisfies NuxtHostFactory;
 ```
 
-Without a `hostModule`, set `icu: true` in `nuxt.config.ts` instead. It is the
-one capability with a module option, because `compiler` is a constructor
-argument no `.use(...)` can add afterwards. `comvi.translation` goes with it:
+Or set `icu: true` in `nuxt.config.ts`. It is the one capability with a module
+option, because `compiler` is a constructor argument no `.use(...)` can add
+afterwards; with no host file it goes onto the generated base host, and with one
+it arrives as `compiler: icuCompiler` in the factory's options, so a factory
+that spreads them needs no `icuCompiler` line of its own. `comvi.translation`
+goes with it:
 that is how a `nuxt.config.ts` and nothing else becomes an app that actually
 renders a translation, because the base host has no loader to get a catalog in
 with.
@@ -435,8 +451,9 @@ and must not carry anything private.
 
 `icu` defaults to `false` and the choice is made in codegen, so leaving it off
 emits a `#build/comvi.host` that never mentions `@comvi/core/icu`: 0 B rather
-than a disabled feature. It is ignored (with a build-time warning) when
-`hostModule` is set, since your factory already passes its own `compiler`.
+than a disabled feature, on both branches. With a host module the compiler is
+the last key in the options the factory receives, so a `compiler` you write
+after the spread wins.
 
 ```vue
 <script setup lang="ts">
@@ -461,9 +478,15 @@ for the full multilingual examples, ordinals and select.
 
 Extend the `TranslationKeys` interface via declaration merging for autocomplete and parameter validation. Type definitions can be generated automatically from the Comvi Platform via `@comvi/cli` or from local JSON files via `@comvi/vite-plugin`.
 
+The augmentation targets `@comvi/core`, where the interface lives — `@comvi/nuxt`
+only re-exports it, and a `declare module` on a re-export augments nothing. So
+this is the one file that names `@comvi/core`, and your app must declare it as a
+dependency (`npm install @comvi/core`) for the specifier to resolve under a
+strict package layout.
+
 ```typescript
 // src/types/i18n.d.ts
-import "@comvi/core"; // resolves the module before augmenting it
+import "@comvi/core"; // resolves the module before augmenting it; the app declares @comvi/core
 
 declare module "@comvi/core" {
   interface TranslationKeys {

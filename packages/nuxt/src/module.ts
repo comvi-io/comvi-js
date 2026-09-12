@@ -40,6 +40,8 @@ export type {
   TranslationResult,
   TranslationKeys,
   I18n,
+  I18nLoaderApi,
+  LoaderFn,
 } from "./types";
 
 function normalizeLocales(locales: (string | LocaleObject)[]): {
@@ -110,16 +112,21 @@ const comviNuxtModule: NuxtModule<NuxtI18nOptions> = defineNuxtModule<NuxtI18nOp
 
     // An auto-detect MISS is otherwise the quietest failure the module has: the
     // setup template degrades to an empty `runComviSetup()` and the app boots
-    // with none of its hooks. A file that merely does not RESOLVE (an extension
-    // Nuxt does not try, a typo after the prefix) is the reachable shape, so it
-    // is looked for by prefix, at build time only.
-    const findNearMiss = async (prefix: string): Promise<string | undefined> => {
+    // with none of its hooks; a missed host file builds the BASE host and every
+    // capability the file composed is absent. A file that merely does not
+    // RESOLVE (an extension Nuxt does not try, a typo after the prefix) is the
+    // reachable shape, so it is looked for by name, at build time only. The
+    // shape is `<stem>.<one extension>` and a regular file: `comvi.setup.d.ts`,
+    // `comvi.setup.ts.bak` or a `comvi.setup/` directory are not near misses,
+    // and a false report would send a reader chasing a file that is not there.
+    const findNearMiss = async (stem: string): Promise<string | undefined> => {
+      const pattern = new RegExp(`^${stem.replace(/\./gu, "\\.")}\\.[^.]+$`, "u");
       for (const cwd of [nuxt.options.srcDir, nuxt.options.rootDir]) {
         if (!cwd) continue;
         try {
-          const entries = await readdir(cwd);
-          const hit = entries.find((entry) => entry.startsWith(prefix));
-          if (hit) return join(cwd, hit);
+          const entries = await readdir(cwd, { withFileTypes: true });
+          const hit = entries.find((entry) => entry.isFile() && pattern.test(entry.name));
+          if (hit) return join(cwd, hit.name);
         } catch {
           // Unreadable directory: nothing to report, and nothing to fail on.
         }
@@ -127,40 +134,44 @@ const comviNuxtModule: NuxtModule<NuxtI18nOptions> = defineNuxtModule<NuxtI18nOp
       return undefined;
     };
 
+    const warnNearMiss = async (stem: string, consequence: string, option: string) => {
+      const nearMiss = await findNearMiss(stem);
+      if (nearMiss) {
+        console.warn(
+          `[@comvi/nuxt] Found "${nearMiss}" but could not resolve "./${stem}" under ` +
+            `${nuxt.options.srcDir} or ${nuxt.options.rootDir}, so ${consequence}. ` +
+            `Give the file an extension Nuxt resolves (.ts, .mts, .js, .mjs) or point ` +
+            `\`${option}\` at it explicitly.`,
+        );
+      }
+    };
+
     const resolvedSetupPath = await findUserModule(options.setup ?? "./comvi.setup");
     if (options.setup && !resolvedSetupPath) {
       throw new Error(`[@comvi/nuxt] Failed to resolve comvi.setup path: "${options.setup}".`);
     }
-
-    // `hostModule` gets no equivalent because it has no auto-detect to miss:
-    // unset means "build the base host", not "look for a file".
     if (!options.setup && !resolvedSetupPath) {
-      const nearMiss = await findNearMiss("comvi.setup");
-      if (nearMiss) {
-        console.warn(
-          `[@comvi/nuxt] Found "${nearMiss}" but could not resolve "./comvi.setup" under ` +
-            `${nuxt.options.srcDir} or ${nuxt.options.rootDir}, so the comvi.setup hook is EMPTY. ` +
-            `Give the file an extension Nuxt resolves (.ts, .mts, .js, .mjs) or point ` +
-            "`comvi.setup` at it explicitly.",
-        );
-      }
+      await warnNearMiss("comvi.setup", "the comvi.setup hook is EMPTY", "comvi.setup");
     }
 
-    const resolvedHostModulePath = options.hostModule
-      ? await findUserModule(options.hostModule)
-      : undefined;
+    // Same convention as the setup hook: `hostModule` is the explicit override,
+    // and unset means `./comvi.host.*` under srcDir then rootDir. The detected
+    // path is logged so a stray file that changed the host is visible at build
+    // time rather than at the first `useI18nLoader()` that throws.
+    const resolvedHostModulePath = await findUserModule(options.hostModule ?? "./comvi.host");
     if (options.hostModule && !resolvedHostModulePath) {
       throw new Error(
         `[@comvi/nuxt] Failed to resolve comvi hostModule path: "${options.hostModule}".`,
       );
     }
-
-    // A composed host picks its own compiler, so the module option would be
-    // silently overruled rather than merged. Say so once, at build time.
-    if (options.icu && resolvedHostModulePath) {
-      console.warn(
-        "[@comvi/nuxt] `comvi.icu` has no effect when `hostModule` is set — compose ICU in your host module.",
-      );
+    if (!options.hostModule) {
+      if (resolvedHostModulePath) {
+        console.info(
+          `[@comvi/nuxt] Composing the host from "${resolvedHostModulePath}" (auto-detected ./comvi.host; set \`hostModule\` to override).`,
+        );
+      } else {
+        await warnNearMiss("comvi.host", "the app runs on the BASE host", "hostModule");
+      }
     }
 
     const { codes: localeCodes, objects: localeObjects } = normalizeLocales(options.locales);
@@ -258,7 +269,9 @@ export async function runComviSetup(context) {
     // BASE host — ICU is the one capability with a module option, because it is
     // a constructor argument rather than something `.use()` can pipe on. Every
     // other capability arrives through `hostModule`, which is why that branch
-    // forwards nuxt's RESOLVED options into the factory.
+    // forwards nuxt's RESOLVED options into the factory — `icu: true` included,
+    // as `compiler: icuCompiler` in those options, so the option means the same
+    // thing on both branches and a factory that spreads them gets it.
     addTemplate({
       filename: "comvi.host.mjs",
       getContents: () => {
@@ -297,9 +310,17 @@ export function createComviCore(options) {
 `;
         }
 
+        // The same conditional import as the default branch: `icu: false`
+        // emits a module that cannot pull `@comvi/core/icu` into the graph.
+        // With `icu: true` the compiler is the LAST key, so a factory that
+        // spreads `options` gets ICU, and one that writes its own `compiler`
+        // after the spread wins by key order.
+        const icuImport = options.icu ? `import { icuCompiler } from "@comvi/core/icu";\n` : "";
+        const factoryOptions = options.icu ? "{ ...options, compiler: icuCompiler }" : "options";
+
         return `
 import { createI18nFromCore } from "@comvi/vue";
-import hostFactory from ${JSON.stringify(hostPath)};
+${icuImport}import hostFactory from ${JSON.stringify(hostPath)};
 
 function createHost(options) {
   if (typeof hostFactory !== "function") {
@@ -308,7 +329,7 @@ function createHost(options) {
     );
   }
 
-  const host = hostFactory(options);
+  const host = hostFactory(${factoryOptions});
 
   // A VueI18n HAS a t(), so a t-only check let @comvi/vue's createI18n(...)
   // through and createI18nFromCore wrapped a wrapper. "core" is the wrapper's

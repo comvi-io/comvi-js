@@ -4,6 +4,7 @@ import type {
   I18n,
   I18nLoaderApi,
   I18nOptions,
+  MessageCompiler,
   WrapperI18nHost,
 } from "@comvi/core";
 import type { VueI18n } from "@comvi/vue";
@@ -172,14 +173,15 @@ export interface NuxtI18nOptions {
    * a `hostModule` factory — so on the default host it is `undefined` and
    * calling it throws a `TypeError`.
    *
-   * If omitted, module auto-detects ./comvi.setup.* in project root.
+   * If omitted, the module auto-detects `./comvi.setup.*` under `srcDir`, then
+   * `rootDir`, and logs a near miss (a file it found but could not resolve).
    *
    * @example "./comvi.setup.ts"
    */
   setup?: string;
 
   /**
-   * Opt the module's OWN generated host into the ICU compiler, so
+   * Opt the host into the ICU compiler, so
    * `{count, plural, one {# item} other {# items}}` renders instead of throwing
    * `E_ICU_SYNTAX`.
    *
@@ -187,10 +189,12 @@ export interface NuxtI18nOptions {
    * module contains no `@comvi/core/icu` import at all, so the option costs
    * nothing when off. A runtime `if` would pin the compiler into every bundle.
    *
-   * `hostModule` wins: when it is set this option is ignored with a build-time
-   * warning, because a composed host already decides its own compiler. ICU is
+   * With no host module it is the generated BASE host that gets the compiler.
+   * With one, `compiler: icuCompiler` is placed LAST in the resolved options
+   * the factory receives, so a factory that spreads `options` gets ICU and one
+   * that writes its own `compiler` after the spread wins by key order. ICU is
    * the only capability with a module option — the loader, the plugin host and
-   * devtools discovery still require `hostModule`.
+   * devtools discovery are composed in the host module.
    *
    * @default false
    */
@@ -201,9 +205,13 @@ export interface NuxtI18nOptions {
    * `(options) => WrapperI18nHost` — used INSTEAD of `@comvi/vue`'s own
    * constructor.
    *
-   * This is how a nuxt app gets any capability at all. Unset (the default)
-   * builds the BASE host, and the module will not inject ICU, the loader, the
-   * plugin host or devtools on your behalf.
+   * This is how a nuxt app gets any capability at all. Unset (the default),
+   * the module auto-detects `./comvi.host.*` under `srcDir`, then `rootDir`,
+   * and logs the path it picked so a stray file is visible at build time; when
+   * there is none it builds the BASE host, and will not inject the loader, the
+   * plugin host or devtools on your behalf (ICU is the one exception, through
+   * `icu: true`). Set it to name the file explicitly — a set `hostModule` that
+   * does not resolve is a build error, never a silent fallback.
    *
    * It is a module PATH, not a function: the branch that decides whether
    * `@comvi/vue`'s constructor is imported at all is taken in build-time
@@ -220,10 +228,9 @@ export interface NuxtI18nOptions {
    * @example "./comvi.host.ts"
    * @example
    * ```ts
-   * // comvi.host.ts — the full explicit composition.
-   * // One specifier, and it is this package: `@comvi/nuxt/host` re-exports
-   * // core's installers so the recipe needs no dependency the app did not
-   * // already install.
+   * // comvi.host.ts — the full explicit composition, in the one file that
+   * // names comvi values: `@comvi/nuxt/host` re-exports core's installers so
+   * // the recipe needs no dependency the app did not already install.
    * import { createI18n, icuCompiler, loader, plugins, devtools } from "@comvi/nuxt/host";
    *
    * export default (options) =>
@@ -351,6 +358,12 @@ export type NuxtHostFactoryOptions<D extends DefaultTranslationParams = {}> = {
   apiKey?: string;
   /** `comvi.translation` verbatim; a factory that spreads `options` keeps it. */
   translation?: I18nOptions["translation"];
+  /**
+   * `icuCompiler`, present only when `comvi.icu` is `true` — the last key in
+   * the object, so `createI18n({ ...options })` compiles ICU and
+   * `createI18n({ ...options, compiler: mine })` keeps yours.
+   */
+  compiler?: MessageCompiler;
   tagInterpolation?: { basicHtmlTags?: string[] };
   /** Present on the client plugin's call only; equal to `locale`. */
   ssrLocale?: string;
@@ -423,8 +436,8 @@ export interface NuxtI18nSetupContext<C extends WrapperI18nHost = I18n> {
  *
  * @example
  * ```ts
- * // comvi.setup.ts
- * import type { I18n, I18nLoaderApi } from "@comvi/core";
+ * // comvi.setup.ts — every type it names is on this package's root.
+ * import type { I18n, I18nLoaderApi, NuxtI18nSetup } from "@comvi/nuxt";
  *
  * export default (({ core }) => {
  *   core.registerLoader(myLoader);
@@ -450,4 +463,15 @@ declare module "@nuxt/schema" {
   }
 }
 
-export type { TranslationParams, TranslationResult, TranslationKeys, I18n } from "@comvi/core";
+// `I18nLoaderApi` and `LoaderFn` are here so a `comvi.setup` hook typed
+// `NuxtI18nSetup<I18n & I18nLoaderApi>` names ONE specifier for all three types:
+// `@comvi/core` is a dependency of this package, not of the app, so importing
+// them from there needs a dependency the app never declared. Type-only, 0 B.
+export type {
+  TranslationParams,
+  TranslationResult,
+  TranslationKeys,
+  I18n,
+  I18nLoaderApi,
+  LoaderFn,
+} from "@comvi/core";
