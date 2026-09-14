@@ -796,9 +796,12 @@ escapes answer different questions.
 
 **`comvi.icu: true`** is a module option (default `false`) that makes the
 generated host use `icuCompiler`. It exists because that host gives you nowhere
-to call `.use()`. With `hostModule` set it is ignored with a build-time warning,
-because a composed host picks its own compiler. ICU is never enabled
-automatically.
+to call `.use()`. With `hostModule` set it is **not** ignored: the module passes
+`{ ...options, compiler: icuCompiler }` to your factory, with `compiler` as the
+last key, so `createI18n({ ...options })` compiles ICU and
+`createI18n({ ...options, compiler: mine })` keeps yours. There is no warning
+either way. ICU is never enabled without `icu: true` or a `compiler` you named.
+See [What goes in the host file](packages/nuxt/README.md#what-goes-in-the-host-file).
 
 **`hostModule`** is the composition escape, and the path for everything else:
 

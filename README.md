@@ -46,7 +46,14 @@ can ship a translation without a redeploy.
 
 ## Install
 
-One install is enough: each framework package bundles `@comvi/core`.
+One install is enough for the host, the bindings and the capability toolkit: each framework package
+bundles `@comvi/core` and re-exports what you compose with.
+
+The exception is the free formatting functions — `formatNumber`, `formatDate`, `formatCurrency`,
+`formatRelativeTime`, `getTextDirection`. No binding re-exports those, so a component that calls one
+directly imports it from `@comvi/core` and must declare `@comvi/core` in its own dependencies;
+pnpm's strict layout will not resolve it transitively. Five of the six framework examples do exactly
+that. `useI18n()` hands back bound formatters, which need no extra import.
 
 ```bash
 npm install @comvi/core      # Vanilla / Node

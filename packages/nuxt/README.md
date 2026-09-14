@@ -21,6 +21,11 @@
 `<NuxtLinkLocale>` are auto-imported, with SSR and locale-prefixed routes handled for you. App code
 imports nothing.
 
+One exception: the free formatting functions (`formatNumber`, `formatDate`, `formatCurrency`,
+`formatRelativeTime`, `getTextDirection`) are auto-imported by nothing. A component that calls one
+directly imports it from `@comvi/core` and declares that package too — pnpm will not resolve it
+transitively. `useI18n()` hands back bound formatters, which need no extra import.
+
 Throughout this README, **the host** is the i18n instance `createI18n` returns. In a nuxt app you
 build it in one file, `comvi.host.ts`, and the module constructs it once per runtime — plus once per
 server request.

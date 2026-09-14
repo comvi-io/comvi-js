@@ -21,6 +21,11 @@
 React bindings, so one install is enough. Server Components get translations server-side, so there
 is no flash of untranslated content and no suspense waterfall for i18n.
 
+One exception: the free formatting functions (`formatNumber`, `formatDate`, `formatCurrency`,
+`formatRelativeTime`, `getTextDirection`) are not re-exported here. A component that calls one
+directly imports it from `@comvi/core` and declares that package too — pnpm will not resolve it
+transitively. `useI18n()` hands back bound formatters, which need no extra import.
+
 Throughout this README, **the host** is the i18n instance `createNextI18n` returns as `i18n`.
 
 📖 [Documentation](https://comvi.io/docs/i18n/next/) ·
@@ -50,6 +55,11 @@ Three things to know about the shape, and nothing more is needed to use it:
 - `src/i18n.ts` runs **once per runtime** — once in the server build, once in the client build.
 - A catalog the server loaded travels to the client as `messages`.
 - The host's **composition** does not travel. Both runtimes get it by evaluating the same file.
+
+One call is not optional. The server helpers read the request locale from React's per-request
+cache, which either `createMiddleware()` fills or you fill with **`setRequestLocale(locale)`**. This
+quickstart has no middleware yet, so the layout calls it, and `getI18n()` throws
+`[comvi/next] Locale not set.` if nothing did.
 
 Runnable version: [`examples/next`](../../examples/next), which opens in
 [StackBlitz](https://stackblitz.com/github/comvi-io/comvi-js/tree/main/examples/next) straight from the repository — see
@@ -125,6 +135,7 @@ export function I18nClientProvider({
 
 ```tsx title="src/app/[locale]/layout.tsx" check=group=next-quickstart-inline
 import { notFound } from "next/navigation";
+import { setRequestLocale } from "@comvi/next/server";
 import { routing } from "@/i18n";
 import { I18nClientProvider } from "./I18nClientProvider";
 import "../globals.css";
@@ -141,6 +152,11 @@ export default async function LocaleLayout({
   if (!routing.locales.includes(locale)) {
     notFound();
   }
+
+  // REQUIRED before any server helper runs. `getI18n()` reads the locale from
+  // React's per-request cache, and this is what fills it; without middleware
+  // there is nothing else that would.
+  setRequestLocale(locale);
 
   return (
     <html lang={locale}>
@@ -222,7 +238,7 @@ import { i18n, routing } from "./i18n";
 setI18n(i18n);
 
 export { i18n, routing };
-export { getI18n, loadTranslations } from "@comvi/next/server";
+export { getI18n, loadTranslations, setRequestLocale } from "@comvi/next/server";
 ```
 
 ```tsx title="src/app/[locale]/I18nClientProvider.tsx" check=group=next-quickstart-cdn
@@ -251,7 +267,7 @@ export function I18nClientProvider({
 
 ```tsx title="src/app/[locale]/layout.tsx" check=group=next-quickstart-cdn
 import { notFound } from "next/navigation";
-import { routing, loadTranslations } from "@/i18n.server";
+import { routing, loadTranslations, setRequestLocale } from "@/i18n.server";
 import { I18nClientProvider } from "./I18nClientProvider";
 import "../globals.css";
 
@@ -267,6 +283,9 @@ export default async function LocaleLayout({
   if (!routing.locales.includes(locale)) {
     notFound();
   }
+
+  // REQUIRED before any server helper runs — see step 1.
+  setRequestLocale(locale);
 
   // Loaded server-side and handed to the client as `messages`.
   const messages = await loadTranslations(locale);
@@ -303,6 +322,14 @@ provider as `messages` (structurally identical to the `MessagesMap` the provider
 as: both are `Record<string, Record<string, TranslationValue>>`).
 Both read the instance `setI18n(i18n)` registered, so that call must run first — import the
 `"server-only"` module for its side effect.
+
+`getI18n()` also needs the request **locale**, which it reads from React's per-request cache.
+`createMiddleware()` fills that cache on every matched request; without middleware, or on a route
+the matcher skips, call **`setRequestLocale(locale)`** in the layout or page before the first
+helper. It is also what lets `generateStaticParams()` render these pages statically. Miss it and
+the helper throws `[comvi/next] Locale not set. Call setRequestLocale(locale) in your
+layout/page first, or configure middleware.` rather than guessing.
+`getLocale()` is the same read on its own.
 
 Next deduplicates `fetch()` across Server Components within one request, and the core loader
 deduplicates concurrent requests for the same locale and namespace.
@@ -457,17 +484,17 @@ the convenient shape.
 
 ### The six subpaths
 
-| subpath                  | what you import from it                                                               |
-| ------------------------ | ------------------------------------------------------------------------------------- |
-| `@comvi/next`            | `createNextI18n`, plus the capability toolkit below                                   |
-| `@comvi/next/client`     | `<I18nProvider>`, every react hook, `<T>`, plus the toolkit                           |
-| `@comvi/next/server`     | `setI18n`, `getI18n`, `loadTranslations`, `createNextI18nFromHost`, plus the toolkit  |
-| `@comvi/next/navigation` | `<Link>`, `usePathname`, `useLocalizedRouter` — the locale-aware navigation helpers   |
-| `@comvi/next/routing`    | `defineRouting`, `hasLocale`, `createGetPathname` — server-safe, no host in the graph |
-| `@comvi/next/middleware` | `createMiddleware`                                                                    |
+| subpath                  | what you import from it                                                                                               |
+| ------------------------ | --------------------------------------------------------------------------------------------------------------------- |
+| `@comvi/next`            | `createNextI18n`, plus the capability toolkit below                                                                   |
+| `@comvi/next/client`     | `<I18nProvider>`, every react hook, `<T>`, plus the toolkit                                                           |
+| `@comvi/next/server`     | `setI18n`, `setRequestLocale`, `getI18n`, `getLocale`, `loadTranslations`, `createNextI18nFromHost`, plus the toolkit |
+| `@comvi/next/navigation` | `<Link>`, `usePathname`, `useLocalizedRouter` — the locale-aware navigation helpers                                   |
+| `@comvi/next/routing`    | `defineRouting`, `hasLocale`, `createGetPathname` — server-safe, no host in the graph                                 |
+| `@comvi/next/middleware` | `createMiddleware`                                                                                                    |
 
-The first three each carry the base host constructor and the identical capability toolkit, so a
-next app never names `@comvi/core`:
+The first three each carry the base host constructor and the identical capability toolkit, so the
+host and its capabilities come from this package alone:
 
 | export                         | what it is                                                             |
 | ------------------------------ | ---------------------------------------------------------------------- |

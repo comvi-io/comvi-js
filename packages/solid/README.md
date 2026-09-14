@@ -20,6 +20,11 @@
 `@comvi/solid` is the whole toolkit for a SolidJS app: it bundles `@comvi/core`, so one install is
 enough. Translations are signals, so a locale change updates only what read it.
 
+One exception: the free formatting functions (`formatNumber`, `formatDate`, `formatCurrency`,
+`formatRelativeTime`, `getTextDirection`) are not re-exported here. A component that calls one
+directly imports it from `@comvi/core` and declares that package too — pnpm will not resolve it
+transitively. `useI18n()` hands back bound formatters, which need no extra import.
+
 Throughout this README, **the host** is the i18n instance `createI18n` returns.
 
 Server-side **loading** is not supported yet — see [Server-side rendering](#5-server-side-rendering)

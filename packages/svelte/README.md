@@ -20,6 +20,11 @@
 `@comvi/svelte` is the whole toolkit for a Svelte app: it bundles `@comvi/core`, so one install is
 enough. There is no provider component — the host goes into Svelte's own context.
 
+One exception: the free formatting functions (`formatNumber`, `formatDate`, `formatCurrency`,
+`formatRelativeTime`, `getTextDirection`) are not re-exported here. A component that calls one
+directly imports it from `@comvi/core` and declares that package too — pnpm will not resolve it
+transitively. `useI18n()` hands back bound formatters, which need no extra import.
+
 Throughout this README, **the host** is the i18n instance `createI18n` returns.
 
 📖 [Documentation](https://comvi.io/docs/i18n/svelte/)

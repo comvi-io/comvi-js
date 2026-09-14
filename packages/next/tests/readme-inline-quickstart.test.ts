@@ -21,6 +21,8 @@ import { createNextI18n } from "../src/createNextI18n";
 
 const README = path.join(path.dirname(url.fileURLToPath(import.meta.url)), "..", "README.md");
 const FENCE = '```ts title="src/i18n.ts" check=group=next-quickstart-inline';
+const LAYOUT_FENCE =
+  '```tsx title="src/app/[locale]/layout.tsx" check=group=next-quickstart-inline';
 
 /** The named fence's code, without its info string or closing fence. */
 function readFence(source: string, opening: string): string {
@@ -93,5 +95,37 @@ describe("the README's inline quickstart catalog", () => {
 
     expect(i18n.hasTranslation("greeting", "en")).toBe(true);
     expect(i18n.hasTranslation("default.greeting", "en")).toBe(false);
+  });
+});
+
+describe("the README's inline quickstart layout", () => {
+  const layout = readFence(fs.readFileSync(README, "utf8"), LAYOUT_FENCE);
+
+  it("calls setRequestLocale(locale) before it renders the provider", () => {
+    // Without this the quickstart THROWS on first render: `getI18n()` in the
+    // page fence reads the request locale from React's per-request cache, which
+    // step 1 has no middleware to fill, so `setRequestLocale` is the only thing
+    // that fills it. The README shipped without the call from wave 4 to wave 5,
+    // and no gate could see it — `pnpm check:snippets` resolves imports and
+    // type-checks, and this fence was valid TypeScript throughout.
+    const call = layout.indexOf("setRequestLocale(locale)");
+    const provider = layout.indexOf("<I18nClientProvider");
+
+    expect(call).toBeGreaterThan(-1);
+    expect(provider).toBeGreaterThan(-1);
+    expect(call).toBeLessThan(provider);
+  });
+
+  it("imports setRequestLocale from a real entry point", () => {
+    // The name has to come from somewhere a reader can copy. `@comvi/next/server`
+    // is where it lives; step 2's layout takes it through the app's own
+    // "server-only" re-export module instead, which is the shape
+    // examples/next uses.
+    const importLine = layout
+      .split("\n")
+      .find((line) => line.includes("setRequestLocale") && line.startsWith("import "));
+
+    expect(importLine).toBeDefined();
+    expect(importLine).toContain('from "@comvi/next/server"');
   });
 });

@@ -21,6 +21,11 @@
 enough. `useI18n()` returns refs and computeds, so a locale or catalog change triggers precise
 re-renders. One `app.use(i18n)` covers the Composition API, the Options API and templates.
 
+One exception: the free formatting functions (`formatNumber`, `formatDate`, `formatCurrency`,
+`formatRelativeTime`, `getTextDirection`) are not re-exported here. A component that calls one
+directly imports it from `@comvi/core` and declares that package too — pnpm will not resolve it
+transitively. `useI18n()` hands back bound formatters, which need no extra import.
+
 Throughout this README, **the host** is the i18n instance `createI18n` returns — on this package
 that is a `VueI18n` wrapper, and the bare core host it wraps is public as `i18n.core`.
 
