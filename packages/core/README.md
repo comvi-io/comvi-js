@@ -77,9 +77,10 @@ A parameter you leave out renders as its own placeholder — `t("greeting")` giv
 Three questions, and the third needs no line here at all.
 
 1. **Which parser?** `compiler: icuCompiler`. The platform's catalogs use ICU plurals, and the
-   default `{param}` compiler does not render them. Development throws `E_ICU_SYNTAX` at ingestion,
-   where the catalog entered. Production renders the braced message literally and reports it once
-   through the host's `onError`, or the console when no handler is set.
+   default `{param}` compiler does not render them. Without `compiler: icuCompiler`, an ICU message
+   (`{count, plural, …}`) throws `E_ICU_SYNTAX` in development the moment the catalog is loaded,
+   before anything renders; in production it renders the message text literally and reports the
+   error through `onError` (`console.error` when no handler is set).
 2. **Where from?** `.use(cdnLoader({ cdnUrl }))` from `@comvi/plugin-fetch-loader/cdn`, which
    fetches the catalog at runtime instead of bundling it.
 3. **What to paint meanwhile?** Nothing, on this host. `await init()` is where the first fetch

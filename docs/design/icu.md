@@ -27,6 +27,24 @@ catalog source: inline, a loader, the CDN, the API.
 because a `<script src>` has no tree-shaking and therefore no byte choice to offer. See
 [why it is a constructor option and not an installer](composition.md#why-icu-is-a-constructor-option-and-not-an-installer).
 
+### What the neighbours do when ICU formatting fails
+
+The production half of that answer — render the message text literally, report it, keep rendering —
+is the majority behaviour in this corner of the ecosystem rather than a Comvi invention. i18next does
+it both with and without its ICU plugin, a Lingui production build does it because the build strips
+the message compiler, FormatJS does it whenever the descriptor carries no `defaultMessage`, and
+next-intl does it in production for a missing argument. Two libraries substitute something else
+instead: next-intl renders the message KEY for a malformed message, and Tolgee prints the word
+`invalid`. One does not degrade at all — vue-i18n throws out of the `t()` call, in development and
+production alike, so the render that asked for the message fails.
+
+The development half is where Comvi is genuinely alone: it throws when the CATALOG IS LOADED, and
+every other library here — vue-i18n included — waits until something calls `t()`. The reason is
+coverage, not strictness. A throw at the call site only finds the ICU keys a developer actually
+rendered, so a plural on a page nobody opened ships. A throw at ingestion walks every message in the
+catalog, including the branches and the tags inside one, so the missing `compiler` is reported once,
+at startup, for keys the app has not reached yet.
+
 ## Plurals across languages
 
 ```json title="src/locales/messages.json"
