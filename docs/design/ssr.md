@@ -1,8 +1,11 @@
 # SSR: four frameworks, four different module-scope rules
 
-Design note, and the draft of the cross-framework SSR page for the site. Each package README states
-the rule for its own framework; this file is the only place all four sit side by side, because the
-rules genuinely disagree and a reader who generalises from one gets the next one wrong.
+Status: accepted · Date: 2026-09-14 · Owner decision(s): stays a user-facing page rather than a
+decision record, and is the draft of the cross-framework SSR page for the site, 14.09.2026
+
+Each package README states the rule for its own framework; this file is the only place all four sit
+side by side, because the rules genuinely disagree and a reader who generalises from one gets the
+next one wrong.
 
 The host is the object `createI18n` returns: it holds the catalog, the current locale and `t()`.
 

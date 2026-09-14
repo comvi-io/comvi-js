@@ -1,50 +1,59 @@
-# Next.js runtimes: why the config module is evaluated twice, and what must not reach the Edge
+# Next.js: one shared config module per runtime, and nothing composed reaches the Edge
 
-Design note. `packages/next/README.md` has the five-setup-file quickstart. This file explains why it has
-five files rather than three, which is the question a reader asks once and then never again.
+Status: accepted · Date: 2026-09-14 · Owner decision(s): 0.5.0 next single-entry convergence and
+the server request contract; `createNextI18n` stops defaulting the compiler, 14.09.2026
 
-The host is the object `createI18n` returns: it holds the catalog, the current locale and `t()`.
+## Context
 
-## The catalog travels; the composition does not
+Next.js cannot pass a class instance from a Server Component to a Client Component, so the host
+cannot be handed across that boundary. It has three runtimes rather than one — server, client and
+the Edge isolate that runs `middleware.ts` — and an Edge isolate ships and EXECUTES every module its
+entry reaches on each cold start. That is why a Next setup needs five files where the other bindings
+need three, which is the question a reader asks once and then never again.
 
-`src/i18n.ts` is imported on both sides — by `src/i18n.server.ts` (`"server-only"`) and, one
-hop further, by `I18nClientProvider.tsx` (`"use client"`) — because Next.js cannot pass a class
-instance from a Server Component to a Client Component
-(`packages/next/src/client/I18nProvider.tsx`'s doc comment states this constraint;
-`I18nClientProvider` is the workaround every quickstart in that README uses).
+## Decision
 
-Next therefore bundles `config.ts` into BOTH the server build and the client build, and each build
-EVALUATES the module independently: `createComposedNextI18n`
-(`packages/next/src/composedHost.ts`) runs once on the server, producing the instance `setI18n()`
-registers, and runs again inside the browser, producing a second, unrelated instance, when the
-client bundle executes `config.ts` to get `i18n` for `<I18nProvider i18n={i18n}>`.
+- **One shared config module, imported by both runtimes.** `src/i18n.ts` is imported by the
+  `"server-only"` file that calls `setI18n()` and, one hop further, by the `"use client"` wrapper
+  that passes `i18n` to `<I18nProvider>`. Each build evaluates it independently, so the client host
+  matches the server's because it came from the same source, not because anything crossed the wire.
+- **The catalog travels as the `messages` prop; the composition does not.** There is no wire format
+  for a compiled `MessageCompiler` or a queued plugin.
+- **The URL rules live in their own file**, built with `defineRouting` from `@comvi/next/routing`,
+  and `middleware.ts` imports only that. Spread the same object into
+  `createNextI18n({ ...routing, … })` so there is one source of truth.
+- **Never compose `localeDetector()` on the App Router host.** Use
+  `nextPlugin(localeDetectorPlugin(…), { runtime: "client" })`.
+- **The shared instance contributes the catalog and the loader; the locale belongs to the request**
+  and is passed explicitly to every `getI18n()` lookup.
+- **`createNextI18n` composes capabilities and does not pick a compiler.** It composes ambient tag
+  syntax, the loader with both `registerLoader` overloads, the plugin host, default params and
+  devtools discovery; the `icuCompiler` default is gone.
+- **`<I18nProvider>` passes `ssrInitialIsInitializing={false}` on the app's behalf**, so a `fallback`
+  in a Next app gates only what the CLIENT host still has to initialize after hydration.
 
-The catalog the server loaded does travel, as the `messages` prop. The instance's composition does
-not — there is no wire format for a compiled `MessageCompiler` or a queued plugin to cross a
-serialization boundary.
+## Consequences
 
-So the client host has `compiler: icuCompiler` and the CDN loader ONLY because the exact same
-`createNextI18n({ … }).use(cdnLoader({ … }))` expression in `config.ts` runs a second time, in the
-browser, producing an equivalent host from equivalent source. If a project instead built a
-client-only config with different options — or omitted `.use(cdnLoader(…))` from one side — the two
-hosts would silently diverge: one shared config module, imported by both runtimes, is what keeps
-`compiler` and the loader identical, and no runtime hand-off does.
+**A client-only config with different options silently diverges.** The client host has
+`compiler: icuCompiler` and the CDN loader ONLY because the same
+`createNextI18n({ … }).use(cdnLoader({ … }))` expression runs a second time in the browser. Omit it
+from one side and nothing else keeps the two identical; no runtime hand-off will.
+`test-apps/next/src/i18n/config.ts` in this repo follows exactly that shape.
 
-`test-apps/next/src/i18n/config.ts` and `src/i18n/index.ts` in this repository follow exactly that
-shape: one shared config module, one `"server-only"` file that calls `setI18n`, one `"use client"`
-wrapper that imports the config module a second time.
+**Two writes do travel from a request to the shared instance**, and the package's tests pin that
+neither is the locale or the active namespaces. `addTranslations()` is additive and keyed by
+`locale:namespace`, so a concurrent request can only write what the other would have loaded anyway —
+though a first add for a given key does emit `namespaceLoaded`. `init()` loads the default namespace
+once, at the instance's own configured locale, never at a request's. The internal server host type
+carries no `t`, so a server helper that tried to translate without a locale would not compile, and a
+request with no determinable locale throws before it triggers that one-time initialization.
 
-Three sentences is what a reader needs beside the quickstart, and that is what the README carries:
-`config.ts` runs once per runtime, the catalog travels as `messages`, the composition does not.
+### Why the URL rules live in a third file
 
-## Why the URL rules live in a third file
-
-`middleware.ts` runs in the Edge runtime, and an Edge isolate ships and EXECUTES every module its
-entry reaches on each cold start. A `middleware.ts` that does
-`import { routing } from "./i18n/config"` therefore pulls core, ICU, the loader, the plugin host,
-devtools and the tag grammar into middleware — and runs `createNextI18n()` and `registerLoader()`
-there — for one plain object: 30.3 KB across 25 modules, against 3.8 KB across 7 with a
-`defineRouting` file (esbuild, minified, Next's externals).
+A `middleware.ts` that does `import { routing } from "./i18n/config"` pulls core, ICU, the loader,
+the plugin host, devtools and the tag grammar into the Edge isolate — and runs `createNextI18n()`
+and `registerLoader()` there — for one plain object: 30.3 KB across 25 modules, against 3.8 KB
+across 7 with a `defineRouting` file (esbuild, minified, Next's externals).
 
 ```ts title="src/i18n/routing.ts"
 // The URL rules, and nothing else. No host, no core, no capability.
@@ -57,60 +66,33 @@ export const routing = defineRouting({
 });
 ```
 
-```ts title="src/middleware.ts"
-import { createMiddleware } from "@comvi/next/middleware";
-import { routing } from "./i18n/routing";
+## Alternatives rejected
 
-export default createMiddleware(routing);
-export const config = { matcher: ["/((?!api|_next|.*\\..*).*)"] };
-```
+- **Handing the composed host from a Server Component to a Client Component** — Next cannot pass a
+  class instance across that boundary; `I18nClientProvider` is the workaround every quickstart uses.
+- **A separate client-only config module** — the two hosts then diverge on any option one side
+  forgets, with nothing to catch it.
+- **Importing `routing` from the config module in `middleware.ts`** — 30.3 KB across 25 modules in
+  the Edge isolate, running `createNextI18n()` and `registerLoader()` per cold start, for one object.
+- **Declaring `locales` in both the routing and the host file** — one source of truth or two routes
+  that disagree about what exists.
+- **Composing `localeDetector()` on the App Router host** — module scope is process-wide, so the
+  detector would run once at `init()` and the first request's headers would pin every later render.
+- **`createNextI18n` defaulting to `icuCompiler`** — it was the last constructor in the repo to turn
+  ICU on by itself, and one host quietly compiling a grammar every other host refuses is a
+  difference that only shows up when a catalog moves between them.
+- **Gating the Next server render behind `fallback` by default** — the server render already has the
+  catalog, so gating it would swap correct content for a spinner. A server render with no catalog
+  passes `ssrInitialIsInitializing={true}` explicitly.
 
-Spread the same object into `createNextI18n({ ...routing, … })` in `src/i18n.ts` so there is
-still exactly one source of truth for the URL rules. Declare `locales` separately in both files and
-`/uk/…` becomes a real route in one and an unknown one in the other.
+## Where it lives
 
-## Never compose `localeDetector()` on the App Router host
-
-It lives at module scope and is process-wide, so the detector would run once, at the host's
-`init()`, and the first request's headers would pin the locale for every later render.
-`nextPlugin(localeDetectorPlugin(…), { runtime: "client" })` is the form: the browser has exactly one
-visitor, and the server's locale is the request's — `getI18n()` passes it explicitly.
-
-## The server request contract
-
-The i18n instance lives at module scope and is shared by every concurrent request in a server
-process. It contributes the translation **catalog** and the **loader**; the locale belongs to the
-request. Every lookup `getI18n()` hands you names the request locale explicitly, so two concurrent
-renders at different locales cannot race, and the internal server host type carries no `t`, so a
-server helper that tried to translate without a locale would not compile. A request that cannot
-determine its locale throws before it triggers the host's one-time initialization.
-
-Two writes still travel from a request to the shared instance, and the package's tests pin that no
-request writes the instance's locale or its active namespaces. `addTranslations()` runs on the
-server: it is additive and keyed by `locale:namespace`, so a concurrent request can only write what
-the other would have loaded anyway (a first add for a given key does emit `namespaceLoaded`). And
-`init()` loads the default namespace once, at the instance's own configured locale, never at a
-request's. Validation of `routing.locales` also runs on the server, so a bad `[locale]` segment
-reaches your `onError` in the server logs.
-
-## `createNextI18n` composes capabilities; it does not pick a compiler
-
-`createNextI18n` composes the 0.4 host explicitly inside the package: ambient tag syntax, the loader
-(with both `registerLoader` overloads), the plugin host, default params and devtools discovery. The
-compiler is **not** on that list. It used to default to `icuCompiler`, and that default is gone: ICU
-is never enabled automatically in any package, so an ICU catalog needs
-`compiler: icuCompiler` here exactly as it does on `createI18n`.
-
-`createI18n` on `@comvi/next/client` and `@comvi/next/server` is the base host, carrying nothing you
-did not compose. The two constructors differ in the capabilities they bring, never in the compiler —
-see that README's reference section.
-
-## `fallback` here is a post-hydration gate
-
-`<I18nProvider>` forwards react's `fallback` and passes `ssrInitialIsInitializing={false}` on your
-behalf: the server render already has the catalog (`getI18n()` / `loadTranslations()`), so it is
-never gated, and neither is the hydration render that reads the same snapshot. A `fallback` in a
-next app therefore covers only what the CLIENT host still has to initialize after hydration.
+- `createNextI18n` and its `compiler` option — `packages/next/src/createNextI18n.ts`;
+  `createComposedNextI18n` — `packages/next/src/composedHost.ts`
+- the Server-to-Client constraint, in its doc comment — `packages/next/src/client/I18nProvider.tsx`
+- `defineRouting` — `packages/next/src/routing/defineRouting.ts`; `createMiddleware` —
+  `packages/next/src/middleware.ts`; `nextPlugin` — `packages/next/src/index.ts`
+- `setI18n` / `getI18n` and the server host type — `packages/next/src/server.ts`
 
 ## Related
 
