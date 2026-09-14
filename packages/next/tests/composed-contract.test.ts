@@ -3,6 +3,7 @@ import { createNextI18n } from "../src/createNextI18n";
 import { nextPlugin, nextPluginLazy } from "../src/nextPlugin";
 import type { NextComposedI18n } from "../src/composedHost";
 import { createI18n as baseCreateI18n, isVirtualNode } from "@comvi/core";
+import { icuCompiler } from "@comvi/core/icu";
 import type { I18nPlugin, LoaderFn, TagCallbackParams } from "@comvi/core";
 
 /**
@@ -27,8 +28,9 @@ afterEach(() => {
 });
 
 describe("published createNextI18n — composed capabilities", () => {
-  it("compiles ICU plural / select / selectordinal", () => {
+  it("compiles ICU plural / select / selectordinal once the compiler is named", () => {
     const { i18n } = make({
+      compiler: icuCompiler,
       translation: {
         en: {
           items: "{count, plural, one {# item} other {# items}}",
@@ -257,27 +259,48 @@ describe("published createNextI18n — unchanged by the P4 direct-host convergen
     expect(Object.keys(make()).sort()).toEqual(["i18n", "routing", "use"]);
   });
 
-  it("compiles ICU where the direct-host base throws E_ICU_SYNTAX", () => {
+  it("treats an ICU catalog EXACTLY as the direct-host base does, compiler or none", () => {
     const plural = { items: "{count, plural, one {# item} other {# items}}" };
 
-    expect(make({ translation: { en: plural } }).i18n.t("items", { count: 3 })).toBe("3 items");
+    // The differential that matters after wave 6: the composed root used to
+    // default the compiler and the base host never did, so the same catalog
+    // rendered two different ways through one package. Both surfaces now
+    // behave identically, and the assertion is written as a comparison rather
+    // than as two literals so it holds under either build condition — dev
+    // throws at the ingestion preflight, production reports and renders
+    // literally, and the point is that the two surfaces AGREE either way.
+    const outcome = (build: () => string) => {
+      try {
+        return { rendered: build() };
+      } catch (error) {
+        return { code: (error as { code?: unknown }).code };
+      }
+    };
 
-    // The base host is the loud one: dev throws at the ingestion preflight,
-    // production throws on the first uncached format. Wrapping BOTH steps pins
-    // the code without pinning the timing.
-    const ingestAndFormat = () => {
-      const base = baseCreateI18n({
+    const composed = outcome(() =>
+      make({ translation: { en: plural } }).i18n.t("items", { count: 3 }),
+    );
+    const base = outcome(() =>
+      baseCreateI18n({
         locale: "en",
         exposeGlobal: false,
         translation: { en: plural },
-      });
-      base.t("items" as never, { count: 3 } as never);
-    };
-
-    expect(ingestAndFormat, "expected E_ICU_SYNTAX").toThrow(Error);
-    expect(ingestAndFormat).toThrow(
-      expect.objectContaining({ code: "E_ICU_SYNTAX", argumentType: "plural" }),
+      }).t("items" as never, { count: 3 } as never),
     );
+
+    expect(composed).toEqual(base);
+    // …and naming the compiler is what changes the answer, on both surfaces.
+    expect(
+      make({ compiler: icuCompiler, translation: { en: plural } }).i18n.t("items", { count: 3 }),
+    ).toBe("3 items");
+    expect(
+      baseCreateI18n({
+        locale: "en",
+        exposeGlobal: false,
+        compiler: icuCompiler,
+        translation: { en: plural },
+      }).t("items" as never, { count: 3 } as never),
+    ).toBe("3 items");
   });
 
   it("hosts plugins and flattens nested catalogs where the base host does neither", () => {

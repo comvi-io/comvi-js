@@ -30,19 +30,20 @@ Everything in the left column below used to be there whether you used it or not.
 In 0.5 each is absent until composed, and absent means _its module never entered
 your bundle_.
 
-| 0.4 root behaviour                                  | converged root                        | migration                                          |
-| --------------------------------------------------- | ------------------------------------- | -------------------------------------------------- |
-| ICU plurals / select                                | dev throws, prod renders it literally | `compiler: icuCompiler` in the constructor options |
-| 0.4's `.use(plugin)`                                | absent: TS error plus `TypeError`     | `.use(definePlugin(p))`, or a lowercase installer  |
-| loader (`registerLoader`, …)                        | absent: the loud capability error     | `.use(attachLoader)`, or `fetchLoader(opts)`       |
-| discovery (`instanceId`, `window.__COMVI__`)        | absent: invisible to the extension    | `.use(devtools())`, or `inContextEditor()`         |
-| a bare `loader()` (0.5 pre-release, attach-only)    | TS error: the import map is required  | `.use(attachLoader)`                               |
-| string-API tags (`"<b>hi</b>"`)                     | literal text, dev warning             | `<T>`, or `import "@comvi/core/tags"`              |
-| a plugin returning a value                          | throws at `init()`                    | return nothing, or a cleanup function              |
-| `clearTranslations(undefined, ns)` deactivated `ns` | clears CONTENT only, in every form    | `removeActiveNamespace(ns)` from the loader        |
-| nested inline catalogs                              | unchanged: every host flattens them   | —                                                  |
-| `new I18n(options)`                                 | unchanged, one argument               | —                                                  |
-| `createNextI18n`, the CDN global                    | unchanged, still fully composed       | —                                                  |
+| 0.4 root behaviour                                  | converged root                                                             | migration                                          |
+| --------------------------------------------------- | -------------------------------------------------------------------------- | -------------------------------------------------- |
+| ICU plurals / select                                | dev throws, prod renders it literally                                      | `compiler: icuCompiler` in the constructor options |
+| 0.4's `.use(plugin)`                                | absent: TS error plus `TypeError`                                          | `.use(definePlugin(p))`, or a lowercase installer  |
+| loader (`registerLoader`, …)                        | absent: the loud capability error                                          | `.use(attachLoader)`, or `fetchLoader(opts)`       |
+| discovery (`instanceId`, `window.__COMVI__`)        | absent: invisible to the extension                                         | `.use(devtools())`, or `inContextEditor()`         |
+| a bare `loader()` (0.5 pre-release, attach-only)    | TS error: the import map is required                                       | `.use(attachLoader)`                               |
+| string-API tags (`"<b>hi</b>"`)                     | literal text, dev warning                                                  | `<T>`, or `import "@comvi/core/tags"`              |
+| a plugin returning a value                          | throws at `init()`                                                         | return nothing, or a cleanup function              |
+| `clearTranslations(undefined, ns)` deactivated `ns` | clears CONTENT only, in every form                                         | `removeActiveNamespace(ns)` from the loader        |
+| nested inline catalogs                              | unchanged: every host flattens them                                        | —                                                  |
+| `new I18n(options)`                                 | unchanged, one argument                                                    | —                                                  |
+| the CDN global (`<script src>`)                     | unchanged, still fully composed                                            | —                                                  |
+| `createNextI18n`                                    | composes tags, the loader, plugins and devtools; the COMPILER is now yours | `compiler: icuCompiler` for an ICU catalog         |
 
 A **missing interpolation parameter now renders as the literal placeholder.** In
 0.4, `t("greet")` on `"Hello, {name}!"` gave `"Hello, !"`; in 0.5 it gives
@@ -589,12 +590,16 @@ when `baseUrl` is absent.
 The client inherits react's migration verbatim: `@comvi/next/client` re-exports
 `useI18nLoader` / `useI18nPlugins` alongside `useI18n`.
 
-**Three host entry points, and only one of them changed.** `createNextI18n` from
-`@comvi/next` is preserved exactly: it composes ICU, ambient tags, the loader
-with both `registerLoader` overloads, the plugin host, default params and
-devtools discovery inside the package, so a 0.4 app that calls it needs no
-migration at all; its host type is now published as
-`NextComposedI18n<D>`. What changed is the DIRECT-host constructor on the two
+**Three host entry points, and the composed root changed in exactly one way.**
+`createNextI18n` from `@comvi/next` still composes ambient tags, the loader with
+both `registerLoader` overloads, the plugin host, default params and devtools
+discovery inside the package, and its host type is now published as
+`NextComposedI18n<D>`. What it no longer does is pick a compiler: it used to
+default `compiler` to `icuCompiler`, and now it defaults nothing, so **a 0.4 app
+that rendered plurals through `createNextI18n` must add
+`compiler: icuCompiler`** — the same one line every other constructor in the
+repo asks for. Nothing else about the factory needs migrating. What changed
+beyond it is the DIRECT-host constructor on the two
 runtime entries: `createI18n` on `@comvi/next/client` and `@comvi/next/server` is
 the base host, row for row as §0 describes, and every installer that table names
 is re-exported from both entries. The second constructor name that briefly stood

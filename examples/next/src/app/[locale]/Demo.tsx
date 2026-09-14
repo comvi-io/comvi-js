@@ -56,9 +56,8 @@ export function Demo() {
         <p>{t("greeting.hello", { name: "Ada" })}</p>
       </section>
 
-      {/* 3 — an ICU plural, live on a counter. `createNextI18n` composed the ICU
-          compiler inside the package, so no `compiler:` option appears anywhere
-          in this app. */}
+      {/* 3 — an ICU plural, live on a counter. The compiler is named once, in
+          `src/i18n/config.ts`: no host enables ICU on its own. */}
       <section>
         <h2>plural</h2>
         <div className="row">

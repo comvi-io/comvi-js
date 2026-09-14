@@ -68,9 +68,9 @@ Runnable version: [`examples/next`](../../examples/next), which opens in
 `createNextI18n` ingests the whole inline catalog at construction, so there is nothing to fetch and
 no loading state to render for.
 
-Unlike the other bindings' step 1, this one names `compiler: icuCompiler`. `createNextI18n`
-composes ICU by default, so the line documents that default rather than adding a second step — which
-is also why this catalog can already carry a plural where the other step 1s cannot.
+Unlike the other bindings' step 1, this one names `compiler: icuCompiler` — because this catalog
+already carries a plural, and ICU is never on by default here either. The rule is the same on every
+constructor in the repo: name the compiler or ICU does not compile.
 
 ```ts title="src/i18n.ts" check=group=next-quickstart-inline
 import { createNextI18n, icuCompiler } from "@comvi/next";
@@ -78,8 +78,8 @@ import { createNextI18n, icuCompiler } from "@comvi/next";
 export const { i18n, routing } = createNextI18n({
   locales: ["en", "uk"],
   defaultLocale: "en",
-  // `createNextI18n` composes ICU itself, so this line is the default rather than
-  // a change; `createI18n` on the client/server entries does NOT, and needs it.
+  // Required for the plural below: no constructor in the repo turns ICU on by
+  // itself, `createNextI18n` included.
   compiler: icuCompiler,
   translation: {
     en: {

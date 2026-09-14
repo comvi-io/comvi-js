@@ -93,18 +93,17 @@ the other would have loaded anyway (a first add for a given key does emit `names
 request's. Validation of `routing.locales` also runs on the server, so a bad `[locale]` segment
 reaches your `onError` in the server logs.
 
-## `createNextI18n` carries ICU; `createI18n` does not
+## `createNextI18n` composes capabilities; it does not pick a compiler
 
-`createNextI18n` composes the 0.4 host explicitly inside the package, so its published behaviour is
-preserved exactly: ICU, ambient tag syntax, the loader (with both `registerLoader` overloads), the
-plugin host, default params and devtools discovery. ICU is still the `compiler` option there, but it
-**defaults to `icuCompiler`** — that is what "behaviour-compatible with 0.4" means. Pass your own
-`MessageCompiler` to opt out; `compiler: undefined` is not an opt-out, since the default still
-applies.
+`createNextI18n` composes the 0.4 host explicitly inside the package: ambient tag syntax, the loader
+(with both `registerLoader` overloads), the plugin host, default params and devtools discovery. The
+compiler is **not** on that list. It used to default to `icuCompiler`, and that default is gone: ICU
+is never enabled automatically in any package, so an ICU catalog needs
+`compiler: icuCompiler` here exactly as it does on `createI18n`.
 
-`createI18n` on `@comvi/next/client` and `@comvi/next/server` has the opposite default: the base
-host, carrying nothing you did not compose, ICU included. The two constructors are not peers — see
-that README's reference section.
+`createI18n` on `@comvi/next/client` and `@comvi/next/server` is the base host, carrying nothing you
+did not compose. The two constructors differ in the capabilities they bring, never in the compiler —
+see that README's reference section.
 
 ## `fallback` here is a post-hydration gate
 

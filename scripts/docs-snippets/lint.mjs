@@ -101,9 +101,12 @@ const LOADER_TOKENS = [
   /\battachLoader\s*\(/,
   /\.use\s*\(\s*fetchLoader\s*\(/,
   /\.use\s*\(\s*cdnLoader\s*\(/,
-  // MIGRATION.md §5: `createNextI18n` is preserved exactly and composes the
-  // loader with both `registerLoader` overloads inside the package; its host
-  // type `NextComposedI18n` and the SSR `NextServerLoaderHost` carry it too.
+  // MIGRATION.md §5: `createNextI18n` composes the loader with both
+  // `registerLoader` overloads inside the package; its host type
+  // `NextComposedI18n` and the SSR `NextServerLoaderHost` carry it too. The
+  // COMPILER is not on that list any more — the factory lost its `icuCompiler`
+  // default in wave 6 — and this token vouches for the loader only. ICU
+  // evidence is `ICU_TOKENS`, which has never counted this name.
   /\bcreateNextI18n\s*\(/,
   /\bNextComposedI18n\b/,
   /\bNextServerLoaderHost\b/,
@@ -409,10 +412,11 @@ function statementAt(text, index) {
 /**
  * Is this `.use(` the `createNextI18n` compat surface?
  *
- * `createNextI18n` is preserved EXACTLY across 0.5.0 (MIGRATION.md §5) and its
+ * `createNextI18n` keeps every 0.4 capability (MIGRATION.md §5) and its
  * composed host keeps the raw plugin queue, so `result.use(RawPlugin())` on it
  * is a deliberate surviving shape rather than an `E_USE_NOT_INSTALLER` waiting
- * to happen. Proven two ways: the receiver is a binding the fence assigned from
+ * to happen. The factory's `compiler` default is gone, but that is a
+ * constructor option and never affected this exemption. Proven two ways: the receiver is a binding the fence assigned from
  * `createNextI18n(…)`, or the statement the call sits in is a chain rooted
  * there.
  */

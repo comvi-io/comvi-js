@@ -841,6 +841,42 @@ test("an ICU argument in a JSON catalog fence with no compiler named → require
   );
 });
 
+test("an ICU catalog on a createNextI18n page with no compiler → required/icu-compiler", () => {
+  // The factory used to default `compiler` to `icuCompiler`, and a reader could
+  // fairly have expected the rule to treat the constructor as its own evidence.
+  // It never did, and after wave 6 it must not start: `createNextI18n` picks no
+  // compiler either, so an ICU catalog owes the option on this page exactly as
+  // it does on a `createI18n` page. `createNextI18n` IS evidence for the loader
+  // and the plugin host (LOADER_TOKENS / PLUGIN_TOKENS) — this pins that the
+  // two lists stay separate.
+  const body = [
+    '```json title="locales/en.json"',
+    '{ "cart": "{count, plural, one {# item} other {# items}}" }',
+    "```",
+    "```ts",
+    "export const { i18n } = createNextI18n({ locales: ['en'], defaultLocale: 'en' });",
+    "```",
+  ].join("\n");
+
+  assert.deepEqual(rulesOf(body), ["required/icu-compiler"]);
+});
+
+test("the same createNextI18n page once it names the compiler → clean", () => {
+  const body = [
+    '```json title="locales/en.json"',
+    '{ "cart": "{count, plural, one {# item} other {# items}}" }',
+    "```",
+    "```ts",
+    "import { createNextI18n, icuCompiler } from '@comvi/next';",
+    "export const { i18n } = createNextI18n({",
+    "  locales: ['en'], defaultLocale: 'en', compiler: icuCompiler,",
+    "});",
+    "```",
+  ].join("\n");
+
+  assert.deepEqual(rulesOf(body), []);
+});
+
 test("the same catalog on a page that names icuCompiler → clean", () => {
   const body = [
     '```json title="locales/en.json"',
@@ -1344,8 +1380,9 @@ test("a raw plugin on a receiver that is NOT exempt → still banned", () => {
 });
 
 test("createNextI18n's result.use(RawPlugin()) → exempt, a deliberate compat surface", () => {
-  // `createNextI18n` is preserved exactly across 0.5.0 (MIGRATION.md §5) and
-  // its composed host keeps the raw plugin queue.
+  // `createNextI18n` keeps every 0.4 capability (MIGRATION.md §5) and its
+  // composed host keeps the raw plugin queue. Losing the `compiler` default
+  // did not touch this: the compiler is a constructor option, never a `.use`.
   const stored = [
     "```ts",
     "const result = createNextI18n({ locale: 'en' });",

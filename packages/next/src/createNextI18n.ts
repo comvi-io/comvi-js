@@ -1,5 +1,4 @@
 import { createComposedNextI18n, type NextComposedI18n } from "./composedHost";
-import { icuCompiler } from "@comvi/core/icu";
 import type { I18nOptions, DefaultTranslationParams, MessageCompiler } from "@comvi/core";
 import { resolveRouting } from "./nextI18nRouting";
 import type { NextRoutingOptions } from "./nextI18nRouting";
@@ -55,13 +54,15 @@ export interface CreateNextI18nBaseOptions extends NextRoutingOptions {
   devMode?: boolean;
 
   /**
-   * Message compiler for the host. Defaults to `icuCompiler` in 0.5 — the
-   * composed root keeps its published ICU behaviour — so plural, select and
-   * selectordinal compile in every catalog, whatever its source. Pass core's
-   * simple `{param}` compiler (`compiler: undefined` is NOT that: the default
-   * still applies) or your own `MessageCompiler` to opt out; `createI18n` on
-   * `/client` and `/server` has the opposite default.
-   * @default icuCompiler
+   * Message compiler for the host. Omitted, the host uses core's default
+   * `{param}` compiler, which does NOT render `plural`, `select` or
+   * `selectordinal`: development throws `E_ICU_SYNTAX` at ingestion, and
+   * production renders the braced message literally and reports it once (to
+   * the console here — this factory forwards no `onError`). Pass
+   * `compiler: icuCompiler` from `@comvi/core/icu` to compile
+   * ICU in every catalog the host ingests, whatever its source — the same rule
+   * as `createI18n` on `/client` and `/server`, and as every other
+   * constructor in the repo. ICU is never enabled automatically.
    */
   compiler?: MessageCompiler;
 
@@ -108,9 +109,9 @@ export interface CreateNextI18nResult<
    *
    * A plugin scoped to one runtime or build environment goes through
    * {@link nextPlugin} / {@link nextPluginLazy}; an unscoped one through
-   * `definePlugin(fn)`; a plugin package through its lowercase installer. ICU
-   * is not composed at all: it is the `compiler` option, `icuCompiler` by
-   * default here.
+   * `definePlugin(fn)`; a plugin package through its bare-name installer. ICU
+   * is not composed at all and is never on by default: it is the `compiler`
+   * option, `compiler: icuCompiler`.
    *
    * Never compose `localeDetector()` on this host. It lives at module scope
    * and is process-wide on the App Router, so the detector would run once, at
@@ -175,7 +176,7 @@ export function createNextI18n<const D extends DefaultTranslationParams = {}>(
     fallbackLocale = defaultLocale,
     defaultNs = "default",
     devMode: devModeOption,
-    compiler = icuCompiler,
+    compiler,
     basicHtmlTags,
     onMissingKey,
   } = options;

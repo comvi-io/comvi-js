@@ -6,11 +6,13 @@
 
 **Grep target for a tree built against 0.5 development:** the second constructor name that briefly stood beside `createI18n` on both entries for the bare host was `createSlimI18n`. It is deleted — one host, one name — it never published, so rename it to `createI18n`, aliased imports included.
 
-**`createNextI18n` from `@comvi/next` is NOT affected.** It composes ICU, ambient tags, the
+**`createNextI18n` from `@comvi/next` keeps every capability.** It composes ambient tags, the
 loader (both `registerLoader` overloads), the plugin host, default params and devtools
-discovery explicitly, inside this package — so a 0.4 app built
-on it migrates by changing nothing, and it is the one-line escape hatch if you do not want
-to compose anything. Its host type is now published as `NextComposedI18n<D>`. Nothing about
+discovery explicitly, inside this package, so it is still the one-line escape hatch if you do
+not want to compose anything. The compiler is the exception, and it is a separate breaking
+change in its own changeset: `createNextI18n` no longer defaults `compiler` to `icuCompiler`,
+so an ICU catalog needs `compiler: icuCompiler` here as well. Its host type is now published
+as `NextComposedI18n<D>`. Nothing about
 `<I18nProvider>`, `useI18n()`, `<T>`, the capability hooks, `createMiddleware`,
 `createNextI18nFromHost`, locale routing or navigation changes here.
 

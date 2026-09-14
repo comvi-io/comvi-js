@@ -1,14 +1,17 @@
-import { createNextI18n, loader } from "@comvi/next";
+import { createNextI18n, icuCompiler, loader } from "@comvi/next";
 import { routing } from "./routing";
 
 export { locales, routing } from "./routing";
 
 /**
  * The composed root. `createNextI18n` is the batteries-included preset: it
- * composes ICU (the `compiler` option, `icuCompiler` by default), the tag
- * grammar, the loader and the plugin host INSIDE the package. The other five
- * examples name each capability by hand because their host is core's bare base
- * host — the difference is the preset, not the framework.
+ * composes the tag grammar, the loader and the plugin host INSIDE the package.
+ * The other five examples name each capability by hand because their host is
+ * core's bare base host — the difference is the preset, not the framework.
+ *
+ * The compiler is NOT part of the preset. No constructor in the repo turns ICU
+ * on by itself, so the plural in `locales/*.json` needs `compiler: icuCompiler`
+ * named here, exactly as the other five examples name it.
  *
  * The URL rules come from `./routing` and are spread straight in, so the
  * middleware and the runtime cannot drift apart while `middleware.ts` keeps
@@ -25,6 +28,7 @@ export { locales, routing } from "./routing";
 export const { i18n } = createNextI18n({
   ...routing,
   fallbackLocale: "en",
+  compiler: icuCompiler,
 }).use(
   loader({
     en: () => import("../locales/en.json"),

@@ -70,6 +70,9 @@ describe("createNextI18n", () => {
       locales: ["en"],
       defaultLocale: "en",
       defaultParams: { formality: "formal" as const },
+      // The default parameter is consumed by an ICU `select`, so this case
+      // needs the compiler named — the factory supplies none.
+      compiler: icuCompiler,
       translation: {
         en: { review: "{formality, select, formal {Formal} other {Informal}}" },
       },
@@ -228,11 +231,12 @@ describe("createNextI18n", () => {
     expect(development.i18n.devMode).toBe(true);
   });
 
-  it("compiles ICU by default: the composed root keeps its published behaviour", () => {
+  it("compiles ICU when the caller names the compiler, and only then", () => {
     const { i18n } = createNextI18n({
       locales: ["en"],
       defaultLocale: "en",
       devMode: false,
+      compiler: icuCompiler,
       translation: { en: { items: "{count, plural, one {# item} other {# items}}" } },
     });
 
@@ -241,7 +245,7 @@ describe("createNextI18n", () => {
 
   it("takes a `compiler` option, so ICU is one setting and not a hardcode", () => {
     // A compiler that compiles NO argument renders every braced segment as
-    // literal text — the one output the default (ICU) can never produce.
+    // literal text — the one output `icuCompiler` can never produce.
     const literal: MessageCompiler = { makeArgToken: () => undefined };
     const template = "{count, plural, one {# item} other {# items}}";
     const { i18n } = createNextI18n({
@@ -253,15 +257,6 @@ describe("createNextI18n", () => {
     });
 
     expect(i18n.t("items" as never, { count: 3 } as never)).toBe(template);
-    // Naming the default explicitly is the same host as naming nothing.
-    const explicit = createNextI18n({
-      locales: ["en"],
-      defaultLocale: "en",
-      devMode: false,
-      compiler: icuCompiler,
-      translation: { en: { items: "{count, plural, one {# item} other {# items}}" } },
-    });
-    expect(explicit.i18n.t("items" as never, { count: 1 } as never)).toBe("1 item");
   });
 });
 
