@@ -506,7 +506,8 @@ catalogs are inline or loaded. Compose neither capability and `useI18nLoader()` 
 - **Svelte:** they are **context readers**: callable during component
   initialisation only, returning plain bound functions; do not `$`-prefix a
   member. `<T>` now renders structurally, so `allowedTags` is **gone**, and
-  leaving it in place is a type error (`allowedTags?: never` on `TProps`), while
+  leaving it in place is a type error (`allowedTags?: never` on `TBaseProps`, which `TProps`
+  intersects), while
   a JS caller that still passes it gets a one-time development warning and the
   value is dropped rather than spread into `params`. Delete it. `components`
   accepts Svelte components, and the old implicit
@@ -643,7 +644,14 @@ await i18n.init();
 New in 0.5.0: `@comvi/plugin-fetch-loader/cdn` is the CDN request path on its
 own. `fetchLoader` picks between the CDN and the API at runtime, so it carries
 both; an app that only reads a public distribution swaps it for `cdnLoader` and
-drops about 1.9 kB min+gz. Keep `fetchLoader` wherever the host has an `apiKey`.
+drops the API request path with it:
+
+| graph                                  | fixture                        | min+gz  |
+| -------------------------------------- | ------------------------------ | ------- |
+| base host, ICU, and the root entry     | `plugin-fetch-loader-cdn`      | 11139 B |
+| base host, ICU, and the `/cdn` subpath | `plugin-fetch-loader-cdn-lite` | 9173 B  |
+
+Keep `fetchLoader` wherever the host has an `apiKey`.
 
 Each composes, idempotently, what its plugin needs: `fetchLoader` →
 `@comvi/core/loader` and `@comvi/core/plugins`; `localeDetector` →

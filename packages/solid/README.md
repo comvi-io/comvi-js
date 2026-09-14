@@ -163,10 +163,14 @@ already inline has nothing to wait for and wants no `fallback`.
 
 ### `useI18n()`
 
-Returns the translation bag every host can serve: `{ t, tRaw, locale, translationCache,
+Returns the translation bag every host can serve: `{ t, tRaw, locale, getTranslationCache,
 cacheRevision, isLoading, isInitializing, isInitialized, setLocale, ... }` plus the four `Intl`
 formatters. The same member names as `@comvi/react`, `@comvi/svelte` and `@comvi/vue`, so a
 component reads alike across bindings. Accessors are signals; call them.
+
+One member is not the same everywhere: the cache is a getter here,
+`getTranslationCache()`, where `@comvi/react` and `@comvi/vue` expose `translationCache`
+directly.
 
 It does **not** carry the loader or plugin members — see the capability APIs below.
 
@@ -235,6 +239,10 @@ silent no-op:
 ```
 [comvi] This i18n instance has no loader capability. Compose it: .use(attachLoader) from "@comvi/core/loader", or loader(map).
 ```
+
+That is the development message. A production build throws the short form,
+`[comvi] missing loader capability — attach @comvi/core/loader`, so grep for that one in
+production logs.
 
 ### Rich text with `<T>`
 
@@ -315,7 +323,7 @@ request, would carry one request's locale into another's tree. This is the oppos
 `@comvi/next` follows.
 
 **Server-side loading is not supported yet.** `<I18nProvider>` calls `init()` from a `createEffect`
-(`packages/solid/src/context.tsx:112-120`), and effects do not run during Solid's server render. So a
+(`the `createEffect`inside`I18nProvider`, packages/solid/src/context.tsx`), and effects do not run during Solid's server render. So a
 catalog a loader would have fetched is absent server-side and `isInitialized()` is `false` there.
 Keep the catalog inline for the server render, or load on the client and gate with `fallback`.
 [Track progress in the issues](https://github.com/comvi-io/comvi-js/issues).

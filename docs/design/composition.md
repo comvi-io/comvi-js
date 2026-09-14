@@ -105,8 +105,8 @@ i18n.registerLoader(async (locale, ns) => (await fetch(`/i18n/${locale}/${ns}.js
 configure in the same call. For the loader that is one sentence, because the import map is
 **required**: a static map of import functions goes to `.use(loader(map))`; a plain `LoaderFn` goes
 to `.use(attachLoader)` followed by `registerLoader(fn)`, as above. A bare `loader()` is a compile
-error, so there is no third form and nothing to weigh — and the import-map adapter (~111–124 B
-min+gz) is in your bundle only when you actually hand over a map.
+error, so there is no third form and nothing to weigh — and the import-map adapter is in your
+bundle only when you actually hand over a map.
 
 Your app's own inline plugin reaches the queue through `definePlugin(fn, options?)` from
 `@comvi/core/plugins`: `.use(definePlugin((i18n) => { … }))` composes the plugin host and registers
@@ -126,12 +126,13 @@ nothing and shadows nothing.
 
 Configuration is not installation, and the difference matters for exactly one installer.
 `loader(map)` attaches and then calls `registerLoader` with the map it was given
-(`packages/core/src/loader.ts:82-90`), so a second `loader(map)` on an already-composed host still
+(the `loader` installer in `packages/core/src/loader.ts`), so a second `loader(map)` on an already-composed host still
 registers its map: the capability is a no-op, the map is not. Nothing else in the surface configures
 on attach.
 
 Composing after `init()` warns once per host, in development only
-(`packages/core/src/utils/lateCompose.ts:19-33`). Once per host rather than once per call, so a
+(`warnLateCompose`, and the `warned` WeakSet it dedupes on, in
+`packages/core/src/utils/lateCompose.ts`). Once per host rather than once per call, so a
 chained `.use(attachLoader).use(plugins())` reports it once instead of twice. **Compose before
 `init()`.**
 

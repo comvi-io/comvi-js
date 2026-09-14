@@ -15,6 +15,11 @@ The host is the i18n instance `createI18n` returns.
 - **The plural `offset:` form is not implemented.** Drop `offset:` and write the branches out.
 - **`plural`, `selectordinal` and `select` are the whole of what the compiler implements**, each with
   a choice list. See [icu.md](icu.md#unsupported-argument-types).
+- **A missing interpolation parameter renders as its own placeholder.** `t("greet")` on
+  `"Hello, {name}!"` gives `"Hello, {name}!"` in 0.5, where 0.4 gave `"Hello, !"`, plus one
+  development warning per template and parameter. An explicit `null` still renders as an empty
+  string. Opt out with `missingParam: "drop"`. This is 0.5's most visible behaviour change; the
+  [root README](https://github.com/comvi-io/comvi-js#upgrading-from-04x) lists it among the four.
 - **ICU is off unless you name it.** Without `compiler: icuCompiler` a plural throws in development
   and renders literally in production. This is a choice, not an omission — the alternative is a
   plausible wrong answer — but it is the single most common first surprise.
@@ -42,6 +47,9 @@ The host is the i18n instance `createI18n` returns.
 - **The in-context editor needs a Comvi account.** `@comvi/plugin-in-context-editor` requires the
   [Comvi platform](https://comvi.io) and does not work standalone. Its production entry is a no-op
   installer, so a production build that composes it carries no editor bytes.
+- **The browser extension must be 0.5.0 or newer.** `window.__COMVI__` is protocol v2, and an older
+  extension does not speak it. Discovery is opt-in either way: `.use(devtools())`. See
+  [MIGRATION.md](../../MIGRATION.md).
 - **`cdnLoader` reads a public distribution only.** Draft translations, private projects and
   auth-gated content need API mode: `fetchLoader` from the package root plus an `apiKey` on the
   host. The root entry carries the API request path in the bundle either way, which is why the
@@ -61,8 +69,8 @@ The host is the i18n instance `createI18n` returns.
 
 Four members on `useI18n()` are declared as optional `never` in react, solid, svelte and vue, so
 `if (bag.reloadTranslations)` compiles and is always false. Acquire them from `useI18nLoader()` /
-`useI18nPlugins()` instead. Those declarations, `<T raw>`, and `ssrInitialLocale` on `@comvi/react`
-are **removed in 0.6**.
+`useI18nPlugins()` instead. Those declarations, `<T raw>`, `allowedTags?: never` on svelte's `<T>`, and
+`ssrInitialLocale` on `@comvi/react` are all **removed in 0.6**.
 
 ## Environment
 

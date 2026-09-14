@@ -64,8 +64,8 @@ Two additions to the host, and they are the same two in every framework:
 1. **`compiler: icuCompiler`.** The platform's catalogs use ICU plurals. Without the compiler an ICU
    message throws in development and renders literally in production, so name it once and it covers
    every catalog the host ever ingests.
-2. **`.use(cdnLoader({ cdnUrl }))`**, which composes the loader and plugin capabilities and
-   registers the CDN plugin, in one call.
+2. **`.use(cdnLoader({ cdnUrl }))`**, which sets up loading and registers the CDN plugin, in one
+   call.
 
 ```ts
 import { createI18n } from "@comvi/core";

@@ -149,12 +149,20 @@ paint in. With `autoInit: false` the fallback stays until your app calls `i18n.i
 branches render inside the provider, so the fallback may use the hooks. Omit the prop and children
 render throughout. For a blank gate rather than a spinner, pass `false`.
 
+`onError` reports an initialization failure. Wrap `<I18nProvider>` in an error boundary to render a
+recovery UI as well — [react-error-boundary](https://github.com/bvaughn/react-error-boundary) is the
+convenient shape.
+
 ### `useI18n()`
 
 Returns the translation bag every host can serve: `{ t, tRaw, locale, translationCache,
 cacheRevision, isLoading, isInitializing, isInitialized, setLocale, ... }` plus the four `Intl`
 formatters, which here follow the React-tracked locale. The same member names as `@comvi/solid`,
 `@comvi/svelte` and `@comvi/vue`, so a component reads alike across bindings.
+
+One member is not the same everywhere: `translationCache` is a direct member here and in
+`@comvi/vue`, while `@comvi/solid` and `@comvi/svelte` expose it as a getter,
+`getTranslationCache()`.
 
 It does **not** carry the loader or plugin members — see the capability hooks below.
 
@@ -254,6 +262,10 @@ references. On a host that never composed the capability the acquisition call th
 ```
 [comvi] This i18n instance has no loader capability. Compose it: .use(attachLoader) from "@comvi/core/loader", or loader(map).
 ```
+
+That is the development message. A production build throws the short form,
+`[comvi] missing loader capability — attach @comvi/core/loader`, so grep for that one in
+production logs.
 
 ### Rich text with `<T>`
 

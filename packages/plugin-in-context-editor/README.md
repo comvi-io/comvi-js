@@ -28,6 +28,8 @@ The In-Context Editor overlays a visual editor on your app: hovering highlights 
 
 The editor renders independently of your app's framework, so it works with Vue, React, Solid, Svelte, Next.js, and Nuxt.
 
+Throughout this README, **the host** is the i18n instance `createI18n` returns.
+
 Comvi i18n is a framework-agnostic i18n library with ICU MessageFormat, rich text without XSS
 and typed translation keys. The [root README](https://github.com/comvi-io/comvi-js) has the
 two-step quickstart, the package matrix and the measured bundle weights.

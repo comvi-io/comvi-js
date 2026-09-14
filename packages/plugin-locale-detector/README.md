@@ -19,6 +19,8 @@
 
 `LocaleDetector` restores a saved locale from the first configured cache target, then walks an ordered list of detection sources, returns the first match, and persists the user's choice back to one or more caches. Set `cacheFirst: false` when the configured `order` should take priority over a saved locale. SSR-safe (gracefully skips browser-only APIs on the server) and supports BCP 47 lookup so `de-DE` matches `de` and vice versa.
 
+Throughout this README, **the host** is the i18n instance `createI18n` returns.
+
 Comvi i18n is a framework-agnostic i18n library with ICU MessageFormat, rich text without XSS
 and typed translation keys. The [root README](https://github.com/comvi-io/comvi-js) has the
 two-step quickstart, the package matrix and the measured bundle weights.

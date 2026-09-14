@@ -49,12 +49,19 @@ formatNumber(i18n, 1234.5); // "1.234,5"
 Every framework binding hands the same four back off `useI18n()`, together with `dir`. How
 _reactive_ they are differs between the bindings; core behaves the same under all of them:
 
-| binding | formatters re-render on a locale change                                                                                                                 | `dir`                        |
-| ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------- |
-| React   | **yes**, bound to the tracked locale and passed explicitly (`react/src/useI18n.ts:273-277`, `useFormatters.ts:31-34`)                                   | reactive                     |
-| Vue     | **yes**, they default to the reactive `locale` ref (`vue/src/VueI18n.ts:186-193`)                                                                       | reactive (`ComputedRef`)     |
-| Svelte  | **no**. They are "plain functions, not stores" (`svelte/src/useI18n.ts:198`) and read `i18n.locale` once per call unless you pass a locale (`:287-292`) | reactive (a `derived` store) |
-| Solid   | **no**. They call core with the host and read no signal (`solid/src/useI18n.ts:249-252`), while `dir` does (`:253`)                                     | reactive                     |
+| binding | formatters re-render on a locale change                                                               | `dir`                        |
+| ------- | ----------------------------------------------------------------------------------------------------- | ---------------------------- |
+| React   | **yes**. The `formatters` memo closes over the tracked locale and passes it explicitly                | reactive                     |
+| Vue     | **yes**. Each assignment defaults its `locale` argument to the reactive `locale` ref                  | reactive (`ComputedRef`)     |
+| Svelte  | **no**. "The formatters below are plain functions, not stores", and each reads `i18n.locale` per call | reactive (a `derived` store) |
+| Solid   | **no**. They call core with the host and read no signal, while `dir` reads `signals.locale()`         | reactive                     |
+
+Where to look, by symbol rather than by line, because this table was wrong the day it was written:
+the `formatters` memo in `packages/react/src/useI18n.ts` and the `useFormatters` hook in
+`packages/react/src/useFormatters.ts`; the four `this.format*` assignments in the `VueI18n`
+constructor, `packages/vue/src/VueI18n.ts`; the same four on the object returned by
+`packages/svelte/src/useI18n.ts` and `packages/solid/src/useI18n.ts`, each beside that binding's
+`dir`.
 
 This asymmetry is not an oversight waiting to be levelled. React's and Vue's formatters are already
 inside a tracked read at the point the binding builds them; Svelte's and Solid's are plain function

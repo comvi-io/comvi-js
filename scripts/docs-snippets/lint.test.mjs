@@ -1544,7 +1544,7 @@ test("the recorded gzip, min and budget figures are each accepted → clean", ()
   // is one the repo measured is not.
   assert.deepEqual(sizeFindingsOf("| a | `fw-react-default` | **6902 B** |"), []);
   assert.deepEqual(sizeFindingsOf("| a | `fw-react-default` | 19035 B |"), []);
-  assert.deepEqual(sizeFindingsOf("| a | `fw-react-default` | budget 7248 B |"), []);
+  assert.deepEqual(sizeFindingsOf("| a | `fw-react-default` | 7248 B |"), []);
   assert.deepEqual(sizeFindingsOf("| a | `fw-react-default` | 6,902 B |"), []);
 });
 
@@ -1559,6 +1559,34 @@ test("a figure with no `B` unit, the way the next and nuxt tables write it → s
 
 test("a SIGNED figure on the row is a delta between sweeps, not a size → ignored", () => {
   assert.deepEqual(sizeFindingsOf("| a | `fw-react-default` | 6902 B | +1234 B over 0.4 |"), []);
+});
+
+test("a date, an issue number and a bare year in a prose cell → ignored", () => {
+  // These three were false positives while the rule scanned the whole row for
+  // any unit-less four-digit number. `scripts/size-budgets.json` records a
+  // `measuredAt` per fixture, so a `measured` column is one edit away, and a
+  // gate that fires on a correct page is a gate people switch off.
+  assert.deepEqual(
+    sizeFindingsOf("| base | `fw-react-default` | 6902 B | measured 2026-09-12 |"),
+    [],
+  );
+  assert.deepEqual(sizeFindingsOf("| base | `fw-react-default` | 6902 B | see PR #1234 |"), []);
+  assert.deepEqual(sizeFindingsOf("| base | `fw-react-default` | 6902 B | node 2024 |"), []);
+  // Not one of the review's three, and the reason the fix is the CELL rather
+  // than an ISO-date and `#` exclusion: this one has neither marker.
+  assert.deepEqual(sizeFindingsOf("| base | `fw-react-default` | 6902 B | see PR 1234 |"), []);
+});
+
+test("a stale figure in a cell of its own is still graded, unit or no unit", () => {
+  // The other half of the cell rule: narrowing it must not green the rows the
+  // rule exists for. Both spellings appear in the corpus.
+  const suffixed = sizeFindingsOf("| base | `fw-react-default` | **6622 B** |");
+  assert.equal(suffixed.length, 1);
+  assert.match(suffixed[0].message, /states 6622 B beside `fw-react-default`/);
+
+  const bare = sizeFindingsOf("| base | `fw-react-default` | **7240** |");
+  assert.equal(bare.length, 1);
+  assert.match(bare[0].message, /states 7240 B beside `fw-react-default`/);
 });
 
 test("percentages, multipliers and short numbers on a size row → ignored", () => {

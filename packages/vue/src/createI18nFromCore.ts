@@ -25,10 +25,10 @@ import { VueI18n, type VueI18nCoreOptions } from "./VueI18n";
  *
  * @example
  * ```ts
- * import { createI18n as createCore } from "@comvi/core";
+ * import { createI18n as createCoreHost } from "@comvi/core";
  * import { attachLoader, createI18nFromCore } from "@comvi/vue";
  *
- * const i18n = createI18nFromCore(attachLoader(createCore({ locale: "en" })));
+ * const i18n = createI18nFromCore(attachLoader(createCoreHost({ locale: "en" })));
  * i18n.core.registerLoader(myLoader);
  * ```
  */

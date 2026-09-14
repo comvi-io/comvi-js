@@ -37,8 +37,9 @@ npm install @comvi/nuxt
 
 ## 2. Quick start — an inline catalog
 
-Two files plus one call. `nuxt.config.ts` configures the locales and routing, `comvi.host.ts` builds
-the host, and `useLocaleHead()` in `app.vue` is the one call the module will not make for you.
+Two files plus one call. `nuxt.config.ts` configures the locales, the routing and the inline
+catalog, `app.vue` makes the one call the module will not make for you, and a page reads
+`useI18n()`. There is no host file yet — step 3 adds it.
 
 Runnable version: [`examples/nuxt`](../../examples/nuxt), which opens in
 [StackBlitz](https://stackblitz.com/github/comvi-io/comvi-js/tree/main/examples/nuxt) straight from the repository — see
@@ -98,7 +99,8 @@ for is in your bundle. A nested `translation` object is flattened by the base ho
 
 ## 3. Connect to Comvi
 
-One file, and it is where every capability is chosen: **`comvi.host.ts`**. Two additions:
+One file, and it is the one place that decides what your app loads and compiles:
+**`comvi.host.ts`**. Two additions:
 
 1. **`compiler: icuCompiler`.** The platform's catalogs use ICU plurals. Without the compiler an ICU
    message throws in development and renders literally in production. `compiler` is a constructor

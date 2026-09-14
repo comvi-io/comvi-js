@@ -14,6 +14,8 @@ watch the plural change.
 | [`next`](./next)       | `@comvi/next`               | server, then hydrate | `tsc`            |
 | [`nuxt`](./nuxt)       | `@comvi/nuxt`               | server, then hydrate | `nuxt typecheck` |
 
+Throughout this README, **the host** is the i18n instance `createI18n` returns.
+
 The last two are the ones where the **URL carries the locale**: `/en`, `/uk` and
 `/de` are three real addresses you can link and bookmark, the switcher navigates
 rather than mutating a ref, and the page that comes back over the wire is

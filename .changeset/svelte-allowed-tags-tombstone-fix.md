@@ -12,3 +12,5 @@ instead of a silent no-op. A JS caller that still passes the prop at runtime get
 pulled out before the interpolation-param spread, the same way `raw` is — with a one-time
 development-only warning through the same per-host `#dev-warn` channel `<T raw>` uses (a separate
 dedupe set, so the two warnings do not suppress each other on the same host).
+
+The `allowedTags?: never` declaration is removed in 0.6.
