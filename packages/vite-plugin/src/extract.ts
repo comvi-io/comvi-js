@@ -4,9 +4,9 @@ import fs from "node:fs/promises";
 import path from "node:path";
 
 /**
- * The schema shape is owned by `@comvi/typegen`, the emitter this plugin and
- * `@comvi/cli` share. Re-exported so the plugin's public type names stay where
- * consumers import them from.
+ * The schema shape is shared with the Comvi CLI through the workspace-private
+ * typegen package, which both builds inline. Re-exported so the plugin's public
+ * type names stay where consumers import them from.
  */
 import type { KeySchema, ProjectSchema, SchemaParam } from "@comvi/typegen";
 

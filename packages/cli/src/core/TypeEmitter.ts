@@ -25,7 +25,7 @@ export interface TypeEmitterOptions {
 /**
  * The CLI's call into the shared emitter.
  *
- * `@comvi/typegen` throws a plain `Error` for a schema it cannot express; the
+ * The shared emitter throws a plain `Error` for a schema it cannot express; the
  * CLI reports a `TypegenError` so `comvi typegen` keeps its exit code. The
  * message is carried over untouched — the command prints it verbatim, so a
  * context prefix would change what the user reads.
@@ -54,9 +54,12 @@ export function emitCliDeclarations(
 }
 
 /**
- * @deprecated Call `emitDeclarations` from `@comvi/typegen` instead, passing
- * `defaultNs` where this took `defaultNsName`. Kept through 0.5 because it is
- * part of the published `@comvi/cli` API.
+ * The published, programmatic way to emit declarations from a schema.
+ *
+ * It is NOT deprecated: the 0.5 pre-release notes pointed callers at
+ * `emitDeclarations` from a standalone typegen package, but that package stayed
+ * workspace-private (its implementation is inlined into this build), so this
+ * class and the `comvi typegen` command are the two supported entry points.
  */
 export class TypeEmitter {
   generate(schema: ProjectSchema, options: TypeEmitterOptions = {}): string {

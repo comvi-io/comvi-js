@@ -6,6 +6,15 @@ export default defineConfig({
   plugins: [
     dts({
       insertTypesEntry: true,
+      // `rollupTypes` BUNDLES the declarations into one `dist/index.d.ts`.
+      // Required, not cosmetic: `@comvi/typegen` is workspace-private, so the
+      // published `.d.ts` may not import `SchemaParam`/`KeySchema`/
+      // `ProjectSchema` from it — the roll-up inlines those declarations.
+      rollupTypes: true,
+      // api-extractor treats every dependency as external unless it is listed
+      // here: without `bundledPackages` the rolled-up `.d.ts` still imports
+      // the schema types from the private package.
+      bundledPackages: ["@comvi/typegen"],
     }),
   ],
   build: {
@@ -23,7 +32,8 @@ export default defineConfig({
     },
     rolldownOptions: {
       external: [
-        "@comvi/typegen",
+        // `@comvi/typegen` is deliberately ABSENT: it is workspace-private, so
+        // rolldown must inline the emitter into this bundle.
         "commander",
         "eventsource",
         "fs",
