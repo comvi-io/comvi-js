@@ -28,7 +28,8 @@ The In-Context Editor overlays a visual editor on your app: hovering highlights 
 
 The editor renders independently of your app's framework, so it works with Vue, React, Solid, Svelte, Next.js, and Nuxt.
 
-Throughout this README, **the host** is the i18n instance `createI18n` returns.
+Throughout this README, **the host** is the object `createI18n` returns: it holds the catalog, the
+current locale and `t()`.
 
 Comvi i18n is a framework-agnostic i18n library with ICU MessageFormat, rich text without XSS
 and typed translation keys. The [root README](https://github.com/comvi-io/comvi-js) has the
@@ -88,10 +89,10 @@ is branded: an installer and a plugin are both "a function of the host". So each
 slot rejects the other explicitly instead of half-working:
 
 - `registerPlugin(inContextEditor(…))` fails at `init()` with
-  `E_INSTALLER_AS_PLUGIN`. Under the default entry it stops on the installer's
-  first ensure-step, before discovery or the plugin host is attached. Under
-  `production` there is no ensure-step to stop on, so the identity no-op runs
-  and hands the host back. A plugin may only return nothing or a cleanup
+  `E_INSTALLER_AS_PLUGIN`. Under the default entry that is the first thing the
+  installer does, before discovery or the plugin host is set up. Under
+  `production` the installer sets nothing up, so the no-op runs and hands the
+  host back. A plugin may only return nothing or a cleanup
   function, so `init()` rejects that too, before anything is queued for
   teardown.
 - `.use(InContextEditorPlugin(…))` calls the plugin against a host that has no

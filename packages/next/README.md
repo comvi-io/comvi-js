@@ -81,16 +81,12 @@ export const { i18n, routing } = createNextI18n({
   // `createNextI18n` composes ICU itself, so this line is the default rather than
   // a change; `createI18n` on the client/server entries does NOT, and needs it.
   compiler: icuCompiler,
-  // `"<locale>:<namespace>"` keys. A colon-less key is the LOCALE alone and
-  // its object is flattened into the default namespace, so a nested
-  // `{ en: { default: { greeting } } }` would define the key
-  // `default.greeting` and `t("greeting")` would render the literal key.
   translation: {
-    "en:default": {
+    en: {
       greeting: "Hello, {name}!",
       items: "{count, plural, one {# item} other {# items}}",
     },
-    "uk:default": {
+    uk: {
       greeting: "Привіт, {name}!",
       items: "{count, plural, one {# товар} few {# товари} many {# товарів} other {# товару}}",
     },
@@ -337,6 +333,21 @@ deduplicates concurrent requests for the same locale and namespace.
 **Configure the server i18n once per process.** A second `setI18n(other)` throws, in development and
 production, naming both sources. A same-instance `setI18n()` is a no-op.
 
+### Namespaces and catalog keys
+
+A catalog is keyed by locale, as in the quickstart, or by `"<locale>:<namespace>"` when an app
+splits its keys. Both forms go in the same `translation` option, and either may be nested — every
+host flattens a nested object at the one place a catalog enters, so `{ nav: { home } }` resolves
+`t("nav.home")`.
+
+One trap worth knowing, because nothing catches it: a colon-less top-level key is the **locale
+alone**. So `{ en: { default: { greeting } } }` does not define `greeting` in the `default`
+namespace — it flattens to the key `default.greeting` in the default namespace, and `t("greeting")`
+renders the literal key. Write `"en:default"` when you mean the namespace.
+
+`getI18n({ ns: "admin" })` binds a namespace for a server component, and `useI18n("admin")` does the
+same on the client, at the type level too.
+
 ### Locale routing
 
 Put the URL rules in their own module and import them from both the middleware and the host.
@@ -546,15 +557,15 @@ TypeScript catches are in the
 Measured min+gz through the published exports map, `next` and `react` externalized, and gated in
 [`scripts/size-budgets.json`](../../scripts/size-budgets.json) at the recorded baseline + 5 %.
 
-| graph                                                            | fixture                         | min+gz |
+| graph                                                            | measured as                     | min+gz |
 | ---------------------------------------------------------------- | ------------------------------- | ------ |
 | server, `createNextI18nFromHost` on a composed base host         | `fw-next-server-default-loader` | 7372 B |
 | client, base host hydrated                                       | `fw-next-client-default`        | 7354 B |
 | the recommended path: `createNextI18n` + `loader` + `nextPlugin` | `fw-next-root-composed`         | 9450 B |
 
-A fully composed 0.4-style client is the migration ceiling rather than a parity claim: 0.4 also
-registered string-API tag syntax ambiently, and that is now an explicit `@comvi/core/tags` import
-which neither next entry re-exports.
+A 0.4 app that composes everything back lands near the third row — that is the most an upgrade can
+cost, not a like-for-like comparison: 0.4 also registered string-API tag syntax ambiently, and that
+is now an explicit `@comvi/core/tags` import which neither next entry re-exports.
 
 ## 8. Where to go next
 
@@ -566,9 +577,10 @@ which neither next entry re-exports.
   [limitations](../../docs/design/limitations.md)
 - **Upgrading from 0.4.x:** `use(plugin, options)` was Next's own scoped raw-plugin queue and is
   gone, and the four delegates `useClient`, `useServer`, `useClientLazy` and `useServerLazy` are
-  deleted rather than deprecated. Run `pnpm codemod:framework-slim "src/**/*.{ts,tsx,js,jsx}"`, then
-  see [MIGRATION.md](https://github.com/comvi-io/comvi-js/blob/main/MIGRATION.md) for the rename
-  table.
+  deleted rather than deprecated. See
+  [MIGRATION.md](https://github.com/comvi-io/comvi-js/blob/main/MIGRATION.md) for the rename table
+  and, in §3, the codemod recipe — a repo-internal script run by absolute path from your app's root,
+  not a `pnpm` script you have.
 - **Full API:** [comvi.io/docs/i18n/next/](https://comvi.io/docs/i18n/next/)
 
 ## License

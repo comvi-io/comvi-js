@@ -3,7 +3,7 @@
 Design note. The package READMEs show the `components` shape for each framework. This file is why
 there are two mechanisms rather than one, and what the difference costs.
 
-The host is the i18n instance `createI18n` returns.
+The host is the object `createI18n` returns: it holds the catalog, the current locale and `t()`.
 
 ## Components inside a sentence, without an HTML sink
 

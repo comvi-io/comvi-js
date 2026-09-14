@@ -22,7 +22,8 @@
 [`@comvi/svelte`](../svelte), [`@comvi/next`](../next) or [`@comvi/nuxt`](../nuxt), you already have
 it — install this package directly for vanilla JS, Node, a worker, or a custom integration.
 
-Throughout this README, **the host** is the i18n instance `createI18n` returns.
+Throughout this README, **the host** is the object `createI18n` returns: it holds the catalog, the
+current locale and `t()`.
 
 Zero runtime dependencies, and no `eval` or `new Function` anywhere, so it runs under a strict CSP
 without `unsafe-eval`.
@@ -294,7 +295,7 @@ TypeScript catches are in the
 Measured min+gz through the published exports map, and gated in
 [`scripts/size-budgets.json`](../../scripts/size-budgets.json) at the recorded baseline + 5 %.
 
-| graph                                          | fixture                        | min+gz |
+| graph                                          | measured as                    | min+gz |
 | ---------------------------------------------- | ------------------------------ | ------ |
 | `@comvi/core` alone, nothing composed          | `core-base`                    | 5270 B |
 | base host + ICU                                | `core-base-icu`                | 6183 B |

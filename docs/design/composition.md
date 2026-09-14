@@ -4,7 +4,7 @@ Design note. Nothing here is needed to use the library — the package READMEs h
 instructions. This is the reasoning behind the shape they teach, kept out of the READMEs so a
 newcomer reads steps rather than rationale.
 
-The host is the i18n instance `createI18n` returns.
+The host is the object `createI18n` returns: it holds the catalog, the current locale and `t()`.
 
 ## One entry per package
 

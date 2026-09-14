@@ -530,8 +530,9 @@ spell it. Solid adopts it by WRITING `i18n.locale` during the render phase, so
 an SSR app has to build the host inside the request handler: a module-scope
 host shared by every concurrent request would carry one request's locale into
 another's tree (the solid README's SSR section has the per-request shape).
-React accepts `ssrLocale` too, as an alias of its own
-`ssrInitialLocale` — which stays canonical there and wins when both are passed.
+React accepts `ssrLocale` too, and it is the canonical name there as well:
+its own `ssrInitialLocale` is the deprecated alias, and `ssrLocale` wins when
+both are passed.
 Svelte has no provider component and needs neither: gate the first paint on the
 `$isInitializing` store from `useI18n()`, and seed the render locale on the
 per-request host you build in `+layout.svelte` (§SSR in its README).
