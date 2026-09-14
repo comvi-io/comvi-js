@@ -8,7 +8,10 @@ import { icuCompiler } from "./translate/compile-icu";
 
 /**
  * Full-featured `I18n` with the ICU message compiler wired in — the class the
- * CDN global publishes and `@comvi/next`'s builder mirrors. A subclass rather
+ * CDN global publishes, and whose loader overload `@comvi/next`'s builder
+ * restores by hand. Next mirrors the composition pattern, never this file's
+ * `super(options, icuCompiler)`: `createNextI18n` composes no compiler at all.
+ * A subclass rather
  * than a factory closure, so `new I18n(options)` keeps its single-argument
  * signature. This is the compatibility host, NOT the ESM root (that is the base
  * host in `src/index.ts`).

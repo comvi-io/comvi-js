@@ -247,7 +247,14 @@ Two things about fence directives follow from that split, and both have bitten:
 
 - **`check=expect-error` is asserted only by the type pass.** A fence that promises not to
   compile is checked in both directions there — the error must occur, and with the code the meta
-  names — and means nothing at all in the symbol pass.
+  names — and means nothing at all in the symbol pass. Two things it does NOT check, so know
+  what you are relying on. The code match is `some`, not `every`: `applyExpectError` passes as
+  soon as ONE diagnostic in the fence carries the expected code, so a fence that reports three
+  errors has only the one named in its meta gated, and a second code written in an inline
+  comment is prose. And the message TEXT is never compared — nothing holds a quoted `tsc` output
+  block against the compiler's real wording, so a diagnostic string in the docs can drift
+  silently. A fence whose point is a specific second code needs to be split, one expected code
+  per fence.
 - **`check=group=<id>` is a compilation unit, not a caption.** Fences in one group share a
   program and a virtual directory, which is how one fence imports the file another fence shows.
   A fence whose import points at a sibling fence needs the group, and needs a `title=` that puts

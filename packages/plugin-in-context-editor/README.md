@@ -103,7 +103,7 @@ slot rejects the other explicitly instead of half-working:
   A plugin belongs in the queue, through `registerPlugin` or
   `definePlugin(fn)`.
 
-For target-element scoping, the full options reference, and the standalone bundle (used by the Comvi Chrome extension), see the [documentation](https://comvi.io/docs/i18n/plugins/in-context-editor/).
+The standalone bundle (used by the Comvi Chrome extension) exposes `ComviInContextEditor` on `window`, and the plugin factory on it follows the 0.5.0 rename: `window.ComviInContextEditor.inContextEditorPlugin`, not the old capitalised spelling. For target-element scoping and the full options reference, see the [documentation](https://comvi.io/docs/i18n/plugins/in-context-editor/).
 
 ## License
 

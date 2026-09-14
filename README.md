@@ -130,7 +130,7 @@ Runnable version: [`examples/react`](examples/react), which opens in
 ### Step 2 — connect to Comvi
 
 Three questions, and the answers are the lines below. Every framework README asks them in this
-same order, and only the third answer differs between them.
+same order; only the third answer differs, except on next, where step 1 already answered the first.
 
 1. **Which parser?** `compiler: icuCompiler`. The platform's catalogs use ICU plurals, and the
    default `{param}` compiler does not render them. Without `compiler: icuCompiler`, an ICU message

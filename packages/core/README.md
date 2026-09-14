@@ -270,7 +270,8 @@ Swapping an installer and a plugin is a type error, and loud at runtime both way
 
 `unpkg` and `jsdelivr` serve a fully composed bundle from its own entry, because a `<script src>`
 consumer has no import graph to extend. It keeps ICU, ambient tags, the loader, the plugin host and
-discovery. ESM starts from the base host; the global starts composed.
+discovery, and exposes `icuCompiler`, `flattenCatalog`, `prepareTranslation`, `registerTagSyntax`
+and `tagSyntaxExtension` on the global. ESM starts from the base host; the global starts composed.
 
 ## 5. Server-side rendering
 
