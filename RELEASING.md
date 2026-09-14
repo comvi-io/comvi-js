@@ -18,7 +18,9 @@ that path today.
 ## 1. Before the cut
 
 - [ ] `pnpm test:release` locally (it is not a single CI job; its constituents are split across the
-      `quality`, `tests` and `build` jobs).
+      `quality`, `tests` and `build` jobs). It ends with `pnpm check:snippets:types`, which compiles
+      every README fence against the `dist` the same run just built — so it fails on a snippet that
+      the published packages would not compile, which is the last moment that is cheap to fix.
 - [ ] `pnpm size`, `pnpm bundler-matrix` (add `--from-registry next` to measure the published RC
       instead of the local `dist`), and `node scripts/perf.mjs --compare-ref <last release ref>`.
 - [ ] Read the pending changesets. Note that **`changeset status` reports a version the cut will not

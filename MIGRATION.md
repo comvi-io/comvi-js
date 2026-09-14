@@ -767,7 +767,7 @@ so an app that set `cdnUrl` and expected translations got neither a load nor a
 diagnostic. They are gone rather than wired, because a module composing a loader
 on the app's behalf is exactly what `hostModule` exists to avoid.
 
-```ts
+```ts check=group=nuxt-cdn-host
 // comvi.host.ts — what `comvi.cdnUrl` was supposed to do
 import { createI18n, type NuxtHostFactory } from "@comvi/nuxt/host";
 import { cdnLoader } from "@comvi/plugin-fetch-loader/cdn";

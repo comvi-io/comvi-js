@@ -99,8 +99,12 @@ jobs:
 
       # Symbol-lint over the npm documentation surface: packages/*/README.md,
       # MIGRATION.md and the root README. Catches 0.4 API that 0.5.0 removed and
-      # 0.5 API a page never mentions — neither of which a typecheck can see.
-      - name: Docs snippet gate (READMEs)
+      # 0.5 API a page never mentions — neither of which a type-check reports,
+      # since both are about which symbols a page names rather than about
+      # whether its code compiles. The type-check half is the `build` job's
+      # `check:snippets:types`, which needs dist; this half needs nothing and
+      # runs in seconds.
+      - name: Docs snippet gate (READMEs, symbols)
         run: pnpm check:snippets
 
       # The instant half of the examples gate: every example's src/locales must
@@ -180,6 +184,15 @@ jobs:
       # workflow runs after its build.
       - name: Inlined version gate
         run: pnpm check:inlined-version
+
+      # The other half of the docs gate: every ts/tsx/vue/svelte fence in the
+      # npm surface is compiled, under `strict`, against the packages this build
+      # just produced. It lives HERE rather than in `quality` because the
+      # snippets resolve `@comvi/*` through the real exports map, so it needs
+      # dist — which also means a wrong `exports` condition fails the docs gate
+      # too. `check=expect-error` fences are only live under this pass.
+      - name: Docs snippet gate (types)
+        run: pnpm check:snippets:types
 
       # Verifies every publishable package's exports/main/types/bin targets are
       # present in `npm pack` output.

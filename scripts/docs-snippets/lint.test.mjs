@@ -871,6 +871,45 @@ test("api/react.mdx → classified api only, so it owes a stamp rather than a wa
   assert.deepEqual([...classify("docs/i18n/api/react.mdx")], ["api"]);
 });
 
+test("docs/design/README.md → design, not framework: an index owes no walkthrough", () => {
+  // It fell through to the README branch, where an unrecognisable package
+  // directory means "an installed package README" and grants `framework`. So
+  // the decision-record INDEX owed a `.use(installer)` fence, and was handed a
+  // four-line one whose only purpose was to satisfy the rule.
+  assert.deepEqual([...classify("docs/design/README.md")], ["design"]);
+  assert.deepEqual([...classify("docs/design/composition.md")], ["design"]);
+  // Including the two records whose basenames collide with a framework page.
+  assert.deepEqual([...classify("docs/design/ssr.md")], ["design"]);
+});
+
+test("a design page with no fences at all → clean", () => {
+  assert.deepEqual(rulesOf("Just prose.", { file: "docs/design/README.md" }), []);
+});
+
+test("a design page still answers for a banned token", () => {
+  // The class is not an exemption. A record that names an API 0.5.0 removed is
+  // exactly as wrong as a README that does, and only the REQUIRED rules are
+  // class-gated.
+  const body = ["```ts", "const i18n = createI18n({ locale: 'en' }).with(icu());", "```"].join(
+    "\n",
+  );
+  const rules = rulesOf(body, { file: "docs/design/composition.md" });
+
+  assert.ok(rules.length > 0, "a banned token in a design page must still be reported");
+  assert.ok(!rules.includes("required/use-composition"));
+});
+
+test("a framework README is still held to the composition requirement", () => {
+  // The negative half of the classifier change: narrowing what `framework`
+  // catches must not switch the rule off where it belongs.
+  const body = ["```ts", "const i18n = createI18n({ locale: 'en' });", "```"].join("\n");
+
+  assert.deepEqual([...classify("packages/react/README.md")], ["framework"]);
+  assert.deepEqual(rulesOf(body, { file: "packages/react/README.md" }), [
+    "required/use-composition",
+  ]);
+});
+
 test("an ICU argument in a JSON catalog fence with no compiler named → required/icu-compiler", () => {
   const body = [
     '```json title="locales/en.json"',

@@ -71,7 +71,7 @@ outside this list is checked automatically.
 | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `quality`   | changeset guard (pull requests only), `pnpm format:check`, `pnpm lint`, `pnpm typecheck`, `node scripts/audit-published.mjs`, `pnpm test:release-tools`, `pnpm check:snippets`, `node scripts/examples-sync-locales.mjs --check` |
 | `tests`     | `pnpm test:commit`                                                                                                                                                                                                               |
-| `build`     | `pnpm build`, then `pnpm check:inlined-version`, `pnpm audit:package-contracts`, `pnpm check:publint`, `pnpm check:types-exports`, `pnpm size`, `pnpm bundler-matrix`                                                            |
+| `build`     | `pnpm build`, then `pnpm check:inlined-version`, `pnpm check:snippets:types`, `pnpm audit:package-contracts`, `pnpm check:publint`, `pnpm check:types-exports`, `pnpm size`, `pnpm bundler-matrix`                               |
 | `extension` | `pnpm extension:build`, the built-artifact test, a chromium install, Gate E (`pnpm --filter @comvi/chrome-extension test:e2e`), diagnostics upload                                                                               |
 
 Everything that reads `dist/` lives in the single `build` job, after the build. Splitting those
@@ -221,6 +221,43 @@ during install.
 if any example's `src/locales/*.json` has drifted from the shared `examples/locales/`, in either
 direction.
 
+### 8. The docs snippet gate, in two halves
+
+Every fenced code block in the npm documentation surface — `packages/*/README.md`, the root
+`README.md`, `MIGRATION.md`, `examples/README.md` and `docs/design/*.md` — is checked, by two
+passes with two different costs. Both are CI gates, in two different jobs.
+
+```bash
+pnpm check:snippets                   # symbols. Needs nothing built; runs in `quality`
+pnpm build && pnpm check:snippets:types   # types. Needs dist; runs in `build`
+```
+
+The **symbol** pass resolves every import against the exports each package's source actually
+declares, enforces the installer allowlist and the `.use(installer)` composition rules, and
+catches 0.4 API that 0.5.0 removed. It is static: no install, no build, no tsc.
+
+The **type** pass compiles the fences. Each page becomes its own `ts.Program` — one page's
+`declare module '@comvi/core'` must not narrow `t()` on another's — and each page splits into
+projects, so two `<TabItem>`s are two apps. It runs every `ts`/`tsx` fence under `strict` in both
+`moduleResolution: bundler` and `node16`, and hands `vue`/`svelte` fences to vue-tsc and
+svelte-check. Findings that appear only under `node16` are advisory: they describe the reader's
+tsconfig, not the snippet.
+
+Two things about fence directives follow from that split, and both have bitten:
+
+- **`check=expect-error` is asserted only by the type pass.** A fence that promises not to
+  compile is checked in both directions there — the error must occur, and with the code the meta
+  names — and means nothing at all in the symbol pass.
+- **`check=group=<id>` is a compilation unit, not a caption.** Fences in one group share a
+  program and a virtual directory, which is how one fence imports the file another fence shows.
+  A fence whose import points at a sibling fence needs the group, and needs a `title=` that puts
+  it in the right directory: `./routing` resolves next to the importing file, not next to the
+  page. A group holding a `comvi.host.ts` also gets the declaration `@comvi/nuxt`'s codegen
+  generates for it, so a `comvi.setup` hook in the same group is typed from the factory the way
+  a real Nuxt build types it.
+
+`pnpm test:release` runs the type pass too, after its build.
+
 ## Tests
 
 Vitest everywhere. Every test in this repository is expected to meet the following standards.
@@ -286,6 +323,8 @@ into `src/` proper, or into the test tree where it is exercised directly.
 | Release scripts in `scripts/`         | `pnpm test:release-tools`                                                                                                                                        |
 | The Chrome extension                  | `pnpm extension:test`, and `pnpm extension:gate-e` for E2E                                                                                                       |
 | `examples/*` or its scripts           | `node scripts/examples-sync-locales.mjs --check` (also in CI), and `pnpm examples:verify` — see gate 7                                                           |
+| A README fence, or `MIGRATION.md`     | `pnpm check:snippets`, then `pnpm build && pnpm check:snippets:types` — see gate 8                                                                               |
+| `scripts/docs-snippets/**`            | `node --test "scripts/docs-snippets/*.test.mjs"`, then both halves of gate 8                                                                                     |
 
 Nothing in CI runs `node scripts/perf.mjs --compare-ref <ref>` (see gate 6). Run it yourself for a
 change to core's hot path — `t()`, the template cache, the parser, a compiler — and always before
