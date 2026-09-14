@@ -231,22 +231,14 @@ export interface UseI18nReturn<
   // `never` keeps the name visible — struck through in autocomplete, with the
   // acquisition in the tooltip — while any use stays a type error. Type-only:
   // the object `useI18n()` returns never carries these keys, in any build.
-  /** @deprecated Moved in 0.5. Acquire it: `const { addActiveNamespace } = useI18nLoader()`. */
+  /** @deprecated Moved in 0.5. Acquire it: `const { addActiveNamespace } = useI18nLoader()`. Optional only so the key can be absent: `if (bag.addActiveNamespace)` compiles and is always false. */
   addActiveNamespace?: never;
-  // Declared optional, so `if (bag.addActiveNamespace)` compiles and is
-  // always false — acquire it from `useI18nLoader()` instead.
-  /** @deprecated Moved in 0.5. Acquire it: `const { reloadTranslations } = useI18nLoader()`. */
+  /** @deprecated Moved in 0.5. Acquire it: `const { reloadTranslations } = useI18nLoader()`. Optional only so the key can be absent: `if (bag.reloadTranslations)` compiles and is always false. */
   reloadTranslations?: never;
-  // Declared optional, so `if (bag.reloadTranslations)` compiles and is
-  // always false — acquire it from `useI18nLoader()` instead.
-  /** @deprecated Moved in 0.5. Acquire it: `const { onLoadError } = useI18nLoader()`. */
+  /** @deprecated Moved in 0.5. Acquire it: `const { onLoadError } = useI18nLoader()`. Optional only so the key can be absent: `if (bag.onLoadError)` compiles and is always false. */
   onLoadError?: never;
-  // Declared optional, so `if (bag.onLoadError)` compiles and is always
-  // false — acquire it from `useI18nLoader()` instead.
-  /** @deprecated Moved in 0.5. Acquire it: `const { onMissingKey } = useI18nPlugins()`. */
+  /** @deprecated Moved in 0.5. Acquire it: `const { onMissingKey } = useI18nPlugins()`. Optional only so the key can be absent: `if (bag.onMissingKey)` compiles and is always false. */
   onMissingKey?: never;
-  // Declared optional, so `if (bag.onMissingKey)` compiles and is always
-  // false — acquire it from `useI18nPlugins()` instead.
 }
 
 /**
