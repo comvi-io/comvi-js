@@ -1,0 +1,216 @@
+# SSR: four frameworks, four different module-scope rules
+
+Design note, and the draft of the cross-framework SSR page for the site. Each package README states
+the rule for its own framework; this file is the only place all four sit side by side, because the
+rules genuinely disagree and a reader who generalises from one gets the next one wrong.
+
+The host is the i18n instance `createI18n` returns.
+
+## The one question that decides everything
+
+**May the host live at module scope on the server?**
+
+A server process handles concurrent requests. The host holds a mutable `locale`. So the answer
+depends on whether a request ever WRITES that locale, and each framework's SSR entry point answers
+differently.
+
+| framework   | host at module scope on the server | why                                                                                                             | how the request locale arrives                      |
+| ----------- | ---------------------------------- | --------------------------------------------------------------------------------------------------------------- | --------------------------------------------------- |
+| **Next.js** | **required**                       | `setI18n()` registers one instance per process and `getI18n()` resolves it; no request writes the locale        | passed explicitly to every `getI18n()` lookup       |
+| **Nuxt**    | **forbidden**                      | the module builds a FRESH host per request through the host factory                                             | nuxt's resolved `locale` option, per request        |
+| **Solid**   | **forbidden**                      | adopting `ssrLocale` is a WRITE to `i18n.locale`, and `renderToString` runs it in the server process            | `ssrLocale` on `<I18nProvider>`                     |
+| **Svelte**  | **forbidden**                      | a per-request instance built in `+layout.svelte` from `load` data; a `load` return value is serialized          | `data.locale` from the `load` function              |
+| **React**   | either, if nothing writes          | plain react has no SSR entry of its own; the rule is the host framework's                                       | `ssrLocale` (or `ssrInitialLocale`) on the provider |
+| **Vue**     | **forbidden**                      | a module-scope `createI18n(...)` is a singleton whose reactive `locale` ref moves under every concurrent render | `ssrLocale` in the constructor options              |
+
+Read that column again if you are porting an app between frameworks: **Next requires the shared
+module-scope host that Solid, Svelte, Vue and Nuxt forbid.** It is the one place in this library
+where the correct answer inverts.
+
+## Next.js — one shared host, request locale passed explicitly
+
+The instance contributes the catalog and the loader; the locale belongs to the request. Nothing a
+request does writes the instance's locale or its active namespaces, which is what makes one shared
+host safe. `setI18n(i18n)` registers it once per process and throws (in development and production)
+on a second registration with a different instance, naming both sources.
+
+Full reasoning, including why the config module is evaluated twice and what must not reach the Edge
+runtime, is in [next-runtimes.md](next-runtimes.md).
+
+## Nuxt — a fresh host per request
+
+The module calls your `comvi.host.ts` factory once per constructed instance: the app plugin, and
+each per-request server instance. So the factory must return a FRESH host every call. The app plugin
+runs in both bundles and adds `ssrLocale` so a server render and the hydrated client agree on the
+render locale; the request-scoped Nitro host has no hydration to match and omits it — set it inside
+the factory if a server route needs it.
+
+SSR loading is the loader capability at work, so a server-rendered nuxt app composes a loader in
+`comvi.host.ts`. Without one, the server utilities say so once, by name, and render whatever the
+catalog already holds. They never call a member the host does not have.
+
+## Vue — build the instance in the request handler
+
+**Build one instance per request.** A module-scope `createI18n(...)` is a singleton shared by every
+concurrent request, and its locale is mutable: one visitor switching to `uk` moves the locale (and
+the reactive `locale` ref) under everyone else's render.
+
+**Pass the request locale as `ssrLocale`**, not as `locale`: it reaches the core before the reactive
+ref is seeded, so the ref and `core.locale` agree on the very first render and the client hydrates
+against the same locale it was served.
+
+**`await i18n.init()` before `renderToString`.** `app.use(i18n)` starts `init()` fire-and-forget,
+which is a client-side convenience; on the server that races translation loading and can serialize
+an empty cache.
+
+```ts title="server.ts"
+// One instance per request.
+import { createSSRApp } from "vue";
+import { renderToString } from "vue/server-renderer";
+import { createI18n } from "@comvi/vue";
+import App from "./App.vue";
+
+export async function render(localeFromRequest: string) {
+  const app = createSSRApp(App);
+  const i18n = createI18n({
+    locale: "en",
+    ssrLocale: localeFromRequest,
+    translation: { en: { greeting: "Hello" }, uk: { greeting: "Привіт" } },
+  });
+
+  app.use(i18n);
+  await i18n.init();
+
+  return renderToString(app);
+}
+```
+
+## Solid — a host per request, and no initialization on the server
+
+A catalog the host already holds — an inline `translation` map — renders during `renderToString`, and
+`ssrLocale` is how the server render and the hydrating client agree on which locale that is. Adopting
+the locale is a WRITE to `i18n.locale`, so the host is built inside the request handler.
+
+What does **not** happen on the server is initialization: `<I18nProvider>` calls `init()` from a
+`createEffect` (`packages/solid/src/context.tsx:112-120`), and effects do not run during Solid's
+server render. So a catalog a loader would have fetched is absent server-side, and
+`isInitialized()` is `false` there. **Server-side loading is not supported yet.** With SolidStart or
+another SSR setup, keep the catalog inline for the server render, or load on the client and gate the
+UI with `fallback` — knowing the gate is closed on the server too, so the page ships the fallback and
+swaps once the client host initializes.
+
+```tsx title="src/entry-server.tsx"
+// One host per request.
+import { renderToString } from "solid-js/web";
+import { createI18n, I18nProvider, icuCompiler } from "@comvi/solid";
+import en from "./locales/en.json";
+import uk from "./locales/uk.json";
+import App from "./App";
+
+export function render(locale: string) {
+  const i18n = createI18n({
+    locale,
+    compiler: icuCompiler,
+    translation: { "en:default": en, "uk:default": uk },
+  });
+
+  return renderToString(() => (
+    <I18nProvider i18n={i18n} ssrLocale={locale}>
+      <App />
+    </I18nProvider>
+  ));
+}
+```
+
+Pass `ssrLocale` on the client too. Without it the client keeps its own locale, the hydrated markup
+stays in the server's locale until the first reactive update, and then the text flips.
+
+## Svelte (SvelteKit) — per-request instance, serializable data only
+
+Create a **per-request** i18n instance. Never share a module-level singleton across requests, or one
+user's locale bleeds into another's response.
+
+A `load` function's return value crosses the server→client boundary and is serialized with `devalue`,
+so it must **not** return the i18n instance itself: a class instance cannot be serialized and
+SvelteKit throws. Return plain data and build the instance in the component, which runs once per
+request on the server and once on the client.
+
+```ts title="src/routes/+layout.ts"
+import type { LayoutLoad } from "./$types";
+
+export const load: LayoutLoad = async ({ fetch }) => {
+  const locale = "en";
+  // Plain JSON, safe to serialize to the client.
+  const messages = await fetch(`https://cdn.comvi.io/your-distribution-id/${locale}.json`).then(
+    (r) => r.json(),
+  );
+  return { locale, messages };
+};
+```
+
+```svelte title="src/routes/+layout.svelte"
+<script lang="ts">
+  import { createI18n, setI18nContext } from "@comvi/svelte";
+  import type { TranslationValue } from "@comvi/core";
+  import type { Snippet } from "svelte";
+
+  let { data, children }: {
+    data: { locale: string; messages: Record<string, TranslationValue> };
+    children: Snippet;
+  } = $props();
+
+  // Per-request instance built from serializable load data — never a module singleton.
+  // Seeded synchronously so translations are ready before the first render (no flash,
+  // no hydration mismatch); the browser auto-init microtask would not complete in time.
+  const i18n = createI18n({
+    locale: data.locale,
+    translation: { [data.locale]: data.messages },
+  });
+
+  setI18nContext(i18n);
+</script>
+
+{@render children()}
+```
+
+Child components call `useI18n()` as normal, and the context carries the per-request instance.
+
+Prefer the runtime CDN/API loader for client navigation? Keep the per-request
+`createI18n(...).use(cdnLoader(...))` in `+layout.svelte` and `await i18n.init()` inside an
+`$effect` / `onMount` for the client, while still seeding `translation` from `load` data for the
+initial server render. The rule is the same: only serializable data crosses `load`.
+
+## React — two props, and the gate defaults open
+
+React has no SSR entry of its own; whichever framework renders it sets the module-scope rule. What
+react contributes is the pair of props that make a server render and its hydration agree.
+
+- **`ssrLocale`** is the locale the server snapshot renders in. `ssrInitialLocale` is react's
+  original name for the same prop, kept as a legacy alias: when both are passed `ssrInitialLocale`
+  wins and a development build warns. Prefer `ssrLocale` — it is the name `@comvi/vue`,
+  `@comvi/solid` and `@comvi/nuxt` use, so one shared SSR layer passes one name to every binding.
+  `@comvi/next` takes the render locale from its own `locale` prop and accepts neither.
+- **`ssrInitialIsInitializing`** decides whether the server render is gated by `fallback`, and it is
+  `false` by default. A server render is therefore never gated, and because the hydration render
+  reads that same snapshot, the hydrated markup matches before the gate re-applies on the client.
+
+That default is the right one for a page whose server render already produced real text: gating it
+would replace correct content with a spinner until the client host initializes. It is the wrong one
+for a server render that has no catalog yet, whose markup would ship raw keys — there, pass
+`ssrInitialIsInitializing={true}` alongside `fallback`, and the fallback is what the server paints,
+what hydration reuses, and what the children replace once the client host initializes.
+
+The gate's axis is `isInitialized`, deliberately not `isInitializing`: `init()` starts from an
+effect, after the first render, so a gate on "is it initializing" is open for exactly the frame the
+raw keys would paint in.
+
+## Ambient tags must be imported in the server graph too
+
+`import "@comvi/core/tags"` registers the tag grammar process-wide, per bundle. An SSR app has two
+bundles. Import it in both, or the same string renders literally on the server and with markup on
+the client. See [rich-text.md](rich-text.md).
+
+## Related
+
+- [Composition](composition.md) · [Next.js runtimes](next-runtimes.md) ·
+  [Limitations](limitations.md)

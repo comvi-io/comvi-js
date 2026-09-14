@@ -1509,3 +1509,90 @@ test(".use(localeDetector()) still DOES clear one — that installer really wide
 
   assert.deepEqual(rulesOf(body), []);
 });
+
+// ---------------------------------------------------------------------------
+// PROSE — a size figure transcribed from scripts/size-budgets.json.
+// ---------------------------------------------------------------------------
+
+/** The three numbers the gate records per fixture, in the shape run.mjs builds. */
+const BASELINES = new Map([
+  ["fw-react-default", { minBytes: 19035, gzipBytes: 6902, gzipBudgetBytes: 7248 }],
+  ["fw-next-client-default", { minBytes: 20325, gzipBytes: 7354, gzipBudgetBytes: 7722 }],
+]);
+
+function sizeFindingsOf(body) {
+  const { file, source } = page(body);
+  return lintDocument({ file, source, sizeBaselines: BASELINES }).findings.filter(
+    (finding) => finding.rule === "prose/stale-size-figure",
+  );
+}
+
+test("a table row quoting a stale figure beside a fixture name → reported, at the figure", () => {
+  const body = "| base host | `fw-react-default` | **6622 B** |";
+
+  const findings = sizeFindingsOf(body);
+
+  assert.equal(findings.length, 1);
+  assert.equal(findings[0].line, 5);
+  assert.equal(findings[0].col, body.indexOf("6622") + 1);
+  assert.match(findings[0].message, /states 6622 B beside `fw-react-default`/);
+  assert.match(findings[0].message, /records fw-react-default: 6902 B min\+gz/);
+});
+
+test("the recorded gzip, min and budget figures are each accepted → clean", () => {
+  // Which column a README quotes is the README's business. Whether the number
+  // is one the repo measured is not.
+  assert.deepEqual(sizeFindingsOf("| a | `fw-react-default` | **6902 B** |"), []);
+  assert.deepEqual(sizeFindingsOf("| a | `fw-react-default` | 19035 B |"), []);
+  assert.deepEqual(sizeFindingsOf("| a | `fw-react-default` | budget 7248 B |"), []);
+  assert.deepEqual(sizeFindingsOf("| a | `fw-react-default` | 6,902 B |"), []);
+});
+
+test("a figure with no `B` unit, the way the next and nuxt tables write it → still graded", () => {
+  const findings = sizeFindingsOf(
+    "| client, base host hydrated | **7331** | `fw-next-client-default` |",
+  );
+
+  assert.equal(findings.length, 1);
+  assert.match(findings[0].message, /states 7331 B beside `fw-next-client-default`/);
+});
+
+test("a SIGNED figure on the row is a delta between sweeps, not a size → ignored", () => {
+  assert.deepEqual(sizeFindingsOf("| a | `fw-react-default` | 6902 B | +1234 B over 0.4 |"), []);
+});
+
+test("percentages, multipliers and short numbers on a size row → ignored", () => {
+  assert.deepEqual(
+    sizeFindingsOf("| a | `fw-react-default` | 6902 B | 34.1% | x1.05 | 5 kB | 12 |"),
+    [],
+  );
+});
+
+test("a backticked token that names no fixture → the row is not a size row", () => {
+  assert.deepEqual(sizeFindingsOf("| `<T>` | `@comvi/react` | **6622 B** |"), []);
+});
+
+test("the same figure outside a table row → ignored, rounded prose is not a transcription", () => {
+  assert.deepEqual(
+    sizeFindingsOf("The `fw-react-default` fixture measured 6622 B last spring."),
+    [],
+  );
+});
+
+test("without sizeBaselines the rule is inert — the www copy has no budgets file", () => {
+  const { file, source } = page("| base host | `fw-react-default` | **6622 B** |");
+
+  const findings = lintDocument({ file, source }).findings;
+
+  assert.deepEqual(
+    findings.filter((finding) => finding.rule === "prose/stale-size-figure"),
+    [],
+  );
+});
+
+test("a row naming two fixtures is cleared by EITHER baseline, never invented against one", () => {
+  assert.deepEqual(
+    sizeFindingsOf("| `fw-react-default` vs `fw-next-client-default` | 7354 B |"),
+    [],
+  );
+});
