@@ -163,8 +163,8 @@ createRoot(document.getElementById("root")!).render(
 );
 ```
 
-The distribution id in `cdnUrl` comes from the Comvi platform: open your project and read it off the
-**Distributions** page.
+The distribution id in `cdnUrl` comes from the Comvi platform: open your project and copy it from
+**Settings → Content Deploy → CDN Endpoint** (the URL is generated when Content Deploy is enabled and saved).
 
 Chain `.use(…)` before `init()`; doing it afterwards warns once in development. ICU is not chained
 at all — it is the constructor option above. Full rules:

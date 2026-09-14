@@ -107,8 +107,8 @@ i18n.t("greeting", { name: "Alice" }); // "Hello, Alice!"
 i18n.t("items", { count: 5 }); // "5 items" — from "{count, plural, one {# item} other {# items}}"
 ```
 
-The distribution id in `cdnUrl` comes from the Comvi platform: open your project and read it off the
-**Distributions** page. Compose before `init()`: composing after it warns once per host in
+The distribution id in `cdnUrl` comes from the Comvi platform: open your project and copy it from
+**Settings → Content Deploy → CDN Endpoint** (the URL is generated when Content Deploy is enabled and saved). Compose before `init()`: composing after it warns once per host in
 development.
 
 ## 4. Core API reference

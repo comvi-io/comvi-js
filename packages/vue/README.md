@@ -140,8 +140,8 @@ plural from `"{count, plural, one {# item} other {# items}}"`.
 `isLoading` is the other axis: it goes true again for every later namespace or locale load, where
 the UI usually stays up rather than being replaced.
 
-The distribution id in `cdnUrl` comes from the Comvi platform: open your project and read it off the
-**Distributions** page. **Compose before `app.use(i18n)`**, which is what the chain above does — it
+The distribution id in `cdnUrl` comes from the Comvi platform: open your project and copy it from
+**Settings → Content Deploy → CDN Endpoint** (the URL is generated when Content Deploy is enabled and saved). **Compose before `app.use(i18n)`**, which is what the chain above does — it
 is the one ordering rule this package adds.
 
 ## 4. Vue API reference

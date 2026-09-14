@@ -83,8 +83,8 @@ i18n.t("greeting", { name: "Alice" }); // "Hello, Alice!"
 i18n.t("items", { count: 5 }); // "5 items" — from "{count, plural, one {# item} other {# items}}"
 ```
 
-The distribution id in `cdnUrl` comes from the Comvi platform: open your project and read it off the
-**Distributions** page.
+The distribution id in `cdnUrl` comes from the Comvi platform: open your project and copy it from
+**Settings → Content Deploy → CDN Endpoint** (the URL is generated when Content Deploy is enabled and saved).
 
 In a framework, the host goes to that framework's provider or plugin instead of `await init()`, and
 the first paint needs a gate because the catalog is in flight. Each framework README shows its own:

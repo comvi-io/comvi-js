@@ -140,8 +140,8 @@ export default ((options) =>
 `"{count, plural, one {# item} other {# items}}"`, and `setLocale()` loads and switches
 asynchronously.
 
-The distribution id in `cdnUrl` comes from the Comvi platform: open your project and read it off the
-**Distributions** page.
+The distribution id in `cdnUrl` comes from the Comvi platform: open your project and copy it from
+**Settings → Content Deploy → CDN Endpoint** (the URL is generated when Content Deploy is enabled and saved).
 
 **Every value comes from `@comvi/nuxt/host`.** That subpath re-exports core's composition surface, so
 `comvi.host.ts` resolves from `npm install @comvi/nuxt` alone: `@comvi/core` is a dependency of this

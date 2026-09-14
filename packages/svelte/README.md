@@ -151,8 +151,8 @@ plural from `"{count, plural, one {# item} other {# items}}"`.
 `$isLoading` is the other axis: it goes true again for every later namespace or locale load, where
 the UI usually stays up rather than being replaced.
 
-The distribution id in `cdnUrl` comes from the Comvi platform: open your project and read it off the
-**Distributions** page. Compose before `init()` — `setI18nContext` calls it for you, so compose in
+The distribution id in `cdnUrl` comes from the Comvi platform: open your project and copy it from
+**Settings → Content Deploy → CDN Endpoint** (the URL is generated when Content Deploy is enabled and saved). Compose before `init()` — `setI18nContext` calls it for you, so compose in
 the `createI18n` expression as above.
 
 That init runs in a microtask, so nothing in the component can await it. To see a failure, pass

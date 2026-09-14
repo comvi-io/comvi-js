@@ -131,8 +131,8 @@ createRoot(document.getElementById("root")!).render(
 The catalogs now come from the platform, so `t("items", { count: 5 })` renders a locale-correct
 plural from `"{count, plural, one {# item} other {# items}}"`.
 
-The distribution id in `cdnUrl` comes from the Comvi platform: open your project and read it off the
-**Distributions** page. Compose before `init()` — `<I18nProvider>` calls it for you, so compose in
+The distribution id in `cdnUrl` comes from the Comvi platform: open your project and copy it from
+**Settings → Content Deploy → CDN Endpoint** (the URL is generated when Content Deploy is enabled and saved). Compose before `init()` — `<I18nProvider>` calls it for you, so compose in
 the `createI18n` expression as above.
 
 ## 4. React API reference

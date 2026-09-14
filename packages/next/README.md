@@ -304,8 +304,8 @@ export default async function LocaleLayout({
 
 `page.tsx` and `Greeting.tsx` are unchanged from step 1.
 
-The distribution id in `cdnUrl` comes from the Comvi platform: open your project and read it off the
-**Distributions** page.
+The distribution id in `cdnUrl` comes from the Comvi platform: open your project and copy it from
+**Settings → Content Deploy → CDN Endpoint** (the URL is generated when Content Deploy is enabled and saved).
 
 **Never compose `localeDetector()` on this host.** It lives at module scope and is process-wide on
 the App Router, so the detector would run once, at `init()`, and the first request's headers would
