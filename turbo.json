@@ -50,7 +50,6 @@
         "@comvi/vue#build",
         "@comvi/next#build",
         "@comvi/nuxt#build",
-        "@comvi/locale-routing#build",
         "@comvi/plugin-fetch-loader#build"
       ]
     },
@@ -65,7 +64,6 @@
         "@comvi/solid#build",
         "@comvi/svelte#build",
         "@comvi/vue#build",
-        "@comvi/locale-routing#build",
         "@comvi/next#build"
       ]
     },

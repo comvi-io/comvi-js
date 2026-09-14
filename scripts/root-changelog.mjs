@@ -54,12 +54,27 @@ export function getPublishablePackages(root) {
     .sort((a, b) => a.name.localeCompare(b.name));
 }
 
-// Packages versioned independently of the coordinated release
-// (not members of the changeset `fixed` group; e.g. @comvi/locale-routing@0.1.0).
-const INDEPENDENT_PACKAGES = new Set(["@comvi/locale-routing"]);
+/**
+ * The coordinated release train: the `fixed` group of .changeset/config.json.
+ * That config is the single place the decision is recorded — a second hard-coded
+ * list here went stale the moment a package left the group, so it is read, not
+ * repeated. `.github/scripts/create-combined-release.mjs` reads the same set.
+ *
+ * Today every publishable package is in the group and nothing is independently
+ * versioned; the filter stays because the tooling still supports the case.
+ */
+export function fixedGroupNames(root) {
+  const config = JSON.parse(fs.readFileSync(path.join(root, ".changeset/config.json"), "utf8"));
+  return new Set((config.fixed ?? []).flat());
+}
 
-export function coordinatedVersion(packages) {
-  const coordinated = packages.filter((pkg) => !INDEPENDENT_PACKAGES.has(pkg.name));
+/**
+ * The one version the release train shares. `fixedGroupNames` is passed in when
+ * the caller has a repo root; without it every package is treated as
+ * coordinated, which is what the unit tests exercise.
+ */
+export function coordinatedVersion(packages, fixedNames) {
+  const coordinated = fixedNames ? packages.filter((pkg) => fixedNames.has(pkg.name)) : packages;
   if (coordinated.length === 0) throw new Error("no publishable packages found");
   const versions = [...new Set(coordinated.map((pkg) => pkg.version))];
   if (versions.length !== 1) {

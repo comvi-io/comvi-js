@@ -225,7 +225,7 @@ test("applyRcVersions refuses a @comvi peer range that no package in this RC pro
       "plugin-y": {
         name: "@comvi/plugin-y",
         version: "0.1.0",
-        peerDependencies: { "@comvi/locale-routing": "^0.1.0" },
+        peerDependencies: { "@comvi/standalone": "^0.1.0" },
       },
     },
   });
@@ -237,7 +237,7 @@ test("applyRcVersions refuses a @comvi peer range that no package in this RC pro
   );
 
   assert.equal(result.status, 3, `${result.stdout}\n${result.stderr}`);
-  assert.match(result.stdout, /@comvi\/plugin-y: peer @comvi\/locale-routing is not in this RC/);
+  assert.match(result.stdout, /@comvi\/plugin-y: peer @comvi\/standalone is not in this RC/);
 });
 
 test("applyRcVersions with dryRun writes no manifest", (t) => {
@@ -265,7 +265,7 @@ test("applyRcVersions with dryRun writes no manifest", (t) => {
  * is shaped the way the tool assumes. It needs pending changesets, so it lives
  * only on a release branch — the copy on `main` ends at the fixture tests.
  */
-test("plan against this repo: the fixed group shares one rc version, locale-routing gets its own", () => {
+test("plan against this repo: the whole publishable set is the fixed group, on one rc version", () => {
   const { manifests, versions } = planRcVersions({ root: REPO, rc: "3" });
 
   const names = manifests.map((m) => m.name).sort();
@@ -273,12 +273,14 @@ test("plan against this repo: the fixed group shares one rc version, locale-rout
     names.includes("@comvi/core"),
     `@comvi/core must be versioned; got ${names.join(", ")}`,
   );
-  assert.ok(
-    names.includes("@comvi/locale-routing"),
-    `@comvi/locale-routing must be versioned; got ${names.join(", ")}`,
-  );
   assert.ok(!names.includes("@comvi/vite-config"), "ignored package must not be versioned");
   assert.ok(!names.includes("@comvi/chrome-extension"), "apps are outside packages/");
+  // Workspace-private, and in `ignore` on top of that: the RC must not version
+  // (or publish) either. `planRcVersions` REFUSES a publishable package it
+  // cannot version, so a regression here fails loudly rather than silently
+  // shipping one at its GA version under dist-tag `next`.
+  assert.ok(!names.includes("@comvi/locale-routing"), "private package must not be versioned");
+  assert.ok(!names.includes("@comvi/typegen"), "private package must not be versioned");
 
   const core = versions["@comvi/core"];
   assert.match(core, /^\d+\.\d+\.\d+-rc\.3$/);
@@ -287,10 +289,7 @@ test("plan against this repo: the fixed group shares one rc version, locale-rout
   ).fixed.flat();
   for (const name of fixed)
     assert.equal(versions[name], core, `${name} must share the fixed rc version`);
-  assert.notEqual(
-    versions["@comvi/locale-routing"],
-    core,
-    "locale-routing is versioned on its own",
-  );
-  assert.match(versions["@comvi/locale-routing"], /-rc\.3$/);
+  // One fixed group, nothing beside it: every package this RC versions is a
+  // member, so there is no second version line in the release.
+  assert.deepEqual(names, [...fixed].sort(), "the publishable set IS the fixed group");
 });

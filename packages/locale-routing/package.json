@@ -2,6 +2,7 @@
   "name": "@comvi/locale-routing",
   "version": "0.0.0",
   "type": "module",
+  "private": true,
   "description": "Framework-neutral locale routing primitives for Comvi — locale prefix extraction, stripping, and localized path building",
   "license": "MIT",
   "author": "Comvi <hello@comvi.io> (https://comvi.io)",
@@ -14,25 +15,10 @@
   "bugs": {
     "url": "https://github.com/comvi-io/comvi-js/issues"
   },
-  "keywords": [
-    "i18n",
-    "internationalization",
-    "locale",
-    "routing",
-    "locale-prefix",
-    "url",
-    "comvi"
-  ],
-  "files": [
-    "dist"
-  ],
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "engines": {
     "node": ">=20"
-  },
-  "publishConfig": {
-    "access": "public"
   },
   "exports": {
     ".": {

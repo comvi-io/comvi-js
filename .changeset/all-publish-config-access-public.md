@@ -1,7 +1,6 @@
 ---
 "@comvi/cli": patch
 "@comvi/core": patch
-"@comvi/locale-routing": patch
 "@comvi/next": patch
 "@comvi/nuxt": patch
 "@comvi/plugin-fetch-loader": patch

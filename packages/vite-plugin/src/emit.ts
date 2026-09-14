@@ -1,8 +1,8 @@
 /**
- * The declaration format lives in `@comvi/typegen`, shared with `@comvi/cli`.
- * This module only supplies the plugin's own header line, so a project that
- * generates types with the CLI in CI and with this plugin in dev cannot see the
- * two disagree.
+ * The declaration format lives in the workspace-private typegen package, shared
+ * with the Comvi CLI and inlined into both builds. This module only supplies
+ * the plugin's own header line, so a project that generates types with the CLI
+ * in CI and with this plugin in dev cannot see the two disagree.
  */
 
 import {

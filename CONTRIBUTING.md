@@ -17,8 +17,10 @@ packages/{vue,react,solid,svelte,next,nuxt}   framework bindings; kept in behavi
 packages/plugin-fetch-loader       loads translations from the Comvi CDN/API
 packages/plugin-locale-detector    browser locale detection
 packages/plugin-in-context-editor  visual in-page translation editor
-packages/locale-routing            framework-neutral locale routing primitives (runtime library)
-packages/typegen                   the declaration emitter cli and vite-plugin share
+packages/locale-routing            WORKSPACE-PRIVATE locale routing primitives; inlined into next,
+                                   vendored into nuxt's runtime (`pnpm --filter @comvi/nuxt vendor`)
+packages/typegen                   WORKSPACE-PRIVATE declaration emitter; inlined into cli and
+                                   vite-plugin, declarations bundled into their `.d.ts`
 packages/{cli,vite-plugin}         tooling packages
 apps/chrome-extension              in-context editor extension (own `extension:*` scripts)
 test-apps/*                        one integration app per framework; used by tests, not published

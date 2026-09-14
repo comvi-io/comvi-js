@@ -2,7 +2,7 @@
 "@comvi/vite-plugin": minor
 ---
 
-Type generation now runs on `@comvi/typegen`, the emitter `@comvi/cli` shares, so the two tools cannot drift. The header line is unchanged, and so is every type the declarations carry.
+Type generation now runs on one shared emitter, the same one `@comvi/cli` uses, so the two tools cannot drift. The emitter is workspace-private and is bundled into this package — **no new dependency, nothing extra to install**, and `EmitOptions`, `SchemaParam`, `KeySchema` and `ProjectSchema` are still declared by this package's own types. The header line is unchanged, and so is every type the declarations carry.
 
 **The declarations themselves change once, so regenerate and commit the result in the upgrade commit.** Two differences, both fixes the shared emitter brings with it:
 

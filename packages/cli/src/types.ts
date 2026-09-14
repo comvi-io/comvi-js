@@ -5,9 +5,9 @@
  */
 
 /**
- * The schema shape is owned by `@comvi/typegen`, the emitter this CLI and
- * `@comvi/vite-plugin` share. Re-exported so the published `@comvi/cli` type
- * names stay where consumers import them from.
+ * The schema shape is shared with the Comvi vite plugin through a
+ * workspace-private typegen package that both builds inline. Re-exported so the
+ * published `@comvi/cli` type names stay where consumers import them from.
  */
 export type { SchemaParam, KeySchema, ProjectSchema } from "@comvi/typegen";
 

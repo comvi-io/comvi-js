@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import {
   collectChangesets,
   coordinatedVersion,
+  fixedGroupNames,
   getPublishablePackages,
   updateRootChangelogFile,
 } from "./root-changelog.mjs";
@@ -197,7 +198,7 @@ export function main({
   const packages = getPublishablePackages(root);
   let version;
   try {
-    version = coordinatedVersion(packages);
+    version = coordinatedVersion(packages, fixedGroupNames(root));
   } catch (error) {
     // The one failure whose message stands on its own, so the CLI prints it
     // without a stack. Anything else escaping `main` is a bug and keeps one.

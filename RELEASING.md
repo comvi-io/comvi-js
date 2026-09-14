@@ -3,19 +3,20 @@
 The release captain (repo owner) runs this checklist. It covers the parts of a cut that live in this
 repository; the gates themselves are documented in [CONTRIBUTING.md](./CONTRIBUTING.md).
 
-The publishable set is 14 packages: 13 in the `fixed` group of `.changeset/config.json`, which always
-share one version (the release train), plus `@comvi/locale-routing`, which is versioned independently
-and keeps its own version in the tags, notes and archive.
+The publishable set is 12 packages, and all 12 are in the `fixed` group of `.changeset/config.json`:
+one release train, one version, one tag. `packages/locale-routing` and `packages/typegen` are
+WORKSPACE-PRIVATE (`"private": true`, and in the config's `ignore` list): they are the single copy of
+code that is inlined into `@comvi/next`, `@comvi/cli` and `@comvi/vite-plugin` at build time and
+vendored into `@comvi/nuxt`'s runtime, and they publish nothing. Every gate that enumerates packages
+derives the set from the `private` flag or from that config — `tooling/typed-packages.mjs` is the one
+hand-written list, and it holds the same 12.
+
+The release tooling still supports an independently versioned package (one published outside the
+`fixed` group keeps its own version in the tag body, `manifest.json` and the archive). Nothing uses
+that path today.
 
 ## 1. Before the cut
 
-- [ ] **Owner action, npm trusted publishing for the two brand-new package names.** `@comvi/typegen`
-      and `@comvi/locale-routing` have never been published. `.github/workflows/release.yml` carries
-      no `NODE_AUTH_TOKEN`/`NPM_TOKEN` and `.npmrc` holds no publish token: authentication is purely
-      OIDC trusted publishing, which is configured **per package** on npmjs.com and therefore needs
-      the package name to exist first. Resolve both names on npm before any publish (GA or RC), or
-      the run half-publishes: the failure happens inside `changeset publish`, after some of the other
-      packages are already live. This step is manual and is not automated by anything in this repo.
 - [ ] `pnpm test:release` locally (it is not a single CI job; its constituents are split across the
       `quality`, `tests` and `build` jobs).
 - [ ] `pnpm size`, `pnpm bundler-matrix` (add `--from-registry next` to measure the published RC
@@ -61,17 +62,15 @@ under the `next` dist-tag. Dispatch it from a green ref: the job runs no tests o
   npm dist-tag rm @comvi/<pkg> next
   ```
 
-      The 14 published names are `cli`, `core`, `locale-routing`, `next`, `nuxt`,
-      `plugin-fetch-loader`, `plugin-in-context-editor`, `plugin-locale-detector`, `react`, `solid`,
-      `svelte`, `typegen`, `vite-plugin`, `vue`.
+      The 12 published names are `cli`, `core`, `next`, `nuxt`, `plugin-fetch-loader`,
+      `plugin-in-context-editor`, `plugin-locale-detector`, `react`, `solid`, `svelte`,
+      `vite-plugin`, `vue`. None of them is a new npm name — the only two brand-new names 0.5
+      introduced are the two that are now workspace-private — so no per-package OIDC
+      trusted-publishing setup is outstanding before a publish.
 
 - [ ] Re-snapshot the test manifest, and keep the post-release observation window.
 
 ## Known release-tooling gaps (recorded, not fixed)
 
-- A `@comvi/locale-routing`-only release still bumps all 13 fixed-group packages through
-  `updateInternalDependencies: patch` (via `@comvi/next` and `@comvi/nuxt`), so every future
-  locale-routing patch republishes the whole train with empty changelog sections. Decide before GA
-  whether locale-routing joins the fixed group or the dependency range becomes a peer range.
 - The `rc` job publishes after a build only (no tests, no package-contract or size gate) and inherits
   the workflow-level `contents: write` it does not need.

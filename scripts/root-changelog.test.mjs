@@ -3,9 +3,11 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
+import { fileURLToPath } from "node:url";
 import {
   collectChangesets,
   coordinatedVersion,
+  fixedGroupNames,
   getPublishablePackages,
   parseChangeset,
   renderRootReleaseSection,
@@ -13,6 +15,9 @@ import {
   updateRootChangelogContent,
   updateRootChangelogFile,
 } from "./root-changelog.mjs";
+
+/** This repo's root — the `fixedGroupNames` test reads the real config. */
+const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
 const baseChangelog = `# Changelog
 
@@ -202,21 +207,50 @@ test("coordinatedVersion returns the version the fixed group shares, ignoring in
     ]),
     "0.5.0",
   );
+  // The `fixed` group decides. A publishable package outside it carries its own
+  // version and must not be compared against the train's — the repo has none
+  // today (every publishable package is in the group), which is exactly why the
+  // set is passed in rather than hard-coded.
   assert.equal(
-    coordinatedVersion([
-      { name: "@comvi/core", version: "0.5.0" },
-      { name: "@comvi/locale-routing", version: "0.1.0" },
-      { name: "@comvi/react", version: "0.5.0" },
-    ]),
+    coordinatedVersion(
+      [
+        { name: "@comvi/core", version: "0.5.0" },
+        { name: "@comvi/standalone", version: "0.1.0" },
+        { name: "@comvi/react", version: "0.5.0" },
+      ],
+      new Set(["@comvi/core", "@comvi/react"]),
+    ),
     "0.5.0",
-    "@comvi/locale-routing is versioned independently and must not decide the release version",
+    "a package outside the fixed group is versioned independently and must not decide the release version",
   );
 });
 
 test("coordinatedVersion rejects a package set with nothing coordinated in it", () => {
   assert.throws(
-    () => coordinatedVersion([{ name: "@comvi/locale-routing", version: "0.1.0" }]),
+    () =>
+      coordinatedVersion(
+        [{ name: "@comvi/standalone", version: "0.1.0" }],
+        new Set(["@comvi/core"]),
+      ),
     /no publishable packages found/,
+  );
+});
+
+test("fixedGroupNames reads the release train out of .changeset/config.json", () => {
+  const names = fixedGroupNames(REPO);
+
+  assert.ok(names.has("@comvi/core"), "@comvi/core is in the release train");
+  // The two workspace-private packages are in `ignore`, never in `fixed`.
+  assert.ok(!names.has("@comvi/locale-routing"));
+  assert.ok(!names.has("@comvi/typegen"));
+  // Every publishable package is in the group: coordinatedVersion over the real
+  // repo therefore filters nothing away, which is the property the cut relies on.
+  assert.deepEqual(
+    getPublishablePackages(REPO)
+      .map((pkg) => pkg.name)
+      .filter((name) => !names.has(name)),
+    [],
+    "a publishable package outside the fixed group would be versioned independently",
   );
 });
 

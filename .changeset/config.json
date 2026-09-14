@@ -14,7 +14,6 @@
       "@comvi/react",
       "@comvi/solid",
       "@comvi/svelte",
-      "@comvi/typegen",
       "@comvi/vite-plugin",
       "@comvi/vue"
     ]
@@ -27,6 +26,9 @@
     "onlyUpdatePeerDependentsWhenOutOfRange": true
   },
   "ignore": [
+    "@comvi/chrome-extension",
+    "@comvi/locale-routing",
+    "@comvi/typegen",
     "@comvi/vite-config",
     "@test-apps/next",
     "@test-apps/nuxt",
@@ -34,7 +36,6 @@
     "@test-apps/react",
     "@test-apps/solid",
     "@test-apps/svelte",
-    "@test-apps/vue",
-    "@comvi/chrome-extension"
+    "@test-apps/vue"
   ]
 }

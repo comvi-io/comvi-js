@@ -1,8 +1,10 @@
 /**
- * The CLI's emitter is `@comvi/typegen`. These pin the seam between them: the
- * published schema types are the shared ones, the deprecated `TypeEmitter`
- * still produces the CLI's own file, and a schema the emitter refuses reaches
- * the command as a `TypegenError` so `comvi typegen` keeps its exit code.
+ * The CLI's emitter is the workspace-private `@comvi/typegen`, inlined into this
+ * package's build. These pin the seam between them: the published schema types
+ * are the shared ones (declared by the CLI's own rolled-up `.d.ts`, since
+ * nothing published may import the private package), `TypeEmitter` still
+ * produces the CLI's own file, and a schema the emitter refuses reaches the
+ * command as a `TypegenError` so `comvi typegen` keeps its exit code.
  */
 import { describe, it, expect, expectTypeOf } from "vitest";
 import { emitDeclarations } from "@comvi/typegen";
@@ -36,7 +38,7 @@ describe("@comvi/cli over @comvi/typegen", () => {
     expect(emitDeclarations(shared)).toContain('"admin:dashboard": never;');
   });
 
-  it("keeps the deprecated TypeEmitter byte-identical to the shared emitter", () => {
+  it("keeps TypeEmitter byte-identical to the shared emitter", () => {
     expect(new TypeEmitter().generate(SCHEMA)).toBe(
       emitDeclarations(SCHEMA, { generatedBy: CLI_GENERATED_BY }),
     );

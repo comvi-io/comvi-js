@@ -107,9 +107,6 @@ importers:
 
   packages/cli:
     dependencies:
-      '@comvi/typegen':
-        specifier: workspace:*
-        version: link:../typegen
       commander:
         specifier: ^14.0.3
         version: 14.0.3
@@ -117,6 +114,9 @@ importers:
         specifier: ^4.1.0
         version: 4.1.0
     devDependencies:
+      '@comvi/typegen':
+        specifier: workspace:*
+        version: link:../typegen
       '@types/node':
         specifier: ^22.13.0
         version: 22.19.7
@@ -222,13 +222,13 @@ importers:
       '@comvi/core':
         specifier: workspace:*
         version: link:../core
-      '@comvi/locale-routing':
-        specifier: workspace:*
-        version: link:../locale-routing
       '@comvi/react':
         specifier: workspace:*
         version: link:../react
     devDependencies:
+      '@comvi/locale-routing':
+        specifier: workspace:*
+        version: link:../locale-routing
       '@comvi/test-utils':
         specifier: workspace:*
         version: link:../../tooling/test-utils
@@ -295,9 +295,6 @@ importers:
       '@comvi/core':
         specifier: workspace:*
         version: link:../core
-      '@comvi/locale-routing':
-        specifier: workspace:*
-        version: link:../locale-routing
       '@comvi/vue':
         specifier: workspace:*
         version: link:../vue
@@ -308,6 +305,9 @@ importers:
         specifier: ^1.15.11
         version: 1.15.11
     devDependencies:
+      '@comvi/locale-routing':
+        specifier: workspace:*
+        version: link:../locale-routing
       '@nuxt/module-builder':
         specifier: ^1.0.2
         version: 1.0.2(@nuxt/cli@3.35.2(@nuxt/schema@3.21.4)(cac@6.7.14)(magicast@0.5.2))(@vue/compiler-core@3.5.34)(esbuild@0.28.0)(typescript@6.0.2)(vue-tsc@3.2.6(typescript@6.0.2))(vue@3.5.32(typescript@6.0.2))
@@ -697,11 +697,10 @@ importers:
         version: 4.1.2(@types/node@22.19.7)(@vitest/ui@4.1.2)(happy-dom@20.8.9)(msw@2.12.14(@types/node@22.19.7)(typescript@6.0.2))(vite@8.0.11(@types/node@22.19.7)(esbuild@0.28.0)(jiti@2.7.0)(terser@5.46.1)(yaml@2.8.3))
 
   packages/vite-plugin:
-    dependencies:
+    devDependencies:
       '@comvi/typegen':
         specifier: workspace:*
         version: link:../typegen
-    devDependencies:
       '@comvi/vite-config':
         specifier: workspace:*
         version: link:../../tooling/vite-config
