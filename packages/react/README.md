@@ -139,17 +139,17 @@ the `createI18n` expression as above.
 
 ### `<I18nProvider>` props
 
-| prop                       | type                     | what it does                                                                       |
-| -------------------------- | ------------------------ | ---------------------------------------------------------------------------------- |
-| `i18n`                     | the host                 | required                                                                           |
-| `children`                 | `ReactNode`              | required                                                                           |
-| `autoInit`                 | `boolean`                | calls `i18n.init()` for you; default `true`                                        |
-| `fallback`                 | `ReactNode`              | rendered instead of children until the host is initialized                         |
-| `ssrLocale`                | `string`                 | the locale the server snapshot renders in                                          |
-| `ssrInitialLocale`         | `string`                 | react's legacy name for `ssrLocale`, which wins if both are passed. Removed in 0.6 |
-| `ssrInitialIsInitializing` | `boolean`                | whether the server render is gated by `fallback`; default `false`                  |
-| `ssrInitialIsLoading`      | `boolean`                | the initial loading state for hydration                                            |
-| `onError`                  | `(error: Error) => void` | initialization failures                                                            |
+| prop                       | type                     | what it does                                                                             |
+| -------------------------- | ------------------------ | ---------------------------------------------------------------------------------------- |
+| `i18n`                     | the host                 | required                                                                                 |
+| `children`                 | `ReactNode`              | required                                                                                 |
+| `autoInit`                 | `boolean`                | calls `i18n.init()` for you; default `true`                                              |
+| `fallback`                 | `ReactNode`              | rendered instead of children until the host is initialized                               |
+| `ssrLocale`                | `string`                 | the locale the server snapshot renders in                                                |
+| `ssrInitialLocale`         | `string`                 | react's legacy name for `ssrLocale`; `ssrLocale` wins if both are passed. Removed in 0.6 |
+| `ssrInitialIsInitializing` | `boolean`                | whether the server render is gated by `fallback`; default `false`                        |
+| `ssrInitialIsLoading`      | `boolean`                | the initial loading state for hydration                                                  |
+| `onError`                  | `(error: Error) => void` | initialization failures                                                                  |
 
 **`fallback` gates on `isInitialized`, not `isInitializing`.** `init()` starts from an effect, after
 the first render, so a gate on "is it initializing" is open for exactly the frame the raw keys would

@@ -8,7 +8,8 @@ createRoot(document.getElementById("app")!).render(
   <StrictMode>
     {/* The provider calls `i18n.init()` on mount, which runs the plugins and
         loads the first catalog. */}
-    <I18nProvider i18n={i18n}>
+    {/* `fallback` paints until the lazy catalog is in, so no frame shows raw keys. */}
+    <I18nProvider i18n={i18n} fallback={<p>Loading…</p>}>
       <App />
     </I18nProvider>
   </StrictMode>,

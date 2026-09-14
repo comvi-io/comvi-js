@@ -415,6 +415,20 @@ bundle, so a framework row is the comvi code only.
 | `@comvi/react` + ICU + the CDN loader    | `platform-path-react`          | 10793 B |
 | core + ICU + the CDN-only loader subpath | `plugin-fetch-loader-cdn-lite` | 9173 B  |
 
+Against the last published release, measured on 2026-09-06 with the same harness on both sides (tag
+`v0.4.1`, a monolith with one entry; the "minimal app" fixture is identical source on both sides,
+the "everything" side is `import * as everything` on 0.4.1 against the full composite on 0.5):
+
+| app shape                     | 0.4.1                    | 0.5                     | change            |
+| ----------------------------- | ------------------------ | ----------------------- | ----------------- |
+| core, minimal app             | 8 429 B                  | 5 093 B                 | −40 %             |
+| react, minimal app            | 10 858 B                 | 6 714 B                 | −38 %             |
+| vue / solid / svelte, minimal | 11 094 / 9 923 / 9 871 B | 7 041 / 6 413 / 6 518 B | −37 / −35 / −34 % |
+| every capability composed     | 9 015 … 11 217 B         | 8 785 … 11 653 B        | −2.6 … +4.0 %     |
+
+The minimal app lost a third of its weight; the ceiling did not move, while 0.5 composes things 0.4
+did not have (devtools discovery, the tag-handler boundary, the editor contract).
+
 Every capability is an import you add, so an app carries only what it composes. No `eval` and no
 `new Function` in any runtime package, so everything runs under a strict CSP without `unsafe-eval`.
 `@comvi/core` has zero runtime dependencies.
