@@ -2,13 +2,14 @@
  * Wave 6 Lot 3 — ONE call signature for `t()`, so a wrong call names its own
  * problem on the FIRST line.
  *
- * Under the three overloads every wrong call printed TS2769 "No overload
- * matches this call" followed by the failure of EACH overload, burying the one
- * useful line; a forgotten required param printed "not assignable to parameter
- * of type 'never'", which was the permissive overload's key once the registry
- * is closed. The before/after diagnostics are captured verbatim in the root
- * README's "Reading the type errors", and the `check=expect-error=TS####`
- * markers on those fences are what `pnpm check:snippets` holds the CODES to.
+ * Under the three overloads a wrong call went one of two ways: TS2769 "No
+ * overload matches this call" followed by the failure of EACH overload,
+ * burying the one useful line — or a one-line TS2345 against the permissive
+ * overload's key, which said nothing useful at all. On the CLASS that key was
+ * `null`, so a forgotten required param printed "not assignable to parameter
+ * of type 'null'"; a wrapper's `TranslateFn` carries no `| null`, so there the
+ * same mistake read `'never'`. The before/after diagnostics are captured
+ * verbatim in the root README's "Reading the type errors".
  *
  * `@ts-expect-error` can only assert THAT a call fails, and all of these
  * failed before too — the lot changed the MESSAGE, not the verdict — so the
@@ -19,8 +20,13 @@
  * namespace that declares it.
  */
 
-import { createI18n } from "@comvi/core";
-import type { NamespaceBoundTranslateFn, TranslateFn } from "@comvi/core";
+import { createBoundTranslation, createI18n } from "@comvi/core";
+import type {
+  ArgsFor,
+  NamespaceBoundTranslateFn,
+  TranslateFn,
+  TranslationParams,
+} from "@comvi/core";
 
 type Equal<X, Y> =
   (<T>() => T extends X ? 1 : 2) extends <T>() => T extends Y ? 1 : 2 ? true : false;
@@ -97,5 +103,64 @@ t("admin:dashboard");
 t("admin:settings", { count: 1 });
 t(null);
 i18n.tRaw("greeting", { formality: "formal", name: "Eugene" });
+
+// A key the call site could not narrow to ONE literal gets loose params, so
+// none of these is checked. That is a known hole, not an oversight, and it is
+// pinned here so the day it closes is deliberate: `docs/design/limitations.md`
+// carries the user-facing note, and `48cf293` REJECTED all three (the union
+// fell through to the permissive overload and reported "not assignable to
+// parameter of type 'null'").
+//
+// Closing it needs the arms' params intersected, and doing that puts a second
+// `{ ns }` inference site on the sibling branch of `ArgsFor`. `N` then falls
+// back to its constraint and `t("dashboard", { ns: "shop" })` stops being
+// checked against `shop`'s keys — a silent wrong-namespace accept, which is
+// worse than an unchecked union key.
+declare const cond: boolean;
+t(cond ? "greeting" : "farewell");
+t(cond ? "greeting" : "farewell", { totally: "bogus" });
+t(cond ? "admin:settings" : "shop:checkout");
+t(cond ? "greeting" : "farewell", { formality: "formal", name: "Eugene" });
+t(cond ? "farewell" : "admin:dashboard");
+
+// What a union key must NOT do is widen the key set: an arm that is not a key
+// at all is still rejected, on the key.
+// @ts-expect-error `greting` is not a key on either arm
+t(cond ? "greting" : "farewell");
+
+// `createBoundTranslation(i18n, ns)` narrows to `ns`'s keys, which is what its
+// own `@example` documents. The namespace has to be a literal TypeScript can
+// read; a `string` variable leaves the result unbound and loose, as before.
+const boundAdmin = createBoundTranslation(i18n, "admin");
+boundAdmin("dashboard");
+boundAdmin("settings", { count: 1 });
+boundAdmin("greeting", { formality: "formal", name: "Eugene" });
+boundAdmin("checkout", { ns: "shop" });
+// @ts-expect-error `checkout` is not a key of `admin`
+boundAdmin("checkout");
+
+const boundNone = createBoundTranslation(i18n);
+boundNone("greeting", { formality: "formal", name: "Eugene" });
+// @ts-expect-error a bare namespaced key still needs its namespace
+boundNone("dashboard");
+
+// `Parameters<typeof t>` is `never` once the registry is closed, and pinning
+// that is the point: the key constraint mentions the inferred namespace `N`,
+// and `Parameters`' `(...args: infer P)` cannot see through a constraint that
+// references another type parameter. Removing `N` restores `Parameters` and
+// takes the first-line key diagnostic with it, so this stays. Reach the
+// argument list through `ArgsFor` instead, which resolves fine.
+export type _ParametersIsNever = Expect<
+  Equal<[Parameters<typeof t>] extends [never] ? true : false, true>
+>;
+export type _ArgsForResolves = Expect<Equal<ArgsFor<"farewell">, [params?: TranslationParams]>>;
+
+// `t` is NOT assignable to a one-argument `(k: string) => string` callback
+// with the registry closed: the key is a closed union and `string` is not one
+// of its members. Hand such a helper `t as (k: string) => string`.
+declare function stringKeyCallback(f: (k: string) => string): void;
+// @ts-expect-error a closed key union does not accept `string`
+stringKeyCallback(i18n.t);
+stringKeyCallback(i18n.t as (k: string) => string);
 
 export {};

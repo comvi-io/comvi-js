@@ -68,6 +68,29 @@ The host is the object `createI18n` returns: it holds the catalog, the current l
   `@comvi/cli` (from the platform) or `@comvi/vite-plugin` (from local JSON) writes it. Nothing
   infers key types from a runtime catalog.
 
+## Typed keys: three shapes `t()` does not check
+
+`t()` has one call signature, which is what makes a wrong call report the real problem on its first
+line (see the [root README](https://github.com/comvi-io/comvi-js#reading-the-type-errors)). Three
+shapes fall outside it. Each is a consequence of that one signature, not a bug to be fixed in
+isolation.
+
+- **A key the call site could not narrow to one literal gets loose params.**
+  `t(cond ? "greeting" : "farewell")` compiles even when `greeting` declares required params, and
+  so does a params object valid for neither arm. The key itself is still checked: an arm that is
+  not a key is rejected. Narrow the key first (`const key = cond ? "greeting" : "farewell"` does
+  not help; branch the CALL instead) when the params differ between arms. Closing this needs the
+  arms' params intersected, which costs the check on `t("key", { ns })` — a silently accepted wrong
+  namespace, which is worse.
+- **`Parameters<typeof t>` is `never` once keys are generated.** The key parameter's type depends on
+  a second, inferred type parameter, and `Parameters` cannot see through that. Reach the argument
+  list through `ArgsFor<"your.key">` instead, which resolves normally. With no generated keys
+  `Parameters` still works.
+- **`t` is not assignable to a `(key: string) => string` callback once keys are generated.** The key
+  is a closed union of your keys, and `string` is not one of them. Hand such a helper
+  `t as (k: string) => string`. The two-argument shape
+  `(key: string, params?: Record<string, unknown>) => string` never accepted `t` and still does not.
+
 ## Deprecated surface, and when it goes
 
 Four members on `useI18n()` are declared as optional `never` in react, solid, svelte and vue, so
