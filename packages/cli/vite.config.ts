@@ -18,6 +18,12 @@ export default defineConfig({
     }),
   ],
   build: {
+    // Explicit rather than relying on Vite's default inference (true when
+    // outDir resolves inside root): this package has only one build step —
+    // no `.dev`/umd follow-up — so every build must start from an empty
+    // dist, and a stray file left by an unrelated prior layout must never
+    // survive a real build invocation.
+    emptyOutDir: true,
     lib: {
       entry: {
         index: resolve(__dirname, "src/index.ts"),

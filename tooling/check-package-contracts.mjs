@@ -2,19 +2,21 @@
 // Verifies that every publishable package's package.json contract matches what
 // `npm pack --dry-run` actually includes: `files` covers `dist`, `sideEffects` is
 // `false` or an explicit list, every exports/main/module/types/bin target is packed,
-// bin targets are executable with a shebang, and no `.DS_Store`/`.env*`/`.tsbuildinfo`
-// is shipped. Known limitations: the `.env*` check only matches a root-level entry
-// (not e.g. `dist/.env`); suffix globs in exports (`./dist/*.css`) degrade to a weak
-// prefix check; the bin executable-bit check reads the working-tree mode, not the
-// 0755 npm normalises to in the tarball. Run after `pnpm build` (it inspects dist/).
+// bin targets are executable with a shebang, no `.DS_Store`/`.env*`/`.tsbuildinfo`
+// is shipped, and no built file names a workspace-private package (it must be
+// inlined/vendored instead — a private package resolves fine inside the workspace
+// but is unresolvable once published). Known limitations: the `.env*` check only
+// matches a root-level entry (not e.g. `dist/.env`); suffix globs in exports
+// (`./dist/*.css`) degrade to a weak prefix check; the bin executable-bit check
+// reads the working-tree mode, not the 0755 npm normalises to in the tarball. Run
+// after `pnpm build` (it inspects dist/).
 import { execFileSync } from "node:child_process";
-import { existsSync, readFileSync, statSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { readdir } from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
+import { fileURLToPath } from "node:url";
 
-const rootDir = process.cwd();
-const packagesDir = path.join(rootDir, "packages");
 const forbiddenPackageEntries = [
   ".DS_Store",
   ".env",
@@ -107,94 +109,168 @@ function npmPackDryRun(packageDir) {
   return new Set(parsed.flatMap((item) => item.files.map((file) => file.path)));
 }
 
-const packageDirs = (await readdir(packagesDir, { withFileTypes: true }))
-  .filter((entry) => entry.isDirectory())
-  .map((entry) => path.join(packagesDir, entry.name))
-  .filter((packageDir) => existsSync(path.join(packageDir, "package.json")))
-  .sort();
+/**
+ * The name of every `packages/*` package whose manifest sets `private: true`.
+ * Derived, not hard-coded: a package that becomes private later is picked up
+ * automatically, same as `packagesInliningVersion` in check-inlined-version.mjs.
+ */
+export function collectPrivatePackageNames(root) {
+  const packagesDir = path.join(root, "packages");
+  if (!existsSync(packagesDir)) return [];
+  const names = [];
+  for (const entry of readdirSync(packagesDir, { withFileTypes: true }).sort((a, b) =>
+    a.name.localeCompare(b.name),
+  )) {
+    if (!entry.isDirectory()) continue;
+    const manifestPath = path.join(packagesDir, entry.name, "package.json");
+    if (!existsSync(manifestPath)) continue;
+    const manifest = readJson(manifestPath);
+    if (manifest.private === true && manifest.name) names.push(manifest.name);
+  }
+  return names;
+}
 
-const errors = [];
-const summaries = [];
+/** Every file under `distDir`, recursively, excluding `.map` (source maps
+ * routinely embed original workspace paths; that's not a shipped import). */
+export function collectDistFiles(distDir) {
+  if (!existsSync(distDir)) return [];
+  const files = [];
+  for (const entry of readdirSync(distDir, { withFileTypes: true })) {
+    const full = path.join(distDir, entry.name);
+    if (entry.isDirectory()) files.push(...collectDistFiles(full));
+    else if (!entry.name.endsWith(".map")) files.push(full);
+  }
+  return files;
+}
 
-for (const packageDir of packageDirs) {
-  const manifestPath = path.join(packageDir, "package.json");
-  const manifest = readJson(manifestPath);
-  if (manifest.private === true) continue;
-
-  const packageName = manifest.name ?? path.basename(packageDir);
-  const packedFiles = npmPackDryRun(packageDir);
-  const packageErrors = [];
-
-  assert(
-    manifest.files?.includes("dist"),
-    `${packageName}: files must include dist`,
-    packageErrors,
-  );
-  assert(
-    manifest.sideEffects === false || Array.isArray(manifest.sideEffects),
-    `${packageName}: sideEffects must be false or an explicit side-effect file list`,
-    packageErrors,
-  );
-
-  if (manifest.exports) {
-    for (const target of collectExportTargets(manifest.exports)) {
-      validateTargetIncluded(packageName, "exports", target, packedFiles, packageErrors);
+/**
+ * A shipped file that names a workspace-private package can't resolve once
+ * published — the package only exists inside this workspace. The private
+ * dependency must be inlined (bundled into the artifact) or vendored (copied
+ * into source), never left as a live import/reference.
+ */
+export function checkDistForPrivatePackageNames(packageName, packageDir, privateNames) {
+  const errors = [];
+  if (privateNames.length === 0) return errors;
+  const distDir = path.join(packageDir, "dist");
+  for (const file of collectDistFiles(distDir)) {
+    const content = readFileSync(file, "utf8");
+    const relativePath = path.relative(distDir, file).split(path.sep).join("/");
+    for (const privateName of privateNames) {
+      if (content.includes(privateName)) {
+        errors.push(
+          `${packageName}: dist/${relativePath} names workspace-private package ${privateName}; ` +
+            `it must be inlined/vendored, not imported`,
+        );
+      }
     }
-  } else {
-    assert(manifest.main, `${packageName}: package must define exports or main`, packageErrors);
   }
+  return errors;
+}
 
-  // Validate entry-point fields (unpkg/jsdelivr only present on UMD packages); skipped when absent.
-  for (const field of ["main", "module", "types", "unpkg", "jsdelivr"]) {
-    const target = manifest[field];
-    if (target == null) continue;
+export async function checkPackageContracts({ root = process.cwd(), log = console.log } = {}) {
+  const packagesDir = path.join(root, "packages");
+  const packageDirs = (await readdir(packagesDir, { withFileTypes: true }))
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => path.join(packagesDir, entry.name))
+    .filter((packageDir) => existsSync(path.join(packageDir, "package.json")))
+    .sort();
+
+  const privatePackageNames = collectPrivatePackageNames(root);
+
+  const errors = [];
+  const summaries = [];
+
+  for (const packageDir of packageDirs) {
+    const manifestPath = path.join(packageDir, "package.json");
+    const manifest = readJson(manifestPath);
+    if (manifest.private === true) continue;
+
+    const packageName = manifest.name ?? path.basename(packageDir);
+    const packedFiles = npmPackDryRun(packageDir);
+    const packageErrors = [];
+
     assert(
-      typeof target === "string",
-      `${packageName}: "${field}" must be a string path`,
+      manifest.files?.includes("dist"),
+      `${packageName}: files must include dist`,
       packageErrors,
     );
-    if (typeof target === "string") {
-      validateTargetIncluded(packageName, field, target, packedFiles, packageErrors);
+    assert(
+      manifest.sideEffects === false || Array.isArray(manifest.sideEffects),
+      `${packageName}: sideEffects must be false or an explicit side-effect file list`,
+      packageErrors,
+    );
+
+    if (manifest.exports) {
+      for (const target of collectExportTargets(manifest.exports)) {
+        validateTargetIncluded(packageName, "exports", target, packedFiles, packageErrors);
+      }
+    } else {
+      assert(manifest.main, `${packageName}: package must define exports or main`, packageErrors);
     }
+
+    // Validate entry-point fields (unpkg/jsdelivr only present on UMD packages); skipped when absent.
+    for (const field of ["main", "module", "types", "unpkg", "jsdelivr"]) {
+      const target = manifest[field];
+      if (target == null) continue;
+      assert(
+        typeof target === "string",
+        `${packageName}: "${field}" must be a string path`,
+        packageErrors,
+      );
+      if (typeof target === "string") {
+        validateTargetIncluded(packageName, field, target, packedFiles, packageErrors);
+      }
+    }
+
+    validateBin(packageName, manifest.bin, packedFiles, packageDir, packageErrors);
+
+    for (const entry of forbiddenPackageEntries) {
+      assert(
+        !packedFiles.has(entry),
+        `${packageName}: forbidden local artifact ${entry} is packed`,
+        packageErrors,
+      );
+    }
+    for (const packedFile of packedFiles) {
+      assert(
+        !packedFile.endsWith(".tsbuildinfo"),
+        `${packageName}: ${packedFile} must not be packed`,
+        packageErrors,
+      );
+      assert(
+        !packedFile.endsWith("/.DS_Store"),
+        `${packageName}: ${packedFile} must not be packed`,
+        packageErrors,
+      );
+    }
+
+    packageErrors.push(
+      ...checkDistForPrivatePackageNames(packageName, packageDir, privatePackageNames),
+    );
+
+    const failed = packageErrors.length > 0;
+    if (failed) errors.push(...packageErrors);
+    summaries.push(`${failed ? "FAIL" : "PASS"} ${packageName}: ${packedFiles.size} files checked`);
   }
 
-  validateBin(packageName, manifest.bin, packedFiles, packageDir, packageErrors);
-
-  for (const entry of forbiddenPackageEntries) {
-    assert(
-      !packedFiles.has(entry),
-      `${packageName}: forbidden local artifact ${entry} is packed`,
-      packageErrors,
-    );
-  }
-  for (const packedFile of packedFiles) {
-    assert(
-      !packedFile.endsWith(".tsbuildinfo"),
-      `${packageName}: ${packedFile} must not be packed`,
-      packageErrors,
-    );
-    assert(
-      !packedFile.endsWith("/.DS_Store"),
-      `${packageName}: ${packedFile} must not be packed`,
-      packageErrors,
-    );
+  for (const summary of summaries) {
+    log(summary);
   }
 
-  const failed = packageErrors.length > 0;
-  if (failed) errors.push(...packageErrors);
-  summaries.push(`${failed ? "FAIL" : "PASS"} ${packageName}: ${packedFiles.size} files checked`);
+  return { errors, summaries };
 }
 
-for (const summary of summaries) {
-  console.log(summary);
-}
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+  const { errors, summaries } = await checkPackageContracts();
 
-if (errors.length > 0) {
-  console.error("\nPackage contract check failed:");
-  for (const error of errors) {
-    console.error(`- ${error}`);
+  if (errors.length > 0) {
+    console.error("\nPackage contract check failed:");
+    for (const error of errors) {
+      console.error(`- ${error}`);
+    }
+    process.exit(1);
   }
-  process.exit(1);
-}
 
-console.log(`Package contract check passed for ${summaries.length} publishable packages.`);
+  console.log(`Package contract check passed for ${summaries.length} publishable packages.`);
+}
