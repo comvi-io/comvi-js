@@ -34,5 +34,11 @@
     }
   },
   "include": ["src/**/*", "tests/**/*.ts", "tests/**/*.tsx"],
-  "exclude": ["node_modules", "dist", "tests/types/**", "tests/dist/**"]
+  "exclude": [
+    "node_modules",
+    "dist",
+    "tests/types/**",
+    "tests/types-keys-closed/**",
+    "tests/dist/**"
+  ]
 }

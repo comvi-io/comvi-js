@@ -49,7 +49,7 @@
     "dev": "vite build --watch",
     "build": "vite build && vite build --config vite.config.dev.ts && node ../../tooling/qualify-dts-specifiers.mjs dist",
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.tests.json",
-    "test:types": "tsc --noEmit -p tsconfig.test-types.json",
+    "test:types": "tsc --noEmit -p tsconfig.test-types.json && tsc --noEmit -p tsconfig.keys-closed.json",
     "test": "vitest run && pnpm test:types",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",

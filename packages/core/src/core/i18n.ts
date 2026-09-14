@@ -9,12 +9,10 @@ import type {
   PostProcessFn,
   I18nEvent,
   I18nEventData,
-  TranslationKeys,
-  ParamsArg,
-  Namespaces,
+  AcceptedCoreKey,
   NamespacedKeys,
-  NamespacedParamsArg,
-  PermissiveKey,
+  Namespaces,
+  ArgsFor,
   ErrorReportContext,
   TagInterpolationOptions,
   DefaultTranslationParams,
@@ -666,18 +664,14 @@ export class I18n<D extends DefaultTranslationParams = {}>
     return [...this._fallbackLocales];
   }
 
-  tRaw<NS extends Namespaces, K extends NamespacedKeys<NS>>(
-    translationKey: K | null,
-    ...params: NamespacedParamsArg<NS, K, D>
-  ): TranslationResult;
-
-  tRaw<K extends keyof TranslationKeys>(
-    translationKey: K | null,
-    ...params: ParamsArg<K, D>
-  ): TranslationResult;
-
-  /** Permissive overload — only active when `TranslationKeys` is empty. */
-  tRaw(translationKey: PermissiveKey | null, params?: TranslationParams): TranslationResult;
+  /**
+   * The rich-text half of {@link I18n.t}, keyed identically: ONE signature, so
+   * a wrong call names its own problem on the first line.
+   */
+  tRaw<
+    K extends { [P in AcceptedCoreKey]: P }[AcceptedCoreKey] | NamespacedKeys<N> | null,
+    N extends Namespaces = never,
+  >(translationKey: K, ...params: ArgsFor<K, undefined, D, N>): TranslationResult;
 
   tRaw(translationKey: string | null, ...params: [TranslationParams?]): TranslationResult {
     if (translationKey === null) {
@@ -715,15 +709,15 @@ export class I18n<D extends DefaultTranslationParams = {}>
     );
   }
 
-  t<NS extends Namespaces, K extends NamespacedKeys<NS>>(
-    translationKey: K | null,
-    ...params: NamespacedParamsArg<NS, K, D>
-  ): string;
-
-  t<K extends keyof TranslationKeys>(translationKey: K | null, ...params: ParamsArg<K, D>): string;
-
-  /** Permissive overload — only active when `TranslationKeys` is empty. */
-  t(translationKey: PermissiveKey | null, params?: TranslationParams): string;
+  /**
+   * Translate a key in the current locale. ONE signature — see
+   * {@link AcceptedCoreKey} for the keys it takes and {@link ArgsFor} for how
+   * the params are dispatched on the key.
+   */
+  t<
+    K extends { [P in AcceptedCoreKey]: P }[AcceptedCoreKey] | NamespacedKeys<N> | null,
+    N extends Namespaces = never,
+  >(translationKey: K, ...params: ArgsFor<K, undefined, D, N>): string;
 
   t(translationKey: string | null, ...params: [TranslationParams?]): string {
     return translationResultToString(this.tRaw(translationKey as any, ...(params as any)));

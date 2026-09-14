@@ -120,28 +120,34 @@ t("INVALID_INPUT", { ns: "errors", field: "email" });
 
 **What TypeScript catches:**
 
+```ts check=group=typed-keys check=expect-error=TS2554
+import { useI18n } from "@comvi/react";
+const { t } = useI18n();
+
+// ✗ TS2554 — Expected 2 arguments, but got 1. `welcome` declares a required param,
+//   so its params object is not optional.
+t("welcome");
+```
+
 ```ts check=group=typed-keys check=expect-error=TS2345
 import { useI18n } from "@comvi/react";
 const { t } = useI18n();
 
-// ✗ TS2345 — Argument of type '"welcome"' is not assignable to parameter of type
-//   'never'. `welcome` declares a required param, so the key-only overload is out.
-t("welcome");
-```
-
-```ts check=group=typed-keys check=expect-error=TS2769
-import { useI18n } from "@comvi/react";
-const { t } = useI18n();
-
-// ✗ TS2769 (no overload matches) — Property 'name' is missing in type '{ age: number }'
+// ✗ TS2345 — Property 'name' is missing in type '{ age: number; }' but required in
+//   type 'MissingParams<{ name: string; }, {}>'
 t("welcome", { age: 5 });
 
-// ✗ TS2769 (no overload matches) — Type 'number' is not assignable to type 'string'
+// ✗ TS2322 — Type 'number' is not assignable to type 'string'
 t("welcome", { name: 42 });
 
-// ✗ TS2769 (no overload matches) — '"typo"' is not a declared key
+// ✗ TS2345 — Argument of type '"typo"' is not assignable to parameter of type
+//   \'"welcome" | "items" | "greeting"\'
 t("typo", { name: "Alice" });
 ```
+
+`t()` has one call signature, so each of these names its own problem on the first line. The key
+parameter is the union of the keys this call site may use — the default namespace's, plus any
+namespace it named — which is also the list of what you may have meant.
 
 ### Live regeneration with `--watch`
 

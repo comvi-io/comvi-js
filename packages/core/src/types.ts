@@ -234,6 +234,13 @@ export type ParamsArg<K extends keyof TranslationKeys, D extends DefaultTranslat
     ? [params?: CallParams<TranslationKeys[K], D>]
     : [params: CallParams<TranslationKeys[K], D>];
 
+/**
+ * Params for a bare key with an explicit `ns`: `t("dashboard", { ns: "admin" })`.
+ *
+ * Public vocabulary, kept for the apps and generated files that name it. The
+ * call signatures no longer route through it — {@link ArgsFor} computes the
+ * same tuple from the key alone, which is what lets there be ONE signature.
+ */
 export type NamespacedParamsArg<
   NS extends string,
   K extends string,
@@ -243,29 +250,246 @@ export type NamespacedParamsArg<
     ? [params: { ns: NS } & TranslationParams]
     : [params: { ns: NS } & CallParams<NamespacedKeyParams<NS, K>, D>];
 
+/** @internal Registry entries written with a `"ns:key"` prefix. */
+type QualifiedKeys = Extract<keyof TranslationKeys, `${string}:${string}`>;
+
 /**
- * The canonical call-signature set shared by every framework wrapper's `t` /
+ * Every key `t()` accepts, as ONE union: the default namespace's keys, the
+ * bare keys of the namespace in scope, and — while `TranslationKeys` is empty
+ * — any `string`, because `PermissiveKey` widens the whole union.
+ *
+ * One union in one call signature is what makes a typo report TS2345 naming
+ * the known keys, instead of TS2769 followed by the failure of every overload.
+ *
+ * "In scope" is TWO things, and `N` is why a bare key of another namespace
+ * reports the key rather than the arity. A bare key is valid only alongside
+ * the namespace that declares it — `useI18n("admin")` supplies it, and so does
+ * an explicit `{ ns: "shop" }`. `NS` is the bound one, known from the call
+ * site's type; `N` is the one the params name, INFERRED from `{ ns }` at the
+ * call site (see {@link ArgsFor}, whose explicit-namespace branch puts `N` in
+ * an inference position). So `useI18n("admin").t("checkout")` sees a union
+ * WITHOUT `checkout` and is rejected on the key, naming admin's keys, while
+ * `t("checkout", { ns: "shop" })` sees one with it and compiles. Admitting
+ * every namespace's bare keys unconditionally is what made the first of those
+ * report "Expected 2 arguments, but got 1" — true, but it points at the
+ * params when the reader's mistake was the key.
+ *
+ * Every call signature spells the union out as `{ [P in AcceptedKey<NS, N>]: P
+ * }[AcceptedKey<NS, N>]` rather than naming this type, and the indirection is
+ * load-bearing: a diagnostic prints the type ALIAS a constraint was written
+ * with, so `AcceptedKey` in the constraint makes TypeScript say "not
+ * assignable to parameter of type 'AcceptedKey'", which names nothing.
+ * Indexing a mapped type rebuilds the union and drops the alias, so the real
+ * keys are what a reader sees. It only works written inline — naming the
+ * expansion re-hides it — which is why the idiom is repeated at each
+ * signature instead of being factored out.
+ *
+ * @typeParam NS - The namespace a wrapper's `useI18n(ns)` bound, or `undefined`.
+ * @typeParam N - The namespace the call's own `{ ns }` names, inferred.
+ */
+export type AcceptedKey<NS extends string | undefined = undefined, N extends Namespaces = never> =
+  | PermissiveKey
+  | DefaultNsKeys
+  | NamespacedKeys<NS & string>
+  | NamespacedKeys<N>;
+
+/**
+ * @internal The key union as a call signature must SPELL it, not name it.
+ *
+ * Two separate mechanics meet here. The `{ [P in …]: P }[…]` rebuild strips
+ * the type alias so a diagnostic prints real keys (see {@link AcceptedKey}),
+ * and it only works inline. But the rebuild cannot contain `N`: `N` is
+ * unresolved while a SIGNATURE is compared to another signature — the `I18n`
+ * class against `I18nCoreInstance`, a host against `AnyI18nHost` — and a
+ * mapped type over an unresolved parameter does not reduce, so neither side
+ * relates and the class stops implementing its own interface.
+ *
+ * So the N-free part goes through the rebuild (and prints), and
+ * `NamespacedKeys<N>` is unioned OUTSIDE it (and stays an alias, which costs
+ * nothing: `N` is `never` in every diagnostic that matters, and `never`
+ * vanishes from a union).
+ */
+/**
+ * The keys the CORE surface accepts: everything a wrapper accepts, plus the
+ * fully-qualified `"ns:key"` spelling. A wrapper's `t` takes only
+ * {@link AcceptedKey}.
+ *
+ * The `null` no-op is NOT part of it. `null` lives on the `I18n` CLASS alone,
+ * which is where it always has, and it has to stay off this interface: `null`
+ * is assignable to `string` in NEITHER direction, so a `null` in the key union
+ * stops `WrapperI18nHost` satisfying the plain `(key: string, …)` shapes the
+ * wrappers' internals pass it to — solid's `<T>` hands the host to
+ * `prepareTranslation`, and that broke the moment `null` reached the interface.
+ */
+export type AcceptedCoreKey<N extends Namespaces = never> =
+  | AcceptedKey<undefined, N>
+  | QualifiedKeys;
+
+/**
+ * @internal The qualified key a bound namespace makes a BARE key mean:
+ * `useI18n("admin")` turns `t("dashboard")` into `"admin:dashboard"`.
+ */
+type BoundKeyOf<K, NS extends string | undefined> = [K] extends [string]
+  ? NS extends Namespaces
+    ? `${NS}:${K}` extends keyof TranslationKeys
+      ? `${NS}:${K}`
+      : never
+    : never
+  : never;
+
+/**
+ * @internal WHICH of the four ways a key is reachable applies. Deliberately
+ * free of `D`.
+ *
+ * The route has to be decided without the default-params type, because the
+ * host is compared bivariantly across different `D`s (see {@link AnyI18nHost}):
+ * with `D` inside the `extends` checks, `ArgsFor<K, NS, {}>` and `ArgsFor<K,
+ * NS, D>` have different check types, TypeScript can relate neither direction,
+ * and passing a `createI18n({ defaultParams })` instance to a provider stops
+ * compiling. Keep `D` in the RESULT only.
+ */
+type KeyRoute<K, NS extends string | undefined> = [K] extends [never]
+  ? // `t(key as never, params)` is the documented escape hatch for a key that
+    // is a RUNTIME string — every wrapper's `<T>` uses it, because a component
+    // prop cannot be a literal type. Without this branch `never` distributes
+    // to `never`, the params slot becomes uninhabited, and each of those call
+    // sites fails.
+    "loose"
+  : K extends null | undefined
+    ? "loose"
+    : K extends string
+      ? [BoundKeyOf<K, NS>] extends [never]
+        ? K extends DefaultNsKeys
+          ? "default"
+          : K extends QualifiedKeys
+            ? "qualified"
+            : "explicit-ns"
+        : "bound"
+      : "loose";
+
+/**
+ * @internal One key, one argument list — and deliberately NOT a union of them.
+ *
+ * When several same-length tuples are unioned, TypeScript stops reporting a
+ * forgotten params object as TS2554 "Expected 2 arguments, but got 1" and
+ * instead prints `Argument of type '[]' is not assignable to …` followed by
+ * every constituent. One tuple per key keeps the arity message.
+ *
+ * The precedence in {@link KeyRoute} is deliberate too: the namespace
+ * `useI18n(ns)` bound wins, because that is the namespace the call site is
+ * written in; then the key's own spelling (a bare default-namespace key, or the
+ * qualified `"ns:key"` form); then the bare key of some other namespace, which
+ * has to name that namespace in `ns`.
+ */
+/**
+ * @internal True when `K` is a union of more than one member.
+ *
+ * A union key has to fall back to loose params, and the reason is the ERROR
+ * path. When the key argument violates its constraint, TypeScript instantiates
+ * `K` to that constraint — a union of every accepted key — and re-checks the
+ * call. If the argument list for a union built a union of tuples, the minimum
+ * arity would come from the strictest constituent, TypeScript would report
+ * "Expected 2 arguments, but got 1" FIRST (arity is checked before argument
+ * assignability), and the unknown key would never be mentioned. Loose params
+ * on a union keep the arity satisfied so the KEY error is what surfaces.
+ *
+ * A genuine union key from user code — `t(cond ? "a" : "b", …)` — therefore
+ * gets loose params too. That accepts more than before, never less, and the
+ * overload set had the same hole for the same reason.
+ */
+type IsUnion<T, U = T> = T extends U ? ([U] extends [T] ? false : true) : false;
+
+type ArgsForKey<
+  K,
+  NS extends string | undefined,
+  D extends DefaultTranslationParams,
+  N extends Namespaces,
+> =
+  IsUnion<K> extends true
+    ? [params?: TranslationParams]
+    : KeyRoute<K, NS> extends "bound"
+      ? ParamsArg<BoundKeyOf<K, NS> & keyof TranslationKeys, D>
+      : KeyRoute<K, NS> extends "default"
+        ? ParamsArg<K & DefaultNsKeys & keyof TranslationKeys, D>
+        : KeyRoute<K, NS> extends "qualified"
+          ? ParamsArg<K & QualifiedKeys & keyof TranslationKeys, D>
+          : KeyRoute<K, NS> extends "explicit-ns"
+            ? ExplicitNsArgs<K, D, N>
+            : [params?: TranslationParams];
+
+/**
+ * @internal A bare namespaced key, which has to name its namespace in `ns`.
+ *
+ * `{ ns: N }` with `N` naked is the INFERENCE SITE that lets
+ * {@link AcceptedKey} know which namespace the call site meant. TypeScript
+ * resolves {@link KeyRoute} from the key alone, reaches this branch, and infers
+ * `N` from the params — which is then what widens the key union, so the two
+ * halves of the call agree. A runtime `ns` infers `string`, and the params fall
+ * back to loose, exactly as the old `NamespacedParamsArg` did.
+ */
+type ExplicitNsArgs<K, D extends DefaultTranslationParams, N extends Namespaces> = [K] extends [
+  string,
+]
+  ? [
+      params: { ns: N } & ([NamespacedKeyParams<N, K>] extends [never]
+        ? TranslationParams
+        : CallParams<NamespacedKeyParams<N, K>, D>),
+    ]
+  : never;
+
+/**
+ * The argument list that follows `key`, dispatched on the key itself — the
+ * half of {@link TranslateFn} that used to be three overloads.
+ *
+ * With `TranslationKeys` empty every key is permissive and params stay loose,
+ * which is the untyped-project path and must not change.
+ *
+ * @typeParam K - The key literal the call site passed.
+ * @typeParam NS - The namespace a wrapper's `useI18n(ns)` bound, or `undefined`.
+ * @typeParam D - Instance-level default interpolation params.
+ * @typeParam N - The namespace this call's `{ ns }` names; INFERRED from the
+ *   params, and fed back into {@link AcceptedKey} so a bare key and the
+ *   namespace that declares it are checked together.
+ */
+export type ArgsFor<
+  K extends string | null,
+  NS extends string | undefined = undefined,
+  D extends DefaultTranslationParams = {},
+  N extends Namespaces = never,
+> = [PermissiveKey] extends [never] ? ArgsForKey<K, NS, D, N> : [params?: TranslationParams];
+
+/**
+ * The canonical call signature shared by every framework wrapper's `t` /
  * `tRaw`.
+ *
+ * ONE signature on purpose. Three overloads made every wrong call report
+ * TS2769 "No overload matches this call" followed by the failure of each
+ * overload, burying the one useful line; with a single signature TypeScript
+ * reports the actual problem — an unknown key, a missing argument, a missing
+ * property — on the first line. {@link AcceptedKey} is the key union and
+ * {@link ArgsFor} dispatches the params on the key.
  *
  * @typeParam D - Instance-level default interpolation params.
  * @typeParam R - `string` for `t`, `TranslationResult` for `tRaw`.
  */
 export interface TranslateFn<D extends DefaultTranslationParams = {}, R = string> {
-  /** Namespaced keys (explicit `ns` in params). */
-  <NS extends Namespaces, K extends NamespacedKeys<NS>>(
+  <
+    K extends { [P in AcceptedKey]: P }[AcceptedKey] | NamespacedKeys<N>,
+    N extends Namespaces = never,
+  >(
     key: K,
-    ...params: NamespacedParamsArg<NS, K, D>
+    ...params: ArgsFor<K, undefined, D, N>
   ): R;
-  /** Typed keys from the default namespace. */
-  <K extends DefaultNsKeys>(key: K, ...params: ParamsArg<K, D>): R;
-  /** Permissive overload — only active when `TranslationKeys` is empty. */
-  (key: PermissiveKey, params?: TranslationParams): R;
 }
 
 /**
  * Params for a BARE key under a bound namespace: `useI18n("admin").t("dashboard")`
  * types its params as `"admin:dashboard"`'s. Loose when the pair is not a
  * generated key.
+ *
+ * Public vocabulary, kept for the apps that name it. The call signatures no
+ * longer route through it — {@link ArgsFor} computes the same tuple from the
+ * key and the bound namespace, which is what lets there be ONE signature.
  */
 export type NamespaceBoundParamsArg<
   NS extends string,
@@ -276,11 +500,16 @@ export type NamespaceBoundParamsArg<
   : [params?: TranslationParams];
 
 /**
- * The `t` / `tRaw` a wrapper's `useI18n(ns)` returns: {@link TranslateFn}
- * plus, when `NS` is a generated namespace, the bare-key shorthand — so
- * `useI18n("admin").t("dashboard")` is exact and `t("checkout")` from another
- * namespace is rejected. With `NS` `undefined` (no namespace bound) or a
- * namespace the registry does not know, it is `TranslateFn` unchanged.
+ * The `t` / `tRaw` a wrapper's `useI18n(ns)` returns: {@link TranslateFn} with
+ * the bound namespace threaded into the params dispatch, so
+ * `useI18n("admin").t("dashboard")` types its params as `"admin:dashboard"`'s
+ * and `t("checkout")` from another namespace needs its `{ ns: "shop" }`. With
+ * `NS` `undefined` (no namespace bound) or a namespace the registry does not
+ * know, it behaves as {@link TranslateFn}.
+ *
+ * ONE call signature, not `TranslateFn` INTERSECTED with a bound one: an
+ * intersection of two callables is an overload set by another name, and it
+ * re-created the whole TS2769 problem this type exists to avoid.
  *
  * Every wrapper narrows through this ONE type, so the four cannot drift.
  *
@@ -288,17 +517,19 @@ export type NamespaceBoundParamsArg<
  * @typeParam D - Instance-level default interpolation params.
  * @typeParam R - `string` for `t`, `TranslationResult` for `tRaw`.
  */
-export type NamespaceBoundTranslateFn<
+export interface NamespaceBoundTranslateFn<
   NS extends string | undefined,
   D extends DefaultTranslationParams = {},
   R = string,
-> = TranslateFn<D, R> &
-  (NS extends Namespaces
-    ? {
-        /** With `useI18n(ns)`, `t('title')` means `t('title', { ns })`. */
-        <K extends NamespacedKeys<NS>>(key: K, ...params: NamespaceBoundParamsArg<NS, K, D>): R;
-      }
-    : {});
+> {
+  <
+    K extends { [P in AcceptedKey<NS>]: P }[AcceptedKey<NS>] | NamespacedKeys<N>,
+    N extends Namespaces = never,
+  >(
+    key: K,
+    ...params: ArgsFor<K, NS, D, N>
+  ): R;
+}
 
 export interface TagCallbackParams {
   /** Inner content of the tag, already processed. */
@@ -688,57 +919,43 @@ export interface I18nCoreInstance<D extends DefaultTranslationParams = {}> {
   clearTranslations: (locale?: string, namespace?: string) => void;
 
   /**
-   * Translate a namespaced key; with `ns` given, autocomplete offers keys
-   * WITHOUT the namespace prefix.
+   * Translate a key in the current locale. ONE call signature, so a wrong call
+   * reports the actual problem on its first line: {@link AcceptedKey} is the
+   * union of every key the registry knows and {@link ArgsFor} dispatches the
+   * params on the key that was passed.
+   *
+   * A key of the default namespace is written bare. A key of another namespace
+   * is written bare with its `ns`, or fully qualified — `t('admin:dashboard')`
+   * and `t('dashboard', { ns: 'admin' })` are the same lookup. `null` is the
+   * documented no-op and returns `""`.
    *
    * @example
    * ```typescript
-   * t('dashboard', { ns: 'admin' }); // ✅ Suggests 'dashboard', 'settings', etc.
-   * t('unknown', { ns: 'admin' }); // ❌ Compile error
-   * ```
-   */
-  t<NS extends Namespaces, K extends NamespacedKeys<NS>>(
-    key: K,
-    ...params: NamespacedParamsArg<NS, K, D>
-  ): string;
-
-  /**
-   * Raw structured translation result for tag interpolation renderers.
-   */
-  tRaw<NS extends Namespaces, K extends NamespacedKeys<NS>>(
-    key: K,
-    ...params: NamespacedParamsArg<NS, K, D>
-  ): TranslationResult;
-
-  /**
-   * Translate a key in the current locale. The key must exist in
-   * `TranslationKeys` once types have been generated.
-   *
-   * @example
-   * ```typescript
-   * // With typed keys
    * t('common.welcome', { name: 'Alice' }); // ✅ Typed params
-   * t('common.greeting'); // ✅ No params needed
-   * t('unknown.key'); // ❌ Compile error
+   * t('common.greeting'); // ✅ The key declares none
+   * t('dashboard', { ns: 'admin' }); // ✅ Autocomplete drops the prefix
+   * t('unknown.key'); // ❌ TS2345, naming the known keys
    *
-   * // Dynamic keys require type assertion
+   * // Dynamic keys require a type assertion
    * t(`errors.${code}` as keyof TranslationKeys);
    * ```
    */
-  t<K extends DefaultNsKeys>(key: K, ...params: ParamsArg<K, D>): string;
+  t<
+    K extends { [P in AcceptedCoreKey]: P }[AcceptedCoreKey] | NamespacedKeys<N>,
+    N extends Namespaces = never,
+  >(
+    key: K,
+    ...params: ArgsFor<K, undefined, D, N>
+  ): string;
 
-  /**
-   * Raw structured translation result for the current locale
-   */
-  tRaw<K extends DefaultNsKeys>(key: K, ...params: ParamsArg<K, D>): TranslationResult;
-
-  /** Permissive overload — only active when `TranslationKeys` is empty. */
-  t(key: PermissiveKey, params?: TranslationParams): string;
-
-  /**
-   * Raw permissive overload - only active when TranslationKeys is empty
-   */
-  tRaw(key: PermissiveKey, params?: TranslationParams): TranslationResult;
+  /** The rich-text half of {@link I18nCoreInstance.t}, keyed identically. */
+  tRaw<
+    K extends { [P in AcceptedCoreKey]: P }[AcceptedCoreKey] | NamespacedKeys<N>,
+    N extends Namespaces = never,
+  >(
+    key: K,
+    ...params: ArgsFor<K, undefined, D, N>
+  ): TranslationResult;
 
   /** `locale` and `namespace` default to the instance's current ones. */
   hasTranslation: (

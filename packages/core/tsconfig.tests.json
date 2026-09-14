@@ -20,6 +20,6 @@
     }
   },
   "include": ["src/**/*.ts", "src/**/*.d.ts", "tests/**/*.ts"],
-  "exclude": ["tests/types/**", "tests/dist/**"],
+  "exclude": ["tests/types/**", "tests/types-keys-open/**", "tests/dist/**"],
   "references": []
 }

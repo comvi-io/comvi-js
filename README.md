@@ -176,7 +176,8 @@ Portable, identically, in all six bindings:
 
 - **`useI18n()`** and the member names it returns — `t`, `tRaw`, `locale`, `setLocale`,
   `isLoading`, `isInitializing`, `isInitialized`, `cacheRevision`.
-- **`t()`** and its overloads, including `useI18n("admin")` binding a namespace at the type level.
+- **`t()`** and its one call signature, including `useI18n("admin")` binding a namespace at the
+  type level.
 - **Typed keys.** One `TranslationKeys` augmentation serves every binding.
 - **ICU** syntax and behaviour, through the same `compiler: icuCompiler` option.
 - **Capability acquisition**: `useI18nLoader()` and `useI18nPlugins()`.
@@ -222,40 +223,104 @@ i18n.t("NOT_FOUND", { ns: "errors" }); // namespaced keys use the ns option
 
 What TypeScript catches:
 
+```ts check=group=typed-keys check=expect-error=TS2554
+import { createI18n } from "@comvi/core";
+
+const i18n = createI18n({ locale: "en" });
+
+// TS2554 — Expected 2 arguments, but got 1. `welcome` declares a required param.
+i18n.t("welcome");
+```
+
 ```ts check=group=typed-keys check=expect-error=TS2345
 import { createI18n } from "@comvi/core";
 
 const i18n = createI18n({ locale: "en" });
 
-// TS2345 — `welcome` declares a required param, so the key-only overload is out.
-i18n.t("welcome");
-```
-
-```ts check=group=typed-keys check=expect-error=TS2769
-import { createI18n } from "@comvi/core";
-
-const i18n = createI18n({ locale: "en" });
-
-// TS2769 — Property 'name' is missing in type '{ age: number }'
+// TS2345 — Property 'name' is missing in type '{ age: number; }'
 i18n.t("welcome", { age: 5 });
 
-// TS2769 — Type 'number' is not assignable to type 'string'
+// TS2322 — Type 'number' is not assignable to type 'string'
 i18n.t("welcome", { name: 42 });
 
-// TS2769 — '"typo"' is not a declared key
+// TS2345 — '"typo"' is not assignable to the union of declared keys
 i18n.t("typo", { name: "Alice" });
 ```
 
 ## Reading the type errors
 
-Three diagnostics cover almost every first run against 0.5, and each is quoted below exactly as
-`tsc` or node prints it. Two are compile errors; the third only exists at runtime.
+Six diagnostics cover almost every first run against 0.5, and each is quoted below exactly as
+`tsc` or node prints it. Five are compile errors; the sixth only exists at runtime.
 
-**A typed key called without a required parameter.** `TranslationKeys` declares each key's params,
-and `t()` is overloaded, so a missing one is reported as "no overload matches" rather than as a
-missing property. The useful line is the last one:
+`t()` has ONE call signature, so TypeScript names the actual problem on the first line. It used to
+have three overloads, and every wrong call opened with "No overload matches this call" followed by
+the failure of each overload in turn, with the one useful line buried last.
 
-```ts check=group=typed-keys check=expect-error=TS2769
+**An unknown key.** The key parameter is the union of the keys this call site may use, so a typo is
+reported against that union — and the union is the list of what you may have meant:
+
+```ts check=group=typed-keys check=expect-error=TS2345
+import { createI18n } from "@comvi/core";
+
+const i18n = createI18n({ locale: "en" });
+
+i18n.t("typo", { name: "Alice" });
+```
+
+```
+error TS2345: Argument of type '"typo"' is not assignable to parameter of type '"welcome" | "hello" | "errors:NOT_FOUND" | null'.
+```
+
+The union holds the default namespace's keys plus the fully-qualified spellings, and the trailing
+`null` is the documented no-op, which returns `""`. A key of another namespace written BARE is not
+in it, because a bare key is only meaningful next to the namespace that declares it: the moment you
+write `{ ns: "errors" }`, or reach the call through `useI18n("errors")`, `"NOT_FOUND"` joins the
+union. That is why a bare key from the wrong namespace is reported here, on the key, and not as a
+complaint about the params.
+
+**A typed key called without a required parameter.** The params object is not optional for a key
+that declares params, so a forgotten one is an argument-count error rather than anything about
+types:
+
+```ts check=group=typed-keys check=expect-error=TS2554
+import { createI18n } from "@comvi/core";
+
+const i18n = createI18n({ locale: "en" });
+
+i18n.t("welcome");
+```
+
+```
+error TS2554: Expected 2 arguments, but got 1.
+```
+
+A key that takes no params is declared `never`, and for those the second argument is optional, so
+this error cannot happen.
+
+**A key of another namespace, written bare.** Reported on the key, against the keys this call site
+can use — not as a complaint about the params:
+
+```ts check=group=typed-keys check=expect-error=TS2345
+import { createI18n } from "@comvi/core";
+
+const i18n = createI18n({ locale: "en" });
+
+i18n.t("NOT_FOUND");
+```
+
+```
+error TS2345: Argument of type '"NOT_FOUND"' is not assignable to parameter of type '"welcome" | "hello" | "errors:NOT_FOUND" | null'.
+```
+
+Two things put a bare key in the union. Naming the namespace in the params does:
+`t("NOT_FOUND", { ns: "errors" })` compiles. So does binding it at the call site, which is what a
+wrapper's `useI18n("errors")` is for — inside it `t("NOT_FOUND")` compiles, and a key from some
+third namespace is what gets reported instead. The qualified spelling, `t("errors:NOT_FOUND")`, is
+always available on the core instance.
+
+**The wrong parameters.** Two lines, and the second names exactly what is missing:
+
+```ts check=group=typed-keys check=expect-error=TS2345
 import { createI18n } from "@comvi/core";
 
 const i18n = createI18n({ locale: "en" });
@@ -264,15 +329,16 @@ i18n.t("welcome", { age: 5 });
 ```
 
 ```
-error TS2769: No overload matches this call.
-  Overload 2 of 3, '(translationKey: "welcome" | null, params: CallParams<{ name: string; }, {}>): string', gave the following error.
-    Argument of type '{ age: number; }' is not assignable to parameter of type 'CallParams<{ name: string; }, {}>'.
-      Property 'name' is missing in type '{ age: number; }' but required in type 'MissingParams<{ name: string; }, {}>'.
+error TS2345: Argument of type '{ age: number; }' is not assignable to parameter of type 'CallParams<{ name: string; }, {}>'.
+  Property 'name' is missing in type '{ age: number; }' but required in type 'MissingParams<{ name: string; }, {}>'.
 ```
 
-`MissingParams` in the last line is the generated type holding what the key still needs. A key that
-takes no params is declared `never`, and for those the overload that accepts a second argument is
-simply absent.
+`CallParams` is the full params object for the key, `MissingParams` the part of it the call site
+still has to supply — a constructor-level `defaultParams` entry moves a param from the second to
+the first. This one keeps its second line because `CallParams` is an intersection: the key's own
+params, plus the routing options (`ns`, `locale`, `fallback`) that every call accepts. A wrong
+param VALUE, as opposed to a missing one, is a plain `TS2322: Type 'number' is not assignable to
+type 'string'`.
 
 **A member that left `useI18n()`.** Four names moved to `useI18nLoader()` and `useI18nPlugins()` in
 0.5. They are still declared on the hook's return type, as optional `never`, so the name stays

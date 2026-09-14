@@ -15,16 +15,23 @@ export interface UseTranslationOptions {
   locale?: string;
 }
 
+/**
+ * ONE signature, keyed through core's `AcceptedKey` / `ArgsFor` pair exactly as
+ * every client binding is — see `AcceptedKey` for why the key union is spelled
+ * out inline rather than named.
+ */
 export interface ServerTranslationFunction {
-  <NS extends import("@comvi/core").Namespaces, K extends import("@comvi/core").NamespacedKeys<NS>>(
+  <
+    K extends
+      | {
+          [P in import("@comvi/core").AcceptedKey]: P;
+        }[import("@comvi/core").AcceptedKey]
+      | import("@comvi/core").NamespacedKeys<N>,
+    N extends import("@comvi/core").Namespaces = never,
+  >(
     key: K,
-    ...params: import("@comvi/core").NamespacedParamsArg<NS, K>
+    ...params: import("@comvi/core").ArgsFor<K, undefined, {}, N>
   ): string;
-  <K extends import("@comvi/core").DefaultNsKeys>(
-    key: K,
-    ...params: import("@comvi/core").ParamsArg<K>
-  ): string;
-  (key: import("@comvi/core").PermissiveKey, params?: TranslationParams): string;
 }
 
 export interface UseTranslationResult {
@@ -113,11 +120,19 @@ export async function useTranslation(
   }
 
   const t: ServerTranslationFunction = ((key: string, params?: TranslationParams) => {
-    const result = i18n.t(key, {
-      ...params,
-      locale: resolvedLocale,
-      ns: params?.ns ?? namespace,
-    });
+    // `as never` because the key is a RUNTIME string: once an app generates
+    // types, core's key parameter is the union of its literals and a `string`
+    // matches none of them. Same idiom as every wrapper's `<T>` — and the
+    // reason `tsconfig.keys-closed.json` exists, since with the registry OPEN
+    // this call is permissive and the mistake is invisible.
+    const result = i18n.t(
+      key as never,
+      {
+        ...params,
+        locale: resolvedLocale,
+        ns: params?.ns ?? namespace,
+      } as never,
+    );
     return typeof result === "string" ? result : String(result);
   }) as ServerTranslationFunction;
 
