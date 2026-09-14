@@ -14,9 +14,9 @@ required parameter was worse — "Argument of type '\"welcome\"' is not assignab
 type 'null'" — because the only overload that accepted a single argument was the permissive one,
 whose key parameter is `never` once the registry is closed.
 
-`t` and `tRaw` now have ONE signature. The key parameter is `AcceptedKey`, the union of every key
-the registry knows, and `ArgsFor` dispatches the params on the key that was passed, so TypeScript
-names the actual problem:
+`t` and `tRaw` now have ONE signature. The key parameter is `AcceptedKey`, the union of the keys
+that call site may use, and `ArgsFor` dispatches the params on the key that was passed, so
+TypeScript names the actual problem:
 
 | the mistake                   | before                             | now                                                |
 | ----------------------------- | ---------------------------------- | -------------------------------------------------- |
@@ -24,15 +24,21 @@ names the actual problem:
 | required param forgotten      | TS2345 "not assignable to `null`"  | TS2554 "Expected 2 arguments, but got 1"           |
 | wrong params                  | TS2769, 8 lines                    | TS2345, 2 lines, the second naming what is missing |
 | wrong param value             | TS2769, 7 lines                    | TS2322, 1 line                                     |
-| bare key of another namespace | TS2345 "not assignable to `never`" | TS2554 "Expected 2 arguments, but got 1"           |
+| bare key of another namespace | TS2345 "not assignable to `never`" | TS2345, naming the keys the call site can use      |
+
+The last row is why the key union depends on the namespace in scope rather than holding every
+namespace's bare keys. A bare key is only meaningful next to the namespace that declares it, and
+there are two ways to supply one: `useI18n("admin")` binds it at the call site, and an explicit
+`{ ns: "shop" }` names it in the params. So `useI18n("admin").t("checkout")` is rejected on the KEY,
+naming `admin`'s keys, while `t("checkout", { ns: "shop" })` compiles unchanged.
 
 Nothing that compiled before stops compiling, and nothing that was rejected is now accepted: the
 key sets, the namespace-bound narrowing of `useI18n(ns)`, the `{ ns }` form, the qualified
-`"ns:key"` spelling on the core instance, the `t(null)` no-op, and the permissive path for a
-project with no generated types are all unchanged. `TranslationKeys`, `Namespaces`,
-`NamespacedKeys`, `DefaultNsKeys`, `PermissiveKey`, `ParamsArg`, `NamespacedParamsArg`,
-`NamespaceBoundParamsArg` and `MissingParams` keep their meaning; `AcceptedKey`, `AcceptedCoreKey`
-and `ArgsFor` are new exports.
+`"ns:key"` spelling on the core instance, the `t(null)` no-op, a runtime `ns`, and the permissive
+path for a project with no generated types all behave exactly as before. `TranslationKeys`,
+`Namespaces`, `NamespacedKeys`, `DefaultNsKeys`, `PermissiveKey`, `ParamsArg`,
+`NamespacedParamsArg`, `NamespaceBoundParamsArg` and `MissingParams` keep their meaning;
+`AcceptedKey`, `AcceptedCoreKey` and `ArgsFor` are new exports.
 
 `@comvi/next`'s `TranslationFunction`, `@comvi/nuxt`'s `ServerTranslationFunction` and
 `@comvi/vue`'s `VueI18n.t` / `tRaw` declared their own copies of the overload set and now declare

@@ -22,12 +22,15 @@ export interface UseTranslationOptions {
  */
 export interface ServerTranslationFunction {
   <
-    K extends {
-      [P in import("@comvi/core").AcceptedKey]: P;
-    }[import("@comvi/core").AcceptedKey],
+    K extends
+      | {
+          [P in import("@comvi/core").AcceptedKey]: P;
+        }[import("@comvi/core").AcceptedKey]
+      | import("@comvi/core").NamespacedKeys<N>,
+    N extends import("@comvi/core").Namespaces = never,
   >(
     key: K,
-    ...params: import("@comvi/core").ArgsFor<K, undefined, {}>
+    ...params: import("@comvi/core").ArgsFor<K, undefined, {}, N>
   ): string;
 }
 

@@ -1,17 +1,30 @@
-import type { TranslationResult, AcceptedKey, ArgsFor, DefaultTranslationParams } from "../types";
+import type {
+  TranslationResult,
+  AcceptedKey,
+  ArgsFor,
+  NamespacedKeys,
+  Namespaces,
+  DefaultTranslationParams,
+} from "../types";
 
 /**
  * Structural: satisfied by `I18n` and by the framework wrappers alike, so it
  * narrows through the same {@link AcceptedKey} / {@link ArgsFor} pair they do.
  */
 export interface I18nTranslatable<D extends DefaultTranslationParams = {}> {
-  t<K extends { [P in AcceptedKey]: P }[AcceptedKey]>(
+  t<
+    K extends { [P in AcceptedKey]: P }[AcceptedKey] | NamespacedKeys<N>,
+    N extends Namespaces = never,
+  >(
     key: K,
-    ...params: ArgsFor<K, undefined, D>
+    ...params: ArgsFor<K, undefined, D, N>
   ): string | TranslationResult;
-  tRaw?<K extends { [P in AcceptedKey]: P }[AcceptedKey]>(
+  tRaw?<
+    K extends { [P in AcceptedKey]: P }[AcceptedKey] | NamespacedKeys<N>,
+    N extends Namespaces = never,
+  >(
     key: K,
-    ...params: ArgsFor<K, undefined, D>
+    ...params: ArgsFor<K, undefined, D, N>
   ): TranslationResult;
 }
 
@@ -35,22 +48,31 @@ export interface I18nTranslatable<D extends DefaultTranslationParams = {}> {
 export function createBoundTranslation<D extends DefaultTranslationParams = {}>(
   i18n: I18nTranslatable<D>,
   ns?: string,
-): <K extends { [P in AcceptedKey]: P }[AcceptedKey]>(
+): <
+  K extends { [P in AcceptedKey]: P }[AcceptedKey] | NamespacedKeys<N>,
+  N extends Namespaces = never,
+>(
   key: K,
-  ...params: ArgsFor<K, undefined, D>
+  ...params: ArgsFor<K, undefined, D, N>
 ) => TranslationResult {
   const translateRaw = i18n.tRaw?.bind(i18n) ?? i18n.t.bind(i18n);
 
   if (!ns) {
-    return translateRaw as <K extends { [P in AcceptedKey]: P }[AcceptedKey]>(
+    return translateRaw as <
+      K extends { [P in AcceptedKey]: P }[AcceptedKey] | NamespacedKeys<N>,
+      N extends Namespaces = never,
+    >(
       key: K,
-      ...params: ArgsFor<K, undefined, D>
+      ...params: ArgsFor<K, undefined, D, N>
     ) => TranslationResult;
   }
 
-  return <K extends { [P in AcceptedKey]: P }[AcceptedKey]>(
+  return <
+    K extends { [P in AcceptedKey]: P }[AcceptedKey] | NamespacedKeys<N>,
+    N extends Namespaces = never,
+  >(
     key: K,
-    ...params: ArgsFor<K, undefined, D>
+    ...params: ArgsFor<K, undefined, D, N>
   ): TranslationResult => {
     const userParams = params[0];
 

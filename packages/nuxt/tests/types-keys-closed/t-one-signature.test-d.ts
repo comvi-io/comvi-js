@@ -9,22 +9,25 @@
  * is closed. The before/after diagnostics are captured verbatim in the root
  * README's "Reading the type errors".
  *
- * `@ts-expect-error` can only assert THAT a call fails, and all of these failed
- * before too, so the accept/reject block is a preservation test: the lot
- * changed the MESSAGE, not the verdict. What pins the overload set as gone is
- * the `Parameters<…>` assertion, which resolved to the LAST signature — the
- * permissive one, whose key is `never` once the registry is closed.
+ * `@ts-expect-error` can only assert THAT a call fails, and all of these
+ * failed before too — the lot changed the MESSAGE, not the verdict — so the
+ * block below is a preservation test. The one assertion that separates the two
+ * designs is the PIN: `TranslateFn`'s namespaced overload accepted EVERY
+ * namespace's bare keys, which made an unbound `t` satisfy the bound type. It
+ * does not any more, because a bare key is now accepted only alongside the
+ * namespace that declares it.
  *
  * `@comvi/nuxt`'s server `t` binds a namespace at RUNTIME
- * (`useTranslation(event, { namespace })`) but not in its TYPE, so there is no
- * bound-namespace signature to read here — case 4 is the explicit `{ ns }`
- * form, and core owns the bound-namespace probe.
+ * (`useTranslation(event, { namespace })`) but not in its TYPE, so core owns
+ * the bound-namespace probe; what is checked here is the explicit `{ ns }`
+ * form.
  *
  * Shaped as `describe`/`it` because nuxt runs `*.test-d.ts` under plain
  * `vitest run` as well as under `--typecheck.only`, and a file with no suite
  * fails collection there.
  */
 import { describe, it, expectTypeOf } from "vitest";
+import type { NamespaceBoundTranslateFn, TranslateFn } from "@comvi/core";
 import type { ServerTranslationFunction } from "../../src/runtime/server/utils/useTranslation";
 
 declare module "@comvi/core" {
@@ -43,13 +46,15 @@ declare module "@comvi/core" {
 const t = ((): string => "") as unknown as ServerTranslationFunction;
 
 describe("server t() has one call signature", () => {
-  it("takes the whole union of accepted keys, not the permissive overload's never", () => {
-    expectTypeOf<Parameters<ServerTranslationFunction>[0]>().toEqualTypeOf<
-      "greeting" | "farewell" | "dashboard" | "settings" | "checkout"
-    >();
+  it("does not let an unbound t stand in for a namespace-bound one", () => {
+    // Under the overload set both accepted every namespace's bare keys, so
+    // this was assignable. A bare key now needs the namespace that has it.
+    expectTypeOf<
+      TranslateFn<{}, string> extends NamespaceBoundTranslateFn<"admin", {}, string> ? true : false
+    >().toEqualTypeOf<false>();
   });
 
-  it("rejects the five first-run mistakes, each on its own first line", () => {
+  it("rejects the first-run mistakes, each on its own first line", () => {
     // CASE 1 — an unknown key. TS2345 naming the known keys, no overload list.
     // @ts-expect-error `greting` is not a key
     t("greting");
@@ -73,11 +78,11 @@ describe("server t() has one call signature", () => {
     t("farewell");
     t("farewell", { locale: "uk" });
     t("greeting", { formality: "formal", name: "Eugene" });
-    t("dashboard", { ns: "admin" });
+    t("greeting", { formality: "formal", name: "Eugene", extra: 1 });
 
-    // @ts-expect-error a bare namespaced key still has to name its namespace
+    // @ts-expect-error a bare namespaced key is not accepted without its namespace
     t("dashboard");
-    // @ts-expect-error a wrapper's `t` does not take the qualified spelling
+    // @ts-expect-error the server `t` does not take the qualified spelling
     t("admin:dashboard");
     // @ts-expect-error a generated param keeps its value type
     t("greeting", { formality: "nope", name: "Eugene" });

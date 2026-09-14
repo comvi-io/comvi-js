@@ -398,10 +398,13 @@ export class VueI18n<
    * `AcceptedKey` for why the key union is spelled out inline.
    */
   tRaw<
-    K extends {
-      [P in import("@comvi/core").AcceptedKey]: P;
-    }[import("@comvi/core").AcceptedKey],
-  >(key: K, ...params: import("@comvi/core").ArgsFor<K, undefined, D>): TranslationResult;
+    K extends
+      | {
+          [P in import("@comvi/core").AcceptedKey]: P;
+        }[import("@comvi/core").AcceptedKey]
+      | import("@comvi/core").NamespacedKeys<N>,
+    N extends import("@comvi/core").Namespaces = never,
+  >(key: K, ...params: import("@comvi/core").ArgsFor<K, undefined, D, N>): TranslationResult;
 
   tRaw(key: string, ...params: [import("@comvi/core").TranslationParams?]): TranslationResult {
     void this._locale.value;
@@ -412,10 +415,13 @@ export class VueI18n<
 
   /** Always plain text; tracks locale, cache and config reactively. */
   t<
-    K extends {
-      [P in import("@comvi/core").AcceptedKey]: P;
-    }[import("@comvi/core").AcceptedKey],
-  >(key: K, ...params: import("@comvi/core").ArgsFor<K, undefined, D>): string;
+    K extends
+      | {
+          [P in import("@comvi/core").AcceptedKey]: P;
+        }[import("@comvi/core").AcceptedKey]
+      | import("@comvi/core").NamespacedKeys<N>,
+    N extends import("@comvi/core").Namespaces = never,
+  >(key: K, ...params: import("@comvi/core").ArgsFor<K, undefined, D, N>): string;
 
   t(key: string, ...params: [import("@comvi/core").TranslationParams?]): string {
     return translationResultToString(this.tRaw(key as any, ...(params as any)));

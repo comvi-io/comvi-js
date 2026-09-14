@@ -7,18 +7,34 @@
  * useful line; a forgotten required param printed "not assignable to parameter
  * of type 'never'", which was the permissive overload's key once the registry
  * is closed. The before/after diagnostics are captured verbatim in the root
- * README's "Reading the type errors".
+ * README's "Reading the type errors", and the `check=expect-error=TS####`
+ * markers on those fences are what `pnpm check:snippets` holds the CODES to.
  *
- * `@ts-expect-error` can only assert THAT a call fails, and all five of these
- * failed before too, so the accept/reject block below is a preservation test:
- * the point of the lot was to change the MESSAGE, not the verdict. What pins
- * the overload set as gone are the `Parameters<…>` predicates: for an
- * overloaded or intersected function type `Parameters` silently resolves to
- * the LAST signature, so the key parameter read `never` when nothing was
- * bound, and only the bound namespace's own keys when something was.
+ * `@ts-expect-error` can only assert THAT a call fails, and all of these
+ * failed before too — the lot changed the MESSAGE, not the verdict — so the
+ * block below is a preservation test. The one assertion that separates the two
+ * designs is the PIN: `TranslateFn`'s namespaced overload accepted EVERY
+ * namespace's bare keys, which made an unbound `t` satisfy the bound type. It
+ * does not any more, because a bare key is now accepted only alongside the
+ * namespace that declares it.
  */
 
 import { useI18n } from "../../src/index";
+import type { NamespaceBoundTranslateFn, TranslateFn } from "@comvi/core";
+
+type Equal<X, Y> =
+  (<T>() => T extends X ? 1 : 2) extends <T>() => T extends Y ? 1 : 2 ? true : false;
+type Expect<T extends true> = T;
+
+// PIN: an unbound `t` is NOT a namespace-bound one. Its key union has the
+// default namespace's keys; the bound one adds `admin`'s. Under the overload
+// set both accepted every namespace's bare keys, so this was `true`.
+export type _UnboundIsNotBound = Expect<
+  Equal<
+    TranslateFn<{}, string> extends NamespaceBoundTranslateFn<"admin", {}, string> ? true : false,
+    false
+  >
+>;
 
 // Merges with keys-closed.test-d.ts's and namespace-bound.test-d.ts's
 // augmentations, which already close `TranslationKeys` for this program.
@@ -29,25 +45,8 @@ declare module "@comvi/core" {
   }
 }
 
-type Equal<X, Y> =
-  (<T>() => T extends X ? 1 : 2) extends <T>() => T extends Y ? 1 : 2 ? true : false;
-type Expect<T extends true> = T;
-type IsNever<T> = [T] extends [never] ? true : false;
-type Accepts<F extends (...args: never[]) => unknown, K> = K extends Parameters<F>[0]
-  ? true
-  : false;
-
 const { t } = useI18n();
 const admin = useI18n("admin");
-
-// PIN 1: the key parameter is the whole union of accepted keys. It read `never`
-// before, because `Parameters` resolved to the permissive overload.
-export type _KeyIsNotNever = Expect<Equal<IsNever<Parameters<typeof t>[0]>, false>>;
-
-// PIN 2: a bound namespace still accepts the default namespace's keys. Before,
-// `NamespaceBoundTranslateFn` was an INTERSECTION of two call signatures and
-// `Parameters` saw only the bound half, so this was false.
-export type _BoundKeepsDefaultNsKeys = Expect<Accepts<typeof admin.t, "greeting">>;
 
 // CASE 1 — an unknown key. TS2345 naming the known keys, no overload list.
 // @ts-expect-error `greting` is not a key
@@ -61,12 +60,15 @@ t("greeting");
 // @ts-expect-error `locale` is a routing option, not `formality` + `name`
 t("greeting", { locale: "uk" });
 
-// CASE 4 — a bound namespace is exact.
+// CASE 4 — a bound namespace is exact, and a key from another one is rejected
+// on the KEY, naming what `admin` does accept. It used to report "Expected 2
+// arguments, but got 1", which pointed at the params when the key was wrong.
 admin.t("dashboard");
 admin.t("settings", { count: 1 });
 admin.t("greeting", { formality: "formal", name: "Eugene" });
-// @ts-expect-error `checkout` belongs to `shop`, so it needs `{ ns: "shop" }`
+// @ts-expect-error `checkout` is not a key of `admin`
 admin.t("checkout");
+// Still reachable the explicit way, which names the namespace that has it.
 admin.t("checkout", { ns: "shop" });
 
 // Preserved: every accepting form the overload set had.
@@ -74,13 +76,15 @@ t("farewell");
 t("farewell", { locale: "uk" });
 t("greeting", { formality: "formal", name: "Eugene" });
 t("dashboard", { ns: "admin" });
+t("greeting", { formality: "formal", name: "Eugene", extra: 1 });
 
 // Preserved: every rejecting form.
-// @ts-expect-error a bare namespaced key still has to name its namespace
+// @ts-expect-error a bare namespaced key is not accepted without its namespace
 t("dashboard");
-// @ts-expect-error a wrapper's `t` does not take the qualified spelling
-t("admin:dashboard");
 // @ts-expect-error a generated param keeps its value type
 t("greeting", { formality: "nope", name: "Eugene" });
+
+// @ts-expect-error a wrapper's `t` does not take the qualified spelling
+t("admin:dashboard");
 
 export {};

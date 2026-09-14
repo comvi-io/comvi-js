@@ -1,4 +1,4 @@
-import type { AcceptedKey, ArgsFor } from "@comvi/core";
+import type { AcceptedKey, ArgsFor, NamespacedKeys, Namespaces } from "@comvi/core";
 
 export interface GetI18nOptions {
   /** Explicit locale (for generateMetadata, etc.) - defaults to request locale */
@@ -16,9 +16,12 @@ export interface GetI18nOptions {
  * out inline rather than named.
  */
 export interface TranslationFunction {
-  <K extends { [P in AcceptedKey]: P }[AcceptedKey]>(
+  <
+    K extends { [P in AcceptedKey]: P }[AcceptedKey] | NamespacedKeys<N>,
+    N extends Namespaces = never,
+  >(
     key: K,
-    ...params: ArgsFor<K, undefined, {}>
+    ...params: ArgsFor<K, undefined, {}, N>
   ): string;
 }
 

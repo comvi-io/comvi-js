@@ -10,6 +10,8 @@ import type {
   I18nEvent,
   I18nEventData,
   AcceptedCoreKey,
+  NamespacedKeys,
+  Namespaces,
   ArgsFor,
   ErrorReportContext,
   TagInterpolationOptions,
@@ -666,10 +668,10 @@ export class I18n<D extends DefaultTranslationParams = {}>
    * The rich-text half of {@link I18n.t}, keyed identically: ONE signature, so
    * a wrong call names its own problem on the first line.
    */
-  tRaw<K extends { [P in AcceptedCoreKey]: P }[AcceptedCoreKey] | null>(
-    translationKey: K,
-    ...params: ArgsFor<K, undefined, D>
-  ): TranslationResult;
+  tRaw<
+    K extends { [P in AcceptedCoreKey]: P }[AcceptedCoreKey] | NamespacedKeys<N> | null,
+    N extends Namespaces = never,
+  >(translationKey: K, ...params: ArgsFor<K, undefined, D, N>): TranslationResult;
 
   tRaw(translationKey: string | null, ...params: [TranslationParams?]): TranslationResult {
     if (translationKey === null) {
@@ -712,10 +714,10 @@ export class I18n<D extends DefaultTranslationParams = {}>
    * {@link AcceptedCoreKey} for the keys it takes and {@link ArgsFor} for how
    * the params are dispatched on the key.
    */
-  t<K extends { [P in AcceptedCoreKey]: P }[AcceptedCoreKey] | null>(
-    translationKey: K,
-    ...params: ArgsFor<K, undefined, D>
-  ): string;
+  t<
+    K extends { [P in AcceptedCoreKey]: P }[AcceptedCoreKey] | NamespacedKeys<N> | null,
+    N extends Namespaces = never,
+  >(translationKey: K, ...params: ArgsFor<K, undefined, D, N>): string;
 
   t(translationKey: string | null, ...params: [TranslationParams?]): string {
     return translationResultToString(this.tRaw(translationKey as any, ...(params as any)));

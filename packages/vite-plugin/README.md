@@ -151,12 +151,13 @@ t("welcome", { age: 5 });
 t("welcome", { name: 42 });
 
 // ✗ TS2345 — Argument of type '"typo"' is not assignable to parameter of type
-//   "welcome" | "items" | "greeting" | "NOT_FOUND"
+//   \'"welcome" | "items" | "greeting"\'
 t("typo", { name: "Alice" });
 ```
 
 `t()` has one call signature, so each of these names its own problem on the first line. The key
-parameter is the union of every declared key, which is also the list of what you may have meant.
+parameter is the union of the keys this call site may use — the default namespace's, plus any
+namespace it named — which is also the list of what you may have meant.
 
 Add a key to a JSON file → save → the declaration regenerates → autocomplete updates. No restart, no build step.
 

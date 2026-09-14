@@ -248,15 +248,15 @@ i18n.t("typo", { name: "Alice" });
 
 ## Reading the type errors
 
-Five diagnostics cover almost every first run against 0.5, and each is quoted below exactly as
-`tsc` or node prints it. Four are compile errors; the fifth only exists at runtime.
+Six diagnostics cover almost every first run against 0.5, and each is quoted below exactly as
+`tsc` or node prints it. Five are compile errors; the sixth only exists at runtime.
 
 `t()` has ONE call signature, so TypeScript names the actual problem on the first line. It used to
 have three overloads, and every wrong call opened with "No overload matches this call" followed by
 the failure of each overload in turn, with the one useful line buried last.
 
-**An unknown key.** The key parameter is the union of everything `TranslationKeys` declares, so a
-typo is reported against that union — and the union is the list of what you may have meant:
+**An unknown key.** The key parameter is the union of the keys this call site may use, so a typo is
+reported against that union — and the union is the list of what you may have meant:
 
 ```ts check=group=typed-keys check=expect-error=TS2345
 import { createI18n } from "@comvi/core";
@@ -267,12 +267,15 @@ i18n.t("typo", { name: "Alice" });
 ```
 
 ```
-error TS2345: Argument of type '"typo"' is not assignable to parameter of type '"welcome" | "hello" | "errors:NOT_FOUND" | "NOT_FOUND" | null'.
+error TS2345: Argument of type '"typo"' is not assignable to parameter of type '"welcome" | "hello" | "errors:NOT_FOUND" | null'.
 ```
 
-A namespaced key appears twice in that union: once qualified (`"errors:NOT_FOUND"`) and once bare
-(`"NOT_FOUND"`), because both spellings reach it — the bare one needs `{ ns: "errors" }`. The
-trailing `null` is the documented no-op, which returns `""`.
+The union holds the default namespace's keys plus the fully-qualified spellings, and the trailing
+`null` is the documented no-op, which returns `""`. A key of another namespace written BARE is not
+in it, because a bare key is only meaningful next to the namespace that declares it: the moment you
+write `{ ns: "errors" }`, or reach the call through `useI18n("errors")`, `"NOT_FOUND"` joins the
+union. That is why a bare key from the wrong namespace is reported here, on the key, and not as a
+complaint about the params.
 
 **A typed key called without a required parameter.** The params object is not optional for a key
 that declares params, so a forgotten one is an argument-count error rather than anything about
@@ -291,9 +294,28 @@ error TS2554: Expected 2 arguments, but got 1.
 ```
 
 A key that takes no params is declared `never`, and for those the second argument is optional, so
-this error cannot happen. The same error is what a key of another namespace reports when its `ns`
-is missing: `useI18n("admin").t("checkout")` needs `{ ns: "shop" }`, and "Expected 2 arguments,
-but got 1" is how it says so.
+this error cannot happen.
+
+**A key of another namespace, written bare.** Reported on the key, against the keys this call site
+can use — not as a complaint about the params:
+
+```ts check=group=typed-keys check=expect-error=TS2345
+import { createI18n } from "@comvi/core";
+
+const i18n = createI18n({ locale: "en" });
+
+i18n.t("NOT_FOUND");
+```
+
+```
+error TS2345: Argument of type '"NOT_FOUND"' is not assignable to parameter of type '"welcome" | "hello" | "errors:NOT_FOUND" | null'.
+```
+
+Two things put a bare key in the union. Naming the namespace in the params does:
+`t("NOT_FOUND", { ns: "errors" })` compiles. So does binding it at the call site, which is what a
+wrapper's `useI18n("errors")` is for — inside it `t("NOT_FOUND")` compiles, and a key from some
+third namespace is what gets reported instead. The qualified spelling, `t("errors:NOT_FOUND")`, is
+always available on the core instance.
 
 **The wrong parameters.** Two lines, and the second names exactly what is missing:
 
