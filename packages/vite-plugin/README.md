@@ -108,8 +108,8 @@ declare module "@comvi/core" {
 export {};
 ```
 
-The header line comes from the plugin (`vite-plugin/src/emit.ts:23`). The
-emitter writes single quotes (`typegen/src/index.ts:62-71,99-103`); the block
+The header line comes from the plugin (`emitDeclarations` in `packages/vite-plugin/src/emit.ts`). The
+emitter writes single quotes (`emitDeclarations` in `packages/typegen/src/index.ts`); the block
 above is Prettier-formatted like the rest of the README.
 
 Every `t()` call across your project is now strictly typed:

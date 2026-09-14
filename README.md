@@ -151,11 +151,9 @@ createRoot(document.getElementById("root")!).render(
 The distribution id in `cdnUrl` comes from the Comvi platform: open your project and read it off the
 **Distributions** page.
 
-`.use(installer)` is the one composition verb. Compose before `init()`: composing after it warns
-once per host in development. Composing the same capability twice installs nothing the second time,
-though a second `loader(map)` does still register its map — configuration is not installation
-([`packages/core/src/loader.ts:82-90`](packages/core/src/loader.ts)). Beyond that there is no
-ordering rule, and ICU is not composed at all: it is a constructor option.
+Chain `.use(…)` before `init()`; doing it afterwards warns once in development. ICU is not chained
+at all — it is the constructor option above. Full rules:
+[docs/design/composition.md](docs/design/composition.md).
 
 ## What is portable across frameworks
 

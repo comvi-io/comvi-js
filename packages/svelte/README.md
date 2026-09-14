@@ -82,8 +82,9 @@ Runnable version: [`examples/svelte`](../../examples/svelte), which opens in
 There is no `i18n.init()` call: `setI18nContext` initializes the host itself (`autoInit`, on by
 default).
 
-`$t` is a store, so `$`-prefix it in markup. For the strict typed-key overloads use `tRaw` from
-`useI18n()`; `$t` is a string-key convenience wrapper for template ergonomics.
+`$t` is a store, so `$`-prefix it in markup. `t` and `tRaw` are both stores of the same typed-key
+function — same keys, same parameter checking — and only the return type differs: `$t` renders to
+a string and `$tRaw` to the parts array the rich-text path uses.
 
 ## 3. Connect to Comvi
 
@@ -169,10 +170,14 @@ Puts the host into Svelte's context, where every descendant's `useI18n()` finds 
 
 ### `useI18n()`
 
-Returns the translation bag every host can serve: `{ t, tRaw, locale, translationCache,
+Returns the translation bag every host can serve: `{ t, tRaw, locale, getTranslationCache,
 cacheRevision, isLoading, isInitializing, isInitialized, setLocale, ... }` plus the four `Intl`
 formatters. The same member names as `@comvi/react`, `@comvi/solid` and `@comvi/vue`, so a component
 reads alike across bindings. The reactive members are stores; `$`-prefix them.
+
+One member is not the same everywhere: the cache is a getter here,
+`getTranslationCache()`, where `@comvi/react` and `@comvi/vue` expose `translationCache`
+directly.
 
 It does **not** carry the loader or plugin members — see the capability APIs below.
 
@@ -244,6 +249,10 @@ production, never a silent no-op:
 ```
 [comvi] This i18n instance has no loader capability. Compose it: .use(attachLoader) from "@comvi/core/loader", or loader(map).
 ```
+
+That is the development message. A production build throws the short form,
+`[comvi] missing loader capability — attach @comvi/core/loader`, so grep for that one in
+production logs.
 
 ### Rich text with `<T>`
 

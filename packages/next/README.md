@@ -39,7 +39,8 @@ rather than relying on a transitive copy.
 
 ## 2. Quick start — an inline catalog
 
-Five files, and each one exists for a reason Next imposes. Two of them are the cost of the
+Five setup files plus one client component to show the hook, and each exists for a reason
+Next imposes. Two of them are the cost of the
 App Router's server/client split: Next cannot pass a class instance from a Server Component to a
 Client Component, so a `"use client"` wrapper imports the host itself, and a `"server-only"` module
 registers it for the server helpers.
@@ -56,6 +57,10 @@ Runnable version: [`examples/next`](../../examples/next), which opens in
 
 `createNextI18n` ingests the whole inline catalog at construction, so there is nothing to fetch and
 no loading state to render for.
+
+Unlike the other bindings' step 1, this one names `compiler: icuCompiler`. `createNextI18n`
+composes ICU by default, so the line documents that default rather than adding a second step — which
+is also why this catalog can already carry a plural where the other step 1s cannot.
 
 ```ts title="src/i18n.ts" check=group=next-quickstart-inline
 import { createNextI18n, icuCompiler } from "@comvi/next";
@@ -185,10 +190,10 @@ Add locale-prefixed URLs with a `defineRouting` module and a middleware — see
 
 ## 3. Connect to Comvi
 
-Two additions, and only the host file changes shape:
+Two additions. The host file gains the loader; the provider and the layout gain `messages`:
 
-1. **`.use(cdnLoader({ cdnUrl }))`** from `@comvi/plugin-fetch-loader/cdn`, which composes the
-   loader and plugin capabilities and registers the CDN plugin in one step.
+1. **`.use(cdnLoader({ cdnUrl }))`** from `@comvi/plugin-fetch-loader/cdn`, which sets up loading
+   and registers the CDN plugin in one call.
 2. **`await loadTranslations(locale)`** in the layout, handing the result to the provider as
    `messages`, so first paint never flashes untranslated content or races the CDN request.
 
@@ -198,7 +203,7 @@ Two additions, and only the host file changes shape:
 npm install @comvi/plugin-fetch-loader
 ```
 
-```ts title="src/i18n/config.ts" check=group=next-quickstart-cdn
+```ts title="src/i18n.ts" check=group=next-quickstart-cdn
 import { createNextI18n, icuCompiler } from "@comvi/next";
 import { cdnLoader } from "@comvi/plugin-fetch-loader/cdn";
 
@@ -209,10 +214,10 @@ export const { i18n, routing } = createNextI18n({
 }).use(cdnLoader({ cdnUrl: "https://cdn.comvi.io/<project>" }));
 ```
 
-```ts title="src/i18n/server.ts" check=group=next-quickstart-cdn
+```ts title="src/i18n.server.ts" check=group=next-quickstart-cdn
 import "server-only";
 import { setI18n } from "@comvi/next/server";
-import { i18n, routing } from "./config";
+import { i18n, routing } from "./i18n";
 
 setI18n(i18n);
 
@@ -225,7 +230,7 @@ export { getI18n, loadTranslations } from "@comvi/next/server";
 
 import { I18nProvider } from "@comvi/next/client";
 import type { MessagesMap } from "@comvi/next/client";
-import { i18n } from "@/i18n/config";
+import { i18n } from "@/i18n";
 
 export function I18nClientProvider({
   children,
@@ -246,7 +251,7 @@ export function I18nClientProvider({
 
 ```tsx title="src/app/[locale]/layout.tsx" check=group=next-quickstart-cdn
 import { notFound } from "next/navigation";
-import { routing, loadTranslations } from "@/i18n/server";
+import { routing, loadTranslations } from "@/i18n.server";
 import { I18nClientProvider } from "./I18nClientProvider";
 import "../globals.css";
 
@@ -293,7 +298,9 @@ pin the locale for every later render. Use
 ### Server helpers
 
 `getI18n()` returns the translation bag for the request locale. `loadTranslations(locale)` loads a
-locale's catalog on the server and returns a serializable `MessagesMap` to hand to the provider.
+locale's catalog on the server and returns a serializable `TranslationsResult` to hand to the
+provider as `messages` (structurally identical to the `MessagesMap` the provider's prop is typed
+as: both are `Record<string, Record<string, TranslationValue>>`).
 Both read the instance `setI18n(i18n)` registered, so that call must run first — import the
 `"server-only"` module for its side effect.
 
@@ -338,8 +345,9 @@ reasoning are in
 The middleware reads the locale from the URL path first, then cookies and the `Accept-Language`
 header in your configured order. On a first visit without a stored locale it detects the language,
 redirects to the localized URL, and persists the choice in a cookie.
-`<Link>`, `usePathname()` and `useLocalizedRouter()` from `@comvi/next/client` are the locale-aware
-navigation helpers.
+`<Link>`, `usePathname()` and `useLocalizedRouter()` from `@comvi/next/navigation` are the
+locale-aware navigation helpers. That is a separate `"use client"` subpath, so importing it never
+pulls the host into a server module.
 
 ### `createNextI18n` versus `createI18n`
 
@@ -447,10 +455,18 @@ Wrap the client provider in an error boundary to handle initialization failures;
 prop reports them, and [react-error-boundary](https://github.com/bvaughn/react-error-boundary) is
 the convenient shape.
 
-### The three entries
+### The six subpaths
 
-`@comvi/next/client` and `@comvi/next/server` each carry the base host constructor and the identical
-capability toolkit, and the root `@comvi/next` carries the toolkit beside `createNextI18n`, so a
+| subpath                  | what you import from it                                                               |
+| ------------------------ | ------------------------------------------------------------------------------------- |
+| `@comvi/next`            | `createNextI18n`, plus the capability toolkit below                                   |
+| `@comvi/next/client`     | `<I18nProvider>`, every react hook, `<T>`, plus the toolkit                           |
+| `@comvi/next/server`     | `setI18n`, `getI18n`, `loadTranslations`, `createNextI18nFromHost`, plus the toolkit  |
+| `@comvi/next/navigation` | `<Link>`, `usePathname`, `useLocalizedRouter` — the locale-aware navigation helpers   |
+| `@comvi/next/routing`    | `defineRouting`, `hasLocale`, `createGetPathname` — server-safe, no host in the graph |
+| `@comvi/next/middleware` | `createMiddleware`                                                                    |
+
+The first three each carry the base host constructor and the identical capability toolkit, so a
 next app never names `@comvi/core`:
 
 | export                         | what it is                                                             |
@@ -461,6 +477,9 @@ next app never names `@comvi/core`:
 | `plugins`, `definePlugin`      | from core's pure `/plugins` subpath                                    |
 | `devtools`                     | from core's pure `/devtools` subpath                                   |
 | `nextPlugin`, `nextPluginLazy` | this package's runtime-scoped plugin installers                        |
+
+`/routing` and `/middleware` deliberately carry none of it: they are what `middleware.ts` imports,
+and an Edge isolate executes every module its entry reaches. `/navigation` is `"use client"`.
 
 These are **named** re-exports of core's own bindings, from core's pure subpaths only, so the ones
 you do not call are pruned; the bundler matrix asserts that from the emitted module graph. The

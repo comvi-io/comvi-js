@@ -99,7 +99,7 @@ export {};
 ```
 
 Written to `src/types/i18n.d.ts` by default. The emitter writes single quotes
-(`typegen/src/index.ts:62-71,99-103`); the block above is Prettier-formatted
+(`emitDeclarations` in `packages/typegen/src/index.ts`); the block above is Prettier-formatted
 like the rest of the README.
 
 Every `t()` call across your project is now strictly typed against the live TMS schema:
@@ -156,7 +156,7 @@ npx comvi push   # uploads local edits back to the TMS
 
 Use `pull` to bootstrap a fresh checkout or to grab a translator's recent changes for offline review. Use `push` to ship a developer-side copy fix without leaving the editor.
 
-The default `fileTemplate` is `{namespace}/{languageTag}.json` (`cli/src/defaults.ts:1`), with one special case: the namespace marked default in the TMS is written at the locale root instead (`cli/src/core/TranslationSync.ts:327-329`).
+The default `fileTemplate` is `{namespace}/{languageTag}.json` (`DEFAULT_FILE_TEMPLATE` in `packages/cli/src/defaults.ts`), with one special case: the namespace marked default in the TMS is written at the locale root instead (`resolveFilePath` in `packages/cli/src/core/TranslationSync.ts`).
 
 ```txt
 src/locales/

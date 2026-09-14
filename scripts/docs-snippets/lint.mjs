@@ -1153,29 +1153,48 @@ const SIZE_TABLE_ROW = /^\s*\|/;
 const SIZE_FIXTURE_NAME = /`([A-Za-z0-9][\w-]*)`/g;
 
 /**
- * A byte figure on such a row: `6902 B`, `6,902 B`, `**6902 B**`, `**7240**`.
+ * A byte figure in a CELL of such a row: `6902 B`, `6,902 B`, `**6902 B**`, `**7240**`.
  *
- * The unit is OPTIONAL, and leaving it optional is what makes the rule cover the
- * corpus rather than half of it: the react and svelte tables write `**6902 B**`
- * and the next and nuxt tables write `**7240**` in a column headed `min+gz`, and
- * both were transcribed from the same file. A rule that read only the suffixed
- * form would have greened four stale rows while reporting four others.
+ * The unit is optional, because half a size table writes `**6902 B**` and half
+ * writes `**7240**` under a column headed `min+gz`, and both were transcribed
+ * from the same file. A rule that read only the suffixed form greened four stale
+ * rows while reporting four others, which is how this rule was first written.
  *
- * Two exclusions carry the narrowness instead. The lookbehind drops a SIGNED
- * number, because `+233 B over the measurement at 831e739` is a difference
- * between two sweeps rather than the fixture size, and grading it would report
- * every honest delta as stale. And a figure must be FOUR digits or more, which
- * is what keeps a percentage, a multiplier and a version out of a rule that has
- * no unit to recognise them by — every measurement in
- * `scripts/size-budgets.json` is over 5000 and none of the other numbers a size
- * row carries comes close. `kB` stays excluded either way: a unit, when present,
- * must be `B` alone.
+ * What keeps the unit-less form from grading every number on the row is the
+ * CELL, not a lookaround. A figure is graded only when its cell holds nothing
+ * else — emphasis and spaces aside — because that is what a measurement column
+ * looks like and it is not what anything else on these rows looks like:
+ *
+ *     | base | `fw-react-default` | **6902 B** |          -> graded (6902)
+ *     | base | `fw-react-default` | measured 2026-09-12 | -> not a figure cell
+ *     | base | `fw-react-default` | see PR #1234 |        -> not a figure cell
+ *     | base | `fw-react-default` | node 2024 |           -> not a figure cell
+ *
+ * The last three were FALSE POSITIVES in the committed rule, which excluded only
+ * a signed number and figures under four digits. Four digits does keep a
+ * percentage and a multiplier out, but a date, an issue number and a year are
+ * all four digits, and `scripts/size-budgets.json` records a `measuredAt` per
+ * fixture — so a `measured` column on one of these tables was one edit away from
+ * firing the gate on a correct page, which the note below calls the way a rule
+ * gets disabled. Excluding an ISO date and a `#` prefix would have left
+ * `see PR 1234` firing; the cell rule closes the class rather than three of its
+ * members.
+ *
+ * A SIGNED figure is excluded even alone in its cell: `+233 B` is a difference
+ * between two sweeps rather than the fixture's size, and grading it would report
+ * every honest delta as stale. `kB` is excluded by construction — a unit, when
+ * present, must be `B` alone.
  */
-const SIZE_FIGURE =
-  /(?<![-+\w.])(\d{1,3}(?:[, \u00a0\u202f]\d{3})+|\d{4,})[ \u00a0\u202f]*B?(?![\w%])/g;
+const SIZE_FIGURE_CELL = new RegExp(
+  String.raw`^[*_ \u00a0\u202f]*(\d{1,3}(?:[, \u00a0\u202f]\d{3})+|\d{4,})` +
+    String.raw`[ \u00a0\u202f]*B?[*_ \u00a0\u202f]*$`,
+);
+
+/** A leading sign anywhere in the cell means the number is a delta, not a size. */
+const SIZE_SIGNED = /[-+]\s*\d/;
 
 /** The grouping separators a thousands-grouped figure may use. */
-const SIZE_SEPARATORS = /[, \u00a0\u202f]/g;
+const SIZE_SEPARATORS = new RegExp(String.raw`[, \u00a0\u202f]`, "g");
 
 /**
  * Stale size figures on one line, against the recorded baselines.
@@ -1201,8 +1220,16 @@ export function staleSizeFigures(text, baselines) {
   if (named.length === 0) return [];
 
   const findings = [];
-  for (const match of text.matchAll(SIZE_FIGURE)) {
-    const stated = Number(match[1].replace(SIZE_SEPARATORS, ""));
+  // Cells, not a global scan over the row: `|` is the only delimiter a markdown
+  // row has, and the cell is what tells a measurement column from a prose one.
+  let cursor = 0;
+  for (const cell of text.split("|")) {
+    const cellAt = cursor;
+    cursor += cell.length + 1;
+    if (SIZE_SIGNED.test(cell)) continue;
+    const figure = SIZE_FIGURE_CELL.exec(cell);
+    if (figure === null) continue;
+    const stated = Number(figure[1].replace(SIZE_SEPARATORS, ""));
     // A row naming two fixtures cannot be graded: the figure belongs to one of
     // them and nothing in the text says which. Accepting a match against EITHER
     // is the only answer that never invents a finding.
@@ -1220,7 +1247,7 @@ export function staleSizeFigures(text, baselines) {
       .map(({ name, recorded }) => `${name}: ${recorded.gzipBytes} B min+gz`)
       .join(", ");
     findings.push({
-      index: match.index,
+      index: cellAt + cell.indexOf(figure[1]),
       stated,
       message:
         `this row states ${stated} B beside ${named.map(({ name }) => `\`${name}\``).join(" / ")}, ` +

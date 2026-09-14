@@ -179,6 +179,10 @@ formatters. The same member names as `@comvi/react`, `@comvi/solid` and `@comvi/
 component reads alike across bindings. The reactive members are refs, unwrapped automatically in
 templates.
 
+One member is not the same everywhere: `translationCache` is a direct member here and in
+`@comvi/react`, while `@comvi/solid` and `@comvi/svelte` expose it as a getter,
+`getTranslationCache()`.
+
 It does **not** carry the loader or plugin members — see the capability composables below.
 
 `useI18n("admin")` binds the namespace at the type level too: with generated keys, `t("dashboard")`
@@ -192,6 +196,13 @@ The bag does not include `hasTranslationNow` / `hasLocaleNow`: `hasTranslation` 
 already ARE the non-reactive form in the other three bindings, so the imperative pair would have
 been two vue-only names for one thing. They stay on the class, as
 `inject(I18N_INJECTION_KEY)!.hasTranslationNow(key, opts?)`.
+
+### Options API and templates
+
+`app.use(i18n)` also installs `$t`, `$tRaw` and `$i18n` as global properties, so an Options API
+component or a plain template needs no import: `{{ $t("greeting", { name }) }}`. `$i18n` is the
+ambient host, so `$i18n.locale` and `$i18n.setLocale("uk")` work from a template too, and `$tRaw`
+is the parts-array half of `$t`.
 
 ### The bare host: `inject(I18N_INJECTION_KEY).core`
 
@@ -234,6 +245,10 @@ share it. On a host that never composed the capability the acquisition call thro
 ```
 [comvi] This i18n instance has no loader capability. Compose it: .use(attachLoader) from "@comvi/core/loader", or loader(map).
 ```
+
+That is the development message. A production build throws the short form,
+`[comvi] missing loader capability — attach @comvi/core/loader`, so grep for that one in
+production logs.
 
 **`VueI18n` has no instance proxies.** `addActiveNamespace`, `reloadTranslations`, `registerLoader`,
 `registerLocaleDetector`, `registerPostProcessor`, `onMissingKey`, `onLoadError` and plugin
