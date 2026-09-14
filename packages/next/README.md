@@ -50,7 +50,9 @@ Three things to know about the shape, and nothing more is needed to use it:
 - A catalog the server loaded travels to the client as `messages`.
 - The host's **composition** does not travel. Both runtimes get it by evaluating the same file.
 
-Runnable version: [`examples/next`](../../examples/next).
+Runnable version: [`examples/next`](../../examples/next), which opens in
+[StackBlitz](https://stackblitz.com/github/comvi-io/comvi-js/tree/main/examples/next) straight from the repository — see
+[examples/README.md](../../examples/README.md) for the link pattern.
 
 `createNextI18n` ingests the whole inline catalog at construction, so there is nothing to fetch and
 no loading state to render for.

@@ -114,7 +114,9 @@ export default function App() {
 }
 ```
 
-Runnable version: [`examples/react`](examples/react).
+Runnable version: [`examples/react`](examples/react), which opens in
+[StackBlitz](https://stackblitz.com/github/comvi-io/comvi-js/tree/main/examples/react) straight from the repository — see
+[examples/README.md](examples/README.md) for the link pattern.
 
 ### Step 2 — connect to Comvi
 

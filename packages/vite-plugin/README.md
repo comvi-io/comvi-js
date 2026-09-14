@@ -21,16 +21,9 @@
 **Use `@comvi/vite-plugin`** if your translations live as local JSON files and you want autocomplete in your editor.
 **Use `@comvi/cli`** if your translations live in the Comvi TMS and you want to sync them to your repo or generate types from the live schema.
 
-## About Comvi i18n
-
-Comvi i18n is a framework-agnostic internationalization library. You get ICU MessageFormat, rich-text component embedding, and locale-aware `Intl` formatters in **~5 kB minified + gzipped for the base host, ~8.5 kB with every capability composed (as bundled by your app)**, with **zero runtime dependencies** and **no `eval`** (CSP-safe for Chrome extensions, Cloudflare Workers, and locked-down enterprise apps).
-
-- **Same API** across [Vue](https://www.npmjs.com/package/@comvi/vue), [React](https://www.npmjs.com/package/@comvi/react), [SolidJS](https://www.npmjs.com/package/@comvi/solid), [Svelte](https://www.npmjs.com/package/@comvi/svelte), [Next.js](https://www.npmjs.com/package/@comvi/next), and [Nuxt](https://www.npmjs.com/package/@comvi/nuxt).
-- **ICU `plural`, `selectordinal` & `select`:** locale-correct plurals, ordinals, and gender via `Intl.PluralRules`. Recognized by every major TMS. One explicit import: `compiler: icuCompiler` from `@comvi/core/icu`. The `number` / `date` / `time` argument types and the plural `offset:` form are not implemented and are not planned. Each one fails with `E_ICU_SYNTAX` instead of rendering something wrong.
-- **Type-safe translation keys** via TypeScript declaration merging, for autocomplete and parameter validation everywhere.
-- **Pluggable:** translation loading, locale detection, and in-context editing are opt-in plugins.
-
-See the [main repo](https://github.com/comvi-io/comvi-js) for the full library overview, runnable demos, and the framework binding matrix.
+Comvi i18n is a framework-agnostic i18n library with ICU MessageFormat, rich text without XSS
+and typed translation keys. The [root README](https://github.com/comvi-io/comvi-js) has the
+two-step quickstart, the package matrix and the measured bundle weights.
 
 ## Why @comvi/vite-plugin?
 
@@ -87,6 +80,10 @@ src/locales/
   "greeting": "Hi"
 }
 ```
+
+Typing a key is not the same as rendering it: the `items` value above is ICU, so the app's host
+still needs `compiler: icuCompiler` from `@comvi/core/icu`. Without it that message throws in
+development and renders literally in production, whatever the generated types say.
 
 The plugin writes to `src/types/i18n.d.ts`:
 

@@ -39,7 +39,9 @@ The smallest working app. Five things to know: `createI18n` builds the host, `lo
 renders now, `fallbackLocale` covers a missing key, `translation` is the catalog, and
 `<I18nProvider>` puts the host where `useI18n()` can find it.
 
-Runnable version: [`examples/react`](../../examples/react).
+Runnable version: [`examples/react`](../../examples/react), which opens in
+[StackBlitz](https://stackblitz.com/github/comvi-io/comvi-js/tree/main/examples/react) straight from the repository — see
+[examples/README.md](../../examples/README.md) for the link pattern.
 
 ```tsx title="src/main.tsx"
 import { createRoot } from "react-dom/client";

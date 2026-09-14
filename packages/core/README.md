@@ -43,7 +43,9 @@ The smallest working script. Five things to know: `createI18n` builds the host, 
 renders now, `fallbackLocale` covers a missing key, `translation` is the catalog, and `init()`
 readies the host before the first `t()`.
 
-Runnable version: [`examples/vanilla`](../../examples/vanilla).
+Runnable version: [`examples/vanilla`](../../examples/vanilla), which opens in
+[StackBlitz](https://stackblitz.com/github/comvi-io/comvi-js/tree/main/examples/vanilla) straight from the repository — see
+[examples/README.md](../../examples/README.md) for the link pattern.
 
 ```ts title="src/i18n.ts"
 import { createI18n } from "@comvi/core";

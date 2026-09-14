@@ -39,7 +39,9 @@ The smallest working app. Five things to know: `createI18n` builds the host, `lo
 renders now, `fallbackLocale` covers a missing key, `translation` is the catalog, and
 `app.use(i18n)` installs it so `useI18n()` can find it.
 
-Runnable version: [`examples/vue`](../../examples/vue).
+Runnable version: [`examples/vue`](../../examples/vue), which opens in
+[StackBlitz](https://stackblitz.com/github/comvi-io/comvi-js/tree/main/examples/vue) straight from the repository — see
+[examples/README.md](../../examples/README.md) for the link pattern.
 
 ```ts title="src/main.ts"
 import { createApp } from "vue";

@@ -40,7 +40,9 @@ npm install @comvi/nuxt
 Two files plus one call. `nuxt.config.ts` configures the locales and routing, `comvi.host.ts` builds
 the host, and `useLocaleHead()` in `app.vue` is the one call the module will not make for you.
 
-Runnable version: [`examples/nuxt`](../../examples/nuxt).
+Runnable version: [`examples/nuxt`](../../examples/nuxt), which opens in
+[StackBlitz](https://stackblitz.com/github/comvi-io/comvi-js/tree/main/examples/nuxt) straight from the repository — see
+[examples/README.md](../../examples/README.md) for the link pattern.
 
 ```ts title="nuxt.config.ts"
 import { defineNuxtConfig } from "nuxt/config";
