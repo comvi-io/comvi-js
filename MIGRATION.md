@@ -103,10 +103,14 @@ builds differ here.
 
 The development throw lands where the template is compiled, so a catalog string
 throws where it entered, and one that never passes through ingestion (a per-call
-`params.fallback`) throws at its first compile. The production report is
-best-effort: it fires on the compilation that hit it, at most one per `t()`
-call, so a cached render never re-reports and a compile made outside the host is
-dropped.
+`params.fallback`) throws at its first compile. Where it entered also decides
+what your app SEES: an inline catalog rethrows out of the constructor or the
+`addTranslations` call, while a catalog arriving over a loader fails that
+namespace's load instead — `E_ICU_SYNTAX` reaches `onLoadError`, and `init()`
+rejects with `[i18n] Failed to load all namespaces …` when that was the only
+namespace. The production report is best-effort: it fires on the compilation
+that hit it, at most one per `t()` call, so a cached render never re-reports and
+a compile made outside the host is dropped.
 
 Two cases fail the same way even **with** the ICU compiler named. The first is
 an argument whose type is not `plural`, `selectordinal` or `select`
@@ -836,30 +840,51 @@ conditions, never silently:
 [comvi] missing loader capability — attach @comvi/core/loader
 ```
 
-Beside those, 0.5 has a family of "is not a function" failures that all mean one
-thing, that a capability was never composed, plus four named errors from the
-composition rules, one of them vue-only. This is the whole list your first run can produce:
+Both of those are MESSAGES, not codes: neither error carries a `code` property,
+in either build, so match on the text.
 
-| symptom                                                                                                 | fix                                                                                                                                |
-| ------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| `addActiveNamespace` / `removeActiveNamespace` / `reloadTranslations` / `onLoadError` is not a function | `useI18nLoader()`                                                                                                                  |
-| `onMissingKey is not a function`                                                                        | `useI18nPlugins()`                                                                                                                 |
-| vue: `i18n.registerLoader` / `i18n.registerPlugin` is not a function                                    | compose the capability on the factory result (`createI18n(…).use(attachLoader)`, `.use(plugins())`), then call it on `i18n.core`   |
-| vue: `i18n.core.reloadTranslations` will not type-check                                                 | the wrapper you hold was never composed — chain `.use(attachLoader)`; inside a component, `useI18nLoader()`                        |
-| `E_INSTALLER_AS_PLUGIN`                                                                                 | you handed an installer to `registerPlugin(…)` or `definePlugin(…)`; compose it instead, as `.use(installer(…))`                   |
-| `E_PLUGIN_INIT_RETURN`                                                                                  | a plugin returned a value — use a statement body                                                                                   |
-| `E_USE_NOT_INSTALLER`                                                                                   | `.use(…)` got something that did not hand the host back — a raw plugin; write `.use(definePlugin(fn))`, or the bare-name installer |
-| `E_USE_HOST_IDENTITY`                                                                                   | vue: your installer returned a different object; return the host it was given                                                      |
+Beside those, 0.5 has a family of "is not a function" failures that all mean one
+thing, that a capability was never composed, plus five named errors from the
+composition rules — one of them raised only by the `@comvi/vue` and
+`@comvi/next` wrappers, and one reachable only from JavaScript. This is the
+whole list your first run can produce:
+
+| symptom                                                                                                 | fix                                                                                                                                                                                                                                                                                  |
+| ------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `addActiveNamespace` / `removeActiveNamespace` / `reloadTranslations` / `onLoadError` is not a function | `useI18nLoader()`                                                                                                                                                                                                                                                                    |
+| `onMissingKey is not a function`                                                                        | `useI18nPlugins()`                                                                                                                                                                                                                                                                   |
+| vue: `i18n.registerLoader` / `i18n.registerPlugin` is not a function                                    | compose the capability on the factory result (`createI18n(…).use(attachLoader)`, `.use(plugins())`), then call it on `i18n.core`                                                                                                                                                     |
+| vue: `i18n.core.reloadTranslations` will not type-check                                                 | the wrapper you hold was never composed — chain `.use(attachLoader)`; inside a component, `useI18nLoader()`                                                                                                                                                                          |
+| `E_INSTALLER_AS_PLUGIN`                                                                                 | you handed an installer to `registerPlugin(…)` or `definePlugin(…)`; compose it instead, as `.use(installer(…))`                                                                                                                                                                     |
+| `E_PLUGIN_INIT_RETURN`                                                                                  | a plugin returned a value — use a statement body                                                                                                                                                                                                                                     |
+| `E_USE_NOT_INSTALLER`                                                                                   | `.use(…)` got something that did not hand the host back — a raw plugin; write `.use(definePlugin(fn))`, or the bare-name installer                                                                                                                                                   |
+| `E_USE_HOST_IDENTITY`                                                                                   | vue and next: your installer returned a different object; return the host it was given. On next it is the `createNextI18n` result's `.use(f)`, and the object `f` must hand back is the `i18n` that result holds                                                                     |
+| `E_LOADER_IMPORT_MAP`                                                                                   | `loader()` was called with no import map. A static map goes here — `.use(loader({ uk: () => import("./uk.json") }))`; a plain loader FUNCTION goes to `.use(attachLoader)` and then `registerLoader(fn)`. TypeScript rejects the bare call, so only a JavaScript caller reaches this |
 
 Those `E_*` names are the **production** messages; a development build throws a
-longer message instead. **Five** error identities are new in 0.5:
-`E_ICU_SYNTAX`, `E_INSTALLER_AS_PLUGIN`, `E_PLUGIN_INIT_RETURN`,
-`E_USE_HOST_IDENTITY` and `E_USE_NOT_INSTALLER` — the last four have a row
-above, and `E_ICU_SYNTAX` has the rest of this section. **Three** of them carry
-a `code` own-property to branch on: `E_ICU_SYNTAX`, `E_USE_HOST_IDENTITY` and
-`E_USE_NOT_INSTALLER`. `E_ICU_SYNTAX` is thrown in development as an
-`IcuSyntaxError` carrying both `code` and `argumentType`, and reported through
-`onError` with the same fields in production.
+longer message instead. **Six** error identities are new in 0.5:
+`E_ICU_SYNTAX`, `E_INSTALLER_AS_PLUGIN`, `E_LOADER_IMPORT_MAP`,
+`E_PLUGIN_INIT_RETURN`, `E_USE_HOST_IDENTITY` and `E_USE_NOT_INSTALLER` — the
+last five have a row above, and `E_ICU_SYNTAX` has the rest of this section.
+**Three** of them carry a `code` own-property to branch on: `E_ICU_SYNTAX`,
+`E_USE_HOST_IDENTITY` and `E_USE_NOT_INSTALLER`. `E_ICU_SYNTAX` is thrown in
+development as an `IcuSyntaxError` carrying both `code` and `argumentType`, and
+reported through `onError` with the same fields in production. The other three
+names — `E_INSTALLER_AS_PLUGIN`, `E_LOADER_IMPORT_MAP` and
+`E_PLUGIN_INIT_RETURN` — are the production message text and nothing more, like
+the two capability messages above: no `code` property, so match on the message.
+
+`E_LOADER_IMPORT_MAP` is the one a TypeScript app cannot reach: `loader(map)`
+declares the map as a required parameter, so a bare `loader()` is a compile
+error. A JavaScript caller gets it from the `loader()` call itself, before
+`.use` and long before `init()`:
+
+```
+// development
+[i18n] loader(importMap) requires the import map. A static map of import functions goes here: .use(loader({ uk: () => import('./uk.json') })). A plain loader FUNCTION goes to .use(attachLoader) followed by i18n.registerLoader(fn) — both from @comvi/core/loader.
+// production
+E_LOADER_IMPORT_MAP
+```
 
 Two more `E_ICU_SYNTAX` messages come from the ICU compiler itself, thrown at
 ingestion in development and reported in production with the segment rendered
