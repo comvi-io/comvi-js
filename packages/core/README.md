@@ -316,7 +316,7 @@ Measured min+gz through the published exports map, and gated in
 - **Upgrading from 0.4.x:** the 0.4 root shipped every capability by default, so this is a breaking
   change on a 0.x minor. See
   [MIGRATION.md](https://github.com/comvi-io/comvi-js/blob/main/MIGRATION.md) for the per-feature
-  table and the codemod.
+  table and the renames.
 - **Full API**, including namespaces, fallback chains, missing-key handling, lifecycle events and
   writing your own plugins: [comvi.io/docs/i18n/vanilla/](https://comvi.io/docs/i18n/vanilla/)
 

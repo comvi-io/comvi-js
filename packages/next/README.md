@@ -578,9 +578,9 @@ is now an explicit `@comvi/core/tags` import which neither next entry re-exports
 - **Upgrading from 0.4.x:** `use(plugin, options)` was Next's own scoped raw-plugin queue and is
   gone, and the four delegates `useClient`, `useServer`, `useClientLazy` and `useServerLazy` are
   deleted rather than deprecated. See
-  [MIGRATION.md](https://github.com/comvi-io/comvi-js/blob/main/MIGRATION.md) for the rename table
-  and, in §3, the codemod recipe — a repo-internal script run by absolute path from your app's root,
-  not a `pnpm` script you have.
+  [MIGRATION.md](https://github.com/comvi-io/comvi-js/blob/main/MIGRATION.md), whose §5 covers this
+  package: one row per deleted name, and the `nextPlugin` / `nextPluginLazy` form that replaces the
+  scoped delegates.
 - **Full API:** [comvi.io/docs/i18n/next/](https://comvi.io/docs/i18n/next/)
 
 ## License

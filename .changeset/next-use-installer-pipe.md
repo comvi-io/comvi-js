@@ -28,7 +28,7 @@ published options type; `LazyPluginModule` / `LazyPluginLoader` keep their names
 and `ScopedPluginOptions` are gone with the method they typed.
 
 **Deleted, not deprecated:** `useClient`, `useServer`, `useClientLazy`, `useServerLazy` (the 0.6.0
-removal pulled forward). Rename table, applied by `pnpm codemod:framework-slim`:
+removal pulled forward). The rename table:
 
 | 0.4                                               | 0.5                                                              |
 | ------------------------------------------------- | ---------------------------------------------------------------- |
@@ -39,9 +39,9 @@ removal pulled forward). Rename table, applied by `pnpm codemod:framework-slim`:
 | `.useClient(p, o)` / `.useServer(p, o)`           | `.use(nextPlugin(p, { …o, runtime: "client" \| "server" }))`     |
 | `.useClientLazy(l, o)` / `.useServerLazy(l, o)`   | `.use(nextPluginLazy(l, { …o, runtime: "client" \| "server" }))` |
 
-The codemod refuses and reports (never half-migrates) an options object it cannot read, a `lazy`
-decided at runtime, a spread in the options, a delegate handed the key it fixed, and a shadowed
-`createNextI18n`.
+Pick the installer where you write the call: `lazy` is no longer an option a value can decide at
+runtime. `useClient` / `useServer` already fixed `runtime`, so drop it from the options when you
+move such a call onto `nextPlugin`.
 
 **`localeDetector()` must not be composed on this host.** It is process-wide on the App Router, so
 the first request's headers would pin the locale for every later render; use

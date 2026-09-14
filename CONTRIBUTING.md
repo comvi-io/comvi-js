@@ -276,16 +276,16 @@ into `src/` proper, or into the test tree where it is exercised directly.
 
 ## Verification cheat-sheet
 
-| You changed                              | Run at least                                                                                                                                                     |
-| ---------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `packages/core`                          | `pnpm --filter @comvi/core test`, the affected bindings' tests, `pnpm build && pnpm size`; add `node scripts/perf.mjs --compare-ref <ref>` for a hot-path change |
-| One binding                              | that package's tests, and its `test-apps/*` app builds                                                                                                           |
-| A plugin                                 | that plugin's tests                                                                                                                                              |
-| A `package.json` `exports` map           | `pnpm build && pnpm audit:package-contracts && pnpm check:publint && pnpm check:types-exports`                                                                   |
-| Package entry points or `sideEffects`    | `pnpm build && pnpm bundler-matrix`                                                                                                                              |
-| Release or codemod scripts in `scripts/` | `pnpm test:release-tools`                                                                                                                                        |
-| The Chrome extension                     | `pnpm extension:test`, and `pnpm extension:gate-e` for E2E                                                                                                       |
-| `examples/*` or its scripts              | `node scripts/examples-sync-locales.mjs --check` (also in CI), and `pnpm examples:verify` — see gate 7                                                           |
+| You changed                           | Run at least                                                                                                                                                     |
+| ------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `packages/core`                       | `pnpm --filter @comvi/core test`, the affected bindings' tests, `pnpm build && pnpm size`; add `node scripts/perf.mjs --compare-ref <ref>` for a hot-path change |
+| One binding                           | that package's tests, and its `test-apps/*` app builds                                                                                                           |
+| A plugin                              | that plugin's tests                                                                                                                                              |
+| A `package.json` `exports` map        | `pnpm build && pnpm audit:package-contracts && pnpm check:publint && pnpm check:types-exports`                                                                   |
+| Package entry points or `sideEffects` | `pnpm build && pnpm bundler-matrix`                                                                                                                              |
+| Release scripts in `scripts/`         | `pnpm test:release-tools`                                                                                                                                        |
+| The Chrome extension                  | `pnpm extension:test`, and `pnpm extension:gate-e` for E2E                                                                                                       |
+| `examples/*` or its scripts           | `node scripts/examples-sync-locales.mjs --check` (also in CI), and `pnpm examples:verify` — see gate 7                                                           |
 
 Nothing in CI runs `node scripts/perf.mjs --compare-ref <ref>` (see gate 6). Run it yourself for a
 change to core's hot path — `t()`, the template cache, the parser, a compiler — and always before

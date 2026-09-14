@@ -394,9 +394,9 @@ Beyond `h3` and `@nuxt/kit`, which every Nuxt app already has, there are no runt
   [limitations](../../docs/design/limitations.md)
 - **Upgrading from 0.4.x:** `comvi.host.ts` is where every capability is chosen, and that is the
   whole of 0.5's change to this module. See
-  [MIGRATION.md](https://github.com/comvi-io/comvi-js/blob/main/MIGRATION.md), whose §3 has the
-  codemod recipe — a repo-internal script run by absolute path from your app's root, not a `pnpm`
-  script you have.
+  [MIGRATION.md](https://github.com/comvi-io/comvi-js/blob/main/MIGRATION.md), whose §2 tables the
+  hook renames and whose §6 covers this module; Nuxt auto-imports and the dropped `comvi.setup`
+  proxies are edited by hand.
 - **Full API:** [comvi.io/docs/i18n/nuxt/](https://comvi.io/docs/i18n/nuxt/)
 
 ## License

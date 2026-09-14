@@ -47,6 +47,5 @@ per test file, and in-repo suites call the `@internal` `_resetServerI18n()` from
 The client inherits react's hook migration verbatim: `@comvi/next/client` exports
 `useI18nLoader()` and `useI18nPlugins()` alongside `useI18n`, and there is no next-specific
 hook API. Its documented recipe is a base host hydrated from the catalog the server
-serialized, through `<I18nProvider messages>`. Run
-`pnpm codemod:framework-slim "src/**/*.{ts,tsx,js,jsx}"`; see the
-[0.5.0 migration guide](https://github.com/comvi-io/comvi-js/blob/main/MIGRATION.md) §6.
+serialized, through `<I18nProvider messages>`. See the
+[0.5.0 migration guide](https://github.com/comvi-io/comvi-js/blob/main/MIGRATION.md) §5.

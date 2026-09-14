@@ -27,7 +27,7 @@ function findingsOf(body, options = {}) {
 }
 
 // ---------------------------------------------------------------------------
-// BANNED — 0.4 API that 0.5.0 removed or rehomed (MIGRATION.md §0, §2–§5).
+// BANNED — 0.4 API that 0.5.0 removed or rehomed (MIGRATION.md §0, §2–§4).
 // ---------------------------------------------------------------------------
 
 test("registerLoader on an instance whose chain composes nothing → banned, at the call's line and column", () => {
@@ -44,7 +44,7 @@ test("registerLoader on an instance whose chain composes nothing → banned, at 
   assert.equal(findings[0].rule, "banned/register-loader-on-instance");
   assert.equal(findings[0].line, 7);
   assert.equal(findings[0].col, 1);
-  assert.equal(findings[0].migration, "MIGRATION.md §0 (loader row) and §4 `.use(installer)`");
+  assert.equal(findings[0].migration, "MIGRATION.md §0 (loader row) and §3 `.use(installer)`");
 });
 
 test("registerLoader after .use(loader()) in the same fence → clean", () => {
@@ -234,7 +234,7 @@ test("i18n.core.registerPlugin on a wrapper whose core was never composed → ba
 });
 
 test("core.registerLoader inside a nuxt hook typed with I18nLoaderApi → clean", () => {
-  // MIGRATION.md §7: annotating the hook with the host the factory returns is
+  // MIGRATION.md §6: annotating the hook with the host the factory returns is
   // what makes a call the host cannot serve fail at type-check, so the
   // annotation is the composition evidence the fence can offer.
   const body = [
@@ -1344,7 +1344,7 @@ test("a raw plugin on a receiver that is NOT exempt → still banned", () => {
 });
 
 test("createNextI18n's result.use(RawPlugin()) → exempt, a deliberate compat surface", () => {
-  // `createNextI18n` is preserved exactly across 0.5.0 (MIGRATION.md §6) and
+  // `createNextI18n` is preserved exactly across 0.5.0 (MIGRATION.md §5) and
   // its composed host keeps the raw plugin queue.
   const stored = [
     "```ts",
@@ -1375,9 +1375,8 @@ test("a raw plugin on an unrelated binding beside a createNextI18n call → stil
 
 test("an inline function or arrow in the .use slot → banned, it cannot be an installer", () => {
   // An installer widens the host and returns it, so a literal function in the
-  // slot is a raw plugin by construction — the codemod's own
-  // `chain-plugin-host` fixture says exactly this and wraps it in
-  // `definePlugin`. The lint used to see only an Uppercase callee.
+  // slot is a raw plugin by construction, and `definePlugin` is what wraps it.
+  // The lint used to see only an Uppercase callee.
   const body = [
     "```ts",
     "const a = createI18n({ locale: 'en' }).use((i18n) => { track(i18n); });",

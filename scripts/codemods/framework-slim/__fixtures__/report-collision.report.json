@@ -1,8 +1,0 @@
-[
-  {
-    "line": 5,
-    "column": 10,
-    "shape": "local-name-collision",
-    "detail": "`useI18nLoader` is already declared locally — the destructures here are left alone"
-  }
-]

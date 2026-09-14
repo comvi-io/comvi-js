@@ -30,8 +30,5 @@ things — `tRaw()` returns the structured result; `<T raw>` skips post-processo
 in-context editor's invisible markers — and only the `<T>` prop is renamed; `tRaw` is untouched.
 `raw` keeps working as a deprecated alias, removed in 0.6, with a one-time development warning
 (`<T raw>` is deprecated. Use `<T skipPostProcess>` instead); setting both props lets
-`skipPostProcess` win. A repo-internal [codemod](https://github.com/comvi-io/comvi-js/blob/main/MIGRATION.md#3-the-codemod)
-rewrites `<T raw>` to `<T skipPostProcess>` in JSX that imports `T` from `@comvi/react`,
-`@comvi/solid` or `@comvi/next/client`; a `.vue` or `.svelte`
-template's `<T raw>` is template markup the codemod does not parse, so it is reported for a
-by-hand rename instead.
+`skipPostProcess` win. Rename the prop wherever you render `<T>` — JSX and `.vue` / `.svelte`
+template markup alike.

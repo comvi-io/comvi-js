@@ -111,9 +111,8 @@ i18n.tRaw("hi", { who: someVNode }); // ["Hi, ", someVNode, "!"]
 
 `<T skipPostProcess>` skips post-processors for that one call — notably the in-context editor's
 invisible markers. `raw` is the same prop under its old 0.4 name: it still works, but is deprecated,
-prints a one-time development warning, and is removed in 0.6. The
-[codemod](../../MIGRATION.md#3-the-codemod) rewrites `<T raw>` to `<T skipPostProcess>` in JSX; it
-cannot rewrite Vue or Svelte template markup, so it flags those for a by-hand rename instead.
+prints a one-time development warning, and is removed in 0.6. Rename it wherever you render
+`<T>`, JSX and Vue / Svelte template markup alike.
 
 ## Related
 

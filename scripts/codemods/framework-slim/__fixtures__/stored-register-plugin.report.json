@@ -1,8 +1,0 @@
-[
-  {
-    "line": 39,
-    "column": 10,
-    "shape": "raw-plugin-needs-helper",
-    "detail": "`composed.use(wrapMetrics())` reads as an installer by its lowercase name and is left as written — if `wrapMetrics()` returns a PLUGIN rather than an installer, call `composed.registerPlugin(wrapMetrics(…))` on a host that composes `.use(plugins())`, or wrap it as `composed.use(definePlugin(wrapMetrics(…)))`"
-  }
-]

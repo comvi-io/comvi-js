@@ -7,19 +7,18 @@ published API** riding the pre-1.0 minor-bump policy:
 0. **`@comvi/core` is now ONE entry, the base host.** A capability is an import
    you add, never an entry you switch. §0 covers it in full.
 1. Every framework binding runs on that host, which moved four loader/plugin
-   members out of `useI18n()` (§1 onwards). That part is mechanical, and mostly
-   codemodded.
+   members out of `useI18n()` (§1 onwards). That part is mechanical.
 
 The upgrade itself, in order:
 
 1. Update every `@comvi/*` package you depend on to `0.5.0`.
-2. Run the codemod (§3). It rewrites the hook destructures and the host
-   construction, and prints `path:line:column` for everything it refuses to
-   guess at.
+2. Rename the hook destructures. §2 tables every name that moved, and the two
+   names it moves them to — `useI18nLoader` and `useI18nPlugins` — are what one
+   grep finds every call site of.
 3. Compose back the capabilities your app used. §0's table has one row per thing
    the 0.4 root did for you.
-4. Work through what the codemod reported, then through the errors in §8 that
-   your first run produces.
+4. Work through the per-binding section your app needs (§3 onwards), then the
+   errors in §7 that your first run produces.
 
 ---
 
@@ -37,7 +36,7 @@ your bundle_.
 | 0.4's `.use(plugin)`                                | absent: TS error plus `TypeError`     | `.use(definePlugin(p))`, or a lowercase installer  |
 | loader (`registerLoader`, …)                        | absent: the loud capability error     | `.use(attachLoader)`, or `fetchLoader(opts)`       |
 | discovery (`instanceId`, `window.__COMVI__`)        | absent: invisible to the extension    | `.use(devtools())`, or `inContextEditor()`         |
-| a bare `loader()` (0.5 pre-release, attach-only)    | TS error: the import map is required  | `.use(attachLoader)`; the codemod rewrites it      |
+| a bare `loader()` (0.5 pre-release, attach-only)    | TS error: the import map is required  | `.use(attachLoader)`                               |
 | string-API tags (`"<b>hi</b>"`)                     | literal text, dev warning             | `<T>`, or `import "@comvi/core/tags"`              |
 | a plugin returning a value                          | throws at `init()`                    | return nothing, or a cleanup function              |
 | `clearTranslations(undefined, ns)` deactivated `ns` | clears CONTENT only, in every form    | `removeActiveNamespace(ns)` from the loader        |
@@ -80,9 +79,8 @@ const i18n = createI18n({ locale: "en", compiler: icuCompiler }).use(
 ```
 
 A tree written against a 0.5 pre-release may still compose the removed `icu`
-installer. The codemod reports that rather than rewriting it (§3,
-`icu-installer-removed`), because the option belongs in a constructor call it
-cannot always see.
+installer. Delete that call and name the compiler in the constructor options
+instead: the installer is gone, and no `.use(…)` composes ICU.
 
 Composition carries no ordering rule at all: the loader, `plugins()` and
 `devtools()` may go in any order among themselves, and all three only have to be
@@ -217,7 +215,7 @@ three bindings — and the pair stays on the `VueI18n` class, reachable as
 | vue `new VueI18n(options)`                              | `createI18n(options)`; the constructor takes `(core, vueOptions)`                                                                                           |
 | svelte/solid `getI18nContext().reloadTranslations()`    | `useI18nLoader()` in a component, or hold your own host                                                                                                     |
 | nuxt `comvi.setup` calling a dropped `VueI18n` proxy    | `context.core.*`                                                                                                                                            |
-| next: a second `setI18n(other)`                         | one configuration source per process; see §6                                                                                                                |
+| next: a second `setI18n(other)`                         | one configuration source per process; see §5                                                                                                                |
 
 `useI18nLoader()` and `useI18nPlugins()` ship from every binding
 (`@comvi/react`, `@comvi/solid`, `@comvi/svelte`, `@comvi/vue`,
@@ -225,149 +223,7 @@ three bindings — and the pair stays on the `VueI18n` class, reachable as
 grep finds every call site. Neither takes a namespace argument, and the bag they
 return is referentially stable per host instance.
 
-## 3. The codemod
-
-The codemod is a **repo-internal script**, not a published package: there is no
-`npx comvi-codemod`, and `pnpm codemod:framework-slim` only exists inside the
-`js-sdk` checkout. It scans `process.cwd()`, so where you run it decides what it
-rewrites. Run it from the js-sdk root and it rewrites js-sdk's own sources.
-
-Clone the SDK at the 0.5 tag, install its dependencies once (the script imports
-`@ast-grep/napi`), then invoke it **by absolute path from your app's root**:
-
-```bash
-# once, anywhere outside your app
-git clone https://github.com/comvi-io/comvi-js.git --branch v0.5.0 --depth 1 /tmp/comvi-js
-cd /tmp/comvi-js && pnpm install
-
-# then, from YOUR app's root — this directory is the scan root
-cd ~/projects/my-app
-node /tmp/comvi-js/scripts/codemods/framework-slim/run.mjs \
-  "src/**/*.{ts,tsx,js,jsx,vue,svelte}" [--report report.json]
-```
-
-The glob is resolved against the current directory, so `src/**/*` means _your_
-`src`. Commit before you run it: it rewrites files in place.
-
-Exit `0` means nothing is left for you to do, `2` means **manual items remain**
-(whether or not any rewrite landed), and `1` is an error. One command covers both
-halves of 0.5.0.
-
-For the **hooks** it rewrites pure, mixed, aliased and repeated destructures
-(quoted static keys, `{ "reloadTranslations": reload }`, included), drops the
-now-illegal namespace argument from the capability call, merges into a capability
-destructure already present in the same **block**, and maintains the import
-statement. The merge unit is the block and not the function on purpose: a
-`const` declared inside an `if` is not visible after it, so merging across
-blocks would move a binding out of the block that declared it. Unbraced
-`switch` cases are the one shape a block cannot express — sibling cases share
-one scope — so a merge that would cross them is refused rather than guessed at
-(below). For the **single entry** it migrates host construction:
-
-| shape                                                                 | becomes                                                                                                                  |
-| --------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
-| `@comvi/<pkg>/slim`, on react, solid, svelte, vue, next client        | `@comvi/<pkg>`                                                                                                           |
-| `@comvi/core/slim`                                                    | `@comvi/core`                                                                                                            |
-| `createSlimI18n`                                                      | `createI18n` (import, references, aliases)                                                                               |
-| `.use(FetchLoader(o))` + the two other first-party factories          | `.use(fetchLoader(o))` in place                                                                                          |
-| `.use(YourPlugin(o))`                                                 | `.use(definePlugin(YourPlugin(o)))` in place                                                                             |
-| a 0.5-pre-release `.with` call, anywhere in a chain                   | `.use` — the one composition verb                                                                                        |
-| inline `translation` with ICU comma syntax                            | `compiler: icuCompiler` in the same call                                                                                 |
-| `exposeGlobal` / `instanceId` options                                 | `.use(devtools({ … }))`, options moved                                                                                   |
-| a `flattenCatalog` import from a binding root or `/loader`            | the same name, from `@comvi/core`                                                                                        |
-| a bare `loader()` on a proven host                                    | the bare `attachLoader`, import maintained                                                                               |
-| `<T raw>` / `<T raw={…}>` in JSX (react, solid, `@comvi/next/client`) | `<T skipPostProcess>` / `<T skipPostProcess={…}>`; `<T.Sub>` and a nested unrelated component's own `raw` are left alone |
-
-A **chain** is the unit, meaning `createI18n(…)` plus the `.use` calls chained
-onto it, so nothing outside one is guessed at. Imports are maintained in
-the same pass, `new I18n(options)` migrates like `createI18n(options)`, CRLF
-endings survive, and a second run is a byte-identical no-op.
-
-**Comments survive because the host rules never re-print.** Every single-entry
-edit is a splice of your own characters, so comments, formatting, directive
-prologues and shebangs come through untouched. The destructure SPLIT is the one
-rule that re-emits a statement, and there nothing can say where a comment in the
-re-printed range belongs, so a comment anywhere from the keyword to the `=`
-(`const /* mid */ { t, … }`, `const { t, … } /* after */ =`, or between two
-members) is reported instead of rewritten. A comment on its own line, or inside
-the call's arguments, is outside that range and does not block anything. Same
-refusal for an annotated pattern (`const { t, reloadTranslations }: Bag =
-useI18n()`): the annotation describes one shape and the split produces two. An
-`export const {…} = useI18n()` split does migrate, and keeps `export` on both
-halves.
-
-**It never rewrites silently.** These are reported (`path:line:column`, as a list
-and as JSON) and left alone:
-
-- a bare `loader()` the codemod cannot attribute to a host it has proven — in a
-  refused chain, on a receiver it cannot see through, or stored in a local. The
-  call no longer compiles (`loader(map)` requires its map), so saying nothing
-  would certify a tree that cannot build
-- rest spreads, computed member access
-- a hook result stored in a variable, or crossing a function boundary
-- a local name that would collide with a hook or installer it wants to introduce
-- a `useI18n` / `createI18n` / `I18n` / `createSlimI18n` name that is BOTH
-  imported from Comvi and declared locally somewhere in the module (a value
-  parameter, a local `const`, a `catch` binding — a parameter name inside a
-  TYPE, as in `type Injected = (useI18n: () => unknown) => void` or a
-  `declare function`, binds nothing and does not count). A call there may
-  resolve to either binding, so every call through that name in the module is
-  left alone: the host rules list each construction they refused, and the hook
-  rules list each shadowing declaration
-- two `useI18n()` destructures in different UNBRACED `switch` cases. Sibling
-  cases share one scope, so a capability call per case redeclares the same
-  `const` in it, while one call in the first case leaves the read in the second
-  in the temporal dead zone whenever that case is skipped. Brace the cases
-  (`case 1: { … }`) and both migrate
-- a comment anywhere in the range a destructure split re-prints (keyword,
-  pattern, `=`), or a type annotation on the pattern: the split cannot place
-  either
-- a quoted key whose escapes cannot be decoded, such as
-  `{ '\u0072eloadTranslations': reload }`. A DOUBLE-quoted key is a JSON string
-  and is decoded, so `{ "\u0072eloadTranslations": reload }` migrates like the
-  bare key; a single-quoted escape is not JSON and fails closed
-- `useI18n` / `createI18n` from a relative path or a nuxt auto-import
-  (`manual-import`); it will not guess where the capability API lives
-- `.vue` / `.svelte` script blocks that fail extraction
-- the eight dropped `VueI18n` proxies in `.vue` and `comvi.setup.*` files:
-  `i18n.reloadTranslations()` may be a `VueI18n` (migrate to `i18n.core.*`) or a
-  raw core instance (already correct), and the receiver's type is undecidable
-- `registerPlugin(...plugins)`, `registerPlugin([a, b])`,
-  `registerPlugin(registry[key])` and every plugin registration whose plugin is
-  not a statically named factory call, plus one on a stored host; the fix is a
-  change at CONSTRUCTION, so the recipe is printed instead. These report shapes
-  carry the `registerPlugin` name now, not the 0.4 `use` one
-- a **raw plugin in the `.use(…)` slot that cannot be proven to be one**. `.use`
-  throws `E_USE_NOT_INSTALLER` on a raw plugin, because what a plugin hands back
-  is not the host, and the rule is mechanical: a plugin the tool can identify
-  from the source alone is rewritten to `.use(definePlugin(plugin))` in place,
-  and one it cannot is reported instead of guessed at. The unprovable shapes are
-  the ones where the argument is not a single named call — a spread, a plugin
-  read out of a variable or an array — a lowercase-named call it has to take at
-  its word as an installer, a first-party uppercase name it cannot trace to the
-  package that publishes it, and a `.use(…)` on a host held in a variable whose
-  chain never composed `plugins()`. Each is reported with both recipes:
-  `.use(definePlugin(fn))` keeps the plugin in the chain, `registerPlugin(fn)`
-  puts it on a host that already composed `plugins()`
-- a first-party factory NAME that is not a first-party import
-- `exposeGlobal` / `instanceId` beside a chain that already composes `devtools(…)`
-- `createI18n(optionsBuiltElsewhere)`, whose contents it cannot see
-- catalogs loaded at RUNTIME; nothing in the source proves what a CDN returns, so
-  every loader chain without a compiler gets an advisory
-- an `icu` import, or a chain that still composes that removed installer,
-  reported as `icu-installer-removed` with the chain left byte-identical: the
-  installer is gone and ICU is `compiler: icuCompiler` in the constructor
-  options (§0.1). A genuine 0.4 tree can never hit this item, because 0.4 had no
-  installer; it fires only for a tree written against a 0.5 pre-release
-- a `<T raw>` written in a `.vue` or `.svelte` TEMPLATE (`:raw="…"` too):
-  neither template language is one of the codemod's grammars — only
-  `<script>` blocks are, on both — so the occurrence is listed for a by-hand
-  `skipPostProcess` edit instead of guessed at
-- a local declaration that shadows the imported `T` component (`function T()`,
-  `const { T } = …`): every `<T raw>` the module writes is left alone, because
-  the text cannot say which meaning of `T` a given JSX element refers to
-
-## 4. Per binding
+## 3. Per binding
 
 ### One package per app
 
@@ -381,8 +237,8 @@ constructor and the capability toolkit on the ONE entry it publishes.
 | `@comvi/solid`  | `@comvi/solid`                             | `createI18n`                                                                                                                       |
 | `@comvi/svelte` | `@comvi/svelte`                            | `createI18n`                                                                                                                       |
 | `@comvi/vue`    | `@comvi/vue`                               | `createI18n`, plus `.use(…)` on its result; `createI18nFromCore` wraps a host built elsewhere with `createI18n` from `@comvi/core` |
-| `@comvi/next`   | `@comvi/next/client`, `@comvi/next/server` | `createI18n`; see §6                                                                                                               |
-| `@comvi/nuxt`   | auto-imported                              | generated, or `hostModule`; see §7                                                                                                 |
+| `@comvi/next`   | `@comvi/next/client`, `@comvi/next/server` | `createI18n`; see §5                                                                                                               |
+| `@comvi/nuxt`   | auto-imported                              | generated, or `hostModule`; see §6                                                                                                 |
 
 Next's two entries are a RUNTIME split, not a host-tier split: both publish the
 same base constructor and the same toolkit. Six capability bindings are
@@ -390,7 +246,7 @@ re-exported **by name** on each entry (`icuCompiler`, `loader`, `attachLoader`,
 `plugins`, `definePlugin`, `devtools`), plus the base `I18n` class and the core
 type vocabulary, so the ICU compiler is reachable from the one import an app
 already has, and the bindings you never call are pruned by your bundler.
-`@comvi/nuxt` is the one exception and re-exports nothing (§7). `createI18n` IS
+`@comvi/nuxt` is the one exception and re-exports nothing (§6). `createI18n` IS
 core's own constructor everywhere but `@comvi/vue`, whose `createI18n` builds
 the `VueI18n` preset around it.
 
@@ -426,6 +282,28 @@ your graph, so a provider and a hook in one app always see each other.
 tag syntax ambiently, a side effect no framework entry should hand you by
 accident. Every `<T>` goes through `@comvi/core/rich-text` instead, which passes
 the tag grammar per call and registers nothing.
+
+### Renames
+
+The first two rows can land on a genuine 0.4 tree. The rest exist only for a
+tree written against a 0.5 pre-release, because 0.4 published none of those
+names. Each row is one grep, and each edit is by hand.
+
+| 0.4.x                                                    | 0.5.0                                  |
+| -------------------------------------------------------- | -------------------------------------- |
+| `exposeGlobal` / `instanceId` in the constructor options | both move into `.use(devtools({ … }))` |
+| `flattenCatalog` from a binding root or `/loader`        | the same name, from `@comvi/core`      |
+
+| 0.5 pre-release                                                | 0.5.0                                                          |
+| -------------------------------------------------------------- | -------------------------------------------------------------- |
+| `@comvi/<pkg>/slim`, on react, solid, svelte, vue, next client | `@comvi/<pkg>`: one entry per package, and it is the base host |
+| `@comvi/core/slim`                                             | `@comvi/core`                                                  |
+| `createSlimI18n`                                               | `createI18n`, at the import and at every reference and alias   |
+| a `.with` call, anywhere in a chain                            | `.use`, the one composition verb, with no alias left behind    |
+
+A **chain** is the unit for all of this: `createI18n(…)` plus the `.use` calls
+chained onto it. A capability is acquired per chain, never per file, so a host
+built in one module composes nothing for a host built in another.
 
 ### `.use(installer)` — composing a capability
 
@@ -468,8 +346,8 @@ what `createNextI18n`'s composed host and the CDN/UMD global are both built from
 Each publishes one entry carrying its bindings plus the toolkit, and `createI18n`
 there is core's own constructor. Nothing about the providers, hooks or stores
 changes. Two things did, both additive: `<T>`'s `raw` prop is renamed to
-`skipPostProcess` (§3's codemod rewrites the JSX; `raw` still works — deprecated,
-for one release, with a one-time dev warning); and solid and svelte each gain
+`skipPostProcess` (`raw` still works — deprecated, for one release, with a
+one-time dev warning); and solid and svelte each gain
 the one per-axis primitive the other already had — solid's
 `createDefaultParamsSignal` and svelte's `createDefaultNamespaceStore`.
 
@@ -495,7 +373,7 @@ Svelte sets context instead of rendering a provider:
 `setI18nContext(createI18n({ … }))`, then `useI18n()` in any descendant. For
 ICU catalogs add `compiler: icuCompiler` to the constructor call, whether the
 catalogs are inline or loaded. Compose neither capability and `useI18nLoader()` /
-`useI18nPlugins()` throw with the message in §8.
+`useI18nPlugins()` throw with the message in §7.
 
 - **React:** `useI18nPlugins().onMissingKey` no longer coerces its callback's
   result with `String()`. It is the bound host method, so a callback may return
@@ -573,7 +451,7 @@ capability at runtime but leaves the binding's `core` unwidened. Compose before
 `app.use(i18n)`, which starts `init()` and drains the plugin queue once.
 `createI18nFromCore` (wrapping a host you built yourself, with `createI18n` from
 `@comvi/core`; the `createCore` alias is gone) is unchanged and advanced:
-it is for a host built elsewhere, such as Nuxt's `hostModule` (§7) or one host
+it is for a host built elsewhere, such as Nuxt's `hostModule` (§6) or one host
 shared between a Vue app and non-Vue code. `.use(…)` works on a
 `createI18nFromCore` result too.
 
@@ -589,8 +467,7 @@ i18n.core.reloadTranslations(); // typed: `.use` widened `core`
 Vue's `<T>` also gained a **default-slot fallback**: a key with no translation
 and no `fallback` prop renders the default slot instead of the key. Its `raw`
 prop is renamed to `skipPostProcess`, the same rename every binding's `<T>`
-gets (§3's codemod rewrites `.tsx`/`.jsx`; a Vue template's `<T raw>` is
-reported, not rewritten, and needs a by-hand edit) — `raw` still works,
+gets. A Vue template's `<T raw>` has to be edited by hand — `raw` still works,
 deprecated, for one release, with a one-time dev warning.
 
 **Ten named value exports dropped.** `@comvi/vue` used to re-export core with
@@ -619,7 +496,7 @@ them: those track the locale, where the bare helpers take it as an argument.
 `@comvi/react`, `@comvi/solid` and `@comvi/svelte` are not affected — they
 already used `export type *` in 0.4.x, so their value surface only grew.
 
-## 5. Plugins
+## 4. Plugins
 
 The three first-party plugin packages ship a lowercase **installer** each, next
 to the uppercase factory they always had. The installer composes the capabilities
@@ -707,7 +584,7 @@ returns the host and `init()` rejects that result.
 `comviPreset` export, which carries the vendor defaults). Defaults are preserved
 when `baseUrl` is absent.
 
-## 6. `@comvi/next`
+## 5. `@comvi/next`
 
 The client inherits react's migration verbatim: `@comvi/next/client` re-exports
 `useI18nLoader` / `useI18nPlugins` alongside `useI18n`.
@@ -721,8 +598,8 @@ migration at all; its host type is now published as
 runtime entries: `createI18n` on `@comvi/next/client` and `@comvi/next/server` is
 the base host, row for row as §0 describes, and every installer that table names
 is re-exported from both entries. The second constructor name that briefly stood
-beside it during 0.5 development for the bare host is deleted; §3's rename table
-has it, and the codemod does the rename.
+beside it during 0.5 development for the bare host is deleted; the pre-release
+rename table in §3 has it.
 
 A client host is hydrated rather than loaded: nothing is ingested at
 construction, and the catalog arrives through `<I18nProvider messages>`. So an
@@ -773,9 +650,8 @@ it under any specifier.
 other host.** The 0.4 scoped registration `use(plugin, { runtime, environment, lazy })` and
 the four delegates `useClient`, `useServer`, `useClientLazy`, `useServerLazy` are gone.
 Scoping is now two installers: `.use(nextPlugin(plugin, { runtime, environment }))` and
-`.use(nextPluginLazy(load, { runtime, environment }))`. The codemod rewrites every
-statically provable call; a runtime-decided `lazy`, a spread in the options, or a
-shadowed `createNextI18n` is reported for you to move by hand.
+`.use(nextPluginLazy(load, { runtime, environment }))`. Pick the installer where
+you write the call: `lazy` is no longer an option a value can decide at runtime.
 
 **Locale routing** moved onto one shared implementation behind `@comvi/next` and
 `@comvi/nuxt`. It is not a package you install and **neither package gained a
@@ -786,7 +662,7 @@ middleware no longer redirects to normalize it), and interior duplicate slashes
 are no longer collapsed (`/de//x` → `//x`). Prefix modes, the pathnames slug map
 and root-path handling are unchanged.
 
-## 7. `@comvi/nuxt`
+## 6. `@comvi/nuxt`
 
 **The generated default host is the base host.** Nuxt's entries are unchanged and
 `useI18n()`, `useI18nLoader()`, `useI18nPlugins()`, `<T>` and `<NuxtLinkLocale>`
@@ -928,7 +804,7 @@ back. And `comvi.host.ts` stays the one file in a nuxt app that names comvi
 specifiers. It is the composition root the module branches on, so reading it
 tells you what the app pays for.
 
-## 8. Errors you may now see
+## 7. Errors you may now see
 
 `useI18nLoader()` and `useI18nPlugins()` throw at the call site, in both build
 conditions, never silently:
@@ -1021,7 +897,7 @@ compilers.
 
 ---
 
-## 9. Tooling: one emitter behind `@comvi/cli` and `@comvi/vite-plugin`
+## 8. Tooling: one emitter behind `@comvi/cli` and `@comvi/vite-plugin`
 
 Both tools now generate declarations through one shared emitter, so a project
 that runs the CLI in CI and the Vite plugin in dev cannot see the two disagree.
