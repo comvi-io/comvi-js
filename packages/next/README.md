@@ -202,14 +202,17 @@ Add locale-prefixed URLs with a `defineRouting` module and a middleware — see
 
 ## 3. Connect to Comvi
 
-Two additions. The host file gains the loader; the provider and the layout gain `messages`:
+Three questions, and the first is already answered in step 1.
 
-1. **`.use(cdnLoader({ cdnUrl }))`** from `@comvi/plugin-fetch-loader/cdn`, which sets up loading
-   and registers the CDN plugin in one call.
-2. **`await loadTranslations(locale)`** in the layout, handing the result to the provider as
-   `messages`, so first paint never flashes untranslated content or races the CDN request.
-
-`compiler: icuCompiler` stays exactly as in step 1.
+1. **Which parser?** `compiler: icuCompiler`, unchanged from step 1. The platform's catalogs use ICU plurals, and the
+   default `{param}` compiler does not render them. Development throws `E_ICU_SYNTAX` at ingestion,
+   where the catalog entered. Production renders the braced message literally and reports it once
+   through the host's `onError`, or the console when no handler is set.
+2. **Where from?** `.use(cdnLoader({ cdnUrl }))` from `@comvi/plugin-fetch-loader/cdn`, which
+   fetches the catalog at runtime instead of bundling it.
+3. **What to paint meanwhile?** Nothing, on the App Router. **`await loadTranslations(locale)`**
+   in the layout hands the result to the provider as `messages`, so the first paint never flashes
+   untranslated content and never races the CDN request.
 
 ```bash
 npm install @comvi/plugin-fetch-loader
