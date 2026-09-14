@@ -201,7 +201,7 @@ been two vue-only names for one thing. They stay on the class, as
 
 `app.use(i18n)` also installs `$t`, `$tRaw` and `$i18n` as global properties, so an Options API
 component or a plain template needs no import: `{{ $t("greeting", { name }) }}`. `$i18n` is the
-ambient host, so `$i18n.locale` and `$i18n.setLocale("uk")` work from a template too, and `$tRaw`
+ambient host, so `{{ $i18n.locale }}` and `$i18n.setLocale("uk")` work from a template too; note `$i18n.locale` is a `Ref<string>`, so a binding or script code reads `.value`. `$tRaw`
 is the parts-array half of `$t`.
 
 ### The bare host: `inject(I18N_INJECTION_KEY).core`

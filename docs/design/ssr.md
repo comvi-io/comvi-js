@@ -92,7 +92,7 @@ A catalog the host already holds — an inline `translation` map — renders dur
 the locale is a WRITE to `i18n.locale`, so the host is built inside the request handler.
 
 What does **not** happen on the server is initialization: `<I18nProvider>` calls `init()` from a
-`createEffect` (`the `createEffect`inside`I18nProvider`, packages/solid/src/context.tsx`), and effects do not run during Solid's
+`createEffect` (the `createEffect` inside `I18nProvider`, `packages/solid/src/context.tsx`), and effects do not run during Solid's
 server render. So a catalog a loader would have fetched is absent server-side, and
 `isInitialized()` is `false` there. **Server-side loading is not supported yet.** With SolidStart or
 another SSR setup, keep the catalog inline for the server render, or load on the client and gate the

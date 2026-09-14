@@ -323,7 +323,7 @@ request, would carry one request's locale into another's tree. This is the oppos
 `@comvi/next` follows.
 
 **Server-side loading is not supported yet.** `<I18nProvider>` calls `init()` from a `createEffect`
-(`the `createEffect`inside`I18nProvider`, packages/solid/src/context.tsx`), and effects do not run during Solid's server render. So a
+(the `createEffect` inside `I18nProvider`, `packages/solid/src/context.tsx`), and effects do not run during Solid's server render. So a
 catalog a loader would have fetched is absent server-side and `isInitialized()` is `false` there.
 Keep the catalog inline for the server render, or load on the client and gate with `fallback`.
 [Track progress in the issues](https://github.com/comvi-io/comvi-js/issues).

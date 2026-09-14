@@ -1,13 +1,13 @@
 # Next.js runtimes: why the config module is evaluated twice, and what must not reach the Edge
 
-Design note. `packages/next/README.md` has the five-file quickstart. This file explains why it has
+Design note. `packages/next/README.md` has the five-setup-file quickstart. This file explains why it has
 five files rather than three, which is the question a reader asks once and then never again.
 
 The host is the i18n instance `createI18n` returns.
 
 ## The catalog travels; the composition does not
 
-`src/i18n/config.ts` is imported on both sides — by `src/i18n/server.ts` (`"server-only"`) and, one
+`src/i18n.ts` is imported on both sides — by `src/i18n.server.ts` (`"server-only"`) and, one
 hop further, by `I18nClientProvider.tsx` (`"use client"`) — because Next.js cannot pass a class
 instance from a Server Component to a Client Component
 (`packages/next/src/client/I18nProvider.tsx`'s doc comment states this constraint;
@@ -65,7 +65,7 @@ export default createMiddleware(routing);
 export const config = { matcher: ["/((?!api|_next|.*\\..*).*)"] };
 ```
 
-Spread the same object into `createNextI18n({ ...routing, … })` in `src/i18n/config.ts` so there is
+Spread the same object into `createNextI18n({ ...routing, … })` in `src/i18n.ts` so there is
 still exactly one source of truth for the URL rules. Declare `locales` separately in both files and
 `/uk/…` becomes a real route in one and an unknown one in the other.
 
