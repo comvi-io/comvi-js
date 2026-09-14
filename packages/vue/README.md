@@ -265,7 +265,7 @@ registration (0.4's `use(plugin)`) are not on the class. Registration happens on
 -i18n.use(FetchLoader({ … }));
 +const i18n = createI18n({ locale: "en" }).use(attachLoader).use(plugins());
 +i18n.core.registerLoader(myLoader);
-+i18n.core.registerPlugin(FetchLoader({ … }));
++i18n.core.registerPlugin(fetchLoaderPlugin({ … }));
 ```
 
 Both members are capabilities, so they exist on the host only once it has composed them:

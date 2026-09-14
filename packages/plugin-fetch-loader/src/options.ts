@@ -130,12 +130,12 @@ export interface FetchLoaderOptions {
    * `.use(fetchLoader({ loadOnInit: false }))` followed by `await init()`
    * still issues exactly the request `loadOnInit: true` does. Nor does
    * `loadOnInit: true` add one — the plugin body runs inside `init()` on both
-   * supported entry points (`.use(fetchLoader(…))` and `registerPlugin(FetchLoader(…))`),
+   * supported entry points (`.use(fetchLoader(…))` and `registerPlugin(fetchLoaderPlugin(…))`),
    * where `i18n.isInitializing` is already true, so the install-time load below
    * is skipped and `init()`'s own load is the only one.
    *
    * The flag therefore only matters when the plugin factory is invoked outside
-   * `init()` — calling `FetchLoader(options)(i18n)` by hand.
+   * `init()` — calling `fetchLoaderPlugin(options)(i18n)` by hand.
    *
    * To start with NO network request, tell core not to load an initial
    * namespace: `createI18n({ locale, ns: [] })`. `addActiveNamespace(ns)` (or a
@@ -194,9 +194,9 @@ export interface FetchLoaderOptions {
 export { FETCH_LOADER_PLUGIN_KEY } from "./plugin-key";
 
 /**
- * Get FetchLoader configuration from i18n instance.
+ * Get fetchLoaderPlugin configuration from i18n instance.
  *
- * Returns the options the FetchLoader plugin was constructed with, or
+ * Returns the options the fetchLoaderPlugin plugin was constructed with, or
  * `undefined` when the plugin is not installed on the instance.
  */
 export function getFetchLoaderConfig(i18n: {

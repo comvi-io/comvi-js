@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { initWithPlugin } from "./helpers/init";
 import { mockCookie, mockNavigator, mockWindowLocation } from "./setup";
 
-describe("LocaleDetector() option defaults", () => {
+describe("localeDetectorPlugin() option defaults", () => {
   it("tries the querystring first when no order is given", async () => {
     mockWindowLocation("?lng=fr");
     localStorage.setItem("i18n_locale", "de");

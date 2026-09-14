@@ -359,22 +359,48 @@ const REGISTER_LOADER_CALL = capabilityCallPattern("registerLoader");
 const REGISTER_PLUGIN_CALL = capabilityCallPattern("registerPlugin");
 
 /**
+ * The four first-party raw-plugin factories, BY NAME.
+ *
+ * Wave 6 renamed them from `FetchLoader` / `CdnLoader` / `LocaleDetector` /
+ * `InContextEditorPlugin` — names that differed from their installers by letter
+ * case alone — to the `*Plugin` suffix. That is better for a reader and worse
+ * for this rule: the capital letter WAS the detector, so after the rename
+ * `.use(fetchLoaderPlugin())` reads as a bare lowercase call and the pattern
+ * below would have waved through the exact mistake the rule exists for.
+ *
+ * Listed by name rather than matched as a `*Plugin` suffix, and deliberately:
+ * `nextPlugin(f, { runtime })` and `nextPluginLazy(…)` END in `Plugin` and are
+ * the CORRECT argument to `.use` on a `createNextI18n` result, so a suffix rule
+ * would report the next README's own recommended chain. A closed list cannot
+ * grow a false positive; it can only go stale, and a fifth first-party plugin
+ * package is a repo change with a test beside it.
+ */
+const RAW_PLUGIN_FACTORY_NAMES = [
+  "cdnLoaderPlugin",
+  "fetchLoaderPlugin",
+  "localeDetectorPlugin",
+  "inContextEditorPlugin",
+];
+
+/**
  * A raw plugin in the `.use(` slot, in every shape the text can PROVE.
  *
- * Four of them, and the fourth needs no naming convention at all: an inline
+ * Five of them, and the fifth needs no naming convention at all: an inline
  * function or arrow cannot be an installer, because an installer widens the
  * host and returns it, so a literal function in the slot is a raw plugin by
- * construction. The other three are the published convention —
- * `FetchLoader()` is a plugin, `fetchLoader()` is its installer — reached
- * directly, through `new`, or through a namespace (`pkg.MyPlugin()`).
+ * construction. Three more are an app's OWN convention — an Uppercase callee —
+ * reached directly, through `new`, or through a namespace (`pkg.MyPlugin()`).
+ * The last is {@link RAW_PLUGIN_FACTORY_NAMES}, the first-party factories,
+ * which no longer announce themselves with a capital.
  *
- * A bare lowercase call stays unmatched on purpose: it is indistinguishable
- * from an installer in the text, and the host's runtime identity guard is what
- * catches it.
+ * Any other bare lowercase call stays unmatched on purpose: it is
+ * indistinguishable from an installer in the text, and the host's runtime
+ * identity guard is what catches it.
  */
 const RAW_PLUGIN_IN_USE_SLOT = new RegExp(
   String.raw`\.use\s*\(\s*(?:` +
     String.raw`new\s+(?:[A-Za-z_$][\w$]*\s*\.\s*)*[A-Z][\w$]*\s*[(,)]` +
+    String.raw`|(?:[A-Za-z_$][\w$]*\s*\.\s*)*(?:${RAW_PLUGIN_FACTORY_NAMES.join("|")})\s*[(,)]` +
     String.raw`|(?:[A-Za-z_$][\w$]*\s*\.\s*)+[A-Z][\w$]*\s*\(` +
     String.raw`|[A-Z][\w$]*\s*[(,)]` +
     String.raw`|(?:async\s*)?(?:\(|function\b)` +
@@ -926,8 +952,9 @@ const BANNED_RULES = [
       // verbs, an installer in the `.use()` slot was the mistake. Now `.use()`
       // is the only verb and an installer is exactly what belongs in it; the
       // mistake is the other argument — a RAW plugin, which every package
-      // spells as an Uppercase factory (`FetchLoader()`, `LocaleDetector()`,
-      // `InContextEditor()`) and an app spells as its own function.
+      // spells as a `*Plugin` factory (`fetchLoaderPlugin()`,
+      // `localeDetectorPlugin()`, `inContextEditorPlugin()`) and an app spells
+      // as its own function.
       //
       // The host's guard is an IDENTITY check: an installer widens the host in
       // place and hands the SAME object back, so `.use` throws
@@ -936,12 +963,13 @@ const BANNED_RULES = [
       // nothing, a cleanup function, or (an async plugin) a Promise, which a
       // shape check would have waved through as an object.
       //
-      // An Uppercase callee is the detectable half, and so is an INLINE
+      // The four first-party factory NAMES are the detectable half, along
+      // with an Uppercase callee (an app's own convention) and an INLINE
       // function: an installer returns the host it was given, so a literal
       // function or arrow in the slot cannot be one, and `definePlugin` is
-      // what wraps it. A bare LOWERCASE call is indistinguishable from an
-      // installer in the text, and the runtime guard is what catches it; this
-      // rule does not guess. `icu` is still deliberately absent — it is not a
+      // what wraps it. Any OTHER bare lowercase call is indistinguishable from
+      // an installer in the text, and the runtime guard is what catches it;
+      // this rule does not guess. `icu` is still deliberately absent — it is not a
       // plugin in the wrong slot, it is a name that no longer exists, and
       // `banned/icu-installer` below reports it with the message that says
       // replace rather than rewrap.
@@ -963,7 +991,8 @@ const BANNED_RULES = [
     },
     message:
       "a raw plugin is not an installer: .use() expects one, so this throws E_USE_NOT_INSTALLER. " +
-      "Use the package's lowercase installer (localeDetector(), not LocaleDetector()), or wrap " +
+      "Use the package's installer — the name without the Plugin suffix (localeDetector(), not " +
+      "localeDetectorPlugin()) — or wrap " +
       "your own plugin as .use(definePlugin(fn)).",
   },
   {
@@ -1390,7 +1419,7 @@ export function lintDocument({ file, source, sdkVersion, surface, sizeBaselines 
           line: at.line,
           col: at.col,
           rule: rule.id,
-          // A match may span lines (`\n  .use(\n  FetchLoader(`); the report is
+          // A match may span lines (`\n  .use(\n  fetchLoaderPlugin(`); the report is
           // one line per finding, so the quoted symbol is flattened.
           //
           // `match.message` overrides the rule's: an import-resolution finding

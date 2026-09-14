@@ -86,7 +86,7 @@ describe("VueI18n.use()", () => {
     expect(message).toContain("must return the host it was given");
     expect(message).toContain(".use(definePlugin(f))");
     expect(message).toContain("registerPlugin(f)");
-    expect(message).toContain("localeDetector(), not LocaleDetector()");
+    expect(message).toContain("localeDetector(), not localeDetectorPlugin()");
   });
 
   it("composes devtools through the pipe without widening", () => {

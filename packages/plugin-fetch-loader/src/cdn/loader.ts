@@ -8,7 +8,7 @@ import { ERROR_PREFIX } from "../http-core";
 /**
  * Loads translations from a CDN — and only from a CDN.
  *
- * This is the CDN branch of `FetchLoader` as a plugin of its own. `FetchLoader`
+ * This is the CDN branch of `fetchLoaderPlugin` as a plugin of its own. `fetchLoaderPlugin`
  * chooses between the CDN and the API at RUNTIME (`if (i18n.apiKey)`), so an app
  * that only ever reads a public distribution still ships the whole API request
  * path: the project-info cache, the legacy export chain and the retry policy.
@@ -16,23 +16,23 @@ import { ERROR_PREFIX } from "../http-core";
  * the subpath.
  *
  * The CDN behaviour itself is not reimplemented — `createCdnLoad` is the same
- * request path `FetchLoader` runs, so the two cannot drift.
+ * request path `fetchLoaderPlugin` runs, so the two cannot drift.
  *
  * @example
  * ```typescript
  * import { createI18n } from '@comvi/core';
  * import { loader } from '@comvi/core/loader';
  * import { plugins } from '@comvi/core/plugins';
- * import { CdnLoader } from '@comvi/plugin-fetch-loader/cdn';
+ * import { cdnLoaderPlugin } from '@comvi/plugin-fetch-loader/cdn';
  *
  * const i18n = createI18n({ locale: 'en' }).use(attachLoader).use(plugins());
  *
- * i18n.registerPlugin(CdnLoader({ cdnUrl: 'https://cdn.comvi.io/your-distribution-id' }));
+ * i18n.registerPlugin(cdnLoaderPlugin({ cdnUrl: 'https://cdn.comvi.io/your-distribution-id' }));
  *
  * await i18n.init();
  * ```
  */
-export const CdnLoader: I18nPluginFactory<CdnLoaderOptions> = (options): I18nPlugin => {
+export const cdnLoaderPlugin: I18nPluginFactory<CdnLoaderOptions> = (options): I18nPlugin => {
   if (!options?.cdnUrl) throw new Error(`${ERROR_PREFIX} cdnUrl is required`);
 
   const { cdnUrl, fallback, timeout = 10000, loadOnInit = true, cdnLayout, cache } = options;

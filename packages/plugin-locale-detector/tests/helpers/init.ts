@@ -1,19 +1,19 @@
 import { I18n } from "./composedHost";
 import type { LocaleDetectorOptions } from "../../src/index";
-import { LocaleDetector } from "../../src/index";
+import { localeDetectorPlugin } from "../../src/index";
 
 /** A composed host at `locale`, with no plugin registered yet. */
 export function createI18n(locale: string = "en"): I18n {
   return new I18n({ locale, exposeGlobal: false });
 }
 
-/** The whole install path a consumer takes: `registerPlugin(LocaleDetector(…))` then `init()`. */
+/** The whole install path a consumer takes: `registerPlugin(localeDetectorPlugin(…))` then `init()`. */
 export async function initWithPlugin(
   options: LocaleDetectorOptions = {},
   initialLocale: string = "en",
 ): Promise<I18n> {
   const i18n = createI18n(initialLocale);
-  i18n.registerPlugin(LocaleDetector(options));
+  i18n.registerPlugin(localeDetectorPlugin(options));
   await i18n.init();
 
   return i18n;
@@ -23,7 +23,7 @@ export async function initWithPlugin(
 type DetectorPlugin = (i18n: I18n) => () => void;
 
 /**
- * `LocaleDetector(options)` applied straight to a composed host, outside
+ * `localeDetectorPlugin(options)` applied straight to a composed host, outside
  * `init()`, returning the plugin's cleanup.
  *
  * `I18nPlugin` is declared wider than this plugin is at both ends: its host is
@@ -34,5 +34,5 @@ type DetectorPlugin = (i18n: I18n) => () => void;
  * sites free of per-call casts.
  */
 export function installDetector(i18n: I18n, options: LocaleDetectorOptions = {}): () => void {
-  return (LocaleDetector(options) as unknown as DetectorPlugin)(i18n);
+  return (localeDetectorPlugin(options) as unknown as DetectorPlugin)(i18n);
 }

@@ -4,7 +4,7 @@
  * Two ways in, one lifecycle:
  * - `.use(fetchLoader(options))` — composes the loader and plugin
  *   capabilities, then registers the plugin. Start here.
- * - `registerPlugin(FetchLoader(options))` — the plugin factory, for a host that
+ * - `registerPlugin(fetchLoaderPlugin(options))` — the plugin factory, for a host that
  *   already has both capabilities.
  */
 export type {
@@ -29,7 +29,7 @@ export {
   transformApiResponse,
 } from "./http";
 export { clearProjectInfoCache, fetchApiTranslations, fetchProjectInfo } from "./cache";
-export { FetchLoader, resolveFallback } from "./loader";
+export { fetchLoaderPlugin, resolveFallback } from "./loader";
 export { fetchLoader } from "./installer";
 export type { FetchLoaderInstaller } from "./installer";
 export type { ExportApiResponse, TranslationStore } from "./types";

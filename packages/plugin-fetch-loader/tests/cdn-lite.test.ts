@@ -12,7 +12,7 @@ import { http, HttpResponse } from "msw";
 import { createI18n, hasLoaderApi } from "@comvi/core";
 import type { I18nPlugin } from "@comvi/core";
 import { plugins } from "@comvi/core/plugins";
-import { CdnLoader, cdnLoader, type CdnLoaderOptions } from "../src/cdn/index";
+import { cdnLoaderPlugin, cdnLoader, type CdnLoaderOptions } from "../src/cdn/index";
 import { FETCH_LOADER_PLUGIN_KEY } from "../src/index";
 import { I18n } from "./helpers/composedHost";
 import { asFetch } from "./helpers/transport";
@@ -84,26 +84,26 @@ describe("cdnLoader() installer", () => {
   });
 });
 
-describe("CdnLoader() options guard", () => {
+describe("cdnLoaderPlugin() options guard", () => {
   it("reports a missing cdnUrl when the options object carries none", () => {
-    expect(() => CdnLoader({} as CdnLoaderOptions)).toThrow(
+    expect(() => cdnLoaderPlugin({} as CdnLoaderOptions)).toThrow(
       "[@comvi/plugin-fetch-loader] cdnUrl is required",
     );
   });
 
   it("reports a missing cdnUrl when no options are passed at all", () => {
-    expect(() => CdnLoader(undefined as unknown as CdnLoaderOptions)).toThrow(
+    expect(() => cdnLoaderPlugin(undefined as unknown as CdnLoaderOptions)).toThrow(
       "[@comvi/plugin-fetch-loader] cdnUrl is required",
     );
   });
 });
 
-describe("CdnLoader() plugin", () => {
+describe("cdnLoaderPlugin() plugin", () => {
   it("loads the initial namespace when loadOnInit is left at its default", async () => {
     const i18n = new I18n({ locale: "en", devMode: false });
     mockCdnSuccessResponse("en", "default", { greeting: "Hello" });
 
-    await CdnLoader({ cdnUrl: TEST_CDN_URL })(i18n);
+    await cdnLoaderPlugin({ cdnUrl: TEST_CDN_URL })(i18n);
 
     expect(i18n.t("greeting")).toBe("Hello");
   });
@@ -118,7 +118,7 @@ describe("CdnLoader() plugin", () => {
       }),
     );
 
-    await CdnLoader({ cdnUrl: TEST_CDN_URL, loadOnInit: false })(i18n);
+    await cdnLoaderPlugin({ cdnUrl: TEST_CDN_URL, loadOnInit: false })(i18n);
 
     expect(requests).toBe(0);
   });
@@ -132,7 +132,7 @@ describe("CdnLoader() plugin", () => {
       ),
     );
 
-    await CdnLoader({ cdnUrl: TEST_CDN_URL, loadOnInit: true })(i18n);
+    await cdnLoaderPlugin({ cdnUrl: TEST_CDN_URL, loadOnInit: true })(i18n);
 
     expect(i18n.t("title", { ns: "dashboard" })).toBe("Dashboard");
   });
@@ -143,7 +143,7 @@ describe("CdnLoader() plugin", () => {
       http.get(`${TEST_CDN_URL}/dashboard/en.json`, () => HttpResponse.json({ title: "Board" })),
     );
 
-    await CdnLoader({ cdnUrl: TEST_CDN_URL, loadOnInit: false })(i18n);
+    await cdnLoaderPlugin({ cdnUrl: TEST_CDN_URL, loadOnInit: false })(i18n);
 
     await expect(i18n.getLoader()!("en", "dashboard")).resolves.toEqual({ title: "Board" });
   });
@@ -152,7 +152,7 @@ describe("CdnLoader() plugin", () => {
     const i18n = new I18n({ locale: "en", defaultNs: "storefront", devMode: false });
     server.use(http.get(`${TEST_CDN_URL}/en.json`, () => HttpResponse.json({ title: "Shop" })));
 
-    await CdnLoader({
+    await cdnLoaderPlugin({
       cdnUrl: TEST_CDN_URL,
       loadOnInit: false,
       cdnLayout: { rootNamespace: "default" },
@@ -164,7 +164,7 @@ describe("CdnLoader() plugin", () => {
   it("rejects a namespace that is not a safe URL path segment", async () => {
     const i18n = new I18n({ locale: "en", devMode: false });
 
-    await CdnLoader({ cdnUrl: TEST_CDN_URL, loadOnInit: false })(i18n);
+    await cdnLoaderPlugin({ cdnUrl: TEST_CDN_URL, loadOnInit: false })(i18n);
 
     await expect(i18n.getLoader()!("en", "../secrets")).rejects.toThrow(
       /Invalid namespace: "\.\.\/secrets"/,
@@ -172,7 +172,7 @@ describe("CdnLoader() plugin", () => {
   });
 });
 
-describe("CdnLoader() body timeout", () => {
+describe("cdnLoaderPlugin() body timeout", () => {
   afterEach(() => {
     vi.useRealTimers();
   });
@@ -195,7 +195,7 @@ describe("CdnLoader() body timeout", () => {
     const onLoadError = vi.fn();
     const i18n = new I18n({ locale: "en", devMode: false });
 
-    await CdnLoader({
+    await cdnLoaderPlugin({
       cdnUrl: TEST_CDN_URL,
       loadOnInit: false,
       timeout: TIMEOUT_MS,
@@ -214,14 +214,14 @@ describe("CdnLoader() body timeout", () => {
   });
 });
 
-describe("CdnLoader() when the CDN refuses", () => {
+describe("cdnLoaderPlugin() when the CDN refuses", () => {
   it("serves the fallback import and reports the success, not the failure", async () => {
     const i18n = new I18n({ locale: "en", devMode: false });
     const onLoadError = vi.fn();
     const onLoadSuccess = vi.fn();
     mockCdnErrorResponse("en", "default", 503, "Unavailable");
 
-    await CdnLoader({
+    await cdnLoaderPlugin({
       cdnUrl: TEST_CDN_URL,
       loadOnInit: false,
       fallback: { en: () => Promise.resolve({ default: { greeting: "Offline" } }) },
@@ -239,7 +239,7 @@ describe("CdnLoader() when the CDN refuses", () => {
     const onLoadError = vi.fn();
     mockCdnErrorResponse("en", "default", 503, "Unavailable");
 
-    await CdnLoader({ cdnUrl: TEST_CDN_URL, loadOnInit: false, onLoadError })(i18n);
+    await cdnLoaderPlugin({ cdnUrl: TEST_CDN_URL, loadOnInit: false, onLoadError })(i18n);
 
     await expect(i18n.getLoader()!("en", "default")).rejects.toThrow(
       "HTTP 503: Service Unavailable",
@@ -252,13 +252,13 @@ describe("CdnLoader() when the CDN refuses", () => {
   });
 });
 
-describe("CdnLoader() SSR cache options", () => {
+describe("cdnLoaderPlugin() SSR cache options", () => {
   it("passes revalidate and tags to the CDN request as the framework fetch options", async () => {
     const i18n = new I18n({ locale: "en", devMode: false });
     const fetchSpy = vi.spyOn(globalThis, "fetch");
     mockCdnSuccessResponse("en", "default", { greeting: "Hello" });
 
-    await CdnLoader({
+    await cdnLoaderPlugin({
       cdnUrl: TEST_CDN_URL,
       cache: { revalidate: 3600, tags: ["i18n"] },
     })(i18n);
@@ -275,7 +275,7 @@ describe("CdnLoader() SSR cache options", () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch");
     mockCdnSuccessResponse("en", "default", { greeting: "Hello" });
 
-    await CdnLoader({ cdnUrl: TEST_CDN_URL })(i18n);
+    await cdnLoaderPlugin({ cdnUrl: TEST_CDN_URL })(i18n);
 
     const call = fetchSpy.mock.calls.find(([input]) => String(input).endsWith("/en.json"));
     expect((call?.[1] as { next?: unknown } | undefined)?.next).toBeUndefined();
@@ -287,12 +287,12 @@ describe("CdnLoader() SSR cache options", () => {
  * it announces the clear, so the plugin releases exactly those sockets — and
  * only those.
  */
-describe("CdnLoader() and a cleared scope", () => {
+describe("cdnLoaderPlugin() and a cleared scope", () => {
   it("aborts an in-flight load whose own scope is cleared, with no load error", async () => {
     const i18n = new I18n({ locale: "en", devMode: false });
     const onLoadError = vi.fn();
     const response = mockCdnDeferredResponse("en", "default");
-    await CdnLoader({ cdnUrl: TEST_CDN_URL, loadOnInit: false, onLoadError })(i18n);
+    await cdnLoaderPlugin({ cdnUrl: TEST_CDN_URL, loadOnInit: false, onLoadError })(i18n);
     const pendingLoad = i18n.getLoader()!("en", "default");
     await response.requested;
 
@@ -305,7 +305,7 @@ describe("CdnLoader() and a cleared scope", () => {
   it("leaves an in-flight load for another locale running", async () => {
     const i18n = new I18n({ locale: "en", devMode: false });
     const response = mockCdnDeferredResponse("en", "default");
-    await CdnLoader({ cdnUrl: TEST_CDN_URL, loadOnInit: false })(i18n);
+    await cdnLoaderPlugin({ cdnUrl: TEST_CDN_URL, loadOnInit: false })(i18n);
     const pendingLoad = i18n.getLoader()!("en", "default");
     await response.requested;
 
@@ -325,7 +325,7 @@ describe("CdnLoader() and a cleared scope", () => {
       }),
     );
 
-    const cleanup = await CdnLoader({ cdnUrl: TEST_CDN_URL, loadOnInit: false })(i18n);
+    const cleanup = await cdnLoaderPlugin({ cdnUrl: TEST_CDN_URL, loadOnInit: false })(i18n);
     (cleanup as () => void)();
 
     await expect(i18n.getLoader()!("en", "default")).rejects.toThrow(/aborted/i);

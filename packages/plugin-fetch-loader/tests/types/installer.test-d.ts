@@ -1,12 +1,12 @@
 // Type-level contract for this package's installer/factory pair.
 //
-// `fetchLoader` (lowercase) belongs to `.use`, `FetchLoader` (uppercase) to
+// `fetchLoader` (no suffix) belongs to `.use`, `fetchLoaderPlugin` (the suffix) to
 // `.use`, and NEITHER is branded — the two are kept apart by their signatures
 // alone, which is exactly what these assertions pin.
 import { createI18n } from "@comvi/core";
 import { attachLoader } from "@comvi/core/loader";
 import { plugins } from "@comvi/core/plugins";
-import { FetchLoader, fetchLoader, type FetchLoaderInstaller } from "../../src/index";
+import { fetchLoaderPlugin, fetchLoader, type FetchLoaderInstaller } from "../../src/index";
 
 const OPTIONS = { cdnUrl: "https://cdn.comvi.io/distribution" };
 
@@ -27,16 +27,16 @@ export const installer: FetchLoaderInstaller = fetchLoader(OPTIONS);
 export const twice = composed.use(fetchLoader(OPTIONS));
 void twice.registerLoader;
 
-// WRONG — the uppercase PLUGIN through `.use`. A plugin demands a plugin
+// WRONG — the `*Plugin` FACTORY through `.use`. A plugin demands a plugin
 // host; the pipe hands it whatever it was called on.
 // @ts-expect-error
-createI18n({ locale: "en" }).use(FetchLoader(OPTIONS));
+createI18n({ locale: "en" }).use(fetchLoaderPlugin(OPTIONS));
 
-// WRONG — the lowercase INSTALLER through `.use`. An installer returns a
+// WRONG — the bare-name INSTALLER through `.use`. An installer returns a
 // host, and a plugin may only return nothing or a cleanup function.
 // @ts-expect-error
 createI18n({ locale: "en" }).use(plugins()).registerPlugin(fetchLoader(OPTIONS));
 
-// VALID — the uppercase factory on a host that already has both capabilities.
+// VALID — the `*Plugin` factory on a host that already has both capabilities.
 export const manual = createI18n({ locale: "en" }).use(attachLoader).use(plugins());
-manual.registerPlugin(FetchLoader(OPTIONS));
+manual.registerPlugin(fetchLoaderPlugin(OPTIONS));

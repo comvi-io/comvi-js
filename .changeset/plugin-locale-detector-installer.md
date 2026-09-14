@@ -2,7 +2,7 @@
 "@comvi/plugin-locale-detector": minor
 ---
 
-**Added: `localeDetector(options)` — the lowercase `.use(…)` installer.** `@comvi/core` is
+**Added: `localeDetector(options)` — the bare-name `.use(…)` installer.** `@comvi/core` is
 the base host now, so the plugin host is an import you add; the installer composes it and
 registers the plugin you already know.
 
@@ -16,10 +16,11 @@ const i18n = createI18n({ locale: "en" }).use(
 ```
 
 That replaces `createI18n({ … }).use(attachPlugins)` followed by
-`i18n.registerPlugin(LocaleDetector({ … }))`. No loader capability is composed, deliberately: the
+`i18n.registerPlugin(localeDetectorPlugin({ … }))`. No loader capability is composed, deliberately: the
 detector hands core a locale, it never loads a catalog.
 
-`LocaleDetector` is **unchanged**, and the installer re-implements no lifecycle: `required`,
+`localeDetectorPlugin` behaves exactly as `LocaleDetector` did (the rename is in its
+own changeset), and the installer re-implements no lifecycle: `required`,
 `timeout`, `onError`, cleanup registration and LIFO destroy keep running inside the plugin host,
 because the installer's last act is `registerPlugin`. Composing onto a host that already has the
 capability installs nothing and keeps every plugin already registered. The exported installer

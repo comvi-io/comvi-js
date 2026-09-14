@@ -17,7 +17,7 @@
 
 ---
 
-`LocaleDetector` restores a saved locale from the first configured cache target, then walks an ordered list of detection sources, returns the first match, and persists the user's choice back to one or more caches. Set `cacheFirst: false` when the configured `order` should take priority over a saved locale. SSR-safe (gracefully skips browser-only APIs on the server) and supports BCP 47 lookup so `de-DE` matches `de` and vice versa.
+`localeDetectorPlugin` restores a saved locale from the first configured cache target, then walks an ordered list of detection sources, returns the first match, and persists the user's choice back to one or more caches. Set `cacheFirst: false` when the configured `order` should take priority over a saved locale. SSR-safe (gracefully skips browser-only APIs on the server) and supports BCP 47 lookup so `de-DE` matches `de` and vice versa.
 
 Throughout this README, **the host** is the object `createI18n` returns: it holds the catalog, the
 current locale and `t()`.
@@ -66,12 +66,12 @@ await i18n.init();
 that registers no plugins never pays for it. This package exports one name for
 each way of adding it.
 
-|                   | `.use(localeDetector(options))`                                                                      | `registerPlugin(LocaleDetector(options))`                                        |
+|                   | `.use(localeDetector(options))`                                                                      | `registerPlugin(localeDetectorPlugin(options))`                                  |
 | ----------------- | ---------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
-| what it is        | the **installer**, lowercase                                                                         | the **plugin factory**, uppercase                                                |
+| what it is        | the **installer** — the bare name                                                                    | the **plugin factory** — the `*Plugin` name                                      |
 | the host it needs | any host, including a bare `createI18n(…)`                                                           | one that already has `@comvi/core/plugins`                                       |
 | what it composes  | the plugin host, idempotently. No loader: the detector hands core a locale and never loads a catalog | nothing; it only registers                                                       |
-| lifecycle         | the host's own: it ends in `registerPlugin(LocaleDetector(options))`                                 | the host's own                                                                   |
+| lifecycle         | the host's own: it ends in `registerPlugin(localeDetectorPlugin(options))`                           | the host's own                                                                   |
 | use it when       | you are setting up the host                                                                          | you already compose capabilities explicitly, or you register plugins from a list |
 
 Both end in the same place. The installer is the one-call form of this:
@@ -79,10 +79,10 @@ Both end in the same place. The installer is the one-call form of this:
 ```ts
 import { createI18n } from "@comvi/core";
 import { attachPlugins } from "@comvi/core/plugins";
-import { LocaleDetector } from "@comvi/plugin-locale-detector";
+import { localeDetectorPlugin } from "@comvi/plugin-locale-detector";
 
 const i18n = createI18n({ locale: "en" }).use(attachPlugins);
-i18n.registerPlugin(LocaleDetector({ supportedLocales: ["en", "uk", "de"] }));
+i18n.registerPlugin(localeDetectorPlugin({ supportedLocales: ["en", "uk", "de"] }));
 ```
 
 **Swapping the two is a type error, and each half is caught at runtime too.**
@@ -96,7 +96,7 @@ value, whatever its shape.
   `E_INSTALLER_AS_PLUGIN`, the first thing the installer does, **before** the
   plugin host is set up and before a second plugin reaches the queue. The
   message names `localeDetector` and the `.use` form.
-- `.use(LocaleDetector(…))` throws `E_USE_NOT_INSTALLER`: the plugin is not an
+- `.use(localeDetectorPlugin(…))` throws `E_USE_NOT_INSTALLER`: the plugin is not an
   installer, so what it hands back is not the host. `.use` calls it before it
   checks. On a bare host it dies even earlier, on `registerLocaleDetector`, and
   because this plugin is synchronous that lands as a `TypeError` at the call

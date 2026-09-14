@@ -283,11 +283,11 @@ test("a diff fence's ADDED line carrying a dead symbol → linted", () => {
   assert.deepEqual(rulesOf(body), ["banned/slim-entry", "banned/slim-entry"]);
 });
 
-test(".use(RawPlugin()) → banned, a raw plugin is not an installer", () => {
+test(".use(fetchLoaderPlugin()) → banned, a raw plugin is not an installer", () => {
   const body = [
     "```ts",
     "const i18n = createI18n({ locale: 'en' });",
-    "i18n.use(FetchLoader({ apiKey }));",
+    "i18n.use(fetchLoaderPlugin({ apiKey }));",
     "```",
   ].join("\n");
 
@@ -300,7 +300,7 @@ test(".use(RawPlugin()) → banned, a raw plugin is not an installer", () => {
   assert.match(findings[0].message, /E_USE_NOT_INSTALLER/);
 });
 
-test(".use(RawPlugin()) after .use(plugins()) → STILL banned, the chain cannot clear it", () => {
+test(".use(fetchLoaderPlugin()) after .use(plugins()) → STILL banned, the chain cannot clear it", () => {
   // This is where the premise inverted at decision E. While `use` was the raw
   // plugin queue, composing `plugins()` was exactly what made the call legal.
   // Now `use` is the installer pipe on every host, so the capability changes
@@ -309,18 +309,18 @@ test(".use(RawPlugin()) after .use(plugins()) → STILL banned, the chain cannot
   const body = [
     "```ts",
     "const i18n = createI18n({ locale: 'en' }).use(loader()).use(plugins());",
-    "i18n.use(FetchLoader({ apiKey }));",
+    "i18n.use(fetchLoaderPlugin({ apiKey }));",
     "```",
   ].join("\n");
 
   assert.deepEqual(rulesOf(body), ["banned/raw-plugin-in-use-slot"]);
 });
 
-test(".use(LocaleDetector()) → banned, and the message names the lowercase installer", () => {
+test(".use(localeDetectorPlugin()) → banned, and the message names the installer", () => {
   const body = [
     "```ts",
     "const i18n = createI18n({ locale: 'en' }).use(attachPlugins);",
-    "i18n.use(LocaleDetector());",
+    "i18n.use(localeDetectorPlugin());",
     "```",
   ].join("\n");
 
@@ -330,11 +330,64 @@ test(".use(LocaleDetector()) → banned, and the message names the lowercase ins
     findings.map((f) => f.rule),
     ["banned/raw-plugin-in-use-slot"],
   );
-  assert.match(findings[0].message, /localeDetector\(\), not LocaleDetector\(\)/);
+  assert.match(findings[0].message, /localeDetector\(\), not localeDetectorPlugin\(\)/);
   assert.match(findings[0].message, /\.use\(definePlugin\(fn\)\)/);
 });
 
-test(".use(localeDetector()) → clean, the lowercase factory IS the installer", () => {
+test("every first-party *Plugin factory in the .use slot → banned, by NAME", () => {
+  // The capital letter used to be the detector, and the wave-6 rename took it
+  // away: all four of these read as bare lowercase calls now, so the rule
+  // carries their names. One case per package, because a list is only as good
+  // as its entries.
+  for (const factory of [
+    "cdnLoaderPlugin",
+    "fetchLoaderPlugin",
+    "localeDetectorPlugin",
+    "inContextEditorPlugin",
+  ]) {
+    const body = [
+      "```ts",
+      `const i18n = createI18n({ locale: 'en' }).use(${factory}({ cdnUrl: u }));`,
+      "```",
+    ].join("\n");
+
+    assert.deepEqual(rulesOf(body), ["banned/raw-plugin-in-use-slot"], factory);
+  }
+});
+
+test("a first-party *Plugin factory reached through a namespace → banned too", () => {
+  const body = [
+    "```ts",
+    "const i18n = createI18n({ locale: 'en' }).use(pkg.fetchLoaderPlugin({ apiKey }));",
+    "```",
+  ].join("\n");
+
+  assert.deepEqual(rulesOf(body), ["banned/raw-plugin-in-use-slot"]);
+});
+
+test(".use(nextPlugin(f, { runtime })) → clean, though the callee ends in Plugin", () => {
+  // The reason the rule lists four NAMES instead of matching a `*Plugin`
+  // suffix: `nextPlugin` and `nextPluginLazy` end in `Plugin` and are the
+  // CORRECT argument to `.use` on a `createNextI18n` result. A suffix rule
+  // would have reported the next README's own recommended chain.
+  const scoped = [
+    "```ts",
+    "export const { i18n } = createNextI18n({ locales: ['en'], defaultLocale: 'en' })",
+    "  .use(nextPlugin(localeDetectorPlugin({ order: ['cookie'] }), { runtime: 'client' }));",
+    "```",
+  ].join("\n");
+  const lazy = [
+    "```ts",
+    "export const { i18n } = createNextI18n({ locales: ['en'], defaultLocale: 'en' })",
+    "  .use(nextPluginLazy(async () => myPlugin, { runtime: 'client' }));",
+    "```",
+  ].join("\n");
+
+  assert.deepEqual(rulesOf(scoped), []);
+  assert.deepEqual(rulesOf(lazy), []);
+});
+
+test(".use(localeDetector()) → clean, the suffix-free name IS the installer", () => {
   const body = [
     "```ts",
     "const i18n = createI18n({ locale: 'en' }).use(localeDetector({ order: ['navigator'] }));",
@@ -1511,7 +1564,7 @@ test(".with(installer()) and .with(attachLoader) → still banned, the verb is g
     "```ts",
     "const a = createI18n({ locale: 'en' }).with(myOwnInstaller());",
     "const b = createI18n({ locale: 'en' }).with(attachLoader);",
-    "const c = createI18n({ locale: 'en' }).with(FetchLoader());",
+    "const c = createI18n({ locale: 'en' }).with(fetchLoaderPlugin());",
     "```",
   ].join("\n");
 

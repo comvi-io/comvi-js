@@ -23,13 +23,13 @@ export { resolveFallback } from "./fallback";
  * @example
  * ```typescript
  * import { createI18n } from '@comvi/core';
- * import { FetchLoader } from '@comvi/plugin-fetch-loader';
+ * import { fetchLoaderPlugin } from '@comvi/plugin-fetch-loader';
  *
  * const i18n = createI18n({
  *   locale: 'en',
  *   apiKey: 'your-api-key',
  * })
- * .registerPlugin(FetchLoader({
+ * .registerPlugin(fetchLoaderPlugin({
  *   cdnUrl: 'https://cdn.comvi.io/your-distribution-id',
  *   fallback: {
  *     'en': () => import('./locales/en.json'),
@@ -40,7 +40,7 @@ export { resolveFallback } from "./fallback";
  * await i18n.init();
  * ```
  */
-export const FetchLoader: I18nPluginFactory<FetchLoaderOptions> = (options): I18nPlugin => {
+export const fetchLoaderPlugin: I18nPluginFactory<FetchLoaderOptions> = (options): I18nPlugin => {
   if (!options?.cdnUrl) throw new Error(`${ERROR_PREFIX} cdnUrl is required`);
 
   const {

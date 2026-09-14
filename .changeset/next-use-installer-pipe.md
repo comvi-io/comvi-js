@@ -45,10 +45,10 @@ move such a call onto `nextPlugin`.
 
 **`localeDetector()` must not be composed on this host.** It is process-wide on the App Router, so
 the first request's headers would pin the locale for every later render; use
-`nextPlugin(LocaleDetector(…), { runtime: "client" })`.
+`nextPlugin(localeDetectorPlugin(…), { runtime: "client" })`.
 
-**`compiler?: MessageCompiler` on `CreateNextI18nOptions`**, defaulting to `icuCompiler` in 0.5
-(the composed root keeps its published ICU behaviour), so ICU is the same single switch here as on
+**`compiler?: MessageCompiler` on `CreateNextI18nOptions`**, with NO default (see
+`next-no-icu-default.md`), so ICU is the same single switch here as on
 `createI18n` — pass your own compiler to opt out. The hardcode in the composed-host builder is
 removed. `apiKey` / `devMode` are documented for what they are: forwarded to the host for a
 fetch-loader plugin to read; this factory loads nothing on its own.
@@ -84,7 +84,7 @@ Migration of the documented config file:
 +  .use(loader({ en: () => import("./locales/en.json"), uk: () => import("./locales/uk.json") }))
 +  .use(
 +    nextPluginLazy(
-+      () => import("@comvi/plugin-in-context-editor").then((m) => m.InContextEditorPlugin()),
++      () => import("@comvi/plugin-in-context-editor").then((m) => m.inContextEditorPlugin()),
 +      { runtime: "client", environment: "development", required: false },
 +    ),
 +  );

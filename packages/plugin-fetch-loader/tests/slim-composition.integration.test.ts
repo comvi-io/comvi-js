@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import { createI18n, hasPluginHostApi } from "@comvi/core";
 import { attachLoader } from "@comvi/core/loader";
 import { plugins } from "@comvi/core/plugins";
-import { FetchLoader, FETCH_LOADER_PLUGIN_KEY } from "../src/index";
+import { fetchLoaderPlugin, FETCH_LOADER_PLUGIN_KEY } from "../src/index";
 import { mockCdnSuccessResponse, mockCdnErrorResponse, TEST_CDN_URL } from "./setup";
 
 /**
@@ -34,7 +34,7 @@ describe("published plugins on a composed slim host", () => {
     // Before the plugin runs the host is composed but unconfigured.
     expect(i18n.getLoader()).toBeUndefined();
 
-    i18n.registerPlugin(FetchLoader({ cdnUrl: TEST_CDN_URL, loadOnInit: true }));
+    i18n.registerPlugin(fetchLoaderPlugin({ cdnUrl: TEST_CDN_URL, loadOnInit: true }));
     await i18n.init();
 
     expect(typeof i18n.getLoader()).toBe("function");
@@ -56,7 +56,7 @@ describe("published plugins on a composed slim host", () => {
     const onLoadError = vi.fn();
 
     const i18n = composed();
-    i18n.registerPlugin(FetchLoader({ cdnUrl: TEST_CDN_URL, loadOnInit: true, onLoadError }));
+    i18n.registerPlugin(fetchLoaderPlugin({ cdnUrl: TEST_CDN_URL, loadOnInit: true, onLoadError }));
     await i18n.init();
     await i18n.destroy();
 
@@ -70,7 +70,7 @@ describe("published plugins on a composed slim host", () => {
     const onLoadError = vi.fn();
 
     const i18n = composed();
-    i18n.registerPlugin(FetchLoader({ cdnUrl: TEST_CDN_URL, loadOnInit: true, onLoadError }));
+    i18n.registerPlugin(fetchLoaderPlugin({ cdnUrl: TEST_CDN_URL, loadOnInit: true, onLoadError }));
 
     // The plugin registers its loader and core drives the initial namespace
     // load, so a total failure propagates out of init() exactly as it does on
@@ -91,8 +91,8 @@ describe("published plugins on a composed slim host", () => {
       createI18n({ locale: "en", exposeGlobal: false, devMode: false }),
     ).use(plugins());
 
-    piped.registerPlugin(FetchLoader({ cdnUrl: TEST_CDN_URL, loadOnInit: true }));
-    attached.registerPlugin(FetchLoader({ cdnUrl: TEST_CDN_URL, loadOnInit: true }));
+    piped.registerPlugin(fetchLoaderPlugin({ cdnUrl: TEST_CDN_URL, loadOnInit: true }));
+    attached.registerPlugin(fetchLoaderPlugin({ cdnUrl: TEST_CDN_URL, loadOnInit: true }));
     await piped.init();
     await attached.init();
 

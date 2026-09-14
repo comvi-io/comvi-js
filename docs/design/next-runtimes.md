@@ -73,7 +73,7 @@ still exactly one source of truth for the URL rules. Declare `locales` separatel
 
 It lives at module scope and is process-wide, so the detector would run once, at the host's
 `init()`, and the first request's headers would pin the locale for every later render.
-`nextPlugin(LocaleDetector(…), { runtime: "client" })` is the form: the browser has exactly one
+`nextPlugin(localeDetectorPlugin(…), { runtime: "client" })` is the form: the browser has exactly one
 visitor, and the server's locale is the request's — `getI18n()` passes it explicitly.
 
 ## The server request contract

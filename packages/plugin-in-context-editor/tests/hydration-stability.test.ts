@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createI18n } from "./helpers/composedHost";
-import { InContextEditorPlugin } from "../src/index";
+import { inContextEditorPlugin } from "../src/index";
 import { getKeyMappings, resetEncoder } from "../src/translation";
 
 // Declared out of sorted order on purpose: ids come from a sort of the pending
@@ -22,7 +22,7 @@ async function createServerLikeI18n(
     translation,
   });
 
-  i18n.registerPlugin(InContextEditorPlugin());
+  i18n.registerPlugin(inContextEditorPlugin());
   await i18n.init();
   return i18n;
 }

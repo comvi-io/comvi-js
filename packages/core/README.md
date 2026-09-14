@@ -235,7 +235,7 @@ const i18n = createI18n({ locale: "en" }).use(attachLoader);
 i18n.registerLoader(async (locale, ns) => (await fetch(`/i18n/${locale}/${ns}.json`)).json());
 ```
 
-First-party plugin packages ship a lowercase **installer** beside an uppercase factory. The
+First-party plugin packages ship an **installer** beside a `*Plugin` factory. The
 installer composes whatever capabilities that plugin needs and registers it, in one call; the
 factory goes to `registerPlugin` on a host you composed yourself:
 

@@ -306,7 +306,7 @@ The distribution id in `cdnUrl` comes from the Comvi platform: open your project
 **Never compose `localeDetector()` on this host.** It lives at module scope and is process-wide on
 the App Router, so the detector would run once, at `init()`, and the first request's headers would
 pin the locale for every later render. Use
-`nextPlugin(LocaleDetector(…), { runtime: "client" })` instead.
+`nextPlugin(localeDetectorPlugin(…), { runtime: "client" })` instead.
 
 ## 4. Next.js API reference
 
@@ -430,15 +430,15 @@ the installer widened the host to.
 
 ```ts
 import { createNextI18n, definePlugin, loader, nextPlugin, nextPluginLazy } from "@comvi/next";
-import { LocaleDetector } from "@comvi/plugin-locale-detector";
+import { localeDetectorPlugin } from "@comvi/plugin-locale-detector";
 import { routing } from "./routing";
 
 export const { i18n } = createNextI18n({ ...routing, fallbackLocale: "en" })
   .use(loader({ en: () => import("./locales/en.json"), uk: () => import("./locales/uk.json") }))
-  .use(nextPlugin(LocaleDetector({ order: ["cookie", "navigator"] }), { runtime: "client" }))
+  .use(nextPlugin(localeDetectorPlugin({ order: ["cookie", "navigator"] }), { runtime: "client" }))
   .use(
     nextPluginLazy(
-      () => import("@comvi/plugin-in-context-editor").then((m) => m.InContextEditorPlugin()),
+      () => import("@comvi/plugin-in-context-editor").then((m) => m.inContextEditorPlugin()),
       { runtime: "client", environment: "development", required: false },
     ),
   )
@@ -456,7 +456,7 @@ from the root, `/client` and `/server`:
 `options` also takes every plugin option (`required`, `timeout`, `onError`), forwarded to
 `registerPlugin`. Both attach the plugin host if the chain has not already, exactly like
 `definePlugin(fn)` — which is what an unscoped plugin of your own goes through. A plugin package goes
-straight in through its lowercase installer (`cdnLoader(…)`, never `CdnLoader(…)`). A plugin scoped
+straight in through its bare-name installer (`cdnLoader(…)`, never `cdnLoaderPlugin(…)`). A plugin scoped
 out of the current runtime is still imported; `nextPluginLazy` is the form that defers the import
 too.
 

@@ -41,7 +41,7 @@ export type I18nPlugin = (
  *
  * @example
  * ```typescript
- * const FetchLoader = (options: { apiUrl: string }): I18nPlugin => (i18n) => {
+ * const fetchLoaderPlugin = (options: { apiUrl: string }): I18nPlugin => (i18n) => {
  *   i18n.registerLoader(async (locale, ns) => {
  *     const res = await fetch(`${options.apiUrl}/${locale}/${ns}.json`);
  *     return res.json();

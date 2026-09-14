@@ -152,13 +152,13 @@ fallback uses the optional `fallback` import map.
 
 ## Reference: the installer and the factory
 
-Each entry point exports one name for each way in: `cdnLoader` / `CdnLoader` on `/cdn`,
-`fetchLoader` / `FetchLoader` at the root. The table uses the `/cdn` pair; the root pair behaves
+Each entry point exports one name for each way in: `cdnLoader` / `cdnLoaderPlugin` on `/cdn`,
+`fetchLoader` / `fetchLoaderPlugin` at the root. The table uses the `/cdn` pair; the root pair behaves
 identically.
 
-|                   | `.use(cdnLoader(options))`                    | `registerPlugin(CdnLoader(options))`                                             |
+|                   | `.use(cdnLoader(options))`                    | `registerPlugin(cdnLoaderPlugin(options))`                                       |
 | ----------------- | --------------------------------------------- | -------------------------------------------------------------------------------- |
-| what it is        | the **installer**, lowercase                  | the **plugin factory**, uppercase                                                |
+| what it is        | the **installer** — the bare name             | the **plugin factory** — the `*Plugin` name                                      |
 | the host it needs | any host, including a bare `createI18n(…)`    | one that already has the loader **and** plugin capabilities                      |
 | what it composes  | both capabilities, idempotently, loader first | nothing; it only registers                                                       |
 | use it when       | you are setting up the host                   | you already compose capabilities explicitly, or you register plugins from a list |
@@ -169,15 +169,15 @@ Both end in the same place. The installer is the one-call form of this:
 import { createI18n } from "@comvi/core";
 import { attachLoader } from "@comvi/core/loader";
 import { attachPlugins } from "@comvi/core/plugins";
-import { CdnLoader } from "@comvi/plugin-fetch-loader/cdn";
+import { cdnLoaderPlugin } from "@comvi/plugin-fetch-loader/cdn";
 
 const i18n = createI18n({ locale: "en" }).use(attachLoader).use(attachPlugins);
-i18n.registerPlugin(CdnLoader({ cdnUrl: "https://cdn.comvi.io/your-distribution-id" }));
+i18n.registerPlugin(cdnLoaderPlugin({ cdnUrl: "https://cdn.comvi.io/your-distribution-id" }));
 ```
 
 **Swapping the two is a type error, and each half is caught at runtime too.**
 `registerPlugin(cdnLoader(…))` fails at `init()` with `E_INSTALLER_AS_PLUGIN`, the first thing the
-installer does, before it has set anything up. `.use(CdnLoader(…))` throws
+installer does, before it has set anything up. `.use(cdnLoaderPlugin(…))` throws
 `E_USE_NOT_INSTALLER`: a plugin is not an installer, so what it hands back is not the host. `.use`
 calls it before it checks, so the plugin runs outside `init()`'s drain loop and, being async, hands
 back a promise nobody awaits. Register it with `registerPlugin`, where `required`, `timeout`,

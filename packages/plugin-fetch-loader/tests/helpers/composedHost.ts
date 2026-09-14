@@ -1,5 +1,5 @@
 // The composed host these suites assume. `@comvi/core`'s root is the bare base
-// host; `FetchLoader` needs `registerLoader` (`@comvi/core/loader`) and
+// host; `fetchLoaderPlugin` needs `registerLoader` (`@comvi/core/loader`) and
 // `setPluginData` (`@comvi/core/plugins`), so hosts are constructed here rather
 // than with `new I18n(…)` from the root.
 //

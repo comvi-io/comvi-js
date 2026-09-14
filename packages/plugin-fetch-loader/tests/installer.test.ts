@@ -4,13 +4,13 @@ import { createI18n, hasLoaderApi } from "@comvi/core";
 import { attachLoader } from "@comvi/core/loader";
 import { plugins } from "@comvi/core/plugins";
 import type { I18nPlugin } from "@comvi/core";
-import { FETCH_LOADER_PLUGIN_KEY, FetchLoader, fetchLoader } from "../src/index";
+import { FETCH_LOADER_PLUGIN_KEY, fetchLoaderPlugin, fetchLoader } from "../src/index";
 import { buildTestCdnUrl, mockCdnSuccessResponse, server, TEST_CDN_URL } from "./setup";
 
 /**
  * `fetchLoader(options)` is the one-call form of the recipe the composed-host
  * suite spells out: `.use(attachLoader).use(plugins())` then
- * `registerPlugin(FetchLoader(options))` — same host, same lifecycle, same teardown, and
+ * `registerPlugin(fetchLoaderPlugin(options))` — same host, same lifecycle, same teardown, and
  * it must reject the two cross-uses the type system also rejects.
  */
 const base = () => createI18n({ locale: "en", exposeGlobal: false, devMode: false });
@@ -47,7 +47,7 @@ describe("fetchLoader() installer", () => {
 
     const installed = base().use(fetchLoader(OPTIONS));
     const explicit = base().use(attachLoader).use(plugins());
-    explicit.registerPlugin(FetchLoader(OPTIONS));
+    explicit.registerPlugin(fetchLoaderPlugin(OPTIONS));
 
     await installed.init();
     await explicit.init();
@@ -163,10 +163,10 @@ describe("fetchLoader() wrong use", () => {
     await expect(i18n.destroy()).resolves.toBeUndefined();
   });
 
-  it("rejects the uppercase factory handed to .use()", () => {
+  it("rejects the `*Plugin` factory handed to .use()", () => {
     const i18n = base();
 
-    // `FetchLoader` is an ASYNC plugin, so calling it returns a Promise —
+    // `fetchLoaderPlugin` is an ASYNC plugin, so calling it returns a Promise —
     // which any "did it return an object?" probe would wave through, leaving
     // the plugin running at composition time with its rejection unhandled.
     // `.use`'s rule is IDENTITY: the Promise is not the host, so this throws
@@ -174,7 +174,7 @@ describe("fetchLoader() wrong use", () => {
     // promise the already-invoked plugin left behind (no unhandled rejection
     // on top of a clear diagnostic — vitest would fail the file for one).
     expect(() =>
-      i18n.use(FetchLoader(OPTIONS) as unknown as Parameters<typeof i18n.use>[0]),
+      i18n.use(fetchLoaderPlugin(OPTIONS) as unknown as Parameters<typeof i18n.use>[0]),
     ).toThrow(expect.objectContaining({ code: "E_USE_NOT_INSTALLER" }));
 
     expect((i18n as unknown as Record<string, unknown>).registerLoader).toBeUndefined();

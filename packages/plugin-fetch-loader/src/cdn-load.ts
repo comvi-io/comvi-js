@@ -29,8 +29,8 @@ export interface CdnLoad {
 }
 
 /**
- * THE CDN request path — the one both `FetchLoader` (as its no-`apiKey` branch)
- * and `CdnLoader` (as its whole job) run.
+ * THE CDN request path — the one both `fetchLoaderPlugin` (as its no-`apiKey` branch)
+ * and `cdnLoaderPlugin` (as its whole job) run.
  *
  * One request per `locale:namespace`, under a timeout that covers the response
  * BODY, with the `fallback` import map behind it. Nothing here is retried: core's

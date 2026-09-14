@@ -37,7 +37,7 @@ property shadows the inherited prototype member, and registered state is kept.
 Configuration is separate — `.use(loader(map))` on an already-composed host still registers
 the map.
 
-Plugin packages are unaffected, and now ALSO ship a lowercase installer each — `fetchLoader`,
+Plugin packages are unaffected, and now ALSO ship a bare-name installer each — `fetchLoader`,
 `localeDetector`, `inContextEditor` — which composes the capabilities their plugin needs and then
 routes into the same `registerPlugin`. Nothing is removed: `attachLoader` / `attachPlugins` /
 `attachDevtools` remain the low-level API, and every 0.4.x import path still resolves. See the

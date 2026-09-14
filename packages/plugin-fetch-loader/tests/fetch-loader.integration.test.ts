@@ -1,5 +1,5 @@
 import { afterEach, describe, it, expect, vi } from "vitest";
-import { FetchLoader, fetchProjectInfo } from "../src/index";
+import { fetchLoaderPlugin, fetchProjectInfo } from "../src/index";
 import { I18n } from "./helpers/composedHost";
 import { http, HttpResponse } from "msw";
 import { deferred } from "./helpers/deferred";
@@ -18,7 +18,7 @@ import {
 /** `expect.poll` defaults to a 50 ms retry interval; nothing here needs to wait that long. */
 const POLL = { interval: 1, timeout: 500 };
 
-describe("FetchLoader plugin on a live host", () => {
+describe("fetchLoaderPlugin plugin on a live host", () => {
   describe("Plugin lifecycle", () => {
     it("loads initial namespaces after later plugins have registered", async () => {
       const i18n = new I18n({ locale: "en", devMode: false });
@@ -30,7 +30,7 @@ describe("FetchLoader plugin on a live host", () => {
         namespaceLoadedAfterLaterPlugin.push(laterPluginRan);
       });
 
-      i18n.registerPlugin(FetchLoader({ cdnUrl: TEST_CDN_URL, loadOnInit: true }));
+      i18n.registerPlugin(fetchLoaderPlugin({ cdnUrl: TEST_CDN_URL, loadOnInit: true }));
       i18n.registerPlugin(() => {
         laterPluginRan = true;
       });
@@ -49,7 +49,7 @@ describe("FetchLoader plugin on a live host", () => {
       mockCdnSuccessResponse("en", "default", { key: "Hello" });
       mockCdnSuccessResponse("fr", "default", { key: "Bonjour" });
 
-      const plugin = FetchLoader({ cdnUrl: TEST_CDN_URL, loadOnInit: true });
+      const plugin = fetchLoaderPlugin({ cdnUrl: TEST_CDN_URL, loadOnInit: true });
       await plugin(i18n);
 
       i18n.locale = "fr";
@@ -64,7 +64,7 @@ describe("FetchLoader plugin on a live host", () => {
       mockCdnSuccessResponse("en", "default", { key: "Hello" });
       mockCdnErrorResponse("fr", "default", 404, "Not Found");
 
-      const plugin = FetchLoader({
+      const plugin = fetchLoaderPlugin({
         cdnUrl: TEST_CDN_URL,
         loadOnInit: true,
         onLoadError,
@@ -87,7 +87,7 @@ describe("FetchLoader plugin on a live host", () => {
         mockCdnSuccessResponse(lang, "default", createMockTranslations(lang));
       }
 
-      const plugin = FetchLoader({ cdnUrl: TEST_CDN_URL, loadOnInit: true });
+      const plugin = fetchLoaderPlugin({ cdnUrl: TEST_CDN_URL, loadOnInit: true });
       await plugin(i18n);
 
       i18n.locale = "fr";
@@ -109,7 +109,7 @@ describe("FetchLoader plugin on a live host", () => {
         ),
       );
 
-      const plugin = FetchLoader({ cdnUrl: TEST_CDN_URL, loadOnInit: true });
+      const plugin = fetchLoaderPlugin({ cdnUrl: TEST_CDN_URL, loadOnInit: true });
       await plugin(i18n);
 
       await i18n.addActiveNamespace("dashboard");
@@ -128,7 +128,7 @@ describe("FetchLoader plugin on a live host", () => {
         http.get(`${TEST_CDN_URL}/errors/fr.json`, () => HttpResponse.json({ error: "Erreur FR" })),
       );
 
-      const plugin = FetchLoader({ cdnUrl: TEST_CDN_URL, loadOnInit: true });
+      const plugin = fetchLoaderPlugin({ cdnUrl: TEST_CDN_URL, loadOnInit: true });
       await plugin(i18n);
 
       await i18n.addActiveNamespace("errors");
@@ -153,7 +153,7 @@ describe("FetchLoader plugin on a live host", () => {
         );
       }
 
-      const plugin = FetchLoader({ cdnUrl: TEST_CDN_URL, loadOnInit: true });
+      const plugin = fetchLoaderPlugin({ cdnUrl: TEST_CDN_URL, loadOnInit: true });
       await plugin(i18n);
 
       i18n.locale = "fr";
@@ -171,7 +171,7 @@ describe("FetchLoader plugin on a live host", () => {
       mockCdnSuccessResponse("en", "default", { key: "Hello" });
       mockCdnSuccessResponse("fr", "default", { key: "Bonjour" });
 
-      const plugin = FetchLoader({ cdnUrl: TEST_CDN_URL, loadOnInit: false });
+      const plugin = fetchLoaderPlugin({ cdnUrl: TEST_CDN_URL, loadOnInit: false });
       await plugin(i18n);
 
       await i18n.addActiveNamespace("default");
@@ -196,7 +196,7 @@ describe("FetchLoader plugin on a live host", () => {
 
       mockCdnDeferredResponse("en", "default");
 
-      const plugin = FetchLoader({ cdnUrl: TEST_CDN_URL, loadOnInit: false, onLoadError });
+      const plugin = fetchLoaderPlugin({ cdnUrl: TEST_CDN_URL, loadOnInit: false, onLoadError });
       const cleanup = await plugin(i18n);
       const pendingLoad = i18n.getLoader()!("en", "default");
 
@@ -213,7 +213,7 @@ describe("FetchLoader plugin on a live host", () => {
 
       mockCdnDeferredResponse("en", "forest", "default");
 
-      const plugin = FetchLoader({
+      const plugin = fetchLoaderPlugin({
         cdnUrl: TEST_CDN_URL,
         cdnLayout: { rootNamespace: "default" },
         loadOnInit: false,
@@ -242,7 +242,7 @@ describe("FetchLoader plugin on a live host", () => {
       });
       mockCdnErrorResponse("en", "default", 503, "Unavailable");
 
-      const plugin = FetchLoader({
+      const plugin = fetchLoaderPlugin({
         cdnUrl: TEST_CDN_URL,
         loadOnInit: false,
         fallback: { en: fallback },
@@ -277,7 +277,7 @@ describe("FetchLoader plugin on a live host", () => {
         ),
       );
 
-      const plugin = FetchLoader({ cdnUrl: TEST_CDN_URL, loadOnInit: false, onLoadError });
+      const plugin = fetchLoaderPlugin({ cdnUrl: TEST_CDN_URL, loadOnInit: false, onLoadError });
       await plugin(i18n);
 
       await expect(i18n.getLoader()!("en", "default")).rejects.toThrow(
@@ -303,7 +303,7 @@ describe("FetchLoader plugin on a live host", () => {
         ),
       );
 
-      const plugin = FetchLoader({
+      const plugin = fetchLoaderPlugin({
         cdnUrl: TEST_CDN_URL,
         cdnLayout: { rootNamespace: "default" },
         loadOnInit: false,
@@ -325,7 +325,7 @@ describe("FetchLoader plugin on a live host", () => {
           HttpResponse.json(createMockApiResponse(["en"], ["default"])),
         ),
       );
-      const plugin = FetchLoader({
+      const plugin = fetchLoaderPlugin({
         cdnUrl: TEST_CDN_URL,
         loadOnInit: false,
         cache: { revalidate: 3600, tags: ["i18n"] },
@@ -362,7 +362,7 @@ describe("FetchLoader plugin on a live host", () => {
         }),
       );
 
-      const plugin = FetchLoader({ cdnUrl: TEST_CDN_URL, loadOnInit: false });
+      const plugin = fetchLoaderPlugin({ cdnUrl: TEST_CDN_URL, loadOnInit: false });
       await plugin(i18n);
 
       await i18n.addActiveNamespace("default");
@@ -381,7 +381,7 @@ describe("FetchLoader plugin on a live host", () => {
 
       mockCdnErrorResponse("en", "default", 503, "Service Unavailable");
 
-      const plugin = FetchLoader({
+      const plugin = fetchLoaderPlugin({
         cdnUrl: TEST_CDN_URL,
         fallback: {
           en: () => Promise.resolve({ default: { welcome: "Welcome from fallback" } }),
@@ -402,7 +402,7 @@ describe("FetchLoader plugin on a live host", () => {
 
       const fallbackFn = vi.fn().mockResolvedValue({ default: { key: "fallback" } });
 
-      const plugin = FetchLoader({
+      const plugin = fetchLoaderPlugin({
         cdnUrl: TEST_CDN_URL,
         fallback: { en: fallbackFn, fr: fallbackFn },
         loadOnInit: true,
@@ -518,7 +518,7 @@ describe("FetchLoader plugin on a live host", () => {
       const i18n = new I18n({ locale: "en", devMode: false });
       const onLoadError = vi.fn();
       const response = mockCdnDeferredResponse("en", "default");
-      const plugin = FetchLoader({ cdnUrl: TEST_CDN_URL, loadOnInit: false, onLoadError });
+      const plugin = fetchLoaderPlugin({ cdnUrl: TEST_CDN_URL, loadOnInit: false, onLoadError });
       await plugin(i18n);
       const pendingLoad = i18n.getLoader()!("en", "default");
       await response.requested;
@@ -532,7 +532,7 @@ describe("FetchLoader plugin on a live host", () => {
     it("aborts every in-flight CDN load when the whole cache is cleared", async () => {
       const i18n = new I18n({ locale: "en", devMode: false });
       const response = mockCdnDeferredResponse("fr", "dashboard");
-      const plugin = FetchLoader({ cdnUrl: TEST_CDN_URL, loadOnInit: false });
+      const plugin = fetchLoaderPlugin({ cdnUrl: TEST_CDN_URL, loadOnInit: false });
       await plugin(i18n);
       const pendingLoad = i18n.getLoader()!("fr", "dashboard");
       await response.requested;
@@ -545,7 +545,7 @@ describe("FetchLoader plugin on a live host", () => {
     it("leaves an in-flight CDN load for another locale running", async () => {
       const i18n = new I18n({ locale: "en", devMode: false });
       const response = mockCdnDeferredResponse("en", "default");
-      const plugin = FetchLoader({ cdnUrl: TEST_CDN_URL, loadOnInit: false });
+      const plugin = fetchLoaderPlugin({ cdnUrl: TEST_CDN_URL, loadOnInit: false });
       await plugin(i18n);
       const pendingLoad = i18n.getLoader()!("en", "default");
       await response.requested;
@@ -559,7 +559,7 @@ describe("FetchLoader plugin on a live host", () => {
     it("leaves an in-flight CDN load for another namespace running", async () => {
       const i18n = new I18n({ locale: "en", devMode: false });
       const response = mockCdnDeferredResponse("en", "default");
-      const plugin = FetchLoader({ cdnUrl: TEST_CDN_URL, loadOnInit: false });
+      const plugin = fetchLoaderPlugin({ cdnUrl: TEST_CDN_URL, loadOnInit: false });
       await plugin(i18n);
       const pendingLoad = i18n.getLoader()!("en", "default");
       await response.requested;
@@ -580,7 +580,7 @@ describe("FetchLoader plugin on a live host", () => {
           return new Promise<Response>(() => {});
         }),
       );
-      const plugin = FetchLoader({ cdnUrl: TEST_CDN_URL, loadOnInit: false, onLoadError });
+      const plugin = fetchLoaderPlugin({ cdnUrl: TEST_CDN_URL, loadOnInit: false, onLoadError });
       await plugin(i18n);
       const pendingLoad = i18n.getLoader()!("en", "default");
       await requested.promise;
@@ -596,7 +596,7 @@ describe("FetchLoader plugin on a live host", () => {
       const loadError = vi.fn();
       i18n.on("loadError", loadError);
       const response = mockCdnDeferredResponse("en", "default");
-      const plugin = FetchLoader({ cdnUrl: TEST_CDN_URL, loadOnInit: false });
+      const plugin = fetchLoaderPlugin({ cdnUrl: TEST_CDN_URL, loadOnInit: false });
       await plugin(i18n);
       const activation = i18n.addActiveNamespace("default");
       await response.requested;
@@ -625,7 +625,7 @@ describe("FetchLoader plugin on a live host", () => {
           return answer.promise;
         }),
       );
-      const plugin = FetchLoader({ cdnUrl: TEST_CDN_URL, loadOnInit: false, onLoadError });
+      const plugin = fetchLoaderPlugin({ cdnUrl: TEST_CDN_URL, loadOnInit: false, onLoadError });
       await plugin(i18n);
       const activation = i18n.addActiveNamespaces(["default", "dashboard"]);
       await requested.promise;
@@ -642,7 +642,7 @@ describe("FetchLoader plugin on a live host", () => {
     it("stops following the host once the plugin is cleaned up", async () => {
       const i18n = new I18n({ locale: "en", devMode: false });
       const response = mockCdnDeferredResponse("en", "default");
-      const plugin = FetchLoader({ cdnUrl: TEST_CDN_URL, loadOnInit: false });
+      const plugin = fetchLoaderPlugin({ cdnUrl: TEST_CDN_URL, loadOnInit: false });
       const cleanup = (await plugin(i18n)) as () => void;
       const pendingLoad = i18n.getLoader()!("en", "default");
       await response.requested;

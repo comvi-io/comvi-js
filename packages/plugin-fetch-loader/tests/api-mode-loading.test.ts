@@ -5,7 +5,7 @@
  */
 import { describe, it, expect, vi } from "vitest";
 import { http, HttpResponse } from "msw";
-import { FetchLoader } from "../src/index";
+import { fetchLoaderPlugin } from "../src/index";
 import type { TranslationValue } from "@comvi/core";
 import { I18n } from "./helpers/composedHost";
 import { deferred } from "./helpers/deferred";
@@ -44,12 +44,12 @@ function mockApiEchoingRequestedNamespaces(available: Record<string, Record<stri
   return { requests };
 }
 
-describe("FetchLoader() in API mode", () => {
+describe("fetchLoaderPlugin() in API mode", () => {
   it("makes one request for two concurrent loads of the same namespace", async () => {
     const i18n = devHost();
     const { requests } = mockApiEchoingRequestedNamespaces({ default: { hello: "Hi" } });
 
-    await FetchLoader({ cdnUrl: TEST_CDN_URL, loadOnInit: false })(i18n);
+    await fetchLoaderPlugin({ cdnUrl: TEST_CDN_URL, loadOnInit: false })(i18n);
     const load = i18n.getLoader()!;
     const both = await Promise.all([load("en", "default"), load("en", "default")]);
 
@@ -63,7 +63,7 @@ describe("FetchLoader() in API mode", () => {
     i18n.addTranslations({ "fr:dashboard": { title: "Tableau" } });
     mockApiEchoingRequestedNamespaces({ default: { hello: "Hi" } });
 
-    await FetchLoader({ cdnUrl: TEST_CDN_URL, loadOnInit: false, onLoadSuccess })(i18n);
+    await fetchLoaderPlugin({ cdnUrl: TEST_CDN_URL, loadOnInit: false, onLoadSuccess })(i18n);
     await i18n.getLoader()!("en", "default");
 
     expect(onLoadSuccess).toHaveBeenCalledExactlyOnceWith("en", "default");
@@ -74,7 +74,7 @@ describe("FetchLoader() in API mode", () => {
     i18n.addTranslations({ "fr:dashboard": { title: "Tableau" } });
     mockApiEchoingRequestedNamespaces({ dashboard: { title: "Dashboard" } });
 
-    await FetchLoader({ cdnUrl: TEST_CDN_URL, loadOnInit: true })(i18n);
+    await fetchLoaderPlugin({ cdnUrl: TEST_CDN_URL, loadOnInit: true })(i18n);
 
     expect(i18n.t("title", { ns: "dashboard" })).toBe("Dashboard");
   });
@@ -87,7 +87,7 @@ describe("FetchLoader() in API mode", () => {
     });
     mockApiEchoingRequestedNamespaces({ default: { hello: "Hi" } });
 
-    await FetchLoader({ cdnUrl: TEST_CDN_URL, loadOnInit: true })(i18n);
+    await fetchLoaderPlugin({ cdnUrl: TEST_CDN_URL, loadOnInit: true })(i18n);
 
     expect([i18n.hasLocale("en", "default"), i18n.hasLocale("en", "dashboard")]).toEqual([
       true,
@@ -96,12 +96,12 @@ describe("FetchLoader() in API mode", () => {
   });
 });
 
-describe("FetchLoader() in API mode fallbacks", () => {
+describe("fetchLoaderPlugin() in API mode fallbacks", () => {
   it("falls back to the local import for a namespace the response omits", async () => {
     const i18n = devHost();
     mockApiEchoingRequestedNamespaces({ default: { hello: "Hi" } });
 
-    await FetchLoader({
+    await fetchLoaderPlugin({
       cdnUrl: TEST_CDN_URL,
       loadOnInit: false,
       fallback: { "en:missing": () => Promise.resolve({ default: { key: "Offline" } }) },
@@ -115,7 +115,7 @@ describe("FetchLoader() in API mode fallbacks", () => {
     const onLoadError = vi.fn();
     mockApiEchoingRequestedNamespaces({ default: { hello: "Hi" } });
 
-    await FetchLoader({
+    await fetchLoaderPlugin({
       cdnUrl: TEST_CDN_URL,
       loadOnInit: false,
       fallback: { "en:missing": () => Promise.reject(new Error("Offline import failed")) },
@@ -139,9 +139,11 @@ describe("FetchLoader() in API mode fallbacks", () => {
     const fallback = vi.fn(() => Promise.reject(new Error("Fallback failed")));
     mockApiErrorResponse(500, "Server Error");
 
-    await FetchLoader({ cdnUrl: TEST_CDN_URL, loadOnInit: false, fallback: { en: fallback } })(
-      i18n,
-    );
+    await fetchLoaderPlugin({
+      cdnUrl: TEST_CDN_URL,
+      loadOnInit: false,
+      fallback: { en: fallback },
+    })(i18n);
 
     await expect(i18n.getLoader()!("en", "default")).rejects.toThrow(
       "[@comvi/plugin-fetch-loader] No translations found for en:default",
@@ -155,9 +157,11 @@ describe("FetchLoader() in API mode fallbacks", () => {
     const fallback = vi.fn(() => Promise.resolve(empty));
     mockApiErrorResponse(500, "Server Error");
 
-    await FetchLoader({ cdnUrl: TEST_CDN_URL, loadOnInit: false, fallback: { en: fallback } })(
-      i18n,
-    );
+    await fetchLoaderPlugin({
+      cdnUrl: TEST_CDN_URL,
+      loadOnInit: false,
+      fallback: { en: fallback },
+    })(i18n);
 
     await expect(i18n.getLoader()!("en", "default")).rejects.toThrow(
       "[@comvi/plugin-fetch-loader] No translations found for en:default",
@@ -166,13 +170,13 @@ describe("FetchLoader() in API mode fallbacks", () => {
   });
 });
 
-describe("FetchLoader() in API mode after cleanup", () => {
+describe("fetchLoaderPlugin() in API mode after cleanup", () => {
   it("discards a response whose body arrives after cleanup", async () => {
     const i18n = devHost();
     const onLoadSuccess = vi.fn();
     const response = stubFetchWithDeferredBody();
 
-    const cleanup = await FetchLoader({
+    const cleanup = await fetchLoaderPlugin({
       cdnUrl: TEST_CDN_URL,
       loadOnInit: false,
       onLoadSuccess,
@@ -193,7 +197,7 @@ describe("FetchLoader() in API mode after cleanup", () => {
     const fallback = vi.fn(() => Promise.resolve({ default: { hello: "Offline" } }));
     const response = stubFetchWithDeferredBody();
 
-    const cleanup = await FetchLoader({
+    const cleanup = await fetchLoaderPlugin({
       cdnUrl: TEST_CDN_URL,
       loadOnInit: false,
       fallback: { en: fallback },
@@ -216,7 +220,7 @@ describe("FetchLoader() in API mode after cleanup", () => {
     const result = deferred<{ default: Record<string, string> }>();
     mockApiErrorResponse(500, "Server Error");
 
-    const cleanup = await FetchLoader({
+    const cleanup = await fetchLoaderPlugin({
       cdnUrl: TEST_CDN_URL,
       loadOnInit: false,
       onLoadSuccess,
@@ -242,7 +246,7 @@ describe("FetchLoader() in API mode after cleanup", () => {
     const result = deferred<{ default: Record<string, string> }>();
     mockApiEchoingRequestedNamespaces({ default: { hello: "Hi" } });
 
-    const cleanup = await FetchLoader({
+    const cleanup = await fetchLoaderPlugin({
       cdnUrl: TEST_CDN_URL,
       loadOnInit: false,
       fallback: {

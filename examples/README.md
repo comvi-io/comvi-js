@@ -270,7 +270,7 @@ Three details are worth reading in the source:
   takes a plain function. `.use(installer)` is the one composition verb and is
   on every host; `registerPlugin()` is the raw queue that lives on the plugin
   capability, not on the base host, and no example needs it — a plugin package's
-  lowercase installer registers its plugin for you, and an app's own plugin goes
+  bare-name installer registers its plugin for you, and an app's own plugin goes
   through `.use(definePlugin(fn))`.
 - **ICU is opt-in.** Without `compiler: icuCompiler` the plural line in the
   catalog is not syntax; the simple compiler renders the braced segment

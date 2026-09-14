@@ -61,7 +61,7 @@ choice to offer. Every constructor, `createNextI18n` included, leaves the compil
 the plugin host and devtools inside the package — but it is not the base host and not what
 `createI18n` returns on any entry.
 
-First-party plugins ship a lowercase **installer** beside the uppercase factory, and the installer
+First-party plugins ship an **installer** beside a `*Plugin` factory, and the installer
 composes whatever capabilities that plugin needs: `.use(cdnLoader({ cdnUrl }))`,
 `.use(localeDetector())`, `.use(inContextEditor())`.
 
@@ -74,7 +74,7 @@ composes whatever capabilities that plugin needs: `.use(cdnLoader({ cdnUrl }))`,
 import { createI18n } from "@comvi/core";
 import { loader } from "@comvi/core/loader";
 import { plugins } from "@comvi/core/plugins";
-import { LocaleDetector } from "@comvi/plugin-locale-detector";
+import { localeDetectorPlugin } from "@comvi/plugin-locale-detector";
 
 const i18n = createI18n({
   locale: "en",
@@ -84,7 +84,7 @@ const i18n = createI18n({
   .use(loader({ uk: () => import("./uk.json") }))
   .use(plugins());
 
-i18n.registerPlugin(LocaleDetector({ supportedLocales: ["en", "uk"] }));
+i18n.registerPlugin(localeDetectorPlugin({ supportedLocales: ["en", "uk"] }));
 
 await i18n.init();
 i18n.t("greeting", { name: "Alice" }); // "Hello, Alice!"
@@ -230,16 +230,16 @@ warning.
 import { createI18n } from "@comvi/core";
 import { attachLoader } from "@comvi/core/loader";
 import { plugins } from "@comvi/core/plugins";
-import { CdnLoader } from "@comvi/plugin-fetch-loader/cdn";
+import { cdnLoaderPlugin } from "@comvi/plugin-fetch-loader/cdn";
 
 const i18n = createI18n({ locale: "en", fallbackLocale: "en" }).use(attachLoader).use(plugins());
 
-i18n.registerPlugin(CdnLoader({ cdnUrl: "https://cdn.comvi.io/your-distribution-id" }));
+i18n.registerPlugin(cdnLoaderPlugin({ cdnUrl: "https://cdn.comvi.io/your-distribution-id" }));
 ```
 
 Swapping the two slots is a type error, and both halves are caught at runtime as well.
 `registerPlugin(cdnLoader(…))` throws `E_INSTALLER_AS_PLUGIN` at `init()`, on the installer's first
-ensure-step, before any capability is attached. `.use(CdnLoader(…))` throws `E_USE_NOT_INSTALLER`:
+ensure-step, before any capability is attached. `.use(cdnLoaderPlugin(…))` throws `E_USE_NOT_INSTALLER`:
 `.use` is a pipe and nothing more — it never inspects, orders or brands the function you hand it —
 but it does check the one thing that makes a function an installer. It calls the function before it
 checks, so this plugin runs outside `init()`'s drain loop and, being async, hands back a promise

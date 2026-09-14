@@ -1,4 +1,4 @@
-/** Manual init/stop for standalone use; prefer `InContextEditorPlugin`. */
+/** Manual init/stop for standalone use; prefer `inContextEditorPlugin`. */
 
 import { Core } from "./Core";
 import type { TranslationSystemOptions } from "./types";

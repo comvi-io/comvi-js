@@ -4,7 +4,7 @@
  * The CDN request path on its own. Same two ways in as the package root:
  * - `.use(cdnLoader(options))` — composes the loader and plugin capabilities,
  *   then registers the plugin. Start here.
- * - `registerPlugin(CdnLoader(options))` — the plugin factory, for a host that already
+ * - `registerPlugin(cdnLoaderPlugin(options))` — the plugin factory, for a host that already
  *   has both capabilities.
  *
  * Use the root entry's `fetchLoader` instead when the app also reads the Comvi
@@ -12,6 +12,6 @@
  * `apiKey` on the host changes nothing here.
  */
 export type { CdnLoaderOptions } from "./options";
-export { CdnLoader } from "./loader";
+export { cdnLoaderPlugin } from "./loader";
 export { cdnLoader } from "./installer";
 export type { CdnLoaderInstaller } from "./installer";

@@ -47,7 +47,7 @@ function manifest(name, exported) {
  *
  * `@comvi/core`'s root exports `flattenCatalog` and its `./loader` does not —
  * the exact split that shipped broken — and `@comvi/plugin-fetch-loader` has it
- * the other way round: `CdnLoader` lives on the `./cdn` subpath and not on the
+ * the other way round: `cdnLoaderPlugin` lives on the `./cdn` subpath and not on the
  * root.
  */
 function makeSurfaceRoot(t) {
@@ -113,12 +113,12 @@ function makeSurfaceRoot(t) {
   );
   write(
     path.join(fetchLoader, "src/index.ts"),
-    ["export class FetchLoader {}", "export function fetchLoader() {}", ""].join("\n"),
+    ["export class fetchLoaderPlugin {}", "export function fetchLoader() {}", ""].join("\n"),
   );
   // A directory index, the way `@comvi/plugin-fetch-loader/cdn` really is built.
   write(
     path.join(fetchLoader, "src/cdn/index.ts"),
-    ["export class CdnLoader {}", "export function cdnLoader() {}", ""].join("\n"),
+    ["export class cdnLoaderPlugin {}", "export function cdnLoader() {}", ""].join("\n"),
   );
 
   const nuxt = path.join(root, "packages/nuxt");
@@ -198,12 +198,12 @@ test("the same split the other way round: a subpath export imported from the roo
   const surface = surfaceOf(t);
 
   const findings = importFindings(
-    fence('import { CdnLoader } from "@comvi/plugin-fetch-loader";'),
+    fence('import { cdnLoaderPlugin } from "@comvi/plugin-fetch-loader";'),
     surface,
   );
 
   assert.equal(findings.length, 1);
-  assert.match(findings[0], /@comvi\/plugin-fetch-loader has no export named CdnLoader/);
+  assert.match(findings[0], /@comvi\/plugin-fetch-loader has no export named cdnLoaderPlugin/);
   assert.match(findings[0], /exported from @comvi\/plugin-fetch-loader\/cdn/);
 });
 
@@ -311,7 +311,7 @@ test("a subpath specifier resolves through its own entry source, index files inc
     importFindings(
       fence(
         'import { icuCompiler } from "@comvi/core/icu";',
-        'import { cdnLoader, CdnLoader } from "@comvi/plugin-fetch-loader/cdn";',
+        'import { cdnLoader, cdnLoaderPlugin } from "@comvi/plugin-fetch-loader/cdn";',
         'import { defineComviSetup } from "@comvi/nuxt/runtime/setup";',
       ),
       surface,
@@ -585,7 +585,7 @@ test("whereIs names the entry points that export a symbol, its own package first
     ["@comvi/core"],
   );
   assert.deepEqual(
-    surface.whereIs("CdnLoader", "@comvi/plugin-fetch-loader").map((hit) => hit.specifier),
+    surface.whereIs("cdnLoaderPlugin", "@comvi/plugin-fetch-loader").map((hit) => hit.specifier),
     ["@comvi/plugin-fetch-loader/cdn"],
   );
   assert.deepEqual(surface.whereIs("nothingExportsThis", "@comvi/core"), []);

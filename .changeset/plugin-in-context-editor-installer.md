@@ -2,7 +2,7 @@
 "@comvi/plugin-in-context-editor": minor
 ---
 
-**Added: `inContextEditor(options)` — the lowercase `.use(…)` installer, under both export
+**Added: `inContextEditor(options)` — the bare-name `.use(…)` installer, under both export
 conditions.** `@comvi/core` is the base host now, so extension discovery and the plugin host
 are imports you add; the installer composes both and registers the editor plugin in one
 call.
@@ -26,7 +26,8 @@ literally `(host) => host`. The type is IDENTICAL under both conditions, so a
 `.use(inContextEditor())` chain type-checks and behaves the same whichever entry your
 bundler picked. If you want `registerPlugin` yourself, compose `.use(plugins())`.
 
-`InContextEditorPlugin` is unchanged, and the installer re-implements no lifecycle: `required`,
+`inContextEditorPlugin` behaves exactly as `InContextEditorPlugin` did (the rename is
+in its own changeset), and the installer re-implements no lifecycle: `required`,
 `timeout`, `onError`, cleanup registration and LIFO destroy keep running inside the plugin host,
 because the installer's last act is `registerPlugin`. Putting one in the other's slot is a type
 error and loud at runtime — and under `production` `registerPlugin(inContextEditor(…))` is caught

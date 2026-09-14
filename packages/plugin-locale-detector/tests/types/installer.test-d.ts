@@ -1,11 +1,15 @@
 // Type-level contract for this package's installer/factory pair.
 //
-// `localeDetector` (lowercase) belongs to `.use`, `LocaleDetector`
-// (uppercase) to `.use`, and NEITHER is branded — the two are kept apart by
+// `localeDetector` (no suffix) belongs to `.use`, `localeDetectorPlugin`
+// (the `*Plugin` name) to `.use`, and NEITHER is branded — the two are kept apart by
 // their signatures alone, which is exactly what these assertions pin.
 import { createI18n } from "@comvi/core";
 import { plugins } from "@comvi/core/plugins";
-import { LocaleDetector, localeDetector, type LocaleDetectorInstaller } from "../../src/index";
+import {
+  localeDetectorPlugin,
+  localeDetector,
+  type LocaleDetectorInstaller,
+} from "../../src/index";
 
 const OPTIONS = { supportedLocales: ["en", "uk"], caches: ["cookie" as const] };
 
@@ -29,16 +33,16 @@ export const installer: LocaleDetectorInstaller = localeDetector();
 export const twice = composed.use(localeDetector(OPTIONS));
 void twice.use;
 
-// WRONG — the uppercase PLUGIN through `.use`. A plugin demands a plugin
+// WRONG — the `*Plugin` FACTORY through `.use`. A plugin demands a plugin
 // host; the pipe hands it whatever it was called on.
 // @ts-expect-error
-createI18n({ locale: "en" }).use(LocaleDetector(OPTIONS));
+createI18n({ locale: "en" }).use(localeDetectorPlugin(OPTIONS));
 
-// WRONG — the lowercase INSTALLER through `.use`. An installer returns a
+// WRONG — the bare-name INSTALLER through `.use`. An installer returns a
 // host, and a plugin may only return nothing or a cleanup function.
 // @ts-expect-error
 createI18n({ locale: "en" }).use(plugins()).registerPlugin(localeDetector(OPTIONS));
 
-// VALID — the uppercase factory on a host that already has the capability.
+// VALID — the `*Plugin` factory on a host that already has the capability.
 export const manual = createI18n({ locale: "en" }).use(plugins());
-manual.registerPlugin(LocaleDetector(OPTIONS));
+manual.registerPlugin(localeDetectorPlugin(OPTIONS));

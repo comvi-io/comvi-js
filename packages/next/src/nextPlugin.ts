@@ -114,7 +114,7 @@ const createScopedLazyPlugin = (
  *
  * ```ts
  * createNextI18n({ ...routing })
- *   .use(nextPlugin(LocaleDetector({ order: ["cookie", "navigator"] }), { runtime: "client" }))
+ *   .use(nextPlugin(localeDetectorPlugin({ order: ["cookie", "navigator"] }), { runtime: "client" }))
  *   .use(nextPlugin(Metrics(), { environment: "production", required: false }));
  * ```
  *
@@ -127,7 +127,7 @@ const createScopedLazyPlugin = (
  * (see {@link nextPluginLazy} for the deferred import).
  *
  * The module-scope host behind `createNextI18n` is process-wide on the App
- * Router, so a locale detector belongs here — `nextPlugin(LocaleDetector(…),
+ * Router, so a locale detector belongs here — `nextPlugin(localeDetectorPlugin(…),
  * { runtime: "client" })` — and never in `.use(localeDetector(…))`, which
  * would let the first request's headers pin the locale for every later render.
  */
@@ -151,7 +151,7 @@ export function nextPlugin(
  * ```ts
  * createNextI18n({ ...routing }).use(
  *   nextPluginLazy(
- *     () => import("@comvi/plugin-in-context-editor").then((m) => m.InContextEditorPlugin()),
+ *     () => import("@comvi/plugin-in-context-editor").then((m) => m.inContextEditorPlugin()),
  *     { runtime: "client", environment: "development", required: false },
  *   ),
  * );

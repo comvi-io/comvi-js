@@ -27,7 +27,7 @@
 // acquires the capability must not pay for it — the root is the base floor.
 //
 // Two misuse guards live in this capability, so only apps that compose it pay
-// for them. `ensureInstallable` is the installer-as-plugin guard a lowercase
+// for them. `ensureInstallable` is the installer-as-plugin guard an
 // installer calls first, so `registerPlugin(fetchLoader(…))` fails before
 // anything is attached. Independently, `init()` rejects a plugin that returns
 // an OBJECT — only nothing and a cleanup function are legal, which catches an
@@ -77,7 +77,7 @@ export function plugins(): <T extends I18n<any>>(i18n: T) => T & I18nPluginHostA
  * `definePlugin(fn)` is `attachPlugins(host).registerPlugin(fn)` wrapped as an
  * installer, so it attaches the plugin host if the chain has not already, and
  * it can appear anywhere in a `.use` chain before `init()`. A plugin PACKAGE
- * ships its own lowercase installer (`fetchLoader()`, `localeDetector()`) —
+ * ships its own bare-name installer (`fetchLoader()`, `localeDetector()`) —
  * those go straight into `.use(…)` and must NOT be wrapped here.
  */
 export function definePlugin(

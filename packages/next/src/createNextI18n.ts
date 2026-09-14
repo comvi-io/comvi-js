@@ -104,7 +104,7 @@ export interface CreateNextI18nResult<
    * ```ts
    * export const { i18n, routing } = createNextI18n({ ...routing, fallbackLocale: "en" })
    *   .use(loader({ en: () => import("./locales/en.json") }))
-   *   .use(nextPlugin(LocaleDetector({ order: ["cookie"] }), { runtime: "client" }));
+   *   .use(nextPlugin(localeDetectorPlugin({ order: ["cookie"] }), { runtime: "client" }));
    * ```
    *
    * A plugin scoped to one runtime or build environment goes through
@@ -117,7 +117,7 @@ export interface CreateNextI18nResult<
    * and is process-wide on the App Router, so the detector would run once, at
    * the host's `init()`, and the first request's headers would pin the locale
    * for every later render. Use
-   * `nextPlugin(LocaleDetector(…), { runtime: "client" })` instead: the
+   * `nextPlugin(localeDetectorPlugin(…), { runtime: "client" })` instead: the
    * browser has exactly one visitor.
    *
    * Installers widen the host IN PLACE and return it, and everything else in
@@ -218,7 +218,7 @@ export function createNextI18n<const D extends DefaultTranslationParams = {}>(
         }
         const error = new Error(
           IS_DEV
-            ? "[i18n] .use(installer) must return the host it was given. A raw plugin goes through .use(definePlugin(f)) or .use(nextPlugin(f, { runtime })); a plugin package's installer is the lowercase factory (localeDetector(), not LocaleDetector())."
+            ? "[i18n] .use(installer) must return the host it was given. A raw plugin goes through .use(definePlugin(f)) or .use(nextPlugin(f, { runtime })); a plugin package's installer is the name WITHOUT the Plugin suffix (localeDetector(), not localeDetectorPlugin())."
             : "E_USE_HOST_IDENTITY",
         ) as UseHostIdentityError;
         error.code = "E_USE_HOST_IDENTITY";

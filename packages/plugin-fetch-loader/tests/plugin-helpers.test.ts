@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { FetchLoader, getFetchLoaderConfig, resolveFallback } from "../src/index";
+import { fetchLoaderPlugin, getFetchLoaderConfig, resolveFallback } from "../src/index";
 import { I18n } from "./helpers/composedHost";
 import { mockCdnSuccessResponse, TEST_CDN_URL } from "./setup";
 
@@ -8,7 +8,7 @@ describe("getFetchLoaderConfig()", () => {
     const i18n = new I18n({ locale: "en", devMode: false });
     mockCdnSuccessResponse("en", "default", { hello: "Hello" });
 
-    await FetchLoader({ cdnUrl: TEST_CDN_URL, timeout: 1234, loadOnInit: true })(i18n);
+    await fetchLoaderPlugin({ cdnUrl: TEST_CDN_URL, timeout: 1234, loadOnInit: true })(i18n);
 
     expect(getFetchLoaderConfig(i18n)).toEqual({
       cdnUrl: TEST_CDN_URL,
