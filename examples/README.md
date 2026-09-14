@@ -170,7 +170,8 @@ rather than a taste: `middleware.ts` runs in the Edge runtime, which ships and
 executes every module its entry reaches on each cold start, so importing the
 composed host for one plain object pulled core, the compiler, the loader, the
 plugin host, devtools and the tag grammar into middleware — measured with esbuild at
-30.3 KB / 25 modules, against 3.8 KB / 7 modules through the routing file.
+30.3 KB / 25 modules, against 3.8 KB / 7 modules through the routing file, on a
+config that names `compiler: icuCompiler`.
 `config.ts` spreads the same object straight back in, so the rules the
 middleware enforces and the rules the app renders with are still one source.
 

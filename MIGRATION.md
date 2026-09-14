@@ -351,8 +351,10 @@ Pick by what you have. `loader` names the import-map adapter statically, so
 referencing it pulls that adapter in whether or not you pass a map. With a map,
 use `loader(map)`. With a plain `LoaderFn`, use `.use(attachLoader)` and register
 it yourself. **`registerLoader` takes a function**, not a map, on every host but
-the two fully composed ones: the overload lives on core's `full` host, which is
-what `createNextI18n`'s composed host and the CDN/UMD global are both built from.
+the two fully composed ones: the overload lives on core's `full` host, which the
+CDN/UMD global publishes; `createNextI18n` builds on the base host and restores
+the same overload on its own composed host. Neither the overload nor the compiler
+travels with the other — next takes the map form and no compiler.
 
 ### `@comvi/react`, `@comvi/solid`, `@comvi/svelte`
 

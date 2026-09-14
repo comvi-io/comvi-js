@@ -50,10 +50,11 @@ request with no determinable locale throws before it triggers that one-time init
 
 ### Why the URL rules live in a third file
 
-A `middleware.ts` that does `import { routing } from "./i18n/config"` pulls core, ICU, the loader,
-the plugin host, devtools and the tag grammar into the Edge isolate — and runs `createNextI18n()`
-and `registerLoader()` there — for one plain object: 30.3 KB across 25 modules, against 3.8 KB
-across 7 with a `defineRouting` file (esbuild, minified, Next's externals).
+A `middleware.ts` that does `import { routing } from "./i18n/config"` pulls core, the loader, the
+plugin host, devtools, the tag grammar and whatever compiler the config names into the Edge isolate
+— and runs `createNextI18n()` and `registerLoader()` there — for one plain object: 30.3 KB across 25
+modules, against 3.8 KB across 7 with a `defineRouting` file (esbuild, minified, Next's externals,
+measured on a config that names `compiler: icuCompiler`).
 
 ```ts title="src/i18n/routing.ts"
 // The URL rules, and nothing else. No host, no core, no capability.

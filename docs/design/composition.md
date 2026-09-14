@@ -89,8 +89,8 @@ plugin `required`, `timeout`, `onError` and cleanup.
 
 ## Alternatives rejected
 
-- **A full root beside a lean `@comvi/core/slim`** — made a tier the reader's first decision, and
-  the lean tier went unfound. Deleted; it never published.
+- **A full root beside a lean `@comvi/core/slim`** — made a tier the reader's first decision.
+  Deleted; it never published.
 - **`.with(installer)` beside `.use(plugin)`** — two verbs one letter apart, opposite timing, a coin
   toss at every call site. No alias survives.
 - **A shape probe for installers** — a `*Plugin` factory is async, so calling one returns a Promise,
@@ -104,7 +104,7 @@ plugin `required`, `timeout`, `onError` and cleanup.
 
 ## Where it lives
 
-- `createI18n`, `class I18n` and `use` — `packages/core/src/index.ts`, `packages/core/src/core/I18n.ts`
+- `createI18n`, `class I18n` and `use` — `packages/core/src/index.ts`, `packages/core/src/core/i18n.ts`
 - `loader`, `attachLoader`, `createImportMapLoader`, `acquireLoaderApi` — `.../src/loader.ts`;
   `plugins`, `definePlugin`, `attachPlugins`, `acquirePluginsApi` — `.../src/plugins.ts`;
   `devtools`, `attachDevtools` — `packages/core/src/devtools.ts`

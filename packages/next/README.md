@@ -204,8 +204,8 @@ Add locale-prefixed URLs with a `defineRouting` module and a middleware — see
 
 Three questions, and the first is already answered in step 1.
 
-1. **Which parser?** `compiler: icuCompiler`, unchanged from step 1. The platform's catalogs use ICU plurals, and the
-   default `{param}` compiler does not render them. Without `compiler: icuCompiler`, an ICU message
+1. **Which parser?** `compiler: icuCompiler`, unchanged from step 1. The platform's catalogs use
+   ICU plurals, and the default `{param}` compiler does not render them. Without `compiler: icuCompiler`, an ICU message
    (`{count, plural, …}`) throws `E_ICU_SYNTAX` in development the moment the catalog is loaded,
    before anything renders; in production it renders the message text literally and reports the
    error through `onError` (`console.error` when no handler is set).
@@ -396,16 +396,16 @@ pulls the host into a server module.
 `createNextI18n`, from `@comvi/next`, is the recommendation: it builds the composed host, the
 routing config, and the `.use(installer)` pipe in one call. Both quickstarts above use it.
 
-It composes the 0.4 host explicitly, so its published behaviour is preserved exactly: ICU, ambient
-tag syntax, the loader (with both `registerLoader` overloads), the plugin host, default params and
-devtools discovery. **ICU defaults to `icuCompiler` here**; pass your own `MessageCompiler` to opt
-out (`compiler: undefined` is not an opt-out, since the default still applies). The host type is
-published as `NextComposedI18n<D>`.
+It composes the 0.4 host's capabilities explicitly: ambient tag syntax, the loader (with both
+`registerLoader` overloads), the plugin host, default params and devtools discovery. The compiler is
+**not** on that list — `compiler: icuCompiler` is the explicit option here exactly as it is on every
+other constructor in the repo. The host type is published as `NextComposedI18n<D>`.
 
-`createI18n` on `@comvi/next/client` and `@comvi/next/server` is core's base host constructor, and
-has the **opposite** default: it composes nothing you did not ask for, ICU included. It is not a
-second option to weigh against `createNextI18n` — it exists for the host factory
-`createNextI18nFromHost` takes, and for 0.4 callers migrating a direct `createI18n(...)` call.
+`createI18n` on `@comvi/next/client` and `@comvi/next/server` is core's base host constructor, so it
+composes none of those five and you add the ones you need. The two differ in the capabilities they
+bring, never in the compiler. It is not a second option to weigh against `createNextI18n` — it
+exists for the host factory `createNextI18nFromHost` takes, and for 0.4 callers migrating a direct
+`createI18n(...)` call.
 
 `createNextI18nFromHost`, exported from `@comvi/next/server` and nowhere else, takes a host built
 elsewhere plus routing-only options. Construction is eager: the factory runs once, inside the call,

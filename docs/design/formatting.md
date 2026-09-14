@@ -1,7 +1,8 @@
 # Formatters are free functions, and the bindings' reactivity asymmetry is deliberate
 
 Status: accepted · Date: 2026-09-14 · Owner decision(s): 0.5.0 base-host convergence — formatting
-stays off the instance (`.changeset/core-framework-slim-host.md`)
+stays off the instance and off the binding roots (`.changeset/vue-single-package-slim.md`), and the
+per-binding reactivity split (`.changeset/spa-parity-use-i18n-members.md`)
 
 ## Context
 
