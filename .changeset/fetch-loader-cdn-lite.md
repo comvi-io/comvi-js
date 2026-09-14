@@ -3,7 +3,7 @@
 ---
 
 New entry point `@comvi/plugin-fetch-loader/cdn`: `cdnLoader(options)` and
-`CdnLoader(options)`, the CDN half of the fetch loader on its own.
+`cdnLoaderPlugin(options)`, the CDN half of the fetch loader on its own.
 
 `fetchLoader()` decides between the CDN and the Comvi API at runtime, from the
 host's `apiKey`, so an app that only ever reads a public distribution still
@@ -30,7 +30,8 @@ const i18n = createI18n({ locale: "en" }).use(
 `apiBaseUrl` and `retry` only describe the API request path, so naming one here
 is a compile error rather than a setting that quietly does nothing.
 
-`fetchLoader()` and `FetchLoader()` behave exactly as before — keep them wherever
+`fetchLoader()` and `fetchLoaderPlugin()` (0.4's `FetchLoader()`) behave exactly as
+before — keep them wherever
 the host carries an `apiKey`. They are 233 B larger: 199 B because the CDN
 request path is now ONE shared implementation both entries run rather than two
 copies that could drift, and 34 B for the longer error prefix below. The docs

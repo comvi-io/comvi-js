@@ -572,7 +572,12 @@ describe(".use(installer) — the composition pipe", () => {
       expect(message).toContain("returns the host it was given");
       expect(message).toContain(".use(definePlugin(f))");
       expect(message).toContain("registerPlugin(f)");
-      expect(message).toContain("localeDetector(), not LocaleDetector()");
+      // The two names no longer differ by letter case, so the sentence cannot
+      // tell the reader to "use the lowercase one": it names the SUFFIX, and
+      // the example shows both names side by side.
+      expect(message).toContain("the name WITHOUT the Plugin suffix");
+      expect(message).toContain("localeDetector(), not localeDetectorPlugin()");
+      expect(message).not.toContain("lowercase");
     });
 
     it("names WHAT came back, which is what separates the three misuses", () => {

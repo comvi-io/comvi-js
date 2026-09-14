@@ -14,7 +14,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { asPluginHost, createI18n, type ComposedHost } from "./helpers/composedHost";
 import { CollectorTransport } from "../src/collector/transport";
-import { InContextEditorPlugin } from "../src/index";
+import { inContextEditorPlugin } from "../src/index";
 
 let handshakeSpy: ReturnType<typeof vi.spyOn>;
 
@@ -30,7 +30,7 @@ function makeHost(collectContext?: boolean): ComposedHost {
 
 /** Installs the plugin and lets `Collector.start()`'s microtasks settle. */
 async function install(host: ComposedHost, options?: { collectContext?: boolean }) {
-  const cleanup = InContextEditorPlugin(options)(asPluginHost(host)) as () => void;
+  const cleanup = inContextEditorPlugin(options)(asPluginHost(host)) as () => void;
   await Promise.resolve();
   await Promise.resolve();
   return cleanup;

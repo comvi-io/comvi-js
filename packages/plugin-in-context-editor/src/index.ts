@@ -116,18 +116,18 @@ const noopPlugin: I18nPlugin = () => {
  * @example
  * ```typescript
  * import { createI18n } from '@comvi/vue';
- * import { InContextEditorPlugin } from '@comvi/plugin-in-context-editor';
+ * import { inContextEditorPlugin } from '@comvi/plugin-in-context-editor';
  *
  * const i18n = createI18n({
  *   locale: 'en',
  *   apiKey: 'your-api-key'
  * });
- * i18n.registerPlugin(InContextEditorPlugin());
+ * i18n.registerPlugin(inContextEditorPlugin());
  *
  * await i18n.init();
  * ```
  */
-export const InContextEditorPlugin: I18nPluginFactory<EditorOptions> = (options): I18nPlugin => {
+export const inContextEditorPlugin: I18nPluginFactory<EditorOptions> = (options): I18nPlugin => {
   // Belt-and-suspenders for bundlers that ignore the "production" export
   // condition (which maps to the lightweight entry-production stub): never
   // activate the editor runtime in production builds.
@@ -276,7 +276,7 @@ export type InContextEditorInstaller = <T extends I18n<any>>(i18n: T) => T;
 export function inContextEditor(options?: EditorOptions): InContextEditorInstaller {
   return (i18n) => {
     const host = attachPlugins(attachDevtools(ensureInstallable(i18n, "inContextEditor")));
-    host.registerPlugin(InContextEditorPlugin(options));
+    host.registerPlugin(inContextEditorPlugin(options));
     return i18n;
   };
 }

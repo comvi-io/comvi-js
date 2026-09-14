@@ -43,8 +43,10 @@ export function createComposedNextI18n<const D extends DefaultTranslationParams 
     translation?: I18nOptions["translation"];
   };
 
-  // The compiler is the caller's: `createNextI18n` defaults it to `icuCompiler`
-  // and publishes that default, so nothing is forced here.
+  // The compiler is the caller's, and nothing defaults it: `createNextI18n`
+  // forwards whatever the app named, so an app that never names one gets
+  // core's `{param}` compiler exactly as `createI18n` does. ICU is never
+  // enabled here.
   const host = attachPlugins(attachLoader(createI18n<D>(rest as unknown as I18nOptions<D>)));
 
   // The 0.4 root's `registerLoader` accepted a static import map as well as a

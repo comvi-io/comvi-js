@@ -79,7 +79,7 @@ const useNotInstallerMessage = (widened: unknown): string =>
       : typeof widened === "object" && typeof (widened as { then?: unknown }).then === "function"
         ? "a thenable object (an async function is not an installer)"
         : typeof widened
-  }. A raw plugin goes through .use(definePlugin(f)) or registerPlugin(f); a plugin package's installer is the lowercase factory (localeDetector(), not LocaleDetector()).`;
+  }. A raw plugin goes through .use(definePlugin(f)) or registerPlugin(f); a plugin package's installer is the name WITHOUT the Plugin suffix (localeDetector(), not localeDetectorPlugin()).`;
 
 // Two copies of core share none of the module-scoped state below. DEV-only:
 // production drops the call, then the import, then the module itself.

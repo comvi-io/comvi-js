@@ -8,7 +8,7 @@
  * one request shape and asserts the timeout still lands.
  */
 import { describe, it, expect, afterEach, vi } from "vitest";
-import { FetchLoader, fetchApiTranslations, fetchProjectInfo } from "../src/index";
+import { fetchLoaderPlugin, fetchApiTranslations, fetchProjectInfo } from "../src/index";
 import { I18n } from "./helpers/composedHost";
 import { asFetch, jsonResponse } from "./helpers/transport";
 import { TEST_API_KEY, TEST_CDN_URL } from "./setup";
@@ -43,7 +43,7 @@ describe("a response body that never arrives", () => {
     const onLoadError = vi.fn();
     const i18n = new I18n({ locale: "en", devMode: false });
 
-    await FetchLoader({
+    await fetchLoaderPlugin({
       cdnUrl: TEST_CDN_URL,
       loadOnInit: false,
       timeout: TIMEOUT_MS,
@@ -67,7 +67,7 @@ describe("a response body that never arrives", () => {
     const onLoadError = vi.fn();
     const i18n = new I18n({ locale: "en", apiKey: TEST_API_KEY });
 
-    await FetchLoader({
+    await fetchLoaderPlugin({
       cdnUrl: TEST_CDN_URL,
       baseUrl: BASE,
       loadOnInit: false,

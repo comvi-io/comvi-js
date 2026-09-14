@@ -15,7 +15,7 @@ import type { I18nPlugin } from "../../src/plugins/types";
  * cross-uses and these guards make the runtime reject them too:
  *
  *   1. the NESTED-USE guard — `ensureInstallable`, the first ensure-step of
- *      every lowercase plugin-package installer. `registerPlugin(fetchLoader(…))` runs
+ *      every plugin-package installer. `registerPlugin(fetchLoader(…))` runs
  *      the installer from inside the init drain loop; the guard throws there,
  *      before any capability is attached and before a second plugin is queued;
  *   2. the RETURN-SHAPE guard — `init()` accepts only `undefined` or a cleanup
@@ -33,7 +33,7 @@ import type { I18nPlugin } from "../../src/plugins/types";
 const pluginHost = () => createI18n({ locale: "en", exposeGlobal: false }).use(plugins());
 
 /**
- * The shape every lowercase plugin-package installer has: guard first, then
+ * The shape every plugin-package installer has: guard first, then
  * the ensure-steps, then route into the host's own `use`. Standing in for
  * `fetchLoader` so core can pin the contract without depending on a package
  * that peer-depends on it.

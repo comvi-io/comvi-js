@@ -27,7 +27,7 @@ vi.mock("../src/config/api", async (importOriginal) => {
 
 vi.mock("../src/Core", mockCoreModule);
 
-import { InContextEditorPlugin } from "../src/index";
+import { inContextEditorPlugin } from "../src/index";
 import { activate, deactivate, isActive } from "../src/standalone";
 import { resetEncoder } from "../src/translation";
 
@@ -56,12 +56,12 @@ afterEach(() => {
   resetEncoder();
 });
 
-describe("InContextEditorPlugin startup failure", () => {
+describe("inContextEditorPlugin startup failure", () => {
   it("stops the editor Core and rethrows when the API configuration cannot be initialized", () => {
     const i18n = makeI18n();
     failWith(initApiConfigMock, "bad config");
 
-    expect(() => InContextEditorPlugin()(asPluginHost(i18n))).toThrow("bad config");
+    expect(() => inContextEditorPlugin()(asPluginHost(i18n))).toThrow("bad config");
 
     expect(coreStopMock).toHaveBeenCalledTimes(1);
   });

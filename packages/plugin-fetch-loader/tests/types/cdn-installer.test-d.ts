@@ -7,7 +7,7 @@
 import { createI18n } from "@comvi/core";
 import { attachLoader } from "@comvi/core/loader";
 import { plugins } from "@comvi/core/plugins";
-import { CdnLoader, cdnLoader, type CdnLoaderInstaller } from "../../src/cdn/index";
+import { cdnLoaderPlugin, cdnLoader, type CdnLoaderInstaller } from "../../src/cdn/index";
 
 const OPTIONS = { cdnUrl: "https://cdn.comvi.io/distribution" };
 
@@ -45,14 +45,14 @@ cdnLoader({ cdnUrl: "https://cdn.comvi.io/distribution", apiBaseUrl: "https://ap
 // @ts-expect-error
 cdnLoader({ cdnUrl: "https://cdn.comvi.io/distribution", retry: false });
 
-// WRONG — the uppercase PLUGIN through `.use`.
+// WRONG — the `*Plugin` FACTORY through `.use`.
 // @ts-expect-error
-createI18n({ locale: "en" }).use(CdnLoader(OPTIONS));
+createI18n({ locale: "en" }).use(cdnLoaderPlugin(OPTIONS));
 
-// WRONG — the lowercase INSTALLER through `.use`.
+// WRONG — the bare-name INSTALLER through `.use`.
 // @ts-expect-error
 createI18n({ locale: "en" }).use(plugins()).registerPlugin(cdnLoader(OPTIONS));
 
-// VALID — the uppercase factory on a host that already has both capabilities.
+// VALID — the `*Plugin` factory on a host that already has both capabilities.
 export const manual = createI18n({ locale: "en" }).use(attachLoader).use(plugins());
-manual.registerPlugin(CdnLoader(OPTIONS));
+manual.registerPlugin(cdnLoaderPlugin(OPTIONS));

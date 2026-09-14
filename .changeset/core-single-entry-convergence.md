@@ -12,8 +12,9 @@
 | discovery (`instanceId`, `window.__COMVI__`) | absent — invisible to the extension   | `.use(devtools())`                                                  |
 | string-API tags (`"<b>hi</b>"`)              | literal text, dev warning             | `<T>`, or `import "@comvi/core/tags"`                               |
 
-`new I18n(options)`, `@comvi/next`'s `createNextI18n` (now typed `NextComposedI18n<D>`) and
-the batteries-included CDN global are unchanged.
+`new I18n(options)` and the batteries-included CDN global are unchanged. `@comvi/next`'s
+`createNextI18n` (now typed `NextComposedI18n<D>`) keeps every capability in the table above
+and loses only its `compiler` default — see that package's own changesets.
 
 ```ts
 // INLINE catalogs.

@@ -46,7 +46,7 @@ const ERR_LATE_REGISTER_PLUGIN = IS_DEV
   : "";
 
 const ERR_PLUGIN_INIT_RETURN = IS_DEV
-  ? "[i18n] A plugin returned a value. A plugin may only return nothing (`undefined`) or a cleanup function, so nothing was registered. If this was a lowercase installer, compose it with `.use(installer(…))` — `registerPlugin()` runs it as a plugin and it hands the host back. If it was your own plugin, use a statement body: `(i18n) => { flag = true; }`."
+  ? "[i18n] A plugin returned a value. A plugin may only return nothing (`undefined`) or a cleanup function, so nothing was registered. If this was a bare-name installer, compose it with `.use(installer(…))` — `registerPlugin()` runs it as a plugin and it hands the host back. If it was your own plugin, use a statement body: `(i18n) => { flag = true; }`."
   : "E_PLUGIN_INIT_RETURN";
 
 /** @internal Registered plugin tuple; owned by the plugin capability. */
@@ -337,7 +337,7 @@ interface PluginInitProbe {
 }
 
 /**
- * The FIRST ensure-step of a lowercase plugin-package installer — the
+ * The FIRST ensure-step of a plugin-package installer — the
  * plugins-only installer-as-plugin guard.
  *
  * An installer is a function of the host, and so is a plugin: nothing brands

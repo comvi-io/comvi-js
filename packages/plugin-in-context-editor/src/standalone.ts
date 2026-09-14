@@ -3,7 +3,7 @@
  * extension loads it into pages at runtime.
  */
 
-import { InContextEditorPlugin, type EditorOptions } from "./index";
+import { inContextEditorPlugin, type EditorOptions } from "./index";
 import { ensureComviHook, readComviGlobalStatus } from "./comviHook";
 import { Core } from "./Core";
 import { getApiConfig, initApiConfig, resetApiConfig, type ApiTransport } from "./config/api";
@@ -329,7 +329,7 @@ export function getStatus(): {
   };
 }
 
-export { InContextEditorPlugin };
+export { inContextEditorPlugin };
 
 // Expose on window for CDN usage
 declare global {
@@ -339,7 +339,7 @@ declare global {
       deactivate: typeof deactivate;
       isActive: typeof isActive;
       getStatus: typeof getStatus;
-      InContextEditorPlugin: typeof InContextEditorPlugin;
+      inContextEditorPlugin: typeof inContextEditorPlugin;
     };
   }
 }
@@ -354,6 +354,6 @@ if (typeof window !== "undefined") {
     deactivate,
     isActive,
     getStatus,
-    InContextEditorPlugin,
+    inContextEditorPlugin,
   };
 }

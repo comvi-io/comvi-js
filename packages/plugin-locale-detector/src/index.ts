@@ -90,7 +90,7 @@ export interface LocaleDetectorOptions {
    *
    * @example
    * ```typescript
-   * LocaleDetector({
+   * localeDetectorPlugin({
    *   supportedLocales: ['en', 'de', 'pt-BR', 'pt-PT', 'zh-Hans', 'zh-Hant'],
    * })
    * ```
@@ -104,7 +104,7 @@ export interface LocaleDetectorOptions {
    *
    * @example
    * ```typescript
-   * LocaleDetector({
+   * localeDetectorPlugin({
    *   convertDetectedLocale: (lng) => lng.replace('_', '-'),
    * })
    * ```
@@ -125,10 +125,10 @@ interface DetectionResult {
  * @example
  * ```typescript
  * import { createI18n } from '@comvi/core';
- * import { LocaleDetector } from '@comvi/plugin-locale-detector';
+ * import { localeDetectorPlugin } from '@comvi/plugin-locale-detector';
  *
  * const i18n = createI18n({ locale: 'en' })
- *   .registerPlugin(LocaleDetector({
+ *   .registerPlugin(localeDetectorPlugin({
  *     order: ['querystring', 'localStorage', 'cookie', 'navigator'],
  *     caches: ['localStorage', 'cookie'],
  *     lookupQuerystring: 'lang',
@@ -136,7 +136,7 @@ interface DetectionResult {
  *   }));
  * ```
  */
-export const LocaleDetector: I18nPluginFactory<LocaleDetectorOptions> = (
+export const localeDetectorPlugin: I18nPluginFactory<LocaleDetectorOptions> = (
   options = {},
 ): I18nPlugin => {
   const {
@@ -294,12 +294,12 @@ export type LocaleDetectorInstaller = <T extends I18n<any>>(i18n: T) => T & I18n
  *
  * `registerPlugin(localeDetector(…))` is a type error, and at runtime fails at
  * `init()` on `ensureInstallable` before the plugin capability is attached.
- * Hand the uppercase `LocaleDetector` factory to `registerPlugin` instead.
+ * Hand the `localeDetectorPlugin` factory to `registerPlugin` instead.
  */
 export function localeDetector(options?: LocaleDetectorOptions): LocaleDetectorInstaller {
   return (i18n) => {
     const host = attachPlugins(ensureInstallable(i18n, "localeDetector"));
-    host.registerPlugin(LocaleDetector(options));
+    host.registerPlugin(localeDetectorPlugin(options));
     return host;
   };
 }

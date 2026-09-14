@@ -4,7 +4,7 @@
  */
 import { describe, it, expect, vi } from "vitest";
 import { http, HttpResponse } from "msw";
-import { FetchLoader } from "../src/index";
+import { fetchLoaderPlugin } from "../src/index";
 import { I18n } from "./helpers/composedHost";
 import { deferred } from "./helpers/deferred";
 import { stubFetchWithDeferredBody } from "./helpers/transport";
@@ -12,12 +12,12 @@ import { server, mockCdnErrorResponse, mockCdnSuccessResponse, TEST_CDN_URL } fr
 
 const CDN_ABORTED = `[@comvi/plugin-fetch-loader] Request aborted: ${TEST_CDN_URL}/en.json`;
 
-describe("FetchLoader() in CDN mode", () => {
+describe("fetchLoaderPlugin() in CDN mode", () => {
   it("loads the initial namespace when loadOnInit is left at its default", async () => {
     const i18n = new I18n({ locale: "en", devMode: false });
     mockCdnSuccessResponse("en", "default", { greeting: "Hello" });
 
-    await FetchLoader({ cdnUrl: TEST_CDN_URL })(i18n);
+    await fetchLoaderPlugin({ cdnUrl: TEST_CDN_URL })(i18n);
 
     expect(i18n.t("greeting")).toBe("Hello");
   });
@@ -31,13 +31,13 @@ describe("FetchLoader() in CDN mode", () => {
       ),
     );
 
-    await FetchLoader({ cdnUrl: TEST_CDN_URL, loadOnInit: true })(i18n);
+    await fetchLoaderPlugin({ cdnUrl: TEST_CDN_URL, loadOnInit: true })(i18n);
 
     expect(i18n.t("title", { ns: "dashboard" })).toBe("Dashboard");
   });
 });
 
-describe("FetchLoader() in CDN mode after cleanup", () => {
+describe("fetchLoaderPlugin() in CDN mode after cleanup", () => {
   it("makes no request for a load started after cleanup", async () => {
     const i18n = new I18n({ locale: "en", devMode: false });
     let requests = 0;
@@ -48,7 +48,7 @@ describe("FetchLoader() in CDN mode after cleanup", () => {
       }),
     );
 
-    const cleanup = await FetchLoader({ cdnUrl: TEST_CDN_URL, loadOnInit: false })(i18n);
+    const cleanup = await fetchLoaderPlugin({ cdnUrl: TEST_CDN_URL, loadOnInit: false })(i18n);
     (cleanup as () => void)();
 
     await expect(i18n.getLoader()!("en", "default")).rejects.toThrow(CDN_ABORTED);
@@ -60,7 +60,7 @@ describe("FetchLoader() in CDN mode after cleanup", () => {
     const onLoadSuccess = vi.fn();
     const response = stubFetchWithDeferredBody();
 
-    const cleanup = await FetchLoader({
+    const cleanup = await fetchLoaderPlugin({
       cdnUrl: TEST_CDN_URL,
       loadOnInit: false,
       onLoadSuccess,
@@ -79,7 +79,7 @@ describe("FetchLoader() in CDN mode after cleanup", () => {
     const fallback = vi.fn(() => Promise.resolve({ default: { greeting: "Offline" } }));
     const response = stubFetchWithDeferredBody();
 
-    const cleanup = await FetchLoader({
+    const cleanup = await fetchLoaderPlugin({
       cdnUrl: TEST_CDN_URL,
       loadOnInit: false,
       fallback: { en: fallback },
@@ -100,7 +100,7 @@ describe("FetchLoader() in CDN mode after cleanup", () => {
     const fallbackResult = deferred<{ default: Record<string, string> }>();
     mockCdnErrorResponse("en", "default", 503, "Unavailable");
 
-    const cleanup = await FetchLoader({
+    const cleanup = await fetchLoaderPlugin({
       cdnUrl: TEST_CDN_URL,
       loadOnInit: false,
       fallback: {
@@ -121,7 +121,7 @@ describe("FetchLoader() in CDN mode after cleanup", () => {
   });
 });
 
-describe("FetchLoader() in CDN mode error classification", () => {
+describe("fetchLoaderPlugin() in CDN mode error classification", () => {
   it("treats a transport-level AbortError as a cancellation, not a load failure", async () => {
     const i18n = new I18n({ locale: "en", devMode: false });
     const onLoadError = vi.fn();
@@ -129,7 +129,7 @@ describe("FetchLoader() in CDN mode error classification", () => {
       new DOMException("The operation was aborted.", "AbortError"),
     );
 
-    await FetchLoader({ cdnUrl: TEST_CDN_URL, loadOnInit: false, onLoadError })(i18n);
+    await fetchLoaderPlugin({ cdnUrl: TEST_CDN_URL, loadOnInit: false, onLoadError })(i18n);
 
     await expect(i18n.getLoader()!("en", "default")).rejects.toThrow(CDN_ABORTED);
     expect(onLoadError).not.toHaveBeenCalled();
@@ -140,7 +140,7 @@ describe("FetchLoader() in CDN mode error classification", () => {
     const onLoadError = vi.fn();
     mockCdnErrorResponse("en", "default", 500, "Server Error");
 
-    await FetchLoader({
+    await fetchLoaderPlugin({
       cdnUrl: TEST_CDN_URL,
       loadOnInit: false,
       fallback: { en: () => Promise.reject(new Error("Fallback failed")) },

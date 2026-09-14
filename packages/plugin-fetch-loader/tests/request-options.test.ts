@@ -3,7 +3,7 @@
  * the SSR cache hints (`next`) a framework host asked for.
  */
 import { describe, it, expect, vi } from "vitest";
-import { FetchLoader, fetchApiTranslations } from "../src/index";
+import { fetchLoaderPlugin, fetchApiTranslations } from "../src/index";
 import type { FetchLoaderOptions } from "../src/index";
 import { I18n } from "./helpers/composedHost";
 import { jsonResponse, recordingTransport } from "./helpers/transport";
@@ -18,7 +18,7 @@ async function cdnRequestInit(cache: FetchLoaderOptions["cache"]) {
   const fetchSpy = vi.spyOn(globalThis, "fetch");
   mockCdnSuccessResponse("en", "default", { key: "value" });
 
-  await FetchLoader({ cdnUrl: TEST_CDN_URL, loadOnInit: true, cache })(i18n);
+  await fetchLoaderPlugin({ cdnUrl: TEST_CDN_URL, loadOnInit: true, cache })(i18n);
 
   const call = fetchSpy.mock.calls.find(([input]) => String(input).endsWith("/en.json"));
   return call?.[1] as (RequestInit & { next?: unknown }) | undefined;

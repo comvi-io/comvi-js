@@ -361,12 +361,12 @@ test("real platform persists editor writes and SDK-configured context through th
       expect(loaderResult.translationEntries.some(([key]) => key === "en:common")).toBe(true);
     });
 
-    await test.step("the packed FetchLoader reads published translations from the CDN", async () => {
+    await test.step("the packed fetchLoaderPlugin reads published translations from the CDN", async () => {
       const cdnLoaderResult = await page.evaluate(
         async ({ source, cdnUrl }) => {
           const moduleUrl = URL.createObjectURL(new Blob([source], { type: "text/javascript" }));
           const packed = (await import(moduleUrl)) as {
-            FetchLoader: (options: {
+            fetchLoaderPlugin: (options: {
               cdnUrl: string;
               loadOnInit: boolean;
             }) => (i18n: Record<string, unknown>) => Promise<unknown>;
@@ -390,9 +390,9 @@ test("real platform persists editor writes and SDK-configured context through th
             },
             addTranslations: () => undefined,
           };
-          await packed.FetchLoader({ cdnUrl, loadOnInit: false })(i18n);
+          await packed.fetchLoaderPlugin({ cdnUrl, loadOnInit: false })(i18n);
           if (!registeredLoader)
-            throw new Error("Packed FetchLoader did not register a CDN loader");
+            throw new Error("Packed fetchLoaderPlugin did not register a CDN loader");
           return registeredLoader("en", "common");
         },
         { source: fetchLoaderSource, cdnUrl: systemCdnUrl },

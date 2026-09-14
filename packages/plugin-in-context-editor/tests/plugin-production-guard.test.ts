@@ -14,7 +14,7 @@ const { coreCtorMock, coreStartMock, coreStopMock, mockCoreModule, resetCoreMock
 
 vi.mock("../src/Core", mockCoreModule);
 
-import { InContextEditorPlugin } from "../src/index";
+import { inContextEditorPlugin } from "../src/index";
 
 const MAPPINGS_BRIDGE_KEY = "__comviInContextEditorMappings";
 
@@ -26,7 +26,7 @@ function makeI18n() {
   });
 }
 
-describe("InContextEditorPlugin production guard", () => {
+describe("inContextEditorPlugin production guard", () => {
   afterEach(() => {
     resetCoreMocks();
   });
@@ -38,7 +38,7 @@ describe("InContextEditorPlugin production guard", () => {
     // "no subscriptions" is the observable form of "the host is untouched".
     const onSpy = vi.spyOn(i18n, "on");
 
-    const cleanup = InContextEditorPlugin()(asPluginHost(i18n));
+    const cleanup = inContextEditorPlugin()(asPluginHost(i18n));
 
     expect(coreCtorMock).not.toHaveBeenCalled();
     expect(coreStartMock).not.toHaveBeenCalled();
@@ -54,7 +54,7 @@ describe("InContextEditorPlugin production guard", () => {
     vi.stubEnv("NODE_ENV", "production");
     const i18n = makeI18n();
 
-    const cleanup = InContextEditorPlugin({ debug: true, collectContext: false })(
+    const cleanup = inContextEditorPlugin({ debug: true, collectContext: false })(
       asPluginHost(i18n),
     );
 
@@ -67,7 +67,7 @@ describe("InContextEditorPlugin production guard", () => {
     vi.stubEnv("NODE_ENV", "development");
     const i18n = makeI18n();
 
-    const cleanup = InContextEditorPlugin()(asPluginHost(i18n));
+    const cleanup = inContextEditorPlugin()(asPluginHost(i18n));
 
     expect(coreCtorMock).toHaveBeenCalledTimes(1);
     expect(coreStartMock).toHaveBeenCalledTimes(1);
@@ -81,7 +81,7 @@ describe("InContextEditorPlugin production guard", () => {
     vi.stubEnv("NODE_ENV", undefined);
     const i18n = makeI18n();
 
-    const cleanup = InContextEditorPlugin()(asPluginHost(i18n));
+    const cleanup = inContextEditorPlugin()(asPluginHost(i18n));
 
     expect(coreCtorMock).toHaveBeenCalledTimes(1);
     expect(coreStartMock).toHaveBeenCalledTimes(1);

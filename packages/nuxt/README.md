@@ -106,16 +106,20 @@ for is in your bundle. A nested `translation` object is flattened by the base ho
 ## 3. Connect to Comvi
 
 One file, and it is the one place that decides what your app loads and compiles:
-**`comvi.host.ts`**. Two additions:
+**`comvi.host.ts`**. Three questions, and the third needs no line here at all.
 
-1. **`compiler: icuCompiler`.** The platform's catalogs use ICU plurals. Without the compiler an ICU
-   message throws in development and renders literally in production. `compiler` is a constructor
-   argument rather than something `.use()` can pipe on, so it goes into the options object.
-2. **`.use(cdnLoader({ cdnUrl }))`** from `@comvi/plugin-fetch-loader/cdn`, which fetches the
-   catalog at runtime instead of bundling it.
+1. **Which parser?** `compiler: icuCompiler`. The platform's catalogs use ICU plurals, and the
+   default `{param}` compiler does not render them. Development throws `E_ICU_SYNTAX` at ingestion,
+   where the catalog entered. Production renders the braced message literally and reports it once
+   through the host's `onError`, or the console when no handler is set.
+2. **Where from?** `.use(cdnLoader({ cdnUrl }))` from `@comvi/plugin-fetch-loader/cdn`, which
+   fetches the catalog at runtime instead of bundling it.
+3. **What to paint meanwhile?** Nothing, on this module. Its route middleware pre-loads the
+   current locale before the page renders, and the server hydrates the client with what it loaded,
+   so there is no gate to write.
 
-The module's route middleware pre-loads the current locale before the page renders, and the server
-hydrates the client with what it loaded — so there is no first-paint gate to write here.
+`compiler` is a constructor argument rather than something `.use()` can pipe on, so it goes
+into the options object.
 
 ```bash
 npm install @comvi/plugin-fetch-loader

@@ -1,5 +1,5 @@
 /**
- * `InContextEditorPlugin`'s runtime contract on the host: the mappings bridge
+ * `inContextEditorPlugin`'s runtime contract on the host: the mappings bridge
  * it publishes, the SSR/browser split, which host events it subscribes to, and
  * what a teardown is obliged to give back. `Core` is a double — what the editor
  * DOES to the page is covered by the Core suites; this is the wiring around it.
@@ -15,7 +15,7 @@ const { coreCtorMock, mockCoreModule, resetCoreMocks, FIRST_MOCK_CORE_ID } = awa
 
 vi.mock("../src/Core", mockCoreModule);
 
-import { InContextEditorPlugin, type EditorOptions } from "../src/index";
+import { inContextEditorPlugin, type EditorOptions } from "../src/index";
 import { getApiConfig, resetApiConfig } from "../src/config/api";
 import { getKeyMappings, registerKey, resetEncoder } from "../src/translation";
 
@@ -26,7 +26,7 @@ import { getKeyMappings, registerKey, resetEncoder } from "../src/translation";
  * `cleanup?.()` below callable without re-narrowing at each site.
  */
 function installEditor(options?: EditorOptions): (i18n: ComposedHost) => () => void {
-  const plugin = InContextEditorPlugin(options);
+  const plugin = inContextEditorPlugin(options);
   return (i18n: ComposedHost) => plugin(asPluginHost(i18n)) as () => void;
 }
 
@@ -68,7 +68,7 @@ afterEach(() => {
   resetEncoder();
 });
 
-describe("InContextEditorPlugin mappings bridge", () => {
+describe("inContextEditorPlugin mappings bridge", () => {
   it("publishes a bridge that reads and restores the encoder's key ids", () => {
     const i18n = makeI18n();
 
@@ -121,7 +121,7 @@ describe("InContextEditorPlugin mappings bridge", () => {
   });
 });
 
-describe("InContextEditorPlugin runtime detection", () => {
+describe("inContextEditorPlugin runtime detection", () => {
   it("starts no editor when there is no window, even with a document present", () => {
     const i18n = makeI18n();
     vi.stubGlobal("window", undefined);
@@ -172,7 +172,7 @@ describe("InContextEditorPlugin runtime detection", () => {
   });
 });
 
-describe("InContextEditorPlugin on a server runtime", () => {
+describe("inContextEditorPlugin on a server runtime", () => {
   it("resets the encoder on install so ids stay request-scoped", () => {
     const i18n = makeI18n();
     registerKey("leftover");
@@ -212,7 +212,7 @@ describe("InContextEditorPlugin on a server runtime", () => {
   });
 });
 
-describe("InContextEditorPlugin key enqueueing", () => {
+describe("inContextEditorPlugin key enqueueing", () => {
   it("registers the keys of a namespace loaded after install at the next translation", () => {
     const i18n = makeI18n();
     const cleanup = installEditor()(i18n);
@@ -269,7 +269,7 @@ describe("InContextEditorPlugin key enqueueing", () => {
   });
 });
 
-describe("InContextEditorPlugin API configuration", () => {
+describe("inContextEditorPlugin API configuration", () => {
   it("prefers apiKeyOverride over the host's own apiKey", () => {
     const i18n = makeI18n({ apiKey: "host-key" });
 

@@ -3,12 +3,12 @@ import { createI18n, hasLoaderApi } from "@comvi/core";
 import { plugins } from "@comvi/core/plugins";
 import type { I18nPlugin } from "@comvi/core";
 import type { LocaleDetectorInstaller } from "../src/index";
-import { LocaleDetector, localeDetector } from "../src/index";
+import { localeDetectorPlugin, localeDetector } from "../src/index";
 import { mockWindowLocation } from "./setup";
 
 /**
  * `localeDetector(options)` is the one-call form of `.use(plugins())` then
- * `registerPlugin(LocaleDetector(options))`: same host, same lifecycle, same teardown,
+ * `registerPlugin(localeDetectorPlugin(options))`: same host, same lifecycle, same teardown,
  * and it must reject the two cross-uses the type system also rejects.
  */
 const base = () => createI18n({ locale: "en", exposeGlobal: false });
@@ -37,7 +37,7 @@ describe("localeDetector() installer", () => {
 
     const installed = base().use(localeDetector(QS_ONLY));
     const explicit = base().use(plugins());
-    explicit.registerPlugin(LocaleDetector(QS_ONLY));
+    explicit.registerPlugin(localeDetectorPlugin(QS_ONLY));
 
     await Promise.all([installed.init(), explicit.init()]);
 
@@ -105,16 +105,16 @@ describe("localeDetector() wrong use", () => {
     await expect(i18n.destroy()).resolves.toBeUndefined();
   });
 
-  it("rejects the uppercase factory handed to .use()", () => {
+  it("rejects the `*Plugin` factory handed to .use()", () => {
     const i18n = base();
 
     // `.use` is a dumb pipe: it CALLS what you give it. A plugin handed to it
     // runs against a host that has none of the capabilities it needs. The casts
     // stand in for the type errors that same misuse raises: a plugin is not an
     // installer, and a base host has no `registerPlugin`.
-    expect(() => i18n.use(LocaleDetector(QS_ONLY) as unknown as LocaleDetectorInstaller)).toThrow(
-      TypeError,
-    );
+    expect(() =>
+      i18n.use(localeDetectorPlugin(QS_ONLY) as unknown as LocaleDetectorInstaller),
+    ).toThrow(TypeError);
     expect((i18n as unknown as { registerPlugin?: unknown }).registerPlugin).toBeUndefined();
   });
 

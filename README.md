@@ -129,13 +129,19 @@ Runnable version: [`examples/react`](examples/react), which opens in
 
 ### Step 2 — connect to Comvi
 
-Two additions to the host, and nothing else changes:
+Three questions, and the answers are the lines below. Every framework README asks them in this
+same order, and only the third answer differs between them.
 
-1. `compiler: icuCompiler`. The platform's catalogs use ICU plurals. Without the compiler an ICU
-   message throws in development and renders literally in production.
-2. `.use(cdnLoader({ cdnUrl }))`, which fetches the catalog at runtime.
-
-The catalog is now in flight during the first paint, so pass a `fallback` to gate it.
+1. **Which parser?** `compiler: icuCompiler`. The platform's catalogs use ICU plurals, and the
+   default `{param}` compiler does not render them. Development throws `E_ICU_SYNTAX` at ingestion,
+   where the catalog entered. Production renders the braced message literally and reports it once
+   through the host's `onError`, or the console when no handler is set.
+2. **Where from?** `.use(cdnLoader({ cdnUrl }))` from `@comvi/plugin-fetch-loader/cdn`, which
+   fetches the catalog at runtime instead of bundling it.
+3. **What to paint meanwhile?** A **`fallback`** on `<I18nProvider>`. The catalog is in flight
+   during the first paint now, and the provider gates its children until the host is initialized.
+   Vue and Svelte have no `fallback` prop and gate on `isInitializing` instead; core, next and nuxt
+   need no gate at all.
 
 ```tsx title="src/main.tsx"
 import { createRoot } from "react-dom/client";
@@ -238,6 +244,90 @@ i18n.t("welcome", { name: 42 });
 // TS2769 — '"typo"' is not a declared key
 i18n.t("typo", { name: "Alice" });
 ```
+
+## Reading the type errors
+
+Three diagnostics cover almost every first run against 0.5, and each is quoted below exactly as
+`tsc` or node prints it. Two are compile errors; the third only exists at runtime.
+
+**A typed key called without a required parameter.** `TranslationKeys` declares each key's params,
+and `t()` is overloaded, so a missing one is reported as "no overload matches" rather than as a
+missing property. The useful line is the last one:
+
+```ts check=group=typed-keys check=expect-error=TS2769
+import { createI18n } from "@comvi/core";
+
+const i18n = createI18n({ locale: "en" });
+
+i18n.t("welcome", { age: 5 });
+```
+
+```
+error TS2769: No overload matches this call.
+  Overload 2 of 3, '(translationKey: "welcome" | null, params: CallParams<{ name: string; }, {}>): string', gave the following error.
+    Argument of type '{ age: number; }' is not assignable to parameter of type 'CallParams<{ name: string; }, {}>'.
+      Property 'name' is missing in type '{ age: number; }' but required in type 'MissingParams<{ name: string; }, {}>'.
+```
+
+`MissingParams` in the last line is the generated type holding what the key still needs. A key that
+takes no params is declared `never`, and for those the overload that accepts a second argument is
+simply absent.
+
+**A member that left `useI18n()`.** Four names moved to `useI18nLoader()` and `useI18nPlugins()` in
+0.5. They are still declared on the hook's return type, as optional `never`, so the name stays
+visible in autocomplete — struck through, with the acquisition in the tooltip — and any use is an
+error. Which error depends on how the call is written:
+
+```ts check=expect-error=TS2722
+import { useI18n } from "@comvi/react";
+
+export function Refresh() {
+  // The 0.4 shape: destructure, then call.
+  const { reloadTranslations } = useI18n();
+  void reloadTranslations();
+}
+```
+
+```
+error TS2722: Cannot invoke an object which is possibly 'undefined'.
+```
+
+```ts check=expect-error=TS2349
+import { useI18n } from "@comvi/react";
+
+export function Refresh() {
+  // The same member reached through the bag, with the optionality asserted away.
+  const bag = useI18n();
+  void bag.reloadTranslations!();
+}
+```
+
+```
+error TS2349: This expression is not callable.
+  Type 'never' has no call signatures.
+```
+
+Neither message says where the member went, and that is what the tooltip is for: hover the struck
+name and the `@deprecated` line reads "Moved in 0.5. Acquire it:
+`const { reloadTranslations } = useI18nLoader()`". `useI18nLoader()` is also the thing to reach for
+when a member is missing entirely rather than typed `never` — that means the host never composed the
+capability.
+
+**A raw plugin factory in the `.use(…)` slot.** This one compiles under `any` and in plain
+JavaScript, so it is a runtime error rather than a type error, and it is the one the factory rename
+exists to prevent: `localeDetector()` is the installer, `localeDetectorPlugin()` builds a plugin.
+
+```js check=skip:deliberate-misuse
+i18n.use(localeDetectorPlugin({ order: ["navigator"] })); // wrong: a plugin, not an installer
+```
+
+```
+[i18n] .use(f) expects an installer that returns the host it was given, but f returned function. A raw plugin goes through .use(definePlugin(f)) or registerPlugin(f); a plugin package's installer is the name WITHOUT the Plugin suffix (localeDetector(), not localeDetectorPlugin()).
+```
+
+The thrown error carries `code: "E_USE_NOT_INSTALLER"`, and that code is what to branch on: a
+production build resolves the production condition, where the message is the bare string
+`"E_USE_NOT_INSTALLER"` and the sentence above is not shipped.
 
 ## What it weighs
 

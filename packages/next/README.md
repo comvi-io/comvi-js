@@ -68,9 +68,9 @@ Runnable version: [`examples/next`](../../examples/next), which opens in
 `createNextI18n` ingests the whole inline catalog at construction, so there is nothing to fetch and
 no loading state to render for.
 
-Unlike the other bindings' step 1, this one names `compiler: icuCompiler`. `createNextI18n`
-composes ICU by default, so the line documents that default rather than adding a second step — which
-is also why this catalog can already carry a plural where the other step 1s cannot.
+Unlike the other bindings' step 1, this one names `compiler: icuCompiler` — because this catalog
+already carries a plural, and ICU is never on by default here either. The rule is the same on every
+constructor in the repo: name the compiler or ICU does not compile.
 
 ```ts title="src/i18n.ts" check=group=next-quickstart-inline
 import { createNextI18n, icuCompiler } from "@comvi/next";
@@ -78,8 +78,8 @@ import { createNextI18n, icuCompiler } from "@comvi/next";
 export const { i18n, routing } = createNextI18n({
   locales: ["en", "uk"],
   defaultLocale: "en",
-  // `createNextI18n` composes ICU itself, so this line is the default rather than
-  // a change; `createI18n` on the client/server entries does NOT, and needs it.
+  // Required for the plural below: no constructor in the repo turns ICU on by
+  // itself, `createNextI18n` included.
   compiler: icuCompiler,
   translation: {
     en: {
@@ -202,14 +202,17 @@ Add locale-prefixed URLs with a `defineRouting` module and a middleware — see
 
 ## 3. Connect to Comvi
 
-Two additions. The host file gains the loader; the provider and the layout gain `messages`:
+Three questions, and the first is already answered in step 1.
 
-1. **`.use(cdnLoader({ cdnUrl }))`** from `@comvi/plugin-fetch-loader/cdn`, which sets up loading
-   and registers the CDN plugin in one call.
-2. **`await loadTranslations(locale)`** in the layout, handing the result to the provider as
-   `messages`, so first paint never flashes untranslated content or races the CDN request.
-
-`compiler: icuCompiler` stays exactly as in step 1.
+1. **Which parser?** `compiler: icuCompiler`, unchanged from step 1. The platform's catalogs use ICU plurals, and the
+   default `{param}` compiler does not render them. Development throws `E_ICU_SYNTAX` at ingestion,
+   where the catalog entered. Production renders the braced message literally and reports it once
+   through the host's `onError`, or the console when no handler is set.
+2. **Where from?** `.use(cdnLoader({ cdnUrl }))` from `@comvi/plugin-fetch-loader/cdn`, which
+   fetches the catalog at runtime instead of bundling it.
+3. **What to paint meanwhile?** Nothing, on the App Router. **`await loadTranslations(locale)`**
+   in the layout hands the result to the provider as `messages`, so the first paint never flashes
+   untranslated content and never races the CDN request.
 
 ```bash
 npm install @comvi/plugin-fetch-loader
@@ -306,7 +309,7 @@ The distribution id in `cdnUrl` comes from the Comvi platform: open your project
 **Never compose `localeDetector()` on this host.** It lives at module scope and is process-wide on
 the App Router, so the detector would run once, at `init()`, and the first request's headers would
 pin the locale for every later render. Use
-`nextPlugin(LocaleDetector(…), { runtime: "client" })` instead.
+`nextPlugin(localeDetectorPlugin(…), { runtime: "client" })` instead.
 
 ## 4. Next.js API reference
 
@@ -430,15 +433,15 @@ the installer widened the host to.
 
 ```ts
 import { createNextI18n, definePlugin, loader, nextPlugin, nextPluginLazy } from "@comvi/next";
-import { LocaleDetector } from "@comvi/plugin-locale-detector";
+import { localeDetectorPlugin } from "@comvi/plugin-locale-detector";
 import { routing } from "./routing";
 
 export const { i18n } = createNextI18n({ ...routing, fallbackLocale: "en" })
   .use(loader({ en: () => import("./locales/en.json"), uk: () => import("./locales/uk.json") }))
-  .use(nextPlugin(LocaleDetector({ order: ["cookie", "navigator"] }), { runtime: "client" }))
+  .use(nextPlugin(localeDetectorPlugin({ order: ["cookie", "navigator"] }), { runtime: "client" }))
   .use(
     nextPluginLazy(
-      () => import("@comvi/plugin-in-context-editor").then((m) => m.InContextEditorPlugin()),
+      () => import("@comvi/plugin-in-context-editor").then((m) => m.inContextEditorPlugin()),
       { runtime: "client", environment: "development", required: false },
     ),
   )
@@ -456,7 +459,7 @@ from the root, `/client` and `/server`:
 `options` also takes every plugin option (`required`, `timeout`, `onError`), forwarded to
 `registerPlugin`. Both attach the plugin host if the chain has not already, exactly like
 `definePlugin(fn)` — which is what an unscoped plugin of your own goes through. A plugin package goes
-straight in through its lowercase installer (`cdnLoader(…)`, never `CdnLoader(…)`). A plugin scoped
+straight in through its bare-name installer (`cdnLoader(…)`, never `cdnLoaderPlugin(…)`). A plugin scoped
 out of the current runtime is still imported; `nextPluginLazy` is the form that defers the import
 too.
 

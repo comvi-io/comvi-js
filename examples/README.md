@@ -134,15 +134,17 @@ that import registers tag syntax _ambiently_, so plain `t()` starts parsing
 passes the grammar per call and leaves `t()` alone. Without a `<T>`, the vanilla
 example has to opt in by name.
 
-**Next.** No installer is named here at all. `createNextI18n` is the preset
-that composes ICU, the tag grammar, the loader and the plugin host **inside the
-package**, so `examples/next/src/i18n/config.ts` has no `.use(` chain to write.
-What it adds to the preset is the catalog map — `registerLoader` keeps its
-import-map overload on a host that already composed the loader — and what it
-takes from elsewhere is the URL:
+**Next.** No capability installer is named here. `createNextI18n` is the preset
+that composes the tag grammar, the loader and the plugin host **inside the
+package**, so `examples/next/src/i18n/config.ts` composes none of the three.
+The compiler is the one thing the preset does not decide — no host in the repo
+enables ICU on its own — so `compiler: icuCompiler` is named here just as the
+other six examples name it. What the file adds beyond that is the catalog map —
+`registerLoader` keeps its import-map overload on a host that already composed
+the loader — and what it takes from elsewhere is the URL:
 
 ```ts title="src/i18n/config.ts" check=group=examples-next
-import { createNextI18n } from "@comvi/next";
+import { createNextI18n, icuCompiler } from "@comvi/next";
 import { routing } from "./routing";
 
 export { locales, routing } from "./routing";
@@ -150,6 +152,7 @@ export { locales, routing } from "./routing";
 export const nextI18n = createNextI18n({
   ...routing,
   fallbackLocale: "en",
+  compiler: icuCompiler,
 });
 
 nextI18n.i18n.registerLoader({
@@ -165,8 +168,8 @@ export const { i18n } = nextI18n;
 defaultLocale: "en" })` and nothing else, and that second file is a bundle fact
 rather than a taste: `middleware.ts` runs in the Edge runtime, which ships and
 executes every module its entry reaches on each cold start, so importing the
-composed host for one plain object pulled core, ICU, the loader, the plugin
-host, devtools and the tag grammar into middleware — measured with esbuild at
+composed host for one plain object pulled core, the compiler, the loader, the
+plugin host, devtools and the tag grammar into middleware — measured with esbuild at
 30.3 KB / 25 modules, against 3.8 KB / 7 modules through the routing file.
 `config.ts` spreads the same object straight back in, so the rules the
 middleware enforces and the rules the app renders with are still one source.
@@ -267,7 +270,7 @@ Three details are worth reading in the source:
   takes a plain function. `.use(installer)` is the one composition verb and is
   on every host; `registerPlugin()` is the raw queue that lives on the plugin
   capability, not on the base host, and no example needs it — a plugin package's
-  lowercase installer registers its plugin for you, and an app's own plugin goes
+  bare-name installer registers its plugin for you, and an app's own plugin goes
   through `.use(definePlugin(fn))`.
 - **ICU is opt-in.** Without `compiler: icuCompiler` the plural line in the
   catalog is not syntax; the simple compiler renders the braced segment

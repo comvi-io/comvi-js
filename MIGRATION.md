@@ -30,19 +30,20 @@ Everything in the left column below used to be there whether you used it or not.
 In 0.5 each is absent until composed, and absent means _its module never entered
 your bundle_.
 
-| 0.4 root behaviour                                  | converged root                        | migration                                          |
-| --------------------------------------------------- | ------------------------------------- | -------------------------------------------------- |
-| ICU plurals / select                                | dev throws, prod renders it literally | `compiler: icuCompiler` in the constructor options |
-| 0.4's `.use(plugin)`                                | absent: TS error plus `TypeError`     | `.use(definePlugin(p))`, or a lowercase installer  |
-| loader (`registerLoader`, …)                        | absent: the loud capability error     | `.use(attachLoader)`, or `fetchLoader(opts)`       |
-| discovery (`instanceId`, `window.__COMVI__`)        | absent: invisible to the extension    | `.use(devtools())`, or `inContextEditor()`         |
-| a bare `loader()` (0.5 pre-release, attach-only)    | TS error: the import map is required  | `.use(attachLoader)`                               |
-| string-API tags (`"<b>hi</b>"`)                     | literal text, dev warning             | `<T>`, or `import "@comvi/core/tags"`              |
-| a plugin returning a value                          | throws at `init()`                    | return nothing, or a cleanup function              |
-| `clearTranslations(undefined, ns)` deactivated `ns` | clears CONTENT only, in every form    | `removeActiveNamespace(ns)` from the loader        |
-| nested inline catalogs                              | unchanged: every host flattens them   | —                                                  |
-| `new I18n(options)`                                 | unchanged, one argument               | —                                                  |
-| `createNextI18n`, the CDN global                    | unchanged, still fully composed       | —                                                  |
+| 0.4 root behaviour                                  | converged root                                                             | migration                                          |
+| --------------------------------------------------- | -------------------------------------------------------------------------- | -------------------------------------------------- |
+| ICU plurals / select                                | dev throws, prod renders it literally                                      | `compiler: icuCompiler` in the constructor options |
+| 0.4's `.use(plugin)`                                | absent: TS error plus `TypeError`                                          | `.use(definePlugin(p))`, or a bare-name installer  |
+| loader (`registerLoader`, …)                        | absent: the loud capability error                                          | `.use(attachLoader)`, or `fetchLoader(opts)`       |
+| discovery (`instanceId`, `window.__COMVI__`)        | absent: invisible to the extension                                         | `.use(devtools())`, or `inContextEditor()`         |
+| a bare `loader()` (0.5 pre-release, attach-only)    | TS error: the import map is required                                       | `.use(attachLoader)`                               |
+| string-API tags (`"<b>hi</b>"`)                     | literal text, dev warning                                                  | `<T>`, or `import "@comvi/core/tags"`              |
+| a plugin returning a value                          | throws at `init()`                                                         | return nothing, or a cleanup function              |
+| `clearTranslations(undefined, ns)` deactivated `ns` | clears CONTENT only, in every form                                         | `removeActiveNamespace(ns)` from the loader        |
+| nested inline catalogs                              | unchanged: every host flattens them                                        | —                                                  |
+| `new I18n(options)`                                 | unchanged, one argument                                                    | —                                                  |
+| the CDN global (`<script src>`)                     | unchanged, still fully composed                                            | —                                                  |
+| `createNextI18n`                                    | composes tags, the loader, plugins and devtools; the COMPILER is now yours | `compiler: icuCompiler` for an ICU catalog         |
 
 A **missing interpolation parameter now renders as the literal placeholder.** In
 0.4, `t("greet")` on `"Hello, {name}!"` gave `"Hello, !"`; in 0.5 it gives
@@ -254,8 +255,8 @@ The same two names dropped off every binding entry — `@comvi/react`,
 `@comvi/solid`, `@comvi/svelte`, `@comvi/vue`, the `@comvi/next`
 root/`client`/`server` trio and `@comvi/nuxt/host` — for the same reason:
 `attachPlugins` and `attachDevtools` are the low-level installers `plugins()`
-and `devtools()` already configure, so a binding user reaches for the lowercase
-factories. `attachLoader` stays on all of them: it is not a synonym of
+and `devtools()` already configure, so a binding user reaches for those two
+instead. `attachLoader` stays on all of them: it is not a synonym of
 `loader(map)` but the attach-only loader installer.
 Coming from a 0.5-pre build where a binding root still exported the pair,
 import it from `@comvi/core/plugins` / `@comvi/core/devtools` instead:
@@ -285,14 +286,26 @@ the tag grammar per call and registers nothing.
 
 ### Renames
 
-The first two rows can land on a genuine 0.4 tree. The rest exist only for a
-tree written against a 0.5 pre-release, because 0.4 published none of those
-names. Each row is one grep, and each edit is by hand.
+The first table lands on a genuine 0.4 tree. The second exists only for a tree
+written against a 0.5 pre-release, because 0.4 published none of those names.
+Each row is one grep, and each edit is by hand.
 
 | 0.4.x                                                    | 0.5.0                                  |
 | -------------------------------------------------------- | -------------------------------------- |
 | `exposeGlobal` / `instanceId` in the constructor options | both move into `.use(devtools({ … }))` |
 | `flattenCatalog` from a binding root or `/loader`        | the same name, from `@comvi/core`      |
+| `FetchLoader(options)`                                   | `fetchLoaderPlugin(options)`           |
+| `CdnLoader(options)`                                     | `cdnLoaderPlugin(options)`             |
+| `LocaleDetector(options?)`                               | `localeDetectorPlugin(options?)`       |
+| `InContextEditorPlugin(options?)`                        | `inContextEditorPlugin(options?)`      |
+
+The four raw plugin factories — the ones you hand to `registerPlugin` — are
+renamed because they used to differ from their installers by letter case alone:
+`fetchLoader` composed and registered, `FetchLoader` built a plugin, and one
+mistyped capital silently changed what your chain did. The `Plugin` suffix says
+which is which, and the installers (`fetchLoader`, `cdnLoader`,
+`localeDetector`, `inContextEditor`) keep their names. `window.ComviInContextEditor`
+on the standalone editor bundle exposes the factory under the new name too.
 
 | 0.5 pre-release                                                | 0.5.0                                                          |
 | -------------------------------------------------------------- | -------------------------------------------------------------- |
@@ -418,7 +431,7 @@ per-request host you build in `+layout.svelte` (§SSR in its README).
 ### `@comvi/vue`
 
 ```diff check=skip:proxy-relocation
--const i18n = createI18n({ locale: "en" }).use(FetchLoader({ … }));
+-const i18n = createI18n({ locale: "en" }).use(fetchLoaderPlugin({ … }));
 +const i18n = createI18n({ locale: "en" }).use(fetchLoader({ … }));
 ```
 
@@ -432,7 +445,7 @@ under that name: it belongs to `@comvi/core/plugins` and is called
 base host `createI18n` builds has no `registerPlugin` at all:
 `i18n.core.registerPlugin(…)` is a type error and a `TypeError` at runtime.
 Compose the capability with `.use(plugins())`, then call
-`i18n.core.registerPlugin(…)`. The lowercase installer is the shorter road,
+`i18n.core.registerPlugin(…)`. The bare-name installer is the shorter road,
 because it composes what the plugin needs itself, and `.use(definePlugin(fn))`
 is the shorter road for a plugin of your own. The `use` that `VueI18n` has today
 is the composition pipe, not the proxy that went away.
@@ -498,8 +511,8 @@ already used `export type *` in 0.4.x, so their value surface only grew.
 
 ## 4. Plugins
 
-The three first-party plugin packages ship a lowercase **installer** each, next
-to the uppercase factory they always had. The installer composes the capabilities
+The three first-party plugin packages ship an **installer** each, next to the
+raw plugin factory. The installer composes the capabilities
 that plugin needs and then registers it, in one call instead of three:
 
 ```ts
@@ -512,12 +525,12 @@ const i18n = createI18n({
 await i18n.init();
 ```
 
-| package                           | `.use(lowercase)`           | `registerPlugin(Uppercase)`, name unchanged |
-| --------------------------------- | --------------------------- | ------------------------------------------- |
-| `@comvi/plugin-fetch-loader`      | `fetchLoader(options)`      | `FetchLoader(options)`                      |
-| `@comvi/plugin-fetch-loader/cdn`  | `cdnLoader(options)`        | `CdnLoader(options)`                        |
-| `@comvi/plugin-locale-detector`   | `localeDetector(options?)`  | `LocaleDetector(options?)`                  |
-| `@comvi/plugin-in-context-editor` | `inContextEditor(options?)` | `InContextEditorPlugin(options?)`           |
+| package                           | `.use(installer)`           | `registerPlugin(factory)`         |
+| --------------------------------- | --------------------------- | --------------------------------- |
+| `@comvi/plugin-fetch-loader`      | `fetchLoader(options)`      | `fetchLoaderPlugin(options)`      |
+| `@comvi/plugin-fetch-loader/cdn`  | `cdnLoader(options)`        | `cdnLoaderPlugin(options)`        |
+| `@comvi/plugin-locale-detector`   | `localeDetector(options?)`  | `localeDetectorPlugin(options?)`  |
+| `@comvi/plugin-in-context-editor` | `inContextEditor(options?)` | `inContextEditorPlugin(options?)` |
 
 New in 0.5.0: `@comvi/plugin-fetch-loader/cdn` is the CDN request path on its
 own. `fetchLoader` picks between the CDN and the API at runtime, so it carries
@@ -538,10 +551,11 @@ Each composes, idempotently, what its plugin needs: `fetchLoader` →
 editor-enabled host is visible to the extension without a separate
 `.use(devtools())`.
 
-The uppercase factories are unchanged, and the explicit recipe still works. Use
-it when you compose capabilities yourself or register plugins from a list:
+The factories are RENAMED (see §3's Renames table) and otherwise unchanged, and
+the explicit recipe still works. Use it when you compose capabilities yourself
+or register plugins from a list:
 `createI18n({ … }).use(attachLoader).use(plugins())`, then
-`i18n.registerPlugin(FetchLoader({ … }))`. Compose the loader as well when a
+`i18n.registerPlugin(fetchLoaderPlugin({ … }))`. Compose the loader as well when a
 plugin registers one; their relative order does not matter (§0.1).
 
 No lifecycle is duplicated: an installer's last act is `registerPlugin`, so
@@ -559,7 +573,7 @@ and hands that same host back, and `.use` refuses any other return value,
 whatever its shape. Both cross-uses are TYPE errors and both fail at runtime:
 `registerPlugin(fetchLoader(…))` throws `E_INSTALLER_AS_PLUGIN` at `init()` on
 the installer's first ensure-step, before any capability is attached, naming the
-installer and the `.use` form; `.use(FetchLoader(…))` runs the plugin against a
+installer and the `.use` form; `.use(fetchLoaderPlugin(…))` runs the plugin against a
 host that has none of the capabilities it needs, so the invocation is rejected,
 and on a host that has them `.use` still throws `E_USE_NOT_INSTALLER`, since a
 plugin never hands the host back. `.use` calls the function before it checks, so
@@ -574,7 +588,7 @@ non-function return; in 0.5 it throws on any non-`undefined` one, matching the
 published `I18nPlugin` type. The cause is one of two, and the development message
 names both. An expression-bodied arrow:
 `.use(definePlugin(() => (ready = true)))` returns `true`; write
-`.use(definePlugin(() => { ready = true; }))`. Or a lowercase installer handed
+`.use(definePlugin(() => { ready = true; }))`. Or a bare-name installer handed
 to `registerPlugin()`, the case that catches `registerPlugin(inContextEditor())`
 under `production`: the identity no-op has no ensure-step to stop on, so it
 returns the host and `init()` rejects that result.
@@ -589,12 +603,16 @@ when `baseUrl` is absent.
 The client inherits react's migration verbatim: `@comvi/next/client` re-exports
 `useI18nLoader` / `useI18nPlugins` alongside `useI18n`.
 
-**Three host entry points, and only one of them changed.** `createNextI18n` from
-`@comvi/next` is preserved exactly: it composes ICU, ambient tags, the loader
-with both `registerLoader` overloads, the plugin host, default params and
-devtools discovery inside the package, so a 0.4 app that calls it needs no
-migration at all; its host type is now published as
-`NextComposedI18n<D>`. What changed is the DIRECT-host constructor on the two
+**Three host entry points, and the composed root changed in exactly one way.**
+`createNextI18n` from `@comvi/next` still composes ambient tags, the loader with
+both `registerLoader` overloads, the plugin host, default params and devtools
+discovery inside the package, and its host type is now published as
+`NextComposedI18n<D>`. What it no longer does is pick a compiler: it used to
+default `compiler` to `icuCompiler`, and now it defaults nothing, so **a 0.4 app
+that rendered plurals through `createNextI18n` must add
+`compiler: icuCompiler`** — the same one line every other constructor in the
+repo asks for. Nothing else about the factory needs migrating. What changed
+beyond it is the DIRECT-host constructor on the two
 runtime entries: `createI18n` on `@comvi/next/client` and `@comvi/next/server` is
 the base host, row for row as §0 describes, and every installer that table names
 is re-exported from both entries. The second constructor name that briefly stood
@@ -828,7 +846,7 @@ composition rules, one of them vue-only. This is the whole list your first run c
 | vue: `i18n.core.reloadTranslations` will not type-check                                                 | the wrapper you hold was never composed — chain `.use(attachLoader)`; inside a component, `useI18nLoader()`                        |
 | `E_INSTALLER_AS_PLUGIN`                                                                                 | you handed an installer to `registerPlugin(…)` or `definePlugin(…)`; compose it instead, as `.use(installer(…))`                   |
 | `E_PLUGIN_INIT_RETURN`                                                                                  | a plugin returned a value — use a statement body                                                                                   |
-| `E_USE_NOT_INSTALLER`                                                                                   | `.use(…)` got something that did not hand the host back — a raw plugin; write `.use(definePlugin(fn))`, or the lowercase installer |
+| `E_USE_NOT_INSTALLER`                                                                                   | `.use(…)` got something that did not hand the host back — a raw plugin; write `.use(definePlugin(fn))`, or the bare-name installer |
 | `E_USE_HOST_IDENTITY`                                                                                   | vue: your installer returned a different object; return the host it was given                                                      |
 
 Those `E_*` names are the **production** messages; a development build throws a

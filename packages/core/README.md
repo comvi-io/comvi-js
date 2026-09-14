@@ -74,16 +74,16 @@ A parameter you leave out renders as its own placeholder — `t("greeting")` giv
 
 ## 3. Connect to Comvi
 
-Two additions to the host, and nothing else changes:
+Three questions, and the third needs no line here at all.
 
-1. **`compiler: icuCompiler`** from `@comvi/core/icu`. The platform's catalogs use ICU plurals.
-   Without the compiler an ICU message throws in development and renders literally in production, so
-   name it once here and it covers every catalog the host ever ingests.
-2. **`.use(cdnLoader({ cdnUrl }))`** from `@comvi/plugin-fetch-loader/cdn`, which fetches the
-   catalog at runtime instead of bundling it.
-
-`await init()` is where the first fetch happens, so there is no first-paint gate to write here — a
-vanilla script simply awaits it.
+1. **Which parser?** `compiler: icuCompiler`. The platform's catalogs use ICU plurals, and the
+   default `{param}` compiler does not render them. Development throws `E_ICU_SYNTAX` at ingestion,
+   where the catalog entered. Production renders the braced message literally and reports it once
+   through the host's `onError`, or the console when no handler is set.
+2. **Where from?** `.use(cdnLoader({ cdnUrl }))` from `@comvi/plugin-fetch-loader/cdn`, which
+   fetches the catalog at runtime instead of bundling it.
+3. **What to paint meanwhile?** Nothing, on this host. `await init()` is where the first fetch
+   happens, so a vanilla script simply awaits it and there is no gate to write.
 
 ```bash
 npm install @comvi/plugin-fetch-loader
@@ -235,7 +235,7 @@ const i18n = createI18n({ locale: "en" }).use(attachLoader);
 i18n.registerLoader(async (locale, ns) => (await fetch(`/i18n/${locale}/${ns}.json`)).json());
 ```
 
-First-party plugin packages ship a lowercase **installer** beside an uppercase factory. The
+First-party plugin packages ship an **installer** beside a `*Plugin` factory. The
 installer composes whatever capabilities that plugin needs and registers it, in one call; the
 factory goes to `registerPlugin` on a host you composed yourself:
 

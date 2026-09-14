@@ -67,13 +67,13 @@ Without an API key the editor runs in **demo mode**: the UI mounts but edits are
 imports you add, so an app that uses neither never pays for them. This package
 exports one name for each way of adding them.
 
-|                    | `.use(inContextEditor(options))`                                                                                            | `registerPlugin(InContextEditorPlugin(options))` |
+|                    | `.use(inContextEditor(options))`                                                                                            | `registerPlugin(inContextEditorPlugin(options))` |
 | ------------------ | --------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------ |
-| what it is         | the **installer**, lowercase                                                                                                | the **plugin factory**, uppercase                |
+| what it is         | the **installer** — the bare name                                                                                           | the **plugin factory** — the `*Plugin` name      |
 | the host it needs  | any host, including a bare `createI18n(…)`                                                                                  | one that already has `@comvi/core/plugins`       |
 | what it composes   | `@comvi/core/devtools` first, then `@comvi/core/plugins`, both idempotently                                                 | nothing; it only registers                       |
 | host type after    | **unchanged**. The editor asks nothing of your public API, and this is the only widening that stays true under `production` | unchanged                                        |
-| lifecycle          | the host's own: it ends in `registerPlugin(InContextEditorPlugin(options))`                                                 | the host's own                                   |
+| lifecycle          | the host's own: it ends in `registerPlugin(inContextEditorPlugin(options))`                                                 | the host's own                                   |
 | under `production` | `(host) => host`. No discovery, no capability, no plugin, no editor bytes                                                   | a plugin that does nothing                       |
 
 Discovery comes first. The editor is the one capability that is driven from
@@ -95,7 +95,7 @@ slot rejects the other explicitly instead of half-working:
   host back. A plugin may only return nothing or a cleanup
   function, so `init()` rejects that too, before anything is queued for
   teardown.
-- `.use(InContextEditorPlugin(…))` calls the plugin against a host that has no
+- `.use(inContextEditorPlugin(…))` calls the plugin against a host that has no
   `registerPostProcessor`, so the invocation is rejected. On a host that does
   have the plugin capability the plugin runs, and `.use` then throws
   `E_USE_NOT_INSTALLER`: an installer widens the host in place and hands that

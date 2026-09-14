@@ -7,7 +7,8 @@ the host you composed, and the server i18n becomes a once-cell that refuses two
 configuration sources.
 
 **New: `createNextI18nFromHost(host, options)`**, exported from `@comvi/next/server` and
-nowhere else. `createNextI18n` keeps its exact signature and behaviour.
+nowhere else. `createNextI18n` keeps its exact signature; its one behaviour change in this
+release is the dropped `compiler` default, in its own changeset.
 
 ```ts
 import "server-only";

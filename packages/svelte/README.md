@@ -94,16 +94,17 @@ a string and `$tRaw` to the parts array the rich-text path uses.
 
 ## 3. Connect to Comvi
 
-Two additions to the host, and nothing else changes:
+Three questions, and the answers are the lines below.
 
-1. **`compiler: icuCompiler`.** The platform's catalogs use ICU plurals. Without the compiler an ICU
-   message throws in development and renders literally in production, so name it once here and it
-   covers every catalog the host ever ingests.
-2. **`.use(cdnLoader({ cdnUrl }))`** from `@comvi/plugin-fetch-loader/cdn`, which fetches the
-   catalog at runtime instead of bundling it.
-
-The catalog is now in flight during the first paint. Svelte has no provider component and no
-`fallback` prop, so the gate is **three lines of markup** in the component that owns the children.
+1. **Which parser?** `compiler: icuCompiler`. The platform's catalogs use ICU plurals, and the
+   default `{param}` compiler does not render them. Development throws `E_ICU_SYNTAX` at ingestion,
+   where the catalog entered. Production renders the braced message literally and reports it once
+   through the host's `onError`, or the console when no handler is set.
+2. **Where from?** `.use(cdnLoader({ cdnUrl }))` from `@comvi/plugin-fetch-loader/cdn`, which
+   fetches the catalog at runtime instead of bundling it.
+3. **What to paint meanwhile?** `isInitializing`, in the component that owns the children. The
+   catalog is in flight during the first paint now, and Svelte has no provider component and no
+   `fallback` prop, so the gate is three lines of markup.
 
 ```bash
 npm install @comvi/plugin-fetch-loader

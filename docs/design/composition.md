@@ -19,7 +19,7 @@ second entry you switch to. A bundle carries a capability because you asked for 
 | `@comvi/solid`  | `@comvi/solid`                             | `createI18n`                                 | core's own constructor, re-exported by name                                                                                                                                |
 | `@comvi/svelte` | `@comvi/svelte`                            | `createI18n`                                 | core's own constructor, re-exported by name                                                                                                                                |
 | `@comvi/vue`    | `@comvi/vue`                               | `createI18n`                                 | builds the `VueI18n` preset over a base host, and `.use(…)` composes on the result; `createI18nFromCore` wraps a host built elsewhere with `createI18n` from `@comvi/core` |
-| `@comvi/next`   | `@comvi/next/client`, `@comvi/next/server` | `createI18n`                                 | a RUNTIME split, not a host tier; `createNextI18n` on `@comvi/next` stays the composed 0.4 host                                                                            |
+| `@comvi/next`   | `@comvi/next/client`, `@comvi/next/server` | `createI18n`                                 | a RUNTIME split, not a host tier; `createNextI18n` on `@comvi/next` composes the 0.4 capabilities, but not the compiler                                                    |
 | `@comvi/nuxt`   | auto-imported                              | the module's generated host, or `hostModule` | the default generated host is the base host; `hostModule` is the composition escape                                                                                        |
 
 Capabilities are core's pure subpaths, re-exported **by name** from every framework entry except
@@ -54,12 +54,14 @@ const i18n = createI18n({ locale: "en", compiler: icuCompiler })
   .use(plugins());
 ```
 
-Two hosts are the exception to "a capability because you composed it": `createNextI18n` on
-`@comvi/next` (the composed 0.4 host, kept behaviour-compatible) and the CDN global build always
-carry ICU, whether or not the app asks. Neither is the base host, and neither is what `createI18n`
-returns on any entry.
+One build is the exception to "a capability because you composed it": the CDN global always carries
+ICU, whether or not the page asks, because a `<script src>` has no tree-shaking and so no byte
+choice to offer. Every constructor, `createNextI18n` included, leaves the compiler to the caller.
+`createNextI18n` is still an exception for the other capabilities — it composes tags, the loader,
+the plugin host and devtools inside the package — but it is not the base host and not what
+`createI18n` returns on any entry.
 
-First-party plugins ship a lowercase **installer** beside the uppercase factory, and the installer
+First-party plugins ship an **installer** beside a `*Plugin` factory, and the installer
 composes whatever capabilities that plugin needs: `.use(cdnLoader({ cdnUrl }))`,
 `.use(localeDetector())`, `.use(inContextEditor())`.
 
@@ -72,7 +74,7 @@ composes whatever capabilities that plugin needs: `.use(cdnLoader({ cdnUrl }))`,
 import { createI18n } from "@comvi/core";
 import { loader } from "@comvi/core/loader";
 import { plugins } from "@comvi/core/plugins";
-import { LocaleDetector } from "@comvi/plugin-locale-detector";
+import { localeDetectorPlugin } from "@comvi/plugin-locale-detector";
 
 const i18n = createI18n({
   locale: "en",
@@ -82,7 +84,7 @@ const i18n = createI18n({
   .use(loader({ uk: () => import("./uk.json") }))
   .use(plugins());
 
-i18n.registerPlugin(LocaleDetector({ supportedLocales: ["en", "uk"] }));
+i18n.registerPlugin(localeDetectorPlugin({ supportedLocales: ["en", "uk"] }));
 
 await i18n.init();
 i18n.t("greeting", { name: "Alice" }); // "Hello, Alice!"
@@ -228,16 +230,16 @@ warning.
 import { createI18n } from "@comvi/core";
 import { attachLoader } from "@comvi/core/loader";
 import { plugins } from "@comvi/core/plugins";
-import { CdnLoader } from "@comvi/plugin-fetch-loader/cdn";
+import { cdnLoaderPlugin } from "@comvi/plugin-fetch-loader/cdn";
 
 const i18n = createI18n({ locale: "en", fallbackLocale: "en" }).use(attachLoader).use(plugins());
 
-i18n.registerPlugin(CdnLoader({ cdnUrl: "https://cdn.comvi.io/your-distribution-id" }));
+i18n.registerPlugin(cdnLoaderPlugin({ cdnUrl: "https://cdn.comvi.io/your-distribution-id" }));
 ```
 
 Swapping the two slots is a type error, and both halves are caught at runtime as well.
 `registerPlugin(cdnLoader(…))` throws `E_INSTALLER_AS_PLUGIN` at `init()`, on the installer's first
-ensure-step, before any capability is attached. `.use(CdnLoader(…))` throws `E_USE_NOT_INSTALLER`:
+ensure-step, before any capability is attached. `.use(cdnLoaderPlugin(…))` throws `E_USE_NOT_INSTALLER`:
 `.use` is a pipe and nothing more — it never inspects, orders or brands the function you hand it —
 but it does check the one thing that makes a function an installer. It calls the function before it
 checks, so this plugin runs outside `init()`'s drain loop and, being async, hands back a promise

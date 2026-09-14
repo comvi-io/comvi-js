@@ -1,5 +1,5 @@
 /**
- * The lowercase installer, under BOTH export conditions.
+ * The bare-name installer, under BOTH export conditions.
  *
  * Default entry: `inContextEditor(options)` ensures discovery and the plugin
  * host, then routes into `use` — it re-implements no lifecycle.
@@ -25,9 +25,9 @@ const { coreCtorMock, coreStartMock, coreStopMock, mockCoreModule, resetCoreMock
 
 vi.mock("../src/Core", mockCoreModule);
 
-import { InContextEditorPlugin, inContextEditor } from "../src/index";
+import { inContextEditorPlugin, inContextEditor } from "../src/index";
 import {
-  InContextEditorPlugin as ProdPlugin,
+  inContextEditorPlugin as ProdPlugin,
   inContextEditor as prodInContextEditor,
 } from "../src/entry-production";
 
@@ -134,7 +134,7 @@ describe("inContextEditor() wrong use — default entry", () => {
     await expect(i18n.destroy()).resolves.toBeUndefined();
   });
 
-  it("rejects the uppercase factory handed to .use()", () => {
+  it("rejects the `*Plugin` factory handed to .use()", () => {
     const i18n = base();
 
     // `.use` is a dumb pipe: it CALLS what you give it, and the plugin needs
@@ -143,7 +143,7 @@ describe("inContextEditor() wrong use — default entry", () => {
     // and it has to name the host as the return type, because `.use`'s own
     // `T extends this` bound now refuses anything that is not the host.
     expect(() =>
-      i18n.use(InContextEditorPlugin() as unknown as (host: typeof i18n) => typeof i18n),
+      i18n.use(inContextEditorPlugin() as unknown as (host: typeof i18n) => typeof i18n),
     ).toThrow(TypeError);
     expect(coreStartMock).not.toHaveBeenCalled();
   });
@@ -202,7 +202,7 @@ describe("inContextEditor() — production condition", () => {
     expect(order).toEqual(["third", "first"]);
   });
 
-  it("keeps the uppercase production no-op unchanged", () => {
+  it("keeps the `*Plugin` production no-op unchanged", () => {
     const i18n = createI18n({ locale: "en", defaultNs: "default" });
 
     const cleanup = ProdPlugin()(asPluginHost(i18n));

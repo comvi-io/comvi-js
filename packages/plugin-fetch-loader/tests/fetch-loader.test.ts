@@ -1,5 +1,5 @@
 import { afterEach, describe, it, expect, vi } from "vitest";
-import { FetchLoader, buildCdnUrl, buildApiExportUrl } from "../src/index";
+import { fetchLoaderPlugin, buildCdnUrl, buildApiExportUrl } from "../src/index";
 import { I18n } from "./helpers/composedHost";
 import { http, HttpResponse } from "msw";
 import {
@@ -18,16 +18,16 @@ import {
   TEST_API_KEY,
 } from "./setup";
 
-describe("FetchLoader Plugin", () => {
+describe("fetchLoaderPlugin Plugin", () => {
   describe("Configuration validation", () => {
     it("should throw error if cdnUrl is not provided", () => {
-      expect(() => FetchLoader({} as any)).toThrow(
+      expect(() => fetchLoaderPlugin({} as any)).toThrow(
         "[@comvi/plugin-fetch-loader] cdnUrl is required",
       );
     });
 
     it("should throw error if options are undefined", () => {
-      expect(() => FetchLoader(undefined as any)).toThrow(
+      expect(() => fetchLoaderPlugin(undefined as any)).toThrow(
         "[@comvi/plugin-fetch-loader] cdnUrl is required",
       );
     });
@@ -36,7 +36,7 @@ describe("FetchLoader Plugin", () => {
       const i18n = new I18n({ locale: "en", devMode: false });
       mockCdnSuccessResponse("en", "default", { hello: "Hello" });
 
-      const plugin = FetchLoader({ cdnUrl: TEST_CDN_URL, loadOnInit: true });
+      const plugin = fetchLoaderPlugin({ cdnUrl: TEST_CDN_URL, loadOnInit: true });
       await plugin(i18n);
 
       expect(i18n.t("hello")).toBe("Hello");
@@ -81,7 +81,7 @@ describe("FetchLoader Plugin", () => {
       const i18n = new I18n({ locale: "de", defaultNs: "forest", devMode: false });
       mockCdnSuccessResponse("de", "forest", { greeting: "Hallo" });
 
-      const plugin = FetchLoader({
+      const plugin = fetchLoaderPlugin({
         cdnUrl: TEST_CDN_URL,
         loadOnInit: true,
         cdnLayout: { rootNamespace: "default" },
@@ -183,7 +183,7 @@ describe("FetchLoader Plugin", () => {
         const i18n = new I18n({ locale: "en", devMode: false });
         const request = captureCdnRequest("en", "default", createMockTranslations("en"));
 
-        const plugin = FetchLoader({ cdnUrl: TEST_CDN_URL, loadOnInit: true });
+        const plugin = fetchLoaderPlugin({ cdnUrl: TEST_CDN_URL, loadOnInit: true });
         await plugin(i18n);
 
         expect(request.url).toBe(`${TEST_CDN_URL}/en.json`);
@@ -194,7 +194,7 @@ describe("FetchLoader Plugin", () => {
         mockCdnSuccessResponse("en", "common", {}, "common");
         const request = captureCdnRequest("en", "dashboard", { title: "Dashboard" }, "common");
 
-        const plugin = FetchLoader({ cdnUrl: TEST_CDN_URL, loadOnInit: true });
+        const plugin = fetchLoaderPlugin({ cdnUrl: TEST_CDN_URL, loadOnInit: true });
         await plugin(i18n);
         await i18n.addActiveNamespace("dashboard");
 
@@ -207,7 +207,7 @@ describe("FetchLoader Plugin", () => {
         const i18n = new I18n({ locale: "en", devMode: false });
         const request = captureCdnRequest("en", "default", { key: "value" });
 
-        const plugin = FetchLoader({ cdnUrl: TEST_CDN_URL, loadOnInit: true });
+        const plugin = fetchLoaderPlugin({ cdnUrl: TEST_CDN_URL, loadOnInit: true });
         await plugin(i18n);
 
         expect(request.headers?.get("Authorization")).toBeNull();
@@ -217,7 +217,7 @@ describe("FetchLoader Plugin", () => {
         const i18n = new I18n({ locale: "en", devMode: false });
         const request = captureCdnRequest("en", "default", { key: "value" });
 
-        const plugin = FetchLoader({ cdnUrl: TEST_CDN_URL, loadOnInit: true });
+        const plugin = fetchLoaderPlugin({ cdnUrl: TEST_CDN_URL, loadOnInit: true });
         await plugin(i18n);
 
         expect(request.headers?.get("Accept")).toBe("application/json");
@@ -236,7 +236,7 @@ describe("FetchLoader Plugin", () => {
           }),
         );
 
-        const plugin = FetchLoader({ cdnUrl: TEST_CDN_URL, loadOnInit: false });
+        const plugin = fetchLoaderPlugin({ cdnUrl: TEST_CDN_URL, loadOnInit: false });
         await plugin(i18n);
 
         const loaderFn = i18n.getLoader()!;
@@ -260,7 +260,7 @@ describe("FetchLoader Plugin", () => {
           }),
         );
 
-        const plugin = FetchLoader({ cdnUrl: TEST_CDN_URL, loadOnInit: false });
+        const plugin = fetchLoaderPlugin({ cdnUrl: TEST_CDN_URL, loadOnInit: false });
         await plugin(i18n);
 
         const loaderFn = i18n.getLoader()!;
@@ -276,7 +276,7 @@ describe("FetchLoader Plugin", () => {
         mockCdnSuccessResponse("en", "default", { key: "Hello" });
         mockCdnSuccessResponse("fr", "default", { key: "Bonjour" });
 
-        const plugin = FetchLoader({ cdnUrl: TEST_CDN_URL, loadOnInit: false });
+        const plugin = fetchLoaderPlugin({ cdnUrl: TEST_CDN_URL, loadOnInit: false });
         await plugin(i18n);
 
         const loaderFn = i18n.getLoader()!;
@@ -301,7 +301,7 @@ describe("FetchLoader Plugin", () => {
         const onLoadError = vi.fn();
         const response = mockCdnDeferredResponse("en", "default");
 
-        const plugin = FetchLoader({
+        const plugin = fetchLoaderPlugin({
           cdnUrl: TEST_CDN_URL,
           timeout: 50,
           loadOnInit: true,
@@ -323,7 +323,7 @@ describe("FetchLoader Plugin", () => {
         const i18n = new I18n({ locale: "en", devMode: false });
         const response = mockCdnDeferredResponse("en", "default");
 
-        const plugin = FetchLoader({
+        const plugin = fetchLoaderPlugin({
           cdnUrl: TEST_CDN_URL,
           timeout: 200,
           loadOnInit: true,
@@ -344,7 +344,7 @@ describe("FetchLoader Plugin", () => {
 
         mockCdnErrorResponse("en", "default", 404, "Not Found");
 
-        const plugin = FetchLoader({
+        const plugin = fetchLoaderPlugin({
           cdnUrl: TEST_CDN_URL,
           loadOnInit: true,
           onLoadError,
@@ -365,7 +365,7 @@ describe("FetchLoader Plugin", () => {
 
         mockCdnNetworkError("en", "default");
 
-        const plugin = FetchLoader({
+        const plugin = fetchLoaderPlugin({
           cdnUrl: TEST_CDN_URL,
           loadOnInit: true,
           onLoadError,
@@ -382,7 +382,7 @@ describe("FetchLoader Plugin", () => {
 
         mockCdnSuccessResponse("en", "default", { key: "value" });
 
-        const plugin = FetchLoader({
+        const plugin = fetchLoaderPlugin({
           cdnUrl: TEST_CDN_URL,
           loadOnInit: true,
           onLoadSuccess,
@@ -401,7 +401,7 @@ describe("FetchLoader Plugin", () => {
 
         mockCdnErrorResponse("en", "common", 404, "Not Found", "common");
 
-        const plugin = FetchLoader({
+        const plugin = fetchLoaderPlugin({
           cdnUrl: TEST_CDN_URL,
           loadOnInit: true,
           fallback: {
@@ -420,7 +420,7 @@ describe("FetchLoader Plugin", () => {
 
         mockCdnErrorResponse("en", "common", 404, "Not Found", "common");
 
-        const plugin = FetchLoader({
+        const plugin = fetchLoaderPlugin({
           cdnUrl: TEST_CDN_URL,
           loadOnInit: true,
           fallback: {
@@ -438,7 +438,7 @@ describe("FetchLoader Plugin", () => {
 
         mockCdnErrorResponse("en", "common", 404, "Not Found", "common");
 
-        const plugin = FetchLoader({
+        const plugin = fetchLoaderPlugin({
           cdnUrl: TEST_CDN_URL,
           loadOnInit: true,
           fallback: {
@@ -458,7 +458,7 @@ describe("FetchLoader Plugin", () => {
 
         mockCdnSuccessResponse("en", "default", { key: "CDN value" });
 
-        const plugin = FetchLoader({
+        const plugin = fetchLoaderPlugin({
           cdnUrl: TEST_CDN_URL,
           loadOnInit: true,
           fallback: { en: fallbackFn },
@@ -475,7 +475,7 @@ describe("FetchLoader Plugin", () => {
 
         mockCdnErrorResponse("en", "default", 404);
 
-        const plugin = FetchLoader({
+        const plugin = fetchLoaderPlugin({
           cdnUrl: TEST_CDN_URL,
           loadOnInit: true,
           fallback: {
@@ -496,7 +496,7 @@ describe("FetchLoader Plugin", () => {
 
     describe("loadOnInit", () => {
       // Manual invocation is the ONLY path `loadOnInit` reaches: through
-      // `.use(fetchLoader(…))` or `registerPlugin(FetchLoader(…))` the plugin body runs
+      // `.use(fetchLoader(…))` or `registerPlugin(fetchLoaderPlugin(…))` the plugin body runs
       // inside `init()`, where the install-time load is skipped either way and
       // `init()` loads the initial namespaces itself. See
       // `tests/installer.test.ts` and the option's JSDoc.
@@ -505,7 +505,7 @@ describe("FetchLoader Plugin", () => {
 
         mockCdnSuccessResponse("en", "default", { key: "value" });
 
-        const plugin = FetchLoader({ cdnUrl: TEST_CDN_URL, loadOnInit: false });
+        const plugin = fetchLoaderPlugin({ cdnUrl: TEST_CDN_URL, loadOnInit: false });
         await plugin(i18n);
 
         expect(i18n.hasLocale("en", "default")).toBe(false);
@@ -516,7 +516,7 @@ describe("FetchLoader Plugin", () => {
 
         mockCdnSuccessResponse("en", "main", { greeting: "Hello" }, "main");
 
-        const plugin = FetchLoader({ cdnUrl: TEST_CDN_URL, loadOnInit: true });
+        const plugin = fetchLoaderPlugin({ cdnUrl: TEST_CDN_URL, loadOnInit: true });
         await plugin(i18n);
 
         expect(i18n.hasLocale("en", "main")).toBe(true);
@@ -533,7 +533,7 @@ describe("FetchLoader Plugin", () => {
           "nested.welcome": "Welcome!",
         });
 
-        const plugin = FetchLoader({ cdnUrl: TEST_CDN_URL, loadOnInit: true });
+        const plugin = fetchLoaderPlugin({ cdnUrl: TEST_CDN_URL, loadOnInit: true });
         await plugin(i18n);
 
         expect(i18n.t("greeting")).toBe("Hello");
@@ -546,7 +546,7 @@ describe("FetchLoader Plugin", () => {
 
         mockCdnSuccessResponse("en", "default", {});
 
-        const plugin = FetchLoader({ cdnUrl: TEST_CDN_URL, loadOnInit: true });
+        const plugin = fetchLoaderPlugin({ cdnUrl: TEST_CDN_URL, loadOnInit: true });
         await plugin(i18n);
 
         expect(i18n.hasLocale("en", "default")).toBe(true);
@@ -559,7 +559,7 @@ describe("FetchLoader Plugin", () => {
           level1: { level2: { level3: { deep: "Deep value" } } },
         });
 
-        const plugin = FetchLoader({ cdnUrl: TEST_CDN_URL, loadOnInit: true });
+        const plugin = fetchLoaderPlugin({ cdnUrl: TEST_CDN_URL, loadOnInit: true });
         await plugin(i18n);
 
         expect(i18n.t("level1.level2.level3.deep")).toBe("Deep value");
@@ -572,7 +572,7 @@ describe("FetchLoader Plugin", () => {
 
         mockCdnSuccessResponse("en", "default", { key: "value" });
 
-        const plugin = FetchLoader({ cdnUrl: TEST_CDN_URL, loadOnInit: true });
+        const plugin = fetchLoaderPlugin({ cdnUrl: TEST_CDN_URL, loadOnInit: true });
         const cleanup = await plugin(i18n);
 
         expect(typeof cleanup).toBe("function");
@@ -587,7 +587,7 @@ describe("FetchLoader Plugin", () => {
           ),
         );
 
-        const plugin = FetchLoader({ cdnUrl: TEST_CDN_URL, loadOnInit: true });
+        const plugin = fetchLoaderPlugin({ cdnUrl: TEST_CDN_URL, loadOnInit: true });
         const cleanup = await plugin(i18n);
 
         expect(typeof cleanup).toBe("function");
@@ -607,7 +607,7 @@ describe("FetchLoader Plugin", () => {
         }),
       );
 
-      const plugin = FetchLoader({ cdnUrl: TEST_CDN_URL, loadOnInit: true });
+      const plugin = fetchLoaderPlugin({ cdnUrl: TEST_CDN_URL, loadOnInit: true });
       await plugin(i18n);
 
       expect(receivedHeaders?.get("Authorization")).toBe(`Bearer ${TEST_API_KEY}`);
@@ -633,7 +633,7 @@ describe("FetchLoader Plugin", () => {
         }),
       );
 
-      const plugin = FetchLoader({ cdnUrl: TEST_CDN_URL, loadOnInit: true });
+      const plugin = fetchLoaderPlugin({ cdnUrl: TEST_CDN_URL, loadOnInit: true });
       await plugin(i18n);
 
       expect(apiRequestCount).toBe(1);
@@ -652,7 +652,7 @@ describe("FetchLoader Plugin", () => {
         }),
       );
 
-      const plugin = FetchLoader({ cdnUrl: TEST_CDN_URL, loadOnInit: true });
+      const plugin = fetchLoaderPlugin({ cdnUrl: TEST_CDN_URL, loadOnInit: true });
       await plugin(i18n);
 
       expect(cdnRequestCount).toBe(1);
@@ -674,7 +674,7 @@ describe("FetchLoader Plugin", () => {
         }),
       );
 
-      const plugin = FetchLoader({
+      const plugin = fetchLoaderPlugin({
         cdnUrl: TEST_CDN_URL,
         baseUrl: "https://explicit.example.com",
         loadOnInit: true,
@@ -701,7 +701,7 @@ describe("FetchLoader Plugin", () => {
         }),
       );
 
-      const plugin = FetchLoader({
+      const plugin = fetchLoaderPlugin({
         cdnUrl: TEST_CDN_URL,
         baseUrl: "https://explicit.example.com",
         apiBaseUrl: "https://legacy.example.com",
@@ -724,7 +724,7 @@ describe("FetchLoader Plugin", () => {
         }),
       );
 
-      const plugin = FetchLoader({ cdnUrl: TEST_CDN_URL, loadOnInit: true });
+      const plugin = fetchLoaderPlugin({ cdnUrl: TEST_CDN_URL, loadOnInit: true });
       await plugin(i18n);
 
       expect(requestCount).toBe(1);
@@ -739,7 +739,7 @@ describe("FetchLoader Plugin", () => {
 
       mockApiSuccessResponse(apiResponse);
 
-      const plugin = FetchLoader({ cdnUrl: TEST_CDN_URL, loadOnInit: true });
+      const plugin = fetchLoaderPlugin({ cdnUrl: TEST_CDN_URL, loadOnInit: true });
       await plugin(i18n);
 
       expect(i18n.t("greeting")).toBe("Hello from API");
@@ -751,7 +751,7 @@ describe("FetchLoader Plugin", () => {
 
       mockApiErrorResponse(500, "Server Error");
 
-      const plugin = FetchLoader({
+      const plugin = fetchLoaderPlugin({
         cdnUrl: TEST_CDN_URL,
         loadOnInit: true,
         onLoadError,
@@ -767,7 +767,7 @@ describe("FetchLoader Plugin", () => {
 
       mockApiErrorResponse(500, "Server Error");
 
-      const plugin = FetchLoader({
+      const plugin = fetchLoaderPlugin({
         cdnUrl: TEST_CDN_URL,
         loadOnInit: true,
         fallback: {
@@ -791,7 +791,7 @@ describe("FetchLoader Plugin", () => {
         http.get(/\/v1\/project$/, () => new HttpResponse("Unauthorized", { status: 401 })),
       );
 
-      const plugin = FetchLoader({
+      const plugin = fetchLoaderPlugin({
         cdnUrl: TEST_CDN_URL,
         loadOnInit: true,
         fallback: {
@@ -842,7 +842,7 @@ describe("FetchLoader Plugin", () => {
         }),
       );
 
-      const plugin = FetchLoader({ cdnUrl: TEST_CDN_URL, loadOnInit: false });
+      const plugin = fetchLoaderPlugin({ cdnUrl: TEST_CDN_URL, loadOnInit: false });
       await plugin(i18n);
 
       const loaderFn = i18n.getLoader()!;
@@ -862,7 +862,7 @@ describe("FetchLoader Plugin", () => {
 
       mockApiErrorResponse(500, "Server Error");
 
-      const plugin = FetchLoader({
+      const plugin = fetchLoaderPlugin({
         cdnUrl: TEST_CDN_URL,
         loadOnInit: true,
         fallback: {
@@ -890,7 +890,7 @@ describe("FetchLoader Plugin", () => {
         ),
       );
 
-      const plugin = FetchLoader({
+      const plugin = fetchLoaderPlugin({
         cdnUrl: TEST_CDN_URL,
         loadOnInit: false,
         onLoadError,

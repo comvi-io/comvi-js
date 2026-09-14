@@ -33,7 +33,7 @@ export const i18n = createI18n({
       "ar:admin": () => import("./locales/admin/ar.json"),
     }),
   )
-  // The locale detector, through the package's own lowercase installer: it
+  // The locale detector, through the package's own bare-name installer: it
   // attaches the plugin host it needs and registers the detector, so an app
   // never touches the raw plugin queue.
   .use(

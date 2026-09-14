@@ -283,11 +283,11 @@ test("a diff fence's ADDED line carrying a dead symbol → linted", () => {
   assert.deepEqual(rulesOf(body), ["banned/slim-entry", "banned/slim-entry"]);
 });
 
-test(".use(RawPlugin()) → banned, a raw plugin is not an installer", () => {
+test(".use(fetchLoaderPlugin()) → banned, a raw plugin is not an installer", () => {
   const body = [
     "```ts",
     "const i18n = createI18n({ locale: 'en' });",
-    "i18n.use(FetchLoader({ apiKey }));",
+    "i18n.use(fetchLoaderPlugin({ apiKey }));",
     "```",
   ].join("\n");
 
@@ -300,7 +300,7 @@ test(".use(RawPlugin()) → banned, a raw plugin is not an installer", () => {
   assert.match(findings[0].message, /E_USE_NOT_INSTALLER/);
 });
 
-test(".use(RawPlugin()) after .use(plugins()) → STILL banned, the chain cannot clear it", () => {
+test(".use(fetchLoaderPlugin()) after .use(plugins()) → STILL banned, the chain cannot clear it", () => {
   // This is where the premise inverted at decision E. While `use` was the raw
   // plugin queue, composing `plugins()` was exactly what made the call legal.
   // Now `use` is the installer pipe on every host, so the capability changes
@@ -309,18 +309,18 @@ test(".use(RawPlugin()) after .use(plugins()) → STILL banned, the chain cannot
   const body = [
     "```ts",
     "const i18n = createI18n({ locale: 'en' }).use(loader()).use(plugins());",
-    "i18n.use(FetchLoader({ apiKey }));",
+    "i18n.use(fetchLoaderPlugin({ apiKey }));",
     "```",
   ].join("\n");
 
   assert.deepEqual(rulesOf(body), ["banned/raw-plugin-in-use-slot"]);
 });
 
-test(".use(LocaleDetector()) → banned, and the message names the lowercase installer", () => {
+test(".use(localeDetectorPlugin()) → banned, and the message names the installer", () => {
   const body = [
     "```ts",
     "const i18n = createI18n({ locale: 'en' }).use(attachPlugins);",
-    "i18n.use(LocaleDetector());",
+    "i18n.use(localeDetectorPlugin());",
     "```",
   ].join("\n");
 
@@ -330,11 +330,64 @@ test(".use(LocaleDetector()) → banned, and the message names the lowercase ins
     findings.map((f) => f.rule),
     ["banned/raw-plugin-in-use-slot"],
   );
-  assert.match(findings[0].message, /localeDetector\(\), not LocaleDetector\(\)/);
+  assert.match(findings[0].message, /localeDetector\(\), not localeDetectorPlugin\(\)/);
   assert.match(findings[0].message, /\.use\(definePlugin\(fn\)\)/);
 });
 
-test(".use(localeDetector()) → clean, the lowercase factory IS the installer", () => {
+test("every first-party *Plugin factory in the .use slot → banned, by NAME", () => {
+  // The capital letter used to be the detector, and the wave-6 rename took it
+  // away: all four of these read as bare lowercase calls now, so the rule
+  // carries their names. One case per package, because a list is only as good
+  // as its entries.
+  for (const factory of [
+    "cdnLoaderPlugin",
+    "fetchLoaderPlugin",
+    "localeDetectorPlugin",
+    "inContextEditorPlugin",
+  ]) {
+    const body = [
+      "```ts",
+      `const i18n = createI18n({ locale: 'en' }).use(${factory}({ cdnUrl: u }));`,
+      "```",
+    ].join("\n");
+
+    assert.deepEqual(rulesOf(body), ["banned/raw-plugin-in-use-slot"], factory);
+  }
+});
+
+test("a first-party *Plugin factory reached through a namespace → banned too", () => {
+  const body = [
+    "```ts",
+    "const i18n = createI18n({ locale: 'en' }).use(pkg.fetchLoaderPlugin({ apiKey }));",
+    "```",
+  ].join("\n");
+
+  assert.deepEqual(rulesOf(body), ["banned/raw-plugin-in-use-slot"]);
+});
+
+test(".use(nextPlugin(f, { runtime })) → clean, though the callee ends in Plugin", () => {
+  // The reason the rule lists four NAMES instead of matching a `*Plugin`
+  // suffix: `nextPlugin` and `nextPluginLazy` end in `Plugin` and are the
+  // CORRECT argument to `.use` on a `createNextI18n` result. A suffix rule
+  // would have reported the next README's own recommended chain.
+  const scoped = [
+    "```ts",
+    "export const { i18n } = createNextI18n({ locales: ['en'], defaultLocale: 'en' })",
+    "  .use(nextPlugin(localeDetectorPlugin({ order: ['cookie'] }), { runtime: 'client' }));",
+    "```",
+  ].join("\n");
+  const lazy = [
+    "```ts",
+    "export const { i18n } = createNextI18n({ locales: ['en'], defaultLocale: 'en' })",
+    "  .use(nextPluginLazy(async () => myPlugin, { runtime: 'client' }));",
+    "```",
+  ].join("\n");
+
+  assert.deepEqual(rulesOf(scoped), []);
+  assert.deepEqual(rulesOf(lazy), []);
+});
+
+test(".use(localeDetector()) → clean, the suffix-free name IS the installer", () => {
   const body = [
     "```ts",
     "const i18n = createI18n({ locale: 'en' }).use(localeDetector({ order: ['navigator'] }));",
@@ -841,6 +894,42 @@ test("an ICU argument in a JSON catalog fence with no compiler named → require
   );
 });
 
+test("an ICU catalog on a createNextI18n page with no compiler → required/icu-compiler", () => {
+  // The factory used to default `compiler` to `icuCompiler`, and a reader could
+  // fairly have expected the rule to treat the constructor as its own evidence.
+  // It never did, and after wave 6 it must not start: `createNextI18n` picks no
+  // compiler either, so an ICU catalog owes the option on this page exactly as
+  // it does on a `createI18n` page. `createNextI18n` IS evidence for the loader
+  // and the plugin host (LOADER_TOKENS / PLUGIN_TOKENS) — this pins that the
+  // two lists stay separate.
+  const body = [
+    '```json title="locales/en.json"',
+    '{ "cart": "{count, plural, one {# item} other {# items}}" }',
+    "```",
+    "```ts",
+    "export const { i18n } = createNextI18n({ locales: ['en'], defaultLocale: 'en' });",
+    "```",
+  ].join("\n");
+
+  assert.deepEqual(rulesOf(body), ["required/icu-compiler"]);
+});
+
+test("the same createNextI18n page once it names the compiler → clean", () => {
+  const body = [
+    '```json title="locales/en.json"',
+    '{ "cart": "{count, plural, one {# item} other {# items}}" }',
+    "```",
+    "```ts",
+    "import { createNextI18n, icuCompiler } from '@comvi/next';",
+    "export const { i18n } = createNextI18n({",
+    "  locales: ['en'], defaultLocale: 'en', compiler: icuCompiler,",
+    "});",
+    "```",
+  ].join("\n");
+
+  assert.deepEqual(rulesOf(body), []);
+});
+
 test("the same catalog on a page that names icuCompiler → clean", () => {
   const body = [
     '```json title="locales/en.json"',
@@ -1344,8 +1433,9 @@ test("a raw plugin on a receiver that is NOT exempt → still banned", () => {
 });
 
 test("createNextI18n's result.use(RawPlugin()) → exempt, a deliberate compat surface", () => {
-  // `createNextI18n` is preserved exactly across 0.5.0 (MIGRATION.md §5) and
-  // its composed host keeps the raw plugin queue.
+  // `createNextI18n` keeps every 0.4 capability (MIGRATION.md §5) and its
+  // composed host keeps the raw plugin queue. Losing the `compiler` default
+  // did not touch this: the compiler is a constructor option, never a `.use`.
   const stored = [
     "```ts",
     "const result = createNextI18n({ locale: 'en' });",
@@ -1474,7 +1564,7 @@ test(".with(installer()) and .with(attachLoader) → still banned, the verb is g
     "```ts",
     "const a = createI18n({ locale: 'en' }).with(myOwnInstaller());",
     "const b = createI18n({ locale: 'en' }).with(attachLoader);",
-    "const c = createI18n({ locale: 'en' }).with(FetchLoader());",
+    "const c = createI18n({ locale: 'en' }).with(fetchLoaderPlugin());",
     "```",
   ].join("\n");
 

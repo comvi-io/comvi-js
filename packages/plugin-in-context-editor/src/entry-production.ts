@@ -10,7 +10,7 @@ export interface EditorOptions extends Omit<TranslationSystemOptions, "targetEle
  * Production entrypoint: keep API compatible while making the editor a no-op.
  * This keeps the heavy editor runtime out of production bundles.
  */
-export const InContextEditorPlugin: I18nPluginFactory<EditorOptions> = (): I18nPlugin => {
+export const inContextEditorPlugin: I18nPluginFactory<EditorOptions> = (): I18nPlugin => {
   return () => undefined;
 };
 

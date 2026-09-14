@@ -20,7 +20,11 @@ so every CLDR plural category is correct by default.
 
 ICU is an opt-in compiler rather than a default. Name it once in the constructor options, with
 `compiler: icuCompiler` from `@comvi/core/icu`, and the whole grammar below is live for every
-catalog source: inline, a loader, the CDN, the API. See
+catalog source: inline, a loader, the CDN, the API.
+
+**No constructor in the repo enables it for you** — `createNextI18n` included, and nuxt's
+`comvi.icu` defaults to `false`. The one exception is the CDN global, which is fully composed
+because a `<script src>` has no tree-shaking and therefore no byte choice to offer. See
 [why it is a constructor option and not an installer](composition.md#why-icu-is-a-constructor-option-and-not-an-installer).
 
 ## Plurals across languages

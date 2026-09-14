@@ -9,7 +9,7 @@ import {
   withDisabledBrowserGlobals,
 } from "./setup";
 
-describe("LocaleDetector plugin", () => {
+describe("localeDetectorPlugin plugin", () => {
   describe("initialization flow", () => {
     it("registers a detector without mutating locale before init", async () => {
       mockWindowLocation("?lng=fr");

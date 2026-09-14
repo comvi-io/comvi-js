@@ -465,7 +465,7 @@ createBaseI18n({ locale: "en" }).use(
 );
 
 // 2. An ASYNC installer: calling it yields a Promise, never the host. This is
-//    the shape a raw `FetchLoader(…)`-style plugin has.
+//    the shape a raw `fetchLoaderPlugin(…)`-style plugin has.
 // @ts-expect-error — an async function returns a Promise, not the host
 createBaseI18n({ locale: "en" }).use(async (i18n) => i18n);
 

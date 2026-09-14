@@ -31,7 +31,7 @@ vi.mock("@comvi/plugin-fetch-loader", async (importOriginal) => {
 
 vi.mock("../src/Core", mockCoreModule);
 
-import { InContextEditorPlugin } from "../src/index";
+import { inContextEditorPlugin } from "../src/index";
 import type { ApiTransport } from "../src/config/api";
 import {
   activate,
@@ -72,12 +72,12 @@ function resetStandaloneRuntime(): void {
 describe("collectContext / screenGroupResolver pass-through", () => {
   afterEach(resetStandaloneRuntime);
 
-  it("InContextEditorPlugin hands collectContext: false and the resolver to Core", () => {
+  it("inContextEditorPlugin hands collectContext: false and the resolver to Core", () => {
     const resolver = () => "/users/:id";
     const i18n = makeI18n();
     // The editor's install is synchronous and always hands back its teardown;
     // `I18nPlugin`'s return type also covers the async and no-cleanup shapes.
-    const cleanup = InContextEditorPlugin({ collectContext: false, screenGroupResolver: resolver })(
+    const cleanup = inContextEditorPlugin({ collectContext: false, screenGroupResolver: resolver })(
       asPluginHost(i18n),
     ) as () => void;
 
@@ -88,9 +88,9 @@ describe("collectContext / screenGroupResolver pass-through", () => {
     cleanup?.();
   });
 
-  it("InContextEditorPlugin leaves collectContext undefined (Core's default: enabled) when not set", () => {
+  it("inContextEditorPlugin leaves collectContext undefined (Core's default: enabled) when not set", () => {
     const i18n = makeI18n();
-    const cleanup = InContextEditorPlugin()(asPluginHost(i18n)) as () => void;
+    const cleanup = inContextEditorPlugin()(asPluginHost(i18n)) as () => void;
 
     expect(lastCoreOptions().collectContext).toBeUndefined();
 

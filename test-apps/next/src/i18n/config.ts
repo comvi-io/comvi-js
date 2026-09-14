@@ -1,9 +1,10 @@
-import { createNextI18n, loader } from "@comvi/next";
+import { createNextI18n, icuCompiler, loader } from "@comvi/next";
 
 /**
  * Creates both the i18n instance and the routing config in one call, then
- * composes the import-map loader through the one composition verb. ICU is the
- * factory's default `compiler`; a runtime-scoped plugin would go through
+ * composes the import-map loader through the one composition verb. ICU is
+ * never a default anywhere, so `compiler: icuCompiler` is named for the plurals
+ * in these catalogs; a runtime-scoped plugin would go through
  * `nextPlugin(...)` from the same specifier.
  */
 export const { i18n, routing } = createNextI18n({
@@ -11,6 +12,7 @@ export const { i18n, routing } = createNextI18n({
   defaultLocale: "en",
   localePrefix: "as-needed",
 
+  compiler: icuCompiler,
   fallbackLocale: "en",
   defaultNs: "default",
   basicHtmlTags: ["strong", "em", "br", "a"],
