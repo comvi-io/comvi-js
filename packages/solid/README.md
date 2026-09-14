@@ -101,7 +101,10 @@ Reading the value once into a plain variable captures it forever.
 
 ## 3. Connect to Comvi
 
-Three questions, and the answers are the lines below.
+Three questions, and the answers are the lines below. One limit first: on Solid the loader runs on
+the client only — `<I18nProvider>` starts `init()` from a `createEffect`, which a server render never
+runs — so a CDN catalog is absent from the server render (details in section 5). Keep the catalog
+inline for the server render, or load on the client and gate with `fallback`.
 
 1. **Which parser?** `compiler: icuCompiler`. The platform's catalogs use ICU plurals, and the
    default `{param}` compiler does not render them. Without `compiler: icuCompiler`, an ICU message
