@@ -102,7 +102,10 @@ export const nextBuild = (dir: string, suffix: "" | ".dev") => ({
       // names it, and a private inlined copy could not dedupe with the app's.
       "@comvi/core/rich-text",
       "@comvi/core/tags",
-      "@comvi/locale-routing",
+      // `@comvi/locale-routing` is deliberately ABSENT: it is a workspace-private
+      // package, so rolldown must INLINE it. `preserveModules` keeps it a single
+      // emitted module shared by the entries that import it (routing, middleware,
+      // navigation, root), not a copy per entry.
       "@comvi/react",
       "@comvi/plugin-fetch-loader",
     ],

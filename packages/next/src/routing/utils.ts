@@ -1,5 +1,8 @@
 import type { UrlObject } from "url";
-import { splitPathAndSuffix, stripLocalePrefix } from "@comvi/locale-routing";
+import {
+  splitPathAndSuffix,
+  stripLocalePrefix as stripLocalePrefixShared,
+} from "@comvi/locale-routing";
 import type { RoutingConfig } from "./types";
 import { createGetPathname } from "./defineRouting";
 
@@ -25,8 +28,8 @@ const normalizePath = (path: string): string => {
  * Split a path into the key the `pathnames` map is compared against and the
  * trailing slash to re-attach afterwards.
  *
- * `@comvi/locale-routing` preserves trailing slashes and never rewrites
- * interior bytes, so `/de/about/` strips to `/about/` and `/en//about` to
+ * The shared locale-routing primitives preserve trailing slashes and never
+ * rewrite interior bytes, so `/de/about/` strips to `/about/` and `/en//about` to
  * `//about`. Comparing those raw against the map means every cosmetic-slash
  * variant of a URL misses its slug and loses the internal rewrite. The
  * comparison therefore runs on the collapsed, slash-trimmed form while the
@@ -74,7 +77,16 @@ const getCanonicalPathMatch = (
   return undefined;
 };
 
-export { stripLocalePrefix };
+/**
+ * Re-exported for this package's own routing seam (middleware, hooks) and its
+ * tests. Written as an ANNOTATED alias rather than `export { stripLocalePrefix }`
+ * because a re-exported imported binding makes tsc name its origin in the
+ * emitted `utils.d.ts` — and the shared locale-routing package is
+ * workspace-private, so a published declaration may not name it. The type is
+ * what keeps the declaration self-contained; the alias itself adds no call frame.
+ */
+export const stripLocalePrefix: (pathname: string, locales: readonly string[]) => string =
+  stripLocalePrefixShared;
 
 export const getCanonicalPathname = (
   pathname: string,

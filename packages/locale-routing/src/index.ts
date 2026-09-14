@@ -1,5 +1,9 @@
 /**
- * @comvi/locale-routing — framework-neutral locale routing primitives.
+ * locale-routing — framework-neutral locale routing primitives.
+ *
+ * Workspace-private: this source is inlined into @comvi/next at build time and
+ * vendored into @comvi/nuxt's runtime. Nothing published names it, which is why
+ * the doc comments below do not spell the workspace package name either.
  *
  * Zero dependencies, pure functions, no `node:`/`url` imports — framework
  * couplings (e.g. Next's `UrlObject`) stay in framework-side adapters.

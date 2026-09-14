@@ -194,7 +194,7 @@ const CASES = [
       ...UNUSED_CAPABILITY_SUBPATHS,
       `@comvi${path.sep}next${path.sep}dist${path.sep}createNextI18n.js`,
     ],
-    packages: ["@comvi/core", "@comvi/locale-routing", "@comvi/react", "@comvi/next"],
+    packages: ["@comvi/core", "@comvi/react", "@comvi/next"],
     deps: ["react", "next"],
   },
   // ---------------------------------------------------------------------
@@ -295,7 +295,7 @@ const CASES = [
       ...LOADER_SUBPATH,
       `@comvi${path.sep}next${path.sep}dist${path.sep}server${path.sep}`,
     ],
-    packages: ["@comvi/core", "@comvi/locale-routing", "@comvi/react", "@comvi/next"],
+    packages: ["@comvi/core", "@comvi/react", "@comvi/next"],
     deps: ["react", "next"],
   },
   {
@@ -307,7 +307,7 @@ const CASES = [
       ...DEVTOOLS_SUBPATH,
       `@comvi${path.sep}next${path.sep}dist${path.sep}server${path.sep}`,
     ],
-    packages: ["@comvi/core", "@comvi/locale-routing", "@comvi/react", "@comvi/next"],
+    packages: ["@comvi/core", "@comvi/react", "@comvi/next"],
     deps: ["react", "next"],
   },
   // ---------------------------------------------------------------------
@@ -365,7 +365,7 @@ const CASES = [
     sentinels: "present",
     devOnlyText: [NEXT_USE_IDENTITY_HINT],
     presentModules: NEXT_COMPOSED_ROOT_MODULE,
-    packages: ["@comvi/core", "@comvi/locale-routing", "@comvi/react", "@comvi/next"],
+    packages: ["@comvi/core", "@comvi/react", "@comvi/next"],
     deps: ["react", "next"],
   },
   {
@@ -410,11 +410,6 @@ const ALL_PACKAGES = [
   { name: "@comvi/solid", dir: "packages/solid", distProbe: "dist/comvi-solid.js" },
   { name: "@comvi/svelte", dir: "packages/svelte", distProbe: "dist/index.js" },
   { name: "@comvi/vue", dir: "packages/vue", distProbe: "dist/comvi-vue.js" },
-  {
-    name: "@comvi/locale-routing",
-    dir: "packages/locale-routing",
-    distProbe: "dist/index.js",
-  },
   { name: "@comvi/next", dir: "packages/next", distProbe: "dist/server.js" },
   {
     name: "@comvi/plugin-in-context-editor",
