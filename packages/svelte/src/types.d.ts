@@ -77,6 +77,14 @@ interface TBaseProps {
   components?: ComponentMap;
   /** Rendered when the key is missing and no `fallback` prop was given. */
   children?: Snippet;
+  /**
+   * @deprecated Removed in 0.5. `<T>` renders structurally now — there is no
+   * HTML-string sink left to allowlist tags for. Tag handlers come from
+   * {@link TBaseProps.components} instead. Delete this prop; a JS caller that
+   * still passes it gets it dropped (not forwarded as an interpolation
+   * param) with a one-time development warning.
+   */
+  allowedTags?: never;
 }
 
 /**

@@ -16,6 +16,7 @@ import * as prod from "../src/dev-warn";
 import * as dev from "../src/dev-warn.dev";
 
 const DEPRECATION = "[i18n] <T raw> is deprecated.";
+const ALLOWED_TAGS_TOMBSTONE = "[i18n] <T allowedTags> is gone.";
 
 describe("#dev-warn halves", () => {
   let warn: ReturnType<typeof vi.spyOn>;
@@ -53,6 +54,39 @@ describe("#dev-warn halves", () => {
     const host = {};
     prod.warnDeprecatedRawProp(host);
     prod.warnDeprecatedRawProp({});
+    expect(warn).not.toHaveBeenCalled();
+  });
+
+  it("development half warns once per host for allowedTags, and separately per host", () => {
+    const hostA = {};
+    const hostB = {};
+
+    dev.warnDeprecatedAllowedTagsProp(hostA);
+    dev.warnDeprecatedAllowedTagsProp(hostA);
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(warn.mock.calls[0]?.[0]).toContain(ALLOWED_TAGS_TOMBSTONE);
+
+    dev.warnDeprecatedAllowedTagsProp(hostB);
+    expect(warn).toHaveBeenCalledTimes(2);
+  });
+
+  it("the raw and allowedTags dedupes are independent on the SAME host", () => {
+    const host = {};
+
+    dev.warnDeprecatedRawProp(host);
+    dev.warnDeprecatedAllowedTagsProp(host);
+    expect(warn).toHaveBeenCalledTimes(2);
+
+    // Each stays deduped on its own after the other has already fired once.
+    dev.warnDeprecatedRawProp(host);
+    dev.warnDeprecatedAllowedTagsProp(host);
+    expect(warn).toHaveBeenCalledTimes(2);
+  });
+
+  it("production half is silent for allowedTags too", () => {
+    const host = {};
+    prod.warnDeprecatedAllowedTagsProp(host);
+    prod.warnDeprecatedAllowedTagsProp({});
     expect(warn).not.toHaveBeenCalled();
   });
 });

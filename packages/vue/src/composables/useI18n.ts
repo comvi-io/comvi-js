@@ -99,21 +99,21 @@ export interface UseI18nReturn<
   // `never` keeps the name visible — struck through in autocomplete, with the
   // acquisition in the tooltip — while any use stays a type error. Type-only:
   // the object `useI18n()` returns never carries these keys, in any build.
-  /** @deprecated Moved in 0.5. Acquire it: `const { addActiveNamespace } = useI18nLoader()`. */
+  /** @deprecated Moved in 0.5. Acquire it: `const { addActiveNamespace } = useI18nLoader()`. Optional only so the key can be absent: `if (bag.addActiveNamespace)` compiles and is always false. */
   addActiveNamespace?: never;
-  /** @deprecated Moved in 0.5. Acquire it: `const { reloadTranslations } = useI18nLoader()`. */
+  /** @deprecated Moved in 0.5. Acquire it: `const { reloadTranslations } = useI18nLoader()`. Optional only so the key can be absent: `if (bag.reloadTranslations)` compiles and is always false. */
   reloadTranslations?: never;
-  /** @deprecated Moved in 0.5. Acquire it: `const { onLoadError } = useI18nLoader()`. */
+  /** @deprecated Moved in 0.5. Acquire it: `const { onLoadError } = useI18nLoader()`. Optional only so the key can be absent: `if (bag.onLoadError)` compiles and is always false. */
   onLoadError?: never;
-  /** @deprecated Moved in 0.5. Acquire it: `const { onMissingKey } = useI18nPlugins()`. */
+  /** @deprecated Moved in 0.5. Acquire it: `const { onMissingKey } = useI18nPlugins()`. Optional only so the key can be absent: `if (bag.onMissingKey)` compiles and is always false. */
   onMissingKey?: never;
 
   // Removed from `useI18n()` in 0.5: `hasTranslation` / `hasLocale` are the
   // non-reactive form in react, solid and svelte, so vue carried two names
   // for what one name means elsewhere. The pair stays on `VueI18n`.
-  /** @deprecated Moved in 0.5. Acquire it: `inject(I18N_INJECTION_KEY).hasTranslationNow`. */
+  /** @deprecated Moved in 0.5. Acquire it: `inject(I18N_INJECTION_KEY).hasTranslationNow`. Optional only so the key can be absent: `if (bag.hasTranslationNow)` compiles and is always false. */
   hasTranslationNow?: never;
-  /** @deprecated Moved in 0.5. Acquire it: `inject(I18N_INJECTION_KEY).hasLocaleNow`. */
+  /** @deprecated Moved in 0.5. Acquire it: `inject(I18N_INJECTION_KEY).hasLocaleNow`. Optional only so the key can be absent: `if (bag.hasLocaleNow)` compiles and is always false. */
   hasLocaleNow?: never;
 }
 

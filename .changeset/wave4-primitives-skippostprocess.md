@@ -28,7 +28,7 @@ which stays the source of truth; nothing assigns a local value. React and vue ar
 **`<T raw>` is renamed to `<T skipPostProcess>`, in all four bindings.** `raw` meant two unrelated
 things — `tRaw()` returns the structured result; `<T raw>` skips post-processors, notably the
 in-context editor's invisible markers — and only the `<T>` prop is renamed; `tRaw` is untouched.
-`raw` keeps working as a deprecated alias for one release, with a one-time development warning
+`raw` keeps working as a deprecated alias, removed in 0.6, with a one-time development warning
 (`<T raw>` is deprecated. Use `<T skipPostProcess>` instead); setting both props lets
 `skipPostProcess` win. A repo-internal [codemod](https://github.com/comvi-io/comvi-js/blob/main/MIGRATION.md#3-the-codemod)
 rewrites `<T raw>` to `<T skipPostProcess>` in JSX that imports `T` from `@comvi/react`,

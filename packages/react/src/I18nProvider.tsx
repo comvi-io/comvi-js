@@ -141,15 +141,18 @@ export interface I18nProviderProps {
    */
   fallback?: React.ReactNode;
   /**
-   * Render locale for the server snapshot — react's original name for it, and
-   * still the canonical one here: when both are passed, this wins.
+   * Render locale for the server snapshot — react's original name for it.
+   * Still wins over `ssrLocale` when both are passed (that precedence is
+   * unchanged).
+   *
+   * @deprecated Use `ssrLocale`, the cross-binding name; removed in 0.6.
    */
   ssrInitialLocale?: string;
   /**
-   * Render locale for the server snapshot, under the name `@comvi/vue` and
-   * `@comvi/nuxt` use. Prefer it in new code: it is the cross-binding spelling
-   * of {@link I18nProviderProps.ssrInitialLocale}, which react keeps for
-   * compatibility.
+   * Render locale for the server snapshot, under the cross-binding name
+   * `@comvi/vue` and `@comvi/nuxt` also use. The canonical name — prefer it in
+   * new code. {@link I18nProviderProps.ssrInitialLocale} is react's legacy
+   * alias, kept for compatibility, and still wins when both are passed.
    */
   ssrLocale?: string;
   /** Initial loading state for SSR hydration. */
@@ -188,7 +191,7 @@ export function I18nProvider({
     if (!warnedAliasRef.current) {
       warnedAliasRef.current = true;
       console.warn(
-        `[i18n] <I18nProvider> got both ssrInitialLocale="${ssrInitialLocale}" and ssrLocale="${ssrLocale}". ssrInitialLocale wins; drop one. ssrLocale is the cross-binding name (@comvi/vue, @comvi/nuxt), ssrInitialLocale is react's original one.`,
+        `[i18n] <I18nProvider> got both ssrInitialLocale="${ssrInitialLocale}" and ssrLocale="${ssrLocale}". ssrInitialLocale wins; drop one. ssrLocale is the canonical cross-binding name (@comvi/vue, @comvi/nuxt); ssrInitialLocale is react's deprecated legacy alias, removed in 0.6.`,
       );
     }
   }

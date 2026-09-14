@@ -374,9 +374,14 @@ const VUE_ONLY_TOMBSTONES = {
   hasLocaleNow: "inject(I18N_INJECTION_KEY).hasLocaleNow",
 };
 
-/** The exact declaration a tombstone must carry, comment included. */
+/**
+ * The exact declaration a tombstone must carry, comment included. The
+ * `if (bag.${name})` clause is why it compiles at all with the property
+ * absent: `never` alone would forbid presence outright, so the doc comment
+ * spells out that "optional" is load-bearing, not decorative.
+ */
 const tombstoneDeclaration = (name, acquisition) =>
-  `/** @deprecated Moved in 0.5. Acquire it: \`${acquisition}\`. */\n  ${name}?: never;`;
+  `/** @deprecated Moved in 0.5. Acquire it: \`${acquisition}\`. Optional only so the key can be absent: \`if (bag.${name})\` compiles and is always false. */\n  ${name}?: never;`;
 
 test("parseInterfaceMembers marks `name?: never` a tombstone and nothing else", () => {
   const members = parseInterfaceMembers(

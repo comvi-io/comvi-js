@@ -24,3 +24,17 @@ export function warnDeprecatedRawProp(host: object): void {
     );
   }
 }
+
+// A separate WeakSet from `warnedRawProp`: an unrelated deprecation on the
+// same host must not suppress or be suppressed by this one.
+const warnedAllowedTagsProp = /* @__PURE__ */ new WeakSet<object>();
+
+/** Warns once per host that `<T allowedTags>` is gone and the prop is dropped. */
+export function warnDeprecatedAllowedTagsProp(host: object): void {
+  if (!warnedAllowedTagsProp.has(host)) {
+    warnedAllowedTagsProp.add(host);
+    console.warn(
+      "[i18n] <T allowedTags> is gone. <T> renders structurally now; tag handlers come from `components`. The prop is dropped and ignored — delete it.",
+    );
+  }
+}
