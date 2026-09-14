@@ -12,16 +12,6 @@ contract as `@comvi/react`.
 | `const { onMissingKey } = useI18n()`                                        | `const { onMissingKey } = useI18nPlugins()`                        |
 | `const { t, reloadTranslations } = useI18n("ns")`                           | `useI18n("ns")` keeps `t`; `useI18nLoader()` takes no argument     |
 
-```
-pnpm codemod:framework-slim "src/**/*.{ts,tsx,js,jsx}"
-```
-
-Exit `0` = clean or fully transformed, `2` = rewrites applied and manual items remain (each
-printed as `path:line [shape] detail`; `--report report.json` writes the same list as JSON).
-It refuses — loudly, never silently — rest spreads, computed keys, hook results stored in a
-variable or crossing a function boundary, local-name collisions, and relative-import call
-sites it cannot retarget.
-
 **Why the members moved.** `useI18n()` used to close over them, so its return type promised
 methods a base host does not have and calling one produced a bare
 `undefined is not a function` at an arbitrary call site. They are acquired explicitly now,

@@ -32,15 +32,9 @@ failure class this release removes. It is gone from the class in types and at ru
 called `registerPlugin` on the host. The `use` the class carries now is the composition pipe,
 which takes an installer.
 
-```
-pnpm codemod:framework-slim "src/**/*.{ts,vue}"
-```
-
-Exit `0` = clean or fully transformed, `2` = rewrites applied and manual items remain. Never
-rewritten, always reported: rest spreads, computed keys, stored or boundary-crossing hook
-results, local-name collisions, `.vue` script blocks that fail extraction, and the eight
-dropped instance proxies — the receiver's type is textually undecidable, so they need manual
-`i18n.core.*` migration.
+The eight dropped instance proxies each need a by-hand move to `i18n.core.*`: the receiver's
+type is textually undecidable, so `i18n.reloadTranslations()` may be a `VueI18n` proxy or an
+already-correct raw core instance, and only you can tell which.
 
 **Also fixed (no app change needed).** `@comvi/vue` no longer inlines copies of core's tag
 and translate chunks into its own bundle, and `<T>` is its own dist chunk with a

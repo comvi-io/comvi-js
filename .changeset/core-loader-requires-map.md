@@ -17,12 +17,6 @@ passes nothing gets a named error at the `loader()` call site — both forms in 
 development, the bare code `E_LOADER_IMPORT_MAP` in production — rather than `undefined`
 surfacing inside the import-map adapter on the first load.
 
-`pnpm codemod:framework-slim` rewrites a bare `loader()` on a host it has proven to the bare
-`attachLoader`, maintaining the import (`attachLoader` added to the clause `loader` came
-through, `loader` dropped if nothing else references it). A call it cannot attribute to a
-proven host — in a refused chain, on a receiver it cannot see through, or stored in a local —
-is **reported**, never guessed at.
-
 The capability-absence error names the new pair: `[comvi] This i18n instance has no loader
 capability. Compose it: .use(attachLoader) from "@comvi/core/loader", or loader(map).`
 

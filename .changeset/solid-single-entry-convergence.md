@@ -34,5 +34,5 @@ catalog source, and nothing about composition is ordered.
 Residual: `t("Click <b>here</b>")` returns that markup as text, because no entry registers
 tag syntax ambiently — development warns the first time, production stays literal and never
 throws. See the
-[0.5.0 migration guide](https://github.com/comvi-io/comvi-js/blob/main/MIGRATION.md) §4 and
+[0.5.0 migration guide](https://github.com/comvi-io/comvi-js/blob/main/MIGRATION.md) §3 and
 `core-single-entry-convergence.md`.

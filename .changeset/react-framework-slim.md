@@ -11,15 +11,6 @@ and the four loader/plugin members left `useI18n()` for two dedicated hooks.
 | `const { onMissingKey } = useI18n()`                                        | `const { onMissingKey } = useI18nPlugins()`                        |
 | `const { t, reloadTranslations } = useI18n("ns")`                           | `useI18n("ns")` keeps `t`; `useI18nLoader()` takes no argument     |
 
-```
-pnpm codemod:framework-slim "src/**/*.{ts,tsx,js,jsx}"
-```
-
-Exit `0` = clean or fully transformed, `2` = rewrites applied and manual items remain (each
-printed as `path:line [shape] detail`; `--report report.json` writes the same list as JSON).
-It refuses — loudly, never silently — rest spreads, computed keys, stored hook results and
-local-name collisions.
-
 **Why the members moved.** `useI18n()` used to bind them eagerly, so the hook could not run
 at all on a host without the loader/plugin capability, and its return type promised methods
 that host does not have. They are acquired explicitly now, and a host that lacks the

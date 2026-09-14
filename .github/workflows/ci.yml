@@ -93,7 +93,7 @@ jobs:
 
       # Self-tests for the scripts that version and migrate: the root
       # changelog builder, the rc version rewriter, the wrapper hooks parity
-      # check, and the framework-slim codemod goldens + idempotence.
+      # check, and the docs-snippet linter.
       - name: Release tooling tests
         run: pnpm test:release-tools
 

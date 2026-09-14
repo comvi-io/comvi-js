@@ -4,7 +4,7 @@
 
 **BREAKING (breaking change on a 0.x minor): `createI18n` from `@comvi/next/client` now builds the base host.** That name is published 0.4.x API — on the client entry, on `@comvi/next/server` and on the `@comvi/next` root — and in 0.4 it arrived with ICU, tag syntax, async loading, the plugin host and devtools discovery already attached. Those five are now things a next app composes. **ICU plurals THROW instead of rendering wrong text**: development throws `E_ICU_SYNTAX` at ingestion, production renders the braced segment literally and reports it through `onError`.
 
-**Grep target for a tree built against 0.5 development:** the second constructor name that briefly stood beside `createI18n` on both entries for the bare host was `createSlimI18n`. It is deleted — one host, one name — it never published, and `pnpm codemod:framework-slim` renames it, aliased imports included.
+**Grep target for a tree built against 0.5 development:** the second constructor name that briefly stood beside `createI18n` on both entries for the bare host was `createSlimI18n`. It is deleted — one host, one name — it never published, so rename it to `createI18n`, aliased imports included.
 
 **`createNextI18n` from `@comvi/next` is NOT affected.** It composes ICU, ambient tags, the
 loader (both `registerLoader` overloads), the plugin host, default params and devtools
@@ -40,5 +40,5 @@ runtime split, never a host-tier split.
 
 Residual: `t("Click <b>here</b>")` returns markup as text, since neither entry registers tag
 syntax ambiently. See the
-[0.5.0 migration guide](https://github.com/comvi-io/comvi-js/blob/main/MIGRATION.md) §6 and
+[0.5.0 migration guide](https://github.com/comvi-io/comvi-js/blob/main/MIGRATION.md) §5 and
 `core-single-entry-convergence.md`.

@@ -24,9 +24,10 @@
  * nothing to say.
  *
  * Scope rule that matters: a capability is acquired PER CHAIN, not per page.
- * MIGRATION.md §3 makes the chain the unit for the codemod, and the same unit is
- * used here. A page-wide scope would clear `ssr.mdx`'s `defineComviSetup`
- * snippet because an unrelated `createNextI18n(` sits 180 lines above it.
+ * MIGRATION.md §3 makes the chain the unit — `createI18n(…)` plus the `.use`
+ * calls chained onto it — and the same unit is used here. A page-wide scope
+ * would clear `ssr.mdx`'s `defineComviSetup` snippet because an unrelated
+ * `createNextI18n(` sits 180 lines above it.
  *
  * The chain is: the fence itself; every fence carrying the same explicit
  * `check=group=<id>`; and, for a bare `title=`, only fences with that title in
@@ -100,13 +101,13 @@ const LOADER_TOKENS = [
   /\battachLoader\s*\(/,
   /\.use\s*\(\s*fetchLoader\s*\(/,
   /\.use\s*\(\s*cdnLoader\s*\(/,
-  // MIGRATION.md §6: `createNextI18n` is preserved exactly and composes the
+  // MIGRATION.md §5: `createNextI18n` is preserved exactly and composes the
   // loader with both `registerLoader` overloads inside the package; its host
   // type `NextComposedI18n` and the SSR `NextServerLoaderHost` carry it too.
   /\bcreateNextI18n\s*\(/,
   /\bNextComposedI18n\b/,
   /\bNextServerLoaderHost\b/,
-  // MIGRATION.md §7: a nuxt hook annotated with the host its factory returns
+  // MIGRATION.md §6: a nuxt hook annotated with the host its factory returns
   // (`NuxtI18nSetup<I18n & I18nLoaderApi>`) fails at type-check rather than at
   // request time, so the annotation IS the proof the host composed the loader.
   //
@@ -165,7 +166,7 @@ const ICU_SYNTAX = /\{\s*\w+\s*,\s*(?:plural|selectordinal|select)\s*,/;
 /**
  * Pages that must show capability composition. A framework page or the
  * quick-start that never composes is documenting the 0.4 host
- * (MIGRATION.md §4, "`.use(installer)` — composing a capability").
+ * (MIGRATION.md §3, "`.use(installer)` — composing a capability").
  */
 const FRAMEWORK_BASENAMES = new Set([
   "quick-start",
@@ -357,11 +358,10 @@ const REGISTER_PLUGIN_CALL = capabilityCallPattern("registerPlugin");
 /**
  * A raw plugin in the `.use(` slot, in every shape the text can PROVE.
  *
- * Four of them, and the fourth is the one the codemod's own
- * `chain-plugin-host` fixture calls out: an inline function or arrow cannot be
- * an installer, because an installer widens the host and returns it, so a
- * literal function in the slot is a raw plugin by construction and needs no
- * naming convention at all. The other three are the published convention —
+ * Four of them, and the fourth needs no naming convention at all: an inline
+ * function or arrow cannot be an installer, because an installer widens the
+ * host and returns it, so a literal function in the slot is a raw plugin by
+ * construction. The other three are the published convention —
  * `FetchLoader()` is a plugin, `fetchLoader()` is its installer — reached
  * directly, through `new`, or through a namespace (`pkg.MyPlugin()`).
  *
@@ -409,7 +409,7 @@ function statementAt(text, index) {
 /**
  * Is this `.use(` the `createNextI18n` compat surface?
  *
- * `createNextI18n` is preserved EXACTLY across 0.5.0 (MIGRATION.md §6) and its
+ * `createNextI18n` is preserved EXACTLY across 0.5.0 (MIGRATION.md §5) and its
  * composed host keeps the raw plugin queue, so `result.use(RawPlugin())` on it
  * is a deliberate surviving shape rather than an `E_USE_NOT_INSTALLER` waiting
  * to happen. Proven two ways: the receiver is a binding the fence assigned from
@@ -836,12 +836,12 @@ const BANNED_RULES = [
   },
   {
     id: "banned/register-loader-on-instance",
-    migration: "MIGRATION.md §0 (loader row) and §4 `.use(installer)`",
+    migration: "MIGRATION.md §0 (loader row) and §3 `.use(installer)`",
     scope: "chain",
     capability: "loader",
     find(text) {
       const matches = [];
-      // `.core` is where the call MOVED (MIGRATION.md §2, §7), not proof the
+      // `.core` is where the call MOVED (MIGRATION.md §2, §6), not proof the
       // host can serve it: `createI18n` from `@comvi/vue` wraps a BASE core
       // (packages/vue/src/createI18n.ts), so `i18n.core.registerLoader(fn)` on
       // an uncomposed wrapper throws exactly like the 0.4 call it replaced.
@@ -865,7 +865,7 @@ const BANNED_RULES = [
   },
   {
     id: "banned/register-plugin-without-plugins",
-    migration: "MIGRATION.md §0 (raw-plugin row) and §5",
+    migration: "MIGRATION.md §0 (raw-plugin row) and §4",
     scope: "chain",
     capability: "plugins",
     find(text) {
@@ -897,7 +897,7 @@ const BANNED_RULES = [
   },
   {
     id: "banned/slim-entry",
-    migration: "MIGRATION.md §3 (codemod table: `@comvi/<pkg>/slim` and `createSlimI18n`)",
+    migration: "MIGRATION.md §3 (Renames: `@comvi/<pkg>/slim` and `createSlimI18n`)",
     scope: "always",
     find(text) {
       const matches = [];
@@ -914,7 +914,7 @@ const BANNED_RULES = [
   },
   {
     id: "banned/raw-plugin-in-use-slot",
-    migration: "MIGRATION.md §5 and §8 (`E_USE_NOT_INSTALLER`)",
+    migration: "MIGRATION.md §4 and §7 (`E_USE_NOT_INSTALLER`)",
     scope: "always",
     find(text) {
       const matches = [];
@@ -934,9 +934,8 @@ const BANNED_RULES = [
       //
       // An Uppercase callee is the detectable half, and so is an INLINE
       // function: an installer returns the host it was given, so a literal
-      // function or arrow in the slot cannot be one (the codemod's own
-      // `chain-plugin-host` fixture says exactly this, and wraps it in
-      // `definePlugin`). A bare LOWERCASE call is indistinguishable from an
+      // function or arrow in the slot cannot be one, and `definePlugin` is
+      // what wraps it. A bare LOWERCASE call is indistinguishable from an
       // installer in the text, and the runtime guard is what catches it; this
       // rule does not guess. `icu` is still deliberately absent — it is not a
       // plugin in the wrong slot, it is a name that no longer exists, and
@@ -965,7 +964,7 @@ const BANNED_RULES = [
   },
   {
     id: "banned/with-composition",
-    migration: "MIGRATION.md §4 (`.use(installer)` — composing a capability)",
+    migration: "MIGRATION.md §3 (`.use(installer)` — composing a capability)",
     scope: "always",
     find(text) {
       const matches = [];
@@ -1049,7 +1048,7 @@ const BANNED_RULES = [
   {
     id: "banned/removed-svelte-api",
     migration:
-      "MIGRATION.md §4 (`@comvi/svelte`: allowedTags removed, createLanguageStore removed)",
+      "MIGRATION.md §3 (`@comvi/svelte`: allowedTags removed, createLanguageStore removed)",
     scope: "always",
     find(text) {
       const matches = [];
@@ -1064,7 +1063,7 @@ const BANNED_RULES = [
   },
   {
     id: "banned/devtools-options-on-constructor",
-    migration: "MIGRATION.md §3 (codemod table: `exposeGlobal` / `instanceId` options) and §0.3",
+    migration: "MIGRATION.md §3 (Renames: `exposeGlobal` / `instanceId`) and §0.3",
     scope: "always",
     find(text) {
       if (!/\bcreateI18n\s*\(|\bnew I18n\s*\(|\bcreateCore\s*\(/.test(text)) return [];
@@ -1092,7 +1091,7 @@ const BANNED_RULES = [
 const PROSE_RULES = [
   {
     id: "prose/register-loader-is-core-method",
-    migration: "MIGRATION.md §0 (loader row) and §4",
+    migration: "MIGRATION.md §0 (loader row) and §3",
     pattern: /registerLoader[^\n]{0,60}\bis (?:a|an) (?:method|member)\b/i,
     message:
       "false since 0.5.0: registerLoader is not a member of the base host — it arrives with " +
@@ -1127,7 +1126,7 @@ const PROSE_RULES = [
   },
   {
     id: "prose/clear-translations-deactivates",
-    migration: "MIGRATION.md §8 (clearTranslations clears content, never intent)",
+    migration: "MIGRATION.md §7 (clearTranslations clears content, never intent)",
     pattern:
       /clearTranslations[^\n]{0,100}\b(?:deactivates|stops serving|removes the namespace)\b/i,
     message:
@@ -1484,7 +1483,7 @@ export function lintDocument({ file, source, sdkVersion, surface, sizeBaselines 
         "a framework page or quick-start whose code never writes `.use(installer)` documents the " +
         "0.4 batteries-included host. Show how the page's capability is composed, in a fence " +
         "(Vue's own `app.use(i18n)` is a different verb and does not count).",
-      migration: "MIGRATION.md §4 `.use(installer)` — composing a capability",
+      migration: "MIGRATION.md §3 `.use(installer)` — composing a capability",
     });
   }
 

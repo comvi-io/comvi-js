@@ -61,6 +61,6 @@ Follow-up, deliberately NOT in this release: the declarations are corrected by a
 rewrite (`tooling/qualify-dts-specifiers.mjs`) wired into each package's build. Writing the
 `.js` extension in the SOURCES instead is legal under `moduleResolution: "bundler"` and is
 emitted verbatim, which would let the rewriter be deleted and would cover `svelte-package`
-and `nuxt-module-build` without per-package wiring — one codemod over 566 extensionless
-relative imports across 161 files. Neither `moduleResolution: node16` in the emitting
+and `nuxt-module-build` without per-package wiring — one mechanical sweep over 566
+extensionless relative imports across 161 files. Neither `moduleResolution: node16` in the emitting
 tsconfig nor `rewriteRelativeImportExtensions` is a substitute.

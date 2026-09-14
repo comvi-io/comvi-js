@@ -305,8 +305,7 @@ forgot to handle before they ship.
 
 `<T skipPostProcess>` skips post-processors for that one call — notably the in-context editor's
 invisible markers. `raw` is the same prop under its old 0.4 name: it still works, warns once in
-development, and is removed in 0.6; a
-[codemod](https://github.com/comvi-io/comvi-js/blob/main/MIGRATION.md#3-the-codemod) rewrites it.
+development, and is removed in 0.6. Rename it wherever you render `<T>`.
 
 `<T>` never changes what `t()` does with `<b>` markup — it renders through the pure
 `@comvi/core/rich-text` path. Making `t()` itself parse tags is a separate opt-in:
@@ -402,8 +401,7 @@ import costs nothing" is checked rather than asserted.
   [formatting](../../docs/design/formatting.md) · [SSR](../../docs/design/ssr.md) ·
   [limitations](../../docs/design/limitations.md)
 - **Upgrading from 0.4.x:** the [0.5.0 migration guide](https://github.com/comvi-io/comvi-js/blob/main/MIGRATION.md), whose
-  §3 has the codemod recipe — it is a repo-internal script, run by absolute path from your app's
-  root, not a `pnpm` script you have.
+  §2 tables every hook rename and §3 the per-binding changes.
 - **Full API:** [comvi.io/docs/i18n/react/](https://comvi.io/docs/i18n/react/)
 
 ## License

@@ -304,7 +304,7 @@ breaking change on a 0.x minor. Four specifics:
   with `missingParam: "drop"`.
 - **`.with(…)` is gone**, with no alias. `.use(installer)` is the one verb.
 
-The migration is mechanical and mostly codemodded. See **[MIGRATION.md](MIGRATION.md)**.
+The migration is mechanical, and every rename is tabled. See **[MIGRATION.md](MIGRATION.md)**.
 
 ## Design notes
 

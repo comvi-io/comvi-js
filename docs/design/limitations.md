@@ -57,10 +57,10 @@ The host is the object `createI18n` returns: it holds the catalog, the current l
 
 ## Tooling
 
-- **The 0.4 → 0.5 codemod is repo-internal.** `pnpm codemod:framework-slim` runs from a checkout of
-  this repository; there is no published binary. See [MIGRATION.md](../../MIGRATION.md#3-the-codemod).
-- **The codemod cannot rewrite Vue or Svelte template markup.** It flags `<T raw>` in those files
-  for a by-hand rename instead of rewriting it.
+- **The 0.4 → 0.5 upgrade is a by-hand edit.** There is no migration tool and no published binary;
+  every rename is tabled in [MIGRATION.md](../../MIGRATION.md) instead.
+- **Vue and Svelte template markup is edited by hand.** `<T raw>` inside a template is the rename
+  a reader has to make themselves.
 - **Typed keys are generated, not inferred.** `TranslationKeys` is a declaration-merging interface;
   `@comvi/cli` (from the platform) or `@comvi/vite-plugin` (from local JSON) writes it. Nothing
   infers key types from a runtime catalog.

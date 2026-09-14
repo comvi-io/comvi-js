@@ -1,8 +1,0 @@
-[
-  {
-    "line": 5,
-    "column": 10,
-    "shape": "shadowed-t-component",
-    "detail": "`T` is imported as the <T> component AND declared locally in this module — every <T raw> here is left alone; rename the local binding and re-run"
-  }
-]

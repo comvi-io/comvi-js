@@ -16,15 +16,6 @@ host without those capabilities it threw
 | `const { onMissingKey } = useI18n()`                                        | `const { onMissingKey } = useI18nPlugins()`                        |
 | `const { t, reloadTranslations } = useI18n("ns")`                           | `useI18n("ns")` keeps `t`; `useI18nLoader()` takes no argument     |
 
-```
-pnpm codemod:framework-slim "src/**/*.{ts,js,svelte}"
-```
-
-It reads `.svelte` script blocks. Exit `0` = clean or fully transformed, `2` = rewrites
-applied and manual items remain; it refuses — loudly, never silently — rest spreads,
-computed keys, stored or boundary-crossing hook results, local-name collisions, script
-blocks that fail extraction, and relative-import call sites it cannot retarget.
-
 **They are readers, NOT stores.** `useI18nLoader()` / `useI18nPlugins()` call
 `getI18nContext()`, so — like `useI18n()` — they are callable during component
 initialisation only, and what they return is a plain object of bound functions. Do not

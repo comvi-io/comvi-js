@@ -52,8 +52,7 @@ absent loader member.
 `comvi.setup` still receives a `VueI18n`, and its removed capability proxies remain a
 breaking migration: move them to `i18n.core.*`, composing that capability in the host
 factory first. `const { reloadTranslations } = useI18n()` becomes `useI18nLoader()`, and
-`onMissingKey` moves to `useI18nPlugins()`. Run
-`pnpm codemod:framework-slim "app/**/*.{ts,vue}"`; Nuxt auto-imports and proxy calls in
-`.vue` / `comvi.setup.*` are report-only, because the receiver type is textually
-undecidable. See the
-[0.5.0 migration guide](https://github.com/comvi-io/comvi-js/blob/main/MIGRATION.md) §7.
+`onMissingKey` moves to `useI18nPlugins()`. The proxy calls in `.vue` / `comvi.setup.*` files
+are the ones to read carefully: `i18n.reloadTranslations()` may be a `VueI18n` proxy that moves
+to `i18n.core.*` or an already-correct raw core instance, and only you can tell which. See the
+[0.5.0 migration guide](https://github.com/comvi-io/comvi-js/blob/main/MIGRATION.md) §6.
