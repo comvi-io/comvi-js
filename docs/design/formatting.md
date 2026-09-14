@@ -1,53 +1,44 @@
-# Locale-aware formatting: free functions, and four different reactivity answers
+# Formatters are free functions, and the bindings' reactivity asymmetry is deliberate
 
-Design note. The package READMEs name the formatters their binding hands back. This file is why they
-are free functions on core, and where the four bindings disagree about reactivity.
+Status: accepted · Date: 2026-09-14 · Owner decision(s): 0.5.0 base-host convergence — formatting
+stays off the instance (`.changeset/core-framework-slim-host.md`)
 
-The host is the object `createI18n` returns: it holds the catalog, the current locale and `t()`.
+## Context
 
-## Free functions, not members
+Numbers, dates, currency and relative time follow the active locale, and native `Intl` already does
+all four correctly. Bolting them onto the host as methods would put four `Intl` wrappers in every
+graph, including the graphs that never format anything. The bindings then raise a second question of
+their own: `useI18n()` hands the four back, and a binding can only make them re-render if it builds
+them inside a tracked read — which react and vue do and svelte and solid do not.
 
-Numbers, dates, currency and relative time follow the active locale via native `Intl`. On a core
-host they are free functions that take the host as their first argument. Nothing is bolted onto the
-instance, so a graph that never formats never pays for it:
+## Decision
+
+- **On a core host the formatters are free functions taking the host as their first argument.**
+  Nothing is bolted onto the instance, so a graph that never formats never pays for it.
+- **`Intl` does the formatting; the catalog never does.** The ICU `number`, `date` and `time`
+  argument types are not implemented. The catalog chooses grammar — plural category, select branch;
+  the code chooses presentation — digits, currency, date style.
+- **Every binding hands the same four back off `useI18n()`, together with `dir`**, and how reactive
+  they are is allowed to differ per binding. The asymmetry is documented, not levelled.
+- **In Svelte and Solid, the call goes where the locale is already tracked** — a `$derived`, a
+  `createMemo`, or the markup — or the locale is passed explicitly. That one-line rule is stated in
+  both READMEs at the point the formatters appear.
+- **Core behaves identically under all of them.** `setLocaleAsync` and the synchronous `locale`
+  setter both move what the formatters read.
+
+## Consequences
 
 ```ts
-import {
-  createI18n,
-  formatCurrency,
-  formatDate,
-  formatNumber,
-  formatRelativeTime,
-  getTextDirection,
-} from "@comvi/core";
+import { createI18n, formatCurrency, formatNumber, getTextDirection } from "@comvi/core";
 
 const i18n = createI18n({ locale: "en" });
 
 formatNumber(i18n, 1234.5); // "1,234.5" · "1.234,5" · "1 234,5"
-formatNumber(i18n, 0.75, { style: "percent" }); // "75%"
-formatDate(i18n, new Date(), { dateStyle: "long" }); // "January 15, 2025" · "15. Januar 2025"
 formatCurrency(i18n, 99.99, "USD"); // "$99.99" · "99,99 $"
-formatRelativeTime(i18n, -2, "hour"); // "2 hours ago" · "vor 2 Stunden"
-
 getTextDirection(i18n.locale); // "ltr" | "rtl" — handles script subtags (ku-Arab → rtl, ks-Deva → ltr)
 ```
 
-`setLocaleAsync` and the synchronous `locale` setter both move what these read:
-
-```ts
-import { createI18n, formatNumber } from "@comvi/core";
-
-const i18n = createI18n({ locale: "en" });
-
-await i18n.setLocaleAsync("de"); // or the synchronous setter: i18n.locale = "de"
-
-formatNumber(i18n, 1234.5); // "1.234,5"
-```
-
-## The four bindings do not agree on reactivity
-
-Every framework binding hands the same four back off `useI18n()`, together with `dir`. How
-_reactive_ they are differs between the bindings; core behaves the same under all of them:
+The cross-binding table, which is the fact no single README can carry:
 
 | binding | formatters re-render on a locale change                                                               | `dir`                        |
 | ------- | ----------------------------------------------------------------------------------------------------- | ---------------------------- |
@@ -56,36 +47,33 @@ _reactive_ they are differs between the bindings; core behaves the same under al
 | Svelte  | **no**. "The formatters below are plain functions, not stores", and each reads `i18n.locale` per call | reactive (a `derived` store) |
 | Solid   | **no**. They call core with the host and read no signal, while `dir` reads `signals.locale()`         | reactive                     |
 
-Where to look, by symbol rather than by line, because this table was wrong the day it was written:
-the `formatters` memo in `packages/react/src/useI18n.ts` and the `useFormatters` hook in
-`packages/react/src/useFormatters.ts`; the four `this.format*` assignments in the `VueI18n`
-constructor, `packages/vue/src/VueI18n.ts`; the same four on the object returned by
-`packages/svelte/src/useI18n.ts` and `packages/solid/src/useI18n.ts`, each beside that binding's
-`dir`.
+React's and Vue's formatters are already inside a tracked read at the point the binding builds them.
+Svelte's and Solid's are plain function references handed out once, so making them reactive would
+mean returning a store or a memo per formatter from a hook documented as returning plain functions.
 
-This asymmetry is not an oversight waiting to be levelled. React's and Vue's formatters are already
-inside a tracked read at the point the binding builds them; Svelte's and Solid's are plain function
-references handed out once, and making them reactive would mean returning a store or a memo per
-formatter from a hook that is documented as returning plain functions.
+## Alternatives rejected
 
-**In Svelte and Solid, put the formatter call where the locale is already tracked** (a
-`$:`/`$derived`, a `createMemo`, or the template) or pass the locale yourself. That is a one-line
-rule, and it is stated in both READMEs at the point the formatters appear.
+- **Formatter methods on the host** — four `Intl` wrappers in every graph, including the ones that
+  never format.
+- **An ICU format grammar in the catalog** (`{price, number, currency/EUR}`) — a second format
+  grammar, a currency table and a skeleton parser, shipped to do worse what `Intl.NumberFormat`
+  already does correctly in the platform. Formatting a value is code's job, because code has the
+  value's type and a catalog has a string.
+- **Levelling the four bindings' reactivity** — svelte's and solid's hooks are documented as
+  returning plain functions; making them reactive means returning a store or memo per formatter and
+  changing that contract. Not an oversight waiting to be fixed.
+- **Leaving the asymmetry undocumented** — this table was wrong the day it was written, which is why
+  it is pinned to symbols rather than to line numbers and why both READMEs state the rule inline.
 
-React additionally publishes `useFormatters()`, a selector hook whose identity is stable per
-`(i18n, locale)` — for a component that formats and never translates.
+## Where it lives
 
-## Why `Intl` rather than a formatting grammar
-
-The ICU `number`, `date` and `time` argument types are deliberately not implemented (see
-[ICU](icu.md)). Formatting a value is code's job, and code has the value's type; a catalog has a
-string. Pushing `{price, number, currency/EUR}` into the template would mean shipping a second
-format grammar, a currency table and a skeleton parser to do worse what `Intl.NumberFormat` already
-does correctly in the platform.
-
-So the division is: the catalog chooses grammar (plural category, select branch), the code chooses
-presentation (digits, currency, date style). `formatCurrency(i18n, amount, "USD")` then interpolates
-as a plain `{param}`.
+- `formatNumber`, `formatDate`, `formatCurrency`, `formatRelativeTime`, `getTextDirection` —
+  `packages/core/src/index.ts`
+- the `formatters` memo — `packages/react/src/useI18n.ts`; the `useFormatters` selector hook, whose
+  identity is stable per `(i18n, locale)` — `packages/react/src/useFormatters.ts`
+- the four `this.format*` assignments in the `VueI18n` constructor — `packages/vue/src/VueI18n.ts`
+- the same four, each beside that binding's `dir` — `packages/svelte/src/useI18n.ts` and
+  `packages/solid/src/useI18n.ts`
 
 ## Related
 

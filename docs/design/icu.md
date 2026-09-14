@@ -1,42 +1,51 @@
-# ICU MessageFormat: what is implemented, and why the gaps fail loudly
+# ICU never enables itself, in any package, and its gaps fail loudly
 
-Design note. The package READMEs show the one line that turns ICU on. This file is the reasoning and
-the full grammar reference behind it.
+Status: accepted · Date: 2026-09-14 · Owner decision(s): D1 ICU opt-in, 29.08.2026, reaffirmed
+14.09.2026 (`createNextI18n` was the last constructor to default the compiler; that default is gone)
 
-The host is the object `createI18n` returns: it holds the catalog, the current locale and `t()`.
+## Context
 
-## Why ICU at all
-
-`count === 1 ? "item" : "items"` works in English. It silently ships broken grammar in Polish,
-Ukrainian, Arabic, Welsh, and 30+ other locales, which have 3, 4, sometimes 6 distinct plural
-categories that a binary if/else cannot express.
+`count === 1 ? "item" : "items"` works in English and silently ships broken grammar in Polish,
+Ukrainian, Arabic, Welsh and 30+ other locales, which have 3, 4, sometimes 6 distinct plural
+categories a binary if/else cannot express.
 [ICU MessageFormat](https://unicode-org.github.io/icu/userguide/format_parse/messages/) is the
-standard syntax for handling them, and it is the syntax Crowdin, Lokalise, Phrase, and every major
-TMS already speak. Comvi i18n parses it via native
+standard syntax for them, and it is the syntax Crowdin, Lokalise, Phrase, and every major TMS
+already speak. The 0.4 root compiled it for every app, used or not. Making it opt-in bought the
+bytes back but opened the real question: if any one constructor turns ICU on by itself, a catalog
+that renders correctly under that host renders literally under every other.
+
+## Decision
+
+- **No constructor in the repo enables ICU.** Not `createI18n`, not `createNextI18n`, and nuxt's
+  `comvi.icu` defaults to `false`.
+- **One enable form: `compiler: icuCompiler` from `@comvi/core/icu`**, a constructor field held for
+  the instance's life, covering every catalog source — inline, `addTranslations`, a loader merge,
+  the CDN, the API.
+- **The UMD global is the one composed exception**, because a `<script src>` has no tree-shaking and
+  therefore no byte choice to offer.
+- **`plural`, `selectordinal` and `select`, each with a choice list, are the whole of what the
+  compiler implements.** The `number`, `date` and `time` argument types and the plural `offset:`
+  form are not implemented and not on the roadmap.
+- **Unimplemented syntax fails loudly, never plausibly.** Development throws `E_ICU_SYNTAX` at
+  ingestion; production renders the braced segment literally and reports `E_ICU_SYNTAX`.
+- **`E_ICU_SYNTAX` owns exactly two fields**, `code` and `argumentType`. Key, namespace and locale
+  arrive through the report context; catalog source stays the app's own telemetry.
+
+## Consequences
+
+Name it once and the whole grammar is live. CLDR categories come from native
 [`Intl.PluralRules`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Intl/PluralRules),
-so every CLDR plural category is correct by default.
-
-## One option, every catalog source
-
-ICU is an opt-in compiler rather than a default. Name it once in the constructor options, with
-`compiler: icuCompiler` from `@comvi/core/icu`, and the whole grammar below is live for every
-catalog source: inline, a loader, the CDN, the API.
-
-**No constructor in the repo enables it for you** — `createNextI18n` included, and nuxt's
-`comvi.icu` defaults to `false`. The one exception is the CDN global, which is fully composed
-because a `<script src>` has no tree-shaking and therefore no byte choice to offer. See
-[why it is a constructor option and not an installer](composition.md#why-icu-is-a-constructor-option-and-not-an-installer).
-
-## Plurals across languages
+so `few` versus `many` is right without a table of your own:
 
 ```json title="src/locales/messages.json"
 {
-  "en": { "messages": "{count, plural, one {# message} other {# messages}}" },
+  "en": {
+    "messages": "{count, plural, one {# message} other {# messages}}",
+    "rank": "{place, selectordinal, one {#st} two {#nd} few {#rd} other {#th}}",
+    "salutation": "{gender, select, female {Welcome, madam} male {Welcome, sir} other {Welcome}}"
+  },
   "uk": {
     "messages": "{count, plural, one {# повідомлення} few {# повідомлення} many {# повідомлень} other {# повідомлення}}"
-  },
-  "ar": {
-    "messages": "{count, plural, zero {لا توجد رسائل} one {رسالة واحدة} two {رسالتان} few {# رسائل} many {# رسالة} other {# رسالة}}"
   }
 }
 ```
@@ -46,107 +55,49 @@ import { createI18n } from "@comvi/core";
 import { icuCompiler } from "@comvi/core/icu";
 import translation from "./locales/messages.json";
 
-const i18n = createI18n({ locale: "en", compiler: icuCompiler, translation });
+const i18n = createI18n({ locale: "uk", compiler: icuCompiler, translation });
 
-i18n.t("messages", { count: 0 }); // ar: "لا توجد رسائل"      (zero form)
-i18n.t("messages", { count: 1 }); // en: "1 message"            uk: "1 повідомлення"
-i18n.t("messages", { count: 5 }); // en: "5 messages"           uk: "5 повідомлень"          ar: "5 رسائل"
-i18n.t("messages", { count: 22 }); // uk: "22 повідомлення"  ← the "few" form, NOT the "many" form
+i18n.t("messages", { count: 22 }); // "22 повідомлення"  ← the "few" form, NOT the "many" form
+i18n.t("messages", { count: 5 }); // "5 повідомлень"     ← the "many" form
 ```
 
-A naive English-style `count === 1 ? singular : plural` picks one Ukrainian form and ships it for
-every count, which is grammatically wrong for half your traffic.
+**The dev-only preflight costs the production bundle 0 B.** Development is EAGER: ingesting a
+catalog walks its string leaves, so a bad template throws where it entered, and one that bypasses
+ingestion — a per-call `params.fallback` — throws at its first compile. That walk sits behind the
+`__DEV__` guard, and a dist test asserts the identifier occurs in no production artifact. Production
+is LAZY, fail-soft and cached, so a hot key costs one report, not one per render; both error texts
+and the ways out are in [MIGRATION.md §0.2](../../MIGRATION.md).
 
-## Ordinals (1st, 2nd, 3rd…)
+**A non-numeric plural argument is a different error.** A value that is not a number where `plural`
+or `selectordinal` expects one is a render-time problem rather than a syntax one, and it reports
+`E_INVALID_PLURAL_PARAM`, naming the parameter and the type it got.
 
-```json title="src/locales/rank.json"
-{ "rank": "{place, selectordinal, one {#st} two {#nd} few {#rd} other {#th}}" }
-```
+**Apostrophe quoting is core grammar, not ICU:** `'{literal}'` and `''` work on every graph, the
+bare base host included.
 
-```ts
-import { createI18n } from "@comvi/core";
-import { icuCompiler } from "@comvi/core/icu";
-import en from "./locales/rank.json";
+## Alternatives rejected
 
-const i18n = createI18n({ locale: "en", compiler: icuCompiler, translation: { en } });
+- **ICU on by default in the framework packages** — one host quietly compiling a grammar every other
+  host refuses is a difference that only surfaces when a catalog moves between them.
+- **An `icu()` installer** — composable too late, after `translation` was walked, failing as a
+  catalog that renders literally for reasons nothing in the chain shows.
+- **Two enable forms keyed on catalog source** (`compiler:` inline, `.use(icu())` remote,
+  `E_COMPILER_LOCKED` when mixed) — a rule readers had to learn for no benefit.
+- **The `number`, `date` and `time` argument types** — a second format grammar, a currency table and
+  a skeleton parser, to do worse what `Intl` does. [Formatting](formatting.md#alternatives-rejected).
+- **Rendering unsupported syntax plausibly** — a plausibly wrong plural reads fine in review and
+  wrong to a user; a literal `{count, plural, …}` is visibly broken and takes nothing down with it.
+- **Catalog source on the error object** — the host does not know it. Only `code` and `argumentType`
+  are its own; the rest is `{ source: "compile", key, namespace, locale }`.
 
-i18n.t("rank", { place: 1 }); // "1st"
-i18n.t("rank", { place: 22 }); // "22nd"
-i18n.t("rank", { place: 113 }); // "113th"
-```
+## Where it lives
 
-## Select (gender, role, status)
-
-```json title="src/locales/salutation.json"
-{ "salutation": "{gender, select, female {Welcome, madam} male {Welcome, sir} other {Welcome}}" }
-```
-
-```ts
-import { createI18n } from "@comvi/core";
-import { icuCompiler } from "@comvi/core/icu";
-import en from "./locales/salutation.json";
-
-const i18n = createI18n({ locale: "en", compiler: icuCompiler, translation: { en } });
-
-i18n.t("salutation", { gender: "female" }); // "Welcome, madam"
-i18n.t("salutation", { gender: "male" }); // "Welcome, sir"
-i18n.t("salutation", { gender: "other" }); // "Welcome"
-```
-
-## Unsupported argument types
-
-Those three argument types are the whole of what the compiler implements
-(`packages/core/src/core/translate/compile-icu.ts`). The `number`, `date` and `time` argument types
-are not supported and are not on the roadmap, and neither is the plural `offset:` form. Each one
-fails with `E_ICU_SYNTAX` instead of rendering something wrong: format the value in code and pass it
-as a plain `{param}`, or quote the braces (`'{'…'}'`) to keep the text literal; for the plural
-`offset:` form, drop `offset:` and write the branches out.
-
-A malformed choice list for a type that IS implemented gets its own message naming the list, so
-"unsupported type" and "you forgot `other {…}`" never read as the same problem.
-
-## ICU syntax on the default compiler is never silent
-
-`{count, plural, …}` on the default compiler is never rendered as a plural, and never rendered
-plausibly-wrong. Development throws `E_ICU_SYNTAX` at ingestion. Production renders the braced
-segment **literally** and reports `E_ICU_SYNTAX` for it. A plural that silently renders as something
-plausible reads fine in review and wrong to a user. A literal `{count, plural, …}` on the page is
-visibly broken and takes nothing down with it.
-
-The error has only two own fields: a stable `code` and an `argumentType` (`"plural"`, `"select"`,
-`"selectordinal"`, or the parsed token such as `"number"` / `"date"` / `"other"`, for which the
-message explicitly does NOT claim shipped ICU support). Catalog source stays
-**application-supplied telemetry**: add it at your own boundary. What the host itself knows goes
-into the report context: `{ source: "compile", key, namespace, locale }`.
-
-### Fail-loud in development, fail-soft in production
-
-Development is EAGER: ingesting a catalog walks its string leaves, so a bad template throws where it
-entered, before a single render. The throw always lands where the template is COMPILED, so a
-template that never passes through ingestion, such as a per-call `params.fallback`, throws at its
-first compile instead.
-
-Production is LAZY: on the compilation that hits ICU syntax the segment renders literally and
-`E_ICU_SYNTAX` is reported through `onError`, or through `console.error` when no handler is
-configured. That report is best-effort, per process, and never fires on cached renders (the parsed
-template IS cached, so a hot key costs one report, not one per render).
-
-The dev walk costs the production bundle **0 B**: it sits behind the `__DEV__` guard, and a dist
-test asserts the identifier occurs in no production artifact.
-
-### A non-numeric plural argument is a different error
-
-Passing a value that is not a number where a `plural` or `selectordinal` argument expects one is a
-render-time problem rather than a syntax one, and it reports `E_INVALID_PLURAL_PARAM`
-(`packages/core/src/core/translate/compile-icu.ts`) naming the parameter and the type it got.
-
-## Apostrophe quoting is core grammar, not ICU
-
-`'{literal}'` and `''` work on every graph, the bare base host included. They are not part of the
-ICU compiler and do not need it.
+- `icuCompiler` and the `MessageCompiler` type — `packages/core/src/icu.ts`
+- the compiler, `E_ICU_SYNTAX`, `E_INVALID_PLURAL_PARAM` — `.../src/core/translate/compile-icu.ts`
+- the `compiler` option on `I18nOptions` — `packages/core/src/types.ts`; nuxt's `icu` module option
+  — `packages/nuxt/src/module.ts`; the global that always carries ICU — `packages/core/src/umd.ts`
 
 ## Related
 
 - [Composition](composition.md) · [Rich text](rich-text.md) · [Formatting](formatting.md) ·
-  [Limitations](limitations.md)
-- [MIGRATION.md §0 (ICU row)](../../MIGRATION.md)
+  [Limitations](limitations.md) · [MIGRATION.md §0 (ICU row)](../../MIGRATION.md)

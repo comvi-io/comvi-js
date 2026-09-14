@@ -1,8 +1,11 @@
 # Limitations: everything the library does not do
 
-Design note. One list, so a reader evaluating Comvi i18n finds the gaps in one place instead of
-discovering them one README at a time. Each entry says what happens instead, because a limitation
-you can see is cheaper than one you hit in production.
+Status: accepted · Date: 2026-09-14 · Owner decision(s): stays a user-facing page rather than a
+decision record, and is mirrored on comvi.io, 14.09.2026
+
+One list, so a reader evaluating Comvi i18n finds the gaps in one place instead of discovering them
+one README at a time. Each entry says what happens instead, because a limitation you can see is
+cheaper than one you hit in production.
 
 The host is the object `createI18n` returns: it holds the catalog, the current locale and `t()`.
 
@@ -11,10 +14,10 @@ The host is the object `createI18n` returns: it holds the catalog, the current l
 - **`number`, `date` and `time` argument types are not implemented, and are not planned.**
   `{price, number}` fails with `E_ICU_SYNTAX` rather than rendering something wrong. Format the
   value in code and interpolate it as a plain `{param}`, or quote the braces (`'{'…'}'`) to keep the
-  text literal. Reasoning: [formatting.md](formatting.md#why-intl-rather-than-a-formatting-grammar).
+  text literal. Reasoning: [formatting.md](formatting.md#alternatives-rejected).
 - **The plural `offset:` form is not implemented.** Drop `offset:` and write the branches out.
 - **`plural`, `selectordinal` and `select` are the whole of what the compiler implements**, each with
-  a choice list. See [icu.md](icu.md#unsupported-argument-types).
+  a choice list. See [icu.md](icu.md#decision).
 - **A missing interpolation parameter renders as its own placeholder.** `t("greet")` on
   `"Hello, {name}!"` gives `"Hello, {name}!"` in 0.5, where 0.4 gave `"Hello, !"`, plus one
   development warning per template and parameter. An explicit `null` still renders as an empty
