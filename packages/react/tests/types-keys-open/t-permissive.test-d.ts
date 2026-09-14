@@ -30,4 +30,11 @@ tRaw("anything", { any: 1 });
 // The key parameter is `string` itself, not a closed union.
 export type _KeyWidensToString = Expect<Equal<Parameters<typeof t>[0], string>>;
 
+// With no generated types the key IS `string`, so handing `t` to a
+// `(k: string) => string` helper compiles. It stops compiling once an app
+// generates types — `tests/types/t-one-signature.test-d.ts` pins that and
+// names the cast.
+declare function stringKeyCallback(f: (k: string) => string): void;
+stringKeyCallback(t);
+
 export {};

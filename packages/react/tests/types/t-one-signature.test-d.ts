@@ -90,4 +90,23 @@ t("admin:dashboard");
 // @ts-expect-error a wrapper's `t` does not take core's `null` no-op
 t(null);
 
+// A wrapper's `t` is not assignable to a one-argument `(k: string) => string`
+// callback with the registry closed either: the key is a closed union and
+// `string` is not one of its members. Cast it at the boundary. The keys-OPEN
+// program asserts the other half — with no generated keys it does compile.
+declare function stringKeyCallback(f: (k: string) => string): void;
+// @ts-expect-error a closed key union does not accept `string`
+stringKeyCallback(t);
+stringKeyCallback(t as (k: string) => string);
+
+// A key the call site could not narrow to ONE literal gets loose params, so
+// the required params on one arm are not checked. Known hole, pinned so the
+// day it closes is deliberate; `docs/design/limitations.md` carries the
+// user-facing note and core's test the reason it cannot close cheaply.
+declare const cond: boolean;
+t(cond ? "greeting" : "farewell");
+// The key itself is still checked on every arm.
+// @ts-expect-error `greting` is not a key on either arm
+t(cond ? "greting" : "farewell");
+
 export {};

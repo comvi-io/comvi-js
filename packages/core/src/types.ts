@@ -347,6 +347,13 @@ type BoundKeyOf<K, NS extends string | undefined> = [K] extends [string]
  * NS, D>` have different check types, TypeScript can relate neither direction,
  * and passing a `createI18n({ defaultParams })` instance to a provider stops
  * compiling. Keep `D` in the RESULT only.
+ *
+ * The order costs one thing, named here rather than left to be discovered: a
+ * key the DEFAULT namespace and another namespace both declare takes the
+ * "default" route, so `t("greeting", { ns: "shop" })` types its params from
+ * the default `greeting` while resolving `shop:greeting` at runtime. Routing
+ * on the key alone is what keeps the dispatch free of `D`, and the two
+ * schemas agreeing is the app's job.
  */
 type KeyRoute<K, NS extends string | undefined> = [K] extends [never]
   ? // `t(key as never, params)` is the documented escape hatch for a key that
@@ -394,8 +401,18 @@ type KeyRoute<K, NS extends string | undefined> = [K] extends [never]
  * on a union keep the arity satisfied so the KEY error is what surfaces.
  *
  * A genuine union key from user code — `t(cond ? "a" : "b", …)` — therefore
- * gets loose params too. That accepts more than before, never less, and the
- * overload set had the same hole for the same reason.
+ * gets loose params too, and that accepts MORE than the overload set did: at
+ * 48cf293 a union key fell through to the permissive overload and reported
+ * "not assignable to parameter of type 'null'", so
+ * `t(cond ? "greeting" : "farewell")` was REJECTED and now compiles with the
+ * required params dropped.
+ *
+ * The trade is deliberate, and it is a trade rather than an oversight.
+ * Checking a union key needs the arms' params intersected, which puts a second
+ * `{ ns }` inference site on the sibling branch; `N` then falls back to its
+ * constraint and `t("dashboard", { ns: "shop" })` stops being checked against
+ * `shop`'s keys — measured, and a silent wrong-namespace accept is worse than
+ * an unchecked union key. Recorded in docs/design/limitations.md.
  */
 type IsUnion<T, U = T> = T extends U ? ([U] extends [T] ? false : true) : false;
 

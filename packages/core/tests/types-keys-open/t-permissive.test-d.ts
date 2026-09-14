@@ -38,4 +38,10 @@ export type _KeyWidensToString = Expect<Equal<Parameters<typeof t>[0], string | 
 t(null);
 t("admin:anything");
 
+// With no generated types the key IS `string`, so handing `t` to a
+// `(k: string) => string` helper compiles. It stops compiling once an app
+// generates types — the closed-registry program pins that and names the cast.
+declare function stringKeyCallback(f: (k: string) => string): void;
+stringKeyCallback(t);
+
 export {};

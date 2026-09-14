@@ -253,8 +253,10 @@ Six diagnostics cover almost every first run against 0.5, and each is quoted bel
 `tsc` or node prints it. Five are compile errors; the sixth only exists at runtime.
 
 `t()` has ONE call signature, so TypeScript names the actual problem on the first line. It used to
-have three overloads, and every wrong call opened with "No overload matches this call" followed by
-the failure of each overload in turn, with the one useful line buried last.
+have three overloads, and a wrong call went one of two ways: "No overload matches this call"
+followed by the failure of each overload in turn, with the one useful line buried last — or, for a
+forgotten param and a bare key of the wrong namespace, a one-line report against the permissive
+overload's `null` key, which said nothing useful at all.
 
 **An unknown key.** The key parameter is the union of the keys this call site may use, so a typo is
 reported against that union — and the union is the list of what you may have meant:
