@@ -193,9 +193,14 @@ instead, and a host without the capability fails at that one call, with a messag
 naming the fix.
 
 Each of the four is still DECLARED on `useI18n()`'s return type, as a
-`@deprecated` tombstone typed `never`, so a 0.4 destructure fails with the
+`@deprecated` member typed `never`, so a 0.4 destructure fails with the
 acquisition in the tooltip (`const { reloadTranslations } = useI18nLoader()`)
 rather than a bare "Property does not exist"; nothing is added at runtime.
+
+Those declarations are **optional**, which has one consequence worth stating
+because a compiler will not: `if (bag.reloadTranslations)` compiles and is
+always false. Acquire the member from `useI18nLoader()` instead of testing for
+it. All four declarations are removed in 0.6.
 **Vue's `useI18n()` additionally drops `hasTranslationNow` / `hasLocaleNow`** —
 `hasTranslation` and `hasLocale` are already the non-reactive form in the other
 three bindings — and the pair stays on the `VueI18n` class, reachable as
@@ -500,11 +505,11 @@ catalogs are inline or loaded. Compose neither capability and `useI18nLoader()` 
   capability action is something you call, not a value you read.
 - **Svelte:** they are **context readers**: callable during component
   initialisation only, returning plain bound functions; do not `$`-prefix a
-  member. `<T>` now renders structurally, so `allowedTags` is **gone**, though
-  leaving it in place is not a type error: `TProps` widens to accept any
-  undeclared prop as an interpolation param, so `allowedTags` still compiles, is
-  spread into `params` and is ignored. Delete it by hand; the compiler will not
-  find it for you. `components` accepts Svelte components, and the old implicit
+  member. `<T>` now renders structurally, so `allowedTags` is **gone**, and
+  leaving it in place is a type error (`allowedTags?: never` on `TProps`), while
+  a JS caller that still passes it gets a one-time development warning and the
+  value is dropped rather than spread into `params`. Delete it. `components`
+  accepts Svelte components, and the old implicit
   attribute rewriting (`rel="noopener noreferrer"`, forced `alt=""`, stripped
   `on*`) is gone; set those in your mapping props. `createLanguageStore` is
   removed; use `createLocaleStore`. `dist/*.js` now emits fully specified

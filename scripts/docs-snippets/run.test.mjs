@@ -10,6 +10,7 @@ import {
   collectInstalledReadmes,
   collectReadmes,
   formatReport,
+  loadSizeBaselines,
   parseArgs,
   runGate,
 } from "./run.mjs";
@@ -176,6 +177,92 @@ test("collectReadmes → examples/README.md is gated too", (t) => {
   ]);
 });
 
+test("collectReadmes → the design notes under docs/design are gated too", (t) => {
+  // The wave-5 restructure moved the rationale essays out of the READMEs into
+  // these notes, fences and all. An essay that leaves a gated page for an
+  // ungated one has not been tidied away, it has been un-checked.
+  const root = makeFixtureRoot(t);
+  write(path.join(root, "docs/design/composition.md"), "# Composition\n\nNo code here.\n");
+  write(path.join(root, "docs/design/icu.md"), "# ICU\n\nNo code here.\n");
+
+  const files = collectReadmes(root).map((file) => path.relative(root, file));
+
+  assert.deepEqual(files, [
+    "packages/cli/README.md",
+    "packages/react/README.md",
+    "MIGRATION.md",
+    "README.md",
+    path.join("docs", "design", "composition.md"),
+    path.join("docs", "design", "icu.md"),
+  ]);
+});
+
+test("collectReadmes without a docs/design tree → unchanged, not an error", (t) => {
+  const root = makeFixtureRoot(t);
+
+  const files = collectReadmes(root).map((file) => path.relative(root, file));
+
+  assert.deepEqual(files, [
+    "packages/cli/README.md",
+    "packages/react/README.md",
+    "MIGRATION.md",
+    "README.md",
+  ]);
+});
+
+test("a stale size figure in a design note fails the gate like one in a README", (t) => {
+  // The whole point of collecting the notes: the fences and the tables a reader
+  // copies are the same ones, and only the file they live in changed.
+  const root = makeFixtureRoot(t);
+  write(
+    path.join(root, "scripts/size-budgets.json"),
+    JSON.stringify({
+      fixtures: [
+        {
+          name: "fw-react-default",
+          gzipBudgetBytes: 7248,
+          baseline: { minBytes: 19035, gzipBytes: 6902 },
+        },
+      ],
+    }),
+  );
+  write(
+    path.join(root, "docs/design/weight.md"),
+    "# Weight\n\n| app | fixture | min+gz |\n| --- | --- | --- |\n| base | `fw-react-default` | 6622 B |\n",
+  );
+
+  const { findings } = runGate({ readmes: true, root, json: false, typecheck: false, sfc: true });
+
+  assert.deepEqual(
+    findings
+      .filter((finding) => finding.rule === "prose/stale-size-figure")
+      .map((finding) => finding.file),
+    [path.join("docs", "design", "weight.md")],
+  );
+});
+
+test("loadSizeBaselines → the three recorded numbers per fixture, keyed by name", () => {
+  const baselines = loadSizeBaselines(REPO);
+
+  const react = baselines.get("fw-react-default");
+  assert.equal(typeof react.gzipBytes, "number");
+  assert.equal(typeof react.minBytes, "number");
+  assert.equal(typeof react.gzipBudgetBytes, "number");
+  // Every gated row is present, and the budget rule the md file states holds.
+  for (const [, recorded] of baselines) {
+    assert.equal(recorded.gzipBudgetBytes, Math.ceil(recorded.gzipBytes * 1.05));
+  }
+});
+
+test("loadSizeBaselines on a root without the budgets file → null, so the rule stays inert", () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "docs-snippets-nobudgets-"));
+  try {
+    assert.equal(loadSizeBaselines(root), null);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test("collectDocs → .md and .mdx below the directory, node_modules excluded", (t) => {
   const root = makeFixtureRoot(t);
 
@@ -295,8 +382,20 @@ test("the CLI on the js-sdk npm surface → runs the whole corpus, and the tool 
   // TOOL-level findings, as opposed to API ones: an unparsed fence or a
   // meta token the vocabulary does not define means the gate misread the
   // corpus, and every verdict downstream of it is worthless.
+  //
+  // The tool rules are NAMED, rather than spelled "everything that is not
+  // `banned/`". That shorthand held only while the corpus happened to have no
+  // `prose/` or `required/` finding, and it put this test back in the business
+  // the paragraph above says is not its business: the day a prose rule
+  // correctly caught a stale sentence in a README, a test about the runner went
+  // red for it. Which rules read the DOCUMENT is a fact about the tool; which
+  // findings the corpus has is the gate's verdict, and `check:snippets` is
+  // where a reader should see it.
+  const TOOL_RULES = ["extract/", "meta/", "fence/"];
   assert.deepEqual(
-    findings.filter((finding) => !finding.rule.startsWith("banned/")).map((f) => f.rule),
+    findings
+      .filter((finding) => TOOL_RULES.some((prefix) => finding.rule.startsWith(prefix)))
+      .map((f) => f.rule),
     [],
   );
 });

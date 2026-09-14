@@ -859,7 +859,9 @@ const BANNED_RULES = [
     },
     message:
       "registerLoader() is not on the 0.5.0 base host. Compose the capability in the same chain — " +
-      ".use(loader(map)) or .use(attachLoader), or createCore(…).use(loader()) under a VueI18n.",
+      ".use(loader(map)) or .use(attachLoader), or compose the loader on the base host a " +
+      "VueI18n wraps — `createI18n` from @comvi/core, then createI18nFromCore. There is no " +
+      "`createCore` on @comvi/vue: the name was an alias and it is gone.",
   },
   {
     id: "banned/register-plugin-without-plugins",
@@ -1134,6 +1136,101 @@ const PROSE_RULES = [
   },
 ];
 
+/**
+ * A table row is the only place this rule looks for a size figure.
+ *
+ * Narrow on purpose. A README talks about bytes in three registers, and only one
+ * of them is a measurement a reader can check: `~5 kB base host` is a rounded
+ * claim, `+93 B (+1.47%)` is a delta against a graph that no longer exists, and
+ * `` | `fw-react-default` | **6902 B** | `` is a row of `scripts/size-budgets.json`
+ * transcribed by hand. The third is the one that rots, because the baseline
+ * moves on a re-sweep and the README does not, and it is the only one with an
+ * unambiguous right answer. Anchoring on `|` is what keeps the other two out.
+ */
+const SIZE_TABLE_ROW = /^\s*\|/;
+
+/** A fixture name in backticks: the row's claim about WHICH measurement it quotes. */
+const SIZE_FIXTURE_NAME = /`([A-Za-z0-9][\w-]*)`/g;
+
+/**
+ * A byte figure on such a row: `6902 B`, `6,902 B`, `**6902 B**`, `**7240**`.
+ *
+ * The unit is OPTIONAL, and leaving it optional is what makes the rule cover the
+ * corpus rather than half of it: the react and svelte tables write `**6902 B**`
+ * and the next and nuxt tables write `**7240**` in a column headed `min+gz`, and
+ * both were transcribed from the same file. A rule that read only the suffixed
+ * form would have greened four stale rows while reporting four others.
+ *
+ * Two exclusions carry the narrowness instead. The lookbehind drops a SIGNED
+ * number, because `+233 B over the measurement at 831e739` is a difference
+ * between two sweeps rather than the fixture size, and grading it would report
+ * every honest delta as stale. And a figure must be FOUR digits or more, which
+ * is what keeps a percentage, a multiplier and a version out of a rule that has
+ * no unit to recognise them by — every measurement in
+ * `scripts/size-budgets.json` is over 5000 and none of the other numbers a size
+ * row carries comes close. `kB` stays excluded either way: a unit, when present,
+ * must be `B` alone.
+ */
+const SIZE_FIGURE =
+  /(?<![-+\w.])(\d{1,3}(?:[, \u00a0\u202f]\d{3})+|\d{4,})[ \u00a0\u202f]*B?(?![\w%])/g;
+
+/** The grouping separators a thousands-grouped figure may use. */
+const SIZE_SEPARATORS = /[, \u00a0\u202f]/g;
+
+/**
+ * Stale size figures on one line, against the recorded baselines.
+ *
+ * A figure is accepted when it equals ANY number the baseline records for that
+ * fixture — `minBytes`, `gzipBytes` or `gzipBudgetBytes`. Which column a README
+ * chose to quote is the README's business; whether the number is one the repo
+ * measured is not. Demanding `gzipBytes` specifically would have made a correct
+ * budget column a finding, and a rule that fires on a correct page is a rule
+ * people disable.
+ *
+ * `baselines` is a `Map<name, { minBytes, gzipBytes, gzipBudgetBytes }>`. A
+ * backticked token that names no fixture is ignored: `` `<T>` `` and
+ * `` `@comvi/react` `` sit in these rows too.
+ */
+export function staleSizeFigures(text, baselines) {
+  if (!SIZE_TABLE_ROW.test(text)) return [];
+  const named = [];
+  for (const match of text.matchAll(SIZE_FIXTURE_NAME)) {
+    const recorded = baselines.get(match[1]);
+    if (recorded !== undefined) named.push({ name: match[1], recorded });
+  }
+  if (named.length === 0) return [];
+
+  const findings = [];
+  for (const match of text.matchAll(SIZE_FIGURE)) {
+    const stated = Number(match[1].replace(SIZE_SEPARATORS, ""));
+    // A row naming two fixtures cannot be graded: the figure belongs to one of
+    // them and nothing in the text says which. Accepting a match against EITHER
+    // is the only answer that never invents a finding.
+    if (
+      named.some(
+        ({ recorded }) =>
+          stated === recorded.gzipBytes ||
+          stated === recorded.minBytes ||
+          stated === recorded.gzipBudgetBytes,
+      )
+    ) {
+      continue;
+    }
+    const expected = named
+      .map(({ name, recorded }) => `${name}: ${recorded.gzipBytes} B min+gz`)
+      .join(", ");
+    findings.push({
+      index: match.index,
+      stated,
+      message:
+        `this row states ${stated} B beside ${named.map(({ name }) => `\`${name}\``).join(" / ")}, ` +
+        `but scripts/size-budgets.json records ${expected}. Re-read the baseline, or quote a ` +
+        "different fixture — a README number nobody re-measures is the one readers trust most.",
+    });
+  }
+  return findings;
+}
+
 /** Turn a match offset inside a fence's code into a source `{ line, col }`. */
 function locate(lines, offset) {
   let consumed = 0;
@@ -1158,10 +1255,16 @@ function locate(lines, offset) {
  * written against — which is also what keeps the www copy, where there is no
  * `packages/` tree, reporting the D2a findings and nothing invented.
  *
- * @param {{ file: string, source: string, sdkVersion?: string, surface?: object }} input
+ * `sizeBaselines` is optional for the same reason and with the same contract:
+ * `prose/stale-size-figure` is the only rule that needs to know what the repo
+ * measured, and `scripts/size-budgets.json` exists in js-sdk and nowhere else.
+ * Without the map the rule answers nothing — never everything — so the www copy
+ * keeps reporting exactly the findings it can prove.
+ *
+ * @param {{ file: string, source: string, sdkVersion?: string, surface?: object, sizeBaselines?: Map<string, object> }} input
  * @returns {{ findings: Array<object>, stats: object }}
  */
-export function lintDocument({ file, source, sdkVersion, surface }) {
+export function lintDocument({ file, source, sdkVersion, surface, sizeBaselines }) {
   const findings = [];
   const { fences, errors } = extractFences(source, file);
   const frontmatter = parseFrontmatter(source);
@@ -1281,6 +1384,20 @@ export function lintDocument({ file, source, sdkVersion, surface }) {
         rule: rule.id,
         message: rule.message,
         migration: rule.migration,
+      });
+    }
+
+    // Prose, not a fence, and deliberately so: the figure a reader checks is in
+    // a markdown table, which no compiler and no fence rule will ever read.
+    if (sizeBaselines === undefined) continue;
+    for (const stale of staleSizeFigures(line.text, sizeBaselines)) {
+      findings.push({
+        file,
+        line: line.srcLine,
+        col: stale.index + 1,
+        rule: "prose/stale-size-figure",
+        message: stale.message,
+        migration: "scripts/size-budgets.json (the recorded baseline) and scripts/size-budgets.md",
       });
     }
   }

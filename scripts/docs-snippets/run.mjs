@@ -115,12 +115,20 @@ export function collectDocs(dir) {
 
 /**
  * The js-sdk npm surface: every package README, MIGRATION.md, the root README,
- * and `examples/README.md`.
+ * `examples/README.md`, and the design notes under `docs/design/`.
  *
- * `examples/README.md` is last because it was missing. It is a reader-facing
+ * `examples/README.md` is here because it was missing. It is a reader-facing
  * page — the index every example app is reached through — and no gate covered
  * it, which is exactly how it drifted while the pages beside it were migrated.
  * A page a reader copies from is either gated or it rots.
+ *
+ * `docs/design/` is here for the same reason and is the harder case, because
+ * nothing publishes it. The wave-5 restructure MOVED the rationale essays out of
+ * the READMEs into those notes, fences and all, and an essay that leaves a gated
+ * page for an ungated one has not been tidied away — it has been un-checked. The
+ * fences a reader copies are the same fences; only the file changed. Collected
+ * last, and as a TREE, so a note added in a subdirectory is covered the day it
+ * lands rather than the day somebody remembers this list.
  */
 export function collectReadmes(root) {
   const out = [];
@@ -135,7 +143,33 @@ export function collectReadmes(root) {
     const abs = path.join(root, name);
     if (fs.existsSync(abs)) out.push(abs);
   }
+  out.push(...collectDocs(path.join(root, "docs", "design")));
   return out;
+}
+
+/**
+ * The measured size baselines, keyed by fixture name, or `null` when this root
+ * has none.
+ *
+ * `scripts/size-budgets.json` is the repo's own measurement record, and it is
+ * the authority `prose/stale-size-figure` reads: a README row quoting a byte
+ * figure beside a fixture name is a transcription of a row in that file, and a
+ * transcription drifts. `null` for a root without the file — the www copy has no
+ * `scripts/` tree — leaves the rule inert rather than guessing.
+ */
+export function loadSizeBaselines(root) {
+  const file = path.join(root, "scripts", "size-budgets.json");
+  if (!fs.existsSync(file)) return null;
+  const budgets = JSON.parse(fs.readFileSync(file, "utf8"));
+  const baselines = new Map();
+  for (const fixture of budgets.fixtures ?? []) {
+    baselines.set(fixture.name, {
+      minBytes: fixture.baseline?.minBytes,
+      gzipBytes: fixture.baseline?.gzipBytes,
+      gzipBudgetBytes: fixture.gzipBudgetBytes,
+    });
+  }
+  return baselines;
 }
 
 /** Installed `@comvi/*` READMEs, when the content root has them (post-publication parity). */
@@ -172,6 +206,11 @@ export function runGate(options) {
   // `packages/*`. `null` here — no `packages/` tree under `--root`, which is
   // the www case — leaves `banned/unresolved-comvi-import` inert.
   const surface = loadRepoSurface(options.root);
+  // One read for the whole run, like the surface: the baseline file does not
+  // change between two documents of the same run, and `null` becomes `undefined`
+  // at the call site so the rule's own "inert without it" contract is the only
+  // thing lint.mjs has to know.
+  const sizeBaselines = loadSizeBaselines(options.root) ?? undefined;
 
   const sources = new Map();
   for (const file of files) {
@@ -183,6 +222,7 @@ export function runGate(options) {
       source,
       sdkVersion: options.sdkVersion,
       surface,
+      sizeBaselines,
     });
     findings.push(...result.findings);
     stats.push(result.stats);

@@ -34,303 +34,225 @@
 
 ---
 
-## Why Comvi?
+## What this is
 
-- **Rich text without XSS.** Embed components into translations (`Click <link>here</link>`) without raw HTML strings or unsafe DOM injection.
-- **Same API across six frameworks.** `useI18n()` and the `<T>` component look the same in Vue, React, SolidJS, Svelte, Next.js, and Nuxt. All bindings ship together with the core, on one version and one release cycle.
-- **ICU `plural`, `selectordinal` & `select`.** Locale-correct grammar for every language `Intl.PluralRules` supports, reached through one explicit import: `compiler: icuCompiler` from `@comvi/core/icu`. The `number` / `date` / `time` argument types and the plural `offset:` form are not implemented and are not planned. Each one fails with `E_ICU_SYNTAX` instead of rendering something wrong. Numbers, dates, currency, and relative time are formatted via native `Intl` by `formatNumber(i18n, …)` and friends, which are free functions on core, already bound to the render locale in every framework binding.
-- **~5 kB base host, ~8.5 kB fully composed (min+gz, as bundled by your app), zero dependencies.** On the platform CDN path (`cdnLoader` plus ICU) a whole app graph is ≈ 8.9 kB with `@comvi/core` and ≈ 10.5 kB with `@comvi/react`; `fetchLoader`, which carries the authenticated API path as well, is ≈ 10.8 kB on core. Every capability is an import you add, so an app carries only what it composes. No `eval` or `new Function` in any runtime package, so it works under a strict CSP without `unsafe-eval`.
-- **Pluggable loading & detection.** Translations come from inline objects, local JSON, or a CDN/API loader plugin: one `.use(cdnLoader({ … }))`, or `.use(fetchLoader({ … }))` when the app also reads the authenticated API. Locale detection (query, cookie, storage, `navigator`) is a separate plugin you opt into.
-- **Server-side rendering for Next.js & Nuxt.** `@comvi/next` ships an App Router `loadTranslations()` for server components, locale-routed layouts under `[locale]`, and a `createMiddleware()` for redirect-on-detect. `@comvi/nuxt` is a Nuxt 3 / 4 module with locale composables, middleware, and `<NuxtLinkLocale>`.
+An i18n library for JavaScript and TypeScript apps: you write `t("greeting", { name })`, it renders
+the right string for the active locale. One core, six framework bindings, ICU MessageFormat, rich
+text that embeds components into a sentence without raw HTML, and typed translation keys.
+
+It works standalone with catalogs you ship in your bundle. It also pairs with
+[Comvi](https://comvi.io), a translation management platform that serves catalogs from a CDN so you
+can ship a translation without a redeploy.
 
 ## Install
 
-Pick one. Framework packages bundle `@comvi/core`, so a single install is enough:
+One install is enough: each framework package bundles `@comvi/core`.
 
 ```bash
 npm install @comvi/core      # Vanilla / Node
-npm install @comvi/vue       # Vue 3
-npm install @comvi/react     # React 16.8+
-npm install @comvi/solid     # SolidJS 1.8+
-npm install @comvi/svelte    # Svelte 5
-npm install @comvi/next      # Next.js 14+
-npm install @comvi/nuxt      # Nuxt 3 / 4
+npm install @comvi/vue       # Peer: vue ^3
+npm install @comvi/react     # Peer: react ^18 || ^19
+npm install @comvi/solid     # Peer: solid-js ^1.8
+npm install @comvi/svelte    # Peer: svelte ^5.3
+npm install @comvi/next      # Peers: next ^14 || ^15, react ^18 || ^19
+npm install @comvi/nuxt      # Peer: nuxt ^3 || ^4
 ```
 
-Loading translations from the Comvi platform CDN adds the loader plugin beside
-the framework package:
+Node 20 or newer for the runtime packages above; `@comvi/cli` and `@comvi/vite-plugin` need Node 22.
+Loading translations from the Comvi platform adds the loader plugin beside the
+framework package:
 
 ```bash
-npm install @comvi/react @comvi/plugin-fetch-loader # platform CDN path
+npm install @comvi/react @comvi/plugin-fetch-loader
 ```
 
 ## Quick start
 
-Translations from the Comvi platform CDN, which is the recipe most apps want:
+Two steps, and the second is additive. Every framework README tells the same two-step story in its
+own idiom: [react](packages/react) · [vue](packages/vue) · [solid](packages/solid) ·
+[svelte](packages/svelte) · [next](packages/next) · [nuxt](packages/nuxt) ·
+[core / vanilla](packages/core). React is the example here.
 
-```ts
-import { createI18n } from "@comvi/core";
-import { icuCompiler } from "@comvi/core/icu";
-import { cdnLoader } from "@comvi/plugin-fetch-loader/cdn";
+### Step 1 — an inline catalog
 
-const i18n = createI18n({ locale: "en", compiler: icuCompiler }).use(
-  cdnLoader({ cdnUrl: "https://cdn.comvi.io/your-distribution-id" }),
-);
+Five things to know: `createI18n` builds the host (the host is the i18n instance `createI18n`
+returns), `locale` is what renders now, `fallbackLocale` is what covers a missing key, `translation`
+is the catalog, and the provider puts the host where `useI18n()` can find it.
 
-await i18n.init();
-
-i18n.t("greeting", { name: "Alice" }); // "Hello, Alice!"
-i18n.t("items", { count: 5 }); // "5 items"
-```
-
-Drop `compiler: icuCompiler` if you use no plural/select; plain `{param}`
-interpolation needs no import. The option is the one way to enable ICU, and it
-works whatever the catalogs come from: inline, a loader, the CDN, the API.
-
-The distribution id in `cdnUrl` comes from the Comvi platform: open your project
-and read it off the **Distributions** page.
-
-Or ship the catalogs inline instead:
-
-```ts
-import { createI18n } from "@comvi/core";
-import { icuCompiler } from "@comvi/core/icu";
+```tsx title="src/main.tsx"
+import { createRoot } from "react-dom/client";
+import { createI18n, I18nProvider } from "@comvi/react";
+import App from "./App";
 
 const i18n = createI18n({
   locale: "en",
   fallbackLocale: "en",
-  compiler: icuCompiler, // ICU is an explicit import — see "One entry per package"
   translation: {
-    en: {
-      greeting: "Hello, {name}!",
-      items: "{count, plural, one {# item} other {# items}}",
-    },
-    uk: {
-      greeting: "Привіт, {name}!",
-      items: "{count, plural, one {# елемент} few {# елементи} other {# елементів}}",
-    },
+    en: { greeting: "Hello, {name}!" },
+    uk: { greeting: "Привіт, {name}!" },
   },
 });
 
-await i18n.init();
-
-i18n.t("greeting", { name: "Alice" }); // "Hello, Alice!"
-i18n.t("items", { count: 5 }); // "5 items"
+createRoot(document.getElementById("root")!).render(
+  <I18nProvider i18n={i18n}>
+    <App />
+  </I18nProvider>,
+);
 ```
 
-Without `compiler: icuCompiler` the default compiler never renders
-`{count, plural, …}` as a plural: development throws `E_ICU_SYNTAX` at
-ingestion, and production renders the braced segment literally and reports
-`E_ICU_SYNTAX` through `onError` (or `console.error`) on the compilation that
-hit it. That report is best-effort, per process, and never fires on cached
-renders. Plain `{param}` interpolation needs no import.
+```tsx title="src/App.tsx"
+import { useI18n } from "@comvi/react";
 
-For framework-specific setup, see the docs:
-[React](https://comvi.io/docs/i18n/react/) ·
-[Vue](https://comvi.io/docs/i18n/vue/) ·
-[Next.js](https://comvi.io/docs/i18n/next/) ·
-[Nuxt](https://comvi.io/docs/i18n/nuxt/) ·
-[SolidJS](https://comvi.io/docs/i18n/solid/) ·
-[Svelte](https://comvi.io/docs/i18n/svelte/) ·
-[Vanilla](https://comvi.io/docs/i18n/vanilla/)
+export default function App() {
+  const { t, locale, setLocale } = useI18n();
 
-Wondering how Comvi stacks up? Comparisons: [vs i18next](https://comvi.io/compare/i18next/) · [vs next-intl](https://comvi.io/compare/next-intl/) · [vs nuxt-i18n](https://comvi.io/compare/nuxt-i18n/) · [vs Lokalise](https://comvi.io/compare/lokalise/)
-
-Or jump straight into runnable code in [`test-apps/`](test-apps/), one demo app per framework.
-
-## One entry per package
-
-Every package publishes ONE host entry. A capability is an import you add to
-that entry, not a second entry you switch to. A bundle carries a capability
-because you asked for it, composed with `.use(…)` or, for ICU, named as the
-`compiler` option, and for no other reason.
-
-`.use(installer)` is the one composition verb; a later `.use()` warns in
-development and does nothing, so compose before `init()`. Beyond that the
-library has no ordering rule: ICU is a constructor option, not a composition
-step.
-
-| package         | the entry you import                       | host constructor                             | notes                                                                                                                                                                      |
-| --------------- | ------------------------------------------ | -------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `@comvi/core`   | `@comvi/core`                              | `createI18n`                                 | the base host, plus the pure capability subpaths below                                                                                                                     |
-| `@comvi/react`  | `@comvi/react`                             | `createI18n`                                 | core's own constructor, re-exported by name                                                                                                                                |
-| `@comvi/solid`  | `@comvi/solid`                             | `createI18n`                                 | core's own constructor, re-exported by name                                                                                                                                |
-| `@comvi/svelte` | `@comvi/svelte`                            | `createI18n`                                 | core's own constructor, re-exported by name                                                                                                                                |
-| `@comvi/vue`    | `@comvi/vue`                               | `createI18n`                                 | builds the `VueI18n` preset over a base host, and `.use(…)` composes on the result; `createI18nFromCore` wraps a host built elsewhere with `createI18n` from `@comvi/core` |
-| `@comvi/next`   | `@comvi/next/client`, `@comvi/next/server` | `createI18n`                                 | a RUNTIME split, not a host tier; `createNextI18n` on `@comvi/next` stays the composed 0.4 host                                                                            |
-| `@comvi/nuxt`   | auto-imported                              | the module's generated host, or `hostModule` | the default generated host is the base host; `hostModule` is the composition escape                                                                                        |
-
-Capabilities are core's pure subpaths, re-exported **by name** from every
-framework entry except `@comvi/nuxt`, so the ones you never call are pruned by
-your bundler. The repo's bundler matrix asserts that from the emitted module
-graph in webpack and vite, development and production. (`@comvi/nuxt` is the
-exception: app code imports nothing, so the toolkit is not on the module's own
-entry. Composition happens in one file, `comvi.host.ts`, and the values come
-from `@comvi/nuxt/host` — so the recipe follows from `npm install @comvi/nuxt`
-and nothing else; a `TranslationKeys` augmentation targets `@comvi/core`, which
-the app declares.)
-
-| you want                                                              | you add                                                                         |
-| --------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
-| ICU `plural` / `select` / `selectordinal`                             | `compiler: icuCompiler` in the constructor options                              |
-| async / remote loading                                                | `.use(loader(importMap))` or `.use(attachLoader)`                               |
-| the plugin host: `registerPlugin`, post-processors, missing-key hooks | `.use(plugins())`                                                               |
-| your own inline plugin, in one call                                   | `.use(definePlugin(fn))`                                                        |
-| browser-extension discovery (`instanceId`, `window.__COMVI__`)        | `.use(devtools())`                                                              |
-| `<tag>` markup inside plain string-API `t()`                          | `import "@comvi/core/tags"` once, anywhere in the app                           |
-| a nested inline catalog (`{ nav: { home } }`)                         | nothing; every host flattens it, so `t("nav.home")` resolves                    |
-| rich text through `<T>`                                               | nothing; `<T>` uses the pure `@comvi/core/rich-text` path and registers nothing |
-
-Two hosts are the exception to "a capability because you composed it":
-`createNextI18n` on `@comvi/next` (the composed 0.4 host, kept
-behaviour-compatible) and the CDN global build always carry ICU, whether or not
-the app asks. Neither is the base host, and neither is what
-`createI18n` returns on any entry.
-
-First-party plugins ship a lowercase **installer** beside the uppercase factory,
-and the installer composes whatever capabilities that plugin needs:
-`.use(cdnLoader({ cdnUrl }))`, `.use(localeDetector())`,
-`.use(inContextEditor())`.
-
-## Rich text without XSS
-
-Embed components inside translation strings without raw HTML, without unsafe DOM injection, and without splitting a sentence across multiple template fragments. Translators see clean markup, and you control the rendering.
-
-```json
-{ "help": "Click <link>here</link> for support, or <bold>read the docs</bold>." }
+  return (
+    <>
+      <h1>{t("greeting", { name: "Alice" })}</h1>
+      <button onClick={() => setLocale(locale === "en" ? "uk" : "en")}>Switch</button>
+    </>
+  );
+}
 ```
 
-**React**
+Runnable version: [`examples/react`](examples/react), which opens in
+[StackBlitz](https://stackblitz.com/github/comvi-io/comvi-js/tree/main/examples/react) straight from the repository — see
+[examples/README.md](examples/README.md) for the link pattern.
 
-```tsx
-import { T } from "@comvi/react";
+### Step 2 — connect to Comvi
 
-<T
-  i18nKey="help"
-  components={{
-    link: <a href="/help" />,
-    bold: <strong />,
-  }}
-/>;
-```
+Two additions to the host, and nothing else changes:
 
-**Vue**
+1. `compiler: icuCompiler`. The platform's catalogs use ICU plurals. Without the compiler an ICU
+   message throws in development and renders literally in production.
+2. `.use(cdnLoader({ cdnUrl }))`, which fetches the catalog at runtime.
 
-```vue
-<script setup lang="ts">
-import { T } from "@comvi/vue";
-</script>
+The catalog is now in flight during the first paint, so pass a `fallback` to gate it.
 
-<template>
-  <T i18nKey="help">
-    <template #link="{ children }"
-      ><a href="/help">{{ children }}</a></template
-    >
-    <template #bold="{ children }"
-      ><strong>{{ children }}</strong></template
-    >
-  </T>
-</template>
-```
-
-SolidJS and Svelte expose the same tag-interpolation concept with framework-specific component map shapes. Pass `tagInterpolation: { strict: "warn" }` to `createI18n` to catch translations referencing tags you forgot to handle, before they ship.
-
-`<T>` is self-contained: it renders through the pure `@comvi/core/rich-text` path, which takes the tag grammar per call and registers nothing. Rendering it never changes what a plain `t()` does with `<b>` markup. Making `t("Click <b>here</b>")` itself parse tags is a separate, ambient opt-in: `import "@comvi/core/tags"` once.
-
-That import registers the tag grammar **process-wide and retroactively**: it is a property of the bundle, not of one host, so every instance in the graph, including ones built before the import was evaluated, starts parsing `<tag>` markup the moment the module runs. There is no per-instance opt-out. An SSR app must therefore import it in the **server** graph too, or the same string renders literally on the server and with markup on the client.
-
-## ICU plurals, ordinals & select
-
-Comvi uses [ICU MessageFormat](https://unicode-org.github.io/icu/userguide/format_parse/messages/), the industry-standard syntax for localized strings, recognized by every major translation management platform (Crowdin, Lokalise, Phrase, and more). It is locale-correct for every language `Intl.PluralRules` supports, including Polish, Ukrainian, Arabic and Welsh:
-
-```
-{count, plural, one {You have # message} other {You have # messages}}
-{place, selectordinal, one {#st} two {#nd} few {#rd} other {#th}}
-{gender, select, female {Welcome, madam} male {Welcome, sir} other {Welcome}}
-```
-
-Those three argument types are the whole of what the compiler implements. The
-`number`, `date` and `time` argument types are not supported and are not on the
-roadmap, and neither is the plural `offset:` form. Each one fails with
-`E_ICU_SYNTAX` instead of rendering something wrong: format the value in code
-and pass it as a plain `{param}`, or quote the braces (`'{'…'}'`) to keep the text
-literal; for the plural `offset:` form, drop `offset:` and write the branches
-out.
-
-```ts
-import { createI18n } from "@comvi/core";
-import { icuCompiler } from "@comvi/core/icu";
+```tsx title="src/main.tsx"
+import { createRoot } from "react-dom/client";
+import { createI18n, icuCompiler, I18nProvider } from "@comvi/react";
+import { cdnLoader } from "@comvi/plugin-fetch-loader/cdn";
+import App from "./App";
 
 const i18n = createI18n({
   locale: "en",
+  fallbackLocale: "en",
   compiler: icuCompiler,
-  translation: {
-    en: {
-      messages: "{count, plural, one {You have # message} other {You have # messages}}",
-      rank: "You finished {place, selectordinal, one {#st} two {#nd} few {#rd} other {#th}}",
-      salutation: "{gender, select, female {Welcome, madam} male {Welcome, sir} other {Welcome}}",
-    },
-  },
-});
+}).use(cdnLoader({ cdnUrl: "https://cdn.comvi.io/your-distribution-id" }));
 
-i18n.t("messages", { count: 1 }); // "You have 1 message"
-i18n.t("messages", { count: 5 }); // "You have 5 messages"
-i18n.t("rank", { place: 3 }); // "You finished 3rd"
-i18n.t("salutation", { gender: "female" }); // "Welcome, madam"
+createRoot(document.getElementById("root")!).render(
+  <I18nProvider i18n={i18n} fallback={<div className="spinner" />}>
+    <App />
+  </I18nProvider>,
+);
 ```
 
-ICU is an opt-in compiler rather than a default. Name it once in the constructor
-options, with `compiler: icuCompiler`, and the whole grammar above is live for
-every catalog source: inline, a loader, the CDN, the API. Leave it out and the
-failure is loud in every build condition, never silent and never a plausible
-wrong answer: development throws `E_ICU_SYNTAX` at
-ingestion, and production renders the braced segment literally and reports
-`E_ICU_SYNTAX` through `onError` (or `console.error`) on the compilation that
-hit it. That report is best-effort, per process, and never fires on cached
-renders.
+The distribution id in `cdnUrl` comes from the Comvi platform: open your project and read it off the
+**Distributions** page.
 
-## Locale-aware formatting
+`.use(installer)` is the one composition verb. Compose before `init()`: composing after it warns
+once per host in development. Composing the same capability twice installs nothing the second time,
+though a second `loader(map)` does still register its map — configuration is not installation
+([`packages/core/src/loader.ts:82-90`](packages/core/src/loader.ts)). Beyond that there is no
+ordering rule, and ICU is not composed at all: it is a constructor option.
 
-Numbers, dates, currency, and relative time automatically follow the active locale via native `Intl`:
+## What is portable across frameworks
 
-On a core host they are free functions that take the host as their first
-argument. Nothing is bolted onto the instance:
+Portable, identically, in all six bindings:
 
-```ts
-import {
-  createI18n,
-  formatCurrency,
-  formatDate,
-  formatNumber,
-  formatRelativeTime,
-  getTextDirection,
-} from "@comvi/core";
+- **`useI18n()`** and the member names it returns — `t`, `tRaw`, `locale`, `setLocale`,
+  `isLoading`, `isInitializing`, `isInitialized`, `cacheRevision`.
+- **`t()`** and its overloads, including `useI18n("admin")` binding a namespace at the type level.
+- **Typed keys.** One `TranslationKeys` augmentation serves every binding.
+- **ICU** syntax and behaviour, through the same `compiler: icuCompiler` option.
+- **Capability acquisition**: `useI18nLoader()` and `useI18nPlugins()`.
+
+Not portable, by design: **`<T>` follows each framework's own idiom** for its `components` map.
+React takes elements to clone, vue takes named slots, solid takes functions, svelte takes tag names
+or `{ tag, props }` configs. See that framework's README. **SSR rules differ too**, and one of them
+inverts: Next requires a module-scope host, while Solid, Svelte, Vue and Nuxt each forbid one. The
+four rules sit side by side in [docs/design/ssr.md](docs/design/ssr.md).
+
+Reactivity of the four `Intl` formatters differs as well: React and Vue re-render on a locale
+change, Svelte and Solid do not. [docs/design/formatting.md](docs/design/formatting.md) has the
+table and the one-line rule.
+
+## Typed translation keys
+
+Declaration merging on `TranslationKeys` gives autocomplete and parameter validation per key.
+Generate it with [`@comvi/cli`](packages/cli) from the platform, or
+[`@comvi/vite-plugin`](packages/vite-plugin) from local JSON.
+
+```typescript check=group=typed-keys
+// src/types/i18n.d.ts
+import "@comvi/core"; // resolves the module before augmenting it
+
+declare module "@comvi/core" {
+  interface TranslationKeys {
+    welcome: { name: string };
+    hello: never;
+    "errors:NOT_FOUND": never;
+  }
+}
+```
+
+```ts check=group=typed-keys
+import { createI18n } from "@comvi/core";
 
 const i18n = createI18n({ locale: "en" });
 
-formatNumber(i18n, 1234.5); // "1,234.5" · "1.234,5" · "1 234,5"
-formatNumber(i18n, 0.75, { style: "percent" }); // "75%"
-formatDate(i18n, new Date(), { dateStyle: "long" }); // "January 15, 2025" · "15. Januar 2025"
-formatCurrency(i18n, 99.99, "USD"); // "$99.99" · "99,99 $"
-formatRelativeTime(i18n, -2, "hour"); // "2 hours ago" · "vor 2 Stunden"
-
-getTextDirection(i18n.locale); // "ltr" | "rtl" — handles script subtags (ku-Arab → rtl, ks-Deva → ltr)
+i18n.t("welcome", { name: "Alice" }); // params shape matches the declaration
+i18n.t("hello"); // no params needed
+i18n.t("NOT_FOUND", { ns: "errors" }); // namespaced keys use the ns option
 ```
 
-Every framework binding hands the same four back off `useI18n()`, together with
-`dir`. How _reactive_ they are differs between the bindings; core behaves the
-same under all of them:
+What TypeScript catches:
 
-| binding | formatters re-render on a locale change                                                                                                                 | `dir`                        |
-| ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------- |
-| React   | **yes**, bound to the tracked locale and passed explicitly (`react/src/useI18n.ts:273-277`, `useFormatters.ts:31-34`)                                   | reactive                     |
-| Vue     | **yes**, they default to the reactive `locale` ref (`vue/src/VueI18n.ts:186-193`)                                                                       | reactive (`ComputedRef`)     |
-| Svelte  | **no**. They are "plain functions, not stores" (`svelte/src/useI18n.ts:198`) and read `i18n.locale` once per call unless you pass a locale (`:287-292`) | reactive (a `derived` store) |
-| Solid   | **no**. They call core with the host and read no signal (`solid/src/useI18n.ts:249-252`), while `dir` does (`:253`)                                     | reactive                     |
+```ts check=group=typed-keys check=expect-error=TS2345
+import { createI18n } from "@comvi/core";
 
-In Svelte and Solid, put the formatter call where the locale is already tracked
-(a `$:`/`$derived`, a `createMemo`, or the template) or pass the locale
-yourself.
+const i18n = createI18n({ locale: "en" });
+
+// TS2345 — `welcome` declares a required param, so the key-only overload is out.
+i18n.t("welcome");
+```
+
+```ts check=group=typed-keys check=expect-error=TS2769
+import { createI18n } from "@comvi/core";
+
+const i18n = createI18n({ locale: "en" });
+
+// TS2769 — Property 'name' is missing in type '{ age: number }'
+i18n.t("welcome", { age: 5 });
+
+// TS2769 — Type 'number' is not assignable to type 'string'
+i18n.t("welcome", { name: 42 });
+
+// TS2769 — '"typo"' is not a declared key
+i18n.t("typo", { name: "Alice" });
+```
+
+## What it weighs
+
+Measured min+gz through each package's published exports map. Every figure names the fixture it
+comes from; the fixtures and their gates live in
+[`scripts/size-budgets.json`](scripts/size-budgets.json) and the rule behind them in
+[`scripts/size-budgets.md`](scripts/size-budgets.md). Framework peers are externalized, so a
+framework row measures the comvi graph only.
+
+| app shape                                | fixture                        | min+gz  |
+| ---------------------------------------- | ------------------------------ | ------- |
+| `@comvi/core` alone, nothing composed    | `core-base`                    | 5270 B  |
+| `@comvi/core` + ICU                      | `core-base-icu`                | 6183 B  |
+| every core capability composed           | `core-full-composite`          | 8874 B  |
+| `@comvi/react`, base host + bindings     | `fw-react-default`             | 6902 B  |
+| `@comvi/react` + ICU + the CDN loader    | `platform-path-react`          | 10793 B |
+| core + ICU + the CDN-only loader subpath | `plugin-fetch-loader-cdn-lite` | 9173 B  |
+
+Every capability is an import you add, so an app carries only what it composes. No `eval` and no
+`new Function` in any runtime package, so everything runs under a strict CSP without `unsafe-eval`.
+`@comvi/core` has zero runtime dependencies.
 
 ## Packages
 
@@ -346,68 +268,84 @@ yourself.
 | [`@comvi/next`](packages/next)     | Next.js App Router: SSR, middleware, locale routing   | [→](https://comvi.io/docs/i18n/next/)    |
 | [`@comvi/nuxt`](packages/nuxt)     | Nuxt 3 / 4 module: auto-imports, SSR, locale routing  | [→](https://comvi.io/docs/i18n/nuxt/)    |
 
-**Upgrading from 0.4.x?** Every package now has exactly ONE entry, and
-`@comvi/core` is the base host: ICU, async loading, the plugin host and
-extension discovery are imports you add, not an entry you switch. That is a
-breaking change on a 0.x minor. ICU syntax on the default compiler throws
-instead of rendering wrong text, and four loader/plugin members moved out of
-`useI18n()`. The migration is mechanical and mostly codemodded; see
-**[MIGRATION.md](MIGRATION.md)**.
-
-### Plugins
-
-| Package                                                            | Description                                             |
-| ------------------------------------------------------------------ | ------------------------------------------------------- |
-| [`@comvi/plugin-fetch-loader`](packages/plugin-fetch-loader)       | Load translations from CDN or API                       |
-| [`@comvi/plugin-locale-detector`](packages/plugin-locale-detector) | Auto-detect locale from query, cookie, storage, browser |
-
-### Platform plugins
-
-These plugins require the [Comvi Platform](https://comvi.io) and don't work standalone.
+### Plugins and tooling
 
 | Package                                                                | Description                                               |
 | ---------------------------------------------------------------------- | --------------------------------------------------------- |
+| [`@comvi/plugin-fetch-loader`](packages/plugin-fetch-loader)           | Load translations from the Comvi CDN or API               |
+| [`@comvi/plugin-locale-detector`](packages/plugin-locale-detector)     | Detect the locale from query, cookie, storage, browser    |
 | [`@comvi/plugin-in-context-editor`](packages/plugin-in-context-editor) | Visual in-app translation editor (requires Comvi account) |
+| [`@comvi/vite-plugin`](packages/vite-plugin)                           | Generate types from local JSON files at dev/build time    |
+| [`@comvi/cli`](packages/cli)                                           | Generate types from the Comvi TMS, sync translations      |
 
-### Tooling
+Two workspace packages, `locale-routing` and `typegen`, are `"private": true`: they publish no npm
+package and are inlined into the packages above at build time, so nothing you install ever names
+them.
 
-| Package                                      | Description                                            |
-| -------------------------------------------- | ------------------------------------------------------ |
-| [`@comvi/vite-plugin`](packages/vite-plugin) | Generate types from local JSON files at dev/build time |
-| [`@comvi/cli`](packages/cli)                 | Generate types from the Comvi TMS, sync translations   |
+### Upgrading from 0.4.x
 
-### Internal (not published)
+Every package now has exactly ONE entry, and `@comvi/core` is the base host: ICU, async loading, the
+plugin host and extension discovery are imports you add, not an entry you switch to. That is a
+breaking change on a 0.x minor. Four specifics:
 
-Two workspace packages exist so shared code has one copy in the repo. They are
-`"private": true`, publish no npm package, and are inlined into the packages
-above at build time — nothing you install ever names them.
+- **ICU syntax on the default compiler throws** instead of rendering wrong text. Name
+  `compiler: icuCompiler`.
+- **Four loader/plugin members left `useI18n()`.** Acquire them from `useI18nLoader()` /
+  `useI18nPlugins()`.
+- **A missing interpolation parameter renders as the literal placeholder.** `t("greet")` on
+  `"Hello, {name}!"` gave `"Hello, !"` in 0.4 and gives `"Hello, {name}!"` in 0.5, plus one dev
+  warning per template and parameter. An explicit `null` still renders as an empty string. Opt out
+  with `missingParam: "drop"`.
+- **`.with(…)` is gone**, with no alias. `.use(installer)` is the one verb.
 
-| Package                                     | Inlined into                                                        |
-| ------------------------------------------- | ------------------------------------------------------------------- |
-| [`locale-routing`](packages/locale-routing) | `@comvi/next` (bundled); `@comvi/nuxt` (vendored into its runtime)  |
-| [`typegen`](packages/typegen)               | `@comvi/cli`, `@comvi/vite-plugin` (bundled, declarations included) |
+The migration is mechanical and mostly codemodded. See **[MIGRATION.md](MIGRATION.md)**.
+
+## Design notes
+
+Why the library has the shape it has, kept out of the READMEs so those stay instructions:
+
+| Note                                             | What it covers                                                              |
+| ------------------------------------------------ | --------------------------------------------------------------------------- |
+| [composition.md](docs/design/composition.md)     | one entry per package, `.use(installer)`, why ICU is a constructor option   |
+| [icu.md](docs/design/icu.md)                     | the grammar that is implemented, the gaps, fail-loud/fail-soft              |
+| [rich-text.md](docs/design/rich-text.md)         | `<T>` versus the ambient `t()` tag grammar                                  |
+| [formatting.md](docs/design/formatting.md)       | `Intl` formatters, and where the four bindings disagree on reactivity       |
+| [ssr.md](docs/design/ssr.md)                     | the four module-scope rules side by side                                    |
+| [next-runtimes.md](docs/design/next-runtimes.md) | why the Next config module is evaluated twice, and what must not reach Edge |
+| [limitations.md](docs/design/limitations.md)     | everything the library does not do, in one list                             |
 
 ## Comvi Platform
 
-Comvi i18n is the open-source library, and it is usable on its own. [**Comvi**](https://comvi.io) is the optional translation management platform that pairs with it:
+Comvi i18n is the open-source library, and it is usable on its own.
+[**Comvi**](https://comvi.io) is the optional translation management platform that pairs with it:
 
 - **Collaborative dashboard** for translators, designers, and developers
-- **CDN delivery** via [`@comvi/plugin-fetch-loader`](packages/plugin-fetch-loader), so you can ship a translation without a redeploy
+- **CDN delivery** via [`@comvi/plugin-fetch-loader`](packages/plugin-fetch-loader), so you can ship
+  a translation without a redeploy
 - **Auto-generated types** straight from the platform via [`@comvi/cli`](packages/cli)
-- **In-context editing** in your live app via [`@comvi/plugin-in-context-editor`](packages/plugin-in-context-editor)
+- **In-context editing** in your live app via
+  [`@comvi/plugin-in-context-editor`](packages/plugin-in-context-editor)
 
 Adopt the platform when you're ready. The library never depends on it.
+
+Comparisons: [vs i18next](https://comvi.io/compare/i18next/) ·
+[vs next-intl](https://comvi.io/compare/next-intl/) ·
+[vs nuxt-i18n](https://comvi.io/compare/nuxt-i18n/) ·
+[vs Lokalise](https://comvi.io/compare/lokalise/)
 
 ## Repository
 
 ```
 packages/        — 14 workspace packages: 12 published to npm, plus
                    locale-routing and typegen (private, inlined into consumers)
+docs/design/     — design notes; not published to npm
+examples/        — runnable StackBlitz demos, one per framework, for readers
+test-apps/       — this workspace's own test apps, for CI
 tooling/         — shared internal Vite/Vitest config
-test-apps/       — runnable demo apps for every framework
 ```
 
-[pnpm](https://pnpm.io/) + [Turborepo](https://turbo.build/) monorepo. Every package builds independently; the 12 publishable ones ship to npm under the `@comvi/*` scope as one release train.
+[pnpm](https://pnpm.io/) + [Turborepo](https://turbo.build/) monorepo. Every package builds
+independently; the 12 publishable ones ship to npm under the `@comvi/*` scope as one release train.
 
 ## Development
 
