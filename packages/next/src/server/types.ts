@@ -1,11 +1,4 @@
-import type {
-  TranslationParams,
-  NamespacedKeys,
-  Namespaces,
-  NamespacedParamsArg,
-  ParamsArg,
-  PermissiveKey,
-} from "@comvi/core";
+import type { AcceptedKey, ArgsFor } from "@comvi/core";
 
 export interface GetI18nOptions {
   /** Explicit locale (for generateMetadata, etc.) - defaults to request locale */
@@ -17,14 +10,16 @@ export interface GetI18nOptions {
 /**
  * The Server Component translation function: returns a plain string, never a
  * `TranslationResult`.
+ *
+ * ONE signature, keyed through core's `AcceptedKey` / `ArgsFor` pair exactly as
+ * every client binding is — see `AcceptedKey` for why the key union is spelled
+ * out inline rather than named.
  */
 export interface TranslationFunction {
-  <NS extends Namespaces, K extends NamespacedKeys<NS>>(
+  <K extends { [P in AcceptedKey]: P }[AcceptedKey]>(
     key: K,
-    ...params: NamespacedParamsArg<NS, K>
+    ...params: ArgsFor<K, undefined, {}>
   ): string;
-  <K extends import("@comvi/core").DefaultNsKeys>(key: K, ...params: ParamsArg<K>): string;
-  (key: PermissiveKey, params?: TranslationParams): string;
 }
 
 export interface HasTranslationOptions {

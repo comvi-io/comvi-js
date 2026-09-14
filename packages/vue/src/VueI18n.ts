@@ -11,7 +11,6 @@ import type {
   I18n,
   I18nOptions,
   FlattenedTranslations,
-  TranslationParams,
   TranslationResult,
   TranslationValue,
   I18nEvent,
@@ -393,21 +392,16 @@ export class VueI18n<
     return readonly(this._cacheRevision);
   }
 
-  /** The rich-text half of `t()`: the full core `TranslationResult`. */
+  /**
+   * The rich-text half of `t()`: the full core `TranslationResult`. ONE
+   * signature, keyed through core's `AcceptedKey` / `ArgsFor` pair — see
+   * `AcceptedKey` for why the key union is spelled out inline.
+   */
   tRaw<
-    NS extends import("@comvi/core").Namespaces,
-    K extends import("@comvi/core").NamespacedKeys<NS>,
-  >(key: K, ...params: import("@comvi/core").NamespacedParamsArg<NS, K, D>): TranslationResult;
-
-  tRaw<K extends import("@comvi/core").DefaultNsKeys>(
-    key: K,
-    ...params: import("@comvi/core").ParamsArg<K, D>
-  ): TranslationResult;
-
-  tRaw(
-    key: import("@comvi/core").PermissiveKey,
-    params?: import("@comvi/core").TranslationParams,
-  ): TranslationResult;
+    K extends {
+      [P in import("@comvi/core").AcceptedKey]: P;
+    }[import("@comvi/core").AcceptedKey],
+  >(key: K, ...params: import("@comvi/core").ArgsFor<K, undefined, D>): TranslationResult;
 
   tRaw(key: string, ...params: [import("@comvi/core").TranslationParams?]): TranslationResult {
     void this._locale.value;
@@ -418,20 +412,10 @@ export class VueI18n<
 
   /** Always plain text; tracks locale, cache and config reactively. */
   t<
-    NS extends import("@comvi/core").Namespaces,
-    K extends import("@comvi/core").NamespacedKeys<NS>,
-  >(key: K, ...params: import("@comvi/core").NamespacedParamsArg<NS, K, D>): string;
-
-  t<K extends import("@comvi/core").DefaultNsKeys>(
-    key: K,
-    ...params: import("@comvi/core").ParamsArg<K, D>
-  ): string;
-
-  /** Permissive overload — active only when `TranslationKeys` is empty. */
-  t(
-    key: import("@comvi/core").PermissiveKey,
-    params?: import("@comvi/core").TranslationParams,
-  ): string;
+    K extends {
+      [P in import("@comvi/core").AcceptedKey]: P;
+    }[import("@comvi/core").AcceptedKey],
+  >(key: K, ...params: import("@comvi/core").ArgsFor<K, undefined, D>): string;
 
   t(key: string, ...params: [import("@comvi/core").TranslationParams?]): string {
     return translationResultToString(this.tRaw(key as any, ...(params as any)));

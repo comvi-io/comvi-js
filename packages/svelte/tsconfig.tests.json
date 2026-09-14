@@ -26,5 +26,11 @@
     }
   },
   "include": ["src/**/*.ts", "src/**/*.d.ts", "tests/**/*.ts"],
-  "exclude": ["tests/exports-smoke.test.ts", "node_modules", "dist", "tests/types/**"]
+  "exclude": [
+    "tests/exports-smoke.test.ts",
+    "node_modules",
+    "dist",
+    "tests/types/**",
+    "tests/types-keys-open/**"
+  ]
 }

@@ -9,12 +9,8 @@ import type {
   PostProcessFn,
   I18nEvent,
   I18nEventData,
-  TranslationKeys,
-  ParamsArg,
-  Namespaces,
-  NamespacedKeys,
-  NamespacedParamsArg,
-  PermissiveKey,
+  AcceptedCoreKey,
+  ArgsFor,
   ErrorReportContext,
   TagInterpolationOptions,
   DefaultTranslationParams,
@@ -666,18 +662,14 @@ export class I18n<D extends DefaultTranslationParams = {}>
     return [...this._fallbackLocales];
   }
 
-  tRaw<NS extends Namespaces, K extends NamespacedKeys<NS>>(
-    translationKey: K | null,
-    ...params: NamespacedParamsArg<NS, K, D>
+  /**
+   * The rich-text half of {@link I18n.t}, keyed identically: ONE signature, so
+   * a wrong call names its own problem on the first line.
+   */
+  tRaw<K extends { [P in AcceptedCoreKey]: P }[AcceptedCoreKey] | null>(
+    translationKey: K,
+    ...params: ArgsFor<K, undefined, D>
   ): TranslationResult;
-
-  tRaw<K extends keyof TranslationKeys>(
-    translationKey: K | null,
-    ...params: ParamsArg<K, D>
-  ): TranslationResult;
-
-  /** Permissive overload — only active when `TranslationKeys` is empty. */
-  tRaw(translationKey: PermissiveKey | null, params?: TranslationParams): TranslationResult;
 
   tRaw(translationKey: string | null, ...params: [TranslationParams?]): TranslationResult {
     if (translationKey === null) {
@@ -715,15 +707,15 @@ export class I18n<D extends DefaultTranslationParams = {}>
     );
   }
 
-  t<NS extends Namespaces, K extends NamespacedKeys<NS>>(
-    translationKey: K | null,
-    ...params: NamespacedParamsArg<NS, K, D>
+  /**
+   * Translate a key in the current locale. ONE signature — see
+   * {@link AcceptedCoreKey} for the keys it takes and {@link ArgsFor} for how
+   * the params are dispatched on the key.
+   */
+  t<K extends { [P in AcceptedCoreKey]: P }[AcceptedCoreKey] | null>(
+    translationKey: K,
+    ...params: ArgsFor<K, undefined, D>
   ): string;
-
-  t<K extends keyof TranslationKeys>(translationKey: K | null, ...params: ParamsArg<K, D>): string;
-
-  /** Permissive overload — only active when `TranslationKeys` is empty. */
-  t(translationKey: PermissiveKey | null, params?: TranslationParams): string;
 
   t(translationKey: string | null, ...params: [TranslationParams?]): string {
     return translationResultToString(this.tRaw(translationKey as any, ...(params as any)));
