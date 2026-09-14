@@ -205,6 +205,25 @@ export function classify(file) {
   const base = path.basename(posix).replace(/\.(mdx|md)$/, "");
   const classes = new Set();
 
+  // `docs/design/**` is a corpus of decision records, and its own README is an
+  // INDEX of them — a table of links, addressed to a contributor who already
+  // knows what the host is. It owes no walkthrough of anything, so no required
+  // rule applies to it. Before this class existed, `docs/design/README.md` fell
+  // through to the branch below, where `pkg === undefined` means "an installed
+  // package README whose directory we cannot see" and grants `framework` — so
+  // the index owed a `.use(installer)` fence and was given one that existed
+  // only to satisfy the rule. A gate that makes a page carry code it has no
+  // reason to show is a gate teaching the corpus to lie to it.
+  //
+  // The banned-token rules and `prose/stale-size-figure` still run here, which
+  // is the whole point of having a class rather than an exemption: a record
+  // that names a removed API or quotes a stale size figure is exactly as wrong
+  // as a README that does.
+  if (/(?:^|\/)docs\/design\//.test(posix)) {
+    classes.add("design");
+    return classes;
+  }
+
   if (base === "README" || base === "MIGRATION") {
     // Both layouts name the same package: `packages/cli/README.md` in this repo,
     // `node_modules/@comvi/cli/README.md` once www checks the published copies.

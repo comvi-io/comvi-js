@@ -32,6 +32,15 @@
  * www app for a run against the published packages. Without `--typecheck`
  * nothing about the D2a behaviour changes, including the exit code.
  *
+ * BOTH passes are CI gates, in two different jobs, because they need different
+ * things. `pnpm check:snippets` is the symbol lint and needs nothing built, so
+ * it runs in `quality` in seconds. `pnpm check:snippets:types` is this pass with
+ * `--sdk-root .` and needs a built `dist` — the snippets resolve `@comvi/*`
+ * through the real exports map — so it runs in `build`, straight after
+ * `pnpm build`, and again in `pnpm test:release`. One consequence worth knowing
+ * before you edit a fence: `check=expect-error` is INERT without the type-check
+ * pass, so those fences are only really asserted by the second job.
+ *
  * Exit 1 on any finding except the advisory ones (`typecheck/node16-only`),
  * which are counted and printed but do not fail a run: they describe the
  * reader's tsconfig, not the snippet. `--json` prints the machine form for a CI

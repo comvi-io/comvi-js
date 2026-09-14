@@ -356,7 +356,7 @@ same on the client, at the type level too.
 
 Put the URL rules in their own module and import them from both the middleware and the host.
 
-```ts title="src/i18n/routing.ts"
+```ts title="src/i18n/routing.ts" check=group=next-routing
 import { defineRouting } from "@comvi/next/routing";
 
 export const routing = defineRouting({
@@ -366,7 +366,7 @@ export const routing = defineRouting({
 });
 ```
 
-```ts title="src/middleware.ts"
+```ts title="src/middleware.ts" check=group=next-routing
 import { createMiddleware } from "@comvi/next/middleware";
 import { routing } from "./i18n/routing";
 
@@ -432,7 +432,7 @@ The result is `{ i18n, routing, use }`, and `use` is the same composition verb e
 `result.use(f)` is `f(result.i18n)`, handing back the same result with `i18n` retyped to whatever
 the installer widened the host to.
 
-```ts
+```ts title="src/i18n/index.ts" check=group=next-routing
 import { createNextI18n, definePlugin, loader, nextPlugin, nextPluginLazy } from "@comvi/next";
 import { localeDetectorPlugin } from "@comvi/plugin-locale-detector";
 import { routing } from "./routing";

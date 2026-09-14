@@ -11,10 +11,14 @@
  * pattern rules had nothing to say about it, and `pnpm check:snippets` stayed
  * green through a published README with a broken import.
  *
- * The type-check pass (`--typecheck --sdk-root`) does catch it — by packing
- * fourteen tarballs and running tsc. That is not what CI runs on the READMEs and
- * it never will be, so the resolution has to be STATIC: no install, no tarballs,
- * no tsc, just the files already in the working tree.
+ * The type-check pass (`--typecheck --sdk-root`) does catch it — by resolving
+ * `@comvi/*` through the real exports map and running tsc, which needs a BUILT
+ * dist. CI runs that too now (`pnpm check:snippets:types`, in the `build` job
+ * after `pnpm build`), so the two halves are both gates. They are still two:
+ * `check:snippets` runs in `quality`, where nothing has been built, and a gate
+ * whose verdict waits on a 30-minute job is a gate nobody reads. So the
+ * resolution here has to be STATIC — no install, no dist, no tsc, just the files
+ * already in the working tree.
  *
  * WHERE THE NAMES COME FROM, and why not the other two options:
  *

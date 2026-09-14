@@ -14,14 +14,7 @@ decisions, not a description of the code; when the code and a record disagree, t
 of them and worth saying so.
 
 The vocabulary every record assumes — the host is what `createI18n` returns, and `.use(installer)`
-is the one composition verb:
-
-```ts
-import { createI18n } from "@comvi/core";
-import { plugins } from "@comvi/core/plugins";
-
-const i18n = createI18n({ locale: "en" }).use(plugins());
-```
+is the one composition verb.
 
 | Record                               | The decision it records                                                  |
 | ------------------------------------ | ------------------------------------------------------------------------ |

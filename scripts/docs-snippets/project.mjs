@@ -224,8 +224,51 @@ export function buildProjects(fences, skipCategory = () => null) {
     const scope = nuxtScope(project);
     project.isNuxt = scope.nuxt && scope.rivals.length === 0;
     project.nuxtRivals = scope.nuxt && scope.rivals.length > 0 ? scope.rivals : null;
+    project.nuxtHostModule = nuxtHostModule(project);
   }
   return { projects: kept, skips };
+}
+
+/**
+ * The file name `hostModule` names, in the extensions codegen accepts.
+ *
+ * `packages/nuxt/src/module.ts` resolves the option with `toTypeImportSpecifier`,
+ * which strips exactly this extension set, so a fence titled `comvi.host.ts` is
+ * the file the generated declaration reads the host type off.
+ */
+const NUXT_HOST_FILE = /^comvi\.host\.(?:[cm]?tsx?|[cm]?jsx?)$/;
+
+/** The extension `toTypeImportSpecifier` strips. Same set, one source. */
+const HOST_EXTENSION = /\.(?:[cm]?tsx?|[cm]?jsx?)$/;
+
+/**
+ * A default export, which is the whole contract of a `comvi.host` file: the
+ * runtime template imports `default` from it and so does the type template, and
+ * the module says so out loud (`comvi.host must default-export a factory`).
+ */
+const DEFAULT_EXPORT = /^\s*export\s+default\b/m;
+
+/**
+ * The project-relative specifier of this project's `comvi.host`, or `null`.
+ *
+ * A Nuxt app's `comvi.setup` hook is typed from the host its `comvi.host`
+ * factory returns, and the link is a file the MODULE generates
+ * (`.nuxt/types/comvi-host.ts`) rather than anything either user file says. So
+ * a group holding both files needs that generated file too, or the hook is
+ * typed from the fallback (`I18n`) and every capability call in it — the exact
+ * line `packages/nuxt/README.md` exists to show — is a TS2339 about the docs
+ * tooling rather than about the docs. `typecheck.mjs` emits it; this decides
+ * whether there is anything to emit, and what it should point at.
+ *
+ * @returns a project-relative POSIX specifier with no extension, or `null`.
+ */
+export function nuxtHostModule(project) {
+  for (const file of project.files.values()) {
+    if (!NUXT_HOST_FILE.test(path.posix.basename(file.rel))) continue;
+    if (!DEFAULT_EXPORT.test(file.content)) continue;
+    return file.rel.replace(HOST_EXTENSION, "");
+  }
+  return null;
 }
 
 /** The module, or the config file that registers it. */
