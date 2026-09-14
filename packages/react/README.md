@@ -21,7 +21,13 @@
 enough. Built on `useSyncExternalStore`, so it is safe with Suspense, transitions and concurrent
 rendering.
 
-Throughout this README, **the host** is the i18n instance `createI18n` returns.
+One exception: the free formatting functions (`formatNumber`, `formatDate`, `formatCurrency`,
+`formatRelativeTime`, `getTextDirection`) are not re-exported here. A component that calls one
+directly imports it from `@comvi/core` and declares that package too — pnpm will not resolve it
+transitively. `useI18n()` hands back bound formatters, which need no extra import.
+
+Throughout this README, **the host** is the object `createI18n` returns: it holds the catalog, the
+current locale and `t()`.
 
 📖 [Documentation](https://comvi.io/docs/i18n/react/) ·
 ⚖️ [Comvi vs i18next](https://comvi.io/compare/i18next/)
@@ -131,17 +137,17 @@ the `createI18n` expression as above.
 
 ### `<I18nProvider>` props
 
-| prop                       | type                     | what it does                                                                 |
-| -------------------------- | ------------------------ | ---------------------------------------------------------------------------- |
-| `i18n`                     | the host                 | required                                                                     |
-| `children`                 | `ReactNode`              | required                                                                     |
-| `autoInit`                 | `boolean`                | calls `i18n.init()` for you; default `true`                                  |
-| `fallback`                 | `ReactNode`              | rendered instead of children until the host is initialized                   |
-| `ssrLocale`                | `string`                 | the locale the server snapshot renders in                                    |
-| `ssrInitialLocale`         | `string`                 | react's legacy name for `ssrLocale`; wins if both are passed. Removed in 0.6 |
-| `ssrInitialIsInitializing` | `boolean`                | whether the server render is gated by `fallback`; default `false`            |
-| `ssrInitialIsLoading`      | `boolean`                | the initial loading state for hydration                                      |
-| `onError`                  | `(error: Error) => void` | initialization failures                                                      |
+| prop                       | type                     | what it does                                                                       |
+| -------------------------- | ------------------------ | ---------------------------------------------------------------------------------- |
+| `i18n`                     | the host                 | required                                                                           |
+| `children`                 | `ReactNode`              | required                                                                           |
+| `autoInit`                 | `boolean`                | calls `i18n.init()` for you; default `true`                                        |
+| `fallback`                 | `ReactNode`              | rendered instead of children until the host is initialized                         |
+| `ssrLocale`                | `string`                 | the locale the server snapshot renders in                                          |
+| `ssrInitialLocale`         | `string`                 | react's legacy name for `ssrLocale`, which wins if both are passed. Removed in 0.6 |
+| `ssrInitialIsInitializing` | `boolean`                | whether the server render is gated by `fallback`; default `false`                  |
+| `ssrInitialIsLoading`      | `boolean`                | the initial loading state for hydration                                            |
+| `onError`                  | `(error: Error) => void` | initialization failures                                                            |
 
 **`fallback` gates on `isInitialized`, not `isInitializing`.** `init()` starts from an effect, after
 the first render, so a gate on "is it initializing" is open for exactly the frame the raw keys would
@@ -341,7 +347,8 @@ What react contributes is two props that make a server render and its hydration 
 
 - **`ssrLocale`** is the locale the server snapshot renders in. Pass it on both sides. It is the name
   `@comvi/vue`, `@comvi/solid` and `@comvi/nuxt` use, so one shared SSR layer passes one name to
-  every binding. `ssrInitialLocale` is react's legacy alias for it.
+  every binding. `ssrInitialLocale` is react's legacy alias for it, and `ssrLocale` wins when both
+  are passed.
 - **`ssrInitialIsInitializing`** decides whether the server render is gated by `fallback`, and is
   `false` by default — so a server render that already produced real text is never gated, and the
   hydration render matches it. For a server render with no catalog yet, whose markup would ship raw
@@ -375,12 +382,12 @@ TypeScript catches are in the
 
 ## 7. What it weighs
 
-Measured min+gz through the published exports map, `react` externalized, and gated in
-[`scripts/size-budgets.json`](../../scripts/size-budgets.json) at the recorded baseline + 5 %. Each
-row is also sentinel-checked against the emitted module graph, so "an unused re-export costs
-nothing" is a gate rather than a sentence.
+Measured min+gz through the package's published entry, with `react` left out of the bundle, and
+checked in CI against [`scripts/size-budgets.json`](../../scripts/size-budgets.json) with 5 % of
+headroom. CI also reads the modules each bundle actually pulled in, so "a capability you never
+import costs nothing" is checked rather than asserted.
 
-| app shape                             | fixture                   | min+gz  |
+| app shape                             | measured as               | min+gz  |
 | ------------------------------------- | ------------------------- | ------- |
 | base host + bindings, no `<T>`        | `fw-react-default`        | 6902 B  |
 | every capability composed, with `<T>` | `fw-react-full-composite` | 11571 B |
@@ -394,8 +401,9 @@ nothing" is a gate rather than a sentence.
   [ICU](../../docs/design/icu.md) · [rich text](../../docs/design/rich-text.md) ·
   [formatting](../../docs/design/formatting.md) · [SSR](../../docs/design/ssr.md) ·
   [limitations](../../docs/design/limitations.md)
-- **Upgrading from 0.4.x:** `pnpm codemod:framework-slim "src/**/*.{ts,tsx,js,jsx}"`, then
-  [MIGRATION.md](https://github.com/comvi-io/comvi-js/blob/main/MIGRATION.md).
+- **Upgrading from 0.4.x:** the [0.5.0 migration guide](https://github.com/comvi-io/comvi-js/blob/main/MIGRATION.md), whose
+  §3 has the codemod recipe — it is a repo-internal script, run by absolute path from your app's
+  root, not a `pnpm` script you have.
 - **Full API:** [comvi.io/docs/i18n/react/](https://comvi.io/docs/i18n/react/)
 
 ## License

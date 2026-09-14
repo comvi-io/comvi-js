@@ -4,7 +4,7 @@ Design note. One list, so a reader evaluating Comvi i18n finds the gaps in one p
 discovering them one README at a time. Each entry says what happens instead, because a limitation
 you can see is cheaper than one you hit in production.
 
-The host is the i18n instance `createI18n` returns.
+The host is the object `createI18n` returns: it holds the catalog, the current locale and `t()`.
 
 ## ICU grammar
 

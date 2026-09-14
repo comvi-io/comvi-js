@@ -46,7 +46,14 @@ can ship a translation without a redeploy.
 
 ## Install
 
-One install is enough: each framework package bundles `@comvi/core`.
+One install is enough for the host, the bindings and the capability toolkit: each framework package
+bundles `@comvi/core` and re-exports what you compose with.
+
+The exception is the free formatting functions — `formatNumber`, `formatDate`, `formatCurrency`,
+`formatRelativeTime`, `getTextDirection`. No binding re-exports those, so a component that calls one
+directly imports it from `@comvi/core` and must declare `@comvi/core` in its own dependencies;
+pnpm's strict layout will not resolve it transitively. Five of the six framework examples do exactly
+that. `useI18n()` hands back bound formatters, which need no extra import.
 
 ```bash
 npm install @comvi/core      # Vanilla / Node
@@ -75,9 +82,10 @@ own idiom: [react](packages/react) · [vue](packages/vue) · [solid](packages/so
 
 ### Step 1 — an inline catalog
 
-Five things to know: `createI18n` builds the host (the host is the i18n instance `createI18n`
-returns), `locale` is what renders now, `fallbackLocale` is what covers a missing key, `translation`
-is the catalog, and the provider puts the host where `useI18n()` can find it.
+Five things to know. `createI18n` builds **the host**: the object it returns, holding the catalog,
+the current locale and `t()`. `locale` is what renders now, `fallbackLocale` covers a missing key,
+`translation` is the catalog, and `<I18nProvider>` puts the host where the `useI18n()` hook can find
+it.
 
 ```tsx title="src/main.tsx"
 import { createRoot } from "react-dom/client";
@@ -233,13 +241,13 @@ i18n.t("typo", { name: "Alice" });
 
 ## What it weighs
 
-Measured min+gz through each package's published exports map. Every figure names the fixture it
-comes from; the fixtures and their gates live in
-[`scripts/size-budgets.json`](scripts/size-budgets.json) and the rule behind them in
-[`scripts/size-budgets.md`](scripts/size-budgets.md). Framework peers are externalized, so a
-framework row measures the comvi graph only.
+Measured min+gz through each package's published entry. Every figure below names the measurement it
+comes from, and CI re-measures all of them against
+[`scripts/size-budgets.json`](scripts/size-budgets.json); the rule behind the numbers is in
+[`scripts/size-budgets.md`](scripts/size-budgets.md). A framework's own runtime is left out of the
+bundle, so a framework row is the comvi code only.
 
-| app shape                                | fixture                        | min+gz  |
+| app shape                                | measured as                    | min+gz  |
 | ---------------------------------------- | ------------------------------ | ------- |
 | `@comvi/core` alone, nothing composed    | `core-base`                    | 5270 B  |
 | `@comvi/core` + ICU                      | `core-base-icu`                | 6183 B  |

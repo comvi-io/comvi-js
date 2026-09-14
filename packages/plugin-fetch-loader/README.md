@@ -23,7 +23,8 @@ Start from your framework's README — [react](../react) · [vue](../vue) · [so
 [svelte](../svelte) · [next](../next) · [nuxt](../nuxt) · [core](../core) — and come here for the
 options.
 
-Throughout this README, **the host** is the i18n instance `createI18n` returns.
+Throughout this README, **the host** is the object `createI18n` returns: it holds the catalog, the
+current locale and `t()`.
 
 Concurrent requests for the same locale and namespace are deduplicated, translations re-fetch on a
 locale change with no manual cache invalidation, and namespaces load on demand.
@@ -47,10 +48,10 @@ npm install @comvi/plugin-fetch-loader
 `cdnLoader()` from the `/cdn` subpath is the CDN half on its own, and it is what a quickstart uses.
 `fetchLoader()` from the package root serves both: it reads the CDN, and switches to the API when
 the host carries an `apiKey`. That choice is made at runtime, so the API request path is in the
-bundle either way — which is why the CDN-only subpath exists. Two fixtures in
-[`scripts/size-budgets.json`](../../scripts/size-budgets.json) measure exactly that difference:
+bundle either way — which is why the CDN-only subpath exists. Two of the measurements CI keeps in
+[`scripts/size-budgets.json`](../../scripts/size-budgets.json) are exactly that difference:
 
-| graph                                  | fixture                        | min+gz  |
+| graph                                  | measured as                    | min+gz  |
 | -------------------------------------- | ------------------------------ | ------- |
 | base host, ICU, and the `/cdn` subpath | `plugin-fetch-loader-cdn-lite` | 9173 B  |
 | base host, ICU, and the root entry     | `plugin-fetch-loader-cdn`      | 11139 B |
@@ -175,8 +176,8 @@ i18n.registerPlugin(CdnLoader({ cdnUrl: "https://cdn.comvi.io/your-distribution-
 ```
 
 **Swapping the two is a type error, and each half is caught at runtime too.**
-`registerPlugin(cdnLoader(…))` fails at `init()` with `E_INSTALLER_AS_PLUGIN`, on the installer's
-first ensure-step, before any capability is attached. `.use(CdnLoader(…))` throws
+`registerPlugin(cdnLoader(…))` fails at `init()` with `E_INSTALLER_AS_PLUGIN`, the first thing the
+installer does, before it has set anything up. `.use(CdnLoader(…))` throws
 `E_USE_NOT_INSTALLER`: a plugin is not an installer, so what it hands back is not the host. `.use`
 calls it before it checks, so the plugin runs outside `init()`'s drain loop and, being async, hands
 back a promise nobody awaits. Register it with `registerPlugin`, where `required`, `timeout`,

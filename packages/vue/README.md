@@ -21,7 +21,13 @@
 enough. `useI18n()` returns refs and computeds, so a locale or catalog change triggers precise
 re-renders. One `app.use(i18n)` covers the Composition API, the Options API and templates.
 
-Throughout this README, **the host** is the i18n instance `createI18n` returns — on this package
+One exception: the free formatting functions (`formatNumber`, `formatDate`, `formatCurrency`,
+`formatRelativeTime`, `getTextDirection`) are not re-exported here. A component that calls one
+directly imports it from `@comvi/core` and declares that package too — pnpm will not resolve it
+transitively. `useI18n()` hands back bound formatters, which need no extra import.
+
+Throughout this README, **the host** is the object `createI18n` returns: it holds the catalog, the
+current locale and `t()` — on this package
 that is a `VueI18n` wrapper, and the bare core host it wraps is public as `i18n.core`.
 
 📖 [Documentation](https://comvi.io/docs/i18n/vue/)
@@ -388,12 +394,12 @@ TypeScript catches are in the
 
 ## 7. What it weighs
 
-Measured min+gz through the published exports map, `vue` externalized, and gated in
-[`scripts/size-budgets.json`](../../scripts/size-budgets.json) at the recorded baseline + 5 %. Each
-row is also sentinel-checked against the emitted module graph, so "an unused re-export costs
-nothing" is a gate rather than a sentence.
+Measured min+gz through the package's published entry, with `vue` left out of the bundle, and
+checked in CI against [`scripts/size-budgets.json`](../../scripts/size-budgets.json) with 5 % of
+headroom. CI also reads the modules each bundle actually pulled in, so "a capability you never
+import costs nothing" is checked rather than asserted.
 
-| app shape                                   | fixture                 | min+gz  |
+| app shape                                   | measured as             | min+gz  |
 | ------------------------------------------- | ----------------------- | ------- |
 | base host + bindings + the `VueI18n` preset | `fw-vue-default`        | 7272 B  |
 | every capability composed, with `<T>`       | `fw-vue-full-composite` | 11791 B |
@@ -406,9 +412,10 @@ nothing" is a gate rather than a sentence.
   [ICU](../../docs/design/icu.md) · [rich text](../../docs/design/rich-text.md) ·
   [formatting](../../docs/design/formatting.md) · [SSR](../../docs/design/ssr.md) ·
   [limitations](../../docs/design/limitations.md)
-- **Upgrading from 0.4.x:** `pnpm codemod:framework-slim "src/**/*.{ts,vue}"` — it rewrites the
-  destructures and reports the proxy call sites, whose receiver type is textually undecidable. Then
-  [MIGRATION.md](https://github.com/comvi-io/comvi-js/blob/main/MIGRATION.md).
+- **Upgrading from 0.4.x:** the [0.5.0 migration guide](https://github.com/comvi-io/comvi-js/blob/main/MIGRATION.md), whose
+  §3 has the codemod recipe — it is a repo-internal script, run by absolute path from your app's
+  root, not a `pnpm` script you have. The codemod rewrites the destructures and
+  _reports_ the proxy call sites, whose receiver type is textually undecidable.
 - **Full API:** [comvi.io/docs/i18n/vue/](https://comvi.io/docs/i18n/vue/)
 
 ## License

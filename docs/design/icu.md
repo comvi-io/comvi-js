@@ -3,7 +3,7 @@
 Design note. The package READMEs show the one line that turns ICU on. This file is the reasoning and
 the full grammar reference behind it.
 
-The host is the i18n instance `createI18n` returns.
+The host is the object `createI18n` returns: it holds the catalog, the current locale and `t()`.
 
 ## Why ICU at all
 

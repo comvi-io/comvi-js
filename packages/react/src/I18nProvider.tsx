@@ -142,8 +142,8 @@ export interface I18nProviderProps {
   fallback?: React.ReactNode;
   /**
    * Render locale for the server snapshot — react's original name for it.
-   * Still wins over `ssrLocale` when both are passed (that precedence is
-   * unchanged).
+   * `ssrLocale` wins when both are passed: the canonical name should not lose
+   * to the alias it replaces.
    *
    * @deprecated Use `ssrLocale`, the cross-binding name; removed in 0.6.
    */
@@ -151,8 +151,8 @@ export interface I18nProviderProps {
   /**
    * Render locale for the server snapshot, under the cross-binding name
    * `@comvi/vue` and `@comvi/nuxt` also use. The canonical name — prefer it in
-   * new code. {@link I18nProviderProps.ssrInitialLocale} is react's legacy
-   * alias, kept for compatibility, and still wins when both are passed.
+   * new code, and it wins when {@link I18nProviderProps.ssrInitialLocale}, the
+   * legacy alias, is passed alongside it.
    */
   ssrLocale?: string;
   /** Initial loading state for SSR hydration. */
@@ -191,11 +191,14 @@ export function I18nProvider({
     if (!warnedAliasRef.current) {
       warnedAliasRef.current = true;
       console.warn(
-        `[i18n] <I18nProvider> got both ssrInitialLocale="${ssrInitialLocale}" and ssrLocale="${ssrLocale}". ssrInitialLocale wins; drop one. ssrLocale is the canonical cross-binding name (@comvi/vue, @comvi/nuxt); ssrInitialLocale is react's deprecated legacy alias, removed in 0.6.`,
+        `[i18n] <I18nProvider> got both ssrInitialLocale="${ssrInitialLocale}" and ssrLocale="${ssrLocale}". ssrLocale wins; drop one. ssrLocale is the canonical cross-binding name (@comvi/vue, @comvi/nuxt); ssrInitialLocale is react's deprecated legacy alias, removed in 0.6.`,
       );
     }
   }
-  const serverLocale = ssrInitialLocale ?? ssrLocale;
+  // `ssrLocale` first: it is the canonical cross-binding name, and a
+  // deprecated alias that overrode it meant the fix for the deprecation warning
+  // silently changed which locale the server painted.
+  const serverLocale = ssrLocale ?? ssrInitialLocale;
 
   useEffect(() => {
     if (autoInit && !i18n.isInitialized && !i18n.isInitializing) {

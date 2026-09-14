@@ -19,7 +19,8 @@
 
 `LocaleDetector` restores a saved locale from the first configured cache target, then walks an ordered list of detection sources, returns the first match, and persists the user's choice back to one or more caches. Set `cacheFirst: false` when the configured `order` should take priority over a saved locale. SSR-safe (gracefully skips browser-only APIs on the server) and supports BCP 47 lookup so `de-DE` matches `de` and vice versa.
 
-Throughout this README, **the host** is the i18n instance `createI18n` returns.
+Throughout this README, **the host** is the object `createI18n` returns: it holds the catalog, the
+current locale and `t()`.
 
 Comvi i18n is a framework-agnostic i18n library with ICU MessageFormat, rich text without XSS
 and typed translation keys. The [root README](https://github.com/comvi-io/comvi-js) has the
@@ -92,8 +93,8 @@ in place and hands that same host back, and `.use` refuses any other return
 value, whatever its shape.
 
 - `registerPlugin(localeDetector(…))` fails at `init()` with
-  `E_INSTALLER_AS_PLUGIN`, on the installer's first ensure-step, **before** the
-  plugin host is attached and before a second plugin reaches the queue. The
+  `E_INSTALLER_AS_PLUGIN`, the first thing the installer does, **before** the
+  plugin host is set up and before a second plugin reaches the queue. The
   message names `localeDetector` and the `.use` form.
 - `.use(LocaleDetector(…))` throws `E_USE_NOT_INSTALLER`: the plugin is not an
   installer, so what it hands back is not the host. `.use` calls it before it

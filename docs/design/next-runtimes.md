@@ -3,7 +3,7 @@
 Design note. `packages/next/README.md` has the five-setup-file quickstart. This file explains why it has
 five files rather than three, which is the question a reader asks once and then never again.
 
-The host is the i18n instance `createI18n` returns.
+The host is the object `createI18n` returns: it holds the catalog, the current locale and `t()`.
 
 ## The catalog travels; the composition does not
 

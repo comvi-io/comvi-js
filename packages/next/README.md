@@ -21,6 +21,11 @@
 React bindings, so one install is enough. Server Components get translations server-side, so there
 is no flash of untranslated content and no suspense waterfall for i18n.
 
+One exception: the free formatting functions (`formatNumber`, `formatDate`, `formatCurrency`,
+`formatRelativeTime`, `getTextDirection`) are not re-exported here. A component that calls one
+directly imports it from `@comvi/core` and declares that package too — pnpm will not resolve it
+transitively. `useI18n()` hands back bound formatters, which need no extra import.
+
 Throughout this README, **the host** is the i18n instance `createNextI18n` returns as `i18n`.
 
 📖 [Documentation](https://comvi.io/docs/i18n/next/) ·
@@ -51,6 +56,11 @@ Three things to know about the shape, and nothing more is needed to use it:
 - A catalog the server loaded travels to the client as `messages`.
 - The host's **composition** does not travel. Both runtimes get it by evaluating the same file.
 
+One call is not optional. The server helpers read the request locale from React's per-request
+cache, which either `createMiddleware()` fills or you fill with **`setRequestLocale(locale)`**. This
+quickstart has no middleware yet, so the layout calls it, and `getI18n()` throws
+`[comvi/next] Locale not set.` if nothing did.
+
 Runnable version: [`examples/next`](../../examples/next), which opens in
 [StackBlitz](https://stackblitz.com/github/comvi-io/comvi-js/tree/main/examples/next) straight from the repository — see
 [examples/README.md](../../examples/README.md) for the link pattern.
@@ -71,16 +81,12 @@ export const { i18n, routing } = createNextI18n({
   // `createNextI18n` composes ICU itself, so this line is the default rather than
   // a change; `createI18n` on the client/server entries does NOT, and needs it.
   compiler: icuCompiler,
-  // `"<locale>:<namespace>"` keys. A colon-less key is the LOCALE alone and
-  // its object is flattened into the default namespace, so a nested
-  // `{ en: { default: { greeting } } }` would define the key
-  // `default.greeting` and `t("greeting")` would render the literal key.
   translation: {
-    "en:default": {
+    en: {
       greeting: "Hello, {name}!",
       items: "{count, plural, one {# item} other {# items}}",
     },
-    "uk:default": {
+    uk: {
       greeting: "Привіт, {name}!",
       items: "{count, plural, one {# товар} few {# товари} many {# товарів} other {# товару}}",
     },
@@ -125,6 +131,7 @@ export function I18nClientProvider({
 
 ```tsx title="src/app/[locale]/layout.tsx" check=group=next-quickstart-inline
 import { notFound } from "next/navigation";
+import { setRequestLocale } from "@comvi/next/server";
 import { routing } from "@/i18n";
 import { I18nClientProvider } from "./I18nClientProvider";
 import "../globals.css";
@@ -141,6 +148,11 @@ export default async function LocaleLayout({
   if (!routing.locales.includes(locale)) {
     notFound();
   }
+
+  // REQUIRED before any server helper runs. `getI18n()` reads the locale from
+  // React's per-request cache, and this is what fills it; without middleware
+  // there is nothing else that would.
+  setRequestLocale(locale);
 
   return (
     <html lang={locale}>
@@ -222,7 +234,7 @@ import { i18n, routing } from "./i18n";
 setI18n(i18n);
 
 export { i18n, routing };
-export { getI18n, loadTranslations } from "@comvi/next/server";
+export { getI18n, loadTranslations, setRequestLocale } from "@comvi/next/server";
 ```
 
 ```tsx title="src/app/[locale]/I18nClientProvider.tsx" check=group=next-quickstart-cdn
@@ -251,7 +263,7 @@ export function I18nClientProvider({
 
 ```tsx title="src/app/[locale]/layout.tsx" check=group=next-quickstart-cdn
 import { notFound } from "next/navigation";
-import { routing, loadTranslations } from "@/i18n.server";
+import { routing, loadTranslations, setRequestLocale } from "@/i18n.server";
 import { I18nClientProvider } from "./I18nClientProvider";
 import "../globals.css";
 
@@ -267,6 +279,9 @@ export default async function LocaleLayout({
   if (!routing.locales.includes(locale)) {
     notFound();
   }
+
+  // REQUIRED before any server helper runs — see step 1.
+  setRequestLocale(locale);
 
   // Loaded server-side and handed to the client as `messages`.
   const messages = await loadTranslations(locale);
@@ -304,11 +319,34 @@ as: both are `Record<string, Record<string, TranslationValue>>`).
 Both read the instance `setI18n(i18n)` registered, so that call must run first — import the
 `"server-only"` module for its side effect.
 
+`getI18n()` also needs the request **locale**, which it reads from React's per-request cache.
+`createMiddleware()` fills that cache on every matched request; without middleware, or on a route
+the matcher skips, call **`setRequestLocale(locale)`** in the layout or page before the first
+helper. It is also what lets `generateStaticParams()` render these pages statically. Miss it and
+the helper throws `[comvi/next] Locale not set. Call setRequestLocale(locale) in your
+layout/page first, or configure middleware.` rather than guessing.
+`getLocale()` is the same read on its own.
+
 Next deduplicates `fetch()` across Server Components within one request, and the core loader
 deduplicates concurrent requests for the same locale and namespace.
 
 **Configure the server i18n once per process.** A second `setI18n(other)` throws, in development and
 production, naming both sources. A same-instance `setI18n()` is a no-op.
+
+### Namespaces and catalog keys
+
+A catalog is keyed by locale, as in the quickstart, or by `"<locale>:<namespace>"` when an app
+splits its keys. Both forms go in the same `translation` option, and either may be nested — every
+host flattens a nested object at the one place a catalog enters, so `{ nav: { home } }` resolves
+`t("nav.home")`.
+
+One trap worth knowing, because nothing catches it: a colon-less top-level key is the **locale
+alone**. So `{ en: { default: { greeting } } }` does not define `greeting` in the `default`
+namespace — it flattens to the key `default.greeting` in the default namespace, and `t("greeting")`
+renders the literal key. Write `"en:default"` when you mean the namespace.
+
+`getI18n({ ns: "admin" })` binds a namespace for a server component, and `useI18n("admin")` does the
+same on the client, at the type level too.
 
 ### Locale routing
 
@@ -457,17 +495,17 @@ the convenient shape.
 
 ### The six subpaths
 
-| subpath                  | what you import from it                                                               |
-| ------------------------ | ------------------------------------------------------------------------------------- |
-| `@comvi/next`            | `createNextI18n`, plus the capability toolkit below                                   |
-| `@comvi/next/client`     | `<I18nProvider>`, every react hook, `<T>`, plus the toolkit                           |
-| `@comvi/next/server`     | `setI18n`, `getI18n`, `loadTranslations`, `createNextI18nFromHost`, plus the toolkit  |
-| `@comvi/next/navigation` | `<Link>`, `usePathname`, `useLocalizedRouter` — the locale-aware navigation helpers   |
-| `@comvi/next/routing`    | `defineRouting`, `hasLocale`, `createGetPathname` — server-safe, no host in the graph |
-| `@comvi/next/middleware` | `createMiddleware`                                                                    |
+| subpath                  | what you import from it                                                                                               |
+| ------------------------ | --------------------------------------------------------------------------------------------------------------------- |
+| `@comvi/next`            | `createNextI18n`, plus the capability toolkit below                                                                   |
+| `@comvi/next/client`     | `<I18nProvider>`, every react hook, `<T>`, plus the toolkit                                                           |
+| `@comvi/next/server`     | `setI18n`, `setRequestLocale`, `getI18n`, `getLocale`, `loadTranslations`, `createNextI18nFromHost`, plus the toolkit |
+| `@comvi/next/navigation` | `<Link>`, `usePathname`, `useLocalizedRouter` — the locale-aware navigation helpers                                   |
+| `@comvi/next/routing`    | `defineRouting`, `hasLocale`, `createGetPathname` — server-safe, no host in the graph                                 |
+| `@comvi/next/middleware` | `createMiddleware`                                                                                                    |
 
-The first three each carry the base host constructor and the identical capability toolkit, so a
-next app never names `@comvi/core`:
+The first three each carry the base host constructor and the identical capability toolkit, so the
+host and its capabilities come from this package alone:
 
 | export                         | what it is                                                             |
 | ------------------------------ | ---------------------------------------------------------------------- |
@@ -519,15 +557,15 @@ TypeScript catches are in the
 Measured min+gz through the published exports map, `next` and `react` externalized, and gated in
 [`scripts/size-budgets.json`](../../scripts/size-budgets.json) at the recorded baseline + 5 %.
 
-| graph                                                            | fixture                         | min+gz |
+| graph                                                            | measured as                     | min+gz |
 | ---------------------------------------------------------------- | ------------------------------- | ------ |
 | server, `createNextI18nFromHost` on a composed base host         | `fw-next-server-default-loader` | 7372 B |
 | client, base host hydrated                                       | `fw-next-client-default`        | 7354 B |
 | the recommended path: `createNextI18n` + `loader` + `nextPlugin` | `fw-next-root-composed`         | 9450 B |
 
-A fully composed 0.4-style client is the migration ceiling rather than a parity claim: 0.4 also
-registered string-API tag syntax ambiently, and that is now an explicit `@comvi/core/tags` import
-which neither next entry re-exports.
+A 0.4 app that composes everything back lands near the third row — that is the most an upgrade can
+cost, not a like-for-like comparison: 0.4 also registered string-API tag syntax ambiently, and that
+is now an explicit `@comvi/core/tags` import which neither next entry re-exports.
 
 ## 8. Where to go next
 
@@ -539,9 +577,10 @@ which neither next entry re-exports.
   [limitations](../../docs/design/limitations.md)
 - **Upgrading from 0.4.x:** `use(plugin, options)` was Next's own scoped raw-plugin queue and is
   gone, and the four delegates `useClient`, `useServer`, `useClientLazy` and `useServerLazy` are
-  deleted rather than deprecated. Run `pnpm codemod:framework-slim "src/**/*.{ts,tsx,js,jsx}"`, then
-  see [MIGRATION.md](https://github.com/comvi-io/comvi-js/blob/main/MIGRATION.md) for the rename
-  table.
+  deleted rather than deprecated. See
+  [MIGRATION.md](https://github.com/comvi-io/comvi-js/blob/main/MIGRATION.md) for the rename table
+  and, in §3, the codemod recipe — a repo-internal script run by absolute path from your app's root,
+  not a `pnpm` script you have.
 - **Full API:** [comvi.io/docs/i18n/next/](https://comvi.io/docs/i18n/next/)
 
 ## License

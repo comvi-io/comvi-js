@@ -3,7 +3,7 @@
 Design note. The package READMEs name the formatters their binding hands back. This file is why they
 are free functions on core, and where the four bindings disagree about reactivity.
 
-The host is the i18n instance `createI18n` returns.
+The host is the object `createI18n` returns: it holds the catalog, the current locale and `t()`.
 
 ## Free functions, not members
 

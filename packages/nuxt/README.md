@@ -21,7 +21,13 @@
 `<NuxtLinkLocale>` are auto-imported, with SSR and locale-prefixed routes handled for you. App code
 imports nothing.
 
-Throughout this README, **the host** is the i18n instance `createI18n` returns. In a nuxt app you
+One exception: the free formatting functions (`formatNumber`, `formatDate`, `formatCurrency`,
+`formatRelativeTime`, `getTextDirection`) are auto-imported by nothing. A component that calls one
+directly imports it from `@comvi/core` and declares that package too — pnpm will not resolve it
+transitively. `useI18n()` hands back bound formatters, which need no extra import.
+
+Throughout this README, **the host** is the object `createI18n` returns: it holds the catalog, the
+current locale and `t()`. In a nuxt app you
 build it in one file, `comvi.host.ts`, and the module constructs it once per runtime — plus once per
 server request.
 
@@ -364,15 +370,15 @@ Measured min+gz through the published runtime subpaths, with `vue`, `#app`, `#bu
 externalized, and gated in [`scripts/size-budgets.json`](../../scripts/size-budgets.json) at the
 recorded baseline + 5 %. Each row is gated on its emitted module graph as well as its bytes.
 
-| graph                                                     | fixture                  | min+gz  |
+| graph                                                     | measured as              | min+gz  |
 | --------------------------------------------------------- | ------------------------ | ------- |
 | client: runtime plugin + `useI18n()` on the base host     | `fw-nuxt-client-default` | 8440 B  |
 | a `comvi.host.ts` through the `@comvi/nuxt/host` subpath  | `fw-nuxt-host`           | 8004 B  |
 | every capability composed: ICU, loader, plugins, devtools | `fw-nuxt-full-composite` | 12099 B |
 
-The client row is what a nuxt app with no host file builds. The last row is the migration ceiling
-for a fully composed 0.4 nuxt app rather than a parity claim: 0.4 also registered string-API tag
-syntax ambiently, which is now the separate `import "@comvi/core/tags"`.
+The client row is what a nuxt app with no host file builds. The last row is the most an upgrade can
+cost — a 0.4 app that composes everything back — rather than a like-for-like comparison: 0.4 also
+registered string-API tag syntax ambiently, which is now the separate `import "@comvi/core/tags"`.
 
 Beyond `h3` and `@nuxt/kit`, which every Nuxt app already has, there are no runtime dependencies. No
 `eval` or `new Function` anywhere, so it runs under a strict CSP without `unsafe-eval`.
@@ -387,8 +393,10 @@ Beyond `h3` and `@nuxt/kit`, which every Nuxt app already has, there are no runt
   [formatting](../../docs/design/formatting.md) · [SSR](../../docs/design/ssr.md) ·
   [limitations](../../docs/design/limitations.md)
 - **Upgrading from 0.4.x:** `comvi.host.ts` is where every capability is chosen, and that is the
-  whole of 0.5's change to this module. Run `pnpm codemod:framework-slim "app/**/*.{ts,vue}"`, then
-  see [MIGRATION.md](https://github.com/comvi-io/comvi-js/blob/main/MIGRATION.md).
+  whole of 0.5's change to this module. See
+  [MIGRATION.md](https://github.com/comvi-io/comvi-js/blob/main/MIGRATION.md), whose §3 has the
+  codemod recipe — a repo-internal script run by absolute path from your app's root, not a `pnpm`
+  script you have.
 - **Full API:** [comvi.io/docs/i18n/nuxt/](https://comvi.io/docs/i18n/nuxt/)
 
 ## License

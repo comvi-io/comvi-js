@@ -187,8 +187,8 @@ describe("@comvi/react SSR — a throwing tag handler is NOT contained on the se
 
 /**
  * W4/Q4 — `ssrLocale` is the cross-binding spelling of `ssrInitialLocale`
- * (`@comvi/vue` and `@comvi/nuxt` call the option that). Both are accepted;
- * react's original name stays canonical and wins when both are passed.
+ * (`@comvi/vue` and `@comvi/nuxt` call the option that). Both are accepted, and
+ * `ssrLocale` — the canonical name — wins when both are passed.
  */
 describe("@comvi/react SSR — ssrLocale, the cross-binding alias", () => {
   const withGreeting = () =>
@@ -214,7 +214,10 @@ describe("@comvi/react SSR — ssrLocale, the cross-binding alias", () => {
     expect(html.replaceAll("<!-- -->", "")).toContain("Hallo");
   });
 
-  it("loses to ssrInitialLocale when both are passed, and says so once", () => {
+  it("beats ssrInitialLocale when both are passed, and says so once", () => {
+    // The canonical name wins over the alias it replaces. It used to lose,
+    // which made the fix for the deprecation warning — adding `ssrLocale` —
+    // silently not change which locale the server painted.
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
 
     const html = renderToString(
@@ -223,9 +226,10 @@ describe("@comvi/react SSR — ssrLocale, the cross-binding alias", () => {
       </I18nProvider>,
     );
 
-    expect(html).toContain('data-locale="en"');
+    expect(html).toContain('data-locale="de"');
+    expect(html.replaceAll("<!-- -->", "")).toContain("Hallo");
     expect(warn).toHaveBeenCalledTimes(1);
-    expect(warn.mock.calls[0]![0]).toContain("ssrInitialLocale wins");
+    expect(warn.mock.calls[0]![0]).toContain("ssrLocale wins");
   });
 
   it("stays silent when only one of the two is passed", () => {

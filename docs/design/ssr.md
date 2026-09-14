@@ -4,7 +4,7 @@ Design note, and the draft of the cross-framework SSR page for the site. Each pa
 the rule for its own framework; this file is the only place all four sit side by side, because the
 rules genuinely disagree and a reader who generalises from one gets the next one wrong.
 
-The host is the i18n instance `createI18n` returns.
+The host is the object `createI18n` returns: it holds the catalog, the current locale and `t()`.
 
 ## The one question that decides everything
 
@@ -186,8 +186,9 @@ React has no SSR entry of its own; whichever framework renders it sets the modul
 react contributes is the pair of props that make a server render and its hydration agree.
 
 - **`ssrLocale`** is the locale the server snapshot renders in. `ssrInitialLocale` is react's
-  original name for the same prop, kept as a legacy alias: when both are passed `ssrInitialLocale`
-  wins and a development build warns. Prefer `ssrLocale` — it is the name `@comvi/vue`,
+  original name for the same prop, kept as a legacy alias: when both are passed `ssrLocale` wins —
+  the canonical name should not lose to the alias it replaces — and a development build warns that
+  it did. Prefer `ssrLocale` — it is the name `@comvi/vue`,
   `@comvi/solid` and `@comvi/nuxt` use, so one shared SSR layer passes one name to every binding.
   `@comvi/next` takes the render locale from its own `locale` prop and accepts neither.
 - **`ssrInitialIsInitializing`** decides whether the server render is gated by `fallback`, and it is
